@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -293,6 +294,240 @@ func TestClusterMessageEventFinishFlushUsesSingleProposal(t *testing.T) {
 	}
 }
 
+func TestClusterMessageEventCoalescesConcurrentFinishesForSameChannel(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	channelID := "message-event-finish-coalesce"
+	route := waitRouteKeyLeaderReady(t, node, channelID)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	for _, clientMsgNo := range []string{"cmn-coalesce-a", "cmn-coalesce-b"} {
+		if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: clientMsgNo,
+			EventID:     "evt-delta-" + clientMsgNo,
+			EventKey:    "main",
+			EventType:   metadb.EventTypeStreamDelta,
+			Visibility:  metadb.VisibilityPublic,
+			OccurredAt:  1000,
+			Payload:     []byte(`{"kind":"text","delta":"` + clientMsgNo + `"}`),
+			UpdatedAt:   1001,
+		}); err != nil {
+			t.Fatalf("AppendMessageEvent(delta %s) error = %v", clientMsgNo, err)
+		}
+	}
+
+	proposer := wrapNodeResultProposer(t, node)
+	before := proposer.resultCallCount()
+	var wg sync.WaitGroup
+	results := make([]metadb.MessageEventAppendResult, 2)
+	errs := make([]error, 2)
+	for i, clientMsgNo := range []string{"cmn-coalesce-a", "cmn-coalesce-b"} {
+		i, clientMsgNo := i, clientMsgNo
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i], errs[i] = node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+				ChannelID:   channelID,
+				ChannelType: 2,
+				ClientMsgNo: clientMsgNo,
+				EventID:     "evt-finish-" + clientMsgNo,
+				EventType:   metadb.EventTypeStreamFinish,
+				Visibility:  metadb.VisibilityPublic,
+				OccurredAt:  1002 + int64(i),
+				Payload:     []byte(`{"end_reason":3}`),
+				UpdatedAt:   1004 + int64(i),
+			})
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("AppendMessageEvent(finish %d) error = %v", i, err)
+		}
+	}
+	if got := proposer.resultCallCount() - before; got != 1 {
+		t.Fatalf("coalesced finish result proposals = %d, want 1", got)
+	}
+	for i, clientMsgNo := range []string{"cmn-coalesce-a", "cmn-coalesce-b"} {
+		if results[i].ClientMsgNo != clientMsgNo || results[i].EventKey != metadb.EventKeyFinish || results[i].MsgEventSeq == 0 {
+			t.Fatalf("finish result %d = %#v, want result for %s finish marker", i, results[i], clientMsgNo)
+		}
+		states, err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListMessageEventStates(ctx, channelID, 2, clientMsgNo, 10)
+		if err != nil {
+			t.Fatalf("ListMessageEventStates(%s) error = %v", clientMsgNo, err)
+		}
+		if len(states) != 2 {
+			t.Fatalf("states for %s = %#v, want flushed main lane and finish marker", clientMsgNo, states)
+		}
+	}
+}
+
+func TestClusterMessageEventFinishWithoutCachedLanesFailsClosed(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	channelID := "message-event-finish-cache-miss"
+	waitRouteKeyLeaderReady(t, node, channelID)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	proposer := wrapNodeResultProposer(t, node)
+	before := proposer.resultCallCount()
+	_, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+		ChannelID:   channelID,
+		ChannelType: 2,
+		ClientMsgNo: "cmn-finish-cache-miss",
+		EventID:     "evt-finish",
+		EventType:   metadb.EventTypeStreamFinish,
+		Visibility:  metadb.VisibilityPublic,
+		OccurredAt:  1002,
+		Payload:     []byte(`{"end_reason":3}`),
+		UpdatedAt:   1003,
+	})
+	if !errors.Is(err, ErrMessageEventStreamCacheMiss) {
+		t.Fatalf("AppendMessageEvent(finish without cache) error = %v, want ErrMessageEventStreamCacheMiss", err)
+	}
+	if got := proposer.resultCallCount() - before; got != 0 {
+		t.Fatalf("finish cache miss proposals = %d, want 0", got)
+	}
+}
+
+func TestClusterMessageEventCacheClearsWhenLocalSlotLeadershipIsLost(t *testing.T) {
+	observer := &recordingMessageEventObserver{}
+	node := &Node{
+		cfg:                     Config{NodeID: 1, MessageEvent: MessageEventConfig{Observer: observer}},
+		router:                  routing.NewRouter(),
+		messageEventStreamCache: newMessageEventStreamCache(0),
+	}
+	snapshot := routeAuthoritySnapshot(1)
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.started.Store(true)
+
+	channelID := "message-event-clear-on-leader-loss"
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+		ChannelID:   channelID,
+		ChannelType: 2,
+		ClientMsgNo: "cmn-clear-on-leader-loss",
+		EventID:     "evt-delta",
+		EventKey:    "main",
+		EventType:   metadb.EventTypeStreamDelta,
+		Visibility:  metadb.VisibilityPublic,
+		OccurredAt:  1000,
+		Payload:     []byte(`{"kind":"text","delta":"stale"}`),
+		UpdatedAt:   1001,
+	}); err != nil {
+		t.Fatalf("AppendMessageEvent(delta) error = %v", err)
+	}
+	if cache := observer.lastCache(); cache.Sessions != 1 || cache.OpenLanes != 1 {
+		t.Fatalf("cache after delta = %#v, want one open session", cache)
+	}
+
+	before := node.router.Table()
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
+	node.publishRouteAuthorityChanges(before, node.router.Table())
+
+	if cache := observer.lastCache(); cache.Sessions != 0 || cache.OpenLanes != 0 || cache.PayloadBytes != 0 {
+		t.Fatalf("cache after local leadership loss = %#v, want empty cache", cache)
+	}
+}
+
+func TestClusterMessageEventObserverTracksCacheAndFinishBatch(t *testing.T) {
+	observer := &recordingMessageEventObserver{}
+	cfg := Config{NodeID: 1, ListenAddr: freeTCPAddr(t), DataDir: t.TempDir()}
+	cfg.Control.ClusterID = "cluster-message-event-observer"
+	cfg.Slots.InitialSlotCount = 1
+	cfg.Slots.HashSlotCount = 4
+	cfg.Slots.ReplicaCount = 1
+	cfg.Channel.TickInterval = time.Millisecond
+	cfg.MessageEvent.Observer = observer
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New(single node) error = %v", err)
+	}
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	channelID := "message-event-observer"
+	waitRouteKeyLeaderReady(t, node, channelID)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	for _, tc := range []struct {
+		eventID string
+		key     string
+		delta   string
+	}{
+		{eventID: "evt-main-delta", key: "main", delta: "answer"},
+		{eventID: "evt-tool-delta", key: "tool", delta: "lookup"},
+	} {
+		if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: "cmn-observer",
+			EventID:     tc.eventID,
+			EventKey:    tc.key,
+			EventType:   metadb.EventTypeStreamDelta,
+			Visibility:  metadb.VisibilityPublic,
+			OccurredAt:  1000,
+			Payload:     []byte(`{"kind":"text","delta":"` + tc.delta + `"}`),
+			UpdatedAt:   1001,
+		}); err != nil {
+			t.Fatalf("AppendMessageEvent(%s delta) error = %v", tc.key, err)
+		}
+	}
+	if got := observer.proposeCount(); got != 0 {
+		t.Fatalf("propose observations after cache-only deltas = %d, want 0", got)
+	}
+	cache := observer.lastCache()
+	if cache.Sessions != 1 || cache.OpenLanes != 2 || cache.PayloadBytes == 0 || cache.MaxSessions != defaultMessageEventStreamCacheMaxSessions {
+		t.Fatalf("cache observation after deltas = %#v, want one session/two lanes/non-zero bytes/default max", cache)
+	}
+
+	if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+		ChannelID:   channelID,
+		ChannelType: 2,
+		ClientMsgNo: "cmn-observer",
+		EventID:     "evt-finish",
+		EventType:   metadb.EventTypeStreamFinish,
+		Visibility:  metadb.VisibilityPublic,
+		OccurredAt:  1002,
+		Payload:     []byte(`{"end_reason":3}`),
+		UpdatedAt:   1003,
+	}); err != nil {
+		t.Fatalf("AppendMessageEvent(finish) error = %v", err)
+	}
+	observer.requireAppend(t, "cache", metadb.EventTypeStreamDelta, "ok")
+	observer.requireAppend(t, "finish_batch", metadb.EventTypeStreamFinish, "ok")
+	observer.requirePropose(t, "finish_batch", "ok", 3)
+	observer.requireAppendStage(t, "finish_batch", "ok", "finish_batch_build")
+	observer.requireAppendStage(t, "finish_batch", "ok", "finish_cache_remove")
+	observer.requireProposeStage(t, "finish_batch", "ok", "encode")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_propose_wait")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_propose_submit")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_future_wait")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_control_wait")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_raft_commit_wait")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_fsm_apply")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_fsm_commit")
+	observer.requireProposeStage(t, "finish_batch", "ok", "slot_mark_applied")
+	observer.requireProposeStage(t, "finish_batch", "ok", "decode")
+	cache = observer.lastCache()
+	if cache.Sessions != 0 || cache.OpenLanes != 0 || cache.PayloadBytes != 0 {
+		t.Fatalf("cache observation after finish = %#v, want empty cache", cache)
+	}
+}
+
 func TestClusterGetMessageEventStatesBatchRoutesEachMessage(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
@@ -511,4 +746,106 @@ func (p *countingResultProposer) resultCallCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.resultCalls
+}
+
+type recordingMessageEventObserver struct {
+	mu            sync.Mutex
+	appends       []MessageEventAppendObservation
+	appendStages  []MessageEventAppendStageObservation
+	proposes      []MessageEventProposeObservation
+	proposeStages []MessageEventProposeStageObservation
+	caches        []MessageEventStreamCacheObservation
+}
+
+func (o *recordingMessageEventObserver) ObserveMessageEventAppend(event MessageEventAppendObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.appends = append(o.appends, event)
+}
+
+func (o *recordingMessageEventObserver) ObserveMessageEventAppendStage(event MessageEventAppendStageObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.appendStages = append(o.appendStages, event)
+}
+
+func (o *recordingMessageEventObserver) ObserveMessageEventPropose(event MessageEventProposeObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.proposes = append(o.proposes, event)
+}
+
+func (o *recordingMessageEventObserver) ObserveMessageEventProposeStage(event MessageEventProposeStageObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.proposeStages = append(o.proposeStages, event)
+}
+
+func (o *recordingMessageEventObserver) SetMessageEventStreamCache(event MessageEventStreamCacheObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.caches = append(o.caches, event)
+}
+
+func (o *recordingMessageEventObserver) proposeCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.proposes)
+}
+
+func (o *recordingMessageEventObserver) lastCache() MessageEventStreamCacheObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.caches) == 0 {
+		return MessageEventStreamCacheObservation{}
+	}
+	return o.caches[len(o.caches)-1]
+}
+
+func (o *recordingMessageEventObserver) requireAppend(t *testing.T, path, eventType, result string) {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, event := range o.appends {
+		if event.Path == path && event.EventType == eventType && event.Result == result {
+			return
+		}
+	}
+	t.Fatalf("append observations = %#v, missing path=%s event_type=%s result=%s", o.appends, path, eventType, result)
+}
+
+func (o *recordingMessageEventObserver) requirePropose(t *testing.T, path, result string, batchSize int) {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, event := range o.proposes {
+		if event.Path == path && event.Result == result && event.BatchSize == batchSize {
+			return
+		}
+	}
+	t.Fatalf("propose observations = %#v, missing path=%s result=%s batch_size=%d", o.proposes, path, result, batchSize)
+}
+
+func (o *recordingMessageEventObserver) requireAppendStage(t *testing.T, path, result, stage string) {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, event := range o.appendStages {
+		if event.Path == path && event.Result == result && event.Stage == stage {
+			return
+		}
+	}
+	t.Fatalf("append stage observations = %#v, missing path=%s result=%s stage=%s", o.appendStages, path, result, stage)
+}
+
+func (o *recordingMessageEventObserver) requireProposeStage(t *testing.T, path, result, stage string) {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, event := range o.proposeStages {
+		if event.Path == path && event.Result == result && event.Stage == stage {
+			return
+		}
+	}
+	t.Fatalf("propose stage observations = %#v, missing path=%s result=%s stage=%s", o.proposeStages, path, result, stage)
 }

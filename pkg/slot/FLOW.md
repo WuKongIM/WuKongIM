@@ -123,6 +123,11 @@ Slot leader 节点内，只在 terminal stream event 到达时提交 durable pro
 state，并与 reserved finish marker 一起编码成一个 batch command/result
 proposal。投影只保存每条消息各 event lane 的压缩状态和消息级 cursor，不保存原始事件日志，
 `/message/eventsync` 的逐事件增量接口不在这一层实现。
+同一个 channel-owned hash slot 内的 `AppendMessageEventsBatch` 可以携带多个
+`client_msg_no`，用于上层 Slot leader 把同 channel 的并发 `stream.finish`
+合并成一次 durable proposal。FSM 对 batch 中每个 event 都产生
+`MessageEventAppendResult`，batch apply result 使用多结果编码返回；旧的单结果
+decoder 在多结果 payload 上仍返回最后一条结果，以保持已有单 stream finish 路径兼容。
 
 ### 5.2 读取（本地 vs 权威 RPC）
 

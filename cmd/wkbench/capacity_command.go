@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
+	"github.com/WuKongIM/WuKongIM/internal/bench/messageevent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -23,6 +24,7 @@ func newCapacityCommand(stderr io.Writer) *cobra.Command {
 		newCapacitySendCommand(stderr),
 		newCapacityHotChannelCommand(stderr),
 		newCapacityActivateChannelsCommand(stderr),
+		newCapacityMessageEventCommand(stderr),
 	)
 	return cmd
 }
@@ -78,6 +80,23 @@ func newCapacityActivateChannelsCommand(stderr io.Writer) *cobra.Command {
 		},
 	}
 	bindCapacityActivateChannelsFlags(cmd.Flags(), &cfg, &apiCSV, &gatewayCSV)
+	return cmd
+}
+
+func newCapacityMessageEventCommand(stderr io.Writer) *cobra.Command {
+	cfg := messageevent.DefaultConfig()
+	var apiCSV string
+	cmd := &cobra.Command{
+		Use:   "message-event",
+		Short: "Run fixed message event stream pressure against an existing cluster",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := finalizeCapacityMessageEventConfig(&cfg, apiCSV); err != nil {
+				return exitConfigError(err)
+			}
+			return exitCodeError(runCapacityMessageEventConfig(cfg, stderr))
+		},
+	}
+	bindCapacityMessageEventFlags(cmd.Flags(), &cfg, &apiCSV)
 	return cmd
 }
 
@@ -142,4 +161,19 @@ func bindCapacityActivateChannelsFlags(flags *pflag.FlagSet, cfg *capacity.Activ
 	flags.Float64Var(&cfg.MaxConnectErrorRate, "max-connect-error-rate", cfg.MaxConnectErrorRate, "maximum allowed connect error rate")
 	flags.BoolVar(&cfg.EvictAfter, "evict-after", cfg.EvictAfter, "evict generated channel runtime state after probing")
 	flags.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "activation report output directory")
+}
+
+func bindCapacityMessageEventFlags(flags *pflag.FlagSet, cfg *messageevent.Config, apiCSV *string) {
+	flags.StringVar(apiCSV, "api", "", "comma-separated target HTTP API base addresses")
+	flags.StringVar(&cfg.RunID, "run-id", cfg.RunID, "stable benchmark run identifier")
+	flags.IntVar(&cfg.Channels, "channels", cfg.Channels, "number of generated group channels")
+	flags.IntVar(&cfg.StreamsPerChannel, "streams-per-channel", cfg.StreamsPerChannel, "stream base messages generated per channel")
+	flags.IntVar(&cfg.LanesPerStream, "lanes-per-stream", cfg.LanesPerStream, "event keys updated before each stream finish")
+	flags.IntVar(&cfg.DeltasPerLane, "deltas-per-lane", cfg.DeltasPerLane, "stream.delta updates sent to each event key")
+	flags.IntVar(&cfg.PayloadBytes, "payload-bytes", cfg.PayloadBytes, "approximate stream.delta payload bytes")
+	flags.IntVar(&cfg.Concurrency, "concurrency", cfg.Concurrency, "maximum in-flight stream workflows")
+	flags.DurationVar(&cfg.RequestTimeout, "request-timeout", cfg.RequestTimeout, "timeout for each public HTTP API request")
+	flags.BoolVar(&cfg.WarmChannels, "warm-channels", cfg.WarmChannels, "create generated channels before measured message-event metrics snapshots")
+	flags.BoolVar(&cfg.WarmRuntime, "warm-runtime", cfg.WarmRuntime, "send one normal message per generated channel before measured message-event metrics snapshots")
+	flags.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "message event report output directory")
 }

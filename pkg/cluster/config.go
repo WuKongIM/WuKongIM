@@ -45,6 +45,8 @@ type Config struct {
 	Storage StorageConfig
 	// Transport contains default cluster node-to-node transport tuning and observation hooks.
 	Transport TransportConfig
+	// MessageEvent contains message event projection observation hooks.
+	MessageEvent MessageEventConfig
 	// Timeouts contains lifecycle timeout budgets.
 	Timeouts TimeoutConfig
 	// Goroutines is the optional goroutine registry for lifecycle tracking across all cluster subsystems.
@@ -233,6 +235,94 @@ type StorageConfig struct {
 type TransportConfig struct {
 	// Observer receives transport queue, peer, service, and pending-RPC pressure observations for the default node RPC transport.
 	Observer transport.Observer
+}
+
+// MessageEventConfig contains message event projection observation settings.
+type MessageEventConfig struct {
+	// Observer receives low-cardinality message event cache and durable proposal observations.
+	Observer MessageEventObserver
+}
+
+// MessageEventAppendObservation reports one message event append path outcome.
+type MessageEventAppendObservation struct {
+	// Path is a bounded append path such as cache, durable, finish_batch, or forward.
+	Path string
+	// EventType is the normalized message event type.
+	EventType string
+	// Result is a bounded result class.
+	Result string
+	// Duration is the elapsed append path latency.
+	Duration time.Duration
+}
+
+// MessageEventProposeObservation reports one durable Slot proposal carrying message events.
+type MessageEventProposeObservation struct {
+	// Path is a bounded durable proposal path such as durable or finish_batch.
+	Path string
+	// Result is a bounded result class.
+	Result string
+	// BatchSize is the number of event updates carried by this proposal.
+	BatchSize int
+	// Duration is the elapsed Slot proposal latency.
+	Duration time.Duration
+}
+
+// MessageEventAppendStageObservation reports a bounded stage within a message event append path.
+type MessageEventAppendStageObservation struct {
+	// Path is a bounded append path such as durable or finish_batch.
+	Path string
+	// Result is a bounded result class for the whole append attempt.
+	Result string
+	// Stage is a bounded append stage such as finish_batch_build.
+	Stage string
+	// Duration is the elapsed stage latency.
+	Duration time.Duration
+}
+
+// MessageEventProposeStageObservation reports a bounded stage within a message event proposal path.
+type MessageEventProposeStageObservation struct {
+	// Path is a bounded durable proposal path such as durable or finish_batch.
+	Path string
+	// Result is a bounded result class for the whole proposal attempt.
+	Result string
+	// Stage is a bounded proposal stage such as slot_propose_wait.
+	Stage string
+	// Duration is the elapsed stage latency.
+	Duration time.Duration
+}
+
+// MessageEventStreamCacheObservation reports current Slot-leader stream-cache pressure.
+type MessageEventStreamCacheObservation struct {
+	// Sessions is the number of message stream sessions retained by the cache.
+	Sessions int
+	// OpenLanes is the number of non-terminal stream lanes currently buffered.
+	OpenLanes int
+	// PayloadBytes is the total cached snapshot payload bytes retained in memory.
+	PayloadBytes int64
+	// MaxSessions is the configured maximum number of retained stream sessions.
+	MaxSessions int
+}
+
+// MessageEventObserver receives low-cardinality message event observations for metrics.
+type MessageEventObserver interface {
+	// ObserveMessageEventAppend observes one message event append path result.
+	ObserveMessageEventAppend(MessageEventAppendObservation)
+	// ObserveMessageEventPropose observes one durable Slot proposal carrying message events.
+	ObserveMessageEventPropose(MessageEventProposeObservation)
+	// SetMessageEventStreamCache publishes current stream-cache pressure gauges.
+	SetMessageEventStreamCache(MessageEventStreamCacheObservation)
+}
+
+// MessageEventAppendStageObserver is an optional observer extension for append stage attribution.
+type MessageEventAppendStageObserver interface {
+	// ObserveMessageEventAppendStage observes one bounded append stage.
+	ObserveMessageEventAppendStage(MessageEventAppendStageObservation)
+}
+
+// MessageEventProposeStageObserver is an optional observer extension for proposal stage attribution.
+type MessageEventProposeStageObserver interface {
+	// ObserveMessageEventProposeStage observes one bounded proposal stage.
+	ObserveMessageEventProposeStage(MessageEventProposeStageObservation)
 }
 
 // TimeoutConfig contains lifecycle timeout budgets.

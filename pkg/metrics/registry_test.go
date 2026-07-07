@@ -1404,6 +1404,17 @@ func TestRegistryExposesMessageMetrics(t *testing.T) {
 	reg.Message.ObserveMetaRefresh("cache_hit", 3*time.Millisecond)
 	reg.Message.ObserveAppend("local", "ok", 5*time.Millisecond)
 	reg.Message.ObserveAppendError("channelplane", "timeout")
+	reg.Message.ObserveEventAppend("cache", "stream.delta", "ok", 2*time.Millisecond)
+	reg.Message.ObserveEventAppendStage("finish_batch", "ok", "finish_batch_build", 4*time.Millisecond)
+	reg.Message.ObserveEventPropose("finish_batch", "ok", 3, 8*time.Millisecond)
+	reg.Message.ObserveEventProposeStage("finish_batch", "ok", "slot_propose_wait", 7*time.Millisecond)
+	reg.Message.ObserveEventProposeStage("finish_batch", "ok", "slot_fsm_commit", 6*time.Millisecond)
+	reg.Message.SetEventStreamCache(MessageEventStreamCacheObservation{
+		Sessions:     2,
+		OpenLanes:    3,
+		PayloadBytes: 128,
+		MaxSessions:  50000,
+	})
 	reg.Message.SetCommittedDispatchQueueDepth("0", 7)
 	reg.Message.ObserveCommittedDispatchEnqueue("0", "ok")
 	reg.Message.ObserveCommittedDispatchEnqueue("0", "overflow")
@@ -1418,6 +1429,60 @@ func TestRegistryExposesMessageMetrics(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_message_append_total")
 	requireMetricFamily(t, families, "wukongim_message_append_duration_seconds")
 	requireMetricFamily(t, families, "wukongim_message_append_errors_total")
+	eventAppend := requireMetricFamily(t, families, "wukongim_message_event_append_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, eventAppend, map[string]string{
+		"node_id":    "1",
+		"node_name":  "n1",
+		"path":       "cache",
+		"event_type": "stream.delta",
+		"result":     "ok",
+	}).GetCounter().GetValue())
+	requireMetricFamily(t, families, "wukongim_message_event_append_duration_seconds")
+	eventAppendStage := requireMetricFamily(t, families, "wukongim_message_event_append_stage_duration_seconds")
+	require.Equal(t, 0.004, findMetricByLabels(t, eventAppendStage, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"path":      "finish_batch",
+		"result":    "ok",
+		"stage":     "finish_batch_build",
+	}).GetHistogram().GetSampleSum())
+	eventPropose := requireMetricFamily(t, families, "wukongim_message_event_propose_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, eventPropose, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"path":      "finish_batch",
+		"result":    "ok",
+	}).GetCounter().GetValue())
+	eventBatch := requireMetricFamily(t, families, "wukongim_message_event_propose_batch_events")
+	require.Equal(t, float64(3), findMetricByLabels(t, eventBatch, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"path":      "finish_batch",
+		"result":    "ok",
+	}).GetHistogram().GetSampleSum())
+	eventProposeStage := requireMetricFamily(t, families, "wukongim_message_event_propose_stage_duration_seconds")
+	require.Equal(t, 0.007, findMetricByLabels(t, eventProposeStage, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"path":      "finish_batch",
+		"result":    "ok",
+		"stage":     "slot_propose_wait",
+	}).GetHistogram().GetSampleSum())
+	require.Equal(t, 0.006, findMetricByLabels(t, eventProposeStage, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"path":      "finish_batch",
+		"result":    "ok",
+		"stage":     "slot_fsm_commit",
+	}).GetHistogram().GetSampleSum())
+	cacheSessions := requireMetricFamily(t, families, "wukongim_message_event_stream_cache_sessions")
+	require.Equal(t, float64(2), cacheSessions.GetMetric()[0].GetGauge().GetValue())
+	cacheLanes := requireMetricFamily(t, families, "wukongim_message_event_stream_cache_open_lanes")
+	require.Equal(t, float64(3), cacheLanes.GetMetric()[0].GetGauge().GetValue())
+	cacheBytes := requireMetricFamily(t, families, "wukongim_message_event_stream_cache_payload_bytes")
+	require.Equal(t, float64(128), cacheBytes.GetMetric()[0].GetGauge().GetValue())
+	cacheMax := requireMetricFamily(t, families, "wukongim_message_event_stream_cache_max_sessions")
+	require.Equal(t, float64(50000), cacheMax.GetMetric()[0].GetGauge().GetValue())
 	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_queue_depth")
 	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_enqueue_total")
 	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_overflow_total")

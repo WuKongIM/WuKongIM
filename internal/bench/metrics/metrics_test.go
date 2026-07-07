@@ -161,6 +161,28 @@ wukongim_channelv2_worker_queue_depth{node_id="1",node_name="node-1",pool="store
 	}
 }
 
+func TestParsePrometheusTextAllowsSpacesInsideQuotedLabelValues(t *testing.T) {
+	snapshot, err := ParsePrometheusText(strings.NewReader(`
+wukongim_runtime_pool_admission_total{component="transport",queue="controller raft",result="ok"} 757
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText: %v", err)
+	}
+	if len(snapshot.Samples) != 1 {
+		t.Fatalf("len(samples) = %d, want 1", len(snapshot.Samples))
+	}
+	sample := snapshot.Samples[0]
+	if sample.Name != "wukongim_runtime_pool_admission_total" {
+		t.Fatalf("name = %q", sample.Name)
+	}
+	if sample.Labels["queue"] != "controller raft" {
+		t.Fatalf("queue label = %q", sample.Labels["queue"])
+	}
+	if sample.Value != 757 {
+		t.Fatalf("value = %v, want 757", sample.Value)
+	}
+}
+
 func TestAnalyzeWukongIMPrometheusReportsMessageAppendErrorCounters(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_message_append_errors_total{path="channelplane",class="route_not_ready"} 2

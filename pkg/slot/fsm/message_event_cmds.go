@@ -29,6 +29,7 @@ const (
 	tagMessageEventResultSeq         uint8 = 6
 	tagMessageEventResultStatus      uint8 = 7
 	tagMessageEventResultState       uint8 = 8
+	tagMessageEventResultBatchEntry  uint8 = 9
 
 	tagMessageEventStateChannelID       uint8 = 1
 	tagMessageEventStateChannelType     uint8 = 2
@@ -46,7 +47,10 @@ const (
 	tagMessageEventStateUpdatedAt       uint8 = 14
 )
 
-var messageEventAppendResultMagic = [...]byte{'W', 'K', 'M', 'E', 1}
+var (
+	messageEventAppendResultMagic  = [...]byte{'W', 'K', 'M', 'E', 1}
+	messageEventAppendResultsMagic = [...]byte{'W', 'K', 'M', 'R', 1}
+)
 
 type appendMessageEventCmd struct {
 	event  metadb.MessageEventAppend
@@ -54,8 +58,9 @@ type appendMessageEventCmd struct {
 }
 
 type appendMessageEventsBatchCmd struct {
-	events []metadb.MessageEventAppend
-	result metadb.MessageEventAppendResult
+	events  []metadb.MessageEventAppend
+	result  metadb.MessageEventAppendResult
+	results []metadb.MessageEventAppendResult
 }
 
 func (c *appendMessageEventCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
@@ -81,11 +86,15 @@ func (c *appendMessageEventsBatchCmd) apply(wb *metadb.WriteBatch, hashSlot uint
 			return err
 		}
 		c.result = result
+		c.results = append(c.results, result)
 	}
 	return nil
 }
 
 func (c *appendMessageEventsBatchCmd) applyResult() []byte {
+	if len(c.results) > 1 {
+		return EncodeAppendMessageEventResults(c.results)
+	}
 	return EncodeAppendMessageEventResult(c.result)
 }
 
@@ -145,6 +154,10 @@ func EncodeAppendMessageEventsCommandChecked(events []metadb.MessageEventAppend)
 func EncodeAppendMessageEventResult(result metadb.MessageEventAppendResult) []byte {
 	buf := make([]byte, 0, len(messageEventAppendResultMagic)+128+len(result.State.SnapshotPayload))
 	buf = append(buf, messageEventAppendResultMagic[:]...)
+	return appendMessageEventResultFields(buf, result)
+}
+
+func appendMessageEventResultFields(buf []byte, result metadb.MessageEventAppendResult) []byte {
 	buf = appendStringTLVField(buf, tagMessageEventResultChannelID, result.ChannelID)
 	buf = appendInt64TLVField(buf, tagMessageEventResultChannelType, result.ChannelType)
 	buf = appendStringTLVField(buf, tagMessageEventResultClientMsgNo, result.ClientMsgNo)
@@ -156,14 +169,78 @@ func EncodeAppendMessageEventResult(result metadb.MessageEventAppendResult) []by
 	return buf
 }
 
+// EncodeAppendMessageEventResults encodes per-event reducer results returned by a batch append.
+func EncodeAppendMessageEventResults(results []metadb.MessageEventAppendResult) []byte {
+	if len(results) == 1 {
+		return EncodeAppendMessageEventResult(results[0])
+	}
+	capacity := len(messageEventAppendResultsMagic)
+	for _, result := range results {
+		capacity += tlvOverhead + 128 + len(result.State.SnapshotPayload)
+	}
+	buf := make([]byte, 0, capacity)
+	buf = append(buf, messageEventAppendResultsMagic[:]...)
+	for _, result := range results {
+		entry := appendMessageEventResultFields(make([]byte, 0, 128+len(result.State.SnapshotPayload)), result)
+		buf = appendBytesTLVField(buf, tagMessageEventResultBatchEntry, entry)
+	}
+	return buf
+}
+
 // DecodeAppendMessageEventResult decodes Slot FSM apply bytes for an event append.
 func DecodeAppendMessageEventResult(data []byte) (metadb.MessageEventAppendResult, error) {
+	results, err := DecodeAppendMessageEventResults(data)
+	if err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	return results[len(results)-1], nil
+}
+
+// DecodeAppendMessageEventResults decodes one or more Slot FSM apply results for event appends.
+func DecodeAppendMessageEventResults(data []byte) ([]metadb.MessageEventAppendResult, error) {
+	if len(data) >= len(messageEventAppendResultsMagic) && bytes.Equal(data[:len(messageEventAppendResultsMagic)], messageEventAppendResultsMagic[:]) {
+		results := make([]metadb.MessageEventAppendResult, 0, 4)
+		off := len(messageEventAppendResultsMagic)
+		for off < len(data) {
+			tag, value, n, err := readTLV(data[off:])
+			if err != nil {
+				return nil, err
+			}
+			off += n
+			switch tag {
+			case tagMessageEventResultBatchEntry:
+				result, err := decodeAppendMessageEventResultFields(value)
+				if err != nil {
+					return nil, err
+				}
+				results = append(results, result)
+			default:
+				// Unknown tag -- skip for forward compatibility.
+			}
+		}
+		if len(results) == 0 {
+			return nil, fmt.Errorf("%w: empty message event append results", metadb.ErrCorruptValue)
+		}
+		return results, nil
+	}
+	result, err := decodeAppendMessageEventResult(data)
+	if err != nil {
+		return nil, err
+	}
+	return []metadb.MessageEventAppendResult{result}, nil
+}
+
+func decodeAppendMessageEventResult(data []byte) (metadb.MessageEventAppendResult, error) {
 	if len(data) < len(messageEventAppendResultMagic) || !bytes.Equal(data[:len(messageEventAppendResultMagic)], messageEventAppendResultMagic[:]) {
 		return metadb.MessageEventAppendResult{}, fmt.Errorf("%w: message event append result", metadb.ErrCorruptValue)
 	}
+	return decodeAppendMessageEventResultFields(data[len(messageEventAppendResultMagic):])
+}
+
+func decodeAppendMessageEventResultFields(data []byte) (metadb.MessageEventAppendResult, error) {
 	var result metadb.MessageEventAppendResult
 	var haveChannelID, haveChannelType, haveClientMsgNo, haveEventID, haveEventKey, haveSeq, haveStatus, haveState bool
-	off := len(messageEventAppendResultMagic)
+	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
 		if err != nil {
@@ -339,7 +416,7 @@ func validateMessageEventAppendBatch(events []metadb.MessageEventAppend) error {
 		if err := validateMessageEventAppend(event); err != nil {
 			return err
 		}
-		if event.ChannelID != first.ChannelID || event.ChannelType != first.ChannelType || event.ClientMsgNo != first.ClientMsgNo {
+		if event.ChannelID != first.ChannelID || event.ChannelType != first.ChannelType {
 			return metadb.ErrInvalidArgument
 		}
 	}

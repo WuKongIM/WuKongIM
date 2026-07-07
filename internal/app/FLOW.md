@@ -426,6 +426,10 @@ Message append observations record low-cardinality metrics for every durable
 append attempt and log rare append failures, including gateway deadline
 timeouts, with path, error class, duration, and raw error. These diagnostics do
 not change append admission, durable write, or quorum ACK rules.
+When metrics are enabled, app observability also adapts cluster message event
+observations into Prometheus counters, histograms, and stream-cache gauges.
+The adapter preserves the cluster-provided bounded labels only; it does not add
+UID, channel, slot, or per-message labels.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real

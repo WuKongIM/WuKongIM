@@ -87,6 +87,8 @@ type Node struct {
 	defaultSlotProposer propose.SlotRuntime
 	// messageEventStreamCache keeps in-flight stream event projections on the Slot leader.
 	messageEventStreamCache *messageEventStreamCache
+	// messageEventFinishCoalescer groups concurrent stream.finish proposals for the same channel.
+	messageEventFinishCoalescer *messageEventFinishCoalescer
 	// pendingRPCHandlers stores public RPC handlers until the default transport exists.
 	pendingRPCHandlers map[uint8]clusternet.Handler
 	// registeredRPCHandlers records handlers installed on the current default transport.
@@ -138,7 +140,7 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0)}
+	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0), messageEventFinishCoalescer: newMessageEventFinishCoalescer(defaultMessageEventFinishCoalesceWindow)}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)
@@ -354,6 +356,7 @@ func (n *Node) publishRouteAuthorityChanges(before, after *routing.Table) {
 	if n == nil {
 		return
 	}
+	n.clearMessageEventStreamCacheForLostLocalAuthority(before, after)
 	n.dispatchRouteAuthority(n.routeAuthorityChangesForPublish(before, after)...)
 }
 

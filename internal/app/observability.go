@@ -79,6 +79,10 @@ type storageCommitMetricsObserver struct {
 	workers int
 }
 
+type messageEventMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
 type deliveryMetricsObserver struct {
 	metrics *obsmetrics.Registry
 	logger  wklog.Logger
@@ -103,6 +107,7 @@ type multiControllerRaftObserver []controller.RaftObserver
 type multiControlSnapshotObserver []cluster.ControlSnapshotObserver
 type multiSlotReplicaMoveObserver []cluster.SlotReplicaMoveObserver
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
+type multiMessageEventObserver []cluster.MessageEventObserver
 type multiGatewayObserver []accessgateway.Observer
 type multiSendackObserver []gatewayadapter.SendackObserver
 type multiDeliveryObserver []runtimedelivery.Observer
@@ -1234,6 +1239,46 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorRequest(event mess
 	o.metrics.RuntimePressure.ObserveQueueWait(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, event.Result, event.Duration)
 }
 
+func (o messageEventMetricsObserver) ObserveMessageEventAppend(event cluster.MessageEventAppendObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Message.ObserveEventAppend(event.Path, event.EventType, event.Result, event.Duration)
+}
+
+func (o messageEventMetricsObserver) ObserveMessageEventAppendStage(event cluster.MessageEventAppendStageObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Message.ObserveEventAppendStage(event.Path, event.Result, event.Stage, event.Duration)
+}
+
+func (o messageEventMetricsObserver) ObserveMessageEventPropose(event cluster.MessageEventProposeObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Message.ObserveEventPropose(event.Path, event.Result, event.BatchSize, event.Duration)
+}
+
+func (o messageEventMetricsObserver) ObserveMessageEventProposeStage(event cluster.MessageEventProposeStageObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Message.ObserveEventProposeStage(event.Path, event.Result, event.Stage, event.Duration)
+}
+
+func (o messageEventMetricsObserver) SetMessageEventStreamCache(event cluster.MessageEventStreamCacheObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Message.SetEventStreamCache(obsmetrics.MessageEventStreamCacheObservation{
+		Sessions:     event.Sessions,
+		OpenLanes:    event.OpenLanes,
+		PayloadBytes: event.PayloadBytes,
+		MaxSessions:  event.MaxSessions,
+	})
+}
+
 func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
 	if o.metrics != nil {
 		o.metrics.Delivery.ObserveFanoutTask(deliveryNodeLabel(event.TargetNodeID), event.Result, event.Duration)
@@ -1445,6 +1490,16 @@ func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinator
 		return first
 	}
 	return multiCommitCoordinatorObserver{first, second}
+}
+
+func combineMessageEventObservers(first, second cluster.MessageEventObserver) cluster.MessageEventObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiMessageEventObserver{first, second}
 }
 
 func combineDeliveryObservers(observers ...runtimedelivery.Observer) runtimedelivery.Observer {
@@ -1973,6 +2028,54 @@ func (o multiCommitCoordinatorObserver) ObserveCommitCoordinatorRequest(event me
 			continue
 		}
 		requestObserver.ObserveCommitCoordinatorRequest(event)
+	}
+}
+
+func (o multiMessageEventObserver) ObserveMessageEventAppend(event cluster.MessageEventAppendObservation) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveMessageEventAppend(event)
+		}
+	}
+}
+
+func (o multiMessageEventObserver) ObserveMessageEventAppendStage(event cluster.MessageEventAppendStageObservation) {
+	for _, observer := range o {
+		if observer == nil {
+			continue
+		}
+		stageObserver, ok := observer.(cluster.MessageEventAppendStageObserver)
+		if ok {
+			stageObserver.ObserveMessageEventAppendStage(event)
+		}
+	}
+}
+
+func (o multiMessageEventObserver) ObserveMessageEventPropose(event cluster.MessageEventProposeObservation) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveMessageEventPropose(event)
+		}
+	}
+}
+
+func (o multiMessageEventObserver) ObserveMessageEventProposeStage(event cluster.MessageEventProposeStageObservation) {
+	for _, observer := range o {
+		if observer == nil {
+			continue
+		}
+		stageObserver, ok := observer.(cluster.MessageEventProposeStageObserver)
+		if ok {
+			stageObserver.ObserveMessageEventProposeStage(event)
+		}
+	}
+}
+
+func (o multiMessageEventObserver) SetMessageEventStreamCache(event cluster.MessageEventStreamCacheObservation) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.SetMessageEventStreamCache(event)
+		}
 	}
 }
 

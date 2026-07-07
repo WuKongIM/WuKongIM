@@ -188,6 +188,7 @@ message.MessageEventAppend
   -> Slot leader stream cache for stream.open/delta/snapshot
   -> terminal stream event merges cached snapshot and proposes a durable Slot FSM update
      (stream.finish flushes open cached lanes and finish marker in one batch proposal)
+     (stream.finish without cached lanes or a complete snapshot fails closed on the cluster boundary)
   -> Slot FSM message event reducer
   -> message.MessageEventAppendResult
 

@@ -98,7 +98,10 @@ hits may return `msg_event_seq=0` because no Slot FSM cursor has advanced yet;
 terminal responses return the durable reducer-assigned message event sequence.
 When `stream.finish` completes a message-level stream, the cluster store flushes
 all still-open cached event lanes and the reserved finish marker in one Slot FSM
-batch proposal.
+batch proposal. If Slot leadership changes before finish and the new leader has
+no cached lanes, the cluster store fails the finish closed instead of writing a
+completed projection that silently drops cache-only deltas; callers must replay
+the stream deltas or provide a complete finish snapshot before retrying finish.
 Cache pressure is reported as typed backpressure rather than silently evicting
 active streams.
 

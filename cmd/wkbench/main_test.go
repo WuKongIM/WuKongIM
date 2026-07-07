@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
+	"github.com/WuKongIM/WuKongIM/internal/bench/messageevent"
 )
 
 func TestWorkerCommandRequiresControlToken(t *testing.T) {
@@ -65,7 +66,7 @@ func TestCapacityCommandHelpListsSubcommands(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected help exit code 0, got %d stderr %q", code, stderr.String())
 	}
-	for _, want := range []string{"Usage:", "send", "hot-channel", "activate-channels"} {
+	for _, want := range []string{"Usage:", "send", "hot-channel", "activate-channels", "message-event"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("expected capacity help to contain %q, got %q", want, stderr.String())
 		}
@@ -157,6 +158,19 @@ func TestRunCapacityActivateChannelsRequiresAPI(t *testing.T) {
 	}
 }
 
+func TestRunCapacityMessageEventRequiresAPI(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"capacity", "message-event"}, &stderr)
+
+	if code != exitConfig {
+		t.Fatalf("expected config exit code, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "--api is required") {
+		t.Fatalf("expected api error, got %q", stderr.String())
+	}
+}
+
 func TestParseCapacityHotChannelConfig(t *testing.T) {
 	var stderr bytes.Buffer
 
@@ -182,6 +196,53 @@ func TestParseCapacityHotChannelConfig(t *testing.T) {
 	}
 	if cfg.StartQPS != 1000 || cfg.MaxQPS != 2000 {
 		t.Fatalf("qps range = %v..%v, want 1000..2000", cfg.StartQPS, cfg.MaxQPS)
+	}
+}
+
+func TestParseCapacityMessageEventConfig(t *testing.T) {
+	var stderr bytes.Buffer
+
+	cfg, code := parseCapacityMessageEventConfig([]string{
+		"--api", "http://127.0.0.1:5001,http://127.0.0.1:5002",
+		"--run-id", "message-event-cli",
+		"--channels", "100",
+		"--streams-per-channel", "3",
+		"--lanes-per-stream", "4",
+		"--deltas-per-lane", "5",
+		"--payload-bytes", "128",
+		"--concurrency", "64",
+		"--request-timeout", "3s",
+		"--report-dir", "/tmp/message-event-report",
+		"--warm-channels",
+		"--warm-runtime",
+	}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected parse success, got code %d stderr %q", code, stderr.String())
+	}
+	if got := strings.Join(cfg.APIAddrs, ","); got != "http://127.0.0.1:5001,http://127.0.0.1:5002" {
+		t.Fatalf("api addrs = %q", got)
+	}
+	if cfg.RunID != "message-event-cli" {
+		t.Fatalf("run id = %q", cfg.RunID)
+	}
+	if cfg.Channels != 100 || cfg.StreamsPerChannel != 3 || cfg.LanesPerStream != 4 || cfg.DeltasPerLane != 5 {
+		t.Fatalf("shape = %+v", cfg)
+	}
+	if cfg.PayloadBytes != 128 || cfg.Concurrency != 64 || cfg.RequestTimeout != 3*time.Second {
+		t.Fatalf("payload/concurrency/timeout = %d/%d/%s", cfg.PayloadBytes, cfg.Concurrency, cfg.RequestTimeout)
+	}
+	if cfg.ReportDir != "/tmp/message-event-report" {
+		t.Fatalf("report dir = %q", cfg.ReportDir)
+	}
+	if !cfg.WarmChannels {
+		t.Fatalf("warm channels = false, want true")
+	}
+	if !cfg.WarmRuntime {
+		t.Fatalf("warm runtime = false, want true")
+	}
+	if shape := cfg.Shape(); shape != (messageevent.Shape{Streams: 300, DeltaEvents: 6000, FinishEvents: 300, ExpectedDurableEvents: 1500, ExpectedFinishProposals: 300}) {
+		t.Fatalf("shape = %+v", shape)
 	}
 }
 
@@ -489,6 +550,71 @@ wukongim_channelv2_worker_queue_depth{pool="store_append"} 1
 	} {
 		if strings.Contains(output, unwanted) {
 			t.Fatalf("output should not expose legacy channelv2 report key %q, got %q", unwanted, output)
+		}
+	}
+}
+
+func TestMetricsClassifyReportsMessageEventPressureFromPrometheusSnapshots(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	if err := os.WriteFile(before, []byte(`
+wukongim_message_event_stream_cache_sessions 0
+wukongim_message_event_stream_cache_open_lanes 0
+wukongim_message_event_stream_cache_payload_bytes 0
+wukongim_message_event_stream_cache_max_sessions 1024
+wukongim_message_event_append_total{path="cache",event_type="stream.delta",result="ok"} 1
+wukongim_message_event_append_total{path="finish_batch",event_type="stream.finish",result="cache_miss"} 0
+wukongim_message_event_propose_total{path="finish_batch",result="ok"} 0
+wukongim_message_event_append_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="finish_batch_build",le="0.01"} 0
+wukongim_message_event_append_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="finish_batch_build",le="+Inf"} 0
+wukongim_message_event_propose_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="slot_propose_wait",le="0.01"} 0
+wukongim_message_event_propose_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="slot_propose_wait",le="+Inf"} 0
+wukongim_message_event_propose_batch_events_bucket{path="finish_batch",result="ok",le="4"} 0
+wukongim_message_event_propose_batch_events_bucket{path="finish_batch",result="ok",le="8"} 0
+wukongim_message_event_propose_batch_events_bucket{path="finish_batch",result="ok",le="+Inf"} 0
+`), 0o600); err != nil {
+		t.Fatalf("write before: %v", err)
+	}
+	if err := os.WriteFile(after, []byte(`
+wukongim_message_event_stream_cache_sessions 3
+wukongim_message_event_stream_cache_open_lanes 5
+wukongim_message_event_stream_cache_payload_bytes 2048
+wukongim_message_event_stream_cache_max_sessions 1024
+wukongim_message_event_append_total{path="cache",event_type="stream.delta",result="ok"} 9
+wukongim_message_event_append_total{path="finish_batch",event_type="stream.finish",result="cache_miss"} 2
+wukongim_message_event_propose_total{path="finish_batch",result="ok"} 2
+wukongim_message_event_append_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="finish_batch_build",le="0.01"} 1
+wukongim_message_event_append_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="finish_batch_build",le="+Inf"} 2
+wukongim_message_event_propose_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="slot_propose_wait",le="0.01"} 0
+wukongim_message_event_propose_stage_duration_seconds_bucket{path="finish_batch",result="ok",stage="slot_propose_wait",le="+Inf"} 2
+wukongim_message_event_propose_batch_events_bucket{path="finish_batch",result="ok",le="4"} 1
+wukongim_message_event_propose_batch_events_bucket{path="finish_batch",result="ok",le="8"} 2
+wukongim_message_event_propose_batch_events_bucket{path="finish_batch",result="ok",le="+Inf"} 2
+`), 0o600); err != nil {
+		t.Fatalf("write after: %v", err)
+	}
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"metrics", "classify", "--before", before, "--after", after}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected success, got code %d and stderr %q", code, stderr.String())
+	}
+	for _, want := range []string{
+		"message_event_stream_cache_sessions_max: 3",
+		"message_event_stream_cache_open_lanes_max: 5",
+		"message_event_stream_cache_payload_bytes_max: 2048",
+		"message_event_append_count{path=\"cache\"}: 8",
+		"message_event_append_count{result=\"cache_miss\"}: 2",
+		"message_event_propose_count{path=\"finish_batch\"}: 2",
+		"message_event_append_stage_p99_seconds{path=\"finish_batch\",stage=\"finish_batch_build\"}:",
+		"message_event_propose_stage_p99_seconds{path=\"finish_batch\",stage=\"slot_propose_wait\"}:",
+		"message_event_propose_batch_events_p99{path=\"finish_batch\"}:",
+		"message_event_cache_miss_count: 2",
+	} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected message event output %q, got %q", want, stderr.String())
 		}
 	}
 }

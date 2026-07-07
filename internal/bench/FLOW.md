@@ -11,6 +11,7 @@ Shared wkbench schema, plan, report, and bench/v1 API DTOs live in `pkg/bench/mo
 - `worker`: HTTP control server plus the default workload runner used by worker processes.
 - `devsim`: long-running development simulator supervisor used by `wkbench dev-sim`; it derives compact simulator config into normal wkbench target/scenario/plan inputs and runs an in-process worker.
 - `capacity`: maximum stable ingress QPS search used by `wkbench capacity send` and `wkbench capacity hot-channel`; it discovers target gateway addresses, generates attempt scenarios, runs a temporary local worker, and writes capacity summaries.
+- `messageevent`: fixed-shape `/message/event` stream pressure runner used by `wkbench capacity message-event`; it creates channels through public `/channel`, sends stream base messages through `/message/send`, sends cache-only `stream.delta` updates, completes each stream with `stream.finish`, captures `/metrics` before/after snapshots, and writes message event reports.
 - `workload`: reusable connection, person traffic, and group traffic executors.
 - `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, setup snapshot, presence snapshot, token, channel, and subscriber APIs. Setup mutation calls use the first healthy target API address and fall back on failure; targets such as `cmd/wukongim` route real metadata writes through their cluster runtime.
 - `wkproto`: benchmark WKProto client implementation.
@@ -183,6 +184,53 @@ per-channel tail latency while preserving the runtime's normal batch-size
 ceiling. The longer timeout budget covers rare quorum tails after the measured
 p99 remains healthy. General configs keep the runtime defaults unless this
 benchmark-specific environment override is set.
+
+## Capacity Message-Event Flow
+
+`capacity message-event` is a fixed-size pressure run for the migrated message
+event stream path. It does not use `/message/eventsync`, does not start workers,
+and does not depend on `/bench/v1/*`; it only requires already-running target
+API nodes with `/channel`, `/message/send`, `/message/event`, and `/metrics`.
+
+```text
+cmd/wkbench capacity message-event
+  -> messageevent.DefaultConfig / flag overrides
+  -> optionally warm generated channels before the measured metrics window
+  -> optionally warm Channel append runtime with one normal SEND per channel
+  -> capture before Prometheus snapshots from every --api node
+  -> create generated group channels through POST /channel when not warmed
+  -> run stream workflows with bounded concurrency
+       -> POST /message/send with the legacy stream setting bit
+       -> POST /message/event stream.delta for each lane/delta
+       -> POST /message/event stream.finish once per stream
+  -> capture after Prometheus snapshots from every --api node
+  -> metrics.AnalyzeWukongIMPrometheus for message event cache/propose counters and append/propose stage p99s
+  -> messageevent.WriteResult(message_event_report.json, summary.md)
+```
+
+Each stream workflow preserves `base -> deltas -> finish` order. Concurrency is
+across streams, not within one stream, so the run exercises the Slot-leader
+stream cache and proves the intended batching shape: deltas remain cache-only,
+and the durable proposal count should match finished streams while durable
+event count should be `streams * (lanes_per_stream + 1)`. The default shape is a
+small smoke run; large cardinality and high-frequency pressure are opt-in
+through flags such as `--channels`, `--streams-per-channel`,
+`--deltas-per-lane`, and `--concurrency`.
+
+For local three-node evidence runs, `scripts/bench-wukongim-three-nodes-message-event.sh`
+wraps the command, starts the local `cmd/wukongim` cluster, builds `wkbench` when
+needed, and stores logs, before/after Prometheus snapshots, during-run metrics
+samples, per-node `metrics classify` output, pprof snapshots, server process
+resource samples, and the `messageevent` report in one timestamped output
+directory. Its `smoke`, `medium`, and `pressure` profiles pin 32, 1,000, and
+10,000 channel shapes so follow-up baselines are comparable.
+
+`messageevent` report gates are hard validation, not advisory text:
+`append_count{path="cache"}` must match delta request count,
+`propose_count{path="finish_batch"}` must match finished stream count, and
+request errors, cache misses, and message-event backpressure must remain zero.
+This protects the benchmark from passing when a future change accidentally
+proposes every delta or loses stream-cache state.
 
 ## Worker Control Flow
 

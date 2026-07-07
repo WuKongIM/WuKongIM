@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -424,7 +425,10 @@ func (n *Node) AppendMessageEvent(ctx context.Context, event metadb.MessageEvent
 		return metadb.MessageEventAppendResult{}, ErrNoSlotLeader
 	}
 	if route.Leader != n.cfg.NodeID {
-		return n.forwardMessageEventAppend(ctx, route.Leader, event)
+		start := time.Now()
+		result, err := n.forwardMessageEventAppend(ctx, route.Leader, event)
+		n.observeMessageEventAppend(messageEventPathForward, event, messageEventResultForError(err), time.Since(start))
+		return result, err
 	}
 	return n.appendMessageEventLocal(ctx, event)
 }

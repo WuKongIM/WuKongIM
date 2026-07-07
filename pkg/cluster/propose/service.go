@@ -12,7 +12,7 @@ import (
 const (
 	stageMetaCreateProposeLocal   = "meta_create_propose_local"
 	stageMetaCreateProposeForward = "meta_create_propose_forward"
-	leaderChangeRetryAttempts     = 8
+	leaderChangeRetryAttempts     = 100
 	leaderChangeRetryBackoff      = 10 * time.Millisecond
 )
 

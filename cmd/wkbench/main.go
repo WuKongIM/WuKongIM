@@ -16,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/config"
 	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
 	"github.com/WuKongIM/WuKongIM/internal/bench/devsim"
+	"github.com/WuKongIM/WuKongIM/internal/bench/messageevent"
 	benchmetrics "github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/planner"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
@@ -124,6 +125,22 @@ func printWukongIMAttribution(w io.Writer, report benchmetrics.WukongIMAttributi
 	fmt.Fprintf(w, "message_append_append_failed_err_count: %.0f\n", report.MessageAppendAppendFailedErrCount)
 	fmt.Fprintf(w, "message_append_remote_err_count: %.0f\n", report.MessageAppendRemoteErrCount)
 	fmt.Fprintf(w, "message_append_other_err_count: %.0f\n", report.MessageAppendOtherErrCount)
+	fmt.Fprintf(w, "message_event_stream_cache_sessions_max: %.0f\n", report.MessageEventStreamCacheSessionsMax)
+	fmt.Fprintf(w, "message_event_stream_cache_open_lanes_max: %.0f\n", report.MessageEventStreamCacheOpenLanesMax)
+	fmt.Fprintf(w, "message_event_stream_cache_payload_bytes_max: %.0f\n", report.MessageEventStreamCachePayloadBytesMax)
+	fmt.Fprintf(w, "message_event_stream_cache_max_sessions: %.0f\n", report.MessageEventStreamCacheMaxSessionsMax)
+	printLabeledFloatMap(w, "message_event_append_count", "path", report.MessageEventAppendCountByPath, "%.0f")
+	printLabeledFloatMap(w, "message_event_append_count", "result", report.MessageEventAppendCountByResult, "%.0f")
+	printLabeledFloatMap(w, "message_event_append_count", "event_type", report.MessageEventAppendCountByEventType, "%.0f")
+	printLabeledFloatMap(w, "message_event_propose_count", "path", report.MessageEventProposeCountByPath, "%.0f")
+	printLabeledFloatMap(w, "message_event_propose_count", "result", report.MessageEventProposeCountByResult, "%.0f")
+	printLabeledFloatMap(w, "message_event_propose_p99_seconds", "path", report.MessageEventProposeDurationP99SecondsByPath, "%.6f")
+	printPathStageFloatMap(w, "message_event_append_stage_p99_seconds", report.MessageEventAppendStageDurationP99SecondsByPathStage, "%.6f")
+	printPathStageFloatMap(w, "message_event_propose_stage_p99_seconds", report.MessageEventProposeStageDurationP99SecondsByPathStage, "%.6f")
+	printLabeledFloatMap(w, "message_event_propose_batch_events_p50", "path", report.MessageEventProposeBatchEventsP50ByPath, "%.3f")
+	printLabeledFloatMap(w, "message_event_propose_batch_events_p99", "path", report.MessageEventProposeBatchEventsP99ByPath, "%.3f")
+	fmt.Fprintf(w, "message_event_backpressured_count: %.0f\n", report.MessageEventBackpressuredCount)
+	fmt.Fprintf(w, "message_event_cache_miss_count: %.0f\n", report.MessageEventCacheMissCount)
 	fmt.Fprintf(w, "controller_raft_step_queue_depth: %.0f\n", report.ControllerRaftStepQueueDepth)
 	fmt.Fprintf(w, "controller_raft_step_queue_capacity: %.0f\n", report.ControllerRaftStepQueueCapacity)
 	fmt.Fprintf(w, "controller_raft_step_queue_ratio: %.3f\n", report.ControllerRaftStepQueueRatio)
@@ -263,8 +280,33 @@ func printLabeledFloatMap(w io.Writer, name string, label string, values map[str
 	}
 }
 
+func printPathStageFloatMap(w io.Writer, name string, values map[string]map[string]float64, format string) {
+	if len(values) == 0 {
+		return
+	}
+	paths := make([]string, 0, len(values))
+	for path := range values {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		stages := make([]string, 0, len(values[path]))
+		for stage := range values[path] {
+			stages = append(stages, stage)
+		}
+		sort.Strings(stages)
+		for _, stage := range stages {
+			fmt.Fprintf(w, "%s{path=%q,stage=%q}: "+format+"\n", name, path, stage, values[path][stage])
+		}
+	}
+}
+
 type activateChannelsRunner interface {
 	Run(context.Context) (capacity.ActivateChannelsResult, error)
+}
+
+type messageEventRunner interface {
+	Run(context.Context) (messageevent.Result, error)
 }
 
 var discoverActivateChannelsTarget = func(ctx context.Context, cfg capacity.ActivateChannelsConfig) (capacity.DiscoveredTarget, error) {
@@ -273,6 +315,10 @@ var discoverActivateChannelsTarget = func(ctx context.Context, cfg capacity.Acti
 
 var newActivateChannelsRunner = func(cfg capacity.ActivateChannelsConfig, discovered capacity.DiscoveredTarget) activateChannelsRunner {
 	return capacity.NewActivateChannelsRunner(cfg, discovered)
+}
+
+var newMessageEventRunner = func(cfg messageevent.Config) messageEventRunner {
+	return messageevent.NewRunner(cfg)
 }
 
 func runCapacitySendConfig(cfg capacity.Config, stderr io.Writer) int {
@@ -332,6 +378,23 @@ func runCapacityActivateChannelsConfig(cfg capacity.ActivateChannelsConfig, stde
 	return result.ExitCode()
 }
 
+func runCapacityMessageEventConfig(cfg messageevent.Config, stderr io.Writer) int {
+	result, err := newMessageEventRunner(cfg).Run(context.Background())
+	if writeErr := messageevent.WriteResult(result.ReportDir, result); writeErr != nil {
+		fmt.Fprintf(stderr, "message-event report write failed: %v\n", writeErr)
+		return exitInternal
+	}
+	fmt.Fprint(stderr, messageevent.ConsoleSummary(result))
+	if err != nil {
+		fmt.Fprintf(stderr, "message-event run failed: %v\n", err)
+		return exitWorker
+	}
+	if result.Status != messageevent.StatusPassed {
+		return exitWorker
+	}
+	return 0
+}
+
 func parseCapacitySendConfig(args []string, stderr io.Writer) (capacity.Config, int) {
 	cfg := capacity.DefaultConfig()
 	fs := pflag.NewFlagSet("capacity send", pflag.ContinueOnError)
@@ -362,6 +425,22 @@ func parseCapacityHotChannelConfig(args []string, stderr io.Writer) (capacity.Ho
 	if err := finalizeCapacityHotChannelConfig(&cfg, apiCSV, gatewayCSV); err != nil {
 		fmt.Fprintln(stderr, err)
 		return capacity.HotChannelConfig{}, exitConfig
+	}
+	return cfg, 0
+}
+
+func parseCapacityMessageEventConfig(args []string, stderr io.Writer) (messageevent.Config, int) {
+	cfg := messageevent.DefaultConfig()
+	fs := pflag.NewFlagSet("capacity message-event", pflag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var apiCSV string
+	bindCapacityMessageEventFlags(fs, &cfg, &apiCSV)
+	if err := fs.Parse(args); err != nil {
+		return messageevent.Config{}, exitConfig
+	}
+	if err := finalizeCapacityMessageEventConfig(&cfg, apiCSV); err != nil {
+		fmt.Fprintln(stderr, err)
+		return messageevent.Config{}, exitConfig
 	}
 	return cfg, 0
 }
@@ -410,6 +489,17 @@ func finalizeCapacityHotChannelConfig(cfg *capacity.HotChannelConfig, apiCSV str
 func finalizeCapacityActivateChannelsConfig(cfg *capacity.ActivateChannelsConfig, apiCSV string, gatewayCSV string) error {
 	cfg.APIAddrs = splitCSV(apiCSV)
 	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
+	if len(cfg.APIAddrs) == 0 {
+		return fmt.Errorf("--api is required")
+	}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("config validation failed: %w", err)
+	}
+	return nil
+}
+
+func finalizeCapacityMessageEventConfig(cfg *messageevent.Config, apiCSV string) error {
+	cfg.APIAddrs = splitCSV(apiCSV)
 	if len(cfg.APIAddrs) == 0 {
 		return fmt.Errorf("--api is required")
 	}

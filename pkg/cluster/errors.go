@@ -21,4 +21,6 @@ var (
 	ErrSlotNotFound = errors.New("cluster: slot not found")
 	// ErrBackpressured indicates that a bounded foreground buffer rejected new work.
 	ErrBackpressured = errors.New("cluster: backpressured")
+	// ErrMessageEventStreamCacheMiss indicates that a stream finish would lose cache-only event lanes.
+	ErrMessageEventStreamCacheMiss = errors.New("cluster: message event stream cache miss")
 )

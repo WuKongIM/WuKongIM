@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 const (
@@ -52,152 +53,168 @@ type WukongIMAttribution struct {
 	// Reasons explains the evidence that produced the classification.
 	Reasons []string
 
-	GatewayQueueDepth                                    float64
-	GatewayQueueCapacity                                 float64
-	GatewayQueueRatio                                    float64
-	GatewayDispatchWaitP99Seconds                        float64
-	GatewayBatchRecordsP50                               float64
-	GatewaySendackSystemErrorCount                       float64
-	GatewaySendackSingleErrorCount                       float64
-	GatewaySendackSingleMissingRequestContextCount       float64
-	GatewaySendackBatchPrecheckCount                     float64
-	GatewaySendackBatchMissingRequestContextCount        float64
-	GatewaySendackBatchResultErrorCount                  float64
-	GatewaySendackBatchResultTimeoutCount                float64
-	GatewaySendackBatchResultCanceledCount               float64
-	GatewaySendackBatchResultOtherCount                  float64
-	GatewaySendackBatchFallbackErrorCount                float64
-	MessageAppendErrorCount                              float64
-	MessageAppendBackpressuredErrCount                   float64
-	MessageAppendRouteNotReadyErrCount                   float64
-	MessageAppendStaleRouteErrCount                      float64
-	MessageAppendNotLeaderErrCount                       float64
-	MessageAppendChannelNotFoundErrCount                 float64
-	MessageAppendShortResultErrCount                     float64
-	MessageAppendInvalidConfigErrCount                   float64
-	MessageAppendClosedErrCount                          float64
-	MessageAppendTooManyChannelsErrCount                 float64
-	MessageAppendNotStartedErrCount                      float64
-	MessageAppendCanceledErrCount                        float64
-	MessageAppendTimeoutErrCount                         float64
-	MessageAppendAppendFailedErrCount                    float64
-	MessageAppendRemoteErrCount                          float64
-	MessageAppendOtherErrCount                           float64
-	ControllerRaftStepQueueDepth                         float64
-	ControllerRaftStepQueueCapacity                      float64
-	ControllerRaftStepQueueRatio                         float64
-	ControllerRaftStepEnqueueOKP99Seconds                float64
-	ControllerRaftStepEnqueueErrP99Seconds               float64
-	ControllerRaftStepEnqueueErrCount                    float64
-	ChannelRuntimeReactorMailboxDepthMax                 float64
-	ChannelRuntimeWorkerQueueDepthMax                    float64
-	ChannelRuntimeWorkerQueueDepthByPool                 map[string]float64
-	ChannelRuntimeWorkerInflightByPool                   map[string]float64
-	ChannelRuntimeWorkerInflightPeakByPool               map[string]float64
-	ChannelRuntimeAppendP99Seconds                       float64
-	ChannelRuntimeMetaResolveP99Seconds                  float64
-	ChannelRuntimeMetaSlotReadP99Seconds                 float64
-	ChannelRuntimeMetaCreateBuildP99Seconds              float64
-	ChannelRuntimeMetaCreateProposeP99Seconds            float64
-	ChannelRuntimeMetaCreateProposeLocalP99Seconds       float64
-	ChannelRuntimeMetaCreateProposeForwardP99Seconds     float64
-	ChannelRuntimeMetaCreateSlotProposeSubmitP99Seconds  float64
-	ChannelRuntimeMetaCreateSlotProposeWaitP99Seconds    float64
-	ChannelRuntimeMetaCreateSlotControlWaitP99Seconds    float64
-	ChannelRuntimeMetaCreateSlotRaftCommitWaitP99Seconds float64
-	ChannelRuntimeMetaCreateSlotFSMApplyP99Seconds       float64
-	ChannelRuntimeMetaCreateSlotFSMCommitP99Seconds      float64
-	ChannelRuntimeMetaCreateSlotMarkAppliedP99Seconds    float64
-	ChannelRuntimeMetaCreateWriteP99Seconds              float64
-	ChannelRuntimeMetaFinalReadP99Seconds                float64
-	ChannelRuntimeMetaApplyP99Seconds                    float64
-	ChannelRuntimeFacadeAppendP99Seconds                 float64
-	ChannelRuntimeFacadeAppendReserveWaitP99Seconds      float64
-	ChannelRuntimeFacadeAppendSubmitP99Seconds           float64
-	ChannelRuntimeFacadeAppendWaitP99Seconds             float64
-	ChannelRuntimeAppendBatchWaitP99Seconds              float64
-	ChannelRuntimeAppendStoreWaitP99Seconds              float64
-	ChannelRuntimeAppendPostStoreCommitWaitP99Seconds    float64
-	ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds float64
-	ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds    float64
-	ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds    float64
-	ChannelRuntimeAppendQuorumFinalCompleteP99Seconds    float64
-	ChannelRuntimeReplicationPullHintToSubmitP99Seconds  float64
-	ChannelRuntimeReplicationPullRPCP99Seconds           float64
-	ChannelRuntimeNeedMetaPullRPCP99Seconds              float64
-	ChannelRuntimeReplicationStoreApplyP99Seconds        float64
-	ChannelRuntimeReplicationApplyToAckReturnP99Seconds  float64
-	ChannelRuntimePendingMetaCurrentMax                  float64
-	ChannelRuntimePendingMetaCreatedCount                float64
-	ChannelRuntimePendingMetaConvertedCount              float64
-	ChannelRuntimePendingMetaReleasedCount               float64
-	ChannelRuntimePendingMetaTimeoutReleaseCount         float64
-	ChannelRuntimePendingMetaNotReadyReleaseCount        float64
-	ChannelRuntimePullHintSubmittedCount                 float64
-	ChannelRuntimePullHintOKCount                        float64
-	ChannelRuntimePullHintErrCount                       float64
-	ChannelRuntimePullHintStaleMetaErrCount              float64
-	ChannelRuntimePullHintChannelNotFoundErrCount        float64
-	ChannelRuntimePullHintNotReadyErrCount               float64
-	ChannelRuntimePullHintNotLeaderErrCount              float64
-	ChannelRuntimePullHintInvalidConfigErrCount          float64
-	ChannelRuntimePullHintClosedErrCount                 float64
-	ChannelRuntimePullHintCanceledErrCount               float64
-	ChannelRuntimePullHintTimeoutErrCount                float64
-	ChannelRuntimePullHintRemoteErrCount                 float64
-	ChannelRuntimePullHintOtherErrCount                  float64
-	ChannelRuntimePullHintReceiveOKCount                 float64
-	ChannelRuntimePullHintReceiveErrCount                float64
-	ChannelRuntimePullHintReceiveStateCheckErrCount      float64
-	ChannelRuntimePullHintReceiveMetaResolveErrCount     float64
-	ChannelRuntimePullHintReceiveMetaHintOKCount         float64
-	ChannelRuntimePullHintReceiveMetaValidateErrCount    float64
-	ChannelRuntimePullHintReceiveMetaApplyErrCount       float64
-	ChannelRuntimePullHintReceiveSubmitErrCount          float64
-	ChannelRuntimePullHintReceiveAwaitErrCount           float64
-	ChannelRuntimePullHintReceiveStaleMetaErrCount       float64
-	ChannelRuntimePullHintReceiveChannelNotFoundErrCount float64
-	ChannelRuntimePullHintReceiveNotReadyErrCount        float64
-	ChannelRuntimePullHintReceiveCanceledErrCount        float64
-	ChannelRuntimePullHintReceiveTimeoutErrCount         float64
-	ChannelRuntimePullHintReceiveOtherErrCount           float64
-	ChannelRuntimeNeedMetaPullSubmittedCount             float64
-	ChannelRuntimeNeedMetaPullOKCount                    float64
-	ChannelRuntimeNeedMetaPullRetryCount                 float64
-	ChannelRuntimeNeedMetaPullErrCount                   float64
-	ChannelRuntimeNeedMetaPullStaleMetaErrCount          float64
-	ChannelRuntimeNeedMetaPullChannelNotFoundErrCount    float64
-	ChannelRuntimeNeedMetaPullNotReadyErrCount           float64
-	ChannelRuntimeNeedMetaPullNotLeaderErrCount          float64
-	ChannelRuntimeNeedMetaPullNotReplicaErrCount         float64
-	ChannelRuntimeNeedMetaPullBackpressuredErrCount      float64
-	ChannelRuntimeNeedMetaPullInvalidConfigErrCount      float64
-	ChannelRuntimeNeedMetaPullClosedErrCount             float64
-	ChannelRuntimeNeedMetaPullCanceledErrCount           float64
-	ChannelRuntimeNeedMetaPullTimeoutErrCount            float64
-	ChannelRuntimeNeedMetaPullRemoteErrCount             float64
-	ChannelRuntimeNeedMetaPullOtherErrCount              float64
-	ChannelRuntimeWorkerTaskP99Seconds                   float64
-	ChannelRuntimeWorkerTaskP99SecondsByKind             map[string]float64
-	ChannelRuntimeAppendBatchRecordsP50                  float64
-	StorageCommitQueueDepthMax                           float64
-	StorageCommitBatchRequestsP50                        float64
-	StorageCommitBatchRecordsP50                         float64
-	StorageCommitP99Seconds                              float64
-	StorageCommitTotalP99Seconds                         float64
-	StorageCommitRequestP99Seconds                       float64
-	StorageCommitRequestOKP99Seconds                     float64
-	StorageCommitRequestTimeoutCount                     float64
-	StorageCommitRequestCanceledCount                    float64
-	StorageCommitRequestClosedCount                      float64
-	StorageCommitRequestErrCount                         float64
-	StorageCommitRequestOver1sCount                      float64
-	StorageCommitRequestOver5sCount                      float64
-	StorageCommitRequestOver10sCount                     float64
-	StorageCommitRequestP99SecondsByLane                 map[string]float64
-	StorageCommitRequestOver1sCountByLane                map[string]float64
-	StorageCommitRequestOver5sCountByLane                map[string]float64
-	StorageCommitRequestOver10sCountByLane               map[string]float64
+	GatewayQueueDepth                                     float64
+	GatewayQueueCapacity                                  float64
+	GatewayQueueRatio                                     float64
+	GatewayDispatchWaitP99Seconds                         float64
+	GatewayBatchRecordsP50                                float64
+	GatewaySendackSystemErrorCount                        float64
+	GatewaySendackSingleErrorCount                        float64
+	GatewaySendackSingleMissingRequestContextCount        float64
+	GatewaySendackBatchPrecheckCount                      float64
+	GatewaySendackBatchMissingRequestContextCount         float64
+	GatewaySendackBatchResultErrorCount                   float64
+	GatewaySendackBatchResultTimeoutCount                 float64
+	GatewaySendackBatchResultCanceledCount                float64
+	GatewaySendackBatchResultOtherCount                   float64
+	GatewaySendackBatchFallbackErrorCount                 float64
+	MessageAppendErrorCount                               float64
+	MessageAppendBackpressuredErrCount                    float64
+	MessageAppendRouteNotReadyErrCount                    float64
+	MessageAppendStaleRouteErrCount                       float64
+	MessageAppendNotLeaderErrCount                        float64
+	MessageAppendChannelNotFoundErrCount                  float64
+	MessageAppendShortResultErrCount                      float64
+	MessageAppendInvalidConfigErrCount                    float64
+	MessageAppendClosedErrCount                           float64
+	MessageAppendTooManyChannelsErrCount                  float64
+	MessageAppendNotStartedErrCount                       float64
+	MessageAppendCanceledErrCount                         float64
+	MessageAppendTimeoutErrCount                          float64
+	MessageAppendAppendFailedErrCount                     float64
+	MessageAppendRemoteErrCount                           float64
+	MessageAppendOtherErrCount                            float64
+	MessageEventStreamCacheSessionsMax                    float64
+	MessageEventStreamCacheOpenLanesMax                   float64
+	MessageEventStreamCachePayloadBytesMax                float64
+	MessageEventStreamCacheMaxSessionsMax                 float64
+	MessageEventAppendCountByPath                         map[string]float64
+	MessageEventAppendCountByResult                       map[string]float64
+	MessageEventAppendCountByEventType                    map[string]float64
+	MessageEventProposeCountByPath                        map[string]float64
+	MessageEventProposeCountByResult                      map[string]float64
+	MessageEventProposeDurationP99SecondsByPath           map[string]float64
+	MessageEventAppendStageDurationP99SecondsByPathStage  map[string]map[string]float64
+	MessageEventProposeStageDurationP99SecondsByPathStage map[string]map[string]float64
+	MessageEventProposeBatchEventsP50ByPath               map[string]float64
+	MessageEventProposeBatchEventsP99ByPath               map[string]float64
+	MessageEventBackpressuredCount                        float64
+	MessageEventCacheMissCount                            float64
+	ControllerRaftStepQueueDepth                          float64
+	ControllerRaftStepQueueCapacity                       float64
+	ControllerRaftStepQueueRatio                          float64
+	ControllerRaftStepEnqueueOKP99Seconds                 float64
+	ControllerRaftStepEnqueueErrP99Seconds                float64
+	ControllerRaftStepEnqueueErrCount                     float64
+	ChannelRuntimeReactorMailboxDepthMax                  float64
+	ChannelRuntimeWorkerQueueDepthMax                     float64
+	ChannelRuntimeWorkerQueueDepthByPool                  map[string]float64
+	ChannelRuntimeWorkerInflightByPool                    map[string]float64
+	ChannelRuntimeWorkerInflightPeakByPool                map[string]float64
+	ChannelRuntimeAppendP99Seconds                        float64
+	ChannelRuntimeMetaResolveP99Seconds                   float64
+	ChannelRuntimeMetaSlotReadP99Seconds                  float64
+	ChannelRuntimeMetaCreateBuildP99Seconds               float64
+	ChannelRuntimeMetaCreateProposeP99Seconds             float64
+	ChannelRuntimeMetaCreateProposeLocalP99Seconds        float64
+	ChannelRuntimeMetaCreateProposeForwardP99Seconds      float64
+	ChannelRuntimeMetaCreateSlotProposeSubmitP99Seconds   float64
+	ChannelRuntimeMetaCreateSlotProposeWaitP99Seconds     float64
+	ChannelRuntimeMetaCreateSlotControlWaitP99Seconds     float64
+	ChannelRuntimeMetaCreateSlotRaftCommitWaitP99Seconds  float64
+	ChannelRuntimeMetaCreateSlotFSMApplyP99Seconds        float64
+	ChannelRuntimeMetaCreateSlotFSMCommitP99Seconds       float64
+	ChannelRuntimeMetaCreateSlotMarkAppliedP99Seconds     float64
+	ChannelRuntimeMetaCreateWriteP99Seconds               float64
+	ChannelRuntimeMetaFinalReadP99Seconds                 float64
+	ChannelRuntimeMetaApplyP99Seconds                     float64
+	ChannelRuntimeFacadeAppendP99Seconds                  float64
+	ChannelRuntimeFacadeAppendReserveWaitP99Seconds       float64
+	ChannelRuntimeFacadeAppendSubmitP99Seconds            float64
+	ChannelRuntimeFacadeAppendWaitP99Seconds              float64
+	ChannelRuntimeAppendBatchWaitP99Seconds               float64
+	ChannelRuntimeAppendStoreWaitP99Seconds               float64
+	ChannelRuntimeAppendPostStoreCommitWaitP99Seconds     float64
+	ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds  float64
+	ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds     float64
+	ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds     float64
+	ChannelRuntimeAppendQuorumFinalCompleteP99Seconds     float64
+	ChannelRuntimeReplicationPullHintToSubmitP99Seconds   float64
+	ChannelRuntimeReplicationPullRPCP99Seconds            float64
+	ChannelRuntimeNeedMetaPullRPCP99Seconds               float64
+	ChannelRuntimeReplicationStoreApplyP99Seconds         float64
+	ChannelRuntimeReplicationApplyToAckReturnP99Seconds   float64
+	ChannelRuntimePendingMetaCurrentMax                   float64
+	ChannelRuntimePendingMetaCreatedCount                 float64
+	ChannelRuntimePendingMetaConvertedCount               float64
+	ChannelRuntimePendingMetaReleasedCount                float64
+	ChannelRuntimePendingMetaTimeoutReleaseCount          float64
+	ChannelRuntimePendingMetaNotReadyReleaseCount         float64
+	ChannelRuntimePullHintSubmittedCount                  float64
+	ChannelRuntimePullHintOKCount                         float64
+	ChannelRuntimePullHintErrCount                        float64
+	ChannelRuntimePullHintStaleMetaErrCount               float64
+	ChannelRuntimePullHintChannelNotFoundErrCount         float64
+	ChannelRuntimePullHintNotReadyErrCount                float64
+	ChannelRuntimePullHintNotLeaderErrCount               float64
+	ChannelRuntimePullHintInvalidConfigErrCount           float64
+	ChannelRuntimePullHintClosedErrCount                  float64
+	ChannelRuntimePullHintCanceledErrCount                float64
+	ChannelRuntimePullHintTimeoutErrCount                 float64
+	ChannelRuntimePullHintRemoteErrCount                  float64
+	ChannelRuntimePullHintOtherErrCount                   float64
+	ChannelRuntimePullHintReceiveOKCount                  float64
+	ChannelRuntimePullHintReceiveErrCount                 float64
+	ChannelRuntimePullHintReceiveStateCheckErrCount       float64
+	ChannelRuntimePullHintReceiveMetaResolveErrCount      float64
+	ChannelRuntimePullHintReceiveMetaHintOKCount          float64
+	ChannelRuntimePullHintReceiveMetaValidateErrCount     float64
+	ChannelRuntimePullHintReceiveMetaApplyErrCount        float64
+	ChannelRuntimePullHintReceiveSubmitErrCount           float64
+	ChannelRuntimePullHintReceiveAwaitErrCount            float64
+	ChannelRuntimePullHintReceiveStaleMetaErrCount        float64
+	ChannelRuntimePullHintReceiveChannelNotFoundErrCount  float64
+	ChannelRuntimePullHintReceiveNotReadyErrCount         float64
+	ChannelRuntimePullHintReceiveCanceledErrCount         float64
+	ChannelRuntimePullHintReceiveTimeoutErrCount          float64
+	ChannelRuntimePullHintReceiveOtherErrCount            float64
+	ChannelRuntimeNeedMetaPullSubmittedCount              float64
+	ChannelRuntimeNeedMetaPullOKCount                     float64
+	ChannelRuntimeNeedMetaPullRetryCount                  float64
+	ChannelRuntimeNeedMetaPullErrCount                    float64
+	ChannelRuntimeNeedMetaPullStaleMetaErrCount           float64
+	ChannelRuntimeNeedMetaPullChannelNotFoundErrCount     float64
+	ChannelRuntimeNeedMetaPullNotReadyErrCount            float64
+	ChannelRuntimeNeedMetaPullNotLeaderErrCount           float64
+	ChannelRuntimeNeedMetaPullNotReplicaErrCount          float64
+	ChannelRuntimeNeedMetaPullBackpressuredErrCount       float64
+	ChannelRuntimeNeedMetaPullInvalidConfigErrCount       float64
+	ChannelRuntimeNeedMetaPullClosedErrCount              float64
+	ChannelRuntimeNeedMetaPullCanceledErrCount            float64
+	ChannelRuntimeNeedMetaPullTimeoutErrCount             float64
+	ChannelRuntimeNeedMetaPullRemoteErrCount              float64
+	ChannelRuntimeNeedMetaPullOtherErrCount               float64
+	ChannelRuntimeWorkerTaskP99Seconds                    float64
+	ChannelRuntimeWorkerTaskP99SecondsByKind              map[string]float64
+	ChannelRuntimeAppendBatchRecordsP50                   float64
+	StorageCommitQueueDepthMax                            float64
+	StorageCommitBatchRequestsP50                         float64
+	StorageCommitBatchRecordsP50                          float64
+	StorageCommitP99Seconds                               float64
+	StorageCommitTotalP99Seconds                          float64
+	StorageCommitRequestP99Seconds                        float64
+	StorageCommitRequestOKP99Seconds                      float64
+	StorageCommitRequestTimeoutCount                      float64
+	StorageCommitRequestCanceledCount                     float64
+	StorageCommitRequestClosedCount                       float64
+	StorageCommitRequestErrCount                          float64
+	StorageCommitRequestOver1sCount                       float64
+	StorageCommitRequestOver5sCount                       float64
+	StorageCommitRequestOver10sCount                      float64
+	StorageCommitRequestP99SecondsByLane                  map[string]float64
+	StorageCommitRequestOver1sCountByLane                 map[string]float64
+	StorageCommitRequestOver5sCountByLane                 map[string]float64
+	StorageCommitRequestOver10sCountByLane                map[string]float64
 }
 
 // ParsePrometheusText parses the simple Prometheus text exposition emitted by WuKongIM.
@@ -225,19 +242,59 @@ func ParsePrometheusText(r io.Reader) (PrometheusSnapshot, error) {
 }
 
 func parsePrometheusSample(line string) (PrometheusSample, error) {
-	fields := strings.Fields(line)
-	if len(fields) < 2 {
-		return PrometheusSample{}, fmt.Errorf("expected metric and value")
+	metric, rawValue, err := splitPrometheusMetricAndValue(line)
+	if err != nil {
+		return PrometheusSample{}, err
 	}
-	value, err := strconv.ParseFloat(fields[1], 64)
+	value, err := strconv.ParseFloat(rawValue, 64)
 	if err != nil {
 		return PrometheusSample{}, fmt.Errorf("parse value: %w", err)
 	}
-	name, labels, err := parsePrometheusMetric(fields[0])
+	name, labels, err := parsePrometheusMetric(metric)
 	if err != nil {
 		return PrometheusSample{}, err
 	}
 	return PrometheusSample{Name: name, Labels: labels, Value: value}, nil
+}
+
+func splitPrometheusMetricAndValue(line string) (string, string, error) {
+	inQuote := false
+	escaped := false
+	braceDepth := 0
+	for i, r := range line {
+		if escaped {
+			escaped = false
+			continue
+		}
+		switch r {
+		case '\\':
+			escaped = inQuote
+		case '"':
+			inQuote = !inQuote
+		case '{':
+			if !inQuote {
+				braceDepth++
+			}
+		case '}':
+			if !inQuote && braceDepth > 0 {
+				braceDepth--
+			}
+		default:
+			if unicode.IsSpace(r) && !inQuote && braceDepth == 0 {
+				metric := strings.TrimSpace(line[:i])
+				rest := strings.TrimSpace(line[i:])
+				if metric == "" || rest == "" {
+					return "", "", fmt.Errorf("expected metric and value")
+				}
+				valueFields := strings.Fields(rest)
+				if len(valueFields) == 0 {
+					return "", "", fmt.Errorf("expected metric and value")
+				}
+				return metric, valueFields[0], nil
+			}
+		}
+	}
+	return "", "", fmt.Errorf("expected metric and value")
 }
 
 func parsePrometheusMetric(raw string) (string, map[string]string, error) {
@@ -317,15 +374,25 @@ func splitPrometheusLabels(raw string) []string {
 // AnalyzeWukongIMPrometheus classifies gateway vs Channel runtime pressure between two snapshots.
 func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribution {
 	report := WukongIMAttribution{
-		Classification:                           WukongIMBottleneckUnobserved,
-		ChannelRuntimeWorkerQueueDepthByPool:     map[string]float64{},
-		ChannelRuntimeWorkerInflightByPool:       map[string]float64{},
-		ChannelRuntimeWorkerInflightPeakByPool:   map[string]float64{},
-		ChannelRuntimeWorkerTaskP99SecondsByKind: map[string]float64{},
-		StorageCommitRequestP99SecondsByLane:     map[string]float64{},
-		StorageCommitRequestOver1sCountByLane:    map[string]float64{},
-		StorageCommitRequestOver5sCountByLane:    map[string]float64{},
-		StorageCommitRequestOver10sCountByLane:   map[string]float64{},
+		Classification:                                        WukongIMBottleneckUnobserved,
+		ChannelRuntimeWorkerQueueDepthByPool:                  map[string]float64{},
+		ChannelRuntimeWorkerInflightByPool:                    map[string]float64{},
+		ChannelRuntimeWorkerInflightPeakByPool:                map[string]float64{},
+		ChannelRuntimeWorkerTaskP99SecondsByKind:              map[string]float64{},
+		MessageEventAppendCountByPath:                         map[string]float64{},
+		MessageEventAppendCountByResult:                       map[string]float64{},
+		MessageEventAppendCountByEventType:                    map[string]float64{},
+		MessageEventProposeCountByPath:                        map[string]float64{},
+		MessageEventProposeCountByResult:                      map[string]float64{},
+		MessageEventProposeDurationP99SecondsByPath:           map[string]float64{},
+		MessageEventAppendStageDurationP99SecondsByPathStage:  map[string]map[string]float64{},
+		MessageEventProposeStageDurationP99SecondsByPathStage: map[string]map[string]float64{},
+		MessageEventProposeBatchEventsP50ByPath:               map[string]float64{},
+		MessageEventProposeBatchEventsP99ByPath:               map[string]float64{},
+		StorageCommitRequestP99SecondsByLane:                  map[string]float64{},
+		StorageCommitRequestOver1sCountByLane:                 map[string]float64{},
+		StorageCommitRequestOver5sCountByLane:                 map[string]float64{},
+		StorageCommitRequestOver10sCountByLane:                map[string]float64{},
 	}
 	report.GatewayQueueDepth, _ = after.maxGauge("wukongim_gateway_async_send_queue_depth")
 	report.GatewayQueueCapacity, _ = after.maxGauge("wukongim_gateway_async_send_queue_capacity")
@@ -360,6 +427,65 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	report.MessageAppendAppendFailedErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "append_failed"})
 	report.MessageAppendRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "remote_error"})
 	report.MessageAppendOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "other"})
+	report.MessageEventStreamCacheSessionsMax, _ = after.maxGauge("wukongim_message_event_stream_cache_sessions")
+	report.MessageEventStreamCacheOpenLanesMax, _ = after.maxGauge("wukongim_message_event_stream_cache_open_lanes")
+	report.MessageEventStreamCachePayloadBytesMax, _ = after.maxGauge("wukongim_message_event_stream_cache_payload_bytes")
+	report.MessageEventStreamCacheMaxSessionsMax, _ = after.maxGauge("wukongim_message_event_stream_cache_max_sessions")
+	for _, path := range counterLabelValues(before, after, "wukongim_message_event_append_total", "path") {
+		value, _ := counterDeltaMatching(before, after, "wukongim_message_event_append_total", map[string]string{"path": path})
+		report.MessageEventAppendCountByPath[path] = value
+	}
+	for _, result := range counterLabelValues(before, after, "wukongim_message_event_append_total", "result") {
+		value, _ := counterDeltaMatching(before, after, "wukongim_message_event_append_total", map[string]string{"result": result})
+		report.MessageEventAppendCountByResult[result] = value
+	}
+	for _, eventType := range counterLabelValues(before, after, "wukongim_message_event_append_total", "event_type") {
+		value, _ := counterDeltaMatching(before, after, "wukongim_message_event_append_total", map[string]string{"event_type": eventType})
+		report.MessageEventAppendCountByEventType[eventType] = value
+	}
+	for _, path := range counterLabelValues(before, after, "wukongim_message_event_propose_total", "path") {
+		value, _ := counterDeltaMatching(before, after, "wukongim_message_event_propose_total", map[string]string{"path": path})
+		report.MessageEventProposeCountByPath[path] = value
+	}
+	for _, result := range counterLabelValues(before, after, "wukongim_message_event_propose_total", "result") {
+		value, _ := counterDeltaMatching(before, after, "wukongim_message_event_propose_total", map[string]string{"result": result})
+		report.MessageEventProposeCountByResult[result] = value
+	}
+	for _, path := range histogramLabelValues(before, after, "wukongim_message_event_propose_duration_seconds", "path") {
+		value, ok := histogramQuantileDeltaMatching(0.99, before, after, "wukongim_message_event_propose_duration_seconds", map[string]string{"path": path})
+		if ok {
+			report.MessageEventProposeDurationP99SecondsByPath[path] = value
+		}
+	}
+	for _, path := range histogramLabelValues(before, after, "wukongim_message_event_append_stage_duration_seconds", "path") {
+		for _, stage := range histogramLabelValues(before, after, "wukongim_message_event_append_stage_duration_seconds", "stage") {
+			labels := map[string]string{"path": path, "stage": stage}
+			value, ok := histogramQuantileDeltaMatching(0.99, before, after, "wukongim_message_event_append_stage_duration_seconds", labels)
+			if ok {
+				putNestedFloat(report.MessageEventAppendStageDurationP99SecondsByPathStage, path, stage, value)
+			}
+		}
+	}
+	for _, path := range histogramLabelValues(before, after, "wukongim_message_event_propose_stage_duration_seconds", "path") {
+		for _, stage := range histogramLabelValues(before, after, "wukongim_message_event_propose_stage_duration_seconds", "stage") {
+			labels := map[string]string{"path": path, "stage": stage}
+			value, ok := histogramQuantileDeltaMatching(0.99, before, after, "wukongim_message_event_propose_stage_duration_seconds", labels)
+			if ok {
+				putNestedFloat(report.MessageEventProposeStageDurationP99SecondsByPathStage, path, stage, value)
+			}
+		}
+	}
+	for _, path := range histogramLabelValues(before, after, "wukongim_message_event_propose_batch_events", "path") {
+		labels := map[string]string{"path": path}
+		if value, ok := histogramQuantileDeltaMatching(0.50, before, after, "wukongim_message_event_propose_batch_events", labels); ok {
+			report.MessageEventProposeBatchEventsP50ByPath[path] = value
+		}
+		if value, ok := histogramQuantileDeltaMatching(0.99, before, after, "wukongim_message_event_propose_batch_events", labels); ok {
+			report.MessageEventProposeBatchEventsP99ByPath[path] = value
+		}
+	}
+	report.MessageEventBackpressuredCount, _ = counterDeltaMatching(before, after, "wukongim_message_event_append_total", map[string]string{"result": "backpressured"})
+	report.MessageEventCacheMissCount, _ = counterDeltaMatching(before, after, "wukongim_message_event_append_total", map[string]string{"result": "cache_miss"})
 
 	report.ControllerRaftStepQueueDepth, _ = after.maxGauge("wukongim_controller_raft_step_queue_depth")
 	report.ControllerRaftStepQueueCapacity, _ = after.maxGauge("wukongim_controller_raft_step_queue_capacity")
@@ -542,6 +668,12 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	}
 	if report.MessageAppendOtherErrCount > 0 {
 		report.Reasons = append(report.Reasons, "message append other errors were observed")
+	}
+	if report.MessageEventBackpressuredCount > 0 {
+		report.Reasons = append(report.Reasons, "message event backpressured appends were observed")
+	}
+	if report.MessageEventCacheMissCount > 0 {
+		report.Reasons = append(report.Reasons, "message event stream cache misses were observed")
 	}
 
 	controllerPressure := false
@@ -901,6 +1033,13 @@ func histogramQuantileDeltaByLabel(q float64, before, after PrometheusSnapshot, 
 	return out
 }
 
+func putNestedFloat(values map[string]map[string]float64, outer, inner string, value float64) {
+	if values[outer] == nil {
+		values[outer] = map[string]float64{}
+	}
+	values[outer][inner] = value
+}
+
 func histogramLabelValues(before, after PrometheusSnapshot, family string, label string) []string {
 	values := map[string]struct{}{}
 	before.collectHistogramLabelValues(family, label, values)
@@ -913,9 +1052,34 @@ func histogramLabelValues(before, after PrometheusSnapshot, family string, label
 	return out
 }
 
+func counterLabelValues(before, after PrometheusSnapshot, family string, label string) []string {
+	values := map[string]struct{}{}
+	before.collectCounterLabelValues(family, label, values)
+	after.collectCounterLabelValues(family, label, values)
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (s PrometheusSnapshot) collectHistogramLabelValues(family string, label string, values map[string]struct{}) {
 	for _, sample := range s.Samples {
 		if !metricFamilyMatches(sample.Name, family+"_bucket") {
+			continue
+		}
+		value := sample.Labels[label]
+		if value == "" {
+			continue
+		}
+		values[value] = struct{}{}
+	}
+}
+
+func (s PrometheusSnapshot) collectCounterLabelValues(family string, label string, values map[string]struct{}) {
+	for _, sample := range s.Samples {
+		if !metricFamilyMatches(sample.Name, family) {
 			continue
 		}
 		value := sample.Labels[label]

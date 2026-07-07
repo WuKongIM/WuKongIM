@@ -18,6 +18,7 @@ go run ./cmd/wkbench <command> [flags]
 | `capacity send` | Searches maximum stable ingress send QPS against already-running target APIs. |
 | `capacity hot-channel` | Searches maximum stable ingress QPS for one fixed group channel with configurable sender fan-in. |
 | `capacity activate-channels` | Activates a fixed number of group channels through real SEND traffic, holds them live, and probes Channel runtime state. |
+| `capacity message-event` | Runs fixed-shape `/message/event` stream pressure, captures message event metrics, and writes a report. |
 | `metrics classify` | Compares before/after Prometheus snapshots and prints gateway, Controller Raft, Channel runtime, and storage attribution hints. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
@@ -43,6 +44,11 @@ WK_BENCH_API_ENABLE=true
 ```
 
 The current bench API is intended for controlled benchmark environments. Do not expose `/bench/v1/*` on public networks.
+
+`capacity message-event` is the exception: it uses only public `/channel`,
+`/message/send`, `/message/event`, and `/metrics` endpoints. It does not require
+`/bench/v1/*`, but it should still be run only against controlled benchmark
+clusters because it mutates generated channels and messages.
 
 ## Minimal Workflow
 
@@ -267,6 +273,95 @@ local/quorum commit wait, the follower pull/AckOffset/HW/final-completion split,
 the follower-side hint/pull/apply/ack-return split, PendingMeta/NeedMeta
 bootstrap health, and PullHint send/receive/error structure
 before looking at pprof.
+
+## Capacity Message Event
+
+`capacity message-event` targets the migrated message event stream path through
+public HTTP APIs. It creates generated group channels, sends stream base
+messages through `/message/send`, sends cache-only `stream.delta` events, then
+completes each stream with one `stream.finish`. It captures `/metrics` before
+and after the run and writes `message_event_report.json` plus `summary.md`.
+
+Small smoke run:
+
+```bash
+wkbench capacity message-event \
+  --api http://127.0.0.1:5001 \
+  --report-dir ./tmp/wkbench-message-event
+```
+
+Manual high-cardinality run:
+
+```bash
+wkbench capacity message-event \
+  --api http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013 \
+  --run-id message-event-100k \
+  --channels 100000 \
+  --streams-per-channel 1 \
+  --lanes-per-stream 2 \
+  --deltas-per-lane 4 \
+  --payload-bytes 128 \
+  --concurrency 4096 \
+  --request-timeout 15s \
+  --report-dir ./tmp/wkbench-message-event-100k
+```
+
+Use `--warm-channels` when the experiment should exclude generated `/channel`
+setup from the measured before/after metrics window. Use `--warm-runtime` with
+it when the experiment should also exclude first-append Channel runtime
+activation: the runner sends one normal non-stream message per generated
+channel before the before snapshot, then measures only stream base, delta, and
+finish traffic.
+
+For local `cmd/wukongim` three-node runs, prefer
+`scripts/bench-wukongim-three-nodes-message-event.sh`. It starts the local
+cluster, builds `wkbench` when needed, runs `capacity message-event`, and
+collects node logs, Prometheus before/after snapshots, during-run metrics
+samples, per-node `metrics classify` output, pprof snapshots, and server
+process CPU/memory samples:
+
+```bash
+scripts/bench-wukongim-three-nodes-message-event.sh \
+  --profile medium \
+  --warm-channels \
+  --warm-runtime
+```
+
+The script profiles are:
+
+| Profile | Channels | Streams | Delta events | Purpose |
+| --- | ---: | ---: | ---: | --- |
+| `smoke` | 32 | 64 | 512 | Fast local evidence loop. |
+| `medium` | 1,000 | 2,000 | 16,000 | Baseline with cold-start noise removed by `--warm-channels`. |
+| `pressure` | 10,000 | 20,000 | 160,000 | Larger pressure sample before tuning storage or cache internals. |
+
+Concurrency is across streams. Within a stream the runner keeps
+`base -> deltas -> finish` order so the test exercises the Slot-leader stream
+cache instead of racing finish ahead of cached deltas. Expected durable proposal
+count is the finished stream count; expected durable event count is
+`streams * (lanes_per_stream + 1)` because repeated deltas compact into one
+durable lane event per lane when `stream.finish` flushes the batch.
+
+The report has hard gates for `cache == delta_events`,
+`finish_batch proposals == streams`, zero request errors, zero cache misses, and
+zero message-event backpressure. A gate failure makes the command fail even when
+individual HTTP requests returned success.
+
+The report and `metrics classify` include the message event gauges and counters:
+`message_event_stream_cache_sessions_max`,
+`message_event_stream_cache_open_lanes_max`,
+`message_event_stream_cache_payload_bytes_max`,
+`message_event_append_count{path=...}`,
+`message_event_append_count{event_type=...}`,
+`message_event_append_count{result=...}`,
+`message_event_propose_count{path=...}`,
+`message_event_propose_p99_seconds{path=...}`,
+`message_event_append_stage_p99_seconds{path=...,stage=...}`,
+`message_event_propose_stage_p99_seconds{path=...,stage=...}`,
+`message_event_propose_batch_events_p50{path=...}`,
+`message_event_propose_batch_events_p99{path=...}`,
+`message_event_backpressured_count`, and
+`message_event_cache_miss_count`.
 
 ## Compose Development Simulator
 

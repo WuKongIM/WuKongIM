@@ -151,6 +151,68 @@ func TestStateMachineAppliesMessageEventAppendBatch(t *testing.T) {
 	}
 }
 
+func TestStateMachineAppliesMessageEventAppendBatchAcrossMessages(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	resultBytes, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		Index:    1,
+		Term:     1,
+		HashSlot: 11,
+		Data: EncodeAppendMessageEventsCommand([]metadb.MessageEventAppend{
+			{
+				ChannelID:   "g1",
+				ChannelType: 2,
+				ClientMsgNo: "cmn-a",
+				EventID:     "evt-finish-a",
+				EventType:   metadb.EventTypeStreamFinish,
+				Visibility:  metadb.VisibilityPublic,
+				OccurredAt:  1000,
+				Payload:     []byte(`{"snapshot":{"kind":"text","text":"a"}}`),
+				UpdatedAt:   1001,
+			},
+			{
+				ChannelID:   "g1",
+				ChannelType: 2,
+				ClientMsgNo: "cmn-b",
+				EventID:     "evt-finish-b",
+				EventType:   metadb.EventTypeStreamFinish,
+				Visibility:  metadb.VisibilityPublic,
+				OccurredAt:  1002,
+				Payload:     []byte(`{"snapshot":{"kind":"text","text":"b"}}`),
+				UpdatedAt:   1003,
+			},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(message event mixed-message batch) error = %v", err)
+	}
+	results, err := DecodeAppendMessageEventResults(resultBytes)
+	if err != nil {
+		t.Fatalf("DecodeAppendMessageEventResults() error = %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("batch results = %#v, want two per-message results", results)
+	}
+	if results[0].ClientMsgNo != "cmn-a" || results[0].EventID != "evt-finish-a" || results[0].MsgEventSeq != 1 {
+		t.Fatalf("first result = %#v, want cmn-a finish seq=1", results[0])
+	}
+	if results[1].ClientMsgNo != "cmn-b" || results[1].EventID != "evt-finish-b" || results[1].MsgEventSeq != 1 {
+		t.Fatalf("second result = %#v, want cmn-b finish seq=1", results[1])
+	}
+	for _, clientMsgNo := range []string{"cmn-a", "cmn-b"} {
+		states, err := db.ForHashSlot(11).ListMessageEventStates(ctx, "g1", 2, clientMsgNo, 10)
+		if err != nil {
+			t.Fatalf("ListMessageEventStates(%s) error = %v", clientMsgNo, err)
+		}
+		if len(states) != 1 || states[0].EventKey != metadb.EventKeyFinish || states[0].LastMsgEventSeq != 1 {
+			t.Fatalf("states for %s = %#v, want one finish marker at seq=1", clientMsgNo, states)
+		}
+	}
+}
+
 func TestEncodeAppendMessageEventCommandCheckedRejectsInvalidEvent(t *testing.T) {
 	_, err := EncodeAppendMessageEventCommandChecked(metadb.MessageEventAppend{
 		ChannelID:   "g1",
@@ -164,7 +226,7 @@ func TestEncodeAppendMessageEventCommandCheckedRejectsInvalidEvent(t *testing.T)
 	}
 }
 
-func TestEncodeAppendMessageEventsCommandCheckedRejectsMixedMessage(t *testing.T) {
+func TestEncodeAppendMessageEventsCommandCheckedRejectsMixedChannel(t *testing.T) {
 	_, err := EncodeAppendMessageEventsCommandChecked([]metadb.MessageEventAppend{
 		{
 			ChannelID:   "g1",
@@ -174,7 +236,7 @@ func TestEncodeAppendMessageEventsCommandCheckedRejectsMixedMessage(t *testing.T
 			EventType:   metadb.EventTypeStreamClose,
 		},
 		{
-			ChannelID:   "g1",
+			ChannelID:   "g2",
 			ChannelType: 2,
 			ClientMsgNo: "cmn-2",
 			EventID:     "evt-2",
@@ -182,6 +244,6 @@ func TestEncodeAppendMessageEventsCommandCheckedRejectsMixedMessage(t *testing.T
 		},
 	})
 	if err == nil {
-		t.Fatal("EncodeAppendMessageEventsCommandChecked() error = nil, want invalid argument for mixed message keys")
+		t.Fatal("EncodeAppendMessageEventsCommandChecked() error = nil, want invalid argument for mixed channel keys")
 	}
 }

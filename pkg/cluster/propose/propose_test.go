@@ -328,6 +328,22 @@ func TestServiceProposeRemoteNotLeader(t *testing.T) {
 	}
 }
 
+func TestServiceProposeRetriesAcrossShortLeaderElection(t *testing.T) {
+	errs := make([]error, 13)
+	for i := 0; i < 12; i++ {
+		errs[i] = ErrNotLeader
+	}
+	forward := &fakeForward{errs: errs}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
+
+	if err := svc.Propose(context.Background(), Request{Key: "u1", Command: []byte("cmd")}); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if forward.calls != 13 {
+		t.Fatalf("forward calls = %d, want 13", forward.calls)
+	}
+}
+
 func TestServiceProposeReroutesAfterRemoteNotLeader(t *testing.T) {
 	router := &sequenceRouter{routes: []routing.Route{
 		{HashSlot: 3, SlotID: 11, Leader: 2},

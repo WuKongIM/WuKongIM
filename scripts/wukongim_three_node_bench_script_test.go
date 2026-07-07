@@ -2849,6 +2849,17 @@ case "$url" in
   http://127.0.0.1:501*/metrics)
     echo 'metric 1'
     ;;
+  http://127.0.0.1:501*/debug/config)
+    case "$url" in
+      http://127.0.0.1:5011/*) echo '{"node_id":1}' ;;
+      http://127.0.0.1:5012/*) echo '{"node_id":2}' ;;
+      http://127.0.0.1:5013/*) echo '{"node_id":3}' ;;
+      *) echo '{"node_id":0}' ;;
+    esac
+    ;;
+  http://127.0.0.1:501*/debug/cluster)
+    echo '{"initial_slot_count":10,"hash_slot_count":256}'
+    ;;
   http://127.0.0.1:501*/debug/pprof/goroutine?debug=2)
     echo 'goroutine profile'
     ;;
