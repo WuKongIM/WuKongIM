@@ -29,12 +29,9 @@ export function SectionCard({
   return (
     <Card
       id={id}
-      className={cn(
-        "border border-border/80 bg-card/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
-        className,
-      )}
+      className={cn("border border-border bg-card shadow-none", className)}
     >
-      <CardHeader className="border-b border-border/80 bg-muted/35 py-3">
+      <CardHeader className="border-b border-border bg-background py-3">
         <CardTitle className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-foreground">{title}</CardTitle>
         {description ? <CardDescription className="leading-6">{description}</CardDescription> : null}
         {action ? <CardAction>{action}</CardAction> : null}

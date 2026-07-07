@@ -48,11 +48,11 @@ export function StatusBadge({ value }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium capitalize",
-        variant === "success" && "border-primary/25 bg-primary/10 text-primary",
-        variant === "warning" && "border-warning/25 bg-warning/10 text-warning",
-        variant === "danger" && "border-destructive/30 bg-destructive/10 text-destructive",
-        variant === "neutral" && "border-border bg-background/70 text-muted-foreground",
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
+        variant === "success" && "border-success/25 bg-success/8 text-success",
+        variant === "warning" && "border-warning/25 bg-warning/8 text-warning",
+        variant === "danger" && "border-destructive/30 bg-destructive/8 text-destructive",
+        variant === "neutral" && "border-border bg-background text-muted-foreground",
       )}
       data-variant={variant}
     >

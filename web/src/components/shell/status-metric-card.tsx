@@ -10,9 +10,9 @@ type StatusMetricCardProps = {
 
 export function StatusMetricCard({ description, label, tone = "muted", value }: StatusMetricCardProps) {
   return (
-    <SectionCard className="min-h-32" title={label}>
+    <SectionCard className="min-h-28" title={label}>
       <div className="flex items-start justify-between gap-3">
-        <div className="font-mono text-4xl font-semibold tracking-[-0.04em] tabular-nums text-foreground">{value}</div>
+        <div className="font-mono text-3xl font-medium tabular-nums text-foreground">{value}</div>
         <StatusDot tone={tone} />
       </div>
       {description ? <p className="mt-2 text-xs text-muted-foreground">{description}</p> : null}

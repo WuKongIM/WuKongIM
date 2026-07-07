@@ -45,6 +45,10 @@ test("page header renders a flat tool row", () => {
     </PageHeader>,
   )
 
+  const header = screen.getByRole("heading", { name: "Dashboard" }).closest("section")
+  expect(header).toHaveClass("border-b", "bg-background")
+  expect(header).not.toHaveClass("rounded-3xl")
+  expect(screen.getByText("Scope: single-node cluster").parentElement).toHaveClass("border-t")
   expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
   expect(screen.getByText("Scope: single-node cluster")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()

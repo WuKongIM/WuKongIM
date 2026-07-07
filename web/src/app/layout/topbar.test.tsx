@@ -47,6 +47,8 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
   )
 
   const banner = screen.getByRole("banner")
+  expect(banner).toHaveClass("bg-background", "border-b")
+  expect(banner.querySelector("[data-brand-mark]")).toHaveClass("rounded-sm")
   expect(within(banner).getByText("WUKONGIM")).toBeInTheDocument()
   expect(within(banner).queryByRole("link", { name: "Overview" })).not.toBeInTheDocument()
   expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveAttribute("aria-current", "page")
