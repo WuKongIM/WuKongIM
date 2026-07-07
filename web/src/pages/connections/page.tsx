@@ -165,7 +165,7 @@ export function ConnectionsPage() {
 
   return (
     <PageContainer>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             {intl.formatMessage({ id: "nav.path.business.connections" })}
@@ -179,7 +179,7 @@ export function ConnectionsPage() {
               : intl.formatMessage({ id: "connections.totalPending" })}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-testid="connections-filter-toolbar">
           <NodeFilter nodes={nodes} onNodeChange={setSelectedNodeId} selectedNodeId={selectedNodeId} />
           <Button
             onClick={() => {
@@ -206,10 +206,10 @@ export function ConnectionsPage() {
         />
       ) : null}
       {!state.loading && !state.error && state.connections ? (
-        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-none" data-connections-surface="inventory">
           {state.connections.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table aria-label={intl.formatMessage({ id: "nav.connections.title" })} className="w-full border-collapse text-sm">
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.session" })}</th>

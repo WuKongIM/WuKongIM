@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -111,6 +111,22 @@ test("uses compact connection page chrome without summary cards", async () => {
   expect(screen.queryByText("Current local connection records from the manager connections endpoints.")).not.toBeInTheDocument()
   expect(screen.queryByText("Local connections")).not.toBeInTheDocument()
   expect(screen.queryByText("Inspect one connection to view addresses, slot ownership, and session metadata.")).not.toBeInTheDocument()
+})
+
+test("uses an editorial connection filter toolbar and inventory table", async () => {
+  getConnectionsMock.mockResolvedValueOnce({ total: 1, items: [connectionRow] })
+
+  renderConnectionsPage()
+
+  const table = await screen.findByRole("table", { name: "Connections" })
+  const inventorySurface = table.closest("[data-connections-surface='inventory']")
+  expect(inventorySurface).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
+  expect(inventorySurface).not.toHaveClass("rounded-xl")
+
+  const toolbar = screen.getByTestId("connections-filter-toolbar")
+  expect(toolbar).toHaveClass("flex", "flex-wrap", "items-center", "gap-2")
+  expect(within(toolbar).getByLabelText("Node filter")).toBeInTheDocument()
+  expect(within(toolbar).getByRole("button", { name: "Refresh" })).toBeInTheDocument()
 })
 
 test("renders connection rows and opens detail from manager APIs", async () => {
