@@ -175,16 +175,18 @@ export function SystemUsersPage() {
       />
 
       <SectionCard
+        className="overflow-hidden"
         description={intl.formatMessage({ id: "systemUsers.list.description" })}
         title={intl.formatMessage({ id: "systemUsers.list.title" })}
       >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="rounded-full border border-border bg-muted/40 px-3 py-1 text-sm font-medium text-foreground">
+        <div
+          className="mb-4 flex flex-wrap items-center gap-3 border-b border-border pb-4 text-sm text-muted-foreground"
+          data-testid="system-users-metadata-row"
+        >
+          <span className="font-mono text-sm font-semibold text-foreground">
             {intl.formatMessage({ id: "systemUsers.totalValue" }, { count: state.total })}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {intl.formatMessage({ id: "systemUsers.cacheOnlyExcluded" })}
-          </p>
+          </span>
+          <p>{intl.formatMessage({ id: "systemUsers.cacheOnlyExcluded" })}</p>
         </div>
 
         {state.loading ? (
@@ -201,8 +203,11 @@ export function SystemUsersPage() {
         ) : null}
         {!state.loading && !state.error ? (
           state.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
+            <div className="overflow-x-auto rounded-md border border-border" data-system-users-surface="inventory">
+              <table
+                aria-label={intl.formatMessage({ id: "systemUsers.list.title" })}
+                className="w-full border-collapse text-sm"
+              >
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "systemUsers.table.uid" })}</th>

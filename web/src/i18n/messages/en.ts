@@ -1798,7 +1798,7 @@ export const enMessages: AppMessages = {
   "systemUsers.form.uidsPlaceholder": "sys.notify, sys.robot",
   "systemUsers.form.emptyUIDs": "Enter at least one UID.",
   "systemUsers.remove.description": "Remove {uid} from the persisted system UID list.",
-  "systemUsers.cacheOnlyExcluded": "Cache-only legacy operations are intentionally not exposed here.",
+  "systemUsers.cacheOnlyExcluded": "Cache-only UIDs are excluded until they are persisted.",
   "permissions.title": "Permissions",
   "permissions.description": "Read-only manager authentication and permission visibility.",
   "permissions.summary.title": "Authentication Summary",

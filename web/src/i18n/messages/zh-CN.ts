@@ -1797,7 +1797,7 @@ export const zhCNMessages: AppMessages = {
   "systemUsers.form.uidsPlaceholder": "sys.notify, sys.robot",
   "systemUsers.form.emptyUIDs": "至少输入一个 UID。",
   "systemUsers.remove.description": "从持久化系统 UID 列表移除 {uid}。",
-  "systemUsers.cacheOnlyExcluded": "这里有意不暴露 legacy cache-only 操作。",
+  "systemUsers.cacheOnlyExcluded": "仅缓存 UID 会在持久化后显示。",
   "permissions.title": "权限管理",
   "permissions.description": "只读查看管理端认证状态与权限配置。",
   "permissions.summary.title": "认证摘要",

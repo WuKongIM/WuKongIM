@@ -57,6 +57,23 @@ test("renders persisted system users", async () => {
   expect(screen.getByText("1 persisted UID")).toBeInTheDocument()
 })
 
+test("uses an editorial system users metadata row and named table", async () => {
+  getSystemUsersMock.mockResolvedValueOnce({ items: [{ uid: "sys-a" }], total: 1 })
+
+  renderSystemUsersPage()
+
+  const table = await screen.findByRole("table", { name: "Persisted system UIDs" })
+  const inventorySurface = table.closest("[data-system-users-surface='inventory']")
+  expect(inventorySurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(inventorySurface).not.toHaveClass("rounded-xl")
+  expect(table).toHaveClass("text-sm")
+
+  const metadata = screen.getByTestId("system-users-metadata-row")
+  expect(metadata).toHaveClass("border-b", "border-border", "pb-4")
+  expect(within(metadata).getByText("1 persisted UID")).toBeInTheDocument()
+  expect(within(metadata).getByText("Cache-only UIDs are excluded until they are persisted.")).toBeInTheDocument()
+})
+
 test("adds normalized system users and refreshes", async () => {
   getSystemUsersMock.mockResolvedValueOnce({ items: [], total: 0 })
   getSystemUsersMock.mockResolvedValueOnce({ items: [{ uid: "sys-a" }, { uid: "sys-b" }], total: 2 })
