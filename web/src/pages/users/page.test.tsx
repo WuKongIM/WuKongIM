@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -95,6 +95,23 @@ test("renders the first user page", async () => {
   expect(await screen.findByText("u1")).toBeInTheDocument()
   expect(screen.getByText("app")).toBeInTheDocument()
   expect(getUsersMock).toHaveBeenCalledWith({ limit: 50 })
+})
+
+test("uses an editorial user inventory toolbar and table surface", async () => {
+  getUsersMock.mockResolvedValueOnce({ items: [userRow], has_more: false })
+
+  renderUsersPage()
+
+  const table = await screen.findByRole("table", { name: "Users" })
+  const inventorySurface = table.closest("[data-users-surface='inventory']")
+  expect(inventorySurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(inventorySurface).not.toHaveClass("rounded-xl")
+
+  const toolbar = screen.getByTestId("users-filter-toolbar")
+  expect(toolbar).toHaveClass("border-b", "border-border", "pb-4")
+  expect(within(toolbar).getByPlaceholderText("Search UID")).toBeInTheDocument()
+  expect(within(toolbar).getByRole("button", { name: "Search" })).toBeInTheDocument()
+  expect(within(toolbar).getByRole("button", { name: "Refresh" })).toBeInTheDocument()
 })
 
 test("searches users by UID", async () => {

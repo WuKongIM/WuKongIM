@@ -219,35 +219,37 @@ export function UsersPage() {
       />
 
       <SectionCard
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                void runQuery({ keyword: activeKeyword, refreshing: true })
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {state.refreshing
-                ? intl.formatMessage({ id: "common.refreshing" })
-                : intl.formatMessage({ id: "common.refresh" })}
-            </Button>
-          </div>
-        }
+        className="overflow-hidden"
         description={intl.formatMessage({ id: "users.list.description" })}
         title={intl.formatMessage({ id: "users.list.title" })}
       >
-        <form className="mb-4 flex flex-col gap-2 sm:flex-row" onSubmit={submitSearch}>
-          <input
-            className="h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-            onChange={(event) => setKeywordInput(event.target.value)}
-            placeholder={intl.formatMessage({ id: "users.search.placeholder" })}
-            value={keywordInput}
-          />
-          <Button size="sm" type="submit">
-            {intl.formatMessage({ id: "common.search" })}
+        <div
+          className="mb-4 flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between"
+          data-testid="users-filter-toolbar"
+        >
+          <form className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row" onSubmit={submitSearch}>
+            <input
+              className="h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              onChange={(event) => setKeywordInput(event.target.value)}
+              placeholder={intl.formatMessage({ id: "users.search.placeholder" })}
+              value={keywordInput}
+            />
+            <Button size="sm" type="submit">
+              {intl.formatMessage({ id: "common.search" })}
+            </Button>
+          </form>
+          <Button
+            onClick={() => {
+              void runQuery({ keyword: activeKeyword, refreshing: true })
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.refreshing
+              ? intl.formatMessage({ id: "common.refreshing" })
+              : intl.formatMessage({ id: "common.refresh" })}
           </Button>
-        </form>
+        </div>
 
         {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "users.title" })} /> : null}
         {!state.loading && state.error ? (
@@ -262,8 +264,8 @@ export function UsersPage() {
         {!state.loading && !state.error ? (
           state.items.length > 0 ? (
             <div className="space-y-3">
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
+              <div className="overflow-x-auto rounded-md border border-border" data-users-surface="inventory">
+                <table aria-label={intl.formatMessage({ id: "users.list.title" })} className="w-full border-collapse text-sm">
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "users.table.uid" })}</th>
@@ -355,15 +357,15 @@ export function UsersPage() {
         {!detailLoading && !detailError && detail ? (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border p-3 text-sm">
+              <div className="rounded-md border border-border bg-background p-3 text-sm">
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "users.detail.slot" })}</div>
                 <div className="mt-1 font-medium">{detail.slot_id}</div>
               </div>
-              <div className="rounded-lg border border-border p-3 text-sm">
+              <div className="rounded-md border border-border bg-background p-3 text-sm">
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "users.detail.hashSlot" })}</div>
                 <div className="mt-1 font-medium">{detail.hash_slot}</div>
               </div>
-              <div className="rounded-lg border border-border p-3 text-sm">
+              <div className="rounded-md border border-border bg-background p-3 text-sm">
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "users.detail.online" })}</div>
                 <div className="mt-1 font-medium">{detail.online ? "online" : "offline"}</div>
               </div>
@@ -372,7 +374,7 @@ export function UsersPage() {
               <h3 className="mb-2 text-sm font-semibold">{intl.formatMessage({ id: "users.detail.devices" })}</h3>
               <div className="space-y-2">
                 {detail.devices.map((device) => (
-                  <div className="rounded-lg border border-border p-3 text-sm" key={device.device_flag}>
+                  <div className="rounded-md border border-border bg-background p-3 text-sm" key={device.device_flag}>
                     <div className="font-medium">{device.device_flag} / {device.device_level}</div>
                     <div className="mt-1 text-muted-foreground">
                       {intl.formatMessage(
@@ -388,7 +390,7 @@ export function UsersPage() {
               <h3 className="mb-2 text-sm font-semibold">{intl.formatMessage({ id: "users.detail.connections" })}</h3>
               <div className="space-y-2">
                 {detail.connections.map((connection) => (
-                  <div className="rounded-lg border border-border p-3 text-sm" key={connection.session_id}>
+                  <div className="rounded-md border border-border bg-background p-3 text-sm" key={connection.session_id}>
                     <div className="font-medium">
                       {intl.formatMessage({ id: "users.connection.session" }, { id: connection.session_id })}
                     </div>
@@ -448,7 +450,7 @@ export function UsersPage() {
           </select>
         </label>
         {resetResult ? (
-          <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
             <div className="text-muted-foreground">{intl.formatMessage({ id: "users.token.visibleOnce" })}</div>
             <code className="mt-2 block break-all text-foreground">{resetResult.token}</code>
           </div>
