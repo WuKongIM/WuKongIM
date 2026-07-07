@@ -158,7 +158,10 @@ test("renders the cockpit brand and single-node cluster promise", () => {
     </AppProviders>,
   )
 
-  expect(screen.getByText("Operations cockpit")).toBeInTheDocument()
-  expect(screen.getByText("Single-node cluster ready")).toBeInTheDocument()
+  expect(screen.getAllByText("Operations cockpit")).toHaveLength(2)
+  expect(screen.getAllByText("Single-node cluster ready")).toHaveLength(2)
   expect(screen.getByText("Health-first navigation")).toBeInTheDocument()
+  expect(screen.getByTestId("login-brand-band")).toHaveClass("bg-[var(--primary)]")
+  expect(screen.getByTestId("login-form-card")).toHaveClass("rounded-[22px]")
+  expect(document.querySelector("[class*='radial-gradient']")).not.toBeInTheDocument()
 })

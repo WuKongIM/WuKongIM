@@ -50,17 +50,13 @@ export function LoginPage() {
 
   return (
     <main className="min-h-screen overflow-hidden bg-background px-5 py-8 sm:px-6 lg:py-12">
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(101,216,138,0.16),transparent_32rem),radial-gradient(circle_at_86%_12%,rgba(93,168,255,0.10),transparent_28rem)]"
-      />
       <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center gap-8 lg:grid-cols-[1.08fr_0.92fr]">
         <section className="max-w-2xl">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div
                 aria-hidden
-                className="size-10 rounded-2xl border border-primary/35 bg-[linear-gradient(135deg,var(--primary),#1f7a4a)] shadow-[0_0_36px_rgba(101,216,138,0.28)]"
+                className="size-9 rounded-sm border border-foreground bg-foreground"
               />
               <div>
                 <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground">
@@ -98,9 +94,23 @@ export function LoginPage() {
               {intl.formatMessage({ id: "auth.healthFirstNavigation" })}
             </span>
           </div>
+          <div
+            className="mt-8 rounded-[22px] bg-[var(--primary)] p-6 text-primary-foreground"
+            data-testid="login-brand-band"
+          >
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] opacity-80">
+              {intl.formatMessage({ id: "auth.operationsCockpit" })}
+            </div>
+            <div className="mt-3 text-2xl font-normal leading-tight">
+              {intl.formatMessage({ id: "auth.singleNodeClusterReady" })}
+            </div>
+          </div>
         </section>
 
-        <section className="w-full rounded-3xl border border-border/80 bg-card/90 p-6 text-card-foreground shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-8">
+        <section
+          className="w-full rounded-[22px] border border-border bg-card p-6 text-card-foreground shadow-none sm:p-8"
+          data-testid="login-form-card"
+        >
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
             {intl.formatMessage({ id: "auth.clusterAccess" })}
           </div>
@@ -118,7 +128,7 @@ export function LoginPage() {
               </span>
               <input
                 autoComplete="username"
-                className="w-full rounded-2xl border border-input bg-background/80 px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/20"
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
                 name="username"
                 onChange={(event) => setUsername(event.target.value)}
                 type="text"
@@ -132,7 +142,7 @@ export function LoginPage() {
               </span>
               <input
                 autoComplete="current-password"
-                className="w-full rounded-2xl border border-input bg-background/80 px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/20"
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
                 name="password"
                 onChange={(event) => setPassword(event.target.value)}
                 type="password"
@@ -143,7 +153,7 @@ export function LoginPage() {
             {errorMessage ? (
               <div
                 aria-live="polite"
-                className="rounded-2xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                className="rounded-md border border-destructive/25 bg-destructive/8 px-3 py-2 text-sm text-destructive"
                 role="alert"
               >
                 {errorMessage}
