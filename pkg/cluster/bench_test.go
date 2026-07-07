@@ -120,6 +120,34 @@ func BenchmarkChannelAppendLocalParallel(b *testing.B) {
 	})
 }
 
+func BenchmarkMessageEventAppendLocal(b *testing.B) {
+	node := newBenchMessageEventNode(b)
+	startNode(b, node)
+	b.Cleanup(func() { stopNodes(b, node) })
+	channelID := "bench-message-event"
+	waitBenchRouteKeyLeaderReady(b, node, channelID)
+	ctx := context.Background()
+	payload := []byte(`{"kind":"text","delta":"x"}`)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: "cmn-" + strconv.Itoa(i),
+			EventID:     "evt-" + strconv.Itoa(i),
+			EventType:   metadb.EventTypeStreamDelta,
+			Visibility:  metadb.VisibilityPublic,
+			Payload:     payload,
+			UpdatedAt:   int64(i + 1),
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkListPluginBindingsByPluginNo(b *testing.B) {
 	node := newBenchPluginBindingNode(b)
 	startNode(b, node)
@@ -159,6 +187,21 @@ func newBenchPluginBindingNode(b *testing.B) *Node {
 	b.Helper()
 	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: b.TempDir()}
 	cfg.Control.ClusterID = "cluster-bench-plugin-binding"
+	cfg.Slots.InitialSlotCount = 1
+	cfg.Slots.HashSlotCount = 4
+	cfg.Slots.ReplicaCount = 1
+	cfg.Channel.TickInterval = time.Millisecond
+	node, err := New(cfg)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return node
+}
+
+func newBenchMessageEventNode(b *testing.B) *Node {
+	b.Helper()
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: b.TempDir()}
+	cfg.Control.ClusterID = "cluster-bench-message-event"
 	cfg.Slots.InitialSlotCount = 1
 	cfg.Slots.HashSlotCount = 4
 	cfg.Slots.ReplicaCount = 1
