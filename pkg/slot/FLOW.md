@@ -113,11 +113,15 @@ flush 触发大量 hash-slot proposal 并抢占前台发送链路。
 hash slot，但 batch entry 内部会保存每行真实 hash slot；`fsm.ApplyBatch` 会校验每个
 entry 的 hash slot 都属于当前物理 Slot，并用同一个 WriteBatch 原子写入这些行。
 
-消息事件投影使用 channel-owned hash slot。`AppendMessageEvent` 是普通 Slot FSM
-命令，但它实现 `resultCommand`，因此 `ApplyBatch` 会返回 reducer 产生的
-`MessageEventAppendResult` 编码结果；调用方只有显式走 result proposal path 时才支付
-返回结果的序列化和传输成本。投影只保存每条消息各 event lane 的压缩状态和消息级 cursor，
-不保存原始事件日志，`/message/eventsync` 的逐事件增量接口不在这一层实现。
+消息事件 durable 投影使用 channel-owned hash slot。进入 Slot FSM 的
+`AppendMessageEvent` 是普通 Slot FSM 命令，但它实现 `resultCommand`，因此
+`ApplyBatch` 会返回 reducer 产生的 `MessageEventAppendResult` 编码结果；调用方只有
+显式走 result proposal path 时才支付返回结果的序列化和传输成本。上层
+`pkg/cluster.Node` 会把 `stream.open`/`stream.delta`/`stream.snapshot` 先缓存在
+Slot leader 节点内，只在 terminal stream event 到达时提交 durable projection；
+`stream.finish` 会由 cluster 层先把仍未终态的缓存 lane 刷成 compact terminal
+state，再写 reserved finish marker。投影只保存每条消息各 event lane 的压缩状态和消息级 cursor，不保存原始事件日志，
+`/message/eventsync` 的逐事件增量接口不在这一层实现。
 
 ### 5.2 读取（本地 vs 权威 RPC）
 

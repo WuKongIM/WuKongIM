@@ -412,26 +412,77 @@ func (n *Node) AppendMessageEvent(ctx context.Context, event metadb.MessageEvent
 	if n == nil {
 		return metadb.MessageEventAppendResult{}, ErrNotStarted
 	}
-	command, err := metafsm.EncodeAppendMessageEventCommandChecked(event)
+	event, err := normalizeClusterMessageEventAppend(event)
 	if err != nil {
 		return metadb.MessageEventAppendResult{}, err
 	}
-	resultBytes, err := n.ProposeResult(ctx, ProposeRequest{Key: event.ChannelID, Command: command})
+	route, err := n.RouteKey(event.ChannelID)
 	if err != nil {
 		return metadb.MessageEventAppendResult{}, err
 	}
-	result, err := metafsm.DecodeAppendMessageEventResult(resultBytes)
-	if err != nil {
-		if string(resultBytes) == metafsm.ApplyResultStaleMeta {
-			return metadb.MessageEventAppendResult{}, metadb.ErrStaleMeta
-		}
-		return metadb.MessageEventAppendResult{}, err
+	if route.Leader == 0 {
+		return metadb.MessageEventAppendResult{}, ErrNoSlotLeader
 	}
-	return result, nil
+	if route.Leader != n.cfg.NodeID {
+		return n.forwardMessageEventAppend(ctx, route.Leader, event)
+	}
+	return n.appendMessageEventLocal(ctx, event)
 }
 
 // GetMessageEventStatesBatch reads projected event lanes for message keys through each channel route.
 func (n *Node) GetMessageEventStatesBatch(ctx context.Context, keys []metadb.MessageEventMessageKey, limit int) (map[metadb.MessageEventMessageKey][]metadb.MessageEventState, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return map[metadb.MessageEventMessageKey][]metadb.MessageEventState{}, nil
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return nil, ErrNotStarted
+	}
+	groups := make(map[uint64][]metadb.MessageEventMessageKey)
+	seen := make(map[metadb.MessageEventMessageKey]struct{}, len(keys))
+	for _, key := range keys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		route, err := n.RouteKey(key.ChannelID)
+		if err != nil {
+			return nil, err
+		}
+		if route.Leader == 0 {
+			return nil, ErrNoSlotLeader
+		}
+		groups[route.Leader] = append(groups[route.Leader], key)
+	}
+	out := make(map[metadb.MessageEventMessageKey][]metadb.MessageEventState, len(keys))
+	for leader, group := range groups {
+		var (
+			rows map[metadb.MessageEventMessageKey][]metadb.MessageEventState
+			err  error
+		)
+		if leader == n.cfg.NodeID {
+			rows, err = n.getMessageEventStatesBatchLocal(ctx, group, limit)
+		} else {
+			rows, err = n.forwardMessageEventStatesBatch(ctx, leader, group, limit)
+		}
+		if err != nil {
+			return nil, err
+		}
+		for key, states := range rows {
+			if len(states) > 0 {
+				out[key] = states
+			}
+		}
+	}
+	return out, nil
+}
+
+func (n *Node) getMessageEventStatesBatchLocal(ctx context.Context, keys []metadb.MessageEventMessageKey, limit int) (map[metadb.MessageEventMessageKey][]metadb.MessageEventState, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
@@ -455,18 +506,51 @@ func (n *Node) GetMessageEventStatesBatch(ctx context.Context, keys []metadb.Mes
 		if err != nil {
 			return nil, err
 		}
+		if route.Leader != n.cfg.NodeID {
+			return nil, ErrNotLeader
+		}
 		states, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListMessageEventStates(ctx, key.ChannelID, key.ChannelType, key.ClientMsgNo, limit)
 		if err != nil {
 			if errors.Is(err, metadb.ErrNotFound) {
-				continue
+				states = nil
+			} else {
+				return nil, err
 			}
-			return nil, err
 		}
+		states = mergeMessageEventStateOverlay(states, n.messageEventStreamCache.states(key), limit)
 		if len(states) > 0 {
 			out[key] = states
 		}
 	}
 	return out, nil
+}
+
+func mergeMessageEventStateOverlay(durable []metadb.MessageEventState, cached []metadb.MessageEventState, limit int) []metadb.MessageEventState {
+	if len(cached) == 0 {
+		if limit > 0 && len(durable) > limit {
+			return durable[:limit]
+		}
+		return durable
+	}
+	merged := make(map[string]metadb.MessageEventState, len(durable)+len(cached))
+	for _, state := range durable {
+		merged[state.EventKey] = state
+	}
+	for _, state := range cached {
+		existing, ok := merged[state.EventKey]
+		if !ok || state.Status == metadb.EventStatusOpen || state.LastMsgEventSeq >= existing.LastMsgEventSeq {
+			merged[state.EventKey] = state
+		}
+	}
+	out := make([]metadb.MessageEventState, 0, len(merged))
+	for _, state := range merged {
+		out = append(out, state)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].EventKey < out[j].EventKey })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
 }
 
 // UpsertUserChannelMemberships persists UID-owned channel memberships through hash-slot ownership.

@@ -19,4 +19,6 @@ var (
 	ErrNotLeader = errors.New("cluster: not leader")
 	// ErrSlotNotFound indicates that the requested physical Slot is not available locally.
 	ErrSlotNotFound = errors.New("cluster: slot not found")
+	// ErrBackpressured indicates that a bounded foreground buffer rejected new work.
+	ErrBackpressured = errors.New("cluster: backpressured")
 )

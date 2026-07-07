@@ -86,14 +86,20 @@ AppendMessageEvent(event)
   -> canonicalize person-channel and agent-channel IDs using from_uid
   -> stamp updated_at when absent
   -> call MessageEventStore.AppendMessageEvent
-  -> return the store-assigned msg_event_seq and projected lane status
+  -> return the projected lane status and the assigned msg_event_seq when durable
 ```
 
-`AppendMessageEvent` intentionally writes `stream.delta` through the same durable
-projection store as terminal events in this architecture. This keeps the Slot
-leader/meta reducer as the single source of truth for offline sync and later
-fine-grained event replay, rather than relying on a separate cross-node in-memory
-delta cache.
+`AppendMessageEvent` leaves stream buffering policy to the configured
+`MessageEventStore`. The cluster-backed store keeps `stream.open`,
+`stream.delta`, and `stream.snapshot` updates in a bounded Slot-leader cache and
+only proposes a durable projection when a terminal event
+(`stream.close`/`stream.error`/`stream.cancel`/`stream.finish`) arrives. Cache
+hits may return `msg_event_seq=0` because no Slot FSM cursor has advanced yet;
+terminal responses return the durable reducer-assigned message event sequence.
+When `stream.finish` completes a message-level stream, the cluster store flushes
+all still-open cached event lanes before writing the reserved finish marker.
+Cache pressure is reported as typed backpressure rather than silently evicting
+active streams.
 
 This phase treats `(channel_id, channel_type, client_msg_no)` as the projection
 anchor and does not perform a routed base-message existence check before
@@ -106,12 +112,13 @@ defaulting must be owned by the access/app configuration layer.
 ## Message Event Projection Ports
 
 `MessageEventStore` is the usecase boundary for message-scoped event
-projections. It appends one event update and returns the assigned
-message-level `msg_event_seq`, and it reads compact event lane states in batch
-for `/channel/messagesync` enrichment. The usecase DTOs are independent from
-the concrete Slot/metadb storage types; cluster adapters perform mapping and
-payload cloning. Fine-grained `/message/eventsync` replay is intentionally not
-part of this port in this phase.
+projections. It accepts one event update, may satisfy in-flight stream updates
+from cache, returns the assigned message-level `msg_event_seq` once durable, and
+reads compact event lane states in batch for `/channel/messagesync` enrichment.
+The usecase DTOs are independent from the concrete Slot/metadb storage types;
+cluster adapters perform mapping and payload cloning. Fine-grained
+`/message/eventsync` replay is intentionally not part of this port in this
+phase.
 
 ## Import Boundary
 

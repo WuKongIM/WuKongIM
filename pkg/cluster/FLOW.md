@@ -251,13 +251,24 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
 channel ID. Subscriber point lookups and subscriber-set non-emptiness reads use
 the same channel-owned Slot metadata route for message permission checks.
-Message event projection appends also route by channel ID, submit an encoded
-Slot FSM command through the result proposal path, and decode the returned
-`MessageEventAppendResult` so callers can expose the assigned message-level
-event sequence without issuing a second read. `GetMessageEventStatesBatch`
-routes each `(channel_id, channel_type, client_msg_no)` key to the current
-channel hash slot and returns compact lane states for messagesync-style
-summaries only; it does not implement `/message/eventsync`.
+Message event appends also route by channel ID. `stream.open`,
+`stream.delta`, and `stream.snapshot` are forwarded to the current Slot leader's
+bounded node-local stream cache and return cache state without advancing the
+Slot FSM cursor. Terminal stream events
+(`stream.close`/`stream.error`/`stream.cancel`/`stream.finish`) merge the cached
+snapshot into the terminal payload and submit durable Slot FSM commands through
+the result proposal path. `stream.finish` first flushes every still-open cached
+lane as a synthesized `stream.close`, then writes the reserved finish marker, so
+only completed streams advance the Slot FSM cursor while restart/leader-change
+recovery still sees compact lane states. Cache capacity pressure returns
+`ErrBackpressured` instead of evicting active streams. The append path decodes
+the returned `MessageEventAppendResult` so callers can expose the assigned
+message-level event sequence without issuing a second read.
+`GetMessageEventStatesBatch` routes each
+`(channel_id, channel_type, client_msg_no)` key to the current channel hash slot
+leader and returns compact lane states for messagesync-style summaries,
+overlaying in-flight Slot-leader cache states on top of durable rows when
+present. It does not implement `/message/eventsync`.
 `GetChannelRuntimeMeta` reads authoritative channel runtime metadata from the
 channel's current hash-slot route, and `AdvanceChannelRetentionThroughSeq`
 proposes a fenced Slot FSM command that only advances the channel message

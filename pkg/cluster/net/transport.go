@@ -292,7 +292,7 @@ func (s *TransportServer) serviceOptions(serviceID uint8) transport.ServiceOptio
 
 func isForegroundChannelMutationService(serviceID uint8) bool {
 	switch serviceID {
-	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelAuthoritySend:
+	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelAuthoritySend, RPCMessageEventAppend:
 		return true
 	default:
 		return false

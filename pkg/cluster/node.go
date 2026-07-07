@@ -85,6 +85,8 @@ type Node struct {
 	defaultSlotMetaDB *metadb.DB
 	// defaultSlotProposer adapts the default Slot runtime to the propose service.
 	defaultSlotProposer propose.SlotRuntime
+	// messageEventStreamCache keeps in-flight stream event projections on the Slot leader.
+	messageEventStreamCache *messageEventStreamCache
 	// pendingRPCHandlers stores public RPC handlers until the default transport exists.
 	pendingRPCHandlers map[uint8]clusternet.Handler
 	// registeredRPCHandlers records handlers installed on the current default transport.
@@ -136,7 +138,7 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL)}
+	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0)}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)

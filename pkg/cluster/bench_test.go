@@ -120,7 +120,7 @@ func BenchmarkChannelAppendLocalParallel(b *testing.B) {
 	})
 }
 
-func BenchmarkMessageEventAppendLocal(b *testing.B) {
+func BenchmarkMessageEventStreamDeltaCacheLocal(b *testing.B) {
 	node := newBenchMessageEventNode(b)
 	startNode(b, node)
 	b.Cleanup(func() { stopNodes(b, node) })
@@ -135,9 +135,37 @@ func BenchmarkMessageEventAppendLocal(b *testing.B) {
 		_, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
 			ChannelID:   channelID,
 			ChannelType: 2,
-			ClientMsgNo: "cmn-" + strconv.Itoa(i),
+			ClientMsgNo: "cmn-" + strconv.Itoa(i/64),
 			EventID:     "evt-" + strconv.Itoa(i),
 			EventType:   metadb.EventTypeStreamDelta,
+			Visibility:  metadb.VisibilityPublic,
+			Payload:     payload,
+			UpdatedAt:   int64(i + 1),
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkMessageEventTerminalAppendLocal(b *testing.B) {
+	node := newBenchMessageEventNode(b)
+	startNode(b, node)
+	b.Cleanup(func() { stopNodes(b, node) })
+	channelID := "bench-message-event-terminal"
+	waitBenchRouteKeyLeaderReady(b, node, channelID)
+	ctx := context.Background()
+	payload := []byte(`{"snapshot":{"kind":"text","text":"done"}}`)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: "cmn-terminal-" + strconv.Itoa(i),
+			EventID:     "evt-terminal-" + strconv.Itoa(i),
+			EventType:   metadb.EventTypeStreamClose,
 			Visibility:  metadb.VisibilityPublic,
 			Payload:     payload,
 			UpdatedAt:   int64(i + 1),

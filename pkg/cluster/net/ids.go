@@ -85,6 +85,8 @@ const (
 	RPCManagerTaskAudit
 	// RPCChannelMigrationMeta serves cluster Slot-leader channel migration state reads.
 	RPCChannelMigrationMeta
+	// RPCMessageEventAppend forwards message event appends and compact state reads to the Slot leader.
+	RPCMessageEventAppend
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -167,6 +169,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager task audit"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
+	case RPCMessageEventAppend:
+		return "message event append"
 	default:
 		return "unknown service"
 	}

@@ -133,8 +133,11 @@ The compatible message routes are registered regardless of bench mode.
 returns the legacy `{"message_id","message_seq","reason"}` response with
 protocol reason codes. `/message/event` accepts the legacy message-scoped event
 append request, forwards raw JSON payload bytes to `internal/usecase/message`,
-and returns the legacy `{"status":200,"data":...}` envelope with the assigned
-`msg_event_seq` and projected stream status. `/message/sync` and
+and returns the legacy `{"status":200,"data":...}` envelope with the projected
+stream status and `msg_event_seq` when the event has reached durable projection.
+In-flight `stream.open`, `stream.delta`, and `stream.snapshot` cache responses
+may return `msg_event_seq=0` until a terminal stream event is proposed.
+`/message/sync` and
 `/message/syncack` forward durable CMD message sync and ack requests to
 `internal/usecase/cmdsync`, preserving legacy validation messages and response
 envelopes while keeping CMD projection reads and read-cursor writes out of the
