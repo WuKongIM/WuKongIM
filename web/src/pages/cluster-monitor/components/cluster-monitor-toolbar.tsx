@@ -60,9 +60,12 @@ export function ClusterMonitorToolbar({
   }).format(new Date(generatedAt))
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] lg:flex-row lg:items-center lg:justify-between">
+    <section
+      className="flex flex-col gap-3 border-b border-border bg-background pb-4 lg:flex-row lg:items-center lg:justify-between"
+      data-monitor-toolbar="true"
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+        <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
           {scopeLabel ?? intl.formatMessage({ id: scopeLabelId })}
         </span>
         <span className="text-xs text-muted-foreground">
@@ -71,7 +74,7 @@ export function ClusterMonitorToolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-2 text-xs font-medium text-muted-foreground">
+        <label className="flex h-8 items-center gap-2 rounded-md border border-border bg-card px-2 text-xs font-medium text-muted-foreground">
           <span>{intl.formatMessage({ id: "clusterMonitor.controls.category" })}</span>
           <select
             aria-label={intl.formatMessage({ id: "clusterMonitor.controls.category" })}
@@ -95,7 +98,7 @@ export function ClusterMonitorToolbar({
           selectedNodeId={selectedNodeId}
         />
 
-        <div className="inline-flex h-8 items-center rounded-lg border border-border bg-background p-1">
+        <div className="inline-flex h-8 items-center rounded-md border border-border bg-card p-1">
           {ranges.map((range) => (
             <button
               aria-label={`${range} time range`}

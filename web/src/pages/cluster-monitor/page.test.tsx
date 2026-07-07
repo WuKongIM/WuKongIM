@@ -1125,12 +1125,16 @@ test("renders cluster monitor cards from realtime API data", async () => {
   renderClusterMonitorPage()
 
   expect(screen.getByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
+  expect(screen.getByRole("heading", { name: /live monitor/i }).closest("section")).toHaveClass("border-b")
   expect(await screen.findByText("Live Data")).toBeInTheDocument()
   expect(screen.queryByText("UI Preview")).not.toBeInTheDocument()
   expect(screen.getByText("Cluster control plane, replication, internal network, queue, and storage watermarks.")).toBeInTheDocument()
 
   const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
   expect(cards).toHaveLength(2)
+  expect(screen.getByLabelText(/category/i).closest("section")).toHaveAttribute("data-monitor-toolbar", "true")
+  expect(screen.getAllByTestId("cluster-monitor-snapshot-cell").length).toBeGreaterThan(0)
+  expect(cards[0]).toHaveClass("shadow-none")
   expect(within(cards[0]).getByText("Controller Apply Gap")).toBeInTheDocument()
   expect(within(cards[0]).getByText("15")).toBeInTheDocument()
   expect(within(cards[0]).getByText("Slow Nodes")).toBeInTheDocument()

@@ -95,7 +95,7 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
 
   return (
     <article
-      className="flex min-h-[330px] flex-col rounded-lg border border-border/80 bg-card/88 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+      className="flex min-h-[320px] flex-col rounded-lg border border-border bg-card p-4 shadow-none"
       data-testid="cluster-monitor-metric-card"
     >
       <div className="flex items-start justify-between gap-3">
@@ -191,7 +191,7 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
         {card.stats.map((stat) => {
           const label = stat.label ?? (stat.labelId ? intl.formatMessage({ id: stat.labelId }) : "")
           return (
-            <div className="min-w-0 rounded-md border border-border/70 bg-background/55 px-2 py-2" key={`${label}:${stat.value}`}>
+            <div className="min-w-0 rounded-md border border-border bg-background px-2 py-2" key={`${label}:${stat.value}`}>
               <dt className="truncate text-[11px] text-muted-foreground">{label}</dt>
               <dd className="mt-1 truncate text-xs font-semibold text-foreground">{stat.value}</dd>
             </div>
