@@ -196,8 +196,8 @@ function ControllerRaftStatusPanel({
       description={intl.formatMessage({ id: "controller.status.description" }, { node: status.node_id })}
       title={intl.formatMessage({ id: "controller.status.title" })}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-lg border border-border bg-background p-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5" data-testid="controller-status-strip">
+        <div className="rounded-md border border-border bg-background px-3 py-3" data-controller-status-cell="">
           <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
             {intl.formatMessage({ id: "controller.status.health" })}
           </div>
@@ -205,7 +205,7 @@ function ControllerRaftStatusPanel({
             <StatusBadge value={status.health} />
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-background p-3">
+        <div className="rounded-md border border-border bg-background px-3 py-3" data-controller-status-cell="">
           <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
             {intl.formatMessage({ id: "controller.status.role" })}
           </div>
@@ -214,7 +214,7 @@ function ControllerRaftStatusPanel({
             {intl.formatMessage({ id: "controller.status.leader" }, { id: status.leader_id })}
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-background p-3">
+        <div className="rounded-md border border-border bg-background px-3 py-3" data-controller-status-cell="">
           <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
             {intl.formatMessage({ id: "controller.status.watermark" })}
           </div>
@@ -223,7 +223,7 @@ function ControllerRaftStatusPanel({
             {intl.formatMessage({ id: "controller.logs.range" }, { first: status.first_index, last: status.last_index })}
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-background p-3">
+        <div className="rounded-md border border-border bg-background px-3 py-3" data-controller-status-cell="">
           <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
             {intl.formatMessage({ id: "controller.status.snapshotLabel" })}
           </div>
@@ -235,7 +235,7 @@ function ControllerRaftStatusPanel({
             )}
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-background p-3">
+        <div className="rounded-md border border-border bg-background px-3 py-3" data-controller-status-cell="">
           <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
             {intl.formatMessage({ id: "controller.status.compaction" })}
           </div>
@@ -501,7 +501,10 @@ export function ControllerLogsPanel() {
 
   return (
     <>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div
+        className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-start lg:justify-between"
+        data-testid="controller-workbench-toolbar"
+      >
         <div className="space-y-2">
           <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             {intl.formatMessage({ id: "controller.eyebrow" })}
@@ -573,7 +576,7 @@ export function ControllerLogsPanel() {
           title={intl.formatMessage({ id: "controller.logs.title" })}
         />
       ) : visiblePage && visiblePage.items.length > 0 ? (
-        <section className="overflow-hidden rounded-lg border border-border bg-card">
+        <section className="overflow-hidden rounded-lg border border-border bg-card" data-controller-surface="logs">
           <div className="flex flex-col gap-2 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-base font-semibold text-foreground">
@@ -594,7 +597,10 @@ export function ControllerLogsPanel() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border text-sm">
+            <table
+              aria-label={intl.formatMessage({ id: "controller.logs.title" })}
+              className="min-w-full divide-y divide-border text-sm"
+            >
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "controller.logs.table.index" })}</th>
