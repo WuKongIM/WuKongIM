@@ -62,6 +62,21 @@ func TestListNodePluginsReadsLocalPluginReader(t *testing.T) {
 	}
 }
 
+func TestListNodePluginsReturnsEmptyWhenLocalPluginReaderUnavailable(t *testing.T) {
+	app := New(Options{Cluster: fakeNodeSnapshotReader{nodeID: 1}})
+
+	got, err := app.ListNodePlugins(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("ListNodePlugins(local without plugin reader) error = %v", err)
+	}
+	if got.NodeID != 1 {
+		t.Fatalf("NodeID = %d, want 1", got.NodeID)
+	}
+	if len(got.Plugins) != 0 {
+		t.Fatalf("plugins = %#v, want empty list", got.Plugins)
+	}
+}
+
 func TestListNodePluginsRoutesRemoteNodeReads(t *testing.T) {
 	local := &fakePluginReader{}
 	remote := &fakeRemotePluginReader{

@@ -488,7 +488,16 @@ type PluginConfig struct {
 	// PersistAfterWorkers bounds concurrent PersistAfter hook invocations.
 	PersistAfterWorkers int
 
+	enableSet    bool
 	hotReloadSet bool
+}
+
+// SetEnableExplicit records whether Enable was explicitly configured.
+func (c *PluginConfig) SetEnableExplicit(enableSet bool) {
+	if c == nil {
+		return
+	}
+	c.enableSet = enableSet
 }
 
 // SetExplicitFlags records whether plugin boolean defaults were explicitly configured.
@@ -562,6 +571,9 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 }
 
 func defaultPluginConfig(dataDir string, cfg PluginConfig) PluginConfig {
+	if !cfg.enableSet {
+		cfg.Enable = true
+	}
 	if cfg.Enable {
 		if cfg.Dir == "" {
 			cfg.Dir = filepath.Join(dataDir, "plugins")

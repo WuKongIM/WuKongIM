@@ -235,7 +235,7 @@ func (a *App) ListNodePlugins(ctx context.Context, nodeID uint64) (NodePluginLis
 		return NodePluginList{NodeID: nodeID, Plugins: cloneManagementPlugins(nodeID, plugins)}, nil
 	}
 	if a == nil || a.plugins == nil {
-		return NodePluginList{}, ErrPluginNodeUnavailable
+		return NodePluginList{NodeID: nodeID}, nil
 	}
 	local, err := a.plugins.ListLocalPlugins(ctx)
 	if err != nil {

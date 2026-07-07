@@ -651,7 +651,11 @@ runtime fields such as status, sync flags, process ID, last-seen time, and
 latest error text. Config update writes node-local desired state and preserves
 secret redaction below the management layer; restart and uninstall delegate to
 the selected node's plugin runtime through the plugin usecase. The management
-usecase does not inspect plugin files or run plugin processes directly.
+usecase does not inspect plugin files or run plugin processes directly. When
+the selected node is local and the plugin runtime is not wired, the list
+operation returns an empty inventory instead of treating the node as
+unavailable; detail and lifecycle mutations still require the node-local plugin
+runtime, and remote node reads still require the `RemotePluginReader` port.
 
 Plugin binding management is cluster-authoritative and UID-owned. The usecase
 validates that list requests provide exactly one selector, trims mutation

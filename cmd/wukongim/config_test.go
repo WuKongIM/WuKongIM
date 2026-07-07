@@ -58,6 +58,9 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true by default")
 	}
+	if !cfg.Plugin.Enable {
+		t.Fatalf("Plugin.Enable = false, want true by default")
+	}
 	if cfg.Observability.Prometheus.Enabled {
 		t.Fatalf("Observability.Prometheus.Enabled = true, want false by default")
 	}
@@ -96,6 +99,24 @@ func TestLoadConfigWithoutDefaultConfigReportsAttemptedPathsAndMissingKeys(t *te
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("loadConfig() error = %v, want %s", err, want)
 		}
+	}
+}
+
+func TestLoadConfigAllowsExplicitPluginDisable(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	chdir(t, t.TempDir())
+	dir := t.TempDir()
+	path := filepath.Join(t.TempDir(), "wukongim.conf")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_PLUGIN_ENABLE=false",
+	)...)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.Plugin.Enable {
+		t.Fatalf("Plugin.Enable = true, want false when WK_PLUGIN_ENABLE=false")
 	}
 }
 

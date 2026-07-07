@@ -397,6 +397,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		Delivery: app.DeliveryConfig{
 			Enabled: true,
 		},
+		Plugin: app.PluginConfig{
+			Enable: true,
+		},
 		Cluster: cluster.Config{
 			Channel: cluster.ChannelConfig{
 				StoreAppendWorkers: 500,
@@ -1589,6 +1592,7 @@ func buildConfig(values map[string]string) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	pluginEnableSet := configValue(values, "WK_PLUGIN_ENABLE") != ""
 	if raw := configValue(values, "WK_PLUGIN_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_PLUGIN_ENABLE", raw)
 		if err != nil {
@@ -1644,6 +1648,7 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Plugin.PersistAfterWorkers = workers
 	}
+	cfg.Plugin.SetEnableExplicit(pluginEnableSet)
 	cfg.Plugin.SetExplicitFlags(configValue(values, "WK_PLUGIN_HOT_RELOAD") != "")
 	cfg.Cluster.ChannelRetention = cluster.ChannelRetentionConfig{
 		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,

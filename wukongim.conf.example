@@ -207,3 +207,19 @@ WK_DELIVERY_PUSH_BATCH_SIZE=512
 WK_DELIVERY_PENDING_ACK_TTL=30s
 WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=1024
 WK_DELIVERY_EVENT_QUEUE_SIZE=1024
+
+# Node-local PDK-compatible plugin runtime. Enabled by default for manager operations.
+WK_PLUGIN_ENABLE=true
+# Directory containing executable .wkp plugin files for this node.
+WK_PLUGIN_DIR=./data/wukongim-single-node-data/plugins
+# Unix socket used by plugin host RPC traffic.
+WK_PLUGIN_SOCKET_PATH=./data/wukongim-single-node-data/run/plugin.sock
+# Writable sandbox root for plugin processes.
+WK_PLUGIN_SANDBOX_DIR=./data/wukongim-single-node-data/plugin-sandbox
+# Desired plugin state directory used by lifecycle operations.
+WK_PLUGIN_STATE_DIR=./data/wukongim-single-node-data/plugin-state
+WK_PLUGIN_TIMEOUT=5s
+WK_PLUGIN_HOT_RELOAD=true
+WK_PLUGIN_FAIL_OPEN=false
+WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE=1024
+WK_PLUGIN_PERSIST_AFTER_WORKERS=16

@@ -93,10 +93,28 @@ func TestPluginConfigExplicitHotReloadFalse(t *testing.T) {
 	require.False(t, app.cfg.Plugin.HotReload)
 }
 
-func TestPluginConfigDefaultsKeepPluginsDisabled(t *testing.T) {
-	app := &App{cfg: Config{DataDir: t.TempDir()}}
+func TestPluginConfigDefaultsEnablePlugins(t *testing.T) {
+	dataDir := t.TempDir()
+	app := &App{cfg: Config{DataDir: dataDir}}
+	require.NoError(t, app.applyConfigDefaults())
+	require.True(t, app.cfg.Plugin.Enable)
+	require.Equal(t, filepath.Join(dataDir, "plugins"), app.cfg.Plugin.Dir)
+	require.Equal(t, filepath.Join(dataDir, "run", "plugin.sock"), app.cfg.Plugin.SocketPath)
+	require.Equal(t, filepath.Join(dataDir, "plugin-sandbox"), app.cfg.Plugin.SandboxDir)
+	require.Equal(t, filepath.Join(dataDir, "plugin-state"), app.cfg.Plugin.StateDir)
+}
+
+func TestPluginConfigExplicitEnableFalseDisablesPlugins(t *testing.T) {
+	plugin := PluginConfig{Enable: false}
+	plugin.SetEnableExplicit(true)
+	plugin.SetExplicitFlags(false)
+	app := &App{cfg: Config{DataDir: t.TempDir(), Plugin: plugin}}
 	require.NoError(t, app.applyConfigDefaults())
 	require.False(t, app.cfg.Plugin.Enable)
+	require.Empty(t, app.cfg.Plugin.Dir)
+	require.Empty(t, app.cfg.Plugin.SocketPath)
+	require.Empty(t, app.cfg.Plugin.SandboxDir)
+	require.Empty(t, app.cfg.Plugin.StateDir)
 }
 
 func TestPluginConfigValidationRejectsInvalidBounds(t *testing.T) {

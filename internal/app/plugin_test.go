@@ -22,7 +22,9 @@ import (
 )
 
 func TestNewSkipsPluginSubsystemWhenDisabled(t *testing.T) {
-	app, err := newTestApp(t, Config{DataDir: t.TempDir()}, WithCluster(&fakeCluster{}))
+	plugin := PluginConfig{Enable: false}
+	plugin.SetEnableExplicit(true)
+	app, err := newTestApp(t, Config{DataDir: t.TempDir(), Plugin: plugin}, WithCluster(&fakeCluster{}))
 	require.NoError(t, err)
 	require.Nil(t, app.pluginRuntime)
 	require.Nil(t, app.pluginHook)

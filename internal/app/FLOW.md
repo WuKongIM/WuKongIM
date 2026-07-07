@@ -179,7 +179,7 @@ New(Config)
        attach delivery observer for metrics and async error logging
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
-  -> when Plugin.Enable=true:
+  -> when Plugin.Enable=true (default unless WK_PLUGIN_ENABLE=false is set):
        wire a node-local PDK-compatible plugin runtime with a Unix host RPC
        socket, the lifecycle plus /message/send, /channel/messages,
        /cluster/config, /cluster/channels/belongNode, and
@@ -628,7 +628,8 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
-When `Plugin.Enable=true`, the app wires the PDK-compatible node-local plugin
+When `Plugin.Enable=true` (the default unless `WK_PLUGIN_ENABLE=false` is set),
+the app wires the PDK-compatible node-local plugin
 runtime, desired-state store adapter, minimal lifecycle host RPC adapter, v2
 plugin usecase, and bounded PersistAfter worker before channelappend. The
 channelappend group receives only the PersistAfter enqueue port. Plugin runtime
