@@ -176,6 +176,61 @@ func BenchmarkMessageEventTerminalAppendLocal(b *testing.B) {
 	}
 }
 
+func BenchmarkMessageEventFinishBatchAppendLocal(b *testing.B) {
+	node := newBenchMessageEventNode(b)
+	startNode(b, node)
+	b.Cleanup(func() { stopNodes(b, node) })
+	channelID := "bench-message-event-finish-batch"
+	waitBenchRouteKeyLeaderReady(b, node, channelID)
+	ctx := context.Background()
+	deltaPayload := []byte(`{"kind":"text","delta":"x"}`)
+	finishPayload := []byte(`{"end_reason":3}`)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		clientMsgNo := "cmn-finish-batch-" + strconv.Itoa(i)
+		if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: clientMsgNo,
+			EventID:     "evt-main-delta-" + strconv.Itoa(i),
+			EventKey:    "main",
+			EventType:   metadb.EventTypeStreamDelta,
+			Visibility:  metadb.VisibilityPublic,
+			Payload:     deltaPayload,
+			UpdatedAt:   int64(i*3 + 1),
+		}); err != nil {
+			b.Fatal(err)
+		}
+		if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: clientMsgNo,
+			EventID:     "evt-tool-delta-" + strconv.Itoa(i),
+			EventKey:    "tool",
+			EventType:   metadb.EventTypeStreamDelta,
+			Visibility:  metadb.VisibilityPublic,
+			Payload:     deltaPayload,
+			UpdatedAt:   int64(i*3 + 2),
+		}); err != nil {
+			b.Fatal(err)
+		}
+		if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: clientMsgNo,
+			EventID:     "evt-finish-" + strconv.Itoa(i),
+			EventType:   metadb.EventTypeStreamFinish,
+			Visibility:  metadb.VisibilityPublic,
+			Payload:     finishPayload,
+			UpdatedAt:   int64(i*3 + 3),
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkListPluginBindingsByPluginNo(b *testing.B) {
 	node := newBenchPluginBindingNode(b)
 	startNode(b, node)

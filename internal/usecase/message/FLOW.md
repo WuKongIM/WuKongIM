@@ -97,7 +97,8 @@ only proposes a durable projection when a terminal event
 hits may return `msg_event_seq=0` because no Slot FSM cursor has advanced yet;
 terminal responses return the durable reducer-assigned message event sequence.
 When `stream.finish` completes a message-level stream, the cluster store flushes
-all still-open cached event lanes before writing the reserved finish marker.
+all still-open cached event lanes and the reserved finish marker in one Slot FSM
+batch proposal.
 Cache pressure is reported as typed backpressure rather than silently evicting
 active streams.
 

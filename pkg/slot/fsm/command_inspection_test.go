@@ -301,6 +301,67 @@ func TestDecodeCommandInspectionIncludesMessageEventWithoutPayload(t *testing.T)
 	}, got)
 }
 
+func TestDecodeCommandInspectionIncludesMessageEventBatchWithoutPayloads(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeAppendMessageEventsCommand([]metadb.MessageEventAppend{
+		{
+			ChannelID:   "g1",
+			ChannelType: 2,
+			ClientMsgNo: "cmn-1",
+			EventID:     "evt-close-main",
+			EventKey:    "main",
+			EventType:   metadb.EventTypeStreamClose,
+			Visibility:  metadb.VisibilityPublic,
+			OccurredAt:  10,
+			Payload:     []byte(`{"snapshot":{"kind":"text","text":"secret"}}`),
+			UpdatedAt:   11,
+		},
+		{
+			ChannelID:   "g1",
+			ChannelType: 2,
+			ClientMsgNo: "cmn-1",
+			EventID:     "evt-finish",
+			EventType:   metadb.EventTypeStreamFinish,
+			Visibility:  metadb.VisibilityPublic,
+			OccurredAt:  12,
+			UpdatedAt:   13,
+		},
+	}))
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "append_message_events_batch",
+		Payload: map[string]any{
+			"command": "append_message_events_batch",
+			"events": []map[string]any{
+				{
+					"channel_id":    "g1",
+					"channel_type":  int64(2),
+					"client_msg_no": "cmn-1",
+					"event_id":      "evt-close-main",
+					"event_key":     "main",
+					"event_type":    metadb.EventTypeStreamClose,
+					"visibility":    metadb.VisibilityPublic,
+					"occurred_at":   int64(10),
+					"updated_at":    int64(11),
+					"payload_bytes": len([]byte(`{"snapshot":{"kind":"text","text":"secret"}}`)),
+				},
+				{
+					"channel_id":    "g1",
+					"channel_type":  int64(2),
+					"client_msg_no": "cmn-1",
+					"event_id":      "evt-finish",
+					"event_key":     "",
+					"event_type":    metadb.EventTypeStreamFinish,
+					"visibility":    metadb.VisibilityPublic,
+					"occurred_at":   int64(12),
+					"updated_at":    int64(13),
+					"payload_bytes": 0,
+				},
+			},
+		},
+	}, got)
+}
+
 func TestDecodeCommandInspectionIncludesCMDKindConversationCommands(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeUpsertConversationStatesCommand([]metadb.ConversationState{{
 		UID:          "u1",

@@ -90,6 +90,67 @@ func TestStateMachineMessageEventAppendNormalizesOpenAndDefaultKey(t *testing.T)
 	}
 }
 
+func TestStateMachineAppliesMessageEventAppendBatch(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	resultBytes, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		Index:    1,
+		Term:     1,
+		HashSlot: 11,
+		Data: EncodeAppendMessageEventsCommand([]metadb.MessageEventAppend{
+			{
+				ChannelID:   "g1",
+				ChannelType: 2,
+				ClientMsgNo: "cmn-batch",
+				EventID:     "evt-close-main",
+				EventKey:    "main",
+				EventType:   metadb.EventTypeStreamClose,
+				Visibility:  metadb.VisibilityPublic,
+				OccurredAt:  1000,
+				Payload:     []byte(`{"snapshot":{"kind":"text","text":"hi"}}`),
+				UpdatedAt:   1001,
+			},
+			{
+				ChannelID:   "g1",
+				ChannelType: 2,
+				ClientMsgNo: "cmn-batch",
+				EventID:     "evt-finish",
+				EventType:   metadb.EventTypeStreamFinish,
+				Visibility:  metadb.VisibilityPublic,
+				OccurredAt:  1002,
+				UpdatedAt:   1003,
+			},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(message event batch) error = %v", err)
+	}
+	result, err := DecodeAppendMessageEventResult(resultBytes)
+	if err != nil {
+		t.Fatalf("DecodeAppendMessageEventResult() error = %v", err)
+	}
+	if result.EventKey != metadb.EventKeyFinish || result.MsgEventSeq != 2 || result.Status != metadb.EventStatusClosed {
+		t.Fatalf("batch result = %#v, want finish seq=2 closed", result)
+	}
+	states, err := db.ForHashSlot(11).ListMessageEventStates(ctx, "g1", 2, "cmn-batch", 10)
+	if err != nil {
+		t.Fatalf("ListMessageEventStates() error = %v", err)
+	}
+	byKey := make(map[string]metadb.MessageEventState, len(states))
+	for _, state := range states {
+		byKey[state.EventKey] = state
+	}
+	if byKey["main"].LastMsgEventSeq != 1 || byKey["main"].Status != metadb.EventStatusClosed {
+		t.Fatalf("main state = %#v, want closed seq=1", byKey["main"])
+	}
+	if byKey[metadb.EventKeyFinish].LastMsgEventSeq != 2 || byKey[metadb.EventKeyFinish].Status != metadb.EventStatusClosed {
+		t.Fatalf("finish state = %#v, want closed seq=2", byKey[metadb.EventKeyFinish])
+	}
+}
+
 func TestEncodeAppendMessageEventCommandCheckedRejectsInvalidEvent(t *testing.T) {
 	_, err := EncodeAppendMessageEventCommandChecked(metadb.MessageEventAppend{
 		ChannelID:   "g1",
@@ -100,5 +161,27 @@ func TestEncodeAppendMessageEventCommandCheckedRejectsInvalidEvent(t *testing.T)
 	})
 	if err == nil {
 		t.Fatal("EncodeAppendMessageEventCommandChecked() error = nil, want invalid argument")
+	}
+}
+
+func TestEncodeAppendMessageEventsCommandCheckedRejectsMixedMessage(t *testing.T) {
+	_, err := EncodeAppendMessageEventsCommandChecked([]metadb.MessageEventAppend{
+		{
+			ChannelID:   "g1",
+			ChannelType: 2,
+			ClientMsgNo: "cmn-1",
+			EventID:     "evt-1",
+			EventType:   metadb.EventTypeStreamClose,
+		},
+		{
+			ChannelID:   "g1",
+			ChannelType: 2,
+			ClientMsgNo: "cmn-2",
+			EventID:     "evt-2",
+			EventType:   metadb.EventTypeStreamFinish,
+		},
+	})
+	if err == nil {
+		t.Fatal("EncodeAppendMessageEventsCommandChecked() error = nil, want invalid argument for mixed message keys")
 	}
 }

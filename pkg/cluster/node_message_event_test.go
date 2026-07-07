@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -237,6 +239,60 @@ func TestClusterMessageEventFacadeFinishFlushesCachedLanes(t *testing.T) {
 	}
 }
 
+func TestClusterMessageEventFinishFlushUsesSingleProposal(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	channelID := "message-event-finish-batch"
+	waitRouteKeyLeaderReady(t, node, channelID)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	for _, tc := range []struct {
+		eventID string
+		key     string
+		delta   string
+	}{
+		{eventID: "evt-main-delta", key: "main", delta: "answer"},
+		{eventID: "evt-tool-delta", key: "tool", delta: "lookup"},
+	} {
+		if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+			ChannelID:   channelID,
+			ChannelType: 2,
+			ClientMsgNo: "cmn-finish-batch",
+			EventID:     tc.eventID,
+			EventKey:    tc.key,
+			EventType:   metadb.EventTypeStreamDelta,
+			Visibility:  metadb.VisibilityPublic,
+			OccurredAt:  1000,
+			Payload:     []byte(`{"kind":"text","delta":"` + tc.delta + `"}`),
+			UpdatedAt:   1001,
+		}); err != nil {
+			t.Fatalf("AppendMessageEvent(%s delta) error = %v", tc.key, err)
+		}
+	}
+
+	proposer := wrapNodeResultProposer(t, node)
+	before := proposer.resultCallCount()
+	if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+		ChannelID:   channelID,
+		ChannelType: 2,
+		ClientMsgNo: "cmn-finish-batch",
+		EventID:     "evt-finish",
+		EventType:   metadb.EventTypeStreamFinish,
+		Visibility:  metadb.VisibilityPublic,
+		OccurredAt:  1002,
+		Payload:     []byte(`{"end_reason":3}`),
+		UpdatedAt:   1003,
+	}); err != nil {
+		t.Fatalf("AppendMessageEvent(finish) error = %v", err)
+	}
+	if got := proposer.resultCallCount() - before; got != 1 {
+		t.Fatalf("finish result proposals = %d, want 1", got)
+	}
+}
+
 func TestClusterGetMessageEventStatesBatchRoutesEachMessage(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
@@ -415,4 +471,44 @@ func TestMessageEventStreamCacheRejectsNewActiveSessionWhenFull(t *testing.T) {
 	if _, err := cache.appendCached(second); err != nil {
 		t.Fatalf("appendCached(second after terminal eviction) error = %v", err)
 	}
+}
+
+type countingResultProposer struct {
+	delegate interface {
+		Propose(context.Context, propose.Request) error
+	}
+	resultDelegate resultProposer
+	mu             sync.Mutex
+	resultCalls    int
+}
+
+func wrapNodeResultProposer(t *testing.T, node *Node) *countingResultProposer {
+	t.Helper()
+	node.mu.Lock()
+	defer node.mu.Unlock()
+	delegate := node.proposer
+	resultDelegate, ok := delegate.(resultProposer)
+	if !ok {
+		t.Fatalf("node proposer %T does not support ProposeResult", delegate)
+	}
+	proposer := &countingResultProposer{delegate: delegate, resultDelegate: resultDelegate}
+	node.proposer = proposer
+	return proposer
+}
+
+func (p *countingResultProposer) Propose(ctx context.Context, req propose.Request) error {
+	return p.delegate.Propose(ctx, req)
+}
+
+func (p *countingResultProposer) ProposeResult(ctx context.Context, req propose.Request) ([]byte, error) {
+	p.mu.Lock()
+	p.resultCalls++
+	p.mu.Unlock()
+	return p.resultDelegate.ProposeResult(ctx, req)
+}
+
+func (p *countingResultProposer) resultCallCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.resultCalls
 }

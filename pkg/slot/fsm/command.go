@@ -48,6 +48,7 @@ const (
 	cmdTypeUpsertChannelLatest                  uint8 = 46
 	cmdTypeUpsertChannelLatestBatch             uint8 = 47
 	cmdTypeAppendMessageEvent                   uint8 = 48
+	cmdTypeAppendMessageEventsBatch             uint8 = 49
 	cmdTypeBindPluginUser                       uint8 = 42
 	cmdTypeUnbindPluginUser                     uint8 = 43
 
@@ -251,6 +252,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeUpsertChannelLatest:                  decodeUpsertChannelLatest,
 	cmdTypeUpsertChannelLatestBatch:             decodeUpsertChannelLatestBatch,
 	cmdTypeAppendMessageEvent:                   decodeAppendMessageEvent,
+	cmdTypeAppendMessageEventsBatch:             decodeAppendMessageEventsBatch,
 	cmdTypeBindPluginUser:                       decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                     decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                           decodeApplyDelta,

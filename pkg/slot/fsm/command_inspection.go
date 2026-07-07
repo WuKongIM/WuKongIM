@@ -79,17 +79,10 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"deletes": conversationDeletesPayload(typed.deletes()),
 		}), nil
 	case *appendMessageEventCmd:
-		return simpleInspection("append_message_event", map[string]any{
-			"channel_id":    typed.event.ChannelID,
-			"channel_type":  typed.event.ChannelType,
-			"client_msg_no": typed.event.ClientMsgNo,
-			"event_id":      typed.event.EventID,
-			"event_key":     typed.event.EventKey,
-			"event_type":    typed.event.EventType,
-			"visibility":    typed.event.Visibility,
-			"occurred_at":   typed.event.OccurredAt,
-			"updated_at":    typed.event.UpdatedAt,
-			"payload_bytes": len(typed.event.Payload),
+		return simpleInspection("append_message_event", messageEventAppendPayload(typed.event)), nil
+	case *appendMessageEventsBatchCmd:
+		return simpleInspection("append_message_events_batch", map[string]any{
+			"events": messageEventAppendBatchPayload(typed.events),
 		}), nil
 	case *bindPluginUserCmd:
 		return pluginBindingInspection("bind_plugin_user", typed.binding), nil
@@ -325,6 +318,29 @@ func conversationDeletesPayload(deletes []metadb.ConversationDelete) []map[strin
 		})
 	}
 	return out
+}
+
+func messageEventAppendBatchPayload(events []metadb.MessageEventAppend) []map[string]any {
+	out := make([]map[string]any, 0, len(events))
+	for _, event := range events {
+		out = append(out, messageEventAppendPayload(event))
+	}
+	return out
+}
+
+func messageEventAppendPayload(event metadb.MessageEventAppend) map[string]any {
+	return map[string]any{
+		"channel_id":    event.ChannelID,
+		"channel_type":  event.ChannelType,
+		"client_msg_no": event.ClientMsgNo,
+		"event_id":      event.EventID,
+		"event_key":     event.EventKey,
+		"event_type":    event.EventType,
+		"visibility":    event.Visibility,
+		"occurred_at":   event.OccurredAt,
+		"updated_at":    event.UpdatedAt,
+		"payload_bytes": len(event.Payload),
+	}
 }
 
 func conversationKeysPayload(keys []metadb.ConversationKey) []map[string]any {

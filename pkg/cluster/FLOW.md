@@ -258,9 +258,10 @@ Slot FSM cursor. Terminal stream events
 (`stream.close`/`stream.error`/`stream.cancel`/`stream.finish`) merge the cached
 snapshot into the terminal payload and submit durable Slot FSM commands through
 the result proposal path. `stream.finish` first flushes every still-open cached
-lane as a synthesized `stream.close`, then writes the reserved finish marker, so
-only completed streams advance the Slot FSM cursor while restart/leader-change
-recovery still sees compact lane states. Cache capacity pressure returns
+lane as a synthesized `stream.close`, then writes the reserved finish marker in
+one Slot FSM batch command/result proposal, so only completed streams advance the
+Slot FSM cursor while restart/leader-change recovery still sees compact lane states.
+Cache capacity pressure returns
 `ErrBackpressured` instead of evicting active streams. The append path decodes
 the returned `MessageEventAppendResult` so callers can expose the assigned
 message-level event sequence without issuing a second read.

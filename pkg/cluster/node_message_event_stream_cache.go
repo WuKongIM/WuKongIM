@@ -186,6 +186,16 @@ func (c *messageEventStreamCache) states(key metadb.MessageEventMessageKey) []me
 	return out
 }
 
+func (c *messageEventStreamCache) remove(event metadb.MessageEventAppend) {
+	if c == nil {
+		return
+	}
+	key := messageEventCacheKey(event)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.sessions, key)
+}
+
 func (c *messageEventStreamCache) sessionLocked(key messageEventStreamCacheKey, now time.Time) (*messageEventStreamCacheSession, error) {
 	session := c.sessions[key]
 	if session != nil {
@@ -400,10 +410,10 @@ func (n *Node) appendMessageEventLocal(ctx context.Context, event metadb.Message
 	if isMessageEventCacheOnlyEvent(event.EventType) {
 		return n.messageEventStreamCache.appendCached(event)
 	}
+	if event.EventType == metadb.EventTypeStreamFinish {
+		return n.appendMessageEventFinishLocal(ctx, event)
+	}
 	if isMessageEventTerminalEvent(event.EventType) {
-		if err := n.flushMessageEventCachedLanesOnFinish(ctx, event); err != nil {
-			return metadb.MessageEventAppendResult{}, err
-		}
 		event = n.messageEventStreamCache.mergeTerminalPayload(event)
 		result, err := n.appendMessageEventDurable(ctx, event)
 		if err != nil {
@@ -415,19 +425,27 @@ func (n *Node) appendMessageEventLocal(ctx context.Context, event metadb.Message
 	return n.appendMessageEventDurable(ctx, event)
 }
 
-func (n *Node) flushMessageEventCachedLanesOnFinish(ctx context.Context, event metadb.MessageEventAppend) error {
-	if event.EventType != metadb.EventTypeStreamFinish {
-		return nil
+func (n *Node) appendMessageEventFinishLocal(ctx context.Context, event metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {
+	openStates := n.messageEventStreamCache.openStatesForFinish(event)
+	events := make([]metadb.MessageEventAppend, 0, len(openStates)+1)
+	for _, state := range openStates {
+		events = append(events, finishFlushMessageEvent(event, state))
 	}
-	for _, state := range n.messageEventStreamCache.openStatesForFinish(event) {
-		laneEvent := finishFlushMessageEvent(event, state)
-		result, err := n.appendMessageEventDurable(ctx, laneEvent)
-		if err != nil {
-			return err
-		}
-		n.messageEventStreamCache.markTerminalPersisted(laneEvent, result)
+	events = append(events, event)
+	var (
+		result metadb.MessageEventAppendResult
+		err    error
+	)
+	if len(events) == 1 {
+		result, err = n.appendMessageEventDurable(ctx, event)
+	} else {
+		result, err = n.appendMessageEventsDurable(ctx, events)
 	}
-	return nil
+	if err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	n.messageEventStreamCache.remove(event)
+	return result, nil
 }
 
 func finishFlushMessageEvent(finish metadb.MessageEventAppend, state metadb.MessageEventState) metadb.MessageEventAppend {
@@ -449,6 +467,25 @@ func (n *Node) appendMessageEventDurable(ctx context.Context, event metadb.Messa
 		return metadb.MessageEventAppendResult{}, err
 	}
 	resultBytes, err := n.ProposeResult(ctx, ProposeRequest{Key: event.ChannelID, Command: command})
+	if err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	result, err := metafsm.DecodeAppendMessageEventResult(resultBytes)
+	if err != nil {
+		if string(resultBytes) == metafsm.ApplyResultStaleMeta {
+			return metadb.MessageEventAppendResult{}, metadb.ErrStaleMeta
+		}
+		return metadb.MessageEventAppendResult{}, err
+	}
+	return result, nil
+}
+
+func (n *Node) appendMessageEventsDurable(ctx context.Context, events []metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {
+	command, err := metafsm.EncodeAppendMessageEventsCommandChecked(events)
+	if err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	resultBytes, err := n.ProposeResult(ctx, ProposeRequest{Key: events[len(events)-1].ChannelID, Command: command})
 	if err != nil {
 		return metadb.MessageEventAppendResult{}, err
 	}
