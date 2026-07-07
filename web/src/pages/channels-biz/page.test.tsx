@@ -99,6 +99,34 @@ test("renders the first business channel page", async () => {
   expect(getBusinessChannelsMock).toHaveBeenCalledWith({ limit: 50 })
 })
 
+test("uses editorial business channel inventory and member surfaces", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMock.mockResolvedValue(groupDetail)
+  getBusinessChannelMembersMock.mockResolvedValue({ items: [{ uid: "u1" }], has_more: false })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage()
+
+  const table = await screen.findByRole("table", { name: "Business channels" })
+  const inventorySurface = table.closest("[data-channels-biz-surface='inventory']")
+  expect(inventorySurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(inventorySurface).not.toHaveClass("rounded-xl")
+
+  const toolbar = screen.getByTestId("channels-biz-filter-toolbar")
+  expect(toolbar).toHaveClass("border-b", "border-border", "pb-4")
+  expect(within(toolbar).getByPlaceholderText("Search channel ID")).toBeInTheDocument()
+  expect(within(toolbar).getByLabelText("Channel type")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Inspect channel g1" }))
+
+  const memberToolbar = await screen.findByTestId("channels-biz-member-toolbar")
+  expect(memberToolbar).toHaveClass("rounded-md", "border", "border-border", "bg-muted/30", "p-2")
+
+  const memberTable = await screen.findByRole("table", { name: "Subscribers" })
+  const memberSurface = memberTable.closest("[data-channels-biz-surface='members']")
+  expect(memberSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+})
+
 test("searches by channel ID, filters by type, and loads more", async () => {
   getBusinessChannelsMock.mockResolvedValueOnce({ items: [], has_more: false })
   getBusinessChannelsMock.mockResolvedValueOnce({

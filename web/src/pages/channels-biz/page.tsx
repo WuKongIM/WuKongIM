@@ -475,10 +475,15 @@ export function ChannelsBizPage() {
       />
 
       <SectionCard
+        className="overflow-hidden"
         description={intl.formatMessage({ id: "channelsBiz.list.description" })}
         title={intl.formatMessage({ id: "channelsBiz.list.title" })}
       >
-        <form className="mb-4 flex flex-col gap-2 lg:flex-row" onSubmit={submitSearch}>
+        <form
+          className="mb-4 grid gap-3 border-b border-border pb-4 lg:grid-cols-[minmax(0,1fr)_220px_auto]"
+          data-testid="channels-biz-filter-toolbar"
+          onSubmit={submitSearch}
+        >
           <input
             className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
             onChange={(event) => setKeywordInput(event.target.value)}
@@ -520,8 +525,11 @@ export function ChannelsBizPage() {
         {!state.loading && !state.error ? (
           state.items.length > 0 ? (
             <div className="space-y-3">
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
+              <div className="overflow-x-auto rounded-md border border-border" data-channels-biz-surface="inventory">
+                <table
+                  aria-label={intl.formatMessage({ id: "channelsBiz.list.title" })}
+                  className="w-full border-collapse text-sm"
+                >
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelsBiz.table.channel" })}</th>
@@ -694,7 +702,10 @@ export function ChannelsBizPage() {
                 </Button>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div
+                className="flex flex-wrap gap-2 rounded-md border border-border bg-muted/30 p-2"
+                data-testid="channels-biz-member-toolbar"
+              >
                 {memberKinds.map((kind) => (
                   <Button
                     aria-pressed={activeMemberKind === kind}
@@ -709,7 +720,7 @@ export function ChannelsBizPage() {
               </div>
 
               {isSubscriberMutationBlocked ? (
-                <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                   {intl.formatMessage({ id: "channelsBiz.members.personSubscriberBlocked" })}
                 </p>
               ) : null}
@@ -729,8 +740,8 @@ export function ChannelsBizPage() {
               {!memberState.loading && !memberState.error ? (
                 memberState.items.length > 0 ? (
                   <div className="space-y-3">
-                    <div className="overflow-x-auto rounded-lg border border-border">
-                      <table className="w-full border-collapse">
+                    <div className="overflow-x-auto rounded-md border border-border" data-channels-biz-surface="members">
+                      <table aria-label={memberKindLabel(intl, activeMemberKind)} className="w-full border-collapse text-sm">
                         <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                           <tr>
                             <th className="px-3 py-3">{intl.formatMessage({ id: "channelsBiz.members.uid" })}</th>
@@ -802,7 +813,7 @@ export function ChannelsBizPage() {
         <label className="block text-sm">
           {intl.formatMessage({ id: "channelsBiz.form.channelId" })}
           <input
-            className="mt-1 h-9 w-full rounded-md border border-border bg-background px-3"
+            className="mt-1 h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
             defaultValue={upsertInitial?.channel_id ?? ""}
             name="channel_id"
           />
@@ -811,7 +822,7 @@ export function ChannelsBizPage() {
           {intl.formatMessage({ id: "channelsBiz.form.channelType" })}
           <select
             aria-label={intl.formatMessage({ id: "channelsBiz.form.channelType" })}
-            className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2"
+            className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
             defaultValue={upsertInitial?.channel_type ?? 2}
             name="channel_type"
           >
@@ -852,7 +863,7 @@ export function ChannelsBizPage() {
         <label className="block text-sm">
           {intl.formatMessage({ id: "channelsBiz.members.uids" })}
           <textarea
-            className="mt-1 min-h-28 w-full rounded-md border border-border bg-background px-3 py-2"
+            className="mt-1 min-h-28 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             name="uids"
             placeholder={intl.formatMessage({ id: "channelsBiz.members.uidsPlaceholder" })}
           />
