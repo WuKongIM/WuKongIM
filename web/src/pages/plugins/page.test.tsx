@@ -144,6 +144,52 @@ test("renders node plugin inventory with summary counts", async () => {
   expect(screen.getByText("process exited")).toBeInTheDocument()
 })
 
+test("filters plugin inventory locally by keyword status and method", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 2, items: [pluginRow, failedPluginRow] })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  expect(screen.getByText("wk.ai.reply")).toBeInTheDocument()
+
+  await user.type(screen.getByLabelText("Plugin keyword"), "ai")
+  expect(screen.queryByText("wk.echo")).not.toBeInTheDocument()
+  expect(screen.getByText("wk.ai.reply")).toBeInTheDocument()
+
+  await user.selectOptions(screen.getByLabelText("Status filter"), "running")
+  expect(await screen.findByText("No manager data is available for this view yet.")).toBeInTheDocument()
+
+  await user.selectOptions(screen.getByLabelText("Status filter"), "failed")
+  expect(screen.getByText("wk.ai.reply")).toBeInTheDocument()
+
+  await user.selectOptions(screen.getByLabelText("Method filter"), "Receive")
+  expect(screen.getByText("wk.ai.reply")).toBeInTheDocument()
+
+  expect(getNodePluginsMock).toHaveBeenCalledTimes(1)
+})
+
+test("keeps low frequency plugin fields in the detail sheet instead of the inventory table", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getNodePluginMock.mockResolvedValueOnce(pluginRow)
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  expect(screen.queryByRole("columnheader", { name: "Priority" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("columnheader", { name: "PID" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("columnheader", { name: "Enabled" })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "View plugin wk.echo details" }))
+
+  const dialog = await screen.findByRole("dialog")
+  expect(within(dialog).getByText("Priority")).toBeInTheDocument()
+  expect(within(dialog).getByText("7")).toBeInTheDocument()
+  expect(within(dialog).getByText("PID")).toBeInTheDocument()
+  expect(within(dialog).getByText("123")).toBeInTheDocument()
+})
+
 test("ignores stale plugin inventory responses after switching nodes", async () => {
   const node2Plugins = deferred<{ node_id: number; total: number; items: typeof pluginRow[] }>()
   const node1Plugin = { ...pluginRow, node_id: 1, plugin_no: "wk.node1", name: "Node 1 Plugin" }

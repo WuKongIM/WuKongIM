@@ -50,12 +50,20 @@ type PluginDetailState = {
 
 type BindingSelector = "uid" | "plugin"
 
+type PluginInventoryFilters = {
+  keyword: string
+  status: string
+  method: string
+}
+
 type PluginBindingState = {
   page: ManagerPluginBindingsResponse | null
   loading: boolean
   error: Error | null
   validationError: string
 }
+
+const allFilterValue = "__all__"
 
 function mapErrorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) {
@@ -125,6 +133,38 @@ function pluginSummary(page: ManagerNodePluginsResponse | null) {
     failed: items.filter((item) => item.status === "failed").length,
     enabled: items.filter((item) => item.enabled).length,
   }
+}
+
+function pluginFilterOptions(page: ManagerNodePluginsResponse | null) {
+  const statuses = new Set<string>()
+  const methods = new Set<string>()
+  for (const plugin of page?.items ?? []) {
+    if (plugin.status) {
+      statuses.add(plugin.status)
+    }
+    for (const method of plugin.methods) {
+      methods.add(method)
+    }
+  }
+  return {
+    statuses: Array.from(statuses).sort(),
+    methods: Array.from(methods).sort(),
+  }
+}
+
+function pluginMatchesFilters(plugin: ManagerPlugin, filters: PluginInventoryFilters) {
+  const keyword = filters.keyword.trim().toLowerCase()
+  const keywordMatches = !keyword || [
+    plugin.plugin_no,
+    plugin.name,
+    plugin.version,
+    plugin.last_error,
+    ...plugin.methods,
+  ].some((value) => value.toLowerCase().includes(keyword))
+
+  const statusMatches = filters.status === allFilterValue || plugin.status === filters.status
+  const methodMatches = filters.method === allFilterValue || plugin.methods.includes(filters.method)
+  return keywordMatches && statusMatches && methodMatches
 }
 
 function bindingSearchParams(selector: BindingSelector, rawQuery: string): PluginBindingListParams | null {
@@ -204,6 +244,16 @@ export function PluginsPage() {
   const pluginLoadSeq = useRef(0)
 
   const summary = useMemo(() => pluginSummary(state.page), [state.page])
+  const [filters, setFilters] = useState<PluginInventoryFilters>({
+    keyword: "",
+    status: allFilterValue,
+    method: allFilterValue,
+  })
+  const filterOptions = useMemo(() => pluginFilterOptions(state.page), [state.page])
+  const filteredPlugins = useMemo(
+    () => (state.page?.items ?? []).filter((plugin) => pluginMatchesFilters(plugin, filters)),
+    [filters, state.page],
+  )
 
   const loadNodes = useCallback(async () => {
     try {
@@ -493,6 +543,12 @@ export function PluginsPage() {
         description={intl.formatMessage({ id: "plugins.inventory.description" })}
         title={intl.formatMessage({ id: "plugins.inventory.title" })}
       >
+        <PluginInventoryFiltersBar
+          filters={filters}
+          intl={intl}
+          onChange={setFilters}
+          options={filterOptions}
+        />
         {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "plugins.title" })} /> : null}
         {!state.loading && state.error ? (
           <ResourceState
@@ -505,86 +561,92 @@ export function PluginsPage() {
         ) : null}
         {!state.loading && !state.error ? (
           state.page && state.page.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
-                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.plugin" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.status" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.enabled" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.methods" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.priority" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.pid" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.lastSeen" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.lastError" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.actions" })}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.page.items.map((plugin) => (
-                    <tr className="border-t border-border" key={plugin.plugin_no}>
-                      <td className="px-3 py-3 text-sm">
-                        <div className="font-medium text-foreground">{plugin.plugin_no}</div>
-                        <div className="text-xs text-muted-foreground">{plugin.name} · {plugin.version}</div>
-                      </td>
-                      <td className="px-3 py-3 text-sm"><StatusBadge value={plugin.status} /></td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">
-                        {intl.formatMessage({ id: plugin.enabled ? "plugins.enabled.yes" : "plugins.enabled.no" })}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatMethods(plugin, intl)}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{plugin.priority}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{plugin.pid || intl.formatMessage({ id: "plugins.none" })}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatTimestamp(intl, plugin.last_seen_at)}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{plugin.last_error || intl.formatMessage({ id: "plugins.none" })}</td>
-                      <td className="px-3 py-3 text-sm">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            aria-label={intl.formatMessage({ id: "plugins.action.viewDetails" }, { pluginNo: plugin.plugin_no })}
-                            onClick={() => {
-                              void openDetail(plugin.plugin_no)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "plugins.action.details" })}
-                          </Button>
-                          <Button
-                            aria-label={intl.formatMessage({ id: "plugins.action.configurePlugin" }, { pluginNo: plugin.plugin_no })}
-                            onClick={() => openConfig(plugin)}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "plugins.action.configure" })}
-                          </Button>
-                          <Button
-                            aria-label={intl.formatMessage({ id: "plugins.action.restartPlugin" }, { pluginNo: plugin.plugin_no })}
-                            onClick={() => {
-                              setRestartError("")
-                              setRestartPlugin(plugin)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "plugins.action.restart" })}
-                          </Button>
-                          <Button
-                            aria-label={intl.formatMessage({ id: "plugins.action.uninstallPlugin" }, { pluginNo: plugin.plugin_no })}
-                            onClick={() => {
-                              setUninstallError("")
-                              setUninstallPlugin(plugin)
-                            }}
-                            size="sm"
-                            variant="destructive"
-                          >
-                            {intl.formatMessage({ id: "plugins.action.uninstall" })}
-                          </Button>
-                        </div>
-                      </td>
+            filteredPlugins.length > 0 ? (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full border-collapse">
+                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.plugin" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.status" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.capabilities" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.lastSignal" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.actions" })}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredPlugins.map((plugin) => (
+                      <tr className="border-t border-border" key={plugin.plugin_no}>
+                        <td className="px-3 py-3 text-sm">
+                          <div className="font-medium text-foreground">{plugin.plugin_no}</div>
+                          <div className="text-xs text-muted-foreground">{plugin.name} · {plugin.version}</div>
+                        </td>
+                        <td className="px-3 py-3 text-sm">
+                          <div className="flex flex-col gap-1">
+                            <StatusBadge value={plugin.status} />
+                            <span className="text-xs text-muted-foreground">
+                              {intl.formatMessage({ id: plugin.enabled ? "plugins.enabled.yes" : "plugins.enabled.no" })}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatMethods(plugin, intl)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          <div>{formatTimestamp(intl, plugin.last_seen_at)}</div>
+                          {plugin.last_error ? (
+                            <div className="mt-1 max-w-[280px] truncate text-xs text-destructive">{plugin.last_error}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-3 text-sm">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              aria-label={intl.formatMessage({ id: "plugins.action.viewDetails" }, { pluginNo: plugin.plugin_no })}
+                              onClick={() => {
+                                void openDetail(plugin.plugin_no)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "plugins.action.details" })}
+                            </Button>
+                            <Button
+                              aria-label={intl.formatMessage({ id: "plugins.action.configurePlugin" }, { pluginNo: plugin.plugin_no })}
+                              onClick={() => openConfig(plugin)}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "plugins.action.configure" })}
+                            </Button>
+                            <Button
+                              aria-label={intl.formatMessage({ id: "plugins.action.restartPlugin" }, { pluginNo: plugin.plugin_no })}
+                              onClick={() => {
+                                setRestartError("")
+                                setRestartPlugin(plugin)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "plugins.action.restart" })}
+                            </Button>
+                            <Button
+                              aria-label={intl.formatMessage({ id: "plugins.action.uninstallPlugin" }, { pluginNo: plugin.plugin_no })}
+                              onClick={() => {
+                                setUninstallError("")
+                                setUninstallPlugin(plugin)
+                              }}
+                              size="sm"
+                              variant="destructive"
+                            >
+                              {intl.formatMessage({ id: "plugins.action.uninstall" })}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <ResourceState kind="empty" title={intl.formatMessage({ id: "plugins.filteredEmpty" })} />
+            )
           ) : (
             <ResourceState kind="empty" title={intl.formatMessage({ id: "plugins.title" })} />
           )
@@ -842,6 +904,57 @@ export function PluginsPage() {
         title={intl.formatMessage({ id: "plugins.bindings.delete" })}
       />
     </PageContainer>
+  )
+}
+
+function PluginInventoryFiltersBar({
+  filters,
+  intl,
+  onChange,
+  options,
+}: {
+  filters: PluginInventoryFilters
+  intl: IntlShape
+  onChange: (filters: PluginInventoryFilters) => void
+  options: ReturnType<typeof pluginFilterOptions>
+}) {
+  return (
+    <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_180px]">
+      <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor="plugin-keyword-filter">
+        {intl.formatMessage({ id: "plugins.filters.keyword" })}
+        <input
+          className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+          id="plugin-keyword-filter"
+          onChange={(event) => onChange({ ...filters, keyword: event.target.value })}
+          placeholder={intl.formatMessage({ id: "plugins.filters.keywordPlaceholder" })}
+          value={filters.keyword}
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor="plugin-status-filter">
+        {intl.formatMessage({ id: "plugins.filters.status" })}
+        <select
+          className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+          id="plugin-status-filter"
+          onChange={(event) => onChange({ ...filters, status: event.target.value })}
+          value={filters.status}
+        >
+          <option value={allFilterValue}>{intl.formatMessage({ id: "plugins.filters.status.all" })}</option>
+          {options.statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor="plugin-method-filter">
+        {intl.formatMessage({ id: "plugins.filters.method" })}
+        <select
+          className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+          id="plugin-method-filter"
+          onChange={(event) => onChange({ ...filters, method: event.target.value })}
+          value={filters.method}
+        >
+          <option value={allFilterValue}>{intl.formatMessage({ id: "plugins.filters.method.all" })}</option>
+          {options.methods.map((method) => <option key={method} value={method}>{method}</option>)}
+        </select>
+      </label>
+    </div>
   )
 }
 
