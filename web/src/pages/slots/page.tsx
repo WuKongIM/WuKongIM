@@ -697,10 +697,13 @@ export function SlotClusterListPanel() {
       ) : null}
       {!state.loading && !state.error && state.slots ? (
         <>
-          <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+          <div data-slot-surface="inventory" className="rounded-lg border border-border bg-card p-3">
             {state.slots.items.length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table
+                  aria-label={intl.formatMessage({ id: "slots.inventoryTitle" })}
+                  className="w-full border-collapse text-sm"
+                >
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.slot" })}</th>
@@ -764,7 +767,7 @@ export function SlotClusterListPanel() {
           </div>
 
           {rebalancePlan ? (
-            <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+            <div data-slot-surface="rebalance-result" className="rounded-lg border border-border bg-card p-3">
               {rebalancePlan.items.length > 0 ? (
                 <div className="space-y-3">
                   {rebalancePlan.items.map((item) => (
@@ -788,7 +791,7 @@ export function SlotClusterListPanel() {
           ) : null}
 
           {batchTransferResult ? (
-            <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+            <div data-slot-surface="batch-transfer-result" className="rounded-lg border border-border bg-card p-3">
               <div className="text-sm font-medium text-foreground">
                 {intl.formatMessage(
                   { id: "slots.batchTransferResult.summary" },
@@ -1406,7 +1409,7 @@ export function SlotClusterUnhealthyPanel() {
         />
       ) : null}
       {!state.loading && !state.error && state.overview ? (
-        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+        <div data-slot-surface="unhealthy" className="rounded-lg border border-border bg-card p-3">
           {rows.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full border-collapse">

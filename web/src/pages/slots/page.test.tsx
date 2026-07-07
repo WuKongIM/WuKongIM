@@ -308,6 +308,31 @@ test("uses compact slot page chrome without summary cards", async () => {
   expect(screen.queryByText("Inspect one slot to view task state or run operator actions.")).not.toBeInTheDocument()
 })
 
+test("marks slot inventory and operation results as editorial workbench surfaces", async () => {
+  getSlotsMock.mockResolvedValue({ total: 1, items: [slotRow] })
+  rebalanceSlotsMock.mockResolvedValue({
+    total: 1,
+    items: [{ hash_slot: 3, from_slot_id: 9, to_slot_id: 11 }],
+  })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  const inventoryTable = await screen.findByRole("table", { name: "Slot Inventory" })
+  const inventorySurface = inventoryTable.closest("[data-slot-surface='inventory']")
+  expect(inventorySurface).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
+  expect(inventorySurface).not.toHaveClass("rounded-xl")
+
+  await user.click(screen.getByRole("button", { name: "Rebalance slots" }))
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
+
+  const rebalanceSurface = (await screen.findByText("From slot 9 to slot 11")).closest(
+    "[data-slot-surface='rebalance-result']",
+  )
+  expect(rebalanceSurface).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
+  expect(rebalanceSurface).not.toHaveClass("rounded-xl")
+})
+
 test("shows hash slot ownership as a compact count and range summary", async () => {
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
 
