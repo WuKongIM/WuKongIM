@@ -107,6 +107,8 @@ type ControllerRaftStatusObserver interface {
 type Options struct {
 	// Cluster reads cluster control state.
 	Cluster ControlSnapshotReader
+	// NodeConfig reads selected-node redacted effective startup configuration.
+	NodeConfig NodeConfigReader
 	// RuntimeSummary reads node runtime counters for the manager node list.
 	RuntimeSummary RuntimeSummaryReader
 	// GatewayDrain mutates gateway admission drain mode locally or remotely.
@@ -194,6 +196,7 @@ type Options struct {
 // App serves read-only manager management usecases for internal.
 type App struct {
 	cluster                      ControlSnapshotReader
+	nodeConfig                   NodeConfigReader
 	runtimeSummary               RuntimeSummaryReader
 	gatewayDrain                 GatewayDrainWriter
 	nodeLifecycle                NodeLifecycleWriter
@@ -245,6 +248,7 @@ func New(opts Options) *App {
 	}
 	return &App{
 		cluster:                      opts.Cluster,
+		nodeConfig:                   opts.NodeConfig,
 		runtimeSummary:               opts.RuntimeSummary,
 		gatewayDrain:                 opts.GatewayDrain,
 		nodeLifecycle:                opts.NodeLifecycle,
