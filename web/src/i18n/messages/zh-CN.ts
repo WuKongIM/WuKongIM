@@ -157,6 +157,7 @@ export const zhCNMessages: AppMessages = {
   "dbInspect.meta.generated": "生成于 {time}",
   "dbInspect.meta.rows": "{count} 行",
   "dbInspect.error.emptyQuery": "请输入只读检查查询。",
+  "dbInspect.error.unavailableConfig": "DB Inspect 未启用。请在 wukongim.conf 中配置 WK_NODE_DATA_DIR，让管理端可以打开节点本地存储，然后重启节点。",
   "plugins.title": "插件管理",
   "plugins.description": "管理节点本地插件运行状态、配置与 UID 绑定。",
   "workqueues.title": "Workqueue 监控",

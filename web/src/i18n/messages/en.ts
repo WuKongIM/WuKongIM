@@ -158,6 +158,7 @@ export const enMessages: AppMessages = {
   "dbInspect.meta.generated": "generated {time}",
   "dbInspect.meta.rows": "{count, plural, one {# row} other {# rows}}",
   "dbInspect.error.emptyQuery": "Enter a read-only inspect query.",
+  "dbInspect.error.unavailableConfig": "DB Inspect is not enabled. Configure WK_NODE_DATA_DIR in wukongim.conf so the manager can open node-local storage, then restart the node.",
   "plugins.title": "Plugins",
   "plugins.description": "Manage node-local plugin runtime state, config, and UID bindings.",
   "workqueues.title": "Workqueue Monitor",

@@ -66,6 +66,20 @@ function errorKind(error: Error | null) {
   return "error" as const
 }
 
+function dbInspectErrorDescription(intl: IntlShape, error: Error) {
+  if (isDBInspectUnavailable(error)) {
+    return intl.formatMessage({ id: "dbInspect.error.unavailableConfig" })
+  }
+  return error.message
+}
+
+function isDBInspectUnavailable(error: Error) {
+  return error instanceof ManagerApiError
+    && error.status === 503
+    && error.error === "service_unavailable"
+    && error.message === "db inspect unavailable"
+}
+
 function rowColumns(rows: ManagerDBInspectRow[]) {
   const seen = new Set<string>()
   const columns: string[] = []
@@ -384,7 +398,7 @@ export function DBInspectPage() {
 
           {state.error ? (
             <ResourceState
-              description={state.error.message}
+              description={dbInspectErrorDescription(intl, state.error)}
               kind={errorKind(state.error)}
               title={intl.formatMessage({ id: "dbInspect.title" })}
             />

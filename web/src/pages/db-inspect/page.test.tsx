@@ -361,3 +361,13 @@ test("keeps query text when the query fails", async () => {
   expect(await screen.findByText("invalid db inspect query")).toBeInTheDocument()
   expect(screen.getByLabelText("Inspect query")).toHaveValue("select * from meta.user order by uid")
 })
+
+test("shows configuration guidance when db inspect is unavailable", async () => {
+  getNodesMock.mockResolvedValueOnce(nodesResponse())
+  getDBInspectTablesMock.mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "db inspect unavailable"))
+
+  renderPage()
+
+  expect(await screen.findByText("DB Inspect is not enabled. Configure WK_NODE_DATA_DIR in wukongim.conf so the manager can open node-local storage, then restart the node.")).toBeInTheDocument()
+  expect(screen.queryByText("db inspect unavailable")).not.toBeInTheDocument()
+})
