@@ -12,7 +12,7 @@ import (
 const nodeConfigRedactedValue = "******"
 
 // NodeConfigSnapshot returns this process's allowlisted effective startup configuration.
-func (a *App) NodeConfigSnapshot(context.Context, uint64) (managementusecase.NodeConfigSnapshot, error) {
+func (a *App) NodeConfigSnapshot(_ context.Context, requestedNodeID uint64) (managementusecase.NodeConfigSnapshot, error) {
 	if a == nil {
 		return managementusecase.NodeConfigSnapshot{}, managementusecase.ErrNodeConfigUnavailable
 	}
@@ -22,6 +22,9 @@ func (a *App) NodeConfigSnapshot(context.Context, uint64) (managementusecase.Nod
 	if nodeID == 0 {
 		nodeID = clusterCfg.NodeID
 	}
+	if requestedNodeID != nodeID {
+		return managementusecase.NodeConfigSnapshot{}, managementusecase.ErrNodeConfigUnavailable
+	}
 	return managementusecase.NodeConfigSnapshot{
 		GeneratedAt:     time.Now().UTC(),
 		NodeID:          nodeID,
@@ -30,7 +33,7 @@ func (a *App) NodeConfigSnapshot(context.Context, uint64) (managementusecase.Nod
 		Groups: []managementusecase.NodeConfigGroup{
 			nodeConfigGroup("node", "Node", []managementusecase.NodeConfigItem{
 				nodeConfigItem("WK_NODE_ID", "Node ID", fmt.Sprintf("%d", nodeID)),
-				nodeConfigItem("WK_NODE_DATA_DIR", "Data directory", cfg.DataDir),
+				nodeConfigItem("WK_NODE_DATA_DIR", "Data directory", endpointPresenceValue(cfg.DataDir)),
 			}),
 			nodeConfigGroup("cluster", "Cluster", []managementusecase.NodeConfigItem{
 				nodeConfigItem("WK_CLUSTER_ID", "Cluster ID", clusterCfg.Control.ClusterID),
@@ -85,7 +88,7 @@ func (a *App) NodeConfigSnapshot(context.Context, uint64) (managementusecase.Nod
 			}),
 			nodeConfigGroup("log", "Log", []managementusecase.NodeConfigItem{
 				nodeConfigItem("WK_LOG_LEVEL", "Log level", cfg.Log.Level),
-				nodeConfigItem("WK_LOG_DIR", "Log directory", cfg.Log.Dir),
+				nodeConfigItem("WK_LOG_DIR", "Log directory", endpointPresenceValue(cfg.Log.Dir)),
 				nodeConfigItem("WK_LOG_MAX_SIZE", "Log max size MB", fmt.Sprintf("%d", cfg.Log.MaxSize)),
 				nodeConfigItem("WK_LOG_MAX_AGE", "Log max age days", fmt.Sprintf("%d", cfg.Log.MaxAge)),
 				nodeConfigItem("WK_LOG_MAX_BACKUPS", "Log max backups", fmt.Sprintf("%d", cfg.Log.MaxBackups)),

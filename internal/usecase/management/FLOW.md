@@ -111,6 +111,9 @@ selected node to exist in the current local control snapshot, and only then
 delegates to the configured `NodeConfigReader` port. A missing cluster or
 reader reports `ErrNodeConfigUnavailable` so HTTP can return
 `service_unavailable` rather than treating wiring gaps as bad operator input.
+If a reader returns a non-zero `NodeID` that does not match the selected node,
+the usecase fails closed with the same unavailable error instead of relabeling
+another node's config.
 The DTO carries stable group/item fields but does not own HTTP JSON tags;
 `internal/access/manager` owns the public response shape. Redaction and the
 allowlist are performed by the app-local snapshot provider before values enter

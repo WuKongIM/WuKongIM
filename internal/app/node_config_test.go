@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -76,10 +77,25 @@ func TestNodeConfigSnapshotReturnsEffectiveGroupsAndRedactsSecrets(t *testing.T)
 		t.Fatalf("snapshot missing redacted join token: %#v", snapshot.Groups)
 	}
 	raw := nodeConfigSnapshotText(snapshot)
-	for _, forbidden := range []string{"join-secret", "super-secret", "admin-password"} {
+	for _, forbidden := range []string{
+		"join-secret",
+		"super-secret",
+		"admin-password",
+		"/var/lib/wukongim",
+		"/var/log/wukongim",
+	} {
 		if strings.Contains(raw, forbidden) {
-			t.Fatalf("snapshot leaked secret %q: %s", forbidden, raw)
+			t.Fatalf("snapshot leaked sensitive value %q: %s", forbidden, raw)
 		}
+	}
+}
+
+func TestNodeConfigSnapshotRejectsNonLocalNode(t *testing.T) {
+	app := &App{cfg: Config{NodeID: 2}}
+
+	_, err := app.NodeConfigSnapshot(context.Background(), 3)
+	if !errors.Is(err, managementusecase.ErrNodeConfigUnavailable) {
+		t.Fatalf("NodeConfigSnapshot(remote node) error = %v, want ErrNodeConfigUnavailable", err)
 	}
 }
 

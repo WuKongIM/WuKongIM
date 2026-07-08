@@ -94,6 +94,23 @@ func TestNodeConfigSnapshotUnavailableWithoutReader(t *testing.T) {
 	}
 }
 
+func TestNodeConfigSnapshotRejectsReaderNodeMismatch(t *testing.T) {
+	app := New(Options{
+		Cluster: &nodeConfigControlReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				Nodes: []control.Node{{NodeID: 1}, {NodeID: 2}},
+			},
+		},
+		NodeConfig: &nodeConfigReaderStub{snapshot: NodeConfigSnapshot{NodeID: 1}},
+	})
+
+	_, err := app.NodeConfigSnapshot(context.Background(), 2)
+	if !errors.Is(err, ErrNodeConfigUnavailable) {
+		t.Fatalf("NodeConfigSnapshot() error = %v, want ErrNodeConfigUnavailable", err)
+	}
+}
+
 func TestNodeConfigSnapshotUnavailableWithoutClusterBeforeReader(t *testing.T) {
 	reader := &nodeConfigReaderStub{}
 	app := New(Options{NodeConfig: reader})

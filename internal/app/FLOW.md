@@ -332,7 +332,9 @@ root has the fully derived startup config after file/env/default merging. The
 provider emits a bounded allowlist of operator-facing groups and redacts
 manager credentials, cluster join tokens, static manager users, and similarly
 sensitive values before the snapshot crosses usecase, HTTP, or node RPC
-boundaries. It is read-only and does not watch or mutate live runtime config.
+boundaries. Local filesystem path values are represented only as bounded
+presence text such as `configured`. It is read-only and does not watch or
+mutate live runtime config.
 
 The diagnostics store is app-owned because only the composition root knows
 whether `Observability.Diagnostics.Enabled` installed the bounded event store,

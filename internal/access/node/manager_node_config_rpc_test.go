@@ -126,6 +126,16 @@ func TestManagerNodeConfigRPCMapsUnavailable(t *testing.T) {
 	}
 }
 
+func TestManagerNodeConfigRPCMapsNotFound(t *testing.T) {
+	adapter := New(Options{ManagerNodeConfig: &fakeManagerNodeConfigReader{err: metadb.ErrNotFound}})
+	node := &fakeManagerNodeConfigRPCNode{handler: adapter.HandleManagerNodeConfigRPC}
+
+	_, err := NewClient(node).GetManagerNodeConfig(context.Background(), 2)
+	if !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("GetManagerNodeConfig() error = %v, want metadb.ErrNotFound", err)
+	}
+}
+
 func TestManagerNodeConfigRPCStatusMapping(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -133,6 +143,7 @@ func TestManagerNodeConfigRPCStatusMapping(t *testing.T) {
 		want   error
 	}{
 		{name: "invalid argument", status: rpcStatusInvalidArgument, want: metadb.ErrInvalidArgument},
+		{name: "not found", status: rpcStatusNotFound, want: metadb.ErrNotFound},
 		{name: "unavailable", status: rpcStatusUnavailable, want: managementusecase.ErrNodeConfigUnavailable},
 		{name: "rejected", status: rpcStatusRejected, want: managementusecase.ErrNodeConfigUnavailable},
 		{name: "canceled", status: rpcStatusContextCanceled, want: context.Canceled},

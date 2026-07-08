@@ -78,6 +78,9 @@ func (a *App) NodeConfigSnapshot(ctx context.Context, nodeID uint64) (NodeConfig
 	if snapshot.NodeID == 0 {
 		snapshot.NodeID = nodeID
 	}
+	if snapshot.NodeID != nodeID {
+		return NodeConfigSnapshot{}, ErrNodeConfigUnavailable
+	}
 	return snapshot, nil
 }
 

@@ -71,6 +71,8 @@ func managerNodeConfigRPCStatusForError(err error) string {
 		return rpcStatusContextDeadlineExceeded
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		return rpcStatusInvalidArgument
+	case errors.Is(err, metadb.ErrNotFound):
+		return rpcStatusNotFound
 	case errors.Is(err, managementusecase.ErrNodeConfigUnavailable):
 		return rpcStatusUnavailable
 	default:
@@ -88,6 +90,8 @@ func managerNodeConfigRPCErrorForStatus(status string) error {
 		return context.DeadlineExceeded
 	case rpcStatusInvalidArgument:
 		return metadb.ErrInvalidArgument
+	case rpcStatusNotFound:
+		return metadb.ErrNotFound
 	case rpcStatusUnavailable, rpcStatusRejected:
 		return managementusecase.ErrNodeConfigUnavailable
 	default:
