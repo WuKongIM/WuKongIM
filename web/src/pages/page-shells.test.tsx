@@ -34,6 +34,7 @@ const getUsersMock = vi.fn()
 const getBusinessChannelsMock = vi.fn()
 const getSystemUsersMock = vi.fn()
 const getPermissionsMock = vi.fn()
+const getWebhookConfigMock = vi.fn()
 
 const dashboardMetricSeries = (latest: number, peak = latest, avg = latest) => ({
   latest,
@@ -73,6 +74,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getBusinessChannels: (...args: unknown[]) => getBusinessChannelsMock(...args),
     getSystemUsers: (...args: unknown[]) => getSystemUsersMock(...args),
     getPermissions: (...args: unknown[]) => getPermissionsMock(...args),
+    getWebhookConfig: (...args: unknown[]) => getWebhookConfigMock(...args),
   }
 })
 
@@ -106,6 +108,7 @@ beforeEach(() => {
   getBusinessChannelsMock.mockReset()
   getSystemUsersMock.mockReset()
   getPermissionsMock.mockReset()
+  getWebhookConfigMock.mockReset()
 
   getOverviewMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:00Z",
@@ -150,6 +153,23 @@ beforeEach(() => {
   getBusinessChannelsMock.mockResolvedValue({ items: [], has_more: false })
   getSystemUsersMock.mockResolvedValue({ items: [], total: 0 })
   getPermissionsMock.mockResolvedValue({ auth_enabled: true, current_user: "admin", users: [], resources: [] })
+  getWebhookConfigMock.mockResolvedValue({
+    enabled: false,
+    http_addr: "",
+    focus_events: [],
+    supported_events: ["msg.notify", "msg.offline", "user.onlinestatus"],
+    queue_size: 1024,
+    workers: 2,
+    msg_notify_batch_max_items: 100,
+    msg_notify_batch_max_wait: "1s",
+    online_status_batch_max_items: 80,
+    online_status_batch_max_wait: "2s",
+    offline_uid_batch_size: 150,
+    request_timeout: "5s",
+    retry_max_attempts: 3,
+    source: "wukongim.conf",
+    requires_restart: false,
+  })
   getChannelClusterSummaryMock.mockResolvedValue({
     total: 1,
     healthy: 1,
@@ -355,7 +375,7 @@ it.each([
   ["/business/system-users", "System Users", "Persisted system UIDs"],
   ["/business/connections", "Connections", "Session"],
   ["/system/permissions", "Permissions", "Authentication Summary"],
-  ["/system/webhooks", "Webhook Configuration", "Coming Soon"],
+  ["/system/webhooks", "Webhook Configuration", "Webhook Status"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -417,7 +437,7 @@ it.each([
   ["/business/system-users", "系统用户", "持久化系统 UID"],
   ["/business/connections", "连接", "会话"],
   ["/system/permissions", "权限管理", "认证摘要"],
-  ["/system/webhooks", "Webhook 配置", "即将推出"],
+  ["/system/webhooks", "Webhook 配置", "Webhook 状态"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
   const router = createMemoryRouter(routes, { initialEntries: [path] })
