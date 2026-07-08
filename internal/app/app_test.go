@@ -1376,6 +1376,19 @@ func TestAppRegistersManagerAppLogRPC(t *testing.T) {
 	}
 }
 
+func TestNewRegistersManagerNodeConfigRPC(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+
+	_, err := newTestApp(t, Config{NodeID: 1}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerNodeConfigRPCServiceID]; !ok {
+		t.Fatalf("manager node config rpc handler not registered")
+	}
+}
+
 func TestNewRegistersManagerChannelRPCWhenClusterSupportsChannelScans(t *testing.T) {
 	cluster := &fakeManagerCluster{nodeID: 1}
 
@@ -5573,7 +5586,10 @@ func (f *fakeManagerCluster) RegisterRPC(serviceID uint8, handler clusterpkg.Nod
 func (f *fakeManagerCluster) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
 	f.rpcNodeID = nodeID
 	f.rpcServiceID = serviceID
-	if (serviceID == accessnode.ManagerConnectionRPCServiceID || serviceID == accessnode.ManagerPluginRPCServiceID || serviceID == accessnode.ManagerMessageRetentionRPCServiceID) && f.registeredHandlers != nil {
+	if (serviceID == accessnode.ManagerConnectionRPCServiceID ||
+		serviceID == accessnode.ManagerPluginRPCServiceID ||
+		serviceID == accessnode.ManagerMessageRetentionRPCServiceID ||
+		serviceID == accessnode.ManagerNodeConfigRPCServiceID) && f.registeredHandlers != nil {
 		if handler, ok := f.registeredHandlers[serviceID]; ok {
 			return handler.HandleRPC(ctx, payload)
 		}

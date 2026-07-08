@@ -442,6 +442,15 @@ func (a *App) wireManagerAppLogRPC() {
 	registrar.RegisterRPC(accessnode.ManagerAppLogRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerAppLogRPC))
 }
 
+func (a *App) wireManagerNodeConfigRPC() {
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasRegistrar {
+		return
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerNodeConfig: a, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerNodeConfigRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerNodeConfigRPC))
+}
+
 func (a *App) wireManagerChannelRPC() {
 	node, hasNode := a.cluster.(clusterinfra.ManagementNode)
 	channelNode, hasChannelNode := a.cluster.(clusterinfra.ChannelBusinessScanNode)
@@ -943,6 +952,10 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		opts.ApplicationLogs = localApplicationLogs
 		if rpcNode, ok := a.cluster.(clusterinfra.ManagementApplicationLogRPCNode); ok {
 			opts.ApplicationLogs = clusterinfra.NewManagementApplicationLogReader(rpcNode, localApplicationLogs)
+		}
+		opts.NodeConfig = a
+		if rpcNode, ok := a.cluster.(clusterinfra.ManagementNodeConfigRPCNode); ok {
+			opts.NodeConfig = clusterinfra.NewManagementNodeConfigReader(rpcNode, a)
 		}
 		opts.DBInspect = a.newDBInspectReader()
 		if rpcNode, ok := a.cluster.(clusterinfra.ManagementDBInspectNode); ok {
