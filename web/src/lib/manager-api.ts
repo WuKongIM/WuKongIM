@@ -56,6 +56,7 @@ import type {
   ManagerNodeOnboardingPlanResponse,
   ManagerNodeOnboardingStartResponse,
   ManagerNodeOnboardingStatusResponse,
+  ManagerNodeConfigResponse,
   ManagerNodeDetailResponse,
   ManagerNodeScaleInActionInput,
   ManagerNodeScaleInAdvanceResponse,
@@ -572,6 +573,12 @@ export function getNodes() {
 
 export function getNode(nodeId: number) {
   return jsonManagerFetch<ManagerNodeDetailResponse>(`/manager/nodes/${nodeId}`)
+}
+
+export function getNodeConfig(nodeId: number) {
+  return jsonManagerFetch<ManagerNodeConfigResponse>(
+    `/manager/nodes/${encodeURIComponent(String(nodeId))}/config`,
+  )
 }
 
 export function getNodePlugins(nodeId: number) {

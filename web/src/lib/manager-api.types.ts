@@ -496,6 +496,28 @@ export type ManagerNodeDetailResponse = ManagerNode & {
   }
 }
 
+export type ManagerNodeConfigResponse = {
+  generated_at: string
+  node_id: number
+  source: string
+  requires_restart: boolean
+  groups: ManagerNodeConfigGroup[]
+}
+
+export type ManagerNodeConfigGroup = {
+  id: string
+  title: string
+  items: ManagerNodeConfigItem[]
+}
+
+export type ManagerNodeConfigItem = {
+  key: string
+  label: string
+  value: string
+  sensitive: boolean
+  redacted: boolean
+}
+
 export type ManagerJoinNodeInput = {
   nodeId: number
   name?: string

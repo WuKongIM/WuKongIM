@@ -42,6 +42,7 @@ import {
   getNetworkSummary,
   deleteNodePlugin,
   getNode,
+  getNodeConfig,
   getNodeOnboardingStatus,
   getNodes,
   getNodePlugin,
@@ -835,6 +836,23 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/manager/nodes/1",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches node config data from the manager endpoint", async () => {
+    const response = {
+      generated_at: "2026-07-08T08:00:00Z",
+      node_id: 2,
+      source: "effective_startup_config",
+      requires_restart: true,
+      groups: [],
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+
+    await expect(getNodeConfig(2)).resolves.toEqual(response)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/nodes/2/config",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })
