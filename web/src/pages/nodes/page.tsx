@@ -22,6 +22,7 @@ import {
   advanceNodeScaleIn,
   advanceNodeSlotMoveOut,
   getNode,
+  getNodeConfig,
   getNodeOnboardingStatus,
   getNodes,
   promoteControllerVoter,
@@ -32,6 +33,7 @@ import {
 } from "@/lib/manager-api"
 import type {
   ManagerNode,
+  ManagerNodeConfigResponse,
   ManagerNodeDetailResponse,
   ManagerNodesResponse,
 } from "@/lib/manager-api.types"
@@ -360,6 +362,134 @@ function controllerRaftLink(intl: IntlShape, nodeId: number) {
   )
 }
 
+function NodeConfigSection({
+  config,
+  error,
+  loading,
+  onRetry,
+}: {
+  config: ManagerNodeConfigResponse | null
+  error: Error | null
+  loading: boolean
+  onRetry: () => void
+}) {
+  const intl = useIntl()
+  const title = intl.formatMessage({ id: "nodes.config.title" })
+
+  return (
+    <section className="rounded-md border border-border bg-card p-3" data-node-surface="config">
+      <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          {config ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {intl.formatMessage(
+                { id: "nodes.config.meta" },
+                {
+                  source: config.source,
+                  restart: intl.formatMessage({
+                    id: config.requires_restart
+                      ? "nodes.config.restartRequired"
+                      : "nodes.config.restartNotRequired",
+                  }),
+                },
+              )}
+            </p>
+          ) : null}
+        </div>
+        {config ? (
+          <div className="text-xs text-muted-foreground">
+            {intl.formatMessage(
+              { id: "nodes.config.generatedAt" },
+              { value: formatTimestamp(intl, config.generated_at) },
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="pt-3">
+        {loading ? (
+          <ResourceState kind="loading" title={intl.formatMessage({ id: "nodes.config.statusTitle" })} />
+        ) : null}
+        {!loading && error ? (
+          <ResourceState
+            kind={mapErrorKind(error)}
+            onRetry={onRetry}
+            title={intl.formatMessage({ id: "nodes.config.statusTitle" })}
+          />
+        ) : null}
+        {!loading && !error && config && config.groups.length === 0 ? (
+          <ResourceState kind="empty" title={intl.formatMessage({ id: "nodes.config.emptyTitle" })} />
+        ) : null}
+        {!loading && !error && config && config.groups.length > 0 ? (
+          <div className="space-y-4">
+            {config.groups.map((group) => (
+              <section className="border-t border-border pt-3 first:border-t-0 first:pt-0" key={group.id}>
+                <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {group.title}
+                </h4>
+                {group.items.length > 0 ? (
+                  <div className="mt-2 overflow-x-auto rounded-md border border-border">
+                    <table aria-label={group.title} className="w-full min-w-[560px] border-collapse text-left text-sm">
+                      <thead className="bg-background text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2">{intl.formatMessage({ id: "nodes.config.table.key" })}</th>
+                          <th className="px-3 py-2">{intl.formatMessage({ id: "nodes.config.table.label" })}</th>
+                          <th className="px-3 py-2">{intl.formatMessage({ id: "nodes.config.table.value" })}</th>
+                          <th className="px-3 py-2">{intl.formatMessage({ id: "nodes.config.table.flags" })}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.items.map((item) => {
+                          const flags = [
+                            item.sensitive ? intl.formatMessage({ id: "nodes.config.sensitive" }) : null,
+                            item.redacted ? intl.formatMessage({ id: "nodes.config.redacted" }) : null,
+                          ].filter((flag): flag is string => Boolean(flag))
+                          return (
+                            <tr className="border-t border-border align-top" key={item.key}>
+                              <td className="break-all px-3 py-2 font-mono text-xs text-muted-foreground">
+                                {item.key}
+                              </td>
+                              <td className="px-3 py-2 text-foreground">{item.label}</td>
+                              <td className="break-all px-3 py-2 font-mono text-xs text-foreground">
+                                {item.value || "-"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {flags.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {flags.map((flag) => (
+                                      <span
+                                        className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                                        key={flag}
+                                      >
+                                        {flag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="mt-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
+                    {intl.formatMessage({ id: "nodes.config.emptyTitle" })}
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 export function NodeClusterListPanel() {
   const intl = useIntl()
   const permissions = useAuthStore((store) => store.permissions)
@@ -375,6 +505,9 @@ export function NodeClusterListPanel() {
   const [detail, setDetail] = useState<ManagerNodeDetailResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<Error | null>(null)
+  const [detailConfig, setDetailConfig] = useState<ManagerNodeConfigResponse | null>(null)
+  const [detailConfigLoading, setDetailConfigLoading] = useState(false)
+  const [detailConfigError, setDetailConfigError] = useState<Error | null>(null)
   const [lifecycleOpen, setLifecycleOpen] = useState(false)
   const [rowActionPending, setRowActionPending] = useState<RowActionTarget | null>(null)
   const [rowConfirmAction, setRowConfirmAction] = useState<RowActionTarget | null>(null)
@@ -385,6 +518,7 @@ export function NodeClusterListPanel() {
   const [promoteTarget, setPromoteTarget] = useState<ManagerNode | null>(null)
   const [promotePending, setPromotePending] = useState(false)
   const [promoteError, setPromoteError] = useState<string | undefined>(undefined)
+  const detailConfigRequestSeq = useRef(0)
   const nodes = state.nodes?.items ?? []
   const aliveCount = nodes.filter((node) => nodeHealthStatus(node) === "alive").length
   const unhealthyCount = nodes.filter(isUnhealthyNode).length
@@ -465,6 +599,7 @@ export function NodeClusterListPanel() {
   const loadNodeDetail = useCallback(async (nodeId: number) => {
     setDetailLoading(true)
     setDetailError(null)
+    setDetail(null)
 
     try {
       const nextDetail = await getNode(nodeId)
@@ -477,16 +612,43 @@ export function NodeClusterListPanel() {
     }
   }, [])
 
+  const loadNodeConfig = useCallback(async (nodeId: number) => {
+    const requestSeq = detailConfigRequestSeq.current + 1
+    detailConfigRequestSeq.current = requestSeq
+    setDetailConfigLoading(true)
+    setDetailConfigError(null)
+    setDetailConfig(null)
+
+    try {
+      const nextConfig = await getNodeConfig(nodeId)
+      if (detailConfigRequestSeq.current !== requestSeq) {
+        return
+      }
+      setDetailConfig(nextConfig)
+    } catch (error) {
+      if (detailConfigRequestSeq.current !== requestSeq) {
+        return
+      }
+      setDetailConfig(null)
+      setDetailConfigError(error instanceof Error ? error : new Error("node config failed"))
+    } finally {
+      if (detailConfigRequestSeq.current === requestSeq) {
+        setDetailConfigLoading(false)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     void loadNodes(false)
   }, [loadNodes])
 
   const openDetail = useCallback(
-    async (nodeId: number) => {
+    (nodeId: number) => {
       setSelectedNodeId(nodeId)
-      await loadNodeDetail(nodeId)
+      void loadNodeDetail(nodeId)
+      void loadNodeConfig(nodeId)
     },
-    [loadNodeDetail],
+    [loadNodeConfig, loadNodeDetail],
   )
 
   const closeDetail = useCallback((open: boolean) => {
@@ -496,6 +658,10 @@ export function NodeClusterListPanel() {
     setSelectedNodeId(null)
     setDetail(null)
     setDetailError(null)
+    setDetailConfig(null)
+    setDetailConfigError(null)
+    setDetailConfigLoading(false)
+    detailConfigRequestSeq.current += 1
   }, [])
 
   const openJoinLifecycle = useCallback(() => {
@@ -1012,71 +1178,81 @@ export function NodeClusterListPanel() {
           />
         ) : null}
         {!detailLoading && !detailError && detail ? (
-          <div className="rounded-md border border-border bg-card p-3" data-node-surface="detail">
-            <KeyValueList
-              items={[
-                { label: intl.formatMessage({ id: "nodes.detail.address" }), value: detail.addr },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.status" }),
-                  value: <StatusBadge value={nodeHealthStatus(detail)} />,
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.membershipRole" }),
-                  value: nodeMembershipRole(detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.joinState" }),
-                  value: nodeJoinState(detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.schedulable" }),
-                  value: nodeSchedulableText(intl, detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.controllerRole" }),
-                  value: detail.controller.role,
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.controllerVoter" }),
-                  value: nodeControllerVoterText(intl, detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.controllerRaftHealth" }),
-                  value: nodeControllerRaftHealth(intl, detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.controllerRaftWatermark" }),
-                  value: nodeControllerRaftWatermark(intl, detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.controllerRaftLink" }),
-                  value: controllerRaftLink(intl, detail.node_id),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.lastHeartbeat" }),
-                  value: formatTimestamp(intl, nodeLastHeartbeat(detail)),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.capacityWeight" }),
-                  value: detail.capacity_weight,
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.slotSummary" }),
-                  value: nodeSlotSummaryText(intl, detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.runtime" }),
-                  value: nodeRuntimeSummaryText(intl, detail),
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.hostedIds" }),
-                  value: detail.slots.hosted_ids.join(", ") || "-",
-                },
-                {
-                  label: intl.formatMessage({ id: "nodes.detail.leaderIds" }),
-                  value: detail.slots.leader_ids.join(", ") || "-",
-                },
-              ]}
+          <div className="space-y-4">
+            <div className="rounded-md border border-border bg-card p-3" data-node-surface="detail">
+              <KeyValueList
+                items={[
+                  { label: intl.formatMessage({ id: "nodes.detail.address" }), value: detail.addr },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.status" }),
+                    value: <StatusBadge value={nodeHealthStatus(detail)} />,
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.membershipRole" }),
+                    value: nodeMembershipRole(detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.joinState" }),
+                    value: nodeJoinState(detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.schedulable" }),
+                    value: nodeSchedulableText(intl, detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.controllerRole" }),
+                    value: detail.controller.role,
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.controllerVoter" }),
+                    value: nodeControllerVoterText(intl, detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.controllerRaftHealth" }),
+                    value: nodeControllerRaftHealth(intl, detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.controllerRaftWatermark" }),
+                    value: nodeControllerRaftWatermark(intl, detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.controllerRaftLink" }),
+                    value: controllerRaftLink(intl, detail.node_id),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.lastHeartbeat" }),
+                    value: formatTimestamp(intl, nodeLastHeartbeat(detail)),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.capacityWeight" }),
+                    value: detail.capacity_weight,
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.slotSummary" }),
+                    value: nodeSlotSummaryText(intl, detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.runtime" }),
+                    value: nodeRuntimeSummaryText(intl, detail),
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.hostedIds" }),
+                    value: detail.slots.hosted_ids.join(", ") || "-",
+                  },
+                  {
+                    label: intl.formatMessage({ id: "nodes.detail.leaderIds" }),
+                    value: detail.slots.leader_ids.join(", ") || "-",
+                  },
+                ]}
+              />
+            </div>
+            <NodeConfigSection
+              config={detailConfig}
+              error={detailConfigError}
+              loading={detailConfigLoading}
+              onRetry={() => {
+                void loadNodeConfig(detail.node_id)
+              }}
             />
           </div>
         ) : null}

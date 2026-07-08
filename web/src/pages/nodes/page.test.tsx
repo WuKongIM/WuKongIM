@@ -15,6 +15,7 @@ import {
 
 const getNodesMock = vi.fn()
 const getNodeMock = vi.fn()
+const getNodeConfigMock = vi.fn()
 const activateNodeMock = vi.fn()
 const startNodeOnboardingMock = vi.fn()
 const getNodeOnboardingStatusMock = vi.fn()
@@ -35,6 +36,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getNode: (...args: unknown[]) => getNodeMock(...args),
+    getNodeConfig: (...args: unknown[]) => getNodeConfigMock(...args),
     activateNode: (...args: unknown[]) => activateNodeMock(...args),
     startNodeOnboarding: (...args: unknown[]) => startNodeOnboardingMock(...args),
     getNodeOnboardingStatus: (...args: unknown[]) => getNodeOnboardingStatusMock(...args),
@@ -167,6 +169,7 @@ beforeEach(() => {
   resetLocale()
   getNodesMock.mockReset()
   getNodeMock.mockReset()
+  getNodeConfigMock.mockReset()
   activateNodeMock.mockReset()
   startNodeOnboardingMock.mockReset()
   getNodeOnboardingStatusMock.mockReset()
@@ -363,6 +366,87 @@ test("marks node detail as a compact inspection surface", async () => {
   expect(detailSurface).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
   expect(detailSurface).toHaveTextContent("127.0.0.1:7000")
   expect(detailSurface).toHaveTextContent("1, 2, 3")
+})
+
+test("renders selected node effective config in the node detail sheet", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+  getNodeMock.mockResolvedValueOnce(nodeDetail)
+  getNodeConfigMock.mockResolvedValueOnce({
+    generated_at: "2026-07-08T08:00:00Z",
+    node_id: 1,
+    source: "effective_startup_config",
+    requires_restart: true,
+    groups: [{
+      id: "cluster",
+      title: "Cluster",
+      items: [
+        {
+          key: "WK_CLUSTER_HASH_SLOT_COUNT",
+          label: "Hash slot count",
+          value: "256",
+          sensitive: false,
+          redacted: false,
+        },
+        {
+          key: "WK_MANAGER_JWT_SECRET",
+          label: "Manager JWT secret",
+          value: "******",
+          sensitive: true,
+          redacted: true,
+        },
+      ],
+    }],
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
+
+  const configSurface = (await screen.findByText("Effective Configuration"))
+    .closest("[data-node-surface='config']")
+  expect(configSurface).toHaveTextContent("effective_startup_config")
+  expect(configSurface).toHaveTextContent("restart required")
+  expect(within(configSurface as HTMLElement).getByText("Cluster")).toBeInTheDocument()
+  expect(within(configSurface as HTMLElement).getByText("WK_CLUSTER_HASH_SLOT_COUNT")).toBeInTheDocument()
+  expect(within(configSurface as HTMLElement).getByText("Hash slot count")).toBeInTheDocument()
+  expect(within(configSurface as HTMLElement).getByText("256")).toBeInTheDocument()
+  expect(within(configSurface as HTMLElement).getByText("WK_MANAGER_JWT_SECRET")).toBeInTheDocument()
+  expect(within(configSurface as HTMLElement).getByText("******")).toBeInTheDocument()
+  expect(within(configSurface as HTMLElement).getByText("redacted")).toBeInTheDocument()
+  expect(getNodeConfigMock).toHaveBeenCalledWith(1)
+})
+
+test("keeps node details visible when node config is unavailable", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+  getNodeMock.mockResolvedValueOnce(nodeDetail)
+  getNodeConfigMock.mockRejectedValueOnce(
+    new ManagerApiError(503, "service_unavailable", "node config unavailable"),
+  )
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
+
+  expect(await screen.findByText("Hosted IDs")).toBeInTheDocument()
+  expect(screen.getByText("1, 2, 3")).toBeInTheDocument()
+  const configSurface = (await screen.findByText("Effective Configuration"))
+    .closest("[data-node-surface='config']")
+  expect(configSurface).toHaveTextContent(/currently unavailable/i)
+  expect(getNodeConfigMock).toHaveBeenCalledWith(1)
 })
 
 test("renders lifecycle actions directly in node rows by state", async () => {
