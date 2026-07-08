@@ -144,6 +144,30 @@ test("renders summary and pressure rows", async () => {
   expect(screen.getByText("0.30/s")).toBeInTheDocument()
 })
 
+test("uses an editorial workqueue toolbar status strip and named table", async () => {
+  getRuntimeWorkqueuesMock.mockResolvedValue(workqueueResponse)
+  renderPage()
+
+  const toolbar = await screen.findByTestId("workqueues-query-toolbar")
+  expect(toolbar).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
+  expect(within(toolbar).getByLabelText("Node")).toBeInTheDocument()
+  expect(within(toolbar).getByLabelText("Window")).toBeInTheDocument()
+  expect(within(toolbar).getByLabelText("Component")).toBeInTheDocument()
+
+  const metadata = screen.getByTestId("workqueues-metadata-row")
+  expect(metadata).toHaveClass("border-t", "border-border", "pt-3")
+  expect(within(metadata).getByText(/node-1/)).toBeInTheDocument()
+
+  const statusStrip = screen.getByTestId("workqueues-status-strip")
+  expect(statusStrip).toHaveClass("grid", "border", "border-border")
+  expect(within(statusStrip).getByText("degraded overall")).toBeInTheDocument()
+
+  const table = screen.getByRole("table", { name: "Workqueue Monitor" })
+  const surface = table.closest("[data-workqueues-surface='inventory']")
+  expect(surface).toHaveClass("rounded-md", "border", "border-border")
+  expect(table).toHaveClass("text-sm")
+})
+
 test("shows column explanations from header help buttons", async () => {
   getRuntimeWorkqueuesMock.mockResolvedValue(workqueueResponse)
   const user = userEvent.setup()

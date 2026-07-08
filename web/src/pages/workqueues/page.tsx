@@ -146,6 +146,15 @@ function ColumnHeader({ description, label }: { description: string; label: stri
   )
 }
 
+function SummaryStripItem({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="border-b border-border px-3 py-3 last:border-b-0 sm:border-r sm:last:border-r-0 xl:border-b-0">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mt-2 truncate text-sm font-semibold text-foreground">{value}</div>
+    </div>
+  )
+}
+
 export function WorkqueuesPage() {
   const intl = useIntl()
   const [windowValue, setWindowValue] = useState<WindowValue>("10s")
@@ -274,7 +283,10 @@ export function WorkqueuesPage() {
         />
       ) : (
       <div className="space-y-4">
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3 md:flex-row md:items-end md:justify-between">
+        <div
+          className="rounded-lg border border-border bg-card p-3"
+          data-testid="workqueues-query-toolbar"
+        >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="self-end">
               <MonitorNodeSelector
@@ -327,46 +339,55 @@ export function WorkqueuesPage() {
               {intl.formatMessage({ id: "workqueues.controls.abnormalOnly" })}
             </label>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {intl.formatMessage({ id: "workqueues.scope.node" })}: {nodeLabel}
-            <span className="mx-2">/</span>
-            {intl.formatMessage({ id: "workqueues.scope.samples" })}: {sampleCount}
+          <div
+            className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3 text-xs text-muted-foreground"
+            data-testid="workqueues-metadata-row"
+          >
+            <span>{intl.formatMessage({ id: "workqueues.scope.node" })}: {nodeLabel}</span>
+            <span>{intl.formatMessage({ id: "workqueues.scope.samples" })}: {sampleCount}</span>
           </div>
         </div>
 
         {response ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-lg border border-border bg-card px-4 py-3">
-              <div className="text-xs font-medium text-muted-foreground">{intl.formatMessage({ id: "workqueues.summary.level" })}</div>
-              <div className="mt-2 text-sm font-semibold text-foreground">
-                {intl.formatMessage({ id: "workqueues.summary.overallValue" }, { level: response.summary.overall_level })}
-              </div>
-            </div>
-            <div className="rounded-lg border border-border bg-card px-4 py-3">
-              <div className="text-xs font-medium text-muted-foreground">{intl.formatMessage({ id: "workqueues.summary.total" })}</div>
-              <div className="mt-2 text-2xl font-semibold text-foreground">{response.summary.total}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-card px-4 py-3">
-              <div className="text-xs font-medium text-muted-foreground">{intl.formatMessage({ id: "workqueues.summary.degraded" })}</div>
-              <div className="mt-2 text-2xl font-semibold text-foreground">{abnormalCount}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-card px-4 py-3">
-              <div className="text-xs font-medium text-muted-foreground">{intl.formatMessage({ id: "workqueues.summary.hottest" })}</div>
-              <div className="mt-2 truncate text-sm font-semibold text-foreground">{formatHottest(response)}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-card px-4 py-3">
-              <div className="text-xs font-medium text-muted-foreground">{intl.formatMessage({ id: "workqueues.summary.window" })}</div>
-              <div className="mt-2 text-2xl font-semibold text-foreground">{response.window_seconds}s</div>
-            </div>
+          <div
+            className="grid overflow-hidden rounded-md border border-border bg-card sm:grid-cols-2 xl:grid-cols-5"
+            data-testid="workqueues-status-strip"
+          >
+            <SummaryStripItem
+              label={intl.formatMessage({ id: "workqueues.summary.level" })}
+              value={intl.formatMessage({ id: "workqueues.summary.overallValue" }, { level: response.summary.overall_level })}
+            />
+            <SummaryStripItem
+              label={intl.formatMessage({ id: "workqueues.summary.total" })}
+              value={response.summary.total}
+            />
+            <SummaryStripItem
+              label={intl.formatMessage({ id: "workqueues.summary.degraded" })}
+              value={abnormalCount}
+            />
+            <SummaryStripItem
+              label={intl.formatMessage({ id: "workqueues.summary.hottest" })}
+              value={formatHottest(response)}
+            />
+            <SummaryStripItem
+              label={intl.formatMessage({ id: "workqueues.summary.window" })}
+              value={`${response.window_seconds}s`}
+            />
           </div>
         ) : null}
 
         {filteredItems.length === 0 ? (
           <ResourceState kind="empty" title={title} description={emptyDescription} />
         ) : (
-          <section className="rounded-lg border border-border bg-card">
+          <section
+            className="rounded-md border border-border bg-card"
+            data-workqueues-surface="inventory"
+          >
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1080px] border-collapse text-left">
+              <table
+                aria-label={title}
+                className="w-full min-w-[1080px] border-collapse text-left text-sm"
+              >
                 <thead className="text-xs uppercase text-muted-foreground">
                   <tr>
                     {workqueueColumns.map((column) => {
