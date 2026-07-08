@@ -366,11 +366,13 @@ function NodeConfigSection({
   config,
   error,
   loading,
+  nodeId,
   onRetry,
 }: {
   config: ManagerNodeConfigResponse | null
   error: Error | null
   loading: boolean
+  nodeId: number
   onRetry: () => void
 }) {
   const intl = useIntl()
@@ -398,11 +400,18 @@ function NodeConfigSection({
           ) : null}
         </div>
         {config ? (
-          <div className="text-xs text-muted-foreground">
-            {intl.formatMessage(
-              { id: "nodes.config.generatedAt" },
-              { value: formatTimestamp(intl, config.generated_at) },
-            )}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>
+              {intl.formatMessage(
+                { id: "nodes.config.generatedAt" },
+                { value: formatTimestamp(intl, config.generated_at) },
+              )}
+            </span>
+            <Button asChild size="xs" variant="outline">
+              <Link to={`/cluster/node-config?node_id=${nodeId}`}>
+                {intl.formatMessage({ id: "nodes.config.viewFull" })}
+              </Link>
+            </Button>
           </div>
         ) : null}
       </div>
@@ -1250,6 +1259,7 @@ export function NodeClusterListPanel() {
               config={detailConfig}
               error={detailConfigError}
               loading={detailConfigLoading}
+              nodeId={detail.node_id}
               onRetry={() => {
                 void loadNodeConfig(detail.node_id)
               }}

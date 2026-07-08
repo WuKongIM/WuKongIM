@@ -420,6 +420,8 @@ test("renders selected node effective config in the node detail sheet", async ()
   expect(within(configSurface as HTMLElement).getByText("WK_MANAGER_JWT_SECRET")).toBeInTheDocument()
   expect(within(configSurface as HTMLElement).getByText("******")).toBeInTheDocument()
   expect(within(configSurface as HTMLElement).getByText("redacted")).toBeInTheDocument()
+  const fullConfigLink = within(configSurface as HTMLElement).getByRole("link", { name: "View full config" })
+  expect(fullConfigLink).toHaveAttribute("href", "/cluster/node-config?node_id=1")
   expect(getNodeConfigMock).toHaveBeenCalledWith(1)
 })
 

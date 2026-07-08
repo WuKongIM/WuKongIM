@@ -13,6 +13,7 @@ import {
   Server,
   Settings,
   Shield,
+  SlidersHorizontal,
   Users,
   Waypoints,
   Webhook,
@@ -58,6 +59,13 @@ export const navigationSections: NavigationSection[] = [
         pathLabelMessageId: "nav.path.cluster.nodes",
         icon: Server,
         aliases: ["/nodes", "/onboarding"],
+      },
+      {
+        href: "/cluster/node-config",
+        titleMessageId: "nav.nodeConfig.title",
+        descriptionMessageId: "nav.nodeConfig.description",
+        pathLabelMessageId: "nav.path.cluster.nodeConfig",
+        icon: SlidersHorizontal,
       },
       {
         href: "/cluster/slots",

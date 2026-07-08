@@ -13,6 +13,7 @@ import { ClusterDashboardPage } from "@/pages/cluster-dashboard/page"
 import { DBInspectPage } from "@/pages/db-inspect/page"
 import { LoginPage } from "@/pages/login/page"
 import { MessagesPage } from "@/pages/messages/page"
+import { NodeConfigPage } from "@/pages/node-config/page"
 import { NodesPage } from "@/pages/nodes/page"
 import { PermissionsPage } from "@/pages/settings/permissions/page"
 import { PluginsPage } from "@/pages/plugins/page"
@@ -57,6 +58,7 @@ export const routes: RouteObject[] = [
       { path: "cluster/dashboard", element: <ClusterDashboardPage /> },
       { path: "cluster/monitor", element: <ClusterMonitorPage /> },
       { path: "cluster/nodes", element: <NodesPage /> },
+      { path: "cluster/node-config", element: <NodeConfigPage /> },
       { path: "cluster/slots", element: <SlotsPage /> },
       { path: "cluster/channels", element: <ClusterChannelsPage /> },
       { path: "cluster/plugins", element: <PluginsPage /> },

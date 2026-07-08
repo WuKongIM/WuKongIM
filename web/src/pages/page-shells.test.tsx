@@ -362,6 +362,7 @@ it.each([
   ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
   ["/business/dashboard", "Business Dashboard", "Business Message Trends"],
   ["/cluster/nodes", "Nodes", "127.0.0.1:7000"],
+  ["/cluster/node-config", "Node Config", "Effective configuration"],
   ["/cluster/slots", "Slots", "Slot 9"],
   ["/cluster/channels", "Channel Cluster", "No manager data is available for this view yet."],
   ["/cluster/plugins", "Plugins", "Node plugin inventory"],
@@ -393,6 +394,7 @@ it.each([
 it.each([
   ["/cluster/dashboard", "CLUSTER / DASHBOARD"],
   ["/cluster/nodes", "CLUSTER / NODES"],
+  ["/cluster/node-config", "CLUSTER / NODE CONFIG"],
   ["/cluster/slots", "CLUSTER / SLOTS"],
   ["/cluster/channels", "CLUSTER / CHANNELS"],
   ["/cluster/plugins", "CLUSTER / PLUGINS"],
@@ -424,6 +426,7 @@ it.each([
   ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
   ["/business/dashboard", "业务仪表盘", "业务消息趋势"],
   ["/cluster/nodes", "节点", "127.0.0.1:7000"],
+  ["/cluster/node-config", "节点配置", "有效配置"],
   ["/cluster/slots", "槽位", "槽位 9"],
   ["/cluster/channels", "频道集群", "当前视图还没有可用的管理面数据。"],
   ["/cluster/plugins", "插件管理", "节点插件清单"],
