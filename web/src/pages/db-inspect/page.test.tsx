@@ -171,6 +171,43 @@ test("uses editorial db inspect rail workbench and named result tables", async (
   expect(resultSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
   expect(resultTable).toHaveClass("text-sm")
   expect(screen.getByTestId("db-inspect-stats-strip")).toHaveClass("border-b", "border-border", "pb-3")
+  expect(screen.getByText("Query templates")).toBeInTheDocument()
+  expect(screen.getByText("Node 1")).toBeInTheDocument()
+  expect(screen.getByText("generated 2026-06-17T10:00:01Z")).toBeInTheDocument()
+  expect(screen.getByText("1 row")).toBeInTheDocument()
+})
+
+test("filters table rail and marks the inspected table", async () => {
+  getNodesMock.mockResolvedValueOnce(nodesResponse())
+  getDBInspectTablesMock.mockResolvedValueOnce({
+    node_id: 1,
+    generated_at: "2026-06-17T10:00:00Z",
+    rows: [
+      { domain: "meta", name: "user", table: "meta.user" },
+      { domain: "meta", name: "channel", table: "meta.channel" },
+      { domain: "message", name: "message", table: "message.message" },
+    ],
+    stats: { scan_mode: "", scanned_hash_slots: [], scanned_rows: 0, returned_rows: 3, has_more: false, next_cursor: "" },
+  })
+  getDBInspectTableMock.mockResolvedValueOnce({
+    node_id: 1,
+    generated_at: "2026-06-17T10:00:00Z",
+    rows: [{ column: "uid", type: "string" }],
+    stats: { scan_mode: "", scanned_hash_slots: [], scanned_rows: 1, returned_rows: 1, has_more: false, next_cursor: "" },
+  })
+
+  const user = userEvent.setup()
+  renderPage()
+
+  expect(await screen.findByText("3 tables")).toBeInTheDocument()
+  await user.type(screen.getByLabelText("Search tables"), "user")
+  expect(screen.getByText("1 of 3 tables")).toBeInTheDocument()
+  expect(screen.getByText("meta.user")).toBeInTheDocument()
+  expect(screen.queryByText("meta.channel")).not.toBeInTheDocument()
+
+  const tableButton = screen.getByRole("button", { name: "Inspect meta.user" })
+  await user.click(tableButton)
+  expect(tableButton).toHaveAttribute("aria-current", "true")
 })
 
 test("describes a selected table", async () => {

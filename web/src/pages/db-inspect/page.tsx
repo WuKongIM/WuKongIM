@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react"
-import { Database, Play, RefreshCw } from "lucide-react"
-import { useIntl } from "react-intl"
+import { Database, Play, RefreshCw, Search } from "lucide-react"
+import { type IntlShape, useIntl } from "react-intl"
 
 import { ResourceState } from "@/components/manager/resource-state"
 import { PageContainer } from "@/components/shell/page-container"
@@ -19,6 +19,7 @@ import type {
   ManagerDBInspectRow,
   ManagerNode,
 } from "@/lib/manager-api.types"
+import { cn } from "@/lib/utils"
 
 type TableRow = {
   domain: string
@@ -30,6 +31,7 @@ type PageState = {
   nodes: ManagerNode[]
   tables: TableRow[]
   selectedNodeId: number
+  tableFilter: string
   query: string
   result: ManagerDBInspectQueryResponse | null
   describe: ManagerDBInspectQueryResponse | null
@@ -155,6 +157,7 @@ export function DBInspectPage() {
     nodes: [],
     tables: [],
     selectedNodeId: 0,
+    tableFilter: "",
     query: defaultQuery,
     result: null,
     describe: null,
@@ -239,7 +242,9 @@ export function DBInspectPage() {
 
   const columns = useMemo(() => rowColumns(state.result?.rows ?? []), [state.result])
   const describeColumns = useMemo(() => rowColumns(state.describe?.rows ?? []), [state.describe])
-  const tablesByDomain = useMemo(() => groupTables(state.tables), [state.tables])
+  const filteredTables = useMemo(() => filterTables(state.tables, state.tableFilter), [state.tables, state.tableFilter])
+  const tablesByDomain = useMemo(() => groupTables(filteredTables), [filteredTables])
+  const tableCount = formatTableCount(intl, filteredTables.length, state.tables.length)
 
   return (
     <PageContainer>
@@ -257,33 +262,59 @@ export function DBInspectPage() {
       <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
         <div className="overflow-hidden" data-testid="db-inspect-table-rail">
           <SectionCard
+            action={!state.loading ? <span className="font-mono text-xs text-muted-foreground">{tableCount}</span> : null}
             className="overflow-hidden"
             title={intl.formatMessage({ id: "dbInspect.tables.title" })}
           >
             {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "dbInspect.tables.title" })} /> : null}
-            {!state.loading && state.tables.length > 0 ? (
-              <div className="space-y-4">
+            {!state.loading ? (
+              <div className="space-y-3">
+                <label className="relative block">
+                  <span className="sr-only">{intl.formatMessage({ id: "dbInspect.tables.search" })}</span>
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    aria-label={intl.formatMessage({ id: "dbInspect.tables.search" })}
+                    className="h-8 w-full rounded-md border border-input bg-background px-3 pl-8 font-mono text-xs outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
+                    onChange={(event) => setState((current) => ({ ...current, tableFilter: event.target.value }))}
+                    value={state.tableFilter}
+                  />
+                </label>
+                {state.tables.length === 0 ? (
+                  <ResourceState kind="empty" title={intl.formatMessage({ id: "dbInspect.tables.title" })} />
+                ) : null}
+                {state.tables.length > 0 && filteredTables.length === 0 ? (
+                  <ResourceState kind="empty" title={intl.formatMessage({ id: "dbInspect.tables.emptyFilter" })} />
+                ) : null}
+                {filteredTables.length > 0 ? (
+                  <div className="space-y-4">
                 {Object.entries(tablesByDomain).map(([domain, rows]) => (
                   <div key={domain}>
-                    <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-                      {domain}
+                    <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold uppercase text-muted-foreground">
+                      <span>{domain}</span>
+                      <span className="font-mono">{rows.length}</span>
                     </div>
                     <div className="space-y-1">
                       {rows.map((row) => (
                         <button
                           aria-label={intl.formatMessage({ id: "dbInspect.table.inspect" }, { table: row.table })}
-                          className="flex w-full items-center justify-between rounded-md border border-border/70 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                          aria-current={state.selectedTable === row.table ? "true" : undefined}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-2 rounded-md border border-border/70 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50",
+                            state.selectedTable === row.table && "border-primary/40 bg-primary/8",
+                          )}
                           key={row.table}
                           onClick={() => void describeTable(row.table)}
                           type="button"
                         >
-                          <span className="font-mono">{row.table}</span>
-                          <Database className="size-4 text-muted-foreground" />
+                          <span className="min-w-0 truncate font-mono">{row.table}</span>
+                          <Database className={cn("size-4 text-muted-foreground", state.selectedTable === row.table && "text-primary")} />
                         </button>
                       ))}
                     </div>
                   </div>
                 ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </SectionCard>
@@ -326,6 +357,9 @@ export function DBInspectPage() {
                 onChange={(event) => setState((current) => ({ ...current, query: event.target.value }))}
                 value={state.query}
               />
+              <div className="text-xs font-semibold uppercase text-muted-foreground">
+                {intl.formatMessage({ id: "dbInspect.templates.title" })}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {templates.map((template) => (
                   <Button
@@ -410,12 +444,42 @@ function groupTables(rows: TableRow[]) {
   }, {})
 }
 
+function filterTables(rows: TableRow[], filter: string) {
+  const normalized = filter.trim().toLowerCase()
+  if (!normalized) {
+    return rows
+  }
+  return rows.filter((row) => (
+    row.table.toLowerCase().includes(normalized)
+      || row.domain.toLowerCase().includes(normalized)
+      || row.name.toLowerCase().includes(normalized)
+  ))
+}
+
+function formatTableCount(intl: IntlShape, filtered: number, total: number) {
+  if (filtered === total) {
+    return intl.formatMessage({ id: "dbInspect.tables.count" }, { count: total })
+  }
+  return intl.formatMessage({ id: "dbInspect.tables.filteredCount" }, { filtered, total })
+}
+
 function StatsStrip({ result }: { result: ManagerDBInspectQueryResponse }) {
+  const intl = useIntl()
+
   return (
     <div
       className="mb-4 flex flex-wrap gap-2 border-b border-border pb-3 text-xs text-muted-foreground"
       data-testid="db-inspect-stats-strip"
     >
+      <span className="rounded-full border border-border px-2 py-1">
+        {intl.formatMessage({ id: "dbInspect.meta.node" }, { id: result.node_id })}
+      </span>
+      <span className="rounded-full border border-border px-2 py-1">
+        {intl.formatMessage({ id: "dbInspect.meta.generated" }, { time: result.generated_at || "-" })}
+      </span>
+      <span className="rounded-full border border-border px-2 py-1">
+        {intl.formatMessage({ id: "dbInspect.meta.rows" }, { count: result.stats.returned_rows })}
+      </span>
       <span className="rounded-full border border-border px-2 py-1">{result.stats.scan_mode || "-"}</span>
       <span className="rounded-full border border-border px-2 py-1">scanned {result.stats.scanned_rows}</span>
       <span className="rounded-full border border-border px-2 py-1">returned {result.stats.returned_rows}</span>
@@ -460,11 +524,11 @@ function ResultTable({
   }
   return (
     <div
-      className="overflow-x-auto rounded-md border border-border"
+      className="max-h-[520px] overflow-x-auto overflow-y-auto rounded-md border border-border bg-background"
       data-db-inspect-surface={surface}
     >
-      <table aria-label={ariaLabel} className="w-full border-collapse text-sm">
-        <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+      <table aria-label={ariaLabel} className="w-full border-collapse text-left text-sm">
+        <thead className="sticky top-0 z-10 bg-muted/60 text-xs uppercase text-muted-foreground">
           <tr>
             {columns.map((column) => (
               <th className="px-3 py-3" key={column}>{column}</th>
@@ -473,9 +537,9 @@ function ResultTable({
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr className="border-t border-border" key={`${index}-${columns.join(":")}`}>
+            <tr className="border-t border-border hover:bg-muted/30" key={`${index}-${columns.join(":")}`}>
               {columns.map((column) => (
-                <td className="max-w-[320px] truncate px-3 py-3 font-mono text-xs text-foreground" key={column}>
+                <td className="max-w-[360px] truncate px-3 py-3 font-mono text-xs leading-6 text-foreground" key={column}>
                   {renderCell(row[column])}
                 </td>
               ))}
