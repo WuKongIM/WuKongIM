@@ -55,6 +55,8 @@ type AuthConfig struct {
 type Management interface {
 	// ListNodes returns manager-facing node DTOs.
 	ListNodes(ctx context.Context) (managementusecase.NodeList, error)
+	// NodeConfigSnapshot returns one selected node's redacted effective startup configuration.
+	NodeConfigSnapshot(ctx context.Context, nodeID uint64) (managementusecase.NodeConfigSnapshot, error)
 	// JoinNode submits a manager node join intent.
 	JoinNode(ctx context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error)
 	// ActivateNode submits a manager node activation intent.
@@ -342,6 +344,7 @@ func (s *Server) registerRoutes() {
 		nodes.Use(s.requirePermission("cluster.node", "r"))
 	}
 	nodes.GET("/nodes", s.handleNodes)
+	nodes.GET("/nodes/:node_id/config", s.handleNodeConfig)
 	nodes.GET("/runtime/workqueues", s.handleRuntimeWorkqueues)
 	nodes.GET("/realtime-monitor", s.handleRealtimeMonitor)
 

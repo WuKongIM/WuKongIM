@@ -1341,6 +1341,7 @@ func mustIssueTestToken(t *testing.T, srv *Server, username string) string {
 
 type managerNodesStub struct {
 	nodes                              managementusecase.NodeList
+	nodeConfigSnapshot                 managementusecase.NodeConfigSnapshot
 	slots                              []managementusecase.Slot
 	channelRuntimeMeta                 managementusecase.ListChannelRuntimeMetaResponse
 	channelMigrationSummary            managementusecase.ChannelMigrationSummary
@@ -1403,6 +1404,8 @@ type managerNodesStub struct {
 	lastChannelMigrationLookupRequest  *managementusecase.ChannelMigrationLookupInput
 	lastChannelMigrationAbortRequest   *managementusecase.ChannelMigrationAbortInput
 	lastBusinessChannelsRequest        *managementusecase.ListBusinessChannelsRequest
+	nodeConfigNodeSink                 *uint64
+	nodeConfigCallCount                *int
 	recentConversationsReqSink         *managementusecase.RecentConversationsRequest
 	messagesReqSink                    *managementusecase.ListMessagesRequest
 	connectionsReqSink                 *managementusecase.ListConnectionsRequest
@@ -1459,6 +1462,7 @@ type managerNodesStub struct {
 	systemUsersAddReq                  *managementusecase.MutateSystemUsersRequest
 	systemUsersRemoveReq               *managementusecase.MutateSystemUsersRequest
 	err                                error
+	nodeConfigErr                      error
 	slotsErr                           error
 	channelRuntimeMetaErr              error
 	channelMigrationErr                error
@@ -1549,6 +1553,16 @@ func testFloat64Ptr(v float64) *float64 {
 
 func (s managerNodesStub) ListNodes(context.Context) (managementusecase.NodeList, error) {
 	return s.nodes, s.err
+}
+
+func (s managerNodesStub) NodeConfigSnapshot(_ context.Context, nodeID uint64) (managementusecase.NodeConfigSnapshot, error) {
+	if s.nodeConfigNodeSink != nil {
+		*s.nodeConfigNodeSink = nodeID
+	}
+	if s.nodeConfigCallCount != nil {
+		*s.nodeConfigCallCount++
+	}
+	return s.nodeConfigSnapshot, s.nodeConfigErr
 }
 
 func (s managerNodesStub) JoinNode(_ context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error) {
