@@ -6,7 +6,7 @@ Scope: web cluster navigation, node config page, node detail deep link
 
 ## Goal
 
-Add a standalone `节点配置` menu under `集群运维` for read-only inspection of
+Add a standalone `配置` menu under `集群运维` for read-only inspection of
 each node's effective startup configuration.
 
 The first slice is a single-node config browser: operators choose one node,
@@ -48,18 +48,18 @@ not introduce any local-only bypass path.
 
 ## Navigation
 
-Add a navigation item under `集群运维`, immediately after `节点`:
+Add a navigation item under `集群运维`, immediately before `诊断`:
 
 ```text
 实时监控
 节点
-节点配置
 槽位
 频道
 插件
 任务
 Workqueue
 拓扑
+配置
 诊断
 ```
 
@@ -75,8 +75,9 @@ canonical route instead of adding another menu item.
 
 Navigation metadata:
 
-- Title: `节点配置` / `Node Config`
-- Path label: `CLUSTER / NODE CONFIG`
+- Menu title: `配置` / `Config`
+- Page title: `节点配置` / `Node Config`
+- Path label: `CLUSTER / CONFIG`
 - Description: read-only effective startup configuration by node.
 - Icon: use a Lucide configuration/slider style icon such as
   `SlidersHorizontal`; avoid reusing the exact `Settings` icon from system
@@ -93,7 +94,7 @@ Use `PageContainer` and `PageHeader`.
 
 Header content:
 
-- Eyebrow comes from route metadata: `CLUSTER / NODE CONFIG`.
+- Eyebrow comes from route metadata: `CLUSTER / CONFIG`.
 - Title: `节点配置`.
 - Description: read-only inspection of effective startup configuration for the
   selected node.
@@ -343,8 +344,8 @@ Focused frontend tests:
 
 - Navigation and route smoke:
   - `/cluster/node-config` renders under the cluster section.
-  - Sidebar includes `节点配置` after `节点`.
-  - Route metadata eyebrow resolves to `CLUSTER / NODE CONFIG`.
+  - Sidebar includes `配置` immediately before `诊断`.
+  - Route metadata eyebrow resolves to `CLUSTER / CONFIG`.
 - Page behavior:
   - Defaults to local node when available.
   - Honors `?node_id=...` when valid.
@@ -371,8 +372,8 @@ generated hash churn before committing source changes.
 
 ## Acceptance
 
-- `节点配置` appears as a standalone menu under `集群运维`, immediately after
-  `节点`.
+- `配置` appears as a standalone menu under `集群运维`, immediately before
+  `诊断`.
 - `/cluster/node-config` is the canonical full-page config inspection surface.
 - Operators can select one node, search/filter its config, and copy the current
   filtered result.

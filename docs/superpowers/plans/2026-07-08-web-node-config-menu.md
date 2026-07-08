@@ -19,7 +19,7 @@
 - Modify `web/src/app/router.tsx`
   - Adds `/cluster/node-config`.
 - Modify `web/src/lib/navigation.ts`
-  - Adds the `节点配置` navigation item immediately after `节点`.
+  - Adds the `配置` navigation item immediately before `诊断`.
 - Modify `web/src/i18n/messages/en.ts`
   - Adds English navigation and page messages.
 - Modify `web/src/i18n/messages/zh-CN.ts`
@@ -47,7 +47,7 @@ Add these cases:
 
 ```ts
 ["/cluster/node-config", "Node Config", "Effective configuration"],
-["/cluster/node-config", "CLUSTER / NODE CONFIG"],
+["/cluster/node-config", "CLUSTER / CONFIG"],
 ["/cluster/node-config", "节点配置", "有效配置"],
 ```
 
@@ -70,7 +70,7 @@ import { NodeConfigPage } from "@/pages/node-config/page"
 { path: "cluster/node-config", element: <NodeConfigPage /> },
 ```
 
-Add navigation item after `/cluster/nodes`:
+Add navigation item before `/cluster/diagnostics`:
 
 ```ts
 {

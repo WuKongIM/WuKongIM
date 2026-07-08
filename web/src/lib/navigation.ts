@@ -61,13 +61,6 @@ export const navigationSections: NavigationSection[] = [
         aliases: ["/nodes", "/onboarding"],
       },
       {
-        href: "/cluster/node-config",
-        titleMessageId: "nav.nodeConfig.title",
-        descriptionMessageId: "nav.nodeConfig.description",
-        pathLabelMessageId: "nav.path.cluster.nodeConfig",
-        icon: SlidersHorizontal,
-      },
-      {
         href: "/cluster/slots",
         titleMessageId: "nav.slots.title",
         descriptionMessageId: "nav.slots.description",
@@ -113,6 +106,13 @@ export const navigationSections: NavigationSection[] = [
         pathLabelMessageId: "nav.path.cluster.topology",
         icon: Waypoints,
         aliases: ["/topology"],
+      },
+      {
+        href: "/cluster/node-config",
+        titleMessageId: "nav.nodeConfig.title",
+        descriptionMessageId: "nav.nodeConfig.description",
+        pathLabelMessageId: "nav.path.cluster.nodeConfig",
+        icon: SlidersHorizontal,
       },
       {
         href: "/cluster/diagnostics",

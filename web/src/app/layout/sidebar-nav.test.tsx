@@ -114,6 +114,37 @@ test("omits the cluster dashboard menu item from the cluster section", async () 
   expect(links.slice(0, 2)).toEqual(["Live Monitor", "Nodes"])
 })
 
+test("places the config menu immediately before diagnostics", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/diagnostics"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
+  const links = within(nav).getAllByRole("link").map((link) => link.textContent)
+  expect(links).not.toContain("Node Config")
+  expect(links.slice(-2)).toEqual(["Config", "Diagnostics"])
+})
+
+test("uses the shortened Chinese config menu label", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/diagnostics"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
+  const links = within(nav).getAllByRole("link").map((link) => link.textContent)
+  expect(links).not.toContain("节点配置")
+  expect(links.slice(-2)).toEqual(["配置", "诊断"])
+})
+
 test("omits the business dashboard menu item from the business section", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/business/dashboard"] })
 

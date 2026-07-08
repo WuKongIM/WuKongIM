@@ -394,7 +394,7 @@ it.each([
 it.each([
   ["/cluster/dashboard", "CLUSTER / DASHBOARD"],
   ["/cluster/nodes", "CLUSTER / NODES"],
-  ["/cluster/node-config", "CLUSTER / NODE CONFIG"],
+  ["/cluster/node-config", "CLUSTER / CONFIG"],
   ["/cluster/slots", "CLUSTER / SLOTS"],
   ["/cluster/channels", "CLUSTER / CHANNELS"],
   ["/cluster/plugins", "CLUSTER / PLUGINS"],
