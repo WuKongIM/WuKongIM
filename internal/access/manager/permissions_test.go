@@ -52,7 +52,7 @@ func TestManagerPermissionsReturnsSanitizedSnapshot(t *testing.T) {
 		}
 	}
 
-	var body permissionsResponseBody
+	var body ManagerPermissionsResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
@@ -70,7 +70,20 @@ func TestManagerPermissionsReturnsSanitizedSnapshot(t *testing.T) {
 	}
 
 	requirePermissionCatalogEntry(t, body.Resources, "cluster.permission", []string{"r"})
+	requirePermissionCatalogEntry(t, body.Resources, "cluster.db", []string{"r"})
+	requirePermissionCatalogEntry(t, body.Resources, "cluster.webhook", []string{"r"})
 	requirePermissionCatalogEntry(t, body.Resources, "*", []string{"*"})
+	if permissionCatalogContains(body.Resources, "cluster.webhook", "w") {
+		t.Fatalf("resources = %#v, did not expect cluster.webhook:w", body.Resources)
+	}
+
+	catalog := managerPermissionResources()
+	catalog[0].Actions[0] = "mutated"
+	catalog[0].Description = "mutated"
+	freshCatalog := managerPermissionResources()
+	if freshCatalog[0].Actions[0] == "mutated" || freshCatalog[0].Description == "mutated" {
+		t.Fatalf("managerPermissionResources() returned mutable package-level slices: %#v", freshCatalog[0])
+	}
 }
 
 func TestManagerPermissionsRequiresPermissionRead(t *testing.T) {
@@ -130,7 +143,7 @@ func TestManagerPermissionsAuthDisabledReturnsEmptyUsers(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	var body permissionsResponseBody
+	var body ManagerPermissionsResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
@@ -140,25 +153,7 @@ func TestManagerPermissionsAuthDisabledReturnsEmptyUsers(t *testing.T) {
 	requirePermissionCatalogEntry(t, body.Resources, "*", []string{"*"})
 }
 
-type permissionsResponseBody struct {
-	AuthEnabled bool                      `json:"auth_enabled"`
-	CurrentUser string                    `json:"current_user"`
-	Users       []permissionsUserBody     `json:"users"`
-	Resources   []permissionsResourceBody `json:"resources"`
-}
-
-type permissionsUserBody struct {
-	Username    string           `json:"username"`
-	Permissions []permissionBody `json:"permissions"`
-}
-
-type permissionsResourceBody struct {
-	Resource    string   `json:"resource"`
-	Actions     []string `json:"actions"`
-	Description string   `json:"description"`
-}
-
-func requirePermissionCatalogEntry(t *testing.T, resources []permissionsResourceBody, resource string, actions []string) {
+func requirePermissionCatalogEntry(t *testing.T, resources []ManagerPermissionResource, resource string, actions []string) {
 	t.Helper()
 	for _, item := range resources {
 		if item.Resource != resource {
@@ -173,4 +168,18 @@ func requirePermissionCatalogEntry(t *testing.T, resources []permissionsResource
 		return
 	}
 	t.Fatalf("catalog missing %q in %#v", resource, resources)
+}
+
+func permissionCatalogContains(resources []ManagerPermissionResource, resource, action string) bool {
+	for _, item := range resources {
+		if item.Resource != resource {
+			continue
+		}
+		for _, candidate := range item.Actions {
+			if candidate == action {
+				return true
+			}
+		}
+	}
+	return false
 }

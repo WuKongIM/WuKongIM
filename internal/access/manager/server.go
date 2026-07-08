@@ -203,6 +203,8 @@ type Options struct {
 	RealtimeMonitor RealtimeMonitorProvider
 	// Top provides local runtime pressure snapshots for read-only runtime views.
 	Top accessapi.TopSnapshotProvider
+	// WebhookConfig provides the read-only startup webhook configuration snapshot.
+	WebhookConfig WebhookConfigProvider
 	// Logger is the logger used by the manager server.
 	Logger wklog.Logger
 }
@@ -218,6 +220,7 @@ type Server struct {
 	management      Management
 	realtimeMonitor RealtimeMonitorProvider
 	top             accessapi.TopSnapshotProvider
+	webhookConfig   WebhookConfigProvider
 	auth            authState
 	logger          wklog.Logger
 	started         bool
@@ -239,6 +242,7 @@ func New(opts Options) *Server {
 		management:      opts.Management,
 		realtimeMonitor: opts.RealtimeMonitor,
 		top:             opts.Top,
+		webhookConfig:   opts.WebhookConfig,
 		auth:            newAuthState(opts.Auth),
 		logger:          opts.Logger,
 	}
@@ -443,6 +447,12 @@ func (s *Server) registerRoutes() {
 	}
 	connections.GET("/connections", s.handleConnections)
 	connections.GET("/connections/:session_id", s.handleConnection)
+
+	webhooks := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		webhooks.Use(s.requirePermission("cluster.webhook", "r"))
+	}
+	webhooks.GET("/webhooks/config", s.handleWebhookConfig)
 
 	pluginReads := s.engine.Group("/manager")
 	if s.auth.enabled() {

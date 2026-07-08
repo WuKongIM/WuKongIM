@@ -208,6 +208,29 @@ WK_DELIVERY_PENDING_ACK_TTL=30s
 WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=1024
 WK_DELIVERY_EVENT_QUEUE_SIZE=1024
 
+# Node-local best-effort webhook delivery. Leave the endpoint empty to keep webhooks disabled.
+WK_WEBHOOK_HTTP_ADDR=
+# Delivered webhook events as a JSON string list; empty means all supported events.
+WK_WEBHOOK_FOCUS_EVENTS=[]
+# Per-event in-memory queue capacity before webhook worker execution.
+WK_WEBHOOK_QUEUE_SIZE=1024
+# Concurrent webhook sender calls per event queue.
+WK_WEBHOOK_WORKERS=16
+# Maximum msg.notify records sent in one webhook request.
+WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS=100
+# Maximum wait for adjacent msg.notify records before sending a partial batch.
+WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT=500ms
+# Maximum user.onlinestatus records sent in one webhook request.
+WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS=512
+# Maximum wait for adjacent user.onlinestatus records before sending a partial batch.
+WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT=2s
+# Maximum offline recipient UIDs included in one msg.offline request.
+WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE=512
+# Timeout for one outbound webhook HTTP request attempt.
+WK_WEBHOOK_REQUEST_TIMEOUT=5s
+# Maximum attempts for one admitted webhook batch before it is dropped.
+WK_WEBHOOK_RETRY_MAX_ATTEMPTS=3
+
 # Node-local PDK-compatible plugin runtime. Enabled by default for manager operations.
 WK_PLUGIN_ENABLE=true
 # Directory containing executable .wkp plugin files for this node.

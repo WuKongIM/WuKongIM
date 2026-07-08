@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	runtimewebhook "github.com/WuKongIM/WuKongIM/internal/runtime/webhook"
@@ -33,6 +34,69 @@ func TestNewWiresWebhookSubsystemWhenEnabled(t *testing.T) {
 	require.NotNil(t, app.webhookNotify)
 	require.NotNil(t, app.webhookOffline)
 	require.NotNil(t, app.webhookPresence)
+}
+
+func TestWebhookConfigSnapshotUsesNormalizedStartupConfig(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Webhook: WebhookConfig{
+			HTTPAddr:    "http://127.0.0.1:8080/webhook",
+			FocusEvents: []string{runtimewebhook.EventMsgNotify},
+			QueueSize:   2048,
+			Workers:     8,
+		},
+	}, WithCluster(&fakeCluster{}))
+	require.NoError(t, err)
+
+	snapshot, err := app.WebhookConfigSnapshot(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, accessmanager.WebhookConfigSnapshot{
+		Enabled:                   true,
+		HTTPAddr:                  "http://127.0.0.1:8080/webhook",
+		FocusEvents:               []string{runtimewebhook.EventMsgNotify},
+		SupportedEvents:           []string{runtimewebhook.EventMsgNotify, runtimewebhook.EventMsgOffline, runtimewebhook.EventUserOnlineStatus},
+		QueueSize:                 2048,
+		Workers:                   8,
+		MsgNotifyBatchMaxItems:    100,
+		MsgNotifyBatchMaxWait:     "500ms",
+		OnlineStatusBatchMaxItems: 512,
+		OnlineStatusBatchMaxWait:  "2s",
+		OfflineUIDBatchSize:       512,
+		RequestTimeout:            "5s",
+		RetryMaxAttempts:          3,
+		Source:                    "startup_config",
+		RequiresRestart:           true,
+	}, snapshot)
+
+	snapshot.FocusEvents[0] = runtimewebhook.EventMsgOffline
+	second, err := app.WebhookConfigSnapshot(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []string{runtimewebhook.EventMsgNotify}, second.FocusEvents)
+}
+
+func TestWebhookConfigSnapshotReportsDisabledDefaults(t *testing.T) {
+	app, err := newTestApp(t, Config{DataDir: t.TempDir()}, WithCluster(&fakeCluster{}))
+	require.NoError(t, err)
+
+	snapshot, err := app.WebhookConfigSnapshot(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, accessmanager.WebhookConfigSnapshot{
+		Enabled:                   false,
+		HTTPAddr:                  "",
+		FocusEvents:               []string{},
+		SupportedEvents:           []string{runtimewebhook.EventMsgNotify, runtimewebhook.EventMsgOffline, runtimewebhook.EventUserOnlineStatus},
+		QueueSize:                 1024,
+		Workers:                   16,
+		MsgNotifyBatchMaxItems:    100,
+		MsgNotifyBatchMaxWait:     "500ms",
+		OnlineStatusBatchMaxItems: 512,
+		OnlineStatusBatchMaxWait:  "2s",
+		OfflineUIDBatchSize:       512,
+		RequestTimeout:            "5s",
+		RetryMaxAttempts:          3,
+		Source:                    "startup_config",
+		RequiresRestart:           true,
+	}, snapshot)
 }
 
 func TestWirePresencePassesWebhookOnlineStatusObserver(t *testing.T) {
