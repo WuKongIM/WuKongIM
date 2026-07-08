@@ -331,6 +331,12 @@ func (s *Server) registerRoutes() {
 	if s.auth.enabled() {
 		s.engine.POST("/manager/login", s.handleLogin)
 	}
+	permissions := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		permissions.Use(s.requirePermission("cluster.permission", "r"))
+	}
+	permissions.GET("/permissions", s.handlePermissions)
+
 	nodes := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		nodes.Use(s.requirePermission("cluster.node", "r"))

@@ -12,6 +12,7 @@ user, or conversation business state.
 
 ```text
 POST /manager/login   (only when Auth.On=true)
+GET  /manager/permissions (read-only auth/user/catalog visibility; requires cluster.permission:r when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/join (node lifecycle join; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/activate (node lifecycle activation; requires cluster.node:w when Auth.On=true)
@@ -66,6 +67,7 @@ GET  /manager/messages (channel message list; requires cluster.channel:r when Au
 POST /manager/messages/retention (message retention request; requires cluster.channel:w when Auth.On=true)
 GET  /manager/connections (connection list; requires cluster.connection:r when Auth.On=true)
 GET  /manager/connections/:session_id (connection detail; requires cluster.connection:r when Auth.On=true)
+GET  /manager/webhooks/config (read-only webhook startup configuration snapshot; requires cluster.webhook:r when Auth.On=true)
 GET  /manager/nodes/:node_id/plugins (node-local plugin inventory; requires cluster.plugin:r when Auth.On=true)
 GET  /manager/nodes/:node_id/plugins/:plugin_no (node-local plugin detail; requires cluster.plugin:r when Auth.On=true)
 PUT  /manager/nodes/:node_id/plugins/:plugin_no/config (node-local plugin desired config update; requires cluster.plugin:w when Auth.On=true)
@@ -92,6 +94,15 @@ POST /manager/system-users/remove (remove system UIDs; requires cluster.user:w w
 invalid JSON returns `{"error":"invalid_request","message":"invalid request"}`;
 invalid credentials return
 `{"error":"invalid_credentials","message":"invalid credentials"}`.
+
+`/manager/permissions` exposes a read-only view of manager auth state for the
+web permissions page. When manager auth is enabled the route requires
+`cluster.permission:r`, returns the authenticated username in `current_user`,
+lists configured static manager users without passwords, and returns a cloned
+built-in resource catalog. The catalog includes wildcard `*` and concrete
+manager resources such as `cluster.webhook:r`; webhook write permission is not
+advertised because webhook configuration is startup-only in this package. The
+route does not mutate runtime config or static auth grants.
 
 `/manager/nodes` preserves the legacy list response shape for the web node list
 view. It reads a control snapshot through `internal/usecase/management` and
@@ -410,6 +421,13 @@ internal node RPC, and maps session details such as UID, device, listener,
 state, timestamps, and addresses when the gateway session handle exposes them.
 If a remote connection reader is not wired, non-local filters return
 `service_unavailable`.
+
+`/manager/webhooks/config` exposes the node-local webhook startup configuration
+snapshot for the web webhook settings page. The route requires
+`cluster.webhook:r` when manager auth is enabled, delegates snapshot reads to
+the configured `WebhookConfigProvider`, and returns `service_unavailable` when
+the provider is absent or cannot produce a snapshot. It is read-only and does
+not mutate webhook runtime or config state.
 
 `/manager/nodes/:node_id/plugins*` exposes node-scoped plugin inventory,
 detail, desired-config update, restart, and uninstall operations for one
