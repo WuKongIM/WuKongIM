@@ -14,7 +14,9 @@ export function ClusterChannelsPage() {
         title={intl.formatMessage({ id: "channelCluster.title" })}
         description={intl.formatMessage({ id: "channelCluster.description" })}
       />
-      <ChannelClusterListPanel messagesHref="/business/messages" />
+      <div className="space-y-4" data-cluster-channels-surface="list">
+        <ChannelClusterListPanel messagesHref="/business/messages" />
+      </div>
     </PageContainer>
   )
 }

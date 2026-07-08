@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -104,6 +104,9 @@ test("defaults to the channel cluster list without overview or unhealthy tabs", 
   expect(screen.queryByRole("tab", { name: "Unhealthy" })).not.toBeInTheDocument()
   expect(screen.queryByRole("tab", { name: "List" })).not.toBeInTheDocument()
   expect(await screen.findByText("alpha")).toBeInTheDocument()
+  const listSurface = screen.getByText("alpha").closest("[data-cluster-channels-surface='list']")
+  expect(listSurface).toHaveClass("space-y-4")
+  expect(within(listSurface as HTMLElement).getByText("Channel ID")).toBeInTheDocument()
   expect(await screen.findByText("CLUSTER / CHANNELS")).toBeInTheDocument()
   expect(getChannelRuntimeMetaMock).toHaveBeenCalledWith({
     nodeId: 1,
