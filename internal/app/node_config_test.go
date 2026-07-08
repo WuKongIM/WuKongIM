@@ -72,8 +72,11 @@ func TestNodeConfigSnapshotReturnsEffectiveGroupsAndRedactsSecrets(t *testing.T)
 	if !containsNodeConfigItem(snapshot, "WK_MANAGER_JWT_SECRET", "******") {
 		t.Fatalf("snapshot missing redacted JWT secret: %#v", snapshot.Groups)
 	}
+	if !containsNodeConfigItem(snapshot, "WK_CLUSTER_JOIN_TOKEN", "******") {
+		t.Fatalf("snapshot missing redacted join token: %#v", snapshot.Groups)
+	}
 	raw := nodeConfigSnapshotText(snapshot)
-	for _, forbidden := range []string{"super-secret", "admin-password"} {
+	for _, forbidden := range []string{"join-secret", "super-secret", "admin-password"} {
 		if strings.Contains(raw, forbidden) {
 			t.Fatalf("snapshot leaked secret %q: %s", forbidden, raw)
 		}
