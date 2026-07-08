@@ -147,6 +147,38 @@ test("renders node plugin inventory with summary counts", async () => {
   expect(screen.getByText("process exited")).toBeInTheDocument()
 })
 
+test("uses editorial plugin inventory and binding table surfaces", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u1", plugin_no: "wk.echo", warnings: [] }],
+    total: 1,
+    has_more: false,
+  })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  const inventoryTable = await screen.findByRole("table", { name: "Node plugin inventory" })
+  const inventorySurface = inventoryTable.closest("[data-plugins-surface='inventory']")
+  expect(inventorySurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(inventoryTable).toHaveClass("text-sm")
+
+  const inventoryToolbar = screen.getByTestId("plugins-inventory-toolbar")
+  expect(inventoryToolbar).toHaveClass("border-b", "border-border", "pb-4")
+  expect(within(inventoryToolbar).getByLabelText("Plugin keyword")).toBeInTheDocument()
+
+  await user.type(screen.getByLabelText("Binding query"), "u1")
+  await user.click(screen.getByRole("button", { name: "Search bindings" }))
+
+  const bindingsTable = await screen.findByRole("table", { name: "Plugin bindings" })
+  const bindingsSurface = bindingsTable.closest("[data-plugins-surface='bindings']")
+  expect(bindingsSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(bindingsTable).toHaveClass("text-sm")
+
+  const bindingsToolbar = screen.getByTestId("plugins-bindings-toolbar")
+  expect(bindingsToolbar).toHaveClass("border-b", "border-border", "pb-4")
+})
+
 test("filters plugin inventory locally by keyword status and method", async () => {
   getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 2, items: [pluginRow, failedPluginRow] })
 

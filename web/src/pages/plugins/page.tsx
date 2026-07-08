@@ -565,10 +565,13 @@ export function PluginsPage() {
         {!state.loading && !state.error ? (
           state.page && state.page.items.length > 0 ? (
             filteredPlugins.length > 0 ? (
-              <div className="overflow-x-auto border border-border">
+              <div
+                className="overflow-x-auto rounded-md border border-border"
+                data-plugins-surface="inventory"
+              >
                 <table
                   aria-label={intl.formatMessage({ id: "plugins.inventory.title" })}
-                  className="w-full border-collapse"
+                  className="w-full border-collapse text-sm"
                 >
                   <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
@@ -665,7 +668,8 @@ export function PluginsPage() {
       >
         <form
           aria-label={intl.formatMessage({ id: "plugins.bindings.title" })}
-          className="flex flex-col gap-3 lg:flex-row lg:items-end"
+          className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-end"
+          data-testid="plugins-bindings-toolbar"
           onSubmit={(event) => {
             void submitBindingSearch(event)
           }}
@@ -722,8 +726,14 @@ export function PluginsPage() {
         {!bindingState.loading && !bindingState.error && bindingState.page ? (
           bindingState.page.items.length > 0 ? (
             <div className="space-y-3">
-              <div className="overflow-x-auto border border-border">
-                <table className="w-full border-collapse">
+              <div
+                className="overflow-x-auto rounded-md border border-border"
+                data-plugins-surface="bindings"
+              >
+                <table
+                  aria-label={intl.formatMessage({ id: "plugins.bindings.title" })}
+                  className="w-full border-collapse text-sm"
+                >
                   <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.uid" })}</th>
@@ -929,7 +939,10 @@ function PluginInventoryFiltersBar({
   options: ReturnType<typeof pluginFilterOptions>
 }) {
   return (
-    <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_180px]">
+    <div
+      className="mb-4 grid gap-3 border-b border-border pb-4 lg:grid-cols-[minmax(220px,1fr)_180px_180px]"
+      data-testid="plugins-inventory-toolbar"
+    >
       <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor="plugin-keyword-filter">
         {intl.formatMessage({ id: "plugins.filters.keyword" })}
         <input
