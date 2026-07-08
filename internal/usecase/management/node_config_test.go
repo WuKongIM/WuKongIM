@@ -3,6 +3,7 @@ package management
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -90,6 +91,34 @@ func TestNodeConfigSnapshotUnavailableWithoutReader(t *testing.T) {
 	_, err := app.NodeConfigSnapshot(context.Background(), 1)
 	if !errors.Is(err, ErrNodeConfigUnavailable) {
 		t.Fatalf("NodeConfigSnapshot() error = %v, want ErrNodeConfigUnavailable", err)
+	}
+}
+
+func TestNodeConfigSnapshotUnavailableWithoutClusterBeforeReader(t *testing.T) {
+	reader := &nodeConfigReaderStub{}
+	app := New(Options{NodeConfig: reader})
+
+	_, err := app.NodeConfigSnapshot(context.Background(), 1)
+	if !errors.Is(err, ErrNodeConfigUnavailable) {
+		t.Fatalf("NodeConfigSnapshot() error = %v, want ErrNodeConfigUnavailable", err)
+	}
+	if reader.calls != 0 {
+		t.Fatalf("reader calls = %d, want 0", reader.calls)
+	}
+}
+
+func TestNodeConfigDTOsHaveNoEntryTags(t *testing.T) {
+	for _, typ := range []reflect.Type{
+		reflect.TypeOf(NodeConfigSnapshot{}),
+		reflect.TypeOf(NodeConfigGroup{}),
+		reflect.TypeOf(NodeConfigItem{}),
+	} {
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			if tag := field.Tag.Get("json"); tag != "" {
+				t.Fatalf("%s.%s json tag = %q, want empty entry-independent usecase field", typ.Name(), field.Name, tag)
+			}
+		}
 	}
 }
 

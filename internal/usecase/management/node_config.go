@@ -22,39 +22,39 @@ type NodeConfigReader interface {
 // NodeConfigSnapshot is the manager-facing redacted startup config view for one node.
 type NodeConfigSnapshot struct {
 	// GeneratedAt records when this snapshot was built.
-	GeneratedAt time.Time `json:"generated_at"`
+	GeneratedAt time.Time
 	// NodeID is the node whose effective config was read.
-	NodeID uint64 `json:"node_id"`
+	NodeID uint64
 	// Source names the config source class.
-	Source string `json:"source"`
+	Source string
 	// RequiresRestart reports whether changing these startup settings requires restart.
-	RequiresRestart bool `json:"requires_restart"`
+	RequiresRestart bool
 	// Groups contains stable, bounded config sections.
-	Groups []NodeConfigGroup `json:"groups"`
+	Groups []NodeConfigGroup
 }
 
 // NodeConfigGroup contains a stable set of related config items.
 type NodeConfigGroup struct {
 	// ID is the stable group identifier used by the web UI.
-	ID string `json:"id"`
+	ID string
 	// Title is the operator-facing group title.
-	Title string `json:"title"`
+	Title string
 	// Items contains allowlisted config values.
-	Items []NodeConfigItem `json:"items"`
+	Items []NodeConfigItem
 }
 
 // NodeConfigItem contains one allowlisted config value.
 type NodeConfigItem struct {
 	// Key is the canonical WK_* config key.
-	Key string `json:"key"`
+	Key string
 	// Label is a concise operator-facing label.
-	Label string `json:"label"`
+	Label string
 	// Value is the already-formatted effective value.
-	Value string `json:"value"`
+	Value string
 	// Sensitive reports whether the underlying config is sensitive.
-	Sensitive bool `json:"sensitive"`
+	Sensitive bool
 	// Redacted reports whether Value is a fixed redaction token.
-	Redacted bool `json:"redacted"`
+	Redacted bool
 }
 
 // NodeConfigSnapshot returns one selected node's redacted effective startup configuration.
@@ -83,7 +83,7 @@ func (a *App) NodeConfigSnapshot(ctx context.Context, nodeID uint64) (NodeConfig
 
 func (a *App) ensureManagedNodeExists(ctx context.Context, nodeID uint64) error {
 	if a == nil || a.cluster == nil {
-		return metadb.ErrInvalidArgument
+		return ErrNodeConfigUnavailable
 	}
 	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
 	if err != nil {
