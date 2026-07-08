@@ -154,3 +154,20 @@ test("moves connections from the system section into business management", async
   expect(await screen.findByRole("link", { name: "Permissions" })).toBeInTheDocument()
   expect(screen.queryByRole("link", { name: "Connections" })).not.toBeInTheDocument()
 })
+
+test("uses a readable accent style for the active sidebar menu item", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  const router = createMemoryRouter(routes, { initialEntries: ["/business/users"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  const activeItem = await screen.findByRole("link", { name: "用户管理" })
+
+  expect(activeItem).toHaveAttribute("aria-current", "page")
+  expect(activeItem).toHaveClass("bg-accent", "text-accent-foreground")
+  expect(activeItem).not.toHaveClass("bg-sidebar-primary", "text-sidebar-primary-foreground")
+})
