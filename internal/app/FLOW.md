@@ -291,7 +291,9 @@ New(Config)
      use the app-owned JSONL task audit reader when it is available;
      when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
-     local runtime pressure; attach one Prometheus-backed realtime monitor
+     local runtime pressure; attach the app as the read-only startup webhook
+     config snapshot provider for `/manager/webhooks/config`; attach one
+     Prometheus-backed realtime monitor
      provider so `/manager/realtime-monitor` can expose business-path and
      cluster-operations card series, including Slot proposal admission,
      leader-change, replica-lag, and scheduler pressure cards, category counts, explicit

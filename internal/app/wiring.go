@@ -895,6 +895,7 @@ func (a *App) wireManager() {
 			Management:      management,
 			RealtimeMonitor: a.newManagerMonitorProvider(management),
 			Top:             a.topProvider,
+			WebhookConfig:   a,
 			Logger:          a.logger.Named("access.manager"),
 		})
 	}
