@@ -1012,7 +1012,7 @@ export function NodeClusterListPanel() {
           />
         ) : null}
         {!detailLoading && !detailError && detail ? (
-          <div className="space-y-4">
+          <div className="rounded-md border border-border bg-card p-3" data-node-surface="detail">
             <KeyValueList
               items={[
                 { label: intl.formatMessage({ id: "nodes.detail.address" }), value: detail.addr },
@@ -1180,7 +1180,10 @@ export function NodeClusterOverviewPanel() {
               description={intl.formatMessage({ id: "nodes.unhealthy.summary" }, { count: unhealthyCount })}
               title={intl.formatMessage({ id: "nodes.unhealthy.title" })}
             >
-              <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
+              <div
+                className="rounded-md border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground"
+                data-node-surface="overview-unhealthy"
+              >
                 {intl.formatMessage(
                   { id: "nodes.unhealthy.breakdown" },
                   {
@@ -1193,20 +1196,20 @@ export function NodeClusterOverviewPanel() {
             </SectionCard>
 
             <SectionCard title={intl.formatMessage({ id: "nodes.overview.runtime.title" })}>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+              <div className="grid gap-3 sm:grid-cols-3" data-node-surface="overview-runtime">
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     {intl.formatMessage({ id: "nodes.metric.gatewaySessions" })}
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeTotals.gatewaySessions}</div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     {intl.formatMessage({ id: "nodes.metric.activeOnline" })}
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeTotals.activeOnline}</div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     {intl.formatMessage({ id: "nodes.metric.runtimeUnknown" })}
                   </div>
@@ -1291,10 +1294,10 @@ export function NodeClusterUnhealthyPanel() {
         />
       ) : null}
       {!state.loading && !state.error && state.nodes ? (
-        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+        <div className="rounded-md border border-border bg-card p-3 shadow-none" data-node-surface="unhealthy">
           {rows.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
+            <div className="overflow-x-auto rounded-md border border-border" data-node-surface="unhealthy-table">
+              <table aria-label={intl.formatMessage({ id: "nodes.unhealthy.title" })} className="w-full border-collapse text-sm">
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.node" })}</th>

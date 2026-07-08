@@ -7,7 +7,11 @@ import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { I18nProvider } from "@/i18n/provider"
 import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
-import { NodesPage } from "@/pages/nodes/page"
+import {
+  NodeClusterOverviewPanel,
+  NodeClusterUnhealthyPanel,
+  NodesPage,
+} from "@/pages/nodes/page"
 
 const getNodesMock = vi.fn()
 const getNodeMock = vi.fn()
@@ -338,6 +342,27 @@ test("renders layered node inventory fields and slot move row actions", async ()
   expect(screen.queryByRole("button", { name: "Drain" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Review scale-in for node 1" })).not.toBeInTheDocument()
+})
+
+test("marks node detail as a compact inspection surface", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+  getNodeMock.mockResolvedValueOnce(nodeDetail)
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
+
+  const detailSurface = (await screen.findByText("Hosted IDs")).closest("[data-node-surface='detail']")
+  expect(detailSurface).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
+  expect(detailSurface).toHaveTextContent("127.0.0.1:7000")
+  expect(detailSurface).toHaveTextContent("1, 2, 3")
 })
 
 test("renders lifecycle actions directly in node rows by state", async () => {
@@ -687,6 +712,69 @@ test("uses compact node page chrome without duplicate header actions", async () 
   expect(screen.queryByRole("button", { name: "Inspect" })).not.toBeInTheDocument()
   expect(screen.getByText("Total: 1")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+})
+
+test("marks node overview secondary surfaces", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+
+  render(
+    <I18nProvider>
+      <NodeClusterOverviewPanel />
+    </I18nProvider>,
+  )
+
+  const summaryStrip = await screen.findByTestId("nodes-summary-strip")
+  expect(summaryStrip).toBeInTheDocument()
+
+  const unhealthySurface = screen
+    .getByText("Unhealthy: 0; runtime unknown: 0; draining: 0.")
+    .closest("[data-node-surface='overview-unhealthy']")
+  expect(unhealthySurface).toHaveClass("rounded-md", "border", "border-border", "bg-muted/30")
+
+  const runtimeSurface = screen.getByText("Gateway sessions").closest("[data-node-surface='overview-runtime']")
+  expect(runtimeSurface).toHaveClass("grid", "gap-3", "sm:grid-cols-3")
+  expect(runtimeSurface).toHaveTextContent("5")
+  expect(runtimeSurface).toHaveTextContent("4")
+  expect(runtimeSurface).toHaveTextContent("0")
+})
+
+test("marks node unhealthy rows as an accessible incident table", async () => {
+  const unhealthyNode = {
+    ...nodeRow,
+    node_id: 2,
+    name: "node-2",
+    addr: "127.0.0.1:7002",
+    status: "dead",
+    health: { status: "dead", last_heartbeat_at: "2026-04-23T08:00:00Z" },
+    runtime: { ...nodeRow.runtime, unknown: true },
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [unhealthyNode],
+  })
+
+  render(
+    <I18nProvider>
+      <NodeClusterUnhealthyPanel />
+    </I18nProvider>,
+  )
+
+  const table = await screen.findByRole("table", { name: "Unhealthy Nodes" })
+  const panel = table.closest("[data-node-surface='unhealthy']")
+  const tableSurface = table.closest("[data-node-surface='unhealthy-table']")
+
+  expect(panel).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
+  expect(tableSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(table).toHaveClass("w-full", "border-collapse", "text-sm")
+  expect(within(table).getByText("127.0.0.1:7002")).toBeInTheDocument()
+  expect(within(table).getByText("runtime unknown")).toBeInTheDocument()
 })
 
 test("shows a forbidden state when node list access is denied", async () => {
