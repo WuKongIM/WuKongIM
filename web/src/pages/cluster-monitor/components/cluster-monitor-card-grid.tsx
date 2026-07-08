@@ -7,7 +7,7 @@ type ClusterMonitorCardGridProps = {
 
 export function ClusterMonitorCardGrid({ cards }: ClusterMonitorCardGridProps) {
   return (
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-cluster-monitor-surface="metrics">
       {cards.map((card) => (
         <ClusterMonitorMetricCard card={card} key={card.key} />
       ))}

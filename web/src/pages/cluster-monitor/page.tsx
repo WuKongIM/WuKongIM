@@ -394,7 +394,11 @@ function ClusterMonitorLoadingState() {
   const intl = useIntl()
 
   return (
-    <section className="rounded-lg border border-border/80 bg-card/82 px-4 py-4 text-sm text-muted-foreground" role="status">
+    <section
+      className="rounded-md border border-border/80 bg-card/82 px-4 py-4 text-sm text-muted-foreground"
+      data-cluster-monitor-surface="loading"
+      role="status"
+    >
       {intl.formatMessage({ id: "clusterMonitor.prometheus.loading" })}
     </section>
   )
@@ -405,7 +409,11 @@ function ClusterMonitorSourceState({ kind, message }: { kind: "disabled" | "unav
   const isDisabled = kind === "disabled"
 
   return (
-    <section className="rounded-lg border border-border/80 bg-card/88 px-5 py-6 text-sm text-muted-foreground" role="status">
+    <section
+      className="rounded-md border border-border/80 bg-card/88 px-5 py-6 text-sm text-muted-foreground"
+      data-cluster-monitor-surface="source-state"
+      role="status"
+    >
       <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <span className={isDisabled ? "size-2 rounded-full bg-warning" : "size-2 rounded-full bg-destructive"} />
         {intl.formatMessage({

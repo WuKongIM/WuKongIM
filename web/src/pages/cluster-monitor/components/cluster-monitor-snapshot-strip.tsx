@@ -19,7 +19,7 @@ export function ClusterMonitorSnapshotStrip({ entries }: ClusterMonitorSnapshotS
   const intl = useIntl()
 
   return (
-    <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+    <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7" data-cluster-monitor-surface="snapshot">
       {entries.map((entry) => (
         <div className="border-b border-border px-1 py-3 sm:px-3" data-testid="cluster-monitor-snapshot-cell" key={entry.key}>
           <div className="flex items-center justify-between gap-2">

@@ -28,6 +28,10 @@ function renderClusterMonitorPage() {
   )
 }
 
+function clusterMonitorSurface(name: "toolbar" | "snapshot" | "metrics" | "loading" | "source-state") {
+  return document.querySelector(`[data-cluster-monitor-surface="${name}"]`)
+}
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
@@ -1132,8 +1136,14 @@ test("renders cluster monitor cards from realtime API data", async () => {
 
   const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
   expect(cards).toHaveLength(2)
-  expect(screen.getByLabelText(/category/i).closest("section")).toHaveAttribute("data-monitor-toolbar", "true")
+  const toolbar = screen.getByLabelText(/category/i).closest("section")
+  expect(toolbar).toHaveAttribute("data-monitor-toolbar", "true")
+  expect(toolbar).toHaveAttribute("data-cluster-monitor-surface", "toolbar")
+  expect(clusterMonitorSurface("snapshot")).toBeInTheDocument()
+  expect(clusterMonitorSurface("metrics")).toBeInTheDocument()
   expect(screen.getAllByTestId("cluster-monitor-snapshot-cell").length).toBeGreaterThan(0)
+  expect(clusterMonitorSurface("loading")).not.toBeInTheDocument()
+  expect(clusterMonitorSurface("source-state")).not.toBeInTheDocument()
   expect(cards[0]).toHaveClass("shadow-none")
   expect(within(cards[0]).getByText("Controller Apply Gap")).toBeInTheDocument()
   expect(within(cards[0]).getByText("15")).toBeInTheDocument()
@@ -1396,7 +1406,9 @@ test("shows prometheus setup guidance when realtime monitor is disabled", async 
   vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(disabledClusterMonitorResponse())
   renderClusterMonitorPage()
 
-  expect(await screen.findByText("Prometheus monitoring is not enabled")).toBeInTheDocument()
+  const disabledTitle = await screen.findByText("Prometheus monitoring is not enabled")
+  expect(disabledTitle).toBeInTheDocument()
+  expect(disabledTitle.closest("section")).toHaveAttribute("data-cluster-monitor-surface", "source-state")
   expect(screen.getByText("WK_METRICS_ENABLE=true")).toBeInTheDocument()
   expect(screen.getByText("WK_PROMETHEUS_ENABLE=true")).toBeInTheDocument()
   expect(screen.queryByTestId("cluster-monitor-metric-card")).not.toBeInTheDocument()
@@ -1406,7 +1418,9 @@ test("shows unavailable guidance for source errors and rejected requests", async
   vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(unavailableClusterMonitorResponse())
   const { unmount } = renderClusterMonitorPage()
 
-  expect(await screen.findByText("Prometheus is unavailable")).toBeInTheDocument()
+  const unavailableTitle = await screen.findByText("Prometheus is unavailable")
+  expect(unavailableTitle).toBeInTheDocument()
+  expect(unavailableTitle.closest("section")).toHaveAttribute("data-cluster-monitor-surface", "source-state")
   expect(screen.getByText("dial tcp 127.0.0.1:9090: connect: connection refused")).toBeInTheDocument()
   expect(screen.queryByTestId("cluster-monitor-metric-card")).not.toBeInTheDocument()
 
@@ -1414,7 +1428,9 @@ test("shows unavailable guidance for source errors and rejected requests", async
   vi.mocked(getRealtimeMonitor).mockRejectedValueOnce(new Error("manager api unavailable"))
   renderClusterMonitorPage()
 
-  expect(await screen.findByText("Prometheus is unavailable")).toBeInTheDocument()
+  const rejectedTitle = await screen.findByText("Prometheus is unavailable")
+  expect(rejectedTitle).toBeInTheDocument()
+  expect(rejectedTitle.closest("section")).toHaveAttribute("data-cluster-monitor-surface", "source-state")
   expect(screen.getByText("manager api unavailable")).toBeInTheDocument()
 })
 
@@ -1498,7 +1514,9 @@ test("does not silently render preview fixture before the realtime API responds"
   vi.mocked(getRealtimeMonitor).mockReturnValue(new Promise(() => undefined))
   renderClusterMonitorPage()
 
-  expect(screen.getByText("Loading cluster monitor data...")).toBeInTheDocument()
+  const loadingText = screen.getByText("Loading cluster monitor data...")
+  expect(loadingText).toBeInTheDocument()
+  expect(loadingText.closest("section")).toHaveAttribute("data-cluster-monitor-surface", "loading")
   expect(screen.queryByText("UI Preview")).not.toBeInTheDocument()
   expect(screen.queryByTestId("cluster-monitor-metric-card")).not.toBeInTheDocument()
   expect(screen.queryByText("Incident Rate")).not.toBeInTheDocument()

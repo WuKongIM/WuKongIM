@@ -62,6 +62,7 @@ export function ClusterMonitorToolbar({
   return (
     <section
       className="flex flex-col gap-3 border-b border-border bg-background pb-4 lg:flex-row lg:items-center lg:justify-between"
+      data-cluster-monitor-surface="toolbar"
       data-monitor-toolbar="true"
     >
       <div className="flex flex-wrap items-center gap-2">
