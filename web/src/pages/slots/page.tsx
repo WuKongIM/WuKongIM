@@ -87,6 +87,15 @@ function formatTimestamp(intl: IntlShape, value: string) {
   }).format(new Date(value))
 }
 
+function SlotSummaryCell({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="border-b border-border px-1 py-3 sm:px-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">{value}</div>
+    </div>
+  )
+}
+
 function mapErrorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) {
     return "error" as const
@@ -767,11 +776,11 @@ export function SlotClusterListPanel() {
           </div>
 
           {rebalancePlan ? (
-            <div data-slot-surface="rebalance-result" className="rounded-lg border border-border bg-card p-3">
+            <div data-slot-surface="rebalance-result" className="rounded-md border border-border bg-card p-3">
               {rebalancePlan.items.length > 0 ? (
                 <div className="space-y-3">
                   {rebalancePlan.items.map((item) => (
-                    <div className="rounded-lg border border-border bg-muted/20 px-3 py-3" key={item.hash_slot}>
+                    <div className="rounded-md border border-border bg-muted/20 px-3 py-3" key={item.hash_slot}>
                       <div className="text-sm font-medium text-foreground">
                         {intl.formatMessage({ id: "slots.rebalancePlan.hashSlotValue" }, { id: item.hash_slot })}
                       </div>
@@ -791,7 +800,7 @@ export function SlotClusterListPanel() {
           ) : null}
 
           {batchTransferResult ? (
-            <div data-slot-surface="batch-transfer-result" className="rounded-lg border border-border bg-card p-3">
+            <div data-slot-surface="batch-transfer-result" className="rounded-md border border-border bg-card p-3">
               <div className="text-sm font-medium text-foreground">
                 {intl.formatMessage(
                   { id: "slots.batchTransferResult.summary" },
@@ -805,7 +814,7 @@ export function SlotClusterListPanel() {
               {batchTransferResult.results.length > 0 ? (
                 <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                   {batchTransferResult.results.map((item) => (
-                    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2" key={item.slot_id}>
+                    <div className="rounded-md border border-border bg-muted/20 px-3 py-2" key={item.slot_id}>
                       <div className="text-sm font-medium text-foreground">
                         {intl.formatMessage(
                           { id: "slots.batchTransferResult.item" },
@@ -889,7 +898,7 @@ export function SlotClusterListPanel() {
           />
         ) : null}
         {!detailLoading && !detailError && detail ? (
-          <>
+          <div className="rounded-md border border-border bg-card p-3" data-slot-surface="detail">
             <KeyValueList
               items={[
                 {
@@ -943,7 +952,7 @@ export function SlotClusterListPanel() {
                 },
               ]}
             />
-          </>
+          </div>
         ) : null}
       </DetailSheet>
 
@@ -1272,33 +1281,27 @@ export function SlotClusterOverviewPanel() {
       ) : null}
       {!state.loading && !state.error && overview ? (
         <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <SectionCard title={intl.formatMessage({ id: "slots.metric.total" })}>
-              <div className="text-3xl font-semibold text-foreground">{overview.slots.total}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "slots.cards.ready.title" })}>
-              <div className="text-3xl font-semibold text-foreground">{overview.slots.ready}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "slots.metric.quorumLost" })}>
-              <div className="text-3xl font-semibold text-foreground">{overview.slots.quorum_lost}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "slots.metric.leaderMissing" })}>
-              <div className="text-3xl font-semibold text-foreground">{overview.slots.leader_missing}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "slots.metric.peerMismatch" })}>
-              <div className="text-3xl font-semibold text-foreground">{overview.slots.peer_mismatch}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "slots.metric.unreported" })}>
-              <div className="text-3xl font-semibold text-foreground">{overview.slots.unreported}</div>
-            </SectionCard>
-          </section>
+          <div
+            className="grid gap-0 border-y border-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+            data-testid="slots-overview-summary-strip"
+          >
+            <SlotSummaryCell label={intl.formatMessage({ id: "slots.metric.total" })} value={overview.slots.total} />
+            <SlotSummaryCell label={intl.formatMessage({ id: "slots.cards.ready.title" })} value={overview.slots.ready} />
+            <SlotSummaryCell label={intl.formatMessage({ id: "slots.metric.quorumLost" })} value={overview.slots.quorum_lost} />
+            <SlotSummaryCell label={intl.formatMessage({ id: "slots.metric.leaderMissing" })} value={overview.slots.leader_missing} />
+            <SlotSummaryCell label={intl.formatMessage({ id: "slots.metric.peerMismatch" })} value={overview.slots.peer_mismatch} />
+            <SlotSummaryCell label={intl.formatMessage({ id: "slots.metric.unreported" })} value={overview.slots.unreported} />
+          </div>
 
           <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
             <SectionCard
               description={intl.formatMessage({ id: "slots.unhealthy.summary" }, { count: unhealthyCount })}
               title={intl.formatMessage({ id: "slots.unhealthy.title" })}
             >
-              <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
+              <div
+                className="rounded-md border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground"
+                data-slot-surface="overview-unhealthy"
+              >
                 {intl.formatMessage(
                   { id: "slots.unhealthy.breakdown" },
                   {
@@ -1311,20 +1314,20 @@ export function SlotClusterOverviewPanel() {
             </SectionCard>
 
             <SectionCard title={intl.formatMessage({ id: "slots.overview.runtime.title" })}>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+              <div className="grid gap-3 sm:grid-cols-3" data-slot-surface="overview-runtime">
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     {intl.formatMessage({ id: "slots.metric.epochLag" })}
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-foreground">{overview.slots.epoch_lag}</div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     {intl.formatMessage({ id: "slots.metric.taskRetrying" })}
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-foreground">{overview.tasks.retrying}</div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     {intl.formatMessage({ id: "slots.metric.taskFailed" })}
                   </div>
@@ -1409,10 +1412,10 @@ export function SlotClusterUnhealthyPanel() {
         />
       ) : null}
       {!state.loading && !state.error && state.overview ? (
-        <div data-slot-surface="unhealthy" className="rounded-lg border border-border bg-card p-3">
+        <div data-slot-surface="unhealthy" className="rounded-md border border-border bg-card p-3">
           {rows.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
+            <div className="overflow-x-auto rounded-md border border-border" data-slot-surface="unhealthy-table">
+              <table aria-label={intl.formatMessage({ id: "slots.unhealthy.title" })} className="w-full border-collapse text-sm">
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.slot" })}</th>

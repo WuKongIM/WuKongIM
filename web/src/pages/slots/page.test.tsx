@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -7,7 +7,11 @@ import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { I18nProvider } from "@/i18n/provider"
 import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
-import { SlotsPage } from "@/pages/slots/page"
+import {
+  SlotClusterOverviewPanel,
+  SlotClusterUnhealthyPanel,
+  SlotsPage,
+} from "@/pages/slots/page"
 
 const getOverviewMock = vi.fn()
 const getSlotsMock = vi.fn()
@@ -271,6 +275,25 @@ test("adds a physical slot and opens the returned detail", async () => {
   expect(screen.getByText("Leader -")).toBeInTheDocument()
 })
 
+test("marks slot detail as a compact inspection surface", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  getSlotMock.mockResolvedValueOnce(slotDetail)
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
+
+  const detailSurface = (await screen.findByText("Desired peers")).closest("[data-slot-surface='detail']")
+  expect(detailSurface).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
+  expect(detailSurface).toHaveTextContent("1, 2, 3")
+  expect(detailSurface).toHaveTextContent("temporary failure")
+  expect(screen.getByRole("button", { name: "Transfer leader" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Recover slot" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remove slot" })).toBeEnabled()
+})
+
 function renderSlotsPage(path = "/cluster/slots?tab=list") {
   return render(
     <I18nProvider>
@@ -329,8 +352,89 @@ test("marks slot inventory and operation results as editorial workbench surfaces
   const rebalanceSurface = (await screen.findByText("From slot 9 to slot 11")).closest(
     "[data-slot-surface='rebalance-result']",
   )
-  expect(rebalanceSurface).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
+  expect(rebalanceSurface).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
   expect(rebalanceSurface).not.toHaveClass("rounded-xl")
+  expect(rebalanceSurface).not.toHaveClass("rounded-lg")
+})
+
+test("marks slot overview secondary surfaces", async () => {
+  render(
+    <I18nProvider>
+      <SlotClusterOverviewPanel />
+    </I18nProvider>,
+  )
+
+  const summaryStrip = await screen.findByTestId("slots-overview-summary-strip")
+  expect(summaryStrip).toHaveClass("grid", "gap-0", "border-y", "border-border")
+  expect(summaryStrip).toHaveTextContent("Total slots")
+  expect(summaryStrip).toHaveTextContent("Ready slots")
+  expect(summaryStrip).toHaveTextContent("1")
+
+  const unhealthySurface = screen
+    .getByText("Quorum lost: 0; leader missing: 0; sync mismatch: 0.")
+    .closest("[data-slot-surface='overview-unhealthy']")
+  expect(unhealthySurface).toHaveClass("rounded-md", "border", "border-border", "bg-muted/30")
+
+  const runtimeSurface = screen.getByText("Epoch lag").closest("[data-slot-surface='overview-runtime']")
+  expect(runtimeSurface).toHaveClass("grid", "gap-3", "sm:grid-cols-3")
+  expect(runtimeSurface).toHaveTextContent("Retrying tasks")
+  expect(runtimeSurface).toHaveTextContent("Failed tasks")
+})
+
+test("marks slot unhealthy rows as an accessible incident table", async () => {
+  getOverviewMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:00Z",
+    cluster: { controller_leader_id: 1 },
+    nodes: { total: 1, alive: 1, suspect: 0, dead: 0, draining: 0 },
+    slots: {
+      total: 1,
+      ready: 0,
+      quorum_lost: 1,
+      leader_missing: 0,
+      unreported: 0,
+      peer_mismatch: 0,
+      epoch_lag: 0,
+    },
+    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
+    anomalies: {
+      slots: {
+        quorum_lost: {
+          count: 1,
+          items: [{
+            slot_id: 9,
+            quorum: "lost",
+            sync: "in_sync",
+            desired_peers: [1, 2, 3],
+            current_peers: [1, 2],
+            leader_id: 0,
+            last_report_at: "2026-04-23T08:00:00Z",
+          }],
+        },
+        leader_missing: { count: 0, items: [] },
+        sync_mismatch: { count: 0, items: [] },
+      },
+      tasks: {
+        failed: { count: 0, items: [] },
+        retrying: { count: 0, items: [] },
+      },
+    },
+  })
+
+  render(
+    <I18nProvider>
+      <SlotClusterUnhealthyPanel />
+    </I18nProvider>,
+  )
+
+  const table = await screen.findByRole("table", { name: "Unhealthy Slots" })
+  const panel = table.closest("[data-slot-surface='unhealthy']")
+  const tableSurface = table.closest("[data-slot-surface='unhealthy-table']")
+
+  expect(panel).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
+  expect(tableSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(table).toHaveClass("w-full", "border-collapse", "text-sm")
+  expect(within(table).getByText("Slot 9")).toBeInTheDocument()
+  expect(within(table).getByText("Quorum lost")).toBeInTheDocument()
 })
 
 test("shows hash slot ownership as a compact count and range summary", async () => {
@@ -538,6 +642,12 @@ test("previews and executes a batch slot leader transfer plan", async () => {
   })
   expect(getSlotsMock).toHaveBeenCalledTimes(2)
   expect(await screen.findByText("Created 1 · Existing 0 · Failed 0")).toBeInTheDocument()
+  const batchSurface = screen
+    .getByText("Created 1 · Existing 0 · Failed 0")
+    .closest("[data-slot-surface='batch-transfer-result']")
+  expect(batchSurface).toHaveClass("rounded-md", "border", "border-border", "bg-card", "p-3")
+  expect(batchSurface).not.toHaveClass("rounded-xl")
+  expect(batchSurface).not.toHaveClass("rounded-lg")
 })
 
 test("starts physical slot removal and refreshes the list", async () => {
