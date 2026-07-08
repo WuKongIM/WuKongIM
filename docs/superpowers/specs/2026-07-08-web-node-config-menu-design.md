@@ -58,7 +58,6 @@ Add a navigation item under `集群运维`, immediately before `诊断`:
 插件
 任务
 Workqueue
-拓扑
 配置
 诊断
 ```

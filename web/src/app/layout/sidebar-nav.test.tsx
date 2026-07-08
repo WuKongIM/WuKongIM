@@ -126,6 +126,7 @@ test("places the config menu immediately before diagnostics", async () => {
   const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("Node Config")
+  expect(links).not.toContain("Topology")
   expect(links.slice(-2)).toEqual(["Config", "Diagnostics"])
 })
 
@@ -142,6 +143,7 @@ test("uses the shortened Chinese config menu label", async () => {
   const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("节点配置")
+  expect(links).not.toContain("拓扑")
   expect(links.slice(-2)).toEqual(["配置", "诊断"])
 })
 

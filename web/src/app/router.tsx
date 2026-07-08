@@ -20,7 +20,6 @@ import { PluginsPage } from "@/pages/plugins/page"
 import { SlotsPage } from "@/pages/slots/page"
 import { SystemUsersPage } from "@/pages/system-users/page"
 import { TasksPage } from "@/pages/tasks/page"
-import { TopologyPage } from "@/pages/topology/page"
 import { UsersPage } from "@/pages/users/page"
 import { WebhooksPage } from "@/pages/settings/webhooks/page"
 import { WorkqueuesPage } from "@/pages/workqueues/page"
@@ -64,7 +63,6 @@ export const routes: RouteObject[] = [
       { path: "cluster/plugins", element: <PluginsPage /> },
       { path: "cluster/tasks", element: <TasksPage /> },
       { path: "cluster/workqueues", element: <WorkqueuesPage /> },
-      { path: "cluster/topology", element: <TopologyPage /> },
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
       // Business management
       { path: "business/dashboard", element: <BusinessDashboardPage /> },
@@ -86,7 +84,6 @@ export const routes: RouteObject[] = [
       { path: "slots", element: <Navigate replace to="/cluster/slots" /> },
       { path: "tasks", element: <Navigate replace to="/cluster/tasks" /> },
       { path: "workqueues", element: <Navigate replace to="/cluster/workqueues" /> },
-      { path: "topology", element: <Navigate replace to="/cluster/topology" /> },
       { path: "channel-cluster", element: <Navigate replace to="/cluster/channels" /> },
       { path: "channel-cluster/list", element: <Navigate replace to="/cluster/channels" /> },
       { path: "channel-cluster/unhealthy", element: <Navigate replace to="/cluster/channels" /> },

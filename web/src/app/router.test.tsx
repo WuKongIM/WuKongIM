@@ -113,6 +113,14 @@ test("does not register retired monitor route aliases", () => {
   expect(registeredPaths).not.toContain("business/monitor")
 })
 
+test("does not register the removed topology page or legacy alias", () => {
+  const appRoute = routes.find((route) => route.path === "/")
+  const registeredPaths = appRoute?.children?.map((route) => route.path)
+
+  expect(registeredPaths).not.toContain("cluster/topology")
+  expect(registeredPaths).not.toContain("topology")
+})
+
 test("renders the workqueue monitor route", async () => {
   useAuthStore.setState(authenticatedState())
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/workqueues"] })

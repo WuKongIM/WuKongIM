@@ -15,7 +15,6 @@ import {
   Shield,
   SlidersHorizontal,
   Users,
-  Waypoints,
   Webhook,
 } from "lucide-react"
 
@@ -98,14 +97,6 @@ export const navigationSections: NavigationSection[] = [
         pathLabelMessageId: "nav.path.cluster.workqueues",
         icon: Gauge,
         aliases: ["/workqueues"],
-      },
-      {
-        href: "/cluster/topology",
-        titleMessageId: "nav.topology.title",
-        descriptionMessageId: "nav.topology.description",
-        pathLabelMessageId: "nav.path.cluster.topology",
-        icon: Waypoints,
-        aliases: ["/topology"],
       },
       {
         href: "/cluster/node-config",
@@ -243,7 +234,6 @@ export const legacyRouteRedirects: Record<string, string> = {
   "/slots": "/cluster/slots",
   "/tasks": "/cluster/tasks",
   "/workqueues": "/cluster/workqueues",
-  "/topology": "/cluster/topology",
   "/channel-cluster": "/cluster/channels",
   "/channel-cluster/list": "/cluster/channels",
   "/channel-cluster/unhealthy": "/cluster/channels",
