@@ -178,6 +178,18 @@ test("uses a compact task-center summary strip and filter toolbar", async () => 
 
   const filterToolbar = screen.getByTestId("tasks-filter-toolbar")
   expect(filterToolbar).toHaveClass("grid", "gap-3", "border-b", "border-border", "pb-4")
+
+  const activeTable = screen.getByRole("table", { name: "Active tasks" })
+  const activeSurface = activeTable.closest("[data-tasks-surface='active']")
+  expect(activeSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(activeTable).toHaveClass("w-full", "min-w-[960px]", "border-collapse", "text-left", "text-sm")
+  expect(within(activeTable).getByText("slot-1-replica-move-2-to-4-r9")).toBeInTheDocument()
+
+  const auditTable = screen.getByRole("table", { name: "Task audit history" })
+  const auditSurface = auditTable.closest("[data-tasks-surface='audit']")
+  expect(auditSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(auditTable).toHaveClass("w-full", "min-w-[980px]", "border-collapse", "text-left", "text-sm")
+  expect(within(auditTable).getByText("completed slot_replica_move task for slot 1")).toBeInTheDocument()
 })
 
 test("filters Controller tasks by kind, status, slot, node, and keyword", async () => {

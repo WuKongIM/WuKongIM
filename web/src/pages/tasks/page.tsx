@@ -306,8 +306,14 @@ export function TasksPage() {
                 description={intl.formatMessage({ id: "tasks.activeEmpty.description" })}
               />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[960px] border-collapse text-left">
+              <div
+                className="overflow-x-auto rounded-md border border-border"
+                data-tasks-surface="active"
+              >
+                <table
+                  aria-label={intl.formatMessage({ id: "tasks.activeTitle" })}
+                  className="w-full min-w-[960px] border-collapse text-left text-sm"
+                >
                   <thead className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.id" })}</th>
@@ -352,8 +358,14 @@ export function TasksPage() {
                 description={intl.formatMessage({ id: "tasks.auditEmpty.description" })}
               />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] border-collapse text-left">
+              <div
+                className="overflow-x-auto rounded-md border border-border"
+                data-tasks-surface="audit"
+              >
+                <table
+                  aria-label={intl.formatMessage({ id: "tasks.auditTitle" })}
+                  className="w-full min-w-[980px] border-collapse text-left text-sm"
+                >
                   <thead className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.id" })}</th>
