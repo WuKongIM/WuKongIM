@@ -94,8 +94,14 @@ export function PermissionsPage() {
             description={intl.formatMessage({ id: "permissions.summary.description" })}
             title={intl.formatMessage({ id: "permissions.summary.title" })}
           >
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <div
+              className="grid overflow-hidden rounded-md border border-border bg-card md:grid-cols-4"
+              data-testid="permissions-summary-strip"
+            >
+              <div
+                className="border-b border-border px-3 py-3 text-sm last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                data-permission-summary-cell=""
+              >
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "permissions.summary.auth" })}</div>
                 <div className="mt-1 font-semibold text-foreground">
                   {snapshot.auth_enabled
@@ -103,7 +109,10 @@ export function PermissionsPage() {
                     : intl.formatMessage({ id: "permissions.auth.disabled" })}
                 </div>
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <div
+                className="border-b border-border px-3 py-3 text-sm last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                data-permission-summary-cell=""
+              >
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "permissions.summary.currentUser" })}</div>
                 <div className="mt-1 font-semibold text-foreground">
                   {snapshot.current_user
@@ -111,20 +120,29 @@ export function PermissionsPage() {
                     : intl.formatMessage({ id: "permissions.currentUser.empty" })}
                 </div>
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <div
+                className="border-b border-border px-3 py-3 text-sm last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                data-permission-summary-cell=""
+              >
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "permissions.summary.staticUsers" })}</div>
                 <div className="mt-1 font-semibold text-foreground">
                   {intl.formatMessage({ id: "permissions.staticUsers" }, { count: snapshot.users.length })}
                 </div>
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <div
+                className="border-b border-border px-3 py-3 text-sm last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                data-permission-summary-cell=""
+              >
                 <div className="text-muted-foreground">{intl.formatMessage({ id: "permissions.summary.catalog" })}</div>
                 <div className="mt-1 font-semibold text-foreground">
                   {intl.formatMessage({ id: "permissions.catalogResources" }, { count: snapshot.resources.length })}
                 </div>
               </div>
             </div>
-            <p className="mt-4 rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted-foreground">
+            <p
+              className="mt-4 border-t border-border pt-3 text-sm text-muted-foreground"
+              data-testid="permissions-readonly-notice"
+            >
               {intl.formatMessage({ id: "permissions.readonlyNotice" })}
             </p>
           </SectionCard>
@@ -134,8 +152,14 @@ export function PermissionsPage() {
             title={intl.formatMessage({ id: "permissions.users.title" })}
           >
             {snapshot.users.length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
+              <div
+                className="overflow-x-auto rounded-md border border-border"
+                data-permissions-surface="users"
+              >
+                <table
+                  aria-label={intl.formatMessage({ id: "permissions.users.title" })}
+                  className="w-full border-collapse text-sm"
+                >
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "permissions.table.username" })}</th>
@@ -176,8 +200,14 @@ export function PermissionsPage() {
             description={intl.formatMessage({ id: "permissions.catalog.description" })}
             title={intl.formatMessage({ id: "permissions.catalog.title" })}
           >
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
+            <div
+              className="overflow-x-auto rounded-md border border-border"
+              data-permissions-surface="catalog"
+            >
+              <table
+                aria-label={intl.formatMessage({ id: "permissions.catalog.title" })}
+                className="w-full border-collapse text-sm"
+              >
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "permissions.table.resource" })}</th>

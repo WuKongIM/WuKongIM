@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
@@ -65,6 +65,43 @@ test("renders auth summary, users, and permission catalog", async () => {
   expect(screen.getByText("cluster.node:r")).toBeInTheDocument()
   expect(screen.getByText("cluster.permission")).toBeInTheDocument()
   expect(screen.getByText("r / w")).toBeInTheDocument()
+})
+
+test("uses compact permission summary and named table surfaces", async () => {
+  getPermissionsMock.mockResolvedValueOnce({
+    auth_enabled: true,
+    current_user: "admin",
+    users: [
+      { username: "admin", permissions: [{ resource: "*", actions: ["*"] }] },
+      { username: "viewer", permissions: [{ resource: "cluster.node", actions: ["r"] }] },
+    ],
+    resources: [
+      { resource: "cluster.permission", actions: ["r"], description: "Read manager authentication and permission configuration snapshots." },
+      { resource: "cluster.node", actions: ["r", "w"], description: "Read node inventory and perform node lifecycle actions." },
+    ],
+  })
+
+  renderPermissionsPage()
+
+  const summaryStrip = await screen.findByTestId("permissions-summary-strip")
+  expect(summaryStrip).toHaveClass("grid", "overflow-hidden", "rounded-md", "border", "border-border", "bg-card")
+  expect(summaryStrip.querySelectorAll("[data-permission-summary-cell]")).toHaveLength(4)
+  expect(summaryStrip.querySelector("[data-permission-summary-cell]")).not.toHaveClass("rounded-lg")
+
+  const readonlyNotice = screen.getByTestId("permissions-readonly-notice")
+  expect(readonlyNotice).toHaveClass("border-t", "border-border", "pt-3")
+
+  const usersTable = screen.getByRole("table", { name: "Static Manager Users" })
+  const usersSurface = usersTable.closest("[data-permissions-surface='users']")
+  expect(usersSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(usersTable).toHaveClass("text-sm")
+  expect(within(usersTable).getByText("viewer")).toBeInTheDocument()
+
+  const catalogTable = screen.getByRole("table", { name: "Permission Catalog" })
+  const catalogSurface = catalogTable.closest("[data-permissions-surface='catalog']")
+  expect(catalogSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(catalogTable).toHaveClass("text-sm")
+  expect(within(catalogTable).getByText("cluster.permission")).toBeInTheDocument()
 })
 
 test("renders auth disabled with empty static users", async () => {
