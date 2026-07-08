@@ -87,6 +87,8 @@ const (
 	RPCChannelMigrationMeta
 	// RPCMessageEventAppend forwards message event appends and compact state reads to the Slot leader.
 	RPCMessageEventAppend
+	// RPCManagerNodeConfig serves internal selected-node effective config reads.
+	RPCManagerNodeConfig
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -155,6 +157,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager diagnostics"
 	case RPCManagerPlugins:
 		return "manager plugins"
+	case RPCManagerNodeConfig:
+		return "manager node config"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
 	case RPCNodeLifecycle:

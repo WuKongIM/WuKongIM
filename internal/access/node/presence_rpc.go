@@ -126,6 +126,12 @@ type ManagerAppLogReader interface {
 	ApplicationLogEntries(context.Context, managementusecase.ApplicationLogEntriesRequest) (managementusecase.ApplicationLogEntriesResponse, error)
 }
 
+// ManagerNodeConfigReader handles selected-node effective startup config requests.
+type ManagerNodeConfigReader interface {
+	// NodeConfigSnapshot returns one selected node's allowlisted effective startup config.
+	NodeConfigSnapshot(context.Context, uint64) (managementusecase.NodeConfigSnapshot, error)
+}
+
 // ManagerDiagnostics handles node-local diagnostics queries and tracking rules.
 type ManagerDiagnostics interface {
 	QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult
@@ -209,6 +215,8 @@ type Options struct {
 	ManagerDBInspect ManagerDBInspectReader
 	// ManagerAppLogs handles selected-node ordinary application log requests.
 	ManagerAppLogs ManagerAppLogReader
+	// ManagerNodeConfig handles selected-node effective startup config requests.
+	ManagerNodeConfig ManagerNodeConfigReader
 	// ManagerDiagnostics handles node-local diagnostics query and tracking requests.
 	ManagerDiagnostics ManagerDiagnostics
 	// ManagerTaskAudit handles node-local Controller task audit reads.
@@ -261,6 +269,8 @@ type Adapter struct {
 	managerDBInspect ManagerDBInspectReader
 	// managerAppLogs reads selected-node ordinary application logs for manager pages.
 	managerAppLogs ManagerAppLogReader
+	// managerNodeConfig reads selected-node effective startup config for manager pages.
+	managerNodeConfig ManagerNodeConfigReader
 	// managerDiagnostics queries diagnostics events and mutates temporary tracking rules.
 	managerDiagnostics ManagerDiagnostics
 	// managerTaskAudit reads retained Controller task audit history.
@@ -304,6 +314,7 @@ func New(opts Options) *Adapter {
 		managerMessageRetention:  opts.ManagerMessageRetention,
 		managerDBInspect:         opts.ManagerDBInspect,
 		managerAppLogs:           opts.ManagerAppLogs,
+		managerNodeConfig:        opts.ManagerNodeConfig,
 		managerDiagnostics:       opts.ManagerDiagnostics,
 		managerTaskAudit:         opts.ManagerTaskAudit,
 		managerPlugins:           opts.ManagerPlugins,

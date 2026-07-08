@@ -50,6 +50,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_app_logs":          RPCManagerAppLogs,
 		"manager_diagnostics":       RPCManagerDiagnostics,
 		"manager_plugins":           RPCManagerPlugins,
+		"manager_node_config":       RPCManagerNodeConfig,
 		"manager_message_retention": RPCManagerMessageRetention,
 		"node_lifecycle":            RPCNodeLifecycle,
 		"plugin_binding_scan":       RPCPluginBindingScan,
@@ -67,5 +68,14 @@ func TestRPCManagerTaskAuditServiceAlias(t *testing.T) {
 	}
 	if got := transportServiceFailpointAlias(RPCManagerTaskAudit); got != "manager_task_audit" {
 		t.Fatalf("task audit failpoint alias = %q, want manager_task_audit", got)
+	}
+}
+
+func TestRPCManagerNodeConfigServiceAlias(t *testing.T) {
+	if got := transportServiceAlias(RPCManagerNodeConfig); got != "manager node config" {
+		t.Fatalf("node config service alias = %q, want manager node config", got)
+	}
+	if got := transportServiceFailpointAlias(RPCManagerNodeConfig); got != "manager_node_config" {
+		t.Fatalf("node config failpoint alias = %q, want manager_node_config", got)
 	}
 }
