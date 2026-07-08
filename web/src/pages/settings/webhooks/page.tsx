@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useIntl } from "react-intl"
 
 import { ResourceState } from "@/components/manager/resource-state"
@@ -86,23 +86,40 @@ function TagList({ items, emptyText }: TagListProps) {
 export function WebhooksPage() {
   const intl = useIntl()
   const [state, setState] = useState<WebhookConfigState>(emptyWebhookConfigState)
+  const mountedRef = useRef(false)
+  const requestSeqRef = useRef(0)
 
   const runQuery = useCallback(async () => {
-    setState((current) => ({ ...current, loading: true, error: null }))
+    const requestSeq = requestSeqRef.current + 1
+    requestSeqRef.current = requestSeq
+    const isCurrentRequest = () => mountedRef.current && requestSeqRef.current === requestSeq
+
+    if (isCurrentRequest()) {
+      setState((current) => ({ ...current, loading: true, error: null }))
+    }
     try {
       const config = await getWebhookConfig()
-      setState({ config, loading: false, error: null })
+      if (isCurrentRequest()) {
+        setState({ config, loading: false, error: null })
+      }
     } catch (error) {
-      setState({
-        config: null,
-        loading: false,
-        error: error instanceof Error ? error : new Error("webhook config request failed"),
-      })
+      if (isCurrentRequest()) {
+        setState({
+          config: null,
+          loading: false,
+          error: error instanceof Error ? error : new Error("webhook config request failed"),
+        })
+      }
     }
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     void runQuery()
+    return () => {
+      mountedRef.current = false
+      requestSeqRef.current += 1
+    }
   }, [runQuery])
 
   const config = state.config

@@ -1,9 +1,11 @@
-import { render, screen, within } from "@testing-library/react"
+import { StrictMode } from "react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
 import { ManagerApiError } from "@/lib/manager-api"
+import type { ManagerWebhookConfigResponse } from "@/lib/manager-api.types"
 import { WebhooksPage } from "@/pages/settings/webhooks/page"
 
 const getWebhookConfigMock = vi.fn()
@@ -28,6 +30,35 @@ function renderWebhooksPage() {
       <WebhooksPage />
     </I18nProvider>,
   )
+}
+
+function webhookConfig(overrides: Partial<ManagerWebhookConfigResponse> = {}): ManagerWebhookConfigResponse {
+  return {
+    enabled: true,
+    http_addr: "https://hooks.example.test/default",
+    focus_events: ["msg.notify"],
+    supported_events: ["msg.notify", "msg.offline"],
+    queue_size: 2048,
+    workers: 4,
+    msg_notify_batch_max_items: 128,
+    msg_notify_batch_max_wait: "500ms",
+    online_status_batch_max_items: 64,
+    online_status_batch_max_wait: "1s",
+    offline_uid_batch_size: 200,
+    request_timeout: "3s",
+    retry_max_attempts: 5,
+    source: "wukongim.conf",
+    requires_restart: false,
+    ...overrides,
+  }
+}
+
+function deferredConfig() {
+  let resolve!: (value: ManagerWebhookConfigResponse) => void
+  const promise = new Promise<ManagerWebhookConfigResponse>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
 }
 
 test("renders enabled webhook config with endpoint and selected focus events", async () => {
@@ -146,4 +177,35 @@ test("renders successful config without editable controls", async () => {
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
   expect(screen.queryByRole("switch")).not.toBeInTheDocument()
   expect(screen.queryByTestId("webhooks-placeholder-surface")).not.toBeInTheDocument()
+})
+
+test("keeps the newest webhook config when overlapping startup requests resolve out of order", async () => {
+  const firstRequest = deferredConfig()
+  const secondRequest = deferredConfig()
+  getWebhookConfigMock
+    .mockImplementationOnce(() => firstRequest.promise)
+    .mockImplementationOnce(() => secondRequest.promise)
+
+  render(
+    <StrictMode>
+      <I18nProvider>
+        <WebhooksPage />
+      </I18nProvider>
+    </StrictMode>,
+  )
+
+  await waitFor(() => expect(getWebhookConfigMock).toHaveBeenCalledTimes(2))
+
+  await act(async () => {
+    secondRequest.resolve(webhookConfig({ http_addr: "https://hooks.example.test/newer" }))
+  })
+
+  expect(await screen.findByText("https://hooks.example.test/newer")).toBeInTheDocument()
+
+  await act(async () => {
+    firstRequest.resolve(webhookConfig({ http_addr: "https://hooks.example.test/stale" }))
+  })
+
+  expect(screen.getByText("https://hooks.example.test/newer")).toBeInTheDocument()
+  expect(screen.queryByText("https://hooks.example.test/stale")).not.toBeInTheDocument()
 })
