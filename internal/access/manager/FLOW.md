@@ -12,6 +12,7 @@ user, or conversation business state.
 
 ```text
 POST /manager/login   (only when Auth.On=true)
+GET  /manager/permissions (read-only manager auth snapshot; requires cluster.permission:r when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/join (node lifecycle join; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/activate (node lifecycle activation; requires cluster.node:w when Auth.On=true)
@@ -92,6 +93,16 @@ POST /manager/system-users/remove (remove system UIDs; requires cluster.user:w w
 invalid JSON returns `{"error":"invalid_request","message":"invalid request"}`;
 invalid credentials return
 `{"error":"invalid_credentials","message":"invalid credentials"}`.
+
+`/manager/permissions` exposes a sanitized read-only snapshot of manager
+authentication state owned by this access layer. It returns `auth_enabled`, the
+authenticated `current_user` when auth is enabled, sorted static usernames with
+copied permission grants, and the built-in manager permission catalog. It never
+returns passwords, JWT secrets, tokens, config paths, or environment values.
+When auth is enabled the route is guarded by `cluster.permission:r`; wildcard
+manager permissions continue to satisfy the same middleware check. When auth is
+disabled the route returns `auth_enabled=false` and an empty user list so the
+web permissions page can render a non-error read-only state.
 
 `/manager/nodes` preserves the legacy list response shape for the web node list
 view. It reads a control snapshot through `internal/usecase/management` and
