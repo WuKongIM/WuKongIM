@@ -21,11 +21,13 @@ join/activation/leaving/removal and Controller voter promotion writes to
 cluster control, routes startup seed JoinNode and readiness probes over
 cluster node RPC, routes manager Controller Raft operations to node-local
 cluster operations or peer RPC, routes ordinary application log reads to the
-selected node's app-owned local reader or peer RPC, routes manager DB Inspect
-reads to node-local inspect readers or peer RPC, routes manager diagnostics
-reads and tracking-rule mutations to the selected node's internal diagnostics
-store or peer RPC, routes manager plugin inventory reads and lifecycle
-mutations to the selected node's plugin lifecycle usecase over peer RPC, routes
+selected node's app-owned local reader or peer RPC, routes read-only manager
+node config snapshots to the selected node's app-owned effective-config reader
+or peer RPC, routes manager DB Inspect reads to node-local inspect readers or
+peer RPC, routes manager diagnostics reads and tracking-rule mutations to the
+selected node's internal diagnostics store or peer RPC, routes manager plugin
+inventory reads and lifecycle mutations to the selected node's plugin lifecycle
+usecase over peer RPC, routes
 manager Controller task audit reads to the current Controller leader's
 node-local audit store over peer RPC when needed, and adapts presence/delivery
 ports to cluster routing and node RPC.
@@ -304,6 +306,24 @@ gateway admission drain toggles to the owner node and preserves management
 usecase DTOs across the RPC boundary. Local connection filtering, runtime
 counter interpretation, and DTO shaping stay in the management usecase; this
 adapter only chooses the typed node RPC client.
+
+## Management Node Config Flow
+
+```text
+management.NodeConfigReader
+  -> local node_id: app-owned redacted effective-config snapshot provider
+  -> remote node_id: access/node Manager Node Config RPC client
+  -> cluster CallRPC(target node, RPCManagerNodeConfig)
+  -> target node access/node Manager Node Config RPC handler
+  -> target node app-owned redacted effective-config snapshot provider
+```
+
+`ManagementNodeConfigReader` only chooses local versus remote execution for the
+selected node. Node existence validation, HTTP permission checks, and response
+DTO shaping stay in `internal/usecase/management` and
+`internal/access/manager`. The adapter does not inspect environment variables,
+configuration files, or secrets; it transports only the snapshot already
+allowlisted and redacted by the selected node's app provider.
 
 ## Management Plugin Flow
 

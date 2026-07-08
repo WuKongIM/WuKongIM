@@ -135,6 +135,10 @@ New(Config)
      register the manager app-log RPC handler when node RPC is available so
      peer manager readers can inspect this node's fixed application log sources
      without exposing local paths
+  -> register the manager node-config RPC handler when node RPC is available,
+     exposing this node's redacted allowlisted effective startup configuration
+     snapshot to peer manager readers without exposing raw secrets or local
+     config file paths
   -> register the manager channel RPC handler when node RPC and channel metadata
      scans are available, exposing this node's channel list pages to peer
      manager readers
@@ -247,7 +251,8 @@ New(Config)
   -> create access/manager.Server with static manager JWT login when
      Manager.ListenAddr is configured; when the cluster exposes local control
      snapshots, attach internal/usecase/management for `/manager/nodes`,
-     `/manager/slots`, `/manager/channels`, `/manager/channel-runtime-meta`,
+     `/manager/nodes/:node_id/config`, `/manager/slots`,
+     `/manager/channels`, `/manager/channel-runtime-meta`,
      `/manager/conversations`, `/manager/messages`, `/manager/connections*`,
      `/manager/nodes/:node_id/plugins*`, `/manager/plugin-bindings`,
      `/manager/users*`, and
@@ -274,7 +279,10 @@ New(Config)
      application log
      sources and pages use the app-owned
      local reader for the local node and route peer `node_id` reads through the
-     manager app-log RPC reader, DB Inspect reads use the local app inspect reader for empty or
+     manager app-log RPC reader, node config reads use the app-owned redacted
+     effective-config provider for the local node and route peer `node_id`
+     reads through the manager node-config RPC reader, DB Inspect reads use the
+     local app inspect reader for empty or
      local `node_id` and route non-local `node_id` through the manager DB
      inspect node RPC reader, user writes reuse the internal user usecase and
      optional presence owner-action routing, and message retention requests use
@@ -318,6 +326,13 @@ Raft log requests read cluster log storage metadata and decoded Raft payloads.
 Remote ordinary app log requests use the manager app-log RPC path for the
 selected node and still return only reader-owned source names and file labels,
 never absolute paths.
+
+The node-config snapshot provider is app-owned because only the composition
+root has the fully derived startup config after file/env/default merging. The
+provider emits a bounded allowlist of operator-facing groups and redacts
+manager credentials, cluster join tokens, static manager users, and similarly
+sensitive values before the snapshot crosses usecase, HTTP, or node RPC
+boundaries. It is read-only and does not watch or mutate live runtime config.
 
 The diagnostics store is app-owned because only the composition root knows
 whether `Observability.Diagnostics.Enabled` installed the bounded event store,

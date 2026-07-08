@@ -292,6 +292,27 @@ manager usecase errors. The RPC payload preserves node, filter, cursor,
 `has_more`, and next-cursor state, but it does not implement channel mutations
 or decide which HTTP request targets a remote node.
 
+## Manager Node Config RPC
+
+```text
+remote manager node-config reader
+  -> encode W K V C 1 request
+  -> cluster RPCManagerNodeConfig
+  -> Adapter.HandleManagerNodeConfigRPC
+  -> Management node-config reader port
+  -> encode W K V c 1 response
+```
+
+Manager Node Config RPC transports one read-only selected-node effective config
+snapshot request to the selected node. The server calls only the configured
+local management node-config reader port, which returns an allowlisted and
+redacted snapshot owned by `internal/app`; the client maps stable RPC statuses
+back to management usecase errors. The payload is internal strict JSON behind a
+fixed magic prefix because the snapshot is a manager DTO rather than a hot
+data-plane frame. This RPC does not read configuration files itself, expose raw
+secrets, mutate runtime configuration, or decide which manager HTTP request
+targets a remote node.
+
 ## Manager Plugin RPC
 
 ```text
@@ -476,6 +497,11 @@ Manager Application Log RPC uses fixed magic headers:
 - Request: `W K V G 1`
 - Response: `W K V g 1`
 
+Manager Node Config RPC uses fixed magic headers:
+
+- Request: `W K V C 1`
+- Response: `W K V c 1`
+
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
 unknown operations, malformed varints, oversized collections, truncated
@@ -493,6 +519,8 @@ Stable response statuses are:
 - `context_canceled`
 - `context_deadline_exceeded`
 - `not_found`
+- `invalid_argument`
+- `unavailable`
 - `rejected`
 
 Conversation authority responses may additionally use:

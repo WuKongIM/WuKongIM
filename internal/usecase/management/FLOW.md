@@ -32,6 +32,7 @@ user management, and system UID projections/actions used by
 `GET /manager/nodes/:node_id/scale-in/status`,
 `POST /manager/nodes/:node_id/scale-in/advance`,
 `GET /manager/nodes/:node_id/diagnostics`,
+`GET /manager/nodes/:node_id/config`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
@@ -94,6 +95,26 @@ the legacy node-operation routes and remain disabled in internal until those
 routes are migrated. Stage 5C gateway drain mode is exposed through the
 scale-in route and status instead of these node-list action hints. Lifecycle
 writes are exposed separately by the join and activate flow below.
+
+## Node Config Snapshot Flow
+
+```text
+manager HTTP handler
+  -> management.App.NodeConfigSnapshot
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> NodeConfigReader.NodeConfigSnapshot(selected node_id)
+  -> redacted allowlisted effective startup config snapshot
+```
+
+The node-config usecase is read-only. It rejects zero node IDs, requires the
+selected node to exist in the current local control snapshot, and only then
+delegates to the configured `NodeConfigReader` port. A missing cluster or
+reader reports `ErrNodeConfigUnavailable` so HTTP can return
+`service_unavailable` rather than treating wiring gaps as bad operator input.
+The DTO carries stable group/item fields but does not own HTTP JSON tags;
+`internal/access/manager` owns the public response shape. Redaction and the
+allowlist are performed by the app-local snapshot provider before values enter
+this usecase.
 
 ## Controller Voter Promotion Flow
 

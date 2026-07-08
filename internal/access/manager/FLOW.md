@@ -14,6 +14,7 @@ user, or conversation business state.
 POST /manager/login   (only when Auth.On=true)
 GET  /manager/permissions (read-only manager auth/user/catalog snapshot; requires cluster.permission:r when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
+GET  /manager/nodes/:node_id/config (read-only redacted effective startup config; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/join (node lifecycle join; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/activate (node lifecycle activation; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/onboarding/plan (bounded Slot onboarding preview; requires cluster.node:w when Auth.On=true)
@@ -130,6 +131,17 @@ or removed. `can_scale_in` and `can_promote_controller_voter` remain separate
 read-model hints for data-only lifecycle and Controller membership routes.
 Node lifecycle writes are exposed as separate join and activate routes under
 `cluster.node:w`.
+
+`/manager/nodes/:node_id/config` is a read-only operator inspection route for
+one selected node's effective startup configuration. The handler validates a
+positive path node ID, requires the same `cluster.node:r` permission as node
+inventory, delegates node-existence checks and local/remote targeting to
+`internal/usecase/management`, and serializes only the allowlisted,
+pre-redacted groups returned by that usecase. It never reads environment
+variables directly, never exposes raw manager credentials or join tokens, and
+does not mutate runtime configuration. Missing nodes return `404 not_found`;
+unwired or unreachable config readers return `503 service_unavailable`.
+
 `/manager/nodes/join` parses `node_id`, optional `name`, `addr`, and optional
 `capacity_weight`, delegates to `internal/usecase/management`, returns
 `202 Accepted` when the control writer creates state, and returns `200 OK` for
