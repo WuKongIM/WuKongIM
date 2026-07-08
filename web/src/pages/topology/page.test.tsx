@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -199,10 +199,29 @@ test("renders topology summary, nodes, and slot matrix", async () => {
   expect(screen.getByText("Nodes: 2")).toBeInTheDocument()
   expect(screen.getByText("Slots: 3")).toBeInTheDocument()
   expect(screen.getByText("Slot anomalies: 2")).toBeInTheDocument()
+
+  const summaryStrip = screen.getByTestId("topology-summary-strip")
+  expect(summaryStrip).toHaveClass("grid", "overflow-hidden", "rounded-md", "border", "border-border", "bg-card")
+  expect(summaryStrip.querySelectorAll("[data-topology-summary-cell]")).toHaveLength(4)
+  expect(summaryStrip.querySelector("[data-topology-summary-cell]")).not.toHaveClass("rounded-lg")
+
   expect(screen.getByText("wk-node-1")).toBeInTheDocument()
   expect(screen.getByText("wk-node-2")).toBeInTheDocument()
+
+  const nodeSurface = screen.getByText("wk-node-1").closest("[data-topology-surface='nodes']")
+  expect(nodeSurface).toHaveClass("grid", "gap-3", "md:grid-cols-2", "xl:grid-cols-3")
+
+  const nodeCard = screen.getByText("wk-node-1").closest("article")
+  expect(nodeCard).toHaveClass("rounded-md", "border", "border-border", "bg-background")
+
   expect(screen.getByText("Slot Placement")).toBeInTheDocument()
-  expect(screen.getByText("Slot 1")).toBeInTheDocument()
+
+  const slotTable = screen.getByRole("table", { name: "Slot Placement" })
+  const slotSurface = slotTable.closest("[data-topology-surface='slot-placement']")
+  expect(slotSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(slotTable).toHaveClass("w-full", "border-collapse", "text-sm")
+  expect(within(slotTable).getByText("Slot 1")).toBeInTheDocument()
+
   expect(screen.getByText("Preferred leader 1")).toBeInTheDocument()
   expect(screen.getByText("quorum lost")).toBeInTheDocument()
 })

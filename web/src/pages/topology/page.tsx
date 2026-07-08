@@ -177,19 +177,22 @@ export function TopologyPage() {
             description={intl.formatMessage({ id: "topology.summary.description" })}
             title={intl.formatMessage({ id: "topology.summary.title" })}
           >
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm font-semibold text-foreground">
+            <div
+              className="grid overflow-hidden rounded-md border border-border bg-card md:grid-cols-4"
+              data-testid="topology-summary-strip"
+            >
+              <div className="border-b border-border px-3 py-3 text-sm font-semibold text-foreground last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0" data-topology-summary-cell="">
                 {controllerLeaderID > 0
                   ? intl.formatMessage({ id: "topology.controllerLeader" }, { id: controllerLeaderID })
                   : intl.formatMessage({ id: "topology.controllerLeader.empty" })}
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm font-semibold text-foreground">
+              <div className="border-b border-border px-3 py-3 text-sm font-semibold text-foreground last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0" data-topology-summary-cell="">
                 {intl.formatMessage({ id: "topology.nodesValue" }, { count: nodes.total })}
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm font-semibold text-foreground">
+              <div className="border-b border-border px-3 py-3 text-sm font-semibold text-foreground last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0" data-topology-summary-cell="">
                 {intl.formatMessage({ id: "topology.slotsValue" }, { count: slots.total })}
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm font-semibold text-foreground">
+              <div className="border-b border-border px-3 py-3 text-sm font-semibold text-foreground last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0" data-topology-summary-cell="">
                 {intl.formatMessage({ id: "topology.anomaliesValue" }, { count: topologyAnomalyCount(overview) })}
               </div>
             </div>
@@ -219,12 +222,12 @@ export function TopologyPage() {
             </label>
 
             {nodes.items.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-topology-surface="nodes">
                 {nodes.items.map((node) => {
                   const slotsSummary = nodeSlotSummary(node)
                   const runtime = nodeRuntimeLabel(node)
                   return (
-                    <article className="rounded-lg border border-border bg-background p-4" key={node.node_id}>
+                    <article className="rounded-md border border-border bg-background p-4" key={node.node_id}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="font-semibold text-foreground">{nodeDisplayName(node)}</h3>
@@ -279,8 +282,14 @@ export function TopologyPage() {
               )}
             </p>
             {filteredSlots.length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
+              <div
+                className="overflow-x-auto rounded-md border border-border"
+                data-topology-surface="slot-placement"
+              >
+                <table
+                  aria-label={intl.formatMessage({ id: "topology.slotPlacement.title" })}
+                  className="w-full border-collapse text-sm"
+                >
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "topology.table.slot" })}</th>
