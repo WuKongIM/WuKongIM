@@ -34,13 +34,15 @@ export function ClusterDiagnosticsPage() {
         title={intl.formatMessage({ id: "nav.diagnostics.title" })}
         description={intl.formatMessage({ id: "nav.diagnostics.description" })}
       />
-      <PageTabs
-        activeTab={activeTab}
-        className="px-0 pt-0"
-        tabs={tabs.map((tab) => ({ id: tab.id, label: intl.formatMessage({ id: tab.labelMessageId }) }))}
-        onTabChange={setTab}
-      />
-      {activeTab === "trace" ? <DiagnosticsTracePanel /> : null}
+      <div className="space-y-4" data-cluster-diagnostics-surface="trace">
+        <PageTabs
+          activeTab={activeTab}
+          className="px-0 pt-0"
+          tabs={tabs.map((tab) => ({ id: tab.id, label: intl.formatMessage({ id: tab.labelMessageId }) }))}
+          onTabChange={setTab}
+        />
+        {activeTab === "trace" ? <DiagnosticsTracePanel /> : null}
+      </div>
     </PageContainer>
   )
 }

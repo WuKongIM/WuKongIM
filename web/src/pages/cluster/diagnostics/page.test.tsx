@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -88,12 +88,17 @@ beforeEach(() => {
 test("defaults to the diagnostics trace tab", async () => {
   renderPage()
 
-  expect(screen.getByRole("tab", { name: "Tracing" })).toHaveAttribute("aria-selected", "true")
+  const tracingTab = screen.getByRole("tab", { name: "Tracing" })
+  expect(tracingTab).toHaveAttribute("aria-selected", "true")
   expect(screen.queryByRole("tab", { name: "Network" })).not.toBeInTheDocument()
   expect(screen.queryByRole("tab", { name: "Control Plane Logs" })).not.toBeInTheDocument()
   expect(screen.queryByRole("tab", { name: "Slot Logs" })).not.toBeInTheDocument()
   expect(screen.queryByRole("tab", { name: "App Logs" })).not.toBeInTheDocument()
   expect(await screen.findByText("Message Diagnostics")).toBeInTheDocument()
+  const traceSurface = screen.getByText("Message Diagnostics").closest("[data-cluster-diagnostics-surface='trace']")
+  expect(traceSurface).toHaveClass("space-y-4")
+  expect(within(traceSurface as HTMLElement).getByRole("tab", { name: "Tracing" })).toHaveAttribute("aria-selected", "true")
+  expect(within(traceSurface as HTMLElement).queryByRole("tab", { name: "Network" })).not.toBeInTheDocument()
   expect(await screen.findByText("CLUSTER / DIAGNOSTICS")).toBeInTheDocument()
 })
 
