@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -124,6 +124,53 @@ test("loads table list and runs a query", async () => {
   })
   expect(await screen.findByText("u1")).toBeInTheDocument()
   expect(screen.getByText("point-partition")).toBeInTheDocument()
+})
+
+test("uses editorial db inspect rail workbench and named result tables", async () => {
+  getNodesMock.mockResolvedValueOnce(nodesResponse())
+  getDBInspectTablesMock.mockResolvedValueOnce({
+    node_id: 1,
+    generated_at: "2026-06-17T10:00:00Z",
+    rows: [{ domain: "meta", name: "user", table: "meta.user" }],
+    stats: { scan_mode: "", scanned_hash_slots: [], scanned_rows: 0, returned_rows: 1, has_more: false, next_cursor: "" },
+  })
+  getDBInspectTableMock.mockResolvedValueOnce({
+    node_id: 1,
+    generated_at: "2026-06-17T10:00:00Z",
+    rows: [{ column: "uid", type: "string" }],
+    stats: { scan_mode: "", scanned_hash_slots: [], scanned_rows: 1, returned_rows: 1, has_more: false, next_cursor: "" },
+  })
+  queryDBInspectMock.mockResolvedValueOnce({
+    node_id: 1,
+    generated_at: "2026-06-17T10:00:01Z",
+    rows: [{ uid: "u1" }],
+    stats: { scan_mode: "point-partition", scanned_hash_slots: [3], scanned_rows: 1, returned_rows: 1, has_more: false, next_cursor: "" },
+  })
+
+  const user = userEvent.setup()
+  renderPage()
+
+  const rail = await screen.findByTestId("db-inspect-table-rail")
+  expect(rail).toHaveClass("overflow-hidden")
+
+  await user.click(await screen.findByRole("button", { name: "Inspect meta.user" }))
+  const describeTable = await screen.findByRole("table", { name: "meta.user columns" })
+  const describeSurface = describeTable.closest("[data-db-inspect-surface='describe']")
+  expect(describeSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+
+  const workbench = screen.getByTestId("db-inspect-query-workbench")
+  expect(workbench).toHaveClass("border-b", "border-border", "pb-4")
+  expect(within(workbench).getByLabelText("Inspect query")).toBeInTheDocument()
+
+  await user.clear(screen.getByLabelText("Inspect query"))
+  await user.type(screen.getByLabelText("Inspect query"), "select uid from meta.user limit 20")
+  await user.click(screen.getByRole("button", { name: "Run query" }))
+
+  const resultTable = await screen.findByRole("table", { name: "Results" })
+  const resultSurface = resultTable.closest("[data-db-inspect-surface='results']")
+  expect(resultSurface).toHaveClass("overflow-x-auto", "rounded-md", "border", "border-border")
+  expect(resultTable).toHaveClass("text-sm")
+  expect(screen.getByTestId("db-inspect-stats-strip")).toHaveClass("border-b", "border-border", "pb-3")
 })
 
 test("describes a selected table", async () => {

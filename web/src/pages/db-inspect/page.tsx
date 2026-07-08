@@ -255,38 +255,47 @@ export function DBInspectPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <SectionCard title={intl.formatMessage({ id: "dbInspect.tables.title" })}>
-          {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "dbInspect.tables.title" })} /> : null}
-          {!state.loading && state.tables.length > 0 ? (
-            <div className="space-y-4">
-              {Object.entries(tablesByDomain).map(([domain, rows]) => (
-                <div key={domain}>
-                  <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-                    {domain}
+        <div className="overflow-hidden" data-testid="db-inspect-table-rail">
+          <SectionCard
+            className="overflow-hidden"
+            title={intl.formatMessage({ id: "dbInspect.tables.title" })}
+          >
+            {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "dbInspect.tables.title" })} /> : null}
+            {!state.loading && state.tables.length > 0 ? (
+              <div className="space-y-4">
+                {Object.entries(tablesByDomain).map(([domain, rows]) => (
+                  <div key={domain}>
+                    <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                      {domain}
+                    </div>
+                    <div className="space-y-1">
+                      {rows.map((row) => (
+                        <button
+                          aria-label={intl.formatMessage({ id: "dbInspect.table.inspect" }, { table: row.table })}
+                          className="flex w-full items-center justify-between rounded-md border border-border/70 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                          key={row.table}
+                          onClick={() => void describeTable(row.table)}
+                          type="button"
+                        >
+                          <span className="font-mono">{row.table}</span>
+                          <Database className="size-4 text-muted-foreground" />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {rows.map((row) => (
-                      <button
-                        aria-label={intl.formatMessage({ id: "dbInspect.table.inspect" }, { table: row.table })}
-                        className="flex w-full items-center justify-between rounded-md border border-border/70 px-3 py-2 text-left text-sm hover:bg-muted/50"
-                        key={row.table}
-                        onClick={() => void describeTable(row.table)}
-                        type="button"
-                      >
-                        <span className="font-mono">{row.table}</span>
-                        <Database className="size-4 text-muted-foreground" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </SectionCard>
+                ))}
+              </div>
+            ) : null}
+          </SectionCard>
+        </div>
 
         <div className="space-y-4">
           <SectionCard title={intl.formatMessage({ id: "dbInspect.query.title" })}>
-            <form className="space-y-3" onSubmit={submit}>
+            <form
+              className="space-y-3 border-b border-border pb-4"
+              data-testid="db-inspect-query-workbench"
+              onSubmit={submit}
+            >
               <div className="flex flex-wrap items-center gap-3">
                 <label className="text-sm font-medium text-foreground" htmlFor="db-inspect-node">
                   {intl.formatMessage({ id: "dbInspect.node" })}
@@ -351,6 +360,7 @@ export function DBInspectPage() {
             <ResultSection
               columns={describeColumns}
               rows={state.describe.rows}
+              surface="describe"
               title={intl.formatMessage({ id: "dbInspect.describe.title" }, { table: state.selectedTable })}
             />
           ) : null}
@@ -358,7 +368,12 @@ export function DBInspectPage() {
           {state.result ? (
             <SectionCard title={intl.formatMessage({ id: "dbInspect.results.title" })}>
               <StatsStrip result={state.result} />
-              <ResultTable columns={columns} rows={state.result.rows} />
+              <ResultTable
+                ariaLabel={intl.formatMessage({ id: "dbInspect.results.title" })}
+                columns={columns}
+                rows={state.result.rows}
+                surface="results"
+              />
               {state.result.stats.has_more && state.result.stats.next_cursor ? (
                 <Button
                   className="mt-4"
@@ -397,7 +412,10 @@ function groupTables(rows: TableRow[]) {
 
 function StatsStrip({ result }: { result: ManagerDBInspectQueryResponse }) {
   return (
-    <div className="mb-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+    <div
+      className="mb-4 flex flex-wrap gap-2 border-b border-border pb-3 text-xs text-muted-foreground"
+      data-testid="db-inspect-stats-strip"
+    >
       <span className="rounded-full border border-border px-2 py-1">{result.stats.scan_mode || "-"}</span>
       <span className="rounded-full border border-border px-2 py-1">scanned {result.stats.scanned_rows}</span>
       <span className="rounded-full border border-border px-2 py-1">returned {result.stats.returned_rows}</span>
@@ -408,21 +426,44 @@ function StatsStrip({ result }: { result: ManagerDBInspectQueryResponse }) {
   )
 }
 
-function ResultSection({ title, rows, columns }: { title: string; rows: ManagerDBInspectRow[]; columns: string[] }) {
+function ResultSection({
+  columns,
+  rows,
+  surface,
+  title,
+}: {
+  columns: string[]
+  rows: ManagerDBInspectRow[]
+  surface: "describe" | "results"
+  title: string
+}) {
   return (
     <SectionCard title={title}>
-      <ResultTable columns={columns} rows={rows} />
+      <ResultTable ariaLabel={title} columns={columns} rows={rows} surface={surface} />
     </SectionCard>
   )
 }
 
-function ResultTable({ columns, rows }: { columns: string[]; rows: ManagerDBInspectRow[] }) {
+function ResultTable({
+  ariaLabel,
+  columns,
+  rows,
+  surface,
+}: {
+  ariaLabel: string
+  columns: string[]
+  rows: ManagerDBInspectRow[]
+  surface: "describe" | "results"
+}) {
   if (rows.length === 0) {
-    return <ResourceState kind="empty" title="DB Inspect" />
+    return <ResourceState kind="empty" title={ariaLabel} />
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full border-collapse">
+    <div
+      className="overflow-x-auto rounded-md border border-border"
+      data-db-inspect-surface={surface}
+    >
+      <table aria-label={ariaLabel} className="w-full border-collapse text-sm">
         <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
           <tr>
             {columns.map((column) => (
