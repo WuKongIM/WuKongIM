@@ -150,7 +150,7 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 		} else {
 			available++
 			card.Value = clusterMonitorLatestValue(series)
-			card.Stats = monitorCardStats(series, query.Step)
+			card.Stats = monitorCardStats(series, query.Step, def.unit)
 		}
 		cards = append(cards, card)
 	}
@@ -984,7 +984,7 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			query: func(string) string {
 				depth := `wukongim_runtime_pool_queue_depth{component="gateway",pool!~"async_send|async_auth"}`
 				capacity := `wukongim_runtime_pool_queue_capacity{component="gateway",pool!~"async_send|async_auth"}`
-				return prometheusZeroFallback("max((" + depth + " / clamp_min(" + capacity + ", 1)) * 100)")
+				return prometheusZeroFallback("max((" + depth + " / (" + capacity + " > 0)) * 100)")
 			},
 		},
 		{
@@ -996,7 +996,7 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			query: func(string) string {
 				bytes := `wukongim_runtime_pool_queue_bytes{component="gateway",pool!~"async_send|async_auth"}`
 				capacity := `wukongim_runtime_pool_queue_bytes_capacity{component="gateway",pool!~"async_send|async_auth"}`
-				return prometheusZeroFallback("max((" + bytes + " / clamp_min(" + capacity + ", 1)) * 100)")
+				return prometheusZeroFallback("max((" + bytes + " / (" + capacity + " > 0)) * 100)")
 			},
 		},
 	})
@@ -1218,7 +1218,7 @@ func parsePrometheusSample(raw json.RawMessage) (float64, error) {
 	return value, nil
 }
 
-func monitorCardStats(series []accessmanager.RealtimeMonitorPoint, step time.Duration) []accessmanager.RealtimeMonitorStat {
+func monitorCardStats(series []accessmanager.RealtimeMonitorPoint, step time.Duration, unit string) []accessmanager.RealtimeMonitorStat {
 	if len(series) == 0 {
 		return nil
 	}
@@ -1230,11 +1230,14 @@ func monitorCardStats(series []accessmanager.RealtimeMonitorPoint, step time.Dur
 			peak = point.Value
 		}
 	}
-	return []accessmanager.RealtimeMonitorStat{
+	stats := []accessmanager.RealtimeMonitorStat{
 		{Key: "avg", Value: sum / float64(len(series))},
 		{Key: "peak", Value: peak},
-		{Key: "total", Value: sum * step.Seconds()},
 	}
+	if unit != "%" {
+		stats = append(stats, accessmanager.RealtimeMonitorStat{Key: "total", Value: sum * step.Seconds()})
+	}
+	return stats
 }
 
 func monitorSnapshotFromCards(cards []accessmanager.RealtimeMonitorCard) []accessmanager.RealtimeMonitorSnapshotEntry {

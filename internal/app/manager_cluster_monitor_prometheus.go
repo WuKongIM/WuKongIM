@@ -416,7 +416,7 @@ func clusterMonitorTransformSeries(series []accessmanager.RealtimeMonitorPoint, 
 }
 
 func clusterMonitorStats(series []accessmanager.RealtimeMonitorPoint, unit string, step time.Duration) []accessmanager.RealtimeMonitorStat {
-	base := monitorCardStats(series, step)
+	base := monitorCardStats(series, step, unit)
 	out := make([]accessmanager.RealtimeMonitorStat, 0, len(base))
 	for _, stat := range base {
 		out = append(out, accessmanager.RealtimeMonitorStat{Key: stat.Key, Value: stat.Value, Unit: unit})

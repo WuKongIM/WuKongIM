@@ -189,6 +189,76 @@ func TestManagerMonitorPrometheusProviderReturnsGatewayOperatorCards(t *testing.
 	}
 }
 
+func TestManagerMonitorPrometheusTransportQueueUsageSkipsUnboundedItemDepth(t *testing.T) {
+	query := requireMonitorDefinitionForTest(t, "transportQueueUsage").query("1m")
+
+	if strings.Contains(query, "clamp_min(wukongim_runtime_pool_queue_capacity") {
+		t.Fatalf("transport queue query = %q, want capacity=0 series filtered instead of clamped to 1", query)
+	}
+	for _, want := range []string{
+		`wukongim_runtime_pool_queue_depth{component="gateway",pool!~"async_send|async_auth"}`,
+		`wukongim_runtime_pool_queue_capacity{component="gateway",pool!~"async_send|async_auth"} > 0`,
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("transport queue query = %q, want %q", query, want)
+		}
+	}
+
+	bytesQuery := requireMonitorDefinitionForTest(t, "transportBytesUsage").query("1m")
+	if strings.Contains(bytesQuery, "clamp_min(wukongim_runtime_pool_queue_bytes_capacity") {
+		t.Fatalf("transport bytes query = %q, want bytes_capacity=0 series filtered instead of clamped to 1", bytesQuery)
+	}
+	for _, want := range []string{
+		`wukongim_runtime_pool_queue_bytes{component="gateway",pool!~"async_send|async_auth"}`,
+		`wukongim_runtime_pool_queue_bytes_capacity{component="gateway",pool!~"async_send|async_auth"} > 0`,
+	} {
+		if !strings.Contains(bytesQuery, want) {
+			t.Fatalf("transport bytes query = %q, want %q", bytesQuery, want)
+		}
+	}
+}
+
+func TestManagerMonitorPrometheusProviderOmitsTotalStatForPercentCards(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryGateway,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	card := requireMonitorCardForTest(t, resp.Cards, "sendQueueUsage")
+	if card.Unit != "%" {
+		t.Fatalf("sendQueueUsage unit = %q, want %%", card.Unit)
+	}
+	var sawAvg, sawPeak bool
+	for _, stat := range card.Stats {
+		switch stat.Key {
+		case "avg":
+			sawAvg = true
+		case "peak":
+			sawPeak = true
+		case "total":
+			t.Fatalf("percent card stats = %#v, want no total stat", card.Stats)
+		}
+	}
+	if !sawAvg || !sawPeak {
+		t.Fatalf("percent card stats = %#v, want avg and peak", card.Stats)
+	}
+}
+
 func TestManagerMonitorPrometheusProviderReturnsMessageOperatorCards(t *testing.T) {
 	var queries []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
