@@ -14,12 +14,20 @@ export function WebhooksPage() {
         title={intl.formatMessage({ id: "webhooks.title" })}
         description={intl.formatMessage({ id: "webhooks.description" })}
       />
-      <SectionCard
-        description={intl.formatMessage({ id: "common.comingSoonDescription" })}
-        title={intl.formatMessage({ id: "common.comingSoon" })}
+      <div
+        className="rounded-md border border-border bg-card"
+        data-testid="webhooks-placeholder-surface"
       >
-        <ResourceState kind="empty" title={intl.formatMessage({ id: "webhooks.title" })} />
-      </SectionCard>
+        <SectionCard
+          className="rounded-md border-0 bg-transparent"
+          description={intl.formatMessage({ id: "common.comingSoonDescription" })}
+          title={intl.formatMessage({ id: "common.comingSoon" })}
+        >
+          <div className="rounded-md border border-border bg-card p-3">
+            <ResourceState kind="empty" title={intl.formatMessage({ id: "webhooks.title" })} />
+          </div>
+        </SectionCard>
+      </div>
     </PageContainer>
   )
 }
