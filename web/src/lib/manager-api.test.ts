@@ -50,6 +50,7 @@ import {
   getOverview,
   promoteControllerVoter,
   getPermissions,
+  getWebhookConfig,
   getPluginBindings,
   getSlot,
   getSlotLogs,
@@ -262,6 +263,34 @@ describe("manager api client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/permissions",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches webhook config from the manager webhook config endpoint", async () => {
+    const payload = {
+      enabled: true,
+      http_addr: "http://127.0.0.1:8080/webhook",
+      focus_events: ["msg.notify"],
+      supported_events: ["msg.notify", "msg.offline", "user.onlinestatus"],
+      queue_size: 1024,
+      workers: 4,
+      msg_notify_batch_max_items: 100,
+      msg_notify_batch_max_wait: "200ms",
+      online_status_batch_max_items: 50,
+      online_status_batch_max_wait: "500ms",
+      offline_uid_batch_size: 200,
+      request_timeout: "5s",
+      retry_max_attempts: 3,
+      source: "config",
+      requires_restart: true,
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(getWebhookConfig()).resolves.toEqual(payload)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/webhooks/config",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })

@@ -71,6 +71,7 @@ import type {
   ManagerOverviewResponse,
   ManagerPermission,
   ManagerPermissionsResponse,
+  ManagerWebhookConfigResponse,
   ManagerNodePluginsResponse,
   ManagerPlugin,
   ManagerPluginBindingMutationResponse,
@@ -526,6 +527,10 @@ export function getOverview() {
 
 export function getPermissions() {
   return jsonManagerFetch<ManagerPermissionsResponse>("/manager/permissions")
+}
+
+export function getWebhookConfig() {
+  return jsonManagerFetch<ManagerWebhookConfigResponse>("/manager/webhooks/config")
 }
 
 export function getDBInspectTables(params?: { nodeId?: number }) {

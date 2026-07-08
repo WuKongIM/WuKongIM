@@ -26,6 +26,24 @@ export type ManagerPermissionsResponse = {
   resources: ManagerPermissionResource[]
 }
 
+export type ManagerWebhookConfigResponse = {
+  enabled: boolean
+  http_addr: string
+  focus_events: string[]
+  supported_events: string[]
+  queue_size: number
+  workers: number
+  msg_notify_batch_max_items: number
+  msg_notify_batch_max_wait: string
+  online_status_batch_max_items: number
+  online_status_batch_max_wait: string
+  offline_uid_batch_size: number
+  request_timeout: string
+  retry_max_attempts: number
+  source: string
+  requires_restart: boolean
+}
+
 export type ManagerLoginResponse = {
   username: string
   token_type: string
