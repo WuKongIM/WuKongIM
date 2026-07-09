@@ -1546,31 +1546,18 @@ func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
 	}
 }
 
-func TestConfigExampleKeysAreSupported(t *testing.T) {
+func TestConfigExampleFilesLoad(t *testing.T) {
+	unsetLoadConfigEnv(t)
 	files, err := filepath.Glob("wukongim*.toml.example")
 	if err != nil {
 		t.Fatalf("Glob(command examples): %v", err)
 	}
 	files = append(files, filepath.Join("..", "..", "wukongim.toml.example"))
 
-	supported := make(map[string]struct{}, len(supportedConfigKeys))
-	for _, key := range supportedConfigKeys {
-		supported[key] = struct{}{}
-	}
-
 	for _, file := range files {
 		t.Run(file, func(t *testing.T) {
-			values, err := readKeyValueFile(file)
-			if err != nil {
-				t.Fatalf("readKeyValueFile(%s): %v", file, err)
-			}
-			for key := range values {
-				if !strings.HasPrefix(key, "WK_") {
-					t.Fatalf("%s contains non-WK key %s", file, key)
-				}
-				if _, ok := supported[key]; !ok {
-					t.Fatalf("%s contains unsupported config key %s", file, key)
-				}
+			if _, err := loadConfig([]string{"-config", file}); err != nil {
+				t.Fatalf("loadConfig(%s) error = %v", file, err)
 			}
 		})
 	}
@@ -2103,8 +2090,4 @@ func adaptiveGatewayGnetEventLoops(gomaxprocs int) int {
 		return 4
 	}
 	return loops
-}
-
-func readKeyValueFile(string) (map[string]string, error) {
-	return map[string]string{}, nil
 }
