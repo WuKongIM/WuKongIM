@@ -101,6 +101,9 @@ func tomlValueToString(field fieldSpec, value any) (string, error) {
 			return "", fmt.Errorf("parse %s / %s: value must be a number", field.TOMLPath, field.EnvKey)
 		}
 	case kindStringList, kindObjectList:
+		if text, ok := value.(string); ok {
+			return strings.TrimSpace(text), nil
+		}
 		data, err := json.Marshal(value)
 		if err != nil {
 			return "", fmt.Errorf("parse %s / %s: %w", field.TOMLPath, field.EnvKey, err)

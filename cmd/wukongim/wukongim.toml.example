@@ -1,0 +1,158 @@
+[node]
+id = 1
+data_dir = "./data/wukongim-single-node-data"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+id = "wukongim-single"
+nodes = "[{\"id\":1,\"addr\":\"127.0.0.1:7001\"}]"
+join_token = "change-me"
+initial_slot_count = 1
+hash_slot_count = 256
+slot_replica_n = 1
+node_health_report_interval = "5s"
+node_health_report_ttl = "30s"
+channel_reactor_count = 0
+channel_store_append_workers = 0
+channel_store_apply_workers = 0
+channel_rpc_workers = 50
+max_channels = 0
+channel_append_batch_max_records = 0
+channel_append_batch_max_wait = "0"
+channel_follower_recovery_probe_interval = "2s"
+channel_follower_recovery_probe_jitter = "1s"
+commit_coordinator_flush_window = "200us"
+commit_coordinator_max_requests = 0
+commit_coordinator_max_records = 0
+commit_coordinator_max_bytes = 0
+commit_coordinator_shards = 0
+
+[channel]
+message_retention_physical_gc_enable = false
+message_retention_scan_interval = "1m"
+message_retention_channel_batch_size = 128
+message_retention_max_trim_messages = 1000
+message_retention_max_trim_bytes = 0
+large_group_subscriber_threshold = 500
+
+[api]
+listen_addr = "127.0.0.1:5001"
+external_tcp_addr = "127.0.0.1:5100"
+external_ws_addr = "ws://127.0.0.1:5200"
+
+[manager]
+listen_addr = "127.0.0.1:5301"
+auth_on = true
+jwt_secret = "wukongim-dev-manager-secret"
+jwt_issuer = "wukongim-manager"
+jwt_expire = "24h"
+users = "[{\"username\":\"admin\",\"password\":\"a1234567\",\"permissions\":[{\"resource\":\"*\",\"actions\":[\"*\"]}]}]"
+
+[bench]
+api_enable = false
+api_max_batch_size = 10000
+api_max_payload_bytes = 10485760
+
+[observability]
+metrics_enable = true
+debug_api_enable = false
+
+[prometheus]
+enable = false
+binary_path = ""
+listen_addr = "127.0.0.1:9090"
+data_dir = "./data/wukongim-single-node-data/prometheus"
+retention_time = "360h"
+retention_size = ""
+scrape_interval = "15s"
+scrape_targets = "[]"
+
+[top]
+api_enable = true
+collect_interval = "1s"
+history_window = "5m"
+
+[diagnostics]
+enable = true
+buffer_size = 50000
+sample_rate = 0.01
+slow_threshold_ms = 500
+error_sample_rate = 1.0
+deep_sample_rate = 0
+deep_slow_threshold_ms = 500
+deep_max_items_per_batch = 16
+debug_matches = "[]"
+
+[log]
+level = "info"
+dir = "./data/wukongim-single-node-data/logs"
+max_size = 100
+max_age = 30
+max_backups = 10
+compress = true
+console = true
+format = "console"
+
+[gateway]
+listeners = "[{\"name\":\"tcp-wkproto\",\"network\":\"tcp\",\"address\":\"0.0.0.0:5100\",\"transport\":\"gnet\",\"protocol\":\"wkproto\"},{\"name\":\"ws-gateway\",\"network\":\"websocket\",\"address\":\"0.0.0.0:5200\",\"transport\":\"gnet\",\"protocol\":\"wsmux\"}]"
+gnet_multicore = true
+gnet_num_event_loop = 0
+runtime_async_send_workers = 128
+runtime_async_send_queue_capacity = 131072
+runtime_async_auth_workers = 16
+runtime_async_auth_queue_capacity = 8192
+runtime_async_pool_release_timeout = "100ms"
+default_session_async_send_batch_max_wait = "1ms"
+default_session_async_send_batch_max_records = 512
+default_session_async_send_batch_max_bytes = 524288
+send_timeout = "5s"
+
+[message]
+person_whitelist_enabled = false
+system_device_id = "____device"
+permission_cache_ttl = "0"
+
+[presence]
+activation_timeout = "3s"
+touch_flush_interval = "1s"
+touch_batch_size = 512
+route_ttl = "90s"
+
+[conversation]
+max_last_message_concurrency = 32
+authority_cache_max_rows_per_uid = 4096
+authority_cache_max_rows = 100000
+authority_list_db_window_max = 1000
+authority_handoff_timeout = "3s"
+authority_flush_interval = "1s"
+authority_flush_timeout = "5s"
+authority_flush_batch_rows = 512
+authority_admit_batch_rows = 512
+authority_admit_concurrency = 16
+
+[delivery]
+enable = true
+fanout_page_size = 512
+push_batch_size = 512
+pending_ack_ttl = "30s"
+pending_ack_max_per_session = 1024
+event_queue_size = 1024
+
+[channel_append]
+shard_count = 0
+advance_pool_size = 0
+effect_pool_size = 0
+recipient_authority_dispatch_concurrency = 0
+
+[plugin]
+enable = true
+dir = "./data/wukongim-single-node-data/plugins"
+socket_path = "./data/wukongim-single-node-data/run/plugin.sock"
+sandbox_dir = "./data/wukongim-single-node-data/plugin-sandbox"
+state_dir = "./data/wukongim-single-node-data/plugin-state"
+timeout = "5s"
+hot_reload = true
+fail_open = false
+persist_after_queue_size = 1024
+persist_after_workers = 16
+

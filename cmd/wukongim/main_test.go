@@ -20,7 +20,7 @@ import (
 func TestRunStartsAndStopsAfterContextCancel(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, requiredConfigLines(dir)...)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -65,7 +65,7 @@ func TestRunStartsAndStopsAfterContextCancel(t *testing.T) {
 func TestRunReturnsStartErrorWithoutStopping(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, requiredConfigLines(dir)...)
 
 	startErr := errors.New("start failed")
@@ -88,7 +88,7 @@ func TestRunReturnsStartErrorWithoutStopping(t *testing.T) {
 func TestRunReturnsStopErrorAfterContextCancel(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, requiredConfigLines(dir)...)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -126,7 +126,7 @@ func TestRunPassesConfigFlagFormsToLoadConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)
 			dir := t.TempDir()
-			path := filepath.Join(dir, "wukongim.conf")
+			path := filepath.Join(dir, "wukongim.toml")
 			writeConf(t, path,
 				"WK_NODE_ID="+strconv.FormatUint(tc.id, 10),
 				"WK_NODE_DATA_DIR="+filepath.Join(dir, "node"),

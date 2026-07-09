@@ -1,15 +1,20 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/app"
+	productconfig "github.com/WuKongIM/WuKongIM/internal/config"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
@@ -89,9 +94,9 @@ func TestLoadConfigWithoutDefaultConfigReportsAttemptedPathsAndMissingKeys(t *te
 		t.Fatal("loadConfig() error = nil, want missing required config error")
 	}
 	for _, want := range []string{
-		"./wukongim.conf",
-		"./conf/wukongim.conf",
-		"/etc/wukongim/wukongim.conf",
+		"./wukongim.toml",
+		"./conf/wukongim.toml",
+		"/etc/wukongim/wukongim.toml",
 		"WK_NODE_ID",
 		"WK_NODE_DATA_DIR",
 		"WK_CLUSTER_LISTEN_ADDR",
@@ -106,7 +111,7 @@ func TestLoadConfigAllowsExplicitPluginDisable(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	chdir(t, t.TempDir())
 	dir := t.TempDir()
-	path := filepath.Join(t.TempDir(), "wukongim.conf")
+	path := filepath.Join(t.TempDir(), "wukongim.toml")
 	writeConf(t, path, append(requiredConfigLines(dir),
 		"WK_PLUGIN_ENABLE=false",
 	)...)
@@ -124,7 +129,7 @@ func TestLoadConfigParsesManagerLoginSettings(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	chdir(t, t.TempDir())
 	dir := t.TempDir()
-	path := filepath.Join(t.TempDir(), "wukongim.conf")
+	path := filepath.Join(t.TempDir(), "wukongim.toml")
 	writeConf(t, path, append(requiredConfigLines(dir),
 		"WK_API_LISTEN_ADDR=127.0.0.1:5011",
 		"WK_MANAGER_LISTEN_ADDR=127.0.0.1:5301",
@@ -185,7 +190,7 @@ func TestLoadConfigDefaultPathSearch(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
 	chdir(t, dir)
-	writeConf(t, filepath.Join(dir, "conf", "wukongim.conf"),
+	writeConf(t, filepath.Join(dir, "conf", "wukongim.toml"),
 		"WK_NODE_ID=7",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-7"),
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7007",
@@ -206,7 +211,7 @@ func TestLoadConfigDefaultPathSearch(t *testing.T) {
 
 func TestConfigParsesClusterNodeHealthReportTuning(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "data"),
@@ -227,7 +232,7 @@ func TestConfigParsesClusterNodeHealthReportTuning(t *testing.T) {
 
 func TestConfigRejectsClusterNodeHealthReportTTLBelowInterval(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, append(requiredConfigLines(dir),
 		"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=5s",
 		"WK_CLUSTER_NODE_HEALTH_REPORT_TTL=1s",
@@ -240,7 +245,7 @@ func TestConfigRejectsClusterNodeHealthReportTTLBelowInterval(t *testing.T) {
 func TestConfigParsesChannelMigrationTuning(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, append(requiredConfigLines(dir),
 		"WK_CHANNEL_MIGRATION_ENABLE=false",
 		"WK_CHANNEL_MIGRATION_SCAN_INTERVAL=250ms",
@@ -271,7 +276,7 @@ func TestConfigParsesChannelMigrationTuning(t *testing.T) {
 func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"# single-node cluster skeleton",
 		"",
@@ -643,7 +648,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	lines := append(requiredConfigLines(dir),
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=4096",
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000",
@@ -690,7 +695,7 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 func TestChannelMessageRetentionConfigEnvOverrides(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, requiredConfigLines(dir)...)
 	t.Setenv("WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE", "true")
 	t.Setenv("WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL", "2m")
@@ -725,7 +730,7 @@ func TestChannelMessageRetentionConfigEnvOverrides(t *testing.T) {
 func TestLoadConfigExplicitDiagnosticsConfigFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	lines := append(requiredConfigLines(dir),
 		"WK_DIAGNOSTICS_ENABLE=false",
 		"WK_DIAGNOSTICS_BUFFER_SIZE=12345",
@@ -787,7 +792,7 @@ func TestLoadConfigExplicitDiagnosticsConfigFile(t *testing.T) {
 func TestLoadConfigParsesTopConfig(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node"),
@@ -816,7 +821,7 @@ func TestLoadConfigParsesTopConfig(t *testing.T) {
 func TestLoadConfigRejectsInvalidTopWindow(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node"),
@@ -835,7 +840,7 @@ func TestLoadConfigRejectsInvalidTopWindow(t *testing.T) {
 func TestLoadConfigStaticMultiNodeCluster(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=2",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-2"),
@@ -883,7 +888,7 @@ func TestLoadConfigStaticMultiNodeCluster(t *testing.T) {
 func TestLoadConfigParsesChannelReplicaCount(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
@@ -908,7 +913,7 @@ func TestLoadConfigParsesChannelReplicaCount(t *testing.T) {
 func TestLoadConfigSeedJoinMode(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=4",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-4"),
@@ -944,7 +949,7 @@ func TestLoadConfigSeedJoinMode(t *testing.T) {
 func TestLoadConfigStaticClusterAcceptsJoinToken(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
@@ -1015,7 +1020,7 @@ func TestLoadConfigRejectsSeedJoinWithStaticNodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)
 			dir := t.TempDir()
-			path := filepath.Join(dir, "wukongim.conf")
+			path := filepath.Join(dir, "wukongim.toml")
 			lines := []string{
 				"WK_NODE_ID=4",
 				"WK_NODE_DATA_DIR=" + filepath.Join(dir, "node-4"),
@@ -1036,7 +1041,7 @@ func TestLoadConfigRejectsSeedJoinWithStaticNodes(t *testing.T) {
 func TestLoadConfigDerivesStaticMultiNodeClusterID(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
@@ -1057,7 +1062,7 @@ func TestLoadConfigDerivesStaticMultiNodeClusterID(t *testing.T) {
 func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "file-node"),
@@ -1346,7 +1351,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 func TestLoadConfigJSONListeners(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path,
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
@@ -1368,7 +1373,7 @@ func TestLoadConfigRejectsCommitCoordinatorSyncFalseFromEnv(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", "false")
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, requiredConfigLines(dir)...)
 
 	_, err := loadConfig([]string{"-config", path})
@@ -1384,7 +1389,7 @@ func TestLoadConfigRejectsCommitCoordinatorSyncFalseInFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
 	lines := append(requiredConfigLines(dir), "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false")
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, lines...)
 
 	_, err := loadConfig([]string{"-config", path})
@@ -1398,10 +1403,10 @@ func TestLoadConfigRejectsCommitCoordinatorSyncFalseInFile(t *testing.T) {
 
 func TestConfigExamplesDoNotExposeCommitCoordinatorSync(t *testing.T) {
 	files := []string{
-		"wukongim.conf.example",
-		"wukongim-node1.conf.example",
-		"wukongim-node2.conf.example",
-		"wukongim-node3.conf.example",
+		"wukongim.toml.example",
+		"wukongim-node1.toml.example",
+		"wukongim-node2.toml.example",
+		"wukongim-node3.toml.example",
 	}
 	for _, file := range files {
 		t.Run(file, func(t *testing.T) {
@@ -1419,7 +1424,7 @@ func TestConfigExamplesDoNotExposeCommitCoordinatorSync(t *testing.T) {
 func TestLoadConfigExampleFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 
-	cfg, err := loadConfig([]string{"-config", "wukongim.conf.example"})
+	cfg, err := loadConfig([]string{"-config", "wukongim.toml.example"})
 	if err != nil {
 		t.Fatalf("loadConfig(example) error = %v", err)
 	}
@@ -1451,7 +1456,7 @@ func TestLoadConfigExampleFile(t *testing.T) {
 func TestLoadConfigRootExampleFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 
-	cfg, err := loadConfig([]string{"-config", filepath.Join("..", "..", "wukongim.conf.example")})
+	cfg, err := loadConfig([]string{"-config", filepath.Join("..", "..", "wukongim.toml.example")})
 	if err != nil {
 		t.Fatalf("loadConfig(root example) error = %v", err)
 	}
@@ -1471,7 +1476,7 @@ func TestLoadConfigRootExampleFile(t *testing.T) {
 func TestLoadConfigRejectsUnsupportedWKKeys(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
+	path := filepath.Join(dir, "wukongim.toml")
 	writeConf(t, path, append(requiredConfigLines(dir),
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS=10",
 	)...)
@@ -1486,23 +1491,6 @@ func TestLoadConfigRejectsUnsupportedWKKeys(t *testing.T) {
 }
 
 func TestLoadConfigRejectsRemovedV1ConfigKeysWithReplacement(t *testing.T) {
-	unsetLoadConfigEnv(t)
-	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
-	writeConf(t, path, append(requiredConfigLines(dir),
-		"WK_CLUSTER_GROUP_COUNT=16",
-	)...)
-
-	_, err := loadConfig([]string{"-config", path})
-	if err == nil {
-		t.Fatal("loadConfig() error = nil, want removed key error")
-	}
-	if !strings.Contains(err.Error(), "WK_CLUSTER_GROUP_COUNT") || !strings.Contains(err.Error(), "WK_CLUSTER_INITIAL_SLOT_COUNT") {
-		t.Fatalf("loadConfig() error = %v, want removed key and replacement", err)
-	}
-}
-
-func TestLoadConfigRejectsRemovedV1ConfigKeysFromEnvWithReplacement(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	chdir(t, t.TempDir())
 	dir := t.TempDir()
@@ -1524,9 +1512,9 @@ func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
 	unsetLoadConfigEnv(t)
 
 	files := []string{
-		"wukongim-node1.conf.example",
-		"wukongim-node2.conf.example",
-		"wukongim-node3.conf.example",
+		"wukongim-node1.toml.example",
+		"wukongim-node2.toml.example",
+		"wukongim-node3.toml.example",
 	}
 	for i, file := range files {
 		t.Run(file, func(t *testing.T) {
@@ -1559,11 +1547,11 @@ func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
 }
 
 func TestConfigExampleKeysAreSupported(t *testing.T) {
-	files, err := filepath.Glob("wukongim*.conf.example")
+	files, err := filepath.Glob("wukongim*.toml.example")
 	if err != nil {
 		t.Fatalf("Glob(command examples): %v", err)
 	}
-	files = append(files, filepath.Join("..", "..", "wukongim.conf.example"))
+	files = append(files, filepath.Join("..", "..", "wukongim.toml.example"))
 
 	supported := make(map[string]struct{}, len(supportedConfigKeys))
 	for _, key := range supportedConfigKeys {
@@ -1769,7 +1757,7 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)
 			dir := t.TempDir()
-			path := filepath.Join(dir, "wukongim.conf")
+			path := filepath.Join(dir, "wukongim.toml")
 			lines := requiredConfigLines(dir)
 			key := strings.SplitN(tc.line, "=", 2)[0]
 			replaced := false
@@ -1811,7 +1799,7 @@ func TestLoadConfigRejectsNegativeChannelLimits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)
 			dir := t.TempDir()
-			path := filepath.Join(dir, "wukongim.conf")
+			path := filepath.Join(dir, "wukongim.toml")
 			writeConf(t, path,
 				"WK_NODE_ID=1",
 				"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
@@ -1839,7 +1827,7 @@ func TestLoadConfigRejectsNegativeChannelRecoveryProbeDurations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)
 			dir := t.TempDir()
-			path := filepath.Join(dir, "wukongim.conf")
+			path := filepath.Join(dir, "wukongim.toml")
 			lines := append(requiredConfigLines(dir), tc.line)
 			writeConf(t, path, lines...)
 			_, err := loadConfig([]string{"-config", path})
@@ -1863,7 +1851,7 @@ func TestLoadConfigRejectsMissingRequiredValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)
 			dir := t.TempDir()
-			path := filepath.Join(dir, "wukongim.conf")
+			path := filepath.Join(dir, "wukongim.toml")
 			lines := requiredConfigLines(dir)
 			filtered := lines[:0]
 			for _, line := range lines {
@@ -1956,13 +1944,92 @@ func writeConf(t *testing.T, path string, lines ...string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(): %v", err)
 	}
-	content := ""
-	for _, line := range lines {
-		content += line + "\n"
+	content, err := tomlFromConfigLines(lines...)
+	if err != nil {
+		t.Fatalf("tomlFromConfigLines(): %v", err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(): %v", err)
 	}
+}
+
+func tomlFromConfigLines(lines ...string) (string, error) {
+	fieldByEnv := map[string]productconfig.SchemaField{}
+	for _, field := range productconfig.SchemaFields() {
+		fieldByEnv[field.EnvKey] = field
+	}
+	sections := map[string][]string{}
+	order := make([]string, 0)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, raw, ok := strings.Cut(line, "=")
+		if !ok {
+			return "", fmt.Errorf("line %q: expected KEY=value", line)
+		}
+		key = strings.TrimSpace(key)
+		raw = strings.TrimSpace(raw)
+		field, ok := fieldByEnv[key]
+		tomlPath := ""
+		kind := "string"
+		if ok {
+			tomlPath = field.TOMLPath
+			kind = field.Kind
+		} else {
+			tomlPath = "unsupported." + key
+		}
+		table, name := splitTOMLPath(tomlPath)
+		if _, exists := sections[table]; !exists {
+			order = append(order, table)
+		}
+		sections[table] = append(sections[table], name+" = "+tomlLiteral(kind, raw))
+	}
+	var b strings.Builder
+	for _, table := range order {
+		if table != "" {
+			b.WriteString("[")
+			b.WriteString(table)
+			b.WriteString("]\n")
+		}
+		for _, line := range sections[table] {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+		b.WriteByte('\n')
+	}
+	return b.String(), nil
+}
+
+func splitTOMLPath(path string) (string, string) {
+	idx := strings.LastIndex(path, ".")
+	if idx < 0 {
+		return "", path
+	}
+	return path[:idx], path[idx+1:]
+}
+
+func tomlLiteral(kind, raw string) string {
+	switch kind {
+	case "bool":
+		if raw == "true" || raw == "false" {
+			return raw
+		}
+	case "int", "uint64", "uint32", "uint16":
+		if _, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return raw
+		}
+	case "float":
+		if value, err := strconv.ParseFloat(raw, 64); err == nil && !math.IsNaN(value) && !math.IsInf(value, 0) {
+			return raw
+		}
+	case "string_list", "object_list":
+		if json.Valid([]byte(raw)) {
+			return strconv.Quote(raw)
+		}
+	}
+	return strconv.Quote(raw)
 }
 
 func chdir(t *testing.T, dir string) {
@@ -2002,4 +2069,42 @@ func unsetLoadConfigEnv(t *testing.T) {
 			}
 		})
 	}
+}
+
+var supportedConfigKeys = testSupportedConfigKeys()
+
+var removedConfigKeyReplacements = map[string]string{
+	"WK_CLUSTER_GROUP_COUNT":                 "WK_CLUSTER_INITIAL_SLOT_COUNT",
+	"WK_CLUSTER_GROUP_REPLICA_N":             "WK_CLUSTER_SLOT_REPLICA_N",
+	"WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED": "WK_CHANNEL_MIGRATION_*",
+}
+
+func testSupportedConfigKeys() []string {
+	fields := productconfig.SchemaFields()
+	keys := make([]string, 0, len(fields))
+	for _, field := range fields {
+		keys = append(keys, field.EnvKey)
+	}
+	return keys
+}
+
+func adaptiveGatewayGnetEventLoops(gomaxprocs int) int {
+	if gomaxprocs <= 0 {
+		return 1
+	}
+	if gomaxprocs <= 2 {
+		return 1
+	}
+	loops := gomaxprocs / 2
+	if loops < 1 {
+		return 1
+	}
+	if loops > 4 {
+		return 4
+	}
+	return loops
+}
+
+func readKeyValueFile(string) (map[string]string, error) {
+	return map[string]string{}, nil
 }

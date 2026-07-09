@@ -1,0 +1,19 @@
+[node]
+id = 4
+data_dir = "./data/wukongim-node-4"
+
+[cluster]
+listen_addr = "127.0.0.1:7014"
+id = "wukongim-dev-three"
+seeds = "[\"127.0.0.1:7011\",\"127.0.0.1:7012\"]"
+advertise_addr = "127.0.0.1:7014"
+join_token = "change-me"
+hash_slot_count = 256
+slot_replica_n = 3
+
+[api]
+listen_addr = "127.0.0.1:5014"
+
+[manager]
+listen_addr = "127.0.0.1:5314"
+

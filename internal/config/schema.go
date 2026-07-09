@@ -37,6 +37,29 @@ type fieldSpec struct {
 	Sensitive bool
 }
 
+// SchemaField describes one public startup config field.
+type SchemaField struct {
+	// TOMLPath is the dotted path accepted in wukongim.toml.
+	TOMLPath string
+	// EnvKey is the canonical WK_* override key.
+	EnvKey string
+	// Kind identifies the TOML value shape expected for this field.
+	Kind string
+}
+
+// SchemaFields returns the public startup config schema.
+func SchemaFields() []SchemaField {
+	out := make([]SchemaField, 0, len(schemaFields))
+	for _, field := range schemaFields {
+		out = append(out, SchemaField{
+			TOMLPath: field.TOMLPath,
+			EnvKey:   field.EnvKey,
+			Kind:     string(field.Kind),
+		})
+	}
+	return out
+}
+
 var requiredConfigKeys = []string{
 	"WK_NODE_ID",
 	"WK_NODE_DATA_DIR",
