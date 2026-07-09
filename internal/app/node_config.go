@@ -25,6 +25,16 @@ func (a *App) NodeConfigSnapshot(_ context.Context, requestedNodeID uint64) (man
 	if requestedNodeID != nodeID {
 		return managementusecase.NodeConfigSnapshot{}, managementusecase.ErrNodeConfigUnavailable
 	}
+	if len(cfg.StartupConfigSnapshot.Groups) > 0 {
+		snapshot := cfg.StartupConfigSnapshot
+		snapshot.GeneratedAt = time.Now().UTC()
+		snapshot.NodeID = nodeID
+		if snapshot.Source == "" {
+			snapshot.Source = managementusecase.NodeConfigSnapshotSourceEffectiveStartup
+		}
+		snapshot.RequiresRestart = true
+		return snapshot, nil
+	}
 	return managementusecase.NodeConfigSnapshot{
 		GeneratedAt:     time.Now().UTC(),
 		NodeID:          nodeID,

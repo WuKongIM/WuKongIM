@@ -68,6 +68,7 @@ func Load(opts Options) (app.Config, error) {
 		}
 		return app.Config{}, fmt.Errorf("load config: %w", err)
 	}
+	cfg.StartupConfigSnapshot = buildStartupSnapshot(values, cfg.NodeID)
 	return cfg, nil
 }
 

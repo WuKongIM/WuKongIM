@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 )
 
 func TestDefaultConfigPathsUseTOML(t *testing.T) {
@@ -207,6 +209,51 @@ func TestLoadRejectsMalformedJSONListEnv(t *testing.T) {
 	if !strings.Contains(err.Error(), "WK_CLUSTER_NODES") {
 		t.Fatalf("Load() error = %v, want WK_CLUSTER_NODES", err)
 	}
+}
+
+func TestLoadBuildsRedactedStartupConfigSnapshot(t *testing.T) {
+	cfg, err := Load(Options{Args: nil, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=/tmp/wukongim-node",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_CLUSTER_JOIN_TOKEN=join-secret",
+		"WK_MANAGER_JWT_SECRET=jwt-secret",
+		`WK_MANAGER_USERS=[{"username":"admin","password":"plain"}]`,
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	snapshot := cfg.StartupConfigSnapshot
+	if snapshot.NodeID != 1 || snapshot.Source != "effective_startup_config" || !snapshot.RequiresRestart {
+		t.Fatalf("snapshot metadata = %#v", snapshot)
+	}
+	text := snapshotText(snapshot)
+	for _, forbidden := range []string{"join-secret", "jwt-secret", "plain", "/tmp/wukongim-node"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("snapshot leaked %q: %s", forbidden, text)
+		}
+	}
+	for _, want := range []string{"WK_NODE_ID=1", "WK_CLUSTER_JOIN_TOKEN=******", "WK_MANAGER_JWT_SECRET=******", "WK_MANAGER_USERS=******"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("snapshot text %q missing %q", text, want)
+		}
+	}
+}
+
+func snapshotText(snapshot managementusecase.NodeConfigSnapshot) string {
+	var b strings.Builder
+	for _, group := range snapshot.Groups {
+		b.WriteString(group.ID)
+		b.WriteByte(' ')
+		for _, item := range group.Items {
+			b.WriteString(item.Key)
+			b.WriteByte('=')
+			b.WriteString(item.Value)
+			b.WriteByte(' ')
+		}
+	}
+	return b.String()
 }
 
 func writeFile(t *testing.T, path, body string) {

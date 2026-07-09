@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
@@ -30,6 +31,8 @@ type Config struct {
 	NodeID uint64
 	// DataDir is the root data directory for the node runtime.
 	DataDir string
+	// StartupConfigSnapshot is a bounded, redacted view of effective startup configuration.
+	StartupConfigSnapshot managementusecase.NodeConfigSnapshot
 	// Cluster configures the cluster runtime.
 	Cluster cluster.Config
 	// API configures the benchmark HTTP API exposed by the standalone v2 entry.
