@@ -51,9 +51,9 @@ Cluster.Start()
 
 | 参数            | 默认值 | 说明                              | 代码位置                   |
 | --------------- | ------ | --------------------------------- | -------------------------- |
-| TickInterval    | 100ms  | Raft tick 周期                    | `controllerraft/service.go:22` |
-| ElectionTick    | 10     | 选举超时倍数（= 1s）             | `controllerraft/service.go:23` |
-| HeartbeatTick   | 1      | 心跳间隔倍数（= 100ms）          | `controllerraft/service.go:24` |
+| TickInterval    | 100ms  | Raft tick 周期                    | `pkg/controller/raft/config.go` |
+| ElectionTick    | 10     | 选举超时倍数（= 1s）             | `pkg/controller/raft/config.go` |
+| HeartbeatTick   | 1      | 心跳间隔倍数（= 100ms）          | `pkg/controller/raft/config.go` |
 | PreVote         | true   | 防止网络分区时不必要的选举扰动    | `controllerraft/service.go:154` |
 
 ### 3.3 Proposal 流程

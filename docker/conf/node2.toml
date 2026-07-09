@@ -7,6 +7,9 @@ listen_addr = "0.0.0.0:7000"
 hash_slot_count = 256
 initial_slot_count = 10
 slot_replica_n = 3
+slot_tick_interval = "50ms"
+slot_heartbeat_tick = 2
+slot_election_tick = 20
 channel_append_batch_max_records = 128
 channel_append_batch_max_wait = "250us"
 commit_coordinator_flush_window = "1ms"
@@ -67,6 +70,10 @@ level = "info"
 [observability]
 debug_api_enable = true
 metrics_enable = true
+
+[prometheus]
+# External Prometheus HTTP API used by manager realtime monitor queries in docker compose.
+query_base_url = "http://prometheus:9090"
 
 [diagnostics]
 enable = true

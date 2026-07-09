@@ -5,7 +5,13 @@
 .superpowers
 .claude
 .DS_Store
+data
+bin
 *.test
+*.prof
+*.pprof
+*.coverprofile
+coverage.out
 learn_project
 docker/dev-cluster
 docker/dev-observability

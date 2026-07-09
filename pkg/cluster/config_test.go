@@ -42,6 +42,9 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 			defaultSlotHeartbeatTick,
 		)
 	}
+	if cfg.Channel.TickInterval != 50*time.Millisecond {
+		t.Fatalf("Channel.TickInterval default = %s, want 50ms", cfg.Channel.TickInterval)
+	}
 }
 
 func TestConfigAppliesHealthReportDefaults(t *testing.T) {

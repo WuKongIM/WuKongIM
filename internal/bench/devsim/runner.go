@@ -311,13 +311,27 @@ func cloneMetricsSnapshot(snapshot metrics.SnapshotData) metrics.SnapshotData {
 func counterDelta(current, previous metrics.SnapshotData, names ...string) uint64 {
 	var delta uint64
 	for _, name := range names {
-		now := current.Counters[name]
-		before := previous.Counters[name]
+		now := counterSeriesTotal(current.Counters, name)
+		before := counterSeriesTotal(previous.Counters, name)
 		if now > before {
 			delta += now - before
 		}
 	}
 	return delta
+}
+
+func counterSeriesTotal(counters map[string]uint64, name string) uint64 {
+	if len(counters) == 0 || name == "" {
+		return 0
+	}
+	var total uint64
+	labelPrefix := name + "{"
+	for key, value := range counters {
+		if key == name || strings.HasPrefix(key, labelPrefix) {
+			total += value
+		}
+	}
+	return total
 }
 
 func (r *Runner) waitReady(ctx context.Context) error {

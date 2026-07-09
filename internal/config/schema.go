@@ -147,6 +147,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "observability.debug_api_enable", EnvKey: "WK_DEBUG_API_ENABLE", Kind: kindBool, Group: "observability", Label: "Debug API enabled"},
 
 	{TOMLPath: "prometheus.enable", EnvKey: "WK_PROMETHEUS_ENABLE", Kind: kindBool, Group: "prometheus", Label: "Prometheus enabled"},
+	{TOMLPath: "prometheus.query_base_url", EnvKey: "WK_PROMETHEUS_QUERY_BASE_URL", Kind: kindString, Group: "prometheus", Label: "Prometheus query base URL"},
 	{TOMLPath: "prometheus.binary_path", EnvKey: "WK_PROMETHEUS_BINARY_PATH", Kind: kindString, Group: "prometheus", Label: "Prometheus binary path"},
 	{TOMLPath: "prometheus.listen_addr", EnvKey: "WK_PROMETHEUS_LISTEN_ADDR", Kind: kindString, Group: "prometheus", Label: "Prometheus listen address"},
 	{TOMLPath: "prometheus.data_dir", EnvKey: "WK_PROMETHEUS_DATA_DIR", Kind: kindString, Group: "prometheus", Label: "Prometheus data directory"},
@@ -327,6 +328,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_BENCH_API_MAX_PAYLOAD_BYTES",
 		"WK_METRICS_ENABLE",
 		"WK_PROMETHEUS_ENABLE",
+		"WK_PROMETHEUS_QUERY_BASE_URL",
 		"WK_PROMETHEUS_BINARY_PATH",
 		"WK_PROMETHEUS_LISTEN_ADDR",
 		"WK_PROMETHEUS_DATA_DIR",

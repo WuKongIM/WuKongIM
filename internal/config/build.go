@@ -599,6 +599,7 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Observability.Prometheus.Enabled = prometheusEnable
 	}
+	cfg.Observability.Prometheus.QueryBaseURL = configValue(values, "WK_PROMETHEUS_QUERY_BASE_URL")
 	cfg.Observability.Prometheus.BinaryPath = configValue(values, "WK_PROMETHEUS_BINARY_PATH")
 	cfg.Observability.Prometheus.ListenAddr = configValue(values, "WK_PROMETHEUS_LISTEN_ADDR")
 	cfg.Observability.Prometheus.DataDir = configValue(values, "WK_PROMETHEUS_DATA_DIR")

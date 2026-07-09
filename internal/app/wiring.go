@@ -911,21 +911,31 @@ func (a *App) wireManager() {
 }
 
 func (a *App) newManagerMonitorProvider(control managerClusterControlReader) accessmanager.RealtimeMonitorProvider {
-	prometheusBaseURL := ""
-	if listenAddr := strings.TrimSpace(a.cfg.Observability.Prometheus.ListenAddr); listenAddr != "" {
-		prometheusBaseURL = "http://" + listenAddr
-	}
+	prometheusBaseURL := managerPrometheusBaseURL(a.cfg.Observability.Prometheus)
 	nodeID := a.cfg.NodeID
 	if nodeID == 0 {
 		nodeID = a.cfg.Cluster.NodeID
 	}
 	return newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
-		Enabled:  a.cfg.Observability.MetricsEnabled && a.cfg.Observability.Prometheus.Enabled,
+		Enabled:  a.cfg.Observability.MetricsEnabled && strings.TrimSpace(prometheusBaseURL) != "",
 		BaseURL:  prometheusBaseURL,
 		NodeID:   nodeID,
 		NodeName: fmt.Sprintf("node-%d", nodeID),
 		Control:  control,
 	})
+}
+
+func managerPrometheusBaseURL(cfg PrometheusConfig) string {
+	if baseURL := strings.TrimRight(strings.TrimSpace(cfg.QueryBaseURL), "/"); baseURL != "" {
+		return baseURL
+	}
+	if !cfg.Enabled {
+		return ""
+	}
+	if listenAddr := strings.TrimSpace(cfg.ListenAddr); listenAddr != "" {
+		return "http://" + listenAddr
+	}
+	return ""
 }
 
 func (a *App) newManagerManagement() accessmanager.Management {

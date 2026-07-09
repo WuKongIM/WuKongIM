@@ -60,7 +60,9 @@ New(Config)
        Prometheus runtime that writes prometheus.yml under the configured
        Prometheus data dir, extracts the embedded Prometheus binary when no
        external binary path is configured, and scrapes the node API /metrics endpoint
-     Manager realtime monitor queries use this configured Prometheus HTTP API.
+     Manager realtime monitor queries use `Prometheus.QueryBaseURL` when an
+     externally managed Prometheus service is configured; otherwise they use
+     the app-managed Prometheus HTTP API only when `Prometheus.Enabled=true`.
      They scope PromQL to the generated `wukongim` job and can optionally add
      a node-scoped filter; Channel runtime monitor PromQL prefers promoted
      `wukongim_channel_*` metric families and falls back to legacy

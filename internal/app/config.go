@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/url"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -155,7 +156,7 @@ type ObservabilityConfig struct {
 	MetricsEnabled bool
 	// DebugAPIEnabled exposes local /debug endpoints on the API listener.
 	DebugAPIEnabled bool
-	// Prometheus configures the optional app-managed Prometheus process.
+	// Prometheus configures manager Prometheus queries and the optional app-managed Prometheus process.
 	Prometheus PrometheusConfig
 	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
 	Diagnostics DiagnosticsConfig
@@ -169,6 +170,8 @@ type ObservabilityConfig struct {
 type PrometheusConfig struct {
 	// Enabled starts the embedded or externally configured Prometheus child process during app startup.
 	Enabled bool
+	// QueryBaseURL is an optional externally managed Prometheus HTTP API base URL used by manager monitor queries.
+	QueryBaseURL string
 	// BinaryPath is an optional external prometheus executable path; empty uses the embedded binary.
 	BinaryPath string
 	// ListenAddr is the Prometheus web listen address.
@@ -729,6 +732,7 @@ func NormalizeTopConfig(cfg TopConfig) (TopConfig, error) {
 }
 
 func defaultPrometheusConfig(cfg PrometheusConfig) PrometheusConfig {
+	cfg.QueryBaseURL = strings.TrimRight(strings.TrimSpace(cfg.QueryBaseURL), "/")
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = "127.0.0.1:9090"
 	}
@@ -987,6 +991,11 @@ func validateObservabilityConfig(cfg ObservabilityConfig) error {
 	if cfg.Prometheus.ScrapeInterval < 0 {
 		return fmt.Errorf("%w: prometheus scrape interval must be non-negative", ErrInvalidConfig)
 	}
+	if strings.TrimSpace(cfg.Prometheus.QueryBaseURL) != "" {
+		if err := validatePrometheusQueryBaseURL(cfg.Prometheus.QueryBaseURL); err != nil {
+			return err
+		}
+	}
 	if cfg.Prometheus.Enabled {
 		if cfg.Prometheus.ListenAddr != "" {
 			if err := validatePrometheusListenAddr(cfg.Prometheus.ListenAddr); err != nil {
@@ -1057,6 +1066,23 @@ func validatePrometheusConfig(cfg Config) error {
 func validatePrometheusListenAddr(addr string) error {
 	if _, _, err := net.SplitHostPort(strings.TrimSpace(addr)); err != nil {
 		return fmt.Errorf("%w: prometheus listen addr must be host:port", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validatePrometheusQueryBaseURL(raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("%w: prometheus query base url invalid", ErrInvalidConfig)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%w: prometheus query base url must use http or https", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(parsed.Host) == "" {
+		return fmt.Errorf("%w: prometheus query base url requires host", ErrInvalidConfig)
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("%w: prometheus query base url must not include query or fragment", ErrInvalidConfig)
 	}
 	return nil
 }

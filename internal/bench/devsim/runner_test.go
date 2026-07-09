@@ -224,6 +224,52 @@ func TestRunnerCopiesWorkloadMetricsToStatus(t *testing.T) {
 	require.Equal(t, uint64(1), status.Snapshot().RecvErrors)
 }
 
+func TestRunnerCopiesLabeledWorkloadCountersToStatus(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	registry := metrics.NewRegistry()
+	workload := &fakeWorkload{metrics: metrics.SnapshotData{Counters: map[string]uint64{}}}
+	workload.runHook = func(context.Context, worker.Assignment) error {
+		registry.AddCounter("person_send_success_total", metrics.Labels{
+			"channel_type": "person",
+			"phase":        "run",
+			"profile":      "person-profile",
+			"traffic":      "person-send",
+		}, 2)
+		registry.AddCounter("group_send_success_total", metrics.Labels{
+			"channel_type": "group",
+			"phase":        "run",
+			"profile":      "group-profile",
+			"traffic":      "group-send",
+		}, 3)
+		registry.AddCounter("group_recv_error_total", metrics.Labels{
+			"channel_type": "group",
+			"phase":        "run",
+			"profile":      "group-profile",
+			"traffic":      "group-send",
+		}, 1)
+		workload.metrics = registry.Collect()
+		return nil
+	}
+	status := NewStatus("dev-sim-run")
+	runner := NewRunner(RunnerConfig{
+		Config:   testRunnerConfig(),
+		RunID:    "dev-sim-run",
+		Status:   status,
+		Probe:    &fakeProbe{},
+		Workload: workload,
+		Sleep: func(context.Context, time.Duration) error {
+			cancel()
+			return context.Canceled
+		},
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), status.Snapshot().MessagesSent)
+	require.Equal(t, uint64(1), status.Snapshot().RecvErrors)
+}
+
 func TestRunnerSamplesLiveConnectionStatus(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	workload := &fakeWorkloadWithConnectionStatus{

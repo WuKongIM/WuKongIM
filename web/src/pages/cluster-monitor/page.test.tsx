@@ -1092,7 +1092,8 @@ function disabledClusterMonitorResponse(): RealtimeMonitorResponse {
         enabled: false,
         base_url: "",
         query_ms: 0,
-        error: "prometheus is disabled; set WK_METRICS_ENABLE=true and WK_PROMETHEUS_ENABLE=true",
+        error:
+          "prometheus is disabled; set WK_METRICS_ENABLE=true and either WK_PROMETHEUS_QUERY_BASE_URL or WK_PROMETHEUS_ENABLE=true",
       },
       control_snapshot: { enabled: true, query_ms: 1, error: "" },
     },

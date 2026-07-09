@@ -341,7 +341,7 @@ func (c *Config) applyDefaults() {
 		c.Timeouts.Stop = 5 * time.Second
 	}
 	if c.Channel.TickInterval == 0 {
-		c.Channel.TickInterval = 20 * time.Millisecond
+		c.Channel.TickInterval = 50 * time.Millisecond
 	}
 	if c.Channel.ReactorCount == 0 {
 		c.Channel.ReactorCount = defaultChannelReactorCount()

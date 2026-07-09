@@ -1,15 +1,17 @@
-ARG GO_IMAGE=golang:1.23.4
+ARG GO_IMAGE=golang:1.25.0
 ARG RUNTIME_IMAGE=alpine:3.19
 
-FROM ${GO_IMAGE} AS builder
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS builder
+ARG TARGETOS=linux
+ARG TARGETARCH
 WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/wukongim ./cmd/wukongim \
- && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/wkbench ./cmd/wkbench
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wukongim ./cmd/wukongim \
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkbench ./cmd/wkbench
 
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app

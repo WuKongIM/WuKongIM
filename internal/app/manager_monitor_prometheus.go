@@ -218,7 +218,7 @@ func (p *managerPrometheusMonitorProvider) monitorDisabledResponse(query accessm
 			Prometheus: accessmanager.RealtimeMonitorPrometheusSource{
 				Enabled: false,
 				BaseURL: strings.TrimRight(strings.TrimSpace(p.options.BaseURL), "/"),
-				Error:   "prometheus is disabled; set WK_METRICS_ENABLE=true and WK_PROMETHEUS_ENABLE=true",
+				Error:   "prometheus is disabled; set WK_METRICS_ENABLE=true and either WK_PROMETHEUS_QUERY_BASE_URL or WK_PROMETHEUS_ENABLE=true",
 			},
 			ControlSnapshot: accessmanager.RealtimeMonitorSource{Enabled: false},
 		},

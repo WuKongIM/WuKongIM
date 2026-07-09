@@ -113,6 +113,32 @@ listen_addr = "127.0.0.1:7001"
 	}
 }
 
+func TestLoadPrometheusQueryBaseURL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.toml")
+	writeFile(t, path, `
+[node]
+id = 1
+data_dir = "`+dir+`/node1"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+
+[prometheus]
+query_base_url = "http://prometheus:9090/"
+`)
+	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_PROMETHEUS_QUERY_BASE_URL=http://prometheus:9090",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Observability.Prometheus.QueryBaseURL != "http://prometheus:9090" {
+		t.Fatalf("QueryBaseURL = %q, want env override", cfg.Observability.Prometheus.QueryBaseURL)
+	}
+}
+
 func TestLoadRejectsUnknownWKEnv(t *testing.T) {
 	_, err := Load(Options{Args: nil, Environ: []string{
 		"PATH=" + os.Getenv("PATH"),
