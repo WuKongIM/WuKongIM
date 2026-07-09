@@ -3,102 +3,68 @@ package docker_test
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
-	"strings"
 	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/app"
+	productconfig "github.com/WuKongIM/WuKongIM/internal/config"
 )
 
-func TestComposeNodesEnableMetricsByDefault(t *testing.T) {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("resolve test file path")
+func TestDockerComposeNodeConfigsLoadWithCurrentConfigSurface(t *testing.T) {
+	for _, node := range []string{"node1.toml", "node2.toml", "node3.toml"} {
+		t.Run(node, func(t *testing.T) {
+			_ = loadDockerNodeConfig(t, node)
+		})
 	}
-	repoRoot := filepath.Dir(filepath.Dir(filename))
-	body, err := os.ReadFile(filepath.Join(repoRoot, "docker-compose.yml"))
+}
+
+func TestComposeNodeConfigsUseHotPathTuning(t *testing.T) {
+	for _, node := range []string{"node1.toml", "node2.toml", "node3.toml"} {
+		t.Run(node, func(t *testing.T) {
+			cfg := loadDockerNodeConfig(t, node)
+			if cfg.Cluster.Slots.HashSlotCount != 256 {
+				t.Fatalf("%s HashSlotCount = %d, want 256", node, cfg.Cluster.Slots.HashSlotCount)
+			}
+			if cfg.Cluster.Channel.AppendBatchMaxRecords != 128 {
+				t.Fatalf("%s AppendBatchMaxRecords = %d, want 128", node, cfg.Cluster.Channel.AppendBatchMaxRecords)
+			}
+			if cfg.Cluster.Channel.AppendBatchMaxWait != 250*time.Microsecond {
+				t.Fatalf("%s AppendBatchMaxWait = %s, want 250us", node, cfg.Cluster.Channel.AppendBatchMaxWait)
+			}
+			if cfg.Cluster.Storage.CommitFlushWindow != time.Millisecond {
+				t.Fatalf("%s CommitFlushWindow = %s, want 1ms", node, cfg.Cluster.Storage.CommitFlushWindow)
+			}
+			if cfg.Cluster.Storage.CommitMaxBytes != 131072 {
+				t.Fatalf("%s CommitMaxBytes = %d, want 131072", node, cfg.Cluster.Storage.CommitMaxBytes)
+			}
+			if cfg.Cluster.Storage.CommitShards != 8 {
+				t.Fatalf("%s CommitShards = %d, want 8", node, cfg.Cluster.Storage.CommitShards)
+			}
+			if cfg.Gateway.Runtime.AsyncSendWorkers != 128 {
+				t.Fatalf("%s AsyncSendWorkers = %d, want 128", node, cfg.Gateway.Runtime.AsyncSendWorkers)
+			}
+			if cfg.Gateway.Transport.Gnet.NumEventLoop != 4 || !cfg.Gateway.Transport.Gnet.Multicore {
+				t.Fatalf("%s gnet = %#v, want multicore with 4 event loops", node, cfg.Gateway.Transport.Gnet)
+			}
+			if !cfg.Observability.MetricsEnabled || !cfg.Observability.DebugAPIEnabled || !cfg.Observability.Diagnostics.Enabled {
+				t.Fatalf("%s observability = %#v", node, cfg.Observability)
+			}
+		})
+	}
+}
+
+func loadDockerNodeConfig(t *testing.T, node string) app.Config {
+	t.Helper()
+	repoRoot := dockerRepoRoot(t)
+	cfg, err := productconfig.Load(productconfig.Options{
+		Args:    []string{"-config", filepath.Join(repoRoot, "docker", "conf", node)},
+		Environ: []string{"PATH=" + os.Getenv("PATH")},
+	})
 	if err != nil {
-		t.Fatalf("read docker-compose.yml: %v", err)
+		t.Fatalf("load %s: %v", node, err)
 	}
-
-	metricsDefaultEnabled := regexp.MustCompile(`WK_METRICS_ENABLE:\s*\$\{WK_METRICS_ENABLE:-true\}`).Match(body)
-	if metricsDefaultEnabled {
-		return
-	}
-
-	for _, node := range []string{"node1.conf", "node2.conf", "node3.conf"} {
-		confPath := filepath.Join(repoRoot, "docker", "conf", node)
-		confBody, err := os.ReadFile(confPath)
-		if err != nil {
-			t.Fatalf("read %s: %v", confPath, err)
-		}
-		if !strings.Contains(string(confBody), "WK_METRICS_ENABLE=true") {
-			t.Fatalf("%s should enable WK_METRICS_ENABLE by default so manager dashboard metrics collectors start", confPath)
-		}
-	}
-}
-
-func TestComposeNodeConfigsUseExplicitDataPlaneConcurrency(t *testing.T) {
-	repoRoot := dockerRepoRoot(t)
-	for _, node := range []string{"node1.conf", "node2.conf", "node3.conf"} {
-		confPath := filepath.Join(repoRoot, "docker", "conf", node)
-		confBody, err := os.ReadFile(confPath)
-		if err != nil {
-			t.Fatalf("read %s: %v", confPath, err)
-		}
-		conf := string(confBody)
-		for _, want := range []string{
-			"WK_CLUSTER_DATA_PLANE_POOL_SIZE=8",
-			"WK_CLUSTER_DATA_PLANE_MAX_FETCH_INFLIGHT=16",
-			"WK_CLUSTER_DATA_PLANE_MAX_PENDING_FETCH=16",
-		} {
-			if !strings.Contains(conf, want) {
-				t.Fatalf("%s should contain %s for dev-sim high-traffic data-plane headroom", confPath, want)
-			}
-		}
-	}
-}
-
-func TestComposeNodeConfigsUseExplicitGatewayGnetHeadroom(t *testing.T) {
-	repoRoot := dockerRepoRoot(t)
-	for _, node := range []string{"node1.conf", "node2.conf", "node3.conf"} {
-		confPath := filepath.Join(repoRoot, "docker", "conf", node)
-		confBody, err := os.ReadFile(confPath)
-		if err != nil {
-			t.Fatalf("read %s: %v", confPath, err)
-		}
-		conf := string(confBody)
-		for _, want := range []string{
-			"WK_GATEWAY_GNET_MULTICORE=true",
-			"WK_GATEWAY_GNET_NUM_EVENT_LOOP=4",
-			"WK_GATEWAY_GNET_REUSE_PORT=true",
-			"WK_GATEWAY_GNET_READ_BUFFER_CAP=8192",
-			"WK_GATEWAY_GNET_WRITE_BUFFER_CAP=16384",
-		} {
-			if !strings.Contains(conf, want) {
-				t.Fatalf("%s should contain %s for dev-sim gateway ingress headroom", confPath, want)
-			}
-		}
-	}
-}
-
-func TestComposeNodeConfigsBoundActiveHintFlushFanout(t *testing.T) {
-	repoRoot := dockerRepoRoot(t)
-	for _, node := range []string{"node1.conf", "node2.conf", "node3.conf"} {
-		confPath := filepath.Join(repoRoot, "docker", "conf", node)
-		confBody, err := os.ReadFile(confPath)
-		if err != nil {
-			t.Fatalf("read %s: %v", confPath, err)
-		}
-		conf := string(confBody)
-		for _, want := range []string{
-			"WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL=10s",
-			"WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE=32",
-		} {
-			if !strings.Contains(conf, want) {
-				t.Fatalf("%s should contain %s to keep best-effort active-hint flushes from flooding Slot Raft during dev-sim", confPath, want)
-			}
-		}
-	}
+	return cfg
 }
 
 func dockerRepoRoot(t *testing.T) string {

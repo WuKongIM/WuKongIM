@@ -1,0 +1,88 @@
+[node]
+id = 1
+data_dir = "/var/lib/wukongim"
+
+[cluster]
+listen_addr = "0.0.0.0:7000"
+hash_slot_count = 256
+initial_slot_count = 10
+slot_replica_n = 3
+channel_append_batch_max_records = 128
+channel_append_batch_max_wait = "250us"
+commit_coordinator_flush_window = "1ms"
+commit_coordinator_max_requests = 0
+commit_coordinator_max_records = 0
+commit_coordinator_max_bytes = 131072
+commit_coordinator_shards = 8
+
+[[cluster.nodes]]
+id = 1
+addr = "wk-node1:7000"
+
+[[cluster.nodes]]
+id = 2
+addr = "wk-node2:7000"
+
+[[cluster.nodes]]
+id = 3
+addr = "wk-node3:7000"
+
+[channel_migration]
+scan_interval = "30s"
+
+[api]
+listen_addr = "0.0.0.0:5001"
+external_tcp_addr = "127.0.0.1:15100"
+external_ws_addr = "ws://127.0.0.1:15200"
+
+[bench]
+api_enable = true
+api_max_batch_size = 10000
+api_max_payload_bytes = 10485760
+
+[manager]
+listen_addr = "0.0.0.0:5301"
+auth_on = true
+jwt_secret = "wukongim-dev-manager-secret"
+jwt_issuer = "wukongim-manager"
+jwt_expire = "24h"
+users = "[{\"username\":\"admin\",\"password\":\"a1234567\",\"permissions\":[{\"resource\":\"*\",\"actions\":[\"*\"]}]}]"
+
+[gateway]
+gnet_multicore = true
+gnet_num_event_loop = 4
+runtime_async_send_workers = 128
+runtime_async_send_queue_capacity = 131072
+
+[[gateway.listeners]]
+name = "tcp-wkproto"
+network = "tcp"
+address = "0.0.0.0:5100"
+transport = "gnet"
+protocol = "wkproto"
+
+[[gateway.listeners]]
+name = "ws-gateway"
+network = "websocket"
+address = "0.0.0.0:5200"
+transport = "gnet"
+protocol = "wsmux"
+
+[log]
+dir = "/var/lib/wukongim/logs"
+level = "info"
+
+[observability]
+debug_api_enable = true
+metrics_enable = true
+
+[diagnostics]
+enable = true
+
+[[diagnostics.debug_matches]]
+channel_key = "channel/1/dTJAdTE"
+ttl_seconds = 3600
+sample_rate = 1.0
+
+[message]
+permission_cache_ttl = "30s"

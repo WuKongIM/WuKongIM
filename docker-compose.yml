@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - ./docker/conf/node1.conf:/etc/wukongim/wukongim.conf:ro
+      - ./docker/conf/node1.toml:/etc/wukongim/wukongim.toml:ro
       - ./docker/dev-cluster/node1:/var/lib/wukongim
     ports:
       - "15001:5001"
@@ -21,7 +21,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - ./docker/conf/node2.conf:/etc/wukongim/wukongim.conf:ro
+      - ./docker/conf/node2.toml:/etc/wukongim/wukongim.toml:ro
       - ./docker/dev-cluster/node2:/var/lib/wukongim
     ports:
       - "15002:5001"
@@ -36,7 +36,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - ./docker/conf/node3.conf:/etc/wukongim/wukongim.conf:ro
+      - ./docker/conf/node3.toml:/etc/wukongim/wukongim.toml:ro
       - ./docker/dev-cluster/node3:/var/lib/wukongim
     ports:
       - "15003:5001"

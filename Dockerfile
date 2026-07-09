@@ -17,4 +17,4 @@ COPY --from=builder /out/wukongim /usr/local/bin/wukongim
 COPY --from=builder /out/wkbench /usr/local/bin/wkbench
 
 EXPOSE 5001 5100 5200 7000
-ENTRYPOINT ["/usr/local/bin/wukongim", "-config", "/etc/wukongim/wukongim.conf"]
+ENTRYPOINT ["/usr/local/bin/wukongim", "-config", "/etc/wukongim/wukongim.toml"]
