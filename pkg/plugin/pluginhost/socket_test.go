@@ -105,8 +105,9 @@ func TestSocketRouteDelegatesToBackend(t *testing.T) {
 }
 
 func TestSocketStartStopAreIdempotent(t *testing.T) {
+	dir := shortSocketTempDir(t)
 	backend := &fakeSocketBackend{}
-	server := newSocketServerWithBackend(filepath.Join(t.TempDir(), "plugin.sock"), backend)
+	server := newSocketServerWithBackend(filepath.Join(dir, "plugin.sock"), backend)
 	server.readyCheck = func(string, time.Duration) error { return nil }
 
 	require.NoError(t, server.Start())
