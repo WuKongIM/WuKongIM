@@ -38,6 +38,7 @@ type socketBackend interface {
 }
 
 const defaultSocketReadyTimeout = 2 * time.Second
+const maxUnixSocketPathBytes = 100
 
 // WKRPCSocketServer wraps a wkrpc Unix socket server without registering business routes.
 type WKRPCSocketServer struct {
@@ -76,6 +77,9 @@ func (s *WKRPCSocketServer) Start() error {
 	if s.started {
 		return nil
 	}
+	if err := validateUnixSocketPath(s.socketPath); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(s.socketPath), 0o755); err != nil {
 		return fmt.Errorf("create plugin socket dir: %w", err)
 	}
@@ -90,6 +94,13 @@ func (s *WKRPCSocketServer) Start() error {
 		return err
 	}
 	s.started = true
+	return nil
+}
+
+func validateUnixSocketPath(socketPath string) error {
+	if len(socketPath) > maxUnixSocketPathBytes {
+		return fmt.Errorf("plugin socket path is %d bytes, max %d bytes", len(socketPath), maxUnixSocketPathBytes)
+	}
 	return nil
 }
 

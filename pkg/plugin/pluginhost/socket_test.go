@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,20 @@ func TestSocketStartRejectsNonSocketAtPath(t *testing.T) {
 
 	require.Error(t, err)
 	require.FileExists(t, socketPath)
+	require.Equal(t, 0, backend.startCount)
+}
+
+func TestSocketStartRejectsTooLongPathBeforeBackendStart(t *testing.T) {
+	dir := shortSocketTempDir(t)
+	socketPath := filepath.Join(dir, strings.Repeat("x", 180), "plugin.sock")
+	backend := &fakeSocketBackend{}
+	server := newSocketServerWithBackend(socketPath, backend)
+	server.readyCheck = func(string, time.Duration) error { return nil }
+
+	err := server.Start()
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "plugin socket path")
 	require.Equal(t, 0, backend.startCount)
 }
 

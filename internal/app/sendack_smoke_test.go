@@ -182,11 +182,11 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 	listenAddr := freeSendackSmokeTCPAddr(t)
 	cfg := Config{
 		NodeID:  nodeID,
-		DataDir: t.TempDir(),
+		DataDir: shortAppTestDataDir(t),
 		Cluster: cluster.Config{
 			NodeID:     nodeID,
 			ListenAddr: listenAddr,
-			DataDir:    t.TempDir(),
+			DataDir:    shortAppTestDataDir(t),
 			Control: cluster.ControlConfig{
 				ClusterID:      "internal-sendack-smoke",
 				Voters:         []cluster.ControlVoter{{NodeID: nodeID, Addr: listenAddr}},

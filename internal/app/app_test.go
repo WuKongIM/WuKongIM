@@ -60,6 +60,21 @@ func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
 	return app, err
 }
 
+func shortAppTestDataDir(t *testing.T) string {
+	t.Helper()
+	// Keep derived Unix socket paths below platform sockaddr limits.
+	dir, err := os.MkdirTemp("", "wk-app-")
+	if err != nil {
+		t.Fatalf("MkdirTemp() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatalf("RemoveAll(%q) error = %v", dir, err)
+		}
+	})
+	return dir
+}
+
 func startTestApp(t *testing.T, app *App) {
 	t.Helper()
 	startCtx, startCancel := context.WithTimeout(context.Background(), time.Second)
@@ -5435,11 +5450,11 @@ func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 	for _, voter := range voters {
 		cfg := Config{
 			NodeID:  voter.NodeID,
-			DataDir: t.TempDir(),
+			DataDir: shortAppTestDataDir(t),
 			Cluster: clusterpkg.Config{
 				NodeID:     voter.NodeID,
 				ListenAddr: voter.Addr,
-				DataDir:    t.TempDir(),
+				DataDir:    shortAppTestDataDir(t),
 				Control: clusterpkg.ControlConfig{
 					ClusterID:      "internal-app-static-three",
 					Voters:         voters,
