@@ -16,7 +16,7 @@
 - 单元测试：`go test ./...`
 - 集成测试：`go test -tags=integration ./...` (不要随便跑 时间很长 开发一般跑单元测试即可)
 - 运行主程序：`go run ./cmd/wukongim`
-- 显式指定配置文件：`go run ./cmd/wukongim -config ./wukongim.conf`
+- 显式指定配置文件：`go run ./cmd/wukongim -config ./wukongim.toml`
 - 定向测试：`go test ./internal/... ./pkg/...`
 
 
@@ -34,11 +34,11 @@
 
 ## 配置约定
 
-- 主配置文件使用 `wukongim.conf`，格式为 `KEY=value`。
-- 文件键名与环境变量键名统一，均使用 `WK_` 前缀。
-- 不传 `-config` 时，程序按 `./wukongim.conf`、`./conf/wukongim.conf`、`/etc/wukongim/wukongim.conf` 顺序查找。
-- 环境变量优先级高于配置文件；列表字段使用 JSON 字符串整体覆盖。
-- 当配置发生变化时 需要把 `wukongim.conf.example` 对齐。
+- 主配置文件使用 `wukongim.toml`，格式为 TOML。
+- TOML 文件键名使用按领域分组的 snake_case；环境变量键名统一使用 `WK_` 前缀。
+- 不传 `-config` 时，程序按 `./wukongim.toml`、`./conf/wukongim.toml`、`/etc/wukongim/wukongim.toml` 顺序查找。
+- 环境变量优先级高于配置文件；列表字段在环境变量中使用 JSON 字符串整体覆盖，例如 `WK_CLUSTER_NODES='[{"id":1,"addr":"wk-node1:7000"}]'`。
+- 当配置发生变化时 需要把 `wukongim.toml.example` 对齐。
 - 涉及到配置相关的字段必须有详细的英文注释
 
 ## 目录结构

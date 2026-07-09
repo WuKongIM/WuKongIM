@@ -726,7 +726,7 @@ server_pid_from_log() {
 
 server_pid_from_process_table() {
   local node="$1"
-  local config="$ROOT_DIR/scripts/wukongim/wukongim-node${node}.conf"
+  local config="$ROOT_DIR/scripts/wukongim/wukongim-node${node}.toml"
   pgrep -f "$config" 2>/dev/null | head -n 1 || true
 }
 
@@ -1218,7 +1218,7 @@ RUNTIME_POOL_SAMPLE_INTERVAL=$RUNTIME_POOL_SAMPLE_INTERVAL
 RESOURCE_SAMPLE_INTERVAL=$RESOURCE_SAMPLE_INTERVAL
 EOF
   mkdir -p "$OUT_DIR/config"
-  cp "$ROOT_DIR"/scripts/wukongim/wukongim-node*.conf "$OUT_DIR/config/" 2>/dev/null || true
+  cp "$ROOT_DIR"/scripts/wukongim/wukongim-node*.toml "$OUT_DIR/config/" 2>/dev/null || true
   if [[ -x "$START_SCRIPT" ]]; then
     "$START_SCRIPT" --dry-run >"$OUT_DIR/start-plan.txt" 2>&1 || true
   fi

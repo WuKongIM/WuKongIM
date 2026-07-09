@@ -23,8 +23,13 @@ func TestResolveConfigFromDataDir(t *testing.T) {
 
 func TestResolveConfigFileStorageKeys(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "wukongim.conf")
-	content := "WK_NODE_DATA_DIR=" + filepath.Join(dir, "node-1") + "\nWK_CLUSTER_HASH_SLOT_COUNT=256\n"
+	configPath := filepath.Join(dir, "wukongim.toml")
+	content := `[node]
+data_dir = "` + filepath.Join(dir, "node-1") + `"
+
+[cluster]
+hash_slot_count = 256
+`
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("WriteFile(): %v", err)
 	}
@@ -39,10 +44,15 @@ func TestResolveConfigFileStorageKeys(t *testing.T) {
 
 func TestResolveConfigEnvOverridesFile(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "wukongim.conf")
+	configPath := filepath.Join(dir, "wukongim.toml")
 	fileDir := filepath.Join(dir, "file-node")
 	envDir := filepath.Join(dir, "env-node")
-	content := "WK_NODE_DATA_DIR=" + fileDir + "\nWK_CLUSTER_HASH_SLOT_COUNT=16\n"
+	content := `[node]
+data_dir = "` + fileDir + `"
+
+[cluster]
+hash_slot_count = 16
+`
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("WriteFile(): %v", err)
 	}

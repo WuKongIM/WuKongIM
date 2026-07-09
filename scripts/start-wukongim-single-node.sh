@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-CONFIG_PATH="${WK_WUKONGIM_SINGLE_NODE_CONFIG:-$ROOT_DIR/scripts/wukongim/wukongim.conf}"
+CONFIG_PATH="${WK_WUKONGIM_SINGLE_NODE_CONFIG:-$ROOT_DIR/scripts/wukongim/wukongim.toml}"
 BIN_PATH="${WK_WUKONGIM_SINGLE_NODE_BIN:-$ROOT_DIR/data/wukongim-single-node/wukongim}"
 LOG_DIR="${WK_WUKONGIM_SINGLE_NODE_LOG_DIR:-$ROOT_DIR/data/wukongim-single-node-logs}"
 READY_URL="${WK_WUKONGIM_SINGLE_NODE_READY_URL:-http://127.0.0.1:5001/readyz}"
@@ -38,7 +38,7 @@ Options:
   --clean                Remove the node data directory and log dir before start.
   --no-build             Reuse --bin instead of running go build.
   --bin PATH             Binary path. Default: WK_WUKONGIM_SINGLE_NODE_BIN or data/wukongim-single-node/wukongim.
-  --config PATH          Config path. Default: WK_WUKONGIM_SINGLE_NODE_CONFIG or scripts/wukongim/wukongim.conf.
+  --config PATH          Config path. Default: WK_WUKONGIM_SINGLE_NODE_CONFIG or scripts/wukongim/wukongim.toml.
   --data-dir DIR         Data dir removed by --clean. Default: WK_WUKONGIM_SINGLE_NODE_DATA_DIR or data/wukongim-single-node-data.
   --log-dir DIR          Log directory. Default: WK_WUKONGIM_SINGLE_NODE_LOG_DIR or data/wukongim-single-node-logs.
   --ready-url URL        Ready probe URL. Default: WK_WUKONGIM_SINGLE_NODE_READY_URL or http://127.0.0.1:5001/readyz.

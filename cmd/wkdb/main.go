@@ -70,7 +70,7 @@ func parseFlags(args []string, stderr io.Writer) (cliFlags, []string, int) {
 	var hashSlotCount uint
 	fs := flag.NewFlagSet("wkdb", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.StringVar(&flags.configPath, "config", "", "path to wukongim.conf")
+	fs.StringVar(&flags.configPath, "config", "", "path to wukongim.toml")
 	fs.StringVar(&flags.dataDir, "data-dir", "", "node data directory")
 	fs.StringVar(&flags.metaPath, "meta-path", "", "metadata store path")
 	fs.StringVar(&flags.messagePath, "message-path", "", "message store path")

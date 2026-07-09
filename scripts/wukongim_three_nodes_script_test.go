@@ -64,9 +64,9 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 
 	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongim.calls"))
 	for _, want := range []string{
-		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node1.conf"),
-		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node2.conf"),
-		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node3.conf"),
+		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node1.toml"),
+		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node2.toml"),
+		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node3.toml"),
 	} {
 		if !strings.Contains(nodeCalls, want) {
 			t.Fatalf("expected node command %q, got:\n%s", want, nodeCalls)
@@ -75,14 +75,14 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 
 	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongim.env"))
 	for _, want := range []string{
-		"wukongim-node1.conf WK_METRICS_ENABLE=true",
-		"wukongim-node1.conf WK_PROMETHEUS_ENABLE=true",
-		"wukongim-node1.conf WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091",
-		"wukongim-node1.conf WK_PROMETHEUS_SCRAPE_TARGETS=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
-		"wukongim-node2.conf WK_METRICS_ENABLE=true",
-		"wukongim-node2.conf WK_PROMETHEUS_ENABLE=false",
-		"wukongim-node3.conf WK_METRICS_ENABLE=true",
-		"wukongim-node3.conf WK_PROMETHEUS_ENABLE=false",
+		"wukongim-node1.toml WK_METRICS_ENABLE=true",
+		"wukongim-node1.toml WK_PROMETHEUS_ENABLE=true",
+		"wukongim-node1.toml WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091",
+		"wukongim-node1.toml WK_PROMETHEUS_SCRAPE_TARGETS=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
+		"wukongim-node2.toml WK_METRICS_ENABLE=true",
+		"wukongim-node2.toml WK_PROMETHEUS_ENABLE=false",
+		"wukongim-node3.toml WK_METRICS_ENABLE=true",
+		"wukongim-node3.toml WK_PROMETHEUS_ENABLE=false",
 	} {
 		if !strings.Contains(nodeEnv, want) {
 			t.Fatalf("expected node env %q, got:\n%s", want, nodeEnv)
@@ -142,7 +142,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 		"prometheus_enable=true",
 		"prometheus_listen_addr=127.0.0.1:9091",
 		"prometheus_scrape_targets=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
-		"node1_config=" + filepath.Join(root, "scripts/wukongim/wukongim-node1.conf"),
+		"node1_config=" + filepath.Join(root, "scripts/wukongim/wukongim-node1.toml"),
 		"node2_ready=http://127.0.0.1:5012/readyz",
 		"node3_log=" + filepath.Join(logDir, "node3.log"),
 	} {
@@ -150,7 +150,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, ".conf.example") {
+	if strings.Contains(text, ".toml.example") {
 		t.Fatalf("dry-run output should not use example configs:\n%s", text)
 	}
 }

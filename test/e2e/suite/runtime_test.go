@@ -27,14 +27,14 @@ func TestStartThreeNodeClusterWritesWukongIMStaticConfigs(t *testing.T) {
 
 		cfg, err := os.ReadFile(node.Spec.ConfigPath)
 		require.NoError(t, err)
-		require.Contains(t, string(cfg), "WK_CLUSTER_ID=wukongim-e2e-three\n")
-		require.Contains(t, string(cfg), "WK_CLUSTER_NODES=")
-		require.Contains(t, string(cfg), "WK_CLUSTER_INITIAL_SLOT_COUNT=3\n")
-		require.Contains(t, string(cfg), "WK_CLUSTER_HASH_SLOT_COUNT=16\n")
-		require.Contains(t, string(cfg), "WK_CLUSTER_SLOT_REPLICA_N=3\n")
-		require.NotContains(t, string(cfg), "WK_MANAGER_LISTEN_ADDR")
+		require.Contains(t, string(cfg), `id = "wukongim-e2e-three"`+"\n")
+		require.Contains(t, string(cfg), "nodes = [")
+		require.Contains(t, string(cfg), "initial_slot_count = 3\n")
+		require.Contains(t, string(cfg), "hash_slot_count = 16\n")
+		require.Contains(t, string(cfg), "slot_replica_n = 3\n")
+		require.NotContains(t, string(cfg), "[manager]")
 		require.Empty(t, node.Spec.ManagerAddr)
-		require.Contains(t, string(cfg), "WK_LOG_DIR="+node.Spec.LogDir)
+		require.Contains(t, string(cfg), `dir = "`+node.Spec.LogDir+`"`)
 		require.Contains(t, node.Spec.Env, "WK_NODE_ID="+nodeIDString(node.Spec.ID))
 	}
 }
@@ -49,7 +49,8 @@ func TestStartThreeNodeClusterWritesManagerConfigWhenEnabled(t *testing.T) {
 		require.NotEmpty(t, node.Spec.ManagerAddr)
 		cfg, err := os.ReadFile(node.Spec.ConfigPath)
 		require.NoError(t, err)
-		require.Contains(t, string(cfg), "WK_MANAGER_LISTEN_ADDR="+node.Spec.ManagerAddr)
+		require.Contains(t, string(cfg), "[manager]\n")
+		require.Contains(t, string(cfg), `listen_addr = "`+node.Spec.ManagerAddr+`"`)
 	}
 }
 
@@ -62,7 +63,7 @@ func TestStartThreeNodeClusterWritesDynamicJoinTokenWhenConfigured(t *testing.T)
 	for _, node := range cluster.Nodes {
 		cfg, err := os.ReadFile(node.Spec.ConfigPath)
 		require.NoError(t, err)
-		require.Contains(t, string(cfg), "WK_CLUSTER_JOIN_TOKEN=join-secret\n")
+		require.Contains(t, string(cfg), `join_token = "join-secret"`+"\n")
 		require.Empty(t, cluster.options.nodeConfigOverrides[node.Spec.ID]["WK_CLUSTER_JOIN_TOKEN"])
 	}
 }
@@ -83,12 +84,12 @@ func TestRenderSeedJoinNodeConfigOmitsStaticClusterNodes(t *testing.T) {
 		JoinToken: "join-secret",
 	})
 
-	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongim-e2e-three\n")
-	require.Contains(t, cfg, `WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012"]`+"\n")
-	require.Contains(t, cfg, "WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014\n")
-	require.Contains(t, cfg, "WK_CLUSTER_JOIN_TOKEN=join-secret\n")
-	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3\n")
-	require.NotContains(t, cfg, "WK_CLUSTER_NODES=")
+	require.Contains(t, cfg, `id = "wukongim-e2e-three"`+"\n")
+	require.Contains(t, cfg, `seeds = ["127.0.0.1:7011", "127.0.0.1:7012"]`+"\n")
+	require.Contains(t, cfg, `advertise_addr = "127.0.0.1:7014"`+"\n")
+	require.Contains(t, cfg, `join_token = "join-secret"`+"\n")
+	require.Contains(t, cfg, "slot_replica_n = 3\n")
+	require.NotContains(t, cfg, "nodes = ")
 }
 
 func TestStartedClusterSeedAddrsAreSortedByNodeID(t *testing.T) {
@@ -181,12 +182,12 @@ func TestStartedClusterStartStoppedNodeStartsDetachedProcess(t *testing.T) {
 	spec := NodeSpec{
 		ID:         1,
 		RootDir:    rootDir,
-		ConfigPath: filepath.Join(rootDir, "wukongim.conf"),
+		ConfigPath: filepath.Join(rootDir, "wukongim.toml"),
 		StdoutPath: filepath.Join(rootDir, "stdout.log"),
 		StderrPath: filepath.Join(rootDir, "stderr.log"),
 	}
 	require.NoError(t, os.MkdirAll(rootDir, 0o755))
-	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte("WK_NODE_ID=1\n"), 0o644))
+	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte("[node]\nid = 1\n"), 0o644))
 
 	cluster := &StartedCluster{
 		Nodes:      []StartedNode{{Spec: spec}},
@@ -212,14 +213,14 @@ func startFakeNodeProcess(t *testing.T, binaryPath string, name string) *NodePro
 		Spec: NodeSpec{
 			ID:         1,
 			RootDir:    rootDir,
-			ConfigPath: filepath.Join(rootDir, "wukongim.conf"),
+			ConfigPath: filepath.Join(rootDir, "wukongim.toml"),
 			StdoutPath: filepath.Join(rootDir, "stdout.log"),
 			StderrPath: filepath.Join(rootDir, "stderr.log"),
 		},
 		BinaryPath: binaryPath,
 	}
 	require.NoError(t, os.MkdirAll(rootDir, 0o755))
-	require.NoError(t, os.WriteFile(process.Spec.ConfigPath, []byte("WK_NODE_ID=1\n"), 0o644))
+	require.NoError(t, os.WriteFile(process.Spec.ConfigPath, []byte("[node]\nid = 1\n"), 0o644))
 	require.NoError(t, process.Start())
 	return process
 }

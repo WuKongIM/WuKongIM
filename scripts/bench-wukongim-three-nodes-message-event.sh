@@ -550,7 +550,7 @@ server_pid_from_log() {
 
 server_pid_from_process_table() {
   local node="$1"
-  local config="$ROOT_DIR/scripts/wukongim/wukongim-node${node}.conf"
+  local config="$ROOT_DIR/scripts/wukongim/wukongim-node${node}.toml"
   pgrep -f "$config" 2>/dev/null | head -n 1 || true
 }
 
@@ -717,7 +717,7 @@ CLEAN_CLUSTER=$CLEAN_CLUSTER
 START_SCRIPT=$START_SCRIPT
 READY_TIMEOUT=$READY_TIMEOUT
 EOF
-  cp "$ROOT_DIR"/scripts/wukongim/wukongim-node*.conf "$OUT_DIR/config/" 2>/dev/null || true
+  cp "$ROOT_DIR"/scripts/wukongim/wukongim-node*.toml "$OUT_DIR/config/" 2>/dev/null || true
   if [[ -x "$START_SCRIPT" ]]; then
     WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}" \
     WK_CLUSTER_INITIAL_SLOT_COUNT="$CLUSTER_INITIAL_SLOT_COUNT" \

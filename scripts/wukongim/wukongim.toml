@@ -1,0 +1,277 @@
+[node]
+# WuKongIM single-node cluster config for the promoted cmd/wukongim entrypoint.
+#
+# This file only uses keys currently parsed by cmd/wukongim. It starts one
+# node as a single-node cluster for the current SEND -> SENDACK path.
+
+# Stable non-zero node identity. Message IDs are seeded from this value.
+id = 1
+
+# Root data directory for cluster controller, slot, and channel data.
+data_dir = "./data/wukongim-single-node-data"
+
+[cluster]
+# Node-to-node cluster RPC listen address. Keep it reachable by this node.
+listen_addr = "127.0.0.1:7001"
+
+# Stable cluster identity shared by every node in this cluster cluster.
+id = "wukongim-single"
+
+# Static Controller voter bootstrap. Existing bootstrap nodes keep this full list.
+# New dynamic data nodes must use WK_CLUSTER_SEEDS instead of WK_CLUSTER_NODES.
+nodes = [{ addr = "127.0.0.1:7001", id = 1 }]
+
+# Physical Slot count created by the initial Controller snapshot.
+initial_slot_count = 1
+
+# Logical hash-slot count used for routing channel keys to physical Slots.
+hash_slot_count = 16
+
+# Desired Slot replica count for this single-node cluster.
+slot_replica_n = 1
+
+# Local Slot Raft snapshot compaction. Single-node verification can use a short
+# window because it does not need a long retained Slot Raft log for operators.
+slot_log_compaction_enabled = true
+
+slot_log_compaction_trigger_entries = 1000
+
+slot_log_compaction_check_interval = "5s"
+
+# Channel reactor partitions. 0 derives max(4, GOMAXPROCS).
+channel_reactor_count = 0
+
+# Blocking Channel worker caps. 0 keeps the runtime default.
+channel_store_append_workers = 0
+
+channel_store_apply_workers = 0
+
+channel_rpc_workers = 50
+
+# Maximum loaded Channel runtimes on this node. 0 keeps unlimited behavior.
+max_channels = 0
+
+# Channel append batch flush controls. 0 keeps the runtime default.
+channel_append_batch_max_records = 0
+
+channel_append_batch_max_wait = "0"
+
+# Parked follower recovery probe base interval and deterministic jitter.
+# Keep interval+jitter below WK_GATEWAY_SEND_TIMEOUT so lost hints recover before sendack timeout.
+channel_follower_recovery_probe_interval = "2s"
+
+channel_follower_recovery_probe_jitter = "1s"
+
+# Maximum time to collect adjacent Channel append requests before one durable fsync.
+commit_coordinator_flush_window = "200us"
+
+# Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
+commit_coordinator_max_requests = 0
+
+commit_coordinator_max_records = 0
+
+commit_coordinator_max_bytes = 0
+
+commit_coordinator_shards = 0
+
+[api]
+# Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.
+listen_addr = "127.0.0.1:5001"
+
+# Published gateway addresses returned by bench capacity discovery.
+external_tcp_addr = "127.0.0.1:5100"
+
+external_ws_addr = "ws://127.0.0.1:5200"
+
+[manager]
+# Dedicated manager HTTP API listener for /manager/login.
+listen_addr = "127.0.0.1:5301"
+
+auth_on = true
+
+# Replace the manager JWT secret and development password before production use.
+jwt_secret = "wukongim-dev-manager-secret"
+
+jwt_issuer = "wukongim-manager"
+
+jwt_expire = "24h"
+
+users = [{ password = "a1234567", permissions = [{ actions = ["*"], resource = "*" }], username = "admin" }]
+
+[bench]
+# Benchmark-only HTTP API surface for controlled local or lab environments.
+api_enable = true
+
+# Bench API request limits.
+api_max_batch_size = 10000
+
+api_max_payload_bytes = 10485760
+
+[observability]
+# Prometheus metrics and debug API toggles on the API listener.
+metrics_enable = true
+
+debug_api_enable = false
+
+[prometheus]
+# Optional app-managed Prometheus process. It requires WK_METRICS_ENABLE=true and scrapes this node's /metrics endpoint.
+enable = false
+
+binary_path = ""
+
+listen_addr = "127.0.0.1:9090"
+
+data_dir = "./data/wukongim-single-node-data/prometheus"
+
+retention_time = "360h"
+
+retention_size = ""
+
+scrape_interval = "15s"
+
+# Leave empty to derive one target from WK_API_LISTEN_ADDR, or set a JSON string list of host:port targets.
+scrape_targets = []
+
+[top]
+# Read-only node-local operations snapshot used by wkcli top. This does not require WK_METRICS_ENABLE.
+api_enable = true
+
+# Sampling cadence for the top collector.
+collect_interval = "1s"
+
+# In-memory history retained for top window queries.
+history_window = "5m"
+
+[diagnostics]
+# Local SEND diagnostics. Sampling keeps the hot path bounded; disable in ultra-low overhead runs.
+enable = true
+
+buffer_size = 50000
+
+sample_rate = 0.01
+
+slow_threshold_ms = 500
+
+error_sample_rate = 1.0
+
+# WK_DIAGNOSTICS_DEEP_SAMPLE_RATE controls expensive Channel reactor/store detail sampling for ordinary successful events; 0 disables ordinary deep detail.
+deep_sample_rate = 0
+
+# WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS keeps bounded deep trace detail for slow reactor/store stages; defaults to WK_DIAGNOSTICS_SLOW_THRESHOLD_MS.
+deep_slow_threshold_ms = 500
+
+# WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH bounds how many traced items one deep Channel batch expands.
+deep_max_items_per_batch = 16
+
+# Optional temporary high-priority sampling rules. Use TOML arrays here; WK_ environment overrides use one JSON string value.
+debug_matches = []
+
+[log]
+# Rolling application logs. Console and compression default true when unset.
+level = "info"
+
+dir = "./data/wukongim-single-node-data/logs"
+
+max_size = 100
+
+max_age = 30
+
+max_backups = 10
+
+compress = true
+
+console = true
+
+format = "console"
+
+[gateway]
+# Client-facing gateway listeners. Use TOML arrays here; WK_ environment overrides use one JSON string value.
+listeners = [{ address = "0.0.0.0:5100", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }, { address = "0.0.0.0:5200", name = "ws-gateway", network = "websocket", protocol = "wsmux", transport = "gnet" }]
+
+# Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongim default.
+gnet_multicore = true
+
+gnet_num_event_loop = 0
+
+# Gateway SEND async sharding and micro-batch collection controls.
+runtime_async_send_workers = 0
+
+runtime_async_send_queue_capacity = 0
+
+runtime_async_auth_workers = 0
+
+runtime_async_auth_queue_capacity = 0
+
+runtime_async_pool_release_timeout = "0s"
+
+default_session_async_send_batch_max_wait = "1ms"
+
+default_session_async_send_batch_max_records = 512
+
+default_session_async_send_batch_max_bytes = 524288
+
+# Per-SEND timeout used by the gateway adapter.
+send_timeout = "5s"
+
+[presence]
+# Presence route activation, owner touch batching, and authority TTL.
+activation_timeout = "3s"
+
+touch_flush_interval = "1s"
+
+touch_batch_size = 512
+
+route_ttl = "90s"
+
+[conversation]
+# Conversation authority and list-read tuning.
+# Bounds concurrent channel tail reads used to hydrate one /conversation/list page.
+max_last_message_concurrency = 32
+
+# Conversation authority cache, handoff, and admission controls.
+authority_cache_max_rows_per_uid = 4096
+
+authority_cache_max_rows = 100000
+
+authority_list_db_window_max = 1000
+
+authority_handoff_timeout = "3s"
+
+authority_active_cooldown = "2h"
+
+authority_flush_interval = "1s"
+
+authority_flush_timeout = "5s"
+
+authority_flush_batch_rows = 128
+
+authority_admit_batch_rows = 512
+
+authority_admit_concurrency = 16
+
+[delivery]
+# Online delivery fanout and owner-local recvack tracking are enabled by default; set false to disable them.
+enable = true
+
+fanout_page_size = 512
+
+push_batch_size = 512
+
+pending_ack_ttl = "30s"
+
+pending_ack_max_per_session = 1024
+
+event_queue_size = 1024
+
+[channel_append]
+# Channel append shard count controls channel-key authority-state lookup shards; zero derives a CPU-aware default.
+shard_count = 0
+
+# Channel append advance pool size is the direct ants pool capacity used to activate writer state machines; zero derives a CPU-aware default.
+advance_pool_size = 0
+
+# Channel append effect pool size is the direct ants pool capacity shared by blocking append calls and post-append recipient effects; zero derives a CPU-aware default.
+effect_pool_size = 0
+
+# Channel append recipient authority dispatch concurrency bounds per-message recipient-authority fanout after append; zero uses the bounded default.
+recipient_authority_dispatch_concurrency = 0

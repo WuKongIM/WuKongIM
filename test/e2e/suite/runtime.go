@@ -558,7 +558,7 @@ func (w Workspace) NodeLogDir(nodeID uint64) string {
 
 // NodeConfigPath returns the config file path for one node.
 func (w Workspace) NodeConfigPath(nodeID uint64) string {
-	return filepath.Join(w.NodeRootDir(nodeID), "wukongim.conf")
+	return filepath.Join(w.NodeRootDir(nodeID), "wukongim.toml")
 }
 
 // NodeStdoutPath returns the stdout log path for one node.

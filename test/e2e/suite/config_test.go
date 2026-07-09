@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRenderSingleNodeConfigUsesWukongIMKeys(t *testing.T) {
+func TestRenderSingleNodeConfigUsesWukongIMTOML(t *testing.T) {
 	spec := NodeSpec{
 		ID:          1,
 		Name:        "node-1",
@@ -22,17 +22,20 @@ func TestRenderSingleNodeConfigUsesWukongIMKeys(t *testing.T) {
 
 	cfg := RenderSingleNodeConfig(spec)
 
-	require.Contains(t, cfg, "WK_NODE_ID=1\n")
-	require.Contains(t, cfg, "WK_NODE_DATA_DIR=/tmp/wukongim/node-1/data\n")
-	require.Contains(t, cfg, "WK_CLUSTER_LISTEN_ADDR=127.0.0.1:11001\n")
-	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=1\n")
-	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=4\n")
-	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=1\n")
-	require.Contains(t, cfg, "WK_API_LISTEN_ADDR=127.0.0.1:13001\n")
-	require.Contains(t, cfg, "WK_METRICS_ENABLE=true\n")
-	require.Contains(t, cfg, `WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:12001","transport":"gnet","protocol":"wkproto"}]`)
+	require.Contains(t, cfg, "[node]\n")
+	require.Contains(t, cfg, "id = 1\n")
+	require.Contains(t, cfg, `data_dir = "/tmp/wukongim/node-1/data"`+"\n")
+	require.Contains(t, cfg, "[cluster]\n")
+	require.Contains(t, cfg, `listen_addr = "127.0.0.1:11001"`+"\n")
+	require.Contains(t, cfg, "initial_slot_count = 1\n")
+	require.Contains(t, cfg, "hash_slot_count = 4\n")
+	require.Contains(t, cfg, "slot_replica_n = 1\n")
+	require.Contains(t, cfg, "[api]\n")
+	require.Contains(t, cfg, `listen_addr = "127.0.0.1:13001"`+"\n")
+	require.Contains(t, cfg, "metrics_enable = true\n")
+	require.Contains(t, cfg, `listeners = [{ address = "127.0.0.1:12001", name = "tcp-wkproto", network = "tcp", protocol = "wkproto", transport = "gnet" }]`)
 	require.NotContains(t, cfg, "WK_CLUSTER_SLOT_COUNT")
-	require.NotContains(t, cfg, "WK_MANAGER_")
+	require.NotContains(t, cfg, "[manager]")
 }
 
 func TestRenderThreeNodeConfigUsesStaticClusterMembership(t *testing.T) {
@@ -44,13 +47,13 @@ func TestRenderThreeNodeConfigUsesStaticClusterMembership(t *testing.T) {
 
 	cfg := RenderClusterConfig(nodes[1], nodes)
 
-	require.Contains(t, cfg, "WK_NODE_ID=2\n")
-	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongim-e2e-three\n")
-	require.Contains(t, cfg, `WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:11001"},{"id":2,"addr":"127.0.0.1:11002"},{"id":3,"addr":"127.0.0.1:11003"}]`)
-	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=3\n")
-	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=16\n")
-	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3\n")
-	require.Contains(t, cfg, "WK_MANAGER_LISTEN_ADDR=127.0.0.1:14002\n")
+	require.Contains(t, cfg, "id = 2\n")
+	require.Contains(t, cfg, `id = "wukongim-e2e-three"`+"\n")
+	require.Contains(t, cfg, `nodes = [{ addr = "127.0.0.1:11001", id = 1 }, { addr = "127.0.0.1:11002", id = 2 }, { addr = "127.0.0.1:11003", id = 3 }]`)
+	require.Contains(t, cfg, "initial_slot_count = 3\n")
+	require.Contains(t, cfg, "hash_slot_count = 16\n")
+	require.Contains(t, cfg, "slot_replica_n = 3\n")
+	require.Contains(t, cfg, `listen_addr = "127.0.0.1:14002"`+"\n")
 }
 
 func TestRenderClusterConfigAppliesOverridesDeterministically(t *testing.T) {
@@ -69,9 +72,9 @@ func TestRenderClusterConfigAppliesOverridesDeterministically(t *testing.T) {
 
 	cfg := RenderSingleNodeConfig(spec)
 
-	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=8\n")
-	require.Contains(t, cfg, "WK_GATEWAY_SEND_TIMEOUT=7s\n")
-	require.Less(t, strings.Index(cfg, "WK_CLUSTER_HASH_SLOT_COUNT=8"), strings.Index(cfg, "WK_GATEWAY_SEND_TIMEOUT=7s"))
+	require.Contains(t, cfg, "hash_slot_count = 8\n")
+	require.Contains(t, cfg, `send_timeout = "7s"`+"\n")
+	require.Less(t, strings.Index(cfg, "hash_slot_count = 8"), strings.Index(cfg, `send_timeout = "7s"`))
 }
 
 func TestEnvFromConfigPinsRenderedWKValues(t *testing.T) {

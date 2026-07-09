@@ -74,10 +74,10 @@ wkdb --meta-path ./data/node-1/data query "describe meta.user"
 wkdb --message-path ./data/node-1/channellog query "select * from message.channels limit 20"
 ```
 
-或者从 `wukongim.conf` 读取：
+或者从 `wukongim.toml` 读取：
 
 ```bash
-wkdb --config ./wukongim.conf query "show tables"
+wkdb --config ./wukongim.toml query "show tables"
 ```
 
 相关配置键：

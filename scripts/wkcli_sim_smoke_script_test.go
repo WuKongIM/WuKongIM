@@ -244,10 +244,10 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsAutoJoinNodePlan(t *testing.T) 
 		"auto_join_gateway=127.0.0.1:5114",
 		"auto_join_cluster=127.0.0.1:7014",
 		"auto_join_seeds=127.0.0.1:7011,127.0.0.1:7012,127.0.0.1:7013",
-		"auto_join_config=" + filepath.Join(outDir, "wukongim-node4.conf"),
+		"auto_join_config=" + filepath.Join(outDir, "wukongim-node4.toml"),
 		"auto_join_data_dir=" + filepath.Join(outDir, "node4-data"),
 		"auto_join_log=" + filepath.Join(outDir, "node-logs", "node4.log"),
-		"auto_join_cmd=env WK_DEBUG_API_ENABLE=true " + filepath.Join(outDir, "wukongim") + " -config " + filepath.Join(outDir, "wukongim-node4.conf"),
+		"auto_join_cmd=env WK_DEBUG_API_ENABLE=true " + filepath.Join(outDir, "wukongim") + " -config " + filepath.Join(outDir, "wukongim-node4.toml"),
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -345,7 +345,7 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 		t.Fatalf("script output missing auto join readiness:\n%s", output)
 	}
 	dynamicCalls := readFile(t, filepath.Join(callsDir, "dynamic.calls"))
-	if !strings.Contains(dynamicCalls, "-config "+filepath.Join(outDir, "wukongim-node4.conf")) {
+	if !strings.Contains(dynamicCalls, "-config "+filepath.Join(outDir, "wukongim-node4.toml")) {
 		t.Fatalf("dynamic node command missing config path:\n%s", dynamicCalls)
 	}
 	dynamicDebugAPI := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "dynamic.debug_api")))
@@ -360,14 +360,17 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("stat stale auto-join data file: %v", err)
 	}
-	config := readFile(t, filepath.Join(outDir, "wukongim-node4.conf"))
+	config := readFile(t, filepath.Join(outDir, "wukongim-node4.toml"))
 	for _, want := range []string{
-		"WK_NODE_ID=4",
-		"WK_CLUSTER_ID=wukongim-dev-three",
-		`WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012","127.0.0.1:7013"]`,
-		"WK_CLUSTER_JOIN_TOKEN=change-me",
-		"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014",
-		"WK_GATEWAY_LISTENERS=[{\"name\":\"tcp-wkproto\",\"network\":\"tcp\",\"address\":\"127.0.0.1:5114\",\"transport\":\"gnet\",\"protocol\":\"wkproto\"}]",
+		"[node]",
+		"id = 4",
+		`data_dir = "` + staleDataDir + `"`,
+		"[cluster]",
+		`id = "wukongim-dev-three"`,
+		`seeds = ["127.0.0.1:7011","127.0.0.1:7012","127.0.0.1:7013"]`,
+		`join_token = "change-me"`,
+		`advertise_addr = "127.0.0.1:7014"`,
+		`listeners = [{ name = "tcp-wkproto", network = "tcp", address = "127.0.0.1:5114", transport = "gnet", protocol = "wkproto" }]`,
 	} {
 		if !strings.Contains(config, want) {
 			t.Fatalf("node4 config missing %q:\n%s", want, config)

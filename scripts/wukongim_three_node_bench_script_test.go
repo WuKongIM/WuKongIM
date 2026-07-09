@@ -2884,9 +2884,9 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 echo "$*" >> "` + callsDir + `/pgrep.calls"
 case "$*" in
-  *wukongim-node1.conf*) echo 111 ;;
-  *wukongim-node2.conf*) echo 222 ;;
-  *wukongim-node3.conf*) echo 333 ;;
+  *wukongim-node1.toml*) echo 111 ;;
+  *wukongim-node2.toml*) echo 222 ;;
+  *wukongim-node3.toml*) echo 333 ;;
   *) exit 1 ;;
 esac
 `

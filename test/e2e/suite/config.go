@@ -6,7 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+
+	productconfig "github.com/WuKongIM/WuKongIM/internal/config"
+	"github.com/pelletier/go-toml/v2"
 )
 
 const staticThreeNodeClusterID = "wukongim-e2e-three"
@@ -31,12 +35,12 @@ type NodeSpec struct {
 	Env []string
 }
 
-// RenderSingleNodeConfig renders a real wukongim.conf file for a single-node cluster.
+// RenderSingleNodeConfig renders a real wukongim.toml file for a single-node cluster.
 func RenderSingleNodeConfig(spec NodeSpec) string {
 	return RenderClusterConfig(spec, []NodeSpec{spec})
 }
 
-// RenderClusterConfig renders one real wukongim.conf file for a static cluster node.
+// RenderClusterConfig renders one real wukongim.toml file for a static cluster node.
 func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 	if len(nodes) == 0 {
 		nodes = []NodeSpec{local}
@@ -74,11 +78,7 @@ func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 	}
 	lines = applyConfigOverrides(lines, local.ConfigOverrides)
 
-	rendered := make([]string, 0, len(lines))
-	for _, line := range lines {
-		rendered = append(rendered, line.key+"="+line.value)
-	}
-	return strings.Join(rendered, "\n") + "\n"
+	return renderConfigTOML(lines)
 }
 
 // RenderSeedJoinNodeConfig renders a seed-join node config without static cluster nodes.
@@ -116,11 +116,7 @@ func RenderSeedJoinNodeConfig(local NodeSpec, cfg SeedJoinNodeConfig) string {
 	}
 	lines = applyConfigOverrides(lines, local.ConfigOverrides)
 
-	rendered := make([]string, 0, len(lines))
-	for _, line := range lines {
-		rendered = append(rendered, line.key+"="+line.value)
-	}
-	return strings.Join(rendered, "\n") + "\n"
+	return renderConfigTOML(lines)
 }
 
 func renderGatewayListeners(gatewayAddr string) string {
@@ -187,6 +183,17 @@ func applyConfigOverrides(lines []configLine, overrides map[string]string) []con
 }
 
 func envFromConfig(config string) []string {
+	if env := envFromLegacyKeyValueConfig(config); len(env) > 0 {
+		return env
+	}
+	env, err := envFromTOMLConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return env
+}
+
+func envFromLegacyKeyValueConfig(config string) []string {
 	var env []string
 	for _, rawLine := range strings.Split(config, "\n") {
 		line := strings.TrimSpace(rawLine)
@@ -204,4 +211,204 @@ func envFromConfig(config string) []string {
 		env = append(env, key+"="+strings.TrimSpace(value))
 	}
 	return env
+}
+
+func renderConfigTOML(lines []configLine) string {
+	type section struct {
+		name  string
+		lines []configLine
+	}
+	schema := schemaByEnvKey()
+	sections := map[string]*section{}
+	var order []string
+	for _, line := range lines {
+		field, ok := schema[line.key]
+		if !ok {
+			panic(fmt.Sprintf("unsupported config key %s", line.key))
+		}
+		sectionName, _ := splitTOMLPath(field.TOMLPath)
+		if _, ok := sections[sectionName]; !ok {
+			sections[sectionName] = &section{name: sectionName}
+			order = append(order, sectionName)
+		}
+		sections[sectionName].lines = append(sections[sectionName].lines, line)
+	}
+
+	var b strings.Builder
+	for sectionIndex, sectionName := range order {
+		if sectionIndex > 0 {
+			b.WriteByte('\n')
+		}
+		if sectionName != "" {
+			fmt.Fprintf(&b, "[%s]\n", sectionName)
+		}
+		for _, line := range sections[sectionName].lines {
+			field := schema[line.key]
+			_, key := splitTOMLPath(field.TOMLPath)
+			fmt.Fprintf(&b, "%s = %s\n", key, tomlLiteral(field.Kind, line.value))
+		}
+	}
+	return b.String()
+}
+
+func schemaByEnvKey() map[string]productconfig.SchemaField {
+	fields := productconfig.SchemaFields()
+	out := make(map[string]productconfig.SchemaField, len(fields))
+	for _, field := range fields {
+		out[field.EnvKey] = field
+	}
+	return out
+}
+
+func schemaByTOMLPath() map[string]productconfig.SchemaField {
+	fields := productconfig.SchemaFields()
+	out := make(map[string]productconfig.SchemaField, len(fields))
+	for _, field := range fields {
+		out[field.TOMLPath] = field
+	}
+	return out
+}
+
+func splitTOMLPath(path string) (string, string) {
+	parts := strings.Split(path, ".")
+	if len(parts) == 1 {
+		return "", path
+	}
+	return strings.Join(parts[:len(parts)-1], "."), parts[len(parts)-1]
+}
+
+func tomlLiteral(kind string, value string) string {
+	switch kind {
+	case "string", "duration":
+		return strconv.Quote(value)
+	case "bool", "int", "uint64", "uint32", "uint16", "float":
+		return value
+	case "string_list", "object_list":
+		var parsed any
+		if err := json.Unmarshal([]byte(value), &parsed); err != nil {
+			panic(fmt.Sprintf("parse %s list value %q: %v", kind, value, err))
+		}
+		return tomlInlineValue(parsed)
+	default:
+		panic(fmt.Sprintf("unsupported config kind %s", kind))
+	}
+}
+
+func tomlInlineValue(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		panic("TOML does not support null inline values")
+	case string:
+		return strconv.Quote(typed)
+	case bool:
+		return strconv.FormatBool(typed)
+	case float64:
+		if typed == float64(int64(typed)) {
+			return strconv.FormatInt(int64(typed), 10)
+		}
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case []any:
+		items := make([]string, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, tomlInlineValue(item))
+		}
+		return "[" + strings.Join(items, ", ") + "]"
+	case map[string]any:
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, key := range keys {
+			parts = append(parts, key+" = "+tomlInlineValue(typed[key]))
+		}
+		return "{ " + strings.Join(parts, ", ") + " }"
+	default:
+		panic(fmt.Sprintf("unsupported inline TOML value %T", value))
+	}
+}
+
+func envFromTOMLConfig(config string) ([]string, error) {
+	var raw map[string]any
+	if err := toml.Unmarshal([]byte(config), &raw); err != nil {
+		return nil, fmt.Errorf("parse rendered TOML config: %w", err)
+	}
+	flat := map[string]any{}
+	flattenTOMLConfig("", raw, flat)
+	known := schemaByTOMLPath()
+	env := make([]string, 0, len(flat))
+	for _, field := range productconfig.SchemaFields() {
+		value, ok := flat[field.TOMLPath]
+		if !ok {
+			continue
+		}
+		text, err := envStringFromTOMLValue(field.Kind, value)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", field.TOMLPath, err)
+		}
+		env = append(env, field.EnvKey+"="+text)
+		delete(known, field.TOMLPath)
+	}
+	return env, nil
+}
+
+func flattenTOMLConfig(prefix string, value any, out map[string]any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			next := key
+			if prefix != "" {
+				next = prefix + "." + key
+			}
+			flattenTOMLConfig(next, child, out)
+		}
+	case []any:
+		out[prefix] = typed
+	default:
+		out[prefix] = typed
+	}
+}
+
+func envStringFromTOMLValue(kind string, value any) (string, error) {
+	switch kind {
+	case "string", "duration":
+		text, ok := value.(string)
+		if !ok {
+			return "", fmt.Errorf("value must be string")
+		}
+		return strings.TrimSpace(text), nil
+	case "bool":
+		v, ok := value.(bool)
+		if !ok {
+			return "", fmt.Errorf("value must be bool")
+		}
+		return strconv.FormatBool(v), nil
+	case "int", "uint64", "uint32", "uint16":
+		switch n := value.(type) {
+		case int64:
+			return strconv.FormatInt(n, 10), nil
+		case int:
+			return strconv.Itoa(n), nil
+		default:
+			return "", fmt.Errorf("value must be integer")
+		}
+	case "float":
+		switch n := value.(type) {
+		case float64:
+			return strconv.FormatFloat(n, 'f', -1, 64), nil
+		case int64:
+			return strconv.FormatInt(n, 10), nil
+		default:
+			return "", fmt.Errorf("value must be number")
+		}
+	case "string_list", "object_list":
+		data, err := json.Marshal(value)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	default:
+		return "", fmt.Errorf("unsupported kind %s", kind)
+	}
 }

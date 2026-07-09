@@ -54,7 +54,7 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	}
 
 	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongim.calls"))
-	wantConfig := "-config " + filepath.Join(root, "scripts/wukongim/wukongim.conf")
+	wantConfig := "-config " + filepath.Join(root, "scripts/wukongim/wukongim.toml")
 	if !strings.Contains(nodeCalls, wantConfig) {
 		t.Fatalf("expected node command %q, got:\n%s", wantConfig, nodeCalls)
 	}
@@ -225,7 +225,7 @@ func TestWukongIMSingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 	text := string(output)
 	for _, want := range []string{
 		"build_cmd=go build -o " + outputBin + " ./cmd/wukongim",
-		"config=" + filepath.Join(root, "scripts/wukongim/wukongim.conf"),
+		"config=" + filepath.Join(root, "scripts/wukongim/wukongim.toml"),
 		"ready=http://127.0.0.1:5001/readyz",
 		"prometheus_enable=true",
 		"prometheus_binary_path=<embedded>",
@@ -236,7 +236,7 @@ func TestWukongIMSingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, ".conf.example") {
+	if strings.Contains(text, ".toml.example") {
 		t.Fatalf("dry-run output should not use example configs:\n%s", text)
 	}
 }
@@ -264,11 +264,11 @@ func TestWukongIMSingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
 		t.Fatalf("dry-run output should not reuse three-node node1 data dir:\n%s", text)
 	}
 
-	config := readFile(t, filepath.Join(root, "scripts/wukongim/wukongim.conf"))
-	if !strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongim-single-node-data") {
+	config := readFile(t, filepath.Join(root, "scripts/wukongim/wukongim.toml"))
+	if !strings.Contains(config, `data_dir = "./data/wukongim-single-node-data"`) {
 		t.Fatalf("single-node config should use isolated data dir:\n%s", config)
 	}
-	if strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongim-node-1") {
+	if strings.Contains(config, `data_dir = "./data/wukongim-node-1"`) {
 		t.Fatalf("single-node config should not reuse three-node node1 data dir:\n%s", config)
 	}
 }

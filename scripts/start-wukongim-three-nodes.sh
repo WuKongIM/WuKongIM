@@ -137,7 +137,7 @@ pid_file() {
 
 config_path() {
   local node="$1"
-  printf '%s/wukongim-node%s.conf' "$CONFIG_DIR" "$node"
+  printf '%s/wukongim-node%s.toml' "$CONFIG_DIR" "$node"
 }
 
 log_path() {
