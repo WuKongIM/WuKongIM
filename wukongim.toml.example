@@ -5,7 +5,7 @@ data_dir = "./data/wukongim-single-node-data"
 [cluster]
 listen_addr = "127.0.0.1:7001"
 id = "wukongim-single"
-nodes = "[{\"id\":1,\"addr\":\"127.0.0.1:7001\"}]"
+nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
 join_token = "change-me"
 initial_slot_count = 1
 hash_slot_count = 256
@@ -46,7 +46,7 @@ auth_on = true
 jwt_secret = "wukongim-dev-manager-secret"
 jwt_issuer = "wukongim-manager"
 jwt_expire = "24h"
-users = "[{\"username\":\"admin\",\"password\":\"a1234567\",\"permissions\":[{\"resource\":\"*\",\"actions\":[\"*\"]}]}]"
+users = [{ username = "admin", password = "a1234567", permissions = [{ resource = "*", actions = ["*"] }] }]
 
 [bench]
 api_enable = false
@@ -65,7 +65,7 @@ data_dir = "./data/wukongim-single-node-data/prometheus"
 retention_time = "360h"
 retention_size = ""
 scrape_interval = "15s"
-scrape_targets = "[]"
+scrape_targets = []
 
 [top]
 api_enable = true
@@ -81,7 +81,7 @@ error_sample_rate = 1.0
 deep_sample_rate = 0
 deep_slow_threshold_ms = 500
 deep_max_items_per_batch = 16
-debug_matches = "[]"
+debug_matches = []
 
 [log]
 level = "info"
@@ -94,7 +94,7 @@ console = true
 format = "console"
 
 [gateway]
-listeners = "[{\"name\":\"tcp-wkproto\",\"network\":\"tcp\",\"address\":\"0.0.0.0:5100\",\"transport\":\"gnet\",\"protocol\":\"wkproto\"},{\"name\":\"ws-gateway\",\"network\":\"websocket\",\"address\":\"0.0.0.0:5200\",\"transport\":\"gnet\",\"protocol\":\"wsmux\"}]"
+listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
 gnet_multicore = true
 gnet_num_event_loop = 0
 runtime_async_send_workers = 128
@@ -146,7 +146,7 @@ recipient_authority_dispatch_concurrency = 0
 
 [webhook]
 http_addr = ""
-focus_events = "[]"
+focus_events = []
 queue_size = 1024
 workers = 16
 msg_notify_batch_max_items = 100

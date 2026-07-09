@@ -46,7 +46,7 @@ auth_on = true
 jwt_secret = "wukongim-dev-manager-secret"
 jwt_issuer = "wukongim-manager"
 jwt_expire = "24h"
-users = "[{\"username\":\"admin\",\"password\":\"a1234567\",\"permissions\":[{\"resource\":\"*\",\"actions\":[\"*\"]}]}]"
+users = [{ username = "admin", password = "a1234567", permissions = [{ resource = "*", actions = ["*"] }] }]
 
 [gateway]
 gnet_multicore = true
