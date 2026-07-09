@@ -143,6 +143,72 @@ func TestLoadRejectsRemovedWKEnvWithReplacement(t *testing.T) {
 	}
 }
 
+func TestSchemaCoversBuilderKeys(t *testing.T) {
+	for _, key := range supportedConfigKeysForBuilder() {
+		if _, ok := schemaByEnvKey()[key]; !ok {
+			t.Fatalf("schema missing %s", key)
+		}
+	}
+}
+
+func TestLoadEnvJSONListOverridesTOMLNodes(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.toml")
+	writeFile(t, path, `
+[node]
+id = 1
+data_dir = "`+dir+`/node1"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+
+[[cluster.nodes]]
+id = 1
+addr = "old-node:7000"
+`)
+	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"new-node:7000"}]`,
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(cfg.Cluster.Control.Voters) != 1 || cfg.Cluster.Control.Voters[0].Addr != "new-node:7000" {
+		t.Fatalf("voters = %#v, want env replacement", cfg.Cluster.Control.Voters)
+	}
+}
+
+func TestLoadRejectsEmptyRequiredEnvValue(t *testing.T) {
+	_, err := Load(Options{Args: nil, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+	}})
+	if err == nil {
+		t.Fatal("Load() error = nil, want empty required value")
+	}
+	if !strings.Contains(err.Error(), "WK_NODE_DATA_DIR") {
+		t.Fatalf("Load() error = %v, want required key", err)
+	}
+}
+
+func TestLoadRejectsMalformedJSONListEnv(t *testing.T) {
+	_, err := Load(Options{Args: nil, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=/tmp/node",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_CLUSTER_NODES=[",
+	}})
+	if err == nil {
+		t.Fatal("Load() error = nil, want malformed JSON list")
+	}
+	if !strings.Contains(err.Error(), "WK_CLUSTER_NODES") {
+		t.Fatalf("Load() error = %v, want WK_CLUSTER_NODES", err)
+	}
+}
+
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(strings.TrimSpace(body)+"\n"), 0o644); err != nil {
