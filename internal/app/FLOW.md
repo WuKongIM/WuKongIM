@@ -327,14 +327,14 @@ Remote ordinary app log requests use the manager app-log RPC path for the
 selected node and still return only reader-owned source names and file labels,
 never absolute paths.
 
-The node-config snapshot provider is app-owned because only the composition
-root has the fully derived startup config after file/env/default merging. The
-provider emits a bounded allowlist of operator-facing groups and redacts
-manager credentials, cluster join tokens, static manager users, and similarly
-sensitive values before the snapshot crosses usecase, HTTP, or node RPC
-boundaries. Local filesystem path values are represented only as bounded
-presence text such as `configured`. It is read-only and does not watch or
-mutate live runtime config.
+The node-config snapshot provider is app-owned because only startup config
+loading has the fully merged TOML/env effective values. `internal/config`
+builds the bounded allowlist once during startup, redacts manager credentials,
+cluster join tokens, static manager users, local filesystem paths, and
+similarly sensitive values, then attaches that snapshot to `app.Config`.
+`internal/app` only serves the supplied snapshot for the local node and returns
+`ErrNodeConfigUnavailable` when the startup loader did not provide one. It is
+read-only and does not watch or mutate live runtime config.
 
 The diagnostics store is app-owned because only the composition root knows
 whether `Observability.Diagnostics.Enabled` installed the bounded event store,
