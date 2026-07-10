@@ -581,6 +581,7 @@ type channelRuntimeMetaItem struct {
 	SlotLeader  uint64   `json:"slot_leader"`
 	Replicas    []uint64 `json:"replicas"`
 	ISR         []uint64 `json:"isr"`
+	MinISR      int64    `json:"min_isr"`
 	Status      string   `json:"status"`
 }
 
@@ -598,20 +599,11 @@ func requireReplicaRepairTopologyEventually(t *testing.T, cluster *suite.Started
 		meta, err := channelRuntimeMeta(ctx, node, candidate.ChannelID, candidate.ChannelType)
 		if err == nil {
 			last = meta
-			if meta.Leader != 0 &&
-				meta.SlotLeader != 0 &&
-				meta.Status == "active" &&
-				uint64InList(meta.Replicas, candidate.Leader) &&
-				uint64InList(meta.Replicas, candidate.SecondStoppedFollower) &&
-				uint64InList(meta.Replicas, candidate.SpareNode) &&
-				!uint64InList(meta.Replicas, candidate.StoppedFollower) &&
-				uint64InList(meta.ISR, candidate.Leader) &&
-				uint64InList(meta.ISR, candidate.SecondStoppedFollower) &&
-				uint64InList(meta.ISR, candidate.SpareNode) &&
-				!uint64InList(meta.ISR, candidate.StoppedFollower) {
+			if checkErr := replicaRepairTopologyPrecondition(meta, candidate); checkErr == nil {
 				return meta
+			} else {
+				lastErr = checkErr
 			}
-			lastErr = fmt.Errorf("runtime meta = %+v, want repaired active replicas/ISR containing leader=%d second_follower=%d spare=%d and excluding source=%d", meta, candidate.Leader, candidate.SecondStoppedFollower, candidate.SpareNode, candidate.StoppedFollower)
 		} else {
 			lastErr = err
 		}
@@ -621,6 +613,27 @@ func requireReplicaRepairTopologyEventually(t *testing.T, cluster *suite.Started
 		case <-ticker.C:
 		}
 	}
+}
+
+// replicaRepairTopologyPrecondition validates the public Channel quorum contract before a second replica stop.
+func replicaRepairTopologyPrecondition(meta channelRuntimeMetaItem, candidate followerRepairCandidate) error {
+	if meta.MinISR != 2 {
+		return fmt.Errorf("runtime meta min_isr=%d, want 2: %+v", meta.MinISR, meta)
+	}
+	if meta.Leader == 0 ||
+		meta.SlotLeader == 0 ||
+		meta.Status != "active" ||
+		!uint64InList(meta.Replicas, candidate.Leader) ||
+		!uint64InList(meta.Replicas, candidate.SecondStoppedFollower) ||
+		!uint64InList(meta.Replicas, candidate.SpareNode) ||
+		uint64InList(meta.Replicas, candidate.StoppedFollower) ||
+		!uint64InList(meta.ISR, candidate.Leader) ||
+		!uint64InList(meta.ISR, candidate.SecondStoppedFollower) ||
+		!uint64InList(meta.ISR, candidate.SpareNode) ||
+		uint64InList(meta.ISR, candidate.StoppedFollower) {
+		return fmt.Errorf("runtime meta = %+v, want repaired active replicas/ISR containing leader=%d second_follower=%d spare=%d and excluding source=%d", meta, candidate.Leader, candidate.SecondStoppedFollower, candidate.SpareNode, candidate.StoppedFollower)
+	}
+	return nil
 }
 
 func channelRuntimeMeta(ctx context.Context, node *suite.StartedNode, channelID string, channelType uint8) (channelRuntimeMetaItem, error) {
@@ -902,6 +915,9 @@ func controllerQuorumPrecondition(nodes suite.NodeListDTO, originalVoters []uint
 	}
 	if spare.Controller.Voter {
 		return fmt.Errorf("repaired spare node %d must remain data-only: %+v", spareNodeID, spare)
+	}
+	if !spare.Membership.Schedulable || !spare.Health.Fresh || !spare.Health.RuntimeReady || spare.Health.Status != "alive" {
+		return fmt.Errorf("repaired spare node %d is not healthy/schedulable: %+v", spareNodeID, spare)
 	}
 	return nil
 }
