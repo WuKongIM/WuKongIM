@@ -1,6 +1,10 @@
 package machine
 
-import ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+import (
+	"time"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+)
 
 // TaskKind identifies side effects requested by the pure channel state machine.
 type TaskKind uint8
@@ -132,18 +136,20 @@ type AppendOp struct {
 
 // ChannelState is the single-writer aggregate for one channel.
 type ChannelState struct {
-	Key          ch.ChannelKey
-	LocalNode    ch.NodeID
-	Generation   uint64
-	ID           ch.ChannelID
-	Epoch        uint64
-	LeaderEpoch  uint64
-	Role         ch.Role
-	Status       ch.Status
-	Leader       ch.NodeID
-	Replicas     []ch.NodeID
-	ISR          []ch.NodeID
-	MinISR       int
+	Key         ch.ChannelKey
+	LocalNode   ch.NodeID
+	Generation  uint64
+	ID          ch.ChannelID
+	Epoch       uint64
+	LeaderEpoch uint64
+	Role        ch.Role
+	Status      ch.Status
+	Leader      ch.NodeID
+	Replicas    []ch.NodeID
+	ISR         []ch.NodeID
+	MinISR      int
+	// LeaseUntil is the authoritative leader lease deadline for this metadata fence.
+	LeaseUntil   time.Time
 	LEO          uint64
 	HW           uint64
 	CheckpointHW uint64

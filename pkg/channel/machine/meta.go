@@ -17,6 +17,7 @@ func (s *ChannelState) ApplyMeta(meta ch.Meta) Decision {
 	s.Replicas = copyNodeIDs(meta.Replicas)
 	s.ISR = copyNodeIDs(meta.ISR)
 	s.MinISR = meta.MinISR
+	s.LeaseUntil = meta.LeaseUntil
 	if meta.RetentionThroughSeq > s.RetentionThroughSeq {
 		s.RetentionThroughSeq = meta.RetentionThroughSeq
 	}
@@ -57,9 +58,19 @@ func (s *ChannelState) clearAppendState() {
 	s.PendingAppendOrder = nil
 }
 
-// ValidateMeta checks whether metadata can be applied without mutating state.
+// ValidateMeta rejects identity changes and metadata fence regression without mutating state.
 func (s *ChannelState) ValidateMeta(meta ch.Meta) error {
 	if meta.Key != "" && meta.Key != s.Key {
+		return ch.ErrStaleMeta
+	}
+	if s.ID != (ch.ChannelID{}) && meta.ID != s.ID {
+		return ch.ErrStaleMeta
+	}
+	if meta.Epoch < s.Epoch ||
+		(meta.Epoch == s.Epoch && meta.LeaderEpoch < s.LeaderEpoch) {
+		return ch.ErrStaleMeta
+	}
+	if meta.Epoch == s.Epoch && meta.LeaderEpoch == s.LeaderEpoch && meta.Leader != s.Leader {
 		return ch.ErrStaleMeta
 	}
 	if meta.MinISR <= 0 || meta.MinISR > len(meta.ISR) {
