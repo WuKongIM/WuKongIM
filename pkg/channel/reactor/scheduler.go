@@ -14,6 +14,7 @@ const (
 	dueReplication
 	dueLifecycle
 	duePendingMeta
+	dueLoadedMetaRefresh
 )
 
 // dueItem records one scheduled maintenance attempt for a channel.
@@ -59,6 +60,18 @@ func (s *dueScheduler) popDue(now time.Time) (dueItem, bool) {
 	}
 	item, _ := heap.Pop(s).(dueItem)
 	return item, true
+}
+
+func (s *dueScheduler) remove(kind dueKind, key ch.ChannelKey) bool {
+	if s == nil || s.slots == nil {
+		return false
+	}
+	index, ok := s.slots[dueSlot{kind: kind, key: key}]
+	if !ok || index < 0 || index >= len(s.items) {
+		return false
+	}
+	heap.Remove(s, index)
+	return true
 }
 
 func (s *dueScheduler) nextWait(now time.Time) time.Duration {
@@ -141,6 +154,10 @@ func (r *Reactor) processDueItem(item dueItem, now time.Time) {
 		started = time.Now()
 		defer func() { r.observeSlowDue(item.kind, time.Since(started)) }()
 	}
+	if item.kind == dueLoadedMetaRefresh {
+		r.releaseExpiredLoadedMetaRefresh(item.key, item.version, now)
+		return
+	}
 	rc := r.channels[item.key]
 	if rc == nil {
 		return
@@ -176,6 +193,8 @@ func dueKindName(kind dueKind) string {
 		return "dueLifecycle"
 	case duePendingMeta:
 		return "duePendingMeta"
+	case dueLoadedMetaRefresh:
+		return "dueLoadedMetaRefresh"
 	default:
 		return "dueUnknown"
 	}

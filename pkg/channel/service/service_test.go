@@ -206,9 +206,10 @@ func TestAppendBatchObservesRuntimeAppendSubStages(t *testing.T) {
 	_, err = clusterAPI.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: meta.ID, Messages: []ch.Message{{Payload: []byte("hello")}}})
 	require.NoError(t, err)
 
-	requireServiceAppendStage(t, observer.events, "runtime_append_reserve_wait", "ok")
-	requireServiceAppendStage(t, observer.events, "runtime_append_submit", "ok")
-	requireServiceAppendStage(t, observer.events, "runtime_append_wait", "ok")
+	events := observer.Events()
+	requireServiceAppendStage(t, events, "runtime_append_reserve_wait", "ok")
+	requireServiceAppendStage(t, events, "runtime_append_submit", "ok")
+	requireServiceAppendStage(t, events, "runtime_append_wait", "ok")
 }
 
 func TestAppendUsesExistingReactorStateWithoutResolvingMeta(t *testing.T) {
@@ -316,6 +317,39 @@ func TestHandlePullHintDoesNotResolveMetaInService(t *testing.T) {
 	loaded, err := svc.group.HasChannelState(context.Background(), key)
 	require.NoError(t, err)
 	require.False(t, loaded)
+}
+
+func TestHandleLoadedNewerPullHintUsesConfiguredAuthoritativeResolver(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newServiceCaptureTransport()
+	base := ch.Meta{
+		Key: ch.ChannelKey("1:loaded-authoritative"), ID: ch.ChannelID{ID: "loaded-authoritative", Type: 1},
+		Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive,
+	}
+	authoritative := base
+	authoritative.Leader = 1
+	authoritative.LeaderEpoch = 2
+	resolver := &countingMetaResolver{meta: authoritative}
+	clusterAPI, err := New(Config{LocalNode: 2, Store: factory, Transport: net, ReactorCount: 1, MetaResolver: resolver})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	require.NoError(t, clusterAPI.ApplyMeta(base))
+	svc := clusterAPI.(*cluster)
+
+	rogueHigh := transport.PullHintRequest{
+		ChannelKey: base.Key, ChannelID: base.ID, Epoch: 1, LeaderEpoch: 100, Leader: 3,
+		LeaderLEO: 100, ActivityVersion: 100, Reason: transport.PullHintReasonAppend,
+	}
+	require.NoError(t, svc.HandlePullHint(context.Background(), rogueHigh))
+	require.Eventually(t, func() bool {
+		probe, probeErr := svc.group.RuntimeProbe(context.Background(), ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{base.ID}})
+		return probeErr == nil && len(probe.Channels) == 1 &&
+			probe.Channels[0].LeaderEpoch == authoritative.LeaderEpoch && probe.Channels[0].Role == ch.RoleFollower
+	}, time.Second, time.Millisecond)
+	require.Equal(t, int32(1), resolver.calls.Load())
+	require.Eventually(t, func() bool { return net.PullCalls() >= 1 }, time.Second, time.Millisecond)
+	require.Zero(t, net.NeedMetaPullCalls())
+	require.Equal(t, authoritative.LeaderEpoch, net.LastPull().LeaderEpoch)
 }
 
 func TestHandlePullHintRejectsLocalLeaderEnvelope(t *testing.T) {
@@ -1146,6 +1180,7 @@ func (o *serviceWorkerInflightObserver) Peak(pool string) int64 {
 }
 
 type serviceAppendStageObserver struct {
+	mu     sync.Mutex
 	events []serviceAppendStageEvent
 }
 
@@ -1160,7 +1195,15 @@ func (o *serviceAppendStageObserver) ObserveAppendLatency(ch.CommitMode, time.Du
 func (o *serviceAppendStageObserver) ObserveWorkerResult(worker.TaskKind, error, time.Duration) {}
 
 func (o *serviceAppendStageObserver) ObserveChannelAppendStage(stage string, result string, _ time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.events = append(o.events, serviceAppendStageEvent{stage: stage, result: result})
+}
+
+func (o *serviceAppendStageObserver) Events() []serviceAppendStageEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]serviceAppendStageEvent(nil), o.events...)
 }
 
 type serviceAppendStageEvent struct {

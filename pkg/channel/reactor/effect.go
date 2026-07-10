@@ -152,6 +152,20 @@ func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.
 	})
 }
 
+func (r *Reactor) submitMetaResolve(ctx context.Context, fence ch.Fence, id ch.ChannelID) error {
+	if r.cfg.Pools == nil || r.cfg.Pools.MetaResolve == nil {
+		return ch.ErrNotReady
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskMetaResolve,
+		Fence:   fence,
+		Context: ctx,
+		MetaResolve: &worker.MetaResolveTask{
+			ChannelID: id,
+		},
+	})
+}
+
 func (r *Reactor) submitRPCAck(ctx context.Context, leader ch.NodeID, fence ch.Fence, req transport.AckRequest) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig

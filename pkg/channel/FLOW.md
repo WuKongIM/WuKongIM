@@ -222,13 +222,17 @@ channel store, sends `Pull{NeedMeta=true}` to the channel leader, applies the
 returned active metadata before any records, and releases itself on stale,
 invalid, not-replica, timeout, or retry-exhaustion paths. When a loaded runtime
 receives the same channel identity with a strictly newer metadata fence, the
-reactor keeps the existing runtime and starts one bounded `NeedMeta` refresh.
-Only an exact active metadata proof from the hinted leader may fence waiters and
-update that runtime in place; invalid, failed, or timed-out proofs leave the
-loaded runtime intact. Same-fence hints coalesce without extending the refresh
-deadline, newer hints cancel and supersede the old proof, and same or older
-fences cannot evict the loaded runtime. NeedMeta metadata includes the durable
-retention boundary and write fence as well as membership and leadership fields.
+reactor keeps the existing runtime and starts one isolated authoritative
+metadata resolve. The hint is only a trigger: its claimed target fence, leader,
+LEO, and activity are not metadata proof. All valid newer hints coalesce without
+extending the fixed admission lease. Only an active, structurally valid,
+local-replica result from the configured read-only MetaResolver with the same
+identity and a fence newer than the exact base runtime may fence waiters and
+update that runtime in place. Invalid, failed, backpressured, or timed-out
+resolves leave the loaded runtime intact. Successful follower transitions use
+ordinary `NeedMeta=false` Pull from the resolved leader; local-leader results
+enter leader lifecycle without a self-Pull. Explicit ApplyMeta remains the
+authority for same-fence retention and write-fence refreshes.
 Loaded runtimes hold
 `machine.ChannelState`, `appendQueue`, `replicationState`, and
 `channelRuntimeLifecycle`. `channelRuntimeLifecycle` is the single controller

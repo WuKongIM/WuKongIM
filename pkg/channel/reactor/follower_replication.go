@@ -416,9 +416,6 @@ func (r *Reactor) handleLegacyFollowerNotify(event Event) {
 }
 
 func (r *Reactor) handleRPCPullResult(result worker.Result) {
-	if r.handleLoadedMetaRefreshResult(result) {
-		return
-	}
 	if rc := r.channels[result.Fence.ChannelKey]; rc != nil && rc.pending != nil && rc.state == nil {
 		r.handlePendingMetaPullResult(rc, result)
 		return
@@ -571,155 +568,183 @@ func (r *Reactor) submitLoadedMetaRefresh(rc *runtimeChannel, req transport.Pull
 	if r == nil || rc == nil || rc.state == nil || r.channels[rc.state.Key] != rc || !loadedPullHintNewer(rc, req) {
 		return ch.ErrStaleMeta
 	}
+	if r.cfg.Pools == nil || r.cfg.Pools.MetaResolve == nil {
+		return ch.ErrNotReady
+	}
 	if current := r.loadedMetaRefreshes[req.ChannelKey]; current != nil {
 		if !current.deadline.IsZero() && !now.Before(current.deadline) {
 			r.clearLoadedMetaRefresh(req.ChannelKey)
 			current = nil
 		}
-		if current == nil {
-			return r.submitLoadedMetaRefresh(rc, req, now)
-		}
-		switch comparePendingLoadFence(current.hint, req) {
-		case 1:
-			return ch.ErrStaleMeta
-		case 0:
-			if current.hint.Leader != req.Leader {
+		if current != nil {
+			if current.runtime != rc || current.generation != rc.state.Generation ||
+				current.baseEpoch != rc.state.Epoch || current.baseLeaderEpoch != rc.state.LeaderEpoch ||
+				current.baseLeader != rc.state.Leader || current.id != req.ChannelID {
 				return ch.ErrStaleMeta
 			}
-			if req.LeaderLEO > current.hint.LeaderLEO {
-				current.hint.LeaderLEO = req.LeaderLEO
-			}
-			if req.ActivityVersion > current.hint.ActivityVersion {
-				current.hint.ActivityVersion = req.ActivityVersion
-			}
+			// The hint is only a refresh trigger. All valid newer hints coalesce into the
+			// fixed admission lease without trusting or extending the first target fence.
 			return nil
-		case -1:
-			r.clearLoadedMetaRefresh(req.ChannelKey)
 		}
 	}
 
 	timeout := r.followerPullRPCTimeout()
-	pullCtx, pullCancel := context.WithTimeout(context.Background(), timeout)
+	resolveCtx, resolveCancel := context.WithTimeout(context.Background(), timeout)
 	opID := r.nextOpID()
 	fence := ch.Fence{
 		ChannelKey:  req.ChannelKey,
 		Generation:  rc.state.Generation,
-		Epoch:       req.Epoch,
-		LeaderEpoch: req.LeaderEpoch,
+		Epoch:       rc.state.Epoch,
+		LeaderEpoch: rc.state.LeaderEpoch,
 		OpID:        opID,
-	}
-	pull := transport.PullRequest{
-		ChannelKey:  req.ChannelKey,
-		ChannelID:   req.ChannelID,
-		Epoch:       req.Epoch,
-		LeaderEpoch: req.LeaderEpoch,
-		Follower:    r.cfg.LocalNode,
-		NextOffset:  rc.state.LEO + 1,
-		AckOffset:   rc.state.LEO,
-		MaxBytes:    r.cfg.PullMaxBytes,
-		NeedMeta:    true,
-	}
-	if err := r.submitRPCPull(pullCtx, req.Leader, fence, pull, 0); err != nil {
-		pullCancel()
-		return err
 	}
 	if r.loadedMetaRefreshes == nil {
 		r.loadedMetaRefreshes = make(map[ch.ChannelKey]*loadedMetaRefreshState)
 	}
-	r.loadedMetaRefreshes[req.ChannelKey] = &loadedMetaRefreshState{
-		hint:                   req,
-		runtime:                rc,
-		generation:             rc.state.Generation,
-		baseEpoch:              rc.state.Epoch,
-		baseLeaderEpoch:        rc.state.LeaderEpoch,
-		opID:                   opID,
-		deadline:               now.Add(timeout),
-		cancel:                 pullCancel,
-		pullSubmittedAt:        now,
-		pullSubmittedAckOffset: pull.AckOffset,
+	refresh := &loadedMetaRefreshState{
+		key:             req.ChannelKey,
+		id:              req.ChannelID,
+		runtime:         rc,
+		generation:      rc.state.Generation,
+		baseEpoch:       rc.state.Epoch,
+		baseLeaderEpoch: rc.state.LeaderEpoch,
+		baseLeader:      rc.state.Leader,
+		opID:            opID,
+		deadline:        now.Add(timeout),
+		cancel:          resolveCancel,
+		inflight:        true,
 	}
-	r.observeNeedMetaPull("submitted", nil)
+	r.loadedMetaRefreshes[req.ChannelKey] = refresh
+	r.scheduleLoadedMetaRefreshDeadline(refresh)
+	if err := r.submitMetaResolve(resolveCtx, fence, req.ChannelID); err != nil {
+		r.clearLoadedMetaRefresh(req.ChannelKey)
+		return err
+	}
 	return nil
 }
 
-func (r *Reactor) handleLoadedMetaRefreshResult(result worker.Result) bool {
+// scheduleLoadedMetaRefreshDeadline bounds failed refresh admission state even when no later hint arrives.
+func (r *Reactor) scheduleLoadedMetaRefreshDeadline(refresh *loadedMetaRefreshState) {
+	if r == nil || refresh == nil || refresh.deadline.IsZero() {
+		return
+	}
+	r.due.push(dueItem{
+		key:     refresh.key,
+		kind:    dueLoadedMetaRefresh,
+		due:     refresh.deadline,
+		version: uint64(refresh.opID),
+	})
+}
+
+// releaseExpiredLoadedMetaRefresh releases only the admission lease that scheduled this due item.
+func (r *Reactor) releaseExpiredLoadedMetaRefresh(key ch.ChannelKey, version uint64, now time.Time) {
 	if r == nil || r.loadedMetaRefreshes == nil {
-		return false
+		return
+	}
+	refresh := r.loadedMetaRefreshes[key]
+	if refresh == nil || uint64(refresh.opID) != version || refresh.deadline.IsZero() || now.Before(refresh.deadline) {
+		return
+	}
+	r.clearLoadedMetaRefresh(key)
+}
+
+func (r *Reactor) handleMetaResolveResult(result worker.Result) {
+	if r == nil || r.loadedMetaRefreshes == nil {
+		return
 	}
 	refresh := r.loadedMetaRefreshes[result.Fence.ChannelKey]
 	if refresh == nil ||
 		result.Fence.Generation != refresh.generation ||
-		result.Fence.Epoch != refresh.hint.Epoch ||
-		result.Fence.LeaderEpoch != refresh.hint.LeaderEpoch ||
-		result.Fence.OpID != refresh.opID {
-		return false
+		result.Fence.Epoch != refresh.baseEpoch ||
+		result.Fence.LeaderEpoch != refresh.baseLeaderEpoch ||
+		result.Fence.OpID != refresh.opID || !refresh.inflight {
+		return
 	}
-	r.clearLoadedMetaRefresh(result.Fence.ChannelKey)
+	refresh.inflight = false
+	if refresh.cancel != nil {
+		refresh.cancel()
+		refresh.cancel = nil
+	}
 
 	rc := r.channels[result.Fence.ChannelKey]
 	if rc == nil || rc != refresh.runtime || rc.state == nil ||
 		rc.state.Generation != refresh.generation ||
 		rc.state.Epoch != refresh.baseEpoch ||
-		rc.state.LeaderEpoch != refresh.baseLeaderEpoch ||
-		!loadedPullHintNewer(rc, refresh.hint) {
-		return true
+		rc.state.LeaderEpoch != refresh.baseLeaderEpoch || rc.state.Leader != refresh.baseLeader {
+		r.clearLoadedMetaRefresh(result.Fence.ChannelKey)
+		return
 	}
-	now := time.Now()
 	if result.Err != nil {
-		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
-		r.observeNeedMetaPull("err", result.Err)
-		return true
+		return
 	}
-	if result.RPCPull == nil {
-		err := ch.ErrInvalidConfig
-		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
-		r.observeNeedMetaPull("err", err)
-		return true
+	if result.MetaResolve == nil {
+		return
 	}
 
-	resp := result.RPCPull.Response
-	meta, err := validateLoadedMetaRefreshResponse(refresh, resp, r.cfg.LocalNode)
+	meta, err := validateLoadedMetaResolveResult(refresh, result.MetaResolve.Meta, r.cfg.LocalNode)
 	if err != nil {
-		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
-		r.observeNeedMetaPull("err", err)
-		return true
+		return
 	}
 	if err := r.applyLoadedRuntimeMeta(rc, meta, true); err != nil {
-		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
-		r.observeNeedMetaPull("err", err)
-		return true
+		return
 	}
-	resp.Meta = nil
-	r.acceptNeedMetaPullResponse(rc, resp, refresh.pullSubmittedAt, refresh.pullSubmittedAckOffset, 0, time.Time{}, false, now)
-	r.scheduleReplicationFromState(rc, now)
-	return true
 }
 
-func validateLoadedMetaRefreshResponse(refresh *loadedMetaRefreshState, resp transport.PullResponse, local ch.NodeID) (ch.Meta, error) {
-	if refresh == nil || resp.Meta == nil {
+func validateLoadedMetaResolveResult(refresh *loadedMetaRefreshState, meta ch.Meta, local ch.NodeID) (ch.Meta, error) {
+	if refresh == nil {
 		return ch.Meta{}, ch.ErrInvalidConfig
 	}
-	hint := refresh.hint
-	if resp.ChannelKey != hint.ChannelKey || resp.Epoch != hint.Epoch || resp.LeaderEpoch != hint.LeaderEpoch {
-		return ch.Meta{}, ch.ErrStaleMeta
-	}
-	meta := *resp.Meta
 	if err := validatePendingMetaShape(meta); err != nil {
 		return ch.Meta{}, err
 	}
-	if meta.Key != hint.ChannelKey || meta.ID != hint.ChannelID || meta.Epoch != hint.Epoch || meta.LeaderEpoch != hint.LeaderEpoch || meta.Leader != hint.Leader {
+	if meta.Key != refresh.key || meta.ID != refresh.id || !metaFenceStrictlyNewer(meta.Epoch, meta.LeaderEpoch, refresh.baseEpoch, refresh.baseLeaderEpoch) {
 		return ch.Meta{}, ch.ErrStaleMeta
 	}
-	if !metaHasReplica(meta, local) {
-		return ch.Meta{}, ch.ErrNotReplica
+	if err := validateActiveMetaTopology(meta, local); err != nil {
+		return ch.Meta{}, err
 	}
 	return meta, nil
+}
+
+func metaFenceStrictlyNewer(epoch, leaderEpoch, baseEpoch, baseLeaderEpoch uint64) bool {
+	return epoch > baseEpoch || (epoch == baseEpoch && leaderEpoch > baseLeaderEpoch)
+}
+
+func validateActiveMetaTopology(meta ch.Meta, local ch.NodeID) error {
+	replicas := make(map[ch.NodeID]struct{}, len(meta.Replicas))
+	for _, node := range meta.Replicas {
+		if node == 0 {
+			return ch.ErrInvalidConfig
+		}
+		if _, exists := replicas[node]; exists {
+			return ch.ErrInvalidConfig
+		}
+		replicas[node] = struct{}{}
+	}
+	if _, ok := replicas[meta.Leader]; !ok {
+		return ch.ErrInvalidConfig
+	}
+	if _, ok := replicas[local]; !ok {
+		return ch.ErrNotReplica
+	}
+	isr := make(map[ch.NodeID]struct{}, len(meta.ISR))
+	for _, node := range meta.ISR {
+		if _, ok := replicas[node]; !ok {
+			return ch.ErrInvalidConfig
+		}
+		if _, exists := isr[node]; exists {
+			return ch.ErrInvalidConfig
+		}
+		isr[node] = struct{}{}
+	}
+	return nil
 }
 
 func (r *Reactor) clearLoadedMetaRefresh(key ch.ChannelKey) {
 	if r == nil || r.loadedMetaRefreshes == nil {
 		return
 	}
+	r.due.remove(dueLoadedMetaRefresh, key)
 	if refresh := r.loadedMetaRefreshes[key]; refresh != nil && refresh.cancel != nil {
 		refresh.cancel()
 	}

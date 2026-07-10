@@ -2164,6 +2164,8 @@ func channelWorkerKindLabel(kind worker.TaskKind) string {
 		return "store_checkpoint"
 	case worker.TaskRPCPullHint:
 		return "rpc_pull_hint"
+	case worker.TaskMetaResolve:
+		return "meta_resolve"
 	default:
 		return "unknown"
 	}

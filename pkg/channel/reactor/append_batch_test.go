@@ -1655,6 +1655,19 @@ func newDirectTestPoolsWithTransport(t *testing.T, factory store.Factory, transp
 	return pools
 }
 
+func newDirectTestPoolsWithMetaResolver(t *testing.T, factory store.Factory, transport transport.Client, resolver ch.MetaResolver, sink worker.CompletionSink) *worker.Pools {
+	t.Helper()
+	pools, err := worker.NewPools(worker.PoolsConfig{
+		StoreAppend: worker.PoolConfig{Name: "append", Workers: 1, QueueSize: 8},
+		StoreRead:   worker.PoolConfig{Name: "read", Workers: 1, QueueSize: 8},
+		StoreApply:  worker.PoolConfig{Name: "apply", Workers: 1, QueueSize: 8},
+		RPC:         worker.PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8},
+		MetaResolve: worker.PoolConfig{Name: "meta-resolve", Workers: 1, QueueSize: 8},
+	}, worker.Deps{LocalNode: 1, Stores: factory, Transport: transport, MetaResolver: resolver}, sink)
+	require.NoError(t, err)
+	return pools
+}
+
 func awaitFutureError(t *testing.T, future *Future) error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

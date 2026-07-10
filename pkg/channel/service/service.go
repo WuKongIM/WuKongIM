@@ -28,7 +28,7 @@ type Config struct {
 	MaxChannels int
 	Store       store.Factory
 	Transport   transport.Client
-	// MetaResolver is ignored; PullHint metadata bootstrap now uses NeedMeta pulls from the channel leader.
+	// MetaResolver reads authoritative metadata for loaded runtimes that receive a newer PullHint fence.
 	MetaResolver ch.MetaResolver
 	// AppendAdmissionGuard can reject local leader appends before reactor admission.
 	AppendAdmissionGuard ch.AppendAdmissionGuard
@@ -99,6 +99,7 @@ func New(cfg Config) (ch.Cluster, error) {
 	}
 	group, err := reactor.NewGroup(reactor.Config{
 		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport,
+		MetaResolver:                  cfg.MetaResolver,
 		WorkerPools:                   workerPools,
 		AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
 		AppendBatchMaxBytes:           cfg.AppendBatchMaxBytes,

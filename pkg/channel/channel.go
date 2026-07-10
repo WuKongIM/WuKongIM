@@ -20,7 +20,7 @@ type CommittedMessageLookup interface {
 	LookupCommittedMessage(context.Context, ChannelID, uint64) (Message, bool, error)
 }
 
-// MetaResolver is retained for older adapters; PullHint metadata bootstrap uses NeedMeta pulls from the channel leader.
+// MetaResolver reads authoritative metadata outside reactor loops.
 type MetaResolver interface {
 	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)
 }
@@ -34,7 +34,7 @@ type Config struct {
 	MaxChannels int
 	Store       any
 	Transport   any
-	// MetaResolver is ignored by channel service PullHint handling.
+	// MetaResolver validates PullHint-triggered metadata refreshes when configured.
 	MetaResolver any
 	// AppendAdmissionGuard can reject local leader appends before reactor admission.
 	AppendAdmissionGuard AppendAdmissionGuard

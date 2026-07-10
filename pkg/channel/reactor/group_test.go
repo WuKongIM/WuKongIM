@@ -249,6 +249,17 @@ func TestDefaultWorkerPoolsUseStoreAppendBatchMaxWait(t *testing.T) {
 	require.Equal(t, 100*time.Microsecond, pools.StoreAppend.BatchMaxWait)
 }
 
+func TestDefaultWorkerPoolsIsolateAuthoritativeMetaResolveCapacity(t *testing.T) {
+	resolver := newBlockingMetaResolver(ch.Meta{}, nil)
+	pools := defaultWorkerPools(Config{ReactorCount: 32, MailboxSize: 4096, MetaResolver: resolver})
+
+	require.Equal(t, defaultMetaResolvePoolName, pools.MetaResolve.Name)
+	require.Equal(t, defaultMetaResolveWorkers, pools.MetaResolve.Workers)
+	require.Equal(t, defaultMetaResolveQueueSize, pools.MetaResolve.QueueSize)
+	require.Less(t, pools.MetaResolve.Workers, pools.RPC.Workers)
+	require.Less(t, pools.MetaResolve.QueueSize, 4096)
+}
+
 func TestGroupCompleteDoesNotDropWhenHighMailboxIsFull(t *testing.T) {
 	meta := testMeta("completion-backpressure", 1, 1)
 	g := newUnstartedTestGroup(t, 1, 1)

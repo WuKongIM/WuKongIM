@@ -283,6 +283,7 @@ func TestKeyedTickHandlesManuallyDirtyFollowerWithoutSeparateSchedule(t *testing
 	require.NotNil(t, rc)
 	followerMeta := leaderMeta
 	followerMeta.Leader = 1
+	followerMeta.LeaderEpoch++
 	followerMeta.Replicas = []ch.NodeID{1, 2}
 	followerMeta.ISR = []ch.NodeID{1, 2}
 	require.NoError(t, rc.state.ApplyMeta(followerMeta).Err)
@@ -1642,245 +1643,263 @@ func TestApplyMetaPendingMetaFenceRules(t *testing.T) {
 	require.Equal(t, ch.RoleFollower, rc.state.Role)
 }
 
-func TestLoadedFollowerNewerPullHintRefreshesRuntimeAfterAuthoritativeMeta(t *testing.T) {
+func TestLoadedNewerPullHintAppliesAuthoritativeMetaThenUsesOrdinaryPull(t *testing.T) {
+	base := followerTestMeta("loaded-authoritative-refresh")
+	base.Leader = 2
+	authoritative := base
+	authoritative.Leader = 1
+	authoritative.LeaderEpoch = 2
+	authoritative.RetentionThroughSeq = 2
+	authoritative.WriteFence = ch.WriteFence{Token: "failover", Version: 4, Reason: ch.WriteFenceReasonFailover, Until: time.Now().Add(time.Minute)}
+	resolver := newBlockingMetaResolver(authoritative, nil)
 	net := newCapturingTransport()
 	net.BlockPulls()
 	defer net.UnblockPulls()
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	pools := newDirectTestPoolsWithMetaResolver(t, factory, net, resolver, sink)
 	defer pools.Close()
-	obs := &captureObserver{}
-	meta := followerTestMeta("loaded-newer-pending")
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	loaded := r.channels[meta.Key]
-	loaded.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
-	r.observeFollowerParkedCount(r.countParkedFollowers())
-	require.Equal(t, 1, obs.FollowerParked())
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, base))
+	loaded := r.channels[base.Key]
 
-	newer := meta
-	newer.LeaderEpoch = 2
-	net.SetPullResponse(transport.PullResponse{
-		ChannelKey: newer.Key, Epoch: newer.Epoch, LeaderEpoch: newer.LeaderEpoch,
-		Meta: &newer,
-	})
-	require.NoError(t, submitPullHintDirect(t, r, newer, 5))
+	hint := authoritative
+	require.NoError(t, submitPullHintDirect(t, r, hint, 9))
+	resolver.AwaitStarted(t)
+	require.Same(t, loaded, r.channels[base.Key])
+	require.Equal(t, uint64(1), loaded.state.LeaderEpoch)
+	require.Zero(t, net.PullCalls())
 
-	rc := r.channels[meta.Key]
-	require.Same(t, loaded, rc)
-	require.NotNil(t, rc.state)
-	require.Nil(t, rc.pending)
-	require.Equal(t, uint64(1), rc.state.LeaderEpoch)
-	require.Eventually(t, func() bool { return net.LastPull().NeedMeta }, time.Second, time.Millisecond)
-	require.Equal(t, uint64(1), net.LastPull().NextOffset)
-	require.Equal(t, 0, obs.RuntimeEvicted())
-
-	net.UnblockPulls()
-	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
-
-	rc = r.channels[meta.Key]
-	require.Same(t, loaded, rc)
-	require.Equal(t, uint64(2), rc.state.LeaderEpoch)
-	require.Equal(t, ch.RoleFollower, rc.state.Role)
-	require.Equal(t, 0, obs.RuntimeEvicted())
-	require.Equal(t, 1, obs.FollowerParked())
+	resolver.Unblock()
+	r.handleMetaResolveResult(sink.awaitResultKind(t, worker.TaskMetaResolve))
+	r.processDue(time.Now().Add(time.Second))
+	require.Same(t, loaded, r.channels[base.Key])
+	require.Equal(t, authoritative.LeaderEpoch, loaded.state.LeaderEpoch)
+	require.Equal(t, authoritative.Leader, loaded.state.Leader)
+	require.Equal(t, ch.RoleFollower, loaded.state.Role)
+	require.Equal(t, authoritative.RetentionThroughSeq, loaded.state.RetentionThroughSeq)
+	require.Equal(t, authoritative.WriteFence, loaded.state.WriteFence)
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	require.False(t, net.LastPull().NeedMeta)
+	require.Equal(t, authoritative.Leader, net.LastPullNode())
 }
 
-func TestLoadedLeaderNewerPullHintRefreshesRuntimeAfterAuthoritativeMeta(t *testing.T) {
+func TestLoadedNewerAuthoritativeLocalLeaderUsesLeaderLifecycleWithoutSelfPull(t *testing.T) {
+	base := followerTestMeta("loaded-authoritative-local-leader")
+	authoritative := base
+	authoritative.Leader = 2
+	authoritative.LeaderEpoch = 2
+	resolver := newBlockingMetaResolver(authoritative, nil)
 	net := newCapturingTransport()
-	net.BlockPulls()
-	defer net.UnblockPulls()
 	factory := store.NewMemoryFactory()
-	meta := followerTestMeta("loaded-leader-newer-pending")
-	meta.Leader = 2
-	cs, err := factory.ChannelStore(meta.Key, meta.ID)
-	require.NoError(t, err)
-	_, err = cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: []ch.Record{
-		{ID: 1, Payload: []byte("one")},
-		{ID: 2, Payload: []byte("two")},
-		{ID: 3, Payload: []byte("three")},
-	}})
-	require.NoError(t, err)
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	pools := newDirectTestPoolsWithMetaResolver(t, factory, net, resolver, sink)
 	defer pools.Close()
-	obs := &captureObserver{}
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	loaded := r.channels[meta.Key]
-	require.Equal(t, ch.RoleLeader, loaded.state.Role)
-	require.Equal(t, uint64(3), loaded.state.LEO)
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, base))
 
-	newer := meta
-	newer.Leader = 1
-	newer.LeaderEpoch = 2
-	newer.RetentionThroughSeq = 2
-	newer.WriteFence = ch.WriteFence{Token: "leader-failover", Version: 4, Reason: ch.WriteFenceReasonFailover, Until: time.Now().Add(time.Minute)}
-	net.SetPullResponse(transport.PullResponse{
-		ChannelKey: newer.Key, Epoch: newer.Epoch, LeaderEpoch: newer.LeaderEpoch,
-		LeaderHW: 3, LeaderLEO: 3, Meta: &newer,
-	})
-	require.NoError(t, submitPullHintDirect(t, r, newer, 4))
-	refresh := r.loadedMetaRefreshes[meta.Key]
+	hint := base
+	hint.Leader = 3
+	hint.LeaderEpoch = 50
+	require.NoError(t, submitPullHintDirect(t, r, hint, 50))
+	resolver.Unblock()
+	r.handleMetaResolveResult(sink.awaitResultKind(t, worker.TaskMetaResolve))
+	r.processDue(time.Now().Add(time.Second))
+
+	loaded := r.channels[base.Key]
+	require.Equal(t, authoritative.LeaderEpoch, loaded.state.LeaderEpoch)
+	require.Equal(t, ch.RoleLeader, loaded.state.Role)
+	require.Zero(t, net.PullCalls())
+}
+
+func TestLoadedNewerPullHintsSingleFlightWithoutDeadlineExtensionOrHighFencePoison(t *testing.T) {
+	base := followerTestMeta("loaded-refresh-singleflight")
+	base.Leader = 2
+	authoritative := base
+	authoritative.Leader = 1
+	authoritative.LeaderEpoch = 2
+	resolver := newBlockingMetaResolver(authoritative, nil)
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithMetaResolver(t, factory, newCapturingTransport(), resolver, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, base))
+
+	rogueHigh := authoritative
+	rogueHigh.Leader = 3
+	rogueHigh.LeaderEpoch = 100
+	require.NoError(t, submitPullHintDirect(t, r, rogueHigh, 100))
+	resolver.AwaitStarted(t)
+	refresh := r.loadedMetaRefreshes[base.Key]
 	require.NotNil(t, refresh)
 	deadline := refresh.deadline
-	require.ErrorIs(t, submitPullHintDirect(t, r, func() ch.Meta {
-		conflicting := newer
-		conflicting.Leader = 3
-		return conflicting
-	}(), 5), ch.ErrStaleMeta)
-	require.NoError(t, submitPullHintDirect(t, r, newer, 6))
-	require.Same(t, refresh, r.loadedMetaRefreshes[meta.Key])
+	require.NoError(t, submitPullHintDirect(t, r, authoritative, 5))
+	require.Same(t, refresh, r.loadedMetaRefreshes[base.Key])
 	require.Equal(t, deadline, refresh.deadline)
-	require.Equal(t, uint64(6), refresh.hint.LeaderLEO)
-	require.Equal(t, uint64(6), refresh.hint.ActivityVersion)
-	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	require.Equal(t, 1, resolver.Calls())
 
-	rc := r.channels[meta.Key]
-	require.Same(t, loaded, rc)
-	require.NotNil(t, rc.state)
-	require.Nil(t, rc.pending)
-	require.Equal(t, ch.RoleLeader, rc.state.Role)
-	require.Equal(t, uint64(1), rc.state.LeaderEpoch)
-	require.Eventually(t, func() bool { return net.LastPull().NeedMeta }, time.Second, time.Millisecond)
-	require.Equal(t, uint64(4), net.LastPull().NextOffset)
-	require.Equal(t, uint64(3), net.LastPull().AckOffset)
-	require.Equal(t, 0, obs.RuntimeEvicted())
-
-	net.UnblockPulls()
-	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
-
-	rc = r.channels[meta.Key]
-	require.Same(t, loaded, rc)
-	require.Equal(t, ch.NodeID(1), rc.state.Leader)
-	require.Equal(t, uint64(2), rc.state.LeaderEpoch)
-	require.Equal(t, ch.RoleFollower, rc.state.Role)
-	require.Equal(t, uint64(3), rc.state.LEO)
-	require.Equal(t, newer.RetentionThroughSeq, rc.state.RetentionThroughSeq)
-	require.Equal(t, newer.WriteFence, rc.state.WriteFence)
-	require.Equal(t, 0, obs.RuntimeEvicted())
+	resolver.Unblock()
+	r.handleMetaResolveResult(sink.awaitResultKind(t, worker.TaskMetaResolve))
+	require.Equal(t, authoritative.LeaderEpoch, r.channels[base.Key].state.LeaderEpoch)
+	require.Equal(t, authoritative.Leader, r.channels[base.Key].state.Leader)
+	_, scheduled := r.due.slots[dueSlot{kind: dueLoadedMetaRefresh, key: base.Key}]
+	require.False(t, scheduled, "successful refresh must remove its stale deadline item")
 }
 
-func TestLoadedLeaderNewerPullHintFailureKeepsRuntime(t *testing.T) {
-	net := newCapturingTransport()
-	net.SetPullError(ch.ErrNotReady)
+func TestLoadedNewerMetaResolveSurvivesSameFenceApply(t *testing.T) {
+	base := followerTestMeta("loaded-refresh-same-fence-apply")
+	base.Leader = 2
+	authoritative := base
+	authoritative.Leader = 1
+	authoritative.LeaderEpoch = 2
+	resolver := newBlockingMetaResolver(authoritative, nil)
 	factory := store.NewMemoryFactory()
-	meta := followerTestMeta("loaded-leader-newer-failure")
-	meta.Leader = 2
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	pools := newDirectTestPoolsWithMetaResolver(t, factory, newCapturingTransport(), resolver, sink)
 	defer pools.Close()
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	loaded := r.channels[meta.Key]
+	require.NoError(t, applyMetaDirect(t, r, base))
 
-	newer := meta
-	newer.Leader = 1
-	newer.LeaderEpoch = 2
-	require.NoError(t, submitPullHintDirect(t, r, newer, 1))
-	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+	hint := authoritative
+	require.NoError(t, submitPullHintDirect(t, r, hint, 1))
+	resolver.AwaitStarted(t)
+	refresh := r.loadedMetaRefreshes[base.Key]
+	require.NotNil(t, refresh)
 
-	require.Same(t, loaded, r.channels[meta.Key])
-	require.NotNil(t, loaded.state)
-	require.Equal(t, ch.RoleLeader, loaded.state.Role)
-	require.Equal(t, uint64(1), loaded.state.LeaderEpoch)
-	require.Nil(t, r.loadedMetaRefreshes)
+	sameFence := base
+	sameFence.RetentionThroughSeq = 7
+	require.NoError(t, applyMetaDirect(t, r, sameFence))
+	require.Same(t, refresh, r.loadedMetaRefreshes[base.Key], "same-fence authority refresh must not cancel newer-fence recovery")
+
+	resolver.Unblock()
+	r.handleMetaResolveResult(sink.awaitResultKind(t, worker.TaskMetaResolve))
+	require.Equal(t, authoritative.LeaderEpoch, r.channels[base.Key].state.LeaderEpoch)
+	require.Equal(t, authoritative.Leader, r.channels[base.Key].state.Leader)
 }
 
-func TestLoadedLeaderInvalidMetaRefreshKeepsRuntimeAndWaiters(t *testing.T) {
-	net := newCapturingTransport()
+func TestLoadedNewerMetaResolveFailureKeepsRuntimeAndAdmissionLease(t *testing.T) {
+	base := followerTestMeta("loaded-refresh-failure")
+	base.Leader = 2
+	resolver := newBlockingMetaResolver(ch.Meta{}, ch.ErrNotReady)
 	factory := store.NewMemoryFactory()
-	meta := followerTestMeta("loaded-leader-invalid-refresh")
-	meta.Leader = 2
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	pools := newDirectTestPoolsWithMetaResolver(t, factory, newCapturingTransport(), resolver, sink)
 	defer pools.Close()
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	loaded := r.channels[meta.Key]
+	require.NoError(t, applyMetaDirect(t, r, base))
+	loaded := r.channels[base.Key]
 	loaded.waiters = map[ch.OpID]*Future{99: NewFuture()}
-
-	newer := meta
+	newer := base
 	newer.Leader = 1
 	newer.LeaderEpoch = 2
-	invalid := newer
-	invalid.Leader = 3
-	net.SetPullResponse(transport.PullResponse{
-		ChannelKey: newer.Key, Epoch: newer.Epoch, LeaderEpoch: newer.LeaderEpoch,
-		Meta: &invalid,
-	})
-	require.NoError(t, submitPullHintDirect(t, r, newer, 1))
-	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
 
-	require.Same(t, loaded, r.channels[meta.Key])
+	require.NoError(t, submitPullHintDirect(t, r, newer, 1))
+	resolver.Unblock()
+	r.handleMetaResolveResult(sink.awaitResultKind(t, worker.TaskMetaResolve))
+	require.Same(t, loaded, r.channels[base.Key])
 	require.Equal(t, ch.RoleLeader, loaded.state.Role)
 	require.Equal(t, uint64(1), loaded.state.LeaderEpoch)
 	require.Contains(t, loaded.waiters, ch.OpID(99))
-	require.Nil(t, r.loadedMetaRefreshes)
+	refresh := r.loadedMetaRefreshes[base.Key]
+	require.NotNil(t, refresh)
+	require.False(t, refresh.inflight)
+	require.NoError(t, submitPullHintDirect(t, r, newer, 2))
+	require.Equal(t, 1, resolver.Calls(), "failed resolve must retain its fixed admission lease")
+
+	r.processDue(refresh.deadline.Add(time.Nanosecond))
+	require.Nil(t, r.loadedMetaRefreshes, "expired failed resolve lease must be released without another hint")
 }
 
-func TestLoadedLeaderExplicitMetaSupersedesInflightRefresh(t *testing.T) {
-	net := newCapturingTransport()
-	net.BlockPulls()
-	defer net.UnblockPulls()
-	factory := store.NewMemoryFactory()
-	meta := followerTestMeta("loaded-leader-explicit-meta")
-	meta.Leader = 2
-	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
-	defer pools.Close()
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	loaded := r.channels[meta.Key]
+func TestLoadedNewerInvalidAuthoritativeMetaKeepsRuntime(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(base *ch.Meta, resolved *ch.Meta)
+	}{
+		{name: "key mismatch", mutate: func(_ *ch.Meta, meta *ch.Meta) { meta.Key = "1:other" }},
+		{name: "id mismatch", mutate: func(_ *ch.Meta, meta *ch.Meta) { meta.ID.ID = "other" }},
+		{name: "same fence", mutate: func(base *ch.Meta, meta *ch.Meta) { meta.LeaderEpoch = base.LeaderEpoch }},
+		{name: "not active", mutate: func(_ *ch.Meta, meta *ch.Meta) { meta.Status = ch.StatusCreating }},
+		{name: "local not replica", mutate: func(_ *ch.Meta, meta *ch.Meta) {
+			meta.Replicas = []ch.NodeID{1, 3}
+			meta.ISR = []ch.NodeID{1, 3}
+		}},
+		{name: "leader not replica", mutate: func(_ *ch.Meta, meta *ch.Meta) { meta.Leader = 3 }},
+		{name: "isr outside replicas", mutate: func(_ *ch.Meta, meta *ch.Meta) { meta.ISR = []ch.NodeID{1, 3} }},
+		{name: "duplicate replica", mutate: func(_ *ch.Meta, meta *ch.Meta) { meta.Replicas = []ch.NodeID{1, 2, 2} }},
+		{name: "duplicate isr", mutate: func(_ *ch.Meta, meta *ch.Meta) { meta.ISR = []ch.NodeID{1, 2, 2} }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := followerTestMeta("loaded-refresh-invalid-" + tt.name)
+			base.Leader = 2
+			resolved := base
+			resolved.Leader = 1
+			resolved.LeaderEpoch = 2
+			tt.mutate(&base, &resolved)
+			resolver := newBlockingMetaResolver(resolved, nil)
+			factory := store.NewMemoryFactory()
+			sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+			pools := newDirectTestPoolsWithMetaResolver(t, factory, newCapturingTransport(), resolver, sink)
+			defer pools.Close()
+			r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+			require.NoError(t, applyMetaDirect(t, r, base))
+			loaded := r.channels[base.Key]
+			hint := base
+			hint.Leader = 1
+			hint.LeaderEpoch = 2
 
-	newer := meta
+			require.NoError(t, submitPullHintDirect(t, r, hint, 1))
+			resolver.Unblock()
+			r.handleMetaResolveResult(sink.awaitResultKind(t, worker.TaskMetaResolve))
+			require.Same(t, loaded, r.channels[base.Key])
+			require.Equal(t, uint64(1), loaded.state.LeaderEpoch)
+		})
+	}
+}
+
+func TestLoadedNewerExplicitMetaSupersedesInflightResolve(t *testing.T) {
+	base := followerTestMeta("loaded-refresh-explicit")
+	base.Leader = 2
+	newer := base
 	newer.Leader = 1
 	newer.LeaderEpoch = 2
+	resolver := newBlockingMetaResolver(newer, nil)
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithMetaResolver(t, factory, newCapturingTransport(), resolver, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, base))
+	loaded := r.channels[base.Key]
+
 	require.NoError(t, submitPullHintDirect(t, r, newer, 1))
-	require.NotNil(t, r.loadedMetaRefreshes[meta.Key])
+	resolver.AwaitStarted(t)
+	require.NotNil(t, r.loadedMetaRefreshes[base.Key])
 	require.NoError(t, applyMetaDirect(t, r, newer))
 	require.Nil(t, r.loadedMetaRefreshes)
-	require.Same(t, loaded, r.channels[meta.Key])
-	require.Equal(t, ch.RoleFollower, loaded.state.Role)
-	require.Equal(t, uint64(2), loaded.state.LeaderEpoch)
 
-	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
-	require.Same(t, loaded, r.channels[meta.Key])
-	require.Equal(t, ch.RoleFollower, loaded.state.Role)
-	require.Equal(t, uint64(2), loaded.state.LeaderEpoch)
+	resolver.Unblock()
+	r.handleMetaResolveResult(sink.awaitResultKind(t, worker.TaskMetaResolve))
+	require.Same(t, loaded, r.channels[base.Key])
+	require.Equal(t, newer.LeaderEpoch, loaded.state.LeaderEpoch)
 }
 
-func TestLoadedLeaderExpiredHighFenceRefreshDoesNotPoisonLowerHint(t *testing.T) {
-	net := newCapturingTransport()
-	net.BlockPulls()
-	defer net.UnblockPulls()
+func TestLoadedNewerPullHintWithoutMetaResolverFailsClosed(t *testing.T) {
 	factory := store.NewMemoryFactory()
-	meta := followerTestMeta("loaded-leader-expired-refresh")
-	meta.Leader = 2
-	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
-	defer pools.Close()
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, PullHintRetryInterval: 5 * time.Millisecond})
-	require.NoError(t, applyMetaDirect(t, r, meta))
+	base := followerTestMeta("loaded-refresh-no-resolver")
+	base.Leader = 2
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, base))
+	loaded := r.channels[base.Key]
+	newer := base
+	newer.Leader = 1
+	newer.LeaderEpoch = 2
 
-	poisoned := meta
-	poisoned.Leader = 1
-	poisoned.LeaderEpoch = 100
-	require.NoError(t, submitPullHintDirect(t, r, poisoned, 1))
-	first := r.loadedMetaRefreshes[meta.Key]
-	require.NotNil(t, first)
-	require.Eventually(t, func() bool { return !time.Now().Before(first.deadline) }, time.Second, time.Millisecond)
-
-	valid := meta
-	valid.Leader = 1
-	valid.LeaderEpoch = 2
-	require.NoError(t, submitPullHintDirect(t, r, valid, 1))
-	second := r.loadedMetaRefreshes[meta.Key]
-	require.NotNil(t, second)
-	require.NotSame(t, first, second)
-	require.Equal(t, uint64(2), second.hint.LeaderEpoch)
-	require.Eventually(t, func() bool { return net.PullCalls() == 2 }, time.Second, time.Millisecond)
+	err := submitPullHintDirect(t, r, newer, 1)
+	require.ErrorIs(t, err, ch.ErrNotReady)
+	require.Same(t, loaded, r.channels[base.Key])
+	require.Equal(t, uint64(1), loaded.state.LeaderEpoch)
 }
 
 func TestLoadedLeaderSameOrOlderPullHintDoesNotReleaseRuntime(t *testing.T) {
@@ -3851,6 +3870,7 @@ func TestLeaderRecentRecordCacheClearsOnMetadataFenceAndFollowerRole(t *testing.
 	require.True(t, r.channels[meta.Key].recentRecords.empty())
 
 	updated.Leader = 2
+	updated.LeaderEpoch++
 	require.NoError(t, applyMetaDirect(t, r, updated))
 	require.True(t, r.channels[meta.Key].recentRecords.empty())
 }
@@ -4779,6 +4799,7 @@ type capturingTransport struct {
 	mu        sync.Mutex
 	pullCalls int
 	ackCalls  int
+	lastNode  ch.NodeID
 	lastPull  transport.PullRequest
 	lastAck   transport.AckRequest
 	pullResp  transport.PullResponse
@@ -4866,6 +4887,7 @@ func newCapturingTransport() *capturingTransport {
 func (t *capturingTransport) Pull(ctx context.Context, node ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
 	t.mu.Lock()
 	t.pullCalls++
+	t.lastNode = node
 	t.lastPull = req
 	block := t.blockPull
 	resp := t.pullResp
@@ -4907,6 +4929,12 @@ func (t *capturingTransport) LastPull() transport.PullRequest {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.lastPull
+}
+
+func (t *capturingTransport) LastPullNode() ch.NodeID {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastNode
 }
 
 func (t *capturingTransport) LastAck() transport.AckRequest {
@@ -4959,6 +4987,66 @@ func (t *capturingTransport) UnblockPulls() {
 	if block != nil {
 		close(block)
 	}
+}
+
+type blockingMetaResolver struct {
+	mu      sync.Mutex
+	meta    ch.Meta
+	err     error
+	calls   int
+	started chan struct{}
+	unblock chan struct{}
+}
+
+func newBlockingMetaResolver(meta ch.Meta, err error) *blockingMetaResolver {
+	return &blockingMetaResolver{
+		meta:    meta,
+		err:     err,
+		started: make(chan struct{}, 8),
+		unblock: make(chan struct{}),
+	}
+}
+
+func (r *blockingMetaResolver) ResolveChannelMeta(ctx context.Context, _ ch.ChannelID) (ch.Meta, error) {
+	r.mu.Lock()
+	r.calls++
+	meta := r.meta
+	err := r.err
+	unblock := r.unblock
+	r.mu.Unlock()
+	select {
+	case r.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-unblock:
+		return meta, err
+	case <-ctx.Done():
+		return ch.Meta{}, ctx.Err()
+	}
+}
+
+func (r *blockingMetaResolver) AwaitStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-r.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for metadata resolve")
+	}
+}
+
+func (r *blockingMetaResolver) Unblock() {
+	select {
+	case <-r.unblock:
+	default:
+		close(r.unblock)
+	}
+}
+
+func (r *blockingMetaResolver) Calls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.calls
 }
 
 func requireNoWorkerResultKind(t *testing.T, results <-chan worker.Result, kinds ...worker.TaskKind) {

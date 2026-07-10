@@ -175,7 +175,8 @@ leader PullHint or legacy Notify
   -> Group.Submit(EventPullHint or EventNotify)
   -> handleFollowerPullHint or handleLegacyFollowerNotify
   -> loaded matching follower: mark dirty and tickFollowerReplication
-  -> unloaded or newer fence: create PendingMeta and submit NeedMeta Pull
+  -> unloaded: create PendingMeta and submit NeedMeta Pull
+  -> loaded newer fence: submit isolated authoritative MetaResolve
 ```
 
 ```text
@@ -264,12 +265,26 @@ delivered wakeups that are still waiting for the next bounded retry.
 
 Leader PullHint requests carry only the channel key, channel ID, epoch,
 leader epoch, leader, leader LEO, activity version, and reason. If the follower
-does not already have matching loaded runtime state, the owning reactor creates
-a `PendingMeta` shell and submits a bounded `Pull{NeedMeta=true}` to the channel
-leader. A successful NeedMeta Pull must return cloned active metadata; the
-follower validates key, ID, epochs, leader, active status, and local replica
-membership, applies metadata, and only then processes any records in the same
-response.
+does not already have runtime state, the owning reactor creates a `PendingMeta`
+shell and submits a bounded `Pull{NeedMeta=true}` to the channel leader. A
+successful NeedMeta Pull must return cloned active metadata; the follower
+validates key, ID, epochs, leader, active status, and local replica membership,
+applies metadata, and only then processes any records in the same response.
+
+A loaded runtime treats a strictly newer PullHint only as a refresh trigger.
+It keeps the existing runtime and submits one `TaskMetaResolve` to a dedicated
+small bounded pool backed by the authoritative read-only MetaResolver. All
+valid newer hints coalesce within one fixed, non-renewable admission lease;
+their claimed target fence and leader are never trusted. A fenced completion
+may apply only an active, structurally valid, local-replica metadata record with
+the same identity and a fence strictly newer than the exact base runtime. The
+result may be an intermediate committed version when the local Slot read lags,
+but metadata application remains monotonic. Success schedules normal
+`NeedMeta=false` replication from the resolved leader; resolver failure,
+timeout, invalid topology, or backpressure leaves the runtime and waiters
+unchanged. An explicit ApplyMeta that supersedes the captured base, eviction,
+and close cancel and fence stale resolver completions; a compatible same-fence
+authority-field refresh keeps the fixed admission lease intact.
 
 `PendingMeta` is not a loaded runtime. `EventCheckState` reports it as missing,
 append, leader pull, ACK, notify, snapshots, and active runtime counts do not
@@ -308,6 +323,7 @@ TaskRPCPull            -> follower pull completion
 TaskStoreApply         -> follower apply completion
 TaskRPCAck             -> follower stopped ACK completion
 TaskRPCPullHint        -> leader pull-hint completion
+TaskMetaResolve        -> loaded newer-fence authoritative metadata completion
 ```
 
 Worker completions are accepted only when their channel key, generation, epoch,

@@ -153,6 +153,7 @@ func NewService(cfg Config) (*Service, error) {
 			AppendAdmissionGuard:          cfg.AppendAdmissionGuard,
 			Store:                         cfg.Store,
 			Transport:                     cfg.Transport,
+			MetaResolver:                  cfg.MetaSource,
 			Observer:                      cfg.Observer,
 		})
 		if err != nil {

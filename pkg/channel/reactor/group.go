@@ -17,6 +17,8 @@ const (
 	defaultStoreAppendWorkerMultiplier = 2
 	defaultStoreApplyWorkerMultiplier  = 2
 	defaultStoreWorkerCap              = 128
+	defaultMetaResolveWorkers          = 2
+	defaultMetaResolveQueueSize        = 64
 	defaultReplicationIdlePollInterval = 100 * time.Millisecond
 
 	// Default worker pool names preserve legacy observer labels for compatibility.
@@ -24,6 +26,7 @@ const (
 	defaultStoreReadPoolName   = "channelv2-store-read"
 	defaultStoreApplyPoolName  = "channelv2-store-apply"
 	defaultRPCPoolName         = "channelv2-rpc"
+	defaultMetaResolvePoolName = "channelv2-meta-resolve"
 )
 
 // Config wires a group of channel-keyed reactors.
@@ -40,6 +43,8 @@ type Config struct {
 	Store store.Factory
 	// Transport sends channel replication RPCs from blocking workers.
 	Transport transport.Client
+	// MetaResolver reads authoritative metadata for bounded PullHint-triggered refreshes.
+	MetaResolver ch.MetaResolver
 	// WorkerPools configures bounded pools for blocking store and RPC effects.
 	WorkerPools worker.PoolsConfig
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
@@ -121,7 +126,7 @@ func NewGroup(cfg Config) (*Group, error) {
 		return nil, err
 	}
 	g := &Group{cfg: cfg, router: router, reactors: make([]*Reactor, cfg.ReactorCount)}
-	pools, err := worker.NewPools(defaultWorkerPools(cfg), worker.Deps{LocalNode: cfg.LocalNode, Stores: cfg.Store, Transport: cfg.Transport}, g)
+	pools, err := worker.NewPools(defaultWorkerPools(cfg), worker.Deps{LocalNode: cfg.LocalNode, Stores: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaResolver}, g)
 	if err != nil {
 		return nil, err
 	}
@@ -419,6 +424,9 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	pools.StoreRead = defaultPoolConfig(pools.StoreRead, defaultStoreReadPoolName, workers, queueSize)
 	pools.StoreApply = defaultPoolConfig(pools.StoreApply, defaultStoreApplyPoolName, storeApplyWorkers, queueSize)
 	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, workers, queueSize)
+	if cfg.MetaResolver != nil {
+		pools.MetaResolve = defaultPoolConfig(pools.MetaResolve, defaultMetaResolvePoolName, defaultMetaResolveWorkers, defaultMetaResolveQueueSize)
+	}
 	return pools
 }
 

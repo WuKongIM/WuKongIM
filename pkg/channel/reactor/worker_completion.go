@@ -25,5 +25,7 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleRPCAckResult(event.Worker)
 	case worker.TaskRPCPullHint:
 		r.handleRPCPullHintResult(event.Worker)
+	case worker.TaskMetaResolve:
+		r.handleMetaResolveResult(event.Worker)
 	}
 }

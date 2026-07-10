@@ -53,7 +53,6 @@ func (r *Reactor) applyLoadedRuntimeMeta(rc *runtimeChannel, meta ch.Meta, fence
 	if decision.Err != nil {
 		return decision.Err
 	}
-	r.clearLoadedMetaRefresh(rc.state.Key)
 	r.applyLoadedMetaDecision(rc, fencePendingState)
 	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	r.observeRuntimeCounts()

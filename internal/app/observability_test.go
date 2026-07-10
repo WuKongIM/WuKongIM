@@ -36,6 +36,12 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+func TestChannelWorkerKindLabelIncludesMetaResolve(t *testing.T) {
+	if got := channelWorkerKindLabel(worker.TaskMetaResolve); got != "meta_resolve" {
+		t.Fatalf("channelWorkerKindLabel(TaskMetaResolve) = %q, want meta_resolve", got)
+	}
+}
+
 func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 

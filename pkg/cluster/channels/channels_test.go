@@ -1212,6 +1212,36 @@ func TestServiceDelegatesAppend(t *testing.T) {
 	}
 }
 
+func TestServiceWiresMetaSourceIntoLoadedRuntimeRefresh(t *testing.T) {
+	id := ch.ChannelID{ID: "loaded-meta-source-refresh", Type: 1}
+	base := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2,
+		Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive,
+	}
+	authoritative := base
+	authoritative.Leader = 1
+	authoritative.LeaderEpoch = 2
+	network := channeltransport.NewLocalNetwork()
+	network.Register(1, &fakeRuntime{})
+	svc, err := NewService(Config{
+		LocalNode: 2, ReactorCount: 1, Store: channelstore.NewMemoryFactory(), Transport: network,
+		MetaSource: NewStaticMetaSource([]ch.Meta{authoritative}),
+	})
+	require.NoError(t, err)
+	defer svc.Close()
+	require.NoError(t, svc.ApplyMeta(base))
+
+	require.NoError(t, svc.Server().HandlePullHint(context.Background(), channeltransport.PullHintRequest{
+		ChannelKey: base.Key, ChannelID: base.ID, Epoch: 1, LeaderEpoch: 100, Leader: 3,
+		LeaderLEO: 100, ActivityVersion: 100, Reason: channeltransport.PullHintReasonAppend,
+	}))
+	require.Eventually(t, func() bool {
+		probe, probeErr := svc.RuntimeProbe(context.Background(), ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
+		return probeErr == nil && len(probe.Channels) == 1 &&
+			probe.Channels[0].LeaderEpoch == authoritative.LeaderEpoch && probe.Channels[0].Role == ch.RoleFollower
+	}, time.Second, time.Millisecond)
+}
+
 func TestServiceAppliesResolvedMetaBeforeLocalAppend(t *testing.T) {
 	id := ch.ChannelID{ID: "local-append", Type: 1}
 	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
