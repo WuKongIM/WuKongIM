@@ -62,7 +62,7 @@ func TestLeaderTransferExecutorRunsPhaseOrder(t *testing.T) {
 		"commit_leader",
 		"clear_fence",
 	}, store.ops)
-	require.Equal(t, []string{"probe:1", "probe:3", "drain:1", "probe:3", "probe:3"}, runtime.ops)
+	require.Equal(t, []string{"probe:1", "probe:3", "drain:1", "probe:3", "apply_meta:3", "probe:3"}, runtime.ops)
 	require.Equal(t, uint64(9), store.lastProof.CutoverLEO)
 	require.Equal(t, uint64(9), store.lastProof.CutoverHW)
 	require.Equal(t, uint64(1), store.lastProof.DrainedLeaderNode)
@@ -253,14 +253,14 @@ func TestLeaderTransferExecutorRetriesLaggingNewLeaderWithoutBlocking(t *testing
 	require.Empty(t, store.lastReason)
 	require.Empty(t, store.ops)
 	require.NotContains(t, store.ops, "clear_fence")
-	require.Equal(t, []string{"probe:3"}, runtime.ops)
+	require.Equal(t, []string{"apply_meta:3", "probe:3"}, runtime.ops)
 
 	require.NoError(t, executor.RunOnce(ctx))
 
 	require.Equal(t, metadb.ChannelMigrationStatusCompleted, store.task.Status)
 	require.Equal(t, metadb.ChannelMigrationPhaseClearFence, store.task.Phase)
 	require.Equal(t, []string{"clear_fence"}, store.ops)
-	require.Equal(t, []string{"probe:3", "probe:3"}, runtime.ops)
+	require.Equal(t, []string{"apply_meta:3", "probe:3", "apply_meta:3", "probe:3"}, runtime.ops)
 }
 
 func TestMigrationExecutorRenewsExpiredLocalOwnerLease(t *testing.T) {

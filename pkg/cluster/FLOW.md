@@ -349,8 +349,9 @@ from replicas.
 Channel migration execution keeps one durable operation order. Manual leader
 transfer validates metadata, proves the target follower, sets the task-owned
 write fence, drains the source leader, waits for final target catch-up, commits
-leader metadata, verifies the new leader runtime, and only then clears the
-fence. Automatic leader failover uses the same fenced commit/verify/clear tail
+leader metadata, applies that authoritative fenced metadata to the target,
+verifies the new leader runtime, and only then clears the fence. Automatic
+leader failover uses the same fenced commit/apply/verify/clear tail
 but skips source drain and synthesizes the cutover proof from the selected
 target replica because the old leader is considered unavailable. Replica
 replacement validates the non-leader source, adds the target learner, applies

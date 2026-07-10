@@ -138,6 +138,12 @@ func (e *MigrationExecutor) runLeaderTransferVerifyNewLeader(ctx context.Context
 	if meta.WriteFenceToken != task.TaskID || meta.WriteFenceVersion != task.FenceVersion {
 		return e.blockTask(ctx, task, migrationBlockNewLeaderNotReady)
 	}
+	if meta.Leader != task.TargetNode {
+		return nil
+	}
+	if err := e.runtime.ApplyChannelMeta(ctx, task.TargetNode, meta); err != nil {
+		return err
+	}
 	probe, err := e.runtime.ProbeChannel(ctx, task.TargetNode, id.ID, id.Type)
 	if err != nil {
 		return err
@@ -147,7 +153,6 @@ func (e *MigrationExecutor) runLeaderTransferVerifyNewLeader(ctx context.Context
 		probe.LeaderEpoch != meta.LeaderEpoch ||
 		probe.Role != ch.RoleLeader ||
 		probe.Status != ch.StatusActive ||
-		meta.Leader != task.TargetNode ||
 		probe.HW < task.CutoverLEO ||
 		probe.LEO < task.CutoverLEO ||
 		!writeFenceMatchesTask(probe.WriteFence, task) {
