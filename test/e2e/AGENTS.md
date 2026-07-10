@@ -14,6 +14,10 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
   focus on business assertions.
 - The e2e suite builds `./cmd/wukongim` by default. Use `WK_E2E_BINARY` to
   point at a prebuilt binary.
+- The entire `WK_E2E_*` namespace is harness-only. `NodeProcess` removes those
+  variables from every spawned node; use `NodeSpec.Env` only for real node
+  runtime variables such as `WK_NODE_ID` or non-config controls such as
+  `GOFAIL_HTTP`.
 - Keep failure diagnostics bounded: prefer config paths, stdout/stderr tails,
   app log tails, public HTTP responses, and public metrics.
 

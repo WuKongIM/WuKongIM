@@ -17,6 +17,7 @@ const (
 	defaultStopTimeout   = 5 * time.Second
 	diagnosticsTailBytes = 4096
 	diagnosticsTailLines = 16
+	e2eHarnessEnvPrefix  = "WK_E2E_"
 )
 
 // NodeProcess wraps one real child process used by the e2e suite.
@@ -58,7 +59,9 @@ func (p *NodeProcess) Start() error {
 	if baseEnv == nil {
 		baseEnv = os.Environ()
 	}
-	cmd.Env = append(baseEnv, p.Spec.Env...)
+	childEnv := make([]string, 0, len(baseEnv)+len(p.Spec.Env))
+	childEnv = appendChildEnvironment(childEnv, baseEnv)
+	cmd.Env = appendChildEnvironment(childEnv, p.Spec.Env)
 	cmd.Stdout = stdoutLog
 	cmd.Stderr = stderrLog
 
@@ -72,6 +75,16 @@ func (p *NodeProcess) Start() error {
 		return err
 	}
 	return nil
+}
+
+func appendChildEnvironment(dst, src []string) []string {
+	for _, entry := range src {
+		if strings.HasPrefix(entry, e2eHarnessEnvPrefix) {
+			continue
+		}
+		dst = append(dst, entry)
+	}
+	return dst
 }
 
 // Stop terminates the child process and waits for it to exit.
