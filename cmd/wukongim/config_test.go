@@ -1038,6 +1038,33 @@ func TestLoadConfigRejectsSeedJoinWithStaticNodes(t *testing.T) {
 	}
 }
 
+func TestLoadConfigPresenceTouchMaxRoutesPerFlushFromTOMLAndEnv(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.toml")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_PRESENCE_TOUCH_BATCH_SIZE=1024",
+		"WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=4096",
+	)...)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig(TOML) error = %v", err)
+	}
+	if cfg.Presence.TouchMaxRoutesPerFlush != 4096 {
+		t.Fatalf("TOML Presence.TouchMaxRoutesPerFlush = %d, want 4096", cfg.Presence.TouchMaxRoutesPerFlush)
+	}
+
+	t.Setenv("WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH", "8192")
+	cfg, err = loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig(env override) error = %v", err)
+	}
+	if cfg.Presence.TouchMaxRoutesPerFlush != 8192 {
+		t.Fatalf("env Presence.TouchMaxRoutesPerFlush = %d, want 8192", cfg.Presence.TouchMaxRoutesPerFlush)
+	}
+}
+
 func TestLoadConfigDerivesStaticMultiNodeClusterID(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
@@ -1631,6 +1658,10 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "presence touch flush interval negative", line: "WK_PRESENCE_TOUCH_FLUSH_INTERVAL=-1s", wantKey: "WK_PRESENCE_TOUCH_FLUSH_INTERVAL"},
 		{name: "presence touch batch size", line: "WK_PRESENCE_TOUCH_BATCH_SIZE=many", wantKey: "WK_PRESENCE_TOUCH_BATCH_SIZE"},
 		{name: "presence touch batch size negative", line: "WK_PRESENCE_TOUCH_BATCH_SIZE=-1", wantKey: "WK_PRESENCE_TOUCH_BATCH_SIZE"},
+		{name: "presence touch max routes", line: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=many", wantKey: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH"},
+		{name: "presence touch max routes zero", line: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=0", wantKey: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH"},
+		{name: "presence touch max routes negative", line: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=-1", wantKey: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH"},
+		{name: "presence touch max routes below default batch", line: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=511", wantKey: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH"},
 		{name: "presence route ttl", line: "WK_PRESENCE_ROUTE_TTL=soon", wantKey: "WK_PRESENCE_ROUTE_TTL"},
 		{name: "presence route ttl negative", line: "WK_PRESENCE_ROUTE_TTL=-1s", wantKey: "WK_PRESENCE_ROUTE_TTL"},
 		{name: "conversation max last message concurrency", line: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=many", wantKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"},

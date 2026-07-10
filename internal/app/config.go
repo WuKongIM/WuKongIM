@@ -347,6 +347,9 @@ type PresenceConfig struct {
 	TouchFlushInterval time.Duration
 	// TouchBatchSize limits owner-local touched routes drained in one flush.
 	TouchBatchSize int
+	// TouchMaxRoutesPerFlush limits owner-local dirty routes processed across all touch chunks in one flush.
+	// It must be positive and greater than or equal to TouchBatchSize.
+	TouchMaxRoutesPerFlush int
 	// RouteTTL bounds authority-side route liveness since the latest observed activity.
 	RouteTTL time.Duration
 }
@@ -550,6 +553,9 @@ func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
 	}
 	if cfg.TouchBatchSize == 0 {
 		cfg.TouchBatchSize = 512
+	}
+	if cfg.TouchMaxRoutesPerFlush == 0 {
+		cfg.TouchMaxRoutesPerFlush = 65536
 	}
 	if cfg.RouteTTL == 0 {
 		cfg.RouteTTL = 90 * time.Second
@@ -862,6 +868,12 @@ func validatePresenceConfig(cfg PresenceConfig) error {
 	}
 	if cfg.TouchBatchSize < 0 {
 		return fmt.Errorf("%w: presence touch batch size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.TouchMaxRoutesPerFlush <= 0 {
+		return fmt.Errorf("%w: presence touch max routes per flush must be positive", ErrInvalidConfig)
+	}
+	if cfg.TouchMaxRoutesPerFlush < cfg.TouchBatchSize {
+		return fmt.Errorf("%w: presence touch max routes per flush must be greater than or equal to touch batch size", ErrInvalidConfig)
 	}
 	if cfg.RouteTTL < 0 {
 		return fmt.Errorf("%w: presence route ttl must be non-negative", ErrInvalidConfig)

@@ -221,6 +221,10 @@ touch_flush_interval = "1s"
 
 touch_batch_size = 512
 
+# Maximum owner-local dirty routes processed across all touch chunks in one flush.
+# Must be positive and greater than or equal to touch_batch_size.
+touch_max_routes_per_flush = 65536
+
 route_ttl = "90s"
 
 [conversation]

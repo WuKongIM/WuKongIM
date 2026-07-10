@@ -106,6 +106,9 @@ permission_cache_ttl = "0"
 activation_timeout = "3s"
 touch_flush_interval = "1s"
 touch_batch_size = 512
+# Maximum owner-local dirty routes processed across all touch chunks in one flush.
+# Must be positive and greater than or equal to touch_batch_size.
+touch_max_routes_per_flush = 65536
 route_ttl = "90s"
 
 [conversation]
@@ -136,4 +139,3 @@ shard_count = 0
 advance_pool_size = 0
 effect_pool_size = 0
 recipient_authority_dispatch_concurrency = 0
-

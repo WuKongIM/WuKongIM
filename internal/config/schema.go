@@ -198,6 +198,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "presence.activation_timeout", EnvKey: "WK_PRESENCE_ACTIVATION_TIMEOUT", Kind: kindDuration, Group: "presence", Label: "Presence activation timeout"},
 	{TOMLPath: "presence.touch_flush_interval", EnvKey: "WK_PRESENCE_TOUCH_FLUSH_INTERVAL", Kind: kindDuration, Group: "presence", Label: "Presence touch flush interval"},
 	{TOMLPath: "presence.touch_batch_size", EnvKey: "WK_PRESENCE_TOUCH_BATCH_SIZE", Kind: kindInt, Group: "presence", Label: "Presence touch batch size"},
+	{TOMLPath: "presence.touch_max_routes_per_flush", EnvKey: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH", Kind: kindInt, Group: "presence", Label: "Presence touch max routes per flush", Description: "Maximum owner-local dirty routes processed across all touch chunks in one flush; must be positive and at least presence.touch_batch_size."},
 	{TOMLPath: "presence.route_ttl", EnvKey: "WK_PRESENCE_ROUTE_TTL", Kind: kindDuration, Group: "presence", Label: "Presence route TTL"},
 
 	{TOMLPath: "conversation.max_last_message_concurrency", EnvKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", Kind: kindInt, Group: "conversation", Label: "Conversation max last message concurrency"},
@@ -378,6 +379,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_PRESENCE_ACTIVATION_TIMEOUT",
 		"WK_PRESENCE_TOUCH_FLUSH_INTERVAL",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE",
+		"WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH",
 		"WK_PRESENCE_ROUTE_TTL",
 		"WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY",
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID",

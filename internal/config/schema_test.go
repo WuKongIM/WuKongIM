@@ -38,3 +38,19 @@ func TestSchemaFieldsExposeDiagnosticSensitivity(t *testing.T) {
 		})
 	}
 }
+
+func TestSchemaFieldsExposePresenceTouchMaxRoutesPerFlush(t *testing.T) {
+	for _, field := range SchemaFields() {
+		if field.TOMLPath != "presence.touch_max_routes_per_flush" {
+			continue
+		}
+		if field.EnvKey != "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH" {
+			t.Fatalf("EnvKey = %q, want WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH", field.EnvKey)
+		}
+		if field.Kind != "int" {
+			t.Fatalf("Kind = %q, want int", field.Kind)
+		}
+		return
+	}
+	t.Fatal("SchemaFields() missing presence.touch_max_routes_per_flush")
+}

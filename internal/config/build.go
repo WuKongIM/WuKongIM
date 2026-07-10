@@ -935,6 +935,27 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Presence.TouchBatchSize = batchSize
 	}
+	if raw := configValue(values, "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH"); raw != "" {
+		maxRoutes, err := parseInt("WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRoutes <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH: value must be > 0")
+		}
+		cfg.Presence.TouchMaxRoutesPerFlush = maxRoutes
+	}
+	effectiveTouchBatchSize := cfg.Presence.TouchBatchSize
+	if effectiveTouchBatchSize == 0 {
+		effectiveTouchBatchSize = 512
+	}
+	effectiveTouchMaxRoutesPerFlush := cfg.Presence.TouchMaxRoutesPerFlush
+	if effectiveTouchMaxRoutesPerFlush == 0 {
+		effectiveTouchMaxRoutesPerFlush = 65536
+	}
+	if effectiveTouchMaxRoutesPerFlush < effectiveTouchBatchSize {
+		return app.Config{}, fmt.Errorf("parse WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH: value must be >= WK_PRESENCE_TOUCH_BATCH_SIZE")
+	}
 	if raw := configValue(values, "WK_PRESENCE_ROUTE_TTL"); raw != "" {
 		ttl, err := parseDuration("WK_PRESENCE_ROUTE_TTL", raw)
 		if err != nil {

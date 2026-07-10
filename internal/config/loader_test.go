@@ -113,6 +113,79 @@ listen_addr = "127.0.0.1:7001"
 	}
 }
 
+func TestLoadPresenceTouchMaxRoutesPerFlushFromTOML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.toml")
+	writeFile(t, path, `
+[node]
+id = 1
+data_dir = "`+dir+`/node1"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+
+[presence]
+touch_batch_size = 1024
+touch_max_routes_per_flush = 4096
+`)
+
+	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: cleanEnv()})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Presence.TouchMaxRoutesPerFlush != 4096 {
+		t.Fatalf("Presence.TouchMaxRoutesPerFlush = %d, want 4096", cfg.Presence.TouchMaxRoutesPerFlush)
+	}
+}
+
+func TestLoadPresenceTouchMaxRoutesPerFlushFromEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := Load(Options{Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=" + dir + "/node1",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_PRESENCE_TOUCH_BATCH_SIZE=1024",
+		"WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=8192",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Presence.TouchMaxRoutesPerFlush != 8192 {
+		t.Fatalf("Presence.TouchMaxRoutesPerFlush = %d, want 8192", cfg.Presence.TouchMaxRoutesPerFlush)
+	}
+}
+
+func TestLoadRejectsInvalidPresenceTouchMaxRoutesPerFlush(t *testing.T) {
+	tests := []struct {
+		name      string
+		batchSize string
+		maxRoutes string
+	}{
+		{name: "zero", batchSize: "512", maxRoutes: "0"},
+		{name: "negative", batchSize: "512", maxRoutes: "-1"},
+		{name: "below batch", batchSize: "1024", maxRoutes: "1023"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Load(Options{Environ: []string{
+				"PATH=" + os.Getenv("PATH"),
+				"WK_NODE_ID=1",
+				"WK_NODE_DATA_DIR=/tmp/node1",
+				"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+				"WK_PRESENCE_TOUCH_BATCH_SIZE=" + tt.batchSize,
+				"WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=" + tt.maxRoutes,
+			}})
+			if err == nil {
+				t.Fatal("Load() error = nil, want touch flush budget validation error")
+			}
+			if !strings.Contains(err.Error(), "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH") {
+				t.Fatalf("Load() error = %v, want WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH", err)
+			}
+		})
+	}
+}
+
 func TestLoadPrometheusQueryBaseURL(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "wukongim.toml")

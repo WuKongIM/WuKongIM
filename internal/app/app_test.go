@@ -2234,19 +2234,24 @@ func TestDefaultPresenceConfigUsesTouchDefaults(t *testing.T) {
 	if cfg.TouchBatchSize != 512 {
 		t.Fatalf("TouchBatchSize = %d, want 512", cfg.TouchBatchSize)
 	}
+	if cfg.TouchMaxRoutesPerFlush != 65536 {
+		t.Fatalf("TouchMaxRoutesPerFlush = %d, want 65536", cfg.TouchMaxRoutesPerFlush)
+	}
 	if cfg.RouteTTL != 90*time.Second {
 		t.Fatalf("RouteTTL = %v, want 90s", cfg.RouteTTL)
 	}
 
 	negative := defaultPresenceConfig(PresenceConfig{
-		ActivationTimeout:  -time.Second,
-		TouchFlushInterval: -time.Second,
-		TouchBatchSize:     -1,
-		RouteTTL:           -time.Second,
+		ActivationTimeout:      -time.Second,
+		TouchFlushInterval:     -time.Second,
+		TouchBatchSize:         -1,
+		TouchMaxRoutesPerFlush: -1,
+		RouteTTL:               -time.Second,
 	})
 	if negative.ActivationTimeout != -time.Second ||
 		negative.TouchFlushInterval != -time.Second ||
 		negative.TouchBatchSize != -1 ||
+		negative.TouchMaxRoutesPerFlush != -1 ||
 		negative.RouteTTL != -time.Second {
 		t.Fatalf("negative presence values were overwritten: %#v", negative)
 	}
@@ -2257,10 +2262,13 @@ func TestValidatePresenceConfigRejectsInvalidTouchValues(t *testing.T) {
 		name string
 		cfg  PresenceConfig
 	}{
-		{name: "activation timeout", cfg: PresenceConfig{ActivationTimeout: -time.Nanosecond}},
-		{name: "touch flush interval", cfg: PresenceConfig{TouchFlushInterval: -time.Nanosecond}},
-		{name: "touch batch size", cfg: PresenceConfig{TouchBatchSize: -1}},
-		{name: "route ttl", cfg: PresenceConfig{RouteTTL: -time.Nanosecond}},
+		{name: "activation timeout", cfg: PresenceConfig{ActivationTimeout: -time.Nanosecond, TouchMaxRoutesPerFlush: 65536}},
+		{name: "touch flush interval", cfg: PresenceConfig{TouchFlushInterval: -time.Nanosecond, TouchMaxRoutesPerFlush: 65536}},
+		{name: "touch batch size", cfg: PresenceConfig{TouchBatchSize: -1, TouchMaxRoutesPerFlush: 65536}},
+		{name: "touch max routes zero", cfg: PresenceConfig{TouchMaxRoutesPerFlush: 0}},
+		{name: "touch max routes negative", cfg: PresenceConfig{TouchMaxRoutesPerFlush: -1}},
+		{name: "touch max routes below batch", cfg: PresenceConfig{TouchBatchSize: 1024, TouchMaxRoutesPerFlush: 512}},
+		{name: "route ttl", cfg: PresenceConfig{TouchMaxRoutesPerFlush: 65536, RouteTTL: -time.Nanosecond}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2268,6 +2276,12 @@ func TestValidatePresenceConfigRejectsInvalidTouchValues(t *testing.T) {
 				t.Fatalf("validatePresenceConfig() error = %v, want %v", err, ErrInvalidConfig)
 			}
 		})
+	}
+	if err := validatePresenceConfig(PresenceConfig{
+		TouchBatchSize:         1024,
+		TouchMaxRoutesPerFlush: 1024,
+	}); err != nil {
+		t.Fatalf("validatePresenceConfig(equal touch budget) error = %v", err)
 	}
 }
 
