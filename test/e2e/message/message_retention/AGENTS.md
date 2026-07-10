@@ -21,3 +21,6 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/message_retention -count=1 -time
   forwarding.
 - Verify each node's manager message page hides retained messages before and
   after restarting the channel leader.
+- After restarting a Channel leader, wait on public manager evidence for an
+  active, unfenced Channel with no migration task and a healthy schedulable
+  leader before issuing the post-restart SEND.

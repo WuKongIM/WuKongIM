@@ -60,6 +60,8 @@ func TestThreeNodeManagerRetentionForwardsAndSurvivesLeaderRestart(t *testing.T)
 		requirePhysicalRetentionApplied(t, node, channelID, channelType, messages[:2], messages[2])
 	})
 	requireManagerMessageSeqsEventually(t, cluster, *cluster.MustNode(meta.Leader), channelID, channelType, []uint64{seqs[2]})
+	recoveredMeta := requireChannelWritableEventually(t, cluster, cluster.MustNode(1), channelID, channelType, meta.LeaderEpoch, 45*time.Second)
+	t.Logf("post-restart channel writable: leader=%d leader_epoch=%d", recoveredMeta.Leader, recoveredMeta.LeaderEpoch)
 
 	afterRestart := appendGroupMessages(t, cluster.MustNode(1), channelID, channelType, 1)[0]
 	require.Greater(t, afterRestart.Seq, seqs[2], cluster.DumpDiagnostics())
@@ -196,18 +198,24 @@ type channelRuntimeMetaPage struct {
 }
 
 type channelRuntimeMetaItem struct {
-	ChannelID   string `json:"channel_id"`
-	ChannelType int64  `json:"channel_type"`
-	Leader      uint64 `json:"leader"`
-	Status      string `json:"status"`
+	ChannelID       string `json:"channel_id"`
+	ChannelType     int64  `json:"channel_type"`
+	Leader          uint64 `json:"leader"`
+	LeaderEpoch     uint64 `json:"leader_epoch"`
+	Status          string `json:"status"`
+	WriteFenceToken string `json:"write_fence_token"`
+	ActiveTaskID    string `json:"active_task_id"`
 }
 
 func runtimeMeta(ctx context.Context, node *suite.StartedNode, channelID string, channelType uint8) (channelRuntimeMetaItem, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
 	var page channelRuntimeMetaPage
 	query := url.Values{}
 	query.Set("channel_id", channelID)
 	query.Set("limit", "10")
-	_, err := suite.GetJSON(ctx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
+	_, err := suite.GetJSON(reqCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
 	if err != nil {
 		return channelRuntimeMetaItem{}, err
 	}
@@ -217,6 +225,73 @@ func runtimeMeta(ctx context.Context, node *suite.StartedNode, channelID string,
 		}
 	}
 	return channelRuntimeMetaItem{}, fmt.Errorf("runtime meta for %s/%d not found in %+v", channelID, channelType, page.Items)
+}
+
+func requireChannelWritableEventually(t *testing.T, cluster *suite.StartedCluster, managerNode *suite.StartedNode, channelID string, channelType uint8, minLeaderEpoch uint64, timeout time.Duration) channelRuntimeMetaItem {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	manager := cluster.ManagerClient(t, managerNode.Spec.ID)
+
+	var lastMeta channelRuntimeMetaItem
+	var lastNodes suite.NodeListDTO
+	var lastErr error
+	for {
+		meta, err := runtimeMeta(ctx, managerNode, channelID, channelType)
+		if err == nil {
+			lastMeta = meta
+			reqCtx, reqCancel := context.WithTimeout(ctx, 2*time.Second)
+			nodes, listErr := manager.ListNodes(reqCtx)
+			reqCancel()
+			if listErr == nil {
+				lastNodes = nodes
+				confirmed, confirmErr := runtimeMeta(ctx, managerNode, channelID, channelType)
+				if confirmErr != nil {
+					lastErr = confirmErr
+				} else if confirmed.Leader != meta.Leader || confirmed.LeaderEpoch != meta.LeaderEpoch {
+					lastMeta = confirmed
+					lastErr = fmt.Errorf("runtime leader changed while checking writability: before=%+v after=%+v", meta, confirmed)
+				} else if checkErr := channelWritableEvidence(confirmed, nodes, minLeaderEpoch); checkErr == nil {
+					return confirmed
+				} else {
+					lastMeta = confirmed
+					lastErr = checkErr
+				}
+			} else {
+				lastErr = listErr
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("channel %s/%d did not become writable after restart: lastMeta=%+v lastNodes=%+v lastErr=%v\n%s", channelID, channelType, lastMeta, lastNodes, lastErr, cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func channelWritableEvidence(meta channelRuntimeMetaItem, nodes suite.NodeListDTO, minLeaderEpoch uint64) error {
+	if meta.Status != "active" || meta.Leader == 0 || meta.LeaderEpoch < minLeaderEpoch {
+		return fmt.Errorf("runtime meta = %+v, want active leader with leader_epoch >= %d", meta, minLeaderEpoch)
+	}
+	if meta.WriteFenceToken != "" || meta.ActiveTaskID != "" {
+		return fmt.Errorf("runtime meta = %+v, want no write fence or active migration", meta)
+	}
+	for _, node := range nodes.Items {
+		if node.NodeID != meta.Leader {
+			continue
+		}
+		if !node.Membership.Schedulable || !node.Health.Fresh || !node.Health.RuntimeReady || node.Health.Status != "alive" {
+			return fmt.Errorf("channel leader %d is not healthy/schedulable: %+v", meta.Leader, node)
+		}
+		return nil
+	}
+	return fmt.Errorf("channel leader %d missing from manager node inventory: %+v", meta.Leader, nodes.Items)
 }
 
 func requireRuntimeMetaEventually(t *testing.T, node *suite.StartedNode, channelID string, channelType uint8) channelRuntimeMetaItem {
