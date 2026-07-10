@@ -163,14 +163,12 @@ func TestPostMessageSendEventuallyDoesNotRetryHTTPStatusVariants(t *testing.T) {
 func TestPostMessageSendEventuallyDoesNotRetryTransportError(t *testing.T) {
 	sentinel := errors.New("transport failed")
 	attempts := 0
-	originalClient := http.DefaultClient
-	http.DefaultClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		attempts++
 		return nil, sentinel
 	})}
-	t.Cleanup(func() { http.DefaultClient = originalClient })
 
-	_, err := PostMessageSendEventually(context.Background(), "node.invalid", testMessageSendBody())
+	_, err := postMessageSendEventuallyWithClient(context.Background(), client, "node.invalid", testMessageSendBody())
 	require.ErrorIs(t, err, sentinel)
 	require.Equal(t, 1, attempts)
 }
@@ -207,8 +205,7 @@ func TestPostMessageSendEventuallyReturnsFirstSuccessfulBusinessResponse(t *test
 func TestPostMessageSendEventuallyContextExpiryRetainsStatusError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	attempts := 0
-	originalClient := http.DefaultClient
-	http.DefaultClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		attempts++
 		return &http.Response{
 			StatusCode: http.StatusServiceUnavailable,
@@ -220,9 +217,8 @@ func TestPostMessageSendEventuallyContextExpiryRetainsStatusError(t *testing.T) 
 			Request: req,
 		}, nil
 	})}
-	t.Cleanup(func() { http.DefaultClient = originalClient })
 
-	_, err := PostMessageSendEventually(ctx, "node.invalid", testMessageSendBody())
+	_, err := postMessageSendEventuallyWithClient(ctx, client, "node.invalid", testMessageSendBody())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "after 1 attempt")
 	require.ErrorIs(t, err, context.Canceled)
@@ -231,6 +227,38 @@ func TestPostMessageSendEventuallyContextExpiryRetainsStatusError(t *testing.T) 
 	require.Equal(t, http.StatusServiceUnavailable, statusErr.StatusCode)
 	require.Equal(t, `{"error":"retry required"}`, statusErr.Body)
 	require.Equal(t, 1, attempts)
+}
+
+func TestPostMessageSendEventuallyReturnsCurrentTerminalStatusWhenContextAlsoCancels(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	attempts := 0
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		attempts++
+		status := http.StatusServiceUnavailable
+		body := io.ReadCloser(io.NopCloser(strings.NewReader(`{"error":"retry required"}`)))
+		if attempts == 2 {
+			status = http.StatusInternalServerError
+			body = &cancelOnCloseReadCloser{
+				Reader: strings.NewReader(`{"error":"terminal"}`),
+				cancel: cancel,
+			}
+		}
+		return &http.Response{
+			StatusCode: status,
+			Header:     make(http.Header),
+			Body:       body,
+			Request:    req,
+		}, nil
+	})}
+
+	_, err := postMessageSendEventuallyWithClient(ctx, client, "node.invalid", testMessageSendBody())
+	require.Error(t, err)
+	require.NotErrorIs(t, err, context.Canceled)
+	var statusErr *HTTPStatusError
+	require.ErrorAs(t, err, &statusErr)
+	require.Equal(t, http.StatusInternalServerError, statusErr.StatusCode)
+	require.Equal(t, `{"error":"terminal"}`, statusErr.Body)
+	require.Equal(t, 2, attempts)
 }
 
 func testMessageSendBody() map[string]any {

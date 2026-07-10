@@ -72,13 +72,17 @@ func PostJSON(ctx context.Context, url string, body any, out any) ([]byte, error
 }
 
 func postJSONBytes(ctx context.Context, url string, data []byte, out any) ([]byte, error) {
+	return postJSONBytesWithClient(ctx, http.DefaultClient, url, data, out)
+}
+
+func postJSONBytesWithClient(ctx context.Context, client *http.Client, url string, data []byte, out any) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +168,10 @@ func IsMessageSendRetryRequired(err error) bool {
 
 // PostMessageSendEventually retries only the public recovery signal with one stable JSON body.
 func PostMessageSendEventually(ctx context.Context, apiAddr string, body map[string]any) (MessageSendResponse, error) {
+	return postMessageSendEventuallyWithClient(ctx, http.DefaultClient, apiAddr, body)
+}
+
+func postMessageSendEventuallyWithClient(ctx context.Context, client *http.Client, apiAddr string, body map[string]any) (MessageSendResponse, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return MessageSendResponse{}, err
@@ -177,15 +185,16 @@ func PostMessageSendEventually(ctx context.Context, apiAddr string, body map[str
 	for {
 		attempts++
 		var out MessageSendResponse
-		_, err = postJSONBytes(ctx, url, data, &out)
+		_, err = postJSONBytesWithClient(ctx, client, url, data, &out)
 		if err == nil {
 			return out, nil
 		}
 		if IsMessageSendRetryRequired(err) {
 			lastStatusErr = err
 		} else {
-			if ctx.Err() != nil && lastStatusErr != nil {
-				return MessageSendResponse{}, messageSendRetryExhaustedError(url, attempts, ctx.Err(), lastStatusErr)
+			contextErr := ctx.Err()
+			if lastStatusErr != nil && contextErr != nil && errors.Is(err, contextErr) {
+				return MessageSendResponse{}, messageSendRetryExhaustedError(url, attempts, contextErr, lastStatusErr)
 			}
 			return MessageSendResponse{}, err
 		}
