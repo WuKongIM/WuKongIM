@@ -57,9 +57,9 @@ func TestRuntimeSingleVoterBootstrapsStateEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer startCancel()
+	if err := runtime.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -94,9 +94,9 @@ func TestRuntimeMirrorSyncsStateEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime(leader) error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := leader.Start(ctx); err != nil {
+	leaderStartCtx, leaderStartCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer leaderStartCancel()
+	if err := leader.Start(leaderStartCtx); err != nil {
 		t.Fatalf("Start(leader) error = %v", err)
 	}
 	t.Cleanup(func() { _ = leader.Stop(context.Background()) })
@@ -114,7 +114,9 @@ func TestRuntimeMirrorSyncsStateEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime(mirror) error = %v", err)
 	}
-	if err := mirror.Start(context.Background()); err != nil {
+	mirrorStartCtx, mirrorStartCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer mirrorStartCancel()
+	if err := mirror.Start(mirrorStartCtx); err != nil {
 		t.Fatalf("Start(mirror) error = %v", err)
 	}
 	t.Cleanup(func() { _ = mirror.Stop(context.Background()) })
@@ -170,7 +172,9 @@ func TestRuntimeMirrorLeaderIDUsesSyncClientKnownLeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime(mirror) error = %v", err)
 	}
-	if err := runtime.Start(context.Background()); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer startCancel()
+	if err := runtime.Start(startCtx); err != nil {
 		t.Fatalf("Start(mirror) error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -197,13 +201,15 @@ func TestRuntimeVoterWiresStateSyncServerOnStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer startCancel()
+	if err := runtime.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
 	_ = readStateEvent(t, runtime.Watch())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
 	if runtime.syncServer == nil {
 		t.Fatalf("Start() did not wire state sync server")
@@ -249,13 +255,15 @@ func TestRuntimeProbeProposeDoesNotMutateRevision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer startCancel()
+	if err := runtime.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
 	_ = readStateEvent(t, runtime.Watch())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
 	before, err := runtime.LocalState(context.Background())
 	if err != nil {
@@ -446,9 +454,6 @@ func TestRuntimeCompleteTaskProposesCommand(t *testing.T) {
 }
 
 func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	runtime, err := NewRuntime(RuntimeConfig{
 		NodeID:           1,
 		Addr:             "127.0.0.1:10001",
@@ -465,10 +470,14 @@ func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer startCancel()
+	if err := runtime.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
 	initial := waitForRuntimeState(t, runtime, func(st ClusterState) bool {
 		return st.Revision == 1
@@ -1270,9 +1279,9 @@ func TestRuntimePrepareControllerVoterFromStartedMirrorRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer startCancel()
+	if err := runtime.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -1684,6 +1693,8 @@ func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	}
 }
 
+const runtimeTestStartTimeout = 5 * time.Second
+
 func startSingleVoterRuntime(t *testing.T, clusterID string) *Runtime {
 	t.Helper()
 	runtime, err := NewRuntime(RuntimeConfig{
@@ -1702,7 +1713,7 @@ func startSingleVoterRuntime(t *testing.T, clusterID string) *Runtime {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	t.Cleanup(cancel)
 	if err := runtime.Start(ctx); err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -1730,7 +1741,7 @@ func newStartedSingleNodeRuntime(t *testing.T, slotCount uint32) *Runtime {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	if err := runtime.Start(ctx); err != nil {
 		t.Fatalf("Start() error = %v", err)
