@@ -220,7 +220,6 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 
 	handler := apiSrv.Handler()
 	postAppJSON(t, handler, "/message/send", `{"from_uid":"sender","channel_id":"room-conversation-page-old","channel_type":2,"client_msg_no":"client-page-old","payload":"b2xk"}`, http.StatusOK)
-	time.Sleep(2 * time.Millisecond)
 	postAppJSON(t, handler, "/message/send", `{"from_uid":"sender","channel_id":"room-conversation-page-new","channel_type":2,"client_msg_no":"client-page-new","payload":"bmV3"}`, http.StatusOK)
 
 	upsertAppConversationStates(t, node, []metadb.ConversationState{
