@@ -166,7 +166,8 @@ func (c *targetClient) setup(ctx context.Context, cfg Config, target targetPrefl
 		groups := plan.Groups[start:end]
 		channels := make([]channelItem, 0, len(groups))
 		subscribers := make([]subscriberItem, 0, len(groups))
-		for _, group := range groups {
+		for i := range groups {
+			group := &groups[i]
 			channels = append(channels, channelItem{
 				ChannelID:     group.ChannelID,
 				ChannelType:   groupChannelType,
