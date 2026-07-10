@@ -46,6 +46,12 @@ type authoritySlot struct {
 	ownerSeq map[identityKey]uint64
 	// tombstoneSeq stores explicit unregister fences for exact route identities.
 	tombstoneSeq map[identityKey]uint64
+	// expiryHeap orders non-empty activity-second buckets by oldest activity.
+	expiryHeap expiryBucketHeap
+	// expiryBySeen locates the unique bucket for each indexed activity second.
+	expiryBySeen map[int64]*expiryBucket
+	// expiryByKey locates the exact bucket membership for each indexed route.
+	expiryByKey map[identityKey]*expiryBucket
 	// nextID allocates shard-local pending route tokens.
 	nextID uint64
 }
@@ -199,36 +205,31 @@ func (d *Directory) TouchRoutes(target RouteTarget, routes []Route) error {
 	return nil
 }
 
-// ExpireRoutes removes active routes whose last observed activity is older than ttl.
-func (d *Directory) ExpireRoutes(now time.Time, ttl time.Duration) int {
-	if ttl <= 0 || now.IsZero() {
-		return 0
-	}
-	removed := 0
+// ExpireRoutesDetailed removes due active routes and reports bounded index diagnostics.
+func (d *Directory) ExpireRoutesDetailed(now time.Time, ttl time.Duration) ExpireResult {
+	result := ExpireResult{}
 	for i := range d.shards {
 		shard := &d.shards[i]
 		shard.mu.Lock()
 		for _, slot := range shard.slots {
-			for key, route := range slot.active {
-				seen := route.LastSeenUnix
-				if seen == 0 {
-					seen = route.ConnectedUnix
-				}
-				if seen == 0 {
-					continue
-				}
-				if time.Unix(seen, 0).Add(ttl).Before(now) {
-					slot.removeActiveLocked(key, route)
-					removed++
-				}
-			}
+			slotResult := slot.expireLocked(now, ttl)
+			result.Expired += slotResult.Expired
+			result.DueBuckets += slotResult.DueBuckets
+			result.Examined += slotResult.Examined
+			result.IndexRoutes += slotResult.IndexRoutes
+			result.IndexBuckets += slotResult.IndexBuckets
 		}
 		shard.mu.Unlock()
 	}
-	if removed > 0 {
-		d.expiredRoutesTotal.Add(uint64(removed))
+	if result.Expired > 0 {
+		d.expiredRoutesTotal.Add(uint64(result.Expired))
 	}
-	return removed
+	return result
+}
+
+// ExpireRoutes removes active routes whose last observed activity is older than ttl.
+func (d *Directory) ExpireRoutes(now time.Time, ttl time.Duration) int {
+	return d.ExpireRoutesDetailed(now, ttl).Expired
 }
 
 // Snapshot returns aggregate authority route counts for bench diagnostics.
@@ -250,6 +251,8 @@ func (d *Directory) Snapshot() Snapshot {
 				snap.ByHashSlot[hashSlot] = count
 				snap.Active += count
 			}
+			snap.ExpiryIndexRoutes += len(slot.expiryByKey)
+			snap.ExpiryIndexBuckets += len(slot.expiryHeap)
 		}
 		shard.mu.RUnlock()
 	}
@@ -322,6 +325,9 @@ func newAuthoritySlot(target RouteTarget) *authoritySlot {
 		pending:      make(map[PendingRouteToken]pendingRoute),
 		ownerSeq:     make(map[identityKey]uint64),
 		tombstoneSeq: make(map[identityKey]uint64),
+		expiryHeap:   make(expiryBucketHeap, 0),
+		expiryBySeen: make(map[int64]*expiryBucket),
+		expiryByKey:  make(map[identityKey]*expiryBucket),
 	}
 }
 
@@ -439,6 +445,7 @@ func (s *authoritySlot) conflictsLocked(route Route) []identityKey {
 }
 
 func (s *authoritySlot) upsertActiveLocked(route Route) {
+	route = normalizeRouteSeen(route)
 	key := makeRouteIdentityKey(route)
 	if existing, ok := s.active[key]; ok {
 		s.removeActiveLocked(key, existing)
@@ -448,9 +455,11 @@ func (s *authoritySlot) upsertActiveLocked(route Route) {
 		s.byUID[route.UID] = make(map[identityKey]struct{})
 	}
 	s.byUID[route.UID][key] = struct{}{}
+	s.scheduleExpiryLocked(key, route)
 }
 
 func (s *authoritySlot) removeActiveLocked(key identityKey, route Route) {
+	s.unscheduleExpiryLocked(key)
 	delete(s.active, key)
 	if routes := s.byUID[route.UID]; routes != nil {
 		delete(routes, key)

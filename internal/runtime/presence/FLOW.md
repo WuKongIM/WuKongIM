@@ -11,12 +11,13 @@ operation only when the target matches the installed authority identity:
 `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`.
 
 `BecomeAuthority` installs a fresh authority identity and clears previous
-active, pending, and owner-sequence state for that hash slot. Route-revision-only
-updates with the same Slot Raft identity preserve state while advancing the
-observed target. In-flight callers using the same Slot Raft identity are still
-accepted across revision-only updates. `AuthorityEpoch` is local diagnostic
-metadata and is not a distributed authority fence. `LoseAuthority` removes the
-hash-slot state so stale callers receive `ErrNotLeader`.
+active, pending, owner-sequence, and expiry-index state for that hash slot.
+Route-revision-only updates with the same Slot Raft identity retain the existing
+slot object and its expiry index while advancing the observed target. In-flight
+callers using the same Slot Raft identity are still accepted across revision-only
+updates. `AuthorityEpoch` is local diagnostic metadata and is not a distributed
+authority fence. `LoseAuthority` removes the complete hash-slot state, including
+its expiry index, so stale callers receive `ErrNotLeader`.
 
 ## Register And Conflicts
 
@@ -45,14 +46,29 @@ actions; conflicting missing routes are ignored so live registration remains
 the only conflict-resolution path.
 
 Each active route carries `LastSeenUnix`, initialized from `ConnectedUnix` when
-registration omits it. `ExpireRoutes` scans active routes and removes entries
-whose last seen time plus TTL is before the caller-provided time. TTL expiry
-does not write tombstones, so a later non-conflicting touch with a fresh owner
-sequence may recreate the route.
+registration omits it. Each authority slot owns a min-heap of non-empty activity-
+second buckets, a second-to-bucket lookup, and an exact identity-to-bucket lookup.
+An indexed route identity belongs to exactly one bucket; touch and replacement
+remove the old membership before scheduling the final route, and removing the
+last identity removes the bucket from the heap. Routes with no activity time are
+kept active but are not indexed.
+
+`ExpireRoutesDetailed` checks only the oldest bucket in each authority slot and
+pops buckets whose activity second plus TTL is strictly before the caller's
+`now`. A deadline exactly equal to `now` remains active until a later pass.
+With `A` authority slots, `B_due` due buckets, and `R_due` routes in those
+buckets, a pass costs `O(A + B_due log B + R_due)` instead of scanning all active
+routes; index memory is `O(R + B)`. `ExpireRoutes` is the compatibility wrapper
+that returns only the detailed result's expired count.
+
+TTL expiry removes active and index membership without changing `ownerSeq` or
+`tombstoneSeq` and does not create a tombstone. A later non-conflicting fresh
+touch may therefore recreate the route, while an explicit unregister tombstone
+continues to reject activity at or behind its owner sequence.
 
 ## Diagnostics
 
-`Snapshot` counts active authority routes by hash slot and reports cumulative
-target-fenced touch entries and TTL-expiry counters. It is used by bench
-diagnostics only; the directory still stores virtual owner routes, not concrete
-TCP sessions.
+`Snapshot` counts active authority routes by hash slot, reports cumulative
+target-fenced touch entries and TTL-expiry counters, and exposes bounded aggregate
+expiry-index route and bucket counts. It is used by bench diagnostics only; the
+directory still stores virtual owner routes, not concrete TCP sessions.

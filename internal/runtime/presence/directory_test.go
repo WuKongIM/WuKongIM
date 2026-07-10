@@ -2,6 +2,7 @@ package presence
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -441,10 +442,16 @@ func TestDirectoryLoseAuthorityRejectsOldTarget(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
 	target := RouteTarget{HashSlot: 4, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
 	dir.BecomeAuthority(target)
-	if _, err := dir.RegisterRoute(target, Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}); err != nil {
+	if _, err := dir.RegisterRoute(target, Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1, LastSeenUnix: 100}); err != nil {
 		t.Fatalf("RegisterRoute() error = %v", err)
 	}
+	if snap := dir.Snapshot(); snap.ExpiryIndexRoutes != 1 || snap.ExpiryIndexBuckets != 1 {
+		t.Fatalf("snapshot before LoseAuthority = %#v, want one indexed route", snap)
+	}
 	dir.LoseAuthority(target.HashSlot)
+	if snap := dir.Snapshot(); snap.Active != 0 || snap.ExpiryIndexRoutes != 0 || snap.ExpiryIndexBuckets != 0 {
+		t.Fatalf("snapshot after LoseAuthority = %#v, want authority index dropped", snap)
+	}
 
 	if _, err := dir.EndpointsByUID(target, "u1"); !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("EndpointsByUID(after LoseAuthority) error = %v, want ErrNotLeader", err)
@@ -527,5 +534,240 @@ func TestDirectoryExpireRoutesKeepsUntimestampedRoutes(t *testing.T) {
 	}
 	if len(routes) != 1 {
 		t.Fatalf("routes = %#v, want untimestamped route preserved", routes)
+	}
+}
+
+func TestDirectoryTouchMovesRouteOutOfOldExpiryBucket(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	target := RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1}
+	dir.BecomeAuthority(target)
+	route := Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10,
+		LastSeenUnix: 100,
+	}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	touched := route
+	touched.OwnerSeq = 2
+	touched.LastSeenUnix = 200
+	if err := dir.TouchRoutes(target, []Route{touched}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+
+	oldDeadline := dir.ExpireRoutesDetailed(time.Unix(106, 0), 5*time.Second)
+	if oldDeadline.Expired != 0 || oldDeadline.Examined != 0 || oldDeadline.DueBuckets != 0 {
+		t.Fatalf("expire at old deadline = %#v, want no old bucket candidates", oldDeadline)
+	}
+	if oldDeadline.IndexRoutes != 1 || oldDeadline.IndexBuckets != 1 {
+		t.Fatalf("expire at old deadline = %#v, want one freshly indexed route", oldDeadline)
+	}
+
+	newDeadline := dir.ExpireRoutesDetailed(time.Unix(206, 0), 5*time.Second)
+	if newDeadline.Expired != 1 || newDeadline.Examined != 1 || newDeadline.DueBuckets != 1 {
+		t.Fatalf("expire at new deadline = %#v, want touched route expired", newDeadline)
+	}
+}
+
+func TestDirectoryUnregisterUnschedulesExpiryAndPreservesTombstone(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	target := RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1}
+	dir.BecomeAuthority(target)
+	route := Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10,
+		LastSeenUnix: 100,
+	}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if err := dir.UnregisterRoute(target, route.Identity(), route.OwnerSeq); err != nil {
+		t.Fatalf("UnregisterRoute() error = %v", err)
+	}
+
+	snap := dir.Snapshot()
+	if snap.Active != 0 || snap.ExpiryIndexRoutes != 0 || snap.ExpiryIndexBuckets != 0 {
+		t.Fatalf("snapshot after unregister = %#v, want empty active and expiry state", snap)
+	}
+	touched := route
+	touched.LastSeenUnix = 200
+	if err := dir.TouchRoutes(target, []Route{touched}); err != nil {
+		t.Fatalf("TouchRoutes(tombstoned route) error = %v", err)
+	}
+	if snap := dir.Snapshot(); snap.Active != 0 || snap.ExpiryIndexRoutes != 0 || snap.ExpiryIndexBuckets != 0 {
+		t.Fatalf("snapshot after tombstoned touch = %#v, want route still absent", snap)
+	}
+	result := dir.ExpireRoutesDetailed(time.Unix(1_000, 0), time.Second)
+	if result.Expired != 0 || result.Examined != 0 || result.DueBuckets != 0 {
+		t.Fatalf("expire result = %#v, want no stale index candidates", result)
+	}
+}
+
+func TestDirectoryExpiredRouteCanBeRecreatedByFreshTouch(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	target := RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1}
+	dir.BecomeAuthority(target)
+	route := Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10,
+		LastSeenUnix: 100,
+	}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if result := dir.ExpireRoutesDetailed(time.Unix(106, 0), 5*time.Second); result.Expired != 1 {
+		t.Fatalf("initial expire result = %#v, want one expired route", result)
+	}
+
+	touched := route
+	touched.LastSeenUnix = 200
+	if err := dir.TouchRoutes(target, []Route{touched}); err != nil {
+		t.Fatalf("TouchRoutes(expired route) error = %v", err)
+	}
+	snap := dir.Snapshot()
+	if snap.Active != 1 || snap.ExpiryIndexRoutes != 1 || snap.ExpiryIndexBuckets != 1 {
+		t.Fatalf("snapshot after fresh touch = %#v, want recreated indexed route", snap)
+	}
+	routes, err := dir.EndpointsByUID(target, route.UID)
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].LastSeenUnix != touched.LastSeenUnix || routes[0].OwnerSeq != route.OwnerSeq {
+		t.Fatalf("routes = %#v, want fresh touch to recreate exact owner sequence", routes)
+	}
+}
+
+func TestDirectoryRevisionOnlyAuthorityUpdatePreservesExpiryIndex(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	first := RouteTarget{
+		HashSlot: 9, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 3,
+		ConfigEpoch: 4, RouteRevision: 10, AuthorityEpoch: 1,
+	}
+	dir.BecomeAuthority(first)
+	if _, err := dir.RegisterRoute(first, Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, LastSeenUnix: 100,
+	}); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+
+	second := first
+	second.RouteRevision++
+	second.AuthorityEpoch++
+	dir.BecomeAuthority(second)
+	if snap := dir.Snapshot(); snap.Active != 1 || snap.ExpiryIndexRoutes != 1 || snap.ExpiryIndexBuckets != 1 {
+		t.Fatalf("snapshot after revision update = %#v, want preserved index", snap)
+	}
+	result := dir.ExpireRoutesDetailed(time.Unix(106, 0), 5*time.Second)
+	if result.Expired != 1 || result.Examined != 1 || result.DueBuckets != 1 {
+		t.Fatalf("expire after revision update = %#v, want preserved route expired", result)
+	}
+}
+
+func TestDirectoryAuthorityIdentityReplacementDropsExpiryIndex(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	first := RouteTarget{
+		HashSlot: 9, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 3,
+		ConfigEpoch: 4, RouteRevision: 10, AuthorityEpoch: 1,
+	}
+	dir.BecomeAuthority(first)
+	if _, err := dir.RegisterRoute(first, Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, LastSeenUnix: 100,
+	}); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+
+	second := first
+	second.LeaderTerm++
+	second.RouteRevision++
+	second.AuthorityEpoch++
+	dir.BecomeAuthority(second)
+	if snap := dir.Snapshot(); snap.Active != 0 || snap.ExpiryIndexRoutes != 0 || snap.ExpiryIndexBuckets != 0 {
+		t.Fatalf("snapshot after authority replacement = %#v, want empty slot state", snap)
+	}
+	result := dir.ExpireRoutesDetailed(time.Unix(1_000, 0), time.Second)
+	if result.Expired != 0 || result.Examined != 0 || result.DueBuckets != 0 {
+		t.Fatalf("expire after authority replacement = %#v, want no old candidates", result)
+	}
+}
+
+func TestDirectoryConflictReplacementUnschedulesOldRoute(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	target := RouteTarget{HashSlot: 9, SlotID: 2, LeaderNodeID: 1, RouteRevision: 1}
+	dir.BecomeAuthority(target)
+	existing := Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10,
+		DeviceID: "old", DeviceFlag: 1, DeviceLevel: deviceLevelMaster, LastSeenUnix: 100,
+	}
+	incoming := Route{
+		UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20,
+		DeviceID: "new", DeviceFlag: 1, DeviceLevel: deviceLevelMaster, LastSeenUnix: 200,
+	}
+	if _, err := dir.RegisterRoute(target, existing); err != nil {
+		t.Fatalf("RegisterRoute(existing) error = %v", err)
+	}
+	registered, err := dir.RegisterRoute(target, incoming)
+	if err != nil {
+		t.Fatalf("RegisterRoute(incoming) error = %v", err)
+	}
+	if registered.PendingToken == "" {
+		t.Fatalf("RegisterRoute(incoming) result = %#v, want pending conflict", registered)
+	}
+	if err := dir.CommitRoute(target, registered.PendingToken); err != nil {
+		t.Fatalf("CommitRoute() error = %v", err)
+	}
+
+	atOldDeadline := dir.ExpireRoutesDetailed(time.Unix(106, 0), 5*time.Second)
+	if atOldDeadline.Expired != 0 || atOldDeadline.Examined != 0 || atOldDeadline.DueBuckets != 0 {
+		t.Fatalf("expire at old deadline = %#v, want old conflict unscheduled", atOldDeadline)
+	}
+	if atOldDeadline.IndexRoutes != 1 || atOldDeadline.IndexBuckets != 1 {
+		t.Fatalf("expire at old deadline = %#v, want only incoming route indexed", atOldDeadline)
+	}
+	afterIncomingDeadline := dir.ExpireRoutesDetailed(time.Unix(206, 0), 5*time.Second)
+	if afterIncomingDeadline.Expired != 1 || afterIncomingDeadline.Examined != 1 || afterIncomingDeadline.DueBuckets != 1 {
+		t.Fatalf("expire after incoming deadline = %#v, want replacement expired", afterIncomingDeadline)
+	}
+}
+
+func TestDirectoryExpireRoutesExaminesOnlyDueCandidates(t *testing.T) {
+	const (
+		freshRoutes = 100_000
+		dueRoutes   = 10
+	)
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	target := RouteTarget{HashSlot: 10, SlotID: 2, LeaderNodeID: 1, RouteRevision: 1}
+	dir.BecomeAuthority(target)
+	routes := make([]Route, 0, freshRoutes+dueRoutes)
+	for i := 0; i < freshRoutes; i++ {
+		routes = append(routes, Route{
+			UID:          "fresh-" + strconv.Itoa(i),
+			OwnerNodeID:  1,
+			OwnerBootID:  1,
+			OwnerSeq:     1,
+			SessionID:    uint64(i + 1),
+			LastSeenUnix: 1_000,
+		})
+	}
+	for i := 0; i < dueRoutes; i++ {
+		routes = append(routes, Route{
+			UID:          "due-" + strconv.Itoa(i),
+			OwnerNodeID:  1,
+			OwnerBootID:  1,
+			OwnerSeq:     1,
+			SessionID:    uint64(freshRoutes + i + 1),
+			LastSeenUnix: 100,
+		})
+	}
+	if err := dir.TouchRoutes(target, routes); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+
+	result := dir.ExpireRoutesDetailed(time.Unix(106, 0), 5*time.Second)
+	if result.Examined != dueRoutes || result.Expired != dueRoutes || result.DueBuckets == 0 {
+		t.Fatalf("expire result = %#v, want examined=10 expired=10", result)
+	}
+	if result.IndexRoutes != freshRoutes {
+		t.Fatalf("expire result = %#v, want 100000 indexed fresh routes", result)
+	}
+	if snap := dir.Snapshot(); snap.Active != freshRoutes || snap.ExpiryIndexRoutes != freshRoutes {
+		t.Fatalf("post-expiry snapshot = %#v, want 100000 active indexed fresh routes", snap)
 	}
 }

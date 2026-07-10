@@ -106,6 +106,24 @@ type Snapshot struct {
 	TouchRoutesTotal uint64
 	// ExpiredRoutesTotal counts routes expired by TTL cleanup.
 	ExpiredRoutesTotal uint64
+	// ExpiryIndexRoutes counts active routes currently scheduled for TTL expiry.
+	ExpiryIndexRoutes int
+	// ExpiryIndexBuckets counts non-empty activity-second expiry buckets.
+	ExpiryIndexBuckets int
+}
+
+// ExpireResult describes one indexed TTL expiry pass.
+type ExpireResult struct {
+	// Expired counts active routes removed by this pass.
+	Expired int
+	// DueBuckets counts activity-second buckets whose deadlines were before now.
+	DueBuckets int
+	// Examined counts route identities in due buckets inspected by this pass.
+	Examined int
+	// IndexRoutes counts indexed active routes remaining after this pass.
+	IndexRoutes int
+	// IndexBuckets counts non-empty expiry buckets remaining after this pass.
+	IndexBuckets int
 }
 
 // DirectoryOptions configures the authority route directory.
