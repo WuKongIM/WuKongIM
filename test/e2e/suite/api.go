@@ -157,13 +157,19 @@ func IsMessageSendRetryRequired(err error) bool {
 	if !errors.As(err, &statusErr) || statusErr == nil || statusErr.StatusCode != http.StatusServiceUnavailable {
 		return false
 	}
-	var response struct {
-		Error string `json:"error"`
-	}
+	var response map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(statusErr.Body), &response); err != nil {
 		return false
 	}
-	return response.Error == "retry required"
+	errorValue, ok := response["error"]
+	if !ok {
+		return false
+	}
+	var message string
+	if err := json.Unmarshal(errorValue, &message); err != nil {
+		return false
+	}
+	return message == "retry required"
 }
 
 // PostMessageSendEventually retries only the public recovery signal with one stable JSON body.

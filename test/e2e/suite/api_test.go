@@ -81,6 +81,8 @@ func TestIsMessageSendRetryRequired(t *testing.T) {
 		{name: "503 missing error", err: &HTTPStatusError{StatusCode: http.StatusServiceUnavailable, Body: `{"message":"retry required"}`}},
 		{name: "503 non-string error", err: &HTTPStatusError{StatusCode: http.StatusServiceUnavailable, Body: `{"error":503}`}},
 		{name: "503 nested error", err: &HTTPStatusError{StatusCode: http.StatusServiceUnavailable, Body: `{"result":{"error":"retry required"}}`}},
+		{name: "503 title-case error key", err: &HTTPStatusError{StatusCode: http.StatusServiceUnavailable, Body: `{"Error":"retry required"}`}},
+		{name: "503 upper-case error key", err: &HTTPStatusError{StatusCode: http.StatusServiceUnavailable, Body: `{"ERROR":"retry required"}`}},
 		{name: "503 imprecise error", err: &HTTPStatusError{StatusCode: http.StatusServiceUnavailable, Body: `{"error":"retry required "}`}},
 	}
 	for _, tt := range tests {
@@ -229,6 +231,36 @@ func TestPostMessageSendEventuallyContextExpiryRetainsStatusError(t *testing.T) 
 	require.Equal(t, 1, attempts)
 }
 
+func TestPostMessageSendEventuallyDeadlineExpiryRetainsStatusError(t *testing.T) {
+	ctx := &controlledDeadlineContext{
+		Context: context.Background(),
+		done:    make(chan struct{}),
+	}
+	attempts := 0
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		attempts++
+		return &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Header:     make(http.Header),
+			Body: &cancelOnCloseReadCloser{
+				Reader: strings.NewReader(`{"error":"retry required"}`),
+				cancel: ctx.expire,
+			},
+			Request: req,
+		}, nil
+	})}
+
+	_, err := postMessageSendEventuallyWithClient(ctx, client, "node.invalid", testMessageSendBody())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "after 1 attempt")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	var statusErr *HTTPStatusError
+	require.ErrorAs(t, err, &statusErr)
+	require.Equal(t, http.StatusServiceUnavailable, statusErr.StatusCode)
+	require.Equal(t, `{"error":"retry required"}`, statusErr.Body)
+	require.Equal(t, 1, attempts)
+}
+
 func TestPostMessageSendEventuallyReturnsCurrentTerminalStatusWhenContextAlsoCancels(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	attempts := 0
@@ -285,6 +317,28 @@ type cancelOnCloseReadCloser struct {
 func (r *cancelOnCloseReadCloser) Close() error {
 	r.cancel()
 	return nil
+}
+
+type controlledDeadlineContext struct {
+	context.Context
+	done chan struct{}
+}
+
+func (c *controlledDeadlineContext) Done() <-chan struct{} {
+	return c.done
+}
+
+func (c *controlledDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+
+func (c *controlledDeadlineContext) expire() {
+	close(c.done)
 }
 
 func TestPostConversationListDecodesPublicResponse(t *testing.T) {
