@@ -18,6 +18,9 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
   variables from every spawned node; use `NodeSpec.Env` only for real node
   runtime variables such as `WK_NODE_ID` or non-config controls such as
   `GOFAIL_HTTP`.
+- Keep Unix socket placement independent from artifact storage. `Workspace`
+  owns a short per-workspace plugin socket root; an explicit node-level
+  `WK_PLUGIN_SOCKET_PATH` override remains authoritative.
 - Keep failure diagnostics bounded: prefer config paths, stdout/stderr tails,
   app log tails, public HTTP responses, and public metrics.
 

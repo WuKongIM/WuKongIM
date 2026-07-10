@@ -17,12 +17,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	pluginSocketConfigKey    = "WK_PLUGIN_SOCKET_PATH"
+	maxPluginSocketPathBytes = 100
+)
+
 // Workspace owns the per-test filesystem layout for e2e child processes.
 type Workspace struct {
 	// RootDir stores config, data, and stdio artifacts for one test-scoped workspace.
 	RootDir string
 	// LogRootDir stores node-scoped log directories when logs are redirected outside RootDir.
 	LogRootDir string
+	// pluginSocketRoot stores short-lived Unix sockets independently from artifact paths.
+	pluginSocketRoot string
 }
 
 // Suite owns one test-scoped e2e environment.
@@ -132,7 +139,10 @@ func NewWorkspace(t *testing.T, opts ...Option) Workspace {
 
 	options := resolveSuiteOptions(opts...)
 	rootDir := allocateWorkspaceRoot(t, options.workspaceRootDir)
-	workspace := Workspace{RootDir: rootDir}
+	workspace := Workspace{
+		RootDir:          rootDir,
+		pluginSocketRoot: allocatePluginSocketRoot(t),
+	}
 	if options.nodeLogRootDir != "" {
 		workspace.LogRootDir = filepath.Join(options.nodeLogRootDir, filepath.Base(rootDir))
 		require.NoError(t, os.MkdirAll(workspace.LogRootDir, 0o755))
@@ -513,6 +523,13 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 	if options.managerHTTP {
 		managerAddr = ports.ManagerAddr
 	}
+	configOverrides := cloneConfigOverrides(options.nodeConfigOverrides[nodeID])
+	if _, explicit := configOverrides[pluginSocketConfigKey]; !explicit {
+		if configOverrides == nil {
+			configOverrides = make(map[string]string)
+		}
+		configOverrides[pluginSocketConfigKey] = workspace.pluginSocketPath(nodeID)
+	}
 	return NodeSpec{
 		ID:              nodeID,
 		Name:            "node-" + strconv.FormatUint(nodeID, 10),
@@ -526,7 +543,7 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 		APIAddr:         ports.APIAddr,
 		ManagerAddr:     managerAddr,
 		LogDir:          workspace.NodeLogDir(nodeID),
-		ConfigOverrides: cloneConfigOverrides(options.nodeConfigOverrides[nodeID]),
+		ConfigOverrides: configOverrides,
 		Env:             cloneEnv(options.nodeEnv[nodeID]),
 	}
 }
@@ -571,6 +588,10 @@ func (w Workspace) NodeStderrPath(nodeID uint64) string {
 	return filepath.Join(w.NodeRootDir(nodeID), "stderr.log")
 }
 
+func (w Workspace) pluginSocketPath(nodeID uint64) string {
+	return filepath.Join(w.pluginSocketRoot, "n"+nodeIDString(nodeID)+".sock")
+}
+
 func nodeDirName(nodeID uint64) string {
 	return "node-" + nodeIDString(nodeID)
 }
@@ -608,6 +629,28 @@ func allocateWorkspaceRoot(t *testing.T, parent string) string {
 	require.NoError(t, os.MkdirAll(parent, 0o755))
 	rootDir, err := os.MkdirTemp(parent, sanitizeTestName(t.Name())+"-")
 	require.NoError(t, err)
+	return rootDir
+}
+
+func allocatePluginSocketRoot(t *testing.T) string {
+	t.Helper()
+
+	rootDir, err := os.MkdirTemp("", "wke-")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, os.RemoveAll(rootDir))
+	})
+
+	maxPath := filepath.Join(rootDir, "n"+nodeIDString(^uint64(0))+".sock")
+	require.LessOrEqualf(
+		t,
+		len([]byte(maxPath)),
+		maxPluginSocketPathBytes,
+		"e2e plugin socket path %q is %d bytes, max %d",
+		maxPath,
+		len([]byte(maxPath)),
+		maxPluginSocketPathBytes,
+	)
 	return rootDir
 }
 

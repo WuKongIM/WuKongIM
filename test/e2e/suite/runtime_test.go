@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -66,6 +67,112 @@ func TestStartThreeNodeClusterWritesDynamicJoinTokenWhenConfigured(t *testing.T)
 		require.Contains(t, string(cfg), `join_token = "join-secret"`+"\n")
 		require.Empty(t, cluster.options.nodeConfigOverrides[node.Spec.ID]["WK_CLUSTER_JOIN_TOKEN"])
 	}
+}
+
+func TestWorkspacePluginSocketStaysOutsideLongArtifactTree(t *testing.T) {
+	longArtifactParent := filepath.Join(t.TempDir(), strings.Repeat("long-artifact-parent-", 8))
+	workspace := NewWorkspace(t, WithWorkspaceRootDir(longArtifactParent))
+	nodeID := ^uint64(0)
+	spec := buildNodeSpec(nodeID, PortSet{}, workspace, suiteOptions{})
+
+	legacySocketPath := filepath.Join(spec.DataDir, "run", "plugin.sock")
+	require.Greater(t, len([]byte(legacySocketPath)), 100, "test artifact path must reproduce the old length coupling")
+	for _, artifactPath := range []string{
+		spec.RootDir,
+		spec.DataDir,
+		spec.LogDir,
+		spec.ConfigPath,
+		spec.StdoutPath,
+		spec.StderrPath,
+	} {
+		requirePathWithin(t, workspace.RootDir, artifactPath)
+	}
+
+	socketPath := spec.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"]
+	require.NotEmpty(t, socketPath)
+	requirePathOutside(t, workspace.RootDir, socketPath)
+	require.LessOrEqual(t, len([]byte(socketPath)), 100)
+	require.Equal(t, "n"+nodeIDString(nodeID)+".sock", filepath.Base(socketPath))
+}
+
+func TestWorkspacePluginSocketPreservesExplicitOverride(t *testing.T) {
+	tests := map[string]string{
+		"non-empty": "/explicit/plugin.sock",
+		"empty":     "",
+	}
+	for name, override := range tests {
+		t.Run(name, func(t *testing.T) {
+			workspace := NewWorkspace(t)
+			options := resolveSuiteOptions(WithNodeConfigOverrides(7, map[string]string{
+				"WK_PLUGIN_SOCKET_PATH": override,
+			}))
+
+			spec := buildNodeSpec(7, PortSet{}, workspace, options)
+
+			actual, ok := spec.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"]
+			require.True(t, ok)
+			require.Equal(t, override, actual)
+		})
+	}
+}
+
+func TestWorkspacePluginSocketPathsAreUnique(t *testing.T) {
+	firstWorkspace := NewWorkspace(t)
+	secondWorkspace := NewWorkspace(t)
+	options := suiteOptions{}
+
+	firstNode := buildNodeSpec(1, PortSet{}, firstWorkspace, options)
+	secondNode := buildNodeSpec(2, PortSet{}, firstWorkspace, options)
+	sameNodeOtherWorkspace := buildNodeSpec(1, PortSet{}, secondWorkspace, options)
+
+	paths := []string{
+		firstNode.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"],
+		secondNode.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"],
+		sameNodeOtherWorkspace.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"],
+	}
+	for _, path := range paths {
+		require.NotEmpty(t, path)
+	}
+	require.Len(t, map[string]struct{}{
+		paths[0]: {},
+		paths[1]: {},
+		paths[2]: {},
+	}, len(paths))
+}
+
+func TestWorkspacePluginSocketRootIsRemovedAfterCleanup(t *testing.T) {
+	artifactParent := t.TempDir()
+	var artifactRoot string
+	var socketRoot string
+
+	t.Run("workspace lifetime", func(t *testing.T) {
+		workspace := NewWorkspace(t, WithWorkspaceRootDir(artifactParent))
+		spec := buildNodeSpec(1, PortSet{}, workspace, suiteOptions{})
+		artifactRoot = workspace.RootDir
+		socketPath := spec.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"]
+		require.NotEmpty(t, socketPath)
+		socketRoot = filepath.Dir(socketPath)
+
+		require.DirExists(t, artifactRoot)
+		require.DirExists(t, socketRoot)
+	})
+
+	require.NoDirExists(t, socketRoot)
+	require.DirExists(t, artifactParent)
+	require.DirExists(t, artifactRoot)
+}
+
+func TestWorkspacePluginSocketPathIsRenderedIntoChildEnvironment(t *testing.T) {
+	workspace := NewWorkspace(t)
+	spec := buildNodeSpec(1, PortSet{}, workspace, suiteOptions{})
+	socketPath := spec.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"]
+	require.NotEmpty(t, socketPath)
+
+	renderedConfig := RenderSingleNodeConfig(spec)
+	require.Contains(t, renderedConfig, "socket_path = "+strconv.Quote(socketPath))
+
+	childEnv := envFromConfig(renderedConfig)
+	require.Contains(t, childEnv, "WK_PLUGIN_SOCKET_PATH="+socketPath)
 }
 
 func TestRenderSeedJoinNodeConfigOmitsStaticClusterNodes(t *testing.T) {
@@ -223,6 +330,23 @@ func startFakeNodeProcess(t *testing.T, binaryPath string, name string) *NodePro
 	require.NoError(t, os.WriteFile(process.Spec.ConfigPath, []byte("[node]\nid = 1\n"), 0o644))
 	require.NoError(t, process.Start())
 	return process
+}
+
+func requirePathWithin(t *testing.T, parent, path string) {
+	t.Helper()
+
+	rel, err := filepath.Rel(parent, path)
+	require.NoError(t, err)
+	require.NotEqual(t, "..", rel)
+	require.False(t, strings.HasPrefix(rel, ".."+string(os.PathSeparator)), "path %q must stay within %q", path, parent)
+}
+
+func requirePathOutside(t *testing.T, parent, path string) {
+	t.Helper()
+
+	rel, err := filepath.Rel(parent, path)
+	require.NoError(t, err)
+	require.True(t, rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)), "path %q must stay outside %q", path, parent)
 }
 
 type recordedCleanupTB struct {
