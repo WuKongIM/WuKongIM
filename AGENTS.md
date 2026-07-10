@@ -13,11 +13,13 @@
 
 ## 常用命令
 
-- 单元测试：`go test ./...`
-- 集成测试：`go test -tags=integration ./...` (不要随便跑 时间很长 开发一般跑单元测试即可)
+- 单元测试：`GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1`
+- 集成测试：`GOWORK=off go test -tags=integration ./internal/... ./pkg/... -count=1`（不要随便跑，开发一般跑单元测试即可）
+- 端到端测试：`GOWORK=off go test -tags=e2e ./test/e2e/... -count=1`（真实子进程测试，耗时较长）
 - 运行主程序：`go run ./cmd/wukongim`
 - 显式指定配置文件：`go run ./cmd/wukongim -config ./wukongim.toml`
 - 定向测试：`go test ./internal/... ./pkg/...`
+- 仓库级 Go 门禁禁止使用根目录 `./...`；Go 不读取 `.gitignore`，会把本机 `tmp/` 和 `web/node_modules/` 下的 Go 包纳入扫描。
 
 
 ## 必须遵循的规则
@@ -44,6 +46,9 @@
 ## 目录结构
 
 ```text
+.github/
+  workflows/              PR/main 快速门禁与 nightly/manual 重型验证
+
 cmd/
   wukongim/              官方产品入口，负责读取配置并启动 internal/app
   wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
@@ -128,7 +133,7 @@ pkg/
   wklog/                 通用日志接口与字段封装
 
 docs/
-  development/           项目知识、代码质量记录与性能排查 runbook
+  development/           项目知识、代码质量、CI 门禁与性能排查 runbook
   raw/                   草稿、重构提案与原始设计记录
   superpowers/           specs / plans / reports / runbooks
   wiki/                  项目 wiki 与架构文档

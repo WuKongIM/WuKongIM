@@ -2,10 +2,14 @@
 
 ## Commands
 
-- `bun install`
+- `bun install --frozen-lockfile`
 - `bun run dev`
+- `bun run lint`
 - `bun run test`
+- `bunx tsc -b`
 - `bun run build`
+
+`bun run lint` rejects new, changed, and stale ESLint findings against the checked-in baseline. After intentionally fixing existing findings, run `bun run lint:update-baseline` and commit the reduced baseline with the fix; CI never rewrites it.
 
 ## Runtime Scope
 
