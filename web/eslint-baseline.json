@@ -1,0 +1,334 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "file": "src/app/router.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "localComponents",
+      "message": "Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option."
+    },
+    {
+      "file": "src/app/theme-provider.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/components/manager/monitor-node-selector.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/components/manager/monitor-node-selector.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/components/manager/monitor-refresh-controls.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/components/manager/node-filter.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/components/manager/node-filter.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/components/ui/button.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/i18n/provider.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/pages/channel-cluster/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/cluster-dashboard/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/cluster-monitor/components/cluster-monitor-metric-card.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/pages/cluster-monitor/components/cluster-monitor-metric-card.tsx",
+      "severity": 2,
+      "ruleId": "react-refresh/only-export-components",
+      "messageId": "namedExport",
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src/pages/connections/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/connections/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/conversations/page.tsx",
+      "severity": 2,
+      "ruleId": "no-control-regex",
+      "messageId": "unexpected",
+      "message": "Unexpected control character(s) in regular expression: \\x09, \\x0a, \\x0d."
+    },
+    {
+      "file": "src/pages/conversations/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/diagnostics/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/messages/page.tsx",
+      "severity": 2,
+      "ruleId": "no-control-regex",
+      "messageId": "unexpected",
+      "message": "Unexpected control character(s) in regular expression: \\x09, \\x0a, \\x0d."
+    },
+    {
+      "file": "src/pages/network/hooks/use-network-data.ts",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/network/legacy-page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/nodes/dynamic-node-lifecycle.test.tsx",
+      "severity": 2,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "messageId": "unusedVar",
+      "message": "'_actions' is assigned a value but never used."
+    },
+    {
+      "file": "src/pages/nodes/page.test.tsx",
+      "severity": 2,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "messageId": "unusedVar",
+      "message": "'user' is assigned a value but never used."
+    },
+    {
+      "file": "src/pages/nodes/page.test.tsx",
+      "severity": 2,
+      "ruleId": "prefer-const",
+      "messageId": "useConst",
+      "message": "'dialog' is never reassigned. Use 'const' instead."
+    },
+    {
+      "file": "src/pages/nodes/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/nodes/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/nodes/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/plugins/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/plugins/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/settings/permissions/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/settings/webhooks/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/slots/page.tsx",
+      "severity": 1,
+      "ruleId": "react-hooks/exhaustive-deps",
+      "messageId": null,
+      "message": "React Hook useCallback has a missing dependency: 'intl'. Either include it or remove the dependency array."
+    },
+    {
+      "file": "src/pages/slots/page.tsx",
+      "severity": 1,
+      "ruleId": "react-hooks/exhaustive-deps",
+      "messageId": null,
+      "message": "React Hook useCallback has a missing dependency: 'recoverStrategies'. Either include it or remove the dependency array."
+    },
+    {
+      "file": "src/pages/slots/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/slots/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/slots/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/slots/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/system-users/page.test.tsx",
+      "severity": 2,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "messageId": "unusedVar",
+      "message": "'waitFor' is defined but never used."
+    },
+    {
+      "file": "src/pages/system-users/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/tasks/page.tsx",
+      "severity": 1,
+      "ruleId": "react-hooks/exhaustive-deps",
+      "messageId": null,
+      "message": "The 'activeTasks' logical expression could make the dependencies of useMemo Hook (at line <line>) change on every render. To fix this, wrap the initialization of 'activeTasks' in its own useMemo() Hook."
+    },
+    {
+      "file": "src/pages/tasks/page.tsx",
+      "severity": 1,
+      "ruleId": "react-hooks/exhaustive-deps",
+      "messageId": null,
+      "message": "The 'auditTasks' logical expression could make the dependencies of useMemo Hook (at line <line>) change on every render. To fix this, wrap the initialization of 'auditTasks' in its own useMemo() Hook."
+    },
+    {
+      "file": "src/pages/tasks/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/users/page.test.tsx",
+      "severity": 2,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "messageId": "unusedVar",
+      "message": "'waitFor' is defined but never used."
+    },
+    {
+      "file": "src/pages/users/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    },
+    {
+      "file": "src/pages/workqueues/page.tsx",
+      "severity": 1,
+      "ruleId": "react-hooks/exhaustive-deps",
+      "messageId": null,
+      "message": "The 'allItems' logical expression could make the dependencies of useMemo Hook (at line <line>) change on every render. To fix this, wrap the initialization of 'allItems' in its own useMemo() Hook."
+    },
+    {
+      "file": "src/pages/workqueues/page.tsx",
+      "severity": 1,
+      "ruleId": "react-hooks/exhaustive-deps",
+      "messageId": null,
+      "message": "The 'allItems' logical expression could make the dependencies of useMemo Hook (at line <line>) change on every render. To fix this, wrap the initialization of 'allItems' in its own useMemo() Hook."
+    },
+    {
+      "file": "src/pages/workqueues/page.tsx",
+      "severity": 2,
+      "ruleId": "react-hooks/set-state-in-effect",
+      "messageId": null,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)."
+    }
+  ]
+}

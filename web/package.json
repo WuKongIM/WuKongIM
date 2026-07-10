@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "lint": "bun run scripts/eslint-baseline.mjs --check",
+    "lint:update-baseline": "bun run scripts/eslint-baseline.mjs --update",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -49,5 +51,5 @@
     "vite": "^8.0.9",
     "vitest": "^4.1.5"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "bun@1.3.11"
 }
