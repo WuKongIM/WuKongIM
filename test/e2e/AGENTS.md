@@ -23,6 +23,10 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
   `WK_PLUGIN_SOCKET_PATH` override remains authoritative.
 - Keep failure diagnostics bounded: prefer config paths, stdout/stderr tails,
   app log tails, public HTTP responses, and public metrics.
+- Channel recovery polling through public `/message/send` must retry only the
+  exact `503 {"error":"retry required"}` status and reuse one stable
+  idempotency key and request body. Broad error retries and regenerated
+  `client_msg_no` values are forbidden.
 
 ## Structure Contract
 

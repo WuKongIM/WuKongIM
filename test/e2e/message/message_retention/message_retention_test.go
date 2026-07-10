@@ -63,8 +63,10 @@ func TestThreeNodeManagerRetentionForwardsAndSurvivesLeaderRestart(t *testing.T)
 
 	afterRestart := appendGroupMessages(t, cluster.MustNode(1), channelID, channelType, 1)[0]
 	require.Greater(t, afterRestart.Seq, seqs[2], cluster.DumpDiagnostics())
+	t.Logf("post-restart send committed: message_id=%d message_seq=%d", afterRestart.ID, afterRestart.Seq)
 	for _, node := range cluster.Nodes {
 		requireManagerMessageSeqsEventually(t, cluster, node, channelID, channelType, []uint64{afterRestart.Seq, seqs[2]})
+		t.Logf("post-restart message_seq=%d visible on node %d", afterRestart.Seq, node.Spec.ID)
 	}
 }
 
@@ -97,13 +99,14 @@ func appendGroupMessages(t *testing.T, node *suite.StartedNode, channelID string
 	for i := 1; i <= count; i++ {
 		clientMsgNo := fmt.Sprintf("retention-%d-%d", time.Now().UnixNano(), i)
 		payload := fmt.Sprintf("retention payload %d", i)
-		resp, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
+		body := map[string]any{
 			"from_uid":      "retention-sender",
 			"channel_id":    channelID,
 			"channel_type":  channelType,
 			"client_msg_no": clientMsgNo,
 			"payload":       base64.StdEncoding.EncodeToString([]byte(payload)),
-		})
+		}
+		resp, err := suite.PostMessageSendEventually(ctx, node.APIAddr(), body)
 		require.NoError(t, err, node.DumpDiagnostics())
 		require.Equal(t, uint8(frame.ReasonSuccess), resp.Reason, node.DumpDiagnostics())
 		require.NotZero(t, resp.MessageID)

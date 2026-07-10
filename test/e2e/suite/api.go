@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+// HTTPStatusError retains a public HTTP API's non-2xx response details.
+type HTTPStatusError struct {
+	Method     string
+	URL        string
+	StatusCode int
+	Body       string
+}
+
+// Error returns the same concise non-2xx diagnostic used by the e2e helpers.
+func (e *HTTPStatusError) Error() string {
+	return fmt.Sprintf("%s %s returned %d: %s", e.Method, e.URL, e.StatusCode, strings.TrimSpace(e.Body))
+}
 
 // MessageSendResponse is the public /message/send response model used by e2e tests.
 type MessageSendResponse struct {
@@ -54,6 +68,10 @@ func PostJSON(ctx context.Context, url string, body any, out any) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
+	return postJSONBytes(ctx, url, data, out)
+}
+
+func postJSONBytes(ctx context.Context, url string, data []byte, out any) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -70,7 +88,12 @@ func PostJSON(ctx context.Context, url string, body any, out any) ([]byte, error
 		return nil, err
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("POST %s returned %d: %s", url, resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return nil, &HTTPStatusError{
+			Method:     http.MethodPost,
+			URL:        url,
+			StatusCode: resp.StatusCode,
+			Body:       string(respBody),
+		}
 	}
 	if out != nil {
 		if err := json.Unmarshal(respBody, out); err != nil {
@@ -96,7 +119,12 @@ func GetJSON(ctx context.Context, url string, out any) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("GET %s returned %d: %s", url, resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return nil, &HTTPStatusError{
+			Method:     http.MethodGet,
+			URL:        url,
+			StatusCode: resp.StatusCode,
+			Body:       string(respBody),
+		}
 	}
 	if out != nil {
 		if err := json.Unmarshal(respBody, out); err != nil {
@@ -117,6 +145,65 @@ func PostMessageSend(ctx context.Context, apiAddr string, body map[string]any) (
 	var out MessageSendResponse
 	_, err := PostJSON(ctx, "http://"+apiAddr+"/message/send", body, &out)
 	return out, err
+}
+
+// IsMessageSendRetryRequired reports whether err is the public message-send recovery signal.
+func IsMessageSendRetryRequired(err error) bool {
+	var statusErr *HTTPStatusError
+	if !errors.As(err, &statusErr) || statusErr == nil || statusErr.StatusCode != http.StatusServiceUnavailable {
+		return false
+	}
+	var response struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(statusErr.Body), &response); err != nil {
+		return false
+	}
+	return response.Error == "retry required"
+}
+
+// PostMessageSendEventually retries only the public recovery signal with one stable JSON body.
+func PostMessageSendEventually(ctx context.Context, apiAddr string, body map[string]any) (MessageSendResponse, error) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return MessageSendResponse{}, err
+	}
+	url := "http://" + apiAddr + "/message/send"
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	attempts := 0
+	var lastStatusErr error
+	for {
+		attempts++
+		var out MessageSendResponse
+		_, err = postJSONBytes(ctx, url, data, &out)
+		if err == nil {
+			return out, nil
+		}
+		if IsMessageSendRetryRequired(err) {
+			lastStatusErr = err
+		} else {
+			if ctx.Err() != nil && lastStatusErr != nil {
+				return MessageSendResponse{}, messageSendRetryExhaustedError(url, attempts, ctx.Err(), lastStatusErr)
+			}
+			return MessageSendResponse{}, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return MessageSendResponse{}, messageSendRetryExhaustedError(url, attempts, ctx.Err(), lastStatusErr)
+		case <-ticker.C:
+		}
+	}
+}
+
+func messageSendRetryExhaustedError(url string, attempts int, contextErr, lastStatusErr error) error {
+	attemptLabel := "attempts"
+	if attempts == 1 {
+		attemptLabel = "attempt"
+	}
+	return fmt.Errorf("POST %s retry exhausted after %d %s: %w", url, attempts, attemptLabel, errors.Join(contextErr, lastStatusErr))
 }
 
 // PostConversationList fetches one public /conversation/list page.

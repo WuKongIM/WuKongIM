@@ -287,24 +287,20 @@ func sendGroupMessageWithin(t *testing.T, node *suite.StartedNode, channelID str
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
 
-	var last sentMessage
-	var lastErr error
-	for {
-		msg, err := postGroupMessage(ctx, node, channelID, channelType, label)
-		if err == nil {
-			return msg
-		}
-		last = msg
-		lastErr = err
-		select {
-		case <-ctx.Done():
-			require.NoError(t, lastErr, "last=%+v\n%s", last, node.DumpDiagnostics())
-		case <-ticker.C:
-		}
-	}
+	clientMsgNo := fmt.Sprintf("%s-%d", label, time.Now().UnixNano())
+	resp, err := suite.PostMessageSendEventually(ctx, node.APIAddr(), map[string]any{
+		"from_uid":      "channel-ha-sender",
+		"channel_id":    channelID,
+		"channel_type":  channelType,
+		"client_msg_no": clientMsgNo,
+		"payload":       base64.StdEncoding.EncodeToString([]byte(label)),
+	})
+	require.NoError(t, err, node.DumpDiagnostics())
+	require.Equal(t, uint8(frame.ReasonSuccess), resp.Reason, node.DumpDiagnostics())
+	require.NotZero(t, resp.MessageID, node.DumpDiagnostics())
+	require.NotZero(t, resp.MessageSeq, node.DumpDiagnostics())
+	return sentMessage{ID: uint64(resp.MessageID), Seq: resp.MessageSeq, ClientMsgNo: clientMsgNo}
 }
 
 func postGroupMessage(ctx context.Context, node *suite.StartedNode, channelID string, channelType uint8, label string) (sentMessage, error) {
