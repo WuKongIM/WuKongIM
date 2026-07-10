@@ -89,7 +89,7 @@ func (n *Node) Stop(ctx context.Context) error {
 		return err
 	}
 	n.stopping.Store(true)
-	n.stopHealthReportLoop()
+	n.stopHealthReportLoop(ctx)
 	n.stopWatchLoop()
 	n.stopTaskReconcileLoop()
 	n.closeRouteAuthorityWatchers()

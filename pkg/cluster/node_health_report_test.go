@@ -41,7 +41,7 @@ func TestHealthReportLoopUsesBoundedReportContext(t *testing.T) {
 	}
 	node.started.Store(true)
 	node.startHealthReportLoop()
-	t.Cleanup(node.stopHealthReportLoop)
+	t.Cleanup(func() { node.stopHealthReportLoop(context.Background()) })
 
 	select {
 	case <-controller.done:
@@ -85,8 +85,12 @@ func TestReportNodeHealthAllowsLatencyBeyondIntervalWithinLeaseBudget(t *testing
 	if err != nil {
 		t.Fatalf("reportNodeHealth() error = %v, want nil", err)
 	}
-	if got := node.channelDataPlaneLease.snapshot().lastVisibleAt; got.IsZero() {
+	visibleAt := node.channelDataPlaneLease.snapshot().lastVisibleAt
+	if visibleAt.IsZero() {
 		t.Fatal("lease lastVisibleAt is zero after successful delayed health report")
+	}
+	if reportStartedAt := controller.lastReportStartedAt(); visibleAt.After(reportStartedAt) {
+		t.Fatalf("lease lastVisibleAt = %s, want no later than report start %s", visibleAt, reportStartedAt)
 	}
 	if reports := controller.reportsSnapshot(); len(reports) != 1 || !reports[0].RuntimeReady {
 		t.Fatalf("reports = %#v, want one ready report", reports)
@@ -102,8 +106,10 @@ func TestHealthReportTimeoutUsesTTLBackedRenewalBudget(t *testing.T) {
 	}{
 		{name: "dynamic lifecycle", interval: 500 * time.Millisecond, ttl: 30 * time.Second, want: (30*time.Second - 500*time.Millisecond) / 3},
 		{name: "defaults", interval: 5 * time.Second, ttl: 30 * time.Second, want: (30*time.Second - 5*time.Second) / 3},
+		{name: "one interval", interval: time.Second, ttl: time.Second, want: time.Second},
 		{name: "two intervals", interval: time.Second, ttl: 2 * time.Second, want: time.Second},
 		{name: "defensive ttl below interval", interval: time.Second, ttl: 500 * time.Millisecond, want: 500 * time.Millisecond},
+		{name: "tiny positive ttl", interval: time.Second, ttl: time.Nanosecond, want: time.Nanosecond},
 		{name: "zero values", want: minHealthReportTimeout},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -111,6 +117,61 @@ func TestHealthReportTimeoutUsesTTLBackedRenewalBudget(t *testing.T) {
 				t.Fatalf("healthReportTimeout(%s, %s) = %s, want %s", tc.interval, tc.ttl, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestStopHealthReportLoopFinalReportHonorsStopContext(t *testing.T) {
+	controller := newBlockingNotReadyHealthReportController()
+	node := &Node{
+		cfg: Config{
+			NodeID:     1,
+			ListenAddr: "127.0.0.1:7001",
+			HealthReport: HealthReportConfig{
+				Interval: 20 * time.Millisecond,
+				TTL:      200 * time.Millisecond,
+			},
+		},
+		control: controller,
+		snapshot: Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+		},
+	}
+	node.started.Store(true)
+	node.healthReporter = observe.NewReporter(observe.ReporterConfig{
+		NodeID:       node.cfg.NodeID,
+		Addr:         node.cfg.ListenAddr,
+		Controller:   controller,
+		RuntimeReady: node.runtimeReadyForHealthReport,
+	})
+	_, node.healthReportCancel = context.WithCancel(context.Background())
+
+	stopCtx, cancelStop := context.WithCancel(context.Background())
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- node.Stop(stopCtx)
+	}()
+
+	select {
+	case <-controller.reportStarted:
+	case <-time.After(time.Second):
+		t.Fatal("final not-ready health report did not start")
+	}
+	cancelStop()
+
+	select {
+	case err := <-controller.reportDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("final health report ctx error = %v, want context canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("final not-ready health report did not honor Stop cancellation")
+	}
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		t.Fatal("Node.Stop did not return after final health report cancellation")
 	}
 }
 
@@ -135,7 +196,7 @@ func TestStopHealthReportLoopReportsNotReadyAfterStopping(t *testing.T) {
 	}
 	node.started.Store(true)
 	node.startHealthReportLoop()
-	t.Cleanup(node.stopHealthReportLoop)
+	t.Cleanup(func() { node.stopHealthReportLoop(context.Background()) })
 
 	initial := controller.waitForReport(t)
 	if !initial.RuntimeReady {
@@ -146,7 +207,7 @@ func TestStopHealthReportLoopReportsNotReadyAfterStopping(t *testing.T) {
 		t.Fatal("channel data-plane lease lastVisibleAt is zero after ready health report")
 	}
 	node.stopping.Store(true)
-	node.stopHealthReportLoop()
+	node.stopHealthReportLoop(context.Background())
 
 	reports := controller.reportsSnapshot()
 	if len(reports) < 2 {
@@ -282,8 +343,9 @@ type recordingHealthReportController struct {
 	reports chan control.NodeReport
 	delay   time.Duration
 
-	mu     sync.Mutex
-	stored []control.NodeReport
+	mu            sync.Mutex
+	stored        []control.NodeReport
+	reportStarted time.Time
 }
 
 func newRecordingHealthReportController() *recordingHealthReportController {
@@ -301,6 +363,9 @@ func (c *recordingHealthReportController) LocalSnapshot(context.Context) (contro
 func (c *recordingHealthReportController) LeaderID() uint64 { return 0 }
 
 func (c *recordingHealthReportController) ReportNode(ctx context.Context, report control.NodeReport) error {
+	c.mu.Lock()
+	c.reportStarted = time.Now()
+	c.mu.Unlock()
 	if c.delay > 0 {
 		timer := time.NewTimer(c.delay)
 		defer timer.Stop()
@@ -374,6 +439,37 @@ func (c *recordingHealthReportController) reportsSnapshot() []control.NodeReport
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]control.NodeReport(nil), c.stored...)
+}
+
+func (c *recordingHealthReportController) lastReportStartedAt() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.reportStarted
+}
+
+type blockingNotReadyHealthReportController struct {
+	*recordingHealthReportController
+	reportStarted chan struct{}
+	reportDone    chan error
+}
+
+func newBlockingNotReadyHealthReportController() *blockingNotReadyHealthReportController {
+	return &blockingNotReadyHealthReportController{
+		recordingHealthReportController: newRecordingHealthReportController(),
+		reportStarted:                   make(chan struct{}),
+		reportDone:                      make(chan error, 1),
+	}
+}
+
+func (c *blockingNotReadyHealthReportController) ReportNode(ctx context.Context, report control.NodeReport) error {
+	if report.RuntimeReady {
+		return c.recordingHealthReportController.ReportNode(ctx, report)
+	}
+	close(c.reportStarted)
+	<-ctx.Done()
+	err := ctx.Err()
+	c.reportDone <- err
+	return err
 }
 
 type failingHealthReportController struct {

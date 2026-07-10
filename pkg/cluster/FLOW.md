@@ -202,15 +202,18 @@ bounded per-report context. The timeout reserves one configured scheduling
 interval, divides the remaining health-report TTL across three Controller write
 attempts, and is clamped to the interval/minimum/positive TTL bounds. This lets
 normal bounded Controller Raft latency exceed one report interval without
-extending the fail-closed lease boundary. `runtime_ready` is false while the
-node is stopping, and clean Stop sends one final best-effort bounded not-ready
-report after the periodic loop is canceled and before Controller/watch
-shutdown. Controller fills the leader-side report timestamp, stores the report
-durably, and control snapshots derive `fresh`, `stale`, or `missing` health
-from the configured TTL.
+extending the fail-closed lease boundary. A caller deadline remains the outer
+bound for the per-report timeout. `runtime_ready` is false while the node is
+stopping, and clean Stop sends one final best-effort bounded not-ready report
+under the Stop context after the periodic loop is canceled and before
+Controller/watch shutdown. Controller fills the leader-side report timestamp,
+stores the report durably, and control snapshots derive `fresh`, `stale`, or
+`missing` health from the configured TTL.
 The default Channel runtime runtime also receives a node-local data-plane lease guard.
 A successful health report refreshes the lease only when `runtime_ready` is
-still true, and `ProbeWriteReady` refreshes the same local lease after it proves
+still true. The local lease records the report attempt start after success so
+Controller write latency consumes, rather than extends, the shared TTL safety
+budget. `ProbeWriteReady` refreshes the same local lease after it proves
 foreground Slot write readiness during startup/readiness gates; final not-ready
 stop reports do not extend foreground append eligibility. Local Channel runtime leader appends fail closed with
 `channel.ErrNotReady` when the lease is missing or older than the configured

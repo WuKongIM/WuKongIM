@@ -78,14 +78,17 @@ func (n *Node) startHealthReportLoop() {
 	}()
 }
 
-func (n *Node) stopHealthReportLoop() {
+func (n *Node) stopHealthReportLoop(ctx context.Context) {
 	if n == nil || n.healthReportCancel == nil {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	reporter := n.healthReporter
 	n.healthReportCancel()
 	n.healthReportWG.Wait()
-	_ = n.reportNodeHealth(context.Background(), reporter)
+	_ = n.reportNodeHealth(ctx, reporter)
 	n.healthReportCancel = nil
 	n.healthReporter = nil
 }
@@ -94,6 +97,7 @@ func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter)
 	if reporter == nil {
 		return nil
 	}
+	attemptStartedAt := time.Now()
 	reportCtx, cancel := context.WithTimeout(ctx, healthReportTimeout(n.cfg.HealthReport.Interval, n.cfg.HealthReport.TTL))
 	defer cancel()
 	report, err := reporter.ReportNode(reportCtx)
@@ -101,7 +105,7 @@ func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter)
 		return err
 	}
 	if n.channelDataPlaneLease != nil && report.RuntimeReady {
-		n.channelDataPlaneLease.MarkVisible(time.Now())
+		n.channelDataPlaneLease.MarkVisible(attemptStartedAt)
 	}
 	return nil
 }
