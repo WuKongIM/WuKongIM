@@ -335,7 +335,10 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 		"--poll", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(envWithout("WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE"),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=true",
+	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("script failed: %v\n%s", err, output)
@@ -351,6 +354,12 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 	dynamicDebugAPI := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "dynamic.debug_api")))
 	if dynamicDebugAPI != "true" {
 		t.Fatalf("dynamic node WK_DEBUG_API_ENABLE=%q, want true", dynamicDebugAPI)
+	}
+	if got := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "start.control_env"))); got != "<unset>" {
+		t.Fatalf("start script inherited smoke-only environment: %q", got)
+	}
+	if got := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "dynamic.control_env"))); got != "<unset>" {
+		t.Fatalf("dynamic node inherited smoke-only environment: %q", got)
 	}
 	if !waitForFile(filepath.Join(callsDir, "dynamic.term")) {
 		t.Fatalf("dynamic node did not receive TERM; calls dir: %s", callsDir)
@@ -946,6 +955,7 @@ func writeFakeThreeNodeDynamicBinary(t *testing.T, path string, callsDir string)
 set -euo pipefail
 printf '%s\n' "$$" > "` + callsDir + `/dynamic.pid"
 printf '%s\n' "${WK_DEBUG_API_ENABLE-}" > "` + callsDir + `/dynamic.debug_api"
+printf '%s\n' "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE-<unset>}" > "` + callsDir + `/dynamic.control_env"
 printf '%s\n' "$*" >> "` + callsDir + `/dynamic.calls"
 trap 'printf term > "` + callsDir + `/dynamic.term"; exit 0' TERM INT
 echo fake dynamic node running
@@ -981,6 +991,7 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$$" > "` + callsDir + `/start.pid"
 printf '%s\n' "${WK_DEBUG_API_ENABLE-}" > "` + callsDir + `/start.debug_api"
+printf '%s\n' "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE-<unset>}" > "` + callsDir + `/start.control_env"
 printf '%s\n' "$*" >> "` + callsDir + `/start.calls"
 log_dir=""
 bin_path=""
@@ -1041,6 +1052,7 @@ if [[ -n "$bin_path" ]]; then
 set -euo pipefail
 printf '%s\n' "$$" > "` + callsDir + `/dynamic.pid"
 printf '%s\n' "${WK_DEBUG_API_ENABLE-}" > "` + callsDir + `/dynamic.debug_api"
+printf '%s\n' "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE-<unset>}" > "` + callsDir + `/dynamic.control_env"
 printf '%s\n' "$*" >> "` + callsDir + `/dynamic.calls"
 trap 'printf term > "` + callsDir + `/dynamic.term"; exit 0' TERM INT
 echo fake dynamic node running

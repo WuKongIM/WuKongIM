@@ -1,6 +1,7 @@
 package scripts_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,6 +49,8 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 	),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_PROMETHEUS_EMBED_DIR="+prometheusEmbedDir,
+		"WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=99",
+		"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=false",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -83,6 +86,9 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"wukongim-node2.toml WK_PROMETHEUS_ENABLE=false",
 		"wukongim-node3.toml WK_METRICS_ENABLE=true",
 		"wukongim-node3.toml WK_PROMETHEUS_ENABLE=false",
+		"wukongim-node1.toml WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=<unset>",
+		"wukongim-node1.toml WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=<unset>",
+		"wukongim-node1.toml WK_PROMETHEUS_EMBED_DIR=<unset>",
 	} {
 		if !strings.Contains(nodeEnv, want) {
 			t.Fatalf("expected node env %q, got:\n%s", want, nodeEnv)
@@ -104,6 +110,42 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(logDir, name)); err != nil {
 			t.Fatalf("expected log file %s: %v", name, err)
 		}
+	}
+}
+
+func TestWukongIMThreeNodeScriptReportsNodeExitWithEmptyAllowList(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
+	logDir := filepath.Join(t.TempDir(), "logs")
+	writeFakeGoWukongIMExits(t, filepath.Join(binDir, "go"), 23)
+	if err := os.WriteFile(filepath.Join(binDir, "curl"), []byte("#!/usr/bin/env bash\nexit 7\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
+		"--no-prometheus",
+		"--ready-timeout", "2",
+		"--poll", "0",
+		"--bin", outputBin,
+		"--log-dir", logDir,
+	)
+	cmd.Dir = root
+	cmd.Env = append(envWithout(
+		"WK_PROMETHEUS_ENABLE",
+		"WK_PROMETHEUS_BINARY_PATH",
+		"WK_WUKONGIM_THREE_NODES_ALLOW_NODE_EXIT",
+	), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("script should fail when all nodes exit immediately:\n%s", output)
+	}
+	text := string(output)
+	if strings.Contains(text, "unbound variable") {
+		t.Fatalf("empty allow-node-exit list must be safe under set -u:\n%s", text)
+	}
+	if !strings.Contains(text, "exited early with status 23") {
+		t.Fatalf("script should preserve the node exit status:\n%s", text)
 	}
 }
 
@@ -242,6 +284,9 @@ done
   printf '%s WK_PROMETHEUS_LISTEN_ADDR=%s\n' "$config" "${WK_PROMETHEUS_LISTEN_ADDR-}"
   printf '%s WK_PROMETHEUS_DATA_DIR=%s\n' "$config" "${WK_PROMETHEUS_DATA_DIR-}"
   printf '%s WK_PROMETHEUS_SCRAPE_TARGETS=%s\n' "$config" "${WK_PROMETHEUS_SCRAPE_TARGETS-}"
+	printf '%s WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=%s\n' "$config" "${WK_WUKONGIM_THREE_NODES_READY_TIMEOUT-<unset>}"
+	printf '%s WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=%s\n' "$config" "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE-<unset>}"
+	printf '%s WK_PROMETHEUS_EMBED_DIR=%s\n' "$config" "${WK_PROMETHEUS_EMBED_DIR-<unset>}"
   if [[ ${WK_PROMETHEUS_BINARY_PATH+x} ]]; then
     printf '%s WK_PROMETHEUS_BINARY_PATH=%s\n' "$config" "$WK_PROMETHEUS_BINARY_PATH"
   else
@@ -272,6 +317,26 @@ PROM
     exit 2
     ;;
 esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeGoWukongIMExits(t *testing.T, path string, exitCode int) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "build" && "$2" == "-o" && "$4" == "./cmd/wukongim" ]]; then
+  cat > "$3" <<'BIN'
+#!/usr/bin/env bash
+exit ` + fmt.Sprintf("%d", exitCode) + `
+BIN
+  chmod +x "$3"
+  exit 0
+fi
+echo "unexpected go args: $*" >&2
+exit 2
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

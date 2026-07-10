@@ -970,7 +970,14 @@ start_cluster() {
     return
   fi
   local args=("$START_SCRIPT")
-  local env_args=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
+  local exported_name
+  local env_args=()
+  while IFS= read -r exported_name; do
+    case "$exported_name" in
+      WK_WKCLI_SIM_THREE_SMOKE_*) env_args+=("-u" "$exported_name") ;;
+    esac
+  done < <(compgen -e)
+  env_args+=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
   if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
     args+=(--clean)
   fi
@@ -1059,6 +1066,16 @@ start_auto_join_node() {
     return
   fi
   local bin
+  local exported_name
+  local env_args=()
+  while IFS= read -r exported_name; do
+    case "$exported_name" in
+      WK_WUKONGIM_THREE_NODES_*|WK_WKCLI_SIM_THREE_SMOKE_*|WK_PROMETHEUS_SOURCE_REF|WK_PROMETHEUS_EMBED_VERSION|WK_PROMETHEUS_REPO|WK_PROMETHEUS_EMBED_DIR)
+        env_args+=("-u" "$exported_name")
+        ;;
+    esac
+  done < <(compgen -e)
+  env_args+=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
   bin="$(cluster_bin)"
   [[ -x "$bin" ]] || die "auto-join requires executable cluster binary: $bin"
   render_auto_join_config
@@ -1066,7 +1083,7 @@ start_auto_join_node() {
   log "starting auto-join node${AUTO_JOIN_NODE_ID}: delay=${AUTO_JOIN_AFTER}s config=${AUTO_JOIN_CONFIG_PATH}"
   (
     cd "$ROOT_DIR"
-    exec env "WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE" "$bin" -config "$AUTO_JOIN_CONFIG_PATH"
+    exec env "${env_args[@]}" "$bin" -config "$AUTO_JOIN_CONFIG_PATH"
   ) >"$(auto_join_log)" 2>&1 &
   AUTO_JOIN_PID="$!"
   printf '%s\n' "$AUTO_JOIN_PID" >"$(auto_join_pid_file)"

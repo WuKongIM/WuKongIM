@@ -124,6 +124,9 @@ parse_allow_node_exit() {
 node_exit_allowed() {
   local node="$1"
   local allowed
+  if [[ "${#ALLOW_NODE_EXIT_VALUES[@]}" -eq 0 ]]; then
+    return 1
+  fi
   for allowed in "${ALLOW_NODE_EXIT_VALUES[@]}"; do
     [[ "$allowed" == "$node" ]] && return 0
   done
@@ -425,7 +428,15 @@ start_node() {
   local node="$1"
   local config
   local log_file
+  local exported_name
   local env_args=()
+  while IFS= read -r exported_name; do
+    case "$exported_name" in
+      WK_WUKONGIM_THREE_NODES_*|WK_WKCLI_SIM_THREE_SMOKE_*|WK_PROMETHEUS_SOURCE_REF|WK_PROMETHEUS_EMBED_VERSION|WK_PROMETHEUS_REPO|WK_PROMETHEUS_EMBED_DIR)
+        env_args+=("-u" "$exported_name")
+        ;;
+    esac
+  done < <(compgen -e)
   config="$(config_path "$node")"
   log_file="$(log_path "$node")"
   : > "$log_file"
