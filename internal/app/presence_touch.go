@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,7 +26,7 @@ type presenceOwnerLocalRegistry interface {
 
 // presenceTouchAuthority routes batched activity refreshes to UID authorities.
 type presenceTouchAuthority interface {
-	ResolveRouteTarget(uid string) (presence.RouteTarget, error)
+	ResolveRouteTargets(context.Context, []string) []presence.RouteTargetResult
 	TouchRoutesTo(context.Context, presence.RouteTarget, []presence.Route) error
 }
 
@@ -53,8 +54,10 @@ type presenceTouchWorkerOptions struct {
 	Directory presenceTouchDirectory
 	// FlushInterval controls periodic dirty route flushes.
 	FlushInterval time.Duration
-	// BatchSize bounds routes drained in one flush.
+	// BatchSize bounds routes drained in one chunk.
 	BatchSize int
+	// MaxRoutesPerFlush bounds routes drained across all chunks in one flush.
+	MaxRoutesPerFlush int
 	// RouteTTL bounds authority-side route liveness since the latest touch.
 	RouteTTL time.Duration
 	// Logger records background touch failures that are retried by requeueing.
@@ -77,6 +80,9 @@ func newPresenceTouchWorker(opts presenceTouchWorkerOptions) *presenceTouchWorke
 	}
 	if opts.BatchSize <= 0 {
 		opts.BatchSize = 512
+	}
+	if opts.MaxRoutesPerFlush <= 0 {
+		opts.MaxRoutesPerFlush = 65536
 	}
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
@@ -251,45 +257,103 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 	if w.opts.Local == nil || w.opts.Authority == nil {
 		return
 	}
-	touched := w.opts.Local.DrainTouched(w.opts.BatchSize)
-	if len(touched) == 0 {
-		return
-	}
-	groups := make(map[presence.RouteTarget][]presence.Route)
-	for _, conn := range touched {
-		target, err := w.opts.Authority.ResolveRouteTarget(conn.UID)
-		if err != nil {
-			w.opts.Local.RequeueTouched([]online.OwnerRoute{conn})
-			w.logger().Warn("presence touch route target resolve failed",
-				wklog.Event("internal.app.presence_touch_resolve_failed"),
-				wklog.UID(conn.UID),
-				wklog.Int("hashSlot", int(conn.HashSlot)),
-				wklog.SessionID(conn.SessionID),
-				wklog.Error(err),
-			)
-			continue
+	remaining := w.opts.MaxRoutesPerFlush
+	requeue := make([]online.OwnerRoute, 0)
+	defer func() {
+		if len(requeue) > 0 {
+			w.opts.Local.RequeueTouched(requeue)
 		}
-		groups[target] = append(groups[target], routeFromOwnerRoute(conn))
-	}
-	for target, routes := range groups {
-		if err := ctx.Err(); err != nil {
-			w.requeueRouteGroups(groups)
+	}()
+
+	for remaining > 0 {
+		if ctx.Err() != nil {
 			return
 		}
-		if err := w.opts.Authority.TouchRoutesTo(ctx, target, routes); err != nil {
-			w.opts.Local.RequeueTouched(ownerRoutesFromRoutes(routes))
-			w.logger().Warn("presence touch flush failed",
-				wklog.Event("internal.app.presence_touch_failed"),
-				wklog.Int("hashSlot", int(target.HashSlot)),
-				wklog.Uint64("slotID", uint64(target.SlotID)),
-				wklog.LeaderNodeID(target.LeaderNodeID),
-				wklog.Uint64("routeRevision", target.RouteRevision),
-				wklog.Uint64("authorityEpoch", target.AuthorityEpoch),
-				wklog.Int("routes", len(routes)),
-				wklog.Error(err),
-			)
+		request := min(w.opts.BatchSize, remaining)
+		touched := w.opts.Local.DrainTouched(request)
+		if len(touched) == 0 {
+			return
 		}
-		delete(groups, target)
+		remaining -= len(touched)
+		if ctx.Err() != nil {
+			requeue = append(requeue, touched...)
+			return
+		}
+
+		uids := uniqueOwnerRouteUIDs(touched)
+		results := w.opts.Authority.ResolveRouteTargets(ctx, uids)
+		if ctx.Err() != nil {
+			requeue = append(requeue, touched...)
+			return
+		}
+
+		resolved := make(map[string]presence.RouteTarget, len(uids))
+		failed := make(map[string]error)
+		for i, uid := range uids {
+			if i >= len(results) {
+				failed[uid] = fmt.Errorf("presence touch route target result missing at index %d", i)
+				continue
+			}
+			if results[i].Err != nil {
+				failed[uid] = results[i].Err
+				continue
+			}
+			resolved[uid] = results[i].Target
+		}
+
+		groups := make([]presenceTouchRouteGroup, 0)
+		groupIndex := make(map[presence.RouteTarget]int)
+		loggedFailure := make(map[string]struct{}, len(failed))
+		for _, conn := range touched {
+			if err, ok := failed[conn.UID]; ok {
+				requeue = append(requeue, conn)
+				if _, logged := loggedFailure[conn.UID]; !logged {
+					loggedFailure[conn.UID] = struct{}{}
+					w.logger().Warn("presence touch route target resolve failed",
+						wklog.Event("internal.app.presence_touch_resolve_failed"),
+						wklog.UID(conn.UID),
+						wklog.Int("hashSlot", int(conn.HashSlot)),
+						wklog.SessionID(conn.SessionID),
+						wklog.Error(err),
+					)
+				}
+				continue
+			}
+			target := resolved[conn.UID]
+			index, ok := groupIndex[target]
+			if !ok {
+				index = len(groups)
+				groupIndex[target] = index
+				groups = append(groups, presenceTouchRouteGroup{target: target})
+			}
+			groups[index].ownerRoutes = append(groups[index].ownerRoutes, conn)
+			groups[index].routes = append(groups[index].routes, routeFromOwnerRoute(conn))
+		}
+
+		for i, group := range groups {
+			if ctx.Err() != nil {
+				for _, unsent := range groups[i:] {
+					requeue = append(requeue, unsent.ownerRoutes...)
+				}
+				return
+			}
+			if err := w.opts.Authority.TouchRoutesTo(ctx, group.target, group.routes); err != nil {
+				requeue = append(requeue, group.ownerRoutes...)
+				w.logger().Warn("presence touch flush failed",
+					wklog.Event("internal.app.presence_touch_failed"),
+					wklog.Int("hashSlot", int(group.target.HashSlot)),
+					wklog.Uint64("slotID", uint64(group.target.SlotID)),
+					wklog.LeaderNodeID(group.target.LeaderNodeID),
+					wklog.Uint64("routeRevision", group.target.RouteRevision),
+					wklog.Uint64("authorityEpoch", group.target.AuthorityEpoch),
+					wklog.Int("routes", len(group.routes)),
+					wklog.Error(err),
+				)
+			}
+		}
+		if len(touched) < request {
+			return
+		}
 	}
 }
 
@@ -300,13 +364,23 @@ func (w *presenceTouchWorker) logger() wklog.Logger {
 	return w.opts.Logger
 }
 
-func (w *presenceTouchWorker) requeueRouteGroups(groups map[presence.RouteTarget][]presence.Route) {
-	if w.opts.Local == nil {
-		return
+type presenceTouchRouteGroup struct {
+	target      presence.RouteTarget
+	routes      []presence.Route
+	ownerRoutes []online.OwnerRoute
+}
+
+func uniqueOwnerRouteUIDs(routes []online.OwnerRoute) []string {
+	seen := make(map[string]struct{}, len(routes))
+	uids := make([]string, 0, len(routes))
+	for _, route := range routes {
+		if _, ok := seen[route.UID]; ok {
+			continue
+		}
+		seen[route.UID] = struct{}{}
+		uids = append(uids, route.UID)
 	}
-	for _, routes := range groups {
-		w.opts.Local.RequeueTouched(ownerRoutesFromRoutes(routes))
-	}
+	return uids
 }
 
 func routeFromOwnerRoute(conn online.OwnerRoute) presence.Route {
@@ -323,14 +397,6 @@ func routeFromOwnerRoute(conn online.OwnerRoute) presence.Route {
 		ConnectedUnix: conn.ConnectedUnix,
 		LastSeenUnix:  conn.LastActivityUnix,
 	}
-}
-
-func ownerRoutesFromRoutes(routes []presence.Route) []online.OwnerRoute {
-	conns := make([]online.OwnerRoute, 0, len(routes))
-	for _, route := range routes {
-		conns = append(conns, ownerRouteFromRoute(route))
-	}
-	return conns
 }
 
 func ownerRouteFromRoute(route presence.Route) online.OwnerRoute {

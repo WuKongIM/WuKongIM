@@ -682,10 +682,17 @@ cluster.RouteAuthorityEvent
 periodic flush
   -> pull current route authorities from the cluster snapshot and repair missed watch events
   -> runtime/presence.Directory.ExpireRoutes(now, routeTTL)
-  -> drain owner-local dirty routes through online.Registry.DrainTouched
-  -> resolve the current UID authority target for each route
-  -> group touches by observed target and call PresenceAuthorityClient.TouchRoutesTo
-  -> requeue only failed or unresolved owner-local route identities
+  -> repeatedly drain owner-local dirty routes through online.Registry.DrainTouched,
+     requesting min(touchBatchSize, remaining max-routes-per-flush budget)
+  -> for each chunk, preserve first-seen UID order, deduplicate UIDs, and resolve
+     all current UID authority targets with one aligned batch route lookup
+  -> requeue every route for an unresolved UID; group successful routes in
+     first-seen order by the complete fenced RouteTarget and call
+     PresenceAuthorityClient.TouchRoutesTo sequentially
+  -> stop after a short drain, exhausted total route budget, or context
+     cancellation; cancellation requeues every already-drained unsent route
+  -> accumulate unresolved, failed-target, and canceled-unsent route identities
+     and call online.Registry.RequeueTouched only after the flush loop exits
 ```
 
 The app worker has one authority watch loop and one periodic touch loop. It does
@@ -694,7 +701,10 @@ does not create per-hash-slot workers. Authority event ordering first compares
 route revision, then Slot config epoch, then Slot leader term, and only uses
 the authority epoch as a diagnostic tie-breaker for the same distributed
 identity; the periodic loop pulls the current authorities so startup races or
-dropped watch events self-heal.
+dropped watch events self-heal. Delaying failed-route requeue until the whole
+flush exits prevents the same route from being drained again inside that flush
+and repeatedly consuming its bounded route budget; activity arriving during a
+flush may remain dirty for the next periodic round.
 
 ## Conversation Active Flush Worker
 

@@ -359,16 +359,17 @@ func (a *App) wirePresence() {
 		}
 		if a.presenceWorker == nil {
 			a.presenceWorker = newPresenceTouchWorker(presenceTouchWorkerOptions{
-				NodeID:        presenceNode.NodeID(),
-				Watch:         presenceNode.WatchRouteAuthorities,
-				Initial:       a.currentPresenceAuthorities,
-				Local:         a.online,
-				Authority:     client,
-				Directory:     directory,
-				FlushInterval: a.cfg.Presence.TouchFlushInterval,
-				BatchSize:     a.cfg.Presence.TouchBatchSize,
-				RouteTTL:      a.cfg.Presence.RouteTTL,
-				Logger:        a.logger.Named("presence_touch"),
+				NodeID:            presenceNode.NodeID(),
+				Watch:             presenceNode.WatchRouteAuthorities,
+				Initial:           a.currentPresenceAuthorities,
+				Local:             a.online,
+				Authority:         client,
+				Directory:         directory,
+				FlushInterval:     a.cfg.Presence.TouchFlushInterval,
+				BatchSize:         a.cfg.Presence.TouchBatchSize,
+				MaxRoutesPerFlush: a.cfg.Presence.TouchMaxRoutesPerFlush,
+				RouteTTL:          a.cfg.Presence.RouteTTL,
+				Logger:            a.logger.Named("presence_touch"),
 			})
 		}
 	}
