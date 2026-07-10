@@ -112,6 +112,37 @@ func TestRouterRouteKeysPreservesInputOrder(t *testing.T) {
 	}
 }
 
+func TestRouterRouteKeysPartialPreservesAlignedSuccessesAndErrors(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1}})
+	first := keyForHashSlot(t, 0, 4)
+	second := keyForHashSlot(t, 3, 4)
+	third := keyForHashSlot(t, 1, 4)
+
+	results, err := r.RouteKeysPartial([]string{first, second, third})
+	if err != nil {
+		t.Fatalf("RouteKeysPartial() error = %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("results = %d, want 3", len(results))
+	}
+	if results[0].Err != nil || results[0].Route.HashSlot != 0 || results[0].Route.Leader != 1 {
+		t.Fatalf("first result = %#v, want led hash slot 0", results[0])
+	}
+	if !errors.Is(results[1].Err, ErrNoSlotLeader) {
+		t.Fatalf("second result error = %v, want ErrNoSlotLeader", results[1].Err)
+	}
+	if results[2].Err != nil || results[2].Route.HashSlot != 1 || results[2].Route.Leader != 1 {
+		t.Fatalf("third result = %#v, want led hash slot 1", results[2])
+	}
+	if results[0].Route.Revision != 10 || results[2].Route.Revision != results[0].Route.Revision {
+		t.Fatalf("successful revisions = %d,%d, want same installed revision 10", results[0].Route.Revision, results[2].Route.Revision)
+	}
+}
+
 func TestRouterIgnoresZeroLeaderObservation(t *testing.T) {
 	r := NewRouter()
 	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {

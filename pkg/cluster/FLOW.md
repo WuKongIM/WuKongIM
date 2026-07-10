@@ -102,10 +102,14 @@ AuthorityEpoch)`. `LeaderTerm` comes from the observed Slot Raft leader and
 use `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)` as the
 distributed authority identity. `AuthorityEpoch` is only a node-local
 observation sequence retained for diagnostics and compatibility; it must not be
-used as a distributed fence. `RouteKey`, `RouteKeys`, and `RouteHashSlot`
-include the distributed identity fields plus the local epoch. `RouteKeys`
-resolves all keys against one installed routing snapshot and returns results in
-input order, allowing upper layers to batch UID authority lookups without
+used as a distributed fence. `RouteKey`, `RouteKeys`, `RouteKeysPartial`, and
+`RouteHashSlot` include the distributed identity fields plus the local epoch.
+`RouteKeys` preserves its all-or-error contract while resolving all keys against
+one installed routing snapshot and returning results in input order.
+`RouteKeysPartial` uses the same one-snapshot rule but returns one aligned result
+per input key: missing-leader or invalid-route failures stay on that result,
+while the outer error is reserved for a missing routing table or Node lifecycle
+failure. These batch APIs let upper layers resolve UID authorities without
 repeatedly loading the foreground route table. Real publication paths remember
 the last distributed identity published per hash slot and suppress duplicate
 events for the same `(SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`, so a

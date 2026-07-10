@@ -13,6 +13,14 @@ type Router struct {
 	current atomic.Pointer[Table]
 }
 
+// RouteKeyResult is the aligned routing outcome for one batch key.
+type RouteKeyResult struct {
+	// Route is populated when Err is nil.
+	Route Route
+	// Err records a key-specific routing failure.
+	Err error
+}
+
 // NewRouter creates an empty Router.
 func NewRouter() *Router { return &Router{} }
 
@@ -38,8 +46,7 @@ func (r *Router) RouteKey(key string) (Route, error) {
 	if table == nil {
 		return Route{}, ErrRouteNotReady
 	}
-	hashSlot := HashSlotForKey(key, table.HashSlotCount)
-	route, err := table.routeHashSlot(hashSlot)
+	route, hashSlot, err := routeKey(table, key)
 	if err != nil {
 		return Route{}, fmt.Errorf("route key=%q hashSlot=%d: %w", key, hashSlot, err)
 	}
@@ -57,14 +64,41 @@ func (r *Router) RouteKeys(keys []string) ([]Route, error) {
 	}
 	routes := make([]Route, len(keys))
 	for i, key := range keys {
-		hashSlot := HashSlotForKey(key, table.HashSlotCount)
-		route, err := table.routeHashSlot(hashSlot)
+		route, hashSlot, err := routeKey(table, key)
 		if err != nil {
 			return nil, fmt.Errorf("route key index=%d key=%q hashSlot=%d: %w", i, key, hashSlot, err)
 		}
 		routes[i] = route
 	}
 	return routes, nil
+}
+
+// RouteKeysPartial routes every key through one current table snapshot and preserves aligned failures.
+// The outer error reports only that no routing table is installed; key-specific failures stay in the result.
+func (r *Router) RouteKeysPartial(keys []string) ([]RouteKeyResult, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	table := r.Table()
+	if table == nil {
+		return nil, ErrRouteNotReady
+	}
+	results := make([]RouteKeyResult, len(keys))
+	for i, key := range keys {
+		route, hashSlot, err := routeKey(table, key)
+		if err != nil {
+			results[i].Err = fmt.Errorf("route key index=%d key=%q hashSlot=%d: %w", i, key, hashSlot, err)
+			continue
+		}
+		results[i].Route = route
+	}
+	return results, nil
+}
+
+func routeKey(table *Table, key string) (Route, uint16, error) {
+	hashSlot := HashSlotForKey(key, table.HashSlotCount)
+	route, err := table.routeHashSlot(hashSlot)
+	return route, hashSlot, err
 }
 
 // RouteHashSlot routes hashSlot through the current table.

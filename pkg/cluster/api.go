@@ -76,6 +76,14 @@ type Route struct {
 	AuthorityEpoch uint64
 }
 
+// RouteKeyResult is the aligned routing outcome for one batch key.
+type RouteKeyResult struct {
+	// Route is populated when Err is nil.
+	Route Route
+	// Err records a key-specific routing failure.
+	Err error
+}
+
 // Snapshot summarizes local cluster readiness and routing state.
 type Snapshot struct {
 	// NodeID is this node's stable cluster identity.

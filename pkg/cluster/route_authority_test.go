@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -70,6 +71,55 @@ func TestRouteIncludesLeaderTermAndConfigEpoch(t *testing.T) {
 	}
 	if route.LeaderTerm != 9 || route.ConfigEpoch != 1 {
 		t.Fatalf("route = %#v, want leaderTerm=9 configEpoch=1", route)
+	}
+}
+
+func TestNodeRouteKeysPartialMapsErrorsAndAuthorityEpochs(t *testing.T) {
+	node, err := New(validNodeConfig(t))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	snapshot := control.Snapshot{
+		Revision:     10,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+			{NodeID: 2, Addr: "127.0.0.1:1002", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 1},
+			{SlotID: 2, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 2},
+		},
+		HashSlots: control.HashSlotTable{Revision: 10, Count: 4, Ranges: []control.HashSlotRange{
+			{From: 0, To: 1, SlotID: 1},
+			{From: 2, To: 3, SlotID: 2},
+		}},
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.routeAuthorityEpochs = map[uint16]uint64{0: 7, 1: 11}
+	node.started.Store(true)
+	first := keyForNodeHashSlot(t, 4, 0)
+	second := keyForNodeHashSlot(t, 4, 3)
+	third := keyForNodeHashSlot(t, 4, 1)
+
+	results, err := node.RouteKeysPartial([]string{first, second, third})
+	if err != nil {
+		t.Fatalf("RouteKeysPartial() error = %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("results = %d, want 3", len(results))
+	}
+	if results[0].Err != nil || results[0].Route.HashSlot != 0 || results[0].Route.AuthorityEpoch != 7 {
+		t.Fatalf("first result = %#v, want hash slot 0 authority epoch 7", results[0])
+	}
+	if !errors.Is(results[1].Err, ErrNoSlotLeader) {
+		t.Fatalf("second result error = %v, want mapped ErrNoSlotLeader", results[1].Err)
+	}
+	if results[2].Err != nil || results[2].Route.HashSlot != 1 || results[2].Route.AuthorityEpoch != 11 {
+		t.Fatalf("third result = %#v, want hash slot 1 authority epoch 11", results[2])
 	}
 }
 

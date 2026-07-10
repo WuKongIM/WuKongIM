@@ -233,6 +233,35 @@ func (n *Node) RouteKeys(keys []string) ([]Route, error) {
 	return out, nil
 }
 
+// RouteKeysPartial routes keys using one installed route snapshot and preserves aligned key-specific failures.
+// The outer error reports Node lifecycle or missing-table failures; key-specific failures stay in the result.
+func (n *Node) RouteKeysPartial(keys []string) ([]RouteKeyResult, error) {
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	results, err := n.router.RouteKeysPartial(keys)
+	if err != nil {
+		return nil, mapRouteError(err)
+	}
+	out := make([]RouteKeyResult, len(results))
+	for i, result := range results {
+		converted, err := convertRoute(result.Route, result.Err)
+		if err != nil {
+			out[i].Err = err
+			continue
+		}
+		out[i].Route = converted
+	}
+	n.mu.RLock()
+	for i := range out {
+		if out[i].Err == nil {
+			out[i].Route.AuthorityEpoch = n.routeAuthorityEpochs[out[i].Route.HashSlot]
+		}
+	}
+	n.mu.RUnlock()
+	return out, nil
+}
+
 // RouteHashSlot routes hashSlot using the currently installed route snapshot.
 func (n *Node) RouteHashSlot(hashSlot uint16) (Route, error) {
 	if err := n.ensureForeground(); err != nil {
