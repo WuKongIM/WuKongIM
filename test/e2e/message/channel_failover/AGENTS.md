@@ -5,11 +5,14 @@ This file is for agents working inside
 
 ## Scenario Purpose
 
-This scenario proves a static three-node `cmd/wukongim` cluster can keep
-Channel quorum-acknowledged messages after one Channel leader node stops,
+This scenario proves a static three-Controller-voter `cmd/wukongim` cluster can
+keep Channel quorum-acknowledged messages after one Channel leader node stops,
 automatically fail over affected channels through durable migration tasks, and
 fail closed for new Channel placement while the configured replica count
-cannot be satisfied.
+cannot be satisfied. Its follower-repair path adds one data-only spare, proves
+the repaired spare enters the public Channel replicas and ISR, restores the
+replaced source as a Controller voter, and then proves the repaired spare can
+carry Channel quorum after another original replica stops.
 
 ## Run
 
@@ -25,3 +28,7 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/channel_failover -count=1 -timeo
   instead of sleeps.
 - Do not inspect internal stores in this scenario; use manager message and
   Slot list surfaces for recovery assertions.
+- Before stopping a second original Channel replica, restart the replaced
+  source and assert through public manager state that all three original
+  Controller voters are healthy and schedulable. Node 4 must remain data-only;
+  promoting it does not preserve a majority after two original voters stop.

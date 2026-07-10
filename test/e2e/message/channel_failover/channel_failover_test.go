@@ -119,17 +119,29 @@ func TestChannelFollowerReplicaRepairAfterNodeKill(t *testing.T) {
 	requireNodeUnschedulableEventually(t, cluster, cluster.MustNode(candidate.Leader), candidate.StoppedFollower)
 
 	requireReplicaRepairCompletedEventually(t, cluster, cluster.MustNode(candidate.SlotLeader), candidate, 45*time.Second)
+	repairedMeta := requireReplicaRepairTopologyEventually(t, cluster, cluster.MustNode(candidate.SlotLeader), candidate, 20*time.Second)
+	t.Logf("follower repair topology committed: replicas=%v isr=%v replaced=%d spare=%d", repairedMeta.Replicas, repairedMeta.ISR, candidate.StoppedFollower, candidate.SpareNode)
 	afterRepair := sendGroupMessageWithin(t, cluster.MustNode(candidate.Leader), candidate.ChannelID, candidate.ChannelType, "follower-repair-after", 20*time.Second)
 	require.Greater(t, afterRepair.Seq, candidate.Pre.Seq, cluster.DumpDiagnostics())
 
-	require.NoError(t, cluster.MustNode(candidate.SecondStoppedFollower).Stop(), cluster.DumpDiagnostics())
-	requireNodeUnschedulableEventually(t, cluster, cluster.MustNode(candidate.Leader), candidate.SecondStoppedFollower)
+	require.NoError(t, cluster.StartStoppedNode(candidate.StoppedFollower), cluster.DumpDiagnostics())
+	restartCtx, restartCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer restartCancel()
+	require.NoError(t, cluster.WaitClusterReady(restartCtx), cluster.DumpDiagnostics())
+	managerNode := cluster.MustNode(candidate.Leader)
+	requireNodeSchedulableEventually(t, cluster, managerNode, candidate.StoppedFollower)
+	repairedMeta = requireReplicaRepairTopologyEventually(t, cluster, cluster.MustNode(candidate.SlotLeader), candidate, 20*time.Second)
+	requireControllerQuorumPreconditionEventually(t, cluster, managerNode, candidate, 15*time.Second)
+	t.Logf("controller quorum restored before second stop: voters=%v repaired_replicas=%v repaired_isr=%v", []uint64{candidate.Leader, candidate.StoppedFollower, candidate.SecondStoppedFollower}, repairedMeta.Replicas, repairedMeta.ISR)
 
-	afterSecondStop := sendGroupMessageWithin(t, cluster.MustNode(candidate.Leader), candidate.ChannelID, candidate.ChannelType, "follower-repair-after-second-stop", 20*time.Second)
+	require.NoError(t, cluster.MustNode(candidate.SecondStoppedFollower).Stop(), cluster.DumpDiagnostics())
+	requireNodeUnschedulableEventually(t, cluster, managerNode, candidate.SecondStoppedFollower)
+
+	afterSecondStop := sendGroupMessageWithin(t, managerNode, candidate.ChannelID, candidate.ChannelType, "follower-repair-after-second-stop", 20*time.Second)
 	require.Greater(t, afterSecondStop.Seq, afterRepair.Seq, cluster.DumpDiagnostics())
-	requireMessageOnceEventually(t, cluster, cluster.MustNode(candidate.Leader), candidate.ChannelID, candidate.ChannelType, candidate.Pre)
-	requireMessageOnceEventually(t, cluster, cluster.MustNode(candidate.Leader), candidate.ChannelID, candidate.ChannelType, afterRepair)
-	requireMessageOnceEventually(t, cluster, cluster.MustNode(candidate.Leader), candidate.ChannelID, candidate.ChannelType, afterSecondStop)
+	requireMessageOnceEventually(t, cluster, managerNode, candidate.ChannelID, candidate.ChannelType, candidate.Pre)
+	requireMessageOnceEventually(t, cluster, managerNode, candidate.ChannelID, candidate.ChannelType, afterRepair)
+	requireMessageOnceEventually(t, cluster, managerNode, candidate.ChannelID, candidate.ChannelType, afterSecondStop)
 }
 
 func fastRecoveryOptions() []suite.Option {
@@ -572,10 +584,10 @@ type channelRuntimeMetaItem struct {
 	Status      string   `json:"status"`
 }
 
-func requireChannelRuntimeMetaEventually(t *testing.T, node *suite.StartedNode, channelID string, channelType uint8) channelRuntimeMetaItem {
+func requireReplicaRepairTopologyEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, candidate followerRepairCandidate, timeout time.Duration) channelRuntimeMetaItem {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -583,19 +595,29 @@ func requireChannelRuntimeMetaEventually(t *testing.T, node *suite.StartedNode, 
 	var last channelRuntimeMetaItem
 	var lastErr error
 	for {
-		meta, err := channelRuntimeMeta(ctx, node, channelID, channelType)
+		meta, err := channelRuntimeMeta(ctx, node, candidate.ChannelID, candidate.ChannelType)
 		if err == nil {
 			last = meta
-			if meta.Leader != 0 && meta.SlotLeader != 0 && len(meta.Replicas) > 0 && meta.Status == "active" {
+			if meta.Leader != 0 &&
+				meta.SlotLeader != 0 &&
+				meta.Status == "active" &&
+				uint64InList(meta.Replicas, candidate.Leader) &&
+				uint64InList(meta.Replicas, candidate.SecondStoppedFollower) &&
+				uint64InList(meta.Replicas, candidate.SpareNode) &&
+				!uint64InList(meta.Replicas, candidate.StoppedFollower) &&
+				uint64InList(meta.ISR, candidate.Leader) &&
+				uint64InList(meta.ISR, candidate.SecondStoppedFollower) &&
+				uint64InList(meta.ISR, candidate.SpareNode) &&
+				!uint64InList(meta.ISR, candidate.StoppedFollower) {
 				return meta
 			}
-			lastErr = fmt.Errorf("runtime meta = %+v, want active leader/slot leader/replicas", meta)
+			lastErr = fmt.Errorf("runtime meta = %+v, want repaired active replicas/ISR containing leader=%d second_follower=%d spare=%d and excluding source=%d", meta, candidate.Leader, candidate.SecondStoppedFollower, candidate.SpareNode, candidate.StoppedFollower)
 		} else {
 			lastErr = err
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("channel runtime meta %s/%d timed out: last=%+v lastErr=%v\n%s", channelID, channelType, last, lastErr, node.DumpDiagnostics())
+			t.Fatalf("channel runtime meta %s/%d did not expose repaired topology: last=%+v lastErr=%v\n%s", candidate.ChannelID, candidate.ChannelType, last, lastErr, cluster.DumpDiagnostics())
 		case <-ticker.C:
 		}
 	}
@@ -820,6 +842,68 @@ func requireNodeHealthEventually(t *testing.T, cluster *suite.StartedCluster, ma
 		case <-ticker.C:
 		}
 	}
+}
+
+func requireControllerQuorumPreconditionEventually(t *testing.T, cluster *suite.StartedCluster, managerNode *suite.StartedNode, candidate followerRepairCandidate, timeout time.Duration) {
+	t.Helper()
+
+	originalVoters := []uint64{candidate.Leader, candidate.StoppedFollower, candidate.SecondStoppedFollower}
+	require.NotZero(t, candidate.SpareNode, cluster.DumpDiagnostics())
+	require.NotEqual(t, candidate.Leader, candidate.StoppedFollower, cluster.DumpDiagnostics())
+	require.NotEqual(t, candidate.Leader, candidate.SecondStoppedFollower, cluster.DumpDiagnostics())
+	require.NotEqual(t, candidate.StoppedFollower, candidate.SecondStoppedFollower, cluster.DumpDiagnostics())
+	require.False(t, uint64InList(originalVoters, candidate.SpareNode), cluster.DumpDiagnostics())
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	client := cluster.ManagerClient(t, managerNode.Spec.ID)
+	var lastNodes suite.NodeListDTO
+	var lastErr error
+	for {
+		reqCtx, reqCancel := context.WithTimeout(ctx, 2*time.Second)
+		nodes, err := client.ListNodes(reqCtx)
+		reqCancel()
+		if err == nil {
+			lastNodes = nodes
+			if checkErr := controllerQuorumPrecondition(nodes, originalVoters, candidate.SpareNode); checkErr == nil {
+				return
+			} else {
+				lastErr = checkErr
+			}
+		} else {
+			lastErr = err
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("Controller quorum precondition did not become safe before second stop: lastNodes=%+v lastErr=%v\n%s", lastNodes, lastErr, cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func controllerQuorumPrecondition(nodes suite.NodeListDTO, originalVoters []uint64, spareNodeID uint64) error {
+	for _, nodeID := range originalVoters {
+		node, ok := findNode(nodes, nodeID)
+		if !ok {
+			return fmt.Errorf("original Controller voter %d missing", nodeID)
+		}
+		if !node.Controller.Voter {
+			return fmt.Errorf("node %d is not an original Controller voter: %+v", nodeID, node)
+		}
+		if !node.Membership.Schedulable || !node.Health.Fresh || !node.Health.RuntimeReady || node.Health.Status != "alive" {
+			return fmt.Errorf("Controller voter %d is not healthy/schedulable: %+v", nodeID, node)
+		}
+	}
+	spare, ok := findNode(nodes, spareNodeID)
+	if !ok {
+		return fmt.Errorf("repaired spare node %d missing", spareNodeID)
+	}
+	if spare.Controller.Voter {
+		return fmt.Errorf("repaired spare node %d must remain data-only: %+v", spareNodeID, spare)
+	}
+	return nil
 }
 
 func findNode(nodes suite.NodeListDTO, nodeID uint64) (suite.NodeDTO, bool) {
