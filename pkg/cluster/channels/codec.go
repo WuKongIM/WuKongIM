@@ -17,6 +17,8 @@ const (
 	codecVersion         = uint8(6)
 )
 
+var errInvalidCodecFrame = errors.New("channels: invalid frame")
+
 const (
 	kindPull uint8 = iota + 1
 	kindPullResponse
@@ -37,7 +39,11 @@ const (
 
 // EncodePullRequest encodes a Channel pull request.
 func EncodePullRequest(req channeltransport.PullRequest) ([]byte, error) {
-	return encodeFrame(kindPull, appendPullRequest(nil, req)), nil
+	return encodePullRequestVersion(req, codecVersion)
+}
+
+func encodePullRequestVersion(req channeltransport.PullRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindPull, appendPullRequest(nil, req))
 }
 
 // DecodePullRequest decodes a Channel pull request.
@@ -64,7 +70,10 @@ func decodePullResponse(data []byte) (channeltransport.PullResponse, error) {
 	return resp, decodeRPCResult(data, kindPullResponse, &resp)
 }
 func encodePullBatchRequest(req channeltransport.PullBatchRequest) ([]byte, error) {
-	return encodeFrame(kindPullBatch, appendPullBatchRequest(nil, req)), nil
+	return encodePullBatchRequestVersion(req, codecVersion)
+}
+func encodePullBatchRequestVersion(req channeltransport.PullBatchRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindPullBatch, appendPullBatchRequest(nil, req))
 }
 func decodePullBatchRequest(data []byte) (channeltransport.PullBatchRequest, error) {
 	payload, err := decodeFrame(data, kindPullBatch)
@@ -88,7 +97,10 @@ func decodePullBatchResponse(data []byte) (channeltransport.PullBatchResponse, e
 	return resp, decodeRPCResult(data, kindPullBatchResponse, &resp)
 }
 func encodeAckRequest(req channeltransport.AckRequest) ([]byte, error) {
-	return encodeFrame(kindAck, appendAckRequest(nil, req)), nil
+	return encodeAckRequestVersion(req, codecVersion)
+}
+func encodeAckRequestVersion(req channeltransport.AckRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindAck, appendAckRequest(nil, req))
 }
 func decodeAckRequest(data []byte) (channeltransport.AckRequest, error) {
 	payload, err := decodeFrame(data, kindAck)
@@ -105,7 +117,10 @@ func decodeAckRequest(data []byte) (channeltransport.AckRequest, error) {
 	return req, nil
 }
 func encodePullHintRequest(req channeltransport.PullHintRequest) ([]byte, error) {
-	return encodeFrame(kindPullHint, appendPullHintRequest(nil, req)), nil
+	return encodePullHintRequestVersion(req, codecVersion)
+}
+func encodePullHintRequestVersion(req channeltransport.PullHintRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindPullHint, appendPullHintRequest(nil, req))
 }
 func decodePullHintRequest(data []byte) (channeltransport.PullHintRequest, error) {
 	payload, err := decodeFrame(data, kindPullHint)
@@ -122,7 +137,10 @@ func decodePullHintRequest(data []byte) (channeltransport.PullHintRequest, error
 	return req, nil
 }
 func encodePullHintBatchRequest(req channeltransport.PullHintBatchRequest) ([]byte, error) {
-	return encodeFrame(kindPullHintBatch, appendPullHintBatchRequest(nil, req)), nil
+	return encodePullHintBatchRequestVersion(req, codecVersion)
+}
+func encodePullHintBatchRequestVersion(req channeltransport.PullHintBatchRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindPullHintBatch, appendPullHintBatchRequest(nil, req))
 }
 func decodePullHintBatchRequest(data []byte) (channeltransport.PullHintBatchRequest, error) {
 	payload, err := decodeFrame(data, kindPullHintBatch)
@@ -146,7 +164,10 @@ func decodePullHintBatchResponse(data []byte) (channeltransport.PullHintBatchRes
 	return resp, decodeRPCResult(data, kindPullHintBatchResponse, &resp)
 }
 func encodeNotifyRequest(req channeltransport.NotifyRequest) ([]byte, error) {
-	return encodeFrame(kindNotify, appendNotifyRequest(nil, req)), nil
+	return encodeNotifyRequestVersion(req, codecVersion)
+}
+func encodeNotifyRequestVersion(req channeltransport.NotifyRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindNotify, appendNotifyRequest(nil, req))
 }
 func decodeNotifyRequest(data []byte) (channeltransport.NotifyRequest, error) {
 	payload, err := decodeFrame(data, kindNotify)
@@ -163,7 +184,10 @@ func decodeNotifyRequest(data []byte) (channeltransport.NotifyRequest, error) {
 	return req, nil
 }
 func encodeAppendRequest(req ch.AppendRequest) ([]byte, error) {
-	return encodeFrame(kindAppend, appendAppendRequest(nil, req)), nil
+	return encodeAppendRequestVersion(req, codecVersion)
+}
+func encodeAppendRequestVersion(req ch.AppendRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindAppend, appendAppendRequest(nil, req))
 }
 func decodeAppendRequest(data []byte) (ch.AppendRequest, error) {
 	version, payload, err := decodeFrameWithVersion(data, kindAppend)
@@ -187,7 +211,10 @@ func decodeAppendResponse(data []byte) (ch.AppendResult, error) {
 	return resp, decodeRPCResult(data, kindAppendResponse, &resp)
 }
 func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
-	return encodeFrame(kindAppendBatch, appendAppendBatchRequest(nil, req)), nil
+	return encodeAppendBatchRequestVersion(req, codecVersion)
+}
+func encodeAppendBatchRequestVersion(req ch.AppendBatchRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindAppendBatch, appendAppendBatchRequest(nil, req))
 }
 func decodeAppendBatchRequest(data []byte) (ch.AppendBatchRequest, error) {
 	version, payload, err := decodeFrameWithVersion(data, kindAppendBatch)
@@ -211,7 +238,10 @@ func decodeAppendBatchResponse(data []byte) (ch.AppendBatchResult, error) {
 	return resp, decodeRPCResult(data, kindAppendBatchResponse, &resp)
 }
 func encodeLastVisibleRequest(req LastVisibleRequest) ([]byte, error) {
-	return encodeFrame(kindLastVisible, appendLastVisibleRequest(nil, req)), nil
+	return encodeLastVisibleRequestVersion(req, codecVersion)
+}
+func encodeLastVisibleRequestVersion(req LastVisibleRequest, version uint8) ([]byte, error) {
+	return encodeRequestFrame(version, kindLastVisible, appendLastVisibleRequest(nil, req))
 }
 func decodeLastVisibleRequest(data []byte) (LastVisibleRequest, error) {
 	payload, err := decodeFrame(data, kindLastVisible)
@@ -260,20 +290,27 @@ const (
 )
 
 func encodeRPCResult(kind uint8, payload any, err error) ([]byte, error) {
+	return encodeRPCResultVersion(codecVersion, kind, payload, err)
+}
+
+func encodeRPCResultVersion(version uint8, kind uint8, payload any, err error) ([]byte, error) {
+	if version != legacyCodecVersionV5 && version != codecVersion {
+		return nil, errInvalidCodecFrame
+	}
 	if err != nil {
 		dst := []byte{rpcResultErr}
 		dst = appendRPCApplicationError(dst, rpcApplicationError{Code: rpcErrorCode(err), Message: err.Error()})
-		return encodeFrame(kind, dst), nil
+		return encodeFrameVersion(version, kind, dst), nil
 	}
 	dst := []byte{rpcResultOK}
 	if payload != nil {
 		var ok bool
-		dst, ok = appendRPCPayload(dst, payload)
+		dst, ok = appendRPCPayload(dst, payload, version)
 		if !ok {
 			return nil, fmt.Errorf("channels: unsupported rpc result payload %T", payload)
 		}
 	}
-	return encodeFrame(kind, dst), nil
+	return encodeFrameVersion(version, kind, dst), nil
 }
 
 func decodeRPCResult(data []byte, kind uint8, payload any) error {
@@ -316,9 +353,20 @@ func decodeRPCResult(data []byte, kind uint8, payload any) error {
 }
 
 func encodeFrame(kind uint8, payload []byte) []byte {
+	return encodeFrameVersion(codecVersion, kind, payload)
+}
+
+func encodeFrameVersion(version uint8, kind uint8, payload []byte) []byte {
 	out := make([]byte, 0, 2+len(payload))
-	out = append(out, codecVersion, kind)
+	out = append(out, version, kind)
 	return append(out, payload...)
+}
+
+func encodeRequestFrame(version uint8, kind uint8, payload []byte) ([]byte, error) {
+	if version != legacyCodecVersionV5 && version != codecVersion {
+		return nil, errInvalidCodecFrame
+	}
+	return encodeFrameVersion(version, kind, payload), nil
 }
 
 func decodeFrame(data []byte, wantKind uint8) ([]byte, error) {
@@ -328,21 +376,28 @@ func decodeFrame(data []byte, wantKind uint8) ([]byte, error) {
 
 func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) {
 	if len(data) < 2 || data[1] != wantKind {
-		return 0, nil, fmt.Errorf("channels: invalid frame")
+		return 0, nil, errInvalidCodecFrame
 	}
 	version := data[0]
 	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != codecVersion {
-		return 0, nil, fmt.Errorf("channels: invalid frame")
+		return 0, nil, errInvalidCodecFrame
 	}
 	return version, data[2:], nil
 }
 
-func appendRPCPayload(dst []byte, payload any) ([]byte, bool) {
+func responseCodecVersion(request []byte) uint8 {
+	if len(request) > 0 && request[0] == legacyCodecVersionV5 {
+		return legacyCodecVersionV5
+	}
+	return codecVersion
+}
+
+func appendRPCPayload(dst []byte, payload any, version uint8) ([]byte, bool) {
 	switch v := payload.(type) {
 	case channeltransport.PullResponse:
-		return appendPullResponse(dst, v), true
+		return appendPullResponse(dst, v, version), true
 	case channeltransport.PullBatchResponse:
-		return appendPullBatchResponse(dst, v), true
+		return appendPullBatchResponse(dst, v, version), true
 	case channeltransport.PullHintBatchResponse:
 		return appendPullHintBatchResponse(dst, v), true
 	case ch.AppendResult:
@@ -425,7 +480,7 @@ func readPullRequest(body []byte, offset int) (channeltransport.PullRequest, int
 	return req, offset, nil
 }
 
-func appendPullResponse(dst []byte, resp channeltransport.PullResponse) []byte {
+func appendPullResponse(dst []byte, resp channeltransport.PullResponse, version uint8) []byte {
 	dst = appendChannelKey(dst, resp.ChannelKey)
 	dst = appendUvarint(dst, resp.Epoch)
 	dst = appendUvarint(dst, resp.LeaderEpoch)
@@ -434,7 +489,7 @@ func appendPullResponse(dst []byte, resp channeltransport.PullResponse) []byte {
 	dst = appendUvarint(dst, resp.ActivityVersion)
 	dst = appendVarint(dst, int64(resp.NextPullAfter))
 	dst = append(dst, byte(resp.Control))
-	dst = appendMetaPtr(dst, resp.Meta, codecVersion)
+	dst = appendMetaPtr(dst, resp.Meta, version)
 	dst = appendRecords(dst, resp.Records)
 	return dst
 }
@@ -507,12 +562,12 @@ func readPullBatchRequest(body []byte, offset int) (channeltransport.PullBatchRe
 	return channeltransport.PullBatchRequest{Items: items}, offset, nil
 }
 
-func appendPullBatchResponse(dst []byte, resp channeltransport.PullBatchResponse) []byte {
+func appendPullBatchResponse(dst []byte, resp channeltransport.PullBatchResponse, version uint8) []byte {
 	dst = appendUvarint(dst, uint64(len(resp.Items)))
 	for _, item := range resp.Items {
 		dst = appendOptionalRPCApplicationError(dst, item.Err)
 		if item.Err == nil {
-			dst = appendPullResponse(dst, item.Response)
+			dst = appendPullResponse(dst, item.Response, version)
 		}
 	}
 	return dst

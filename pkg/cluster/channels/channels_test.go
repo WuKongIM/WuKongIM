@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -548,6 +551,648 @@ func TestCodecDecodesLegacyV5PullResponseMeta(t *testing.T) {
 	got, err := decodePullResponse(data)
 	require.NoError(t, err)
 	require.Equal(t, resp, got)
+}
+
+func TestLegacyV5ClientPullRoundTripsThroughCurrentServer(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	runtime := &fakeRuntime{pull: channeltransport.PullResponse{
+		ChannelKey: "1:legacy-client",
+		LeaderHW:   9,
+	}}
+	RegisterHandlers(network, 2, runtime)
+
+	req := channeltransport.PullRequest{
+		ChannelKey:  "1:legacy-client",
+		ChannelID:   ch.ChannelID{ID: "legacy-client", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 2,
+		Follower:    3,
+		NextOffset:  4,
+		MaxBytes:    1024,
+	}
+	payload := append([]byte{legacyCodecVersionV5, kindPull}, appendPullRequest(nil, req)...)
+	raw, err := network.Call(context.Background(), 2, clusternet.RPCChannelPull, payload)
+	require.NoError(t, err)
+	require.NotEmpty(t, raw)
+	require.Equal(t, legacyCodecVersionV5, raw[0], "legacy v5 callers must receive a response they can decode")
+
+	got, err := decodePullResponse(raw)
+	require.NoError(t, err)
+	require.Equal(t, runtime.pull, got)
+	require.Equal(t, 1, runtime.pullCalls)
+}
+
+func TestLegacyV5ClientNeedMetaIsRejectedByCurrentServer(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	runtime := &fakeRuntime{}
+	RegisterHandlers(network, 2, runtime)
+
+	payload, err := encodePullRequestVersion(channeltransport.PullRequest{
+		ChannelKey: "1:legacy-authority",
+		NeedMeta:   true,
+	}, legacyCodecVersionV5)
+	require.NoError(t, err)
+	_, err = network.Call(context.Background(), 2, clusternet.RPCChannelPull, payload)
+	require.Error(t, err)
+	require.True(t, isLegacyCodecVersionRejection(err))
+	require.Equal(t, 0, runtime.pullCalls, "v5 authority reads must be rejected before business dispatch")
+}
+
+func TestLegacyV5ClientNeedMetaBatchIsRejectedByCurrentServer(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	runtime := &fakeRuntime{}
+	RegisterHandlers(network, 2, runtime)
+
+	payload, err := encodePullBatchRequestVersion(channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{
+		{ChannelKey: "1:ordinary"},
+		{ChannelKey: "1:legacy-authority", NeedMeta: true},
+	}}, legacyCodecVersionV5)
+	require.NoError(t, err)
+	_, err = network.Call(context.Background(), 2, clusternet.RPCChannelPullBatch, payload)
+	require.Error(t, err)
+	require.True(t, isLegacyCodecVersionRejection(err))
+	require.Equal(t, 0, runtime.pullCalls, "mixed v5 authority batches must be rejected atomically before dispatch")
+}
+
+func TestCurrentClientFallsBackToLegacyV5PeerAndCachesCompatibility(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	versions := make([]uint8, 0, 5)
+	want := channeltransport.PullResponse{ChannelKey: "1:legacy-server", LeaderHW: 11}
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		if len(payload) == 0 {
+			return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+		}
+		versions = append(versions, payload[0])
+		if payload[0] != legacyCodecVersionV5 {
+			return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+		}
+		if _, err := DecodePullRequest(payload); err != nil {
+			return nil, err
+		}
+		body := appendLegacyV5PullResponse([]byte{rpcResultOK}, want)
+		return append([]byte{legacyCodecVersionV5, kindPullResponse}, body...), nil
+	}))
+
+	client := NewTransportClient(network)
+	for range 2 {
+		got, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: want.ChannelKey})
+		require.NoError(t, err)
+		require.Equal(t, want, got)
+	}
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: want.ChannelKey, NeedMeta: true})
+	require.Error(t, err)
+	require.True(t, isLegacyCodecVersionRejection(err), "NeedMeta must fail closed when the peer cannot encode v6 authority fields")
+	require.Equal(t, []uint8{
+		codecVersion, legacyCodecVersionV5,
+		legacyCodecVersionV5,
+		codecVersion,
+	}, versions)
+}
+
+func TestCurrentClientNeedMetaBatchDoesNotFallbackToLegacyV5Peer(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	versions := make([]uint8, 0, 1)
+	network.Register(2, clusternet.RPCChannelPullBatch, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		versions = append(versions, payload[0])
+		if payload[0] != legacyCodecVersionV5 {
+			return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+		}
+		req, err := decodePullBatchRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		return encodeRPCResultVersion(legacyCodecVersionV5, kindPullBatchResponse, channeltransport.PullBatchResponse{
+			Items: make([]channeltransport.PullBatchItemResult, len(req.Items)),
+		}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	_, err := client.PullBatch(context.Background(), 2, channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{
+		{ChannelKey: "1:ordinary"},
+		{ChannelKey: "1:need-meta", NeedMeta: true},
+	}})
+	require.Error(t, err)
+	require.True(t, isLegacyCodecVersionRejection(err))
+	require.Equal(t, []uint8{codecVersion}, versions, "authority batches must never retry with a codec that omits v6 metadata")
+}
+
+func TestCurrentClientNeedMetaRejectsLegacySuccessResponse(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		require.Equal(t, codecVersion, payload[0])
+		response := channeltransport.PullResponse{
+			ChannelKey: "1:legacy-success",
+			Meta: &ch.Meta{
+				Key: "1:legacy-success", ID: ch.ChannelID{ID: "legacy-success", Type: 1},
+				Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive,
+			},
+		}
+		return encodeRPCResultVersion(legacyCodecVersionV5, kindPullResponse, response, nil)
+	}))
+
+	client := NewTransportClient(network)
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:legacy-success", NeedMeta: true})
+	require.Error(t, err)
+	require.True(t, isLegacyCodecVersionRejection(err), "authority reads must reject a legacy success response")
+}
+
+func TestCurrentClientNeedMetaBatchRejectsLegacySuccessResponse(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	network.Register(2, clusternet.RPCChannelPullBatch, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		require.Equal(t, codecVersion, payload[0])
+		return encodeRPCResultVersion(legacyCodecVersionV5, kindPullBatchResponse, channeltransport.PullBatchResponse{
+			Items: []channeltransport.PullBatchItemResult{{Response: channeltransport.PullResponse{
+				ChannelKey: "1:legacy-batch-success",
+				Meta: &ch.Meta{
+					Key: "1:legacy-batch-success", ID: ch.ChannelID{ID: "legacy-batch-success", Type: 1},
+					Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive,
+				},
+			}}},
+		}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	_, err := client.PullBatch(context.Background(), 2, channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{
+		{ChannelKey: "1:legacy-batch-success", NeedMeta: true},
+	}})
+	require.Error(t, err)
+	require.True(t, isLegacyCodecVersionRejection(err), "authority batches must reject a legacy success response")
+}
+
+func TestNeedMetaPullImmediatelyProbesV6AfterLegacyPeerUpgrades(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	legacy := true
+	versions := make([]uint8, 0, 4)
+	wantMeta := ch.Meta{
+		Key: "1:upgraded-peer", ID: ch.ChannelID{ID: "upgraded-peer", Type: 1},
+		Epoch: 2, LeaderEpoch: 3, Leader: 2,
+		Replicas: []ch.NodeID{2, 3}, ISR: []ch.NodeID{2, 3}, MinISR: 2,
+		RetentionThroughSeq: 17,
+		WriteFence:          ch.WriteFence{Token: "migration-17", Version: 18, Reason: ch.WriteFenceReasonLeaderTransfer, Until: time.Now().Add(time.Minute).Round(0)},
+		Status:              ch.StatusActive,
+	}
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		versions = append(versions, payload[0])
+		if legacy && payload[0] != legacyCodecVersionV5 {
+			return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+		}
+		req, err := DecodePullRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		resp := channeltransport.PullResponse{ChannelKey: req.ChannelKey, LeaderHW: 19}
+		if req.NeedMeta {
+			meta := wantMeta
+			resp.Meta = &meta
+		}
+		return encodeRPCResultVersion(payload[0], kindPullResponse, resp, nil)
+	}))
+
+	client := NewTransportClient(network)
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: wantMeta.Key})
+	require.NoError(t, err)
+	legacy = false
+
+	_, err = client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: wantMeta.Key})
+	require.NoError(t, err)
+	got, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: wantMeta.Key, NeedMeta: true})
+	require.NoError(t, err)
+	require.Equal(t, []uint8{codecVersion, legacyCodecVersionV5, legacyCodecVersionV5, codecVersion}, versions)
+	require.NotNil(t, got.Meta)
+	require.Equal(t, wantMeta.RetentionThroughSeq, got.Meta.RetentionThroughSeq)
+	require.Equal(t, wantMeta.WriteFence, got.Meta.WriteFence)
+}
+
+func TestNeedMetaPullBatchImmediatelyProbesV6AfterLegacyPeerUpgrades(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		if len(payload) == 0 || payload[0] != legacyCodecVersionV5 {
+			return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+		}
+		body := appendLegacyV5PullResponse([]byte{rpcResultOK}, channeltransport.PullResponse{ChannelKey: "1:batch-upgrade"})
+		return append([]byte{legacyCodecVersionV5, kindPullResponse}, body...), nil
+	}))
+
+	wantMeta := ch.Meta{
+		Key: "1:batch-upgrade", ID: ch.ChannelID{ID: "batch-upgrade", Type: 1},
+		Epoch: 2, LeaderEpoch: 3, Leader: 2,
+		Replicas: []ch.NodeID{2, 3}, ISR: []ch.NodeID{2, 3}, MinISR: 2,
+		RetentionThroughSeq: 23,
+		WriteFence:          ch.WriteFence{Token: "migration-23", Version: 24, Reason: ch.WriteFenceReasonLeaderTransfer, Until: time.Now().Add(time.Minute).Round(0)},
+		Status:              ch.StatusActive,
+	}
+	batchVersions := make([]uint8, 0, 2)
+	network.Register(2, clusternet.RPCChannelPullBatch, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		batchVersions = append(batchVersions, payload[0])
+		req, err := decodePullBatchRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		resp := channeltransport.PullBatchResponse{Items: make([]channeltransport.PullBatchItemResult, len(req.Items))}
+		for index, item := range req.Items {
+			resp.Items[index].Response.ChannelKey = item.ChannelKey
+			if item.NeedMeta {
+				meta := wantMeta
+				resp.Items[index].Response.Meta = &meta
+			}
+		}
+		return encodeRPCResultVersion(payload[0], kindPullBatchResponse, resp, nil)
+	}))
+
+	client := NewTransportClient(network)
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: wantMeta.Key})
+	require.NoError(t, err)
+	_, err = client.PullBatch(context.Background(), 2, channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{{ChannelKey: wantMeta.Key}}})
+	require.NoError(t, err)
+	got, err := client.PullBatch(context.Background(), 2, channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{
+		{ChannelKey: "1:ordinary"},
+		{ChannelKey: wantMeta.Key, NeedMeta: true},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, []uint8{legacyCodecVersionV5, codecVersion}, batchVersions)
+	require.NotNil(t, got.Items[1].Response.Meta)
+	require.Equal(t, wantMeta.RetentionThroughSeq, got.Items[1].Response.Meta.RetentionThroughSeq)
+	require.Equal(t, wantMeta.WriteFence, got.Items[1].Response.Meta.WriteFence)
+}
+
+func TestCurrentClientDoesNotFallbackOnEmbeddedInvalidFrameText(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	versions := make([]uint8, 0, 1)
+	wantErr := errors.New("wrapped application: channels: invalid frame detail")
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		versions = append(versions, payload[0])
+		return nil, wantErr
+	}))
+
+	client := NewTransportClient(network)
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:no-fallback"})
+	require.ErrorIs(t, err, wantErr)
+	require.Equal(t, []uint8{codecVersion}, versions, "non-codec errors must not retry non-idempotent channel RPCs")
+}
+
+func TestCurrentClientNeedMetaBypassesLegacyCacheToProbeV6(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	pullVersions := make([]uint8, 0, 3)
+	batchVersions := make([]uint8, 0, 1)
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		pullVersions = append(pullVersions, payload[0])
+		req, err := DecodePullRequest(payload)
+		require.NoError(t, err)
+		return encodeRPCResultVersion(payload[0], kindPullResponse, channeltransport.PullResponse{ChannelKey: req.ChannelKey}, nil)
+	}))
+	network.Register(2, clusternet.RPCChannelPullBatch, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		batchVersions = append(batchVersions, payload[0])
+		req, err := decodePullBatchRequest(payload)
+		require.NoError(t, err)
+		return encodeRPCResultVersion(payload[0], kindPullBatchResponse, channeltransport.PullBatchResponse{
+			Items: make([]channeltransport.PullBatchItemResult, len(req.Items)),
+		}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	client.cacheLegacyCodecPeer(2, time.Now().Add(time.Minute))
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:ordinary"})
+	require.NoError(t, err)
+	_, err = client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:need-meta", NeedMeta: true})
+	require.NoError(t, err)
+	_, err = client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:ordinary-after-need-meta"})
+	require.NoError(t, err)
+	require.Equal(t, []uint8{legacyCodecVersionV5, codecVersion, codecVersion}, pullVersions,
+		"a successful v6 authority read must immediately promote ordinary peer traffic")
+
+	client.cacheLegacyCodecPeer(2, time.Now().Add(time.Minute))
+	_, err = client.PullBatch(context.Background(), 2, channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{
+		{ChannelKey: "1:batch-ordinary"},
+		{ChannelKey: "1:batch-need-meta", NeedMeta: true},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, []uint8{codecVersion}, batchVersions)
+}
+
+func TestExpiredLegacyCodecCacheAllowsOnlyOneV6Probe(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	probeStarted := make(chan struct{})
+	releaseProbe := make(chan struct{})
+	var v6Calls atomic.Int32
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		require.NotEmpty(t, payload)
+		if payload[0] == codecVersion {
+			if v6Calls.Add(1) == 1 {
+				close(probeStarted)
+			}
+			<-releaseProbe
+		}
+		req, err := DecodePullRequest(payload)
+		require.NoError(t, err)
+		return encodeRPCResultVersion(payload[0], kindPullResponse, channeltransport.PullResponse{ChannelKey: req.ChannelKey}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	client.cacheLegacyCodecPeer(2, time.Now().Add(-time.Second))
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:probe-owner"})
+		firstDone <- err
+	}()
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the v6 probe owner")
+	}
+
+	const followers = 8
+	followerDone := make(chan error, followers)
+	for i := range followers {
+		go func(index int) {
+			_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: ch.ChannelKey(fmt.Sprintf("1:probe-follower-%d", index))})
+			followerDone <- err
+		}(i)
+	}
+	for range followers {
+		select {
+		case err := <-followerDone:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			close(releaseProbe)
+			t.Fatalf("ordinary peer request blocked behind the v6 probe; v6 calls = %d", v6Calls.Load())
+		}
+	}
+	require.Equal(t, int32(1), v6Calls.Load(), "only one ordinary request may probe an expired legacy peer")
+	close(releaseProbe)
+	require.NoError(t, <-firstDone)
+}
+
+func TestStaleCodecObservationCannotReleaseNewerProbeOwnership(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	oldStarted := make(chan struct{})
+	releaseOld := make(chan struct{})
+	probeStarted := make(chan struct{})
+	releaseProbe := make(chan struct{})
+	var v6Calls atomic.Int32
+	var v5Calls atomic.Int32
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		if len(payload) == 0 {
+			return nil, errInvalidCodecFrame
+		}
+		if payload[0] == codecVersion {
+			switch v6Calls.Add(1) {
+			case 1:
+				close(oldStarted)
+				<-releaseOld
+			case 2:
+				close(probeStarted)
+				<-releaseProbe
+			}
+		} else {
+			v5Calls.Add(1)
+		}
+		req, err := DecodePullRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		return encodeRPCResultVersion(payload[0], kindPullResponse, channeltransport.PullResponse{ChannelKey: req.ChannelKey}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	oldDone := make(chan error, 1)
+	go func() {
+		_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:old-current-request"})
+		oldDone <- err
+	}()
+	select {
+	case <-oldStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the old v6 request")
+	}
+
+	client.cacheLegacyCodecPeer(2, time.Now().Add(-time.Second))
+	probeDone := make(chan error, 1)
+	go func() {
+		_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:new-probe-owner"})
+		probeDone <- err
+	}()
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		close(releaseOld)
+		t.Fatal("timed out waiting for the new v6 probe")
+	}
+
+	close(releaseOld)
+	require.NoError(t, <-oldDone)
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:while-probe-active"})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), v6Calls.Load(), "a stale result must not admit a second concurrent v6 probe")
+	require.Equal(t, int32(1), v5Calls.Load())
+
+	close(releaseProbe)
+	require.NoError(t, <-probeDone)
+}
+
+func TestLateLegacyFallbackCannotOverwriteSuccessfulV6Promotion(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	fallbackStarted := make(chan struct{})
+	releaseFallback := make(chan struct{})
+	var upgraded atomic.Bool
+	var v5Calls atomic.Int32
+	var v6Calls atomic.Int32
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		if len(payload) == 0 {
+			return nil, errInvalidCodecFrame
+		}
+		switch payload[0] {
+		case codecVersion:
+			v6Calls.Add(1)
+			if !upgraded.Load() {
+				return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+			}
+		case legacyCodecVersionV5:
+			if v5Calls.Add(1) == 1 {
+				close(fallbackStarted)
+				<-releaseFallback
+			}
+		default:
+			return nil, fmt.Errorf("unexpected codec version %d", payload[0])
+		}
+		req, err := DecodePullRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		return encodeRPCResultVersion(payload[0], kindPullResponse, channeltransport.PullResponse{ChannelKey: req.ChannelKey}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	legacyDone := make(chan error, 1)
+	go func() {
+		_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:late-legacy-fallback"})
+		legacyDone <- err
+	}()
+	select {
+	case <-fallbackStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the legacy fallback")
+	}
+
+	upgraded.Store(true)
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:authority-promotion", NeedMeta: true})
+	require.NoError(t, err)
+	close(releaseFallback)
+	require.NoError(t, <-legacyDone)
+
+	_, err = client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:after-promotion"})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), v5Calls.Load(), "a late v5 response must not restore legacy cache state")
+	require.Equal(t, int32(3), v6Calls.Load())
+}
+
+func TestOlderV6RejectionCannotDowngradeNewerV6Success(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	firstV6Started := make(chan struct{})
+	releaseFirstV6 := make(chan struct{})
+	var v6Calls atomic.Int32
+	var v5Calls atomic.Int32
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		if len(payload) == 0 {
+			return nil, errInvalidCodecFrame
+		}
+		if payload[0] == codecVersion {
+			call := v6Calls.Add(1)
+			if call == 1 {
+				close(firstV6Started)
+				<-releaseFirstV6
+				return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+			}
+		} else {
+			v5Calls.Add(1)
+		}
+		req, err := DecodePullRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		return encodeRPCResultVersion(payload[0], kindPullResponse, channeltransport.PullResponse{ChannelKey: req.ChannelKey}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	olderDone := make(chan error, 1)
+	go func() {
+		_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:older-rejection"})
+		olderDone <- err
+	}()
+	select {
+	case <-firstV6Started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the older v6 request")
+	}
+
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:newer-success"})
+	require.NoError(t, err)
+	close(releaseFirstV6)
+	require.NoError(t, <-olderDone)
+
+	_, err = client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:after-newer-success"})
+	require.NoError(t, err)
+	require.Equal(t, int32(3), v6Calls.Load(), "the late older rejection must not downgrade the peer")
+	require.Equal(t, int32(1), v5Calls.Load())
+}
+
+func TestOlderV6SuccessCannotDeleteNewerLegacyRejection(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	probeStarted := make(chan struct{})
+	releaseProbe := make(chan struct{})
+	var v6Calls atomic.Int32
+	var v5Calls atomic.Int32
+	network.Register(2, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(_ context.Context, payload []byte) ([]byte, error) {
+		if len(payload) == 0 {
+			return nil, errInvalidCodecFrame
+		}
+		if payload[0] == codecVersion {
+			call := v6Calls.Add(1)
+			if call == 1 {
+				close(probeStarted)
+				<-releaseProbe
+			} else {
+				return nil, transport.RemoteError{Code: "remote_error", Message: errInvalidCodecFrame.Error()}
+			}
+		} else {
+			v5Calls.Add(1)
+		}
+		req, err := DecodePullRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		return encodeRPCResultVersion(payload[0], kindPullResponse, channeltransport.PullResponse{ChannelKey: req.ChannelKey}, nil)
+	}))
+
+	client := NewTransportClient(network)
+	client.cacheLegacyCodecPeer(2, time.Now().Add(-time.Second))
+	olderDone := make(chan error, 1)
+	go func() {
+		_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:older-success"})
+		olderDone <- err
+	}()
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the expired-cache probe")
+	}
+
+	_, err := client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:newer-rejection", NeedMeta: true})
+	require.Error(t, err)
+	close(releaseProbe)
+	require.NoError(t, <-olderDone)
+
+	_, err = client.Pull(context.Background(), 2, channeltransport.PullRequest{ChannelKey: "1:after-newer-rejection"})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), v6Calls.Load(), "the older success must not delete newer legacy evidence")
+	require.Equal(t, int32(1), v5Calls.Load())
+}
+
+func TestLegacyCodecPeerCacheIsBoundedAcrossNodeChurn(t *testing.T) {
+	client := NewTransportClient(clusternet.NewLocalNetwork())
+	for node := uint64(1); node <= uint64(codecPeerStateCacheLimit)+128; node++ {
+		client.cacheLegacyCodecPeer(node, time.Now().Add(time.Minute))
+	}
+
+	entries := 0
+	client.legacyCodecPeers.Range(func(_, _ any) bool {
+		entries++
+		return true
+	})
+	require.LessOrEqual(t, entries, int(codecPeerStateCacheLimit))
+}
+
+func TestLegacyCodecPeerCacheConcurrentChurnRemainsBounded(t *testing.T) {
+	client := NewTransportClient(clusternet.NewLocalNetwork())
+	const workers = 16
+	const peersPerWorker = 128
+	var wg sync.WaitGroup
+	for worker := range workers {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			base := uint64(worker*peersPerWorker + 1)
+			for peer := range peersPerWorker {
+				client.cacheLegacyCodecPeer(base+uint64(peer), time.Now().Add(time.Minute))
+			}
+		}(worker)
+	}
+	wg.Wait()
+
+	entries := 0
+	client.legacyCodecPeers.Range(func(_, _ any) bool {
+		entries++
+		return true
+	})
+	require.LessOrEqual(t, entries, int(codecPeerStateCacheLimit))
+	require.Equal(t, int64(entries), client.codecPeerCount.Load())
 }
 
 func TestCodecRoundTripsPullHintSlimFields(t *testing.T) {

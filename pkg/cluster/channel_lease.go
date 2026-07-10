@@ -15,8 +15,8 @@ type channelDataPlaneLeaseGuard struct {
 	// ttl is the maximum age accepted for the latest successful visibility mark.
 	ttl time.Duration
 
-	// lastOKNanos stores the last successful visibility timestamp as Unix nanoseconds.
-	lastOKNanos atomic.Int64
+	// lastOK stores the latest successful visibility timestamp, including Go's monotonic clock reading.
+	lastOK atomic.Pointer[time.Time]
 }
 
 // channelDataPlaneLeaseSnapshot is the package-private management view of the lease guard.
@@ -36,11 +36,26 @@ func newChannelDataPlaneLeaseGuard(now func() time.Time, ttl time.Duration) *cha
 	return &channelDataPlaneLeaseGuard{now: now, ttl: ttl}
 }
 
+// MarkVisible advances the lease evidence monotonically so delayed reports cannot replace newer successes.
 func (g *channelDataPlaneLeaseGuard) MarkVisible(at time.Time) {
 	if g == nil {
 		return
 	}
-	g.lastOKNanos.Store(at.UnixNano())
+	next := at
+	for {
+		current := g.lastOK.Load()
+		if current != nil && !next.After(*current) {
+			// A wall-clock rollback can leave the prior evidence in the future once
+			// monotonic data is unavailable. Replace it with the new successful
+			// observation so the guard fails closed without remaining wedged.
+			if !current.After(g.now()) {
+				return
+			}
+		}
+		if g.lastOK.CompareAndSwap(current, &next) {
+			return
+		}
+	}
 }
 
 func (g *channelDataPlaneLeaseGuard) AllowChannelAppend(ctx context.Context, _ ch.AppendAdmissionRequest) error {
@@ -60,15 +75,14 @@ func (g *channelDataPlaneLeaseGuard) snapshot() channelDataPlaneLeaseSnapshot {
 	if g == nil {
 		return channelDataPlaneLeaseSnapshot{}
 	}
-	last := g.lastOKNanos.Load()
-	if last == 0 {
+	last := g.lastOK.Load()
+	if last == nil {
 		return channelDataPlaneLeaseSnapshot{ttl: g.ttl}
 	}
-	lastVisibleAt := time.Unix(0, last).UTC()
 	return channelDataPlaneLeaseSnapshot{
-		lastVisibleAt: lastVisibleAt,
+		lastVisibleAt: *last,
 		ttl:           g.ttl,
-		ready:         g.freshAt(last, g.now()),
+		ready:         g.freshAt(*last, g.now()),
 	}
 }
 
@@ -76,15 +90,20 @@ func (g *channelDataPlaneLeaseGuard) fresh(now time.Time) bool {
 	if g == nil || g.ttl <= 0 {
 		return false
 	}
-	return g.freshAt(g.lastOKNanos.Load(), now)
+	last := g.lastOK.Load()
+	if last == nil {
+		return false
+	}
+	return g.freshAt(*last, now)
 }
 
-func (g *channelDataPlaneLeaseGuard) freshAt(last int64, now time.Time) bool {
+func (g *channelDataPlaneLeaseGuard) freshAt(last time.Time, now time.Time) bool {
 	if g == nil || g.ttl <= 0 {
 		return false
 	}
-	if last == 0 {
+	age := now.Sub(last)
+	if age < 0 {
 		return false
 	}
-	return now.Sub(time.Unix(0, last)) <= g.ttl
+	return age <= g.ttl
 }

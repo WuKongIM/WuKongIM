@@ -2520,6 +2520,7 @@ func TestLeaderPullNeedMetaReturnsClonedRuntimeMeta(t *testing.T) {
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
 	meta := followerTestMeta("pull-needmeta-clone")
 	meta.RetentionThroughSeq = 7
+	meta.LeaseUntil = time.Now().Add(30 * time.Second).Round(0)
 	meta.WriteFence = ch.WriteFence{Token: "migration-7", Version: 7, Reason: ch.WriteFenceReasonLeaderTransfer, Until: time.Now().Add(time.Minute)}
 	require.NoError(t, applyMetaDirect(t, r, meta))
 
@@ -2548,6 +2549,7 @@ func TestLeaderPullNeedMetaReturnsClonedRuntimeMeta(t *testing.T) {
 	require.Equal(t, meta.ISR, result.Pull.Meta.ISR)
 	require.Equal(t, meta.MinISR, result.Pull.Meta.MinISR)
 	require.Equal(t, meta.RetentionThroughSeq, result.Pull.Meta.RetentionThroughSeq)
+	require.Equal(t, meta.LeaseUntil, result.Pull.Meta.LeaseUntil)
 	require.Equal(t, meta.WriteFence, result.Pull.Meta.WriteFence)
 	require.Equal(t, meta.Status, result.Pull.Meta.Status)
 

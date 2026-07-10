@@ -213,7 +213,10 @@ The default Channel runtime runtime also receives a node-local data-plane lease 
 A successful health report refreshes the lease only when `runtime_ready` is
 still true. The local lease records the report attempt start after success so
 Controller write latency consumes, rather than extends, the shared TTL safety
-budget. `ProbeWriteReady` refreshes the same local lease after it proves
+budget. Lease evidence retains Go's monotonic clock reading, rejects negative
+ages after wall-clock rollback, and lets a new successful observation replace
+invalid future wall-clock evidence without allowing a delayed older report to
+overwrite a newer success. `ProbeWriteReady` refreshes the same local lease after it proves
 foreground Slot write readiness during startup/readiness gates; final not-ready
 stop reports do not extend foreground append eligibility. Local Channel runtime leader appends fail closed with
 `channel.ErrNotReady` when the lease is missing or older than the configured
@@ -465,6 +468,35 @@ and the remote `channels.Service` append path. These sub-stages separate
 origin-side dispatch/transport wait from the leader's actual append/quorum
 work when diagnosing forwarded SEND p99.
 
+Channel RPC uses versioned binary frames. During a v5/v6 rolling upgrade, the
+client prefers v6 and retries once with v5 only when the remote handler rejects
+the frame before dispatch with the legacy `channels: invalid frame` error. The
+confirmed v6 rejection is cached per peer for a bounded interval, after which one
+ordinary request per peer probes v6 while concurrent ordinary traffic remains
+on v5. A successful v6 probe immediately promotes the peer, avoiding both
+minute-bound upgrade lag and a concurrent fallback/re-encode spike. Per-peer
+request generations prevent delayed pre-upgrade successes or rejections from
+overwriting newer codec evidence. Probe ownership carries the same generation,
+so an older long request cannot release a newer in-flight probe. Idle peer state
+is capped so historical node churn cannot grow the compatibility cache without
+bound.
+`Pull{NeedMeta=true}` and batches containing it bypass that cache and probe v6
+immediately because v5 cannot carry retention or write-fence authority fields.
+If the peer rejects v6, authority reads fail closed and never retry with v5;
+ordinary replication and forwarding calls may still use the bounded fallback.
+Current handlers likewise reject legacy `NeedMeta` requests before business
+dispatch, covering the old-client/new-server rolling direction. Current clients
+also require the successful authority response frame itself to be v6 before
+applying metadata or promoting peer codec state.
+The real transport exposes that remote handler rejection as a structured
+`transport.RemoteError` with code `remote_error` and an exactly matching
+message; fallback accepts only that boundary shape or the local codec sentinel,
+never a substring match.
+Current handlers answer a valid v5 request with a v5 response; v6 requests keep
+v6 responses and therefore preserve `RetentionThroughSeq` and `WriteFence` in
+`Pull{NeedMeta=true}` metadata. Other transport or application errors never
+trigger codec fallback, so forwarded append execution is not duplicated.
+
 `Node.ReadChannelCommitted` is a narrow read facade for internal HTTP message
 sync. It opens the Node-created default Channel runtime store for the requested
 channel, resolves the authoritative `ChannelRuntimeMeta`, applies
@@ -568,5 +600,7 @@ When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware 
 - Controller integration supports Controller-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transport`. Dynamic production operator workflows remain outside this package-level slice.
 - Slot coverage now uses the real default Slot runtime for default propose in single-node clusters and static multi-node clusters. Destructive Slot cleanup remains disabled.
 - Channel runtime append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return Channel runtime typed errors.
-- Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.
+- Channel RPC v5/v6 rolling compatibility is bounded to the immediately previous
+  binary frame version; v3/v4 remain decode-only compatibility inputs and are
+  not negotiated response formats.
 - Observe loops are intentionally small and low-frequency; foreground write paths only read atomic route/channel state.

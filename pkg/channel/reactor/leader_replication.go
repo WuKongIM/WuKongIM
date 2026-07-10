@@ -323,6 +323,7 @@ func cloneLeaderRuntimeMeta(rc *runtimeChannel) ch.Meta {
 		Replicas:            append([]ch.NodeID(nil), rc.state.Replicas...),
 		ISR:                 append([]ch.NodeID(nil), rc.state.ISR...),
 		MinISR:              rc.state.MinISR,
+		LeaseUntil:          rc.state.LeaseUntil,
 		RetentionThroughSeq: rc.state.RetentionThroughSeq,
 		WriteFence:          rc.state.WriteFence,
 		Status:              rc.state.Status,

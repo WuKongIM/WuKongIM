@@ -220,8 +220,10 @@ next retry observes the checkpoint result and performs the trim.
 PullHint when the follower lacks matching local runtime state. It opens the
 channel store, sends `Pull{NeedMeta=true}` to the channel leader, applies the
 returned active metadata before any records, and releases itself on stale,
-invalid, not-replica, timeout, or retry-exhaustion paths. When a loaded runtime
-receives the same channel identity with a strictly newer metadata fence, the
+invalid, not-replica, timeout, or retry-exhaustion paths. The returned snapshot
+clones membership plus the leader lease, retention boundary, and write fence;
+it must not silently zero authority fields. When a loaded runtime receives the
+same channel identity with a strictly newer metadata fence, the
 reactor keeps the existing runtime and starts one isolated authoritative
 metadata resolve. The hint is only a trigger: its claimed target fence, leader,
 LEO, and activity are not metadata proof. All valid newer hints coalesce without
