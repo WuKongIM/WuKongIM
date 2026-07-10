@@ -226,8 +226,10 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 		return
 	}
 	if loadedPullHintNewer(rc, req) {
-		r.forceReleaseRuntimeForPending(rc.state.Key, rc)
-		r.handlePendingMetaPullHint(event)
+		err = r.submitLoadedMetaRefresh(rc, req, time.Now())
+		if event.Future != nil {
+			event.Future.Complete(Result{Err: err})
+		}
 		return
 	}
 	if req.ChannelKey != "" && req.ChannelKey != rc.state.Key {
@@ -414,6 +416,9 @@ func (r *Reactor) handleLegacyFollowerNotify(event Event) {
 }
 
 func (r *Reactor) handleRPCPullResult(result worker.Result) {
+	if r.handleLoadedMetaRefreshResult(result) {
+		return
+	}
 	if rc := r.channels[result.Fence.ChannelKey]; rc != nil && rc.pending != nil && rc.state == nil {
 		r.handlePendingMetaPullResult(rc, result)
 		return
@@ -560,6 +565,177 @@ func loadedPullHintNewer(rc *runtimeChannel, req transport.PullHintRequest) bool
 		return true
 	}
 	return req.Epoch == rc.state.Epoch && req.LeaderEpoch > rc.state.LeaderEpoch
+}
+
+func (r *Reactor) submitLoadedMetaRefresh(rc *runtimeChannel, req transport.PullHintRequest, now time.Time) error {
+	if r == nil || rc == nil || rc.state == nil || r.channels[rc.state.Key] != rc || !loadedPullHintNewer(rc, req) {
+		return ch.ErrStaleMeta
+	}
+	if current := r.loadedMetaRefreshes[req.ChannelKey]; current != nil {
+		if !current.deadline.IsZero() && !now.Before(current.deadline) {
+			r.clearLoadedMetaRefresh(req.ChannelKey)
+			current = nil
+		}
+		if current == nil {
+			return r.submitLoadedMetaRefresh(rc, req, now)
+		}
+		switch comparePendingLoadFence(current.hint, req) {
+		case 1:
+			return ch.ErrStaleMeta
+		case 0:
+			if current.hint.Leader != req.Leader {
+				return ch.ErrStaleMeta
+			}
+			if req.LeaderLEO > current.hint.LeaderLEO {
+				current.hint.LeaderLEO = req.LeaderLEO
+			}
+			if req.ActivityVersion > current.hint.ActivityVersion {
+				current.hint.ActivityVersion = req.ActivityVersion
+			}
+			return nil
+		case -1:
+			r.clearLoadedMetaRefresh(req.ChannelKey)
+		}
+	}
+
+	timeout := r.followerPullRPCTimeout()
+	pullCtx, pullCancel := context.WithTimeout(context.Background(), timeout)
+	opID := r.nextOpID()
+	fence := ch.Fence{
+		ChannelKey:  req.ChannelKey,
+		Generation:  rc.state.Generation,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch,
+		OpID:        opID,
+	}
+	pull := transport.PullRequest{
+		ChannelKey:  req.ChannelKey,
+		ChannelID:   req.ChannelID,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch,
+		Follower:    r.cfg.LocalNode,
+		NextOffset:  rc.state.LEO + 1,
+		AckOffset:   rc.state.LEO,
+		MaxBytes:    r.cfg.PullMaxBytes,
+		NeedMeta:    true,
+	}
+	if err := r.submitRPCPull(pullCtx, req.Leader, fence, pull, 0); err != nil {
+		pullCancel()
+		return err
+	}
+	if r.loadedMetaRefreshes == nil {
+		r.loadedMetaRefreshes = make(map[ch.ChannelKey]*loadedMetaRefreshState)
+	}
+	r.loadedMetaRefreshes[req.ChannelKey] = &loadedMetaRefreshState{
+		hint:                   req,
+		runtime:                rc,
+		generation:             rc.state.Generation,
+		baseEpoch:              rc.state.Epoch,
+		baseLeaderEpoch:        rc.state.LeaderEpoch,
+		opID:                   opID,
+		deadline:               now.Add(timeout),
+		cancel:                 pullCancel,
+		pullSubmittedAt:        now,
+		pullSubmittedAckOffset: pull.AckOffset,
+	}
+	r.observeNeedMetaPull("submitted", nil)
+	return nil
+}
+
+func (r *Reactor) handleLoadedMetaRefreshResult(result worker.Result) bool {
+	if r == nil || r.loadedMetaRefreshes == nil {
+		return false
+	}
+	refresh := r.loadedMetaRefreshes[result.Fence.ChannelKey]
+	if refresh == nil ||
+		result.Fence.Generation != refresh.generation ||
+		result.Fence.Epoch != refresh.hint.Epoch ||
+		result.Fence.LeaderEpoch != refresh.hint.LeaderEpoch ||
+		result.Fence.OpID != refresh.opID {
+		return false
+	}
+	r.clearLoadedMetaRefresh(result.Fence.ChannelKey)
+
+	rc := r.channels[result.Fence.ChannelKey]
+	if rc == nil || rc != refresh.runtime || rc.state == nil ||
+		rc.state.Generation != refresh.generation ||
+		rc.state.Epoch != refresh.baseEpoch ||
+		rc.state.LeaderEpoch != refresh.baseLeaderEpoch ||
+		!loadedPullHintNewer(rc, refresh.hint) {
+		return true
+	}
+	now := time.Now()
+	if result.Err != nil {
+		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", result.Err)
+		return true
+	}
+	if result.RPCPull == nil {
+		err := ch.ErrInvalidConfig
+		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		return true
+	}
+
+	resp := result.RPCPull.Response
+	meta, err := validateLoadedMetaRefreshResponse(refresh, resp, r.cfg.LocalNode)
+	if err != nil {
+		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		return true
+	}
+	if err := r.applyLoadedRuntimeMeta(rc, meta, true); err != nil {
+		r.observeNeedMetaPullRPCWait(refresh.pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		return true
+	}
+	resp.Meta = nil
+	r.acceptNeedMetaPullResponse(rc, resp, refresh.pullSubmittedAt, refresh.pullSubmittedAckOffset, 0, time.Time{}, false, now)
+	r.scheduleReplicationFromState(rc, now)
+	return true
+}
+
+func validateLoadedMetaRefreshResponse(refresh *loadedMetaRefreshState, resp transport.PullResponse, local ch.NodeID) (ch.Meta, error) {
+	if refresh == nil || resp.Meta == nil {
+		return ch.Meta{}, ch.ErrInvalidConfig
+	}
+	hint := refresh.hint
+	if resp.ChannelKey != hint.ChannelKey || resp.Epoch != hint.Epoch || resp.LeaderEpoch != hint.LeaderEpoch {
+		return ch.Meta{}, ch.ErrStaleMeta
+	}
+	meta := *resp.Meta
+	if err := validatePendingMetaShape(meta); err != nil {
+		return ch.Meta{}, err
+	}
+	if meta.Key != hint.ChannelKey || meta.ID != hint.ChannelID || meta.Epoch != hint.Epoch || meta.LeaderEpoch != hint.LeaderEpoch || meta.Leader != hint.Leader {
+		return ch.Meta{}, ch.ErrStaleMeta
+	}
+	if !metaHasReplica(meta, local) {
+		return ch.Meta{}, ch.ErrNotReplica
+	}
+	return meta, nil
+}
+
+func (r *Reactor) clearLoadedMetaRefresh(key ch.ChannelKey) {
+	if r == nil || r.loadedMetaRefreshes == nil {
+		return
+	}
+	if refresh := r.loadedMetaRefreshes[key]; refresh != nil && refresh.cancel != nil {
+		refresh.cancel()
+	}
+	delete(r.loadedMetaRefreshes, key)
+	if len(r.loadedMetaRefreshes) == 0 {
+		r.loadedMetaRefreshes = nil
+	}
+}
+
+func (r *Reactor) clearAllLoadedMetaRefreshes() {
+	if r == nil || r.loadedMetaRefreshes == nil {
+		return
+	}
+	for key := range r.loadedMetaRefreshes {
+		r.clearLoadedMetaRefresh(key)
+	}
 }
 
 func (r *Reactor) acceptFollowerPullResponse(rc *runtimeChannel, resp transport.PullResponse, pullSubmittedAt time.Time, pullSubmittedAckOffset uint64, ackReturnOffset uint64, ackReturnStartedAt time.Time, recoveryProbe bool, now time.Time) {

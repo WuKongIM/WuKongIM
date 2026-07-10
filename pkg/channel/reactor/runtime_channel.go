@@ -34,22 +34,30 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	wasParked := rc.replication.parked
 	fencePendingState := existing != nil && metadataWouldFenceState(rc.state, event.Meta)
+	event.Future.Complete(Result{Err: r.applyLoadedRuntimeMeta(rc, event.Meta, fencePendingState)})
+}
+
+func (r *Reactor) applyLoadedRuntimeMeta(rc *runtimeChannel, meta ch.Meta, fencePendingState bool) error {
+	if r == nil || rc == nil || rc.state == nil {
+		return ch.ErrChannelNotFound
+	}
+	if err := rc.state.ValidateMeta(meta); err != nil {
+		return err
+	}
+	wasParked := rc.replication.parked
 	if fencePendingState {
-		if err := rc.state.ValidateMeta(event.Meta); err != nil {
-			event.Future.Complete(Result{Err: err})
-			return
-		}
 		r.clearFencedRuntimeWork(rc, ch.ErrStaleMeta)
 	}
-	decision := rc.state.ApplyMeta(event.Meta)
-	if decision.Err == nil {
-		r.applyLoadedMetaDecision(rc, fencePendingState)
-		r.observeFollowerParkedCountIfChanged(wasParked, rc)
-		r.observeRuntimeCounts()
+	decision := rc.state.ApplyMeta(meta)
+	if decision.Err != nil {
+		return decision.Err
 	}
-	event.Future.Complete(Result{Err: decision.Err})
+	r.clearLoadedMetaRefresh(rc.state.Key)
+	r.applyLoadedMetaDecision(rc, fencePendingState)
+	r.observeFollowerParkedCountIfChanged(wasParked, rc)
+	r.observeRuntimeCounts()
+	return nil
 }
 
 func (r *Reactor) shouldAsyncStoreLoad() bool {
@@ -323,6 +331,9 @@ func (r *Reactor) closeStoreAsync(key ch.ChannelKey, generation uint64, cs store
 }
 
 func (r *Reactor) clearFencedRuntimeWork(rc *runtimeChannel, err error) {
+	if rc != nil && rc.state != nil {
+		r.clearLoadedMetaRefresh(rc.state.Key)
+	}
 	r.failPendingAppendWaiters(rc, err)
 	rc.failPendingPullWaiters(err)
 	rc.failPendingLookupWaiters(err)
@@ -701,40 +712,6 @@ func (r *Reactor) pendingMetaDeadline(now time.Time) time.Time {
 		timeout = time.Second
 	}
 	return now.Add(timeout)
-}
-
-func (r *Reactor) forceReleaseRuntimeForPending(key ch.ChannelKey, rc *runtimeChannel) {
-	if r == nil || rc == nil || r.channels[key] != rc {
-		return
-	}
-	var role ch.Role
-	wasParkedFollower := false
-	if rc.state != nil {
-		role = rc.state.Role
-		wasParkedFollower = role == ch.RoleFollower && rc.replication.parked
-	}
-	generation := uint64(0)
-	if rc.state != nil {
-		generation = rc.state.Generation
-	} else if rc.pending != nil {
-		generation = rc.pending.generation
-	} else if rc.loading != nil {
-		generation = rc.loading.generation
-	}
-	r.clearFencedRuntimeWork(rc, ch.ErrStaleMeta)
-	storeHandle := rc.store
-	rc.store = nil
-	r.clearAppendQueuePressure(rc)
-	delete(r.channels, key)
-	r.closeStoreAsync(key, generation, storeHandle)
-	r.clearAppendSubmitState(key)
-	if role != 0 {
-		r.observeChannelRuntimeEvicted(key, role)
-	}
-	if wasParkedFollower {
-		r.observeFollowerParkedCount(r.countParkedFollowers())
-	}
-	r.observeRuntimeCounts()
 }
 
 func (r *Reactor) observeRuntimeCounts() {

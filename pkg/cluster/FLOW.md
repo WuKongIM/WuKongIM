@@ -540,11 +540,12 @@ new placement candidates. Existing `ChannelRuntimeMeta` rows remain
 authoritative for established channels.
 
 Channel runtime PullHint RPCs carry only a slim metadata reference and wakeup fields.
-An unloaded or newer-fence follower creates reactor-owned `PendingMeta` and
-uses `Pull{NeedMeta=true}` to fetch active metadata from the channel leader
-runtime before applying any records. The service layer does not resolve Slot
-metadata for PullHint receive; client append admission still uses
-`EnsureChannelMeta`.
+An unloaded follower creates reactor-owned `PendingMeta`; a loaded runtime with
+a newer fence keeps its current state while a bounded in-place refresh is
+proved. Both paths use `Pull{NeedMeta=true}` to fetch complete active metadata,
+including retention and write-fence fields, from the channel leader runtime
+before applying any records. The service layer does not resolve Slot metadata
+for PullHint receive; client append admission still uses `EnsureChannelMeta`.
 
 Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 

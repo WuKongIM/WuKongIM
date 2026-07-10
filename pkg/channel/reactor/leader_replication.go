@@ -315,15 +315,17 @@ func cloneLeaderRuntimeMeta(rc *runtimeChannel) ch.Meta {
 		return ch.Meta{}
 	}
 	return ch.Meta{
-		Key:         rc.state.Key,
-		ID:          rc.state.ID,
-		Epoch:       rc.state.Epoch,
-		LeaderEpoch: rc.state.LeaderEpoch,
-		Leader:      rc.state.Leader,
-		Replicas:    append([]ch.NodeID(nil), rc.state.Replicas...),
-		ISR:         append([]ch.NodeID(nil), rc.state.ISR...),
-		MinISR:      rc.state.MinISR,
-		Status:      rc.state.Status,
+		Key:                 rc.state.Key,
+		ID:                  rc.state.ID,
+		Epoch:               rc.state.Epoch,
+		LeaderEpoch:         rc.state.LeaderEpoch,
+		Leader:              rc.state.Leader,
+		Replicas:            append([]ch.NodeID(nil), rc.state.Replicas...),
+		ISR:                 append([]ch.NodeID(nil), rc.state.ISR...),
+		MinISR:              rc.state.MinISR,
+		RetentionThroughSeq: rc.state.RetentionThroughSeq,
+		WriteFence:          rc.state.WriteFence,
+		Status:              rc.state.Status,
 	}
 }
 

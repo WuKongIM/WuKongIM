@@ -220,10 +220,16 @@ next retry observes the checkpoint result and performs the trim.
 PullHint when the follower lacks matching local runtime state. It opens the
 channel store, sends `Pull{NeedMeta=true}` to the channel leader, applies the
 returned active metadata before any records, and releases itself on stale,
-invalid, not-replica, timeout, or retry-exhaustion paths. A valid PullHint with
-the same channel identity and a strictly newer metadata fence may also replace
-any loaded stale role through this PendingMeta path; same or older fences cannot
-evict the loaded runtime. Loaded runtimes hold
+invalid, not-replica, timeout, or retry-exhaustion paths. When a loaded runtime
+receives the same channel identity with a strictly newer metadata fence, the
+reactor keeps the existing runtime and starts one bounded `NeedMeta` refresh.
+Only an exact active metadata proof from the hinted leader may fence waiters and
+update that runtime in place; invalid, failed, or timed-out proofs leave the
+loaded runtime intact. Same-fence hints coalesce without extending the refresh
+deadline, newer hints cancel and supersede the old proof, and same or older
+fences cannot evict the loaded runtime. NeedMeta metadata includes the durable
+retention boundary and write fence as well as membership and leadership fields.
+Loaded runtimes hold
 `machine.ChannelState`, `appendQueue`, `replicationState`, and
 `channelRuntimeLifecycle`. `channelRuntimeLifecycle` is the single controller
 for stop, checkpoint, stopped ACK, final eviction, leader-visible follower stop

@@ -162,6 +162,7 @@ func (r *Reactor) failPendingWaiters(err error) {
 	if r == nil {
 		return
 	}
+	r.clearAllLoadedMetaRefreshes()
 	for key, rc := range r.channels {
 		if rc != nil && rc.loading != nil && rc.state == nil && rc.pending == nil {
 			r.completeStoreLoadFutures(rc.loading, Result{Err: err})

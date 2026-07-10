@@ -123,6 +123,9 @@ type Reactor struct {
 	activationRejectedTotal uint64
 	// pendingMetaCount tracks follower bootstrap shells without scanning all channel slots.
 	pendingMetaCount int
+	// loadedMetaRefreshes tracks only loaded runtimes currently proving a newer PullHint fence.
+	// The map stays nil on the ordinary hot path so idle channel cardinality has no per-runtime cost.
+	loadedMetaRefreshes map[ch.ChannelKey]*loadedMetaRefreshState
 	// appendQueuePressure keeps aggregate append queue pressure updated by per-channel deltas.
 	appendQueuePressure appendQueuePressureState
 	// asyncEffects is set after start so direct handler unit tests keep their synchronous fixtures.
@@ -171,6 +174,19 @@ type runtimeChannel struct {
 	appendFlushDueVersion uint64
 	replicationDueVersion uint64
 	lifecycleDueVersion   uint64
+}
+
+type loadedMetaRefreshState struct {
+	hint                   transport.PullHintRequest
+	runtime                *runtimeChannel
+	generation             uint64
+	baseEpoch              uint64
+	baseLeaderEpoch        uint64
+	opID                   ch.OpID
+	deadline               time.Time
+	cancel                 context.CancelFunc
+	pullSubmittedAt        time.Time
+	pullSubmittedAckOffset uint64
 }
 
 type storeLoadKind uint8

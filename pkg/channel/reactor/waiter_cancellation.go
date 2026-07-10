@@ -175,6 +175,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	storeHandle := rc.store
 	rc.store = nil
 	r.clearAppendQueuePressure(rc)
+	r.clearLoadedMetaRefresh(key)
 	delete(r.channels, key)
 	r.closeStoreAsync(key, rc.state.Generation, storeHandle)
 	r.observeChannelRuntimeEvicted(key, role)
