@@ -35,6 +35,8 @@ type fieldSpec struct {
 	Nullable bool
 	// Sensitive marks values that must be redacted in snapshots.
 	Sensitive bool
+	// DiagnosticSensitive marks values redacted from diagnostics without changing snapshot sensitivity.
+	DiagnosticSensitive bool
 }
 
 // SchemaField describes one public startup config field.
@@ -45,6 +47,10 @@ type SchemaField struct {
 	EnvKey string
 	// Kind identifies the TOML value shape expected for this field.
 	Kind string
+	// Sensitive reports whether startup config snapshots redact this field.
+	Sensitive bool
+	// DiagnosticSensitive reports whether diagnostic artifacts redact this field.
+	DiagnosticSensitive bool
 }
 
 // SchemaFields returns the public startup config schema.
@@ -52,9 +58,11 @@ func SchemaFields() []SchemaField {
 	out := make([]SchemaField, 0, len(schemaFields))
 	for _, field := range schemaFields {
 		out = append(out, SchemaField{
-			TOMLPath: field.TOMLPath,
-			EnvKey:   field.EnvKey,
-			Kind:     string(field.Kind),
+			TOMLPath:            field.TOMLPath,
+			EnvKey:              field.EnvKey,
+			Kind:                string(field.Kind),
+			Sensitive:           field.Sensitive,
+			DiagnosticSensitive: field.Sensitive || field.DiagnosticSensitive,
 		})
 	}
 	return out
@@ -129,8 +137,8 @@ var schemaFields = []fieldSpec{
 
 	{TOMLPath: "api.listen_addr", EnvKey: "WK_API_LISTEN_ADDR", Kind: kindString, Group: "api", Label: "API listen address"},
 	{TOMLPath: "api.external_tcp_addr", EnvKey: "WK_EXTERNAL_TCPADDR", Kind: kindString, Group: "api", Label: "External TCP address"},
-	{TOMLPath: "api.external_ws_addr", EnvKey: "WK_EXTERNAL_WSADDR", Kind: kindString, Group: "api", Label: "External WebSocket address"},
-	{TOMLPath: "api.external_wss_addr", EnvKey: "WK_EXTERNAL_WSSADDR", Kind: kindString, Group: "api", Label: "External secure WebSocket address"},
+	{TOMLPath: "api.external_ws_addr", EnvKey: "WK_EXTERNAL_WSADDR", Kind: kindString, Group: "api", Label: "External WebSocket address", DiagnosticSensitive: true},
+	{TOMLPath: "api.external_wss_addr", EnvKey: "WK_EXTERNAL_WSSADDR", Kind: kindString, Group: "api", Label: "External secure WebSocket address", DiagnosticSensitive: true},
 
 	{TOMLPath: "manager.listen_addr", EnvKey: "WK_MANAGER_LISTEN_ADDR", Kind: kindString, Group: "manager", Label: "Manager listen address"},
 	{TOMLPath: "manager.auth_on", EnvKey: "WK_MANAGER_AUTH_ON", Kind: kindBool, Group: "manager", Label: "Manager auth enabled"},
@@ -147,7 +155,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "observability.debug_api_enable", EnvKey: "WK_DEBUG_API_ENABLE", Kind: kindBool, Group: "observability", Label: "Debug API enabled"},
 
 	{TOMLPath: "prometheus.enable", EnvKey: "WK_PROMETHEUS_ENABLE", Kind: kindBool, Group: "prometheus", Label: "Prometheus enabled"},
-	{TOMLPath: "prometheus.query_base_url", EnvKey: "WK_PROMETHEUS_QUERY_BASE_URL", Kind: kindString, Group: "prometheus", Label: "Prometheus query base URL"},
+	{TOMLPath: "prometheus.query_base_url", EnvKey: "WK_PROMETHEUS_QUERY_BASE_URL", Kind: kindString, Group: "prometheus", Label: "Prometheus query base URL", DiagnosticSensitive: true},
 	{TOMLPath: "prometheus.binary_path", EnvKey: "WK_PROMETHEUS_BINARY_PATH", Kind: kindString, Group: "prometheus", Label: "Prometheus binary path"},
 	{TOMLPath: "prometheus.listen_addr", EnvKey: "WK_PROMETHEUS_LISTEN_ADDR", Kind: kindString, Group: "prometheus", Label: "Prometheus listen address"},
 	{TOMLPath: "prometheus.data_dir", EnvKey: "WK_PROMETHEUS_DATA_DIR", Kind: kindString, Group: "prometheus", Label: "Prometheus data directory"},
@@ -216,7 +224,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "delivery.pending_ack_max_per_session", EnvKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", Kind: kindInt, Group: "delivery", Label: "Delivery pending ack max per session"},
 	{TOMLPath: "delivery.event_queue_size", EnvKey: "WK_DELIVERY_EVENT_QUEUE_SIZE", Kind: kindInt, Group: "delivery", Label: "Delivery event queue size"},
 
-	{TOMLPath: "webhook.http_addr", EnvKey: "WK_WEBHOOK_HTTP_ADDR", Kind: kindString, Group: "webhook", Label: "Webhook HTTP address"},
+	{TOMLPath: "webhook.http_addr", EnvKey: "WK_WEBHOOK_HTTP_ADDR", Kind: kindString, Group: "webhook", Label: "Webhook HTTP address", DiagnosticSensitive: true},
 	{TOMLPath: "webhook.focus_events", EnvKey: "WK_WEBHOOK_FOCUS_EVENTS", Kind: kindStringList, Group: "webhook", Label: "Webhook focus events"},
 	{TOMLPath: "webhook.queue_size", EnvKey: "WK_WEBHOOK_QUEUE_SIZE", Kind: kindInt, Group: "webhook", Label: "Webhook queue size"},
 	{TOMLPath: "webhook.workers", EnvKey: "WK_WEBHOOK_WORKERS", Kind: kindInt, Group: "webhook", Label: "Webhook workers"},
