@@ -176,13 +176,34 @@ func seedGroupSendPermission(t *testing.T, node *cluster.Node, channelID channel
 	})
 }
 
+func TestSingleNodeClusterAppConfigUsesStableLeaseAndExplicitlyDisablesPlugins(t *testing.T) {
+	cfg := singleNodeClusterAppConfig(t)
+	if cfg.Cluster.HealthReport.Interval != 20*time.Millisecond {
+		t.Fatalf("health interval = %v, want 20ms", cfg.Cluster.HealthReport.Interval)
+	}
+	if cfg.Cluster.HealthReport.TTL != 30*time.Second {
+		t.Fatalf("health TTL = %v, want 30s", cfg.Cluster.HealthReport.TTL)
+	}
+	app := &App{cfg: cfg}
+	if err := app.applyConfigDefaults(); err != nil {
+		t.Fatalf("applyConfigDefaults() error = %v", err)
+	}
+	if app.cfg.Plugin.Enable {
+		t.Fatal("plugin Enable = true, want explicit false")
+	}
+}
+
 func singleNodeClusterAppConfig(t *testing.T) Config {
 	t.Helper()
+	plugin := PluginConfig{Enable: false}
+	plugin.SetEnableExplicit(true)
+	plugin.SetExplicitFlags(true)
 	nodeID := uint64(1)
 	listenAddr := freeSendackSmokeTCPAddr(t)
 	cfg := Config{
 		NodeID:  nodeID,
 		DataDir: shortAppTestDataDir(t),
+		Plugin:  plugin,
 		Cluster: cluster.Config{
 			NodeID:     nodeID,
 			ListenAddr: listenAddr,
@@ -200,7 +221,7 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 			Channel: cluster.ChannelConfig{TickInterval: time.Millisecond},
 			HealthReport: cluster.HealthReportConfig{
 				Interval: 20 * time.Millisecond,
-				TTL:      500 * time.Millisecond,
+				TTL:      30 * time.Second,
 			},
 		},
 		Gateway: GatewayConfig{SendTimeout: time.Second},
