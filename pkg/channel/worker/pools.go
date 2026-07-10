@@ -12,6 +12,7 @@ type Pools struct {
 	StoreRead   *Pool
 	StoreApply  *Pool
 	RPC         *Pool
+	MetaResolve *Pool
 }
 
 // PoolsConfig defines worker and queue limits for each blocking class.
@@ -20,6 +21,7 @@ type PoolsConfig struct {
 	StoreRead   PoolConfig
 	StoreApply  PoolConfig
 	RPC         PoolConfig
+	MetaResolve PoolConfig
 }
 
 // NewPools starts all bounded worker pools used by reactors.
@@ -44,6 +46,12 @@ func NewPools(cfg PoolsConfig, deps Deps, sink CompletionSink) (*Pools, error) {
 		_ = pools.Close()
 		return nil, err
 	}
+	if deps.MetaResolver != nil {
+		if pools.MetaResolve, err = NewPool(cfg.MetaResolve, deps, sink); err != nil {
+			_ = pools.Close()
+			return nil, err
+		}
+	}
 	return pools, nil
 }
 
@@ -52,7 +60,7 @@ func (p *Pools) SetQueueObserver(observer QueueObserver) {
 	if p == nil {
 		return
 	}
-	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC} {
+	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve} {
 		pool.SetQueueObserver(observer)
 	}
 }
@@ -72,7 +80,7 @@ func (p *Pools) Close() error {
 		return nil
 	}
 	var first error
-	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC} {
+	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve} {
 		if err := pool.Close(); err != nil && first == nil {
 			first = err
 		}
@@ -102,6 +110,8 @@ func (p *Pools) poolFor(kind TaskKind) *Pool {
 		return p.StoreApply
 	case TaskRPCPull, TaskRPCAck, TaskRPCNotify, TaskRPCPullHint:
 		return p.RPC
+	case TaskMetaResolve:
+		return p.MetaResolve
 	default:
 		return nil
 	}

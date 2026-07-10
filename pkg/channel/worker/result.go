@@ -28,6 +28,7 @@ type Result struct {
 	RPCAck             *RPCAckResult
 	RPCNotify          *RPCNotifyResult
 	RPCPullHint        *RPCPullHintResult
+	MetaResolve        *MetaResolveResult
 	Value              any
 }
 
@@ -116,6 +117,12 @@ type RPCNotifyResult struct{}
 
 // RPCPullHintResult marks a completed remote pull hint RPC.
 type RPCPullHintResult struct{}
+
+// MetaResolveResult contains authoritative channel metadata returned by the resolver.
+type MetaResolveResult struct {
+	// Meta is the authoritative metadata resolved for the requested channel identity.
+	Meta ch.Meta
+}
 
 // CompletionSink receives worker completions for routing back to reactors.
 type CompletionSink interface {

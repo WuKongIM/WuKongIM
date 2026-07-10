@@ -882,6 +882,126 @@ func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
 	require.ErrorIs(t, pools.Submit(context.Background(), Task{Kind: TaskFunc, Fence: fence}), ch.ErrInvalidConfig)
 }
 
+func TestPoolsLeaveMetaResolveOptionalWhenResolverMissing(t *testing.T) {
+	pools, err := NewPools(metaResolveTestPoolsConfig(false), Deps{}, &captureSink{})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pools.Close()) }()
+	require.Nil(t, pools.MetaResolve)
+
+	pools.SetQueueObserver(&recordingPoolPressureObserver{})
+	require.Zero(t, pools.QueueDepth(TaskMetaResolve))
+	require.ErrorIs(t, pools.Submit(context.Background(), Task{
+		Kind:        TaskMetaResolve,
+		MetaResolve: &MetaResolveTask{ChannelID: ch.ChannelID{ID: "missing", Type: 1}},
+	}), ch.ErrInvalidConfig)
+}
+
+func TestPoolsMetaResolveDoesNotBlockRPCPull(t *testing.T) {
+	id := ch.ChannelID{ID: "isolated-meta-resolve", Type: 1}
+	meta := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2,
+		Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive,
+	}
+	resolver := newBlockingMetaResolver(meta)
+	network := transport.NewLocalNetwork()
+	network.Register(2, &workerTransportServer{})
+	sink := &captureSink{ch: make(chan Result, 2)}
+	pools, err := NewPools(
+		metaResolveTestPoolsConfig(true),
+		Deps{MetaResolver: resolver, Transport: network.Client()},
+		sink,
+	)
+	require.NoError(t, err)
+	defer func() {
+		resolver.Release()
+		require.NoError(t, pools.Close())
+	}()
+	require.NotNil(t, pools.MetaResolve)
+	require.Equal(t, "meta-resolve", pools.MetaResolve.Name())
+	require.NotSame(t, pools.MetaResolve, pools.RPC)
+
+	metaFence := ch.Fence{ChannelKey: meta.Key, OpID: 31}
+	require.NoError(t, pools.Submit(context.Background(), Task{
+		Kind:        TaskMetaResolve,
+		Fence:       metaFence,
+		MetaResolve: &MetaResolveTask{ChannelID: id},
+	}))
+	select {
+	case <-resolver.Started():
+	case <-time.After(time.Second):
+		t.Fatal("metadata resolver did not start")
+	}
+
+	pullFence := ch.Fence{ChannelKey: "1:pull", OpID: 32}
+	require.NoError(t, pools.Submit(context.Background(), Task{
+		Kind:    TaskRPCPull,
+		Fence:   pullFence,
+		RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: pullFence.ChannelKey, NextOffset: 1}},
+	}))
+	select {
+	case result := <-sink.ch:
+		require.Equal(t, pullFence, result.Fence)
+		require.NoError(t, result.Err)
+		require.NotNil(t, result.RPCPull)
+	case <-time.After(time.Second):
+		t.Fatal("RPC pull was blocked by metadata resolution")
+	}
+
+	resolver.Release()
+	select {
+	case result := <-sink.ch:
+		require.Equal(t, metaFence, result.Fence)
+		require.NoError(t, result.Err)
+		require.NotNil(t, result.MetaResolve)
+		require.Equal(t, meta, result.MetaResolve.Meta)
+	case <-time.After(time.Second):
+		t.Fatal("metadata resolution did not complete after release")
+	}
+}
+
+func metaResolveTestPoolsConfig(includeMetaResolve bool) PoolsConfig {
+	cfg := PoolsConfig{
+		StoreAppend: PoolConfig{Name: "store-append", Workers: 1, QueueSize: 8},
+		StoreRead:   PoolConfig{Name: "store-read", Workers: 1, QueueSize: 8},
+		StoreApply:  PoolConfig{Name: "store-apply", Workers: 1, QueueSize: 8},
+		RPC:         PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8},
+	}
+	if includeMetaResolve {
+		cfg.MetaResolve = PoolConfig{Name: "meta-resolve", Workers: 1, QueueSize: 8}
+	}
+	return cfg
+}
+
+type blockingMetaResolver struct {
+	meta        ch.Meta
+	started     chan struct{}
+	release     chan struct{}
+	startedOnce sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingMetaResolver(meta ch.Meta) *blockingMetaResolver {
+	return &blockingMetaResolver{meta: meta, started: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (r *blockingMetaResolver) ResolveChannelMeta(ctx context.Context, _ ch.ChannelID) (ch.Meta, error) {
+	r.startedOnce.Do(func() { close(r.started) })
+	select {
+	case <-r.release:
+		return r.meta, nil
+	case <-ctx.Done():
+		return ch.Meta{}, ctx.Err()
+	}
+}
+
+func (r *blockingMetaResolver) Started() <-chan struct{} {
+	return r.started
+}
+
+func (r *blockingMetaResolver) Release() {
+	r.releaseOnce.Do(func() { close(r.release) })
+}
+
 func queuedStoreAppendTask(channel string, opID ch.OpID) queuedTask {
 	return queuedTask{enqueuedAt: time.Now(), task: Task{
 		Kind:        TaskStoreAppend,

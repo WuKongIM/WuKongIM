@@ -14,4 +14,6 @@ type Deps struct {
 	Stores store.Factory
 	// Transport sends replication RPCs from inside workers.
 	Transport transport.Client
+	// MetaResolver loads authoritative channel metadata from inside dedicated workers.
+	MetaResolver ch.MetaResolver
 }

@@ -4,7 +4,9 @@
 
 `worker` owns Channel blocking effects. Reactors submit typed store and RPC
 tasks through bounded admission queues, and workers return one fenced
-`Result` per accepted task.
+`Result` per accepted task. Authoritative channel metadata resolution uses its
+own optional bounded pool so a slow resolver cannot occupy store or replication
+RPC workers.
 
 The package uses `pkg/workqueue.BoundedBatchPool` as its execution primitive.
 Backpressure, queue depth, adjacent batch collection, close admission, and
@@ -29,12 +31,17 @@ Submit(ctx, Task)
 `PoolConfig.QueueSize` is the admission queue capacity. `QueueDepth` reports
 current workqueue admission occupancy, including accepted work not yet entered
 by the executor. `PoolConfig.Workers` is the workqueue ants executor capacity.
+`Pools.MetaResolve` is created only when `Deps.MetaResolver` is configured;
+otherwise metadata-resolve submission returns `ErrInvalidConfig`, depth is zero,
+and observer installation and shutdown skip the absent pool safely.
 
 ## Batching
 
 RPC pull and pull-hint tasks can batch when they have the same task kind and
 target node. Store append and store apply tasks can batch across different
 channel keys when the store factory exposes the optional batch interface.
+`TaskMetaResolve` is never batched and runs only in the dedicated metadata
+resolver pool.
 Retention tasks are single-channel store-apply-pool work: they first adopt a
 logical boundary and only call physical trim when the reactor marked it safe.
 `PoolConfig.BatchMaxWait` overrides the task-class coalescing wait for that

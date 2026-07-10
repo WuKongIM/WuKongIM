@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -229,6 +230,104 @@ func TestTaskRunRPCPullHint(t *testing.T) {
 	require.Equal(t, req, srv.pullHint)
 }
 
+func TestTaskRunMetaResolveUsesResolver(t *testing.T) {
+	id := ch.ChannelID{ID: "meta-resolve", Type: 1}
+	want := ch.Meta{
+		Key:         ch.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       2,
+		LeaderEpoch: 3,
+		Leader:      4,
+		Replicas:    []ch.NodeID{4, 5},
+		ISR:         []ch.NodeID{4, 5},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+	}
+	fence := ch.Fence{ChannelKey: want.Key, Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 21}
+	resolver := metaResolverFunc(func(_ context.Context, got ch.ChannelID) (ch.Meta, error) {
+		require.Equal(t, id, got)
+		return want, nil
+	})
+
+	res := Task{
+		Kind:        TaskMetaResolve,
+		Fence:       fence,
+		MetaResolve: &MetaResolveTask{ChannelID: id},
+	}.Run(context.Background(), Deps{MetaResolver: resolver})
+
+	require.NoError(t, res.Err)
+	require.Equal(t, TaskMetaResolve, res.Kind)
+	require.Equal(t, fence, res.Fence)
+	require.NotNil(t, res.MetaResolve)
+	require.Equal(t, want, res.MetaResolve.Meta)
+}
+
+func TestTaskRunMetaResolveReturnsResolverError(t *testing.T) {
+	id := ch.ChannelID{ID: "meta-resolve-error", Type: 1}
+	wantErr := errors.New("resolve failed")
+	resolver := metaResolverFunc(func(context.Context, ch.ChannelID) (ch.Meta, error) {
+		return ch.Meta{}, wantErr
+	})
+
+	res := Task{
+		Kind:        TaskMetaResolve,
+		Fence:       ch.Fence{ChannelKey: ch.ChannelKeyForID(id), OpID: 22},
+		MetaResolve: &MetaResolveTask{ChannelID: id},
+	}.Run(context.Background(), Deps{MetaResolver: resolver})
+
+	require.ErrorIs(t, res.Err, wantErr)
+	require.NotNil(t, res.MetaResolve)
+	require.Equal(t, ch.Meta{}, res.MetaResolve.Meta)
+}
+
+func TestTaskRunMetaResolveMissingResolverReturnsInvalidConfig(t *testing.T) {
+	id := ch.ChannelID{ID: "meta-resolve-missing", Type: 1}
+	res := Task{
+		Kind:        TaskMetaResolve,
+		Fence:       ch.Fence{ChannelKey: ch.ChannelKeyForID(id), OpID: 24},
+		MetaResolve: &MetaResolveTask{ChannelID: id},
+	}.Run(context.Background(), Deps{})
+
+	require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
+	require.Nil(t, res.MetaResolve)
+}
+
+func TestTaskRunMetaResolveHonorsTaskCancellation(t *testing.T) {
+	id := ch.ChannelID{ID: "meta-resolve-cancel", Type: 1}
+	started := make(chan struct{})
+	resolver := metaResolverFunc(func(ctx context.Context, _ ch.ChannelID) (ch.Meta, error) {
+		close(started)
+		<-ctx.Done()
+		return ch.Meta{}, ctx.Err()
+	})
+	taskCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan Result, 1)
+	go func() {
+		done <- Task{
+			Kind:        TaskMetaResolve,
+			Fence:       ch.Fence{ChannelKey: ch.ChannelKeyForID(id), OpID: 23},
+			Context:     taskCtx,
+			MetaResolve: &MetaResolveTask{ChannelID: id},
+		}.Run(context.Background(), Deps{MetaResolver: resolver})
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("metadata resolver did not start")
+	}
+	cancel()
+
+	select {
+	case res := <-done:
+		require.ErrorIs(t, res.Err, context.Canceled)
+		require.NotNil(t, res.MetaResolve)
+	case <-time.After(time.Second):
+		t.Fatal("metadata resolver did not observe task cancellation")
+	}
+}
+
 func TestTaskRunMissingDepsReturnsInvalidConfig(t *testing.T) {
 	res := Task{Kind: TaskStoreReadLog}.Run(context.Background(), Deps{})
 	require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
@@ -284,6 +383,7 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 		{name: "rpc ack", task: Task{Kind: TaskRPCAck, Fence: fence}},
 		{name: "rpc notify", task: Task{Kind: TaskRPCNotify, Fence: fence}},
 		{name: "rpc pull hint", task: Task{Kind: TaskRPCPullHint, Fence: fence}},
+		{name: "meta resolve", task: Task{Kind: TaskMetaResolve, Fence: fence}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -293,4 +393,10 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 			require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
 		})
 	}
+}
+
+type metaResolverFunc func(context.Context, ch.ChannelID) (ch.Meta, error)
+
+func (f metaResolverFunc) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
+	return f(ctx, id)
 }

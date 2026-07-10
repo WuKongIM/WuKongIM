@@ -26,6 +26,7 @@ const (
 	TaskStoreLookupMessage
 	TaskStoreClose
 	TaskStoreRetention
+	TaskMetaResolve
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -53,12 +54,20 @@ type Task struct {
 	RPCNotify *RPCNotifyTask
 	// RPCPullHint sends a prompt pull nudge to a follower.
 	RPCPullHint *RPCPullHintTask
+	// MetaResolve loads authoritative channel metadata without occupying store or RPC workers.
+	MetaResolve *MetaResolveTask
 
 	RunFunc func(context.Context) Result
 }
 
 // StoreLoadTask asks a worker to open and load a channel store before runtime activation.
 type StoreLoadTask struct {
+	ChannelID ch.ChannelID
+}
+
+// MetaResolveTask asks the authoritative metadata resolver for one channel identity.
+type MetaResolveTask struct {
+	// ChannelID is the client-visible channel identity to resolve.
 	ChannelID ch.ChannelID
 }
 
@@ -186,6 +195,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runRPCNotify(ctx, deps, t)
 	case TaskRPCPullHint:
 		res = runRPCPullHint(ctx, deps, t)
+	case TaskMetaResolve:
+		res = runMetaResolve(ctx, deps, t)
 	default:
 		res = invalidResult(t)
 	}
@@ -452,6 +463,15 @@ func runRPCPullHint(ctx context.Context, deps Deps, t Task) Result {
 	}
 	err := deps.Transport.PullHint(ctx, payload.Node, payload.Request)
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, RPCPullHint: &RPCPullHintResult{}}
+}
+
+func runMetaResolve(ctx context.Context, deps Deps, t Task) Result {
+	payload := t.MetaResolve
+	if payload == nil || deps.MetaResolver == nil {
+		return invalidResult(t)
+	}
+	meta, err := deps.MetaResolver.ResolveChannelMeta(ctx, payload.ChannelID)
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, MetaResolve: &MetaResolveResult{Meta: meta}}
 }
 
 func invalidResult(t Task) Result {
