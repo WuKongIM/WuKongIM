@@ -454,6 +454,7 @@ func TestCodecRoundTripsPull(t *testing.T) {
 }
 
 func TestCodecRoundTripsPullResponseMeta(t *testing.T) {
+	writeFenceUntil := time.Unix(1700000001, 456)
 	resp := channeltransport.PullResponse{
 		ChannelKey:      "1:room",
 		Epoch:           1,
@@ -462,15 +463,22 @@ func TestCodecRoundTripsPullResponseMeta(t *testing.T) {
 		LeaderLEO:       4,
 		ActivityVersion: 5,
 		Meta: &ch.Meta{
-			Key:         "1:room",
-			ID:          ch.ChannelID{ID: "room", Type: 1},
-			Epoch:       1,
-			LeaderEpoch: 2,
-			Leader:      1,
-			Replicas:    []ch.NodeID{1, 3},
-			ISR:         []ch.NodeID{1, 3},
-			MinISR:      2,
-			Status:      ch.StatusActive,
+			Key:                 "1:room",
+			ID:                  ch.ChannelID{ID: "room", Type: 1},
+			Epoch:               1,
+			LeaderEpoch:         2,
+			Leader:              1,
+			Replicas:            []ch.NodeID{1, 3},
+			ISR:                 []ch.NodeID{1, 3},
+			MinISR:              2,
+			RetentionThroughSeq: 7,
+			WriteFence: ch.WriteFence{
+				Token:   "migration-7",
+				Version: 8,
+				Reason:  ch.WriteFenceReasonLeaderTransfer,
+				Until:   writeFenceUntil,
+			},
+			Status: ch.StatusActive,
 		},
 	}
 	data, err := encodePullResponse(resp)
@@ -481,6 +489,64 @@ func TestCodecRoundTripsPullResponseMeta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodePullResponse() error = %v", err)
 	}
+	require.Equal(t, resp, got)
+}
+
+func TestCodecRoundTripsPullBatchResponseMeta(t *testing.T) {
+	meta := ch.Meta{
+		Key:                 "1:room",
+		ID:                  ch.ChannelID{ID: "room", Type: 1},
+		Epoch:               1,
+		LeaderEpoch:         2,
+		Leader:              1,
+		Replicas:            []ch.NodeID{1, 3},
+		ISR:                 []ch.NodeID{1, 3},
+		MinISR:              2,
+		RetentionThroughSeq: 9,
+		WriteFence: ch.WriteFence{
+			Token:   "failover-9",
+			Version: 10,
+			Reason:  ch.WriteFenceReasonFailover,
+			Until:   time.Unix(1700000002, 789),
+		},
+		Status: ch.StatusActive,
+	}
+	resp := channeltransport.PullBatchResponse{Items: []channeltransport.PullBatchItemResult{
+		{Response: channeltransport.PullResponse{
+			ChannelKey: "1:room", Epoch: 1, LeaderEpoch: 2, LeaderHW: 3, LeaderLEO: 4, Meta: &meta,
+		}},
+		{Err: ch.ErrStaleMeta},
+	}}
+
+	data, err := encodePullBatchResponse(resp)
+	require.NoError(t, err)
+	got, err := decodePullBatchResponse(data)
+	require.NoError(t, err)
+	require.Equal(t, resp, got)
+}
+
+func TestCodecDecodesLegacyV5PullResponseMeta(t *testing.T) {
+	meta := ch.Meta{
+		Key:         "1:legacy-v5",
+		ID:          ch.ChannelID{ID: "legacy-v5", Type: 1},
+		Epoch:       2,
+		LeaderEpoch: 3,
+		Leader:      4,
+		Replicas:    []ch.NodeID{4, 5},
+		ISR:         []ch.NodeID{4, 5},
+		MinISR:      2,
+		LeaseUntil:  time.Unix(1700000003, 123),
+		Status:      ch.StatusActive,
+	}
+	resp := channeltransport.PullResponse{
+		ChannelKey: "1:legacy-v5", Epoch: 2, LeaderEpoch: 3, LeaderHW: 4, LeaderLEO: 5, Meta: &meta,
+	}
+	body := []byte{rpcResultOK}
+	body = appendLegacyV5PullResponse(body, resp)
+	data := append([]byte{legacyCodecVersionV5, kindPullResponse}, body...)
+
+	got, err := decodePullResponse(data)
+	require.NoError(t, err)
 	require.Equal(t, resp, got)
 }
 
@@ -2236,12 +2302,42 @@ func appendLegacyV3PullResponse(dst []byte, resp channeltransport.PullResponse, 
 	dst = appendUvarint(dst, resp.ActivityVersion)
 	dst = appendVarint(dst, int64(resp.NextPullAfter))
 	dst = append(dst, byte(resp.Control))
-	dst = appendMetaPtr(dst, resp.Meta)
+	dst = appendMetaPtr(dst, resp.Meta, legacyCodecVersionV3)
 	dst = appendSliceHeader(dst, len(records), records == nil)
 	for _, record := range records {
 		dst = appendLegacyV3Record(dst, record)
 	}
 	return dst
+}
+
+func appendLegacyV5PullResponse(dst []byte, resp channeltransport.PullResponse) []byte {
+	dst = appendChannelKey(dst, resp.ChannelKey)
+	dst = appendUvarint(dst, resp.Epoch)
+	dst = appendUvarint(dst, resp.LeaderEpoch)
+	dst = appendUvarint(dst, resp.LeaderHW)
+	dst = appendUvarint(dst, resp.LeaderLEO)
+	dst = appendUvarint(dst, resp.ActivityVersion)
+	dst = appendVarint(dst, int64(resp.NextPullAfter))
+	dst = append(dst, byte(resp.Control))
+	dst = appendLegacyV5MetaPtr(dst, resp.Meta)
+	return appendRecords(dst, resp.Records)
+}
+
+func appendLegacyV5MetaPtr(dst []byte, meta *ch.Meta) []byte {
+	if meta == nil {
+		return append(dst, 0)
+	}
+	dst = append(dst, 1)
+	dst = appendChannelKey(dst, meta.Key)
+	dst = appendChannelID(dst, meta.ID)
+	dst = appendUvarint(dst, meta.Epoch)
+	dst = appendUvarint(dst, meta.LeaderEpoch)
+	dst = appendUvarint(dst, uint64(meta.Leader))
+	dst = appendNodeIDs(dst, meta.Replicas)
+	dst = appendNodeIDs(dst, meta.ISR)
+	dst = appendVarint(dst, int64(meta.MinISR))
+	dst = appendTime(dst, meta.LeaseUntil)
+	return append(dst, byte(meta.Status))
 }
 
 func appendLegacyV3Record(dst []byte, record ch.Record) []byte {

@@ -13,7 +13,8 @@ import (
 const (
 	legacyCodecVersionV3 = uint8(3)
 	legacyCodecVersionV4 = uint8(4)
-	codecVersion         = uint8(5)
+	legacyCodecVersionV5 = uint8(5)
+	codecVersion         = uint8(6)
 )
 
 const (
@@ -330,7 +331,7 @@ func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) 
 		return 0, nil, fmt.Errorf("channels: invalid frame")
 	}
 	version := data[0]
-	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != codecVersion {
+	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != codecVersion {
 		return 0, nil, fmt.Errorf("channels: invalid frame")
 	}
 	return version, data[2:], nil
@@ -433,7 +434,7 @@ func appendPullResponse(dst []byte, resp channeltransport.PullResponse) []byte {
 	dst = appendUvarint(dst, resp.ActivityVersion)
 	dst = appendVarint(dst, int64(resp.NextPullAfter))
 	dst = append(dst, byte(resp.Control))
-	dst = appendMetaPtr(dst, resp.Meta)
+	dst = appendMetaPtr(dst, resp.Meta, codecVersion)
 	dst = appendRecords(dst, resp.Records)
 	return dst
 }
@@ -469,7 +470,7 @@ func readPullResponse(body []byte, offset int, version uint8) (channeltransport.
 		return channeltransport.PullResponse{}, offset, err
 	}
 	resp.Control = channeltransport.PullControl(control)
-	if resp.Meta, offset, err = readMetaPtr(body, offset); err != nil {
+	if resp.Meta, offset, err = readMetaPtr(body, offset, version); err != nil {
 		return channeltransport.PullResponse{}, offset, err
 	}
 	if resp.Records, offset, err = readRecords(body, offset, version); err != nil {
@@ -985,7 +986,7 @@ func readMessage(body []byte, offset int, version uint8) (ch.Message, int, error
 		return readMessageV3LegacyRemainder(body, offset, msg)
 	case legacyCodecVersionV4:
 		return readMessageV4Remainder(body, offset, msg)
-	case codecVersion:
+	case legacyCodecVersionV5, codecVersion:
 		return readMessageV5Remainder(body, offset, msg)
 	default:
 		return ch.Message{}, offset, fmt.Errorf("channels: unsupported message codec version %d", version)
@@ -1067,15 +1068,15 @@ func readMessages(body []byte, offset int, version uint8) ([]ch.Message, int, er
 	return messages, offset, nil
 }
 
-func appendMetaPtr(dst []byte, meta *ch.Meta) []byte {
+func appendMetaPtr(dst []byte, meta *ch.Meta, version uint8) []byte {
 	if meta == nil {
 		return append(dst, 0)
 	}
 	dst = append(dst, 1)
-	return appendMeta(dst, *meta)
+	return appendMeta(dst, *meta, version)
 }
 
-func readMetaPtr(body []byte, offset int) (*ch.Meta, int, error) {
+func readMetaPtr(body []byte, offset int, version uint8) (*ch.Meta, int, error) {
 	present, next, err := readByte(body, offset, "meta presence")
 	if err != nil {
 		return nil, offset, err
@@ -1087,14 +1088,14 @@ func readMetaPtr(body []byte, offset int) (*ch.Meta, int, error) {
 	if present != 1 {
 		return nil, offset, fmt.Errorf("channels: invalid meta presence")
 	}
-	meta, next, err := readMeta(body, offset)
+	meta, next, err := readMeta(body, offset, version)
 	if err != nil {
 		return nil, offset, err
 	}
 	return &meta, next, nil
 }
 
-func appendMeta(dst []byte, meta ch.Meta) []byte {
+func appendMeta(dst []byte, meta ch.Meta, version uint8) []byte {
 	dst = appendChannelKey(dst, meta.Key)
 	dst = appendChannelID(dst, meta.ID)
 	dst = appendUvarint(dst, meta.Epoch)
@@ -1105,10 +1106,17 @@ func appendMeta(dst []byte, meta ch.Meta) []byte {
 	dst = appendVarint(dst, int64(meta.MinISR))
 	dst = appendTime(dst, meta.LeaseUntil)
 	dst = append(dst, byte(meta.Status))
+	if version == codecVersion {
+		dst = appendUvarint(dst, meta.RetentionThroughSeq)
+		dst = appendString(dst, meta.WriteFence.Token)
+		dst = appendUvarint(dst, meta.WriteFence.Version)
+		dst = append(dst, byte(meta.WriteFence.Reason))
+		dst = appendTime(dst, meta.WriteFence.Until)
+	}
 	return dst
 }
 
-func readMeta(body []byte, offset int) (ch.Meta, int, error) {
+func readMeta(body []byte, offset int, version uint8) (ch.Meta, int, error) {
 	var meta ch.Meta
 	var err error
 	if meta.Key, offset, err = readChannelKey(body, offset); err != nil {
@@ -1145,6 +1153,26 @@ func readMeta(body []byte, offset int) (ch.Meta, int, error) {
 		return ch.Meta{}, offset, err
 	}
 	meta.Status = ch.Status(status)
+	if version != codecVersion {
+		return meta, offset, nil
+	}
+	if meta.RetentionThroughSeq, offset, err = readUvarint(body, offset); err != nil {
+		return ch.Meta{}, offset, err
+	}
+	if meta.WriteFence.Token, offset, err = readString(body, offset); err != nil {
+		return ch.Meta{}, offset, err
+	}
+	if meta.WriteFence.Version, offset, err = readUvarint(body, offset); err != nil {
+		return ch.Meta{}, offset, err
+	}
+	var reason byte
+	if reason, offset, err = readByte(body, offset, "meta write fence reason"); err != nil {
+		return ch.Meta{}, offset, err
+	}
+	meta.WriteFence.Reason = ch.WriteFenceReason(reason)
+	if meta.WriteFence.Until, offset, err = readTime(body, offset); err != nil {
+		return ch.Meta{}, offset, err
+	}
 	return meta, offset, nil
 }
 
@@ -1232,7 +1260,7 @@ func readRecord(body []byte, offset int, version uint8) (ch.Record, int, error) 
 		return readRecordV3LegacyRemainder(body, offset, record)
 	case legacyCodecVersionV4:
 		return readRecordV4Remainder(body, offset, record)
-	case codecVersion:
+	case legacyCodecVersionV5, codecVersion:
 		return readRecordV5Remainder(body, offset, record)
 	default:
 		return ch.Record{}, offset, fmt.Errorf("channels: unsupported record codec version %d", version)
