@@ -227,19 +227,12 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 		workspace:  workspace,
 		options:    options,
 	}
+	registerStartedClusterCleanup(s.t, cluster)
 	for _, spec := range specs {
 		process := &NodeProcess{Spec: spec, BinaryPath: s.binaryPath}
 		require.NoError(s.t, process.Start())
 		cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: spec, Process: process})
 	}
-
-	s.t.Cleanup(func() {
-		for i := len(cluster.Nodes) - 1; i >= 0; i-- {
-			if cluster.Nodes[i].Process != nil {
-				require.NoError(s.t, cluster.Nodes[i].Process.Stop())
-			}
-		}
-	})
 
 	return cluster
 }
@@ -490,6 +483,17 @@ func registerStartedNodeCleanup(t startedNodeCleanupTB, node *StartedNode) {
 	})
 }
 
+func registerStartedClusterCleanup(t startedNodeCleanupTB, cluster *StartedCluster) {
+	t.Helper()
+	t.Cleanup(func() {
+		for i := len(cluster.Nodes) - 1; i >= 0; i-- {
+			if err := cluster.Nodes[i].Stop(); err != nil {
+				t.Errorf("stop started cluster node %d: %v", cluster.Nodes[i].Spec.ID, err)
+			}
+		}
+	})
+}
+
 // Restart stops the current node process and starts it again with the same spec.
 func (n *StartedNode) Restart(binaryPath string) error {
 	if n == nil {
@@ -589,6 +593,9 @@ func (w Workspace) NodeStderrPath(nodeID uint64) string {
 }
 
 func (w Workspace) pluginSocketPath(nodeID uint64) string {
+	if w.pluginSocketRoot == "" {
+		panic("e2e workspace plugin socket root is empty")
+	}
 	return filepath.Join(w.pluginSocketRoot, "n"+nodeIDString(nodeID)+".sock")
 }
 

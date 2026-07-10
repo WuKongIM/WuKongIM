@@ -175,6 +175,23 @@ func TestWorkspacePluginSocketPathIsRenderedIntoChildEnvironment(t *testing.T) {
 	require.Contains(t, childEnv, "WK_PLUGIN_SOCKET_PATH="+socketPath)
 }
 
+func TestWorkspacePluginSocketPathRejectsZeroWorkspace(t *testing.T) {
+	require.PanicsWithValue(t, "e2e workspace plugin socket root is empty", func() {
+		_ = (Workspace{}).pluginSocketPath(1)
+	})
+}
+
+func TestWorkspacePluginSocketExplicitOverrideAllowsZeroWorkspace(t *testing.T) {
+	const explicitSocketPath = "/explicit/plugin.sock"
+	options := resolveSuiteOptions(WithNodeConfigOverrides(1, map[string]string{
+		"WK_PLUGIN_SOCKET_PATH": explicitSocketPath,
+	}))
+
+	spec := buildNodeSpec(1, PortSet{}, Workspace{}, options)
+
+	require.Equal(t, explicitSocketPath, spec.ConfigOverrides["WK_PLUGIN_SOCKET_PATH"])
+}
+
 func TestRenderSeedJoinNodeConfigOmitsStaticClusterNodes(t *testing.T) {
 	spec := NodeSpec{
 		ID:          4,
@@ -280,6 +297,36 @@ func TestStartedNodeCleanupStopsCurrentProcessAfterRestart(t *testing.T) {
 	}
 
 	require.Empty(t, cleanupTB.errors)
+	require.NotNil(t, second.Cmd.ProcessState)
+}
+
+func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) {
+	binaryPath := writeFakeNodeBinary(t)
+	cleanupTB := &recordedCleanupTB{}
+	cluster := &StartedCluster{}
+	registerStartedClusterCleanup(cleanupTB, cluster)
+	require.Len(t, cleanupTB.cleanups, 1)
+
+	first := startFakeNodeProcess(t, binaryPath, "first-cluster-node")
+	t.Cleanup(func() {
+		if first.Cmd != nil && first.Cmd.ProcessState == nil {
+			_ = first.Stop()
+		}
+	})
+	cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: first.Spec, Process: first})
+
+	second := startFakeNodeProcess(t, binaryPath, "second-cluster-node")
+	t.Cleanup(func() {
+		if second.Cmd != nil && second.Cmd.ProcessState == nil {
+			_ = second.Stop()
+		}
+	})
+	cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: second.Spec, Process: second})
+
+	cleanupTB.cleanups[0]()
+
+	require.Empty(t, cleanupTB.errors)
+	require.NotNil(t, first.Cmd.ProcessState)
 	require.NotNil(t, second.Cmd.ProcessState)
 }
 
