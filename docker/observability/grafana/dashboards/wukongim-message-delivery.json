@@ -1075,6 +1075,105 @@
       ],
       "title": "Plugin Hook Runtime",
       "type": "timeseries"
+    },
+    {
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 57},
+      "id": 24,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_message_event_append_total{node_name=~\"$node_name\"}[$__rate_interval])) by (path,event_type,result)",
+          "legendFormat": "append {{path}} {{event_type}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_message_event_propose_total{node_name=~\"$node_name\"}[$__rate_interval])) by (path,result)",
+          "legendFormat": "propose {{path}} {{result}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Message event append / propose rate",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 57},
+      "id": 25,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_message_event_append_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le,path,event_type,result))",
+          "legendFormat": "append p95 {{path}} {{event_type}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_message_event_append_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le,path,result,stage))",
+          "legendFormat": "append stage p95 {{path}} {{stage}} {{result}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Message event append latency p95",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 57},
+      "id": 26,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_message_event_propose_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le,path,result))",
+          "legendFormat": "propose p95 {{path}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_message_event_propose_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le,path,result,stage))",
+          "legendFormat": "propose stage p95 {{path}} {{stage}} {{result}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Message event proposal latency p95",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 64},
+      "id": 27,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_message_event_propose_batch_events_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le,path,result))",
+          "legendFormat": "batch p95 {{path}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Message event proposal batch size p95",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 64},
+      "id": 28,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum(wukongim_message_event_stream_cache_sessions{node_name=~\"$node_name\"})", "legendFormat": "sessions", "refId": "A"},
+        {"expr": "sum(wukongim_message_event_stream_cache_open_lanes{node_name=~\"$node_name\"})", "legendFormat": "open lanes", "refId": "B"},
+        {"expr": "sum(wukongim_message_event_stream_cache_max_sessions{node_name=~\"$node_name\"})", "legendFormat": "max sessions", "refId": "C"}
+      ],
+      "title": "Message event stream cache pressure",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 64},
+      "id": 29,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum(wukongim_message_event_stream_cache_payload_bytes{node_name=~\"$node_name\"})", "legendFormat": "payload", "refId": "A"}
+      ],
+      "title": "Message event stream cache payload",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",
