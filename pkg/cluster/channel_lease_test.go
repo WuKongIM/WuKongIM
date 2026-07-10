@@ -33,6 +33,55 @@ func TestChannelDataPlaneLeaseGuardRejectsMissingOrExpiredLease(t *testing.T) {
 	}
 }
 
+func TestChannelDataPlaneLeaseGuardReportsStableFailureReasons(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	tests := []struct {
+		name       string
+		mark       *time.Time
+		wantReason channelDataPlaneLeaseFailureReason
+	}{
+		{
+			name:       "missing",
+			wantReason: channelDataPlaneLeaseReasonMissing,
+		},
+		{
+			name:       "expired",
+			mark:       timePtr(now.Add(-31 * time.Second)),
+			wantReason: channelDataPlaneLeaseReasonExpired,
+		},
+		{
+			name:       "clock invalid",
+			mark:       timePtr(now.Add(time.Second)),
+			wantReason: channelDataPlaneLeaseReasonClockInvalid,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			guard := newChannelDataPlaneLeaseGuard(func() time.Time { return now }, 30*time.Second)
+			if test.mark != nil {
+				guard.MarkVisible(*test.mark)
+			}
+
+			err := guard.AllowChannelAppend(context.Background(), ch.AppendAdmissionRequest{})
+			if !errors.Is(err, ch.ErrNotReady) {
+				t.Fatalf("AllowChannelAppend() error = %v, want ErrNotReady", err)
+			}
+			var leaseErr *channelDataPlaneLeaseError
+			if !errors.As(err, &leaseErr) {
+				t.Fatalf("AllowChannelAppend() error = %T, want *channelDataPlaneLeaseError", err)
+			}
+			if leaseErr.reason != test.wantReason {
+				t.Fatalf("reason = %q, want %q", leaseErr.reason, test.wantReason)
+			}
+		})
+	}
+}
+
+func timePtr(value time.Time) *time.Time {
+	return &value
+}
+
 func TestChannelDataPlaneLeaseGuardHonorsContextCancellation(t *testing.T) {
 	now := time.Unix(100, 0).UTC()
 	guard := newChannelDataPlaneLeaseGuard(func() time.Time { return now }, 30*time.Second)

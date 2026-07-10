@@ -8,6 +8,28 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
+type channelDataPlaneLeaseFailureReason string
+
+const (
+	channelDataPlaneLeaseReasonMissing      channelDataPlaneLeaseFailureReason = "data_plane_lease_missing"
+	channelDataPlaneLeaseReasonExpired      channelDataPlaneLeaseFailureReason = "data_plane_lease_expired"
+	channelDataPlaneLeaseReasonClockInvalid channelDataPlaneLeaseFailureReason = "data_plane_lease_clock_invalid"
+)
+
+// channelDataPlaneLeaseError preserves the not-ready contract with a stable diagnostic reason.
+type channelDataPlaneLeaseError struct {
+	// reason classifies why the latest lease observation was rejected.
+	reason channelDataPlaneLeaseFailureReason
+}
+
+func (e *channelDataPlaneLeaseError) Error() string {
+	return ch.ErrNotReady.Error() + ": " + string(e.reason)
+}
+
+func (e *channelDataPlaneLeaseError) Unwrap() error {
+	return ch.ErrNotReady
+}
+
 // channelDataPlaneLeaseGuard gates local Channel leader appends on recent control visibility.
 type channelDataPlaneLeaseGuard struct {
 	// now supplies the current time for freshness checks.
@@ -65,8 +87,13 @@ func (g *channelDataPlaneLeaseGuard) AllowChannelAppend(ctx context.Context, _ c
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if g == nil || !g.fresh(g.now()) {
-		return ch.ErrNotReady
+	if g == nil {
+		return &channelDataPlaneLeaseError{reason: channelDataPlaneLeaseReasonMissing}
+	}
+	last := g.lastOK.Load()
+	now := g.now()
+	if reason := classifyChannelDataPlaneLease(last, g.ttl, now); reason != "" {
+		return &channelDataPlaneLeaseError{reason: reason}
 	}
 	return nil
 }
@@ -76,34 +103,27 @@ func (g *channelDataPlaneLeaseGuard) snapshot() channelDataPlaneLeaseSnapshot {
 		return channelDataPlaneLeaseSnapshot{}
 	}
 	last := g.lastOK.Load()
-	if last == nil {
-		return channelDataPlaneLeaseSnapshot{ttl: g.ttl}
+	now := g.now()
+	snapshot := channelDataPlaneLeaseSnapshot{
+		ttl:   g.ttl,
+		ready: classifyChannelDataPlaneLease(last, g.ttl, now) == "",
 	}
-	return channelDataPlaneLeaseSnapshot{
-		lastVisibleAt: *last,
-		ttl:           g.ttl,
-		ready:         g.freshAt(*last, g.now()),
+	if last != nil {
+		snapshot.lastVisibleAt = *last
 	}
+	return snapshot
 }
 
-func (g *channelDataPlaneLeaseGuard) fresh(now time.Time) bool {
-	if g == nil || g.ttl <= 0 {
-		return false
-	}
-	last := g.lastOK.Load()
+func classifyChannelDataPlaneLease(last *time.Time, ttl time.Duration, now time.Time) channelDataPlaneLeaseFailureReason {
 	if last == nil {
-		return false
+		return channelDataPlaneLeaseReasonMissing
 	}
-	return g.freshAt(*last, now)
-}
-
-func (g *channelDataPlaneLeaseGuard) freshAt(last time.Time, now time.Time) bool {
-	if g == nil || g.ttl <= 0 {
-		return false
-	}
-	age := now.Sub(last)
+	age := now.Sub(*last)
 	if age < 0 {
-		return false
+		return channelDataPlaneLeaseReasonClockInvalid
 	}
-	return age <= g.ttl
+	if ttl <= 0 || age > ttl {
+		return channelDataPlaneLeaseReasonExpired
+	}
+	return ""
 }

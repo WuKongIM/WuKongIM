@@ -220,11 +220,15 @@ overwrite a newer success. `ProbeWriteReady` refreshes the same local lease afte
 foreground Slot write readiness during startup/readiness gates; final not-ready
 stop reports do not extend foreground append eligibility. Local Channel runtime leader appends fail closed with
 `channel.ErrNotReady` when the lease is missing or older than the configured
-health-report TTL, so a partitioned node that can no longer make itself visible
-to the control plane stops accepting new data-plane writes before stale leaders
-can accumulate divergent log tails. `LocalControlSnapshot` includes the local
-lease timestamp, TTL, and readiness as diagnostics; it is not a distributed
-authority source.
+health-report TTL, so callers retain the `errors.Is(err, channel.ErrNotReady)`
+contract. Rejections also expose the stable diagnostic details
+`data_plane_lease_missing`, `data_plane_lease_expired`, and
+`data_plane_lease_clock_invalid`. These details classify the single observed
+lease failure and are not high-cardinality metric labels. A partitioned node
+that can no longer make itself visible to the control plane therefore stops
+accepting new data-plane writes before stale leaders can accumulate divergent
+log tails. `LocalControlSnapshot` includes the local lease timestamp, TTL, and
+readiness as diagnostics; it is not a distributed authority source.
 
 ## Stop Flow
 
