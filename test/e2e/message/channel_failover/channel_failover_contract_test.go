@@ -16,6 +16,10 @@ func TestChannelRuntimeMetaItemDecodesMinISR(t *testing.T) {
 	require.Equal(t, int64(2), meta.MinISR)
 }
 
+func TestFastRecoveryHealthReportBudgetHasRenewalHeadroom(t *testing.T) {
+	require.Greater(t, fastRecoveryHealthReportTTL, 4*fastRecoveryHealthReportInterval)
+}
+
 func TestReplicaRepairTopologyPreconditionRequiresMinISRQuorum(t *testing.T) {
 	candidate := followerRepairCandidate{
 		Leader:                1,

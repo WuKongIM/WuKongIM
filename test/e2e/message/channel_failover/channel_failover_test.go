@@ -21,6 +21,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// fastRecoveryHealthReportInterval keeps failure detection responsive in real-process tests.
+	fastRecoveryHealthReportInterval = 500 * time.Millisecond
+	// fastRecoveryHealthReportTTL leaves Controller report latency headroom while staying below scenario wait bounds.
+	fastRecoveryHealthReportTTL = 5 * time.Second
+)
+
 func TestChannelThreeNodeLeaderFailoverAfterNodeKill(t *testing.T) {
 	s := suite.New(t)
 	cluster := s.StartThreeNodeCluster(fastRecoveryOptions()...)
@@ -152,8 +159,8 @@ func fastRecoveryOptionsForNodes(nodeCount int, extra map[string]string) []suite
 	opts := []suite.Option{suite.WithManagerHTTP()}
 	for nodeID := uint64(1); nodeID <= uint64(nodeCount); nodeID++ {
 		overrides := map[string]string{
-			"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL":         "500ms",
-			"WK_CLUSTER_NODE_HEALTH_REPORT_TTL":              "2s",
+			"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL":         fastRecoveryHealthReportInterval.String(),
+			"WK_CLUSTER_NODE_HEALTH_REPORT_TTL":              fastRecoveryHealthReportTTL.String(),
 			"WK_CHANNEL_MIGRATION_ENABLE":                    "true",
 			"WK_CHANNEL_MIGRATION_SCAN_INTERVAL":             "100ms",
 			"WK_CHANNEL_MIGRATION_SCAN_LIMIT":                "16",
@@ -238,7 +245,8 @@ func createFollowerRepairCandidate(t *testing.T, cluster *suite.StartedCluster) 
 	t.Helper()
 
 	origin := cluster.MustNode(1)
-	slots := cluster.ManagerClient(t, origin.Spec.ID).MustSlots(t)
+	manager := cluster.ManagerClient(t, origin.Spec.ID)
+	slots := manager.MustSlots(t)
 	observedSlotLeaders := slotLeaderObservationsBySlot(t, cluster, origin, []uint64{1, 2, 3})
 	nodeIDs := clusterNodeIDs(cluster)
 	for i := 0; i < 200; i++ {
@@ -256,6 +264,7 @@ func createFollowerRepairCandidate(t *testing.T, cluster *suite.StartedCluster) 
 		if placement.Leader == 4 || spareNode != 4 {
 			continue
 		}
+		manager.EventuallyNodeReadiness(t, placement.Leader, true, 20*time.Second)
 		createGroupChannel(t, origin, channelID, frame.ChannelTypeGroup)
 		pre := sendGroupMessageWithin(t, origin, channelID, frame.ChannelTypeGroup, "follower-repair-before", 20*time.Second)
 		return followerRepairCandidate{
