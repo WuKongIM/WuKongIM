@@ -28,7 +28,7 @@ type ciWorkflow struct {
 
 type ciConcurrency struct {
 	Group            string `yaml:"group"`
-	CancelInProgress bool   `yaml:"cancel-in-progress"`
+	CancelInProgress *bool  `yaml:"cancel-in-progress"`
 }
 
 type ciJob struct {
@@ -69,6 +69,7 @@ type ciStep struct {
 	Uses  string            `yaml:"uses"`
 	Run   string            `yaml:"run"`
 	Shell string            `yaml:"shell"`
+	If    string            `yaml:"if"`
 	Env   map[string]string `yaml:"env"`
 	With  map[string]any    `yaml:"with"`
 }
@@ -188,9 +189,202 @@ var expectedCIJobs = map[string]ciJob{
 	},
 }
 
+const (
+	nightlyRaceCommand = `set -o pipefail
+timeout --signal=TERM --kill-after=30s 40m go test -race $PACKAGES -count=1 -timeout=35m -p=1 2>&1 | tee "$LOG_FILE"
+`
+	nightlyIntegrationCommand = `set -o pipefail
+timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1 2>&1 | tee "$LOG_FILE"
+`
+	nightlyE2ECommand = `set -o pipefail
+WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
+`
+	nightlySmokeCommand = `timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
+  --out-dir "$SMOKE_OUT" \
+  --ready-timeout 180
+`
+	nightlySmokeArtifactPaths = `${{ env.SMOKE_OUT }}/summary.md
+${{ env.SMOKE_OUT }}/cluster.log
+${{ env.SMOKE_OUT }}/sim.jsonl
+${{ env.SMOKE_OUT }}/node-logs/*.log
+`
+)
+
+var expectedNightlyJobs = map[string]ciJob{
+	"go-race": {
+		Name:           "Go race (${{ matrix.name }})",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 45,
+		Env: map[string]string{
+			"GOWORK":      "off",
+			"CGO_ENABLED": "1",
+		},
+		Strategy: &ciStrategy{
+			FailFast: boolPointer(false),
+			Matrix: ciMatrix{Include: []ciMatrixEntry{
+				{Name: "internal-runtime", Packages: "./internal/app ./internal/runtime/..."},
+				{Name: "gateway-transport", Packages: "./pkg/gateway/... ./pkg/transport/..."},
+				{Name: "channel-cluster-slot", Packages: "./pkg/channel/... ./pkg/cluster/... ./pkg/slot/..."},
+			}},
+		},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Run race group",
+				Shell: "bash",
+				Env: map[string]string{
+					"PACKAGES": "${{ matrix.packages }}",
+					"LOG_FILE": "${{ runner.temp }}/go-race-${{ matrix.name }}.log",
+				},
+				Run: nightlyRaceCommand,
+			},
+			{
+				Name: "Upload race failure log",
+				If:   "failure()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "go-race-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/go-race-${{ matrix.name }}.log",
+					"if-no-files-found": "warn",
+					"retention-days":    7,
+				},
+			},
+		},
+	},
+	"go-integration": {
+		Name:           "Go integration",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 30,
+		Env:            map[string]string{"GOWORK": "off"},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Run integration packages",
+				Shell: "bash",
+				Env:   map[string]string{"LOG_FILE": "${{ runner.temp }}/go-integration.log"},
+				Run:   nightlyIntegrationCommand,
+			},
+			{
+				Name: "Upload integration failure log",
+				If:   "failure()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "go-integration-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/go-integration.log",
+					"if-no-files-found": "warn",
+					"retention-days":    7,
+				},
+			},
+		},
+	},
+	"go-e2e": {
+		Name:           "Go e2e",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 60,
+		Env: map[string]string{
+			"GOWORK":     "off",
+			"E2E_BINARY": "${{ runner.temp }}/wukongim-e2e",
+		},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Build e2e binary once",
+				Shell: "bash",
+				Run:   `go build -o "$E2E_BINARY" ./cmd/wukongim`,
+			},
+			{
+				Name:  "Run e2e packages",
+				Shell: "bash",
+				Env:   map[string]string{"LOG_FILE": "${{ runner.temp }}/go-e2e.log"},
+				Run:   nightlyE2ECommand,
+			},
+			{
+				Name: "Upload e2e failure log",
+				If:   "failure()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "go-e2e-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/go-e2e.log",
+					"if-no-files-found": "warn",
+					"retention-days":    7,
+				},
+			},
+		},
+	},
+	"three-node-smoke": {
+		Name:           "Three-node smoke",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 30,
+		Env: map[string]string{
+			"GOWORK":    "off",
+			"SMOKE_OUT": "${{ runner.temp }}/wkcli-sim-three-node-smoke",
+			"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE":              "false",
+			"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE":                "false",
+			"WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER": "false",
+			"WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE":               "false",
+		},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Run base three-node smoke",
+				Shell: "bash",
+				Run:   nightlySmokeCommand,
+			},
+			{
+				Name: "Upload allowlisted smoke failure evidence",
+				If:   "failure()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "three-node-smoke-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              nightlySmokeArtifactPaths,
+					"if-no-files-found": "warn",
+					"retention-days":    7,
+				},
+			},
+		},
+	},
+}
+
+func checkoutStep() ciStep {
+	return ciStep{
+		Uses: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+		With: map[string]any{"persist-credentials": false},
+	}
+}
+
+func setupGoStep() ciStep {
+	return ciStep{
+		Uses: "actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+		With: map[string]any{
+			"go-version-file":       "go.mod",
+			"cache":                 true,
+			"cache-dependency-path": "go.sum",
+		},
+	}
+}
+
+func verifyGoToolchainStep() ciStep {
+	return ciStep{Name: "Verify Go toolchain", Run: `test "$(go env GOVERSION)" = "go1.25.11"`}
+}
+
 func TestCIWorkflowContract(t *testing.T) {
 	raw := readWorkflow(t, "ci.yml")
 	if err := validateCIWorkflow(raw); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNightlyWorkflowContract(t *testing.T) {
+	raw := readWorkflow(t, "nightly.yml")
+	if err := validateNightlyWorkflow(raw); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -243,6 +437,15 @@ func TestCIWorkflowContractRejectsMutations(t *testing.T) {
 				return replaceWorkflowFirst(t, workflow,
 					"    timeout-minutes: 10",
 					"    timeout-minutes: 11 # timeout-minutes: 10",
+				)
+			},
+		},
+		{
+			name: "ci concurrency must be an explicit boolean",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  cancel-in-progress: true",
+					"  cancel-in-progress: null # cancel-in-progress: true",
 				)
 			},
 		},
@@ -316,6 +519,243 @@ func TestCIWorkflowContractRejectsMutations(t *testing.T) {
 	}
 }
 
+func TestNightlyWorkflowContractRejectsMutations(t *testing.T) {
+	raw := string(readWorkflow(t, "nightly.yml"))
+	tests := []struct {
+		name      string
+		mutate    func(*testing.T, string) string
+		wantError string
+	}{
+		{
+			name: "schedule cannot be replaced by push",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  schedule:\n    - cron: \"0 18 * * *\"",
+					"  push:\n    branches: [main]\n  # schedule:\n  #   - cron: \"0 18 * * *\"",
+				)
+			},
+		},
+		{
+			name: "cron must remain exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					`    - cron: "0 18 * * *"`,
+					`    - cron: "0 19 * * *" # cron: "0 18 * * *"`,
+				)
+			},
+		},
+		{
+			name: "manual trigger cannot gain inputs",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  workflow_dispatch:",
+					"  workflow_dispatch:\n    inputs:\n      unsafe:\n        required: false",
+				)
+			},
+		},
+		{
+			name: "nightly concurrency must be an explicit boolean",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  cancel-in-progress: false",
+					"  cancel-in-progress: null # cancel-in-progress: false",
+				)
+			},
+		},
+		{
+			name: "job identifiers are exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow, "  go-race:", "  race: # go-race:")
+			},
+		},
+		{
+			name: "race matrix package groups are exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					`            packages: "./internal/app ./internal/runtime/..."`,
+					`            packages: "./internal/app ./internal/..." # packages: "./internal/app ./internal/runtime/..."`,
+				)
+			},
+		},
+		{
+			name: "race command is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					`          timeout --signal=TERM --kill-after=30s 40m go test -race $PACKAGES -count=1 -timeout=35m -p=1 2>&1 | tee "$LOG_FILE"`,
+					`          timeout --signal=TERM --kill-after=30s 40m go test -race $PACKAGES -shuffle=on -count=1 -timeout=35m -p=1 2>&1 | tee "$LOG_FILE" # timeout --signal=TERM --kill-after=30s 40m go test -race $PACKAGES -count=1 -timeout=35m -p=1`,
+				)
+			},
+		},
+		{
+			name: "integration command is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					`          timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1 2>&1 | tee "$LOG_FILE"`,
+					`          timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -shuffle=on -count=1 -timeout=20m -p=1 2>&1 | tee "$LOG_FILE" # timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1`,
+				)
+			},
+		},
+		{
+			name: "e2e prebuild command is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					`        run: go build -o "$E2E_BINARY" ./cmd/wukongim`,
+					`        run: go build -o "$E2E_BINARY" ./cmd/... # go build -o "$E2E_BINARY" ./cmd/wukongim`,
+				)
+			},
+		},
+		{
+			name: "e2e command is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					`          WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"`,
+					`          WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -shuffle=on -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE" # WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1`,
+				)
+			},
+		},
+		{
+			name: "smoke script command is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"          timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \\",
+					"          timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh \\ # scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
+				)
+			},
+		},
+		{
+			name: "smoke ready timeout is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"            --ready-timeout 180",
+					"            --ready-timeout 181 # --ready-timeout 180",
+				)
+			},
+		},
+		{
+			name: "race job timeout is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  go-race:\n    name: Go race (${{ matrix.name }})\n    runs-on: ubuntu-24.04\n    timeout-minutes: 45",
+					"  go-race:\n    name: Go race (${{ matrix.name }})\n    runs-on: ubuntu-24.04\n    timeout-minutes: 46 # timeout-minutes: 45",
+				)
+			},
+		},
+		{
+			name: "integration job timeout is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  go-integration:\n    name: Go integration\n    runs-on: ubuntu-24.04\n    timeout-minutes: 30",
+					"  go-integration:\n    name: Go integration\n    runs-on: ubuntu-24.04\n    timeout-minutes: 31 # timeout-minutes: 30",
+				)
+			},
+		},
+		{
+			name: "e2e job timeout is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  go-e2e:\n    name: Go e2e\n    runs-on: ubuntu-24.04\n    timeout-minutes: 60",
+					"  go-e2e:\n    name: Go e2e\n    runs-on: ubuntu-24.04\n    timeout-minutes: 61 # timeout-minutes: 60",
+				)
+			},
+		},
+		{
+			name: "smoke job timeout is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"  three-node-smoke:\n    name: Three-node smoke\n    runs-on: ubuntu-24.04\n    timeout-minutes: 30",
+					"  three-node-smoke:\n    name: Three-node smoke\n    runs-on: ubuntu-24.04\n    timeout-minutes: 31 # timeout-minutes: 30",
+				)
+			},
+		},
+		{
+			name: "action refs must remain pinned",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0",
+					"      - uses: actions/checkout@main # v7.0.0 actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+				)
+			},
+			wantError: "ref =",
+		},
+		{
+			name: "failure artifact cannot upload on success",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"        if: failure()",
+					"        if: always() # if: failure()",
+				)
+			},
+		},
+		{
+			name: "failure artifact retention is exact",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"          retention-days: 7",
+					"          retention-days: 8 # retention-days: 7",
+				)
+			},
+		},
+		{
+			name: "smoke artifact cannot upload whole output directory",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"            ${{ env.SMOKE_OUT }}/summary.md",
+					"            ${{ env.SMOKE_OUT }} # ${{ env.SMOKE_OUT }}/summary.md",
+				)
+			},
+		},
+		{
+			name: "smoke artifact cannot upload manager token",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"            ${{ env.SMOKE_OUT }}/sim.jsonl",
+					"            ${{ env.SMOKE_OUT }}/manager-token # ${{ env.SMOKE_OUT }}/sim.jsonl",
+				)
+			},
+		},
+		{
+			name: "nightly cannot enable opt in e2e stress",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"      E2E_BINARY: ${{ runner.temp }}/wukongim-e2e",
+					"      E2E_BINARY: ${{ runner.temp }}/wukongim-e2e\n      WK_E2E_100K_CONVERSATION: \"1\"",
+				)
+			},
+		},
+		{
+			name: "base smoke flags remain disabled",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					`      WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE: "false"`,
+					`      WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE: "true" # "false"`,
+				)
+			},
+		},
+		{
+			name: "steps cannot continue on error",
+			mutate: func(t *testing.T, workflow string) string {
+				return replaceWorkflowFirst(t, workflow,
+					"      - name: Run race group\n        shell: bash\n        env:",
+					"      - name: Run race group\n        shell: bash\n        continue-on-error: true\n        env:",
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mutated := []byte(tt.mutate(t, raw))
+			err := validateNightlyWorkflow(mutated)
+			if err == nil {
+				t.Fatal("validator accepted mutated workflow")
+			}
+			if tt.wantError != "" && !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("validation error %q does not contain %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
 func replaceWorkflowFirst(t *testing.T, workflow, old, replacement string) string {
 	t.Helper()
 	if !strings.Contains(workflow, old) {
@@ -325,14 +765,18 @@ func replaceWorkflowFirst(t *testing.T, workflow, old, replacement string) strin
 }
 
 func validateCIWorkflow(raw []byte) error {
-	document, workflow, err := decodeCIWorkflow(raw)
+	document, workflow, err := decodeWorkflow(raw)
 	if err != nil {
 		return err
 	}
 	if err := validateAllUses(document, raw); err != nil {
 		return err
 	}
-	if err := validateCIJobAndStepKeys(document); err != nil {
+	if err := validateWorkflowStructure(
+		document,
+		[]string{"go-quality", "go-unit", "web"},
+		expectedCIJobs,
+	); err != nil {
 		return err
 	}
 	if workflow.Name != "CI" {
@@ -347,9 +791,9 @@ func validateCIWorkflow(raw []byte) error {
 	}
 	wantConcurrency := ciConcurrency{
 		Group:            "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
-		CancelInProgress: true,
+		CancelInProgress: boolPointer(true),
 	}
-	if workflow.Concurrency != wantConcurrency {
+	if !reflect.DeepEqual(workflow.Concurrency, wantConcurrency) {
 		return fmt.Errorf("concurrency = %#v, want %#v", workflow.Concurrency, wantConcurrency)
 	}
 	if len(workflow.Jobs) != len(expectedCIJobs) {
@@ -367,17 +811,92 @@ func validateCIWorkflow(raw []byte) error {
 	return nil
 }
 
-func validateCIJobAndStepKeys(document *yaml.Node) error {
+func validateNightlyWorkflow(raw []byte) error {
+	document, workflow, err := decodeWorkflow(raw)
+	if err != nil {
+		return err
+	}
+	if err := validateAllUses(document, raw); err != nil {
+		return err
+	}
+	if err := validateWorkflowStructure(
+		document,
+		[]string{"go-race", "go-integration", "go-e2e", "three-node-smoke"},
+		expectedNightlyJobs,
+	); err != nil {
+		return err
+	}
+	if workflow.Name != "Nightly" {
+		return fmt.Errorf("workflow name = %q, want Nightly", workflow.Name)
+	}
+	if err := validateNightlyTriggers(workflow.On); err != nil {
+		return err
+	}
+	wantPermissions := map[string]string{"contents": "read"}
+	if !reflect.DeepEqual(workflow.Permissions, wantPermissions) {
+		return fmt.Errorf("permissions = %#v, want exactly %#v", workflow.Permissions, wantPermissions)
+	}
+	wantConcurrency := ciConcurrency{
+		Group:            "${{ github.workflow }}-${{ github.ref }}",
+		CancelInProgress: boolPointer(false),
+	}
+	if !reflect.DeepEqual(workflow.Concurrency, wantConcurrency) {
+		return fmt.Errorf("concurrency = %#v, want %#v", workflow.Concurrency, wantConcurrency)
+	}
+	if len(workflow.Jobs) != len(expectedNightlyJobs) {
+		return fmt.Errorf("workflow jobs = %d, want exactly %d", len(workflow.Jobs), len(expectedNightlyJobs))
+	}
+	for name, want := range expectedNightlyJobs {
+		got, ok := workflow.Jobs[name]
+		if !ok {
+			return fmt.Errorf("workflow missing required job %q", name)
+		}
+		if !reflect.DeepEqual(got, want) {
+			return fmt.Errorf("job %q does not match the required fail-closed contract", name)
+		}
+	}
+	return nil
+}
+
+func validateWorkflowStructure(document *yaml.Node, jobNames []string, expectedJobs map[string]ciJob) error {
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 {
 		return fmt.Errorf("workflow YAML must contain one mapping document")
 	}
 	root := document.Content[0]
+	if err := validateMappingKeys(
+		root,
+		[]string{"name", "on", "permissions", "concurrency", "jobs"},
+		"workflow root",
+	); err != nil {
+		return err
+	}
+	permissions, ok := mappingValue(root, "permissions")
+	if !ok {
+		return fmt.Errorf("workflow permissions are missing")
+	}
+	if err := validateMappingKeys(permissions, []string{"contents"}, "workflow permissions"); err != nil {
+		return err
+	}
+	concurrency, ok := mappingValue(root, "concurrency")
+	if !ok {
+		return fmt.Errorf("workflow concurrency is missing")
+	}
+	if err := validateMappingKeys(
+		concurrency,
+		[]string{"group", "cancel-in-progress"},
+		"workflow concurrency",
+	); err != nil {
+		return err
+	}
 	jobs, ok := mappingValue(root, "jobs")
 	if !ok || jobs.Kind != yaml.MappingNode {
 		return fmt.Errorf("workflow jobs must be a mapping")
 	}
-	for _, name := range []string{"go-quality", "go-unit", "web"} {
-		wantJob := expectedCIJobs[name]
+	if err := validateMappingKeys(jobs, jobNames, "workflow jobs"); err != nil {
+		return err
+	}
+	for _, name := range jobNames {
+		wantJob := expectedJobs[name]
 		job, ok := mappingValue(jobs, name)
 		if !ok {
 			return fmt.Errorf("workflow missing required job %q", name)
@@ -433,6 +952,9 @@ func expectedStepKeys(step ciStep) []string {
 	if step.Shell != "" {
 		keys = append(keys, "shell")
 	}
+	if step.If != "" {
+		keys = append(keys, "if")
+	}
 	if step.Env != nil {
 		keys = append(keys, "env")
 	}
@@ -481,7 +1003,7 @@ func mappingValue(mapping *yaml.Node, name string) (*yaml.Node, bool) {
 	return nil, false
 }
 
-func decodeCIWorkflow(raw []byte) (*yaml.Node, ciWorkflow, error) {
+func decodeWorkflow(raw []byte) (*yaml.Node, ciWorkflow, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(raw))
 	var document yaml.Node
 	if err := decoder.Decode(&document); err != nil {
@@ -538,6 +1060,42 @@ func validateCITriggers(triggers map[string]yaml.Node) error {
 		return fmt.Errorf("push branches must be exactly [main]")
 	}
 	return nil
+}
+
+func validateNightlyTriggers(triggers map[string]yaml.Node) error {
+	if len(triggers) != 2 {
+		return fmt.Errorf("workflow trigger keys = %d, want exactly schedule and workflow_dispatch", len(triggers))
+	}
+	schedule, ok := triggers["schedule"]
+	if !ok {
+		return fmt.Errorf("workflow trigger %q is missing", "schedule")
+	}
+	workflowDispatch, ok := triggers["workflow_dispatch"]
+	if !ok {
+		return fmt.Errorf("workflow trigger %q is missing", "workflow_dispatch")
+	}
+	if !isEmptyTrigger(workflowDispatch) {
+		return fmt.Errorf("workflow trigger %q must not contain inputs or options", "workflow_dispatch")
+	}
+	if schedule.Kind != yaml.SequenceNode || len(schedule.Content) != 1 {
+		return fmt.Errorf("schedule trigger must contain exactly one cron entry")
+	}
+	entry := schedule.Content[0]
+	if err := validateMappingKeys(entry, []string{"cron"}, "nightly schedule entry"); err != nil {
+		return err
+	}
+	cron, ok := mappingValue(entry, "cron")
+	if !ok || cron.Kind != yaml.ScalarNode || cron.Value != "0 18 * * *" {
+		return fmt.Errorf("nightly cron = %q, want exactly %q", cronValue(cron), "0 18 * * *")
+	}
+	return nil
+}
+
+func cronValue(node *yaml.Node) string {
+	if node == nil {
+		return ""
+	}
+	return node.Value
 }
 
 func isEmptyTrigger(trigger yaml.Node) bool {

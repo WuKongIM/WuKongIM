@@ -1,0 +1,170 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  go-race:
+    name: Go race (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: internal-runtime
+            packages: "./internal/app ./internal/runtime/..."
+          - name: gateway-transport
+            packages: "./pkg/gateway/... ./pkg/transport/..."
+          - name: channel-cluster-slot
+            packages: "./pkg/channel/... ./pkg/cluster/... ./pkg/slot/..."
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run race group
+        shell: bash
+        env:
+          PACKAGES: ${{ matrix.packages }}
+          LOG_FILE: ${{ runner.temp }}/go-race-${{ matrix.name }}.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 40m go test -race $PACKAGES -count=1 -timeout=35m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Upload race failure log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-race-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-race-${{ matrix.name }}.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  go-integration:
+    name: Go integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run integration packages
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/go-integration.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Upload integration failure log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-integration.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  go-e2e:
+    name: Go e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GOWORK: "off"
+      E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Build e2e binary once
+        shell: bash
+        run: go build -o "$E2E_BINARY" ./cmd/wukongim
+      - name: Run e2e packages
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/go-e2e.log
+        run: |
+          set -o pipefail
+          WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Upload e2e failure log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-e2e.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  three-node-smoke:
+    name: Three-node smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOWORK: "off"
+      SMOKE_OUT: ${{ runner.temp }}/wkcli-sim-three-node-smoke
+      WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE: "false"
+      WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE: "false"
+      WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER: "false"
+      WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE: "false"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run base three-node smoke
+        shell: bash
+        run: |
+          timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
+            --out-dir "$SMOKE_OUT" \
+            --ready-timeout 180
+      - name: Upload allowlisted smoke failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: three-node-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.SMOKE_OUT }}/summary.md
+            ${{ env.SMOKE_OUT }}/cluster.log
+            ${{ env.SMOKE_OUT }}/sim.jsonl
+            ${{ env.SMOKE_OUT }}/node-logs/*.log
+          if-no-files-found: warn
+          retention-days: 7
