@@ -17,6 +17,7 @@ import (
 type PresenceNode interface {
 	NodeID() uint64
 	RouteKey(string) (cluster.Route, error)
+	RouteKeysPartial([]string) ([]cluster.RouteKeyResult, error)
 	RouteHashSlot(uint16) (cluster.Route, error)
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 	RegisterRPC(uint8, cluster.NodeRPCHandler)
@@ -85,6 +86,47 @@ func (c *PresenceAuthorityClient) ResolveRouteTarget(uid string) (presence.Route
 		return presence.RouteTarget{}, fmt.Errorf("%w: route leader is unknown", authoritypresence.ErrRouteNotReady)
 	}
 	return routeTargetFromClusterRoute(route), nil
+}
+
+// ResolveRouteTargets returns one aligned authority target result per input UID.
+func (c *PresenceAuthorityClient) ResolveRouteTargets(ctx context.Context, uids []string) []presence.RouteTargetResult {
+	results := make([]presence.RouteTargetResult, len(uids))
+	if len(uids) == 0 {
+		return results
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return fillPresenceRouteTargetErrors(results, err)
+	}
+	if c == nil || c.node == nil {
+		return fillPresenceRouteTargetErrors(results, authoritypresence.ErrRouteNotReady)
+	}
+
+	routes, err := c.node.RouteKeysPartial(uids)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fillPresenceRouteTargetErrors(results, ctxErr)
+	}
+	if err != nil {
+		return fillPresenceRouteTargetErrors(results, mapPresenceRouteError(err))
+	}
+	if len(routes) != len(uids) {
+		return fillPresenceRouteTargetErrors(results, fmt.Errorf("%w: aligned route result count %d does not match uid count %d", authoritypresence.ErrRouteNotReady, len(routes), len(uids)))
+	}
+
+	for i, routeResult := range routes {
+		if routeResult.Err != nil {
+			results[i].Err = mapPresenceRouteError(routeResult.Err)
+			continue
+		}
+		if routeResult.Route.Leader == 0 {
+			results[i].Err = fmt.Errorf("%w: route leader is unknown", authoritypresence.ErrRouteNotReady)
+			continue
+		}
+		results[i].Target = routeTargetFromClusterRoute(routeResult.Route)
+	}
+	return results
 }
 
 // RegisterRoute registers one owner route on the UID authority leader.
@@ -332,6 +374,13 @@ func routeTargetFromClusterRoute(route cluster.Route) presence.RouteTarget {
 		RouteRevision:  route.Revision,
 		AuthorityEpoch: route.AuthorityEpoch,
 	}
+}
+
+func fillPresenceRouteTargetErrors(results []presence.RouteTargetResult, err error) []presence.RouteTargetResult {
+	for i := range results {
+		results[i].Err = err
+	}
+	return results
 }
 
 func wrapPendingToken(token presence.PendingRouteToken, uid string, c *PresenceAuthorityClient) presence.PendingRouteToken {

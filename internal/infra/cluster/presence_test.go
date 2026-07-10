@@ -398,6 +398,80 @@ func TestPresenceAuthorityClientTouchRoutesToRemote(t *testing.T) {
 	require.Equal(t, accessnode.PresenceAuthorityRPCServiceID, node.calls[0].serviceID)
 }
 
+func TestPresenceAuthorityClientResolveRouteTargetsPreservesAlignment(t *testing.T) {
+	node := &fakePresenceCluster{
+		routeKeyResults: []cluster.RouteKeyResult{
+			{Route: cluster.Route{HashSlot: 7, SlotID: 11, Leader: 1, LeaderTerm: 23, ConfigEpoch: 29, Revision: 17, AuthorityEpoch: 19}},
+			{Err: cluster.ErrNoSlotLeader},
+			{Route: cluster.Route{HashSlot: 9, SlotID: 13, Leader: 2, LeaderTerm: 31, ConfigEpoch: 37, Revision: 41, AuthorityEpoch: 43}},
+		},
+	}
+	client := NewPresenceAuthorityClient(node, &fakePresenceAuthority{})
+	uids := []string{"u1", "u2", "u3"}
+
+	results := client.ResolveRouteTargets(context.Background(), uids)
+
+	require.Len(t, results, len(uids))
+	require.NoError(t, results[0].Err)
+	require.Equal(t, presence.RouteTarget{
+		HashSlot:       7,
+		SlotID:         11,
+		LeaderNodeID:   1,
+		LeaderTerm:     23,
+		ConfigEpoch:    29,
+		RouteRevision:  17,
+		AuthorityEpoch: 19,
+	}, results[0].Target)
+	require.ErrorIs(t, results[1].Err, authoritypresence.ErrRouteNotReady)
+	require.Equal(t, presence.RouteTarget{}, results[1].Target)
+	require.NoError(t, results[2].Err)
+	require.Equal(t, presence.RouteTarget{
+		HashSlot:       9,
+		SlotID:         13,
+		LeaderNodeID:   2,
+		LeaderTerm:     31,
+		ConfigEpoch:    37,
+		RouteRevision:  41,
+		AuthorityEpoch: 43,
+	}, results[2].Target)
+	require.Equal(t, [][]string{uids}, node.routeKeysCalls)
+	require.Zero(t, node.routeKeyCalls, "batch resolution must not fall back to RouteKey")
+}
+
+func TestPresenceAuthorityClientResolveRouteTargetsFansOutBatchError(t *testing.T) {
+	node := &fakePresenceCluster{routeKeysErr: cluster.ErrRouteNotReady}
+	client := NewPresenceAuthorityClient(node, &fakePresenceAuthority{})
+	uids := []string{"u1", "u2", "u3"}
+
+	results := client.ResolveRouteTargets(context.Background(), uids)
+
+	require.Len(t, results, len(uids))
+	for i := range results {
+		require.ErrorIs(t, results[i].Err, authoritypresence.ErrRouteNotReady, "result index %d", i)
+		require.Equal(t, presence.RouteTarget{}, results[i].Target)
+	}
+	require.Equal(t, [][]string{uids}, node.routeKeysCalls)
+	require.Zero(t, node.routeKeyCalls, "batch resolution must not fall back to RouteKey")
+}
+
+func TestPresenceAuthorityClientResolveRouteTargetsFansOutCanceledContext(t *testing.T) {
+	node := &fakePresenceCluster{}
+	client := NewPresenceAuthorityClient(node, &fakePresenceAuthority{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	uids := []string{"u1", "u2", "u3"}
+
+	results := client.ResolveRouteTargets(ctx, uids)
+
+	require.Len(t, results, len(uids))
+	for i := range results {
+		require.ErrorIs(t, results[i].Err, context.Canceled, "result index %d", i)
+		require.Equal(t, presence.RouteTarget{}, results[i].Target)
+	}
+	require.Empty(t, node.routeKeysCalls)
+	require.Zero(t, node.routeKeyCalls)
+}
+
 func TestPresenceClientReturnsRouteNotReadyWhenRouteKeyFails(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID:   1,
@@ -431,16 +505,19 @@ type rpcCall struct {
 }
 
 type fakePresenceCluster struct {
-	nodeID        uint64
-	route         cluster.Route
-	routesByUID   map[string]cluster.Route
-	routes        []cluster.Route
-	routeErr      error
-	rpc           cluster.NodeRPCHandler
-	calls         []rpcCall
-	routeKeyCalls int
-	registered    map[uint8]cluster.NodeRPCHandler
-	watch         chan cluster.RouteAuthorityEvent
+	nodeID          uint64
+	route           cluster.Route
+	routesByUID     map[string]cluster.Route
+	routes          []cluster.Route
+	routeErr        error
+	routeKeyResults []cluster.RouteKeyResult
+	routeKeysErr    error
+	rpc             cluster.NodeRPCHandler
+	calls           []rpcCall
+	routeKeyCalls   int
+	routeKeysCalls  [][]string
+	registered      map[uint8]cluster.NodeRPCHandler
+	watch           chan cluster.RouteAuthorityEvent
 }
 
 type presenceRPCHandler struct {
@@ -479,6 +556,14 @@ func (f *fakePresenceCluster) RouteKey(uid string) (cluster.Route, error) {
 		return f.routes[idx], nil
 	}
 	return f.route, nil
+}
+
+func (f *fakePresenceCluster) RouteKeysPartial(uids []string) ([]cluster.RouteKeyResult, error) {
+	f.routeKeysCalls = append(f.routeKeysCalls, append([]string(nil), uids...))
+	if f.routeKeysErr != nil {
+		return nil, f.routeKeysErr
+	}
+	return append([]cluster.RouteKeyResult(nil), f.routeKeyResults...), nil
 }
 
 func (f *fakePresenceCluster) RouteHashSlot(uint16) (cluster.Route, error) {

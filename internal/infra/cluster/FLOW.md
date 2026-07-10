@@ -729,6 +729,10 @@ presence.Route / uid
   -> local accessnode.PresenceAuthority when target leader is this node
   -> access/node PresenceAuthority RPC client when target leader is remote
 
+[]uid
+  -> one cluster.RouteKeysPartial(uids) snapshot lookup
+  -> aligned []presence.RouteTargetResult with complete route fences
+
 presence.RouteAction
   -> action.OwnerNodeID
   -> local accessnode.PresenceOwner when owner is this node
@@ -744,6 +748,13 @@ metadata. Touch batching uses `TouchRoutesTo(target, routes)` because the app
 worker groups dirty owner sessions by the exact authority target observed
 during flush. The adapter sends the batch locally when the target leader is
 this node and uses access/node RPC for remote leaders.
+
+Batch target resolution preserves input order and cardinality without falling
+back to per-UID `RouteKey` calls. A batch-level routing or context error is
+copied to every aligned item, while a key-specific error is mapped only onto
+its corresponding item; successful items retain the hash Slot, physical Slot,
+leader term, config epoch, route revision, and authority epoch fences from the
+single cluster routing snapshot.
 
 If route resolution reports route-not-ready, stale routing, or not-leader, the
 adapter waits a short bounded backoff and resolves a fresh `RouteKey` within a

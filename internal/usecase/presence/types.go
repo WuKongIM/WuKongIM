@@ -79,6 +79,14 @@ type LocalSession = online.LocalSession
 // RouteTarget fences an authority operation to one observed hash-slot route.
 type RouteTarget = authority.RouteTarget
 
+// RouteTargetResult preserves the aligned route-resolution outcome for one input UID.
+type RouteTargetResult struct {
+	// Target is populated with the complete authority fence when Err is nil.
+	Target RouteTarget
+	// Err records the routing failure for the corresponding input UID.
+	Err error
+}
+
 // Route identifies a virtual client connection known by the UID authority.
 type Route = authority.Route
 

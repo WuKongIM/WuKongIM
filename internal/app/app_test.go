@@ -6234,6 +6234,8 @@ type fakePresenceCluster struct {
 	channels                  map[metadb.ConversationKey]metadb.Channel
 }
 
+var _ clusterinfra.PresenceNode = (*fakePresenceCluster)(nil)
+
 type fakeConversationFallbackCluster struct {
 	fakeCluster
 	appendSeq                uint64
@@ -6672,6 +6674,15 @@ func (f *fakePresenceCluster) GetChannelMetadata(_ context.Context, channelID st
 
 func (f *fakePresenceCluster) RouteKey(uid string) (clusterpkg.Route, error) {
 	return clusterpkg.Route{HashSlot: 9, SlotID: 1, Leader: f.nodeID, Revision: 3, AuthorityEpoch: 2}, nil
+}
+
+func (f *fakePresenceCluster) RouteKeysPartial(uids []string) ([]clusterpkg.RouteKeyResult, error) {
+	results := make([]clusterpkg.RouteKeyResult, len(uids))
+	for i, uid := range uids {
+		route, err := f.RouteKey(uid)
+		results[i] = clusterpkg.RouteKeyResult{Route: route, Err: err}
+	}
+	return results, nil
 }
 
 func (f *fakePresenceCluster) RouteHashSlot(hashSlot uint16) (clusterpkg.Route, error) {
