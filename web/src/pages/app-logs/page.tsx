@@ -1,13 +1,10 @@
-import { Pause, Play, RefreshCw, Search } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl } from "react-intl"
 
-import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
+import { defaultNodeId, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
-import { SectionCard } from "@/components/shell/section-card"
-import { Button } from "@/components/ui/button"
 import {
   ManagerApiError,
   getApplicationLogEntries,
@@ -21,11 +18,17 @@ import type {
   ManagerApplicationLogStreamEvent,
   ManagerNodesResponse,
 } from "@/lib/manager-api.types"
+import { AppLogConsole } from "@/pages/app-logs/components/app-log-console"
+import { AppLogsToolbar } from "@/pages/app-logs/components/app-logs-toolbar"
+import {
+  levelsForSeverityFilter,
+  type AppLogSeverityFilter,
+} from "@/pages/app-logs/log-format"
 
 const appLogPageLimit = 100
+const appLogMaxTailLimit = 1000
 const maxBufferedLines = 500
 const livePollIntervalMs = 2000
-const levelOptions = ["", "DEBUG", "INFO", "WARN", "ERROR"]
 
 type AppLogState = {
   entries: ManagerApplicationLogEntry[]
@@ -63,23 +66,6 @@ function mapErrorKind(error: Error | null) {
   return "error" as const
 }
 
-function formatBytes(value: number) {
-  if (value >= 1024 * 1024) {
-    return `${(value / (1024 * 1024)).toFixed(1)} MiB`
-  }
-  if (value >= 1024) {
-    return `${(value / 1024).toFixed(1)} KiB`
-  }
-  return `${value} B`
-}
-
-function formatFields(fields: Record<string, unknown> | null) {
-  if (!fields || Object.keys(fields).length === 0) {
-    return ""
-  }
-  return JSON.stringify(fields)
-}
-
 function parseStreamEvents(text: string): ManagerApplicationLogStreamEvent[] {
   return text
     .split("\n")
@@ -106,9 +92,10 @@ export function AppLogsPanel() {
   const [sources, setSources] = useState<ManagerApplicationLogSource[]>([])
   const [source, setSource] = useState("app")
   const [keyword, setKeyword] = useState("")
-  const [level, setLevel] = useState("")
+  const [severity, setSeverity] = useState<AppLogSeverityFilter>("")
   const [followTail, setFollowTail] = useState(false)
   const [liveMessage, setLiveMessage] = useState("")
+  const [newLiveLineCount, setNewLiveLineCount] = useState(0)
   const [state, setState] = useState<AppLogState>(emptyLogState)
   const cursorRef = useRef("")
 
@@ -121,29 +108,30 @@ export function AppLogsPanel() {
     [source, sources],
   )
 
-  const levels = useMemo(() => (level ? [level] : []), [level])
+  const levels = useMemo(() => levelsForSeverityFilter(severity), [severity])
 
   const loadEntries = useCallback(async (
     nodeId: number,
     nextSourceName: string,
-    options: { cursor?: string; refreshing?: boolean } = {},
+    options: { cursor?: string; limit?: number; refreshing?: boolean } = {},
   ) => {
+    setNewLiveLineCount(0)
     setState((current) => ({
       ...current,
       loading: !options.cursor && !options.refreshing,
       refreshing: Boolean(options.refreshing),
       error: null,
-      entries: options.cursor ? current.entries : [],
+      entries: options.cursor || options.refreshing ? current.entries : [],
     }))
 
     try {
       const page = await getApplicationLogEntries({
         nodeId,
         source: nextSourceName,
-        limit: appLogPageLimit,
-        cursor: options.cursor,
+        limit: options.limit ?? appLogPageLimit,
         keyword: keyword.trim(),
         levels,
+        ...(options.cursor ? { cursor: options.cursor } : {}),
       })
       setState((current) => ({
         entries: options.cursor ? appendEntries(current.entries, page.items) : page.items,
@@ -282,6 +270,10 @@ export function AppLogsPanel() {
             }
           }
 
+          if (nextEntries.length > 0) {
+            setNewLiveLineCount((count) => count + nextEntries.length)
+          }
+
           return {
             ...current,
             entries: nextEntries.length > 0 ? appendEntries(current.entries, nextEntries) : current.entries,
@@ -314,120 +306,51 @@ export function AppLogsPanel() {
         window.clearTimeout(timer)
       }
     }
-  }, [followTail, intl, keyword, level, levels, selectedNodeId, source])
+  }, [followTail, intl, keyword, levels, selectedNodeId, source])
 
   const title = intl.formatMessage({ id: "appLogs.title" })
   const canLoad = selectedNodeId !== null && sources.length > 0
   const lineCount = intl.formatMessage({ id: "appLogs.lineCount" }, { count: state.entries.length })
-  const emptyDescription = keyword || level
+  const emptyDescription = keyword || severity
     ? intl.formatMessage({ id: "appLogs.empty.filtered" })
     : intl.formatMessage({ id: "appLogs.empty" })
+  const nextTailLimit = Math.min(
+    appLogMaxTailLimit,
+    Math.max(state.entries.length + appLogPageLimit, appLogPageLimit * 2),
+  )
 
   return (
     <div className="space-y-4">
-      <h2 className="sr-only">{title}</h2>
-      <SectionCard
-        action={(
-          <Button
-            disabled={!canLoad || state.refreshing}
-            onClick={() => selectedNodeId !== null && void loadEntries(selectedNodeId, source, { refreshing: true })}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <RefreshCw />
-            {state.refreshing ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
-          </Button>
-        )}
-        description={intl.formatMessage({ id: "appLogs.description" })}
-        title={title}
-      >
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={setSelectedNodeId} />
-            <label className="text-xs font-medium text-muted-foreground">
-              {intl.formatMessage({ id: "appLogs.source" })}
-              <select
-                aria-label={intl.formatMessage({ id: "appLogs.source" })}
-                className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                disabled={sources.length === 0}
-                onChange={(event) => setSource(event.target.value)}
-                value={source}
-              >
-                {sources.map((item) => (
-                  <option disabled={!item.available} key={item.name} value={item.name}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs font-medium text-muted-foreground">
-              {intl.formatMessage({ id: "appLogs.level" })}
-              <select
-                aria-label={intl.formatMessage({ id: "appLogs.level" })}
-                className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                onChange={(event) => setLevel(event.target.value)}
-                value={level}
-              >
-                {levelOptions.map((option) => (
-                  <option key={option || "all"} value={option}>
-                    {option || intl.formatMessage({ id: "appLogs.level.all" })}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs font-medium text-muted-foreground">
-              {intl.formatMessage({ id: "appLogs.keyword" })}
-              <input
-                aria-label={intl.formatMessage({ id: "appLogs.keyword" })}
-                className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder={intl.formatMessage({ id: "appLogs.keyword.placeholder" })}
-                value={keyword}
-              />
-            </label>
-            <label className="flex items-center gap-2 self-end text-sm font-medium text-foreground">
-              <input
-                checked={followTail}
-                className="size-4 rounded border-border"
-                disabled={!canLoad}
-                onChange={(event) => setFollowTail(event.target.checked)}
-                type="checkbox"
-              />
-              {intl.formatMessage({ id: "appLogs.followTail" })}
-            </label>
-          </div>
-          <Button
-            disabled={!canLoad || state.loading}
-            onClick={() => selectedNodeId !== null && void loadEntries(selectedNodeId, source)}
-            size="sm"
-            type="button"
-          >
-            <Search />
-            {intl.formatMessage({ id: "common.search" })}
-          </Button>
+      <section className="border-b border-border pb-3" data-app-logs-surface="controls">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{intl.formatMessage({ id: "appLogs.scopeHint" })}</span>
+          <span>{intl.formatMessage({ id: "appLogs.distributedHint" })}</span>
         </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{lineCount}</span>
-          <span>{intl.formatMessage({ id: "appLogs.cursor" })}: {state.cursor || "-"}</span>
-          <span>
-            {intl.formatMessage({ id: "appLogs.activeFile" })}: <span>{activeSource?.file ?? "-"}</span>
-          </span>
-          <span>{intl.formatMessage({ id: "appLogs.size" })}: {activeSource ? formatBytes(activeSource.size_bytes) : "-"}</span>
-          {followTail ? (
-            <span className="inline-flex items-center gap-1 font-medium text-[var(--status-running)]">
-              <Play className="size-3" />
-              {liveMessage || intl.formatMessage({ id: "appLogs.status.following" })}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1">
-              <Pause className="size-3" />
-              {liveMessage || intl.formatMessage({ id: "appLogs.status.paused" })}
-            </span>
-          )}
+        <div className="mt-3">
+          <AppLogsToolbar
+            activeSource={activeSource}
+            canLoad={canLoad}
+            followTail={followTail}
+            keyword={keyword}
+            lineCount={lineCount}
+            liveMessage={liveMessage}
+            loading={state.loading}
+            nodes={nodes}
+            onFollowTailChange={setFollowTail}
+            onKeywordChange={setKeyword}
+            onNodeChange={setSelectedNodeId}
+            onRefresh={() => selectedNodeId !== null && void loadEntries(selectedNodeId, source, { refreshing: true })}
+            onSearch={() => selectedNodeId !== null && void loadEntries(selectedNodeId, source)}
+            onSeverityChange={setSeverity}
+            onSourceChange={setSource}
+            refreshing={state.refreshing}
+            selectedNodeId={selectedNodeId}
+            severity={severity}
+            source={source}
+            sources={sources}
+          />
         </div>
-      </SectionCard>
+      </section>
 
       {state.loading ? (
         <ResourceState kind="loading" title={title} />
@@ -440,38 +363,24 @@ export function AppLogsPanel() {
       ) : state.entries.length === 0 ? (
         <ResourceState description={emptyDescription} kind="empty" title={title} />
       ) : (
-        <section aria-label={title} className="overflow-hidden rounded-lg border border-border bg-card">
-          <div className="divide-y divide-border font-mono text-xs" role="log">
-            {state.entries.map((entry) => (
-              <article className="grid gap-2 px-3 py-2 md:grid-cols-[10rem_4rem_minmax(0,1fr)]" key={`${entry.seq}-${entry.offset}-${entry.raw}`}>
-                <div className="text-muted-foreground">{entry.time || "-"}</div>
-                <div className="font-semibold text-foreground">{entry.level || "-"}</div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="break-words text-foreground">{entry.message || entry.raw}</span>
-                    {entry.module ? <span className="text-muted-foreground">{entry.module}</span> : null}
-                    {entry.caller ? <span className="text-muted-foreground">{entry.caller}</span> : null}
-                  </div>
-                  <pre className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{entry.raw}</pre>
-                  {formatFields(entry.fields) ? (
-                    <pre className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{formatFields(entry.fields)}</pre>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-          <div className="border-t border-border p-3">
-            <Button
-              disabled={!state.cursor || state.refreshing || selectedNodeId === null}
-              onClick={() => selectedNodeId !== null && void loadEntries(selectedNodeId, source, { cursor: state.cursor, refreshing: true })}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {intl.formatMessage({ id: "common.loadMore" })}
-            </Button>
-          </div>
-        </section>
+        <AppLogConsole
+          activeSource={activeSource}
+          atMaxTail={state.entries.length >= appLogMaxTailLimit}
+          entries={state.entries}
+          followTail={followTail}
+          lineCount={lineCount}
+          newLiveLineCount={newLiveLineCount}
+          onAcknowledgeLiveLines={() => setNewLiveLineCount(0)}
+          onLoadMore={() =>
+            selectedNodeId !== null &&
+            void loadEntries(selectedNodeId, source, { limit: nextTailLimit, refreshing: true })
+          }
+          refreshing={state.refreshing}
+          rotated={state.rotated}
+          selectedNodeId={selectedNodeId}
+          source={source}
+          title={title}
+        />
       )}
     </div>
   )
@@ -483,7 +392,7 @@ export function AppLogsPage() {
     <PageContainer>
       <PageHeader
         description={intl.formatMessage({ id: "appLogs.description" })}
-        eyebrow={intl.formatMessage({ id: "nav.path.cluster.diagnostics" })}
+        eyebrow={intl.formatMessage({ id: "nav.path.cluster.systemLogs" })}
         title={intl.formatMessage({ id: "appLogs.title" })}
       />
       <AppLogsPanel />

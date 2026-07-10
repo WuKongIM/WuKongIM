@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter, useLocation, type RouteObject } from "re
 
 import { AppShell } from "@/app/layout/app-shell"
 import { ProtectedRoute, PublicOnlyRoute } from "@/auth/protected-route"
+import { AppLogsPage } from "@/pages/app-logs/page"
 import { BusinessDashboardPage } from "@/pages/business-dashboard/page"
 import { ChannelsBizPage } from "@/pages/channels-biz/page"
 import { ClusterChannelsPage } from "@/pages/cluster/channels/page"
@@ -63,6 +64,7 @@ export const routes: RouteObject[] = [
       { path: "cluster/plugins", element: <PluginsPage /> },
       { path: "cluster/tasks", element: <TasksPage /> },
       { path: "cluster/workqueues", element: <WorkqueuesPage /> },
+      { path: "cluster/system-logs", element: <AppLogsPage /> },
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
       // Business management
       { path: "business/dashboard", element: <BusinessDashboardPage /> },
@@ -92,7 +94,7 @@ export const routes: RouteObject[] = [
       { path: "network", element: <Navigate replace to="/cluster/diagnostics?tab=trace" /> },
       { path: "controller", element: <RedirectWithSearch tab="trace" to="/cluster/diagnostics" /> },
       { path: "slot-logs", element: <RedirectWithSearch tab="trace" to="/cluster/diagnostics" /> },
-      { path: "app-logs", element: <RedirectWithSearch tab="trace" to="/cluster/diagnostics" /> },
+      { path: "app-logs", element: <Navigate replace to="/cluster/system-logs" /> },
       { path: "users", element: <Navigate replace to="/business/users" /> },
       { path: "channels-biz", element: <Navigate replace to="/business/channels" /> },
       { path: "messages", element: <Navigate replace to="/business/messages" /> },

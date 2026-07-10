@@ -1,10 +1,24 @@
 import { render, screen } from "@testing-library/react"
 import { RouterProvider, createMemoryRouter } from "react-router-dom"
-import { beforeEach, expect, test } from "vitest"
+import { beforeEach, expect, test, vi } from "vitest"
 
 import { AppProviders } from "@/app/providers"
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { routes } from "@/app/router"
+
+const getNodesMock = vi.fn()
+const getApplicationLogSourcesMock = vi.fn()
+const getApplicationLogEntriesMock = vi.fn()
+
+vi.mock("@/lib/manager-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/manager-api")>()
+  return {
+    ...actual,
+    getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getApplicationLogSources: (...args: unknown[]) => getApplicationLogSourcesMock(...args),
+    getApplicationLogEntries: (...args: unknown[]) => getApplicationLogEntriesMock(...args),
+  }
+})
 
 function authenticatedState() {
   return {
@@ -20,6 +34,33 @@ function authenticatedState() {
 
 beforeEach(() => {
   localStorage.clear()
+  getNodesMock.mockReset()
+  getApplicationLogSourcesMock.mockReset()
+  getApplicationLogEntriesMock.mockReset()
+  getNodesMock.mockResolvedValue({
+    total: 1,
+    items: [{
+      node_id: 1,
+      addr: "127.0.0.1:7000",
+      status: "alive",
+      last_heartbeat_at: "2026-04-23T08:00:00Z",
+      is_local: true,
+      capacity_weight: 1,
+      controller: { role: "leader" },
+      slot_stats: { count: 1, leader_count: 1 },
+    }],
+  })
+  getApplicationLogSourcesMock.mockResolvedValue({
+    node_id: 1,
+    sources: [{ name: "app", file: "app.log", available: true, size_bytes: 0 }],
+  })
+  getApplicationLogEntriesMock.mockResolvedValue({
+    node_id: 1,
+    source: "app",
+    cursor: "",
+    rotated: false,
+    items: [],
+  })
   useAuthStore.setState({ ...createAnonymousAuthState(), isHydrated: true })
 })
 
@@ -87,7 +128,7 @@ test.each([
   ["/workqueues", "/cluster/workqueues"],
   ["/channel-cluster/unhealthy", "/cluster/channels"],
   ["/network", "/cluster/diagnostics?tab=trace"],
-  ["/app-logs", "/cluster/diagnostics?tab=trace"],
+  ["/app-logs", "/cluster/system-logs"],
   ["/connections", "/business/connections"],
   ["/system/connections", "/business/connections"],
   ["/db-inspect", "/system/db"],
@@ -146,6 +187,20 @@ test("renders the cluster live monitor route", async () => {
 
   expect(await screen.findByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
   expect(screen.queryByText("UI Preview")).not.toBeInTheDocument()
+})
+
+test("renders the cluster system logs route", async () => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/system-logs"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("heading", { level: 1, name: "Node Process Logs" })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe("/cluster/system-logs")
 })
 
 test("normalizes retired controller diagnostics route to tracing", async () => {

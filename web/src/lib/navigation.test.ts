@@ -56,6 +56,8 @@ describe("navigationSections", () => {
     expect(pageMetadata.get("/cluster/plugins")?.pathLabelMessageId).toBe("nav.path.cluster.plugins")
     expect(pageMetadata.get("/cluster/workqueues")?.titleMessageId).toBe("nav.workqueues.title")
     expect(pageMetadata.get("/cluster/workqueues")?.pathLabelMessageId).toBe("nav.path.cluster.workqueues")
+    expect(pageMetadata.get("/cluster/system-logs")?.titleMessageId).toBe("nav.systemLogs.title")
+    expect(pageMetadata.get("/cluster/system-logs")?.pathLabelMessageId).toBe("nav.path.cluster.systemLogs")
     expect(getActiveNavigationItem("/cluster/nodes")?.pathLabelMessageId).toBe("nav.path.cluster.nodes")
   })
 
@@ -65,9 +67,22 @@ describe("navigationSections", () => {
     expect(legacyRouteRedirects["/business/monitor"]).toBeUndefined()
     expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels")
     expect(legacyRouteRedirects["/workqueues"]).toBe("/cluster/workqueues")
-    expect(legacyRouteRedirects["/app-logs"]).toBe("/cluster/diagnostics?tab=trace")
+    expect(legacyRouteRedirects["/app-logs"]).toBe("/cluster/system-logs")
     expect(legacyRouteRedirects["/connections"]).toBe("/business/connections")
     expect(legacyRouteRedirects["/conversations"]).toBe("/business/conversations")
+  })
+
+  test("includes system logs in cluster operations navigation", () => {
+    const clusterSection = navigationSections.find((section) => section.id === "cluster")
+    const hrefs = clusterSection?.items.map((item) => item.href)
+
+    expect(hrefs).toContain("/cluster/system-logs")
+    expect(hrefs?.slice(-3)).toEqual([
+      "/cluster/node-config",
+      "/cluster/system-logs",
+      "/cluster/diagnostics",
+    ])
+    expect(getActiveNavigationItem("/app-logs")?.titleMessageId).toBe("nav.systemLogs.title")
   })
 
   test("includes DB inspect in system navigation", () => {

@@ -108,7 +108,7 @@ test("normalizes retired diagnostics tabs to tracing", async () => {
   expect(screen.getByRole("tab", { name: "Tracing" })).toHaveAttribute("aria-selected", "true")
   expect(await screen.findByText("Message Diagnostics")).toBeInTheDocument()
   expect(screen.queryByText("Node Health Status")).not.toBeInTheDocument()
-  expect(screen.queryByRole("heading", { name: "Application Logs" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("heading", { name: "Node Process Logs" })).not.toBeInTheDocument()
   expect(getNetworkSummaryMock).not.toHaveBeenCalled()
   expect(getApplicationLogSourcesMock).not.toHaveBeenCalled()
 })

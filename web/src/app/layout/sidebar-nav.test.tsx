@@ -114,7 +114,7 @@ test("omits the cluster dashboard menu item from the cluster section", async () 
   expect(links.slice(0, 2)).toEqual(["Live Monitor", "Nodes"])
 })
 
-test("places the config menu immediately before diagnostics", async () => {
+test("places node logs between config and diagnostics", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/diagnostics"] })
 
   render(
@@ -127,10 +127,10 @@ test("places the config menu immediately before diagnostics", async () => {
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("Node Config")
   expect(links).not.toContain("Topology")
-  expect(links.slice(-2)).toEqual(["Config", "Diagnostics"])
+  expect(links.slice(-3)).toEqual(["Config", "Node Logs", "Diagnostics"])
 })
 
-test("uses the shortened Chinese config menu label", async () => {
+test("uses the shortened Chinese config label and node logs menu label", async () => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/diagnostics"] })
 
@@ -144,7 +144,21 @@ test("uses the shortened Chinese config menu label", async () => {
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("节点配置")
   expect(links).not.toContain("拓扑")
-  expect(links.slice(-2)).toEqual(["配置", "诊断"])
+  expect(links.slice(-3)).toEqual(["配置", "节点日志", "诊断"])
+})
+
+test("shows node logs as the active cluster operations item", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/system-logs"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("link", { name: "节点日志" })).toHaveAttribute("aria-current", "page")
+  expect(screen.getAllByText("集群运维").length).toBeGreaterThan(0)
 })
 
 test("omits the business dashboard menu item from the business section", async () => {
