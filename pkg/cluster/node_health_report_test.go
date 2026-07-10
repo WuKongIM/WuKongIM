@@ -53,6 +53,67 @@ func TestHealthReportLoopUsesBoundedReportContext(t *testing.T) {
 	}
 }
 
+func TestReportNodeHealthAllowsLatencyBeyondIntervalWithinLeaseBudget(t *testing.T) {
+	controller := newRecordingHealthReportController()
+	controller.delay = 50 * time.Millisecond
+	node := &Node{
+		cfg: Config{
+			NodeID:     1,
+			ListenAddr: "127.0.0.1:7001",
+			HealthReport: HealthReportConfig{
+				Interval: 20 * time.Millisecond,
+				TTL:      400 * time.Millisecond,
+			},
+		},
+		channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, time.Second),
+		snapshot: Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+		},
+	}
+	node.started.Store(true)
+	reporter := observe.NewReporter(observe.ReporterConfig{
+		NodeID:       node.cfg.NodeID,
+		Addr:         node.cfg.ListenAddr,
+		Controller:   controller,
+		RuntimeReady: node.runtimeReadyForHealthReport,
+	})
+
+	err := node.reportNodeHealth(context.Background(), reporter)
+
+	if err != nil {
+		t.Fatalf("reportNodeHealth() error = %v, want nil", err)
+	}
+	if got := node.channelDataPlaneLease.snapshot().lastVisibleAt; got.IsZero() {
+		t.Fatal("lease lastVisibleAt is zero after successful delayed health report")
+	}
+	if reports := controller.reportsSnapshot(); len(reports) != 1 || !reports[0].RuntimeReady {
+		t.Fatalf("reports = %#v, want one ready report", reports)
+	}
+}
+
+func TestHealthReportTimeoutUsesTTLBackedRenewalBudget(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		interval time.Duration
+		ttl      time.Duration
+		want     time.Duration
+	}{
+		{name: "dynamic lifecycle", interval: 500 * time.Millisecond, ttl: 30 * time.Second, want: (30*time.Second - 500*time.Millisecond) / 3},
+		{name: "defaults", interval: 5 * time.Second, ttl: 30 * time.Second, want: (30*time.Second - 5*time.Second) / 3},
+		{name: "two intervals", interval: time.Second, ttl: 2 * time.Second, want: time.Second},
+		{name: "defensive ttl below interval", interval: time.Second, ttl: 500 * time.Millisecond, want: 500 * time.Millisecond},
+		{name: "zero values", want: minHealthReportTimeout},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := healthReportTimeout(tc.interval, tc.ttl); got != tc.want {
+				t.Fatalf("healthReportTimeout(%s, %s) = %s, want %s", tc.interval, tc.ttl, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStopHealthReportLoopReportsNotReadyAfterStopping(t *testing.T) {
 	controller := newRecordingHealthReportController()
 	node := &Node{
@@ -219,6 +280,7 @@ func (c *blockingHealthReportController) lastErr() error {
 
 type recordingHealthReportController struct {
 	reports chan control.NodeReport
+	delay   time.Duration
 
 	mu     sync.Mutex
 	stored []control.NodeReport
@@ -239,6 +301,15 @@ func (c *recordingHealthReportController) LocalSnapshot(context.Context) (contro
 func (c *recordingHealthReportController) LeaderID() uint64 { return 0 }
 
 func (c *recordingHealthReportController) ReportNode(ctx context.Context, report control.NodeReport) error {
+	if c.delay > 0 {
+		timer := time.NewTimer(c.delay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

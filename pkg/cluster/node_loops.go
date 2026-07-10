@@ -12,6 +12,8 @@ const (
 	defaultTaskReconcileIdleInterval = time.Second
 	maxTaskReconcileIdleInterval     = 5 * time.Second
 	minHealthReportTimeout           = 10 * time.Millisecond
+	// healthReportRenewalAttempts reserves repeated Controller write opportunities within one lease TTL.
+	healthReportRenewalAttempts = 3
 )
 
 func (n *Node) startWatchLoop() {
@@ -104,13 +106,20 @@ func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter)
 	return nil
 }
 
+// healthReportTimeout reserves one scheduling interval and three bounded renewal attempts within a positive lease TTL.
 func healthReportTimeout(interval, ttl time.Duration) time.Duration {
 	timeout := interval
-	if timeout <= 0 || (ttl > 0 && ttl < timeout) {
-		timeout = ttl
+	if ttl > interval {
+		renewalWindow := (ttl - interval) / healthReportRenewalAttempts
+		if renewalWindow > timeout {
+			timeout = renewalWindow
+		}
 	}
-	if timeout <= 0 {
-		return minHealthReportTimeout
+	if timeout < minHealthReportTimeout {
+		timeout = minHealthReportTimeout
+	}
+	if ttl > 0 && timeout > ttl {
+		timeout = ttl
 	}
 	return timeout
 }

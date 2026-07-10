@@ -198,11 +198,16 @@ composition roots.
 The node health report loop sends compact runtime evidence through
 `control.ReportNode`: `status`, `runtime_ready`, observed control revision,
 observed Slot revision, and a node-local report sequence. Each report uses a
-bounded per-report context. `runtime_ready` is false while the node is stopping,
-and clean Stop sends one final best-effort bounded not-ready report after the
-periodic loop is canceled and before Controller/watch shutdown. Controller
-fills the leader-side report timestamp, stores the report durably, and control
-snapshots derive `fresh`, `stale`, or `missing` health from the configured TTL.
+bounded per-report context. The timeout reserves one configured scheduling
+interval, divides the remaining health-report TTL across three Controller write
+attempts, and is clamped to the interval/minimum/positive TTL bounds. This lets
+normal bounded Controller Raft latency exceed one report interval without
+extending the fail-closed lease boundary. `runtime_ready` is false while the
+node is stopping, and clean Stop sends one final best-effort bounded not-ready
+report after the periodic loop is canceled and before Controller/watch
+shutdown. Controller fills the leader-side report timestamp, stores the report
+durably, and control snapshots derive `fresh`, `stale`, or `missing` health
+from the configured TTL.
 The default Channel runtime runtime also receives a node-local data-plane lease guard.
 A successful health report refreshes the lease only when `runtime_ready` is
 still true, and `ProbeWriteReady` refreshes the same local lease after it proves
