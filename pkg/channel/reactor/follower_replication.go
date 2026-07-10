@@ -225,7 +225,7 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 		r.handlePendingMetaPullHint(event)
 		return
 	}
-	if loadedFollowerPullHintNewer(rc, req) {
+	if loadedPullHintNewer(rc, req) {
 		r.forceReleaseRuntimeForPending(rc.state.Key, rc)
 		r.handlePendingMetaPullHint(event)
 		return
@@ -548,8 +548,9 @@ func (r *Reactor) handlePendingMetaPullResult(rc *runtimeChannel, result worker.
 	r.scheduleReplicationFromState(rc, now)
 }
 
-func loadedFollowerPullHintNewer(rc *runtimeChannel, req transport.PullHintRequest) bool {
-	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower {
+// loadedPullHintNewer reports whether a validated hint strictly supersedes a loaded runtime fence.
+func loadedPullHintNewer(rc *runtimeChannel, req transport.PullHintRequest) bool {
+	if rc == nil || rc.state == nil {
 		return false
 	}
 	if req.ChannelKey != rc.state.Key || req.ChannelID != rc.state.ID {

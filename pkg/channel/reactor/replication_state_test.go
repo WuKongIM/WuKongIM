@@ -1674,6 +1674,85 @@ func TestLoadedFollowerNewerPullHintReplacesRuntimeWithPendingMeta(t *testing.T)
 	require.Equal(t, 0, obs.FollowerParked())
 }
 
+func TestLoadedLeaderNewerPullHintReplacesRuntimeWithPendingMeta(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("loaded-leader-newer-pending")
+	meta.Leader = 2
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	_, err = cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 1, Payload: []byte("one")},
+		{ID: 2, Payload: []byte("two")},
+		{ID: 3, Payload: []byte("three")},
+	}})
+	require.NoError(t, err)
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	obs := &captureObserver{}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	loaded := r.channels[meta.Key]
+	require.Equal(t, ch.RoleLeader, loaded.state.Role)
+	require.Equal(t, uint64(3), loaded.state.LEO)
+
+	newer := meta
+	newer.Leader = 1
+	newer.LeaderEpoch = 2
+	require.NoError(t, submitPullHintDirect(t, r, newer, 4))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Nil(t, rc.state)
+	require.NotNil(t, rc.pending)
+	require.Equal(t, ch.NodeID(1), rc.pending.leader)
+	require.Equal(t, uint64(2), rc.pending.leaderEpoch)
+	require.Eventually(t, func() bool { return net.LastPull().NeedMeta }, time.Second, time.Millisecond)
+	require.Equal(t, uint64(4), net.LastPull().NextOffset)
+	require.Equal(t, uint64(3), net.LastPull().AckOffset)
+	require.Equal(t, 1, obs.RuntimeEvicted())
+}
+
+func TestLoadedLeaderSameOrOlderPullHintDoesNotReleaseRuntime(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		epoch       uint64
+		leaderEpoch uint64
+	}{
+		{name: "same fence", epoch: 2, leaderEpoch: 2},
+		{name: "older leader epoch", epoch: 2, leaderEpoch: 1},
+		{name: "older epoch", epoch: 1, leaderEpoch: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			factory := store.NewMemoryFactory()
+			obs := &captureObserver{}
+			meta := followerTestMeta("loaded-leader-same-or-older-" + tc.name)
+			meta.Epoch = 2
+			meta.LeaderEpoch = 2
+			meta.Leader = 2
+			r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16, Observer: obs})
+			require.NoError(t, applyMetaDirect(t, r, meta))
+			loaded := r.channels[meta.Key]
+			require.Equal(t, ch.RoleLeader, loaded.state.Role)
+
+			hint := meta
+			hint.Epoch = tc.epoch
+			hint.LeaderEpoch = tc.leaderEpoch
+			hint.Leader = 1
+			err := submitPullHintDirect(t, r, hint, 4)
+
+			require.ErrorIs(t, err, ch.ErrStaleMeta)
+			require.Same(t, loaded, r.channels[meta.Key])
+			require.NotNil(t, r.channels[meta.Key].state)
+			require.Nil(t, r.channels[meta.Key].pending)
+			require.Equal(t, 0, obs.RuntimeEvicted())
+		})
+	}
+}
+
 func TestLoadedFollowerInvalidNewerPullHintDoesNotReleaseRuntime(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("loaded-invalid-newer")
