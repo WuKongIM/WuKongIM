@@ -67,6 +67,11 @@ protocol = "wsmux"
 dir = "/var/lib/wukongim/logs"
 level = "info"
 
+[plugin]
+# Runtime-only Unix socket for local plugin host RPC.
+# Keep it outside node.data_dir so container recreation cannot retain a stale socket.
+socket_path = "/run/wukongim/plugin.sock"
+
 [observability]
 debug_api_enable = true
 metrics_enable = true

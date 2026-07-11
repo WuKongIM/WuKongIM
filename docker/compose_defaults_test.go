@@ -4,11 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/app"
 	productconfig "github.com/WuKongIM/WuKongIM/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 func TestDockerComposeNodeConfigsLoadWithCurrentConfigSurface(t *testing.T) {
@@ -52,6 +54,54 @@ func TestComposeNodeConfigsUseHotPathTuning(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestComposeNodesUseEphemeralPluginSocketRuntime(t *testing.T) {
+	const pluginSocketPath = "/run/wukongim/plugin.sock"
+
+	for _, node := range []string{"node1.toml", "node2.toml", "node3.toml"} {
+		t.Run(node, func(t *testing.T) {
+			cfg := loadDockerNodeConfig(t, node)
+			if cfg.Plugin.SocketPath != pluginSocketPath {
+				t.Fatalf("%s Plugin.SocketPath = %q, want %q", node, cfg.Plugin.SocketPath, pluginSocketPath)
+			}
+			if pathIsWithin(cfg.DataDir, cfg.Plugin.SocketPath) {
+				t.Fatalf("%s Plugin.SocketPath = %q, must not be inside DataDir %q", node, cfg.Plugin.SocketPath, cfg.DataDir)
+			}
+		})
+	}
+
+	composePath := filepath.Join(dockerRepoRoot(t), "docker-compose.yml")
+	data, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", composePath, err)
+	}
+	var compose struct {
+		Services map[string]struct {
+			Tmpfs []string `yaml:"tmpfs"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &compose); err != nil {
+		t.Fatalf("decode %s: %v", composePath, err)
+	}
+	for _, service := range []string{"wk-node1", "wk-node2", "wk-node3"} {
+		t.Run(service, func(t *testing.T) {
+			for _, mount := range compose.Services[service].Tmpfs {
+				if mount == "/run/wukongim" {
+					return
+				}
+			}
+			t.Fatalf("%s tmpfs = %v, want /run/wukongim", service, compose.Services[service].Tmpfs)
+		})
+	}
+}
+
+func pathIsWithin(parent, child string) bool {
+	rel, err := filepath.Rel(filepath.Clean(parent), filepath.Clean(child))
+	if err != nil || filepath.IsAbs(rel) {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)))
 }
 
 func loadDockerNodeConfig(t *testing.T, node string) app.Config {
