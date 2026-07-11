@@ -51,6 +51,11 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"WK_PROMETHEUS_EMBED_DIR="+prometheusEmbedDir,
 		"WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=99",
 		"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=false",
+		"WK_BENCH_PRESENCE_USERS=100000",
+		"WK_BENCH_PRESENCE_OUT_DIR="+filepath.Join(t.TempDir(), "presence-results"),
+		"WK_BENCH_API_ENABLE=true",
+		"WK_PRESENCE_TOUCH_BATCH_SIZE=512",
+		"WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=65536",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -89,6 +94,11 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"wukongim-node1.toml WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=<unset>",
 		"wukongim-node1.toml WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=<unset>",
 		"wukongim-node1.toml WK_PROMETHEUS_EMBED_DIR=<unset>",
+		"wukongim-node1.toml WK_BENCH_PRESENCE_USERS=<unset>",
+		"wukongim-node1.toml WK_BENCH_PRESENCE_OUT_DIR=<unset>",
+		"wukongim-node1.toml WK_BENCH_API_ENABLE=true",
+		"wukongim-node1.toml WK_PRESENCE_TOUCH_BATCH_SIZE=512",
+		"wukongim-node1.toml WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=65536",
 	} {
 		if !strings.Contains(nodeEnv, want) {
 			t.Fatalf("expected node env %q, got:\n%s", want, nodeEnv)
@@ -287,6 +297,11 @@ done
 	printf '%s WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=%s\n' "$config" "${WK_WUKONGIM_THREE_NODES_READY_TIMEOUT-<unset>}"
 	printf '%s WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=%s\n' "$config" "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE-<unset>}"
 	printf '%s WK_PROMETHEUS_EMBED_DIR=%s\n' "$config" "${WK_PROMETHEUS_EMBED_DIR-<unset>}"
+	printf '%s WK_BENCH_PRESENCE_USERS=%s\n' "$config" "${WK_BENCH_PRESENCE_USERS-<unset>}"
+	printf '%s WK_BENCH_PRESENCE_OUT_DIR=%s\n' "$config" "${WK_BENCH_PRESENCE_OUT_DIR-<unset>}"
+	printf '%s WK_BENCH_API_ENABLE=%s\n' "$config" "${WK_BENCH_API_ENABLE-<unset>}"
+	printf '%s WK_PRESENCE_TOUCH_BATCH_SIZE=%s\n' "$config" "${WK_PRESENCE_TOUCH_BATCH_SIZE-<unset>}"
+	printf '%s WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=%s\n' "$config" "${WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH-<unset>}"
   if [[ ${WK_PROMETHEUS_BINARY_PATH+x} ]]; then
     printf '%s WK_PROMETHEUS_BINARY_PATH=%s\n' "$config" "$WK_PROMETHEUS_BINARY_PATH"
   else
