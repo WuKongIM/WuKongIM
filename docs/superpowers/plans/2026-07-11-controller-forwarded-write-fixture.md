@@ -36,6 +36,9 @@ the bootstrap-task revision race.
 Add this test-only helper near the forwarding test in
 `pkg/cluster/node_defaults_test.go`:
 
+Each polling pass must scan every node so the timeout diagnostics retain the
+latest readable snapshot from each node.
+
 ```go
 func waitForControllerTasksDrained(t *testing.T, ctx context.Context, nodes ...*Node) {
 	t.Helper()
@@ -50,17 +53,17 @@ func waitForControllerTasksDrained(t *testing.T, ctx context.Context, nodes ...*
 		for i, node := range nodes {
 			if node == nil {
 				converged = false
-				break
+				continue
 			}
 			snapshot, err := node.LocalControlSnapshot(ctx)
 			if err != nil {
 				converged = false
-				break
+				continue
 			}
 			latest[i] = snapshot
 			if snapshot.ClusterID == "" || snapshot.Revision == 0 || len(snapshot.Tasks) != 0 {
 				converged = false
-				break
+				continue
 			}
 			if revision == 0 {
 				revision = snapshot.Revision
@@ -69,7 +72,7 @@ func waitForControllerTasksDrained(t *testing.T, ctx context.Context, nodes ...*
 			}
 			if snapshot.Revision != revision || snapshot.ClusterID != clusterID {
 				converged = false
-				break
+				continue
 			}
 		}
 		if converged {
