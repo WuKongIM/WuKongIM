@@ -368,6 +368,8 @@ type DeliveryConfig struct {
 	PendingAckMaxPerSession int
 	// EventQueueSize bounds committed-message events waiting for asynchronous delivery fanout.
 	EventQueueSize int
+	// RecipientWorkerConcurrency bounds recipient-authority delivery worker goroutines independently from per-message target dispatch.
+	RecipientWorkerConcurrency int
 }
 
 // WebhookConfig controls node-local best-effort webhook delivery.
@@ -578,6 +580,9 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	}
 	if cfg.EventQueueSize == 0 {
 		cfg.EventQueueSize = 1024
+	}
+	if cfg.RecipientWorkerConcurrency == 0 {
+		cfg.RecipientWorkerConcurrency = 100
 	}
 	return cfg
 }
@@ -942,6 +947,9 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 	}
 	if cfg.EventQueueSize < 0 {
 		return fmt.Errorf("%w: delivery event queue size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.RecipientWorkerConcurrency < 0 {
+		return fmt.Errorf("%w: delivery recipient worker concurrency must be non-negative", ErrInvalidConfig)
 	}
 	return nil
 }

@@ -267,6 +267,10 @@ pending_ack_max_per_session = 1024
 
 event_queue_size = 1024
 
+# Maximum recipient-authority delivery batches processed concurrently by this node.
+# This is independent from channel_append.recipient_authority_dispatch_concurrency.
+recipient_worker_concurrency = 100
+
 [channel_append]
 # Channel append shard count controls channel-key authority-state lookup shards; zero derives a CPU-aware default.
 shard_count = 0

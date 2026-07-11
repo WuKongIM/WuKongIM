@@ -63,6 +63,9 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true by default")
 	}
+	if cfg.Delivery.RecipientWorkerConcurrency != 100 {
+		t.Fatalf("Delivery.RecipientWorkerConcurrency = %d, want 100 by default", cfg.Delivery.RecipientWorkerConcurrency)
+	}
 	if !cfg.Plugin.Enable {
 		t.Fatalf("Plugin.Enable = false, want true by default")
 	}
@@ -362,6 +365,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_DELIVERY_PENDING_ACK_TTL=45s",
 		"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=777",
 		"WK_DELIVERY_EVENT_QUEUE_SIZE=2048",
+		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY=33",
 		"WK_WEBHOOK_HTTP_ADDR=http://127.0.0.1:19090/webhook",
 		`WK_WEBHOOK_FOCUS_EVENTS=["msg.notify","msg.offline"]`,
 		"WK_WEBHOOK_QUEUE_SIZE=2048",
@@ -538,6 +542,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Delivery.EventQueueSize != 2048 {
 		t.Fatalf("Delivery.EventQueueSize = %d, want 2048", cfg.Delivery.EventQueueSize)
+	}
+	if cfg.Delivery.RecipientWorkerConcurrency != 33 {
+		t.Fatalf("Delivery.RecipientWorkerConcurrency = %d, want 33", cfg.Delivery.RecipientWorkerConcurrency)
 	}
 	if !cfg.Webhook.Enabled ||
 		cfg.Webhook.HTTPAddr != "http://127.0.0.1:19090/webhook" ||
@@ -1148,6 +1155,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_DELIVERY_PENDING_ACK_TTL", "10s")
 	t.Setenv("WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", "256")
 	t.Setenv("WK_DELIVERY_EVENT_QUEUE_SIZE", "512")
+	t.Setenv("WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY", "17")
 	t.Setenv("WK_WEBHOOK_HTTP_ADDR", "http://127.0.0.1:19091/webhook")
 	t.Setenv("WK_WEBHOOK_FOCUS_EVENTS", `["msg.notify","user.onlinestatus"]`)
 	t.Setenv("WK_WEBHOOK_QUEUE_SIZE", "4096")
@@ -1270,7 +1278,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
-		cfg.Delivery.EventQueueSize != 512 {
+		cfg.Delivery.EventQueueSize != 512 || cfg.Delivery.RecipientWorkerConcurrency != 17 {
 		t.Fatalf("Delivery env override = %#v", cfg.Delivery)
 	}
 	if !cfg.Webhook.Enabled ||
@@ -1707,6 +1715,8 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "delivery pending ack max per session negative", line: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=-1", wantKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"},
 		{name: "delivery event queue size", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=many", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
 		{name: "delivery event queue size negative", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=-1", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
+		{name: "delivery recipient worker concurrency", line: "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY=many", wantKey: "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY"},
+		{name: "delivery recipient worker concurrency negative", line: "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY=-1", wantKey: "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY"},
 		{name: "webhook focus events malformed", line: "WK_WEBHOOK_FOCUS_EVENTS=msg.notify", wantKey: "WK_WEBHOOK_FOCUS_EVENTS"},
 		{name: "webhook queue size", line: "WK_WEBHOOK_QUEUE_SIZE=many", wantKey: "WK_WEBHOOK_QUEUE_SIZE"},
 		{name: "webhook queue size negative", line: "WK_WEBHOOK_QUEUE_SIZE=-1", wantKey: "WK_WEBHOOK_QUEUE_SIZE"},

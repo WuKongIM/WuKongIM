@@ -548,6 +548,16 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_recipient_worker_process_recipients_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
           "legendFormat": "recipients p95 {{result}}",
           "refId": "G"
+        },
+        {
+          "expr": "sum(wukongim_delivery_recipient_worker_inflight{node_name=~\"$node_name\"})",
+          "legendFormat": "worker inflight",
+          "refId": "H"
+        },
+        {
+          "expr": "sum(wukongim_delivery_recipient_worker_capacity{node_name=~\"$node_name\"})",
+          "legendFormat": "worker capacity",
+          "refId": "I"
         }
       ],
       "title": "Recipient Worker",

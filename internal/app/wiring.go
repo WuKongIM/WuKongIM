@@ -745,7 +745,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 					a.channelAppendDeliveryWorker = channelappend.NewRecipientDeliveryWorker(channelappend.RecipientDeliveryWorkerOptions{
 						Processor: processor,
 						QueueSize: a.cfg.Delivery.EventQueueSize,
-						Workers:   a.cfg.ChannelAppend.RecipientAuthorityDispatchConcurrency,
+						Workers:   a.cfg.Delivery.RecipientWorkerConcurrency,
 						Observer:  observer,
 					})
 				}

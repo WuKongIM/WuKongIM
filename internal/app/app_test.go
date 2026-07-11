@@ -2353,19 +2353,23 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	if cfg.EventQueueSize != 1024 {
 		t.Fatalf("EventQueueSize = %d, want 1024", cfg.EventQueueSize)
 	}
+	if cfg.RecipientWorkerConcurrency != 100 {
+		t.Fatalf("RecipientWorkerConcurrency = %d, want 100", cfg.RecipientWorkerConcurrency)
+	}
 
 	negative := defaultDeliveryConfig(DeliveryConfig{
-		Enabled:                 true,
-		FanoutPageSize:          -1,
-		PushBatchSize:           -2,
-		PendingAckTTL:           -time.Second,
-		PendingAckMaxPerSession: -3,
-		EventQueueSize:          -4,
+		Enabled:                    true,
+		FanoutPageSize:             -1,
+		PushBatchSize:              -2,
+		PendingAckTTL:              -time.Second,
+		PendingAckMaxPerSession:    -3,
+		EventQueueSize:             -4,
+		RecipientWorkerConcurrency: -5,
 	})
 	if !negative.Enabled ||
 		negative.FanoutPageSize != -1 || negative.PushBatchSize != -2 ||
 		negative.PendingAckTTL != -time.Second || negative.PendingAckMaxPerSession != -3 ||
-		negative.EventQueueSize != -4 {
+		negative.EventQueueSize != -4 || negative.RecipientWorkerConcurrency != -5 {
 		t.Fatalf("negative delivery values were overwritten: %#v", negative)
 	}
 }
@@ -2399,6 +2403,7 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 		{name: "pending ack ttl", cfg: DeliveryConfig{PendingAckTTL: -time.Nanosecond}},
 		{name: "pending ack max per session", cfg: DeliveryConfig{PendingAckMaxPerSession: -1}},
 		{name: "event queue size", cfg: DeliveryConfig{EventQueueSize: -1}},
+		{name: "recipient worker concurrency", cfg: DeliveryConfig{RecipientWorkerConcurrency: -1}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2406,6 +2411,33 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 				t.Fatalf("validateDeliveryConfig() error = %v, want %v", err, ErrInvalidConfig)
 			}
 		})
+	}
+}
+
+func TestNewWiresIndependentRecipientDeliveryWorkerConcurrency(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	app, err := newTestApp(t,
+		Config{
+			Cluster: clusterpkg.Config{NodeID: 1},
+			ChannelAppend: ChannelAppendConfig{
+				RecipientAuthorityDispatchConcurrency: 3,
+			},
+			Delivery: DeliveryConfig{
+				Enabled:                    true,
+				RecipientWorkerConcurrency: 7,
+			},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.channelAppendDeliveryWorker == nil {
+		t.Fatal("channelappend recipient delivery worker was not wired")
+	}
+	if got := app.channelAppendDeliveryWorker.WorkerCapacity(); got != 7 {
+		t.Fatalf("recipient delivery worker capacity = %d, want 7", got)
 	}
 }
 

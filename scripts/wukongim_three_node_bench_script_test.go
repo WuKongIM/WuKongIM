@@ -269,6 +269,9 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"`,
 		`CONCURRENCY="${WK_BENCH_CONCURRENCY:-2800}"`,
 		`SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"`,
+		`DELIVERY_RECIPIENT_WORKER_CONCURRENCY="${WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY:-100}"`,
+		`WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY="$DELIVERY_RECIPIENT_WORKER_CONCURRENCY"`,
+		`DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY`,
 		`ACTUAL_QPS_MIN_RATIO="${WK_BENCH_ACTUAL_QPS_MIN_RATIO:-0.90}"`,
 		"actual/offered gate: >= %.2f",
 		"--concurrency N        wkbench send concurrency. Default: 2800.",
@@ -283,6 +286,9 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}"`,
 		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}"`,
 		`WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}"`,
+		`DELIVERY_RECIPIENT_WORKER_CONCURRENCY="${WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY:-100}"`,
+		`WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY="$DELIVERY_RECIPIENT_WORKER_CONCURRENCY"`,
+		`DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY`,
 		`WK_TOP_API_ENABLE="${WK_TOP_API_ENABLE:-false}"`,
 		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}"`,
 		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}"`,
@@ -323,6 +329,191 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	}
 	if strings.Contains(script, "docker compose") {
 		t.Fatalf("three-node bench script should use local startup scripts, not docker compose")
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptUsesUniqueClientMessagePrefixesByDefaultAndAllowsOverride(t *testing.T) {
+	root := repoRoot(t)
+	firstOut := t.TempDir()
+	secondOut := t.TempDir()
+
+	for _, outDir := range []string{firstOut, secondOut} {
+		output, err := runFakeThreeNode1000Bench(t, root, outDir, nil)
+		if err != nil {
+			t.Fatalf("script failed: %v\n%s", err, output)
+		}
+	}
+
+	firstScenario := readFile(t, filepath.Join(firstOut, "scenario-000001.yaml"))
+	secondScenario := readFile(t, filepath.Join(secondOut, "scenario-000001.yaml"))
+	firstPrefix := yamlScalar(firstScenario, "client_msg_prefix:")
+	secondPrefix := yamlScalar(secondScenario, "client_msg_prefix:")
+	if firstPrefix == "" || secondPrefix == "" {
+		t.Fatalf("generated scenarios should contain client_msg_prefix:\nfirst:\n%s\nsecond:\n%s", firstScenario, secondScenario)
+	}
+	if firstPrefix == secondPrefix {
+		t.Fatalf("default client message prefixes should differ across runs, both were %q", firstPrefix)
+	}
+	if !strings.Contains(firstScenario, "fail_on_soft: true") {
+		t.Fatalf("capacity scenario should fail on the soft p99 gate:\n%s", firstScenario)
+	}
+
+	overrideOut := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, overrideOut, nil, "--client-msg-prefix", "repeatable-msg")
+	if err != nil {
+		t.Fatalf("script with explicit client message prefix failed: %v\n%s", err, output)
+	}
+	overrideScenario := readFile(t, filepath.Join(overrideOut, "scenario-000001.yaml"))
+	if got := yamlScalar(overrideScenario, "client_msg_prefix:"); got != "repeatable-msg" {
+		t.Fatalf("explicit client message prefix = %q, want repeatable-msg:\n%s", got, overrideScenario)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptWaitsForRuntimeQueuesAndRecordsEvidence(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir, nil)
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	evidence := readFile(t, filepath.Join(outDir, "quiescence", "000001.tsv"))
+	for _, want := range []string{
+		"node\tdelivery_queue_depth\tdelivery_worker_inflight\tdelivery_worker_capacity\tpost_commit_backlog\tgateway_queue_depth\tstate",
+		"127_0_0_1_5011\t0\t0\t100\t0\t0\tdrained",
+		"# result=passed",
+	} {
+		if !strings.Contains(evidence, want) {
+			t.Fatalf("quiescence evidence missing %q:\n%s", want, evidence)
+		}
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptFailsWhenRuntimeQueuesDoNotConverge(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{"WK_FAKE_QUIESCENCE_BUSY=1"},
+		"--quiescence-timeout", "1",
+		"--quiescence-poll-interval", "0.05",
+	)
+	if err == nil {
+		t.Fatalf("script should fail when runtime queues never converge:\n%s", output)
+	}
+	if !strings.Contains(string(output), "runtime queues did not converge") {
+		t.Fatalf("timeout should explain the convergence failure:\n%s", output)
+	}
+
+	evidence := readFile(t, filepath.Join(outDir, "quiescence", "000001.tsv"))
+	for _, want := range []string{
+		"127_0_0_1_5011\t3\t0\t100\t2\t1\tpending",
+		"# result=timeout",
+	} {
+		if !strings.Contains(evidence, want) {
+			t.Fatalf("timeout evidence missing %q:\n%s", want, evidence)
+		}
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptWaitsForRecipientWorkerInflight(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{"WK_FAKE_QUIESCENCE_INFLIGHT=1"},
+		"--quiescence-timeout", "1",
+		"--quiescence-poll-interval", "0.05",
+	)
+	if err == nil {
+		t.Fatalf("script should fail while recipient delivery work remains inflight:\n%s", output)
+	}
+	evidence := readFile(t, filepath.Join(outDir, "quiescence", "000001.tsv"))
+	if !strings.Contains(evidence, "127_0_0_1_5011\t0\t1\t100\t0\t0\tpending") {
+		t.Fatalf("quiescence evidence should include inflight delivery work:\n%s", evidence)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptRejectsRecipientWorkerCapacityMismatch(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{"WK_FAKE_DELIVERY_WORKER_CAPACITY=200"},
+	)
+	if err == nil {
+		t.Fatalf("script should fail when live recipient worker capacity differs from benchmark evidence:\n%s", output)
+	}
+	if !strings.Contains(string(output), "recipient worker capacity mismatch") {
+		t.Fatalf("capacity mismatch should be explicit:\n%s", output)
+	}
+	evidence := readFile(t, filepath.Join(outDir, "quiescence", "000001.tsv"))
+	if !strings.Contains(evidence, "127_0_0_1_5011\t0\t0\t200\t0\t0\tcapacity_mismatch") {
+		t.Fatalf("quiescence evidence should record the live mismatched capacity:\n%s", evidence)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptRejectsAppendEffectMismatchAsInvalidSample(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{"WK_FAKE_APPEND_EFFECT_MISMATCH=1"},
+	)
+	if err == nil {
+		t.Fatalf("script should fail when successful appends do not match worker successes:\n%s", output)
+	}
+
+	validity := readFile(t, filepath.Join(outDir, "sample-validity.tsv"))
+	if !strings.Contains(validity, "000001\t1\t0\tfalse\tappend_effect_mismatch") {
+		t.Fatalf("sample validity evidence should identify append effect mismatch:\n%s", validity)
+	}
+	summary := readFile(t, filepath.Join(outDir, "summary.tsv"))
+	if !strings.Contains(summary, "\tfalse\t1\t0\tappend_effect_mismatch") {
+		t.Fatalf("benchmark summary should mark the sample invalid:\n%s", summary)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptRejectsMissingAppendEffectMetricOnOneNode(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{"WK_FAKE_APPEND_EFFECT_MISSING_NODE=1"},
+		"--metrics", "http://127.0.0.1:5011,http://127.0.0.1:5012",
+	)
+	if err == nil {
+		t.Fatalf("script should fail when any node is missing append-effect evidence:\n%s", output)
+	}
+
+	validity := readFile(t, filepath.Join(outDir, "sample-validity.tsv"))
+	if !strings.Contains(validity, "000001\t1\t0\tfalse\tmissing_append_effect_metrics") {
+		t.Fatalf("sample validity should reject partial-node append evidence:\n%s", validity)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptRejectsEmptySampleAsInvalid(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{"WK_FAKE_WKBENCH_SUCCESS_TOTAL=0", "WK_FAKE_APPEND_EFFECT_MISMATCH=1"},
+	)
+	if err == nil {
+		t.Fatalf("script should fail when a sample has no successful messages:\n%s", output)
+	}
+
+	validity := readFile(t, filepath.Join(outDir, "sample-validity.tsv"))
+	if !strings.Contains(validity, "000001\t0\t0\tfalse\tno_successful_messages") {
+		t.Fatalf("sample validity evidence should reject a vacuous zero-equals-zero sample:\n%s", validity)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptFailsWhenSoftP99ExceedsLimit(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{"WK_FAKE_WKBENCH_P99_SECONDS=0.5"},
+	)
+	if err == nil {
+		t.Fatalf("script should fail when soft p99 exceeds the configured limit:\n%s", output)
+	}
+	if !strings.Contains(readFile(t, filepath.Join(outDir, "summary.txt")), "p99") {
+		t.Fatalf("summary should explain the p99 gate failure")
 	}
 }
 
@@ -450,6 +641,9 @@ func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}"`,
 		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}"`,
 		`WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}"`,
+		`DELIVERY_RECIPIENT_WORKER_CONCURRENCY="${WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY:-100}"`,
+		`WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY="$DELIVERY_RECIPIENT_WORKER_CONCURRENCY"`,
+		`DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY`,
 		`WK_TOP_API_ENABLE="${WK_TOP_API_ENABLE:-false}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}"`,
@@ -468,6 +662,106 @@ func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		if !strings.Contains(script, want) {
 			t.Fatalf("real-qps script missing high-concurrency default %q", want)
 		}
+	}
+}
+
+func TestWukongIMThreeNodeRealQPSScriptForwardsValidityControls(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	baseScript := filepath.Join(t.TempDir(), "fake-base.sh")
+	writeFakeRealQPSBenchBase(t, baseScript)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-real-qps.sh",
+		"--qps", "100",
+		"--out-dir", outDir,
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--client-msg-prefix", "repeatable-real-qps",
+		"--quiescence-timeout", "23",
+		"--quiescence-poll-interval", "0.25",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"WK_BENCH_REAL_QPS_BASE_SCRIPT="+baseScript,
+		"GOWORK=off",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("real-qps script failed: %v\n%s", err, output)
+	}
+
+	args := readFile(t, filepath.Join(outDir, "000100-qps", "base.args"))
+	for _, want := range []string{
+		"--client-msg-prefix repeatable-real-qps",
+		"--quiescence-timeout 23",
+		"--quiescence-poll-interval 0.25",
+	} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("real-qps child args missing %q:\n%s", want, args)
+		}
+	}
+	envText := readFile(t, filepath.Join(outDir, "env.txt"))
+	if !strings.Contains(envText, "CLIENT_MSG_PREFIX=repeatable-real-qps") {
+		t.Fatalf("real-qps evidence should record explicit client prefix:\n%s", envText)
+	}
+}
+
+func TestWukongIMThreeNodeRealQPSScriptReturnsFailureWhenP99GateFails(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	baseScript := filepath.Join(t.TempDir(), "fake-base.sh")
+	writeFakeRealQPSBenchBase(t, baseScript)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-real-qps.sh",
+		"--qps", "100",
+		"--out-dir", outDir,
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"WK_BENCH_REAL_QPS_BASE_SCRIPT="+baseScript,
+		"WK_FAKE_REAL_QPS_P99_SECONDS=0.5",
+		"GOWORK=off",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("real-qps capacity script should return failure when p99 gate fails:\n%s", output)
+	}
+	summary := readFile(t, filepath.Join(outDir, "summary.tsv"))
+	if !strings.Contains(summary, "\tFAIL\tp99\t") {
+		t.Fatalf("real-qps summary should identify the p99 gate:\n%s\noutput:\n%s", summary, output)
+	}
+}
+
+func TestWukongIMThreeNodeRealQPSScriptPropagatesChildFailureWithoutSummaryRow(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	baseScript := filepath.Join(t.TempDir(), "fake-base.sh")
+	writeFakeRealQPSBenchBase(t, baseScript)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-real-qps.sh",
+		"--qps", "100,200",
+		"--out-dir", outDir,
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"WK_BENCH_REAL_QPS_BASE_SCRIPT="+baseScript,
+		"WK_FAKE_REAL_QPS_EMPTY_SUMMARY_QPS=200",
+		"GOWORK=off",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("real-qps wrapper should propagate a later child failure without a summary row:\n%s", output)
+	}
+	summary := readFile(t, filepath.Join(outDir, "summary.tsv"))
+	if !strings.Contains(summary, "000200\t200\t") || !strings.Contains(summary, "\t7\tmissing_summary_row\t") {
+		t.Fatalf("parent summary should retain the failed child attempt:\n%s\noutput:\n%s", summary, output)
 	}
 }
 
@@ -2676,9 +2970,17 @@ mkdir -p "$out_dir"
 printf '%s\n' "$all_args" > "$out_dir/base.args"
 echo 'BENCH RESULT'
 echo 'child summary should stay in attempt console'
-cat >"$out_dir/summary.tsv" <<'OUT'
+if [[ "${WK_FAKE_REAL_QPS_EMPTY_SUMMARY_QPS:-}" == "$qps" ]]; then
+  cat >"$out_dir/summary.tsv" <<'OUT'
+tag\toffered_qps\tstatus\texit_status\tactual_qps\tsend_success\tsend_errors\tconnect_error_rate\tsendack_error_rate\tp50_seconds\tp95_seconds\tp99_seconds\tmax_seconds
+OUT
+  exit 7
+fi
+p99="${WK_FAKE_REAL_QPS_P99_SECONDS:-0.003}"
+max="${WK_FAKE_REAL_QPS_MAX_SECONDS:-0.004}"
+cat >"$out_dir/summary.tsv" <<OUT
 tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds
-000100	100	passed	0	99	99	0	0	0	0.001	0.002	0.003	0.004
+000100	100	passed	0	99	99	0	0	0	0.001	0.002	$p99	$max
 OUT
 cat >"$out_dir/channel_metrics_summary.tsv" <<'OUT'
 tag	node	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta
@@ -2713,6 +3015,53 @@ OUT
 	}
 }
 
+func runFakeThreeNode1000Bench(t *testing.T, root string, outDir string, extraEnv []string, extraArgs ...string) ([]byte, error) {
+	t.Helper()
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	wkbenchPath := filepath.Join(binDir, "wkbench")
+	writeFakeThreeNode1000Wkbench(t, wkbenchPath, callsDir, "fake")
+	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+	gatewayAddr := listenLocalTCP(t)
+
+	args := []string{
+		"scripts/bench-wukongim-three-nodes-1000ch.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", wkbenchPath,
+		"--qps", "1",
+		"--channels", "1",
+		"--users", "2",
+		"--members", "2",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--resource-interval", "0",
+		"--api", "http://127.0.0.1:5011",
+		"--metrics", "http://127.0.0.1:5011",
+		"--gateway", gatewayAddr,
+	}
+	args = append(args, extraArgs...)
+	cmd := exec.Command("bash", args...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(cmd.Env, extraEnv...)
+	return cmd.CombinedOutput()
+}
+
+func yamlScalar(text string, key string) string {
+	for _, line := range strings.Split(text, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == key {
+			return fields[1]
+		}
+	}
+	return ""
+}
+
 func writeFakeThreeNode1000Wkbench(t *testing.T, path string, callsDir string, label string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
@@ -2745,8 +3094,11 @@ if [[ "${1:-}" == "run" ]]; then
   if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
     sleep "$WK_FAKE_WKBENCH_RUN_SLEEP"
   fi
-  cat > "$report_dir/report.json" <<'JSON'
-{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":1,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":0.003,"max_seconds":0.004}}}}
+	  success="${WK_FAKE_WKBENCH_SUCCESS_TOTAL:-1}"
+	  p99="${WK_FAKE_WKBENCH_P99_SECONDS:-0.003}"
+	  max="${WK_FAKE_WKBENCH_MAX_SECONDS:-0.004}"
+	  cat > "$report_dir/report.json" <<JSON
+{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":$success,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":$p99,"max_seconds":$max}}}}
 JSON
   exit 0
 fi
@@ -2836,6 +3188,32 @@ case "$url" in
     echo 'ok'
     ;;
 	  http://127.0.0.1:501*/metrics)
+	    if [[ "$*" == *"X-WK-Bench-Evidence: append-effect-"* ]]; then
+	      if [[ "${WK_FAKE_APPEND_EFFECT_MISSING_NODE:-0}" == "1" && "$url" == "http://127.0.0.1:5012/metrics" ]]; then
+	        exit 22
+	      fi
+	      append_items=0
+	      if [[ "$*" == *"append-effect-after"* && "$url" == "http://127.0.0.1:5011/metrics" && "${WK_FAKE_APPEND_EFFECT_MISMATCH:-0}" != "1" ]]; then
+	        append_items=1
+	      fi
+	      echo "wukongim_channelappend_effect_items_sum{result=\"ok\",stage=\"append\"} $append_items"
+	      exit 0
+	    fi
+	    if [[ "${WK_FAKE_QUIESCENCE_BUSY:-0}" == "1" ]]; then
+	      cat <<'OUT'
+wukongim_delivery_recipient_worker_queue_depth 3
+wukongim_channelappend_writer_state_items{kind="post_commit_backlog"} 2
+wukongim_gateway_async_send_queue_depth 1
+OUT
+	    else
+	      cat <<'OUT'
+wukongim_delivery_recipient_worker_queue_depth 0
+wukongim_channelappend_writer_state_items{kind="post_commit_backlog"} 0
+wukongim_gateway_async_send_queue_depth 0
+OUT
+	    fi
+	    echo "wukongim_delivery_recipient_worker_inflight ${WK_FAKE_QUIESCENCE_INFLIGHT:-0}"
+	    echo "wukongim_delivery_recipient_worker_capacity ${WK_FAKE_DELIVERY_WORKER_CAPACITY:-100}"
 	    if [[ "${WK_FAKE_RUNTIME_POOL_PRESSURE:-0}" == "1" ]]; then
 	      count_file="` + callsDir + `/runtime-metrics-count"
 	      count=0

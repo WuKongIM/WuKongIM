@@ -64,3 +64,38 @@ func TestPresenceExamplesDocumentTouchMaxRoutesPerFlush(t *testing.T) {
 		t.Fatal("no shipped [presence] examples found")
 	}
 }
+
+func TestDeliveryExamplesDocumentRecipientWorkerConcurrency(t *testing.T) {
+	files := []string{filepath.Join("..", "..", "wukongim.toml.example")}
+	for _, pattern := range []string{
+		filepath.Join("..", "..", "cmd", "wukongim", "*.toml.example"),
+		filepath.Join("..", "..", "scripts", "wukongim", "*.toml"),
+	} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatalf("Glob(%s) error = %v", pattern, err)
+		}
+		files = append(files, matches...)
+	}
+
+	want := "# Maximum recipient-authority delivery batches processed concurrently by this node.\n" +
+		"# This is independent from channel_append.recipient_authority_dispatch_concurrency.\n" +
+		"recipient_worker_concurrency = 100"
+	foundDelivery := 0
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", file, err)
+		}
+		if !strings.Contains(string(content), "[delivery]") {
+			continue
+		}
+		foundDelivery++
+		if !strings.Contains(string(content), want) {
+			t.Errorf("%s must document recipient_worker_concurrency with the required adjacent English comments", file)
+		}
+	}
+	if foundDelivery == 0 {
+		t.Fatal("no shipped [delivery] examples found")
+	}
+}

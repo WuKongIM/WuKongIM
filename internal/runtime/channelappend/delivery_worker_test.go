@@ -176,6 +176,49 @@ func TestRecipientDeliveryWorkerObservesQueueAdmissionAndProcessing(t *testing.T
 	}
 }
 
+func TestRecipientDeliveryWorkerObservesConcurrentInflightAndReturnsToZero(t *testing.T) {
+	blocker := newConcurrentBlockingPresenceResolverForDeliveryWorkerTest(2)
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		Processor: NewRecipientProcessor(RecipientProcessorOptions{
+			PresenceResolver: blocker,
+			OwnerPusher:      &recordingOwnerPusherForDeliveryTest{},
+		}),
+		QueueSize: 2,
+		Workers:   2,
+		Observer:  observer,
+	})
+	if got := worker.WorkerCapacity(); got != 2 {
+		t.Fatalf("WorkerCapacity() = %d, want 2", got)
+	}
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	batch := RecipientBatch{Event: CommittedEnvelope{MessageID: 1}, Recipients: []Recipient{{UID: "u1"}}}
+	target := recipientAuthorityTargetForTest(1, 1, 1)
+	for i := 0; i < 2; i++ {
+		if err := worker.EnqueueRecipientBatch(context.Background(), target, batch); err != nil {
+			t.Fatalf("EnqueueRecipientBatch(%d) error = %v", i, err)
+		}
+	}
+	blocker.waitStarted(t)
+	observer.waitWorkerPressure(t, func(obs RecipientDeliveryWorkerPressureObservation) bool {
+		return obs.Inflight == 2 && obs.Capacity == 2
+	})
+
+	blocker.release()
+	if err := worker.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := observer.lastWorkerPressure(t); got.Inflight != 0 || got.Capacity != 2 {
+		t.Fatalf("final worker pressure = %+v, want inflight=0 capacity=2", got)
+	}
+	if got := observer.lastQueue(t); got.QueueDepth != 0 || got.QueueCapacity != 2 {
+		t.Fatalf("final queue pressure = %+v, want depth=0 capacity=2", got)
+	}
+}
+
 func TestRecipientDeliveryWorkerStopDrainsAcceptedBatches(t *testing.T) {
 	blocker := newBlockingPresenceResolverForDeliveryWorkerTest()
 	pusher := &recordingOwnerPusherForDeliveryTest{}
@@ -337,6 +380,7 @@ type recordingRecipientDeliveryWorkerObserverForTest struct {
 	mu         sync.Mutex
 	failures   []PostCommitFailureObservation
 	queues     []RecipientDeliveryQueueObservation
+	workers    []RecipientDeliveryWorkerPressureObservation
 	admissions []RecipientDeliveryAdmissionObservation
 	processes  []RecipientDeliveryProcessObservation
 }
@@ -354,6 +398,12 @@ func (o *recordingRecipientDeliveryWorkerObserverForTest) SetChannelAppendRecipi
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.queues = append(o.queues, obs)
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) SetChannelAppendRecipientDeliveryWorkerPressure(obs RecipientDeliveryWorkerPressureObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.workers = append(o.workers, obs)
 }
 
 func (o *recordingRecipientDeliveryWorkerObserverForTest) ObserveChannelAppendRecipientDeliveryAdmission(obs RecipientDeliveryAdmissionObservation) {
@@ -405,6 +455,30 @@ func (o *recordingRecipientDeliveryWorkerObserverForTest) lastQueue(t *testing.T
 	return o.queues[len(o.queues)-1]
 }
 
+func (o *recordingRecipientDeliveryWorkerObserverForTest) waitWorkerPressure(t *testing.T, match func(RecipientDeliveryWorkerPressureObservation) bool) {
+	t.Helper()
+	waitDeliveryWorkerCondition(t, func() bool {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		for _, obs := range o.workers {
+			if match(obs) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) lastWorkerPressure(t *testing.T) RecipientDeliveryWorkerPressureObservation {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.workers) == 0 {
+		t.Fatalf("no worker pressure observations")
+	}
+	return o.workers[len(o.workers)-1]
+}
+
 type errorPresenceResolverForDeliveryWorkerTest struct {
 	err error
 }
@@ -434,6 +508,51 @@ type blockingPresenceResolverForDeliveryWorkerTest struct {
 	started  chan struct{}
 	releaseC chan struct{}
 	once     sync.Once
+}
+
+type concurrentBlockingPresenceResolverForDeliveryWorkerTest struct {
+	want     int
+	started  chan struct{}
+	releaseC chan struct{}
+	once     sync.Once
+	mu       sync.Mutex
+	count    int
+}
+
+func newConcurrentBlockingPresenceResolverForDeliveryWorkerTest(want int) *concurrentBlockingPresenceResolverForDeliveryWorkerTest {
+	return &concurrentBlockingPresenceResolverForDeliveryWorkerTest{
+		want:     want,
+		started:  make(chan struct{}),
+		releaseC: make(chan struct{}),
+	}
+}
+
+func (r *concurrentBlockingPresenceResolverForDeliveryWorkerTest) EndpointsByUIDs(ctx context.Context, uids []string) ([]Route, error) {
+	r.mu.Lock()
+	r.count++
+	if r.count == r.want {
+		close(r.started)
+	}
+	r.mu.Unlock()
+	select {
+	case <-r.releaseC:
+		return []Route{{UID: uids[0], OwnerNodeID: 1, SessionID: 10}}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (r *concurrentBlockingPresenceResolverForDeliveryWorkerTest) waitStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-r.started:
+	case <-time.After(time.Second):
+		t.Fatal("concurrent presence resolver did not reach expected calls")
+	}
+}
+
+func (r *concurrentBlockingPresenceResolverForDeliveryWorkerTest) release() {
+	r.once.Do(func() { close(r.releaseC) })
 }
 
 func newBlockingPresenceResolverForDeliveryWorkerTest() *blockingPresenceResolverForDeliveryWorkerTest {

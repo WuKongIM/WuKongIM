@@ -66,7 +66,8 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			MaxTrimMessages:  1000,
 		},
 		Delivery: app.DeliveryConfig{
-			Enabled: true,
+			Enabled:                    true,
+			RecipientWorkerConcurrency: 100,
 		},
 		Plugin: app.PluginConfig{
 			Enable: true,
@@ -1182,6 +1183,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_EVENT_QUEUE_SIZE: value must be >= 0")
 		}
 		cfg.Delivery.EventQueueSize = queueSize
+	}
+	if raw := configValue(values, "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY"); raw != "" {
+		concurrency, err := parseInt("WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if concurrency < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY: value must be >= 0")
+		}
+		cfg.Delivery.RecipientWorkerConcurrency = concurrency
 	}
 	cfg.Webhook.HTTPAddr = configValue(values, "WK_WEBHOOK_HTTP_ADDR")
 	if raw := configValue(values, "WK_WEBHOOK_FOCUS_EVENTS"); raw != "" {

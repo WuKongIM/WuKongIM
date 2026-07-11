@@ -2138,6 +2138,10 @@ func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T)
 		QueueDepth:    3,
 		QueueCapacity: 8,
 	})
+	observer.SetChannelAppendRecipientDeliveryWorkerPressure(channelappend.RecipientDeliveryWorkerPressureObservation{
+		Inflight: 2,
+		Capacity: 4,
+	})
 	observer.ObserveChannelAppendRecipientDeliveryAdmission(channelappend.RecipientDeliveryAdmissionObservation{
 		Result:   "timeout",
 		Duration: 2 * time.Millisecond,
@@ -2155,6 +2159,14 @@ func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T)
 	queueDepth := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_queue_depth")
 	if got := findAppMetricByLabels(t, queueDepth, nil).GetGauge().GetValue(); got != 3 {
 		t.Fatalf("recipient worker queue depth = %v, want 3", got)
+	}
+	workerInflight := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_inflight")
+	if got := findAppMetricByLabels(t, workerInflight, nil).GetGauge().GetValue(); got != 2 {
+		t.Fatalf("recipient worker inflight = %v, want 2", got)
+	}
+	workerCapacity := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_capacity")
+	if got := findAppMetricByLabels(t, workerCapacity, nil).GetGauge().GetValue(); got != 4 {
+		t.Fatalf("recipient worker capacity = %v, want 4", got)
 	}
 	admission := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_admission_total")
 	if got := findAppMetricByLabels(t, admission, map[string]string{"result": "timeout"}).GetCounter().GetValue(); got != 1 {

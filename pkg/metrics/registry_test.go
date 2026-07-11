@@ -1541,6 +1541,28 @@ func TestRegistryExposesMessageMetrics(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_message_committed_replay_pass_duration_seconds")
 }
 
+func TestRegistryExposesIdleChannelAppendWriterState(t *testing.T) {
+	reg := New(12, "node-12")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	state := requireMetricFamily(t, families, "wukongim_channelappend_writer_state_items")
+	for _, kind := range []string{"pending_append", "append_inflight", "post_commit_backlog"} {
+		require.Equal(t, float64(0), findMetricByLabels(t, state, map[string]string{
+			"node_id":   "12",
+			"node_name": "node-12",
+			"kind":      kind,
+		}).GetGauge().GetValue())
+	}
+	effectItems := requireMetricFamily(t, families, "wukongim_channelappend_effect_items")
+	require.Equal(t, float64(0), findMetricByLabels(t, effectItems, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+		"stage":     "append",
+		"result":    "ok",
+	}).GetHistogram().GetSampleSum())
+}
+
 func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 	reg := New(12, "node-12")
 	reg.ChannelAppend.ObserveRouter("local", "ok", 8, 3*time.Millisecond)
@@ -1638,6 +1660,7 @@ func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 	reg.Delivery.SetAckBindings(5)
 	reg.Delivery.ObserveRouteExpired("group")
 	reg.Delivery.SetRecipientWorkerQueue(3, 8)
+	reg.Delivery.SetRecipientWorkerPressure(2, 4)
 	reg.Delivery.ObserveRecipientWorkerAdmission("accepted", 2*time.Millisecond)
 	reg.Delivery.ObserveRecipientWorkerProcess("ok", 4, 5*time.Millisecond)
 
@@ -1665,6 +1688,16 @@ func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 	}).GetGauge().GetValue())
 	queueCapacity := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_queue_capacity")
 	require.Equal(t, float64(8), findMetricByLabels(t, queueCapacity, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+	}).GetGauge().GetValue())
+	workerInflight := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_inflight")
+	require.Equal(t, float64(2), findMetricByLabels(t, workerInflight, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+	}).GetGauge().GetValue())
+	workerCapacity := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_capacity")
+	require.Equal(t, float64(4), findMetricByLabels(t, workerCapacity, map[string]string{
 		"node_id":   "1",
 		"node_name": "n1",
 	}).GetGauge().GetValue())

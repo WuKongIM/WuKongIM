@@ -28,6 +28,10 @@ RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
 HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
+CLIENT_MSG_PREFIX="${WK_BENCH_CLIENT_MSG_PREFIX:-}"
+QUIESCENCE_TIMEOUT="${WK_BENCH_QUIESCENCE_TIMEOUT:-60}"
+QUIESCENCE_POLL_INTERVAL="${WK_BENCH_QUIESCENCE_POLL_INTERVAL:-1}"
+DELIVERY_RECIPIENT_WORKER_CONCURRENCY="${WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY:-100}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -61,6 +65,11 @@ Options:
                              Base wkbench worker phase poll timeout. Default: 30s.
   --recv-ack BOOL            Whether group recv frames are acknowledged. Default: true.
   --heartbeat BOOL           Whether benchmark clients send heartbeat pings. Default: true.
+  --client-msg-prefix P      Explicit client message prefix for reproducible runs.
+                             Default: a unique prefix per child invocation.
+  --quiescence-timeout SECS  Fail if runtime queues do not drain before an attempt. Default: 60.
+  --quiescence-poll-interval SECS
+                             Runtime queue polling interval. Default: 1.
   --profile-seconds N        Capture final CPU pprof for each node when N > 0. Default: 0.
   --wkbench-bin PATH         wkbench binary path. Default: data/wkbench-test.
   --start-script PATH        Three-node startup script. Default: scripts/start-wukongim-three-nodes.sh.
@@ -244,6 +253,21 @@ while [[ $# -gt 0 ]]; do
       HEARTBEAT_ENABLED="$2"
       shift 2
       ;;
+    --client-msg-prefix)
+      [[ $# -ge 2 ]] || die '--client-msg-prefix requires a value'
+      CLIENT_MSG_PREFIX="$2"
+      shift 2
+      ;;
+    --quiescence-timeout)
+      [[ $# -ge 2 ]] || die '--quiescence-timeout requires a value'
+      QUIESCENCE_TIMEOUT="$2"
+      shift 2
+      ;;
+    --quiescence-poll-interval)
+      [[ $# -ge 2 ]] || die '--quiescence-poll-interval requires a value'
+      QUIESCENCE_POLL_INTERVAL="$2"
+      shift 2
+      ;;
     --profile-seconds)
       [[ $# -ge 2 ]] || die '--profile-seconds requires a value'
       PROFILE_SECONDS="$2"
@@ -295,8 +319,16 @@ require_positive_int '--members' "$GROUP_MEMBERS"
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--payload-bytes' "$PAYLOAD_BYTES"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
+require_positive_int '--quiescence-timeout' "$QUIESCENCE_TIMEOUT"
+require_positive_int 'WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY' "$DELIVERY_RECIPIENT_WORKER_CONCURRENCY"
 [[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
 [[ "$MIN_ACTUAL_RATIO" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--min-actual-ratio must be a non-negative number: $MIN_ACTUAL_RATIO"
+[[ "$QUIESCENCE_POLL_INTERVAL" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--quiescence-poll-interval must be a positive number: $QUIESCENCE_POLL_INTERVAL"
+awk -v value="$QUIESCENCE_POLL_INTERVAL" 'BEGIN { exit !(value > 0) }' || \
+  die "--quiescence-poll-interval must be greater than zero: $QUIESCENCE_POLL_INTERVAL"
+if [[ -n "$CLIENT_MSG_PREFIX" && ! "$CLIENT_MSG_PREFIX" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  die "--client-msg-prefix must contain only letters, digits, dot, underscore, or dash: $CLIENT_MSG_PREFIX"
+fi
 case "$SENDER_PICK" in
   first_online|round_robin)
     ;;
@@ -322,6 +354,7 @@ esac
 
 declare -a QPS_VALUES
 split_csv "$QPS_LIST" QPS_VALUES
+REAL_QPS_GATE_FAILED=0
 
 write_metadata() {
   mkdir -p "$OUT_DIR"
@@ -347,10 +380,14 @@ HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
 PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 MIN_ACTUAL_RATIO=$MIN_ACTUAL_RATIO
 SENDER_PICK=$SENDER_PICK
+CLIENT_MSG_PREFIX=${CLIENT_MSG_PREFIX:-<auto-unique>}
+QUIESCENCE_TIMEOUT=$QUIESCENCE_TIMEOUT
+QUIESCENCE_POLL_INTERVAL=$QUIESCENCE_POLL_INTERVAL
 CHANNEL_APPEND_SHARD_COUNT=${WK_CHANNEL_APPEND_SHARD_COUNT:-0}
 CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
 CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
 CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
+DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY
 TOP_API_ENABLE=${WK_TOP_API_ENABLE:-false}
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}
@@ -928,6 +965,11 @@ append_attempt_summary() {
       "$tag" "$qps" "$attempt_dir" "$child_exit" "$runtime_pool" "$channelappend" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
     return
   fi
+  if ! awk 'NR > 1 && NF > 0 { found=1 } END { exit !found }' "$summary"; then
+    printf '%s\t%s\t%s\t%s\tmissing_summary_row\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t%s\t%s\tFAIL\tmissing_summary_row\t%s\n' \
+      "$tag" "$qps" "$attempt_dir" "$child_exit" "$runtime_pool" "$channelappend" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
+    return
+  fi
   awk -F'\t' \
     -v attempt_dir="$attempt_dir" \
     -v child_exit="$child_exit" \
@@ -954,10 +996,15 @@ append_attempt_summary() {
       p95 = $11 + 0
       p99 = $12 + 0
       max = $13 + 0
+      sample_valid = $14
+      invalid_reason = $17
       ratio = offered > 0 ? actual / offered : 0
       result = "PASS"
       note = "ok"
-      if (child_exit != 0) {
+      if (sample_valid != "" && sample_valid != "true") {
+        result = "FAIL"
+        note = "invalid_sample:" invalid_reason
+      } else if (child_exit != 0) {
         result = "FAIL"
         note = "child_exit=" child_exit
       } else if (status != "passed") {
@@ -1048,7 +1095,11 @@ EOF
 
 run_attempt() {
   local qps="$1"
-  local tag attempt_dir console child_exit
+  local tag attempt_dir console child_exit attempt_client_msg_prefix
+  attempt_client_msg_prefix="$CLIENT_MSG_PREFIX"
+  if [[ -z "$attempt_client_msg_prefix" ]]; then
+    attempt_client_msg_prefix="realqps-${TIMESTAMP}-$$-${RANDOM}-msg"
+  fi
   tag="$(qps_tag "$qps")"
   attempt_dir="$OUT_DIR/${tag}-qps"
   console="$attempt_dir/real-qps-console.txt"
@@ -1060,6 +1111,7 @@ run_attempt() {
   WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}" \
   WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}" \
   WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}" \
+  WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY="$DELIVERY_RECIPIENT_WORKER_CONCURRENCY" \
   WK_TOP_API_ENABLE="${WK_TOP_API_ENABLE:-false}" \
   WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}" \
   WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}" \
@@ -1082,6 +1134,9 @@ run_attempt() {
       --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
       --recv-ack "$RECV_ACK" \
       --heartbeat "$HEARTBEAT_ENABLED" \
+      --client-msg-prefix "$attempt_client_msg_prefix" \
+      --quiescence-timeout "$QUIESCENCE_TIMEOUT" \
+      --quiescence-poll-interval "$QUIESCENCE_POLL_INTERVAL" \
       --profile-seconds "$PROFILE_SECONDS" \
       --sender-pick "$SENDER_PICK" \
       --api "$API_ADDRS" \
@@ -1091,6 +1146,10 @@ run_attempt() {
   child_exit=$?
   set -e
   append_attempt_summary "$qps" "$tag" "$attempt_dir" "$child_exit"
+  if [[ "$child_exit" -ne 0 ]] || \
+    [[ "$(tail -n 1 "$OUT_DIR/summary.tsv" | awk -F'\t' '{ print $(NF - 2) }')" != "PASS" ]]; then
+    REAL_QPS_GATE_FAILED=1
+  fi
 }
 
 main() {
@@ -1116,6 +1175,9 @@ EOF
   printf '  %ssummary:%s        %s\n' "$C_DIM" "$C_RESET" "$OUT_DIR/summary.tsv"
   printf '  %sants_pool_usage:%s %s\n' "$C_DIM" "$C_RESET" "$OUT_DIR/ants_pool_usage_summary.tsv"
   printf '  %sattempts:%s       %s\n' "$C_DIM" "$C_RESET" "$OUT_DIR"
+  if [[ "$REAL_QPS_GATE_FAILED" -ne 0 ]]; then
+    return 10
+  fi
 }
 
 main "$@"

@@ -249,6 +249,20 @@ type RecipientDeliveryQueueObserver interface {
 	SetChannelAppendRecipientDeliveryQueue(RecipientDeliveryQueueObservation)
 }
 
+// RecipientDeliveryWorkerPressureObservation describes dedicated recipient delivery worker execution pressure.
+type RecipientDeliveryWorkerPressureObservation struct {
+	// Inflight is the number of recipient delivery commands currently executing.
+	Inflight int
+	// Capacity is the configured number of recipient delivery worker goroutines.
+	Capacity int
+}
+
+// RecipientDeliveryWorkerPressureObserver receives recipient delivery worker execution gauges.
+type RecipientDeliveryWorkerPressureObserver interface {
+	// SetChannelAppendRecipientDeliveryWorkerPressure records current worker inflight and capacity.
+	SetChannelAppendRecipientDeliveryWorkerPressure(RecipientDeliveryWorkerPressureObservation)
+}
+
 // RecipientDeliveryAdmissionObservation describes one recipient delivery enqueue attempt.
 type RecipientDeliveryAdmissionObservation struct {
 	// Result is accepted, closed, canceled, timeout, or error.

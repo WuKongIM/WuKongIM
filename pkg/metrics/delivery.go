@@ -34,6 +34,8 @@ type DeliveryMetrics struct {
 	routeExpiredTotal          *prometheus.CounterVec
 	recipientQueueDepth        prometheus.Gauge
 	recipientQueueCapacity     prometheus.Gauge
+	recipientWorkerInflight    prometheus.Gauge
+	recipientWorkerCapacity    prometheus.Gauge
 	recipientAdmissionTotal    *prometheus.CounterVec
 	recipientAdmissionWait     *prometheus.HistogramVec
 	recipientProcessTotal      *prometheus.CounterVec
@@ -134,6 +136,16 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			Help:        "Configured recipient-authority delivery worker queue capacity.",
 			ConstLabels: labels,
 		}),
+		recipientWorkerInflight: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_delivery_recipient_worker_inflight",
+			Help:        "Current recipient-authority delivery commands executing in worker goroutines.",
+			ConstLabels: labels,
+		}),
+		recipientWorkerCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_delivery_recipient_worker_capacity",
+			Help:        "Configured recipient-authority delivery worker concurrency.",
+			ConstLabels: labels,
+		}),
 		recipientAdmissionTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_delivery_recipient_worker_admission_total",
 			Help:        "Total recipient delivery worker enqueue attempts by normalized result.",
@@ -182,6 +194,8 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 		m.routeExpiredTotal,
 		m.recipientQueueDepth,
 		m.recipientQueueCapacity,
+		m.recipientWorkerInflight,
+		m.recipientWorkerCapacity,
 		m.recipientAdmissionTotal,
 		m.recipientAdmissionWait,
 		m.recipientProcessTotal,
@@ -294,6 +308,15 @@ func (m *DeliveryMetrics) SetRecipientWorkerQueue(depth, capacity int) {
 	}
 	m.recipientQueueDepth.Set(float64(nonNegative(depth)))
 	m.recipientQueueCapacity.Set(float64(nonNegative(capacity)))
+}
+
+// SetRecipientWorkerPressure sets current recipient delivery worker execution pressure.
+func (m *DeliveryMetrics) SetRecipientWorkerPressure(inflight, capacity int) {
+	if m == nil {
+		return
+	}
+	m.recipientWorkerInflight.Set(float64(nonNegative(inflight)))
+	m.recipientWorkerCapacity.Set(float64(nonNegative(capacity)))
 }
 
 // ObserveRecipientWorkerAdmission records one recipient delivery worker enqueue attempt.

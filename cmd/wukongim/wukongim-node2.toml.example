@@ -133,6 +133,9 @@ push_batch_size = 512
 pending_ack_ttl = "30s"
 pending_ack_max_per_session = 1024
 event_queue_size = 1024
+# Maximum recipient-authority delivery batches processed concurrently by this node.
+# This is independent from channel_append.recipient_authority_dispatch_concurrency.
+recipient_worker_concurrency = 100
 
 [channel_append]
 shard_count = 0

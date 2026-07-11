@@ -33,6 +33,11 @@ SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
 RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"
+CLIENT_MSG_PREFIX="${WK_BENCH_CLIENT_MSG_PREFIX:-}"
+RUN_NONCE="${WK_BENCH_RUN_NONCE:-${TIMESTAMP}-$$-${RANDOM}}"
+QUIESCENCE_TIMEOUT="${WK_BENCH_QUIESCENCE_TIMEOUT:-60}"
+QUIESCENCE_POLL_INTERVAL="${WK_BENCH_QUIESCENCE_POLL_INTERVAL:-1}"
+DELIVERY_RECIPIENT_WORKER_CONCURRENCY="${WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY:-100}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -72,6 +77,12 @@ Options:
   --recv-ack BOOL        Whether drained group recv frames are acknowledged. Default: true.
   --heartbeat BOOL       Whether benchmark clients send heartbeat pings. Default: true.
   --sender-pick MODE     Group sender selection: round_robin or first_online. Default: round_robin.
+  --client-msg-prefix P  Explicit client message prefix for reproducible runs.
+                         By default every script invocation generates a unique prefix.
+  --quiescence-timeout SECS
+                         Fail if runtime queues do not drain before a QPS attempt. Default: 60.
+  --quiescence-poll-interval SECS
+                         Runtime queue polling interval. Default: 1.
   --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
   --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
   --metrics LIST         Comma-separated metrics base URLs. Default: same as --api.
@@ -257,6 +268,21 @@ while [[ $# -gt 0 ]]; do
       SENDER_PICK="$2"
       shift 2
       ;;
+    --client-msg-prefix)
+      [[ $# -ge 2 ]] || die '--client-msg-prefix requires a value'
+      CLIENT_MSG_PREFIX="$2"
+      shift 2
+      ;;
+    --quiescence-timeout)
+      [[ $# -ge 2 ]] || die '--quiescence-timeout requires a value'
+      QUIESCENCE_TIMEOUT="$2"
+      shift 2
+      ;;
+    --quiescence-poll-interval)
+      [[ $# -ge 2 ]] || die '--quiescence-poll-interval requires a value'
+      QUIESCENCE_POLL_INTERVAL="$2"
+      shift 2
+      ;;
     --api)
       [[ $# -ge 2 ]] || die '--api requires a value'
       API_ADDRS="$2"
@@ -292,7 +318,12 @@ require_positive_int '--users' "$USERS"
 require_positive_int '--members' "$GROUP_MEMBERS"
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
+require_positive_int '--quiescence-timeout' "$QUIESCENCE_TIMEOUT"
+require_positive_int 'WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY' "$DELIVERY_RECIPIENT_WORKER_CONCURRENCY"
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
+require_nonnegative_number '--quiescence-poll-interval' "$QUIESCENCE_POLL_INTERVAL"
+awk -v value="$QUIESCENCE_POLL_INTERVAL" 'BEGIN { exit !(value > 0) }' || \
+  die "--quiescence-poll-interval must be greater than zero: $QUIESCENCE_POLL_INTERVAL"
 [[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
 case "$SENDER_PICK" in
   first_online|round_robin)
@@ -315,6 +346,12 @@ case "$HEARTBEAT_ENABLED" in
     die "--heartbeat must be true or false: $HEARTBEAT_ENABLED"
     ;;
 esac
+if [[ -n "$CLIENT_MSG_PREFIX" && ! "$CLIENT_MSG_PREFIX" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  die "--client-msg-prefix must contain only letters, digits, dot, underscore, or dash: $CLIENT_MSG_PREFIX"
+fi
+if [[ ! "$RUN_NONCE" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  die "WK_BENCH_RUN_NONCE must contain only letters, digits, dot, underscore, or dash: $RUN_NONCE"
+fi
 
 declare -a QPS_VALUES API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$QPS_LIST" QPS_VALUES
@@ -325,6 +362,12 @@ split_csv "$METRICS_ADDRS" METRICS_VALUES
 WORKER_PID=""
 CLUSTER_PID=""
 RESOURCE_SAMPLER_PID=""
+SAMPLE_VALIDATION_FAILED=0
+SOFT_P99_GATE_FAILED=0
+SAMPLE_VALID="false"
+SAMPLE_WORKER_SUCCESS="0"
+SAMPLE_APPEND_EFFECT_DELTA="0"
+SAMPLE_INVALID_REASON="not_checked"
 
 cleanup() {
   stop_server_resource_sampler
@@ -371,6 +414,7 @@ start_cluster() {
   WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE="${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}" \
   WK_CHANNEL_APPEND_EFFECT_POOL_SIZE="${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}" \
   WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY="${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}" \
+  WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY="$DELIVERY_RECIPIENT_WORKER_CONCURRENCY" \
   WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}" \
@@ -542,8 +586,12 @@ write_scenario() {
   local qps="$1"
   local tag="$2"
   local report_dir="$3"
-  local rate
+  local rate client_msg_prefix
   rate="$(rate_per_channel "$qps")"
+  client_msg_prefix="$CLIENT_MSG_PREFIX"
+  if [[ -z "$client_msg_prefix" ]]; then
+    client_msg_prefix="bench${tag}-${RUN_NONCE}-msg"
+  fi
   cat >"$OUT_DIR/scenario-${tag}.yaml" <<YAML
 version: wkbench/v1
 run:
@@ -555,7 +603,7 @@ run:
   fail_fast: true
   report_dir: $report_dir
 limits:
-  fail_on_soft: false
+  fail_on_soft: true
   hard:
     max_worker_failed: 0
     max_connect_error_rate: 0
@@ -567,7 +615,7 @@ limits:
 identity:
   uid_prefix: bench${tag}-u
   device_prefix: bench${tag}-d
-  client_msg_prefix: bench${tag}-msg
+  client_msg_prefix: $client_msg_prefix
   token:
     mode: bench_api
 online:
@@ -657,6 +705,209 @@ scrape_metrics_snapshot() {
     id="$(metric_file_id "$addr")"
     curl -fsS "${addr%/}/metrics" >"$metrics_dir/${id}-${phase}.prom" || true
   done
+}
+
+runtime_queue_depths() {
+  local metrics_file="$1"
+  awk '
+    $1 ~ /^wukongim_delivery_recipient_worker_queue_depth([{]|$)/ {
+      delivery += $2
+      delivery_seen = 1
+    }
+    $1 ~ /^wukongim_delivery_recipient_worker_inflight([{]|$)/ {
+      delivery_inflight += $2
+      delivery_inflight_seen = 1
+    }
+    $1 ~ /^wukongim_delivery_recipient_worker_capacity([{]|$)/ {
+      delivery_capacity += $2
+      delivery_capacity_seen = 1
+    }
+    $1 ~ /^wukongim_channelappend_writer_state_items[{]/ && $1 ~ /kind="post_commit_backlog"/ {
+      post_commit += $2
+      post_commit_seen = 1
+    }
+    $1 ~ /^wukongim_gateway_async_send_queue_depth([{]|$)/ {
+      gateway += $2
+      gateway_seen = 1
+    }
+    END {
+      if (!delivery_seen || !delivery_inflight_seen || !delivery_capacity_seen || !post_commit_seen || !gateway_seen) {
+        exit 2
+      }
+      printf "%.6g\t%.6g\t%.6g\t%.6g\t%.6g\n", delivery, delivery_inflight, delivery_capacity, post_commit, gateway
+    }
+  ' "$metrics_file"
+}
+
+wait_for_runtime_quiescence() {
+  local tag="$1"
+  local evidence_dir="$OUT_DIR/quiescence"
+  local evidence="$evidence_dir/${tag}.tsv"
+  local started now elapsed observed_at sample all_drained capacity_mismatch
+  local addr id snapshot values delivery delivery_inflight delivery_capacity post_commit gateway state
+  mkdir -p "$evidence_dir"
+  printf 'sample\tobserved_at\telapsed_seconds\tnode\tdelivery_queue_depth\tdelivery_worker_inflight\tdelivery_worker_capacity\tpost_commit_backlog\tgateway_queue_depth\tstate\n' >"$evidence"
+  started="$(date +%s)"
+  sample=0
+
+  while true; do
+    sample=$((sample + 1))
+    now="$(date +%s)"
+    elapsed=$((now - started))
+    observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    all_drained=1
+    capacity_mismatch=0
+    for addr in "${METRICS_VALUES[@]}"; do
+      id="$(metric_file_id "$addr")"
+      snapshot="$evidence_dir/${tag}-${id}-latest.prom"
+      delivery="NA"
+      delivery_inflight="NA"
+      delivery_capacity="NA"
+      post_commit="NA"
+      gateway="NA"
+      state="scrape_error"
+      if curl -fsS --max-time 5 "${addr%/}/metrics" >"$snapshot"; then
+        if values="$(runtime_queue_depths "$snapshot")"; then
+          IFS=$'\t' read -r delivery delivery_inflight delivery_capacity post_commit gateway <<<"$values"
+          state="pending"
+          if ! awk -v actual="$delivery_capacity" -v expected="$DELIVERY_RECIPIENT_WORKER_CONCURRENCY" \
+            'BEGIN { exit !((actual + 0) == (expected + 0)) }'; then
+            state="capacity_mismatch"
+            capacity_mismatch=1
+            all_drained=0
+          elif awk -v delivery="$delivery" -v inflight="$delivery_inflight" -v post_commit="$post_commit" -v gateway="$gateway" \
+            'BEGIN { exit !((delivery + 0) == 0 && (inflight + 0) == 0 && (post_commit + 0) == 0 && (gateway + 0) == 0) }'; then
+            state="drained"
+          else
+            all_drained=0
+          fi
+        else
+          state="missing_metrics"
+          all_drained=0
+        fi
+      else
+        all_drained=0
+      fi
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$sample" "$observed_at" "$elapsed" "$id" "$delivery" "$delivery_inflight" "$delivery_capacity" "$post_commit" "$gateway" "$state" >>"$evidence"
+    done
+
+    if [[ "$capacity_mismatch" -ne 0 ]]; then
+      printf '# result=capacity_mismatch expected_delivery_worker_capacity=%s samples=%s\n' \
+        "$DELIVERY_RECIPIENT_WORKER_CONCURRENCY" "$sample" >>"$evidence"
+      die "recipient worker capacity mismatch before tag=$tag; expected=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY evidence=$evidence"
+    fi
+    if [[ "$all_drained" -eq 1 ]]; then
+      printf '# result=passed elapsed_seconds=%s samples=%s\n' "$elapsed" "$sample" >>"$evidence"
+      log "runtime queues drained tag=$tag elapsed=${elapsed}s evidence=$evidence"
+      return
+    fi
+    if (( elapsed >= QUIESCENCE_TIMEOUT )); then
+      printf '# result=timeout elapsed_seconds=%s samples=%s timeout_seconds=%s\n' \
+        "$elapsed" "$sample" "$QUIESCENCE_TIMEOUT" >>"$evidence"
+      die "runtime queues did not converge before tag=$tag within ${QUIESCENCE_TIMEOUT}s; evidence=$evidence"
+    fi
+    sleep "$QUIESCENCE_POLL_INTERVAL"
+  done
+}
+
+scrape_append_effect_snapshot() {
+  local tag="$1"
+  local phase="$2"
+  local metrics_dir="$OUT_DIR/metrics/$tag/validity"
+  local addr id out
+  mkdir -p "$metrics_dir"
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    out="$metrics_dir/${id}-${phase}.prom"
+    if ! curl -fsS --max-time 5 -H "X-WK-Bench-Evidence: append-effect-${phase}" \
+      "${addr%/}/metrics" >"$out"; then
+      : >"$out"
+    fi
+  done
+}
+
+append_effect_items_total() {
+  local tag="$1"
+  local phase="$2"
+  local metrics_dir="$OUT_DIR/metrics/$tag/validity"
+  local files=("$metrics_dir"/*-"$phase".prom)
+  local file value
+  local total=0
+  local seen_files=0
+  [[ -e "${files[0]}" ]] || return 2
+  [[ "${#files[@]}" -eq "${#METRICS_VALUES[@]}" ]] || return 2
+  for file in "${files[@]}"; do
+    if ! value="$(awk '
+      $1 ~ /^wukongim_channelappend_effect_items_sum[{]/ &&
+        $1 ~ /result="ok"/ && $1 ~ /stage="append"/ {
+        total += $2
+        matches++
+      }
+      END {
+        if (matches != 1) {
+          exit 2
+        }
+        printf "%.0f\n", total
+      }
+    ' "$file")"; then
+      return 2
+    fi
+    total=$((total + value))
+    seen_files=$((seen_files + 1))
+  done
+  [[ "$seen_files" -eq "${#METRICS_VALUES[@]}" ]] || return 2
+  printf '%s\n' "$total"
+}
+
+validate_append_effect_sample() {
+  local tag="$1"
+  local report="$2"
+  local before after
+  SAMPLE_VALID="false"
+  SAMPLE_WORKER_SUCCESS="0"
+  SAMPLE_APPEND_EFFECT_DELTA="0"
+  SAMPLE_INVALID_REASON="missing_report"
+
+  if [[ -f "$report" ]]; then
+    SAMPLE_INVALID_REASON="missing_worker_success"
+    if SAMPLE_WORKER_SUCCESS="$(jq -r '
+      [
+        .metrics.counters
+        | to_entries[]
+        | select(.key | startswith("group_send_success_total{"))
+        | select(.key | contains("profile=thousand-groups"))
+        | select(.key | contains("traffic=group-send"))
+        | select((.key | contains("phase=warmup")) or (.key | contains("phase=run")))
+        | .value
+      ]
+      | add // 0
+      | floor
+    ' "$report" 2>/dev/null)"; then
+      if [[ "$SAMPLE_WORKER_SUCCESS" -le 0 ]]; then
+        SAMPLE_INVALID_REASON="no_successful_messages"
+      else
+        SAMPLE_INVALID_REASON="missing_append_effect_metrics"
+        if before="$(append_effect_items_total "$tag" before)" && \
+          after="$(append_effect_items_total "$tag" after)"; then
+          SAMPLE_APPEND_EFFECT_DELTA=$((after - before))
+          SAMPLE_INVALID_REASON="append_effect_mismatch"
+          if [[ "$SAMPLE_APPEND_EFFECT_DELTA" -eq "$SAMPLE_WORKER_SUCCESS" ]]; then
+            SAMPLE_VALID="true"
+            SAMPLE_INVALID_REASON="ok"
+          fi
+        fi
+      fi
+    fi
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$tag" "$SAMPLE_WORKER_SUCCESS" "$SAMPLE_APPEND_EFFECT_DELTA" "$SAMPLE_VALID" "$SAMPLE_INVALID_REASON" \
+    >>"$OUT_DIR/sample-validity.tsv"
+  if [[ "$SAMPLE_VALID" != "true" ]]; then
+    SAMPLE_VALIDATION_FAILED=1
+    log "invalid sample tag=$tag worker_success_with_warmup=$SAMPLE_WORKER_SUCCESS append_effect_delta=$SAMPLE_APPEND_EFFECT_DELTA reason=$SAMPLE_INVALID_REASON"
+  fi
 }
 
 collect_node_logs() {
@@ -1112,6 +1363,8 @@ run_attempt() {
 
   write_scenario "$qps" "$tag" "$report_dir"
   curl -fsS -X POST "${WORKER_ADDR%/}/v1/stop" >/dev/null 2>&1 || true
+  wait_for_runtime_quiescence "$tag"
+  scrape_append_effect_snapshot "$tag" before
 
   log "running qps=$qps tag=$tag"
   scrape_metrics "$tag" before
@@ -1124,6 +1377,7 @@ run_attempt() {
     --workers "$OUT_DIR/workers.yaml" \
     --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
+  scrape_append_effect_snapshot "$tag" after
   wait_run_pprof_sampler "$pprof_pid"
   stop_runtime_pool_sampler "$tag" "$sampler_pid"
   scrape_metrics "$tag" after
@@ -1134,12 +1388,17 @@ run_attempt() {
   runtime_pool_pressure_summary "$tag"
   ants_pool_usage_summary "$tag"
   cluster_transport_peak_summary "$tag"
+  validate_append_effect_sample "$tag" "$report_dir/report.json"
 
   if [[ ! -f "$report_dir/report.json" ]]; then
-    printf '%s\t%s\tmissing_report\t%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\n' "$tag" "$qps" "$exit_status" >>"$OUT_DIR/summary.tsv"
+    printf '%s\t%s\tmissing_report\t%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\t%s\t%s\t%s\t%s\n' \
+      "$tag" "$qps" "$exit_status" "$SAMPLE_VALID" "$SAMPLE_WORKER_SUCCESS" "$SAMPLE_APPEND_EFFECT_DELTA" "$SAMPLE_INVALID_REASON" \
+      >>"$OUT_DIR/summary.tsv"
     return
   fi
-  jq -r --arg tag "$tag" --arg qps "$qps" --arg exit_status "$exit_status" --arg duration "$duration" '
+  jq -r --arg tag "$tag" --arg qps "$qps" --arg exit_status "$exit_status" --arg duration "$duration" \
+    --arg sample_valid "$SAMPLE_VALID" --arg worker_success "$SAMPLE_WORKER_SUCCESS" \
+    --arg append_effect_delta "$SAMPLE_APPEND_EFFECT_DELTA" --arg invalid_reason "$SAMPLE_INVALID_REASON" '
     (.metrics.counters["group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}"] // 0) as $success
     | (.metrics.counters["group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}"] // 0) as $errors
     | (.metrics.histograms["group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}"] // {}) as $h
@@ -1156,9 +1415,18 @@ run_attempt() {
         ($h.p50_seconds // 0),
         ($h.p95_seconds // 0),
         ($h.p99_seconds // 0),
-        ($h.max_seconds // 0)
+        ($h.max_seconds // 0),
+        $sample_valid,
+        $worker_success,
+        $append_effect_delta,
+        $invalid_reason
       ] | @tsv
   ' "$report_dir/report.json" >>"$OUT_DIR/summary.tsv"
+  if jq -e --argjson p99_limit "$(duration_seconds "$STABLE_P99")" '
+    (.metrics.histograms["group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}"].p99_seconds // 0) > $p99_limit
+  ' "$report_dir/report.json" >/dev/null; then
+    SOFT_P99_GATE_FAILED=1
+  fi
 }
 
 write_run_metadata() {
@@ -1185,6 +1453,10 @@ RECV_ACK=$RECV_ACK
 HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
 PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 SENDER_PICK=$SENDER_PICK
+CLIENT_MSG_PREFIX=${CLIENT_MSG_PREFIX:-<auto-unique>}
+RUN_NONCE=$RUN_NONCE
+QUIESCENCE_TIMEOUT=$QUIESCENCE_TIMEOUT
+QUIESCENCE_POLL_INTERVAL=$QUIESCENCE_POLL_INTERVAL
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
 METRICS_ADDRS=$METRICS_ADDRS
@@ -1195,6 +1467,7 @@ CHANNEL_APPEND_SHARD_COUNT=${WK_CHANNEL_APPEND_SHARD_COUNT:-0}
 CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
 CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
 CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
+DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}
 CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}
@@ -1291,6 +1564,10 @@ write_display_summary() {
       if (actual_ratio < actual_min_ratio) {
         result = "FAIL"
         note = sprintf("actual_ratio=%.3f", actual_ratio)
+      }
+      if ($14 != "true") {
+        result = "FAIL"
+        note = "invalid_sample:" $17
       }
       if (result == "PASS" && actual > best_actual) {
         best_actual = actual
@@ -2077,6 +2354,7 @@ print_summary() {
       if (errors > 0) { result = "FAIL"; note = "send_errors" }
       if (p99 > p99_limit) { result = "FAIL"; note = "p99" }
       if (actual_ratio < actual_min_ratio) { result = "FAIL"; note = sprintf("actual_ratio=%.3f", actual_ratio) }
+      if ($14 != "true") { result = "FAIL"; note = "invalid_sample:" $17 }
       if (result == "PASS" && actual > best_actual) { best_actual = actual; best_offered = offered; best_p99 = p99; best_rpc = rpc_qps[tag] }
       result_str = (result == "PASS") ? c_green "    PASS" c_reset : c_red "    FAIL" c_reset
       printf "%9.0f %10.1f %7.3f %s %8.0f %8.1f %8.1f %8.1f %12.1f %s%s%s\n", offered, actual, actual_ratio, result_str, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps[tag], c_dim, note, c_reset
@@ -2124,6 +2402,8 @@ write_evidence_summary() {
 - server_process: resources/server-process-summary.tsv
 - cluster_transport: cluster_transport_peak_summary.tsv
 - ants_pool_usage: ants_pool_usage_summary.tsv
+- quiescence: quiescence/*.tsv
+- sample_validity: sample-validity.tsv
 
 ## Result
 \`\`\`text
@@ -2154,7 +2434,10 @@ main() {
   start_server_resource_sampler
 
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
-tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds
+tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	sample_valid	worker_success_with_warmup	append_effect_items_delta	invalid_reason
+EOF
+  cat >"$OUT_DIR/sample-validity.tsv" <<'EOF'
+tag	worker_success_with_warmup	append_effect_items_delta	sample_valid	reason
 EOF
   cat >"$OUT_DIR/rpc_pull_qps.tsv" <<'EOF'
 tag	node	rpc_pull_delta	rpc_pull_qps
@@ -2189,6 +2472,12 @@ EOF
   scrape_metrics_snapshot after
   capture_node_pprof after
   print_summary
+  if [[ "$SAMPLE_VALIDATION_FAILED" -ne 0 ]]; then
+    return 8
+  fi
+  if [[ "$SOFT_P99_GATE_FAILED" -ne 0 ]]; then
+    return 9
+  fi
 }
 
 main "$@"

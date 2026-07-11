@@ -224,6 +224,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "delivery.pending_ack_ttl", EnvKey: "WK_DELIVERY_PENDING_ACK_TTL", Kind: kindDuration, Group: "delivery", Label: "Delivery pending ack TTL"},
 	{TOMLPath: "delivery.pending_ack_max_per_session", EnvKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", Kind: kindInt, Group: "delivery", Label: "Delivery pending ack max per session"},
 	{TOMLPath: "delivery.event_queue_size", EnvKey: "WK_DELIVERY_EVENT_QUEUE_SIZE", Kind: kindInt, Group: "delivery", Label: "Delivery event queue size"},
+	{TOMLPath: "delivery.recipient_worker_concurrency", EnvKey: "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY", Kind: kindInt, Group: "delivery", Label: "Delivery recipient worker concurrency"},
 
 	{TOMLPath: "webhook.http_addr", EnvKey: "WK_WEBHOOK_HTTP_ADDR", Kind: kindString, Group: "webhook", Label: "Webhook HTTP address", DiagnosticSensitive: true},
 	{TOMLPath: "webhook.focus_events", EnvKey: "WK_WEBHOOK_FOCUS_EVENTS", Kind: kindStringList, Group: "webhook", Label: "Webhook focus events"},

@@ -91,5 +91,10 @@ channel_key = "channel/1/dTJAdTE"
 ttl_seconds = 3600
 sample_rate = 1.0
 
+[delivery]
+# Maximum recipient-authority delivery batches processed concurrently by this node.
+# This is independent from channel_append.recipient_authority_dispatch_concurrency.
+recipient_worker_concurrency = 100
+
 [message]
 permission_cache_ttl = "30s"

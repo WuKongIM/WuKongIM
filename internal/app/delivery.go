@@ -248,6 +248,13 @@ func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryQueue(event ch
 	}
 }
 
+func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryWorkerPressure(event channelappend.RecipientDeliveryWorkerPressureObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.Delivery.SetRecipientWorkerPressure(event.Inflight, event.Capacity)
+}
+
 func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryAdmission(event channelappend.RecipientDeliveryAdmissionObservation) {
 	if o.app == nil {
 		return

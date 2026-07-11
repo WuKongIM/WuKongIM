@@ -133,6 +133,20 @@ func observeRecipientDeliveryQueue(observer AppendObserver, event RecipientDeliv
 	queueObserver.SetChannelAppendRecipientDeliveryQueue(event)
 }
 
+func observeRecipientDeliveryWorkerPressure(observer AppendObserver, event RecipientDeliveryWorkerPressureObservation) {
+	pressureObserver, ok := observer.(RecipientDeliveryWorkerPressureObserver)
+	if !ok || pressureObserver == nil {
+		return
+	}
+	if event.Inflight < 0 {
+		event.Inflight = 0
+	}
+	if event.Capacity < 0 {
+		event.Capacity = 0
+	}
+	pressureObserver.SetChannelAppendRecipientDeliveryWorkerPressure(event)
+}
+
 func observeRecipientDeliveryAdmission(observer AppendObserver, event RecipientDeliveryAdmissionObservation) {
 	admissionObserver, ok := observer.(RecipientDeliveryAdmissionObserver)
 	if !ok || admissionObserver == nil {

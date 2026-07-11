@@ -122,6 +122,12 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 			Buckets:     channelAppendItemBuckets,
 		}, []string{"stage", "result"}),
 	}
+	// Materialize idle writer-state series so quiescence checks can distinguish zero backlog from a missing metric contract.
+	for _, kind := range []string{"pending_append", "append_inflight", "post_commit_backlog"} {
+		m.writerStateItems.WithLabelValues(kind).Set(0)
+	}
+	// Materialize the append/ok histogram without recording a synthetic observation.
+	_ = m.effectItems.WithLabelValues("append", "ok")
 
 	registry.MustRegister(
 		m.routerTotal,

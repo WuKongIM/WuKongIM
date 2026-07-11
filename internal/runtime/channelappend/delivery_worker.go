@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -52,6 +53,19 @@ type RecipientDeliveryWorker struct {
 	acceptDone chan struct{}
 	// done closes after all workers exit.
 	done chan struct{}
+
+	// inflight covers commands currently executing inside runCommand.
+	inflight atomic.Int64
+	// observationMu preserves gauge update order while queue and worker state change concurrently.
+	observationMu sync.Mutex
+}
+
+// WorkerCapacity returns the configured recipient delivery worker concurrency.
+func (w *RecipientDeliveryWorker) WorkerCapacity() int {
+	if w == nil {
+		return 0
+	}
+	return w.workers
 }
 
 type recipientDeliveryCommand struct {
@@ -111,7 +125,7 @@ func (w *RecipientDeliveryWorker) Start(context.Context) error {
 	w.acceptDone = acceptDone
 	w.done = done
 	w.state = recipientDeliveryWorkerOpen
-	w.observeQueue()
+	w.observePressure()
 	return nil
 }
 
@@ -172,7 +186,7 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 
 	select {
 	case queue <- cmd:
-		w.observeQueue()
+		w.observePressure()
 		return nil
 	case <-acceptDone:
 		admissionResult = recipientDeliveryResultClosed
@@ -187,7 +201,6 @@ func (w *RecipientDeliveryWorker) runWorker(acceptDone <-chan struct{}) {
 	for {
 		select {
 		case cmd := <-w.queue:
-			w.observeQueue()
 			w.runCommand(cmd)
 		case <-acceptDone:
 			w.drain()
@@ -200,7 +213,6 @@ func (w *RecipientDeliveryWorker) drain() {
 	for {
 		select {
 		case cmd := <-w.queue:
-			w.observeQueue()
 			w.runCommand(cmd)
 		default:
 			return
@@ -209,6 +221,13 @@ func (w *RecipientDeliveryWorker) drain() {
 }
 
 func (w *RecipientDeliveryWorker) runCommand(cmd recipientDeliveryCommand) {
+	w.inflight.Add(1)
+	defer func() {
+		w.inflight.Add(-1)
+		w.observePressure()
+	}()
+	w.observePressure()
+
 	startedAt := time.Now()
 	result := recipientDeliveryResultOK
 	defer func() {
@@ -231,10 +250,16 @@ func (w *RecipientDeliveryWorker) runCommand(cmd recipientDeliveryCommand) {
 	}
 }
 
-func (w *RecipientDeliveryWorker) observeQueue() {
+func (w *RecipientDeliveryWorker) observePressure() {
+	w.observationMu.Lock()
+	defer w.observationMu.Unlock()
 	observeRecipientDeliveryQueue(w.observer, RecipientDeliveryQueueObservation{
 		QueueDepth:    len(w.queue),
 		QueueCapacity: cap(w.queue),
+	})
+	observeRecipientDeliveryWorkerPressure(w.observer, RecipientDeliveryWorkerPressureObservation{
+		Inflight: int(w.inflight.Load()),
+		Capacity: w.workers,
 	})
 }
 
@@ -297,13 +322,18 @@ func (w *RecipientDeliveryWorker) waitClosed(ctx context.Context, done <-chan st
 }
 
 func (w *RecipientDeliveryWorker) finishClosedForDone(done <-chan struct{}) {
+	closed := false
 	w.mu.Lock()
 	if w.state == recipientDeliveryWorkerClosing && w.done == done {
 		w.state = recipientDeliveryWorkerClosed
 		w.acceptDone = nil
 		w.done = nil
+		closed = true
 	}
 	w.mu.Unlock()
+	if closed {
+		w.observePressure()
+	}
 }
 
 func (w *RecipientDeliveryWorker) finishClosedIfDoneLocked() bool {

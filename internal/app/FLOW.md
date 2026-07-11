@@ -37,7 +37,8 @@ New(Config)
      cache/flush gauges and histograms, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
      touch-flush route/chunk/target-group counters, recipient delivery worker
-     queue/admission/process metrics,
+     queue/admission/process metrics plus configured worker capacity and current
+     in-flight command gauges,
      plugin PersistAfter and Receive hook enqueue/invoke counters and
      histograms, and synchronous plugin Send hook invoke counters and histograms
      plus node lifecycle gauges/counters from control snapshots and scale-in
@@ -375,8 +376,11 @@ by foreground channelappend append effects and post-append recipient effects.
 Prepare runs inline on the writer advance path; append remains the foreground
 durable path that determines SEND/SENDACK throughput.
 `ChannelAppend.RecipientAuthorityDispatchConcurrency` defaults to a bounded
-recipient-authority target fanout per post-commit envelope. The lookup-shard count controls writer map
-sharding; effect workers run only blocking effects and never write channel
+recipient-authority target fanout per post-commit envelope.
+`Delivery.RecipientWorkerConcurrency` independently defaults to 100 and controls
+only the goroutines draining the bounded recipient delivery queue, so target
+fanout and delivery execution capacity can be tuned without changing each
+other. The lookup-shard count controls writer map sharding; effect workers run only blocking effects and never write channel
 state concurrently with another advance for the same channel. The delivery
 observer maps aggregate writer pressure and effect pool observations into
 Prometheus, and also records direct ants/v2 occupancy for the channelappend
@@ -432,7 +436,9 @@ independent channel/subscriber mutations while preserving subscriber mutation
 order within the same channel. Scoped UID delivery bypasses subscriber scan and
 flows through recipient authority grouping, presence resolution, and the local
 or RPC owner pusher after the recipient delivery worker accepts the batch.
-These metrics do not include UID, channel, slot, or per-target labels.
+The app maps the worker's serialized execution-pressure observation into
+Prometheus worker capacity and in-flight gauges. These metrics do not include
+UID, channel, slot, or per-target labels.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 cluster UID hash-slot table to create authority partitions. A fanout task

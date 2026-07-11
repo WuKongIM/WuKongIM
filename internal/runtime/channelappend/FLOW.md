@@ -275,9 +275,14 @@ Processing failures are terminal best-effort delivery failures: they are
 observed through the same post-commit failure surface with the recipient
 authority target attached, and they are not returned to channelappend after the
 batch has been accepted. The worker also emits low-cardinality queue, admission,
-and process observations: queue depth/capacity, enqueue result/wait time,
-processing result/duration, and recipient batch size. These observations do not
-include UID, channel, or target labels.
+process, and execution-pressure observations: queue depth/capacity, configured
+worker capacity/current in-flight commands, enqueue result/wait time,
+processing result/duration, and recipient batch size. Queue and worker gauge
+samples are serialized and read from current state so concurrent worker starts,
+finishes, and queue changes cannot leave a stale terminal gauge; every accepted
+command increments in-flight for the complete `runCommand` execution and the
+final command returns it to zero. These observations do not include UID,
+channel, or target labels.
 
 ## Pressure Observability
 
