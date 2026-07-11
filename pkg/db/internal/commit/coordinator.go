@@ -119,6 +119,8 @@ type Request struct {
 	Build func(batch *engine.Batch) error
 	// Publish runs after the physical commit succeeds.
 	Publish func() error
+	// Finalize releases request-scoped resources after the request reaches one terminal state.
+	Finalize func()
 }
 
 // Coordinator batches logical requests into fewer physical commits.
@@ -143,7 +145,8 @@ type Coordinator struct {
 
 type pendingRequest struct {
 	Request
-	done chan error
+	done         chan error
+	finalizeOnce *sync.Once
 }
 
 type coordinatorShard struct {
@@ -197,22 +200,31 @@ func (c *Coordinator) SetCommitFunc(fn func(batch *engine.Batch) error) {
 
 // Submit queues one logical request and waits for its result.
 func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
+	pending := newPendingRequest(req)
 	if c == nil || c.db == nil || req.Build == nil {
+		pending.complete(dberrors.ErrInvalidArgument)
 		return dberrors.ErrInvalidArgument
 	}
 	if c.isSharded() {
 		c.acceptMu.RLock()
 		if c.closed {
 			c.acceptMu.RUnlock()
+			pending.complete(ErrClosed)
 			return ErrClosed
 		}
 		shard := c.shardFor(req.Partition)
 		c.acceptMu.RUnlock()
 		if shard == nil {
+			pending.complete(ErrClosed)
 			return ErrClosed
 		}
-		return shard.Submit(ctx, req)
+		return shard.submit(ctx, pending)
 	}
+	return c.submit(ctx, pending)
+}
+
+func (c *Coordinator) submit(ctx context.Context, pending pendingRequest) (err error) {
+	req := pending.Request
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -226,12 +238,11 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 			Err:      err,
 		})
 	}()
-	pending := pendingRequest{Request: req, done: make(chan error, 1)}
-
 	c.acceptMu.RLock()
 	if c.closed {
 		c.acceptMu.RUnlock()
 		err = ErrClosed
+		pending.complete(err)
 		return err
 	}
 	select {
@@ -241,10 +252,12 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 	case <-ctx.Done():
 		c.acceptMu.RUnlock()
 		err = ctx.Err()
+		pending.complete(err)
 		return err
 	case <-c.stopCh:
 		c.acceptMu.RUnlock()
 		err = ErrClosed
+		pending.complete(err)
 		return err
 	}
 
@@ -259,10 +272,28 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 		case err = <-pending.done:
 			return err
 		default:
-			err = ErrClosed
+			pending.complete(ErrClosed)
+			err = <-pending.done
 			return err
 		}
 	}
+}
+
+func newPendingRequest(req Request) pendingRequest {
+	return pendingRequest{
+		Request:      req,
+		done:         make(chan error, 1),
+		finalizeOnce: &sync.Once{},
+	}
+}
+
+func (r pendingRequest) complete(err error) {
+	r.finalizeOnce.Do(func() {
+		if r.Finalize != nil {
+			r.Finalize()
+		}
+		r.done <- err
+	})
 }
 
 // Close stops the coordinator and fails work that was not committed.
@@ -454,7 +485,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		Err:             publishErr,
 	})
 	for i, req := range reqs.requests {
-		req.done <- publishResults[i]
+		req.complete(publishResults[i])
 	}
 }
 
@@ -469,7 +500,7 @@ func (c *Coordinator) failQueued() {
 	for {
 		select {
 		case req := <-c.requests:
-			req.done <- ErrClosed
+			req.complete(ErrClosed)
 		default:
 			c.observeQueueDepth()
 			return

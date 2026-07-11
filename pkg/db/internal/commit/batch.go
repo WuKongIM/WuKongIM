@@ -16,6 +16,6 @@ func (b requestBatch) stats() (requests int, records int, bytes int) {
 
 func (b requestBatch) completeAll(err error) {
 	for _, req := range b.requests {
-		req.done <- err
+		req.complete(err)
 	}
 }
