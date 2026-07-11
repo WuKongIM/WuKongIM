@@ -36,4 +36,11 @@ func TestConnectionManagerConfigCopiesAssignmentClientProfile(t *testing.T) {
 	if cfg.Client == nil || *cfg.Client != *profile {
 		t.Fatalf("connection manager client profile = %#v, want %#v", cfg.Client, profile)
 	}
+	if cfg.Client == profile {
+		t.Fatal("connection manager client profile aliases assignment profile")
+	}
+	profile.SendQueueCapacity = 999
+	if cfg.Client.SendQueueCapacity != 16 {
+		t.Fatalf("copied send queue capacity = %d, want 16 after source mutation", cfg.Client.SendQueueCapacity)
+	}
 }
