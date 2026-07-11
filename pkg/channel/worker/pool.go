@@ -12,13 +12,14 @@ import (
 )
 
 const (
-	rpcBatchMaxItems         = 2
-	rpcBatchMaxWait          = 250 * time.Microsecond
-	storeAppendBatchMaxItems = 64
-	storeAppendBatchMaxWait  = 250 * time.Microsecond
-	storeApplyBatchMaxItems  = 64
-	storeApplyBatchMaxWait   = 250 * time.Microsecond
-	workerExecutorStopGrace  = 100 * time.Millisecond
+	rpcPullLedBatchMaxItems     = 4
+	rpcPullHintLedBatchMaxItems = 2
+	rpcBatchMaxWait             = 250 * time.Microsecond
+	storeAppendBatchMaxItems    = 64
+	storeAppendBatchMaxWait     = 250 * time.Microsecond
+	storeApplyBatchMaxItems     = 64
+	storeApplyBatchMaxWait      = 250 * time.Microsecond
+	workerExecutorStopGrace     = 100 * time.Millisecond
 )
 
 // QueueObserver receives bounded worker queue depth samples.
@@ -335,8 +336,10 @@ func (p *Pool) batchPolicy(first queuedTask) workqueue.BatchOptions {
 		return workqueue.BatchOptions{MaxItems: 1}
 	}
 	switch {
-	case p.canCollectRPCBatch(first.task):
-		return workqueue.BatchOptions{MaxItems: rpcBatchMaxItems, MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
+	case first.task.Kind == TaskRPCPull && p.canCollectRPCBatch(first.task):
+		return workqueue.BatchOptions{MaxItems: rpcPullLedBatchMaxItems, MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
+	case first.task.Kind == TaskRPCPullHint && p.canCollectRPCBatch(first.task):
+		return workqueue.BatchOptions{MaxItems: rpcPullHintLedBatchMaxItems, MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
 	case p.canCollectStoreAppendBatch(first.task):
 		return workqueue.BatchOptions{MaxItems: storeAppendBatchMaxItems, MaxWait: p.batchMaxWait(storeAppendBatchMaxWait)}
 	case p.canCollectStoreApplyBatch(first.task):

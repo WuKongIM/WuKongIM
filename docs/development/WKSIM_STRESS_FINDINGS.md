@@ -1,5 +1,15 @@
 # WKSIM Stress Findings
 
+## 2026-07-12 three-node 4000 QPS AckOffset Pull batching
+
+- Scenario: `scripts/bench-wukongim-three-nodes-real-qps.sh`, 1000 group channels, 4096 online users, 10 members per channel, synchronous three-replica quorum commit, one message commit coordinator shard, and a 400ms run-phase p99 gate.
+- Baseline: the previous 3500-QPS ceiling probe delivered 3483.9 actual QPS with zero send errors but failed at p99 415.5ms. Follower `apply_to_ack_return` p99 tracked the next Pull RPC that carries `AckOffset`; two-item Pull batches were consistently full, and the estimated three-node Pull transport call count was 140244 during the 15s run.
+- Change: Pull-led collection windows now collect at most four adjacent items, while PullHint-led windows remain capped at two and both retain the 250us collection window. The first task selects the policy; later mixed kinds or targets can still enter the window and run as serial subgroups. This reduces AckOffset-path call amplification without restoring every RPC-led window to the old 64-item head-of-line risk.
+- 3500-QPS A/B: the first 15s run delivered 3490.5 actual QPS with p99 256.4ms and zero errors. Estimated Pull transport calls fell to 100182, about 28.6% below baseline; per-node Pull RPC p99 improved by 8-42%, and follower apply-to-ACK p99 improved by 32-51%. The required 30s repeat delivered 3497.1 actual QPS with p99 303.8ms and zero errors.
+- Stable result: 4000 offered QPS passed both 15s and 30s runs. The 30s run delivered 3990.9 actual QPS, a 0.998 actual/offered ratio, p99 284.6ms, and zero errors. This advances the stable three-node gate from 3000 to 4000 QPS without changing synchronous durability or quorum ACK semantics.
+- New ceiling: 4500 QPS passed one 15s sample at 4484.4 actual QPS and p99 395.8ms, but the 30s repeat failed at 4483.9 actual QPS and p99 786.0ms with zero send errors. Across nodes, follower Pull RPC p99 rose to 239-241ms, apply-to-ACK rose to 241-249ms, and leader post-store quorum wait rose to 416-458ms; node3 also showed secondary storage and append-batch amplification.
+- Remaining bottleneck: the stable ceiling is 4000 QPS. Do not increase the global Pull cap blindly: the current dispatcher can collect multiple targets and executes the resulting subgroups serially, while the server response also waits for the slowest item in the batch. First add leader-side PullBatch observations for submit-to-all-await latency, the slowest future, batch size, and returned records/bytes. Use that evidence to decide whether target-aware collection or bounded subgroup scheduling is worthwhile, then re-run the 4500-QPS 30s gate; physical commit was not the cross-node primary cause of this failure.
+
 ## 2026-07-12 three-node 3000 QPS commit, mailbox, and observer tuning
 
 - Scenario: `scripts/bench-wukongim-three-nodes-real-qps.sh --qps 3000`, 1000 group channels, 4096 online users, 10 members per channel, synchronous three-replica quorum commit, and a 400ms run-phase p99 gate.

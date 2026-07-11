@@ -38,8 +38,14 @@ and observer installation and shutdown skip the absent pool safely.
 ## Batching
 
 RPC pull and pull-hint tasks can batch when they have the same task kind and
-target node. Store append and store apply tasks can batch across different
-channel keys when the store factory exposes the optional batch interface.
+target node. Workqueue chooses the collection policy from the first accepted
+task: a Pull-led window collects at most four adjacent tasks, while a
+PullHint-led window collects at most two. This is not strict queue isolation;
+later tasks of another RPC kind or target can enter the same window and are
+partitioned into serial subgroups. Both policies retain the built-in
+250-microsecond collection window. Store append and store apply tasks can batch
+across different channel keys when the store factory exposes the optional batch
+interface.
 `TaskMetaResolve` is never batched and runs only in the dedicated metadata
 resolver pool.
 Retention tasks are single-channel store-apply-pool work: they first adopt a

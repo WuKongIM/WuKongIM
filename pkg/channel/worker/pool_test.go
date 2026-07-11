@@ -847,6 +847,27 @@ func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
 	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
 
+func TestPoolUsesFirstRPCTaskBatchLimit(t *testing.T) {
+	pool := &Pool{
+		cfg:  PoolConfig{Name: "rpc"},
+		deps: Deps{Transport: &batchWorkerTransport{}},
+	}
+
+	pullLed := pool.batchPolicy(queuedTask{task: Task{
+		Kind:    TaskRPCPull,
+		RPCPull: &RPCPullTask{Node: 2},
+	}})
+	pullHintLed := pool.batchPolicy(queuedTask{task: Task{
+		Kind:        TaskRPCPullHint,
+		RPCPullHint: &RPCPullHintTask{Node: 2},
+	}})
+
+	require.Equal(t, 4, pullLed.MaxItems)
+	require.Equal(t, 2, pullHintLed.MaxItems)
+	require.Equal(t, rpcBatchMaxWait, pullLed.MaxWait)
+	require.Equal(t, rpcBatchMaxWait, pullHintLed.MaxWait)
+}
+
 func TestPoolBatchesStoreApplyTasksWhenFactorySupportsBatch(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	stores := &batchApplyStoreFactory{}
