@@ -177,17 +177,25 @@ func (r *Reactor) completeApplyMetaStoreLoad(rc *runtimeChannel, loading *storeL
 	state.HW = loaded.Initial.HW
 	state.CheckpointHW = loaded.Initial.CheckpointHW
 	applyLoadedRetentionState(state, loaded.Retention)
+	decision := state.ApplyMeta(loading.meta)
+	if decision.Err != nil {
+		if r.channels[loading.key] == rc {
+			rc.loading = nil
+			delete(r.channels, loading.key)
+		}
+		r.closeStoreAsync(loading.key, loading.generation, loaded.Store)
+		r.observeRuntimeCounts()
+		r.completeStoreLoadFutures(loading, Result{Err: decision.Err})
+		return
+	}
 	rc.state = state
 	rc.store = loaded.Store
 	rc.loading = nil
 	r.resetLoadedRuntimeStructures(rc, time.Now(), loaded.Initial.LEO)
-	decision := rc.state.ApplyMeta(loading.meta)
-	if decision.Err == nil {
-		r.applyLoadedMetaDecision(rc, false)
-		r.observeRuntimeCounts()
-		r.observeChannelRuntimeLoaded(loading.key)
-	}
-	r.completeStoreLoadFutures(loading, Result{Err: decision.Err})
+	r.applyLoadedMetaDecision(rc, false)
+	r.observeRuntimeCounts()
+	r.observeChannelRuntimeLoaded(loading.key)
+	r.completeStoreLoadFutures(loading, Result{})
 }
 
 func (r *Reactor) completeStoreLoadFutures(loading *storeLoadState, result Result) {
@@ -315,6 +323,8 @@ func (r *Reactor) completePendingMetaStoreLoad(rc *runtimeChannel, loading *stor
 	}
 }
 
+// closeStoreAsync transfers one detached handle either to an accepted worker task
+// or, when admission fails, to the shutdown-tracked fallback runtime.
 func (r *Reactor) closeStoreAsync(key ch.ChannelKey, generation uint64, cs store.ChannelStore) {
 	if cs == nil {
 		return
@@ -326,7 +336,10 @@ func (r *Reactor) closeStoreAsync(key ch.ChannelKey, generation uint64, cs store
 			return
 		}
 	}
-	go func() { _ = cs.Close() }()
+	if r != nil && r.storeCloses != nil && r.storeCloses.start(func() { _ = cs.Close() }) {
+		return
+	}
+	_ = cs.Close()
 }
 
 func (r *Reactor) clearFencedRuntimeWork(rc *runtimeChannel, err error) {
@@ -513,9 +526,6 @@ func (r *Reactor) ensurePendingMeta(req transport.PullHintRequest) (*runtimeChan
 	}
 	cs, initial, err := r.loadChannelStore(req.ChannelKey, req.ChannelID)
 	if err != nil {
-		if cs != nil {
-			_ = cs.Close()
-		}
 		return nil, err
 	}
 	rc := &runtimeChannel{
@@ -553,18 +563,31 @@ type loadedChannelStoreState struct {
 }
 
 func (r *Reactor) loadChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, loadedChannelStoreState, error) {
+	if r == nil || r.cfg.Store == nil {
+		return nil, loadedChannelStoreState{}, ch.ErrInvalidConfig
+	}
 	cs, err := r.cfg.Store.ChannelStore(key, id)
 	if err != nil {
 		return nil, loadedChannelStoreState{}, err
 	}
+	if cs == nil {
+		return nil, loadedChannelStoreState{}, ch.ErrInvalidConfig
+	}
+	owned := true
+	defer func() {
+		if owned {
+			_ = cs.Close()
+		}
+	}()
 	initial, err := cs.Load(context.Background())
 	if err != nil {
-		return cs, loadedChannelStoreState{}, err
+		return nil, loadedChannelStoreState{}, err
 	}
 	retention, err := cs.LoadRetentionState(context.Background())
 	if err != nil {
-		return cs, loadedChannelStoreState{}, err
+		return nil, loadedChannelStoreState{}, err
 	}
+	owned = false
 	return cs, loadedChannelStoreState{InitialState: initial, Retention: retention}, nil
 }
 
@@ -679,20 +702,27 @@ func (r *Reactor) convertPendingMeta(rc *runtimeChannel, meta ch.Meta) error {
 }
 
 func (r *Reactor) releasePendingMeta(key ch.ChannelKey, rc *runtimeChannel, err error) {
-	if r == nil || rc == nil || rc.pending == nil || r.channels[key] != rc {
+	detached, ok := r.detachPendingMeta(key, rc, err)
+	if !ok {
 		return
 	}
-	storeHandle := rc.store
-	generation := rc.pending.generation
+	r.closeStoreAsync(detached.key, detached.generation, detached.store)
+}
+
+func (r *Reactor) detachPendingMeta(key ch.ChannelKey, rc *runtimeChannel, err error) (detachedStoreHandle, bool) {
+	if r == nil || rc == nil || rc.pending == nil || r.channels[key] != rc {
+		return detachedStoreHandle{}, false
+	}
+	detached := detachedStoreHandle{key: key, generation: rc.pending.generation, store: rc.store}
 	rc.store = nil
 	delete(r.channels, key)
-	r.closeStoreAsync(key, generation, storeHandle)
 	if r.pendingMetaCount > 0 {
 		r.pendingMetaCount--
 	}
 	r.observePendingMeta("released", err)
 	r.observePendingMetaCount()
 	r.observeRuntimeCounts()
+	return detached, true
 }
 
 func (r *Reactor) releaseExpiredPendingMeta(key ch.ChannelKey, rc *runtimeChannel, now time.Time) {

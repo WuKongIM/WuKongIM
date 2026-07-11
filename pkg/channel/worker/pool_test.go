@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -398,6 +399,85 @@ func TestPoolCloseCompletesQueuedTaskAndCancelsRunningContext(t *testing.T) {
 	require.ErrorIs(t, resultByOpID(t, results, queuedFence.OpID).Err, ch.ErrClosed)
 	require.True(t, resultContainsOpID(results, runningFence.OpID), "missing running result in %#v", results)
 	require.ErrorIs(t, resultByOpID(t, results, runningFence.OpID).Err, context.Canceled)
+}
+
+func TestWorkerPoolCloseFinalizesQueuedStoreCloseExactlyOnce(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	pool, err := NewPool(PoolConfig{Name: "store_read", Workers: 1, QueueSize: 2}, Deps{}, sink)
+	require.NoError(t, err)
+
+	runningStarted := make(chan struct{})
+	releaseRunning := make(chan struct{})
+	var releaseOnce sync.Once
+	closeDone := make(chan error, 1)
+	t.Cleanup(func() {
+		releaseOnce.Do(func() { close(releaseRunning) })
+		select {
+		case <-closeDone:
+		default:
+			_ = pool.Close()
+		}
+	})
+
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: ch.Fence{ChannelKey: "running:1", OpID: 1},
+		RunFunc: func(context.Context) Result {
+			close(runningStarted)
+			<-releaseRunning
+			return Result{Kind: TaskFunc}
+		},
+	}))
+	require.Eventually(t, func() bool {
+		select {
+		case <-runningStarted:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, time.Millisecond)
+
+	handle := &blockingStoreCloseHandle{
+		ChannelStore: &trackingStoreHandle{},
+		started:      make(chan struct{}, 1),
+		release:      make(chan struct{}),
+	}
+	var releaseCloseOnce sync.Once
+	t.Cleanup(func() { releaseCloseOnce.Do(func() { close(handle.release) }) })
+	closeTask := Task{
+		Kind:       TaskStoreClose,
+		Fence:      ch.Fence{ChannelKey: "queued-close:1", OpID: 2},
+		StoreClose: &StoreCloseTask{Store: handle},
+	}
+	require.NoError(t, pool.Submit(context.Background(), closeTask))
+	go func() { closeDone <- pool.Close() }()
+	require.Eventually(t, func() bool { return pool.runtime.Closed() }, time.Second, time.Millisecond)
+	select {
+	case <-handle.started:
+	case <-time.After(time.Second):
+		t.Fatal("queued StoreClose cancellation did not enter the finalizer")
+	}
+	runDone := make(chan Result, 1)
+	go func() { runDone <- closeTask.Run(context.Background(), Deps{}) }()
+
+	require.Equal(t, int32(1), handle.closeCalls.Load())
+	releaseCloseOnce.Do(func() { close(handle.release) })
+	result := <-runDone
+	require.NoError(t, result.Err)
+	result = closeTask.Run(context.Background(), Deps{})
+	require.NoError(t, result.Err)
+	require.Equal(t, int32(1), handle.closeCalls.Load())
+
+	releaseOnce.Do(func() { close(releaseRunning) })
+	select {
+	case err := <-closeDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("Pool.Close() did not wait for the running worker")
+	}
+	queuedResult := resultByOpID(t, sink.Results(), closeTask.Fence.OpID)
+	require.ErrorIs(t, queuedResult.Err, ch.ErrClosed)
+	require.Equal(t, int32(1), handle.closeCalls.Load())
 }
 
 func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {
@@ -1014,6 +1094,23 @@ type captureSink struct {
 	mu      sync.Mutex
 	results []Result
 	ch      chan Result
+}
+
+type blockingStoreCloseHandle struct {
+	store.ChannelStore
+	started    chan struct{}
+	release    chan struct{}
+	closeCalls atomic.Int32
+}
+
+func (h *blockingStoreCloseHandle) Close() error {
+	h.closeCalls.Add(1)
+	select {
+	case h.started <- struct{}{}:
+	default:
+	}
+	<-h.release
+	return h.ChannelStore.Close()
 }
 
 func (s *captureSink) Complete(result Result) {

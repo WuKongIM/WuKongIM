@@ -105,8 +105,10 @@ type Group struct {
 	router   Router
 	reactors []*Reactor
 	pools    *worker.Pools
-	nextOp   atomic.Uint64
-	closed   atomic.Bool
+	// storeCloses owns fallback closes rejected by worker admission across all reactors.
+	storeCloses *storeCloseTracker
+	nextOp      atomic.Uint64
+	closed      atomic.Bool
 }
 
 // NewGroup creates and starts a reactor group.
@@ -125,7 +127,7 @@ func NewGroup(cfg Config) (*Group, error) {
 	if err != nil {
 		return nil, err
 	}
-	g := &Group{cfg: cfg, router: router, reactors: make([]*Reactor, cfg.ReactorCount)}
+	g := &Group{cfg: cfg, router: router, reactors: make([]*Reactor, cfg.ReactorCount), storeCloses: newStoreCloseTracker()}
 	pools, err := worker.NewPools(defaultWorkerPools(cfg), worker.Deps{LocalNode: cfg.LocalNode, Stores: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaResolver}, g)
 	if err != nil {
 		return nil, err
@@ -162,6 +164,7 @@ func NewGroup(cfg Config) (*Group, error) {
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
 			Observer:                      cfg.Observer,
 			NextOpID:                      g.NextOpID,
+			storeCloses:                   g.storeCloses,
 		})
 		g.reactors[i] = r
 		r.start()
@@ -324,6 +327,12 @@ func (g *Group) LookupCommittedMessage(ctx context.Context, id ch.ChannelID, mes
 
 // Complete routes a blocking worker result back to the owning reactor.
 func (g *Group) Complete(result worker.Result) {
+	delivered := false
+	defer func() {
+		if !delivered {
+			closeWorkerLoadedStore(result)
+		}
+	}()
 	if g == nil {
 		return
 	}
@@ -334,13 +343,13 @@ func (g *Group) Complete(result worker.Result) {
 	reactor := g.reactors[g.router.PickIndex(key)]
 	err := reactor.SubmitCompletion(Event{Kind: EventWorkerResult, Key: key, Worker: result})
 	if errors.Is(err, ch.ErrClosed) {
-		closeWorkerLoadedStore(result)
 		return
 	}
 	if err != nil && !errors.Is(err, ch.ErrClosed) {
 		panic(err)
 	}
 	if err == nil {
+		delivered = true
 		g.cfg.Observer.ObserveWorkerResult(result.Kind, result.Err, result.Duration)
 	}
 }
@@ -397,7 +406,9 @@ func (g *Group) Close() error {
 		}(reactor)
 	}
 	wg.Wait()
-	return g.pools.Close()
+	poolErr := g.pools.Close()
+	g.storeCloses.sealAndWait()
+	return poolErr
 }
 
 func eventPriority(kind EventKind) Priority {

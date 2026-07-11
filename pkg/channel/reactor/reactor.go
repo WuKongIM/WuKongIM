@@ -89,6 +89,8 @@ type ReactorConfig struct {
 	SlowDueThreshold time.Duration
 	// NextOpID allocates reactor-owned batch operation IDs distinct from client operation IDs.
 	NextOpID func() ch.OpID
+	// storeCloses is shared by a Group so shutdown can wait after worker delivery stops.
+	storeCloses *storeCloseTracker
 }
 
 // Reactor owns channel states for one hash partition.
@@ -132,6 +134,10 @@ type Reactor struct {
 	asyncEffects atomic.Bool
 	// appendAdmissionGuard can reject local leader appends before they enter the append queue.
 	appendAdmissionGuard ch.AppendAdmissionGuard
+	// storeCloses owns asynchronous fallback handle closes that worker admission rejected.
+	storeCloses *storeCloseTracker
+	// ownsStoreCloses reports that this standalone reactor must seal and wait the tracker.
+	ownsStoreCloses bool
 }
 
 type runtimeChannel struct {
@@ -236,7 +242,13 @@ type pullWaiter struct {
 // NewReactor constructs a reactor.
 func NewReactor(cfg ReactorConfig) *Reactor {
 	cfg = defaultReactorConfig(cfg)
-	r := &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), drainBuf: make([]Event, 0, defaultReactorDrain), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{}), appendAdmissionGuard: cfg.AppendAdmissionGuard}
+	storeCloses := cfg.storeCloses
+	ownsStoreCloses := false
+	if storeCloses == nil {
+		storeCloses = newStoreCloseTracker()
+		ownsStoreCloses = true
+	}
+	r := &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), drainBuf: make([]Event, 0, defaultReactorDrain), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{}), appendAdmissionGuard: cfg.AppendAdmissionGuard, storeCloses: storeCloses, ownsStoreCloses: ownsStoreCloses}
 	r.observeAllMailboxCapacities()
 	return r
 }

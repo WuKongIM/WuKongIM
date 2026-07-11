@@ -5,6 +5,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
 func (r *Reactor) loop() {
@@ -13,9 +14,16 @@ func (r *Reactor) loop() {
 	defer func() {
 		stopTimer(idleTimer)
 		r.submitGate.Lock()
-		r.failPendingWaiters(ch.ErrClosed)
-		r.failQueuedEvents(ch.ErrClosed)
+		stores := r.failPendingWaiters(ch.ErrClosed)
+		stores = append(stores, r.failQueuedEvents(ch.ErrClosed)...)
+		stores = append(stores, r.detachShutdownStores()...)
 		r.submitGate.Unlock()
+		for _, detached := range stores {
+			r.closeStoreAsync(detached.key, detached.generation, detached.store)
+		}
+		if r.ownsStoreCloses {
+			r.storeCloses.sealAndWait()
+		}
 		close(r.done)
 	}()
 	for {
@@ -53,6 +61,39 @@ func (r *Reactor) loop() {
 		r.drainBuf = events[:0]
 		r.processDue(time.Now())
 	}
+}
+
+type detachedStoreHandle struct {
+	key        ch.ChannelKey
+	generation uint64
+	store      store.ChannelStore
+}
+
+func (r *Reactor) detachShutdownStores() []detachedStoreHandle {
+	if r == nil {
+		return nil
+	}
+	stores := make([]detachedStoreHandle, 0, len(r.channels))
+	for key, rc := range r.channels {
+		if rc == nil {
+			delete(r.channels, key)
+			continue
+		}
+		if rc.store != nil {
+			generation := uint64(0)
+			if rc.state != nil {
+				generation = rc.state.Generation
+			} else if rc.pending != nil {
+				generation = rc.pending.generation
+			} else if rc.loading != nil {
+				generation = rc.loading.generation
+			}
+			stores = append(stores, detachedStoreHandle{key: key, generation: generation, store: rc.store})
+			rc.store = nil
+		}
+		delete(r.channels, key)
+	}
+	return stores
 }
 
 func resetTimer(timer *time.Timer, d time.Duration) {
@@ -158,10 +199,11 @@ func (r *Reactor) handleClose(event Event) {
 	r.once.Do(func() { close(r.stop) })
 }
 
-func (r *Reactor) failPendingWaiters(err error) {
+func (r *Reactor) failPendingWaiters(err error) []detachedStoreHandle {
 	if r == nil {
-		return
+		return nil
 	}
+	var stores []detachedStoreHandle
 	r.clearAllLoadedMetaRefreshes()
 	for key, rc := range r.channels {
 		if rc != nil && rc.loading != nil && rc.state == nil && rc.pending == nil {
@@ -170,7 +212,9 @@ func (r *Reactor) failPendingWaiters(err error) {
 			continue
 		}
 		if rc != nil && rc.pending != nil && rc.state == nil {
-			r.releasePendingMeta(key, rc, err)
+			if detached, ok := r.detachPendingMeta(key, rc, err); ok && detached.store != nil {
+				stores = append(stores, detached)
+			}
 			continue
 		}
 		r.failWaiters(rc, err)
@@ -178,18 +222,27 @@ func (r *Reactor) failPendingWaiters(err error) {
 		r.clearPullCancelChannel(rc)
 		r.clearLookupCancelChannel(rc)
 	}
+	return stores
 }
 
-func (r *Reactor) failQueuedEvents(err error) {
+func (r *Reactor) failQueuedEvents(err error) []detachedStoreHandle {
 	if r == nil || r.mailbox == nil {
-		return
+		return nil
 	}
+	var stores []detachedStoreHandle
 	for {
 		events := r.mailbox.Drain(defaultReactorDrain)
 		if len(events) == 0 {
-			return
+			return stores
 		}
 		for _, event := range events {
+			if event.Kind == EventWorkerResult && event.Worker.StoreLoad != nil && event.Worker.StoreLoad.Store != nil {
+				stores = append(stores, detachedStoreHandle{
+					key:        event.Worker.Fence.ChannelKey,
+					generation: event.Worker.Fence.Generation,
+					store:      event.Worker.StoreLoad.Store,
+				})
+			}
 			if event.Future != nil {
 				event.Future.Complete(Result{Err: err})
 			}

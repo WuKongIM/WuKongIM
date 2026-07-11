@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -108,9 +109,25 @@ type StoreCheckpointTask struct {
 }
 
 // StoreCloseTask asks a worker to release a detached store handle.
+// A successful Pool.Submit transfers handle ownership to the pool; execution
+// and accepted-task cancellation share the same exactly-once finalizer.
 type StoreCloseTask struct {
 	// Store is the detached handle to close outside the reactor loop.
 	Store store.ChannelStore
+	// closeOnce coordinates execution and accepted-task cancellation ownership.
+	closeOnce sync.Once
+	// closeErr preserves the first terminal close result for repeated completion attempts.
+	closeErr error
+}
+
+func (t *StoreCloseTask) finalize() error {
+	if t == nil || t.Store == nil {
+		return nil
+	}
+	t.closeOnce.Do(func() {
+		t.closeErr = t.Store.Close()
+	})
+	return t.closeErr
 }
 
 // StoreRetentionTask asks a worker to adopt and optionally physically trim a retention boundary.
@@ -255,7 +272,7 @@ func runStoreClose(ctx context.Context, deps Deps, t Task) Result {
 	if payload == nil || payload.Store == nil {
 		return invalidResult(t)
 	}
-	err := payload.Store.Close()
+	err := payload.finalize()
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreClose: &StoreCloseResult{}}
 }
 

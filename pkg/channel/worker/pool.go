@@ -171,6 +171,8 @@ func (p *Pool) observer() QueueObserver {
 }
 
 // Submit enqueues task or returns a typed backpressure/closed error.
+// A nil result for TaskStoreClose transfers its detached store handle to the pool;
+// any error leaves ownership with the caller.
 func (p *Pool) Submit(ctx context.Context, task Task) error {
 	if p == nil {
 		return ch.ErrClosed
@@ -345,6 +347,9 @@ func (p *Pool) batchPolicy(first queuedTask) workqueue.BatchOptions {
 }
 
 func (p *Pool) completeQueuedClosed(queued queuedTask, err error) {
+	if queued.task.Kind == TaskStoreClose && queued.task.StoreClose != nil {
+		_ = queued.task.StoreClose.finalize()
+	}
 	if p == nil || p.sink == nil {
 		return
 	}

@@ -72,6 +72,14 @@ temporary handle failed to close. Store-load tasks keep the same panic-safe
 cleanup until both initial and retention state are loaded; only a complete
 `StoreLoadResult` transfers the lease to the result consumer.
 
+Store-close tasks own an already detached runtime lease rather than acquiring a
+temporary one. `Submit == nil` transfers that lease to the pool; any submission
+error leaves it with the caller. Execution and queued-task cancellation call the
+same exactly-once finalizer, so pool shutdown cannot drop an accepted close and
+cannot close it again if execution races cancellation. A canceled queued close
+still completes its reactor result with `ErrClosed`; cleanup errors do not
+replace that shutdown result.
+
 ## Observability
 
 Worker queue, capacity, admission, wait, task, batch, inflight, and ants pool

@@ -331,6 +331,31 @@ leader epoch, and operation id match the current runtime state. Store-load
 results are fenced by the temporary loading shell; stale load results close the
 opened store handle outside the reactor state machine.
 
+ApplyMeta activation builds and applies metadata to a local `ChannelState`
+before publishing either the state or loaded store into the runtime shell. A
+failed metadata decision deletes the loading shell, releases the loaded store,
+and fails all waiting futures, so it cannot consume `MaxChannels`. Synchronous
+store loading owns the acquired handle until both initial and retention state
+load successfully; either failure closes it and returns a nil handle.
+
+## Shutdown Ownership
+
+`Group.Close` first rejects new group admission. Each reactor then stops its
+single-writer loop, fails loading futures and pending waiters, detaches every
+published store, and drains queued events while holding the final submission
+gate. A queued successful StoreLoad is detached from its worker result and its
+event future still completes with `ErrClosed`. The gate is released before any
+store close is submitted or executed.
+
+Detached stores normally transfer to accepted `TaskStoreClose` work. The worker
+pool owns accepted close tasks through execution or queued cancellation; a
+submission failure instead enters the Group-owned fallback-close tracker, so
+ordinary eviction remains non-blocking. Shutdown joins all reactors, closes the
+worker pools to finish running work and finalize queued closes, then seals and
+waits the fallback tracker. Late StoreLoad delivery that cannot enter a reactor
+closes its store exactly once. None of these paths closes the shared store
+factory or underlying Pebble database.
+
 Append waiter metrics split the admitted future after service submission:
 `store_append_wait` measures append flush submission through fenced durable store
 completion, and `post_store_commit_wait` measures durable store completion
