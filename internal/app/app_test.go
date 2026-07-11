@@ -4538,7 +4538,10 @@ func TestStartSeedsPresenceAuthorityFromCurrentRoutes(t *testing.T) {
 	events := make(chan clusterpkg.RouteAuthorityEvent)
 	cluster := newFakePresenceCluster(1, events)
 	cluster.snapshot = clusterpkg.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 10}
-	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(&fakeGateway{calls: &[]string{}}))
+	plugin := PluginConfig{Enable: false}
+	plugin.SetEnableExplicit(true)
+	plugin.SetExplicitFlags(true)
+	app, err := newTestApp(t, Config{Plugin: plugin}, WithCluster(cluster), WithGateway(&fakeGateway{calls: &[]string{}}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
