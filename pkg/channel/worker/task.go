@@ -271,6 +271,7 @@ func runStoreRetention(ctx context.Context, deps Deps, t Task) Result {
 	if cs == nil {
 		return invalidResult(t)
 	}
+	defer func() { _ = cs.Close() }()
 	retainedMaxSeq, err := cs.AdoptRetentionBoundary(ctx, payload.ThroughSeq, ch.RetentionCursorCommitted)
 	if err != nil {
 		return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreRetention: &StoreRetentionResult{ThroughSeq: payload.ThroughSeq, BlockedReason: payload.BlockedReason}}
@@ -313,17 +314,23 @@ func runStoreLoad(ctx context.Context, deps Deps, t Task) Result {
 	if cs == nil {
 		return invalidResult(t)
 	}
+	owned := true
+	defer func() {
+		if owned {
+			_ = cs.Close()
+		}
+	}()
 	initial, err := cs.Load(ctx)
 	if err != nil {
-		_ = cs.Close()
 		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
 	}
 	retention, err := cs.LoadRetentionState(ctx)
 	if err != nil {
-		_ = cs.Close()
 		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
 	}
-	return Result{Kind: t.Kind, Fence: t.Fence, StoreLoad: &StoreLoadResult{Store: cs, Initial: initial, Retention: retention}}
+	result := Result{Kind: t.Kind, Fence: t.Fence, StoreLoad: &StoreLoadResult{Store: cs, Initial: initial, Retention: retention}}
+	owned = false
+	return result
 }
 
 func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
@@ -338,6 +345,7 @@ func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
 	if cs == nil {
 		return invalidResult(t)
 	}
+	defer func() { _ = cs.Close() }()
 	stored, err := cs.AppendLeader(ctx, store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync})
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreAppend: &StoreAppendResult{BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset}}
 }
@@ -354,6 +362,7 @@ func runStoreReadLog(ctx context.Context, deps Deps, t Task) Result {
 	if cs == nil {
 		return invalidResult(t)
 	}
+	defer func() { _ = cs.Close() }()
 	read, err := cs.ReadLog(ctx, store.ReadLogRequest{FromOffset: payload.FromOffset, MaxOffset: payload.MaxOffset, MaxBytes: payload.MaxBytes})
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreReadLog: &StoreReadLogResult{Records: read.Records}}
 }
@@ -373,6 +382,7 @@ func runStoreLookupMessage(ctx context.Context, deps Deps, t Task) Result {
 	if cs == nil {
 		return invalidResult(t)
 	}
+	defer func() { _ = cs.Close() }()
 	lookup, ok := cs.(store.MessageLookup)
 	if !ok {
 		return invalidResult(t)
@@ -393,6 +403,7 @@ func runStoreApply(ctx context.Context, deps Deps, t Task) Result {
 	if cs == nil {
 		return invalidResult(t)
 	}
+	defer func() { _ = cs.Close() }()
 	applied, err := cs.ApplyFollower(ctx, store.ApplyFollowerRequest{Records: payload.Records, LeaderHW: payload.LeaderHW})
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreApply: &StoreApplyResult{LEO: applied.LEO}}
 }
@@ -409,6 +420,7 @@ func runStoreCheckpoint(ctx context.Context, deps Deps, t Task) Result {
 	if cs == nil {
 		return invalidResult(t)
 	}
+	defer func() { _ = cs.Close() }()
 	err = cs.StoreCheckpoint(ctx, payload.Checkpoint)
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreCheckpoint: &StoreCheckpointResult{Checkpoint: payload.Checkpoint}}
 }

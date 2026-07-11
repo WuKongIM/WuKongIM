@@ -63,6 +63,15 @@ for running handlers, waits for them to exit, and releases the workqueue ants
 pool. Running handlers must rely on their task-owned context or the worker
 runtime context when blocking in dependency calls.
 
+Store append, apply, read, lookup, checkpoint, and retention tasks own only a
+temporary channel-store lease. They register lease cleanup immediately after a
+successful acquisition and release it on success, dependency failure,
+cancellation, or panic. Cleanup errors never replace the primary durable/read
+result, which prevents a completed write from being retried solely because its
+temporary handle failed to close. Store-load tasks keep the same panic-safe
+cleanup until both initial and retention state are loaded; only a complete
+`StoreLoadResult` transfers the lease to the result consumer.
+
 ## Observability
 
 Worker queue, capacity, admission, wait, task, batch, inflight, and ants pool
