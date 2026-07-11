@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -17,9 +18,10 @@ import (
 
 // MessageDBFactory adapts the shared message DB engine to the channel runtime.
 type MessageDBFactory struct {
-	engine          *messagedb.Engine
-	mu              sync.Mutex
-	checkpointLocks map[ch.ChannelKey]*sync.Mutex
+	// engine owns the compatibility message database runtime.
+	engine *messagedb.Engine
+	// closed rejects new adapter and batch acquisitions during shutdown.
+	closed atomic.Bool
 }
 
 // MessageDBFactoryOptions configures the message DB adapter.
@@ -57,7 +59,7 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 		Shards:      opts.CommitShards,
 		Observer:    opts.CommitObserver,
 	})
-	return &MessageDBFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
+	return &MessageDBFactory{engine: engine}
 }
 
 // CommitCoordinatorConfig returns the effective message DB commit coordinator settings.
@@ -70,21 +72,24 @@ func (f *MessageDBFactory) CommitCoordinatorConfig() messagedb.CommitCoordinator
 
 // ChannelStore returns an adapter for one message DB channel store.
 func (f *MessageDBFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (ChannelStore, error) {
-	if f == nil || f.engine == nil {
-		return nil, ch.ErrInvalidConfig
+	if err := f.availabilityError(); err != nil {
+		return nil, err
 	}
-	dbStore := f.engine.ForChannel(channel.ChannelKey(key), channel.ChannelID{ID: id.ID, Type: id.Type})
-	return &messageDBChannelStoreAdapter{store: dbStore, id: id, checkpointMu: f.checkpointLock(key)}, nil
+	dbStore, err := f.engine.ForChannel(channel.ChannelKey(key), channel.ChannelID{ID: id.ID, Type: id.Type})
+	if err != nil {
+		return nil, mapMessageDBAdapterError(err)
+	}
+	return &messageDBChannelStoreAdapter{store: dbStore, id: id, owner: f}, nil
 }
 
 // ListChannelsPage returns one ordered page from the local message channel catalog.
 func (f *MessageDBFactory) ListChannelsPage(ctx context.Context, after ch.ChannelKey, limit int) ([]ChannelCatalogEntry, ch.ChannelKey, bool, error) {
-	if f == nil || f.engine == nil {
-		return nil, "", false, ch.ErrInvalidConfig
+	if err := f.availabilityError(); err != nil {
+		return nil, "", false, err
 	}
 	entries, cursor, more, err := f.engine.ListChannelsPage(ctx, messagedb.ChannelKey(after), limit)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, f.mapError(err)
 	}
 	out := make([]ChannelCatalogEntry, 0, len(entries))
 	for _, entry := range entries {
@@ -102,36 +107,48 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 	if len(items) == 0 {
 		return results
 	}
-	if f == nil || f.engine == nil {
+	if err := f.availabilityError(); err != nil {
 		for i := range results {
-			results[i].Err = ch.ErrInvalidConfig
+			results[i].Err = err
 		}
 		return results
 	}
 	dbItems := make([]messagedb.AppendBatchItem, 0, len(items))
-	active := make([]int, 0, len(items))
+	acquired := make([]batchAcquiredStore, 0, len(items))
+	defer func() {
+		for _, item := range acquired {
+			if err := mapMessageDBAdapterError(item.store.Close()); err != nil && results[item.index].Err == nil {
+				results[item.index].Err = err
+			}
+		}
+	}()
 	for i, item := range items {
-		dbStore := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		if err != nil {
+			results[i].Err = f.mapError(err)
+			continue
+		}
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
 			Store:   dbStore,
 			Records: encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
 		})
-		active = append(active, i)
+		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
 	}
 	dbResults := messagedb.StoreAppendBatch(ctx, dbItems)
-	if len(dbResults) != len(active) {
-		for _, index := range active {
-			results[index].Err = ch.ErrInvalidConfig
+	if len(dbResults) != len(acquired) {
+		for _, item := range acquired {
+			results[item.index].Err = ch.ErrInvalidConfig
 		}
 		return results
 	}
-	for i, index := range active {
-		item := dbResults[i]
-		if len(items[index].Request.Records) == 0 {
-			results[index] = AppendLeaderBatchResult{BaseOffset: item.BaseOffset + 1, LastOffset: item.BaseOffset, Err: item.Err}
+	for i, acquiredItem := range acquired {
+		dbResult := dbResults[i]
+		err := f.mapError(dbResult.Err)
+		if len(items[acquiredItem.index].Request.Records) == 0 {
+			results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.BaseOffset, Err: err}
 			continue
 		}
-		results[index] = AppendLeaderBatchResult{BaseOffset: item.BaseOffset + 1, LastOffset: item.LastOffset, Err: item.Err}
+		results[acquiredItem.index] = AppendLeaderBatchResult{BaseOffset: dbResult.BaseOffset + 1, LastOffset: dbResult.LastOffset, Err: err}
 	}
 	return results
 }
@@ -142,33 +159,44 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 	if len(items) == 0 {
 		return results
 	}
-	if f == nil || f.engine == nil {
+	if err := f.availabilityError(); err != nil {
 		for i := range results {
-			results[i].Err = ch.ErrInvalidConfig
+			results[i].Err = err
 		}
 		return results
 	}
 	dbItems := make([]messagedb.ApplyFetchBatchItem, 0, len(items))
-	active := make([]int, 0, len(items))
+	acquired := make([]batchAcquiredStore, 0, len(items))
+	defer func() {
+		for _, item := range acquired {
+			if err := mapMessageDBAdapterError(item.store.Close()); err != nil && results[item.index].Err == nil {
+				results[item.index].Err = err
+			}
+		}
+	}()
 	for i, item := range items {
-		dbStore := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		if err != nil {
+			results[i].Err = f.mapError(err)
+			continue
+		}
 		dbItems = append(dbItems, messagedb.ApplyFetchBatchItem{
 			Store: dbStore,
 			Request: channel.ApplyFetchStoreRequest{
 				Records: encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
 			},
 		})
-		active = append(active, i)
+		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
 	}
 	dbResults := messagedb.StoreApplyFetchTrustedBatch(ctx, dbItems)
-	if len(dbResults) != len(active) {
-		for _, index := range active {
-			results[index].Err = ch.ErrInvalidConfig
+	if len(dbResults) != len(acquired) {
+		for _, item := range acquired {
+			results[item.index].Err = ch.ErrInvalidConfig
 		}
 		return results
 	}
-	for i, index := range active {
-		results[index] = ApplyFollowerBatchResult{LEO: dbResults[i].LEO, Err: dbResults[i].Err}
+	for i, acquiredItem := range acquired {
+		results[acquiredItem.index] = ApplyFollowerBatchResult{LEO: dbResults[i].LEO, Err: f.mapError(dbResults[i].Err)}
 	}
 	return results
 }
@@ -178,53 +206,98 @@ func (f *MessageDBFactory) Close() error {
 	if f == nil || f.engine == nil {
 		return nil
 	}
-	return f.engine.Close()
+	f.closed.Store(true)
+	return mapMessageDBAdapterError(f.engine.Close())
 }
 
-func (f *MessageDBFactory) checkpointLock(key ch.ChannelKey) *sync.Mutex {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.checkpointLocks == nil {
-		f.checkpointLocks = make(map[ch.ChannelKey]*sync.Mutex)
+func (f *MessageDBFactory) availabilityError() error {
+	if f == nil || f.engine == nil {
+		return ch.ErrInvalidConfig
 	}
-	lock := f.checkpointLocks[key]
-	if lock == nil {
-		lock = &sync.Mutex{}
-		f.checkpointLocks[key] = lock
+	if f.closed.Load() {
+		return ch.ErrClosed
 	}
-	return lock
+	return nil
+}
+
+func (f *MessageDBFactory) mapError(err error) error {
+	return mapMessageDBAdapterError(err)
+}
+
+type batchAcquiredStore struct {
+	// index preserves alignment with the caller's batch item.
+	index int
+	// store is the acquired lease that must close before batch return.
+	store *messagedb.ChannelStore
+}
+
+func mapMessageDBAdapterError(err error) error {
+	if errors.Is(err, channel.ErrClosed) {
+		return ch.ErrClosed
+	}
+	return err
 }
 
 type messageDBChannelStoreAdapter struct {
-	store        *messagedb.ChannelStore
-	id           ch.ChannelID
-	checkpointMu *sync.Mutex
+	// store is the compatibility lease owned by this adapter.
+	store *messagedb.ChannelStore
+	// id is the logical channel identity used by record encoding and lookups.
+	id ch.ChannelID
+	// owner exposes factory shutdown without probing the physical store.
+	owner *MessageDBFactory
+
+	// closed provides a lock-free rejection path for post-close operations.
+	closed atomic.Bool
+	// closeOnce releases store exactly once.
+	closeOnce sync.Once
+	// closeErr preserves the terminal lease release result.
+	closeErr error
+}
+
+func (a *messageDBChannelStoreAdapter) ensureOpen() error {
+	if a == nil || a.store == nil || a.owner == nil {
+		return ch.ErrInvalidConfig
+	}
+	if a.closed.Load() || a.owner.closed.Load() {
+		return ch.ErrClosed
+	}
+	return nil
+}
+
+func (a *messageDBChannelStoreAdapter) mapError(err error) error {
+	return mapMessageDBAdapterError(err)
 }
 
 func (a *messageDBChannelStoreAdapter) Load(ctx context.Context) (InitialState, error) {
+	if err := a.ensureOpen(); err != nil {
+		return InitialState{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return InitialState{}, err
 	}
 	leo, err := a.store.LEOWithError()
 	if err != nil {
-		return InitialState{}, err
+		return InitialState{}, a.mapError(err)
 	}
 	checkpoint, err := a.store.LoadCheckpoint()
 	if err != nil && !errors.Is(err, channel.ErrEmptyState) {
-		return InitialState{}, err
+		return InitialState{}, a.mapError(err)
 	}
 	hw := minUint64(checkpoint.HW, leo)
 	return InitialState{LEO: leo, HW: hw, CheckpointHW: hw}, nil
 }
 
 func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return AppendLeaderResult{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return AppendLeaderResult{}, err
 	}
 	records := a.encodeRecords(req.Records)
 	base, err := a.store.Append(records)
 	if err != nil {
-		return AppendLeaderResult{}, err
+		return AppendLeaderResult{}, a.mapError(err)
 	}
 	if len(records) == 0 {
 		return AppendLeaderResult{BaseOffset: base + 1, LastOffset: base}, nil
@@ -233,17 +306,23 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 }
 
 func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ApplyFollowerResult{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
 	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{Records: encodeRecordsForMessageDB(a.id, req.Records)})
 	if err != nil {
-		return ApplyFollowerResult{}, err
+		return ApplyFollowerResult{}, a.mapError(err)
 	}
 	return ApplyFollowerResult{LEO: leo}, nil
 }
 
 func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ReadCommittedResult{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return ReadCommittedResult{}, err
 	}
@@ -259,7 +338,7 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 	}
 	messages, err := a.store.ListMessagesBySeq(readFrom, req.Limit, req.MaxBytes, req.Reverse)
 	if err != nil {
-		return ReadCommittedResult{}, err
+		return ReadCommittedResult{}, a.mapError(err)
 	}
 	out := make([]ch.Message, 0, len(messages))
 	next := readFrom
@@ -292,6 +371,9 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 }
 
 func (a *messageDBChannelStoreAdapter) LookupMessageByID(ctx context.Context, messageID uint64) (ch.Message, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.Message{}, false, err
+	}
 	if err := ctx.Err(); err != nil {
 		return ch.Message{}, false, err
 	}
@@ -300,12 +382,15 @@ func (a *messageDBChannelStoreAdapter) LookupMessageByID(ctx context.Context, me
 	}
 	msg, ok, err := a.store.GetMessageByMessageID(messageID)
 	if err != nil || !ok {
-		return ch.Message{}, ok, err
+		return ch.Message{}, ok, a.mapError(err)
 	}
 	return fromDBMessage(msg), true, nil
 }
 
 func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
 	if err := ctx.Err(); err != nil {
 		return IdempotencyHit{}, false, err
 	}
@@ -318,11 +403,11 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 		ClientMsgNo: clientMsgNo,
 	})
 	if err != nil || !ok {
-		return IdempotencyHit{}, ok, err
+		return IdempotencyHit{}, ok, a.mapError(err)
 	}
 	msg, ok, err := a.store.GetMessageBySeq(entry.MessageSeq)
 	if err != nil || !ok {
-		return IdempotencyHit{}, ok, err
+		return IdempotencyHit{}, ok, a.mapError(err)
 	}
 	msg.MessageSeq = entry.MessageSeq
 	msg.MessageID = entry.MessageID
@@ -330,6 +415,9 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 }
 
 func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ReadLogResult{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return ReadLogResult{}, err
 	}
@@ -339,7 +427,7 @@ func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogR
 	}
 	records, err := a.store.Read(fromZeroBased, req.MaxBytes)
 	if err != nil {
-		return ReadLogResult{}, err
+		return ReadLogResult{}, a.mapError(err)
 	}
 	out := make([]ch.Record, 0, len(records))
 	for _, record := range records {
@@ -352,12 +440,15 @@ func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogR
 }
 
 func (a *messageDBChannelStoreAdapter) LoadRetentionState(ctx context.Context) (RetentionState, error) {
+	if err := a.ensureOpen(); err != nil {
+		return RetentionState{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return RetentionState{}, err
 	}
 	state, err := a.store.LoadRetentionState()
 	if err != nil {
-		return RetentionState{}, err
+		return RetentionState{}, a.mapError(err)
 	}
 	return RetentionState{
 		LocalRetentionThroughSeq:    state.LocalRetentionThroughSeq,
@@ -367,11 +458,14 @@ func (a *messageDBChannelStoreAdapter) LoadRetentionState(ctx context.Context) (
 }
 
 func (a *messageDBChannelStoreAdapter) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error) {
+	if err := a.ensureOpen(); err != nil {
+		return 0, err
+	}
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
 	if err := a.store.AdoptRetentionBoundary(ctx, throughSeq, cursorName); err != nil {
-		return 0, err
+		return 0, a.mapError(err)
 	}
 	state, err := a.LoadRetentionState(ctx)
 	if err != nil {
@@ -381,6 +475,9 @@ func (a *messageDBChannelStoreAdapter) AdoptRetentionBoundary(ctx context.Contex
 }
 
 func (a *messageDBChannelStoreAdapter) TrimMessagesThrough(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions) (RetentionTrimResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return RetentionTrimResult{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return RetentionTrimResult{}, err
 	}
@@ -389,7 +486,7 @@ func (a *messageDBChannelStoreAdapter) TrimMessagesThrough(ctx context.Context, 
 		MaxBytes:    opts.MaxBytes,
 	})
 	if err != nil {
-		return RetentionTrimResult{}, err
+		return RetentionTrimResult{}, a.mapError(err)
 	}
 	return RetentionTrimResult{
 		DeletedThroughSeq: result.DeletedThroughSeq,
@@ -399,28 +496,27 @@ func (a *messageDBChannelStoreAdapter) TrimMessagesThrough(ctx context.Context, 
 }
 
 func (a *messageDBChannelStoreAdapter) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {
+	if err := a.ensureOpen(); err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if a.checkpointMu != nil {
-		a.checkpointMu.Lock()
-		defer a.checkpointMu.Unlock()
-	}
-	current, err := a.store.LoadCheckpoint()
-	if err != nil {
-		if errors.Is(err, channel.ErrEmptyState) {
-			return a.store.StoreCheckpoint(channel.Checkpoint{HW: checkpoint.HW})
-		}
-		return err
-	}
-	if checkpoint.HW <= current.HW {
-		return nil
-	}
-	current.HW = checkpoint.HW
-	return a.store.StoreCheckpoint(current)
+	return a.mapError(a.store.StoreCheckpointHWMonotonic(ctx, checkpoint.HW))
 }
 
-func (a *messageDBChannelStoreAdapter) Close() error { return nil }
+func (a *messageDBChannelStoreAdapter) Close() error {
+	if a == nil {
+		return nil
+	}
+	a.closeOnce.Do(func() {
+		a.closed.Store(true)
+		if a.store != nil {
+			a.closeErr = mapMessageDBAdapterError(a.store.Close())
+		}
+	})
+	return a.closeErr
+}
 
 func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) []channel.Record {
 	return encodeRecordsForMessageDB(a.id, records)
