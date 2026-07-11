@@ -77,7 +77,7 @@ func (f *MessageDBFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Cha
 	}
 	dbStore, err := f.engine.ForChannel(channel.ChannelKey(key), channel.ChannelID{ID: id.ID, Type: id.Type})
 	if err != nil {
-		return nil, mapMessageDBAdapterError(err)
+		return nil, f.mapError(err)
 	}
 	return &messageDBChannelStoreAdapter{store: dbStore, id: id, owner: f}, nil
 }
@@ -221,7 +221,14 @@ func (f *MessageDBFactory) availabilityError() error {
 }
 
 func (f *MessageDBFactory) mapError(err error) error {
-	return mapMessageDBAdapterError(err)
+	mapped := mapMessageDBAdapterError(err)
+	if mapped == nil || f == nil || !f.closed.Load() {
+		return mapped
+	}
+	if errors.Is(mapped, context.Canceled) || errors.Is(mapped, context.DeadlineExceeded) {
+		return mapped
+	}
+	return ch.ErrClosed
 }
 
 type batchAcquiredStore struct {

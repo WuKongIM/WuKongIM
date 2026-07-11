@@ -476,6 +476,15 @@ func TestMessageDBFactoryCloseMapsClosedAndUnopenedFactoryStaysInvalid(t *testin
 	require.ErrorIs(t, nilApply[0].Err, ch.ErrInvalidConfig)
 }
 
+func TestMessageDBFactoryConcurrentCloseErrorMappingStaysPublic(t *testing.T) {
+	factory := &MessageDBFactory{}
+	factory.closed.Store(true)
+
+	require.ErrorIs(t, factory.mapError(errors.New("physical engine closed")), ch.ErrClosed)
+	require.ErrorIs(t, factory.mapError(context.Canceled), context.Canceled)
+	require.ErrorIs(t, factory.mapError(context.DeadlineExceeded), context.DeadlineExceeded)
+}
+
 func TestDBCompatibleLegacyTimestampDoesNotBecomeServerTimestampMS(t *testing.T) {
 	payload, err := encodeDBCompatibleMessage(channel.Message{
 		MessageID: 10,
