@@ -332,7 +332,7 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 		"--rate", "6/s",
 		"--duration", "4s",
 		"--ready-timeout", "2",
-		"--poll", "0",
+		"--poll", "1",
 	)
 	cmd.Dir = root
 	cmd.Env = append(envWithout("WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE"),
@@ -436,7 +436,7 @@ func TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation(t *tes
 		"--rate", "6/s",
 		"--duration", "4s",
 		"--ready-timeout", "2",
-		"--poll", "0",
+		"--poll", "1",
 	)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -986,6 +986,9 @@ mv "$tmp" "$out"
 
 func writeFakeThreeNodeSimStartScript(t *testing.T, path string, callsDir string) {
 	t.Helper()
+	if err := os.WriteFile(filepath.Join(callsDir, "start.expected"), []byte("expected"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	script := `#!/usr/bin/env bash
 set -euo pipefail
 mkdir -p "` + callsDir + `"
@@ -1047,7 +1050,8 @@ if [[ -n "$pid_dir" ]]; then
 fi
 if [[ -n "$bin_path" ]]; then
   mkdir -p "$(dirname "$bin_path")"
-  cat > "$bin_path" <<'BIN'
+  bin_tmp="${bin_path}.tmp.$$"
+  cat > "$bin_tmp" <<'BIN'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$$" > "` + callsDir + `/dynamic.pid"
@@ -1060,9 +1064,11 @@ while true; do
   sleep 1
 done
 BIN
-  chmod 0755 "$bin_path"
+  chmod 0755 "$bin_tmp"
+  mv -f "$bin_tmp" "$bin_path"
 fi
 trap 'printf term > "` + callsDir + `/start.term"; for pid in "${node_pids[@]}"; do kill "$pid" 2>/dev/null || true; done; exit 0' TERM INT
+printf ready > "` + callsDir + `/start.ready"
 echo fake cluster running
 while true; do
   sleep 1
@@ -1107,6 +1113,12 @@ for arg in "$@"; do
   url="$arg"
 done
 case "$url" in
+  http://127.0.0.1:5011/readyz|http://127.0.0.1:5012/readyz|http://127.0.0.1:5013/readyz)
+    if [[ -f "` + callsDir + `/start.expected" && ! -f "` + callsDir + `/start.ready" ]]; then
+      exit 1
+    fi
+    echo ok
+    ;;
   http://127.0.0.1:5014/readyz)
     if [[ -f "` + callsDir + `/dynamic.calls" ]]; then
       echo ok
