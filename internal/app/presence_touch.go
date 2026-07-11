@@ -2,11 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -288,14 +290,18 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 		}
 
 		resolved := make(map[string]presence.RouteTarget, len(uids))
-		failed := make(map[string]error)
+		failed := make(map[string]struct{}, len(uids))
+		resolveErrorClass := ""
 		for i, uid := range uids {
+			var err error
 			if i >= len(results) {
-				failed[uid] = fmt.Errorf("presence touch route target result missing at index %d", i)
-				continue
+				err = fmt.Errorf("presence touch route target result missing at index %d", i)
+			} else {
+				err = results[i].Err
 			}
-			if results[i].Err != nil {
-				failed[uid] = results[i].Err
+			if err != nil {
+				failed[uid] = struct{}{}
+				resolveErrorClass = mergePresenceTouchResolveErrorClass(resolveErrorClass, presenceTouchResolveErrorClass(err))
 				continue
 			}
 			resolved[uid] = results[i].Target
@@ -303,20 +309,11 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 
 		groups := make([]presenceTouchRouteGroup, 0)
 		groupIndex := make(map[presence.RouteTarget]int)
-		loggedFailure := make(map[string]struct{}, len(failed))
+		failedRoutes := 0
 		for _, conn := range touched {
-			if err, ok := failed[conn.UID]; ok {
+			if _, ok := failed[conn.UID]; ok {
 				requeue = append(requeue, conn)
-				if _, logged := loggedFailure[conn.UID]; !logged {
-					loggedFailure[conn.UID] = struct{}{}
-					w.logger().Warn("presence touch route target resolve failed",
-						wklog.Event("internal.app.presence_touch_resolve_failed"),
-						wklog.UID(conn.UID),
-						wklog.Int("hashSlot", int(conn.HashSlot)),
-						wklog.SessionID(conn.SessionID),
-						wklog.Error(err),
-					)
-				}
+				failedRoutes++
 				continue
 			}
 			target := resolved[conn.UID]
@@ -328,6 +325,15 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 			}
 			groups[index].ownerRoutes = append(groups[index].ownerRoutes, conn)
 			groups[index].routes = append(groups[index].routes, routeFromOwnerRoute(conn))
+		}
+		if len(failed) > 0 {
+			w.logger().Warn("presence touch route target resolve failed",
+				wklog.Event("internal.app.presence_touch_resolve_failed"),
+				wklog.String("errorClass", resolveErrorClass),
+				wklog.Int("failedUIDs", len(failed)),
+				wklog.Int("failedRoutes", failedRoutes),
+				wklog.Int("chunkRoutes", len(touched)),
+			)
 		}
 
 		for i, group := range groups {
@@ -381,6 +387,28 @@ func uniqueOwnerRouteUIDs(routes []online.OwnerRoute) []string {
 		uids = append(uids, route.UID)
 	}
 	return uids
+}
+
+func presenceTouchResolveErrorClass(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, authoritypresence.ErrRouteNotReady), errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader):
+		return "route_not_ready"
+	case errors.Is(err, authoritypresence.ErrNotLeader), errors.Is(err, cluster.ErrNotLeader):
+		return "not_leader"
+	default:
+		return "other"
+	}
+}
+
+func mergePresenceTouchResolveErrorClass(current, next string) string {
+	if current == "" || current == next {
+		return next
+	}
+	return "mixed"
 }
 
 func routeFromOwnerRoute(conn online.OwnerRoute) presence.Route {

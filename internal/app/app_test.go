@@ -27,6 +27,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -4758,6 +4759,97 @@ func TestPresenceTouchWorkerRequeuesOnlyFailedRouteResults(t *testing.T) {
 	}
 }
 
+func TestPresenceTouchWorkerAggregatesResolveFailureWarningPerChunk(t *testing.T) {
+	const failedUIDs = 64
+	const failedRoutes = failedUIDs * 2
+	routes := make([]online.OwnerRoute, 0, failedRoutes)
+	results := make([]presence.RouteTargetResult, 0, failedUIDs)
+	for i := 0; i < failedUIDs; i++ {
+		uid := fmt.Sprintf("failed-%d", i)
+		routes = append(routes,
+			online.OwnerRoute{UID: uid, HashSlot: uint16(i), SessionID: uint64(1000 + i*2)},
+			online.OwnerRoute{UID: uid, HashSlot: uint16(i), SessionID: uint64(1001 + i*2)},
+		)
+		if i%2 == 0 {
+			results = append(results, presence.RouteTargetResult{Err: fmt.Errorf("%w: secret-route-detail", authoritypresence.ErrRouteNotReady)})
+		} else {
+			results = append(results, presence.RouteTargetResult{Err: fmt.Errorf("%w: secret-route-detail", authoritypresence.ErrNotLeader)})
+		}
+	}
+	local := &recordingTouchRegistry{queued: routes}
+	authority := &recordingTouchAuthority{resolveResults: [][]presence.RouteTargetResult{results}}
+	logger := &recordingAppLogger{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local:             local,
+		Authority:         authority,
+		BatchSize:         failedRoutes,
+		MaxRoutesPerFlush: failedRoutes,
+		Logger:            logger,
+	})
+
+	worker.flushOnce(context.Background(), time.Now())
+
+	entries := appLogEntriesForEvent(logger, "WARN", "internal.app.presence_touch_resolve_failed")
+	if len(entries) != 1 {
+		t.Fatalf("resolve failure warnings = %d, want one bounded chunk summary", len(entries))
+	}
+	entry := entries[0]
+	requireAppLogField(t, entry, "errorClass", "mixed")
+	requireAppLogField(t, entry, "failedUIDs", failedUIDs)
+	requireAppLogField(t, entry, "failedRoutes", failedRoutes)
+	requireAppLogField(t, entry, "chunkRoutes", failedRoutes)
+	allowed := map[string]struct{}{
+		"event": {}, "errorClass": {}, "failedUIDs": {}, "failedRoutes": {}, "chunkRoutes": {},
+	}
+	for _, field := range entry.fields {
+		if _, ok := allowed[field.Key]; !ok {
+			t.Fatalf("resolve failure warning field %q is unbounded or identifying; fields=%#v", field.Key, entry.fields)
+		}
+		if strings.Contains(fmt.Sprint(field.Value), "secret-route-detail") {
+			t.Fatalf("resolve failure warning leaked raw error detail in field %q", field.Key)
+		}
+	}
+	if len(local.requeueCalls) != 1 || len(local.requeueCalls[0]) != failedRoutes {
+		t.Fatalf("requeue calls = %#v, want all %d failed routes once", local.requeueCalls, failedRoutes)
+	}
+}
+
+func TestPresenceTouchWorkerResolveFailureWarningUsesBoundedErrorClass(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "route not ready", err: fmt.Errorf("%w: detail", authoritypresence.ErrRouteNotReady), want: "route_not_ready"},
+		{name: "not leader", err: fmt.Errorf("%w: detail", authoritypresence.ErrNotLeader), want: "not_leader"},
+		{name: "canceled", err: context.Canceled, want: "canceled"},
+		{name: "timeout", err: context.DeadlineExceeded, want: "timeout"},
+		{name: "other", err: errors.New("secret other failure"), want: "other"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := &recordingAppLogger{}
+			worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+				Local: &recordingTouchRegistry{queued: []online.OwnerRoute{{UID: "u1", SessionID: 101}}},
+				Authority: &recordingTouchAuthority{resolveResults: [][]presence.RouteTargetResult{{
+					{Err: tt.err},
+				}}},
+				BatchSize:         1,
+				MaxRoutesPerFlush: 1,
+				Logger:            logger,
+			})
+
+			worker.flushOnce(context.Background(), time.Now())
+
+			entries := appLogEntriesForEvent(logger, "WARN", "internal.app.presence_touch_resolve_failed")
+			if len(entries) != 1 {
+				t.Fatalf("resolve failure warnings = %d, want 1", len(entries))
+			}
+			requireAppLogField(t, entries[0], "errorClass", tt.want)
+		})
+	}
+}
+
 func TestPresenceTouchWorkerRequeuesMissingPartialRouteResults(t *testing.T) {
 	target := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 3, ConfigEpoch: 4}
 	u2 := online.OwnerRoute{UID: "u2", SessionID: 102, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 2}
@@ -4850,6 +4942,43 @@ func TestPresenceTouchWorkerCancellationRequeuesAllUnsentRoutes(t *testing.T) {
 	}
 	if len(local.requeueCalls) != 1 || !reflect.DeepEqual(local.requeueCalls[0], []online.OwnerRoute{u2, u3}) {
 		t.Fatalf("requeue calls = %#v, want all unsent targetB routes", local.requeueCalls)
+	}
+	if !reflect.DeepEqual(local.drainLimits, []int{10}) {
+		t.Fatalf("drain limits = %v, want no drain after cancellation", local.drainLimits)
+	}
+}
+
+func TestPresenceTouchWorkerCancellationErrorRequeuesCurrentAndFollowingGroupsOnce(t *testing.T) {
+	targetA := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 3, ConfigEpoch: 4}
+	targetB := presence.RouteTarget{HashSlot: 9, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 5, ConfigEpoch: 6}
+	u1 := online.OwnerRoute{UID: "u1", SessionID: 101, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 1}
+	u2 := online.OwnerRoute{UID: "u2", SessionID: 102, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 2}
+	u3 := online.OwnerRoute{UID: "u3", SessionID: 103, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 3}
+	local := &recordingTouchRegistry{queued: []online.OwnerRoute{u1, u2, u3}}
+	ctx, cancel := context.WithCancel(context.Background())
+	authority := &recordingTouchAuthority{
+		targets:     map[string]presence.RouteTarget{"u1": targetA, "u2": targetB, "u3": targetB},
+		touchErrors: map[presence.RouteTarget]error{targetA: context.Canceled},
+		touchHook: func(_ context.Context, target presence.RouteTarget, _ []presence.Route) {
+			if target == targetA {
+				cancel()
+			}
+		},
+	}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local:             local,
+		Authority:         authority,
+		BatchSize:         10,
+		MaxRoutesPerFlush: 10,
+	})
+
+	worker.flushOnce(ctx, time.Now())
+
+	if got := sessionIDsFromTouchBatches(authority.batches); !reflect.DeepEqual(got, []uint64{101}) {
+		t.Fatalf("attempted sessions = %v, want only current group [101]", got)
+	}
+	if len(local.requeueCalls) != 1 || !reflect.DeepEqual(local.requeueCalls[0], []online.OwnerRoute{u1, u2, u3}) {
+		t.Fatalf("requeue calls = %#v, want current and following groups exactly once", local.requeueCalls)
 	}
 	if !reflect.DeepEqual(local.drainLimits, []int{10}) {
 		t.Fatalf("drain limits = %v, want no drain after cancellation", local.drainLimits)
@@ -7640,6 +7769,22 @@ func ownerRouteSessionIDs(routes []online.OwnerRoute) []uint64 {
 		ids = append(ids, route.SessionID)
 	}
 	return ids
+}
+
+func appLogEntriesForEvent(logger *recordingAppLogger, level, event string) []recordedAppLogEntry {
+	entries := make([]recordedAppLogEntry, 0)
+	for _, entry := range logger.entries {
+		if entry.level != level {
+			continue
+		}
+		for _, field := range entry.fields {
+			if field.Key == "event" && field.Value == event {
+				entries = append(entries, entry)
+				break
+			}
+		}
+	}
+	return entries
 }
 
 func routesForTarget(batches []touchBatch, target presence.RouteTarget) []presence.Route {
