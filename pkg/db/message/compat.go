@@ -298,15 +298,16 @@ func (e *Engine) ListChannelsPage(ctx context.Context, after ChannelKey, limit i
 		return nil, "", false, err
 	}
 	if e == nil {
-		return nil, "", false, dberrors.ErrClosed
+		return nil, "", false, channel.ErrClosed
 	}
 	e.mu.Lock()
 	db := e.db
 	e.mu.Unlock()
 	if db == nil {
-		return nil, "", false, dberrors.ErrClosed
+		return nil, "", false, channel.ErrClosed
 	}
-	return db.ListChannelsPage(ctx, after, limit)
+	entries, cursor, more, err := db.ListChannelsPage(ctx, after, limit)
+	return entries, cursor, more, toChannelError(err)
 }
 
 // ListChannelKeys returns persisted channels with message or system state.

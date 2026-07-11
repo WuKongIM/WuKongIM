@@ -791,6 +791,16 @@ func TestEngineCloseDetachesOutstandingLeaseAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestEngineListChannelsPageMapsClosedDatabaseError(t *testing.T) {
+	eng := openCompatEngine(t)
+	if err := eng.Close(); err != nil {
+		t.Fatalf("Engine.Close(): %v", err)
+	}
+	if _, _, _, err := eng.ListChannelsPage(context.Background(), "", 10); !errors.Is(err, channel.ErrClosed) {
+		t.Fatalf("ListChannelsPage() err = %v, want %v", err, channel.ErrClosed)
+	}
+}
+
 func TestEngineMetricsSnapshotConcurrentClose(t *testing.T) {
 	eng, err := Open(t.TempDir())
 	if err != nil {
