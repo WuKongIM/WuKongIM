@@ -195,7 +195,9 @@ Default Channel runtime message, Slot metadata, and Slot Raft Pebble-backed stor
 are exposed through `Node.StorageMetricsSnapshot` as low-cardinality
 `channel_log`, `meta`, and `raft` snapshots. Pebble types remain behind the
 storage packages; cluster only publishes the neutral metrics shape used by
-composition roots.
+composition roots. The `channel_log` snapshot also carries aggregate canonical
+entry, caller lease, background pin, acquire, release, and reclaim counts. It
+does not expose channel keys or channel IDs.
 
 ### Health Report Loop
 

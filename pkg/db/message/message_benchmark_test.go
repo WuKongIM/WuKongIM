@@ -28,6 +28,68 @@ func BenchmarkChannelLogAppend(b *testing.B) {
 	}
 }
 
+func BenchmarkChannelLeaseSteadyAppend(b *testing.B) {
+	db, closeDB := openBenchmarkDB(b)
+	defer closeDB()
+	log, err := db.Channel("bench-lease-steady:1", ChannelID{ID: "bench-lease-steady", Type: 1})
+	if err != nil {
+		b.Fatalf("Channel(): %v", err)
+	}
+	defer func() {
+		if err := log.Close(); err != nil {
+			b.Fatalf("ChannelLog.Close(): %v", err)
+		}
+	}()
+	payload := bytes.Repeat([]byte{'p'}, 128)
+
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		seq := uint64(i + 1)
+		if _, err := log.Append(context.Background(), []Record{{ID: seq, Payload: payload}}, AppendOptions{}); err != nil {
+			b.Fatalf("Append(): %v", err)
+		}
+	}
+	b.StopTimer()
+}
+
+func BenchmarkChannelLeaseColdReacquire(b *testing.B) {
+	db, closeDB := openBenchmarkDB(b)
+	defer closeDB()
+	key := ChannelKey("bench-lease-cold:1")
+	id := ChannelID{ID: "bench-lease-cold", Type: 1}
+	seed, err := db.Channel(key, id)
+	if err != nil {
+		b.Fatalf("seed Channel(): %v", err)
+	}
+	if _, err := seed.Append(context.Background(), []Record{{ID: 1, Payload: []byte("seed")}}, AppendOptions{}); err != nil {
+		b.Fatalf("seed Append(): %v", err)
+	}
+	if err := seed.Close(); err != nil {
+		b.Fatalf("seed ChannelLog.Close(): %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		log, err := db.Channel(key, id)
+		if err != nil {
+			b.Fatalf("Channel(): %v", err)
+		}
+		if leo, err := log.LEO(context.Background()); err != nil || leo != 1 {
+			b.Fatalf("LEO() = %d, %v, want 1, nil", leo, err)
+		}
+		if err := log.Close(); err != nil {
+			b.Fatalf("ChannelLog.Close(): %v", err)
+		}
+	}
+	b.StopTimer()
+	if snapshot := db.ChannelEntryMetricsSnapshot(); snapshot.ActiveEntries != 0 || snapshot.OutstandingLeases != 0 {
+		b.Fatalf("registry retained cold leases: %+v", snapshot)
+	}
+}
+
 func BenchmarkChannelLogAppendMatrix(b *testing.B) {
 	cases := []appendBenchmarkConfig{
 		{Name: "strict/indexed", Mode: AppendStrict, Indexed: true, PayloadSize: 128},

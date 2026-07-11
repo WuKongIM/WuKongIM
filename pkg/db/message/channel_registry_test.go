@@ -3,11 +3,116 @@ package message
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 )
+
+func TestChannelEntryMetricsTrackAcquireReleaseAndReclaim(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	wantSnapshot := func(want ChannelEntryMetricsSnapshot) {
+		t.Helper()
+		if got := store.db.ChannelEntryMetricsSnapshot(); got != want {
+			t.Fatalf("ChannelEntryMetricsSnapshot() = %+v, want %+v", got, want)
+		}
+	}
+	wantSnapshot(ChannelEntryMetricsSnapshot{})
+
+	id := ChannelID{ID: "metrics", Type: 1}
+	first := mustAcquireChannel(t, store.db, "metrics:1", id)
+	wantSnapshot(ChannelEntryMetricsSnapshot{
+		ActiveEntries:     1,
+		OutstandingLeases: 1,
+		AcquireTotal:      1,
+	})
+	second := mustAcquireChannel(t, store.db, "metrics:1", id)
+	if err := store.db.registry.retainPin(first.channelEntry); err != nil {
+		t.Fatalf("retainPin(): %v", err)
+	}
+	wantSnapshot(ChannelEntryMetricsSnapshot{
+		ActiveEntries:     1,
+		OutstandingLeases: 2,
+		BackgroundPins:    1,
+		AcquireTotal:      2,
+	})
+
+	if err := first.Close(); err != nil {
+		t.Fatalf("first Close(): %v", err)
+	}
+	if err := second.Close(); err != nil {
+		t.Fatalf("second Close(): %v", err)
+	}
+	wantSnapshot(ChannelEntryMetricsSnapshot{
+		ActiveEntries:  1,
+		BackgroundPins: 1,
+		AcquireTotal:   2,
+		ReleaseTotal:   2,
+	})
+
+	store.db.registry.releasePin(first.channelEntry)
+	wantSnapshot(ChannelEntryMetricsSnapshot{
+		AcquireTotal: 2,
+		ReleaseTotal: 2,
+		ReclaimTotal: 1,
+	})
+}
+
+func TestEngineChannelEntryMetricsSnapshot(t *testing.T) {
+	eng, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := eng.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+
+	store, err := eng.ForChannel("engine-metrics:1", channel.ChannelID{ID: "engine-metrics", Type: 1})
+	if err != nil {
+		t.Fatalf("ForChannel(): %v", err)
+	}
+	if got, want := eng.ChannelEntryMetricsSnapshot(), (ChannelEntryMetricsSnapshot{
+		ActiveEntries:     1,
+		OutstandingLeases: 1,
+		AcquireTotal:      1,
+	}); got != want {
+		t.Fatalf("ChannelEntryMetricsSnapshot() = %+v, want %+v", got, want)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("ChannelStore.Close(): %v", err)
+	}
+}
+
+func TestChannelRegistryReclaimsOneHundredThousandDistinctChannels(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	const channelCount = 100_000
+	for i := 0; i < channelCount; i++ {
+		suffix := strconv.Itoa(i)
+		log := mustAcquireChannel(t, store.db, ChannelKey("registry-scale:"+suffix), ChannelID{
+			ID:   "registry-scale-" + suffix,
+			Type: 1,
+		})
+		if err := log.Close(); err != nil {
+			t.Fatalf("Close(%d): %v", i, err)
+		}
+	}
+
+	if got, want := store.db.ChannelEntryMetricsSnapshot(), (ChannelEntryMetricsSnapshot{
+		AcquireTotal: uint64(channelCount),
+		ReleaseTotal: uint64(channelCount),
+		ReclaimTotal: uint64(channelCount),
+	}); got != want {
+		t.Fatalf("ChannelEntryMetricsSnapshot() = %+v, want %+v", got, want)
+	}
+}
 
 func TestChannelRegistryFirstCloseKeepsCanonicalEntry(t *testing.T) {
 	store := openTestMessageStore(t)

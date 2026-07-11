@@ -481,6 +481,44 @@ func TestNodeStorageMetricsSnapshotAggregatesDefaultStores(t *testing.T) {
 	}
 }
 
+func TestNodeStorageMetricsSnapshotPropagatesChannelEntryOwnership(t *testing.T) {
+	channelStore := channelstore.NewMessageDBFactory(t.TempDir())
+	lease, err := channelStore.ChannelStore("metrics:1", channelruntime.ChannelID{ID: "metrics", Type: 1})
+	if err != nil {
+		t.Fatalf("ChannelStore() error = %v", err)
+	}
+	node := &Node{defaultChannelStore: channelStore}
+	t.Cleanup(func() { _ = channelStore.Close() })
+	t.Cleanup(func() { _ = lease.Close() })
+
+	store, ok := findStorageStoreMetricsSnapshot(node.StorageMetricsSnapshot(), "channel_log")
+	if !ok {
+		t.Fatal("channel_log storage snapshot missing")
+	}
+	if got, want := store.ChannelEntries, (StorageChannelEntryMetricsSnapshot{
+		ActiveEntries:     1,
+		OutstandingLeases: 1,
+		AcquireTotal:      1,
+	}); got != want {
+		t.Fatalf("channel entry metrics = %#v, want %#v", got, want)
+	}
+
+	if err := lease.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	store, ok = findStorageStoreMetricsSnapshot(node.StorageMetricsSnapshot(), "channel_log")
+	if !ok {
+		t.Fatal("channel_log storage snapshot missing after release")
+	}
+	if got, want := store.ChannelEntries, (StorageChannelEntryMetricsSnapshot{
+		AcquireTotal: 1,
+		ReleaseTotal: 1,
+		ReclaimTotal: 1,
+	}); got != want {
+		t.Fatalf("released channel entry metrics = %#v, want %#v", got, want)
+	}
+}
+
 func TestNodeDefaultChannelsUseConfiguredCommitObserver(t *testing.T) {
 	cfg := validNodeConfig(t)
 	observer := recordingCommitCoordinatorObserver{}
@@ -941,6 +979,15 @@ func findStorageMetricsSnapshot(snapshot StorageMetricsSnapshot, store string) (
 		}
 	}
 	return StorageEngineMetrics{}, false
+}
+
+func findStorageStoreMetricsSnapshot(snapshot StorageMetricsSnapshot, store string) (StorageStoreMetricsSnapshot, bool) {
+	for _, item := range snapshot.Stores {
+		if item.Store == store {
+			return item, true
+		}
+	}
+	return StorageStoreMetricsSnapshot{}, false
 }
 
 func (recordingCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(int) {}

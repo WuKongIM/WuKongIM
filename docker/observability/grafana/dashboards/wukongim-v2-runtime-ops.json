@@ -781,6 +781,110 @@
       ],
       "title": "Presence touch work and budget",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(wukongim_storage_channel_entries_active{node_name=~\"$node_name\",store=\"channel_log\"}) by (node_name)",
+          "legendFormat": "active entries {{node_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max(wukongim_storage_channel_leases_outstanding{node_name=~\"$node_name\",store=\"channel_log\"}) by (node_name)",
+          "legendFormat": "outstanding leases {{node_name}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max(wukongim_storage_channel_background_pins{node_name=~\"$node_name\",store=\"channel_log\"}) by (node_name)",
+          "legendFormat": "background pins {{node_name}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Channel registry ownership",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_storage_channel_acquires_total{node_name=~\"$node_name\",store=\"channel_log\"}[$__rate_interval])) by (node_name)",
+          "legendFormat": "acquire {{node_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_storage_channel_releases_total{node_name=~\"$node_name\",store=\"channel_log\"}[$__rate_interval])) by (node_name)",
+          "legendFormat": "release {{node_name}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_storage_channel_reclaims_total{node_name=~\"$node_name\",store=\"channel_log\"}[$__rate_interval])) by (node_name)",
+          "legendFormat": "reclaim {{node_name}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Channel registry lifecycle rate",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

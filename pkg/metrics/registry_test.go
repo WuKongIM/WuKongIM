@@ -1344,6 +1344,57 @@ func TestStorageMetricsTrackPebbleEngineSnapshot(t *testing.T) {
 	require.Equal(t, float64(2), findMetricByLabels(t, compactionsInProgress, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
 }
 
+func TestStorageMetricsTrackChannelEntrySnapshot(t *testing.T) {
+	reg := New(16, "node-16")
+	observation := StorageChannelEntryObservation{
+		ActiveEntries:     7,
+		OutstandingLeases: 11,
+		BackgroundPins:    3,
+		AcquireTotal:      19,
+		ReleaseTotal:      12,
+		ReclaimTotal:      5,
+	}
+	reg.Storage.SetChannelEntryMetrics(observation)
+	reg.Storage.SetChannelEntryMetrics(observation)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	labels := map[string]string{
+		"node_id":   "16",
+		"node_name": "node-16",
+		"store":     "channel_log",
+	}
+	gauges := map[string]float64{
+		"wukongim_storage_channel_entries_active":     7,
+		"wukongim_storage_channel_leases_outstanding": 11,
+		"wukongim_storage_channel_background_pins":    3,
+	}
+	for name, want := range gauges {
+		family := requireMetricFamily(t, families, name)
+		require.Len(t, family.GetMetric(), 1)
+		metric := family.GetMetric()[0]
+		require.Len(t, metric.GetLabel(), 3)
+		requireMetricLabels(t, metric, labels)
+		requireNoMetricLabel(t, metric, "channel_id")
+		require.Equal(t, want, metric.GetGauge().GetValue(), name)
+	}
+	counters := map[string]float64{
+		"wukongim_storage_channel_acquires_total": 19,
+		"wukongim_storage_channel_releases_total": 12,
+		"wukongim_storage_channel_reclaims_total": 5,
+	}
+	for name, want := range counters {
+		family := requireMetricFamily(t, families, name)
+		require.Len(t, family.GetMetric(), 1)
+		metric := family.GetMetric()[0]
+		require.Len(t, metric.GetLabel(), 3)
+		requireMetricLabels(t, metric, labels)
+		requireNoMetricLabel(t, metric, "channel_id")
+		require.Equal(t, want, metric.GetCounter().GetValue(), name)
+	}
+}
+
 func TestStorageMetricsTrackCommitCoordinator(t *testing.T) {
 	reg := New(14, "node-14")
 

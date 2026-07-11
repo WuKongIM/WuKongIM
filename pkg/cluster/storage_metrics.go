@@ -40,12 +40,30 @@ type StorageEngineMetrics struct {
 	CompactionsInProgress int64
 }
 
+// StorageChannelEntryMetricsSnapshot describes aggregate channel entry ownership.
+type StorageChannelEntryMetricsSnapshot struct {
+	// ActiveEntries is the number of canonical channel entries currently retained.
+	ActiveEntries uint64
+	// OutstandingLeases is the number of caller-owned channel store handles.
+	OutstandingLeases uint64
+	// BackgroundPins is the number of commit-owned channel entry references.
+	BackgroundPins uint64
+	// AcquireTotal is the cumulative number of successful channel store acquisitions.
+	AcquireTotal uint64
+	// ReleaseTotal is the cumulative number of terminal channel store releases.
+	ReleaseTotal uint64
+	// ReclaimTotal is the cumulative number of zero-reference channel entries reclaimed.
+	ReclaimTotal uint64
+}
+
 // StorageStoreMetricsSnapshot describes one named physical storage engine.
 type StorageStoreMetricsSnapshot struct {
 	// Store is the low-cardinality physical store name used by storage metrics.
 	Store string
 	// Engine contains the current storage engine metrics for Store.
 	Engine StorageEngineMetrics
+	// ChannelEntries contains channel registry ownership metrics when Store is channel_log.
+	ChannelEntries StorageChannelEntryMetricsSnapshot
 }
 
 // StorageMetricsSnapshot describes local storage engines hosted by the Node.
@@ -61,9 +79,11 @@ func (n *Node) StorageMetricsSnapshot() StorageMetricsSnapshot {
 	}
 	stores := make([]StorageStoreMetricsSnapshot, 0, 3)
 	if n.defaultChannelStore != nil {
+		snapshot := n.defaultChannelStore.MetricsSnapshot()
 		stores = append(stores, StorageStoreMetricsSnapshot{
-			Store:  "channel_log",
-			Engine: storageMetricsFromChannelStore(n.defaultChannelStore.MetricsSnapshot()),
+			Store:          "channel_log",
+			Engine:         storageMetricsFromChannelStore(snapshot),
+			ChannelEntries: storageChannelEntryMetricsFromChannelStore(snapshot),
 		})
 	}
 	if n.defaultSlotMetaDB != nil {
@@ -79,6 +99,17 @@ func (n *Node) StorageMetricsSnapshot() StorageMetricsSnapshot {
 		})
 	}
 	return StorageMetricsSnapshot{Stores: stores}
+}
+
+func storageChannelEntryMetricsFromChannelStore(snapshot channelstore.MessageDBFactoryMetricsSnapshot) StorageChannelEntryMetricsSnapshot {
+	return StorageChannelEntryMetricsSnapshot{
+		ActiveEntries:     snapshot.ChannelEntries.ActiveEntries,
+		OutstandingLeases: snapshot.ChannelEntries.OutstandingLeases,
+		BackgroundPins:    snapshot.ChannelEntries.BackgroundPins,
+		AcquireTotal:      snapshot.ChannelEntries.AcquireTotal,
+		ReleaseTotal:      snapshot.ChannelEntries.ReleaseTotal,
+		ReclaimTotal:      snapshot.ChannelEntries.ReclaimTotal,
+	}
 }
 
 func storageMetricsFromChannelStore(snapshot channelstore.MessageDBFactoryMetricsSnapshot) StorageEngineMetrics {

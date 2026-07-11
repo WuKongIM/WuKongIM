@@ -619,6 +619,16 @@ func (c *topCollector) observeStorageMetrics() {
 			CompactionInProgressBytes:    store.Engine.CompactionInProgressBytes,
 			CompactionsInProgress:        store.Engine.CompactionsInProgress,
 		})
+		if store.Store == "channel_log" {
+			metrics.SetChannelEntryMetrics(obsmetrics.StorageChannelEntryObservation{
+				ActiveEntries:     store.ChannelEntries.ActiveEntries,
+				OutstandingLeases: store.ChannelEntries.OutstandingLeases,
+				BackgroundPins:    store.ChannelEntries.BackgroundPins,
+				AcquireTotal:      store.ChannelEntries.AcquireTotal,
+				ReleaseTotal:      store.ChannelEntries.ReleaseTotal,
+				ReclaimTotal:      store.ChannelEntries.ReclaimTotal,
+			})
+		}
 	}
 }
 

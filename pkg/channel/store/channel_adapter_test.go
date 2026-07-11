@@ -582,6 +582,40 @@ func TestMessageDBFactoryMetricsSnapshotReportsPhysicalStore(t *testing.T) {
 	require.GreaterOrEqual(t, snapshot.ReadAmplification, 0)
 }
 
+func TestMessageDBFactoryMetricsSnapshotTracksChannelEntryOwnership(t *testing.T) {
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+
+	first, err := factory.ChannelStore("metrics:1", ch.ChannelID{ID: "metrics", Type: 1})
+	require.NoError(t, err)
+	second, err := factory.ChannelStore("metrics:1", ch.ChannelID{ID: "metrics", Type: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = first.Close() })
+	t.Cleanup(func() { _ = second.Close() })
+
+	require.Equal(t, messagedb.ChannelEntryMetricsSnapshot{
+		ActiveEntries:     1,
+		OutstandingLeases: 2,
+		AcquireTotal:      2,
+	}, factory.MetricsSnapshot().ChannelEntries)
+	require.Equal(t, factory.MetricsSnapshot().ChannelEntries, factory.ChannelEntryMetricsSnapshot())
+
+	require.NoError(t, first.Close())
+	require.Equal(t, messagedb.ChannelEntryMetricsSnapshot{
+		ActiveEntries:     1,
+		OutstandingLeases: 1,
+		AcquireTotal:      2,
+		ReleaseTotal:      1,
+	}, factory.ChannelEntryMetricsSnapshot())
+
+	require.NoError(t, second.Close())
+	require.Equal(t, messagedb.ChannelEntryMetricsSnapshot{
+		AcquireTotal: 2,
+		ReleaseTotal: 2,
+		ReclaimTotal: 1,
+	}, factory.ChannelEntryMetricsSnapshot())
+}
+
 func TestStoreApplyFetchRecordsPrefersTrustedPath(t *testing.T) {
 	store := &trustedApplyFetchRecorder{leo: 7}
 

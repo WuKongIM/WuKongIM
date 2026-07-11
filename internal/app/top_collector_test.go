@@ -170,6 +170,14 @@ func TestTopCollectorRecordsStoragePebbleMetrics(t *testing.T) {
 						WALBytesIn:                   300,
 						CompactionEstimatedDebtBytes: 4096,
 					},
+					ChannelEntries: cluster.StorageChannelEntryMetricsSnapshot{
+						ActiveEntries:     7,
+						OutstandingLeases: 11,
+						BackgroundPins:    3,
+						AcquireTotal:      19,
+						ReleaseTotal:      12,
+						ReclaimTotal:      5,
+					},
 				},
 			}}
 		},
@@ -195,6 +203,35 @@ func TestTopCollectorRecordsStoragePebbleMetrics(t *testing.T) {
 	debt := requireAppMetricFamily(t, families, "wukongim_storage_pebble_compaction_estimated_debt_bytes")
 	if got := findAppMetricByLabels(t, debt, map[string]string{"store": "channel_log"}).GetGauge().GetValue(); got != 4096 {
 		t.Fatalf("storage pebble compaction debt metric = %v, want 4096", got)
+	}
+	entryGauges := map[string]float64{
+		"wukongim_storage_channel_entries_active":     7,
+		"wukongim_storage_channel_leases_outstanding": 11,
+		"wukongim_storage_channel_background_pins":    3,
+	}
+	for name, want := range entryGauges {
+		family := requireAppMetricFamily(t, families, name)
+		metric := findAppMetricByLabels(t, family, map[string]string{"store": "channel_log"})
+		if got := metric.GetGauge().GetValue(); got != want {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == "channel_id" {
+				t.Fatalf("%s contains forbidden channel_id label", name)
+			}
+		}
+	}
+	entryCounters := map[string]float64{
+		"wukongim_storage_channel_acquires_total": 19,
+		"wukongim_storage_channel_releases_total": 12,
+		"wukongim_storage_channel_reclaims_total": 5,
+	}
+	for name, want := range entryCounters {
+		family := requireAppMetricFamily(t, families, name)
+		metric := findAppMetricByLabels(t, family, map[string]string{"store": "channel_log"})
+		if got := metric.GetCounter().GetValue(); got != want {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
 	}
 }
 

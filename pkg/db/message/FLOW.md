@@ -15,6 +15,10 @@ Current flow:
    `channelEntry`, including its immutable append-key cache, append mutex,
    checkpoint mutex, and LEO state. Lease close waits for its admitted
    operations; the last lease or pin compare-deletes and reclaims the entry.
+   `MessageDB.ChannelEntryMetricsSnapshot` and the compatibility `Engine`
+   surface expose aggregate active-entry, lease, background-pin, acquisition,
+   release, and reclamation counts. These metrics are database-wide and never
+   carry channel keys or identities as labels.
 3. `ChannelLog.Append` acquires one operation guard, serializes appends on the
    canonical entry, assigns contiguous
    sequences, validates strict duplicate constraints, and writes header/payload

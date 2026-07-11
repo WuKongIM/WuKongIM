@@ -4,6 +4,8 @@ import messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 
 // MessageDBFactoryMetricsSnapshot is a stable view of the factory-owned message store.
 type MessageDBFactoryMetricsSnapshot struct {
+	// ChannelEntries contains aggregate canonical entry ownership for the message store.
+	ChannelEntries messagedb.ChannelEntryMetricsSnapshot
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -41,7 +43,17 @@ func (f *MessageDBFactory) MetricsSnapshot() MessageDBFactoryMetricsSnapshot {
 	if f == nil || f.engine == nil {
 		return MessageDBFactoryMetricsSnapshot{}
 	}
-	return messageFactoryMetricsFromSnapshot(f.engine.MetricsSnapshot())
+	snapshot := messageFactoryMetricsFromSnapshot(f.engine.MetricsSnapshot())
+	snapshot.ChannelEntries = f.ChannelEntryMetricsSnapshot()
+	return snapshot
+}
+
+// ChannelEntryMetricsSnapshot returns aggregate channel entry ownership for the factory engine.
+func (f *MessageDBFactory) ChannelEntryMetricsSnapshot() messagedb.ChannelEntryMetricsSnapshot {
+	if f == nil || f.engine == nil {
+		return messagedb.ChannelEntryMetricsSnapshot{}
+	}
+	return f.engine.ChannelEntryMetricsSnapshot()
 }
 
 func messageFactoryMetricsFromSnapshot(snapshot messagedb.EngineMetricsSnapshot) MessageDBFactoryMetricsSnapshot {

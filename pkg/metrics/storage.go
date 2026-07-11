@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,6 +16,8 @@ var storageStores = []string{
 }
 
 var storageCommitRequestDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 30}
+
+const channelLogStorageStore = "channel_log"
 
 type StorageMetrics struct {
 	diskUsageBytes                  *prometheus.GaugeVec
@@ -39,6 +42,22 @@ type StorageMetrics struct {
 	commitBatchRequests             *prometheus.HistogramVec
 	commitBatchDuration             *prometheus.HistogramVec
 	commitRequestDuration           *prometheus.HistogramVec
+	channelEntrySnapshot            *storageChannelEntryAtomicSnapshot
+	channelEntriesActive            prometheus.GaugeFunc
+	channelLeasesOutstanding        prometheus.GaugeFunc
+	channelBackgroundPins           prometheus.GaugeFunc
+	channelAcquiresTotal            prometheus.CounterFunc
+	channelReleasesTotal            prometheus.CounterFunc
+	channelReclaimsTotal            prometheus.CounterFunc
+}
+
+type storageChannelEntryAtomicSnapshot struct {
+	activeEntries     atomic.Uint64
+	outstandingLeases atomic.Uint64
+	backgroundPins    atomic.Uint64
+	acquireTotal      atomic.Uint64
+	releaseTotal      atomic.Uint64
+	reclaimTotal      atomic.Uint64
 }
 
 // StorageCommitBatchObservation describes one grouped storage commit attempt.
@@ -94,7 +113,29 @@ type StoragePebbleObservation struct {
 	CompactionsInProgress int64
 }
 
+// StorageChannelEntryObservation describes aggregate ownership for the channel_log registry.
+type StorageChannelEntryObservation struct {
+	// ActiveEntries is the number of canonical channel entries currently retained.
+	ActiveEntries uint64
+	// OutstandingLeases is the number of caller-owned channel store handles.
+	OutstandingLeases uint64
+	// BackgroundPins is the number of commit-owned channel entry references.
+	BackgroundPins uint64
+	// AcquireTotal is the cumulative number of successful channel store acquisitions.
+	AcquireTotal uint64
+	// ReleaseTotal is the cumulative number of terminal channel store releases.
+	ReleaseTotal uint64
+	// ReclaimTotal is the cumulative number of zero-reference channel entries reclaimed.
+	ReclaimTotal uint64
+}
+
 func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels) *StorageMetrics {
+	channelLabels := make(prometheus.Labels, len(labels)+1)
+	for name, value := range labels {
+		channelLabels[name] = value
+	}
+	channelLabels["store"] = channelLogStorageStore
+	channelEntries := &storageChannelEntryAtomicSnapshot{}
 	m := &StorageMetrics{
 		diskUsageBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_storage_disk_usage_bytes",
@@ -211,6 +252,49 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			ConstLabels: labels,
 			Buckets:     storageCommitRequestDurationBuckets,
 		}, []string{"store", "lane", "result"}),
+		channelEntrySnapshot: channelEntries,
+		channelEntriesActive: prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_channel_entries_active",
+			Help:        "Canonical channel entries currently retained by the local message store.",
+			ConstLabels: channelLabels,
+		}, func() float64 {
+			return float64(channelEntries.activeEntries.Load())
+		}),
+		channelLeasesOutstanding: prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_channel_leases_outstanding",
+			Help:        "Caller-owned channel store leases currently retained by the local message store.",
+			ConstLabels: channelLabels,
+		}, func() float64 {
+			return float64(channelEntries.outstandingLeases.Load())
+		}),
+		channelBackgroundPins: prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_channel_background_pins",
+			Help:        "Commit-owned channel entry references currently retained by the local message store.",
+			ConstLabels: channelLabels,
+		}, func() float64 {
+			return float64(channelEntries.backgroundPins.Load())
+		}),
+		channelAcquiresTotal: prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Name:        "wukongim_storage_channel_acquires_total",
+			Help:        "Successful channel store acquisitions reported by the local message store.",
+			ConstLabels: channelLabels,
+		}, func() float64 {
+			return float64(channelEntries.acquireTotal.Load())
+		}),
+		channelReleasesTotal: prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Name:        "wukongim_storage_channel_releases_total",
+			Help:        "Terminal channel store lease releases reported by the local message store.",
+			ConstLabels: channelLabels,
+		}, func() float64 {
+			return float64(channelEntries.releaseTotal.Load())
+		}),
+		channelReclaimsTotal: prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Name:        "wukongim_storage_channel_reclaims_total",
+			Help:        "Zero-reference canonical channel entries reclaimed by the local message store.",
+			ConstLabels: channelLabels,
+		}, func() float64 {
+			return float64(channelEntries.reclaimTotal.Load())
+		}),
 	}
 
 	registry.MustRegister(
@@ -236,6 +320,12 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.commitBatchBytes,
 		m.commitBatchDuration,
 		m.commitRequestDuration,
+		m.channelEntriesActive,
+		m.channelLeasesOutstanding,
+		m.channelBackgroundPins,
+		m.channelAcquiresTotal,
+		m.channelReleasesTotal,
+		m.channelReclaimsTotal,
 	)
 
 	for _, store := range storageStores {
@@ -244,6 +334,20 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 	}
 
 	return m
+}
+
+// SetChannelEntryMetrics replaces the latest absolute channel_log registry snapshot.
+// Counter functions expose the source totals directly, so repeated polling does not double count.
+func (m *StorageMetrics) SetChannelEntryMetrics(obs StorageChannelEntryObservation) {
+	if m == nil || m.channelEntrySnapshot == nil {
+		return
+	}
+	m.channelEntrySnapshot.activeEntries.Store(obs.ActiveEntries)
+	m.channelEntrySnapshot.outstandingLeases.Store(obs.OutstandingLeases)
+	m.channelEntrySnapshot.backgroundPins.Store(obs.BackgroundPins)
+	m.channelEntrySnapshot.acquireTotal.Store(obs.AcquireTotal)
+	m.channelEntrySnapshot.releaseTotal.Store(obs.ReleaseTotal)
+	m.channelEntrySnapshot.reclaimTotal.Store(obs.ReclaimTotal)
 }
 
 func (m *StorageMetrics) SetDiskUsage(usageByStore map[string]int64) {

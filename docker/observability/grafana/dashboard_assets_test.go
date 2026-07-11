@@ -509,3 +509,107 @@ func TestRuntimeOpsDashboardIncludesPresencePanels(t *testing.T) {
 		}
 	}
 }
+
+func TestRuntimeOpsDashboardIncludesChannelRegistryPanels(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("dashboards", "wukongim-v2-runtime-ops.json"))
+	if err != nil {
+		t.Fatalf("read runtime ops dashboard: %v", err)
+	}
+
+	type target struct {
+		Expr         string `json:"expr"`
+		LegendFormat string `json:"legendFormat"`
+		RefID        string `json:"refId"`
+	}
+	type panel struct {
+		ID      int    `json:"id"`
+		Title   string `json:"title"`
+		GridPos struct {
+			H int `json:"h"`
+			W int `json:"w"`
+			X int `json:"x"`
+			Y int `json:"y"`
+		} `json:"gridPos"`
+		FieldConfig struct {
+			Defaults struct {
+				Unit string `json:"unit"`
+			} `json:"defaults"`
+		} `json:"fieldConfig"`
+		Targets []target `json:"targets"`
+	}
+	var dashboard struct {
+		Panels []panel `json:"panels"`
+	}
+	if err := json.Unmarshal(raw, &dashboard); err != nil {
+		t.Fatalf("parse runtime ops dashboard: %v", err)
+	}
+
+	byTitle := make(map[string]panel, len(dashboard.Panels))
+	for _, item := range dashboard.Panels {
+		byTitle[item.Title] = item
+	}
+	want := []struct {
+		title   string
+		id      int
+		x       int
+		unit    string
+		metrics []string
+	}{
+		{
+			title: "Channel registry ownership", id: 12, x: 0, unit: "short",
+			metrics: []string{
+				"wukongim_storage_channel_entries_active",
+				"wukongim_storage_channel_leases_outstanding",
+				"wukongim_storage_channel_background_pins",
+			},
+		},
+		{
+			title: "Channel registry lifecycle rate", id: 13, x: 12, unit: "ops",
+			metrics: []string{
+				"wukongim_storage_channel_acquires_total",
+				"wukongim_storage_channel_releases_total",
+				"wukongim_storage_channel_reclaims_total",
+			},
+		},
+	}
+	for _, expected := range want {
+		got, ok := byTitle[expected.title]
+		if !ok {
+			t.Errorf("runtime ops dashboard missing panel %q", expected.title)
+			continue
+		}
+		if got.ID != expected.id || got.GridPos.X != expected.x || got.GridPos.Y != 48 || got.GridPos.W != 12 || got.GridPos.H != 8 {
+			t.Errorf("panel %q layout = id:%d x:%d y:%d w:%d h:%d", expected.title, got.ID, got.GridPos.X, got.GridPos.Y, got.GridPos.W, got.GridPos.H)
+		}
+		if got.FieldConfig.Defaults.Unit != expected.unit {
+			t.Errorf("panel %q unit = %q, want %q", expected.title, got.FieldConfig.Defaults.Unit, expected.unit)
+		}
+		if len(got.Targets) != len(expected.metrics) {
+			t.Errorf("panel %q targets = %d, want %d", expected.title, len(got.Targets), len(expected.metrics))
+		}
+		for _, metric := range expected.metrics {
+			found := false
+			for _, candidate := range got.Targets {
+				if !strings.Contains(candidate.Expr, metric) {
+					continue
+				}
+				found = true
+				if !strings.Contains(candidate.Expr, `node_name=~"$node_name"`) || !strings.Contains(candidate.Expr, `store="channel_log"`) {
+					t.Errorf("panel %q query for %s lacks fixed node/store scope: %s", expected.title, metric, candidate.Expr)
+				}
+				if strings.Contains(candidate.Expr, "channel_id") {
+					t.Errorf("panel %q query for %s contains forbidden channel_id label: %s", expected.title, metric, candidate.Expr)
+				}
+				if strings.TrimSpace(candidate.RefID) == "" || strings.TrimSpace(candidate.LegendFormat) == "" {
+					t.Errorf("panel %q query for %s lacks refId or legend", expected.title, metric)
+				}
+				if expected.id == 13 && (!strings.Contains(candidate.Expr, "rate(") || !strings.Contains(candidate.Expr, "$__rate_interval")) {
+					t.Errorf("panel %q counter query for %s is not a rate: %s", expected.title, metric, candidate.Expr)
+				}
+			}
+			if !found {
+				t.Errorf("panel %q does not query %s", expected.title, metric)
+			}
+		}
+	}
+}

@@ -819,6 +819,7 @@ func TestEngineMetricsSnapshotConcurrentClose(t *testing.T) {
 			ready <- struct{}{}
 			for j := 0; j < 2000; j++ {
 				_ = eng.MetricsSnapshot()
+				_ = eng.ChannelEntryMetricsSnapshot()
 			}
 		}()
 	}

@@ -50,7 +50,10 @@ New(Config)
      runtime observers for Channel runtime, storage commit, delivery, Slot scheduler,
      Controller Raft, and transport pressure independently of Prometheus
      metrics; the collector also samples local process CPU, RSS/VMS memory,
-     goroutine count, and thread count via gopsutil; it keeps a bounded
+     goroutine count, and thread count via gopsutil, and pulls
+     `cluster.Node.StorageMetricsSnapshot` into Pebble and aggregate channel
+     entry ownership/reclamation metrics under the fixed `channel_log` label;
+     it keeps a bounded
      in-memory sticky alert window for readiness, pressure, sendack-error, and
      gateway session-error signals with compact evidence facts so `wkcli top`
      can show why active or recently resolved warnings fired; TransportV2
@@ -73,13 +76,16 @@ New(Config)
      snapshot reads. The database monitor category is Prometheus-only and uses
      internal message DB commit request,
      grouped commit stage, commit runtime queue, and Pebble engine snapshot
-     metrics. The node monitor category keeps per-node Prometheus series for
+     metrics, plus canonical channel entry, caller lease, background pin, and
+     reclamation totals. These storage metrics never use channel IDs as labels.
+     The node monitor category keeps per-node Prometheus series for
      process CPU, RSS memory, goroutines, and Go GC pause/rate/CPU/heap-goal
      pressure so global views can show the highest-pressure node without
      dropping node labels.
      Queries do not read the top collector's in-process dashboard ring buffers;
-     the hidden collector only refreshes process resource and Pebble snapshot
-     gauges for Prometheus when metrics are enabled.
+     the hidden collector only refreshes process resource, Pebble snapshot, and
+     channel entry ownership gauges/counters for Prometheus when metrics are
+     enabled.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
