@@ -5807,6 +5807,27 @@ func TestClusterWriteReadyScalesProbeTimeoutByPhysicalSlotCount(t *testing.T) {
 	}
 }
 
+func TestClusterWriteReadyRejectsUnavailableSlotsBeforeRouteOrProbe(t *testing.T) {
+	calls := make([]string, 0, 1)
+	cluster := &fakeWriteReadyCluster{
+		fakeCluster: fakeCluster{calls: &calls},
+		snapshots: []clusterpkg.Snapshot{
+			{RoutesReady: true, SlotsReady: false, ChannelsReady: true, HashSlotCount: 1},
+		},
+	}
+	var lastErr error
+
+	if clusterWriteReady(context.Background(), cluster, &lastErr) {
+		t.Fatal("clusterWriteReady() = true, want false when local Slot runtime is unavailable")
+	}
+	if lastErr == nil || !strings.Contains(lastErr.Error(), "slots=false") {
+		t.Fatalf("clusterWriteReady() error = %v, want SlotsReady diagnostic", lastErr)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("calls = %v, want snapshot gate before route or write probe", calls)
+	}
+}
+
 func TestDefaultClusterWriteReadyTimeoutAllowsMultipleScaledWriteProbeAttempts(t *testing.T) {
 	snapshot := clusterpkg.Snapshot{SlotCount: 10}
 	minimum := 3 * clusterWriteReadyProbeBudget(snapshot)

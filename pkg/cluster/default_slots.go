@@ -103,6 +103,7 @@ func (n *Node) ensureDefaultSlots() error {
 	n.defaultSlotRaftDB = raftDB
 	n.defaultSlotMetaDB = metaDB
 	n.defaultSlotProposer = defaultSlotProposer{runtime: runtime}
+	n.slotStatusRuntime = runtime
 	n.registerDefaultSlotHandlers(runtime)
 	n.defaultSlots = true
 	return nil

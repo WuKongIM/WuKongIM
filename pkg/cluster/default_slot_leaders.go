@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slots"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const defaultSeedJoinSlotLeaderPollInterval = 250 * time.Millisecond
@@ -50,16 +51,96 @@ func (n *Node) refreshDefaultSlotLeaders() {
 	if n == nil || n.defaultSlotRuntime == nil || n.router == nil {
 		return
 	}
-	if n.refreshSeedJoinRemoteSlotLeaders(context.Background()) {
+	n.mu.RLock()
+	revision := n.controlSnapshot.Revision
+	slotIDs, localAssignedSlotIDs := defaultSlotReadinessInputs(n.controlSnapshot.Slots, n.cfg.NodeID)
+	n.mu.RUnlock()
+	statuses := defaultSlotStatuses(n.defaultSlotRuntime, slotIDs)
+	n.updateDefaultSlotsReady(revision, localAssignedSlotsReady(localAssignedSlotIDs, statuses))
+	if n.cfg.seedJoinMode() && n.refreshSeedJoinRemoteSlotLeaders(context.Background()) {
 		return
 	}
-	slotIDs := n.currentSlotIDs()
 	if len(slotIDs) == 0 {
 		return
 	}
 	before := n.router.Table()
-	n.router.UpdateSlotLeaders(routingSlotStatuses(slots.StatusSnapshot(n.defaultSlotRuntime, slotIDs)))
+	n.router.UpdateSlotLeaders(routingSlotStatuses(statuses))
 	n.publishRouteAuthorityChanges(before, n.router.Table())
+}
+
+// defaultSlotReadinessInputs copies only the physical Slot IDs needed by the 10ms readiness loop.
+func defaultSlotReadinessInputs(assignments []control.SlotAssignment, localNodeID uint64) ([]uint32, []uint32) {
+	slotIDs := make([]uint32, 0, len(assignments))
+	localAssignedSlotIDs := make([]uint32, 0, len(assignments))
+	for _, assignment := range assignments {
+		if assignment.SlotID == 0 {
+			continue
+		}
+		slotIDs = append(slotIDs, assignment.SlotID)
+		for _, peerID := range assignment.DesiredPeers {
+			if peerID == localNodeID {
+				localAssignedSlotIDs = append(localAssignedSlotIDs, assignment.SlotID)
+				break
+			}
+		}
+	}
+	return slotIDs, localAssignedSlotIDs
+}
+
+// defaultSlotStatuses returns the exact physical Slots whose local status read succeeded.
+func defaultSlotStatuses(reader slots.StatusReader, slotIDs []uint32) []slots.Status {
+	statuses := make([]slots.Status, 0, len(slotIDs))
+	if reader == nil {
+		return statuses
+	}
+	for _, slotID := range slotIDs {
+		status, err := reader.Status(multiraft.SlotID(slotID))
+		if err != nil || uint32(status.SlotID) != slotID {
+			continue
+		}
+		statuses = append(statuses, slots.Status{
+			SlotID: uint32(status.SlotID),
+			Leader: uint64(status.LeaderID),
+			Term:   status.Term,
+		})
+	}
+	return statuses
+}
+
+// localAssignedSlotsReady requires a successful runtime status for every locally assigned physical Slot.
+func localAssignedSlotsReady(localAssignedSlotIDs []uint32, statuses []slots.Status) bool {
+	for _, slotID := range localAssignedSlotIDs {
+		found := false
+		for _, status := range statuses {
+			if status.SlotID == slotID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// updateDefaultSlotsReady publishes a readiness transition only for the current control revision.
+func (n *Node) updateDefaultSlotsReady(revision uint64, ready bool) {
+	if n == nil {
+		return
+	}
+	n.mu.RLock()
+	skip := n.controlSnapshot.Revision != revision || n.snapshot.StateRevision != revision || n.snapshot.SlotsReady == ready
+	n.mu.RUnlock()
+	if skip {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.controlSnapshot.Revision != revision || n.snapshot.StateRevision != revision {
+		return
+	}
+	n.snapshot.SlotsReady = ready
 }
 
 func routingSlotStatuses(statuses []slots.Status) []routing.SlotStatus {
@@ -78,7 +159,7 @@ func (n *Node) slotLeaderPollInterval() time.Duration {
 }
 
 func (n *Node) refreshSeedJoinRemoteSlotLeaders(ctx context.Context) bool {
-	if n == nil {
+	if n == nil || !n.cfg.seedJoinMode() {
 		return false
 	}
 	n.mu.RLock()
@@ -177,15 +258,4 @@ func snapshotHasActiveNode(snapshot control.Snapshot, nodeID uint64) bool {
 		return controlNodeJoinState(node.JoinState) == control.NodeJoinStateActive
 	}
 	return false
-}
-
-// currentSlotIDs returns the physical Slots visible in the latest local control snapshot.
-func (n *Node) currentSlotIDs() []uint32 {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	out := make([]uint32, 0, len(n.controlSnapshot.Slots))
-	for _, slot := range n.controlSnapshot.Slots {
-		out = append(out, slot.SlotID)
-	}
-	return out
 }

@@ -153,6 +153,30 @@ Start(ctx)
 
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local Channel runtime resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when Channel runtime placement candidates are stale, verifies Channel runtime has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local Channel runtime data-plane lease after the probe succeeds.
 
+Before the bounded write probes, the Node-created default Slot runtime captures
+one control/route revision and validates every physical Slot runtime involved in
+that view. All locally assigned replicas, including followers, must return a
+local status that agrees with the routed leader. Slots led remotely are queried
+in one `RPCSlotStatus` batch per expected leader, and each response must contain
+exactly the requested Slot IDs with matching leaders. Missing, duplicate, extra,
+zero-leader, closed, or mismatched status fails readiness before any no-op is
+submitted. The route revision and leader terms are checked again before and
+after the at-most-four no-op proposals, so stale evidence never renews the
+data-plane lease. Custom `WithProposer` overrides retain their existing
+Propose-only bounded no-op behavior; the full status proof is wired explicitly
+with the Node-created default Slot runtime.
+
+For the Node-created default Slot runtime, `SlotsReady` is re-evaluated by the
+10ms Slot leader observation loop against the current control snapshot. Every
+physical Slot whose `DesiredPeers` contains the local node must return a
+successful local runtime status; an unknown `LeaderID=0` still counts as a
+healthy opened runtime because leader availability is checked separately by
+routing and `ProbeWriteReady`. Missing unassigned runtimes are ignored, and a
+node with no local Slot assignments is Slot-ready. Readiness publication is
+fenced by the control revision so a delayed observation cannot overwrite a
+newer snapshot. A failed status lowers `SlotsReady` without clearing the
+router's last known non-zero leader.
+
 Seed-join mirror nodes keep `Config.Control.Voters` empty so they do not become
 Controller voters before admission. During default runtime wiring, the
 configured `Join.Seeds` addresses are converted into temporary state-sync peer

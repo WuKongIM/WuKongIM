@@ -60,9 +60,11 @@ type Node struct {
 	transportServer  *clusternet.TransportServer
 	transportClient  *clusternet.TransportClient
 	slotStatusCaller clusternet.Caller
-	slots            slotReconciler
-	tasks            taskExecutor
-	channels         channelService
+	// slotStatusRuntime proves current local Slot runtime availability and observed leadership for write readiness.
+	slotStatusRuntime slotStatusRuntime
+	slots             slotReconciler
+	tasks             taskExecutor
+	channels          channelService
 	// channelDataNodes tracks health-schedulable data nodes for default Channel placement.
 	channelDataNodes dataNodeView
 	// channelDataPlaneLease gates local Channel leader appends on fresh control visibility.
@@ -164,6 +166,10 @@ func withController(controller control.Controller) Option {
 
 func withSlotReconciler(reconciler slotReconciler) Option {
 	return func(n *Node) { n.slots = reconciler }
+}
+
+func withSlotStatusRuntime(runtime slotStatusRuntime) Option {
+	return func(n *Node) { n.slotStatusRuntime = runtime }
 }
 
 func withTaskExecutor(executor taskExecutor) Option {
