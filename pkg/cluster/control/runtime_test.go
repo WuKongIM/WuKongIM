@@ -411,6 +411,7 @@ func TestRuntimeJoinNodeReturnsControlWriteAfterForward(t *testing.T) {
 			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
 		}
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
 	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -427,45 +428,7 @@ func TestRuntimeJoinNodeReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	var leaderID uint64
-	var leader *Runtime
-	var follower *Runtime
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		for _, rt := range runtimes {
-			leaderID = rt.LeaderID()
-			if leaderID == 0 {
-				continue
-			}
-			for _, candidate := range runtimes {
-				if candidate.cfg.NodeID == leaderID {
-					leader = candidate
-				} else {
-					follower = candidate
-				}
-			}
-			if leader != nil {
-				snap, err := leader.LocalSnapshot(context.Background())
-				if err != nil || snap.Revision == 0 {
-					leader = nil
-					follower = nil
-					continue
-				}
-			}
-			if leader != nil && follower != nil {
-				break
-			}
-		}
-		if leader != nil && follower != nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if follower == nil || leader == nil {
-		t.Fatal("timeout waiting for leader and follower runtime")
-	}
-
-	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(leader))
+	_, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
 	req := JoinNodeRequest{
 		NodeID:         4,
 		Name:           "node-4",
@@ -507,6 +470,7 @@ func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
 		}
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
 	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -523,50 +487,12 @@ func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	var leaderID uint64
-	var leader *Runtime
-	var follower *Runtime
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		for _, rt := range runtimes {
-			leaderID = rt.LeaderID()
-			if leaderID == 0 {
-				continue
-			}
-			for _, candidate := range runtimes {
-				if candidate.cfg.NodeID == leaderID {
-					leader = candidate
-				} else {
-					follower = candidate
-				}
-			}
-			if leader != nil {
-				snap, err := leader.LocalSnapshot(context.Background())
-				if err != nil || snap.Revision == 0 {
-					leader = nil
-					follower = nil
-					continue
-				}
-			}
-			if leader != nil && follower != nil {
-				break
-			}
-		}
-		if leader != nil && follower != nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if follower == nil || leader == nil {
-		t.Fatal("timeout waiting for leader and follower runtime")
-	}
-
-	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(leader))
+	leader, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
 	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
 		t.Fatalf("leader JoinNode() error = %v", err)
 	}
 	observedJoining := false
-	deadline = time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) && !observedJoining {
 		snap, err := follower.LocalSnapshot(context.Background())
 		if err == nil {
@@ -584,6 +510,7 @@ func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 	if !observedJoining {
 		t.Fatal("timeout waiting for follower to observe joining node")
 	}
+	_, follower = waitForRuntimeLeaderAndFollower(t, runtimes)
 	result, err := follower.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
 	if err != nil {
 		t.Fatalf("ActivateNode() error = %v", err)
@@ -618,6 +545,7 @@ func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
 			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
 		}
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
 	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -634,45 +562,7 @@ func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	var leaderID uint64
-	var leader *Runtime
-	var follower *Runtime
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		for _, rt := range runtimes {
-			leaderID = rt.LeaderID()
-			if leaderID == 0 {
-				continue
-			}
-			for _, candidate := range runtimes {
-				if candidate.cfg.NodeID == leaderID {
-					leader = candidate
-				} else {
-					follower = candidate
-				}
-			}
-			if leader != nil {
-				snap, err := leader.LocalSnapshot(context.Background())
-				if err != nil || snap.Revision == 0 {
-					leader = nil
-					follower = nil
-					continue
-				}
-			}
-			if leader != nil && follower != nil {
-				break
-			}
-		}
-		if leader != nil && follower != nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if follower == nil || leader == nil {
-		t.Fatal("timeout waiting for leader and follower runtime")
-	}
-
-	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(leader))
+	leader, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
 	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
 		t.Fatalf("leader JoinNode() error = %v", err)
 	}
@@ -680,7 +570,7 @@ func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
 		t.Fatalf("leader ActivateNode() error = %v", err)
 	}
 	observedActive := false
-	deadline = time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) && !observedActive {
 		snap, err := follower.LocalSnapshot(context.Background())
 		if err == nil {
@@ -698,6 +588,7 @@ func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
 	if !observedActive {
 		t.Fatal("timeout waiting for follower to observe active node")
 	}
+	_, follower = waitForRuntimeLeaderAndFollower(t, runtimes)
 	result, err := follower.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
 	if err != nil {
 		t.Fatalf("MarkNodeLeaving() error = %v", err)
@@ -732,6 +623,7 @@ func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
 			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
 		}
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
 	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -748,45 +640,7 @@ func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	var leaderID uint64
-	var leader *Runtime
-	var follower *Runtime
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		for _, rt := range runtimes {
-			leaderID = rt.LeaderID()
-			if leaderID == 0 {
-				continue
-			}
-			for _, candidate := range runtimes {
-				if candidate.cfg.NodeID == leaderID {
-					leader = candidate
-				} else {
-					follower = candidate
-				}
-			}
-			if leader != nil {
-				snap, err := leader.LocalSnapshot(context.Background())
-				if err != nil || snap.Revision == 0 {
-					leader = nil
-					follower = nil
-					continue
-				}
-			}
-			if leader != nil && follower != nil {
-				break
-			}
-		}
-		if leader != nil && follower != nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if follower == nil || leader == nil {
-		t.Fatal("timeout waiting for leader and follower runtime")
-	}
-
-	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(leader))
+	leader, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
 	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
 		t.Fatalf("leader JoinNode() error = %v", err)
 	}
@@ -797,7 +651,7 @@ func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
 		t.Fatalf("leader MarkNodeLeaving() error = %v", err)
 	}
 	observedLeaving := false
-	deadline = time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) && !observedLeaving {
 		snap, err := follower.LocalSnapshot(context.Background())
 		if err == nil {
@@ -815,6 +669,7 @@ func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
 	if !observedLeaving {
 		t.Fatal("timeout waiting for follower to observe leaving node")
 	}
+	_, follower = waitForRuntimeLeaderAndFollower(t, runtimes)
 	result, err := follower.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
 	if err != nil {
 		t.Fatalf("MarkNodeRemoved() error = %v", err)
@@ -1689,6 +1544,80 @@ func snapshotJoinState(snapshot Snapshot, nodeID uint64) NodeJoinState {
 		}
 	}
 	return ""
+}
+
+func waitForRuntimeLeaderAndFollower(t *testing.T, runtimes []*Runtime) (*Runtime, *Runtime) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		leaderID := runtimes[0].LeaderID()
+		if leaderID == 0 {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		converged := true
+		var leader *Runtime
+		var follower *Runtime
+		var revision uint64
+		for _, rt := range runtimes {
+			if rt.LeaderID() != leaderID {
+				converged = false
+				break
+			}
+			snapshot, err := rt.LocalSnapshot(context.Background())
+			if err != nil || snapshot.Revision == 0 || len(snapshot.Slots) < int(rt.cfg.InitialSlotCount) {
+				converged = false
+				break
+			}
+			if revision == 0 {
+				revision = snapshot.Revision
+			} else if snapshot.Revision != revision {
+				converged = false
+				break
+			}
+			if rt.cfg.NodeID == leaderID {
+				leader = rt
+			} else if follower == nil {
+				follower = rt
+			}
+		}
+		if !converged || leader == nil || follower == nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		probeTimeout := time.Until(deadline)
+		if probeTimeout > 500*time.Millisecond {
+			probeTimeout = 500 * time.Millisecond
+		}
+		probeCtx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+		err := leader.ProbePropose(probeCtx)
+		cancel()
+		if err != nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		stillConverged := true
+		for _, rt := range runtimes {
+			if rt.LeaderID() != leaderID {
+				stillConverged = false
+				break
+			}
+			snapshot, err := rt.LocalSnapshot(context.Background())
+			if err != nil || snapshot.Revision != revision || len(snapshot.Slots) < int(rt.cfg.InitialSlotCount) {
+				stillConverged = false
+				break
+			}
+		}
+		if stillConverged {
+			return leader, follower
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for _, rt := range runtimes {
+		t.Logf("runtime %d leader view: %d", rt.cfg.NodeID, rt.LeaderID())
+	}
+	t.Fatal("timeout waiting for runtimes to agree on a bootstrapped leader")
+	return nil, nil
 }
 
 func controlNodeByID(nodes []Node, nodeID uint64) (Node, bool) {
