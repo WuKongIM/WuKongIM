@@ -105,16 +105,7 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		r.reset(assignment.RunID)
 		return nil
 	}
-	manager, err := benchworkload.NewConnectionManager(benchworkload.ConnectionManagerConfig{
-		Target:           assignment.Target,
-		GatewayBalance:   assignment.Scenario.Online.GatewayBalance,
-		ConnectRate:      assignment.Scenario.Online.ConnectRate,
-		Heartbeat:        assignment.Scenario.Online.Heartbeat,
-		ClientFactory:    r.clientFactory,
-		Token:            "",
-		OperationTimeout: 0,
-		AckTimeout:       connectionAckTimeout(assignment),
-	})
+	manager, err := benchworkload.NewConnectionManager(connectionManagerConfig(assignment, r.clientFactory))
 	if err != nil {
 		return err
 	}
@@ -129,6 +120,25 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		return err
 	}
 	return nil
+}
+
+func connectionManagerConfig(assignment Assignment, factory WorkloadClientFactory) benchworkload.ConnectionManagerConfig {
+	client := assignment.Client
+	if client != nil {
+		cloned := *client
+		client = &cloned
+	}
+	return benchworkload.ConnectionManagerConfig{
+		Target:           assignment.Target,
+		GatewayBalance:   assignment.Scenario.Online.GatewayBalance,
+		ConnectRate:      assignment.Scenario.Online.ConnectRate,
+		Heartbeat:        assignment.Scenario.Online.Heartbeat,
+		Client:           client,
+		ClientFactory:    factory,
+		Token:            "",
+		OperationTimeout: 0,
+		AckTimeout:       connectionAckTimeout(assignment),
+	}
 }
 
 func connectionAckTimeout(assignment Assignment) time.Duration {

@@ -25,6 +25,10 @@ STABLE_SAMPLES="${WK_BENCH_PRESENCE_STABLE_SAMPLES:-2}"
 CLEANUP_TIMEOUT="${WK_BENCH_PRESENCE_CLEANUP_TIMEOUT:-0}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PRESENCE_PHASE_POLL_TIMEOUT:-30s}"
 REQUIRE_TOUCH="${WK_BENCH_PRESENCE_REQUIRE_TOUCH:-1}"
+CLIENT_SEND_QUEUE_CAPACITY="${WK_BENCH_PRESENCE_CLIENT_SEND_QUEUE_CAPACITY:-16}"
+CLIENT_MAX_INFLIGHT="${WK_BENCH_PRESENCE_CLIENT_MAX_INFLIGHT:-1}"
+CLIENT_READ_BUFFER_SIZE="${WK_BENCH_PRESENCE_CLIENT_READ_BUFFER_SIZE:-1024}"
+CLIENT_FRAME_BUFFER_SIZE="${WK_BENCH_PRESENCE_CLIENT_FRAME_BUFFER_SIZE:-4}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -271,6 +275,10 @@ require_positive_int '--users' "$USERS"
 require_positive_int '--connect-rate' "$CONNECT_RATE"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 require_positive_int '--stable-samples' "$STABLE_SAMPLES"
+require_positive_int 'WK_BENCH_PRESENCE_CLIENT_SEND_QUEUE_CAPACITY' "$CLIENT_SEND_QUEUE_CAPACITY"
+require_positive_int 'WK_BENCH_PRESENCE_CLIENT_MAX_INFLIGHT' "$CLIENT_MAX_INFLIGHT"
+require_positive_int 'WK_BENCH_PRESENCE_CLIENT_READ_BUFFER_SIZE' "$CLIENT_READ_BUFFER_SIZE"
+require_positive_int 'WK_BENCH_PRESENCE_CLIENT_FRAME_BUFFER_SIZE' "$CLIENT_FRAME_BUFFER_SIZE"
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
 require_nonnegative_number '--cleanup-timeout' "$CLEANUP_TIMEOUT"
 [[ "$REQUIRE_TOUCH" == "0" || "$REQUIRE_TOUCH" == "1" ]] || die "WK_BENCH_PRESENCE_REQUIRE_TOUCH must be 0 or 1"
@@ -304,7 +312,7 @@ ensure_tools() {
 ensure_wkbench_binary() {
   if [[ -x "$WK_BENCH_BIN" ]]; then
     local newer_source
-    newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" "$ROOT_DIR/pkg/protocol" -type f -newer "$WK_BENCH_BIN" -print -quit)"
+    newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" "$ROOT_DIR/pkg/bench/model" "$ROOT_DIR/pkg/client" "$ROOT_DIR/pkg/protocol" -type f -newer "$WK_BENCH_BIN" -print -quit)"
     if [[ -z "$newer_source" ]]; then
       return
     fi
@@ -682,6 +690,11 @@ workers:
     weight: 1
     control_token: ""
     insecure_control: true
+    client:
+      send_queue_capacity: $CLIENT_SEND_QUEUE_CAPACITY
+      max_inflight: $CLIENT_MAX_INFLIGHT
+      read_buffer_size: $CLIENT_READ_BUFFER_SIZE
+      frame_buffer_size: $CLIENT_FRAME_BUFFER_SIZE
 YAML
 }
 
@@ -748,6 +761,10 @@ HEARTBEAT_TIMEOUT=$HEARTBEAT_TIMEOUT
 SAMPLE_INTERVAL=$SAMPLE_INTERVAL
 STABLE_SAMPLES=$STABLE_SAMPLES
 REQUIRE_TOUCH=$REQUIRE_TOUCH
+CLIENT_SEND_QUEUE_CAPACITY=$CLIENT_SEND_QUEUE_CAPACITY
+CLIENT_MAX_INFLIGHT=$CLIENT_MAX_INFLIGHT
+CLIENT_READ_BUFFER_SIZE=$CLIENT_READ_BUFFER_SIZE
+CLIENT_FRAME_BUFFER_SIZE=$CLIENT_FRAME_BUFFER_SIZE
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
 METRICS_ADDRS=$METRICS_ADDRS
@@ -1146,6 +1163,7 @@ write_evidence_summary() {
 - cooldown: $COOLDOWN
 - cleanup_timeout: $CLEANUP_TIMEOUT
 - heartbeat_interval: $HEARTBEAT_INTERVAL
+- client_profile: send_queue_capacity=$CLIENT_SEND_QUEUE_CAPACITY max_inflight=$CLIENT_MAX_INFLIGHT read_buffer_size=$CLIENT_READ_BUFFER_SIZE frame_buffer_size=$CLIENT_FRAME_BUFFER_SIZE
 - stable_samples: $STABLE_SAMPLES
 - clean_cluster: $CLEAN_CLUSTER
 

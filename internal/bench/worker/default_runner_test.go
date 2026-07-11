@@ -1,6 +1,10 @@
 package worker
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
+)
 
 func TestNewDefaultWorkloadRunnerExposesMetricsReporter(t *testing.T) {
 	runner := NewDefaultWorkloadRunner(nil)
@@ -12,5 +16,24 @@ func TestNewDefaultWorkloadRunnerExposesMetricsReporter(t *testing.T) {
 	}
 	if _, ok := runner.(ConnectionStatusReporter); !ok {
 		t.Fatal("expected default workload runner to expose connection status")
+	}
+}
+
+func TestConnectionManagerConfigCopiesAssignmentClientProfile(t *testing.T) {
+	profile := &model.WorkerClientConfig{
+		SendQueueCapacity: 16,
+		MaxInflight:       1,
+		ReadBufferSize:    1024,
+		FrameBufferSize:   4,
+	}
+	assignment := Assignment{
+		Client: profile,
+		Target: model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"127.0.0.1:5100"}}}},
+	}
+
+	cfg := connectionManagerConfig(assignment, nil)
+
+	if cfg.Client == nil || *cfg.Client != *profile {
+		t.Fatalf("connection manager client profile = %#v, want %#v", cfg.Client, profile)
 	}
 }

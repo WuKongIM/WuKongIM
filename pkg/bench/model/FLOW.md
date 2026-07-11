@@ -14,3 +14,9 @@ package.
   here.
 - Keep exported fields documented because these structs define config, YAML,
   JSON, and HTTP API contracts.
+
+`Worker.Client` is an optional complete per-session capacity profile. When it
+is present, every capacity is positive; when it is omitted, wkbench retains the
+existing generic client defaults. The coordinator copies only the selected
+worker's profile into that worker's assignment and never places worker control
+credentials in the assignment payload.

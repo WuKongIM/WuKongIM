@@ -82,6 +82,8 @@ type ConnectionManagerConfig struct {
 	OperationTimeout time.Duration
 	// AckTimeout is passed to production WKProto clients for internal SENDACK tracking.
 	AckTimeout time.Duration
+	// Client optionally overrides the production WKProto client's per-session capacities.
+	Client *model.WorkerClientConfig
 	// ClientFactory overrides production WKProto client creation for tests.
 	ClientFactory func(user ConnectionUser, addr string) (ConnectionClient, error)
 
@@ -124,15 +126,13 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 	if cfg.Heartbeat.Enabled && cfg.Heartbeat.Interval <= 0 {
 		return nil, fmt.Errorf("connection manager: heartbeat interval must be greater than zero")
 	}
+	if err := validateWorkerClientConfig(cfg.Client); err != nil {
+		return nil, err
+	}
 	factory := cfg.ClientFactory
 	if factory == nil {
 		factory = func(user ConnectionUser, addr string) (ConnectionClient, error) {
-			return benchwkproto.NewClient(benchwkproto.ClientConfig{
-				Addr:             addr,
-				Token:            user.Token,
-				OperationTimeout: cfg.OperationTimeout,
-				AckTimeout:       cfg.AckTimeout,
-			})
+			return benchwkproto.NewClient(defaultWKProtoClientConfig(cfg, user, addr))
 		}
 	}
 	sleep := cfg.sleep
@@ -148,6 +148,32 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 		sessions:     make(map[string]*ConnectionSession),
 		metrics:      metrics.NewRegistry(),
 	}, nil
+}
+
+func validateWorkerClientConfig(cfg *model.WorkerClientConfig) error {
+	if cfg == nil {
+		return nil
+	}
+	if cfg.SendQueueCapacity <= 0 || cfg.MaxInflight <= 0 || cfg.ReadBufferSize <= 0 || cfg.FrameBufferSize <= 0 {
+		return fmt.Errorf("connection manager: configured client capacities must all be greater than zero")
+	}
+	return nil
+}
+
+func defaultWKProtoClientConfig(cfg ConnectionManagerConfig, user ConnectionUser, addr string) benchwkproto.ClientConfig {
+	clientCfg := benchwkproto.ClientConfig{
+		Addr:             addr,
+		Token:            user.Token,
+		OperationTimeout: cfg.OperationTimeout,
+		AckTimeout:       cfg.AckTimeout,
+	}
+	if cfg.Client != nil {
+		clientCfg.SendQueueCapacity = cfg.Client.SendQueueCapacity
+		clientCfg.MaxInflight = cfg.Client.MaxInflight
+		clientCfg.ReadBufferSize = cfg.Client.ReadBufferSize
+		clientCfg.FrameBufferSize = cfg.Client.FrameBufferSize
+	}
+	return clientCfg
 }
 
 // Connect opens sessions for all users in order, honoring the configured connect rate.

@@ -24,7 +24,12 @@ matching, RECV decryption, and the single writer/reader pumps. The bench adapter
 keeps the existing workload-facing `Send` / `ReadFrame` contract by converting
 `pkg/client` SEND futures back into local SENDACK frames and forwarding RECV
 frames from the shared reader into the same bounded queue. Worker clients are
-additionally wrapped by a matching reader that buffers unmatched frames for
+created from an optional worker-local `client` profile. Its send queue, maximum
+inflight SEND count, socket read buffer, and frame buffer capacities flow from
+the selected worker assignment through the default connection manager factory;
+the frame buffer capacity bounds both the adapter queue and the inner inbound
+RECV queue. Omitting the complete profile retains the tooling defaults. Worker
+clients are additionally wrapped by a matching reader that buffers unmatched frames for
 foreground waiters and applies the recv-ack policy selected by the scenario.
 Scheduled traffic uses per-key pending queues plus a ready-key queue when a
 workload supplies a serialization key. That keeps one busy client or channel
@@ -46,6 +51,7 @@ cmd/wkbench run
        -> worker /v1/info
        -> gateway checker
   -> coordinator.assignWorkers
+       -> copy only each selected worker's client capacity profile into its assignment
        -> POST worker /v1/assign
   -> phases: prepare -> connect -> warmup -> run -> cooldown
        -> POST worker /v1/phase/<phase>
@@ -316,6 +322,7 @@ Connect
   -> buildPersonExecutionPlan
   -> buildGroupExecutionPlan
   -> merge connection users with the worker identity range
+  -> apply the assignment's optional worker client capacity profile
   -> workload.ConnectionManager.Connect
   -> optional heartbeat pings keep idle online users active
   -> wrap clients for concurrent frame matching

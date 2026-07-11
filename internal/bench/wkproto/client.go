@@ -34,6 +34,12 @@ type ClientConfig struct {
 	OperationTimeout time.Duration
 	// AckTimeout bounds the internal pending SENDACK wait; use a value above workload waits.
 	AckTimeout time.Duration
+	// SendQueueCapacity bounds SEND requests waiting for the shared writer pump.
+	SendQueueCapacity int
+	// MaxInflight bounds SEND requests waiting for SENDACK.
+	MaxInflight int
+	// ReadBufferSize is the socket reader scratch-buffer size in bytes.
+	ReadBufferSize int
 	// FrameBufferSize bounds decoded inbound frames queued by the background reader.
 	FrameBufferSize int
 }
@@ -44,12 +50,15 @@ type tcpDialer interface {
 
 // Client is a black-box WKProto client used by wkbench workers.
 type Client struct {
-	addr             string
-	token            string
-	dialer           tcpDialer
-	operationTimeout time.Duration
-	ackTimeout       time.Duration
-	frameBufferSize  int
+	addr              string
+	token             string
+	dialer            tcpDialer
+	operationTimeout  time.Duration
+	ackTimeout        time.Duration
+	sendQueueCapacity int
+	maxInflight       int
+	readBufferSize    int
+	frameBufferSize   int
 
 	mu      sync.Mutex
 	session *clientSession
@@ -97,12 +106,15 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		cfg.FrameBufferSize = defaultFrameBufferSize
 	}
 	return &Client{
-		addr:             cfg.Addr,
-		token:            cfg.Token,
-		dialer:           cfg.Dialer,
-		operationTimeout: cfg.OperationTimeout,
-		ackTimeout:       cfg.AckTimeout,
-		frameBufferSize:  cfg.FrameBufferSize,
+		addr:              cfg.Addr,
+		token:             cfg.Token,
+		dialer:            cfg.Dialer,
+		operationTimeout:  cfg.OperationTimeout,
+		ackTimeout:        cfg.AckTimeout,
+		sendQueueCapacity: cfg.SendQueueCapacity,
+		maxInflight:       cfg.MaxInflight,
+		readBufferSize:    cfg.ReadBufferSize,
+		frameBufferSize:   cfg.FrameBufferSize,
 	}, nil
 }
 
@@ -402,14 +414,21 @@ func (c *Client) currentSession() (*clientSession, error) {
 }
 
 func (c *Client) newInner() (*wkclient.Client, error) {
-	return wkclient.New(wkclient.Config{
+	return wkclient.New(c.innerConfig())
+}
+
+func (c *Client) innerConfig() wkclient.Config {
+	return wkclient.Config{
 		Addr:                   c.addr,
 		Token:                  c.token,
 		Dialer:                 c.dialer,
 		OperationTimeout:       c.operationTimeout,
 		AckTimeout:             c.ackTimeout,
+		SendQueueCapacity:      c.sendQueueCapacity,
+		MaxInflight:            c.maxInflight,
+		ReadBufferSize:         c.readBufferSize,
 		InboundFrameBufferSize: c.frameBufferSize,
-	})
+	}
 }
 
 func (c *Client) withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

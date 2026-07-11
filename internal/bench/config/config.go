@@ -18,6 +18,7 @@ type TargetGatewayTCPConfig = model.TargetGatewayTCPConfig
 type BenchAPIConfig = model.BenchAPIConfig
 type MetricsConfig = model.MetricsConfig
 type Worker = model.Worker
+type WorkerClientConfig = model.WorkerClientConfig
 type WorkerSet = model.WorkerSet
 type Scenario = model.Scenario
 type RunConfig = model.RunConfig
@@ -127,6 +128,20 @@ func ValidateStaticConfig(target Target, workers WorkerSet) error {
 		}
 		if !worker.InsecureControl && strings.TrimSpace(worker.ControlToken) == "" {
 			problems = append(problems, prefix+".control_token is required unless insecure_control=true")
+		}
+		if worker.Client != nil {
+			if worker.Client.SendQueueCapacity <= 0 {
+				problems = append(problems, prefix+".client.send_queue_capacity must be greater than zero")
+			}
+			if worker.Client.MaxInflight <= 0 {
+				problems = append(problems, prefix+".client.max_inflight must be greater than zero")
+			}
+			if worker.Client.ReadBufferSize <= 0 {
+				problems = append(problems, prefix+".client.read_buffer_size must be greater than zero")
+			}
+			if worker.Client.FrameBufferSize <= 0 {
+				problems = append(problems, prefix+".client.frame_buffer_size must be greater than zero")
+			}
 		}
 	}
 	if len(problems) > 0 {

@@ -222,6 +222,29 @@ func TestConnectionManagerRejectsInvalidConfig(t *testing.T) {
 	if _, err := NewConnectionManager(ConnectionManagerConfig{GatewayAddrs: []string{"gw"}, Heartbeat: model.HeartbeatConfig{Enabled: true}}); err == nil {
 		t.Fatal("NewConnectionManager() error = nil, want heartbeat interval error")
 	}
+	if _, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs: []string{"gw"},
+		Client:       &model.WorkerClientConfig{SendQueueCapacity: 16, MaxInflight: 1, ReadBufferSize: 1024},
+	}); err == nil {
+		t.Fatal("NewConnectionManager() error = nil, want incomplete client profile error")
+	}
+}
+
+func TestDefaultWKProtoClientConfigUsesWorkerClientProfile(t *testing.T) {
+	profile := &model.WorkerClientConfig{
+		SendQueueCapacity: 16,
+		MaxInflight:       1,
+		ReadBufferSize:    1024,
+		FrameBufferSize:   4,
+	}
+	cfg := defaultWKProtoClientConfig(ConnectionManagerConfig{Client: profile}, ConnectionUser{Token: "token-a"}, "gw-a:5100")
+
+	if cfg.Addr != "gw-a:5100" || cfg.Token != "token-a" {
+		t.Fatalf("identity config = %#v", cfg)
+	}
+	if cfg.SendQueueCapacity != 16 || cfg.MaxInflight != 1 || cfg.ReadBufferSize != 1024 || cfg.FrameBufferSize != 4 {
+		t.Fatalf("capacity config = %#v, want 16/1/1024/4", cfg)
+	}
 }
 
 type recordingClientFactory struct {

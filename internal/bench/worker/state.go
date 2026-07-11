@@ -49,6 +49,8 @@ type Assignment struct {
 	RunID string `json:"run_id"`
 	// WorkerID identifies this worker within the benchmark worker set.
 	WorkerID string `json:"worker_id,omitempty"`
+	// Client contains only this worker's optional per-session client capacity profile.
+	Client *model.WorkerClientConfig `json:"client,omitempty"`
 	// ChannelOwners records deterministic group channel owners by profile and channel index.
 	ChannelOwners map[string]map[int]string `json:"channel_owners,omitempty"`
 	// Plan is the deterministic worker-local shard assigned by the coordinator.

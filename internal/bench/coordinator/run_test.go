@@ -62,6 +62,31 @@ func TestCoordinatorAssignmentIncludesWorkerShard(t *testing.T) {
 	require.Equal(t, "wkbench/v1", assignment.Scenario.Version)
 }
 
+func TestCoordinatorAssignmentCopiesOnlyCurrentWorkerClientProfile(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	configs := workers.ClientConfigs()
+	configs[0].Client = &model.WorkerClientConfig{SendQueueCapacity: 16, MaxInflight: 1, ReadBufferSize: 1024, FrameBufferSize: 4}
+	configs[1].Client = &model.WorkerClientConfig{SendQueueCapacity: 32, MaxInflight: 2, ReadBufferSize: 2048, FrameBufferSize: 8}
+	coord := New(CoordinatorConfig{
+		Workers:      configs,
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.Equal(t, configs[0].Client, workers[0].Assignment().Client)
+	require.Equal(t, configs[1].Client, workers[1].Assignment().Client)
+	encoded, err := json.Marshal(workers[0].Assignment())
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "control_token")
+	require.NotContains(t, string(encoded), "worker-secret")
+}
+
 func TestCoordinatorStopsAssignedWorkersWhenLaterAssignmentFails(t *testing.T) {
 	workers := newFakeWorkers(t, 2)
 	workers[1].FailAssign(http.StatusInternalServerError, "assign exploded")

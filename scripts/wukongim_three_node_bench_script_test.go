@@ -1682,6 +1682,30 @@ func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing
 		}
 	}
 
+	workersYAML := readFile(t, filepath.Join(outDir, "workers.yaml"))
+	for _, want := range []string{
+		"client:",
+		"send_queue_capacity: 16",
+		"max_inflight: 1",
+		"read_buffer_size: 1024",
+		"frame_buffer_size: 4",
+	} {
+		if !strings.Contains(workersYAML, want) {
+			t.Fatalf("workers profile missing %q:\n%s", want, workersYAML)
+		}
+	}
+	env := readFile(t, filepath.Join(outDir, "env.txt"))
+	for _, want := range []string{
+		"CLIENT_SEND_QUEUE_CAPACITY=16",
+		"CLIENT_MAX_INFLIGHT=1",
+		"CLIENT_READ_BUFFER_SIZE=1024",
+		"CLIENT_FRAME_BUFFER_SIZE=4",
+	} {
+		if !strings.Contains(env, want) {
+			t.Fatalf("env profile missing %q:\n%s", want, env)
+		}
+	}
+
 	summary := readFile(t, filepath.Join(outDir, "presence-summary.tsv"))
 	for _, want := range []string{
 		"expected_users\t10",
@@ -1710,6 +1734,7 @@ func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing
 		"- resources: resources/",
 		"- logs: logs/",
 		"- report: report/report.json",
+		"- client_profile: send_queue_capacity=16 max_inflight=1 read_buffer_size=1024 frame_buffer_size=4",
 	} {
 		if !strings.Contains(topSummary, want) {
 			t.Fatalf("top-level summary missing %q:\n%s", want, topSummary)

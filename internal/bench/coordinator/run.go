@@ -430,6 +430,7 @@ func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario
 		assignment := worker.Assignment{
 			RunID:         scenario.Run.ID,
 			WorkerID:      workerID,
+			Client:        cloneWorkerClientConfig(w.Client),
 			ChannelOwners: plan.ChannelOwners,
 			Plan:          plan.Workers[workerID],
 			Target:        c.cfg.Target,
@@ -442,6 +443,14 @@ func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario
 		assigned = append(assigned, w)
 	}
 	return nil
+}
+
+func cloneWorkerClientConfig(cfg *model.WorkerClientConfig) *model.WorkerClientConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned := *cfg
+	return &cloned
 }
 
 func (c *Coordinator) runPhase(ctx context.Context, scenario model.Scenario, phase Phase, failed map[string]struct{}, plan model.Plan) error {

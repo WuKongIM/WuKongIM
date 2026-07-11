@@ -64,8 +64,23 @@ type Worker struct {
 	ControlToken string `json:"control_token" yaml:"control_token"`
 	// InsecureControl allows unauthenticated worker control checks when explicitly enabled.
 	InsecureControl bool `json:"insecure_control" yaml:"insecure_control"`
+	// Client optionally overrides per-session client queue and buffer capacities for this worker.
+	Client *WorkerClientConfig `json:"client,omitempty" yaml:"client,omitempty"`
 	// Tags are free-form labels for worker selection.
 	Tags []string `json:"tags" yaml:"tags"`
+}
+
+// WorkerClientConfig contains worker-specific WKProto client capacity overrides.
+// When Client is configured on a Worker, every field must be greater than zero.
+type WorkerClientConfig struct {
+	// SendQueueCapacity bounds each client's outbound SEND queue.
+	SendQueueCapacity int `json:"send_queue_capacity" yaml:"send_queue_capacity"`
+	// MaxInflight bounds each client's SEND operations waiting for SENDACK.
+	MaxInflight int `json:"max_inflight" yaml:"max_inflight"`
+	// ReadBufferSize is the socket reader scratch-buffer size in bytes.
+	ReadBufferSize int `json:"read_buffer_size" yaml:"read_buffer_size"`
+	// FrameBufferSize bounds both the bench adapter queue and the inner inbound RECV queue.
+	FrameBufferSize int `json:"frame_buffer_size" yaml:"frame_buffer_size"`
 }
 
 // WorkerSet groups configured workers for a benchmark run.

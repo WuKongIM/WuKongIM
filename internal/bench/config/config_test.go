@@ -74,6 +74,48 @@ workers:
 	require.Equal(t, []string{"zone-a"}, workers.Workers[0].Tags)
 }
 
+func TestLoadWorkerSetDecodesStrictClientProfile(t *testing.T) {
+	path := writeTempYAML(t, `
+workers:
+  - id: bench-a
+    addr: http://127.0.0.1:19090
+    weight: 1
+    insecure_control: true
+    client:
+      send_queue_capacity: 16
+      max_inflight: 1
+      read_buffer_size: 1024
+      frame_buffer_size: 4
+`)
+
+	workers, err := LoadWorkerSet(path)
+	require.NoError(t, err)
+	require.NotNil(t, workers.Workers[0].Client)
+	require.Equal(t, 16, workers.Workers[0].Client.SendQueueCapacity)
+	require.Equal(t, 1, workers.Workers[0].Client.MaxInflight)
+	require.Equal(t, 1024, workers.Workers[0].Client.ReadBufferSize)
+	require.Equal(t, 4, workers.Workers[0].Client.FrameBufferSize)
+}
+
+func TestLoadWorkerSetRejectsUnknownClientProfileKey(t *testing.T) {
+	path := writeTempYAML(t, `
+workers:
+  - id: bench-a
+    addr: http://127.0.0.1:19090
+    weight: 1
+    insecure_control: true
+    client:
+      send_queue_capacity: 16
+      max_inflight: 1
+      read_buffer_size: 1024
+      frame_buffer_size: 4
+      receive_queue_capacity: 99
+`)
+
+	_, err := LoadWorkerSet(path)
+	require.ErrorContains(t, err, "receive_queue_capacity")
+}
+
 func TestValidateStaticConfigRequiresTargetAddresses(t *testing.T) {
 	target := Target{BenchAPI: BenchAPIConfig{Enabled: true}}
 	workers := WorkerSet{Workers: []Worker{{ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, ControlToken: "secret"}}}
@@ -117,6 +159,46 @@ func TestValidateStaticConfigAllowsInsecureWorkerWithoutToken(t *testing.T) {
 	err := ValidateStaticConfig(target, workers)
 
 	require.NoError(t, err)
+}
+
+func TestValidateStaticConfigAllowsOmittedWorkerClientProfile(t *testing.T) {
+	target := validStaticTarget()
+	workers := WorkerSet{Workers: []Worker{{ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, InsecureControl: true}}}
+
+	err := ValidateStaticConfig(target, workers)
+
+	require.NoError(t, err)
+}
+
+func TestValidateStaticConfigRequiresCompletePositiveWorkerClientProfile(t *testing.T) {
+	valid := WorkerClientConfig{
+		SendQueueCapacity: 16,
+		MaxInflight:       1,
+		ReadBufferSize:    1024,
+		FrameBufferSize:   4,
+	}
+	tests := []struct {
+		name string
+		edit func(*WorkerClientConfig)
+		want string
+	}{
+		{name: "send queue", edit: func(cfg *WorkerClientConfig) { cfg.SendQueueCapacity = 0 }, want: "client.send_queue_capacity"},
+		{name: "max inflight", edit: func(cfg *WorkerClientConfig) { cfg.MaxInflight = -1 }, want: "client.max_inflight"},
+		{name: "read buffer", edit: func(cfg *WorkerClientConfig) { cfg.ReadBufferSize = 0 }, want: "client.read_buffer_size"},
+		{name: "frame buffer", edit: func(cfg *WorkerClientConfig) { cfg.FrameBufferSize = 0 }, want: "client.frame_buffer_size"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profile := valid
+
+			tt.edit(&profile)
+			err := ValidateStaticConfig(validStaticTarget(), WorkerSet{Workers: []Worker{{
+				ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, InsecureControl: true, Client: &profile,
+			}}})
+
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
 }
 
 func TestLoadScenarioSpecShape(t *testing.T) {

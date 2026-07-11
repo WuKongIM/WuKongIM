@@ -10,10 +10,34 @@ import (
 	"testing"
 	"time"
 
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	protocolenc "github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
+
+func TestClientInnerConfigUsesExactCapacities(t *testing.T) {
+	client, err := NewClient(ClientConfig{
+		Addr:              "127.0.0.1:5100",
+		SendQueueCapacity: 16,
+		MaxInflight:       1,
+		ReadBufferSize:    1024,
+		FrameBufferSize:   4,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	cfg := client.innerConfig()
+
+	if cfg.SendQueueCapacity != 16 || cfg.MaxInflight != 1 || cfg.ReadBufferSize != 1024 || cfg.InboundFrameBufferSize != 4 {
+		t.Fatalf("inner config = %#v, want 16/1/1024/4", cfg)
+	}
+	session := newClientSession(&wkclient.Client{}, client.frameBufferSize)
+	if got := cap(session.frameCh); got != 4 {
+		t.Fatalf("adapter frame queue capacity = %d, want 4", got)
+	}
+}
 
 func TestClientConnectSendsConnectPacketAndAcceptsConnack(t *testing.T) {
 	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
