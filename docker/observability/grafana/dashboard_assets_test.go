@@ -222,3 +222,135 @@ func TestMessageDeliveryDashboardIncludesMessageEventPanels(t *testing.T) {
 		}
 	}
 }
+
+func TestRuntimeOpsDashboardIncludesPresencePanels(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("dashboards", "wukongim-v2-runtime-ops.json"))
+	if err != nil {
+		t.Fatalf("read runtime ops dashboard: %v", err)
+	}
+
+	type panel struct {
+		ID      int    `json:"id"`
+		Title   string `json:"title"`
+		GridPos struct {
+			H int `json:"h"`
+			W int `json:"w"`
+			X int `json:"x"`
+			Y int `json:"y"`
+		} `json:"gridPos"`
+		FieldConfig struct {
+			Defaults struct {
+				Unit string `json:"unit"`
+			} `json:"defaults"`
+		} `json:"fieldConfig"`
+		Targets []struct {
+			Expr string `json:"expr"`
+			Hide bool   `json:"hide"`
+		} `json:"targets"`
+	}
+	var dashboard struct {
+		Panels []panel `json:"panels"`
+	}
+	if err := json.Unmarshal(raw, &dashboard); err != nil {
+		t.Fatalf("parse runtime ops dashboard: %v", err)
+	}
+
+	want := []struct {
+		title   string
+		id      int
+		x, y    int
+		w, h    int
+		metrics []string
+	}{
+		{
+			title: "Presence expiry cost and index",
+			id:    10, x: 12, y: 32, w: 12, h: 8,
+			metrics: []string{
+				"wukongim_presence_expiry_total",
+				"wukongim_presence_expiry_duration_seconds_bucket",
+				"wukongim_presence_expiry_due_buckets",
+				"wukongim_presence_expiry_examined_routes",
+				"wukongim_presence_expired_routes",
+				"wukongim_presence_expiry_index_routes",
+				"wukongim_presence_expiry_index_buckets",
+			},
+		},
+		{
+			title: "Presence touch work and budget",
+			id:    11, x: 0, y: 40, w: 24, h: 8,
+			metrics: []string{
+				"wukongim_presence_touch_flush_total",
+				"wukongim_presence_touch_flush_duration_seconds_bucket",
+				"wukongim_presence_touch_flush_routes",
+				"wukongim_presence_touch_flush_chunks",
+				"wukongim_presence_touch_flush_target_groups",
+			},
+		},
+	}
+
+	byTitle := make(map[string]panel, len(dashboard.Panels))
+	for _, panel := range dashboard.Panels {
+		byTitle[panel.Title] = panel
+	}
+	findTarget := func(panel panel, metric string) (string, bool) {
+		for _, target := range panel.Targets {
+			if strings.Contains(target.Expr, metric) {
+				return target.Expr, true
+			}
+		}
+		return "", false
+	}
+	requireTarget := func(panel panel, metric string, tokens ...string) {
+		t.Helper()
+		expr, ok := findTarget(panel, metric)
+		if !ok {
+			t.Errorf("panel %q does not query %s", panel.Title, metric)
+			return
+		}
+		for _, token := range tokens {
+			if !strings.Contains(expr, token) {
+				t.Errorf("panel %q query for %s does not contain %q: %s", panel.Title, metric, token, expr)
+			}
+		}
+	}
+
+	for _, expected := range want {
+		got, ok := byTitle[expected.title]
+		if !ok {
+			t.Errorf("runtime ops dashboard missing panel %q", expected.title)
+			continue
+		}
+		if got.ID != expected.id || got.GridPos.X != expected.x || got.GridPos.Y != expected.y || got.GridPos.W != expected.w || got.GridPos.H != expected.h {
+			t.Errorf("panel %q layout = id:%d x:%d y:%d w:%d h:%d", expected.title, got.ID, got.GridPos.X, got.GridPos.Y, got.GridPos.W, got.GridPos.H)
+		}
+		if got.FieldConfig.Defaults.Unit != "mixed" && got.FieldConfig.Defaults.Unit != "short" {
+			t.Errorf("panel %q unit = %q, want mixed or short", expected.title, got.FieldConfig.Defaults.Unit)
+		}
+		if len(got.Targets) != len(expected.metrics) {
+			t.Errorf("panel %q targets = %d, want %d operational queries", expected.title, len(got.Targets), len(expected.metrics))
+		}
+		for i, target := range got.Targets {
+			if target.Hide {
+				t.Errorf("panel %q target %d is hidden", expected.title, i)
+			}
+			if !strings.Contains(target.Expr, `node_name=~"$node_name"`) {
+				t.Errorf("panel %q target %d does not apply node filter: %s", expected.title, i, target.Expr)
+			}
+		}
+		for _, metric := range expected.metrics {
+			requireTarget(got, metric)
+		}
+
+		switch expected.id {
+		case 10:
+			requireTarget(got, "wukongim_presence_expiry_total", "rate(", "$__rate_interval", "result")
+			requireTarget(got, "wukongim_presence_expiry_duration_seconds_bucket", "histogram_quantile(0.95", "rate(", "$__rate_interval", "le", "result")
+		case 11:
+			requireTarget(got, "wukongim_presence_touch_flush_total", "rate(", "$__rate_interval", "result", "budget_reached")
+			requireTarget(got, "wukongim_presence_touch_flush_duration_seconds_bucket", "histogram_quantile(0.95", "rate(", "$__rate_interval", "le", "result", "budget_reached")
+			requireTarget(got, "wukongim_presence_touch_flush_routes", "rate(", "$__rate_interval", "stage")
+			requireTarget(got, "wukongim_presence_touch_flush_chunks", "rate(", "$__rate_interval")
+			requireTarget(got, "wukongim_presence_touch_flush_target_groups", "rate(", "$__rate_interval")
+		}
+	}
+}

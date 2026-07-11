@@ -609,6 +609,140 @@
       ],
       "title": "Ants Pool Usage",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_presence_expiry_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result)",
+          "legendFormat": "expiry {{node_name}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_presence_expiry_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "expiry p95 {{node_name}} {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max(wukongim_presence_expiry_due_buckets{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "due buckets {{node_name}}",
+          "refId": "C"
+        },
+        {
+          "expr": "max(wukongim_presence_expiry_examined_routes{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "examined routes {{node_name}}",
+          "refId": "D"
+        },
+        {
+          "expr": "max(wukongim_presence_expired_routes{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "expired routes {{node_name}}",
+          "refId": "E"
+        },
+        {
+          "expr": "max(wukongim_presence_expiry_index_routes{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "index routes {{node_name}}",
+          "refId": "F"
+        },
+        {
+          "expr": "max(wukongim_presence_expiry_index_buckets{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "index buckets {{node_name}}",
+          "refId": "G"
+        }
+      ],
+      "title": "Presence expiry cost and index",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_presence_touch_flush_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result, budget_reached)",
+          "legendFormat": "flush {{node_name}} {{result}} budget={{budget_reached}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_presence_touch_flush_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, budget_reached))",
+          "legendFormat": "flush p95 {{node_name}} {{result}} budget={{budget_reached}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_presence_touch_flush_routes{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, stage)",
+          "legendFormat": "routes {{node_name}} {{stage}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_presence_touch_flush_chunks{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name)",
+          "legendFormat": "chunks {{node_name}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(rate(wukongim_presence_touch_flush_target_groups{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name)",
+          "legendFormat": "target groups {{node_name}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Presence touch work and budget",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",
