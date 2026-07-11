@@ -56,10 +56,11 @@ kept active but are not indexed.
 `ExpireRoutesDetailed` checks only the oldest bucket in each authority slot and
 pops buckets whose activity second plus TTL is strictly before the caller's
 `now`. A deadline exactly equal to `now` remains active until a later pass.
-With `A` authority slots, `B_due` due buckets, and `R_due` routes in those
-buckets, a pass costs `O(A + B_due log B + R_due)` instead of scanning all active
-routes; index memory is `O(R + B)`. `ExpireRoutes` is the compatibility wrapper
-that returns only the detailed result's expired count.
+With `S` directory shards, `A` authority slots, `B_due` due buckets, and `R_due`
+routes in those buckets, a pass costs
+`O(S + A + B_due log B + R_due)` instead of scanning all active routes; index
+memory is `O(R + B)`. `ExpireRoutes` is the compatibility wrapper that returns
+only the detailed result's expired count.
 
 TTL expiry removes active and index membership without changing `ownerSeq` or
 `tombstoneSeq` and does not create a tombstone. A delayed touch below the last
