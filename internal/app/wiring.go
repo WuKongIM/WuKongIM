@@ -329,6 +329,7 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 
 func (a *App) wirePresence() {
 	if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
+		observer := presenceMetricsObserver{metrics: a.metrics}
 		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
 		a.presenceDirectory = directory
 		authority := presenceDirectoryAuthority{directory: directory}
@@ -365,6 +366,7 @@ func (a *App) wirePresence() {
 				Local:             a.online,
 				Authority:         client,
 				Directory:         directory,
+				Observer:          observer,
 				FlushInterval:     a.cfg.Presence.TouchFlushInterval,
 				BatchSize:         a.cfg.Presence.TouchBatchSize,
 				MaxRoutesPerFlush: a.cfg.Presence.TouchMaxRoutesPerFlush,

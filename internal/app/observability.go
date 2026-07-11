@@ -14,6 +14,7 @@ import (
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -97,6 +98,10 @@ type conversationSyncMetricsObserver struct {
 }
 
 type conversationAuthorityMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type presenceMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
@@ -454,6 +459,38 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(eve
 		return
 	}
 	o.metrics.Conversation.ObserveActiveFlush(event.Result, event.Selected, event.Flushed, event.Duration)
+}
+
+func (o presenceMetricsObserver) ObservePresenceExpiry(result authoritypresence.ExpireResult, duration time.Duration) {
+	if o.metrics == nil || o.metrics.Presence == nil {
+		return
+	}
+	o.metrics.Presence.ObserveExpiry(
+		presenceTouchResultSuccess,
+		duration,
+		result.DueBuckets,
+		result.Examined,
+		result.Expired,
+		result.IndexRoutes,
+		result.IndexBuckets,
+	)
+}
+
+func (o presenceMetricsObserver) ObservePresenceTouchFlush(event presenceTouchFlushObservation) {
+	if o.metrics == nil || o.metrics.Presence == nil {
+		return
+	}
+	o.metrics.Presence.ObserveTouchFlush(
+		event.Result,
+		event.Duration,
+		event.Drained,
+		event.Resolved,
+		event.Sent,
+		event.Requeued,
+		event.Chunks,
+		event.TargetGroups,
+		event.BudgetReached,
+	)
 }
 
 func conversationKindMetricLabel(kind metadb.ConversationKind) string {

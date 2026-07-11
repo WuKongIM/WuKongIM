@@ -36,7 +36,43 @@ type presenceTouchAuthority interface {
 type presenceTouchDirectory interface {
 	BecomeAuthority(presence.RouteTarget)
 	LoseAuthority(uint16)
-	ExpireRoutes(time.Time, time.Duration) int
+	ExpireRoutesDetailed(time.Time, time.Duration) authoritypresence.ExpireResult
+}
+
+// presenceTouchObserver receives bounded expiry and owner touch-flush observations.
+type presenceTouchObserver interface {
+	ObservePresenceExpiry(authoritypresence.ExpireResult, time.Duration)
+	ObservePresenceTouchFlush(presenceTouchFlushObservation)
+}
+
+const (
+	presenceTouchResultSuccess     = "success"
+	presenceTouchResultPartial     = "partial"
+	presenceTouchResultCanceled    = "canceled"
+	presenceTouchResultEmpty       = "empty"
+	presenceTouchResultUnavailable = "unavailable"
+)
+
+// presenceTouchFlushObservation summarizes one bounded owner touch flush.
+type presenceTouchFlushObservation struct {
+	// Result is one fixed, low-cardinality flush outcome.
+	Result string
+	// Duration measures touch work separately from the expiry pass.
+	Duration time.Duration
+	// Drained counts owner-local routes removed from the dirty queue.
+	Drained int
+	// Resolved counts drained routes with a successfully resolved target.
+	Resolved int
+	// Sent counts routes in successful authority touch RPCs.
+	Sent int
+	// Requeued counts unresolved, failed, or canceled-unsent routes restored dirty.
+	Requeued int
+	// Chunks counts non-empty bounded drains.
+	Chunks int
+	// TargetGroups counts resolved fenced-target groups built for dispatch.
+	TargetGroups int
+	// BudgetReached reports whether drained work reached the per-flush route cap.
+	BudgetReached bool
 }
 
 type presenceTouchWorkerOptions struct {
@@ -54,6 +90,8 @@ type presenceTouchWorkerOptions struct {
 	Authority presenceTouchAuthority
 	// Directory installs or clears local authority state and expires stale routes.
 	Directory presenceTouchDirectory
+	// Observer receives bounded expiry and touch-flush work summaries.
+	Observer presenceTouchObserver
 	// FlushInterval controls periodic dirty route flushes.
 	FlushInterval time.Duration
 	// BatchSize bounds routes drained in one chunk.
@@ -250,22 +288,41 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	started := time.Now()
+	observation := presenceTouchFlushObservation{Result: presenceTouchResultSuccess}
+	requeue := make([]online.OwnerRoute, 0)
+	defer func() {
+		if len(requeue) > 0 && w.opts.Local != nil {
+			w.opts.Local.RequeueTouched(requeue)
+		}
+		observation.Duration = time.Since(started)
+		observation.Requeued = len(requeue)
+		observation.BudgetReached = observation.Drained == w.opts.MaxRoutesPerFlush
+		if ctx.Err() != nil {
+			observation.Result = presenceTouchResultCanceled
+		} else if observation.Requeued > 0 {
+			observation.Result = presenceTouchResultPartial
+		}
+		if w.opts.Observer != nil {
+			w.opts.Observer.ObservePresenceTouchFlush(observation)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return
 	}
 	if w.opts.Directory != nil && w.opts.RouteTTL > 0 {
-		w.opts.Directory.ExpireRoutes(now, w.opts.RouteTTL)
+		expiryStarted := time.Now()
+		result := w.opts.Directory.ExpireRoutesDetailed(now, w.opts.RouteTTL)
+		if w.opts.Observer != nil {
+			w.opts.Observer.ObservePresenceExpiry(result, time.Since(expiryStarted))
+		}
+		started = time.Now()
 	}
 	if w.opts.Local == nil || w.opts.Authority == nil {
+		observation.Result = presenceTouchResultUnavailable
 		return
 	}
 	remaining := w.opts.MaxRoutesPerFlush
-	requeue := make([]online.OwnerRoute, 0)
-	defer func() {
-		if len(requeue) > 0 {
-			w.opts.Local.RequeueTouched(requeue)
-		}
-	}()
 
 	for remaining > 0 {
 		if ctx.Err() != nil {
@@ -274,8 +331,13 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 		request := min(w.opts.BatchSize, remaining)
 		touched := w.opts.Local.DrainTouched(request)
 		if len(touched) == 0 {
+			if observation.Drained == 0 {
+				observation.Result = presenceTouchResultEmpty
+			}
 			return
 		}
+		observation.Chunks++
+		observation.Drained += len(touched)
 		remaining -= len(touched)
 		if ctx.Err() != nil {
 			requeue = append(requeue, touched...)
@@ -326,6 +388,8 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 			groups[index].ownerRoutes = append(groups[index].ownerRoutes, conn)
 			groups[index].routes = append(groups[index].routes, routeFromOwnerRoute(conn))
 		}
+		observation.Resolved += len(touched) - failedRoutes
+		observation.TargetGroups += len(groups)
 		if len(failed) > 0 {
 			w.logger().Warn("presence touch route target resolve failed",
 				wklog.Event("internal.app.presence_touch_resolve_failed"),
@@ -355,6 +419,8 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 					wklog.Int("routes", len(group.routes)),
 					wklog.Error(err),
 				)
+			} else {
+				observation.Sent += len(group.routes)
 			}
 		}
 		if len(touched) < request {

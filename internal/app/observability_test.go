@@ -17,9 +17,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
@@ -972,6 +975,382 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	handoff := requireAppMetricFamily(t, families, "wukongim_conversation_authority_handoff_total")
 	if got := findAppMetricByLabels(t, handoff, map[string]string{"result": "drained"}).GetCounter().GetValue(); got != 1 {
 		t.Fatalf("authority handoff metric = %v, want 1", got)
+	}
+}
+
+func TestObservabilityPresenceMetricsObserverMapsWorkerExpiryAndTouchFlush(t *testing.T) {
+	reg := obsmetrics.New(7, "node-7")
+	targetA := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 7, LeaderTerm: 3, ConfigEpoch: 4}
+	targetB := presence.RouteTarget{HashSlot: 9, SlotID: 2, LeaderNodeID: 8, LeaderTerm: 5, ConfigEpoch: 6}
+	directory := &recordingPresenceDirectory{result: authoritypresence.ExpireResult{
+		Expired:      2,
+		DueBuckets:   3,
+		Examined:     5,
+		IndexRoutes:  7,
+		IndexBuckets: 11,
+	}}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local: &recordingTouchRegistry{queued: []online.OwnerRoute{
+			{UID: "u1", SessionID: 101},
+			{UID: "u2", SessionID: 102},
+			{UID: "u3", SessionID: 103},
+		}},
+		Authority: &recordingTouchAuthority{targets: map[string]presence.RouteTarget{
+			"u1": targetA,
+			"u2": targetA,
+			"u3": targetB,
+		}},
+		Directory:         directory,
+		Observer:          presenceMetricsObserver{metrics: reg},
+		BatchSize:         10,
+		MaxRoutesPerFlush: 10,
+		RouteTTL:          90 * time.Second,
+	})
+
+	worker.flushOnce(context.Background(), time.Unix(2_000, 0))
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	expiryTotal := requireAppMetricFamily(t, families, "wukongim_presence_expiry_total")
+	if got := findAppMetricByLabels(t, expiryTotal, map[string]string{"result": "success"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("presence expiry total = %v, want 1", got)
+	}
+	for name, want := range map[string]float64{
+		"wukongim_presence_expiry_due_buckets":     3,
+		"wukongim_presence_expiry_examined_routes": 5,
+		"wukongim_presence_expired_routes":         2,
+		"wukongim_presence_expiry_index_routes":    7,
+		"wukongim_presence_expiry_index_buckets":   11,
+	} {
+		family := requireAppMetricFamily(t, families, name)
+		if got := findAppMetricByLabels(t, family, nil).GetGauge().GetValue(); got != want {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
+	}
+	touchTotal := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_total")
+	if got := findAppMetricByLabels(t, touchTotal, map[string]string{
+		"result":         "success",
+		"budget_reached": "false",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("presence touch flush total = %v, want 1", got)
+	}
+	touchRoutes := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_routes")
+	for stage, want := range map[string]float64{
+		"drained":  3,
+		"resolved": 3,
+		"sent":     3,
+		"requeued": 0,
+	} {
+		if got := findAppMetricByLabels(t, touchRoutes, map[string]string{"stage": stage}).GetCounter().GetValue(); got != want {
+			t.Fatalf("presence touch %s routes = %v, want %v", stage, got, want)
+		}
+	}
+	chunks := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_chunks")
+	if got := findAppMetricByLabels(t, chunks, nil).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("presence touch chunks = %v, want 1", got)
+	}
+	targetGroups := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_target_groups")
+	if got := findAppMetricByLabels(t, targetGroups, nil).GetCounter().GetValue(); got != 2 {
+		t.Fatalf("presence touch target groups = %v, want 2", got)
+	}
+}
+
+func TestObservabilityPresenceTouchFlushReportsEmptyWork(t *testing.T) {
+	reg := obsmetrics.New(1, "node-1")
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local:             &recordingTouchRegistry{},
+		Authority:         &recordingTouchAuthority{},
+		Observer:          presenceMetricsObserver{metrics: reg},
+		BatchSize:         2,
+		MaxRoutesPerFlush: 3,
+	})
+
+	worker.flushOnce(context.Background(), time.Now())
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	total := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_total")
+	if got := findAppMetricByLabels(t, total, map[string]string{
+		"result":         "empty",
+		"budget_reached": "false",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("empty presence touch flush total = %v, want 1", got)
+	}
+}
+
+func TestObservabilityPresenceTouchFlushCancellationTakesPriority(t *testing.T) {
+	reg := obsmetrics.New(1, "node-1")
+	targetA := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 3, ConfigEpoch: 4}
+	targetB := presence.RouteTarget{HashSlot: 9, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 5, ConfigEpoch: 6}
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local: &recordingTouchRegistry{queued: []online.OwnerRoute{
+			{UID: "u1", SessionID: 101},
+			{UID: "u2", SessionID: 102},
+			{UID: "u3", SessionID: 103},
+		}},
+		Authority: &recordingTouchAuthority{
+			targets: map[string]presence.RouteTarget{
+				"u1": targetA,
+				"u2": targetB,
+				"u3": targetB,
+			},
+			touchHook: func(_ context.Context, target presence.RouteTarget, _ []presence.Route) {
+				if target == targetA {
+					cancel()
+				}
+			},
+		},
+		Observer:          presenceMetricsObserver{metrics: reg},
+		BatchSize:         10,
+		MaxRoutesPerFlush: 10,
+	})
+
+	worker.flushOnce(ctx, time.Now())
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	total := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_total")
+	if got := findAppMetricByLabels(t, total, map[string]string{
+		"result":         "canceled",
+		"budget_reached": "false",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("canceled presence touch flush total = %v, want 1", got)
+	}
+	routes := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_routes")
+	for stage, want := range map[string]float64{
+		"drained":  3,
+		"resolved": 3,
+		"sent":     1,
+		"requeued": 2,
+	} {
+		if got := findAppMetricByLabels(t, routes, map[string]string{"stage": stage}).GetCounter().GetValue(); got != want {
+			t.Fatalf("canceled presence touch %s routes = %v, want %v", stage, got, want)
+		}
+	}
+}
+
+func TestObservabilityPresenceTouchFlushReportsPartialRoutingAndRPCFailures(t *testing.T) {
+	targetA := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 3, ConfigEpoch: 4}
+	targetB := presence.RouteTarget{HashSlot: 9, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 5, ConfigEpoch: 6}
+	tests := []struct {
+		name      string
+		authority *recordingTouchAuthority
+		resolved  float64
+		sent      float64
+		groups    float64
+	}{
+		{
+			name: "routing failure",
+			authority: &recordingTouchAuthority{resolveResults: [][]presence.RouteTargetResult{{
+				{Target: targetA},
+				{Target: targetA},
+				{Err: errors.New("route unavailable")},
+			}}},
+			resolved: 2,
+			sent:     2,
+			groups:   1,
+		},
+		{
+			name: "RPC failure",
+			authority: &recordingTouchAuthority{
+				targets: map[string]presence.RouteTarget{
+					"u1": targetA,
+					"u2": targetB,
+					"u3": targetB,
+				},
+				touchErrors: map[presence.RouteTarget]error{targetA: errors.New("touch failed")},
+			},
+			resolved: 3,
+			sent:     2,
+			groups:   2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := obsmetrics.New(1, "node-1")
+			worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+				Local: &recordingTouchRegistry{queued: []online.OwnerRoute{
+					{UID: "u1", SessionID: 101},
+					{UID: "u2", SessionID: 102},
+					{UID: "u3", SessionID: 103},
+				}},
+				Authority:         tt.authority,
+				Observer:          presenceMetricsObserver{metrics: reg},
+				BatchSize:         10,
+				MaxRoutesPerFlush: 10,
+			})
+
+			worker.flushOnce(context.Background(), time.Now())
+
+			families, err := reg.Gather()
+			if err != nil {
+				t.Fatalf("Gather() error = %v", err)
+			}
+			total := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_total")
+			if got := findAppMetricByLabels(t, total, map[string]string{
+				"result":         "partial",
+				"budget_reached": "false",
+			}).GetCounter().GetValue(); got != 1 {
+				t.Fatalf("partial presence touch flush total = %v, want 1", got)
+			}
+			routes := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_routes")
+			for stage, want := range map[string]float64{
+				"drained":  3,
+				"resolved": tt.resolved,
+				"sent":     tt.sent,
+				"requeued": 1,
+			} {
+				if got := findAppMetricByLabels(t, routes, map[string]string{"stage": stage}).GetCounter().GetValue(); got != want {
+					t.Fatalf("partial presence touch %s routes = %v, want %v", stage, got, want)
+				}
+			}
+			groups := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_target_groups")
+			if got := findAppMetricByLabels(t, groups, nil).GetCounter().GetValue(); got != tt.groups {
+				t.Fatalf("presence touch target groups = %v, want %v", got, tt.groups)
+			}
+		})
+	}
+}
+
+func TestObservabilityPresenceTouchFlushReportsBudgetReached(t *testing.T) {
+	reg := obsmetrics.New(1, "node-1")
+	target := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 3, ConfigEpoch: 4}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local: &recordingTouchRegistry{queued: []online.OwnerRoute{
+			{UID: "u1", SessionID: 101},
+			{UID: "u2", SessionID: 102},
+			{UID: "u3", SessionID: 103},
+			{UID: "u4", SessionID: 104},
+			{UID: "u5", SessionID: 105},
+		}},
+		Authority: &recordingTouchAuthority{targets: map[string]presence.RouteTarget{
+			"u1": target,
+			"u2": target,
+			"u3": target,
+			"u4": target,
+			"u5": target,
+		}},
+		Observer:          presenceMetricsObserver{metrics: reg},
+		BatchSize:         2,
+		MaxRoutesPerFlush: 3,
+	})
+
+	worker.flushOnce(context.Background(), time.Now())
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	total := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_total")
+	if got := findAppMetricByLabels(t, total, map[string]string{
+		"result":         "success",
+		"budget_reached": "true",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("budgeted presence touch flush total = %v, want 1", got)
+	}
+	routes := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_routes")
+	for stage, want := range map[string]float64{
+		"drained":  3,
+		"resolved": 3,
+		"sent":     3,
+		"requeued": 0,
+	} {
+		if got := findAppMetricByLabels(t, routes, map[string]string{"stage": stage}).GetCounter().GetValue(); got != want {
+			t.Fatalf("budgeted presence touch %s routes = %v, want %v", stage, got, want)
+		}
+	}
+	chunks := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_chunks")
+	if got := findAppMetricByLabels(t, chunks, nil).GetCounter().GetValue(); got != 2 {
+		t.Fatalf("budgeted presence touch chunks = %v, want 2", got)
+	}
+	groups := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_target_groups")
+	if got := findAppMetricByLabels(t, groups, nil).GetCounter().GetValue(); got != 2 {
+		t.Fatalf("budgeted presence touch target groups = %v, want 2", got)
+	}
+}
+
+func TestObservabilityPresenceTouchFlushReportsUnavailableDependency(t *testing.T) {
+	tests := []struct {
+		name      string
+		local     presenceTouchLocalRegistry
+		authority presenceTouchAuthority
+	}{
+		{name: "missing local registry", authority: &recordingTouchAuthority{}},
+		{name: "missing authority client", local: &recordingTouchRegistry{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := obsmetrics.New(1, "node-1")
+			worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+				Local:             tt.local,
+				Authority:         tt.authority,
+				Observer:          presenceMetricsObserver{metrics: reg},
+				BatchSize:         2,
+				MaxRoutesPerFlush: 3,
+			})
+
+			worker.flushOnce(context.Background(), time.Now())
+
+			families, err := reg.Gather()
+			if err != nil {
+				t.Fatalf("Gather() error = %v", err)
+			}
+			total := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_total")
+			if got := findAppMetricByLabels(t, total, map[string]string{
+				"result":         "unavailable",
+				"budget_reached": "false",
+			}).GetCounter().GetValue(); got != 1 {
+				t.Fatalf("unavailable presence touch flush total = %v, want 1", got)
+			}
+		})
+	}
+}
+
+func TestObservabilityPresenceTouchFlushPreCanceledObservesOnceWithoutExpiry(t *testing.T) {
+	reg := obsmetrics.New(1, "node-1")
+	directory := &recordingPresenceDirectory{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local:             &recordingTouchRegistry{},
+		Authority:         &recordingTouchAuthority{},
+		Directory:         directory,
+		Observer:          presenceMetricsObserver{metrics: reg},
+		BatchSize:         2,
+		MaxRoutesPerFlush: 3,
+		RouteTTL:          90 * time.Second,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	worker.flushOnce(ctx, time.Now())
+
+	if got := len(directory.expires); got != 0 {
+		t.Fatalf("pre-canceled expiry calls = %d, want 0", got)
+	}
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	total := requireAppMetricFamily(t, families, "wukongim_presence_touch_flush_total")
+	if got := len(total.GetMetric()); got != 1 {
+		t.Fatalf("pre-canceled touch result series = %d, want exactly 1", got)
+	}
+	if got := findAppMetricByLabels(t, total, map[string]string{
+		"result":         "canceled",
+		"budget_reached": "false",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("pre-canceled presence touch flush total = %v, want 1", got)
+	}
+	for _, family := range families {
+		if family.GetName() == "wukongim_presence_expiry_total" && len(family.GetMetric()) > 0 {
+			t.Fatalf("pre-canceled flush emitted %d expiry series, want 0", len(family.GetMetric()))
+		}
 	}
 }
 

@@ -35,7 +35,9 @@ New(Config)
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
-     counters, recipient delivery worker queue/admission/process metrics,
+     counters, presence authority expiry cost/index gauges and bounded owner
+     touch-flush route/chunk/target-group counters, recipient delivery worker
+     queue/admission/process metrics,
      plugin PersistAfter and Receive hook enqueue/invoke counters and
      histograms, and synchronous plugin Send hook invoke counters and histograms
      plus node lifecycle gauges/counters from control snapshots and scale-in
@@ -681,7 +683,9 @@ cluster.RouteAuthorityEvent
 
 periodic flush
   -> pull current route authorities from the cluster snapshot and repair missed watch events
-  -> runtime/presence.Directory.ExpireRoutes(now, routeTTL)
+  -> runtime/presence.Directory.ExpireRoutesDetailed(now, routeTTL) and observe
+     one successful expiry pass with duration, due buckets, examined/expired
+     routes, and remaining expiry-index route/bucket counts
   -> repeatedly drain owner-local dirty routes through online.Registry.DrainTouched,
      requesting min(touchBatchSize, remaining max-routes-per-flush budget)
   -> for each chunk, preserve first-seen UID order, deduplicate UIDs, and resolve
@@ -693,6 +697,9 @@ periodic flush
      cancellation; cancellation requeues every already-drained unsent route
   -> accumulate unresolved, failed-target, and canceled-unsent route identities
      and call online.Registry.RequeueTouched only after the flush loop exits
+  -> observe exactly one touch-flush summary across every return path with
+     route-based drained/resolved/sent/requeued counts, chunk and target-group
+     counts, duration, and whether drained work reached the per-flush budget
 ```
 
 The app worker has one authority watch loop and one periodic touch loop. It does
@@ -705,6 +712,14 @@ dropped watch events self-heal. Delaying failed-route requeue until the whole
 flush exits prevents the same route from being drained again inside that flush
 and repeatedly consuming its bounded route budget; activity arriving during a
 flush may remain dirty for the next periodic round.
+Touch-flush result labels are bounded to `success`, `partial`, `canceled`,
+`empty`, and `unavailable`. Context cancellation takes precedence, any
+requeued route makes a non-canceled flush partial, an available flush with no
+drained routes is empty, and missing owner-local or authority dependencies are
+unavailable. Expiry and touch metrics contain only node labels plus these fixed
+result/stage labels; they do not expose UID, session, hash-slot, or target
+identity. A context canceled before the flush starts still emits one canceled
+touch summary but does not run or observe expiry.
 
 ## Conversation Active Flush Worker
 

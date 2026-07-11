@@ -4577,6 +4577,27 @@ func TestNewWiresPresenceTouchMaxRoutesPerFlush(t *testing.T) {
 	}
 }
 
+func TestNewWiresPresenceMetricsObserverToTouchWorker(t *testing.T) {
+	cluster := newFakePresenceCluster(1, make(chan clusterpkg.RouteAuthorityEvent))
+	app, err := newTestApp(t, Config{
+		Observability: ObservabilityConfig{MetricsEnabled: true},
+	}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	worker, ok := app.presenceWorker.(*presenceTouchWorker)
+	if !ok {
+		t.Fatalf("presence worker type = %T, want *presenceTouchWorker", app.presenceWorker)
+	}
+	observer, ok := worker.opts.Observer.(presenceMetricsObserver)
+	if !ok {
+		t.Fatalf("presence observer type = %T, want presenceMetricsObserver", worker.opts.Observer)
+	}
+	if observer.metrics != app.metrics {
+		t.Fatal("presence observer does not use the app metrics registry")
+	}
+}
+
 func TestPresenceTouchWorkerFlushesDirtyRoutesByTarget(t *testing.T) {
 	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
 	conns := []online.OwnerRoute{
@@ -7535,6 +7556,7 @@ type recordingPresenceDirectory struct {
 	become  []presence.RouteTarget
 	lose    []uint16
 	expires []expireCall
+	result  authoritypresence.ExpireResult
 }
 
 type expireCall struct {
@@ -7554,11 +7576,12 @@ func (r *recordingPresenceDirectory) LoseAuthority(hashSlot uint16) {
 	r.mu.Unlock()
 }
 
-func (r *recordingPresenceDirectory) ExpireRoutes(now time.Time, ttl time.Duration) int {
+func (r *recordingPresenceDirectory) ExpireRoutesDetailed(now time.Time, ttl time.Duration) authoritypresence.ExpireResult {
 	r.mu.Lock()
 	r.expires = append(r.expires, expireCall{now: now, ttl: ttl})
+	result := r.result
 	r.mu.Unlock()
-	return 0
+	return result
 }
 
 func (r *recordingPresenceDirectory) becomeSnapshot() []presence.RouteTarget {
