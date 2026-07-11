@@ -292,6 +292,9 @@ func (s *Service) readLocalLastVisible(ctx context.Context, id ch.ChannelID, vis
 	if err != nil {
 		return ch.Message{}, false, err
 	}
+	defer func() {
+		_ = store.Close()
+	}()
 	read, err := store.ReadCommitted(ctx, channelstore.ReadCommittedRequest{
 		FromSeq:  maxUint64(),
 		MaxSeq:   maxUint64(),

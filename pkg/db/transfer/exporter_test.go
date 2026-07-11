@@ -81,12 +81,18 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpsertChannelLatest(): %v", err)
 	}
-	log := seedStore.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2})
+	log, err := seedStore.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2})
+	if err != nil {
+		t.Fatalf("Channel(): %v", err)
+	}
 	if _, err := log.Append(ctx, []msgdb.Record{
 		{ID: 1001, ClientMsgNo: "c1", FromUID: "u1", Payload: []byte("payload-one"), ServerTimestampMS: 3000},
 		{ID: 1002, ClientMsgNo: "c2", FromUID: "u2", Payload: []byte("payload-two"), ServerTimestampMS: 3001},
 	}, msgdb.AppendOptions{}); err != nil {
 		t.Fatalf("Append(): %v", err)
+	}
+	if err := log.Close(); err != nil {
+		t.Fatalf("Close message log: %v", err)
 	}
 	if err := seedStore.Close(); err != nil {
 		t.Fatalf("Close seed store: %v", err)
@@ -152,10 +158,7 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	if latest.LastMessageSeq != 2 || string(latest.Payload) != "payload-two" {
 		t.Fatalf("latest = %+v, want second message projection", latest)
 	}
-	messages, err := target.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2}).Read(ctx, 1, msgdb.ReadOptions{Limit: 2})
-	if err != nil {
-		t.Fatalf("Read(imported messages): %v", err)
-	}
+	messages := readImportMessages(t, ctx, target.Messages(), "g1:2", msgdb.ChannelID{ID: "g1", Type: 2}, 1, 2)
 	if len(messages) != 2 {
 		t.Fatalf("messages len = %d, want 2: %+v", len(messages), messages)
 	}

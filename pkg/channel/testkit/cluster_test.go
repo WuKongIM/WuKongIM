@@ -2,6 +2,8 @@ package testkit
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +15,74 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReadMessagesFromFactoryClosesTemporaryStore(t *testing.T) {
+	id := ch.ChannelID{ID: "temporary-read-store", Type: 1}
+
+	t.Run("success", func(t *testing.T) {
+		tracking := newTestkitReadTrackingFactory(store.NewMemoryFactory())
+
+		messages, err := readMessagesFromFactory(tracking, id, 1)
+		require.NoError(t, err)
+		require.Empty(t, messages)
+		require.Equal(t, int64(1), tracking.acquired.Load())
+		require.Equal(t, int64(1), tracking.closed.Load())
+	})
+
+	t.Run("read error", func(t *testing.T) {
+		wantErr := errors.New("read committed failed")
+		tracking := newTestkitReadTrackingFactory(store.NewMemoryFactory())
+		tracking.readErr = wantErr
+
+		_, err := readMessagesFromFactory(tracking, id, 1)
+		require.ErrorIs(t, err, wantErr)
+		require.Equal(t, int64(1), tracking.acquired.Load())
+		require.Equal(t, int64(1), tracking.closed.Load())
+	})
+}
+
+type testkitReadTrackingFactory struct {
+	base store.Factory
+
+	readErr  error
+	acquired atomic.Int64
+	closed   atomic.Int64
+}
+
+func newTestkitReadTrackingFactory(base store.Factory) *testkitReadTrackingFactory {
+	return &testkitReadTrackingFactory{base: base}
+}
+
+func (f *testkitReadTrackingFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	channelStore, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	f.acquired.Add(1)
+	return &testkitReadTrackingStore{ChannelStore: channelStore, parent: f}, nil
+}
+
+type testkitReadTrackingStore struct {
+	store.ChannelStore
+	parent    *testkitReadTrackingFactory
+	closeOnce sync.Once
+}
+
+func (s *testkitReadTrackingStore) ReadCommitted(ctx context.Context, req store.ReadCommittedRequest) (store.ReadCommittedResult, error) {
+	if s.parent.readErr != nil {
+		return store.ReadCommittedResult{}, s.parent.readErr
+	}
+	return s.ChannelStore.ReadCommitted(ctx, req)
+}
+
+func (s *testkitReadTrackingStore) Close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		s.parent.closed.Add(1)
+		err = s.ChannelStore.Close()
+	})
+	return err
+}
 
 func TestThreeNodeClusterCommitsWithMinISR2(t *testing.T) {
 	h := NewClusterHarness(t, []ch.NodeID{1, 2, 3})

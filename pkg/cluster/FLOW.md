@@ -510,13 +510,16 @@ sync. It opens the Node-created default Channel runtime store for the requested
 channel, resolves the authoritative `ChannelRuntimeMeta`, applies
 `RetentionThroughSeq + 1` as the minimum visible message sequence, and then
 delegates to `channel/store.ReadCommitted`; it does not replace Channel runtime
-append, replication, or metadata routing. Callers that override the
+append, replication, or metadata routing. The facade closes its per-call store
+lease on success, read failure, cancellation, and post-acquisition metadata
+failure. Callers that override the
 Channel runtime service without using the Node-created default store do not
 automatically get this read facade.
 `Node.LookupChannelIdempotency` is a local-only read facade for SEND retry
 recovery. It opens the same Node-created default Channel runtime store and delegates
 to the optional `channel/store.IdempotencyLookup` index without creating
-messages, advancing HW, or routing to another node. Internal uses it only
+messages, advancing HW, or routing to another node, then closes the per-call
+store lease on every return path. Internal uses it only
 after canonical channel routing has selected the local append authority.
 
 `Node.ReadChannelLastVisible` is the channel-owned routed read facade used by
@@ -525,7 +528,8 @@ channel, reads the local store only when this node is the Channel runtime leader
 otherwise forwards a typed RPC to the resolved leader. The leader-side handler
 validates local channel leadership before reading its local store with a reverse
 limit-1 committed read and applying the maximum of the caller's visibility
-floor and `RetentionThroughSeq`. Channel not found or no visible tail returns
+floor and `RetentionThroughSeq`; the local read closes its per-call store lease
+on every return path. Channel not found or no visible tail returns
 `ok=false`; route, not-ready, not-leader, and stale-route errors propagate to
 the caller.
 

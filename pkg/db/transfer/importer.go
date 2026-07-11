@@ -2,6 +2,7 @@ package transfer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db"
@@ -57,10 +58,14 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 
 	channels := newMessageChannelStream(ctx, root, entries[FileKindMessageChannels], nil)
 	defer channels.Close()
+	messageState := newMessageImportState(ctx, store.Messages(), channels, opts, &stats)
 	for _, entry := range entries[FileKindMessageMessages] {
-		if err := importMessageEntry(ctx, root, entry, store.Messages(), channels, opts, &stats); err != nil {
-			return stats, err
+		if err := importMessageEntry(ctx, root, entry, messageState); err != nil {
+			return stats, messageState.abort(err)
 		}
+	}
+	if err := messageState.finish(); err != nil {
+		return stats, err
 	}
 	return stats, nil
 }
@@ -280,72 +285,163 @@ func importSubscriberEntry(ctx context.Context, root string, entry FileEntry, me
 	return flush()
 }
 
-func importMessageEntry(ctx context.Context, root string, entry FileEntry, messages *msgdb.MessageDB, channels *messageChannelStream, opts ImportOptions, stats *ImportStats) error {
-	var currentKey string
-	var currentID msgdb.ChannelID
-	var haveCurrent bool
-	records := make([]msgdb.Record, 0, opts.MessageBatchSize)
-	var batchBaseSeq uint64
-	var recordBytes int
-
-	flush := func() error {
-		if !haveCurrent || len(records) == 0 {
-			return nil
-		}
-		log := messages.Channel(msgdb.ChannelKey(currentKey), currentID)
-		_, err := log.Append(ctx, records, msgdb.AppendOptions{
-			Mode:    msgdb.AppendStrict,
-			BaseSeq: batchBaseSeq,
-		})
-		if err != nil {
-			return err
-		}
-		records = records[:0]
-		batchBaseSeq = 0
-		recordBytes = 0
-		return nil
-	}
-
+func importMessageEntry(ctx context.Context, root string, entry FileEntry, state *messageImportState) error {
 	err := importBundleEntry(ctx, root, entry, func(record any) error {
-		row := record.(MessageRecord)
-		if !haveCurrent || currentKey != row.ChannelKey {
-			if err := flush(); err != nil {
-				return err
-			}
-			channelRecord, ok, err := channels.Lookup(row.ChannelKey)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return fmt.Errorf("%w: missing message channel channel_key=%q", ErrValidation, row.ChannelKey)
-			}
-			currentKey = row.ChannelKey
-			currentID = msgdb.ChannelID{ID: channelRecord.ChannelID, Type: channelRecord.ChannelType}
-			haveCurrent = true
-		}
-		if len(records) == 0 {
-			batchBaseSeq = uint64(row.MessageSeq)
-		}
-		records = append(records, msgdb.Record{
-			ID:                uint64(row.MessageID),
-			ClientMsgNo:       row.ClientMsgNo,
-			FromUID:           row.FromUID,
-			Payload:           row.Payload,
-			SizeBytes:         len(row.Payload),
-			ServerTimestampMS: row.ServerTimestampMS,
-		})
-		recordBytes += len(row.Payload)
-		stats.RowsWritten++
-		stats.MessagesImported++
-		if len(records) >= opts.MessageBatchSize || recordBytes >= opts.MessageBatchBytes {
-			return flush()
-		}
-		return nil
+		return state.visit(record.(MessageRecord))
 	})
 	if err != nil {
 		return err
 	}
-	return flush()
+	// Preserve the previous file-level durability boundary while retaining the
+	// current channel lease for the next contiguous file.
+	return state.flush()
+}
+
+// messageImportState owns the one active channel lease used by the ordered message stream.
+// A lease remains open across batch and file flushes so LEO recovery happens once per
+// contiguous channel instead of once per batch.
+type messageImportState struct {
+	// ctx governs channel lookup and durable append work.
+	ctx context.Context
+	// messages acquires typed channel-log leases.
+	messages *msgdb.MessageDB
+	// channels resolves stable channel identities from the ordered bundle catalog.
+	channels *messageChannelStream
+	// opts bounds in-memory batches.
+	opts ImportOptions
+	// stats records accepted rows using the existing importer accounting semantics.
+	stats *ImportStats
+
+	// currentKey identifies the active contiguous channel.
+	currentKey msgdb.ChannelKey
+	// log is the active lease and must be closed exactly once on switch or termination.
+	log *msgdb.ChannelLog
+
+	// records is the not-yet-durable batch for the active channel.
+	records []msgdb.Record
+	// batchBaseSeq is the strict append base of records.
+	batchBaseSeq uint64
+	// recordBytes approximates the payload memory held by records.
+	recordBytes int
+}
+
+func newMessageImportState(ctx context.Context, messages *msgdb.MessageDB, channels *messageChannelStream, opts ImportOptions, stats *ImportStats) *messageImportState {
+	return &messageImportState{
+		ctx:      ctx,
+		messages: messages,
+		channels: channels,
+		opts:     opts,
+		stats:    stats,
+		records:  make([]msgdb.Record, 0, opts.MessageBatchSize),
+	}
+}
+
+func (s *messageImportState) visit(row MessageRecord) error {
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
+	if s.log == nil || string(s.currentKey) != row.ChannelKey {
+		if err := s.switchChannel(row.ChannelKey); err != nil {
+			return err
+		}
+	}
+	if len(s.records) == 0 {
+		s.batchBaseSeq = uint64(row.MessageSeq)
+	}
+	s.records = append(s.records, msgdb.Record{
+		ID:                uint64(row.MessageID),
+		ClientMsgNo:       row.ClientMsgNo,
+		FromUID:           row.FromUID,
+		Payload:           row.Payload,
+		SizeBytes:         len(row.Payload),
+		ServerTimestampMS: row.ServerTimestampMS,
+	})
+	s.recordBytes += len(row.Payload)
+	s.stats.RowsWritten++
+	s.stats.MessagesImported++
+	if len(s.records) >= s.opts.MessageBatchSize || s.recordBytes >= s.opts.MessageBatchBytes {
+		return s.flush()
+	}
+	return nil
+}
+
+func (s *messageImportState) switchChannel(channelKey string) error {
+	if s.log != nil {
+		if err := s.flush(); err != nil {
+			return s.closeWithError(err)
+		}
+		if err := s.closeCurrent(); err != nil {
+			return err
+		}
+	}
+	channelRecord, ok, err := s.channels.Lookup(channelKey)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%w: missing message channel channel_key=%q", ErrValidation, channelKey)
+	}
+	id := msgdb.ChannelID{ID: channelRecord.ChannelID, Type: channelRecord.ChannelType}
+	log, err := s.messages.Channel(msgdb.ChannelKey(channelKey), id)
+	if err != nil {
+		return err
+	}
+	s.currentKey = msgdb.ChannelKey(channelKey)
+	s.log = log
+	return nil
+}
+
+func (s *messageImportState) flush() error {
+	if s.log == nil || len(s.records) == 0 {
+		return nil
+	}
+	_, err := s.log.Append(s.ctx, s.records, msgdb.AppendOptions{
+		Mode:    msgdb.AppendStrict,
+		BaseSeq: s.batchBaseSeq,
+	})
+	if err != nil {
+		return err
+	}
+	s.records = s.records[:0]
+	s.batchBaseSeq = 0
+	s.recordBytes = 0
+	return nil
+}
+
+func (s *messageImportState) finish() error {
+	if err := s.flush(); err != nil {
+		return s.closeWithError(err)
+	}
+	return s.closeCurrent()
+}
+
+// abort releases the active lease without retrying a buffered append.
+func (s *messageImportState) abort(primary error) error {
+	return s.closeWithError(primary)
+}
+
+func (s *messageImportState) closeWithError(primary error) error {
+	closeErr := s.closeCurrent()
+	if closeErr == nil {
+		return primary
+	}
+	if primary == nil {
+		return closeErr
+	}
+	return errors.Join(primary, closeErr)
+}
+
+func (s *messageImportState) closeCurrent() error {
+	log := s.log
+	s.log = nil
+	s.currentKey = ""
+	s.records = s.records[:0]
+	s.batchBaseSeq = 0
+	s.recordBytes = 0
+	if log == nil {
+		return nil
+	}
+	return log.Close()
 }
 
 func importBundleEntry(ctx context.Context, root string, entry FileEntry, visit func(any) error) error {

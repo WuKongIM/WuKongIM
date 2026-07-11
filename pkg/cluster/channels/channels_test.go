@@ -2280,8 +2280,10 @@ func TestServiceReadChannelLastVisibleUsesLocalLeaderStore(t *testing.T) {
 		{ID: 11, FromUID: "u2", ClientMsgNo: "client-11", ServerTimestampMS: 900, Payload: []byte("new"), SizeBytes: 3},
 	}})
 	require.NoError(t, err)
+	require.NoError(t, store.Close())
+	tracking := newLastVisibleTrackingFactory(factory)
 	source := NewStaticMetaSource([]ch.Meta{{ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}})
-	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: factory})
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: tracking})
 	require.NoError(t, err)
 
 	got, ok, err := svc.ReadChannelLastVisible(context.Background(), id, 1)
@@ -2297,6 +2299,79 @@ func TestServiceReadChannelLastVisibleUsesLocalLeaderStore(t *testing.T) {
 	_, ok, err = svc.ReadChannelLastVisible(context.Background(), id, 2)
 	require.NoError(t, err)
 	require.False(t, ok)
+	require.Equal(t, int64(2), tracking.acquired.Load())
+	require.Equal(t, int64(2), tracking.closed.Load())
+}
+
+func TestServiceReadLocalLastVisibleClosesStoreOnReadErrorAndCancellation(t *testing.T) {
+	id := ch.ChannelID{ID: "read-last-close-on-error", Type: 1}
+
+	t.Run("read error", func(t *testing.T) {
+		wantErr := errors.New("read committed failed")
+		tracking := newLastVisibleTrackingFactory(channelstore.NewMemoryFactory())
+		tracking.readErr = wantErr
+		svc := &Service{store: tracking}
+
+		_, _, err := svc.readLocalLastVisible(context.Background(), id, 0)
+		require.ErrorIs(t, err, wantErr)
+		require.Equal(t, int64(1), tracking.acquired.Load())
+		require.Equal(t, int64(1), tracking.closed.Load())
+	})
+
+	t.Run("canceled context", func(t *testing.T) {
+		tracking := newLastVisibleTrackingFactory(channelstore.NewMemoryFactory())
+		svc := &Service{store: tracking}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, _, err := svc.readLocalLastVisible(ctx, id, 0)
+		require.ErrorIs(t, err, context.Canceled)
+		require.Equal(t, int64(1), tracking.acquired.Load())
+		require.Equal(t, int64(1), tracking.closed.Load())
+	})
+}
+
+type lastVisibleTrackingFactory struct {
+	base channelstore.Factory
+
+	readErr  error
+	acquired atomic.Int64
+	closed   atomic.Int64
+}
+
+func newLastVisibleTrackingFactory(base channelstore.Factory) *lastVisibleTrackingFactory {
+	return &lastVisibleTrackingFactory{base: base}
+}
+
+func (f *lastVisibleTrackingFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (channelstore.ChannelStore, error) {
+	store, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	f.acquired.Add(1)
+	return &lastVisibleTrackingStore{ChannelStore: store, parent: f}, nil
+}
+
+type lastVisibleTrackingStore struct {
+	channelstore.ChannelStore
+	parent    *lastVisibleTrackingFactory
+	closeOnce sync.Once
+}
+
+func (s *lastVisibleTrackingStore) ReadCommitted(ctx context.Context, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	if s.parent.readErr != nil {
+		return channelstore.ReadCommittedResult{}, s.parent.readErr
+	}
+	return s.ChannelStore.ReadCommitted(ctx, req)
+}
+
+func (s *lastVisibleTrackingStore) Close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		s.parent.closed.Add(1)
+		err = s.ChannelStore.Close()
+	})
+	return err
 }
 
 func TestServiceReadChannelLastVisibleHonorsRetentionThroughSeq(t *testing.T) {

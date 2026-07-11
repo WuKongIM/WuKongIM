@@ -67,10 +67,17 @@ func (h *ClusterHarness) readMessages(nodeID ch.NodeID, id ch.ChannelID, seq uin
 	if factory == nil {
 		return nil, ch.ErrChannelNotFound
 	}
+	return readMessagesFromFactory(factory, id, seq)
+}
+
+func readMessagesFromFactory(factory store.Factory, id ch.ChannelID, seq uint64) ([]ch.Message, error) {
 	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		_ = cs.Close()
+	}()
 	read, err := cs.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: seq, MaxSeq: seq, Limit: 1, MaxBytes: 1024})
 	if err != nil {
 		return nil, err

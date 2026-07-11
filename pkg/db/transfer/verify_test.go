@@ -203,12 +203,18 @@ func seedVerifyNodeStore(t *testing.T, hashSlotCount uint16, seedOpts verifySeed
 	}); err != nil {
 		t.Fatalf("UpsertChannelLatest(): %v", err)
 	}
-	log := store.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2})
+	log, err := store.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2})
+	if err != nil {
+		t.Fatalf("Channel(): %v", err)
+	}
 	if _, err := log.Append(ctx, []msgdb.Record{
 		{ID: 1001, ClientMsgNo: "c1", FromUID: "u1", Payload: []byte("payload-one"), ServerTimestampMS: 3000},
 		{ID: 1002, ClientMsgNo: "c2", FromUID: "u2", Payload: []byte(seedOpts.SecondPayload), ServerTimestampMS: 3001},
 	}, msgdb.AppendOptions{}); err != nil {
 		t.Fatalf("Append(): %v", err)
+	}
+	if err := log.Close(); err != nil {
+		t.Fatalf("Close message log: %v", err)
 	}
 	return store, opts
 }

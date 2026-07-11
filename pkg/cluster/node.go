@@ -75,6 +75,9 @@ type Node struct {
 	defaultChannels bool
 	// defaultChannelStore owns the Node-created message DB factory.
 	defaultChannelStore *channelstore.MessageDBFactory
+	// channelStoreFactory is the narrow acquisition surface used by local message read facades.
+	// Production falls back to defaultChannelStore; tests may supply an independently tracked factory.
+	channelStoreFactory channelstore.Factory
 	// defaultSlots reports whether Node constructed the local Slot runtime.
 	defaultSlots bool
 	// defaultSlotRuntime owns the Node-created Slot Multi-Raft runtime.
@@ -579,13 +582,15 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelruntime.Chann
 	if err := n.ensureForeground(); err != nil {
 		return channelstore.ReadCommittedResult{}, err
 	}
-	if n.defaultChannelStore == nil {
+	storeFactory := n.localChannelStoreFactory()
+	if storeFactory == nil {
 		return channelstore.ReadCommittedResult{}, ErrNotStarted
 	}
-	store, err := n.defaultChannelStore.ChannelStore(channelruntime.ChannelKeyForID(id), id)
+	store, err := storeFactory.ChannelStore(channelruntime.ChannelKeyForID(id), id)
 	if err != nil {
 		return channelstore.ReadCommittedResult{}, err
 	}
+	defer func() { _ = store.Close() }()
 	if n.defaultSlotMetaDB == nil {
 		return channelstore.ReadCommittedResult{}, ErrNotStarted
 	}
@@ -609,18 +614,30 @@ func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelruntime.C
 	if err := n.ensureForeground(); err != nil {
 		return channelstore.IdempotencyHit{}, false, err
 	}
-	if n.defaultChannelStore == nil {
+	storeFactory := n.localChannelStoreFactory()
+	if storeFactory == nil {
 		return channelstore.IdempotencyHit{}, false, ErrNotStarted
 	}
-	store, err := n.defaultChannelStore.ChannelStore(channelruntime.ChannelKeyForID(id), id)
+	store, err := storeFactory.ChannelStore(channelruntime.ChannelKeyForID(id), id)
 	if err != nil {
 		return channelstore.IdempotencyHit{}, false, err
 	}
+	defer func() { _ = store.Close() }()
 	lookup, ok := store.(channelstore.IdempotencyLookup)
 	if !ok {
 		return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig
 	}
 	return lookup.LookupIdempotency(ctx, fromUID, clientMsgNo)
+}
+
+func (n *Node) localChannelStoreFactory() channelstore.Factory {
+	if n == nil {
+		return nil
+	}
+	if n.channelStoreFactory != nil {
+		return n.channelStoreFactory
+	}
+	return n.defaultChannelStore
 }
 
 // ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.
