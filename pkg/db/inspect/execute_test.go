@@ -348,7 +348,10 @@ func seedInspectMessages(t *testing.T) string {
 		t.Fatalf("engine.Open() err = %v", err)
 	}
 	db := message.NewDB(eng)
-	log := db.Channel(message.ChannelKey("g1:2"), message.ChannelID{ID: "g1", Type: 2})
+	log, err := db.Channel(message.ChannelKey("g1:2"), message.ChannelID{ID: "g1", Type: 2})
+	if err != nil {
+		t.Fatalf("Channel() err = %v", err)
+	}
 	_, err = log.Append(context.Background(), []message.Record{
 		{ID: 101, ClientMsgNo: "c1", FromUID: "u1", Payload: []byte("one")},
 		{ID: 102, ClientMsgNo: "c2", FromUID: "u2", Payload: []byte("two")},
@@ -356,8 +359,11 @@ func seedInspectMessages(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Append() err = %v", err)
 	}
-	if err := eng.Close(); err != nil {
-		t.Fatalf("engine.Close() err = %v", err)
+	if err := log.Close(); err != nil {
+		t.Fatalf("ChannelLog.Close() err = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("MessageDB.Close() err = %v", err)
 	}
 	return path
 }

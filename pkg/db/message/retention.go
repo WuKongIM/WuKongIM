@@ -11,11 +11,16 @@ const retentionStateVersion byte = 1
 
 // LoadRetentionState loads durable local retention progress.
 func (l *ChannelLog) LoadRetentionState(ctx context.Context) (RetentionState, bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return RetentionState{}, false, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return RetentionState{}, false, dberrors.ErrClosed
+	defer l.endUse()
+	return l.loadRetentionState(ctx)
+}
+
+func (l *ChannelLog) loadRetentionState(ctx context.Context) (RetentionState, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return RetentionState{}, false, err
 	}
 	value, ok, err := l.db.engine.Get(encodeRetentionStateKey(l.key))
 	if err != nil || !ok {
@@ -30,11 +35,12 @@ func (l *ChannelLog) LoadRetentionState(ctx context.Context) (RetentionState, bo
 
 // StoreRetentionState stores durable local retention progress.
 func (l *ChannelLog) StoreRetentionState(ctx context.Context, state RetentionState) error {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return dberrors.ErrClosed
+	defer l.endUse()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := validateRetentionState(state); err != nil {
 		return err
@@ -52,20 +58,25 @@ func (l *ChannelLog) StoreRetentionState(ctx context.Context, state RetentionSta
 
 // TrimPrefixThrough physically deletes message rows at or below throughSeq.
 func (l *ChannelLog) TrimPrefixThrough(ctx context.Context, throughSeq uint64) (RetentionTrimResult, error) {
-	return l.TrimPrefixThroughLimit(ctx, throughSeq, RetentionTrimOptions{})
+	if err := l.beginUse(); err != nil {
+		return RetentionTrimResult{}, err
+	}
+	defer l.endUse()
+	return l.trimPrefixThroughLimit(ctx, throughSeq, RetentionTrimOptions{}, true)
 }
 
 // TrimPrefixThroughLimit physically deletes a bounded message prefix at or below throughSeq.
 func (l *ChannelLog) TrimPrefixThroughLimit(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions) (RetentionTrimResult, error) {
+	if err := l.beginUse(); err != nil {
+		return RetentionTrimResult{}, err
+	}
+	defer l.endUse()
 	return l.trimPrefixThroughLimit(ctx, throughSeq, opts, true)
 }
 
 func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions, adoptBoundary bool) (RetentionTrimResult, error) {
 	if err := ctx.Err(); err != nil {
 		return RetentionTrimResult{}, err
-	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return RetentionTrimResult{}, dberrors.ErrClosed
 	}
 	if throughSeq == 0 {
 		return RetentionTrimResult{}, nil
@@ -78,7 +89,7 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	if err != nil {
 		return RetentionTrimResult{}, err
 	}
-	state, ok, err := l.LoadRetentionState(ctx)
+	state, ok, err := l.loadRetentionState(ctx)
 	if err != nil {
 		return RetentionTrimResult{}, err
 	}

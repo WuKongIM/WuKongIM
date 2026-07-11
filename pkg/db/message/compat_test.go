@@ -56,7 +56,7 @@ func TestCompatEngineAppendReadAndIdempotency(t *testing.T) {
 	defer engine.Close()
 
 	id := channel.ChannelID{ID: "compat", Type: 1}
-	store := engine.ForChannel(channel.ChannelKey("compat:1"), id)
+	store := mustForChannel(t, engine, channel.ChannelKey("compat:1"), id)
 	msg := channel.Message{
 		MessageID:   42,
 		Framer:      frame.Framer{RedDot: true},
@@ -124,7 +124,7 @@ func TestCompatCommittedCursorAndRetentionState(t *testing.T) {
 	}
 	defer engine.Close()
 
-	store := engine.ForChannel(channel.ChannelKey("retention:1"), channel.ChannelID{ID: "retention", Type: 1})
+	store := mustForChannel(t, engine, channel.ChannelKey("retention:1"), channel.ChannelID{ID: "retention", Type: 1})
 	if err := store.StoreCommittedDispatchCursor("committed", 3); err != nil {
 		t.Fatalf("StoreCommittedDispatchCursor() error = %v", err)
 	}
@@ -159,15 +159,17 @@ func TestCompatChannelStoreAppendUsesCommitCoordinatorAcrossChannels(t *testing.
 	defer engine.Close()
 	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{FlushWindow: 2 * time.Second, MaxRequests: 2})
 
-	storeA := engine.ForChannel(channel.ChannelKey("coordinator-a:1"), channel.ChannelID{ID: "coordinator-a", Type: 1})
-	storeB := engine.ForChannel(channel.ChannelKey("coordinator-b:1"), channel.ChannelID{ID: "coordinator-b", Type: 1})
+	storeA := mustForChannel(t, engine, channel.ChannelKey("coordinator-a:1"), channel.ChannelID{ID: "coordinator-a", Type: 1})
+	storeB := mustForChannel(t, engine, channel.ChannelKey("coordinator-b:1"), channel.ChannelID{ID: "coordinator-b", Type: 1})
 
 	errs := make(chan error, 2)
 	var wg sync.WaitGroup
+	recordA := compatTestRecord(t, 1001, "coordinator-a", "client-a")
+	recordB := compatTestRecord(t, 1002, "coordinator-b", "client-b")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := storeA.Append([]channel.Record{compatTestRecord(t, 1001, "coordinator-a", "client-a")})
+		_, err := storeA.Append([]channel.Record{recordA})
 		errs <- err
 	}()
 
@@ -180,7 +182,7 @@ func TestCompatChannelStoreAppendUsesCommitCoordinatorAcrossChannels(t *testing.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := storeB.Append([]channel.Record{compatTestRecord(t, 1002, "coordinator-b", "client-b")})
+		_, err := storeB.Append([]channel.Record{recordB})
 		errs <- err
 	}()
 	wg.Wait()
@@ -201,7 +203,7 @@ func TestCommitCoordinatorRequestObserverSplitsAppendAndApplyLanes(t *testing.T)
 	observer := &commitRequestCapture{}
 	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
 
-	store := engine.ForChannel(channel.ChannelKey("lane:1"), channel.ChannelID{ID: "lane", Type: 1})
+	store := mustForChannel(t, engine, channel.ChannelKey("lane:1"), channel.ChannelID{ID: "lane", Type: 1})
 	if _, err := store.Append([]channel.Record{compatTestRecord(t, 2001, "lane", "client-append")}); err != nil {
 		t.Fatalf("Append() error = %v", err)
 	}
@@ -226,7 +228,7 @@ func TestCommitCoordinatorQueueObserverReceivesEffectiveCapacity(t *testing.T) {
 	observer := &commitQueueCapture{}
 	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{QueueSize: 3, Observer: observer})
 
-	store := engine.ForChannel(channel.ChannelKey("queue-capacity:1"), channel.ChannelID{ID: "queue-capacity", Type: 1})
+	store := mustForChannel(t, engine, channel.ChannelKey("queue-capacity:1"), channel.ChannelID{ID: "queue-capacity", Type: 1})
 	if _, err := store.Append([]channel.Record{compatTestRecord(t, 2501, "queue-capacity", "client-append")}); err != nil {
 		t.Fatalf("Append() error = %v", err)
 	}
@@ -245,7 +247,7 @@ func TestCommitCoordinatorQueueObserverReceivesShardedCapacity(t *testing.T) {
 	observer := &commitQueueCapture{}
 	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{QueueSize: 3, Shards: 4, Observer: observer})
 
-	store := engine.ForChannel(channel.ChannelKey("queue-sharded-capacity:1"), channel.ChannelID{ID: "queue-sharded-capacity", Type: 1})
+	store := mustForChannel(t, engine, channel.ChannelKey("queue-sharded-capacity:1"), channel.ChannelID{ID: "queue-sharded-capacity", Type: 1})
 	if _, err := store.Append([]channel.Record{compatTestRecord(t, 2601, "queue-sharded-capacity", "client-append")}); err != nil {
 		t.Fatalf("Append() error = %v", err)
 	}
@@ -262,8 +264,8 @@ func TestPreparedRowsPartitionUsesFirstChannelKey(t *testing.T) {
 	}
 	defer engine.Close()
 
-	storeA := engine.ForChannel(channel.ChannelKey("partition-a:1"), channel.ChannelID{ID: "partition-a", Type: 1})
-	storeB := engine.ForChannel(channel.ChannelKey("partition-b:1"), channel.ChannelID{ID: "partition-b", Type: 1})
+	storeA := mustForChannel(t, engine, channel.ChannelKey("partition-a:1"), channel.ChannelID{ID: "partition-a", Type: 1})
+	storeB := mustForChannel(t, engine, channel.ChannelKey("partition-b:1"), channel.ChannelID{ID: "partition-b", Type: 1})
 	prepared := []preparedCommitRows{{store: storeA}, {store: storeB}}
 
 	if got := preparedRowsPartition(prepared, commitLaneLeaderAppend); got != "partition-a:1" {
@@ -280,8 +282,8 @@ func TestStoreApplyFetchTrustedBatchUsesSingleFollowerApplyRequest(t *testing.T)
 	observer := &commitRequestCapture{}
 	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
 
-	storeA := engine.ForChannel(channel.ChannelKey("batch-apply-a:1"), channel.ChannelID{ID: "batch-apply-a", Type: 1})
-	storeB := engine.ForChannel(channel.ChannelKey("batch-apply-b:1"), channel.ChannelID{ID: "batch-apply-b", Type: 1})
+	storeA := mustForChannel(t, engine, channel.ChannelKey("batch-apply-a:1"), channel.ChannelID{ID: "batch-apply-a", Type: 1})
+	storeB := mustForChannel(t, engine, channel.ChannelKey("batch-apply-b:1"), channel.ChannelID{ID: "batch-apply-b", Type: 1})
 	results := StoreApplyFetchTrustedBatch(context.Background(), []ApplyFetchBatchItem{
 		{Store: storeA, Request: channel.ApplyFetchStoreRequest{Records: []channel.Record{compatTestRecord(t, 3001, "batch-apply-a", "client-a")}}},
 		{Store: storeB, Request: channel.ApplyFetchStoreRequest{Records: []channel.Record{compatTestRecord(t, 3002, "batch-apply-b", "client-b")}}},
@@ -308,8 +310,8 @@ func TestStoreAppendBatchUsesSingleLeaderAppendRequest(t *testing.T) {
 	observer := &commitRequestCapture{}
 	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
 
-	storeA := engine.ForChannel(channel.ChannelKey("batch-append-a:1"), channel.ChannelID{ID: "batch-append-a", Type: 1})
-	storeB := engine.ForChannel(channel.ChannelKey("batch-append-b:1"), channel.ChannelID{ID: "batch-append-b", Type: 1})
+	storeA := mustForChannel(t, engine, channel.ChannelKey("batch-append-a:1"), channel.ChannelID{ID: "batch-append-a", Type: 1})
+	storeB := mustForChannel(t, engine, channel.ChannelKey("batch-append-b:1"), channel.ChannelID{ID: "batch-append-b", Type: 1})
 	results := StoreAppendBatch(context.Background(), []AppendBatchItem{
 		{Store: storeA, Records: []channel.Record{compatTestRecord(t, 4001, "batch-append-a", "client-a")}},
 		{Store: storeB, Records: []channel.Record{compatTestRecord(t, 4002, "batch-append-b", "client-b")}},

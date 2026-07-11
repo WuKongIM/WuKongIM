@@ -1,11 +1,15 @@
 package inspect
 
 import (
+	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	db "github.com/WuKongIM/WuKongIM/pkg/db"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	msgdb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
 func TestOpenStoreRequiresPath(t *testing.T) {
@@ -57,6 +61,50 @@ func TestOpenStoreClosesPartialOpenOnMessageFailure(t *testing.T) {
 	}
 	if err := reopened.Close(); err != nil {
 		t.Fatalf("Close() reopened err = %v", err)
+	}
+}
+
+func TestInspectMessagesConcurrentStoreClose(t *testing.T) {
+	path := seedInspectMessages(t)
+	store, err := OpenStore(Options{MessagePath: path})
+	if err != nil {
+		t.Fatalf("OpenStore() err = %v", err)
+	}
+	messages := store.Messages()
+
+	const readers = 8
+	start := make(chan struct{})
+	ready := make(chan struct{}, readers)
+	errs := make(chan error, readers)
+	var wg sync.WaitGroup
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			ready <- struct{}{}
+			for j := 0; j < 1000; j++ {
+				_, err := msgdb.InspectMessages(context.Background(), messages, msgdb.InspectMessageRequest{ChannelKey: "g1:2", Limit: 10})
+				if err != nil {
+					if !errors.Is(err, dberrors.ErrClosed) {
+						errs <- err
+					}
+					return
+				}
+			}
+		}()
+	}
+	close(start)
+	for i := 0; i < readers; i++ {
+		<-ready
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Store.Close(): %v", err)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("InspectMessages() concurrent Close err = %v", err)
 	}
 }
 

@@ -11,6 +11,10 @@ import (
 
 // GetBySeq returns one message by its durable channel sequence.
 func (l *ChannelLog) GetBySeq(ctx context.Context, seq uint64) (Message, bool, error) {
+	if err := l.beginUse(); err != nil {
+		return Message{}, false, err
+	}
+	defer l.endUse()
 	row, ok, err := l.getRowBySeq(ctx, seq)
 	if err != nil || !ok {
 		return Message{}, ok, err
@@ -20,6 +24,10 @@ func (l *ChannelLog) GetBySeq(ctx context.Context, seq uint64) (Message, bool, e
 
 // Read returns messages in ascending sequence order starting at fromSeq.
 func (l *ChannelLog) Read(ctx context.Context, fromSeq uint64, opts ReadOptions) ([]Message, error) {
+	if err := l.beginUse(); err != nil {
+		return nil, err
+	}
+	defer l.endUse()
 	if fromSeq == 0 {
 		fromSeq = 1
 	}
@@ -28,11 +36,17 @@ func (l *ChannelLog) Read(ctx context.Context, fromSeq uint64, opts ReadOptions)
 
 // ReadReverse returns messages in descending sequence order starting at fromSeq.
 func (l *ChannelLog) ReadReverse(ctx context.Context, fromSeq uint64, opts ReadOptions) ([]Message, error) {
+	if err := l.beginUse(); err != nil {
+		return nil, err
+	}
+	defer l.endUse()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if fromSeq == 0 {
-		leo, err := l.LEO(ctx)
+		l.appendMu.Lock()
+		leo, err := l.loadLEOLocked(ctx)
+		l.appendMu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -56,13 +70,13 @@ func (l *ChannelLog) ReadReverse(ctx context.Context, fromSeq uint64, opts ReadO
 
 // GetLastVisibleMessage returns the newest message whose sequence is greater than visibleAfterSeq.
 func (l *ChannelLog) GetLastVisibleMessage(ctx context.Context, visibleAfterSeq uint64) (Message, bool, error) {
+	if err := l.beginUse(); err != nil {
+		return Message{}, false, err
+	}
+	defer l.endUse()
 	if err := ctx.Err(); err != nil {
 		return Message{}, false, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return Message{}, false, dberrors.ErrClosed
-	}
-
 	prefix := encodeMessageRowPrefix(l.key)
 	span := keycodec.NewPrefixSpan(prefix)
 	iter, err := l.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
@@ -85,9 +99,12 @@ func (l *ChannelLog) GetLastVisibleMessage(ctx context.Context, visibleAfterSeq 
 		if familyID != messageHeaderFamilyID {
 			continue
 		}
-		msg, ok, err := l.GetBySeq(ctx, seq)
-		if err != nil || ok {
-			return msg, ok, err
+		row, ok, err := l.getRowBySeq(ctx, seq)
+		if err != nil {
+			return Message{}, false, err
+		}
+		if ok {
+			return messageFromRow(row), true, nil
 		}
 	}
 	if err := iter.Error(); err != nil {
@@ -97,16 +114,20 @@ func (l *ChannelLog) GetLastVisibleMessage(ctx context.Context, visibleAfterSeq 
 }
 
 func (l *ChannelLog) readForward(ctx context.Context, fromSeq uint64, maxSeq uint64, opts ReadOptions) ([]Message, error) {
+	return readMessagesRaw(ctx, l.db, l.key, fromSeq, maxSeq, opts)
+}
+
+func readMessagesRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, fromSeq uint64, maxSeq uint64, opts ReadOptions) ([]Message, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
+	if db == nil || db.engine == nil {
 		return nil, dberrors.ErrClosed
 	}
-	prefix := encodeMessageRowPrefix(l.key)
+	prefix := encodeMessageRowPrefix(channelKey)
 	span := keycodec.NewPrefixSpan(prefix)
-	start := encodeMessageRowKey(l.key, fromSeq, messageHeaderFamilyID)
-	iter, err := l.db.engine.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
+	start := encodeMessageRowKey(channelKey, fromSeq, messageHeaderFamilyID)
+	iter, err := db.engine.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +166,8 @@ func (l *ChannelLog) readForward(ctx context.Context, fromSeq uint64, maxSeq uin
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		key := iter.Key()
-		seq, familyID, ok := decodeMessageRowKey(l.key, key)
+		storageKey := iter.Key()
+		seq, familyID, ok := decodeMessageRowKey(channelKey, storageKey)
 		if !ok {
 			continue
 		}
@@ -171,12 +192,12 @@ func (l *ChannelLog) readForward(ctx context.Context, fromSeq uint64, maxSeq uin
 		}
 		switch familyID {
 		case messageHeaderFamilyID:
-			if err := decodeMessageHeader(key, value, &current); err != nil {
+			if err := decodeMessageHeader(storageKey, value, &current); err != nil {
 				return nil, err
 			}
 			haveHeader = true
 		case messagePayloadFamilyID:
-			if err := decodeMessagePayload(key, value, &current); err != nil {
+			if err := decodeMessagePayload(storageKey, value, &current); err != nil {
 				return nil, err
 			}
 			havePayload = true

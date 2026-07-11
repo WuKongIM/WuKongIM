@@ -14,8 +14,13 @@
 - Preserve durable keys, message sequence semantics, retention, checkpoint fields, and commit quorum behavior.
 - Exactly one live canonical `appendMu`, LEO cache, and checkpoint mutex may exist per channel while any lease or commit pin remains.
 - The registry retains no zero-reference entry and uses pointer compare-delete under its mutex.
+- Every public operation owns a lock-free use token; lease/database close waits for admitted use tokens before reclaiming entries or closing Pebble.
 - Closing a channel lease never closes the shared Pebble engine.
 - Caller context cancellation must not release an admitted coordinator pin while build/commit/publish can still run.
+- A canceled multi-engine batch rejects remaining engine groups before lock acquisition while an admitted group finalizes in the background.
+- Admitted commit work owns its append/checkpoint locks together with its pin; finalization unlocks checkpoint, then append, then releases pins.
+- `NodeStore.Messages` returns one shared `MessageDB` registry for its physical message engine.
+- Duplicate canonical entries in exported append/apply batch helpers fail without writes.
 - Temporary acquisitions close on success, error, cancellation, and early return; successful StoreLoad transfers ownership to Reactor state.
 - Eviction stays asynchronous and must not block the Reactor loop on Pebble/channel close.
 - Metrics must not label by channel key or ID.
@@ -115,8 +120,12 @@ git commit -m "feat(db): add terminal commit request finalization"
 **Files:**
 - Create: `pkg/db/message/channel_registry.go`
 - Create: `pkg/db/message/channel_registry_test.go`
+- Modify: `pkg/db/db.go`
+- Modify: `pkg/db/metrics.go`
 - Modify: `pkg/db/message/db.go`
 - Modify: `pkg/db/message/channel_log.go`
+- Modify: `pkg/db/message/inspect.go`
+- Modify: `pkg/db/message/metrics.go`
 - Modify: `pkg/db/message/append.go`
 - Modify: `pkg/db/message/apply_fetch.go`
 - Modify: `pkg/db/message/checkpoint.go`
@@ -184,6 +193,11 @@ TestChannelRegistryRejectsMismatchedIdentity
 TestChannelRegistryOlderReleaseCannotDeleteReacquiredEntry
 TestChannelRegistryBackgroundPinDefersReclaim
 TestChannelRegistryRejectsAcquireAfterBeginClose
+TestChannelLeaseCloseWaitsForInflightOperation
+TestInspectMessagesDoesNotAcquireRegistryEntry
+TestNodeStoreMessagesSharesCanonicalRegistry
+TestNodeStoreMetricsSnapshotConcurrentClose
+TestEngineMetricsSnapshotConcurrentClose
 ```
 
 Tests stay in package `message` and inspect canonical pointers/registry length directly; they must not introduce a test-only production API.
@@ -198,9 +212,24 @@ Expected: compile failure because the registry/lease API does not exist.
 
 `acquire` checks closed, validates a same-key ID match, increments `refs`, and returns a distinct wrapper. Last release decrements counts and compare-deletes only when `entries[key] == entry`. Background retain/release uses the same `refs`, separately tracks pins, and signals `cond` when pins reach zero. Return `dberrors.ErrClosed` after begin-close and `dberrors.ErrConflict` for a key/ID mismatch.
 
+Use a check/increment/recheck operation guard. Lease close marks the wrapper
+closed, waits for its inflight operations, and then releases the entry ref.
+Database close rejects new raw/lease operations and waits for admitted global
+operations before detaching entries. Store the single `MessageDB` on
+`NodeStore`; do not construct one per `Messages` call.
+
 - [ ] **Step 3: Move all canonical mutable fields behind `channelEntry`**
 
-Replace `MessageDB.logs` with `registry`. Embed `*channelEntry` in `ChannelLog` so existing field access remains local, but make every exported log operation start with `validateLease`; closed/nil handles return `dberrors.ErrClosed`. The first acquisition builds immutable append-key cache; a post-reclaim acquisition reconstructs LEO from durable rows.
+Replace `MessageDB.logs` with `registry`. Embed `*channelEntry` in `ChannelLog`
+so existing field access remains local. Every exported log operation acquires
+exactly one lease/database use token and defers its release; nested work uses
+unguarded private helpers rather than recursively reacquiring a token. Closed
+or nil handles return `dberrors.ErrClosed`. The first acquisition builds the
+immutable append-key cache; a post-reclaim acquisition reconstructs LEO from
+durable rows.
+
+Extract `(db, channelKey)` raw readers for inspect and compatibility diagnostic
+reads. They use a database operation token but never acquire a registry entry.
 
 - [ ] **Step 4: Prove durable reacquire correctness**
 
@@ -268,6 +297,12 @@ The cancellation test closes the caller's lease after `Submit` returns canceled 
 
 Before submitting a request whose Build or Publish captures a channel entry, retain one pin per distinct canonical entry. Set `commit.Request.Finalize` to release those pins. If preparation fails before Submit, release immediately; once Submit is called, its terminal finalizer owns release. Keep pins across caller cancellation.
 
+Transfer the already-held append and optional checkpoint locks into the same
+finalizer. The caller must not defer-unlock after calling Submit: a successfully
+admitted request may continue after Submit returns a context error. Finalize in
+checkpoint-unlock, append-unlock, pin-release order. Capture canonical entries,
+not lease wrappers, in Build/Publish closures.
+
 - [ ] **Step 5: Deduplicate batch locks by canonical entry**
 
 Change append/apply batch locking from `map[*ChannelStore]` to `map[*channelEntry]*ChannelStore`, sort by canonical key, and acquire each append mutex once even if the batch contains multiple lease wrappers for one channel. Add:
@@ -276,6 +311,10 @@ Change append/apply batch locking from `map[*ChannelStore]` to `map[*channelEntr
 TestStoreAppendBatchDeduplicatesCanonicalEntry
 TestStoreApplyFetchBatchDeduplicatesCanonicalEntry
 ```
+
+Before locking, mark all items sharing one canonical entry invalid and exclude
+them from the commit. This prevents two preparations from allocating the same
+old LEO while allowing unrelated unique entries to proceed.
 
 - [ ] **Step 6: Implement monotonic checkpoint update on the canonical entry**
 
@@ -407,6 +446,7 @@ git commit -m "fix(storage): close temporary channel store leases"
 - Modify: `pkg/channel/reactor/waiter_cancellation.go`
 - Modify: `pkg/channel/reactor/reactor.go`
 - Modify: `pkg/channel/reactor/group.go`
+- Modify: `pkg/channel/worker/pool.go`
 - Modify: `pkg/channel/reactor/reactor_nonblocking_test.go`
 - Modify: `pkg/channel/reactor/replication_state_test.go`
 - Modify: `pkg/channel/reactor/group_test.go`
@@ -430,6 +470,8 @@ Add:
 TestGroupCloseReleasesLoadedStoreHandles
 TestGroupCloseReleasesPendingMetaStoreHandles
 TestClosedGroupReleasesLateStoreLoadResult
+TestReactorShutdownReleasesQueuedStoreLoadResult
+TestWorkerPoolCloseExecutesOrReturnsQueuedStoreCloseOwnership
 ```
 
 The final test blocks StoreLoad until after group close begins, then releases it and asserts its returned store closes instead of being dropped.
@@ -437,6 +479,11 @@ The final test blocks StoreLoad until after group close begins, then releases it
 - [ ] **Step 3: Define explicit store-detach ownership**
 
 After a Reactor stops admission and its single-writer loop, collect/detach `runtimeChannel.store` from loaded, loading-completion, and pending-meta states. Fail futures first. If a StoreLoad result cannot be delivered to a stopped Reactor, close `result.StoreLoad.Store` in the completion/drop path.
+
+The shutdown mailbox drain must also close successful StoreLoad results that
+were accepted before stop but never applied. Worker pool close must execute a
+queued StoreClose or return/close its store ownership; replacing it with an
+error-only completion leaks the detached handle.
 
 - [ ] **Step 4: Order Group shutdown safely**
 

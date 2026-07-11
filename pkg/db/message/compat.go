@@ -105,20 +105,34 @@ type CommitCoordinatorRequestObserver interface {
 
 // Engine is the compatibility entry point used by existing channel callers.
 type Engine struct {
-	mu        sync.Mutex
-	db        *MessageDB
-	engine    *engine.DB
-	stores    map[channel.ChannelKey]*ChannelStore
+	// mu serializes coordinator replacement with engine shutdown.
+	mu sync.Mutex
+	// db owns the one canonical channel registry for this physical engine.
+	db *MessageDB
+	// engine is the physical message store while the compatibility engine is open.
+	engine *engine.DB
+	// closing prevents coordinator creation after shutdown admission closes.
+	closing bool
+	// commitCfg is the effective coordinator configuration.
 	commitCfg CommitCoordinatorConfig
+	// committer owns admitted asynchronous commit requests.
 	committer *commit.Coordinator
+	// closeOnce makes compatibility shutdown idempotent.
+	closeOnce sync.Once
+	// closeErr preserves the first shutdown result.
+	closeErr error
 }
 
 // ChannelStore adapts the new typed ChannelLog to the legacy channel store API.
 type ChannelStore struct {
+	// engine selects the coordinator and physical commit domain.
 	engine *Engine
-	log    *ChannelLog
-	key    channel.ChannelKey
-	id     channel.ChannelID
+	// log is this store's distinct lease over a canonical channel entry.
+	log *ChannelLog
+	// key is the compatibility channel partition key.
+	key channel.ChannelKey
+	// id is the logical compatibility channel identity.
+	id channel.ChannelID
 }
 
 // AppendBatchItem is one channel append request in a cross-channel batch.
@@ -155,6 +169,13 @@ type ApplyFetchBatchResult struct {
 	Err error
 }
 
+type batchOwnerGroup struct {
+	// owner is the only physical Engine whose locks a group may hold.
+	owner *Engine
+	// indexes preserve the request order for items owned by owner.
+	indexes []int
+}
+
 // LogRecord is an offset-addressed compatibility log record.
 type LogRecord struct {
 	Offset  uint64
@@ -181,7 +202,6 @@ func Open(path string) (*Engine, error) {
 	return &Engine{
 		db:        NewDB(eng),
 		engine:    eng,
-		stores:    make(map[channel.ChannelKey]*ChannelStore),
 		commitCfg: cfg,
 		committer: commit.NewCoordinator(eng, commitCoordinatorConfig(cfg)),
 	}, nil
@@ -196,7 +216,7 @@ func (e *Engine) ConfigureCommitCoordinator(cfg CommitCoordinatorConfig) {
 	e.mu.Lock()
 	old := e.committer
 	e.commitCfg = cfg
-	if e.engine != nil {
+	if e.engine != nil && !e.closing {
 		e.committer = commit.NewCoordinator(e.engine, commitCoordinatorConfig(cfg))
 	} else {
 		e.committer = nil
@@ -222,50 +242,54 @@ func (e *Engine) Close() error {
 	if e == nil {
 		return nil
 	}
-	e.mu.Lock()
-	eng := e.engine
-	committer := e.committer
-	e.engine = nil
-	e.db = nil
-	e.stores = nil
-	e.committer = nil
-	e.mu.Unlock()
-	if committer != nil {
-		committer.Close()
-	}
-	if eng == nil {
-		return nil
-	}
-	return eng.Close()
+	e.closeOnce.Do(func() {
+		e.mu.Lock()
+		db := e.db
+		committer := e.committer
+		e.closing = true
+		if db != nil && db.registry != nil {
+			db.registry.beginClose()
+		}
+		e.committer = nil
+		e.mu.Unlock()
+
+		if committer != nil {
+			committer.Close()
+		}
+		if db == nil {
+			e.mu.Lock()
+			e.engine = nil
+			e.mu.Unlock()
+			return
+		}
+		e.closeErr = db.closeWithBeforeEngineClose(func() {
+			e.mu.Lock()
+			if e.db == db {
+				e.db = nil
+				e.engine = nil
+			}
+			e.mu.Unlock()
+		})
+	})
+	return e.closeErr
 }
 
 // ForChannel returns the channel-scoped compatibility store.
-func (e *Engine) ForChannel(key channel.ChannelKey, id channel.ChannelID) *ChannelStore {
-	if e == nil {
-		return nil
+func (e *Engine) ForChannel(key channel.ChannelKey, id channel.ChannelID) (*ChannelStore, error) {
+	if e == nil || key == "" {
+		return nil, channel.ErrInvalidArgument
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.db == nil {
-		return &ChannelStore{}
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return nil, channel.ErrClosed
 	}
-	if e.stores == nil {
-		e.stores = make(map[channel.ChannelKey]*ChannelStore)
+	log, err := db.Channel(ChannelKey(key), ChannelID{ID: id.ID, Type: id.Type})
+	if err != nil {
+		return nil, toChannelError(err)
 	}
-	if st := e.stores[key]; st != nil {
-		if st.id != id {
-			panic("message: inconsistent channel key and channel id")
-		}
-		return st
-	}
-	st := &ChannelStore{
-		engine: e,
-		log:    e.db.Channel(ChannelKey(key), ChannelID{ID: id.ID, Type: id.Type}),
-		key:    key,
-		id:     id,
-	}
-	e.stores[key] = st
-	return st
+	return &ChannelStore{engine: e, log: log, key: key, id: id}, nil
 }
 
 // ListChannelsPage returns one ordered catalog page after the exclusive cursor.
@@ -287,10 +311,16 @@ func (e *Engine) ListChannelsPage(ctx context.Context, after ChannelKey, limit i
 
 // ListChannelKeys returns persisted channels with message or system state.
 func (e *Engine) ListChannelKeys() ([]channel.ChannelKey, error) {
-	if e == nil || e.db == nil {
+	if e == nil {
 		return nil, channel.ErrInvalidArgument
 	}
-	entries, err := e.db.ListChannels(context.Background())
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return nil, channel.ErrClosed
+	}
+	entries, err := db.ListChannels(context.Background())
 	if err != nil {
 		return nil, toChannelError(err)
 	}
@@ -303,18 +333,38 @@ func (e *Engine) ListChannelKeys() ([]channel.ChannelKey, error) {
 
 // Read returns offset-addressed records for channelKey in ascending order.
 func (e *Engine) Read(channelKey channel.ChannelKey, fromOffset uint64, limit int, maxBytes int) ([]LogRecord, error) {
-	if e == nil || e.db == nil || channelKey == "" {
+	if e == nil || channelKey == "" {
 		return nil, channel.ErrInvalidArgument
 	}
-	return readOffsetRecords(e.db.Channel(ChannelKey(channelKey), ChannelID{}), fromOffset, limit, maxBytes, false)
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return nil, channel.ErrClosed
+	}
+	if err := db.beginUse(); err != nil {
+		return nil, toChannelError(err)
+	}
+	defer db.endUse()
+	return readOffsetRecordsRaw(db, ChannelKey(channelKey), fromOffset, limit, maxBytes, false)
 }
 
 // ReadReverse returns offset-addressed records for channelKey in descending order.
 func (e *Engine) ReadReverse(channelKey channel.ChannelKey, fromOffset uint64, limit int, maxBytes int) ([]LogRecord, error) {
-	if e == nil || e.db == nil || channelKey == "" {
+	if e == nil || channelKey == "" {
 		return nil, channel.ErrInvalidArgument
 	}
-	return readOffsetRecords(e.db.Channel(ChannelKey(channelKey), ChannelID{}), fromOffset, limit, maxBytes, true)
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return nil, channel.ErrClosed
+	}
+	if err := db.beginUse(); err != nil {
+		return nil, toChannelError(err)
+	}
+	defer db.endUse()
+	return readOffsetRecordsRaw(db, ChannelKey(channelKey), fromOffset, limit, maxBytes, true)
 }
 
 func effectiveCommitCoordinatorConfig(cfg CommitCoordinatorConfig) CommitCoordinatorConfig {
@@ -424,20 +474,38 @@ func commitCoordinatorRequestResult(err error) string {
 	}
 }
 
-func (e *Engine) commitCoordinator() *commit.Coordinator {
-	if e == nil {
-		return nil
-	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.committer
-}
-
 func (s *ChannelStore) validate() error {
-	if s == nil || s.engine == nil || s.engine.db == nil || s.log == nil || s.key == "" {
+	if s == nil || s.engine == nil || s.log == nil || s.key == "" {
 		return channel.ErrInvalidArgument
 	}
+	if err := s.log.validateLease(); err != nil {
+		return toChannelError(err)
+	}
 	return nil
+}
+
+func (s *ChannelStore) beginUse() error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if err := s.log.beginUse(); err != nil {
+		return toChannelError(err)
+	}
+	return nil
+}
+
+func (s *ChannelStore) endUse() {
+	if s != nil && s.log != nil {
+		s.log.endUse()
+	}
+}
+
+// Close releases this compatibility lease without closing the shared engine.
+func (s *ChannelStore) Close() error {
+	if s == nil || s.log == nil {
+		return nil
+	}
+	return s.log.Close()
 }
 
 // Append appends compatibility records and returns the previous zero-based log end offset.
@@ -451,20 +519,22 @@ func (s *ChannelStore) AppendTrusted(records []channel.Record) (uint64, error) {
 }
 
 func (s *ChannelStore) appendRecords(ctx context.Context, records []channel.Record, mode AppendMode) (uint64, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return 0, err
 	}
+	defer s.endUse()
 	if err := ctxErr(ctx); err != nil {
 		return 0, err
 	}
 	s.log.appendMu.Lock()
-	defer s.log.appendMu.Unlock()
 
 	prepared, err := s.prepareAppendRecordsLocked(ctx, records, mode)
 	if err != nil {
+		s.log.appendMu.Unlock()
 		return 0, err
 	}
 	if !prepared.hasWrites() {
+		s.log.appendMu.Unlock()
 		return prepared.baseOffset, nil
 	}
 	if err := s.commitPreparedRowsBatch(ctx, []preparedCommitRows{prepared}, commitLaneLeaderAppend); err != nil {
@@ -488,62 +558,145 @@ func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatc
 		}
 		return results
 	}
-	valid := make([]AppendBatchItem, 0, len(items))
-	indexes := make([]int, 0, len(items))
+	activeStores := make(map[*ChannelStore]struct{}, len(items))
+	defer func() {
+		for store := range activeStores {
+			store.log.endUse()
+		}
+	}()
+	indexesByEntry := make(map[*channelEntry][]int, len(items))
 	for i, item := range items {
-		if item.Store == nil {
+		if item.Store == nil || item.Store.log == nil || item.Store.log.channelEntry == nil {
 			results[i].Err = channel.ErrInvalidArgument
+			continue
+		}
+		indexesByEntry[item.Store.log.channelEntry] = append(indexesByEntry[item.Store.log.channelEntry], i)
+	}
+	for _, indexes := range indexesByEntry {
+		if len(indexes) <= 1 {
+			continue
+		}
+		for _, index := range indexes {
+			results[index].Err = channel.ErrInvalidArgument
+		}
+	}
+	for i, item := range items {
+		if results[i].Err != nil {
 			continue
 		}
 		if err := item.Store.validate(); err != nil {
 			results[i].Err = err
 			continue
 		}
-		valid = append(valid, item)
-		indexes = append(indexes, i)
+		if _, ok := activeStores[item.Store]; !ok {
+			if err := item.Store.log.beginUse(); err != nil {
+				results[i].Err = toChannelError(err)
+				continue
+			}
+			activeStores[item.Store] = struct{}{}
+		}
 	}
-	if len(valid) == 0 {
+	groups := make([]batchOwnerGroup, 0)
+	groupByOwner := make(map[*Engine]int)
+	for index, item := range items {
+		if results[index].Err != nil {
+			continue
+		}
+		owner := item.Store.engine
+		groupIndex, ok := groupByOwner[owner]
+		if !ok {
+			groupIndex = len(groups)
+			groupByOwner[owner] = groupIndex
+			groups = append(groups, batchOwnerGroup{owner: owner})
+		}
+		groups[groupIndex].indexes = append(groups[groupIndex].indexes, index)
+	}
+	if len(groups) == 0 {
 		return results
 	}
-	unlock := lockCommitBatchStores(appendBatchStores(valid))
-	defer unlock()
+	for _, group := range groups {
+		if err := ctxErr(ctx); err != nil {
+			for _, index := range group.indexes {
+				results[index].Err = err
+			}
+			continue
+		}
+		storeAppendBatchOwner(ctx, group.owner, items, group.indexes, results)
+	}
+	return results
+}
 
-	preparedByEngine := make(map[*Engine][]preparedCommitRows)
-	for i, item := range valid {
-		index := indexes[i]
+func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBatchItem, indexes []int, results []AppendBatchResult) {
+	if err := ctxErr(ctx); err != nil {
+		for _, index := range indexes {
+			results[index].Err = err
+		}
+		return
+	}
+	entries := make([]*channelEntry, 0, len(indexes))
+	for _, index := range indexes {
+		entries = append(entries, items[index].Store.log.channelEntry)
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
+	for _, entry := range entries {
+		entry.appendMu.Lock()
+	}
+	locked := make(map[*channelEntry]struct{}, len(entries))
+	for _, entry := range entries {
+		locked[entry] = struct{}{}
+	}
+	defer func() {
+		for entry := range locked {
+			entry.appendMu.Unlock()
+		}
+	}()
+
+	preparedRows := make([]preparedCommitRows, 0, len(indexes))
+	for _, index := range indexes {
+		item := items[index]
+		entry := item.Store.log.channelEntry
 		if err := ctxErr(ctx); err != nil {
 			results[index].Err = err
+			entry.appendMu.Unlock()
+			delete(locked, entry)
 			continue
 		}
 		prepared, err := item.Store.prepareAppendRecordsLocked(ctx, item.Records, AppendStrict)
 		if err != nil {
 			results[index].Err = err
+			entry.appendMu.Unlock()
+			delete(locked, entry)
 			continue
 		}
 		prepared.index = index
 		results[index].BaseOffset = prepared.baseOffset
 		results[index].LastOffset = prepared.nextLEO
 		if !prepared.hasWrites() {
+			entry.appendMu.Unlock()
+			delete(locked, entry)
 			continue
 		}
-		preparedByEngine[item.Store.engine] = append(preparedByEngine[item.Store.engine], prepared)
+		preparedRows = append(preparedRows, prepared)
 	}
-	for owner, prepared := range preparedByEngine {
-		if err := commitPreparedRowsBatch(ctx, owner, prepared, commitLaneLeaderAppend); err != nil {
+	if len(preparedRows) > 0 {
+		for _, item := range preparedRows {
+			delete(locked, item.store.log.channelEntry)
+		}
+		if err := commitPreparedRowsBatch(ctx, owner, preparedRows, commitLaneLeaderAppend); err != nil {
 			err = toChannelError(err)
-			for _, item := range prepared {
+			for _, item := range preparedRows {
 				results[item.index].Err = err
 			}
 		}
 	}
-	return results
 }
 
 // Read returns compatibility records after from offset.
 func (s *ChannelStore) Read(from uint64, maxBytes int) ([]channel.Record, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return nil, err
 	}
+	defer s.endUse()
 	if maxBytes <= 0 || from == math.MaxUint64 {
 		return nil, nil
 	}
@@ -556,17 +709,19 @@ func (s *ChannelStore) Read(from uint64, maxBytes int) ([]channel.Record, error)
 
 // ReadOffsets returns offset-addressed records in ascending order.
 func (s *ChannelStore) ReadOffsets(fromOffset uint64, limit int, maxBytes int) ([]LogRecord, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return nil, err
 	}
+	defer s.endUse()
 	return readOffsetRecords(s.log, fromOffset, limit, maxBytes, false)
 }
 
 // ReadOffsetsReverse returns offset-addressed records in descending order.
 func (s *ChannelStore) ReadOffsetsReverse(fromOffset uint64, limit int, maxBytes int) ([]LogRecord, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return nil, err
 	}
+	defer s.endUse()
 	return readOffsetRecords(s.log, fromOffset, limit, maxBytes, true)
 }
 
@@ -601,6 +756,53 @@ func readOffsetRecords(log *ChannelLog, fromOffset uint64, limit int, maxBytes i
 	return records, nil
 }
 
+func readOffsetRecordsRaw(db *MessageDB, key ChannelKey, fromOffset uint64, limit int, maxBytes int, reverse bool) ([]LogRecord, error) {
+	if limit <= 0 || maxBytes <= 0 || (!reverse && fromOffset == math.MaxUint64) {
+		return nil, nil
+	}
+	var (
+		rows []messageRow
+		err  error
+	)
+	if reverse {
+		maxSeq := uint64(0)
+		if fromOffset < math.MaxUint64 {
+			maxSeq = fromOffset + 1
+		}
+		all, readErr := readRowsRaw(context.Background(), db, key, 1, maxSeq, ReadOptions{})
+		if readErr != nil {
+			return nil, toChannelError(readErr)
+		}
+		rows = make([]messageRow, 0, boundedCapacity(len(all), limit))
+		totalBytes := 0
+		for i := len(all) - 1; i >= 0; i-- {
+			row := all[i]
+			if len(rows) > 0 && totalBytes+len(row.Payload) > maxBytes {
+				break
+			}
+			rows = append(rows, row)
+			totalBytes += len(row.Payload)
+			if len(rows) == limit {
+				break
+			}
+		}
+	} else {
+		rows, err = readRowsRaw(context.Background(), db, key, fromOffset+1, 0, ReadOptions{Limit: limit, MaxBytes: maxBytes})
+		if err != nil {
+			return nil, toChannelError(err)
+		}
+	}
+	records := make([]LogRecord, 0, len(rows))
+	for _, row := range rows {
+		record, err := compatibilityRecordFromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, LogRecord{Offset: row.MessageSeq - 1, Payload: record.Payload})
+	}
+	return records, nil
+}
+
 // LEO returns the durable log end offset.
 func (s *ChannelStore) LEO() uint64 {
 	leo, err := s.LEOWithError()
@@ -612,10 +814,11 @@ func (s *ChannelStore) LEO() uint64 {
 
 // LEOWithError returns the durable log end offset and surfaces corrupt state.
 func (s *ChannelStore) LEOWithError() (uint64, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return 0, err
 	}
-	leo, err := s.log.LEO(context.Background())
+	defer s.endUse()
+	leo, err := s.log.loadLEO(context.Background())
 	if err != nil {
 		return 0, toChannelError(err)
 	}
@@ -624,22 +827,28 @@ func (s *ChannelStore) LEOWithError() (uint64, error) {
 
 // Truncate removes message rows after to while preserving retention state.
 func (s *ChannelStore) Truncate(to uint64) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
+	defer s.endUse()
 	return s.truncateLocked(context.Background(), to, false)
 }
 
 // Sync preserves the legacy fsync hook. Mutations already commit durably.
 func (s *ChannelStore) Sync() error {
-	return s.validate()
+	if err := s.beginUse(); err != nil {
+		return err
+	}
+	s.endUse()
+	return nil
 }
 
 // GetMessageBySeq loads one message by sequence.
 func (s *ChannelStore) GetMessageBySeq(seq uint64) (channel.Message, bool, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return channel.Message{}, false, err
 	}
+	defer s.endUse()
 	row, ok, err := s.log.getRowBySeq(context.Background(), seq)
 	if err != nil || !ok {
 		return channel.Message{}, ok, toChannelError(err)
@@ -649,9 +858,10 @@ func (s *ChannelStore) GetMessageBySeq(seq uint64) (channel.Message, bool, error
 
 // GetMessageByMessageID loads one message through the message_id index.
 func (s *ChannelStore) GetMessageByMessageID(messageID uint64) (channel.Message, bool, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return channel.Message{}, false, err
 	}
+	defer s.endUse()
 	seq, ok, err := s.log.lookupMessageIDSeq(context.Background(), messageID)
 	if err != nil || !ok {
 		return channel.Message{}, ok, toChannelError(err)
@@ -668,9 +878,10 @@ func (s *ChannelStore) GetMessageByMessageID(messageID uint64) (channel.Message,
 
 // ListMessagesBySeq scans persisted messages by sequence.
 func (s *ChannelStore) ListMessagesBySeq(fromSeq uint64, limit int, maxBytes int, reverse bool) ([]channel.Message, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return nil, err
 	}
+	defer s.endUse()
 	var (
 		rows []messageRow
 		err  error
@@ -692,10 +903,11 @@ func (s *ChannelStore) ListMessagesBySeq(fromSeq uint64, limit int, maxBytes int
 
 // ListMessagesByClientMsgNo scans one client_msg_no page in descending sequence order.
 func (s *ChannelStore) ListMessagesByClientMsgNo(clientMsgNo string, beforeSeq uint64, limit int) ([]channel.Message, uint64, bool, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return nil, 0, false, err
 	}
-	page, err := s.log.ListByClientMsgNo(context.Background(), clientMsgNo, beforeSeq, limit)
+	defer s.endUse()
+	page, err := s.log.listByClientMsgNo(context.Background(), clientMsgNo, beforeSeq, limit)
 	if err != nil {
 		return nil, 0, false, toChannelError(err)
 	}
@@ -712,10 +924,14 @@ func (s *ChannelStore) ListMessagesByClientMsgNo(clientMsgNo string, beforeSeq u
 
 // LookupIdempotency loads a durable idempotency hit.
 func (s *ChannelStore) LookupIdempotency(key channel.IdempotencyKey) (channel.IdempotencyEntry, uint64, bool, error) {
-	if err := s.validateIdempotencyKey(key); err != nil {
+	if err := s.beginUse(); err != nil {
 		return channel.IdempotencyEntry{}, 0, false, err
 	}
-	hit, ok, err := s.log.LookupIdempotency(context.Background(), IdempotencyKey{FromUID: key.FromUID, ClientMsgNo: key.ClientMsgNo})
+	defer s.endUse()
+	if err := validateCompatIdempotencyKey(s.id, key); err != nil {
+		return channel.IdempotencyEntry{}, 0, false, err
+	}
+	hit, ok, err := s.log.lookupIdempotency(context.Background(), IdempotencyKey{FromUID: key.FromUID, ClientMsgNo: key.ClientMsgNo})
 	if err != nil || !ok {
 		return channel.IdempotencyEntry{}, 0, ok, toChannelError(err)
 	}
@@ -724,7 +940,11 @@ func (s *ChannelStore) LookupIdempotency(key channel.IdempotencyKey) (channel.Id
 
 // PutIdempotency stores a legacy idempotency entry without requiring a message row.
 func (s *ChannelStore) PutIdempotency(key channel.IdempotencyKey, entry channel.IdempotencyEntry) error {
-	if err := s.validateIdempotencyKey(key); err != nil {
+	if err := s.beginUse(); err != nil {
+		return err
+	}
+	defer s.endUse()
+	if err := validateCompatIdempotencyKey(s.id, key); err != nil {
 		return err
 	}
 	value, err := encodeIdempotencyIndexValue(messageRow{
@@ -749,7 +969,11 @@ func (s *ChannelStore) PutIdempotency(key channel.IdempotencyKey, entry channel.
 
 // GetIdempotency loads a legacy idempotency entry without materializing the row.
 func (s *ChannelStore) GetIdempotency(key channel.IdempotencyKey) (channel.IdempotencyEntry, bool, error) {
-	if err := s.validateIdempotencyKey(key); err != nil {
+	if err := s.beginUse(); err != nil {
+		return channel.IdempotencyEntry{}, false, err
+	}
+	defer s.endUse()
+	if err := validateCompatIdempotencyKey(s.id, key); err != nil {
 		return channel.IdempotencyEntry{}, false, err
 	}
 	value, ok, err := s.log.db.engine.Get(encodeMessageIdempotencyIndexKey(s.log.key, key.FromUID, key.ClientMsgNo))
@@ -763,11 +987,8 @@ func (s *ChannelStore) GetIdempotency(key channel.IdempotencyKey) (channel.Idemp
 	return channel.IdempotencyEntry{MessageID: hit.MessageID, MessageSeq: hit.MessageSeq, Offset: hit.Offset}, true, nil
 }
 
-func (s *ChannelStore) validateIdempotencyKey(key channel.IdempotencyKey) error {
-	if err := s.validate(); err != nil {
-		return err
-	}
-	if key.ChannelID != s.id || key.FromUID == "" || key.ClientMsgNo == "" {
+func validateCompatIdempotencyKey(id channel.ChannelID, key channel.IdempotencyKey) error {
+	if key.ChannelID != id || key.FromUID == "" || key.ClientMsgNo == "" {
 		return channel.ErrInvalidArgument
 	}
 	return nil
@@ -794,20 +1015,32 @@ func (s *ChannelStore) StoreApplyFetchTrustedWithEpoch(req channel.ApplyFetchSto
 }
 
 func (s *ChannelStore) applyFetchedRecords(ctx context.Context, req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint, mode AppendMode) (uint64, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return 0, err
 	}
+	defer s.endUse()
 	if err := ctxErr(ctx); err != nil {
 		return 0, err
 	}
 	s.log.appendMu.Lock()
-	defer s.log.appendMu.Unlock()
+	checkpointLocked := req.Checkpoint != nil
+	if checkpointLocked {
+		s.log.checkpointMu.Lock()
+	}
 
 	prepared, err := s.prepareApplyFetchedRecordsLocked(ctx, req, epochPoint, mode)
 	if err != nil {
+		if checkpointLocked {
+			s.log.checkpointMu.Unlock()
+		}
+		s.log.appendMu.Unlock()
 		return 0, err
 	}
 	if !prepared.hasWrites() {
+		if checkpointLocked {
+			s.log.checkpointMu.Unlock()
+		}
+		s.log.appendMu.Unlock()
 		return prepared.nextLEO, nil
 	}
 	if err := s.commitPreparedRowsBatch(ctx, []preparedCommitRows{prepared}, commitLaneFollowerApply); err != nil {
@@ -831,96 +1064,157 @@ func StoreApplyFetchTrustedBatch(ctx context.Context, items []ApplyFetchBatchIte
 		}
 		return results
 	}
-	valid := make([]ApplyFetchBatchItem, 0, len(items))
-	indexes := make([]int, 0, len(items))
+	activeStores := make(map[*ChannelStore]struct{}, len(items))
+	defer func() {
+		for store := range activeStores {
+			store.log.endUse()
+		}
+	}()
+	indexesByEntry := make(map[*channelEntry][]int, len(items))
 	for i, item := range items {
-		if item.Store == nil {
+		if item.Store == nil || item.Store.log == nil || item.Store.log.channelEntry == nil {
 			results[i].Err = channel.ErrInvalidArgument
+			continue
+		}
+		indexesByEntry[item.Store.log.channelEntry] = append(indexesByEntry[item.Store.log.channelEntry], i)
+	}
+	for _, indexes := range indexesByEntry {
+		if len(indexes) <= 1 {
+			continue
+		}
+		for _, index := range indexes {
+			results[index].Err = channel.ErrInvalidArgument
+		}
+	}
+	for i, item := range items {
+		if results[i].Err != nil {
 			continue
 		}
 		if err := item.Store.validate(); err != nil {
 			results[i].Err = err
 			continue
 		}
-		valid = append(valid, item)
-		indexes = append(indexes, i)
+		if _, ok := activeStores[item.Store]; !ok {
+			if err := item.Store.log.beginUse(); err != nil {
+				results[i].Err = toChannelError(err)
+				continue
+			}
+			activeStores[item.Store] = struct{}{}
+		}
 	}
-	if len(valid) == 0 {
+	groups := make([]batchOwnerGroup, 0)
+	groupByOwner := make(map[*Engine]int)
+	for index, item := range items {
+		if results[index].Err != nil {
+			continue
+		}
+		owner := item.Store.engine
+		groupIndex, ok := groupByOwner[owner]
+		if !ok {
+			groupIndex = len(groups)
+			groupByOwner[owner] = groupIndex
+			groups = append(groups, batchOwnerGroup{owner: owner})
+		}
+		groups[groupIndex].indexes = append(groups[groupIndex].indexes, index)
+	}
+	if len(groups) == 0 {
 		return results
 	}
-	unlock := lockCommitBatchStores(applyFetchBatchStores(valid))
-	defer unlock()
+	for _, group := range groups {
+		if err := ctxErr(ctx); err != nil {
+			for _, index := range group.indexes {
+				results[index].Err = err
+			}
+			continue
+		}
+		storeApplyFetchBatchOwner(ctx, group.owner, items, group.indexes, results)
+	}
+	return results
+}
 
-	preparedByEngine := make(map[*Engine][]preparedCommitRows)
-	for i, item := range valid {
-		index := indexes[i]
+func storeApplyFetchBatchOwner(ctx context.Context, owner *Engine, items []ApplyFetchBatchItem, indexes []int, results []ApplyFetchBatchResult) {
+	if err := ctxErr(ctx); err != nil {
+		for _, index := range indexes {
+			results[index].Err = err
+		}
+		return
+	}
+	entries := make([]*channelEntry, 0, len(indexes))
+	checkpointEntries := make([]*channelEntry, 0, len(indexes))
+	checkpointSet := make(map[*channelEntry]struct{}, len(indexes))
+	for _, index := range indexes {
+		entry := items[index].Store.log.channelEntry
+		entries = append(entries, entry)
+		if items[index].Request.Checkpoint != nil {
+			checkpointEntries = append(checkpointEntries, entry)
+			checkpointSet[entry] = struct{}{}
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
+	sort.Slice(checkpointEntries, func(i, j int) bool { return checkpointEntries[i].key < checkpointEntries[j].key })
+	for _, entry := range entries {
+		entry.appendMu.Lock()
+	}
+	for _, entry := range checkpointEntries {
+		entry.checkpointMu.Lock()
+	}
+	locked := make(map[*channelEntry]struct{}, len(entries))
+	for _, entry := range entries {
+		locked[entry] = struct{}{}
+	}
+	defer func() {
+		for entry := range locked {
+			if _, ok := checkpointSet[entry]; ok {
+				entry.checkpointMu.Unlock()
+			}
+			entry.appendMu.Unlock()
+		}
+	}()
+
+	preparedRows := make([]preparedCommitRows, 0, len(indexes))
+	for _, index := range indexes {
+		item := items[index]
+		entry := item.Store.log.channelEntry
 		if err := ctxErr(ctx); err != nil {
 			results[index].Err = err
+			if _, ok := checkpointSet[entry]; ok {
+				entry.checkpointMu.Unlock()
+			}
+			entry.appendMu.Unlock()
+			delete(locked, entry)
 			continue
 		}
 		prepared, err := item.Store.prepareApplyFetchedRecordsLocked(ctx, item.Request, nil, AppendTrustedContiguous)
 		if err != nil {
 			results[index].Err = err
+			if _, ok := checkpointSet[entry]; ok {
+				entry.checkpointMu.Unlock()
+			}
+			entry.appendMu.Unlock()
+			delete(locked, entry)
 			continue
 		}
 		prepared.index = index
 		results[index].LEO = prepared.nextLEO
 		if !prepared.hasWrites() {
+			if _, ok := checkpointSet[entry]; ok {
+				entry.checkpointMu.Unlock()
+			}
+			entry.appendMu.Unlock()
+			delete(locked, entry)
 			continue
 		}
-		preparedByEngine[item.Store.engine] = append(preparedByEngine[item.Store.engine], prepared)
+		preparedRows = append(preparedRows, prepared)
 	}
-	for owner, prepared := range preparedByEngine {
-		if err := commitPreparedRowsBatch(ctx, owner, prepared, commitLaneFollowerApply); err != nil {
+	if len(preparedRows) > 0 {
+		for _, item := range preparedRows {
+			delete(locked, item.store.log.channelEntry)
+		}
+		if err := commitPreparedRowsBatch(ctx, owner, preparedRows, commitLaneFollowerApply); err != nil {
 			err = toChannelError(err)
-			for _, item := range prepared {
+			for _, item := range preparedRows {
 				results[item.index].Err = err
 			}
-		}
-	}
-	return results
-}
-
-func appendBatchStores(items []AppendBatchItem) []*ChannelStore {
-	stores := make([]*ChannelStore, 0, len(items))
-	for _, item := range items {
-		if item.Store != nil {
-			stores = append(stores, item.Store)
-		}
-	}
-	return stores
-}
-
-func applyFetchBatchStores(items []ApplyFetchBatchItem) []*ChannelStore {
-	stores := make([]*ChannelStore, 0, len(items))
-	for _, item := range items {
-		if item.Store != nil {
-			stores = append(stores, item.Store)
-		}
-	}
-	return stores
-}
-
-func lockCommitBatchStores(input []*ChannelStore) func() {
-	storesByKey := make(map[*ChannelStore]struct{}, len(input))
-	stores := make([]*ChannelStore, 0, len(input))
-	for _, store := range input {
-		if store == nil {
-			continue
-		}
-		if _, ok := storesByKey[store]; ok {
-			continue
-		}
-		storesByKey[store] = struct{}{}
-		stores = append(stores, store)
-	}
-	sort.SliceStable(stores, func(i, j int) bool { return stores[i].key < stores[j].key })
-	for _, store := range stores {
-		store.log.appendMu.Lock()
-	}
-	return func() {
-		for i := len(stores) - 1; i >= 0; i-- {
-			stores[i].log.appendMu.Unlock()
 		}
 	}
 }
@@ -932,6 +1226,15 @@ type preparedCommitRows struct {
 	checkpoint *Checkpoint
 	point      *EpochPoint
 	baseOffset uint64
+	nextLEO    uint64
+}
+
+type preparedCommitMutation struct {
+	// entry is the canonical state pinned for asynchronous commit work.
+	entry      *channelEntry
+	rows       []messageRow
+	checkpoint *Checkpoint
+	point      *EpochPoint
 	nextLEO    uint64
 }
 
@@ -974,7 +1277,7 @@ func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req
 		if req.Checkpoint.HW < req.PreviousCommittedHW || req.Checkpoint.HW > nextLEO {
 			return preparedCommitRows{}, channel.ErrCorruptState
 		}
-		if err := s.log.validateCheckpointMonotonic(ctx, checkpointFromChannel(*req.Checkpoint), nextLEO, nextLEO); err != nil {
+		if err := s.log.validateCheckpointMonotonicLocked(ctx, checkpointFromChannel(*req.Checkpoint), nextLEO, nextLEO); err != nil {
 			return preparedCommitRows{}, toChannelError(err)
 		}
 		converted := checkpointFromChannel(*req.Checkpoint)
@@ -1009,10 +1312,11 @@ func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req
 
 // LoadCheckpoint loads the durable checkpoint.
 func (s *ChannelStore) LoadCheckpoint() (channel.Checkpoint, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return channel.Checkpoint{}, err
 	}
-	checkpoint, ok, err := s.log.LoadCheckpoint(context.Background())
+	defer s.endUse()
+	checkpoint, ok, err := s.log.loadCheckpoint(context.Background())
 	if err != nil {
 		return channel.Checkpoint{}, toChannelError(err)
 	}
@@ -1024,10 +1328,13 @@ func (s *ChannelStore) LoadCheckpoint() (channel.Checkpoint, error) {
 
 // StoreCheckpoint stores checkpoint without monotonic validation.
 func (s *ChannelStore) StoreCheckpoint(checkpoint channel.Checkpoint) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
-	if err := s.log.StoreCheckpoint(context.Background(), checkpointFromChannel(checkpoint)); err != nil {
+	defer s.endUse()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
+	if err := s.log.storeCheckpointLocked(context.Background(), checkpointFromChannel(checkpoint)); err != nil {
 		return toChannelError(err)
 	}
 	return nil
@@ -1035,21 +1342,51 @@ func (s *ChannelStore) StoreCheckpoint(checkpoint channel.Checkpoint) error {
 
 // StoreCheckpointMonotonic stores checkpoint after durable monotonic validation.
 func (s *ChannelStore) StoreCheckpointMonotonic(ctx context.Context, checkpoint channel.Checkpoint, visibleHW uint64, leo uint64) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
-	if err := s.log.StoreCheckpointMonotonic(ctx, checkpointFromChannel(checkpoint), visibleHW, leo); err != nil {
+	defer s.endUse()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
+	converted := checkpointFromChannel(checkpoint)
+	if err := s.log.validateCheckpointMonotonicLocked(ctx, converted, visibleHW, leo); err != nil {
+		return toChannelError(err)
+	}
+	if err := s.log.storeCheckpointLocked(ctx, converted); err != nil {
 		return toChannelError(err)
 	}
 	return nil
 }
 
+// StoreCheckpointHWMonotonic advances only the high watermark under the canonical checkpoint lock.
+func (s *ChannelStore) StoreCheckpointHWMonotonic(ctx context.Context, hw uint64) error {
+	if err := s.beginUse(); err != nil {
+		return err
+	}
+	defer s.endUse()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
+	current, ok, err := s.log.loadCheckpoint(ctx)
+	if err != nil {
+		return toChannelError(err)
+	}
+	if !ok {
+		current = Checkpoint{}
+	}
+	if ok && hw <= current.HW {
+		return nil
+	}
+	current.HW = hw
+	return toChannelError(s.log.storeCheckpointLocked(ctx, current))
+}
+
 // LoadHistory loads epoch history points.
 func (s *ChannelStore) LoadHistory() ([]channel.EpochPoint, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return nil, err
 	}
-	points, ok, err := s.log.LoadHistory(context.Background())
+	defer s.endUse()
+	points, ok, err := s.log.loadHistory(context.Background())
 	if err != nil {
 		return nil, toChannelError(err)
 	}
@@ -1065,10 +1402,11 @@ func (s *ChannelStore) LoadHistory() ([]channel.EpochPoint, error) {
 
 // AppendHistory appends an epoch history point.
 func (s *ChannelStore) AppendHistory(point channel.EpochPoint) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
-	if err := s.log.AppendHistory(context.Background(), epochPointFromChannel(point)); err != nil {
+	defer s.endUse()
+	if err := s.log.appendHistory(context.Background(), epochPointFromChannel(point)); err != nil {
 		return toChannelError(err)
 	}
 	return nil
@@ -1076,10 +1414,11 @@ func (s *ChannelStore) AppendHistory(point channel.EpochPoint) error {
 
 // TruncateHistoryTo removes history points after leo.
 func (s *ChannelStore) TruncateHistoryTo(leo uint64) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
-	if err := s.log.TruncateHistoryTo(context.Background(), leo); err != nil {
+	defer s.endUse()
+	if err := s.log.truncateHistoryTo(context.Background(), leo); err != nil {
 		return toChannelError(err)
 	}
 	return nil
@@ -1087,9 +1426,10 @@ func (s *ChannelStore) TruncateHistoryTo(leo uint64) error {
 
 // BeginEpoch durably appends an epoch boundary at expectedLEO.
 func (s *ChannelStore) BeginEpoch(ctx context.Context, point channel.EpochPoint, expectedLEO uint64) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
+	defer s.endUse()
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -1122,9 +1462,10 @@ func (s *ChannelStore) BeginEpoch(ctx context.Context, point channel.EpochPoint,
 
 // TruncateLogAndHistory truncates message rows and future epoch history together.
 func (s *ChannelStore) TruncateLogAndHistory(ctx context.Context, to uint64) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
+	defer s.endUse()
 	return s.truncateLocked(ctx, to, true)
 }
 
@@ -1186,10 +1527,11 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 
 // StoreSnapshotPayload stores snapshot payload bytes.
 func (s *ChannelStore) StoreSnapshotPayload(payload []byte) error {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return err
 	}
-	if err := s.log.StoreSnapshotPayload(context.Background(), payload); err != nil {
+	defer s.endUse()
+	if err := s.log.storeSnapshotPayload(context.Background(), payload); err != nil {
 		return toChannelError(err)
 	}
 	return nil
@@ -1197,10 +1539,11 @@ func (s *ChannelStore) StoreSnapshotPayload(payload []byte) error {
 
 // LoadSnapshotPayload loads snapshot payload bytes, returning nil when missing.
 func (s *ChannelStore) LoadSnapshotPayload() ([]byte, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return nil, err
 	}
-	payload, _, err := s.log.LoadSnapshotPayload(context.Background())
+	defer s.endUse()
+	payload, _, err := s.log.loadSnapshotPayload(context.Background())
 	if err != nil {
 		return nil, toChannelError(err)
 	}
@@ -1209,14 +1552,19 @@ func (s *ChannelStore) LoadSnapshotPayload() ([]byte, error) {
 
 // InstallSnapshotAtomically stores snapshot payload, checkpoint, and history together.
 func (s *ChannelStore) InstallSnapshotAtomically(ctx context.Context, snap channel.Snapshot, checkpoint channel.Checkpoint, epochPoint channel.EpochPoint) (uint64, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return 0, err
 	}
-	leo, err := s.log.LEO(ctx)
+	defer s.endUse()
+	s.log.appendMu.Lock()
+	defer s.log.appendMu.Unlock()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
+	leo, err := s.log.loadLEOLocked(ctx)
 	if err != nil {
 		return 0, toChannelError(err)
 	}
-	_, err = s.log.InstallSnapshot(ctx, Snapshot{Epoch: snap.Epoch, EndOffset: snap.EndOffset, Payload: snap.Payload}, checkpointFromChannel(checkpoint), epochPointFromChannel(epochPoint))
+	_, err = s.log.installSnapshotLocked(ctx, Snapshot{Epoch: snap.Epoch, EndOffset: snap.EndOffset, Payload: snap.Payload}, checkpointFromChannel(checkpoint), epochPointFromChannel(epochPoint), leo)
 	if err != nil {
 		return 0, toChannelError(err)
 	}
@@ -1225,10 +1573,11 @@ func (s *ChannelStore) InstallSnapshotAtomically(ctx context.Context, snap chann
 
 // LoadRetentionState loads durable local retention progress.
 func (s *ChannelStore) LoadRetentionState() (channel.RetentionState, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return channel.RetentionState{}, err
 	}
-	state, ok, err := s.log.LoadRetentionState(context.Background())
+	defer s.endUse()
+	state, ok, err := s.log.loadRetentionState(context.Background())
 	if err != nil {
 		return channel.RetentionState{}, toChannelError(err)
 	}
@@ -1240,9 +1589,10 @@ func (s *ChannelStore) LoadRetentionState() (channel.RetentionState, error) {
 
 // ScanExpiredMessagePrefix scans the continuous local message prefix whose timestamps have expired.
 func (s *ChannelStore) ScanExpiredMessagePrefix(fromSeq uint64, cutoff time.Time, limit int) (RetentionScanResult, error) {
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return RetentionScanResult{}, err
 	}
+	defer s.endUse()
 	if fromSeq == 0 {
 		fromSeq = 1
 	}
@@ -1296,10 +1646,14 @@ func (s *ChannelStore) ScanExpiredMessagePrefix(fromSeq uint64, cutoff time.Time
 
 // AdoptRetentionBoundary records a local retention boundary and advances replay cursor.
 func (s *ChannelStore) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) error {
+	if err := s.beginUse(); err != nil {
+		return err
+	}
+	defer s.endUse()
 	if throughSeq == 0 {
 		return channel.ErrInvalidArgument
 	}
-	if err := s.validateCursorName(cursorName); err != nil {
+	if err := validateCursorName(cursorName); err != nil {
 		return err
 	}
 	if err := ctxErr(ctx); err != nil {
@@ -1366,9 +1720,10 @@ func (s *ChannelStore) TrimMessagesThroughLimit(ctx context.Context, throughSeq 
 	if throughSeq == 0 {
 		return RetentionTrimResult{}, channel.ErrInvalidArgument
 	}
-	if err := s.validate(); err != nil {
+	if err := s.beginUse(); err != nil {
 		return RetentionTrimResult{}, err
 	}
+	defer s.endUse()
 	if err := ctxErr(ctx); err != nil {
 		return RetentionTrimResult{}, err
 	}
@@ -1378,7 +1733,11 @@ func (s *ChannelStore) TrimMessagesThroughLimit(ctx context.Context, throughSeq 
 
 // LoadCommittedDispatchCursor loads the last dispatched sequence for a replay lane.
 func (s *ChannelStore) LoadCommittedDispatchCursor(name string) (uint64, bool, error) {
-	if err := s.validateCursorName(name); err != nil {
+	if err := s.beginUse(); err != nil {
+		return 0, false, err
+	}
+	defer s.endUse()
+	if err := validateCursorName(name); err != nil {
 		return 0, false, err
 	}
 	return s.loadCommittedDispatchCursor(name)
@@ -1386,7 +1745,11 @@ func (s *ChannelStore) LoadCommittedDispatchCursor(name string) (uint64, bool, e
 
 // StoreCommittedDispatchCursor persists replay progress for a lane.
 func (s *ChannelStore) StoreCommittedDispatchCursor(name string, seq uint64) error {
-	if err := s.validateCursorName(name); err != nil {
+	if err := s.beginUse(); err != nil {
+		return err
+	}
+	defer s.endUse()
+	if err := validateCursorName(name); err != nil {
 		return err
 	}
 	current, ok, err := s.loadCommittedDispatchCursor(name)
@@ -1401,7 +1764,11 @@ func (s *ChannelStore) StoreCommittedDispatchCursor(name string, seq uint64) err
 
 // ConfirmCommittedDispatchCursorDurable syncs an existing cursor when it is at least minSeq.
 func (s *ChannelStore) ConfirmCommittedDispatchCursorDurable(name string, minSeq uint64) (uint64, error) {
-	if err := s.validateCursorName(name); err != nil {
+	if err := s.beginUse(); err != nil {
+		return 0, err
+	}
+	defer s.endUse()
+	if err := validateCursorName(name); err != nil {
 		return 0, err
 	}
 	seq, ok, err := s.loadCommittedDispatchCursor(name)
@@ -1422,7 +1789,11 @@ func (s *ChannelStore) ConfirmCommittedDispatchCursorDurable(name string, minSeq
 
 // AdvanceCommittedDispatchCursorDurable durably moves a replay cursor forward.
 func (s *ChannelStore) AdvanceCommittedDispatchCursorDurable(name string, seq uint64) error {
-	if err := s.validateCursorName(name); err != nil {
+	if err := s.beginUse(); err != nil {
+		return err
+	}
+	defer s.endUse()
+	if err := validateCursorName(name); err != nil {
 		return err
 	}
 	current, ok, err := s.loadCommittedDispatchCursor(name)
@@ -1435,10 +1806,7 @@ func (s *ChannelStore) AdvanceCommittedDispatchCursorDurable(name string, seq ui
 	return s.storeCommittedDispatchCursor(name, seq, true)
 }
 
-func (s *ChannelStore) validateCursorName(name string) error {
-	if err := s.validate(); err != nil {
-		return err
-	}
+func validateCursorName(name string) error {
 	if name == "" {
 		return channel.ErrInvalidArgument
 	}
@@ -1473,32 +1841,13 @@ func (s *ChannelStore) storeCommittedDispatchCursor(name string, seq uint64, syn
 
 func (s *ChannelStore) validateRowsForAppend(ctx context.Context, rows []messageRow, mode AppendMode) error {
 	seen := newAppendValidationSeen(len(rows))
-	cache := s.log.ensureAppendKeyCache()
+	cache := s.log.appendKeyCache
 	scratch := appendValidationScratch{}
 	for _, row := range rows {
 		if err := s.log.validateAppendRow(ctx, row, &seen, mode, cache, &scratch); err != nil {
 			return toChannelError(err)
 		}
 	}
-	return nil
-}
-
-func (s *ChannelStore) commitRowsLocked(ctx context.Context, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64, lane string) error {
-	if err := ctxErr(ctx); err != nil {
-		return err
-	}
-	if committer := s.engine.commitCoordinator(); committer != nil {
-		return s.commitRowsWithCoordinator(ctx, committer, rows, checkpoint, point, nextLEO, lane)
-	}
-	batch := s.log.db.engine.NewBatch()
-	defer batch.Close()
-	if err := s.stageCommitRows(batch, rows, checkpoint, point); err != nil {
-		return err
-	}
-	if err := batch.Commit(true); err != nil {
-		return toChannelError(err)
-	}
-	s.publishCommittedRows(rows, nextLEO)
 	return nil
 }
 
@@ -1510,11 +1859,43 @@ func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []prep
 	if len(prepared) == 0 {
 		return nil
 	}
+	appendEntries, checkpointEntries, duplicate := preparedCommitEntries(prepared)
+	if len(appendEntries) == 0 {
+		return channel.ErrInvalidArgument
+	}
+	if duplicate {
+		unlockCommitEntries(appendEntries, checkpointEntries)
+		return channel.ErrInvalidArgument
+	}
 	if err := ctxErr(ctx); err != nil {
+		unlockCommitEntries(appendEntries, checkpointEntries)
 		return err
 	}
-	if owner == nil || owner.engine == nil {
+	if owner == nil {
+		unlockCommitEntries(appendEntries, checkpointEntries)
 		return channel.ErrInvalidArgument
+	}
+	owner.mu.Lock()
+	physical := owner.engine
+	committer := owner.committer
+	owner.mu.Unlock()
+	if physical == nil {
+		unlockCommitEntries(appendEntries, checkpointEntries)
+		return channel.ErrClosed
+	}
+	ownership, err := newCommitOwnership(appendEntries[0].db.registry, appendEntries, checkpointEntries)
+	if err != nil {
+		return toChannelError(err)
+	}
+	mutations := make([]preparedCommitMutation, 0, len(prepared))
+	for _, item := range prepared {
+		mutations = append(mutations, preparedCommitMutation{
+			entry:      item.store.log.channelEntry,
+			rows:       item.rows,
+			checkpoint: item.checkpoint,
+			point:      item.point,
+			nextLEO:    item.nextLEO,
+		})
 	}
 	request := commit.Request{
 		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commit.PriorityHigh},
@@ -1522,27 +1903,29 @@ func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []prep
 		Records:   preparedRowsRecordCount(prepared),
 		Bytes:     preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
-			for _, item := range prepared {
-				if err := item.store.stageCommitRows(batch, item.rows, item.checkpoint, item.point); err != nil {
+			for _, mutation := range mutations {
+				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point); err != nil {
 					return err
 				}
 			}
 			return nil
 		},
 		Publish: func() error {
-			for _, item := range prepared {
-				item.store.publishCommittedRows(item.rows, item.nextLEO)
+			for _, mutation := range mutations {
+				mutation.entry.publishCommittedRows(mutation.rows, mutation.nextLEO)
 			}
 			return nil
 		},
+		Finalize: ownership.finalize,
 	}
-	if committer := owner.commitCoordinator(); committer != nil {
+	if committer != nil {
 		if err := committer.Submit(ctx, request); err != nil {
 			return toChannelError(err)
 		}
 		return nil
 	}
-	batch := owner.engine.NewBatch()
+	defer ownership.finalize()
+	batch := physical.NewBatch()
 	defer batch.Close()
 	if err := request.Build(batch); err != nil {
 		return err
@@ -1578,26 +1961,6 @@ func preparedRowsPartition(prepared []preparedCommitRows, lane string) string {
 	return commitRowsLaneName(lane) + ":batch"
 }
 
-func (s *ChannelStore) commitRowsWithCoordinator(ctx context.Context, committer *commit.Coordinator, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64, lane string) error {
-	err := committer.Submit(ctx, commit.Request{
-		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commit.PriorityHigh},
-		Partition: string(s.key),
-		Records:   len(rows),
-		Bytes:     messageRowsBytes(rows),
-		Build: func(batch *engine.Batch) error {
-			return s.stageCommitRows(batch, rows, checkpoint, point)
-		},
-		Publish: func() error {
-			s.publishCommittedRows(rows, nextLEO)
-			return nil
-		},
-	})
-	if err != nil {
-		return toChannelError(err)
-	}
-	return nil
-}
-
 func commitRowsLaneName(lane string) string {
 	if lane == "" {
 		return commitLaneMessageAppend
@@ -1605,30 +1968,30 @@ func commitRowsLaneName(lane string) string {
 	return lane
 }
 
-func (s *ChannelStore) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint) error {
-	if err := s.log.stageMessageRows(batch, rows); err != nil {
+func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint) error {
+	if err := e.stageMessageRows(batch, rows); err != nil {
 		return toChannelError(err)
 	}
 	if checkpoint != nil {
-		if err := batch.Set(encodeCheckpointKey(s.log.key), encodeCheckpoint(*checkpoint)); err != nil {
+		if err := batch.Set(encodeCheckpointKey(e.key), encodeCheckpoint(*checkpoint)); err != nil {
 			return toChannelError(err)
 		}
 	}
 	if point != nil {
-		if err := s.log.writeHistoryPoint(batch, *point); err != nil {
+		if err := e.writeHistoryPoint(batch, *point); err != nil {
 			return toChannelError(err)
 		}
 	}
-	if err := s.log.stageCatalog(batch); err != nil {
+	if err := e.stageCatalog(batch); err != nil {
 		return toChannelError(err)
 	}
 	return nil
 }
 
-func (s *ChannelStore) publishCommittedRows(rows []messageRow, nextLEO uint64) {
+func (e *channelEntry) publishCommittedRows(rows []messageRow, nextLEO uint64) {
 	if len(rows) > 0 {
-		s.log.leo.Store(nextLEO)
-		s.log.loaded.Store(true)
+		e.leo.Store(nextLEO)
+		e.loaded.Store(true)
 	}
 }
 
@@ -1641,7 +2004,7 @@ func messageRowsBytes(rows []messageRow) int {
 }
 
 func (s *ChannelStore) shouldAppendEpochPoint(ctx context.Context, point channel.EpochPoint) (bool, error) {
-	points, ok, err := s.log.LoadHistory(ctx)
+	points, ok, err := s.log.loadHistory(ctx)
 	if err != nil {
 		return false, toChannelError(err)
 	}
@@ -1656,7 +2019,7 @@ func (s *ChannelStore) shouldAppendEpochPoint(ctx context.Context, point channel
 }
 
 func (s *ChannelStore) loadRetentionState(ctx context.Context) (RetentionState, error) {
-	state, ok, err := s.log.LoadRetentionState(ctx)
+	state, ok, err := s.log.loadRetentionState(ctx)
 	if err != nil {
 		return RetentionState{}, toChannelError(err)
 	}
@@ -1667,7 +2030,7 @@ func (s *ChannelStore) loadRetentionState(ctx context.Context) (RetentionState, 
 }
 
 func (s *ChannelStore) retentionStateAfterTruncate(ctx context.Context, to uint64) (RetentionState, bool, error) {
-	state, ok, err := s.log.LoadRetentionState(ctx)
+	state, ok, err := s.log.loadRetentionState(ctx)
 	if err != nil || !ok {
 		return RetentionState{}, false, toChannelError(err)
 	}
@@ -1685,18 +2048,22 @@ func (s *ChannelStore) retentionStateAfterTruncate(ctx context.Context, to uint6
 }
 
 func (l *ChannelLog) readRows(ctx context.Context, fromSeq uint64, maxSeq uint64, opts ReadOptions) ([]messageRow, error) {
+	return readRowsRaw(ctx, l.db, l.key, fromSeq, maxSeq, opts)
+}
+
+func readRowsRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, fromSeq uint64, maxSeq uint64, opts ReadOptions) ([]messageRow, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
+	if db == nil || db.engine == nil {
 		return nil, dberrors.ErrClosed
 	}
 	if fromSeq == 0 {
 		fromSeq = 1
 	}
-	prefix := encodeMessageRowPrefix(l.key)
+	prefix := encodeMessageRowPrefix(channelKey)
 	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := l.db.engine.NewIter(engine.Span{Start: encodeMessageRowKey(l.key, fromSeq, messageHeaderFamilyID), End: span.End}, engine.IterOptions{})
+	iter, err := db.engine.NewIter(engine.Span{Start: encodeMessageRowKey(channelKey, fromSeq, messageHeaderFamilyID), End: span.End}, engine.IterOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1734,7 +2101,7 @@ func (l *ChannelLog) readRows(ctx context.Context, fromSeq uint64, maxSeq uint64
 			return nil, err
 		}
 		key := iter.Key()
-		seq, familyID, ok := decodeMessageRowKey(l.key, key)
+		seq, familyID, ok := decodeMessageRowKey(channelKey, key)
 		if !ok {
 			continue
 		}
@@ -1776,7 +2143,9 @@ func (l *ChannelLog) readRows(ctx context.Context, fromSeq uint64, maxSeq uint64
 
 func (l *ChannelLog) readRowsReverse(ctx context.Context, fromSeq uint64, opts ReadOptions) ([]messageRow, error) {
 	if fromSeq == 0 {
-		leo, err := l.LEO(ctx)
+		l.appendMu.Lock()
+		leo, err := l.loadLEOLocked(ctx)
+		l.appendMu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -2099,7 +2468,10 @@ func toChannelError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, dberrors.ErrInvalidArgument) || errors.Is(err, dberrors.ErrClosed) {
+	if errors.Is(err, dberrors.ErrClosed) {
+		return fmt.Errorf("%w: %v", channel.ErrClosed, err)
+	}
+	if errors.Is(err, dberrors.ErrInvalidArgument) {
 		return fmt.Errorf("%w: %v", channel.ErrInvalidArgument, err)
 	}
 	if errors.Is(err, dberrors.ErrCorruptValue) || errors.Is(err, dberrors.ErrChecksumMismatch) {

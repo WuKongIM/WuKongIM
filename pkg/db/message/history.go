@@ -12,11 +12,16 @@ import (
 
 // LoadHistory loads epoch history points in offset order.
 func (l *ChannelLog) LoadHistory(ctx context.Context) ([]EpochPoint, bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return nil, false, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return nil, false, dberrors.ErrClosed
+	defer l.endUse()
+	return l.loadHistory(ctx)
+}
+
+func (l *ChannelLog) loadHistory(ctx context.Context) ([]EpochPoint, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
 	}
 	prefix := encodeHistoryPrefix(l.key)
 	span := keycodec.NewPrefixSpan(prefix)
@@ -48,13 +53,18 @@ func (l *ChannelLog) LoadHistory(ctx context.Context) ([]EpochPoint, bool, error
 
 // AppendHistory appends an epoch point when it advances the current history.
 func (l *ChannelLog) AppendHistory(ctx context.Context, point EpochPoint) error {
+	if err := l.beginUse(); err != nil {
+		return err
+	}
+	defer l.endUse()
+	return l.appendHistory(ctx, point)
+}
+
+func (l *ChannelLog) appendHistory(ctx context.Context, point EpochPoint) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return dberrors.ErrClosed
-	}
-	points, ok, err := l.LoadHistory(ctx)
+	points, ok, err := l.loadHistory(ctx)
 	if err != nil {
 		return err
 	}
@@ -78,11 +88,16 @@ func (l *ChannelLog) AppendHistory(ctx context.Context, point EpochPoint) error 
 
 // TruncateHistoryTo removes history points after leo.
 func (l *ChannelLog) TruncateHistoryTo(ctx context.Context, leo uint64) error {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return dberrors.ErrClosed
+	defer l.endUse()
+	return l.truncateHistoryTo(ctx, leo)
+}
+
+func (l *ChannelLog) truncateHistoryTo(ctx context.Context, leo uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if leo == ^uint64(0) {
 		return nil
@@ -100,7 +115,7 @@ func (l *ChannelLog) TruncateHistoryTo(ctx context.Context, leo uint64) error {
 	return batch.Commit(true)
 }
 
-func (l *ChannelLog) writeHistoryPoint(batch *engine.Batch, point EpochPoint) error {
+func (l *channelEntry) writeHistoryPoint(batch *engine.Batch, point EpochPoint) error {
 	if point.Epoch == 0 {
 		return dberrors.ErrCorruptState
 	}

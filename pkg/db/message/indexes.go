@@ -12,6 +12,10 @@ import (
 
 // GetByMessageID returns one message using the unique message ID index.
 func (l *ChannelLog) GetByMessageID(ctx context.Context, messageID uint64) (Message, bool, error) {
+	if err := l.beginUse(); err != nil {
+		return Message{}, false, err
+	}
+	defer l.endUse()
 	seq, ok, err := l.lookupMessageIDSeq(ctx, messageID)
 	if err != nil || !ok {
 		return Message{}, ok, err
@@ -28,11 +32,16 @@ func (l *ChannelLog) GetByMessageID(ctx context.Context, messageID uint64) (Mess
 
 // ListByClientMsgNo returns messages for one client message number newest first.
 func (l *ChannelLog) ListByClientMsgNo(ctx context.Context, clientMsgNo string, beforeSeq uint64, limit int) (MessagePage, error) {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return MessagePage{}, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return MessagePage{}, dberrors.ErrClosed
+	defer l.endUse()
+	return l.listByClientMsgNo(ctx, clientMsgNo, beforeSeq, limit)
+}
+
+func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, beforeSeq uint64, limit int) (MessagePage, error) {
+	if err := ctx.Err(); err != nil {
+		return MessagePage{}, err
 	}
 	if clientMsgNo == "" || limit <= 0 {
 		return MessagePage{}, dberrors.ErrInvalidArgument
@@ -89,7 +98,7 @@ func (l *ChannelLog) lookupMessageIDSeq(ctx context.Context, messageID uint64) (
 	if messageID == 0 {
 		return 0, false, dberrors.ErrInvalidArgument
 	}
-	cache := l.ensureAppendKeyCache()
+	cache := l.appendKeyCache
 	return l.lookupMessageIDSeqByKey(ctx, cache.messageIDIndexKey(messageID))
 }
 

@@ -47,9 +47,10 @@ type InspectMessageResult struct {
 
 // InspectChannels lists message catalog channels for read-only diagnostics.
 func InspectChannels(ctx context.Context, db *MessageDB, req InspectMessageRequest) (InspectMessageResult, error) {
-	if err := inspectMessageCheckDB(db); err != nil {
+	if err := db.beginUse(); err != nil {
 		return InspectMessageResult{}, err
 	}
+	defer db.endUse()
 	if req.Limit <= 0 {
 		req.Limit = 100
 	}
@@ -157,9 +158,10 @@ func decodeCatalogIteratorEntry(iter *engine.Iter) (ChannelKey, ChannelCatalogEn
 
 // InspectMessages scans one channel's messages for read-only diagnostics.
 func InspectMessages(ctx context.Context, db *MessageDB, req InspectMessageRequest) (InspectMessageResult, error) {
-	if err := inspectMessageCheckDB(db); err != nil {
+	if err := db.beginUse(); err != nil {
 		return InspectMessageResult{}, err
 	}
+	defer db.endUse()
 	if req.ChannelKey == "" {
 		return InspectMessageResult{}, dberrors.ErrInvalidArgument
 	}
@@ -173,8 +175,7 @@ func InspectMessages(ctx context.Context, db *MessageDB, req InspectMessageReque
 		}, nil
 	}
 
-	log := &ChannelLog{db: db, key: ChannelKey(req.ChannelKey)}
-	messages, err := log.Read(ctx, req.AfterSeq+1, ReadOptions{Limit: req.Limit + 1})
+	messages, err := readMessagesRaw(ctx, db, ChannelKey(req.ChannelKey), req.AfterSeq+1, 0, ReadOptions{Limit: req.Limit + 1})
 	if err != nil {
 		return InspectMessageResult{}, err
 	}
@@ -194,13 +195,6 @@ func InspectMessages(ctx context.Context, db *MessageDB, req InspectMessageReque
 		result.Next = &InspectMessageCursor{AfterSeq: result.Rows[len(result.Rows)-1]["message_seq"].(uint64)}
 	}
 	return result, nil
-}
-
-func inspectMessageCheckDB(db *MessageDB) error {
-	if db == nil || db.engine == nil {
-		return dberrors.ErrClosed
-	}
-	return nil
 }
 
 func inspectChannelRow(entry ChannelCatalogEntry) InspectMessageRow {

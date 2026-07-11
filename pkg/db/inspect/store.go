@@ -84,10 +84,12 @@ func (s *Store) Close() error {
 		s.metaEngine = nil
 		s.metaDB = nil
 	}
-	if s.messageEngine != nil {
+	if s.messageDB != nil {
+		err = errors.Join(err, s.messageDB.Close())
+	} else if s.messageEngine != nil {
 		err = errors.Join(err, s.messageEngine.Close())
-		s.messageEngine = nil
-		s.messageDB = nil
 	}
+	s.messageEngine = nil
+	s.messageDB = nil
 	return err
 }

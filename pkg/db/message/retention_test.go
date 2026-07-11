@@ -214,7 +214,7 @@ func TestChannelStoreTrimMessagesThroughLimit(t *testing.T) {
 		}
 	}()
 
-	store := engine.ForChannel(channel.ChannelKey("compat-retention:1"), channel.ChannelID{ID: "compat-retention", Type: 1})
+	store := mustForChannel(t, engine, channel.ChannelKey("compat-retention:1"), channel.ChannelID{ID: "compat-retention", Type: 1})
 	if _, err := store.Append([]channel.Record{compatTestRecord(t, 601, "compat-retention", "c-1")}); err != nil {
 		t.Fatalf("Append first: %v", err)
 	}

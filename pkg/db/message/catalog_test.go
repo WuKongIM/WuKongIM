@@ -9,11 +9,11 @@ func TestCatalogListsChannelsAfterAppendAndSystemMutation(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
 
-	alpha := store.db.Channel(ChannelKey("alpha"), ChannelID{ID: "alpha", Type: 1})
+	alpha := mustAcquireChannel(t, store.db, ChannelKey("alpha"), ChannelID{ID: "alpha", Type: 1})
 	if _, err := alpha.Append(context.Background(), testRecords(301, "one"), AppendOptions{}); err != nil {
 		t.Fatalf("alpha Append(): %v", err)
 	}
-	beta := store.db.Channel(ChannelKey("beta"), ChannelID{ID: "beta", Type: 2})
+	beta := mustAcquireChannel(t, store.db, ChannelKey("beta"), ChannelID{ID: "beta", Type: 2})
 	if err := beta.StoreCheckpoint(context.Background(), Checkpoint{Epoch: 1, HW: 0}); err != nil {
 		t.Fatalf("beta StoreCheckpoint(): %v", err)
 	}
@@ -52,7 +52,7 @@ func TestMessageDBListChannelsPage(t *testing.T) {
 	defer store.close(t)
 
 	for _, key := range []ChannelKey{"ch-01", "ch-02", "ch-03", "ch-04", "ch-05"} {
-		log := store.db.Channel(key, ChannelID{ID: string(key), Type: 1})
+		log := mustAcquireChannel(t, store.db, key, ChannelID{ID: string(key), Type: 1})
 		if _, err := log.Append(context.Background(), testRecords(700, string(key)), AppendOptions{}); err != nil {
 			t.Fatalf("%s Append(): %v", key, err)
 		}

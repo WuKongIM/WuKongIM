@@ -10,11 +10,16 @@ import (
 
 // LoadCheckpoint loads the durable checkpoint for this channel.
 func (l *ChannelLog) LoadCheckpoint(ctx context.Context) (Checkpoint, bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return Checkpoint{}, false, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return Checkpoint{}, false, dberrors.ErrClosed
+	defer l.endUse()
+	return l.loadCheckpoint(ctx)
+}
+
+func (l *ChannelLog) loadCheckpoint(ctx context.Context) (Checkpoint, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Checkpoint{}, false, err
 	}
 	value, ok, err := l.db.engine.Get(encodeCheckpointKey(l.key))
 	if err != nil || !ok {
@@ -29,11 +34,18 @@ func (l *ChannelLog) LoadCheckpoint(ctx context.Context) (Checkpoint, bool, erro
 
 // StoreCheckpoint stores checkpoint without monotonic validation.
 func (l *ChannelLog) StoreCheckpoint(ctx context.Context, checkpoint Checkpoint) error {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return dberrors.ErrClosed
+	defer l.endUse()
+	l.checkpointMu.Lock()
+	defer l.checkpointMu.Unlock()
+	return l.storeCheckpointLocked(ctx, checkpoint)
+}
+
+func (l *ChannelLog) storeCheckpointLocked(ctx context.Context, checkpoint Checkpoint) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := validateCheckpoint(checkpoint); err != nil {
 		return err
@@ -51,13 +63,19 @@ func (l *ChannelLog) StoreCheckpoint(ctx context.Context, checkpoint Checkpoint)
 
 // StoreCheckpointMonotonic stores checkpoint after checking durable monotonicity.
 func (l *ChannelLog) StoreCheckpointMonotonic(ctx context.Context, checkpoint Checkpoint, visibleHW uint64, leo uint64) error {
-	if err := l.validateCheckpointMonotonic(ctx, checkpoint, visibleHW, leo); err != nil {
+	if err := l.beginUse(); err != nil {
 		return err
 	}
-	return l.StoreCheckpoint(ctx, checkpoint)
+	defer l.endUse()
+	l.checkpointMu.Lock()
+	defer l.checkpointMu.Unlock()
+	if err := l.validateCheckpointMonotonicLocked(ctx, checkpoint, visibleHW, leo); err != nil {
+		return err
+	}
+	return l.storeCheckpointLocked(ctx, checkpoint)
 }
 
-func (l *ChannelLog) validateCheckpointMonotonic(ctx context.Context, checkpoint Checkpoint, visibleHW uint64, leo uint64) error {
+func (l *ChannelLog) validateCheckpointMonotonicLocked(ctx context.Context, checkpoint Checkpoint, visibleHW uint64, leo uint64) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -70,7 +88,7 @@ func (l *ChannelLog) validateCheckpointMonotonic(ctx context.Context, checkpoint
 	if checkpoint.HW > leo {
 		return fmt.Errorf("%w: checkpoint hw %d > leo %d", dberrors.ErrCorruptState, checkpoint.HW, leo)
 	}
-	current, ok, err := l.LoadCheckpoint(ctx)
+	current, ok, err := l.loadCheckpoint(ctx)
 	if err != nil {
 		return err
 	}

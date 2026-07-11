@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	msgdb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
 func TestDefaultOptionsFillPathsAndDurability(t *testing.T) {
@@ -51,6 +54,28 @@ func TestOpenNodeStoreExposesMetaDomain(t *testing.T) {
 	}
 }
 
+func TestNodeStoreMessagesSharesCanonicalRegistry(t *testing.T) {
+	store, err := db.OpenNodeStore(db.DefaultNodeStoreOptions(t.TempDir()))
+	if err != nil {
+		t.Fatalf("OpenNodeStore(): %v", err)
+	}
+	defer store.Close()
+
+	firstDB := store.Messages()
+	secondDB := store.Messages()
+	if firstDB == nil || firstDB != secondDB {
+		t.Fatalf("Messages() returned distinct domains: %p and %p", firstDB, secondDB)
+	}
+	lease, err := firstDB.Channel("shared:1", msgdb.ChannelID{ID: "shared", Type: 1})
+	if err != nil {
+		t.Fatalf("first Channel(): %v", err)
+	}
+	defer lease.Close()
+	if other, err := secondDB.Channel("shared:1", msgdb.ChannelID{ID: "other", Type: 1}); other != nil || !errors.Is(err, dberrors.ErrConflict) {
+		t.Fatalf("second Channel() = (%v, %v), want shared-registry conflict", other, err)
+	}
+}
+
 func TestNodeStoreMetricsSnapshotIncludesPhysicalStores(t *testing.T) {
 	opts := db.DefaultNodeStoreOptions(t.TempDir())
 	store, err := db.OpenNodeStore(opts)
@@ -75,5 +100,70 @@ func TestNodeStoreMetricsSnapshotIncludesPhysicalStores(t *testing.T) {
 		if engineMetrics.DiskSpaceUsageBytes == 0 {
 			t.Fatalf("store %q DiskSpaceUsageBytes = 0, want physical usage", name)
 		}
+	}
+}
+
+func TestNodeStoreMetricsSnapshotConcurrentClose(t *testing.T) {
+	store, err := db.OpenNodeStore(db.DefaultNodeStoreOptions(t.TempDir()))
+	if err != nil {
+		t.Fatalf("OpenNodeStore(): %v", err)
+	}
+
+	const readers = 8
+	start := make(chan struct{})
+	ready := make(chan struct{}, readers)
+	var wg sync.WaitGroup
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			ready <- struct{}{}
+			for j := 0; j < 2000; j++ {
+				_ = store.MetricsSnapshot()
+			}
+		}()
+	}
+	close(start)
+	for i := 0; i < readers; i++ {
+		<-ready
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+	wg.Wait()
+}
+
+func TestNodeStoreMetricsSnapshotConcurrentMessagesClose(t *testing.T) {
+	store, err := db.OpenNodeStore(db.DefaultNodeStoreOptions(t.TempDir()))
+	if err != nil {
+		t.Fatalf("OpenNodeStore(): %v", err)
+	}
+
+	const readers = 8
+	start := make(chan struct{})
+	ready := make(chan struct{}, readers)
+	var wg sync.WaitGroup
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			ready <- struct{}{}
+			for j := 0; j < 2000; j++ {
+				_ = store.MetricsSnapshot()
+			}
+		}()
+	}
+	close(start)
+	for i := 0; i < readers; i++ {
+		<-ready
+	}
+	if err := store.Messages().Close(); err != nil {
+		t.Fatalf("Messages().Close(): %v", err)
+	}
+	wg.Wait()
+	if err := store.Close(); err != nil {
+		t.Fatalf("NodeStore.Close(): %v", err)
 	}
 }

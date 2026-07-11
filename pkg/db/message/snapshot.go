@@ -12,11 +12,16 @@ import (
 
 // LoadSnapshotPayload loads the latest durable snapshot payload.
 func (l *ChannelLog) LoadSnapshotPayload(ctx context.Context) ([]byte, bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return nil, false, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return nil, false, dberrors.ErrClosed
+	defer l.endUse()
+	return l.loadSnapshotPayload(ctx)
+}
+
+func (l *ChannelLog) loadSnapshotPayload(ctx context.Context) ([]byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
 	}
 	value, ok, err := l.db.engine.Get(encodeSnapshotKey(l.key))
 	if err != nil || !ok {
@@ -27,11 +32,16 @@ func (l *ChannelLog) LoadSnapshotPayload(ctx context.Context) ([]byte, bool, err
 
 // StoreSnapshotPayload stores the latest durable snapshot payload.
 func (l *ChannelLog) StoreSnapshotPayload(ctx context.Context, payload []byte) error {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return dberrors.ErrClosed
+	defer l.endUse()
+	return l.storeSnapshotPayload(ctx, payload)
+}
+
+func (l *ChannelLog) storeSnapshotPayload(ctx context.Context, payload []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
@@ -46,16 +56,25 @@ func (l *ChannelLog) StoreSnapshotPayload(ctx context.Context, payload []byte) e
 
 // InstallSnapshot atomically stores snapshot payload, checkpoint, and epoch history.
 func (l *ChannelLog) InstallSnapshot(ctx context.Context, snap Snapshot, checkpoint Checkpoint, point EpochPoint) (uint64, error) {
+	if err := l.beginUse(); err != nil {
+		return 0, err
+	}
+	defer l.endUse()
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return 0, dberrors.ErrClosed
-	}
-	leo, err := l.LEO(ctx)
+	l.appendMu.Lock()
+	defer l.appendMu.Unlock()
+	l.checkpointMu.Lock()
+	defer l.checkpointMu.Unlock()
+	leo, err := l.loadLEOLocked(ctx)
 	if err != nil {
 		return 0, err
 	}
+	return l.installSnapshotLocked(ctx, snap, checkpoint, point, leo)
+}
+
+func (l *ChannelLog) installSnapshotLocked(ctx context.Context, snap Snapshot, checkpoint Checkpoint, point EpochPoint, leo uint64) (uint64, error) {
 	if snap.EndOffset > leo {
 		return 0, fmt.Errorf("%w: snapshot end %d > leo %d", dberrors.ErrCorruptState, snap.EndOffset, leo)
 	}
@@ -65,7 +84,7 @@ func (l *ChannelLog) InstallSnapshot(ctx context.Context, snap Snapshot, checkpo
 	if checkpoint.Epoch != snap.Epoch || point.Epoch != snap.Epoch || point.StartOffset > snap.EndOffset {
 		return 0, dberrors.ErrCorruptState
 	}
-	if err := l.validateCheckpointMonotonic(ctx, checkpoint, snap.EndOffset, leo); err != nil {
+	if err := l.validateCheckpointMonotonicLocked(ctx, checkpoint, snap.EndOffset, leo); err != nil {
 		return 0, err
 	}
 
@@ -93,7 +112,7 @@ func (l *ChannelLog) InstallSnapshot(ctx context.Context, snap Snapshot, checkpo
 	if err := batch.Commit(true); err != nil {
 		return 0, err
 	}
-	payload, ok, err := l.LoadSnapshotPayload(ctx)
+	payload, ok, err := l.loadSnapshotPayload(ctx)
 	if err != nil {
 		return 0, err
 	}

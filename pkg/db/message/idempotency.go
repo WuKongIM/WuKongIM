@@ -10,6 +10,10 @@ import (
 
 // LookupIdempotency returns the indexed message selected by a sender/client pair.
 func (l *ChannelLog) LookupIdempotency(ctx context.Context, key IdempotencyKey) (IdempotencyHit, bool, error) {
+	if err := l.beginUse(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
+	defer l.endUse()
 	return l.lookupIdempotency(ctx, key)
 }
 
@@ -17,13 +21,10 @@ func (l *ChannelLog) lookupIdempotency(ctx context.Context, key IdempotencyKey) 
 	if err := ctx.Err(); err != nil {
 		return IdempotencyHit{}, false, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return IdempotencyHit{}, false, dberrors.ErrClosed
-	}
 	if key.FromUID == "" || key.ClientMsgNo == "" {
 		return IdempotencyHit{}, false, dberrors.ErrInvalidArgument
 	}
-	cache := l.ensureAppendKeyCache()
+	cache := l.appendKeyCache
 	return l.lookupIdempotencyByKey(ctx, key, cache.idempotencyIndexKey(key.FromUID, key.ClientMsgNo))
 }
 

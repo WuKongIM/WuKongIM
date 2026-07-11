@@ -8,7 +8,7 @@ import (
 func TestChannelLogGetLastVisibleMessageReadsTail(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
-	log := store.db.Channel(ChannelKey("tail:2"), ChannelID{ID: "tail", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("tail:2"), ChannelID{ID: "tail", Type: 2})
 	ctx := context.Background()
 
 	_, err := log.Append(ctx, []Record{
@@ -31,7 +31,7 @@ func TestChannelLogGetLastVisibleMessageReadsTail(t *testing.T) {
 func TestChannelLogAppendDefaultsServerTimestampMS(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
-	log := store.db.Channel(ChannelKey("default-timestamp:2"), ChannelID{ID: "default-timestamp", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("default-timestamp:2"), ChannelID{ID: "default-timestamp", Type: 2})
 	ctx := context.Background()
 
 	_, err := log.Append(ctx, []Record{{ID: 301, Payload: []byte("no timestamp")}}, AppendOptions{})
@@ -51,7 +51,7 @@ func TestChannelLogAppendDefaultsServerTimestampMS(t *testing.T) {
 func TestChannelLogGetLastVisibleMessageDoesNotRecoverLEO(t *testing.T) {
 	path := t.TempDir()
 	store := openTestMessageStoreAt(t, path)
-	log := store.db.Channel(ChannelKey("tail-reopen:2"), ChannelID{ID: "tail-reopen", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("tail-reopen:2"), ChannelID{ID: "tail-reopen", Type: 2})
 	ctx := context.Background()
 	_, err := log.Append(ctx, []Record{
 		{ID: 401, Payload: []byte("one"), ServerTimestampMS: 1000},
@@ -64,7 +64,7 @@ func TestChannelLogGetLastVisibleMessageDoesNotRecoverLEO(t *testing.T) {
 
 	reopened := openTestMessageStoreAt(t, path)
 	defer reopened.close(t)
-	reopenedLog := reopened.db.Channel(ChannelKey("tail-reopen:2"), ChannelID{ID: "tail-reopen", Type: 2})
+	reopenedLog := mustAcquireChannel(t, reopened.db, ChannelKey("tail-reopen:2"), ChannelID{ID: "tail-reopen", Type: 2})
 	msg, ok, err := reopenedLog.GetLastVisibleMessage(ctx, 1)
 	if err != nil || !ok {
 		t.Fatalf("GetLastVisibleMessage() ok=%v err=%v, want ok", ok, err)
@@ -80,7 +80,7 @@ func TestChannelLogGetLastVisibleMessageDoesNotRecoverLEO(t *testing.T) {
 func TestChannelLogGetLastVisibleMessageHonorsVisibleAfterSeq(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
-	log := store.db.Channel(ChannelKey("visible:2"), ChannelID{ID: "visible", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("visible:2"), ChannelID{ID: "visible", Type: 2})
 	ctx := context.Background()
 
 	_, err := log.Append(ctx, []Record{
@@ -110,7 +110,7 @@ func TestChannelLogGetLastVisibleMessageHonorsVisibleAfterSeq(t *testing.T) {
 func TestChannelLogGetLastVisibleMessageEmptyChannel(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
-	log := store.db.Channel(ChannelKey("empty:2"), ChannelID{ID: "empty", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("empty:2"), ChannelID{ID: "empty", Type: 2})
 
 	_, ok, err := log.GetLastVisibleMessage(context.Background(), 0)
 	if err != nil {

@@ -32,16 +32,22 @@ func openTestMessageStoreAt(t *testing.T, path string) *testMessageStore {
 
 func (s *testMessageStore) close(t *testing.T) {
 	t.Helper()
-	if s == nil || s.engine == nil {
+	if s == nil || s.db == nil {
 		return
 	}
-	if err := s.engine.Close(); err != nil {
-		t.Fatalf("engine.Close(): %v", err)
+	if err := s.db.Close(); err != nil {
+		t.Fatalf("MessageDB.Close(): %v", err)
 	}
+	s.db = nil
+	s.engine = nil
 }
 
 func testChannelLog(store *testMessageStore) *ChannelLog {
-	return store.db.Channel(ChannelKey("channel-a"), ChannelID{ID: "channel-a", Type: 1})
+	log, err := store.db.Channel(ChannelKey("channel-a"), ChannelID{ID: "channel-a", Type: 1})
+	if err != nil {
+		panic(err)
+	}
+	return log
 }
 
 func testRecords(baseID uint64, payloads ...string) []Record {

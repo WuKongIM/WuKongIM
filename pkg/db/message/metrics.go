@@ -42,12 +42,24 @@ func (e *Engine) MetricsSnapshot() EngineMetricsSnapshot {
 		return EngineMetricsSnapshot{}
 	}
 	e.mu.Lock()
-	eng := e.engine
+	db := e.db
 	e.mu.Unlock()
-	if eng == nil {
+	if db == nil {
 		return EngineMetricsSnapshot{}
 	}
-	return engineMetricsFromSnapshot(eng.MetricsSnapshot())
+	return db.MetricsSnapshot()
+}
+
+// MetricsSnapshot returns physical message metrics under the database close guard.
+func (db *MessageDB) MetricsSnapshot() EngineMetricsSnapshot {
+	if db == nil {
+		return EngineMetricsSnapshot{}
+	}
+	if err := db.beginUse(); err != nil {
+		return EngineMetricsSnapshot{}
+	}
+	defer db.endUse()
+	return engineMetricsFromSnapshot(db.engine.MetricsSnapshot())
 }
 
 func engineMetricsFromSnapshot(snapshot engine.MetricsSnapshot) EngineMetricsSnapshot {

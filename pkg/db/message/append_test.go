@@ -147,8 +147,13 @@ func TestChannelLogAppendSerializesSameChannel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			log := store.db.Channel(ChannelKey("serialized"), ChannelID{ID: "serialized", Type: 1})
-			_, err := log.Append(context.Background(), []Record{{
+			log, err := store.db.Channel(ChannelKey("serialized"), ChannelID{ID: "serialized", Type: 1})
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer log.Close()
+			_, err = log.Append(context.Background(), []Record{{
 				ID:      uint64(i + 1),
 				Payload: []byte{byte(i)},
 			}}, AppendOptions{})
@@ -163,7 +168,8 @@ func TestChannelLogAppendSerializesSameChannel(t *testing.T) {
 		t.Fatalf("Append(): %v", err)
 	}
 
-	log := store.db.Channel(ChannelKey("serialized"), ChannelID{ID: "serialized", Type: 1})
+	log := mustAcquireChannel(t, store.db, ChannelKey("serialized"), ChannelID{ID: "serialized", Type: 1})
+	defer log.Close()
 	leo, err := log.LEO(context.Background())
 	if err != nil {
 		t.Fatalf("LEO(): %v", err)

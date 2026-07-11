@@ -1,22 +1,22 @@
 package message
 
-import (
-	"context"
-
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
-)
+import "context"
 
 // ApplyFetch stores fetched records and optional system state in one batch.
 func (l *ChannelLog) ApplyFetch(ctx context.Context, req ApplyFetchRequest) (AppendResult, error) {
+	if err := l.beginUse(); err != nil {
+		return AppendResult{}, err
+	}
+	defer l.endUse()
 	if err := ctx.Err(); err != nil {
 		return AppendResult{}, err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return AppendResult{}, dberrors.ErrClosed
-	}
-
 	l.appendMu.Lock()
 	defer l.appendMu.Unlock()
+	if req.Checkpoint != nil {
+		l.checkpointMu.Lock()
+		defer l.checkpointMu.Unlock()
+	}
 
 	rows, result, err := l.prepareAppendRowsLocked(ctx, req.Records, AppendOptions{
 		Mode:    AppendTrustedContiguous,
@@ -30,13 +30,13 @@ func (l *ChannelLog) ApplyFetch(ctx context.Context, req ApplyFetchRequest) (App
 		visibleLEO = result.LastSeq
 	}
 	if req.Checkpoint != nil {
-		if err := l.validateCheckpointMonotonic(ctx, *req.Checkpoint, visibleLEO, visibleLEO); err != nil {
+		if err := l.validateCheckpointMonotonicLocked(ctx, *req.Checkpoint, visibleLEO, visibleLEO); err != nil {
 			return AppendResult{}, err
 		}
 	}
 	shouldWriteEpoch := false
 	if req.EpochPoint != nil {
-		points, ok, err := l.LoadHistory(ctx)
+		points, ok, err := l.loadHistory(ctx)
 		if err != nil {
 			return AppendResult{}, err
 		}

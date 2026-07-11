@@ -97,6 +97,14 @@ The mutable fields currently stored directly on the cached `ChannelLog` move
 behind the canonical entry. Each acquisition returns a distinct lightweight
 lease handle that points to that entry and owns exactly one release token.
 
+An operation also owns a short-lived use token. Acquiring that token uses a
+lock-free check/increment/recheck protocol against both the lease close flag
+and the database close flag. Lease close first rejects new use tokens, waits
+for its admitted operations, and only then releases the registry reference.
+This prevents a concurrent close from reclaiming the old entry while an
+already-started operation still uses its mutexes. Raw inspect reads own only a
+database use token and never create a channel entry.
+
 The last release performs compare-delete under the same registry mutex used by
 acquire. The delete must verify the entry pointer or generation so an older
 release cannot remove a newer canonical entry.
@@ -121,6 +129,10 @@ reclamation requires the old reference count to reach zero.
 - Batch lock deduplication uses canonical entry identity rather than the
   per-acquisition wrapper pointer, so duplicate items for the same channel do
   not lock the same mutex twice.
+- The exported batch helpers reject every item belonging to a duplicate
+  canonical entry. Production worker batching already emits at most one item
+  per channel; explicit rejection replaces the old silent overlapping-sequence
+  behavior for direct callers.
 
 All production callers that acquire a temporary handle must close it:
 
@@ -136,15 +148,23 @@ lifetime. It releases that lease only after asynchronous store close finishes.
 
 ## Background Commit Pinning
 
-Before a commit coordinator request captures a channel store, it retains an
-additional internal lease. That pin is released only by the request's terminal
-completion/finalization path after build, commit, and publish can no longer
-run.
+Before a commit coordinator request captures a channel entry, it retains an
+additional internal lease and transfers its already-held append/checkpoint
+locks to the request finalizer. The finalizer releases checkpoint locks, then
+append locks, then pins. This ordering prevents reacquisition from creating a
+new synchronization domain before the old domain is unlocked. The pin is
+released only after build, commit, and publish can no longer run.
 
 Caller cancellation may stop waiting but cannot release the coordinator pin.
 Admission failure releases the pin immediately. Every coordinator branch must
 have one terminal release, including build error, physical commit error,
 publish error, coordinator close, and queue rejection.
+
+Cross-engine batch groups are processed in first-seen request order and never
+hold canonical locks from two physical engines at once. If an admitted group
+returns early because its caller context is canceled, remaining engine groups
+are rejected before lock acquisition while the admitted group retains its
+locks and pins until terminal finalization.
 
 ## Shutdown
 
@@ -156,11 +176,20 @@ Factory close proceeds in this order:
 
 1. mark the registry closed and reject new acquisitions;
 2. stop and drain the commit coordinator;
-3. verify or wait until internal background pins are released;
+3. wait until admitted operations and internal background pins are released;
 4. detach remaining registry entries;
 5. close the shared engine once.
 
 Channel lease close never calls shared engine close.
+
+`NodeStore` owns one `MessageDB` instance for the physical message engine and
+returns that same instance from every `Messages` call. Creating a registry per
+accessor call would recreate split append/checkpoint synchronization domains.
+
+Reactor shutdown additionally drains queued successful StoreLoad completions
+and preserves ownership of queued StoreClose tasks that a closing worker pool
+does not execute. No store handle may disappear from either queue without one
+terminal close owner.
 
 ## Observability
 
@@ -191,6 +220,10 @@ Tests must be written before implementation and prove:
 9. group close releases loaded and pending stores;
 10. creating, closing, and collecting at least 100,000 distinct channel
     handles does not leave entry count proportional to historical channels.
+11. concurrent operation/lease close cannot overlap old and new canonical
+    entries;
+12. raw inspect reads do not create registry entries, duplicate batch entries
+    write nothing, and queued StoreLoad/StoreClose ownership survives shutdown.
 
 Race verification covers `pkg/db/message`, `pkg/channel/store`,
 `pkg/channel/worker`, and `pkg/channel/reactor`. Benchmarks compare steady

@@ -41,7 +41,7 @@ func TestChannelLogAppendKeyCacheMatchesEncoders(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
 
-	log := store.db.Channel(ChannelKey("cached:1"), ChannelID{ID: "cached", Type: 1})
+	log := mustAcquireChannel(t, store.db, ChannelKey("cached:1"), ChannelID{ID: "cached", Type: 1})
 	cache := log.appendKeyCache
 
 	tests := []struct {

@@ -3,17 +3,17 @@ package message
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
 
 // TruncateFrom removes all message rows and indexes at or after fromSeq.
 func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
-	if err := ctx.Err(); err != nil {
+	if err := l.beginUse(); err != nil {
 		return err
 	}
-	if l == nil || l.db == nil || l.db.engine == nil {
-		return dberrors.ErrClosed
+	defer l.endUse()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if fromSeq == 0 {
 		fromSeq = 1
@@ -29,7 +29,7 @@ func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
 	if fromSeq > leo {
 		return nil
 	}
-	messages, err := l.Read(ctx, fromSeq, ReadOptions{})
+	messages, err := l.readForward(ctx, fromSeq, 0, ReadOptions{})
 	if err != nil {
 		return err
 	}

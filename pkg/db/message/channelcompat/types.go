@@ -8,6 +8,7 @@ import (
 
 var (
 	ErrInvalidArgument = errors.New("channel: invalid argument")
+	ErrClosed          = errors.New("channel: closed")
 	ErrCorruptState    = errors.New("channel: corrupt state")
 	ErrEmptyState      = errors.New("channel: empty state")
 	ErrCorruptValue    = errors.New("channel: corrupt value")

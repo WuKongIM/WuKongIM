@@ -11,17 +11,26 @@ import (
 
 // ListChannels returns all channels known to the message domain.
 func (db *MessageDB) ListChannels(ctx context.Context) ([]ChannelCatalogEntry, error) {
-	entries, _, _, err := db.ListChannelsPage(ctx, "", 0)
+	if err := db.beginUse(); err != nil {
+		return nil, err
+	}
+	defer db.endUse()
+	entries, _, _, err := db.listChannelsPage(ctx, "", 0)
 	return entries, err
 }
 
 // ListChannelsPage returns one ordered catalog page after the exclusive cursor.
 func (db *MessageDB) ListChannelsPage(ctx context.Context, after ChannelKey, limit int) ([]ChannelCatalogEntry, ChannelKey, bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := db.beginUse(); err != nil {
 		return nil, "", false, err
 	}
-	if db == nil || db.engine == nil {
-		return nil, "", false, dberrors.ErrClosed
+	defer db.endUse()
+	return db.listChannelsPage(ctx, after, limit)
+}
+
+func (db *MessageDB) listChannelsPage(ctx context.Context, after ChannelKey, limit int) ([]ChannelCatalogEntry, ChannelKey, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", false, err
 	}
 	prefix := encodeCatalogPrefix()
 	span := keycodec.NewPrefixSpan(prefix)
@@ -76,8 +85,8 @@ func (db *MessageDB) ListChannelsPage(ctx context.Context, after ChannelKey, lim
 	return entries, last, more, nil
 }
 
-func (l *ChannelLog) stageCatalog(batch *engine.Batch) error {
-	cache := l.ensureAppendKeyCache()
+func (l *channelEntry) stageCatalog(batch *engine.Batch) error {
+	cache := l.appendKeyCache
 	return batch.Set(cache.catalogKey, cache.catalogValue)
 }
 

@@ -1,6 +1,9 @@
 package db
 
-import "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/message"
+)
 
 // StorageEngineMetrics is a stable view of one local storage engine.
 type StorageEngineMetrics struct {
@@ -55,10 +58,32 @@ func (s *NodeStore) MetricsSnapshot() NodeStoreMetricsSnapshot {
 	if s == nil {
 		return NodeStoreMetricsSnapshot{}
 	}
+	s.lifecycleMu.RLock()
+	defer s.lifecycleMu.RUnlock()
 	return NodeStoreMetricsSnapshot{Stores: []StoreMetricsSnapshot{
-		{Store: "message", Engine: storageEngineMetricsFromEngine(s.message.MetricsSnapshot())},
+		{Store: "message", Engine: storageEngineMetricsFromMessageEngine(s.messageDB.MetricsSnapshot())},
 		{Store: "meta", Engine: storageEngineMetricsFromEngine(s.meta.MetricsSnapshot())},
 	}}
+}
+
+func storageEngineMetricsFromMessageEngine(snapshot message.EngineMetricsSnapshot) StorageEngineMetrics {
+	return StorageEngineMetrics{
+		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
+		ReadAmplification:            snapshot.ReadAmplification,
+		MemTableSizeBytes:            snapshot.MemTableSizeBytes,
+		MemTableCount:                snapshot.MemTableCount,
+		WALFiles:                     snapshot.WALFiles,
+		WALSizeBytes:                 snapshot.WALSizeBytes,
+		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
+		WALBytesIn:                   snapshot.WALBytesIn,
+		WALBytesWritten:              snapshot.WALBytesWritten,
+		FlushCount:                   snapshot.FlushCount,
+		FlushesInProgress:            snapshot.FlushesInProgress,
+		CompactionCount:              snapshot.CompactionCount,
+		CompactionEstimatedDebtBytes: snapshot.CompactionEstimatedDebtBytes,
+		CompactionInProgressBytes:    snapshot.CompactionInProgressBytes,
+		CompactionsInProgress:        snapshot.CompactionsInProgress,
+	}
 }
 
 func storageEngineMetricsFromEngine(snapshot engine.MetricsSnapshot) StorageEngineMetrics {

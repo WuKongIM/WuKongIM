@@ -5,13 +5,23 @@
 
 Current flow:
 
-1. `MessageDB` wraps the message Pebble engine.
-2. `Channel` returns a cached typed `ChannelLog` for one channel partition.
-3. `ChannelLog.Append` serializes appends per channel, assigns contiguous
+1. `MessageDB` wraps the message Pebble engine and owns one channel registry.
+   Database operation guards reject new work during close; close drains admitted
+   operations and background commit pins before detaching entries and closing
+   the physical engine exactly once. Compatibility storage metrics use the same
+   global operation guard so snapshots cannot overlap physical close.
+2. `Channel` returns a distinct, idempotently closable `ChannelLog` lease. All
+   leases for the same active key and identity share one canonical
+   `channelEntry`, including its immutable append-key cache, append mutex,
+   checkpoint mutex, and LEO state. Lease close waits for its admitted
+   operations; the last lease or pin compare-deletes and reclaims the entry.
+3. `ChannelLog.Append` acquires one operation guard, serializes appends on the
+   canonical entry, assigns contiguous
    sequences, validates strict duplicate constraints, and writes header/payload
    row families plus secondary indexes atomically.
 4. `ChannelLog.LEO` lazily recovers the last durable sequence by scanning the
-   primary row keyspace after reopen.
+   primary row keyspace after reopen or after a canonical entry is reclaimed
+   and reacquired.
 5. `ChannelLog.Read` and `ReadReverse` scan primary rows by sequence and
    materialize messages from header/payload families.
    `ChannelLog.GetLastVisibleMessage` uses reverse iteration over the channel
@@ -32,30 +42,47 @@ Current flow:
    `MessageDB.ListChannelsPage`, or paged through the compatibility
    `Engine.ListChannelsPage` surface for Node-owned cleanup loops.
 11. Read-only inspect APIs page catalog channels directly by catalog key and
-    scan channel messages for diagnostics without mutating storage or
-    populating channel caches.
+    scan channel messages through raw `(MessageDB, ChannelKey)` readers. They
+    own a database operation guard but never acquire or populate a channel
+    registry entry.
 12. The compatibility `Engine` / `ChannelStore` surface adapts legacy
     `pkg/channel` record, checkpoint, history, retention, committed-cursor, and
     query callers onto the typed `ChannelLog` core while keeping seq/offset
-    conversion at the channel boundary. Its commit coordinator observer emits
+    conversion at the channel boundary. Every `ForChannel` call returns a
+    distinct lease; closing one store cannot close another lease or the shared
+    engine, and closed stores return `channelcompat.ErrClosed`.
+13. Compatibility append/apply commits transfer canonical append locks,
+    optional checkpoint locks, and one background pin per entry to a terminal
+    commit owner. Caller cancellation stops waiting but cannot release those
+    resources before build, physical commit, publish, or coordinator shutdown
+    reaches a terminal state. Finalization unlocks checkpoint then append locks
+    before releasing pins.
+14. The commit coordinator observer emits
     low-cardinality queue depth/capacity, batch, and logical request wait
     measurements, splitting leader append and follower apply lanes, without
     changing durable commit semantics. The coordinator can optionally route
     requests across partition-hashed shards; the default is one shard, and
-    each shard still uses synchronous physical commits. The leader-append and
-    trusted follower-apply batch helpers can prepare multiple channel stores
-    under their append locks and submit them as one `leader_append` or
-    `follower_apply` commit request while publishing each channel's durable
-    frontier after the shared physical commit succeeds.
-13. Compatibility durable payloads continue to use FNV-64a payload hashes so
+    each shard still uses synchronous physical commits. Batch helpers reject
+    duplicate canonical entries before writes, group work by `Engine` in
+    request order, and never hold channel locks from different physical engines
+    simultaneously. If caller cancellation leaves an admitted group running to
+    terminal completion, all remaining Engine groups fail before taking locks.
+    Each Engine group publishes all channel frontiers only after its shared
+    physical commit succeeds.
+15. Canonical checkpoint locking serializes all checkpoint stores and
+    apply/snapshot staging. `StoreCheckpointHWMonotonic` performs a locked
+    read-modify-write that initializes a missing checkpoint (including an
+    explicit first HW of zero), never regresses HW, and preserves epoch and
+    log-start fields.
+16. Compatibility durable payloads continue to use FNV-64a payload hashes so
     handler idempotency checks compare the same value that was encoded into the
     `channel.Record` payload.
-14. Message rows persist `ServerTimestampMS`, `FromUID`, `ClientMsgNo`, and
+17. Message rows persist `ServerTimestampMS`, `FromUID`, `ClientMsgNo`, and
     `Payload` so conversation list display can read durable fields from the
     message log instead of transient committed events. `ServerTimestampMS` is a
     separate durable header column from the legacy `Timestamp` field; old rows
     without the new column decode `ServerTimestampMS` as zero, and new leader
     appends default it at the DB boundary when callers omit it.
-15. Schema and key helpers define the durable message table layout.
+18. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

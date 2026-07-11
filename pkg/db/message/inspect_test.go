@@ -15,7 +15,7 @@ func TestInspectListChannels(t *testing.T) {
 	defer store.close(t)
 	ctx := context.Background()
 
-	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
 	if _, err := log.Append(ctx, testRecords(100, "hello"), AppendOptions{}); err != nil {
 		t.Fatalf("Append(): %v", err)
 	}
@@ -45,7 +45,7 @@ func TestInspectChannelsCursorAndLimit(t *testing.T) {
 	ctx := context.Background()
 
 	for i, key := range []ChannelKey{"g1:2", "g2:2", "g3:2"} {
-		log := store.db.Channel(key, ChannelID{ID: string(key[:2]), Type: 2})
+		log := mustAcquireChannel(t, store.db, key, ChannelID{ID: string(key[:2]), Type: 2})
 		if _, err := log.Append(ctx, testRecords(uint64(100+i), "seed"), AppendOptions{}); err != nil {
 			t.Fatalf("Append(%s): %v", key, err)
 		}
@@ -109,7 +109,7 @@ func TestInspectChannelsLimitDoesNotDecodeBeyondLookahead(t *testing.T) {
 	ctx := context.Background()
 
 	for i, key := range []ChannelKey{"a", "b"} {
-		log := store.db.Channel(key, ChannelID{ID: string(key), Type: 1})
+		log := mustAcquireChannel(t, store.db, key, ChannelID{ID: string(key), Type: 1})
 		if _, err := log.Append(ctx, testRecords(uint64(400+i), "seed"), AppendOptions{}); err != nil {
 			t.Fatalf("Append(%s): %v", key, err)
 		}
@@ -140,7 +140,7 @@ func TestInspectMessagesByChannelKeyAndCursor(t *testing.T) {
 	defer store.close(t)
 	ctx := context.Background()
 
-	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
 	records := []Record{
 		{ID: 101, ClientMsgNo: "c1", FromUID: "u1", Payload: []byte("payload-one")},
 		{ID: 102, ClientMsgNo: "c2", FromUID: "u2", Payload: []byte("payload-two")},
@@ -199,7 +199,7 @@ func TestInspectMessagesIncludesServerTimestampMS(t *testing.T) {
 	defer store.close(t)
 	ctx := context.Background()
 
-	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
 	record := Record{ID: 201, Payload: []byte("payload"), ServerTimestampMS: 3000}
 	if _, err := log.Append(ctx, []Record{record}, AppendOptions{}); err != nil {
 		t.Fatalf("Append(): %v", err)
@@ -229,11 +229,11 @@ func TestInspectMessagesDoesNotPopulateChannelCache(t *testing.T) {
 	if len(got.Rows) != 0 || !got.Done || got.Next != nil {
 		t.Fatalf("InspectMessages() = %+v, want empty done result", got)
 	}
-	if _, ok := store.db.logs[ChannelKey("g1:2")]; ok {
-		t.Fatalf("InspectMessages populated db.logs for g1:2")
+	if got := store.db.registry.snapshot().activeEntries; got != 0 {
+		t.Fatalf("InspectMessages populated registry: entries = %d", got)
 	}
 
-	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
 	if _, err := log.Append(ctx, testRecords(200, "after-inspect"), AppendOptions{}); err != nil {
 		t.Fatalf("Append(): %v", err)
 	}
@@ -255,7 +255,7 @@ func TestInspectMessagesAfterMaxSeqIsDone(t *testing.T) {
 	defer store.close(t)
 	ctx := context.Background()
 
-	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	log := mustAcquireChannel(t, store.db, ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
 	if _, err := log.Append(ctx, testRecords(300, "payload"), AppendOptions{}); err != nil {
 		t.Fatalf("Append(): %v", err)
 	}

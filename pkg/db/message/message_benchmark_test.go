@@ -113,7 +113,11 @@ func BenchmarkChannelLogAppendParallelManyChannels(b *testing.B) {
 			logs := make([]*ChannelLog, channels)
 			for i := range logs {
 				key := ChannelKey(fmt.Sprintf("bench-parallel-channel-%03d", i))
-				logs[i] = db.Channel(key, ChannelID{ID: string(key), Type: 1})
+				var err error
+				logs[i], err = db.Channel(key, ChannelID{ID: string(key), Type: 1})
+				if err != nil {
+					b.Fatalf("Channel(): %v", err)
+				}
 			}
 			var nextID atomic.Uint64
 			payload := bytes.Repeat([]byte{'p'}, 128)
@@ -153,7 +157,7 @@ func BenchmarkChannelStoreAppend(b *testing.B) {
 					b.Fatalf("Close(): %v", err)
 				}
 			}()
-			store := eng.ForChannel(channel.ChannelKey("compat-append:1"), channel.ChannelID{ID: "compat-append", Type: 1})
+			store := mustForChannel(b, eng, channel.ChannelKey("compat-append:1"), channel.ChannelID{ID: "compat-append", Type: 1})
 			batches := makeBenchmarkCompatRecordBatches(b, b.N, recordsPerAppend, 1, "compat-append")
 			payloadBytes := benchmarkCompatPayloadBytes(recordsPerAppend)
 
@@ -186,7 +190,7 @@ func BenchmarkStoreAppendBatch(b *testing.B) {
 			stores := make([]*ChannelStore, channels)
 			for i := range stores {
 				channelID := fmt.Sprintf("compat-batch-%03d", i)
-				stores[i] = eng.ForChannel(channel.ChannelKey(channelID+":1"), channel.ChannelID{ID: channelID, Type: 1})
+				stores[i] = mustForChannel(b, eng, channel.ChannelKey(channelID+":1"), channel.ChannelID{ID: channelID, Type: 1})
 			}
 			batches := make([][]AppendBatchItem, b.N)
 			nextID := uint64(1)
@@ -267,7 +271,11 @@ func BenchmarkChannelLogRetentionTrim(b *testing.B) {
 func openBenchmarkLog(b *testing.B, key ChannelKey) (*ChannelLog, func()) {
 	b.Helper()
 	db, closeFn := openBenchmarkDB(b)
-	return db.Channel(key, ChannelID{ID: string(key), Type: 1}), closeFn
+	log, err := db.Channel(key, ChannelID{ID: string(key), Type: 1})
+	if err != nil {
+		b.Fatalf("Channel(): %v", err)
+	}
+	return log, closeFn
 }
 
 func openBenchmarkDB(b *testing.B) (*MessageDB, func()) {
@@ -278,8 +286,8 @@ func openBenchmarkDB(b *testing.B) (*MessageDB, func()) {
 	}
 	db := NewDB(eng)
 	return db, func() {
-		if err := eng.Close(); err != nil {
-			b.Fatalf("engine.Close(): %v", err)
+		if err := db.Close(); err != nil {
+			b.Fatalf("MessageDB.Close(): %v", err)
 		}
 	}
 }
