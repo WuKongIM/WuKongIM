@@ -53,7 +53,11 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=false",
 		"WK_BENCH_PRESENCE_USERS=100000",
 		"WK_BENCH_PRESENCE_OUT_DIR="+filepath.Join(t.TempDir(), "presence-results"),
+		"WK_BENCH_API_ADDRS=http://127.0.0.1:5011",
+		"WK_BENCH_WORKER_ADDR=http://127.0.0.1:19131",
 		"WK_BENCH_API_ENABLE=true",
+		"WK_BENCH_API_MAX_BATCH_SIZE=123",
+		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE=512",
 		"WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=65536",
 	)
@@ -96,7 +100,11 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"wukongim-node1.toml WK_PROMETHEUS_EMBED_DIR=<unset>",
 		"wukongim-node1.toml WK_BENCH_PRESENCE_USERS=<unset>",
 		"wukongim-node1.toml WK_BENCH_PRESENCE_OUT_DIR=<unset>",
+		"wukongim-node1.toml WK_BENCH_API_ADDRS=<unset>",
+		"wukongim-node1.toml WK_BENCH_WORKER_ADDR=<unset>",
 		"wukongim-node1.toml WK_BENCH_API_ENABLE=true",
+		"wukongim-node1.toml WK_BENCH_API_MAX_BATCH_SIZE=123",
+		"wukongim-node1.toml WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
 		"wukongim-node1.toml WK_PRESENCE_TOUCH_BATCH_SIZE=512",
 		"wukongim-node1.toml WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=65536",
 	} {
@@ -299,7 +307,11 @@ done
 	printf '%s WK_PROMETHEUS_EMBED_DIR=%s\n' "$config" "${WK_PROMETHEUS_EMBED_DIR-<unset>}"
 	printf '%s WK_BENCH_PRESENCE_USERS=%s\n' "$config" "${WK_BENCH_PRESENCE_USERS-<unset>}"
 	printf '%s WK_BENCH_PRESENCE_OUT_DIR=%s\n' "$config" "${WK_BENCH_PRESENCE_OUT_DIR-<unset>}"
+	printf '%s WK_BENCH_API_ADDRS=%s\n' "$config" "${WK_BENCH_API_ADDRS-<unset>}"
+	printf '%s WK_BENCH_WORKER_ADDR=%s\n' "$config" "${WK_BENCH_WORKER_ADDR-<unset>}"
 	printf '%s WK_BENCH_API_ENABLE=%s\n' "$config" "${WK_BENCH_API_ENABLE-<unset>}"
+	printf '%s WK_BENCH_API_MAX_BATCH_SIZE=%s\n' "$config" "${WK_BENCH_API_MAX_BATCH_SIZE-<unset>}"
+	printf '%s WK_BENCH_API_MAX_PAYLOAD_BYTES=%s\n' "$config" "${WK_BENCH_API_MAX_PAYLOAD_BYTES-<unset>}"
 	printf '%s WK_PRESENCE_TOUCH_BATCH_SIZE=%s\n' "$config" "${WK_PRESENCE_TOUCH_BATCH_SIZE-<unset>}"
 	printf '%s WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=%s\n' "$config" "${WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH-<unset>}"
   if [[ ${WK_PROMETHEUS_BINARY_PATH+x} ]]; then
