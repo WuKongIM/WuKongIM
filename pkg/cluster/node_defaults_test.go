@@ -864,6 +864,53 @@ func TestNodeDefaultSeedJoinMirrorSyncsThroughFollowerSeedRedirect(t *testing.T)
 	t.Cleanup(func() { _ = joining.Stop(context.Background()) })
 }
 
+func waitForControllerTasksDrained(t *testing.T, ctx context.Context, nodes ...*Node) {
+	t.Helper()
+	latest := make([]control.Snapshot, len(nodes))
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		converged := len(nodes) > 0
+		var revision uint64
+		var clusterID string
+		for i, node := range nodes {
+			if node == nil {
+				converged = false
+				continue
+			}
+			snapshot, err := node.LocalControlSnapshot(ctx)
+			if err != nil {
+				converged = false
+				continue
+			}
+			latest[i] = snapshot
+			if snapshot.ClusterID == "" || snapshot.Revision == 0 || len(snapshot.Tasks) != 0 {
+				converged = false
+				continue
+			}
+			if revision == 0 {
+				revision = snapshot.Revision
+				clusterID = snapshot.ClusterID
+				continue
+			}
+			if snapshot.Revision != revision || snapshot.ClusterID != clusterID {
+				converged = false
+				continue
+			}
+		}
+		if converged {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("wait for Controller tasks to drain: %v; latest=%+v", ctx.Err(), latest)
+		case <-ticker.C:
+		}
+	}
+}
+
 func TestNodeDefaultControllerForwardsControlWriteOverTransport(t *testing.T) {
 	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
 	voters := []ControlVoter{
@@ -902,9 +949,21 @@ func TestNodeDefaultControllerForwardsControlWriteOverTransport(t *testing.T) {
 	}
 
 	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer readyCancel()
-	if err := WaitControllerWriteReady(readyCtx, nodes...); err != nil {
-		t.Fatalf("WaitControllerWriteReady() error = %v", err)
+	err := WaitControllerWriteReady(readyCtx, nodes...)
+	readyCancel()
+	if err != nil {
+		t.Fatalf("WaitControllerWriteReady(initial) error = %v", err)
+	}
+
+	drainCtx, drainCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	waitForControllerTasksDrained(t, drainCtx, nodes...)
+	drainCancel()
+
+	probeCtx, probeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err = WaitControllerWriteReady(probeCtx, nodes...)
+	probeCancel()
+	if err != nil {
+		t.Fatalf("WaitControllerWriteReady(post-drain) error = %v", err)
 	}
 
 	var follower *control.Runtime
