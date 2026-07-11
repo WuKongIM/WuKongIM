@@ -22,7 +22,15 @@ flows still consume only `OwnerRoute`.
 
 ## Touch Batching
 
-`MarkTouched` records owner-observed activity on active routes only and marks the session dirty. `DrainTouched` returns bounded `OwnerRoute` dirty batches for authority touch writes and clears their dirty markers. `RequeueTouched` re-marks drained routes after a failed batch only when the same active owner route is still current, so removed or superseded sessions are skipped.
+`MarkTouched` records owner-observed activity on active routes only and marks the
+session dirty. Each `DrainTouched(limit)` call returns at most `limit`
+`OwnerRoute` values for one authority touch chunk and clears their dirty
+markers. The app worker, rather than the registry, owns repeated drains and the
+65,536-route default total flush budget. `RequeueTouched` re-marks drained
+routes only when the same active owner route is still current, so removed or
+superseded sessions are skipped. The worker defers failed-route requeue until
+the complete bounded flush ends, preventing one failing route from being
+drained repeatedly in the same flush.
 
 ## Diagnostics
 

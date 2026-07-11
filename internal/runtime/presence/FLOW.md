@@ -62,9 +62,11 @@ routes; index memory is `O(R + B)`. `ExpireRoutes` is the compatibility wrapper
 that returns only the detailed result's expired count.
 
 TTL expiry removes active and index membership without changing `ownerSeq` or
-`tombstoneSeq` and does not create a tombstone. A later non-conflicting fresh
-touch may therefore recreate the route, while an explicit unregister tombstone
-continues to reject activity at or behind its owner sequence.
+`tombstoneSeq` and does not create a tombstone. A delayed touch below the last
+owner sequence therefore remains fenced after expiry. An equal owner sequence
+heartbeat from the still-active owner, or a higher owner sequence touch, may
+recreate the non-conflicting route; an explicit unregister tombstone continues
+to reject activity at or behind its owner sequence.
 
 ## Diagnostics
 

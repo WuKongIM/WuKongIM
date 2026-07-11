@@ -602,7 +602,40 @@ func TestDirectoryUnregisterUnschedulesExpiryAndPreservesTombstone(t *testing.T)
 	}
 }
 
-func TestDirectoryExpiredRouteCanBeRecreatedByFreshTouch(t *testing.T) {
+func TestDirectoryExpiredRouteRejectsLowerOwnerSeqTouch(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	target := RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1}
+	dir.BecomeAuthority(target)
+	route := Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10,
+		LastSeenUnix: 100,
+	}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if result := dir.ExpireRoutesDetailed(time.Unix(106, 0), 5*time.Second); result.Expired != 1 {
+		t.Fatalf("initial expire result = %#v, want one expired route", result)
+	}
+
+	stale := route
+	stale.OwnerSeq--
+	stale.LastSeenUnix = 200
+	if err := dir.TouchRoutes(target, []Route{stale}); err != nil {
+		t.Fatalf("TouchRoutes(lower owner sequence) error = %v", err)
+	}
+	if snap := dir.Snapshot(); snap.Active != 0 || snap.ExpiryIndexRoutes != 0 || snap.ExpiryIndexBuckets != 0 {
+		t.Fatalf("snapshot after lower owner sequence touch = %#v, want route still absent", snap)
+	}
+	routes, err := dir.EndpointsByUID(target, route.UID)
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 0 {
+		t.Fatalf("routes = %#v, want lower owner sequence fenced after TTL expiry", routes)
+	}
+}
+
+func TestDirectoryExpiredRouteCanBeRecreatedByEqualOwnerSeqTouch(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
 	target := RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1}
 	dir.BecomeAuthority(target)
@@ -631,7 +664,41 @@ func TestDirectoryExpiredRouteCanBeRecreatedByFreshTouch(t *testing.T) {
 		t.Fatalf("EndpointsByUID() error = %v", err)
 	}
 	if len(routes) != 1 || routes[0].LastSeenUnix != touched.LastSeenUnix || routes[0].OwnerSeq != route.OwnerSeq {
-		t.Fatalf("routes = %#v, want fresh touch to recreate exact owner sequence", routes)
+		t.Fatalf("routes = %#v, want equal owner sequence touch to recreate route", routes)
+	}
+}
+
+func TestDirectoryExpiredRouteCanBeRecreatedByHigherOwnerSeqTouch(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 1})
+	target := RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1}
+	dir.BecomeAuthority(target)
+	route := Route{
+		UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10,
+		LastSeenUnix: 100,
+	}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if result := dir.ExpireRoutesDetailed(time.Unix(106, 0), 5*time.Second); result.Expired != 1 {
+		t.Fatalf("initial expire result = %#v, want one expired route", result)
+	}
+
+	fresh := route
+	fresh.OwnerSeq++
+	fresh.LastSeenUnix = 200
+	if err := dir.TouchRoutes(target, []Route{fresh}); err != nil {
+		t.Fatalf("TouchRoutes(higher owner sequence) error = %v", err)
+	}
+	snap := dir.Snapshot()
+	if snap.Active != 1 || snap.ExpiryIndexRoutes != 1 || snap.ExpiryIndexBuckets != 1 {
+		t.Fatalf("snapshot after higher owner sequence touch = %#v, want recreated indexed route", snap)
+	}
+	routes, err := dir.EndpointsByUID(target, route.UID)
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].LastSeenUnix != fresh.LastSeenUnix || routes[0].OwnerSeq != fresh.OwnerSeq {
+		t.Fatalf("routes = %#v, want higher owner sequence touch to recreate route", routes)
 	}
 }
 

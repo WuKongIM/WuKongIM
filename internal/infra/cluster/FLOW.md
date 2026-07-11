@@ -750,13 +750,16 @@ during flush. The adapter sends the batch locally when the target leader is
 this node and uses access/node RPC for remote leaders.
 
 Batch target resolution preserves input order and cardinality without falling
-back to per-UID `RouteKey` calls. A batch-level routing or context error is
-copied to every aligned item, while a key-specific error is mapped only onto
-its corresponding item; successful items retain the hash Slot, physical Slot,
-leader term, config epoch, route revision, and authority epoch fences from the
-single cluster routing snapshot.
+back to per-UID `RouteKey` calls or retrying individual failed entries inside
+the batch. A batch-level routing or context error is copied to every aligned
+item, while a key-specific error is mapped only onto its corresponding item;
+successful items retain the hash Slot, physical Slot, leader term, config
+epoch, route revision, and authority epoch fences from the single cluster
+routing snapshot. The app worker owns exact route requeue for failed items so a
+later flush can resolve them against a newer routing snapshot.
 
-If route resolution reports route-not-ready, stale routing, or not-leader, the
+For the individual register, unregister, endpoint, commit, and abort paths, if
+route resolution reports route-not-ready, stale routing, or not-leader, the
 adapter waits a short bounded backoff and resolves a fresh `RouteKey` within a
 bounded retry window. Authority calls retry stale routing and not-leader the
 same way, while authority-side route-not-ready is returned as its original

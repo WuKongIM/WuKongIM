@@ -687,7 +687,8 @@ periodic flush
      one successful expiry pass with duration, due buckets, examined/expired
      routes, and remaining expiry-index route/bucket counts
   -> repeatedly drain owner-local dirty routes through online.Registry.DrainTouched,
-     requesting min(touchBatchSize, remaining max-routes-per-flush budget)
+     requesting min(touchBatchSize, remaining max-routes-per-flush budget);
+     the default total budget is 65,536 routes per flush
   -> for each chunk, preserve first-seen UID order, deduplicate UIDs, and resolve
      all current UID authority targets with one aligned batch route lookup
   -> requeue every route for an unresolved UID; group successful routes in
