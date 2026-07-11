@@ -9,6 +9,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/stretchr/testify/require"
 )
@@ -383,6 +384,56 @@ func TestMessageDBFactoryBatchesReleaseLeasesOnCancellation(t *testing.T) {
 	requireBatchKeysReclaimed(t, factory, applyKeys)
 }
 
+func TestMessageDBFactoryBatchAdmittedCancellationReclaimsAfterTerminalCommit(t *testing.T) {
+	observer := &commitAdmissionObserver{admitted: make(chan struct{})}
+	factory := NewMessageDBFactoryWithOptions(t.TempDir(), MessageDBFactoryOptions{
+		CommitFlushWindow: 200 * time.Millisecond,
+		CommitMaxRequests: 2,
+		CommitObserver:    observer,
+	})
+	t.Cleanup(func() { _ = factory.Close() })
+	key := ch.ChannelKey("batch-admitted-cancel:1")
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	resultCh := make(chan []AppendLeaderBatchResult, 1)
+	go func() {
+		resultCh <- factory.AppendLeaderBatch(ctx, []AppendLeaderBatchItem{
+			batchAppendItem(key, "batch-admitted-cancel", 451, 0),
+		})
+	}()
+
+	select {
+	case <-observer.admitted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for commit admission")
+	}
+	cancel()
+	var results []AppendLeaderBatchResult
+	select {
+	case results = <-resultCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for canceled adapter batch")
+	}
+	require.Len(t, results, 1)
+	require.ErrorIs(t, results[0].Err, context.Canceled)
+
+	_, err := factory.ChannelStore(key, ch.ChannelID{ID: "replacement-before-terminal", Type: 2})
+	require.Error(t, err, "background commit pin should retain the canonical identity")
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		replacement, acquireErr := factory.ChannelStore(key, ch.ChannelID{ID: "replacement-after-terminal", Type: 2})
+		if acquireErr == nil {
+			require.NoError(t, replacement.Close())
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("channel lease was not reclaimed after terminal commit: %v", acquireErr)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func TestMessageDBFactoryBatchesReleaseSuccessfulAcquisitionsWhenOneAcquireFails(t *testing.T) {
 	factory := NewMessageDBFactory(t.TempDir())
 	t.Cleanup(func() { _ = factory.Close() })
@@ -562,6 +613,18 @@ func (s *trustedApplyFetchRecorder) StoreApplyFetchTrusted(channel.ApplyFetchSto
 type cleanupChannelStoreFactory struct {
 	t *testing.T
 	Factory
+}
+
+type commitAdmissionObserver struct {
+	once     sync.Once
+	admitted chan struct{}
+}
+
+func (o *commitAdmissionObserver) SetCommitCoordinatorQueueDepth(int) {
+	o.once.Do(func() { close(o.admitted) })
+}
+
+func (o *commitAdmissionObserver) ObserveCommitCoordinatorBatch(messagedb.CommitCoordinatorBatchEvent) {
 }
 
 func (f cleanupChannelStoreFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (ChannelStore, error) {
