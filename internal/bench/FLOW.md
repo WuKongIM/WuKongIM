@@ -29,7 +29,16 @@ inflight SEND count, socket read buffer, and frame buffer capacities flow from
 the selected worker assignment through the default connection manager factory;
 the frame buffer capacity bounds both the adapter queue and the inner inbound
 RECV queue. Omitting the complete profile retains the tooling defaults. Worker
-clients are additionally wrapped by a matching reader that buffers unmatched frames for
+clients may also receive an optional worker-local `tcp_source` pool. The pool
+contains explicit, unique, non-unspecified IPv4 addresses plus an inclusive
+port range. The planner requires its finite capacity to cover the worker's
+final identity range. One shared connection-manager dialer then consumes
+candidates monotonically in IP-fastest order, never reusing a candidate during
+the assignment. Only a local `EADDRINUSE` conflict advances to the next
+candidate; local address/permission failures and pool exhaustion remain typed
+worker failures, while remote target errors retain their normal target
+classification. Omitting `tcp_source` preserves ordinary `net.Dialer`
+behavior. Worker clients are additionally wrapped by a matching reader that buffers unmatched frames for
 foreground waiters and applies the recv-ack policy selected by the scenario.
 Scheduled traffic uses per-key pending queues plus a ready-key queue when a
 workload supplies a serialization key. That keeps one busy client or channel
@@ -51,7 +60,8 @@ cmd/wkbench run
        -> worker /v1/info
        -> gateway checker
   -> coordinator.assignWorkers
-       -> copy only each selected worker's client capacity profile into its assignment
+       -> copy only each selected worker's client capacity profile and TCP source pool into its assignment
+       -> omit worker control credentials from the assignment payload
        -> POST worker /v1/assign
   -> phases: prepare -> connect -> warmup -> run -> cooldown
        -> POST worker /v1/phase/<phase>
@@ -70,6 +80,10 @@ Coordinator terminal statuses map directly to CLI exit codes:
 - `worker_failed` -> `4`
 - `target_unavailable` -> `5`
 - `canceled` or `internal_failed` -> `6`
+
+Explicit TCP source pool errors are worker-local configuration or capacity
+failures and therefore resolve to `worker_failed`, never
+`target_unavailable`.
 
 `wkbench run --phase-poll-timeout` controls the base worker phase poll wait.
 When it is omitted, the coordinator default is used. The coordinator then adds
@@ -323,6 +337,7 @@ Connect
   -> buildGroupExecutionPlan
   -> merge connection users with the worker identity range
   -> apply the assignment's optional worker client capacity profile
+  -> create one optional shared monotonic TCP source dialer for the assignment
   -> workload.ConnectionManager.Connect
   -> optional heartbeat pings keep idle online users active
   -> wrap clients for concurrent frame matching
@@ -349,7 +364,7 @@ Warmup, run, and cooldown execute all stored person and group workloads concurre
 
 ## Planner Flow
 
-`planner.Build` validates inputs, computes identity ranges, and creates a `model.Plan`. The total generated online identity pool is weighted across workers as `WorkerPlan.IdentityRange`; worker connect uses this range as the baseline online population.
+`planner.Build` validates inputs, computes identity ranges, and creates a `model.Plan`. The total generated online identity pool is weighted across workers as `WorkerPlan.IdentityRange`; worker connect uses this range as the baseline online population. After the weighted ranges are final, the planner verifies each configured TCP source pool has at least `IdentityRange.Len()` candidates. Workers without an explicit pool are not assigned an inferred operating-system capacity.
 
 Person profiles:
 

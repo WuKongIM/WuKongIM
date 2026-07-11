@@ -55,6 +55,44 @@ func TestPlanIdentityRangeByWorkerWeight(t *testing.T) {
 	require.Equal(t, model.Range{Start: 50, End: 100}, plan.Workers["c"].IdentityRange)
 }
 
+func TestBuildAcceptsExactTCPSourceCapacityForFinalIdentityRange(t *testing.T) {
+	scenario := scenarioWithManyGroup(1, 10, "1/s")
+	scenario.Online.TotalUsers = 20
+	workers := []model.Worker{
+		{ID: "a", Weight: 1, TCPSource: &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1"}, PortMin: 2000, PortMax: 2009}},
+		{ID: "b", Weight: 1, TCPSource: &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1", "192.168.3.57"}, PortMin: 3000, PortMax: 3004}},
+	}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	require.Equal(t, 10, plan.Workers["a"].IdentityRange.Len())
+	require.Equal(t, 10, plan.Workers["b"].IdentityRange.Len())
+}
+
+func TestBuildValidatesTCPSourceCapacityAgainstWeightedIdentityRange(t *testing.T) {
+	scenario := scenarioWithManyGroup(1, 10, "1/s")
+	scenario.Online.TotalUsers = 100
+	workers := []model.Worker{
+		{ID: "a", Weight: 1, TCPSource: &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1"}, PortMin: 2000, PortMax: 2024}},
+		{ID: "b", Weight: 1},
+		{ID: "c", Weight: 2, TCPSource: &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1"}, PortMin: 3000, PortMax: 3048}},
+	}
+
+	_, err := Build(scenario, workers)
+
+	require.ErrorContains(t, err, `worker "c" tcp source capacity 49 is smaller than identity range 50`)
+}
+
+func TestBuildDoesNotGuessCapacityWhenTCPSourcePoolIsOmitted(t *testing.T) {
+	scenario := scenarioWithManyGroup(1, 10, "1/s")
+	scenario.Online.TotalUsers = 100000
+
+	_, err := Build(scenario, []model.Worker{{ID: "a", Weight: 1}})
+
+	require.NoError(t, err)
+}
+
 func TestBuildRejectsDisallowedOverlapGroupsWhenSharedIdentityPoolTooSmall(t *testing.T) {
 	small := channelProfile("small-groups", "group", 50)
 	small.Members.Count = 100

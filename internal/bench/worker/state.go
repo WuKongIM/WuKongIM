@@ -51,6 +51,8 @@ type Assignment struct {
 	WorkerID string `json:"worker_id,omitempty"`
 	// Client contains only this worker's optional per-session client capacity profile.
 	Client *model.WorkerClientConfig `json:"client,omitempty"`
+	// TCPSource contains only this worker's optional local TCP source pool.
+	TCPSource *model.TCPSourceConfig `json:"tcp_source,omitempty"`
 	// ChannelOwners records deterministic group channel owners by profile and channel index.
 	ChannelOwners map[string]map[int]string `json:"channel_owners,omitempty"`
 	// Plan is the deterministic worker-local shard assigned by the coordinator.

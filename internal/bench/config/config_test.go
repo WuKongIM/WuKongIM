@@ -116,6 +116,45 @@ workers:
 	require.ErrorContains(t, err, "receive_queue_capacity")
 }
 
+func TestLoadWorkerSetDecodesStrictTCPSourcePool(t *testing.T) {
+	path := writeTempYAML(t, `
+workers:
+  - id: bench-a
+    addr: http://127.0.0.1:19090
+    weight: 1
+    insecure_control: true
+    tcp_source:
+      ipv4_addrs: [127.0.0.1, 192.168.3.57]
+      port_min: 1024
+      port_max: 65535
+`)
+
+	workers, err := LoadWorkerSet(path)
+	require.NoError(t, err)
+	require.NotNil(t, workers.Workers[0].TCPSource)
+	require.Equal(t, []string{"127.0.0.1", "192.168.3.57"}, workers.Workers[0].TCPSource.IPv4Addrs)
+	require.Equal(t, 1024, workers.Workers[0].TCPSource.PortMin)
+	require.Equal(t, 65535, workers.Workers[0].TCPSource.PortMax)
+}
+
+func TestLoadWorkerSetRejectsUnknownTCPSourcePoolKey(t *testing.T) {
+	path := writeTempYAML(t, `
+workers:
+  - id: bench-a
+    addr: http://127.0.0.1:19090
+    weight: 1
+    insecure_control: true
+    tcp_source:
+      ipv4_addrs: [127.0.0.1]
+      port_min: 1024
+      port_max: 65535
+      reuse: true
+`)
+
+	_, err := LoadWorkerSet(path)
+	require.ErrorContains(t, err, "reuse")
+}
+
 func TestValidateStaticConfigRequiresTargetAddresses(t *testing.T) {
 	target := Target{BenchAPI: BenchAPIConfig{Enabled: true}}
 	workers := WorkerSet{Workers: []Worker{{ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, ControlToken: "secret"}}}
@@ -194,6 +233,45 @@ func TestValidateStaticConfigRequiresCompletePositiveWorkerClientProfile(t *test
 			tt.edit(&profile)
 			err := ValidateStaticConfig(validStaticTarget(), WorkerSet{Workers: []Worker{{
 				ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, InsecureControl: true, Client: &profile,
+			}}})
+
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+}
+
+func TestValidateStaticConfigAllowsOmittedWorkerTCPSourcePool(t *testing.T) {
+	workers := WorkerSet{Workers: []Worker{{
+		ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, InsecureControl: true,
+	}}}
+
+	require.NoError(t, ValidateStaticConfig(validStaticTarget(), workers))
+}
+
+func TestValidateStaticConfigRequiresCompleteValidWorkerTCPSourcePool(t *testing.T) {
+	valid := TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1", "192.168.3.57"}, PortMin: 1024, PortMax: 65535}
+	tests := []struct {
+		name string
+		edit func(*TCPSourceConfig)
+		want string
+	}{
+		{name: "empty addresses", edit: func(cfg *TCPSourceConfig) { cfg.IPv4Addrs = nil }, want: "tcp_source.ipv4_addrs"},
+		{name: "invalid address", edit: func(cfg *TCPSourceConfig) { cfg.IPv4Addrs = []string{"not-an-ip"} }, want: "valid IPv4"},
+		{name: "ipv6 address", edit: func(cfg *TCPSourceConfig) { cfg.IPv4Addrs = []string{"::1"} }, want: "valid IPv4"},
+		{name: "unspecified address", edit: func(cfg *TCPSourceConfig) { cfg.IPv4Addrs = []string{"0.0.0.0"} }, want: "must not be unspecified"},
+		{name: "duplicate address", edit: func(cfg *TCPSourceConfig) { cfg.IPv4Addrs = []string{"127.0.0.1", "127.0.0.1"} }, want: "must be unique"},
+		{name: "low port", edit: func(cfg *TCPSourceConfig) { cfg.PortMin = 1023 }, want: "tcp_source.port_min"},
+		{name: "reversed ports", edit: func(cfg *TCPSourceConfig) { cfg.PortMin, cfg.PortMax = 2000, 1999 }, want: "must not exceed"},
+		{name: "high port", edit: func(cfg *TCPSourceConfig) { cfg.PortMax = 65536 }, want: "tcp_source.port_max"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := valid
+			pool.IPv4Addrs = append([]string(nil), valid.IPv4Addrs...)
+			tt.edit(&pool)
+
+			err := ValidateStaticConfig(validStaticTarget(), WorkerSet{Workers: []Worker{{
+				ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, InsecureControl: true, TCPSource: &pool,
 			}}})
 
 			require.ErrorContains(t, err, tt.want)

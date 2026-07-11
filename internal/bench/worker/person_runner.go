@@ -128,12 +128,19 @@ func connectionManagerConfig(assignment Assignment, factory WorkloadClientFactor
 		cloned := *client
 		client = &cloned
 	}
+	tcpSource := assignment.TCPSource
+	if tcpSource != nil {
+		cloned := *tcpSource
+		cloned.IPv4Addrs = append([]string(nil), tcpSource.IPv4Addrs...)
+		tcpSource = &cloned
+	}
 	return benchworkload.ConnectionManagerConfig{
 		Target:           assignment.Target,
 		GatewayBalance:   assignment.Scenario.Online.GatewayBalance,
 		ConnectRate:      assignment.Scenario.Online.ConnectRate,
 		Heartbeat:        assignment.Scenario.Online.Heartbeat,
 		Client:           client,
+		TCPSource:        tcpSource,
 		ClientFactory:    factory,
 		Token:            "",
 		OperationTimeout: 0,
@@ -707,6 +714,9 @@ func (r *defaultWorkloadRunner) closeCurrent(runID string) {
 func markTargetUnavailable(err error) error {
 	if err == nil {
 		return nil
+	}
+	if benchworkload.IsTCPSourceError(err) {
+		return err
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) {

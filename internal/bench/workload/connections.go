@@ -84,10 +84,13 @@ type ConnectionManagerConfig struct {
 	AckTimeout time.Duration
 	// Client optionally overrides the production WKProto client's per-session capacities.
 	Client *model.WorkerClientConfig
+	// TCPSource optionally supplies a finite local IPv4 address and port pool to the default client factory.
+	TCPSource *model.TCPSourceConfig
 	// ClientFactory overrides production WKProto client creation for tests.
 	ClientFactory func(user ConnectionUser, addr string) (ConnectionClient, error)
 
-	sleep func(context.Context, time.Duration) error
+	sleep   func(context.Context, time.Duration) error
+	tcpDial tcpDialFunc
 }
 
 // ConnectionManager owns the UID-to-session map for worker gateway connections.
@@ -97,6 +100,7 @@ type ConnectionManager struct {
 	factory      func(user ConnectionUser, addr string) (ConnectionClient, error)
 	sleep        func(context.Context, time.Duration) error
 	rateLimiter  *connectRateLimiter
+	sourceDialer *tcpSourceDialer
 
 	mu          sync.Mutex
 	nextGateway int
@@ -129,10 +133,14 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 	if err := validateWorkerClientConfig(cfg.Client); err != nil {
 		return nil, err
 	}
+	sourceDialer, err := newTCPSourceDialer(cfg.TCPSource, cfg.tcpDial)
+	if err != nil {
+		return nil, fmt.Errorf("connection manager: %w", err)
+	}
 	factory := cfg.ClientFactory
 	if factory == nil {
 		factory = func(user ConnectionUser, addr string) (ConnectionClient, error) {
-			return benchwkproto.NewClient(defaultWKProtoClientConfig(cfg, user, addr))
+			return benchwkproto.NewClient(defaultWKProtoClientConfig(cfg, user, addr, sourceDialer))
 		}
 	}
 	sleep := cfg.sleep
@@ -145,6 +153,7 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 		factory:      factory,
 		sleep:        sleep,
 		rateLimiter:  newConnectRateLimiter(cfg.ConnectRate, sleep),
+		sourceDialer: sourceDialer,
 		sessions:     make(map[string]*ConnectionSession),
 		metrics:      metrics.NewRegistry(),
 	}, nil
@@ -160,12 +169,15 @@ func validateWorkerClientConfig(cfg *model.WorkerClientConfig) error {
 	return nil
 }
 
-func defaultWKProtoClientConfig(cfg ConnectionManagerConfig, user ConnectionUser, addr string) benchwkproto.ClientConfig {
+func defaultWKProtoClientConfig(cfg ConnectionManagerConfig, user ConnectionUser, addr string, sourceDialer *tcpSourceDialer) benchwkproto.ClientConfig {
 	clientCfg := benchwkproto.ClientConfig{
 		Addr:             addr,
 		Token:            user.Token,
 		OperationTimeout: cfg.OperationTimeout,
 		AckTimeout:       cfg.AckTimeout,
+	}
+	if sourceDialer != nil {
+		clientCfg.Dialer = sourceDialer
 	}
 	if cfg.Client != nil {
 		clientCfg.SendQueueCapacity = cfg.Client.SendQueueCapacity

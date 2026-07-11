@@ -19,6 +19,7 @@ type BenchAPIConfig = model.BenchAPIConfig
 type MetricsConfig = model.MetricsConfig
 type Worker = model.Worker
 type WorkerClientConfig = model.WorkerClientConfig
+type TCPSourceConfig = model.TCPSourceConfig
 type WorkerSet = model.WorkerSet
 type Scenario = model.Scenario
 type RunConfig = model.RunConfig
@@ -141,6 +142,11 @@ func ValidateStaticConfig(target Target, workers WorkerSet) error {
 			}
 			if worker.Client.FrameBufferSize <= 0 {
 				problems = append(problems, prefix+".client.frame_buffer_size must be greater than zero")
+			}
+		}
+		if worker.TCPSource != nil {
+			if err := model.ValidateTCPSourceConfig(worker.TCPSource); err != nil {
+				problems = append(problems, fmt.Sprintf("%s.tcp_source.%v", prefix, err))
 			}
 		}
 	}

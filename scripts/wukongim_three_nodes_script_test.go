@@ -53,6 +53,9 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=false",
 		"WK_BENCH_PRESENCE_USERS=100000",
 		"WK_BENCH_PRESENCE_OUT_DIR="+filepath.Join(t.TempDir(), "presence-results"),
+		"WK_BENCH_PRESENCE_SOURCE_IPS=127.0.0.1,192.0.2.1",
+		"WK_BENCH_PRESENCE_SOURCE_PORT_MIN=1024",
+		"WK_BENCH_PRESENCE_SOURCE_PORT_MAX=65535",
 		"WK_BENCH_API_ADDRS=http://127.0.0.1:5011",
 		"WK_BENCH_WORKER_ADDR=http://127.0.0.1:19131",
 		"WK_BENCH_API_ENABLE=true",
@@ -100,6 +103,9 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"wukongim-node1.toml WK_PROMETHEUS_EMBED_DIR=<unset>",
 		"wukongim-node1.toml WK_BENCH_PRESENCE_USERS=<unset>",
 		"wukongim-node1.toml WK_BENCH_PRESENCE_OUT_DIR=<unset>",
+		"wukongim-node1.toml WK_BENCH_PRESENCE_SOURCE_IPS=<unset>",
+		"wukongim-node1.toml WK_BENCH_PRESENCE_SOURCE_PORT_MIN=<unset>",
+		"wukongim-node1.toml WK_BENCH_PRESENCE_SOURCE_PORT_MAX=<unset>",
 		"wukongim-node1.toml WK_BENCH_API_ADDRS=<unset>",
 		"wukongim-node1.toml WK_BENCH_WORKER_ADDR=<unset>",
 		"wukongim-node1.toml WK_BENCH_API_ENABLE=true",
@@ -307,6 +313,9 @@ done
 	printf '%s WK_PROMETHEUS_EMBED_DIR=%s\n' "$config" "${WK_PROMETHEUS_EMBED_DIR-<unset>}"
 	printf '%s WK_BENCH_PRESENCE_USERS=%s\n' "$config" "${WK_BENCH_PRESENCE_USERS-<unset>}"
 	printf '%s WK_BENCH_PRESENCE_OUT_DIR=%s\n' "$config" "${WK_BENCH_PRESENCE_OUT_DIR-<unset>}"
+	printf '%s WK_BENCH_PRESENCE_SOURCE_IPS=%s\n' "$config" "${WK_BENCH_PRESENCE_SOURCE_IPS-<unset>}"
+	printf '%s WK_BENCH_PRESENCE_SOURCE_PORT_MIN=%s\n' "$config" "${WK_BENCH_PRESENCE_SOURCE_PORT_MIN-<unset>}"
+	printf '%s WK_BENCH_PRESENCE_SOURCE_PORT_MAX=%s\n' "$config" "${WK_BENCH_PRESENCE_SOURCE_PORT_MAX-<unset>}"
 	printf '%s WK_BENCH_API_ADDRS=%s\n' "$config" "${WK_BENCH_API_ADDRS-<unset>}"
 	printf '%s WK_BENCH_WORKER_ADDR=%s\n' "$config" "${WK_BENCH_WORKER_ADDR-<unset>}"
 	printf '%s WK_BENCH_API_ENABLE=%s\n' "$config" "${WK_BENCH_API_ENABLE-<unset>}"

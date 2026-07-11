@@ -29,6 +29,13 @@ CLIENT_SEND_QUEUE_CAPACITY="${WK_BENCH_PRESENCE_CLIENT_SEND_QUEUE_CAPACITY:-16}"
 CLIENT_MAX_INFLIGHT="${WK_BENCH_PRESENCE_CLIENT_MAX_INFLIGHT:-1}"
 CLIENT_READ_BUFFER_SIZE="${WK_BENCH_PRESENCE_CLIENT_READ_BUFFER_SIZE:-1024}"
 CLIENT_FRAME_BUFFER_SIZE="${WK_BENCH_PRESENCE_CLIENT_FRAME_BUFFER_SIZE:-4}"
+SOURCE_IPS="${WK_BENCH_PRESENCE_SOURCE_IPS:-}"
+SOURCE_PORT_MIN="${WK_BENCH_PRESENCE_SOURCE_PORT_MIN:-}"
+SOURCE_PORT_MAX="${WK_BENCH_PRESENCE_SOURCE_PORT_MAX:-}"
+SOURCE_ENABLED=0
+SOURCE_CAPACITY=0
+SOURCE_POOL_SUMMARY="disabled"
+declare -a SOURCE_IP_VALUES=()
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -84,6 +91,9 @@ Options:
   --cleanup-timeout SECS    Wait up to this many seconds for owner/authority routes to clear. Default: 0.
   --phase-poll-timeout D    Base wkbench worker phase poll timeout. Default: 30s.
   --no-require-touch        Do not fail when touch_routes_total is zero.
+  --source-ips LIST         Optional comma-separated local IPv4 source addresses.
+  --source-port-min N       Inclusive local source port minimum. Requires --source-ips.
+  --source-port-max N       Inclusive local source port maximum. Requires --source-ips.
   --api LIST                Comma-separated API base URLs.
   --gateway LIST            Comma-separated WKProto gateway addresses.
   --metrics LIST            Comma-separated metrics base URLs. Default: same as --api.
@@ -106,6 +116,12 @@ require_positive_int() {
   local value="$2"
   [[ "$value" =~ ^[0-9]+$ ]] || die "$name must be a positive integer: $value"
   (( value > 0 )) || die "$name must be a positive integer: $value"
+}
+
+require_source_port() {
+  local name="$1"
+  local value="$2"
+  [[ "$value" =~ ^[1-9][0-9]{0,4}$ ]] || die "$name must be a canonical positive integer with at most 5 decimal digits: $value"
 }
 
 require_nonnegative_number() {
@@ -136,6 +152,62 @@ split_csv() {
     [[ -n "${item//[[:space:]]/}" ]] || die "comma-separated list contains an empty item: $raw"
     eval "$var_name+=(\"\$item\")"
   done
+}
+
+trim_spaces() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+is_valid_ipv4() {
+  local value="$1"
+  [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  local octets=()
+  local octet
+  IFS='.' read -ra octets <<<"$value"
+  [[ "${#octets[@]}" -eq 4 ]] || return 1
+  for octet in "${octets[@]}"; do
+    [[ "$octet" == "0" || "$octet" != 0* ]] || return 1
+    (( 10#$octet <= 255 )) || return 1
+  done
+  [[ "$value" != "0.0.0.0" ]]
+}
+
+validate_tcp_source_pool() {
+  if [[ -z "$SOURCE_IPS" && -z "$SOURCE_PORT_MIN" && -z "$SOURCE_PORT_MAX" ]]; then
+    return
+  fi
+  if [[ -z "$SOURCE_IPS" || -z "$SOURCE_PORT_MIN" || -z "$SOURCE_PORT_MAX" ]]; then
+    die "WK_BENCH_PRESENCE_SOURCE_IPS, WK_BENCH_PRESENCE_SOURCE_PORT_MIN, and WK_BENCH_PRESENCE_SOURCE_PORT_MAX must be configured together"
+  fi
+  require_source_port 'WK_BENCH_PRESENCE_SOURCE_PORT_MIN' "$SOURCE_PORT_MIN"
+  require_source_port 'WK_BENCH_PRESENCE_SOURCE_PORT_MAX' "$SOURCE_PORT_MAX"
+  SOURCE_PORT_MIN=$((10#$SOURCE_PORT_MIN))
+  SOURCE_PORT_MAX=$((10#$SOURCE_PORT_MAX))
+  (( SOURCE_PORT_MIN >= 1024 )) || die "WK_BENCH_PRESENCE_SOURCE_PORT_MIN must be at least 1024: $SOURCE_PORT_MIN"
+  (( SOURCE_PORT_MAX <= 65535 )) || die "WK_BENCH_PRESENCE_SOURCE_PORT_MAX must not exceed 65535: $SOURCE_PORT_MAX"
+  (( SOURCE_PORT_MIN <= SOURCE_PORT_MAX )) || die "WK_BENCH_PRESENCE_SOURCE_PORT_MIN must not exceed WK_BENCH_PRESENCE_SOURCE_PORT_MAX"
+
+  local raw_values=()
+  local normalized=()
+  local raw value existing
+  split_csv "$SOURCE_IPS" raw_values
+  for raw in "${raw_values[@]}"; do
+    value="$(trim_spaces "$raw")"
+    is_valid_ipv4 "$value" || die "WK_BENCH_PRESENCE_SOURCE_IPS must contain only valid IPv4 addresses and must not include unspecified addresses: $raw"
+    for existing in ${normalized[@]+"${normalized[@]}"}; do
+      [[ "$existing" != "$value" ]] || die "WK_BENCH_PRESENCE_SOURCE_IPS must contain unique IPv4 addresses: $value"
+    done
+    normalized+=("$value")
+  done
+  SOURCE_IP_VALUES=("${normalized[@]}")
+  SOURCE_IPS="$(IFS=','; printf '%s' "${SOURCE_IP_VALUES[*]}")"
+  SOURCE_CAPACITY=$(( ${#SOURCE_IP_VALUES[@]} * (SOURCE_PORT_MAX - SOURCE_PORT_MIN + 1) ))
+  (( SOURCE_CAPACITY >= USERS )) || die "TCP source pool capacity $SOURCE_CAPACITY is smaller than users $USERS"
+  SOURCE_ENABLED=1
+  SOURCE_POOL_SUMMARY="ipv4_addrs=$SOURCE_IPS port_min=$SOURCE_PORT_MIN port_max=$SOURCE_PORT_MAX capacity=$SOURCE_CAPACITY"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -241,6 +313,21 @@ while [[ $# -gt 0 ]]; do
       REQUIRE_TOUCH=0
       shift
       ;;
+    --source-ips)
+      [[ $# -ge 2 ]] || die '--source-ips requires a value'
+      SOURCE_IPS="$2"
+      shift 2
+      ;;
+    --source-port-min)
+      [[ $# -ge 2 ]] || die '--source-port-min requires a value'
+      SOURCE_PORT_MIN="$2"
+      shift 2
+      ;;
+    --source-port-max)
+      [[ $# -ge 2 ]] || die '--source-port-max requires a value'
+      SOURCE_PORT_MAX="$2"
+      shift 2
+      ;;
     --api)
       [[ $# -ge 2 ]] || die '--api requires a value'
       API_ADDRS="$2"
@@ -282,6 +369,7 @@ require_positive_int 'WK_BENCH_PRESENCE_CLIENT_FRAME_BUFFER_SIZE' "$CLIENT_FRAME
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
 require_nonnegative_number '--cleanup-timeout' "$CLEANUP_TIMEOUT"
 [[ "$REQUIRE_TOUCH" == "0" || "$REQUIRE_TOUCH" == "1" ]] || die "WK_BENCH_PRESENCE_REQUIRE_TOUCH must be 0 or 1"
+validate_tcp_source_pool
 
 declare -a API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$API_ADDRS" API_VALUES
@@ -683,7 +771,8 @@ YAML
     yaml_list API_VALUES
   } >"$OUT_DIR/target.yaml"
 
-  cat >"$OUT_DIR/workers.yaml" <<YAML
+  {
+    cat <<YAML
 workers:
   - id: worker-a
     addr: $WORKER_ADDR
@@ -696,6 +785,21 @@ workers:
       read_buffer_size: $CLIENT_READ_BUFFER_SIZE
       frame_buffer_size: $CLIENT_FRAME_BUFFER_SIZE
 YAML
+    if [[ "$SOURCE_ENABLED" -eq 1 ]]; then
+      cat <<'YAML'
+    tcp_source:
+      ipv4_addrs:
+YAML
+      local source_ip
+      for source_ip in "${SOURCE_IP_VALUES[@]}"; do
+        printf '        - %s\n' "$source_ip"
+      done
+      cat <<YAML
+      port_min: $SOURCE_PORT_MIN
+      port_max: $SOURCE_PORT_MAX
+YAML
+    fi
+  } >"$OUT_DIR/workers.yaml"
 }
 
 write_scenario() {
@@ -765,6 +869,10 @@ CLIENT_SEND_QUEUE_CAPACITY=$CLIENT_SEND_QUEUE_CAPACITY
 CLIENT_MAX_INFLIGHT=$CLIENT_MAX_INFLIGHT
 CLIENT_READ_BUFFER_SIZE=$CLIENT_READ_BUFFER_SIZE
 CLIENT_FRAME_BUFFER_SIZE=$CLIENT_FRAME_BUFFER_SIZE
+TCP_SOURCE_IPV4_ADDRS=$SOURCE_IPS
+TCP_SOURCE_PORT_MIN=$SOURCE_PORT_MIN
+TCP_SOURCE_PORT_MAX=$SOURCE_PORT_MAX
+TCP_SOURCE_CAPACITY=$SOURCE_CAPACITY
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
 METRICS_ADDRS=$METRICS_ADDRS
@@ -1164,6 +1272,7 @@ write_evidence_summary() {
 - cleanup_timeout: $CLEANUP_TIMEOUT
 - heartbeat_interval: $HEARTBEAT_INTERVAL
 - client_profile: send_queue_capacity=$CLIENT_SEND_QUEUE_CAPACITY max_inflight=$CLIENT_MAX_INFLIGHT read_buffer_size=$CLIENT_READ_BUFFER_SIZE frame_buffer_size=$CLIENT_FRAME_BUFFER_SIZE
+- tcp_source_pool: $SOURCE_POOL_SUMMARY
 - stable_samples: $STABLE_SAMPLES
 - clean_cluster: $CLEAN_CLUSTER
 

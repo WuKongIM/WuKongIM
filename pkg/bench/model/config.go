@@ -66,6 +66,8 @@ type Worker struct {
 	InsecureControl bool `json:"insecure_control" yaml:"insecure_control"`
 	// Client optionally overrides per-session client queue and buffer capacities for this worker.
 	Client *WorkerClientConfig `json:"client,omitempty" yaml:"client,omitempty"`
+	// TCPSource optionally assigns a finite worker-local IPv4 source address and port pool.
+	TCPSource *TCPSourceConfig `json:"tcp_source,omitempty" yaml:"tcp_source,omitempty"`
 	// Tags are free-form labels for worker selection.
 	Tags []string `json:"tags" yaml:"tags"`
 }
@@ -81,6 +83,18 @@ type WorkerClientConfig struct {
 	ReadBufferSize int `json:"read_buffer_size" yaml:"read_buffer_size"`
 	// FrameBufferSize bounds both the bench adapter queue and the inner inbound RECV queue.
 	FrameBufferSize int `json:"frame_buffer_size" yaml:"frame_buffer_size"`
+}
+
+// TCPSourceConfig defines the explicit local IPv4 address and port candidates
+// available to one worker. Every candidate is reserved for at most one dial
+// attempt during an assignment.
+type TCPSourceConfig struct {
+	// IPv4Addrs contains unique, configured local IPv4 addresses.
+	IPv4Addrs []string `json:"ipv4_addrs" yaml:"ipv4_addrs"`
+	// PortMin is the inclusive first local TCP port and must be at least 1024.
+	PortMin int `json:"port_min" yaml:"port_min"`
+	// PortMax is the inclusive last local TCP port and must not exceed 65535.
+	PortMax int `json:"port_max" yaml:"port_max"`
 }
 
 // WorkerSet groups configured workers for a benchmark run.

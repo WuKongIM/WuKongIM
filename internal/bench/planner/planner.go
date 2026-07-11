@@ -51,6 +51,20 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 			Profiles:      make(map[string]model.ProfileShard, len(s.Channels.Profiles)),
 		}
 	}
+	for _, worker := range workers {
+		if worker.TCPSource == nil {
+			continue
+		}
+		workerID := strings.TrimSpace(worker.ID)
+		if err := model.ValidateTCPSourceConfig(worker.TCPSource); err != nil {
+			return model.Plan{}, fmt.Errorf("worker %q tcp source: %w", workerID, err)
+		}
+		capacity := model.TCPSourceCapacity(worker.TCPSource)
+		identityCount := plan.Workers[workerID].IdentityRange.Len()
+		if capacity < int64(identityCount) {
+			return model.Plan{}, fmt.Errorf("worker %q tcp source capacity %d is smaller than identity range %d", workerID, capacity, identityCount)
+		}
+	}
 
 	for _, profileName := range profileOrder {
 		profile := profilesByName[profileName]

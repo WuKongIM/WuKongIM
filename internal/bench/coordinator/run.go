@@ -431,6 +431,7 @@ func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario
 			RunID:         scenario.Run.ID,
 			WorkerID:      workerID,
 			Client:        cloneWorkerClientConfig(w.Client),
+			TCPSource:     cloneWorkerTCPSourceConfig(w.TCPSource),
 			ChannelOwners: plan.ChannelOwners,
 			Plan:          plan.Workers[workerID],
 			Target:        c.cfg.Target,
@@ -450,6 +451,15 @@ func cloneWorkerClientConfig(cfg *model.WorkerClientConfig) *model.WorkerClientC
 		return nil
 	}
 	cloned := *cfg
+	return &cloned
+}
+
+func cloneWorkerTCPSourceConfig(cfg *model.TCPSourceConfig) *model.TCPSourceConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned := *cfg
+	cloned.IPv4Addrs = append([]string(nil), cfg.IPv4Addrs...)
 	return &cloned
 }
 

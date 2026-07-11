@@ -1448,6 +1448,12 @@ func TestWukongIMThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 		`CLEANUP_TIMEOUT="${WK_BENCH_PRESENCE_CLEANUP_TIMEOUT:-0}"`,
 		`PHASE_POLL_TIMEOUT="${WK_BENCH_PRESENCE_PHASE_POLL_TIMEOUT:-30s}"`,
 		`REQUIRE_TOUCH="${WK_BENCH_PRESENCE_REQUIRE_TOUCH:-1}"`,
+		`SOURCE_IPS="${WK_BENCH_PRESENCE_SOURCE_IPS:-}"`,
+		`SOURCE_PORT_MIN="${WK_BENCH_PRESENCE_SOURCE_PORT_MIN:-}"`,
+		`SOURCE_PORT_MAX="${WK_BENCH_PRESENCE_SOURCE_PORT_MAX:-}"`,
+		`--source-ips`,
+		`--source-port-min`,
+		`--source-port-max`,
 		`validate_presence_report`,
 		`wait_for_presence_cleanup`,
 		`cleanup_zero_status`,
@@ -1468,6 +1474,187 @@ func TestWukongIMThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 	}
 	if strings.Contains(script, "docker compose") {
 		t.Fatalf("presence bench script should use local startup scripts, not docker compose")
+	}
+}
+
+func TestWukongIMThreeNodePresenceScriptWritesExplicitTCPSourcePoolFromCLIAndEnv(t *testing.T) {
+	root := repoRoot(t)
+	tests := []struct {
+		name string
+		args []string
+		env  []string
+	}{
+		{
+			name: "cli",
+			args: []string{"--source-ips", "127.0.0.1,192.0.2.1", "--source-port-min", "2000", "--source-port-max", "2004"},
+		},
+		{
+			name: "env",
+			env: []string{
+				"WK_BENCH_PRESENCE_SOURCE_IPS=127.0.0.1,192.0.2.1",
+				"WK_BENCH_PRESENCE_SOURCE_PORT_MIN=2000",
+				"WK_BENCH_PRESENCE_SOURCE_PORT_MAX=2004",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			binDir := t.TempDir()
+			callsDir := t.TempDir()
+			outDir := t.TempDir()
+			writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+			writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+			writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+			writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+			args := []string{
+				"scripts/bench-wukongim-three-nodes-presence.sh",
+				"--no-start",
+				"--no-worker",
+				"--out-dir", outDir,
+				"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+				"--users", "10",
+				"--duration", "1s",
+				"--warmup", "0s",
+				"--cooldown", "0s",
+				"--sample-interval", "0",
+				"--stable-samples", "1",
+				"--resource-interval", "0",
+			}
+			args = append(args, tt.args...)
+			cmd := exec.Command("bash", args...)
+			cmd.Dir = root
+			cmd.Env = presenceTestEnv("PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"))
+			cmd.Env = append(cmd.Env, tt.env...)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("presence script failed: %v\n%s", err, output)
+			}
+
+			workersYAML := readFile(t, filepath.Join(outDir, "workers.yaml"))
+			for _, want := range []string{
+				"tcp_source:",
+				"ipv4_addrs:",
+				"- 127.0.0.1",
+				"- 192.0.2.1",
+				"port_min: 2000",
+				"port_max: 2004",
+			} {
+				if !strings.Contains(workersYAML, want) {
+					t.Fatalf("workers source pool missing %q:\n%s", want, workersYAML)
+				}
+			}
+
+			envText := readFile(t, filepath.Join(outDir, "env.txt"))
+			for _, want := range []string{
+				"TCP_SOURCE_IPV4_ADDRS=127.0.0.1,192.0.2.1",
+				"TCP_SOURCE_PORT_MIN=2000",
+				"TCP_SOURCE_PORT_MAX=2004",
+				"TCP_SOURCE_CAPACITY=10",
+			} {
+				if !strings.Contains(envText, want) {
+					t.Fatalf("env source pool missing %q:\n%s", want, envText)
+				}
+			}
+
+			summary := readFile(t, filepath.Join(outDir, "summary.md"))
+			if !strings.Contains(summary, "- tcp_source_pool: ipv4_addrs=127.0.0.1,192.0.2.1 port_min=2000 port_max=2004 capacity=10") {
+				t.Fatalf("summary source pool missing:\n%s", summary)
+			}
+		})
+	}
+}
+
+func TestWukongIMThreeNodePresenceScriptOmitsTCPSourcePoolByDefault(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--sample-interval", "0",
+		"--stable-samples", "1",
+		"--resource-interval", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = presenceTestEnv("PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script failed: %v\n%s", err, output)
+	}
+
+	workersYAML := readFile(t, filepath.Join(outDir, "workers.yaml"))
+	if strings.Contains(workersYAML, "tcp_source:") || strings.Contains(workersYAML, "127.0.0.2") {
+		t.Fatalf("default workers config must omit invented source pool:\n%s", workersYAML)
+	}
+	summary := readFile(t, filepath.Join(outDir, "summary.md"))
+	if !strings.Contains(summary, "- tcp_source_pool: disabled") {
+		t.Fatalf("default summary should record disabled source pool:\n%s", summary)
+	}
+}
+
+func TestWukongIMThreeNodePresenceScriptRejectsInvalidTCPSourcePoolBeforeClusterStart(t *testing.T) {
+	root := repoRoot(t)
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "partial", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "2000"}, want: "must be configured together"},
+		{name: "invalid ipv4", args: []string{"--source-ips", "127.0.0.999", "--source-port-min", "2000", "--source-port-max", "2009"}, want: "valid IPv4"},
+		{name: "duplicate ipv4", args: []string{"--source-ips", "127.0.0.1,127.0.0.1", "--source-port-min", "2000", "--source-port-max", "2009"}, want: "unique IPv4"},
+		{name: "unspecified ipv4", args: []string{"--source-ips", "0.0.0.0", "--source-port-min", "2000", "--source-port-max", "2009"}, want: "must not include unspecified"},
+		{name: "low port", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "1023", "--source-port-max", "2009"}, want: "must be at least 1024"},
+		{name: "reversed ports", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "2010", "--source-port-max", "2009"}, want: "must not exceed"},
+		{name: "high port", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "2000", "--source-port-max", "65536"}, want: "must not exceed 65535"},
+		{name: "leading zero port", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "02000", "--source-port-max", "2009"}, want: "canonical positive integer"},
+		{name: "oversized min", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "18446744073709552640", "--source-port-max", "2000"}, want: "at most 5 decimal digits"},
+		{name: "oversized max", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "2000", "--source-port-max", "18446744073709617151"}, want: "at most 5 decimal digits"},
+		{name: "capacity", args: []string{"--source-ips", "127.0.0.1", "--source-port-min", "2000", "--source-port-max", "2008"}, want: "capacity 9 is smaller than users 10"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			marker := filepath.Join(t.TempDir(), "cluster-started")
+			startScript := filepath.Join(t.TempDir(), "start.sh")
+			script := "#!/usr/bin/env bash\nset -euo pipefail\ntouch " + marker + "\nexit 99\n"
+			if err := os.WriteFile(startScript, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			args := []string{
+				"scripts/bench-wukongim-three-nodes-presence.sh",
+				"--start-script", startScript,
+				"--out-dir", t.TempDir(),
+				"--users", "10",
+			}
+			args = append(args, tt.args...)
+			cmd := exec.Command("bash", args...)
+			cmd.Dir = root
+			cmd.Env = presenceTestEnv()
+
+			output, err := cmd.CombinedOutput()
+
+			if err == nil {
+				t.Fatalf("presence script should reject %s source pool:\n%s", tt.name, output)
+			}
+			if !strings.Contains(string(output), tt.want) {
+				t.Fatalf("presence script error missing %q:\n%s", tt.want, output)
+			}
+			if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
+				t.Fatalf("cluster start script ran before source validation, stat error = %v", statErr)
+			}
+		})
 	}
 }
 
@@ -1496,7 +1683,7 @@ func TestWukongIMThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 		"--resource-interval", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = presenceTestEnv(
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_FAKE_PRESENCE_CLEANUP_ZERO=1",
 	)
@@ -1555,7 +1742,7 @@ func TestWukongIMThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *test
 		"--resource-interval", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = presenceTestEnv(
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_FAKE_PRESENCE_CLEANUP_ZERO=1",
 		"WK_FAKE_PRESENCE_CLEANUP_EXPIRED=1",
@@ -1608,8 +1795,8 @@ func TestWukongIMThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T)
 		"--resource-interval", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
-		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	cmd.Env = presenceTestEnv(
+		"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1650,8 +1837,8 @@ func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing
 		"--resource-interval", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
-		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	cmd.Env = presenceTestEnv(
+		"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1814,7 +2001,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *
 		"--resource-interval", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = presenceTestEnv(
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_FAKE_PRESENCE_EVIDENCE_FAIL=1",
 	)
@@ -1879,7 +2066,7 @@ func TestWukongIMThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *te
 		"--resource-interval", "0.02",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = presenceTestEnv(
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_FAKE_PRESENCE_RUN_SLEEP=0.08",
 	)
@@ -1918,7 +2105,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInval
 		"--resource-interval", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = presenceTestEnv(
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_FAKE_ACTIVATE_PS_BAD=1",
 	)
@@ -1961,7 +2148,7 @@ func TestWukongIMThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 		"--resource-interval", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = presenceTestEnv(
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_FAKE_PRESENCE_RUN_SLEEP=0.08",
 		"WK_FAKE_PRESENCE_TRANSIENT=1",
@@ -2949,6 +3136,15 @@ esac
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func presenceTestEnv(extra ...string) []string {
+	env := envWithout(
+		"WK_BENCH_PRESENCE_SOURCE_IPS",
+		"WK_BENCH_PRESENCE_SOURCE_PORT_MIN",
+		"WK_BENCH_PRESENCE_SOURCE_PORT_MAX",
+	)
+	return append(env, extra...)
 }
 
 func writeFakePresenceWkbench(t *testing.T, path string, callsDir string) {

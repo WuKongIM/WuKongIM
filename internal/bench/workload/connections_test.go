@@ -2,9 +2,12 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -237,13 +240,105 @@ func TestDefaultWKProtoClientConfigUsesWorkerClientProfile(t *testing.T) {
 		ReadBufferSize:    1024,
 		FrameBufferSize:   4,
 	}
-	cfg := defaultWKProtoClientConfig(ConnectionManagerConfig{Client: profile}, ConnectionUser{Token: "token-a"}, "gw-a:5100")
+	cfg := defaultWKProtoClientConfig(ConnectionManagerConfig{Client: profile}, ConnectionUser{Token: "token-a"}, "gw-a:5100", nil)
 
 	if cfg.Addr != "gw-a:5100" || cfg.Token != "token-a" {
 		t.Fatalf("identity config = %#v", cfg)
 	}
 	if cfg.SendQueueCapacity != 16 || cfg.MaxInflight != 1 || cfg.ReadBufferSize != 1024 || cfg.FrameBufferSize != 4 {
 		t.Fatalf("capacity config = %#v, want 16/1/1024/4", cfg)
+	}
+}
+
+func TestNewConnectionManagerBuildsOneSharedTCPSourceDialerForDefaultFactory(t *testing.T) {
+	pool := &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1"}, PortMin: 2000, PortMax: 2001}
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs: []string{"gw-a:5100"},
+		TCPSource:    pool,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	if manager.sourceDialer == nil {
+		t.Fatal("default connection manager source dialer = nil")
+	}
+	first := defaultWKProtoClientConfig(manager.cfg, ConnectionUser{Token: "a"}, "gw-a:5100", manager.sourceDialer)
+	second := defaultWKProtoClientConfig(manager.cfg, ConnectionUser{Token: "b"}, "gw-a:5100", manager.sourceDialer)
+	if first.Dialer != manager.sourceDialer || second.Dialer != manager.sourceDialer {
+		t.Fatal("default client configs do not share the manager source dialer")
+	}
+}
+
+func TestNewConnectionManagerOmitsSourceDialerForDefaultNetworkDialing(t *testing.T) {
+	manager, err := NewConnectionManager(ConnectionManagerConfig{GatewayAddrs: []string{"gw-a:5100"}})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	if manager.sourceDialer != nil {
+		t.Fatalf("default connection manager source dialer = %#v, want nil", manager.sourceDialer)
+	}
+	clientCfg := defaultWKProtoClientConfig(manager.cfg, ConnectionUser{}, "gw-a:5100", nil)
+	if clientCfg.Dialer != nil {
+		t.Fatalf("default WKProto dialer = %#v, want nil for ordinary net.Dialer behavior", clientCfg.Dialer)
+	}
+}
+
+func TestDefaultConnectionManagerPropagatesTCPSourceErrorsThroughWKProtoClient(t *testing.T) {
+	tests := []struct {
+		name     string
+		pool     *model.TCPSourceConfig
+		dialErr  error
+		wantKind TCPSourceErrorKind
+		calls    int
+	}{
+		{
+			name:     "unavailable",
+			pool:     &model.TCPSourceConfig{IPv4Addrs: []string{"192.0.2.1"}, PortMin: 2000, PortMax: 2001},
+			dialErr:  &net.OpError{Op: "dial", Net: "tcp", Err: syscall.EADDRNOTAVAIL},
+			wantKind: TCPSourceErrorUnavailable,
+			calls:    1,
+		},
+		{
+			name:     "exhausted",
+			pool:     &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1"}, PortMin: 2000, PortMax: 2001},
+			dialErr:  &net.OpError{Op: "dial", Net: "tcp", Err: syscall.EADDRINUSE},
+			wantKind: TCPSourceErrorExhausted,
+			calls:    2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			manager, err := NewConnectionManager(ConnectionManagerConfig{
+				GatewayAddrs: []string{"127.0.0.1:5100"},
+				TCPSource:    tt.pool,
+				tcpDial: func(context.Context, *net.Dialer, string, string) (net.Conn, error) {
+					calls++
+					return nil, tt.dialErr
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewConnectionManager() error = %v", err)
+			}
+			defer manager.Close()
+
+			_, err = manager.ConnectUser(context.Background(), ConnectionUser{UID: "u1", DeviceID: "d1"})
+
+			var sourceErr *TCPSourceError
+			if !errors.As(err, &sourceErr) {
+				t.Fatalf("ConnectUser() error = %T %v, want *TCPSourceError through default WKProto stack", err, err)
+			}
+			if sourceErr.Kind != tt.wantKind {
+				t.Fatalf("ConnectUser() source kind = %q, want %q", sourceErr.Kind, tt.wantKind)
+			}
+			if calls != tt.calls {
+				t.Fatalf("underlying dial calls = %d, want %d", calls, tt.calls)
+			}
+		})
 	}
 }
 

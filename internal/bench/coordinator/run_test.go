@@ -4,17 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
+	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/stretchr/testify/require"
 )
@@ -95,6 +98,45 @@ func TestCloneWorkerClientConfigReturnsIndependentCopy(t *testing.T) {
 
 	require.NotSame(t, original, cloned)
 	require.Equal(t, 16, cloned.SendQueueCapacity)
+}
+
+func TestCoordinatorAssignmentCopiesOnlyCurrentWorkerTCPSourcePool(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	configs := workers.ClientConfigs()
+	configs[0].TCPSource = &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1", "192.168.3.57"}, PortMin: 1024, PortMax: 65535}
+	configs[1].TCPSource = &model.TCPSourceConfig{IPv4Addrs: []string{"10.0.0.10"}, PortMin: 20000, PortMax: 65535}
+	coord := New(CoordinatorConfig{
+		Workers:      configs,
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.Equal(t, configs[0].TCPSource, workers[0].Assignment().TCPSource)
+	require.Equal(t, configs[1].TCPSource, workers[1].Assignment().TCPSource)
+	require.NotSame(t, configs[0].TCPSource, workers[0].Assignment().TCPSource)
+	require.NotSame(t, &configs[0].TCPSource.IPv4Addrs[0], &workers[0].Assignment().TCPSource.IPv4Addrs[0])
+	encoded, err := json.Marshal(workers[0].Assignment())
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "control_token")
+	require.NotContains(t, string(encoded), `"secret"`)
+}
+
+func TestCloneWorkerTCPSourceConfigReturnsIndependentCopy(t *testing.T) {
+	original := &model.TCPSourceConfig{IPv4Addrs: []string{"127.0.0.1", "192.168.3.57"}, PortMin: 1024, PortMax: 65535}
+
+	cloned := cloneWorkerTCPSourceConfig(original)
+	original.IPv4Addrs[0] = "10.0.0.1"
+	original.PortMin = 9999
+
+	require.NotSame(t, original, cloned)
+	require.Equal(t, []string{"127.0.0.1", "192.168.3.57"}, cloned.IPv4Addrs)
+	require.Equal(t, 1024, cloned.PortMin)
 }
 
 func TestCoordinatorStopsAssignedWorkersWhenLaterAssignmentFails(t *testing.T) {
@@ -799,6 +841,50 @@ func TestCoordinatorReturnsTargetUnavailableForMarkedWorkerError(t *testing.T) {
 	require.Equal(t, StatusTargetUnavailable, result.Status)
 }
 
+func TestCoordinatorClassifiesWorkerTCPSourceFailuresAsWorkerFailed(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "unavailable",
+			err: &benchworkload.TCPSourceError{
+				Kind: benchworkload.TCPSourceErrorUnavailable,
+				Err:  &net.OpError{Op: "dial", Net: "tcp", Err: syscall.EADDRNOTAVAIL},
+			},
+		},
+		{
+			name: "exhausted",
+			err:  &benchworkload.TCPSourceError{Kind: benchworkload.TCPSourceErrorExhausted, Capacity: 2, Examined: 2, Conflicts: 2},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workerServer := httptest.NewServer(worker.NewServer(worker.Config{
+				ControlToken:   "secret",
+				WorkloadRunner: &tcpSourceFailureRunner{connectErr: tt.err},
+			}))
+			defer workerServer.Close()
+			coord := New(CoordinatorConfig{
+				Workers: []model.Worker{{ID: "a", Addr: workerServer.URL, Weight: 1, ControlToken: "secret"}},
+				Target:  fakeTargetOK(),
+				Preflight: preflightFunc(func(context.Context, model.Target, model.WorkerSet) error {
+					return nil
+				}),
+				PollInterval: time.Millisecond,
+				PollTimeout:  100 * time.Millisecond,
+			})
+
+			result, err := coord.Run(context.Background(), fakeScenario())
+
+			require.Error(t, err)
+			require.Equal(t, StatusWorkerFailed, result.Status)
+			require.NotEqual(t, StatusTargetUnavailable, result.Status)
+			require.Contains(t, err.Error(), "tcp source")
+		})
+	}
+}
+
 func TestCoordinatorTargetUnavailableReportUsesTargetExitCode(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable"}`)
@@ -827,6 +913,18 @@ func TestCoordinatorTargetUnavailableReportUsesTargetExitCode(t *testing.T) {
 }
 
 type preflightFunc func(context.Context, model.Target, model.WorkerSet) error
+
+type tcpSourceFailureRunner struct {
+	connectErr error
+}
+
+func (r *tcpSourceFailureRunner) Prepare(context.Context, worker.Assignment) error { return nil }
+func (r *tcpSourceFailureRunner) Connect(context.Context, worker.Assignment) error {
+	return r.connectErr
+}
+func (r *tcpSourceFailureRunner) Warmup(context.Context, worker.Assignment) error   { return nil }
+func (r *tcpSourceFailureRunner) Run(context.Context, worker.Assignment) error      { return nil }
+func (r *tcpSourceFailureRunner) Cooldown(context.Context, worker.Assignment) error { return nil }
 
 func (f preflightFunc) Check(ctx context.Context, target model.Target, workers model.WorkerSet) error {
 	return f(ctx, target, workers)
