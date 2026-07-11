@@ -84,7 +84,17 @@ func TestCoordinatorAssignmentCopiesOnlyCurrentWorkerClientProfile(t *testing.T)
 	encoded, err := json.Marshal(workers[0].Assignment())
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "control_token")
-	require.NotContains(t, string(encoded), "worker-secret")
+	require.NotContains(t, string(encoded), `"secret"`)
+}
+
+func TestCloneWorkerClientConfigReturnsIndependentCopy(t *testing.T) {
+	original := &model.WorkerClientConfig{SendQueueCapacity: 16, MaxInflight: 1, ReadBufferSize: 1024, FrameBufferSize: 4}
+
+	cloned := cloneWorkerClientConfig(original)
+	original.SendQueueCapacity = 999
+
+	require.NotSame(t, original, cloned)
+	require.Equal(t, 16, cloned.SendQueueCapacity)
 }
 
 func TestCoordinatorStopsAssignedWorkersWhenLaterAssignmentFails(t *testing.T) {
