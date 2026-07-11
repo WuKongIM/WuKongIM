@@ -134,7 +134,16 @@ func TestRunImportWritesTempNodeStore(t *testing.T) {
 	if user.Token != "user-token" {
 		t.Fatalf("user.Token = %q, want user-token", user.Token)
 	}
-	messages, err := store.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2}).Read(ctx, 1, msgdb.ReadOptions{Limit: 1})
+	log, err := store.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2})
+	if err != nil {
+		t.Fatalf("Channel(): %v", err)
+	}
+	defer func() {
+		if err := log.Close(); err != nil {
+			t.Fatalf("ChannelLog.Close(): %v", err)
+		}
+	}()
+	messages, err := log.Read(ctx, 1, msgdb.ReadOptions{Limit: 1})
 	if err != nil {
 		t.Fatalf("Read(): %v", err)
 	}
