@@ -29,6 +29,7 @@ ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
 RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
 HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
+PROFILE_PHASE_TIMEOUT="${WK_BENCH_PROFILE_PHASE_TIMEOUT:-120}"
 SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
@@ -73,7 +74,7 @@ Options:
   --ack-timeout DURATION Per-SEND sendack wait timeout in generated traffic. Default: 15s.
   --phase-poll-timeout DURATION
                          Base wkbench worker phase poll timeout. Default: 30s.
-  --profile-seconds N    Capture final CPU pprof for each node when N > 0. Default: 0.
+  --profile-seconds N    Capture run-phase CPU pprof for each node when N > 0. Default: 0.
   --recv-ack BOOL        Whether drained group recv frames are acknowledged. Default: true.
   --heartbeat BOOL       Whether benchmark clients send heartbeat pings. Default: true.
   --sender-pick MODE     Group sender selection: round_robin or first_online. Default: round_robin.
@@ -325,6 +326,7 @@ require_nonnegative_number '--quiescence-poll-interval' "$QUIESCENCE_POLL_INTERV
 awk -v value="$QUIESCENCE_POLL_INTERVAL" 'BEGIN { exit !(value > 0) }' || \
   die "--quiescence-poll-interval must be greater than zero: $QUIESCENCE_POLL_INTERVAL"
 [[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
+require_positive_int 'WK_BENCH_PROFILE_PHASE_TIMEOUT' "$PROFILE_PHASE_TIMEOUT"
 case "$SENDER_PICK" in
   first_online|round_robin)
     ;;
@@ -362,6 +364,10 @@ split_csv "$METRICS_ADDRS" METRICS_VALUES
 WORKER_PID=""
 CLUSTER_PID=""
 RESOURCE_SAMPLER_PID=""
+RUNTIME_POOL_SAMPLER_PID=""
+RUNTIME_POOL_SAMPLER_STOP_FILE=""
+RUN_PPROF_PID=""
+RUN_PPROF_STOP_FILE=""
 SAMPLE_VALIDATION_FAILED=0
 SOFT_P99_GATE_FAILED=0
 SAMPLE_VALID="false"
@@ -371,6 +377,20 @@ SAMPLE_INVALID_REASON="not_checked"
 
 cleanup() {
   stop_server_resource_sampler
+  if [[ -n "$RUNTIME_POOL_SAMPLER_STOP_FILE" ]]; then
+    touch "$RUNTIME_POOL_SAMPLER_STOP_FILE"
+  fi
+  if [[ -n "$RUNTIME_POOL_SAMPLER_PID" ]]; then
+    kill "$RUNTIME_POOL_SAMPLER_PID" >/dev/null 2>&1 || true
+    wait "$RUNTIME_POOL_SAMPLER_PID" 2>/dev/null || true
+  fi
+  if [[ -n "$RUN_PPROF_STOP_FILE" ]]; then
+    touch "$RUN_PPROF_STOP_FILE"
+  fi
+  if [[ -n "$RUN_PPROF_PID" ]]; then
+    kill "$RUN_PPROF_PID" >/dev/null 2>&1 || true
+    wait "$RUN_PPROF_PID" 2>/dev/null || true
+  fi
   if [[ -n "$WORKER_PID" ]]; then
     log "stopping temporary worker pid=$WORKER_PID"
     curl -fsS -X POST "${WORKER_ADDR%/}/v1/stop" >/dev/null 2>&1 || true
@@ -398,13 +418,14 @@ start_cluster() {
     clean_arg=(--clean)
   fi
   log "starting three-node cluster with $START_SCRIPT"
-  # Preserve synchronous commits; the wider window only improves durable group-commit batching.
+  # Preserve synchronous commits; one coordinator coalesces durable writes without concurrent fsync fragmentation.
+  # Thirty-two reactors avoid preallocating about 411 MiB of mostly idle Event mailbox slots per node.
   # Keep server send timeout below the 15s client ACK wait so recovery can still write SENDACK.
   WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}" \
   WK_TOP_API_ENABLE="${WK_TOP_API_ENABLE:-false}" \
   WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-3}" \
   WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}" \
-  WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
+  WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-32}" \
   WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}" \
   WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}" \
   WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}" \
@@ -419,7 +440,7 @@ start_cluster() {
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}" \
   WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS="${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}" \
   WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}" \
   WK_GATEWAY_SEND_TIMEOUT="${WK_GATEWAY_SEND_TIMEOUT:-14s}" \
@@ -922,17 +943,26 @@ collect_node_logs() {
 
 capture_node_pprof() {
   local phase="$1"
+  local attempt_tag="${2:-}"
   local pprof_dir="$OUT_DIR/pprof/$phase"
+  if [[ -n "$attempt_tag" ]]; then
+    pprof_dir="$pprof_dir/$attempt_tag"
+  fi
   mkdir -p "$pprof_dir"
   local addr id pid
   local pids=()
   for addr in "${API_VALUES[@]}"; do
     id="$(metric_file_id "$addr")"
     (
-      curl -fsS "${addr%/}/debug/pprof/goroutine?debug=2" >"$pprof_dir/${id}-goroutine.txt" || true
-      curl -fsS "${addr%/}/debug/pprof/heap" >"$pprof_dir/${id}-heap.pb.gz" || true
-      if (( PROFILE_SECONDS > 0 )); then
-        curl -fsS "${addr%/}/debug/pprof/profile?seconds=${PROFILE_SECONDS}" >"$pprof_dir/${id}-cpu.pb.gz" || true
+      cpu_pid=""
+      if [[ "$phase" == "run" ]] && (( PROFILE_SECONDS > 0 )); then
+        curl -fsS -H "X-WK-Bench-Evidence: pprof-${phase}" "${addr%/}/debug/pprof/profile?seconds=${PROFILE_SECONDS}" >"$pprof_dir/${id}-cpu.pb.gz" || true &
+        cpu_pid="$!"
+      fi
+      curl -fsS -H "X-WK-Bench-Evidence: pprof-${phase}" "${addr%/}/debug/pprof/goroutine?debug=2" >"$pprof_dir/${id}-goroutine.txt" || true
+      curl -fsS -H "X-WK-Bench-Evidence: pprof-${phase}" "${addr%/}/debug/pprof/heap" >"$pprof_dir/${id}-heap.pb.gz" || true
+      if [[ -n "$cpu_pid" ]]; then
+        wait "$cpu_pid" 2>/dev/null || true
       fi
     ) &
     pids+=("$!")
@@ -1198,31 +1228,150 @@ start_runtime_pool_sampler() {
   stop_file="$(runtime_pool_sampler_stop_file "$tag")"
   rm -f "$stop_file"
   runtime_pool_sampler_loop "$tag" "$stop_file" >/dev/null 2>&1 &
-  printf '%s\n' "$!"
+  RUNTIME_POOL_SAMPLER_PID="$!"
+  RUNTIME_POOL_SAMPLER_STOP_FILE="$stop_file"
 }
 
 stop_runtime_pool_sampler() {
-  local tag="$1"
-  local pid="$2"
-  local stop_file
-  [[ -n "$pid" ]] || return
-  stop_file="$(runtime_pool_sampler_stop_file "$tag")"
-  touch "$stop_file"
-  wait "$pid" 2>/dev/null || true
+  [[ -n "$RUNTIME_POOL_SAMPLER_PID" ]] || return 0
+  touch "$RUNTIME_POOL_SAMPLER_STOP_FILE"
+  wait "$RUNTIME_POOL_SAMPLER_PID" 2>/dev/null || true
+  rm -f "$RUNTIME_POOL_SAMPLER_STOP_FILE"
+  RUNTIME_POOL_SAMPLER_PID=""
+  RUNTIME_POOL_SAMPLER_STOP_FILE=""
+}
+
+write_run_pprof_sampler_result() {
+  local pprof_dir="$1"
+  local expected_run_id="$2"
+  local observed_run_id="$3"
+  local observed_phase="$4"
+  local observed_active_phase="$5"
+  local end_observed_run_id="$6"
+  local end_observed_phase="$7"
+  local end_observed_active_phase="$8"
+  local gate_at="$9"
+  local capture_done_at="${10}"
+  local valid="${11}"
+  local reason="${12}"
+  local out="$pprof_dir/sampler.tsv"
+  {
+    printf 'expected_run_id\tobserved_run_id\tobserved_phase\tobserved_active_phase\tend_observed_run_id\tend_observed_phase\tend_observed_active_phase\tgate_at\tcapture_done_at\tvalid\treason\n'
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$expected_run_id" "$observed_run_id" "$observed_phase" "$observed_active_phase" \
+      "$end_observed_run_id" "$end_observed_phase" "$end_observed_active_phase" \
+      "$gate_at" "$capture_done_at" "$valid" "$reason"
+  } >"$out"
+}
+
+run_pprof_sampler_loop() {
+  local expected_run_id="$1"
+  local stop_file="$2"
+  local tag="$3"
+  local pprof_dir="$OUT_DIR/pprof/run/$tag"
+  local deadline=$((SECONDS + PROFILE_PHASE_TIMEOUT))
+  local status observed_run_id="" observed_phase="" observed_active_phase="" last_error=""
+  local end_status="" end_observed_run_id="" end_observed_phase="" end_observed_active_phase="" end_last_error=""
+  local gate_at="" capture_done_at="" valid reason="profile_phase_timeout"
+  local addr id
+  mkdir -p "$pprof_dir"
+
+  while (( SECONDS < deadline )); do
+    if [[ -f "$stop_file" ]]; then
+      reason="run_completed_before_capture"
+      break
+    fi
+    status="$(curl -fsS --connect-timeout 1 --max-time 2 "${WORKER_ADDR%/}/v1/status" 2>/dev/null || true)"
+    if jq -e . >/dev/null 2>&1 <<<"$status"; then
+      observed_run_id="$(jq -r '.assignment.run_id // ""' <<<"$status")"
+      observed_phase="$(jq -r '.phase // ""' <<<"$status")"
+      observed_active_phase="$(jq -r '.active_phase // ""' <<<"$status")"
+      last_error="$(jq -r '.last_error // ""' <<<"$status")"
+      if [[ "$observed_run_id" == "$expected_run_id" && "$observed_active_phase" == "run" && -z "$last_error" ]]; then
+        printf '%s\n' "$status" >"$pprof_dir/worker-status.json"
+        gate_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        capture_node_pprof run "$tag"
+        valid="true"
+        reason="ok"
+        end_status="$(curl -fsS --connect-timeout 1 --max-time 2 "${WORKER_ADDR%/}/v1/status" 2>/dev/null || true)"
+        if jq -e . >/dev/null 2>&1 <<<"$end_status"; then
+          printf '%s\n' "$end_status" >"$pprof_dir/worker-status-end.json"
+          end_observed_run_id="$(jq -r '.assignment.run_id // ""' <<<"$end_status")"
+          end_observed_phase="$(jq -r '.phase // ""' <<<"$end_status")"
+          end_observed_active_phase="$(jq -r '.active_phase // ""' <<<"$end_status")"
+          end_last_error="$(jq -r '.last_error // ""' <<<"$end_status")"
+          if [[ "$end_observed_run_id" != "$expected_run_id" ]]; then
+            valid="false"
+            reason="run_id_changed_during_capture"
+          elif [[ "$end_observed_active_phase" != "run" ]]; then
+            valid="false"
+            reason="active_run_ended_during_capture"
+          elif [[ -n "$end_last_error" ]]; then
+            valid="false"
+            reason="worker_error_after_capture"
+          fi
+        else
+          valid="false"
+          reason="worker_status_unavailable_after_capture"
+          printf '%s\n' "$end_status" >"$pprof_dir/worker-status-end.txt"
+        fi
+        capture_done_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        if [[ "$valid" == "true" ]]; then
+          for addr in "${API_VALUES[@]}"; do
+            id="$(metric_file_id "$addr")"
+            if [[ ! -s "$pprof_dir/${id}-cpu.pb.gz" ]]; then
+              valid="false"
+              reason="missing_cpu_profile"
+            fi
+          done
+        fi
+        write_run_pprof_sampler_result "$pprof_dir" "$expected_run_id" "$observed_run_id" "$observed_phase" "$observed_active_phase" \
+          "$end_observed_run_id" "$end_observed_phase" "$end_observed_active_phase" \
+          "$gate_at" "$capture_done_at" "$valid" "$reason"
+        return 0
+      fi
+      if [[ "$observed_run_id" == "$expected_run_id" && -n "$last_error" ]]; then
+        reason="worker_error"
+        break
+      fi
+      if [[ "$observed_run_id" == "$expected_run_id" && -z "$observed_active_phase" && ( "$observed_phase" == "run" || "$observed_phase" == "cooldown" || "$observed_phase" == "stopped" ) ]]; then
+        reason="missed_active_run_phase"
+        break
+      fi
+    fi
+    sleep 0.1
+  done
+  capture_done_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  write_run_pprof_sampler_result "$pprof_dir" "$expected_run_id" "$observed_run_id" "$observed_phase" "$observed_active_phase" \
+    "" "" "" "$gate_at" "$capture_done_at" "false" "$reason"
 }
 
 start_run_pprof_sampler() {
+  local expected_run_id="$1"
+  local stop_file="$2"
+  local tag="$3"
   if (( PROFILE_SECONDS <= 0 )); then
     return 0
   fi
-  capture_node_pprof run >/dev/null 2>&1 &
-  printf '%s\n' "$!"
+  mkdir -p "$(dirname "$stop_file")"
+  rm -f "$stop_file"
+  run_pprof_sampler_loop "$expected_run_id" "$stop_file" "$tag" >/dev/null 2>&1 &
+  RUN_PPROF_PID="$!"
+  RUN_PPROF_STOP_FILE="$stop_file"
+}
+
+stop_run_pprof_sampler() {
+  if [[ -n "$RUN_PPROF_STOP_FILE" ]]; then
+    touch "$RUN_PPROF_STOP_FILE"
+  fi
 }
 
 wait_run_pprof_sampler() {
-  local pid="$1"
-  [[ -n "$pid" ]] || return 0
-  wait "$pid" 2>/dev/null || true
+  [[ -n "$RUN_PPROF_PID" ]] || return 0
+  wait "$RUN_PPROF_PID" 2>/dev/null || true
+  rm -f "$RUN_PPROF_STOP_FILE"
+  RUN_PPROF_PID=""
+  RUN_PPROF_STOP_FILE=""
 }
 
 rpc_pull_qps_summary() {
@@ -1355,8 +1504,10 @@ cluster_transport_peak_summary() {
 
 run_attempt() {
   local qps="$1"
-  local tag report_dir exit_status duration sampler_pid pprof_pid
+  local tag report_dir exit_status duration expected_run_id pprof_stop_file
   tag="$(qps_tag "$qps")"
+  expected_run_id="three-node-fixed-${CHANNELS}ch-${tag}-qps"
+  pprof_stop_file="$OUT_DIR/pprof/run/${tag}/${tag}.stop"
   report_dir="$OUT_DIR/reports/${tag}-qps"
   duration="$(duration_seconds "$DURATION")"
   mkdir -p "$report_dir"
@@ -1368,8 +1519,8 @@ run_attempt() {
 
   log "running qps=$qps tag=$tag"
   scrape_metrics "$tag" before
-  sampler_pid="$(start_runtime_pool_sampler "$tag")"
-  pprof_pid="$(start_run_pprof_sampler)"
+  start_runtime_pool_sampler "$tag"
+  start_run_pprof_sampler "$expected_run_id" "$pprof_stop_file" "$tag"
   exit_status=0
   "$WK_BENCH_BIN" run \
     --target "$OUT_DIR/target.yaml" \
@@ -1377,10 +1528,11 @@ run_attempt() {
     --workers "$OUT_DIR/workers.yaml" \
     --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
+  stop_run_pprof_sampler
   scrape_append_effect_snapshot "$tag" after
-  wait_run_pprof_sampler "$pprof_pid"
-  stop_runtime_pool_sampler "$tag" "$sampler_pid"
+  stop_runtime_pool_sampler
   scrape_metrics "$tag" after
+  wait_run_pprof_sampler
   classify_metrics "$tag"
   rpc_pull_qps_summary "$tag" "$duration"
   channel_metrics_summary "$tag" "$duration"
@@ -1468,7 +1620,7 @@ CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
 CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
 CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
 DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY
-CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
+CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-32}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}
 CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}
 CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}
@@ -1479,7 +1631,7 @@ CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WI
 CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}
 CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}
 CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}
-CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}
+CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}
 CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}
 GATEWAY_ASYNC_SEND_WORKERS=${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}
 GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}
@@ -1487,6 +1639,7 @@ GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-14s}
 START_SCRIPT=$START_SCRIPT
 READY_TIMEOUT=$READY_TIMEOUT
 PROFILE_SECONDS=$PROFILE_SECONDS
+PROFILE_PHASE_TIMEOUT=$PROFILE_PHASE_TIMEOUT
 RUNTIME_POOL_SAMPLE_INTERVAL=$RUNTIME_POOL_SAMPLE_INTERVAL
 RESOURCE_SAMPLE_INTERVAL=$RESOURCE_SAMPLE_INTERVAL
 EOF

@@ -273,10 +273,82 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 	require.Equal(t, frame.ChannelTypeGroup, sender.sentFrames[0].ChannelType)
 	sendLabels := groupSendLabels("run", "huge-group", "group-send")
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", sendLabels))
-	require.Equal(t, uint64(2), workload.Metrics().CounterValue("group_recv_success_total", nil))
+	require.Equal(t, uint64(2), workload.Metrics().CounterValue("group_recv_success_total", sendLabels))
 	require.Empty(t, clients["u-0"].(*recordingPersonClient).recvAckCalls)
 	require.Len(t, clients["u-1"].(*recordingPersonClient).recvAckCalls, 1)
 	require.Len(t, clients["u-2"].(*recordingPersonClient).recvAckCalls, 1)
+}
+
+func TestGroupWorkloadRecvMetricsAreSeparatedByPhase(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	for messageIndex, phase := range []string{"warmup", "run"} {
+		clientMsgNo := fmt.Sprintf("bench-msg-run-a-group-profile-group-send-%s-ch0-msg%d", phase, messageIndex)
+		recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
+			FromUID:     "u-0",
+			ChannelID:   "run-a-group-profile-0",
+			ChannelType: frame.ChannelTypeGroup,
+			ClientMsgNo: clientMsgNo,
+			Payload:     []byte(fmt.Sprintf("run=run-a profile=group-profile traffic=group-send phase=%s channel=0 message=%d", phase, messageIndex)),
+		})
+	}
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "full",
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender, "u-1": recipient})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.sendOneInPhase(context.Background(), "warmup", 0, 0))
+	require.NoError(t, workload.sendOneInPhase(context.Background(), "run", 0, 1))
+
+	for _, phase := range []string{"warmup", "run"} {
+		labels := groupSendLabels(phase, "group-profile", "group-send")
+		require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_recv_success_total", labels))
+		require.NotEmpty(t, workload.Metrics().LatencyValues("group_recv_latency_seconds", labels))
+	}
+	require.Zero(t, workload.Metrics().CounterValue("group_recv_success_total", nil))
+	require.Empty(t, workload.Metrics().LatencyValues("group_recv_latency_seconds", nil))
+}
+
+func TestGroupWorkloadRecvErrorUsesPhaseLabels(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
+		FromUID:     "u-0",
+		ChannelID:   "run-a-group-profile-0",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "bench-msg-run-a-group-profile-group-send-warmup-ch0-msg0",
+		Payload:     []byte("wrong payload"),
+	})
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "full",
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender, "u-1": recipient})
+	require.NoError(t, err)
+
+	require.Error(t, workload.sendOneInPhase(context.Background(), "warmup", 0, 0))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_recv_error_total", groupSendLabels("warmup", "group-profile", "group-send")))
+	require.Zero(t, workload.Metrics().CounterValue("group_recv_error_total", nil))
 }
 
 func TestGroupWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testing.T) {
@@ -389,7 +461,7 @@ func TestGroupWorkloadSampledRecvVerificationIsDeterministic(t *testing.T) {
 	require.Empty(t, clients["u-0"].(*recordingPersonClient).recvAckCalls)
 	require.Empty(t, clients["u-2"].(*recordingPersonClient).recvAckCalls)
 	require.Empty(t, clients["u-3"].(*recordingPersonClient).recvAckCalls)
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_recv_success_total", nil))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_recv_success_total", groupSendLabels("run", "huge-group", "group-send")))
 }
 
 func TestGroupWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {

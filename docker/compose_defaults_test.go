@@ -40,8 +40,8 @@ func TestComposeNodeConfigsUseHotPathTuning(t *testing.T) {
 			if cfg.Cluster.Storage.CommitMaxBytes != 131072 {
 				t.Fatalf("%s CommitMaxBytes = %d, want 131072", node, cfg.Cluster.Storage.CommitMaxBytes)
 			}
-			if cfg.Cluster.Storage.CommitShards != 8 {
-				t.Fatalf("%s CommitShards = %d, want 8", node, cfg.Cluster.Storage.CommitShards)
+			if cfg.Cluster.Storage.CommitShards != 1 {
+				t.Fatalf("%s CommitShards = %d, want 1", node, cfg.Cluster.Storage.CommitShards)
 			}
 			if cfg.Gateway.Runtime.AsyncSendWorkers != 128 {
 				t.Fatalf("%s AsyncSendWorkers = %d, want 128", node, cfg.Gateway.Runtime.AsyncSendWorkers)

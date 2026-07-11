@@ -113,6 +113,19 @@ clean data directories. It only connects to already-running target API nodes.
 The reported QPS is ingress sendack QPS during the measured `run` phase; group
 fanout adds delivery work but is not the primary QPS denominator.
 
+Report p99 limit checks use the maximum worker-local `run`-phase histogram;
+explicit warmup and cooldown series do not affect the measured-capacity verdict.
+Unlabeled histograms remain a compatibility fallback for older metric snapshots.
+For local three-node evidence runs, `--profile-seconds` polls the worker status
+and captures all node CPU profiles only while the expected run ID has
+`active_phase=run`. After the profiles finish, the sampler reads worker status
+again and accepts the capture only when the run ID still matches,
+`active_phase=run`, and `last_error` remains empty. Each QPS attempt keeps its
+own `pprof/run/<qps-tag>/` directory with the triggering status in
+`worker-status.json`, the completion status in `worker-status-end.json`, and
+both observations in `sampler.tsv`, so a missed, overwritten, incomplete, or
+run-to-cooldown capture cannot be mistaken for valid hot-path evidence.
+
 `capacity hot-channel` uses the same discovery, temporary worker, search, and
 report flow, but every attempt fixes `channels.profiles[0].count` to one group
 channel and sets the offered QPS as that channel's `rate_per_channel`. Its

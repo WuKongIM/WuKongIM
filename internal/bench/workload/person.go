@@ -397,7 +397,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	recv, err := w.waitForRecv(ctx, recipient, clientMsgNo, pair.SenderUID, expectedMessageID, ack.MessageSeq)
 	if err != nil {
 		w.recordError("person_recv_error", err)
-		w.metrics.IncCounter("person_recv_error_total", nil)
+		w.metrics.IncCounter("person_recv_error_total", sendLabels)
 		if errors.Is(err, io.EOF) {
 			return sessionOperationError(pair.RecipientUID, "person recv", err)
 		}
@@ -406,18 +406,18 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	if string(recv.Payload) != string(payload) {
 		err := fmt.Errorf("person workload: recv payload mismatch for %q", clientMsgNo)
 		w.recordError("person_recv_error", err)
-		w.metrics.IncCounter("person_recv_error_total", nil)
+		w.metrics.IncCounter("person_recv_error_total", sendLabels)
 		return err
 	}
 	if w.cfg.RecvAck {
 		if err := recipient.RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {
 			w.recordError("person_recv_error", err)
-			w.metrics.IncCounter("person_recv_error_total", nil)
+			w.metrics.IncCounter("person_recv_error_total", sendLabels)
 			return sessionOperationError(pair.RecipientUID, "person recvack", err)
 		}
 	}
-	w.metrics.IncCounter("person_recv_success_total", nil)
-	w.metrics.ObserveLatency("person_recv_latency_seconds", nil, time.Since(recvStart))
+	w.metrics.IncCounter("person_recv_success_total", sendLabels)
+	w.metrics.ObserveLatency("person_recv_latency_seconds", sendLabels, time.Since(recvStart))
 	return nil
 }
 

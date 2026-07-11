@@ -16,7 +16,7 @@ commit_coordinator_flush_window = "1ms"
 commit_coordinator_max_requests = 0
 commit_coordinator_max_records = 0
 commit_coordinator_max_bytes = 131072
-commit_coordinator_shards = 8
+commit_coordinator_shards = 1
 
 [[cluster.nodes]]
 id = 1

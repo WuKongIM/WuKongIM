@@ -54,9 +54,9 @@ type Summary struct {
 	RecvVerifyErrorRate float64 `json:"recv_verify_error_rate"`
 	// WorkerFailed is the number of failed or unreachable workers.
 	WorkerFailed int `json:"worker_failed"`
-	// SendackMaxWorkerP99 is the maximum worker-local send acknowledgement p99 latency.
+	// SendackMaxWorkerP99 is the maximum worker-local run-phase send acknowledgement p99 latency.
 	SendackMaxWorkerP99 time.Duration `json:"sendack_max_worker_p99"`
-	// RecvMaxWorkerP99 is the maximum worker-local receive p99 latency.
+	// RecvMaxWorkerP99 is the maximum worker-local run-phase receive p99 latency.
 	RecvMaxWorkerP99 time.Duration `json:"recv_max_worker_p99"`
 }
 
@@ -303,8 +303,8 @@ func SummaryFromMetrics(snapshot metrics.SnapshotData, workerFailed int) Summary
 		SendackErrorRate:    errorRate(sendErrors, sendSuccess),
 		RecvVerifyErrorRate: errorRate(recvErrors, recvSuccess),
 		WorkerFailed:        workerFailed,
-		SendackMaxWorkerP99: maxHistogramP99(snapshot, "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
-		RecvMaxWorkerP99:    maxHistogramP99(snapshot, "person_recv_latency_seconds", "group_recv_latency_seconds", "recv_latency_seconds"),
+		SendackMaxWorkerP99: maxHistogramP99ForPhase(snapshot, "run", "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
+		RecvMaxWorkerP99:    maxHistogramP99ForPhase(snapshot, "run", "person_recv_latency_seconds", "group_recv_latency_seconds", "recv_latency_seconds"),
 	}
 }
 
@@ -427,18 +427,37 @@ func errorRate(errors, successes uint64) float64 {
 	return float64(errors) / float64(total)
 }
 
-func maxHistogramP99(snapshot metrics.SnapshotData, names ...string) time.Duration {
+func maxHistogramP99ForPhase(snapshot metrics.SnapshotData, phase string, names ...string) time.Duration {
 	wanted := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		wanted[name] = struct{}{}
 	}
-	var max float64
+	var phaseMax float64
+	var unlabeledMax float64
+	var phaseSeriesFound bool
 	for key, hist := range snapshot.Histograms {
-		if _, ok := wanted[metricName(key)]; ok && hist.P99Seconds > max {
-			max = hist.P99Seconds
+		if _, ok := wanted[metricName(key)]; !ok {
+			continue
+		}
+		labels := seriesLabels(key)
+		seriesPhase, labeled := labels["phase"]
+		if !labeled {
+			if hist.P99Seconds > unlabeledMax {
+				unlabeledMax = hist.P99Seconds
+			}
+			continue
+		}
+		if seriesPhase == phase {
+			phaseSeriesFound = true
+			if hist.P99Seconds > phaseMax {
+				phaseMax = hist.P99Seconds
+			}
 		}
 	}
-	return time.Duration(max * float64(time.Second))
+	if phaseSeriesFound {
+		return time.Duration(phaseMax * float64(time.Second))
+	}
+	return time.Duration(unlabeledMax * float64(time.Second))
 }
 
 func writeJSON(path string, v any) error {

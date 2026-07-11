@@ -282,7 +282,7 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`--phase-poll-timeout "$PHASE_POLL_TIMEOUT"`,
 		"--recv-ack BOOL",
 		"--heartbeat BOOL",
-		`WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}"`,
+		`WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-32}"`,
 		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}"`,
 		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}"`,
 		`WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}"`,
@@ -296,7 +296,7 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}"`,
-		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_SYNC="${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}"`,
 		`WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}"`,
 		`CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}`,
@@ -308,7 +308,7 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}`,
 		`CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}`,
 		`CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}`,
-		`CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}`,
+		`CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}`,
 		`CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}`,
 		`GATEWAY_ASYNC_SEND_WORKERS=${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}`,
 		`GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}`,
@@ -366,6 +366,27 @@ func TestWukongIMThreeNodeBenchScriptUsesUniqueClientMessagePrefixesByDefaultAnd
 	overrideScenario := readFile(t, filepath.Join(overrideOut, "scenario-000001.yaml"))
 	if got := yamlScalar(overrideScenario, "client_msg_prefix:"); got != "repeatable-msg" {
 		t.Fatalf("explicit client message prefix = %q, want repeatable-msg:\n%s", got, overrideScenario)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptKeepsSamplersAsChildProcesses(t *testing.T) {
+	root := repoRoot(t)
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-three-nodes-1000ch.sh"))
+	for _, forbidden := range []string{
+		`$(start_runtime_pool_sampler`,
+		`$(start_run_pprof_sampler`,
+	} {
+		if strings.Contains(script, forbidden) {
+			t.Fatalf("sampler started through command substitution cannot be waited by the parent shell: %s", forbidden)
+		}
+	}
+	for _, want := range []string{
+		`RUNTIME_POOL_SAMPLER_PID="$!"`,
+		`RUN_PPROF_PID="$!"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("bench script missing parent-owned sampler pid %q", want)
+		}
 	}
 }
 
@@ -517,6 +538,96 @@ func TestWukongIMThreeNodeBenchScriptFailsWhenSoftP99ExceedsLimit(t *testing.T) 
 	}
 }
 
+func TestWukongIMThreeNodeBenchScriptGatesRunPprofOnActiveRunPhase(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	violationFile := filepath.Join(outDir, "pprof-phase-violation")
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{
+			"WK_FAKE_WKBENCH_PHASED_RUN=1",
+			"WK_BENCH_PROFILE_PHASE_TIMEOUT=3",
+			"WK_FAKE_PROFILE_VIOLATION_FILE=" + violationFile,
+		},
+		"--profile-seconds", "1",
+	)
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+	if _, err := os.Stat(violationFile); !os.IsNotExist(err) {
+		t.Fatalf("run pprof was captured outside the active run phase")
+	}
+
+	runDir := filepath.Join(outDir, "pprof", "run", "000001")
+	sampler := readFile(t, filepath.Join(runDir, "sampler.tsv"))
+	if !strings.Contains(sampler, "three-node-fixed-1ch-000001-qps") || !strings.Contains(sampler, "\ttrue\tok") {
+		t.Fatalf("run pprof sampler should record a valid active-run capture:\n%s", sampler)
+	}
+	requireNonEmptyFile(t, filepath.Join(runDir, "worker-status.json"))
+	endStatus := readFile(t, filepath.Join(runDir, "worker-status-end.json"))
+	if !strings.Contains(endStatus, `"active_phase":"run"`) {
+		t.Fatalf("run pprof sampler should preserve active-run status at capture completion:\n%s", endStatus)
+	}
+	requireNonEmptyFile(t, filepath.Join(runDir, "127_0_0_1_5011-cpu.pb.gz"))
+	for _, phase := range []string{"before", "after"} {
+		cpuPath := filepath.Join(outDir, "pprof", phase, "127_0_0_1_5011-cpu.pb.gz")
+		if _, err := os.Stat(cpuPath); !os.IsNotExist(err) {
+			t.Fatalf("%s CPU profile should not be captured outside the active run phase", phase)
+		}
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptRejectsRunPprofThatEndsInCooldown(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{
+			"WK_FAKE_WKBENCH_PHASED_RUN=1",
+			"WK_BENCH_PROFILE_PHASE_TIMEOUT=3",
+			"WK_FAKE_PROFILE_TRANSITION_TO_COOLDOWN=1",
+		},
+		"--profile-seconds", "1",
+	)
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	runDir := filepath.Join(outDir, "pprof", "run", "000001")
+	sampler := readFile(t, filepath.Join(runDir, "sampler.tsv"))
+	if !strings.Contains(sampler, "\tfalse\tactive_run_ended_during_capture") {
+		t.Fatalf("run pprof sampler should reject a capture that crossed into cooldown:\n%s", sampler)
+	}
+	endStatus := readFile(t, filepath.Join(runDir, "worker-status-end.json"))
+	if !strings.Contains(endStatus, `"active_phase":"cooldown"`) {
+		t.Fatalf("run pprof sampler should preserve cooldown status at capture completion:\n%s", endStatus)
+	}
+}
+
+func TestWukongIMThreeNodeBenchScriptKeepsRunPprofPerQPSAttempt(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	output, err := runFakeThreeNode1000Bench(t, root, outDir,
+		[]string{
+			"WK_FAKE_WKBENCH_PHASED_RUN=1",
+			"WK_BENCH_PROFILE_PHASE_TIMEOUT=3",
+		},
+		"--qps", "1,2",
+		"--profile-seconds", "1",
+	)
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	for _, tag := range []string{"000001", "000002"} {
+		runDir := filepath.Join(outDir, "pprof", "run", tag)
+		sampler := readFile(t, filepath.Join(runDir, "sampler.tsv"))
+		expectedRunID := "three-node-fixed-1ch-" + tag + "-qps"
+		if !strings.Contains(sampler, expectedRunID) || !strings.Contains(sampler, "\ttrue\tok") {
+			t.Fatalf("run pprof evidence for %s was not preserved:\n%s", tag, sampler)
+		}
+		requireNonEmptyFile(t, filepath.Join(runDir, "127_0_0_1_5011-cpu.pb.gz"))
+	}
+}
+
 func TestWukongIMBenchDefaultEvidenceAssertionsUsePrimaryChannelSummary(t *testing.T) {
 	root := repoRoot(t)
 	source := readFile(t, filepath.Join(root, "scripts", "wukongim_three_node_bench_script_test.go"))
@@ -620,6 +731,7 @@ func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 
 	for _, want := range []string{
 		`CONCURRENCY="${WK_BENCH_CONCURRENCY:-2800}"`,
+		`CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-32}`,
 		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
 		`PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"`,
 		`RECV_ACK="${WK_BENCH_RECV_ACK:-true}"`,
@@ -634,7 +746,7 @@ func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`TOP_API_ENABLE=${WK_TOP_API_ENABLE:-false}`,
 		`CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}`,
 		`CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}`,
-		`CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}`,
+		`CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}`,
 		`CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}`,
 		`CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}`,
 		`CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}`,
@@ -646,7 +758,7 @@ func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY`,
 		`WK_TOP_API_ENABLE="${WK_TOP_API_ENABLE:-false}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}"`,
-		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"`,
 		`CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}`,
 		`GATEWAY_ASYNC_SEND_WORKERS=${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}`,
 		`GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}`,
@@ -3090,7 +3202,25 @@ if [[ "${1:-}" == "run" ]]; then
     echo "missing report_dir in scenario" >&2
     exit 2
   fi
-  mkdir -p "$report_dir"
+	if [[ "${WK_FAKE_WKBENCH_PHASED_RUN:-0}" == "1" ]]; then
+		rm -f "` + callsDir + `/profile.finished" "` + callsDir + `/profile.end_checked"
+		printf 'prepare\n' > "` + callsDir + `/wkbench.phase"
+	fi
+  run_id="$(awk '$1 == "id:" { print $2; exit }' "$scenario")"
+  printf '%s\n' "$run_id" > "` + callsDir + `/wkbench.run_id"
+	mkdir -p "$report_dir"
+	if [[ "${WK_FAKE_WKBENCH_PHASED_RUN:-0}" == "1" ]]; then
+		printf 'run\n' > "` + callsDir + `/wkbench.phase"
+		for ((attempt = 0; attempt < 300; attempt++)); do
+			[[ -f "` + callsDir + `/profile.end_checked" ]] && break
+			sleep 0.01
+		done
+		if [[ ! -f "` + callsDir + `/profile.end_checked" ]]; then
+			echo 'timed out waiting for profile end-status handshake' >&2
+			exit 2
+		fi
+		printf 'done\n' > "` + callsDir + `/wkbench.phase"
+	fi
   if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
     sleep "$WK_FAKE_WKBENCH_RUN_SLEEP"
   fi
@@ -3187,6 +3317,33 @@ case "$url" in
   http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz|http://127.0.0.1:19130/v1/stop)
     echo 'ok'
     ;;
+	http://127.0.0.1:19130/v1/status)
+		state="prepare"
+		run_id="three-node-fixed-1ch-000001-qps"
+		if [[ -f "` + callsDir + `/wkbench.phase" ]]; then
+			state="$(cat "` + callsDir + `/wkbench.phase")"
+		fi
+		if [[ -f "` + callsDir + `/wkbench.run_id" ]]; then
+			run_id="$(cat "` + callsDir + `/wkbench.run_id")"
+		fi
+		case "$state" in
+			run)
+				printf '{"phase":"warmup","active_phase":"run","completed_phase":"warmup","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
+				;;
+			cooldown)
+				printf '{"phase":"run","active_phase":"cooldown","completed_phase":"run","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
+				;;
+			done)
+				printf '{"phase":"run","completed_phase":"run","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
+				;;
+			*)
+				printf '{"phase":"prepare","active_phase":"prepare","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
+				;;
+		esac
+		if [[ -f "` + callsDir + `/profile.finished" ]]; then
+			touch "` + callsDir + `/profile.end_checked"
+		fi
+		;;
 	  http://127.0.0.1:501*/metrics)
 	    if [[ "$*" == *"X-WK-Bench-Evidence: append-effect-"* ]]; then
 	      if [[ "${WK_FAKE_APPEND_EFFECT_MISSING_NODE:-0}" == "1" && "$url" == "http://127.0.0.1:5012/metrics" ]]; then
@@ -3286,6 +3443,25 @@ OUT
   http://127.0.0.1:501*/debug/pprof/heap)
     echo 'heap profile'
     ;;
+	http://127.0.0.1:501*/debug/pprof/profile?seconds=*)
+		if [[ "$*" == *"X-WK-Bench-Evidence: pprof-run"* ]]; then
+			state=""
+			if [[ -f "` + callsDir + `/wkbench.phase" ]]; then
+				state="$(cat "` + callsDir + `/wkbench.phase")"
+			fi
+			if [[ "$state" != "run" ]]; then
+				if [[ -n "${WK_FAKE_PROFILE_VIOLATION_FILE:-}" ]]; then
+					touch "$WK_FAKE_PROFILE_VIOLATION_FILE"
+				fi
+				exit 22
+			fi
+			if [[ "${WK_FAKE_PROFILE_TRANSITION_TO_COOLDOWN:-0}" == "1" ]]; then
+				printf 'cooldown\n' > "` + callsDir + `/wkbench.phase"
+			fi
+		fi
+		echo 'cpu profile'
+		touch "` + callsDir + `/profile.finished"
+		;;
   *)
     echo "unexpected curl url: $url" >&2
     exit 2

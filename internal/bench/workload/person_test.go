@@ -2,6 +2,7 @@ package workload
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -121,9 +122,46 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 	require.Equal(t, uint64(42), recipient.recvAckCalls[0].messageSeq)
 	sendLabels := personSendLabels("run", "profile-a", "traffic-a")
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", sendLabels))
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", nil))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", sendLabels))
 	require.NotEmpty(t, workload.Metrics().LatencyValues("person_send_latency_seconds", sendLabels))
-	require.NotEmpty(t, workload.Metrics().LatencyValues("person_recv_latency_seconds", nil))
+	require.NotEmpty(t, workload.Metrics().LatencyValues("person_recv_latency_seconds", sendLabels))
+}
+
+func TestPersonWorkloadRecvMetricsAreSeparatedByPhase(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	pair := PersonPair{ChannelIndex: 3, SenderUID: "u1", RecipientUID: "u2"}
+	for messageIndex, phase := range []string{"warmup", "run"} {
+		clientMsgNo := "bench-msg-run-a-profile-a-traffic-a-" + phase + "-ch3-msg" + fmt.Sprint(messageIndex)
+		recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
+			FromUID:     "u1",
+			ChannelType: frame.ChannelTypePerson,
+			ClientMsgNo: clientMsgNo,
+			Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a phase=" + phase + " channel=3 message=" + fmt.Sprint(messageIndex)),
+		})
+	}
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		Pairs:           []PersonPair{pair},
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "full",
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.sendPairInPhase(context.Background(), pair, "warmup", 0))
+	require.NoError(t, workload.sendPairInPhase(context.Background(), pair, "run", 1))
+
+	for _, phase := range []string{"warmup", "run"} {
+		labels := personSendLabels(phase, "profile-a", "traffic-a")
+		require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", labels))
+		require.NotEmpty(t, workload.Metrics().LatencyValues("person_recv_latency_seconds", labels))
+	}
+	require.Zero(t, workload.Metrics().CounterValue("person_recv_success_total", nil))
+	require.Empty(t, workload.Metrics().LatencyValues("person_recv_latency_seconds", nil))
 }
 
 func TestPersonWorkloadFullRecvVerificationAllowsSmallPayload(t *testing.T) {
@@ -159,7 +197,7 @@ func TestPersonWorkloadFullRecvVerificationAllowsSmallPayload(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, workload.SendOne(context.Background(), 42))
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", nil))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", personSendLabels("run", "profile-a", "traffic-a")))
 }
 
 func TestPersonWorkloadRecvVerificationRejectsWrongFromUID(t *testing.T) {
@@ -196,7 +234,7 @@ func TestPersonWorkloadRecvVerificationRejectsWrongFromUID(t *testing.T) {
 	err = workload.SendOne(context.Background(), 42)
 
 	require.Error(t, err)
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_error_total", nil))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_error_total", personSendLabels("run", "profile-a", "traffic-a")))
 	require.NotEmpty(t, workload.Metrics().ErrorSamples())
 }
 

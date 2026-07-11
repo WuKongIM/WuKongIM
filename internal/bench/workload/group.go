@@ -444,7 +444,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		recv, err := w.waitForRecv(ctx, w.clients[uid], ch.ChannelID, clientMsgNo, senderUID, expectedMessageID, ack.MessageSeq)
 		if err != nil {
 			w.recordError("group_recv_error", err)
-			w.metrics.IncCounter("group_recv_error_total", nil)
+			w.metrics.IncCounter("group_recv_error_total", sendLabels)
 			if errors.Is(err, io.EOF) {
 				return sessionOperationError(uid, "group recv", err)
 			}
@@ -453,18 +453,18 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		if string(recv.Payload) != string(payload) {
 			err := fmt.Errorf("group workload: recv payload mismatch for %q", clientMsgNo)
 			w.recordError("group_recv_error", err)
-			w.metrics.IncCounter("group_recv_error_total", nil)
+			w.metrics.IncCounter("group_recv_error_total", sendLabels)
 			return err
 		}
 		if w.cfg.RecvAck {
 			if err := w.clients[uid].RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {
 				w.recordError("group_recv_error", err)
-				w.metrics.IncCounter("group_recv_error_total", nil)
+				w.metrics.IncCounter("group_recv_error_total", sendLabels)
 				return sessionOperationError(uid, "group recvack", err)
 			}
 		}
-		w.metrics.IncCounter("group_recv_success_total", nil)
-		w.metrics.ObserveLatency("group_recv_latency_seconds", nil, time.Since(recvStart))
+		w.metrics.IncCounter("group_recv_success_total", sendLabels)
+		w.metrics.ObserveLatency("group_recv_latency_seconds", sendLabels, time.Since(recvStart))
 	}
 	return nil
 }

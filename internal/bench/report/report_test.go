@@ -81,6 +81,24 @@ func TestSummaryFromMetricsComputesRatesAndMaxWorkerP99(t *testing.T) {
 	}
 }
 
+func TestSummaryFromMetricsUsesOnlyRunPhaseForLatencyLimits(t *testing.T) {
+	summary := SummaryFromMetrics(metrics.SnapshotData{
+		Histograms: map[string]metrics.HistogramSummary{
+			"group_send_latency_seconds{phase=warmup,traffic=send}": {P99Seconds: 0.900},
+			"group_send_latency_seconds{phase=run,traffic=send}":    {P99Seconds: 0.050},
+			"group_recv_latency_seconds{phase=warmup,traffic=recv}": {P99Seconds: 0.800},
+			"group_recv_latency_seconds{phase=run,traffic=recv}":    {P99Seconds: 0.060},
+		},
+	}, 0)
+
+	if summary.SendackMaxWorkerP99 != 50*time.Millisecond {
+		t.Fatalf("sendack_max_worker_p99 = %s, want run-phase 50ms", summary.SendackMaxWorkerP99)
+	}
+	if summary.RecvMaxWorkerP99 != 60*time.Millisecond {
+		t.Fatalf("recv_max_worker_p99 = %s, want run-phase 60ms", summary.RecvMaxWorkerP99)
+	}
+}
+
 func TestSummaryFromMetricsUsesConnectAttemptsAsRateDenominator(t *testing.T) {
 	summary := SummaryFromMetrics(metrics.SnapshotData{
 		Counters: map[string]uint64{
