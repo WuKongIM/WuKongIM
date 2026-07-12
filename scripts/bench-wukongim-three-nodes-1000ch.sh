@@ -39,6 +39,12 @@ RUN_NONCE="${WK_BENCH_RUN_NONCE:-${TIMESTAMP}-$$-${RANDOM}}"
 QUIESCENCE_TIMEOUT="${WK_BENCH_QUIESCENCE_TIMEOUT:-60}"
 QUIESCENCE_POLL_INTERVAL="${WK_BENCH_QUIESCENCE_POLL_INTERVAL:-1}"
 DELIVERY_RECIPIENT_WORKER_CONCURRENCY="${WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY:-100}"
+THREE_NODE_DATA_ROOT_SOURCE="default"
+if [[ -n "${WK_WUKONGIM_THREE_NODES_DATA_ROOT:-}" ]]; then
+  THREE_NODE_DATA_ROOT_SOURCE="env"
+fi
+THREE_NODE_DATA_ROOT="${WK_WUKONGIM_THREE_NODES_DATA_ROOT:-$ROOT_DIR/data}"
+STORAGE_FREE_WARN_PERCENT="${WK_BENCH_STORAGE_FREE_WARN_PERCENT:-5}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -321,6 +327,7 @@ require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 require_positive_int '--quiescence-timeout' "$QUIESCENCE_TIMEOUT"
 require_positive_int 'WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY' "$DELIVERY_RECIPIENT_WORKER_CONCURRENCY"
+require_nonnegative_number 'WK_BENCH_STORAGE_FREE_WARN_PERCENT' "$STORAGE_FREE_WARN_PERCENT"
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
 require_nonnegative_number '--quiescence-poll-interval' "$QUIESCENCE_POLL_INTERVAL"
 awk -v value="$QUIESCENCE_POLL_INTERVAL" 'BEGIN { exit !(value > 0) }' || \
@@ -1620,6 +1627,8 @@ CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
 CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
 CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
 DELIVERY_RECIPIENT_WORKER_CONCURRENCY=$DELIVERY_RECIPIENT_WORKER_CONCURRENCY
+THREE_NODE_DATA_ROOT=$THREE_NODE_DATA_ROOT
+THREE_NODE_DATA_ROOT_SOURCE=$THREE_NODE_DATA_ROOT_SOURCE
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-32}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}
 CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}
@@ -1643,6 +1652,7 @@ PROFILE_PHASE_TIMEOUT=$PROFILE_PHASE_TIMEOUT
 RUNTIME_POOL_SAMPLE_INTERVAL=$RUNTIME_POOL_SAMPLE_INTERVAL
 RESOURCE_SAMPLE_INTERVAL=$RESOURCE_SAMPLE_INTERVAL
 EOF
+  write_storage_preflight
   mkdir -p "$OUT_DIR/config"
   cp "$ROOT_DIR"/scripts/wukongim/wukongim-node*.toml "$OUT_DIR/config/" 2>/dev/null || true
   if [[ -x "$START_SCRIPT" ]]; then
@@ -1651,6 +1661,33 @@ EOF
   collect_node_logs before
   scrape_metrics_snapshot before
   capture_node_pprof before
+}
+
+write_storage_preflight() {
+  local probe_path="$THREE_NODE_DATA_ROOT"
+  local filesystem blocks_kib used_kib available_kib used_percent mount_point free_percent result
+  while [[ ! -e "$probe_path" && "$probe_path" != "/" ]]; do
+    probe_path="$(dirname "$probe_path")"
+  done
+  read -r filesystem blocks_kib used_kib available_kib used_percent mount_point < <(
+    df -Pk "$probe_path" | awk 'NR == 2 { print; exit }'
+  )
+  used_percent="${used_percent%%%}"
+  free_percent=$((100 - used_percent))
+  result="ok"
+  if [[ "$START_CLUSTER" -eq 0 && "$THREE_NODE_DATA_ROOT_SOURCE" != "env" ]]; then
+    result="external_cluster_data_root_unverified"
+    log "WARNING: --no-start data root is unknown; set WK_WUKONGIM_THREE_NODES_DATA_ROOT to make storage evidence attributable"
+  elif awk -v free="$free_percent" -v warn="$STORAGE_FREE_WARN_PERCENT" 'BEGIN { exit !(free < warn) }'; then
+    result="low_free_space"
+    log "WARNING: data filesystem free space is ${free_percent}% at $mount_point; sync-commit latency evidence may be storage-bound"
+  fi
+  {
+    printf 'data_root\tdata_root_source\tprobe_path\tfilesystem\tmount_point\tblocks_kib\tused_kib\tavailable_kib\tfree_percent\twarn_below_percent\tresult\n'
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$THREE_NODE_DATA_ROOT" "$THREE_NODE_DATA_ROOT_SOURCE" "$probe_path" "$filesystem" "$mount_point" "$blocks_kib" "$used_kib" "$available_kib" \
+      "$free_percent" "$STORAGE_FREE_WARN_PERCENT" "$result"
+  } >"$OUT_DIR/storage-preflight.tsv"
 }
 
 write_display_summary() {
@@ -2557,6 +2594,7 @@ write_evidence_summary() {
 - ants_pool_usage: ants_pool_usage_summary.tsv
 - quiescence: quiescence/*.tsv
 - sample_validity: sample-validity.tsv
+- storage_preflight: storage-preflight.tsv
 
 ## Result
 \`\`\`text

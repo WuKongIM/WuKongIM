@@ -7,7 +7,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./docker/conf/node1.toml:/etc/wukongim/wukongim.toml:ro
-      - ./docker/dev-cluster/node1:/var/lib/wukongim
+      # Point WK_NODE{1,2,3}_DATA_MOUNT at independent disks when measuring durable QPS.
+      - ${WK_NODE1_DATA_MOUNT:-./docker/dev-cluster/node1}:/var/lib/wukongim
     tmpfs:
       - /run/wukongim
     ports:
@@ -24,7 +25,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./docker/conf/node2.toml:/etc/wukongim/wukongim.toml:ro
-      - ./docker/dev-cluster/node2:/var/lib/wukongim
+      - ${WK_NODE2_DATA_MOUNT:-./docker/dev-cluster/node2}:/var/lib/wukongim
     tmpfs:
       - /run/wukongim
     ports:
@@ -41,7 +42,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./docker/conf/node3.toml:/etc/wukongim/wukongim.toml:ro
-      - ./docker/dev-cluster/node3:/var/lib/wukongim
+      - ${WK_NODE3_DATA_MOUNT:-./docker/dev-cluster/node3}:/var/lib/wukongim
     tmpfs:
       - /run/wukongim
     ports:

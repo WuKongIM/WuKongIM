@@ -1,5 +1,16 @@
 # WKSIM Stress Findings
 
+## 2026-07-12 three-node 4500 QPS backing-device separation
+
+- Scenario: 4500 offered QPS, 1000 group channels, 4096 users, 10 members, 30s measured phase, synchronous three-replica quorum commits, one message commit coordinator, and unchanged 400ms p99 gate.
+- Host baseline: all three local processes stored data on the same APFS physical store with less than 1% free space. The run delivered 4480.2 actual QPS with zero errors but p99 was 563.1ms. Physical commit p99 was 94-99ms and logical commit request p99 was about 239ms even though each node wrote only about 17.8MB, so the limit was fsync latency rather than sequential bandwidth.
+- Same-window split probe: node1 used a 4GiB APFS RAM volume while node2 and node3 stayed on the host filesystem; synchronous commits remained enabled. Node1 physical commit p99 fell to 8.9ms and logical request p99 to 58.8ms, while the two host nodes stayed at 101-128ms physical and 847-907ms logical. This proves the backing device materially controls the observed commit tail.
+- All-RAM attribution: the exact-topology three-node run delivered 4496.2 actual QPS, a 0.999 actual/offered ratio, p99 223.2ms, and zero errors. Physical commit p99 was 8.4-10.0ms and logical request p99 was 44.9-59.1ms. This is software-path attribution only, not production durability or capacity evidence.
+- Rejected tuning: commit shards=2 raised physical commit p99 to 192-218ms; a unified depth-two concurrent synchronous-commit prototype raised end-to-end p99 to 1695.2ms and also had physical-ordering risk; delivery workers=128 still failed at 506.9ms; PullHint subgroup priority reduced Hint task latency but raised the final p99 to 647.3ms. All code experiments were reverted.
+- Next software bottleneck: with fast storage, `post_store_commit_wait` remained about 213-217ms and follower Pull RPC about 97-101ms. The next architectural candidate is a leader-durable `ReplicateBatch` fast path that waits for follower durable apply and falls back to PullHint/Pull; it requires a separate protocol/state-machine change and must not be implemented as an unsafe same-message fsync overlap patch.
+- Harness hardening: the local starter accepts `--data-root` / `WK_WUKONGIM_THREE_NODES_DATA_ROOT`, Compose accepts per-node `WK_NODE{1,2,3}_DATA_MOUNT`, and benchmark evidence includes `storage-preflight.tsv` with a low-free-space warning.
+- Evidence: host baseline `/private/tmp/wukongim-qps-4500-store-hol-baseline-30s-20260712`, split probe `/private/tmp/wukongim-qps-4500-split-ram-20260712`, and exact all-RAM attribution `/private/tmp/wukongim-qps-4500-all-ram-exact-20260712`. Reproduce the host baseline with `GOWORK=off scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4500 --duration 30s --out-dir <evidence-dir>`; for backing-device attribution, mount the intended volume and rerun with `WK_WUKONGIM_THREE_NODES_DATA_ROOT=<mounted-path>` while keeping synchronous commits enabled.
+
 ## 2026-07-12 three-node 4500 QPS Pull observation and completion-gap spin
 
 - Scenario: `scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4500`, 1000 group channels, 4096 online users, 10 members, 30s run phase, 32 Channel reactors, 500 Channel RPC/store workers, synchronous three-replica quorum commit, and a 400ms p99 gate.

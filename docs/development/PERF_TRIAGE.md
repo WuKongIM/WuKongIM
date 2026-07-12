@@ -82,6 +82,18 @@ guardrail; pass a stricter value such as `200ms` when validating a latency SLA.
 The local three-node configs use three initial physical Slots so the default
 10k-channel run exercises a distributed metadata path instead of one hot Slot
 Raft group.
+
+Durable-QPS runs must also record the backing filesystem. The three-node bench
+writes `storage-preflight.tsv` and warns when the resolved data filesystem has
+less than `WK_BENCH_STORAGE_FREE_WARN_PERCENT` free space (default 5%). Use
+`WK_WUKONGIM_THREE_NODES_DATA_ROOT=/path/on/fast-volume` or
+`scripts/start-wukongim-three-nodes.sh --data-root /path/on/fast-volume` to
+place the three isolated node directories on an intended benchmark device.
+For Compose, `WK_NODE1_DATA_MOUNT`, `WK_NODE2_DATA_MOUNT`, and
+`WK_NODE3_DATA_MOUNT` can point each node at a different backing store. A RAM
+volume is useful only for attribution; it is not production durability or
+capacity evidence.
+
 Treat `active_leader_single_node` as an invalid topology sample first: inspect
 the activation report's per-node active runtime distribution before using that
 run as capacity evidence.

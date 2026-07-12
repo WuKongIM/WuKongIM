@@ -1,6 +1,7 @@
 package docker_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -93,6 +94,21 @@ func TestComposeNodesUseEphemeralPluginSocketRuntime(t *testing.T) {
 			}
 			t.Fatalf("%s tmpfs = %v, want /run/wukongim", service, compose.Services[service].Tmpfs)
 		})
+	}
+}
+
+func TestComposeNodeDataMountsCanTargetIndependentBackingStores(t *testing.T) {
+	composePath := filepath.Join(dockerRepoRoot(t), "docker-compose.yml")
+	data, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", composePath, err)
+	}
+	compose := string(data)
+	for node := 1; node <= 3; node++ {
+		want := "${WK_NODE" + fmt.Sprint(node) + "_DATA_MOUNT:-./docker/dev-cluster/node" + fmt.Sprint(node) + "}:/var/lib/wukongim"
+		if !strings.Contains(compose, want) {
+			t.Fatalf("docker-compose.yml missing configurable node%d data mount %q", node, want)
+		}
 	}
 }
 

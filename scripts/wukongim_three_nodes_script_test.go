@@ -15,6 +15,7 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 	callsDir := t.TempDir()
 	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
+	dataRoot := filepath.Join(t.TempDir(), "data-root")
 	prometheusEmbedDir := t.TempDir()
 	prometheusAsset := filepath.Join(prometheusEmbedDir, "prometheus-testos-testarch")
 	if err := os.WriteFile(prometheusAsset, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
@@ -29,6 +30,7 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"--poll", "0",
 		"--bin", outputBin,
 		"--log-dir", logDir,
+		"--data-root", dataRoot,
 	)
 	cmd.Dir = root
 	cmd.Env = append(envWithout(
@@ -38,6 +40,7 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"WK_PROMETHEUS_LISTEN_ADDR",
 		"WK_WUKONGIM_THREE_NODES_BIN",
 		"WK_WUKONGIM_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIM_THREE_NODES_DATA_ROOT",
 		"WK_WUKONGIM_THREE_NODES_READY_TIMEOUT",
 		"WK_WUKONGIM_THREE_NODES_POLL_INTERVAL",
 		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE",
@@ -46,6 +49,7 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_TIME",
 		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_SIZE",
 		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
+		"WK_NODE_DATA_DIR",
 	),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_PROMETHEUS_EMBED_DIR="+prometheusEmbedDir,
@@ -63,6 +67,7 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE=512",
 		"WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=65536",
+		"WK_NODE_DATA_DIR=/shared-invalid-data-dir",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -98,6 +103,9 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"wukongim-node2.toml WK_PROMETHEUS_ENABLE=false",
 		"wukongim-node3.toml WK_METRICS_ENABLE=true",
 		"wukongim-node3.toml WK_PROMETHEUS_ENABLE=false",
+		"wukongim-node1.toml WK_NODE_DATA_DIR=" + filepath.Join(dataRoot, "wukongim-node-1"),
+		"wukongim-node2.toml WK_NODE_DATA_DIR=" + filepath.Join(dataRoot, "wukongim-node-2"),
+		"wukongim-node3.toml WK_NODE_DATA_DIR=" + filepath.Join(dataRoot, "wukongim-node-3"),
 		"wukongim-node1.toml WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=<unset>",
 		"wukongim-node1.toml WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=<unset>",
 		"wukongim-node1.toml WK_PROMETHEUS_EMBED_DIR=<unset>",
@@ -177,11 +185,13 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	root := repoRoot(t)
 	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
+	dataRoot := filepath.Join(t.TempDir(), "data-root")
 
 	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--bin", outputBin,
 		"--log-dir", logDir,
+		"--data-root", dataRoot,
 	)
 	cmd.Dir = root
 	cmd.Env = envWithout(
@@ -189,6 +199,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 		"WK_PROMETHEUS_LISTEN_ADDR",
 		"WK_WUKONGIM_THREE_NODES_BIN",
 		"WK_WUKONGIM_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIM_THREE_NODES_DATA_ROOT",
 		"WK_WUKONGIM_THREE_NODES_READY_TIMEOUT",
 		"WK_WUKONGIM_THREE_NODES_POLL_INTERVAL",
 		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE",
@@ -211,6 +222,9 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 		"node1_config=" + filepath.Join(root, "scripts/wukongim/wukongim-node1.toml"),
 		"node2_ready=http://127.0.0.1:5012/readyz",
 		"node3_log=" + filepath.Join(logDir, "node3.log"),
+		"data_root=" + dataRoot,
+		"node1_data=" + filepath.Join(dataRoot, "wukongim-node-1"),
+		"node3_data=" + filepath.Join(dataRoot, "wukongim-node-3"),
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -218,6 +232,19 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 	if strings.Contains(text, ".toml.example") {
 		t.Fatalf("dry-run output should not use example configs:\n%s", text)
+	}
+}
+
+func TestWukongIMThreeNodeScriptRejectsEmptyDataRoot(t *testing.T) {
+	root := repoRoot(t)
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh", "--dry-run", "--data-root", "")
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("empty data root should fail:\n%s", output)
+	}
+	if !strings.Contains(string(output), "--data-root must not be empty") {
+		t.Fatalf("unexpected empty data root error:\n%s", output)
 	}
 }
 
@@ -307,7 +334,8 @@ done
   printf '%s WK_PROMETHEUS_ENABLE=%s\n' "$config" "${WK_PROMETHEUS_ENABLE-}"
   printf '%s WK_PROMETHEUS_LISTEN_ADDR=%s\n' "$config" "${WK_PROMETHEUS_LISTEN_ADDR-}"
   printf '%s WK_PROMETHEUS_DATA_DIR=%s\n' "$config" "${WK_PROMETHEUS_DATA_DIR-}"
-  printf '%s WK_PROMETHEUS_SCRAPE_TARGETS=%s\n' "$config" "${WK_PROMETHEUS_SCRAPE_TARGETS-}"
+	printf '%s WK_PROMETHEUS_SCRAPE_TARGETS=%s\n' "$config" "${WK_PROMETHEUS_SCRAPE_TARGETS-}"
+	printf '%s WK_NODE_DATA_DIR=%s\n' "$config" "${WK_NODE_DATA_DIR-<unset>}"
 	printf '%s WK_WUKONGIM_THREE_NODES_READY_TIMEOUT=%s\n' "$config" "${WK_WUKONGIM_THREE_NODES_READY_TIMEOUT-<unset>}"
 	printf '%s WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE=%s\n' "$config" "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE-<unset>}"
 	printf '%s WK_PROMETHEUS_EMBED_DIR=%s\n' "$config" "${WK_PROMETHEUS_EMBED_DIR-<unset>}"

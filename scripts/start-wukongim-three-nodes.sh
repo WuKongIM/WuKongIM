@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_DIR="$ROOT_DIR/scripts/wukongim"
 BIN_PATH="${WK_WUKONGIM_THREE_NODES_BIN:-$ROOT_DIR/data/wukongim-three-nodes/wukongim}"
 LOG_DIR="${WK_WUKONGIM_THREE_NODES_LOG_DIR:-$ROOT_DIR/data/wukongim-three-node-logs}"
+DATA_ROOT="${WK_WUKONGIM_THREE_NODES_DATA_ROOT:-$ROOT_DIR/data}"
 READY_TIMEOUT="${WK_WUKONGIM_THREE_NODES_READY_TIMEOUT:-60}"
 POLL_INTERVAL="${WK_WUKONGIM_THREE_NODES_POLL_INTERVAL:-1}"
 PROMETHEUS_ENABLE="${WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE:-${WK_PROMETHEUS_ENABLE:-true}}"
@@ -54,6 +55,7 @@ Options:
   --no-build             Reuse --bin instead of running go build.
   --bin PATH             Binary path. Default: WK_WUKONGIM_THREE_NODES_BIN or data/wukongim-three-nodes/wukongim.
   --log-dir DIR          Per-node log directory. Default: WK_WUKONGIM_THREE_NODES_LOG_DIR or data/wukongim-three-node-logs.
+  --data-root DIR        Parent for isolated node data directories. Default: WK_WUKONGIM_THREE_NODES_DATA_ROOT or data/.
   --ready-timeout SECS   Ready wait timeout. Default: WK_WUKONGIM_THREE_NODES_READY_TIMEOUT or 60.
   --poll SECS            Ready polling interval. Default: WK_WUKONGIM_THREE_NODES_POLL_INTERVAL or 1.
   --no-prometheus        Do not start the node1 app-managed Prometheus process.
@@ -150,7 +152,7 @@ log_path() {
 
 data_path() {
   local node="$1"
-  printf '%s/data/wukongim-node-%s' "$ROOT_DIR" "$node"
+  printf '%s/wukongim-node-%s' "$DATA_ROOT" "$node"
 }
 
 prometheus_scrape_targets_json() {
@@ -191,6 +193,7 @@ print_plan() {
   fi
   printf 'bin=%s\n' "$BIN_PATH"
   printf 'log_dir=%s\n' "$LOG_DIR"
+  printf 'data_root=%s\n' "$DATA_ROOT"
   if [[ -n "$PID_DIR" ]]; then
     printf 'pid_dir=%s\n' "$PID_DIR"
     printf 'allow_node_exit=%s\n' "${ALLOW_NODE_EXIT:-<none>}"
@@ -210,6 +213,7 @@ print_plan() {
     local node="${NODES[$i]}"
     printf 'node%s_config=%s\n' "$node" "$(config_path "$node")"
     printf 'node%s_log=%s\n' "$node" "$(log_path "$node")"
+    printf 'node%s_data=%s\n' "$node" "$(data_path "$node")"
     if [[ -n "$PID_DIR" ]]; then
       printf 'node%s_pid_file=%s\n' "$node" "$(pid_file "$node")"
     fi
@@ -276,6 +280,11 @@ while [[ $# -gt 0 ]]; do
       LOG_DIR="$2"
       shift 2
       ;;
+    --data-root)
+      [[ $# -ge 2 ]] || die '--data-root requires a value'
+      DATA_ROOT="$2"
+      shift 2
+      ;;
     --ready-timeout)
       [[ $# -ge 2 ]] || die '--ready-timeout requires a value'
       READY_TIMEOUT="$2"
@@ -336,6 +345,7 @@ done
 require_positive_uint '--ready-timeout' "$READY_TIMEOUT"
 require_uint '--poll' "$POLL_INTERVAL"
 require_bool 'prometheus enable' "$PROMETHEUS_ENABLE"
+[[ -n "$DATA_ROOT" ]] || die '--data-root must not be empty'
 parse_allow_node_exit
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -466,6 +476,7 @@ start_node() {
   else
     env_args+=("WK_PROMETHEUS_ENABLE=false")
   fi
+  env_args+=("WK_NODE_DATA_DIR=$(data_path "$node")")
   env "${env_args[@]}" "$BIN_PATH" -config "$config" >"$log_file" 2>&1 &
   local pid="$!"
   PIDS+=("$pid")
