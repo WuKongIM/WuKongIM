@@ -42,6 +42,18 @@ func (r *Reactor) submitStoreLoad(ctx context.Context, channelID ch.ChannelID, f
 	})
 }
 
+func (r *Reactor) submitColdStoreLoad(ctx context.Context, channelID ch.ChannelID, fence ch.Fence) error {
+	if r.cfg.Pools == nil || r.cfg.Pools.ColdActivation == nil {
+		return ch.ErrNotReady
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:      worker.TaskColdStoreLoad,
+		Fence:     fence,
+		Context:   ctx,
+		StoreLoad: &worker.StoreLoadTask{ChannelID: channelID},
+	})
+}
+
 func (r *Reactor) submitStoreReadLog(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, fromOffset uint64, maxOffset uint64, maxBytes int) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig
@@ -163,6 +175,18 @@ func (r *Reactor) submitMetaResolve(ctx context.Context, fence ch.Fence, id ch.C
 		MetaResolve: &worker.MetaResolveTask{
 			ChannelID: id,
 		},
+	})
+}
+
+func (r *Reactor) submitColdMetaResolve(ctx context.Context, fence ch.Fence, id ch.ChannelID) error {
+	if r.cfg.Pools == nil || r.cfg.Pools.ColdActivation == nil {
+		return ch.ErrNotReady
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:        worker.TaskColdMetaResolve,
+		Fence:       fence,
+		Context:     ctx,
+		MetaResolve: &worker.MetaResolveTask{ChannelID: id},
 	})
 }
 

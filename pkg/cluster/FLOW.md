@@ -610,16 +610,16 @@ new placement candidates. Existing `ChannelRuntimeMeta` rows remain
 authoritative for established channels.
 
 Channel runtime PullHint RPCs carry only a slim metadata reference and wakeup fields.
-An unloaded follower creates reactor-owned `PendingMeta`; a loaded runtime with
-a newer fence keeps its current state while a bounded in-place refresh is
-proved. The unloaded compatibility path uses `Pull{NeedMeta=true}`. The loaded
-newer-fence path treats the hint only as a trigger and uses the configured
-read-only `SlotMetaSource.ResolveChannelMeta` through a dedicated bounded worker
-pool; it never trusts the hint-selected node as metadata authority and never
-uses `EnsureChannelMeta` or the append metadata cache. A strictly newer valid
-result is applied monotonically, after which follower replication uses an
-ordinary Pull from the resolved leader. Client append admission continues to
-use `EnsureChannelMeta` for first-write creation.
+An unloaded follower treats the hint only as a trigger and resolves through
+`SlotMetaSource.ResolveChannelMeta` before opening local channel storage. Resolve
+and store load share a dedicated bounded cold-activation pool, separate from
+loaded-runtime refresh and hot StoreRead/RPC work. A loaded runtime with a newer
+fence keeps its current state while its separate bounded in-place refresh is
+proved. Neither path trusts the hint-selected node as metadata authority or uses
+`EnsureChannelMeta` and the append metadata cache. Valid results are applied
+monotonically, after which follower replication uses ordinary Pull from the
+resolved leader. Client append admission continues to use `EnsureChannelMeta`
+for first-write creation.
 
 Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 

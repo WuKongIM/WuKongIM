@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -9,6 +10,11 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
+)
+
+const (
+	minColdActivationTimeout = 100 * time.Millisecond
+	maxColdActivationTimeout = 5 * time.Second
 )
 
 func (r *Reactor) handleApplyMeta(event Event) {
@@ -110,6 +116,10 @@ func (r *Reactor) handleApplyMetaToLoading(event Event, rc *runtimeChannel) {
 		event.Future.Complete(Result{Err: ch.ErrChannelNotFound})
 		return
 	}
+	if loading.kind == storeLoadColdActivation {
+		r.handleApplyMetaToColdActivation(event, rc, loading, meta)
+		return
+	}
 	if meta.Key != loading.key || meta.ID != loading.id {
 		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
@@ -125,6 +135,41 @@ func (r *Reactor) handleApplyMetaToLoading(event Event, rc *runtimeChannel) {
 		loading.meta = meta
 	}
 	loading.futures = append(loading.futures, event.Future)
+}
+
+// handleApplyMetaToColdActivation lets explicit authoritative metadata bypass an in-flight cold resolve without extending its deadline.
+func (r *Reactor) handleApplyMetaToColdActivation(event Event, rc *runtimeChannel, loading *storeLoadState, meta ch.Meta) {
+	if meta.Key != loading.key || meta.ID != loading.id {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	if loading.coldPhase == coldActivationStoreLoad {
+		cmp := compareLoadingMetaFence(loading.meta, meta)
+		if cmp > 0 {
+			event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+			return
+		}
+		if cmp < 0 {
+			r.completeStoreLoadFutures(loading, Result{Err: ch.ErrStaleMeta})
+			loading.meta = meta
+		}
+		loading.futures = append(loading.futures, event.Future)
+		return
+	}
+	if loading.cancel != nil {
+		loading.cancel()
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), loading.deadline)
+	loading.context = ctx
+	loading.cancel = cancel
+	loading.meta = meta
+	loading.coldPhase = coldActivationStoreLoad
+	loading.futures = append(loading.futures, event.Future)
+	loading.opID = r.nextOpID()
+	fence := ch.Fence{ChannelKey: loading.key, Generation: loading.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: loading.opID}
+	if err := r.submitColdStoreLoad(ctx, loading.id, fence); err != nil {
+		r.releaseColdActivation(loading.key, rc, err)
+	}
 }
 
 func compareLoadingMetaFence(current ch.Meta, next ch.Meta) int {
@@ -149,6 +194,10 @@ func (r *Reactor) handleStoreLoadResult(result worker.Result) {
 		return
 	}
 	if result.Err != nil {
+		if loading.kind == storeLoadColdActivation {
+			r.releaseColdActivation(loading.key, rc, result.Err)
+			return
+		}
 		delete(r.channels, loading.key)
 		r.completeStoreLoadFutures(loading, Result{Err: result.Err})
 		return
@@ -161,13 +210,25 @@ func (r *Reactor) handleStoreLoadResult(result worker.Result) {
 	switch loading.kind {
 	case storeLoadApplyMeta:
 		r.completeApplyMetaStoreLoad(rc, loading, result.StoreLoad)
-	case storeLoadPendingMeta:
-		r.completePendingMetaStoreLoad(rc, loading, result.StoreLoad)
+	case storeLoadColdActivation:
+		r.completeColdActivationStoreLoad(rc, loading, result.StoreLoad)
 	default:
 		delete(r.channels, loading.key)
 		r.closeStoreAsync(loading.key, loading.generation, result.StoreLoad.Store)
 		r.completeStoreLoadFutures(loading, Result{Err: ch.ErrInvalidConfig})
 	}
+}
+
+// completeColdActivationStoreLoad transfers the authority-proven store handle into the ordinary ApplyMeta activation path.
+func (r *Reactor) completeColdActivationStoreLoad(rc *runtimeChannel, loading *storeLoadState, loaded *worker.StoreLoadResult) {
+	r.due.remove(dueColdActivation, loading.key)
+	if loading.cancel != nil {
+		loading.cancel()
+		loading.cancel = nil
+	}
+	loading.context = nil
+	loading.kind = storeLoadApplyMeta
+	r.completeApplyMetaStoreLoad(rc, loading, loaded)
 }
 
 func (r *Reactor) completeApplyMetaStoreLoad(rc *runtimeChannel, loading *storeLoadState, loaded *worker.StoreLoadResult) {
@@ -216,13 +277,14 @@ func (r *Reactor) closeRejectedStoreLoad(result worker.Result) {
 	}
 }
 
-func (r *Reactor) startPendingMetaLoad(req transport.PullHintRequest) error {
+// startColdActivation admits an unloaded PullHint into the authority-first cold activation lifecycle.
+func (r *Reactor) startColdActivation(req transport.PullHintRequest) error {
 	if err := validatePendingPullHint(req, r.cfg.LocalNode); err != nil {
 		return err
 	}
 	if rc := r.channels[req.ChannelKey]; rc != nil {
 		if rc.loading != nil && rc.state == nil && rc.pending == nil {
-			return r.coalescePendingMetaLoad(rc, req)
+			return r.coalesceColdActivationLoad(rc, req)
 		}
 		if rc.pending != nil && rc.state == nil {
 			ensured, err := r.ensurePendingMeta(req)
@@ -237,34 +299,65 @@ func (r *Reactor) startPendingMetaLoad(req transport.PullHintRequest) error {
 		r.observeActivationRejected("max_channels")
 		return ch.ErrTooManyChannels
 	}
+	if r.cfg.Pools == nil || r.cfg.Pools.ColdActivation == nil {
+		return ch.ErrNotReady
+	}
 	opID := r.nextOpID()
 	generation := uint64(opID)
 	fence := ch.Fence{ChannelKey: req.ChannelKey, Generation: generation, Epoch: req.Epoch, LeaderEpoch: req.LeaderEpoch, OpID: opID}
+	timeout := r.coldActivationTimeout()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	deadline, _ := ctx.Deadline()
 	rc := &runtimeChannel{loading: &storeLoadState{
-		kind:       storeLoadPendingMeta,
+		kind:       storeLoadColdActivation,
 		key:        req.ChannelKey,
 		id:         req.ChannelID,
 		generation: generation,
 		opID:       opID,
 		pullHint:   req,
+		coldPhase:  coldActivationResolve,
+		deadline:   deadline,
+		context:    ctx,
+		cancel:     cancel,
 	}}
 	r.channels[req.ChannelKey] = rc
-	if err := r.submitStoreLoad(context.Background(), req.ChannelID, fence); err != nil {
-		delete(r.channels, req.ChannelKey)
+	r.scheduleColdActivationDeadline(rc.loading)
+	if err := r.submitColdMetaResolve(ctx, fence, req.ChannelID); err != nil {
+		r.releaseColdActivation(req.ChannelKey, rc, err)
 		return err
 	}
 	return nil
 }
 
-func (r *Reactor) coalescePendingMetaLoad(rc *runtimeChannel, req transport.PullHintRequest) error {
+// coldActivationTimeout gives queued authority resolution and store load several hint intervals while bounding retained shells.
+func (r *Reactor) coldActivationTimeout() time.Duration {
+	interval := r.cfg.PullHintRetryInterval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	timeout := maxColdActivationTimeout
+	if interval <= maxColdActivationTimeout/5 {
+		timeout = interval * 5
+	}
+	if timeout < minColdActivationTimeout {
+		return minColdActivationTimeout
+	}
+	if timeout > maxColdActivationTimeout {
+		return maxColdActivationTimeout
+	}
+	return timeout
+}
+
+// coalesceColdActivationLoad merges repeated wakeups without extending the original activation deadline.
+func (r *Reactor) coalesceColdActivationLoad(rc *runtimeChannel, req transport.PullHintRequest) error {
 	loading := rc.loading
-	if loading == nil || loading.kind != storeLoadPendingMeta {
+	if loading == nil || loading.kind != storeLoadColdActivation {
 		return ch.ErrStaleMeta
 	}
 	if req.ChannelKey != loading.key || req.ChannelID != loading.id {
 		return ch.ErrStaleMeta
 	}
-	cmp := comparePendingLoadFence(loading.pullHint, req)
+	cmp := compareColdActivationHintFence(loading.pullHint, req)
 	if cmp > 0 {
 		return ch.ErrStaleMeta
 	}
@@ -281,7 +374,109 @@ func (r *Reactor) coalescePendingMetaLoad(rc *runtimeChannel, req transport.Pull
 	return nil
 }
 
-func comparePendingLoadFence(current transport.PullHintRequest, next transport.PullHintRequest) int {
+// handleColdMetaResolveResult validates authority and opens storage only after local replica membership is proven.
+func (r *Reactor) handleColdMetaResolveResult(result worker.Result) {
+	rc := r.channels[result.Fence.ChannelKey]
+	if rc == nil || rc.loading == nil || rc.state != nil || rc.pending != nil {
+		return
+	}
+	loading := rc.loading
+	if loading.kind != storeLoadColdActivation || loading.coldPhase != coldActivationResolve ||
+		result.Fence.Generation != loading.generation || result.Fence.OpID != loading.opID {
+		return
+	}
+	if result.Err != nil {
+		r.releaseColdActivation(loading.key, rc, result.Err)
+		return
+	}
+	if result.MetaResolve == nil {
+		r.releaseColdActivation(loading.key, rc, ch.ErrInvalidConfig)
+		return
+	}
+	meta, err := validateColdActivationMeta(loading, result.MetaResolve.Meta, r.cfg.LocalNode)
+	if err != nil {
+		r.releaseColdActivation(loading.key, rc, err)
+		return
+	}
+	loading.meta = meta
+	loading.coldPhase = coldActivationStoreLoad
+	loading.opID = r.nextOpID()
+	fence := ch.Fence{ChannelKey: loading.key, Generation: loading.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: loading.opID}
+	if err := r.submitColdStoreLoad(loading.context, loading.id, fence); err != nil {
+		r.releaseColdActivation(loading.key, rc, err)
+	}
+}
+
+// validateColdActivationMeta proves the resolved identity, active topology, and local replica membership.
+func validateColdActivationMeta(loading *storeLoadState, meta ch.Meta, local ch.NodeID) (ch.Meta, error) {
+	if loading == nil {
+		return ch.Meta{}, ch.ErrInvalidConfig
+	}
+	if err := validatePendingMetaShape(meta); err != nil {
+		return ch.Meta{}, err
+	}
+	if meta.Key != loading.key || meta.ID != loading.id {
+		return ch.Meta{}, ch.ErrStaleMeta
+	}
+	if err := validateActiveMetaTopology(meta, local); err != nil {
+		return ch.Meta{}, err
+	}
+	return meta, nil
+}
+
+func (r *Reactor) scheduleColdActivationDeadline(loading *storeLoadState) {
+	if r == nil || loading == nil || loading.deadline.IsZero() {
+		return
+	}
+	r.due.push(dueItem{key: loading.key, kind: dueColdActivation, due: loading.deadline, version: loading.generation})
+}
+
+func (r *Reactor) releaseExpiredColdActivation(key ch.ChannelKey, version uint64, now time.Time) {
+	rc := r.channels[key]
+	if rc == nil || rc.loading == nil || rc.loading.kind != storeLoadColdActivation ||
+		rc.loading.generation != version || rc.loading.deadline.IsZero() || now.Before(rc.loading.deadline) {
+		return
+	}
+	r.releaseColdActivation(key, rc, context.DeadlineExceeded)
+}
+
+// releaseColdActivation cancels outstanding work and returns the shell's channel-capacity lease.
+func (r *Reactor) releaseColdActivation(key ch.ChannelKey, rc *runtimeChannel, err error) {
+	if r == nil || rc == nil || rc.loading == nil || rc.loading.kind != storeLoadColdActivation || r.channels[key] != rc {
+		return
+	}
+	loading := rc.loading
+	r.due.remove(dueColdActivation, key)
+	if loading.cancel != nil {
+		loading.cancel()
+		loading.cancel = nil
+	}
+	loading.context = nil
+	r.completeStoreLoadFutures(loading, Result{Err: err})
+	delete(r.channels, key)
+	r.observeActivationRejected(coldActivationRejectionReason(err))
+}
+
+func coldActivationRejectionReason(err error) string {
+	switch {
+	case errors.Is(err, ch.ErrNotReplica):
+		return "cold_not_replica"
+	case errors.Is(err, ch.ErrStaleMeta):
+		return "cold_stale_meta"
+	case errors.Is(err, ch.ErrInvalidConfig):
+		return "cold_invalid_config"
+	case errors.Is(err, ch.ErrNotReady):
+		return "cold_not_ready"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "cold_deadline"
+	case errors.Is(err, context.Canceled):
+		return "cold_canceled"
+	default:
+		return "cold_dependency"
+	}
+}
+
+func compareColdActivationHintFence(current transport.PullHintRequest, next transport.PullHintRequest) int {
 	if next.Epoch < current.Epoch || (next.Epoch == current.Epoch && next.LeaderEpoch < current.LeaderEpoch) {
 		return 1
 	}
@@ -289,38 +484,6 @@ func comparePendingLoadFence(current transport.PullHintRequest, next transport.P
 		return 0
 	}
 	return -1
-}
-
-func (r *Reactor) completePendingMetaStoreLoad(rc *runtimeChannel, loading *storeLoadState, loaded *worker.StoreLoadResult) {
-	req := loading.pullHint
-	now := time.Now()
-	rc.store = loaded.Store
-	rc.loading = nil
-	rc.pending = &pendingMetaState{
-		key:             req.ChannelKey,
-		id:              req.ChannelID,
-		generation:      loading.generation,
-		epoch:           req.Epoch,
-		leaderEpoch:     req.LeaderEpoch,
-		leader:          req.Leader,
-		leaderLEO:       req.LeaderLEO,
-		activityVersion: req.ActivityVersion,
-		deadline:        r.pendingMetaDeadline(now),
-		initial: storeInitialState{
-			LEO:                         loaded.Initial.LEO,
-			HW:                          loaded.Initial.HW,
-			CheckpointHW:                loaded.Initial.CheckpointHW,
-			LocalRetentionThroughSeq:    loaded.Retention.LocalRetentionThroughSeq,
-			PhysicalRetentionThroughSeq: loaded.Retention.PhysicalRetentionThroughSeq,
-		},
-	}
-	r.pendingMetaCount++
-	r.observePendingMeta("created", nil)
-	r.observePendingMetaCount()
-	r.schedulePendingMetaDeadline(rc)
-	if err := r.submitPendingMetaPull(rc, now); err != nil {
-		r.releasePendingMeta(req.ChannelKey, rc, err)
-	}
 }
 
 // closeStoreAsync transfers one detached handle either to an accepted worker task

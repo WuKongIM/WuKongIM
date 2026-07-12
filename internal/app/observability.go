@@ -2339,6 +2339,10 @@ func channelWorkerKindLabel(kind worker.TaskKind) string {
 		return "rpc_pull_hint"
 	case worker.TaskMetaResolve:
 		return "meta_resolve"
+	case worker.TaskColdMetaResolve:
+		return "cold_meta_resolve"
+	case worker.TaskColdStoreLoad:
+		return "cold_store_load"
 	default:
 		return "unknown"
 	}

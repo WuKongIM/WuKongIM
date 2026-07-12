@@ -272,7 +272,7 @@ func TestAppendRejectsStaleExpectedEpochs(t *testing.T) {
 	require.Equal(t, uint64(1), res.MessageSeq)
 }
 
-func TestHandlePullHintBootstrapsFollowerWithNeedMeta(t *testing.T) {
+func TestHandlePullHintBootstrapsFollowerFromAuthoritativeMeta(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	net := newServiceCaptureTransport()
 	meta := ch.Meta{Key: ch.ChannelKey("1:hint-needmeta"), ID: ch.ChannelID{ID: "hint-needmeta", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
@@ -285,11 +285,12 @@ func TestHandlePullHintBootstrapsFollowerWithNeedMeta(t *testing.T) {
 
 	err = svc.HandlePullHint(context.Background(), transport.PullHintRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Leader: 1, LeaderLEO: 1, ActivityVersion: 1, Reason: transport.PullHintReasonAppend})
 	require.NoError(t, err)
-	require.Equal(t, int32(0), resolver.calls.Load())
+	require.Eventually(t, func() bool { return resolver.calls.Load() == 1 }, time.Second, time.Millisecond)
 	require.Eventually(t, func() bool {
-		return net.NeedMetaPullCalls() >= 1
+		return net.PullCalls() >= 1
 	}, time.Second, time.Millisecond)
-	require.Equal(t, meta.Key, net.LastNeedMetaPull().ChannelKey)
+	require.False(t, net.LastPull().NeedMeta)
+	require.Equal(t, meta.Key, net.LastPull().ChannelKey)
 
 	require.Eventually(t, func() bool {
 		loaded, err := svc.group.HasChannelState(context.Background(), meta.Key)
@@ -297,7 +298,7 @@ func TestHandlePullHintBootstrapsFollowerWithNeedMeta(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
-func TestHandlePullHintDoesNotResolveMetaInService(t *testing.T) {
+func TestHandlePullHintResolvesMetaInsideRuntime(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	id := ch.ChannelID{ID: "hint-service-no-resolve", Type: 1}
 	key := ch.ChannelKeyForID(id)
@@ -310,13 +311,102 @@ func TestHandlePullHintDoesNotResolveMetaInService(t *testing.T) {
 
 	err = svc.HandlePullHint(context.Background(), transport.PullHintRequest{ChannelKey: key, ChannelID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, LeaderLEO: 1, ActivityVersion: 1, Reason: transport.PullHintReasonAppend})
 	require.NoError(t, err)
-	require.Equal(t, int32(0), resolver.calls.Load())
+	require.Eventually(t, func() bool { return resolver.calls.Load() == 1 }, time.Second, time.Millisecond)
 	requirePullHintReceive(t, observer.events, transport.PullHintReasonAppend, "submit", nil)
 	requirePullHintReceive(t, observer.events, transport.PullHintReasonAppend, "await", nil)
 
 	loaded, err := svc.group.HasChannelState(context.Background(), key)
 	require.NoError(t, err)
 	require.False(t, loaded)
+}
+
+func TestHandleColdPullHintResolvesAuthorityBeforeOpeningStore(t *testing.T) {
+	factory := newServiceCountingStoreFactory()
+	meta := ch.Meta{
+		Key: ch.ChannelKey("1:cold-authority-first"), ID: ch.ChannelID{ID: "cold-authority-first", Type: 1},
+		Epoch: 2, LeaderEpoch: 3, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive,
+	}
+	resolver := newBlockingMetaResolver(meta)
+	clusterAPI, err := New(Config{LocalNode: 2, Store: factory, Transport: newServiceCaptureTransport(), ReactorCount: 1, MetaResolver: resolver, MaxChannels: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	svc := clusterAPI.(*cluster)
+
+	err = svc.HandlePullHint(context.Background(), transport.PullHintRequest{
+		ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Leader: 3,
+		LeaderLEO: 10, ActivityVersion: 10, Reason: transport.PullHintReasonAppend,
+	})
+	require.NoError(t, err)
+	resolver.waitStarted(t)
+	require.Zero(t, factory.channelStoreCalls(meta.Key), "cold activation must not open storage before authority resolves")
+
+	resolver.release()
+	require.Eventually(t, func() bool {
+		loaded, loadErr := svc.group.HasChannelState(context.Background(), meta.Key)
+		return loadErr == nil && loaded
+	}, time.Second, time.Millisecond)
+	require.Equal(t, 1, factory.channelStoreCalls(meta.Key))
+}
+
+func TestHandleColdPullHintRejectsNonReplicaAuthorityBeforeOpeningStore(t *testing.T) {
+	factory := newServiceCountingStoreFactory()
+	id := ch.ChannelID{ID: "cold-not-replica", Type: 1}
+	key := ch.ChannelKeyForID(id)
+	meta := ch.Meta{
+		Key: key, ID: id, Epoch: 2, LeaderEpoch: 3, Leader: 1,
+		Replicas: []ch.NodeID{1, 3}, ISR: []ch.NodeID{1, 3}, MinISR: 2, Status: ch.StatusActive,
+	}
+	resolver := &countingMetaResolver{meta: meta}
+	clusterAPI, err := New(Config{LocalNode: 2, Store: factory, Transport: newServiceCaptureTransport(), ReactorCount: 1, MetaResolver: resolver, MaxChannels: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	svc := clusterAPI.(*cluster)
+
+	err = svc.HandlePullHint(context.Background(), transport.PullHintRequest{
+		ChannelKey: key, ChannelID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1,
+		LeaderLEO: 10, ActivityVersion: 10, Reason: transport.PullHintReasonAppend,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return resolver.calls.Load() == 1 }, time.Second, time.Millisecond)
+	other := ch.Meta{
+		Key: ch.ChannelKey("1:after-not-replica"), ID: ch.ChannelID{ID: "after-not-replica", Type: 1},
+		Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive,
+	}
+	require.Eventually(t, func() bool { return clusterAPI.ApplyMeta(other) == nil }, time.Second, time.Millisecond)
+	require.Zero(t, factory.channelStoreCalls(key))
+	loaded, err := svc.group.HasChannelState(context.Background(), key)
+	require.NoError(t, err)
+	require.False(t, loaded)
+}
+
+func TestColdPullHintTimeoutReleasesChannelCapacity(t *testing.T) {
+	factory := newServiceCountingStoreFactory()
+	cold := ch.Meta{
+		Key: ch.ChannelKey("1:cold-timeout"), ID: ch.ChannelID{ID: "cold-timeout", Type: 1},
+		Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive,
+	}
+	resolver := newBlockingMetaResolver(cold)
+	clusterAPI, err := New(Config{
+		LocalNode: 2, Store: factory, Transport: newServiceCaptureTransport(), MetaResolver: resolver,
+		ReactorCount: 1, MaxChannels: 1, PullHintRetryInterval: 10 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	svc := clusterAPI.(*cluster)
+
+	require.NoError(t, svc.HandlePullHint(context.Background(), transport.PullHintRequest{
+		ChannelKey: cold.Key, ChannelID: cold.ID, Epoch: 1, LeaderEpoch: 1, Leader: 1,
+		LeaderLEO: 1, ActivityVersion: 1, Reason: transport.PullHintReasonAppend,
+	}))
+	resolver.waitStarted(t)
+
+	other := ch.Meta{
+		Key: ch.ChannelKey("1:after-cold-timeout"), ID: ch.ChannelID{ID: "after-cold-timeout", Type: 1},
+		Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive,
+	}
+	require.ErrorIs(t, clusterAPI.ApplyMeta(other), ch.ErrTooManyChannels)
+	require.Eventually(t, func() bool { return clusterAPI.ApplyMeta(other) == nil }, time.Second, time.Millisecond)
+	require.Zero(t, factory.channelStoreCalls(cold.Key))
 }
 
 func TestHandleLoadedNewerPullHintUsesConfiguredAuthoritativeResolver(t *testing.T) {
@@ -841,6 +931,47 @@ type countingMetaResolver struct {
 	calls atomic.Int32
 }
 
+type blockingMetaResolver struct {
+	meta        ch.Meta
+	started     chan struct{}
+	releaseOnce sync.Once
+	releaseCh   chan struct{}
+}
+
+func newBlockingMetaResolver(meta ch.Meta) *blockingMetaResolver {
+	return &blockingMetaResolver{meta: meta, started: make(chan struct{}), releaseCh: make(chan struct{})}
+}
+
+func (r *blockingMetaResolver) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
+	if id != r.meta.ID {
+		return ch.Meta{}, ch.ErrChannelNotFound
+	}
+	select {
+	case <-r.started:
+	default:
+		close(r.started)
+	}
+	select {
+	case <-r.releaseCh:
+		return r.meta, nil
+	case <-ctx.Done():
+		return ch.Meta{}, ctx.Err()
+	}
+}
+
+func (r *blockingMetaResolver) waitStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-r.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for authority resolve")
+	}
+}
+
+func (r *blockingMetaResolver) release() {
+	r.releaseOnce.Do(func() { close(r.releaseCh) })
+}
+
 func (r *countingMetaResolver) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
 	if err := ctx.Err(); err != nil {
 		return ch.Meta{}, err
@@ -965,21 +1096,31 @@ type serviceCountingStoreFactory struct {
 	base        *store.MemoryFactory
 	mu          sync.Mutex
 	calls       map[ch.ChannelKey]int
+	storeCalls  map[ch.ChannelKey]int
 	blockLoadOn ch.ChannelKey
 	loadStarted chan struct{}
 	unblock     chan struct{}
 }
 
 func newServiceCountingStoreFactory() *serviceCountingStoreFactory {
-	return &serviceCountingStoreFactory{base: store.NewMemoryFactory(), calls: make(map[ch.ChannelKey]int)}
+	return &serviceCountingStoreFactory{base: store.NewMemoryFactory(), calls: make(map[ch.ChannelKey]int), storeCalls: make(map[ch.ChannelKey]int)}
 }
 
 func (f *serviceCountingStoreFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	f.mu.Lock()
+	f.storeCalls[key]++
+	f.mu.Unlock()
 	base, err := f.base.ChannelStore(key, id)
 	if err != nil {
 		return nil, err
 	}
 	return &serviceCountingStore{factory: f, key: key, base: base}, nil
+}
+
+func (f *serviceCountingStoreFactory) channelStoreCalls(key ch.ChannelKey) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.storeCalls[key]
 }
 
 func (f *serviceCountingStoreFactory) appendCalls(key ch.ChannelKey) int {

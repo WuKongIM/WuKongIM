@@ -349,6 +349,27 @@ func TestTaskRunTaskContextDeadlineReportsDeadlineExceeded(t *testing.T) {
 	require.ErrorIs(t, res.Err, context.DeadlineExceeded)
 }
 
+func TestTaskRunExpiredColdStoreLoadDoesNotOpenStore(t *testing.T) {
+	calls := 0
+	factory := storeFactoryFunc(func(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {
+		calls++
+		return nil, errors.New("unexpected store open")
+	})
+	deadlineCtx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer cancel()
+	id := ch.ChannelID{ID: "expired-cold-load", Type: 1}
+
+	res := Task{
+		Kind:      TaskColdStoreLoad,
+		Fence:     ch.Fence{ChannelKey: ch.ChannelKeyForID(id), OpID: 25},
+		Context:   deadlineCtx,
+		StoreLoad: &StoreLoadTask{ChannelID: id},
+	}.Run(context.Background(), Deps{Stores: factory})
+
+	require.ErrorIs(t, res.Err, context.DeadlineExceeded)
+	require.Zero(t, calls)
+}
+
 func TestTaskRunTaskContextExplicitCancelReportsCanceled(t *testing.T) {
 	taskCtx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -399,4 +420,10 @@ type metaResolverFunc func(context.Context, ch.ChannelID) (ch.Meta, error)
 
 func (f metaResolverFunc) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
 	return f(ctx, id)
+}
+
+type storeFactoryFunc func(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error)
+
+func (f storeFactoryFunc) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	return f(key, id)
 }

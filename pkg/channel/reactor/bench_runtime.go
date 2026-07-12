@@ -319,6 +319,11 @@ func (r *Reactor) handleRuntimeEvict(event Event) {
 			continue
 		}
 		if rc.loading != nil && rc.state == nil && rc.pending == nil {
+			if rc.loading.cancel != nil {
+				rc.loading.cancel()
+				rc.loading.cancel = nil
+			}
+			r.due.remove(dueColdActivation, key)
 			r.completeStoreLoadFutures(rc.loading, Result{Err: ch.ErrClosed})
 			delete(r.channels, key)
 			result.Evicted++

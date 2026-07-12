@@ -121,17 +121,17 @@ Leader-side PullHint result counters split submissions, successful RPC returns,
 and low-cardinality error classes. In 10k-channel runs, compare these counters
 with follower replication stage counts to distinguish slow accepted PullHints
 from missing or failed wakeups that fall back to recovery probes.
-Follower-side PullHint receive counters now stay at the service adapter
-boundary: `submit` covers reactor mailbox admission and `await` covers the
-reactor future. Missing follower metadata is handled inside the owning reactor
-as a bounded `PendingMeta` bootstrap and not as a service-side metadata read.
-PendingMeta bootstrap metrics are separate from loaded runtime metrics:
-`wukongim_channelv2_pending_meta_current` tracks outstanding bootstrap shells by
-reactor, `wukongim_channelv2_pending_meta_total` tracks created, converted, and
-released shells by low-cardinality error class, and
-`wukongim_channelv2_need_meta_pull_total` plus
-`follower_need_meta_pull_rpc` track the `Pull{NeedMeta=true}` success, retry,
-failure, and RPC latency path.
+Follower-side PullHint receive counters stay at the service adapter boundary:
+`submit` covers reactor mailbox admission and `await` covers the reactor future.
+An unloaded follower treats the hint only as a wakeup and runs authoritative
+metadata resolution plus store loading through the separate bounded
+`channelv2-cold-activation` worker pool. Existing PendingMeta and NeedMeta
+metrics remain for transport compatibility paths; production cold activation is
+attributed through the `cold_meta_resolve` and `cold_store_load` worker kinds.
+The PullHint future acknowledges bounded cold-task admission rather than waiting
+for store activation, so best-effort leader wakeups never inherit cold storage
+latency. Asynchronous authority, dependency, cancellation, and deadline failures
+increment activation-rejected metrics with bounded `cold_*` reason labels.
 
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
@@ -238,13 +238,14 @@ next retry observes the checkpoint result and performs the trim.
 ## Channel Runtime Lifecycle Model
 
 `Unloaded` is represented by absence from the owning reactor's `channels` map.
-`PendingMeta` is a short-lived follower bootstrap shell created from a slim
-PullHint when the follower lacks matching local runtime state. It opens the
-channel store, sends `Pull{NeedMeta=true}` to the channel leader, applies the
-returned active metadata before any records, and releases itself on stale,
-invalid, not-replica, timeout, or retry-exhaustion paths. The returned snapshot
-clones membership plus the leader lease, retention boundary, and write fence;
-it must not silently zero authority fields. When a loaded runtime receives the
+`ColdActivation` is a short-lived unloaded follower shell created from a slim
+PullHint. The hint is only a wakeup: a dedicated bounded worker first resolves
+authoritative metadata, validates active topology and local replica membership,
+and only then opens and loads the channel store in the same isolated pool. The
+complete resolve-plus-load lifecycle has a fixed timeout and releases its
+capacity on invalid, not-replica, backpressured, or timed-out results. A valid
+completion activates the resolved role and uses ordinary `NeedMeta=false`
+follower replication. When a loaded runtime receives the
 same channel identity with a strictly newer metadata fence, the
 reactor keeps the existing runtime and starts one isolated authoritative
 metadata resolve. The hint is only a trigger: its claimed target fence, leader,
@@ -315,9 +316,9 @@ jitter.
 ```mermaid
 stateDiagram-v2
     [*] --> Unloaded
-    Unloaded --> PendingMeta: slim PullHint miss / load store state and NeedMeta Pull
-    PendingMeta --> Loaded: matching active Meta / apply before records
-    PendingMeta --> Unloaded: stale, invalid, not replica, timeout, retry exhausted
+    Unloaded --> ColdActivation: slim PullHint / authoritative resolve
+    ColdActivation --> Loaded: local replica proven / isolated store load
+    ColdActivation --> Unloaded: invalid, not replica, backpressure, timeout
     Unloaded --> Loaded: ApplyMeta
     Loaded --> Live: local role = leader or follower
 

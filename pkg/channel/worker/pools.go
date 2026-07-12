@@ -13,6 +13,8 @@ type Pools struct {
 	StoreApply  *Pool
 	RPC         *Pool
 	MetaResolve *Pool
+	// ColdActivation isolates unloaded-channel authority resolution and store loading from hot runtime work.
+	ColdActivation *Pool
 }
 
 // PoolsConfig defines worker and queue limits for each blocking class.
@@ -22,6 +24,8 @@ type PoolsConfig struct {
 	StoreApply  PoolConfig
 	RPC         PoolConfig
 	MetaResolve PoolConfig
+	// ColdActivation bounds unloaded-channel authority resolution and store loading independently from hot runtime work.
+	ColdActivation PoolConfig
 }
 
 // NewPools starts all bounded worker pools used by reactors.
@@ -51,6 +55,12 @@ func NewPools(cfg PoolsConfig, deps Deps, sink CompletionSink) (*Pools, error) {
 			_ = pools.Close()
 			return nil, err
 		}
+		if cfg.ColdActivation.Workers > 0 && cfg.ColdActivation.QueueSize > 0 {
+			if pools.ColdActivation, err = NewPool(cfg.ColdActivation, deps, sink); err != nil {
+				_ = pools.Close()
+				return nil, err
+			}
+		}
 	}
 	return pools, nil
 }
@@ -60,7 +70,7 @@ func (p *Pools) SetQueueObserver(observer QueueObserver) {
 	if p == nil {
 		return
 	}
-	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve} {
+	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve, p.ColdActivation} {
 		pool.SetQueueObserver(observer)
 	}
 }
@@ -80,7 +90,7 @@ func (p *Pools) Close() error {
 		return nil
 	}
 	var first error
-	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve} {
+	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve, p.ColdActivation} {
 		if err := pool.Close(); err != nil && first == nil {
 			first = err
 		}
@@ -112,6 +122,8 @@ func (p *Pools) poolFor(kind TaskKind) *Pool {
 		return p.RPC
 	case TaskMetaResolve:
 		return p.MetaResolve
+	case TaskColdMetaResolve, TaskColdStoreLoad:
+		return p.ColdActivation
 	default:
 		return nil
 	}

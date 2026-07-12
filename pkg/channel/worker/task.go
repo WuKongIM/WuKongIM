@@ -28,6 +28,10 @@ const (
 	TaskStoreClose
 	TaskStoreRetention
 	TaskMetaResolve
+	// TaskColdMetaResolve resolves authoritative metadata for an unloaded channel.
+	TaskColdMetaResolve
+	// TaskColdStoreLoad opens storage only after cold-channel authority is proven.
+	TaskColdStoreLoad
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -190,7 +194,7 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		}
 	case TaskStoreAppend:
 		res = runStoreAppend(ctx, deps, t)
-	case TaskStoreLoad:
+	case TaskStoreLoad, TaskColdStoreLoad:
 		res = runStoreLoad(ctx, deps, t)
 	case TaskStoreReadLog:
 		res = runStoreReadLog(ctx, deps, t)
@@ -212,7 +216,7 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runRPCNotify(ctx, deps, t)
 	case TaskRPCPullHint:
 		res = runRPCPullHint(ctx, deps, t)
-	case TaskMetaResolve:
+	case TaskMetaResolve, TaskColdMetaResolve:
 		res = runMetaResolve(ctx, deps, t)
 	default:
 		res = invalidResult(t)
@@ -323,6 +327,9 @@ func runStoreLoad(ctx context.Context, deps Deps, t Task) Result {
 	payload := t.StoreLoad
 	if payload == nil || deps.Stores == nil {
 		return invalidResult(t)
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
 	}
 	cs, err := deps.Stores.ChannelStore(t.Fence.ChannelKey, payload.ChannelID)
 	if err != nil {

@@ -4,9 +4,10 @@
 
 `worker` owns Channel blocking effects. Reactors submit typed store and RPC
 tasks through bounded admission queues, and workers return one fenced
-`Result` per accepted task. Authoritative channel metadata resolution uses its
-own optional bounded pool so a slow resolver cannot occupy store or replication
-RPC workers.
+`Result` per accepted task. Loaded-runtime authoritative metadata refresh uses
+its own optional bounded pool. Unloaded authority resolution and the subsequent
+store load use a second bounded `ColdActivation` pool, so cold bursts cannot
+occupy hot store, metadata-refresh, or replication RPC workers.
 
 The package uses `pkg/workqueue.BoundedBatchPool` as its execution primitive.
 Backpressure, queue depth, adjacent batch collection, close admission, and
@@ -34,6 +35,13 @@ by the executor. `PoolConfig.Workers` is the workqueue ants executor capacity.
 `Pools.MetaResolve` is created only when `Deps.MetaResolver` is configured;
 otherwise metadata-resolve submission returns `ErrInvalidConfig`, depth is zero,
 and observer installation and shutdown skip the absent pool safely.
+`Pools.ColdActivation` is also optional and is created only when a resolver is
+present and its configured worker and queue limits are positive.
+`TaskColdMetaResolve` and `TaskColdStoreLoad` route exclusively to that pool;
+expired store-load tasks check their task context before acquiring a store.
+The reactor derives the default cold budget from its partition count, with
+strict worker and queue caps, while explicit `PoolsConfig.ColdActivation`
+values remain available to package integrators.
 
 ## Batching
 
@@ -46,8 +54,9 @@ partitioned into serial subgroups. Both policies retain the built-in
 250-microsecond collection window. Store append and store apply tasks can batch
 across different channel keys when the store factory exposes the optional batch
 interface.
-`TaskMetaResolve` is never batched and runs only in the dedicated metadata
-resolver pool.
+`TaskMetaResolve`, `TaskColdMetaResolve`, and `TaskColdStoreLoad` are never
+batched. The first runs only in the loaded-runtime metadata resolver pool; the
+two cold stages share the separate cold-activation admission budget.
 Retention tasks are single-channel store-apply-pool work: they first adopt a
 logical boundary and only call physical trim when the reactor marked it safe.
 `PoolConfig.BatchMaxWait` overrides the task-class coalescing wait for that

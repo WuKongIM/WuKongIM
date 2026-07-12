@@ -44,6 +44,12 @@ func TestChannelWorkerKindLabelIncludesMetaResolve(t *testing.T) {
 	if got := channelWorkerKindLabel(worker.TaskMetaResolve); got != "meta_resolve" {
 		t.Fatalf("channelWorkerKindLabel(TaskMetaResolve) = %q, want meta_resolve", got)
 	}
+	if got := channelWorkerKindLabel(worker.TaskColdMetaResolve); got != "cold_meta_resolve" {
+		t.Fatalf("channelWorkerKindLabel(TaskColdMetaResolve) = %q, want cold_meta_resolve", got)
+	}
+	if got := channelWorkerKindLabel(worker.TaskColdStoreLoad); got != "cold_store_load" {
+		t.Fatalf("channelWorkerKindLabel(TaskColdStoreLoad) = %q, want cold_store_load", got)
+	}
 }
 
 func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T) {

@@ -297,7 +297,7 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 
 func (r *Reactor) handlePendingMetaPullHint(event Event) {
 	if r.shouldAsyncStoreLoad() {
-		if err := r.startPendingMetaLoad(event.PullHint); err != nil {
+		if err := r.startColdActivation(event.PullHint); err != nil {
 			if event.Future != nil {
 				event.Future.Complete(Result{Err: err})
 			}

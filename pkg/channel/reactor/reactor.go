@@ -200,7 +200,14 @@ type storeLoadKind uint8
 
 const (
 	storeLoadApplyMeta storeLoadKind = iota + 1
-	storeLoadPendingMeta
+	storeLoadColdActivation
+)
+
+type coldActivationPhase uint8
+
+const (
+	coldActivationResolve coldActivationPhase = iota + 1
+	coldActivationStoreLoad
 )
 
 type storeLoadState struct {
@@ -220,6 +227,14 @@ type storeLoadState struct {
 	pullHint transport.PullHintRequest
 	// futures are ApplyMeta callers waiting for this load to finish.
 	futures []*Future
+	// coldPhase records the current authority-first cold activation stage.
+	coldPhase coldActivationPhase
+	// deadline bounds the complete cold activation lifecycle from hint admission.
+	deadline time.Time
+	// context is shared by authority resolve and the subsequent isolated store load.
+	context context.Context
+	// cancel terminates accepted cold activation work during timeout, eviction, or shutdown.
+	cancel context.CancelFunc
 }
 
 type pullWaiter struct {

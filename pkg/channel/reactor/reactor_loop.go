@@ -207,6 +207,11 @@ func (r *Reactor) failPendingWaiters(err error) []detachedStoreHandle {
 	r.clearAllLoadedMetaRefreshes()
 	for key, rc := range r.channels {
 		if rc != nil && rc.loading != nil && rc.state == nil && rc.pending == nil {
+			if rc.loading.cancel != nil {
+				rc.loading.cancel()
+				rc.loading.cancel = nil
+			}
+			r.due.remove(dueColdActivation, key)
 			r.completeStoreLoadFutures(rc.loading, Result{Err: err})
 			delete(r.channels, key)
 			continue

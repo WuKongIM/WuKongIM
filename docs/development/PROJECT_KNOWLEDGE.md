@@ -174,7 +174,7 @@
 - Ordinary new `pkg/db/meta` tables should use the meta table runtime registry; custom code is reserved for cache, guard, monotonic, or multi-record state-machine semantics.
 - A single-node deployment is still a single-node cluster; do not add storage or business paths that bypass cluster semantics.
 - Loaded Channel metadata must advance monotonically by `(Epoch, LeaderEpoch)`; an equal fence may refresh authority fields only for the same channel identity and leader.
-- PullHint is a wakeup/refresh trigger, not metadata authority. Loaded newer-fence recovery must read through the authoritative `ChannelMetaSource` before changing runtime role or fencing waiters.
+- PullHint is only a wakeup/refresh trigger. Unloaded followers must resolve authoritative metadata before opening storage through a dedicated bounded cold-activation pool; loaded newer-fence recovery uses its separate authoritative refresh pool.
 
 ### Node scale-in
 - Manager-driven node scale-in drains a node to `ready_to_remove`; it must not call physical Slot removal or Kubernetes scale-down directly.

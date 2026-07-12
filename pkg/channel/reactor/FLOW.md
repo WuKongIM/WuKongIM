@@ -65,12 +65,14 @@ Maintenance
   dueReplication
   dueLifecycle
   duePendingMeta
+  dueColdActivation
 ```
 
 The loop drains mailbox events in priority order and runs ready due work after
 each drained batch as well as while idle. This keeps append flushes, follower
-replication retries, lifecycle checks, and pending-meta deadlines from waiting
-for the mailbox to become completely empty during sustained load.
+replication retries, lifecycle checks, pending-meta deadlines, and fixed cold
+activation deadlines from waiting for the mailbox to become completely empty
+during sustained load.
 
 `EventRuntimeProbe` and `EventDrainChannel` are read-only migration/diagnostic
 control events. Probe copies only bounded scalar proof fields from
@@ -187,7 +189,7 @@ leader PullHint or legacy Notify
   -> Group.Submit(EventPullHint or EventNotify)
   -> handleFollowerPullHint or handleLegacyFollowerNotify
   -> loaded matching follower: mark dirty and tickFollowerReplication
-  -> unloaded: create PendingMeta and submit NeedMeta Pull
+  -> unloaded: bounded ColdActivation authority resolve, then isolated store load
   -> loaded newer fence: submit isolated authoritative MetaResolve
 ```
 
@@ -253,8 +255,8 @@ Follower replication stage metrics use `wukongim_channelv2_replication_stage_dur
 with low-cardinality `stage/result` labels. `follower_pull_hint_to_submit`
 measures accepted PullHint wakeup through pull RPC submission,
 `follower_pull_rpc` measures pull RPC submission through accepted result,
-`follower_need_meta_pull_rpc` measures the bootstrap `Pull{NeedMeta=true}` path
-without mixing it into ordinary follower pull latency,
+`follower_need_meta_pull_rpc` measures compatibility `Pull{NeedMeta=true}` paths
+without mixing them into ordinary follower pull latency,
 `follower_store_apply` measures follower store-apply submission through result,
 and `follower_apply_to_ack_return` measures successful apply through the first
 successful progress return, either the standalone progress ACK or the fallback
@@ -277,11 +279,12 @@ delivered wakeups that are still waiting for the next bounded retry.
 
 Leader PullHint requests carry only the channel key, channel ID, epoch,
 leader epoch, leader, leader LEO, activity version, and reason. If the follower
-does not already have runtime state, the owning reactor creates a `PendingMeta`
-shell and submits a bounded `Pull{NeedMeta=true}` to the channel leader. A
-successful NeedMeta Pull must return cloned active metadata; the follower
-validates key, ID, epochs, leader, active status, and local replica membership,
-applies metadata, and only then processes any records in the same response.
+does not already have runtime state, the owning reactor creates a lightweight
+ColdActivation shell and submits `TaskColdMetaResolve` to a dedicated bounded
+pool. The authoritative result, not the hint envelope, must prove key, ID,
+active topology, leader membership, and local replica membership before
+`TaskColdStoreLoad` opens storage in that same pool. Successful activation uses
+ordinary follower Pull from the resolved leader; no NeedMeta RPC is required.
 
 A loaded runtime treats a strictly newer PullHint only as a refresh trigger.
 It keeps the existing runtime and submits one `TaskMetaResolve` to a dedicated
@@ -298,20 +301,16 @@ unchanged. An explicit ApplyMeta that supersedes the captured base, eviction,
 and close cancel and fence stale resolver completions; a compatible same-fence
 authority-field refresh keeps the fixed admission lease intact.
 
-`PendingMeta` is not a loaded runtime. `EventCheckState` reports it as missing,
-append, leader pull, ACK, notify, snapshots, and active runtime counts do not
-use it, and runtime eviction or close may release it directly. Same-fence
-PullHints coalesce without extending the activation deadline; newer fences for
-the same channel identity replace the pending shell; stale, invalid,
-not-replica, not-ready, and retry-exhausted attempts release it so later leader
-PullHints can start a fresh activation.
-
-PendingMeta metrics stay low-cardinality and do not label channel identity:
-`wukongim_channelv2_pending_meta_current{reactor_id}` reports outstanding
-bootstrap shells, `wukongim_channelv2_pending_meta_total{event,error}` reports
-`created`, `converted`, and `released`, and
-`wukongim_channelv2_need_meta_pull_total{result,error}` reports submitted,
-successful, retried, and failed NeedMeta pulls.
+ColdActivation is not a loaded runtime. `EventCheckState` reports it as missing,
+and runtime eviction or close cancels its shared resolve/load context. PullHints
+for the same channel coalesce without extending the fixed activation deadline.
+The CPU-aware pool defaults to 4-64 workers and 64 queue slots per worker,
+bounded to 256-4096 queued tasks. Its complete deadline is five configured
+PullHint retry intervals clamped to 100ms-5s. It stays separate from both the
+loaded-runtime MetaResolve pool and hot StoreRead/RPC pools. Low-cardinality
+worker pool, wait, task, and admission metrics expose both cold stages;
+activation-rejected metrics classify asynchronous failures with bounded
+`cold_*` reason labels.
 
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.
@@ -325,7 +324,9 @@ send-timeout-bounded interval. The runtime default is 2s plus up to 1s jitter.
 
 ```text
 TaskStoreAppend        -> append completion
-TaskStoreLoad          -> ApplyMeta activation or PendingMeta bootstrap
+TaskStoreLoad          -> explicit ApplyMeta activation
+TaskColdMetaResolve    -> unloaded authoritative metadata completion
+TaskColdStoreLoad      -> authority-proven unloaded store completion
 TaskStoreReadLog       -> leader pull completion
 TaskStoreLookupMessage -> committed message lookup completion
 TaskStoreCheckpoint    -> leader checkpoint or follower stop checkpoint

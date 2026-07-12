@@ -15,6 +15,7 @@ const (
 	dueLifecycle
 	duePendingMeta
 	dueLoadedMetaRefresh
+	dueColdActivation
 )
 
 // dueItem records one scheduled maintenance attempt for a channel.
@@ -158,6 +159,10 @@ func (r *Reactor) processDueItem(item dueItem, now time.Time) {
 		r.releaseExpiredLoadedMetaRefresh(item.key, item.version, now)
 		return
 	}
+	if item.kind == dueColdActivation {
+		r.releaseExpiredColdActivation(item.key, item.version, now)
+		return
+	}
 	rc := r.channels[item.key]
 	if rc == nil {
 		return
@@ -195,6 +200,8 @@ func dueKindName(kind dueKind) string {
 		return "duePendingMeta"
 	case dueLoadedMetaRefresh:
 		return "dueLoadedMetaRefresh"
+	case dueColdActivation:
+		return "dueColdActivation"
 	default:
 		return "dueUnknown"
 	}

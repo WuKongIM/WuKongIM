@@ -1060,6 +1060,71 @@ func TestPoolsMetaResolveDoesNotBlockRPCPull(t *testing.T) {
 	}
 }
 
+func TestPoolsColdActivationDoesNotBlockHotMetaResolveOrRPCPull(t *testing.T) {
+	id := ch.ChannelID{ID: "isolated-cold-activation", Type: 1}
+	meta := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2,
+		Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive,
+	}
+	resolver := newBlockingMetaResolver(meta)
+	resolver.Release()
+	network := transport.NewLocalNetwork()
+	network.Register(2, &workerTransportServer{})
+	sink := &captureSink{ch: make(chan Result, 2)}
+	cfg := metaResolveTestPoolsConfig(true)
+	cfg.ColdActivation = PoolConfig{Name: "cold-activation", Workers: 1, QueueSize: 8}
+	pools, err := NewPools(cfg, Deps{MetaResolver: resolver, Transport: network.Client()}, sink)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pools.Close()) }()
+	require.NotNil(t, pools.ColdActivation)
+	require.NotSame(t, pools.ColdActivation, pools.MetaResolve)
+	require.NotSame(t, pools.ColdActivation, pools.RPC)
+
+	block := make(chan struct{})
+	started := make(chan struct{})
+	defer close(block)
+	require.NoError(t, pools.ColdActivation.Submit(context.Background(), Task{
+		Kind: TaskFunc,
+		RunFunc: func(context.Context) Result {
+			close(started)
+			<-block
+			return Result{}
+		},
+	}))
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("cold activation worker did not start")
+	}
+
+	metaFence := ch.Fence{ChannelKey: meta.Key, OpID: 41}
+	require.NoError(t, pools.Submit(context.Background(), Task{
+		Kind:        TaskMetaResolve,
+		Fence:       metaFence,
+		MetaResolve: &MetaResolveTask{ChannelID: id},
+	}))
+	pullFence := ch.Fence{ChannelKey: "1:hot-pull", OpID: 42}
+	require.NoError(t, pools.Submit(context.Background(), Task{
+		Kind:    TaskRPCPull,
+		Fence:   pullFence,
+		RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: pullFence.ChannelKey, NextOffset: 1}},
+	}))
+
+	results := make(map[ch.OpID]Result, 2)
+	for len(results) < 2 {
+		select {
+		case result := <-sink.ch:
+			results[result.Fence.OpID] = result
+		case <-time.After(time.Second):
+			t.Fatal("hot metadata resolution or RPC pull was blocked by cold activation")
+		}
+	}
+	require.NoError(t, results[metaFence.OpID].Err)
+	require.Equal(t, meta, results[metaFence.OpID].MetaResolve.Meta)
+	require.NoError(t, results[pullFence.OpID].Err)
+	require.NotNil(t, results[pullFence.OpID].RPCPull)
+}
+
 func metaResolveTestPoolsConfig(includeMetaResolve bool) PoolsConfig {
 	cfg := PoolsConfig{
 		StoreAppend: PoolConfig{Name: "store-append", Workers: 1, QueueSize: 8},

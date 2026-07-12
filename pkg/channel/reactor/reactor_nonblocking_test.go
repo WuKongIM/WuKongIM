@@ -79,10 +79,12 @@ func TestPullHintPendingMetaLoadDoesNotBlockStartedReactor(t *testing.T) {
 	factory := newBlockingLoadStoreFactory()
 	meta := testMeta("async-pending-meta-load", 1, 2)
 	factory.blockLoad(meta.Key)
-	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	resolver := newBlockingMetaResolver(meta, nil)
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, MetaResolver: resolver})
 	require.NoError(t, err)
 	defer g.Close()
 	defer factory.unblockLoad(meta.Key)
+	defer resolver.Unblock()
 
 	future, err := g.Submit(context.Background(), meta.Key, Event{
 		Kind: EventPullHint,
@@ -98,6 +100,8 @@ func TestPullHintPendingMetaLoadDoesNotBlockStartedReactor(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	resolver.AwaitStarted(t)
+	resolver.Unblock()
 	factory.waitLoadStarted(t, meta.Key)
 
 	awaitCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

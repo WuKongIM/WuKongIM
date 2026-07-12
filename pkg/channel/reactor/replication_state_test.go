@@ -545,6 +545,24 @@ func TestFollowerPullRPCTimeoutCapsDefaultRetryInterval(t *testing.T) {
 	require.Equal(t, time.Second, r.followerPullRPCTimeout())
 }
 
+func TestColdActivationTimeoutScalesWithHintRetryAndStaysBounded(t *testing.T) {
+	cases := []struct {
+		name     string
+		interval time.Duration
+		want     time.Duration
+	}{
+		{name: "minimum", interval: 10 * time.Millisecond, want: minColdActivationTimeout},
+		{name: "scaled", interval: 500 * time.Millisecond, want: 2500 * time.Millisecond},
+		{name: "maximum", interval: 10 * time.Second, want: maxColdActivationTimeout},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewReactor(ReactorConfig{LocalNode: 2, Store: store.NewMemoryFactory(), PullHintRetryInterval: tc.interval})
+			require.Equal(t, tc.want, r.coldActivationTimeout())
+		})
+	}
+}
+
 func TestFollowerEmptyPullWithLeaderLEOAheadAdvancesHWAndRetriesAfterBackoff(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("empty-pull-hw")
@@ -1257,10 +1275,8 @@ func TestFollowerStoreApplyResultSchedulesPullAckOffsetWithoutStandaloneAck(t *t
 	require.Equal(t, uint64(1), read.Messages[0].MessageSeq)
 }
 
-func TestPendingMetaPullHintCreatesNeedMetaShellAndReportsNotLoaded(t *testing.T) {
+func TestColdPullHintResolvesAuthorityAndUsesOrdinaryPull(t *testing.T) {
 	net := newCapturingTransport()
-	net.BlockPulls()
-	defer net.UnblockPulls()
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("pending-create")
 	cs, err := factory.ChannelStore(meta.Key, meta.ID)
@@ -1270,31 +1286,26 @@ func TestPendingMetaPullHintCreatesNeedMetaShellAndReportsNotLoaded(t *testing.T
 		{ID: 2, Payload: []byte("b"), SizeBytes: 1},
 	}})
 	require.NoError(t, err)
-	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net, MaxChannels: 1})
+	resolver := newBlockingMetaResolver(meta, nil)
+	resolver.Unblock()
+	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net, MetaResolver: resolver, MaxChannels: 1})
 	require.NoError(t, err)
 	defer g.Close()
 
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventPullHint, Key: meta.Key, PullHint: pullHintForMeta(meta, 4)}))
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
 	pull := net.LastPull()
-	require.True(t, pull.NeedMeta)
+	require.False(t, pull.NeedMeta)
 	require.Equal(t, uint64(3), pull.NextOffset)
 	require.Equal(t, uint64(2), pull.AckOffset)
 
-	loaded, err := g.HasChannelState(context.Background(), meta.Key)
-	require.NoError(t, err)
-	require.False(t, loaded)
+	require.Eventually(t, func() bool {
+		loaded, loadErr := g.HasChannelState(context.Background(), meta.Key)
+		return loadErr == nil && loaded
+	}, time.Second, time.Millisecond)
 	snapshot, err := g.RuntimeSnapshot(context.Background())
 	require.NoError(t, err)
-	require.Zero(t, snapshot.ActiveTotal)
-	appendFuture, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 99, "pending"))
-	require.NoError(t, err)
-	_, err = appendFuture.Await(context.Background())
-	require.ErrorIs(t, err, ch.ErrChannelNotFound)
-	pullFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventPull, Key: meta.Key, Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: 1}})
-	require.NoError(t, err)
-	_, err = pullFuture.Await(context.Background())
-	require.ErrorIs(t, err, ch.ErrChannelNotFound)
+	require.Equal(t, 1, snapshot.ActiveTotal)
 
 	other := followerTestMeta("pending-capacity")
 	err = awaitSubmit(g, other.Key, Event{Kind: EventApplyMeta, Key: other.Key, Meta: other})
@@ -2008,15 +2019,15 @@ func TestPendingMetaDeadlineExpiryReleasesShell(t *testing.T) {
 }
 
 func TestRuntimeEvictReleasesPendingMeta(t *testing.T) {
-	net := newCapturingTransport()
-	net.BlockPulls()
-	defer net.UnblockPulls()
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("pending-runtime-evict")
-	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net})
+	resolver := newBlockingMetaResolver(meta, nil)
+	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: newCapturingTransport(), MetaResolver: resolver})
 	require.NoError(t, err)
 	defer g.Close()
+	defer resolver.Unblock()
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventPullHint, Key: meta.Key, PullHint: pullHintForMeta(meta, 1)}))
+	resolver.AwaitStarted(t)
 
 	result, err := g.RuntimeEvict(context.Background(), ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{meta.ID}})
 	require.NoError(t, err)
@@ -2024,6 +2035,19 @@ func TestRuntimeEvictReleasesPendingMeta(t *testing.T) {
 	require.Equal(t, 1, result.Evicted)
 	require.Equal(t, 0, result.SkippedBusy)
 	require.Equal(t, 0, result.Missing)
+}
+
+func TestColdActivationRejectionReportsLowCardinalityReason(t *testing.T) {
+	observer := &coldActivationRejectionObserver{}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: store.NewMemoryFactory(), MailboxSize: 16, Observer: observer})
+	key := ch.ChannelKey("1:cold-rejection-metric")
+	rc := &runtimeChannel{loading: &storeLoadState{kind: storeLoadColdActivation, key: key, generation: 1}}
+	r.channels[key] = rc
+
+	r.releaseColdActivation(key, rc, ch.ErrNotReplica)
+
+	require.Equal(t, "cold_not_replica", observer.reason)
+	require.NotContains(t, r.channels, key)
 }
 
 func TestPendingMetaRPCBackpressureResultReleasesWithoutRetry(t *testing.T) {
@@ -4859,6 +4883,17 @@ type pendingMetaMetricsObserver struct {
 	pendingErrors    map[string]error
 	needMetaPulls    map[string]int
 	needMetaPullErrs map[string]error
+}
+
+type coldActivationRejectionObserver struct {
+	captureObserver
+	reason string
+}
+
+func (o *coldActivationRejectionObserver) SetChannelRuntimeCount(int, ch.Role, int) {}
+
+func (o *coldActivationRejectionObserver) ObserveChannelActivationRejected(reason string) {
+	o.reason = reason
 }
 
 func (o *pendingMetaMetricsObserver) SetPendingMetaCount(reactorID int, count int) {

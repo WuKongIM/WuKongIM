@@ -6,7 +6,7 @@ func (r *Reactor) handleWorkerResult(event Event) {
 	switch event.Worker.Kind {
 	case worker.TaskStoreAppend:
 		r.handleStoreAppendResult(event.Worker)
-	case worker.TaskStoreLoad:
+	case worker.TaskStoreLoad, worker.TaskColdStoreLoad:
 		r.handleStoreLoadResult(event.Worker)
 	case worker.TaskStoreReadLog:
 		r.handleStoreReadLogResult(event.Worker)
@@ -27,5 +27,7 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleRPCPullHintResult(event.Worker)
 	case worker.TaskMetaResolve:
 		r.handleMetaResolveResult(event.Worker)
+	case worker.TaskColdMetaResolve:
+		r.handleColdMetaResolveResult(event.Worker)
 	}
 }

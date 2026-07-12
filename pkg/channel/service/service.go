@@ -28,7 +28,7 @@ type Config struct {
 	MaxChannels int
 	Store       store.Factory
 	Transport   transport.Client
-	// MetaResolver reads authoritative metadata for loaded runtimes that receive a newer PullHint fence.
+	// MetaResolver authorizes unloaded cold activation and refreshes loaded runtimes after newer PullHint fences.
 	MetaResolver ch.MetaResolver
 	// AppendAdmissionGuard can reject local leader appends before reactor admission.
 	AppendAdmissionGuard ch.AppendAdmissionGuard

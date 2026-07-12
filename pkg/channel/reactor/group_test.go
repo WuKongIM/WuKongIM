@@ -258,6 +258,21 @@ func TestDefaultWorkerPoolsIsolateAuthoritativeMetaResolveCapacity(t *testing.T)
 	require.Equal(t, defaultMetaResolveQueueSize, pools.MetaResolve.QueueSize)
 	require.Less(t, pools.MetaResolve.Workers, pools.RPC.Workers)
 	require.Less(t, pools.MetaResolve.QueueSize, 4096)
+	require.Equal(t, defaultColdActivationPoolName, pools.ColdActivation.Name)
+	require.Equal(t, 32, pools.ColdActivation.Workers)
+	require.Equal(t, 2048, pools.ColdActivation.QueueSize)
+	require.NotEqual(t, pools.MetaResolve.Name, pools.ColdActivation.Name)
+}
+
+func TestDefaultWorkerPoolsBoundColdActivationCapacity(t *testing.T) {
+	resolver := newBlockingMetaResolver(ch.Meta{}, nil)
+	minimum := defaultWorkerPools(Config{ReactorCount: 1, MetaResolver: resolver})
+	capped := defaultWorkerPools(Config{ReactorCount: 128, MetaResolver: resolver})
+
+	require.Equal(t, defaultColdActivationMinWorkers, minimum.ColdActivation.Workers)
+	require.Equal(t, defaultColdActivationMinQueueSize, minimum.ColdActivation.QueueSize)
+	require.Equal(t, defaultColdActivationWorkerCap, capped.ColdActivation.Workers)
+	require.Equal(t, defaultColdActivationQueueCap, capped.ColdActivation.QueueSize)
 }
 
 func TestGroupCompleteDoesNotDropWhenHighMailboxIsFull(t *testing.T) {

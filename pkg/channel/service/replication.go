@@ -174,7 +174,7 @@ func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest)
 		ActivityVersion: req.LeaderLEO,
 		Reason:          transport.PullHintReasonAppend,
 	})
-	if errors.Is(err, ch.ErrChannelNotFound) || errors.Is(err, ch.ErrStaleMeta) || errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, ch.ErrNotReplica) {
+	if errors.Is(err, ch.ErrChannelNotFound) || errors.Is(err, ch.ErrStaleMeta) || errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, ch.ErrNotReplica) || errors.Is(err, ch.ErrNotReady) {
 		return nil
 	}
 	return err

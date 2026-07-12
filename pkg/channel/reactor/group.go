@@ -14,19 +14,25 @@ import (
 )
 
 const (
-	defaultStoreAppendWorkerMultiplier = 2
-	defaultStoreApplyWorkerMultiplier  = 2
-	defaultStoreWorkerCap              = 128
-	defaultMetaResolveWorkers          = 2
-	defaultMetaResolveQueueSize        = 64
-	defaultReplicationIdlePollInterval = 100 * time.Millisecond
+	defaultStoreAppendWorkerMultiplier  = 2
+	defaultStoreApplyWorkerMultiplier   = 2
+	defaultStoreWorkerCap               = 128
+	defaultMetaResolveWorkers           = 2
+	defaultMetaResolveQueueSize         = 64
+	defaultColdActivationMinWorkers     = 4
+	defaultColdActivationWorkerCap      = 64
+	defaultColdActivationQueuePerWorker = 64
+	defaultColdActivationMinQueueSize   = 256
+	defaultColdActivationQueueCap       = 4096
+	defaultReplicationIdlePollInterval  = 100 * time.Millisecond
 
 	// Default worker pool names preserve legacy observer labels for compatibility.
-	defaultStoreAppendPoolName = "channelv2-store-append"
-	defaultStoreReadPoolName   = "channelv2-store-read"
-	defaultStoreApplyPoolName  = "channelv2-store-apply"
-	defaultRPCPoolName         = "channelv2-rpc"
-	defaultMetaResolvePoolName = "channelv2-meta-resolve"
+	defaultStoreAppendPoolName    = "channelv2-store-append"
+	defaultStoreReadPoolName      = "channelv2-store-read"
+	defaultStoreApplyPoolName     = "channelv2-store-apply"
+	defaultRPCPoolName            = "channelv2-rpc"
+	defaultMetaResolvePoolName    = "channelv2-meta-resolve"
+	defaultColdActivationPoolName = "channelv2-cold-activation"
 )
 
 // Config wires a group of channel-keyed reactors.
@@ -43,7 +49,7 @@ type Config struct {
 	Store store.Factory
 	// Transport sends channel replication RPCs from blocking workers.
 	Transport transport.Client
-	// MetaResolver reads authoritative metadata for bounded PullHint-triggered refreshes.
+	// MetaResolver authorizes unloaded cold activation and refreshes loaded runtimes after newer PullHint fences.
 	MetaResolver ch.MetaResolver
 	// WorkerPools configures bounded pools for blocking store and RPC effects.
 	WorkerPools worker.PoolsConfig
@@ -443,6 +449,9 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, workers, queueSize)
 	if cfg.MetaResolver != nil {
 		pools.MetaResolve = defaultPoolConfig(pools.MetaResolve, defaultMetaResolvePoolName, defaultMetaResolveWorkers, defaultMetaResolveQueueSize)
+		coldWorkers := min(max(defaultColdActivationMinWorkers, workers), defaultColdActivationWorkerCap)
+		coldQueueSize := min(max(defaultColdActivationMinQueueSize, coldWorkers*defaultColdActivationQueuePerWorker), defaultColdActivationQueueCap)
+		pools.ColdActivation = defaultPoolConfig(pools.ColdActivation, defaultColdActivationPoolName, coldWorkers, coldQueueSize)
 	}
 	return pools
 }
