@@ -149,15 +149,17 @@ type ApplyFollowerBatchItem struct {
 	Request    ApplyFollowerRequest
 }
 
-// ApplyFollowerResult returns the follower's durable log end offset.
+// ApplyFollowerResult returns the follower's durable log frontier and the checkpoint frontier covered by this apply.
 type ApplyFollowerResult struct {
-	LEO uint64
+	LEO          uint64
+	CheckpointHW uint64
 }
 
 // ApplyFollowerBatchResult returns the result for one ApplyFollowerBatchItem.
 type ApplyFollowerBatchResult struct {
-	LEO uint64
-	Err error
+	LEO          uint64
+	CheckpointHW uint64
+	Err          error
 }
 
 // StoreCheckpointBatchItem is one channel-scoped durable HW update inside a store-level batch.

@@ -225,6 +225,39 @@ func TestDueSchedulerActiveFollowerWithoutExplicitWorkIsNotScheduled(t *testing.
 	require.Empty(t, r.due.items)
 }
 
+func TestCommittedCheckpointCompletionReschedulesNewerFrontier(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	meta := followerTestMeta("committed-checkpoint-reschedule")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	r.due = dueScheduler{}
+	rc.state.LEO = 2
+	rc.state.HW = 2
+	rc.state.CheckpointHW = 0
+	rc.replication = replicationState{}
+	rc.committedCheckpointOp = 7
+	rc.committedCheckpointDue = time.Now().Add(time.Second)
+
+	r.handleStoreCheckpointResult(worker.Result{
+		Kind: worker.TaskStoreCheckpoint,
+		Fence: ch.Fence{
+			ChannelKey:  meta.Key,
+			Generation:  rc.state.Generation,
+			Epoch:       rc.state.Epoch,
+			LeaderEpoch: rc.state.LeaderEpoch,
+			OpID:        7,
+		},
+		StoreCheckpoint: &worker.StoreCheckpointResult{Checkpoint: ch.Checkpoint{HW: 1}},
+	})
+
+	require.Equal(t, uint64(1), rc.state.CheckpointHW)
+	require.Len(t, r.due.items, 1)
+	require.Equal(t, dueReplication, r.due.items[0].kind)
+	require.Equal(t, rc.committedCheckpointDue, r.due.items[0].due)
+}
+
 func TestDueSchedulerReplacementUpdatesOrdering(t *testing.T) {
 	var s dueScheduler
 	now := time.Unix(20, 0)

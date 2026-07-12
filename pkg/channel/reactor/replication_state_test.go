@@ -74,7 +74,7 @@ func TestFollowerParksAfterEmptyCaughtUpPull(t *testing.T) {
 	require.False(t, rc.replication.nextPullAt.IsZero())
 }
 
-func TestFollowerEmptyPullPersistsNewCommittedHW(t *testing.T) {
+func TestFollowerEmptyPullCoalescesAndPersistsLatestCommittedHW(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	net := newCapturingTransport()
 	sink := captureCompletionSink{results: make(chan worker.Result, 12)}
@@ -102,7 +102,28 @@ func TestFollowerEmptyPullPersistsNewCommittedHW(t *testing.T) {
 	require.Zero(t, rc.state.HW)
 
 	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+	firstCheckpointDue := rc.committedCheckpointDue
+	require.False(t, firstCheckpointDue.IsZero())
+
+	// A newer learned frontier before the coalescing deadline replaces the older
+	// checkpoint request instead of issuing one physical commit per empty pull.
+	_, err := rc.store.ApplyFollower(context.Background(), store.ApplyFollowerRequest{
+		Records:  []ch.Record{{ID: 11, Index: 2, Payload: []byte("b"), SizeBytes: 1}},
+		LeaderHW: 1,
+	})
+	require.NoError(t, err)
+	rc.state.LEO = 2
+	r.applyFollowerPullResponse(rc, transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW: 2, LeaderLEO: 2,
+	}, false, time.Now().Add(500*time.Millisecond))
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+	require.Equal(t, firstCheckpointDue, rc.committedCheckpointDue)
+
+	r.tickFollowerReplication(rc, time.Now().Add(2*time.Second))
 	checkpointResult := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	require.Equal(t, uint64(2), checkpointResult.StoreCheckpoint.Checkpoint.HW)
 	r.handleStoreCheckpointResult(checkpointResult)
 
 	cs, err := factory.ChannelStore(meta.Key, meta.ID)
@@ -110,7 +131,7 @@ func TestFollowerEmptyPullPersistsNewCommittedHW(t *testing.T) {
 	defer cs.Close()
 	initial, err := cs.Load(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(1), initial.CheckpointHW)
+	require.Equal(t, uint64(2), initial.CheckpointHW)
 }
 
 func TestRecoveryProbeSubmitFailureObserved(t *testing.T) {

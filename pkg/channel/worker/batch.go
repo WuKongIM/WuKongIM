@@ -343,7 +343,7 @@ func (p *Pool) runStoreApplyBatch(ctx context.Context, group []queuedTask, batch
 	for i, index := range active {
 		item := batchResults[i]
 		results[index].Err = batchContextErr(group[index].task, ctx, item.Err)
-		results[index].StoreApply = &StoreApplyResult{LEO: item.LEO}
+		results[index].StoreApply = &StoreApplyResult{LEO: item.LEO, CheckpointHW: item.CheckpointHW}
 	}
 	return results
 }

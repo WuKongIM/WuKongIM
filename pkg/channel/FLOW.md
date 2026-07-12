@@ -73,7 +73,8 @@ sequenceDiagram
                 Workers-->>Follower: apply result
                 Follower->>Follower: schedule immediate next Pull carrying new AckOffset
                 opt later empty Pull advances committed HW
-                    Follower->>Workers: TaskStoreCheckpoint(committed HW) on isolated pool
+                    Follower->>Follower: coalesce final HW for bounded interval
+                    Follower->>Workers: TaskStoreCheckpoint(latest committed HW) on isolated pool
                 end
             end
             Reactor-->>Service: complete quorum future
@@ -105,6 +106,11 @@ Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a fo
 Follower-side replication uses the message DB adapter's trusted contiguous apply
 path after the reactor has validated pull fencing and continuous follower
 offsets, avoiding redundant existing-index reads in the hot replication path.
+Each record-bearing apply returns the checkpoint HW persisted atomically with
+its rows. A committed HW learned only from a later empty pull is coalesced for
+one second by default; a subsequent record apply can persist it for free, while
+an idle channel still receives one final standalone checkpoint after that
+bounded window.
 Follower-side replication stage metrics split PullHint wakeup, pull RPC wait,
 store apply wait, and apply-to-`AckOffset` return wait. These complement the
 leader-side quorum append wait stages: leader stages show when an append becomes

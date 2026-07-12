@@ -61,6 +61,9 @@ the corresponding optional batch interface. The message DB checkpoint batch
 path commits monotonic HW updates through one grouped commit without taking
 foreground append locks, instead of issuing one synchronous physical commit
 per channel.
+Store-apply results also return the checkpoint HW persisted atomically with the
+follower records, allowing the reactor to suppress a redundant standalone
+checkpoint task.
 `TaskMetaResolve`, `TaskColdMetaResolve`, and `TaskColdStoreLoad` are never
 batched. The first runs only in the loaded-runtime metadata resolver pool; the
 two cold stages share the separate cold-activation admission budget.

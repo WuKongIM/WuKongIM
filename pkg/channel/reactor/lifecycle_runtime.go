@@ -290,6 +290,7 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 	if err != nil {
 		return
 	}
+	now := time.Now()
 	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
 		if result.Fence.OpID == rc.committedCheckpointOp {
 			rc.committedCheckpointOp = 0
@@ -302,14 +303,21 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 		}
 		return
 	}
-	if result.Fence.OpID == rc.committedCheckpointOp {
+	committedCheckpointCompleted := result.Fence.OpID == rc.committedCheckpointOp
+	if committedCheckpointCompleted {
 		rc.committedCheckpointOp = 0
+		if result.Err != nil && rc.state.HW > rc.state.CheckpointHW {
+			rc.committedCheckpointDue = now.Add(r.cfg.ReplicationMinBackoff)
+		}
 	}
 	if result.Fence.OpID == rc.retentionCheckpointOp {
 		rc.retentionCheckpointOp = 0
 	}
 	if result.Err == nil && result.StoreCheckpoint != nil && result.StoreCheckpoint.Checkpoint.HW > rc.state.CheckpointHW {
 		rc.state.CheckpointHW = result.StoreCheckpoint.Checkpoint.HW
+	}
+	if committedCheckpointCompleted {
+		r.scheduleReplicationFromState(rc, now)
 	}
 	if rc.lifecycle.followerStop.accepted &&
 		rc.lifecycle.checkpoint.inflight &&

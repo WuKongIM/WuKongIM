@@ -166,6 +166,7 @@ func TestTaskRunStoreApplyUsesStoreDeps(t *testing.T) {
 	require.Equal(t, TaskStoreApply, res.Kind)
 	require.NotNil(t, res.StoreApply)
 	require.Equal(t, uint64(1), res.StoreApply.LEO)
+	require.Equal(t, uint64(1), res.StoreApply.CheckpointHW)
 }
 
 func TestTaskRunStoreCheckpoint(t *testing.T) {

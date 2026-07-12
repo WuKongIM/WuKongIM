@@ -880,12 +880,12 @@ func TestPoolBatchesStoreApplyTasksWhenFactorySupportsBatch(t *testing.T) {
 	first := Task{
 		Kind:       TaskStoreApply,
 		Fence:      ch.Fence{ChannelKey: "1:a", OpID: 1},
-		StoreApply: &StoreApplyTask{ChannelID: ch.ChannelID{ID: "a", Type: 1}, Records: []ch.Record{{ID: 1, Index: 1, Payload: []byte("a")}}},
+		StoreApply: &StoreApplyTask{ChannelID: ch.ChannelID{ID: "a", Type: 1}, Records: []ch.Record{{ID: 1, Index: 1, Payload: []byte("a")}}, LeaderHW: 1},
 	}
 	second := Task{
 		Kind:       TaskStoreApply,
 		Fence:      ch.Fence{ChannelKey: "1:b", OpID: 2},
-		StoreApply: &StoreApplyTask{ChannelID: ch.ChannelID{ID: "b", Type: 1}, Records: []ch.Record{{ID: 2, Index: 3, Payload: []byte("b")}}},
+		StoreApply: &StoreApplyTask{ChannelID: ch.ChannelID{ID: "b", Type: 1}, Records: []ch.Record{{ID: 2, Index: 3, Payload: []byte("b")}}, LeaderHW: 3},
 	}
 	require.NoError(t, pool.Submit(context.Background(), first))
 	require.NoError(t, pool.Submit(context.Background(), second))
@@ -897,6 +897,7 @@ func TestPoolBatchesStoreApplyTasksWhenFactorySupportsBatch(t *testing.T) {
 	require.Equal(t, 2, obs.batchItems["store-apply:store_apply:ok"])
 	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 	require.ElementsMatch(t, []uint64{1, 3}, resultStoreApplyLEOs(sink.Results()))
+	require.ElementsMatch(t, []uint64{1, 3}, resultStoreApplyCheckpointHWs(sink.Results()))
 }
 
 func TestPoolBatchesStoreCheckpointTasksWhenFactorySupportsBatch(t *testing.T) {
@@ -1399,6 +1400,16 @@ func resultStoreApplyLEOs(results []Result) []uint64 {
 	return out
 }
 
+func resultStoreApplyCheckpointHWs(results []Result) []uint64 {
+	out := make([]uint64, 0, len(results))
+	for _, result := range results {
+		if result.StoreApply != nil {
+			out = append(out, result.StoreApply.CheckpointHW)
+		}
+	}
+	return out
+}
+
 func resultStoreAppendBaseOffsets(results []Result) []uint64 {
 	out := make([]uint64, 0, len(results))
 	for _, result := range results {
@@ -1550,6 +1561,7 @@ func (f *batchApplyStoreFactory) ApplyFollowerBatch(_ context.Context, items []s
 	for i, item := range items {
 		if len(item.Request.Records) > 0 {
 			results[i].LEO = item.Request.Records[len(item.Request.Records)-1].Index
+			results[i].CheckpointHW = min(item.Request.LeaderHW, results[i].LEO)
 		}
 	}
 	return results

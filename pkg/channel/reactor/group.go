@@ -101,6 +101,8 @@ type Config struct {
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
 	FollowerRecoveryProbeJitter time.Duration
+	// CommittedCheckpointInterval bounds coalescing of the final HW learned after record-free pulls.
+	CommittedCheckpointInterval time.Duration
 	// Observer receives lightweight reactor and worker metrics; nil uses a no-op observer.
 	Observer Observer
 }
@@ -168,6 +170,7 @@ func NewGroup(cfg Config) (*Group, error) {
 			PullHintRetryInterval:         cfg.PullHintRetryInterval,
 			FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
+			CommittedCheckpointInterval:   cfg.CommittedCheckpointInterval,
 			Observer:                      cfg.Observer,
 			NextOpID:                      g.NextOpID,
 			storeCloses:                   g.storeCloses,
@@ -249,6 +252,9 @@ func defaultConfig(cfg Config) Config {
 	}
 	if cfg.FollowerRecoveryProbeJitter == 0 {
 		cfg.FollowerRecoveryProbeJitter = defaultFollowerRecoveryProbeJitter
+	}
+	if cfg.CommittedCheckpointInterval <= 0 {
+		cfg.CommittedCheckpointInterval = defaultCommittedCheckpointInterval
 	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg

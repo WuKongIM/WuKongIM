@@ -196,6 +196,7 @@ leader PullHint or legacy Notify
 ```text
 tickFollowerReplication
   -> apply a pending pull before new pulls
+  -> persist a due coalesced committed-HW checkpoint
   -> checkpoint and send stopped ACK after accepted stop control
   -> honor retry backoff and leader-provided park delay
   -> submit RPC Pull with AckOffset when eligible
@@ -205,10 +206,14 @@ The follower keeps at most one pull RPC, one pending pull response, one store
 apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
 apply directly drives the next pull instead of waiting for the due scheduler.
 Record-bearing applies advance the covered leader HW atomically with the rows
-while preserving existing checkpoint epoch/log-start fields. If a later empty
-pull advances HW after those rows were applied, the follower submits one fenced
-monotonic checkpoint so crash recovery retains the newly learned committed
-frontier.
+while preserving existing checkpoint epoch/log-start fields, and the worker
+result returns the durable frontier covered by that apply to the reactor. If a later empty
+pull advances HW after those rows were applied, the follower schedules a fenced
+monotonic checkpoint after `CommittedCheckpointInterval` (one second by
+default). Successive empty-pull advances replace that pending frontier, while a
+later record-bearing apply can satisfy it atomically. The final learned frontier
+is therefore persisted after the bounded idle window without issuing one
+standalone checkpoint commit per message on high-cardinality traffic.
 The pull piggybacks the follower's latest local LEO as `AckOffset`, so hot-path
 progress return does not depend on standalone ACK RPC delivery.
 RPC worker dispatchers may batch same-target `TaskRPCPull` and

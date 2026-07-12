@@ -286,22 +286,32 @@ func (r *Reactor) nextReplicationDue(rc *runtimeChannel, now time.Time) (time.Ti
 		}
 		return now, true
 	}
+	withCommittedCheckpoint := func(due time.Time, ok bool) (time.Time, bool) {
+		checkpointDue := rc.committedCheckpointDue
+		if rc.committedCheckpointOp != 0 || checkpointDue.IsZero() || rc.state.HW <= rc.state.CheckpointHW {
+			return due, ok
+		}
+		if !ok || due.IsZero() || checkpointDue.Before(due) {
+			return checkpointDue, true
+		}
+		return due, true
+	}
 	if replication.pendingPull != nil {
 		if replication.applyBlocked && !replication.applyRetryAt.IsZero() {
-			return replication.applyRetryAt, true
+			return withCommittedCheckpoint(replication.applyRetryAt, true)
 		}
-		return now, true
+		return withCommittedCheckpoint(now, true)
 	}
 	if replication.dirty {
 		if !replication.nextPullAt.IsZero() && now.Before(replication.nextPullAt) {
-			return replication.nextPullAt, true
+			return withCommittedCheckpoint(replication.nextPullAt, true)
 		}
-		return now, true
+		return withCommittedCheckpoint(now, true)
 	}
 	if !replication.nextPullAt.IsZero() {
-		return replication.nextPullAt, true
+		return withCommittedCheckpoint(replication.nextPullAt, true)
 	}
-	return time.Time{}, false
+	return withCommittedCheckpoint(time.Time{}, false)
 }
 
 func (r *Reactor) scheduleLifecycleFromState(rc *runtimeChannel, now time.Time) {

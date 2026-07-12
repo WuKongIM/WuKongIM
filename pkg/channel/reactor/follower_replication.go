@@ -31,6 +31,7 @@ func (r *Reactor) tickFollowerReplication(rc *runtimeChannel, now time.Time) {
 			return
 		}
 	}
+	r.trySubmitCommittedCheckpoint(rc, now)
 	if rc.replication.pendingPull != nil {
 		r.trySubmitPendingApply(rc, now)
 		return
@@ -798,8 +799,11 @@ func (r *Reactor) applyFollowerPullResponse(rc *runtimeChannel, resp transport.P
 		return
 	}
 	if len(resp.Records) == 0 {
+		previousHW := rc.state.HW
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
-		r.trySubmitCommittedCheckpoint(rc)
+		if rc.state.HW > previousHW {
+			r.scheduleCommittedCheckpoint(rc, now)
+		}
 		if rc.replication.hintedLeaderLEO <= rc.state.LEO {
 			rc.replication.hintedLeaderLEO = 0
 			rc.replication.hintedAt = time.Time{}
@@ -824,8 +828,18 @@ func (r *Reactor) applyFollowerPullResponse(rc *runtimeChannel, resp transport.P
 	r.trySubmitPendingApply(rc, now)
 }
 
-func (r *Reactor) trySubmitCommittedCheckpoint(rc *runtimeChannel) {
-	if rc == nil || rc.state == nil || rc.state.HW <= rc.state.CheckpointHW || rc.committedCheckpointOp != 0 {
+func (r *Reactor) scheduleCommittedCheckpoint(rc *runtimeChannel, now time.Time) {
+	if rc == nil || rc.state == nil || rc.state.HW <= rc.state.CheckpointHW {
+		return
+	}
+	if rc.committedCheckpointDue.IsZero() {
+		rc.committedCheckpointDue = now.Add(r.cfg.CommittedCheckpointInterval)
+	}
+}
+
+func (r *Reactor) trySubmitCommittedCheckpoint(rc *runtimeChannel, now time.Time) {
+	if rc == nil || rc.state == nil || rc.state.HW <= rc.state.CheckpointHW || rc.committedCheckpointOp != 0 ||
+		rc.committedCheckpointDue.IsZero() || now.Before(rc.committedCheckpointDue) {
 		return
 	}
 	opID := r.nextOpID()
@@ -837,9 +851,11 @@ func (r *Reactor) trySubmitCommittedCheckpoint(rc *runtimeChannel) {
 		OpID:        opID,
 	}
 	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.HW}); err != nil {
+		rc.committedCheckpointDue = now.Add(r.cfg.ReplicationMinBackoff)
 		return
 	}
 	rc.committedCheckpointOp = opID
+	rc.committedCheckpointDue = time.Time{}
 }
 
 func (r *Reactor) observeFollowerPullRPCWait(submittedAt time.Time, result string, completedAt time.Time) {
@@ -964,6 +980,12 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	r.observeFollowerStoreApplyWait(applySubmittedAt, "ok", now)
 	rc.state.LEO = result.StoreApply.LEO
 	rc.state.HW = minUint64(rc.state.LEO, rc.replication.lastLeaderHW)
+	if result.StoreApply.CheckpointHW > rc.state.CheckpointHW {
+		rc.state.CheckpointHW = result.StoreApply.CheckpointHW
+	}
+	if rc.state.CheckpointHW >= rc.state.HW {
+		rc.committedCheckpointDue = time.Time{}
+	}
 	if rc.replication.hintedLeaderLEO <= rc.state.LEO {
 		rc.replication.hintedLeaderLEO = 0
 		rc.replication.hintedAt = time.Time{}

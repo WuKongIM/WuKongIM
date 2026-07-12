@@ -200,6 +200,7 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 	}
 	dbItems := make([]messagedb.ApplyFetchBatchItem, 0, len(items))
 	acquired := make([]batchAcquiredStore, 0, len(items))
+	checkpointHWs := make([]uint64, 0, len(items))
 	defer func() {
 		for _, item := range acquired {
 			if err := mapMessageDBAdapterError(item.store.Close()); err != nil && results[item.index].Err == nil {
@@ -214,14 +215,16 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 			continue
 		}
 		records := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
+		checkpointHW := followerApplyCheckpointHW(records, item.Request.LeaderHW)
 		dbItems = append(dbItems, messagedb.ApplyFetchBatchItem{
 			Store: dbStore,
 			Request: channel.ApplyFetchStoreRequest{
 				Records:      records,
-				CheckpointHW: followerApplyCheckpointHW(records, item.Request.LeaderHW),
+				CheckpointHW: checkpointHW,
 			},
 		})
 		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
+		checkpointHWs = append(checkpointHWs, checkpointHWValue(checkpointHW))
 	}
 	dbResults := messagedb.StoreApplyFetchTrustedBatch(ctx, dbItems)
 	if len(dbResults) != len(acquired) {
@@ -231,7 +234,11 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 		return results
 	}
 	for i, acquiredItem := range acquired {
-		results[acquiredItem.index] = ApplyFollowerBatchResult{LEO: dbResults[i].LEO, Err: f.mapError(dbResults[i].Err)}
+		results[acquiredItem.index] = ApplyFollowerBatchResult{
+			LEO:          dbResults[i].LEO,
+			CheckpointHW: checkpointHWs[i],
+			Err:          f.mapError(dbResults[i].Err),
+		}
 	}
 	return results
 }
@@ -399,14 +406,15 @@ func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req Ap
 		return ApplyFollowerResult{}, err
 	}
 	records := encodeRecordsForMessageDB(a.id, req.Records)
+	checkpointHW := followerApplyCheckpointHW(records, req.LeaderHW)
 	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{
 		Records:      records,
-		CheckpointHW: followerApplyCheckpointHW(records, req.LeaderHW),
+		CheckpointHW: checkpointHW,
 	})
 	if err != nil {
 		return ApplyFollowerResult{}, a.mapError(err)
 	}
-	return ApplyFollowerResult{LEO: leo}, nil
+	return ApplyFollowerResult{LEO: leo, CheckpointHW: checkpointHWValue(checkpointHW)}, nil
 }
 
 func followerApplyCheckpointHW(records []channel.Record, leaderHW uint64) *uint64 {
@@ -418,6 +426,13 @@ func followerApplyCheckpointHW(records []channel.Record, leaderHW uint64) *uint6
 		return nil
 	}
 	return &hw
+}
+
+func checkpointHWValue(hw *uint64) uint64 {
+	if hw == nil {
+		return 0
+	}
+	return *hw
 }
 
 func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error) {

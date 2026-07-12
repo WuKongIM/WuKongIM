@@ -64,10 +64,12 @@ type StoreLookupMessageResult struct {
 	Found bool
 }
 
-// StoreApplyResult returns the follower's durable log end offset.
+// StoreApplyResult returns the follower's durable log frontier and the checkpoint frontier covered by this apply.
 type StoreApplyResult struct {
 	// LEO is the follower log end offset after applying records.
 	LEO uint64
+	// CheckpointHW is the committed frontier covered by the atomic record apply.
+	CheckpointHW uint64
 }
 
 // StoreCheckpointResult marks a completed checkpoint persistence task.

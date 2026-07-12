@@ -109,7 +109,14 @@ func (s *MemoryChannelStore) ApplyFollower(ctx context.Context, req ApplyFollowe
 		s.records = append(s.records, next)
 		leo++
 	}
-	return ApplyFollowerResult{LEO: leo}, nil
+	checkpointHW := uint64(0)
+	if len(req.Records) > 0 && req.LeaderHW > 0 {
+		checkpointHW = minUint64(req.LeaderHW, leo)
+		if checkpointHW > s.checkpoint.HW {
+			s.checkpoint.HW = checkpointHW
+		}
+	}
+	return ApplyFollowerResult{LEO: leo, CheckpointHW: checkpointHW}, nil
 }
 
 // ReadCommitted returns message rows up to MaxSeq.

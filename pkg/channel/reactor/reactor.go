@@ -21,6 +21,8 @@ const (
 	defaultFollowerRecoveryProbeInterval = 2 * time.Second
 	// defaultFollowerRecoveryProbeJitter spreads recovery probes without exceeding the send timeout budget.
 	defaultFollowerRecoveryProbeJitter = time.Second
+	// defaultCommittedCheckpointInterval coalesces the final HW learned after empty pulls.
+	defaultCommittedCheckpointInterval = time.Second
 )
 
 // ReactorConfig wires one reactor.
@@ -81,6 +83,8 @@ type ReactorConfig struct {
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
 	FollowerRecoveryProbeJitter time.Duration
+	// CommittedCheckpointInterval bounds how long a record-free committed HW may wait for its final durable checkpoint.
+	CommittedCheckpointInterval time.Duration
 	// Observer receives lightweight reactor metrics; nil uses a no-op observer.
 	Observer Observer
 	// SlowEventThreshold reports reactor event handling that takes at least this long. Zero disables slow event reports.
@@ -178,6 +182,8 @@ type runtimeChannel struct {
 	retentionCheckpointOp ch.OpID
 	// committedCheckpointOp persists an HW learned after a record-free follower pull.
 	committedCheckpointOp ch.OpID
+	// committedCheckpointDue coalesces successive record-free HW advances into one final checkpoint.
+	committedCheckpointDue time.Time
 	// due versions fence stale scheduler entries after channel state changes.
 	appendFlushDueVersion uint64
 	replicationDueVersion uint64

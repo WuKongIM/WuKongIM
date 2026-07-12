@@ -429,7 +429,7 @@ func runStoreApply(ctx context.Context, deps Deps, t Task) Result {
 	}
 	defer func() { _ = cs.Close() }()
 	applied, err := cs.ApplyFollower(ctx, store.ApplyFollowerRequest{Records: payload.Records, LeaderHW: payload.LeaderHW})
-	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreApply: &StoreApplyResult{LEO: applied.LEO}}
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreApply: &StoreApplyResult{LEO: applied.LEO, CheckpointHW: applied.CheckpointHW}}
 }
 
 func runStoreCheckpoint(ctx context.Context, deps Deps, t Task) Result {

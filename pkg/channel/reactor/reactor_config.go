@@ -80,6 +80,9 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 	if cfg.FollowerRecoveryProbeJitter == 0 {
 		cfg.FollowerRecoveryProbeJitter = defaultFollowerRecoveryProbeJitter
 	}
+	if cfg.CommittedCheckpointInterval <= 0 {
+		cfg.CommittedCheckpointInterval = defaultCommittedCheckpointInterval
+	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
 }

@@ -683,11 +683,12 @@ func TestFollowerApplyCheckpointPreservesEpochAndLogStart(t *testing.T) {
 	adapter := cs.(*messageDBChannelStoreAdapter)
 	require.NoError(t, adapter.store.StoreCheckpoint(channel.Checkpoint{Epoch: 7, LogStartOffset: 1, HW: 2}))
 
-	_, err = cs.ApplyFollower(ctx, ApplyFollowerRequest{
+	result, err := cs.ApplyFollower(ctx, ApplyFollowerRequest{
 		Records:  []ch.Record{{ID: 3, Index: 3}},
 		LeaderHW: 3,
 	})
 	require.NoError(t, err)
+	require.Equal(t, uint64(3), result.CheckpointHW)
 	checkpoint, err := adapter.store.LoadCheckpoint()
 	require.NoError(t, err)
 	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 1, HW: 3}, checkpoint)
