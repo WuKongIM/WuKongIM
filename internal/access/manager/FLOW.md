@@ -419,13 +419,17 @@ global task index.
 response shape for the web recent-conversation list view, including `uid`,
 `limit`, `msg_count`, and `only_unread` query parameters. It reuses the
 internal conversation sync usecase and remains a read-only display route.
+Embedded `recent_messages[].message_id` values are decimal strings so browser
+clients preserve the complete unsigned 64-bit identifier.
 
 `/manager/messages` preserves the message list response shape for the web
 message page. Without `channel_id` it returns the cluster-wide newest unique
 messages and pages by global message ID. With `channel_id`, it requires
 `channel_type`, accepts `message_id` and `client_msg_no`, and keeps the existing
 channel-sequence cursor. Both modes read committed messages through
-`internal/usecase/management`.
+`internal/usecase/management`. Response `message_id` values are decimal strings,
+and the optional `message_id` query parameter accepts the same representation,
+so JavaScript clients never pass the identifier through an unsafe JSON number.
 `/manager/messages/retention` preserves the legacy request/response envelope
 and delegates to an optional retention port; when no v2 retention implementation
 is configured, the route returns `service_unavailable` instead of reporting a

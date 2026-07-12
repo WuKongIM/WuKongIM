@@ -41,7 +41,7 @@ func TestManagerConversationsReturnsRecentList(t *testing.T) {
 	}
 	if !jsonEqual(rec.Body.String(), `{
 		"uid":"u1","limit":50,"msg_count":1,"only_unread":true,"truncated":true,
-		"items":[{"uid":"u1","channel_id":"g1","channel_type":2,"unread":4,"timestamp":100,"last_msg_seq":12,"last_client_msg_no":"c12","read_to_msg_seq":8,"version":1000,"recent_messages":[{"message_id":99,"message_seq":12,"client_msg_no":"c12","channel_id":"g1","channel_type":2,"from_uid":"u2","timestamp":100,"payload":"aGVsbG8="}]}]
+		"items":[{"uid":"u1","channel_id":"g1","channel_type":2,"unread":4,"timestamp":100,"last_msg_seq":12,"last_client_msg_no":"c12","read_to_msg_seq":8,"version":1000,"recent_messages":[{"message_id":"99","message_seq":12,"client_msg_no":"c12","channel_id":"g1","channel_type":2,"from_uid":"u2","timestamp":100,"payload":"aGVsbG8="}]}]
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
 	}

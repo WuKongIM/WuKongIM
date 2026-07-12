@@ -36,7 +36,7 @@ const conversationPage = {
     read_to_msg_seq: 8,
     version: 1000,
     recent_messages: [{
-      message_id: 99,
+      message_id: "99",
       message_seq: 12,
       client_msg_no: "c12",
       channel_id: "g1",

@@ -1148,7 +1148,7 @@ describe("manager api client", () => {
   it("fetches message list data from the manager endpoint", async () => {
     const messagesResponse = {
       items: [{
-        message_id: 101,
+        message_id: "101",
         message_seq: 9,
         client_msg_no: "c-101",
         channel_id: "room-1",
@@ -1162,9 +1162,9 @@ describe("manager api client", () => {
     }
     fetchMock.mockResolvedValue(new Response(JSON.stringify(messagesResponse), { status: 200 }))
 
-    await expect(getMessages({ channelId: "room-1", channelType: 2, clientMsgNo: "dup-1", limit: 20, cursor: "cursor-1" })).resolves.toEqual(messagesResponse)
+    await expect(getMessages({ channelId: "room-1", channelType: 2, messageId: "2076275923258192001", clientMsgNo: "dup-1", limit: 20, cursor: "cursor-1" })).resolves.toEqual(messagesResponse)
     expect(fetchMock).toHaveBeenCalledWith(
-      "/manager/messages?channel_id=room-1&channel_type=2&limit=20&cursor=cursor-1&client_msg_no=dup-1",
+      "/manager/messages?channel_id=room-1&channel_type=2&limit=20&cursor=cursor-1&message_id=2076275923258192001&client_msg_no=dup-1",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })

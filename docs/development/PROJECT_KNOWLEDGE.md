@@ -5,6 +5,7 @@
 - `internal` is the promoted send-to-sendack kernel: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
 - `internal` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
 - `internal/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
+- Browser-facing manager APIs encode 64-bit `message_id` values as decimal JSON strings; web filters, keys, and display code must keep them as strings end to end.
 - `cmd/wukongim` is the promoted product entrypoint. Controller, the new
   cluster runtime, the multi-reactor channel runtime, and the new business
   kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,

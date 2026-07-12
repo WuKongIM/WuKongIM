@@ -1665,7 +1665,7 @@ export type ManagerConnectionsResponse = {
 export type ManagerConnectionDetailResponse = ManagerConnection
 
 export type ManagerMessage = {
-  message_id: number
+  message_id: string
   message_seq: number
   client_msg_no: string
   channel_id: string
@@ -1764,7 +1764,7 @@ export type MessageListParams = {
   channelType?: number
   limit?: number
   cursor?: string
-  messageId?: number
+  messageId?: string
   clientMsgNo?: string
 }
 

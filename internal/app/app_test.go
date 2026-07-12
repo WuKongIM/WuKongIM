@@ -1916,7 +1916,7 @@ func TestManagerServerListsMessagesFromClusterCommittedLog(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("messages status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), `"message_id":101`) || !strings.Contains(rec.Body.String(), `"payload":"aGVsbG8="`) || !strings.Contains(rec.Body.String(), `"has_more":true`) {
+	if !strings.Contains(rec.Body.String(), `"message_id":"101"`) || !strings.Contains(rec.Body.String(), `"payload":"aGVsbG8="`) || !strings.Contains(rec.Body.String(), `"has_more":true`) {
 		t.Fatalf("messages body = %s, want newest message with next page", rec.Body.String())
 	}
 }

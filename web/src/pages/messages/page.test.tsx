@@ -64,7 +64,7 @@ function renderMessagesPage(initialEntry = "/messages") {
 test("uses compact message page chrome without summary cards", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -101,7 +101,7 @@ test("uses compact message page chrome without summary cards", async () => {
 test("uses an editorial message query toolbar and named inventory table", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -135,7 +135,7 @@ test("uses an editorial message query toolbar and named inventory table", async 
 test("auto-runs a message query from URL channel params", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -163,7 +163,7 @@ test("auto-runs a message query from URL channel params", async () => {
 test("shows the latest messages across the cluster by default", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 201,
+      message_id: "201",
       message_seq: 7,
       client_msg_no: "c-201",
       channel_id: "room-latest",
@@ -190,7 +190,7 @@ test("does not let a slow default latest request replace a newer channel query",
   }))
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 301,
+      message_id: "301",
       message_seq: 9,
       client_msg_no: "channel-result",
       channel_id: "room-1",
@@ -224,7 +224,7 @@ test("submits a message query and renders rows", async () => {
   getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -254,12 +254,34 @@ test("submits a message query and renders rows", async () => {
   expect(screen.getByText("hello")).toBeInTheDocument()
 })
 
+test("submits a uint64 message ID without converting it to a JavaScript number", async () => {
+  getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
+
+  const user = userEvent.setup()
+  renderMessagesPage()
+
+  await user.type(screen.getByLabelText("Channel ID"), "room-1")
+  await user.clear(screen.getByLabelText("Channel type"))
+  await user.type(screen.getByLabelText("Channel type"), "2")
+  await user.type(screen.getByLabelText("Message ID"), "2076275923258192001")
+  await user.click(screen.getByRole("button", { name: "Search" }))
+
+  expect(getMessagesMock).toHaveBeenLastCalledWith({
+    channelId: "room-1",
+    channelType: 2,
+    limit: 50,
+    messageId: "2076275923258192001",
+    clientMsgNo: "",
+    cursor: undefined,
+  })
+})
+
 test("keeps long payload text constrained to the payload column", async () => {
   const longPayload = "s".repeat(160)
   getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -322,7 +344,7 @@ test("loads the next page with the same filters", async () => {
   getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -336,7 +358,7 @@ test("loads the next page with the same filters", async () => {
   })
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 102,
+      message_id: "102",
       message_seq: 8,
       client_msg_no: "c-102",
       channel_id: "room-1",
@@ -374,7 +396,7 @@ test("opens message detail, toggles payload format, and copies the visible paylo
   getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -413,7 +435,7 @@ test("opens message detail, toggles payload format, and copies the visible paylo
 test("deletes message history through a selected sequence after confirmation", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",
@@ -452,7 +474,7 @@ test("deletes message history through a selected sequence after confirmation", a
 test("keeps delete dialog open when message retention is blocked", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{
-      message_id: 101,
+      message_id: "101",
       message_seq: 9,
       client_msg_no: "c-101",
       channel_id: "room-1",

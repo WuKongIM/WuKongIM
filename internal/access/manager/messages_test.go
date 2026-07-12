@@ -45,7 +45,7 @@ func TestManagerMessagesReturnsClusterLatestByDefault(t *testing.T) {
 	if gotReq != (managementusecase.ListMessagesRequest{Limit: 50}) {
 		t.Fatalf("request = %#v, want unscoped latest", gotReq)
 	}
-	wantBody := fmt.Sprintf(`{"items":[{"message_id":101,"message_seq":10,"client_msg_no":"","channel_id":"room-1","channel_type":2,"from_uid":"","timestamp":0,"payload":null}],"has_more":true,"next_cursor":%q}`, mustEncodeMessageCursorForTest(t, nextCursor))
+	wantBody := fmt.Sprintf(`{"items":[{"message_id":"101","message_seq":10,"client_msg_no":"","channel_id":"room-1","channel_type":2,"from_uid":"","timestamp":0,"payload":null}],"has_more":true,"next_cursor":%q}`, mustEncodeMessageCursorForTest(t, nextCursor))
 	if !jsonEqual(rec.Body.String(), wantBody) {
 		t.Fatalf("body = %s, want %s", rec.Body.String(), wantBody)
 	}
@@ -81,9 +81,32 @@ func TestManagerMessagesReturnsPagedList(t *testing.T) {
 	if gotReq != wantReq {
 		t.Fatalf("request = %#v, want %#v", gotReq, wantReq)
 	}
-	wantBody := fmt.Sprintf(`{"items":[{"message_id":101,"message_seq":10,"client_msg_no":"c-101","channel_id":"room-1","channel_type":2,"from_uid":"u1","timestamp":1713859200,"payload":"aGVsbG8="}],"has_more":true,"next_cursor":%q}`, mustEncodeMessageCursorForTest(t, nextCursor))
+	wantBody := fmt.Sprintf(`{"items":[{"message_id":"101","message_seq":10,"client_msg_no":"c-101","channel_id":"room-1","channel_type":2,"from_uid":"u1","timestamp":1713859200,"payload":"aGVsbG8="}],"has_more":true,"next_cursor":%q}`, mustEncodeMessageCursorForTest(t, nextCursor))
 	if !jsonEqual(rec.Body.String(), wantBody) {
 		t.Fatalf("body = %s, want %s", rec.Body.String(), wantBody)
+	}
+}
+
+func TestManagerMessagesPreservesUint64MessageIDsForJavaScriptClients(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{
+		messagesPage: managementusecase.ListMessagesResponse{
+			Items: []managementusecase.Message{
+				{MessageID: 2076275923258192000, MessageSeq: 2, ChannelID: "room-1", ChannelType: 2},
+				{MessageID: 2076275923258192001, MessageSeq: 2, ChannelID: "room-2", ChannelType: 2},
+			},
+		},
+	}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/messages?limit=50", nil)
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	wantBody := `{"items":[{"message_id":"2076275923258192000","message_seq":2,"client_msg_no":"","channel_id":"room-1","channel_type":2,"from_uid":"","timestamp":0,"payload":null},{"message_id":"2076275923258192001","message_seq":2,"client_msg_no":"","channel_id":"room-2","channel_type":2,"from_uid":"","timestamp":0,"payload":null}],"has_more":false}`
+	if !jsonEqual(rec.Body.String(), wantBody) {
+		t.Fatalf("body = %s, want JavaScript-safe decimal message IDs", rec.Body.String())
 	}
 }
 

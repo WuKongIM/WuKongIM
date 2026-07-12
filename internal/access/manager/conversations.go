@@ -61,7 +61,7 @@ type RecentConversationDTO struct {
 // RecentConversationMessageDTO is one embedded recent message preview.
 type RecentConversationMessageDTO struct {
 	// MessageID is the durable message identifier.
-	MessageID uint64 `json:"message_id"`
+	MessageID uint64 `json:"message_id,string"`
 	// MessageSeq is the committed channel message sequence number.
 	MessageSeq uint64 `json:"message_seq"`
 	// ClientMsgNo is the client-provided message correlation number.

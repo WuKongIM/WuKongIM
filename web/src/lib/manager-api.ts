@@ -447,8 +447,8 @@ function buildMessageListPath(params: MessageListParams) {
   if (params.cursor) {
     search.set("cursor", params.cursor)
   }
-  if (typeof params.messageId === "number") {
-    search.set("message_id", String(params.messageId))
+  if (params.messageId) {
+    search.set("message_id", params.messageId)
   }
   if (params.clientMsgNo) {
     search.set("client_msg_no", params.clientMsgNo)

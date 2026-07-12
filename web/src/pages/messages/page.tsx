@@ -26,7 +26,7 @@ type QueryForm = {
 type SubmittedQuery = {
   channelId: string
   channelType: number
-  messageId?: number
+  messageId?: string
   clientMsgNo: string
 }
 
@@ -55,6 +55,7 @@ type RetentionActionState = {
 }
 
 const channelSuggestionLimit = 15
+const maxUint64Decimal = "18446744073709551615"
 
 const defaultQuery: QueryForm = {
   channelId: "",
@@ -96,6 +97,23 @@ function formatTimestamp(timestamp: number) {
     return "-"
   }
   return new Date(timestamp * 1000).toLocaleString()
+}
+
+function normalizeUint64Decimal(value: string) {
+  if (!/^\d+$/.test(value)) {
+    return null
+  }
+  const normalized = value.replace(/^0+/, "")
+  if (!normalized) {
+    return null
+  }
+  if (
+    normalized.length > maxUint64Decimal.length
+    || (normalized.length === maxUint64Decimal.length && normalized > maxUint64Decimal)
+  ) {
+    return null
+  }
+  return normalized
 }
 
 export function MessagesPage() {
@@ -303,10 +321,10 @@ export function MessagesPage() {
       return
     }
     const trimmedMessageId = query.messageId.trim()
-    let messageId: number | undefined
+    let messageId: string | undefined
     if (trimmedMessageId) {
-      messageId = Number(trimmedMessageId)
-      if (!Number.isInteger(messageId) || messageId <= 0) {
+      messageId = normalizeUint64Decimal(trimmedMessageId) ?? undefined
+      if (!messageId) {
         setValidationError(intl.formatMessage({ id: "messages.validation.messageId" }))
         return
       }
@@ -536,7 +554,9 @@ export function MessagesPage() {
               onChange={(event) => {
                 setQuery((current) => ({ ...current, messageId: event.target.value }))
               }}
-              type="number"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              type="text"
               value={query.messageId}
             />
           </label>
@@ -618,7 +638,7 @@ export function MessagesPage() {
                   </thead>
                   <tbody>
                     {state.messages.items.map((message) => (
-                      <tr className="border-t border-border" key={`${message.message_seq}-${message.message_id}`}>
+                      <tr className="border-t border-border" key={`${message.channel_type}-${message.channel_id}-${message.message_seq}-${message.message_id}`}>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{message.message_seq}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           <span className="font-medium text-foreground">{message.channel_id}</span>
