@@ -126,6 +126,7 @@ const (
 
 	channelRuntimePressureComponent   = "channel"
 	transportRuntimePressureComponent = "transport"
+	channelLeaderPullObservationEvery = uint64(16)
 )
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
@@ -651,6 +652,40 @@ func (o channelMetricsObserver) ObservePull(result string, empty bool) {
 		return
 	}
 	o.metrics.ChannelRuntime.ObservePull(result, empty)
+}
+
+func (o channelMetricsObserver) ObservePullBatch(event ch.PullBatchObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObservePullBatch(
+		channelPullBatchResultLabel(event),
+		event.Items,
+		event.Records,
+		event.PayloadBytes,
+		event.SubmitDuration,
+		event.AwaitDuration,
+		event.MaxSequentialAwaitDuration,
+		event.TotalDuration,
+	)
+}
+
+func (o channelMetricsObserver) ObserveLeaderPullStage(_ ch.OpID, stage string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveLeaderPullStage(stage, d)
+}
+
+func (o channelMetricsObserver) ObserveLeaderPullCompletedWaiters(_ ch.OpID, count int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveLeaderPullCompletedWaiters(count)
+}
+
+func (o channelMetricsObserver) LeaderPullObservationSampleEvery() uint64 {
+	return channelLeaderPullObservationEvery
 }
 
 func (o channelMetricsObserver) ObservePullHintResult(reason channeltransport.PullHintReason, result string, err error) {
@@ -1809,6 +1844,90 @@ func (o multiChannelObserver) ObservePull(result string, empty bool) {
 	}
 }
 
+func (o multiChannelObserver) ObservePullBatch(event ch.PullBatchObservation) {
+	for _, observer := range o {
+		pullBatchObserver, ok := observer.(reactor.PullBatchObserver)
+		if ok {
+			pullBatchObserver.ObservePullBatch(event)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveLeaderPullStage(opID ch.OpID, stage string, d time.Duration) {
+	for _, observer := range o {
+		leaderPullObserver, ok := observer.(reactor.LeaderPullObserver)
+		if ok && channelLeaderPullObservationSelected(observer, opID) {
+			leaderPullObserver.ObserveLeaderPullStage(opID, stage, d)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveLeaderPullCompletedWaiters(opID ch.OpID, count int) {
+	for _, observer := range o {
+		leaderPullObserver, ok := observer.(reactor.LeaderPullObserver)
+		if ok && channelLeaderPullObservationSelected(observer, opID) {
+			leaderPullObserver.ObserveLeaderPullCompletedWaiters(opID, count)
+		}
+	}
+}
+
+func (o multiChannelObserver) LeaderPullObservationEnabled() bool {
+	for _, observer := range o {
+		if channelLeaderPullObservationEnabled(observer) {
+			return true
+		}
+	}
+	return false
+}
+
+func (o multiChannelObserver) LeaderPullObservationSampleEvery() uint64 {
+	var selected uint64
+	for _, observer := range o {
+		if !channelLeaderPullObservationEnabled(observer) {
+			continue
+		}
+		every := channelLeaderPullSampleEvery(observer)
+		if selected == 0 {
+			selected = every
+			continue
+		}
+		selected = greatestCommonDivisor(selected, every)
+	}
+	return selected
+}
+
+func channelLeaderPullObservationEnabled(observer reactor.Observer) bool {
+	if capability, ok := observer.(interface{ LeaderPullObservationEnabled() bool }); ok {
+		return capability.LeaderPullObservationEnabled()
+	}
+	_, ok := observer.(reactor.LeaderPullObserver)
+	return ok
+}
+
+func channelLeaderPullSampleEvery(observer reactor.Observer) uint64 {
+	if sampler, ok := observer.(interface{ LeaderPullObservationSampleEvery() uint64 }); ok {
+		if every := sampler.LeaderPullObservationSampleEvery(); every > 0 {
+			return every
+		}
+	}
+	return 1
+}
+
+func channelLeaderPullObservationSelected(observer reactor.Observer, opID ch.OpID) bool {
+	if !channelLeaderPullObservationEnabled(observer) {
+		return false
+	}
+	every := channelLeaderPullSampleEvery(observer)
+	return every <= 1 || opID == 0 || uint64(opID)%every == 0
+}
+
+func greatestCommonDivisor(a, b uint64) uint64 {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
+}
+
 func (o multiChannelObserver) ObservePullHintResult(reason channeltransport.PullHintReason, result string, err error) {
 	for _, observer := range o {
 		pullHintObserver, ok := observer.(reactor.PullHintResultObserver)
@@ -2181,6 +2300,17 @@ func channelCommitModeLabel(mode ch.CommitMode) string {
 	}
 }
 
+func channelPullBatchResultLabel(event ch.PullBatchObservation) string {
+	switch {
+	case event.Errors <= 0:
+		return "ok"
+	case event.Items > 0 && event.Errors >= event.Items:
+		return "err"
+	default:
+		return "partial"
+	}
+}
+
 func channelWorkerKindLabel(kind worker.TaskKind) string {
 	switch kind {
 	case worker.TaskFunc:
@@ -2320,6 +2450,8 @@ var _ reactor.AppendQueuePressureObserver = channelMetricsObserver{}
 var _ reactor.RuntimeObserver = channelMetricsObserver{}
 var _ reactor.ReplicationObserver = channelMetricsObserver{}
 var _ reactor.ReplicationStageObserver = channelMetricsObserver{}
+var _ reactor.PullBatchObserver = channelMetricsObserver{}
+var _ reactor.LeaderPullObserver = channelMetricsObserver{}
 var _ reactor.PullHintResultObserver = channelMetricsObserver{}
 var _ reactor.PendingMetaObserver = channelMetricsObserver{}
 var _ reactor.AppendWaitCancelObserver = channelMetricsObserver{}
@@ -2345,6 +2477,8 @@ var _ reactor.AppendQueuePressureObserver = multiChannelObserver{}
 var _ reactor.RuntimeObserver = multiChannelObserver{}
 var _ reactor.ReplicationObserver = multiChannelObserver{}
 var _ reactor.ReplicationStageObserver = multiChannelObserver{}
+var _ reactor.PullBatchObserver = multiChannelObserver{}
+var _ reactor.LeaderPullObserver = multiChannelObserver{}
 var _ reactor.PullHintResultObserver = multiChannelObserver{}
 var _ reactor.PendingMetaObserver = multiChannelObserver{}
 var _ transport.Observer = multiTransportObserver{}

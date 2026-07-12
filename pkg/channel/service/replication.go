@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
@@ -20,7 +21,8 @@ type pullHintReceiveObserver interface {
 
 // HandlePull serves a follower pull request on the local leader.
 func (c *cluster) HandlePull(ctx context.Context, req transport.PullRequest) (transport.PullResponse, error) {
-	future, err := c.group.Submit(ctx, req.ChannelKey, reactor.Event{Kind: reactor.EventPull, Key: req.ChannelKey, Context: ctx, Pull: req, OpID: c.group.NextOpID()})
+	event := reactor.Event{Kind: reactor.EventPull, Key: req.ChannelKey, Context: ctx, Pull: req, OpID: c.group.NextOpID()}
+	future, err := c.group.Submit(ctx, req.ChannelKey, event)
 	if err != nil {
 		return transport.PullResponse{}, err
 	}
@@ -33,26 +35,83 @@ func (c *cluster) HandlePull(ctx context.Context, req transport.PullRequest) (tr
 
 // HandlePullBatch serves grouped follower pull requests on the local leader.
 func (c *cluster) HandlePullBatch(ctx context.Context, req transport.PullBatchRequest) (transport.PullBatchResponse, error) {
+	observer, observing := c.observer.(reactor.PullBatchObserver)
+	var observation ch.PullBatchObservation
+	var serviceStartedAt time.Time
+	if observing {
+		observation.Items = len(req.Items)
+		serviceStartedAt = time.Now()
+	}
 	resp := transport.PullBatchResponse{Items: make([]transport.PullBatchItemResult, len(req.Items))}
 	futures := make([]*reactor.Future, len(req.Items))
+	var submitStartedAt time.Time
+	if observing {
+		submitStartedAt = time.Now()
+	}
 	for i, item := range req.Items {
-		future, err := c.group.Submit(ctx, item.ChannelKey, reactor.Event{Kind: reactor.EventPull, Key: item.ChannelKey, Context: ctx, Pull: item, OpID: c.group.NextOpID()})
+		event := reactor.Event{Kind: reactor.EventPull, Key: item.ChannelKey, Context: ctx, Pull: item, OpID: c.group.NextOpID()}
+		future, err := c.group.Submit(ctx, item.ChannelKey, event)
 		if err != nil {
 			resp.Items[i].Err = err
+			if observing {
+				observation.Errors++
+			}
 			continue
 		}
 		futures[i] = future
+		if observing {
+			observation.Submitted++
+		}
+	}
+	if observing {
+		observation.SubmitDuration = time.Since(submitStartedAt)
+	}
+	awaitStartedAt := time.Time{}
+	if observing {
+		awaitStartedAt = time.Now()
 	}
 	for i, future := range futures {
 		if future == nil {
 			continue
 		}
+		itemStartedAt := time.Time{}
+		if observing {
+			itemStartedAt = time.Now()
+		}
 		result, err := future.Await(ctx)
+		if observing {
+			itemDuration := time.Since(itemStartedAt)
+			if itemDuration > observation.MaxSequentialAwaitDuration {
+				observation.MaxSequentialAwaitDuration = itemDuration
+			}
+		}
 		if err != nil {
 			resp.Items[i].Err = err
+			if observing {
+				observation.Errors++
+			}
 			continue
 		}
 		resp.Items[i].Response = result.Pull
+	}
+	if observing {
+		awaitDoneAt := time.Now()
+		observation.AwaitDuration = awaitDoneAt.Sub(awaitStartedAt)
+		observation.TotalDuration = awaitDoneAt.Sub(serviceStartedAt)
+		for _, item := range resp.Items {
+			if item.Err != nil {
+				continue
+			}
+			observation.Records += len(item.Response.Records)
+			for _, record := range item.Response.Records {
+				if record.SizeBytes > 0 {
+					observation.PayloadBytes += record.SizeBytes
+					continue
+				}
+				observation.PayloadBytes += len(record.Payload)
+			}
+		}
+		observer.ObservePullBatch(observation)
 	}
 	return resp, nil
 }

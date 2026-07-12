@@ -110,6 +110,7 @@
 ### Send stress performance
 - Send stress regression was concentrated in the leader durable path, not gateway ACK handling: `gateway.write_sendack` is microsecond-scale, while `store.commit.pebble_sync` and durable mutex/append waits dominate.
 - Same-channel append batching and commit-coordinator batching often add waits without building large batches, so a sync still tends to carry only about one request and a few records.
+- An out-of-order channelappend completion waiting for an earlier append sequence is pending but not runnable; only the missing completion callback can close the ordered-drain gap, so dormant gaps must not reactivate the writer.
 - Throughput-mode send stress can also be capped before durable send by `gateway.async_dispatch_wait`; the acceptance preset uses a larger bounded async SEND worker pool so queued SEND frames can reach the durable path concurrently.
 - Single-node cluster send stress is still a cluster-mode path; benchmark metadata should use the harness node IDs and `MinISR=1`, not hard-coded three-node replicas.
 - In the three-node quorum send stress, lowering long-poll max wait alone does not remove the bottleneck; the current hot path is per-channel async SEND serialization plus leader quorum wait after local durable append.

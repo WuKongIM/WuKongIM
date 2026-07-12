@@ -30,7 +30,7 @@ New(Config)
   -> create a root logger from Config.Log unless a test/harness override is supplied
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
-     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/apply gap, TransportV2 service RPC totals/latency, Channel runtime append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/apply gap, TransportV2 service RPC totals/latency, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
@@ -456,6 +456,11 @@ op id, commit mode, LEO/HW/target offset, queue and in-flight counts, and
 quorum progress flags plus a compact leader-visible follower summary so
 benchmark timeout triage can identify the stuck append phase without adding
 high-cardinality Prometheus labels.
+Leader-side Pull stage metrics sample one in every sixteen operation IDs. When
+multiple optional observers request different sample intervals, the composite
+observer admits the greatest-common-divisor envelope and filters callbacks by
+operation ID for each child, preserving every child's requested rate without
+forcing the metrics child to inherit a more expensive observer's rate.
 
 Message append observations record low-cardinality metrics for every durable
 append attempt and log rare append failures, including gateway deadline

@@ -8,6 +8,7 @@ import (
 )
 
 var channelRuntimeAppendBatchRecordBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
+var channelRuntimeWaiterBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 var channelRuntimeAppendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384, 65536, 262144, 524288, 1048576, 4194304}
 var channelRuntimeDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
 var channelRuntimeISRAnomalyReasons = []string{"isr_insufficient", "no_leader", "replica_gap"}
@@ -23,6 +24,12 @@ type ChannelRuntimeMetrics struct {
 	followerParked           *prometheus.GaugeVec
 	recoveryProbeTotal       *prometheus.CounterVec
 	pullTotal                *prometheus.CounterVec
+	pullBatchItems           *prometheus.HistogramVec
+	pullBatchRecords         *prometheus.HistogramVec
+	pullBatchPayloadBytes    *prometheus.HistogramVec
+	pullBatchDuration        *prometheus.HistogramVec
+	leaderPullStageDuration  *prometheus.HistogramVec
+	leaderPullWaiters        prometheus.Histogram
 	pullHintTotal            *prometheus.CounterVec
 	pullHintReceiveTotal     *prometheus.CounterVec
 	pendingMetaCurrent       *prometheus.GaugeVec
@@ -90,6 +97,42 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 			Help:        "Total Channel runtime follower pulls by result and empty response status.",
 			ConstLabels: labels,
 		}, []string{"result", "empty"}),
+		pullBatchItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_pull_batch_items",
+			Help:        "Number of logical pull requests in each leader-side PullBatch service call.",
+			ConstLabels: labels,
+			Buckets:     channelRuntimeAppendBatchRecordBuckets,
+		}, []string{"result"}),
+		pullBatchRecords: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_pull_batch_records",
+			Help:        "Number of records returned by each leader-side PullBatch service call.",
+			ConstLabels: labels,
+			Buckets:     channelRuntimeAppendBatchRecordBuckets,
+		}, []string{"result"}),
+		pullBatchPayloadBytes: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_pull_batch_payload_bytes",
+			Help:        "Logical record bytes used by pull budgets and returned by each leader-side PullBatch service call.",
+			ConstLabels: labels,
+			Buckets:     channelRuntimeAppendBatchByteBuckets,
+		}, []string{"result"}),
+		pullBatchDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_pull_batch_duration_seconds",
+			Help:        "Leader-side PullBatch service latency by bounded stage.",
+			ConstLabels: labels,
+			Buckets:     channelRuntimeDurationBuckets,
+		}, []string{"stage", "result"}),
+		leaderPullStageDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_leader_pull_stage_duration_seconds",
+			Help:        "Sampled leader-side Pull synchronous latency by bounded handler stage.",
+			ConstLabels: labels,
+			Buckets:     channelRuntimeDurationBuckets,
+		}, []string{"stage"}),
+		leaderPullWaiters: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_leader_pull_completed_waiters",
+			Help:        "Number of append waiters completed by one sampled leader-side Pull AckOffset application.",
+			ConstLabels: labels,
+			Buckets:     channelRuntimeWaiterBuckets,
+		}),
 		pullHintTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelv2_pull_hint_total",
 			Help:        "Total Channel runtime pull hints by reason, result, and low-cardinality error class.",
@@ -201,6 +244,12 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 		m.followerParked,
 		m.recoveryProbeTotal,
 		m.pullTotal,
+		m.pullBatchItems,
+		m.pullBatchRecords,
+		m.pullBatchPayloadBytes,
+		m.pullBatchDuration,
+		m.leaderPullStageDuration,
+		m.leaderPullWaiters,
 		m.pullHintTotal,
 		m.pullHintReceiveTotal,
 		m.pendingMetaCurrent,
@@ -285,6 +334,39 @@ func (m *ChannelRuntimeMetrics) ObservePull(result string, empty bool) {
 		return
 	}
 	m.pullTotal.WithLabelValues(result, strconv.FormatBool(empty)).Inc()
+}
+
+// ObservePullBatch records one leader-side PullBatch service observation.
+func (m *ChannelRuntimeMetrics) ObservePullBatch(result string, items int, records int, payloadBytes int, submit time.Duration, await time.Duration, maxSequentialAwait time.Duration, total time.Duration) {
+	if m == nil {
+		return
+	}
+	m.pullBatchItems.WithLabelValues(result).Observe(float64(items))
+	m.pullBatchRecords.WithLabelValues(result).Observe(float64(records))
+	m.pullBatchPayloadBytes.WithLabelValues(result).Observe(float64(payloadBytes))
+	m.pullBatchDuration.WithLabelValues("submit", result).Observe(submit.Seconds())
+	m.pullBatchDuration.WithLabelValues("await", result).Observe(await.Seconds())
+	m.pullBatchDuration.WithLabelValues("max_sequential_await", result).Observe(maxSequentialAwait.Seconds())
+	m.pullBatchDuration.WithLabelValues("total", result).Observe(total.Seconds())
+}
+
+// ObserveLeaderPullStage records one bounded leader-side Pull handler stage.
+func (m *ChannelRuntimeMetrics) ObserveLeaderPullStage(stage string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	m.leaderPullStageDuration.WithLabelValues(stage).Observe(d.Seconds())
+}
+
+// ObserveLeaderPullCompletedWaiters records the append waiters released by one AckOffset application.
+func (m *ChannelRuntimeMetrics) ObserveLeaderPullCompletedWaiters(count int) {
+	if m == nil {
+		return
+	}
+	if count < 0 {
+		count = 0
+	}
+	m.leaderPullWaiters.Observe(float64(count))
 }
 
 func (m *ChannelRuntimeMetrics) ObservePullHint(reason string, result string, errorClass string) {

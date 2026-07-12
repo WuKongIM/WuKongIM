@@ -179,6 +179,28 @@ through durable store completion, while `post_store_commit_wait` covers durable
 store completion through local/quorum waiter completion. Quorum post-store
 sub-stages further separate follower pull service, leader-side `AckOffset`
 observation, HW advancement, and final future completion.
+Leader-side grouped pull service calls also emit one optional low-cardinality
+`PullBatchObservation` after every submit is decided and every admitted Await
+has returned a result or caller-context error. It separates reactor
+submission time from the sequential result-collection interval and records the
+longest individual `Await` call in collection order plus total items, records,
+and logical pull-budget bytes. Because futures may already be ready when their
+turn is collected, `MaxSequentialAwaitDuration` is not a true per-future
+end-to-end latency. The observation contains no channel, follower, or request
+identity and adds timing/counting work only when the service observer implements
+the optional PullBatch hook.
+When the reactor observer also implements the optional leader Pull hook,
+`Group.Submit` reuses the event's tick timestamp slot to capture admission time
+without enlarging the mailbox envelope. The reactor then reports bounded
+`mailbox_wait`, synchronous `handler`, and AckOffset `ack_apply` stages plus the
+number of append caller futures actually completed by that AckOffset. Mailbox
+wait includes earlier high-priority events, cancellation sweeps, due work, and
+prior observer callbacks; it is not equivalent to a full mailbox or an
+admission failure. On a recent-record-cache miss, synchronous handler time ends
+after store-read submission and does not include worker queueing, store I/O, or
+the later worker completion path. The app metrics adapter deterministically
+samples one of every sixteen Pull op IDs so this diagnostic does not add four
+histogram writes to every replication RPC.
 When an admitted append waiter is canceled by the caller, the reactor emits a
 low-volume `AppendWaitCancelSnapshot` before cleanup. The snapshot captures the
 channel key, op id, commit mode, LEO/HW/target offset, queue and in-flight

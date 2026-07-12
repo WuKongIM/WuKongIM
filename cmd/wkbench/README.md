@@ -232,8 +232,31 @@ breakdown is reported as
 `channel_replication_follower_pull_rpc_p99_seconds`,
 `channel_need_meta_pull_rpc_p99_seconds`,
 `channel_replication_follower_store_apply_p99_seconds`, and
-`channel_replication_follower_apply_to_ack_return_p99_seconds`. PendingMeta
-bootstrap counters are reported as
+`channel_replication_follower_apply_to_ack_return_p99_seconds`.
+Leader-side PullBatch shape and wait breakdown is reported as
+`channel_pull_batch_items_p50`, `channel_pull_batch_items_p99`,
+`channel_pull_batch_records_p50`, `channel_pull_batch_records_p99`,
+`channel_pull_batch_payload_bytes_p50`,
+`channel_pull_batch_payload_bytes_p99`,
+`channel_pull_batch_submit_p99_seconds`,
+`channel_pull_batch_await_p99_seconds`,
+`channel_pull_batch_max_sequential_await_p99_seconds`, and
+`channel_pull_batch_total_p99_seconds`. `max_sequential_await` is the longest
+single blocking `Await` call in collection order; it is not an end-to-end
+per-Future latency measurement. RPC worker admission-to-subgroup-start p99 is
+reported as `channel_worker_rpc_queue_wait_p99_seconds`; it includes any wait
+behind an earlier subgroup in the same collected execution window.
+Leader-side single-item breakdown is reported as
+`channel_leader_pull_mailbox_wait_p99_seconds`,
+`channel_leader_pull_ack_apply_p99_seconds`,
+`channel_leader_pull_handler_p99_seconds`,
+`channel_leader_pull_completed_waiters_p50`, and
+`channel_leader_pull_completed_waiters_p99`. Mailbox wait includes earlier
+reactor work rather than only channel-buffer occupancy. Handler time is the
+synchronous EventPull handler; a cache miss excludes the asynchronous store-read
+worker and later completion. These leader Pull fields are deterministic
+one-in-sixteen samples of Pull op IDs.
+PendingMeta bootstrap counters are reported as
 `channel_pending_meta_current_max`,
 `channel_pending_meta_created_count`,
 `channel_pending_meta_converted_count`,

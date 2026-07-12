@@ -277,6 +277,12 @@ func (g *Group) Submit(ctx context.Context, key ch.ChannelKey, event Event) (*Fu
 		event.Key = key
 	}
 	reactor := g.reactors[g.router.PickIndex(key)]
+	if event.Kind == EventPull && leaderPullObservationEnabled(g.cfg.Observer) {
+		every := leaderPullObservationSampleEvery(g.cfg.Observer)
+		if every <= 1 || event.OpID == 0 || uint64(event.OpID)%every == 0 {
+			event.TickNow = time.Now()
+		}
+	}
 	if err := reactor.Submit(eventPriority(event.Kind), event); err != nil {
 		return nil, err
 	}

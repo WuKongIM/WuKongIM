@@ -148,9 +148,12 @@ and keeps up to `AppendInflightBatchesPerChannel` append batches in flight per c
 Blocking `Appender.AppendBatch` calls run on the foreground append pool and wake the
 same writer when they complete. Completion events are drained by append sequence
 before mutating `channelState`, so SENDACK and post-commit handoff remain in
-submission order even when same-channel append calls finish out of order. The
-appender port must preserve durable per-channel append order for concurrent
-same-channel requests or serialize the requests internally. Append requests
+submission order even when same-channel append calls finish out of order. A
+later completion waiting on an earlier sequence gap remains pending but does
+not reactivate the writer, because only the missing completion callback can
+make that ordered drain runnable. The appender port must preserve durable
+per-channel append order for concurrent same-channel requests or serialize the
+requests internally. Append requests
 borrow immutable send-path payloads and carry the resolved authority epoch and
 leader epoch as append fences; concrete storage adapters clone payloads when
 they cross into durable ownership.

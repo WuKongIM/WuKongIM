@@ -1684,8 +1684,15 @@ type appendWaitStageEvent struct {
 
 type appendWaitStageObserver struct {
 	captureObserver
-	mu     sync.Mutex
-	events []appendWaitStageEvent
+	mu                         sync.Mutex
+	events                     []appendWaitStageEvent
+	leaderPullStages           []leaderPullStageEvent
+	leaderPullCompletedWaiters []int
+}
+
+type leaderPullStageEvent struct {
+	stage    string
+	duration time.Duration
 }
 
 func (o *appendWaitStageObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, _ time.Duration) {
@@ -1698,6 +1705,30 @@ func (o *appendWaitStageObserver) Events() []appendWaitStageEvent {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]appendWaitStageEvent(nil), o.events...)
+}
+
+func (o *appendWaitStageObserver) ObserveLeaderPullStage(_ ch.OpID, stage string, duration time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.leaderPullStages = append(o.leaderPullStages, leaderPullStageEvent{stage: stage, duration: duration})
+}
+
+func (o *appendWaitStageObserver) ObserveLeaderPullCompletedWaiters(_ ch.OpID, count int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.leaderPullCompletedWaiters = append(o.leaderPullCompletedWaiters, count)
+}
+
+func (o *appendWaitStageObserver) LeaderPullStages() []leaderPullStageEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]leaderPullStageEvent(nil), o.leaderPullStages...)
+}
+
+func (o *appendWaitStageObserver) LeaderPullCompletedWaiters() []int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]int(nil), o.leaderPullCompletedWaiters...)
 }
 
 type appendCancelSnapshotObserver struct {

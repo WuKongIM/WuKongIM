@@ -73,7 +73,8 @@ type Event struct {
 	MessageID uint64
 	CancelOp  ch.OpID
 	CancelErr error
-	TickNow   time.Time
+	// TickNow carries the requested EventTick clock and is internally reused for observed EventPull admission time.
+	TickNow time.Time
 	// RuntimeChannelIDs selects concrete channel IDs for runtime probe and eviction events.
 	RuntimeChannelIDs []ch.ChannelID
 	// LeaderEvictAppendSeq fences final leader eviction behind same-channel Append submissions.

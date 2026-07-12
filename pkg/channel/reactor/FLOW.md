@@ -150,6 +150,18 @@ used by these guards lives under `channelRuntimeLifecycle`.
 Leader-side `EventPull` uses the high-priority mailbox so quorum follower pulls
 can still reach the leader while foreground append submissions are pressuring
 the normal-priority queue.
+With the optional leader Pull observer enabled, `Group.Submit` captures the
+EventPull admission timestamp in the event's existing time slot. The reactor
+reports admission-to-handler `mailbox_wait`, synchronous `handler`, AckOffset
+`ack_apply`, and the number of append caller futures completed by the AckOffset.
+Mailbox wait also includes earlier high-priority handlers, per-event cancellation
+sweeps, per-drain due work, and observer callbacks; it is not a mailbox-capacity
+or rejection metric. A cache-miss handler ends after it submits StoreReadLog, so
+the synchronous handler stage excludes the later worker wait, store read, worker
+completion, and Pull Future publication. Observer implementations may request a
+deterministic sampling interval; the app metrics adapter uses one of every
+sixteen Pull op IDs while tests and observers without a sampling capability see
+every event.
 
 ```text
 remote follower Ack RPC

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -75,6 +76,20 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	channelObserver.ObserveWorkerWait("store_append", worker.TaskStoreAppend, time.Millisecond)
 	channelObserver.ObserveWorkerTask("store_append", worker.TaskStoreAppend, nil, time.Millisecond)
 	channelObserver.ObserveWorkerBatch("rpc", worker.TaskRPCPull, 3, nil)
+	channelObserver.ObservePullBatch(ch.PullBatchObservation{
+		Items:                      4,
+		Submitted:                  4,
+		Errors:                     1,
+		Records:                    7,
+		PayloadBytes:               2048,
+		SubmitDuration:             2 * time.Millisecond,
+		AwaitDuration:              11 * time.Millisecond,
+		MaxSequentialAwaitDuration: 7 * time.Millisecond,
+		TotalDuration:              13 * time.Millisecond,
+	})
+	channelObserver.ObserveLeaderPullStage(1, "mailbox_wait", 5*time.Millisecond)
+	channelObserver.ObserveLeaderPullStage(1, "handler", 8*time.Millisecond)
+	channelObserver.ObserveLeaderPullCompletedWaiters(1, 3)
 	channelObserver.SetReactorMailboxDepth(0, "high", 2)
 	channelObserver.SetReactorMailboxCapacity(0, "high", 16)
 	channelObserver.ObserveReactorMailboxAdmission(0, "high", "full")
@@ -443,6 +458,108 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	if got := channelWorkerRPCPullBatch.GetHistogram().GetSampleSum(); got != 3 {
 		t.Fatalf("channelv2 rpc pull batch sum = %v, want 3", got)
 	}
+	pullBatchDuration := requireAppMetricFamily(t, families, "wukongim_channelv2_pull_batch_duration_seconds")
+	pullBatchMaxAwait := findAppMetricByLabels(t, pullBatchDuration, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"stage":     "max_sequential_await",
+		"result":    "partial",
+	})
+	if got := pullBatchMaxAwait.GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("channelv2 pull batch max await count = %v, want 1", got)
+	}
+	leaderPullStages := requireAppMetricFamily(t, families, "wukongim_channelv2_leader_pull_stage_duration_seconds")
+	leaderPullMailboxWait := findAppMetricByLabels(t, leaderPullStages, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"stage":     "mailbox_wait",
+	})
+	if got := leaderPullMailboxWait.GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("channelv2 leader pull mailbox wait count = %v, want 1", got)
+	}
+	leaderPullWaiters := requireAppMetricFamily(t, families, "wukongim_channelv2_leader_pull_completed_waiters")
+	if got := leaderPullWaiters.GetMetric()[0].GetHistogram().GetSampleSum(); got != 3 {
+		t.Fatalf("channelv2 leader pull completed waiters sum = %v, want 3", got)
+	}
+}
+
+func TestMultiChannelObserverForwardsOptionalPullObservations(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}
+	if !observer.LeaderPullObservationEnabled() {
+		t.Fatal("leader Pull observation should be enabled by the metrics child")
+	}
+	if got := observer.LeaderPullObservationSampleEvery(); got != channelLeaderPullObservationEvery {
+		t.Fatalf("leader Pull sample interval = %d, want %d", got, channelLeaderPullObservationEvery)
+	}
+
+	observer.ObservePullBatch(ch.PullBatchObservation{
+		Items:                      2,
+		Submitted:                  2,
+		Records:                    3,
+		PayloadBytes:               384,
+		SubmitDuration:             time.Millisecond,
+		AwaitDuration:              4 * time.Millisecond,
+		MaxSequentialAwaitDuration: 3 * time.Millisecond,
+		TotalDuration:              5 * time.Millisecond,
+	})
+	observer.ObserveLeaderPullStage(16, "mailbox_wait", 2*time.Millisecond)
+	observer.ObserveLeaderPullCompletedWaiters(16, 1)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	pullBatch := requireAppMetricFamily(t, families, "wukongim_channelv2_pull_batch_items")
+	if got := pullBatch.GetMetric()[0].GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("pull batch sample count = %d, want 1", got)
+	}
+	leaderPull := requireAppMetricFamily(t, families, "wukongim_channelv2_leader_pull_stage_duration_seconds")
+	if got := leaderPull.GetMetric()[0].GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("leader Pull stage sample count = %d, want 1", got)
+	}
+	waiters := requireAppMetricFamily(t, families, "wukongim_channelv2_leader_pull_completed_waiters")
+	if got := waiters.GetMetric()[0].GetHistogram().GetSampleSum(); got != 1 {
+		t.Fatalf("leader Pull waiter sample sum = %v, want 1", got)
+	}
+}
+
+func TestMultiChannelObserverPreservesChildLeaderPullSampleRates(t *testing.T) {
+	first := &sampledLeaderPullObserver{every: 4}
+	second := &sampledLeaderPullObserver{every: 6}
+	observer := multiChannelObserver{first, second}
+	if got := observer.LeaderPullObservationSampleEvery(); got != 2 {
+		t.Fatalf("leader Pull composite sample interval = %d, want gcd 2", got)
+	}
+
+	for opID := ch.OpID(2); opID <= 12; opID += 2 {
+		observer.ObserveLeaderPullStage(opID, "handler", time.Millisecond)
+		observer.ObserveLeaderPullCompletedWaiters(opID, 1)
+	}
+	if got, want := first.opIDs, []ch.OpID{4, 4, 8, 8, 12, 12}; !slices.Equal(got, want) {
+		t.Fatalf("first child op ids = %v, want %v", got, want)
+	}
+	if got, want := second.opIDs, []ch.OpID{6, 6, 12, 12}; !slices.Equal(got, want) {
+		t.Fatalf("second child op ids = %v, want %v", got, want)
+	}
+}
+
+type sampledLeaderPullObserver struct {
+	reactor.Observer
+	every uint64
+	opIDs []ch.OpID
+}
+
+func (o *sampledLeaderPullObserver) LeaderPullObservationSampleEvery() uint64 {
+	return o.every
+}
+
+func (o *sampledLeaderPullObserver) ObserveLeaderPullStage(opID ch.OpID, _ string, _ time.Duration) {
+	o.opIDs = append(o.opIDs, opID)
+}
+
+func (o *sampledLeaderPullObserver) ObserveLeaderPullCompletedWaiters(opID ch.OpID, _ int) {
+	o.opIDs = append(o.opIDs, opID)
 }
 
 func TestSlotMetricsObserverMapsLeaderChanges(t *testing.T) {

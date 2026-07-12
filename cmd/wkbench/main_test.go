@@ -554,6 +554,77 @@ wukongim_channelv2_worker_queue_depth{pool="store_append"} 1
 	}
 }
 
+func TestMetricsClassifyReportsChannelRuntimePullBatchMetrics(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	beforeMetrics := `
+wukongim_channel_pull_batch_items_bucket{result="ok",le="2"} 0
+wukongim_channel_pull_batch_items_bucket{result="ok",le="4"} 0
+wukongim_channel_pull_batch_items_bucket{result="ok",le="+Inf"} 0
+wukongim_channel_pull_batch_records_bucket{result="ok",le="8"} 0
+wukongim_channel_pull_batch_records_bucket{result="ok",le="16"} 0
+wukongim_channel_pull_batch_records_bucket{result="ok",le="+Inf"} 0
+wukongim_channel_pull_batch_payload_bytes_bucket{result="ok",le="256"} 0
+wukongim_channel_pull_batch_payload_bytes_bucket{result="ok",le="512"} 0
+wukongim_channel_pull_batch_payload_bytes_bucket{result="ok",le="+Inf"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="submit",result="ok",le="0.005"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="submit",result="ok",le="+Inf"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="await",result="ok",le="0.25"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="await",result="ok",le="+Inf"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="max_sequential_await",result="ok",le="0.1"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="max_sequential_await",result="ok",le="+Inf"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="total",result="ok",le="0.5"} 0
+wukongim_channel_pull_batch_duration_seconds_bucket{stage="total",result="ok",le="+Inf"} 0
+wukongim_runtime_pool_wait_duration_seconds_bucket{component="channel",pool="channelv2-rpc",queue="worker",priority="none",result="ok",le="0.1"} 0
+wukongim_runtime_pool_wait_duration_seconds_bucket{component="channel",pool="channelv2-rpc",queue="worker",priority="none",result="ok",le="+Inf"} 0
+wukongim_channel_leader_pull_stage_duration_seconds_bucket{stage="mailbox_wait",le="0.1"} 0
+wukongim_channel_leader_pull_stage_duration_seconds_bucket{stage="mailbox_wait",le="+Inf"} 0
+wukongim_channel_leader_pull_stage_duration_seconds_bucket{stage="ack_apply",le="0.005"} 0
+wukongim_channel_leader_pull_stage_duration_seconds_bucket{stage="ack_apply",le="+Inf"} 0
+wukongim_channel_leader_pull_stage_duration_seconds_bucket{stage="handler",le="0.25"} 0
+wukongim_channel_leader_pull_stage_duration_seconds_bucket{stage="handler",le="+Inf"} 0
+wukongim_channel_leader_pull_completed_waiters_bucket{le="1"} 0
+wukongim_channel_leader_pull_completed_waiters_bucket{le="2"} 0
+wukongim_channel_leader_pull_completed_waiters_bucket{le="+Inf"} 0
+`
+	if err := os.WriteFile(before, []byte(beforeMetrics), 0o600); err != nil {
+		t.Fatalf("write before: %v", err)
+	}
+	if err := os.WriteFile(after, []byte(strings.ReplaceAll(beforeMetrics, "} 0", "} 10")), 0o600); err != nil {
+		t.Fatalf("write after: %v", err)
+	}
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"metrics", "classify", "--before", before, "--after", after}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected success, got code %d and stderr %q", code, stderr.String())
+	}
+	for _, want := range []string{
+		"channel_pull_batch_items_p50: 1.000",
+		"channel_pull_batch_items_p99: 1.980",
+		"channel_pull_batch_records_p50: 4.000",
+		"channel_pull_batch_records_p99: 7.920",
+		"channel_pull_batch_payload_bytes_p50: 128.000",
+		"channel_pull_batch_payload_bytes_p99: 253.440",
+		"channel_pull_batch_submit_p99_seconds: 0.004950",
+		"channel_pull_batch_await_p99_seconds: 0.247500",
+		"channel_pull_batch_max_sequential_await_p99_seconds: 0.099000",
+		"channel_pull_batch_total_p99_seconds: 0.495000",
+		"channel_worker_rpc_queue_wait_p99_seconds: 0.099000",
+		"channel_leader_pull_mailbox_wait_p99_seconds: 0.099000",
+		"channel_leader_pull_ack_apply_p99_seconds: 0.004950",
+		"channel_leader_pull_handler_p99_seconds: 0.247500",
+		"channel_leader_pull_completed_waiters_p50: 0.500",
+		"channel_leader_pull_completed_waiters_p99: 0.990",
+	} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected PullBatch output %q, got %q", want, stderr.String())
+		}
+	}
+}
+
 func TestMetricsClassifyReportsMessageEventPressureFromPrometheusSnapshots(t *testing.T) {
 	dir := t.TempDir()
 	before := filepath.Join(dir, "before.prom")

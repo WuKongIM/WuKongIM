@@ -20,6 +20,28 @@ type CommittedMessageLookup interface {
 	LookupCommittedMessage(context.Context, ChannelID, uint64) (Message, bool, error)
 }
 
+// PullBatchObservation summarizes one leader-side PullBatch service call.
+type PullBatchObservation struct {
+	// Items is the number of logical pull requests in the batch.
+	Items int
+	// Submitted is the number of requests admitted to owning reactors.
+	Submitted int
+	// Errors is the number of requests that failed submit or await.
+	Errors int
+	// Records is the total number of records returned by successful requests.
+	Records int
+	// PayloadBytes is the total logical record bytes used by pull budgets.
+	PayloadBytes int
+	// SubmitDuration is the time spent submitting every item to owning reactors.
+	SubmitDuration time.Duration
+	// AwaitDuration is the time spent waiting for every admitted Await call to return a result or caller-context error.
+	AwaitDuration time.Duration
+	// MaxSequentialAwaitDuration is the longest single Await call in collection order.
+	MaxSequentialAwaitDuration time.Duration
+	// TotalDuration is the PullBatch service time through the last admitted Await return.
+	TotalDuration time.Duration
+}
+
 // MetaResolver reads authoritative metadata outside reactor loops.
 type MetaResolver interface {
 	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)

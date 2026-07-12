@@ -327,7 +327,7 @@ func (s *channelState) hasPendingWork() bool {
 // hasRunnableWork reports whether advance can make progress without waiting
 // for an in-flight append or commit to complete.
 func (s *channelState) hasRunnableWork(includeCommit bool) bool {
-	if s.canStartAppend() || s.hasReadyAppendCompletion || len(s.completedAppends) > 0 {
+	if s.canStartAppend() {
 		return true
 	}
 	return includeCommit && !s.commitInflight && s.commitBacklog() > 0

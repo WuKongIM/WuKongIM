@@ -574,6 +574,11 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelRuntime.SetFollowerParkedCount(2, 11)
 	reg.ChannelRuntime.ObserveFollowerRecoveryProbe("ok")
 	reg.ChannelRuntime.ObservePull("ok", true)
+	reg.ChannelRuntime.ObservePullBatch("partial", 4, 7, 2048, 2*time.Millisecond, 11*time.Millisecond, 7*time.Millisecond, 13*time.Millisecond)
+	reg.ChannelRuntime.ObserveLeaderPullStage("mailbox_wait", 5*time.Millisecond)
+	reg.ChannelRuntime.ObserveLeaderPullStage("ack_apply", 2*time.Millisecond)
+	reg.ChannelRuntime.ObserveLeaderPullStage("handler", 8*time.Millisecond)
+	reg.ChannelRuntime.ObserveLeaderPullCompletedWaiters(3)
 	reg.ChannelRuntime.ObservePullHint("append", "err", "stale_meta")
 	reg.ChannelRuntime.ObservePullHintReceived("append", "meta_resolve", "err", "channel_not_found")
 	reg.ChannelRuntime.SetPendingMetaCount(2, 3)
@@ -834,6 +839,37 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"empty":     "true",
 	})
 	require.Equal(t, float64(1), pullTotal.GetMetric()[0].GetCounter().GetValue())
+
+	pullBatchItems := requireMetricFamily(t, families, "wukongim_channelv2_pull_batch_items")
+	pullBatchItemsMetric := findMetricByLabels(t, pullBatchItems, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"result":    "partial",
+	})
+	require.Equal(t, uint64(1), pullBatchItemsMetric.GetHistogram().GetSampleCount())
+	require.Equal(t, float64(4), pullBatchItemsMetric.GetHistogram().GetSampleSum())
+	requireMetricFamily(t, families, "wukongim_channelv2_pull_batch_records")
+	requireMetricFamily(t, families, "wukongim_channelv2_pull_batch_payload_bytes")
+	pullBatchDuration := requireMetricFamily(t, families, "wukongim_channelv2_pull_batch_duration_seconds")
+	require.Len(t, pullBatchDuration.GetMetric(), 4)
+	findMetricByLabels(t, pullBatchDuration, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"stage":     "max_sequential_await",
+		"result":    "partial",
+	})
+	requireMetricFamily(t, families, "wukongim_channel_pull_batch_duration_seconds")
+	leaderPullStages := requireMetricFamily(t, families, "wukongim_channelv2_leader_pull_stage_duration_seconds")
+	require.Len(t, leaderPullStages.GetMetric(), 3)
+	findMetricByLabels(t, leaderPullStages, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"stage":     "mailbox_wait",
+	})
+	leaderPullWaiters := requireMetricFamily(t, families, "wukongim_channelv2_leader_pull_completed_waiters")
+	require.Equal(t, uint64(1), leaderPullWaiters.GetMetric()[0].GetHistogram().GetSampleCount())
+	require.Equal(t, float64(3), leaderPullWaiters.GetMetric()[0].GetHistogram().GetSampleSum())
+	requireMetricFamily(t, families, "wukongim_channel_leader_pull_stage_duration_seconds")
 
 	metaCache := requireMetricFamily(t, families, "wukongim_channelv2_meta_cache_total")
 	require.Len(t, metaCache.GetMetric(), 2)

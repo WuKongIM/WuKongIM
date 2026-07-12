@@ -2918,10 +2918,11 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 
 	ackFuture := NewFuture()
 	r.handleLeaderPull(Event{
-		Kind:   EventPull,
-		Key:    meta.Key,
-		OpID:   3,
-		Future: ackFuture,
+		Kind:    EventPull,
+		Key:     meta.Key,
+		OpID:    3,
+		Future:  ackFuture,
+		TickNow: time.Now(),
 		Pull: transport.PullRequest{
 			ChannelKey:  meta.Key,
 			ChannelID:   meta.ID,
@@ -2945,9 +2946,43 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 	requireAppendWaitStage(t, obs.Events(), "quorum_hw_advance_wait", ch.CommitModeQuorum, "ok")
 	requireAppendWaitStage(t, obs.Events(), "quorum_final_complete_wait", ch.CommitModeQuorum, "ok")
 	requireAppendWaitStage(t, obs.Events(), "post_store_commit_wait", ch.CommitModeQuorum, "ok")
+	requireLeaderPullStage(t, obs.LeaderPullStages(), leaderPullStageAckApply)
+	require.Equal(t, []int{1}, obs.LeaderPullCompletedWaiters())
 	rc := r.channels[meta.Key]
 	require.Equal(t, uint64(1), rc.state.HW)
 	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
+
+	secondAckFuture := NewFuture()
+	r.handleLeaderPull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		OpID:    4,
+		Future:  secondAckFuture,
+		TickNow: time.Now(),
+		Pull: transport.PullRequest{
+			ChannelKey:  meta.Key,
+			ChannelID:   meta.ID,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Follower:    2,
+			NextOffset:  2,
+			AckOffset:   1,
+			MaxBytes:    1024,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, secondAckFuture).Err)
+	require.Equal(t, []int{1, 0}, obs.LeaderPullCompletedWaiters())
+}
+
+func requireLeaderPullStage(t *testing.T, events []leaderPullStageEvent, stage string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage {
+			require.Positive(t, event.duration)
+			return
+		}
+	}
+	t.Fatalf("leader Pull stage %s not observed in %#v", stage, events)
 }
 
 func TestLeaderProgressAckAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {

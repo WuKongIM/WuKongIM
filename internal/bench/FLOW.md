@@ -184,7 +184,20 @@ zero. Channel runtime high-level stage labels include `meta_resolve`,
 metrics include `follower_pull_hint_to_submit`, `follower_pull_rpc`,
 `follower_need_meta_pull_rpc`, `follower_store_apply`, and
 `follower_apply_to_ack_return`, where the final label covers either the
-post-apply progress ACK RPC or the fallback Pull `AckOffset` return; PendingMeta
+post-apply progress ACK RPC or the fallback Pull `AckOffset` return; leader-side
+PullBatch metrics report item, returned-record, and payload-byte p50/p99 plus
+submit, all-await, maximum sequential-await, and total p99. The maximum
+sequential-await value is the longest blocking `Await` call in collection
+order, not the end-to-end completion latency of a specific Future. The Channel
+RPC worker queue-wait p99 covers accepted-task wait through subgroup start,
+including time behind an earlier subgroup in the same collected window;
+leader Pull classification separately reports mailbox-wait, synchronous-handler,
+and AckOffset-apply p99 plus completed append-waiter p50/p99. Mailbox wait can
+include earlier handlers, cancellation sweeps, due work, and observer callbacks;
+the synchronous handler stage excludes asynchronous store reads after their
+submission. App Prometheus metrics deterministically sample these leader Pull
+stages and completed-waiter shapes at one of every sixteen Pull op IDs;
+PendingMeta
 and NeedMeta counters include the
 current outstanding PendingMeta gauge, created/converted/released shell counts,
 NeedMeta submitted/ok/retry/err counts, and stable NeedMeta error classes such

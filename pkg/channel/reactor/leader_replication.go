@@ -11,6 +11,31 @@ import (
 )
 
 func (r *Reactor) handleLeaderPull(event Event) {
+	observer, observing := r.cfg.Observer.(LeaderPullObserver)
+	observing = observing && leaderPullObservationEnabled(r.cfg.Observer) && !event.TickNow.IsZero()
+	var handlerStartedAt time.Time
+	var mailboxWait time.Duration
+	var ackObservation leaderPullAckObservation
+	if observing {
+		handlerStartedAt = time.Now()
+		if !event.TickNow.IsZero() {
+			mailboxWait = handlerStartedAt.Sub(event.TickNow)
+			if mailboxWait < 0 {
+				mailboxWait = 0
+			}
+		}
+		defer func() {
+			handlerDuration := time.Since(handlerStartedAt)
+			if !event.TickNow.IsZero() {
+				observer.ObserveLeaderPullStage(event.OpID, leaderPullStageMailboxWait, mailboxWait)
+			}
+			if ackObservation.observed {
+				observer.ObserveLeaderPullStage(event.OpID, leaderPullStageAckApply, ackObservation.duration)
+				observer.ObserveLeaderPullCompletedWaiters(event.OpID, ackObservation.completedWaiters)
+			}
+			observer.ObserveLeaderPullStage(event.OpID, leaderPullStageHandler, handlerDuration)
+		}()
+	}
 	rc, err := r.lookupLoadedChannel(event.Key)
 	if err != nil {
 		event.Future.Complete(Result{Err: err})
@@ -53,7 +78,8 @@ func (r *Reactor) handleLeaderPull(event Event) {
 	}
 	now := time.Now()
 	r.syncLeaderFollowers(rc)
-	if err := r.applyLeaderPullAckOffset(rc, event.Pull); err != nil {
+	ackObservation, err = r.applyLeaderPullAckOffset(rc, event.Pull, observing)
+	if err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
@@ -172,21 +198,37 @@ func (r *Reactor) applyLeaderProgressAck(rc *runtimeChannel, req transport.AckRe
 	return nil
 }
 
-func (r *Reactor) applyLeaderPullAckOffset(rc *runtimeChannel, req transport.PullRequest) error {
+type leaderPullAckObservation struct {
+	duration         time.Duration
+	completedWaiters int
+	observed         bool
+}
+
+func (r *Reactor) applyLeaderPullAckOffset(rc *runtimeChannel, req transport.PullRequest, observing bool) (leaderPullAckObservation, error) {
 	if req.AckOffset == 0 {
-		return nil
+		return leaderPullAckObservation{}, nil
 	}
 	if req.AckOffset > rc.state.LEO {
-		return ch.ErrStaleMeta
+		return leaderPullAckObservation{}, ch.ErrStaleMeta
+	}
+	var startedAt time.Time
+	now := time.Now()
+	if observing {
+		startedAt = now
 	}
 	oldHW := rc.state.HW
-	now := time.Now()
 	r.markAppendAckOffsetObserved(rc, req.AckOffset, now)
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: req.Follower, MatchOffset: req.AckOffset})
 	r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
 	rc.lifecycle.recordFollowerProgress(req.Follower, req.AckOffset, rc.state.LEO)
-	r.completeReplies(rc, decision.Replies, nil)
-	return nil
+	completedWaiters := r.completeReplies(rc, decision.Replies, nil)
+	observation := leaderPullAckObservation{}
+	if observing {
+		observation.duration = time.Since(startedAt)
+		observation.completedWaiters = completedWaiters
+		observation.observed = true
+	}
+	return observation, nil
 }
 
 func (r *Reactor) mergeLeaderPullCacheSuffix(rc *runtimeChannel, waiter *pullWaiter, records []ch.Record) []ch.Record {

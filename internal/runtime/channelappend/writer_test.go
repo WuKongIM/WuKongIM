@@ -80,3 +80,33 @@ func TestWriterDeactivateLockedMarksIdleWhenNoRunnableWork(t *testing.T) {
 		t.Fatal("deactivateLocked must record idle timestamp")
 	}
 }
+
+func TestWriterDeactivateLockedDoesNotSpinOnOutOfOrderAppendCompletion(t *testing.T) {
+	target := AuthorityTarget{ChannelID: ChannelID{ID: "c1", Type: 2}, LeaderNodeID: 1}
+	target.ChannelKey = channelKey(target.ChannelID)
+	w := newChannelWriter(target, channelStateLimits{pendingItemHighWatermark: 1024, appendInflightLimit: 2})
+	w.scheduled.Store(true)
+	w.state.appendInflight = 2
+	w.state.recordAppendCompletion(appendCompletedEvent{seq: 1})
+
+	w.mu.Lock()
+	more := w.deactivateLocked()
+	w.mu.Unlock()
+
+	if more {
+		t.Fatal("out-of-order append completion gap must wait for the missing completion instead of reactivating")
+	}
+	if w.scheduled.Load() {
+		t.Fatal("writer must remain deactivated while only an out-of-order completion is pending")
+	}
+	if _, ok := w.state.completedAppends[1]; !ok {
+		t.Fatal("out-of-order completion was not retained while waiting for the missing sequence")
+	}
+	w.state.recordAppendCompletion(appendCompletedEvent{seq: 0})
+	for want := uint64(0); want < 2; want++ {
+		completion, ok := w.state.popNextAppendCompletion()
+		if !ok || completion.seq != want {
+			t.Fatalf("completion %d = (seq=%d, ok=%v), want ordered drain", want, completion.seq, ok)
+		}
+	}
+}

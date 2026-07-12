@@ -23,6 +23,9 @@ const (
 	replicationStageNeedMetaPullRPC    = "follower_need_meta_pull_rpc"
 	replicationStageStoreApply         = "follower_store_apply"
 	replicationStageApplyToAckReturn   = "follower_apply_to_ack_return"
+	leaderPullStageMailboxWait         = "mailbox_wait"
+	leaderPullStageAckApply            = "ack_apply"
+	leaderPullStageHandler             = "handler"
 )
 
 // Observer receives lightweight runtime metrics from the reactor hot path.
@@ -161,6 +164,42 @@ type ReplicationObserver interface {
 // ReplicationStageObserver receives optional follower replication stage metrics.
 type ReplicationStageObserver interface {
 	ObserveReplicationStage(stage string, result string, d time.Duration)
+}
+
+// PullBatchObserver receives optional leader-side grouped Pull service observations.
+type PullBatchObserver interface {
+	ObservePullBatch(ch.PullBatchObservation)
+}
+
+// LeaderPullObserver receives optional leader-side Pull handler stage and completion-shape observations.
+type LeaderPullObserver interface {
+	ObserveLeaderPullStage(opID ch.OpID, stage string, d time.Duration)
+	ObserveLeaderPullCompletedWaiters(opID ch.OpID, count int)
+}
+
+type leaderPullObservationCapability interface {
+	LeaderPullObservationEnabled() bool
+}
+
+type leaderPullObservationSampler interface {
+	LeaderPullObservationSampleEvery() uint64
+}
+
+func leaderPullObservationEnabled(observer Observer) bool {
+	if capability, ok := observer.(leaderPullObservationCapability); ok {
+		return capability.LeaderPullObservationEnabled()
+	}
+	_, ok := observer.(LeaderPullObserver)
+	return ok
+}
+
+func leaderPullObservationSampleEvery(observer Observer) uint64 {
+	if sampler, ok := observer.(leaderPullObservationSampler); ok {
+		if every := sampler.LeaderPullObservationSampleEvery(); every > 0 {
+			return every
+		}
+	}
+	return 1
 }
 
 // LifecycleObserver receives optional leader runtime lifecycle events.

@@ -238,6 +238,16 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_worker_task_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, kind, result))",
           "legendFormat": "worker {{kind}} {{result}} p95",
           "refId": "F"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_pull_batch_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, result))",
+          "legendFormat": "pull batch {{stage}} {{result}} p95",
+          "refId": "G"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_leader_pull_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage))",
+          "legendFormat": "leader pull {{stage}} p95",
+          "refId": "H"
         }
       ],
       "title": "Channel Runtime Latency Histograms",
@@ -290,6 +300,26 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_worker_batch_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, kind))",
           "legendFormat": "worker {{kind}} batch items p95",
           "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_pull_batch_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "pull batch items {{result}} p95",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_pull_batch_records_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "pull batch records {{result}} p95",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_pull_batch_payload_bytes_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "pull batch payload bytes {{result}} p95",
+          "refId": "F"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_leader_pull_completed_waiters_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le))",
+          "legendFormat": "leader pull completed waiters p95",
+          "refId": "G"
         }
       ],
       "title": "Channel Runtime Batch Sizes",

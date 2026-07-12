@@ -193,8 +193,8 @@ func (r *Reactor) submitPullHint(ctx context.Context, node ch.NodeID, fence ch.F
 	})
 }
 
-func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, immediate *Future) bool {
-	completed := false
+func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, immediate *Future) int {
+	completed := 0
 	for _, reply := range replies {
 		switch reply.Kind {
 		case machine.ReplyKindAppend:
@@ -211,7 +211,7 @@ func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, i
 				}
 				r.observeAppendComplete(rc, reply.OpID, reply.Err)
 				future.Complete(Result{AppendBatch: batch, Err: reply.Err})
-				completed = true
+				completed++
 			}
 		}
 	}

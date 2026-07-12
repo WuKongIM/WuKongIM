@@ -539,6 +539,92 @@ wukongim_channel_pull_hint_total{reason="append",result="submitted",error="none"
 	}
 }
 
+func TestAnalyzeWukongIMPrometheusReportsPullBatchShapeAndWaits(t *testing.T) {
+	legacyBefore := `
+wukongim_channelv2_pull_batch_items_bucket{result="ok",le="2"} 0
+wukongim_channelv2_pull_batch_items_bucket{result="ok",le="4"} 0
+wukongim_channelv2_pull_batch_items_bucket{result="ok",le="+Inf"} 0
+wukongim_channelv2_pull_batch_records_bucket{result="ok",le="8"} 0
+wukongim_channelv2_pull_batch_records_bucket{result="ok",le="16"} 0
+wukongim_channelv2_pull_batch_records_bucket{result="ok",le="+Inf"} 0
+wukongim_channelv2_pull_batch_payload_bytes_bucket{result="ok",le="256"} 0
+wukongim_channelv2_pull_batch_payload_bytes_bucket{result="ok",le="512"} 0
+wukongim_channelv2_pull_batch_payload_bytes_bucket{result="ok",le="+Inf"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="submit",result="ok",le="0.001"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="submit",result="ok",le="0.005"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="submit",result="ok",le="+Inf"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="await",result="ok",le="0.1"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="await",result="ok",le="0.25"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="await",result="ok",le="+Inf"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="max_sequential_await",result="ok",le="0.05"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="max_sequential_await",result="ok",le="0.1"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="max_sequential_await",result="ok",le="+Inf"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="total",result="ok",le="0.1"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="total",result="ok",le="0.5"} 0
+wukongim_channelv2_pull_batch_duration_seconds_bucket{stage="total",result="ok",le="+Inf"} 0
+wukongim_runtime_pool_wait_duration_seconds_bucket{component="channel",pool="channelv2-rpc",queue="worker",priority="none",result="ok",le="0.05"} 0
+wukongim_runtime_pool_wait_duration_seconds_bucket{component="channel",pool="channelv2-rpc",queue="worker",priority="none",result="ok",le="0.1"} 0
+wukongim_runtime_pool_wait_duration_seconds_bucket{component="channel",pool="channelv2-rpc",queue="worker",priority="none",result="ok",le="+Inf"} 0
+wukongim_channelv2_leader_pull_stage_duration_seconds_bucket{stage="mailbox_wait",le="0.1"} 0
+wukongim_channelv2_leader_pull_stage_duration_seconds_bucket{stage="mailbox_wait",le="+Inf"} 0
+wukongim_channelv2_leader_pull_stage_duration_seconds_bucket{stage="ack_apply",le="0.005"} 0
+wukongim_channelv2_leader_pull_stage_duration_seconds_bucket{stage="ack_apply",le="+Inf"} 0
+wukongim_channelv2_leader_pull_stage_duration_seconds_bucket{stage="handler",le="0.25"} 0
+wukongim_channelv2_leader_pull_stage_duration_seconds_bucket{stage="handler",le="+Inf"} 0
+wukongim_channelv2_leader_pull_completed_waiters_bucket{le="1"} 0
+wukongim_channelv2_leader_pull_completed_waiters_bucket{le="2"} 0
+wukongim_channelv2_leader_pull_completed_waiters_bucket{le="+Inf"} 0
+`
+	legacyAfter := strings.ReplaceAll(legacyBefore, "} 0", "} 10")
+
+	for _, tc := range []struct {
+		name   string
+		before string
+		after  string
+	}{
+		{name: "legacy", before: legacyBefore, after: legacyAfter},
+		{
+			name:   "promoted",
+			before: strings.ReplaceAll(legacyBefore, "wukongim_channelv2_", "wukongim_channel_"),
+			after:  strings.ReplaceAll(legacyAfter, "wukongim_channelv2_", "wukongim_channel_"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before, err := ParsePrometheusText(strings.NewReader(tc.before))
+			if err != nil {
+				t.Fatalf("ParsePrometheusText(before): %v", err)
+			}
+			after, err := ParsePrometheusText(strings.NewReader(tc.after))
+			if err != nil {
+				t.Fatalf("ParsePrometheusText(after): %v", err)
+			}
+
+			report := AnalyzeWukongIMPrometheus(before, after)
+			if report.ChannelRuntimePullBatchItemsP50 <= 0 || report.ChannelRuntimePullBatchItemsP99 <= report.ChannelRuntimePullBatchItemsP50 {
+				t.Fatalf("pull batch item quantiles not parsed: %+v", report)
+			}
+			if report.ChannelRuntimePullBatchRecordsP50 <= 0 || report.ChannelRuntimePullBatchRecordsP99 <= report.ChannelRuntimePullBatchRecordsP50 {
+				t.Fatalf("pull batch record quantiles not parsed: %+v", report)
+			}
+			if report.ChannelRuntimePullBatchPayloadBytesP50 <= 0 || report.ChannelRuntimePullBatchPayloadBytesP99 <= report.ChannelRuntimePullBatchPayloadBytesP50 {
+				t.Fatalf("pull batch payload byte quantiles not parsed: %+v", report)
+			}
+			if report.ChannelRuntimePullBatchSubmitP99Seconds <= 0 || report.ChannelRuntimePullBatchAwaitP99Seconds <= 0 || report.ChannelRuntimePullBatchMaxSequentialAwaitP99Seconds <= 0 || report.ChannelRuntimePullBatchTotalP99Seconds <= 0 {
+				t.Fatalf("pull batch wait p99s not parsed: %+v", report)
+			}
+			if report.ChannelRuntimeRPCWorkerQueueWaitP99Seconds <= 0 {
+				t.Fatalf("RPC worker queue wait p99 not parsed: %+v", report)
+			}
+			if report.ChannelRuntimeLeaderPullMailboxWaitP99Seconds <= 0 || report.ChannelRuntimeLeaderPullAckApplyP99Seconds <= 0 || report.ChannelRuntimeLeaderPullHandlerP99Seconds <= 0 {
+				t.Fatalf("leader Pull stage p99s not parsed: %+v", report)
+			}
+			if report.ChannelRuntimeLeaderPullCompletedWaitersP50 <= 0 || report.ChannelRuntimeLeaderPullCompletedWaitersP99 <= report.ChannelRuntimeLeaderPullCompletedWaitersP50 {
+				t.Fatalf("leader Pull completed waiter quantiles not parsed: %+v", report)
+			}
+		})
+	}
+}
+
 func TestAnalyzeWukongIMPrometheusReportsChannelRuntimeMetaResolveBreakdown(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0

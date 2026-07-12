@@ -478,7 +478,11 @@ func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 
 func TestHandlePullBatchSubmitsAllPullsBeforeAwaitingResults(t *testing.T) {
 	factory := newServiceBlockingReadLogFactory()
-	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 2, LeaderRecentRecordCacheSize: -1})
+	observer := &servicePullBatchObserver{
+		events:           make(chan ch.PullBatchObservation, 1),
+		leaderPullStages: make(chan serviceLeaderPullStage, 8),
+	}
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 2, LeaderRecentRecordCacheSize: -1, Observer: observer})
 	require.NoError(t, err)
 	defer clusterAPI.Close()
 	svc := clusterAPI.(*cluster)
@@ -505,6 +509,22 @@ func TestHandlePullBatchSubmitsAllPullsBeforeAwaitingResults(t *testing.T) {
 
 	factory.waitReadLogStarted(t)
 	factory.waitReadLogStarted(t)
+	stages := make(map[string]time.Duration, 2)
+	for len(stages) < 2 {
+		select {
+		case stage := <-observer.leaderPullStages:
+			stages[stage.name] = stage.duration
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for synchronous leader pull stages: %+v", stages)
+		}
+	}
+	require.Positive(t, stages["mailbox_wait"])
+	require.Positive(t, stages["handler"])
+	select {
+	case err := <-errCh:
+		t.Fatalf("PullBatch completed before blocked store reads were released: %v", err)
+	default:
+	}
 	factory.UnblockReadLogs()
 
 	select {
@@ -516,6 +536,20 @@ func TestHandlePullBatchSubmitsAllPullsBeforeAwaitingResults(t *testing.T) {
 		require.NoError(t, resp.Items[1].Err)
 		require.Len(t, resp.Items[0].Response.Records, 1)
 		require.Len(t, resp.Items[1].Response.Records, 1)
+		select {
+		case event := <-observer.events:
+			require.Equal(t, 2, event.Items)
+			require.Equal(t, 2, event.Submitted)
+			require.Zero(t, event.Errors)
+			require.Equal(t, 2, event.Records)
+			require.Equal(t, 2, event.PayloadBytes)
+			require.Positive(t, event.SubmitDuration)
+			require.Positive(t, event.AwaitDuration)
+			require.Positive(t, event.MaxSequentialAwaitDuration)
+			require.GreaterOrEqual(t, event.TotalDuration, event.SubmitDuration+event.AwaitDuration)
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for pull batch observation")
+		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for pull batch response")
 	}
@@ -1215,6 +1249,27 @@ type servicePullHintReceiveObserver struct {
 	serviceAppendStageObserver
 	events []servicePullHintReceiveEvent
 }
+
+type servicePullBatchObserver struct {
+	serviceAppendStageObserver
+	events           chan ch.PullBatchObservation
+	leaderPullStages chan serviceLeaderPullStage
+}
+
+type serviceLeaderPullStage struct {
+	name     string
+	duration time.Duration
+}
+
+func (o *servicePullBatchObserver) ObservePullBatch(event ch.PullBatchObservation) {
+	o.events <- event
+}
+
+func (o *servicePullBatchObserver) ObserveLeaderPullStage(_ ch.OpID, stage string, duration time.Duration) {
+	o.leaderPullStages <- serviceLeaderPullStage{name: stage, duration: duration}
+}
+
+func (o *servicePullBatchObserver) ObserveLeaderPullCompletedWaiters(ch.OpID, int) {}
 
 func (o *servicePullHintReceiveObserver) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
 	o.events = append(o.events, servicePullHintReceiveEvent{reason: reason, stage: stage, err: err})
