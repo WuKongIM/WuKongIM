@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -81,14 +82,17 @@ func (s *Server) handleMessages(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	channelID := c.Query("channel_id")
-	if channelID == "" {
-		jsonError(c, http.StatusBadRequest, "bad_request", "channel_id is required")
-		return
-	}
-	channelType, err := parseMessageChannelType(c.Query("channel_type"))
-	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel_type")
+	channelID := strings.TrimSpace(c.Query("channel_id"))
+	var channelType int64
+	var err error
+	if channelID != "" {
+		channelType, err = parseMessageChannelType(c.Query("channel_type"))
+		if err != nil {
+			jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel_type")
+			return
+		}
+	} else if c.Query("channel_type") != "" || c.Query("message_id") != "" || c.Query("client_msg_no") != "" {
+		jsonError(c, http.StatusBadRequest, "bad_request", "channel_id is required for message filters")
 		return
 	}
 	limit, err := parseMessageLimit(c.Query("limit"))
@@ -187,6 +191,8 @@ func writeMessageError(c *gin.Context, err error, badRequestMessage string) {
 		jsonError(c, http.StatusNotFound, "not_found", "channel not found")
 	case errors.Is(err, managementusecase.ErrMessageRetentionUnavailable):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "message retention unavailable")
+	case errors.Is(err, managementusecase.ErrLatestMessagesUnavailable):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "latest messages unavailable")
 	case errors.Is(err, channelappend.ErrNotLeader), errors.Is(err, channelappend.ErrStaleRoute), errors.Is(err, channelappend.ErrRouteNotReady):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel leader unavailable")
 	default:

@@ -420,10 +420,12 @@ response shape for the web recent-conversation list view, including `uid`,
 `limit`, `msg_count`, and `only_unread` query parameters. It reuses the
 internal conversation sync usecase and remains a read-only display route.
 
-`/manager/messages` preserves the legacy channel message list response shape
-for the web message page, including `channel_id`, `channel_type`, `limit`,
-`cursor`, `message_id`, and `client_msg_no` query parameters. It reads
-committed Channel messages through `internal/usecase/management`.
+`/manager/messages` preserves the message list response shape for the web
+message page. Without `channel_id` it returns the cluster-wide newest unique
+messages and pages by global message ID. With `channel_id`, it requires
+`channel_type`, accepts `message_id` and `client_msg_no`, and keeps the existing
+channel-sequence cursor. Both modes read committed messages through
+`internal/usecase/management`.
 `/manager/messages/retention` preserves the legacy request/response envelope
 and delegates to an optional retention port; when no v2 retention implementation
 is configured, the route returns `service_unavailable` instead of reporting a

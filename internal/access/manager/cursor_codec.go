@@ -11,6 +11,11 @@ import (
 
 const managerCursorVersion byte = 1
 
+const (
+	messageCursorVersionGlobal byte = 2
+	messageCursorKindGlobal    byte = 2
+)
+
 var (
 	messageCursorMagic         = [...]byte{'W', 'K', 'M', 'C'}
 	businessChannelCursorMagic = [...]byte{'W', 'K', 'C', 'L'}
@@ -21,6 +26,20 @@ var (
 func encodeMessageCursor(cursor managementusecase.MessageListCursor) (string, error) {
 	if cursor == (managementusecase.MessageListCursor{}) {
 		return "", nil
+	}
+	if cursor.BeforeSeq != 0 && cursor.BeforeMessageID != 0 {
+		return "", strconv.ErrSyntax
+	}
+	if cursor.BeforeMessageID != 0 {
+		var data [len(messageCursorMagic) + 1 + 1 + 8]byte
+		copy(data[:], messageCursorMagic[:])
+		data[len(messageCursorMagic)] = messageCursorVersionGlobal
+		data[len(messageCursorMagic)+1] = messageCursorKindGlobal
+		binary.BigEndian.PutUint64(data[len(messageCursorMagic)+2:], cursor.BeforeMessageID)
+		return base64.RawURLEncoding.EncodeToString(data[:]), nil
+	}
+	if cursor.BeforeSeq == 0 {
+		return "", strconv.ErrSyntax
 	}
 	var data [len(messageCursorMagic) + 1 + 8]byte
 	copy(data[:], messageCursorMagic[:])
@@ -49,14 +68,21 @@ type messageCursorPayload struct {
 }
 
 func decodeMessageCursorBinary(payload []byte) (managementusecase.MessageListCursor, error) {
-	if len(payload) != len(messageCursorMagic)+1+8 || payload[len(messageCursorMagic)] != managerCursorVersion {
+	if len(payload) == len(messageCursorMagic)+1+8 && payload[len(messageCursorMagic)] == managerCursorVersion {
+		beforeSeq := binary.BigEndian.Uint64(payload[len(messageCursorMagic)+1:])
+		if beforeSeq == 0 {
+			return managementusecase.MessageListCursor{}, strconv.ErrSyntax
+		}
+		return managementusecase.MessageListCursor{BeforeSeq: beforeSeq}, nil
+	}
+	if len(payload) != len(messageCursorMagic)+1+1+8 || payload[len(messageCursorMagic)] != messageCursorVersionGlobal || payload[len(messageCursorMagic)+1] != messageCursorKindGlobal {
 		return managementusecase.MessageListCursor{}, strconv.ErrSyntax
 	}
-	beforeSeq := binary.BigEndian.Uint64(payload[len(messageCursorMagic)+1:])
-	if beforeSeq == 0 {
+	beforeMessageID := binary.BigEndian.Uint64(payload[len(messageCursorMagic)+2:])
+	if beforeMessageID == 0 {
 		return managementusecase.MessageListCursor{}, strconv.ErrSyntax
 	}
-	return managementusecase.MessageListCursor{BeforeSeq: beforeSeq}, nil
+	return managementusecase.MessageListCursor{BeforeMessageID: beforeMessageID}, nil
 }
 
 func decodeLegacyMessageCursorJSON(payload []byte) (managementusecase.MessageListCursor, error) {

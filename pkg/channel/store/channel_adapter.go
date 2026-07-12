@@ -101,6 +101,39 @@ func (f *MessageDBFactory) ListChannelsPage(ctx context.Context, after ch.Channe
 	return out, ch.ChannelKey(cursor), more, nil
 }
 
+// ListLatestMessages returns one newest-first page from the node-local shared message database.
+func (f *MessageDBFactory) ListLatestMessages(ctx context.Context, beforeMessageID uint64, limit int) ([]ch.Message, bool, uint64, error) {
+	if err := f.availabilityError(); err != nil {
+		return nil, false, 0, err
+	}
+	page, err := f.engine.ListLatestMessages(ctx, beforeMessageID, limit)
+	if err != nil {
+		return nil, false, 0, f.mapError(err)
+	}
+	out := make([]ch.Message, 0, len(page.Messages))
+	for _, msg := range page.Messages {
+		out = append(out, ch.Message{
+			MessageID:         msg.MessageID,
+			MessageSeq:        msg.MessageSeq,
+			ChannelID:         msg.ChannelID,
+			ChannelType:       msg.ChannelType,
+			FromUID:           msg.FromUID,
+			ClientMsgNo:       msg.ClientMsgNo,
+			Payload:           cloneBytes(msg.Payload),
+			ServerTimestampMS: msg.ServerTimestampMS,
+		})
+	}
+	return out, page.HasMore, page.NextBeforeMessageID, nil
+}
+
+// DeleteLatestMessageIndexes removes retained rows from the manager-only global projection.
+func (f *MessageDBFactory) DeleteLatestMessageIndexes(ctx context.Context, messageIDs []uint64) error {
+	if err := f.availabilityError(); err != nil {
+		return err
+	}
+	return f.mapError(f.engine.DeleteLatestMessageIndexes(ctx, messageIDs))
+}
+
 // AppendLeaderBatch appends leader records for multiple channels through one message DB batch request when possible.
 func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []AppendLeaderBatchItem) []AppendLeaderBatchResult {
 	results := make([]AppendLeaderBatchResult, len(items))
@@ -180,10 +213,12 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 			results[i].Err = f.mapError(err)
 			continue
 		}
+		records := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
 		dbItems = append(dbItems, messagedb.ApplyFetchBatchItem{
 			Store: dbStore,
 			Request: channel.ApplyFetchStoreRequest{
-				Records: encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+				Records:      records,
+				CheckpointHW: followerApplyCheckpointHW(records, item.Request.LeaderHW),
 			},
 		})
 		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
@@ -319,11 +354,26 @@ func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req Ap
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
-	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{Records: encodeRecordsForMessageDB(a.id, req.Records)})
+	records := encodeRecordsForMessageDB(a.id, req.Records)
+	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{
+		Records:      records,
+		CheckpointHW: followerApplyCheckpointHW(records, req.LeaderHW),
+	})
 	if err != nil {
 		return ApplyFollowerResult{}, a.mapError(err)
 	}
 	return ApplyFollowerResult{LEO: leo}, nil
+}
+
+func followerApplyCheckpointHW(records []channel.Record, leaderHW uint64) *uint64 {
+	if leaderHW == 0 || len(records) == 0 {
+		return nil
+	}
+	hw := minUint64(leaderHW, records[len(records)-1].Index)
+	if hw == 0 {
+		return nil
+	}
+	return &hw
 }
 
 func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error) {

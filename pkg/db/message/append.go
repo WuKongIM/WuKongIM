@@ -134,6 +134,9 @@ func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cach
 	if err := l.stageMessageIDIndexRow(batch, row, cache); err != nil {
 		return err
 	}
+	if err := l.stageGlobalMessageIDIndexRow(batch, row); err != nil {
+		return err
+	}
 	if row.ClientMsgNo != "" {
 		if err := l.stageClientMsgNoIndexRow(batch, row, cache); err != nil {
 			return err
@@ -145,6 +148,10 @@ func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cach
 		}
 	}
 	return nil
+}
+
+func (l *channelEntry) stageGlobalMessageIDIndexRow(batch *engine.Batch, row messageRow) error {
+	return batch.Set(encodeGlobalMessageIDIndexKey(row.MessageID), encodeGlobalMessageIDIndexValue(l.key, row.MessageSeq))
 }
 
 func (l *channelEntry) stageMessageHeaderRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {

@@ -1,6 +1,7 @@
 package message
 
 import (
+	"context"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -13,6 +14,10 @@ type MessageDB struct {
 	engine *engine.DB
 	// registry owns canonical entries and database operation admission.
 	registry *channelRegistry
+	// latestIndex tracks the versioned background backfill required by global latest-message reads.
+	latestIndex       *latestMessageIndexState
+	latestIndexCtx    context.Context
+	latestIndexCancel context.CancelFunc
 
 	// closeOnce ensures the physical engine closes exactly once.
 	closeOnce sync.Once
@@ -22,10 +27,16 @@ type MessageDB struct {
 
 // NewDB creates a MessageDB backed by engine.
 func NewDB(engine *engine.DB) *MessageDB {
-	return &MessageDB{
-		engine:   engine,
-		registry: newChannelRegistry(),
+	latestIndexCtx, latestIndexCancel := context.WithCancel(context.Background())
+	db := &MessageDB{
+		engine:            engine,
+		registry:          newChannelRegistry(),
+		latestIndex:       newLatestMessageIndexState(),
+		latestIndexCtx:    latestIndexCtx,
+		latestIndexCancel: latestIndexCancel,
 	}
+	db.initializeLatestMessageIndex()
+	return db
 }
 
 // Channel returns a typed handle for one channel log.
@@ -46,6 +57,9 @@ func (db *MessageDB) closeWithBeforeEngineClose(before func()) error {
 		return nil
 	}
 	db.closeOnce.Do(func() {
+		if db.latestIndexCancel != nil {
+			db.latestIndexCancel()
+		}
 		if db.registry != nil {
 			db.registry.beginClose()
 			db.registry.waitForDrain()

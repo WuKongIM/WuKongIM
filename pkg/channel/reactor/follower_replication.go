@@ -799,6 +799,7 @@ func (r *Reactor) applyFollowerPullResponse(rc *runtimeChannel, resp transport.P
 	}
 	if len(resp.Records) == 0 {
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
+		r.trySubmitCommittedCheckpoint(rc)
 		if rc.replication.hintedLeaderLEO <= rc.state.LEO {
 			rc.replication.hintedLeaderLEO = 0
 			rc.replication.hintedAt = time.Time{}
@@ -821,6 +822,24 @@ func (r *Reactor) applyFollowerPullResponse(rc *runtimeChannel, resp transport.P
 	rc.replication.applyOpID = 0
 	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	r.trySubmitPendingApply(rc, now)
+}
+
+func (r *Reactor) trySubmitCommittedCheckpoint(rc *runtimeChannel) {
+	if rc == nil || rc.state == nil || rc.state.HW <= rc.state.CheckpointHW || rc.committedCheckpointOp != 0 {
+		return
+	}
+	opID := r.nextOpID()
+	fence := ch.Fence{
+		ChannelKey:  rc.state.Key,
+		Generation:  rc.state.Generation,
+		Epoch:       rc.state.Epoch,
+		LeaderEpoch: rc.state.LeaderEpoch,
+		OpID:        opID,
+	}
+	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.HW}); err != nil {
+		return
+	}
+	rc.committedCheckpointOp = opID
 }
 
 func (r *Reactor) observeFollowerPullRPCWait(submittedAt time.Time, result string, completedAt time.Time) {

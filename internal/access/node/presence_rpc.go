@@ -187,6 +187,11 @@ type PluginHTTPRouter interface {
 	Route(context.Context, string, *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
 }
 
+// ManagerLatestMessageReader reads one node-local newest-message page.
+type ManagerLatestMessageReader interface {
+	ListLocalLatestMessages(context.Context, uint64, int) (managementusecase.ListMessagesResponse, error)
+}
+
 // Options configures the internal node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -211,6 +216,8 @@ type Options struct {
 	ManagerChannels ManagerChannelReader
 	// ManagerMessageRetention handles manager message retention requests on the channel leader.
 	ManagerMessageRetention ManagerMessageRetentionOperator
+	// ManagerLatestMessages handles node-local latest-message index reads.
+	ManagerLatestMessages ManagerLatestMessageReader
 	// ManagerDBInspect handles node-local manager DB inspect requests.
 	ManagerDBInspect ManagerDBInspectReader
 	// ManagerAppLogs handles selected-node ordinary application log requests.
@@ -265,6 +272,8 @@ type Adapter struct {
 	managerChannels ManagerChannelReader
 	// managerMessageRetention advances message retention boundaries on the channel leader.
 	managerMessageRetention ManagerMessageRetentionOperator
+	// managerLatestMessages reads the node-local latest-message index.
+	managerLatestMessages ManagerLatestMessageReader
 	// managerDBInspect reads node-local DB inspect results for manager pages.
 	managerDBInspect ManagerDBInspectReader
 	// managerAppLogs reads selected-node ordinary application logs for manager pages.
@@ -312,6 +321,7 @@ func New(opts Options) *Adapter {
 		managerSlotRaft:          opts.ManagerSlotRaft,
 		managerChannels:          opts.ManagerChannels,
 		managerMessageRetention:  opts.ManagerMessageRetention,
+		managerLatestMessages:    opts.ManagerLatestMessages,
 		managerDBInspect:         opts.ManagerDBInspect,
 		managerAppLogs:           opts.ManagerAppLogs,
 		managerNodeConfig:        opts.ManagerNodeConfig,

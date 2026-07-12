@@ -1760,8 +1760,8 @@ export type ConnectionDetailParams = {
 }
 
 export type MessageListParams = {
-  channelId: string
-  channelType: number
+  channelId?: string
+  channelType?: number
   limit?: number
   cursor?: string
   messageId?: number

@@ -435,8 +435,12 @@ function buildDistributedTasksPath(params?: DistributedTaskListParams) {
 
 function buildMessageListPath(params: MessageListParams) {
   const search = new URLSearchParams()
-  search.set("channel_id", params.channelId)
-  search.set("channel_type", String(params.channelType))
+  if (params.channelId) {
+    search.set("channel_id", params.channelId)
+  }
+  if (typeof params.channelType === "number") {
+    search.set("channel_type", String(params.channelType))
+  }
   if (typeof params.limit === "number") {
     search.set("limit", String(params.limit))
   }
@@ -449,7 +453,8 @@ function buildMessageListPath(params: MessageListParams) {
   if (params.clientMsgNo) {
     search.set("client_msg_no", params.clientMsgNo)
   }
-  return `/manager/messages?${search.toString()}`
+  const query = search.toString()
+  return query ? `/manager/messages?${query}` : "/manager/messages"
 }
 
 function buildRecentConversationsPath(params: RecentConversationsParams) {

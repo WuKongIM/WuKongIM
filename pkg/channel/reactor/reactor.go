@@ -176,6 +176,8 @@ type runtimeChannel struct {
 	retentionWaiters map[ch.OpID]*retentionWaiter
 	// retentionCheckpointOp tracks the retention-owned checkpoint that unblocks future physical trim attempts.
 	retentionCheckpointOp ch.OpID
+	// committedCheckpointOp persists an HW learned after a record-free follower pull.
+	committedCheckpointOp ch.OpID
 	// due versions fence stale scheduler entries after channel state changes.
 	appendFlushDueVersion uint64
 	replicationDueVersion uint64

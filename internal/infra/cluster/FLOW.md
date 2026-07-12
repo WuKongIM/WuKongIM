@@ -246,6 +246,12 @@ seconds, clones payloads, applies the manager's optional message id and client
 message number filters within the returned page, and leaves cursor encoding and
 HTTP response shaping to `internal/access/manager`.
 
+For an unscoped latest query, the adapter reads the bounded node-local global
+message-ID index from every active or leaving data node with at most eight RPCs
+in flight, merges results by descending Snowflake message ID, verifies duplicate
+replicas agree, and returns only unique messages. Query cost is bounded by node
+count and page size rather than total channel count.
+
 ```text
 management.MessageRetentionOperator.AdvanceMessageRetention
   -> MessageRetentionNode.GetChannelRuntimeMeta

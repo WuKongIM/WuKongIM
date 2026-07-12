@@ -74,6 +74,45 @@ func TestFollowerParksAfterEmptyCaughtUpPull(t *testing.T) {
 	require.False(t, rc.replication.nextPullAt.IsZero())
 }
 
+func TestFollowerEmptyPullPersistsNewCommittedHW(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newCapturingTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 12)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("empty-pull-checkpoint")
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW: 0, LeaderLEO: 1,
+		Records: []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+	})
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	r.tickFollowerReplication(rc, time.Now())
+	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+	applyResult := sink.awaitResultKind(t, worker.TaskStoreApply)
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW: 1, LeaderLEO: 1,
+	})
+	r.handleStoreApplyResult(applyResult)
+	require.Equal(t, uint64(1), rc.state.LEO)
+	require.Zero(t, rc.state.HW)
+
+	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+	checkpointResult := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	r.handleStoreCheckpointResult(checkpointResult)
+
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	defer cs.Close()
+	initial, err := cs.Load(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), initial.CheckpointHW)
+}
+
 func TestRecoveryProbeSubmitFailureObserved(t *testing.T) {
 	obs := &captureObserver{}
 	factory := store.NewMemoryFactory()

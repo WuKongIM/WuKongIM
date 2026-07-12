@@ -1169,6 +1169,17 @@ describe("manager api client", () => {
     )
   })
 
+  it("fetches the cluster latest message page without channel filters", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ items: [], has_more: false }), { status: 200 }))
+
+    await getMessages({ limit: 50 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/messages?limit=50",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
 
   it("advances message retention through the manager endpoint", async () => {
     const response = {

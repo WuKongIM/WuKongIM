@@ -272,6 +272,8 @@ func messageFromRow(row messageRow) Message {
 	return Message{
 		MessageSeq:        row.MessageSeq,
 		MessageID:         row.MessageID,
+		ChannelID:         row.ChannelID,
+		ChannelType:       row.ChannelType,
 		ClientMsgNo:       row.ClientMsgNo,
 		FromUID:           row.FromUID,
 		PayloadHash:       row.PayloadHash,

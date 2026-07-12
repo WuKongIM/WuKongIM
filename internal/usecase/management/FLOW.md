@@ -625,8 +625,9 @@ the manager JSON shape remains compatible with the existing web page.
 ```text
 manager HTTP handler
   -> management.App.ListMessages
-  -> MessageReader.QueryMessages
-  -> committed channel message log
+  -> when channel_id is set: MessageReader.QueryMessages
+  -> when channel_id is empty: LatestMessageReader.QueryLatestMessages
+  -> committed channel message log / cluster-wide deduplicated latest page
   -> bounded manager message DTO rows
 
 manager HTTP handler
@@ -635,9 +636,11 @@ manager HTTP handler
   -> manager retention outcome
 ```
 
-Message list parsing, validation, cursor state, and response shaping stay in
-the access and management layers; committed-log reads are delegated through a
-narrow port. Message retention requests validate the legacy manager envelope
+Message list parsing, validation, mode-specific cursor state, and response
+shaping stay in the access and management layers; committed-log reads are
+delegated through narrow channel-scoped and cluster-latest ports. Unscoped
+queries reject channel-only filters and use a global message-ID cursor.
+Message retention requests validate the legacy manager envelope
 and delegate to an optional retention operator. The usecase owns no Slot,
 Channel, or storage details; the adapter decides whether the request can
 advance a cluster-authoritative logical compaction boundary. When no retention

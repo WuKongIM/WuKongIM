@@ -310,6 +310,41 @@ func (e *Engine) ListChannelsPage(ctx context.Context, after ChannelKey, limit i
 	return entries, cursor, more, toChannelError(err)
 }
 
+// ListLatestMessages returns one node-local newest-first message page.
+func (e *Engine) ListLatestMessages(ctx context.Context, beforeMessageID uint64, limit int) (LatestMessagePage, error) {
+	if err := ctx.Err(); err != nil {
+		return LatestMessagePage{}, err
+	}
+	if e == nil {
+		return LatestMessagePage{}, channel.ErrClosed
+	}
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return LatestMessagePage{}, channel.ErrClosed
+	}
+	page, err := db.ListLatestMessages(ctx, beforeMessageID, limit)
+	return page, toChannelError(err)
+}
+
+// DeleteLatestMessageIndexes removes manager-only global projection entries.
+func (e *Engine) DeleteLatestMessageIndexes(ctx context.Context, messageIDs []uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if e == nil {
+		return channel.ErrClosed
+	}
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return channel.ErrClosed
+	}
+	return toChannelError(db.DeleteLatestMessageIndexes(ctx, messageIDs))
+}
+
 // ListChannelKeys returns persisted channels with message or system state.
 func (e *Engine) ListChannelKeys() ([]channel.ChannelKey, error) {
 	if e == nil {
@@ -1024,7 +1059,7 @@ func (s *ChannelStore) applyFetchedRecords(ctx context.Context, req channel.Appl
 		return 0, err
 	}
 	s.log.appendMu.Lock()
-	checkpointLocked := req.Checkpoint != nil
+	checkpointLocked := req.Checkpoint != nil || req.CheckpointHW != nil
 	if checkpointLocked {
 		s.log.checkpointMu.Lock()
 	}
@@ -1146,7 +1181,7 @@ func storeApplyFetchBatchOwner(ctx context.Context, owner *Engine, items []Apply
 	for _, index := range indexes {
 		entry := items[index].Store.log.channelEntry
 		entries = append(entries, entry)
-		if items[index].Request.Checkpoint != nil {
+		if items[index].Request.Checkpoint != nil || items[index].Request.CheckpointHW != nil {
 			checkpointEntries = append(checkpointEntries, entry)
 			checkpointSet[entry] = struct{}{}
 		}
@@ -1271,6 +1306,9 @@ func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req
 	}
 	nextLEO := base + uint64(len(req.Records))
 	prepared := preparedCommitRows{store: s, baseOffset: base, nextLEO: nextLEO}
+	if req.Checkpoint != nil && req.CheckpointHW != nil {
+		return preparedCommitRows{}, channel.ErrInvalidArgument
+	}
 	if req.Checkpoint != nil {
 		if err := validateChannelCheckpoint(*req.Checkpoint); err != nil {
 			return preparedCommitRows{}, err
@@ -1283,6 +1321,24 @@ func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req
 		}
 		converted := checkpointFromChannel(*req.Checkpoint)
 		prepared.checkpoint = &converted
+	} else if req.CheckpointHW != nil {
+		if *req.CheckpointHW > nextLEO {
+			return preparedCommitRows{}, channel.ErrCorruptState
+		}
+		current, ok, err := s.log.loadCheckpoint(ctx)
+		if err != nil {
+			return preparedCommitRows{}, toChannelError(err)
+		}
+		if !ok {
+			current = Checkpoint{}
+		}
+		if *req.CheckpointHW > current.HW {
+			current.HW = *req.CheckpointHW
+			if err := s.log.validateCheckpointMonotonicLocked(ctx, current, nextLEO, nextLEO); err != nil {
+				return preparedCommitRows{}, toChannelError(err)
+			}
+			prepared.checkpoint = &current
+		}
 	}
 	if epochPoint != nil {
 		if epochPoint.StartOffset != base {
@@ -1297,7 +1353,7 @@ func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req
 			prepared.point = &converted
 		}
 	}
-	if len(req.Records) == 0 && req.Checkpoint == nil && prepared.point == nil {
+	if len(req.Records) == 0 && req.Checkpoint == nil && req.CheckpointHW == nil && prepared.point == nil {
 		return prepared, nil
 	}
 	rows, err := compatibilityRowsFromRecords(base+1, req.Records)

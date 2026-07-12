@@ -204,6 +204,11 @@ tickFollowerReplication
 The follower keeps at most one pull RPC, one pending pull response, one store
 apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
 apply directly drives the next pull instead of waiting for the due scheduler.
+Record-bearing applies advance the covered leader HW atomically with the rows
+while preserving existing checkpoint epoch/log-start fields. If a later empty
+pull advances HW after those rows were applied, the follower submits one fenced
+monotonic checkpoint so crash recovery retains the newly learned committed
+frontier.
 The pull piggybacks the follower's latest local LEO as `AckOffset`, so hot-path
 progress return does not depend on standalone ACK RPC delivery.
 RPC worker dispatchers may batch same-target `TaskRPCPull` and
@@ -329,7 +334,7 @@ TaskColdMetaResolve    -> unloaded authoritative metadata completion
 TaskColdStoreLoad      -> authority-proven unloaded store completion
 TaskStoreReadLog       -> leader pull completion
 TaskStoreLookupMessage -> committed message lookup completion
-TaskStoreCheckpoint    -> leader checkpoint or follower stop checkpoint
+TaskStoreCheckpoint    -> leader, follower stop, retention, or committed-HW checkpoint
 TaskStoreClose         -> detached store close completion (no state mutation)
 TaskStoreRetention     -> retention adoption and optional physical trim completion
 TaskRPCPull            -> follower pull completion

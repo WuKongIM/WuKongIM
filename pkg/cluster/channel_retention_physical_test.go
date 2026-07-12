@@ -75,6 +75,79 @@ func TestChannelRetentionGCOnceContinuesAfterChannelError(t *testing.T) {
 	}
 }
 
+func TestReadLocalLatestMessagesExcludesRowsAboveCommittedHW(t *testing.T) {
+	node, runtime := newChannelRetentionGCNode(t)
+	id := channelruntime.ChannelID{ID: "latest-committed", Type: 1}
+	seedChannelRetentionCatalogAndMeta(t, node, id, 2, 0)
+	runtime.probe = channelruntime.RuntimeProbeResult{Channels: []channelruntime.RuntimeProbeChannel{{ChannelID: id, HW: 1}}}
+
+	items, hasMore, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 10)
+	if err != nil {
+		t.Fatalf("ReadLocalLatestMessages() error = %v", err)
+	}
+	if hasMore || len(items) != 1 || items[0].MessageID != 1 || items[0].MessageSeq != 1 {
+		t.Fatalf("items = %#v hasMore=%v, want only committed message 1", items, hasMore)
+	}
+}
+
+func TestReadLocalLatestMessagesRecoversSingleReplicaCommittedLEO(t *testing.T) {
+	node, _ := newChannelRetentionGCNode(t)
+	id := channelruntime.ChannelID{ID: "latest-single-replica", Type: 1}
+	seedChannelRetentionCatalogAndMeta(t, node, id, 2, 0)
+
+	items, hasMore, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 10)
+	if err != nil {
+		t.Fatalf("ReadLocalLatestMessages() error = %v", err)
+	}
+	if hasMore || len(items) != 2 || items[0].MessageID != 2 || items[1].MessageID != 1 {
+		t.Fatalf("items = %#v hasMore=%v, want recovered committed 2,1", items, hasMore)
+	}
+}
+
+func TestReadLocalLatestMessagesRecoversMinISROneLeaderLEO(t *testing.T) {
+	node, _ := newChannelRetentionGCNode(t)
+	id := channelruntime.ChannelID{ID: "latest-min-isr-one", Type: 1}
+	seedChannelRetentionCatalogAndMeta(t, node, id, 2, 0)
+	route := waitRouteKeyLeaderReady(t, node, id.ID)
+	shard := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot)
+	if err := shard.DeleteChannelRuntimeMeta(context.Background(), id.ID, int64(id.Type)); err != nil {
+		t.Fatalf("DeleteChannelRuntimeMeta(): %v", err)
+	}
+	err := shard.UpsertChannelRuntimeMeta(context.Background(), metadb.ChannelRuntimeMeta{
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+		RouteGeneration: 1, Replicas: []uint64{node.NodeID(), 2}, ISR: []uint64{node.NodeID(), 2},
+		Leader: node.NodeID(), MinISR: 1, Status: uint8(channelruntime.StatusActive),
+	})
+	if err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+
+	items, hasMore, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 10)
+	if err != nil {
+		t.Fatalf("ReadLocalLatestMessages() error = %v", err)
+	}
+	if hasMore || len(items) != 2 || items[0].MessageID != 2 || items[1].MessageID != 1 {
+		t.Fatalf("items = %#v hasMore=%v, want recovered committed 2,1", items, hasMore)
+	}
+}
+
+func TestReadLocalLatestMessagesBoundsHiddenRetentionScan(t *testing.T) {
+	node, runtime := newChannelRetentionGCNode(t)
+	id := channelruntime.ChannelID{ID: "latest-retained", Type: 1}
+	const messages = latestMessageScanMinBudget + 1
+	seedChannelRetentionCatalogAndMeta(t, node, id, messages, messages)
+	runtime.probe = channelruntime.RuntimeProbeResult{Channels: []channelruntime.RuntimeProbeChannel{{ChannelID: id, HW: messages}}}
+
+	_, _, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 1)
+	if !errors.Is(err, channelruntime.ErrBackpressured) {
+		t.Fatalf("ReadLocalLatestMessages() error = %v, want bounded scan backpressure", err)
+	}
+	items, hasMore, _, err := node.ReadLocalLatestMessages(context.Background(), 0, 1)
+	if err != nil || hasMore || len(items) != 0 {
+		t.Fatalf("ReadLocalLatestMessages(after cleanup) items=%#v hasMore=%v err=%v, want completed empty page", items, hasMore, err)
+	}
+}
+
 func newChannelRetentionGCNode(t *testing.T) (*Node, *recordingRetentionChannelService) {
 	t.Helper()
 	node := newDefaultSingleNode(t)
@@ -134,6 +207,7 @@ func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelrunt
 type recordingRetentionChannelService struct {
 	results   map[channelruntime.ChannelID]channelruntime.RetentionApplyResult
 	applyErrs map[channelruntime.ChannelID]error
+	probe     channelruntime.RuntimeProbeResult
 
 	lastApply  channelruntime.RetentionApplyRequest
 	applyCalls int
@@ -160,7 +234,7 @@ func (s *recordingRetentionChannelService) RuntimeSnapshot(context.Context) (cha
 }
 
 func (s *recordingRetentionChannelService) RuntimeProbe(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
-	return channelruntime.RuntimeProbeResult{}, nil
+	return s.probe, nil
 }
 
 func (s *recordingRetentionChannelService) RuntimeEvict(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {

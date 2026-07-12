@@ -482,6 +482,18 @@ func (a *App) wireManagerMessageRetentionRPC() {
 	registrar.RegisterRPC(accessnode.ManagerMessageRetentionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerMessageRetentionRPC))
 }
 
+func (a *App) wireManagerLatestMessageRPC() {
+	readNode, hasReadNode := a.cluster.(clusterinfra.ChannelMessageReadNode)
+	_, hasLatestNode := a.cluster.(clusterinfra.ManagementLatestMessageNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasReadNode || !hasLatestNode || !hasRegistrar {
+		return
+	}
+	reader := clusterinfra.NewManagementMessageReader(readNode)
+	adapter := accessnode.New(accessnode.Options{ManagerLatestMessages: reader, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerLatestMessagesRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerLatestMessagesRPC))
+}
+
 func (a *App) wireManagerDBInspectRPC() {
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasRegistrar {
@@ -1000,7 +1012,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.UserActions = a.presenceAuthorityClient
 		}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
-			opts.Messages = clusterinfra.NewManagementMessageReader(readNode)
+			reader := clusterinfra.NewManagementMessageReader(readNode)
+			opts.Messages = reader
+			opts.LatestMessages = reader
 		}
 		if retentionNode, ok := a.cluster.(clusterinfra.MessageRetentionNode); ok {
 			opts.MessageRetention = clusterinfra.NewManagementMessageRetentionOperator(retentionNode)

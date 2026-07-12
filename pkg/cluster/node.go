@@ -50,6 +50,22 @@ type channelService interface {
 	Close() error
 }
 
+const (
+	latestMessageScanBatch      = 64
+	latestMessageScanMinBudget  = 512
+	latestMessageScanMultiplier = 16
+)
+
+type localLatestChannelKey struct {
+	id  string
+	typ uint8
+}
+
+type localLatestVisibility struct {
+	hw               uint64
+	retentionThrough uint64
+}
+
 // Node is the cluster lifecycle root and public runtime facade.
 type Node struct {
 	cfg              Config
@@ -612,6 +628,153 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelruntime.Chann
 	}
 	req.MinSeq = maxReadCommittedMinSeq(req.MinSeq, minAvailableSeq(meta.RetentionThroughSeq))
 	return store.ReadCommitted(ctx, req)
+}
+
+// ReadLocalLatestMessages reads one newest-first page from this node's persisted message replicas.
+func (n *Node) ReadLocalLatestMessages(ctx context.Context, beforeMessageID uint64, limit int) ([]channelruntime.Message, bool, uint64, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, false, 0, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, false, 0, err
+	}
+	storeFactory := n.localChannelStoreFactory()
+	if storeFactory == nil {
+		return nil, false, 0, ErrNotStarted
+	}
+	latestStore, ok := storeFactory.(interface {
+		ListLatestMessages(context.Context, uint64, int) ([]channelruntime.Message, bool, uint64, error)
+		DeleteLatestMessageIndexes(context.Context, []uint64) error
+	})
+	if !ok {
+		return nil, false, 0, channelruntime.ErrInvalidConfig
+	}
+	if limit <= 0 {
+		return nil, false, 0, channelruntime.ErrInvalidConfig
+	}
+	if n.defaultSlotMetaDB == nil {
+		return nil, false, 0, ErrNotStarted
+	}
+
+	visibility := make(map[localLatestChannelKey]localLatestVisibility)
+	visible := make([]channelruntime.Message, 0, limit+1)
+	scanBefore := beforeMessageID
+	scanLimit := max(limit+1, latestMessageScanBatch)
+	scanBudget := max(latestMessageScanMinBudget, limit*latestMessageScanMultiplier)
+	scanned := 0
+	for {
+		remaining := scanBudget - scanned
+		if remaining <= 0 {
+			return nil, false, 0, channelruntime.ErrBackpressured
+		}
+		items, hasMore, next, err := latestStore.ListLatestMessages(ctx, scanBefore, min(scanLimit, remaining))
+		if err != nil {
+			return nil, false, 0, err
+		}
+		scanned += len(items)
+		if err := n.loadLocalLatestVisibility(ctx, storeFactory, items, visibility); err != nil {
+			return nil, false, 0, err
+		}
+		retainedMessageIDs := make([]uint64, 0)
+		pageFull := false
+		for _, item := range items {
+			state := visibility[localLatestChannelKey{id: item.ChannelID, typ: item.ChannelType}]
+			if item.MessageSeq <= state.retentionThrough {
+				retainedMessageIDs = append(retainedMessageIDs, item.MessageID)
+				continue
+			}
+			if item.MessageSeq > state.hw {
+				continue
+			}
+			visible = append(visible, item)
+			if len(visible) == limit+1 {
+				pageFull = true
+				break
+			}
+		}
+		if len(retainedMessageIDs) > 0 {
+			if err := latestStore.DeleteLatestMessageIndexes(ctx, retainedMessageIDs); err != nil {
+				return nil, false, 0, err
+			}
+		}
+		if pageFull {
+			return visible[:limit], true, visible[limit-1].MessageID, nil
+		}
+		if !hasMore || next == 0 || next == scanBefore {
+			break
+		}
+		if scanned >= scanBudget {
+			return nil, false, 0, channelruntime.ErrBackpressured
+		}
+		scanBefore = next
+	}
+	return visible, false, 0, nil
+}
+
+func (n *Node) loadLocalLatestVisibility(ctx context.Context, storeFactory channelstore.Factory, items []channelruntime.Message, cache map[localLatestChannelKey]localLatestVisibility) error {
+	unknown := make([]channelruntime.ChannelID, 0, len(items))
+	seen := make(map[localLatestChannelKey]struct{}, len(items))
+	for _, item := range items {
+		key := localLatestChannelKey{id: item.ChannelID, typ: item.ChannelType}
+		if _, ok := cache[key]; ok {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unknown = append(unknown, channelruntime.ChannelID{ID: item.ChannelID, Type: item.ChannelType})
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	if n.channels == nil {
+		return ErrNotStarted
+	}
+	probe, err := n.channels.RuntimeProbe(ctx, channelruntime.RuntimeSelector{ChannelIDs: unknown})
+	if err != nil {
+		return err
+	}
+	runtimeHW := make(map[localLatestChannelKey]uint64, len(probe.Channels))
+	for _, channel := range probe.Channels {
+		runtimeHW[localLatestChannelKey{id: channel.ChannelID.ID, typ: channel.ChannelID.Type}] = channel.HW
+	}
+	for _, id := range unknown {
+		key := localLatestChannelKey{id: id.ID, typ: id.Type}
+		route, err := n.RouteKey(id.ID)
+		if err != nil {
+			return err
+		}
+		meta, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+		if err != nil {
+			return err
+		}
+		hw, loaded := runtimeHW[key]
+		if !loaded {
+			store, err := storeFactory.ChannelStore(channelruntime.ChannelKeyForID(id), id)
+			if err != nil {
+				return err
+			}
+			state, loadErr := store.Load(ctx)
+			closeErr := store.Close()
+			if loadErr != nil {
+				return loadErr
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+			hw = state.HW
+			if localLeaderCommitsOwnLEO(meta, n.NodeID()) {
+				hw = state.LEO
+			}
+		}
+		cache[key] = localLatestVisibility{hw: hw, retentionThrough: meta.RetentionThroughSeq}
+	}
+	return nil
+}
+
+func localLeaderCommitsOwnLEO(meta metadb.ChannelRuntimeMeta, localNodeID uint64) bool {
+	return meta.Leader == localNodeID && meta.MinISR <= 1
 }
 
 // LookupChannelIdempotency reads one local Channel idempotency index entry.

@@ -89,6 +89,8 @@ const (
 	RPCMessageEventAppend
 	// RPCManagerNodeConfig serves internal selected-node effective config reads.
 	RPCManagerNodeConfig
+	// RPCManagerLatestMessages serves node-local newest-message index reads.
+	RPCManagerLatestMessages
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -159,6 +161,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager plugins"
 	case RPCManagerNodeConfig:
 		return "manager node config"
+	case RPCManagerLatestMessages:
+		return "manager latest messages"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
 	case RPCNodeLifecycle:

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -12,6 +12,7 @@ const getMessagesMock = vi.fn()
 const getChannelRuntimeMetaMock = vi.fn()
 const advanceMessageRetentionMock = vi.fn()
 const writeTextMock = vi.fn()
+const emptyMessagesPage = { items: [], has_more: false }
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -27,6 +28,7 @@ beforeEach(() => {
   localStorage.clear()
   resetLocale()
   getMessagesMock.mockReset()
+  getMessagesMock.mockResolvedValue(emptyMessagesPage)
   getChannelRuntimeMetaMock.mockReset()
   getChannelRuntimeMetaMock.mockResolvedValue({ items: [], has_more: false })
   advanceMessageRetentionMock.mockReset()
@@ -158,7 +160,68 @@ test("auto-runs a message query from URL channel params", async () => {
   expect(screen.getByLabelText("Channel type")).toHaveValue(2)
 })
 
+test("shows the latest messages across the cluster by default", async () => {
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 201,
+      message_seq: 7,
+      client_msg_no: "c-201",
+      channel_id: "room-latest",
+      channel_type: 2,
+      from_uid: "u2",
+      timestamp: 1713859300,
+      payload: "bGF0ZXN0",
+    }],
+    has_more: false,
+  })
+
+  renderMessagesPage()
+
+  expect(await screen.findByText("c-201")).toBeInTheDocument()
+  expect(screen.getByText("Scope: latest across cluster")).toBeInTheDocument()
+  expect(screen.getByText("room-latest")).toBeInTheDocument()
+  expect(getMessagesMock).toHaveBeenCalledWith({ limit: 50, clientMsgNo: "" })
+})
+
+test("does not let a slow default latest request replace a newer channel query", async () => {
+  let resolveDefault!: (page: typeof emptyMessagesPage) => void
+  getMessagesMock.mockImplementationOnce(() => new Promise((resolve) => {
+    resolveDefault = resolve
+  }))
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 301,
+      message_seq: 9,
+      client_msg_no: "channel-result",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859400,
+      payload: "",
+    }],
+    has_more: false,
+  })
+
+  const user = userEvent.setup()
+  renderMessagesPage()
+  await waitFor(() => expect(getMessagesMock).toHaveBeenCalledTimes(1))
+
+  await user.type(screen.getByLabelText("Channel ID"), "room-1")
+  await user.clear(screen.getByLabelText("Channel type"))
+  await user.type(screen.getByLabelText("Channel type"), "2")
+  await user.click(screen.getByRole("button", { name: "Search" }))
+  expect(await screen.findByText("channel-result")).toBeInTheDocument()
+
+  await act(async () => {
+    resolveDefault({ items: [], has_more: false })
+  })
+
+  expect(screen.getByText("channel-result")).toBeInTheDocument()
+  expect(screen.getByText("Scope: channel room-1")).toBeInTheDocument()
+})
+
 test("submits a message query and renders rows", async () => {
+  getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
       message_id: 101,
@@ -193,6 +256,7 @@ test("submits a message query and renders rows", async () => {
 
 test("keeps long payload text constrained to the payload column", async () => {
   const longPayload = "s".repeat(160)
+  getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
       message_id: 101,
@@ -255,6 +319,7 @@ test("loads fuzzy channel suggestions from the channel ID input and applies the 
 })
 
 test("loads the next page with the same filters", async () => {
+  getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
       message_id: 101,
@@ -295,7 +360,7 @@ test("loads the next page with the same filters", async () => {
   expect(await screen.findByText("c-101")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Load more" }))
 
-  expect(getMessagesMock).toHaveBeenNthCalledWith(2, {
+  expect(getMessagesMock).toHaveBeenNthCalledWith(3, {
     channelId: "room-1",
     channelType: 2,
     limit: 50,
@@ -306,6 +371,7 @@ test("loads the next page with the same filters", async () => {
 })
 
 test("opens message detail, toggles payload format, and copies the visible payload", async () => {
+  getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
     items: [{
       message_id: 101,

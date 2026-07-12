@@ -92,6 +92,8 @@ type ApplyFetchStoreRequest struct {
 	PreviousCommittedHW uint64
 	Records             []Record
 	Checkpoint          *Checkpoint
+	// CheckpointHW advances only HW while preserving durable epoch and log-start fields.
+	CheckpointHW *uint64
 }
 
 // RetentionState records durable local retention progress for one channel.

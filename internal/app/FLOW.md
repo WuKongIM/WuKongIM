@@ -157,6 +157,10 @@ New(Config)
      Channel runtime retention metadata APIs are available, exposing this node's
      channel-leader logical compaction boundary advance path to peer manager
      operators without allowing recursive forwarding on the receiver
+  -> register the manager latest-message RPC handler when the shared message
+     store and node RPC are available, exposing only this node's indexed local
+     replicas so the origin manager can perform bounded cluster fan-out and
+     replica deduplication
   -> create the app-level DB Inspect reader from derived node-local storage
      roots when message and Slot metadata DB paths are available; register the
      manager DB inspect RPC handler when node RPC is available so peer manager
@@ -296,7 +300,9 @@ New(Config)
      local app inspect reader for empty or
      local `node_id` and route non-local `node_id` through the manager DB
      inspect node RPC reader, user writes reuse the internal user usecase and
-     optional presence owner-action routing, and message retention requests use
+     optional presence owner-action routing, unscoped message reads fan out to
+     node-local latest-message indexes and deduplicate replicas, and message
+     retention requests use
      the Slot-backed management retention adapter when the cluster exposes
      channel runtime metadata reads, committed message reads, and fenced
      retention advances; otherwise retention returns unavailable; diagnostics

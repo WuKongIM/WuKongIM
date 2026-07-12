@@ -43,6 +43,10 @@ type Message struct {
 	MessageSeq uint64
 	// MessageID is the stable message ID.
 	MessageID uint64
+	// ChannelID identifies the user-facing channel that owns the message.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType uint8
 	// ClientMsgNo is the optional client-provided message number.
 	ClientMsgNo string
 	// FromUID is the optional sender UID used with ClientMsgNo for idempotency.

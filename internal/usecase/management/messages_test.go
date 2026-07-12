@@ -39,13 +39,37 @@ func TestListMessagesMapsQueryPage(t *testing.T) {
 	}
 }
 
+func TestListMessagesMapsClusterLatestPage(t *testing.T) {
+	reader := &fakeLatestMessageReader{result: LatestMessageQueryPage{
+		Items:   []Message{{MessageID: 103, MessageSeq: 7, ChannelID: "room-2", ChannelType: 2}},
+		HasMore: true, NextBeforeMessageID: 103,
+	}}
+	app := New(Options{LatestMessages: reader})
+
+	got, err := app.ListMessages(context.Background(), ListMessagesRequest{
+		Limit: 1, Cursor: MessageListCursor{BeforeMessageID: 110},
+	})
+	if err != nil {
+		t.Fatalf("ListMessages(latest) error = %v", err)
+	}
+	if reader.lastReq != (LatestMessageQueryRequest{BeforeMessageID: 110, Limit: 1}) {
+		t.Fatalf("latest request = %#v", reader.lastReq)
+	}
+	if len(got.Items) != 1 || got.Items[0].MessageID != 103 || !got.HasMore || got.NextCursor.BeforeMessageID != 103 {
+		t.Fatalf("latest result = %#v", got)
+	}
+}
+
 func TestListMessagesRejectsInvalidRequest(t *testing.T) {
-	app := New(Options{Messages: &fakeMessageReader{}})
+	app := New(Options{Messages: &fakeMessageReader{}, LatestMessages: &fakeLatestMessageReader{}})
 	for _, req := range []ListMessagesRequest{
 		{ChannelID: "", ChannelType: 2, Limit: 10},
+		{ChannelID: "", Limit: 10, MessageID: 1},
+		{ChannelID: "", Limit: 10, Cursor: MessageListCursor{BeforeSeq: 2}},
 		{ChannelID: "room-1", ChannelType: 0, Limit: 10},
 		{ChannelID: "room-1", ChannelType: 256, Limit: 10},
 		{ChannelID: "room-1", ChannelType: 2, Limit: 0},
+		{ChannelID: "room-1", ChannelType: 2, Limit: 10, Cursor: MessageListCursor{BeforeMessageID: 2}},
 	} {
 		_, err := app.ListMessages(context.Background(), req)
 		if !errors.Is(err, metadb.ErrInvalidArgument) {
@@ -120,6 +144,17 @@ type fakeMessageReader struct {
 	lastReq MessageQueryRequest
 	result  MessageQueryPage
 	err     error
+}
+
+type fakeLatestMessageReader struct {
+	lastReq LatestMessageQueryRequest
+	result  LatestMessageQueryPage
+	err     error
+}
+
+func (f *fakeLatestMessageReader) QueryLatestMessages(_ context.Context, req LatestMessageQueryRequest) (LatestMessageQueryPage, error) {
+	f.lastReq = req
+	return f.result, f.err
 }
 
 func (f *fakeMessageReader) QueryMessages(_ context.Context, req MessageQueryRequest) (MessageQueryPage, error) {

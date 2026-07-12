@@ -32,7 +32,16 @@ Current flow:
    row keyspace to fetch the newest message above a visibility boundary without
    scanning the full channel or recovering LEO.
 6. `GetByMessageID`, `ListByClientMsgNo`, and `LookupIdempotency` use typed
-   secondary indexes and verify indexed rows before returning.
+   secondary indexes and verify indexed rows before returning. The shared
+   message engine also maintains a global `message_id` index so node-local
+   newest-message pages are bounded by page size instead of channel count;
+   truncation and retention remove that index entry atomically with the row.
+   A version marker gates reads while a resumable, idempotent background
+   backfill adds index entries for databases created before the index existed.
+   The backfill persists its channel/message cursor with each bounded batch and
+   pauses between batches; callers receive an explicit building error instead
+   of a partial page. Reads also bound raw index scans and delete dangling
+   projection keys left by concurrent truncate/backfill races.
 7. Checkpoint, epoch history, and snapshot payload APIs store channel system
    state under the message system keyspace; snapshot install persists payload,
    checkpoint, and epoch point in one batch.

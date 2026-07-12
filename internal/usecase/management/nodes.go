@@ -157,6 +157,8 @@ type Options struct {
 	Conversations ConversationSyncer
 	// Messages reads committed channel messages for manager pages.
 	Messages MessageReader
+	// LatestMessages reads cluster-wide newest messages for manager pages.
+	LatestMessages LatestMessageReader
 	// MessageRetention advances channel message retention boundaries.
 	MessageRetention MessageRetentionOperator
 	// Connections reads owner-local gateway session snapshots for manager connection pages.
@@ -263,6 +265,8 @@ type messageManagementDeps struct {
 	conversations ConversationSyncer
 	// messages reads committed channel messages.
 	messages MessageReader
+	// latestMessages reads cluster-wide newest messages.
+	latestMessages LatestMessageReader
 	// messageRetention advances message retention boundaries.
 	messageRetention MessageRetentionOperator
 }
@@ -339,7 +343,7 @@ func New(opts Options) *App {
 			connections: opts.Connections, remoteConnections: opts.RemoteConnections,
 		},
 		messageManagementDeps: messageManagementDeps{
-			conversations: opts.Conversations, messages: opts.Messages, messageRetention: opts.MessageRetention,
+			conversations: opts.Conversations, messages: opts.Messages, latestMessages: opts.LatestMessages, messageRetention: opts.MessageRetention,
 		},
 		operationsManagementDeps: operationsManagementDeps{
 			plugins: opts.Plugins, remotePlugins: opts.RemotePlugins, pluginBindings: opts.PluginBindings,

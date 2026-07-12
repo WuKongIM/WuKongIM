@@ -51,6 +51,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_diagnostics":       RPCManagerDiagnostics,
 		"manager_plugins":           RPCManagerPlugins,
 		"manager_node_config":       RPCManagerNodeConfig,
+		"manager_latest_messages":   RPCManagerLatestMessages,
 		"manager_message_retention": RPCManagerMessageRetention,
 		"node_lifecycle":            RPCNodeLifecycle,
 		"plugin_binding_scan":       RPCPluginBindingScan,

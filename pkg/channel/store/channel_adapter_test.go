@@ -628,6 +628,41 @@ func TestStoreApplyFetchRecordsPrefersTrustedPath(t *testing.T) {
 	require.Zero(t, store.strictCalls)
 }
 
+func TestFollowerApplyCheckpointCapsLeaderHWAtAppliedTail(t *testing.T) {
+	records := []channel.Record{{Index: 4}, {Index: 5}}
+	checkpoint := followerApplyCheckpointHW(records, 9)
+	require.NotNil(t, checkpoint)
+	require.Equal(t, uint64(5), *checkpoint)
+	require.Nil(t, followerApplyCheckpointHW(nil, 9))
+}
+
+func TestFollowerApplyCheckpointPreservesEpochAndLogStart(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "follower-checkpoint-fields", Type: 1}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	closeChannelStoreOnCleanup(t, cs)
+
+	_, err = cs.ApplyFollower(ctx, ApplyFollowerRequest{
+		Records:  []ch.Record{{ID: 1, Index: 1}, {ID: 2, Index: 2}},
+		LeaderHW: 2,
+	})
+	require.NoError(t, err)
+	adapter := cs.(*messageDBChannelStoreAdapter)
+	require.NoError(t, adapter.store.StoreCheckpoint(channel.Checkpoint{Epoch: 7, LogStartOffset: 1, HW: 2}))
+
+	_, err = cs.ApplyFollower(ctx, ApplyFollowerRequest{
+		Records:  []ch.Record{{ID: 3, Index: 3}},
+		LeaderHW: 3,
+	})
+	require.NoError(t, err)
+	checkpoint, err := adapter.store.LoadCheckpoint()
+	require.NoError(t, err)
+	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 1, HW: 3}, checkpoint)
+}
+
 type trustedApplyFetchRecorder struct {
 	leo          uint64
 	strictCalls  int

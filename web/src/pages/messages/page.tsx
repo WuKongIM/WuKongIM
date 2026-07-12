@@ -125,6 +125,7 @@ export function MessagesPage() {
     error: false,
   })
   const autoQueryStartedRef = useRef(false)
+  const messageRequestRef = useRef(0)
   const channelSuggestionRequestRef = useRef(0)
   const [state, setState] = useState<MessagesState>({
     messages: null,
@@ -136,6 +137,8 @@ export function MessagesPage() {
   })
 
   const runQuery = useCallback(async (nextQuery: SubmittedQuery, refreshing: boolean, cursor?: string) => {
+    const requestID = messageRequestRef.current + 1
+    messageRequestRef.current = requestID
     setState((current) => ({
       ...current,
       loading: !refreshing && !cursor,
@@ -147,13 +150,15 @@ export function MessagesPage() {
 
     try {
       const page = await getMessages({
-        channelId: nextQuery.channelId,
-        channelType: nextQuery.channelType,
+        ...(nextQuery.channelId ? { channelId: nextQuery.channelId, channelType: nextQuery.channelType } : {}),
         limit: 50,
         cursor,
         messageId: nextQuery.messageId,
         clientMsgNo: nextQuery.clientMsgNo,
       })
+      if (messageRequestRef.current !== requestID) {
+        return
+      }
       setState((current) => ({
         messages: cursor && current.messages
           ? {
@@ -169,6 +174,9 @@ export function MessagesPage() {
         error: null,
       }))
     } catch (error) {
+      if (messageRequestRef.current !== requestID) {
+        return
+      }
       setState((current) => ({
         ...current,
         messages: cursor ? current.messages : null,
@@ -189,7 +197,15 @@ export function MessagesPage() {
 
     const channelId = initialChannelId.trim()
     const channelType = Number(initialChannelType)
-    if (!channelId || !Number.isInteger(channelType) || channelType <= 0) {
+
+    if (!channelId) {
+      const nextQuery: SubmittedQuery = { channelId: "", channelType: 0, clientMsgNo: "" }
+      setValidationError(null)
+      setSubmitted(nextQuery)
+      void runQuery(nextQuery, false)
+      return
+    }
+    if (!Number.isInteger(channelType) || channelType <= 0) {
       return
     }
 
@@ -388,7 +404,9 @@ export function MessagesPage() {
           <div className="mt-1 flex flex-wrap gap-3 text-sm text-muted-foreground">
             <span>
               {submitted
-                ? intl.formatMessage({ id: "messages.scopeValue" }, { id: submitted.channelId })
+                ? submitted.channelId
+                  ? intl.formatMessage({ id: "messages.scopeValue" }, { id: submitted.channelId })
+                  : intl.formatMessage({ id: "messages.scopeLatest" })
                 : intl.formatMessage({ id: "messages.scopePending" })}
             </span>
             <span>
@@ -574,10 +592,11 @@ export function MessagesPage() {
               <div className="overflow-x-auto rounded-md border border-border">
                 <table
                   aria-label={intl.formatMessage({ id: "nav.messages.title" })}
-                  className="w-full min-w-[1080px] table-fixed border-collapse text-sm"
+                  className="w-full min-w-[1220px] table-fixed border-collapse text-sm"
                 >
                   <colgroup>
                     <col className="w-[4.5rem]" />
+                    <col className="w-[14rem]" />
                     <col className="w-[12rem]" />
                     <col className="w-[22rem]" />
                     <col className="w-[9rem]" />
@@ -588,6 +607,7 @@ export function MessagesPage() {
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.seq" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.channel" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.messageId" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.clientMsgNo" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.fromUid" })}</th>
@@ -600,6 +620,10 @@ export function MessagesPage() {
                     {state.messages.items.map((message) => (
                       <tr className="border-t border-border" key={`${message.message_seq}-${message.message_id}`}>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{message.message_seq}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">{message.channel_id}</span>
+                          <span className="ml-2 text-xs">· {message.channel_type}</span>
+                        </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{message.message_id}</td>
                         <td className="px-3 py-3 text-sm font-medium text-foreground">{message.client_msg_no || "-"}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{message.from_uid || "-"}</td>

@@ -85,6 +85,53 @@ func encodeMessageIdempotencyIndexKey(channelKey ChannelKey, fromUID string, cli
 	return keycodec.AppendString(key, clientMsgNo)
 }
 
+func encodeGlobalMessageIDIndexPrefix() []byte {
+	var builder keycodec.Builder
+	return builder.Reset().
+		Domain(keycodec.DomainMessage).
+		Partition(keycodec.PartitionGlobal, nil).
+		Index(TableIDMessage, messageIndexIDGlobalMessageID).
+		Key()
+}
+
+func encodeGlobalMessageIDIndexKey(messageID uint64) []byte {
+	return keycodec.AppendUint64(encodeGlobalMessageIDIndexPrefix(), messageID)
+}
+
+func decodeGlobalMessageIDIndexKey(key []byte) (uint64, bool) {
+	prefix := encodeGlobalMessageIDIndexPrefix()
+	if !bytes.HasPrefix(key, prefix) || len(key) != len(prefix)+8 {
+		return 0, false
+	}
+	return binary.BigEndian.Uint64(key[len(prefix):]), true
+}
+
+func decodeMessageIDIndexKey(channelKey ChannelKey, key []byte) (uint64, bool) {
+	prefix := encodeMessageIndexPrefix(channelKey, messageIndexIDMessageID)
+	if !bytes.HasPrefix(key, prefix) || len(key) != len(prefix)+8 {
+		return 0, false
+	}
+	return binary.BigEndian.Uint64(key[len(prefix):]), true
+}
+
+func encodeGlobalLatestIndexStateKey() []byte {
+	var builder keycodec.Builder
+	return builder.Reset().
+		Domain(keycodec.DomainMessage).
+		Partition(keycodec.PartitionGlobal, nil).
+		System(TableIDMessage, messageSystemIDLatestIndex).
+		Key()
+}
+
+func encodeGlobalLatestIndexProgressKey() []byte {
+	var builder keycodec.Builder
+	return builder.Reset().
+		Domain(keycodec.DomainMessage).
+		Partition(keycodec.PartitionGlobal, nil).
+		System(TableIDMessage, messageSystemIDLatestIndexProgress).
+		Key()
+}
+
 func encodeMessageSystemPrefix(channelKey ChannelKey, systemID uint16) []byte {
 	var builder keycodec.Builder
 	return builder.Reset().

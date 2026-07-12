@@ -291,6 +291,9 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 		return
 	}
 	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
+		if result.Fence.OpID == rc.committedCheckpointOp {
+			rc.committedCheckpointOp = 0
+		}
 		if rc.lifecycle.checkpoint.inflight && result.Fence.OpID == rc.lifecycle.checkpoint.opID {
 			resetLeaderCheckpointLifecycle(rc)
 		}
@@ -298,6 +301,9 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 			rc.retentionCheckpointOp = 0
 		}
 		return
+	}
+	if result.Fence.OpID == rc.committedCheckpointOp {
+		rc.committedCheckpointOp = 0
 	}
 	if result.Fence.OpID == rc.retentionCheckpointOp {
 		rc.retentionCheckpointOp = 0

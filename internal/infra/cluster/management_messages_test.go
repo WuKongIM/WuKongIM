@@ -40,6 +40,30 @@ func TestManagementMessageReaderReadsCommittedMessagesDescending(t *testing.T) {
 	}
 }
 
+func TestMergeLatestMessagePagesOrdersAndDeduplicatesReplicas(t *testing.T) {
+	message105 := managementusecase.Message{MessageID: 105, MessageSeq: 5, ChannelID: "a", ChannelType: 2, Payload: []byte("same")}
+	page, err := mergeLatestMessagePages([]latestMessageNodePage{
+		{nodeID: 2, items: []managementusecase.Message{message105, {MessageID: 103, MessageSeq: 3, ChannelID: "c", ChannelType: 2}}},
+		{nodeID: 1, items: []managementusecase.Message{{MessageID: 104, MessageSeq: 4, ChannelID: "b", ChannelType: 2}, message105}},
+	}, 2)
+	if err != nil {
+		t.Fatalf("mergeLatestMessagePages(): %v", err)
+	}
+	if len(page.Items) != 2 || page.Items[0].MessageID != 105 || page.Items[1].MessageID != 104 || !page.HasMore || page.NextBeforeMessageID != 104 {
+		t.Fatalf("page = %#v, want 105,104 and more", page)
+	}
+}
+
+func TestMergeLatestMessagePagesRejectsReplicaMismatch(t *testing.T) {
+	_, err := mergeLatestMessagePages([]latestMessageNodePage{
+		{nodeID: 1, items: []managementusecase.Message{{MessageID: 105, MessageSeq: 5, ChannelID: "a", ChannelType: 2}}},
+		{nodeID: 2, items: []managementusecase.Message{{MessageID: 105, MessageSeq: 6, ChannelID: "a", ChannelType: 2}}},
+	}, 2)
+	if err == nil {
+		t.Fatal("mergeLatestMessagePages() error = nil, want replica mismatch")
+	}
+}
+
 type recordingManagementMessageNode struct {
 	channelID channelruntime.ChannelID
 	req       channelstore.ReadCommittedRequest

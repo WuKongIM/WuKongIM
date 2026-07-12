@@ -12,15 +12,42 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 )
 
-func TestManagerMessagesRejectsMissingChannelID(t *testing.T) {
+func TestManagerMessagesRejectsChannelFilterWithoutChannelID(t *testing.T) {
 	srv := New(Options{Management: managerNodesStub{}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/manager/messages?channel_type=2", nil)
 	srv.Engine().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest || !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"channel_id is required"}`) {
+	if rec.Code != http.StatusBadRequest || !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"channel_id is required for message filters"}`) {
 		t.Fatalf("status/body = %d %s, want missing channel_id", rec.Code, rec.Body.String())
+	}
+}
+
+func TestManagerMessagesReturnsClusterLatestByDefault(t *testing.T) {
+	var gotReq managementusecase.ListMessagesRequest
+	nextCursor := managementusecase.MessageListCursor{BeforeMessageID: 101}
+	srv := New(Options{Management: managerNodesStub{
+		messagesReqSink: &gotReq,
+		messagesPage: managementusecase.ListMessagesResponse{
+			Items:   []managementusecase.Message{{MessageID: 101, MessageSeq: 10, ChannelID: "room-1", ChannelType: 2}},
+			HasMore: true, NextCursor: nextCursor,
+		},
+	}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/messages?limit=50", nil)
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if gotReq != (managementusecase.ListMessagesRequest{Limit: 50}) {
+		t.Fatalf("request = %#v, want unscoped latest", gotReq)
+	}
+	wantBody := fmt.Sprintf(`{"items":[{"message_id":101,"message_seq":10,"client_msg_no":"","channel_id":"room-1","channel_type":2,"from_uid":"","timestamp":0,"payload":null}],"has_more":true,"next_cursor":%q}`, mustEncodeMessageCursorForTest(t, nextCursor))
+	if !jsonEqual(rec.Body.String(), wantBody) {
+		t.Fatalf("body = %s, want %s", rec.Body.String(), wantBody)
 	}
 }
 
@@ -176,6 +203,15 @@ func TestDecodeMessageCursorAcceptsLegacyJSONPayload(t *testing.T) {
 
 	if err != nil || decoded != cursor {
 		t.Fatalf("decodeMessageCursor() = %#v, %v; want %#v", decoded, err, cursor)
+	}
+}
+
+func TestMessageCursorCodecRoundTripsGlobalMessageID(t *testing.T) {
+	cursor := managementusecase.MessageListCursor{BeforeMessageID: 101}
+	raw := mustEncodeMessageCursorForTest(t, cursor)
+	decoded, err := decodeMessageCursor(raw)
+	if err != nil || decoded != cursor {
+		t.Fatalf("decodeMessageCursor(global) = %#v, %v; want %#v", decoded, err, cursor)
 	}
 }
 

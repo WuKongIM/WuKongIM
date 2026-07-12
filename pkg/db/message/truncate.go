@@ -63,6 +63,9 @@ func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error 
 		if err := batch.Delete(encodeMessageIDIndexKey(l.key, msg.MessageID)); err != nil {
 			return err
 		}
+		if err := batch.Delete(encodeGlobalMessageIDIndexKey(msg.MessageID)); err != nil {
+			return err
+		}
 	}
 	if msg.ClientMsgNo != "" {
 		if err := batch.Delete(encodeMessageClientMsgNoIndexKey(l.key, msg.ClientMsgNo, msg.MessageSeq)); err != nil {

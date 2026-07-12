@@ -49,6 +49,17 @@ local Slot Multi-Raft runtime. Internal manager message retention forwarding
 uses the same surface to carry one logical Channel runtime compaction-boundary
 request to the channel leader; cluster transports the payload only, while the
 receiving leader revalidates runtime metadata and Slot metadata fences.
+Node-local latest-message reads use the Node-created shared message store and
+return only replicas at or below the loaded runtime HW, falling back to the
+durable checkpoint HW for unloaded channels. Retention boundaries are applied
+before returning candidates, and a fixed scan budget rejects pathological
+logical-retention gaps after deleting the inspected retained projection keys,
+so retries make bounded progress even when physical retention GC is disabled.
+Follower apply persists the leader HW covered by each applied batch atomically;
+an unloaded local leader with `MinISR=1` safely treats its durable LEO as
+committed even when additional non-required ISR members are configured.
+Upper manager adapters fan out across data nodes and deduplicate replicated
+records.
 Internal seed-join and readiness probes also use this typed RPC surface:
 cluster routes `RPCNodeLifecycle` payloads only, and the app-level node RPC
 adapter validates join tokens, cluster IDs, and management lifecycle policy.

@@ -11,10 +11,37 @@ import (
 // ErrMessageRetentionUnavailable reports that manager retention actions are not wired.
 var ErrMessageRetentionUnavailable = errors.New("management: message retention unavailable")
 
+// ErrLatestMessagesUnavailable reports that cluster-wide latest-message reads are not wired.
+var ErrLatestMessagesUnavailable = errors.New("management: latest messages unavailable")
+
 // MessageReader exposes committed channel message reads for manager pages.
 type MessageReader interface {
 	// QueryMessages returns a manager-facing channel message page.
 	QueryMessages(ctx context.Context, req MessageQueryRequest) (MessageQueryPage, error)
+}
+
+// LatestMessageReader exposes cluster-wide newest-message reads for manager pages.
+type LatestMessageReader interface {
+	// QueryLatestMessages returns a globally ordered, replica-deduplicated message page.
+	QueryLatestMessages(ctx context.Context, req LatestMessageQueryRequest) (LatestMessageQueryPage, error)
+}
+
+// LatestMessageQueryRequest configures one cluster-wide newest-message page.
+type LatestMessageQueryRequest struct {
+	// BeforeMessageID is the exclusive upper global message ID bound.
+	BeforeMessageID uint64
+	// Limit is the maximum number of unique messages to return.
+	Limit int
+}
+
+// LatestMessageQueryPage is one global newest-message page.
+type LatestMessageQueryPage struct {
+	// Items contains unique messages ordered by message ID descending.
+	Items []Message
+	// HasMore reports whether another older page exists.
+	HasMore bool
+	// NextBeforeMessageID is the exclusive upper message ID for the next page.
+	NextBeforeMessageID uint64
 }
 
 // MessageRetentionOperator advances channel message retention boundaries.
@@ -53,6 +80,8 @@ type MessageQueryPage struct {
 type MessageListCursor struct {
 	// BeforeSeq is the exclusive upper message sequence bound for the next page.
 	BeforeSeq uint64
+	// BeforeMessageID is the exclusive upper global message ID bound for a latest page.
+	BeforeMessageID uint64
 }
 
 // ListMessagesRequest configures one manager message page request.
@@ -146,7 +175,30 @@ type AdvanceMessageRetentionResponse struct {
 // ListMessages returns one authoritative channel message page.
 func (a *App) ListMessages(ctx context.Context, req ListMessagesRequest) (ListMessagesResponse, error) {
 	channelID := strings.TrimSpace(req.ChannelID)
-	if channelID == "" || req.ChannelType <= 0 || req.ChannelType > 255 || req.Limit <= 0 {
+	if req.Limit <= 0 || (req.Cursor.BeforeSeq != 0 && req.Cursor.BeforeMessageID != 0) {
+		return ListMessagesResponse{}, metadb.ErrInvalidArgument
+	}
+	if channelID == "" {
+		if req.ChannelType != 0 || req.MessageID != 0 || strings.TrimSpace(req.ClientMsgNo) != "" || req.Cursor.BeforeSeq != 0 {
+			return ListMessagesResponse{}, metadb.ErrInvalidArgument
+		}
+		if a == nil || a.latestMessages == nil {
+			return ListMessagesResponse{}, ErrLatestMessagesUnavailable
+		}
+		page, err := a.latestMessages.QueryLatestMessages(ctx, LatestMessageQueryRequest{
+			BeforeMessageID: req.Cursor.BeforeMessageID,
+			Limit:           req.Limit,
+		})
+		if err != nil {
+			return ListMessagesResponse{}, err
+		}
+		resp := ListMessagesResponse{Items: cloneMessages(page.Items), HasMore: page.HasMore}
+		if page.HasMore {
+			resp.NextCursor = MessageListCursor{BeforeMessageID: page.NextBeforeMessageID}
+		}
+		return resp, nil
+	}
+	if req.ChannelType <= 0 || req.ChannelType > 255 || req.Cursor.BeforeMessageID != 0 {
 		return ListMessagesResponse{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.messages == nil {
