@@ -72,6 +72,36 @@ func TestRouterOldSnapshotIsImmutable(t *testing.T) {
 	}
 }
 
+func TestRouterAdvanceRevisionPreservesTopologyAndIgnoresRegression(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 9}})
+	before := r.Table()
+
+	r.AdvanceRevision(before.Revision + 2)
+	after := r.Table()
+	if after == before || after.Revision != before.Revision+2 {
+		t.Fatalf("table revision = %d, want new table at %d", after.Revision, before.Revision+2)
+	}
+	route, err := r.RouteHashSlot(0)
+	if err != nil {
+		t.Fatalf("RouteHashSlot() error = %v", err)
+	}
+	if route.SlotID != 1 || route.Leader != 2 || route.LeaderTerm != 9 {
+		t.Fatalf("route = %#v, want preserved topology and observed leader", route)
+	}
+	if before.Revision == after.Revision {
+		t.Fatal("AdvanceRevision mutated the previously published table")
+	}
+
+	r.AdvanceRevision(before.Revision)
+	if r.Table() != after {
+		t.Fatal("AdvanceRevision replaced the table for a stale revision")
+	}
+}
+
 func TestRouterRouteKeyUsesCRC32HashSlot(t *testing.T) {
 	r := NewRouter()
 	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {

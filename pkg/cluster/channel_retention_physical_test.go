@@ -78,10 +78,21 @@ func TestChannelRetentionGCOnceContinuesAfterChannelError(t *testing.T) {
 func newChannelRetentionGCNode(t *testing.T) (*Node, *recordingRetentionChannelService) {
 	t.Helper()
 	node := newDefaultSingleNode(t)
-	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
+	createdDefaultChannels, err := node.ensureDefaultRuntime()
+	if err != nil {
+		t.Fatalf("ensureDefaultRuntime() error = %v", err)
+	}
+	if !createdDefaultChannels || node.channels == nil {
+		t.Fatal("ensureDefaultRuntime() did not create the default Channel service")
+	}
+	defaultChannels := node.channels
 	runtime := &recordingRetentionChannelService{}
 	node.channels = runtime
+	if err := defaultChannels.Close(); err != nil {
+		t.Fatalf("close default Channel service before test override: %v", err)
+	}
+	startNode(t, node)
 	return node, runtime
 }
 

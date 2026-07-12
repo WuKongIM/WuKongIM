@@ -947,6 +947,12 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 		if event.PoolCapacity > 0 {
 			o.metrics.AntsPool.SetUsage(transportRuntimePressureComponent, "service_executor", event.PoolRunning, event.PoolCapacity, event.PoolWaiting)
 		}
+	case "controller_raft_queue":
+		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "controller_raft", "send", transportPriorityLabel(event.Priority), transportQueueObservation(event))
+	case "controller_raft_admission":
+		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "controller_raft", "send", transportPriorityLabel(event.Priority), event.Result)
+	case "controller_raft_task":
+		o.metrics.RuntimePressure.ObserveTaskDuration(transportRuntimePressureComponent, "controller_raft", "send", event.Result, event.Duration)
 	}
 }
 

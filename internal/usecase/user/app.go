@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 // UpdateToken creates missing user metadata and upserts the selected device token.
@@ -38,7 +38,7 @@ func (a *App) UpdateToken(ctx context.Context, cmd UpdateTokenCommand) error {
 	}); err != nil {
 		return err
 	}
-	if cmd.DeviceLevel == frame.DeviceLevelMaster {
+	if cmd.DeviceLevel == protocolmeta.DeviceLevelMaster {
 		a.kickLocalDevice(cmd.UID, cmd.DeviceFlag, updateTokenCloseDelay, updateTokenKickReason)
 	}
 	return nil
@@ -176,7 +176,7 @@ func (a *App) IsSystemUID(uid string) bool {
 	return ok
 }
 
-func (a *App) quitDevice(ctx context.Context, uid string, flag frame.DeviceFlag) error {
+func (a *App) quitDevice(ctx context.Context, uid string, flag protocolmeta.DeviceFlag) error {
 	device, err := a.deviceReader.GetDevice(ctx, uid, int64(flag))
 	if errors.Is(err, metadb.ErrNotFound) {
 		return nil
@@ -191,7 +191,7 @@ func (a *App) quitDevice(ctx context.Context, uid string, flag frame.DeviceFlag)
 		UID:         uid,
 		DeviceFlag:  int64(flag),
 		Token:       deviceQuitMissingToken,
-		DeviceLevel: int64(frame.DeviceLevelMaster),
+		DeviceLevel: int64(protocolmeta.DeviceLevelMaster),
 	}); err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (a *App) quitDevice(ctx context.Context, uid string, flag frame.DeviceFlag)
 	return nil
 }
 
-func (a *App) kickLocalDevice(uid string, flag frame.DeviceFlag, delay time.Duration, reason string) {
+func (a *App) kickLocalDevice(uid string, flag protocolmeta.DeviceFlag, delay time.Duration, reason string) {
 	if a == nil || a.online == nil || a.afterFunc == nil {
 		return
 	}
@@ -216,9 +216,9 @@ func (a *App) kickLocalDevice(uid string, flag frame.DeviceFlag, delay time.Dura
 	}
 }
 
-func deviceQuitFlags(flag int) []frame.DeviceFlag {
+func deviceQuitFlags(flag int) []protocolmeta.DeviceFlag {
 	if flag == -1 {
-		return []frame.DeviceFlag{frame.APP, frame.WEB, frame.PC}
+		return []protocolmeta.DeviceFlag{protocolmeta.DeviceFlagApp, protocolmeta.DeviceFlagWeb, protocolmeta.DeviceFlagPC}
 	}
-	return []frame.DeviceFlag{frame.DeviceFlag(flag)}
+	return []protocolmeta.DeviceFlag{protocolmeta.DeviceFlag(flag)}
 }

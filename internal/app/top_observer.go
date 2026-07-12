@@ -528,6 +528,14 @@ func (o *topTransportObserver) ObserveTransport(event transport.Event) {
 		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportServiceEventLabel(event))+"."+safeTopLabel(event.Result)+".task", event.Duration)
 	case "service_inflight":
 		o.top.SetInflight(transportRuntimePressureComponent, transportServiceEventLabel(event), int64(event.Inflight), int64(event.Capacity))
+	case "controller_raft_queue":
+		o.top.SetQueue(transportRuntimePressureComponent, "controller_raft", "send", transportPriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
+	case "controller_raft_admission":
+		if event.Result != "" && event.Result != "ok" {
+			o.top.addCounter("pressure."+transportRuntimePressureComponent+".controller_raft.send."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", 1)
+		}
+	case "controller_raft_task":
+		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".controller_raft.send."+safeTopLabel(event.Result)+".task", event.Duration)
 	}
 }
 

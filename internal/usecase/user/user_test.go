@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -19,8 +20,8 @@ func TestUpdateTokenCreatesMissingUserAndUpsertsDevice(t *testing.T) {
 	err := app.UpdateToken(context.Background(), UpdateTokenCommand{
 		UID:         "u1",
 		Token:       "token-1",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelSlave,
+		DeviceFlag:  protocolmeta.DeviceFlagApp,
+		DeviceLevel: protocolmeta.DeviceLevelSlave,
 	})
 
 	if err != nil {
@@ -79,8 +80,8 @@ func TestUpdateTokenMasterSchedulesLocalSameDeviceClose(t *testing.T) {
 	err := app.UpdateToken(context.Background(), UpdateTokenCommand{
 		UID:         "u1",
 		Token:       "token-1",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelMaster,
+		DeviceFlag:  protocolmeta.DeviceFlagApp,
+		DeviceLevel: protocolmeta.DeviceLevelMaster,
 	})
 
 	if err != nil {

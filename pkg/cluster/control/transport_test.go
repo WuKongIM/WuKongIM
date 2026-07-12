@@ -21,6 +21,7 @@ func TestRaftTransportSendsBatchByDestination(t *testing.T) {
 	network.Register(2, clusternet.RPCControlRaft, NewRaftHandler(stepper))
 
 	transport := NewRaftTransport(network)
+	t.Cleanup(transport.Stop)
 	transport.Send([]raftpb.Message{
 		{From: 1, To: 2, Type: raftpb.MsgHeartbeat, Term: 4},
 		{From: 1, To: 0, Type: raftpb.MsgBeat},
@@ -40,6 +41,7 @@ func TestRaftTransportSendsBatchByDestination(t *testing.T) {
 func TestRaftTransportSendReturnsWithoutWaitingForSender(t *testing.T) {
 	network := &blockingRaftMessenger{entered: make(chan struct{}), release: make(chan struct{})}
 	transport := NewRaftTransport(network)
+	t.Cleanup(transport.Stop)
 
 	returned := make(chan struct{})
 	go func() {
@@ -62,12 +64,65 @@ func TestRaftTransportSendReturnsWithoutWaitingForSender(t *testing.T) {
 	close(network.release)
 }
 
+func TestRaftTransportBoundsBlockedSends(t *testing.T) {
+	network := &blockingRaftMessenger{entered: make(chan struct{}), release: make(chan struct{})}
+	observer := &recordingRaftTransportObserver{events: make(chan transport.Event, 16)}
+	raftTransport := NewRaftTransportWithOptions(network, RaftTransportOptions{
+		WorkerCount:        1,
+		QueueSizePerWorker: 1,
+		Timeout:            time.Second,
+		Observer:           observer,
+	})
+	t.Cleanup(raftTransport.Stop)
+
+	raftTransport.Send([]raftpb.Message{{From: 1, To: 2, Type: raftpb.MsgHeartbeat, Term: 1}})
+	select {
+	case <-network.entered:
+	case <-time.After(time.Second):
+		close(network.release)
+		t.Fatal("timeout waiting for first blocked send")
+	}
+	raftTransport.Send([]raftpb.Message{{From: 1, To: 2, Type: raftpb.MsgHeartbeat, Term: 2}})
+	raftTransport.Send([]raftpb.Message{{From: 1, To: 2, Type: raftpb.MsgHeartbeat, Term: 3}})
+
+	select {
+	case event := <-observer.events:
+		if event.Name != "controller_raft_admission" || event.Result != "full" || event.Capacity != 1 {
+			t.Fatalf("event = %#v, want bounded full admission", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for full admission observation")
+	}
+	close(network.release)
+}
+
+func TestRaftTransportObservesAggregateQueueCapacity(t *testing.T) {
+	observer := &recordingRaftQueueObserver{events: make(chan transport.Event, 4)}
+	raftTransport := NewRaftTransportWithOptions(nil, RaftTransportOptions{
+		WorkerCount:        2,
+		QueueSizePerWorker: 3,
+		Observer:           observer,
+	})
+	t.Cleanup(raftTransport.Stop)
+
+	raftTransport.observeQueue("ok")
+	select {
+	case event := <-observer.events:
+		if event.Capacity != 6 || event.Items != 0 {
+			t.Fatalf("event = %#v, want aggregate depth=0 capacity=6", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for aggregate queue observation")
+	}
+}
+
 func TestRaftTransportUsesOneWaySend(t *testing.T) {
 	network := &recordingRaftMessenger{
 		sent:  make(chan sentControlMessage, 1),
 		calls: make(chan struct{}, 1),
 	}
 	transport := NewRaftTransport(network)
+	t.Cleanup(transport.Stop)
 	transport.Send([]raftpb.Message{{From: 1, To: 2, Type: raftpb.MsgHeartbeat, Term: 4}})
 
 	select {
@@ -102,6 +157,7 @@ func TestRaftTransportUsesOwnedSendWhenAvailable(t *testing.T) {
 		ownedSent: make(chan sentControlMessage, 1),
 	}
 	transport := NewRaftTransport(network)
+	t.Cleanup(transport.Stop)
 	transport.Send([]raftpb.Message{{From: 1, To: 2, Type: raftpb.MsgHeartbeat, Term: 4}})
 
 	select {
@@ -536,6 +592,27 @@ type blockingRaftMessenger struct {
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
+}
+
+type recordingRaftTransportObserver struct {
+	events chan transport.Event
+}
+
+func (o *recordingRaftTransportObserver) ObserveTransport(event transport.Event) {
+	if event.Name != "controller_raft_admission" || event.Result != "full" {
+		return
+	}
+	o.events <- event
+}
+
+type recordingRaftQueueObserver struct {
+	events chan transport.Event
+}
+
+func (o *recordingRaftQueueObserver) ObserveTransport(event transport.Event) {
+	if event.Name == "controller_raft_queue" {
+		o.events <- event
+	}
 }
 
 func (m *blockingRaftMessenger) Send(ctx context.Context, _ uint64, _ uint8, _ []byte) error {

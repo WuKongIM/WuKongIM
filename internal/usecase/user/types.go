@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -23,7 +23,7 @@ const (
 	deviceQuitCloseDelay   = 2 * time.Second
 	deviceQuitMissingToken = ""
 	systemUIDChannelID     = "__wk_internal_system_uids__"
-	systemUIDChannelType   = int64(frame.SYSTEM)
+	systemUIDChannelType   = int64(protocolmeta.ChannelTypeSystemUIDRegistry)
 	systemUIDPageLimit     = 1000
 )
 
@@ -107,9 +107,9 @@ type UpdateTokenCommand struct {
 	// Token is the new device token.
 	Token string
 	// DeviceFlag is the WuKong protocol device category.
-	DeviceFlag frame.DeviceFlag
+	DeviceFlag protocolmeta.DeviceFlag
 	// DeviceLevel is the WuKong protocol device conflict level.
-	DeviceLevel frame.DeviceLevel
+	DeviceLevel protocolmeta.DeviceLevel
 }
 
 // DeviceQuitCommand requests that a user's device token be cleared.

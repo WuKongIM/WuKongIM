@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 const defaultUserListInternalScanLimit = 200
@@ -358,7 +358,7 @@ func (a *App) KickUser(ctx context.Context, req KickUserRequest) (KickUserRespon
 	}
 	if a.userActions != nil {
 		for _, route := range routesByUID[uid] {
-			if !matchFlags[frame.DeviceFlag(route.DeviceFlag)] {
+			if !matchFlags[protocolmeta.DeviceFlag(route.DeviceFlag)] {
 				continue
 			}
 			if err := a.userActions.ApplyRouteAction(ctx, presence.RouteAction{
@@ -474,13 +474,13 @@ func (a *App) userDeviceCounts(ctx context.Context, uid string) (int, int, error
 }
 
 func (a *App) userDevices(ctx context.Context, uid string, routes []presence.Route) ([]UserDevice, error) {
-	routeCounts := make(map[frame.DeviceFlag]int)
-	routeLevels := make(map[frame.DeviceFlag]frame.DeviceLevel)
+	routeCounts := make(map[protocolmeta.DeviceFlag]int)
+	routeLevels := make(map[protocolmeta.DeviceFlag]protocolmeta.DeviceLevel)
 	for _, route := range routes {
-		flag := frame.DeviceFlag(route.DeviceFlag)
+		flag := protocolmeta.DeviceFlag(route.DeviceFlag)
 		routeCounts[flag]++
 		if _, ok := routeLevels[flag]; !ok {
-			routeLevels[flag] = frame.DeviceLevel(route.DeviceLevel)
+			routeLevels[flag] = protocolmeta.DeviceLevel(route.DeviceLevel)
 		}
 	}
 
@@ -494,7 +494,7 @@ func (a *App) userDevices(ctx context.Context, uid string, routes []presence.Rou
 		if !ok && onlineCount == 0 {
 			continue
 		}
-		level := frame.DeviceLevel(device.DeviceLevel)
+		level := protocolmeta.DeviceLevel(device.DeviceLevel)
 		if !ok {
 			level = routeLevels[flag]
 		}
@@ -509,7 +509,7 @@ func (a *App) userDevices(ctx context.Context, uid string, routes []presence.Rou
 	return out, nil
 }
 
-func (a *App) userDevice(ctx context.Context, uid string, flag frame.DeviceFlag) (metadb.Device, bool, error) {
+func (a *App) userDevice(ctx context.Context, uid string, flag protocolmeta.DeviceFlag) (metadb.Device, bool, error) {
 	if a == nil || a.users == nil {
 		return metadb.Device{}, false, nil
 	}
@@ -554,8 +554,8 @@ func managerConnectionsFromRoutes(routes []presence.Route) []Connection {
 			SessionID:   route.SessionID,
 			UID:         route.UID,
 			DeviceID:    route.DeviceID,
-			DeviceFlag:  managerDeviceFlag(frame.DeviceFlag(route.DeviceFlag)),
-			DeviceLevel: managerConnectionDeviceLevel(frame.DeviceLevel(route.DeviceLevel)),
+			DeviceFlag:  managerDeviceFlag(protocolmeta.DeviceFlag(route.DeviceFlag)),
+			DeviceLevel: managerConnectionDeviceLevel(protocolmeta.DeviceLevel(route.DeviceLevel)),
 			Listener:    route.Listener,
 		})
 	}
@@ -563,9 +563,9 @@ func managerConnectionsFromRoutes(routes []presence.Route) []Connection {
 }
 
 func onlineDeviceFlagLabels(routes []presence.Route) []string {
-	seen := make(map[frame.DeviceFlag]struct{})
+	seen := make(map[protocolmeta.DeviceFlag]struct{})
 	for _, route := range routes {
-		seen[frame.DeviceFlag(route.DeviceFlag)] = struct{}{}
+		seen[protocolmeta.DeviceFlag(route.DeviceFlag)] = struct{}{}
 	}
 	if len(seen) == 0 {
 		return nil
@@ -579,36 +579,36 @@ func onlineDeviceFlagLabels(routes []presence.Route) []string {
 	return labels
 }
 
-func managerUserDeviceFlags() []frame.DeviceFlag {
-	return []frame.DeviceFlag{frame.APP, frame.WEB, frame.PC, frame.SYSTEM}
+func managerUserDeviceFlags() []protocolmeta.DeviceFlag {
+	return []protocolmeta.DeviceFlag{protocolmeta.DeviceFlagApp, protocolmeta.DeviceFlagWeb, protocolmeta.DeviceFlagPC, protocolmeta.DeviceFlagSystem}
 }
 
-func parseKickUserDeviceFlag(raw string) (string, int, map[frame.DeviceFlag]bool, error) {
+func parseKickUserDeviceFlag(raw string) (string, int, map[protocolmeta.DeviceFlag]bool, error) {
 	label := strings.ToLower(strings.TrimSpace(raw))
 	if label == "" {
 		label = "all"
 	}
 	if label == "all" {
-		return "all", -1, map[frame.DeviceFlag]bool{frame.APP: true, frame.WEB: true, frame.PC: true}, nil
+		return "all", -1, map[protocolmeta.DeviceFlag]bool{protocolmeta.DeviceFlagApp: true, protocolmeta.DeviceFlagWeb: true, protocolmeta.DeviceFlagPC: true}, nil
 	}
 	flag, normalized, err := parseUserDeviceFlag(label, false)
 	if err != nil {
 		return "", 0, nil, err
 	}
-	return normalized, int(flag), map[frame.DeviceFlag]bool{flag: true}, nil
+	return normalized, int(flag), map[protocolmeta.DeviceFlag]bool{flag: true}, nil
 }
 
-func parseUserDeviceFlag(raw string, allowSystem bool) (frame.DeviceFlag, string, error) {
+func parseUserDeviceFlag(raw string, allowSystem bool) (protocolmeta.DeviceFlag, string, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "app", "":
-		return frame.APP, "app", nil
+		return protocolmeta.DeviceFlagApp, "app", nil
 	case "web":
-		return frame.WEB, "web", nil
+		return protocolmeta.DeviceFlagWeb, "web", nil
 	case "pc":
-		return frame.PC, "pc", nil
+		return protocolmeta.DeviceFlagPC, "pc", nil
 	case "system":
 		if allowSystem {
-			return frame.SYSTEM, "system", nil
+			return protocolmeta.DeviceFlagSystem, "system", nil
 		}
 		return 0, "", metadb.ErrInvalidArgument
 	default:
@@ -616,37 +616,37 @@ func parseUserDeviceFlag(raw string, allowSystem bool) (frame.DeviceFlag, string
 	}
 }
 
-func parseUserDeviceLevel(raw string) (frame.DeviceLevel, string, error) {
+func parseUserDeviceLevel(raw string) (protocolmeta.DeviceLevel, string, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "master", "":
-		return frame.DeviceLevelMaster, "master", nil
+		return protocolmeta.DeviceLevelMaster, "master", nil
 	case "slave":
-		return frame.DeviceLevelSlave, "slave", nil
+		return protocolmeta.DeviceLevelSlave, "slave", nil
 	default:
 		return 0, "", metadb.ErrInvalidArgument
 	}
 }
 
-func managerDeviceFlag(flag frame.DeviceFlag) string {
+func managerDeviceFlag(flag protocolmeta.DeviceFlag) string {
 	switch flag {
-	case frame.APP:
+	case protocolmeta.DeviceFlagApp:
 		return "app"
-	case frame.WEB:
+	case protocolmeta.DeviceFlagWeb:
 		return "web"
-	case frame.PC:
+	case protocolmeta.DeviceFlagPC:
 		return "pc"
-	case frame.SYSTEM:
+	case protocolmeta.DeviceFlagSystem:
 		return "system"
 	default:
 		return "unknown"
 	}
 }
 
-func managerConnectionDeviceLevel(level frame.DeviceLevel) string {
+func managerConnectionDeviceLevel(level protocolmeta.DeviceLevel) string {
 	switch level {
-	case frame.DeviceLevelMaster:
+	case protocolmeta.DeviceLevelMaster:
 		return "master"
-	case frame.DeviceLevelSlave:
+	case protocolmeta.DeviceLevelSlave:
 		return "slave"
 	default:
 		return "unknown"

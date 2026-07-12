@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 const defaultHostChannelMessagesLimit = 100
@@ -37,7 +37,7 @@ func sendCommandFromPluginReq(req *pluginproto.SendReq, defaultSenderUID string)
 		NoPersist:              header.GetNoPersist(),
 		SyncOnce:               header.GetSyncOnce(),
 		RedDot:                 header.GetRedDot(),
-		NormalizePersonChannel: channelType == frame.ChannelTypePerson,
+		NormalizePersonChannel: protocolmeta.ChannelType(channelType) == protocolmeta.ChannelTypePerson,
 		Origin:                 message.SendOriginPlugin,
 	}, nil
 }

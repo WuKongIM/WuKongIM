@@ -5,6 +5,7 @@ import (
 	"hash/crc32"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -208,7 +209,7 @@ func TestResetUserTokenGeneratesTokenAndUpdatesDevice(t *testing.T) {
 	if len(operator.updateTokenCalls) != 1 {
 		t.Fatalf("updateTokenCalls = %#v, want one call", operator.updateTokenCalls)
 	}
-	want := userusecase.UpdateTokenCommand{UID: "u1", Token: got.Token, DeviceFlag: frame.APP, DeviceLevel: frame.DeviceLevelMaster}
+	want := userusecase.UpdateTokenCommand{UID: "u1", Token: got.Token, DeviceFlag: protocolmeta.DeviceFlagApp, DeviceLevel: protocolmeta.DeviceLevelMaster}
 	if operator.updateTokenCalls[0] != want {
 		t.Fatalf("updateTokenCalls[0] = %#v, want %#v", operator.updateTokenCalls[0], want)
 	}

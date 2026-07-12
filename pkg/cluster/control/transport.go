@@ -4,14 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-const defaultControlRPCTimeout = 200 * time.Millisecond
+const (
+	defaultControlRPCTimeout               = 200 * time.Millisecond
+	defaultRaftTransportWorkers            = 4
+	defaultRaftTransportQueueSizePerWorker = 256
+)
 
 type raftStepper interface {
 	Step(context.Context, raftpb.Message) error
@@ -19,18 +25,76 @@ type raftStepper interface {
 
 // RaftTransport sends Controller Raft messages over cluster typed messages.
 type RaftTransport struct {
-	sender  clusternet.Sender
-	timeout time.Duration
+	sender   clusternet.Sender
+	timeout  time.Duration
+	observer transport.Observer
+	queues   []chan raftTransportBatch
+	done     chan struct{}
+
+	mu       sync.RWMutex
+	stopped  bool
+	stopOnce sync.Once
+	wg       sync.WaitGroup
+}
+
+// RaftTransportOptions bounds Controller Raft send concurrency and observation.
+type RaftTransportOptions struct {
+	// WorkerCount is the fixed number of destination-preserving send shards.
+	WorkerCount int
+	// QueueSizePerWorker is the bounded queue capacity for each send shard.
+	QueueSizePerWorker int
+	// Timeout bounds one underlying network send.
+	Timeout time.Duration
+	// Observer receives low-cardinality queue, admission, and task events.
+	Observer transport.Observer
+}
+
+type raftTransportBatch struct {
+	nodeID  uint64
+	payload []byte
+	items   int
 }
 
 // NewRaftTransport creates a Controller Raft transport backed by sender.
 func NewRaftTransport(sender clusternet.Sender) *RaftTransport {
-	return &RaftTransport{sender: sender, timeout: defaultControlRPCTimeout}
+	return NewRaftTransportWithOptions(sender, RaftTransportOptions{})
+}
+
+// NewRaftTransportWithOptions creates a bounded Controller Raft transport.
+func NewRaftTransportWithOptions(sender clusternet.Sender, opts RaftTransportOptions) *RaftTransport {
+	if opts.WorkerCount <= 0 {
+		opts.WorkerCount = defaultRaftTransportWorkers
+	}
+	if opts.QueueSizePerWorker <= 0 {
+		opts.QueueSizePerWorker = defaultRaftTransportQueueSizePerWorker
+	}
+	if opts.Timeout <= 0 {
+		opts.Timeout = defaultControlRPCTimeout
+	}
+	t := &RaftTransport{
+		sender:   sender,
+		timeout:  opts.Timeout,
+		observer: opts.Observer,
+		queues:   make([]chan raftTransportBatch, opts.WorkerCount),
+		done:     make(chan struct{}),
+	}
+	for i := range t.queues {
+		t.queues[i] = make(chan raftTransportBatch, opts.QueueSizePerWorker)
+		t.wg.Add(1)
+		go t.run(t.queues[i])
+	}
+	return t
 }
 
 // Send sends messages grouped by destination node without blocking indefinitely.
 func (t *RaftTransport) Send(messages []raftpb.Message) {
 	if t == nil || t.sender == nil {
+		return
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if t.stopped {
+		t.observeAdmission("stopped", 0, 0)
 		return
 	}
 	byNode := make(map[uint64][]raftpb.Message)
@@ -43,19 +107,118 @@ func (t *RaftTransport) Send(messages []raftpb.Message) {
 	for nodeID, batch := range byNode {
 		payload, err := EncodeRaftBatch(batch)
 		if err != nil {
+			t.observeTask("invalid", len(batch), 0)
 			continue
 		}
-		go t.sendBatch(nodeID, payload)
+		queue := t.queues[nodeID%uint64(len(t.queues))]
+		select {
+		case queue <- raftTransportBatch{nodeID: nodeID, payload: payload, items: len(batch)}:
+			t.observeQueue("ok")
+		default:
+			depth, capacity := t.queueUsage()
+			t.observeAdmission("full", depth, capacity)
+		}
 	}
 }
 
-func (t *RaftTransport) sendBatch(nodeID uint64, payload []byte) {
-	ctx, cancel := context.WithTimeout(context.Background(), t.timeout)
-	err := clusternet.SendOwnedPayload(ctx, t.sender, nodeID, clusternet.RPCControlRaft, payload)
-	if err != nil {
-		fmt.Printf("control raft send failed %v\n", err)
+// Stop rejects new sends, drops queued batches, and waits for bounded workers.
+func (t *RaftTransport) Stop() {
+	if t == nil {
+		return
 	}
+	t.stopOnce.Do(func() {
+		t.mu.Lock()
+		t.stopped = true
+		close(t.done)
+		t.mu.Unlock()
+		t.wg.Wait()
+	})
+}
+
+func (t *RaftTransport) run(queue chan raftTransportBatch) {
+	defer t.wg.Done()
+	for {
+		select {
+		case <-t.done:
+			t.dropQueued(queue)
+			return
+		case batch := <-queue:
+			select {
+			case <-t.done:
+				t.observeTask("stopped", batch.items, 0)
+				t.dropQueued(queue)
+				return
+			default:
+			}
+			t.observeQueue("ok")
+			t.sendBatch(batch)
+		}
+	}
+}
+
+func (t *RaftTransport) dropQueued(queue chan raftTransportBatch) {
+	for {
+		select {
+		case batch := <-queue:
+			t.observeTask("stopped", batch.items, 0)
+		default:
+			t.observeQueue("stopped")
+			return
+		}
+	}
+}
+
+func (t *RaftTransport) sendBatch(batch raftTransportBatch) {
+	startedAt := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), t.timeout)
+	err := clusternet.SendOwnedPayload(ctx, t.sender, batch.nodeID, clusternet.RPCControlRaft, batch.payload)
 	cancel()
+	t.observeTask(raftTransportResult(err), batch.items, time.Since(startedAt))
+}
+
+func (t *RaftTransport) observeQueue(result string) {
+	if t.observer == nil {
+		return
+	}
+	depth, capacity := t.queueUsage()
+	t.observer.ObserveTransport(transport.Event{Name: "controller_raft_queue", Priority: transport.PriorityRaft, Result: result, Items: depth, Capacity: capacity})
+}
+
+func (t *RaftTransport) queueUsage() (int, int) {
+	depth := 0
+	capacity := 0
+	for _, queue := range t.queues {
+		depth += len(queue)
+		capacity += cap(queue)
+	}
+	return depth, capacity
+}
+
+func (t *RaftTransport) observeAdmission(result string, depth, capacity int) {
+	if t.observer == nil {
+		return
+	}
+	t.observer.ObserveTransport(transport.Event{Name: "controller_raft_admission", Priority: transport.PriorityRaft, Result: result, Items: depth, Capacity: capacity})
+}
+
+func (t *RaftTransport) observeTask(result string, items int, duration time.Duration) {
+	if t.observer == nil {
+		return
+	}
+	t.observer.ObserveTransport(transport.Event{Name: "controller_raft_task", Priority: transport.PriorityRaft, Result: result, Items: items, Duration: duration})
+}
+
+func raftTransportResult(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	default:
+		return "err"
+	}
 }
 
 // NewRaftHandler creates an RPC handler that steps decoded Controller Raft messages.

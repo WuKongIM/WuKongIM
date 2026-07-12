@@ -152,6 +152,9 @@ func (r *Runtime) Start(ctx context.Context) error {
 
 // Stop stops local Controller resources.
 func (r *Runtime) Stop(ctx context.Context) error {
+	if r == nil {
+		return nil
+	}
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -160,10 +163,22 @@ func (r *Runtime) Stop(ctx context.Context) error {
 		r.watchWG.Wait()
 		r.watchCancel = nil
 	}
-	if r == nil || r.backend == nil {
-		return nil
+	if r.backend != nil {
+		if err := r.backend.Stop(ctx); err != nil {
+			return err
+		}
 	}
-	return r.backend.Stop(ctx)
+	r.stopRaftTransport()
+	return nil
+}
+
+func (r *Runtime) stopRaftTransport() {
+	if r == nil {
+		return
+	}
+	if transport, ok := r.cfg.RaftTransport.(interface{ Stop() }); ok {
+		transport.Stop()
+	}
 }
 
 // LocalSnapshot returns the latest adapted Controller control snapshot.

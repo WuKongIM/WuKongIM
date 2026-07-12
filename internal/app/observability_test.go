@@ -156,6 +156,24 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		Kind:  transport.FrameKindRPCResponse,
 		Bytes: 72,
 	})
+	transportObserver.ObserveTransport(transport.Event{
+		Name:     "controller_raft_queue",
+		Priority: transport.PriorityRaft,
+		Items:    2,
+		Capacity: 16,
+		Result:   "ok",
+	})
+	transportObserver.ObserveTransport(transport.Event{
+		Name:     "controller_raft_admission",
+		Priority: transport.PriorityRaft,
+		Result:   "full",
+	})
+	transportObserver.ObserveTransport(transport.Event{
+		Name:     "controller_raft_task",
+		Priority: transport.PriorityRaft,
+		Result:   "err",
+		Duration: time.Millisecond,
+	})
 
 	storageObserver := storageCommitMetricsObserver{metrics: reg}
 	storageObserver.SetCommitCoordinatorQueue(7, 1024)
@@ -265,6 +283,15 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	if got := transportScheduler.GetGauge().GetValue(); got != 3 {
 		t.Fatalf("transport scheduler depth = %v, want 3", got)
 	}
+	controllerRaftSend := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "transport",
+		"pool":      "controller_raft",
+		"queue":     "send",
+		"priority":  "raft",
+	})
+	if got := controllerRaftSend.GetGauge().GetValue(); got != 2 {
+		t.Fatalf("controller raft send queue depth = %v, want 2", got)
+	}
 	sentBytes := requireAppMetricFamily(t, families, "wukongim_transport_sent_bytes_total")
 	sentRPCRequest := findAppMetricByLabels(t, sentBytes, map[string]string{
 		"msg_type": "rpc_request",
@@ -343,6 +370,13 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		"queue":     "commit",
 		"priority":  "none",
 		"result":    "timeout",
+	})
+	findAppMetricByLabels(t, admissions, map[string]string{
+		"component": "transport",
+		"pool":      "controller_raft",
+		"queue":     "send",
+		"priority":  "raft",
+		"result":    "full",
 	})
 
 	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
@@ -443,6 +477,12 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		"pool":      "message_commit",
 		"task":      "commit",
 		"result":    "ok",
+	})
+	findAppMetricByLabels(t, taskDuration, map[string]string{
+		"component": "transport",
+		"pool":      "controller_raft",
+		"task":      "send",
+		"result":    "err",
 	})
 
 	channelWorkerBatch := requireAppMetricFamily(t, families, "wukongim_channelv2_worker_batch_items")

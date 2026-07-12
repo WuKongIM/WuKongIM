@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 func TestUpdateTokenMapsCompatibleRequestToUsecaseCommand(t *testing.T) {
@@ -36,8 +36,8 @@ func TestUpdateTokenMapsCompatibleRequestToUsecaseCommand(t *testing.T) {
 	if got, want := users.tokenCommands[0], (userusecase.UpdateTokenCommand{
 		UID:         "u1",
 		Token:       "t1",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelMaster,
+		DeviceFlag:  protocolmeta.DeviceFlagApp,
+		DeviceLevel: protocolmeta.DeviceLevelMaster,
 	}); got != want {
 		t.Fatalf("token command = %#v, want %#v", got, want)
 	}
@@ -97,8 +97,8 @@ func TestDeviceQuitMapsCompatibleRequestToUsecaseCommand(t *testing.T) {
 func TestOnlineStatusReturnsCompatibleResponses(t *testing.T) {
 	users := &recordingUserUsecase{
 		onlineStatuses: []userusecase.OnlineStatus{
-			{UID: "u1", DeviceFlag: uint8(frame.APP), Online: 1},
-			{UID: "u2", DeviceFlag: uint8(frame.WEB), Online: 1},
+			{UID: "u1", DeviceFlag: uint8(protocolmeta.DeviceFlagApp), Online: 1},
+			{UID: "u2", DeviceFlag: uint8(protocolmeta.DeviceFlagWeb), Online: 1},
 		},
 	}
 	srv := New(Options{Users: users})

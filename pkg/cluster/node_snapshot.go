@@ -98,6 +98,9 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	if firstSnapshot || changes.nodes {
 		n.channelDataNodes.Update(activeDataNodeIDs(snapshot.Nodes))
 	}
+	if n.router != nil {
+		n.router.AdvanceRevision(snapshot.Revision)
+	}
 	slotsReady := true
 	if n.defaultSlots && n.defaultSlotRuntime != nil {
 		slotIDs, localAssignedSlotIDs := defaultSlotReadinessInputs(snapshot.Slots, n.cfg.NodeID)

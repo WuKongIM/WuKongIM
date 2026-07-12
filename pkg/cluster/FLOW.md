@@ -137,7 +137,7 @@ Start(ctx)
   -> start default transport and injected lifecycle resources
   -> start Controller-backed Controller or injected Controller
   -> wait for a valid initial control snapshot
-  -> routing.UpdateControlSnapshot(snapshot)
+  -> routing.UpdateControlSnapshot(snapshot) and publish the snapshot revision
   -> discovery.Update(control node addresses plus seed-join seed addresses when configured)
   -> slots.Reconcile(snapshot)
   -> start Controller watch loop for later snapshots
@@ -149,7 +149,7 @@ Start(ctx)
   -> start the bounded Channel runtime migration executor/repair scanner loop when enabled
 ```
 
-`Start` requires cluster semantics even for one node. A single-node cluster uses a Controller-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for Controller Raft traffic and RPC responses only for state-sync requests. The Controller Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
+`Start` requires cluster semantics even for one node. A single-node cluster uses a Controller-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for Controller Raft traffic and RPC responses only for state-sync requests. Outbound Controller Raft traffic uses fixed sharded workers and bounded per-worker queues, preserving per-peer order while dropping admission when a shard is full; Raft retransmission is relied on instead of accumulating per-batch goroutines. Sends use a bounded timeout, emit low-cardinality `controller_raft_queue`, `controller_raft_admission`, and `controller_raft_task` transport observations, and stop with the owning Node. The Controller Raft receive handler also bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated.
 
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local Channel runtime resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when Channel runtime placement candidates are stale, verifies Channel runtime has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local Channel runtime data-plane lease after the probe succeeds.
 
@@ -190,7 +190,7 @@ installing the observed actual leader and term. While the mirrored local state
 is still `joining`, it does not install preferred leaders and public readiness
 continues to be activation-only.
 
-Controller changes enter cluster as strongly typed `controller.ClusterState` events. `pkg/cluster/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
+Controller changes enter cluster as strongly typed `controller.ClusterState` events. `pkg/cluster/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing. Every accepted snapshot advances the immutable routing table revision even when topology is unchanged, so health-only or task-only control updates cannot leave foreground write-readiness comparing different control and route revisions. The existing topology maps are shared when only the revision changes.
 
 When a control snapshot contains active bootstrap, leader-transfer, or staged
 slot-replica-move tasks, the Node runs task executors after Slot

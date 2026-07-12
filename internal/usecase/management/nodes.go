@@ -193,51 +193,124 @@ type Options struct {
 	Now func() time.Time
 }
 
-// App serves read-only manager management usecases for internal.
-type App struct {
-	cluster                      ControlSnapshotReader
-	nodeConfig                   NodeConfigReader
-	runtimeSummary               RuntimeSummaryReader
-	gatewayDrain                 GatewayDrainWriter
-	nodeLifecycle                NodeLifecycleWriter
-	controllerVoterPromoter      ControllerVoterPromoter
-	controllerVoterReadiness     ControllerVoterReadinessReader
-	controllerVoterPreparer      ControllerVoterPreparer
-	nodeReadiness                NodeReadinessReader
-	diagnostics                  DiagnosticsReader
-	diagnosticsTracking          DiagnosticsTrackingOperator
-	scaleInStatusObserver        ScaleInStatusObserver
-	lifecycleAttempts            NodeLifecycleAttemptObserver
-	controllerVoterPromotion     ControllerVoterPromotionObserver
+// nodeManagementDeps groups node lifecycle and diagnostics ports.
+type nodeManagementDeps struct {
+	// cluster reads the local control snapshot and node identity.
+	cluster ControlSnapshotReader
+	// nodeConfig reads redacted effective startup configuration.
+	nodeConfig NodeConfigReader
+	// runtimeSummary reads node-local runtime counters.
+	runtimeSummary RuntimeSummaryReader
+	// gatewayDrain changes node-local gateway admission mode.
+	gatewayDrain GatewayDrainWriter
+	// nodeLifecycle submits durable node lifecycle changes.
+	nodeLifecycle NodeLifecycleWriter
+	// controllerVoterPromoter submits Controller voter promotion changes.
+	controllerVoterPromoter ControllerVoterPromoter
+	// controllerVoterReadiness reads target promotion readiness.
+	controllerVoterReadiness ControllerVoterReadinessReader
+	// controllerVoterPreparer prepares a target Controller voter.
+	controllerVoterPreparer ControllerVoterPreparer
+	// nodeReadiness reads activation readiness.
+	nodeReadiness NodeReadinessReader
+	// diagnostics reads node-local diagnostic events.
+	diagnostics DiagnosticsReader
+	// diagnosticsTracking mutates diagnostic tracking rules.
+	diagnosticsTracking DiagnosticsTrackingOperator
+	// scaleInStatusObserver observes completed scale-in projections.
+	scaleInStatusObserver ScaleInStatusObserver
+	// lifecycleAttempts observes node lifecycle write attempts.
+	lifecycleAttempts NodeLifecycleAttemptObserver
+	// controllerVoterPromotion observes voter promotion attempts.
+	controllerVoterPromotion ControllerVoterPromotionObserver
+	// controllerRaftStatusObserver observes collected Controller status.
 	controllerRaftStatusObserver ControllerRaftStatusObserver
-	channelRuntimeMeta           ChannelRuntimeMetaReader
-	channelMigration             ChannelMigrationStore
-	channelBusinessReader        ChannelBusinessReader
-	remoteBusinessChannels       RemoteBusinessChannelReader
-	users                        UserReader
-	userOperator                 UserOperator
-	userPresence                 UserPresenceDirectory
-	userActions                  UserRouteActionDispatcher
-	systemUsers                  SystemUserOperator
-	conversations                ConversationSyncer
-	messages                     MessageReader
-	messageRetention             MessageRetentionOperator
-	connections                  ConnectionReader
-	remoteConnections            RemoteConnectionReader
-	plugins                      PluginReader
-	remotePlugins                RemotePluginReader
-	pluginBindings               PluginBindingStore
-	logs                         LogReader
-	slotRaft                     SlotRaftOperator
-	leaderTransfer               SlotLeaderTransferWriter
-	slotReplicaMove              SlotReplicaMoveWriter
-	slotRuntimeStatus            SlotRuntimeStatusReader
-	controllerRaft               ControllerRaftOperator
-	controllerTaskAudit          ControllerTaskAuditReader
-	applicationLogs              ApplicationLogReader
-	dbInspect                    DBInspectReader
-	remoteDBInspect              RemoteDBInspectReader
-	now                          func() time.Time
+}
+
+// channelManagementDeps groups channel inventory and migration ports.
+type channelManagementDeps struct {
+	// channelRuntimeMeta reads channel runtime metadata.
+	channelRuntimeMeta ChannelRuntimeMetaReader
+	// channelMigration stores channel migration tasks.
+	channelMigration ChannelMigrationStore
+	// channelBusinessReader reads durable channel business metadata.
+	channelBusinessReader ChannelBusinessReader
+	// remoteBusinessChannels reads channel pages from peer nodes.
+	remoteBusinessChannels RemoteBusinessChannelReader
+}
+
+// userManagementDeps groups user, presence, and connection ports.
+type userManagementDeps struct {
+	// users reads durable user and device metadata.
+	users UserReader
+	// userOperator applies user mutations.
+	userOperator UserOperator
+	// userPresence reads authoritative user routes.
+	userPresence UserPresenceDirectory
+	// userActions dispatches owner-route actions.
+	userActions UserRouteActionDispatcher
+	// systemUsers reads and mutates system UID rows.
+	systemUsers SystemUserOperator
+	// connections reads owner-local gateway sessions.
+	connections ConnectionReader
+	// remoteConnections reads gateway sessions from peer nodes.
+	remoteConnections RemoteConnectionReader
+}
+
+// messageManagementDeps groups conversation, message, and retention ports.
+type messageManagementDeps struct {
+	// conversations reads recent conversation projections.
+	conversations ConversationSyncer
+	// messages reads committed channel messages.
+	messages MessageReader
+	// messageRetention advances message retention boundaries.
+	messageRetention MessageRetentionOperator
+}
+
+// operationsManagementDeps groups operational plugin, Raft, log, and DB ports.
+type operationsManagementDeps struct {
+	// plugins reads node-local plugin runtime snapshots.
+	plugins PluginReader
+	// remotePlugins reads plugin runtime snapshots from peer nodes.
+	remotePlugins RemotePluginReader
+	// pluginBindings reads and mutates UID plugin bindings.
+	pluginBindings PluginBindingStore
+	// logs reads distributed Raft log pages.
+	logs LogReader
+	// slotRaft runs node-local Slot Raft operations.
+	slotRaft SlotRaftOperator
+	// leaderTransfer submits Slot leader transfer intents.
+	leaderTransfer SlotLeaderTransferWriter
+	// slotReplicaMove submits staged Slot replica move intents.
+	slotReplicaMove SlotReplicaMoveWriter
+	// slotRuntimeStatus reads live Slot Raft status.
+	slotRuntimeStatus SlotRuntimeStatusReader
+	// controllerRaft runs node-local Controller Raft operations.
+	controllerRaft ControllerRaftOperator
+	// controllerTaskAudit reads retained Controller task history.
+	controllerTaskAudit ControllerTaskAuditReader
+	// applicationLogs reads ordinary application log pages.
+	applicationLogs ApplicationLogReader
+	// dbInspect runs local read-only database inspection.
+	dbInspect DBInspectReader
+	// remoteDBInspect runs database inspection on peer nodes.
+	remoteDBInspect RemoteDBInspectReader
+}
+
+// App serves manager management usecases through grouped domain capabilities.
+type App struct {
+	// nodeManagementDeps provides node lifecycle and diagnostic capabilities.
+	nodeManagementDeps
+	// channelManagementDeps provides channel inventory and migration capabilities.
+	channelManagementDeps
+	// userManagementDeps provides user and connection capabilities.
+	userManagementDeps
+	// messageManagementDeps provides conversation and message capabilities.
+	messageManagementDeps
+	// operationsManagementDeps provides plugin, Raft, log, and DB capabilities.
+	operationsManagementDeps
+	// now returns timestamps for generated manager projections.
+	now func() time.Time
 }
 
 // New constructs the manager management usecase.
@@ -247,49 +320,35 @@ func New(opts Options) *App {
 		now = time.Now
 	}
 	return &App{
-		cluster:                      opts.Cluster,
-		nodeConfig:                   opts.NodeConfig,
-		runtimeSummary:               opts.RuntimeSummary,
-		gatewayDrain:                 opts.GatewayDrain,
-		nodeLifecycle:                opts.NodeLifecycle,
-		controllerVoterPromoter:      opts.ControllerVoterPromoter,
-		controllerVoterReadiness:     opts.ControllerVoterReadiness,
-		controllerVoterPreparer:      opts.ControllerVoterPreparer,
-		nodeReadiness:                opts.NodeReadiness,
-		diagnostics:                  opts.Diagnostics,
-		diagnosticsTracking:          opts.DiagnosticsTracking,
-		scaleInStatusObserver:        opts.ScaleInStatusObserver,
-		lifecycleAttempts:            opts.NodeLifecycleAttemptObserver,
-		controllerVoterPromotion:     opts.ControllerVoterPromotionObserver,
-		controllerRaftStatusObserver: opts.ControllerRaftStatusObserver,
-		channelRuntimeMeta:           opts.ChannelRuntimeMeta,
-		channelMigration:             opts.ChannelMigration,
-		channelBusinessReader:        opts.ChannelBusinessReader,
-		remoteBusinessChannels:       opts.RemoteBusinessChannels,
-		users:                        opts.Users,
-		userOperator:                 opts.UserOperator,
-		userPresence:                 opts.UserPresence,
-		userActions:                  opts.UserActions,
-		systemUsers:                  opts.SystemUsers,
-		conversations:                opts.Conversations,
-		messages:                     opts.Messages,
-		messageRetention:             opts.MessageRetention,
-		connections:                  opts.Connections,
-		remoteConnections:            opts.RemoteConnections,
-		plugins:                      opts.Plugins,
-		remotePlugins:                opts.RemotePlugins,
-		pluginBindings:               opts.PluginBindings,
-		logs:                         opts.Logs,
-		slotRaft:                     opts.SlotRaft,
-		leaderTransfer:               opts.LeaderTransfer,
-		slotReplicaMove:              opts.SlotReplicaMove,
-		slotRuntimeStatus:            opts.SlotRuntimeStatus,
-		controllerRaft:               opts.ControllerRaft,
-		controllerTaskAudit:          opts.ControllerTaskAudit,
-		applicationLogs:              opts.ApplicationLogs,
-		dbInspect:                    opts.DBInspect,
-		remoteDBInspect:              opts.RemoteDBInspect,
-		now:                          now,
+		nodeManagementDeps: nodeManagementDeps{
+			cluster: opts.Cluster, nodeConfig: opts.NodeConfig, runtimeSummary: opts.RuntimeSummary,
+			gatewayDrain: opts.GatewayDrain, nodeLifecycle: opts.NodeLifecycle,
+			controllerVoterPromoter: opts.ControllerVoterPromoter, controllerVoterReadiness: opts.ControllerVoterReadiness,
+			controllerVoterPreparer: opts.ControllerVoterPreparer, nodeReadiness: opts.NodeReadiness,
+			diagnostics: opts.Diagnostics, diagnosticsTracking: opts.DiagnosticsTracking,
+			scaleInStatusObserver: opts.ScaleInStatusObserver, lifecycleAttempts: opts.NodeLifecycleAttemptObserver,
+			controllerVoterPromotion: opts.ControllerVoterPromotionObserver, controllerRaftStatusObserver: opts.ControllerRaftStatusObserver,
+		},
+		channelManagementDeps: channelManagementDeps{
+			channelRuntimeMeta: opts.ChannelRuntimeMeta, channelMigration: opts.ChannelMigration,
+			channelBusinessReader: opts.ChannelBusinessReader, remoteBusinessChannels: opts.RemoteBusinessChannels,
+		},
+		userManagementDeps: userManagementDeps{
+			users: opts.Users, userOperator: opts.UserOperator, userPresence: opts.UserPresence,
+			userActions: opts.UserActions, systemUsers: opts.SystemUsers,
+			connections: opts.Connections, remoteConnections: opts.RemoteConnections,
+		},
+		messageManagementDeps: messageManagementDeps{
+			conversations: opts.Conversations, messages: opts.Messages, messageRetention: opts.MessageRetention,
+		},
+		operationsManagementDeps: operationsManagementDeps{
+			plugins: opts.Plugins, remotePlugins: opts.RemotePlugins, pluginBindings: opts.PluginBindings,
+			logs: opts.Logs, slotRaft: opts.SlotRaft, leaderTransfer: opts.LeaderTransfer,
+			slotReplicaMove: opts.SlotReplicaMove, slotRuntimeStatus: opts.SlotRuntimeStatus,
+			controllerRaft: opts.ControllerRaft, controllerTaskAudit: opts.ControllerTaskAudit,
+			applicationLogs: opts.ApplicationLogs, dbInspect: opts.DBInspect, remoteDBInspect: opts.RemoteDBInspect,
+		},
+		now: now,
 	}
 }
 

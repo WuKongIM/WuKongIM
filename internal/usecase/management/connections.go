@@ -6,10 +6,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 // ErrConnectionReaderUnavailable reports that a requested node connection source is not available.
@@ -170,8 +170,8 @@ func managerConnection(localNodeID uint64, table control.HashSlotTable, session 
 		SessionID:   route.SessionID,
 		UID:         route.UID,
 		DeviceID:    route.DeviceID,
-		DeviceFlag:  managerDeviceFlag(frame.DeviceFlag(route.DeviceFlag)),
-		DeviceLevel: managerConnectionDeviceLevel(frame.DeviceLevel(route.DeviceLevel)),
+		DeviceFlag:  managerDeviceFlag(protocolmeta.DeviceFlag(route.DeviceFlag)),
+		DeviceLevel: managerConnectionDeviceLevel(protocolmeta.DeviceLevel(route.DeviceLevel)),
 		SlotID:      uint64(slotIDForHashSlot(table, route.HashSlot)),
 		State:       managerRouteState(session.State),
 		Listener:    route.Listener,

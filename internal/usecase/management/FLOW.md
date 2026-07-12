@@ -52,6 +52,13 @@ user management, and system UID projections/actions used by
 `/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
 `/manager/system-users*`.
 
+`Options` remains the composition-root facade, while `App` stores its port
+inventory in node, channel, user, message, and operations dependency groups.
+These groups improve construction and navigation; they are not independent
+sub-apps or behavioral call boundaries. Method receivers intentionally keep the
+stable `App` API, and new ports belong in the matching dependency group instead
+of becoming another direct field on the aggregate.
+
 Plugin binding list requests accept exactly one selector. UID requests call the
 cluster-authoritative binding store directly. Plugin-number requests require
 the store to implement the optional plugin-centric scanner and preserve its

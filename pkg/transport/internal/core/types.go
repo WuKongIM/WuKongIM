@@ -271,16 +271,12 @@ func (b *OwnedBuffer) Release() {
 		b.data = nil
 		return
 	}
-	if !b.state.released.CompareAndSwap(false, true) {
-		b.state = nil
-		b.data = nil
+	state := b.state
+	if !state.released.CompareAndSwap(false, true) {
 		return
 	}
-	data := b.state.data
-	release := b.state.release
-	b.state.data = nil
-	b.state = nil
-	b.data = nil
+	data := state.data
+	release := state.release
 	if release != nil {
 		release(data)
 	}

@@ -159,3 +159,20 @@ func (r *Router) UpdateSlotLeaders(status []SlotStatus) {
 		}
 	}
 }
+
+// AdvanceRevision publishes a newer control revision without rebuilding unchanged topology.
+func (r *Router) AdvanceRevision(revision uint64) {
+	if r == nil || revision == 0 {
+		return
+	}
+	for {
+		current := r.current.Load()
+		if current == nil || current.Revision >= revision {
+			return
+		}
+		next := current.cloneWithRevision(revision)
+		if r.current.CompareAndSwap(current, next) {
+			return
+		}
+	}
+}

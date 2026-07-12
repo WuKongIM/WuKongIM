@@ -181,6 +181,9 @@ func TestNodeControlWatchNodeOnlyChangeSkipsSlotReconcile(t *testing.T) {
 	waitUntil(t, func() bool {
 		return node.Snapshot().StateRevision == 2
 	})
+	if table := node.router.Table(); table == nil || table.Revision != 2 {
+		t.Fatalf("route table = %#v, want node-only control update to advance revision to 2", table)
+	}
 	if calls := reconciler.Calls(); calls != 1 {
 		t.Fatalf("reconciler calls = %d, want node-only change to skip slot reconcile", calls)
 	}

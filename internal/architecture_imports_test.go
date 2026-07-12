@@ -50,6 +50,27 @@ func TestInternalImportBoundaries(t *testing.T) {
 	}
 }
 
+func TestAllUsecasesAvoidEntryAndFrameImplementations(t *testing.T) {
+	packages := listInternalPackages(t)
+	var violations []string
+	for _, pkg := range packages {
+		if !matchesImportPrefix(pkg.ImportPath, modulePath+"/internal/usecase/") {
+			continue
+		}
+		for _, imported := range pkg.Imports {
+			if matchesImportPrefix(imported, modulePath+"/pkg/gateway") ||
+				matchesImportPrefix(imported, modulePath+"/pkg/protocol/frame") ||
+				imported == modulePath+"/pkg/cluster" {
+				violations = append(violations, fmt.Sprintf("%s imports %s", pkg.ImportPath, imported))
+			}
+		}
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Fatalf("usecase implementation boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 type listedPackage struct {
 	ImportPath   string
 	Imports      []string

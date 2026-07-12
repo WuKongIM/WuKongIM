@@ -7,9 +7,9 @@ import (
 	"time"
 
 	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -45,7 +45,7 @@ func (a *App) offlineReceiveEligible(event pluginevents.ReceiveOffline) bool {
 	if event.UID == "" || event.MessageID == 0 || event.MessageSeq == 0 {
 		return false
 	}
-	if len(event.MessageScopedUIDs) > 0 || event.ChannelType == frame.ChannelTypeTemp {
+	if len(event.MessageScopedUIDs) > 0 || protocolmeta.ChannelType(event.ChannelType) == protocolmeta.ChannelTypeTemp {
 		return false
 	}
 	if event.NoPersist || event.SyncOnce {
@@ -114,7 +114,7 @@ func receivePacketFromOfflineEvent(event pluginevents.ReceiveOffline) *pluginpro
 
 func receiveChannelIDForRecipient(event pluginevents.ReceiveOffline) string {
 	sourceChannelID, _ := runtimechannelid.FromCommandChannel(event.ChannelID)
-	if event.ChannelType != frame.ChannelTypePerson || event.UID == "" {
+	if protocolmeta.ChannelType(event.ChannelType) != protocolmeta.ChannelTypePerson || event.UID == "" {
 		return sourceChannelID
 	}
 	left, right, err := runtimechannelid.DecodePersonChannel(sourceChannelID)

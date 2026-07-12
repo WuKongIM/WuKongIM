@@ -302,6 +302,11 @@ pool samples, the group also emits direct ants/v2 running/capacity/waiting
 observations for the advance, append_effect, and post_commit pools; benchmark
 scripts use these samples for the per-node peak `used/cap` ants pool summary.
 
+Before a post-commit effect enters the asynchronous pool, it copies the
+committed-envelope slice into effect-owned storage. The envelopes themselves
+remain immutable values, while the independent slice ownership allows shutdown
+to clear queued writer backlog without racing an already-running effect.
+
 `Stop` cancels the runtime context passed to append and post-commit effects
 before waiting for writers to drain. Once cancellation is observed, writers do
 not schedule more queued post-commit backlog, avoiding a one-by-one walk of

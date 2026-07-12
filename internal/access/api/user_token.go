@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,8 +28,8 @@ func (s *Server) handleUpdateToken(c *gin.Context) {
 	err := s.users.UpdateToken(c.Request.Context(), userusecase.UpdateTokenCommand{
 		UID:         req.UID,
 		Token:       req.Token,
-		DeviceFlag:  frame.DeviceFlag(req.DeviceFlag),
-		DeviceLevel: frame.DeviceLevel(req.DeviceLevel),
+		DeviceFlag:  protocolmeta.DeviceFlag(req.DeviceFlag),
+		DeviceLevel: protocolmeta.DeviceLevel(req.DeviceLevel),
 	})
 	if err != nil {
 		writeJSONError(c, err.Error())

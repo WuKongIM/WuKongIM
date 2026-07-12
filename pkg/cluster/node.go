@@ -71,6 +71,8 @@ type Node struct {
 	channelDataPlaneLease *channelDataPlaneLeaseGuard
 	// defaultControl reports whether Node constructed the Controller runtime.
 	defaultControl bool
+	// defaultControlRaftTransport owns the bounded Controller Raft send workers.
+	defaultControlRaftTransport *control.RaftTransport
 	// defaultTransport reports whether Node constructed the node RPC transport.
 	defaultTransport bool
 	// defaultChannels reports whether Node constructed channels during Start.

@@ -55,6 +55,33 @@ func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {
 	}
 }
 
+func TestRuntimeCanceledStopLeavesRaftTransportRetryable(t *testing.T) {
+	raftTransport := NewRaftTransport(nil)
+	runtime := &Runtime{cfg: RuntimeConfig{RaftTransport: raftTransport}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := runtime.Stop(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Stop(canceled) error = %v, want context canceled", err)
+	}
+	raftTransport.mu.RLock()
+	stopped := raftTransport.stopped
+	raftTransport.mu.RUnlock()
+	if stopped {
+		t.Fatal("canceled Stop permanently stopped the Raft transport")
+	}
+
+	if err := runtime.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop(retry) error = %v", err)
+	}
+	raftTransport.mu.RLock()
+	stopped = raftTransport.stopped
+	raftTransport.mu.RUnlock()
+	if !stopped {
+		t.Fatal("successful Stop left the Raft transport running")
+	}
+}
+
 func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
 	runtime, err := NewRuntime(RuntimeConfig{
 		NodeID:           1,

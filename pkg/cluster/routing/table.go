@@ -159,3 +159,19 @@ func (t *Table) cloneWithLeaders(status []SlotStatus) *Table {
 	}
 	return out
 }
+
+func (t *Table) cloneWithRevision(revision uint64) *Table {
+	if t == nil {
+		return nil
+	}
+	return &Table{
+		Revision:             revision,
+		HashToSlot:           t.HashToSlot,
+		SlotLeaders:          t.SlotLeaders,
+		SlotLeaderTerms:      t.SlotLeaderTerms,
+		SlotConfigEpochs:     t.SlotConfigEpochs,
+		SlotPreferredLeaders: t.SlotPreferredLeaders,
+		SlotPeers:            t.SlotPeers,
+		HashSlotCount:        t.HashSlotCount,
+	}
+}

@@ -221,7 +221,7 @@ func (s *channelState) nextCommitEffect(key string, out *commitEffect) bool {
 	out.key = key
 	out.seq = s.nextCommitSeq
 	out.attempt = s.commitAttempts
-	out.events = events
+	out.events = append(out.events[:0], events...)
 	out.target = s.target
 	out.subscriberCache = s.subscriberCache
 	s.nextCommitSeq += uint64(limit)

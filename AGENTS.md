@@ -75,6 +75,7 @@ internal/
     channelmembers/      legacy 兼容 member-list channel id 命名合约
     messageevents/       消息提交事件合约
     pluginevents/        插件生命周期与 hook 事件合约
+    protocolmeta/        入口无关的协议枚举值合约
   infra/                 新架构外部运行时适配器
     cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
   log/                   新架构应用日志配置与 zap/lumberjack 封装

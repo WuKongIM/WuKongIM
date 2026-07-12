@@ -21,6 +21,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		}
 		n.registerPendingRPCHandlers()
 		controlPeers := n.defaultControlRuntimePeers()
+		raftTransport := control.NewRaftTransportWithOptions(n.transportClient, control.RaftTransportOptions{Observer: n.cfg.Transport.Observer})
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
 			NodeID:                 n.cfg.NodeID,
 			Addr:                   n.cfg.ListenAddr,
@@ -32,7 +33,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			InitialSlotCount:       n.cfg.Slots.InitialSlotCount,
 			HashSlotCount:          n.cfg.Slots.HashSlotCount,
 			ReplicaCount:           n.cfg.Slots.ReplicaCount,
-			RaftTransport:          control.NewRaftTransport(n.transportClient),
+			RaftTransport:          raftTransport,
 			RaftObserver:           n.cfg.Control.RaftObserver,
 			TaskTransitionObserver: n.cfg.Control.TaskTransitionObserver,
 			SyncPeers:              control.NewStaticPeerPicker(n.transportClient, controlPeers),
@@ -41,6 +42,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			HealthReportTTL:        n.cfg.HealthReport.TTL,
 		})
 		if err != nil {
+			raftTransport.Stop()
 			return false, err
 		}
 		if n.cfg.Control.Role == ControlRoleVoter {
@@ -48,6 +50,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		}
 		n.control = runtime
 		n.defaultControl = true
+		n.defaultControlRaftTransport = raftTransport
 	}
 	if n.proposer == nil {
 		if err := n.ensureDefaultSlots(); err != nil {
@@ -391,6 +394,10 @@ func (n *Node) discardDefaultControl() {
 	}
 	n.control = nil
 	n.defaultControl = false
+	if n.defaultControlRaftTransport != nil {
+		n.defaultControlRaftTransport.Stop()
+		n.defaultControlRaftTransport = nil
+	}
 }
 
 func (n *Node) discardDefaultTransport() {
