@@ -21,6 +21,11 @@ type FollowerApplyBatcher interface {
 	ApplyFollowerBatch(ctx context.Context, items []ApplyFollowerBatchItem) []ApplyFollowerBatchResult
 }
 
+// CheckpointBatcher optionally persists durable HW updates for multiple channels in one store call.
+type CheckpointBatcher interface {
+	StoreCheckpointBatch(ctx context.Context, items []StoreCheckpointBatchItem) []StoreCheckpointBatchResult
+}
+
 // ChannelCatalogLister pages the local message-store channel catalog.
 type ChannelCatalogLister interface {
 	ListChannelsPage(ctx context.Context, after ch.ChannelKey, limit int) ([]ChannelCatalogEntry, ch.ChannelKey, bool, error)
@@ -152,6 +157,18 @@ type ApplyFollowerResult struct {
 // ApplyFollowerBatchResult returns the result for one ApplyFollowerBatchItem.
 type ApplyFollowerBatchResult struct {
 	LEO uint64
+	Err error
+}
+
+// StoreCheckpointBatchItem is one channel-scoped durable HW update inside a store-level batch.
+type StoreCheckpointBatchItem struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Checkpoint ch.Checkpoint
+}
+
+// StoreCheckpointBatchResult returns the result for one StoreCheckpointBatchItem.
+type StoreCheckpointBatchResult struct {
 	Err error
 }
 

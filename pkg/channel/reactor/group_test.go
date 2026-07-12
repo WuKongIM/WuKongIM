@@ -211,6 +211,7 @@ func TestDefaultWorkerPoolsUseExtraStoreWorkers(t *testing.T) {
 	require.Equal(t, 64, pools.StoreAppend.Workers)
 	require.Equal(t, 32, pools.StoreRead.Workers)
 	require.Equal(t, 64, pools.StoreApply.Workers)
+	require.Equal(t, 16, pools.StoreCheckpoint.Workers)
 	require.Equal(t, 32, pools.RPC.Workers)
 }
 
@@ -219,8 +220,21 @@ func TestDefaultWorkerPoolsCapStoreWorkers(t *testing.T) {
 
 	require.Equal(t, 128, pools.StoreAppend.Workers)
 	require.Equal(t, 128, pools.StoreApply.Workers)
+	require.Equal(t, 32, pools.StoreCheckpoint.Workers)
 	require.Equal(t, 128, pools.StoreRead.Workers)
 	require.Equal(t, 128, pools.RPC.Workers)
+}
+
+func TestDefaultWorkerPoolsScaleCheckpointWorkersFromExplicitApplyCapacity(t *testing.T) {
+	pools := defaultWorkerPools(Config{
+		ReactorCount: 32,
+		MailboxSize:  16,
+		WorkerPools: worker.PoolsConfig{
+			StoreApply: worker.PoolConfig{Workers: 500},
+		},
+	})
+
+	require.Equal(t, 64, pools.StoreCheckpoint.Workers)
 }
 
 func TestDefaultWorkerPoolsPreserveExplicitStoreWorkers(t *testing.T) {
@@ -228,14 +242,16 @@ func TestDefaultWorkerPoolsPreserveExplicitStoreWorkers(t *testing.T) {
 		ReactorCount: 32,
 		MailboxSize:  16,
 		WorkerPools: worker.PoolsConfig{
-			StoreAppend: worker.PoolConfig{Workers: 7},
-			StoreApply:  worker.PoolConfig{Workers: 9},
-			RPC:         worker.PoolConfig{Workers: 11},
+			StoreAppend:     worker.PoolConfig{Workers: 7},
+			StoreApply:      worker.PoolConfig{Workers: 9},
+			StoreCheckpoint: worker.PoolConfig{Workers: 3},
+			RPC:             worker.PoolConfig{Workers: 11},
 		},
 	})
 
 	require.Equal(t, 7, pools.StoreAppend.Workers)
 	require.Equal(t, 9, pools.StoreApply.Workers)
+	require.Equal(t, 3, pools.StoreCheckpoint.Workers)
 	require.Equal(t, 11, pools.RPC.Workers)
 }
 

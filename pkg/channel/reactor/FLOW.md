@@ -216,12 +216,14 @@ RPC worker dispatchers may batch same-target `TaskRPCPull` and
 executes the transport call. The reactor still submits and receives one fenced
 worker task per channel, so batching does not change per-channel lifecycle or
 replication state.
-Store worker dispatchers may batch queued `TaskStoreAppend` or
-`TaskStoreApply` items across different channels when the store factory supports
-leader-append or follower-apply batching. The ants executor only runs prepared
-blocking groups; it is not the source of worker backpressure.
-Retention apply uses the same store-apply worker pool as follower apply and
-checkpoint work. The reactor publishes the logical `RetentionThroughSeq` before
+Store worker dispatchers may batch queued `TaskStoreAppend`, `TaskStoreApply`,
+or `TaskStoreCheckpoint` items across different channels when the store factory
+supports the corresponding leader-append, follower-apply, or checkpoint
+batching contract. Checkpoint tasks use a dedicated worker pool so checkpoint
+fsync latency cannot consume follower-apply capacity. The ants executor only
+runs prepared blocking groups; it is not the source of worker backpressure.
+Retention apply uses the store-apply worker pool shared with follower apply.
+The reactor publishes the logical `RetentionThroughSeq` before
 submitting the worker task, but physical deletion is allowed only when the
 requested boundary is locally covered by HW, checkpoint HW, LEO, and leader
 minimum ISR match offset. If checkpoint HW is the only missing physical trim
@@ -334,7 +336,7 @@ TaskColdMetaResolve    -> unloaded authoritative metadata completion
 TaskColdStoreLoad      -> authority-proven unloaded store completion
 TaskStoreReadLog       -> leader pull completion
 TaskStoreLookupMessage -> committed message lookup completion
-TaskStoreCheckpoint    -> leader, follower stop, retention, or committed-HW checkpoint
+TaskStoreCheckpoint    -> isolated pool for leader, follower stop, retention, or committed-HW checkpoint
 TaskStoreClose         -> detached store close completion (no state mutation)
 TaskStoreRetention     -> retention adoption and optional physical trim completion
 TaskRPCPull            -> follower pull completion

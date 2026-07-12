@@ -8,6 +8,10 @@ tasks through bounded admission queues, and workers return one fenced
 its own optional bounded pool. Unloaded authority resolution and the subsequent
 store load use a second bounded `ColdActivation` pool, so cold bursts cannot
 occupy hot store, metadata-refresh, or replication RPC workers.
+Durable checkpoint maintenance uses a separate low-concurrency
+`StoreCheckpoint` pool, so per-channel checkpoint fsyncs cannot occupy every
+foreground follower-apply worker or hold checkpoint locks across the apply
+queue.
 
 The package uses `pkg/workqueue.BoundedBatchPool` as its execution primitive.
 Backpressure, queue depth, adjacent batch collection, close admission, and
@@ -51,13 +55,16 @@ task: a Pull-led window collects at most four adjacent tasks, while a
 PullHint-led window collects at most two. This is not strict queue isolation;
 later tasks of another RPC kind or target can enter the same window and are
 partitioned into serial subgroups. Both policies retain the built-in
-250-microsecond collection window. Store append and store apply tasks can batch
-across different channel keys when the store factory exposes the optional batch
-interface.
+250-microsecond collection window. Store append, store apply, and checkpoint
+tasks can batch across different channel keys when the store factory exposes
+the corresponding optional batch interface. The message DB checkpoint batch
+path commits monotonic HW updates through one grouped commit without taking
+foreground append locks, instead of issuing one synchronous physical commit
+per channel.
 `TaskMetaResolve`, `TaskColdMetaResolve`, and `TaskColdStoreLoad` are never
 batched. The first runs only in the loaded-runtime metadata resolver pool; the
 two cold stages share the separate cold-activation admission budget.
-Retention tasks are single-channel store-apply-pool work: they first adopt a
+Retention tasks remain single-channel store-apply-pool work: they first adopt a
 logical boundary and only call physical trim when the reactor marked it safe.
 `PoolConfig.BatchMaxWait` overrides the task-class coalescing wait for that
 pool; zero keeps the built-in default. This lets low-latency store-append

@@ -12,14 +12,16 @@ import (
 )
 
 const (
-	rpcPullLedBatchMaxItems     = 4
-	rpcPullHintLedBatchMaxItems = 2
-	rpcBatchMaxWait             = 250 * time.Microsecond
-	storeAppendBatchMaxItems    = 64
-	storeAppendBatchMaxWait     = 250 * time.Microsecond
-	storeApplyBatchMaxItems     = 64
-	storeApplyBatchMaxWait      = 250 * time.Microsecond
-	workerExecutorStopGrace     = 100 * time.Millisecond
+	rpcPullLedBatchMaxItems      = 4
+	rpcPullHintLedBatchMaxItems  = 2
+	rpcBatchMaxWait              = 250 * time.Microsecond
+	storeAppendBatchMaxItems     = 64
+	storeAppendBatchMaxWait      = 250 * time.Microsecond
+	storeApplyBatchMaxItems      = 64
+	storeApplyBatchMaxWait       = 250 * time.Microsecond
+	storeCheckpointBatchMaxItems = 64
+	storeCheckpointBatchMaxWait  = 250 * time.Microsecond
+	workerExecutorStopGrace      = 100 * time.Millisecond
 )
 
 // QueueObserver receives bounded worker queue depth samples.
@@ -344,6 +346,8 @@ func (p *Pool) batchPolicy(first queuedTask) workqueue.BatchOptions {
 		return workqueue.BatchOptions{MaxItems: storeAppendBatchMaxItems, MaxWait: p.batchMaxWait(storeAppendBatchMaxWait)}
 	case p.canCollectStoreApplyBatch(first.task):
 		return workqueue.BatchOptions{MaxItems: storeApplyBatchMaxItems, MaxWait: p.batchMaxWait(storeApplyBatchMaxWait)}
+	case p.canCollectStoreCheckpointBatch(first.task):
+		return workqueue.BatchOptions{MaxItems: storeCheckpointBatchMaxItems, MaxWait: p.batchMaxWait(storeCheckpointBatchMaxWait)}
 	default:
 		return workqueue.BatchOptions{MaxItems: 1}
 	}

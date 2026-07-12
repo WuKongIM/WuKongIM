@@ -440,12 +440,18 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	storeApplyWorkers := min(workers*defaultStoreApplyWorkerMultiplier, defaultStoreWorkerCap)
 	queueSize := max(64, cfg.MailboxSize)
 	pools := cfg.WorkerPools
+	effectiveStoreApplyWorkers := storeApplyWorkers
+	if pools.StoreApply.Workers > 0 {
+		effectiveStoreApplyWorkers = pools.StoreApply.Workers
+	}
+	storeCheckpointWorkers := worker.DefaultStoreCheckpointWorkers(effectiveStoreApplyWorkers)
 	if cfg.StoreAppendBatchMaxWait > 0 {
 		pools.StoreAppend.BatchMaxWait = cfg.StoreAppendBatchMaxWait
 	}
 	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, defaultStoreAppendPoolName, storeAppendWorkers, queueSize)
 	pools.StoreRead = defaultPoolConfig(pools.StoreRead, defaultStoreReadPoolName, workers, queueSize)
 	pools.StoreApply = defaultPoolConfig(pools.StoreApply, defaultStoreApplyPoolName, storeApplyWorkers, queueSize)
+	pools.StoreCheckpoint = defaultPoolConfig(pools.StoreCheckpoint, "channelv2-store-checkpoint", storeCheckpointWorkers, queueSize)
 	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, workers, queueSize)
 	if cfg.MetaResolver != nil {
 		pools.MetaResolve = defaultPoolConfig(pools.MetaResolve, defaultMetaResolvePoolName, defaultMetaResolveWorkers, defaultMetaResolveQueueSize)

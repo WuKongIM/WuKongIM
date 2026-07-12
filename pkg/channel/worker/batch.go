@@ -22,6 +22,8 @@ func (p *Pool) taskGroups(items []queuedTask) [][]queuedTask {
 		return groupStoreBatchItems(items, TaskStoreAppend)
 	case p.canCollectStoreApplyBatch(first.task):
 		return groupStoreBatchItems(items, TaskStoreApply)
+	case p.canCollectStoreCheckpointBatch(first.task):
+		return groupStoreBatchItems(items, TaskStoreCheckpoint)
 	default:
 		return singleTaskGroups(items)
 	}
@@ -54,6 +56,13 @@ func (p *Pool) canCollectStoreApplyBatch(task Task) bool {
 		return false
 	}
 	return task.Kind == TaskStoreApply
+}
+
+func (p *Pool) canCollectStoreCheckpointBatch(task Task) bool {
+	if _, ok := p.deps.Stores.(store.CheckpointBatcher); !ok {
+		return false
+	}
+	return task.Kind == TaskStoreCheckpoint
 }
 
 func groupRPCBatchItems(items []queuedTask) [][]queuedTask {
@@ -226,6 +235,11 @@ func (p *Pool) runQueuedGroup(ctx context.Context, group []queuedTask) []Result 
 				return p.runStoreApplyBatch(ctx, group, batcher)
 			}
 		}
+		if group[0].task.Kind == TaskStoreCheckpoint {
+			if batcher, ok := p.deps.Stores.(store.CheckpointBatcher); ok {
+				return p.runStoreCheckpointBatch(ctx, group, batcher)
+			}
+		}
 	}
 	results := make([]Result, 0, len(group))
 	for _, queued := range group {
@@ -331,6 +345,59 @@ func (p *Pool) runStoreApplyBatch(ctx context.Context, group []queuedTask, batch
 		results[index].Err = batchContextErr(group[index].task, ctx, item.Err)
 		results[index].StoreApply = &StoreApplyResult{LEO: item.LEO}
 	}
+	return results
+}
+
+func (p *Pool) runStoreCheckpointBatch(ctx context.Context, group []queuedTask, batcher store.CheckpointBatcher) []Result {
+	results := make([]Result, len(group))
+	items := make([]store.StoreCheckpointBatchItem, 0, len(group))
+	active := make([]int, 0, len(group))
+	for i, queued := range group {
+		results[i] = Result{Kind: queued.task.Kind, Fence: queued.task.Fence, StoreCheckpoint: &StoreCheckpointResult{}}
+		if err := taskContextDoneErr(queued.task); err != nil {
+			results[i].Err = err
+			continue
+		}
+		if queued.task.StoreCheckpoint == nil {
+			results[i] = invalidResult(queued.task)
+			continue
+		}
+		payload := queued.task.StoreCheckpoint
+		items = append(items, store.StoreCheckpointBatchItem{
+			ChannelKey: queued.task.Fence.ChannelKey,
+			ChannelID:  payload.ChannelID,
+			Checkpoint: payload.Checkpoint,
+		})
+		active = append(active, i)
+	}
+	if len(active) == 0 {
+		return results
+	}
+	if len(active) == 1 {
+		index := active[0]
+		results[index] = group[index].task.Run(ctx, p.deps)
+		return results
+	}
+	ctx, cancel := batchTaskContext(ctx, group, active)
+	defer cancel()
+	batchResults := batcher.StoreCheckpointBatch(ctx, items)
+	if len(batchResults) != len(active) {
+		p.observeBatch(TaskStoreCheckpoint, len(active), ch.ErrInvalidConfig)
+		for _, index := range active {
+			results[index].Err = ch.ErrInvalidConfig
+		}
+		return results
+	}
+	var batchErr error
+	for i, index := range active {
+		item := batchResults[i]
+		if batchErr == nil && item.Err != nil {
+			batchErr = item.Err
+		}
+		results[index].Err = batchContextErr(group[index].task, ctx, item.Err)
+		results[index].StoreCheckpoint = &StoreCheckpointResult{Checkpoint: items[i].Checkpoint}
+	}
+	p.observeBatch(TaskStoreCheckpoint, len(active), batchErr)
 	return results
 }
 

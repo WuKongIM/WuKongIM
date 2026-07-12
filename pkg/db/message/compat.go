@@ -23,6 +23,8 @@ import (
 const (
 	defaultCommitCoordinatorFlushWindow = 200 * time.Microsecond
 	defaultCommitCoordinatorQueueSize   = 1024
+	batchLockRetryMinInterval           = 50 * time.Microsecond
+	batchLockRetryMaxInterval           = 2 * time.Millisecond
 
 	commitLaneLeaderAppend  = "leader_append"
 	commitLaneFollowerApply = "follower_apply"
@@ -166,6 +168,20 @@ type ApplyFetchBatchResult struct {
 	// LEO is the store log end offset after applying this item.
 	LEO uint64
 	// Err is the item-specific apply error.
+	Err error
+}
+
+// CheckpointHWBatchItem is one monotonic checkpoint high-watermark update.
+type CheckpointHWBatchItem struct {
+	// Store owns the channel checkpoint updated by HW.
+	Store *ChannelStore
+	// HW is the durable high watermark to advance monotonically.
+	HW uint64
+}
+
+// CheckpointHWBatchResult is the per-item checkpoint batch result.
+type CheckpointHWBatchResult struct {
+	// Err is the item-specific checkpoint update error.
 	Err error
 }
 
@@ -1168,6 +1184,217 @@ func StoreApplyFetchTrustedBatch(ctx context.Context, items []ApplyFetchBatchIte
 	return results
 }
 
+// StoreCheckpointHWMonotonicBatch advances checkpoint high watermarks without taking foreground append locks.
+func StoreCheckpointHWMonotonicBatch(ctx context.Context, items []CheckpointHWBatchItem) []CheckpointHWBatchResult {
+	results := make([]CheckpointHWBatchResult, len(items))
+	if len(items) == 0 {
+		return results
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctxErr(ctx); err != nil {
+		for i := range results {
+			results[i].Err = err
+		}
+		return results
+	}
+	activeStores := make(map[*ChannelStore]struct{}, len(items))
+	defer func() {
+		for store := range activeStores {
+			store.log.endUse()
+		}
+	}()
+	indexesByEntry := make(map[*channelEntry][]int, len(items))
+	for i, item := range items {
+		if item.Store == nil || item.Store.log == nil || item.Store.log.channelEntry == nil {
+			results[i].Err = channel.ErrInvalidArgument
+			continue
+		}
+		indexesByEntry[item.Store.log.channelEntry] = append(indexesByEntry[item.Store.log.channelEntry], i)
+	}
+	for _, indexes := range indexesByEntry {
+		if len(indexes) <= 1 {
+			continue
+		}
+		for _, index := range indexes {
+			results[index].Err = channel.ErrInvalidArgument
+		}
+	}
+	for i, item := range items {
+		if results[i].Err != nil {
+			continue
+		}
+		if err := item.Store.validate(); err != nil {
+			results[i].Err = err
+			continue
+		}
+		if _, ok := activeStores[item.Store]; !ok {
+			if err := item.Store.log.beginUse(); err != nil {
+				results[i].Err = toChannelError(err)
+				continue
+			}
+			activeStores[item.Store] = struct{}{}
+		}
+	}
+	groups := make([]batchOwnerGroup, 0)
+	groupByOwner := make(map[*Engine]int)
+	for index, item := range items {
+		if results[index].Err != nil {
+			continue
+		}
+		owner := item.Store.engine
+		groupIndex, ok := groupByOwner[owner]
+		if !ok {
+			groupIndex = len(groups)
+			groupByOwner[owner] = groupIndex
+			groups = append(groups, batchOwnerGroup{owner: owner})
+		}
+		groups[groupIndex].indexes = append(groups[groupIndex].indexes, index)
+	}
+	for _, group := range groups {
+		if err := ctxErr(ctx); err != nil {
+			for _, index := range group.indexes {
+				results[index].Err = err
+			}
+			continue
+		}
+		storeCheckpointHWBatchOwner(ctx, group.owner, items, group.indexes, results)
+	}
+	return results
+}
+
+type preparedCheckpointHW struct {
+	index      int
+	store      *ChannelStore
+	checkpoint Checkpoint
+}
+
+func storeCheckpointHWBatchOwner(ctx context.Context, owner *Engine, items []CheckpointHWBatchItem, indexes []int, results []CheckpointHWBatchResult) {
+	entries := make([]*channelEntry, 0, len(indexes))
+	indexByEntry := make(map[*channelEntry]int, len(indexes))
+	for _, index := range indexes {
+		entry := items[index].Store.log.channelEntry
+		entries = append(entries, entry)
+		indexByEntry[entry] = index
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
+	if err := lockCommitEntriesWithoutHoldAndWait(ctx, nil, entries); err != nil {
+		for _, index := range indexes {
+			results[index].Err = err
+		}
+		return
+	}
+	locked := make(map[*channelEntry]struct{}, len(entries))
+	for _, entry := range entries {
+		locked[entry] = struct{}{}
+	}
+	defer func() {
+		for entry := range locked {
+			entry.checkpointMu.Unlock()
+		}
+	}()
+
+	prepared := make([]preparedCheckpointHW, 0, len(entries))
+	for _, entry := range entries {
+		index := indexByEntry[entry]
+		if err := ctxErr(ctx); err != nil {
+			results[index].Err = err
+			entry.checkpointMu.Unlock()
+			delete(locked, entry)
+			continue
+		}
+		current, ok, err := items[index].Store.log.loadCheckpoint(ctx)
+		if err != nil {
+			results[index].Err = toChannelError(err)
+			entry.checkpointMu.Unlock()
+			delete(locked, entry)
+			continue
+		}
+		if !ok {
+			current = Checkpoint{}
+		}
+		if ok && items[index].HW <= current.HW {
+			entry.checkpointMu.Unlock()
+			delete(locked, entry)
+			continue
+		}
+		current.HW = items[index].HW
+		prepared = append(prepared, preparedCheckpointHW{index: index, store: items[index].Store, checkpoint: current})
+	}
+	if len(prepared) == 0 {
+		return
+	}
+	checkpointEntries := make([]*channelEntry, 0, len(prepared))
+	for _, item := range prepared {
+		entry := item.store.log.channelEntry
+		checkpointEntries = append(checkpointEntries, entry)
+		delete(locked, entry)
+	}
+	if err := commitPreparedCheckpointHWBatch(ctx, owner, prepared, checkpointEntries); err != nil {
+		err = toChannelError(err)
+		for _, item := range prepared {
+			results[item.index].Err = err
+		}
+	}
+}
+
+func commitPreparedCheckpointHWBatch(ctx context.Context, owner *Engine, prepared []preparedCheckpointHW, checkpointEntries []*channelEntry) error {
+	if len(prepared) == 0 {
+		return nil
+	}
+	if err := ctxErr(ctx); err != nil {
+		unlockCheckpointEntries(checkpointEntries)
+		return err
+	}
+	if owner == nil {
+		unlockCheckpointEntries(checkpointEntries)
+		return channel.ErrInvalidArgument
+	}
+	owner.mu.Lock()
+	physical := owner.engine
+	committer := owner.committer
+	owner.mu.Unlock()
+	if physical == nil {
+		unlockCheckpointEntries(checkpointEntries)
+		return channel.ErrClosed
+	}
+	ownership, err := newCheckpointCommitOwnership(checkpointEntries[0].db.registry, checkpointEntries)
+	if err != nil {
+		return toChannelError(err)
+	}
+	request := commit.Request{
+		Lane:      commit.Lane{Name: commitRowsLaneName(commitLaneFollowerApply), Priority: commit.PriorityNormal},
+		Partition: string(prepared[0].store.key) + ":checkpoint_hw",
+		Build: func(batch *engine.Batch) error {
+			for _, item := range prepared {
+				checkpoint := item.checkpoint
+				if err := item.store.log.channelEntry.stageCommitRows(batch, nil, &checkpoint, nil); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Finalize: ownership.finalize,
+	}
+	if committer != nil {
+		return toChannelError(committer.Submit(ctx, request))
+	}
+	defer ownership.finalize()
+	batch := physical.NewBatch()
+	defer batch.Close()
+	if err := request.Build(batch); err != nil {
+		return err
+	}
+	return toChannelError(batch.Commit(true))
+}
+
+func unlockCheckpointEntries(entries []*channelEntry) {
+	for i := len(entries) - 1; i >= 0; i-- {
+		entries[i].checkpointMu.Unlock()
+	}
+}
+
 func storeApplyFetchBatchOwner(ctx context.Context, owner *Engine, items []ApplyFetchBatchItem, indexes []int, results []ApplyFetchBatchResult) {
 	if err := ctxErr(ctx); err != nil {
 		for _, index := range indexes {
@@ -1188,11 +1415,11 @@ func storeApplyFetchBatchOwner(ctx context.Context, owner *Engine, items []Apply
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
 	sort.Slice(checkpointEntries, func(i, j int) bool { return checkpointEntries[i].key < checkpointEntries[j].key })
-	for _, entry := range entries {
-		entry.appendMu.Lock()
-	}
-	for _, entry := range checkpointEntries {
-		entry.checkpointMu.Lock()
+	if err := lockCommitEntriesWithoutHoldAndWait(ctx, entries, checkpointEntries); err != nil {
+		for _, index := range indexes {
+			results[index].Err = err
+		}
+		return
 	}
 	locked := make(map[*channelEntry]struct{}, len(entries))
 	for _, entry := range entries {
@@ -1255,14 +1482,75 @@ func storeApplyFetchBatchOwner(ctx context.Context, owner *Engine, items []Apply
 	}
 }
 
+func lockCommitEntriesWithoutHoldAndWait(ctx context.Context, appendEntries, checkpointEntries []*channelEntry) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var retryTimer *time.Timer
+	retryDelay := batchLockRetryMinInterval
+	jitterState := uint64(time.Now().UnixNano()) ^ uint64(len(appendEntries))<<32 ^ uint64(len(checkpointEntries))
+	defer func() {
+		if retryTimer != nil {
+			retryTimer.Stop()
+		}
+	}()
+	for {
+		lockedAppend := 0
+		for lockedAppend < len(appendEntries) && appendEntries[lockedAppend].appendMu.TryLock() {
+			lockedAppend++
+		}
+		lockedCheckpoint := 0
+		if lockedAppend == len(appendEntries) {
+			for lockedCheckpoint < len(checkpointEntries) && checkpointEntries[lockedCheckpoint].checkpointMu.TryLock() {
+				lockedCheckpoint++
+			}
+		}
+		if lockedAppend == len(appendEntries) && lockedCheckpoint == len(checkpointEntries) {
+			return nil
+		}
+		for i := lockedCheckpoint - 1; i >= 0; i-- {
+			checkpointEntries[i].checkpointMu.Unlock()
+		}
+		for i := lockedAppend - 1; i >= 0; i-- {
+			appendEntries[i].appendMu.Unlock()
+		}
+		jitterState ^= jitterState << 13
+		jitterState ^= jitterState >> 7
+		jitterState ^= jitterState << 17
+		retryWait := retryDelay
+		if jitterWindow := retryDelay / 2; jitterWindow > 0 {
+			retryWait += time.Duration(jitterState % uint64(jitterWindow))
+		}
+		if retryTimer == nil {
+			retryTimer = time.NewTimer(retryWait)
+		} else {
+			retryTimer.Reset(retryWait)
+		}
+		select {
+		case <-ctx.Done():
+			if !retryTimer.Stop() {
+				select {
+				case <-retryTimer.C:
+				default:
+				}
+			}
+			return ctx.Err()
+		case <-retryTimer.C:
+		}
+		retryDelay = min(retryDelay*2, batchLockRetryMaxInterval)
+	}
+}
+
 type preparedCommitRows struct {
-	index      int
-	store      *ChannelStore
-	rows       []messageRow
-	checkpoint *Checkpoint
-	point      *EpochPoint
-	baseOffset uint64
-	nextLEO    uint64
+	index int
+	store *ChannelStore
+	rows  []messageRow
+	// checkpointLocked transfers the caller's checkpoint mutex even when the checkpoint mutation is a no-op.
+	checkpointLocked bool
+	checkpoint       *Checkpoint
+	point            *EpochPoint
+	baseOffset       uint64
+	nextLEO          uint64
 }
 
 type preparedCommitMutation struct {
@@ -1305,7 +1593,12 @@ func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req
 		return preparedCommitRows{}, toChannelError(err)
 	}
 	nextLEO := base + uint64(len(req.Records))
-	prepared := preparedCommitRows{store: s, baseOffset: base, nextLEO: nextLEO}
+	prepared := preparedCommitRows{
+		store:            s,
+		baseOffset:       base,
+		nextLEO:          nextLEO,
+		checkpointLocked: req.Checkpoint != nil || req.CheckpointHW != nil,
+	}
 	if req.Checkpoint != nil && req.CheckpointHW != nil {
 		return preparedCommitRows{}, channel.ErrInvalidArgument
 	}

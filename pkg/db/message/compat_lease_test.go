@@ -721,6 +721,138 @@ func TestStoreCheckpointHWMonotonicPreservesFieldsAndNeverRegresses(t *testing.T
 	}
 }
 
+func TestStoreCheckpointHWMonotonicBatchDoesNotHoldAppendLocksDuringCommit(t *testing.T) {
+	eng := openCompatEngine(t)
+	id := channel.ChannelID{ID: "checkpoint-batch-append-lock", Type: 1}
+	store := mustForChannel(t, eng, "checkpoint-batch-append-lock:1", id)
+	defer store.Close()
+
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	eng.committer.SetCommitFunc(func(batch *engine.Batch) error {
+		entered <- struct{}{}
+		<-release
+		return batch.Commit(false)
+	})
+	completed := make(chan []CheckpointHWBatchResult, 1)
+	go func() {
+		completed <- StoreCheckpointHWMonotonicBatch(context.Background(), []CheckpointHWBatchItem{{Store: store, HW: 1}})
+	}()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("checkpoint batch did not enter physical commit")
+	}
+
+	appendLockAcquired := make(chan struct{})
+	go func() {
+		store.log.appendMu.Lock()
+		store.log.appendMu.Unlock()
+		close(appendLockAcquired)
+	}()
+	select {
+	case <-appendLockAcquired:
+	case <-time.After(time.Second):
+		close(release)
+		t.Fatal("checkpoint-only batch held the foreground append lock")
+	}
+	close(release)
+	select {
+	case results := <-completed:
+		if len(results) != 1 || results[0].Err != nil {
+			t.Fatalf("StoreCheckpointHWMonotonicBatch() = %+v", results)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("checkpoint batch did not complete")
+	}
+}
+
+func TestStoreCheckpointHWMonotonicBatchDoesNotHoldEarlierLockWhileWaiting(t *testing.T) {
+	eng := openCompatEngine(t)
+	first := mustForChannel(t, eng, "checkpoint-batch-lock-a:1", channel.ChannelID{ID: "checkpoint-batch-lock-a", Type: 1})
+	second := mustForChannel(t, eng, "checkpoint-batch-lock-b:1", channel.ChannelID{ID: "checkpoint-batch-lock-b", Type: 1})
+	defer first.Close()
+	defer second.Close()
+
+	second.log.checkpointMu.Lock()
+	completed := make(chan []CheckpointHWBatchResult, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		completed <- StoreCheckpointHWMonotonicBatch(ctx, []CheckpointHWBatchItem{
+			{Store: first, HW: 1},
+			{Store: second, HW: 1},
+		})
+	}()
+	time.Sleep(20 * time.Millisecond)
+	if !first.log.checkpointMu.TryLock() {
+		second.log.checkpointMu.Unlock()
+		t.Fatal("checkpoint batch held an earlier channel lock while waiting for a busy channel")
+	}
+	first.log.checkpointMu.Unlock()
+	cancel()
+	second.log.checkpointMu.Unlock()
+	select {
+	case <-completed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("canceled checkpoint batch did not complete")
+	}
+}
+
+func TestStoreApplyFetchBatchDoesNotHoldEarlierAppendLockWhileWaitingForCheckpoint(t *testing.T) {
+	eng := openCompatEngine(t)
+	first := mustForChannel(t, eng, "apply-batch-lock-a:1", channel.ChannelID{ID: "apply-batch-lock-a", Type: 1})
+	second := mustForChannel(t, eng, "apply-batch-lock-b:1", channel.ChannelID{ID: "apply-batch-lock-b", Type: 1})
+	defer first.Close()
+	defer second.Close()
+
+	second.log.checkpointMu.Lock()
+	completed := make(chan []ApplyFetchBatchResult, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hw := uint64(0)
+	go func() {
+		completed <- StoreApplyFetchTrustedBatch(ctx, []ApplyFetchBatchItem{
+			{Store: first, Request: channel.ApplyFetchStoreRequest{CheckpointHW: &hw}},
+			{Store: second, Request: channel.ApplyFetchStoreRequest{CheckpointHW: &hw}},
+		})
+	}()
+	time.Sleep(20 * time.Millisecond)
+	if !first.log.appendMu.TryLock() {
+		second.log.checkpointMu.Unlock()
+		t.Fatal("apply batch held an earlier append lock while waiting for a busy checkpoint")
+	}
+	first.log.appendMu.Unlock()
+	cancel()
+	second.log.checkpointMu.Unlock()
+	select {
+	case <-completed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("canceled apply batch did not complete")
+	}
+}
+
+func TestStoreApplyFetchTrustedReleasesCheckpointLockWhenHWIsNoop(t *testing.T) {
+	eng := openCompatEngine(t)
+	id := channel.ChannelID{ID: "noop-checkpoint-lock", Type: 1}
+	store := mustForChannel(t, eng, "noop-checkpoint-lock:1", id)
+	defer store.Close()
+	hw := uint64(0)
+	if _, err := store.StoreApplyFetchTrusted(channel.ApplyFetchStoreRequest{
+		Records:      []channel.Record{compatTestRecord(t, 30001, id.ID, "noop-checkpoint")},
+		CheckpointHW: &hw,
+	}); err != nil {
+		t.Fatalf("StoreApplyFetchTrusted(): %v", err)
+	}
+	if !store.log.checkpointMu.TryLock() {
+		t.Fatal("no-op checkpoint lock was not released after rows committed")
+	}
+	store.log.checkpointMu.Unlock()
+	if pins := eng.db.registry.snapshot().backgroundPins; pins != 0 {
+		t.Fatalf("background pins = %d, want 0", pins)
+	}
+}
+
 func TestStoreCheckpointHWMonotonicInitializesMissingCheckpointAtZero(t *testing.T) {
 	eng := openCompatEngine(t)
 	store := mustForChannel(t, eng, "checkpoint-zero:1", channel.ChannelID{ID: "checkpoint-zero", Type: 1})

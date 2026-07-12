@@ -899,6 +899,31 @@ func TestPoolBatchesStoreApplyTasksWhenFactorySupportsBatch(t *testing.T) {
 	require.ElementsMatch(t, []uint64{1, 3}, resultStoreApplyLEOs(sink.Results()))
 }
 
+func TestPoolBatchesStoreCheckpointTasksWhenFactorySupportsBatch(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	stores := &batchApplyStoreFactory{}
+	obs := &recordingPoolPressureObserver{}
+	pool, err := NewPool(PoolConfig{Name: "store-checkpoint", Workers: 1, QueueSize: 8}, Deps{Stores: stores}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+	pool.SetQueueObserver(obs)
+
+	for i, id := range []string{"a", "b"} {
+		require.NoError(t, pool.Submit(context.Background(), Task{
+			Kind:            TaskStoreCheckpoint,
+			Fence:           ch.Fence{ChannelKey: ch.ChannelKey("1:" + id), OpID: ch.OpID(i + 1)},
+			StoreCheckpoint: &StoreCheckpointTask{ChannelID: ch.ChannelID{ID: id, Type: 1}, Checkpoint: ch.Checkpoint{HW: uint64(i + 1)}},
+		}))
+	}
+
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.Equal(t, 1, stores.CheckpointBatchCalls())
+	require.Equal(t, 0, stores.SingleCheckpointCalls())
+	require.Equal(t, 1, obs.batchCalls["store-checkpoint:store_checkpoint:ok"])
+	require.Equal(t, 2, obs.batchItems["store-checkpoint:store_checkpoint:ok"])
+	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
 func TestPoolBatchesStoreAppendTasksWhenFactorySupportsBatch(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	stores := &batchAppendStoreFactory{}
@@ -981,6 +1006,49 @@ func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
 	require.Equal(t, 1, pools.QueueDepth(TaskStoreReadLog))
 	require.Equal(t, 0, pools.QueueDepth(TaskStoreAppend))
 	require.ErrorIs(t, pools.Submit(context.Background(), Task{Kind: TaskFunc, Fence: fence}), ch.ErrInvalidConfig)
+}
+
+func TestPoolsCheckpointDoesNotBlockFollowerApply(t *testing.T) {
+	factory := newBlockingCheckpointStoreFactory()
+	sink := &captureSink{ch: make(chan Result, 2)}
+	pools, err := NewPools(PoolsConfig{
+		StoreAppend:     PoolConfig{Name: "store-append", Workers: 1, QueueSize: 8},
+		StoreRead:       PoolConfig{Name: "store-read", Workers: 1, QueueSize: 8},
+		StoreApply:      PoolConfig{Name: "store-apply", Workers: 1, QueueSize: 8},
+		StoreCheckpoint: PoolConfig{Name: "store-checkpoint", Workers: 1, QueueSize: 8},
+		RPC:             PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8},
+	}, Deps{Stores: factory}, sink)
+	require.NoError(t, err)
+	defer func() {
+		factory.Release()
+		require.NoError(t, pools.Close())
+	}()
+
+	checkpointFence := ch.Fence{ChannelKey: "1:checkpoint", OpID: 1}
+	require.NoError(t, pools.Submit(context.Background(), Task{
+		Kind:            TaskStoreCheckpoint,
+		Fence:           checkpointFence,
+		StoreCheckpoint: &StoreCheckpointTask{ChannelID: ch.ChannelID{ID: "checkpoint", Type: 1}, Checkpoint: ch.Checkpoint{HW: 1}},
+	}))
+	select {
+	case <-factory.Started():
+	case <-time.After(time.Second):
+		t.Fatal("checkpoint task did not start")
+	}
+
+	applyFence := ch.Fence{ChannelKey: "1:apply", OpID: 2}
+	require.NoError(t, pools.Submit(context.Background(), Task{
+		Kind:       TaskStoreApply,
+		Fence:      applyFence,
+		StoreApply: &StoreApplyTask{ChannelID: ch.ChannelID{ID: "apply", Type: 1}, Records: []ch.Record{{Index: 1}}},
+	}))
+	select {
+	case result := <-sink.ch:
+		require.Equal(t, TaskStoreApply, result.Kind)
+		require.NoError(t, result.Err)
+	case <-time.After(time.Second):
+		t.Fatal("follower apply was blocked behind checkpoint work")
+	}
 }
 
 func TestPoolsLeaveMetaResolveOptionalWhenResolverMissing(t *testing.T) {
@@ -1145,6 +1213,76 @@ type blockingMetaResolver struct {
 	startedOnce sync.Once
 	releaseOnce sync.Once
 }
+
+type blockingCheckpointStoreFactory struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingCheckpointStoreFactory() *blockingCheckpointStoreFactory {
+	return &blockingCheckpointStoreFactory{started: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (f *blockingCheckpointStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {
+	return &blockingCheckpointStore{factory: f}, nil
+}
+
+func (f *blockingCheckpointStoreFactory) Started() <-chan struct{} { return f.started }
+
+func (f *blockingCheckpointStoreFactory) Release() { f.once.Do(func() { close(f.release) }) }
+
+type blockingCheckpointStore struct {
+	factory *blockingCheckpointStoreFactory
+}
+
+func (s *blockingCheckpointStore) Load(context.Context) (store.InitialState, error) {
+	return store.InitialState{}, nil
+}
+
+func (s *blockingCheckpointStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
+	return store.AppendLeaderResult{}, nil
+}
+
+func (s *blockingCheckpointStore) ApplyFollower(_ context.Context, req store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
+	return store.ApplyFollowerResult{LEO: req.Records[len(req.Records)-1].Index}, nil
+}
+
+func (s *blockingCheckpointStore) ReadCommitted(context.Context, store.ReadCommittedRequest) (store.ReadCommittedResult, error) {
+	return store.ReadCommittedResult{}, nil
+}
+
+func (s *blockingCheckpointStore) ReadLog(context.Context, store.ReadLogRequest) (store.ReadLogResult, error) {
+	return store.ReadLogResult{}, nil
+}
+
+func (s *blockingCheckpointStore) LoadRetentionState(context.Context) (store.RetentionState, error) {
+	return store.RetentionState{}, nil
+}
+
+func (s *blockingCheckpointStore) AdoptRetentionBoundary(context.Context, uint64, string) (uint64, error) {
+	return 0, nil
+}
+
+func (s *blockingCheckpointStore) TrimMessagesThrough(context.Context, uint64, store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return store.RetentionTrimResult{}, nil
+}
+
+func (s *blockingCheckpointStore) StoreCheckpoint(ctx context.Context, _ ch.Checkpoint) error {
+	select {
+	case <-s.factory.started:
+	default:
+		close(s.factory.started)
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.factory.release:
+		return nil
+	}
+}
+
+func (s *blockingCheckpointStore) Close() error { return nil }
 
 func newBlockingMetaResolver(meta ch.Meta) *blockingMetaResolver {
 	return &blockingMetaResolver{meta: meta, started: make(chan struct{}), release: make(chan struct{})}
@@ -1393,9 +1531,11 @@ func (t *blockingPullTransport) Release() {
 }
 
 type batchApplyStoreFactory struct {
-	mu               sync.Mutex
-	batchCalls       int
-	singleApplyCalls int
+	mu                    sync.Mutex
+	batchCalls            int
+	singleApplyCalls      int
+	checkpointBatchCalls  int
+	singleCheckpointCalls int
 }
 
 func (f *batchApplyStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {
@@ -1425,6 +1565,25 @@ func (f *batchApplyStoreFactory) SingleApplyCalls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.singleApplyCalls
+}
+
+func (f *batchApplyStoreFactory) StoreCheckpointBatch(_ context.Context, items []store.StoreCheckpointBatchItem) []store.StoreCheckpointBatchResult {
+	f.mu.Lock()
+	f.checkpointBatchCalls++
+	f.mu.Unlock()
+	return make([]store.StoreCheckpointBatchResult, len(items))
+}
+
+func (f *batchApplyStoreFactory) CheckpointBatchCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.checkpointBatchCalls
+}
+
+func (f *batchApplyStoreFactory) SingleCheckpointCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.singleCheckpointCalls
 }
 
 type batchApplySingleStore struct {
@@ -1469,7 +1628,12 @@ func (s *batchApplySingleStore) TrimMessagesThrough(context.Context, uint64, sto
 	return store.RetentionTrimResult{}, nil
 }
 
-func (s *batchApplySingleStore) StoreCheckpoint(context.Context, ch.Checkpoint) error { return nil }
+func (s *batchApplySingleStore) StoreCheckpoint(context.Context, ch.Checkpoint) error {
+	s.factory.mu.Lock()
+	s.factory.singleCheckpointCalls++
+	s.factory.mu.Unlock()
+	return nil
+}
 
 func (s *batchApplySingleStore) Close() error { return nil }
 
@@ -1706,6 +1870,8 @@ func taskKindTestLabel(kind TaskKind) string {
 		return "rpc_pull_hint"
 	case TaskStoreApply:
 		return "store_apply"
+	case TaskStoreCheckpoint:
+		return "store_checkpoint"
 	default:
 		return "other"
 	}

@@ -22,6 +22,14 @@ type commitOwnership struct {
 }
 
 func newCommitOwnership(registry *channelRegistry, appendLocks, checkpointLocks []*channelEntry) (*commitOwnership, error) {
+	return newCommitOwnershipWithPins(registry, appendLocks, appendLocks, checkpointLocks)
+}
+
+func newCheckpointCommitOwnership(registry *channelRegistry, checkpointLocks []*channelEntry) (*commitOwnership, error) {
+	return newCommitOwnershipWithPins(registry, checkpointLocks, nil, checkpointLocks)
+}
+
+func newCommitOwnershipWithPins(registry *channelRegistry, pinEntries, appendLocks, checkpointLocks []*channelEntry) (*commitOwnership, error) {
 	ownership := &commitOwnership{
 		registry:        registry,
 		appendLocks:     appendLocks,
@@ -31,7 +39,7 @@ func newCommitOwnership(registry *channelRegistry, appendLocks, checkpointLocks 
 		ownership.finalize()
 		return nil, dberrors.ErrClosed
 	}
-	for _, entry := range appendLocks {
+	for _, entry := range pinEntries {
 		if err := registry.retainPin(entry); err != nil {
 			ownership.finalize()
 			return nil, err
@@ -73,7 +81,7 @@ func preparedCommitEntries(prepared []preparedCommitRows) (appendEntries, checkp
 			seenAppend[entry] = struct{}{}
 			appendEntries = append(appendEntries, entry)
 		}
-		if item.checkpoint != nil {
+		if item.checkpointLocked || item.checkpoint != nil {
 			if _, ok := seenCheckpoint[entry]; !ok {
 				seenCheckpoint[entry] = struct{}{}
 				checkpointEntries = append(checkpointEntries, entry)

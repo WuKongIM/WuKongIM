@@ -65,11 +65,13 @@ Current flow:
     distinct lease; closing one store cannot close another lease or the shared
     engine, and closed stores return `channelcompat.ErrClosed`.
 13. Compatibility append/apply commits transfer canonical append locks,
-    optional checkpoint locks, and one background pin per entry to a terminal
-    commit owner. Caller cancellation stops waiting but cannot release those
-    resources before build, physical commit, publish, or coordinator shutdown
-    reaches a terminal state. Finalization unlocks checkpoint then append locks
-    before releasing pins.
+    every checkpoint lock acquired for the request, and one background pin per
+    entry to a terminal commit owner. The checkpoint lock transfer is preserved
+    even when a requested HW update is already a durable no-op; row-only writes
+    must not orphan that lock. Caller cancellation stops waiting but cannot
+    release those resources before build, physical commit, publish, or
+    coordinator shutdown reaches a terminal state. Finalization unlocks
+    checkpoint then append locks before releasing pins.
 14. The commit coordinator observer emits
     low-cardinality queue depth/capacity, batch, and logical request wait
     measurements, splitting leader append and follower apply lanes, without
@@ -80,6 +82,10 @@ Current flow:
     request order, and never hold channel locks from different physical engines
     simultaneously. If caller cancellation leaves an admitted group running to
     terminal completion, all remaining Engine groups fail before taking locks.
+    Multi-entry lock acquisition releases the partial set and retries when any
+    later entry is busy, so one batch never waits while holding an earlier
+    channel lock. Checkpoint-only batches take checkpoint locks without append
+    locks and retain their entries through the same terminal commit ownership.
     Each Engine group publishes all channel frontiers only after its shared
     physical commit succeeds.
 15. Canonical checkpoint locking serializes all checkpoint stores and

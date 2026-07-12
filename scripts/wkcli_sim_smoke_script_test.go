@@ -78,6 +78,14 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsClusterAndSimulatorCommands(t *
 	for _, want := range []string{
 		"api_addrs=http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
 		"gateway_addrs=127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+		"aggregate_send_rate=18/s",
+		"channel_reactor_count=32",
+		"channel_store_append_workers=500",
+		"channel_store_apply_workers=500",
+		"channel_rpc_workers=500",
+		"gateway_send_timeout=14s",
+		"sim_concurrency=64",
+		"sim_ack_timeout=15s",
 		"cluster_log=" + filepath.Join(outDir, "cluster.log"),
 		"node_log_dir=" + filepath.Join(outDir, "node-logs"),
 		"sim_output=" + filepath.Join(outDir, "sim.jsonl"),
@@ -88,8 +96,8 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsClusterAndSimulatorCommands(t *
 		"max_handoff_timeout_total=0",
 		"max_goroutines=2000",
 		"max_heap_alloc_bytes=4294967296",
-		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 7 --bin " + filepath.Join(outDir, "wukongim") + " --log-dir " + filepath.Join(outDir, "node-logs"),
-		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 12 --groups 3 --group-members 4 --rate 6/s --max-runtime 4s",
+		"start_cmd=env WK_DEBUG_API_ENABLE=true WK_CLUSTER_CHANNEL_REACTOR_COUNT=32 WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500 WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=500 WK_CLUSTER_CHANNEL_RPC_WORKERS=500 WK_GATEWAY_SEND_TIMEOUT=14s " + startScript + " --clean --ready-timeout 7 --bin " + filepath.Join(outDir, "wukongim") + " --log-dir " + filepath.Join(outDir, "node-logs"),
+		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 12 --groups 3 --group-members 4 --rate 6/s --max-runtime 4s --payload-size 128B --status-listen 127.0.0.1:19109 --status-interval 1s --concurrency 64 --ack-timeout 15s --json",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -127,7 +135,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsFaultKillPlan(t *testing.T) {
 		"fault_pid_dir=" + filepath.Join(outDir, "node-pids"),
 		"fault_event_file=" + filepath.Join(outDir, "fault-node2-kill.env"),
 		"fault_cmd=kill -s KILL $(cat " + filepath.Join(outDir, "node-pids", "node2.pid") + ")",
-		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 90 --bin " + filepath.Join(outDir, "wukongim") + " --log-dir " + filepath.Join(outDir, "node-logs") + " --pid-dir " + filepath.Join(outDir, "node-pids") + " --allow-node-exit 2",
+		"start_cmd=env WK_DEBUG_API_ENABLE=true WK_CLUSTER_CHANNEL_REACTOR_COUNT=32 WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500 WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=500 WK_CLUSTER_CHANNEL_RPC_WORKERS=500 WK_GATEWAY_SEND_TIMEOUT=14s " + startScript + " --clean --ready-timeout 90 --bin " + filepath.Join(outDir, "wukongim") + " --log-dir " + filepath.Join(outDir, "node-logs") + " --pid-dir " + filepath.Join(outDir, "node-pids") + " --allow-node-exit 2",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -176,8 +184,8 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsFaultDrillTuning(t *testing.T) 
 		"fault_gateway_send_timeout=15s",
 		"fault_sim_ack_timeout=35s",
 		"fault_max_send_errors=6",
-		"start_cmd=env WK_DEBUG_API_ENABLE=true WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=1s WK_CLUSTER_NODE_HEALTH_REPORT_TTL=6s WK_CHANNEL_MIGRATION_SCAN_INTERVAL=500ms WK_CHANNEL_MIGRATION_SCAN_LIMIT=128 WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=10 WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=10 WK_CHANNEL_MIGRATION_TASK_LIMIT=10 WK_GATEWAY_SEND_TIMEOUT=15s " + startScript,
-		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 30 --groups 6 --group-members 10 --rate 10/s --max-runtime 10s --payload-size 128B --status-listen 127.0.0.1:19109 --status-interval 1s --ack-timeout 35s --json",
+		"start_cmd=env WK_DEBUG_API_ENABLE=true WK_CLUSTER_CHANNEL_REACTOR_COUNT=32 WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=500 WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=500 WK_CLUSTER_CHANNEL_RPC_WORKERS=500 WK_GATEWAY_SEND_TIMEOUT=15s WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=1s WK_CLUSTER_NODE_HEALTH_REPORT_TTL=6s WK_CHANNEL_MIGRATION_SCAN_INTERVAL=500ms WK_CHANNEL_MIGRATION_SCAN_LIMIT=128 WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=10 WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=10 WK_CHANNEL_MIGRATION_TASK_LIMIT=10 " + startScript,
+		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 30 --groups 6 --group-members 10 --rate 10/s --max-runtime 10s --payload-size 128B --status-listen 127.0.0.1:19109 --status-interval 1s --concurrency 64 --ack-timeout 35s --json",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)

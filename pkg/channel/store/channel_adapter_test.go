@@ -357,6 +357,22 @@ func TestMessageDBFactoryBatchesReleaseLeasesOnSuccess(t *testing.T) {
 	require.Len(t, applyResults, 2)
 	require.NoError(t, applyResults[0].Err)
 	require.NoError(t, applyResults[1].Err)
+
+	checkpointResults := factory.StoreCheckpointBatch(context.Background(), []StoreCheckpointBatchItem{
+		{ChannelKey: applyKeys[0], ChannelID: ch.ChannelID{ID: "apply-success-a", Type: 1}, Checkpoint: ch.Checkpoint{HW: 1}},
+		{ChannelKey: applyKeys[1], ChannelID: ch.ChannelID{ID: "apply-success-b", Type: 1}, Checkpoint: ch.Checkpoint{HW: 1}},
+	})
+	require.Len(t, checkpointResults, 2)
+	require.NoError(t, checkpointResults[0].Err)
+	require.NoError(t, checkpointResults[1].Err)
+	for i, key := range applyKeys {
+		cs, err := factory.ChannelStore(key, ch.ChannelID{ID: "apply-success-" + string(rune('a'+i)), Type: 1})
+		require.NoError(t, err)
+		loaded, err := cs.Load(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, uint64(1), loaded.CheckpointHW)
+		require.NoError(t, cs.Close())
+	}
 	requireBatchKeysReclaimed(t, factory, applyKeys)
 }
 
@@ -382,6 +398,14 @@ func TestMessageDBFactoryBatchesReleaseLeasesOnCancellation(t *testing.T) {
 	require.ErrorIs(t, applyResults[0].Err, context.Canceled)
 	require.ErrorIs(t, applyResults[1].Err, context.Canceled)
 	requireBatchKeysReclaimed(t, factory, applyKeys)
+	checkpointKeys := []ch.ChannelKey{"batch-checkpoint-cancel-a:1", "batch-checkpoint-cancel-b:1"}
+	checkpointResults := factory.StoreCheckpointBatch(ctx, []StoreCheckpointBatchItem{
+		{ChannelKey: checkpointKeys[0], ChannelID: ch.ChannelID{ID: "checkpoint-cancel-a", Type: 1}, Checkpoint: ch.Checkpoint{HW: 1}},
+		{ChannelKey: checkpointKeys[1], ChannelID: ch.ChannelID{ID: "checkpoint-cancel-b", Type: 1}, Checkpoint: ch.Checkpoint{HW: 1}},
+	})
+	require.ErrorIs(t, checkpointResults[0].Err, context.Canceled)
+	require.ErrorIs(t, checkpointResults[1].Err, context.Canceled)
+	requireBatchKeysReclaimed(t, factory, checkpointKeys)
 }
 
 func TestMessageDBFactoryBatchAdmittedCancellationReclaimsAfterTerminalCommit(t *testing.T) {
@@ -506,6 +530,8 @@ func TestMessageDBFactoryCloseMapsClosedAndUnopenedFactoryStaysInvalid(t *testin
 		batchApplyItem("factory-close-apply:1", "factory-close-apply", 902, 1),
 	})
 	require.ErrorIs(t, applyResults[0].Err, ch.ErrClosed)
+	checkpointResults := factory.StoreCheckpointBatch(context.Background(), []StoreCheckpointBatchItem{{}})
+	require.ErrorIs(t, checkpointResults[0].Err, ch.ErrClosed)
 	_, err = cs.ReadCommitted(context.Background(), ReadCommittedRequest{FromSeq: 0, MinSeq: 1, Reverse: true})
 	require.ErrorIs(t, err, ch.ErrClosed)
 	require.NoError(t, cs.Close())
@@ -517,6 +543,8 @@ func TestMessageDBFactoryCloseMapsClosedAndUnopenedFactoryStaysInvalid(t *testin
 	require.ErrorIs(t, unopenedAppend[0].Err, ch.ErrInvalidConfig)
 	unopenedApply := unopened.ApplyFollowerBatch(context.Background(), []ApplyFollowerBatchItem{{}})
 	require.ErrorIs(t, unopenedApply[0].Err, ch.ErrInvalidConfig)
+	unopenedCheckpoint := unopened.StoreCheckpointBatch(context.Background(), []StoreCheckpointBatchItem{{}})
+	require.ErrorIs(t, unopenedCheckpoint[0].Err, ch.ErrInvalidConfig)
 
 	var nilFactory *MessageDBFactory
 	_, err = nilFactory.ChannelStore("nil:1", ch.ChannelID{ID: "nil", Type: 1})
@@ -525,6 +553,8 @@ func TestMessageDBFactoryCloseMapsClosedAndUnopenedFactoryStaysInvalid(t *testin
 	require.ErrorIs(t, nilAppend[0].Err, ch.ErrInvalidConfig)
 	nilApply := nilFactory.ApplyFollowerBatch(context.Background(), []ApplyFollowerBatchItem{{}})
 	require.ErrorIs(t, nilApply[0].Err, ch.ErrInvalidConfig)
+	nilCheckpoint := nilFactory.StoreCheckpointBatch(context.Background(), []StoreCheckpointBatchItem{{}})
+	require.ErrorIs(t, nilCheckpoint[0].Err, ch.ErrInvalidConfig)
 }
 
 func TestMessageDBFactoryConcurrentCloseErrorMappingStaysPublic(t *testing.T) {

@@ -236,6 +236,50 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 	return results
 }
 
+// StoreCheckpointBatch persists monotonic checkpoint HW updates without taking foreground append locks.
+func (f *MessageDBFactory) StoreCheckpointBatch(ctx context.Context, items []StoreCheckpointBatchItem) []StoreCheckpointBatchResult {
+	results := make([]StoreCheckpointBatchResult, len(items))
+	if len(items) == 0 {
+		return results
+	}
+	if err := f.availabilityError(); err != nil {
+		for i := range results {
+			results[i].Err = err
+		}
+		return results
+	}
+	dbItems := make([]messagedb.CheckpointHWBatchItem, 0, len(items))
+	acquired := make([]batchAcquiredStore, 0, len(items))
+	defer func() {
+		for _, item := range acquired {
+			if err := mapMessageDBAdapterError(item.store.Close()); err != nil && results[item.index].Err == nil {
+				results[item.index].Err = err
+			}
+		}
+	}()
+	for i, item := range items {
+		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		if err != nil {
+			results[i].Err = f.mapError(err)
+			continue
+		}
+		hw := item.Checkpoint.HW
+		dbItems = append(dbItems, messagedb.CheckpointHWBatchItem{Store: dbStore, HW: hw})
+		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
+	}
+	dbResults := messagedb.StoreCheckpointHWMonotonicBatch(ctx, dbItems)
+	if len(dbResults) != len(acquired) {
+		for _, item := range acquired {
+			results[item.index].Err = ch.ErrInvalidConfig
+		}
+		return results
+	}
+	for i, acquiredItem := range acquired {
+		results[acquiredItem.index].Err = f.mapError(dbResults[i].Err)
+	}
+	return results
+}
+
 // Close closes the wrapped message DB engine.
 func (f *MessageDBFactory) Close() error {
 	if f == nil || f.engine == nil {

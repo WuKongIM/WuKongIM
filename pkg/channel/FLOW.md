@@ -72,6 +72,9 @@ sequenceDiagram
                 Follower->>Workers: TaskStoreApply(records)
                 Workers-->>Follower: apply result
                 Follower->>Follower: schedule immediate next Pull carrying new AckOffset
+                opt later empty Pull advances committed HW
+                    Follower->>Workers: TaskStoreCheckpoint(committed HW) on isolated pool
+                end
             end
             Reactor-->>Service: complete quorum future
             Note over Reactor: post_store_commit_wait observes store-result-to-HW coverage
@@ -112,10 +115,14 @@ The RPC worker dispatcher may coalesce queued `TaskRPCPull` or
 `TaskRPCPullHint` items that target the same remote node into one transport
 batch before executing the group on the ants-backed worker executor.
 
-Store worker dispatchers may coalesce queued `TaskStoreAppend` or
-`TaskStoreApply` items when the store factory implements the optional
-leader-append or follower-apply batch surfaces; ants only runs the prepared
-blocking group.
+Store worker dispatchers may coalesce queued `TaskStoreAppend`,
+`TaskStoreApply`, or `TaskStoreCheckpoint` items when the store factory
+implements the corresponding optional batch surface; ants only runs the
+prepared blocking group. Checkpoint work uses its own bounded low-concurrency
+pool, and the message DB adapter persists a cross-channel checkpoint group with
+one checkpoint-lock-only commit. This prevents idle-channel checkpoint fsyncs
+from consuming every foreground follower-apply worker or taking foreground
+append locks during high-cardinality traffic.
 
 Leader-side PullHint result counters split submissions, successful RPC returns,
 and low-cardinality error classes. In 10k-channel runs, compare these counters

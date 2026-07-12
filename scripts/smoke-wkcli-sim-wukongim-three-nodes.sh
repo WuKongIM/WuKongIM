@@ -10,6 +10,13 @@ STATUS_LISTEN="${WK_WKCLI_SIM_THREE_SMOKE_STATUS_LISTEN:-127.0.0.1:19109}"
 READY_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_READY_TIMEOUT:-90}"
 POLL_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_POLL_INTERVAL:-1}"
 DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}"
+CHANNEL_REACTOR_COUNT="${WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_REACTOR_COUNT:-32}"
+CHANNEL_STORE_APPEND_WORKERS="${WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_STORE_APPEND_WORKERS:-500}"
+CHANNEL_STORE_APPLY_WORKERS="${WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_STORE_APPLY_WORKERS:-500}"
+CHANNEL_RPC_WORKERS="${WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_RPC_WORKERS:-500}"
+GATEWAY_SEND_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_SEND_TIMEOUT:-14s}"
+SIM_CONCURRENCY="${WK_WKCLI_SIM_THREE_SMOKE_CONCURRENCY:-64}"
+SIM_ACK_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_ACK_TIMEOUT:-15s}"
 MAX_FLUSH_ERROR_SELECTED_ROWS="${WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS:-0}"
 MAX_HANDOFF_ERROR_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL:-0}"
 MAX_HANDOFF_TIMEOUT_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL:-0}"
@@ -84,6 +91,9 @@ from every node, then stops the cluster.
 
 The started cluster enables WK_DEBUG_API_ENABLE by default so pprof/debug
 evidence is available during failures. Set WK_DEBUG_API_ENABLE=false to opt out.
+It also uses the validated three-node Channel capacity profile (32 reactors,
+500 append/apply/RPC workers), a 14s gateway SEND deadline, and a 15s client
+SENDACK deadline. Override these with WK_WKCLI_SIM_THREE_SMOKE_* variables.
 
 Options:
   --out-dir DIR             Evidence directory. Default: data/wkcli-sim-three-node-smoke.
@@ -189,6 +199,34 @@ require_nonempty() {
   local name="$1"
   local value="$2"
   [[ -n "$value" ]] || die "$name must not be empty"
+}
+
+effective_gateway_send_timeout() {
+  if [[ "$FAULT_KILL_NODE" == "true" && -n "$FAULT_GATEWAY_SEND_TIMEOUT" ]]; then
+    printf '%s' "$FAULT_GATEWAY_SEND_TIMEOUT"
+    return
+  fi
+  printf '%s' "$GATEWAY_SEND_TIMEOUT"
+}
+
+effective_sim_ack_timeout() {
+  if [[ "$FAULT_KILL_NODE" == "true" && -n "$FAULT_SIM_ACK_TIMEOUT" ]]; then
+    printf '%s' "$FAULT_SIM_ACK_TIMEOUT"
+    return
+  fi
+  printf '%s' "$SIM_ACK_TIMEOUT"
+}
+
+aggregate_send_rate() {
+  local per_second="${RATE%/s}"
+  awk -v groups="$GROUP_COUNT" -v per_second="$per_second" 'BEGIN {
+    total = groups * per_second
+    if (total == int(total)) {
+      printf "%d/s", total
+    } else {
+      printf "%.6g/s", total
+    }
+  }'
 }
 
 split_csv() {
@@ -356,8 +394,22 @@ toml_string() {
   printf '"%s"' "$value"
 }
 
+cluster_profile_env() {
+  printf '%s\n' \
+    "WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE" \
+    "WK_CLUSTER_CHANNEL_REACTOR_COUNT=$CHANNEL_REACTOR_COUNT" \
+    "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=$CHANNEL_STORE_APPEND_WORKERS" \
+    "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=$CHANNEL_STORE_APPLY_WORKERS" \
+    "WK_CLUSTER_CHANNEL_RPC_WORKERS=$CHANNEL_RPC_WORKERS" \
+    "WK_GATEWAY_SEND_TIMEOUT=$(effective_gateway_send_timeout)"
+}
+
 cluster_start_env_preview() {
-  local envs=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
+  local assignment
+  local envs=()
+  while IFS= read -r assignment; do
+    envs+=("$assignment")
+  done < <(cluster_profile_env)
   if [[ "$FAULT_KILL_NODE" == "true" ]]; then
     [[ -n "$FAULT_HEALTH_REPORT_INTERVAL" ]] && envs+=("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=$FAULT_HEALTH_REPORT_INTERVAL")
     [[ -n "$FAULT_HEALTH_REPORT_TTL" ]] && envs+=("WK_CLUSTER_NODE_HEALTH_REPORT_TTL=$FAULT_HEALTH_REPORT_TTL")
@@ -366,7 +418,6 @@ cluster_start_env_preview() {
     [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] && envs+=("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK")
     [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] && envs+=("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK")
     [[ -n "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] && envs+=("WK_CHANNEL_MIGRATION_TASK_LIMIT=$FAULT_CHANNEL_MIGRATION_TASK_LIMIT")
-    [[ -n "$FAULT_GATEWAY_SEND_TIMEOUT" ]] && envs+=("WK_GATEWAY_SEND_TIMEOUT=$FAULT_GATEWAY_SEND_TIMEOUT")
   fi
   printf '%s' "${envs[*]}"
 }
@@ -402,9 +453,7 @@ print_sim_cmd() {
   done
   printf ' --users %s --groups %s --group-members %s --rate %s --max-runtime %s --payload-size %s --status-listen %s --status-interval %s' \
     "$USERS" "$GROUP_COUNT" "$GROUP_MEMBERS" "$RATE" "$DURATION" "$PAYLOAD_SIZE" "$STATUS_LISTEN" "$STATUS_INTERVAL"
-  if [[ -n "$FAULT_SIM_ACK_TIMEOUT" ]]; then
-    printf ' --ack-timeout %s' "$FAULT_SIM_ACK_TIMEOUT"
-  fi
+  printf ' --concurrency %s --ack-timeout %s' "$SIM_CONCURRENCY" "$(effective_sim_ack_timeout)"
   printf ' --json\n'
 }
 
@@ -449,6 +498,14 @@ print_plan() {
   printf 'start_script=%s\n' "$START_SCRIPT"
   printf 'api_addrs=%s\n' "$(IFS=','; printf '%s' "${API_VALUES[*]}")"
   printf 'gateway_addrs=%s\n' "$(IFS=','; printf '%s' "${GATEWAY_VALUES[*]}")"
+  printf 'aggregate_send_rate=%s\n' "$(aggregate_send_rate)"
+  printf 'channel_reactor_count=%s\n' "$CHANNEL_REACTOR_COUNT"
+  printf 'channel_store_append_workers=%s\n' "$CHANNEL_STORE_APPEND_WORKERS"
+  printf 'channel_store_apply_workers=%s\n' "$CHANNEL_STORE_APPLY_WORKERS"
+  printf 'channel_rpc_workers=%s\n' "$CHANNEL_RPC_WORKERS"
+  printf 'gateway_send_timeout=%s\n' "$(effective_gateway_send_timeout)"
+  printf 'sim_concurrency=%s\n' "$SIM_CONCURRENCY"
+  printf 'sim_ack_timeout=%s\n' "$(effective_sim_ack_timeout)"
   printf 'cluster_log=%s\n' "$(cluster_log)"
   printf 'node_log_dir=%s\n' "$(node_log_dir)"
   printf 'sim_output=%s\n' "$(sim_output)"
@@ -866,6 +923,13 @@ require_uint '--poll' "$POLL_INTERVAL"
 require_positive_uint '--users' "$USERS"
 require_positive_uint '--groups' "$GROUP_COUNT"
 require_positive_uint '--members' "$GROUP_MEMBERS"
+require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_REACTOR_COUNT' "$CHANNEL_REACTOR_COUNT"
+require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_STORE_APPEND_WORKERS' "$CHANNEL_STORE_APPEND_WORKERS"
+require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_STORE_APPLY_WORKERS' "$CHANNEL_STORE_APPLY_WORKERS"
+require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_RPC_WORKERS' "$CHANNEL_RPC_WORKERS"
+require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_CONCURRENCY' "$SIM_CONCURRENCY"
+require_nonempty 'WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_SEND_TIMEOUT' "$GATEWAY_SEND_TIMEOUT"
+require_nonempty 'WK_WKCLI_SIM_THREE_SMOKE_ACK_TIMEOUT' "$SIM_ACK_TIMEOUT"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE' "$AUTO_JOIN_NODE"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER' "$AUTO_PROMOTE_CONTROLLER_VOTER"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_AUTH' "$AUTO_PROMOTE_MANAGER_AUTH"
@@ -970,6 +1034,7 @@ start_cluster() {
     return
   fi
   local args=("$START_SCRIPT")
+  local assignment
   local exported_name
   local env_args=()
   while IFS= read -r exported_name; do
@@ -977,7 +1042,9 @@ start_cluster() {
       WK_WKCLI_SIM_THREE_SMOKE_*) env_args+=("-u" "$exported_name") ;;
     esac
   done < <(compgen -e)
-  env_args+=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
+  while IFS= read -r assignment; do
+    env_args+=("$assignment")
+  done < <(cluster_profile_env)
   if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
     args+=(--clean)
   fi
@@ -994,7 +1061,6 @@ start_cluster() {
     [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] && env_args+=("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK")
     [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] && env_args+=("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK")
     [[ -n "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] && env_args+=("WK_CHANNEL_MIGRATION_TASK_LIMIT=$FAULT_CHANNEL_MIGRATION_TASK_LIMIT")
-    [[ -n "$FAULT_GATEWAY_SEND_TIMEOUT" ]] && env_args+=("WK_GATEWAY_SEND_TIMEOUT=$FAULT_GATEWAY_SEND_TIMEOUT")
   fi
   log "starting three-node cluster: $START_SCRIPT"
   (
@@ -1066,6 +1132,7 @@ start_auto_join_node() {
     return
   fi
   local bin
+  local assignment
   local exported_name
   local env_args=()
   while IFS= read -r exported_name; do
@@ -1075,7 +1142,9 @@ start_auto_join_node() {
         ;;
     esac
   done < <(compgen -e)
-  env_args+=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
+  while IFS= read -r assignment; do
+    env_args+=("$assignment")
+  done < <(cluster_profile_env)
   bin="$(cluster_bin)"
   [[ -x "$bin" ]] || die "auto-join requires executable cluster binary: $bin"
   render_auto_join_config
@@ -1490,9 +1559,8 @@ run_sim() {
   cmd+=(--max-runtime "$DURATION")
   cmd+=(--status-listen "$STATUS_LISTEN")
   cmd+=(--status-interval "$STATUS_INTERVAL")
-  if [[ -n "$FAULT_SIM_ACK_TIMEOUT" ]]; then
-    cmd+=(--ack-timeout "$FAULT_SIM_ACK_TIMEOUT")
-  fi
+  cmd+=(--concurrency "$SIM_CONCURRENCY")
+  cmd+=(--ack-timeout "$(effective_sim_ack_timeout)")
   cmd+=(--json)
   log "running wkcli sim: users=${USERS} groups=${GROUP_COUNT} members=${GROUP_MEMBERS} gateways=${#GATEWAY_VALUES[@]}"
   local status=0
@@ -1748,6 +1816,14 @@ write_summary() {
     printf '%s\n' "- send_errors: ${errors:-unknown}"
     printf '%s\n' "- api_addrs: $(IFS=','; printf '%s' "${API_VALUES[*]}")"
     printf '%s\n' "- gateway_addrs: $(IFS=','; printf '%s' "${GATEWAY_VALUES[*]}")"
+    printf '%s\n' "- aggregate_send_rate: $(aggregate_send_rate)"
+    printf '%s\n' "- channel_reactor_count: ${CHANNEL_REACTOR_COUNT}"
+    printf '%s\n' "- channel_store_append_workers: ${CHANNEL_STORE_APPEND_WORKERS}"
+    printf '%s\n' "- channel_store_apply_workers: ${CHANNEL_STORE_APPLY_WORKERS}"
+    printf '%s\n' "- channel_rpc_workers: ${CHANNEL_RPC_WORKERS}"
+    printf '%s\n' "- gateway_send_timeout: $(effective_gateway_send_timeout)"
+    printf '%s\n' "- sim_concurrency: ${SIM_CONCURRENCY}"
+    printf '%s\n' "- sim_ack_timeout: $(effective_sim_ack_timeout)"
     printf '%s\n' '- sim_output: sim.jsonl'
     printf '%s\n' '- snapshots: bench-snapshots/'
     printf '%s\n' '- metrics: metrics/'

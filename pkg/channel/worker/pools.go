@@ -6,13 +6,26 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
+const (
+	defaultStoreCheckpointPoolName      = "channelv2-store-checkpoint"
+	defaultStoreCheckpointWorkerDivisor = 4
+	defaultStoreCheckpointWorkerCap     = 64
+)
+
+// DefaultStoreCheckpointWorkers returns the bounded checkpoint worker count derived from store-apply capacity.
+func DefaultStoreCheckpointWorkers(storeApplyWorkers int) int {
+	return max(1, min(storeApplyWorkers/defaultStoreCheckpointWorkerDivisor, defaultStoreCheckpointWorkerCap))
+}
+
 // Pools owns all blocking worker pools used by channel reactors.
 type Pools struct {
 	StoreAppend *Pool
 	StoreRead   *Pool
 	StoreApply  *Pool
-	RPC         *Pool
-	MetaResolve *Pool
+	// StoreCheckpoint isolates durable HW maintenance from foreground follower apply work.
+	StoreCheckpoint *Pool
+	RPC             *Pool
+	MetaResolve     *Pool
 	// ColdActivation isolates unloaded-channel authority resolution and store loading from hot runtime work.
 	ColdActivation *Pool
 }
@@ -22,8 +35,10 @@ type PoolsConfig struct {
 	StoreAppend PoolConfig
 	StoreRead   PoolConfig
 	StoreApply  PoolConfig
-	RPC         PoolConfig
-	MetaResolve PoolConfig
+	// StoreCheckpoint bounds durable HW maintenance independently from follower apply work.
+	StoreCheckpoint PoolConfig
+	RPC             PoolConfig
+	MetaResolve     PoolConfig
 	// ColdActivation bounds unloaded-channel authority resolution and store loading independently from hot runtime work.
 	ColdActivation PoolConfig
 }
@@ -43,6 +58,20 @@ func NewPools(cfg PoolsConfig, deps Deps, sink CompletionSink) (*Pools, error) {
 		return nil, err
 	}
 	if pools.StoreApply, err = NewPool(cfg.StoreApply, deps, sink); err != nil {
+		_ = pools.Close()
+		return nil, err
+	}
+	checkpointCfg := cfg.StoreCheckpoint
+	if checkpointCfg.Name == "" {
+		checkpointCfg.Name = defaultStoreCheckpointPoolName
+	}
+	if checkpointCfg.Workers <= 0 {
+		checkpointCfg.Workers = DefaultStoreCheckpointWorkers(cfg.StoreApply.Workers)
+	}
+	if checkpointCfg.QueueSize <= 0 {
+		checkpointCfg.QueueSize = cfg.StoreApply.QueueSize
+	}
+	if pools.StoreCheckpoint, err = NewPool(checkpointCfg, deps, sink); err != nil {
 		_ = pools.Close()
 		return nil, err
 	}
@@ -70,7 +99,7 @@ func (p *Pools) SetQueueObserver(observer QueueObserver) {
 	if p == nil {
 		return
 	}
-	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve, p.ColdActivation} {
+	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.StoreCheckpoint, p.RPC, p.MetaResolve, p.ColdActivation} {
 		pool.SetQueueObserver(observer)
 	}
 }
@@ -90,7 +119,7 @@ func (p *Pools) Close() error {
 		return nil
 	}
 	var first error
-	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC, p.MetaResolve, p.ColdActivation} {
+	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.StoreCheckpoint, p.RPC, p.MetaResolve, p.ColdActivation} {
 		if err := pool.Close(); err != nil && first == nil {
 			first = err
 		}
@@ -116,8 +145,10 @@ func (p *Pools) poolFor(kind TaskKind) *Pool {
 		return p.StoreAppend
 	case TaskStoreLoad, TaskStoreReadLog, TaskStoreLookupMessage, TaskStoreClose:
 		return p.StoreRead
-	case TaskStoreApply, TaskStoreCheckpoint, TaskStoreRetention:
+	case TaskStoreApply, TaskStoreRetention:
 		return p.StoreApply
+	case TaskStoreCheckpoint:
+		return p.StoreCheckpoint
 	case TaskRPCPull, TaskRPCAck, TaskRPCNotify, TaskRPCPullHint:
 		return p.RPC
 	case TaskMetaResolve:
