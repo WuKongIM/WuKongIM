@@ -1090,6 +1090,31 @@ func TestTransportMetricsTrackRPCClientDialAndEnqueue(t *testing.T) {
 	})
 }
 
+func TestTransportMetricsTrackWriteBatchShape(t *testing.T) {
+	reg := New(15, "node-15")
+
+	reg.Transport.ObserveWriteBatch(1, 128, 64)
+	reg.Transport.ObserveWriteBatch(64, 8192, 64)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	for name, want := range map[string]float64{
+		"wukongim_transport_write_batches_total":              2,
+		"wukongim_transport_write_frames_total":               65,
+		"wukongim_transport_write_payload_bytes_total":        8320,
+		"wukongim_transport_write_single_frame_batches_total": 1,
+		"wukongim_transport_write_frame_limit_batches_total":  1,
+	} {
+		family := requireMetricFamily(t, families, name)
+		require.Len(t, family.GetMetric(), 1)
+		requireMetricLabels(t, family.GetMetric()[0], map[string]string{
+			"node_id":   "15",
+			"node_name": "node-15",
+		})
+		require.Equal(t, want, family.GetMetric()[0].GetCounter().GetValue(), name)
+	}
+}
+
 func TestTransportMetricsCachesStableLabelHandles(t *testing.T) {
 	reg := New(16, "node-16")
 

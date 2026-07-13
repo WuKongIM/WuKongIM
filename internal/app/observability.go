@@ -914,6 +914,8 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 		o.metrics.Transport.ObserveSentBytes(transportFrameKindLabel(event.Kind), event.Bytes)
 	case "received_bytes":
 		o.metrics.Transport.ObserveReceivedBytes(transportFrameKindLabel(event.Kind), event.Bytes)
+	case "write_batch":
+		o.metrics.Transport.ObserveWriteBatch(event.Items, event.Bytes, event.Capacity)
 	case "pending_rpc":
 		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "rpc", o.transportPendingRPCInflight(event))
 	case "peer_pool":

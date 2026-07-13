@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/sched"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/wire"
 )
 
@@ -159,6 +160,90 @@ func TestConnWriteLoopWritesSchedulerBatchOnce(t *testing.T) {
 
 	c.shutdown(nil)
 	waitClosed(t, c.writeDone)
+}
+
+func TestWriteOutboundBatchAggregatesTrafficAndObservesWriteShape(t *testing.T) {
+	observer := &recordingObserver{}
+	limits := testLimits()
+	c := New(newDeadlineConn(), Config{Limits: limits, Observer: observer, NodeID: 12, SourceID: 77}, nil)
+	items := []sched.Item{
+		{Bytes: 3, Value: Outbound{Kind: core.FrameKindRPCRequest, Priority: core.PriorityRPC, Payload: core.CopyOwnedBuffer([]byte("one"))}},
+		{Bytes: 3, Value: Outbound{Kind: core.FrameKindRPCRequest, Priority: core.PriorityRPC, Payload: core.CopyOwnedBuffer([]byte("two"))}},
+		{Bytes: 5, Value: Outbound{Kind: core.FrameKindRPCResponse, Priority: core.PriorityRPC, Payload: core.CopyOwnedBuffer([]byte("three"))}},
+	}
+	var buffers net.Buffers
+
+	if _, _, err := c.writeOutboundBatch(items, nil, nil, &buffers); err != nil {
+		t.Fatalf("writeOutboundBatch() error = %v", err)
+	}
+
+	events := observer.snapshot()
+	var writeBatches, sentBytes []core.Event
+	for _, event := range events {
+		switch event.Name {
+		case "write_batch":
+			writeBatches = append(writeBatches, event)
+		case "sent_bytes":
+			sentBytes = append(sentBytes, event)
+		}
+	}
+	if len(writeBatches) != 1 {
+		t.Fatalf("write_batch event count = %d, want 1; events=%#v", len(writeBatches), events)
+	}
+	batch := writeBatches[0]
+	if batch.NodeID != 12 || batch.SourceID != 77 || batch.Items != 3 || batch.Capacity != limits.MaxBatchFrames ||
+		batch.Bytes != 11 || batch.BytesCapacity != int64(limits.MaxBatchBytes) {
+		t.Fatalf("write_batch = %+v, want node/source and 3 frames/11 bytes with configured limits", batch)
+	}
+	if len(sentBytes) != 2 {
+		t.Fatalf("sent_bytes event count = %d, want one per frame kind; events=%#v", len(sentBytes), events)
+	}
+	bytesByKind := make(map[core.FrameKind]int, len(sentBytes))
+	for _, event := range sentBytes {
+		bytesByKind[event.Kind] += event.Bytes
+	}
+	if bytesByKind[core.FrameKindRPCRequest] != 6 || bytesByKind[core.FrameKindRPCResponse] != 5 {
+		t.Fatalf("sent bytes by kind = %#v, want request=6 response=5", bytesByKind)
+	}
+}
+
+func TestCollectAvailableWriteItemsAddsImmediateSchedulerBacklog(t *testing.T) {
+	limits := testLimits()
+	c := New(newDeadlineConn(), Config{Limits: limits}, nil)
+	batch := make([]sched.Item, 1, limits.MaxBatchFrames)
+	batch[0] = sched.Item{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value: Outbound{
+			Kind:     core.FrameKindRPCRequest,
+			Priority: core.PriorityRPC,
+			Payload:  core.CopyOwnedBuffer([]byte("one")),
+		},
+	}
+	if err := c.scheduler.Enqueue(context.Background(), sched.Item{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value: Outbound{
+			Kind:     core.FrameKindRPCRequest,
+			Priority: core.PriorityRPC,
+			Payload:  core.CopyOwnedBuffer([]byte("two")),
+		},
+	}); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+
+	batch, scratch := c.collectAvailableWriteItems(batch, nil)
+	defer releaseSchedItems(batch)
+	if len(batch) != 2 {
+		t.Fatalf("collectAvailableWriteItems() batch len = %d, want 2", len(batch))
+	}
+	if len(scratch) != 1 {
+		t.Fatalf("collectAvailableWriteItems() scratch len = %d, want 1", len(scratch))
+	}
+	if remaining := c.scheduler.NextBatch(); len(remaining) != 0 {
+		releaseSchedItems(remaining)
+		t.Fatalf("scheduler remaining items = %d, want 0", len(remaining))
+	}
 }
 
 func TestWriteLoopReusesScratchAcrossBatches(t *testing.T) {

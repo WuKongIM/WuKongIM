@@ -18,6 +18,11 @@ type TransportMetrics struct {
 	dialTotal         *prometheus.CounterVec
 	sentBytes         *prometheus.CounterVec
 	receivedBytes     *prometheus.CounterVec
+	writeBatches      prometheus.Counter
+	writeFrames       prometheus.Counter
+	writePayloadBytes prometheus.Counter
+	writeSingleFrames prometheus.Counter
+	writeFrameLimit   prometheus.Counter
 	poolActive        *prometheus.GaugeVec
 	poolIdle          *prometheus.GaugeVec
 	poolMu            sync.Mutex
@@ -119,6 +124,31 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 			Help:        "Total inbound transport payload bytes.",
 			ConstLabels: labels,
 		}, []string{"msg_type"}),
+		writeBatches: prometheus.NewCounter(prometheus.CounterOpts{
+			Name:        "wukongim_transport_write_batches_total",
+			Help:        "Total observed successful transport write batches.",
+			ConstLabels: labels,
+		}),
+		writeFrames: prometheus.NewCounter(prometheus.CounterOpts{
+			Name:        "wukongim_transport_write_frames_total",
+			Help:        "Total transport frames included in observed successful write batches.",
+			ConstLabels: labels,
+		}),
+		writePayloadBytes: prometheus.NewCounter(prometheus.CounterOpts{
+			Name:        "wukongim_transport_write_payload_bytes_total",
+			Help:        "Total payload bytes included in observed successful transport write batches.",
+			ConstLabels: labels,
+		}),
+		writeSingleFrames: prometheus.NewCounter(prometheus.CounterOpts{
+			Name:        "wukongim_transport_write_single_frame_batches_total",
+			Help:        "Total observed successful transport write batches containing one frame.",
+			ConstLabels: labels,
+		}),
+		writeFrameLimit: prometheus.NewCounter(prometheus.CounterOpts{
+			Name:        "wukongim_transport_write_frame_limit_batches_total",
+			Help:        "Total observed successful transport write batches that reached the configured frame limit.",
+			ConstLabels: labels,
+		}),
 		poolActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_transport_connections_pool_active",
 			Help:        "Number of active transport pool connections grouped by peer node.",
@@ -143,6 +173,11 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 		m.dialTotal,
 		m.sentBytes,
 		m.receivedBytes,
+		m.writeBatches,
+		m.writeFrames,
+		m.writePayloadBytes,
+		m.writeSingleFrames,
+		m.writeFrameLimit,
 		m.poolActive,
 		m.poolIdle,
 	)
@@ -200,6 +235,25 @@ func (m *TransportMetrics) ObserveReceivedBytes(msgType string, bytes int) {
 		return
 	}
 	m.receivedBytesHandle(msgType).Add(float64(bytes))
+}
+
+// ObserveWriteBatch records the shape of one observed successful transport writev call.
+func (m *TransportMetrics) ObserveWriteBatch(frames, payloadBytes, frameLimit int) {
+	if m == nil || frames <= 0 {
+		return
+	}
+	if payloadBytes < 0 {
+		payloadBytes = 0
+	}
+	m.writeBatches.Inc()
+	m.writeFrames.Add(float64(frames))
+	m.writePayloadBytes.Add(float64(payloadBytes))
+	if frames == 1 {
+		m.writeSingleFrames.Inc()
+	}
+	if frameLimit > 0 && frames >= frameLimit {
+		m.writeFrameLimit.Inc()
+	}
 }
 
 func (m *TransportMetrics) SetPoolConnections(activeByPeer, idleByPeer map[string]int) {

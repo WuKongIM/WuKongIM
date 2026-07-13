@@ -246,6 +246,7 @@ func (c *Conn) writeLoop() {
 	defer close(c.writeDone)
 	var (
 		batch     []sched.Item
+		available []sched.Item
 		outbounds []Outbound
 		frames    []wire.Frame
 		buffers   net.Buffers
@@ -256,14 +257,27 @@ func (c *Conn) writeLoop() {
 		if err != nil {
 			return
 		}
+		batch, available = c.collectAvailableWriteItems(batch, available)
 		var werr error
 		outbounds, frames, werr = c.writeOutboundBatch(batch, outbounds, frames, &buffers)
 		clear(batch)
+		clear(available)
 		if werr != nil {
 			c.shutdown(werr)
 			return
 		}
 	}
+}
+
+func (c *Conn) collectAvailableWriteItems(batch, scratch []sched.Item) ([]sched.Item, []sched.Item) {
+	if len(batch) >= c.cfg.Limits.MaxBatchFrames {
+		return batch, scratch[:0]
+	}
+	scratch = c.scheduler.NextBatchInto(scratch)
+	if len(scratch) == 0 {
+		return batch, scratch
+	}
+	return append(batch, scratch...), scratch
 }
 
 func (c *Conn) writeOutbound(outbound Outbound) error {
@@ -298,10 +312,15 @@ func (c *Conn) writeOutboundBatch(items []sched.Item, outbounds []Outbound, fram
 			releaseOutbounds(outbounds)
 			return err
 		}
+		var sentBytesByKind [core.FrameKindControl + 1]int
 		for _, outbound := range outbounds {
-			c.observeBytes("sent_bytes", outbound.Kind, outbound.Payload.Len())
+			sentBytesByKind[outbound.Kind] += outbound.Payload.Len()
+			outbound.Payload.Release()
 		}
-		releaseOutbounds(outbounds)
+		c.observeWriteBatch(len(outbounds), batchBytes)
+		for kind := core.FrameKindData; kind <= core.FrameKindControl; kind++ {
+			c.observeBytes("sent_bytes", kind, sentBytesByKind[kind])
+		}
 		outbounds = outbounds[:0]
 		frames = frames[:0]
 		batchBytes = 0
@@ -407,6 +426,22 @@ func (c *Conn) observeBytes(name string, kind core.FrameKind, bytes int) {
 		SourceID: c.cfg.SourceID,
 		Kind:     kind,
 		Bytes:    bytes,
+	})
+}
+
+func (c *Conn) observeWriteBatch(frames, bytes int) {
+	if c.cfg.Observer == nil || frames <= 0 {
+		return
+	}
+	c.cfg.Observer.ObserveTransport(core.Event{
+		Name:          "write_batch",
+		NodeID:        c.cfg.NodeID,
+		SourceID:      c.cfg.SourceID,
+		Result:        "ok",
+		Items:         frames,
+		Capacity:      c.cfg.Limits.MaxBatchFrames,
+		Bytes:         bytes,
+		BytesCapacity: int64(c.cfg.Limits.MaxBatchBytes),
 	})
 }
 

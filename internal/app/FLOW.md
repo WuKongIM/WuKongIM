@@ -30,7 +30,7 @@ New(Config)
   -> create a root logger from Config.Log unless a test/harness override is supplied
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
-     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/bounded outbound send queue/apply gap, TransportV2 service RPC totals/latency, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
@@ -57,7 +57,7 @@ New(Config)
      it keeps a bounded
      in-memory sticky alert window for readiness, pressure, sendack-error, and
      gateway session-error signals with compact evidence facts so `wkcli top`
-     can show why active or recently resolved warnings fired; TransportV2
+     can show why active or recently resolved warnings fired; Transport
      service pressure uses aliases registered with service worker pools so
      operator views do not expose raw `service_<id>` labels; top remains an
      in-memory collector and still runs when Observability.MetricsEnabled=false

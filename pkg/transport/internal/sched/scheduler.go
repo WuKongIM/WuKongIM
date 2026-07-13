@@ -191,6 +191,20 @@ func (s *Scheduler) NextBatch() []Item {
 	return batch
 }
 
+// NextBatchInto returns the next available batch without blocking and reuses dst storage.
+func (s *Scheduler) NextBatchInto(dst []Item) []Item {
+	s.mu.Lock()
+
+	if s.queuedItems == 0 {
+		s.mu.Unlock()
+		return dst[:0]
+	}
+	batch, observation := s.nextBatchLocked(dst, s.observer != nil)
+	s.mu.Unlock()
+	s.observeBatch(batch, observation)
+	return batch
+}
+
 // WaitBatch blocks until a batch is available or the scheduler is stopped.
 func (s *Scheduler) WaitBatch() ([]Item, error) {
 	s.mu.Lock()

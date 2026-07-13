@@ -459,6 +459,35 @@ func TestWaitBatchIntoPreservesLaneQueueStorage(t *testing.T) {
 	}
 }
 
+func TestNextBatchIntoReusesCallerStorage(t *testing.T) {
+	s := New(Config{
+		MaxBatchFrames: 4,
+		MaxBatchBytes:  1024,
+	})
+	for i := 0; i < 3; i++ {
+		if err := s.Enqueue(context.Background(), Item{
+			Priority: core.PriorityRPC,
+			Bytes:    1,
+			Value:    i,
+		}); err != nil {
+			t.Fatalf("Enqueue(%d) error = %v", i, err)
+		}
+	}
+
+	dst := make([]Item, 0, 4)
+	storage := &dst[:cap(dst)][0]
+	batch := s.NextBatchInto(dst)
+	if len(batch) != 3 {
+		t.Fatalf("NextBatchInto() len = %d, want 3", len(batch))
+	}
+	if &batch[:cap(batch)][0] != storage {
+		t.Fatal("NextBatchInto() did not reuse caller storage")
+	}
+	if next := s.NextBatchInto(batch[:0]); len(next) != 0 {
+		t.Fatalf("NextBatchInto() after drain len = %d, want 0", len(next))
+	}
+}
+
 func TestConcurrentEnqueueAccountsAllItems(t *testing.T) {
 	observer := &recordingObserver{}
 	s := New(Config{

@@ -163,6 +163,18 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		Bytes: 72,
 	})
 	transportObserver.ObserveTransport(transport.Event{
+		Name:     "write_batch",
+		Items:    1,
+		Capacity: 64,
+		Bytes:    128,
+	})
+	transportObserver.ObserveTransport(transport.Event{
+		Name:     "write_batch",
+		Items:    64,
+		Capacity: 64,
+		Bytes:    8192,
+	})
+	transportObserver.ObserveTransport(transport.Event{
 		Name:     "controller_raft_queue",
 		Priority: transport.PriorityRaft,
 		Items:    2,
@@ -311,6 +323,18 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	})
 	if got := receivedRPCResponse.GetCounter().GetValue(); got != 72 {
 		t.Fatalf("transport received bytes = %v, want 72", got)
+	}
+	for name, want := range map[string]float64{
+		"wukongim_transport_write_batches_total":              2,
+		"wukongim_transport_write_frames_total":               65,
+		"wukongim_transport_write_payload_bytes_total":        8320,
+		"wukongim_transport_write_single_frame_batches_total": 1,
+		"wukongim_transport_write_frame_limit_batches_total":  1,
+	} {
+		family := requireAppMetricFamily(t, families, name)
+		if got := family.GetMetric()[0].GetCounter().GetValue(); got != want {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
 	}
 	rpcTotal := requireAppMetricFamily(t, families, "wukongim_transport_rpc_total")
 	slotRuntimeRPC := findAppMetricByLabels(t, rpcTotal, map[string]string{
