@@ -50,9 +50,7 @@ func TestPromoteDynamicDataNodeToControllerVoter(t *testing.T) {
 	beforeStatus := manager.EventuallyControllerRaftVoters(t, 1, []uint64{1, 2, 3}, 30*time.Second)
 	require.NotContains(t, beforeStatus.Voters, uint64(4))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	promoted, status, body, err := manager.PromoteControllerVoter(ctx, 4, 0)
+	promoted, status, body, err := eventuallyPromoteControllerVoter(t, manager, 4, 30*time.Second)
 	require.NoError(t, err, cluster.DumpDiagnostics())
 	require.Equalf(t, http.StatusAccepted, status, "body=%s\n%s", strings.TrimSpace(string(body)), cluster.DumpDiagnostics())
 	require.True(t, promoted.Changed)
@@ -80,6 +78,39 @@ func TestPromoteDynamicDataNodeToControllerVoter(t *testing.T) {
 	require.Equalf(t, http.StatusOK, retryStatus, "body=%s\n%s", strings.TrimSpace(string(retryBody)), cluster.DumpDiagnostics())
 	require.False(t, retry.Changed)
 	require.ElementsMatch(t, promoted.NextVoters, retry.NextVoters)
+}
+
+func eventuallyPromoteControllerVoter(t testing.TB, manager *suite.ManagerClient, nodeID uint64, timeout time.Duration) (suite.PromoteControllerVoterDTO, int, []byte, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var (
+		promoted suite.PromoteControllerVoterDTO
+		status   int
+		body     []byte
+		err      error
+	)
+	for {
+		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
+		promoted, status, body, err = manager.PromoteControllerVoter(requestCtx, nodeID, 0)
+		requestCancel()
+		if err == nil && status == http.StatusAccepted {
+			return promoted, status, body, nil
+		}
+		response := string(body)
+		if err != nil || status != http.StatusConflict ||
+			(!strings.Contains(response, "target_revision_stale") && !strings.Contains(response, "target_prepare_revision_stale")) {
+			return promoted, status, body, err
+		}
+		select {
+		case <-ctx.Done():
+			return promoted, status, body, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func eventuallyPromotableDataNode(t testing.TB, cluster *suite.StartedCluster, manager *suite.ManagerClient, nodeID uint64, timeout time.Duration) suite.NodeDTO {

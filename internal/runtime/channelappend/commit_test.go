@@ -436,6 +436,7 @@ func TestSubscriberMutationUpdatePatchesCachedSnapshot(t *testing.T) {
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, first), 0, 1170, 1)
 	enqueuer.waitCalls(t, 1)
+	waitSubscriberCacheVersionForTest(t, group, target.ChannelID, 1)
 
 	if err := group.ApplySubscriberMutation(context.Background(), SubscriberMutationUpdate{
 		ChannelID:                 target.ChannelID,
@@ -1095,6 +1096,26 @@ func waitCommitBacklogForTest(t *testing.T, group *Group, channelID ChannelID, w
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("commit backlog = %d, want %d", commitBacklogForTest(group, channelID), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func waitSubscriberCacheVersionForTest(t *testing.T, group *Group, channelID ChannelID, want uint64) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		writer := group.writerForTest(channelID)
+		if writer != nil {
+			writer.mu.Lock()
+			ready := writer.state.subscriberCache.ready && writer.state.subscriberCache.mutationVersion == want
+			writer.mu.Unlock()
+			if ready {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("subscriber cache version %d did not become ready", want)
 		}
 		time.Sleep(time.Millisecond)
 	}

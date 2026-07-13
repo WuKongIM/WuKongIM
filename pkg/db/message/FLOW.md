@@ -61,9 +61,11 @@ Current flow:
 12. The compatibility `Engine` / `ChannelStore` surface adapts legacy
     `pkg/channel` record, checkpoint, history, retention, committed-cursor, and
     query callers onto the typed `ChannelLog` core while keeping seq/offset
-    conversion at the channel boundary. Every `ForChannel` call returns a
-    distinct lease; closing one store cannot close another lease or the shared
-    engine, and closed stores return `channelcompat.ErrClosed`.
+    conversion at the channel boundary. Sequence message scans preserve the
+    caller context through forward and reverse row iteration, so canceled HTTP
+    or RPC reads do not continue as background storage work. Every `ForChannel`
+    call returns a distinct lease; closing one store cannot close another lease
+    or the shared engine, and closed stores return `channelcompat.ErrClosed`.
 13. Compatibility append/apply commits transfer canonical append locks,
     every checkpoint lock acquired for the request, and one background pin per
     entry to a terminal commit owner. The checkpoint lock transfer is preserved

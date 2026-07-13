@@ -452,7 +452,7 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 	if !req.Reverse && req.MaxSeq > 0 && req.MinSeq > 0 && req.MaxSeq < req.MinSeq {
 		return ReadCommittedResult{NextSeq: readFrom}, nil
 	}
-	messages, err := a.store.ListMessagesBySeq(readFrom, req.Limit, req.MaxBytes, req.Reverse)
+	messages, err := a.store.ListMessagesBySeq(ctx, readFrom, req.Limit, req.MaxBytes, req.Reverse)
 	if err != nil {
 		return ReadCommittedResult{}, a.mapError(err)
 	}

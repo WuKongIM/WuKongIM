@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"reflect"
 	"sync"
 	"testing"
@@ -45,6 +46,23 @@ func TestEngineMetricsSnapshotReportsPhysicalStore(t *testing.T) {
 	}
 	if snapshot.ReadAmplification < 0 {
 		t.Fatalf("ReadAmplification = %d, want non-negative value", snapshot.ReadAmplification)
+	}
+}
+
+func TestCompatListMessagesBySeqPreservesCanceledContext(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+
+	store := mustForChannel(t, engine, channel.ChannelKey("compat-canceled-read:1"), channel.ChannelID{ID: "compat-canceled-read", Type: 1})
+	defer store.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = store.ListMessagesBySeq(ctx, 1, 10, 1024, true)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("ListMessagesBySeq() error = %v, want context canceled", err)
 	}
 }
 

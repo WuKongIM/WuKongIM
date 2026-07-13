@@ -928,8 +928,8 @@ func (s *ChannelStore) GetMessageByMessageID(messageID uint64) (channel.Message,
 	return channelMessageFromRow(row), true, nil
 }
 
-// ListMessagesBySeq scans persisted messages by sequence.
-func (s *ChannelStore) ListMessagesBySeq(fromSeq uint64, limit int, maxBytes int, reverse bool) ([]channel.Message, error) {
+// ListMessagesBySeq scans persisted messages by sequence while preserving caller cancellation.
+func (s *ChannelStore) ListMessagesBySeq(ctx context.Context, fromSeq uint64, limit int, maxBytes int, reverse bool) ([]channel.Message, error) {
 	if err := s.beginUse(); err != nil {
 		return nil, err
 	}
@@ -939,9 +939,9 @@ func (s *ChannelStore) ListMessagesBySeq(fromSeq uint64, limit int, maxBytes int
 		err  error
 	)
 	if reverse {
-		rows, err = s.log.readRowsReverse(context.Background(), fromSeq, ReadOptions{Limit: limit, MaxBytes: maxBytes})
+		rows, err = s.log.readRowsReverse(ctx, fromSeq, ReadOptions{Limit: limit, MaxBytes: maxBytes})
 	} else {
-		rows, err = s.log.readRows(context.Background(), fromSeq, 0, ReadOptions{Limit: limit, MaxBytes: maxBytes})
+		rows, err = s.log.readRows(ctx, fromSeq, 0, ReadOptions{Limit: limit, MaxBytes: maxBytes})
 	}
 	if err != nil {
 		return nil, toChannelError(err)

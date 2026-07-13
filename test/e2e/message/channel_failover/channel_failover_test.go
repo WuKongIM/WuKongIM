@@ -765,7 +765,7 @@ type managerMessagePage struct {
 }
 
 type managerMessageItem struct {
-	MessageID   uint64 `json:"message_id"`
+	MessageID   uint64 `json:"message_id,string"`
 	MessageSeq  uint64 `json:"message_seq"`
 	ClientMsgNo string `json:"client_msg_no"`
 }
