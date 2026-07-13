@@ -1,0 +1,12 @@
+{
+  "schema": "wukongim.analysis.skill_fixture/v1",
+  "name": "insufficient_evidence",
+  "run_id": "fixture-insufficient",
+  "observations": [
+    {"tool": "run_inspect", "run_id": "fixture-insufficient", "node": "run", "source": "run_inventory", "observed_at": "2026-07-14T10:00:00Z", "window": {"start": "2026-07-14T10:00:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"state": "running", "inventory_count": 12}},
+    {"tool": "cluster_snapshot", "run_id": "fixture-insufficient", "node": "cluster", "source": "manager", "observed_at": "2026-07-14T10:00:01Z", "window": {"start": "2026-07-14T10:00:01Z", "end": "2026-07-14T10:00:01Z"}, "completeness": "partial", "warnings": ["workqueues unavailable"], "data": {"ready_nodes": 3, "workqueues": "unavailable"}},
+    {"tool": "metrics_query_range", "run_id": "fixture-insufficient", "node": "cluster", "source": "prometheus", "observed_at": "2026-07-14T10:00:02Z", "window": {"start": "2026-07-14T09:30:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "unavailable", "warnings": ["prometheus timeout"], "data": {"error": "prometheus timeout"}},
+    {"tool": "logs_search", "run_id": "fixture-insufficient", "node": "node-1", "source": "manager", "observed_at": "2026-07-14T10:00:03Z", "window": {"start": "2026-07-14T09:55:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "unavailable", "warnings": ["manager timeout"], "data": {"error": "manager timeout"}}
+  ],
+  "expected_verdict": "insufficient_evidence"
+}

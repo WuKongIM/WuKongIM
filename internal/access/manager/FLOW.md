@@ -54,7 +54,7 @@ GET  /manager/diagnostics/trace/:trace_id (diagnostics trace aggregation; requir
 GET  /manager/diagnostics/message (diagnostics message lookup; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/events (diagnostics event query; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/tracking-rules (diagnostics tracking rule list; requires cluster.diagnostics:r when Auth.On=true)
-POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
+POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule on all eligible nodes by default, or one exact optional node_id; requires cluster.diagnostics:w when Auth.On=true)
 DELETE /manager/diagnostics/tracking-rules/:rule_id (delete diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
 GET  /manager/channel-runtime-meta (read-only channel runtime metadata list; requires cluster.channel:r when Auth.On=true)
 POST /manager/channel-migrations/leader-transfer (manual Channel leader-transfer task creation; requires cluster.channel:w when Auth.On=true)

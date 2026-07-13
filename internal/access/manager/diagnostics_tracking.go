@@ -56,6 +56,7 @@ type DiagnosticsTrackingDeleteResponse struct {
 }
 
 type diagnosticsTrackingCreateRequest struct {
+	NodeID      uint64   `json:"node_id,omitempty"`
 	Target      string   `json:"target"`
 	UID         string   `json:"uid,omitempty"`
 	ChannelID   string   `json:"channel_id,omitempty"`
@@ -83,6 +84,7 @@ func (s *Server) handleCreateDiagnosticsTrackingRule(c *gin.Context) {
 		return
 	}
 	resp, err := s.management.CreateDiagnosticsTrackingRule(c.Request.Context(), managementusecase.DiagnosticsTrackingCreateRequest{
+		NodeID:      body.NodeID,
 		Target:      strings.TrimSpace(body.Target),
 		UID:         strings.TrimSpace(body.UID),
 		ChannelID:   strings.TrimSpace(body.ChannelID),

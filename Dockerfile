@@ -11,12 +11,16 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wukongim ./cmd/wukongim \
- && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkbench ./cmd/wkbench
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkbench ./cmd/wkbench \
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkanalysis ./cmd/wkanalysis \
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkcloudsim ./cmd/wkcloudsim
 
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app
 COPY --from=builder /out/wukongim /usr/local/bin/wukongim
 COPY --from=builder /out/wkbench /usr/local/bin/wkbench
+COPY --from=builder /out/wkanalysis /usr/local/bin/wkanalysis
+COPY --from=builder /out/wkcloudsim /usr/local/bin/wkcloudsim
 
-EXPOSE 5001 5100 5200 7000
+EXPOSE 5001 5100 5200 7000 19092
 ENTRYPOINT ["/usr/local/bin/wukongim", "-config", "/etc/wukongim/wukongim.toml"]

@@ -1,0 +1,602 @@
+# Cloud Simulation GitHub Actions Design
+
+**Date:** 2026-07-14
+
+## Status
+
+Approved for implementation planning.
+
+## Problem
+
+WuKongIM needs a reproducible way to exercise a real three-node cluster for
+hours or days without keeping a GitHub-hosted runner alive for the complete
+test. An operator should be able to provide a cloud-account binding, request
+four temporary spot instances, run one repository-defined wkbench scenario,
+and later trigger a separate Codex analysis against the still-live system.
+
+The design must prevent four classes of false confidence:
+
+- a workflow that remains green only because it successfully launched a test;
+- a load generator bottleneck attributed to WuKongIM;
+- a spot interruption attributed to a product defect;
+- a Codex remediation process that simultaneously holds cloud diagnostic and
+  repository write privileges.
+
+It must also prove that temporary resources are released even when workflows,
+instances, or cleanup calls fail.
+
+## Goals
+
+1. Create four temporary spot instances: three WuKongIM cluster nodes and one
+   simulator/observability node.
+2. Run a trusted, versioned `wkbench/v1` Scenario Profile for `2h`, `24h`, or
+   `48h` after a strict cluster readiness gate.
+3. Keep provisioning, long-running workload execution, live analysis, and
+   cleanup independently retryable.
+4. Let a manually triggered Analysis Workflow query live metrics, logs,
+   diagnostics, traces, and bounded profiles through a WuKongIM Analysis MCP
+   and repository Analysis Skill.
+5. Optionally produce a tested Draft PR when a high-confidence Diagnosis Result
+   identifies a repository defect.
+6. Use short-lived GitHub OIDC identities instead of cloud AccessKeys.
+7. Bound cost, concurrency, diagnostic perturbation, public ingress, and
+   resource lifetime.
+8. Implement Alibaba Cloud end to end first while preserving a provider-neutral
+   boundary for a later Tencent Cloud Adapter.
+
+## Non-goals
+
+- Keeping a GitHub job alive for the complete simulation duration.
+- Persisting logs, metrics, profiles, or an Evidence Bundle after cloud release.
+- Running arbitrary source revisions or fork pull-request code in the first
+  version.
+- Automatically replacing a reclaimed spot instance.
+- Multi-zone placement or planned fault injection in the first version.
+- Exposing cluster nodes, manager APIs, metrics, pprof, or SSH permanently.
+- Giving Codex SSH, shell, cloud-resource, service-restart, or configuration
+  mutation capabilities.
+- Deploying Grafana, Loki, ELK, Terraform state, a container registry, or cloud
+  object storage solely for this system.
+- Automatically merging remediation pull requests.
+- Implementing Alibaba Cloud and Tencent Cloud concurrently.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U["Operator"] --> P["Provisioning Workflow"]
+    P --> CC["Go Cloud Control Plane"]
+    CC --> CP["Cloud Provider Adapter"]
+    CP --> N1["WuKongIM node 1"]
+    CP --> N2["WuKongIM node 2"]
+    CP --> N3["WuKongIM node 3"]
+    CP --> S["Simulator node"]
+    S --> W["wkbench worker + coordinator"]
+    S --> PR["Prometheus"]
+    S --> MCP["Analysis MCP Gateway"]
+    PR --> N1
+    PR --> N2
+    PR --> N3
+    MCP --> PR
+    MCP --> N1
+    MCP --> N2
+    MCP --> N3
+    U --> A["Analysis Workflow"]
+    A --> MCP
+    A --> D["Diagnosis Result"]
+    D --> R["Isolated remediation Job"]
+    R --> DPR["Draft PR"]
+    C["Scheduled Cleanup Workflow"] --> CC
+```
+
+GitHub Actions is the asynchronous control plane. The simulator owns the
+long-running workload process. No cloud credential is installed on any
+Simulation Run host.
+
+## Workflow Surface
+
+### Provisioning Workflow
+
+`.github/workflows/cloud-sim-provision.yml` is manually dispatched from the
+default branch. Its inputs are:
+
+- `region`;
+- `source_sha`, which must be reachable from trusted `main`;
+- `scenario`;
+- `infrastructure_preset`;
+- `duration`: `2h`, `24h`, or `48h`;
+- `analysis_grace`: `0h`, `1h`, or `6h`, default `1h`;
+- `max_total_cost`.
+
+The first version fixes the provider to Alibaba Cloud. A protected GitHub
+Environment may require approval before any billable resource is created.
+
+The build job has no cloud credential. It produces one content-addressed
+Deployment Bundle for the selected commit. A separate provisioning job obtains
+the Provisioner Role, creates the run, deploys that exact bundle, and writes a
+Job Summary containing the Run Identity, selected resources, cost estimate,
+expiry, and a direct next-step reference to the Analysis Workflow.
+
+### Analysis Workflow
+
+`.github/workflows/cloud-sim-analyze.yml` is manually dispatched with:
+
+- exact `run_id`;
+- optional diagnostic focus;
+- `allow_fix_pr`, default false.
+
+There is no `latest` selector. The workflow validates the Run Locator and cloud
+inventory before starting Codex. Provider-confirmed released resources cause a
+clear failed result before Codex is invoked. An unknown locator is reported as
+`unknown_run`, not as a released run.
+
+### Cleanup Workflow
+
+`.github/workflows/cloud-sim-cleanup.yml` runs every 15 minutes and may also be
+dispatched manually with an exact Run Identity for protected early destruction.
+It discovers resources from mandatory provider tags, reconciles all resource
+types, and fails visibly while any billable resource remains.
+
+## Simulation Run Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> provisioning
+    provisioning --> ready: bootstrap gate passes
+    provisioning --> provisioning_failed: gate fails
+    ready --> running: wkbench starts
+    running --> cooldown: active duration ends
+    running --> infrastructure_interrupted: unplanned instance loss
+    cooldown --> analysis_grace
+    provisioning_failed --> analysis_grace: simulator and MCP usable
+    provisioning_failed --> release_pending: no diagnostic path
+    infrastructure_interrupted --> analysis_grace: simulator survives
+    infrastructure_interrupted --> release_pending: simulator lost
+    analysis_grace --> release_pending: grace expires
+    release_pending --> released: inventory proves absence
+    released --> [*]
+```
+
+The Run Lease is the maximum cloud-side lifetime. It includes a bounded
+20-minute bootstrap allowance, the selected active workload duration, and the
+selected Analysis Grace. It cannot be extended, but a failed or manually
+stopped run may be released earlier.
+
+Every compute instance receives the provider's native scheduled-release
+deadline at creation time. The Cleanup Workflow is an independent second layer
+for compute, disks, addresses, security rules, subnets, and VPCs.
+
+## Cloud Resource Topology
+
+Each run owns one tagged VPC, subnet, and security group in one region and one
+availability zone:
+
+- cluster node 1: private address and independent data disk;
+- cluster node 2: private address and independent data disk;
+- cluster node 3: private address and independent data disk;
+- simulator: private address plus a temporary public address.
+
+The three cluster nodes have no public address. Cluster, manager, metrics, and
+profiling traffic remains private. The simulator has no standing inbound rule.
+The first version deliberately excludes multi-zone placement so cross-zone
+latency is not mixed into the baseline.
+
+Logical resource tags must include at least:
+
+- managed-by identity;
+- Run Identity;
+- repository identity;
+- resource role;
+- source SHA;
+- Scenario Profile digest;
+- Deployment Bundle digest;
+- expiry;
+- run-specific MCP certificate fingerprint where applicable.
+
+Provider Adapters map these logical fields to provider tag constraints. Cleanup
+and analysis use tags and provider inventory, never workflow-local state or
+resource display names.
+
+## Provider-neutral Cloud Control Plane
+
+A repository-owned Go control plane exposes lifecycle operations equivalent to:
+
+```text
+create
+status
+open-analysis
+close-analysis
+destroy
+sweep
+```
+
+It does not use shell scripts or Terraform state as the run authority. Its
+Provider Adapter owns pricing, quota and spot-capacity checks, resource
+creation, tags, native scheduled release, temporary ingress, inventory, and
+destruction.
+
+The first Adapter targets Alibaba Cloud. Tencent Cloud is added only after the
+complete Alibaba path, including cleanup failures and live analysis, passes.
+
+## Cloud Account Bootstrap
+
+Before ordinary workflows can authenticate, an operator runs one idempotent
+bootstrap from the cloud provider's browser-authenticated CloudShell. It
+supports `plan`, `apply`, and `remove` and creates only:
+
+- the GitHub OIDC identity provider;
+- a least-privilege Provisioner Role and policy;
+- a least-privilege Analyzer Role and policy;
+- trust-policy conditions for repository, default branch, workflow path,
+  protected Environment, and expected audience.
+
+It does not create Simulation Run infrastructure or export an AccessKey. It
+prints only non-secret account, role, provider, and region identifiers for
+GitHub Variables. Removal refuses while active tagged runs exist.
+
+## Cost and Capacity Guardrails
+
+Provisioning fails atomically before resource creation when:
+
+- another active run already exists for the same repository and cloud account;
+- pricing cannot be obtained;
+- the worst-case lease estimate exceeds `max_total_cost`;
+- required quota, subnet capacity, or spot capacity is unavailable;
+- the selected Infrastructure Preset is below the Scenario Profile minimum.
+
+`small`, `standard`, and `stress` are provider-neutral capacity classes defined
+by minimum CPU, memory, network, disk capacity, and disk performance. The
+Adapter selects the lowest-cost current allowlisted spot type that satisfies
+the class and records the concrete SKU and spot price.
+
+The estimate includes all four instances, system and independent data disks,
+the simulator public address, bootstrap allowance, active duration, and
+Analysis Grace. Variable traffic charges are displayed as a caveat rather than
+silently treated as bounded.
+
+## Deployment
+
+The Deployment Bundle contains static Linux binaries, generated node-specific
+configuration, fixed observability binaries, and systemd units. Cloud hosts do
+not clone source, compile code, install Docker, or pull a mutable image.
+
+Provisioning creates a Deployment Access Window:
+
+1. Generate an ephemeral SSH key.
+2. Admit the current GitHub runner address to the simulator's SSH port only.
+3. Transfer the bundle through the simulator to the three private nodes.
+4. Verify the same content digest on all four hosts.
+5. Install root-readable configuration and systemd units.
+6. Remove the authorized key and ingress rule in unconditional cleanup.
+
+SSH is a provisioning transport only. It is never available to Codex or the
+Analysis MCP.
+
+The cloud deployment runs native systemd services:
+
+- each cluster node runs one `wukongim` process;
+- the simulator runs a persistent `wkbench worker`, one non-restarting
+  `wkbench run`, Prometheus, host observation, and the Analysis MCP Gateway.
+
+Docker Compose remains the local development and topology reference. Contract
+tests keep relevant cluster and scenario defaults aligned.
+
+## Workload Contract and Bootstrap Gate
+
+Repository-owned `wkbench/v1` YAML is the only workload schema. Scenario
+Profiles define online users, connection rate, person and group channel shapes,
+large-group members, message rates, payloads, verification, thresholds, and a
+deterministic seed. Specialized workloads are added as reviewed scenario files,
+not assembled from unrestricted workflow inputs.
+
+The cluster remains a three-node cluster with the default 256 hash slots.
+Active duration begins only after the 20-minute Bootstrap Gate proves:
+
+- one Deployment Bundle digest on all four hosts;
+- all expected systemd services active;
+- all three node readiness endpoints healthy;
+- exactly three converged cluster members;
+- all 256 slots, leaders, and replicas healthy;
+- no pending controller convergence;
+- every expected Prometheus target up;
+- Analysis MCP self-check success;
+- `wkbench validate` and `wkbench doctor` success.
+
+The simulator then uses the existing wkbench coordinator and worker phases:
+
+```text
+prepare -> connect -> warmup -> run -> cooldown
+```
+
+No separate cloud workload supervisor or second state machine is introduced.
+The local retrying `wkbench dev-sim` remains a Docker Compose development tool.
+
+For high-online profiles, the simulator may receive multiple private source
+addresses and use existing worker TCP source pools. Sustained simulator CPU
+above 70 percent, memory above 80 percent, source-port exhaustion, queue
+saturation, or sender saturation makes attribution `insufficient_evidence`.
+High utilization on a cluster node remains a valid observation.
+
+## Internal Service Credentials
+
+Each run generates independent 256-bit capabilities:
+
+- Bench Token for `/bench/v1` preparation;
+- Worker Control Token for local coordinator-to-worker operations;
+- Diagnostic Token for MCP-to-node diagnostic operations.
+
+They are stored only in the necessary root-readable systemd environment files
+and are never placed in cloud tags, GitHub artifacts, summaries, Diagnosis
+Results, or Codex context. Private security-group rules further restrict their
+source. Human manager credentials and default passwords are not reused.
+
+## Live Observability Plane
+
+The simulator hosts Prometheus and scrapes all three WuKongIM nodes plus all
+four host metric exporters. Metrics retention and disk preflight cover active
+duration plus Analysis Grace.
+
+WuKongIM structured logs stay rotated on their originating nodes. The Analysis
+MCP aggregates existing private manager log, diagnostics, task-audit,
+workqueue, and profiling surfaces. Simulator service logs come from its local
+journald. Provisioning failures remain in the Provisioning Workflow summary.
+
+The first version has no Grafana, Loki, ELK, or historical observability
+backend. Once the run is released, no further diagnosis is supported.
+
+## Analysis MCP and Skill
+
+One Analysis MCP Gateway runs on the simulator. The three cluster nodes do not
+host or expose MCP. The repository contains
+`.agents/skills/wukongim-cloud-analysis/SKILL.md`, which the diagnosis job
+invokes explicitly.
+
+Before Codex starts, the workflow generates a run-specific project MCP
+configuration. The MCP is required, uses a strict tool allowlist, and receives
+its bearer token only through an environment variable. Logs, message content,
+and MCP-returned text are treated as untrusted data rather than instructions.
+
+The narrow tool contract includes:
+
+- `run_inspect`;
+- `cluster_snapshot`;
+- `metrics_query_range`;
+- `logs_search` and `logs_context`;
+- `diagnostics_query` and `task_audits_query`;
+- `trace_start` and `trace_query`;
+- `profile_capture`, `profile_top`, and `profile_list`;
+- `config_read_redacted`.
+
+Every Observation identifies the Run Identity, node, observation time, data
+window, completeness, and warnings. Tool parameters cannot select arbitrary
+URLs, files, commands, processes, or unbounded collection.
+
+Read operations have hard range, series, sample, line, response-size, and
+timeout limits. Active diagnostics permit one node at a time, CPU profiles of
+at most 30 seconds each and 60 seconds total per Analysis Session, symbolic
+heap and goroutine snapshots, and expiring message/send tracking. They cannot
+restart services, change configuration or log level, operate cloud resources,
+or delete data.
+
+## Analysis Identity and Network Window
+
+The Analysis Workflow obtains the Analyzer Role using GitHub OIDC, validates
+the Run Locator and tagged inventory, and opens an Analysis Access Window by
+admitting only the current GitHub runner public address to the simulator MCP
+HTTPS port.
+
+Each run uses a self-signed server certificate with the simulator public IP in
+its SAN. The private key exists only on the simulator. The immutable public
+fingerprint is read from protected cloud tags, verified, and pinned; insecure
+TLS is never allowed.
+
+The workflow requests a GitHub OIDC token with audience
+`wukongim-cloud-sim:<run_id>`. The gateway validates issuer, repository,
+trusted branch, workflow reference, Environment, Run Identity, and expiry
+before issuing an Analysis Token.
+
+Each Analysis Session is bounded as follows:
+
+- diagnosis job timeout: 45 minutes;
+- access-window maximum: 50 minutes;
+- token expiry: the earlier of 45 minutes after issue or five minutes before
+  the Run Lease;
+- minimum remaining Run Lease at start: 30 minutes;
+- no renewal; further work requires a new Analysis Workflow.
+
+Normal completion, failure, timeout, and cancellation all close ingress through
+unconditional cleanup. The scheduled sweeper remains a second layer.
+
+## Run Locator and Released-run Handling
+
+Provisioning retains for 90 days a minimal GitHub Run Locator containing only:
+
+- Run Identity;
+- provider and region;
+- cloud-account ID hash;
+- source SHA and Scenario Profile digest;
+- creation and expiry times;
+- provisioning workflow run ID.
+
+It contains no logs, metrics, profiles, or diagnosis data. Analysis first
+validates the locator and then inventories all relevant tagged compute, disk,
+address, security, subnet, and VPC resources.
+
+- valid locator plus proven empty inventory: `released`, fail before Codex;
+- missing locator: `unknown_run`, ask the caller to verify input;
+- present resources but unreachable MCP: `insufficient_evidence`, not released;
+- ambiguous or mismatched resource identity: fail closed.
+
+## Diagnosis and Remediation
+
+The Analysis Workflow isolates two jobs.
+
+### Diagnose
+
+The diagnosis job has the Analyzer Role, temporary MCP access, and read-only
+repository contents. It uses a dedicated, budget-limited OpenAI or Azure OpenAI
+API key stored in a protected GitHub Environment and exposed only to the Codex
+step. It emits a strict JSON-Schema-validated Diagnosis Result and then closes
+live access.
+
+The Diagnosis Result contains:
+
+- run, source, scenario, and analyzed-window identity;
+- one verdict, severity, and confidence;
+- root-cause scope;
+- compact Observation references;
+- supporting, contradictory, and unresolved signals;
+- Remediation Eligibility;
+- proposed regression coverage;
+- cloud-revalidation requirement.
+
+It does not copy raw logs or metric series. Invalid output becomes
+`insufficient_evidence`. The JSON may be retained for one day only as an
+intra-workflow handoff.
+
+### Remediate
+
+The optional remediation job runs only when `allow_fix_pr=true` and the
+Diagnosis Result is high-confidence, repository-attributable, and testable. It
+starts from a fresh checkout with repository write and pull-request permission,
+but without a cloud identity, MCP configuration, Analysis Token, or live
+network window.
+
+It must stop when code inspection contradicts the diagnosis. Otherwise it adds
+a regression test, runs focused repository gates, and may create a Draft PR.
+Performance patches requiring cloud A/B are labeled
+`cloud_revalidation_required`. No remediation path can merge automatically.
+
+## Verdict and Workflow Conclusion
+
+The Analysis Workflow succeeds only for `healthy`:
+
+| Verdict | Workflow | Draft PR |
+| --- | --- | --- |
+| `healthy` | success | no |
+| `product_defect` | failure | eligible when explicitly enabled |
+| `infrastructure_interrupted` | failure | prohibited |
+| `scenario_invalid` | failure | production-code fix prohibited |
+| `insufficient_evidence` | failure | prohibited |
+| `released` | failure before Codex | prohibited |
+| `unknown_run` | failure before Codex | prohibited |
+
+The Job Summary always shows exactly one verdict, confidence, key Observation
+references, affected time range, and any Draft PR URL. Successful Codex
+execution is not itself a healthy result.
+
+Unplanned spot reclaim stops workload generation and does not replace the
+instance. If a cluster node is reclaimed, the simulator and survivors remain
+until Analysis Grace for attribution. If the simulator is reclaimed, live
+analysis is impossible and cleanup may release survivors early. Spot reclaim
+itself can never justify a source-code PR.
+
+## Security Boundaries
+
+- CloudShell bootstrap is the only cloud-admin operation.
+- GitHub holds no cloud AccessKey.
+- Provisioner and Analyzer Roles are separate and workflow-conditioned.
+- Build jobs have no cloud credential.
+- Cloud hosts have no cloud role or GitHub credential.
+- Deployment SSH is ephemeral and absent during analysis.
+- Diagnosis has cloud-read/MCP capability but no repository write.
+- Remediation has repository write but no cloud or MCP capability.
+- The Codex execution key is project-scoped, budget-limited, and never leaves
+  isolated Codex jobs.
+- Third-party Actions must be pinned to reviewed immutable commit SHAs.
+- Secrets are excluded from logs, tags, artifacts, summaries, MCP responses,
+  and Diagnosis Results.
+
+## Verification Strategy
+
+### Local fast gates
+
+- provider-neutral lifecycle and failure-state unit tests with a fake provider;
+- mandatory-tag and Run Locator schema tests;
+- pricing, quota, concurrency, expiry, and cleanup reconciliation tests;
+- MCP tool parameter, response-bound, redaction, and Diagnostic Budget tests;
+- Analysis Skill fixtures for healthy, product, infrastructure, scenario, and
+  insufficient-evidence cases;
+- Diagnosis Result JSON Schema tests;
+- workflow YAML parsing and action-pin checks.
+
+Go tests use repository-approved explicit roots with `GOWORK=off`; no root
+`go test ./...` gate is introduced.
+
+### Local integration
+
+- run the MCP and Skill against the existing local three-node Compose topology;
+- prove that all MCP tools use supported private APIs rather than SSH or shell;
+- prove sim saturation invalidates attribution;
+- prove remediation receives no MCP configuration or cloud environment.
+
+### Manual cloud integration
+
+- Alibaba Cloud `small + 2h` lifecycle canary;
+- cancellation after each provisioning stage;
+- native scheduled release plus sweeper reconciliation;
+- forced stale security rule and disk cleanup;
+- one reclaimed cluster-node case and one lost-simulator case;
+- released and unknown Run Identity preflight;
+- one healthy and one seeded product-defect diagnosis;
+- one eligible Draft PR with cloud access already closed.
+
+Cloud integration remains manual and bounded; it is not part of normal unit
+tests.
+
+## Delivery Phases
+
+1. **Local contracts:** provider-neutral control plane, fake provider, Run
+   Locator, Analysis MCP, and Analysis Skill against local Compose.
+2. **Alibaba lifecycle:** CloudShell bootstrap, four spot hosts, systemd
+   deployment, Bootstrap Gate, Run Lease, and leak-free cleanup.
+3. **Live analysis:** temporary ingress, certificate pinning, OIDC exchange,
+   live observations, and released/unknown handling.
+4. **Draft-PR remediation:** isolated Codex jobs, validated Diagnosis Result,
+   tests, and pull-request guardrails.
+5. **Stress and multi-cloud:** resource presets, high-online source pools,
+   interruption drills, cleanup failure drills, then Tencent Cloud Adapter.
+
+No phase advances until the previous phase proves resource cleanup.
+
+## Acceptance Criteria
+
+1. A trusted `main` commit can create exactly three private WuKongIM nodes and
+   one simulator on allowlisted Alibaba Cloud spot capacity.
+2. The complete selected workload duration begins only after the three-node,
+   256-slot Bootstrap Gate passes.
+3. The workflow ends after provisioning while the remote wkbench coordinator
+   continues independently.
+4. Every host runs the same verified Deployment Bundle and no host compiles
+   source or stores a cloud/GitHub credential.
+5. Cost, concurrency, quota, capacity, and simulator-headroom failures are
+   fail-closed and cannot be attributed to WuKongIM.
+6. The Analysis Workflow can access only one live Run Identity through a pinned
+   certificate, short-lived token, `/32` ingress, and allowlisted MCP tools.
+7. Provider-confirmed released resources stop analysis before Codex; unknown
+   locators and unreachable MCP are reported distinctly.
+8. Active diagnostics remain within their time, concurrency, and response
+   budgets and record their perturbation windows.
+9. Diagnosis and remediation never share cloud/MCP and repository-write
+   privileges.
+10. Eligible fixes produce tested Draft PRs only; infrastructure and
+    inconclusive findings never produce source changes.
+11. Native instance release and the scheduled sweeper together prove absence of
+    all tagged billable resources after expiry, interruption, cancellation, and
+    manual destruction.
+12. Tencent Cloud work does not begin until the Alibaba Cloud lifecycle,
+    analysis, remediation, and cleanup drills are green.
+
+## Decision Records
+
+The accepted decisions are recorded in `docs/adr/0001` through
+`docs/adr/0036`. The repository glossary for this design is `CONTEXT.md`.
+
+## External References
+
+- [GitHub OIDC for cloud providers](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-cloud-providers)
+- [Codex GitHub Action](https://github.com/openai/codex-action)
+- [Codex MCP configuration](https://developers.openai.com/codex/mcp)
+- [Codex repository skills](https://developers.openai.com/codex/skills)
+- [Alibaba CloudShell CLI](https://www.alibabacloud.com/help/en/cloud-shell/use-alibaba-cloud-cli-to-manage-alibaba-cloud-resources)
+- [Alibaba RAM role for an OIDC identity provider](https://www.alibabacloud.com/help/en/ram/user-guide/create-a-ram-role-for-a-trusted-idp)

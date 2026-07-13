@@ -49,7 +49,22 @@ auth_on = true
 jwt_secret = "wukongim-dev-manager-secret"
 jwt_issuer = "wukongim-manager"
 jwt_expire = "24h"
-users = [{ username = "admin", password = "a1234567", permissions = [{ resource = "*", actions = ["*"] }] }]
+# The analysis user is a local-Compose capability identity, not a human manager
+# account. Cloud runs replace this password with a random run-scoped token.
+[[manager.users]]
+username = "admin"
+password = "a1234567"
+permissions = [{ resource = "*", actions = ["*"] }]
+
+[[manager.users]]
+username = "analysis"
+password = "local-analysis-capability-only"
+permissions = [
+  { resource = "cluster.node", actions = ["r"] },
+  { resource = "cluster.controller", actions = ["r"] },
+  { resource = "cluster.diagnostics", actions = ["r", "w"] },
+  { resource = "cluster.log", actions = ["r"] }
+]
 
 [gateway]
 gnet_multicore = true

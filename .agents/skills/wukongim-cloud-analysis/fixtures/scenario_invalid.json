@@ -1,0 +1,12 @@
+{
+  "schema": "wukongim.analysis.skill_fixture/v1",
+  "name": "scenario_invalid",
+  "run_id": "fixture-scenario",
+  "observations": [
+    {"tool": "run_inspect", "run_id": "fixture-scenario", "node": "run", "source": "run_inventory", "observed_at": "2026-07-14T10:00:00Z", "window": {"start": "2026-07-14T10:00:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"state": "running", "inventory_count": 12, "scenario": {"expected_send_rate": 250, "random_seed": 20260714, "hash_slot_count": 256}}},
+    {"tool": "cluster_snapshot", "run_id": "fixture-scenario", "node": "cluster", "source": "manager", "observed_at": "2026-07-14T10:00:01Z", "window": {"start": "2026-07-14T10:00:01Z", "end": "2026-07-14T10:00:01Z"}, "completeness": "complete", "warnings": [], "data": {"ready_nodes": 3, "workqueue_pressure": 0.01}},
+    {"tool": "metrics_query_range", "run_id": "fixture-scenario", "node": "cluster", "source": "prometheus", "observed_at": "2026-07-14T10:00:02Z", "window": {"start": "2026-07-14T09:30:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"query_id": "send_rate", "max": 0}},
+    {"tool": "logs_search", "run_id": "fixture-scenario", "node": "node-1", "source": "manager", "observed_at": "2026-07-14T10:00:03Z", "window": {"start": "2026-07-14T09:55:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"errors": []}}
+  ],
+  "expected_verdict": "scenario_invalid"
+}

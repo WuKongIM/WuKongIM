@@ -92,6 +92,41 @@ services:
       timeout: 3s
       retries: 6
 
+  wk-analysis:
+    profiles: ["analysis"]
+    image: wukongim-dev:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - wk-node1
+      - wk-node2
+      - wk-node3
+      - prometheus
+    entrypoint:
+      - /usr/local/bin/wkanalysis
+    environment:
+      # These defaults are local-only capabilities. Cloud runs inject random,
+      # run-scoped values and expose the MCP only through a temporary /32 rule.
+      WK_ANALYSIS_RUN_ID: ${WK_ANALYSIS_RUN_ID:-local-compose}
+      WK_ANALYSIS_MCP_TOKEN: ${WK_ANALYSIS_MCP_TOKEN:-local-analysis-mcp-token-0123456789}
+      WK_ANALYSIS_MANAGER_USERNAME: analysis
+      WK_ANALYSIS_MANAGER_PASSWORD: ${WK_ANALYSIS_MANAGER_PASSWORD:-local-analysis-capability-only}
+      WK_ANALYSIS_MANAGER_BASE_URL: http://wk-node1:5301
+      WK_ANALYSIS_PROMETHEUS_BASE_URL: http://prometheus:9090
+      WK_ANALYSIS_NODE_API_URLS: '{"1":"http://wk-node1:5001","2":"http://wk-node2:5001","3":"http://wk-node3:5001"}'
+      WK_ANALYSIS_SCENARIO_PATH: /etc/wkbench/cloud-small.yaml
+    volumes:
+      - ./docker/sim/cloud-small.yaml:/etc/wkbench/cloud-small.yaml:ro
+    ports:
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:19092/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
   wk-web:
     build:
       context: .

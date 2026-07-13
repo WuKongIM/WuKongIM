@@ -803,3 +803,17 @@ races repair local authority state. The hard local authority identity is
 `(HashSlot, SlotID, LeaderNodeID, Slot leader term, Slot config epoch)`; route
 revision orders observations, and the authority epoch is retained only as a
 local diagnostic tie-breaker for the same distributed identity.
+
+## Cloud Analysis Gateway Composition
+
+`NewCloudAnalysisGatewayHandler` is the composition root for the standalone
+Phase 1 simulator-side analysis process. It wires fixed private manager,
+Prometheus, and node API adapters into `internal/usecase/cloudanalysis`, then
+wraps the usecase with the authenticated Streamable HTTP MCP adapter. The
+runtime never joins the WuKongIM cluster and never receives a cloud or GitHub
+credential.
+
+`NewFakeCloudSimulationControlPlane` composes the same provider-neutral
+lifecycle usecase with the persistent Phase 1 fake adapter. The adapter's JSON
+file emulates provider inventory only; real adapters recover solely from cloud
+tags and inventory APIs.

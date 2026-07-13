@@ -4,6 +4,11 @@
 keeps a deterministic user set online, and sends person/group messages through
 the public bench API and WKProto gateways.
 
+`cloud-small.yaml` is a separate deterministic `wkbench/v1` Phase 1 analysis
+fixture. It is mounted into `wk-analysis` so `run_inspect` can return the exact
+effective scenario, canonical digest, non-zero seed, and 256 hash-slot identity.
+It is not executed by the `dev-sim` supervisor.
+
 Start the three-node development cluster with the simulator profile:
 
 ```bash

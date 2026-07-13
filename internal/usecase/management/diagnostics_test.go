@@ -145,6 +145,36 @@ func TestCreateDiagnosticsTrackingRuleFansOutToControlSnapshotNodes(t *testing.T
 	}
 }
 
+func TestCreateDiagnosticsTrackingRuleTargetsOneRequestedNode(t *testing.T) {
+	tracker := newDiagnosticsTrackingStub()
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{Nodes: []control.Node{
+				{NodeID: 1, Status: control.NodeAlive},
+				{NodeID: 2, Status: control.NodeAlive},
+			}},
+		},
+		DiagnosticsTracking: tracker,
+	})
+
+	resp, err := app.CreateDiagnosticsTrackingRule(context.Background(), DiagnosticsTrackingCreateRequest{
+		NodeID: 2, Target: "sender_uid", UID: "u1", TTLSeconds: 60, SampleRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateDiagnosticsTrackingRule() error = %v", err)
+	}
+	if resp.Status != DiagnosticsTrackingStatusOK || len(resp.Nodes) != 1 || resp.Nodes[0].NodeID != 2 {
+		t.Fatalf("response = %#v, want only node 2", resp)
+	}
+	if tracker.addedRule(t, 2).UID != "u1" {
+		t.Fatalf("tracking target = %#v, want node 2", tracker.added)
+	}
+	if _, ok := tracker.added[1]; ok {
+		t.Fatalf("unexpected rule on node 1: %#v", tracker.added)
+	}
+}
+
 type fakeDiagnosticsReader struct {
 	mu      sync.Mutex
 	results map[uint64]diagnostics.QueryResult

@@ -14,6 +14,8 @@ package.
   here.
 - Keep exported fields documented because these structs define config, YAML,
   JSON, and HTTP API contracts.
+- `DigestScenario` hashes the canonical JSON form of the fully loaded effective
+  scenario so lifecycle tags and Analysis MCP refer to the same workload.
 
 `Worker.Client` is an optional complete per-session capacity profile. When it
 is present, every capacity is positive; when it is omitted, wkbench retains the

@@ -29,6 +29,8 @@ const (
 
 // DiagnosticsTrackingCreateRequest describes a manager request to retain future diagnostics events.
 type DiagnosticsTrackingCreateRequest struct {
+	// NodeID optionally restricts the rule to one exact cluster node.
+	NodeID uint64
 	// Target selects sender UID or channel tracking.
 	Target string
 	// UID is required when Target is sender_uid and matches the message sender.
@@ -108,7 +110,7 @@ func (a *App) CreateDiagnosticsTrackingRule(ctx context.Context, req Diagnostics
 	if a == nil || a.diagnosticsTracking == nil {
 		return DiagnosticsTrackingMutationResponse{}, fmt.Errorf("management: diagnostics tracking operator is unavailable")
 	}
-	_, targets, notes := a.diagnosticsTargets(ctx, 0)
+	_, targets, notes := a.diagnosticsTargets(ctx, req.NodeID)
 	nodes := make([]DiagnosticsTrackingNodeResult, 0, len(targets))
 	for _, target := range targets {
 		if target.skipped {

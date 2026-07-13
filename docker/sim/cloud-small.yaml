@@ -1,0 +1,97 @@
+version: wkbench/v1
+run:
+  id: cloud-small
+  duration: 2h
+  warmup: 1m
+  cooldown: 30s
+  random_seed: 20260714
+  fail_fast: true
+  report_dir: /var/lib/wkbench/reports/cloud-small
+limits:
+  fail_on_soft: true
+  hard:
+    max_worker_failed: 0
+    max_connect_error_rate: 0
+    max_sendack_error_rate: 0
+    max_recv_verify_error_rate: 0
+  soft:
+    max_sendack_p99: 500ms
+    max_recv_p99: 1s
+prepare:
+  concurrency: 64
+  rate_limit: 500/s
+  retry:
+    max_attempts: 3
+    backoff: 200ms
+identity:
+  uid_prefix: cloud-small-u
+  device_prefix: cloud-small-d
+  client_msg_prefix: cloud-small-msg
+  token:
+    mode: bench_api
+online:
+  total_users: 1000
+  connect_rate: 250/s
+  gateway_balance: round_robin
+  reconnect:
+    enabled: true
+    backoff: 1s
+    max_attempts: 5
+  heartbeat:
+    enabled: true
+    interval: 30s
+    timeout: 5s
+channels:
+  profiles:
+    - name: person
+      channel_type: person
+      count: 500
+      participants:
+        pick: round_robin
+      online:
+        sender_ratio: 1
+        recipient_ratio: 1
+      shard:
+        mode: hash
+      prepare:
+        subscribers_batch_size: 1000
+    - name: group
+      channel_type: group
+      count: 500
+      members:
+        count: 10
+        pick: round_robin
+        overlap: allowed
+      online:
+        member_ratio: 1
+      shard:
+        mode: hash
+      prepare:
+        subscribers_batch_size: 1000
+cleanup:
+  enabled: false
+messages:
+  payload:
+    size_bytes: 128
+    mode: deterministic
+  traffic:
+    - name: person-send
+      channel_ref: person
+      rate_per_channel: 0.25/s
+      concurrency: 128
+      ack_timeout: 15s
+      sender_pick: round_robin
+      recv_ack: true
+      verify:
+        recv:
+          mode: sampled
+    - name: group-send
+      channel_ref: group
+      rate_per_channel: 0.25/s
+      concurrency: 128
+      ack_timeout: 15s
+      sender_pick: round_robin
+      recv_ack: true
+      verify:
+        recv:
+          mode: sampled

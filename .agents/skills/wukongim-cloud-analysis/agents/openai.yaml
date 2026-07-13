@@ -1,0 +1,4 @@
+interface:
+  display_name: "WuKongIM Cloud Analysis"
+  short_description: "Analyze one live WuKongIM simulation run"
+  default_prompt: "Use $wukongim-cloud-analysis to diagnose this exact live Simulation Run."

@@ -51,6 +51,8 @@
 
 cmd/
   wukongim/              官方产品入口，负责读取配置并启动 internal/app
+  wkanalysis/            运行级 Analysis MCP 网关，提供有界日志、指标、诊断与 pprof 工具
+  wkcloudsim/            云模拟生命周期 CLI，Phase 1 使用持久化 fake provider
   wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
@@ -59,6 +61,7 @@ internal/
   app/                   新架构组合根；负责 cluster、message usecase、HTTP API、gateway handler/runtime 装配与生命周期
   access/                新架构入口适配层
     api/                 health、readyz、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
+    cloudanalysismcp/    运行级 Analysis MCP 的认证、工具 schema 与 usecase 适配
     gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
     manager/             后台管理 HTTP API 入口、JWT 登录与权限适配
     node/                节点间 presence authority/owner-action RPC codec、handler、client
@@ -77,6 +80,8 @@ internal/
     pluginevents/        插件生命周期与 hook 事件合约
     protocolmeta/        入口无关的协议枚举值合约
   infra/                 新架构外部运行时适配器
+    cloudanalysis/       Analysis MCP 到 manager、Prometheus、pprof 与 run inventory 的适配
+    cloudsim/            云厂商生命周期适配器；Phase 1 提供持久化 fake provider
     cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
   log/                   新架构应用日志配置与 zap/lumberjack 封装
   observability/         新架构节点内诊断事件、追踪采样与 sendtrace 辅助
@@ -84,6 +89,8 @@ internal/
     taskaudit/           控制器任务审计事件投递与查询辅助
   usecase/               可复用业务用例，不依赖具体入口协议
     channel/             频道资料、订阅者、黑白名单等兼容用例
+    cloudanalysis/       Run Identity 绑定、工具输入边界、响应上限与诊断预算
+    cloudsim/            云模拟生命周期、成本/容量/租期护栏与 Run Locator 合约
     cmdsync/             基于统一会话投影的 CMD 离线同步与 syncack 用例
     conversation/        最近会话列表读模型，基于 UID membership 与 channel_latest 读时 join
     delivery/            投递提交与运行时入队用例

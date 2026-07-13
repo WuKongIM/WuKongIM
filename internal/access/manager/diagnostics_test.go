@@ -166,14 +166,14 @@ func TestManagerDiagnosticsTrackingRoutesRequireWritePermission(t *testing.T) {
 	}
 
 	allowed := httptest.NewRecorder()
-	allowedReq := httptest.NewRequest(http.MethodPost, "/manager/diagnostics/tracking-rules", strings.NewReader(`{"target":"sender_uid","uid":"u1","ttl_seconds":60,"sample_rate":1}`))
+	allowedReq := httptest.NewRequest(http.MethodPost, "/manager/diagnostics/tracking-rules", strings.NewReader(`{"node_id":2,"target":"sender_uid","uid":"u1","ttl_seconds":60,"sample_rate":1}`))
 	allowedReq.Header.Set("Content-Type", "application/json")
 	allowedReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "diag-writer"))
 	srv.Engine().ServeHTTP(allowed, allowedReq)
 	if allowed.Code != http.StatusOK {
 		t.Fatalf("allowed status = %d, want ok; body=%s", allowed.Code, allowed.Body.String())
 	}
-	if received.Target != "sender_uid" || received.UID != "u1" || received.TTLSeconds != 60 || received.SampleRate != 1 {
-		t.Fatalf("tracking create request = %#v, want sender u1 ttl 60 sample 1", received)
+	if received.NodeID != 2 || received.Target != "sender_uid" || received.UID != "u1" || received.TTLSeconds != 60 || received.SampleRate != 1 {
+		t.Fatalf("tracking create request = %#v, want node 2 sender u1 ttl 60 sample 1", received)
 	}
 }
