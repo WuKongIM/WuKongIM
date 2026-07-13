@@ -218,8 +218,11 @@ The pull piggybacks the follower's latest local LEO as `AckOffset`, so hot-path
 progress return does not depend on standalone ACK RPC delivery.
 RPC worker dispatchers may batch same-target `TaskRPCPull` and
 `TaskRPCPullHint` items across different channels before an ants-backed worker
-executes the transport call. The reactor still submits and receives one fenced
-worker task per channel, so batching does not change per-channel lifecycle or
+executes the transport call. If one collected window contains multiple target
+nodes, those target-specific subgroups may execute independently; a pool-wide
+slot budget still caps actual Pull/PullHint calls at the configured RPC worker
+count. The reactor submits and receives one fenced worker task per channel, so
+batching and subgroup scheduling do not change per-channel lifecycle or
 replication state.
 Store worker dispatchers may batch queued `TaskStoreAppend`, `TaskStoreApply`,
 or `TaskStoreCheckpoint` items across different channels when the store factory

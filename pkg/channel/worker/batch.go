@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -163,14 +164,137 @@ func (p *Pool) runQueuedBatch(ctx context.Context, items []queuedTask) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if len(items) == 1 {
-		p.runTaskGroup(ctx, items)
+	groups := p.taskGroups(items)
+	if len(groups) == 0 {
 		return nil
 	}
-	for _, group := range p.taskGroups(items) {
+	if p.canCollectRPCBatch(items[0].task) {
+		p.runRPCGroupsBounded(ctx, groups)
+		return nil
+	}
+	for _, group := range groups {
 		p.runTaskGroup(ctx, group)
 	}
 	return nil
+}
+
+// runRPCGroupsBounded lets different target-node subgroups make progress
+// independently while preserving the pool's configured transport concurrency.
+// Same-target tasks remain grouped into one PullBatch or PullHintBatch call.
+func (p *Pool) runRPCGroupsBounded(ctx context.Context, groups [][]queuedTask) {
+	lanes, ok := rpcExecutionLanes(groups)
+	if !ok {
+		for _, group := range groups {
+			p.runTaskGroup(ctx, group)
+		}
+		return
+	}
+	var wg sync.WaitGroup
+	wg.Add(len(lanes))
+	for _, lane := range lanes {
+		lane := lane
+		go func() {
+			defer wg.Done()
+			p.runRPCLaneWithinLimit(ctx, lane)
+		}()
+	}
+	wg.Wait()
+}
+
+type rpcExecutionLane struct {
+	node   ch.NodeID
+	groups [][]queuedTask
+}
+
+func rpcExecutionLanes(groups [][]queuedTask) ([]rpcExecutionLane, bool) {
+	lanes := make([]rpcExecutionLane, 0, len(groups))
+	indexes := make(map[ch.NodeID]int, len(groups))
+	for _, group := range groups {
+		if len(group) == 0 {
+			continue
+		}
+		node, ok := rpcExecutionNode(group[0].task)
+		if !ok {
+			return nil, false
+		}
+		for _, queued := range group[1:] {
+			other, ok := rpcExecutionNode(queued.task)
+			if !ok || other != node {
+				return nil, false
+			}
+		}
+		index, exists := indexes[node]
+		if !exists {
+			index = len(lanes)
+			indexes[node] = index
+			lanes = append(lanes, rpcExecutionLane{node: node})
+		}
+		lanes[index].groups = append(lanes[index].groups, group)
+	}
+	return lanes, true
+}
+
+func rpcExecutionNode(task Task) (ch.NodeID, bool) {
+	switch task.Kind {
+	case TaskRPCPull:
+		if task.RPCPull != nil {
+			return task.RPCPull.Node, true
+		}
+	case TaskRPCPullHint:
+		if task.RPCPullHint != nil {
+			return task.RPCPullHint.Node, true
+		}
+	case TaskRPCAck:
+		if task.RPCAck != nil {
+			return task.RPCAck.Node, true
+		}
+	case TaskRPCNotify:
+		if task.RPCNotify != nil {
+			return task.RPCNotify.Node, true
+		}
+	}
+	return 0, false
+}
+
+func (p *Pool) runRPCLaneWithinLimit(ctx context.Context, lane rpcExecutionLane) {
+	slots := p.rpcExecutionSlots()
+	select {
+	case slots <- struct{}{}:
+		defer func() { <-slots }()
+		for index, group := range lane.groups {
+			if err := ctx.Err(); err != nil {
+				p.completeCanceledRPCGroups(lane.groups[index:], err)
+				return
+			}
+			p.runTaskGroup(ctx, group)
+		}
+	case <-ctx.Done():
+		p.completeCanceledRPCGroups(lane.groups, ctx.Err())
+	}
+}
+
+func (p *Pool) completeCanceledRPCGroups(groups [][]queuedTask, err error) {
+	if err == nil {
+		err = context.Canceled
+	}
+	for _, group := range groups {
+		for _, queued := range group {
+			p.observeWait(queued.task.Kind, time.Since(queued.enqueuedAt))
+			p.observeTask(queued.task.Kind, err, 0)
+			p.sink.Complete(Result{Kind: queued.task.Kind, Fence: queued.task.Fence, Err: err})
+		}
+	}
+}
+
+func (p *Pool) rpcExecutionSlots() chan struct{} {
+	p.rpcGroupSlotsOnce.Do(func() {
+		workers := p.cfg.Workers
+		if workers <= 0 {
+			workers = 1
+		}
+		p.rpcGroupSlots = make(chan struct{}, workers)
+	})
+	return p.rpcGroupSlots
 }
 
 func (p *Pool) runTaskGroup(ctx context.Context, group []queuedTask) {

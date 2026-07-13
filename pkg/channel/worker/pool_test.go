@@ -771,7 +771,7 @@ func TestPoolRPCPullTimeoutAppliesDuringTransportCall(t *testing.T) {
 	require.ErrorIs(t, result.Err, context.DeadlineExceeded)
 }
 
-func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
+func TestPoolRunsCollectedRPCSubgroupsConcurrentlyWithinWorkerLimit(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := newBlockingPullTransport(1)
 	pool := &Pool{
@@ -807,7 +807,79 @@ func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	}
 	select {
 	case result := <-sink.ch:
-		t.Fatalf("second RPC subgroup ran before first completed: %+v", result)
+		require.Equal(t, ch.OpID(2), result.Fence.OpID)
+	case <-time.After(time.Second):
+		t.Fatal("second target RPC subgroup stayed blocked behind the first target")
+	}
+
+	tr.Release()
+	require.NoError(t, <-done)
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
+func TestPoolBoundsConcurrentRPCSubgroupsByWorkerCount(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 3)}
+	tr := newConcurrencyTrackingPullTransport(3)
+	pool := &Pool{
+		cfg:  PoolConfig{Name: "rpc", Workers: 2, QueueSize: 3},
+		deps: Deps{Transport: tr},
+		sink: sink,
+		obs:  noopQueueObserver{},
+	}
+	groups := []queuedTask{
+		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:a", OpID: 1}, RPCPull: &RPCPullTask{Node: 1, Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1}}}},
+		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:b", OpID: 2}, RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: "1:b", NextOffset: 1}}}},
+		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:c", OpID: 3}, RPCPull: &RPCPullTask{Node: 3, Request: transport.PullRequest{ChannelKey: "1:c", NextOffset: 1}}}},
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- pool.runQueuedBatch(context.Background(), groups) }()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-tr.Started():
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for bounded RPC subgroup to start")
+		}
+	}
+	select {
+	case node := <-tr.Started():
+		t.Fatalf("RPC subgroup for node %d exceeded worker concurrency", node)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	tr.Release()
+	require.NoError(t, <-done)
+	require.Equal(t, 2, tr.MaxActive())
+	require.Eventually(t, func() bool { return sink.Len() == 3 }, time.Second, time.Millisecond)
+	require.ElementsMatch(t, []ch.OpID{1, 2, 3}, resultOpIDs(sink.Results()))
+}
+
+func TestPoolSerializesMixedRPCSubgroupsForSameTarget(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	tr := newBlockingPullTransport(1)
+	pool := &Pool{
+		cfg:  PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2},
+		deps: Deps{Transport: tr},
+		sink: sink,
+		obs:  noopQueueObserver{},
+	}
+	items := []queuedTask{
+		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:a", OpID: 1}, RPCPull: &RPCPullTask{Node: 1, Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1}}}},
+		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPullHint, Fence: ch.Fence{ChannelKey: "1:b", OpID: 2}, RPCPullHint: &RPCPullHintTask{Node: 1, Request: transport.PullHintRequest{ChannelKey: "1:b", LeaderLEO: 1}}}},
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- pool.runQueuedBatch(context.Background(), items) }()
+	select {
+	case <-tr.Started():
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first same-target RPC subgroup")
+	}
+	select {
+	case result := <-sink.ch:
+		t.Fatalf("same-target RPC subgroup reordered before blocked Pull completed: %+v", result)
 	case <-time.After(20 * time.Millisecond):
 	}
 
@@ -815,6 +887,47 @@ func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	require.NoError(t, <-done)
 	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
 	require.Equal(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
+func TestPoolCancellationDoesNotBypassRPCWorkerLimit(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	tr := newConcurrencyTrackingPullTransport(2)
+	pool := &Pool{
+		cfg:  PoolConfig{Name: "rpc", Workers: 1, QueueSize: 2},
+		deps: Deps{Transport: tr},
+		sink: sink,
+		obs:  noopQueueObserver{},
+	}
+	items := []queuedTask{
+		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:a", OpID: 1}, RPCPull: &RPCPullTask{Node: 1, Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1}}}},
+		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:b", OpID: 2}, RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: "1:b", NextOffset: 1}}}},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- pool.runQueuedBatch(ctx, items) }()
+	select {
+	case <-tr.Started():
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first RPC subgroup")
+	}
+	cancel()
+	select {
+	case node := <-tr.Started():
+		t.Fatalf("canceled RPC subgroup for node %d bypassed worker slot", node)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	tr.Release()
+	require.NoError(t, <-done)
+	require.Equal(t, 1, tr.MaxActive())
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	canceled := 0
+	for _, result := range sink.Results() {
+		if errors.Is(result.Err, context.Canceled) {
+			canceled++
+		}
+	}
+	require.Equal(t, 1, canceled)
 }
 
 func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
@@ -1539,6 +1652,50 @@ func (t *blockingPullTransport) Started() <-chan struct{} {
 
 func (t *blockingPullTransport) Release() {
 	t.releaseOnce.Do(func() { close(t.release) })
+}
+
+type concurrencyTrackingPullTransport struct {
+	batchWorkerTransport
+	mu        sync.Mutex
+	active    int
+	maxActive int
+	started   chan ch.NodeID
+	release   chan struct{}
+	once      sync.Once
+}
+
+func newConcurrencyTrackingPullTransport(capacity int) *concurrencyTrackingPullTransport {
+	return &concurrencyTrackingPullTransport{
+		started: make(chan ch.NodeID, capacity),
+		release: make(chan struct{}),
+	}
+}
+
+func (t *concurrencyTrackingPullTransport) Pull(ctx context.Context, node ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
+	t.mu.Lock()
+	t.active++
+	if t.active > t.maxActive {
+		t.maxActive = t.active
+	}
+	t.mu.Unlock()
+	t.started <- node
+	<-t.release
+	t.mu.Lock()
+	t.active--
+	t.mu.Unlock()
+	return t.batchWorkerTransport.Pull(ctx, node, req)
+}
+
+func (t *concurrencyTrackingPullTransport) Started() <-chan ch.NodeID { return t.started }
+
+func (t *concurrencyTrackingPullTransport) Release() {
+	t.once.Do(func() { close(t.release) })
+}
+
+func (t *concurrencyTrackingPullTransport) MaxActive() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.maxActive
 }
 
 type batchApplyStoreFactory struct {
