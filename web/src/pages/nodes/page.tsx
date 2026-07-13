@@ -855,6 +855,7 @@ export function NodeClusterListPanel() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.health" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.controller" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.channels" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.runtime" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.actions" })}</th>
                     </tr>
@@ -914,6 +915,29 @@ export function NodeClusterListPanel() {
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           {nodeSlotSummaryText(intl, node)}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {node.channel_runtime.unknown ? (
+                            intl.formatMessage({ id: "nodes.channelRuntimeUnknown" })
+                          ) : (
+                            <>
+                              <div className="font-medium text-foreground">
+                                {intl.formatMessage(
+                                  { id: "nodes.channelRuntimeTotal" },
+                                  { total: node.channel_runtime.active_total },
+                                )}
+                              </div>
+                              <div className="mt-1 text-xs">
+                                {intl.formatMessage(
+                                  { id: "nodes.channelRuntimeRoles" },
+                                  {
+                                    leaders: node.channel_runtime.active_leader,
+                                    followers: node.channel_runtime.active_follower,
+                                  },
+                                )}
+                              </div>
+                            </>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           {nodeRuntimeSummaryText(intl, node)}

@@ -1816,6 +1816,15 @@ func (o multiChannelObserver) SetChannelRuntimeCount(reactorID int, role ch.Role
 	}
 }
 
+func (o multiChannelObserver) SetChannelRuntimeReactorCount(count int) {
+	for _, observer := range o {
+		topologyObserver, ok := observer.(reactor.RuntimeTopologyObserver)
+		if ok {
+			topologyObserver.SetChannelRuntimeReactorCount(count)
+		}
+	}
+}
+
 func (o multiChannelObserver) ObserveChannelActivationRejected(reason string) {
 	for _, observer := range o {
 		runtimeObserver, ok := observer.(reactor.RuntimeObserver)

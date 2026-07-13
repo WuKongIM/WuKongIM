@@ -44,6 +44,9 @@ func TestManagementConnectionReaderRoutesRuntimeSummary(t *testing.T) {
 			PendingActivations:   1,
 			SessionsByListener:   map[string]int{"tcp": 4},
 			AcceptingNewSessions: true,
+			ChannelRuntime: managementusecase.NodeChannelRuntimeSummary{
+				ActiveTotal: 9, ActiveLeader: 3, ActiveFollower: 6,
+			},
 		},
 	}
 	adapter := accessnode.New(accessnode.Options{ManagerConnections: service})
@@ -59,7 +62,8 @@ func TestManagementConnectionReaderRoutesRuntimeSummary(t *testing.T) {
 	}
 
 	if got.NodeID != 2 || got.ActiveOnline != 3 || got.GatewaySessions != 4 ||
-		got.PendingActivations != 1 || got.SessionsByListener["tcp"] != 4 || !got.AcceptingNewSessions || got.Unknown {
+		got.PendingActivations != 1 || got.SessionsByListener["tcp"] != 4 || !got.AcceptingNewSessions || got.Unknown ||
+		got.ChannelRuntime != service.runtime.ChannelRuntime {
 		t.Fatalf("runtime summary = %#v, want concrete summary", got)
 	}
 	if node.calledNodeID != 2 || node.calledServiceID != accessnode.ManagerConnectionRPCServiceID {

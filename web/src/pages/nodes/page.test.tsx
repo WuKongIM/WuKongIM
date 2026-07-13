@@ -72,6 +72,12 @@ const nodeRow = {
     quorum_lost_count: 0,
     unreported_count: 0,
   },
+  channel_runtime: {
+    active_total: 5,
+    active_leader: 2,
+    active_follower: 3,
+    unknown: false,
+  },
   runtime: {
     node_id: 1,
     active_online: 4,
@@ -335,6 +341,9 @@ test("renders layered node inventory fields and slot move row actions", async ()
   expect(screen.getByText("schedulable")).toBeInTheDocument()
   expect(screen.getByText("controller voter")).toBeInTheDocument()
   expect(screen.getByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Channels" })).toBeInTheDocument()
+  expect(screen.getByText("5 active")).toBeInTheDocument()
+  expect(screen.getByText("leaders 2 / followers 3")).toBeInTheDocument()
   expect(screen.getByText("sessions 5 / online 4")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Inspect node 1" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Move slots in for node 1" })).toBeInTheDocument()
@@ -345,6 +354,29 @@ test("renders layered node inventory fields and slot move row actions", async ()
   expect(screen.queryByRole("button", { name: "Drain" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Review scale-in for node 1" })).not.toBeInTheDocument()
+})
+
+test("renders unknown Channel runtime counts without pretending the node is empty", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [{
+      ...nodeRow,
+      channel_runtime: {
+        active_total: 0,
+        active_leader: 0,
+        active_follower: 0,
+        unknown: true,
+      },
+    }],
+  })
+
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.getByText("channel runtime unknown")).toBeInTheDocument()
+  expect(screen.queryByText("0 active")).not.toBeInTheDocument()
 })
 
 test("marks node detail as a compact inspection surface", async () => {

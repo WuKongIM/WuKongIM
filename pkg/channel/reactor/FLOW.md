@@ -18,6 +18,14 @@ reduce pressure on the shared message DB commit coordinator; this only limits
 blocking task concurrency and does not relax store sync, quorum progress, or
 waiter fencing.
 
+Group construction reports the fixed reactor count and emits both Leader and
+Follower runtime counts for every reactor before reactor goroutines start. An
+empty group therefore produces a complete set of zero reports. Consumers can
+distinguish a known-empty runtime from an incomplete observer snapshot without
+scanning channel maps or waiting for channel traffic. Each reactor maintains
+the two counts incrementally when a loaded runtime is added, removed, or changes
+role, so count reporting remains constant-time at high channel cardinality.
+
 The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
 Append admission converts client-visible `Message` values into durable

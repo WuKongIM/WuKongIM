@@ -55,13 +55,14 @@ func (r *Reactor) applyLoadedRuntimeMeta(rc *runtimeChannel, meta ch.Meta, fence
 	if fencePendingState {
 		r.clearFencedRuntimeWork(rc, ch.ErrStaleMeta)
 	}
+	previousRole := rc.state.Role
 	decision := rc.state.ApplyMeta(meta)
 	if decision.Err != nil {
 		return decision.Err
 	}
 	r.applyLoadedMetaDecision(rc, fencePendingState)
 	r.observeFollowerParkedCountIfChanged(wasParked, rc)
-	r.observeRuntimeCounts()
+	r.updateActiveRuntimeRole(previousRole, rc.state.Role)
 	return nil
 }
 
@@ -245,7 +246,6 @@ func (r *Reactor) completeApplyMetaStoreLoad(rc *runtimeChannel, loading *storeL
 			delete(r.channels, loading.key)
 		}
 		r.closeStoreAsync(loading.key, loading.generation, loaded.Store)
-		r.observeRuntimeCounts()
 		r.completeStoreLoadFutures(loading, Result{Err: decision.Err})
 		return
 	}
@@ -254,7 +254,7 @@ func (r *Reactor) completeApplyMetaStoreLoad(rc *runtimeChannel, loading *storeL
 	rc.loading = nil
 	r.resetLoadedRuntimeStructures(rc, time.Now(), loaded.Initial.LEO)
 	r.applyLoadedMetaDecision(rc, false)
-	r.observeRuntimeCounts()
+	r.updateActiveRuntimeRole(0, state.Role)
 	r.observeChannelRuntimeLoaded(loading.key)
 	r.completeStoreLoadFutures(loading, Result{})
 }
@@ -860,7 +860,7 @@ func (r *Reactor) convertPendingMeta(rc *runtimeChannel, meta ch.Meta) error {
 	r.observePendingMeta("converted", nil)
 	r.observePendingMetaCount()
 	r.observeChannelRuntimeLoaded(state.Key)
-	r.observeRuntimeCounts()
+	r.updateActiveRuntimeRole(0, state.Role)
 	return nil
 }
 
@@ -884,7 +884,6 @@ func (r *Reactor) detachPendingMeta(key ch.ChannelKey, rc *runtimeChannel, err e
 	}
 	r.observePendingMeta("released", err)
 	r.observePendingMetaCount()
-	r.observeRuntimeCounts()
 	return detached, true
 }
 
@@ -910,21 +909,33 @@ func (r *Reactor) observeRuntimeCounts() {
 	if r == nil {
 		return
 	}
-	leaders := 0
-	followers := 0
-	for _, rc := range r.channels {
-		if rc == nil || rc.state == nil {
-			continue
+	r.observeRuntimeCount(ch.RoleLeader, r.activeLeaderRuntimeCount)
+	r.observeRuntimeCount(ch.RoleFollower, r.activeFollowerRuntimeCount)
+}
+
+// updateActiveRuntimeRole updates the reactor-local runtime counters after a
+// loaded Channel runtime is added, removed, or changes role.
+func (r *Reactor) updateActiveRuntimeRole(previous ch.Role, current ch.Role) {
+	if r == nil || previous == current {
+		return
+	}
+	switch previous {
+	case ch.RoleLeader:
+		if r.activeLeaderRuntimeCount > 0 {
+			r.activeLeaderRuntimeCount--
 		}
-		switch rc.state.Role {
-		case ch.RoleLeader:
-			leaders++
-		case ch.RoleFollower:
-			followers++
+	case ch.RoleFollower:
+		if r.activeFollowerRuntimeCount > 0 {
+			r.activeFollowerRuntimeCount--
 		}
 	}
-	r.observeRuntimeCount(ch.RoleLeader, leaders)
-	r.observeRuntimeCount(ch.RoleFollower, followers)
+	switch current {
+	case ch.RoleLeader:
+		r.activeLeaderRuntimeCount++
+	case ch.RoleFollower:
+		r.activeFollowerRuntimeCount++
+	}
+	r.observeRuntimeCounts()
 }
 
 func (r *Reactor) lookupLoadedChannel(key ch.ChannelKey) (*runtimeChannel, error) {

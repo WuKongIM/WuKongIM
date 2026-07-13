@@ -118,8 +118,10 @@ It exposes control-snapshot health evidence in each node's `health` object:
 revisions, and an optional bounded `error_code`. `membership.schedulable` is the
 shared health-gated placement predicate rather than an HTTP-only hint. It also
 surfaces lightweight online/gateway runtime counters from the management
-runtime-summary reader; unavailable per-node runtime summaries stay explicitly
-marked `unknown` instead of failing the inventory response.
+runtime-summary reader. Its top-level `channel_runtime` object reports the
+node-local loaded Channel runtime total and Leader/Follower split; unavailable
+or incomplete per-node runtime summaries stay explicitly marked `unknown`
+instead of being rendered as zero or failing the inventory response.
 Node list action hints remain read-model hints; `can_drain` and `can_resume`
 stay tied to the legacy node-operation routes and remain disabled in
 internal until those routes are migrated. Stage 5C gateway drain mode is

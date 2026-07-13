@@ -44,7 +44,11 @@ func (r managementRuntimeSummaryReader) NodeRuntimeSummary(ctx context.Context, 
 		return r.localRuntimeSummary(ctx, nodeID), nil
 	}
 	if r.remote == nil {
-		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, nil
+		return managementusecase.NodeRuntimeSummary{
+			NodeID:         nodeID,
+			Unknown:        true,
+			ChannelRuntime: managementusecase.NodeChannelRuntimeSummary{Unknown: true},
+		}, nil
 	}
 	return r.remote.NodeRuntimeSummary(ctx, nodeID)
 }
@@ -54,6 +58,7 @@ func (r managementRuntimeSummaryReader) localRuntimeSummary(ctx context.Context,
 		NodeID:             nodeID,
 		SessionsByListener: map[string]int{},
 		Unknown:            true,
+		ChannelRuntime:     r.localChannelRuntimeSummary(),
 	}
 	if r.app != nil {
 		if snapshots, ok := r.app.cluster.(interface {
@@ -85,6 +90,19 @@ func (r managementRuntimeSummaryReader) localRuntimeSummary(ctx context.Context,
 	}
 	summary.Unknown = false
 	return summary
+}
+
+func (r managementRuntimeSummaryReader) localChannelRuntimeSummary() managementusecase.NodeChannelRuntimeSummary {
+	if r.app == nil || r.app.channelRuntimeSummary == nil {
+		return managementusecase.NodeChannelRuntimeSummary{Unknown: true}
+	}
+	summary := r.app.channelRuntimeSummary.Snapshot()
+	return managementusecase.NodeChannelRuntimeSummary{
+		ActiveTotal:    summary.ActiveTotal,
+		ActiveLeader:   summary.ActiveLeader,
+		ActiveFollower: summary.ActiveFollower,
+		Unknown:        summary.Unknown,
+	}
 }
 
 func (w managementGatewayDrainWriter) SetNodeDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {

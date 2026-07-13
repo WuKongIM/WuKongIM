@@ -93,6 +93,11 @@ func (r *Reactor) detachShutdownStores() []detachedStoreHandle {
 		}
 		delete(r.channels, key)
 	}
+	if r.activeLeaderRuntimeCount != 0 || r.activeFollowerRuntimeCount != 0 {
+		r.activeLeaderRuntimeCount = 0
+		r.activeFollowerRuntimeCount = 0
+		r.observeRuntimeCounts()
+	}
 	return stores
 }
 

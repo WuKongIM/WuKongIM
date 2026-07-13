@@ -91,7 +91,11 @@ from `SlotRuntimeStatusReader`; they do not fall back to `PreferredLeader`, so
 the node list does not mix control-plane placement intent with actual Raft
 leadership. Runtime online and gateway counters are read through the narrow
 `RuntimeSummaryReader` port. Read failures or an unwired runtime source mark
-only that node's runtime summary as unknown. Node list action hints remain
+only that node's runtime summary as unknown. The same summary exposes the
+node-local loaded Channel runtime count as total plus Leader/Follower roles.
+Channel counts remain unknown when any reactor has not reported both roles;
+known zero means every reactor reported and no Channel runtime is loaded. Node
+list action hints remain
 read-model hints. `can_move_slots_in` and `can_move_slots_out` are enabled for
 active Data-role nodes, including nodes that are also Controller voters, because
 Slot replica migration is separate from node removal. `can_scale_in` and

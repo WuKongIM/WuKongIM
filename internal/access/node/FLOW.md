@@ -160,7 +160,8 @@ Manager Connection RPC transports the manager connection list/detail read
 requests, lightweight runtime-summary reads, and `set_drain_mode` gateway
 admission writes for one owner node. The server calls the owner-local
 management connection/runtime/drain port, which reads the online registry and
-gateway counters and can toggle only that node's new-session admission; the
+gateway counters plus the always-on Channel runtime summary and can toggle only
+that node's new-session admission; the
 client maps stable RPC statuses back to manager usecase errors. The server-side
 drain port is deliberately a local runtime primitive and does not re-run
 durable cluster lifecycle checks that the origin manager usecase has already
@@ -469,8 +470,8 @@ Channel Append RPC uses fixed magic headers:
 
 Manager Connection RPC uses fixed magic headers:
 
-- Request: `W K V M 1`
-- Response: `W K V m 1`
+- Request: `W K V M 2`
+- Response: `W K V m 2`
 
 Manager Log RPC uses fixed magic headers:
 

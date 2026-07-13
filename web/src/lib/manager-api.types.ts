@@ -410,6 +410,7 @@ export type ManagerNode = {
     leader_count: number
   }
   slots?: ManagerNodeSlotsSummary
+  channel_runtime: ManagerNodeChannelRuntime
   runtime?: ManagerNodeRuntime
   actions?: ManagerNodeActions
 }
@@ -453,6 +454,13 @@ export type ManagerNodeSlotsSummary = {
   follower_count: number
   quorum_lost_count: number
   unreported_count: number
+}
+
+export type ManagerNodeChannelRuntime = {
+  active_total: number
+  active_leader: number
+  active_follower: number
+  unknown: boolean
 }
 
 export type ManagerNodeRuntime = {

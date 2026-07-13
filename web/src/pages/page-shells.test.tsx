@@ -190,6 +190,7 @@ beforeEach(() => {
       capacity_weight: 1,
       controller: { role: "leader" },
       slot_stats: { count: 1, leader_count: 1 },
+      channel_runtime: { active_total: 0, active_leader: 0, active_follower: 0, unknown: false },
     }],
   })
   getChannelRuntimeMetaMock.mockResolvedValue({ items: [], has_more: false })

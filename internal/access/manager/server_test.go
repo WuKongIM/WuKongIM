@@ -146,6 +146,11 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 						ReplicaCount: 2,
 						LeaderCount:  1,
 					},
+					ChannelRuntime: managementusecase.NodeChannelRuntimeSummary{
+						ActiveTotal:    5,
+						ActiveLeader:   2,
+						ActiveFollower: 3,
+					},
 					Runtime: managementusecase.NodeRuntimeSummary{
 						NodeID:  1,
 						Unknown: true,
@@ -218,6 +223,12 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 				"follower_count": 0,
 				"quorum_lost_count": 0,
 				"unreported_count": 0
+			},
+			"channel_runtime": {
+				"active_total": 5,
+				"active_leader": 2,
+				"active_follower": 3,
+				"unknown": false
 			},
 			"runtime": {
 				"node_id": 1,

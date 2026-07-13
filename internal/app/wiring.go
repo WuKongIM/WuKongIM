@@ -120,6 +120,10 @@ func (a *App) ensureLogger() error {
 }
 
 func (a *App) configureObservability(clusterCfg *cluster.Config) {
+	if a.channelRuntimeSummary == nil {
+		a.channelRuntimeSummary = newChannelRuntimeSummaryCollector()
+	}
+	clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, a.channelRuntimeSummary)
 	var top *topCollector
 	if a.cfg.Top.APIEnabled {
 		top = a.ensureTopCollector(clusterCfg.NodeID, true)

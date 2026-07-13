@@ -34,6 +34,43 @@ func TestObserverSeesAppendBatchAndWorkerResult(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
+func TestGroupReportsInitialRuntimeCountsForEveryReactor(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 3, MailboxSize: 16, Store: factory, Observer: obs})
+	require.NoError(t, err)
+	defer g.Close()
+
+	reactorCount, runtimeCounts := obs.RuntimeCounts()
+	require.Equal(t, 3, reactorCount)
+	for reactorID := 0; reactorID < reactorCount; reactorID++ {
+		roles, ok := runtimeCounts[reactorID]
+		require.True(t, ok, "reactor %d did not report runtime counts", reactorID)
+		leaderCount, ok := roles[ch.RoleLeader]
+		require.True(t, ok, "reactor %d did not report leader count", reactorID)
+		require.Equal(t, 0, leaderCount)
+		followerCount, ok := roles[ch.RoleFollower]
+		require.True(t, ok, "reactor %d did not report follower count", reactorID)
+		require.Equal(t, 0, followerCount)
+	}
+}
+
+func TestReactorTracksRuntimeCountsAcrossRoleChanges(t *testing.T) {
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
+	meta := testMeta("runtime-count-role-change", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.Equal(t, 1, r.activeLeaderRuntimeCount)
+	require.Equal(t, 0, r.activeFollowerRuntimeCount)
+
+	meta.Leader = 2
+	meta.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.Equal(t, 0, r.activeLeaderRuntimeCount)
+	require.Equal(t, 1, r.activeFollowerRuntimeCount)
+}
+
 func TestGroupRejectsNewChannelWhenMaxChannelsReached(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, MaxChannels: 1})
@@ -412,6 +449,8 @@ type captureObserver struct {
 	runtimeEvict   int
 	followerParked int
 	recoveryProbes map[string]int
+	reactorCount   int
+	runtimeCounts  map[int]map[ch.Role]int
 }
 
 func (o *captureObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {}
@@ -474,6 +513,39 @@ func (o *captureObserver) ObserveFollowerRecoveryProbe(result string) {
 }
 
 func (o *captureObserver) ObservePull(result string, empty bool) {}
+
+func (o *captureObserver) SetChannelRuntimeReactorCount(count int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.reactorCount = count
+}
+
+func (o *captureObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.runtimeCounts == nil {
+		o.runtimeCounts = make(map[int]map[ch.Role]int)
+	}
+	if o.runtimeCounts[reactorID] == nil {
+		o.runtimeCounts[reactorID] = make(map[ch.Role]int)
+	}
+	o.runtimeCounts[reactorID][role] = count
+}
+
+func (o *captureObserver) ObserveChannelActivationRejected(reason string) {}
+
+func (o *captureObserver) RuntimeCounts() (int, map[int]map[ch.Role]int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	counts := make(map[int]map[ch.Role]int, len(o.runtimeCounts))
+	for reactorID, roles := range o.runtimeCounts {
+		counts[reactorID] = make(map[ch.Role]int, len(roles))
+		for role, count := range roles {
+			counts[reactorID][role] = count
+		}
+	}
+	return o.reactorCount, counts
+}
 
 func (o *captureObserver) AppendBatches() int {
 	o.mu.Lock()

@@ -49,6 +49,8 @@ type NodeDTO struct {
 	SlotStats NodeSlotStatsDTO `json:"slot_stats"`
 	// Slots contains lightweight Slot placement counts.
 	Slots NodeSlotsSummaryDTO `json:"slots"`
+	// ChannelRuntime contains node-local active Channel runtime counts.
+	ChannelRuntime NodeChannelRuntimeDTO `json:"channel_runtime"`
 	// Runtime contains node-local online and gateway counters.
 	Runtime NodeRuntimeDTO `json:"runtime"`
 	// Actions contains backend business capability hints for UI actions.
@@ -127,6 +129,18 @@ type NodeSlotsSummaryDTO struct {
 	QuorumLostCount int `json:"quorum_lost_count"`
 	// UnreportedCount is reserved for runtime observation once available.
 	UnreportedCount int `json:"unreported_count"`
+}
+
+// NodeChannelRuntimeDTO contains node-local active Channel runtime counts.
+type NodeChannelRuntimeDTO struct {
+	// ActiveTotal is the number of loaded Channel runtimes on the node.
+	ActiveTotal int `json:"active_total"`
+	// ActiveLeader is the number of loaded Channel runtimes in leader role.
+	ActiveLeader int `json:"active_leader"`
+	// ActiveFollower is the number of loaded Channel runtimes in follower role.
+	ActiveFollower int `json:"active_follower"`
+	// Unknown means the complete per-reactor count set is unavailable.
+	Unknown bool `json:"unknown"`
 }
 
 // NodeRuntimeDTO contains node-local online and gateway counters.
@@ -250,6 +264,12 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 			FollowerCount:   item.Slots.FollowerCount,
 			QuorumLostCount: item.Slots.QuorumLostCount,
 			UnreportedCount: item.Slots.UnreportedCount,
+		},
+		ChannelRuntime: NodeChannelRuntimeDTO{
+			ActiveTotal:    item.ChannelRuntime.ActiveTotal,
+			ActiveLeader:   item.ChannelRuntime.ActiveLeader,
+			ActiveFollower: item.ChannelRuntime.ActiveFollower,
+			Unknown:        item.ChannelRuntime.Unknown,
 		},
 		Runtime: NodeRuntimeDTO{
 			NodeID:               item.Runtime.NodeID,

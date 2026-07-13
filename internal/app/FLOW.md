@@ -28,6 +28,10 @@ New(Config)
      including ChannelMessageRetention -> cluster.ChannelRetention physical
      cleanup settings; background physical GC remains disabled by default
   -> create a root logger from Config.Log unless a test/harness override is supplied
+  -> attach an always-on, low-cardinality Channel runtime summary collector;
+     it aggregates per-reactor Leader/Follower counts and stays unknown until
+     every configured reactor has reported both roles, independently of
+     Prometheus metrics and the optional Top collector
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
@@ -87,6 +91,9 @@ New(Config)
      the hidden collector only refreshes process resource, Pebble snapshot, and
      channel entry ownership gauges/counters for Prometheus when metrics are
      enabled.
+     The manager node runtime summary reads the independent always-on Channel
+     runtime collector and returns active total, Leader, Follower, and unknown
+     fields without scanning loaded channel maps.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink

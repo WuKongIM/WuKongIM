@@ -390,6 +390,8 @@ type Node struct {
 	Controller NodeController
 	// Slots contains lightweight Slot placement counts.
 	Slots NodeSlotSummary
+	// ChannelRuntime contains node-local active Channel runtime counts.
+	ChannelRuntime NodeChannelRuntimeSummary
 	// Runtime contains node-local online and gateway counters.
 	Runtime NodeRuntimeSummary
 	// Actions contains backend business capability hints for UI actions.
@@ -462,6 +464,18 @@ type NodeSlotSummary struct {
 	UnreportedCount int
 }
 
+// NodeChannelRuntimeSummary contains node-local active Channel runtime counts.
+type NodeChannelRuntimeSummary struct {
+	// ActiveTotal is the number of loaded Channel runtimes on the node.
+	ActiveTotal int
+	// ActiveLeader is the number of loaded Channel runtimes in leader role.
+	ActiveLeader int
+	// ActiveFollower is the number of loaded Channel runtimes in follower role.
+	ActiveFollower int
+	// Unknown means the complete per-reactor count set is unavailable.
+	Unknown bool
+}
+
 // NodeRuntimeSummary contains node-local online and gateway counters.
 type NodeRuntimeSummary struct {
 	// NodeID identifies the cluster node described by this summary.
@@ -486,6 +500,8 @@ type NodeRuntimeSummary struct {
 	Draining bool
 	// Unknown means runtime counters could not be read.
 	Unknown bool
+	// ChannelRuntime contains node-local active Channel runtime counts.
+	ChannelRuntime NodeChannelRuntimeSummary
 }
 
 // NodeActions contains backend business capability hints for UI actions.
@@ -589,6 +605,7 @@ func unknownNodeRuntimeSummary(nodeID uint64) NodeRuntimeSummary {
 		NodeID:             nodeID,
 		SessionsByListener: map[string]int{},
 		Unknown:            true,
+		ChannelRuntime:     NodeChannelRuntimeSummary{Unknown: true},
 	}
 }
 
@@ -658,8 +675,9 @@ func buildNode(opts nodeBuildOptions) Node {
 			LeaderCount:   leaders,
 			FollowerCount: followers,
 		},
-		Runtime: opts.runtime,
-		Actions: nodeActions(opts.node, controllerVoter),
+		ChannelRuntime: opts.runtime.ChannelRuntime,
+		Runtime:        opts.runtime,
+		Actions:        nodeActions(opts.node, controllerVoter),
 	}
 }
 

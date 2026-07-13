@@ -308,6 +308,9 @@ func TestListNodesAttachesRuntimeSummary(t *testing.T) {
 					SessionsByListener:   map[string]int{"tcp": 6},
 					AcceptingNewSessions: false,
 					Draining:             true,
+					ChannelRuntime: NodeChannelRuntimeSummary{
+						ActiveTotal: 5, ActiveLeader: 2, ActiveFollower: 3,
+					},
 				},
 			},
 			errs: map[uint64]error{2: errors.New("node runtime unavailable")},
@@ -327,9 +330,15 @@ func TestListNodesAttachesRuntimeSummary(t *testing.T) {
 		first.AcceptingNewSessions || !first.Draining {
 		t.Fatalf("first runtime = %#v, want concrete runtime summary", first)
 	}
+	if got.Items[0].ChannelRuntime != (NodeChannelRuntimeSummary{ActiveTotal: 5, ActiveLeader: 2, ActiveFollower: 3}) {
+		t.Fatalf("first channel runtime = %#v, want known active counts", got.Items[0].ChannelRuntime)
+	}
 	second := got.Items[1].Runtime
 	if second.NodeID != 2 || !second.Unknown || len(second.SessionsByListener) != 0 {
 		t.Fatalf("second runtime = %#v, want unknown runtime fallback for node 2", second)
+	}
+	if !got.Items[1].ChannelRuntime.Unknown {
+		t.Fatalf("second channel runtime = %#v, want unknown fallback", got.Items[1].ChannelRuntime)
 	}
 }
 

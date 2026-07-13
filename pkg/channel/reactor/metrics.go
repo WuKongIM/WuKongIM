@@ -154,6 +154,12 @@ type RuntimeObserver interface {
 	ObserveChannelActivationRejected(reason string)
 }
 
+// RuntimeTopologyObserver receives the fixed reactor partition count before
+// per-reactor runtime counts are reported.
+type RuntimeTopologyObserver interface {
+	SetChannelRuntimeReactorCount(count int)
+}
+
 // ReplicationObserver receives follower replication scheduling metrics.
 type ReplicationObserver interface {
 	SetFollowerParkedCount(reactorID int, count int)

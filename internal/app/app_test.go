@@ -792,6 +792,9 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 	if !ok {
 		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
 	}
+	app.channelRuntimeSummary.SetChannelRuntimeReactorCount(1)
+	app.channelRuntimeSummary.SetChannelRuntimeCount(0, channelruntime.RoleLeader, 2)
+	app.channelRuntimeSummary.SetChannelRuntimeCount(0, channelruntime.RoleFollower, 3)
 
 	rec := httptest.NewRecorder()
 	srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/manager/nodes", nil))
@@ -801,7 +804,13 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 	}
 	var body struct {
 		Items []struct {
-			NodeID  uint64 `json:"node_id"`
+			NodeID         uint64 `json:"node_id"`
+			ChannelRuntime struct {
+				ActiveTotal    int  `json:"active_total"`
+				ActiveLeader   int  `json:"active_leader"`
+				ActiveFollower int  `json:"active_follower"`
+				Unknown        bool `json:"unknown"`
+			} `json:"channel_runtime"`
 			Runtime struct {
 				ActiveOnline         int            `json:"active_online"`
 				ClosingOnline        int            `json:"closing_online"`
@@ -822,12 +831,16 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 		t.Fatalf("items len = %d, want 2: %s", len(body.Items), rec.Body.String())
 	}
 	runtime := body.Items[1].Runtime
+	channelSummary := body.Items[1].ChannelRuntime
 	if body.Items[1].NodeID != 2 || runtime.Unknown || runtime.ActiveOnline != 1 ||
 		runtime.ClosingOnline != 0 || runtime.TotalOnline != 2 || runtime.GatewaySessions != 3 ||
 		runtime.PendingActivations != 1 ||
 		runtime.SessionsByListener["tcp"] != 2 || runtime.SessionsByListener["ws"] != 1 ||
 		runtime.AcceptingNewSessions || !runtime.Draining {
 		t.Fatalf("local runtime = %+v on row %+v, want concrete runtime summary", runtime, body.Items[1])
+	}
+	if channelSummary.Unknown || channelSummary.ActiveTotal != 5 || channelSummary.ActiveLeader != 2 || channelSummary.ActiveFollower != 3 {
+		t.Fatalf("local channel runtime = %+v, want total=5 leader=2 follower=3 known", channelSummary)
 	}
 }
 
@@ -846,6 +859,18 @@ func TestManagementRuntimeSummaryReportsLocalControlRevision(t *testing.T) {
 	}
 	if got.ControlRevision != 42 {
 		t.Fatalf("runtime summary = %#v, want control revision 42", got)
+	}
+}
+
+func TestManagementRuntimeSummaryMarksRemoteChannelRuntimeUnknownWhenReaderMissing(t *testing.T) {
+	reader := managementRuntimeSummaryReader{localNodeID: 1}
+
+	got, err := reader.NodeRuntimeSummary(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("NodeRuntimeSummary() error = %v", err)
+	}
+	if !got.Unknown || !got.ChannelRuntime.Unknown {
+		t.Fatalf("runtime summary = %#v, want runtime and channel runtime unknown", got)
 	}
 }
 

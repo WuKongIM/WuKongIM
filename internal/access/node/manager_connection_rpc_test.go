@@ -75,6 +75,9 @@ func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
 			SessionsByListener:   map[string]int{"tcp": 9},
 			AcceptingNewSessions: false,
 			Draining:             true,
+			ChannelRuntime: managementusecase.NodeChannelRuntimeSummary{
+				ActiveTotal: 11, ActiveLeader: 4, ActiveFollower: 7,
+			},
 		},
 	}
 	adapter := New(Options{ManagerConnections: service})
@@ -88,7 +91,8 @@ func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
 
 	if got.NodeID != 2 || got.ActiveOnline != 7 || got.ClosingOnline != 1 || got.TotalOnline != 8 ||
 		got.GatewaySessions != 9 || got.PendingActivations != 3 || got.SessionsByListener["tcp"] != 9 ||
-		got.AcceptingNewSessions || !got.Draining || got.Unknown {
+		got.AcceptingNewSessions || !got.Draining || got.Unknown ||
+		got.ChannelRuntime != service.runtime.ChannelRuntime {
 		t.Fatalf("runtime summary = %#v, want concrete node 2 runtime summary", got)
 	}
 	if service.runtimeNodeID != 2 {

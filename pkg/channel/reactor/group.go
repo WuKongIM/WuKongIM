@@ -142,6 +142,9 @@ func NewGroup(cfg Config) (*Group, error) {
 	}
 	pools.SetQueueObserver(cfg.Observer)
 	g.pools = pools
+	if observer, ok := cfg.Observer.(RuntimeTopologyObserver); ok {
+		observer.SetChannelRuntimeReactorCount(len(g.reactors))
+	}
 	for i := range g.reactors {
 		r := NewReactor(ReactorConfig{
 			ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize,
@@ -176,6 +179,7 @@ func NewGroup(cfg Config) (*Group, error) {
 			storeCloses:                   g.storeCloses,
 		})
 		g.reactors[i] = r
+		r.observeRuntimeCounts()
 		r.start()
 	}
 	return g, nil

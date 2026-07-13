@@ -15,6 +15,11 @@ func TestManagerConnectionRuntimeSummaryCodecCarriesControlRevision(t *testing.T
 		SessionsByListener:   map[string]int{"tcp": 9},
 		AcceptingNewSessions: true,
 		ControlRevision:      42,
+		ChannelRuntime: managementusecase.NodeChannelRuntimeSummary{
+			ActiveTotal:    11,
+			ActiveLeader:   4,
+			ActiveFollower: 7,
+		},
 	}
 
 	encoded, err := encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: "ok", Summary: want})
@@ -30,6 +35,9 @@ func TestManagerConnectionRuntimeSummaryCodecCarriesControlRevision(t *testing.T
 	}
 	if got.Summary.PendingActivations != 3 {
 		t.Fatalf("summary = %#v, want pending activations 3", got.Summary)
+	}
+	if got.Summary.ChannelRuntime != want.ChannelRuntime {
+		t.Fatalf("channel runtime = %#v, want %#v", got.Summary.ChannelRuntime, want.ChannelRuntime)
 	}
 }
 

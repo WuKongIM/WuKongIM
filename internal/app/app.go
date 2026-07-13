@@ -129,6 +129,8 @@ type App struct {
 	presenceDirectory       *authoritypresence.Directory
 	presenceWorker          WorkerRuntime
 	metrics                 *obsmetrics.Registry
+	// channelRuntimeSummary aggregates active Channel runtime counts for manager node reads.
+	channelRuntimeSummary *channelRuntimeSummaryCollector
 	// top is the optional node-local collector used by /top/v1/snapshot.
 	top         WorkerRuntime
 	topProvider accessapi.TopSnapshotProvider

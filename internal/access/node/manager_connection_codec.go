@@ -234,6 +234,10 @@ func appendNodeRuntimeSummary(dst []byte, summary managementusecase.NodeRuntimeS
 	dst = appendBoolByte(dst, summary.AcceptingNewSessions)
 	dst = appendBoolByte(dst, summary.Draining)
 	dst = appendBoolByte(dst, summary.Unknown)
+	dst = appendManagerConnectionInt(dst, summary.ChannelRuntime.ActiveTotal)
+	dst = appendManagerConnectionInt(dst, summary.ChannelRuntime.ActiveLeader)
+	dst = appendManagerConnectionInt(dst, summary.ChannelRuntime.ActiveFollower)
+	dst = appendBoolByte(dst, summary.ChannelRuntime.Unknown)
 	return dst
 }
 
@@ -274,6 +278,18 @@ func readNodeRuntimeSummary(body []byte, offset int) (managementusecase.NodeRunt
 		return summary, offset, err
 	}
 	if summary.Unknown, offset, err = readBoolByte(body, offset, "runtime unknown"); err != nil {
+		return summary, offset, err
+	}
+	if summary.ChannelRuntime.ActiveTotal, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.ChannelRuntime.ActiveLeader, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.ChannelRuntime.ActiveFollower, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.ChannelRuntime.Unknown, offset, err = readBoolByte(body, offset, "channel runtime unknown"); err != nil {
 		return summary, offset, err
 	}
 	return summary, offset, nil

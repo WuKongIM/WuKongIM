@@ -182,7 +182,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	if wasParkedFollower {
 		r.observeFollowerParkedCount(r.countParkedFollowers())
 	}
-	r.observeRuntimeCounts()
+	r.updateActiveRuntimeRole(role, 0)
 	return true
 }
 
