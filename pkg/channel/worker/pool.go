@@ -107,11 +107,6 @@ type Pool struct {
 	obsMu sync.RWMutex
 	obs   QueueObserver
 
-	// rpcGroupSlots bounds actual Pull/PullHint transport calls when one collected
-	// workqueue window contains multiple target-node subgroups.
-	rpcGroupSlotsOnce sync.Once
-	rpcGroupSlots     chan struct{}
-
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
 }

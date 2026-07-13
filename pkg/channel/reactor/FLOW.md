@@ -216,13 +216,15 @@ is therefore persisted after the bounded idle window without issuing one
 standalone checkpoint commit per message on high-cardinality traffic.
 The pull piggybacks the follower's latest local LEO as `AckOffset`, so hot-path
 progress return does not depend on standalone ACK RPC delivery.
+After a successful follower store apply, the immediate Pull that carries the
+new durable `AckOffset` is marked as durable-progress work. If its worker
+collection window also contains unrelated RPC groups, the worker executes this
+group first while keeping all groups serial and bounded by the existing RPC
+worker model. The wire request and leader quorum checks are unchanged.
 RPC worker dispatchers may batch same-target `TaskRPCPull` and
 `TaskRPCPullHint` items across different channels before an ants-backed worker
-executes the transport call. If one collected window contains multiple target
-nodes, those target-specific subgroups may execute independently; a pool-wide
-slot budget still caps actual Pull/PullHint calls at the configured RPC worker
-count. The reactor submits and receives one fenced worker task per channel, so
-batching and subgroup scheduling do not change per-channel lifecycle or
+executes the transport call. The reactor still submits and receives one fenced
+worker task per channel, so batching does not change per-channel lifecycle or
 replication state.
 Store worker dispatchers may batch queued `TaskStoreAppend`, `TaskStoreApply`,
 or `TaskStoreCheckpoint` items across different channels when the store factory

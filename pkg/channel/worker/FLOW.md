@@ -29,8 +29,7 @@ Submit(ctx, Task)
   -> workqueue collects adjacent peers according to task-kind policy
   -> workqueue submits the collected execution window to ants
   -> worker groups compatible tasks inside the collected window
-  -> worker runs store groups serially
-  -> worker runs different-target RPC groups independently within the configured worker limit
+  -> worker runs each grouped blocking store or transport call serially
   -> CompletionSink receives one Result per original task
 ```
 
@@ -55,10 +54,8 @@ target node. Workqueue chooses the collection policy from the first accepted
 task: a Pull-led window collects at most four adjacent tasks, while a
 PullHint-led window collects at most two. This is not strict queue isolation;
 later tasks of another RPC kind or target can enter the same window and are
-partitioned into compatible subgroups. Different-target RPC subgroups may run
-independently, but a pool-wide slot budget keeps actual Pull/PullHint transport
-calls at or below the configured worker count. Both policies retain the
-built-in 250-microsecond collection window. Store append, store apply, and checkpoint
+partitioned into serial subgroups. Both policies retain the built-in
+250-microsecond collection window. Store append, store apply, and checkpoint
 tasks can batch across different channel keys when the store factory exposes
 the corresponding optional batch interface. The message DB checkpoint batch
 path commits monotonic HW updates through one grouped commit without taking
@@ -80,10 +77,11 @@ throughput-oriented configurations.
 Batching changes only the blocking dependency call. Workqueue chooses the
 collection window from the first accepted task. The worker then splits that
 window into compatible typed groups; incompatible or non-batchable items become
-single-task groups. Store groups remain serial inside one workqueue handler.
-RPC groups for different targets use the pool-wide bounded slot budget so one
-slow peer does not block another peer collected in the same window. Reactors
-still observe one fenced completion per original task.
+single-task groups. Groups still run serially inside one workqueue handler call.
+Pull groups explicitly marked as returning newly durable follower progress run
+before unrelated groups in the same window; both priority classes preserve
+their original relative order. This only shortens AckOffset return queueing and
+does not add transport concurrency or change one-result-per-task fencing.
 
 ## Shutdown
 
