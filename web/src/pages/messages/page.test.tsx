@@ -297,7 +297,7 @@ test("submits a uint64 message ID without converting it to a JavaScript number",
   })
 })
 
-test("keeps long payload text constrained to the payload column", async () => {
+test("keeps long payload text on one line in a dedicated-width payload column", async () => {
   const longPayload = "s".repeat(160)
   getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
   getMessagesMock.mockResolvedValueOnce({
@@ -322,9 +322,15 @@ test("keeps long payload text constrained to the payload column", async () => {
   await user.type(screen.getByLabelText("Channel type"), "2")
   await user.click(screen.getByRole("button", { name: "Search" }))
 
-  const payloadCell = (await screen.findByText(longPayload)).closest("td")
-  expect(payloadCell).toHaveClass("break-all")
-  expect(payloadCell?.closest("table")).toHaveClass("table-fixed")
+  const payloadPreview = await screen.findByText(longPayload)
+  const payloadCell = payloadPreview.closest("td")
+  const table = payloadCell?.closest("table")
+  const payloadColumn = table?.querySelectorAll("col").item(6)
+
+  expect(table).toHaveClass("table-fixed")
+  expect(payloadColumn).toHaveClass("w-[20rem]")
+  expect(payloadPreview).toHaveClass("truncate")
+  expect(payloadCell).not.toHaveClass("break-all")
 })
 
 test("loads fuzzy channel suggestions from the channel ID input and applies the selection", async () => {

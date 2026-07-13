@@ -1,344 +1,362 @@
-##  WuKongIM (Making Communication Simpler)
-
-A high-performance universal communication service, refined over 10 years (2015-2025). Supports instant messaging, in-app/system notifications, messaging middleware, IoT communication, audio/video signaling, live streaming comments, customer service systems, AI communication, instant communities, and more.
-
-
-`This project requires Go 1.20.0 or higher to compile`
-
-`Windows is no longer supported`
-
-
-
-Key Features of Distributed IM: Automatic failover, decentralized design, data redundancy between nodes, fast auto-scaling, proxy node mechanism
-
-Technical Highlights: Custom protocol, Distributed Raft (modified pull mode), Multi-group Raft (modified pull mode), Relational database internals, Distributed database design, Reactors architecture, Innovative multi-layer distributed leadership mechanism, and more
-
-
-[中文](./README_CN.md)
-
 <p align="center">
-<img align="left" height="160" src="./resources/images/logo.png">
-<ul>
-<li><strong>Website</strong>: https://githubim.com</li>
-<li><strong>Protocol 1</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM Binary Protocol</a></li>
-<li><strong>Protocol 2</strong>: <a href="https://githubim.com/server/advance/jsonrpc.html">WuKongIM JSON Protocol (WebSocket only)</a></li>
-<li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
-<li><strong>Documentation</strong>: https://githubim.com</li>
-<li><strong>Architecture Docs</strong>: https://deepwiki.com/WuKongIM/WuKongIM</li>
-</ul>
+  <img src="./resources/images/logo.png" alt="WuKongIM" height="120">
 </p>
 
-[![](https://img.shields.io/github/license/WuKongIM/WuKongIM?color=yellow&style=flat-square)](./LICENSE)
-[![](https://img.shields.io/badge/go-%3E%3D1.20-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
-[![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
-<a href="https://join.slack.com/t/wukongim/shared_invite/zt-22o7we8on-2iKNUmgigB9ERdF9XUivmw"><img src="https://img.shields.io/badge/Slack-99%2B-blueviolet?logo=slack&amp;logoColor=white"></a>
+<h1 align="center">WuKongIM v3 Beta</h1>
 
-Architecture
---------
+<p align="center">
+  High-performance distributed communication infrastructure for instant messaging, notifications, IoT, live interaction, customer service, and AI messaging.
+</p>
 
-![Architecture](./resources/architecture/architecture_v2_en.svg)
+<p align="center">
+  <a href="./README_CN.md">简体中文</a> ·
+  <a href="https://githubim.com">Website</a> ·
+  <a href="https://docs.githubim.com">Documentation</a> ·
+  <a href="https://github.com/WuKongIM/WuKongIM/releases">Releases</a> ·
+  <a href="https://github.com/WuKongIM/WuKongIM/issues">Issues</a>
+</p>
 
-![Cluster Architecture](./resources/architecture/cluster_v2_en.svg)
+<p align="center">
+  <a href="https://github.com/WuKongIM/WuKongIM/actions/workflows/ci.yml"><img src="https://github.com/WuKongIM/WuKongIM/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/status-v3%20beta-orange?style=flat-square" alt="v3 beta">
+  <img src="https://img.shields.io/badge/Go-1.25.11-00ADD8?style=flat-square&logo=go" alt="Go 1.25.11">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
+</p>
 
+> [!WARNING]
+> The `main` branch contains the WuKongIM v3 beta. APIs, configuration, and durable formats may still change. Use it for new deployments and evaluation only after testing it against your workload. Do not assume that a v2 production data directory can be reused: this repository does not yet provide a complete, verified v2-to-v3 migration procedure.
 
-Video Demonstrations
---------
+## What is WuKongIM?
 
+WuKongIM is a channel-oriented communication server. Clients publish ordered messages to personal, group, customer-service, community, or custom channels; the server handles durable storage, replication, synchronization, presence, and online delivery.
 
-<table>
-  <thead>
-    <tr>
-      <th style="text-align: center;">Failover Demo</th>
-      <th style="text-align: center;">AI Demo</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="text-align: center;">
-        <img src="./resources/architecture/cluster-failover.webp" alt="Failover">
-      </td>
-      <td style="text-align: center;">
-         <img src="./resources/video/stream.webp" alt="AI + Streaming">
-      </td>
-    </tr>
-  </tbody>
-</table>
+The core server embeds its own storage and does not require an external database, cache, or message queue. A one-node deployment uses exactly the same cluster path as a multi-node deployment: it is a **single-node cluster**, not a separate standalone mode.
 
+Typical uses include:
 
+- Instant messaging and real-time communities
+- In-app notifications and messaging middleware
+- Customer service and agent communication
+- IoT communication and audio/video signaling
+- Live interaction, streaming messages, and AI-generated content
 
+## Why v3?
 
-Live Demo
---------
+| Design goal | v3 approach |
+| --- | --- |
+| One deployment model | Single-node and multi-node deployments share the same Controller, Slot, Channel, routing, and storage semantics. |
+| Predictable message durability | `SENDACK` follows the Channel commit boundary; a successful acknowledgement is not produced before the configured local or quorum commit completes. |
+| High-cardinality workloads | Hash-slot routing, multi-reactor Channel runtimes, per-channel ordering, bounded worker pools, batching, and backpressure keep work explicit under many users and channels. |
+| Large-group delivery | Subscriber access is paged, large-group state is explicit, and recipient routing and delivery use bounded batches instead of unbounded per-request fan-out. |
+| Clear ownership | Entry adapters, use cases, node-local runtimes, infrastructure adapters, distributed runtimes, and storage have separate package boundaries. |
+| Operability | Health/readiness, Prometheus metrics, runtime pressure, diagnostics, send tracing, Raft inspection, migration tasks, and a manager UI are built into the runtime. |
 
-**Chat Demo**
+## Core capabilities
 
-Web chat demo: http://imdemo.githubim.com
+| Area | Capabilities |
+| --- | --- |
+| Client access | WKProto over TCP, WebSocket multiplexing for WKProto and JSON-RPC, pluggable gateway listeners, and bounded asynchronous frame dispatch. |
+| Messaging | Custom payloads, personal/group/custom channels, ordered per-channel append, idempotency lookup, command messages, streaming message events, and committed message sync. |
+| Channel policy | Subscribers, blacklist, whitelist, ban/disband state, stranger policy, system users, and large-group-aware subscriber handling. |
+| User state | Multi-device sessions, distributed presence authority, online status, route expiry, connection inspection, and device logout. |
+| Conversations | UID-owned recent conversation projection, ordinary/CMD isolation, read cursors, unread state, delete barriers, and committed last-message hydration. |
+| Delivery | Owner-node online delivery, `RECVACK` tracking, bounded retry, recipient-authority partitioning, and best-effort post-commit fan-out. |
+| Extensibility | HTTP webhooks and node-local PDK-compatible plugins with lifecycle, send, receive, persist-after, and host RPC hooks. |
+| Operations | Manager API and Web UI, dynamic node lifecycle, Slot and Channel migration tasks, Raft log/status inspection, `wkcli`, `wkdb`, and `wkbench`. |
 
-Backend monitoring demo: http://monitor.githubim.com/web
+## Architecture
 
-Stress test report: https://githubim.com/server/advance/stressSingleReport.html
+### 1. System overview
 
+```mermaid
+flowchart TB
+    Client["Client SDKs and business services"]
+    Operator["Operators"]
+    Plugin["PDK plugins"]
+    Peer["Peer WuKongIM nodes"]
 
-Highlights
---------
+    subgraph Access["Entry adapters · internal/access"]
+        Gateway["Gateway<br/>TCP and WebSocket"]
+        API["HTTP API<br/>health · business · bench"]
+        Manager["Manager API and Web UI"]
+        NodeRPC["Node-to-node RPC"]
+        PluginHost["PDK plugin host"]
+    end
 
-The only `decentralized` distributed IM in open source
+    subgraph Core["Application core · internal"]
+        Usecase["Use cases<br/>message · channel · user · conversation<br/>presence · delivery · management · plugin"]
+        Runtime["Node-local runtimes<br/>channel append · online · presence<br/>delivery · conversation active · webhook"]
+        Infra["Infrastructure adapters<br/>internal/infra"]
+    end
 
-The only IM capable of `200,000+` concurrent sends on a single machine in open source
+    Cluster["Cluster composition<br/>pkg/cluster"]
+    Storage["Node-local durable storage<br/>message · metadata · Raft logs"]
+    Observe["Observability<br/>metrics · top · diagnostics · send trace"]
+    App["internal/app<br/>composition root and lifecycle"]
 
-The only IM with built-in self-developed distributed storage in open source
+    Client --> Gateway
+    Client --> API
+    Operator --> Manager
+    Plugin --> PluginHost
+    Peer --> NodeRPC
+    Gateway --> Usecase
+    API --> Usecase
+    Manager --> Usecase
+    NodeRPC --> Usecase
+    PluginHost --> Usecase
+    Usecase --> Runtime
+    Usecase --> Infra
+    Runtime --> Infra
+    Infra --> Cluster
+    Cluster --> Storage
+    Usecase -.-> Observe
+    Runtime -.-> Observe
+    Cluster -.-> Observe
+    App -.->|wires| Gateway
+    App -.->|wires| Usecase
+    App -.->|wires| Runtime
+    App -.->|wires| Cluster
+    App -.->|wires| Observe
+```
 
-The only distributed IM that doesn't depend on any middleware in open source
+`internal/app` is the only composition root. Protocol adaptation stays in `internal/access`, reusable business orchestration stays in `internal/usecase`, node-local state stays in `internal/runtime`, and concrete cluster/runtime adaptation stays in `internal/infra`.
 
-Features
---------
+### 2. Distributed architecture
 
-🎦 **Uniqueness**
+```mermaid
+flowchart TB
+    Controller["Controller plane<br/>Raft quorum<br/>nodes · assignments · health · tasks"]
+    HashTable["Hash-slot table<br/>256 logical hash slots by default"]
+    Slot["Slot metadata plane<br/>Multi-Raft physical slots<br/>users · channels · membership · conversations"]
+    Channel["Channel data plane<br/>per-channel leader and replicas<br/>ordered log · LEO/HW · quorum commit"]
+    Transport["Unified node transport<br/>pooled TCP · typed RPC · bounded queues"]
 
-No limit on group members, easily supports 100,000-member group chats, messages can be stored permanently.
+    subgraph Durable["Per-node durable state"]
+        ControlStore["cluster-state.json<br/>Controller Raft WAL"]
+        MetaStore["Metadata DB<br/>Slot Raft WAL"]
+        MessageStore["Message DB<br/>Channel checkpoints"]
+    end
 
-📚 **Low Resource Consumption**
+    Controller -->|owns| HashTable
+    Controller -->|assigns and reconciles| Slot
+    HashTable -->|maps keys to physical slots| Slot
+    Slot -->|authoritative ChannelRuntimeMeta| Channel
+    Controller <-->|Raft and state sync| Transport
+    Slot <-->|Raft and metadata RPC| Transport
+    Channel <-->|append and replication RPC| Transport
+    Controller --> ControlStore
+    Slot --> MetaStore
+    Channel --> MessageStore
+```
 
-Self-developed binary protocol, heartbeat packets are only 1 byte, saves bandwidth and battery, faster transmission.
+| Layer | Owns | Consistency and performance model |
+| --- | --- | --- |
+| Controller | Cluster membership, node health, hash-slot table, physical Slot assignments, and operator tasks | A small Raft quorum persists the control state. It plans and reconciles topology but stays out of the normal message hot path. |
+| Slot | Users, channels, subscribers, conversation projections, plugin bindings, and Channel runtime metadata | Metadata is sharded across physical Multi-Raft groups and routed through logical hash slots. |
+| Channel | Ordered message logs, per-channel leadership, replicas, LEO/HW, retention boundaries, and runtime lifecycle | Multi-reactor state machines preserve per-channel ordering; blocking storage and RPC work runs in bounded workers; quorum commit advances HW. |
+| Transport | Controller Raft traffic, Slot Raft traffic, Channel replication, append forwarding, and typed node RPC | Shared pooled TCP connections, fixed wire frames, service isolation, priorities, batching, and bounded queues. |
 
-🔐 **Security**
+### 3. Message path
 
-End-to-end encryption for message channels and content, prevents man-in-the-middle attacks and message tampering, real-time server data backup, no data loss.
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Entry as Gateway / HTTP API
+    participant Message as Message use case
+    participant Router as Channel authority router
+    participant Writer as Authority writer
+    participant Leader as Channel runtime leader
+    participant DB as Message DB
+    participant Followers as Channel followers
+    participant Effects as Post-commit workers
 
+    Client->>Entry: SEND
+    Entry->>Message: normalized SendBatch
+    Message->>Message: permission checks and optional BeforeSend hook
+    Message->>Router: allowed messages
+    Router->>Writer: local submit or typed node RPC
+    Writer->>Leader: fenced AppendBatch
+    Leader->>DB: durable local append
+    Leader->>Followers: PullHint / Pull replication
+    Followers-->>Leader: durable progress via AckOffset
+    Leader->>Leader: advance HW after quorum
+    Leader-->>Writer: committed message IDs and sequences
+    Writer-->>Router: append result
+    Router-->>Message: item-aligned result
+    Message-->>Entry: protocol-neutral result
+    Entry-->>Client: SENDACK
+    Writer-->>Effects: committed envelope
+    Effects->>Effects: conversation projection, delivery, plugin and webhook work
+    Note over Client,Effects: SENDACK does not wait for best-effort post-commit side effects
+```
 
-🚀 **Performance**
+The foreground path is deliberately narrow: validate, route, append, replicate, commit, acknowledge. Conversation activity, online delivery, plugin `PersistAfter`, and webhook notifications run after the durable decision and cannot turn a successful commit into a failed `SENDACK`.
 
-Built on PebbleDB KV database, we developed a specialized distributed database for IM services, eliminating performance overhead from generic databases. Fast storage means fast messaging.
+## Code map
 
-🔥 **High Availability**
+| Area | Location | Responsibility |
+| --- | --- | --- |
+| Product entrypoint | `cmd/wukongim` | Load TOML and `WK_*` overrides, build the app, and own process signals. |
+| Composition | `internal/app` | Wire dependencies and enforce startup/shutdown order. |
+| Entry adapters | `internal/access` | Gateway, HTTP API, manager API, node RPC, and plugin protocol adaptation. |
+| Business orchestration | `internal/usecase` | Entry-independent message, channel, user, conversation, presence, delivery, management, and plugin rules. |
+| Node-local runtimes | `internal/runtime` | Bounded in-memory state and workers for channel append, presence, online sessions, delivery, conversations, hooks, and webhooks. |
+| Runtime adapters | `internal/infra` | Adapt internal ports to the distributed and storage runtimes. |
+| Gateway foundation | `pkg/gateway` | Listeners, transports, protocols, sessions, authentication, and dispatch. |
+| Cluster composition | `pkg/cluster` | Controller, routing, Slot runtime, Channel runtime, discovery, typed node RPC, readiness, and migrations. |
+| Control plane | `pkg/controller` | Controller Raft, canonical cluster state, planning, task state, snapshots, and mirror sync. |
+| Metadata plane | `pkg/slot`, `pkg/hashslot` | Multi-Raft metadata state machines, distributed proxy, and hash-slot routing. |
+| Message data plane | `pkg/channel` | Multi-reactor Channel log, replication, append, lifecycle, retention, and worker pools. |
+| Storage | `pkg/db`, `pkg/raftlog` | Pebble-backed message/meta stores and durable Raft logs/snapshots. |
+| Protocols | `pkg/protocol` | WKProto frames/codecs, channel IDs, and JSON-RPC bridge. |
+| Tools | `cmd/wkcli`, `cmd/wkbench`, `cmd/wkdb` | Operations, black-box benchmarks, and node-local read-only storage inspection. |
 
-Modified Raft distributed protocol enables automatic disaster recovery - when one machine goes down, another automatically takes over, seamless to users.
+## Quick start
 
-Decentralized, no single point of failure, no central node, every node is independent and equal, all can provide service.
+### Docker Compose: complete three-node development environment
 
-Easy scaling, just add machines, no downtime needed, no data migration required, automatic data distribution by policy.
+Requirements: Docker with the Compose plugin.
 
-0⃣️ **Ease of Use**
-
-No dependency on any third-party middleware, simple deployment, start with a single command.
-
-Channel-based publish/subscribe design philosophy, easy to understand, easy to get started.
-
-Simple like Redis, high-performance like Kafka, reliable like MySQL
-
-🌲 **Technical Support**
-
-Official team provides technical support, documentation, community discussion groups, and issue feedback.
-
-
-Feature List
----------------
-
-
-- [x] Custom message support
-- [x] Subscribe/Publish pattern support
-- [x] Personal/Group/Customer Service/Community channels
-- [x] Channel blacklist support
-- [x] Channel whitelist support
-- [x] Permanent message roaming, no message loss when switching devices
-- [x] Online status, multi-device online for same account
-- [x] Real-time message sync across devices
-- [x] Server-maintained recent conversation list
-- [x] Command messages support
-- [x] Offline command interface
-- [x] Webhook support for easy business system integration
-- [x] Datasource support for seamless business data integration
-- [x] WebSocket connection support
-- [x] TLS 1.3 support
-- [x] Proxy protocol support
-- [x] JSON protocol communication
-- [x] Prometheus monitoring support
-- [x] Monitoring system development
-- [x] Streaming messages (like ChatGPT output stream)
-- [x] Distributed support
-    - [x] Decentralized design, cluster auto-repairs when any node goes down
-    - [x] Data redundancy between cluster nodes, any node damage doesn't affect data integrity
-    - [x] Fast automatic cluster scaling
-
-
-Quick Start
----------------
-
-```shell
-
+```bash
 git clone https://github.com/WuKongIM/WuKongIM.git
+cd WuKongIM
 
-cd WuKongIM/docker/cluster
-
-sudo docker compose up -d
-
+docker compose up -d --build
+docker compose ps
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:15001/readyz
 ```
 
-Admin panel: http://127.0.0.1:15300/web
+The default Compose stack starts three WuKongIM nodes, the manager Web UI, Prometheus, and Grafana. The optional `wk-sim` benchmark simulator is behind the `dev-sim` profile.
 
-Chat demo: http://127.0.0.1:15172/login
+| Service | Address | Development credentials / notes |
+| --- | --- | --- |
+| Manager Web UI | <http://127.0.0.1:18080> | `admin` / `a1234567` |
+| Node 1 API and readiness | <http://127.0.0.1:15001/readyz> | Metrics: <http://127.0.0.1:15001/metrics> |
+| Node 1 WKProto TCP | `127.0.0.1:15100` | Client connection endpoint |
+| Node 1 WebSocket | `ws://127.0.0.1:15200` | WKProto / JSON-RPC multiplexing |
+| Prometheus | <http://127.0.0.1:9091> | External Prometheus used by the Compose stack |
+| Grafana | <http://127.0.0.1:3000> | `admin` / `Aa12345678` |
 
+Start the optional simulator with:
 
-
-Development
----------------
-
-### Standalone
-
-```shell
-
-
-go run main.go
-
-(or go run main.go --config config/wk.yaml)
-
+```bash
+docker compose --profile dev-sim up -d wk-sim
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:19091/healthz
 ```
 
-### Distributed
-    
-```yaml
+> [!CAUTION]
+> `docker-compose.yml` is a development environment. It enables debug/benchmark surfaces, contains development credentials, and uses local bind-mounted data directories. Replace secrets, review exposed ports, use independent durable storage, and define backup, TLS, capacity, and observability policies before production use.
 
-# Start first node
-go run main.go --config  ./exampleconfig/cluster1.yaml
+### Source: single-node cluster
 
-# Start second node
-go run main.go --config  ./exampleconfig/cluster2.yaml
+Requirements: Go `1.25.11`.
 
-# Start third node
-go run main.go --config  ./exampleconfig/cluster3.yaml
+```bash
+git clone https://github.com/WuKongIM/WuKongIM.git
+cd WuKongIM
 
+cp wukongim.toml.example wukongim.toml
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
 ```
 
+In another terminal:
 
-### Access
-
-Admin panel: http://127.0.0.1:5300/web
-
-Chat demo: http://127.0.0.1:5172/chatdemo
-
-### Client Usage
-
-```typescript
-import { WKIM, WKIMChannelType, WKIMEvent } from 'easyjssdk';
-
-// 1. Initialize
-const im = WKIM.init("ws://your-wukongim-server.com:5200", {
-    uid: "your_user_id", // Current user's uid
-    token: "your_auth_token" // Auth token (optional if auth is disabled)
-});
-
-// 2. Listen
-im.on(WKIMEvent.Connect, () => {
-    console.log("IM Connected!");
-    // Send message
-    const result = await im.send("target user",WKIMChannelType.Person,{ type: "text", content: "Hello from EasyJSSDK!" })
-});
-
-// Listen for incoming messages
-im.on(WKIMEvent.Message, (message) => {
-    console.log("Received:", message);
-});
-
-// Listen for errors
-im.on(WKIMEvent.Error, (error) => {
-    console.error("IM Error:", error);
-});
-
-// 3. Connect
-await im.connect()
-
-
-
-
+```bash
+curl --fail http://127.0.0.1:5001/readyz
 ```
 
+The example starts one Controller voter, one physical Slot, 256 logical hash slots, and one Channel replica. It listens on:
 
-Production Deployment
----------------
+| Purpose | Address |
+| --- | --- |
+| HTTP API / health / metrics | `127.0.0.1:5001` |
+| Manager API | `127.0.0.1:5301` |
+| WKProto TCP | `127.0.0.1:5100` |
+| WebSocket multiplexer | `ws://127.0.0.1:5200` |
+| Node transport | `127.0.0.1:7001` |
 
-Please refer to the [Deployment Guide](https://githubim.com/install)
+This command starts the server only; it does not start `web/`, external Prometheus, or Grafana.
 
+## Configuration
 
+The product configuration is TOML-first. Use `-config` for an explicit file:
 
+```bash
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
 
-SDKs and Demos
----------------
+Without `-config`, the loader checks these paths in order:
 
+1. `./wukongim.toml`
+2. `./conf/wukongim.toml`
+3. `/etc/wukongim/wukongim.toml`
 
+Environment variables use the `WK_` prefix and override TOML values. List and object-list values use one JSON string for complete replacement:
 
-| Project | Github | Example | Docs | Description |
-| ---- | ---------- | --------- | ---- |  ---- |
-|   WuKongIM   |   [Github](https://github.com/WuKongIM/WuKongIM)         |     N/A |  [Docs](https://githubim.com)  &nbsp;&nbsp;&nbsp;&nbsp;       |    WuKongIM server, handles connections and message delivery |
-|   WuKongIMAndroidSDK   |   [Github](https://github.com/WuKongIM/WuKongIMAndroidSDK)         |     [Example](https://github.com/WuKongIM/WuKongIMAndroidSDK/tree/master/app) | [Docs](https://githubim.com/sdk/android/intro.html)    |    WuKongIM Android SDK  |
-|   WuKongIMiOSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMiOSSDK)         |     [Example](https://github.com/WuKongIM/WuKongIMiOSSDK/tree/main/Example)  | [Docs](https://githubim.com/sdk/iossdk/intro.html)     |    WuKongIM iOS SDK  |
-|   WuKongIMUniappSDK   |   [Github](https://github.com/WuKongIM/WuKongIMUniappSDK)         |     [Example](https://github.com/WuKongIM/WuKongIMUniappSDK/tree/main/examples)  | [Docs](https://githubim.com/sdk/uniapp.html)      |    WuKongIM Uniapp SDK  |
-|   WuKongIMJSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMJSSDK)         |     [Example](https://github.com/WuKongIM/WuKongIMJSSDK/tree/main/examples)   | [Docs](https://githubim.com/sdk/jssdk/intro.html)     |    WuKongIM JS SDK  |
-|   WuKongIMFlutterSDK   |    [Github](https://github.com/WuKongIM/WuKongIMFlutterSDK)        |    [Example](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/master/example)   |[Docs](https://githubim.com/sdk/flutter/intro.html)    |    WuKongIM Flutter SDK |
-|   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     N/A  |  N/A  |    WuKongIM React Native Demo (contributed by [wengqianshan](https://github.com/wengqianshan))  |
-|   WuKongIMHarmonyOSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK)         |     [Example](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK/tree/main/entry)  |  [Docs](https://githubim.com/sdk/harmonyos/intro.html)   |   WuKongIM HarmonyOS SDK  |
+```bash
+WK_CLUSTER_NODES='[{"id":1,"addr":"node1:7000"},{"id":2,"addr":"node2:7000"}]' \
+  GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
 
+Start from [`wukongim.toml.example`](./wukongim.toml.example). It documents node, cluster, API, manager, gateway, message, presence, conversation, delivery, observability, diagnostics, webhook, and plugin settings.
 
+## Operations and tooling
 
+- **Manager Web UI and API** — node/Slot/Channel inventory, lifecycle operations, migration tasks, connections, messages, plugins, logs, database inspection, diagnostics, and realtime metrics.
+- **`wkcli`** — extensible operations CLI, including the node-local/multi-node `top` runtime view.
+- **`wkbench`** — black-box workload validation, doctor, coordinator/worker execution, Docker `dev-sim`, and report generation without importing server internals.
+- **`wkdb`** — node-local, read-only message and metadata inspection with query and REPL modes.
+- **Prometheus and Grafana** — low-cardinality metrics for gateway, Controller, Slot, Channel, storage, delivery, conversations, transport, and process pressure.
 
-Node Failover Demo
---------
+## Development
 
-![Node Failover Demo](./resources/architecture/cluster-failover.webp)
+The Go CI toolchain is `go1.25.11`. The manager Web UI uses Bun `1.3.11`.
 
+Compile-check the main command packages:
 
-Screenshots
----------------
+```bash
+GOWORK=off go build ./cmd/wukongim ./cmd/wkcli ./cmd/wkbench ./cmd/wkdb
+```
 
+Run the repository unit gate:
 
-||||
-|:---:|:---:|:--:|
-|![](./resources/2.0-screen/screen-01.png)|![](./resources/2.0-screen/screen-02.png)|![](./resources/2.0-screen/screen-03.png)|
-|![](./resources/2.0-screen/screen-04.png)|![](./resources/2.0-screen/screen-05.png)|![](./resources/2.0-screen/screen-06.png)|
-|![](./resources/2.0-screen/screen-07.png)|![](./resources/2.0-screen/screen-08.png)|![](./resources/2.0-screen/screen-09.png)|
-|![](./resources/2.0-screen/screen-10.png)|![](./resources/2.0-screen/screen-11.png)| ![](./resources/2.0-screen/screen-12.png) |
-| ![](./resources/2.0-screen/screen-13.png) | ![](./resources/2.0-screen/screen-14.png) |
+```bash
+GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1
+```
 
-Star
----------------
+Additional gates:
 
-Our team has been dedicated to instant messaging development. We need your encouragement! If you find this project helpful, please give us a star. Your support is our greatest motivation.
+```bash
+GOWORK=off go vet ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/...
+GOWORK=off go test -tags=integration ./internal/... ./pkg/... -count=1
+GOWORK=off go test -tags=e2e ./test/e2e/... -count=1
+```
 
-Case Study
----------------
+Integration and end-to-end suites are heavier and are not required for every local change. Do not use a repository-root `go test ./...`: Go scans ignored local directories such as `tmp/` and `web/node_modules/`; use the explicit roots above.
 
-**Project Name**
+## SDKs
 
-TangSengDaoDao
+| Platform | Repository |
+| --- | --- |
+| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK) |
+| iOS | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK) |
+| JavaScript / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK) |
+| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK) |
+| UniApp | [WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK) |
+| HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) |
 
-**Open Source**
+See the [SDK overview](https://docs.githubim.com/zh/sdk/overview) for integration guidance.
 
-https://github.com/TangSengDaoDao/TangSengDaoDaoServer
+## Community
 
-**Screenshots**
+- Website: <https://githubim.com>
+- Documentation: <https://docs.githubim.com>
+- Issues: <https://github.com/WuKongIM/WuKongIM/issues>
+- Releases: <https://github.com/WuKongIM/WuKongIM/releases>
+- WeChat: `wukongimgo` — mention that you want to join the WuKongIM community group.
 
-||||
-|:---:|:---:|:--:|
-|![](./resources/case/tsdaodao/screenshot/conversationlist.webp)|![](./resources/case/tsdaodao/screenshot/messages.webp)|![](./resources/case/tsdaodao/screenshot/robot.webp)|
-
-
-|||          |
-|:---:|:---:|:-------------------:|
-
-![](./resources/case/tsdaodao/screenshot/pc11.png)
-
-
-
-
-Contact
----------------
-
-WeChat ID: wukongimgo (mention you want to join the group)
-
-![image](./wechat.png)
-
-
-
-License
----------------
+## License
 
 WuKongIM is licensed under the [Apache License 2.0](./LICENSE).
