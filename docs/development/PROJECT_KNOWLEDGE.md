@@ -215,5 +215,5 @@
 - Stage 2 package promotion has physically moved the canonical runtimes to `pkg/channel`, `pkg/cluster`, `pkg/controller`, and `pkg/transport`; the old implementations have been removed, and new imports must not target `pkg/*v2`.
 - Promoted production roots must not import old runtime paths; `pkg/slot/proxy` has no legacy imports.
 - `pkg/cluster.Node` satisfies `pkg/slot/proxy.Cluster` plus the optional hash-slot proposer port; Slot proxy RPC handler registration goes through `pkg/cluster.Node.RegisterRPC`.
-- In local three-node real-QPS 16k runs, message DB commit shards are an experimental default-off knob: shards reduced queue fill but increased physical commit count and sync tail; prefer single coordinator with bounded store append/apply workers unless new evidence shows storage parallelism helps.
+- In local three-node real-QPS runs, message DB commit shards are an experimental default-off knob: 3000, 4000, and 16k evidence all show that multiple coordinators on one physical store fragment group commits and increase sync tail; prefer one coordinator with bounded store append/apply workers unless nodes use independently proven storage parallelism.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.
