@@ -137,6 +137,7 @@ func TestClusterPluginBindingPluginNoScanRoutesToSlotLeader(t *testing.T) {
 		pluginBindingUIDForHashSlot(t, nodes[0], 1),
 		pluginBindingUIDForHashSlot(t, nodes[0], 2),
 	}
+	waitAllHashSlotLeadersConverged(t, nodes)
 	leaderRoute := waitRouteKeyLeaderReady(t, nodes[0], uids[0])
 	queryNode := firstNonLeaderNode(t, nodes, leaderRoute.Leader)
 

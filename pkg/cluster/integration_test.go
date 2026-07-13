@@ -112,7 +112,7 @@ func TestClusterThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
-	route := waitRouteKeyLeaderReady(t, nodes[0], channelID.ID)
+	route := waitRouteKeyLeaderConverged(t, nodes, channelID.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -258,6 +258,32 @@ func waitRouteKeyLeaderConverged(t testing.TB, nodes []*Node, key string) Route 
 		return true
 	})
 	return route
+}
+
+func waitAllHashSlotLeadersConverged(t testing.TB, nodes []*Node) {
+	t.Helper()
+	if len(nodes) == 0 {
+		t.Fatal("no cluster nodes provided")
+	}
+	waitUntil(t.(*testing.T), func() bool {
+		hashSlotCount := nodes[0].Snapshot().HashSlotCount
+		if hashSlotCount == 0 {
+			return false
+		}
+		for hashSlot := uint16(0); hashSlot < hashSlotCount; hashSlot++ {
+			candidate, err := nodes[0].RouteHashSlot(hashSlot)
+			if err != nil || candidate.Leader == 0 {
+				return false
+			}
+			for _, node := range nodes[1:] {
+				observed, err := node.RouteHashSlot(hashSlot)
+				if err != nil || observed.SlotID != candidate.SlotID || observed.Leader != candidate.Leader {
+					return false
+				}
+			}
+		}
+		return true
+	})
 }
 
 func firstNonLeaderNode(t testing.TB, nodes []*Node, leader uint64) *Node {

@@ -254,7 +254,7 @@ func TestChangeConfigRejectsFollower(t *testing.T) {
 }
 
 func TestProposeRejectsStaleLeaderAfterHigherTermMessageQueued(t *testing.T) {
-	rt := newStartedRuntime(t)
+	rt := newStartedRuntimeWithTick(t, time.Hour)
 	slotID := openSingleNodeLeader(t, rt, 131)
 
 	st, err := rt.Status(slotID)
@@ -282,7 +282,7 @@ func TestProposeRejectsStaleLeaderAfterHigherTermMessageQueued(t *testing.T) {
 }
 
 func TestChangeConfigRejectsStaleLeaderAfterHigherTermMessageQueued(t *testing.T) {
-	rt := newStartedRuntime(t)
+	rt := newStartedRuntimeWithTick(t, time.Hour)
 	slotID := openSingleNodeLeader(t, rt, 132)
 
 	st, err := rt.Status(slotID)
