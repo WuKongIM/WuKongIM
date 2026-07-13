@@ -3,11 +3,25 @@
 package suite
 
 import (
+	"fmt"
 	"net"
+	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+const (
+	loopbackPortStart = 20000
+	loopbackPortCount = 10000
+)
+
+var loopbackPortCursor atomic.Uint32
+
+func init() {
+	loopbackPortCursor.Store(uint32(os.Getpid() % loopbackPortCount))
+}
 
 // PortSet groups the external listener addresses reserved for one e2e node.
 type PortSet struct {
@@ -32,9 +46,18 @@ func ReserveLoopbackPorts(t testing.TB) PortSet {
 func reserveLoopbackAddr(t testing.TB) string {
 	t.Helper()
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	addr := ln.Addr().String()
-	require.NoError(t, ln.Close())
-	return addr
+	var lastErr error
+	for range loopbackPortCount {
+		port := loopbackPortStart + int(loopbackPortCursor.Add(1)-1)%loopbackPortCount
+		addr := fmt.Sprintf("127.0.0.1:%d", port)
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		require.NoError(t, ln.Close())
+		return addr
+	}
+	t.Fatalf("reserve loopback address: exhausted %d ports: %v", loopbackPortCount, lastErr)
+	return ""
 }
