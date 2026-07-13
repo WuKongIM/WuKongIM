@@ -327,7 +327,10 @@ node through `control.NodeSchedulableForPlacement`, caps `max_slot_moves` to
 `1..5`, scans physical Slots in stable Slot ID order, chooses the source peer
 from the highest projected replica count, skips Slots with any active Controller
 task, and creates at most the requested number of `slot_replica_move` tasks. It
-does not change `DesiredPeers` directly, run Slot Raft, poll task completion,
+replans from a fresh control snapshot before every write; retryable revision,
+task-phase, and active-task conflicts use a bounded context-cancellable delay
+so an already committed Controller write can become visible before the next
+replan. It does not change `DesiredPeers` directly, run Slot Raft, poll task completion,
 migrate Channel replicas, or implement operator cancellation without a fenced
 Controller writer. Status is a read-only projection of active
 `slot_replica_move` tasks targeting the selected node.

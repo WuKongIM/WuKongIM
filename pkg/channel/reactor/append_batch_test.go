@@ -724,7 +724,7 @@ func TestAppendSchedulesResumeForLaggingActiveFollowerWithPendingQuorum(t *testi
 	meta.MinISR = 2
 	r := NewReactor(ReactorConfig{
 		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
-		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Second,
 	})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]

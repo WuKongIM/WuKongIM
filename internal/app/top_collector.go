@@ -135,6 +135,7 @@ type topProcessStats interface {
 }
 
 type topGopsutilResourceSampler struct {
+	mu         sync.Mutex
 	process    topProcessStats
 	goroutines func() int
 }
@@ -690,7 +691,8 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 }
 
 func collectTopResourceSample() topResourceSample {
-	return defaultTopGopsutilResourceSampler().sample()
+	sampler := defaultTopGopsutilResourceSampler()
+	return sampler.sample()
 }
 
 func defaultTopGopsutilResourceSampler() topGopsutilResourceSampler {
@@ -704,7 +706,9 @@ func defaultTopGopsutilResourceSampler() topGopsutilResourceSampler {
 	}
 }
 
-func (s topGopsutilResourceSampler) sample() topResourceSample {
+func (s *topGopsutilResourceSampler) sample() topResourceSample {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	out := topResourceSample{}
 	if s.goroutines != nil {
 		out.Goroutines = s.goroutines()

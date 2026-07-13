@@ -69,6 +69,7 @@ func TestSocketStartWaitsForReadiness(t *testing.T) {
 	server := newSocketServerWithBackend(socketPath, backend)
 	server.readyTimeout = time.Second
 	ready := make(chan struct{})
+	ackSent := make(chan struct{})
 	var listener net.Listener
 	t.Cleanup(func() {
 		if listener != nil {
@@ -82,6 +83,17 @@ func TestSocketStartWaitsForReadiness(t *testing.T) {
 			listener, err = net.Listen("unix", socketPath)
 			require.NoError(t, err)
 			close(ready)
+			conn, err := listener.Accept()
+			require.NoError(t, err)
+			defer func() { _ = conn.Close() }()
+			time.Sleep(25 * time.Millisecond)
+			body, err := (&wkrpcproto.Connack{Id: 1, Status: wkrpcproto.StatusOK}).Marshal()
+			require.NoError(t, err)
+			packet, err := wkrpcproto.New().Encode(body, wkrpcproto.MsgTypeConnack)
+			require.NoError(t, err)
+			_, err = conn.Write(packet)
+			require.NoError(t, err)
+			close(ackSent)
 		}()
 	}
 
@@ -91,6 +103,11 @@ func TestSocketStartWaitsForReadiness(t *testing.T) {
 	case <-ready:
 	default:
 		t.Fatal("Start returned before socket path was ready")
+	}
+	select {
+	case <-ackSent:
+	default:
+		t.Fatal("Start returned before the readiness handshake completed")
 	}
 }
 

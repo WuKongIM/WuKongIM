@@ -632,16 +632,14 @@ type seedJoinCall struct {
 }
 
 type fakeSeedJoinClient struct {
+	callsOnce    sync.Once
 	calls        chan seedJoinCall
 	joinResponse managementusecase.JoinNodeResponse
 	afterJoin    func()
 }
 
 func (f *fakeSeedJoinClient) JoinNode(_ context.Context, seedNodeID uint64, req accessnode.NodeJoinRequest) (managementusecase.JoinNodeResponse, error) {
-	if f.calls == nil {
-		f.calls = make(chan seedJoinCall, 16)
-	}
-	f.calls <- seedJoinCall{seedNodeID: seedNodeID, req: req}
+	f.callChannel() <- seedJoinCall{seedNodeID: seedNodeID, req: req}
 	if f.afterJoin != nil {
 		f.afterJoin()
 	}
@@ -650,16 +648,20 @@ func (f *fakeSeedJoinClient) JoinNode(_ context.Context, seedNodeID uint64, req 
 
 func (f *fakeSeedJoinClient) waitCall(t *testing.T) seedJoinCall {
 	t.Helper()
-	if f.calls == nil {
-		f.calls = make(chan seedJoinCall, 16)
-	}
 	select {
-	case call := <-f.calls:
+	case call := <-f.callChannel():
 		return call
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for seed join call")
 		return seedJoinCall{}
 	}
+}
+
+func (f *fakeSeedJoinClient) callChannel() chan seedJoinCall {
+	f.callsOnce.Do(func() {
+		f.calls = make(chan seedJoinCall, 16)
+	})
+	return f.calls
 }
 
 type fakeReadinessCluster struct {

@@ -1,8 +1,11 @@
 package pluginhost
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -39,6 +42,8 @@ type socketBackend interface {
 
 const defaultSocketReadyTimeout = 2 * time.Second
 const maxUnixSocketPathBytes = 100
+const socketReadyProbeUID = "__wukongim_plugin_host_ready__"
+const maxSocketReadyFrameBytes = 64 * 1024
 
 // WKRPCSocketServer wraps a wkrpc Unix socket server without registering business routes.
 type WKRPCSocketServer struct {
@@ -128,17 +133,76 @@ func waitUnixSocketReady(socketPath string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for {
-		conn, err := net.DialTimeout("unix", socketPath, 10*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
+		if err := probeWKRPCSocket(socketPath, deadline); err == nil {
 			return nil
+		} else {
+			lastErr = err
 		}
-		lastErr = err
 		if time.Now().After(deadline) {
 			return fmt.Errorf("wait plugin socket %q ready: %w", socketPath, lastErr)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+func probeWKRPCSocket(socketPath string, deadline time.Time) error {
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return context.DeadlineExceeded
+	}
+	probeTimeout := 100 * time.Millisecond
+	if remaining < probeTimeout {
+		probeTimeout = remaining
+	}
+	conn, err := net.DialTimeout("unix", socketPath, probeTimeout)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+	if err := conn.SetDeadline(time.Now().Add(probeTimeout)); err != nil {
+		return err
+	}
+
+	connect := &wkrpcproto.Connect{Id: 1, Uid: socketReadyProbeUID}
+	body, err := connect.Marshal()
+	if err != nil {
+		return fmt.Errorf("marshal readiness connect: %w", err)
+	}
+	packet, err := wkrpcproto.New().Encode(body, wkrpcproto.MsgTypeConnect)
+	if err != nil {
+		return fmt.Errorf("encode readiness connect: %w", err)
+	}
+	if _, err := io.Copy(conn, bytes.NewReader(packet)); err != nil {
+		return err
+	}
+
+	headerLen := wkrpcproto.MagicNumberStartLength + wkrpcproto.MsgTypeLength + wkrpcproto.MsgContentLength
+	header := make([]byte, headerLen)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return err
+	}
+	if !bytes.Equal(header[:wkrpcproto.MagicNumberStartLength], wkrpcproto.MagicNumberStart) {
+		return fmt.Errorf("invalid readiness connack magic")
+	}
+	if got := wkrpcproto.MsgType(header[wkrpcproto.MagicNumberStartLength]); got != wkrpcproto.MsgTypeConnack {
+		return fmt.Errorf("unexpected readiness response type %s", got)
+	}
+	bodyLen := binary.BigEndian.Uint32(header[wkrpcproto.MagicNumberStartLength+wkrpcproto.MsgTypeLength:])
+	if bodyLen > maxSocketReadyFrameBytes {
+		return fmt.Errorf("readiness connack body is too large: %d", bodyLen)
+	}
+	responseBody := make([]byte, int(bodyLen))
+	if _, err := io.ReadFull(conn, responseBody); err != nil {
+		return err
+	}
+	connack := &wkrpcproto.Connack{}
+	if err := connack.Unmarshal(responseBody); err != nil {
+		return fmt.Errorf("decode readiness connack: %w", err)
+	}
+	if connack.Id != connect.Id || connack.Status != wkrpcproto.StatusOK {
+		return fmt.Errorf("readiness connack id=%d status=%d", connack.Id, connack.Status)
+	}
+	return nil
 }
 
 // Stop stops the underlying socket server once.

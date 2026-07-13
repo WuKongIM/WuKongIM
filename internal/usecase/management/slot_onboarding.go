@@ -15,7 +15,8 @@ const (
 	// DefaultMaxSlotMoves is the default number of Slot replica moves created per onboarding request.
 	DefaultMaxSlotMoves uint32 = 1
 	// MaxSlotMoves is the hard cap for Slot replica moves created per onboarding request.
-	MaxSlotMoves uint32 = 5
+	MaxSlotMoves             uint32 = 5
+	nodeOnboardingRetryDelay        = 10 * time.Millisecond
 )
 
 const (
@@ -341,6 +342,9 @@ func (a *App) executeNodeOnboarding(ctx context.Context, targetNodeID uint64, ma
 					return NodeOnboardingStartResponse{}, ErrNodeOnboardingConflict
 				}
 				retryBudget--
+				if err := waitNodeOnboardingRetry(ctx); err != nil {
+					return NodeOnboardingStartResponse{}, err
+				}
 				continue
 			}
 			return NodeOnboardingStartResponse{}, err
@@ -358,6 +362,17 @@ func (a *App) executeNodeOnboarding(ctx context.Context, targetNodeID uint64, ma
 		}
 	}
 	return response, nil
+}
+
+func waitNodeOnboardingRetry(ctx context.Context) error {
+	timer := time.NewTimer(nodeOnboardingRetryDelay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func normalizeNodeOnboardingMaxMoves(maxMoves uint32) uint32 {

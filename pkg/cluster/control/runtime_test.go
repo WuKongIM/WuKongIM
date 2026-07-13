@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1052,12 +1053,17 @@ func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerState()
+	var leaderStateMu sync.RWMutex
 	syncServer := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    1,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 1 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (controller.ClusterState, error) { return leaderState.Clone(), nil },
+		Snapshot: func(context.Context) (controller.ClusterState, error) {
+			leaderStateMu.RLock()
+			defer leaderStateMu.RUnlock()
+			return leaderState.Clone(), nil
+		},
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
 
@@ -1079,6 +1085,7 @@ func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
 
+	leaderStateMu.Lock()
 	leaderState.Revision++
 	leaderState.Nodes = append(leaderState.Nodes, controller.Node{
 		NodeID:         4,
@@ -1088,19 +1095,22 @@ func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
 		Status:         controller.NodeStatusAlive,
 		CapacityWeight: 1,
 	})
+	wantRevision := leaderState.Revision
+	wantNodes := len(leaderState.Nodes)
+	leaderStateMu.Unlock()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		snap, err := runtime.LocalSnapshot(context.Background())
 		if err != nil {
 			t.Fatalf("LocalSnapshot() error = %v", err)
 		}
-		if snap.Revision == leaderState.Revision && len(snap.Nodes) == len(leaderState.Nodes) {
+		if snap.Revision == wantRevision && len(snap.Nodes) == wantNodes {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	snap, _ := runtime.LocalSnapshot(context.Background())
-	t.Fatalf("mirror snapshot revision = %d nodes=%d, want revision %d nodes=%d", snap.Revision, len(snap.Nodes), leaderState.Revision, len(leaderState.Nodes))
+	t.Fatalf("mirror snapshot revision = %d nodes=%d, want revision %d nodes=%d", snap.Revision, len(snap.Nodes), wantRevision, wantNodes)
 }
 
 func TestRuntimeMirrorForwardsControlWriteToSyncClientLeader(t *testing.T) {
