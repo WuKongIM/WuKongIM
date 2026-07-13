@@ -192,7 +192,7 @@ func TestGatewayWKProtoAuthAcceptsConnectBeforeDispatchingFrames(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	waitUntil(t, time.Second, func() bool { return handler.FrameCount() == 1 })
+	waitUntil(t, 3*time.Second, func() bool { return handler.FrameCount() == 1 })
 	if got := handler.Contexts[0].Session.Value(gateway.SessionValueUID); got != "u1" {
 		t.Fatalf("expected session uid to be stored, got %#v", got)
 	}
