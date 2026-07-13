@@ -20,7 +20,7 @@ func TestClusterChannelMigrationStoreReadsSlotLeaderState(t *testing.T) {
 	waitClusterReady(t, nodes...)
 
 	id := channelruntime.ChannelID{ID: "migration-remote-read", Type: 1}
-	route := waitRouteKeyLeaderReady(t, nodes[0], id.ID)
+	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	leader := clusterNodeByID(t, nodes, route.Leader)
 	queryNode := firstNonLeaderNode(t, nodes, route.Leader)
 	task := migrationNodeTestTask(id, "task-remote-read")
@@ -65,7 +65,7 @@ func TestClusterChannelMigrationStoreCreateReadsRemoteRuntimeMeta(t *testing.T) 
 	waitClusterReady(t, nodes...)
 
 	id := channelruntime.ChannelID{ID: "migration-remote-create", Type: 1}
-	route := waitRouteKeyLeaderReady(t, nodes[0], id.ID)
+	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	leader := clusterNodeByID(t, nodes, route.Leader)
 	queryNode := firstNonLeaderNode(t, nodes, route.Leader)
 	meta := migrationNodeTestRuntimeMeta(id)

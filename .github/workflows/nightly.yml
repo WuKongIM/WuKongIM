@@ -97,7 +97,6 @@ jobs:
     timeout-minutes: 60
     env:
       GOWORK: "off"
-      E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -111,14 +110,14 @@ jobs:
         run: test "$(go env GOVERSION)" = "go1.25.11"
       - name: Build e2e binary once
         shell: bash
-        run: go build -o "$E2E_BINARY" ./cmd/wukongim
+        run: go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
       - name: Run e2e packages
         shell: bash
         env:
           LOG_FILE: ${{ runner.temp }}/go-e2e.log
         run: |
           set -o pipefail
-          WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
+          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
       - name: Upload e2e failure log
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -134,7 +133,7 @@ jobs:
     timeout-minutes: 30
     env:
       GOWORK: "off"
-      SMOKE_OUT: ${{ runner.temp }}/wkcli-sim-three-node-smoke
+      SMOKE_OUT: wkcli-sim-three-node-smoke
       WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE: "false"
       WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE: "false"
       WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER: "false"
@@ -154,7 +153,7 @@ jobs:
         shell: bash
         run: |
           timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
-            --out-dir "$SMOKE_OUT" \
+            --out-dir "$RUNNER_TEMP/$SMOKE_OUT" \
             --ready-timeout 180
       - name: Upload allowlisted smoke failure evidence
         if: failure()
@@ -162,9 +161,9 @@ jobs:
         with:
           name: three-node-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ env.SMOKE_OUT }}/summary.md
-            ${{ env.SMOKE_OUT }}/cluster.log
-            ${{ env.SMOKE_OUT }}/sim.jsonl
-            ${{ env.SMOKE_OUT }}/node-logs/*.log
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/summary.md
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/cluster.log
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/sim.jsonl
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/node-logs/*.log
           if-no-files-found: warn
           retention-days: 7

@@ -237,6 +237,29 @@ func waitRouteKeyLeaderReady(t testing.TB, node *Node, key string) Route {
 	return route
 }
 
+func waitRouteKeyLeaderConverged(t testing.TB, nodes []*Node, key string) Route {
+	t.Helper()
+	if len(nodes) == 0 {
+		t.Fatal("no cluster nodes provided")
+	}
+	var route Route
+	waitUntil(t.(*testing.T), func() bool {
+		candidate, err := nodes[0].RouteKey(key)
+		if err != nil || candidate.Leader == 0 {
+			return false
+		}
+		for _, node := range nodes[1:] {
+			observed, err := node.RouteKey(key)
+			if err != nil || observed.HashSlot != candidate.HashSlot || observed.SlotID != candidate.SlotID || observed.Leader != candidate.Leader {
+				return false
+			}
+		}
+		route = candidate
+		return true
+	})
+	return route
+}
+
 func firstNonLeaderNode(t testing.TB, nodes []*Node, leader uint64) *Node {
 	t.Helper()
 	for _, node := range nodes {

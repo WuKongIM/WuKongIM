@@ -584,7 +584,7 @@ tail_evidence() {
 
 stop_cluster() {
   if [[ -z "$CLUSTER_PID" ]]; then
-    return
+    return 0
   fi
   if kill -0 "$CLUSTER_PID" 2>/dev/null; then
     log 'stopping cluster'
@@ -606,7 +606,7 @@ stop_auto_join_node() {
     AUTO_JOIN_PID="$(tr -d '[:space:]' <"$(auto_join_pid_file)")"
   fi
   if [[ -z "$AUTO_JOIN_PID" ]]; then
-    return
+    return 0
   fi
   if kill -0 "$AUTO_JOIN_PID" 2>/dev/null; then
     log "stopping auto-join node${AUTO_JOIN_NODE_ID}"
@@ -618,7 +618,7 @@ stop_auto_join_node() {
 
 stop_fault_timer() {
   if [[ -z "$FAULT_TIMER_PID" ]]; then
-    return
+    return 0
   fi
   if kill -0 "$FAULT_TIMER_PID" 2>/dev/null; then
     kill "$FAULT_TIMER_PID" 2>/dev/null || true
@@ -1373,6 +1373,17 @@ schedule_auto_join_node() {
     return
   fi
   rm -f "$(auto_join_pid_file)" "$(auto_join_ready_file)" "$(auto_promote_ready_file)"
+  if [[ "$AUTO_JOIN_AFTER" == "0" ]]; then
+    start_auto_join_node
+    (
+      wait_auto_join_ready
+      touch "$(auto_join_ready_file)"
+      promote_auto_join_controller_voter
+    ) &
+    AUTO_JOIN_TIMER_PID="$!"
+    log "auto-join node${AUTO_JOIN_NODE_ID} scheduled after ${AUTO_JOIN_AFTER}s"
+    return
+  fi
   (
     sleep "$AUTO_JOIN_AFTER"
     if [[ -f "$(sim_done_file)" ]]; then

@@ -197,16 +197,16 @@ timeout --signal=TERM --kill-after=30s 40m go test -race $PACKAGES -count=1 -tim
 timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1 2>&1 | tee "$LOG_FILE"
 `
 	nightlyE2ECommand = `set -o pipefail
-WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
+WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
 `
 	nightlySmokeCommand = `timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
-  --out-dir "$SMOKE_OUT" \
+  --out-dir "$RUNNER_TEMP/$SMOKE_OUT" \
   --ready-timeout 180
 `
-	nightlySmokeArtifactPaths = `${{ env.SMOKE_OUT }}/summary.md
-${{ env.SMOKE_OUT }}/cluster.log
-${{ env.SMOKE_OUT }}/sim.jsonl
-${{ env.SMOKE_OUT }}/node-logs/*.log
+	nightlySmokeArtifactPaths = `${{ runner.temp }}/${{ env.SMOKE_OUT }}/summary.md
+${{ runner.temp }}/${{ env.SMOKE_OUT }}/cluster.log
+${{ runner.temp }}/${{ env.SMOKE_OUT }}/sim.jsonl
+${{ runner.temp }}/${{ env.SMOKE_OUT }}/node-logs/*.log
 `
 )
 
@@ -286,8 +286,7 @@ var expectedNightlyJobs = map[string]ciJob{
 		RunsOn:         "ubuntu-24.04",
 		TimeoutMinutes: 60,
 		Env: map[string]string{
-			"GOWORK":     "off",
-			"E2E_BINARY": "${{ runner.temp }}/wukongim-e2e",
+			"GOWORK": "off",
 		},
 		Steps: []ciStep{
 			checkoutStep(),
@@ -296,7 +295,7 @@ var expectedNightlyJobs = map[string]ciJob{
 			{
 				Name:  "Build e2e binary once",
 				Shell: "bash",
-				Run:   `go build -o "$E2E_BINARY" ./cmd/wukongim`,
+				Run:   `go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
 			},
 			{
 				Name:  "Run e2e packages",
@@ -323,7 +322,7 @@ var expectedNightlyJobs = map[string]ciJob{
 		TimeoutMinutes: 30,
 		Env: map[string]string{
 			"GOWORK":    "off",
-			"SMOKE_OUT": "${{ runner.temp }}/wkcli-sim-three-node-smoke",
+			"SMOKE_OUT": "wkcli-sim-three-node-smoke",
 			"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE":              "false",
 			"WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE":                "false",
 			"WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER": "false",
@@ -599,8 +598,8 @@ func TestNightlyWorkflowContractRejectsMutations(t *testing.T) {
 			name: "e2e prebuild command is exact",
 			mutate: func(t *testing.T, workflow string) string {
 				return replaceWorkflowFirst(t, workflow,
-					`        run: go build -o "$E2E_BINARY" ./cmd/wukongim`,
-					`        run: go build -o "$E2E_BINARY" ./cmd/... # go build -o "$E2E_BINARY" ./cmd/wukongim`,
+					`        run: go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
+					`        run: go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/... # go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
 				)
 			},
 		},
@@ -608,8 +607,8 @@ func TestNightlyWorkflowContractRejectsMutations(t *testing.T) {
 			name: "e2e command is exact",
 			mutate: func(t *testing.T, workflow string) string {
 				return replaceWorkflowFirst(t, workflow,
-					`          WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"`,
-					`          WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -shuffle=on -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE" # WK_E2E_BINARY="$E2E_BINARY" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1`,
+					`          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"`,
+					`          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -shuffle=on -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE" # WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1`,
 				)
 			},
 		},
@@ -699,8 +698,8 @@ func TestNightlyWorkflowContractRejectsMutations(t *testing.T) {
 			name: "smoke artifact cannot upload whole output directory",
 			mutate: func(t *testing.T, workflow string) string {
 				return replaceWorkflowFirst(t, workflow,
-					"            ${{ env.SMOKE_OUT }}/summary.md",
-					"            ${{ env.SMOKE_OUT }} # ${{ env.SMOKE_OUT }}/summary.md",
+					"            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/summary.md",
+					"            ${{ runner.temp }}/${{ env.SMOKE_OUT }} # ${{ runner.temp }}/${{ env.SMOKE_OUT }}/summary.md",
 				)
 			},
 		},
@@ -708,8 +707,8 @@ func TestNightlyWorkflowContractRejectsMutations(t *testing.T) {
 			name: "smoke artifact cannot upload manager token",
 			mutate: func(t *testing.T, workflow string) string {
 				return replaceWorkflowFirst(t, workflow,
-					"            ${{ env.SMOKE_OUT }}/sim.jsonl",
-					"            ${{ env.SMOKE_OUT }}/manager-token # ${{ env.SMOKE_OUT }}/sim.jsonl",
+					"            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/sim.jsonl",
+					"            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/manager-token # ${{ runner.temp }}/${{ env.SMOKE_OUT }}/sim.jsonl",
 				)
 			},
 		},
@@ -717,8 +716,8 @@ func TestNightlyWorkflowContractRejectsMutations(t *testing.T) {
 			name: "nightly cannot enable opt in e2e stress",
 			mutate: func(t *testing.T, workflow string) string {
 				return replaceWorkflowFirst(t, workflow,
-					"      E2E_BINARY: ${{ runner.temp }}/wukongim-e2e",
-					"      E2E_BINARY: ${{ runner.temp }}/wukongim-e2e\n      WK_E2E_100K_CONVERSATION: \"1\"",
+					"  go-e2e:\n    name: Go e2e\n    runs-on: ubuntu-24.04\n    timeout-minutes: 60\n    env:\n      GOWORK: \"off\"",
+					"  go-e2e:\n    name: Go e2e\n    runs-on: ubuntu-24.04\n    timeout-minutes: 60\n    env:\n      GOWORK: \"off\"\n      WK_E2E_100K_CONVERSATION: \"1\"",
 				)
 			},
 		},
