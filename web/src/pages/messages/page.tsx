@@ -15,6 +15,7 @@ import type {
   ManagerMessage,
   ManagerMessagesResponse,
 } from "@/lib/manager-api.types"
+import { decodeManagerMessagePayload } from "@/lib/manager-message-payload"
 
 type QueryForm = {
   channelId: string
@@ -75,21 +76,6 @@ function mapErrorKind(error: Error | null) {
     return "unavailable" as const
   }
   return "error" as const
-}
-
-function decodePayload(value: string) {
-  if (!value) {
-    return ""
-  }
-  try {
-    const binary = atob(value)
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-    const decoded = new TextDecoder().decode(bytes)
-    const printable = /^[\x09\x0A\x0D\x20-\x7E]*$/.test(decoded)
-    return printable ? decoded : value
-  } catch {
-    return value
-  }
 }
 
 function formatTimestamp(timestamp: number) {
@@ -406,7 +392,7 @@ export function MessagesPage() {
     }
     return payloadFormat === "base64"
       ? selectedMessage.payload
-      : decodePayload(selectedMessage.payload)
+      : decodeManagerMessagePayload(selectedMessage.payload)
   }, [payloadFormat, selectedMessage])
 
   return (
@@ -648,7 +634,7 @@ export function MessagesPage() {
                         <td className="px-3 py-3 text-sm font-medium text-foreground">{message.client_msg_no || "-"}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{message.from_uid || "-"}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{formatTimestamp(message.timestamp)}</td>
-                        <td className="max-w-[24rem] break-all px-3 py-3 text-sm text-foreground">{decodePayload(message.payload) || "-"}</td>
+                        <td className="max-w-[24rem] break-all px-3 py-3 text-sm text-foreground">{decodeManagerMessagePayload(message.payload) || "-"}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <div className="flex flex-wrap gap-2">
                             <Button

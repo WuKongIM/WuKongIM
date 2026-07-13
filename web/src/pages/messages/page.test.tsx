@@ -254,6 +254,27 @@ test("submits a message query and renders rows", async () => {
   expect(screen.getByText("hello")).toBeInTheDocument()
 })
 
+test("renders UTF-8 message payloads as readable text", async () => {
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: "102",
+      message_seq: 10,
+      client_msg_no: "c-102",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859200,
+      payload: "5L2g5aW977yM8J+Riw==",
+    }],
+    has_more: false,
+  })
+
+  renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
+
+  expect(await screen.findByText("你好，👋")).toBeInTheDocument()
+  expect(screen.queryByText("5L2g5aW977yM8J+Riw==")).not.toBeInTheDocument()
+})
+
 test("submits a uint64 message ID without converting it to a JavaScript number", async () => {
   getMessagesMock.mockResolvedValueOnce(emptyMessagesPage)
 

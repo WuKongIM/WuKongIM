@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import { ManagerApiError, getRecentConversations } from "@/lib/manager-api"
 import type { ManagerRecentConversationsResponse } from "@/lib/manager-api.types"
+import { decodeManagerMessagePayload } from "@/lib/manager-message-payload"
 
 type ConversationQuery = {
   uid: string
@@ -53,21 +54,6 @@ function mapErrorKind(error: Error | null) {
   return "error" as const
 }
 
-function decodePayload(value: string) {
-  if (!value) {
-    return ""
-  }
-  try {
-    const binary = atob(value)
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-    const decoded = new TextDecoder().decode(bytes)
-    const printable = /^[\x09\x0A\x0D\x20-\x7E]*$/.test(decoded)
-    return printable ? decoded : value
-  } catch {
-    return value
-  }
-}
-
 function formatTimestamp(timestamp: number) {
   if (!timestamp) {
     return "-"
@@ -77,7 +63,7 @@ function formatTimestamp(timestamp: number) {
 
 function firstPreview(page: ManagerRecentConversationsResponse["items"][number]) {
   const message = page.recent_messages[0]
-  return message ? decodePayload(message.payload) || "-" : "-"
+  return message ? decodeManagerMessagePayload(message.payload) || "-" : "-"
 }
 
 function messagesHref(channelId: string, channelType: number) {
