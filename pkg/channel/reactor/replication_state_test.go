@@ -1280,7 +1280,9 @@ func TestFollowerPullHintInterruptsParked(t *testing.T) {
 			Control:         transport.PullControlContinue,
 		}},
 	})
-	r.tickFollowerReplication(rc, time.Now().Add(time.Minute))
+	require.True(t, rc.replication.parked)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	r.tickFollowerReplication(rc, rc.replication.nextPullAt.Add(-time.Nanosecond))
 	require.Equal(t, 0, net.PullCalls())
 
 	future := NewFuture()

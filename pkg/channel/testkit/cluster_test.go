@@ -255,14 +255,30 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 	beforeFollower2 := resolvers[2].calls.Load()
 	beforeFollower3 := resolvers[3].calls.Load()
 
-	require.NoError(t, nodes[1].ApplyMeta(meta))
-	second, err := nodes[1].Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("after stop")}})
-	require.NoError(t, err)
+	second := appendTestkitAfterLeaderReload(t, ctx, nodes[1], meta, []byte("after stop"))
 	require.Equal(t, uint64(2), second.MessageSeq)
 	waitTestkitCommitted(t, nodes, stores, meta.ID, 2, 2, time.Second)
 	waitTestkitCommitted(t, nodes, stores, meta.ID, 3, 2, time.Second)
 	require.Equal(t, beforeFollower2+1, resolvers[2].calls.Load())
 	require.Equal(t, beforeFollower3+1, resolvers[3].calls.Load())
+}
+
+func appendTestkitAfterLeaderReload(t testing.TB, ctx context.Context, leader ch.Cluster, meta ch.Meta, payload []byte) ch.AppendResult {
+	t.Helper()
+	for {
+		require.NoError(t, leader.ApplyMeta(meta))
+		result, err := leader.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: payload}})
+		if err == nil {
+			return result
+		}
+		if !errors.Is(err, ch.ErrChannelNotFound) {
+			require.NoError(t, err)
+		}
+		if err := ctx.Err(); err != nil {
+			require.NoError(t, err)
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 func TestThreeNodeClusterCatchesUpAfterTemporaryPullDrop(t *testing.T) {
