@@ -597,7 +597,7 @@ func TestClusterGetMessageEventStatesBatchReadsLeaderCacheFromFollower(t *testin
 	waitClusterReady(t, nodes...)
 
 	channelID := "message-event-remote-cache"
-	route := waitRouteKeyLeaderReady(t, nodes[0], channelID)
+	route := waitRouteKeyLeaderConverged(t, nodes, channelID)
 	follower := firstNonLeaderNode(t, nodes, route.Leader)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
