@@ -77,11 +77,8 @@ throughput-oriented configurations.
 Batching changes only the blocking dependency call. Workqueue chooses the
 collection window from the first accepted task. The worker then splits that
 window into compatible typed groups; incompatible or non-batchable items become
-single-task groups. Groups still run serially inside one workqueue handler call.
-Pull groups explicitly marked as returning newly durable follower progress run
-before unrelated groups in the same window; both priority classes preserve
-their original relative order. This only shortens AckOffset return queueing and
-does not add transport concurrency or change one-result-per-task fencing.
+single-task groups. Groups still run serially inside one workqueue handler call,
+so reactors observe one fenced completion per original task.
 
 ## Shutdown
 

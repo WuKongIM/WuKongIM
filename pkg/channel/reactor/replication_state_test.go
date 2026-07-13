@@ -170,7 +170,6 @@ func TestFollowerParkedCountUpdatesWhenRecordsArrive(t *testing.T) {
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	require.False(t, r.followerPullTask(rc).ReturnsDurableProgress)
 	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
 	r.observeFollowerParkedCount(r.countParkedFollowers())
 	require.Equal(t, 1, obs.FollowerParked())
@@ -2250,9 +2249,6 @@ func TestFollowerReplicationStageMetricsTrackHintPullApplyAndAckReturn(t *testin
 	r.handleRPCPullResult(pullResult)
 	applyResult := sink.awaitResultKind(t, worker.TaskStoreApply)
 	r.handleStoreApplyResult(applyResult)
-	durablePull := r.followerPullTask(rc)
-	require.True(t, durablePull.ReturnsDurableProgress)
-	require.Equal(t, uint64(1), durablePull.Request.AckOffset)
 
 	net.SetPullResponse(transport.PullResponse{
 		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, LeaderHW: 1, LeaderLEO: 1,

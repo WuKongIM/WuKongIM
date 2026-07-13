@@ -54,10 +54,18 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	}
 	opID := r.nextOpID()
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
-	pull := r.followerPullTask(rc)
-	req := pull.Request
+	req := transport.PullRequest{
+		ChannelKey:  rc.state.Key,
+		ChannelID:   rc.state.ID,
+		Epoch:       rc.state.Epoch,
+		LeaderEpoch: rc.state.LeaderEpoch,
+		Follower:    r.cfg.LocalNode,
+		NextOffset:  rc.state.LEO + 1,
+		AckOffset:   rc.state.LEO,
+		MaxBytes:    r.cfg.PullMaxBytes,
+	}
 	pullCtx, cancelPull := followerPullCancelContext()
-	if err := r.submitRPCPull(pullCtx, fence, pull); err != nil {
+	if err := r.submitRPCPull(pullCtx, rc.state.Leader, fence, req, r.followerPullRPCTimeout()); err != nil {
 		cancelPull()
 		if !rc.replication.hintedAt.IsZero() && req.NextOffset <= rc.replication.hintedLeaderLEO {
 			r.observeReplicationStage(replicationStagePullHintToSubmit, "err", now.Sub(rc.replication.hintedAt))
@@ -85,26 +93,6 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 		r.observeRecoveryProbe("submitted")
 	} else {
 		rc.replication.recoveryProbeInflight = false
-	}
-}
-
-// followerPullTask builds the exact worker payload for a loaded follower pull.
-func (r *Reactor) followerPullTask(rc *runtimeChannel) worker.RPCPullTask {
-	req := transport.PullRequest{
-		ChannelKey:  rc.state.Key,
-		ChannelID:   rc.state.ID,
-		Epoch:       rc.state.Epoch,
-		LeaderEpoch: rc.state.LeaderEpoch,
-		Follower:    r.cfg.LocalNode,
-		NextOffset:  rc.state.LEO + 1,
-		AckOffset:   rc.state.LEO,
-		MaxBytes:    r.cfg.PullMaxBytes,
-	}
-	return worker.RPCPullTask{
-		Node:                   rc.state.Leader,
-		ReturnsDurableProgress: rc.replication.ackReturnOffset > 0 && req.AckOffset >= rc.replication.ackReturnOffset,
-		Timeout:                r.followerPullRPCTimeout(),
-		Request:                req,
 	}
 }
 
@@ -362,7 +350,7 @@ func (r *Reactor) submitPendingMetaPull(rc *runtimeChannel, now time.Time) error
 			MaxBytes:    r.cfg.PullMaxBytes,
 			NeedMeta:    true,
 		}
-		if err := r.submitRPCPull(context.Background(), fence, worker.RPCPullTask{Node: pending.leader, Request: req}); err != nil {
+		if err := r.submitRPCPull(context.Background(), pending.leader, fence, req, 0); err != nil {
 			pending.lastError = err
 			if retryablePendingPullError(err) && pending.retryCount < 1 {
 				pending.retryCount++

@@ -17,7 +17,7 @@ func (p *Pool) taskGroups(items []queuedTask) [][]queuedTask {
 	first := items[0]
 	switch {
 	case p.canCollectRPCBatch(first.task):
-		return prioritizeDurableProgressRPCGroups(groupRPCBatchItems(items))
+		return groupRPCBatchItems(items)
 	case p.canCollectStoreAppendBatch(first.task):
 		return groupStoreBatchItems(items, TaskStoreAppend)
 	case p.canCollectStoreApplyBatch(first.task):
@@ -27,38 +27,6 @@ func (p *Pool) taskGroups(items []queuedTask) [][]queuedTask {
 	default:
 		return singleTaskGroups(items)
 	}
-}
-
-// prioritizeDurableProgressRPCGroups moves Pull groups carrying newly durable
-// follower progress ahead of unrelated RPC groups without adding concurrency.
-func prioritizeDurableProgressRPCGroups(groups [][]queuedTask) [][]queuedTask {
-	if len(groups) < 2 {
-		return groups
-	}
-	ordered := make([][]queuedTask, 0, len(groups))
-	for _, group := range groups {
-		if rpcGroupReturnsDurableProgress(group) {
-			ordered = append(ordered, group)
-		}
-	}
-	if len(ordered) == 0 || len(ordered) == len(groups) {
-		return groups
-	}
-	for _, group := range groups {
-		if !rpcGroupReturnsDurableProgress(group) {
-			ordered = append(ordered, group)
-		}
-	}
-	return ordered
-}
-
-func rpcGroupReturnsDurableProgress(group []queuedTask) bool {
-	for _, queued := range group {
-		if queued.task.Kind == TaskRPCPull && queued.task.RPCPull != nil && queued.task.RPCPull.ReturnsDurableProgress {
-			return true
-		}
-	}
-	return false
 }
 
 func (p *Pool) batchMaxWait(defaultWait time.Duration) time.Duration {

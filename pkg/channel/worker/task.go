@@ -151,8 +151,6 @@ type StoreRetentionTask struct {
 // RPCPullTask asks a remote leader for records.
 type RPCPullTask struct {
 	Node ch.NodeID
-	// ReturnsDurableProgress reports that this Pull carries a newly durable follower AckOffset needed by leader quorum waiters.
-	ReturnsDurableProgress bool
 	// Timeout bounds the transport call after a worker starts executing the task; queue wait is excluded.
 	Timeout time.Duration
 	Request transport.PullRequest

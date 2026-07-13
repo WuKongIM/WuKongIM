@@ -817,63 +817,6 @@ func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	require.Equal(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
 
-func TestPoolRunsDurableProgressPullGroupBeforeNormalRPCGroup(t *testing.T) {
-	sink := &captureSink{ch: make(chan Result, 2)}
-	tr := newBlockingPullTransport(1)
-	pool := &Pool{
-		cfg:  PoolConfig{Name: "rpc", Workers: 1, QueueSize: 2},
-		deps: Deps{Transport: tr},
-		sink: sink,
-		obs:  noopQueueObserver{},
-	}
-	items := []queuedTask{
-		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:normal", OpID: 1}, RPCPull: &RPCPullTask{Node: 1, Request: transport.PullRequest{ChannelKey: "1:normal", NextOffset: 1}}}},
-		{enqueuedAt: time.Now(), task: Task{Kind: TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:ack", OpID: 2}, RPCPull: &RPCPullTask{Node: 2, ReturnsDurableProgress: true, Request: transport.PullRequest{ChannelKey: "1:ack", NextOffset: 2, AckOffset: 1}}}},
-	}
-
-	done := make(chan error, 1)
-	go func() { done <- pool.runQueuedBatch(context.Background(), items) }()
-	select {
-	case result := <-sink.ch:
-		require.Equal(t, ch.OpID(2), result.Fence.OpID)
-	case <-time.After(time.Second):
-		tr.Release()
-		t.Fatal("durable-progress Pull stayed blocked behind a normal RPC group")
-	}
-
-	select {
-	case <-tr.Started():
-	case <-time.After(time.Second):
-		t.Fatal("normal Pull did not start after durable-progress completion")
-	}
-	tr.Release()
-	require.NoError(t, <-done)
-	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
-	require.Equal(t, []ch.OpID{2, 1}, resultOpIDs(sink.Results()))
-}
-
-func TestPrioritizeDurableProgressRPCGroupsIsStable(t *testing.T) {
-	group := func(opID ch.OpID, durable bool) []queuedTask {
-		return []queuedTask{{task: Task{
-			Kind:    TaskRPCPull,
-			Fence:   ch.Fence{ChannelKey: ch.ChannelKey("1:test"), OpID: opID},
-			RPCPull: &RPCPullTask{Node: ch.NodeID(opID), ReturnsDurableProgress: durable},
-		}}}
-	}
-	ordered := prioritizeDurableProgressRPCGroups([][]queuedTask{
-		group(1, false),
-		group(2, true),
-		group(3, false),
-		group(4, true),
-	})
-	require.Equal(t, []ch.OpID{2, 4, 1, 3}, []ch.OpID{
-		ordered[0][0].task.Fence.OpID,
-		ordered[1][0].task.Fence.OpID,
-		ordered[2][0].task.Fence.OpID,
-		ordered[3][0].task.Fence.OpID,
-	})
-}
-
 func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := &batchWorkerTransport{}
