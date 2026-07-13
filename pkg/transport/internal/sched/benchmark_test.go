@@ -80,3 +80,41 @@ func BenchmarkSchedulerMixedPriorityBatch(b *testing.B) {
 		b.SetBytes(processedBytes / int64(b.N))
 	}
 }
+
+func BenchmarkSchedulerObservedWaitBatchInto(b *testing.B) {
+	const batchFrames = 64
+	observer := &allocationObserver{}
+	scheduler := New(Config{
+		MaxItems:       batchFrames,
+		MaxBytes:       batchFrames * 128,
+		MaxBatchFrames: batchFrames,
+		MaxBatchBytes:  batchFrames * 128,
+		Observer:       observer,
+	})
+	items := make([]Item, batchFrames)
+	for i := range items {
+		items[i] = Item{Priority: core.PriorityRPC, Bytes: 128, Value: i}
+	}
+	batch := make([]Item, 0, batchFrames)
+	ctx := context.Background()
+
+	b.SetBytes(batchFrames * 128)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, item := range items {
+			if err := scheduler.Enqueue(ctx, item); err != nil {
+				b.Fatalf("Enqueue() error = %v", err)
+			}
+		}
+		var err error
+		batch, err = scheduler.WaitBatchInto(batch)
+		if err != nil {
+			b.Fatalf("WaitBatchInto() error = %v", err)
+		}
+		if len(batch) != batchFrames {
+			b.Fatalf("WaitBatchInto() len = %d, want %d", len(batch), batchFrames)
+		}
+		clear(batch)
+	}
+}

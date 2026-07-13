@@ -13,6 +13,7 @@ import (
 const (
 	defaultMaxBatchFrames = 64
 	defaultMaxBatchBytes  = 1 << 20
+	schedulerLaneCount    = 4
 )
 
 // Config bounds scheduler queue depth and write batch size.
@@ -184,9 +185,9 @@ func (s *Scheduler) NextBatch() []Item {
 		s.mu.Unlock()
 		return nil
 	}
-	batch, events := s.nextBatchLocked(nil, s.observer != nil)
+	batch, observation := s.nextBatchLocked(nil, s.observer != nil)
 	s.mu.Unlock()
-	s.observeAll(events)
+	s.observeBatch(batch, observation)
 	return batch
 }
 
@@ -201,9 +202,9 @@ func (s *Scheduler) WaitBatch() ([]Item, error) {
 		s.mu.Unlock()
 		return nil, s.stopErr
 	}
-	batch, events := s.nextBatchLocked(nil, s.observer != nil)
+	batch, observation := s.nextBatchLocked(nil, s.observer != nil)
 	s.mu.Unlock()
-	s.observeAll(events)
+	s.observeBatch(batch, observation)
 	return batch, nil
 }
 
@@ -221,9 +222,9 @@ func (s *Scheduler) WaitBatchInto(dst []Item) ([]Item, error) {
 		s.mu.Unlock()
 		return nil, s.stopErr
 	}
-	batch, events := s.nextBatchLocked(dst, s.observer != nil)
+	batch, observation := s.nextBatchLocked(dst, s.observer != nil)
 	s.mu.Unlock()
-	s.observeAll(events)
+	s.observeBatch(batch, observation)
 	return batch, nil
 }
 
@@ -253,7 +254,7 @@ func (s *Scheduler) Stop(err error) []Item {
 	return drained
 }
 
-func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, []core.Event) {
+func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, batchObservation) {
 	batch := dst[:0]
 	if batch == nil {
 		batchCap := s.maxBatchFrames
@@ -262,12 +263,8 @@ func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, []core.Ev
 		}
 		batch = make([]Item, 0, batchCap)
 	}
-	var events []core.Event
-	if observe {
-		events = make([]core.Event, 0, cap(batch)+len(s.lanes))
-	}
+	observation := batchObservation{enabled: observe}
 	var batchBytes int64
-	var touchedMask uint8
 
 	for len(batch) < s.maxBatchFrames && s.queuedItems > 0 {
 		s.openRoundLocked()
@@ -298,8 +295,7 @@ func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, []core.Ev
 		s.queuedBytes -= itemBytes
 		batch = append(batch, item)
 		if observe {
-			events = append(events, s.waitEventLocked(item, itemBytes))
-			touchedMask |= 1 << uint(laneIndex)
+			observation.touchedMask |= 1 << uint(laneIndex)
 		}
 		batchBytes += itemBytes
 		s.roundOutput = true
@@ -313,15 +309,17 @@ func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, []core.Ev
 	}
 
 	if observe {
+		observation.observedAt = time.Now()
+		observation.queuedItems = s.queuedItems
 		for i := range s.lanes {
-			if touchedMask&(1<<uint(i)) == 0 {
+			if observation.touchedMask&(1<<uint(i)) == 0 {
 				continue
 			}
-			events = append(events, s.queueEventLocked(s.lanes[i].priority, "ok"))
+			observation.laneSnapshots[i] = s.snapshotLaneQueueLocked(s.lanes[i].priority)
 		}
 	}
 
-	return batch, events
+	return batch, observation
 }
 
 func (s *Scheduler) openRoundLocked() {
@@ -432,6 +430,16 @@ type queueSnapshot struct {
 	bytesCapacity int64
 }
 
+// batchObservation preserves dequeue-time pressure state without allocating
+// one core.Event per item while the scheduler lock is held.
+type batchObservation struct {
+	enabled       bool
+	observedAt    time.Time
+	queuedItems   int
+	touchedMask   uint8
+	laneSnapshots [schedulerLaneCount]queueSnapshot
+}
+
 func (s *Scheduler) snapshotQueue() queueSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -469,38 +477,45 @@ func (s *Scheduler) snapshotLaneQueueLocked(priority core.Priority) queueSnapsho
 	return snapshot
 }
 
-func (s *Scheduler) waitEventLocked(item Item, itemBytes int64) core.Event {
-	duration := time.Duration(0)
-	if !item.enqueuedAt.IsZero() {
-		duration = time.Since(item.enqueuedAt)
-		if duration < 0 {
-			duration = 0
+func (s *Scheduler) observeBatch(batch []Item, observation batchObservation) {
+	if s.observer == nil || !observation.enabled {
+		return
+	}
+	for i, item := range batch {
+		duration := time.Duration(0)
+		if !item.enqueuedAt.IsZero() {
+			duration = observation.observedAt.Sub(item.enqueuedAt)
+			if duration < 0 {
+				duration = 0
+			}
 		}
+		s.observer.ObserveTransport(core.Event{
+			Name:          "scheduler_wait",
+			SourceID:      s.sourceID,
+			Priority:      item.Priority,
+			Result:        "ok",
+			Items:         observation.queuedItems + len(batch) - i - 1,
+			Capacity:      s.maxItems,
+			Bytes:         int(queueBytes(item)),
+			BytesCapacity: s.maxBytes,
+			Duration:      duration,
+		})
 	}
-	return core.Event{
-		Name:          "scheduler_wait",
-		SourceID:      s.sourceID,
-		Priority:      item.Priority,
-		Result:        "ok",
-		Items:         s.queuedItems,
-		Capacity:      s.maxItems,
-		Bytes:         int(itemBytes),
-		BytesCapacity: s.maxBytes,
-		Duration:      duration,
-	}
-}
-
-func (s *Scheduler) queueEventLocked(priority core.Priority, result string) core.Event {
-	snapshot := s.snapshotLaneQueueLocked(priority)
-	return core.Event{
-		Name:          "scheduler_queue",
-		SourceID:      s.sourceID,
-		Priority:      priority,
-		Result:        result,
-		Items:         snapshot.items,
-		Capacity:      snapshot.capacity,
-		Bytes:         int(snapshot.bytes),
-		BytesCapacity: snapshot.bytesCapacity,
+	for i := range s.lanes {
+		if observation.touchedMask&(1<<uint(i)) == 0 {
+			continue
+		}
+		snapshot := observation.laneSnapshots[i]
+		s.observer.ObserveTransport(core.Event{
+			Name:          "scheduler_queue",
+			SourceID:      s.sourceID,
+			Priority:      s.lanes[i].priority,
+			Result:        "ok",
+			Items:         snapshot.items,
+			Capacity:      snapshot.capacity,
+			Bytes:         int(snapshot.bytes),
+			BytesCapacity: snapshot.bytesCapacity,
+		})
 	}
 }
 

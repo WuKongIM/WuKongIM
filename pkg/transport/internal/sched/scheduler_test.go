@@ -15,6 +15,14 @@ type recordingObserver struct {
 	events []core.Event
 }
 
+type allocationObserver struct {
+	events int
+}
+
+func (o *allocationObserver) ObserveTransport(core.Event) {
+	o.events++
+}
+
 func (o *recordingObserver) ObserveTransport(event core.Event) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -185,6 +193,54 @@ func TestSchedulerQueueEventsUsePriorityLaneDepth(t *testing.T) {
 	}
 }
 
+func TestSchedulerBatchWaitObservationsPreserveQueueDepth(t *testing.T) {
+	observer := &recordingObserver{}
+	s := New(Config{
+		MaxItems:       8,
+		MaxBytes:       1024,
+		MaxBatchFrames: 3,
+		MaxBatchBytes:  1024,
+		Observer:       observer,
+	})
+	for i := 0; i < 4; i++ {
+		if err := s.Enqueue(context.Background(), Item{
+			Priority: core.PriorityRPC,
+			Bytes:    i + 1,
+			Value:    i,
+		}); err != nil {
+			t.Fatalf("Enqueue(%d) error = %v", i, err)
+		}
+	}
+
+	batch := s.NextBatch()
+	if len(batch) != 3 {
+		t.Fatalf("NextBatch() len = %d, want 3", len(batch))
+	}
+
+	events := observer.snapshot()
+	var waits []core.Event
+	for _, event := range events {
+		if event.Name == "scheduler_wait" {
+			waits = append(waits, event)
+		}
+	}
+	if len(waits) != 3 {
+		t.Fatalf("scheduler_wait event count = %d, want 3", len(waits))
+	}
+	for i, event := range waits {
+		if want := 3 - i; event.Items != want {
+			t.Fatalf("scheduler_wait[%d].Items = %d, want %d", i, event.Items, want)
+		}
+		if want := i + 1; event.Bytes != want {
+			t.Fatalf("scheduler_wait[%d].Bytes = %d, want %d", i, event.Bytes, want)
+		}
+	}
+	drainedQueueEvent := findLastEventByPriority(events, "scheduler_queue", "ok", core.PriorityRPC)
+	if drainedQueueEvent == nil || drainedQueueEvent.Items != 1 || drainedQueueEvent.Bytes != 4 {
+		t.Fatalf("post-batch scheduler_queue = %+v, want one queued item with four bytes", drainedQueueEvent)
+	}
+}
+
 func findEvent(events []core.Event, name, result string) *core.Event {
 	for i := range events {
 		if events[i].Name == name && events[i].Result == result {
@@ -307,6 +363,51 @@ func TestWaitBatchIntoReusesCallerStorage(t *testing.T) {
 	})
 	if allocs != 0 {
 		t.Fatalf("allocs per Enqueue+WaitBatchInto = %.2f, want 0", allocs)
+	}
+}
+
+func TestWaitBatchIntoWithObserverAvoidsEventAllocations(t *testing.T) {
+	observer := &allocationObserver{}
+	s := New(Config{
+		MaxItems:       1,
+		MaxBytes:       1024,
+		MaxBatchFrames: 1,
+		MaxBatchBytes:  1024,
+		Observer:       observer,
+	})
+	item := Item{Priority: core.PriorityRPC, Bytes: 128, Value: 1}
+	dst := make([]Item, 0, 1)
+
+	if err := s.Enqueue(context.Background(), item); err != nil {
+		t.Fatalf("warm-up Enqueue() error = %v", err)
+	}
+	batch, err := s.WaitBatchInto(dst)
+	if err != nil {
+		t.Fatalf("warm-up WaitBatchInto() error = %v", err)
+	}
+	if len(batch) != 1 {
+		t.Fatalf("warm-up WaitBatchInto() len = %d, want 1", len(batch))
+	}
+	dst = batch[:0]
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		if err := s.Enqueue(context.Background(), item); err != nil {
+			t.Fatalf("Enqueue() error = %v", err)
+		}
+		batch, err := s.WaitBatchInto(dst)
+		if err != nil {
+			t.Fatalf("WaitBatchInto() error = %v", err)
+		}
+		if len(batch) != 1 {
+			t.Fatalf("WaitBatchInto() len = %d, want 1", len(batch))
+		}
+		dst = batch[:0]
+	})
+	if allocs != 0 {
+		t.Fatalf("allocs per observed Enqueue+WaitBatchInto = %.2f, want 0", allocs)
+	}
+	if observer.events == 0 {
+		t.Fatal("observer did not receive scheduler events")
 	}
 }
 

@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,6 +32,51 @@ type RuntimePressureMetrics struct {
 	admissionTotal     *prometheus.CounterVec
 	waitDuration       *prometheus.HistogramVec
 	taskDuration       *prometheus.HistogramVec
+
+	// seriesMu protects cached Prometheus children after their normalized label sets are bound.
+	// The caches mirror MetricVec children and do not introduce additional label combinations.
+	seriesMu        sync.RWMutex
+	poolSeries      map[runtimePressurePoolKey]runtimePressurePoolSeries
+	queueSeries     map[runtimePressureQueueKey]runtimePressureQueueSeries
+	admissionSeries map[runtimePressureResultKey]prometheus.Counter
+	waitSeries      map[runtimePressureResultKey]prometheus.Observer
+	taskSeries      map[runtimePressureTaskKey]prometheus.Observer
+}
+
+type runtimePressurePoolKey struct {
+	component string
+	pool      string
+}
+
+type runtimePressureQueueKey struct {
+	component string
+	pool      string
+	queue     string
+	priority  string
+}
+
+type runtimePressureResultKey struct {
+	runtimePressureQueueKey
+	result string
+}
+
+type runtimePressureTaskKey struct {
+	component string
+	pool      string
+	task      string
+	result    string
+}
+
+type runtimePressurePoolSeries struct {
+	workers  prometheus.Gauge
+	inflight prometheus.Gauge
+}
+
+type runtimePressureQueueSeries struct {
+	depth         prometheus.Gauge
+	capacity      prometheus.Gauge
+	bytes         prometheus.Gauge
+	bytesCapacity prometheus.Gauge
 }
 
 func newRuntimePressureMetrics(registry prometheus.Registerer, labels prometheus.Labels) *RuntimePressureMetrics {
@@ -103,116 +149,243 @@ func (m *RuntimePressureMetrics) SetPoolWorkers(component, pool string, workers 
 	if m == nil || m.poolWorkers == nil {
 		return
 	}
-	m.poolWorkers.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-	).Set(float64(clampRuntimePressureInt(workers)))
+	series := m.boundPoolSeries(component, pool)
+	series.workers.Set(float64(clampRuntimePressureInt(workers)))
 }
 
 func (m *RuntimePressureMetrics) SetPoolInflight(component, pool string, inflight int) {
 	if m == nil || m.poolInflight == nil {
 		return
 	}
-	m.poolInflight.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-	).Set(float64(clampRuntimePressureInt(inflight)))
+	series := m.boundPoolSeries(component, pool)
+	series.inflight.Set(float64(clampRuntimePressureInt(inflight)))
 }
 
 func (m *RuntimePressureMetrics) SetQueue(component, pool, queue, priority string, obs RuntimePressureQueueObservation) {
 	if m == nil {
 		return
 	}
-	m.SetQueueDepth(component, pool, queue, priority, obs.Depth)
-	m.SetQueueCapacity(component, pool, queue, priority, obs.Capacity)
-	m.SetQueueBytes(component, pool, queue, priority, obs.Bytes)
-	m.SetQueueBytesCapacity(component, pool, queue, priority, obs.BytesCapacity)
+	series := m.boundQueueSeries(component, pool, queue, priority)
+	if series.depth != nil {
+		series.depth.Set(float64(clampRuntimePressureInt(obs.Depth)))
+	}
+	if series.capacity != nil {
+		series.capacity.Set(float64(clampRuntimePressureInt(obs.Capacity)))
+	}
+	if series.bytes != nil {
+		series.bytes.Set(float64(clampRuntimePressureInt64(obs.Bytes)))
+	}
+	if series.bytesCapacity != nil {
+		series.bytesCapacity.Set(float64(clampRuntimePressureInt64(obs.BytesCapacity)))
+	}
 }
 
 func (m *RuntimePressureMetrics) SetQueueDepth(component, pool, queue, priority string, depth int) {
 	if m == nil || m.queueDepth == nil {
 		return
 	}
-	m.queueDepth.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-		normalizeRuntimePressureLabel(queue),
-		normalizeRuntimePressurePriority(priority),
-	).Set(float64(clampRuntimePressureInt(depth)))
+	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.depth.Set(float64(clampRuntimePressureInt(depth)))
 }
 
 func (m *RuntimePressureMetrics) SetQueueCapacity(component, pool, queue, priority string, capacity int) {
 	if m == nil || m.queueCapacity == nil {
 		return
 	}
-	m.queueCapacity.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-		normalizeRuntimePressureLabel(queue),
-		normalizeRuntimePressurePriority(priority),
-	).Set(float64(clampRuntimePressureInt(capacity)))
+	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.capacity.Set(float64(clampRuntimePressureInt(capacity)))
 }
 
 func (m *RuntimePressureMetrics) SetQueueBytes(component, pool, queue, priority string, bytes int64) {
 	if m == nil || m.queueBytes == nil {
 		return
 	}
-	m.queueBytes.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-		normalizeRuntimePressureLabel(queue),
-		normalizeRuntimePressurePriority(priority),
-	).Set(float64(clampRuntimePressureInt64(bytes)))
+	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.bytes.Set(float64(clampRuntimePressureInt64(bytes)))
 }
 
 func (m *RuntimePressureMetrics) SetQueueBytesCapacity(component, pool, queue, priority string, capacity int64) {
 	if m == nil || m.queueBytesCapacity == nil {
 		return
 	}
-	m.queueBytesCapacity.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-		normalizeRuntimePressureLabel(queue),
-		normalizeRuntimePressurePriority(priority),
-	).Set(float64(clampRuntimePressureInt64(capacity)))
+	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.bytesCapacity.Set(float64(clampRuntimePressureInt64(capacity)))
 }
 
 func (m *RuntimePressureMetrics) ObserveAdmission(component, pool, queue, priority, result string) {
 	if m == nil || m.admissionTotal == nil {
 		return
 	}
-	m.admissionTotal.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-		normalizeRuntimePressureLabel(queue),
-		normalizeRuntimePressurePriority(priority),
-		NormalizeRuntimePressureResult(result),
-	).Inc()
+	m.boundAdmissionCounter(component, pool, queue, priority, result).Inc()
 }
 
 func (m *RuntimePressureMetrics) ObserveQueueWait(component, pool, queue, priority, result string, d time.Duration) {
 	if m == nil || m.waitDuration == nil {
 		return
 	}
-	m.waitDuration.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-		normalizeRuntimePressureLabel(queue),
-		normalizeRuntimePressurePriority(priority),
-		NormalizeRuntimePressureResult(result),
-	).Observe(clampRuntimePressureDuration(d).Seconds())
+	m.boundWaitObserver(component, pool, queue, priority, result).Observe(clampRuntimePressureDuration(d).Seconds())
 }
 
 func (m *RuntimePressureMetrics) ObserveTaskDuration(component, pool, task, result string, d time.Duration) {
 	if m == nil || m.taskDuration == nil {
 		return
 	}
-	m.taskDuration.WithLabelValues(
-		normalizeRuntimePressureLabel(component),
-		normalizeRuntimePressureLabel(pool),
-		normalizeRuntimePressureLabel(task),
-		NormalizeRuntimePressureResult(result),
-	).Observe(clampRuntimePressureDuration(d).Seconds())
+	m.boundTaskObserver(component, pool, task, result).Observe(clampRuntimePressureDuration(d).Seconds())
+}
+
+func (m *RuntimePressureMetrics) boundPoolSeries(component, pool string) runtimePressurePoolSeries {
+	key := runtimePressurePoolKey{
+		component: normalizeRuntimePressureLabel(component),
+		pool:      normalizeRuntimePressureLabel(pool),
+	}
+	m.seriesMu.RLock()
+	series, ok := m.poolSeries[key]
+	m.seriesMu.RUnlock()
+	if ok {
+		return series
+	}
+
+	m.seriesMu.Lock()
+	defer m.seriesMu.Unlock()
+	if series, ok = m.poolSeries[key]; ok {
+		return series
+	}
+	if m.poolWorkers != nil {
+		series.workers = m.poolWorkers.WithLabelValues(key.component, key.pool)
+	}
+	if m.poolInflight != nil {
+		series.inflight = m.poolInflight.WithLabelValues(key.component, key.pool)
+	}
+	if m.poolSeries == nil {
+		m.poolSeries = make(map[runtimePressurePoolKey]runtimePressurePoolSeries)
+	}
+	m.poolSeries[key] = series
+	return series
+}
+
+func (m *RuntimePressureMetrics) boundQueueSeries(component, pool, queue, priority string) runtimePressureQueueSeries {
+	key := runtimePressureQueueKey{
+		component: normalizeRuntimePressureLabel(component),
+		pool:      normalizeRuntimePressureLabel(pool),
+		queue:     normalizeRuntimePressureLabel(queue),
+		priority:  normalizeRuntimePressurePriority(priority),
+	}
+	m.seriesMu.RLock()
+	series, ok := m.queueSeries[key]
+	m.seriesMu.RUnlock()
+	if ok {
+		return series
+	}
+
+	m.seriesMu.Lock()
+	defer m.seriesMu.Unlock()
+	if series, ok = m.queueSeries[key]; ok {
+		return series
+	}
+	if m.queueDepth != nil {
+		series.depth = m.queueDepth.WithLabelValues(key.component, key.pool, key.queue, key.priority)
+	}
+	if m.queueCapacity != nil {
+		series.capacity = m.queueCapacity.WithLabelValues(key.component, key.pool, key.queue, key.priority)
+	}
+	if m.queueBytes != nil {
+		series.bytes = m.queueBytes.WithLabelValues(key.component, key.pool, key.queue, key.priority)
+	}
+	if m.queueBytesCapacity != nil {
+		series.bytesCapacity = m.queueBytesCapacity.WithLabelValues(key.component, key.pool, key.queue, key.priority)
+	}
+	if m.queueSeries == nil {
+		m.queueSeries = make(map[runtimePressureQueueKey]runtimePressureQueueSeries)
+	}
+	m.queueSeries[key] = series
+	return series
+}
+
+func (m *RuntimePressureMetrics) boundAdmissionCounter(component, pool, queue, priority, result string) prometheus.Counter {
+	key := runtimePressureResultKey{
+		runtimePressureQueueKey: runtimePressureQueueKey{
+			component: normalizeRuntimePressureLabel(component),
+			pool:      normalizeRuntimePressureLabel(pool),
+			queue:     normalizeRuntimePressureLabel(queue),
+			priority:  normalizeRuntimePressurePriority(priority),
+		},
+		result: NormalizeRuntimePressureResult(result),
+	}
+	m.seriesMu.RLock()
+	series, ok := m.admissionSeries[key]
+	m.seriesMu.RUnlock()
+	if ok {
+		return series
+	}
+
+	m.seriesMu.Lock()
+	defer m.seriesMu.Unlock()
+	if series, ok = m.admissionSeries[key]; ok {
+		return series
+	}
+	series = m.admissionTotal.WithLabelValues(key.component, key.pool, key.queue, key.priority, key.result)
+	if m.admissionSeries == nil {
+		m.admissionSeries = make(map[runtimePressureResultKey]prometheus.Counter)
+	}
+	m.admissionSeries[key] = series
+	return series
+}
+
+func (m *RuntimePressureMetrics) boundWaitObserver(component, pool, queue, priority, result string) prometheus.Observer {
+	key := runtimePressureResultKey{
+		runtimePressureQueueKey: runtimePressureQueueKey{
+			component: normalizeRuntimePressureLabel(component),
+			pool:      normalizeRuntimePressureLabel(pool),
+			queue:     normalizeRuntimePressureLabel(queue),
+			priority:  normalizeRuntimePressurePriority(priority),
+		},
+		result: NormalizeRuntimePressureResult(result),
+	}
+	m.seriesMu.RLock()
+	series, ok := m.waitSeries[key]
+	m.seriesMu.RUnlock()
+	if ok {
+		return series
+	}
+
+	m.seriesMu.Lock()
+	defer m.seriesMu.Unlock()
+	if series, ok = m.waitSeries[key]; ok {
+		return series
+	}
+	series = m.waitDuration.WithLabelValues(key.component, key.pool, key.queue, key.priority, key.result)
+	if m.waitSeries == nil {
+		m.waitSeries = make(map[runtimePressureResultKey]prometheus.Observer)
+	}
+	m.waitSeries[key] = series
+	return series
+}
+
+func (m *RuntimePressureMetrics) boundTaskObserver(component, pool, task, result string) prometheus.Observer {
+	key := runtimePressureTaskKey{
+		component: normalizeRuntimePressureLabel(component),
+		pool:      normalizeRuntimePressureLabel(pool),
+		task:      normalizeRuntimePressureLabel(task),
+		result:    NormalizeRuntimePressureResult(result),
+	}
+	m.seriesMu.RLock()
+	series, ok := m.taskSeries[key]
+	m.seriesMu.RUnlock()
+	if ok {
+		return series
+	}
+
+	m.seriesMu.Lock()
+	defer m.seriesMu.Unlock()
+	if series, ok = m.taskSeries[key]; ok {
+		return series
+	}
+	series = m.taskDuration.WithLabelValues(key.component, key.pool, key.task, key.result)
+	if m.taskSeries == nil {
+		m.taskSeries = make(map[runtimePressureTaskKey]prometheus.Observer)
+	}
+	m.taskSeries[key] = series
+	return series
 }
 
 // NormalizeRuntimePressureResult maps raw outcomes into the stable runtime pressure result label set.
