@@ -42,6 +42,7 @@ Options:
 
 This command creates only OIDC/RAM trust and GitHub configuration. It does not create billable cloud resources.
 Live diagnosis uses the local Codex CLI signed in with a ChatGPT subscription; no OpenAI API key is required.
+Missing tools use checksum-pinned, bounded, resumable downloads under the user cache.
 EOF
 }
 
@@ -94,35 +95,103 @@ machine_arch() {
   esac
 }
 
+sha256_file() {
+  local path="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$path" | awk '{print $1}'
+  else
+    fail "sha256sum or shasum is required"
+  fi
+}
+
 verify_sha256() {
   local path="$1"
   local expected="$2"
   local actual
-  if command -v sha256sum >/dev/null 2>&1; then
-    actual="$(sha256sum "$path" | awk '{print $1}')"
-  elif command -v shasum >/dev/null 2>&1; then
-    actual="$(shasum -a 256 "$path" | awk '{print $1}')"
-  else
-    fail "sha256sum or shasum is required"
+  actual="$(sha256_file "$path")"
+  if [[ "$actual" != "$expected" ]]; then
+    printf 'cloud-sim setup: checksum mismatch for %s\n' "$(basename "$path")" >&2
+    return 1
   fi
-  [[ "$actual" == "$expected" ]] || fail "checksum mismatch for $(basename "$path")"
+}
+
+download_with_resume() {
+  local label="$1"
+  local destination="$2"
+  local expected="$3"
+  shift 3
+  local partial="${destination}.part"
+  local url curl_status
+  mkdir -p "$(dirname "$destination")"
+  if [[ -f "$partial" && "$(sha256_file "$partial")" == "$expected" ]]; then
+    mv "$partial" "$destination"
+    return
+  fi
+  for url in "$@"; do
+    printf 'Downloading %s (resumable): %s\n' "$label" "$url"
+    curl_status=0
+    curl --fail --location --ipv4 --http1.1 \
+      --connect-timeout 8 --max-time 180 \
+      --speed-time 15 --speed-limit 1024 \
+      --retry 2 --retry-delay 1 --retry-max-time 90 \
+      --continue-at - --proto '=https' --tlsv1.2 \
+      "$url" --output "$partial" || curl_status=$?
+    if ((curl_status == 0)); then
+      mv "$partial" "$destination"
+      return
+    fi
+    if [[ -f "$partial" && "$(sha256_file "$partial")" == "$expected" ]]; then
+      mv "$partial" "$destination"
+      return
+    fi
+    if ((curl_status == 33)) && [[ -s "$partial" ]]; then
+      printf 'Server cannot resume %s; retrying this source from byte zero.\n' "$label" >&2
+      rm -f "$partial"
+      curl_status=0
+      curl --fail --location --ipv4 --http1.1 \
+        --connect-timeout 8 --max-time 180 \
+        --speed-time 15 --speed-limit 1024 \
+        --retry 2 --retry-delay 1 --retry-max-time 90 \
+        --continue-at - --proto '=https' --tlsv1.2 \
+        "$url" --output "$partial" || curl_status=$?
+      if ((curl_status == 0)); then
+        mv "$partial" "$destination"
+        return
+      fi
+    fi
+    printf 'Download source failed for %s (curl exit %d); trying the next trusted source.\n' \
+      "$label" "$curl_status" >&2
+  done
+  fail "cannot download $label within the bounded network window; partial data is retained at $partial for the next run"
 }
 
 ensure_go() {
   if command -v go >/dev/null 2>&1; then
     return
   fi
-  local arch archive expected cache
+  local arch archive expected cache download_cache downloaded_archive
   arch="$(machine_arch)"
   archive="go${GO_VERSION}.linux-${arch}.tar.gz"
   if [[ "$arch" == amd64 ]]; then expected="$GO_LINUX_AMD64_SHA256"; else expected="$GO_LINUX_ARM64_SHA256"; fi
   cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/go${GO_VERSION}"
   if [[ ! -x "$cache/go/bin/go" ]]; then
     mkdir -p "$cache"
-    curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
-      "https://go.dev/dl/${archive}" --output "$setup_temp/$archive"
-    verify_sha256 "$setup_temp/$archive" "$expected"
-    tar -xzf "$setup_temp/$archive" -C "$cache"
+    download_cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/downloads"
+    downloaded_archive="$download_cache/$archive"
+    if [[ -f "$downloaded_archive" ]]; then
+      if ! verify_sha256 "$downloaded_archive" "$expected"; then
+        rm -f "$downloaded_archive"
+      fi
+    fi
+    if [[ ! -f "$downloaded_archive" ]]; then
+      download_with_resume "Go $GO_VERSION" "$downloaded_archive" "$expected" \
+        "https://mirrors.aliyun.com/golang/${archive}" \
+        "https://go.dev/dl/${archive}"
+      verify_sha256 "$downloaded_archive" "$expected"
+    fi
+    tar -xzf "$downloaded_archive" -C "$cache"
   fi
   PATH="$cache/go/bin:$PATH"
   export PATH
@@ -132,18 +201,27 @@ ensure_gh() {
   if command -v gh >/dev/null 2>&1; then
     return
   fi
-  local arch archive expected cache extracted
+  local arch archive expected cache extracted download_cache downloaded_archive
   arch="$(machine_arch)"
   archive="gh_${GH_CLI_VERSION}_linux_${arch}.tar.gz"
   if [[ "$arch" == amd64 ]]; then expected="$GH_CLI_LINUX_AMD64_SHA256"; else expected="$GH_CLI_LINUX_ARM64_SHA256"; fi
   cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/gh-${GH_CLI_VERSION}"
   if [[ ! -x "$cache/bin/gh" ]]; then
     mkdir -p "$cache/bin"
-    curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
-      "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/${archive}" --output "$setup_temp/$archive"
-    verify_sha256 "$setup_temp/$archive" "$expected"
+    download_cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/downloads"
+    downloaded_archive="$download_cache/$archive"
+    if [[ -f "$downloaded_archive" ]]; then
+      if ! verify_sha256 "$downloaded_archive" "$expected"; then
+        rm -f "$downloaded_archive"
+      fi
+    fi
+    if [[ ! -f "$downloaded_archive" ]]; then
+      download_with_resume "GitHub CLI $GH_CLI_VERSION" "$downloaded_archive" "$expected" \
+        "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/${archive}"
+      verify_sha256 "$downloaded_archive" "$expected"
+    fi
     extracted="$setup_temp/gh_${GH_CLI_VERSION}_linux_${arch}"
-    tar -xzf "$setup_temp/$archive" -C "$setup_temp"
+    tar -xzf "$downloaded_archive" -C "$setup_temp"
     cp "$extracted/bin/gh" "$cache/bin/gh"
     chmod 0755 "$cache/bin/gh"
   fi

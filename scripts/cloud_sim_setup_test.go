@@ -1,12 +1,16 @@
 package scripts_test
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCloudSimulationSetupHelpDescribesOneCommandContract(t *testing.T) {
@@ -432,6 +436,111 @@ func TestCloudSimulationSetupPinsDownloadedToolchain(t *testing.T) {
 	}
 	if strings.Contains(string(script), "GO_VERSION:-") || strings.Contains(string(script), "GH_CLI_VERSION:-") {
 		t.Fatal("setup duplicates toolchain pin fallbacks instead of failing closed on toolchain.env")
+	}
+	if !strings.Contains(string(script), "https://mirrors.aliyun.com/golang/") {
+		t.Fatal("setup does not prefer the Alibaba Go mirror in Alibaba CloudShell")
+	}
+}
+
+func TestCloudSimulationSetupBoundsAndResumesGitHubCLIDownload(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	arch := runtime.GOARCH
+	if arch != "amd64" && arch != "arm64" {
+		t.Skipf("unsupported test architecture %s", arch)
+	}
+	archive := filepath.Join(temp, "fake-gh.tar.gz")
+	writeSetupTarGz(t, archive, "gh_2.96.0_linux_"+arch+"/bin/gh", []byte(`#!/usr/bin/env bash
+printf '%s\n' GH_FAKE_REACHED >&2
+exit 77
+`), 0o755)
+
+	callLog := filepath.Join(temp, "calls.log")
+	for _, command := range []string{"aliyun", "git", "jq", "go"} {
+		writeSetupExecutable(t, filepath.Join(bin, command), "#!/usr/bin/env bash\nexit 0\n")
+	}
+	writeSetupExecutable(t, filepath.Join(bin, "sha256sum"), `#!/usr/bin/env bash
+case "$1" in
+  *linux_amd64.tar.gz*) printf '%s  %s\n' 83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60 "$1" ;;
+  *linux_arm64.tar.gz*) printf '%s  %s\n' 06f86ec7103d41993b76cd78072f43595c34aaa56506d971d9860e67140bf909 "$1" ;;
+  *) printf '%064d  %s\n' 0 "$1" ;;
+esac
+`)
+	writeSetupExecutable(t, filepath.Join(bin, "curl"), `#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\n' "$*" >>"$WK_SETUP_CALL_LOG"
+for required in '--ipv4' '--http1.1' '--connect-timeout 8' '--speed-time 15' '--speed-limit 1024' '--retry-max-time 90' '--continue-at -'; do
+  if [[ " $* " != *" $required "* ]]; then
+    printf 'missing bounded download option: %s\n' "$required" >&2
+    exit 28
+  fi
+done
+output=""
+while (($#)); do
+  if [[ "$1" == --output ]]; then output="$2"; break; fi
+  shift
+done
+test -n "$output"
+cp "$WK_SETUP_FAKE_GH_ARCHIVE" "$output"
+exit 28
+`)
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"), "--yes")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+":/usr/bin:/bin",
+		"WK_SETUP_CALL_LOG="+callLog,
+		"WK_SETUP_FAKE_GH_ARCHIVE="+archive,
+		"XDG_CACHE_HOME="+filepath.Join(temp, "cache"),
+	)
+	started := time.Now()
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "GH_FAKE_REACHED") {
+		t.Fatalf("setup did not reach the checksum-verified fake gh after a bounded download: %v\n%s", err, output)
+	}
+	if elapsed := time.Since(started); elapsed > 3*time.Second {
+		t.Fatalf("bounded download harness took %s", elapsed)
+	}
+	calls, readErr := os.ReadFile(callLog)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	callText := string(calls)
+	if !strings.Contains(callText, "github.com/cli/cli/releases/download") {
+		t.Fatalf("setup did not use the pinned GitHub CLI release: %s", calls)
+	}
+	if !strings.Contains(callText, filepath.Join(temp, "cache", "wukongim-cloud-sim", "downloads")) {
+		t.Fatalf("setup did not retain the resumable download under the user cache: %s", calls)
+	}
+}
+
+func writeSetupTarGz(t *testing.T, path, name string, content []byte, mode int64) {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gzipWriter := gzip.NewWriter(file)
+	tarWriter := tar.NewWriter(gzipWriter)
+	if err := tarWriter.WriteHeader(&tar.Header{Name: name, Mode: mode, Size: int64(len(content))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tarWriter.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

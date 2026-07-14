@@ -36,7 +36,11 @@ non-billable RAM/OIDC plan. It:
   `stress` capacity class after checking every compatible candidate until the
   class has three choices or the inventory is exhausted;
 - installs checksum-pinned Go and GitHub CLI binaries in the user's cache only
-  when those commands are absent;
+  when those commands are absent; downloads are IPv4/HTTP 1.1, low-speed and
+  time bounded, resumable across reruns, and retained under
+  `${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/downloads/`; missing Go
+  prefers the Alibaba Golang mirror before the official fallback, while GitHub
+  CLI remains pinned to its official GitHub Release;
 - applies and re-plans the existing `wkcloudbootstrap` authority;
 - creates missing GitHub Environments without overwriting protection rules on
   existing Environments;
@@ -57,6 +61,12 @@ Codex CLI authenticated with the operator's ChatGPT subscription. The selected
 SKU list is a setup recommendation, not a capacity promise: Provision still
 performs the authoritative live price, capacity, quota, and hard-cost checks
 before creating resources.
+
+If the GitHub Release CDN is unreachable even after the bounded retries,
+download the exact printed `gh_<version>_linux_<arch>.tar.gz` URL on another
+machine, upload that unchanged file with the CloudShell upload button, move it
+to the printed `.../wukongim-cloud-sim/downloads/` cache path, and rerun the
+same setup command. The pinned SHA-256 is still verified before extraction.
 
 ### Manual fallback
 
