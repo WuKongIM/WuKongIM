@@ -89,7 +89,13 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 	if !strings.Contains(cleanup, `cron: "*/15 * * * *"`) || !strings.Contains(cleanup, "ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN") || !strings.Contains(cleanup, "environment: cloud-sim-cleanup") {
 		t.Fatal("cleanup workflow lacks periodic provisioner-backed reconciliation")
 	}
-	for _, required := range []string{"actions: write", `include_claim_keys:["repo","context","job_workflow_ref"]`, ".use_default == false"} {
+	for _, required := range []string{
+		"actions: write", `include_claim_keys:["repo","context","job_workflow_ref"]`, ".use_default == false",
+		"verify-alibaba:", "environment: cloud-sim-analysis", "id-token: write",
+		"run-name: Cloud Simulation OIDC Verification", "verification_id:",
+		"aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
+		"ALIBABA_CLOUD_ACCESS_KEY_ID", "ALIBABA_CLOUD_SECURITY_TOKEN",
+	} {
 		if !strings.Contains(oidcSubject, required) {
 			t.Fatalf("OIDC subject workflow missing %q", required)
 		}

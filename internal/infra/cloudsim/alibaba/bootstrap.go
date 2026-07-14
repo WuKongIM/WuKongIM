@@ -237,6 +237,7 @@ func DesiredBootstrapState(config BootstrapConfig) (BootstrapState, error) {
 	provisionWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-sim-provision.yml@%s", config.Repository, branchRef)
 	cleanupWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-sim-cleanup.yml@%s", config.Repository, branchRef)
 	analysisWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-sim-analyze.yml@%s", config.Repository, branchRef)
+	oidcVerificationWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-sim-oidc-subject.yml@%s", config.Repository, branchRef)
 	provisionTrust, err := trustPolicy(providerARN, config.OIDCAudience, []string{
 		customGitHubSubject(config.Repository, config.ProvisionEnvironment, provisionWorkflowRef),
 		customGitHubSubject(config.Repository, config.CleanupEnvironment, cleanupWorkflowRef),
@@ -246,6 +247,7 @@ func DesiredBootstrapState(config BootstrapConfig) (BootstrapState, error) {
 	}
 	analysisTrust, err := trustPolicy(providerARN, config.OIDCAudience, []string{
 		customGitHubSubject(config.Repository, config.AnalysisEnvironment, analysisWorkflowRef),
+		customGitHubSubject(config.Repository, config.AnalysisEnvironment, oidcVerificationWorkflowRef),
 	})
 	if err != nil {
 		return BootstrapState{}, err
@@ -267,8 +269,8 @@ func DesiredBootstrapState(config BootstrapConfig) (BootstrapState, error) {
 		},
 		ProvisionerRole:   RoleSpec{Name: config.ProvisionerRoleName, ARN: provisionerARN, TrustPolicy: provisionTrust},
 		AnalyzerRole:      RoleSpec{Name: config.AnalyzerRoleName, ARN: analyzerARN, TrustPolicy: analysisTrust},
-		ProvisionerPolicy: PolicySpec{Name: "wukongim-cloud-sim-provisioner", Document: provisionDocument, AttachedRole: config.ProvisionerRoleName},
-		AnalyzerPolicy:    PolicySpec{Name: "wukongim-cloud-sim-analyzer", Document: analysisDocument, AttachedRole: config.AnalyzerRoleName},
+		ProvisionerPolicy: PolicySpec{Name: config.ProvisionerRoleName, Document: provisionDocument, AttachedRole: config.ProvisionerRoleName},
+		AnalyzerPolicy:    PolicySpec{Name: config.AnalyzerRoleName, Document: analysisDocument, AttachedRole: config.AnalyzerRoleName},
 	}, nil
 }
 

@@ -241,6 +241,20 @@ supports `plan`, `apply`, and `remove` and creates only:
 - trust-policy conditions for repository, default branch, workflow path,
   protected Environment, and expected audience.
 
+The preferred operator interface is `scripts/cloud-sim/setup.sh`. It discovers
+the caller account, live region list, audited x86 public image family, candidate
+zone, and every compatible entry in the paginated x86 non-GPU spot inventory;
+delegates RAM authority to
+`wkcloudbootstrap`; configures the GitHub Environments, Variables, Secrets, and
+OIDC subject; reads back the non-secret state and secret names; and dispatches
+a live GitHub OIDC-to-Alibaba identity-exchange check correlated to that exact
+setup dispatch. Provider, role, and
+policy names are deterministically scoped to the repository, and existing
+Environment protection rules are preserved. An Environment read error other
+than a confirmed HTTP 404 aborts rather than creating or replacing it. The
+wizard never creates Simulation Run infrastructure, and the Provision Adapter
+remains the authority for live price, quota, capacity, and cost admission.
+
 The Provisioner role has distinct trust statements for the approved provision
 Environment/workflow and the unattended cleanup Environment/workflow; one
 subject cannot authorize the other path.
@@ -625,6 +639,12 @@ No phase advances until the previous phase proves resource cleanup.
     manual destruction.
 12. Tencent Cloud work does not begin until the Alibaba Cloud lifecycle,
     analysis, remediation, and cleanup drills are green.
+13. A new operator can finish account and repository bootstrap through one
+    CloudShell command without copying an AccessKey, cloud account number, or
+    plaintext OpenAI key into GitHub configuration.
+14. Bootstrap completes only after written GitHub configuration is read back
+    and a fresh workflow proves GitHub OIDC can assume the Alibaba Analyzer
+    Role with short-lived credentials.
 
 ## Decision Records
 

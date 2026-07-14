@@ -1,7 +1,14 @@
 name: Cloud Simulation - Configure OIDC Subject
+run-name: Cloud Simulation OIDC Verification ${{ inputs.verification_id || github.run_id }}
 
 on:
   workflow_dispatch:
+    inputs:
+      verification_id:
+        description: Optional setup correlation identifier
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -35,4 +42,35 @@ jobs:
             echo
             echo '- Bound claims: `repo`, `context`, `job_workflow_ref`'
             echo '- Alibaba RAM can now authorize only the exact Environment and workflow path encoded in `oidc:sub`.'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  verify-alibaba:
+    name: Verify GitHub OIDC can assume the Alibaba analyzer role
+    needs: configure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: cloud-sim-analysis
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Exchange GitHub OIDC for short-lived Alibaba credentials
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-sim-setup-${{ github.run_id }}
+      - name: Verify short-lived credentials were exported
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ALIBABA_CLOUD_ACCESS_KEY_ID:-}"
+          test -n "${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}"
+          test -n "${ALIBABA_CLOUD_SECURITY_TOKEN:-}"
+          {
+            echo '## Alibaba OIDC connectivity'
+            echo
+            echo '- GitHub exchanged its job OIDC token for short-lived Alibaba analyzer credentials.'
+            echo '- No long-lived Alibaba access key is stored in GitHub.'
           } >>"$GITHUB_STEP_SUMMARY"

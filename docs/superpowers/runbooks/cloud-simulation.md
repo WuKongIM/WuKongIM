@@ -11,6 +11,55 @@ already has an Alibaba identity, so the repository CLI can use the default
 credential chain without printing or exporting an AccessKey. Ordinary GitHub
 workflows cannot create their own OIDC trust before this step exists.
 
+### Recommended one-command setup
+
+Push the Cloud Simulation workflows to the repository's remote `main`, open
+Alibaba CloudShell, and run:
+
+```bash
+git clone https://github.com/WuKongIM/WuKongIM.git
+cd WuKongIM
+./scripts/cloud-sim/setup.sh
+```
+
+The wizard uses the current CloudShell identity and a one-time GitHub browser
+login. It recommends the current CloudShell profile region from the live ECS
+region list, then asks only for one confirmation of the
+non-billable RAM/OIDC plan, and a hidden budget-limited OpenAI API key. It:
+
+- discovers the current Alibaba account without copying it to GitHub;
+- derives repository-scoped OIDC Provider and RAM Role names so two repositories
+  in one Alibaba account cannot overwrite each other's trust;
+- selects a zone with ESSD support, the latest standard x86 Alibaba Cloud Linux
+  3 image in the audited image family, and up to three currently available,
+  paginated x86 non-GPU spot candidates for each `small`, `standard`, and
+  `stress` capacity class after checking every compatible candidate until the
+  class has three choices or the inventory is exhausted;
+- installs checksum-pinned Go and GitHub CLI binaries in the user's cache only
+  when those commands are absent;
+- applies and re-plans the existing `wkcloudbootstrap` authority;
+- creates missing GitHub Environments without overwriting protection rules on
+  existing Environments;
+- sets and reads back repository and Environment Variables, writes the OpenAI
+  key separately to analysis and remediation and verifies both secret names,
+  configures the exact OIDC subject, then dispatches and waits for a workflow
+  correlated by a unique setup identifier that proves GitHub OIDC can exchange
+  for short-lived Alibaba credentials.
+
+No ECS instance, disk, EIP, security group, vSwitch, or VPC is created. The
+wizard saves its non-secret removal configuration with mode `0600` under
+`${XDG_CONFIG_HOME:-$HOME/.config}/wukongim/cloud-sim/<owner_repo>/` and prints
+the exact Provision Workflow URL and recommended first-canary inputs. It is
+safe to rerun after a partial failure.
+
+Use `--region`, `--repository`, or `--yes` only when their values are already
+reviewed. `--openai-key-stdin` exists for controlled automation; interactive
+use keeps the key hidden. The selected SKU list is a setup recommendation, not
+a capacity promise: Provision still performs the authoritative live price,
+capacity, quota, and hard-cost checks before creating resources.
+
+### Manual fallback
+
 From Alibaba CloudShell:
 
 ```bash
@@ -41,16 +90,20 @@ VPC, ECS instance, disk, EIP, or security group. The Provisioner role has two
 independent trust statements: `cloud-sim-provision.yml` on `main` in the
 `cloud-sim-provision` Environment, and `cloud-sim-cleanup.yml` on `main` in the
 `cloud-sim-cleanup` Environment. The Analyzer trust accepts only
-`cloud-sim-analyze.yml` on `main` in `cloud-sim-analysis`. Configure required
+`cloud-sim-analyze.yml` and the one-time `cloud-sim-oidc-subject.yml`
+connectivity check on `main` in `cloud-sim-analysis`. Configure required
 reviewers on billable creation if desired, but never put a required reviewer on
 `cloud-sim-cleanup`; its 15-minute lease reconciliation must remain unattended.
 
 Alibaba RAM accepts only the OIDC `iss`, `aud`, and `sub` condition keys. After
-the RAM apply succeeds, manually dispatch `Cloud Simulation - Configure OIDC
-Subject` once from `main`. It idempotently configures the repository subject as
-`repo + context + job_workflow_ref` and verifies the result, allowing each RAM
-`oidc:sub` to bind the exact repository, Environment, workflow file, and main
-branch. Do not run Provision, Analyze, or Cleanup until this workflow is green.
+the manual RAM apply succeeds, manually dispatch `Cloud Simulation - Configure
+OIDC Subject` once from `main` and wait for both jobs to pass. The one-command
+setup performs the same API mutation, dispatch, and live identity exchange
+automatically. Both paths configure the repository
+subject as `repo + context + job_workflow_ref`, allowing each RAM `oidc:sub` to
+bind the exact repository, Environment, workflow file, and main branch. Do not
+run Provision, Analyze, or Cleanup until one of these verification paths is
+green.
 
 Set these non-secret repository or Environment Variables from the output:
 
@@ -73,6 +126,9 @@ Bootstrap removal is protected:
 ```bash
 GOWORK=off go run ./cmd/wkcloudbootstrap --config bootstrap.json remove
 ```
+
+For one-command setup, use the saved `bootstrap.json` path printed by the
+wizard instead of the manual path above.
 
 Removal refuses while any tagged Simulation Run is active. Run it only when
 the Cleanup Workflow proves no remaining run inventory.

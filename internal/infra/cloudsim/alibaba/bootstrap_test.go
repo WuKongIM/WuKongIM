@@ -62,9 +62,27 @@ func TestBootstrapPoliciesSeparateProvisioningAndAnalysis(t *testing.T) {
 	assertContains(t, desired.ProvisionerRole.TrustPolicy, "repo:WuKongIM/WuKongIM:environment:cloud-sim-provision:job_workflow_ref:WuKongIM/WuKongIM/.github/workflows/cloud-sim-provision.yml@refs/heads/main")
 	assertContains(t, desired.ProvisionerRole.TrustPolicy, "repo:WuKongIM/WuKongIM:environment:cloud-sim-cleanup:job_workflow_ref:WuKongIM/WuKongIM/.github/workflows/cloud-sim-cleanup.yml@refs/heads/main")
 	assertContains(t, desired.AnalyzerRole.TrustPolicy, "repo:WuKongIM/WuKongIM:environment:cloud-sim-analysis:job_workflow_ref:WuKongIM/WuKongIM/.github/workflows/cloud-sim-analyze.yml@refs/heads/main")
+	assertContains(t, desired.AnalyzerRole.TrustPolicy, "repo:WuKongIM/WuKongIM:environment:cloud-sim-analysis:job_workflow_ref:WuKongIM/WuKongIM/.github/workflows/cloud-sim-oidc-subject.yml@refs/heads/main")
 	assertNotContains(t, desired.ProvisionerRole.TrustPolicy, "oidc:job_workflow_ref")
 	assertNotContains(t, desired.ProvisionerRole.TrustPolicy, "oidc:ref")
 	assertContains(t, desired.AnalyzerRole.TrustPolicy, "wukongim-cloud-sim")
+}
+
+func TestBootstrapPoliciesUseRepositoryScopedRoleNames(t *testing.T) {
+	config := testBootstrapConfig()
+	config.ProvisionerRoleName = "wukongim-cloud-sim-provisioner-92324335"
+	config.AnalyzerRoleName = "wukongim-cloud-sim-analyzer-92324335"
+
+	desired, err := DesiredBootstrapState(config)
+	if err != nil {
+		t.Fatalf("DesiredBootstrapState() error = %v", err)
+	}
+	if desired.ProvisionerPolicy.Name != config.ProvisionerRoleName {
+		t.Fatalf("provisioner policy name = %q, want %q", desired.ProvisionerPolicy.Name, config.ProvisionerRoleName)
+	}
+	if desired.AnalyzerPolicy.Name != config.AnalyzerRoleName {
+		t.Fatalf("analyzer policy name = %q, want %q", desired.AnalyzerPolicy.Name, config.AnalyzerRoleName)
+	}
 }
 
 func TestBootstrapRemoveRefusesWhileActiveRunsExist(t *testing.T) {
