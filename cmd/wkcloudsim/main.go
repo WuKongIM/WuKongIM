@@ -82,6 +82,9 @@ func newRootCommand(stdout, stderr io.Writer, now func() time.Time) *cobra.Comma
 	}
 	root.AddCommand(
 		newScenarioDigestCommand(stdout),
+		newDiscoverConfigCommand(stdout, &providerName, func(region string) (cloudsimalibaba.ConfigDiscoveryAPI, error) {
+			return cloudsimalibaba.NewOpenAPIFromEnvironment(region)
+		}),
 		newCreateCommand(stdout, control),
 		newStatusCommand(stdout, control),
 		newTransitionCommand(stdout, control),
@@ -94,6 +97,34 @@ func newRootCommand(stdout, stderr io.Writer, now func() time.Time) *cobra.Comma
 		newSweepCommand(stdout, control),
 	)
 	return root
+}
+
+type configDiscoveryFactory func(string) (cloudsimalibaba.ConfigDiscoveryAPI, error)
+
+func newDiscoverConfigCommand(stdout io.Writer, providerName *string, factory configDiscoveryFactory) *cobra.Command {
+	var region string
+	command := &cobra.Command{
+		Use:   "discover-config",
+		Short: "Discover a non-secret Alibaba provider config from live inventory",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if providerName == nil || *providerName != cloudsimalibaba.ProviderName {
+				return errors.New("discover-config requires --provider alibaba")
+			}
+			api, err := factory(region)
+			if err != nil {
+				return err
+			}
+			config, err := cloudsimalibaba.DiscoverConfig(cmd.Context(), api, region)
+			if err != nil {
+				return err
+			}
+			return writeJSON(stdout, config)
+		},
+	}
+	command.Flags().StringVar(&region, "region", "", "Alibaba region used for live inventory discovery")
+	_ = command.MarkFlagRequired("region")
+	return command
 }
 
 func newScenarioDigestCommand(stdout io.Writer) *cobra.Command {

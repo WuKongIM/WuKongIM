@@ -1,17 +1,52 @@
 # Cloud Simulation Operations Runbook
 
 This runbook operates the Alibaba-first cloud simulation system. It creates no
-OSS bucket, image registry, long-lived AccessKey, or historical Evidence
-Bundle. A released run is no longer analyzable.
+OSS bucket, image registry, or historical Evidence Bundle. AccessKey mode reads
+an operator-created RAM AccessKey only from GitHub Repository Secrets; OIDC
+mode stores no cloud AccessKey. A released run is no longer analyzable.
 
-## 1. One-time CloudShell bootstrap
+## 1. Choose cloud authentication
+
+### Simplest setup: GitHub AccessKey Secrets
+
+Create an AccessKey for a dedicated Alibaba RAM user with the Cloud Simulation
+provisioner permissions. Do not use an Alibaba root-account AccessKey unless
+there is no safer temporary canary option. In the GitHub repository, open
+`Settings -> Secrets and variables -> Actions` and create exactly these two
+Repository Secrets:
+
+```text
+ALIBABA_CLOUD_ACCESS_KEY_ID
+ALIBABA_CLOUD_ACCESS_KEY_SECRET
+```
+
+Both values must exist together. A partial pair fails before the workflow calls
+Alibaba. Never paste either value into a workflow input, source file, issue,
+Artifact, or Codex conversation.
+
+No CloudShell, OIDC Provider, RAM Role, provider-config Variable, cloud account
+number, or OpenAI API key is required in this mode. Provision defaults to
+`cn-hangzhou` and the current remote `main`; both remain explicit Action inputs
+when an override is needed. Before creating any billable resource it discovers
+the authenticated account hash, an ESSD-capable zone, the newest audited x86
+Alibaba Cloud Linux 3 image, and live candidates for all three infrastructure
+presets. The resulting non-secret `provider.json` is retained for 90 days in a
+Run-Identity-scoped Artifact so Analysis and Cleanup use the same account and
+region binding.
+
+Keep both Secrets until Cleanup proves the run is `released` with zero residual
+resources. Deleting them earlier prevents AccessKey-mode scheduled cleanup from
+authenticating. Rotate or delete the RAM AccessKey after the final real-cloud
+drill if this repository will not keep using AccessKey mode.
+
+### Hardened alternative: one-time CloudShell OIDC bootstrap
 
 CloudShell is used only to establish the first trust edge. The browser session
 already has an Alibaba identity, so the repository CLI can use the default
 credential chain without printing or exporting an AccessKey. Ordinary GitHub
 workflows cannot create their own OIDC trust before this step exists.
 
-### Recommended one-command setup
+#### Recommended one-command setup
 
 Push the Cloud Simulation workflows to the repository's remote `main`, open
 Alibaba CloudShell, and run:
@@ -68,7 +103,7 @@ machine, upload that unchanged file with the CloudShell upload button, move it
 to the printed `.../wukongim-cloud-sim/downloads/` cache path, and rerun the
 same setup command. The pinned SHA-256 is still verified before extraction.
 
-### Manual fallback
+#### Manual fallback
 
 From Alibaba CloudShell:
 
@@ -145,16 +180,19 @@ the Cleanup Workflow proves no remaining run inventory.
 ## 2. Provision a run
 
 Dispatch `Cloud Simulation - Provision` from `main`. The source SHA must be a
-40-character commit reachable from `origin/main`. Select a reviewed
+40-character commit reachable from `origin/main` when explicitly supplied; an
+empty value selects the current remote `main`. Select a reviewed
 `cloud-small`, `cloud-standard`, or `cloud-stress` scenario, a compatible
 infrastructure preset, `2h`, `24h`, or `48h` active duration, bounded analysis
 grace, and a hard CNY cost ceiling.
 
-The build job has no cloud identity. The protected provision job obtains a
-short-lived OIDC credential, quotes live price/capacity/quota, creates exactly
-four spot hosts and their run network, transfers one sealed bundle through a
-temporary simulator-only SSH `/32`, and starts `wkbench-run.service` only after
-the complete three-node/256-slot gate passes. The run generates separate
+The build job has no cloud identity. The protected provision job uses the
+complete AccessKey Secret pair when configured, otherwise it obtains a
+short-lived OIDC credential. It quotes live price/capacity/quota, creates
+exactly four spot hosts and their run network, transfers one sealed bundle
+through a temporary simulator-only SSH `/32`, and starts
+`wkbench-run.service` only after the complete three-node/256-slot gate passes.
+The run generates separate
 Manager diagnostic, Manager JWT, Bench API, and Worker Control capabilities;
 the Bench capability is required on every node `/bench/v1/*` request. Keep the
 Run Identity printed in the summary; there is no `latest` alias.
@@ -189,7 +227,7 @@ Then run analysis from a local checkout whose remote points to this repository:
 The local command dispatches `Cloud Simulation - Analysis Session` as a
 short-lived session broker. The workflow first resolves the unique 90-day Run
 Locator and compares it to current Alibaba inventory. Before empty inventory
-can mean `released`, STS verifies the current OIDC caller's Alibaba account hash
+can mean `released`, STS verifies the current Alibaba caller's account hash
 and the adapter verifies the exact region against the locator; stale or
 cross-account configuration fails closed.
 

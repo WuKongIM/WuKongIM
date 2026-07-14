@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	cloudsimalibaba "github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/alibaba"
 	cloudsim "github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
 )
 
@@ -105,4 +107,55 @@ func TestCLIScenarioDigest(t *testing.T) {
 	if code != 0 || !strings.Contains(stdout.String(), `"digest": "sha256:`) {
 		t.Fatalf("scenario-digest code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
+}
+
+func TestCLIDiscoverAlibabaConfig(t *testing.T) {
+	provider := "alibaba"
+	api := cliDiscoveryStub{}
+	var stdout bytes.Buffer
+	command := newDiscoverConfigCommand(&stdout, &provider, func(region string) (cloudsimalibaba.ConfigDiscoveryAPI, error) {
+		if region != "cn-hangzhou" {
+			t.Fatalf("factory region = %q", region)
+		}
+		return api, nil
+	})
+	command.SetArgs([]string{"--region", "cn-hangzhou"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("discover-config: %v", err)
+	}
+	var config cloudsimalibaba.Config
+	if err := json.Unmarshal(stdout.Bytes(), &config); err != nil {
+		t.Fatalf("decode config: %v\n%s", err, stdout.String())
+	}
+	if config.Region != "cn-hangzhou" || config.ZoneID != "cn-hangzhou-a" || config.AccountIDHash != "sha256:account" {
+		t.Fatalf("config = %#v", config)
+	}
+	if got := config.Presets[cloudsim.PresetStress].InstanceTypes; len(got) != 1 || got[0] != "ecs.g8i.2xlarge" {
+		t.Fatalf("stress preset = %v", got)
+	}
+}
+
+type cliDiscoveryStub struct{}
+
+func (cliDiscoveryStub) AccountIDHash(context.Context) (string, error) {
+	return "sha256:account", nil
+}
+
+func (cliDiscoveryStub) EligibleSpotZones(context.Context, string) ([]string, error) {
+	return []string{"cn-hangzhou-a"}, nil
+}
+
+func (cliDiscoveryStub) LatestLinuxImage(context.Context, string) (string, error) {
+	return "aliyun-linux-3-x86_64", nil
+}
+
+func (cliDiscoveryStub) InstanceTypes(_ context.Context, _ string, cpu, _ int32) ([]cloudsimalibaba.InstanceTypeCandidate, error) {
+	instanceType := map[int32]string{2: "ecs.g8i.large", 4: "ecs.g8i.xlarge", 8: "ecs.g8i.2xlarge"}[cpu]
+	return []cloudsimalibaba.InstanceTypeCandidate{{
+		ID: instanceType, CPUArchitecture: "X86", FamilyLevel: "EnterpriseLevel", PrivateIPv4Capacity: 8,
+	}}, nil
+}
+
+func (cliDiscoveryStub) InstanceTypeAvailable(context.Context, string, string, string) (bool, error) {
+	return true, nil
 }

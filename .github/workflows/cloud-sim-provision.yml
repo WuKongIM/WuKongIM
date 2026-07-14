@@ -4,12 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: Alibaba Cloud region matching the audited provider config
+        description: Alibaba Cloud region; provider config is discovered automatically
         required: true
+        default: cn-hangzhou
         type: string
       source_sha:
-        description: Exact commit reachable from trusted main
-        required: true
+        description: Optional exact commit reachable from trusted main; empty uses current main
+        required: false
+        default: ""
         type: string
       scenario:
         description: Reviewed wkbench scenario profile
@@ -55,15 +57,15 @@ jobs:
     timeout-minutes: 20
     outputs:
       run_id: ${{ steps.identity.outputs.run_id }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
       bundle_digest: ${{ steps.bundle.outputs.bundle_digest }}
       scenario_digest: ${{ steps.bundle.outputs.scenario_digest }}
     env:
       GOWORK: "off"
-      SOURCE_SHA: ${{ inputs.source_sha }}
+      REQUESTED_SOURCE_SHA: ${{ inputs.source_sha }}
       SCENARIO_NAME: ${{ inputs.scenario }}
       ACTIVE_DURATION: ${{ inputs.duration }}
       ALIBABA_REGION: ${{ inputs.region }}
-      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -75,15 +77,22 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
       - name: Prove source is a trusted main revision
+        id: source
         shell: bash
         run: |
           set -euo pipefail
-          test "${#SOURCE_SHA}" -eq 40
           git fetch --no-tags origin main
-          git cat-file -e "${SOURCE_SHA}^{commit}"
-          git merge-base --is-ancestor "$SOURCE_SHA" origin/main
-          git checkout --detach "$SOURCE_SHA"
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          source_sha="$REQUESTED_SOURCE_SHA"
+          if [[ -z "$source_sha" ]]; then
+            source_sha="$(git rev-parse origin/main)"
+          fi
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "${source_sha}^{commit}"
+          git merge-base --is-ancestor "$source_sha" origin/main
+          git checkout --detach "$source_sha"
+          test "$(git rev-parse HEAD)" = "$source_sha"
+          echo "SOURCE_SHA=$source_sha" >>"$GITHUB_ENV"
+          echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
       - name: Derive run identity
         id: identity
         shell: bash
@@ -133,18 +142,15 @@ jobs:
           RUN_ID: ${{ steps.identity.outputs.run_id }}
         run: |
           set -euo pipefail
-          test -n "$PROVIDER_CONFIG_JSON"
-          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
-          test "$(jq -r .region provider.json)" = "$ALIBABA_REGION"
           scenario_path="docker/sim/${SCENARIO_NAME}.yaml"
           test -f "$scenario_path"
           source_scenario_digest="$(bundle/bin/wkcloudsim scenario-digest --scenario "$scenario_path" | jq -er .digest)"
           jq -n \
             --arg run_id "$RUN_ID" --arg source_sha "$SOURCE_SHA" --arg scenario_path "$scenario_path" \
             --arg scenario_digest "$source_scenario_digest" --arg duration "$ACTIVE_DURATION" \
-            --argjson private_ipv4 "$(jq -c .private_ipv4 provider.json)" \
-            --argjson simulator_source_ipv4 "$(jq -c .simulator_source_ipv4 provider.json)" \
-            '{run_id:$run_id,source_sha:$source_sha,scenario_path:$scenario_path,scenario_digest:$scenario_digest,duration:$duration,private_ipv4:$private_ipv4,simulator_source_ipv4:$simulator_source_ipv4}' \
+            '{run_id:$run_id,source_sha:$source_sha,scenario_path:$scenario_path,scenario_digest:$scenario_digest,duration:$duration,
+              private_ipv4:{"node-1":"10.42.0.11","node-2":"10.42.0.12","node-3":"10.42.0.13","sim":"10.42.0.20"},
+              simulator_source_ipv4:["10.42.0.20","10.42.0.21","10.42.0.22"]}' \
             >bundle-spec.json
           bundle/bin/wkcloudbundle render --root bundle --spec bundle-spec.json >bundle-manifest-output.json
           bundle_digest="$(jq -er .bundle_digest bundle-manifest-output.json)"
@@ -175,14 +181,13 @@ jobs:
       RUN_ID: ${{ needs.build.outputs.run_id }}
       BUNDLE_DIGEST: ${{ needs.build.outputs.bundle_digest }}
       SCENARIO_DIGEST: ${{ needs.build.outputs.scenario_digest }}
-      SOURCE_SHA: ${{ inputs.source_sha }}
-      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+      SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
       ALIBABA_REGION: ${{ inputs.region }}
       MAX_TOTAL_COST: ${{ inputs.max_total_cost }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ needs.build.outputs.source_sha }}
           persist-credentials: false
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -193,20 +198,64 @@ jobs:
         with:
           name: cloud-sim-bundle-${{ needs.build.outputs.run_id }}
           path: artifact
+      - name: Resolve Alibaba credential mode
+        id: alibaba_auth
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$ACCESS_KEY_ID" || -n "$ACCESS_KEY_SECRET" ]]; then
+            if [[ -z "$ACCESS_KEY_ID" || -z "$ACCESS_KEY_SECRET" ]]; then
+              echo 'Both ALIBABA_CLOUD_ACCESS_KEY_ID and ALIBABA_CLOUD_ACCESS_KEY_SECRET must be configured together.' >&2
+              exit 1
+            fi
+            [[ "$ACCESS_KEY_ID" != *$'\n'* && "$ACCESS_KEY_ID" != *$'\r'* ]]
+            [[ "$ACCESS_KEY_SECRET" != *$'\n'* && "$ACCESS_KEY_SECRET" != *$'\r'* ]]
+            echo "::add-mask::$ACCESS_KEY_ID"
+            echo "::add-mask::$ACCESS_KEY_SECRET"
+            printf 'ALIBABA_CLOUD_ACCESS_KEY_ID=%s\n' "$ACCESS_KEY_ID" >>"$GITHUB_ENV"
+            printf 'ALIBABA_CLOUD_ACCESS_KEY_SECRET=%s\n' "$ACCESS_KEY_SECRET" >>"$GITHUB_ENV"
+            echo 'mode=access-key' >>"$GITHUB_OUTPUT"
+          else
+            echo 'mode=oidc' >>"$GITHUB_OUTPUT"
+          fi
       - name: Obtain short-lived Alibaba provisioner identity
+        if: steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
         with:
           role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN }}
           oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN }}
           audience: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE }}
           role-session-name: wukongim-cloud-sim-provision-${{ github.run_id }}
+      - name: Discover current Alibaba provider config
+        shell: bash
+        env:
+          AUTH_MODE: ${{ steps.alibaba_auth.outputs.mode }}
+          LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+        run: |
+          set -euo pipefail
+          if [[ "$AUTH_MODE" == "oidc" && -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
+            printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >provider.json
+          else
+            go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
+            ./wkcloudsim --provider alibaba discover-config --region "$ALIBABA_REGION" >provider.json
+          fi
+          test "$(jq -er .region provider.json)" = "$ALIBABA_REGION"
+          jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' provider.json >/dev/null
+      - name: Persist provider config before creating billable resources
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-sim-provider-config-${{ needs.build.outputs.run_id }}
+          path: provider.json
+          retention-days: 90
+          if-no-files-found: error
       - name: Prepare run identity and capabilities
         id: prepare
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
-          test "$(jq -er .region provider.json)" = "$ALIBABA_REGION"
           mkdir -m 0700 bundle secrets secrets-node
           tar -xzf artifact/deployment-bundle.tar.gz -C bundle
           test "$(bundle/bin/wkcloudbundle verify --root bundle | jq -er .bundle_digest)" = "$BUNDLE_DIGEST"

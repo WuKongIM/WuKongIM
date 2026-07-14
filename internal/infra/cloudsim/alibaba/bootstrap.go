@@ -308,7 +308,7 @@ func permissionPolicy(actions []string) (string, error) {
 func provisionerActions() []string {
 	return []string{
 		"ecs:AssignPrivateIpAddresses", "ecs:AttachDisk", "ecs:AuthorizeSecurityGroup", "ecs:CreateDisk", "ecs:CreateSecurityGroup", "ecs:DeleteDisk", "ecs:DeleteInstance", "ecs:DeleteSecurityGroup",
-		"ecs:DescribeAccountAttributes", "ecs:DescribeAvailableResource", "ecs:DescribeDisks", "ecs:DescribeInstances", "ecs:DescribeInstanceTypes", "ecs:DescribePrice",
+		"ecs:DescribeAccountAttributes", "ecs:DescribeAvailableResource", "ecs:DescribeDisks", "ecs:DescribeImages", "ecs:DescribeInstances", "ecs:DescribeInstanceTypes", "ecs:DescribePrice", "ecs:DescribeZones",
 		"ecs:DescribeSecurityGroupAttribute", "ecs:DescribeSecurityGroups", "ecs:RevokeSecurityGroup", "ecs:RunInstances", "ecs:TagResources",
 		"vpc:AllocateEipAddress", "vpc:AssociateEipAddress", "vpc:CreateVSwitch", "vpc:CreateVpc", "vpc:DeleteVSwitch", "vpc:DeleteVpc",
 		"vpc:DescribeEipAddresses", "vpc:DescribeVSwitches", "vpc:DescribeVpcAttribute", "vpc:DescribeVpcs", "vpc:ReleaseEipAddress",

@@ -129,16 +129,20 @@ A random, run-scoped credential authorizing one narrow private interaction among
 _Avoid_: Administrator login, shared private token
 
 **Cloud Account Bootstrap**:
-The one-time, cloud-local creation of GitHub federation and least-privilege workflow roles before ordinary Actions can authenticate.
-_Avoid_: Simulation provisioning, AccessKey setup
+The optional one-time creation of GitHub federation and least-privilege workflow roles for hardened OIDC authentication.
+_Avoid_: Required AccessKey onboarding, Simulation provisioning
 
 **Cloud Provider Adapter**:
 The provider-specific lifecycle boundary for creating, discovering, admitting analysis access to, and releasing a Simulation Run.
 _Avoid_: Cloud script, provider branch
 
 **Cloud Account Binding**:
-The one-time trust relationship that lets approved GitHub workflows obtain short-lived, role-scoped cloud credentials for Simulation Runs.
-_Avoid_: Cloud account secret, access key
+The credential boundary that lets approved GitHub workflows call one cloud account, using either a complete AccessKey Secret pair or short-lived OIDC role credentials.
+_Avoid_: Cloud host credential, partial AccessKey pair
+
+**AccessKey Credential Mode**:
+The simple onboarding mode in which protected GitHub cloud jobs read one complete Alibaba AccessKey pair from Repository Secrets while provider configuration remains non-secret and run-scoped.
+_Avoid_: Source credential, host credential, analysis token
 
 **Run Lease**:
 The immutable cloud-side expiry and cleanup obligation attached to a Simulation Run when it is created.

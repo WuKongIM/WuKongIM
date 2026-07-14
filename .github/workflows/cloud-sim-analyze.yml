@@ -56,7 +56,6 @@ jobs:
       REQUEST_ID: ${{ inputs.request_id }}
       CLIENT_IPV4: ${{ inputs.client_ipv4 }}
       CLIENT_PUBLIC_KEY: ${{ inputs.client_public_key }}
-      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -97,11 +96,64 @@ jobs:
           test "$(jq -er .run_id locator/run-locator.json)" = "$RUN_ID"
           source_sha="$(jq -er '.source_sha | select(test("^[0-9a-f]{40}$"))' locator/run-locator.json)"
           scenario_digest="$(jq -er '.scenario_digest | select(test("^sha256:[0-9a-f]{64}$"))' locator/run-locator.json)"
+          region="$(jq -er '.region | select(test("^[a-z0-9-]+$"))' locator/run-locator.json)"
+          account_id_hash="$(jq -er '.account_id_hash | select(test("^sha256:[0-9a-f]{64}$"))' locator/run-locator.json)"
           echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
           echo "scenario_digest=$scenario_digest" >>"$GITHUB_OUTPUT"
+          echo "region=$region" >>"$GITHUB_OUTPUT"
+          echo "account_id_hash=$account_id_hash" >>"$GITHUB_OUTPUT"
           echo "state=found" >>"$GITHUB_OUTPUT"
-      - name: Obtain short-lived Alibaba analyzer identity
+      - name: Resolve exact retained provider config
         if: steps.locator.outputs.state == 'found'
+        shell: bash
+        env:
+          LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+          EXPECTED_REGION: ${{ steps.locator.outputs.region }}
+          EXPECTED_ACCOUNT_ID_HASH: ${{ steps.locator.outputs.account_id_hash }}
+        run: |
+          set -euo pipefail
+          artifact_name="cloud-sim-provider-config-${RUN_ID}"
+          artifacts="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$artifact_name" -f per_page=2)"
+          count="$(jq -r '.artifacts | length' <<<"$artifacts")"
+          if [[ "$count" == "1" ]]; then
+            artifact_id="$(jq -er '.artifacts[0].id' <<<"$artifacts")"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >provider-config.zip
+            mkdir provider-config
+            unzip -q provider-config.zip -d provider-config
+            cp provider-config/provider.json provider.json
+          elif [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
+            printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >provider.json
+          else
+            echo "No unique provider config exists for exact Simulation Run ${RUN_ID}." >&2
+            exit 1
+          fi
+          test "$(jq -er .region provider.json)" = "$EXPECTED_REGION"
+          test "$(jq -er .account_id_hash provider.json)" = "$EXPECTED_ACCOUNT_ID_HASH"
+      - name: Resolve Alibaba credential mode
+        id: alibaba_auth
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$ACCESS_KEY_ID" || -n "$ACCESS_KEY_SECRET" ]]; then
+            if [[ -z "$ACCESS_KEY_ID" || -z "$ACCESS_KEY_SECRET" ]]; then
+              echo 'Both ALIBABA_CLOUD_ACCESS_KEY_ID and ALIBABA_CLOUD_ACCESS_KEY_SECRET must be configured together.' >&2
+              exit 1
+            fi
+            [[ "$ACCESS_KEY_ID" != *$'\n'* && "$ACCESS_KEY_ID" != *$'\r'* ]]
+            [[ "$ACCESS_KEY_SECRET" != *$'\n'* && "$ACCESS_KEY_SECRET" != *$'\r'* ]]
+            echo "::add-mask::$ACCESS_KEY_ID"
+            echo "::add-mask::$ACCESS_KEY_SECRET"
+            printf 'ALIBABA_CLOUD_ACCESS_KEY_ID=%s\n' "$ACCESS_KEY_ID" >>"$GITHUB_ENV"
+            printf 'ALIBABA_CLOUD_ACCESS_KEY_SECRET=%s\n' "$ACCESS_KEY_SECRET" >>"$GITHUB_ENV"
+            echo 'mode=access-key' >>"$GITHUB_OUTPUT"
+          else
+            echo 'mode=oidc' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Obtain short-lived Alibaba analyzer identity
+        if: steps.locator.outputs.state == 'found' && steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
         with:
           role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN }}
@@ -114,7 +166,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
           go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
           if ! ./wkcloudsim --provider alibaba --provider-config provider.json preflight \
             --locator locator/run-locator.json >preflight.json; then
@@ -256,12 +307,13 @@ jobs:
     environment: cloud-sim-analysis
     permissions:
       contents: read
+      actions: read
       id-token: write
     env:
       GOWORK: "off"
       RUN_ID: ${{ inputs.run_id }}
       REQUEST_ID: ${{ inputs.request_id }}
-      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -278,7 +330,54 @@ jobs:
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
           [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{7,63}$ ]]
+      - name: Resolve exact retained provider config
+        shell: bash
+        env:
+          LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+        run: |
+          set -euo pipefail
+          artifact_name="cloud-sim-provider-config-${RUN_ID}"
+          artifacts="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$artifact_name" -f per_page=2)"
+          count="$(jq -r '.artifacts | length' <<<"$artifacts")"
+          if [[ "$count" == "1" ]]; then
+            artifact_id="$(jq -er '.artifacts[0].id' <<<"$artifacts")"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >provider-config.zip
+            mkdir provider-config
+            unzip -q provider-config.zip -d provider-config
+            cp provider-config/provider.json provider.json
+          elif [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
+            printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >provider.json
+          else
+            echo "No unique provider config exists for exact Simulation Run ${RUN_ID}." >&2
+            exit 1
+          fi
+          jq -e '.region | type == "string" and length > 0' provider.json >/dev/null
+          jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' provider.json >/dev/null
+      - name: Resolve Alibaba credential mode
+        id: alibaba_auth
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$ACCESS_KEY_ID" || -n "$ACCESS_KEY_SECRET" ]]; then
+            if [[ -z "$ACCESS_KEY_ID" || -z "$ACCESS_KEY_SECRET" ]]; then
+              echo 'Both ALIBABA_CLOUD_ACCESS_KEY_ID and ALIBABA_CLOUD_ACCESS_KEY_SECRET must be configured together.' >&2
+              exit 1
+            fi
+            [[ "$ACCESS_KEY_ID" != *$'\n'* && "$ACCESS_KEY_ID" != *$'\r'* ]]
+            [[ "$ACCESS_KEY_SECRET" != *$'\n'* && "$ACCESS_KEY_SECRET" != *$'\r'* ]]
+            echo "::add-mask::$ACCESS_KEY_ID"
+            echo "::add-mask::$ACCESS_KEY_SECRET"
+            printf 'ALIBABA_CLOUD_ACCESS_KEY_ID=%s\n' "$ACCESS_KEY_ID" >>"$GITHUB_ENV"
+            printf 'ALIBABA_CLOUD_ACCESS_KEY_SECRET=%s\n' "$ACCESS_KEY_SECRET" >>"$GITHUB_ENV"
+            echo 'mode=access-key' >>"$GITHUB_OUTPUT"
+          else
+            echo 'mode=oidc' >>"$GITHUB_OUTPUT"
+          fi
       - name: Obtain short-lived Alibaba analyzer identity
+        if: steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
         with:
           role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN }}
@@ -289,6 +388,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
           go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
           ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
