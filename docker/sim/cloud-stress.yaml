@@ -1,0 +1,97 @@
+version: wkbench/v1
+run:
+  id: cloud-stress
+  duration: 2h
+  warmup: 5m
+  cooldown: 2m
+  random_seed: 20260716
+  fail_fast: true
+  report_dir: /var/lib/wukongim-cloud/reports/cloud-stress
+limits:
+  fail_on_soft: true
+  hard:
+    max_worker_failed: 0
+    max_connect_error_rate: 0.001
+    max_sendack_error_rate: 0.001
+    max_recv_verify_error_rate: 0.001
+  soft:
+    max_sendack_p99: 750ms
+    max_recv_p99: 1500ms
+prepare:
+  concurrency: 512
+  rate_limit: 5000/s
+  retry:
+    max_attempts: 3
+    backoff: 200ms
+identity:
+  uid_prefix: cloud-stress-u
+  device_prefix: cloud-stress-d
+  client_msg_prefix: cloud-stress-msg
+  token:
+    mode: bench_api
+online:
+  total_users: 100000
+  connect_rate: 2500/s
+  gateway_balance: round_robin
+  reconnect:
+    enabled: true
+    backoff: 1s
+    max_attempts: 5
+  heartbeat:
+    enabled: true
+    interval: 30s
+    timeout: 5s
+channels:
+  profiles:
+    - name: person
+      channel_type: person
+      count: 50000
+      participants:
+        pick: round_robin
+      online:
+        sender_ratio: 1
+        recipient_ratio: 1
+      shard:
+        mode: hash
+      prepare:
+        subscribers_batch_size: 1000
+    - name: large-group
+      channel_type: group
+      count: 1000
+      members:
+        count: 10000
+        pick: round_robin
+        overlap: allowed
+      online:
+        member_ratio: 0.05
+      shard:
+        mode: hash
+      prepare:
+        subscribers_batch_size: 1000
+cleanup:
+  enabled: false
+messages:
+  payload:
+    size_bytes: 256
+    mode: deterministic
+  traffic:
+    - name: person-send
+      channel_ref: person
+      rate_per_channel: 0.02/s
+      concurrency: 2048
+      ack_timeout: 20s
+      sender_pick: round_robin
+      recv_ack: true
+      verify:
+        recv:
+          mode: sampled
+    - name: large-group-send
+      channel_ref: large-group
+      rate_per_channel: 0.2/s
+      concurrency: 2048
+      ack_timeout: 20s
+      sender_pick: round_robin
+      recv_ack: true
+      verify:
+        recv:
+          mode: sampled

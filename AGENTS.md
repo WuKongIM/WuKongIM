@@ -47,12 +47,18 @@
 
 ```text
 .github/
+  cloud-sim/              云模拟 bootstrap 示例、工具链版本与 Diagnosis JSON Schema
   workflows/              PR/main 快速门禁与 nightly/manual 重型验证
 
 cmd/
   wukongim/              官方产品入口，负责读取配置并启动 internal/app
   wkanalysis/            运行级 Analysis MCP 网关，提供有界日志、指标、诊断与 pprof 工具
-  wkcloudsim/            云模拟生命周期 CLI，Phase 1 使用持久化 fake provider
+  wkcloudbootstrap/      CloudShell 云账号 OIDC、RAM 角色与最小权限策略引导 CLI
+  wkcloudbundle/         云模拟不可变部署 Bundle 生成、封装与校验 CLI
+  wkcloudgate/           三节点集群 Bootstrap Gate 严格校验 CLI
+  wkcloudhost/           云主机数据盘、配置和 systemd 服务安装 CLI
+  wkcloudsim/            云模拟生命周期 CLI，支持 fake 与 Alibaba Provider
+  wkclouddiagnosis/      云模拟 Diagnosis Result 严格校验 CLI
   wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
@@ -81,7 +87,7 @@ internal/
     protocolmeta/        入口无关的协议枚举值合约
   infra/                 新架构外部运行时适配器
     cloudanalysis/       Analysis MCP 到 manager、Prometheus、pprof 与 run inventory 的适配
-    cloudsim/            云厂商生命周期适配器；Phase 1 提供持久化 fake provider
+    cloudsim/            云厂商生命周期适配器；提供 Alibaba、持久化 fake 与原生主机部署能力
     cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
   log/                   新架构应用日志配置与 zap/lumberjack 封装
   observability/         新架构节点内诊断事件、追踪采样与 sendtrace 辅助
@@ -151,6 +157,7 @@ docker/
   sim/                   可选 wkbench dev-sim 模拟器配置与使用说明
 
 scripts/                 仓库辅助脚本
+  cloud-sim/             临时云模拟部署门禁与演练辅助脚本
   wukongim/              wukongim 本地启动脚本使用的真实配置文件
 
 test/

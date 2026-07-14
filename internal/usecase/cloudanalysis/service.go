@@ -39,7 +39,8 @@ type Service struct {
 	sources          Sources
 
 	diagnosticMu       sync.Mutex
-	cpuProfileRunning  bool
+	profileRunning     bool
+	activeTraceUntil   time.Time
 	cpuProfileUsedSecs int
 }
 
@@ -113,6 +114,14 @@ func (s *Service) RunInspect(ctx context.Context, req RunRequest) (Observation, 
 func (s *Service) ClusterSnapshot(ctx context.Context, req RunRequest) (Observation, error) {
 	return s.read(ctx, req.RunID, func(callCtx context.Context) (SourceResult, error) {
 		return s.sources.ClusterSnapshot(callCtx)
+	})
+}
+
+// WorkloadInspect returns the simulator-local final wkbench summary without
+// exposing raw worker reports, logs, messages, files, or paths.
+func (s *Service) WorkloadInspect(ctx context.Context, req RunRequest) (Observation, error) {
+	return s.read(ctx, req.RunID, func(callCtx context.Context) (SourceResult, error) {
+		return s.sources.WorkloadInspect(callCtx, req.RunID)
 	})
 }
 
@@ -198,9 +207,32 @@ func (s *Service) TraceStart(ctx context.Context, req TraceStartRequest) (Observ
 	if !s.validNode(req.NodeID) || !validTraceTarget(req.Target) || !validSelector || req.TTL < time.Second || req.TTL > MaxTraceTTL {
 		return Observation{}, ErrInvalidToolInput
 	}
-	return s.read(ctx, req.RunID, func(callCtx context.Context) (SourceResult, error) {
-		return s.sources.TraceStart(callCtx, req)
-	})
+	if err := s.validateRunID(req.RunID); err != nil {
+		return Observation{}, err
+	}
+	if _, err := s.ensureLive(ctx); err != nil {
+		return Observation{}, err
+	}
+	reservedUntil := s.now().UTC().Add(req.TTL)
+	s.diagnosticMu.Lock()
+	if s.profileRunning || s.activeTraceUntil.After(s.now().UTC()) {
+		s.diagnosticMu.Unlock()
+		return Observation{}, ErrDiagnosticBusy
+	}
+	s.activeTraceUntil = reservedUntil
+	s.diagnosticMu.Unlock()
+	callCtx, cancel := context.WithTimeout(ctx, s.sourceTimeout)
+	defer cancel()
+	result, err := s.sources.TraceStart(callCtx, req)
+	if err != nil {
+		s.diagnosticMu.Lock()
+		if s.activeTraceUntil.Equal(reservedUntil) {
+			s.activeTraceUntil = time.Time{}
+		}
+		s.diagnosticMu.Unlock()
+		return Observation{}, err
+	}
+	return s.finish(result)
 }
 
 // TraceQuery returns bounded retained events for one exact diagnostics trace.
@@ -230,25 +262,25 @@ func (s *Service) ProfileCapture(ctx context.Context, req ProfileCaptureRequest)
 	if _, err := s.ensureLive(ctx); err != nil {
 		return Observation{}, err
 	}
+	s.diagnosticMu.Lock()
+	if s.profileRunning || s.activeTraceUntil.After(s.now().UTC()) {
+		s.diagnosticMu.Unlock()
+		return Observation{}, ErrDiagnosticBusy
+	}
 	if req.Kind == ProfileCPU {
-		s.diagnosticMu.Lock()
-		if s.cpuProfileRunning {
-			s.diagnosticMu.Unlock()
-			return Observation{}, ErrDiagnosticBusy
-		}
 		if s.cpuProfileUsedSecs+req.Seconds > MaxSessionCPUProfileSeconds {
 			s.diagnosticMu.Unlock()
 			return Observation{}, ErrDiagnosticBudgetExceeded
 		}
-		s.cpuProfileRunning = true
 		s.cpuProfileUsedSecs += req.Seconds
-		s.diagnosticMu.Unlock()
-		defer func() {
-			s.diagnosticMu.Lock()
-			s.cpuProfileRunning = false
-			s.diagnosticMu.Unlock()
-		}()
 	}
+	s.profileRunning = true
+	s.diagnosticMu.Unlock()
+	defer func() {
+		s.diagnosticMu.Lock()
+		s.profileRunning = false
+		s.diagnosticMu.Unlock()
+	}()
 	timeout := s.sourceTimeout
 	if req.Kind == ProfileCPU {
 		timeout += time.Duration(req.Seconds) * time.Second

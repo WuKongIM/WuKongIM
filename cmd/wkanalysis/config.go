@@ -28,6 +28,9 @@ var errInvalidAnalysisConfig = errors.New("cmd/wkanalysis: invalid config")
 
 type serveConfig struct {
 	listenAddr string
+	tlsCert    string
+	tlsKey     string
+	oidc       *githubOIDCConfig
 	gateway    app.CloudAnalysisGatewayConfig
 }
 
@@ -41,8 +44,9 @@ func loadServeConfig(getenv func(string) string, now func() time.Time) (serveCon
 	current := now().UTC()
 	runID := strings.TrimSpace(getenv("WK_ANALYSIS_RUN_ID"))
 	token := getenv("WK_ANALYSIS_MCP_TOKEN")
-	if runID == "" || len(token) < 32 {
-		return serveConfig{}, fmt.Errorf("%w: WK_ANALYSIS_RUN_ID and a 32-byte WK_ANALYSIS_MCP_TOKEN are required", errInvalidAnalysisConfig)
+	oidcConfig, err := loadGitHubOIDCConfig(getenv, runID)
+	if runID == "" || (oidcConfig == nil && len(token) < 32) {
+		return serveConfig{}, fmt.Errorf("%w: run identity and either GitHub OIDC or a 32-byte MCP token are required", errInvalidAnalysisConfig)
 	}
 	scenarioPath := strings.TrimSpace(getenv("WK_ANALYSIS_SCENARIO_PATH"))
 	if scenarioPath == "" {
@@ -97,13 +101,16 @@ func loadServeConfig(getenv func(string) string, now func() time.Time) (serveCon
 	if locator != nil && !runExpiresAt.Equal(locator.ExpiresAt) {
 		return serveConfig{}, fmt.Errorf("%w: Run Lease does not match the Run Locator", errInvalidAnalysisConfig)
 	}
-	defaultTokenExpiry := current.Add(45 * time.Minute)
-	if leaseBound := runExpiresAt.Add(-5 * time.Minute); leaseBound.Before(defaultTokenExpiry) {
-		defaultTokenExpiry = leaseBound
-	}
-	tokenExpiresAt, err := optionalTime(getenv("WK_ANALYSIS_TOKEN_EXPIRES_AT"), defaultTokenExpiry)
-	if err != nil || !tokenExpiresAt.After(current) || tokenExpiresAt.After(current.Add(45*time.Minute)) || tokenExpiresAt.After(runExpiresAt.Add(-5*time.Minute)) {
-		return serveConfig{}, fmt.Errorf("%w: WK_ANALYSIS_TOKEN_EXPIRES_AT exceeds the Analysis Session or Run Lease", errInvalidAnalysisConfig)
+	var tokenExpiresAt time.Time
+	if oidcConfig == nil {
+		defaultTokenExpiry := current.Add(45 * time.Minute)
+		if leaseBound := runExpiresAt.Add(-5 * time.Minute); leaseBound.Before(defaultTokenExpiry) {
+			defaultTokenExpiry = leaseBound
+		}
+		tokenExpiresAt, err = optionalTime(getenv("WK_ANALYSIS_TOKEN_EXPIRES_AT"), defaultTokenExpiry)
+		if err != nil || !tokenExpiresAt.After(current) || tokenExpiresAt.After(current.Add(45*time.Minute)) || tokenExpiresAt.After(runExpiresAt.Add(-5*time.Minute)) {
+			return serveConfig{}, fmt.Errorf("%w: WK_ANALYSIS_TOKEN_EXPIRES_AT exceeds the Analysis Session or Run Lease", errInvalidAnalysisConfig)
+		}
 	}
 	nodeURLs, err := parseNodeURLs(getenv("WK_ANALYSIS_NODE_API_URLS"))
 	if err != nil {
@@ -133,8 +140,14 @@ func loadServeConfig(getenv func(string) string, now func() time.Time) (serveCon
 		}
 		provider, region, sourceSHA = locator.Provider, locator.Region, locator.SourceSHA
 	}
+	tlsCert := strings.TrimSpace(getenv("WK_ANALYSIS_TLS_CERT_FILE"))
+	tlsKey := strings.TrimSpace(getenv("WK_ANALYSIS_TLS_KEY_FILE"))
+	if (tlsCert == "") != (tlsKey == "") || (oidcConfig != nil && tlsCert == "") {
+		return serveConfig{}, fmt.Errorf("%w: cloud OIDC requires a TLS certificate and key", errInvalidAnalysisConfig)
+	}
 	return serveConfig{
 		listenAddr: listenAddr,
+		tlsCert:    tlsCert, tlsKey: tlsKey, oidc: oidcConfig,
 		gateway: app.CloudAnalysisGatewayConfig{
 			RunID: runID, RunState: cloudanalysis.RunState(envDefault(getenv, "WK_ANALYSIS_RUN_STATE", "running")),
 			RunInventoryCount: inventoryCount, Provider: provider,
@@ -143,6 +156,7 @@ func loadServeConfig(getenv func(string) string, now func() time.Time) (serveCon
 			ManagerBaseURL: envDefault(getenv, "WK_ANALYSIS_MANAGER_BASE_URL", defaultManagerBaseURL), ManagerAuth: managerAuth,
 			PrometheusBaseURL: envDefault(getenv, "WK_ANALYSIS_PROMETHEUS_BASE_URL", defaultPrometheusBaseURL),
 			NodeAPIBaseURLs:   nodeURLs, MetricQueries: defaultMetricQueries(),
+			WorkloadReportDir: effectiveScenario.Run.ReportDir,
 			FakeInventoryPath: fakeInventoryPath, Now: now,
 		},
 	}, nil
@@ -190,18 +204,24 @@ func parseNodeURLs(raw string) (map[uint64]string, error) {
 
 func defaultMetricQueries() map[string]string {
 	return map[string]string{
-		"targets_up":                 `up`,
-		"send_rate":                  `sum(rate(wukongim_gateway_messages_received_total[1m]))`,
-		"deliver_rate":               `sum(rate(wukongim_gateway_messages_delivered_total[1m]))`,
-		"append_ok_rate":             `sum(rate(wukongim_message_append_total{result="ok"}[1m]))`,
-		"append_error_rate":          `sum(rate(wukongim_message_append_errors_total[1m])) by (path, class)`,
-		"gateway_queue_depth":        `sum(wukongim_gateway_async_send_queue_depth)`,
-		"runtime_queue_pressure":     `max(wukongim_runtime_pool_queue_depth / clamp_min(wukongim_runtime_pool_queue_capacity, 1))`,
-		"storage_commit_queue_depth": `sum(wukongim_storage_commit_queue_depth) by (store)`,
-		"delivery_retry_queue_depth": `sum(wukongim_delivery_retry_queue_depth)`,
-		"process_cpu_rate":           `sum by (instance) (rate(process_cpu_seconds_total[1m]))`,
-		"process_resident_memory":    `sum by (instance) (process_resident_memory_bytes)`,
-		"go_goroutines":              `sum by (instance) (go_goroutines)`,
+		"targets_up":                  `up`,
+		"send_rate":                   `sum(rate(wukongim_gateway_messages_received_total[1m]))`,
+		"deliver_rate":                `sum(rate(wukongim_gateway_messages_delivered_total[1m]))`,
+		"append_ok_rate":              `sum(rate(wukongim_message_append_total{result="ok"}[1m]))`,
+		"append_error_rate":           `sum(rate(wukongim_message_append_errors_total[1m])) by (path, class)`,
+		"gateway_queue_depth":         `sum(wukongim_gateway_async_send_queue_depth)`,
+		"runtime_queue_pressure":      `max(wukongim_runtime_pool_queue_depth / clamp_min(wukongim_runtime_pool_queue_capacity, 1))`,
+		"storage_commit_queue_depth":  `sum(wukongim_storage_commit_queue_depth) by (store)`,
+		"delivery_retry_queue_depth":  `sum(wukongim_delivery_retry_queue_depth)`,
+		"process_cpu_rate":            `sum by (instance) (rate(process_cpu_seconds_total[1m]))`,
+		"process_resident_memory":     `sum by (instance) (process_resident_memory_bytes)`,
+		"go_goroutines":               `sum by (instance) (go_goroutines)`,
+		"simulator_cpu_percent":       `100 * (1 - avg(rate(node_cpu_seconds_total{job="hosts",role="sim",mode="idle"}[1m])))`,
+		"simulator_memory_percent":    `100 * (1 - (node_memory_MemAvailable_bytes{job="hosts",role="sim"} / clamp_min(node_memory_MemTotal_bytes{job="hosts",role="sim"}, 1)))`,
+		"simulator_tcp_inuse":         `node_sockstat_TCP_inuse{job="hosts",role="sim"}`,
+		"simulator_tcp_time_wait":     `node_sockstat_TCP_tw{job="hosts",role="sim"}`,
+		"simulator_network_bytes":     `sum by (instance) (rate(node_network_receive_bytes_total{job="hosts",role="sim",device!~"lo"}[1m]) + rate(node_network_transmit_bytes_total{job="hosts",role="sim",device!~"lo"}[1m]))`,
+		"simulator_disk_used_percent": `100 * (1 - (node_filesystem_avail_bytes{job="hosts",role="sim",mountpoint="/var/lib/wukongim-cloud"} / clamp_min(node_filesystem_size_bytes{job="hosts",role="sim",mountpoint="/var/lib/wukongim-cloud"}, 1)))`,
 	}
 }
 

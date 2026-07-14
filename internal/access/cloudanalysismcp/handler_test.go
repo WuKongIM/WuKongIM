@@ -68,7 +68,7 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 	want := []string{
 		"cluster_snapshot", "config_read_redacted", "diagnostics_query", "logs_context", "logs_search",
 		"metrics_query_range", "profile_capture", "profile_list", "profile_top", "run_inspect",
-		"task_audits_query", "trace_query", "trace_start",
+		"task_audits_query", "trace_query", "trace_start", "workload_inspect",
 	}
 	sort.Strings(want)
 	if len(names) != len(want) {
@@ -135,6 +135,13 @@ type mcpSourcesStub struct {
 
 func (s mcpSourcesStub) InspectRun(context.Context, string) (analysis.RunInspection, error) {
 	return s.inspection, nil
+}
+
+func (mcpSourcesStub) WorkloadInspect(_ context.Context, runID string) (analysis.SourceResult, error) {
+	return analysis.SourceResult{
+		Node: "sim", Source: "wkbench_summary", Completeness: analysis.CompletenessComplete,
+		Data: analysis.WorkloadInspection{RunID: runID, State: "completed", Status: "passed"},
+	}, nil
 }
 
 func (mcpSourcesStub) ClusterSnapshot(context.Context) (analysis.SourceResult, error) {

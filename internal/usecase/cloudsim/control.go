@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 )
@@ -71,17 +72,70 @@ func (c *ControlPlane) Status(ctx context.Context, runID string) (Run, error) {
 	return c.provider.Status(ctx, runID)
 }
 
-// OpenAnalysis validates a single-host bounded ingress window before mutation.
-func (c *ControlPlane) OpenAnalysis(ctx context.Context, req OpenAnalysisRequest) (Run, error) {
+// Transition validates and persists one forward lifecycle state change.
+func (c *ControlPlane) Transition(ctx context.Context, req TransitionRequest) (Run, error) {
 	if c == nil || c.provider == nil || strings.TrimSpace(req.RunID) == "" {
-		return Run{}, ErrInvalidAnalysisWindow
+		return Run{}, ErrInvalidRequest
+	}
+	run, err := c.provider.Status(ctx, req.RunID)
+	if err != nil {
+		return Run{}, err
+	}
+	allowed := false
+	switch req.Next {
+	case StateReady:
+		allowed = run.State == StateProvisioning && req.ActiveUntil.IsZero()
+	case StateRunning:
+		allowed = run.State == StateReady && req.ActiveUntil.After(c.now().UTC()) && !req.ActiveUntil.After(run.ExpiresAt)
+	case StateAnalysisGrace:
+		allowed = (run.State == StateProvisioning || run.State == StateReady || run.State == StateRunning) && req.ActiveUntil.IsZero()
+	}
+	if !allowed {
+		return Run{}, ErrInvalidRequest
+	}
+	return c.provider.Transition(ctx, req)
+}
+
+// Preflight validates an immutable Run Locator against current provider inventory.
+// Only a valid locator plus provider-confirmed empty inventory is released.
+func (c *ControlPlane) Preflight(ctx context.Context, locator RunLocator) (PreflightResult, error) {
+	if c == nil || c.provider == nil || locator.Validate() != nil || locator.Provider != c.provider.Name() {
+		return PreflightResult{}, ErrInvalidRequest
+	}
+	authority, err := c.provider.Authority(ctx)
+	if err != nil {
+		return PreflightResult{}, err
+	}
+	if authority.Provider != locator.Provider || authority.Region != locator.Region || authority.AccountIDHash != locator.AccountIDHash {
+		return PreflightResult{}, ErrInvalidRequest
+	}
+	run, err := c.provider.Status(ctx, locator.RunID)
+	if errors.Is(err, ErrRunNotFound) {
+		return PreflightResult{State: PreflightReleased}, nil
+	}
+	if err != nil {
+		return PreflightResult{}, err
+	}
+	if run.State == StateReleased && len(run.Resources) == 0 {
+		return PreflightResult{State: PreflightReleased}, nil
+	}
+	if run.ID != locator.RunID || run.Provider != locator.Provider || run.Region != locator.Region ||
+		run.AccountIDHash != locator.AccountIDHash || run.Repository != locator.Repository ||
+		run.Tags[TagSourceSHA] != locator.SourceSHA || run.Tags[TagScenarioDigest] != locator.ScenarioDigest ||
+		!run.CreatedAt.Equal(locator.CreatedAt) || !run.ExpiresAt.Equal(locator.ExpiresAt) {
+		return PreflightResult{}, ErrInvalidRequest
+	}
+	return PreflightResult{State: PreflightLive, Run: &run}, nil
+}
+
+// OpenDeployment validates a single-host bounded SSH ingress window before mutation.
+func (c *ControlPlane) OpenDeployment(ctx context.Context, req OpenDeploymentRequest) (Run, error) {
+	if c == nil || c.provider == nil || strings.TrimSpace(req.RunID) == "" {
+		return Run{}, ErrInvalidDeploymentWindow
 	}
 	now := c.now()
-	if !req.SourcePrefix.IsValid() || !req.SourcePrefix.Addr().Is4() || req.SourcePrefix.Bits() != 32 || req.SourcePrefix != req.SourcePrefix.Masked() {
-		return Run{}, ErrInvalidAnalysisWindow
-	}
-	if !req.Until.After(now) || req.Until.After(now.Add(MaxAnalysisWindow)) {
-		return Run{}, ErrInvalidAnalysisWindow
+	if !validHostWindow(req.SourcePrefix, req.Until, now, MaxDeploymentWindow) {
+		return Run{}, ErrInvalidDeploymentWindow
 	}
 	run, err := c.provider.Status(ctx, req.RunID)
 	if err != nil {
@@ -90,10 +144,45 @@ func (c *ControlPlane) OpenAnalysis(ctx context.Context, req OpenAnalysisRequest
 	if run.State == StateReleased {
 		return Run{}, ErrRunReleased
 	}
+	if req.Until.After(run.ExpiresAt) {
+		return Run{}, ErrInvalidDeploymentWindow
+	}
+	return c.provider.OpenDeployment(ctx, req)
+}
+
+// CloseDeployment removes temporary simulator SSH ingress for one exact run.
+func (c *ControlPlane) CloseDeployment(ctx context.Context, runID string) (Run, error) {
+	if c == nil || c.provider == nil || strings.TrimSpace(runID) == "" {
+		return Run{}, ErrInvalidRequest
+	}
+	return c.provider.CloseDeployment(ctx, runID)
+}
+
+// OpenAnalysis validates a single-host bounded ingress window before mutation.
+func (c *ControlPlane) OpenAnalysis(ctx context.Context, req OpenAnalysisRequest) (Run, error) {
+	if c == nil || c.provider == nil || strings.TrimSpace(req.RunID) == "" {
+		return Run{}, ErrInvalidAnalysisWindow
+	}
+	now := c.now()
+	if !validHostWindow(req.SourcePrefix, req.Until, now, MaxAnalysisWindow) {
+		return Run{}, ErrInvalidAnalysisWindow
+	}
+	run, err := c.provider.Status(ctx, req.RunID)
+	if err != nil {
+		return Run{}, err
+	}
+	if run.State != StateRunning && run.State != StateAnalysisGrace && run.State != StateInfrastructureInterrupted {
+		return Run{}, ErrInvalidAnalysisWindow
+	}
 	if run.ExpiresAt.Sub(now) < MinAnalysisLeaseRemaining || req.Until.After(run.ExpiresAt) {
 		return Run{}, ErrInvalidAnalysisWindow
 	}
 	return c.provider.OpenAnalysis(ctx, req)
+}
+
+func validHostWindow(source netip.Prefix, until, now time.Time, maximum time.Duration) bool {
+	return source.IsValid() && source.Addr().Is4() && source.Bits() == 32 && source == source.Masked() &&
+		until.After(now) && !until.After(now.Add(maximum))
 }
 
 // CloseAnalysis removes temporary ingress for one exact run.
@@ -112,7 +201,10 @@ func (c *ControlPlane) Destroy(ctx context.Context, runID string) (Run, error) {
 	return c.provider.Destroy(ctx, runID)
 }
 
-// Sweep destroys every unreleased run whose immutable Run Lease expired.
+// Sweep closes stale temporary ingress on active runs and destroys every run
+// whose immutable Run Lease expired. Workflows serialize Sweep with deployment
+// and analysis so an active bounded access window is never closed underneath a
+// legitimate job.
 func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 	if c == nil || c.provider == nil {
 		return SweepResult{}, ErrInvalidRequest
@@ -125,7 +217,19 @@ func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 	errs := make([]error, 0)
 	now := c.now()
 	for _, run := range runs {
-		if run.State == StateReleased || run.ExpiresAt.IsZero() || run.ExpiresAt.After(now) {
+		if run.State == StateReleased || run.ExpiresAt.IsZero() {
+			continue
+		}
+		if run.ExpiresAt.After(now) {
+			if _, closeErr := c.provider.CloseDeployment(ctx, run.ID); closeErr != nil {
+				result.Failed = append(result.Failed, run.ID)
+				errs = append(errs, fmt.Errorf("close deployment ingress %s: %w", run.ID, closeErr))
+				continue
+			}
+			if _, closeErr := c.provider.CloseAnalysis(ctx, run.ID); closeErr != nil {
+				result.Failed = append(result.Failed, run.ID)
+				errs = append(errs, fmt.Errorf("close analysis ingress %s: %w", run.ID, closeErr))
+			}
 			continue
 		}
 		if _, destroyErr := c.provider.Destroy(ctx, run.ID); destroyErr != nil {

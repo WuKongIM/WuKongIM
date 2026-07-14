@@ -117,6 +117,39 @@ func TestServiceCPUProfileBudgetIsSessionScopedAndSerialized(t *testing.T) {
 	}
 }
 
+func TestServiceSerializesTraceAndProfileActiveDiagnostics(t *testing.T) {
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	sources := &sourceStub{inspection: RunInspection{RunID: "run-1", State: "running", InventoryCount: 12}}
+	service, err := New(Config{
+		RunID: "run-1", Nodes: []uint64{1, 2, 3}, Now: func() time.Time { return now },
+		MetricQueries: map[string]string{"send_rate": "sum(rate(wk_send[1m]))"},
+	}, sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.TraceStart(context.Background(), TraceStartRequest{
+		RunID: "run-1", NodeID: 1, Target: "sender_uid", UID: "u-1", TTL: time.Minute,
+	}); err != nil {
+		t.Fatalf("TraceStart() error = %v", err)
+	}
+	if _, err := service.TraceStart(context.Background(), TraceStartRequest{
+		RunID: "run-1", NodeID: 2, Target: "sender_uid", UID: "u-2", TTL: time.Minute,
+	}); !errors.Is(err, ErrDiagnosticBusy) {
+		t.Fatalf("second TraceStart() error = %v, want ErrDiagnosticBusy", err)
+	}
+	if _, err := service.ProfileCapture(context.Background(), ProfileCaptureRequest{
+		RunID: "run-1", NodeID: 2, Kind: ProfileHeap,
+	}); !errors.Is(err, ErrDiagnosticBusy) {
+		t.Fatalf("ProfileCapture(during trace) error = %v, want ErrDiagnosticBusy", err)
+	}
+	now = now.Add(time.Minute + time.Second)
+	if _, err := service.ProfileCapture(context.Background(), ProfileCaptureRequest{
+		RunID: "run-1", NodeID: 2, Kind: ProfileHeap,
+	}); err != nil {
+		t.Fatalf("ProfileCapture(after trace expiry) error = %v", err)
+	}
+}
+
 func TestServiceRejectsOversizedObservation(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	sources := &sourceStub{
@@ -177,6 +210,13 @@ func (s *sourceStub) InspectRun(context.Context, string) (RunInspection, error) 
 		inspection.Scenario = testScenarioInspection()
 	}
 	return inspection, nil
+}
+
+func (s *sourceStub) WorkloadInspect(_ context.Context, runID string) (SourceResult, error) {
+	return SourceResult{
+		Node: "sim", Source: "wkbench_summary", Completeness: CompletenessComplete,
+		Data: WorkloadInspection{RunID: runID, State: "completed", Status: "passed"},
+	}, nil
 }
 
 func testScenarioInspection() ScenarioInspection {

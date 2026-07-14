@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net"
@@ -214,8 +216,10 @@ type Options struct {
 	ListenAddr string
 	// Readyz reports whether the node is ready for benchmark traffic.
 	Readyz func(context.Context) (bool, any)
-	// BenchEnabled exposes unauthenticated /bench/v1/* routes for controlled benchmark runs.
+	// BenchEnabled exposes /bench/v1/* routes for controlled benchmark runs.
 	BenchEnabled bool
+	// BenchToken optionally requires an exact bearer capability on every /bench/v1/* route.
+	BenchToken string
 	// BenchMaxBatchSize limits top-level records accepted by one bench mutation request.
 	BenchMaxBatchSize int
 	// BenchMaxPayloadBytes limits bench mutation JSON request bodies in bytes.
@@ -276,6 +280,7 @@ type Server struct {
 	addr                     string
 	readyz                   func(context.Context) (bool, any)
 	benchEnabled             bool
+	benchToken               string
 	benchMaxBatchSize        int
 	benchMaxPayloadBytes     int64
 	gateway                  GatewayAddresses
@@ -317,6 +322,7 @@ func New(opts Options) *Server {
 		listenAddr:               strings.TrimSpace(opts.ListenAddr),
 		readyz:                   opts.Readyz,
 		benchEnabled:             opts.BenchEnabled,
+		benchToken:               strings.TrimSpace(opts.BenchToken),
 		benchMaxBatchSize:        opts.BenchMaxBatchSize,
 		benchMaxPayloadBytes:     opts.BenchMaxPayloadBytes,
 		gateway:                  opts.Gateway,
@@ -481,16 +487,31 @@ func (s *Server) registerRoutes() {
 	if !s.benchEnabled {
 		return
 	}
-	s.engine.GET("/bench/v1/capabilities", s.handleBenchCapabilities)
-	s.engine.GET("/bench/v1/capacity-target", s.handleBenchCapacityTarget)
-	s.engine.GET("/bench/v1/snapshot", s.handleBenchSnapshot)
-	s.engine.GET("/bench/v1/presence/snapshot", s.handleBenchPresenceSnapshot)
-	s.engine.GET("/bench/v1/channel-runtime/snapshot", s.handleBenchChannelRuntimeSnapshot)
-	s.engine.POST("/bench/v1/channel-runtime/probe", s.handleBenchChannelRuntimeProbe)
-	s.engine.POST("/bench/v1/channel-runtime/evict", s.handleBenchChannelRuntimeEvict)
-	s.engine.POST("/bench/v1/users/tokens", s.handleBenchTokens)
-	s.engine.POST("/bench/v1/channels", s.handleBenchChannels)
-	s.engine.POST("/bench/v1/channels/subscribers", s.handleBenchSubscribers)
+	bench := s.engine.Group("/bench/v1")
+	if s.benchToken != "" {
+		bench.Use(s.requireBenchToken)
+	}
+	bench.GET("/capabilities", s.handleBenchCapabilities)
+	bench.GET("/capacity-target", s.handleBenchCapacityTarget)
+	bench.GET("/snapshot", s.handleBenchSnapshot)
+	bench.GET("/presence/snapshot", s.handleBenchPresenceSnapshot)
+	bench.GET("/channel-runtime/snapshot", s.handleBenchChannelRuntimeSnapshot)
+	bench.POST("/channel-runtime/probe", s.handleBenchChannelRuntimeProbe)
+	bench.POST("/channel-runtime/evict", s.handleBenchChannelRuntimeEvict)
+	bench.POST("/users/tokens", s.handleBenchTokens)
+	bench.POST("/channels", s.handleBenchChannels)
+	bench.POST("/channels/subscribers", s.handleBenchSubscribers)
+}
+
+func (s *Server) requireBenchToken(c *gin.Context) {
+	provided, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
+	expectedDigest := sha256.Sum256([]byte(s.benchToken))
+	providedDigest := sha256.Sum256([]byte(provided))
+	if !ok || provided == "" || subtle.ConstantTimeCompare(expectedDigest[:], providedDigest[:]) != 1 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "bench bearer token required"})
+		return
+	}
+	c.Next()
 }
 
 func (s *Server) registerPProfRoutes() {

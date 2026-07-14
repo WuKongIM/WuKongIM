@@ -881,6 +881,7 @@ func (a *App) wireAPI() {
 			ListenAddr:               a.cfg.API.ListenAddr,
 			Readyz:                   a.readyzReport,
 			BenchEnabled:             a.cfg.Bench.APIEnabled,
+			BenchToken:               a.cfg.Bench.APIToken,
 			BenchMaxBatchSize:        a.cfg.Bench.APIMaxBatchSize,
 			BenchMaxPayloadBytes:     a.cfg.Bench.APIMaxPayloadBytes,
 			Gateway:                  apiGatewayAddresses(a.cfg.API, a.cfg.Gateway.Listeners),

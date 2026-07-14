@@ -314,6 +314,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=4",
 		"WK_API_LISTEN_ADDR=127.0.0.1:5042",
 		"WK_BENCH_API_ENABLE=true",
+		"WK_BENCH_API_TOKEN=bench-secret",
 		"WK_BENCH_API_MAX_BATCH_SIZE=123",
 		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
 		"WK_METRICS_ENABLE=true",
@@ -592,6 +593,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if !cfg.Bench.APIEnabled {
 		t.Fatalf("Bench.APIEnabled = false, want true")
+	}
+	if cfg.Bench.APIToken != "bench-secret" {
+		t.Fatalf("Bench.APIToken = %q, want configured secret", cfg.Bench.APIToken)
 	}
 	if cfg.Bench.APIMaxBatchSize != 123 {
 		t.Fatalf("Bench.APIMaxBatchSize = %d, want 123", cfg.Bench.APIMaxBatchSize)

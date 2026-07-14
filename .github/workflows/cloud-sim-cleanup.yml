@@ -1,0 +1,92 @@
+name: Cloud Simulation - Cleanup
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Optional exact Simulation Run identity for protected early destruction
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-simulation-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Reconcile expired or selected Alibaba resources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: cloud-sim-cleanup
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GOWORK: "off"
+      RUN_ID: ${{ inputs.run_id || '' }}
+      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Obtain short-lived Alibaba provisioner identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-sim-cleanup-${{ github.run_id }}
+      - name: Build trusted cleanup control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PROVIDER_CONFIG_JSON"
+          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
+          go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
+      - name: Destroy exact run or sweep all expired leases
+        id: reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$RUN_ID" ]]; then
+            ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >cleanup-result.json
+            jq -e '.state == "released" and (.resources | length) == 0' cleanup-result.json >/dev/null
+            echo "mode=destroy" >>"$GITHUB_OUTPUT"
+          else
+            ./wkcloudsim --provider alibaba --provider-config provider.json sweep >cleanup-result.json
+            jq -e '(.failed | length) == 0' cleanup-result.json >/dev/null
+            echo "mode=sweep" >>"$GITHUB_OUTPUT"
+          fi
+      - name: Write cleanup reconciliation summary
+        if: always()
+        shell: bash
+        env:
+          MODE: ${{ steps.reconcile.outputs.mode }}
+        run: |
+          {
+            echo '## Cloud Simulation cleanup'
+            echo
+            echo "- Mode: \`${MODE:-failed-before-reconcile}\`"
+            if [[ -n "$RUN_ID" ]]; then echo "- Run Identity: \`$RUN_ID\`"; fi
+            if [[ -f cleanup-result.json ]]; then
+              if [[ "${MODE:-}" == destroy ]]; then
+                echo "- Final state: \`$(jq -r .state cleanup-result.json)\`"
+                echo "- Residual resources: \`$(jq -r '.resources | length' cleanup-result.json)\`"
+              else
+                echo "- Destroyed expired runs: \`$(jq -r '.destroyed | length' cleanup-result.json)\`"
+                echo "- Failed reconciliations: \`$(jq -r '.failed | length' cleanup-result.json)\`"
+              fi
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"

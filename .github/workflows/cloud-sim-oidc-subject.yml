@@ -1,0 +1,38 @@
+name: Cloud Simulation - Configure OIDC Subject
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  configure:
+    name: Bind OIDC subject to repository, environment, and workflow
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Configure and verify repository OIDC subject template
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          jq -n '{use_default:false,use_immutable_subject:false,include_claim_keys:["repo","context","job_workflow_ref"]}' |
+            gh api --method PUT "repos/${GITHUB_REPOSITORY}/actions/oidc/customization/sub" \
+              -H 'X-GitHub-Api-Version: 2026-03-10' --input -
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/actions/oidc/customization/sub" \
+            -H 'X-GitHub-Api-Version: 2026-03-10')"
+          jq -e '
+            .use_default == false and
+            (.use_immutable_subject // false) == false and
+            .include_claim_keys == ["repo","context","job_workflow_ref"]
+          ' <<<"$current" >/dev/null
+          {
+            echo '## Cloud Simulation OIDC subject'
+            echo
+            echo '- Bound claims: `repo`, `context`, `job_workflow_ref`'
+            echo '- Alibaba RAM can now authorize only the exact Environment and workflow path encoded in `oidc:sub`.'
+          } >>"$GITHUB_STEP_SUMMARY"

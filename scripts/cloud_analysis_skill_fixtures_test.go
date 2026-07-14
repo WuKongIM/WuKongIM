@@ -23,8 +23,11 @@ func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 		if fixture.Schema != "wukongim.analysis.skill_fixture/v1" || fixture.Name == "" || fixture.Name != fixture.ExpectedVerdict {
 			t.Fatalf("fixture %s identity = %#v", path, fixture)
 		}
-		if fixture.RunID == "" || len(fixture.Observations) == 0 || fixture.Observations[0].Tool != "run_inspect" {
+		if fixture.RunID == "" || len(fixture.Observations) < 2 || fixture.Observations[0].Tool != "run_inspect" {
 			t.Fatalf("fixture %s must begin with run_inspect", path)
+		}
+		if fixture.Observations[1].Tool != "workload_inspect" {
+			t.Fatalf("fixture %s must inspect the final workload before other live sources", path)
 		}
 		for _, observation := range fixture.Observations {
 			if observation.RunID != fixture.RunID || observation.Node == "" || observation.Source == "" ||

@@ -1,0 +1,97 @@
+version: wkbench/v1
+run:
+  id: cloud-standard
+  duration: 2h
+  warmup: 2m
+  cooldown: 1m
+  random_seed: 20260715
+  fail_fast: true
+  report_dir: /var/lib/wukongim-cloud/reports/cloud-standard
+limits:
+  fail_on_soft: true
+  hard:
+    max_worker_failed: 0
+    max_connect_error_rate: 0.001
+    max_sendack_error_rate: 0.001
+    max_recv_verify_error_rate: 0.001
+  soft:
+    max_sendack_p99: 500ms
+    max_recv_p99: 1s
+prepare:
+  concurrency: 256
+  rate_limit: 2000/s
+  retry:
+    max_attempts: 3
+    backoff: 200ms
+identity:
+  uid_prefix: cloud-standard-u
+  device_prefix: cloud-standard-d
+  client_msg_prefix: cloud-standard-msg
+  token:
+    mode: bench_api
+online:
+  total_users: 10000
+  connect_rate: 1000/s
+  gateway_balance: round_robin
+  reconnect:
+    enabled: true
+    backoff: 1s
+    max_attempts: 5
+  heartbeat:
+    enabled: true
+    interval: 30s
+    timeout: 5s
+channels:
+  profiles:
+    - name: person
+      channel_type: person
+      count: 5000
+      participants:
+        pick: round_robin
+      online:
+        sender_ratio: 1
+        recipient_ratio: 1
+      shard:
+        mode: hash
+      prepare:
+        subscribers_batch_size: 1000
+    - name: group
+      channel_type: group
+      count: 5000
+      members:
+        count: 100
+        pick: round_robin
+        overlap: allowed
+      online:
+        member_ratio: 0.5
+      shard:
+        mode: hash
+      prepare:
+        subscribers_batch_size: 1000
+cleanup:
+  enabled: false
+messages:
+  payload:
+    size_bytes: 256
+    mode: deterministic
+  traffic:
+    - name: person-send
+      channel_ref: person
+      rate_per_channel: 0.1/s
+      concurrency: 512
+      ack_timeout: 15s
+      sender_pick: round_robin
+      recv_ack: true
+      verify:
+        recv:
+          mode: sampled
+    - name: group-send
+      channel_ref: group
+      rate_per_channel: 0.1/s
+      concurrency: 512
+      ack_timeout: 15s
+      sender_pick: round_robin
+      recv_ack: true
+      verify:
+        recv:
+          mode: sampled

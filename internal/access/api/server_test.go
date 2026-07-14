@@ -69,6 +69,35 @@ func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {
 	}
 }
 
+func TestBenchRoutesRequireConfiguredBearerToken(t *testing.T) {
+	srv := httptest.NewServer(New(Options{BenchEnabled: true, BenchToken: "bench-secret"}).Handler())
+	t.Cleanup(srv.Close)
+
+	for name, testCase := range map[string]struct {
+		authorization string
+		wantStatus    int
+	}{
+		"missing": {wantStatus: http.StatusUnauthorized},
+		"wrong":   {authorization: "Bearer wrong", wantStatus: http.StatusUnauthorized},
+		"valid":   {authorization: "Bearer bench-secret", wantStatus: http.StatusOK},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, srv.URL+"/bench/v1/capabilities", nil)
+			if err != nil {
+				t.Fatalf("NewRequest() error = %v", err)
+			}
+			if testCase.authorization != "" {
+				req.Header.Set("Authorization", testCase.authorization)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			requireStatus(t, resp, err, testCase.wantStatus)
+		})
+	}
+
+	resp, err := http.Get(srv.URL + "/healthz")
+	requireStatus(t, resp, err, http.StatusOK)
+}
+
 func TestBenchChannelMutationsRequireConfiguredBenchData(t *testing.T) {
 	srv := New(Options{BenchEnabled: true})
 	httpSrv := httptest.NewServer(srv.Handler())

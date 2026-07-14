@@ -1,0 +1,456 @@
+name: Cloud Simulation - Provision
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Alibaba Cloud region matching the audited provider config
+        required: true
+        type: string
+      source_sha:
+        description: Exact commit reachable from trusted main
+        required: true
+        type: string
+      scenario:
+        description: Reviewed wkbench scenario profile
+        required: true
+        default: cloud-small
+        type: choice
+        options: [cloud-small, cloud-standard, cloud-stress]
+      infrastructure_preset:
+        description: Provider-neutral capacity class
+        required: true
+        default: small
+        type: choice
+        options: [small, standard, stress]
+      duration:
+        description: Active workload duration
+        required: true
+        default: 2h
+        type: choice
+        options: [2h, 24h, 48h]
+      analysis_grace:
+        description: Live analysis grace after workload completion
+        required: true
+        default: 1h
+        type: choice
+        options: [0h, 1h, 6h]
+      max_total_cost:
+        description: Hard maximum total cost in CNY
+        required: true
+        default: "50"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-simulation-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build immutable deployment bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      run_id: ${{ steps.identity.outputs.run_id }}
+      bundle_digest: ${{ steps.bundle.outputs.bundle_digest }}
+      scenario_digest: ${{ steps.bundle.outputs.scenario_digest }}
+    env:
+      GOWORK: "off"
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      SCENARIO_NAME: ${{ inputs.scenario }}
+      ACTIVE_DURATION: ${{ inputs.duration }}
+      ALIBABA_REGION: ${{ inputs.region }}
+      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Prove source is a trusted main revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${#SOURCE_SHA}" -eq 40
+          git fetch --no-tags origin main
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main
+          git checkout --detach "$SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Derive run identity
+        id: identity
+        shell: bash
+        run: echo "run_id=gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >>"$GITHUB_OUTPUT"
+      - name: Build static repository binaries
+        shell: bash
+        env:
+          RUN_ID: ${{ steps.identity.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p bundle/bin downloads
+          for target in \
+            wukongim:./cmd/wukongim \
+            wkbench:./cmd/wkbench \
+            wkanalysis:./cmd/wkanalysis \
+            wkcloudsim:./cmd/wkcloudsim \
+            wkcloudbundle:./cmd/wkcloudbundle \
+            wkcloudhost:./cmd/wkcloudhost \
+            wkcloudgate:./cmd/wkcloudgate; do
+            name="${target%%:*}"
+            package="${target#*:}"
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w -buildid=' -o "bundle/bin/${name}" "$package"
+          done
+      - name: Add checksum-pinned observability binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .github/cloud-sim/toolchain.env
+          prometheus_archive="prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          exporter_archive="node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            -o "downloads/${prometheus_archive}" \
+            "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/${prometheus_archive}"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            -o "downloads/${exporter_archive}" \
+            "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/${exporter_archive}"
+          echo "${PROMETHEUS_LINUX_AMD64_SHA256}  downloads/${prometheus_archive}" | sha256sum --check --strict
+          echo "${NODE_EXPORTER_LINUX_AMD64_SHA256}  downloads/${exporter_archive}" | sha256sum --check --strict
+          tar -xzf "downloads/${prometheus_archive}" -C downloads
+          tar -xzf "downloads/${exporter_archive}" -C downloads
+          install -m 0755 "downloads/prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus" bundle/bin/prometheus
+          install -m 0755 "downloads/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter" bundle/bin/node_exporter
+      - name: Render and seal bundle
+        id: bundle
+        shell: bash
+        env:
+          RUN_ID: ${{ steps.identity.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          test -n "$PROVIDER_CONFIG_JSON"
+          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
+          test "$(jq -r .region provider.json)" = "$ALIBABA_REGION"
+          scenario_path="docker/sim/${SCENARIO_NAME}.yaml"
+          test -f "$scenario_path"
+          source_scenario_digest="$(bundle/bin/wkcloudsim scenario-digest --scenario "$scenario_path" | jq -er .digest)"
+          jq -n \
+            --arg run_id "$RUN_ID" --arg source_sha "$SOURCE_SHA" --arg scenario_path "$scenario_path" \
+            --arg scenario_digest "$source_scenario_digest" --arg duration "$ACTIVE_DURATION" \
+            --argjson private_ipv4 "$(jq -c .private_ipv4 provider.json)" \
+            --argjson simulator_source_ipv4 "$(jq -c .simulator_source_ipv4 provider.json)" \
+            '{run_id:$run_id,source_sha:$source_sha,scenario_path:$scenario_path,scenario_digest:$scenario_digest,duration:$duration,private_ipv4:$private_ipv4,simulator_source_ipv4:$simulator_source_ipv4}' \
+            >bundle-spec.json
+          bundle/bin/wkcloudbundle render --root bundle --spec bundle-spec.json >bundle-manifest-output.json
+          bundle_digest="$(jq -er .bundle_digest bundle-manifest-output.json)"
+          scenario_digest="$(jq -er .scenario_digest bundle-manifest-output.json)"
+          test "$bundle_digest" = "$(jq -er .bundle_digest bundle/manifest.json)"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -czf deployment-bundle.tar.gz -C bundle .
+          echo "bundle_digest=$bundle_digest" >>"$GITHUB_OUTPUT"
+          echo "scenario_digest=$scenario_digest" >>"$GITHUB_OUTPUT"
+      - name: Upload short-lived deployment bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-sim-bundle-${{ steps.identity.outputs.run_id }}
+          path: deployment-bundle.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  provision:
+    name: Create, deploy, gate, and start remote simulation
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    environment: cloud-sim-provision
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GOWORK: "off"
+      RUN_ID: ${{ needs.build.outputs.run_id }}
+      BUNDLE_DIGEST: ${{ needs.build.outputs.bundle_digest }}
+      SCENARIO_DIGEST: ${{ needs.build.outputs.scenario_digest }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+      ALIBABA_REGION: ${{ inputs.region }}
+      MAX_TOTAL_COST: ${{ inputs.max_total_cost }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: cloud-sim-bundle-${{ needs.build.outputs.run_id }}
+          path: artifact
+      - name: Obtain short-lived Alibaba provisioner identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-sim-provision-${{ github.run_id }}
+      - name: Prepare run identity and capabilities
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
+          test "$(jq -er .region provider.json)" = "$ALIBABA_REGION"
+          mkdir -m 0700 bundle secrets secrets-node
+          tar -xzf artifact/deployment-bundle.tar.gz -C bundle
+          test "$(bundle/bin/wkcloudbundle verify --root bundle | jq -er .bundle_digest)" = "$BUNDLE_DIGEST"
+          ssh-keygen -q -t ed25519 -N '' -C "$RUN_ID" -f bootstrap-key
+          chmod 0600 bootstrap-key
+          openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 3 \
+            -subj "/CN=${RUN_ID}-analysis-ca" \
+            -addext 'basicConstraints=critical,CA:TRUE,pathlen:0' \
+            -addext 'keyUsage=critical,keyCertSign,cRLSign' \
+            -keyout ca-key.pem -out ca.pem
+          ca_fingerprint="sha256:$(openssl x509 -in ca.pem -outform DER | sha256sum | awk '{print $1}')"
+          duration_seconds="$(case '${{ inputs.duration }}' in 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
+          grace_seconds="$(case '${{ inputs.analysis_grace }}' in 0h) echo 0;; 1h) echo 3600;; 6h) echo 21600;; esac)"
+          expires_epoch="$(( $(date -u +%s) + 1200 + duration_seconds + grace_seconds ))"
+          expires_at="$(date -u -d "@${expires_epoch}" +%Y-%m-%dT%H:%M:%SZ)"
+          max_cost_micros="$(jq -nr --arg value "$MAX_TOTAL_COST" '$value | tonumber * 1000000 | floor')"
+          account_hash="$(jq -er .account_id_hash provider.json)"
+          minimum_preset="$(case '${{ inputs.scenario }}' in cloud-small) echo small;; cloud-standard) echo standard;; cloud-stress) echo stress;; esac)"
+          jq -n \
+            --arg run_id "$RUN_ID" --arg region "$ALIBABA_REGION" --arg account_hash "$account_hash" \
+            --arg repository "$GITHUB_REPOSITORY" --arg source_sha "$SOURCE_SHA" --arg scenario_digest "$SCENARIO_DIGEST" \
+            --arg bundle_digest "$BUNDLE_DIGEST" --arg cert_fingerprint "$ca_fingerprint" \
+            --arg ssh_key "$(cat bootstrap-key.pub)" --arg preset '${{ inputs.infrastructure_preset }}' \
+            --arg minimum_preset "$minimum_preset" --arg expires_at "$expires_at" --argjson max_cost "$max_cost_micros" \
+            '{run_id:$run_id,provider:"alibaba",region:$region,account_id_hash:$account_hash,repository:$repository,
+              source_sha:$source_sha,scenario_digest:$scenario_digest,deployment_bundle_digest:$bundle_digest,
+              mcp_certificate_fingerprint:$cert_fingerprint,bootstrap_ssh_public_key:$ssh_key,preset:$preset,
+              scenario_minimum_preset:$minimum_preset,expires_at:$expires_at,max_total_cost_micros:$max_cost,currency:"CNY",tags:{}}' >create-request.json
+          echo "expires_at=$expires_at" >>"$GITHUB_OUTPUT"
+          echo "ca_fingerprint=$ca_fingerprint" >>"$GITHUB_OUTPUT"
+          echo "::add-mask::$(cat bootstrap-key)"
+      - name: Create exact run resources
+        id: create
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json create \
+            --request create-request.json --locator run-locator.json --workflow-run-id "$GITHUB_RUN_ID" >run.json
+          sim_public="$(jq -er '.resources[] | select(.kind=="public-address" and .role=="sim") | .public_address' run.json)"
+          node1_private="$(jq -er '.resources[] | select(.kind=="compute" and .role=="node-1") | .private_address' run.json)"
+          node2_private="$(jq -er '.resources[] | select(.kind=="compute" and .role=="node-2") | .private_address' run.json)"
+          node3_private="$(jq -er '.resources[] | select(.kind=="compute" and .role=="node-3") | .private_address' run.json)"
+          sim_private="$(jq -er '.resources[] | select(.kind=="compute" and .role=="sim") | .private_address' run.json)"
+          for output in sim_public node1_private node2_private node3_private sim_private; do
+            echo "${output}=${!output}" >>"$GITHUB_OUTPUT"
+          done
+      - name: Open bounded deployment access
+        id: ingress
+        shell: bash
+        run: |
+          set -euo pipefail
+          runner_ip="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 https://api.ipify.org)"
+          until="$(date -u -d '+19 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json open-deployment "$RUN_ID" \
+            --source "${runner_ip}/32" --until "$until" >/dev/null
+      - name: Generate run-scoped internal capabilities and MCP certificate
+        shell: bash
+        env:
+          SIM_PUBLIC: ${{ steps.create.outputs.sim_public }}
+          NODE1_PRIVATE: ${{ steps.create.outputs.node1_private }}
+          NODE2_PRIVATE: ${{ steps.create.outputs.node2_private }}
+          NODE3_PRIVATE: ${{ steps.create.outputs.node3_private }}
+          SIM_PRIVATE: ${{ steps.create.outputs.sim_private }}
+          EXPIRES_AT: ${{ steps.prepare.outputs.expires_at }}
+        run: |
+          set -euo pipefail
+          diagnostic_token="$(openssl rand -hex 32)"
+          manager_jwt="$(openssl rand -hex 32)"
+          bench_token="$(openssl rand -hex 32)"
+          worker_token="$(openssl rand -hex 32)"
+          for secret in "$diagnostic_token" "$manager_jwt" "$bench_token" "$worker_token"; do echo "::add-mask::$secret"; done
+          openssl req -new -newkey rsa:3072 -sha256 -nodes -subj "/CN=${SIM_PUBLIC}" -keyout secrets/mcp-key.pem -out leaf.csr
+          printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nsubjectAltName=IP:%s\nextendedKeyUsage=serverAuth\n' "$SIM_PUBLIC" >leaf.ext
+          openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -days 3 -sha256 -extfile leaf.ext -out secrets/mcp-cert.pem
+          cat ca.pem >>secrets/mcp-cert.pem
+          cp ca.pem secrets/mcp-ca.pem
+          users="$(jq -cn --arg password "$diagnostic_token" '[{username:"analysis",password:$password,permissions:[
+            {resource:"cluster.node",actions:["r"]},{resource:"cluster.slot",actions:["r"]},
+            {resource:"cluster.controller",actions:["r"]},{resource:"cluster.diagnostics",actions:["r","w"]},
+            {resource:"cluster.log",actions:["r"]}]}]')"
+          printf "WK_MANAGER_JWT_SECRET=%s\nWK_MANAGER_USERS='%s'\nWK_BENCH_API_TOKEN=%s\n" "$manager_jwt" "$users" "$bench_token" >secrets-node/node.env
+          printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\n" "$worker_token" "$bench_token" >secrets/sim.env
+          cat >secrets/analysis.env <<EOF
+          WK_ANALYSIS_RUN_ID=$RUN_ID
+          WK_ANALYSIS_RUN_STATE=running
+          WK_ANALYSIS_RUN_EXPIRES_AT=$EXPIRES_AT
+          WK_ANALYSIS_PROVIDER=alibaba
+          WK_ANALYSIS_REGION=$ALIBABA_REGION
+          WK_ANALYSIS_SOURCE_SHA=$SOURCE_SHA
+          WK_ANALYSIS_SCENARIO_PATH=/etc/wukongim/scenario.yaml
+          WK_ANALYSIS_SCENARIO_DIGEST=$SCENARIO_DIGEST
+          WK_ANALYSIS_MANAGER_BASE_URL=http://${NODE1_PRIVATE}:5301
+          WK_ANALYSIS_MANAGER_USERNAME=analysis
+          WK_ANALYSIS_MANAGER_PASSWORD=$diagnostic_token
+          WK_ANALYSIS_PROMETHEUS_BASE_URL=http://127.0.0.1:9090
+          WK_ANALYSIS_NODE_API_URLS='{"1":"http://${NODE1_PRIVATE}:5001","2":"http://${NODE2_PRIVATE}:5001","3":"http://${NODE3_PRIVATE}:5001"}'
+          WK_ANALYSIS_TLS_CERT_FILE=/etc/wukongim/tls/mcp-cert.pem
+          WK_ANALYSIS_TLS_KEY_FILE=/etc/wukongim/tls/mcp-key.pem
+          WK_ANALYSIS_GITHUB_OIDC_ENABLED=true
+          WK_ANALYSIS_GITHUB_OIDC_AUDIENCE=wukongim-cloud-sim:$RUN_ID
+          WK_ANALYSIS_GITHUB_REPOSITORY=$GITHUB_REPOSITORY
+          WK_ANALYSIS_GITHUB_REF=refs/heads/main
+          WK_ANALYSIS_GITHUB_WORKFLOW_REF=$GITHUB_REPOSITORY/.github/workflows/cloud-sim-analyze.yml@refs/heads/main
+          WK_ANALYSIS_GITHUB_ENVIRONMENT=cloud-sim-analysis
+          EOF
+          chmod 0600 secrets/* secrets-node/*
+          echo "MANAGER_PASSWORD=$diagnostic_token" >>"$GITHUB_ENV"
+      - name: Transfer and install the same verified bundle on all hosts
+        shell: bash
+        env:
+          SIM_PUBLIC: ${{ steps.create.outputs.sim_public }}
+          NODE1_PRIVATE: ${{ steps.create.outputs.node1_private }}
+          NODE2_PRIVATE: ${{ steps.create.outputs.node2_private }}
+          NODE3_PRIVATE: ${{ steps.create.outputs.node3_private }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i bootstrap-key -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+          for attempt in $(seq 1 30); do
+            if ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" true; then break; fi
+            test "$attempt" -lt 30
+            sleep 5
+          done
+          tar -czf node-secrets.tar.gz -C secrets-node .
+          tar -czf sim-secrets.tar.gz -C secrets .
+          scp "${ssh_opts[@]}" artifact/deployment-bundle.tar.gz sim-secrets.tar.gz "wukong@${SIM_PUBLIC}:/home/wukong/"
+          for pair in "node-1:${NODE1_PRIVATE}" "node-2:${NODE2_PRIVATE}" "node-3:${NODE3_PRIVATE}"; do
+            role="${pair%%:*}"; address="${pair#*:}"
+            scp "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" artifact/deployment-bundle.tar.gz node-secrets.tar.gz "wukong@${address}:/home/wukong/"
+            ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" \
+              "rm -rf /home/wukong/bundle /home/wukong/run-secrets && mkdir /home/wukong/bundle /home/wukong/run-secrets && tar -xzf /home/wukong/deployment-bundle.tar.gz -C /home/wukong/bundle && tar -xzf /home/wukong/node-secrets.tar.gz -C /home/wukong/run-secrets"
+            data_device="$(ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
+            ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" \
+              "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role '$role' --env-dir /home/wukong/run-secrets --data-device '$data_device' --authorized-keys ''"
+          done
+          ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" \
+            "rm -rf /home/wukong/bundle /home/wukong/run-secrets && mkdir /home/wukong/bundle /home/wukong/run-secrets && tar -xzf /home/wukong/deployment-bundle.tar.gz -C /home/wukong/bundle && tar -xzf /home/wukong/sim-secrets.tar.gz -C /home/wukong/run-secrets"
+          sim_data_device="$(ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
+          ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" \
+            "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role sim --env-dir /home/wukong/run-secrets --data-device '$sim_data_device' --authorized-keys ''"
+
+      - name: Prove Bootstrap Gate
+        id: bootstrap_gate
+        shell: bash
+        env:
+          WK_CLOUD_SIM_PUBLIC_IP: ${{ steps.create.outputs.sim_public }}
+          WK_CLOUD_NODE1_IP: ${{ steps.create.outputs.node1_private }}
+          WK_CLOUD_NODE2_IP: ${{ steps.create.outputs.node2_private }}
+          WK_CLOUD_NODE3_IP: ${{ steps.create.outputs.node3_private }}
+          WK_CLOUD_SSH_KEY: bootstrap-key
+          WK_CLOUD_BUNDLE_DIGEST: ${{ needs.build.outputs.bundle_digest }}
+          WK_CLOUD_GATE_OUTPUT: bootstrap-gate.json
+          WK_ANALYSIS_MANAGER_PASSWORD: ${{ env.MANAGER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 1200 ))
+          until scripts/cloud-sim/collect-bootstrap-gate.sh && bundle/bin/wkcloudgate --snapshot bootstrap-gate.json --bundle-digest "$BUNDLE_DIGEST"; do
+            test "$(date +%s)" -lt "$deadline"
+            sleep 10
+          done
+          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" ready >/dev/null
+
+      - name: Start non-restarting workload and persist running state
+        id: workload_start
+        shell: bash
+        env:
+          WK_CLOUD_SIM_PUBLIC_IP: ${{ steps.create.outputs.sim_public }}
+        run: |
+          set -euo pipefail
+          duration_seconds="$(case '${{ inputs.duration }}' in 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
+          active_until="$(date -u -d "@$(($(date -u +%s) + duration_seconds))" +%Y-%m-%dT%H:%M:%SZ)"
+          ssh -i bootstrap-key -o BatchMode=yes -o StrictHostKeyChecking=accept-new "wukong@${WK_CLOUD_SIM_PUBLIC_IP}" \
+            'sudo systemctl enable wkbench-run.service && sudo systemctl start --no-block wkbench-run.service'
+          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" running --active-until "$active_until" >/dev/null
+          echo "active_until=$active_until" >>"$GITHUB_OUTPUT"
+
+      - name: Preserve diagnostics or release unusable failed provisioning
+        if: failure() && steps.create.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! status_json="$(bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json status "$RUN_ID")"; then
+            bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+            exit 0
+          fi
+          state="$(jq -er .state <<<"$status_json")"
+          if [[ -f bootstrap-gate.json ]] && jq -e '.analysis_mcp_self_check == true' bootstrap-gate.json >/dev/null 2>&1; then
+            case "$state" in
+              provisioning|ready|running)
+                bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" analysis_grace >/dev/null
+                ;;
+              analysis_grace)
+                ;;
+              *)
+                bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+                ;;
+            esac
+          else
+            bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+          fi
+      - name: Revoke ephemeral SSH keys on all hosts
+        if: always() && steps.create.outputs.sim_public != ''
+        continue-on-error: true
+        shell: bash
+        env:
+          SIM_PUBLIC: ${{ steps.create.outputs.sim_public }}
+          NODE1_PRIVATE: ${{ steps.create.outputs.node1_private }}
+          NODE2_PRIVATE: ${{ steps.create.outputs.node2_private }}
+          NODE3_PRIVATE: ${{ steps.create.outputs.node3_private }}
+        run: |
+          ssh_opts=(-i bootstrap-key -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new)
+          for address in "$NODE1_PRIVATE" "$NODE2_PRIVATE" "$NODE3_PRIVATE"; do
+            ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" 'sudo rm -f /home/wukong/.ssh/authorized_keys' || true
+          done
+          ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" 'sudo rm -f /home/wukong/.ssh/authorized_keys' || true
+      - name: Close deployment ingress
+        if: always() && steps.create.outcome == 'success'
+        shell: bash
+        run: bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json close-deployment "$RUN_ID"
+      - name: Upload minimal Run Locator
+        if: always() && steps.create.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-sim-locator-${{ needs.build.outputs.run_id }}
+          path: run-locator.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Write provisioning summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Cloud Simulation provisioning'
+            echo
+            echo "- Run Identity: \`$RUN_ID\`"
+            echo "- Source: \`$SOURCE_SHA\`"
+            echo "- Scenario: \`${{ inputs.scenario }}\` (\`$SCENARIO_DIGEST\`)"
+            echo "- Bundle: \`$BUNDLE_DIGEST\`"
+            echo "- Lease expiry: \`${{ steps.prepare.outputs.expires_at }}\`"
+            echo "- Workload active until: \`${{ steps.workload_start.outputs.active_until || 'not-started' }}\`"
+            echo "- Selected SKU: \`$(jq -r '.quote.selected_sku // "not-created"' run.json 2>/dev/null || echo not-created)\`"
+            echo "- Worst-case fixed cost: \`$(jq -r '.quote.worst_case_cost_micros // 0' run.json 2>/dev/null || echo 0) micro-CNY\`"
+            echo "- Next: dispatch \`Cloud Simulation - Analyze\` with \`run_id=$RUN_ID\`."
+          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Remove local capabilities
+        if: always()
+        shell: bash
+        run: rm -rf bootstrap-key bootstrap-key.pub ca-key.pem ca.pem ca.srl leaf.csr leaf.ext secrets secrets-node node-secrets.tar.gz sim-secrets.tar.gz

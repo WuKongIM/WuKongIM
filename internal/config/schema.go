@@ -148,6 +148,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "manager.users", EnvKey: "WK_MANAGER_USERS", Kind: kindObjectList, Group: "manager", Label: "Manager users", Sensitive: true},
 
 	{TOMLPath: "bench.api_enable", EnvKey: "WK_BENCH_API_ENABLE", Kind: kindBool, Group: "bench", Label: "Bench API enabled"},
+	{TOMLPath: "bench.api_token", EnvKey: "WK_BENCH_API_TOKEN", Kind: kindString, Group: "bench", Label: "Bench API bearer token", Sensitive: true},
 	{TOMLPath: "bench.api_max_batch_size", EnvKey: "WK_BENCH_API_MAX_BATCH_SIZE", Kind: kindInt, Group: "bench", Label: "Bench API max batch size"},
 	{TOMLPath: "bench.api_max_payload_bytes", EnvKey: "WK_BENCH_API_MAX_PAYLOAD_BYTES", Kind: kindInt, Group: "bench", Label: "Bench API max payload bytes"},
 
@@ -334,6 +335,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_MANAGER_JWT_EXPIRE",
 		"WK_MANAGER_USERS",
 		"WK_BENCH_API_ENABLE",
+		"WK_BENCH_API_TOKEN",
 		"WK_BENCH_API_MAX_BATCH_SIZE",
 		"WK_BENCH_API_MAX_PAYLOAD_BYTES",
 		"WK_METRICS_ENABLE",

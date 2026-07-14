@@ -149,6 +149,37 @@ type RunInspection struct {
 	Warnings []string `json:"warnings"`
 }
 
+// WorkloadInspection is a bounded, message-free projection of the local
+// wkbench final summary for one exact Simulation Run.
+type WorkloadInspection struct {
+	// RunID is the exact Simulation Run identity embedded in the effective scenario.
+	RunID string `json:"run_id"`
+	// State is in_progress while no final summary exists, or completed once parsed.
+	State string `json:"state"`
+	// Status is passed or failed only after completion.
+	Status string `json:"status,omitempty"`
+	// ExitCode is the stable wkbench result code after completion.
+	ExitCode int `json:"exit_code,omitempty"`
+	// Summary contains only the measurements used by declared limit gates.
+	Summary WorkloadSummary `json:"summary"`
+}
+
+// WorkloadSummary contains bounded load-generator quality measurements.
+type WorkloadSummary struct {
+	// ConnectErrorRate is the final failed-connection fraction across workers.
+	ConnectErrorRate float64 `json:"connect_error_rate"`
+	// SendackErrorRate is the final failed-SENDACK fraction across workers.
+	SendackErrorRate float64 `json:"sendack_error_rate"`
+	// RecvVerifyErrorRate is the final receive-verification failure fraction.
+	RecvVerifyErrorRate float64 `json:"recv_verify_error_rate"`
+	// WorkerFailed is the number of workers that did not complete successfully.
+	WorkerFailed int `json:"worker_failed"`
+	// SendackMaxWorkerP99 is the highest final per-worker SENDACK p99 latency.
+	SendackMaxWorkerP99 string `json:"sendack_max_worker_p99"`
+	// ReceiveMaxWorkerP99 is the highest final per-worker receive p99 latency.
+	ReceiveMaxWorkerP99 string `json:"recv_max_worker_p99"`
+}
+
 // RunRequest selects the exact run bound to the session.
 type RunRequest struct {
 	// RunID is the exact Run Identity.
@@ -327,6 +358,8 @@ type ConfigReadRequest struct {
 type Sources interface {
 	// InspectRun proves the current live or released state of one exact run.
 	InspectRun(context.Context, string) (RunInspection, error)
+	// WorkloadInspect returns a bounded final wkbench summary or explicit in-progress state.
+	WorkloadInspect(context.Context, string) (SourceResult, error)
 	// ClusterSnapshot returns a bounded aggregate node/runtime snapshot.
 	ClusterSnapshot(context.Context) (SourceResult, error)
 	// MetricsQueryRange executes one pre-resolved allowlisted PromQL expression.

@@ -4,8 +4,11 @@
   "run_id": "fixture-healthy",
   "observations": [
     {"tool": "run_inspect", "run_id": "fixture-healthy", "node": "run", "source": "run_inventory", "observed_at": "2026-07-14T10:00:00Z", "window": {"start": "2026-07-14T10:00:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"state": "running", "inventory_count": 12}},
+    {"tool": "workload_inspect", "run_id": "fixture-healthy", "node": "sim", "source": "wkbench_summary", "observed_at": "2026-07-14T10:00:00Z", "window": {"start": "2026-07-14T10:00:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"state": "completed", "status": "passed", "exit_code": 0, "summary": {"connect_error_rate": 0, "sendack_error_rate": 0, "recv_verify_error_rate": 0, "worker_failed": 0, "sendack_max_worker_p99": "120ms", "recv_max_worker_p99": "180ms"}}},
     {"tool": "cluster_snapshot", "run_id": "fixture-healthy", "node": "cluster", "source": "manager", "observed_at": "2026-07-14T10:00:01Z", "window": {"start": "2026-07-14T10:00:01Z", "end": "2026-07-14T10:00:01Z"}, "completeness": "complete", "warnings": [], "data": {"ready_nodes": 3, "workqueue_pressure": 0.05}},
-    {"tool": "metrics_query_range", "run_id": "fixture-healthy", "node": "cluster", "source": "prometheus", "observed_at": "2026-07-14T10:00:02Z", "window": {"start": "2026-07-14T09:30:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"query_id": "append_error_rate", "max": 0}}
+    {"tool": "metrics_query_range", "run_id": "fixture-healthy", "node": "cluster", "source": "prometheus", "observed_at": "2026-07-14T10:00:02Z", "window": {"start": "2026-07-14T09:30:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"query_id": "append_error_rate", "max": 0}},
+    {"tool": "metrics_query_range", "run_id": "fixture-healthy", "node": "sim", "source": "prometheus", "observed_at": "2026-07-14T10:00:03Z", "window": {"start": "2026-07-14T09:30:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"query_id": "simulator_cpu_percent", "max": 42}},
+    {"tool": "metrics_query_range", "run_id": "fixture-healthy", "node": "sim", "source": "prometheus", "observed_at": "2026-07-14T10:00:04Z", "window": {"start": "2026-07-14T09:30:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"query_id": "simulator_memory_percent", "max": 55}}
   ],
   "expected_verdict": "healthy"
 }

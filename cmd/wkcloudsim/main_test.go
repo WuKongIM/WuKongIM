@@ -59,6 +59,14 @@ func TestCLICloudSimulationLifecycleAndRunLocator(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
+	activeUntil := now.Add(time.Hour).Format(time.RFC3339)
+	code = execute([]string{"--state", statePath, "transition", "run-1", "running", "--active-until", activeUntil}, &stdout, &stderr, func() time.Time { return now })
+	if code != 0 || !strings.Contains(stdout.String(), `"state": "running"`) {
+		t.Fatalf("transition code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
 	code = execute([]string{"--state", statePath, "destroy", "run-1"}, &stdout, &stderr, func() time.Time { return now })
 	if code != 0 || !strings.Contains(stdout.String(), `"state": "released"`) {
 		t.Fatalf("destroy code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
@@ -73,6 +81,17 @@ func TestCLIOpenAnalysisRejectsNonHostPrefix(t *testing.T) {
 	}, &stdout, &stderr, func() time.Time { return time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC) })
 	if code == 0 {
 		t.Fatalf("open-analysis code=0 stdout=%s", stdout.String())
+	}
+}
+
+func TestCLIOpenDeploymentRejectsNonHostPrefix(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{
+		"--state", filepath.Join(t.TempDir(), "inventory.json"), "open-deployment", "run-1",
+		"--source", "203.0.113.0/24", "--until", "2026-07-14T10:10:00Z",
+	}, &stdout, &stderr, func() time.Time { return time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC) })
+	if code == 0 {
+		t.Fatalf("open-deployment code=0 stdout=%s", stdout.String())
 	}
 }
 

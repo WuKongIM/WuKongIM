@@ -6,6 +6,14 @@ toolchain go1.25.11
 
 require (
 	github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.2
+	github.com/alibabacloud-go/ecs-20140526/v7 v7.9.1
+	github.com/alibabacloud-go/ims-20190815/v4 v4.4.1
+	github.com/alibabacloud-go/ram-20150501/v2 v2.2.1
+	github.com/alibabacloud-go/sts-20150401/v2 v2.1.0
+	github.com/alibabacloud-go/tea v1.5.1
+	github.com/alibabacloud-go/vpc-20160428/v6 v6.16.0
+	github.com/aliyun/credentials-go v1.4.5
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble/v2 v2.1.4
 	github.com/fsnotify/fsnotify v1.9.0
@@ -44,11 +52,15 @@ require (
 	github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54 // indirect
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108 // indirect
 	github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
+	github.com/alibabacloud-go/debug v1.0.1 // indirect
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20241112164430-1264a2edc35b // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
@@ -95,6 +107,7 @@ require (
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
@@ -110,4 +123,5 @@ require (
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 )

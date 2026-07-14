@@ -17,9 +17,11 @@ MCP tool input
 ```
 
 Metrics select server-owned query IDs rather than accepting PromQL. Logs and
-diagnostics use fixed private API selectors and opaque cursors. Profiles select
-only one node and `cpu`, `heap`, or `goroutine`; CPU capture is serialized,
-limited to 30 seconds per call and 60 seconds per Analysis Session.
+diagnostics use fixed private API selectors and opaque cursors. Active
+diagnostics are serialized across expiring trace rules and all profile kinds,
+so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or
+`goroutine`; CPU capture is limited to 30 seconds per call and 60 seconds per
+Analysis Session.
 
 The package owns no HTTP, MCP protocol, cloud SDK, shell, filesystem, restart,
 configuration-write, or cleanup behavior.

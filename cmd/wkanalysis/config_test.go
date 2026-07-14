@@ -45,7 +45,8 @@ func TestLoadServeConfigBindsThreeNodeClusterAndTokenLease(t *testing.T) {
 	if cfg.gateway.MCPTokenExpiresAt != now.Add(45*time.Minute) || cfg.gateway.RunExpiresAt != now.Add(2*time.Hour) {
 		t.Fatalf("token=%s run=%s", cfg.gateway.MCPTokenExpiresAt, cfg.gateway.RunExpiresAt)
 	}
-	if cfg.gateway.MetricQueries["send_rate"] == "" || cfg.gateway.MetricQueries["runtime_queue_pressure"] == "" {
+	if cfg.gateway.MetricQueries["send_rate"] == "" || cfg.gateway.MetricQueries["runtime_queue_pressure"] == "" ||
+		cfg.gateway.MetricQueries["simulator_cpu_percent"] == "" || cfg.gateway.MetricQueries["simulator_memory_percent"] == "" {
 		t.Fatalf("metric query IDs = %#v", cfg.gateway.MetricQueries)
 	}
 }

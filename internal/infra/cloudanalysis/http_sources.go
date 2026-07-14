@@ -25,7 +25,8 @@ type RunInspector interface {
 	InspectRun(context.Context, string) (analysis.RunInspection, error)
 }
 
-// StaticRunInspector provides explicit local-Compose run state for Phase 1.
+// StaticRunInspector provides explicit runtime-local state after an external
+// provider preflight, or local-Compose state in development.
 type StaticRunInspector struct {
 	// Inspection is the fixed local run identity and state.
 	Inspection analysis.RunInspection
@@ -66,6 +67,8 @@ type HTTPConfig struct {
 	PrometheusBaseURL string
 	// NodeAPIBaseURLs maps allowlisted node IDs to private WuKongIM API origins.
 	NodeAPIBaseURLs map[uint64]string
+	// WorkloadReportDir is the fixed effective wkbench report directory.
+	WorkloadReportDir string
 	// HTTPClient is an optional bounded client used for all private sources.
 	HTTPClient *http.Client
 	// Now supplies deterministic capture timestamps.
@@ -82,6 +85,7 @@ type HTTPSources struct {
 	manager    *managerClient
 	prometheus *prometheusClient
 	profiles   *profileStore
+	workload   *workloadSummarySource
 }
 
 // NewHTTPSources validates fixed private endpoints and creates bounded adapters.
@@ -89,6 +93,7 @@ func NewHTTPSources(cfg HTTPConfig) (*HTTPSources, error) {
 	if cfg.Inspector == nil || len(cfg.NodeAPIBaseURLs) == 0 {
 		return nil, ErrInvalidHTTPConfig
 	}
+	workload := newWorkloadSummarySource(cfg.WorkloadReportDir)
 	managerURL, err := parseBaseURL("manager", cfg.ManagerBaseURL)
 	if err != nil {
 		return nil, err
@@ -124,7 +129,13 @@ func NewHTTPSources(cfg HTTPConfig) (*HTTPSources, error) {
 			nodeURLs: nodeURLs, client: client, now: now,
 			maxProfiles: cfg.MaxStoredProfiles, maxBytes: cfg.MaxStoredProfileBytes,
 		}),
+		workload: workload,
 	}, nil
+}
+
+// WorkloadInspect returns the simulator-local bounded wkbench final summary.
+func (s *HTTPSources) WorkloadInspect(ctx context.Context, runID string) (analysis.SourceResult, error) {
+	return s.workload.inspect(ctx, runID)
 }
 
 // InspectRun proves current state using the independently configured run authority.

@@ -15,10 +15,10 @@ human manager session. HTTP bodies and profile retention are size bounded.
 
 Raw profiles remain in an in-memory bounded store on the gateway. MCP consumers
 receive metadata or symbolized top rows, never raw profile bytes or filesystem
-paths. Local Compose uses `StaticRunInspector`; cloud phases replace only that
-port with provider inventory proof. Phase 1 can exercise that same boundary by
-opening the persistent fake-provider inventory with `ProviderRunInspector`.
-The provider inspector requires a valid Run Locator and matches provider,
-region, account hash, repository, source SHA, scenario digest, creation time,
-and lease before returning inventory. A static inspector cannot claim a
-released run.
+paths. Local Compose uses `StaticRunInspector`; the cloud Analysis Workflow
+proves provider inventory and Run Locator identity before opening ingress, then
+the host-local gateway reports runtime state without receiving a cloud role.
+Phase 1 can exercise a provider-backed inspector locally with
+`ProviderRunInspector`. That inspector requires a valid Run Locator and matches
+provider, region, account hash, repository, source SHA, scenario digest,
+creation time, and lease. A static inspector cannot claim a released run.

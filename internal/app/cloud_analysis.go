@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
 )
 
-// CloudAnalysisGatewayConfig contains the complete Phase 1 gateway composition.
+// CloudAnalysisGatewayConfig contains the complete run-scoped gateway composition.
 type CloudAnalysisGatewayConfig struct {
 	// RunID is the exact Run Identity bound to this gateway.
 	RunID string
@@ -35,6 +36,8 @@ type CloudAnalysisGatewayConfig struct {
 	MCPToken string
 	// MCPTokenExpiresAt is the non-renewable Analysis Token deadline.
 	MCPTokenExpiresAt time.Time
+	// MCPTokenVerifier validates dynamically issued Analysis Tokens in cloud runs.
+	MCPTokenVerifier func(context.Context, string, *http.Request) (time.Time, error)
 	// ManagerBaseURL is the fixed private manager origin.
 	ManagerBaseURL string
 	// ManagerAuth is the dedicated internal analysis capability credential.
@@ -43,6 +46,8 @@ type CloudAnalysisGatewayConfig struct {
 	PrometheusBaseURL string
 	// NodeAPIBaseURLs maps allowlisted node IDs to private API origins.
 	NodeAPIBaseURLs map[uint64]string
+	// WorkloadReportDir is the fixed effective wkbench report directory.
+	WorkloadReportDir string
 	// MetricQueries maps stable MCP query IDs to server-owned PromQL.
 	MetricQueries map[string]string
 	// HTTPClient optionally overrides private-source HTTP behavior.
@@ -55,11 +60,15 @@ type CloudAnalysisGatewayConfig struct {
 
 // NewCloudAnalysisGatewayHandler composes private HTTP adapters, usecase, and MCP access.
 func NewCloudAnalysisGatewayHandler(cfg CloudAnalysisGatewayConfig) (http.Handler, error) {
+	warning := "local Compose uses explicit runtime state and cannot prove provider release"
+	if cfg.Provider != "" && cfg.Provider != "local-compose" {
+		warning = "cloud inventory identity was proven by the Analysis Workflow preflight; this gateway reports runtime-local state only"
+	}
 	var inspector cloudanalysisinfra.RunInspector = cloudanalysisinfra.StaticRunInspector{Inspection: cloudanalysis.RunInspection{
 		RunID: cfg.RunID, State: cfg.RunState, InventoryCount: cfg.RunInventoryCount,
 		Provider: cfg.Provider, Region: cfg.Region, SourceSHA: cfg.SourceSHA, ExpiresAt: cfg.RunExpiresAt,
 		Scenario: cfg.Scenario,
-		Warnings: []string{"Phase 1 uses explicit local run state; cloud phases replace this with provider inventory proof"},
+		Warnings: []string{warning},
 	}}
 	if cfg.FakeInventoryPath != "" {
 		provider, err := cloudsimfake.Open(cloudsimfake.Options{StatePath: cfg.FakeInventoryPath, Now: cfg.Now})
@@ -74,7 +83,7 @@ func NewCloudAnalysisGatewayHandler(cfg CloudAnalysisGatewayConfig) (http.Handle
 	sources, err := cloudanalysisinfra.NewHTTPSources(cloudanalysisinfra.HTTPConfig{
 		Inspector: inspector, ManagerBaseURL: cfg.ManagerBaseURL, ManagerAuth: cfg.ManagerAuth,
 		PrometheusBaseURL: cfg.PrometheusBaseURL, NodeAPIBaseURLs: cfg.NodeAPIBaseURLs,
-		HTTPClient: cfg.HTTPClient, Now: cfg.Now,
+		WorkloadReportDir: cfg.WorkloadReportDir, HTTPClient: cfg.HTTPClient, Now: cfg.Now,
 	})
 	if err != nil {
 		return nil, err
@@ -90,6 +99,7 @@ func NewCloudAnalysisGatewayHandler(cfg CloudAnalysisGatewayConfig) (http.Handle
 		return nil, err
 	}
 	return cloudanalysismcp.NewHandler(cloudanalysismcp.Config{
-		RunID: cfg.RunID, Token: cfg.MCPToken, TokenExpiresAt: cfg.MCPTokenExpiresAt, Service: service,
+		RunID: cfg.RunID, Token: cfg.MCPToken, TokenExpiresAt: cfg.MCPTokenExpiresAt,
+		VerifyToken: cfg.MCPTokenVerifier, Service: service,
 	})
 }

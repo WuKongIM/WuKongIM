@@ -28,13 +28,17 @@ type Config struct {
 	Token string
 	// TokenExpiresAt is the non-renewable Analysis Token deadline.
 	TokenExpiresAt time.Time
+	// VerifyToken optionally validates dynamically issued, run-scoped Analysis Tokens.
+	// When set, Token and TokenExpiresAt are ignored.
+	VerifyToken func(context.Context, string, *http.Request) (time.Time, error)
 	// Service is the bounded entry-independent analysis usecase.
 	Service *analysis.Service
 }
 
 // NewHandler registers the strict tool allowlist and returns authenticated HTTP.
 func NewHandler(cfg Config) (http.Handler, error) {
-	if strings.TrimSpace(cfg.RunID) == "" || len(cfg.Token) < 32 || !cfg.TokenExpiresAt.After(time.Now()) || cfg.Service == nil {
+	staticValid := len(cfg.Token) >= 32 && cfg.TokenExpiresAt.After(time.Now())
+	if strings.TrimSpace(cfg.RunID) == "" || (!staticValid && cfg.VerifyToken == nil) || cfg.Service == nil {
 		return nil, ErrInvalidConfig
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "wukongim-cloud-analysis", Version: "v1"}, nil)
@@ -42,12 +46,19 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
 		Stateless: true, JSONResponse: true, SessionTimeout: 10 * time.Minute,
 	})
-	verifier := func(_ context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
-		if len(token) != len(cfg.Token) || subtle.ConstantTimeCompare([]byte(token), []byte(cfg.Token)) != 1 {
+	verifier := func(ctx context.Context, token string, request *http.Request) (*auth.TokenInfo, error) {
+		expiresAt := cfg.TokenExpiresAt
+		if cfg.VerifyToken != nil {
+			var err error
+			expiresAt, err = cfg.VerifyToken(ctx, token, request)
+			if err != nil || !expiresAt.After(time.Now()) {
+				return nil, auth.ErrInvalidToken
+			}
+		} else if len(token) != len(cfg.Token) || subtle.ConstantTimeCompare([]byte(token), []byte(cfg.Token)) != 1 {
 			return nil, auth.ErrInvalidToken
 		}
 		return &auth.TokenInfo{
-			Scopes: []string{analysisScope}, Expiration: cfg.TokenExpiresAt,
+			Scopes: []string{analysisScope}, Expiration: expiresAt,
 			UserID: cfg.RunID, Extra: map[string]any{"run_id": cfg.RunID},
 		}, nil
 	}
@@ -85,6 +96,11 @@ func registerTools(server *mcp.Server, service *analysis.Service) {
 	mcp.AddTool(server, &mcp.Tool{Name: "cluster_snapshot", Description: "Read a bounded aggregate cluster node and workqueue snapshot.", Annotations: readOnly},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input analysis.RunRequest) (*mcp.CallToolResult, analysis.Observation, error) {
 			output, err := service.ClusterSnapshot(ctx, input)
+			return nil, output, err
+		})
+	mcp.AddTool(server, &mcp.Tool{Name: "workload_inspect", Description: "Read the bounded final wkbench threshold summary or explicit in-progress state.", Annotations: readOnly},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input analysis.RunRequest) (*mcp.CallToolResult, analysis.Observation, error) {
+			output, err := service.WorkloadInspect(ctx, input)
 			return nil, output, err
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "metrics_query_range", Description: "Query one server-allowlisted Prometheus signal over a bounded time range.", Annotations: readOnly},

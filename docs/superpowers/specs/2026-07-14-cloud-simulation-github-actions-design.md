@@ -4,7 +4,10 @@
 
 ## Status
 
-Approved for implementation planning.
+Implemented for repository phases 1 through 4 and the phase-5 Alibaba stress
+prerequisites. Real Alibaba canary/drill attestations remain pending; the
+Tencent Adapter is intentionally blocked until every required Alibaba drill is
+green.
 
 ## Problem
 
@@ -127,15 +130,17 @@ expiry, and a direct next-step reference to the Analysis Workflow.
 
 There is no `latest` selector. The workflow validates the Run Locator and cloud
 inventory before starting Codex. Provider-confirmed released resources cause a
-clear failed result before Codex is invoked. An unknown locator is reported as
-`unknown_run`, not as a released run.
+clear successful terminal notice before Codex is invoked. An unknown locator is
+reported as `unknown_run`, not as a released run.
 
 ### Cleanup Workflow
 
 `.github/workflows/cloud-sim-cleanup.yml` runs every 15 minutes and may also be
 dispatched manually with an exact Run Identity for protected early destruction.
 It discovers resources from mandatory provider tags, reconciles all resource
-types, and fails visibly while any billable resource remains.
+types, and fails visibly while any billable resource remains. It uses a
+dedicated `cloud-sim-cleanup` Environment without required reviewers so lease
+reconciliation cannot be blocked by the billable-creation approval policy.
 
 ## Simulation Run Lifecycle
 
@@ -143,13 +148,12 @@ types, and fails visibly while any billable resource remains.
 stateDiagram-v2
     [*] --> provisioning
     provisioning --> ready: bootstrap gate passes
-    provisioning --> provisioning_failed: gate fails
     ready --> running: wkbench starts
-    running --> cooldown: active duration ends
+    running --> analysis_grace: active deadline elapses
     running --> infrastructure_interrupted: unplanned instance loss
-    cooldown --> analysis_grace
-    provisioning_failed --> analysis_grace: simulator and MCP usable
-    provisioning_failed --> release_pending: no diagnostic path
+    provisioning --> analysis_grace: gate fails and simulator MCP is usable
+    provisioning --> release_pending: gate fails without a diagnostic path
+    ready --> analysis_grace: workload start fails and simulator MCP is usable
     infrastructure_interrupted --> analysis_grace: simulator survives
     infrastructure_interrupted --> release_pending: simulator lost
     analysis_grace --> release_pending: grace expires
@@ -165,6 +169,13 @@ stopped run may be released earlier.
 Every compute instance receives the provider's native scheduled-release
 deadline at creation time. The Cleanup Workflow is an independent second layer
 for compute, disks, addresses, security rules, subnets, and VPCs.
+
+The provisioning workflow persists `provisioning -> ready -> running` in
+provider tags. Entering `running` records the exact active workload deadline;
+provider reconciliation projects an elapsed running deadline as
+`analysis_grace`, so later jobs recover the current phase without workflow-local
+state. Failed provisioning enters `analysis_grace` only when the recorded MCP
+self-check passed; otherwise it immediately invokes provider cleanup.
 
 ## Cloud Resource Topology
 
@@ -229,6 +240,16 @@ supports `plan`, `apply`, and `remove` and creates only:
 - a least-privilege Analyzer Role and policy;
 - trust-policy conditions for repository, default branch, workflow path,
   protected Environment, and expected audience.
+
+The Provisioner role has distinct trust statements for the approved provision
+Environment/workflow and the unattended cleanup Environment/workflow; one
+subject cannot authorize the other path.
+
+Because Alibaba RAM exposes only `oidc:iss`, `oidc:aud`, and `oidc:sub` for
+OIDC federation, a one-time GitHub workflow configures the repository subject
+template as `repo + context + job_workflow_ref`. The resulting exact subject
+encodes repository, Environment, workflow path, and branch in the single
+`oidc:sub` condition; unsupported per-claim RAM condition keys are not used.
 
 It does not create Simulation Run infrastructure or export an AccessKey. It
 prints only non-secret account, role, provider, and region identifiers for
@@ -323,7 +344,8 @@ Each run generates independent 256-bit capabilities:
 
 - Bench Token for `/bench/v1` preparation;
 - Worker Control Token for local coordinator-to-worker operations;
-- Diagnostic Token for MCP-to-node diagnostic operations.
+- Diagnostic Token used only by the run-specific analysis Manager identity;
+- Manager JWT signing secret, which is not accepted as any other capability.
 
 They are stored only in the necessary root-readable systemd environment files
 and are never placed in cloud tags, GitHub artifacts, summaries, Diagnosis
@@ -359,6 +381,7 @@ and MCP-returned text are treated as untrusted data rather than instructions.
 The narrow tool contract includes:
 
 - `run_inspect`;
+- `workload_inspect` for the bounded final wkbench threshold summary;
 - `cluster_snapshot`;
 - `metrics_query_range`;
 - `logs_search` and `logs_context`;
@@ -366,6 +389,10 @@ The narrow tool contract includes:
 - `trace_start` and `trace_query`;
 - `profile_capture`, `profile_top`, and `profile_list`;
 - `config_read_redacted`.
+
+`workload_inspect` accepts only the exact Run Identity and parses the simulator's
+bounded final `summary.md`; it never returns raw worker reports, message content,
+or file paths. A missing final summary is `in_progress` and cannot prove health.
 
 Every Observation identifies the Run Identity, node, observation time, data
 window, completeness, and warnings. Tool parameters cannot select arbitrary
@@ -422,7 +449,8 @@ It contains no logs, metrics, profiles, or diagnosis data. Analysis first
 validates the locator and then inventories all relevant tagged compute, disk,
 address, security, subnet, and VPC resources.
 
-- valid locator plus proven empty inventory: `released`, fail before Codex;
+- valid locator plus matching provider/account/region authority plus proven
+  empty inventory: `released`, notify and terminate successfully before Codex;
 - missing locator: `unknown_run`, ask the caller to verify input;
 - present resources but unreachable MCP: `insufficient_evidence`, not released;
 - ambiguous or mismatched resource identity: fail closed.
@@ -444,7 +472,8 @@ The Diagnosis Result contains:
 - run, source, scenario, and analyzed-window identity;
 - one verdict, severity, and confidence;
 - root-cause scope;
-- compact Observation references;
+- compact Observation references, including `workload_inspect` state and
+  terminal status when that tool is referenced;
 - supporting, contradictory, and unresolved signals;
 - Remediation Eligibility;
 - proposed regression coverage;
@@ -462,6 +491,11 @@ starts from a fresh checkout with repository write and pull-request permission,
 but without a cloud identity, MCP configuration, Analysis Token, or live
 network window.
 
+It uses a separate `cloud-sim-remediation` Environment containing only the
+budget-limited Codex API key. GitHub Environment secrets are job-scoped, so the
+key is configured independently from `cloud-sim-analysis`; no cloud variables
+or OIDC permission are present in remediation.
+
 It must stop when code inspection contradicts the diagnosis. Otherwise it adds
 a regression test, runs focused repository gates, and may create a Draft PR.
 Performance patches requiring cloud A/B are labeled
@@ -469,7 +503,10 @@ Performance patches requiring cloud A/B are labeled
 
 ## Verdict and Workflow Conclusion
 
-The Analysis Workflow succeeds only for `healthy`:
+The Analysis Workflow succeeds only for `healthy` or the non-diagnostic
+`released` terminal conclusion. A healthy verdict additionally
+requires a complete `workload_inspect` result with `state=completed` and
+`status=passed`:
 
 | Verdict | Workflow | Draft PR |
 | --- | --- | --- |
@@ -478,7 +515,7 @@ The Analysis Workflow succeeds only for `healthy`:
 | `infrastructure_interrupted` | failure | prohibited |
 | `scenario_invalid` | failure | production-code fix prohibited |
 | `insufficient_evidence` | failure | prohibited |
-| `released` | failure before Codex | prohibited |
+| `released` | successful terminal notice before Codex | prohibited |
 | `unknown_run` | failure before Codex | prohibited |
 
 The Job Summary always shows exactly one verdict, confidence, key Observation
@@ -496,6 +533,8 @@ itself can never justify a source-code PR.
 - CloudShell bootstrap is the only cloud-admin operation.
 - GitHub holds no cloud AccessKey.
 - Provisioner and Analyzer Roles are separate and workflow-conditioned.
+- Billable provisioning and unattended cleanup use different exact OIDC
+  Environment subjects even though both attach the Provisioner policy.
 - Build jobs have no cloud credential.
 - Cloud hosts have no cloud role or GitHub credential.
 - Deployment SSH is ephemeral and absent during analysis.

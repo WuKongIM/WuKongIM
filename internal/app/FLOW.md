@@ -807,13 +807,15 @@ local diagnostic tie-breaker for the same distributed identity.
 ## Cloud Analysis Gateway Composition
 
 `NewCloudAnalysisGatewayHandler` is the composition root for the standalone
-Phase 1 simulator-side analysis process. It wires fixed private manager,
+simulator-side analysis process. It wires fixed private manager,
 Prometheus, and node API adapters into `internal/usecase/cloudanalysis`, then
 wraps the usecase with the authenticated Streamable HTTP MCP adapter. The
-runtime never joins the WuKongIM cluster and never receives a cloud or GitHub
-credential.
+runtime never joins the WuKongIM cluster and never receives a cloud credential.
+`cmd/wkanalysis` verifies a short-lived GitHub OIDC identity at the separate
+`internal/access/cloudanalysismcp` token-exchange entry and injects only the
+resulting run-scoped Analysis Token verifier into this composition root.
 
 `NewFakeCloudSimulationControlPlane` composes the same provider-neutral
-lifecycle usecase with the persistent Phase 1 fake adapter. The adapter's JSON
+lifecycle usecase with the persistent fake adapter. The adapter's JSON
 file emulates provider inventory only; real adapters recover solely from cloud
 tags and inventory APIs.

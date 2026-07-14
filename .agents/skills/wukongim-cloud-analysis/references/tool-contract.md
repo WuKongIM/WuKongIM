@@ -7,6 +7,7 @@ Use only the run-specific MCP configured by the Analysis Workflow. Every input i
 | Tool | Purpose | Key bounds |
 |---|---|---|
 | `run_inspect` | Prove exact run state and inventory | Always first |
+| `workload_inspect` | Parsed final wkbench threshold summary | Simulator-local `summary.md`, maximum 16 KiB; no raw reports, messages, or paths |
 | `cluster_snapshot` | Nodes and workqueues | Aggregate, bounded response |
 | `metrics_query_range` | Server-owned PromQL by `query_id` | Maximum 72 hours, 5,000 samples/series, step 1–900 seconds |
 | `logs_search` | Literal log search on one node | Sources `app` or `error`, maximum 200 lines |
@@ -26,6 +27,8 @@ Use only the run-specific MCP configured by the Analysis Workflow. Every input i
 - `target=channel` with `channel_id` and positive `channel_type`.
 
 TTL is 1–900 seconds. The tool cannot change global sampling or log level.
+An unexpired trace rule blocks another trace or profile capture so active
+diagnostics perturb only one node at a time.
 
 `profile_capture` accepts one node and `cpu`, `heap`, or `goroutine`. CPU requires `seconds=1..30`; snapshots omit seconds. Raw profile bytes and file paths are never returned.
 
@@ -43,6 +46,12 @@ TTL is 1–900 seconds. The tool cannot change global sampling or log level.
 - `process_cpu_rate`
 - `process_resident_memory`
 - `go_goroutines`
+- `simulator_cpu_percent`
+- `simulator_memory_percent`
+- `simulator_tcp_inuse`
+- `simulator_tcp_time_wait`
+- `simulator_network_bytes`
+- `simulator_disk_used_percent`
 
 Use RFC3339 `start` and `end` plus integer `step_seconds`. Begin with a small query set and widen only when the result changes the diagnosis.
 

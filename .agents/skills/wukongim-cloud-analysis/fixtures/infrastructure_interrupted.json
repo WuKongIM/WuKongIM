@@ -4,6 +4,7 @@
   "run_id": "fixture-infra",
   "observations": [
     {"tool": "run_inspect", "run_id": "fixture-infra", "node": "run", "source": "run_inventory", "observed_at": "2026-07-14T10:00:00Z", "window": {"start": "2026-07-14T10:00:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"state": "infrastructure_interrupted", "inventory_count": 10, "missing_roles": ["node-3"]}},
+    {"tool": "workload_inspect", "run_id": "fixture-infra", "node": "sim", "source": "wkbench_summary", "observed_at": "2026-07-14T10:00:00Z", "window": {"start": "2026-07-14T10:00:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "partial", "warnings": ["final wkbench summary is not available"], "data": {"state": "in_progress", "summary": {}}},
     {"tool": "cluster_snapshot", "run_id": "fixture-infra", "node": "cluster", "source": "manager", "observed_at": "2026-07-14T10:00:01Z", "window": {"start": "2026-07-14T10:00:01Z", "end": "2026-07-14T10:00:01Z"}, "completeness": "partial", "warnings": ["node-3 unavailable"], "data": {"ready_nodes": 2, "unavailable_nodes": [3]}},
     {"tool": "metrics_query_range", "run_id": "fixture-infra", "node": "cluster", "source": "prometheus", "observed_at": "2026-07-14T10:00:02Z", "window": {"start": "2026-07-14T09:30:00Z", "end": "2026-07-14T10:00:00Z"}, "completeness": "complete", "warnings": [], "data": {"query_id": "targets_up", "node_id": 3, "value": 0}}
   ],

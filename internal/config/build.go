@@ -572,6 +572,7 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Bench.APIEnabled = benchAPIEnable
 	}
+	cfg.Bench.APIToken = configValue(values, "WK_BENCH_API_TOKEN")
 	if raw := configValue(values, "WK_BENCH_API_MAX_BATCH_SIZE"); raw != "" {
 		maxBatchSize, err := parseInt("WK_BENCH_API_MAX_BATCH_SIZE", raw)
 		if err != nil {

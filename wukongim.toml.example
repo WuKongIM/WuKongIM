@@ -50,6 +50,8 @@ users = [{ username = "admin", password = "a1234567", permissions = [{ resource 
 
 [bench]
 api_enable = false
+# Optional bearer capability required by every /bench/v1/* request. Always set this for remotely reachable benchmark environments.
+api_token = ""
 api_max_batch_size = 10000
 api_max_payload_bytes = 10485760
 

@@ -14,6 +14,8 @@ const (
 	ManagedByValue = "wukongim-cloud-sim"
 	// MaxAnalysisWindow limits one temporary MCP ingress window.
 	MaxAnalysisWindow = 50 * time.Minute
+	// MaxDeploymentWindow limits one temporary SSH provisioning window.
+	MaxDeploymentWindow = 20 * time.Minute
 	// MinAnalysisLeaseRemaining prevents starting analysis immediately before release.
 	MinAnalysisLeaseRemaining = 30 * time.Minute
 )
@@ -60,6 +62,8 @@ var (
 	ErrRunReleased = errors.New("internal/usecase/cloudsim: run released")
 	// ErrInvalidAnalysisWindow reports an unsafe analysis ingress request.
 	ErrInvalidAnalysisWindow = errors.New("internal/usecase/cloudsim: invalid analysis window")
+	// ErrInvalidDeploymentWindow reports an unsafe deployment ingress request.
+	ErrInvalidDeploymentWindow = errors.New("internal/usecase/cloudsim: invalid deployment window")
 )
 
 // Preset is a provider-neutral infrastructure capacity class.
@@ -130,6 +134,9 @@ type CreateRequest struct {
 	DeploymentBundleDigest string `json:"deployment_bundle_digest"`
 	// MCPCertificateFingerprint pins the run-specific simulator certificate.
 	MCPCertificateFingerprint string `json:"mcp_certificate_fingerprint"`
+	// BootstrapSSHPublicKey is the ephemeral deployment key installed on all hosts.
+	// It is never copied into provider tags or the Run Locator.
+	BootstrapSSHPublicKey string `json:"bootstrap_ssh_public_key,omitempty"`
 	// Preset is the requested provider-neutral capacity class.
 	Preset Preset `json:"preset"`
 	// ScenarioMinimumPreset is the minimum capacity class allowed by the scenario.
@@ -152,6 +159,14 @@ type AnalysisWindow struct {
 	Until time.Time `json:"until"`
 }
 
+// DeploymentWindow is the currently open simulator-only SSH provisioning window.
+type DeploymentWindow struct {
+	// SourcePrefix is the single admitted GitHub runner IPv4 host prefix.
+	SourcePrefix netip.Prefix `json:"source_prefix"`
+	// Until is the non-renewable window expiry.
+	Until time.Time `json:"until"`
+}
+
 // Resource is one provider inventory item belonging to a run.
 type Resource struct {
 	// ID is the provider resource identifier.
@@ -162,6 +177,10 @@ type Resource struct {
 	Role string `json:"role"`
 	// Billable reports whether the resource can accrue cost.
 	Billable bool `json:"billable"`
+	// PrivateAddress is returned only by live provider inventory and is never stored in a Run Locator.
+	PrivateAddress string `json:"private_address,omitempty"`
+	// PublicAddress is returned only for the simulator's temporary public endpoint.
+	PublicAddress string `json:"public_address,omitempty"`
 	// Tags contains normalized provider inventory tags.
 	Tags map[string]string `json:"tags"`
 }
@@ -184,6 +203,8 @@ type Run struct {
 	CreatedAt time.Time `json:"created_at"`
 	// ExpiresAt is the immutable Run Lease deadline.
 	ExpiresAt time.Time `json:"expires_at"`
+	// ActiveUntil is the workload deadline recorded when the run enters running.
+	ActiveUntil time.Time `json:"active_until,omitempty"`
 	// Tags contains the run's normalized mandatory tags.
 	Tags map[string]string `json:"tags"`
 	// Resources contains the currently discovered provider inventory.
@@ -192,6 +213,18 @@ type Run struct {
 	Quote Quote `json:"quote"`
 	// AnalysisWindow is non-nil only while temporary MCP ingress is open.
 	AnalysisWindow *AnalysisWindow `json:"analysis_window,omitempty"`
+	// DeploymentWindow is non-nil only while temporary simulator SSH ingress is open.
+	DeploymentWindow *DeploymentWindow `json:"deployment_window,omitempty"`
+}
+
+// OpenDeploymentRequest requests temporary simulator-only SSH ingress.
+type OpenDeploymentRequest struct {
+	// RunID is the exact provisioning Simulation Run identity.
+	RunID string `json:"run_id"`
+	// SourcePrefix is the GitHub runner IPv4 /32 admitted to TCP/22.
+	SourcePrefix netip.Prefix `json:"source_prefix"`
+	// Until is the requested non-renewable ingress expiry.
+	Until time.Time `json:"until"`
 }
 
 // OpenAnalysisRequest requests temporary run-scoped MCP ingress.
@@ -212,10 +245,50 @@ type SweepResult struct {
 	Failed []string `json:"failed"`
 }
 
+// PreflightState is the provider-backed Analysis Workflow lookup result.
+type PreflightState string
+
+const (
+	// PreflightLive means exact matching resources still exist.
+	PreflightLive PreflightState = "live"
+	// PreflightReleased means a valid locator exists and provider inventory is empty.
+	PreflightReleased PreflightState = "released"
+)
+
+// PreflightResult binds a Run Locator to current provider inventory.
+type PreflightResult struct {
+	// State is live or provider-confirmed released.
+	State PreflightState `json:"state"`
+	// Run is present only when the exact locator-bound inventory is live.
+	Run *Run `json:"run,omitempty"`
+}
+
+// ProviderAuthority identifies the account and region queried by one adapter.
+type ProviderAuthority struct {
+	// Provider is the stable provider adapter name.
+	Provider string `json:"provider"`
+	// Region is the exact inventory region queried by the adapter.
+	Region string `json:"region"`
+	// AccountIDHash is the non-secret account binding queried by the adapter.
+	AccountIDHash string `json:"account_id_hash"`
+}
+
+// TransitionRequest asks the provider to persist one allowed lifecycle step.
+type TransitionRequest struct {
+	// RunID is the exact Simulation Run identity.
+	RunID string `json:"run_id"`
+	// Next is the requested lifecycle state.
+	Next State `json:"next"`
+	// ActiveUntil is required only when entering running.
+	ActiveUntil time.Time `json:"active_until,omitempty"`
+}
+
 // Provider is the narrow lifecycle boundary implemented by each cloud adapter.
 type Provider interface {
 	// Name returns the stable provider identifier.
 	Name() string
+	// Authority returns the exact account and region queried by this adapter.
+	Authority(context.Context) (ProviderAuthority, error)
 	// Inventory returns all run inventory visible to the adapter's scoped role.
 	Inventory(context.Context) ([]Run, error)
 	// Quote performs pricing, quota, spot-capacity, and subnet-capacity checks.
@@ -224,6 +297,12 @@ type Provider interface {
 	Create(context.Context, CreateRequest, Quote) (Run, error)
 	// Status reconciles one exact run from provider inventory.
 	Status(context.Context, string) (Run, error)
+	// Transition persists one provider-backed lifecycle state change.
+	Transition(context.Context, TransitionRequest) (Run, error)
+	// OpenDeployment admits one temporary IPv4 /32 to simulator SSH only.
+	OpenDeployment(context.Context, OpenDeploymentRequest) (Run, error)
+	// CloseDeployment removes temporary simulator SSH ingress.
+	CloseDeployment(context.Context, string) (Run, error)
 	// OpenAnalysis admits one temporary IPv4 /32 to the simulator MCP.
 	OpenAnalysis(context.Context, OpenAnalysisRequest) (Run, error)
 	// CloseAnalysis removes temporary simulator MCP ingress.

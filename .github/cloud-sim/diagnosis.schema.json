@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wukongim.example/schemas/cloud-simulation-diagnosis-v1.json",
+  "title": "WuKongIM Cloud Simulation Diagnosis Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "run_identity", "analyzed_window", "verdict", "severity", "confidence",
+    "root_cause_scope", "summary", "observation_references", "supporting_signals",
+    "contradictory_signals", "unresolved_signals", "remediation_eligibility",
+    "proposed_regression_coverage", "cloud_revalidation_required"
+  ],
+  "properties": {
+    "schema": {"const": "wukongim/cloud-simulation-diagnosis/v1"},
+    "run_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "source_sha", "scenario_digest"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "source_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "scenario_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "analyzed_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": "string", "format": "date-time"},
+        "end": {"type": "string", "format": "date-time"}
+      }
+    },
+    "verdict": {
+      "enum": ["healthy", "product_defect", "infrastructure_interrupted", "scenario_invalid", "insufficient_evidence"]
+    },
+    "severity": {"enum": ["none", "low", "medium", "high", "critical"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "root_cause_scope": {"enum": ["none", "product", "infrastructure", "scenario", "unknown"]},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "observation_references": {
+      "type": "array", "maxItems": 32,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["tool", "node", "observed_at", "window", "complete"],
+        "properties": {
+          "tool": {"type": "string", "minLength": 1, "maxLength": 64},
+          "node": {"type": "string", "minLength": 1, "maxLength": 64},
+          "observed_at": {"type": "string", "format": "date-time"},
+          "window": {"type": "string", "maxLength": 256},
+          "complete": {"type": "boolean"},
+          "state": {"enum": ["in_progress", "completed"]},
+          "status": {"enum": ["passed", "failed"]},
+          "note": {"type": "string", "maxLength": 500}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"tool": {"const": "workload_inspect"}}, "required": ["tool"]},
+            "then": {"required": ["state"]}
+          },
+          {
+            "if": {"properties": {"state": {"const": "completed"}}, "required": ["state"]},
+            "then": {"required": ["status"]}
+          }
+        ]
+      }
+    },
+    "supporting_signals": {"$ref": "#/$defs/signals"},
+    "contradictory_signals": {"$ref": "#/$defs/signals"},
+    "unresolved_signals": {"$ref": "#/$defs/signals"},
+    "remediation_eligibility": {
+      "type": "object", "additionalProperties": false,
+      "required": ["eligible", "reason", "repository_attributable", "testable"],
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "repository_attributable": {"type": "boolean"},
+        "testable": {"type": "boolean"}
+      }
+    },
+    "proposed_regression_coverage": {
+      "type": "array", "maxItems": 12,
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    },
+    "cloud_revalidation_required": {"type": "boolean"}
+  },
+  "$defs": {
+    "signals": {
+      "type": "array", "maxItems": 24,
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    }
+  }
+}

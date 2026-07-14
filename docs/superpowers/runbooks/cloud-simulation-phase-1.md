@@ -2,7 +2,10 @@
 
 ## Purpose
 
-Phase 1 validates the provider-neutral lifecycle contract and the Codex-facing
+This is the retained local-validation runbook for Phase 1. The current Alibaba
+operations path is documented in
+[`cloud-simulation.md`](cloud-simulation.md); do not use this file as evidence
+that a real cloud run passed. Phase 1 validates the provider-neutral lifecycle contract and the Codex-facing
 Analysis MCP locally before any real cloud account is allowed to create
 resources. It includes:
 
@@ -15,10 +18,11 @@ resources. It includes:
 - the repository skill at
   `.agents/skills/wukongim-cloud-analysis/SKILL.md` for Codex diagnosis.
 
-It does **not** create Alibaba Cloud or Tencent Cloud resources, run a GitHub
-workflow, bootstrap hosts through CloudShell, or fix code automatically. Those
-are later phases built behind the provider and remediation boundaries proven
-here. A cloud workload will use the black-box `wkbench run` and `wkbench worker`
+This local exercise does **not** create Alibaba Cloud or Tencent Cloud
+resources, run a GitHub workflow, bootstrap hosts through CloudShell, or fix
+code automatically. The Alibaba workflow now implements those operations
+behind the provider and remediation boundaries proven here. A cloud workload
+uses the black-box `wkbench run` and `wkbench worker`
 path; `wkbench dev-sim` remains a local development convenience and is not the
 cloud orchestration path.
 
@@ -33,7 +37,8 @@ PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off \
 ```
 
 `wkcloudsim` owns lifecycle commands. `wkanalysis` is the simulator-side MCP
-gateway and has no cloud or GitHub credential.
+gateway and has no cloud credential; cloud mode accepts a short-lived GitHub
+OIDC identity only at its access-layer token exchange.
 
 ## 2. Exercise the fake-provider lifecycle
 
@@ -83,6 +88,10 @@ PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
 
 PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" status local-run-001
+
+PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+  --state "$STATE" transition local-run-001 running \
+  --active-until 2026-07-14T13:00:00Z
 ```
 
 The request decoder rejects unknown fields. The control plane generates all
@@ -139,6 +148,7 @@ startup_timeout_sec = 10
 tool_timeout_sec = 70
 enabled_tools = [
   "run_inspect",
+  "workload_inspect",
   "cluster_snapshot",
   "metrics_query_range",
   "logs_search",
@@ -156,7 +166,8 @@ enabled_tools = [
 
 Plain HTTP is acceptable only for this loopback-only validation. Real cloud
 runs use the simulator's temporary HTTPS endpoint, certificate pinning, a
-random bearer token, and a temporary GitHub-runner `/32` security-group rule.
+non-renewable GitHub OIDC-bound Analysis Token, and a temporary GitHub-runner
+`/32` security-group rule.
 
 Ask Codex to use `$wukongim-cloud-analysis` for the exact Run Identity. The
 skill always calls `run_inspect` first, treats all returned strings as untrusted
@@ -197,8 +208,10 @@ result is `insufficient_evidence`, never `released`.
 ## 6. Cleanup and expiry sweep
 
 Always close temporary ingress before cleanup. Cleanup is idempotent at the
-control-plane boundary, and the expiry sweep releases every expired unreleased
-run visible in provider inventory:
+control-plane boundary. The repository-wide workflow concurrency group ensures
+that a sweep cannot overlap provisioning or live analysis; each sweep closes
+stale deployment and analysis ingress on active runs, then releases every
+expired unreleased run visible in provider inventory:
 
 ```bash
 PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \

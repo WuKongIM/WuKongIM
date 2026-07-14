@@ -1,0 +1,40 @@
+{
+  "bootstrap": {
+    "account_id": "1234567890123456",
+    "region": "cn-hangzhou",
+    "repository": "WuKongIM/WuKongIM",
+    "default_branch": "main",
+    "oidc_provider_name": "wukongim-github",
+    "oidc_audience": "wukongim-cloud-sim",
+    "provision_environment": "cloud-sim-provision",
+    "cleanup_environment": "cloud-sim-cleanup",
+    "analysis_environment": "cloud-sim-analysis",
+    "provisioner_role_name": "wukongim-cloud-sim-provisioner",
+    "analyzer_role_name": "wukongim-cloud-sim-analyzer"
+  },
+  "provider": {
+    "region": "cn-hangzhou",
+    "zone_id": "cn-hangzhou-h",
+    "image_id": "REPLACE_WITH_AUDITED_64_BIT_LINUX_IMAGE_ID",
+    "account_id_hash": "REPLACED_FROM_BOOTSTRAP_APPLY_OUTPUT",
+    "vpc_ipv4_cidr": "10.42.0.0/16",
+    "vswitch_ipv4_cidr": "10.42.0.0/24",
+    "system_disk_category": "cloud_essd",
+    "system_disk_size_gib": 40,
+    "data_disk_category": "cloud_essd",
+    "data_disk_size_gib": 100,
+    "public_bandwidth_mbps": 20,
+    "private_ipv4": {
+      "node-1": "10.42.0.11",
+      "node-2": "10.42.0.12",
+      "node-3": "10.42.0.13",
+      "sim": "10.42.0.20"
+    },
+    "simulator_source_ipv4": ["10.42.0.20", "10.42.0.21", "10.42.0.22"],
+    "presets": {
+      "small": {"instance_types": ["REPLACE_WITH_AUDITED_SMALL_SPOT_SKU"]},
+      "standard": {"instance_types": ["REPLACE_WITH_AUDITED_STANDARD_SPOT_SKU"]},
+      "stress": {"instance_types": ["REPLACE_WITH_AUDITED_STRESS_SPOT_SKU"]}
+    }
+  }
+}

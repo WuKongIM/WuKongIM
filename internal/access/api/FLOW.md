@@ -18,6 +18,9 @@ benchmark data writer,
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
 mutations through that writer; for `cmd/wukongim` delivery benchmarks the
 writer persists real cluster Slot metadata.
+When `bench.api_token` is configured, every `/bench/v1/*` request must carry
+the exact `Authorization: Bearer <token>` capability; health, readiness,
+metrics, debug, and product routes remain outside that middleware.
 
 ## Routes
 
@@ -82,8 +85,9 @@ POST /user/systemuids_remove_from_cache
 ```
 
 The `/bench/v1/*` routes are enabled only when the composition root passes
-`BenchEnabled=true`. They are unauthenticated and must be used only in controlled
-benchmark environments.
+`BenchEnabled=true`. When `bench.api_token` is non-empty they require the exact
+bearer capability described above; an empty token retains the explicit local
+benchmark compatibility mode and must be used only in controlled environments.
 
 `GET /top/v1/snapshot` is a read-only, node-local operations snapshot used by
 `wkcli top`. It is independent of Prometheus metrics and remains disabled unless

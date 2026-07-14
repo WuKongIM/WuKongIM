@@ -132,8 +132,11 @@ type GatewayConfig struct {
 
 // BenchConfig contains benchmark-only API settings.
 type BenchConfig struct {
-	// APIEnabled exposes unauthenticated /bench/v1/* routes for controlled benchmark environments.
+	// APIEnabled exposes /bench/v1/* routes for controlled benchmark environments.
 	APIEnabled bool
+	// APIToken optionally requires an exact bearer capability on every benchmark API request.
+	// Set this for any remotely reachable benchmark deployment and inject it through WK_BENCH_API_TOKEN.
+	APIToken string
 	// APIMaxBatchSize limits top-level records accepted by one bench API mutation request.
 	APIMaxBatchSize int
 	// APIMaxPayloadBytes limits JSON request body bytes accepted by bench API mutations.

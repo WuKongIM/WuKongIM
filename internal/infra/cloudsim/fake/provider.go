@@ -133,6 +133,31 @@ func newProvider(opts Options) *Provider {
 // Name returns the stable fake provider identifier.
 func (*Provider) Name() string { return ProviderName }
 
+// Authority derives the exact fake inventory binding and fails closed when the
+// persistent store is empty or spans more than one account or region.
+func (p *Provider) Authority(context.Context) (cloudsim.ProviderAuthority, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	var authority cloudsim.ProviderAuthority
+	for _, run := range p.runs {
+		candidate := cloudsim.ProviderAuthority{Provider: ProviderName, Region: run.Region, AccountIDHash: run.AccountIDHash}
+		if candidate.Region == "" || candidate.AccountIDHash == "" {
+			return cloudsim.ProviderAuthority{}, ErrStateStore
+		}
+		if authority.Provider == "" {
+			authority = candidate
+			continue
+		}
+		if authority != candidate {
+			return cloudsim.ProviderAuthority{}, ErrStateStore
+		}
+	}
+	if authority.Provider == "" {
+		return cloudsim.ProviderAuthority{}, ErrStateStore
+	}
+	return authority, nil
+}
+
 // Inventory returns deterministic deep copies of all known run records.
 func (p *Provider) Inventory(context.Context) ([]cloudsim.Run, error) {
 	p.mu.RLock()
@@ -204,6 +229,63 @@ func (p *Provider) Status(_ context.Context, runID string) (cloudsim.Run, error)
 	if !ok {
 		return cloudsim.Run{}, cloudsim.ErrRunNotFound
 	}
+	if run.State == cloudsim.StateRunning && !run.ActiveUntil.IsZero() && !p.now().UTC().Before(run.ActiveUntil) {
+		run.State = cloudsim.StateAnalysisGrace
+	}
+	return cloneRun(run), nil
+}
+
+// Transition persists one control-plane-validated lifecycle step.
+func (p *Provider) Transition(_ context.Context, req cloudsim.TransitionRequest) (cloudsim.Run, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	run, ok := p.runs[req.RunID]
+	if !ok {
+		return cloudsim.Run{}, cloudsim.ErrRunNotFound
+	}
+	run.State = req.Next
+	if req.Next == cloudsim.StateRunning {
+		run.ActiveUntil = req.ActiveUntil.UTC()
+	}
+	p.runs[req.RunID] = run
+	if err := p.persistLocked(); err != nil {
+		return cloudsim.Run{}, err
+	}
+	return cloneRun(run), nil
+}
+
+// OpenDeployment records one simulator-only temporary SSH ingress window.
+func (p *Provider) OpenDeployment(_ context.Context, req cloudsim.OpenDeploymentRequest) (cloudsim.Run, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	run, ok := p.runs[req.RunID]
+	if !ok {
+		return cloudsim.Run{}, cloudsim.ErrRunNotFound
+	}
+	if run.State == cloudsim.StateReleased {
+		return cloudsim.Run{}, cloudsim.ErrRunReleased
+	}
+	run.DeploymentWindow = &cloudsim.DeploymentWindow{SourcePrefix: req.SourcePrefix, Until: req.Until.UTC()}
+	p.runs[req.RunID] = run
+	if err := p.persistLocked(); err != nil {
+		return cloudsim.Run{}, err
+	}
+	return cloneRun(run), nil
+}
+
+// CloseDeployment clears temporary simulator SSH ingress for one exact run.
+func (p *Provider) CloseDeployment(_ context.Context, runID string) (cloudsim.Run, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	run, ok := p.runs[runID]
+	if !ok {
+		return cloudsim.Run{}, cloudsim.ErrRunNotFound
+	}
+	run.DeploymentWindow = nil
+	p.runs[runID] = run
+	if err := p.persistLocked(); err != nil {
+		return cloudsim.Run{}, err
+	}
 	return cloneRun(run), nil
 }
 
@@ -256,6 +338,7 @@ func (p *Provider) Destroy(_ context.Context, runID string) (cloudsim.Run, error
 	run.State = cloudsim.StateReleased
 	run.Resources = []cloudsim.Resource{}
 	run.AnalysisWindow = nil
+	run.DeploymentWindow = nil
 	p.runs[runID] = run
 	if err := p.persistLocked(); err != nil {
 		return cloudsim.Run{}, err
@@ -361,6 +444,10 @@ func cloneRun(run cloudsim.Run) cloudsim.Run {
 	if run.AnalysisWindow != nil {
 		window := *run.AnalysisWindow
 		run.AnalysisWindow = &window
+	}
+	if run.DeploymentWindow != nil {
+		window := *run.DeploymentWindow
+		run.DeploymentWindow = &window
 	}
 	return run
 }
