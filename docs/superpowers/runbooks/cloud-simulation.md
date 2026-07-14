@@ -207,6 +207,9 @@ immediately invokes full provider cleanup.
 If provisioning is cancelled, native ECS auto-release still bounds every
 compute host. The scheduled Cleanup Workflow reconciles disks, EIP, security
 group, vSwitch, and VPC from mandatory tags every 15 minutes.
+It reads Artifact metadata newest-first and downloads at most one provider
+configuration per account/region binding, so retained 90-day run history does
+not multiply cloud configuration downloads on every sweep.
 
 ## 3. Analyze an exact live run
 

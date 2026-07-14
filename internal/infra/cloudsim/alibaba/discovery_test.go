@@ -3,6 +3,7 @@ package alibaba
 import (
 	"context"
 	"errors"
+	"maps"
 	"reflect"
 	"testing"
 )
@@ -27,16 +28,14 @@ func TestDiscoverConfigSelectsFirstCompleteSpotZone(t *testing.T) {
 				{ID: "ecs.g8i.2xlarge", CPUArchitecture: "X86", FamilyLevel: "EnterpriseLevel", PrivateIPv4Capacity: 8},
 			},
 		},
-		available: map[string]bool{
-			"cn-hangzhou-a/ecs.g8i.large":   true,
-			"cn-hangzhou-a/ecs.c8i.large":   true,
-			"cn-hangzhou-a/ecs.g7.large":    true,
-			"cn-hangzhou-a/ecs.g8i.xlarge":  true,
-			"cn-hangzhou-b/ecs.g8i.large":   true,
-			"cn-hangzhou-b/ecs.c8i.large":   true,
-			"cn-hangzhou-b/ecs.g7.large":    true,
-			"cn-hangzhou-b/ecs.g8i.xlarge":  true,
-			"cn-hangzhou-b/ecs.g8i.2xlarge": true,
+		available: map[string]map[string]bool{
+			"cn-hangzhou-a": {
+				"ecs.g8i.large": true, "ecs.c8i.large": true, "ecs.g7.large": true, "ecs.g8i.xlarge": true,
+			},
+			"cn-hangzhou-b": {
+				"ecs.g8i.large": true, "ecs.c8i.large": true, "ecs.g7.large": true,
+				"ecs.g8i.xlarge": true, "ecs.g8i.2xlarge": true,
+			},
 		},
 	}
 
@@ -55,6 +54,9 @@ func TestDiscoverConfigSelectsFirstCompleteSpotZone(t *testing.T) {
 	}
 	if got, want := config.Presets["stress"].InstanceTypes, []string{"ecs.g8i.2xlarge"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("stress instance types = %v, want %v", got, want)
+	}
+	if api.availabilityCalls != 2 {
+		t.Fatalf("bulk availability calls = %d, want one per inspected zone", api.availabilityCalls)
 	}
 	if config.VPCIPv4CIDR != "10.42.0.0/16" || config.VSwitchIPv4CIDR != "10.42.0.0/24" || config.PrivateIPv4["sim"] != "10.42.0.20" {
 		t.Fatalf("network defaults = %#v", config)
@@ -77,9 +79,8 @@ func TestDiscoverConfigRejectsIncompleteInventory(t *testing.T) {
 			{cpu: 4, memory: 8}:  {{ID: "ecs.g8i.xlarge", CPUArchitecture: "X86", FamilyLevel: "EnterpriseLevel", PrivateIPv4Capacity: 8}},
 			{cpu: 8, memory: 16}: {{ID: "ecs.g8i.2xlarge", CPUArchitecture: "X86", FamilyLevel: "EnterpriseLevel", PrivateIPv4Capacity: 8}},
 		},
-		available: map[string]bool{
-			"cn-hangzhou-a/ecs.g8i.large":  true,
-			"cn-hangzhou-a/ecs.g8i.xlarge": true,
+		available: map[string]map[string]bool{
+			"cn-hangzhou-a": {"ecs.g8i.large": true, "ecs.g8i.xlarge": true},
 		},
 	}
 
@@ -94,11 +95,12 @@ type resourceShape struct {
 }
 
 type discoveryAPIStub struct {
-	accountIDHash string
-	zones         []string
-	imageID       string
-	instanceTypes map[resourceShape][]InstanceTypeCandidate
-	available     map[string]bool
+	accountIDHash     string
+	zones             []string
+	imageID           string
+	instanceTypes     map[resourceShape][]InstanceTypeCandidate
+	available         map[string]map[string]bool
+	availabilityCalls int
 }
 
 func (s *discoveryAPIStub) AccountIDHash(context.Context) (string, error) {
@@ -117,6 +119,7 @@ func (s *discoveryAPIStub) InstanceTypes(_ context.Context, _ string, cpu, memor
 	return append([]InstanceTypeCandidate(nil), s.instanceTypes[resourceShape{cpu: cpu, memory: memory}]...), nil
 }
 
-func (s *discoveryAPIStub) InstanceTypeAvailable(_ context.Context, region, zone, instanceType string) (bool, error) {
-	return s.available[zone+"/"+instanceType], nil
+func (s *discoveryAPIStub) AvailableInstanceTypes(_ context.Context, _, zone string) (map[string]bool, error) {
+	s.availabilityCalls++
+	return maps.Clone(s.available[zone]), nil
 }

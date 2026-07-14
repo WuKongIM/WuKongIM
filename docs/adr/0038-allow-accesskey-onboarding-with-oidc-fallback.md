@@ -20,7 +20,8 @@ Alibaba Cloud Linux image, ESSD-capable zone, and bounded live spot candidates
 before creating billable resources. It persists only that non-secret provider
 configuration in a Run-Identity-scoped GitHub Artifact. Analysis and Cleanup
 reuse the exact retained configuration; the scheduled sweeper deduplicates all
-unexpired configurations before reconciling tagged resources.
+unexpired Artifact metadata by account and region before downloading one
+configuration per binding and reconciling tagged resources.
 
 The AccessKey pair is never written to source, artifacts, summaries, cloud
 hosts, or logs. It remains available only to the protected GitHub cloud jobs

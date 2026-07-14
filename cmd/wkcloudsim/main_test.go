@@ -156,6 +156,8 @@ func (cliDiscoveryStub) InstanceTypes(_ context.Context, _ string, cpu, _ int32)
 	}}, nil
 }
 
-func (cliDiscoveryStub) InstanceTypeAvailable(context.Context, string, string, string) (bool, error) {
-	return true, nil
+func (cliDiscoveryStub) AvailableInstanceTypes(context.Context, string, string) (map[string]bool, error) {
+	return map[string]bool{
+		"ecs.g8i.large": true, "ecs.g8i.xlarge": true, "ecs.g8i.2xlarge": true,
+	}, nil
 }

@@ -48,23 +48,7 @@ jobs:
         env:
           ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
           ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
-        run: |
-          set -euo pipefail
-          if [[ -n "$ACCESS_KEY_ID" || -n "$ACCESS_KEY_SECRET" ]]; then
-            if [[ -z "$ACCESS_KEY_ID" || -z "$ACCESS_KEY_SECRET" ]]; then
-              echo 'Both ALIBABA_CLOUD_ACCESS_KEY_ID and ALIBABA_CLOUD_ACCESS_KEY_SECRET must be configured together.' >&2
-              exit 1
-            fi
-            [[ "$ACCESS_KEY_ID" != *$'\n'* && "$ACCESS_KEY_ID" != *$'\r'* ]]
-            [[ "$ACCESS_KEY_SECRET" != *$'\n'* && "$ACCESS_KEY_SECRET" != *$'\r'* ]]
-            echo "::add-mask::$ACCESS_KEY_ID"
-            echo "::add-mask::$ACCESS_KEY_SECRET"
-            printf 'ALIBABA_CLOUD_ACCESS_KEY_ID=%s\n' "$ACCESS_KEY_ID" >>"$GITHUB_ENV"
-            printf 'ALIBABA_CLOUD_ACCESS_KEY_SECRET=%s\n' "$ACCESS_KEY_SECRET" >>"$GITHUB_ENV"
-            echo 'mode=access-key' >>"$GITHUB_OUTPUT"
-          else
-            echo 'mode=oidc' >>"$GITHUB_OUTPUT"
-          fi
+        run: ./scripts/cloud-sim/resolve-alibaba-credential-mode.sh
       - name: Obtain short-lived Alibaba provisioner identity
         if: steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
@@ -107,22 +91,26 @@ jobs:
           }
 
           if [[ -n "$RUN_ID" ]]; then
-            artifact_name="cloud-sim-provider-config-${RUN_ID}"
-            artifacts="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$artifact_name" -f per_page=2)"
-            count="$(jq -r '.artifacts | length' <<<"$artifacts")"
-            if [[ "$count" == "1" ]]; then
-              download_config "$(jq -er '.artifacts[0].id' <<<"$artifacts")"
+            [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+            gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
+              --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config"))) | [.id,.name] | @tsv' \
+              >downloads/provider-artifacts.tsv
+            if artifact_id="$(./scripts/cloud-sim/select-exact-provider-config-artifact.sh "$RUN_ID" \
+              <downloads/provider-artifacts.tsv 2>downloads/provider-selector-error)"; then
+              download_config "$artifact_id"
             elif [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
               printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >downloads/legacy-provider.json
               retain_config downloads/legacy-provider.json
             else
-              echo "No unique provider config exists for exact Simulation Run ${RUN_ID}." >&2
+              cat downloads/provider-selector-error >&2
               exit 1
             fi
           else
             gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
-              --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config-"))) | .id' \
-              >downloads/artifact-ids
+              --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config"))) | [.id,.name] | @tsv' \
+              >downloads/provider-artifacts.tsv
+            ./scripts/cloud-sim/select-provider-config-artifacts.sh \
+              <downloads/provider-artifacts.tsv >downloads/artifact-ids
             while IFS= read -r artifact_id; do
               [[ "$artifact_id" =~ ^[0-9]+$ ]] || continue
               download_config "$artifact_id"

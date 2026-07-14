@@ -37,7 +37,7 @@ type ConfigDiscoveryAPI interface {
 	EligibleSpotZones(context.Context, string) ([]string, error)
 	LatestLinuxImage(context.Context, string) (string, error)
 	InstanceTypes(context.Context, string, int32, int32) ([]InstanceTypeCandidate, error)
-	InstanceTypeAvailable(context.Context, string, string, string) (bool, error)
+	AvailableInstanceTypes(context.Context, string, string) (map[string]bool, error)
 }
 
 type presetShape struct {
@@ -87,6 +87,10 @@ func DiscoverConfig(ctx context.Context, api ConfigDiscoveryAPI, region string) 
 	}
 
 	for _, zone := range zones {
+		availableTypes, availableErr := api.AvailableInstanceTypes(ctx, region, zone)
+		if availableErr != nil {
+			return Config{}, errors.Join(ErrInvalidConfig, availableErr)
+		}
 		presets := make(map[cloudsim.Preset]Preset, len(discoveryShapes))
 		complete := true
 		for _, shape := range discoveryShapes {
@@ -95,8 +99,7 @@ func DiscoverConfig(ctx context.Context, api ConfigDiscoveryAPI, region string) 
 				if err := ctx.Err(); err != nil {
 					return Config{}, err
 				}
-				ok, availableErr := api.InstanceTypeAvailable(ctx, region, zone, instanceType)
-				if availableErr == nil && ok {
+				if availableTypes[instanceType] {
 					available = append(available, instanceType)
 					if len(available) == maxDiscoveredInstanceTypes {
 						break

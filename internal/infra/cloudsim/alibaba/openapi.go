@@ -29,7 +29,16 @@ const (
 	defaultSDKPollInterval = 2 * time.Second
 	defaultSDKWaitTimeout  = 3 * time.Minute
 	maxDiscoveryPages      = 20
+	discoveryPageSize      = 100
 )
+
+type linuxImageCandidate struct {
+	ID                string
+	CreationTime      string
+	SupportsCloudInit bool
+}
+
+type linuxImagePageFetcher func(context.Context, int32, int32) ([]linuxImageCandidate, int32, error)
 
 // OpenAPI is the production Alibaba API boundary backed by official Go SDK clients.
 type OpenAPI struct {
@@ -145,33 +154,68 @@ func (a *OpenAPI) LatestLinuxImage(ctx context.Context, region string) (string, 
 	if a == nil || a.ecs == nil || strings.TrimSpace(region) == "" {
 		return "", ErrInvalidConfig
 	}
-	response, err := a.ecs.DescribeImagesWithContext(ctx, (&ecs.DescribeImagesRequest{}).
-		SetRegionId(region).
-		SetImageFamily("acs:alibaba_cloud_linux_3_2104_lts_x64").
-		SetImageOwnerAlias("system").
-		SetArchitecture("x86_64").
-		SetOSType("linux").
-		SetStatus("Available").
-		SetIsSupportCloudinit(true).
-		SetPageSize(100), nil)
-	if err != nil || response.Body == nil || response.Body.Images == nil {
-		return "", errors.Join(ErrInvalidConfig, err)
+	return discoverLatestLinuxImage(ctx, func(ctx context.Context, pageNumber, pageSize int32) ([]linuxImageCandidate, int32, error) {
+		response, err := a.ecs.DescribeImagesWithContext(ctx, (&ecs.DescribeImagesRequest{}).
+			SetRegionId(region).
+			SetImageFamily("acs:alibaba_cloud_linux_3_2104_lts_x64").
+			SetImageOwnerAlias("system").
+			SetArchitecture("x86_64").
+			SetOSType("linux").
+			SetStatus("Available").
+			SetIsSupportCloudinit(true).
+			SetPageNumber(pageNumber).
+			SetPageSize(pageSize), nil)
+		if err != nil || response.Body == nil || response.Body.Images == nil {
+			return nil, 0, errors.Join(ErrInvalidConfig, err)
+		}
+		images := make([]linuxImageCandidate, 0, len(response.Body.Images.Image))
+		for _, image := range response.Body.Images.Image {
+			if image == nil {
+				continue
+			}
+			images = append(images, linuxImageCandidate{
+				ID: deref(image.ImageId), CreationTime: deref(image.CreationTime),
+				SupportsCloudInit: image.IsSupportCloudinit != nil && *image.IsSupportCloudinit,
+			})
+		}
+		var totalCount int32
+		if response.Body.TotalCount != nil {
+			totalCount = *response.Body.TotalCount
+		}
+		return images, totalCount, nil
+	})
+}
+
+func discoverLatestLinuxImage(ctx context.Context, fetch linuxImagePageFetcher) (string, error) {
+	if fetch == nil {
+		return "", ErrInvalidConfig
 	}
 	var imageID string
 	var creationTime string
-	for _, image := range response.Body.Images.Image {
-		if image == nil || image.IsSupportCloudinit == nil || !*image.IsSupportCloudinit || strings.TrimSpace(deref(image.ImageId)) == "" {
-			continue
+	var processed int32
+	for pageNumber := int32(1); pageNumber <= maxDiscoveryPages; pageNumber++ {
+		images, totalCount, err := fetch(ctx, pageNumber, discoveryPageSize)
+		if err != nil {
+			return "", err
 		}
-		if created := deref(image.CreationTime); imageID == "" || created > creationTime {
-			imageID = deref(image.ImageId)
-			creationTime = created
+		for _, image := range images {
+			if !image.SupportsCloudInit || strings.TrimSpace(image.ID) == "" {
+				continue
+			}
+			if imageID == "" || image.CreationTime > creationTime {
+				imageID = image.ID
+				creationTime = image.CreationTime
+			}
+		}
+		processed += int32(len(images))
+		if len(images) < int(discoveryPageSize) || totalCount > 0 && processed >= totalCount {
+			if imageID == "" {
+				return "", ErrInvalidConfig
+			}
+			return imageID, nil
 		}
 	}
-	if imageID == "" {
-		return "", ErrInvalidConfig
-	}
-	return imageID, nil
+	return "", fmt.Errorf("%w: DescribeImages exceeded %d pages", ErrInvalidConfig, maxDiscoveryPages)
 }
 
 // InstanceTypes returns every paginated ECS type that exactly matches one
@@ -220,10 +264,10 @@ func (a *OpenAPI) InstanceTypes(ctx context.Context, _ string, cpu, memory int32
 	return nil, fmt.Errorf("%w: DescribeInstanceTypes exceeded %d pages", ErrInvalidConfig, maxDiscoveryPages)
 }
 
-// InstanceTypeAvailable reports current market-price spot capacity for one ECS
-// instance type in one exact availability zone.
-func (a *OpenAPI) InstanceTypeAvailable(ctx context.Context, region, zone, instanceType string) (bool, error) {
-	return a.instanceAvailable(ctx, OfferRequest{Region: region, ZoneID: zone}, instanceType)
+// AvailableInstanceTypes returns all currently purchasable spot instance types
+// in one zone through one bulk availability request.
+func (a *OpenAPI) AvailableInstanceTypes(ctx context.Context, region, zone string) (map[string]bool, error) {
+	return a.availableInstanceTypes(ctx, region, zone, "")
 }
 
 // Offers queries live spot availability and a one-hour price for each allowlisted SKU.
@@ -331,18 +375,29 @@ func (a *OpenAPI) spotQuotaAvailable(request OfferRequest, instanceType string) 
 }
 
 func (a *OpenAPI) instanceAvailable(ctx context.Context, request OfferRequest, instanceType string) (bool, error) {
-	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, (&ecs.DescribeAvailableResourceRequest{}).
-		SetRegionId(request.Region).
-		SetZoneId(request.ZoneID).
+	available, err := a.availableInstanceTypes(ctx, request.Region, request.ZoneID, instanceType)
+	return available[instanceType], err
+}
+
+func (a *OpenAPI) availableInstanceTypes(ctx context.Context, region, zoneID, instanceType string) (map[string]bool, error) {
+	if a == nil || a.ecs == nil || strings.TrimSpace(region) == "" || strings.TrimSpace(zoneID) == "" {
+		return nil, ErrInvalidConfig
+	}
+	request := (&ecs.DescribeAvailableResourceRequest{}).
+		SetRegionId(region).
+		SetZoneId(zoneID).
 		SetDestinationResource("InstanceType").
 		SetResourceType("instance").
 		SetInstanceChargeType("PostPaid").
 		SetSpotStrategy("SpotAsPriceGo").
-		SetInstanceType(instanceType).
 		SetIoOptimized("optimized").
-		SetNetworkCategory("vpc"), nil)
+		SetNetworkCategory("vpc")
+	if instanceType != "" {
+		request.SetInstanceType(instanceType)
+	}
+	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, request, nil)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	var body struct {
 		AvailableZones struct {
@@ -363,21 +418,22 @@ func (a *OpenAPI) instanceAvailable(ctx context.Context, request OfferRequest, i
 		} `json:"AvailableZones"`
 	}
 	if err := decodeSDKBody(response.Body, &body); err != nil {
-		return false, err
+		return nil, err
 	}
+	available := make(map[string]bool)
 	for _, zone := range body.AvailableZones.AvailableZone {
-		if zone.ZoneID != request.ZoneID || zone.Status != "Available" {
+		if zone.ZoneID != zoneID || zone.Status != "Available" {
 			continue
 		}
 		for _, resource := range zone.AvailableResources.AvailableResource {
 			for _, supported := range resource.SupportedResources.SupportedResource {
-				if supported.Value == instanceType && supported.Status == "Available" {
-					return true, nil
+				if strings.TrimSpace(supported.Value) != "" && supported.Status == "Available" {
+					available[supported.Value] = true
 				}
 			}
 		}
 	}
-	return false, nil
+	return available, nil
 }
 
 func (a *OpenAPI) hourlyPrice(request OfferRequest, instanceType string) (int64, string, error) {

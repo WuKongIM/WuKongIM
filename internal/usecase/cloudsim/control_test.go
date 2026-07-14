@@ -96,6 +96,48 @@ func TestControlPlaneCreateAddsMandatoryTags(t *testing.T) {
 	}
 }
 
+func TestControlPlaneCleanupRejectsMismatchedProviderAuthority(t *testing.T) {
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	authorityErr := errors.New("provider account does not match retained config")
+
+	tests := []struct {
+		name string
+		run  func(*ControlPlane) error
+	}{
+		{
+			name: "destroy",
+			run: func(control *ControlPlane) error {
+				_, err := control.Destroy(context.Background(), "run-1")
+				return err
+			},
+		},
+		{
+			name: "sweep",
+			run: func(control *ControlPlane) error {
+				_, err := control.Sweep(context.Background())
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			provider := &providerStub{
+				authorityErr: authorityErr,
+				inventory:    []Run{{ID: "run-1", State: StateRunning, ExpiresAt: now.Add(-time.Second)}},
+			}
+			control := NewControlPlane(provider, func() time.Time { return now })
+
+			if err := test.run(control); !errors.Is(err, authorityErr) {
+				t.Fatalf("operation error = %v, want authority error", err)
+			}
+			if len(provider.destroyed) != 0 {
+				t.Fatalf("provider mutated after authority failure: destroy=%v", provider.destroyed)
+			}
+		})
+	}
+}
+
 func TestControlPlaneOpenAnalysisRequiresIPv4HostPrefixAndLease(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	provider := &providerStub{status: Run{ID: "run-1", State: StateRunning, ExpiresAt: now.Add(time.Hour)}}

@@ -102,7 +102,7 @@ func (c *ControlPlane) Preflight(ctx context.Context, locator RunLocator) (Prefl
 	if c == nil || c.provider == nil || locator.Validate() != nil || locator.Provider != c.provider.Name() {
 		return PreflightResult{}, ErrInvalidRequest
 	}
-	authority, err := c.provider.Authority(ctx)
+	authority, err := c.providerAuthority(ctx)
 	if err != nil {
 		return PreflightResult{}, err
 	}
@@ -209,6 +209,9 @@ func (c *ControlPlane) Destroy(ctx context.Context, runID string) (Run, error) {
 	if c == nil || c.provider == nil || strings.TrimSpace(runID) == "" {
 		return Run{}, ErrInvalidRequest
 	}
+	if _, err := c.providerAuthority(ctx); err != nil {
+		return Run{}, err
+	}
 	return c.provider.Destroy(ctx, runID)
 }
 
@@ -218,6 +221,9 @@ func (c *ControlPlane) Destroy(ctx context.Context, runID string) (Run, error) {
 func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 	if c == nil || c.provider == nil {
 		return SweepResult{}, ErrInvalidRequest
+	}
+	if _, err := c.providerAuthority(ctx); err != nil {
+		return SweepResult{}, err
 	}
 	runs, err := c.provider.Inventory(ctx)
 	if err != nil {
@@ -258,6 +264,22 @@ func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 		result.Destroyed = append(result.Destroyed, run.ID)
 	}
 	return result, errors.Join(errs...)
+}
+
+// providerAuthority proves that the active credential is bound to the
+// configured provider before lifecycle code interprets inventory or mutates it.
+func (c *ControlPlane) providerAuthority(ctx context.Context) (ProviderAuthority, error) {
+	if c == nil || c.provider == nil {
+		return ProviderAuthority{}, ErrInvalidRequest
+	}
+	authority, err := c.provider.Authority(ctx)
+	if err != nil {
+		return ProviderAuthority{}, err
+	}
+	if authority.Provider != c.provider.Name() || strings.TrimSpace(authority.Region) == "" || strings.TrimSpace(authority.AccountIDHash) == "" {
+		return ProviderAuthority{}, ErrInvalidRequest
+	}
+	return authority, nil
 }
 
 func (c *ControlPlane) validateCreateRequest(req CreateRequest) error {

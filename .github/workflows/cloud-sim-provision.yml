@@ -187,7 +187,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ needs.build.outputs.source_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -204,23 +204,7 @@ jobs:
         env:
           ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
           ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
-        run: |
-          set -euo pipefail
-          if [[ -n "$ACCESS_KEY_ID" || -n "$ACCESS_KEY_SECRET" ]]; then
-            if [[ -z "$ACCESS_KEY_ID" || -z "$ACCESS_KEY_SECRET" ]]; then
-              echo 'Both ALIBABA_CLOUD_ACCESS_KEY_ID and ALIBABA_CLOUD_ACCESS_KEY_SECRET must be configured together.' >&2
-              exit 1
-            fi
-            [[ "$ACCESS_KEY_ID" != *$'\n'* && "$ACCESS_KEY_ID" != *$'\r'* ]]
-            [[ "$ACCESS_KEY_SECRET" != *$'\n'* && "$ACCESS_KEY_SECRET" != *$'\r'* ]]
-            echo "::add-mask::$ACCESS_KEY_ID"
-            echo "::add-mask::$ACCESS_KEY_SECRET"
-            printf 'ALIBABA_CLOUD_ACCESS_KEY_ID=%s\n' "$ACCESS_KEY_ID" >>"$GITHUB_ENV"
-            printf 'ALIBABA_CLOUD_ACCESS_KEY_SECRET=%s\n' "$ACCESS_KEY_SECRET" >>"$GITHUB_ENV"
-            echo 'mode=access-key' >>"$GITHUB_OUTPUT"
-          else
-            echo 'mode=oidc' >>"$GITHUB_OUTPUT"
-          fi
+        run: ./scripts/cloud-sim/resolve-alibaba-credential-mode.sh
       - name: Obtain short-lived Alibaba provisioner identity
         if: steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
@@ -230,24 +214,28 @@ jobs:
           audience: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE }}
           role-session-name: wukongim-cloud-sim-provision-${{ github.run_id }}
       - name: Discover current Alibaba provider config
+        id: provider_config
         shell: bash
         env:
           AUTH_MODE: ${{ steps.alibaba_auth.outputs.mode }}
           LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
         run: |
           set -euo pipefail
+          [[ "$ALIBABA_REGION" =~ ^[a-z0-9-]+$ ]]
+          go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
           if [[ "$AUTH_MODE" == "oidc" && -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
             printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >provider.json
           else
-            go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
             ./wkcloudsim --provider alibaba discover-config --region "$ALIBABA_REGION" >provider.json
           fi
           test "$(jq -er .region provider.json)" = "$ALIBABA_REGION"
           jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' provider.json >/dev/null
+          account_hash_hex="$(jq -er '.account_id_hash | sub("^sha256:"; "")' provider.json)"
+          echo "account_hash_hex=$account_hash_hex" >>"$GITHUB_OUTPUT"
       - name: Persist provider config before creating billable resources
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cloud-sim-provider-config-${{ needs.build.outputs.run_id }}
+          name: cloud-sim-provider-config--${{ needs.build.outputs.run_id }}--${{ inputs.region }}--${{ steps.provider_config.outputs.account_hash_hex }}
           path: provider.json
           retention-days: 90
           if-no-files-found: error
@@ -292,7 +280,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json create \
+          ./wkcloudsim --provider alibaba --provider-config provider.json create \
             --request create-request.json --locator run-locator.json --workflow-run-id "$GITHUB_RUN_ID" >run.json
           sim_public="$(jq -er '.resources[] | select(.kind=="public-address" and .role=="sim") | .public_address' run.json)"
           node1_private="$(jq -er '.resources[] | select(.kind=="compute" and .role=="node-1") | .private_address' run.json)"
@@ -309,7 +297,7 @@ jobs:
           set -euo pipefail
           runner_ip="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 https://api.ipify.org)"
           until="$(date -u -d '+19 minutes' +%Y-%m-%dT%H:%M:%SZ)"
-          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json open-deployment "$RUN_ID" \
+          ./wkcloudsim --provider alibaba --provider-config provider.json open-deployment "$RUN_ID" \
             --source "${runner_ip}/32" --until "$until" >/dev/null
       - name: Generate run-scoped internal capabilities and MCP certificate
         shell: bash
@@ -415,7 +403,7 @@ jobs:
             test "$(date +%s)" -lt "$deadline"
             sleep 10
           done
-          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" ready >/dev/null
+          ./wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" ready >/dev/null
 
       - name: Start non-restarting workload and persist running state
         id: workload_start
@@ -428,7 +416,7 @@ jobs:
           active_until="$(date -u -d "@$(($(date -u +%s) + duration_seconds))" +%Y-%m-%dT%H:%M:%SZ)"
           ssh -i bootstrap-key -o BatchMode=yes -o StrictHostKeyChecking=accept-new "wukong@${WK_CLOUD_SIM_PUBLIC_IP}" \
             'sudo systemctl enable wkbench-run.service && sudo systemctl start --no-block wkbench-run.service'
-          bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" running --active-until "$active_until" >/dev/null
+          ./wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" running --active-until "$active_until" >/dev/null
           echo "active_until=$active_until" >>"$GITHUB_OUTPUT"
 
       - name: Preserve diagnostics or release unusable failed provisioning
@@ -436,24 +424,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! status_json="$(bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json status "$RUN_ID")"; then
-            bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+          if ! status_json="$(./wkcloudsim --provider alibaba --provider-config provider.json status "$RUN_ID")"; then
+            ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
             exit 0
           fi
           state="$(jq -er .state <<<"$status_json")"
           if [[ -f bootstrap-gate.json ]] && jq -e '.analysis_mcp_self_check == true' bootstrap-gate.json >/dev/null 2>&1; then
             case "$state" in
               provisioning|ready|running)
-                bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" analysis_grace >/dev/null
+                ./wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" analysis_grace >/dev/null
                 ;;
               analysis_grace)
                 ;;
               *)
-                bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+                ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
                 ;;
             esac
           else
-            bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+            ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
           fi
       - name: Revoke ephemeral SSH keys on all hosts
         if: always() && steps.create.outputs.sim_public != ''
@@ -473,7 +461,7 @@ jobs:
       - name: Close deployment ingress
         if: always() && steps.create.outcome == 'success'
         shell: bash
-        run: bundle/bin/wkcloudsim --provider alibaba --provider-config provider.json close-deployment "$RUN_ID"
+        run: ./wkcloudsim --provider alibaba --provider-config provider.json close-deployment "$RUN_ID"
       - name: Upload minimal Run Locator
         if: always() && steps.create.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

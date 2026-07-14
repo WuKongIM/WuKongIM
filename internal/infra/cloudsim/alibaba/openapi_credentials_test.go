@@ -1,6 +1,10 @@
 package alibaba
 
-import "testing"
+import (
+	"context"
+	"reflect"
+	"testing"
+)
 
 func TestNewOpenAPIFromEnvironmentAcceptsCredentialModes(t *testing.T) {
 	tests := []struct {
@@ -50,5 +54,30 @@ func TestNewOpenAPIFromEnvironmentRejectsMissingRegion(t *testing.T) {
 
 	if _, err := NewOpenAPIFromEnvironment(""); err == nil {
 		t.Fatal("NewOpenAPIFromEnvironment() error = nil, want error")
+	}
+}
+
+func TestDiscoverLatestLinuxImageReadsEveryPage(t *testing.T) {
+	var pages []int32
+	imageID, err := discoverLatestLinuxImage(context.Background(), func(_ context.Context, pageNumber, pageSize int32) ([]linuxImageCandidate, int32, error) {
+		pages = append(pages, pageNumber)
+		if pageSize != discoveryPageSize {
+			t.Fatalf("page size = %d, want %d", pageSize, discoveryPageSize)
+		}
+		if pageNumber == 1 {
+			images := make([]linuxImageCandidate, discoveryPageSize)
+			images[0] = linuxImageCandidate{ID: "older", CreationTime: "2026-07-01T00:00:00Z", SupportsCloudInit: true}
+			return images, discoveryPageSize + 1, nil
+		}
+		return []linuxImageCandidate{{ID: "newest", CreationTime: "2026-07-15T00:00:00Z", SupportsCloudInit: true}}, discoveryPageSize + 1, nil
+	})
+	if err != nil {
+		t.Fatalf("discoverLatestLinuxImage() error = %v", err)
+	}
+	if imageID != "newest" {
+		t.Fatalf("image ID = %q, want newest", imageID)
+	}
+	if !reflect.DeepEqual(pages, []int32{1, 2}) {
+		t.Fatalf("pages = %v, want [1 2]", pages)
 	}
 }

@@ -124,9 +124,10 @@ Environment may require approval before any billable resource is created.
 
 The build job has no cloud credential. It produces one content-addressed
 Deployment Bundle for the selected commit. A separate provisioning job obtains
-the Provisioner Role, creates the run, deploys that exact bundle, and writes a
-Job Summary containing the Run Identity, selected resources, cost estimate,
-expiry, and a direct next-step reference to the local analysis command.
+the selected AccessKey or OIDC cloud identity, creates the run, deploys that
+exact bundle, and writes a Job Summary containing the Run Identity, selected
+resources, cost estimate, expiry, and a direct next-step reference to the local
+analysis command.
 
 ### Local Analysis Command and Session Workflow
 
@@ -528,11 +529,12 @@ The local command isolates live diagnosis from any repository mutation.
 
 ### Diagnose
 
-GitHub has the Analyzer Role but never runs Codex. The local diagnosis process
-has temporary MCP access and read-only repository contents. It uses only the
-operator's existing local ChatGPT login; no OpenAI API key, Codex `auth.json`,
-or ChatGPT session is stored in GitHub or on a cloud host. It emits a strict
-JSON-Schema-validated Diagnosis Result and then closes live access.
+GitHub uses the selected AccessKey or OIDC Analyzer identity but never runs
+Codex. The local diagnosis process has temporary MCP access and read-only
+repository contents. It uses only the operator's existing local ChatGPT login;
+no OpenAI API key, Codex `auth.json`, or ChatGPT session is stored in GitHub or
+on a cloud host. It emits a strict JSON-Schema-validated Diagnosis Result and
+then closes live access.
 
 The Diagnosis Result contains:
 
