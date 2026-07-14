@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/netip"
 	"os"
 	"sort"
 	"strconv"
@@ -536,6 +537,34 @@ func collectPages[T any](ctx context.Context, fetch func(int32) ([]T, int, error
 	return nil, ErrAmbiguousInventory
 }
 
+func collectTokenPages[T any](ctx context.Context, fetch func(string) ([]T, string, error)) ([]T, error) {
+	result := make([]T, 0)
+	nextToken := ""
+	seen := make(map[string]struct{})
+	for page := 0; page < 10000; page++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		items, followingToken, err := fetch(nextToken)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, items...)
+		if followingToken == "" {
+			return result, nil
+		}
+		if followingToken == nextToken {
+			return nil, ErrAmbiguousInventory
+		}
+		if _, exists := seen[followingToken]; exists {
+			return nil, ErrAmbiguousInventory
+		}
+		seen[followingToken] = struct{}{}
+		nextToken = followingToken
+	}
+	return nil, ErrAmbiguousInventory
+}
+
 // CreateNetwork creates and tags the isolated VPC, vSwitch, and security group.
 func (a *OpenAPI) CreateNetwork(ctx context.Context, request NetworkRequest) (_ []Asset, err error) {
 	if err := ctx.Err(); err != nil {
@@ -893,37 +922,131 @@ func (a *OpenAPI) SetIngress(ctx context.Context, request IngressRequest) error 
 			SetSourceCidrIp(request.Source.String()).SetPolicy("accept").SetPriority("1").SetDescription(description))
 		return err
 	}
-	response, err := a.ecs.DescribeSecurityGroupAttribute((&ecs.DescribeSecurityGroupAttributeRequest{}).
-		SetRegionId(deref(a.ecs.RegionId)).SetSecurityGroupId(request.SecurityGroupID).SetDirection("ingress"))
-	if err != nil {
-		return err
+	list := func(listCtx context.Context) ([]securityGroupPermission, error) {
+		return a.listSecurityGroupPermissions(listCtx, request.SecurityGroupID)
 	}
-	var body struct {
-		Permissions struct {
-			Permission []struct {
-				SecurityGroupRuleID string `json:"SecurityGroupRuleId"`
-				Description         string `json:"Description"`
-				PortRange           string `json:"PortRange"`
-			} `json:"Permission"`
-		} `json:"Permissions"`
-	}
-	if err := decodeSDKBody(response.Body, &body); err != nil {
-		return err
-	}
-	prefix := ingressDescriptionPrefix(request.RunID, request.Port)
-	var errs []error
-	for _, permission := range body.Permissions.Permission {
-		if !strings.HasPrefix(permission.Description, prefix) || permission.PortRange != fmt.Sprintf("%d/%d", request.Port, request.Port) {
-			continue
-		}
+	revoke := func(_ context.Context, permission securityGroupPermission) error {
 		_, revokeErr := a.ecs.RevokeSecurityGroup((&ecs.RevokeSecurityGroupRequest{}).
 			SetRegionId(deref(a.ecs.RegionId)).SetSecurityGroupId(request.SecurityGroupID).
 			SetSecurityGroupRuleId([]*string{dara.String(permission.SecurityGroupRuleID)}))
-		if revokeErr != nil {
+		return revokeErr
+	}
+	return closeOwnedIngress(ctx, request.RunID, request.Port, list, revoke)
+}
+
+// ListIngress reads run-owned temporary rules so cleanup can distinguish an
+// active local Analysis Session from an expired or malformed window.
+func (a *OpenAPI) ListIngress(ctx context.Context, request IngressListRequest) ([]IngressWindow, error) {
+	if a == nil || a.ecs == nil || strings.TrimSpace(request.RunID) == "" || strings.TrimSpace(request.SecurityGroupID) == "" {
+		return nil, ErrInvalidConfig
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	permissions, err := a.listSecurityGroupPermissions(ctx, request.SecurityGroupID)
+	if err != nil {
+		return nil, err
+	}
+	return ingressWindowsFromPermissions(request.RunID, permissions), nil
+}
+
+type securityGroupPermission struct {
+	SecurityGroupRuleID string `json:"SecurityGroupRuleId"`
+	Description         string `json:"Description"`
+	PortRange           string `json:"PortRange"`
+	SourceCidrIP        string `json:"SourceCidrIp"`
+}
+
+func (a *OpenAPI) listSecurityGroupPermissions(ctx context.Context, securityGroupID string) ([]securityGroupPermission, error) {
+	return collectTokenPages(ctx, func(nextToken string) ([]securityGroupPermission, string, error) {
+		request := (&ecs.DescribeSecurityGroupAttributeRequest{}).
+			SetRegionId(deref(a.ecs.RegionId)).SetSecurityGroupId(securityGroupID).
+			SetDirection("ingress").SetMaxResults(500)
+		if nextToken != "" {
+			request.SetNextToken(nextToken)
+		}
+		response, err := a.ecs.DescribeSecurityGroupAttribute(request)
+		if err != nil {
+			return nil, "", err
+		}
+		var body struct {
+			NextToken   string `json:"NextToken"`
+			Permissions struct {
+				Permission []securityGroupPermission `json:"Permission"`
+			} `json:"Permissions"`
+		}
+		if err := decodeSDKBody(response.Body, &body); err != nil {
+			return nil, "", err
+		}
+		return body.Permissions.Permission, body.NextToken, nil
+	})
+}
+
+func ownedIngressPermissions(runID string, port uint16, permissions []securityGroupPermission) []securityGroupPermission {
+	prefix := ingressDescriptionPrefix(runID, port)
+	portRange := fmt.Sprintf("%d/%d", port, port)
+	owned := make([]securityGroupPermission, 0, 1)
+	for _, permission := range permissions {
+		if strings.HasPrefix(permission.Description, prefix) && permission.PortRange == portRange {
+			owned = append(owned, permission)
+		}
+	}
+	return owned
+}
+
+func closeOwnedIngress(
+	ctx context.Context,
+	runID string,
+	port uint16,
+	list func(context.Context) ([]securityGroupPermission, error),
+	revoke func(context.Context, securityGroupPermission) error,
+) error {
+	permissions, err := list(ctx)
+	if err != nil {
+		return err
+	}
+	owned := ownedIngressPermissions(runID, port, permissions)
+	if len(owned) == 0 {
+		return nil
+	}
+	errs := make([]error, 0)
+	for _, permission := range owned {
+		if permission.SecurityGroupRuleID == "" {
+			errs = append(errs, ErrAmbiguousInventory)
+			continue
+		}
+		if revokeErr := revoke(ctx, permission); revokeErr != nil {
 			errs = append(errs, revokeErr)
 		}
 	}
+	remaining, verifyErr := list(ctx)
+	if verifyErr != nil {
+		return errors.Join(append(errs, verifyErr)...)
+	}
+	if count := len(ownedIngressPermissions(runID, port, remaining)); count != 0 {
+		errs = append(errs, fmt.Errorf("%w: %d ingress rules", ErrResidualResources, count))
+	}
 	return errors.Join(errs...)
+}
+
+func ingressWindowsFromPermissions(runID string, permissions []securityGroupPermission) []IngressWindow {
+	windows := make([]IngressWindow, 0, 2)
+	for _, permission := range permissions {
+		for _, port := range []uint16{22, 19092} {
+			prefix := ingressDescriptionPrefix(runID, port)
+			if !strings.HasPrefix(permission.Description, prefix) || permission.PortRange != fmt.Sprintf("%d/%d", port, port) {
+				continue
+			}
+			window := IngressWindow{Port: port}
+			window.Until, _ = time.Parse(time.RFC3339, strings.TrimPrefix(permission.Description, prefix))
+			if source, parseErr := netip.ParsePrefix(permission.SourceCidrIP); parseErr == nil &&
+				source.Addr().Is4() && source.Bits() == 32 && source == source.Masked() {
+				window.Source = source
+			}
+			windows = append(windows, window)
+		}
+	}
+	return windows
 }
 
 // UpdateRunState writes the same lifecycle tags to every exact run asset.

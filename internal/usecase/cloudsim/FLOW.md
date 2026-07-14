@@ -28,10 +28,12 @@ enters `analysis_grace` only when the simulator MCP self-check is usable;
 otherwise the workflow releases the run immediately.
 
 Analysis ingress accepts one IPv4 `/32`, expires within 50 minutes and the Run
-Lease, and requires at least 30 minutes of lease remaining. Workflows serialize
-provisioning, analysis, and cleanup. `Sweep` therefore closes stale deployment
-and analysis ingress on active runs before reconciling all expired unreleased
-runs; partial cleanup failures remain explicit.
+Lease, requires at least 30 minutes of lease remaining, and rejects a second
+unexpired window for the same run. Provider inventory reconstructs ingress
+expiry from run-owned security rules. `Sweep` preserves future active windows,
+closes expired or malformed deployment and analysis windows, and then
+reconciles all expired unreleased runs; partial cleanup failures remain
+explicit.
 
 `ValidateTencentAdmission` is a delivery-order gate, not a Tencent adapter. It
 requires repository-owner-reviewed real Alibaba workflow references and

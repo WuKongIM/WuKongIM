@@ -157,7 +157,7 @@ docker/
   sim/                   可选 wkbench dev-sim 模拟器配置与使用说明
 
 scripts/                 仓库辅助脚本
-  cloud-sim/             CloudShell 一键初始化、临时云模拟部署门禁与演练辅助脚本
+  cloud-sim/             CloudShell 一键初始化、本地 Codex 云模拟分析、部署门禁与演练辅助脚本
   wukongim/              wukongim 本地启动脚本使用的真实配置文件
 
 test/

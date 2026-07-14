@@ -3,8 +3,10 @@ package alibaba
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -53,6 +55,46 @@ func TestCollectPagesRequiresCompleteProviderInventory(t *testing.T) {
 	}
 }
 
+func TestCloseOwnedIngressFindsSecondTokenPageAndVerifiesRemoval(t *testing.T) {
+	deadline := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	revoked := false
+	listCalls := 0
+	list := func(ctx context.Context) ([]securityGroupPermission, error) {
+		listCalls++
+		return collectTokenPages(ctx, func(token string) ([]securityGroupPermission, string, error) {
+			switch token {
+			case "":
+				return []securityGroupPermission{{SecurityGroupRuleID: "unrelated", Description: "other", PortRange: "443/443"}}, "page-2", nil
+			case "page-2":
+				if revoked {
+					return nil, "", nil
+				}
+				return []securityGroupPermission{{
+					SecurityGroupRuleID: "owned-second-page",
+					Description:         ingressDescription("run-1", 19092, deadline),
+					PortRange:           "19092/19092",
+					SourceCidrIP:        "198.51.100.8/32",
+				}}, "", nil
+			default:
+				return nil, "", ErrAmbiguousInventory
+			}
+		})
+	}
+	revoke := func(_ context.Context, permission securityGroupPermission) error {
+		if permission.SecurityGroupRuleID != "owned-second-page" {
+			t.Fatalf("revoked permission = %#v", permission)
+		}
+		revoked = true
+		return nil
+	}
+	if err := closeOwnedIngress(context.Background(), "run-1", 19092, list, revoke); err != nil {
+		t.Fatalf("closeOwnedIngress() error = %v", err)
+	}
+	if !revoked || listCalls != 2 {
+		t.Fatalf("revoked = %v, list calls = %d; want removal plus zero-match verification", revoked, listCalls)
+	}
+}
+
 func TestAttachableInstanceStatusMatchesAlibabaAttachDiskContract(t *testing.T) {
 	for _, status := range []string{"Running", "Stopped"} {
 		if !attachableInstanceStatus(status) {
@@ -63,5 +105,23 @@ func TestAttachableInstanceStatusMatchesAlibabaAttachDiskContract(t *testing.T) 
 		if attachableInstanceStatus(status) {
 			t.Fatalf("status %q must not be attachable", status)
 		}
+	}
+}
+
+func TestIngressWindowsFromPermissionsPreservesOwnedDeadlinesAndMarksMalformedRules(t *testing.T) {
+	deadline := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	windows := ingressWindowsFromPermissions("run-1", []securityGroupPermission{
+		{Description: ingressDescription("run-1", 19092, deadline), PortRange: "19092/19092", SourceCidrIP: "198.51.100.8/32"},
+		{Description: ingressDescriptionPrefix("run-1", 22) + "invalid", PortRange: "22/22", SourceCidrIP: "203.0.113.10/24"},
+		{Description: ingressDescription("other-run", 19092, deadline), PortRange: "19092/19092", SourceCidrIP: "198.51.100.9/32"},
+	})
+	if len(windows) != 2 {
+		t.Fatalf("windows = %#v, want two run-owned rules", windows)
+	}
+	if windows[0].Port != 19092 || windows[0].Source != netip.MustParsePrefix("198.51.100.8/32") || !windows[0].Until.Equal(deadline) {
+		t.Fatalf("valid analysis window = %#v", windows[0])
+	}
+	if windows[1].Port != 22 || windows[1].Source.IsValid() || !windows[1].Until.IsZero() {
+		t.Fatalf("malformed deployment window = %#v, want zero values for cleanup", windows[1])
 	}
 }

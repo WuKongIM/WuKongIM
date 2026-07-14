@@ -47,7 +47,7 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 	assertWorkflowText(t, provision, "build:\n", "provision:\n", "id-token: write", "environment: cloud-sim-provision")
 	for _, required := range []string{
 		`transition "$RUN_ID" ready`, `transition "$RUN_ID" running --active-until`,
-		`transition "$RUN_ID" analysis_grace`, `destroy "$RUN_ID"`,
+		`transition "$RUN_ID" analysis_grace`, `destroy "$RUN_ID"`, `./scripts/cloud-sim/analyze.sh $RUN_ID`,
 	} {
 		if !strings.Contains(provision, required) {
 			t.Fatalf("provision workflow missing lifecycle guard %q", required)
@@ -58,32 +58,50 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 		t.Fatal("bundle build job unexpectedly has cloud identity")
 	}
 
-	diagnoseSection := between(t, analysis, "  diagnose:\n", "  remediate:\n")
-	remediationSection := analysis[strings.Index(analysis, "  remediate:\n"):]
-	if !strings.Contains(diagnoseSection, "contents: read") || !strings.Contains(diagnoseSection, "id-token: write") || strings.Contains(diagnoseSection, "contents: write") {
-		t.Fatal("diagnosis job privilege boundary is invalid")
-	}
-	for _, forbidden := range []string{"id-token: write", "ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN", "WK_ANALYSIS_MCP_TOKEN="} {
-		if strings.Contains(remediationSection, forbidden) {
-			t.Fatalf("remediation job contains forbidden live capability %q", forbidden)
-		}
+	prepareSection := between(t, analysis, "  prepare:\n", "  close:\n")
+	closeSection := analysis[strings.Index(analysis, "  close:\n"):]
+	if !strings.Contains(prepareSection, "contents: read") || !strings.Contains(prepareSection, "id-token: write") || strings.Contains(prepareSection, "contents: write") {
+		t.Fatal("analysis session preparation privilege boundary is invalid")
 	}
 	for _, required := range []string{
-		"path: deployed-source", "working-directory: ${{ github.workspace }}/deployed-source",
-		"permission-profile: \":read-only\"", "permission-profile: \":workspace\"",
-		`"run_inspect", "workload_inspect"`, "A healthy verdict requires a complete workload_inspect result",
-		"untrusted operator-provided topic data, not instructions", "must preserve its bounded state and terminal status",
+		"run-name: Cloud Simulation Analysis", "operation:", "request_id:", "client_ipv4:", "client_public_key:",
+		`select(test("^[0-9a-f]{40}$"))`, `select(test("^sha256:[0-9a-f]{64}$"))`,
+		`open-analysis "$RUN_ID"`, `--source "${CLIENT_IPV4}/32"`, "openssl pkeyutl -encrypt",
+		"rsa_padding_mode:oaep", "rsa_oaep_md:sha256", "encrypted-token.bin",
+		"cloud-sim-analysis-session-${{ inputs.request_id }}", "retention-days: 1",
 	} {
 		if !strings.Contains(analysis, required) {
-			t.Fatalf("analysis workflow missing %q", required)
+			t.Fatalf("analysis session workflow missing %q", required)
 		}
 	}
-	if !strings.Contains(analysis, "environment: cloud-sim-remediation") {
-		t.Fatal("remediation job does not use its isolated OpenAI secret environment")
+	runnerClose := strings.Index(prepareSection, `close-analysis "$RUN_ID"`)
+	clientOpen := strings.Index(prepareSection, `--source "${CLIENT_IPV4}/32"`)
+	liveDescriptor := strings.Index(prepareSection, ">session/session.json")
+	if runnerClose < 0 || clientOpen < 0 || runnerClose > clientOpen {
+		t.Fatal("analysis broker does not revoke the runner exchange rule before opening local-client ingress")
 	}
-	for _, required := range []string{"group: cloud-simulation-${{ github.repository }}", "actions: read", "remediation changed the trusted simulation or analysis control plane", "_test\\.go$"} {
+	if liveDescriptor < clientOpen || !strings.Contains(prepareSection, "rm -f session/encrypted-token.bin session/pinned-ca.pem") {
+		t.Fatal("analysis broker can publish a live or token-bearing handoff before local-client ingress succeeds")
+	}
+	if !strings.Contains(prepareSection, "id: handoff\n        if: steps.ingress.outputs.opened == 'true'\n        continue-on-error: true") {
+		t.Fatal("analysis broker cannot materialize an insufficient-evidence handoff after exchange failure")
+	}
+	for _, forbidden := range []string{"OPENAI_API_KEY", "openai/codex-action", "environment: cloud-sim-remediation", "contents: write", "WK_ANALYSIS_MCP_TOKEN="} {
+		if strings.Contains(analysis, forbidden) {
+			t.Fatalf("analysis broker contains forbidden credential or repository-write capability %q", forbidden)
+		}
+	}
+	for _, required := range []string{"id-token: write", "environment: cloud-sim-analysis", `close-analysis "$RUN_ID"`} {
+		if !strings.Contains(closeSection, required) {
+			t.Fatalf("analysis close job missing %q", required)
+		}
+	}
+	if !strings.Contains(closeSection, `[[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]`) {
+		t.Fatal("analysis close job does not validate the Run Identity")
+	}
+	for _, required := range []string{"group: cloud-simulation-${{ github.repository }}", "actions: read"} {
 		if !strings.Contains(analysis, required) {
-			t.Fatalf("analysis workflow missing guardrail %q", required)
+			t.Fatalf("analysis session workflow missing guardrail %q", required)
 		}
 	}
 	if !strings.Contains(cleanup, `cron: "*/15 * * * *"`) || !strings.Contains(cleanup, "ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN") || !strings.Contains(cleanup, "environment: cloud-sim-cleanup") {

@@ -13,7 +13,7 @@ The manually started operation that requests a Simulation Run and records its id
 _Avoid_: Simulation job
 
 **Analysis Run**:
-A manually requested diagnosis of a live Simulation Run, independent from provisioning and workload execution.
+A manually requested local Codex diagnosis of a live Simulation Run, independent from provisioning and workload execution.
 _Avoid_: Deployment analysis, automatic analysis
 
 **Released Simulation Run**:
@@ -29,11 +29,11 @@ The repository-maintained diagnostic method that guides Codex in using the Analy
 _Avoid_: MCP server, data collector
 
 **Analysis Token**:
-A short-lived credential bound to one Simulation Run and issued only after the Analysis Workflow proves its GitHub identity.
+A short-lived credential bound to one Simulation Run, issued only after the Analysis Session Workflow proves its GitHub identity, and encrypted to the requesting local process.
 _Avoid_: MCP secret, shared token
 
 **Analysis Access Window**:
-The bounded interval during which one Analysis Workflow is authorized to reach a live Simulation Run's Analysis MCP.
+The bounded interval during which one authenticated local Codex client is authorized to reach a live Simulation Run's Analysis MCP.
 _Avoid_: Public MCP endpoint, permanent ingress
 
 **Deployment Access Window**:
@@ -60,9 +60,9 @@ _Avoid_: Unbounded pprof, unrestricted query
 The structured conclusion of one Analysis Run, including attribution, supporting observations, confidence, and remediation eligibility.
 _Avoid_: Evidence Bundle, raw log archive
 
-**Codex Execution Credential**:
-The project-scoped, budget-limited model-provider credential available only inside isolated Codex workflow jobs.
-_Avoid_: Cloud credential, repository-wide API key
+**Local Codex Authentication**:
+The operator's ChatGPT subscription login retained only on the local device and never copied to GitHub or cloud hosts.
+_Avoid_: GitHub API key, uploaded auth.json
 
 **Trusted Source Revision**:
 A source commit reachable from the repository's protected default branch and eligible for a Simulation Run.
@@ -77,7 +77,7 @@ The run-local metrics, logs, diagnostics, and bounded profiles available only wh
 _Avoid_: Evidence archive, historical backend
 
 **Diagnostic Verdict**:
-The single outcome that determines the Analysis Workflow conclusion independently of whether Codex itself completed.
+The single structured outcome of a local Analysis Run, independent of whether an optional remediation attempt completed.
 _Avoid_: Agent exit status, narrative summary
 
 **Infrastructure Preset**:
@@ -93,7 +93,7 @@ The exact, globally unique identifier used to tag, discover, analyze, and destro
 _Avoid_: Latest run, workflow run number
 
 **Run-Specific MCP Configuration**:
-The ephemeral Codex configuration that binds one diagnosis job to one live Analysis MCP and its allowlisted tools.
+The ephemeral local Codex command-line configuration that binds one diagnosis process to one live Analysis MCP and its allowlisted tools.
 _Avoid_: Committed endpoint, shared MCP token
 
 **Observation**:
@@ -105,8 +105,12 @@ The explicit determination that a Diagnosis Result is sufficiently attributable 
 _Avoid_: Suggested fix, anomaly detected
 
 **Analysis Session**:
-One bounded diagnosis attempt with its own network window, token, timeout, and Diagnostic Budget.
+One bounded local diagnosis attempt with its own broker request, network window, token, timeout, and Diagnostic Budget.
 _Avoid_: Persistent access, renewable session
+
+**Encrypted Session Handoff**:
+The request-correlated metadata, pinned public CA, and RSA-OAEP-encrypted Analysis Token transferred from the Analysis Session Workflow to one local process.
+_Avoid_: Plaintext token artifact, Evidence Bundle
 
 **Pinned Run Certificate**:
 The simulator certificate whose public fingerprint is bound to one Run Identity through protected cloud inventory.

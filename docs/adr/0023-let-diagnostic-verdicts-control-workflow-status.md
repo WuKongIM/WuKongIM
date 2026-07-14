@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded_by: 0037-run-codex-locally-with-an-encrypted-analysis-session
 ---
 
 # Let diagnostic verdicts control workflow status

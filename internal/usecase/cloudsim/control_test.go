@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 )
@@ -122,6 +123,16 @@ func TestControlPlaneOpenAnalysisRequiresIPv4HostPrefixAndLease(t *testing.T) {
 	if !errors.Is(err, ErrInvalidAnalysisWindow) {
 		t.Fatalf("OpenAnalysis(provisioning) error = %v, want ErrInvalidAnalysisWindow", err)
 	}
+	provider.status.State = StateRunning
+	provider.status.AnalysisWindow = &AnalysisWindow{
+		SourcePrefix: netip.MustParsePrefix("203.0.113.9/32"), Until: now.Add(20 * time.Minute),
+	}
+	_, err = control.OpenAnalysis(context.Background(), OpenAnalysisRequest{
+		RunID: "run-1", SourcePrefix: netip.MustParsePrefix("203.0.113.8/32"), Until: now.Add(30 * time.Minute),
+	})
+	if !errors.Is(err, ErrInvalidAnalysisWindow) {
+		t.Fatalf("OpenAnalysis(concurrent window) error = %v, want ErrInvalidAnalysisWindow", err)
+	}
 }
 
 func TestControlPlaneDeploymentAccessWindowIsBoundedAndSingleHost(t *testing.T) {
@@ -165,7 +176,17 @@ func TestControlPlaneSweepDestroysExpiredRuns(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	provider := &providerStub{inventory: []Run{
 		{ID: "expired", State: StateRunning, ExpiresAt: now.Add(-time.Second)},
-		{ID: "live", State: StateRunning, ExpiresAt: now.Add(time.Hour)},
+		{ID: "stale-window", State: StateRunning, ExpiresAt: now.Add(time.Hour),
+			DeploymentWindow: &DeploymentWindow{Until: now.Add(-time.Second)},
+			AnalysisWindow:   &AnalysisWindow{Until: now.Add(-time.Second)}},
+		{ID: "active-window", State: StateRunning, ExpiresAt: now.Add(time.Hour),
+			DeploymentWindow: &DeploymentWindow{SourcePrefix: netip.MustParsePrefix("203.0.113.8/32"), Until: now.Add(time.Minute)},
+			AnalysisWindow:   &AnalysisWindow{SourcePrefix: netip.MustParsePrefix("198.51.100.8/32"), Until: now.Add(30 * time.Minute)}},
+		{ID: "malformed-window", State: StateRunning, ExpiresAt: now.Add(2 * time.Hour),
+			DeploymentWindow: &DeploymentWindow{SourcePrefix: netip.MustParsePrefix("203.0.113.0/24"), Until: now.Add(time.Minute)},
+			AnalysisWindow:   &AnalysisWindow{SourcePrefix: netip.MustParsePrefix("198.51.100.8/32"), Until: now.Add(MaxAnalysisWindow + time.Minute)}},
+		{ID: "window-beyond-lease", State: StateRunning, ExpiresAt: now.Add(10 * time.Minute),
+			DeploymentWindow: &DeploymentWindow{SourcePrefix: netip.MustParsePrefix("203.0.113.8/32"), Until: now.Add(15 * time.Minute)}},
 		{ID: "released", State: StateReleased, ExpiresAt: now.Add(-time.Hour)},
 	}}
 	control := NewControlPlane(provider, func() time.Time { return now })
@@ -177,11 +198,11 @@ func TestControlPlaneSweepDestroysExpiredRuns(t *testing.T) {
 	if len(result.Destroyed) != 1 || result.Destroyed[0] != "expired" {
 		t.Fatalf("destroyed = %v, want [expired]", result.Destroyed)
 	}
-	if len(provider.closeDeploymentCalls) != 1 || provider.closeDeploymentCalls[0] != "live" {
-		t.Fatalf("closed deployment ingress = %v, want [live]", provider.closeDeploymentCalls)
+	if want := []string{"stale-window", "malformed-window", "window-beyond-lease"}; !slices.Equal(provider.closeDeploymentCalls, want) {
+		t.Fatalf("closed deployment ingress = %v, want %v", provider.closeDeploymentCalls, want)
 	}
-	if len(provider.closeAnalysisCalls) != 1 || provider.closeAnalysisCalls[0] != "live" {
-		t.Fatalf("closed analysis ingress = %v, want [live]", provider.closeAnalysisCalls)
+	if want := []string{"stale-window", "malformed-window"}; !slices.Equal(provider.closeAnalysisCalls, want) {
+		t.Fatalf("closed analysis ingress = %v, want %v", provider.closeAnalysisCalls, want)
 	}
 }
 

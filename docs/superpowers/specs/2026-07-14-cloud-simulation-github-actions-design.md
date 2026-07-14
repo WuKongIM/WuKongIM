@@ -15,7 +15,8 @@ WuKongIM needs a reproducible way to exercise a real three-node cluster for
 hours or days without keeping a GitHub-hosted runner alive for the complete
 test. An operator should be able to provide a cloud-account binding, request
 four temporary spot instances, run one repository-defined wkbench scenario,
-and later trigger a separate Codex analysis against the still-live system.
+and later run a separate local Codex analysis against the still-live system
+using a ChatGPT subscription rather than an OpenAI API key.
 
 The design must prevent four classes of false confidence:
 
@@ -36,9 +37,10 @@ instances, or cleanup calls fail.
    `48h` after a strict cluster readiness gate.
 3. Keep provisioning, long-running workload execution, live analysis, and
    cleanup independently retryable.
-4. Let a manually triggered Analysis Workflow query live metrics, logs,
+4. Let a manually started local Analysis Session query live metrics, logs,
    diagnostics, traces, and bounded profiles through a WuKongIM Analysis MCP
-   and repository Analysis Skill.
+   and repository Analysis Skill, with GitHub acting only as the cloud-identity
+   and encrypted-session broker.
 5. Optionally produce a tested Draft PR when a high-confidence Diagnosis Result
    identifies a repository defect.
 6. Use short-lived GitHub OIDC identities instead of cloud AccessKeys.
@@ -84,10 +86,14 @@ flowchart LR
     MCP --> N1
     MCP --> N2
     MCP --> N3
-    U --> A["Analysis Workflow"]
-    A --> MCP
-    A --> D["Diagnosis Result"]
-    D --> R["Isolated remediation Job"]
+    U --> L["Local analyze.sh + ChatGPT Codex"]
+    L --> A["Analysis Session Workflow"]
+    A --> CP
+    A --> H["Encrypted session handoff"]
+    H --> L
+    L --> MCP
+    L --> D["Diagnosis Result"]
+    D --> R["Isolated local remediation worktree"]
     R --> DPR["Draft PR"]
     C["Scheduled Cleanup Workflow"] --> CC
 ```
@@ -118,20 +124,29 @@ The build job has no cloud credential. It produces one content-addressed
 Deployment Bundle for the selected commit. A separate provisioning job obtains
 the Provisioner Role, creates the run, deploys that exact bundle, and writes a
 Job Summary containing the Run Identity, selected resources, cost estimate,
-expiry, and a direct next-step reference to the Analysis Workflow.
+expiry, and a direct next-step reference to the local analysis command.
 
-### Analysis Workflow
+### Local Analysis Command and Session Workflow
 
-`.github/workflows/cloud-sim-analyze.yml` is manually dispatched with:
+Operators run `scripts/cloud-sim/analyze.sh` with:
 
 - exact `run_id`;
 - optional diagnostic focus;
-- `allow_fix_pr`, default false.
+- optional `--allow-fix-pr`.
 
-There is no `latest` selector. The workflow validates the Run Locator and cloud
-inventory before starting Codex. Provider-confirmed released resources cause a
-clear successful terminal notice before Codex is invoked. An unknown locator is
-reported as `unknown_run`, not as a released run.
+There is no `latest` selector. The command requires a local Codex CLI logged in
+through ChatGPT, creates an ephemeral RSA key pair, and dispatches
+`.github/workflows/cloud-sim-analyze.yml` with `operation=prepare`, the exact
+Run Identity, a unique request identifier, the local public IPv4 address, and
+the ephemeral public key. The workflow validates the Run Locator and cloud
+inventory before creating any live Codex session. Provider-confirmed released
+resources cause a clear terminal notice before Codex is invoked. An unknown
+locator is reported as `unknown_run`, not as a released run.
+
+The workflow also accepts `operation=close` for an exact request so the local
+command can explicitly revoke its Analysis Access Window. These low-level
+inputs are an implementation boundary owned by `analyze.sh`, not the normal
+operator interface.
 
 ### Cleanup Workflow
 
@@ -245,8 +260,8 @@ The preferred operator interface is `scripts/cloud-sim/setup.sh`. It discovers
 the caller account, live region list, audited x86 public image family, candidate
 zone, and every compatible entry in the paginated x86 non-GPU spot inventory;
 delegates RAM authority to
-`wkcloudbootstrap`; configures the GitHub Environments, Variables, Secrets, and
-OIDC subject; reads back the non-secret state and secret names; and dispatches
+`wkcloudbootstrap`; configures the GitHub Environments, non-secret Variables,
+and OIDC subject; reads back the configured non-secret state; and dispatches
 a live GitHub OIDC-to-Alibaba identity-exchange check correlated to that exact
 setup dispatch. Provider, role, and
 policy names are deterministically scoped to the repository, and existing
@@ -384,13 +399,14 @@ backend. Once the run is released, no further diagnosis is supported.
 
 One Analysis MCP Gateway runs on the simulator. The three cluster nodes do not
 host or expose MCP. The repository contains
-`.agents/skills/wukongim-cloud-analysis/SKILL.md`, which the diagnosis job
+`.agents/skills/wukongim-cloud-analysis/SKILL.md`, which the local diagnosis process
 invokes explicitly.
 
-Before Codex starts, the workflow generates a run-specific project MCP
-configuration. The MCP is required, uses a strict tool allowlist, and receives
-its bearer token only through an environment variable. Logs, message content,
-and MCP-returned text are treated as untrusted data rather than instructions.
+Before Codex starts, the local command supplies a run-specific MCP
+configuration through command-line overrides. The MCP is required, uses a
+strict tool allowlist, and receives its bearer token only through a one-process
+environment variable. Logs, message content, and MCP-returned text are treated
+as untrusted data rather than instructions.
 
 The narrow tool contract includes:
 
@@ -421,10 +437,11 @@ or delete data.
 
 ## Analysis Identity and Network Window
 
-The Analysis Workflow obtains the Analyzer Role using GitHub OIDC, validates
-the Run Locator and tagged inventory, and opens an Analysis Access Window by
-admitting only the current GitHub runner public address to the simulator MCP
-HTTPS port.
+The Analysis Session Workflow obtains the Analyzer Role using GitHub OIDC,
+validates the Run Locator and tagged inventory, and briefly admits only its
+current runner public address while it proves the run and exchanges identity.
+For a live run it then moves the Analysis Access Window to the requesting local
+client's public `/32`.
 
 Each run uses a self-signed server certificate with the simulator public IP in
 its SAN. The private key exists only on the simulator. The immutable public
@@ -436,17 +453,38 @@ The workflow requests a GitHub OIDC token with audience
 trusted branch, workflow reference, Environment, Run Identity, and expiry
 before issuing an Analysis Token.
 
+The workflow encrypts that token with RSA-OAEP SHA-256 to the ephemeral
+3072-bit public key supplied by the local process. A request-correlated
+one-day artifact contains only the encrypted token, session metadata, and the
+pinned public CA. The private key never leaves the local process. The local
+command verifies the request, Run Identity, source SHA, Scenario Profile
+digest, endpoint, expiry, and certificate fingerprint before decrypting the
+token and passing it to one ephemeral read-only Codex process running in a
+detached worktree at the exact deployed source SHA. Codex tool subprocesses
+inherit no caller environment and receive only an isolated home, approved
+executable path, and fixed locale. A strict least-privilege permission profile
+lets tool subprocesses read only the detached source worktree and minimal tool
+runtime and denies tool network access; the token and Codex auth home remain
+visible only to the Codex/MCP process and cannot be read by tool subprocesses.
+Project execution rules are ignored. The command fails closed before Codex if
+the exact deployed source contains `.codex/config.toml` or `.codex/hooks.json`,
+so a trusted project configuration cannot extend the selected profile.
+
 Each Analysis Session is bounded as follows:
 
-- diagnosis job timeout: 45 minutes;
+- local diagnosis timeout: 45 minutes;
 - access-window maximum: 50 minutes;
 - token expiry: the earlier of 45 minutes after issue or five minutes before
   the Run Lease;
 - minimum remaining Run Lease at start: 30 minutes;
-- no renewal; further work requires a new Analysis Workflow.
+- no renewal; further work requires a new Analysis Session.
 
-Normal completion, failure, timeout, and cancellation all close ingress through
-unconditional cleanup. The scheduled sweeper remains a second layer.
+Normal completion dispatches and waits for `operation=close`. Failure,
+interruption, and local cancellation request best-effort closure. Token expiry,
+the immutable Run Lease, and the scheduled sweeper remain independent
+backstops. Provider inventory reconstructs each run-owned rule deadline; the
+sweeper preserves an unexpired local Analysis Session and closes expired,
+malformed, or duplicate windows.
 
 ## Run Locator and Released-run Handling
 
@@ -471,15 +509,15 @@ address, security, subnet, and VPC resources.
 
 ## Diagnosis and Remediation
 
-The Analysis Workflow isolates two jobs.
+The local command isolates live diagnosis from any repository mutation.
 
 ### Diagnose
 
-The diagnosis job has the Analyzer Role, temporary MCP access, and read-only
-repository contents. It uses a dedicated, budget-limited OpenAI or Azure OpenAI
-API key stored in a protected GitHub Environment and exposed only to the Codex
-step. It emits a strict JSON-Schema-validated Diagnosis Result and then closes
-live access.
+GitHub has the Analyzer Role but never runs Codex. The local diagnosis process
+has temporary MCP access and read-only repository contents. It uses only the
+operator's existing local ChatGPT login; no OpenAI API key, Codex `auth.json`,
+or ChatGPT session is stored in GitHub or on a cloud host. It emits a strict
+JSON-Schema-validated Diagnosis Result and then closes live access.
 
 The Diagnosis Result contains:
 
@@ -493,48 +531,59 @@ The Diagnosis Result contains:
 - proposed regression coverage;
 - cloud-revalidation requirement.
 
-It does not copy raw logs or metric series. Invalid output becomes
-`insufficient_evidence`. The JSON may be retained for one day only as an
-intra-workflow handoff.
+It does not copy raw logs or metric series. Invalid output is a fail-closed,
+nonzero analysis error and is never remediation-eligible. The JSON exists only
+in the local temporary session directory and is deleted at command exit.
 
 ### Remediate
 
-The optional remediation job runs only when `allow_fix_pr=true` and the
-Diagnosis Result is high-confidence, repository-attributable, and testable. It
-starts from a fresh checkout with repository write and pull-request permission,
-but without a cloud identity, MCP configuration, Analysis Token, or live
-network window.
-
-It uses a separate `cloud-sim-remediation` Environment containing only the
-budget-limited Codex API key. GitHub Environment secrets are job-scoped, so the
-key is configured independently from `cloud-sim-analysis`; no cloud variables
-or OIDC permission are present in remediation.
+The optional remediation process runs only with `--allow-fix-pr` when the
+Diagnosis Result is high-confidence, repository-attributable, and testable.
+The command first waits for confirmed Analysis Access Window closure, then
+starts a fresh local Codex process in an isolated worktree at the deployed
+source SHA. That process has repository workspace write access but runs with an
+isolated home directory and no GitHub credential, cloud identity, MCP
+configuration, Analysis Token, or live network window. Its strict permission
+profile can write only the remediation worktree and isolated Go cache/temp
+roots, can read only the Go toolchain/module cache required by tests, and denies
+tool network access. After it exits, the
+trusted local orchestrator uses the operator's GitHub login for branch, CI, and
+Draft PR operations.
 
 It must stop when code inspection contradicts the diagnosis. Otherwise it adds
-a regression test, runs focused repository gates, and may create a Draft PR.
+a regression test and passes static local guards without executing generated
+code under the operator's host identity. The script pushes the temporary
+branch, dispatches the existing read-only `CI` Workflow for that exact commit,
+and may create a Draft PR only after all CI jobs pass.
 Performance patches requiring cloud A/B are labeled
 `cloud_revalidation_required`. No remediation path can merge automatically.
+Draft PR titles and bodies contain only trusted static run/CI status; model-authored
+diagnostic strings are never sent to GitHub metadata.
 
-## Verdict and Workflow Conclusion
+## Verdict and Local Command Conclusion
 
-The Analysis Workflow succeeds only for `healthy` or the non-diagnostic
-`released` terminal conclusion. A healthy verdict additionally
-requires a complete `workload_inspect` result with `state=completed` and
-`status=passed`:
+A schema-valid, identity-matched Diagnosis Result completes the analysis
+command even when its verdict reports a problem; callers must consume the
+structured verdict rather than treating process exit zero as health. A healthy
+verdict additionally requires a complete `workload_inspect` result with
+`state=completed` and `status=passed`:
 
-| Verdict | Workflow | Draft PR |
+| Verdict | Local command | Draft PR |
 | --- | --- | --- |
-| `healthy` | success | no |
-| `product_defect` | failure | eligible when explicitly enabled |
-| `infrastructure_interrupted` | failure | prohibited |
-| `scenario_invalid` | failure | production-code fix prohibited |
-| `insufficient_evidence` | failure | prohibited |
+| `healthy` | valid diagnosis | no |
+| `product_defect` | valid diagnosis | eligible when explicitly enabled |
+| `infrastructure_interrupted` | valid diagnosis | prohibited |
+| `scenario_invalid` | valid diagnosis | production-code fix prohibited |
+| `insufficient_evidence` | valid diagnosis when returned by Codex | prohibited |
 | `released` | successful terminal notice before Codex | prohibited |
 | `unknown_run` | failure before Codex | prohibited |
 
-The Job Summary always shows exactly one verdict, confidence, key Observation
-references, affected time range, and any Draft PR URL. Successful Codex
-execution is not itself a healthy result.
+The local output always shows exactly one verdict, confidence, key Observation
+references, affected time range, and any Draft PR URL. The GitHub Job Summary
+shows only the session-broker outcome and never a Diagnosis Result. Successful
+Codex execution or command exit zero is not itself a healthy result. Broker
+preflight failure, timeout, invalid output, or identity mismatch still returns
+a nonzero command exit.
 
 Unplanned spot reclaim stops workload generation and does not replace the
 instance. If a cluster node is reclaimed, the simulator and survivors remain
@@ -554,8 +603,12 @@ itself can never justify a source-code PR.
 - Deployment SSH is ephemeral and absent during analysis.
 - Diagnosis has cloud-read/MCP capability but no repository write.
 - Remediation has repository write but no cloud or MCP capability.
-- The Codex execution key is project-scoped, budget-limited, and never leaves
-  isolated Codex jobs.
+- AI-generated remediation tests execute only on an ephemeral, read-only-token
+  GitHub CI runner; the local orchestration process never executes them.
+- Local ChatGPT authentication never leaves the operator's device; GitHub
+  receives neither an OpenAI API key nor Codex `auth.json`.
+- GitHub receives only an ephemeral RSA public key and returns only a
+  request-correlated RSA-OAEP-encrypted Analysis Token.
 - Third-party Actions must be pinned to reviewed immutable commit SHAs.
 - Secrets are excluded from logs, tags, artifacts, summaries, MCP responses,
   and Diagnosis Results.
@@ -581,7 +634,11 @@ Go tests use repository-approved explicit roots with `GOWORK=off`; no root
 - run the MCP and Skill against the existing local three-node Compose topology;
 - prove that all MCP tools use supported private APIs rather than SSH or shell;
 - prove sim saturation invalidates attribution;
-- prove remediation receives no MCP configuration or cloud environment.
+- prove remediation begins after live-session closure and receives no MCP
+  configuration, token, or cloud environment.
+- prove the exact remediation commit passes the existing CI Workflow before a
+  Draft PR is created, without executing generated test code on the operator's
+  host.
 
 ### Manual cloud integration
 
@@ -605,8 +662,8 @@ tests.
    deployment, Bootstrap Gate, Run Lease, and leak-free cleanup.
 3. **Live analysis:** temporary ingress, certificate pinning, OIDC exchange,
    live observations, and released/unknown handling.
-4. **Draft-PR remediation:** isolated Codex jobs, validated Diagnosis Result,
-   tests, and pull-request guardrails.
+4. **Draft-PR remediation:** isolated local Codex processes, validated Diagnosis
+   Result, tests, and pull-request guardrails.
 5. **Stress and multi-cloud:** resource presets, high-online source pools,
    interruption drills, cleanup failure drills, then Tencent Cloud Adapter.
 
@@ -624,8 +681,9 @@ No phase advances until the previous phase proves resource cleanup.
    source or stores a cloud/GitHub credential.
 5. Cost, concurrency, quota, capacity, and simulator-headroom failures are
    fail-closed and cannot be attributed to WuKongIM.
-6. The Analysis Workflow can access only one live Run Identity through a pinned
-   certificate, short-lived token, `/32` ingress, and allowlisted MCP tools.
+6. One local Analysis Session can access only one live Run Identity through a
+   pinned certificate, short-lived encrypted token, `/32` ingress, and
+   allowlisted MCP tools.
 7. Provider-confirmed released resources stop analysis before Codex; unknown
    locators and unreachable MCP are reported distinctly.
 8. Active diagnostics remain within their time, concurrency, and response
@@ -641,20 +699,24 @@ No phase advances until the previous phase proves resource cleanup.
     analysis, remediation, and cleanup drills are green.
 13. A new operator can finish account and repository bootstrap through one
     CloudShell command without copying an AccessKey, cloud account number, or
-    plaintext OpenAI key into GitHub configuration.
+    OpenAI API key into GitHub configuration.
 14. Bootstrap completes only after written GitHub configuration is read back
     and a fresh workflow proves GitHub OIDC can assume the Alibaba Analyzer
     Role with short-lived credentials.
+15. The local Analysis Session uses ChatGPT authentication without uploading it;
+    its private key never leaves the local process and GitHub artifacts contain
+    only an RSA-OAEP-encrypted, expiring Analysis Token.
 
 ## Decision Records
 
 The accepted decisions are recorded in `docs/adr/0001` through
-`docs/adr/0036`. The repository glossary for this design is `CONTEXT.md`.
+`docs/adr/0037`. The repository glossary for this design is `CONTEXT.md`.
 
 ## External References
 
 - [GitHub OIDC for cloud providers](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-cloud-providers)
-- [Codex GitHub Action](https://github.com/openai/codex-action)
+- [Codex authentication](https://learn.chatgpt.com/docs/auth.md)
+- [Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode.md)
 - [Codex MCP configuration](https://developers.openai.com/codex/mcp)
 - [Codex repository skills](https://developers.openai.com/codex/skills)
 - [Alibaba CloudShell CLI](https://www.alibabacloud.com/help/en/cloud-shell/use-alibaba-cloud-cli-to-manage-alibaba-cloud-resources)

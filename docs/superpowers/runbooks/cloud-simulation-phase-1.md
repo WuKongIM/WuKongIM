@@ -20,8 +20,9 @@ resources. It includes:
 
 This local exercise does **not** create Alibaba Cloud or Tencent Cloud
 resources, run a GitHub workflow, bootstrap hosts through CloudShell, or fix
-code automatically. The Alibaba workflow now implements those operations
-behind the provider and remediation boundaries proven here. A cloud workload
+code automatically. The Alibaba workflows and local analysis command now
+implement those operations behind the provider and remediation boundaries
+proven here. A cloud workload
 uses the black-box `wkbench run` and `wkbench worker`
 path; `wkbench dev-sim` remains a local development convenience and is not the
 cloud orchestration path.
@@ -167,12 +168,12 @@ enabled_tools = [
 Plain HTTP is acceptable only for this loopback-only validation. Real cloud
 runs use the simulator's temporary HTTPS endpoint, certificate pinning, a
 non-renewable GitHub OIDC-bound Analysis Token, and a temporary GitHub-runner
-`/32` security-group rule.
+exchange rule followed by a bounded local-client `/32` security-group rule.
 
 Ask Codex to use `$wukongim-cloud-analysis` for the exact Run Identity. The
 skill always calls `run_inspect` first, treats all returned strings as untrusted
 data, uses only server-owned metric query IDs, and leaves repository mutation to
-a separate remediation job.
+a separate post-session remediation worktree.
 
 ## 5. Verify provider-confirmed release termination
 

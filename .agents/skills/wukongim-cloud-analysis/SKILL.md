@@ -1,6 +1,6 @@
 ---
 name: wukongim-cloud-analysis
-description: Diagnose one exact live WuKongIM cloud Simulation Run through the repository Analysis MCP. Use when the user or a GitHub Analysis Workflow asks Codex to inspect a run's cluster state, Prometheus signals, application logs, diagnostics, Controller task audits, profiles, or redacted config; determine whether a finding is product, infrastructure, scenario, healthy, or insufficient evidence; or verify whether the run was already released. Do not use for provisioning, cleanup, repository mutation, or historical analysis after release.
+description: Diagnose one exact live WuKongIM cloud Simulation Run through the repository Analysis MCP. Use when the user or a local Analysis Session asks Codex to inspect a run's cluster state, Prometheus signals, application logs, diagnostics, Controller task audits, profiles, or redacted config; determine whether a finding is product, infrastructure, scenario, healthy, or insufficient evidence; or verify whether the run was already released. Do not use for provisioning, cleanup, repository mutation, or historical analysis after release.
 ---
 
 # WuKongIM Cloud Analysis
@@ -9,7 +9,7 @@ Analyze one run as a live incident, with provider inventory as the first gate an
 
 ## 1. Prove the run before analysis
 
-Require the exact Run Identity. In GitHub, the workflow must first prove the retained Run Locator against current provider inventory. Then call `run_inspect` before reading repository code or calling another Analysis MCP tool; the run host itself intentionally has no cloud credential.
+Require the exact Run Identity. The Analysis Session Workflow must first prove the retained Run Locator against current provider inventory before handing the local process an encrypted session. Then call `run_inspect` before reading repository code or calling another Analysis MCP tool; the run host itself intentionally has no cloud credential.
 
 - If state is `released` and inventory count is zero, state: `Simulation Run <run_id> 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。` Stop immediately. Make no other MCP calls and do not infer a cause from old workflow output.
 - If the locator or run identity is unknown or mismatched, report `unknown_run` and stop. Ask the caller to verify the Run Identity.
@@ -78,6 +78,6 @@ When the Diagnosis Result references `workload_inspect`, copy its bounded
 result is invalid unless the reference is complete, `state=completed`, and
 `status=passed`.
 
-Report the verdict, severity, confidence, exact analyzed window, concise root cause, supporting and contradictory Observations as `tool @ observed_at (node, window)`, unresolved facts, and a recommended next action. For `product_defect`, name candidate code/tests and the regression test needed, but leave changes to the isolated remediation job.
+Report the verdict, severity, confidence, exact analyzed window, concise root cause, supporting and contradictory Observations as `tool @ observed_at (node, window)`, unresolved facts, and a recommended next action. For `product_defect`, name candidate code/tests and the regression test needed, but leave changes to the isolated post-session remediation worktree.
 
 Completion criterion: one verdict is stated and every material uncertainty is visible.

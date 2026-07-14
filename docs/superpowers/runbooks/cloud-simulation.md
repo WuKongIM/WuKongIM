@@ -25,7 +25,7 @@ cd WuKongIM
 The wizard uses the current CloudShell identity and a one-time GitHub browser
 login. It recommends the current CloudShell profile region from the live ECS
 region list, then asks only for one confirmation of the
-non-billable RAM/OIDC plan, and a hidden budget-limited OpenAI API key. It:
+non-billable RAM/OIDC plan. It:
 
 - discovers the current Alibaba account without copying it to GitHub;
 - derives repository-scoped OIDC Provider and RAM Role names so two repositories
@@ -40,11 +40,10 @@ non-billable RAM/OIDC plan, and a hidden budget-limited OpenAI API key. It:
 - applies and re-plans the existing `wkcloudbootstrap` authority;
 - creates missing GitHub Environments without overwriting protection rules on
   existing Environments;
-- sets and reads back repository and Environment Variables, writes the OpenAI
-  key separately to analysis and remediation and verifies both secret names,
-  configures the exact OIDC subject, then dispatches and waits for a workflow
-  correlated by a unique setup identifier that proves GitHub OIDC can exchange
-  for short-lived Alibaba credentials.
+- sets and reads back repository and Environment Variables, configures the
+  exact OIDC subject, then dispatches and waits for a workflow correlated by a
+  unique setup identifier that proves GitHub OIDC can exchange for short-lived
+  Alibaba credentials.
 
 No ECS instance, disk, EIP, security group, vSwitch, or VPC is created. The
 wizard saves its non-secret removal configuration with mode `0600` under
@@ -53,10 +52,11 @@ the exact Provision Workflow URL and recommended first-canary inputs. It is
 safe to rerun after a partial failure.
 
 Use `--region`, `--repository`, or `--yes` only when their values are already
-reviewed. `--openai-key-stdin` exists for controlled automation; interactive
-use keeps the key hidden. The selected SKU list is a setup recommendation, not
-a capacity promise: Provision still performs the authoritative live price,
-capacity, quota, and hard-cost checks before creating resources.
+reviewed. No OpenAI API key is requested or stored. Local analysis uses the
+Codex CLI authenticated with the operator's ChatGPT subscription. The selected
+SKU list is a setup recommendation, not a capacity promise: Provision still
+performs the authoritative live price, capacity, quota, and hard-cost checks
+before creating resources.
 
 ### Manual fallback
 
@@ -115,11 +115,10 @@ Set these non-secret repository or Environment Variables from the output:
 
 Before storing `ALIBABA_CLOUD_SIM_CONFIG_JSON`, replace its
 `account_id_hash` with `account_id_hash` from `bootstrap-result.json`. Keep the
-cloud account number itself out of GitHub configuration. Store the dedicated,
-budget-limited `OPENAI_API_KEY` secret in both `cloud-sim-analysis` and
-`cloud-sim-remediation`; do not put cloud role variables in the remediation
-Environment. Environment secrets are job-scoped, so the isolated remediation
-job cannot reuse the analysis Environment's copy.
+cloud account number itself out of GitHub configuration. Do not store an
+OpenAI API key, Codex `auth.json`, or ChatGPT session in GitHub. The analysis
+Environment contains only cloud federation configuration; local Codex
+authentication never leaves the operator's device.
 
 Bootstrap removal is protected:
 
@@ -163,11 +162,26 @@ group, vSwitch, and VPC from mandatory tags every 15 minutes.
 
 ## 3. Analyze an exact live run
 
-Dispatch `Cloud Simulation - Analyze` with the exact Run Identity. The workflow
-first resolves the unique 90-day Run Locator and compares it to current
-Alibaba inventory. Before empty inventory can mean `released`, STS verifies the
-current OIDC caller's Alibaba account hash and the adapter verifies the exact
-region against the locator; stale or cross-account configuration fails closed.
+Install GitHub CLI and Codex CLI once. Sign in to GitHub, then sign in to Codex
+with the same ChatGPT account that has the Pro subscription:
+
+```bash
+gh auth login
+codex login
+```
+
+Then run analysis from a local checkout whose remote points to this repository:
+
+```bash
+./scripts/cloud-sim/analyze.sh <run_id>
+```
+
+The local command dispatches `Cloud Simulation - Analysis Session` as a
+short-lived session broker. The workflow first resolves the unique 90-day Run
+Locator and compares it to current Alibaba inventory. Before empty inventory
+can mean `released`, STS verifies the current OIDC caller's Alibaba account hash
+and the adapter verifies the exact region against the locator; stale or
+cross-account configuration fails closed.
 
 - A missing or ambiguous locator reports `unknown_run`.
 - A valid locator plus empty provider inventory reports `released`, prints
@@ -175,12 +189,34 @@ region against the locator; stale or cross-account configuration fails closed.
 - Existing resources with an unreachable MCP report `insufficient_evidence`,
   never `released`.
 
-For a live run, the workflow opens one temporary MCP `/32`, pins the
+For a live run, the workflow briefly admits its runner `/32`, pins the
 run-specific CA fingerprint from protected resource tags, verifies the public
 IP SAN, and exchanges its exact GitHub OIDC identity for a non-renewable
-Analysis Token. Codex invokes the repository
+Analysis Token. It then moves the Analysis Access Window to the local client's
+public `/32` and uploads only a request-correlated handoff containing metadata,
+the pinned public CA, and the token encrypted to an ephemeral 3072-bit RSA
+public key. The matching private key exists only in the local process. The
+artifact expires after one day, while the token itself expires within 45
+minutes and cannot be renewed.
+
+The local command verifies the handoff identity and certificate fingerprint,
+checks out the exact deployed source SHA in a detached temporary worktree,
+decrypts the token, and starts an ephemeral read-only Codex session. Codex tool
+subprocesses inherit no caller environment and receive only an isolated home,
+the approved executable path, and fixed locale. A strict Codex permission
+profile exposes only the detached source worktree plus minimal runtime files and
+denies tool network access; the token and Codex auth home remain available only
+to the Codex/MCP process and cannot be read by tool subprocesses. Project
+execution rules are ignored, and `.codex/config.toml` or `.codex/hooks.json` in
+the deployed source terminates analysis before Codex starts. Codex invokes the deployed revision's
 `$wukongim-cloud-analysis` skill and only the allowlisted Analysis MCP tools.
-Ingress closes unconditionally.
+Normal completion explicitly closes ingress;
+failure and interruption request best-effort closure, while token expiry and
+the scheduled sweeper remain independent backstops. Provider inventory reads
+the rule deadline, so the sweeper preserves an unexpired local session and
+revokes only expired or malformed windows. The compact Diagnosis
+Result is printed locally and removed with the temporary session directory; no
+raw logs, metrics, profiles, or Evidence Bundle are uploaded.
 
 For a live run, `workload_inspect` reads only the bounded simulator-local
 wkbench final summary. `healthy` requires that summary to be complete and
@@ -188,10 +224,22 @@ passed. The Diagnosis Result must preserve `workload_inspect` state and status
 in its compact Observation reference; a missing, failed, or in-progress summary
 cannot pass the healthy validator.
 
-`allow_fix_pr=true` permits a second, fresh job only for a high-confidence,
-testable `product_defect`. That job has repository write permission but no
-cloud identity, MCP token, MCP configuration, SSH, or live access. It may open
-a tested Draft PR and never merges it.
+Use `--diagnostic-focus '<question>'` to narrow the investigation. Use
+`--allow-fix-pr` only when local GitHub credentials may push a branch and open a
+Draft PR. A high-confidence, testable `product_defect` first closes the live
+Analysis Access Window, then starts a separate local Codex process in an
+isolated worktree. That remediation process receives no cloud identity, MCP
+token, MCP configuration, GitHub credential, SSH, or live access; it uses an
+isolated home directory and a strict permission profile limited to the
+remediation worktree, Go toolchain/module-cache reads, and isolated cache/temp
+writes; tool network access is denied. It must add regression coverage and may
+not change repository trust or cloud-analysis control files. Project Codex
+configuration and hooks remain forbidden in this second worktree. The local
+script does not execute AI-generated tests with the operator's host privileges.
+It pushes the guarded temporary branch, dispatches the existing read-only `CI`
+Workflow for that exact commit, and creates a Draft PR only after CI passes. It
+never merges automatically, and its PR body contains only trusted static
+identity/status text rather than model-authored diagnostic content.
 
 ## 4. Destroy or sweep
 
@@ -200,10 +248,11 @@ exact Run Identity performs protected early destruction. Success means the
 adapter listed all supported tagged resource types after deletion and found
 zero residual resources; a remaining billable resource fails the workflow.
 
-Provision, live analysis, manual cleanup, and scheduled sweep share one
-repository-wide concurrency group. A sweep can therefore revoke stale
-deployment and Analysis `/32` rules on active runs without interrupting a
-legitimate job, before it evaluates immutable lease expiry.
+The GitHub broker, provision, manual cleanup, and scheduled sweep share one
+repository-wide concurrency group. After the broker finishes, the local
+Analysis Session remains protected by its provider-observed rule deadline.
+A sweep preserves unexpired `/32` rules, revokes expired or malformed windows,
+and then evaluates immutable lease expiry.
 
 Do not treat a deleted instance alone as cleanup success. The reconciliation
 also covers independent disks, the simulator EIP, security rules, security

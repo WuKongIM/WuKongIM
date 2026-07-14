@@ -232,6 +232,24 @@ type IngressRequest struct {
 	Open bool
 }
 
+// IngressListRequest selects temporary ingress owned by one run security group.
+type IngressListRequest struct {
+	// RunID is the exact run encoded into every owned rule description.
+	RunID string
+	// SecurityGroupID is the exact tagged run security group.
+	SecurityGroupID string
+}
+
+// IngressWindow is one provider-observed temporary access rule.
+type IngressWindow struct {
+	// Source is the admitted single-host IPv4 prefix when parseable.
+	Source netip.Prefix
+	// Port distinguishes deployment SSH from Analysis MCP access.
+	Port uint16
+	// Until is the rule deadline; zero marks malformed owned rules for cleanup.
+	Until time.Time
+}
+
 // StateUpdateRequest applies one control-plane lifecycle state to every run asset.
 type StateUpdateRequest struct {
 	// Region is the exact Alibaba inventory region.
@@ -262,6 +280,8 @@ type API interface {
 	AssociatePublicAddress(context.Context, string, string) error
 	// SetIngress creates or removes only the run-owned temporary ingress rule.
 	SetIngress(context.Context, IngressRequest) error
+	// ListIngress returns provider-observed temporary rules for expiry reconciliation.
+	ListIngress(context.Context, IngressListRequest) ([]IngressWindow, error)
 	// UpdateRunState writes one lifecycle transition to every run asset.
 	UpdateRunState(context.Context, StateUpdateRequest) error
 	// DeleteAsset removes one identity-reconciled run asset.
@@ -388,6 +408,10 @@ func (p *Provider) Inventory(ctx context.Context) ([]cloudsim.Run, error) {
 				return nil, reconcileErr
 			}
 		}
+		run, reconcileErr = p.attachIngressWindows(ctx, run)
+		if reconcileErr != nil {
+			return nil, reconcileErr
+		}
 		runs = append(runs, run)
 	}
 	return runs, nil
@@ -490,7 +514,11 @@ func (p *Provider) Status(ctx context.Context, runID string) (cloudsim.Run, erro
 	if len(assets) == 0 {
 		return cloudsim.Run{}, cloudsim.ErrRunNotFound
 	}
-	return p.reconcile(runID, assets)
+	run, err := p.reconcile(runID, assets)
+	if err != nil {
+		return cloudsim.Run{}, err
+	}
+	return p.attachIngressWindows(ctx, run)
 }
 
 // Transition writes one validated lifecycle step to every tagged run asset and
@@ -676,6 +704,11 @@ func (p *Provider) setIngress(ctx context.Context, runID string, source netip.Pr
 	if securityGroupID == "" {
 		return cloudsim.Run{}, ErrAmbiguousInventory
 	}
+	if open {
+		if err := p.api.SetIngress(ctx, IngressRequest{RunID: runID, SecurityGroupID: securityGroupID, Port: port}); err != nil {
+			return cloudsim.Run{}, err
+		}
+	}
 	if err := p.api.SetIngress(ctx, IngressRequest{RunID: runID, SecurityGroupID: securityGroupID, Source: source, Port: port, Until: until.UTC(), Open: open}); err != nil {
 		return cloudsim.Run{}, err
 	}
@@ -689,6 +722,40 @@ func (p *Provider) setIngress(ctx context.Context, runID string, source netip.Pr
 		run.AnalysisWindow = &cloudsim.AnalysisWindow{SourcePrefix: source, Until: until.UTC()}
 	} else {
 		run.AnalysisWindow = nil
+	}
+	return run, nil
+}
+
+func (p *Provider) attachIngressWindows(ctx context.Context, run cloudsim.Run) (cloudsim.Run, error) {
+	securityGroupID := ""
+	for _, resource := range run.Resources {
+		if resource.Kind == "security-group" {
+			securityGroupID = resource.ID
+			break
+		}
+	}
+	if securityGroupID == "" {
+		return run, nil
+	}
+	windows, err := p.api.ListIngress(ctx, IngressListRequest{RunID: run.ID, SecurityGroupID: securityGroupID})
+	if err != nil {
+		return cloudsim.Run{}, err
+	}
+	for _, window := range windows {
+		switch window.Port {
+		case 22:
+			if run.DeploymentWindow == nil {
+				run.DeploymentWindow = &cloudsim.DeploymentWindow{SourcePrefix: window.Source, Until: window.Until}
+			} else {
+				run.DeploymentWindow.Until = time.Time{}
+			}
+		case 19092:
+			if run.AnalysisWindow == nil {
+				run.AnalysisWindow = &cloudsim.AnalysisWindow{SourcePrefix: window.Source, Until: window.Until}
+			} else {
+				run.AnalysisWindow.Until = time.Time{}
+			}
+		}
 	}
 	return run, nil
 }

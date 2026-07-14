@@ -18,12 +18,9 @@ source "$TOOLCHAIN_FILE"
 region=""
 repository=""
 assume_yes=false
-openai_key_stdin=false
 setup_temp=""
-openai_key=""
 
 cleanup() {
-  openai_key=""
   if [[ -n "$setup_temp" && -d "$setup_temp" ]]; then
     rm -rf "$setup_temp"
   fi
@@ -41,10 +38,10 @@ Options:
   --repository OWNER/REPO
                         GitHub repository (default: detected from the checkout)
   --yes                 Accept the displayed non-billable bootstrap plan
-  --openai-key-stdin    Read the OpenAI API key from standard input
   -h, --help            Show this help
 
 This command creates only OIDC/RAM trust and GitHub configuration. It does not create billable cloud resources.
+Live diagnosis uses the local Codex CLI signed in with a ChatGPT subscription; no OpenAI API key is required.
 EOF
 }
 
@@ -73,10 +70,6 @@ while (($#)); do
       ;;
     --yes)
       assume_yes=true
-      shift
-      ;;
-    --openai-key-stdin)
-      openai_key_stdin=true
       shift
       ;;
     -h|--help)
@@ -423,18 +416,9 @@ cp "$bootstrap_config" "$state_dir/bootstrap.json"
 cp "$bootstrap_result" "$state_dir/bootstrap-result.json"
 chmod 0600 "$state_dir/bootstrap.json" "$state_dir/bootstrap-result.json"
 
-if [[ "$openai_key_stdin" == true ]]; then
-  IFS= read -r openai_key
-else
-  printf 'OpenAI API Key (input is hidden): ' >/dev/tty
-  IFS= read -r -s openai_key </dev/tty
-  printf '\n' >/dev/tty
-fi
-[[ -n "$openai_key" ]] || fail "OpenAI API Key is required for analysis"
-
 api_version_header='X-GitHub-Api-Version: 2026-03-10'
 environment_body='{"deployment_branch_policy":null}'
-for environment in cloud-sim-provision cloud-sim-cleanup cloud-sim-analysis cloud-sim-remediation; do
+for environment in cloud-sim-provision cloud-sim-cleanup cloud-sim-analysis; do
   environment_error="$setup_temp/environment-$environment.err"
   if gh api "repos/$repository/environments/$environment" -H "$api_version_header" >/dev/null 2>"$environment_error"; then
     :
@@ -469,10 +453,6 @@ analyzer_role="$(jq -er .analyzer_role_arn "$bootstrap_result")"
 printf '%s' "$analyzer_role" | \
   gh variable set ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN --env cloud-sim-analysis --repo "$repository"
 
-printf '%s' "$openai_key" | gh secret set OPENAI_API_KEY --env cloud-sim-analysis --repo "$repository"
-printf '%s' "$openai_key" | gh secret set OPENAI_API_KEY --env cloud-sim-remediation --repo "$repository"
-openai_key=""
-
 verify_repo_variable() {
   local name="$1"
   local expected="$2"
@@ -494,24 +474,12 @@ verify_environment_variable() {
     fail "GitHub variable verification failed: $environment/$name"
 }
 
-verify_environment_secret() {
-  local environment="$1"
-  local name="$2"
-  local current
-  current="$(gh api "repos/$repository/environments/$environment/secrets/$name" -H "$api_version_header")"
-  jq -e --arg name "$name" '.name == $name' <<<"$current" >/dev/null || \
-    fail "GitHub secret name verification failed: $environment/$name"
-}
-
 verify_repo_variable ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN "$oidc_provider_arn"
 verify_repo_variable ALIBABA_CLOUD_SIM_OIDC_AUDIENCE "$oidc_audience"
 verify_repo_variable ALIBABA_CLOUD_SIM_CONFIG_JSON "$provider_config_json"
 verify_environment_variable cloud-sim-provision ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN "$provisioner_role"
 verify_environment_variable cloud-sim-cleanup ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN "$provisioner_role"
 verify_environment_variable cloud-sim-analysis ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN "$analyzer_role"
-verify_environment_secret cloud-sim-analysis OPENAI_API_KEY
-verify_environment_secret cloud-sim-remediation OPENAI_API_KEY
-
 oidc_subject='{"use_default":false,"use_immutable_subject":false,"include_claim_keys":["repo","context","job_workflow_ref"]}'
 printf '%s' "$oidc_subject" | gh api --method PUT "repos/$repository/actions/oidc/customization/sub" \
   -H "$api_version_header" --input - >/dev/null
@@ -563,4 +531,7 @@ Recommended inputs:
   duration=2h
   analysis_grace=1h
   max_total_cost=50
+
+After Provision prints a Run Identity, analyze it with your ChatGPT login:
+  ./scripts/cloud-sim/analyze.sh <run_id>
 EOF

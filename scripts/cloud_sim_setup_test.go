@@ -22,6 +22,7 @@ func TestCloudSimulationSetupHelpDescribesOneCommandContract(t *testing.T) {
 		"--region",
 		"--repository",
 		"--yes",
+		"ChatGPT",
 		"does not create billable cloud resources",
 	} {
 		if !strings.Contains(text, fragment) {
@@ -30,7 +31,7 @@ func TestCloudSimulationSetupHelpDescribesOneCommandContract(t *testing.T) {
 	}
 }
 
-func TestCloudSimulationSetupConfiguresAlibabaAndGitHubWithoutLeakingSecret(t *testing.T) {
+func TestCloudSimulationSetupConfiguresAlibabaAndGitHubWithoutAPIKey(t *testing.T) {
 	root := repoRoot(t)
 	temp := t.TempDir()
 	bin := filepath.Join(temp, "bin")
@@ -249,9 +250,8 @@ esac
 `)
 
 	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"),
-		"--region", "cn-hangzhou", "--repository", "example/project", "--yes", "--openai-key-stdin")
+		"--region", "cn-hangzhou", "--repository", "example/project", "--yes")
 	command.Dir = root
-	command.Stdin = strings.NewReader("sk-test-do-not-print\n")
 	command.Env = append(os.Environ(),
 		"PATH="+bin+":"+os.Getenv("PATH"),
 		"WK_SETUP_CALL_LOG="+callLog,
@@ -265,16 +265,13 @@ esac
 		calls, _ := os.ReadFile(callLog)
 		t.Fatalf("setup: %v\n%s\ncalls:\n%s", err, output, calls)
 	}
-	if strings.Contains(string(output), "sk-test-do-not-print") {
-		t.Fatalf("setup leaked OpenAI key in output:\n%s", output)
-	}
 	calls, err := os.ReadFile(callLog)
 	if err != nil {
 		t.Fatalf("read call log: %v", err)
 	}
 	callText := string(calls)
-	if strings.Contains(callText, "sk-test-do-not-print") {
-		t.Fatalf("setup leaked OpenAI key in call log:\n%s", calls)
+	if strings.Contains(callText, "gh secret set") || strings.Contains(callText, "OPENAI_API_KEY") {
+		t.Fatalf("setup unexpectedly configured API credentials:\n%s", calls)
 	}
 	for _, fragment := range []string{
 		"aliyun configure get",
@@ -287,15 +284,11 @@ esac
 		"gh api --method PUT repos/example/project/environments/cloud-sim-provision",
 		"gh api --method PUT repos/example/project/environments/cloud-sim-cleanup",
 		"gh api --method PUT repos/example/project/environments/cloud-sim-analysis",
-		"gh api --method PUT repos/example/project/environments/cloud-sim-remediation",
 		"gh variable set ALIBABA_CLOUD_SIM_CONFIG_JSON --repo example/project",
 		"gh variable set ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN --env cloud-sim-cleanup --repo example/project",
 		"gh variable set ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN --env cloud-sim-analysis --repo example/project",
-		"gh secret set OPENAI_API_KEY --env cloud-sim-analysis --repo example/project",
-		"gh secret set OPENAI_API_KEY --env cloud-sim-remediation --repo example/project",
 		"gh api repos/example/project/actions/variables/ALIBABA_CLOUD_SIM_CONFIG_JSON",
 		"gh api repos/example/project/environments/cloud-sim-analysis/variables/ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN",
-		"gh api repos/example/project/environments/cloud-sim-analysis/secrets",
 		"gh api --method PUT repos/example/project/actions/oidc/customization/sub",
 		"gh workflow run cloud-sim-oidc-subject.yml --repo example/project --ref main",
 		"-f verification_id=setup-92324335-",
@@ -364,9 +357,8 @@ esac
 			t.Fatal(err)
 		}
 		command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"),
-			"--region", "cn-hangzhou", "--repository", "example/project", "--yes", "--openai-key-stdin")
+			"--region", "cn-hangzhou", "--repository", "example/project", "--yes")
 		command.Dir = root
-		command.Stdin = strings.NewReader("sk-test-second-run\n")
 		command.Env = append(os.Environ(),
 			"PATH="+bin+":"+os.Getenv("PATH"),
 			"WK_SETUP_CALL_LOG="+callLog,
@@ -395,9 +387,8 @@ esac
 
 	t.Run("fails when a written variable cannot be verified", func(t *testing.T) {
 		command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"),
-			"--region", "cn-hangzhou", "--repository", "example/project", "--yes", "--openai-key-stdin")
+			"--region", "cn-hangzhou", "--repository", "example/project", "--yes")
 		command.Dir = root
-		command.Stdin = strings.NewReader("sk-test-third-run\n")
 		command.Env = append(os.Environ(),
 			"PATH="+bin+":"+os.Getenv("PATH"),
 			"WK_SETUP_CALL_LOG="+callLog,

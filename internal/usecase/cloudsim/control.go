@@ -174,6 +174,9 @@ func (c *ControlPlane) OpenAnalysis(ctx context.Context, req OpenAnalysisRequest
 	if run.State != StateRunning && run.State != StateAnalysisGrace && run.State != StateInfrastructureInterrupted {
 		return Run{}, ErrInvalidAnalysisWindow
 	}
+	if run.AnalysisWindow != nil && run.AnalysisWindow.Until.After(now) {
+		return Run{}, ErrInvalidAnalysisWindow
+	}
 	if run.ExpiresAt.Sub(now) < MinAnalysisLeaseRemaining || req.Until.After(run.ExpiresAt) {
 		return Run{}, ErrInvalidAnalysisWindow
 	}
@@ -181,8 +184,16 @@ func (c *ControlPlane) OpenAnalysis(ctx context.Context, req OpenAnalysisRequest
 }
 
 func validHostWindow(source netip.Prefix, until, now time.Time, maximum time.Duration) bool {
-	return source.IsValid() && source.Addr().Is4() && source.Bits() == 32 && source == source.Masked() &&
+	return validHostPrefix(source) &&
 		until.After(now) && !until.After(now.Add(maximum))
+}
+
+func validHostPrefix(source netip.Prefix) bool {
+	return source.IsValid() && source.Addr().Is4() && source.Bits() == 32 && source == source.Masked()
+}
+
+func validObservedHostWindow(source netip.Prefix, until, now, leaseEnd time.Time, maximum time.Duration) bool {
+	return validHostPrefix(source) && until.After(now) && !until.After(now.Add(maximum)) && !until.After(leaseEnd)
 }
 
 // CloseAnalysis removes temporary ingress for one exact run.
@@ -201,10 +212,9 @@ func (c *ControlPlane) Destroy(ctx context.Context, runID string) (Run, error) {
 	return c.provider.Destroy(ctx, runID)
 }
 
-// Sweep closes stale temporary ingress on active runs and destroys every run
-// whose immutable Run Lease expired. Workflows serialize Sweep with deployment
-// and analysis so an active bounded access window is never closed underneath a
-// legitimate job.
+// Sweep closes expired temporary ingress on active runs and destroys every run
+// whose immutable Run Lease expired. Provider inventory carries window expiry
+// so local Analysis Sessions remain valid without holding a workflow lock.
 func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 	if c == nil || c.provider == nil {
 		return SweepResult{}, ErrInvalidRequest
@@ -221,14 +231,22 @@ func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 			continue
 		}
 		if run.ExpiresAt.After(now) {
-			if _, closeErr := c.provider.CloseDeployment(ctx, run.ID); closeErr != nil {
-				result.Failed = append(result.Failed, run.ID)
-				errs = append(errs, fmt.Errorf("close deployment ingress %s: %w", run.ID, closeErr))
-				continue
+			if run.DeploymentWindow != nil && !validObservedHostWindow(
+				run.DeploymentWindow.SourcePrefix, run.DeploymentWindow.Until, now, run.ExpiresAt, MaxDeploymentWindow,
+			) {
+				if _, closeErr := c.provider.CloseDeployment(ctx, run.ID); closeErr != nil {
+					result.Failed = append(result.Failed, run.ID)
+					errs = append(errs, fmt.Errorf("close deployment ingress %s: %w", run.ID, closeErr))
+					continue
+				}
 			}
-			if _, closeErr := c.provider.CloseAnalysis(ctx, run.ID); closeErr != nil {
-				result.Failed = append(result.Failed, run.ID)
-				errs = append(errs, fmt.Errorf("close analysis ingress %s: %w", run.ID, closeErr))
+			if run.AnalysisWindow != nil && !validObservedHostWindow(
+				run.AnalysisWindow.SourcePrefix, run.AnalysisWindow.Until, now, run.ExpiresAt, MaxAnalysisWindow,
+			) {
+				if _, closeErr := c.provider.CloseAnalysis(ctx, run.ID); closeErr != nil {
+					result.Failed = append(result.Failed, run.ID)
+					errs = append(errs, fmt.Errorf("close analysis ingress %s: %w", run.ID, closeErr))
+				}
 			}
 			continue
 		}

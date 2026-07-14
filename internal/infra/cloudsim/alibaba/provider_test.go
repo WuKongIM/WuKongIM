@@ -229,6 +229,14 @@ func TestProviderOpensOnlyTheRequestedIngressSurface(t *testing.T) {
 	if api.ingress[0].Source.String() != "203.0.113.10/32" || api.ingress[1].Source.String() != "198.51.100.8/32" {
 		t.Fatalf("ingress sources = %#v", api.ingress)
 	}
+	status, err := provider.Status(context.Background(), req.RunID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if status.DeploymentWindow == nil || status.DeploymentWindow.SourcePrefix.String() != "203.0.113.10/32" ||
+		status.AnalysisWindow == nil || status.AnalysisWindow.SourcePrefix.String() != "198.51.100.8/32" {
+		t.Fatalf("reconciled ingress windows = deployment %#v analysis %#v", status.DeploymentWindow, status.AnalysisWindow)
+	}
 }
 
 func TestProviderReconcilesMissingSpotHostAsInfrastructureInterruption(t *testing.T) {
@@ -381,6 +389,16 @@ func (a *apiStub) SetIngress(_ context.Context, request IngressRequest) error {
 	}
 	a.ingress = remaining
 	return nil
+}
+
+func (a *apiStub) ListIngress(_ context.Context, request IngressListRequest) ([]IngressWindow, error) {
+	result := make([]IngressWindow, 0, len(a.ingress))
+	for _, ingress := range a.ingress {
+		if ingress.RunID == request.RunID && ingress.SecurityGroupID == request.SecurityGroupID && ingress.Open {
+			result = append(result, IngressWindow{Source: ingress.Source, Port: ingress.Port, Until: ingress.Until})
+		}
+	}
+	return result, nil
 }
 
 func (a *apiStub) UpdateRunState(_ context.Context, request StateUpdateRequest) error {

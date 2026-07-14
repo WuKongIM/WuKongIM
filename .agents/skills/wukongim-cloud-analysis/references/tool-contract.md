@@ -1,6 +1,6 @@
 # Analysis MCP Tool Contract
 
-Use only the run-specific MCP configured by the Analysis Workflow. Every input includes the exact `run_id`. Parameters select fixed IDs and private resources, never URLs, paths, commands, or processes.
+Use only the run-specific MCP configured by the local Analysis Session. Every input includes the exact `run_id`. Parameters select fixed IDs and private resources, never URLs, paths, commands, or processes.
 
 ## Read tools
 

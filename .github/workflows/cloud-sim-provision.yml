@@ -448,7 +448,7 @@ jobs:
             echo "- Workload active until: \`${{ steps.workload_start.outputs.active_until || 'not-started' }}\`"
             echo "- Selected SKU: \`$(jq -r '.quote.selected_sku // "not-created"' run.json 2>/dev/null || echo not-created)\`"
             echo "- Worst-case fixed cost: \`$(jq -r '.quote.worst_case_cost_micros // 0' run.json 2>/dev/null || echo 0) micro-CNY\`"
-            echo "- Next: dispatch \`Cloud Simulation - Analyze\` with \`run_id=$RUN_ID\`."
+            echo "- Next: from a local ChatGPT-authenticated Codex checkout, run \`./scripts/cloud-sim/analyze.sh $RUN_ID\`."
           } >>"$GITHUB_STEP_SUMMARY"
       - name: Remove local capabilities
         if: always()
