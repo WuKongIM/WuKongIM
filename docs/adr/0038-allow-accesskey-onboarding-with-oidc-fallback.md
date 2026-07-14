@@ -22,6 +22,10 @@ configuration in a Run-Identity-scoped GitHub Artifact. Analysis and Cleanup
 reuse the exact retained configuration; the scheduled sweeper deduplicates all
 unexpired Artifact metadata by account and region before downloading one
 configuration per binding and reconciling tagged resources.
+Provider-config Artifacts without an encoded account/region binding are
+rejected; pre-feature OIDC runs continue to use the single validated
+`ALIBABA_CLOUD_SIM_CONFIG_JSON` Variable fallback and did not create such
+Artifacts.
 
 The AccessKey pair is never written to source, artifacts, summaries, cloud
 hosts, or logs. It remains available only to the protected GitHub cloud jobs

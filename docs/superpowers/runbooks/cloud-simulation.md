@@ -210,6 +210,8 @@ group, vSwitch, and VPC from mandatory tags every 15 minutes.
 It reads Artifact metadata newest-first and downloads at most one provider
 configuration per account/region binding, so retained 90-day run history does
 not multiply cloud configuration downloads on every sweep.
+Unbound provider-config Artifact names are ignored; runs from before this
+Artifact format use the validated `ALIBABA_CLOUD_SIM_CONFIG_JSON` fallback.
 
 ## 3. Analyze an exact live run
 

@@ -124,7 +124,7 @@ func TestSelectProviderConfigArtifactsBoundsDownloadsByAccountAndRegion(t *testi
 	if err := command.Run(); err != nil {
 		t.Fatalf("select provider configs: %v\n%s", err, stderr.String())
 	}
-	if got, want := stdout.String(), "101\n99\n98\n97\n"; got != want {
+	if got, want := stdout.String(), "101\n99\n98\n"; got != want {
 		t.Fatalf("selected artifact IDs = %q, want %q", got, want)
 	}
 }
@@ -146,8 +146,15 @@ func TestSelectExactProviderConfigArtifactAcceptsBindingAwareName(t *testing.T) 
 
 	command = exec.CommandContext(t.Context(), "bash", selector, "gh-101-1")
 	command.Stdin = strings.NewReader(input + "99\tcloud-sim-provider-config-gh-101-1\n")
+	output, err = command.Output()
+	if err != nil || string(output) != "101\n" {
+		t.Fatalf("unbound artifact affected exact selection: output=%q err=%v", output, err)
+	}
+
+	command = exec.CommandContext(t.Context(), "bash", selector, "gh-legacy-1")
+	command.Stdin = strings.NewReader("99\tcloud-sim-provider-config-gh-legacy-1\n")
 	if err := command.Run(); err == nil {
-		t.Fatal("ambiguous exact provider configs were accepted")
+		t.Fatal("unbound provider config artifact was accepted")
 	}
 }
 
@@ -190,7 +197,7 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 	cleanup := read("cloud-sim-cleanup.yml")
 	for _, fragment := range []string{
 		"actions: read",
-		"select-exact-provider-config-artifact.sh",
+		"resolve-exact-provider-config.sh",
 		"select-provider-config-artifacts.sh",
 		"provider-configs",
 	} {
@@ -200,7 +207,7 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 	}
 
 	analyze := read("cloud-sim-analyze.yml")
-	if got := strings.Count(analyze, "select-exact-provider-config-artifact.sh"); got != 2 {
+	if got := strings.Count(analyze, "resolve-exact-provider-config.sh"); got != 2 {
 		t.Fatalf("analysis provider config selector count = %d, want 2", got)
 	}
 	if strings.Contains(analyze, "\n      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}") {

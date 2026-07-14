@@ -91,20 +91,8 @@ jobs:
           }
 
           if [[ -n "$RUN_ID" ]]; then
-            [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
-            gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
-              --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config"))) | [.id,.name] | @tsv' \
-              >downloads/provider-artifacts.tsv
-            if artifact_id="$(./scripts/cloud-sim/select-exact-provider-config-artifact.sh "$RUN_ID" \
-              <downloads/provider-artifacts.tsv 2>downloads/provider-selector-error)"; then
-              download_config "$artifact_id"
-            elif [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
-              printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >downloads/legacy-provider.json
-              retain_config downloads/legacy-provider.json
-            else
-              cat downloads/provider-selector-error >&2
-              exit 1
-            fi
+            ./scripts/cloud-sim/resolve-exact-provider-config.sh "$RUN_ID" downloads/exact-provider.json
+            retain_config downloads/exact-provider.json
           else
             gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
               --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config"))) | [.id,.name] | @tsv' \

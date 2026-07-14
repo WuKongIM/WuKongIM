@@ -110,25 +110,7 @@ jobs:
           LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
           EXPECTED_REGION: ${{ steps.locator.outputs.region }}
           EXPECTED_ACCOUNT_ID_HASH: ${{ steps.locator.outputs.account_id_hash }}
-        run: |
-          set -euo pipefail
-          gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
-            --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config"))) | [.id,.name] | @tsv' \
-            >provider-artifacts.tsv
-          if artifact_id="$(./scripts/cloud-sim/select-exact-provider-config-artifact.sh "$RUN_ID" \
-            <provider-artifacts.tsv 2>provider-selector-error)"; then
-            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >provider-config.zip
-            mkdir provider-config
-            unzip -q provider-config.zip -d provider-config
-            cp provider-config/provider.json provider.json
-          elif [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
-            printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >provider.json
-          else
-            cat provider-selector-error >&2
-            exit 1
-          fi
-          test "$(jq -er .region provider.json)" = "$EXPECTED_REGION"
-          test "$(jq -er .account_id_hash provider.json)" = "$EXPECTED_ACCOUNT_ID_HASH"
+        run: ./scripts/cloud-sim/resolve-exact-provider-config.sh "$RUN_ID" provider.json
       - name: Resolve Alibaba credential mode
         id: alibaba_auth
         shell: bash
@@ -318,25 +300,7 @@ jobs:
         shell: bash
         env:
           LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
-        run: |
-          set -euo pipefail
-          gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
-            --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config"))) | [.id,.name] | @tsv' \
-            >provider-artifacts.tsv
-          if artifact_id="$(./scripts/cloud-sim/select-exact-provider-config-artifact.sh "$RUN_ID" \
-            <provider-artifacts.tsv 2>provider-selector-error)"; then
-            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >provider-config.zip
-            mkdir provider-config
-            unzip -q provider-config.zip -d provider-config
-            cp provider-config/provider.json provider.json
-          elif [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
-            printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >provider.json
-          else
-            cat provider-selector-error >&2
-            exit 1
-          fi
-          jq -e '.region | type == "string" and length > 0' provider.json >/dev/null
-          jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' provider.json >/dev/null
+        run: ./scripts/cloud-sim/resolve-exact-provider-config.sh "$RUN_ID" provider.json
       - name: Resolve Alibaba credential mode
         id: alibaba_auth
         shell: bash

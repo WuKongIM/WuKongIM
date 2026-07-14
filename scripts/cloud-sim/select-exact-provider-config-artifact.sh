@@ -8,13 +8,12 @@ run_id="${1:-}"
 }
 
 # Input must be TSV rows: <artifact-id><tab><artifact-name>. Accept exactly one
-# binding-aware or legacy provider-config artifact for the requested run.
+# account/region-bound provider-config artifact for the requested run.
 awk -F '\t' -v run_id="$run_id" '
   NF == 2 && $1 ~ /^[0-9]+$/ {
     name = $2
-    legacy = "cloud-sim-provider-config-" run_id
     prefix = "cloud-sim-provider-config--" run_id "--"
-    matches = name == legacy
+    matches = 0
     if (index(name, prefix) == 1) {
       suffix = substr(name, length(prefix) + 1)
       count = split(suffix, parts, "--")
