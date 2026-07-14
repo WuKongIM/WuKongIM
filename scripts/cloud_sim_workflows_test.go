@@ -102,6 +102,25 @@ func TestResolveAlibabaCredentialMode(t *testing.T) {
 	}
 }
 
+func TestExactProviderConfigResolverAlwaysBindsRunLocator(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "resolve-exact-provider-config.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, fragment := range []string{
+		`locator_name="cloud-sim-locator-${run_id}"`,
+		`test "$(jq -er .run_id "$temporary/locator/run-locator.json")" = "$run_id"`,
+		`test "$(jq -er .region "$destination")" = "$expected_region"`,
+		`test "$(jq -er .account_id_hash "$destination")" = "$expected_account_id_hash"`,
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("provider resolver missing %q", fragment)
+		}
+	}
+}
+
 func TestSelectProviderConfigArtifactsBoundsDownloadsByAccountAndRegion(t *testing.T) {
 	hashA := strings.Repeat("a", 64)
 	hashB := strings.Repeat("b", 64)

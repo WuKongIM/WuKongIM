@@ -212,6 +212,8 @@ configuration per account/region binding, so retained 90-day run history does
 not multiply cloud configuration downloads on every sweep.
 Unbound provider-config Artifact names are ignored; runs from before this
 Artifact format use the validated `ALIBABA_CLOUD_SIM_CONFIG_JSON` fallback.
+Exact cleanup validates that fallback against the unique retained Run Locator's
+account hash and region, and fails closed when the Locator cannot prove them.
 
 ## 3. Analyze an exact live run
 

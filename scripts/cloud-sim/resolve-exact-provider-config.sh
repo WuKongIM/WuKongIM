@@ -31,9 +31,21 @@ fi
 
 jq -e '.region | type == "string" and test("^[a-z0-9-]+$")' "$destination" >/dev/null
 jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' "$destination" >/dev/null
-if [[ -n "${EXPECTED_REGION:-}" ]]; then
-  test "$(jq -er .region "$destination")" = "$EXPECTED_REGION"
+expected_region="${EXPECTED_REGION:-}"
+expected_account_id_hash="${EXPECTED_ACCOUNT_ID_HASH:-}"
+if [[ -z "$expected_region" && -z "$expected_account_id_hash" ]]; then
+  locator_name="cloud-sim-locator-${run_id}"
+  locators="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$locator_name" -f per_page=2)"
+  locator_id="$(jq -er '[.artifacts[] | select(.expired == false)] | select(length == 1) | .[0].id' <<<"$locators")"
+  gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${locator_id}/zip" >"$temporary/locator.zip"
+  mkdir "$temporary/locator"
+  unzip -q "$temporary/locator.zip" -d "$temporary/locator"
+  test "$(jq -er .run_id "$temporary/locator/run-locator.json")" = "$run_id"
+  expected_region="$(jq -er '.region | select(test("^[a-z0-9-]+$"))' "$temporary/locator/run-locator.json")"
+  expected_account_id_hash="$(jq -er '.account_id_hash | select(test("^sha256:[0-9a-f]{64}$"))' "$temporary/locator/run-locator.json")"
+elif [[ -z "$expected_region" || -z "$expected_account_id_hash" ]]; then
+  echo "expected provider region and account hash must be supplied together" >&2
+  exit 1
 fi
-if [[ -n "${EXPECTED_ACCOUNT_ID_HASH:-}" ]]; then
-  test "$(jq -er .account_id_hash "$destination")" = "$EXPECTED_ACCOUNT_ID_HASH"
-fi
+test "$(jq -er .region "$destination")" = "$expected_region"
+test "$(jq -er .account_id_hash "$destination")" = "$expected_account_id_hash"

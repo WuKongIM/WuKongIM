@@ -26,6 +26,8 @@ Provider-config Artifacts without an encoded account/region binding are
 rejected; pre-feature OIDC runs continue to use the single validated
 `ALIBABA_CLOUD_SIM_CONFIG_JSON` Variable fallback and did not create such
 Artifacts.
+Every exact-run fallback is additionally matched to the retained Run Locator's
+region and account hash; a missing or ambiguous Locator fails closed.
 
 The AccessKey pair is never written to source, artifacts, summaries, cloud
 hosts, or logs. It remains available only to the protected GitHub cloud jobs
