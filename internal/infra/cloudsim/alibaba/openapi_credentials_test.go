@@ -10,9 +10,95 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
 	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
 	"github.com/alibabacloud-go/tea/dara"
 )
+
+func TestCreateHostRetriesAttachWhileInstanceStatusConverges(t *testing.T) {
+	var (
+		mu          sync.Mutex
+		attachCalls int
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		_ = request.ParseForm()
+		action := request.Header.Get("x-acs-action")
+		response.Header().Set("Content-Type", "application/json")
+		switch action {
+		case "RunInstances":
+			_, _ = response.Write([]byte(`{"RequestId":"request-1","InstanceIdSets":{"InstanceIdSet":["i-1"]}}`))
+		case "CreateDisk":
+			_, _ = response.Write([]byte(`{"RequestId":"request-2","DiskId":"d-1"}`))
+		case "DescribeDisks":
+			if request.Form.Get("DiskIds") != "" {
+				_, _ = response.Write([]byte(`{"RequestId":"request-3","Disks":{"Disk":[{"DiskId":"d-1","Status":"Available"}]}}`))
+				return
+			}
+			_, _ = response.Write([]byte(`{"RequestId":"request-7","TotalCount":1,"Disks":{"Disk":[{"DiskId":"d-1","InstanceId":"i-1","Tags":{"Tag":[{"TagKey":"wukongim-resource-role","TagValue":"node-2"}]}}]}}`))
+		case "DescribeInstances":
+			if request.Form.Get("InstanceIds") != "" {
+				_, _ = response.Write([]byte(`{"RequestId":"request-4","Instances":{"Instance":[{"InstanceId":"i-1","Status":"Running"}]}}`))
+				return
+			}
+			_, _ = response.Write([]byte(`{"RequestId":"request-6","TotalCount":1,"Instances":{"Instance":[{"InstanceId":"i-1","VpcAttributes":{"PrivateIpAddress":{"IpAddress":["10.42.0.21"]}},"Tags":{"Tag":[{"TagKey":"wukongim-resource-role","TagValue":"node-2"}]}}]}}`))
+		case "AttachDisk":
+			mu.Lock()
+			attachCalls++
+			call := attachCalls
+			mu.Unlock()
+			if call == 1 {
+				response.WriteHeader(http.StatusBadRequest)
+				_, _ = response.Write([]byte(`{"RequestId":"request-5","Code":"IncorrectInstanceStatus","Message":"The current status of the resource does not support this operation."}`))
+				return
+			}
+			_, _ = response.Write([]byte(`{"RequestId":"request-5-retry"}`))
+		case "DescribeSecurityGroups", "DescribeVpcs", "DescribeVSwitches", "DescribeEipAddresses":
+			_, _ = response.Write([]byte(`{"RequestId":"request-8","TotalCount":0}`))
+		case "DeleteInstance", "DeleteDisk":
+			_, _ = response.Write([]byte(`{"RequestId":"rollback"}`))
+		default:
+			http.Error(response, "unexpected action "+action, http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	api, err := newOpenAPI(&openapiutil.Config{
+		AccessKeyId:     dara.String("test-access-key-id"),
+		AccessKeySecret: dara.String("test-access-key-secret"),
+		RegionId:        dara.String("cn-hangzhou"),
+		Endpoint:        dara.String(strings.TrimPrefix(server.URL, "http://")),
+		Protocol:        dara.String("http"),
+	})
+	if err != nil {
+		t.Fatalf("newOpenAPI() error = %v", err)
+	}
+	api.pollInterval = 0
+	api.waitTimeout = time.Second
+
+	assets, err := api.CreateHost(context.Background(), HostRequest{
+		Region: "cn-hangzhou", ZoneID: "cn-hangzhou-a", Role: "node-2",
+		ImageID: "aliyun_3_x64_20G_alibase_20260101.vhd", InstanceType: "ecs.c7.large",
+		VSwitchID: "vsw-1", SecurityGroupID: "sg-1", PrivateIPv4: "10.42.0.21",
+		SystemDiskCategory: "cloud_essd", SystemDiskSizeGiB: 40,
+		DataDiskCategory: "cloud_essd", DataDiskSizeGiB: 40,
+		AutoReleaseAt: time.Now().Add(3 * time.Hour), SSHPublicKey: "ssh-ed25519 AAAATEST run",
+		Tags: map[string]string{
+			cloudsim.TagManagedBy: cloudsim.ManagedByValue,
+			cloudsim.TagRunID:     "run-1", cloudsim.TagResourceRole: "node-2",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateHost() error = %v", err)
+	}
+	if len(assets) != 2 || assets[0].Role != "node-2" || assets[1].Role != "node-2" {
+		t.Fatalf("CreateHost() assets = %#v, want node-2 compute and disk", assets)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if attachCalls != 2 {
+		t.Fatalf("AttachDisk calls = %d, want one bounded retry", attachCalls)
+	}
+}
 
 func TestCreateNetworkWaitsForVSwitchBeforeCreatingSecurityGroup(t *testing.T) {
 	var (

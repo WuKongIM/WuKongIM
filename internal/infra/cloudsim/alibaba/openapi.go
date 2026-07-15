@@ -21,6 +21,7 @@ import (
 	ecs "github.com/alibabacloud-go/ecs-20140526/v7/client"
 	sts "github.com/alibabacloud-go/sts-20150401/v2/client"
 	"github.com/alibabacloud-go/tea/dara"
+	tea "github.com/alibabacloud-go/tea/tea"
 	vpc "github.com/alibabacloud-go/vpc-20160428/v6/client"
 	"github.com/aliyun/credentials-go/credentials"
 )
@@ -902,11 +903,7 @@ func (a *OpenAPI) CreateHost(ctx context.Context, request HostRequest) (_ []Asse
 	if err = a.waitInstanceAttachable(ctx, request.Region, instanceID); err != nil {
 		return nil, err
 	}
-	_, err = a.ecs.AttachDisk((&ecs.AttachDiskRequest{}).
-		SetInstanceId(instanceID).
-		SetDiskId(diskID).
-		SetDeleteWithInstance(true))
-	if err != nil {
+	if err = a.attachDisk(ctx, request.Region, instanceID, diskID); err != nil {
 		return nil, err
 	}
 	diskAttached = true
@@ -989,6 +986,33 @@ func (a *OpenAPI) waitInstanceAttachable(ctx context.Context, region, instanceID
 
 func attachableInstanceStatus(status string) bool {
 	return status == "Running" || status == "Stopped"
+}
+
+// attachDisk retries only Alibaba's transient instance-readiness rejection.
+// Every retry revalidates the instance state and remains bounded by the SDK wait timeout.
+func (a *OpenAPI) attachDisk(ctx context.Context, region, instanceID, diskID string) error {
+	deadline := time.Now().Add(a.waitTimeout)
+	for {
+		_, err := a.ecs.AttachDisk((&ecs.AttachDiskRequest{}).
+			SetInstanceId(instanceID).
+			SetDiskId(diskID).
+			SetDeleteWithInstance(true))
+		if err == nil {
+			return nil
+		}
+		if !sdkErrorHasCode(err, "IncorrectInstanceStatus") {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("attach disk %s to instance %s after readiness retries: %w", diskID, instanceID, err)
+		}
+		if err := waitContext(ctx, a.pollInterval); err != nil {
+			return err
+		}
+		if err := a.waitInstanceAttachable(ctx, region, instanceID); err != nil {
+			return err
+		}
+	}
 }
 
 func (a *OpenAPI) waitDiskAvailable(ctx context.Context, region, diskID string) error {
@@ -1592,4 +1616,13 @@ func ignoreIncorrectDiskStatus(err error) error {
 		return nil
 	}
 	return err
+}
+
+func sdkErrorHasCode(err error, code string) bool {
+	var teaErr *tea.SDKError
+	if errors.As(err, &teaErr) {
+		return deref(teaErr.Code) == code
+	}
+	var sdkErr *dara.SDKError
+	return errors.As(err, &sdkErr) && deref(sdkErr.Code) == code
 }
