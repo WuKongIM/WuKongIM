@@ -10,16 +10,20 @@ set -euo pipefail
 : "${WK_CLOUD_GATE_OUTPUT:?required}"
 : "${WK_ANALYSIS_MANAGER_PASSWORD:?required}"
 
-ssh_common=(-i "$WK_CLOUD_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+ssh_config="$(mktemp)"
+trap 'rm -f "$ssh_config"' EXIT
+WK_CLOUD_SSH_CONFIG="$ssh_config" \
+  "$(dirname "$0")/write-ssh-config.sh"
+ssh_common=(-F "$ssh_config")
 
 ssh_sim() {
-  ssh "${ssh_common[@]}" "wukong@${WK_CLOUD_SIM_PUBLIC_IP}" "$@"
+  ssh "${ssh_common[@]}" wukong-sim-jump "$@"
 }
 
 ssh_node() {
   local address="$1"
   shift
-  ssh "${ssh_common[@]}" -o "ProxyJump=wukong@${WK_CLOUD_SIM_PUBLIC_IP}" "wukong@${address}" "$@"
+  ssh "${ssh_common[@]}" "$address" "$@"
 }
 
 bundle_digest() {
