@@ -360,28 +360,35 @@ jobs:
           NODE3_PRIVATE: ${{ steps.create.outputs.node3_private }}
         run: |
           set -euo pipefail
-          ssh_opts=(-i bootstrap-key -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+          WK_CLOUD_SIM_PUBLIC_IP="$SIM_PUBLIC" \
+          WK_CLOUD_NODE1_IP="$NODE1_PRIVATE" \
+          WK_CLOUD_NODE2_IP="$NODE2_PRIVATE" \
+          WK_CLOUD_NODE3_IP="$NODE3_PRIVATE" \
+          WK_CLOUD_SSH_KEY="$PWD/bootstrap-key" \
+          WK_CLOUD_SSH_CONFIG="$PWD/cloud-sim-ssh-config" \
+            ./scripts/cloud-sim/write-ssh-config.sh
+          ssh_opts=(-F cloud-sim-ssh-config)
           for attempt in $(seq 1 30); do
-            if ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" true; then break; fi
+            if ssh "${ssh_opts[@]}" wukong-sim-jump true; then break; fi
             test "$attempt" -lt 30
             sleep 5
           done
           tar -czf node-secrets.tar.gz -C secrets-node .
           tar -czf sim-secrets.tar.gz -C secrets .
-          scp "${ssh_opts[@]}" artifact/deployment-bundle.tar.gz sim-secrets.tar.gz "wukong@${SIM_PUBLIC}:/home/wukong/"
+          scp "${ssh_opts[@]}" artifact/deployment-bundle.tar.gz sim-secrets.tar.gz wukong-sim-jump:/home/wukong/
           for pair in "node-1:${NODE1_PRIVATE}" "node-2:${NODE2_PRIVATE}" "node-3:${NODE3_PRIVATE}"; do
             role="${pair%%:*}"; address="${pair#*:}"
-            scp "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" artifact/deployment-bundle.tar.gz node-secrets.tar.gz "wukong@${address}:/home/wukong/"
-            ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" \
+            scp "${ssh_opts[@]}" artifact/deployment-bundle.tar.gz node-secrets.tar.gz "${address}:/home/wukong/"
+            ssh "${ssh_opts[@]}" "$address" \
               "rm -rf /home/wukong/bundle /home/wukong/run-secrets && mkdir /home/wukong/bundle /home/wukong/run-secrets && tar -xzf /home/wukong/deployment-bundle.tar.gz -C /home/wukong/bundle && tar -xzf /home/wukong/node-secrets.tar.gz -C /home/wukong/run-secrets"
-            data_device="$(ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
-            ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" \
+            data_device="$(ssh "${ssh_opts[@]}" "$address" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
+            ssh "${ssh_opts[@]}" "$address" \
               "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role '$role' --env-dir /home/wukong/run-secrets --data-device '$data_device' --authorized-keys ''"
           done
-          ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" \
+          ssh "${ssh_opts[@]}" wukong-sim-jump \
             "rm -rf /home/wukong/bundle /home/wukong/run-secrets && mkdir /home/wukong/bundle /home/wukong/run-secrets && tar -xzf /home/wukong/deployment-bundle.tar.gz -C /home/wukong/bundle && tar -xzf /home/wukong/sim-secrets.tar.gz -C /home/wukong/run-secrets"
-          sim_data_device="$(ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
-          ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" \
+          sim_data_device="$(ssh "${ssh_opts[@]}" wukong-sim-jump 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
+          ssh "${ssh_opts[@]}" wukong-sim-jump \
             "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role sim --env-dir /home/wukong/run-secrets --data-device '$sim_data_device' --authorized-keys ''"
 
       - name: Prove Bootstrap Gate
@@ -453,11 +460,18 @@ jobs:
           NODE2_PRIVATE: ${{ steps.create.outputs.node2_private }}
           NODE3_PRIVATE: ${{ steps.create.outputs.node3_private }}
         run: |
-          ssh_opts=(-i bootstrap-key -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new)
+          WK_CLOUD_SIM_PUBLIC_IP="$SIM_PUBLIC" \
+          WK_CLOUD_NODE1_IP="$NODE1_PRIVATE" \
+          WK_CLOUD_NODE2_IP="$NODE2_PRIVATE" \
+          WK_CLOUD_NODE3_IP="$NODE3_PRIVATE" \
+          WK_CLOUD_SSH_KEY="$PWD/bootstrap-key" \
+          WK_CLOUD_SSH_CONFIG="$PWD/cloud-sim-ssh-config" \
+            ./scripts/cloud-sim/write-ssh-config.sh
+          ssh_opts=(-F cloud-sim-ssh-config -o ConnectTimeout=5)
           for address in "$NODE1_PRIVATE" "$NODE2_PRIVATE" "$NODE3_PRIVATE"; do
-            ssh "${ssh_opts[@]}" -o "ProxyJump=wukong@${SIM_PUBLIC}" "wukong@${address}" 'sudo rm -f /home/wukong/.ssh/authorized_keys' || true
+            ssh "${ssh_opts[@]}" "$address" 'sudo rm -f /home/wukong/.ssh/authorized_keys' || true
           done
-          ssh "${ssh_opts[@]}" "wukong@${SIM_PUBLIC}" 'sudo rm -f /home/wukong/.ssh/authorized_keys' || true
+          ssh "${ssh_opts[@]}" wukong-sim-jump 'sudo rm -f /home/wukong/.ssh/authorized_keys' || true
       - name: Close deployment ingress
         if: always() && steps.create.outcome == 'success'
         shell: bash

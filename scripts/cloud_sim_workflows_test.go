@@ -206,6 +206,9 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 		"ref: ${{ github.sha }}",
 		"go build -trimpath -o wkcloudsim ./cmd/wkcloudsim",
 		"discover-config --region \"$ALIBABA_REGION\" >provider.json",
+		"./scripts/cloud-sim/write-ssh-config.sh",
+		"ssh_opts=(-F cloud-sim-ssh-config)",
+		"ssh_opts=(-F cloud-sim-ssh-config -o ConnectTimeout=5)",
 		"name: cloud-sim-provider-config--${{ needs.build.outputs.run_id }}--${{ inputs.region }}--${{ steps.provider_config.outputs.account_hash_hex }}",
 		"retention-days: 90",
 	} {
@@ -218,6 +221,9 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 	}
 	if strings.Contains(provision, "bundle/bin/wkcloudsim --provider") {
 		t.Fatal("provision workflow uses the selected deployment revision as its cloud control plane")
+	}
+	if strings.Contains(provision, `ProxyJump=wukong@${SIM_PUBLIC}`) {
+		t.Fatal("provision workflow uses a ProxyJump whose connection does not pin the bootstrap identity")
 	}
 
 	cleanup := read("cloud-sim-cleanup.yml")
