@@ -102,7 +102,7 @@ func TestResolveAlibabaCredentialMode(t *testing.T) {
 	}
 }
 
-func TestExactProviderConfigResolverAlwaysBindsRunLocator(t *testing.T) {
+func TestExactProviderConfigResolverBindsArtifactAndOptionalLocator(t *testing.T) {
 	path := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "resolve-exact-provider-config.sh")
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -110,8 +110,14 @@ func TestExactProviderConfigResolverAlwaysBindsRunLocator(t *testing.T) {
 	}
 	text := string(content)
 	for _, fragment := range []string{
+		`IFS=$'\t' read -r artifact_id artifact_region artifact_account_id_hash`,
+		`test "$(jq -er .region "$destination")" = "$artifact_region"`,
+		`test "$(jq -er .account_id_hash "$destination")" = "$artifact_account_id_hash"`,
 		`locator_name="cloud-sim-locator-${run_id}"`,
 		`test "$(jq -er .run_id "$temporary/locator/run-locator.json")" = "$run_id"`,
+		`case "$locator_count" in`,
+		`0)`,
+		`1)`,
 		`test "$(jq -er .region "$destination")" = "$expected_region"`,
 		`test "$(jq -er .account_id_hash "$destination")" = "$expected_account_id_hash"`,
 	} {
@@ -159,14 +165,15 @@ func TestSelectExactProviderConfigArtifactAcceptsBindingAwareName(t *testing.T) 
 	if err != nil {
 		t.Fatalf("select exact provider config: %v", err)
 	}
-	if got, want := string(output), "101\n"; got != want {
-		t.Fatalf("selected artifact ID = %q, want %q", got, want)
+	boundSelection := "101\tcn-hangzhou\tsha256:" + hash + "\n"
+	if got, want := string(output), boundSelection; got != want {
+		t.Fatalf("selected artifact binding = %q, want %q", got, want)
 	}
 
 	command = exec.CommandContext(t.Context(), "bash", selector, "gh-101-1")
 	command.Stdin = strings.NewReader(input + "99\tcloud-sim-provider-config-gh-101-1\n")
 	output, err = command.Output()
-	if err != nil || string(output) != "101\n" {
+	if err != nil || string(output) != boundSelection {
 		t.Fatalf("unbound artifact affected exact selection: output=%q err=%v", output, err)
 	}
 
