@@ -47,6 +47,7 @@ jobs:
   verify-alibaba:
     name: Verify GitHub OIDC can assume the Alibaba analyzer role
     needs: configure
+    if: vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN != '' && vars.ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN != '' && vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment: cloud-sim-analysis

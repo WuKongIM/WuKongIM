@@ -25,11 +25,14 @@ const (
 var errInvalidGitHubOIDC = errors.New("cmd/wkanalysis: invalid GitHub OIDC token")
 
 type githubOIDCConfig struct {
-	Audience        string
-	Repository      string
-	Ref             string
-	WorkflowRef     string
-	Environment     string
+	Audience    string
+	Repository  string
+	Ref         string
+	WorkflowRef string
+	Environment string
+	// DefaultSubject is GitHub's repository and Environment-bound subject.
+	DefaultSubject string
+	// ExpectedSubject is the stricter subject emitted by the optional repository customization.
 	ExpectedSubject string
 }
 
@@ -66,6 +69,7 @@ func loadGitHubOIDCConfig(getenv func(string) string, runID string) (*githubOIDC
 		WorkflowRef: strings.TrimSpace(getenv("WK_ANALYSIS_GITHUB_WORKFLOW_REF")),
 		Environment: strings.TrimSpace(getenv("WK_ANALYSIS_GITHUB_ENVIRONMENT")),
 	}
+	config.DefaultSubject = fmt.Sprintf("repo:%s:environment:%s", config.Repository, config.Environment)
 	config.ExpectedSubject = fmt.Sprintf("repo:%s:environment:%s:job_workflow_ref:%s", config.Repository, config.Environment, config.WorkflowRef)
 	expectedWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-sim-analyze.yml@%s", config.Repository, config.Ref)
 	if runID == "" || config.Audience != "wukongim-cloud-sim:"+runID || config.Repository == "" ||
@@ -98,7 +102,8 @@ func (v *githubOIDCVerifier) Verify(ctx context.Context, raw string) error {
 	if err != nil || !parsed.Valid {
 		return errInvalidGitHubOIDC
 	}
-	if claims.Subject != v.config.ExpectedSubject || claims.Repository != v.config.Repository || claims.Ref != v.config.Ref ||
+	validSubject := claims.Subject == v.config.DefaultSubject || claims.Subject == v.config.ExpectedSubject
+	if !validSubject || claims.Repository != v.config.Repository || claims.Ref != v.config.Ref ||
 		claims.JobWorkflowRef != v.config.WorkflowRef || claims.Environment != v.config.Environment {
 		return errInvalidGitHubOIDC
 	}

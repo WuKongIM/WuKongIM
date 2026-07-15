@@ -32,8 +32,9 @@ func TestGitHubOIDCVerifierRequiresExactRunWorkflowEnvironmentAndRef(t *testing.
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	config := githubOIDCConfig{
 		Audience: "wukongim-cloud-sim:run-1", Repository: "WuKongIM/WuKongIM", Ref: "refs/heads/main",
-		WorkflowRef: "WuKongIM/WuKongIM/.github/workflows/cloud-sim-analyze.yml@refs/heads/main",
-		Environment: "cloud-sim-analysis",
+		WorkflowRef:    "WuKongIM/WuKongIM/.github/workflows/cloud-sim-analyze.yml@refs/heads/main",
+		Environment:    "cloud-sim-analysis",
+		DefaultSubject: "repo:WuKongIM/WuKongIM:environment:cloud-sim-analysis",
 		ExpectedSubject: "repo:WuKongIM/WuKongIM:environment:cloud-sim-analysis:job_workflow_ref:" +
 			"WuKongIM/WuKongIM/.github/workflows/cloud-sim-analyze.yml@refs/heads/main",
 	}
@@ -53,8 +54,23 @@ func TestGitHubOIDCVerifierRequiresExactRunWorkflowEnvironmentAndRef(t *testing.
 		t.Fatal(err)
 	}
 	if err := verifier.Verify(context.Background(), raw); err != nil {
-		t.Fatalf("Verify() error = %v", err)
+		t.Fatalf("Verify(custom subject) error = %v", err)
 	}
+	claims.Subject = config.DefaultSubject
+	token = jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "test"
+	raw, _ = token.SignedString(privateKey)
+	if err := verifier.Verify(context.Background(), raw); err != nil {
+		t.Fatalf("Verify(default subject) error = %v", err)
+	}
+	claims.JobWorkflowRef = "WuKongIM/WuKongIM/.github/workflows/different.yml@refs/heads/main"
+	token = jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "test"
+	raw, _ = token.SignedString(privateKey)
+	if err := verifier.Verify(context.Background(), raw); err == nil {
+		t.Fatal("Verify(default subject with mismatched workflow) error = nil")
+	}
+	claims.JobWorkflowRef = config.WorkflowRef
 	claims.Environment = "different-environment"
 	token = jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = "test"

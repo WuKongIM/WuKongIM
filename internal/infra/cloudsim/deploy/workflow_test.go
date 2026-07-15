@@ -110,6 +110,7 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 	for _, required := range []string{
 		"actions: write", `include_claim_keys:["repo","context","job_workflow_ref"]`, ".use_default == false",
 		"verify-alibaba:", "environment: cloud-sim-analysis", "id-token: write",
+		"if: vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN != '' && vars.ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN != '' && vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE != ''",
 		"run-name: Cloud Simulation OIDC Verification", "verification_id:",
 		"aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6",
 		"ALIBABA_CLOUD_ACCESS_KEY_ID", "ALIBABA_CLOUD_SECURITY_TOKEN",
