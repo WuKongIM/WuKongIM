@@ -187,6 +187,58 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 	}
 }
 
+func TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	goRoot := filepath.Join(temp, "go-root")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(goRoot, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+	if err := os.Rename(filepath.Join(bin, "go"), filepath.Join(goRoot, "bin", "go")); err != nil {
+		t.Fatal(err)
+	}
+	pathEntries := []string{bin}
+	for _, entry := range filepath.SplitList(os.Getenv("PATH")) {
+		if entry == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(entry, "go")); err == nil {
+			continue
+		}
+		pathEntries = append(pathEntries, entry)
+	}
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+strings.Join(pathEntries, string(os.PathListSeparator)),
+		"GOROOT="+goRoot,
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		calls, _ := os.ReadFile(callLog)
+		t.Fatalf("analyze with GOROOT Go outside PATH: %v\n%s\ncalls:\n%s", err, output, calls)
+	}
+	calls, err := os.ReadFile(callLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(calls), "go run ./cmd/wkclouddiagnosis validate") {
+		t.Fatalf("analysis did not use the discovered Go toolchain:\n%s", calls)
+	}
+}
+
 func TestCloudSimulationAnalyzeKeepsValidDiagnosisSuccessfulWhenRemediationFails(t *testing.T) {
 	root := repoRoot(t)
 	temp := t.TempDir()
