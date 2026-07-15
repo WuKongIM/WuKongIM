@@ -88,7 +88,7 @@ prometheus_targets="$(ssh_sim "curl --fail --silent --show-error --max-time 10 '
 targets_want="$(jq -er '.data.activeTargets | length' <<<"$prometheus_targets")"
 targets_up="$(jq -er '[.data.activeTargets[] | select(.health == "up")] | length' <<<"$prometheus_targets")"
 
-ssh_sim "curl --fail --silent --show-error --max-time 10 --resolve '${WK_CLOUD_SIM_PUBLIC_IP}:19092:127.0.0.1' 'https://${WK_CLOUD_SIM_PUBLIC_IP}:19092/self-check' --cacert /etc/wukongim/tls/mcp-ca.pem >/dev/null"
+ssh_sim "sudo -u wukongim curl --fail --silent --show-error --max-time 10 --resolve '${WK_CLOUD_SIM_PUBLIC_IP}:19092:127.0.0.1' 'https://${WK_CLOUD_SIM_PUBLIC_IP}:19092/self-check' --cacert /etc/wukongim/tls/mcp-ca.pem >/dev/null"
 analysis_self_check=true
 ssh_sim "sudo -u wukongim bash -c 'set -a; source /etc/wukongim/sim.env; set +a; /opt/wukongim/bin/wkbench validate --target /etc/wukongim/target.yaml --workers /etc/wukongim/workers.yaml --scenario /etc/wukongim/scenario.yaml'"
 wkbench_validate=true
