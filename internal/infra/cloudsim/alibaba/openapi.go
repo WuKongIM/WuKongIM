@@ -790,6 +790,12 @@ func (a *OpenAPI) CreateNetwork(ctx context.Context, request NetworkRequest) (_ 
 			_, _ = a.vpc.DeleteVSwitch((&vpc.DeleteVSwitchRequest{}).SetRegionId(request.Region).SetVSwitchId(vswitchID))
 		}
 	}()
+	if vswitchID == "" {
+		return nil, ErrAmbiguousInventory
+	}
+	if err = a.waitVSwitch(ctx, request.Region, vswitchID); err != nil {
+		return nil, err
+	}
 	securityResponse, err := a.ecs.CreateSecurityGroup((&ecs.CreateSecurityGroupRequest{}).
 		SetRegionId(request.Region).
 		SetVpcId(vpcID).
@@ -800,7 +806,7 @@ func (a *OpenAPI) CreateNetwork(ctx context.Context, request NetworkRequest) (_ 
 		return nil, err
 	}
 	securityGroupID := deref(securityResponse.Body.SecurityGroupId)
-	if securityGroupID == "" || vswitchID == "" {
+	if securityGroupID == "" {
 		return nil, ErrAmbiguousInventory
 	}
 	defer func() {
@@ -1332,6 +1338,36 @@ func (a *OpenAPI) waitVpc(ctx context.Context, region, vpcID string) error {
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("wait for VPC %s: %w", vpcID, err)
+		}
+		if err := waitContext(ctx, a.pollInterval); err != nil {
+			return err
+		}
+	}
+}
+
+// waitVSwitch blocks host provisioning until Alibaba reports the asynchronous
+// vSwitch creation as usable by RunInstances.
+func (a *OpenAPI) waitVSwitch(ctx context.Context, region, vswitchID string) error {
+	deadline := time.Now().Add(a.waitTimeout)
+	lastStatus := ""
+	var lastErr error
+	for {
+		response, err := a.vpc.DescribeVSwitchAttributes((&vpc.DescribeVSwitchAttributesRequest{}).
+			SetRegionId(region).
+			SetVSwitchId(vswitchID))
+		if err == nil && response != nil && response.Body != nil {
+			lastStatus = deref(response.Body.Status)
+			if lastStatus == "Available" {
+				return nil
+			}
+		} else if err != nil {
+			lastErr = err
+		}
+		if time.Now().After(deadline) {
+			if lastErr != nil {
+				return fmt.Errorf("wait for vSwitch %s to become Available: %w", vswitchID, lastErr)
+			}
+			return fmt.Errorf("wait for vSwitch %s: status %q did not become Available before timeout", vswitchID, lastStatus)
 		}
 		if err := waitContext(ctx, a.pollInterval); err != nil {
 			return err

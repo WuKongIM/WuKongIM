@@ -22,6 +22,8 @@ awk -F '\t' -v run_id="$run_id" '
     }
     if (matches) {
       selected[++selected_count] = $1
+      selected_region[selected_count] = parts[1]
+      selected_account_hash[selected_count] = parts[2]
     }
   }
   END {
@@ -29,6 +31,6 @@ awk -F '\t' -v run_id="$run_id" '
       print "No unique provider config exists for exact Simulation Run " run_id "." > "/dev/stderr"
       exit 1
     }
-    print selected[1]
+    printf "%s\t%s\tsha256:%s\n", selected[1], selected_region[1], selected_account_hash[1]
   }
 '
