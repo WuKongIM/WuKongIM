@@ -2,8 +2,14 @@ package alibaba
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
+
+	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
+	"github.com/alibabacloud-go/tea/dara"
 )
 
 func TestNewOpenAPIFromEnvironmentAcceptsCredentialModes(t *testing.T) {
@@ -54,6 +60,45 @@ func TestNewOpenAPIFromEnvironmentRejectsMissingRegion(t *testing.T) {
 
 	if _, err := NewOpenAPIFromEnvironment(""); err == nil {
 		t.Fatal("NewOpenAPIFromEnvironment() error = nil, want error")
+	}
+}
+
+func TestEligibleSpotZonesUsesAlibabaSDKRequestRuntime(t *testing.T) {
+	actions := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		actions <- request.Header.Get("x-acs-action")
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{
+			"RequestId":"request-1",
+			"Zones":{"Zone":[{
+				"ZoneId":"cn-hangzhou-a",
+				"ZoneType":"AvailabilityZone",
+				"AvailableDiskCategories":{"DiskCategories":["cloud_essd"]}
+			}]}
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	api, err := newOpenAPI(&openapiutil.Config{
+		AccessKeyId:     dara.String("test-access-key-id"),
+		AccessKeySecret: dara.String("test-access-key-secret"),
+		RegionId:        dara.String("cn-hangzhou"),
+		Endpoint:        dara.String(strings.TrimPrefix(server.URL, "http://")),
+		Protocol:        dara.String("http"),
+	})
+	if err != nil {
+		t.Fatalf("newOpenAPI() error = %v", err)
+	}
+
+	zones, err := api.EligibleSpotZones(context.Background(), "cn-hangzhou")
+	if err != nil {
+		t.Fatalf("EligibleSpotZones() error = %v", err)
+	}
+	if !reflect.DeepEqual(zones, []string{"cn-hangzhou-a"}) {
+		t.Fatalf("EligibleSpotZones() = %v, want [cn-hangzhou-a]", zones)
+	}
+	if action := <-actions; action != "DescribeZones" {
+		t.Fatalf("Action = %q, want DescribeZones", action)
 	}
 }
 

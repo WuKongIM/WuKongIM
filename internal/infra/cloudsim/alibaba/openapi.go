@@ -125,7 +125,7 @@ func (a *OpenAPI) EligibleSpotZones(ctx context.Context, region string) ([]strin
 		SetRegionId(region).
 		SetInstanceChargeType("PostPaid").
 		SetSpotStrategy("SpotAsPriceGo").
-		SetVerbose(true), nil)
+		SetVerbose(true), &dara.RuntimeOptions{})
 	if err != nil || response.Body == nil || response.Body.Zones == nil {
 		return nil, errors.Join(ErrInvalidConfig, err)
 	}
@@ -164,7 +164,7 @@ func (a *OpenAPI) LatestLinuxImage(ctx context.Context, region string) (string, 
 			SetStatus("Available").
 			SetIsSupportCloudinit(true).
 			SetPageNumber(pageNumber).
-			SetPageSize(pageSize), nil)
+			SetPageSize(pageSize), &dara.RuntimeOptions{})
 		if err != nil || response.Body == nil || response.Body.Images == nil {
 			return nil, 0, errors.Join(ErrInvalidConfig, err)
 		}
@@ -236,7 +236,7 @@ func (a *OpenAPI) InstanceTypes(ctx context.Context, _ string, cpu, memory int32
 		if nextToken != "" {
 			request.SetNextToken(nextToken)
 		}
-		response, err := a.ecs.DescribeInstanceTypesWithContext(ctx, request, nil)
+		response, err := a.ecs.DescribeInstanceTypesWithContext(ctx, request, &dara.RuntimeOptions{})
 		if err != nil || response.Body == nil || response.Body.InstanceTypes == nil {
 			return nil, errors.Join(ErrInvalidConfig, err)
 		}
@@ -395,7 +395,7 @@ func (a *OpenAPI) availableInstanceTypes(ctx context.Context, region, zoneID, in
 	if instanceType != "" {
 		request.SetInstanceType(instanceType)
 	}
-	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, request, nil)
+	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, request, &dara.RuntimeOptions{})
 	if err != nil {
 		return nil, err
 	}
