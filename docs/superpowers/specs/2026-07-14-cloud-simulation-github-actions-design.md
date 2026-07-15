@@ -43,7 +43,8 @@ instances, or cleanup calls fail.
    and encrypted-session broker.
 5. Optionally produce a tested Draft PR when a high-confidence Diagnosis Result
    identifies a repository defect.
-6. Use short-lived GitHub OIDC identities instead of cloud AccessKeys.
+6. Support a two-Secret AccessKey onboarding path, while retaining short-lived
+   GitHub OIDC identities as the hardened fallback.
 7. Bound cost, concurrency, diagnostic perturbation, public ingress, and
    resource lifetime.
 8. Implement Alibaba Cloud end to end first while preserving a provider-neutral
@@ -110,7 +111,8 @@ Simulation Run host.
 default branch. Its inputs are:
 
 - `region`;
-- `source_sha`, which must be reachable from trusted `main`;
+- optional `source_sha`, which must be reachable from trusted `main` and
+  defaults to the current remote `main`;
 - `scenario`;
 - `infrastructure_preset`;
 - `duration`: `2h`, `24h`, or `48h`;
@@ -122,9 +124,10 @@ Environment may require approval before any billable resource is created.
 
 The build job has no cloud credential. It produces one content-addressed
 Deployment Bundle for the selected commit. A separate provisioning job obtains
-the Provisioner Role, creates the run, deploys that exact bundle, and writes a
-Job Summary containing the Run Identity, selected resources, cost estimate,
-expiry, and a direct next-step reference to the local analysis command.
+the selected AccessKey or OIDC cloud identity, creates the run, deploys that
+exact bundle, and writes a Job Summary containing the Run Identity, selected
+resources, cost estimate, expiry, and a direct next-step reference to the local
+analysis command.
 
 ### Local Analysis Command and Session Workflow
 
@@ -244,11 +247,23 @@ destruction.
 The first Adapter targets Alibaba Cloud. Tencent Cloud is added only after the
 complete Alibaba path, including cleanup failures and live analysis, passes.
 
-## Cloud Account Bootstrap
+## Cloud Account Binding
 
-Before ordinary workflows can authenticate, an operator runs one idempotent
-bootstrap from the cloud provider's browser-authenticated CloudShell. It
-supports `plan`, `apply`, and `remove` and creates only:
+The simplest onboarding path stores one complete Alibaba AccessKey pair as the
+repository Secrets `ALIBABA_CLOUD_ACCESS_KEY_ID` and
+`ALIBABA_CLOUD_ACCESS_KEY_SECRET`. A partial pair fails before any cloud API
+call. Provision uses the authenticated account to discover the non-secret
+provider config, persists it before creating billable resources, and retains it
+as a Run-Identity-scoped Artifact for Analysis and Cleanup. The AccessKey is
+never written to source, artifacts, summaries, tags, or cloud hosts and must
+remain valid until cleanup proves empty inventory. A dedicated least-privilege
+RAM user is preferred over an account-level AccessKey.
+
+When neither Secret exists, the existing GitHub OIDC binding remains supported
+as a hardened alternative. Before ordinary OIDC workflows can authenticate, an
+operator runs one idempotent bootstrap from the cloud provider's
+browser-authenticated CloudShell. It supports `plan`, `apply`, and `remove` and
+creates only:
 
 - the GitHub OIDC identity provider;
 - a least-privilege Provisioner Role and policy;
@@ -280,7 +295,8 @@ template as `repo + context + job_workflow_ref`. The resulting exact subject
 encodes repository, Environment, workflow path, and branch in the single
 `oidc:sub` condition; unsupported per-claim RAM condition keys are not used.
 
-It does not create Simulation Run infrastructure or export an AccessKey. It
+The optional OIDC bootstrap does not create Simulation Run infrastructure or
+export an AccessKey. It
 prints only non-secret account, role, provider, and region identifiers for
 GitHub Variables. Removal refuses while active tagged runs exist.
 
@@ -437,11 +453,11 @@ or delete data.
 
 ## Analysis Identity and Network Window
 
-The Analysis Session Workflow obtains the Analyzer Role using GitHub OIDC,
-validates the Run Locator and tagged inventory, and briefly admits only its
-current runner public address while it proves the run and exchanges identity.
-For a live run it then moves the Analysis Access Window to the requesting local
-client's public `/32`.
+The Analysis Session Workflow authenticates to the cloud through the selected
+AccessKey or OIDC account binding, validates the Run Locator and tagged
+inventory, and briefly admits only its current runner public address while it
+proves the run. For a live run it then moves the Analysis Access Window to the
+requesting local client's public `/32`.
 
 Each run uses a self-signed server certificate with the simulator public IP in
 its SAN. The private key exists only on the simulator. The immutable public
@@ -513,11 +529,12 @@ The local command isolates live diagnosis from any repository mutation.
 
 ### Diagnose
 
-GitHub has the Analyzer Role but never runs Codex. The local diagnosis process
-has temporary MCP access and read-only repository contents. It uses only the
-operator's existing local ChatGPT login; no OpenAI API key, Codex `auth.json`,
-or ChatGPT session is stored in GitHub or on a cloud host. It emits a strict
-JSON-Schema-validated Diagnosis Result and then closes live access.
+GitHub uses the selected AccessKey or OIDC Analyzer identity but never runs
+Codex. The local diagnosis process has temporary MCP access and read-only
+repository contents. It uses only the operator's existing local ChatGPT login;
+no OpenAI API key, Codex `auth.json`, or ChatGPT session is stored in GitHub or
+on a cloud host. It emits a strict JSON-Schema-validated Diagnosis Result and
+then closes live access.
 
 The Diagnosis Result contains:
 
@@ -593,11 +610,13 @@ itself can never justify a source-code PR.
 
 ## Security Boundaries
 
-- CloudShell bootstrap is the only cloud-admin operation.
-- GitHub holds no cloud AccessKey.
-- Provisioner and Analyzer Roles are separate and workflow-conditioned.
-- Billable provisioning and unattended cleanup use different exact OIDC
-  Environment subjects even though both attach the Provisioner policy.
+- AccessKey mode reads one complete pair from GitHub Repository Secrets;
+  CloudShell bootstrap remains the optional OIDC cloud-admin operation.
+- OIDC mode stores no cloud AccessKey.
+- In OIDC mode, Provisioner and Analyzer Roles are separate and
+  workflow-conditioned.
+- In OIDC mode, billable provisioning and unattended cleanup use different
+  exact Environment subjects even though both attach the Provisioner policy.
 - Build jobs have no cloud credential.
 - Cloud hosts have no cloud role or GitHub credential.
 - Deployment SSH is ephemeral and absent during analysis.
@@ -658,8 +677,8 @@ tests.
 
 1. **Local contracts:** provider-neutral control plane, fake provider, Run
    Locator, Analysis MCP, and Analysis Skill against local Compose.
-2. **Alibaba lifecycle:** CloudShell bootstrap, four spot hosts, systemd
-   deployment, Bootstrap Gate, Run Lease, and leak-free cleanup.
+2. **Alibaba lifecycle:** AccessKey or OIDC account binding, four spot hosts,
+   systemd deployment, Bootstrap Gate, Run Lease, and leak-free cleanup.
 3. **Live analysis:** temporary ingress, certificate pinning, OIDC exchange,
    live observations, and released/unknown handling.
 4. **Draft-PR remediation:** isolated local Codex processes, validated Diagnosis
@@ -697,12 +716,12 @@ No phase advances until the previous phase proves resource cleanup.
     manual destruction.
 12. Tencent Cloud work does not begin until the Alibaba Cloud lifecycle,
     analysis, remediation, and cleanup drills are green.
-13. A new operator can finish account and repository bootstrap through one
-    CloudShell command without copying an AccessKey, cloud account number, or
-    OpenAI API key into GitHub configuration.
-14. Bootstrap completes only after written GitHub configuration is read back
-    and a fresh workflow proves GitHub OIDC can assume the Alibaba Analyzer
-    Role with short-lived credentials.
+13. A new operator can start an AccessKey-mode run after configuring only the
+    two repository Secrets; provider config and account binding are discovered
+    without CloudShell, a cloud account number, or an OpenAI API key.
+14. Optional OIDC bootstrap completes only after written GitHub configuration
+    is read back and a fresh workflow proves GitHub OIDC can assume the Alibaba
+    Analyzer Role with short-lived credentials.
 15. The local Analysis Session uses ChatGPT authentication without uploading it;
     its private key never leaves the local process and GitHub artifacts contain
     only an RSA-OAEP-encrypted, expiring Analysis Token.
@@ -710,7 +729,7 @@ No phase advances until the previous phase proves resource cleanup.
 ## Decision Records
 
 The accepted decisions are recorded in `docs/adr/0001` through
-`docs/adr/0037`. The repository glossary for this design is `CONTEXT.md`.
+`docs/adr/0038`. The repository glossary for this design is `CONTEXT.md`.
 
 ## External References
 

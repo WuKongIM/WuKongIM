@@ -56,7 +56,6 @@ jobs:
       REQUEST_ID: ${{ inputs.request_id }}
       CLIENT_IPV4: ${{ inputs.client_ipv4 }}
       CLIENT_PUBLIC_KEY: ${{ inputs.client_public_key }}
-      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -97,11 +96,30 @@ jobs:
           test "$(jq -er .run_id locator/run-locator.json)" = "$RUN_ID"
           source_sha="$(jq -er '.source_sha | select(test("^[0-9a-f]{40}$"))' locator/run-locator.json)"
           scenario_digest="$(jq -er '.scenario_digest | select(test("^sha256:[0-9a-f]{64}$"))' locator/run-locator.json)"
+          region="$(jq -er '.region | select(test("^[a-z0-9-]+$"))' locator/run-locator.json)"
+          account_id_hash="$(jq -er '.account_id_hash | select(test("^sha256:[0-9a-f]{64}$"))' locator/run-locator.json)"
           echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
           echo "scenario_digest=$scenario_digest" >>"$GITHUB_OUTPUT"
+          echo "region=$region" >>"$GITHUB_OUTPUT"
+          echo "account_id_hash=$account_id_hash" >>"$GITHUB_OUTPUT"
           echo "state=found" >>"$GITHUB_OUTPUT"
-      - name: Obtain short-lived Alibaba analyzer identity
+      - name: Resolve exact retained provider config
         if: steps.locator.outputs.state == 'found'
+        shell: bash
+        env:
+          LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+          EXPECTED_REGION: ${{ steps.locator.outputs.region }}
+          EXPECTED_ACCOUNT_ID_HASH: ${{ steps.locator.outputs.account_id_hash }}
+        run: ./scripts/cloud-sim/resolve-exact-provider-config.sh "$RUN_ID" provider.json
+      - name: Resolve Alibaba credential mode
+        id: alibaba_auth
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: ./scripts/cloud-sim/resolve-alibaba-credential-mode.sh
+      - name: Obtain short-lived Alibaba analyzer identity
+        if: steps.locator.outputs.state == 'found' && steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
         with:
           role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN }}
@@ -114,7 +132,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
           go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
           if ! ./wkcloudsim --provider alibaba --provider-config provider.json preflight \
             --locator locator/run-locator.json >preflight.json; then
@@ -256,12 +273,13 @@ jobs:
     environment: cloud-sim-analysis
     permissions:
       contents: read
+      actions: read
       id-token: write
     env:
       GOWORK: "off"
       RUN_ID: ${{ inputs.run_id }}
       REQUEST_ID: ${{ inputs.request_id }}
-      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -278,7 +296,20 @@ jobs:
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
           [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{7,63}$ ]]
+      - name: Resolve exact retained provider config
+        shell: bash
+        env:
+          LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+        run: ./scripts/cloud-sim/resolve-exact-provider-config.sh "$RUN_ID" provider.json
+      - name: Resolve Alibaba credential mode
+        id: alibaba_auth
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: ./scripts/cloud-sim/resolve-alibaba-credential-mode.sh
       - name: Obtain short-lived Alibaba analyzer identity
+        if: steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
         with:
           role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN }}
@@ -289,6 +320,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
           go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
           ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"

@@ -26,11 +26,12 @@ jobs:
     environment: cloud-sim-cleanup
     permissions:
       contents: read
+      actions: read
       id-token: write
     env:
       GOWORK: "off"
       RUN_ID: ${{ inputs.run_id || '' }}
-      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -41,7 +42,15 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
+      - name: Resolve Alibaba credential mode
+        id: alibaba_auth
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: ./scripts/cloud-sim/resolve-alibaba-credential-mode.sh
       - name: Obtain short-lived Alibaba provisioner identity
+        if: steps.alibaba_auth.outputs.mode == 'oidc'
         uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
         with:
           role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN }}
@@ -52,21 +61,85 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$PROVIDER_CONFIG_JSON"
-          printf '%s' "$PROVIDER_CONFIG_JSON" >provider.json
           go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
+      - name: Resolve retained provider configs
+        id: configs
+        shell: bash
+        env:
+          LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
+        run: |
+          set -euo pipefail
+          mkdir -p provider-configs downloads
+          retain_config() {
+            local source="$1"
+            jq -e '
+              .region | type == "string" and length > 0
+            ' "$source" >/dev/null
+            jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' "$source" >/dev/null
+            normalized="$(jq -cS . "$source")"
+            digest="$(printf '%s' "$normalized" | sha256sum | awk '{print $1}')"
+            printf '%s\n' "$normalized" >"provider-configs/${digest}.json"
+          }
+          download_config() {
+            local artifact_id="$1"
+            local destination="downloads/${artifact_id}"
+            mkdir -p "$destination"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${destination}.zip"
+            unzip -q "${destination}.zip" -d "$destination"
+            test -f "$destination/provider.json"
+            retain_config "$destination/provider.json"
+          }
+
+          if [[ -n "$RUN_ID" ]]; then
+            ./scripts/cloud-sim/resolve-exact-provider-config.sh "$RUN_ID" downloads/exact-provider.json
+            retain_config downloads/exact-provider.json
+          else
+            gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
+              --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-provider-config"))) | [.id,.name] | @tsv' \
+              >downloads/provider-artifacts.tsv
+            ./scripts/cloud-sim/select-provider-config-artifacts.sh \
+              <downloads/provider-artifacts.tsv >downloads/artifact-ids
+            while IFS= read -r artifact_id; do
+              [[ "$artifact_id" =~ ^[0-9]+$ ]] || continue
+              download_config "$artifact_id"
+            done <downloads/artifact-ids
+            if [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
+              printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >downloads/legacy-provider.json
+              retain_config downloads/legacy-provider.json
+            fi
+          fi
+          config_count="$(find provider-configs -type f -name '*.json' | wc -l | tr -d ' ')"
+          echo "config_count=$config_count" >>"$GITHUB_OUTPUT"
       - name: Destroy exact run or sweep all expired leases
         id: reconcile
         shell: bash
         run: |
           set -euo pipefail
           if [[ -n "$RUN_ID" ]]; then
-            ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >cleanup-result.json
+            provider_config="$(find provider-configs -type f -name '*.json' -print -quit)"
+            test -n "$provider_config"
+            ./wkcloudsim --provider alibaba --provider-config "$provider_config" destroy "$RUN_ID" >cleanup-result.json
             jq -e '.state == "released" and (.resources | length) == 0' cleanup-result.json >/dev/null
             echo "mode=destroy" >>"$GITHUB_OUTPUT"
           else
-            ./wkcloudsim --provider alibaba --provider-config provider.json sweep >cleanup-result.json
+            mkdir -p sweep-results
+            sweep_status=0
+            index=0
+            while IFS= read -r provider_config; do
+              index=$((index + 1))
+              if ! ./wkcloudsim --provider alibaba --provider-config "$provider_config" sweep >"sweep-results/${index}.json"; then
+                sweep_status=1
+              fi
+              jq -e '.destroyed != null and .failed != null' "sweep-results/${index}.json" >/dev/null
+            done < <(find provider-configs -type f -name '*.json' | sort)
+            if [[ "$index" == 0 ]]; then
+              printf '%s\n' '{"destroyed":[],"failed":[]}' >cleanup-result.json
+            else
+              jq -s '{destroyed:(map(.destroyed // []) | add),failed:(map(.failed // []) | add)}' \
+                sweep-results/*.json >cleanup-result.json
+            fi
             jq -e '(.failed | length) == 0' cleanup-result.json >/dev/null
+            test "$sweep_status" == 0
             echo "mode=sweep" >>"$GITHUB_OUTPUT"
           fi
       - name: Write cleanup reconciliation summary

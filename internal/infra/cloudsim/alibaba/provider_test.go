@@ -49,6 +49,16 @@ func TestProviderAuthorityUsesCurrentCloudCaller(t *testing.T) {
 	}
 }
 
+func TestProviderAuthorityRejectsDifferentCurrentCloudCaller(t *testing.T) {
+	provider, err := New(testConfig(), &apiStub{accountIDHash: "sha256:other-account"}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provider.Authority(context.Background()); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("Authority() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
 func TestProviderCreatesFourScheduledReleaseHostsAndTwelveTaggedAssets(t *testing.T) {
 	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 	api := newCreatingAPIStub()
@@ -310,6 +320,7 @@ func mandatoryTestTags(req cloudsim.CreateRequest) map[string]string {
 }
 
 type apiStub struct {
+	accountIDHash       string
 	offers              []Offer
 	offerRequests       []OfferRequest
 	assets              []Asset
@@ -320,7 +331,12 @@ type apiStub struct {
 	nextID              int
 }
 
-func (*apiStub) AccountIDHash(context.Context) (string, error) { return "sha256:account", nil }
+func (a *apiStub) AccountIDHash(context.Context) (string, error) {
+	if a.accountIDHash == "" {
+		return "sha256:account", nil
+	}
+	return a.accountIDHash, nil
+}
 
 func newCreatingAPIStub() *apiStub {
 	return &apiStub{offers: []Offer{{

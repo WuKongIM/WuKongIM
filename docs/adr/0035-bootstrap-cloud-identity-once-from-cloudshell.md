@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded_by: 0038-allow-accesskey-onboarding-with-oidc-fallback
 ---
 
 # Bootstrap cloud identity once from CloudShell

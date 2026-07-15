@@ -8,6 +8,7 @@ resource authority.
 trusted access/CLI
   -> ControlPlane
      -> validate exact Run Identity, preset, lease, cost ceiling and tags
+     -> Provider.Authority (credential-to-account binding before cleanup)
      -> Provider.Inventory (concurrency and release truth)
      -> Provider.Quote (price, quota, spot and subnet capacity)
      -> Provider.Create/Transition/OpenAnalysis/CloseAnalysis/Destroy
@@ -16,9 +17,10 @@ trusted access/CLI
 `RunLocator` is a strict, bounded, non-diagnostic JSON record. Live status and
 cleanup come from Provider inventory. A released-run decision additionally
 requires a valid matching locator; provider inventory alone is not sufficient.
-Before an empty inventory can become `released`, `Provider.Authority` must bind
-the locator's provider, region, and account hash to the adapter's current
-inventory authority; a wrong account or region therefore fails closed.
+Before Destroy, Sweep, or an empty-inventory `released` decision,
+`Provider.Authority` must bind the active credential to the adapter's provider,
+region, and account hash. A wrong account or region therefore fails closed
+before cleanup inventory is interpreted or resources are mutated.
 
 Lifecycle transitions are forward-only. The provisioning workflow persists
 `provisioning -> ready -> running` after the bootstrap gate and workload start.

@@ -21,13 +21,13 @@ import (
 const maxBundleSpecBytes = 128 << 10
 
 type bundleSpecFile struct {
-	RunID          string            `json:"run_id"`
-	SourceSHA      string            `json:"source_sha"`
-	ScenarioPath   string            `json:"scenario_path"`
-	ScenarioDigest string            `json:"scenario_digest"`
-	Duration       string            `json:"duration"`
-	PrivateIPv4    map[string]string `json:"private_ipv4"`
-	SimulatorSourceIPv4 []string     `json:"simulator_source_ipv4"`
+	RunID               string            `json:"run_id"`
+	SourceSHA           string            `json:"source_sha"`
+	ScenarioPath        string            `json:"scenario_path"`
+	ScenarioDigest      string            `json:"scenario_digest"`
+	Duration            string            `json:"duration"`
+	PrivateIPv4         map[string]string `json:"private_ipv4"`
+	SimulatorSourceIPv4 []string          `json:"simulator_source_ipv4"`
 }
 
 func main() { os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr)) }

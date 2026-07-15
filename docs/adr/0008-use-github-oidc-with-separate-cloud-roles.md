@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded_by: 0038-allow-accesskey-onboarding-with-oidc-fallback
 ---
 
 # Use GitHub OIDC with separate cloud roles
