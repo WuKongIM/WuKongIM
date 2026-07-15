@@ -1,12 +1,72 @@
 package scripts_test
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestCloudSimulationDiagnosisSchemaUsesStrictObjectShapes(t *testing.T) {
+	schemaPath := filepath.Join(repoRoot(t), ".github", "cloud-sim", "diagnosis.schema.json")
+	data, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema any
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("decode diagnosis schema: %v", err)
+	}
+	var walk func(any, string)
+	walk = func(value any, path string) {
+		switch typed := value.(type) {
+		case map[string]any:
+			if propertiesValue, ok := typed["properties"]; ok {
+				properties, ok := propertiesValue.(map[string]any)
+				if !ok || typed["type"] != "object" || typed["additionalProperties"] != false {
+					t.Fatalf("%s is not a strict object schema", path)
+				}
+				requiredValues, ok := typed["required"].([]any)
+				if !ok || len(requiredValues) != len(properties) {
+					t.Fatalf("%s does not require every property", path)
+				}
+				required := make(map[string]bool, len(requiredValues))
+				for _, item := range requiredValues {
+					name, ok := item.(string)
+					if !ok {
+						t.Fatalf("%s has a non-string required property", path)
+					}
+					required[name] = true
+				}
+				for name := range properties {
+					if !required[name] {
+						t.Fatalf("%s property %s is optional", path, name)
+					}
+				}
+			}
+			if _, hasEnum := typed["enum"]; hasEnum {
+				if _, hasType := typed["type"]; !hasType {
+					t.Fatalf("%s enum has no explicit type", path)
+				}
+			}
+			if _, hasConst := typed["const"]; hasConst {
+				if _, hasType := typed["type"]; !hasType {
+					t.Fatalf("%s const has no explicit type", path)
+				}
+			}
+			for name, child := range typed {
+				walk(child, path+"/"+name)
+			}
+		case []any:
+			for _, child := range typed {
+				walk(child, path)
+			}
+		}
+	}
+	walk(schema, "$")
+}
 
 func TestCloudSimulationAnalyzeHelpDescribesChatGPTContract(t *testing.T) {
 	script := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "analyze.sh")
@@ -73,6 +133,7 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 		"codex login status",
 		"gh workflow run cloud-sim-analyze.yml --repo example/project --ref main -f operation=prepare",
 		"-f run_id=run-live",
+		"curl --noproxy * --fail --silent --show-error --connect-timeout 5 --max-time 10 --proto =https --tlsv1.2 https://api.ipify.org",
 		"-f client_ipv4=203.0.113.7",
 		"gh run watch 101 --repo example/project --exit-status",
 		"git worktree add --detach ",
@@ -82,6 +143,10 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 		"permissions.cloud-analysis.network.enabled=false",
 		"shell_environment_policy.inherit=\"none\"",
 		"mcp_servers.wukongim_cloud_analysis",
+		"--output-schema " + filepath.Join(root, ".github", "cloud-sim", "diagnosis.schema.json"),
+		"insufficient_evidence uses severity=none and root_cause_scope=unknown",
+		"curl --noproxy * --fail --silent --show-error --connect-timeout 5 --max-time 10 --cacert ",
+		"https://198.51.100.20:19092/healthz",
 		"Invoke $wukongim-cloud-analysis for the exact Simulation Run run-live",
 		"gh workflow run cloud-sim-analyze.yml --repo example/project --ref main -f operation=close",
 		"gh run watch 102 --repo example/project --exit-status",
@@ -335,6 +400,10 @@ func writeAnalyzeFakes(t *testing.T, bin string) {
 	writeSetupExecutable(t, filepath.Join(bin, "curl"), `#!/usr/bin/env bash
 set -euo pipefail
 printf 'curl %s\n' "$*" >>"$WK_ANALYZE_CALL_LOG"
+if [[ "$*" == *'/healthz'* ]]; then
+  printf '%s\n' '{"status":"ok","run_id":"run-live","run_state":"running"}'
+  exit 0
+fi
 printf '%s\n' '203.0.113.7'
 `)
 	writeSetupExecutable(t, filepath.Join(bin, "openssl"), `#!/usr/bin/env bash

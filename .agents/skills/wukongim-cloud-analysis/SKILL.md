@@ -73,6 +73,12 @@ Choose exactly one:
 - `scenario_invalid`: load-generator saturation, malformed workload, insufficient preset, or violated preconditions invalidate attribution.
 - `insufficient_evidence`: required observations are missing, partial, contradictory, or too perturbed.
 
+Map verdict metadata exactly: `healthy` uses `severity=none` and
+`root_cause_scope=none`; `insufficient_evidence` uses `severity=none` and
+`root_cause_scope=unknown`; the three causal verdicts use a non-`none`
+severity and their matching `product`, `infrastructure`, or `scenario` scope.
+Only `product_defect` can be remediation-eligible.
+
 When the Diagnosis Result references `workload_inspect`, copy its bounded
 `state` and terminal `status` into that Observation reference. A `healthy`
 result is invalid unless the reference is complete, `state=completed`, and
