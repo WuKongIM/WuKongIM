@@ -106,9 +106,11 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 		t.Fatal(err)
 	}
 	writeAnalyzeFakes(t, bin)
+	resultFile := filepath.Join(temp, "analysis-result.json")
 
 	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
-		"run-live", "--repository", "example/project", "--diagnostic-focus", "append latency")
+		"run-live", "--repository", "example/project", "--diagnostic-focus", "append latency",
+		"--result-file", resultFile)
 	command.Dir = root
 	command.Env = append(os.Environ(),
 		"PATH="+bin+":"+os.Getenv("PATH"),
@@ -123,6 +125,25 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 	}
 	if !strings.Contains(string(output), `"verdict": "healthy"`) {
 		t.Fatalf("analysis output missing healthy diagnosis:\n%s", output)
+	}
+	result, err := os.ReadFile(resultFile)
+	if err != nil {
+		t.Fatalf("read structured analysis result: %v", err)
+	}
+	var outcome struct {
+		Schema    string `json:"schema"`
+		RunID     string `json:"run_id"`
+		State     string `json:"state"`
+		Diagnosis struct {
+			Verdict string `json:"verdict"`
+		} `json:"diagnosis"`
+	}
+	if err := json.Unmarshal(result, &outcome); err != nil {
+		t.Fatalf("decode structured analysis result: %v\n%s", err, result)
+	}
+	if outcome.Schema != "wukongim/cloud-simulation-analysis-result/v1" || outcome.RunID != "run-live" ||
+		outcome.State != "diagnosed" || outcome.Diagnosis.Verdict != "healthy" {
+		t.Fatalf("unexpected structured analysis result: %+v", outcome)
 	}
 	calls, err := os.ReadFile(callLog)
 	if err != nil {
@@ -163,6 +184,40 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 	}
 	if strings.Contains(callText, "gh run watch 999") {
 		t.Fatalf("analysis selected a concurrent decoy workflow run:\n%s", calls)
+	}
+}
+
+func TestCloudSimulationAnalyzeKeepsValidDiagnosisSuccessfulWhenRemediationFails(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+	if err := os.WriteFile(filepath.Join(temp, "diagnosis-mode"), []byte("product-remediation-fail"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project", "--allow-fix-pr")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		calls, _ := os.ReadFile(callLog)
+		t.Fatalf("valid diagnosis inherited remediation failure: %v\n%s\ncalls:\n%s", err, output, calls)
+	}
+	if !strings.Contains(string(output), `"verdict": "product_defect"`) ||
+		!strings.Contains(string(output), "Optional remediation failed") {
+		t.Fatalf("analysis did not preserve diagnosis and report remediation failure:\n%s", output)
 	}
 }
 
@@ -253,9 +308,10 @@ func TestCloudSimulationAnalyzeStopsBeforeCodexWhenReleased(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeAnalyzeFakes(t, bin)
+	resultFile := filepath.Join(temp, "released-result.json")
 
 	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
-		"run-released", "--repository", "example/project")
+		"run-released", "--repository", "example/project", "--result-file", resultFile)
 	command.Dir = root
 	command.Env = append(os.Environ(),
 		"PATH="+bin+":"+os.Getenv("PATH"),
@@ -270,6 +326,13 @@ func TestCloudSimulationAnalyzeStopsBeforeCodexWhenReleased(t *testing.T) {
 	want := "Simulation Run run-released 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。"
 	if !strings.Contains(string(output), want) {
 		t.Fatalf("released output missing %q:\n%s", want, output)
+	}
+	result, err := os.ReadFile(resultFile)
+	if err != nil {
+		t.Fatalf("read released result: %v", err)
+	}
+	if !strings.Contains(string(result), `"state": "released"`) || !strings.Contains(string(result), `"diagnosis": null`) {
+		t.Fatalf("released result is not structured:\n%s", result)
 	}
 	calls, err := os.ReadFile(callLog)
 	if err != nil {
@@ -445,7 +508,8 @@ while (($#)); do
 done
 test -n "$output"
 if [[ "$is_remediation" == true ]]; then
-  test -z "${WK_ANALYSIS_MCP_TOKEN:-}"
+	if [[ "$mode" == product-remediation-fail ]]; then exit 88; fi
+	test -z "${WK_ANALYSIS_MCP_TOKEN:-}"
   test -z "${ALIBABA_CLOUD_ACCESS_KEY_ID:-}"
   test -z "${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}"
   test -z "${ALIBABA_CLOUD_SECURITY_TOKEN:-}"
@@ -469,7 +533,7 @@ test -z "${SSH_AUTH_SOCK:-}"
 test -f "$workdir/.deployed-source-marker"
 test ! -e "$(dirname "$output")/client-private.pem"
 test ! -e "$(dirname "$output")/session/encrypted-token.bin"
-if [[ "$mode" == product ]]; then
+if [[ "$mode" == product || "$mode" == product-remediation-fail ]]; then
 cat >"$output" <<'JSON'
 {"schema":"wukongim/cloud-simulation-diagnosis/v1","run_identity":{"run_id":"run-live","source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scenario_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"analyzed_window":{"start":"2026-07-14T00:00:00Z","end":"2026-07-14T00:30:00Z"},"verdict":"product_defect","severity":"high","confidence":0.91,"root_cause_scope":"product","summary":"Confirmed append defect.","observation_references":[{"tool":"workload_inspect","node":"sim","observed_at":"2026-07-14T00:30:00Z","window":"final","complete":true,"state":"completed","status":"failed"}],"supporting_signals":["append errors"],"contradictory_signals":[],"unresolved_signals":[],"remediation_eligibility":{"eligible":true,"reason":"repository attributable and testable","repository_attributable":true,"testable":true},"proposed_regression_coverage":["add deterministic append regression"],"cloud_revalidation_required":true}
 JSON

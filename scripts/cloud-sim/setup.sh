@@ -598,7 +598,7 @@ No ECS instance, disk, EIP, or VPC was created.
 Saved removal/reconfiguration state:
   $state_dir/bootstrap.json
 
-Start the first real canary here:
+Start the first validation run here:
   https://github.com/$repository/actions/workflows/cloud-sim-provision.yml
 
 Recommended inputs:
@@ -606,10 +606,10 @@ Recommended inputs:
   source_sha=$source_sha
   scenario=cloud-small
   infrastructure_preset=small
-  duration=2h
-  analysis_grace=1h
+  duration=30m
+  analysis_grace=30m
   max_total_cost=50
 
-After Provision prints a Run Identity, analyze it with your ChatGPT login:
-  ./scripts/cloud-sim/analyze.sh <run_id>
+After Provision prints a Run Identity, finalize it with your ChatGPT login:
+  ./scripts/cloud-sim/finalize.sh <run_id> --allow-fix-pr
 EOF

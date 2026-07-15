@@ -33,8 +33,8 @@ instances, or cleanup calls fail.
 
 1. Create four temporary spot instances: three WuKongIM cluster nodes and one
    simulator/observability node.
-2. Run a trusted, versioned `wkbench/v1` Scenario Profile for `2h`, `24h`, or
-   `48h` after a strict cluster readiness gate.
+2. Run a trusted, versioned `wkbench/v1` Scenario Profile for `30m`, `2h`,
+   `24h`, or `48h` after a strict cluster readiness gate.
 3. Keep provisioning, long-running workload execution, live analysis, and
    cleanup independently retryable.
 4. Let a manually started local Analysis Session query live metrics, logs,
@@ -115,8 +115,8 @@ default branch. Its inputs are:
   defaults to the current remote `main`;
 - `scenario`;
 - `infrastructure_preset`;
-- `duration`: `2h`, `24h`, or `48h`;
-- `analysis_grace`: `0h`, `1h`, or `6h`, default `1h`;
+- `duration`: `30m`, `2h`, `24h`, or `48h`, default `2h`;
+- `analysis_grace`: `30m`, `1h`, or `6h`, default `30m`;
 - `max_total_cost`.
 
 The first version fixes the provider to Alibaba Cloud. A protected GitHub
@@ -128,6 +128,25 @@ the selected AccessKey or OIDC cloud identity, creates the run, deploys that
 exact bundle, and writes a Job Summary containing the Run Identity, selected
 resources, cost estimate, expiry, and a direct next-step reference to the local
 analysis command.
+
+After workload start, provisioning uploads a 90-day Finalization Schedule
+Artifact containing only the Run Identity, active workload deadline,
+initial analysis time, and immutable lease expiry. It is control
+metadata, not an Evidence Bundle or a historical observability archive.
+
+### Local Finalization Command
+
+The preferred operator entrypoint is `scripts/cloud-sim/finalize.sh <run_id>`.
+It downloads the exact Provisioning Workflow's Finalization Schedule, waits
+until terminal workload data should exist, and invokes `analyze.sh`. A validated
+`workload_inspect.state=in_progress` result retains the run for another attempt
+while the immutable lease can safely admit one. The command then dispatches an
+exact request-correlated Cleanup Workflow and invokes the released preflight
+again. Success requires a structured provider-released result backed by empty
+exact-tag inventory. If diagnosis or optional remediation fails, exact cleanup
+and zero-resource verification still run; remediation failure does not replace
+an already-valid Diagnosis Result. A run already confirmed released stops
+without another cleanup request.
 
 ### Local Analysis Command and Session Workflow
 
@@ -180,7 +199,7 @@ stateDiagram-v2
 ```
 
 The Run Lease is the maximum cloud-side lifetime. It includes a bounded
-20-minute bootstrap allowance, the selected active workload duration, and the
+50-minute provisioning allowance, the selected active workload duration, and the
 selected Analysis Grace. It cannot be extended, but a failed or manually
 stopped run may be released earlier.
 

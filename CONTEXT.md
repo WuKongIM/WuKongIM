@@ -72,6 +72,14 @@ _Avoid_: Arbitrary ref, fork commit
 The selected post-workload interval during which live diagnostics remain available before the immutable Run Lease expires.
 _Avoid_: Retention backend, lease extension
 
+**Finalization Schedule**:
+The minimal, non-diagnostic GitHub record containing one Run Identity's workload deadline, initial analysis time, and immutable lease expiry.
+_Avoid_: Evidence Bundle, historical report
+
+**Finalization Command**:
+The local operator command that waits for a Finalization Schedule, retries an explicitly in-progress Analysis Run while the lease permits, requests exact cleanup, and proves provider inventory is empty.
+_Avoid_: Automatic cloud agent, background GitHub analysis
+
 **Live Observability Plane**:
 The run-local metrics, logs, diagnostics, and bounded profiles available only while a Simulation Run exists.
 _Avoid_: Evidence archive, historical backend

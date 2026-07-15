@@ -166,7 +166,7 @@ func Verify(root string) (Manifest, error) {
 
 func validateSpec(spec BundleSpec) error {
 	if strings.TrimSpace(spec.RunID) == "" || len(spec.SourceSHA) != 40 || !strings.HasPrefix(spec.ScenarioDigest, "sha256:") ||
-		(spec.Duration != 2*time.Hour && spec.Duration != 24*time.Hour && spec.Duration != 48*time.Hour) {
+		(spec.Duration != 30*time.Minute && spec.Duration != 2*time.Hour && spec.Duration != 24*time.Hour && spec.Duration != 48*time.Hour) {
 		return ErrInvalidBundle
 	}
 	seen := make(map[string]struct{}, 4)

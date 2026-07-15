@@ -29,6 +29,18 @@ projects an elapsed running deadline as `analysis_grace`. A failed bootstrap
 enters `analysis_grace` only when the simulator MCP self-check is usable;
 otherwise the workflow releases the run immediately.
 
+After `running` is persisted, provisioning uploads a bounded Finalization
+Schedule containing only the exact Run Identity, workload deadline,
+initial analysis time, and immutable lease expiry. The local `finalize.sh`
+command waits for that schedule and delegates diagnosis to `analyze.sh`. A
+validated `workload_inspect.state=in_progress` retains the run for another
+bounded attempt while the lease can safely admit one. Once terminal evidence is
+available, or diagnosis cannot complete, the command dispatches exact cleanup
+and invokes the provider-backed released gate again to prove zero residual
+inventory. A failed Schedule upload leaves an already-running workload in
+`running`; deadline reconciliation, rather than workflow failure, projects it
+to `analysis_grace`.
+
 Analysis ingress accepts one IPv4 `/32`, expires within 50 minutes and the Run
 Lease, requires at least 30 minutes of lease remaining, and rejects a second
 unexpired window for the same run. Provider inventory reconstructs ingress

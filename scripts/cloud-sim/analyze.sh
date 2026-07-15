@@ -11,6 +11,8 @@ run_id=""
 repository=""
 diagnostic_focus=""
 allow_fix_pr=false
+result_file=""
+result_temp=""
 analysis_temp=""
 analysis_token=""
 session_open=false
@@ -22,6 +24,8 @@ analysis_worktree=""
 analysis_worktree_added=false
 remote_branch_pushed=false
 draft_pr_created=false
+diagnosis_completed=false
+remediation_started=false
 
 usage() {
   cat <<'EOF'
@@ -34,6 +38,7 @@ Options:
   --repository OWNER/REPO       GitHub repository (default: detected from checkout)
   --diagnostic-focus TEXT       Optional bounded diagnostic focus
   --allow-fix-pr                Allow an eligible product defect to create a tested Draft PR
+  --result-file ABSOLUTE_PATH   Atomically write the structured analysis outcome
   -h, --help                    Show this help
 
 One-time local prerequisites: gh auth login; codex login (choose ChatGPT).
@@ -68,6 +73,8 @@ dispatch_close_best_effort() {
 }
 
 cleanup() {
+  local exit_status=$?
+  trap - EXIT
   dispatch_close_best_effort
   analysis_token=""
   if [[ "$remote_branch_pushed" == true && "$draft_pr_created" != true && -n "$remediation_worktree" && -n "$remediation_branch" ]]; then
@@ -85,6 +92,15 @@ cleanup() {
   if [[ -n "$analysis_temp" && -d "$analysis_temp" ]]; then
     rm -rf "$analysis_temp"
   fi
+  if [[ -n "$result_temp" ]]; then
+    rm -f "$result_temp"
+  fi
+  if [[ "$diagnosis_completed" == true && "$remediation_started" == true && "$exit_status" != 0 ]]; then
+    printf 'Optional remediation failed with status %d; the validated Diagnosis Result remains successful.\n' \
+      "$exit_status" >&2
+    exit 0
+  fi
+  exit "$exit_status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
@@ -116,6 +132,11 @@ while (($#)); do
       allow_fix_pr=true
       shift
       ;;
+    --result-file)
+      [[ $# -ge 2 ]] || fail "--result-file requires an absolute path"
+      result_file="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -127,6 +148,13 @@ while (($#)); do
 done
 
 [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || fail "invalid Run Identity"
+if [[ -n "$result_file" ]]; then
+  [[ "$result_file" == /* ]] || fail "--result-file must be an absolute path"
+  result_parent="${result_file%/*}"
+  [[ -n "$result_parent" ]] || result_parent="/"
+  [[ -d "$result_parent" ]] || fail "--result-file parent directory does not exist"
+  [[ ! -e "$result_file" && ! -L "$result_file" ]] || fail "--result-file must not already exist"
+fi
 
 for command in gh curl jq openssl base64; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required"
@@ -142,6 +170,27 @@ checkout_repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/
 [[ "$checkout_repository" == "$repository" ]] || fail "--repository must match the current checkout origin"
 gh api "repos/$repository/contents/.github/workflows/cloud-sim-analyze.yml?ref=main" >/dev/null || \
   fail "cloud-sim-analyze.yml is not present on remote main"
+
+publish_result() {
+  local state="$1"
+  local diagnosis_path="${2:-}"
+  if [[ -z "$result_file" ]]; then
+    return 0
+  fi
+  result_temp="$(mktemp "${result_file}.tmp.XXXXXX")"
+  if [[ "$state" == diagnosed ]]; then
+    jq -n --arg run_id "$run_id" --slurpfile diagnosis "$diagnosis_path" \
+      '{schema:"wukongim/cloud-simulation-analysis-result/v1",run_id:$run_id,
+        state:"diagnosed",diagnosis:$diagnosis[0]}' >"$result_temp"
+  else
+    jq -n --arg run_id "$run_id" \
+      '{schema:"wukongim/cloud-simulation-analysis-result/v1",run_id:$run_id,
+        state:"released",diagnosis:null}' >"$result_temp"
+  fi
+  chmod 0600 "$result_temp"
+  mv "$result_temp" "$result_file"
+  result_temp=""
+}
 
 analysis_temp="$(mktemp -d "${TMPDIR:-/tmp}/wukongim-cloud-analysis.XXXXXX")"
 private_key="$analysis_temp/client-private.pem"
@@ -238,6 +287,7 @@ jq -e --arg run_id "$run_id" --arg request_id "$request_id" '
 session_state="$(jq -er .state "$session_json")"
 case "$session_state" in
   released)
+    publish_result released
     printf 'Simulation Run %s 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。\n' "$run_id"
     exit 0
     ;;
@@ -382,6 +432,8 @@ jq -e --arg run_id "$run_id" --arg source_sha "$source_sha" --arg scenario_diges
   .run_identity.source_sha == $source_sha and
   .run_identity.scenario_digest == $scenario_digest
 ' "$diagnosis_json" >/dev/null || fail "Diagnosis Result identity does not match the encrypted Analysis Session"
+publish_result diagnosed "$diagnosis_json"
+diagnosis_completed=true
 jq . "$diagnosis_json"
 
 if [[ "$allow_fix_pr" == true ]]; then
@@ -396,6 +448,7 @@ if [[ "$allow_fix_pr" == true ]]; then
     exit 0
   fi
 
+  remediation_started=true
   remediation_branch="codex/cloud-sim-${request_id#local-}"
   (cd "$REPO_ROOT" && git check-ref-format --branch "$remediation_branch") >/dev/null
   (cd "$REPO_ROOT" && git fetch --quiet origin "$source_sha")

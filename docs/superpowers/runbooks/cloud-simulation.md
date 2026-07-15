@@ -183,8 +183,13 @@ Dispatch `Cloud Simulation - Provision` from `main`. The source SHA must be a
 40-character commit reachable from `origin/main` when explicitly supplied; an
 empty value selects the current remote `main`. Select a reviewed
 `cloud-small`, `cloud-standard`, or `cloud-stress` scenario, a compatible
-infrastructure preset, `2h`, `24h`, or `48h` active duration, bounded analysis
-grace, and a hard CNY cost ceiling.
+infrastructure preset, `30m`, `2h`, `24h`, or `48h` active duration, bounded
+analysis grace, and a hard CNY cost ceiling.
+
+For a quick end-to-end validation, select `cloud-small`, `30m` active duration,
+and `30m` Analysis Grace. The active-duration default remains `2h`, and the
+formal Alibaba canary remains `small + 2h`; the short validation does not
+replace that attestation.
 
 The build job has no cloud identity. The protected provision job uses the
 complete AccessKey Secret pair when configured, otherwise it obtains a
@@ -215,6 +220,13 @@ Artifact format use the validated `ALIBABA_CLOUD_SIM_CONFIG_JSON` fallback.
 Exact cleanup validates that fallback against the unique retained Run Locator's
 account hash and region, and fails closed when the Locator cannot prove them.
 
+After workload start, Provision uploads a minimal Finalization Schedule with
+the Run Identity, workload deadline, initial analysis time, and lease expiry.
+It contains no logs, metrics, profiles, diagnosis, or credential. If this
+upload fails after `running` is persisted, the workload stays `running` until
+provider reconciliation observes its deadline; workflow failure cannot shorten
+the active workload window.
+
 ## 3. Analyze an exact live run
 
 Install GitHub CLI and Codex CLI once. Sign in to GitHub, then sign in to Codex
@@ -230,6 +242,24 @@ Then run analysis from a local checkout whose remote points to this repository:
 ```bash
 ./scripts/cloud-sim/analyze.sh <run_id>
 ```
+
+For normal operation, prefer the single finalization command instead:
+
+```bash
+./scripts/cloud-sim/finalize.sh <run_id> --allow-fix-pr
+```
+
+Keep the command running. It reads the exact Finalization Schedule, waits until
+wkbench should have written its terminal summary, and runs an Analysis Run. If
+the validated result still reports `workload_inspect.state=in_progress`, it
+retains the run and retries while enough lease remains for another safe
+session. It then dispatches exact Cleanup and repeats the provider-backed
+released preflight using a structured released outcome rather than matching
+console text.
+It succeeds only after the exact Run reports empty provider inventory. If
+analysis fails, cleanup still runs to stop billing and the command returns the
+analysis failure after zero-resource verification. `--allow-fix-pr` remains
+optional; omit it when automatic Draft-PR remediation is not wanted.
 
 The local command dispatches `Cloud Simulation - Analysis Session` as a
 short-lived session broker. The workflow first resolves the unique 90-day Run
@@ -270,8 +300,11 @@ failure and interruption request best-effort closure, while token expiry and
 the scheduled sweeper remain independent backstops. Provider inventory reads
 the rule deadline, so the sweeper preserves an unexpired local session and
 revokes only expired or malformed windows. The compact Diagnosis
-Result is printed locally and removed with the temporary session directory; no
-raw logs, metrics, profiles, or Evidence Bundle are uploaded.
+Result is printed locally and removed with the temporary session directory; an
+operator-owned result path is used only by `finalize.sh` to consume the
+validated diagnosis or provider-released state. No raw logs, metrics, profiles,
+or Evidence Bundle are uploaded. Optional remediation failure is reported
+separately and does not invalidate the completed Diagnosis Result.
 
 For a live run, `workload_inspect` reads only the bounded simulator-local
 wkbench final summary. `healthy` requires that summary to be complete and
