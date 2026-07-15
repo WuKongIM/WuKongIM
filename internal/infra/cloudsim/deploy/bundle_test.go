@@ -44,7 +44,7 @@ func TestRenderSealVerifyAndTamperDetection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(renderedScenario), "id: run-1") || !strings.Contains(string(renderedScenario), "duration: 24h0m0s") || !strings.Contains(string(renderedScenario), "report_dir: /var/lib/wukongim-cloud/reports/run-1") {
+	if !strings.Contains(string(renderedScenario), "id: run-1") || !strings.Contains(string(renderedScenario), "duration: 30m0s") || !strings.Contains(string(renderedScenario), "report_dir: /var/lib/wukongim-cloud/reports/run-1") {
 		t.Fatalf("scenario does not bind requested duration and run report directory:\n%s", renderedScenario)
 	}
 	if err := os.WriteFile(filepath.Join(root, "bin", "wkbench"), []byte("tampered"), 0o755); err != nil {
@@ -105,7 +105,7 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 func testBundleSpec(scenario string) BundleSpec {
 	return BundleSpec{
 		RunID: "run-1", SourceSHA: "0123456789012345678901234567890123456789", ScenarioPath: scenario,
-		ScenarioDigest: "sha256:scenario", Duration: 24 * time.Hour,
+		ScenarioDigest: "sha256:scenario", Duration: 30 * time.Minute,
 		PrivateIPv4:         map[string]string{"node-1": "10.42.0.11", "node-2": "10.42.0.12", "node-3": "10.42.0.13", "sim": "10.42.0.20"},
 		SimulatorSourceIPv4: []string{"10.42.0.20", "10.42.0.21", "10.42.0.22"},
 	}

@@ -39,6 +39,15 @@ A valid identity-matched Diagnosis Result is a completed command regardless of
 verdict; only the structured verdict establishes health. Session preflight,
 timeout, invalid schema, and identity mismatch failures remain nonzero exits.
 
+Provisioning also publishes a minimal non-diagnostic Finalization Schedule.
+The local `finalize.sh` command waits until the first bounded analysis time,
+invokes the same encrypted Analysis Session, and retains the run for another
+attempt when the validated `workload_inspect` state is still `in_progress` and
+the lease can safely admit another session. It then requests exact Cleanup and
+calls the provider-backed released gate again. Diagnosis or optional
+remediation failure does not suppress cleanup, while a provider-confirmed
+already-released run terminates without issuing another cleanup request.
+
 Optional remediation begins only after confirmed access closure, in a separate
 local worktree and Codex process with an isolated home directory and no GitHub
 credential, cloud identity, MCP configuration, or Analysis Token. It requires a

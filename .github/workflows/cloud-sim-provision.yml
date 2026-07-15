@@ -30,13 +30,13 @@ on:
         required: true
         default: 2h
         type: choice
-        options: [2h, 24h, 48h]
+        options: [30m, 2h, 24h, 48h]
       analysis_grace:
         description: Live analysis grace after workload completion
         required: true
-        default: 1h
+        default: 30m
         type: choice
-        options: [0h, 1h, 6h]
+        options: [30m, 1h, 6h]
       max_total_cost:
         description: Hard maximum total cost in CNY
         required: true
@@ -255,9 +255,10 @@ jobs:
             -addext 'keyUsage=critical,keyCertSign,cRLSign' \
             -keyout ca-key.pem -out ca.pem
           ca_fingerprint="sha256:$(openssl x509 -in ca.pem -outform DER | sha256sum | awk '{print $1}')"
-          duration_seconds="$(case '${{ inputs.duration }}' in 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
-          grace_seconds="$(case '${{ inputs.analysis_grace }}' in 0h) echo 0;; 1h) echo 3600;; 6h) echo 21600;; esac)"
-          expires_epoch="$(( $(date -u +%s) + 1200 + duration_seconds + grace_seconds ))"
+          duration_seconds="$(case '${{ inputs.duration }}' in 30m) echo 1800;; 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
+          grace_seconds="$(case '${{ inputs.analysis_grace }}' in 30m) echo 1800;; 1h) echo 3600;; 6h) echo 21600;; esac)"
+          provisioning_budget_seconds=3000
+          expires_epoch="$(( $(date -u +%s) + provisioning_budget_seconds + duration_seconds + grace_seconds ))"
           expires_at="$(date -u -d "@${expires_epoch}" +%Y-%m-%dT%H:%M:%SZ)"
           max_cost_micros="$(jq -nr --arg value "$MAX_TOTAL_COST" '$value | tonumber * 1000000 | floor')"
           account_hash="$(jq -er .account_id_hash provider.json)"
@@ -419,12 +420,29 @@ jobs:
           WK_CLOUD_SIM_PUBLIC_IP: ${{ steps.create.outputs.sim_public }}
         run: |
           set -euo pipefail
-          duration_seconds="$(case '${{ inputs.duration }}' in 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
-          active_until="$(date -u -d "@$(($(date -u +%s) + duration_seconds))" +%Y-%m-%dT%H:%M:%SZ)"
+          duration_seconds="$(case '${{ inputs.duration }}' in 30m) echo 1800;; 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
+          active_until_epoch="$(($(date -u +%s) + duration_seconds))"
+          active_until="$(date -u -d "@$active_until_epoch" +%Y-%m-%dT%H:%M:%SZ)"
+          analysis_ready_delay_seconds="$(case '${{ inputs.scenario }}' in cloud-small) echo 180;; cloud-standard) echo 300;; cloud-stress) echo 600;; esac)"
+          analysis_ready_at="$(date -u -d "@$((active_until_epoch + analysis_ready_delay_seconds))" +%Y-%m-%dT%H:%M:%SZ)"
           ssh -i bootstrap-key -o BatchMode=yes -o StrictHostKeyChecking=accept-new "wukong@${WK_CLOUD_SIM_PUBLIC_IP}" \
             'sudo systemctl enable wkbench-run.service && sudo systemctl start --no-block wkbench-run.service'
           ./wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" running --active-until "$active_until" >/dev/null
+          jq -n --arg run_id "$RUN_ID" --arg active_until "$active_until" --arg analysis_ready_at "$analysis_ready_at" \
+            --arg expires_at '${{ steps.prepare.outputs.expires_at }}' \
+            '{schema:"wukongim/cloud-simulation-finalize/v1",run_id:$run_id,
+              active_until:$active_until,analysis_ready_at:$analysis_ready_at,expires_at:$expires_at}' >finalize.json
           echo "active_until=$active_until" >>"$GITHUB_OUTPUT"
+          echo "analysis_ready_at=$analysis_ready_at" >>"$GITHUB_OUTPUT"
+
+      - name: Upload finalization schedule
+        if: steps.workload_start.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-sim-finalize-${{ needs.build.outputs.run_id }}
+          path: finalize.json
+          retention-days: 90
+          if-no-files-found: error
 
       - name: Preserve diagnostics or release unusable failed provisioning
         if: failure() && steps.create.outcome == 'success'
@@ -438,8 +456,10 @@ jobs:
           state="$(jq -er .state <<<"$status_json")"
           if [[ -f bootstrap-gate.json ]] && jq -e '.analysis_mcp_self_check == true' bootstrap-gate.json >/dev/null 2>&1; then
             case "$state" in
-              provisioning|ready|running)
+              provisioning|ready)
                 ./wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" analysis_grace >/dev/null
+                ;;
+              running)
                 ;;
               analysis_grace)
                 ;;
@@ -497,9 +517,10 @@ jobs:
             echo "- Bundle: \`$BUNDLE_DIGEST\`"
             echo "- Lease expiry: \`${{ steps.prepare.outputs.expires_at }}\`"
             echo "- Workload active until: \`${{ steps.workload_start.outputs.active_until || 'not-started' }}\`"
+            echo "- Terminal analysis ready: \`${{ steps.workload_start.outputs.analysis_ready_at || 'not-started' }}\`"
             echo "- Selected SKU: \`$(jq -r '.quote.selected_sku // "not-created"' run.json 2>/dev/null || echo not-created)\`"
             echo "- Worst-case fixed cost: \`$(jq -r '.quote.worst_case_cost_micros // 0' run.json 2>/dev/null || echo 0) micro-CNY\`"
-            echo "- Next: from a local ChatGPT-authenticated Codex checkout, run \`./scripts/cloud-sim/analyze.sh $RUN_ID\`."
+            echo "- Next: from a local ChatGPT-authenticated Codex checkout, run \`./scripts/cloud-sim/finalize.sh $RUN_ID\`."
           } >>"$GITHUB_STEP_SUMMARY"
       - name: Remove local capabilities
         if: always()

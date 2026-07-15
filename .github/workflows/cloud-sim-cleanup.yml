@@ -1,4 +1,5 @@
 name: Cloud Simulation - Cleanup
+run-name: Cloud Simulation Cleanup ${{ inputs.run_id || 'scheduled-sweep' }} ${{ inputs.request_id || github.run_id }}
 
 on:
   schedule:
@@ -7,6 +8,11 @@ on:
     inputs:
       run_id:
         description: Optional exact Simulation Run identity for protected early destruction
+        required: false
+        default: ""
+        type: string
+      request_id:
+        description: Optional finalize request correlation identifier
         required: false
         default: ""
         type: string
@@ -31,6 +37,7 @@ jobs:
     env:
       GOWORK: "off"
       RUN_ID: ${{ inputs.run_id || '' }}
+      REQUEST_ID: ${{ inputs.request_id || '' }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -42,6 +49,14 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
+      - name: Validate cleanup request
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$REQUEST_ID" ]]; then
+            [[ "$REQUEST_ID" =~ ^finalize-[0-9a-f]{16}$ ]]
+            [[ -n "$RUN_ID" ]]
+          fi
       - name: Resolve Alibaba credential mode
         id: alibaba_auth
         shell: bash

@@ -47,7 +47,7 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 	assertWorkflowText(t, provision, "build:\n", "provision:\n", "id-token: write", "environment: cloud-sim-provision")
 	for _, required := range []string{
 		`transition "$RUN_ID" ready`, `transition "$RUN_ID" running --active-until`,
-		`transition "$RUN_ID" analysis_grace`, `destroy "$RUN_ID"`, `./scripts/cloud-sim/analyze.sh $RUN_ID`,
+		`transition "$RUN_ID" analysis_grace`, `destroy "$RUN_ID"`, `./scripts/cloud-sim/finalize.sh $RUN_ID`,
 	} {
 		if !strings.Contains(provision, required) {
 			t.Fatalf("provision workflow missing lifecycle guard %q", required)
@@ -117,6 +117,52 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 	} {
 		if !strings.Contains(oidcSubject, required) {
 			t.Fatalf("OIDC subject workflow missing %q", required)
+		}
+	}
+}
+
+func TestCloudSimulationWorkflowPublishesFinalizationSchedule(t *testing.T) {
+	root := repositoryRoot(t)
+	provision := readWorkflowText(t, root, "cloud-sim-provision.yml")
+	cleanup := readWorkflowText(t, root, "cloud-sim-cleanup.yml")
+
+	for _, required := range []string{
+		"options: [30m, 2h, 24h, 48h]",
+		"options: [30m, 1h, 6h]",
+		"duration_seconds=\"$(case '${{ inputs.duration }}' in 30m) echo 1800;;",
+		"grace_seconds=\"$(case '${{ inputs.analysis_grace }}' in 30m) echo 1800;;",
+		"provisioning_budget_seconds=3000",
+		"expires_epoch=\"$(( $(date -u +%s) + provisioning_budget_seconds + duration_seconds + grace_seconds ))\"",
+		`schema:"wukongim/cloud-simulation-finalize/v1"`,
+		`--arg active_until "$active_until"`,
+		`--arg analysis_ready_at "$analysis_ready_at"`,
+		`analysis_ready_delay_seconds="$(case '${{ inputs.scenario }}' in cloud-small) echo 180;; cloud-standard) echo 300;; cloud-stress) echo 600;; esac)"`,
+		`analysis_ready_at="$(date -u -d "@$((active_until_epoch + analysis_ready_delay_seconds))" +%Y-%m-%dT%H:%M:%SZ)"`,
+		`--arg expires_at '${{ steps.prepare.outputs.expires_at }}'`,
+		"name: cloud-sim-finalize-${{ needs.build.outputs.run_id }}",
+		"path: finalize.json",
+		"running)\n                ;;",
+		"./scripts/cloud-sim/finalize.sh $RUN_ID",
+	} {
+		if !strings.Contains(provision, required) {
+			t.Fatalf("provision workflow missing finalization contract %q", required)
+		}
+	}
+	if got := strings.Count(provision, "default: 2h"); got != 1 {
+		t.Fatalf("2-hour workflow defaults = %d, want active duration only", got)
+	}
+	if got := strings.Count(provision, "default: 30m"); got != 1 {
+		t.Fatalf("30-minute workflow defaults = %d, want analysis grace only", got)
+	}
+
+	for _, required := range []string{
+		"run-name: Cloud Simulation Cleanup",
+		"request_id:",
+		`REQUEST_ID: ${{ inputs.request_id || '' }}`,
+		`[[ "$REQUEST_ID" =~ ^finalize-[0-9a-f]{16}$ ]]`,
+	} {
+		if !strings.Contains(cleanup, required) {
+			t.Fatalf("cleanup workflow missing finalization correlation %q", required)
 		}
 	}
 }
