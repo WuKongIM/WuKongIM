@@ -5,37 +5,37 @@ import "fmt"
 // BootstrapSnapshot is the bounded evidence collected before workload start.
 type BootstrapSnapshot struct {
 	// BundleDigests maps every host role to its locally verified digest.
-	BundleDigests         map[string]string   `json:"bundle_digests"`
+	BundleDigests map[string]string `json:"bundle_digests"`
 	// ActiveServices maps every host role to its active systemd units.
-	ActiveServices        map[string][]string `json:"active_services"`
+	ActiveServices map[string][]string `json:"active_services"`
 	// ReadyNodeIDs contains cluster node IDs whose readiness probes passed.
-	ReadyNodeIDs          []uint64            `json:"ready_node_ids"`
+	ReadyNodeIDs []uint64 `json:"ready_node_ids"`
 	// ClusterMemberCount is the count of active, runtime-ready cluster members.
-	ClusterMemberCount    int                 `json:"cluster_member_count"`
+	ClusterMemberCount int `json:"cluster_member_count"`
 	// HashSlotCount is the converged cluster hash-slot count.
-	HashSlotCount         int                 `json:"hash_slot_count"`
+	HashSlotCount int `json:"hash_slot_count"`
 	// HealthySlotLeaders is the count of slots with a healthy current leader.
-	HealthySlotLeaders    int                 `json:"healthy_slot_leaders"`
+	HealthySlotLeaders int `json:"healthy_slot_leaders"`
 	// HealthySlotReplicas is the count of slots with the required voter set.
-	HealthySlotReplicas   int                 `json:"healthy_slot_replicas"`
+	HealthySlotReplicas int `json:"healthy_slot_replicas"`
 	// PendingControllerTask is the count of unconverged controller tasks.
-	PendingControllerTask int                 `json:"pending_controller_tasks"`
+	PendingControllerTask int `json:"pending_controller_tasks"`
 	// PrometheusTargetsUp is the number of currently healthy scrape targets.
-	PrometheusTargetsUp   int                 `json:"prometheus_targets_up"`
+	PrometheusTargetsUp int `json:"prometheus_targets_up"`
 	// PrometheusTargetsWant is the expected scrape target count.
-	PrometheusTargetsWant int                 `json:"prometheus_targets_want"`
+	PrometheusTargetsWant int `json:"prometheus_targets_want"`
 	// AnalysisMCPSelfCheck reports the simulator gateway dependency check.
-	AnalysisMCPSelfCheck  bool                `json:"analysis_mcp_self_check"`
+	AnalysisMCPSelfCheck bool `json:"analysis_mcp_self_check"`
 	// WKBenchValidate reports strict scenario validation success.
-	WKBenchValidate       bool                `json:"wkbench_validate"`
+	WKBenchValidate bool `json:"wkbench_validate"`
 	// WKBenchDoctor reports worker and target preflight success.
-	WKBenchDoctor         bool                `json:"wkbench_doctor"`
+	WKBenchDoctor bool `json:"wkbench_doctor"`
 }
 
 // GateResult reports every failed invariant instead of passing partial evidence.
 type GateResult struct {
 	// Passed is true only when every bootstrap invariant holds.
-	Passed   bool     `json:"passed"`
+	Passed bool `json:"passed"`
 	// Failures contains every bounded failed invariant.
 	Failures []string `json:"failures"`
 }

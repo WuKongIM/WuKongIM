@@ -51,11 +51,11 @@ type BundleSpec struct {
 // FileRecord binds one relative path, mode, size, and SHA-256 digest.
 type FileRecord struct {
 	// Path is the clean bundle-relative file path.
-	Path   string `json:"path"`
+	Path string `json:"path"`
 	// Mode is the exact deployed permission mode.
-	Mode   uint32 `json:"mode"`
+	Mode uint32 `json:"mode"`
 	// Size is the exact file size in bytes.
-	Size   int64  `json:"size"`
+	Size int64 `json:"size"`
 	// SHA256 is the lowercase content digest.
 	SHA256 string `json:"sha256"`
 }
@@ -63,17 +63,17 @@ type FileRecord struct {
 // Manifest binds every byte deployed to all four hosts.
 type Manifest struct {
 	// Schema is the exact versioned bundle manifest contract.
-	Schema         string       `json:"schema"`
+	Schema string `json:"schema"`
 	// RunID is the exact Simulation Run identity.
-	RunID          string       `json:"run_id"`
+	RunID string `json:"run_id"`
 	// SourceSHA is the immutable commit used to build the binaries.
-	SourceSHA      string       `json:"source_sha"`
+	SourceSHA string `json:"source_sha"`
 	// ScenarioDigest is the canonical effective workload identity.
-	ScenarioDigest string       `json:"scenario_digest"`
+	ScenarioDigest string `json:"scenario_digest"`
 	// BundleDigest is the digest over the ordered File records.
-	BundleDigest   string       `json:"bundle_digest"`
+	BundleDigest string `json:"bundle_digest"`
 	// Files contains every deployed file except the manifest itself.
-	Files          []FileRecord `json:"files"`
+	Files []FileRecord `json:"files"`
 }
 
 // Render writes deterministic role configs, Prometheus config, and systemd units.
