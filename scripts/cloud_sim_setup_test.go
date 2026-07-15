@@ -3,6 +3,7 @@ package scripts_test
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -446,7 +447,22 @@ func TestCloudSimulationSetupBoundsAndResumesGitHubCLIDownload(t *testing.T) {
 	root := repoRoot(t)
 	temp := t.TempDir()
 	bin := filepath.Join(temp, "bin")
+	systemBin := filepath.Join(temp, "system-bin")
 	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(systemBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSetupExecutable(t, filepath.Join(systemBin, "gh"), "#!/usr/bin/env bash\nprintf '%s\\n' SYSTEM_GH_REACHED >&2\nexit 78\n")
+	bashEnv := filepath.Join(temp, "bash-env")
+	if err := os.WriteFile(bashEnv, []byte(`command() {
+  if [[ "$1" == "-v" && "${2:-}" == "gh" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -490,18 +506,28 @@ cp "$WK_SETUP_FAKE_GH_ARCHIVE" "$output"
 exit 28
 `)
 
-	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"), "--yes")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"), "--yes")
+	command.WaitDelay = time.Second
 	command.Dir = root
 	command.Env = append(os.Environ(),
-		"PATH="+bin+":/usr/bin:/bin",
+		"BASH_ENV="+bashEnv,
+		"PATH="+bin+":"+systemBin+":/usr/bin:/bin",
 		"WK_SETUP_CALL_LOG="+callLog,
 		"WK_SETUP_FAKE_GH_ARCHIVE="+archive,
 		"XDG_CACHE_HOME="+filepath.Join(temp, "cache"),
 	)
 	started := time.Now()
 	output, err := command.CombinedOutput()
+	if ctx.Err() != nil {
+		t.Fatalf("bounded download harness exceeded its 5 second deadline: %v\n%s", ctx.Err(), output)
+	}
 	if err == nil || !strings.Contains(string(output), "GH_FAKE_REACHED") {
 		t.Fatalf("setup did not reach the checksum-verified fake gh after a bounded download: %v\n%s", err, output)
+	}
+	if strings.Contains(string(output), "SYSTEM_GH_REACHED") {
+		t.Fatalf("setup used a preinstalled GitHub CLI instead of the checksum-verified fake archive:\n%s", output)
 	}
 	if elapsed := time.Since(started); elapsed > 3*time.Second {
 		t.Fatalf("bounded download harness took %s", elapsed)
