@@ -100,6 +100,96 @@ func TestCreateHostRetriesAttachWhileInstanceStatusConverges(t *testing.T) {
 	}
 }
 
+func TestCreateHostRetriesSecondaryIPAssignmentAfterTransientUnknownError(t *testing.T) {
+	var (
+		mu          sync.Mutex
+		assignCalls int
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		_ = request.ParseForm()
+		action := request.Header.Get("x-acs-action")
+		response.Header().Set("Content-Type", "application/json")
+		switch action {
+		case "RunInstances":
+			_, _ = response.Write([]byte(`{"RequestId":"request-1","InstanceIdSets":{"InstanceIdSet":["i-sim"]}}`))
+		case "CreateDisk":
+			_, _ = response.Write([]byte(`{"RequestId":"request-2","DiskId":"d-sim"}`))
+		case "DescribeDisks":
+			if request.Form.Get("DiskIds") != "" {
+				_, _ = response.Write([]byte(`{"RequestId":"request-3","Disks":{"Disk":[{"DiskId":"d-sim","Status":"Available"}]}}`))
+				return
+			}
+			_, _ = response.Write([]byte(`{"RequestId":"request-9","TotalCount":1,"Disks":{"Disk":[{"DiskId":"d-sim","InstanceId":"i-sim","Tags":{"Tag":[{"TagKey":"wukongim-resource-role","TagValue":"sim"}]}}]}}`))
+		case "DescribeInstances":
+			if request.Form.Get("InstanceIds") != "" {
+				_, _ = response.Write([]byte(`{"RequestId":"request-4","Instances":{"Instance":[{"InstanceId":"i-sim","Status":"Running","NetworkInterfaces":{"NetworkInterface":[{"NetworkInterfaceId":"eni-sim","Type":"Primary"}]}}]}}`))
+				return
+			}
+			_, _ = response.Write([]byte(`{"RequestId":"request-8","TotalCount":1,"Instances":{"Instance":[{"InstanceId":"i-sim","VpcAttributes":{"PrivateIpAddress":{"IpAddress":["10.42.0.20"]}},"Tags":{"Tag":[{"TagKey":"wukongim-resource-role","TagValue":"sim"}]}}]}}`))
+		case "DescribeNetworkInterfaces":
+			_, _ = response.Write([]byte(`{"RequestId":"request-5","TotalCount":1,"NetworkInterfaceSets":{"NetworkInterfaceSet":[{"NetworkInterfaceId":"eni-sim","InstanceId":"i-sim","Status":"InUse"}]}}`))
+		case "AttachDisk":
+			_, _ = response.Write([]byte(`{"RequestId":"request-6"}`))
+		case "AssignPrivateIpAddresses":
+			mu.Lock()
+			assignCalls++
+			call := assignCalls
+			mu.Unlock()
+			if call == 1 {
+				response.WriteHeader(http.StatusBadRequest)
+				_, _ = response.Write([]byte(`{"RequestId":"request-7","Code":"UnknownError","Message":"The request processing has failed due to some unknown error."}`))
+				return
+			}
+			_, _ = response.Write([]byte(`{"RequestId":"request-7-retry","AssignedPrivateIpAddressesSet":{"NetworkInterfaceId":"eni-sim","PrivateIpSet":{"PrivateIpAddress":["10.42.0.21","10.42.0.22"]}}}`))
+		case "DescribeSecurityGroups", "DescribeVpcs", "DescribeVSwitches", "DescribeEipAddresses":
+			_, _ = response.Write([]byte(`{"RequestId":"request-10","TotalCount":0}`))
+		case "DeleteInstance", "DeleteDisk":
+			_, _ = response.Write([]byte(`{"RequestId":"rollback"}`))
+		default:
+			http.Error(response, "unexpected action "+action, http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	api, err := newOpenAPI(&openapiutil.Config{
+		AccessKeyId:     dara.String("test-access-key-id"),
+		AccessKeySecret: dara.String("test-access-key-secret"),
+		RegionId:        dara.String("cn-hangzhou"),
+		Endpoint:        dara.String(strings.TrimPrefix(server.URL, "http://")),
+		Protocol:        dara.String("http"),
+	})
+	if err != nil {
+		t.Fatalf("newOpenAPI() error = %v", err)
+	}
+	api.pollInterval = 0
+	api.waitTimeout = time.Second
+
+	assets, err := api.CreateHost(context.Background(), HostRequest{
+		Region: "cn-hangzhou", ZoneID: "cn-hangzhou-a", Role: "sim",
+		ImageID: "aliyun_3_x64_20G_alibase_20260101.vhd", InstanceType: "ecs.c7.large",
+		VSwitchID: "vsw-1", SecurityGroupID: "sg-1", PrivateIPv4: "10.42.0.20",
+		SecondaryPrivateIPv4: []string{"10.42.0.21", "10.42.0.22"}, PrivateIPv4PrefixBits: 24,
+		SystemDiskCategory: "cloud_essd", SystemDiskSizeGiB: 40,
+		DataDiskCategory: "cloud_essd", DataDiskSizeGiB: 40,
+		AutoReleaseAt: time.Now().Add(3 * time.Hour), SSHPublicKey: "ssh-ed25519 AAAATEST run",
+		Tags: map[string]string{
+			cloudsim.TagManagedBy: cloudsim.ManagedByValue,
+			cloudsim.TagRunID:     "run-1", cloudsim.TagResourceRole: "sim",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateHost() error = %v", err)
+	}
+	if len(assets) != 2 || assets[0].Role != "sim" || assets[1].Role != "sim" {
+		t.Fatalf("CreateHost() assets = %#v, want sim compute and disk", assets)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if assignCalls != 2 {
+		t.Fatalf("AssignPrivateIpAddresses calls = %d, want one bounded retry", assignCalls)
+	}
+}
+
 func TestCreateNetworkWaitsForVSwitchBeforeCreatingSecurityGroup(t *testing.T) {
 	var (
 		mu             sync.Mutex
