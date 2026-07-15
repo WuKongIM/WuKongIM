@@ -928,21 +928,36 @@ func (a *OpenAPI) CreateHost(ctx context.Context, request HostRequest) (_ []Asse
 		}
 	}
 	deadline := time.Now().Add(a.waitTimeout)
+	lastErr := error(ErrAmbiguousInventory)
 	for {
 		assets, listErr := a.ListAssets(ctx, ListAssetsRequest{Region: request.Region, RunID: request.Tags[cloudsim.TagRunID]})
 		if listErr == nil {
-			selected := make([]Asset, 0, 2)
+			var compute Asset
+			var disk Asset
+			computeFound := false
+			diskFound := false
 			for _, asset := range assets {
-				if asset.Role == request.Role && (asset.ID == instanceID || asset.Kind == "disk") {
-					selected = append(selected, asset)
+				if asset.Role != request.Role {
+					continue
+				}
+				if asset.Kind == "compute" && asset.ID == instanceID && asset.PrivateAddress == request.PrivateIPv4 {
+					compute = asset
+					computeFound = true
+				}
+				if asset.Kind == "disk" && asset.ID == diskID && asset.AttachedTo == instanceID {
+					disk = asset
+					diskFound = true
 				}
 			}
-			if len(selected) == 2 {
-				return selected, nil
+			if computeFound && diskFound {
+				return []Asset{compute, disk}, nil
 			}
+			lastErr = ErrAmbiguousInventory
+		} else {
+			lastErr = listErr
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("discover host %s assets: %w", request.Role, listErr)
+			return nil, fmt.Errorf("discover converged host %s assets: %w", request.Role, lastErr)
 		}
 		if err := waitContext(ctx, a.pollInterval); err != nil {
 			return nil, err

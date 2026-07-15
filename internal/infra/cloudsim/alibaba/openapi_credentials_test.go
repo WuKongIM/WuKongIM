@@ -102,8 +102,9 @@ func TestCreateHostRetriesAttachWhileInstanceStatusConverges(t *testing.T) {
 
 func TestCreateHostRetriesSecondaryIPAssignmentAfterTransientUnknownError(t *testing.T) {
 	var (
-		mu          sync.Mutex
-		assignCalls int
+		mu             sync.Mutex
+		assignCalls    int
+		inventoryCalls int
 	)
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		_ = request.ParseForm()
@@ -123,6 +124,14 @@ func TestCreateHostRetriesSecondaryIPAssignmentAfterTransientUnknownError(t *tes
 		case "DescribeInstances":
 			if request.Form.Get("InstanceIds") != "" {
 				_, _ = response.Write([]byte(`{"RequestId":"request-4","Instances":{"Instance":[{"InstanceId":"i-sim","Status":"Running","NetworkInterfaces":{"NetworkInterface":[{"NetworkInterfaceId":"eni-sim","Type":"Primary"}]}}]}}`))
+				return
+			}
+			mu.Lock()
+			inventoryCalls++
+			inventoryCall := inventoryCalls
+			mu.Unlock()
+			if inventoryCall == 1 {
+				_, _ = response.Write([]byte(`{"RequestId":"request-8-converging","TotalCount":1,"Instances":{"Instance":[{"InstanceId":"i-sim","VpcAttributes":{"PrivateIpAddress":{"IpAddress":[]}},"Tags":{"Tag":[{"TagKey":"wukongim-resource-role","TagValue":"sim"}]}}]}}`))
 				return
 			}
 			_, _ = response.Write([]byte(`{"RequestId":"request-8","TotalCount":1,"Instances":{"Instance":[{"InstanceId":"i-sim","VpcAttributes":{"PrivateIpAddress":{"IpAddress":["10.42.0.20"]}},"Tags":{"Tag":[{"TagKey":"wukongim-resource-role","TagValue":"sim"}]}}]}}`))
@@ -180,13 +189,16 @@ func TestCreateHostRetriesSecondaryIPAssignmentAfterTransientUnknownError(t *tes
 	if err != nil {
 		t.Fatalf("CreateHost() error = %v", err)
 	}
-	if len(assets) != 2 || assets[0].Role != "sim" || assets[1].Role != "sim" {
+	if len(assets) != 2 || assets[0].Role != "sim" || assets[1].Role != "sim" || assets[0].PrivateAddress != "10.42.0.20" {
 		t.Fatalf("CreateHost() assets = %#v, want sim compute and disk", assets)
 	}
 	mu.Lock()
 	defer mu.Unlock()
 	if assignCalls != 2 {
 		t.Fatalf("AssignPrivateIpAddresses calls = %d, want one bounded retry", assignCalls)
+	}
+	if inventoryCalls != 2 {
+		t.Fatalf("host inventory calls = %d, want address-converging retry", inventoryCalls)
 	}
 }
 
