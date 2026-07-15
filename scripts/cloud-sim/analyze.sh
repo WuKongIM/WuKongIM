@@ -24,8 +24,6 @@ analysis_worktree=""
 analysis_worktree_added=false
 remote_branch_pushed=false
 draft_pr_created=false
-diagnosis_completed=false
-remediation_started=false
 
 usage() {
   cat <<'EOF'
@@ -94,11 +92,6 @@ cleanup() {
   fi
   if [[ -n "$result_temp" ]]; then
     rm -f "$result_temp"
-  fi
-  if [[ "$diagnosis_completed" == true && "$remediation_started" == true && "$exit_status" != 0 ]]; then
-    printf 'Optional remediation failed with status %d; the validated Diagnosis Result remains successful.\n' \
-      "$exit_status" >&2
-    exit 0
   fi
   exit "$exit_status"
 }
@@ -433,10 +426,11 @@ jq -e --arg run_id "$run_id" --arg source_sha "$source_sha" --arg scenario_diges
   .run_identity.scenario_digest == $scenario_digest
 ' "$diagnosis_json" >/dev/null || fail "Diagnosis Result identity does not match the encrypted Analysis Session"
 publish_result diagnosed "$diagnosis_json"
-diagnosis_completed=true
 jq . "$diagnosis_json"
 
-if [[ "$allow_fix_pr" == true ]]; then
+run_optional_remediation() (
+  set -euo pipefail
+  trap cleanup EXIT
   if ! jq -e '
     .verdict == "product_defect" and .confidence >= 0.85 and .root_cause_scope == "product" and
     .remediation_eligibility.eligible == true and
@@ -448,7 +442,6 @@ if [[ "$allow_fix_pr" == true ]]; then
     exit 0
   fi
 
-  remediation_started=true
   remediation_branch="codex/cloud-sim-${request_id#local-}"
   (cd "$REPO_ROOT" && git check-ref-format --branch "$remediation_branch") >/dev/null
   (cd "$REPO_ROOT" && git fetch --quiet origin "$source_sha")
@@ -532,4 +525,15 @@ Cloud revalidation required: $revalidation
 This Draft PR was created from a schema-validated local diagnosis only after live cloud access was closed and the exact remediation commit passed CI. Diagnostic text is intentionally omitted. It cannot merge automatically.")"
   draft_pr_created=true
   printf 'Draft PR: %s\n' "$pr_url"
+)
+
+if [[ "$allow_fix_pr" == true ]]; then
+  set +e
+  run_optional_remediation
+  remediation_status=$?
+  set -e
+  if ((remediation_status != 0)); then
+    printf 'Optional remediation failed with status %d; the validated Diagnosis Result remains successful.\n' \
+      "$remediation_status" >&2
+  fi
 fi

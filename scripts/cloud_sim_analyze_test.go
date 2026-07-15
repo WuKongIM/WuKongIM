@@ -197,7 +197,15 @@ func TestCloudSimulationAnalyzeKeepsValidDiagnosisSuccessfulWhenRemediationFails
 		t.Fatal(err)
 	}
 	writeAnalyzeFakes(t, bin)
-	if err := os.WriteFile(filepath.Join(temp, "diagnosis-mode"), []byte("product-remediation-fail"), 0o600); err != nil {
+	if err := os.Rename(filepath.Join(bin, "codex"), filepath.Join(bin, "codex-base")); err != nil {
+		t.Fatal(err)
+	}
+	writeSetupExecutable(t, filepath.Join(bin, "codex"), `#!/usr/bin/env bash
+set -euo pipefail
+if [[ " $* " == *' default_permissions="cloud-remediation" '* ]]; then exit 88; fi
+exec "$(dirname "$0")/codex-base" "$@"
+`)
+	if err := os.WriteFile(filepath.Join(temp, "diagnosis-mode"), []byte("product"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -217,7 +225,8 @@ func TestCloudSimulationAnalyzeKeepsValidDiagnosisSuccessfulWhenRemediationFails
 	}
 	if !strings.Contains(string(output), `"verdict": "product_defect"`) ||
 		!strings.Contains(string(output), "Optional remediation failed") {
-		t.Fatalf("analysis did not preserve diagnosis and report remediation failure:\n%s", output)
+		calls, _ := os.ReadFile(callLog)
+		t.Fatalf("analysis did not preserve diagnosis and report remediation failure:\n%s\ncalls:\n%s", output, calls)
 	}
 }
 
@@ -508,7 +517,6 @@ while (($#)); do
 done
 test -n "$output"
 if [[ "$is_remediation" == true ]]; then
-	if [[ "$mode" == product-remediation-fail ]]; then exit 88; fi
 	test -z "${WK_ANALYSIS_MCP_TOKEN:-}"
   test -z "${ALIBABA_CLOUD_ACCESS_KEY_ID:-}"
   test -z "${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}"
@@ -533,7 +541,7 @@ test -z "${SSH_AUTH_SOCK:-}"
 test -f "$workdir/.deployed-source-marker"
 test ! -e "$(dirname "$output")/client-private.pem"
 test ! -e "$(dirname "$output")/session/encrypted-token.bin"
-if [[ "$mode" == product || "$mode" == product-remediation-fail ]]; then
+if [[ "$mode" == product ]]; then
 cat >"$output" <<'JSON'
 {"schema":"wukongim/cloud-simulation-diagnosis/v1","run_identity":{"run_id":"run-live","source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scenario_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"analyzed_window":{"start":"2026-07-14T00:00:00Z","end":"2026-07-14T00:30:00Z"},"verdict":"product_defect","severity":"high","confidence":0.91,"root_cause_scope":"product","summary":"Confirmed append defect.","observation_references":[{"tool":"workload_inspect","node":"sim","observed_at":"2026-07-14T00:30:00Z","window":"final","complete":true,"state":"completed","status":"failed"}],"supporting_signals":["append errors"],"contradictory_signals":[],"unresolved_signals":[],"remediation_eligibility":{"eligible":true,"reason":"repository attributable and testable","repository_attributable":true,"testable":true},"proposed_regression_coverage":["add deterministic append regression"],"cloud_revalidation_required":true}
 JSON
