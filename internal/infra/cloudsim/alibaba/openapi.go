@@ -863,7 +863,7 @@ func (a *OpenAPI) CreateHost(ctx context.Context, request HostRequest) (_ []Asse
 		SetTag(runInstanceTags(request.Tags))
 	response, err := a.ecs.RunInstances(runRequest)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("run spot instance: %w", err)
 	}
 	var instanceID string
 	if response.Body != nil && response.Body.InstanceIdSets != nil && len(response.Body.InstanceIdSets.InstanceIdSet) == 1 {
@@ -889,7 +889,7 @@ func (a *OpenAPI) CreateHost(ctx context.Context, request HostRequest) (_ []Asse
 		SetClientToken(clientToken(request.Tags[cloudsim.TagRunID], request.Role+"-data")).
 		SetTag(createDiskTags(request.Tags)))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create data disk: %w", err)
 	}
 	if diskResponse.Body != nil {
 		diskID = deref(diskResponse.Body.DiskId)
@@ -898,31 +898,33 @@ func (a *OpenAPI) CreateHost(ctx context.Context, request HostRequest) (_ []Asse
 		return nil, ErrAmbiguousInventory
 	}
 	if err = a.waitDiskAvailable(ctx, request.Region, diskID); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("wait for data disk availability: %w", err)
 	}
 	if err = a.waitInstanceAttachable(ctx, request.Region, instanceID); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("wait for disk-attachable instance: %w", err)
 	}
 	if err = a.attachDisk(ctx, request.Region, instanceID, diskID); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("attach data disk: %w", err)
 	}
 	diskAttached = true
 	if len(request.SecondaryPrivateIPv4) != 0 {
 		networkInterfaceID, interfaceErr := a.primaryNetworkInterfaceID(ctx, request.Region, instanceID)
 		if interfaceErr != nil {
-			return nil, interfaceErr
+			return nil, fmt.Errorf("discover primary network interface: %w", interfaceErr)
 		}
 		addresses := make([]*string, 0, len(request.SecondaryPrivateIPv4))
 		for _, address := range request.SecondaryPrivateIPv4 {
 			addresses = append(addresses, dara.String(address))
 		}
-		_, assignErr := a.ecs.AssignPrivateIpAddresses((&ecs.AssignPrivateIpAddressesRequest{}).
-			SetRegionId(request.Region).
-			SetNetworkInterfaceId(networkInterfaceID).
-			SetPrivateIpAddress(addresses).
-			SetClientToken(clientToken(request.Tags[cloudsim.TagRunID], request.Role+"-source-ips")))
-		if assignErr != nil {
-			return nil, assignErr
+		if assignErr := a.assignPrivateIPAddresses(
+			ctx,
+			request.Region,
+			instanceID,
+			networkInterfaceID,
+			addresses,
+			clientToken(request.Tags[cloudsim.TagRunID], request.Role+"-source-ips"),
+		); assignErr != nil {
+			return nil, fmt.Errorf("assign simulator secondary private addresses: %w", assignErr)
 		}
 	}
 	deadline := time.Now().Add(a.waitTimeout)
@@ -1056,14 +1058,17 @@ func (a *OpenAPI) primaryNetworkInterfaceID(ctx context.Context, region, instanc
 						NetworkInterfaces struct {
 							NetworkInterface []struct {
 								NetworkInterfaceID string `json:"NetworkInterfaceId"`
+								Type               string `json:"Type"`
 							} `json:"NetworkInterface"`
 						} `json:"NetworkInterfaces"`
 					} `json:"Instance"`
 				} `json:"Instances"`
 			}
 			if decodeErr := decodeSDKBody(response.Body, &body); decodeErr == nil && len(body.Instances.Instance) == 1 && len(body.Instances.Instance[0].NetworkInterfaces.NetworkInterface) > 0 {
-				if id := body.Instances.Instance[0].NetworkInterfaces.NetworkInterface[0].NetworkInterfaceID; id != "" {
-					return id, nil
+				for _, networkInterface := range body.Instances.Instance[0].NetworkInterfaces.NetworkInterface {
+					if networkInterface.Type == "Primary" && networkInterface.NetworkInterfaceID != "" {
+						return networkInterface.NetworkInterfaceID, nil
+					}
 				}
 			}
 		}
@@ -1073,6 +1078,90 @@ func (a *OpenAPI) primaryNetworkInterfaceID(ctx context.Context, region, instanc
 		if err := waitContext(ctx, a.pollInterval); err != nil {
 			return "", err
 		}
+	}
+}
+
+// assignPrivateIPAddresses waits for both sides of the primary ENI attachment
+// and retries only idempotent control-plane errors that can converge.
+func (a *OpenAPI) assignPrivateIPAddresses(ctx context.Context, region, instanceID, networkInterfaceID string, addresses []*string, token string) error {
+	deadline := time.Now().Add(a.waitTimeout)
+	for {
+		if err := a.waitInstanceAttachable(ctx, region, instanceID); err != nil {
+			return err
+		}
+		if err := a.waitNetworkInterfaceAssignable(ctx, region, instanceID, networkInterfaceID); err != nil {
+			return err
+		}
+		_, err := a.ecs.AssignPrivateIpAddresses((&ecs.AssignPrivateIpAddressesRequest{}).
+			SetRegionId(region).
+			SetNetworkInterfaceId(networkInterfaceID).
+			SetPrivateIpAddress(addresses).
+			SetClientToken(token))
+		if err == nil {
+			return nil
+		}
+		if !retryablePrivateIPAssignmentError(err) {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("assign private addresses to network interface %s after readiness retries: %w", networkInterfaceID, err)
+		}
+		if err := waitContext(ctx, a.pollInterval); err != nil {
+			return err
+		}
+	}
+}
+
+func (a *OpenAPI) waitNetworkInterfaceAssignable(ctx context.Context, region, instanceID, networkInterfaceID string) error {
+	deadline := time.Now().Add(a.waitTimeout)
+	lastErr := error(ErrAmbiguousInventory)
+	for {
+		response, err := a.ecs.DescribeNetworkInterfaces((&ecs.DescribeNetworkInterfacesRequest{}).
+			SetRegionId(region).
+			SetNetworkInterfaceId([]*string{dara.String(networkInterfaceID)}))
+		if err == nil {
+			var body struct {
+				NetworkInterfaceSets struct {
+					NetworkInterfaceSet []struct {
+						NetworkInterfaceID string `json:"NetworkInterfaceId"`
+						InstanceID         string `json:"InstanceId"`
+						Status             string `json:"Status"`
+					} `json:"NetworkInterfaceSet"`
+				} `json:"NetworkInterfaceSets"`
+			}
+			if decodeErr := decodeSDKBody(response.Body, &body); decodeErr == nil {
+				if len(body.NetworkInterfaceSets.NetworkInterfaceSet) == 1 {
+					networkInterface := body.NetworkInterfaceSets.NetworkInterfaceSet[0]
+					if networkInterface.NetworkInterfaceID == networkInterfaceID &&
+						networkInterface.InstanceID == instanceID &&
+						networkInterface.Status == "InUse" {
+						return nil
+					}
+				}
+				lastErr = ErrAmbiguousInventory
+			} else {
+				lastErr = decodeErr
+			}
+		} else {
+			lastErr = err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("wait for assignable network interface %s: %w", networkInterfaceID, lastErr)
+		}
+		if err := waitContext(ctx, a.pollInterval); err != nil {
+			return err
+		}
+	}
+}
+
+func retryablePrivateIPAssignmentError(err error) bool {
+	switch sdkErrorCode(err) {
+	case "UnknownError", "InternalError", "Throttling", "Operation.Conflict",
+		"InvalidOperation.InvalidEcsState", "InvalidOperation.InvalidEniState",
+		"InvalidStatus.InstanceIsMigrating":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -1619,10 +1708,17 @@ func ignoreIncorrectDiskStatus(err error) error {
 }
 
 func sdkErrorHasCode(err error, code string) bool {
+	return sdkErrorCode(err) == code
+}
+
+func sdkErrorCode(err error) string {
 	var teaErr *tea.SDKError
 	if errors.As(err, &teaErr) {
-		return deref(teaErr.Code) == code
+		return deref(teaErr.Code)
 	}
 	var sdkErr *dara.SDKError
-	return errors.As(err, &sdkErr) && deref(sdkErr.Code) == code
+	if errors.As(err, &sdkErr) {
+		return deref(sdkErr.Code)
+	}
+	return ""
 }
