@@ -246,3 +246,18 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 		t.Fatal("analysis workflow still requires the setup-created provider config variable")
 	}
 }
+
+func TestCloudSimulationBootstrapGateReadsTLSAsServiceUser(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "collect-bootstrap-gate.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	if !strings.Contains(text, `ssh_sim "sudo -u wukongim curl`) {
+		t.Fatal("Bootstrap Gate TLS self-check does not read the service-owned CA as wukongim")
+	}
+	if strings.Contains(text, `ssh_sim "curl --fail --silent --show-error --max-time 10 --resolve`) {
+		t.Fatal("Bootstrap Gate TLS self-check reads the private service CA as the SSH deployment user")
+	}
+}
