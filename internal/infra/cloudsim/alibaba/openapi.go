@@ -30,6 +30,7 @@ const (
 	defaultSDKWaitTimeout  = 3 * time.Minute
 	maxDiscoveryPages      = 20
 	discoveryPageSize      = 100
+	vpcInventoryPageSize   = 50
 )
 
 type linuxImageCandidate struct {
@@ -569,7 +570,7 @@ func (a *OpenAPI) ListAssets(ctx context.Context, request ListAssetsRequest) ([]
 
 	vpcs, err := collectPages(ctx, func(page int32) ([]listedVPC, int, error) {
 		response, listErr := a.vpc.DescribeVpcs((&vpc.DescribeVpcsRequest{}).
-			SetRegionId(request.Region).SetPageNumber(page).SetPageSize(100).SetTag(describeVPCTags(selector)))
+			SetRegionId(request.Region).SetPageNumber(page).SetPageSize(vpcInventoryPageSize).SetTag(describeVPCTags(selector)))
 		if listErr != nil {
 			return nil, 0, listErr
 		}
@@ -594,7 +595,7 @@ func (a *OpenAPI) ListAssets(ctx context.Context, request ListAssetsRequest) ([]
 
 	vswitches, err := collectPages(ctx, func(page int32) ([]listedVSwitch, int, error) {
 		response, listErr := a.vpc.DescribeVSwitches((&vpc.DescribeVSwitchesRequest{}).
-			SetRegionId(request.Region).SetPageNumber(page).SetPageSize(100).SetTag(describeVSwitchTags(selector)))
+			SetRegionId(request.Region).SetPageNumber(page).SetPageSize(vpcInventoryPageSize).SetTag(describeVSwitchTags(selector)))
 		if listErr != nil {
 			return nil, 0, listErr
 		}
