@@ -210,6 +210,27 @@ func TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH(t *testing.T) {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(entry, "go")); err == nil {
+			commands, err := os.ReadDir(entry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, command := range commands {
+				if command.Name() == "go" {
+					continue
+				}
+				source := filepath.Join(entry, command.Name())
+				info, err := os.Stat(source)
+				if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+					continue
+				}
+				target := filepath.Join(bin, command.Name())
+				if _, err := os.Lstat(target); err == nil {
+					continue
+				}
+				if err := os.Symlink(source, target); err != nil {
+					t.Fatal(err)
+				}
+			}
 			continue
 		}
 		pathEntries = append(pathEntries, entry)
