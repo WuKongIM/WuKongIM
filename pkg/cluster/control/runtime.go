@@ -8,6 +8,7 @@ import (
 	"time"
 
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -71,6 +72,8 @@ type RuntimeConfig struct {
 	HealthReportTTL time.Duration
 	// Now returns timestamps used for Controller commands.
 	Now func() time.Time
+	// Logger receives structured Controller lifecycle and Raft diagnostics.
+	Logger wklog.Logger
 }
 
 // Runtime adapts the root Controller runtime facade to control.Controller.
@@ -109,6 +112,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		SyncClient:             cfg.SyncClient,
 		SyncPeers:              cfg.SyncPeers,
 		Now:                    cfg.Now,
+		Logger:                 cfg.Logger,
 	})
 	if err != nil {
 		return nil, err

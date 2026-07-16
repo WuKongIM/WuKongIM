@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/cockroachdb/pebble/v2/bloom"
 )
@@ -21,6 +22,8 @@ type Options struct {
 	MemTableSize int64
 	// ReadOnly opens the engine without allowing writes or background compactions.
 	ReadOnly bool
+	// Logger receives structured Pebble diagnostics; routine recovery details are debug-only.
+	Logger wklog.Logger
 }
 
 // DB wraps a Pebble database without exposing Pebble types to domain packages.
@@ -107,6 +110,9 @@ func pebbleOptions(opts Options) *pebble.Options {
 		L0CompactionThreshold:       8,
 		L0StopWritesThreshold:       24,
 		ReadOnly:                    opts.ReadOnly,
+	}
+	if opts.Logger != nil {
+		popts.Logger = wklog.NewDependencyLogger(opts.Logger, "pebble")
 	}
 	popts.Levels[0].FilterPolicy = bloom.FilterPolicy(10)
 	return popts

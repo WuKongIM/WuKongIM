@@ -36,11 +36,11 @@ func (n *Node) ensureDefaultSlots() error {
 	if n == nil || n.slots != nil {
 		return nil
 	}
-	metaDB, err := metadb.Open(filepath.Join(n.cfg.DataDir, defaultSlotMetaDirName))
+	metaDB, err := metadb.OpenWithLogger(filepath.Join(n.cfg.DataDir, defaultSlotMetaDirName), namedLogger(n.cfg.Logger, "slot_meta_db"))
 	if err != nil {
 		return err
 	}
-	raftDB, err := raftlog.Open(filepath.Join(n.cfg.DataDir, defaultSlotRaftDirName), raftlog.Options{})
+	raftDB, err := raftlog.Open(filepath.Join(n.cfg.DataDir, defaultSlotRaftDirName), raftlog.Options{Logger: namedLogger(n.cfg.Logger, "slot_raft_db")})
 	if err != nil {
 		_ = metaDB.Close()
 		return err
@@ -52,6 +52,7 @@ func (n *Node) ensureDefaultSlots() error {
 		Transport:    n.defaultSlotTransport(),
 		Observer:     n.cfg.Slots.Observer,
 		Goroutines:   n.cfg.Goroutines,
+		Logger:       namedLogger(n.cfg.Logger, "slot"),
 		Raft: multiraft.RaftOptions{
 			ElectionTick:  n.cfg.Slots.ElectionTick,
 			HeartbeatTick: n.cfg.Slots.HeartbeatTick,

@@ -40,6 +40,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			TaskClient:             control.NewTaskClient(n.transportClient),
 			ControlWriteClient:     control.NewControlWriteClient(n.transportClient),
 			HealthReportTTL:        n.cfg.HealthReport.TTL,
+			Logger:                 namedLogger(n.cfg.Logger, "controller"),
 		})
 		if err != nil {
 			raftTransport.Stop()
@@ -76,6 +77,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			CommitMaxBytes:    n.cfg.Storage.CommitMaxBytes,
 			CommitShards:      n.cfg.Storage.CommitShards,
 			CommitObserver:    n.cfg.Storage.CommitObserver,
+			Logger:            namedLogger(n.cfg.Logger, "message_db"),
 		})
 		var transport *channels.TransportClient
 		if n.transportClient != nil {

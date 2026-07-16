@@ -95,7 +95,7 @@ func TestNewEtcdRaftLoggerAddsSlotScope(t *testing.T) {
 	entries := base.entries()
 	require.Len(t, entries, 1)
 	entry := entries[0]
-	require.Equal(t, "INFO", entry.level)
+	require.Equal(t, "DEBUG", entry.level)
 	require.Equal(t, "cluster.slot.raft", entry.module)
 	require.Equal(t, "slot 12 leader ready", entry.msg)
 

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -2523,7 +2524,7 @@ func requireAppLogField(t *testing.T, entry recordedAppLogEntry, key string, wan
 	t.Helper()
 	for _, field := range entry.fields {
 		if field.Key == key {
-			if field.Value != want {
+			if !reflect.DeepEqual(field.Value, want) {
 				t.Fatalf("log field %s = %#v, want %#v", key, field.Value, want)
 			}
 			return

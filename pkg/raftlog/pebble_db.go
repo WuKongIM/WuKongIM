@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble/v2"
 )
 
@@ -24,6 +25,8 @@ type Options struct {
 	SnapshotGCGrace time.Duration
 	// Goroutines is the optional goroutine registry for lifecycle tracking.
 	Goroutines *goroutine.Registry
+	// Logger receives structured Pebble diagnostics; routine recovery details are debug-only.
+	Logger wklog.Logger
 }
 
 type DB struct {
@@ -75,7 +78,11 @@ func Open(path string, opts Options) (*DB, error) {
 		return nil, err
 	}
 
-	pdb, err := pebble.Open(path, &pebble.Options{})
+	pebbleOptions := &pebble.Options{}
+	if normalized.Logger != nil {
+		pebbleOptions.Logger = wklog.NewDependencyLogger(normalized.Logger, "pebble")
+	}
+	pdb, err := pebble.Open(path, pebbleOptions)
 	if err != nil {
 		return nil, err
 	}

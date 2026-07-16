@@ -12,8 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
 	wkrpcproto "github.com/WuKongIM/wkrpc/proto"
+	gnetlogging "github.com/panjf2000/gnet/v2/pkg/logging"
 )
 
 // SocketServer exposes the node-local Unix socket used by PDK-compatible plugins.
@@ -51,6 +53,8 @@ type WKRPCSocketServer struct {
 	backend      socketBackend
 	readyTimeout time.Duration
 	readyCheck   func(string, time.Duration) error
+	// gnetLogger is installed process-wide while the embedded wkrpc listener starts.
+	gnetLogger gnetlogging.Logger
 
 	mu      sync.Mutex
 	started bool
@@ -58,7 +62,18 @@ type WKRPCSocketServer struct {
 
 // NewSocketServer creates a Unix socket server for plugin host RPC traffic.
 func NewSocketServer(socketPath string) *WKRPCSocketServer {
-	return newSocketServerWithBackend(socketPath, wkrpc.New("unix://"+socketPath))
+	return NewSocketServerWithLogger(socketPath, nil)
+}
+
+// NewSocketServerWithLogger creates a plugin host RPC socket with structured dependency logging.
+func NewSocketServerWithLogger(socketPath string, logger wklog.Logger) *WKRPCSocketServer {
+	backend := wkrpc.New("unix://" + socketPath)
+	server := newSocketServerWithBackend(socketPath, backend)
+	if logger != nil {
+		backend.Log = newLegacyRPCLogger(logger.Named("rpc"))
+		server.gnetLogger = wklog.NewDependencyLogger(logger.Named("gnet"), "gnet")
+	}
+	return server
 }
 
 func newSocketServerWithBackend(socketPath string, backend socketBackend) *WKRPCSocketServer {
@@ -90,6 +105,9 @@ func (s *WKRPCSocketServer) Start() error {
 	}
 	if err := removeStaleSocket(s.socketPath); err != nil {
 		return err
+	}
+	if s.gnetLogger != nil {
+		gnetlogging.SetDefaultLoggerAndFlusher(s.gnetLogger, nil)
 	}
 	if err := s.backend.Start(); err != nil {
 		return fmt.Errorf("start plugin socket %q: %w", s.socketPath, err)

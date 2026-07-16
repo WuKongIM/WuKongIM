@@ -9,6 +9,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // Scanner discovers local plugin process specs from a configured plugin directory.
@@ -58,6 +60,8 @@ type RuntimeOptions struct {
 	Scanner Scanner
 	// Now supplies timestamps for runtime observations and desired state.
 	Now func() time.Time
+	// Logger receives structured diagnostics from the legacy wkrpc socket dependency.
+	Logger wklog.Logger
 }
 
 // Runtime orchestrates node-local plugin sockets, processes, watcher, and state.
@@ -94,7 +98,7 @@ func NewRuntime(opts RuntimeOptions) *Runtime {
 	}
 	socket := opts.Socket
 	if socket == nil && opts.SocketPath != "" {
-		socket = NewSocketServer(opts.SocketPath)
+		socket = NewSocketServerWithLogger(opts.SocketPath, opts.Logger)
 	}
 	invoker := opts.Invoker
 	if invoker == nil && socket != nil {

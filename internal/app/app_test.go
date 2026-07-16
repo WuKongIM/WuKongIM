@@ -367,6 +367,106 @@ func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestStartLogsStartupSummaryAfterAllEntriesAreReady(t *testing.T) {
+	calls := make([]string, 0, 4)
+	logger := &recordingAppLogger{}
+	dataDir := shortAppTestDataDir(t)
+	app, err := newTestApp(t, Config{
+		NodeID:  7,
+		DataDir: dataDir,
+		Cluster: clusterpkg.Config{
+			NodeID:     7,
+			ListenAddr: "127.0.0.1:7001",
+			Control: clusterpkg.ControlConfig{
+				ClusterID: "cluster-a",
+				Role:      clusterpkg.ControlRoleVoter,
+				Voters:    []clusterpkg.ControlVoter{{NodeID: 7, Addr: "127.0.0.1:7001"}},
+			},
+		},
+		API:     APIConfig{ListenAddr: "127.0.0.1:5001"},
+		Manager: ManagerConfig{ListenAddr: "127.0.0.1:5301"},
+		Gateway: GatewayConfig{Listeners: []gateway.ListenerOptions{
+			{Name: "tcp", Network: "tcp", Address: "127.0.0.1:5100"},
+			{Name: "ws", Network: "websocket", Address: "127.0.0.1:5200", Path: "/ws"},
+		}},
+	},
+		WithCluster(&fakeCluster{calls: &calls}),
+		WithAPI(&fakeAPI{calls: &calls}),
+		WithManager(&fakeManager{calls: &calls}),
+		WithGateway(&fakeGateway{calls: &calls}),
+		WithLogger(logger),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	entry := requireAppLogEvent(t, logger, "INFO", "internal.app.started")
+	if got, want := entry.msg, "WuKongIM started"; got != want {
+		t.Fatalf("startup message = %q, want %q", got, want)
+	}
+	requireAppLogField(t, entry, "nodeID", uint64(7))
+	requireAppLogField(t, entry, "clusterID", "cluster-a")
+	requireAppLogField(t, entry, "deployment", "single-node-cluster")
+	requireAppLogField(t, entry, "clusterListen", "127.0.0.1:7001")
+	requireAppLogField(t, entry, "apiListen", "127.0.0.1:5001")
+	requireAppLogField(t, entry, "managerListen", "127.0.0.1:5301")
+	requireAppLogField(t, entry, "gatewayListeners", []string{"tcp=tcp://127.0.0.1:5100", "ws=ws://127.0.0.1:5200/ws"})
+	if got := joinCalls(calls); got != "cluster.start,api.start,manager.start,gateway.start" {
+		t.Fatalf("calls = %s, want all entries started before success", got)
+	}
+}
+
+func TestStartLogsBoundRuntimeAddressesAndObservedDeployment(t *testing.T) {
+	calls := make([]string, 0, 4)
+	logger := &recordingAppLogger{}
+	cluster := &fakeCluster{
+		calls:      &calls,
+		clusterID:  "runtime-cluster",
+		listenAddr: "127.0.0.1:17001",
+		nodeCount:  3,
+	}
+	api := &fakeAPI{calls: &calls, addr: "127.0.0.1:15001"}
+	manager := &fakeManager{calls: &calls, addr: "127.0.0.1:15301"}
+	gatewayRuntime := &fakeGateway{calls: &calls, listenerAddrs: map[string]string{
+		"tcp": "127.0.0.1:15100",
+		"ws":  "127.0.0.1:15200",
+	}}
+	app, err := newTestApp(t, Config{
+		NodeID:  7,
+		DataDir: shortAppTestDataDir(t),
+		Cluster: clusterpkg.Config{
+			NodeID:     7,
+			ListenAddr: "127.0.0.1:0",
+			Control:    clusterpkg.ControlConfig{ClusterID: "configured-cluster"},
+		},
+		API:     APIConfig{ListenAddr: "127.0.0.1:0"},
+		Manager: ManagerConfig{ListenAddr: "127.0.0.1:0"},
+		Gateway: GatewayConfig{Listeners: []gateway.ListenerOptions{
+			{Name: "tcp", Network: "tcp", Address: "127.0.0.1:0"},
+			{Name: "ws", Network: "websocket", Address: "127.0.0.1:0", Path: "/ws"},
+		}},
+	}, WithCluster(cluster), WithAPI(api), WithManager(manager), WithGateway(gatewayRuntime), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	entry := requireAppLogEvent(t, logger, "INFO", "internal.app.started")
+	requireAppLogField(t, entry, "clusterID", "runtime-cluster")
+	requireAppLogField(t, entry, "deployment", "multi-node-cluster")
+	requireAppLogField(t, entry, "clusterListen", "127.0.0.1:17001")
+	requireAppLogField(t, entry, "apiListen", "127.0.0.1:15001")
+	requireAppLogField(t, entry, "managerListen", "127.0.0.1:15301")
+	requireAppLogField(t, entry, "gatewayListeners", []string{"tcp=tcp://127.0.0.1:15100", "ws=ws://127.0.0.1:15200/ws"})
+}
+
 func TestStartStopOrderIncludesManagerBetweenAPIAndGateway(t *testing.T) {
 	calls := make([]string, 0, 8)
 	cluster := &fakeCluster{calls: &calls}
@@ -6096,9 +6196,12 @@ func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 }
 
 type fakeCluster struct {
-	calls    *[]string
-	startErr error
-	stopErr  error
+	calls      *[]string
+	startErr   error
+	stopErr    error
+	clusterID  string
+	listenAddr string
+	nodeCount  int
 }
 
 func (f *fakeCluster) Start(context.Context) error {
@@ -6114,6 +6217,10 @@ func (f *fakeCluster) Stop(context.Context) error {
 	}
 	return f.stopErr
 }
+
+func (f *fakeCluster) ClusterID() string  { return f.clusterID }
+func (f *fakeCluster) ListenAddr() string { return f.listenAddr }
+func (f *fakeCluster) NodeCount() int     { return f.nodeCount }
 
 type fakeManagerCluster struct {
 	fakeCluster
@@ -8003,6 +8110,7 @@ type fakeGateway struct {
 	startErr       error
 	stopErr        error
 	sessionSummary gatewaycore.SessionSummary
+	listenerAddrs  map[string]string
 }
 
 func (f *fakeGateway) Start() error {
@@ -8018,6 +8126,8 @@ func (f *fakeGateway) Stop() error {
 func (f *fakeGateway) SessionSummary() gatewaycore.SessionSummary {
 	return f.sessionSummary
 }
+
+func (f *fakeGateway) ListenerAddr(name string) string { return f.listenerAddrs[name] }
 
 type gatewayAdmissionStub struct {
 	accepting        bool
@@ -8052,14 +8162,15 @@ type recordingAppLogger struct {
 
 type recordedAppLogEntry struct {
 	level  string
+	msg    string
 	fields []wklog.Field
 }
 
-func (r *recordingAppLogger) Debug(_ string, fields ...wklog.Field) { r.log("DEBUG", fields...) }
-func (r *recordingAppLogger) Info(_ string, fields ...wklog.Field)  { r.log("INFO", fields...) }
-func (r *recordingAppLogger) Warn(_ string, fields ...wklog.Field)  { r.log("WARN", fields...) }
-func (r *recordingAppLogger) Error(_ string, fields ...wklog.Field) { r.log("ERROR", fields...) }
-func (r *recordingAppLogger) Fatal(_ string, fields ...wklog.Field) { r.log("FATAL", fields...) }
+func (r *recordingAppLogger) Debug(msg string, fields ...wklog.Field) { r.log("DEBUG", msg, fields...) }
+func (r *recordingAppLogger) Info(msg string, fields ...wklog.Field)  { r.log("INFO", msg, fields...) }
+func (r *recordingAppLogger) Warn(msg string, fields ...wklog.Field)  { r.log("WARN", msg, fields...) }
+func (r *recordingAppLogger) Error(msg string, fields ...wklog.Field) { r.log("ERROR", msg, fields...) }
+func (r *recordingAppLogger) Fatal(msg string, fields ...wklog.Field) { r.log("FATAL", msg, fields...) }
 
 func (r *recordingAppLogger) Named(string) wklog.Logger {
 	return r
@@ -8069,9 +8180,10 @@ func (r *recordingAppLogger) With(...wklog.Field) wklog.Logger {
 	return r
 }
 
-func (r *recordingAppLogger) log(level string, fields ...wklog.Field) {
+func (r *recordingAppLogger) log(level, msg string, fields ...wklog.Field) {
 	r.entries = append(r.entries, recordedAppLogEntry{
 		level:  level,
+		msg:    msg,
 		fields: append([]wklog.Field(nil), fields...),
 	})
 }
@@ -8085,6 +8197,7 @@ type fakeAPI struct {
 	calls    *[]string
 	startErr error
 	stopErr  error
+	addr     string
 }
 
 func (f *fakeAPI) Start() error {
@@ -8097,10 +8210,13 @@ func (f *fakeAPI) Stop(context.Context) error {
 	return f.stopErr
 }
 
+func (f *fakeAPI) Addr() string { return f.addr }
+
 type fakeManager struct {
 	calls    *[]string
 	startErr error
 	stopErr  error
+	addr     string
 }
 
 func (f *fakeManager) Start() error {
@@ -8112,6 +8228,8 @@ func (f *fakeManager) Stop(context.Context) error {
 	*f.calls = append(*f.calls, "manager.stop")
 	return f.stopErr
 }
+
+func (f *fakeManager) Addr() string { return f.addr }
 
 func joinCalls(calls []string) string {
 	return strings.Join(calls, ",")

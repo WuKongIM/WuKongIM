@@ -217,6 +217,37 @@ func (n *Node) NodeID() uint64 {
 	return n.cfg.NodeID
 }
 
+// ClusterID returns the effective cluster identity after configuration defaults are applied.
+func (n *Node) ClusterID() string {
+	if n == nil {
+		return ""
+	}
+	return n.cfg.Control.ClusterID
+}
+
+// ListenAddr returns the bound cluster transport address when the node is running.
+func (n *Node) ListenAddr() string {
+	if n == nil {
+		return ""
+	}
+	if n.transportServer != nil {
+		if addr := n.transportServer.Addr(); addr != "" {
+			return addr
+		}
+	}
+	return n.cfg.ListenAddr
+}
+
+// NodeCount returns the number of nodes in the latest locally visible control snapshot.
+func (n *Node) NodeCount() int {
+	if n == nil {
+		return 0
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return len(n.controlSnapshot.Nodes)
+}
+
 // Snapshot returns the latest locally visible cluster readiness summary.
 func (n *Node) Snapshot() Snapshot {
 	if n == nil {

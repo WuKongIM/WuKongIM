@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
 	"github.com/stretchr/testify/require"
+	etcdraft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -28,6 +29,35 @@ func TestNewServiceValidatesConfig(t *testing.T) {
 	require.Nil(t, service)
 	require.ErrorIs(t, err, ErrInvalidConfig)
 }
+
+func TestNewRawNodeWithoutApplicationLoggerKeepsEtcdDefaultLogging(t *testing.T) {
+	logger := &countingEtcdLogger{}
+	etcdraft.SetLogger(logger)
+	t.Cleanup(etcdraft.ResetDefaultLogger)
+	service := &Service{cfg: Config{NodeID: 1}}
+
+	_, err := service.newRawNode(etcdraft.NewMemoryStorage(), runStartupState{})
+
+	require.NoError(t, err)
+	require.Greater(t, logger.infoCalls, 0)
+}
+
+type countingEtcdLogger struct {
+	infoCalls int
+}
+
+func (l *countingEtcdLogger) Debug(...interface{})              {}
+func (l *countingEtcdLogger) Debugf(string, ...interface{})     {}
+func (l *countingEtcdLogger) Error(...interface{})              {}
+func (l *countingEtcdLogger) Errorf(string, ...interface{})     {}
+func (l *countingEtcdLogger) Info(...interface{})               { l.infoCalls++ }
+func (l *countingEtcdLogger) Infof(string, ...interface{})      { l.infoCalls++ }
+func (l *countingEtcdLogger) Warning(...interface{})            {}
+func (l *countingEtcdLogger) Warningf(string, ...interface{})   {}
+func (l *countingEtcdLogger) Fatal(v ...interface{})            { panic(fmt.Sprint(v...)) }
+func (l *countingEtcdLogger) Fatalf(f string, v ...interface{}) { panic(fmt.Sprintf(f, v...)) }
+func (l *countingEtcdLogger) Panic(v ...interface{})            { panic(fmt.Sprint(v...)) }
+func (l *countingEtcdLogger) Panicf(f string, v ...interface{}) { panic(fmt.Sprintf(f, v...)) }
 
 func TestNewServiceRequiresRaftDir(t *testing.T) {
 	service, err := NewService(Config{

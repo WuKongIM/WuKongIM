@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/raft/raftstore"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	etcdraft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -24,6 +25,10 @@ func (s *Service) newRawNode(store etcdraft.Storage, startup runStartupState) (*
 	if !etcdraft.IsEmptySnap(startup.Snapshot) && startup.Snapshot.Metadata.Index > applied {
 		applied = startup.Snapshot.Metadata.Index
 	}
+	var logger etcdraft.Logger
+	if s.cfg.Logger != nil {
+		logger = wklog.NewRaftLogger(s.cfg.Logger, wklog.RaftScope("controller"), wklog.NodeID(s.cfg.NodeID))
+	}
 	return etcdraft.NewRawNode(&etcdraft.Config{
 		ID:                       s.cfg.NodeID,
 		ElectionTick:             electionTick,
@@ -35,6 +40,7 @@ func (s *Service) newRawNode(store etcdraft.Storage, startup runStartupState) (*
 		MaxInflightMsgs:          256,
 		CheckQuorum:              true,
 		PreVote:                  true,
+		Logger:                   logger,
 	})
 }
 

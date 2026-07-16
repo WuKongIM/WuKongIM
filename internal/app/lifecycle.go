@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -28,6 +30,20 @@ type clusterWriteProbeRuntime interface {
 	ProbeWriteReady(context.Context) error
 }
 
+type startupClusterRuntime interface {
+	ClusterID() string
+	ListenAddr() string
+	NodeCount() int
+}
+
+type startupAddrRuntime interface {
+	Addr() string
+}
+
+type startupGatewayRuntime interface {
+	ListenerAddr(name string) string
+}
+
 // Start starts the cluster first, then optional entry runtimes when configured.
 func (a *App) Start(ctx context.Context) error {
 	if a == nil {
@@ -45,6 +61,11 @@ func (a *App) Start(ctx context.Context) error {
 	if a.started {
 		return ErrAlreadyStarted
 	}
+	startedAt := time.Now()
+	a.lifecycleLogger().Info("Starting WuKongIM", append(
+		a.startupLogFields(),
+		wklog.Event("internal.app.starting"),
+	)...)
 	if err := a.cluster.Start(ctx); err != nil {
 		a.logLifecycleError("cluster", "start", err)
 		return err
@@ -185,7 +206,97 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.gatewayStarted = true
 	}
+	a.lifecycleLogger().Info("WuKongIM started", append(
+		a.startupLogFields(),
+		wklog.Event("internal.app.started"),
+		wklog.Duration("startupDuration", time.Since(startedAt)),
+	)...)
 	return nil
+}
+
+func (a *App) startupLogFields() []wklog.Field {
+	clusterID := a.cfg.Cluster.Control.ClusterID
+	clusterListen := a.cfg.Cluster.ListenAddr
+	deployment := configuredDeployment(a.cfg.Cluster)
+	if runtime, ok := a.cluster.(startupClusterRuntime); ok {
+		if value := strings.TrimSpace(runtime.ClusterID()); value != "" {
+			clusterID = value
+		}
+		if value := strings.TrimSpace(runtime.ListenAddr()); value != "" {
+			clusterListen = value
+		}
+		if nodeCount := runtime.NodeCount(); nodeCount > 0 {
+			deployment = deploymentFromNodeCount(nodeCount)
+		}
+	}
+	return []wklog.Field{
+		wklog.NodeID(a.cfg.NodeID),
+		wklog.String("clusterID", clusterID),
+		wklog.String("deployment", deployment),
+		wklog.String("dataDir", a.cfg.DataDir),
+		wklog.String("clusterListen", clusterListen),
+		wklog.String("apiListen", boundRuntimeAddr(a.api, a.cfg.API.ListenAddr)),
+		wklog.String("managerListen", boundRuntimeAddr(a.manager, a.cfg.Manager.ListenAddr)),
+		wklog.Any("gatewayListeners", a.gatewayListenerSummaries()),
+	}
+}
+
+func configuredDeployment(cfg cluster.Config) string {
+	if len(cfg.Control.Voters) <= 1 && len(cfg.Join.Seeds) == 0 && cfg.Slots.ReplicaCount <= 1 {
+		return "single-node-cluster"
+	}
+	return "multi-node-cluster"
+}
+
+func deploymentFromNodeCount(nodeCount int) string {
+	if nodeCount == 1 {
+		return "single-node-cluster"
+	}
+	return "multi-node-cluster"
+}
+
+func boundRuntimeAddr(runtime any, configured string) string {
+	if listener, ok := runtime.(startupAddrRuntime); ok {
+		if addr := strings.TrimSpace(listener.Addr()); addr != "" {
+			return addr
+		}
+	}
+	return strings.TrimSpace(configured)
+}
+
+func (a *App) gatewayListenerSummaries() []string {
+	runtime, _ := a.gateway.(startupGatewayRuntime)
+	out := make([]string, 0, len(a.cfg.Gateway.Listeners))
+	for _, listener := range a.cfg.Gateway.Listeners {
+		address := listener.Address
+		if runtime != nil {
+			if bound := strings.TrimSpace(runtime.ListenerAddr(listener.Name)); bound != "" {
+				address = bound
+			}
+		}
+		out = append(out, gatewayListenerSummary(listener, address))
+	}
+	return out
+}
+
+func gatewayListenerSummary(listener gateway.ListenerOptions, rawAddress string) string {
+	name := strings.TrimSpace(listener.Name)
+	network := strings.ToLower(strings.TrimSpace(listener.Network))
+	address := "tcp://" + normalizeTCPAddress(rawAddress)
+	if network == "websocket" {
+		address = normalizeWebsocketAddress(rawAddress)
+		path := strings.TrimSpace(listener.Path)
+		if path != "" {
+			if !strings.HasPrefix(path, "/") {
+				path = "/" + path
+			}
+			address += path
+		}
+	}
+	if name != "" {
+		address = name + "=" + address
+	}
+	return address
 }
 
 // Stop stops entry runtimes first, then workers and the cluster runtime.

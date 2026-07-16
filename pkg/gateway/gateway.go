@@ -8,6 +8,7 @@ import (
 	protowkproto "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wkproto"
 	protowsmux "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wsmux"
 	gnettransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type Gateway struct {
@@ -15,7 +16,7 @@ type Gateway struct {
 }
 
 func New(opts Options) (*Gateway, error) {
-	registry, err := buildRegistry(opts.Transport)
+	registry, err := buildRegistryWithLogger(opts.Logger, opts.Transport)
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +75,17 @@ func (g *Gateway) SessionSummary() core.SessionSummary {
 }
 
 func buildRegistry(options ...TransportOptions) (*core.Registry, error) {
+	return buildRegistryWithLogger(nil, options...)
+}
+
+func buildRegistryWithLogger(logger wklog.Logger, options ...TransportOptions) (*core.Registry, error) {
 	transportOptions := TransportOptions{}
 	if len(options) > 0 {
 		transportOptions = options[0]
 	}
 
 	registry := core.NewRegistry()
-	if err := registry.RegisterTransport(gnettransport.NewFactory(gnetOptionsFromGateway(transportOptions.Gnet))); err != nil {
+	if err := registry.RegisterTransport(gnettransport.NewFactory(gnetOptionsFromGateway(transportOptions.Gnet, logger))); err != nil {
 		return nil, err
 	}
 	if err := registry.RegisterProtocol(protowkproto.New()); err != nil {
@@ -95,12 +100,13 @@ func buildRegistry(options ...TransportOptions) (*core.Registry, error) {
 	return registry, nil
 }
 
-func gnetOptionsFromGateway(options GnetTransportOptions) gnettransport.Options {
+func gnetOptionsFromGateway(options GnetTransportOptions, logger wklog.Logger) gnettransport.Options {
 	return gnettransport.Options{
 		Multicore:      options.Multicore,
 		NumEventLoop:   options.NumEventLoop,
 		ReusePort:      options.ReusePort,
 		ReadBufferCap:  options.ReadBufferCap,
 		WriteBufferCap: options.WriteBufferCap,
+		Logger:         logger,
 	}
 }

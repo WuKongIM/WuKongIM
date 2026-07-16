@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	gnetv2 "github.com/panjf2000/gnet/v2"
 )
 
@@ -20,6 +21,8 @@ type Options struct {
 	ReadBufferCap int
 	// WriteBufferCap sets gnet's per-connection static write buffer cap; zero keeps gnet's default.
 	WriteBufferCap int
+	// Logger receives structured gnet diagnostics; routine engine details are debug-only.
+	Logger wklog.Logger
 }
 
 type Factory struct {
@@ -69,7 +72,10 @@ func (f *Factory) Build(specs []transport.ListenerSpec) ([]transport.Listener, e
 var _ transport.Factory = (*Factory)(nil)
 
 func (o Options) gnetOptions() []gnetv2.Option {
-	opts := make([]gnetv2.Option, 0, 5)
+	opts := make([]gnetv2.Option, 0, 6)
+	if o.Logger != nil {
+		opts = append(opts, gnetv2.WithLogger(wklog.NewDependencyLogger(o.Logger, "gnet")))
+	}
 	if o.Multicore {
 		opts = append(opts, gnetv2.WithMulticore(true))
 	}

@@ -186,6 +186,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 
 	clusterCfg := defaultClusterConfig(app.cfg)
+	clusterCfg.Logger = app.logger.Named("cluster")
 	app.wireControllerTaskAudit(&clusterCfg)
 	app.configureObservability(&clusterCfg)
 	if err := app.ensureCluster(clusterCfg); err != nil {

@@ -30,6 +30,7 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 		Observer:               r.cfg.RaftObserver,
 		TaskTransitionObserver: r.cfg.TaskTransitionObserver,
 		TickInterval:           r.cfg.TickInterval,
+		Logger:                 r.cfg.Logger,
 	})
 	if err != nil {
 		return err

@@ -14,6 +14,7 @@ import (
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // MessageDBFactory adapts the shared message DB engine to the channel runtime.
@@ -38,6 +39,8 @@ type MessageDBFactoryOptions struct {
 	CommitShards int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
+	// Logger receives structured diagnostics from the shared message DB engine.
+	Logger wklog.Logger
 }
 
 // NewMessageDBFactory opens a message DB engine behind the v2 adapter.
@@ -47,7 +50,7 @@ func NewMessageDBFactory(path string) *MessageDBFactory {
 
 // NewMessageDBFactoryWithOptions opens a message DB engine behind the v2 adapter.
 func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *MessageDBFactory {
-	engine, err := messagedb.Open(path)
+	engine, err := messagedb.OpenWithLogger(path, opts.Logger)
 	if err != nil {
 		return &MessageDBFactory{}
 	}

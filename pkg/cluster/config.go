@@ -14,6 +14,7 @@ import (
 	gorutine "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const minDefaultChannelReactorCount = 4
@@ -51,6 +52,8 @@ type Config struct {
 	Timeouts TimeoutConfig
 	// Goroutines is the optional goroutine registry for lifecycle tracking across all cluster subsystems.
 	Goroutines *gorutine.Registry
+	// Logger receives structured logs from cluster-owned runtimes and storage dependencies.
+	Logger wklog.Logger
 }
 
 // ControlConfig contains Controller adapter configuration.
@@ -354,6 +357,13 @@ func (c *Config) applyDefaults() {
 	c.applyChannelMigrationDefaults()
 	c.applyChannelRetentionDefaults()
 	c.applyHealthReportDefaults()
+}
+
+func namedLogger(logger wklog.Logger, name string) wklog.Logger {
+	if logger == nil {
+		return nil
+	}
+	return logger.Named(name)
 }
 
 func defaultChannelReactorCount() int {

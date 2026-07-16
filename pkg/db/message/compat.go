@@ -18,6 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const (
@@ -210,7 +211,12 @@ type RetentionScanResult struct {
 
 // Open opens a message DB at path.
 func Open(path string) (*Engine, error) {
-	eng, err := engine.Open(path, engine.Options{})
+	return OpenWithLogger(path, nil)
+}
+
+// OpenWithLogger opens a message DB and routes Pebble diagnostics through logger.
+func OpenWithLogger(path string, logger wklog.Logger) (*Engine, error) {
+	eng, err := engine.Open(path, engine.Options{Logger: logger})
 	if err != nil {
 		return nil, err
 	}

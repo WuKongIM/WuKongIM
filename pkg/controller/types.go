@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controller/sync"
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -292,6 +293,8 @@ type RuntimeConfig struct {
 	Now func() time.Time
 	// Goroutines is the optional goroutine registry for lifecycle tracking.
 	Goroutines *goroutine.Registry
+	// Logger receives structured Controller lifecycle and Raft diagnostics.
+	Logger wklog.Logger
 }
 
 // StateEvent notifies consumers that cluster-state.json changed locally.

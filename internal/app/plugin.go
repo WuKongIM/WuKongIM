@@ -59,7 +59,8 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		return nil
 	}
 
-	socket := pluginhost.NewSocketServer(a.cfg.Plugin.SocketPath)
+	pluginLogger := a.logger.Named("plugin")
+	socket := pluginhost.NewSocketServerWithLogger(a.cfg.Plugin.SocketPath, pluginLogger)
 	invoker := pluginhost.NewInvoker(socket, pluginhost.WithTimeout(a.cfg.Plugin.Timeout))
 	store := pluginhost.NewStore(a.cfg.Plugin.StateDir)
 	runtime := pluginhost.NewRuntime(pluginhost.RuntimeOptions{
@@ -73,6 +74,7 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		Store:      store,
 		Socket:     socket,
 		Invoker:    invoker,
+		Logger:     pluginLogger,
 	})
 	pluginOptions := pluginusecase.Options{
 		Runtime:          pluginRuntimeAdapter{runtime: runtime, sandboxDir: a.cfg.Plugin.SandboxDir},
@@ -83,7 +85,7 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		SystemUIDs:       a.users,
 		FailOpen:         a.cfg.Plugin.FailOpen,
 		Observer:         a.pluginUsecaseObserver(),
-		Logger:           a.logger.Named("plugin"),
+		Logger:           pluginLogger,
 		NodeID:           nodeID,
 	}
 	if bindingNode, ok := a.cluster.(clusterinfra.PluginBindingNode); ok {

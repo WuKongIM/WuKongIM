@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -112,6 +113,8 @@ type Config struct {
 	SnapshotMinInterval time.Duration
 	// Goroutines is the optional goroutine registry for lifecycle tracking.
 	Goroutines *goroutine.Registry
+	// Logger receives structured etcd Raft diagnostics for this Controller node.
+	Logger wklog.Logger
 }
 
 func (c Config) normalized() Config {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	gnetv2 "github.com/panjf2000/gnet/v2"
 )
 
@@ -44,6 +45,7 @@ func TestFactoryBuildCarriesEngineOptions(t *testing.T) {
 		ReusePort:      true,
 		ReadBufferCap:  8 << 10,
 		WriteBufferCap: 16 << 10,
+		Logger:         wklog.NewNop(),
 	})
 
 	listeners, err := factory.Build([]transport.ListenerSpec{
@@ -76,6 +78,9 @@ func TestFactoryBuildCarriesEngineOptions(t *testing.T) {
 	}
 	if got, want := applied.WriteBufferCap, 16<<10; got != want {
 		t.Fatalf("WriteBufferCap = %d, want %d", got, want)
+	}
+	if applied.Logger == nil {
+		t.Fatal("gnet dependency logger was not applied")
 	}
 }
 

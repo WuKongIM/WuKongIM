@@ -112,14 +112,14 @@ func classifyRaftLog(msg string, level raftLogLevel) (string, raftLogLevel) {
 	case containsAny(lower, "became leader", "leader changed", "lost leader"):
 		return "leader_change", level
 	case containsAny(lower, "starting a new election", "became candidate", "campaign"):
-		return "campaign", level
+		return "campaign", demoteRaftInfo(level)
 	case containsAny(lower, "msgheartbeat", "heartbeat"):
 		if level == raftLogLevelInfo {
 			return "heartbeat", raftLogLevelDebug
 		}
 		return "heartbeat", level
 	case containsAny(lower, "switched to configuration", "confchange", "configuration voters"):
-		return "config_change", level
+		return "config_change", demoteRaftInfo(level)
 	case containsAny(lower, "snapshot"):
 		return "snapshot", level
 	case containsAny(lower, "msgprop", "proposal"):
@@ -135,8 +135,15 @@ func classifyRaftLog(msg string, level raftLogLevel) (string, raftLogLevel) {
 		}
 		return "probe", level
 	default:
-		return "general", level
+		return "general", demoteRaftInfo(level)
 	}
+}
+
+func demoteRaftInfo(level raftLogLevel) raftLogLevel {
+	if level == raftLogLevelInfo {
+		return raftLogLevelDebug
+	}
+	return level
 }
 
 func containsAny(msg string, subs ...string) bool {

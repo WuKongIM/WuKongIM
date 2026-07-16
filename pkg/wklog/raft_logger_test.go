@@ -139,6 +139,7 @@ func TestRaftLoggerClassifiesLeaderChange(t *testing.T) {
 
 	entries := recorder.entries()
 	require.Len(t, entries, 1)
+	require.Equal(t, "INFO", entries[0].level)
 
 	field, ok := entries[0].field("raftEvent")
 	require.True(t, ok)
@@ -154,6 +155,7 @@ func TestRaftLoggerClassifiesCampaign(t *testing.T) {
 
 	entries := recorder.entries()
 	require.Len(t, entries, 1)
+	require.Equal(t, "DEBUG", entries[0].level)
 
 	field, ok := entries[0].field("raftEvent")
 	require.True(t, ok)
@@ -185,6 +187,7 @@ func TestRaftLoggerClassifiesConfigChange(t *testing.T) {
 
 	entries := recorder.entries()
 	require.Len(t, entries, 1)
+	require.Equal(t, "DEBUG", entries[0].level)
 
 	field, ok := entries[0].field("raftEvent")
 	require.True(t, ok)
@@ -200,6 +203,7 @@ func TestRaftLoggerDefaultsUnknownMessage(t *testing.T) {
 
 	entries := recorder.entries()
 	require.Len(t, entries, 1)
+	require.Equal(t, "DEBUG", entries[0].level)
 
 	field, ok := entries[0].field("raftEvent")
 	require.True(t, ok)

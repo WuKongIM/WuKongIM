@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 var (
@@ -290,7 +291,12 @@ type DB struct {
 
 // Open opens a metadata DB at path.
 func Open(path string) (*DB, error) {
-	eng, err := engine.Open(path, engine.Options{})
+	return OpenWithLogger(path, nil)
+}
+
+// OpenWithLogger opens a metadata DB and routes Pebble diagnostics through logger.
+func OpenWithLogger(path string, logger wklog.Logger) (*DB, error) {
+	eng, err := engine.Open(path, engine.Options{Logger: logger})
 	if err != nil {
 		return nil, err
 	}
