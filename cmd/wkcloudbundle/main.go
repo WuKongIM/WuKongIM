@@ -21,13 +21,22 @@ import (
 const maxBundleSpecBytes = 128 << 10
 
 type bundleSpecFile struct {
-	RunID               string            `json:"run_id"`
-	SourceSHA           string            `json:"source_sha"`
-	ScenarioPath        string            `json:"scenario_path"`
-	ScenarioDigest      string            `json:"scenario_digest"`
-	Duration            string            `json:"duration"`
-	PrivateIPv4         map[string]string `json:"private_ipv4"`
-	SimulatorSourceIPv4 []string          `json:"simulator_source_ipv4"`
+	// RunID is the exact Simulation Run identity.
+	RunID string `json:"run_id"`
+	// SourceSHA is the trusted source revision.
+	SourceSHA string `json:"source_sha"`
+	// ScenarioPath is the repository-owned benchmark scenario.
+	ScenarioPath string `json:"scenario_path"`
+	// ScenarioDigest is the source scenario identity.
+	ScenarioDigest string `json:"scenario_digest"`
+	// Duration is the allowlisted active workload duration.
+	Duration string `json:"duration"`
+	// PrivateIPv4 maps every fixed host role to its private address.
+	PrivateIPv4 map[string]string `json:"private_ipv4"`
+	// SimulatorSourceIPv4 contains the simulator TCP source pool.
+	SimulatorSourceIPv4 []string `json:"simulator_source_ipv4"`
+	// PublicObservation requests the simulator-only public Cloud View payload.
+	PublicObservation bool `json:"public_observation"`
 }
 
 func main() { os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -110,7 +119,7 @@ func readBundleSpec(path string) (deploy.BundleSpec, error) {
 	return deploy.BundleSpec{
 		RunID: raw.RunID, SourceSHA: raw.SourceSHA, ScenarioPath: raw.ScenarioPath,
 		ScenarioDigest: raw.ScenarioDigest, Duration: duration, PrivateIPv4: raw.PrivateIPv4,
-		SimulatorSourceIPv4: raw.SimulatorSourceIPv4,
+		SimulatorSourceIPv4: raw.SimulatorSourceIPv4, PublicViewEnabled: raw.PublicObservation,
 	}, nil
 }
 

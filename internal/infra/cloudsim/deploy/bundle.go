@@ -46,6 +46,9 @@ type BundleSpec struct {
 	PrivateIPv4 map[string]string `json:"private_ipv4"`
 	// SimulatorSourceIPv4 contains the simulator's provider-assigned explicit TCP source pool.
 	SimulatorSourceIPv4 []string `json:"simulator_source_ipv4"`
+	// PublicViewEnabled includes the simulator-only public Cloud View binary,
+	// configuration, and service unit when true.
+	PublicViewEnabled bool `json:"public_view_enabled"`
 }
 
 // FileRecord binds one relative path, mode, size, and SHA-256 digest.
@@ -82,7 +85,11 @@ func Render(root string, spec BundleSpec) error {
 	if err := validateSpec(spec); err != nil {
 		return err
 	}
-	for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "prometheus", "node_exporter"} {
+	requiredBinaries := []string{"wukongim", "wkbench", "wkanalysis", "prometheus", "node_exporter"}
+	if spec.PublicViewEnabled {
+		requiredBinaries = append(requiredBinaries, "wkcloudview")
+	}
+	for _, name := range requiredBinaries {
 		info, err := os.Stat(filepath.Join(root, "bin", name))
 		if err != nil || !info.Mode().IsRegular() {
 			return fmt.Errorf("%w: missing static binary %s", ErrInvalidBundle, name)
@@ -107,12 +114,15 @@ func Render(root string, spec BundleSpec) error {
 		"config/target.yaml":    targetConfig(spec.PrivateIPv4),
 		"config/workers.yaml":   workerConfig(spec.SimulatorSourceIPv4),
 	}
+	if spec.PublicViewEnabled {
+		files["config/cloud-view.json"] = cloudViewConfig(spec.RunID, spec.PrivateIPv4)
+	}
 	for name, content := range files {
 		if err := writeBundleFile(root, name, []byte(content), 0o640); err != nil {
 			return err
 		}
 	}
-	for name, content := range systemdUnits() {
+	for name, content := range systemdUnits(spec.PublicViewEnabled) {
 		if err := writeBundleFile(root, filepath.Join("systemd", name), []byte(content), 0o644); err != nil {
 			return err
 		}

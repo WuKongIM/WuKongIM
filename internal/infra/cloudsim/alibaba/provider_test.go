@@ -233,10 +233,18 @@ func TestProviderOpensOnlyTheRequestedIngressSurface(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenAnalysis() error = %v", err)
 	}
-	if len(api.ingress) != 2 || api.ingress[0].Port != 22 || api.ingress[1].Port != 19092 {
-		t.Fatalf("ingress = %#v, want only SSH and MCP rules", api.ingress)
+	_, err = provider.OpenPublicView(context.Background(), cloudsim.OpenPublicViewRequest{
+		RunID: req.RunID, SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"), Until: now.Add(2 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("OpenPublicView() error = %v", err)
 	}
-	if api.ingress[0].Source.String() != "203.0.113.10/32" || api.ingress[1].Source.String() != "198.51.100.8/32" {
+	if len(api.ingress) != 3 || api.ingress[0].Port != 22 || api.ingress[1].Port != 19092 ||
+		api.ingress[2].Port != cloudsim.CloudViewPort {
+		t.Fatalf("ingress = %#v, want only SSH, MCP, and Cloud View rules", api.ingress)
+	}
+	if api.ingress[0].Source.String() != "203.0.113.10/32" || api.ingress[1].Source.String() != "198.51.100.8/32" ||
+		api.ingress[2].Source.String() != "0.0.0.0/0" {
 		t.Fatalf("ingress sources = %#v", api.ingress)
 	}
 	status, err := provider.Status(context.Background(), req.RunID)
@@ -244,8 +252,10 @@ func TestProviderOpensOnlyTheRequestedIngressSurface(t *testing.T) {
 		t.Fatalf("Status() error = %v", err)
 	}
 	if status.DeploymentWindow == nil || status.DeploymentWindow.SourcePrefix.String() != "203.0.113.10/32" ||
-		status.AnalysisWindow == nil || status.AnalysisWindow.SourcePrefix.String() != "198.51.100.8/32" {
-		t.Fatalf("reconciled ingress windows = deployment %#v analysis %#v", status.DeploymentWindow, status.AnalysisWindow)
+		status.AnalysisWindow == nil || status.AnalysisWindow.SourcePrefix.String() != "198.51.100.8/32" ||
+		status.PublicViewWindow == nil || status.PublicViewWindow.SourcePrefix.String() != "0.0.0.0/0" {
+		t.Fatalf("reconciled ingress windows = deployment %#v analysis %#v observation %#v",
+			status.DeploymentWindow, status.AnalysisWindow, status.PublicViewWindow)
 	}
 }
 

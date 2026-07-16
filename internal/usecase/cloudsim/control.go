@@ -204,6 +204,41 @@ func (c *ControlPlane) CloseAnalysis(ctx context.Context, runID string) (Run, er
 	return c.provider.CloseAnalysis(ctx, runID)
 }
 
+// OpenPublicView validates public Cloud View ingress against the live Run Lease.
+func (c *ControlPlane) OpenPublicView(ctx context.Context, req OpenPublicViewRequest) (Run, error) {
+	if c == nil || c.provider == nil || strings.TrimSpace(req.RunID) == "" {
+		return Run{}, ErrInvalidPublicViewWindow
+	}
+	now := c.now()
+	if !validPublicViewPrefix(req.SourcePrefix) || !req.Until.After(now) {
+		return Run{}, ErrInvalidPublicViewWindow
+	}
+	run, err := c.provider.Status(ctx, req.RunID)
+	if err != nil {
+		return Run{}, err
+	}
+	if (run.State != StateReady && run.State != StateRunning && run.State != StateAnalysisGrace) ||
+		req.Until.After(run.ExpiresAt) {
+		return Run{}, ErrInvalidPublicViewWindow
+	}
+	if run.PublicViewWindow != nil && run.PublicViewWindow.Until.After(now) {
+		return Run{}, ErrInvalidPublicViewWindow
+	}
+	return c.provider.OpenPublicView(ctx, req)
+}
+
+func validPublicViewPrefix(source netip.Prefix) bool {
+	return source.IsValid() && source == netip.MustParsePrefix("0.0.0.0/0")
+}
+
+// ClosePublicView removes public Cloud View ingress for one exact run.
+func (c *ControlPlane) ClosePublicView(ctx context.Context, runID string) (Run, error) {
+	if c == nil || c.provider == nil || strings.TrimSpace(runID) == "" {
+		return Run{}, ErrInvalidRequest
+	}
+	return c.provider.ClosePublicView(ctx, runID)
+}
+
 // Destroy releases all provider resources tagged with one exact Run Identity.
 func (c *ControlPlane) Destroy(ctx context.Context, runID string) (Run, error) {
 	if c == nil || c.provider == nil || strings.TrimSpace(runID) == "" {
@@ -237,6 +272,14 @@ func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 			continue
 		}
 		if run.ExpiresAt.After(now) {
+			if run.PublicViewWindow != nil && (!validPublicViewPrefix(run.PublicViewWindow.SourcePrefix) ||
+				!run.PublicViewWindow.Until.After(now) || run.PublicViewWindow.Until.After(run.ExpiresAt)) {
+				if _, closeErr := c.provider.ClosePublicView(ctx, run.ID); closeErr != nil {
+					result.Failed = append(result.Failed, run.ID)
+					errs = append(errs, fmt.Errorf("close observation ingress %s: %w", run.ID, closeErr))
+					continue
+				}
+			}
 			if run.DeploymentWindow != nil && !validObservedHostWindow(
 				run.DeploymentWindow.SourcePrefix, run.DeploymentWindow.Until, now, run.ExpiresAt, MaxDeploymentWindow,
 			) {

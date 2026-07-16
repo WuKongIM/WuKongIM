@@ -37,6 +37,11 @@ on:
         default: 30m
         type: choice
         options: [30m, 1h, 6h]
+      public_observation:
+        description: Expose Manager, Demo, Prometheus, and WebSocket through the simulator public IP
+        required: true
+        default: true
+        type: boolean
       max_total_cost:
         description: Hard maximum total cost in CNY
         required: true
@@ -66,6 +71,7 @@ jobs:
       SCENARIO_NAME: ${{ inputs.scenario }}
       ACTIVE_DURATION: ${{ inputs.duration }}
       ALIBABA_REGION: ${{ inputs.region }}
+      PUBLIC_OBSERVATION: ${{ inputs.public_observation }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -104,14 +110,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p bundle/bin downloads
-          for target in \
-            wukongim:./cmd/wukongim \
-            wkbench:./cmd/wkbench \
-            wkanalysis:./cmd/wkanalysis \
-            wkcloudsim:./cmd/wkcloudsim \
-            wkcloudbundle:./cmd/wkcloudbundle \
-            wkcloudhost:./cmd/wkcloudhost \
-            wkcloudgate:./cmd/wkcloudgate; do
+          targets=(
+            wukongim:./cmd/wukongim
+            wkbench:./cmd/wkbench
+            wkanalysis:./cmd/wkanalysis
+            wkcloudsim:./cmd/wkcloudsim
+            wkcloudbundle:./cmd/wkcloudbundle
+            wkcloudhost:./cmd/wkcloudhost
+            wkcloudgate:./cmd/wkcloudgate
+          )
+          if [[ "$PUBLIC_OBSERVATION" == "true" ]]; then
+            targets+=(wkcloudview:./cmd/wkcloudview)
+          fi
+          for target in "${targets[@]}"; do
             name="${target%%:*}"
             package="${target#*:}"
             CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w -buildid=' -o "bundle/bin/${name}" "$package"
@@ -148,7 +159,9 @@ jobs:
           jq -n \
             --arg run_id "$RUN_ID" --arg source_sha "$SOURCE_SHA" --arg scenario_path "$scenario_path" \
             --arg scenario_digest "$source_scenario_digest" --arg duration "$ACTIVE_DURATION" \
+            --argjson public_observation "$PUBLIC_OBSERVATION" \
             '{run_id:$run_id,source_sha:$source_sha,scenario_path:$scenario_path,scenario_digest:$scenario_digest,duration:$duration,
+              public_observation:$public_observation,
               private_ipv4:{"node-1":"10.42.0.11","node-2":"10.42.0.12","node-3":"10.42.0.13","sim":"10.42.0.20"},
               simulator_source_ipv4:["10.42.0.20","10.42.0.21","10.42.0.22"]}' \
             >bundle-spec.json
@@ -184,6 +197,7 @@ jobs:
       SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
       ALIBABA_REGION: ${{ inputs.region }}
       MAX_TOTAL_COST: ${{ inputs.max_total_cost }}
+      PUBLIC_OBSERVATION: ${{ inputs.public_observation }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -315,18 +329,21 @@ jobs:
           manager_jwt="$(openssl rand -hex 32)"
           bench_token="$(openssl rand -hex 32)"
           worker_token="$(openssl rand -hex 32)"
-          for secret in "$diagnostic_token" "$manager_jwt" "$bench_token" "$worker_token"; do echo "::add-mask::$secret"; done
+          cloud_view_gate_token="$(openssl rand -hex 32)"
+          for secret in "$diagnostic_token" "$manager_jwt" "$bench_token" "$worker_token" "$cloud_view_gate_token"; do echo "::add-mask::$secret"; done
           openssl req -new -newkey rsa:3072 -sha256 -nodes -subj "/CN=${SIM_PUBLIC}" -keyout secrets/mcp-key.pem -out leaf.csr
           printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nsubjectAltName=IP:%s\nextendedKeyUsage=serverAuth\n' "$SIM_PUBLIC" >leaf.ext
           openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -days 3 -sha256 -extfile leaf.ext -out secrets/mcp-cert.pem
           cat ca.pem >>secrets/mcp-cert.pem
           cp ca.pem secrets/mcp-ca.pem
-          users="$(jq -cn --arg password "$diagnostic_token" '[{username:"analysis",password:$password,permissions:[
+          users="$(jq -cn --arg password "$diagnostic_token" '[{username:"admin",password:"a1234567",permissions:[
+            {resource:"*",actions:["*"]}]},{username:"analysis",password:$password,permissions:[
             {resource:"cluster.node",actions:["r"]},{resource:"cluster.slot",actions:["r"]},
             {resource:"cluster.controller",actions:["r"]},{resource:"cluster.diagnostics",actions:["r","w"]},
             {resource:"cluster.log",actions:["r"]}]}]')"
           printf "WK_MANAGER_JWT_SECRET=%s\nWK_MANAGER_USERS='%s'\nWK_BENCH_API_TOKEN=%s\n" "$manager_jwt" "$users" "$bench_token" >secrets-node/node.env
-          printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\n" "$worker_token" "$bench_token" >secrets/sim.env
+          printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\nWK_CLOUD_RUN_ID=%s\nWK_CLOUD_VIEW_GATE_PROBE_TOKEN=%s\nWK_CLOUD_VIEW_PUBLIC_BASE_URL=http://%s:19443\nWK_CLOUD_VIEW_PROMETHEUS_EXTERNAL_URL=http://%s:19443/prometheus/\n" \
+            "$worker_token" "$bench_token" "$RUN_ID" "$cloud_view_gate_token" "$SIM_PUBLIC" "$SIM_PUBLIC" >secrets/sim.env
           cat >secrets/analysis.env <<EOF
           WK_ANALYSIS_RUN_ID=$RUN_ID
           WK_ANALYSIS_RUN_STATE=running
@@ -352,6 +369,7 @@ jobs:
           EOF
           chmod 0600 secrets/* secrets-node/*
           echo "MANAGER_PASSWORD=$diagnostic_token" >>"$GITHUB_ENV"
+          echo "CLOUD_VIEW_GATE_TOKEN=$cloud_view_gate_token" >>"$GITHUB_ENV"
       - name: Transfer and install the same verified bundle on all hosts
         shell: bash
         env:
@@ -389,8 +407,12 @@ jobs:
           ssh "${ssh_opts[@]}" wukong-sim-jump \
             "rm -rf /home/wukong/bundle /home/wukong/run-secrets && mkdir /home/wukong/bundle /home/wukong/run-secrets && tar -xzf /home/wukong/deployment-bundle.tar.gz -C /home/wukong/bundle && tar -xzf /home/wukong/sim-secrets.tar.gz -C /home/wukong/run-secrets"
           sim_data_device="$(ssh "${ssh_opts[@]}" wukong-sim-jump 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
+          public_observation_arg=""
+          if [[ "$PUBLIC_OBSERVATION" == "true" ]]; then
+            public_observation_arg="--public-observation"
+          fi
           ssh "${ssh_opts[@]}" wukong-sim-jump \
-            "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role sim --env-dir /home/wukong/run-secrets --data-device '$sim_data_device' --authorized-keys ''"
+            "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role sim --env-dir /home/wukong/run-secrets --data-device '$sim_data_device' --authorized-keys '' $public_observation_arg"
 
       - name: Prove Bootstrap Gate
         id: bootstrap_gate
@@ -404,6 +426,7 @@ jobs:
           WK_CLOUD_BUNDLE_DIGEST: ${{ needs.build.outputs.bundle_digest }}
           WK_CLOUD_GATE_OUTPUT: bootstrap-gate.json
           WK_ANALYSIS_MANAGER_PASSWORD: ${{ env.MANAGER_PASSWORD }}
+          WK_CLOUD_PUBLIC_OBSERVATION: ${{ inputs.public_observation }}
         run: |
           set -euo pipefail
           deadline=$(( $(date +%s) + 1200 ))
@@ -412,6 +435,25 @@ jobs:
             sleep 10
           done
           ./wkcloudsim --provider alibaba --provider-config provider.json transition "$RUN_ID" ready >/dev/null
+
+      - name: Open and prove public Cloud View
+        id: public_observation
+        if: inputs.public_observation
+        shell: bash
+        env:
+          SIM_PUBLIC: ${{ steps.create.outputs.sim_public }}
+          EXPIRES_AT: ${{ steps.prepare.outputs.expires_at }}
+        run: |
+          set -euo pipefail
+          ./wkcloudsim --provider alibaba --provider-config provider.json open-public-view "$RUN_ID" \
+            --source 0.0.0.0/0 --until "$EXPIRES_AT" >/dev/null
+          deadline=$(( $(date +%s) + 300 ))
+          until bundle/bin/wkcloudview doctor --base-url "http://${SIM_PUBLIC}:19443" \
+            --username admin --password a1234567 --gate-token "$CLOUD_VIEW_GATE_TOKEN" \
+            --expected-targets 7 >public-observation-gate.json; do
+            test "$(date +%s)" -lt "$deadline"
+            sleep 10
+          done
 
       - name: Start non-restarting workload and persist running state
         id: workload_start
@@ -447,8 +489,13 @@ jobs:
       - name: Preserve diagnostics or release unusable failed provisioning
         if: failure() && steps.create.outcome == 'success'
         shell: bash
+        env:
+          PUBLIC_OBSERVATION_GATE_OUTCOME: ${{ steps.public_observation.outcome }}
         run: |
           set -euo pipefail
+          if [[ "$PUBLIC_OBSERVATION" == "true" && "$PUBLIC_OBSERVATION_GATE_OUTCOME" != "success" ]]; then
+            ./wkcloudsim --provider alibaba --provider-config provider.json close-public-view "$RUN_ID" >/dev/null || true
+          fi
           if ! status_json="$(./wkcloudsim --provider alibaba --provider-config provider.json status "$RUN_ID")"; then
             ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
             exit 0
@@ -507,6 +554,9 @@ jobs:
       - name: Write provisioning summary
         if: always()
         shell: bash
+        env:
+          SIM_PUBLIC: ${{ steps.create.outputs.sim_public }}
+          PUBLIC_OBSERVATION_GATE_OUTCOME: ${{ steps.public_observation.outcome }}
         run: |
           {
             echo '## Cloud Simulation provisioning'
@@ -520,6 +570,18 @@ jobs:
             echo "- Terminal analysis ready: \`${{ steps.workload_start.outputs.analysis_ready_at || 'not-started' }}\`"
             echo "- Selected SKU: \`$(jq -r '.quote.selected_sku // "not-created"' run.json 2>/dev/null || echo not-created)\`"
             echo "- Worst-case fixed cost: \`$(jq -r '.quote.worst_case_cost_micros // 0' run.json 2>/dev/null || echo 0) micro-CNY\`"
+            if [[ "$PUBLIC_OBSERVATION" == "true" && "$PUBLIC_OBSERVATION_GATE_OUTCOME" == "success" && -n "$SIM_PUBLIC" ]]; then
+              echo "- Manager: http://${SIM_PUBLIC}:19443/"
+              echo "- Demo: http://${SIM_PUBLIC}:19443/demo/"
+              echo "- Prometheus: http://${SIM_PUBLIC}:19443/prometheus/"
+              echo "- WebSocket: ws://${SIM_PUBLIC}:19443/"
+              echo "- Manager credentials: \`admin / a1234567\` (full \`*:*\` permissions)"
+              echo "- Benchmark purity: public Demo or WebSocket use marks \`interactive=true\`; successful Manager writes mark \`operator_modified=true\`."
+            elif [[ "$PUBLIC_OBSERVATION" == "true" ]]; then
+              echo "- Public observation: requested but public gate did not pass"
+            else
+              echo "- Public observation: disabled"
+            fi
             echo "- Next: from a local ChatGPT-authenticated Codex checkout, run \`./scripts/cloud-sim/finalize.sh $RUN_ID\`."
           } >>"$GITHUB_STEP_SUMMARY"
       - name: Remove local capabilities

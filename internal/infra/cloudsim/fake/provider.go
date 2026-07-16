@@ -324,6 +324,41 @@ func (p *Provider) CloseAnalysis(_ context.Context, runID string) (cloudsim.Run,
 	return cloneRun(run), nil
 }
 
+// OpenPublicView records one public Cloud View ingress window.
+func (p *Provider) OpenPublicView(_ context.Context, req cloudsim.OpenPublicViewRequest) (cloudsim.Run, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	run, ok := p.runs[req.RunID]
+	if !ok {
+		return cloudsim.Run{}, cloudsim.ErrRunNotFound
+	}
+	if run.State == cloudsim.StateReleased {
+		return cloudsim.Run{}, cloudsim.ErrRunReleased
+	}
+	run.PublicViewWindow = &cloudsim.PublicViewWindow{SourcePrefix: req.SourcePrefix, Until: req.Until.UTC()}
+	p.runs[req.RunID] = run
+	if err := p.persistLocked(); err != nil {
+		return cloudsim.Run{}, err
+	}
+	return cloneRun(run), nil
+}
+
+// ClosePublicView clears public Cloud View ingress for one exact run.
+func (p *Provider) ClosePublicView(_ context.Context, runID string) (cloudsim.Run, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	run, ok := p.runs[runID]
+	if !ok {
+		return cloudsim.Run{}, cloudsim.ErrRunNotFound
+	}
+	run.PublicViewWindow = nil
+	p.runs[runID] = run
+	if err := p.persistLocked(); err != nil {
+		return cloudsim.Run{}, err
+	}
+	return cloneRun(run), nil
+}
+
 // Destroy clears all run resources and records provider-proven release.
 func (p *Provider) Destroy(_ context.Context, runID string) (cloudsim.Run, error) {
 	p.mu.Lock()
@@ -339,6 +374,7 @@ func (p *Provider) Destroy(_ context.Context, runID string) (cloudsim.Run, error
 	run.Resources = []cloudsim.Resource{}
 	run.AnalysisWindow = nil
 	run.DeploymentWindow = nil
+	run.PublicViewWindow = nil
 	p.runs[runID] = run
 	if err := p.persistLocked(); err != nil {
 		return cloudsim.Run{}, err
@@ -448,6 +484,10 @@ func cloneRun(run cloudsim.Run) cloudsim.Run {
 	if run.DeploymentWindow != nil {
 		window := *run.DeploymentWindow
 		run.DeploymentWindow = &window
+	}
+	if run.PublicViewWindow != nil {
+		window := *run.PublicViewWindow
+		run.PublicViewWindow = &window
 	}
 	return run
 }

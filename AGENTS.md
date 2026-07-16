@@ -58,6 +58,7 @@ cmd/
   wkcloudgate/           三节点集群 Bootstrap Gate 严格校验 CLI
   wkcloudhost/           云主机数据盘、配置和 systemd 服务安装 CLI
   wkcloudsim/            云模拟生命周期 CLI，支持 fake 与 Alibaba Provider
+  wkcloudview/           云模拟公网 Manager、Demo、Prometheus 与 WebSocket 统一入口
   wkclouddiagnosis/      云模拟 Diagnosis Result 严格校验 CLI
   wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
@@ -69,6 +70,7 @@ internal/
     api/                 health、readyz、内嵌聊天 Demo、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
       demoui/            Demo 静态资源 handler 与受 CI 校验的内嵌生产构建产物
     cloudanalysismcp/    运行级 Analysis MCP 的认证、工具 schema 与 usecase 适配
+    cloudview/           云模拟公网 HTTP/WS 代理、健康选路、限流与交互判定
     gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
     manager/             后台管理 HTTP API 入口、JWT 登录、权限适配与内嵌 Web UI
       webui/             Manager SPA 静态资源 handler 与受 CI 校验的内嵌生产构建产物
@@ -108,6 +110,7 @@ internal/
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度
     user/                用户 token、device quit、在线状态与 system UID legacy 兼容用例
   runtime/               新架构节点内运行时原语
+    cloudviewstate/      云模拟交互与管理修改状态的单调持久化和指标投影
     channelappend/       channel authority write group 与单写者 append 状态机
     conversationactive/  节点内最近会话活跃缓存 admission runtime
     delivery/            节点内在线 fanout、owner push 与 retry runtime

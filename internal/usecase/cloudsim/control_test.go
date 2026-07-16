@@ -214,13 +214,60 @@ func TestControlPlaneDeploymentAccessWindowIsBoundedAndSingleHost(t *testing.T) 
 	}
 }
 
+func TestControlPlaneObservationAccessRequiresPublicIPv4AndLiveRunLease(t *testing.T) {
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	provider := &providerStub{status: Run{ID: "run-1", State: StateReady, ExpiresAt: now.Add(2 * time.Hour)}}
+	control := NewControlPlane(provider, func() time.Time { return now })
+
+	opened, err := control.OpenPublicView(context.Background(), OpenPublicViewRequest{
+		RunID: "run-1", SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"), Until: now.Add(2 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("OpenPublicView() error = %v", err)
+	}
+	if opened.PublicViewWindow == nil || opened.PublicViewWindow.SourcePrefix.String() != "0.0.0.0/0" {
+		t.Fatalf("public view window = %#v, want public IPv4 /0", opened.PublicViewWindow)
+	}
+
+	for _, source := range []string{"203.0.113.8/32", "::/0"} {
+		_, err = control.OpenPublicView(context.Background(), OpenPublicViewRequest{
+			RunID: "run-1", SourcePrefix: netip.MustParsePrefix(source), Until: now.Add(time.Hour),
+		})
+		if !errors.Is(err, ErrInvalidPublicViewWindow) {
+			t.Fatalf("OpenPublicView(%s) error = %v, want ErrInvalidPublicViewWindow", source, err)
+		}
+	}
+	_, err = control.OpenPublicView(context.Background(), OpenPublicViewRequest{
+		RunID: "run-1", SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"), Until: now.Add(2*time.Hour + time.Second),
+	})
+	if !errors.Is(err, ErrInvalidPublicViewWindow) {
+		t.Fatalf("OpenPublicView(after lease) error = %v, want ErrInvalidPublicViewWindow", err)
+	}
+	provider.status.State = StateProvisioning
+	_, err = control.OpenPublicView(context.Background(), OpenPublicViewRequest{
+		RunID: "run-1", SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"), Until: now.Add(time.Hour),
+	})
+	if !errors.Is(err, ErrInvalidPublicViewWindow) {
+		t.Fatalf("OpenPublicView(provisioning) error = %v, want ErrInvalidPublicViewWindow", err)
+	}
+
+	closed, err := control.ClosePublicView(context.Background(), "run-1")
+	if err != nil {
+		t.Fatalf("ClosePublicView() error = %v", err)
+	}
+	if closed.PublicViewWindow != nil {
+		t.Fatalf("public view window = %#v, want nil", closed.PublicViewWindow)
+	}
+}
+
 func TestControlPlaneSweepDestroysExpiredRuns(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	provider := &providerStub{inventory: []Run{
 		{ID: "expired", State: StateRunning, ExpiresAt: now.Add(-time.Second)},
 		{ID: "stale-window", State: StateRunning, ExpiresAt: now.Add(time.Hour),
 			DeploymentWindow: &DeploymentWindow{Until: now.Add(-time.Second)},
-			AnalysisWindow:   &AnalysisWindow{Until: now.Add(-time.Second)}},
+			AnalysisWindow:   &AnalysisWindow{Until: now.Add(-time.Second)},
+			PublicViewWindow: &PublicViewWindow{SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"), Until: now.Add(-time.Second)}},
 		{ID: "active-window", State: StateRunning, ExpiresAt: now.Add(time.Hour),
 			DeploymentWindow: &DeploymentWindow{SourcePrefix: netip.MustParsePrefix("203.0.113.8/32"), Until: now.Add(time.Minute)},
 			AnalysisWindow:   &AnalysisWindow{SourcePrefix: netip.MustParsePrefix("198.51.100.8/32"), Until: now.Add(30 * time.Minute)}},
@@ -245,6 +292,9 @@ func TestControlPlaneSweepDestroysExpiredRuns(t *testing.T) {
 	}
 	if want := []string{"stale-window", "malformed-window"}; !slices.Equal(provider.closeAnalysisCalls, want) {
 		t.Fatalf("closed analysis ingress = %v, want %v", provider.closeAnalysisCalls, want)
+	}
+	if want := []string{"stale-window"}; !slices.Equal(provider.closeObservationCalls, want) {
+		t.Fatalf("closed observation ingress = %v, want %v", provider.closeObservationCalls, want)
 	}
 }
 
@@ -328,19 +378,20 @@ func validCreateRequest(now time.Time, maxCost int64) CreateRequest {
 }
 
 type providerStub struct {
-	authority            ProviderAuthority
-	authorityErr         error
-	quote                Quote
-	inventory            []Run
-	status               Run
-	statusErr            error
-	created              CreateRequest
-	quoteCalls           int
-	createCalls          int
-	openCalls            int
-	closeDeploymentCalls []string
-	closeAnalysisCalls   []string
-	destroyed            []string
+	authority             ProviderAuthority
+	authorityErr          error
+	quote                 Quote
+	inventory             []Run
+	status                Run
+	statusErr             error
+	created               CreateRequest
+	quoteCalls            int
+	createCalls           int
+	openCalls             int
+	closeDeploymentCalls  []string
+	closeAnalysisCalls    []string
+	closeObservationCalls []string
+	destroyed             []string
 }
 
 func (p *providerStub) Name() string { return "fake" }
@@ -399,6 +450,17 @@ func (p *providerStub) OpenAnalysis(_ context.Context, req OpenAnalysisRequest) 
 func (p *providerStub) CloseAnalysis(_ context.Context, runID string) (Run, error) {
 	p.closeAnalysisCalls = append(p.closeAnalysisCalls, runID)
 	p.status.AnalysisWindow = nil
+	return p.status, nil
+}
+
+func (p *providerStub) OpenPublicView(_ context.Context, req OpenPublicViewRequest) (Run, error) {
+	p.status.PublicViewWindow = &PublicViewWindow{SourcePrefix: req.SourcePrefix, Until: req.Until}
+	return p.status, nil
+}
+
+func (p *providerStub) ClosePublicView(_ context.Context, runID string) (Run, error) {
+	p.closeObservationCalls = append(p.closeObservationCalls, runID)
+	p.status.PublicViewWindow = nil
 	return p.status, nil
 }
 

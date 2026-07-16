@@ -167,6 +167,40 @@ func TestCloudSimulationWorkflowPublishesFinalizationSchedule(t *testing.T) {
 	}
 }
 
+func TestCloudSimulationWorkflowGatesOptionalPublicObservation(t *testing.T) {
+	provision := readWorkflowText(t, repositoryRoot(t), "cloud-sim-provision.yml")
+	for _, required := range []string{
+		"public_observation:", "default: true", "wkcloudview:./cmd/wkcloudview",
+		`if [[ "$PUBLIC_OBSERVATION" == "true" ]]`, `public_observation:$public_observation`,
+		`{username:"admin",password:"a1234567",permissions:[`, `{resource:"*",actions:["*"]}`,
+		"--public-observation", `open-public-view "$RUN_ID"`, "--source 0.0.0.0/0",
+		`wkcloudview doctor --base-url "http://${SIM_PUBLIC}:19443"`, `--gate-token "$CLOUD_VIEW_GATE_TOKEN"`, "--expected-targets 7",
+		"WK_CLOUD_VIEW_GATE_PROBE_TOKEN", "WK_CLOUD_RUN_ID",
+		`close-public-view "$RUN_ID"`, "Manager: http://${SIM_PUBLIC}:19443/",
+		"Demo: http://${SIM_PUBLIC}:19443/demo/", "Prometheus: http://${SIM_PUBLIC}:19443/prometheus/",
+		"WebSocket: ws://${SIM_PUBLIC}:19443/", "admin / a1234567",
+	} {
+		if !strings.Contains(provision, required) {
+			t.Fatalf("provision workflow missing public observation contract %q", required)
+		}
+	}
+	bootstrap := string(mustReadFile(t, filepath.Join(repositoryRoot(t), "scripts", "cloud-sim", "collect-bootstrap-gate.sh")))
+	for _, required := range []string{"WK_CLOUD_PUBLIC_OBSERVATION", "wkcloudview", "cloud_view_self_check"} {
+		if !strings.Contains(bootstrap, required) {
+			t.Fatalf("Bootstrap Gate missing optional Cloud View contract %q", required)
+		}
+	}
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
 func collectYAMLScalars(node *yaml.Node, key string) []string {
 	values := make([]string, 0)
 	if node.Kind == yaml.MappingNode {

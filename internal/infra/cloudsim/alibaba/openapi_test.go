@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
 	"gopkg.in/yaml.v3"
 )
 
@@ -112,16 +113,20 @@ func TestIngressWindowsFromPermissionsPreservesOwnedDeadlinesAndMarksMalformedRu
 	deadline := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
 	windows := ingressWindowsFromPermissions("run-1", []securityGroupPermission{
 		{Description: ingressDescription("run-1", 19092, deadline), PortRange: "19092/19092", SourceCidrIP: "198.51.100.8/32"},
+		{Description: ingressDescription("run-1", cloudsim.CloudViewPort, deadline), PortRange: "19443/19443", SourceCidrIP: "0.0.0.0/0"},
 		{Description: ingressDescriptionPrefix("run-1", 22) + "invalid", PortRange: "22/22", SourceCidrIP: "203.0.113.10/24"},
 		{Description: ingressDescription("other-run", 19092, deadline), PortRange: "19092/19092", SourceCidrIP: "198.51.100.9/32"},
 	})
-	if len(windows) != 2 {
-		t.Fatalf("windows = %#v, want two run-owned rules", windows)
+	if len(windows) != 3 {
+		t.Fatalf("windows = %#v, want three run-owned rules", windows)
 	}
 	if windows[0].Port != 19092 || windows[0].Source != netip.MustParsePrefix("198.51.100.8/32") || !windows[0].Until.Equal(deadline) {
 		t.Fatalf("valid analysis window = %#v", windows[0])
 	}
-	if windows[1].Port != 22 || windows[1].Source.IsValid() || !windows[1].Until.IsZero() {
-		t.Fatalf("malformed deployment window = %#v, want zero values for cleanup", windows[1])
+	if windows[1].Port != cloudsim.CloudViewPort || windows[1].Source != netip.MustParsePrefix("0.0.0.0/0") || !windows[1].Until.Equal(deadline) {
+		t.Fatalf("valid public view window = %#v", windows[1])
+	}
+	if windows[2].Port != 22 || windows[2].Source.IsValid() || !windows[2].Until.IsZero() {
+		t.Fatalf("malformed deployment window = %#v, want zero values for cleanup", windows[2])
 	}
 }

@@ -11,7 +11,8 @@ trusted access/CLI
      -> Provider.Authority (credential-to-account binding before cleanup)
      -> Provider.Inventory (concurrency and release truth)
      -> Provider.Quote (price, quota, spot and subnet capacity)
-     -> Provider.Create/Transition/OpenAnalysis/CloseAnalysis/Destroy
+     -> Provider.Create/Transition/OpenAnalysis/CloseAnalysis
+     -> Provider.OpenPublicView/ClosePublicView/Destroy
 ```
 
 `RunLocator` is a strict, bounded, non-diagnostic JSON record. Live status and
@@ -48,6 +49,12 @@ expiry from run-owned security rules. `Sweep` preserves future active windows,
 closes expired or malformed deployment and analysis windows, and then
 reconciles all expired unreleased runs; partial cleanup failures remain
 explicit.
+
+Public Cloud View ingress is a separate Run-Lease-bounded capability. It admits
+exactly `0.0.0.0/0` on TCP/19443 only while the run is `ready`, `running`, or
+`analysis_grace`, and never beyond the immutable Run Lease. `Sweep` closes an
+expired or malformed public window, while `Destroy` closes it before deleting
+run-owned resources. This capability does not change Analysis MCP semantics.
 
 `ValidateTencentAdmission` is a delivery-order gate, not a Tencent adapter. It
 requires repository-owner-reviewed real Alibaba workflow references and

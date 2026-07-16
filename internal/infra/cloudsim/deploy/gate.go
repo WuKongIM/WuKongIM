@@ -26,6 +26,10 @@ type BootstrapSnapshot struct {
 	PrometheusTargetsWant int `json:"prometheus_targets_want"`
 	// AnalysisMCPSelfCheck reports the simulator gateway dependency check.
 	AnalysisMCPSelfCheck bool `json:"analysis_mcp_self_check"`
+	// PublicViewEnabled reports whether this Run requested Cloud View.
+	PublicViewEnabled bool `json:"public_view_enabled"`
+	// CloudViewSelfCheck reports that the optional simulator-local gateway responds.
+	CloudViewSelfCheck bool `json:"cloud_view_self_check"`
 	// WKBenchValidate reports strict scenario validation success.
 	WKBenchValidate bool `json:"wkbench_validate"`
 	// WKBenchDoctor reports worker and target preflight success.
@@ -51,6 +55,9 @@ func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) Ga
 	required := map[string][]string{
 		"node-1": {"wukongim", "node-exporter"}, "node-2": {"wukongim", "node-exporter"}, "node-3": {"wukongim", "node-exporter"},
 		"sim": {"wkbench-worker", "prometheus", "node-exporter", "wkanalysis"},
+	}
+	if snapshot.PublicViewEnabled {
+		required["sim"] = append(required["sim"], "wkcloudview")
 	}
 	for role, services := range required {
 		active := make(map[string]struct{}, len(snapshot.ActiveServices[role]))
@@ -80,6 +87,9 @@ func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) Ga
 	}
 	if !snapshot.AnalysisMCPSelfCheck {
 		result.Failures = append(result.Failures, "Analysis MCP self-check failed")
+	}
+	if snapshot.PublicViewEnabled && !snapshot.CloudViewSelfCheck {
+		result.Failures = append(result.Failures, "Cloud View self-check failed")
 	}
 	if !snapshot.WKBenchValidate || !snapshot.WKBenchDoctor {
 		result.Failures = append(result.Failures, "wkbench validate or doctor failed")

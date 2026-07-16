@@ -16,6 +16,8 @@ const (
 	MaxAnalysisWindow = 50 * time.Minute
 	// MaxDeploymentWindow limits one temporary SSH provisioning window.
 	MaxDeploymentWindow = 20 * time.Minute
+	// CloudViewPort is the only public browser ingress port for a Simulation Run.
+	CloudViewPort uint16 = 19443
 	// MinAnalysisLeaseRemaining prevents starting analysis immediately before release.
 	MinAnalysisLeaseRemaining = 30 * time.Minute
 )
@@ -64,6 +66,8 @@ var (
 	ErrInvalidAnalysisWindow = errors.New("internal/usecase/cloudsim: invalid analysis window")
 	// ErrInvalidDeploymentWindow reports an unsafe deployment ingress request.
 	ErrInvalidDeploymentWindow = errors.New("internal/usecase/cloudsim: invalid deployment window")
+	// ErrInvalidPublicViewWindow reports an unsafe public browser ingress request.
+	ErrInvalidPublicViewWindow = errors.New("internal/usecase/cloudsim: invalid public view window")
 )
 
 // Preset is a provider-neutral infrastructure capacity class.
@@ -167,6 +171,15 @@ type DeploymentWindow struct {
 	Until time.Time `json:"until"`
 }
 
+// PublicViewWindow is the public HTTP and WebSocket ingress window for the
+// run-scoped Cloud View process on the simulator host.
+type PublicViewWindow struct {
+	// SourcePrefix is exactly the public IPv4 Internet prefix 0.0.0.0/0.
+	SourcePrefix netip.Prefix `json:"source_prefix"`
+	// Until is bounded by the immutable Run Lease.
+	Until time.Time `json:"until"`
+}
+
 // Resource is one provider inventory item belonging to a run.
 type Resource struct {
 	// ID is the provider resource identifier.
@@ -215,6 +228,8 @@ type Run struct {
 	AnalysisWindow *AnalysisWindow `json:"analysis_window,omitempty"`
 	// DeploymentWindow is non-nil only while temporary simulator SSH ingress is open.
 	DeploymentWindow *DeploymentWindow `json:"deployment_window,omitempty"`
+	// PublicViewWindow is non-nil only while public Cloud View ingress is open.
+	PublicViewWindow *PublicViewWindow `json:"public_view_window,omitempty"`
 }
 
 // OpenDeploymentRequest requests temporary simulator-only SSH ingress.
@@ -234,6 +249,16 @@ type OpenAnalysisRequest struct {
 	// SourcePrefix is the GitHub runner public IPv4 /32.
 	SourcePrefix netip.Prefix `json:"source_prefix"`
 	// Until is the requested non-renewable ingress expiry.
+	Until time.Time `json:"until"`
+}
+
+// OpenPublicViewRequest requests public Cloud View ingress for one live run.
+type OpenPublicViewRequest struct {
+	// RunID is the exact live Simulation Run identity.
+	RunID string `json:"run_id"`
+	// SourcePrefix must be exactly the public IPv4 prefix 0.0.0.0/0.
+	SourcePrefix netip.Prefix `json:"source_prefix"`
+	// Until must not exceed the immutable Run Lease.
 	Until time.Time `json:"until"`
 }
 
@@ -307,6 +332,10 @@ type Provider interface {
 	OpenAnalysis(context.Context, OpenAnalysisRequest) (Run, error)
 	// CloseAnalysis removes temporary simulator MCP ingress.
 	CloseAnalysis(context.Context, string) (Run, error)
+	// OpenPublicView admits public IPv4 HTTP and WebSocket traffic to Cloud View.
+	OpenPublicView(context.Context, OpenPublicViewRequest) (Run, error)
+	// ClosePublicView removes public Cloud View ingress.
+	ClosePublicView(context.Context, string) (Run, error)
 	// Destroy releases every resource tagged with one exact Run Identity.
 	Destroy(context.Context, string) (Run, error)
 }

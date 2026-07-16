@@ -24,7 +24,9 @@ type installOptions struct {
 	envDir             string
 	dataDevice         string
 	authorizedKeysPath string
-	noSystemd          bool
+	// publicObservation installs and starts simulator-only public Cloud View assets.
+	publicObservation bool
+	noSystemd         bool
 }
 
 func main() { os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -58,6 +60,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	install.Flags().StringVar(&options.envDir, "env-dir", "", "root-readable run capability and TLS files")
 	install.Flags().StringVar(&options.dataDevice, "data-device", "", "independent empty data disk block device")
 	install.Flags().StringVar(&options.authorizedKeysPath, "authorized-keys", "/home/wukong/.ssh/authorized_keys", "ephemeral deployment authorized_keys path")
+	install.Flags().BoolVar(&options.publicObservation, "public-observation", false, "install and start the run-scoped public Cloud View")
 	install.Flags().BoolVar(&options.noSystemd, "no-systemd", false, "render only; reserved for tests")
 	_ = install.MarkFlagRequired("bundle")
 	_ = install.MarkFlagRequired("role")
@@ -94,7 +97,16 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 			return deploy.Manifest{}, err
 		}
 	}
-	for _, binary := range []string{"wukongim", "wkbench", "wkanalysis", "prometheus", "node_exporter"} {
+	binaries := []string{"node_exporter"}
+	if strings.HasPrefix(options.role, "node-") {
+		binaries = append(binaries, "wukongim")
+	} else {
+		binaries = append(binaries, "wkbench", "wkanalysis", "prometheus")
+		if options.publicObservation {
+			binaries = append(binaries, "wkcloudview")
+		}
+	}
+	for _, binary := range binaries {
 		if err := copyRegular(filepath.Join(options.bundleRoot, "bin", binary), rooted(options.rootPrefix, "opt/wukongim/bin/"+binary), 0o755); err != nil {
 			return deploy.Manifest{}, err
 		}
@@ -112,6 +124,11 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 				return deploy.Manifest{}, err
 			}
 		}
+		if options.publicObservation {
+			if err := copyRegular(filepath.Join(options.bundleRoot, "config", "cloud-view.json"), rooted(options.rootPrefix, "etc/wukongim/cloud-view.json"), 0o640); err != nil {
+				return deploy.Manifest{}, err
+			}
+		}
 		for _, env := range []string{"sim.env", "analysis.env"} {
 			if err := copyRegular(filepath.Join(options.envDir, env), rooted(options.rootPrefix, "etc/wukongim/"+env), 0o600); err != nil {
 				return deploy.Manifest{}, err
@@ -123,7 +140,7 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 			}
 		}
 	}
-	for unit, content := range selectedUnits(options.bundleRoot, options.role) {
+	for unit, content := range selectedUnits(options.bundleRoot, options.role, options.publicObservation) {
 		if err := copyRegular(content, rooted(options.rootPrefix, "etc/systemd/system/"+unit+".service"), 0o644); err != nil {
 			return deploy.Manifest{}, err
 		}
@@ -141,7 +158,7 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 		if options.rootPrefix != "/" {
 			return deploy.Manifest{}, errors.New("--no-systemd is required with --root-prefix")
 		}
-		if err := startRoleServices(options.role); err != nil {
+		if err := startRoleServices(options.role, options.publicObservation); err != nil {
 			return deploy.Manifest{}, err
 		}
 	}
@@ -153,12 +170,15 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 	return manifest, nil
 }
 
-func selectedUnits(bundleRoot, role string) map[string]string {
+func selectedUnits(bundleRoot, role string, publicObservation bool) map[string]string {
 	names := []string{"node-exporter"}
 	if strings.HasPrefix(role, "node-") {
 		names = append(names, "wukongim")
 	} else {
 		names = append(names, "wkbench-worker", "wkbench-run", "prometheus", "wkanalysis")
+		if publicObservation {
+			names = append(names, "wkcloudview")
+		}
 	}
 	result := make(map[string]string, len(names))
 	for _, name := range names {
@@ -167,7 +187,7 @@ func selectedUnits(bundleRoot, role string) map[string]string {
 	return result
 }
 
-func startRoleServices(role string) error {
+func startRoleServices(role string, publicObservation bool) error {
 	if err := runCommand("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
@@ -176,6 +196,9 @@ func startRoleServices(role string) error {
 		names = append(names, "wukongim.service")
 	} else {
 		names = append(names, "prometheus.service", "wkbench-worker.service", "wkanalysis.service")
+		if publicObservation {
+			names = append(names, "wkcloudview.service")
+		}
 	}
 	args := append([]string{"enable", "--now"}, names...)
 	return runCommand("systemctl", args...)

@@ -1225,7 +1225,7 @@ func (a *OpenAPI) AssociatePublicAddress(ctx context.Context, allocationID, inst
 	return err
 }
 
-// SetIngress adds or removes one exact run-owned SSH or MCP rule.
+// SetIngress adds or removes one exact run-owned SSH, MCP, or Cloud View rule.
 func (a *OpenAPI) SetIngress(ctx context.Context, request IngressRequest) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -1250,8 +1250,8 @@ func (a *OpenAPI) SetIngress(ctx context.Context, request IngressRequest) error 
 	return closeOwnedIngress(ctx, request.RunID, request.Port, list, revoke)
 }
 
-// ListIngress reads run-owned temporary rules so cleanup can distinguish an
-// active local Analysis Session from an expired or malformed window.
+// ListIngress reads run-owned temporary rules so cleanup can distinguish live
+// deployment, Analysis, and Observation access from expired or malformed windows.
 func (a *OpenAPI) ListIngress(ctx context.Context, request IngressListRequest) ([]IngressWindow, error) {
 	if a == nil || a.ecs == nil || strings.TrimSpace(request.RunID) == "" || strings.TrimSpace(request.SecurityGroupID) == "" {
 		return nil, ErrInvalidConfig
@@ -1346,18 +1346,20 @@ func closeOwnedIngress(
 }
 
 func ingressWindowsFromPermissions(runID string, permissions []securityGroupPermission) []IngressWindow {
-	windows := make([]IngressWindow, 0, 2)
+	windows := make([]IngressWindow, 0, 3)
 	for _, permission := range permissions {
-		for _, port := range []uint16{22, 19092} {
+		for _, port := range []uint16{22, 19092, cloudsim.CloudViewPort} {
 			prefix := ingressDescriptionPrefix(runID, port)
 			if !strings.HasPrefix(permission.Description, prefix) || permission.PortRange != fmt.Sprintf("%d/%d", port, port) {
 				continue
 			}
 			window := IngressWindow{Port: port}
 			window.Until, _ = time.Parse(time.RFC3339, strings.TrimPrefix(permission.Description, prefix))
-			if source, parseErr := netip.ParsePrefix(permission.SourceCidrIP); parseErr == nil &&
-				source.Addr().Is4() && source.Bits() == 32 && source == source.Masked() {
-				window.Source = source
+			if source, parseErr := netip.ParsePrefix(permission.SourceCidrIP); parseErr == nil && source.Addr().Is4() && source == source.Masked() {
+				if port == cloudsim.CloudViewPort && source == netip.MustParsePrefix("0.0.0.0/0") ||
+					port != cloudsim.CloudViewPort && source.Bits() == 32 {
+					window.Source = source
+				}
 			}
 			windows = append(windows, window)
 		}

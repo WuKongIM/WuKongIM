@@ -839,3 +839,11 @@ resulting run-scoped Analysis Token verifier into this composition root.
 lifecycle usecase with the persistent fake adapter. The adapter's JSON
 file emulates provider inventory only; real adapters recover solely from cloud
 tags and inventory APIs.
+
+## Cloud View Composition
+
+`NewCloudViewHandler` is the composition root for the standalone simulator-side
+public browser gateway. It injects the fixed private node API, Manager,
+WebSocket, and Prometheus origins into `internal/access/cloudview`. The process
+never joins the cluster, decodes WKProto frames, or receives cloud credentials;
+the Cloud Simulation lifecycle separately owns public TCP/19443 ingress.

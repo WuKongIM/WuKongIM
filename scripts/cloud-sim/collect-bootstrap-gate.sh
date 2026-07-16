@@ -9,6 +9,11 @@ set -euo pipefail
 : "${WK_CLOUD_BUNDLE_DIGEST:?required}"
 : "${WK_CLOUD_GATE_OUTPUT:?required}"
 : "${WK_ANALYSIS_MANAGER_PASSWORD:?required}"
+: "${WK_CLOUD_PUBLIC_OBSERVATION:?required}"
+if [[ "$WK_CLOUD_PUBLIC_OBSERVATION" != "true" && "$WK_CLOUD_PUBLIC_OBSERVATION" != "false" ]]; then
+  echo "WK_CLOUD_PUBLIC_OBSERVATION must be true or false" >&2
+  exit 1
+fi
 
 ssh_config="$(mktemp)"
 trap 'rm -f "$ssh_config"' EXIT
@@ -60,7 +65,11 @@ sim_digest="$(bundle_digest sim "")"
 node1_services="$(active_services node-1 "$WK_CLOUD_NODE1_IP" wukongim node-exporter)"
 node2_services="$(active_services node-2 "$WK_CLOUD_NODE2_IP" wukongim node-exporter)"
 node3_services="$(active_services node-3 "$WK_CLOUD_NODE3_IP" wukongim node-exporter)"
-sim_services="$(active_services sim "" wkbench-worker prometheus node-exporter wkanalysis)"
+sim_required_services=(wkbench-worker prometheus node-exporter wkanalysis)
+if [[ "$WK_CLOUD_PUBLIC_OBSERVATION" == "true" ]]; then
+  sim_required_services+=(wkcloudview)
+fi
+sim_services="$(active_services sim "" "${sim_required_services[@]}")"
 
 ready_nodes=()
 for pair in "1:$WK_CLOUD_NODE1_IP" "2:$WK_CLOUD_NODE2_IP" "3:$WK_CLOUD_NODE3_IP"; do
@@ -90,6 +99,11 @@ targets_up="$(jq -er '[.data.activeTargets[] | select(.health == "up")] | length
 
 ssh_sim "sudo -u wukongim curl --fail --silent --show-error --max-time 10 --resolve '${WK_CLOUD_SIM_PUBLIC_IP}:19092:127.0.0.1' 'https://${WK_CLOUD_SIM_PUBLIC_IP}:19092/self-check' --cacert /etc/wukongim/tls/mcp-ca.pem >/dev/null"
 analysis_self_check=true
+cloud_view_self_check=false
+if [[ "$WK_CLOUD_PUBLIC_OBSERVATION" == "true" ]]; then
+  ssh_sim "curl --fail --silent --show-error --max-time 10 'http://127.0.0.1:19443/cloud-view/status' >/dev/null"
+  cloud_view_self_check=true
+fi
 ssh_sim "sudo -u wukongim bash -c 'set -a; source /etc/wukongim/sim.env; set +a; /opt/wukongim/bin/wkbench validate --target /etc/wukongim/target.yaml --workers /etc/wukongim/workers.yaml --scenario /etc/wukongim/scenario.yaml'"
 wkbench_validate=true
 ssh_sim "sudo -u wukongim bash -c 'set -a; source /etc/wukongim/sim.env; set +a; /opt/wukongim/bin/wkbench doctor --target /etc/wukongim/target.yaml --workers /etc/wukongim/workers.yaml --scenario /etc/wukongim/scenario.yaml'"
@@ -102,12 +116,14 @@ jq -n \
   --argjson ready_nodes "$ready_json" --argjson member_count "$member_count" --argjson hash_slot_count "$hash_slot_count" \
   --argjson healthy_slot_leaders "$healthy_slot_leaders" --argjson healthy_slot_replicas "$healthy_slot_replicas" \
   --argjson pending_tasks "$pending_tasks" --argjson targets_up "$targets_up" --argjson targets_want "$targets_want" \
-  --argjson analysis_self_check "$analysis_self_check" --argjson wkbench_validate "$wkbench_validate" --argjson wkbench_doctor "$wkbench_doctor" \
+  --argjson analysis_self_check "$analysis_self_check" --argjson public_view_enabled "$WK_CLOUD_PUBLIC_OBSERVATION" \
+  --argjson cloud_view_self_check "$cloud_view_self_check" --argjson wkbench_validate "$wkbench_validate" --argjson wkbench_doctor "$wkbench_doctor" \
   '{
     bundle_digests:{"node-1":$node1_digest,"node-2":$node2_digest,"node-3":$node3_digest,sim:$sim_digest},
     active_services:{"node-1":$node1_services,"node-2":$node2_services,"node-3":$node3_services,sim:$sim_services},
     ready_node_ids:$ready_nodes,cluster_member_count:$member_count,hash_slot_count:$hash_slot_count,
     healthy_slot_leaders:$healthy_slot_leaders,healthy_slot_replicas:$healthy_slot_replicas,
     pending_controller_tasks:$pending_tasks,prometheus_targets_up:$targets_up,prometheus_targets_want:$targets_want,
-    analysis_mcp_self_check:$analysis_self_check,wkbench_validate:$wkbench_validate,wkbench_doctor:$wkbench_doctor
+    analysis_mcp_self_check:$analysis_self_check,public_view_enabled:$public_view_enabled,
+    cloud_view_self_check:$cloud_view_self_check,wkbench_validate:$wkbench_validate,wkbench_doctor:$wkbench_doctor
   }' >"$WK_CLOUD_GATE_OUTPUT"

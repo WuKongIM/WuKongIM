@@ -1,6 +1,37 @@
 package deploy
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+func cloudViewConfig(runID string, addresses map[string]string) string {
+	return fmt.Sprintf(`{
+  "listen_addr": "0.0.0.0:19443",
+  "run_id": %q,
+  "public_base_url": "http://127.0.0.1:19443",
+  "prometheus_url": "http://127.0.0.1:9090",
+  "state_path": "/var/lib/wukongim-cloud/cloud-view-state.json",
+  "metrics_path": "/var/lib/wukongim/textfile/cloud-view.prom",
+  "nodes": [
+    {"id": 1, "api_base_url": "http://%s:5001", "manager_base_url": "http://%s:5301", "websocket_base_url": "http://%s:5200"},
+    {"id": 2, "api_base_url": "http://%s:5001", "manager_base_url": "http://%s:5301", "websocket_base_url": "http://%s:5200"},
+    {"id": 3, "api_base_url": "http://%s:5001", "manager_base_url": "http://%s:5301", "websocket_base_url": "http://%s:5200"}
+  ],
+  "limits": {
+    "http_requests_per_second_per_ip": 30,
+    "http_burst_per_ip": 60,
+    "http_requests_per_second_global": 200,
+    "http_burst_global": 400,
+    "websocket_connections_per_ip": 20,
+    "websocket_connections_global": 64
+  }
+}
+`, runID,
+		addresses["node-1"], addresses["node-1"], addresses["node-1"],
+		addresses["node-2"], addresses["node-2"], addresses["node-2"],
+		addresses["node-3"], addresses["node-3"], addresses["node-3"])
+}
 
 func nodeConfig(nodeID int, addresses map[string]string) string {
 	return fmt.Sprintf(`[node]
@@ -152,8 +183,8 @@ scrape_configs:
 `, addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses["sim"])
 }
 
-func systemdUnits() map[string]string {
-	return map[string]string{
+func systemdUnits(publicViewEnabled bool) map[string]string {
+	units := map[string]string{
 		"wukongim.service": `[Unit]
 Description=WuKongIM cloud simulation node
 After=network-online.target local-fs.target
@@ -206,6 +237,7 @@ EnvironmentFile=/etc/wukongim/sim.env
 ExecStart=/opt/wukongim/bin/wkbench validate --target /etc/wukongim/target.yaml --workers /etc/wukongim/workers.yaml --scenario /etc/wukongim/scenario.yaml
 ExecStart=/opt/wukongim/bin/wkbench doctor --target /etc/wukongim/target.yaml --workers /etc/wukongim/workers.yaml --scenario /etc/wukongim/scenario.yaml
 ExecStart=/opt/wukongim/bin/wkbench run --target /etc/wukongim/target.yaml --workers /etc/wukongim/workers.yaml --scenario /etc/wukongim/scenario.yaml
+ExecStopPost=/opt/wukongim/bin/wkcloudview annotate-report --status-url http://127.0.0.1:19443/cloud-view/status --report /var/lib/wukongim-cloud/reports/${WK_CLOUD_RUN_ID}/report.json
 Restart=no
 TimeoutStartSec=infinity
 
@@ -220,13 +252,46 @@ After=network-online.target local-fs.target
 Type=simple
 User=wukongim
 Group=wukongim
-ExecStart=/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=55h
+EnvironmentFile=/etc/wukongim/sim.env
+ExecStart=/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=55h --web.external-url=${WK_CLOUD_VIEW_PROMETHEUS_EXTERNAL_URL} --web.route-prefix=/
 Restart=on-failure
 NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
 `,
+	}
+	for name, content := range baseSystemdUnits() {
+		units[name] = content
+	}
+	if !publicViewEnabled {
+		units["wkbench-run.service"] = strings.ReplaceAll(units["wkbench-run.service"], "ExecStopPost=/opt/wukongim/bin/wkcloudview annotate-report --status-url http://127.0.0.1:19443/cloud-view/status --report /var/lib/wukongim-cloud/reports/${WK_CLOUD_RUN_ID}/report.json\n", "")
+		return units
+	}
+	units["wkcloudview.service"] = `[Unit]
+Description=WuKongIM run-scoped public Cloud View on TCP/19443
+After=network-online.target prometheus.service
+Requires=prometheus.service
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+EnvironmentFile=/etc/wukongim/sim.env
+ExecStart=/opt/wukongim/bin/wkcloudview serve --config /etc/wukongim/cloud-view.json
+Restart=on-failure
+RestartSec=2s
+LimitNOFILE=1048576
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+`
+	return units
+}
+
+func baseSystemdUnits() map[string]string {
+	return map[string]string{
 		"node-exporter.service": `[Unit]
 Description=Run-scoped host metrics exporter
 After=network-online.target

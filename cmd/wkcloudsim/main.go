@@ -93,6 +93,8 @@ func newRootCommand(stdout, stderr io.Writer, now func() time.Time) *cobra.Comma
 		newCloseDeploymentCommand(stdout, control),
 		newOpenAnalysisCommand(stdout, control),
 		newCloseAnalysisCommand(stdout, control),
+		newOpenPublicViewCommand(stdout, control),
+		newClosePublicViewCommand(stdout, control),
 		newDestroyCommand(stdout, control),
 		newSweepCommand(stdout, control),
 	)
@@ -324,7 +326,7 @@ func newOpenWindowCommand(use, short string, stdout io.Writer, factory controlFa
 			return writeJSON(stdout, run)
 		},
 	}
-	cmd.Flags().StringVar(&source, "source", "", "GitHub runner public IPv4 /32")
+	cmd.Flags().StringVar(&source, "source", "", "admitted IPv4 prefix (/32 for runner access, 0.0.0.0/0 for Cloud View)")
 	cmd.Flags().StringVar(&untilRaw, "until", "", "RFC3339 access-window expiry")
 	_ = cmd.MarkFlagRequired("source")
 	_ = cmd.MarkFlagRequired("until")
@@ -335,6 +337,20 @@ func newCloseAnalysisCommand(stdout io.Writer, factory controlFactory) *cobra.Co
 	return lifecycleRunCommand("close-analysis RUN_ID", "Close temporary Analysis MCP ingress", stdout, factory,
 		func(ctx context.Context, control *cloudsim.ControlPlane, runID string) (cloudsim.Run, error) {
 			return control.CloseAnalysis(ctx, runID)
+		})
+}
+
+func newOpenPublicViewCommand(stdout io.Writer, factory controlFactory) *cobra.Command {
+	return newOpenWindowCommand("open-public-view RUN_ID", "Open public Cloud View IPv4 ingress through the Run Lease", stdout, factory,
+		func(ctx context.Context, control *cloudsim.ControlPlane, runID string, prefix netip.Prefix, until time.Time) (cloudsim.Run, error) {
+			return control.OpenPublicView(ctx, cloudsim.OpenPublicViewRequest{RunID: runID, SourcePrefix: prefix, Until: until})
+		})
+}
+
+func newClosePublicViewCommand(stdout io.Writer, factory controlFactory) *cobra.Command {
+	return lifecycleRunCommand("close-public-view RUN_ID", "Close public Cloud View ingress", stdout, factory,
+		func(ctx context.Context, control *cloudsim.ControlPlane, runID string) (cloudsim.Run, error) {
+			return control.ClosePublicView(ctx, runID)
 		})
 }
 

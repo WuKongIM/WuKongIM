@@ -17,7 +17,7 @@ func TestRenderSealVerifyAndTamperDetection(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "prometheus", "node_exporter"} {
+	for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
 		if err := os.WriteFile(filepath.Join(root, "bin", name), []byte("static-"+name), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -55,13 +55,65 @@ func TestRenderSealVerifyAndTamperDetection(t *testing.T) {
 	}
 }
 
+func TestRenderOmitsCloudViewWhenPublicObservationDisabled(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "prometheus", "node_exporter"} {
+		if err := os.WriteFile(filepath.Join(root, "bin", name), []byte(name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scenario := filepath.Join(t.TempDir(), "scenario.yaml")
+	if err := os.WriteFile(scenario, []byte("version: wkbench/v1\nrun:\n  id: test\n  duration: 2h\n  report_dir: /tmp/reports\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	spec := testBundleSpec(scenario)
+	spec.PublicViewEnabled = false
+	if err := Render(root, spec); err != nil {
+		t.Fatalf("Render() with Cloud View disabled: %v", err)
+	}
+	for _, path := range []string{"config/cloud-view.json", "systemd/wkcloudview.service"} {
+		if _, err := os.Stat(filepath.Join(root, path)); !os.IsNotExist(err) {
+			t.Fatalf("%s exists while Cloud View disabled: %v", path, err)
+		}
+	}
+	unit, err := os.ReadFile(filepath.Join(root, "systemd/wkbench-run.service"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(unit), "wkcloudview") {
+		t.Fatalf("disabled wkbench unit depends on wkcloudview:\n%s", unit)
+	}
+}
+
 func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
-	units := systemdUnits()
+	units := systemdUnits(true)
 	if !strings.Contains(units["wkbench-run.service"], "Restart=no") || strings.Contains(units["wkbench-run.service"], "Restart=always") {
 		t.Fatal("wkbench run is not a non-restarting systemd unit")
 	}
+	if !strings.Contains(units["wkbench-run.service"], "benchmark_purity") &&
+		!strings.Contains(units["wkbench-run.service"], "annotate-report") {
+		t.Fatal("wkbench run does not annotate the final report with Cloud View purity")
+	}
 	if !strings.Contains(units["wukongim.service"], "NoNewPrivileges=true") {
 		t.Fatal("wukongim unit lacks hardening")
+	}
+	if !strings.Contains(units["wkcloudview.service"], "TCP/19443") ||
+		!strings.Contains(units["wkcloudview.service"], "EnvironmentFile=/etc/wukongim/sim.env") {
+		t.Fatalf("Cloud View unit does not preserve public listener and dynamic public URL contract:\n%s", units["wkcloudview.service"])
+	}
+	if !strings.Contains(units["prometheus.service"], "WK_CLOUD_VIEW_PROMETHEUS_EXTERNAL_URL") ||
+		!strings.Contains(units["prometheus.service"], "--web.route-prefix=/") {
+		t.Fatalf("Prometheus unit lacks proxied public path contract:\n%s", units["prometheus.service"])
+	}
+	cloudView := cloudViewConfig(testBundleSpec("unused").RunID, testBundleSpec("unused").PrivateIPv4)
+	for _, required := range []string{`"listen_addr": "0.0.0.0:19443"`, `"id": 1`, `"id": 2`, `"id": 3`,
+		`"prometheus_url": "http://127.0.0.1:9090"`} {
+		if !strings.Contains(cloudView, required) {
+			t.Fatalf("Cloud View config lacks %s:\n%s", required, cloudView)
+		}
 	}
 	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4)
 	if !strings.Contains(config, "hash_slot_count = 256") || strings.Count(config, "[[cluster.nodes]]") != 3 {
@@ -87,11 +139,12 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 		BundleDigests: map[string]string{"node-1": digest, "node-2": digest, "node-3": digest, "sim": digest},
 		ActiveServices: map[string][]string{
 			"node-1": {"wukongim", "node-exporter"}, "node-2": {"wukongim", "node-exporter"}, "node-3": {"wukongim", "node-exporter"},
-			"sim": {"wkbench-worker", "prometheus", "node-exporter", "wkanalysis"},
+			"sim": {"wkbench-worker", "prometheus", "node-exporter", "wkanalysis", "wkcloudview"},
 		},
 		ReadyNodeIDs: []uint64{1, 2, 3}, ClusterMemberCount: 3, HashSlotCount: 256,
 		HealthySlotLeaders: 256, HealthySlotReplicas: 256, PrometheusTargetsUp: 7, PrometheusTargetsWant: 7,
-		AnalysisMCPSelfCheck: true, WKBenchValidate: true, WKBenchDoctor: true,
+		AnalysisMCPSelfCheck: true, PublicViewEnabled: true, CloudViewSelfCheck: true,
+		WKBenchValidate: true, WKBenchDoctor: true,
 	}
 	if result := EvaluateBootstrapGate(snapshot, digest); !result.Passed {
 		t.Fatalf("complete gate = %#v", result)
@@ -108,5 +161,6 @@ func testBundleSpec(scenario string) BundleSpec {
 		ScenarioDigest: "sha256:scenario", Duration: 30 * time.Minute,
 		PrivateIPv4:         map[string]string{"node-1": "10.42.0.11", "node-2": "10.42.0.12", "node-3": "10.42.0.13", "sim": "10.42.0.20"},
 		SimulatorSourceIPv4: []string{"10.42.0.20", "10.42.0.21", "10.42.0.22"},
+		PublicViewEnabled:   true,
 	}
 }

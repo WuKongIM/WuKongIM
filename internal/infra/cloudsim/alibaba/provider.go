@@ -222,9 +222,9 @@ type IngressRequest struct {
 	RunID string
 	// SecurityGroupID is the exact run-owned security group.
 	SecurityGroupID string
-	// Source is the single GitHub runner IPv4 /32 when opening ingress.
+	// Source is a runner IPv4 /32 or the public Cloud View IPv4 /0.
 	Source netip.Prefix
-	// Port is the single SSH or MCP port being changed.
+	// Port is the single SSH, MCP, or Cloud View port being changed.
 	Port uint16
 	// Until is encoded into the owned rule description for expiry reconciliation.
 	Until time.Time
@@ -242,9 +242,9 @@ type IngressListRequest struct {
 
 // IngressWindow is one provider-observed temporary access rule.
 type IngressWindow struct {
-	// Source is the admitted single-host IPv4 prefix when parseable.
+	// Source is the admitted IPv4 prefix when parseable for its port.
 	Source netip.Prefix
-	// Port distinguishes deployment SSH from Analysis MCP access.
+	// Port distinguishes deployment SSH, Analysis MCP, and Cloud View access.
 	Port uint16
 	// Until is the rule deadline; zero marks malformed owned rules for cleanup.
 	Until time.Time
@@ -572,22 +572,32 @@ func (p *Provider) Transition(ctx context.Context, req cloudsim.TransitionReques
 
 // OpenDeployment admits the exact runner /32 to simulator SSH only.
 func (p *Provider) OpenDeployment(ctx context.Context, req cloudsim.OpenDeploymentRequest) (cloudsim.Run, error) {
-	return p.setIngress(ctx, req.RunID, req.SourcePrefix, req.Until, 22, true, true)
+	return p.setIngress(ctx, req.RunID, req.SourcePrefix, req.Until, 22, true, ingressDeployment)
 }
 
 // CloseDeployment removes simulator SSH ingress for one exact run.
 func (p *Provider) CloseDeployment(ctx context.Context, runID string) (cloudsim.Run, error) {
-	return p.setIngress(ctx, runID, netip.Prefix{}, time.Time{}, 22, false, true)
+	return p.setIngress(ctx, runID, netip.Prefix{}, time.Time{}, 22, false, ingressDeployment)
 }
 
 // OpenAnalysis admits the exact runner /32 to simulator MCP HTTPS only.
 func (p *Provider) OpenAnalysis(ctx context.Context, req cloudsim.OpenAnalysisRequest) (cloudsim.Run, error) {
-	return p.setIngress(ctx, req.RunID, req.SourcePrefix, req.Until, 19092, true, false)
+	return p.setIngress(ctx, req.RunID, req.SourcePrefix, req.Until, 19092, true, ingressAnalysis)
 }
 
 // CloseAnalysis removes simulator MCP ingress for one exact run.
 func (p *Provider) CloseAnalysis(ctx context.Context, runID string) (cloudsim.Run, error) {
-	return p.setIngress(ctx, runID, netip.Prefix{}, time.Time{}, 19092, false, false)
+	return p.setIngress(ctx, runID, netip.Prefix{}, time.Time{}, 19092, false, ingressAnalysis)
+}
+
+// OpenPublicView admits public IPv4 HTTP and WebSocket traffic to Cloud View.
+func (p *Provider) OpenPublicView(ctx context.Context, req cloudsim.OpenPublicViewRequest) (cloudsim.Run, error) {
+	return p.setIngress(ctx, req.RunID, req.SourcePrefix, req.Until, cloudsim.CloudViewPort, true, ingressPublicView)
+}
+
+// ClosePublicView removes public Cloud View ingress for one exact run.
+func (p *Provider) ClosePublicView(ctx context.Context, runID string) (cloudsim.Run, error) {
+	return p.setIngress(ctx, runID, netip.Prefix{}, time.Time{}, cloudsim.CloudViewPort, false, ingressPublicView)
 }
 
 // Destroy removes all run-tagged resource types and proves inventory absence.
@@ -608,20 +618,23 @@ func (p *Provider) Destroy(ctx context.Context, runID string) (cloudsim.Run, err
 	}
 	var deploymentErr error
 	var analysisErr error
+	var publicViewErr error
 	if securityGroupID := assetID(assets, "security-group"); securityGroupID != "" {
 		deploymentErr = p.api.SetIngress(ctx, IngressRequest{RunID: runID, SecurityGroupID: securityGroupID, Port: 22})
 		analysisErr = p.api.SetIngress(ctx, IngressRequest{RunID: runID, SecurityGroupID: securityGroupID, Port: 19092})
+		publicViewErr = p.api.SetIngress(ctx, IngressRequest{RunID: runID, SecurityGroupID: securityGroupID, Port: cloudsim.CloudViewPort})
 	}
 	remaining, deleteErr := p.deleteRunAssets(ctx, runID, assets)
 	if len(remaining) != 0 {
 		run.State = cloudsim.StateReleasePending
 		run.Resources = resourcesFromAssets(remaining)
-		return run, errors.Join(deploymentErr, analysisErr, deleteErr, fmt.Errorf("%w: %d", ErrResidualResources, len(remaining)))
+		return run, errors.Join(deploymentErr, analysisErr, publicViewErr, deleteErr, fmt.Errorf("%w: %d", ErrResidualResources, len(remaining)))
 	}
 	run.State = cloudsim.StateReleased
 	run.Resources = []cloudsim.Resource{}
 	run.AnalysisWindow = nil
 	run.DeploymentWindow = nil
+	run.PublicViewWindow = nil
 	// Provider inventory is the cleanup authority. Transient delete or ingress
 	// errors are no longer actionable after a second listing proves zero resources.
 	return run, nil
@@ -689,7 +702,15 @@ func waitForCleanup(ctx context.Context, duration time.Duration) error {
 	}
 }
 
-func (p *Provider) setIngress(ctx context.Context, runID string, source netip.Prefix, until time.Time, port uint16, open, deployment bool) (cloudsim.Run, error) {
+type ingressKind uint8
+
+const (
+	ingressDeployment ingressKind = iota + 1
+	ingressAnalysis
+	ingressPublicView
+)
+
+func (p *Provider) setIngress(ctx context.Context, runID string, source netip.Prefix, until time.Time, port uint16, open bool, kind ingressKind) (cloudsim.Run, error) {
 	run, err := p.Status(ctx, runID)
 	if err != nil {
 		return cloudsim.Run{}, err
@@ -712,16 +733,25 @@ func (p *Provider) setIngress(ctx context.Context, runID string, source netip.Pr
 	if err := p.api.SetIngress(ctx, IngressRequest{RunID: runID, SecurityGroupID: securityGroupID, Source: source, Port: port, Until: until.UTC(), Open: open}); err != nil {
 		return cloudsim.Run{}, err
 	}
-	if deployment {
+	switch kind {
+	case ingressDeployment:
 		if open {
 			run.DeploymentWindow = &cloudsim.DeploymentWindow{SourcePrefix: source, Until: until.UTC()}
 		} else {
 			run.DeploymentWindow = nil
 		}
-	} else if open {
-		run.AnalysisWindow = &cloudsim.AnalysisWindow{SourcePrefix: source, Until: until.UTC()}
-	} else {
-		run.AnalysisWindow = nil
+	case ingressAnalysis:
+		if open {
+			run.AnalysisWindow = &cloudsim.AnalysisWindow{SourcePrefix: source, Until: until.UTC()}
+		} else {
+			run.AnalysisWindow = nil
+		}
+	case ingressPublicView:
+		if open {
+			run.PublicViewWindow = &cloudsim.PublicViewWindow{SourcePrefix: source, Until: until.UTC()}
+		} else {
+			run.PublicViewWindow = nil
+		}
 	}
 	return run, nil
 }
@@ -754,6 +784,12 @@ func (p *Provider) attachIngressWindows(ctx context.Context, run cloudsim.Run) (
 				run.AnalysisWindow = &cloudsim.AnalysisWindow{SourcePrefix: window.Source, Until: window.Until}
 			} else {
 				run.AnalysisWindow.Until = time.Time{}
+			}
+		case cloudsim.CloudViewPort:
+			if run.PublicViewWindow == nil {
+				run.PublicViewWindow = &cloudsim.PublicViewWindow{SourcePrefix: window.Source, Until: window.Until}
+			} else {
+				run.PublicViewWindow.Until = time.Time{}
 			}
 		}
 	}
