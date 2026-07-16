@@ -227,7 +227,7 @@ curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
   http://127.0.0.1:15001/readyz
 ```
 
-The default Compose stack starts three WuKongIM nodes, the manager Web UI, Prometheus, and Grafana. The optional `wk-sim` benchmark simulator is behind the `dev-sim` profile.
+The default Compose stack starts three WuKongIM nodes, Prometheus, and Grafana. The manager Web UI is embedded in the node 1 `wukongim` binary. The optional `wk-sim` benchmark simulator is behind the `dev-sim` profile.
 
 | Service | Address | Development credentials / notes |
 | --- | --- | --- |
@@ -272,12 +272,12 @@ The example starts one Controller voter, one physical Slot, 256 logical hash slo
 | Purpose | Address |
 | --- | --- |
 | HTTP API / health / metrics | `127.0.0.1:5001` |
-| Manager API | `127.0.0.1:5301` |
+| Manager Web UI / API | <http://127.0.0.1:5301> |
 | WKProto TCP | `127.0.0.1:5100` |
 | WebSocket multiplexer | `ws://127.0.0.1:5200` |
 | Node transport | `127.0.0.1:7001` |
 
-This command starts the server only; it does not start `web/`, external Prometheus, or Grafana.
+The `wukongim` binary started by this command already contains the manager Web UI; open <http://127.0.0.1:5301> to use it. It does not start external Prometheus or Grafana.
 
 ## Configuration
 

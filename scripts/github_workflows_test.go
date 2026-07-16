@@ -103,6 +103,14 @@ if [[ -n "$unformatted" ]]; then
 fi
 `
 
+const embeddedWebBundleCheckCommand = `changes="$(git status --porcelain -- ../internal/access/manager/webui/dist)"
+if [[ -n "$changes" ]]; then
+  echo "The embedded manager web bundle is stale:"
+  echo "$changes"
+  exit 1
+fi
+`
+
 var expectedCIJobs = map[string]ciJob{
 	"go-quality": {
 		Name:           "Go quality",
@@ -184,7 +192,7 @@ var expectedCIJobs = map[string]ciJob{
 			{Name: "Test", Run: "bun run test"},
 			{Name: "Type check", Run: "bunx tsc -b"},
 			{Name: "Build", Run: "bun run build"},
-			{Name: "Check deterministic tracked build output", Run: "git diff --exit-code -- dist/index.html"},
+			{Name: "Check deterministic tracked build output", Shell: "bash", Run: embeddedWebBundleCheckCommand},
 		},
 	},
 }

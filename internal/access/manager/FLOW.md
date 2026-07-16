@@ -3,12 +3,20 @@
 ## Responsibility
 
 `internal/access/manager` exposes the dedicated manager HTTP listener for
-new-architecture administration routes. It owns HTTP routing, CORS, static
+new-architecture administration routes and the embedded Manager Web UI. It owns
+HTTP routing, CORS, embedded static asset and SPA fallback handling, static
 manager login validation, JWT issuance, manager route permission checks, and
 manager-specific response envelopes. It does not own cluster, message, channel,
 user, or conversation business state.
 
 ## Routes
+
+The same listener serves the embedded production Web bundle at `/`. Registered
+`/manager/*` routes always take precedence. Unmatched non-`/manager` GET and
+HEAD routes without a concrete static file return `index.html` for browser SPA
+routing; missing file-like paths and unmatched `/manager/*` routes remain 404.
+Content-hashed `/assets/*` responses are immutable-cacheable while `index.html`
+and public root assets require revalidation.
 
 ```text
 POST /manager/login   (only when Auth.On=true)

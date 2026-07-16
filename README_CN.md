@@ -227,7 +227,7 @@ curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
   http://127.0.0.1:15001/readyz
 ```
 
-默认 Compose 会启动三个 WuKongIM 节点、Manager Web UI、Prometheus 和 Grafana。可选的 `wk-sim` 压测模拟器位于 `dev-sim` Profile 中。
+默认 Compose 会启动三个 WuKongIM 节点、Prometheus 和 Grafana。Manager Web UI 已内嵌在节点 1 的 `wukongim` 二进制中；可选的 `wk-sim` 压测模拟器位于 `dev-sim` Profile 中。
 
 | 服务 | 地址 | 开发凭据 / 说明 |
 | --- | --- | --- |
@@ -272,12 +272,12 @@ curl --fail http://127.0.0.1:5001/readyz
 | 用途 | 地址 |
 | --- | --- |
 | HTTP API / Health / Metrics | `127.0.0.1:5001` |
-| Manager API | `127.0.0.1:5301` |
+| Manager Web UI / API | <http://127.0.0.1:5301> |
 | WKProto TCP | `127.0.0.1:5100` |
 | WebSocket 多协议入口 | `ws://127.0.0.1:5200` |
 | 节点 Transport | `127.0.0.1:7001` |
 
-这条命令只启动服务端，不会启动 `web/`、外部 Prometheus 或 Grafana。
+这条命令启动的 `wukongim` 二进制已包含 Manager Web UI；访问 <http://127.0.0.1:5301> 即可使用。它不会启动外部 Prometheus 或 Grafana。
 
 ## 配置
 

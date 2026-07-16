@@ -15,6 +15,7 @@ services:
       - "15001:5001"
       - "15100:5100"
       - "15200:5200"
+      - "18080:5301"
       - "17100:7000"
 
   wk-node2:
@@ -126,18 +127,6 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-
-  wk-web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      - wk-node1
-    environment:
-      WK_WEB_API_URL: ${WK_WEB_API_URL:-http://wk-node1:5301}
-    ports:
-      - "18080:80"
 
   prometheus:
     image: prom/prometheus:v3

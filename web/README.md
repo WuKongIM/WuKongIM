@@ -11,6 +11,8 @@
 
 `bun run lint` rejects new, changed, and stale ESLint findings against the checked-in baseline. After intentionally fixing existing findings, run `bun run lint:update-baseline` and commit the reduced baseline with the fix; CI never rewrites it.
 
+`bun run build` writes the production bundle to `internal/access/manager/webui/dist`. The complete generated directory is committed because `cmd/wukongim` embeds it at Go build time. Commit the regenerated bundle with every production web source change; CI rebuilds it and rejects drift.
+
 ## Runtime Scope
 
 The web app provides the authenticated manager shell for WuKongIM operations:
@@ -19,7 +21,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 - Protected routes require a valid persisted JWT session.
 - `VITE_API_BASE_URL` optionally overrides the default same-origin `/manager/*` base.
 - During local Vite development, same-origin `/manager/*` requests proxy to `VITE_MANAGER_API_TARGET`, defaulting to the first `scripts/start-wukongim-three-nodes.sh` manager server at `http://127.0.0.1:5311`.
-- Container deployments can set `WK_WEB_API_URL` to change the nginx `/manager/` proxy target, defaulting to `http://wk-node1:5301`.
+- Production assets are served by the same `cmd/wukongim` manager listener as `/manager/*`; no separate Nginx or web process is required.
 - UI copy supports `en` and `zh-CN`.
 - Locale selection order is persisted `localStorage` value -> browser language -> default `en`.
 - Users can switch languages from the login page and the authenticated shell topbar.

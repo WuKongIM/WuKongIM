@@ -270,8 +270,10 @@ New(Config)
      static cluster voters, optional debug snapshots, optional bench presence
      snapshot controller, and real benchmark channel/subscriber data writer when
      API.ListenAddr is configured
-  -> create access/manager.Server with static manager JWT login when
-     Manager.ListenAddr is configured; when the cluster exposes local control
+  -> create access/manager.Server with the embedded Manager Web UI and static
+     manager JWT login when Manager.ListenAddr is configured; the same listener
+     serves SPA routes and same-origin `/manager/*` requests without a separate
+     web process; when the cluster exposes local control
      snapshots, attach internal/usecase/management for `/manager/nodes`,
      `/manager/nodes/:node_id/config`, `/manager/slots`,
      `/manager/channels`, `/manager/channel-runtime-meta`,

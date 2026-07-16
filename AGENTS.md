@@ -69,7 +69,8 @@ internal/
     api/                 health、readyz、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
     cloudanalysismcp/    运行级 Analysis MCP 的认证、工具 schema 与 usecase 适配
     gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
-    manager/             后台管理 HTTP API 入口、JWT 登录与权限适配
+    manager/             后台管理 HTTP API 入口、JWT 登录、权限适配与内嵌 Web UI
+      webui/             Manager SPA 静态资源 handler 与受 CI 校验的内嵌生产构建产物
     node/                节点间 presence authority/owner-action RPC codec、handler、client
     plugin/              PDK host RPC 入口适配
   bench/                 wkbench 黑盒客户端配置、规划、执行与协调预检，保持中立且不依赖服务端内部包
@@ -168,9 +169,7 @@ test/
     plugin/              插件生命周期、HTTP forward 等黑盒场景
     suite/               e2e 共享黑盒 harness、配置、API 与 metrics 辅助
 
-ui/                      内置管理 UI 静态页面
-  assets/                前端静态资源
-  placeholder/           占位页面与未完成视图
+web/                     Manager Web UI 的 React/Vite 源码、测试与开发服务器配置
 
 learn_project/           调研/实验代码，非主执行路径
 ```

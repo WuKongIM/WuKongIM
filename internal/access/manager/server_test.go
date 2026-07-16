@@ -13,6 +13,28 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 )
 
+func TestManagerServerServesEmbeddedWebAppWithoutMaskingAPIRoutes(t *testing.T) {
+	srv := New(Options{})
+
+	web := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(web, httptest.NewRequest(http.MethodGet, "/cluster/nodes", nil))
+	if web.Code != http.StatusOK {
+		t.Fatalf("web status = %d, want %d; body=%s", web.Code, http.StatusOK, web.Body.String())
+	}
+	if !bytes.Contains(web.Body.Bytes(), []byte(`<div id="root"></div>`)) {
+		t.Fatalf("web body does not contain the manager app root: %s", web.Body.String())
+	}
+
+	api := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(api, httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil))
+	if api.Code != http.StatusServiceUnavailable {
+		t.Fatalf("API status = %d, want %d; body=%s", api.Code, http.StatusServiceUnavailable, api.Body.String())
+	}
+	if !jsonEqual(api.Body.String(), `{"error":"service_unavailable","message":"top snapshot provider is not configured"}`) {
+		t.Fatalf("API body = %s, want manager JSON error", api.Body.String())
+	}
+}
+
 func TestManagerLoginIssuesJWTForAuthorizedUser(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{

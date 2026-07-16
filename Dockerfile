@@ -22,5 +22,5 @@ COPY --from=builder /out/wkbench /usr/local/bin/wkbench
 COPY --from=builder /out/wkanalysis /usr/local/bin/wkanalysis
 COPY --from=builder /out/wkcloudsim /usr/local/bin/wkcloudsim
 
-EXPOSE 5001 5100 5200 7000 19092
+EXPOSE 5001 5100 5200 5301 7000 19092
 ENTRYPOINT ["/usr/local/bin/wukongim", "-config", "/etc/wukongim/wukongim.toml"]

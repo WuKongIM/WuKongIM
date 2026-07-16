@@ -40,13 +40,17 @@ bun run lint
 bun run test
 bunx tsc -b
 bun run build
-git diff --exit-code -- dist/index.html
+changes="$(git status --porcelain -- ../internal/access/manager/webui/dist)"
+test -z "$changes"
 ```
 
 `bun run lint` compares current ESLint results with
 `web/eslint-baseline.json`. A new, changed, or removed finding fails. After a
 reviewed lint cleanup, run `bun run lint:update-baseline` and commit the smaller
 deterministic baseline in the same change. CI never updates the baseline.
+The complete manager Web production bundle under
+`internal/access/manager/webui/dist` is also tracked and rebuilt in CI because
+ordinary Go compilation embeds it without invoking Bun.
 
 ## Nightly and Manual Coverage
 

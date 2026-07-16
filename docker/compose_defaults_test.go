@@ -112,6 +112,31 @@ func TestComposeNodeDataMountsCanTargetIndependentBackingStores(t *testing.T) {
 	}
 }
 
+func TestComposeServesEmbeddedManagerWebWithoutStandaloneContainer(t *testing.T) {
+	composePath := filepath.Join(dockerRepoRoot(t), "docker-compose.yml")
+	data, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", composePath, err)
+	}
+	var compose struct {
+		Services map[string]struct {
+			Ports []string `yaml:"ports"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &compose); err != nil {
+		t.Fatalf("decode %s: %v", composePath, err)
+	}
+	if _, ok := compose.Services["wk-web"]; ok {
+		t.Fatal("docker-compose.yml must not deploy a standalone wk-web service")
+	}
+	for _, port := range compose.Services["wk-node1"].Ports {
+		if port == "18080:5301" {
+			return
+		}
+	}
+	t.Fatalf("wk-node1 ports = %v, want 18080:5301 for embedded manager web", compose.Services["wk-node1"].Ports)
+}
+
 func pathIsWithin(parent, child string) bool {
 	rel, err := filepath.Rel(filepath.Clean(parent), filepath.Clean(child))
 	if err != nil || filepath.IsAbs(rel) {

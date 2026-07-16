@@ -1,3 +1,5 @@
+import path from "node:path"
+
 import type { UserConfig } from "vite"
 import { describe, expect, it } from "vitest"
 
@@ -34,5 +36,16 @@ describe("vite manager proxy", () => {
     )
 
     expect(getManagerProxy(config)?.target).toBe("http://127.0.0.1:5399")
+  })
+})
+
+describe("vite production output", () => {
+  it("writes the production bundle into the Go manager webui package", () => {
+    const config = createViteConfig({ mode: "production" }, {})
+
+    expect(config.build?.outDir).toBe(
+      path.resolve(__dirname, "../internal/access/manager/webui/dist"),
+    )
+    expect(config.build?.emptyOutDir).toBe(true)
   })
 })

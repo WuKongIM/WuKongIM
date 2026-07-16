@@ -23,6 +23,10 @@ export function createViteConfig(
 
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      outDir: path.resolve(__dirname, "../internal/access/manager/webui/dist"),
+      emptyOutDir: true,
+    },
     server: {
       proxy: {
         "/manager": {

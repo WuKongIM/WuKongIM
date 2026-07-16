@@ -11,6 +11,7 @@ import (
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
+	"github.com/WuKongIM/WuKongIM/internal/access/manager/webui"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
@@ -249,6 +250,12 @@ func New(opts Options) *Server {
 		logger:          opts.Logger,
 	}
 	srv.registerRoutes()
+	engine.NoRoute(func(c *gin.Context) {
+		// Gin presets NoRoute responses to 404 before running the handler. Reset
+		// the unwritten status so the web handler can select 200, 304, or 404.
+		c.Status(http.StatusOK)
+		webui.Handler().ServeHTTP(c.Writer, c.Request)
+	})
 	return srv
 }
 
