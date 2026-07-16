@@ -21,6 +21,7 @@ type deliveryMetaNode interface {
 	Snapshot() cluster.Snapshot
 	UpsertChannelMetadata(context.Context, metadb.Channel) error
 	AddChannelSubscribers(context.Context, string, int64, []string, uint64) error
+	RemoveChannelSubscribers(context.Context, string, int64, []string, uint64) error
 	ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
 }
 
@@ -77,6 +78,15 @@ type deliveryMetaSubscriberCacheEntry struct {
 }
 
 func (s *deliveryMetaStore) AddSubscribers(ctx context.Context, mutations []accessapi.BenchSubscriberMutation) (int, error) {
+	return s.mutateSubscribers(ctx, mutations, false)
+}
+
+// RemoveSubscribers deletes benchmark subscribers through the same ordered mutation path as additions.
+func (s *deliveryMetaStore) RemoveSubscribers(ctx context.Context, mutations []accessapi.BenchSubscriberMutation) (int, error) {
+	return s.mutateSubscribers(ctx, mutations, true)
+}
+
+func (s *deliveryMetaStore) mutateSubscribers(ctx context.Context, mutations []accessapi.BenchSubscriberMutation, remove bool) (int, error) {
 	if s == nil || s.node == nil {
 		return 0, nil
 	}
@@ -96,7 +106,13 @@ func (s *deliveryMetaStore) AddSubscribers(ctx context.Context, mutations []acce
 			accepted := 0
 			for _, mutation := range group {
 				version := s.version.Add(1)
-				if err := s.node.AddChannelSubscribers(ctx, mutation.ChannelID, int64(mutation.ChannelType), append([]string(nil), mutation.Subscribers...), version); err != nil {
+				var err error
+				if remove {
+					err = s.node.RemoveChannelSubscribers(ctx, mutation.ChannelID, int64(mutation.ChannelType), append([]string(nil), mutation.Subscribers...), version)
+				} else {
+					err = s.node.AddChannelSubscribers(ctx, mutation.ChannelID, int64(mutation.ChannelType), append([]string(nil), mutation.Subscribers...), version)
+				}
+				if err != nil {
 					return accepted, err
 				}
 				accepted += len(mutation.Subscribers)

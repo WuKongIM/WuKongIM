@@ -17,7 +17,8 @@ usecase. `/conversation/list` and `/conversation/sync` requests forward to the
 conversation usecase and keep ordering, cursor rules, sync candidate selection,
 and message reads out of the HTTP layer. When the composition root provides a
 benchmark data writer,
-`/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
+`/bench/v1/channels`, `/bench/v1/channels/subscribers`, and
+`/bench/v1/channels/subscribers/remove` forward setup or churn membership
 mutations through that writer; for `cmd/wukongim` delivery benchmarks the
 writer persists real cluster Slot metadata.
 When `bench.api_token` is configured, every `/bench/v1/*` request must carry
@@ -52,6 +53,7 @@ POST /bench/v1/channel-runtime/evict
 POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
+POST /bench/v1/channels/subscribers/remove
 POST /message/send
 POST /message/event
 POST /message/sync
@@ -218,11 +220,12 @@ acknowledgments for black-box `wkbench` compatibility. The current
 `wukongim` gateway does not enable token authentication, so this route does
 not prove user-token persistence.
 
-`/bench/v1/channels` and `/bench/v1/channels/subscribers` require a benchmark
-data writer from the composition root. Without that writer, capabilities do not
+The bench channel and subscriber mutation routes require a benchmark data
+writer from the composition root. Without that writer, capabilities do not
 advertise channel mutation support and mutation requests fail closed with
-`501`. With a writer, they inject real channel metadata and subscriber rows
-through the composition root. Subscriber reset requests remain unsupported.
+`501`. With a writer, they inject real channel metadata and add or remove
+subscriber rows through the composition root. Subscriber reset requests remain
+unsupported.
 
 `/bench/v1/presence/snapshot` is a read-only diagnostic route. It reports
 owner-local route counts and authority-side virtual route counts for wkbench

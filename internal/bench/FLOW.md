@@ -28,8 +28,11 @@ that cannot emit at least one message per required active-channel window.
 During measured scheduled churn, the worker runs traffic in bounded windows.
 At each boundary it archives the completed workload metrics, reconnects the
 same-UID share, replaces the identity-swap share from deterministic offline
-lanes, refreshes bench tokens, and rebuilds person/group workloads before
-traffic resumes. `OnlineIdentityIndexes` is worker-local runtime mapping state;
+lanes, refreshes bench tokens, adds replacement UIDs to every affected group,
+removes the replaced UIDs, and rebuilds person/group workloads before traffic
+resumes. The add-before-remove order prevents a replacement sender from
+temporarily losing membership, while removal keeps long-running group sizes
+bounded. `OnlineIdentityIndexes` is worker-local runtime mapping state;
 an empty mapping preserves the initial plan. Each measured window gets a unique
 message identity namespace while report metrics normalize it back to the stable
 `run` phase. Churn never requests history sync.
@@ -491,6 +494,7 @@ For split traffic, message indexes are partitioned by `TrafficPartitionCount` an
 - `POST /bench/v1/users/tokens`
 - `POST /bench/v1/channels`
 - `POST /bench/v1/channels/subscribers`
+- `POST /bench/v1/channels/subscribers/remove`
 
 The server-side implementation lives outside this package. Keep request/response types in `pkg/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
 

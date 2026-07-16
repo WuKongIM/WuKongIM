@@ -44,7 +44,9 @@ and is omitted from the initial deterministic plan.
 `OnlineConfig.Churn` is explicit about interval, churn ratio, same-user share,
 identity-swap share, and history-sync policy. Long stability profiles require
 the shares to sum to one, at least one full offline identity lane for swaps,
-and `history_sync: false`.
+and `history_sync: false`. Bench capabilities separately advertise batched
+subscriber adds and removals so identity-swap workers can keep group membership
+aligned without growing long-run group cardinality.
 
 `ShardConfig.HashSlotSpread` is a group-profile contract: `HashSlotCount` must
 be positive and equal the profile channel count. It means channel index `n`

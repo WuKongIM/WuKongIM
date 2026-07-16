@@ -445,11 +445,12 @@ batch key routing, the app recipient resolver resolves each subscriber page's
 unique UIDs through one batch route lookup before grouping. When delivery is
 enabled, the app wires a bounded
 recipient delivery worker that drains those batches and runs the delivery-only
-channelappend recipient processor outside the authority writer. `/bench/v1/channels` and
-`/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
-through Slot proposals. The benchmark data writer uses bounded concurrency for
-independent channel/subscriber mutations while preserving subscriber mutation
-order within the same channel. Scoped UID delivery bypasses subscriber scan and
+channelappend recipient processor outside the authority writer. `/bench/v1/channels`,
+`/bench/v1/channels/subscribers`, and `/bench/v1/channels/subscribers/remove`
+write real channel metadata or add/remove subscriber rows through Slot proposals.
+The benchmark data writer uses bounded concurrency for independent
+channel/subscriber mutations while preserving subscriber mutation order within
+the same channel. Scoped UID delivery bypasses subscriber scan and
 flows through recipient authority grouping, presence resolution, and the local
 or RPC owner pusher after the recipient delivery worker accepts the batch.
 The app maps the worker's serialized execution-pressure observation into

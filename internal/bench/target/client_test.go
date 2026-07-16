@@ -524,6 +524,20 @@ func TestAddSubscribersPostsToFirstHealthyAPIAddress(t *testing.T) {
 	require.Equal(t, 1, hits["first"])
 }
 
+func TestRemoveSubscribersPostsToRemovalEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/channels/subscribers/remove", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{APIAddrs: []string{server.URL}})
+	require.NoError(t, client.RemoveSubscribers(context.Background(), model.BatchSubscribersRequest{
+		RunID: "run", BatchID: "remove-1",
+		Items: []model.SubscriberItem{{ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1"}}},
+	}))
+}
+
 func TestMutationsFallBackToNextAPIAddress(t *testing.T) {
 	firstHits := 0
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

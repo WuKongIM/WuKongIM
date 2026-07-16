@@ -20,6 +20,8 @@ type BenchCapabilitiesSupports struct {
 	ChannelsBatch bool `json:"channels_batch"`
 	// ChannelSubscribersBatch indicates support for batch subscriber appends.
 	ChannelSubscribersBatch bool `json:"channel_subscribers_batch"`
+	// ChannelSubscriberRemovalsBatch indicates support for batch subscriber removals.
+	ChannelSubscriberRemovalsBatch bool `json:"channel_subscriber_removals_batch"`
 	// Snapshot indicates support for lightweight bench setup snapshots.
 	Snapshot bool `json:"snapshot"`
 	// PresenceSnapshot indicates support for connection-route presence snapshots.
@@ -284,7 +286,7 @@ type ChannelItem struct {
 	AllowStranger bool `json:"allow_stranger,omitempty"`
 }
 
-// BatchSubscribersRequest appends benchmark subscribers in one batch.
+// BatchSubscribersRequest mutates benchmark subscribers in one batch.
 type BatchSubscribersRequest struct {
 	// RunID identifies the benchmark run that owns this batch.
 	RunID string `json:"run_id"`
@@ -294,7 +296,7 @@ type BatchSubscribersRequest struct {
 	Items []SubscriberItem `json:"items"`
 }
 
-// SubscriberItem carries subscribers to append for one group channel.
+// SubscriberItem carries subscribers to add or remove for one group channel.
 type SubscriberItem struct {
 	// ChannelID is the benchmark channel identifier.
 	ChannelID string `json:"channel_id"`
@@ -302,6 +304,6 @@ type SubscriberItem struct {
 	ChannelType uint8 `json:"channel_type"`
 	// Reset requests subscriber replacement; bench/v1 currently rejects true.
 	Reset bool `json:"reset,omitempty"`
-	// Subscribers are user IDs appended to the channel subscriber list.
+	// Subscribers are user IDs mutated in the channel subscriber list.
 	Subscribers []string `json:"subscribers"`
 }
