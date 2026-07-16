@@ -17,7 +17,7 @@ var apiurl = getUrlParam("apiurl")
 
 
 if (!apiurl || apiurl?.trim() == "") {
-  apiurl = "http://127.0.0.1:5001"
+  apiurl = import.meta.env.DEV ? "http://127.0.0.1:5001" : window.location.origin
 } else {
   // 去掉 apiurl后的 “/”
   if (apiurl && apiurl.endsWith("/")) {

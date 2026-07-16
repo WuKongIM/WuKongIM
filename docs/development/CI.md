@@ -18,8 +18,9 @@ dispatches. Obsolete runs for the same pull request/ref are cancelled.
 | `Go unit (pkg)` | 15m | `./pkg/...` |
 | `Go unit (scripts-docker)` | 15m | `./scripts/... ./docker/...` |
 | `Web` | 10m | frozen Bun install, lint baseline, Vitest, TypeScript, build, tracked-output diff |
+| `Demo` | 10m | pinned Node/Yarn, frozen install, Vue type check/build, tracked-output diff |
 
-The local equivalent uses Go 1.25.11 and Bun 1.3.11, matching CI:
+The local equivalent uses Go 1.25.11, Bun 1.3.11, Node 22.12.0, and Yarn 1.22.22, matching CI:
 
 ```bash
 export GOWORK=off
@@ -42,6 +43,14 @@ bunx tsc -b
 bun run build
 changes="$(git status --porcelain -- ../internal/access/manager/webui/dist)"
 test -z "$changes"
+
+cd ../demo/chatdemo
+test "$(node --version)" = "v22.12.0"
+test "$(corepack yarn --version)" = "1.22.22"
+corepack yarn install --frozen-lockfile
+corepack yarn build
+changes="$(git status --porcelain -- ../../internal/access/api/demoui/dist)"
+test -z "$changes"
 ```
 
 `bun run lint` compares current ESLint results with
@@ -51,6 +60,9 @@ deterministic baseline in the same change. CI never updates the baseline.
 The complete manager Web production bundle under
 `internal/access/manager/webui/dist` is also tracked and rebuilt in CI because
 ordinary Go compilation embeds it without invoking Bun.
+The complete chat Demo production bundle under
+`internal/access/api/demoui/dist` follows the same tracked-artifact contract;
+ordinary Go compilation embeds it without invoking Node or Yarn.
 
 ## Nightly and Manual Coverage
 

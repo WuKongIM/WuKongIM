@@ -4,7 +4,9 @@
 
 `internal/access/api` exposes the HTTP target surface needed to benchmark the
 phase-1 `SEND -> SENDACK` skeleton plus compatible channel and user management
-surfaces migrated from `internal/access/api`. It owns HTTP routing,
+surfaces migrated from `internal/access/api`. The same listener serves the
+embedded chat Demo under `/demo/`, allowing it to call product APIs on the
+same origin. It owns HTTP routing,
 request/response DTOs, and entry validation, but it does not mutate message,
 conversation, channel, user, or management business state directly. Channel
 management requests forward to the channel usecase supplied by the composition
@@ -27,6 +29,8 @@ metrics, debug, and product routes remain outside that middleware.
 ```text
 GET  /healthz
 GET  /readyz
+GET  /demo/                           (embedded chat Demo)
+HEAD /demo/                           (embedded chat Demo)
 GET  /metrics                         (optional, when MetricsHandler is configured)
 GET  /debug/config                    (optional, when DebugAPIEnabled is configured)
 GET  /debug/cluster                   (optional, when DebugAPIEnabled is configured)
@@ -107,6 +111,14 @@ All `/debug...` routes are enabled only when the composition root passes
 `WK_DEBUG_API_ENABLE`. Diagnostics debug routes also require a diagnostics reader
 and query the node-local bounded diagnostics store for controlled performance and
 troubleshooting runs.
+
+`GET /demo` and `HEAD /demo` permanently redirect to `/demo/`. The `/demo/*`
+surface serves the production Vite bundle embedded at Go build time; exact
+content-hashed assets use immutable caching, while `index.html` and public root
+assets require revalidation. Missing assets remain `404`, and product routes
+such as `/route`, `/user/token`, and `/channel/messagesync` always use their
+registered API handlers. The Demo defaults its API base to the page origin and
+uses `/route` to discover the configured client WebSocket address.
 
 The compatible `/route` and `/route/batch` routes are registered regardless of
 bench mode. They keep the legacy address response envelopes and select public

@@ -12,6 +12,7 @@ import MessageUI from '../messages/Message.vue';
 import { Marked } from 'marked';
 import { markedHighlight } from "marked-highlight";
 import hljs from 'highlight.js';
+import { demoLogoURL } from '../services/assets';
 
 const marked = new Marked(markedHighlight({
     emptyLangClass: 'hljs',
@@ -374,7 +375,7 @@ const onCustomMessageSend = () => {
     customMessage.title = "可可柠檬鲜美奶茶"
     customMessage.num = 1
     customMessage.price = 18
-    customMessage.imgUrl = "https://img1.baidu.com/it/u=3855634790,2542680254&fm=253&fmt=auto&app=138&f=JPEG?w=750&h=496"
+    customMessage.imgUrl = demoLogoURL
 
     WKSDK.shared().chatManager.send(customMessage, to.value)
     scrollBottom()
@@ -461,13 +462,13 @@ const onKeydown = (e: any) => {
                                 <MessageUI :message="m"></MessageUI>
                             </div>
                             <div class="avatar">
-                                <img :src="`https://api.dicebear.com/9.x/adventurer/svg?seed=${m.fromUID}&radius=50&backgroundType=gradientLinear&backgroundColor=ffd5dc`"
+                                <img :src="demoLogoURL"
                                     style="width: 40px;height: 40px;" />
                             </div>
                         </div>
                         <div class="message" v-if="!m.send" :id="m.clientMsgNo">
                             <div class="avatar">
-                                <img :src="`https://api.dicebear.com/9.x/adventurer/svg?seed=${m.fromUID}&radius=50&backgroundType=gradientLinear&backgroundColor=ffd5dc`"
+                                <img :src="demoLogoURL"
                                     style="width: 40px;height: 40px;" />
                             </div>
                             <div class="bubble">

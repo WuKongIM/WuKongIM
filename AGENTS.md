@@ -66,7 +66,8 @@ cmd/
 internal/
   app/                   新架构组合根；负责 cluster、message usecase、HTTP API、gateway handler/runtime 装配与生命周期
   access/                新架构入口适配层
-    api/                 health、readyz、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
+    api/                 health、readyz、内嵌聊天 Demo、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
+      demoui/            Demo 静态资源 handler 与受 CI 校验的内嵌生产构建产物
     cloudanalysismcp/    运行级 Analysis MCP 的认证、工具 schema 与 usecase 适配
     gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
     manager/             后台管理 HTTP API 入口、JWT 登录、权限适配与内嵌 Web UI
@@ -170,6 +171,9 @@ test/
     suite/               e2e 共享黑盒 harness、配置、API 与 metrics 辅助
 
 web/                     Manager Web UI 的 React/Vite 源码、测试与开发服务器配置
+
+demo/
+  chatdemo/              内嵌聊天 Demo 的 Vue/Vite 源码与本地开发配置
 
 learn_project/           调研/实验代码，非主执行路径
 ```

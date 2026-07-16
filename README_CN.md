@@ -227,12 +227,13 @@ curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
   http://127.0.0.1:15001/readyz
 ```
 
-默认 Compose 会启动三个 WuKongIM 节点、Prometheus 和 Grafana。Manager Web UI 已内嵌在节点 1 的 `wukongim` 二进制中；可选的 `wk-sim` 压测模拟器位于 `dev-sim` Profile 中。
+默认 Compose 会启动三个 WuKongIM 节点、Prometheus 和 Grafana。Manager Web UI 和聊天 Demo 均已内嵌在节点 1 的 `wukongim` 二进制中；可选的 `wk-sim` 压测模拟器位于 `dev-sim` Profile 中。
 
 | 服务 | 地址 | 开发凭据 / 说明 |
 | --- | --- | --- |
 | Manager Web UI | <http://127.0.0.1:18080> | `admin` / `a1234567` |
 | 节点 1 API 与就绪检查 | <http://127.0.0.1:15001/readyz> | Metrics：<http://127.0.0.1:15001/metrics> |
+| 聊天 Demo | <http://127.0.0.1:15001/demo/> | 默认使用同源节点 API；输入任意唯一测试 UID 即可 |
 | 节点 1 WKProto TCP | `127.0.0.1:15100` | 客户端连接地址 |
 | 节点 1 WebSocket | `ws://127.0.0.1:15200` | WKProto / JSON-RPC 多协议复用 |
 | Prometheus | <http://127.0.0.1:9091> | Compose 使用的外部 Prometheus |
@@ -272,12 +273,13 @@ curl --fail http://127.0.0.1:5001/readyz
 | 用途 | 地址 |
 | --- | --- |
 | HTTP API / Health / Metrics | `127.0.0.1:5001` |
+| 聊天 Demo | <http://127.0.0.1:5001/demo/> |
 | Manager Web UI / API | <http://127.0.0.1:5301> |
 | WKProto TCP | `127.0.0.1:5100` |
 | WebSocket 多协议入口 | `ws://127.0.0.1:5200` |
 | 节点 Transport | `127.0.0.1:7001` |
 
-这条命令启动的 `wukongim` 二进制已包含 Manager Web UI；访问 <http://127.0.0.1:5301> 即可使用。它不会启动外部 Prometheus 或 Grafana。
+这条命令启动的 `wukongim` 二进制已包含两个浏览器应用：访问 <http://127.0.0.1:5301> 使用 Manager Web UI，访问 <http://127.0.0.1:5001/demo/> 使用聊天 Demo。Demo 默认使用同源 HTTP API，并通过 `/route` 获取已配置的客户端 WebSocket 地址，不需要另起前端进程。该命令不会启动外部 Prometheus 或 Grafana。
 
 ## 配置
 

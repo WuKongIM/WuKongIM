@@ -69,6 +69,45 @@ func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {
 	}
 }
 
+func TestServerServesEmbeddedDemoWithoutMaskingProductRoutes(t *testing.T) {
+	srv := New(Options{
+		LegacyRouteExternal: LegacyRouteAddresses{WSAddr: "ws://127.0.0.1:5200"},
+	})
+
+	demoRec := httptest.NewRecorder()
+	demoReq := httptest.NewRequest(http.MethodGet, "/demo/", nil)
+	srv.Handler().ServeHTTP(demoRec, demoReq)
+	if demoRec.Code != http.StatusOK {
+		t.Fatalf("GET /demo/ status = %d, want %d", demoRec.Code, http.StatusOK)
+	}
+	if contentType := demoRec.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/html") {
+		t.Fatalf("GET /demo/ content type = %q, want text/html", contentType)
+	}
+	if body := demoRec.Body.String(); !strings.Contains(body, "悟空IM演示程序") {
+		t.Fatalf("GET /demo/ body does not contain demo title: %q", body)
+	}
+
+	routeRec := httptest.NewRecorder()
+	routeReq := httptest.NewRequest(http.MethodGet, "/route?uid=u1", nil)
+	srv.Handler().ServeHTTP(routeRec, routeReq)
+	if routeRec.Code != http.StatusOK {
+		t.Fatalf("GET /route status = %d, want %d", routeRec.Code, http.StatusOK)
+	}
+	if !jsonEqual(routeRec.Body.String(), `{"tcp_addr":"","ws_addr":"ws://127.0.0.1:5200","wss_addr":""}`) {
+		t.Fatalf("GET /route body = %s, want product route response", routeRec.Body.String())
+	}
+
+	redirectRec := httptest.NewRecorder()
+	redirectReq := httptest.NewRequest(http.MethodGet, "/demo?apiurl=https%3A%2F%2Fim.example.com", nil)
+	srv.Handler().ServeHTTP(redirectRec, redirectReq)
+	if redirectRec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("GET /demo status = %d, want %d", redirectRec.Code, http.StatusPermanentRedirect)
+	}
+	if location := redirectRec.Header().Get("Location"); location != "/demo/?apiurl=https%3A%2F%2Fim.example.com" {
+		t.Fatalf("GET /demo Location = %q, want query-preserving canonical URL", location)
+	}
+}
+
 func TestBenchRoutesRequireConfiguredBearerToken(t *testing.T) {
 	srv := httptest.NewServer(New(Options{BenchEnabled: true, BenchToken: "bench-secret"}).Handler())
 	t.Cleanup(srv.Close)

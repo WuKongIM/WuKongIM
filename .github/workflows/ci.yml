@@ -117,3 +117,37 @@ jobs:
             echo "$changes"
             exit 1
           fi
+
+  demo:
+    name: Demo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: demo/chatdemo
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22.12.0"
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Verify Node version
+        run: test "$(node --version)" = "v22.12.0"
+      - name: Verify Yarn version
+        run: test "$(yarn --version)" = "1.22.22"
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Build
+        run: yarn build
+      - name: Check deterministic tracked build output
+        shell: bash
+        run: |
+          changes="$(git status --porcelain -- ../../internal/access/api/demoui/dist)"
+          if [[ -n "$changes" ]]; then
+            echo "The embedded chat Demo bundle is stale:"
+            echo "$changes"
+            exit 1
+          fi

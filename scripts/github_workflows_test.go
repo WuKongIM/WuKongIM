@@ -83,6 +83,10 @@ var approvedActionPins = map[string]actionPin{
 		sha:     "924ae3a1cded613372ab5595356fb5720e22ba16",
 		release: "v6.5.0",
 	},
+	"actions/setup-node": {
+		sha:     "249970729cb0ef3589644e2896645e5dc5ba9c38",
+		release: "v6.5.0",
+	},
 	"oven-sh/setup-bun": {
 		sha:     "0c5077e51419868618aeaa5fe8019c62421857d6",
 		release: "v2.2.0",
@@ -106,6 +110,14 @@ fi
 const embeddedWebBundleCheckCommand = `changes="$(git status --porcelain -- ../internal/access/manager/webui/dist)"
 if [[ -n "$changes" ]]; then
   echo "The embedded manager web bundle is stale:"
+  echo "$changes"
+  exit 1
+fi
+`
+
+const embeddedDemoBundleCheckCommand = `changes="$(git status --porcelain -- ../../internal/access/api/demoui/dist)"
+if [[ -n "$changes" ]]; then
+  echo "The embedded chat Demo bundle is stale:"
   echo "$changes"
   exit 1
 fi
@@ -193,6 +205,28 @@ var expectedCIJobs = map[string]ciJob{
 			{Name: "Type check", Run: "bunx tsc -b"},
 			{Name: "Build", Run: "bun run build"},
 			{Name: "Check deterministic tracked build output", Shell: "bash", Run: embeddedWebBundleCheckCommand},
+		},
+	},
+	"demo": {
+		Name:           "Demo",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 10,
+		Defaults:       &ciDefaults{Run: ciRunDefaults{WorkingDirectory: "demo/chatdemo"}},
+		Steps: []ciStep{
+			{
+				Uses: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+				With: map[string]any{"persist-credentials": false},
+			},
+			{
+				Uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+				With: map[string]any{"node-version": "22.12.0"},
+			},
+			{Name: "Enable Corepack", Run: "corepack enable"},
+			{Name: "Verify Node version", Run: `test "$(node --version)" = "v22.12.0"`},
+			{Name: "Verify Yarn version", Run: `test "$(yarn --version)" = "1.22.22"`},
+			{Name: "Install dependencies", Run: "yarn install --frozen-lockfile"},
+			{Name: "Build", Run: "yarn build"},
+			{Name: "Check deterministic tracked build output", Shell: "bash", Run: embeddedDemoBundleCheckCommand},
 		},
 	},
 }
@@ -781,7 +815,7 @@ func validateCIWorkflow(raw []byte) error {
 	}
 	if err := validateWorkflowStructure(
 		document,
-		[]string{"go-quality", "go-unit", "web"},
+		[]string{"go-quality", "go-unit", "web", "demo"},
 		expectedCIJobs,
 	); err != nil {
 		return err

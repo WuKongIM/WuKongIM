@@ -227,12 +227,13 @@ curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
   http://127.0.0.1:15001/readyz
 ```
 
-The default Compose stack starts three WuKongIM nodes, Prometheus, and Grafana. The manager Web UI is embedded in the node 1 `wukongim` binary. The optional `wk-sim` benchmark simulator is behind the `dev-sim` profile.
+The default Compose stack starts three WuKongIM nodes, Prometheus, and Grafana. The manager Web UI and chat Demo are embedded in the node 1 `wukongim` binary. The optional `wk-sim` benchmark simulator is behind the `dev-sim` profile.
 
 | Service | Address | Development credentials / notes |
 | --- | --- | --- |
 | Manager Web UI | <http://127.0.0.1:18080> | `admin` / `a1234567` |
 | Node 1 API and readiness | <http://127.0.0.1:15001/readyz> | Metrics: <http://127.0.0.1:15001/metrics> |
+| Chat Demo | <http://127.0.0.1:15001/demo/> | Uses the same-origin node API; enter any unique test UID |
 | Node 1 WKProto TCP | `127.0.0.1:15100` | Client connection endpoint |
 | Node 1 WebSocket | `ws://127.0.0.1:15200` | WKProto / JSON-RPC multiplexing |
 | Prometheus | <http://127.0.0.1:9091> | External Prometheus used by the Compose stack |
@@ -272,12 +273,13 @@ The example starts one Controller voter, one physical Slot, 256 logical hash slo
 | Purpose | Address |
 | --- | --- |
 | HTTP API / health / metrics | `127.0.0.1:5001` |
+| Chat Demo | <http://127.0.0.1:5001/demo/> |
 | Manager Web UI / API | <http://127.0.0.1:5301> |
 | WKProto TCP | `127.0.0.1:5100` |
 | WebSocket multiplexer | `ws://127.0.0.1:5200` |
 | Node transport | `127.0.0.1:7001` |
 
-The `wukongim` binary started by this command already contains the manager Web UI; open <http://127.0.0.1:5301> to use it. It does not start external Prometheus or Grafana.
+The `wukongim` binary started by this command already contains both browser applications. Open <http://127.0.0.1:5301> for the Manager Web UI or <http://127.0.0.1:5001/demo/> for the chat Demo. The Demo uses the same-origin HTTP API by default and discovers the configured client WebSocket through `/route`; no separate frontend process is required. The binary does not start external Prometheus or Grafana.
 
 ## Configuration
 

@@ -1,2 +1,4 @@
 internal/access/manager/webui/dist/** linguist-generated=true
 internal/access/manager/webui/dist/assets/** -diff -text
+internal/access/api/demoui/dist/** linguist-generated=true
+internal/access/api/demoui/dist/assets/** -diff -text

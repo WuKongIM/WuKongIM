@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/access/api/demoui"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
@@ -479,6 +480,7 @@ func (s *Server) registerRoutes() {
 	}
 	s.engine.GET("/route", s.handleRoute)
 	s.engine.POST("/route/batch", s.handleRouteBatch)
+	s.registerDemoRoutes()
 	s.registerChannelRoutes()
 	s.registerUserRoutes()
 	s.registerMessageRoutes()
@@ -501,6 +503,25 @@ func (s *Server) registerRoutes() {
 	bench.POST("/users/tokens", s.handleBenchTokens)
 	bench.POST("/channels", s.handleBenchChannels)
 	bench.POST("/channels/subscribers", s.handleBenchSubscribers)
+}
+
+// registerDemoRoutes mounts the embedded chat Demo below the product API.
+func (s *Server) registerDemoRoutes() {
+	handler := http.StripPrefix("/demo", demoui.Handler())
+	redirect := func(c *gin.Context) {
+		target := "/demo/"
+		if c.Request.URL.RawQuery != "" {
+			target += "?" + c.Request.URL.RawQuery
+		}
+		http.Redirect(c.Writer, c.Request, target, http.StatusPermanentRedirect)
+	}
+	serve := func(c *gin.Context) {
+		handler.ServeHTTP(c.Writer, c.Request)
+	}
+	s.engine.GET("/demo", redirect)
+	s.engine.HEAD("/demo", redirect)
+	s.engine.GET("/demo/*path", serve)
+	s.engine.HEAD("/demo/*path", serve)
 }
 
 func (s *Server) requireBenchToken(c *gin.Context) {

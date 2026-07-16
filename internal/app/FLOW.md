@@ -265,8 +265,9 @@ New(Config)
      committed reads, create internal/usecase/cmdsync with one
      infra/cluster CMDSyncStore over ConversationKindCMD rows
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
-  -> create access/api.Server with the channel, user, message, CMD sync, and conversation
-     usecases, legacy route address lookup derived from gateway listeners and
+  -> create access/api.Server with the embedded chat Demo, channel, user,
+     message, CMD sync, and conversation usecases, legacy route address lookup
+     derived from gateway listeners and
      static cluster voters, optional debug snapshots, optional bench presence
      snapshot controller, and real benchmark channel/subscriber data writer when
      API.ListenAddr is configured
