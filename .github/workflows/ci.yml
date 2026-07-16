@@ -140,6 +140,8 @@ jobs:
         run: test "$(yarn --version)" = "1.22.22"
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+      - name: Test
+        run: yarn test
       - name: Build
         run: yarn build
       - name: Check deterministic tracked build output

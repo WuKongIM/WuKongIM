@@ -18,7 +18,7 @@ dispatches. Obsolete runs for the same pull request/ref are cancelled.
 | `Go unit (pkg)` | 15m | `./pkg/...` |
 | `Go unit (scripts-docker)` | 15m | `./scripts/... ./docker/...` |
 | `Web` | 10m | frozen Bun install, lint baseline, Vitest, TypeScript, build, tracked-output diff |
-| `Demo` | 10m | pinned Node/Yarn, frozen install, Vue type check/build, tracked-output diff |
+| `Demo` | 10m | pinned Node/Yarn, frozen install, avatar unit tests, Vue type check/build, tracked-output diff |
 
 The local equivalent uses Go 1.25.11, Bun 1.3.11, Node 22.12.0, and Yarn 1.22.22, matching CI:
 
@@ -48,6 +48,7 @@ cd ../demo/chatdemo
 test "$(node --version)" = "v22.12.0"
 test "$(corepack yarn --version)" = "1.22.22"
 corepack yarn install --frozen-lockfile
+corepack yarn test
 corepack yarn build
 changes="$(git status --porcelain -- ../../internal/access/api/demoui/dist)"
 test -z "$changes"

@@ -13,6 +13,7 @@ import { Marked } from 'marked';
 import { markedHighlight } from "marked-highlight";
 import hljs from 'highlight.js';
 import { demoLogoURL } from '../services/assets';
+import { avatarURLForUID } from '../services/avatar';
 
 const marked = new Marked(markedHighlight({
     emptyLangClass: 'hljs',
@@ -54,6 +55,21 @@ const messages = ref<Message[]>(new Array<Message>())
 
 const uid = router.currentRoute.value.query.uid as string || undefined;
 const token = router.currentRoute.value.query.token as string || "token111";
+type MessageAvatarSource = { fromUID: string, send: boolean }
+const messageAvatarCache = new WeakMap<MessageAvatarSource, { uid: string, url: string }>()
+
+// messageAvatarURL keeps generated avatar data scoped to the message lifetime.
+const messageAvatarURL = (message: MessageAvatarSource): string => {
+    const avatarUID = message.fromUID || (message.send ? uid : "") || ""
+    const cachedAvatar = messageAvatarCache.get(message)
+    if (cachedAvatar?.uid === avatarUID) {
+        return cachedAvatar.url
+    }
+
+    const url = avatarURLForUID(avatarUID)
+    messageAvatarCache.set(message, { uid: avatarUID, url })
+    return url
+}
 
 title.value = `${uid || ""}(未连接)`
 
@@ -462,13 +478,13 @@ const onKeydown = (e: any) => {
                                 <MessageUI :message="m"></MessageUI>
                             </div>
                             <div class="avatar">
-                                <img :src="demoLogoURL"
+                                <img :src="messageAvatarURL(m)"
                                     style="width: 40px;height: 40px;" />
                             </div>
                         </div>
                         <div class="message" v-if="!m.send" :id="m.clientMsgNo">
                             <div class="avatar">
-                                <img :src="demoLogoURL"
+                                <img :src="messageAvatarURL(m)"
                                     style="width: 40px;height: 40px;" />
                             </div>
                             <div class="bubble">

@@ -225,6 +225,7 @@ var expectedCIJobs = map[string]ciJob{
 			{Name: "Verify Node version", Run: `test "$(node --version)" = "v22.12.0"`},
 			{Name: "Verify Yarn version", Run: `test "$(yarn --version)" = "1.22.22"`},
 			{Name: "Install dependencies", Run: "yarn install --frozen-lockfile"},
+			{Name: "Test", Run: "yarn test"},
 			{Name: "Build", Run: "yarn build"},
 			{Name: "Check deterministic tracked build output", Shell: "bash", Run: embeddedDemoBundleCheckCommand},
 		},
