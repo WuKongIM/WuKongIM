@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/mattn/go-isatty"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -66,7 +67,12 @@ func NewLogger(cfg Config) (wklog.Logger, error) {
 	}
 
 	if cfg.Console {
-		cores = append(cores, zapcore.NewCore(buildConsoleEncoder(), zapcore.AddSync(os.Stdout), atomicLevel))
+		consoleCore := zapcore.NewCore(
+			buildConsoleEncoder(ConsoleColorEnabled(os.Stdout)),
+			zapcore.AddSync(os.Stdout),
+			atomicLevel,
+		)
+		cores = append(cores, newConsoleEventFilterCore(consoleCore, cfg.ConsoleExcludedEvents))
 	}
 
 	return &zapLogger{
@@ -193,11 +199,27 @@ func buildEncoder(format string) zapcore.Encoder {
 	return zapcore.NewConsoleEncoder(cfg)
 }
 
-func buildConsoleEncoder() zapcore.Encoder {
+func buildConsoleEncoder(color bool) zapcore.Encoder {
 	cfg := baseEncoderConfig()
-	cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	if color {
+		cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
 	cfg.EncodeName = bracketNameEncoder
 	return zapcore.NewConsoleEncoder(cfg)
+}
+
+// ConsoleColorEnabled reports whether a console file supports ANSI color output.
+func ConsoleColorEnabled(file *os.File) bool {
+	return consoleColorEnabled(file, func(fd uintptr) bool {
+		return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
+	})
+}
+
+func consoleColorEnabled(file *os.File, terminal func(uintptr) bool) bool {
+	if file == nil || os.Getenv("NO_COLOR") != "" || strings.EqualFold(strings.TrimSpace(os.Getenv("TERM")), "dumb") {
+		return false
+	}
+	return terminal != nil && terminal(file.Fd())
 }
 
 func baseEncoderConfig() zapcore.EncoderConfig {

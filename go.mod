@@ -23,6 +23,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/google/pprof v0.0.0-20260709232956-b9395ee17fa0
 	github.com/gorilla/websocket v1.5.3
+	github.com/mattn/go-isatty v0.0.20
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/panjf2000/gnet/v2 v2.9.7
@@ -91,7 +92,6 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lni/goutils v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/minio/minlz v1.0.1-0.20250507153514-87eb42fe8882 // indirect

@@ -21,11 +21,17 @@ Config
   -> error.log for error and above
   -> debug.log when Level enables debug
   -> optional console sink
+       -> ANSI level colors only when stdout is an interactive terminal and
+          neither NO_COLOR nor TERM=dumb disables color
+       -> app-selected lifecycle presentation events may be excluded from
+          stdout while remaining unchanged in their rolling files
 ```
 
 `internal/app` is responsible for creating the root logger from `Config.Log`,
 passing named children to composed runtimes, and syncing the logger during
-shutdown.
+shutdown. The app uses console-only event exclusion for startup lifecycle
+records because it renders those same records as a bounded human-facing startup
+summary; exclusion never changes file routing or structured fields.
 
 ## Application Log Reader
 

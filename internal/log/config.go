@@ -29,9 +29,13 @@ type Config struct {
 	Console bool
 	// Format selects the file encoder format; json writes structured JSON and other values use console encoding.
 	Format string
+	// ConsoleExcludedEvents keeps selected structured events in files without duplicating them on stdout.
+	ConsoleExcludedEvents []string
 }
 
 func (c Config) withDefaults() Config {
+	zeroConfig := c.Level == "" && c.Dir == "" && c.MaxSize == 0 && c.MaxAge == 0 && c.MaxBackups == 0 &&
+		!c.Compress && !c.Console && c.Format == "" && len(c.ConsoleExcludedEvents) == 0
 	if strings.TrimSpace(c.Level) == "" {
 		c.Level = defaultLevel
 	}
@@ -51,10 +55,10 @@ func (c Config) withDefaults() Config {
 		c.Format = defaultFormat
 	}
 	if !c.Console {
-		c.Console = c == (Config{})
+		c.Console = zeroConfig
 	}
 	if !c.Compress {
-		c.Compress = c == (Config{})
+		c.Compress = zeroConfig
 	}
 	return c
 }

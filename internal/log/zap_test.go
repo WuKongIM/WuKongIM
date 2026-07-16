@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,6 +104,79 @@ func TestNewLoggerRoutesLevelsToSeparateFiles(t *testing.T) {
 	assertContains(t, errorContents, `"error":"boom"`)
 }
 
+func TestNewLoggerKeepsExcludedConsoleEventsInFiles(t *testing.T) {
+	dir := t.TempDir()
+	console := captureStdout(t, func() {
+		logger, err := NewLogger(Config{
+			Dir:                   dir,
+			Console:               true,
+			Format:                "json",
+			ConsoleExcludedEvents: []string{"startup.hidden"},
+		})
+		if err != nil {
+			t.Fatalf("NewLogger() error = %v", err)
+		}
+		logger.Info("hidden startup", wklog.Event("startup.hidden"))
+		logger.Info("ordinary log", wklog.Event("ordinary.visible"))
+		if err := logger.Sync(); err != nil {
+			t.Fatalf("Sync() error = %v", err)
+		}
+	})
+	if strings.Contains(console, "hidden startup") ||
+		!strings.Contains(console, "ordinary log") ||
+		strings.Contains(console, "\x1b[") {
+		t.Fatalf("console output = %q", console)
+	}
+	appContents := readLogFile(t, filepath.Join(dir, "app.log"))
+	assertContains(t, appContents, `"msg":"hidden startup"`)
+	assertContains(t, appContents, `"msg":"ordinary log"`)
+}
+
+func TestConsoleColorEnabledRejectsRedirectedOutput(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm-256color")
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	defer readPipe.Close()
+	defer writePipe.Close()
+
+	if ConsoleColorEnabled(writePipe) {
+		t.Fatal("ConsoleColorEnabled(pipe) = true, want false")
+	}
+}
+
+func TestConsoleColorPolicyHonorsTerminalEnvironment(t *testing.T) {
+	file, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("Open(os.DevNull) error = %v", err)
+	}
+	defer file.Close()
+
+	t.Run("interactive terminal", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "")
+		t.Setenv("TERM", "xterm-256color")
+		if !consoleColorEnabled(file, func(uintptr) bool { return true }) {
+			t.Fatal("consoleColorEnabled() = false, want terminal color")
+		}
+	})
+	t.Run("NO_COLOR", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "1")
+		t.Setenv("TERM", "xterm-256color")
+		if consoleColorEnabled(file, func(uintptr) bool { return true }) {
+			t.Fatal("consoleColorEnabled() = true with NO_COLOR")
+		}
+	})
+	t.Run("dumb terminal", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "")
+		t.Setenv("TERM", "dumb")
+		if consoleColorEnabled(file, func(uintptr) bool { return true }) {
+			t.Fatal("consoleColorEnabled() = true with TERM=dumb")
+		}
+	})
+}
+
 func TestDisabledDebugSkipsFieldConversion(t *testing.T) {
 	logger, err := NewLogger(Config{
 		Dir:     t.TempDir(),
@@ -171,6 +245,32 @@ func readSingleJSONLogEntry(t *testing.T, path string) map[string]any {
 		t.Fatalf("scanner error = %v", err)
 	}
 	return entry
+}
+
+func captureStdout(t *testing.T, run func()) string {
+	t.Helper()
+	originalStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = originalStdout
+		_ = writePipe.Close()
+		_ = readPipe.Close()
+	}()
+
+	run()
+	os.Stdout = originalStdout
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("stdout pipe Close() error = %v", err)
+	}
+	captured, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("stdout pipe ReadAll() error = %v", err)
+	}
+	return string(captured)
 }
 
 func readLogFile(t *testing.T, path string) string {

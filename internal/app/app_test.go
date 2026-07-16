@@ -1,15 +1,18 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -59,6 +62,32 @@ func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
 		t.Cleanup(app.restoreDiagnosticsSink)
 	}
 	return app, err
+}
+
+func captureStdout(t *testing.T, run func()) string {
+	t.Helper()
+	originalStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = originalStdout
+		_ = writePipe.Close()
+		_ = readPipe.Close()
+	}()
+
+	run()
+	os.Stdout = originalStdout
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("stdout pipe Close() error = %v", err)
+	}
+	captured, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("stdout pipe ReadAll() error = %v", err)
+	}
+	return string(captured)
 }
 
 func shortAppTestDataDir(t *testing.T) string {
@@ -417,6 +446,276 @@ func TestStartLogsStartupSummaryAfterAllEntriesAreReady(t *testing.T) {
 	requireAppLogField(t, entry, "gatewayListeners", []string{"tcp=tcp://127.0.0.1:5100", "ws=ws://127.0.0.1:5200/ws"})
 	if got := joinCalls(calls); got != "cluster.start,api.start,manager.start,gateway.start" {
 		t.Fatalf("calls = %s, want all entries started before success", got)
+	}
+}
+
+func TestStartWritesPlainStartupConsoleAfterAllEntriesAreReady(t *testing.T) {
+	var console bytes.Buffer
+	calls := make([]string, 0, 4)
+	app, err := newTestApp(t, Config{
+		NodeID:  7,
+		DataDir: "./data",
+		Cluster: clusterpkg.Config{
+			NodeID:     7,
+			ListenAddr: "0.0.0.0:7000",
+			Control: clusterpkg.ControlConfig{
+				ClusterID: "wk-cluster",
+				Role:      clusterpkg.ControlRoleVoter,
+				Voters:    []clusterpkg.ControlVoter{{NodeID: 7, Addr: "0.0.0.0:7000"}},
+			},
+		},
+		API:           APIConfig{ListenAddr: "0.0.0.0:5001"},
+		Manager:       ManagerConfig{ListenAddr: "0.0.0.0:5300"},
+		Observability: ObservabilityConfig{MetricsEnabled: true},
+		Gateway: GatewayConfig{Listeners: []gateway.ListenerOptions{
+			{Name: "tcp-default", Network: "tcp", Address: "0.0.0.0:5100"},
+			{Name: "ws-default", Network: "websocket", Address: "0.0.0.0:5200"},
+		}},
+	},
+		WithCluster(&fakeCluster{calls: &calls}),
+		WithAPI(&fakeAPI{calls: &calls}),
+		WithManager(&fakeManager{calls: &calls}),
+		WithGateway(&fakeGateway{calls: &calls}),
+		WithStartupConsole(&console, false),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	want := regexp.MustCompile(`\AWuKongIM · Starting node 7\.\.\.\n\n` +
+		`WuKongIM\n\n` +
+		`Node       7 · single-node cluster\n` +
+		`Cluster    wk-cluster · 0\.0\.0\.0:7000\n` +
+		`Gateway    tcp-default   tcp://0\.0\.0\.0:5100\n` +
+		`           ws-default    ws://0\.0\.0\.0:5200\n` +
+		`API        http://0\.0\.0\.0:5001\n` +
+		`Manager    http://0\.0\.0\.0:5300\n` +
+		`Metrics    http://0\.0\.0\.0:5001/metrics\n` +
+		`Data       \./data\n\n` +
+		`✓ Ready in [^\n]+\n\z`)
+	if got := console.String(); !want.MatchString(got) {
+		t.Fatalf("startup console =\n%s\nwant pattern:\n%s", got, want)
+	}
+}
+
+func TestStartAddsColorOnlyForTerminalStartupConsole(t *testing.T) {
+	var console bytes.Buffer
+	calls := make([]string, 0, 1)
+	app, err := newTestApp(t, Config{
+		NodeID: 3,
+		Cluster: clusterpkg.Config{
+			NodeID: 3,
+			Control: clusterpkg.ControlConfig{
+				ClusterID: "color-cluster",
+				Voters:    []clusterpkg.ControlVoter{{NodeID: 3}},
+			},
+		},
+	}, WithCluster(&fakeCluster{calls: &calls}), WithStartupConsole(&console, true))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	got := console.String()
+	if !strings.Contains(got, "\x1b[1;36mWuKongIM") ||
+		!strings.Contains(got, "\x1b[1;32m✓ Ready in") ||
+		!strings.Contains(got, "Node       3 · single-node cluster") {
+		t.Fatalf("terminal startup console =\n%q", got)
+	}
+}
+
+func TestStartWritesComponentAndReasonWhenStartupFails(t *testing.T) {
+	var console bytes.Buffer
+	calls := make([]string, 0, 3)
+	gatewayErr := errors.New("gateway start failed")
+	app, err := newTestApp(t, Config{NodeID: 2},
+		WithCluster(&fakeCluster{calls: &calls}),
+		WithGateway(&fakeGateway{calls: &calls, startErr: gatewayErr}),
+		WithStartupConsole(&console, false),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	err = app.Start(context.Background())
+	if !errors.Is(err, gatewayErr) {
+		t.Fatalf("Start() error = %v, want gateway error", err)
+	}
+
+	want := "WuKongIM · Starting node 2...\n\n✗ Startup failed at gateway: gateway start failed\n"
+	if got := console.String(); got != want {
+		t.Fatalf("startup failure console = %q, want %q", got, want)
+	}
+}
+
+func TestStartUsesEffectiveClusterNodeIDInStartupSurfaces(t *testing.T) {
+	var console bytes.Buffer
+	logger := &recordingAppLogger{}
+	calls := make([]string, 0, 1)
+	app, err := newTestApp(t, Config{
+		NodeID: 7,
+		Cluster: clusterpkg.Config{
+			NodeID:  9,
+			Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 9}}},
+		},
+	},
+		WithCluster(&fakeCluster{calls: &calls}),
+		WithLogger(logger),
+		WithStartupConsole(&console, false),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if got := console.String(); !strings.Contains(got, "Starting node 9") || !strings.Contains(got, "Node       9 · single-node cluster") {
+		t.Fatalf("startup console uses stale top-level node id:\n%s", got)
+	}
+	entry := requireAppLogEvent(t, logger, "INFO", "internal.app.started")
+	requireAppLogField(t, entry, "nodeID", uint64(9))
+}
+
+func TestStartBoundsStartupFailureToOneConsoleLine(t *testing.T) {
+	var console bytes.Buffer
+	calls := make([]string, 0, 3)
+	gatewayErr := errors.New("first line\nsecond line \x1b[31m" + strings.Repeat("x", 512))
+	app, err := newTestApp(t, Config{NodeID: 2},
+		WithCluster(&fakeCluster{calls: &calls}),
+		WithGateway(&fakeGateway{calls: &calls, startErr: gatewayErr}),
+		WithStartupConsole(&console, false),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); !errors.Is(err, gatewayErr) {
+		t.Fatalf("Start() error = %v, want gateway error", err)
+	}
+
+	got := console.String()
+	if strings.Count(got, "\n") != 3 || strings.Contains(got, "\x1b") || len(got) > 384 {
+		t.Fatalf("startup failure is not bounded to one safe line: len=%d output=%q", len(got), got)
+	}
+}
+
+func TestDefaultConsoleSeparatesStartupPresentationFromStructuredLifecycleLogs(t *testing.T) {
+	logDir := t.TempDir()
+	console := captureStdout(t, func() {
+		calls := make([]string, 0, 2)
+		app, err := New(Config{
+			NodeID:  1,
+			DataDir: shortAppTestDataDir(t),
+			Cluster: clusterpkg.Config{
+				NodeID:  1,
+				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 1}}},
+			},
+			Log: LogConfig{Dir: logDir, Console: true, Format: "json"},
+		}, WithCluster(&fakeCluster{calls: &calls}))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := app.Start(context.Background()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := app.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+	if !strings.Contains(console, "WuKongIM · Starting node 1...") ||
+		!strings.Contains(console, "✓ Ready in") ||
+		strings.Contains(console, "internal.app.starting") ||
+		strings.Contains(console, "internal.app.started") ||
+		strings.Contains(console, "\x1b[") {
+		t.Fatalf("default non-terminal console =\n%q", console)
+	}
+	appLogBytes, err := os.ReadFile(filepath.Join(logDir, "app.log"))
+	if err != nil {
+		t.Fatalf("ReadFile(app.log) error = %v", err)
+	}
+	appLog := string(appLogBytes)
+	if !strings.Contains(appLog, `"event":"internal.app.starting"`) ||
+		!strings.Contains(appLog, `"event":"internal.app.started"`) {
+		t.Fatalf("app.log missing structured lifecycle events:\n%s", appLog)
+	}
+}
+
+func TestDisabledConsoleWritesNoStartupPresentation(t *testing.T) {
+	logConfig := LogConfig{Dir: t.TempDir(), Console: false, Format: "json"}
+	logConfig.SetExplicitFlags(false, true)
+	console := captureStdout(t, func() {
+		calls := make([]string, 0, 1)
+		app, err := New(Config{
+			NodeID: 1,
+			Cluster: clusterpkg.Config{
+				NodeID:  1,
+				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 1}}},
+			},
+			Log: logConfig,
+		}, WithCluster(&fakeCluster{calls: &calls}))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := app.Start(context.Background()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := app.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+	if got := console; got != "" {
+		t.Fatalf("disabled startup console = %q, want empty", got)
+	}
+}
+
+func TestDefaultConsoleFormatsFailureWithoutStructuredDuplicate(t *testing.T) {
+	logDir := t.TempDir()
+	console := captureStdout(t, func() {
+		calls := make([]string, 0, 3)
+		gatewayErr := errors.New("gateway unavailable")
+		app, err := New(Config{
+			NodeID:  4,
+			DataDir: shortAppTestDataDir(t),
+			Cluster: clusterpkg.Config{
+				NodeID:  4,
+				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 4}}},
+			},
+			Log: LogConfig{Dir: logDir, Console: true, Format: "json"},
+		},
+			WithCluster(&fakeCluster{calls: &calls}),
+			WithGateway(&fakeGateway{calls: &calls, startErr: gatewayErr}),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := app.Start(context.Background()); !errors.Is(err, gatewayErr) {
+			t.Fatalf("Start() error = %v, want gateway error", err)
+		}
+	})
+	if !strings.Contains(console, "✗ Startup failed at gateway: gateway unavailable") ||
+		strings.Contains(console, "internal.app.lifecycle_start_failed") ||
+		strings.Contains(console, "\x1b[") {
+		t.Fatalf("default failure console =\n%q", console)
+	}
+	errorLogBytes, err := os.ReadFile(filepath.Join(logDir, "error.log"))
+	if err != nil {
+		t.Fatalf("ReadFile(error.log) error = %v", err)
+	}
+	if !strings.Contains(string(errorLogBytes), `"event":"internal.app.lifecycle_start_failed"`) {
+		t.Fatalf("error.log missing structured startup failure:\n%s", errorLogBytes)
 	}
 }
 

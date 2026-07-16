@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
@@ -110,6 +111,11 @@ func (a *App) ensureLogger() error {
 			Compress:   a.cfg.Log.Compress,
 			Console:    a.cfg.Log.Console,
 			Format:     a.cfg.Log.Format,
+			ConsoleExcludedEvents: []string{
+				"internal.app.starting",
+				"internal.app.started",
+				"internal.app.lifecycle_start_failed",
+			},
 		})
 		if err != nil {
 			return fmt.Errorf("internal/app: create logger: %w", err)
@@ -117,6 +123,16 @@ func (a *App) ensureLogger() error {
 		a.logger = logger
 	}
 	return nil
+}
+
+func (a *App) ensureStartupConsole() {
+	if a.startupConsole != nil || !a.cfg.Log.Console {
+		return
+	}
+	a.startupConsole = &startupConsole{
+		writer: os.Stdout,
+		color:  applog.ConsoleColorEnabled(os.Stdout),
+	}
 }
 
 func (a *App) configureObservability(clusterCfg *cluster.Config) {

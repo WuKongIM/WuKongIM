@@ -62,8 +62,10 @@ func (a *App) Start(ctx context.Context) error {
 		return ErrAlreadyStarted
 	}
 	startedAt := time.Now()
+	startingSnapshot := a.startupSnapshot()
+	a.startupConsole.starting(startingSnapshot)
 	a.lifecycleLogger().Info("Starting WuKongIM", append(
-		a.startupLogFields(),
+		a.startupLogFields(startingSnapshot),
 		wklog.Event("internal.app.starting"),
 	)...)
 	if err := a.cluster.Start(ctx); err != nil {
@@ -206,15 +208,18 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.gatewayStarted = true
 	}
+	readySnapshot := a.startupSnapshot()
+	startupDuration := time.Since(startedAt)
 	a.lifecycleLogger().Info("WuKongIM started", append(
-		a.startupLogFields(),
+		a.startupLogFields(readySnapshot),
 		wklog.Event("internal.app.started"),
-		wklog.Duration("startupDuration", time.Since(startedAt)),
+		wklog.Duration("startupDuration", startupDuration),
 	)...)
+	a.startupConsole.ready(readySnapshot, startupDuration)
 	return nil
 }
 
-func (a *App) startupLogFields() []wklog.Field {
+func (a *App) startupSnapshot() startupConsoleSnapshot {
 	clusterID := a.cfg.Cluster.Control.ClusterID
 	clusterListen := a.cfg.Cluster.ListenAddr
 	deployment := configuredDeployment(a.cfg.Cluster)
@@ -229,16 +234,38 @@ func (a *App) startupLogFields() []wklog.Field {
 			deployment = deploymentFromNodeCount(nodeCount)
 		}
 	}
-	return []wklog.Field{
-		wklog.NodeID(a.cfg.NodeID),
-		wklog.String("clusterID", clusterID),
-		wklog.String("deployment", deployment),
-		wklog.String("dataDir", a.cfg.DataDir),
-		wklog.String("clusterListen", clusterListen),
-		wklog.String("apiListen", boundRuntimeAddr(a.api, a.cfg.API.ListenAddr)),
-		wklog.String("managerListen", boundRuntimeAddr(a.manager, a.cfg.Manager.ListenAddr)),
-		wklog.Any("gatewayListeners", a.gatewayListenerSummaries()),
+	return startupConsoleSnapshot{
+		nodeID:           effectiveAppNodeID(a.cfg),
+		clusterID:        clusterID,
+		deployment:       deployment,
+		dataDir:          a.cfg.DataDir,
+		clusterListen:    clusterListen,
+		apiListen:        boundRuntimeAddr(a.api, a.cfg.API.ListenAddr),
+		managerListen:    boundRuntimeAddr(a.manager, a.cfg.Manager.ListenAddr),
+		gatewayListeners: a.gatewayListenerSnapshots(),
+		metricsEnabled:   a.cfg.Observability.MetricsEnabled,
 	}
+}
+
+func (a *App) startupLogFields(snapshot startupConsoleSnapshot) []wklog.Field {
+	return []wklog.Field{
+		wklog.NodeID(snapshot.nodeID),
+		wklog.String("clusterID", snapshot.clusterID),
+		wklog.String("deployment", snapshot.deployment),
+		wklog.String("dataDir", snapshot.dataDir),
+		wklog.String("clusterListen", snapshot.clusterListen),
+		wklog.String("apiListen", snapshot.apiListen),
+		wklog.String("managerListen", snapshot.managerListen),
+		wklog.Any("gatewayListeners", gatewayListenerLogSummaries(snapshot.gatewayListeners)),
+		wklog.Bool("metricsEnabled", snapshot.metricsEnabled),
+	}
+}
+
+func effectiveAppNodeID(cfg Config) uint64 {
+	if cfg.Cluster.NodeID != 0 {
+		return cfg.Cluster.NodeID
+	}
+	return cfg.NodeID
 }
 
 func configuredDeployment(cfg cluster.Config) string {
@@ -264,9 +291,9 @@ func boundRuntimeAddr(runtime any, configured string) string {
 	return strings.TrimSpace(configured)
 }
 
-func (a *App) gatewayListenerSummaries() []string {
+func (a *App) gatewayListenerSnapshots() []startupGatewayListener {
 	runtime, _ := a.gateway.(startupGatewayRuntime)
-	out := make([]string, 0, len(a.cfg.Gateway.Listeners))
+	out := make([]startupGatewayListener, 0, len(a.cfg.Gateway.Listeners))
 	for _, listener := range a.cfg.Gateway.Listeners {
 		address := listener.Address
 		if runtime != nil {
@@ -274,13 +301,15 @@ func (a *App) gatewayListenerSummaries() []string {
 				address = bound
 			}
 		}
-		out = append(out, gatewayListenerSummary(listener, address))
+		out = append(out, startupGatewayListener{
+			name:    strings.TrimSpace(listener.Name),
+			address: gatewayListenerAddress(listener, address),
+		})
 	}
 	return out
 }
 
-func gatewayListenerSummary(listener gateway.ListenerOptions, rawAddress string) string {
-	name := strings.TrimSpace(listener.Name)
+func gatewayListenerAddress(listener gateway.ListenerOptions, rawAddress string) string {
 	network := strings.ToLower(strings.TrimSpace(listener.Network))
 	address := "tcp://" + normalizeTCPAddress(rawAddress)
 	if network == "websocket" {
@@ -293,10 +322,19 @@ func gatewayListenerSummary(listener gateway.ListenerOptions, rawAddress string)
 			address += path
 		}
 	}
-	if name != "" {
-		address = name + "=" + address
-	}
 	return address
+}
+
+func gatewayListenerLogSummaries(listeners []startupGatewayListener) []string {
+	out := make([]string, 0, len(listeners))
+	for _, listener := range listeners {
+		if listener.name == "" {
+			out = append(out, listener.address)
+			continue
+		}
+		out = append(out, listener.name+"="+listener.address)
+	}
+	return out
 }
 
 // Stop stops entry runtimes first, then workers and the cluster runtime.
@@ -582,6 +620,9 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 func (a *App) logLifecycleError(component, phase string, err error) {
 	if err == nil {
 		return
+	}
+	if phase == "start" {
+		a.startupConsole.failed(component, err)
 	}
 	a.lifecycleLogger().Error("app lifecycle component failed",
 		wklog.Event("internal.app.lifecycle_start_failed"),

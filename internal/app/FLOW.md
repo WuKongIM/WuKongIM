@@ -642,6 +642,8 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 
 ```text
 Start(ctx)
+  -> when Log.Console=true, write one bounded human-facing "Starting node" line;
+     ANSI color is enabled only for an interactive terminal
   -> cluster.Start(ctx)
   -> task audit startup backfill: append one snapshot event for each active
      Controller task in the local control snapshot; failures are logged and
@@ -660,6 +662,13 @@ Start(ctx)
   -> manager.Start()
   -> prometheus.Start(ctx): write prometheus.yml and start the child Prometheus process
   -> gateway.Start()
+  -> retain the structured internal.app.started event in app.log and render one
+     aligned console summary from observed bound addresses, followed by Ready duration
+
+Any component start failure
+  -> render one bounded console failure with component and reason
+  -> retain the full structured internal.app.lifecycle_start_failed event in error.log
+  -> rollback already-started components in reverse order
 
 Stop(ctx)
   -> restore diagnostics sendtrace sink
@@ -684,6 +693,11 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
+The startup console is presentation-only: it is disabled with `Log.Console=false`,
+does not add a configuration surface, and does not replace structured lifecycle
+events in rolling files. API, manager, metrics, data, and arbitrary named gateway
+listeners are rendered from the same post-start snapshot used by lifecycle logs;
+missing optional services remain explicit as `disabled`.
 When `Plugin.Enable=true` (the default unless `WK_PLUGIN_ENABLE=false` is set),
 the app wires the PDK-compatible node-local plugin
 runtime, desired-state store adapter, minimal lifecycle host RPC adapter, v2

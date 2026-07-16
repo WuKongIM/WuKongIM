@@ -146,6 +146,8 @@ type App struct {
 	// controllerTaskAudit stores retained Controller task history for manager reads.
 	controllerTaskAudit *controllerTaskAuditRuntime
 	logger              wklog.Logger
+	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
+	startupConsole *startupConsole
 
 	lifecycleMu               sync.Mutex
 	started                   bool
@@ -181,6 +183,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, err
 	}
 	app.applyOptions(opts)
+	app.ensureStartupConsole()
 	if err := app.ensureLogger(); err != nil {
 		return nil, err
 	}
