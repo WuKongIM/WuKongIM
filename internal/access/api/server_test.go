@@ -43,7 +43,7 @@ func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {
 	if !caps.Supports.UsersTokensBatch || !caps.Supports.Snapshot {
 		t.Fatalf("capabilities supports = %+v, want token and snapshot features", caps.Supports)
 	}
-	if caps.Supports.ChannelsBatch || caps.Supports.ChannelSubscribersBatch {
+	if caps.Supports.ChannelsBatch || caps.Supports.ChannelSubscribersBatch || caps.Supports.ChannelSubscriberRemovalsBatch {
 		t.Fatalf("capabilities supports = %+v, want channel mutations disabled without bench data writer", caps.Supports)
 	}
 	if caps.Supports.ChannelRuntimeSnapshot || caps.Supports.ChannelRuntimeProbe || caps.Supports.ChannelRuntimeEvict || caps.Supports.ChannelRuntimeFaults || caps.Supports.ChannelRuntimeActivate {
@@ -152,6 +152,11 @@ func TestBenchChannelMutationsRequireConfiguredBenchData(t *testing.T) {
 		"batch_id":"subs-1",
 		"items":[{"channel_id":"g1","channel_type":2,"subscribers":["u1"]}]
 	}`, http.StatusNotImplemented)
+	postJSON(t, httpSrv.URL+"/bench/v1/channels/subscribers/remove", `{
+		"run_id":"run-1",
+		"batch_id":"subs-remove-1",
+		"items":[{"channel_id":"g1","channel_type":2,"subscribers":["u1"]}]
+	}`, http.StatusNotImplemented)
 }
 
 func TestBenchMutationRoutesWriteConfiguredBenchData(t *testing.T) {
@@ -162,9 +167,15 @@ func TestBenchMutationRoutesWriteConfiguredBenchData(t *testing.T) {
 	})
 	httpSrv := httptest.NewServer(srv.Handler())
 	t.Cleanup(httpSrv.Close)
+	var caps capabilitiesResponse
+	resp, err := http.Get(httpSrv.URL + "/bench/v1/capabilities")
+	decodeJSON(t, resp, err, &caps)
+	if !caps.Supports.ChannelSubscribersBatch || !caps.Supports.ChannelSubscriberRemovalsBatch {
+		t.Fatalf("capabilities supports = %+v, want subscriber add and removal batches", caps.Supports)
+	}
 
 	var channelResp mutationResponse
-	resp, err := http.Post(httpSrv.URL+"/bench/v1/channels", "application/json", bytes.NewBufferString(`{
+	resp, err = http.Post(httpSrv.URL+"/bench/v1/channels", "application/json", bytes.NewBufferString(`{
 		"run_id":"run-1",
 		"batch_id":"channels-1",
 		"channels":[{"channel_id":"g1","channel_type":2,"allow_stranger":true}]
@@ -197,10 +208,19 @@ func TestBenchMutationRoutesWriteConfiguredBenchData(t *testing.T) {
 		len(writer.subscribers[0].Subscribers) != 2 || writer.subscribers[0].Subscribers[0] != "u1" || writer.subscribers[0].Subscribers[1] != "u2" {
 		t.Fatalf("first subscriber mutation = %#v, want g1 subscribers", writer.subscribers[0])
 	}
+	resp, err = http.Post(httpSrv.URL+"/bench/v1/channels/subscribers/remove", "application/json", bytes.NewBufferString(`{
+		"run_id":"run-1",
+		"batch_id":"subs-remove-1",
+		"items":[{"channel_id":"g1","channel_type":2,"subscribers":["u1"]}]
+	}`))
+	decodeJSON(t, resp, err, &got)
+	if got.Accepted != 1 || got.AcceptedSubscribers != 1 || len(writer.removedSubscribers) != 1 || writer.removedSubscribers[0].Subscribers[0] != "u1" {
+		t.Fatalf("subscriber removal = response %#v mutations %#v, want one removed subscriber", got, writer.removedSubscribers)
+	}
 	var snap snapshotResponse
 	resp, err = http.Get(httpSrv.URL + "/bench/v1/snapshot")
 	decodeJSON(t, resp, err, &snap)
-	if snap.Counts["accepted_channels"] != 1 || snap.Counts["accepted_subscriber_items"] != 2 || snap.Counts["accepted_subscribers"] != 3 {
+	if snap.Counts["accepted_channels"] != 1 || snap.Counts["accepted_subscriber_items"] != 2 || snap.Counts["accepted_subscribers"] != 3 || snap.Counts["removed_subscriber_items"] != 1 || snap.Counts["removed_subscribers"] != 1 {
 		t.Fatalf("snapshot counts = %#v, want bench writer counts", snap.Counts)
 	}
 }
@@ -475,6 +495,7 @@ type fakeBenchData struct {
 	acceptedSubscribers int
 	channels            []BenchChannelMutation
 	subscribers         []BenchSubscriberMutation
+	removedSubscribers  []BenchSubscriberMutation
 	err                 error
 }
 
@@ -492,6 +513,18 @@ func (f *fakeBenchData) AddSubscribers(_ context.Context, mutations []BenchSubsc
 		return 0, f.err
 	}
 	return f.acceptedSubscribers, nil
+}
+
+func (f *fakeBenchData) RemoveSubscribers(_ context.Context, mutations []BenchSubscriberMutation) (int, error) {
+	f.removedSubscribers = append(f.removedSubscribers, mutations...)
+	if f.err != nil {
+		return 0, f.err
+	}
+	accepted := 0
+	for _, mutation := range mutations {
+		accepted += len(mutation.Subscribers)
+	}
+	return accepted, nil
 }
 
 func (f *fakePresenceBenchController) Snapshot(context.Context) (model.PresenceSnapshot, error) {

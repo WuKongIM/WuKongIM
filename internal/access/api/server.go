@@ -64,6 +64,7 @@ type DiagnosticsReader interface {
 type BenchData interface {
 	UpsertChannels(context.Context, []BenchChannelMutation) (int, error)
 	AddSubscribers(context.Context, []BenchSubscriberMutation) (int, error)
+	RemoveSubscribers(context.Context, []BenchSubscriberMutation) (int, error)
 }
 
 // LegacyRouteAddresses contains legacy client gateway addresses returned by /route APIs.
@@ -204,13 +205,13 @@ type BenchChannelMutation struct {
 	AllowStranger bool
 }
 
-// BenchSubscriberMutation describes one benchmark channel subscriber append.
+// BenchSubscriberMutation describes one benchmark channel subscriber add or removal.
 type BenchSubscriberMutation struct {
 	// ChannelID identifies the benchmark channel.
 	ChannelID string
 	// ChannelType is the WuKong channel type for ChannelID.
 	ChannelType uint8
-	// Subscribers are user IDs appended to the benchmark channel subscriber set.
+	// Subscribers are user IDs mutated in the benchmark channel subscriber set.
 	Subscribers []string
 }
 
@@ -506,6 +507,7 @@ func (s *Server) registerRoutes() {
 	bench.POST("/users/tokens", s.handleBenchTokens)
 	bench.POST("/channels", s.handleBenchChannels)
 	bench.POST("/channels/subscribers", s.handleBenchSubscribers)
+	bench.POST("/channels/subscribers/remove", s.handleBenchSubscriberRemovals)
 }
 
 // registerDemoRoutes mounts the embedded chat Demo below the product API.
@@ -603,10 +605,11 @@ type capabilitiesResponse struct {
 }
 
 type capabilitiesSupports struct {
-	UsersTokensBatch        bool `json:"users_tokens_batch"`
-	ChannelsBatch           bool `json:"channels_batch"`
-	ChannelSubscribersBatch bool `json:"channel_subscribers_batch"`
-	Snapshot                bool `json:"snapshot"`
+	UsersTokensBatch               bool `json:"users_tokens_batch"`
+	ChannelsBatch                  bool `json:"channels_batch"`
+	ChannelSubscribersBatch        bool `json:"channel_subscribers_batch"`
+	ChannelSubscriberRemovalsBatch bool `json:"channel_subscriber_removals_batch"`
+	Snapshot                       bool `json:"snapshot"`
 	// PresenceSnapshot indicates support for connection-route presence snapshots.
 	PresenceSnapshot bool `json:"presence_snapshot"`
 	// ChannelRuntimeSnapshot indicates support for local channel runtime snapshots.
@@ -632,17 +635,18 @@ func (s *Server) handleBenchCapabilities(c *gin.Context) {
 		Enabled: true,
 		Version: versionV1,
 		Supports: capabilitiesSupports{
-			UsersTokensBatch:        true,
-			ChannelsBatch:           s.benchData != nil,
-			ChannelSubscribersBatch: s.benchData != nil,
-			Snapshot:                true,
-			PresenceSnapshot:        s.benchPresence != nil,
-			ChannelRuntimeSnapshot:  s.benchRuntime != nil,
-			ChannelRuntimeProbe:     s.benchRuntime != nil,
-			ChannelRuntimeEvict:     s.benchRuntime != nil,
-			ChannelRuntimeFaults:    false,
-			ChannelRuntimeActivate:  false,
-			ChannelTypes:            []string{"group"},
+			UsersTokensBatch:               true,
+			ChannelsBatch:                  s.benchData != nil,
+			ChannelSubscribersBatch:        s.benchData != nil,
+			ChannelSubscriberRemovalsBatch: s.benchData != nil,
+			Snapshot:                       true,
+			PresenceSnapshot:               s.benchPresence != nil,
+			ChannelRuntimeSnapshot:         s.benchRuntime != nil,
+			ChannelRuntimeProbe:            s.benchRuntime != nil,
+			ChannelRuntimeEvict:            s.benchRuntime != nil,
+			ChannelRuntimeFaults:           false,
+			ChannelRuntimeActivate:         false,
+			ChannelTypes:                   []string{"group"},
 		},
 		Limits: capabilitiesLimits{
 			MaxBatchSize:    s.benchMaxBatchSize,
@@ -808,6 +812,14 @@ type subscriberItem struct {
 }
 
 func (s *Server) handleBenchSubscribers(c *gin.Context) {
+	s.handleBenchSubscriberMutation(c, false)
+}
+
+func (s *Server) handleBenchSubscriberRemovals(c *gin.Context) {
+	s.handleBenchSubscriberMutation(c, true)
+}
+
+func (s *Server) handleBenchSubscriberMutation(c *gin.Context, remove bool) {
 	if s.benchData == nil {
 		writeBenchError(c, http.StatusNotImplemented, "bench subscriber data writer is not configured")
 		return
@@ -834,9 +846,16 @@ func (s *Server) handleBenchSubscribers(c *gin.Context) {
 			Subscribers: append([]string(nil), item.Subscribers...),
 		})
 	}
-	acceptedSubscribers, err := s.benchData.AddSubscribers(c.Request.Context(), mutations)
+	operation := "subscribers_add"
+	var err error
+	if remove {
+		operation = "subscribers_remove"
+		acceptedSubscribers, err = s.benchData.RemoveSubscribers(c.Request.Context(), mutations)
+	} else {
+		acceptedSubscribers, err = s.benchData.AddSubscribers(c.Request.Context(), mutations)
+	}
 	if err != nil {
-		s.logBenchFailure(c, "internal.access.api.bench_subscribers_failed", "subscribers_add", err,
+		s.logBenchFailure(c, "internal.access.api.bench_subscribers_failed", operation, err,
 			wklog.String("runID", req.RunID),
 			wklog.String("batchID", req.BatchID),
 			wklog.Int("items", len(mutations)),
@@ -844,8 +863,12 @@ func (s *Server) handleBenchSubscribers(c *gin.Context) {
 		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.addCount("accepted_subscriber_items", len(req.Items))
-	s.addCount("accepted_subscribers", acceptedSubscribers)
+	countPrefix := "accepted_subscriber"
+	if remove {
+		countPrefix = "removed_subscriber"
+	}
+	s.addCount(countPrefix+"_items", len(req.Items))
+	s.addCount(countPrefix+"s", acceptedSubscribers)
 	c.JSON(http.StatusOK, subscribersResponse{
 		RunID:               req.RunID,
 		BatchID:             req.BatchID,

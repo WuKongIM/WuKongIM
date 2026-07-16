@@ -4432,6 +4432,17 @@ func TestDeliveryMetaStoreWritesBenchDataAndFiltersSubscriberPages(t *testing.T)
 	if acceptedSubscribers != 2 || len(node.added) != 2 || node.added[0].version != 1 || node.added[1].version != 2 {
 		t.Fatalf("added = %#v accepted=%d, want ordered subscriber mutation versions 1 and 2", node.added, acceptedSubscribers)
 	}
+	removedSubscribers, err := store.RemoveSubscribers(context.Background(), []accessapi.BenchSubscriberMutation{{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Subscribers: []string{slotThreeUID},
+	}})
+	if err != nil {
+		t.Fatalf("RemoveSubscribers() error = %v", err)
+	}
+	if removedSubscribers != 1 || len(node.removed) != 1 || node.removed[0].version != 3 || node.removed[0].uids[0] != slotThreeUID {
+		t.Fatalf("removed = %#v accepted=%d, want one subscriber at mutation version 3", node.removed, removedSubscribers)
+	}
 
 	page, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
 		ChannelID:   "g1",
@@ -7178,6 +7189,7 @@ type recordingDeliveryMetaNode struct {
 	snapshot          clusterpkg.Snapshot
 	upserted          []metadb.Channel
 	added             []recordedSubscriberMutation
+	removed           []recordedSubscriberMutation
 	membershipUpserts []recordedMembershipProjection
 	membershipDeletes []recordedMembershipProjection
 	subscribers       map[string][]string
@@ -7519,7 +7531,7 @@ func (n *recordingDeliveryMetaNode) AddChannelSubscribers(_ context.Context, cha
 func (n *recordingDeliveryMetaNode) RemoveChannelSubscribers(_ context.Context, channelID string, channelType int64, uids []string, version uint64) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.added = append(n.added, recordedSubscriberMutation{
+	n.removed = append(n.removed, recordedSubscriberMutation{
 		channelID:   channelID,
 		channelType: channelType,
 		uids:        append([]string(nil), uids...),

@@ -209,6 +209,11 @@ func (c *Client) AddSubscribers(ctx context.Context, req model.BatchSubscribersR
 	return c.postAny(ctx, "/bench/v1/channels/subscribers", req)
 }
 
+// RemoveSubscribers posts a spec-shaped batch subscriber removal request.
+func (c *Client) RemoveSubscribers(ctx context.Context, req model.BatchSubscribersRequest) error {
+	return c.postAny(ctx, "/bench/v1/channels/subscribers/remove", req)
+}
+
 func (c *Client) getAny(ctx context.Context, path string, out any) error {
 	addrs := c.addrs()
 	if len(addrs) == 0 {

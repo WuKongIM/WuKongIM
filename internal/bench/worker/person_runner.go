@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 var errTargetUnavailable = errors.New("target unavailable")
@@ -463,6 +464,9 @@ func (r *defaultWorkloadRunner) applyScheduledChurn(ctx context.Context, assignm
 		}
 		assignment.Plan.OnlineIdentityIndexes[item.offset] = item.identityIndex
 	}
+	if err := prepareChurnGroupSubscriberSwaps(ctx, *assignment, cycle, replacements); err != nil {
+		return err
+	}
 
 	r.archiveCurrentWorkloadMetrics()
 	if err := r.rebuildTrafficFromManager(*assignment, manager); err != nil {
@@ -817,6 +821,83 @@ func prepareChurnTokens(ctx context.Context, assignment Assignment, cycle int, r
 	}
 	if err := groupPrepareClient(assignment.Target).UpsertTokens(ctx, request); err != nil {
 		return fmt.Errorf("prepare churn tokens: %w", err)
+	}
+	return nil
+}
+
+// prepareChurnGroupSubscriberSwaps keeps durable group membership aligned with identity-swap connections.
+func prepareChurnGroupSubscriberSwaps(ctx context.Context, assignment Assignment, cycle int, replacements []churnReplacement) error {
+	if len(replacements) == 0 {
+		return nil
+	}
+	replacementByUID := make(map[string]churnReplacement, len(replacements))
+	for _, replacement := range replacements {
+		replacementByUID[replacement.user.UID] = replacement
+	}
+	profiles := scenarioProfilesByName(assignment.Scenario)
+	itemsByChannel := make(map[string]model.SubscriberItem)
+	for _, profileName := range sortedProfileNames(assignment.Plan.Profiles) {
+		shard := assignment.Plan.Profiles[profileName]
+		if shard.ChannelType != model.ChannelTypeGroup {
+			continue
+		}
+		profile, ok := profiles[profileName]
+		if !ok {
+			return fmt.Errorf("prepare churn group subscribers: profile %q missing from scenario", profileName)
+		}
+		channels := groupChannelsForShard(assignment.RunID, shard, profile, assignment.Scenario.Identity, assignment.Scenario.Online.TotalUsers, assignment.Plan)
+		for _, channel := range channels {
+			item := model.SubscriberItem{ChannelID: channel.ChannelID, ChannelType: frame.ChannelTypeGroup}
+			for _, uid := range channel.OnlineMembers {
+				if _, ok := replacementByUID[uid]; ok {
+					item.Subscribers = append(item.Subscribers, uid)
+				}
+			}
+			if len(item.Subscribers) > 0 {
+				itemsByChannel[channel.ChannelID] = item
+			}
+		}
+	}
+	if len(itemsByChannel) == 0 {
+		return nil
+	}
+	channelIDs := make([]string, 0, len(itemsByChannel))
+	for channelID := range itemsByChannel {
+		channelIDs = append(channelIDs, channelID)
+	}
+	sort.Strings(channelIDs)
+	addItems := make([]model.SubscriberItem, 0, len(channelIDs))
+	removeItems := make([]model.SubscriberItem, 0, len(channelIDs))
+	for _, channelID := range channelIDs {
+		addItem := itemsByChannel[channelID]
+		removeItem := model.SubscriberItem{ChannelID: addItem.ChannelID, ChannelType: addItem.ChannelType, Subscribers: make([]string, 0, len(addItem.Subscribers))}
+		for _, uid := range addItem.Subscribers {
+			removeItem.Subscribers = append(removeItem.Subscribers, replacementByUID[uid].oldUID)
+		}
+		addItems = append(addItems, addItem)
+		removeItems = append(removeItems, removeItem)
+	}
+	client := groupPrepareClient(assignment.Target)
+	if err := mutateChurnGroupSubscribers(ctx, client.AddSubscribers, assignment, cycle, "add", addItems); err != nil {
+		return fmt.Errorf("prepare churn group subscribers: add replacements: %w", err)
+	}
+	if err := mutateChurnGroupSubscribers(ctx, client.RemoveSubscribers, assignment, cycle, "remove", removeItems); err != nil {
+		return fmt.Errorf("prepare churn group subscribers: remove replaced users: %w", err)
+	}
+	return nil
+}
+
+func mutateChurnGroupSubscribers(ctx context.Context, mutate func(context.Context, model.BatchSubscribersRequest) error, assignment Assignment, cycle int, operation string, items []model.SubscriberItem) error {
+	const batchSize = 1000
+	for start := 0; start < len(items); start += batchSize {
+		end := min(start+batchSize, len(items))
+		if err := mutate(ctx, model.BatchSubscribersRequest{
+			RunID:   assignment.RunID,
+			BatchID: fmt.Sprintf("%s-churn-subs-%s-%s-%d-%d-%d", assignment.RunID, operation, assignment.WorkerID, cycle, start, end),
+			Items:   append([]model.SubscriberItem(nil), items[start:end]...),
+		}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
