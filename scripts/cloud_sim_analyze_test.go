@@ -187,6 +187,79 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 	}
 }
 
+func TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	goRoot := filepath.Join(temp, "go-root")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(goRoot, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+	if err := os.Rename(filepath.Join(bin, "go"), filepath.Join(goRoot, "bin", "go")); err != nil {
+		t.Fatal(err)
+	}
+	preservedCommands := []string{
+		"awk", "base64", "bash", "cat", "chmod", "cp", "date", "dirname", "env", "grep",
+		"jq", "mkdir", "mktemp", "mv", "perl", "rm", "sleep", "sort", "tr",
+	}
+	for _, command := range preservedCommands {
+		source, err := exec.LookPath(command)
+		if err != nil {
+			t.Fatalf("find required test command %s: %v", command, err)
+		}
+		target := filepath.Join(bin, command)
+		if _, err := os.Lstat(target); err == nil {
+			continue
+		}
+		if err := os.Symlink(source, target); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hashCommandFound := false
+	for _, command := range []string{"sha256sum", "shasum"} {
+		source, err := exec.LookPath(command)
+		if err != nil {
+			continue
+		}
+		hashCommandFound = true
+		if err := os.Symlink(source, filepath.Join(bin, command)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !hashCommandFound {
+		t.Fatal("find required SHA-256 test command")
+	}
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin,
+		"GOROOT="+goRoot,
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		calls, _ := os.ReadFile(callLog)
+		t.Fatalf("analyze with GOROOT Go outside PATH: %v\n%s\ncalls:\n%s", err, output, calls)
+	}
+	calls, err := os.ReadFile(callLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(calls), "go run ./cmd/wkclouddiagnosis validate") {
+		t.Fatalf("analysis did not use the discovered Go toolchain:\n%s", calls)
+	}
+}
+
 func TestCloudSimulationAnalyzeKeepsValidDiagnosisSuccessfulWhenRemediationFails(t *testing.T) {
 	root := repoRoot(t)
 	temp := t.TempDir()
@@ -620,7 +693,11 @@ case "$1" in
         elif [[ "$WK_ANALYZE_SESSION_STATE" == insufficient_evidence ]]; then
           jq -n --arg request_id "$request_id" --arg message "${WK_ANALYZE_SESSION_MESSAGE:-Provider preflight could not establish a live identity-matched Simulation Run.}" '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:"insufficient_evidence",run_id:"run-insufficient",request_id:$request_id,message:$message}' >"$destination/session.json"
         else
-          fingerprint="sha256:$(printf '%s' DERDATA | sha256sum | awk '{print $1}')"
+		  if command -v sha256sum >/dev/null 2>&1; then
+		    fingerprint="sha256:$(printf '%s' DERDATA | sha256sum | awk '{print $1}')"
+		  else
+		    fingerprint="sha256:$(printf '%s' DERDATA | shasum -a 256 | awk '{print $1}')"
+		  fi
           jq -n --arg request_id "$request_id" --arg fingerprint "$fingerprint" '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:"live",run_id:"run-live",request_id:$request_id,source_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",scenario_digest:"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",mcp_url:"https://198.51.100.20:19092/mcp",expires_at:"2099-07-14T01:00:00Z",ca_fingerprint:$fingerprint}' >"$destination/session.json"
           printf '%s' encrypted >"$destination/encrypted-token.bin"
           printf '%s' certificate >"$destination/pinned-ca.pem"

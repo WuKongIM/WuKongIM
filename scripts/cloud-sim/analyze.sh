@@ -48,6 +48,37 @@ fail() {
   exit 1
 }
 
+# ensure_go_on_path keeps an existing Go first, then prepends GOROOT or a
+# common installation directory without discarding the caller's PATH.
+ensure_go_on_path() {
+  if command -v go >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local candidate
+  if [[ -n "${GOROOT:-}" ]]; then
+    candidate="$GOROOT/bin/go"
+    if [[ -x "$candidate" ]]; then
+      PATH="$(dirname "$candidate"):$PATH"
+      export PATH
+      return 0
+    fi
+  fi
+
+  for candidate in \
+    /usr/local/go/bin/go \
+    /opt/homebrew/bin/go \
+    /opt/homebrew/opt/go/libexec/bin/go \
+    /usr/local/bin/go; do
+    if [[ -x "$candidate" ]]; then
+      PATH="$(dirname "$candidate"):$PATH"
+      export PATH
+      return 0
+    fi
+  done
+  return 1
+}
+
 toml_string() {
   jq -Rn --arg value "$1" '$value'
 }
@@ -295,7 +326,8 @@ case "$session_state" in
   live) session_open=true ;;
 esac
 
-for command in codex go git perl; do
+ensure_go_on_path || fail "go is required"
+for command in codex git perl; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required"
 done
 login_status="$(codex login status 2>&1 || true)"
