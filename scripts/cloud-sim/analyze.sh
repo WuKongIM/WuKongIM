@@ -48,6 +48,8 @@ fail() {
   exit 1
 }
 
+# ensure_go_on_path keeps an existing Go first, then prepends GOROOT or a
+# common installation directory without discarding the caller's PATH.
 ensure_go_on_path() {
   if command -v go >/dev/null 2>&1; then
     return 0

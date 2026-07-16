@@ -204,43 +204,43 @@ func TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH(t *testing.T) {
 	if err := os.Rename(filepath.Join(bin, "go"), filepath.Join(goRoot, "bin", "go")); err != nil {
 		t.Fatal(err)
 	}
-	pathEntries := []string{bin}
-	for _, entry := range filepath.SplitList(os.Getenv("PATH")) {
-		if entry == "" {
+	preservedCommands := []string{
+		"awk", "base64", "bash", "cat", "chmod", "cp", "date", "dirname", "env", "grep",
+		"jq", "mkdir", "mktemp", "mv", "perl", "rm", "sleep", "sort", "tr",
+	}
+	for _, command := range preservedCommands {
+		source, err := exec.LookPath(command)
+		if err != nil {
+			t.Fatalf("find required test command %s: %v", command, err)
+		}
+		target := filepath.Join(bin, command)
+		if _, err := os.Lstat(target); err == nil {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(entry, "go")); err == nil {
-			commands, err := os.ReadDir(entry)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, command := range commands {
-				if command.Name() == "go" {
-					continue
-				}
-				source := filepath.Join(entry, command.Name())
-				info, err := os.Stat(source)
-				if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
-					continue
-				}
-				target := filepath.Join(bin, command.Name())
-				if _, err := os.Lstat(target); err == nil {
-					continue
-				}
-				if err := os.Symlink(source, target); err != nil {
-					t.Fatal(err)
-				}
-			}
+		if err := os.Symlink(source, target); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hashCommandFound := false
+	for _, command := range []string{"sha256sum", "shasum"} {
+		source, err := exec.LookPath(command)
+		if err != nil {
 			continue
 		}
-		pathEntries = append(pathEntries, entry)
+		hashCommandFound = true
+		if err := os.Symlink(source, filepath.Join(bin, command)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !hashCommandFound {
+		t.Fatal("find required SHA-256 test command")
 	}
 
 	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
 		"run-live", "--repository", "example/project")
 	command.Dir = root
 	command.Env = append(os.Environ(),
-		"PATH="+strings.Join(pathEntries, string(os.PathListSeparator)),
+		"PATH="+bin,
 		"GOROOT="+goRoot,
 		"WK_ANALYZE_CALL_LOG="+callLog,
 		"WK_ANALYZE_STATE_DIR="+stateDir,
@@ -693,7 +693,11 @@ case "$1" in
         elif [[ "$WK_ANALYZE_SESSION_STATE" == insufficient_evidence ]]; then
           jq -n --arg request_id "$request_id" --arg message "${WK_ANALYZE_SESSION_MESSAGE:-Provider preflight could not establish a live identity-matched Simulation Run.}" '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:"insufficient_evidence",run_id:"run-insufficient",request_id:$request_id,message:$message}' >"$destination/session.json"
         else
-          fingerprint="sha256:$(printf '%s' DERDATA | sha256sum | awk '{print $1}')"
+		  if command -v sha256sum >/dev/null 2>&1; then
+		    fingerprint="sha256:$(printf '%s' DERDATA | sha256sum | awk '{print $1}')"
+		  else
+		    fingerprint="sha256:$(printf '%s' DERDATA | shasum -a 256 | awk '{print $1}')"
+		  fi
           jq -n --arg request_id "$request_id" --arg fingerprint "$fingerprint" '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:"live",run_id:"run-live",request_id:$request_id,source_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",scenario_digest:"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",mcp_url:"https://198.51.100.20:19092/mcp",expires_at:"2099-07-14T01:00:00Z",ca_fingerprint:$fingerprint}' >"$destination/session.json"
           printf '%s' encrypted >"$destination/encrypted-token.bin"
           printf '%s' certificate >"$destination/pinned-ca.pem"
