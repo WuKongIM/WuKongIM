@@ -401,8 +401,9 @@ func TestStartLogsStartupSummaryAfterAllEntriesAreReady(t *testing.T) {
 	logger := &recordingAppLogger{}
 	dataDir := shortAppTestDataDir(t)
 	app, err := newTestApp(t, Config{
-		NodeID:  7,
-		DataDir: dataDir,
+		NodeID:     7,
+		ConfigPath: "/etc/wukongim/wukongim.toml",
+		DataDir:    dataDir,
 		Cluster: clusterpkg.Config{
 			NodeID:     7,
 			ListenAddr: "127.0.0.1:7001",
@@ -440,6 +441,7 @@ func TestStartLogsStartupSummaryAfterAllEntriesAreReady(t *testing.T) {
 	requireAppLogField(t, entry, "nodeID", uint64(7))
 	requireAppLogField(t, entry, "clusterID", "cluster-a")
 	requireAppLogField(t, entry, "deployment", "single-node-cluster")
+	requireAppLogField(t, entry, "configPath", "/etc/wukongim/wukongim.toml")
 	requireAppLogField(t, entry, "clusterListen", "127.0.0.1:7001")
 	requireAppLogField(t, entry, "apiListen", "127.0.0.1:5001")
 	requireAppLogField(t, entry, "managerListen", "127.0.0.1:5301")
@@ -453,8 +455,9 @@ func TestStartWritesPlainStartupConsoleAfterAllEntriesAreReady(t *testing.T) {
 	var console bytes.Buffer
 	calls := make([]string, 0, 4)
 	app, err := newTestApp(t, Config{
-		NodeID:  7,
-		DataDir: "./data",
+		NodeID:     7,
+		ConfigPath: "/etc/wukongim/wukongim.toml",
+		DataDir:    "./data",
 		Cluster: clusterpkg.Config{
 			NodeID:     7,
 			ListenAddr: "0.0.0.0:7000",
@@ -493,8 +496,10 @@ func TestStartWritesPlainStartupConsoleAfterAllEntriesAreReady(t *testing.T) {
 		`Gateway    tcp-default   tcp://0\.0\.0\.0:5100\n` +
 		`           ws-default    ws://0\.0\.0\.0:5200\n` +
 		`API        http://0\.0\.0\.0:5001\n` +
+		`Demo       http://0\.0\.0\.0:5001/demo/\n` +
 		`Manager    http://0\.0\.0\.0:5300\n` +
 		`Metrics    http://0\.0\.0\.0:5001/metrics\n` +
+		`Config     /etc/wukongim/wukongim\.toml\n` +
 		`Data       \./data\n\n` +
 		`✓ Ready in [^\n]+\n\z`)
 	if got := console.String(); !want.MatchString(got) {
@@ -526,7 +531,8 @@ func TestStartAddsColorOnlyForTerminalStartupConsole(t *testing.T) {
 	got := console.String()
 	if !strings.Contains(got, "\x1b[1;36mWuKongIM") ||
 		!strings.Contains(got, "\x1b[1;32m✓ Ready in") ||
-		!strings.Contains(got, "Node       3 · single-node cluster") {
+		!strings.Contains(got, "Node       3 · single-node cluster") ||
+		!strings.Contains(got, "Config     environment only") {
 		t.Fatalf("terminal startup console =\n%q", got)
 	}
 }
@@ -721,6 +727,7 @@ func TestDefaultConsoleFormatsFailureWithoutStructuredDuplicate(t *testing.T) {
 
 func TestStartLogsBoundRuntimeAddressesAndObservedDeployment(t *testing.T) {
 	calls := make([]string, 0, 4)
+	var console bytes.Buffer
 	logger := &recordingAppLogger{}
 	cluster := &fakeCluster{
 		calls:      &calls,
@@ -748,7 +755,7 @@ func TestStartLogsBoundRuntimeAddressesAndObservedDeployment(t *testing.T) {
 			{Name: "tcp", Network: "tcp", Address: "127.0.0.1:0"},
 			{Name: "ws", Network: "websocket", Address: "127.0.0.1:0", Path: "/ws"},
 		}},
-	}, WithCluster(cluster), WithAPI(api), WithManager(manager), WithGateway(gatewayRuntime), WithLogger(logger))
+	}, WithCluster(cluster), WithAPI(api), WithManager(manager), WithGateway(gatewayRuntime), WithLogger(logger), WithStartupConsole(&console, false))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -764,6 +771,9 @@ func TestStartLogsBoundRuntimeAddressesAndObservedDeployment(t *testing.T) {
 	requireAppLogField(t, entry, "apiListen", "127.0.0.1:15001")
 	requireAppLogField(t, entry, "managerListen", "127.0.0.1:15301")
 	requireAppLogField(t, entry, "gatewayListeners", []string{"tcp=tcp://127.0.0.1:15100", "ws=ws://127.0.0.1:15200/ws"})
+	if got := console.String(); !strings.Contains(got, "Demo       http://127.0.0.1:15001/demo/") {
+		t.Fatalf("startup console Demo address does not use runtime API listener:\n%s", got)
+	}
 }
 
 func TestStartStopOrderIncludesManagerBetweenAPIAndGateway(t *testing.T) {

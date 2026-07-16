@@ -150,6 +150,9 @@ func TestRunPassesConfigFlagFormsToLoadConfig(t *testing.T) {
 			if got.NodeID != tc.id || got.Cluster.NodeID != tc.id {
 				t.Fatalf("NodeID = %d/%d, want %d", got.NodeID, got.Cluster.NodeID, tc.id)
 			}
+			if got.ConfigPath != path {
+				t.Fatalf("ConfigPath = %q, want %q", got.ConfigPath, path)
+			}
 		})
 	}
 }

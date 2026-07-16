@@ -39,8 +39,9 @@ data_dir = "`+dir+`/node1"
 listen_addr = "127.0.0.1:7001"
 hash_slot_count = 256
 `)
+	t.Chdir(dir)
 
-	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: cleanEnv()})
+	cfg, err := Load(Options{Args: []string{"-config", filepath.Base(path)}, Environ: cleanEnv()})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -49,6 +50,31 @@ hash_slot_count = 256
 	}
 	if cfg.DataDir != dir+"/node1" || cfg.Cluster.ListenAddr != "127.0.0.1:7001" {
 		t.Fatalf("loaded config = %#v", cfg)
+	}
+	if cfg.ConfigPath != path {
+		t.Fatalf("ConfigPath = %q, want %q", cfg.ConfigPath, path)
+	}
+}
+
+func TestLoadRecordsMatchedDefaultConfigPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	path := filepath.Join(dir, "wukongim.toml")
+	writeFile(t, path, `
+[node]
+id = 1
+data_dir = "`+dir+`/node1"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+`)
+
+	cfg, err := Load(Options{Environ: cleanEnv()})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.ConfigPath != path {
+		t.Fatalf("ConfigPath = %q, want matched default %q", cfg.ConfigPath, path)
 	}
 }
 
@@ -87,6 +113,9 @@ func TestLoadAllowsEnvOnlyStartup(t *testing.T) {
 	}
 	if cfg.NodeID != 9 || cfg.Cluster.ListenAddr != "127.0.0.1:7009" {
 		t.Fatalf("env-only config = %#v", cfg)
+	}
+	if cfg.ConfigPath != "" {
+		t.Fatalf("ConfigPath = %q, want empty for env-only startup", cfg.ConfigPath)
 	}
 }
 

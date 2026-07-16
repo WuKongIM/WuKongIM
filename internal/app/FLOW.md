@@ -695,9 +695,12 @@ startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
 The startup console is presentation-only: it is disabled with `Log.Console=false`,
 does not add a configuration surface, and does not replace structured lifecycle
-events in rolling files. API, manager, metrics, data, and arbitrary named gateway
-listeners are rendered from the same post-start snapshot used by lifecycle logs;
-missing optional services remain explicit as `disabled`.
+events in rolling files. API, Demo (`/demo/` on the API listener), manager, metrics,
+the absolute loaded TOML path, data, and arbitrary named gateway listeners are
+rendered from the same post-start snapshot used by lifecycle logs. Environment-only
+startup remains explicit as `environment only`, and missing optional services remain
+explicit as `disabled`. The loaded path is runtime display metadata and is not added
+to the manager startup-config snapshot.
 When `Plugin.Enable=true` (the default unless `WK_PLUGIN_ENABLE=false` is set),
 the app wires the PDK-compatible node-local plugin
 runtime, desired-state store adapter, minimal lifecycle host RPC adapter, v2

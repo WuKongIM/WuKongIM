@@ -27,6 +27,9 @@ import (
 
 const versionV1 = "bench/v1"
 
+// DemoPath is the canonical route for the embedded chat Demo.
+const DemoPath = "/demo/"
+
 // ErrListenAddrRequired reports that the HTTP API listen address is empty.
 var ErrListenAddrRequired = errors.New("internal/access/api: listen address required")
 
@@ -507,9 +510,10 @@ func (s *Server) registerRoutes() {
 
 // registerDemoRoutes mounts the embedded chat Demo below the product API.
 func (s *Server) registerDemoRoutes() {
-	handler := http.StripPrefix("/demo", demoui.Handler())
+	demoPrefix := strings.TrimSuffix(DemoPath, "/")
+	handler := http.StripPrefix(demoPrefix, demoui.Handler())
 	redirect := func(c *gin.Context) {
-		target := "/demo/"
+		target := DemoPath
 		if c.Request.URL.RawQuery != "" {
 			target += "?" + c.Request.URL.RawQuery
 		}
@@ -518,10 +522,10 @@ func (s *Server) registerDemoRoutes() {
 	serve := func(c *gin.Context) {
 		handler.ServeHTTP(c.Writer, c.Request)
 	}
-	s.engine.GET("/demo", redirect)
-	s.engine.HEAD("/demo", redirect)
-	s.engine.GET("/demo/*path", serve)
-	s.engine.HEAD("/demo/*path", serve)
+	s.engine.GET(demoPrefix, redirect)
+	s.engine.HEAD(demoPrefix, redirect)
+	s.engine.GET(demoPrefix+"/*path", serve)
+	s.engine.HEAD(demoPrefix+"/*path", serve)
 }
 
 func (s *Server) requireBenchToken(c *gin.Context) {

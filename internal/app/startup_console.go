@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 )
 
 const (
@@ -32,6 +34,8 @@ type startupConsoleSnapshot struct {
 	gatewayListeners []startupGatewayListener
 	// metricsEnabled reports whether the API metrics endpoint is enabled.
 	metricsEnabled bool
+	// configPath is the absolute TOML path loaded at startup; empty means environment-only configuration.
+	configPath string
 	// dataDir is the effective node data root.
 	dataDir string
 }
@@ -96,12 +100,14 @@ func (c *startupConsole) ready(snapshot startupConsoleSnapshot, duration time.Du
 	writeStartupConsoleRow(&out, "Cluster", joinStartupValues(snapshot.clusterID, snapshot.clusterListen))
 	writeGatewayConsoleRows(&out, snapshot.gatewayListeners)
 	writeStartupConsoleRow(&out, "API", httpConsoleAddress(snapshot.apiListen))
+	writeStartupConsoleRow(&out, "Demo", demoConsoleAddress(snapshot.apiListen))
 	writeStartupConsoleRow(&out, "Manager", httpConsoleAddress(snapshot.managerListen))
 	metrics := "disabled"
 	if snapshot.metricsEnabled && strings.TrimSpace(snapshot.apiListen) != "" {
 		metrics = strings.TrimRight(httpConsoleAddress(snapshot.apiListen), "/") + "/metrics"
 	}
 	writeStartupConsoleRow(&out, "Metrics", metrics)
+	writeStartupConsoleRow(&out, "Config", startupConfigSource(snapshot.configPath))
 	writeStartupConsoleRow(&out, "Data", disabledWhenEmpty(snapshot.dataDir))
 	out.WriteByte('\n')
 	if c.color {
@@ -201,6 +207,21 @@ func httpConsoleAddress(value string) string {
 		return value
 	}
 	return "http://" + value
+}
+
+func demoConsoleAddress(apiListen string) string {
+	if strings.TrimSpace(apiListen) == "" {
+		return "disabled"
+	}
+	return strings.TrimRight(httpConsoleAddress(apiListen), "/") + accessapi.DemoPath
+}
+
+func startupConfigSource(configPath string) string {
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		return "environment only"
+	}
+	return configPath
 }
 
 func disabledWhenEmpty(value string) string {

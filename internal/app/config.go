@@ -30,6 +30,8 @@ var (
 type Config struct {
 	// NodeID is the stable cluster node identity.
 	NodeID uint64
+	// ConfigPath is the absolute TOML file loaded at startup; empty means environment-only configuration.
+	ConfigPath string
 	// DataDir is the root data directory for the node runtime.
 	DataDir string
 	// StartupConfigSnapshot is a bounded, redacted view of effective startup configuration.

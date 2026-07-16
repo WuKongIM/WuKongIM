@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/app"
@@ -38,14 +39,19 @@ func Load(opts Options) (app.Config, error) {
 		return app.Config{}, err
 	}
 	values := sourceValues{values: map[string]string{}, sources: map[string]string{}}
+	loadedConfigPath := ""
 	var attempted []string
 	if configPath != "" {
 		values, err = readTOMLValues(configPath)
 		if err != nil {
 			return app.Config{}, fmt.Errorf("load config: %w", err)
 		}
+		loadedConfigPath, err = absoluteConfigPath(configPath)
+		if err != nil {
+			return app.Config{}, err
+		}
 	} else {
-		values, attempted, err = readDefaultTOMLValues()
+		values, loadedConfigPath, attempted, err = readDefaultTOMLValues()
 		if err != nil {
 			return app.Config{}, err
 		}
@@ -69,6 +75,7 @@ func Load(opts Options) (app.Config, error) {
 		return app.Config{}, fmt.Errorf("load config: %w", err)
 	}
 	cfg.StartupConfigSnapshot = buildStartupSnapshot(values, cfg.NodeID)
+	cfg.ConfigPath = loadedConfigPath
 	return cfg, nil
 }
 
@@ -82,7 +89,7 @@ func parseConfigPath(args []string) (string, error) {
 	return strings.TrimSpace(*configPath), nil
 }
 
-func readDefaultTOMLValues() (sourceValues, []string, error) {
+func readDefaultTOMLValues() (sourceValues, string, []string, error) {
 	attempted := make([]string, 0, len(defaultConfigPaths))
 	for _, candidate := range defaultConfigPaths {
 		attempted = append(attempted, candidate)
@@ -90,10 +97,25 @@ func readDefaultTOMLValues() (sourceValues, []string, error) {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return sourceValues{}, nil, fmt.Errorf("stat %s: %w", candidate, err)
+			return sourceValues{}, "", nil, fmt.Errorf("stat %s: %w", candidate, err)
 		}
 		values, err := readTOMLValues(candidate)
-		return values, nil, err
+		if err != nil {
+			return sourceValues{}, "", nil, err
+		}
+		resolved, err := absoluteConfigPath(candidate)
+		if err != nil {
+			return sourceValues{}, "", nil, err
+		}
+		return values, resolved, nil, nil
 	}
-	return sourceValues{values: map[string]string{}, sources: map[string]string{}}, attempted, nil
+	return sourceValues{values: map[string]string{}, sources: map[string]string{}}, "", attempted, nil
+}
+
+func absoluteConfigPath(path string) (string, error) {
+	resolved, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve config path: %w", err)
+	}
+	return resolved, nil
 }
