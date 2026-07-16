@@ -30,6 +30,20 @@ projects an elapsed running deadline as `analysis_grace`. A failed bootstrap
 enters `analysis_grace` only when the simulator MCP self-check is usable;
 otherwise the workflow releases the run immediately.
 
+Cloud workload duration is allowlisted as `30m`, `2h`, `24h`, `48h`, or
+`168h`. Only 48h/168h are standard stability durations. Standard runs fail
+closed unless the dispatch supplies a completed 30-minute storage calibration
+identity and measured worst-node retained bytes per message. The provision
+workflow applies a 50% compaction margin, reserves 30% free space, and places
+the resulting size into the provider config before quote and creation. Large
+168h runs require a separate explicit cost confirmation.
+
+The immutable node bundle configures 256 physical hash slots owned by 10
+logical Slot Raft Groups. Bootstrap evidence records and gates both counts; the
+healthy leader/replica totals remain aggregated across all 256 hash slots.
+Prometheus uses a 15-second interval with 72h retention for runs through 48h
+and 192h retention for 168h.
+
 After `running` is persisted, provisioning uploads a bounded Finalization
 Schedule containing only the exact Run Identity, workload deadline,
 initial analysis time, and immutable lease expiry. The local `finalize.sh`
@@ -55,6 +69,13 @@ exactly `0.0.0.0/0` on TCP/19443 only while the run is `ready`, `running`, or
 `analysis_grace`, and never beyond the immutable Run Lease. `Sweep` closes an
 expired or malformed public window, while `Destroy` closes it before deleting
 run-owned resources. This capability does not change Analysis MCP semantics.
+
+`cloud-sim-monitor.yml` is an observer-only workflow. It runs every 30 minutes
+or for an explicitly dispatched Run Identity, discovers existing running runs,
+and reads public Cloud View and Prometheus evidence. It never calls Create or
+starts wkbench. Patrol evidence includes target liveness, 30-minute sustained
+target loss, CPU, RSS, disk use, and bounded queue saturation; missing evidence
+fails closed and remains distinct from the cleanup lease backstop.
 
 `ValidateTencentAdmission` is a delivery-order gate, not a Tencent adapter. It
 requires repository-owner-reviewed real Alibaba workflow references and

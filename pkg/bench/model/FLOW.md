@@ -32,3 +32,21 @@ worker's range. The coordinator deep-copies the selected worker's address slice
 into its assignment without copying worker control credentials. Omission is
 intentional and leaves source selection to the operating system through the
 ordinary `net.Dialer`; wkbench does not guess an OS source-port capacity.
+
+Reviewed scenario objectives declare a stable `small`, `medium`, or `large`
+scale, ingress and online-fanout QPS, tolerance, and active-channel window.
+`IdentityConfig.TotalUsers` is the full online-plus-offline pool; zero is the
+legacy compatibility fallback to `OnlineConfig.TotalUsers`. The plan therefore
+records both `IdentityPool` and `OnlineIdentityPool`. A worker's optional
+`OnlineIdentityIndexes` is mutable runtime mapping for scheduled identity churn
+and is omitted from the initial deterministic plan.
+
+`OnlineConfig.Churn` is explicit about interval, churn ratio, same-user share,
+identity-swap share, and history-sync policy. Long stability profiles require
+the shares to sum to one, at least one full offline identity lane for swaps,
+and `history_sync: false`.
+
+`ShardConfig.HashSlotSpread` is a group-profile contract: `HashSlotCount` must
+be positive and equal the profile channel count. It means channel index `n`
+must be generated into physical hash slot `n`, not merely distributed by the
+ordinary worker shard strategy.

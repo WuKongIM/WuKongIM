@@ -216,6 +216,8 @@
 - Cloud Simulation local analysis ignores project exec rules and rejects deployed `.codex/config.toml` or `.codex/hooks.json` before Codex starts so repository configuration cannot widen its permission profiles.
 - Cloud Simulation cleanup reconstructs temporary ingress deadlines from provider security rules; sweeps preserve unexpired local Analysis Windows and close expired, malformed, or duplicate windows.
 - Cloud Simulation normal completion uses a non-diagnostic Finalization Schedule plus local `finalize.sh`: retry an explicit in-progress workload while the lease permits, run exact cleanup even after diagnosis/remediation failure, then require structured provider-confirmed empty inventory.
+- Cloud Simulation stability topology uses 256 physical hash slots mapped to 10 logical Slot Raft Groups; bootstrap gates both values separately.
+- Standard Cloud Simulation verdicts require a 48h/168h reviewed small, medium, or large profile plus empirical 30m storage calibration; shorter durations are diagnostic evidence only.
 - Workflow input `public_observation` optionally enables a Run-Lease-bounded `0.0.0.0/0:19443` Cloud View on sim; real Demo/WS use and Manager writes annotate benchmark purity, while authenticated gate probes are excluded and must prove Manager, Demo, WS, and all seven Prometheus targets.
 - wkbench requires server bench mode (`WK_BENCH_API_ENABLE=true`) and must prepare target data only through `/bench/v1/*`; it must not use Manager APIs for benchmark setup.
 - wkbench traffic with `recv_ack=true` must drain delivered recv frames and send protocol recvack even when receive verification is `none`; otherwise delivery retry will keep re-pushing accepted routes until they expire.

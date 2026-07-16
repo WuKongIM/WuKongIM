@@ -127,7 +127,8 @@ func TestAnnotateReportPersistsBenchmarkPurity(t *testing.T) {
 		t.Fatalf("annotate-report code=%d stderr=%q", code, stderr.String())
 	}
 	var report struct {
-		BenchmarkPurity benchmarkPurity `json:"benchmark_purity"`
+		BenchmarkPurity  benchmarkPurity `json:"benchmark_purity"`
+		StabilityVerdict string          `json:"stability_verdict"`
 	}
 	body, err := os.ReadFile(reportPath)
 	if err != nil {
@@ -139,6 +140,9 @@ func TestAnnotateReportPersistsBenchmarkPurity(t *testing.T) {
 	if report.BenchmarkPurity.Pure || !report.BenchmarkPurity.StateKnown || !report.BenchmarkPurity.PersistenceHealthy ||
 		!report.BenchmarkPurity.OperatorModified || report.BenchmarkPurity.Interactive {
 		t.Fatalf("benchmark purity = %#v", report.BenchmarkPurity)
+	}
+	if report.StabilityVerdict != "operator_modified" {
+		t.Fatalf("stability_verdict = %q, want operator_modified", report.StabilityVerdict)
 	}
 	if !bytes.Contains(body, []byte("18446744073709551615")) {
 		t.Fatalf("large report counter changed during annotation: %s", body)
@@ -156,7 +160,8 @@ func TestAnnotateReportWritesFailClosedPurityWhenStatusUnavailable(t *testing.T)
 		t.Fatal("annotate-report succeeded without live Cloud View status")
 	}
 	var report struct {
-		BenchmarkPurity benchmarkPurity `json:"benchmark_purity"`
+		BenchmarkPurity  benchmarkPurity `json:"benchmark_purity"`
+		StabilityVerdict string          `json:"stability_verdict"`
 	}
 	body, err := os.ReadFile(reportPath)
 	if err != nil {
@@ -167,5 +172,8 @@ func TestAnnotateReportWritesFailClosedPurityWhenStatusUnavailable(t *testing.T)
 	}
 	if report.BenchmarkPurity.Pure || report.BenchmarkPurity.StateKnown || report.BenchmarkPurity.PersistenceHealthy {
 		t.Fatalf("unavailable status purity = %#v, want explicit fail-closed state", report.BenchmarkPurity)
+	}
+	if report.StabilityVerdict != "insufficient_evidence" {
+		t.Fatalf("stability_verdict = %q, want insufficient_evidence", report.StabilityVerdict)
 	}
 }

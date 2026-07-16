@@ -25,6 +25,8 @@ type Plan struct {
 	ProfileOrder []string `json:"profile_order" yaml:"profile_order"`
 	// IdentityPool is the shared generated user index pool available to all profile shards.
 	IdentityPool Range `json:"identity_pool" yaml:"identity_pool"`
+	// OnlineIdentityPool is the subset of IdentityPool kept connected for this run.
+	OnlineIdentityPool Range `json:"online_identity_pool" yaml:"online_identity_pool"`
 	// ChannelOwners records deterministic group channel owners by profile and channel index.
 	ChannelOwners map[string]map[int]string `json:"channel_owners" yaml:"channel_owners"`
 }
@@ -35,6 +37,9 @@ type WorkerPlan struct {
 	WorkerID string `json:"worker_id" yaml:"worker_id"`
 	// IdentityRange is the generated user index range this worker should keep online.
 	IdentityRange Range `json:"identity_range" yaml:"identity_range"`
+	// OnlineIdentityIndexes maps logical online indexes to their currently connected identity indexes.
+	// An empty slice preserves the initial identity mapping.
+	OnlineIdentityIndexes []int `json:"online_identity_indexes,omitempty" yaml:"online_identity_indexes,omitempty"`
 	// Profiles contains one shard per scenario channel profile keyed by profile name.
 	Profiles map[string]ProfileShard `json:"profiles" yaml:"profiles"`
 }

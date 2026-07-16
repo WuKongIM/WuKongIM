@@ -30,6 +30,38 @@ func TestBuildHardLimitFailureSetsFailedStatusAndExitCode3(t *testing.T) {
 	if len(r.Violations) != 1 || r.Violations[0].Name != "max_sendack_error_rate" {
 		t.Fatalf("unexpected violations: %+v", r.Violations)
 	}
+	if r.StabilityVerdict != VerdictProductFailure {
+		t.Fatalf("stability_verdict = %s, want %s", r.StabilityVerdict, VerdictProductFailure)
+	}
+}
+
+func TestBuildClassifiesStandardStabilityEvidence(t *testing.T) {
+	standard := model.Scenario{
+		Run:        model.RunConfig{Duration: 48 * time.Hour},
+		Objectives: model.ObjectivesConfig{Scale: "small", Standard: true},
+	}
+	tests := []struct {
+		name           string
+		scenario       model.Scenario
+		classification *StabilityClassification
+		want           StabilityVerdict
+	}{
+		{name: "passed", scenario: standard, want: VerdictPassed},
+		{name: "non-standard scenario", scenario: model.Scenario{Run: model.RunConfig{Duration: 48 * time.Hour}}, want: VerdictInsufficientEvidence},
+		{name: "diagnostic duration", scenario: func() model.Scenario { s := standard; s.Run.Duration = 2 * time.Hour; return s }(), want: VerdictInsufficientEvidence},
+		{name: "harness invalid", scenario: standard, classification: &StabilityClassification{EvidenceComplete: true, HarnessInvalid: true}, want: VerdictHarnessInvalid},
+		{name: "infrastructure failure", scenario: standard, classification: &StabilityClassification{EvidenceComplete: true, InfrastructureFailure: true}, want: VerdictInfrastructureFailure},
+		{name: "operator modified", scenario: standard, classification: &StabilityClassification{EvidenceComplete: true, OperatorModified: true}, want: VerdictOperatorModified},
+		{name: "missing evidence", scenario: standard, classification: &StabilityClassification{EvidenceComplete: false}, want: VerdictInsufficientEvidence},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rep := Build(Input{RunID: "run-1", Scenario: tt.scenario, Classification: tt.classification})
+			if rep.StabilityVerdict != tt.want {
+				t.Fatalf("stability_verdict = %s, want %s", rep.StabilityVerdict, tt.want)
+			}
+		})
+	}
 }
 
 func TestBuildExplicitZeroHardLimitFailsWhenActualIsPositive(t *testing.T) {

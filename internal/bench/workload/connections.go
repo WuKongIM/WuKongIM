@@ -273,6 +273,34 @@ func (m *ConnectionManager) ReconnectUser(ctx context.Context, user ConnectionUs
 	return m.ConnectUser(ctx, normalized)
 }
 
+// ReplaceUser closes one active UID and connects a different identity in its place.
+func (m *ConnectionManager) ReplaceUser(ctx context.Context, oldUID string, user ConnectionUser) (*ConnectionSession, error) {
+	if m == nil {
+		return nil, fmt.Errorf("connection manager: nil manager")
+	}
+	normalized, err := m.normalizedUser(user)
+	if err != nil {
+		return nil, err
+	}
+	oldUID = strings.TrimSpace(oldUID)
+	if oldUID == "" {
+		return nil, fmt.Errorf("connection manager: old uid is required")
+	}
+	if normalized.UID != oldUID {
+		if _, exists := m.Session(normalized.UID); exists {
+			return nil, fmt.Errorf("connection manager: replacement uid %q is already active", normalized.UID)
+		}
+	}
+	old := m.removeSession(oldUID)
+	if old == nil {
+		return nil, fmt.Errorf("connection manager: old uid %q is not active", oldUID)
+	}
+	if err := closeSession(old); err != nil {
+		return nil, err
+	}
+	return m.ConnectUser(ctx, normalized)
+}
+
 // Sessions returns a stable copy of all active sessions.
 func (m *ConnectionManager) Sessions() []*ConnectionSession {
 	if m == nil {

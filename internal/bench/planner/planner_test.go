@@ -2,10 +2,103 @@ package planner
 
 import (
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBuildEnforcesReviewedLoadObjectives(t *testing.T) {
+	base := scenarioWithManyGroup(10, 10, "1/s")
+	base.Online.TotalUsers = 100
+	base.Channels.Profiles[0].Online.MemberRatio = 0.5
+	base.Objectives = model.ObjectivesConfig{
+		Scale: "small", Standard: true,
+		IngressQPS: model.Rate{PerSecond: 10}, OnlineFanoutQPS: model.Rate{PerSecond: 40},
+		ToleranceRatio: 0.1, ActiveChannelWindow: time.Second, RequireAllChannelsActive: true,
+	}
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	_, err := Build(base, workers)
+	require.NoError(t, err)
+
+	ingressMismatch := base
+	ingressMismatch.Objectives.IngressQPS.PerSecond = 20
+	_, err = Build(ingressMismatch, workers)
+	require.ErrorContains(t, err, "configured ingress QPS")
+
+	fanoutMismatch := base
+	fanoutMismatch.Objectives.OnlineFanoutQPS.PerSecond = 100
+	_, err = Build(fanoutMismatch, workers)
+	require.ErrorContains(t, err, "estimated online fanout QPS")
+
+	inactive := base
+	inactive.Messages.Traffic[0].RatePerChannel.PerSecond = 0.5
+	inactive.Objectives.IngressQPS.PerSecond = 5
+	inactive.Objectives.OnlineFanoutQPS.PerSecond = 20
+	_, err = Build(inactive, workers)
+	require.ErrorContains(t, err, `profile "many-group" receives fewer than one message per active channel window`)
+}
+
+func TestBuildValidatesScheduledChurnContract(t *testing.T) {
+	scenario := scenarioWithManyGroup(1, 10, "1/s")
+	scenario.Online.TotalUsers = 100
+	scenario.Identity.TotalUsers = 200
+	scenario.Run.Duration = 48 * time.Hour
+	scenario.Online.Churn = model.ChurnConfig{
+		Enabled: true, Interval: 5 * time.Minute, Ratio: 0.01,
+		SameUserRatio: 0.5, IdentitySwapRatio: 0.5,
+	}
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	_, err := Build(scenario, workers)
+	require.NoError(t, err)
+
+	historySync := scenario
+	historySync.Online.Churn.HistorySync = true
+	_, err = Build(historySync, workers)
+	require.ErrorContains(t, err, "history_sync must be false")
+
+	invalidSplit := scenario
+	invalidSplit.Online.Churn.IdentitySwapRatio = 0.4
+	_, err = Build(invalidSplit, workers)
+	require.ErrorContains(t, err, "same_user_ratio and identity_swap_ratio must sum to one")
+
+	noOfflinePool := scenario
+	noOfflinePool.Identity.TotalUsers = noOfflinePool.Online.TotalUsers
+	_, err = Build(noOfflinePool, workers)
+	require.ErrorContains(t, err, "require at least one full offline identity lane")
+
+	partialOfflineLane := scenario
+	partialOfflineLane.Identity.TotalUsers = partialOfflineLane.Online.TotalUsers + 50
+	_, err = Build(partialOfflineLane, workers)
+	require.ErrorContains(t, err, "require at least one full offline identity lane")
+}
+
+func TestBuildValidatesHashSlotSpreadContract(t *testing.T) {
+	scenario := scenarioWithManyGroup(256, 10, "1/s")
+	scenario.Channels.Profiles[0].Shard.HashSlotSpread = true
+	scenario.Channels.Profiles[0].Shard.HashSlotCount = 256
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	_, err := Build(scenario, workers)
+	require.NoError(t, err)
+
+	wrongCount := scenario
+	wrongCount.Channels.Profiles[0].Count = 255
+	_, err = Build(wrongCount, workers)
+	require.ErrorContains(t, err, "requires count 255 to match hash_slot_count 256")
+
+	missingSlotCount := scenario
+	missingSlotCount.Channels.Profiles[0].Shard.HashSlotCount = 0
+	_, err = Build(missingSlotCount, workers)
+	require.ErrorContains(t, err, "requires hash_slot_count greater than zero")
+
+	personProfile := scenario
+	personProfile.Channels.Profiles[0].ChannelType = model.ChannelTypePerson
+	_, err = Build(personProfile, workers)
+	require.ErrorContains(t, err, "requires a group channel profile")
+}
 
 func TestBuildRejectsPersonProfilesExceedingIdentityPool(t *testing.T) {
 	scenario := scenarioWithPersonCount(51)
@@ -53,6 +146,21 @@ func TestPlanIdentityRangeByWorkerWeight(t *testing.T) {
 	require.Equal(t, model.Range{Start: 0, End: 25}, plan.Workers["a"].IdentityRange)
 	require.Equal(t, model.Range{Start: 25, End: 50}, plan.Workers["b"].IdentityRange)
 	require.Equal(t, model.Range{Start: 50, End: 100}, plan.Workers["c"].IdentityRange)
+}
+
+func TestPlanSeparatesTotalIdentityPoolFromOnlineConnections(t *testing.T) {
+	scenario := scenarioWithManyGroup(1, 500, "1/s")
+	scenario.Identity.TotalUsers = 1000
+	scenario.Online.TotalUsers = 100
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	require.Equal(t, model.Range{Start: 0, End: 1000}, plan.IdentityPool)
+	require.Equal(t, model.Range{Start: 0, End: 100}, plan.OnlineIdentityPool)
+	require.Equal(t, model.Range{Start: 0, End: 100}, plan.Workers["a"].IdentityRange)
+	require.Equal(t, model.Range{Start: 0, End: 1000}, plan.Workers["a"].Profiles["many-group"].MemberRange)
 }
 
 func TestBuildAcceptsExactTCPSourceCapacityForFinalIdentityRange(t *testing.T) {

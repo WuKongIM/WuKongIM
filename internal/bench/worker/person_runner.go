@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"sort"
 	"strings"
@@ -49,6 +50,8 @@ type defaultWorkloadRunner struct {
 	personWorkloads []*benchworkload.PersonWorkload
 	// groupWorkloads contains the active group traffic executors for the active run.
 	groupWorkloads []*benchworkload.GroupWorkload
+	// archivedWorkloadMetrics preserves completed churn-window metrics after workloads are rebuilt.
+	archivedWorkloadMetrics []metrics.SnapshotData
 	// cancelAutoRecvAck stops background recv-ack drains bound to the current run.
 	cancelAutoRecvAck context.CancelFunc
 }
@@ -64,6 +67,13 @@ type personWorkloadBundle struct {
 type personExecutionPlan struct {
 	bundles []personWorkloadBundle
 	users   []benchworkload.ConnectionUser
+}
+
+type churnReplacement struct {
+	offset        int
+	identityIndex int
+	oldUID        string
+	user          benchworkload.ConnectionUser
 }
 
 // NewDefaultWorkloadRunner builds the built-in workload runner for in-process callers.
@@ -276,7 +286,13 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 // MetricsSnapshot returns the merged metrics from active worker-local workloads.
 func (r *defaultWorkloadRunner) MetricsSnapshot() metrics.SnapshotData {
 	manager, personWorkloads, groupWorkloads, registry := r.metricsState()
-	workerSnapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads)+2)
+	r.mu.Lock()
+	archived := append([]metrics.SnapshotData(nil), r.archivedWorkloadMetrics...)
+	r.mu.Unlock()
+	workerSnapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads)+len(archived)+2)
+	for _, snapshot := range archived {
+		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: snapshot})
+	}
 	if registry != nil {
 		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: registry.Collect()})
 	}
@@ -331,12 +347,137 @@ func (r *defaultWorkloadRunner) Warmup(ctx context.Context, assignment Assignmen
 }
 
 func (r *defaultWorkloadRunner) Run(ctx context.Context, assignment Assignment) error {
+	if assignment.Scenario.Online.Churn.Enabled {
+		return r.runWithScheduledChurn(ctx, assignment)
+	}
 	return r.runPhaseWithIdleHold(ctx, assignment, assignment.Scenario.Run.Duration, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 		if person != nil {
 			return person.Run(phaseCtx)
 		}
 		return group.Run(phaseCtx)
 	})
+}
+
+func (r *defaultWorkloadRunner) runWithScheduledChurn(ctx context.Context, assignment Assignment) error {
+	churn := assignment.Scenario.Online.Churn
+	remaining := assignment.Scenario.Run.Duration
+	if remaining <= 0 || churn.Interval <= 0 {
+		return fmt.Errorf("worker runner: scheduled churn requires positive duration and interval")
+	}
+	identityCount := assignment.Plan.IdentityRange.Len()
+	if identityCount <= 0 {
+		return sleepContext(ctx, remaining)
+	}
+	assignment.Plan.OnlineIdentityIndexes = make([]int, identityCount)
+	for offset := range assignment.Plan.OnlineIdentityIndexes {
+		assignment.Plan.OnlineIdentityIndexes[offset] = assignment.Plan.IdentityRange.Start + offset
+	}
+	swapGenerations := make([]int, identityCount)
+	for cycle := 1; remaining > 0; cycle++ {
+		window := min(remaining, churn.Interval)
+		if err := r.runPhaseWithIdleHold(ctx, assignment, window, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+			if person != nil {
+				return person.RunMeasuredWindow(phaseCtx, window, cycle)
+			}
+			return group.RunMeasuredWindow(phaseCtx, window, cycle)
+		}); err != nil {
+			return err
+		}
+		remaining -= window
+		if remaining <= 0 {
+			return nil
+		}
+		if err := r.applyScheduledChurn(ctx, &assignment, cycle, swapGenerations); err != nil {
+			return markTargetUnavailable(err)
+		}
+	}
+	return nil
+}
+
+func (r *defaultWorkloadRunner) applyScheduledChurn(ctx context.Context, assignment *Assignment, cycle int, swapGenerations []int) error {
+	manager, err := r.managerForRun(assignment.RunID)
+	if err != nil {
+		return err
+	}
+	churn := assignment.Scenario.Online.Churn
+	identityCount := assignment.Plan.IdentityRange.Len()
+	churnCount := int(math.Round(float64(identityCount) * churn.Ratio))
+	if churnCount < 1 {
+		churnCount = 1
+	}
+	if churnCount > identityCount {
+		churnCount = identityCount
+	}
+	sameUserCount := int(math.Round(float64(churnCount) * churn.SameUserRatio))
+	if sameUserCount < 0 {
+		sameUserCount = 0
+	}
+	if sameUserCount > churnCount {
+		sameUserCount = churnCount
+	}
+	swapCount := churnCount - sameUserCount
+	start := ((cycle - 1) * churnCount) % identityCount
+	selectedOffsets := make([]int, churnCount)
+	for index := range selectedOffsets {
+		selectedOffsets[index] = (start + index) % identityCount
+	}
+
+	sameUsers := make([]benchworkload.ConnectionUser, 0, sameUserCount)
+	for _, offset := range selectedOffsets[:sameUserCount] {
+		identityIndex := assignment.Plan.OnlineIdentityIndexes[offset]
+		sameUsers = append(sameUsers, connectionUserForIdentityIndex(assignment.Scenario.Identity, identityIndex))
+	}
+	if err := manager.ReconnectUsers(ctx, sameUsers); err != nil {
+		return err
+	}
+
+	onlineTotal := assignment.Scenario.Online.TotalUsers
+	totalUsers := assignment.Scenario.Identity.TotalUsers
+	offlineLanes := 0
+	if onlineTotal > 0 {
+		offlineLanes = (totalUsers - onlineTotal) / onlineTotal
+	}
+	if swapCount > 0 && offlineLanes <= 0 {
+		return fmt.Errorf("worker runner: identity churn requires at least one offline identity lane")
+	}
+	replacements := make([]churnReplacement, 0, swapCount)
+	for _, offset := range selectedOffsets[sameUserCount:] {
+		logicalIndex := assignment.Plan.IdentityRange.Start + offset
+		generation := swapGenerations[offset] % offlineLanes
+		newIdentityIndex := onlineTotal + generation*onlineTotal + logicalIndex
+		oldIdentityIndex := assignment.Plan.OnlineIdentityIndexes[offset]
+		replacements = append(replacements, churnReplacement{
+			offset:        offset,
+			identityIndex: newIdentityIndex,
+			oldUID:        indexedID(assignment.Scenario.Identity.UIDPrefix, oldIdentityIndex),
+			user:          connectionUserForIdentityIndex(assignment.Scenario.Identity, newIdentityIndex),
+		})
+		swapGenerations[offset]++
+	}
+	if err := prepareChurnTokens(ctx, *assignment, cycle, replacements); err != nil {
+		return err
+	}
+	for _, item := range replacements {
+		if _, err := manager.ReplaceUser(ctx, item.oldUID, item.user); err != nil {
+			return err
+		}
+		assignment.Plan.OnlineIdentityIndexes[item.offset] = item.identityIndex
+	}
+
+	r.archiveCurrentWorkloadMetrics()
+	if err := r.rebuildTrafficFromManager(*assignment, manager); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	registry := r.metrics
+	r.mu.Unlock()
+	if registry != nil {
+		registry.IncCounter("churn_window_total", nil)
+		registry.AddCounter("churn_same_user_total", nil, uint64(sameUserCount))
+		registry.AddCounter("churn_identity_swap_total", nil, uint64(swapCount))
+	}
+	atomic.AddUint64(&r.reconnectedUsers, uint64(churnCount))
+	return nil
 }
 
 func (r *defaultWorkloadRunner) Cooldown(ctx context.Context, assignment Assignment) error {
@@ -456,7 +597,7 @@ func buildPersonExecutionPlan(assignment Assignment) (personExecutionPlan, error
 		if profile.ChannelType != model.ChannelTypePerson {
 			continue
 		}
-		pairs, users, err := personPairsAndUsersForProfile(profile, assignment.Scenario.Identity)
+		pairs, users, err := personPairsAndUsersForProfile(profile, assignment.Scenario.Identity, assignment.Plan)
 		if err != nil {
 			return personExecutionPlan{}, fmt.Errorf("person profile %q: %w", profileName, err)
 		}
@@ -507,7 +648,7 @@ func buildPersonWorkloads(assignment Assignment, bundles []personWorkloadBundle,
 	return workloads, nil
 }
 
-func personPairsAndUsersForProfile(profile model.ProfileShard, identity model.IdentityConfig) ([]benchworkload.PersonPair, []benchworkload.ConnectionUser, error) {
+func personPairsAndUsersForProfile(profile model.ProfileShard, identity model.IdentityConfig, workerPlan model.WorkerPlan) ([]benchworkload.PersonPair, []benchworkload.ConnectionUser, error) {
 	channelCount := profile.ChannelRange.Len()
 	if channelCount <= 0 {
 		return nil, nil, nil
@@ -520,9 +661,12 @@ func personPairsAndUsersForProfile(profile model.ProfileShard, identity model.Id
 	seen := make(map[string]struct{}, channelCount*2)
 	for idx := 0; idx < channelCount; idx++ {
 		channelIndex := profile.ChannelRange.Start + idx
-		participantIndex := profile.ParticipantRange.Start + idx*2
-		senderUID := indexedID(identity.UIDPrefix, participantIndex)
-		recipientUID := indexedID(identity.UIDPrefix, participantIndex+1)
+		logicalSenderIndex := profile.ParticipantRange.Start + idx*2
+		logicalRecipientIndex := logicalSenderIndex + 1
+		senderIndex := mappedOnlineIdentityIndex(workerPlan, logicalSenderIndex)
+		recipientIndex := mappedOnlineIdentityIndex(workerPlan, logicalRecipientIndex)
+		senderUID := indexedID(identity.UIDPrefix, senderIndex)
+		recipientUID := indexedID(identity.UIDPrefix, recipientIndex)
 		pairs = append(pairs, benchworkload.PersonPair{
 			ChannelIndex: channelIndex,
 			SenderUID:    senderUID,
@@ -532,8 +676,8 @@ func personPairsAndUsersForProfile(profile model.ProfileShard, identity model.Id
 			uid   string
 			index int
 		}{
-			{uid: senderUID, index: participantIndex},
-			{uid: recipientUID, index: participantIndex + 1},
+			{uid: senderUID, index: senderIndex},
+			{uid: recipientUID, index: recipientIndex},
 		} {
 			if _, ok := seen[item.uid]; ok {
 				continue
@@ -638,14 +782,50 @@ func identityRangeUsers(assignment Assignment) []benchworkload.ConnectionUser {
 	identity := assignment.Scenario.Identity
 	users := make([]benchworkload.ConnectionUser, 0, identityRange.Len())
 	for idx := identityRange.Start; idx < identityRange.End; idx++ {
-		uid := indexedID(identity.UIDPrefix, idx)
+		identityIndex := mappedOnlineIdentityIndex(assignment.Plan, idx)
+		uid := indexedID(identity.UIDPrefix, identityIndex)
 		users = append(users, benchworkload.ConnectionUser{
 			UID:      uid,
-			DeviceID: indexedID(identity.DevicePrefix, idx),
+			DeviceID: indexedID(identity.DevicePrefix, identityIndex),
 			Token:    personToken(identity.Token.Mode, uid),
 		})
 	}
 	return users
+}
+
+func connectionUserForIdentityIndex(identity model.IdentityConfig, identityIndex int) benchworkload.ConnectionUser {
+	uid := indexedID(identity.UIDPrefix, identityIndex)
+	return benchworkload.ConnectionUser{
+		UID:      uid,
+		DeviceID: indexedID(identity.DevicePrefix, identityIndex),
+		Token:    personToken(identity.Token.Mode, uid),
+	}
+}
+
+func prepareChurnTokens(ctx context.Context, assignment Assignment, cycle int, replacements []churnReplacement) error {
+	if strings.TrimSpace(assignment.Scenario.Identity.Token.Mode) != "bench_api" || len(replacements) == 0 {
+		return nil
+	}
+	request := model.BatchTokensRequest{
+		RunID:   assignment.RunID,
+		BatchID: fmt.Sprintf("%s-churn-tokens-%s-%d", assignment.RunID, assignment.WorkerID, cycle),
+		Upsert:  true,
+		Users:   make([]model.UserTokenItem, 0, len(replacements)),
+	}
+	for _, replacement := range replacements {
+		request.Users = append(request.Users, model.UserTokenItem{UID: replacement.user.UID, Token: replacement.user.Token})
+	}
+	if err := groupPrepareClient(assignment.Target).UpsertTokens(ctx, request); err != nil {
+		return fmt.Errorf("prepare churn tokens: %w", err)
+	}
+	return nil
+}
+
+func mappedOnlineIdentityIndex(workerPlan model.WorkerPlan, logicalIndex int) int {
+	if len(workerPlan.OnlineIdentityIndexes) != workerPlan.IdentityRange.Len() || logicalIndex < workerPlan.IdentityRange.Start || logicalIndex >= workerPlan.IdentityRange.End {
+		return logicalIndex
+	}
+	return workerPlan.OnlineIdentityIndexes[logicalIndex-workerPlan.IdentityRange.Start]
 }
 
 func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload, cancelAutoRecvAck context.CancelFunc) {
@@ -663,6 +843,21 @@ func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.Conne
 	r.personWorkloads = personWorkloads
 	r.groupWorkloads = groupWorkloads
 	r.cancelAutoRecvAck = cancelAutoRecvAck
+}
+
+func (r *defaultWorkloadRunner) archiveCurrentWorkloadMetrics() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, workload := range r.personWorkloads {
+		if workload != nil && workload.Metrics() != nil {
+			r.archivedWorkloadMetrics = append(r.archivedWorkloadMetrics, workload.Metrics().Collect())
+		}
+	}
+	for _, workload := range r.groupWorkloads {
+		if workload != nil && workload.Metrics() != nil {
+			r.archivedWorkloadMetrics = append(r.archivedWorkloadMetrics, workload.Metrics().Collect())
+		}
+	}
 }
 
 func (r *defaultWorkloadRunner) mergeConnectionMetrics(manager *benchworkload.ConnectionManager) {
@@ -751,6 +946,7 @@ func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 	atomic.StoreUint64(&r.reconnectedUsers, 0)
 	r.personWorkloads = nil
 	r.groupWorkloads = nil
+	r.archivedWorkloadMetrics = nil
 	r.metrics = metrics.NewRegistry()
 }
 

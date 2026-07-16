@@ -1,0 +1,171 @@
+name: Cloud Simulation - Monitor
+run-name: Cloud Simulation Monitor ${{ inputs.run_id || 'running-runs' }}
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Optional exact running Simulation Run identity
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cloud-simulation-monitor-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    name: Patrol running cloud simulations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: cloud-sim-analysis
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GOWORK: "off"
+      RUN_ID: ${{ inputs.run_id || '' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Resolve Alibaba credential mode
+        id: alibaba_auth
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: ./scripts/cloud-sim/resolve-alibaba-credential-mode.sh
+      - name: Obtain short-lived Alibaba observer identity
+        if: steps.alibaba_auth.outputs.mode == 'oidc'
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_SIM_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-sim-monitor-${{ github.run_id }}
+      - name: Build read-only lifecycle client
+        shell: bash
+        run: go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
+      - name: Resolve run identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$RUN_ID" ]]; then
+            [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+            printf '%s\n' "$RUN_ID" >run-ids.txt
+          else
+            gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
+              --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-locator-"))) | .name' \
+              | sed 's/^cloud-sim-locator-//' | sort -u | tail -n 25 >run-ids.txt
+          fi
+      - name: Patrol public liveness and Prometheus evidence
+        id: patrol
+        shell: bash
+        run: |
+          set -euo pipefail
+          : >monitor-results.jsonl
+          patrol_failed=0
+          while IFS= read -r run_id; do
+            [[ -n "$run_id" ]] || continue
+            safe_run_id="${run_id//[^A-Za-z0-9._-]/_}"
+            provider_config="provider-${safe_run_id}.json"
+            if ! ./scripts/cloud-sim/resolve-exact-provider-config.sh "$run_id" "$provider_config"; then
+              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"provider_config_unavailable"}' >>monitor-results.jsonl
+              patrol_failed=1
+              continue
+            fi
+            if ! status_json="$(./wkcloudsim --provider alibaba --provider-config "$provider_config" status "$run_id")"; then
+              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"status_unavailable"}' >>monitor-results.jsonl
+              patrol_failed=1
+              continue
+            fi
+            state="$(jq -er .state <<<"$status_json")"
+            if [[ "$state" != "running" ]]; then
+              continue
+            fi
+            sim_public="$(jq -er '.resources[] | select(.kind=="public-address" and .role=="sim") | .public_address' <<<"$status_json")"
+            base_url="http://${sim_public}:19443"
+            if ! view_status="$(curl --fail --silent --show-error --max-time 15 "${base_url}/cloud-view/status")" ||
+               ! jq -e --arg run_id "$run_id" '.run_id == $run_id and .persistence_healthy == true' <<<"$view_status" >/dev/null; then
+              jq -cn --arg run_id "$run_id" --arg state "$state" '{run_id:$run_id,state:$state,verdict:"insufficient_evidence",error:"cloud_view_unavailable"}' >>monitor-results.jsonl
+              patrol_failed=1
+              continue
+            fi
+            targets="$(curl --fail --silent --show-error --max-time 15 "${base_url}/prometheus/api/v1/targets?state=active")"
+            target_count="$(jq -er '.data.activeTargets | length' <<<"$targets")"
+            targets_up="$(jq -er '[.data.activeTargets[] | select(.health == "up")] | length' <<<"$targets")"
+            sustained="$(curl --fail --silent --show-error --max-time 15 --get \
+              --data-urlencode 'query=min_over_time(up[30m])' \
+              "${base_url}/prometheus/api/v1/query")"
+            sustained_down="$(jq -er '[.data.result[] | select((.value[1] | tonumber) == 0)] | length' <<<"$sustained")"
+            prom_max() {
+              local query="$1"
+              curl --fail --silent --show-error --max-time 15 --get --data-urlencode "query=${query}" \
+                "${base_url}/prometheus/api/v1/query" \
+                | jq -er '.data.result | if length == 0 then error("missing evidence") else map(.value[1] | tonumber) | max end'
+            }
+            cpu_p95="$(prom_max 'max(quantile_over_time(0.95, (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))))[30m:15s]))')"
+            rss_percent="$(prom_max 'max(100 * process_resident_memory_bytes{job="wukongim"} / on(role) group_left node_memory_MemTotal_bytes{job="hosts"})')"
+            disk_percent="$(prom_max 'max(100 * (1 - node_filesystem_avail_bytes{job="hosts",mountpoint="/var/lib/wukongim-cloud"} / node_filesystem_size_bytes{job="hosts",mountpoint="/var/lib/wukongim-cloud"}))')"
+            queue_ratio="$(prom_max 'max((wukongim_gateway_async_send_queue_depth / wukongim_gateway_async_send_queue_capacity) or (wukongim_delivery_recipient_worker_queue_depth / wukongim_delivery_recipient_worker_queue_capacity))')"
+            verdict=healthy
+            if [[ "$target_count" != 7 || "$targets_up" != 7 || "$sustained_down" != 0 ]] ||
+               awk -v value="$cpu_p95" 'BEGIN {exit !(value > 85)}' ||
+               awk -v value="$rss_percent" 'BEGIN {exit !(value >= 80)}' ||
+               awk -v value="$disk_percent" 'BEGIN {exit !(value >= 70)}' ||
+               awk -v value="$queue_ratio" 'BEGIN {exit !(value >= 0.8)}'; then
+              verdict=patrol_failed
+              patrol_failed=1
+            fi
+            jq -cn --arg run_id "$run_id" --arg state "$state" --arg verdict "$verdict" \
+              --argjson target_count "$target_count" --argjson targets_up "$targets_up" --argjson sustained_down "$sustained_down" \
+              --argjson cpu_p95 "$cpu_p95" --argjson rss_percent "$rss_percent" --argjson disk_percent "$disk_percent" --argjson queue_ratio "$queue_ratio" \
+              '{run_id:$run_id,state:$state,verdict:$verdict,prometheus_targets:$target_count,prometheus_targets_up:$targets_up,
+                sustained_down_30m:$sustained_down,cpu_5m_p95_percent:$cpu_p95,rss_percent:$rss_percent,
+                disk_used_percent:$disk_percent,max_queue_ratio:$queue_ratio}' \
+              >>monitor-results.jsonl
+          done <run-ids.txt
+          echo "patrol_failed=$patrol_failed" >>"$GITHUB_OUTPUT"
+      - name: Upload bounded patrol evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-sim-monitor-${{ github.run_id }}
+          path: monitor-results.jsonl
+          retention-days: 8
+          if-no-files-found: error
+      - name: Write patrol summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Cloud Simulation monitor'
+            echo
+            if [[ -s monitor-results.jsonl ]]; then
+              echo '| Run | State | Patrol | Targets up | CPU p95 | RSS | Disk | Queue |'
+              echo '|---|---|---:|---:|---:|---:|---:|---:|'
+              jq -r '"| `\(.run_id)` | \(.state) | \(.verdict) | \(.prometheus_targets_up // "unknown") | \(.cpu_5m_p95_percent // "unknown") | \(.rss_percent // "unknown") | \(.disk_used_percent // "unknown") | \(.max_queue_ratio // "unknown") |"' monitor-results.jsonl
+            else
+              echo 'No running Simulation Run was discovered.'
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Fail when a running patrol is unhealthy
+        if: steps.patrol.outputs.patrol_failed == '1'
+        shell: bash
+        run: exit 1

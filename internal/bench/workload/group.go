@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"hash/fnv"
 	"io"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -21,6 +23,7 @@ const (
 	verifyRecvModeSampled        = "sampled"
 	groupSenderPickFirstOnline   = "first_online"
 	groupSenderPickRoundRobin    = "round_robin"
+	groupSenderPickWeighted8020  = "weighted_80_20"
 	maxGroupChannelBatchSize     = 1000
 	maxGroupSubscriberBatchSize  = 1000
 	maxGroupSubscriberBatchBytes = 64 * 1024
@@ -56,6 +59,10 @@ type GroupPrepareConfig struct {
 	ProfileName string
 	// ShardMode is model.ShardModeSplitMembersAndTraffic for huge split groups.
 	ShardMode string
+	// HashSlotSpread places each generated channel in its channel-index physical hash slot.
+	HashSlotSpread bool
+	// HashSlotCount is the physical hash-slot count used by HashSlotSpread.
+	HashSlotCount uint16
 	// OwnsChannel marks the split huge-group worker that should create the channel.
 	OwnsChannel bool
 	// ChannelRange is the half-open group channel range assigned to this worker.
@@ -68,6 +75,12 @@ type GroupPrepareConfig struct {
 	MemberReusePolicy string
 	// MembersPerChannel is the deterministic member count per non-split group channel.
 	MembersPerChannel int
+	// TotalUserCount is the full generated identity pool size, including offline users.
+	TotalUserCount int
+	// OnlineUserCount is the connected prefix of the generated identity pool.
+	OnlineUserCount int
+	// OnlineMemberRatio is the target connected-member ratio for each group channel.
+	OnlineMemberRatio float64
 	// SubscribersBatchSize is the maximum subscribers sent in one bench API request.
 	SubscribersBatchSize int
 	// UIDPrefix is prepended to generated subscriber user IDs.
@@ -217,6 +230,33 @@ func GroupChannelID(runID, profileName string, channelIndex int) string {
 	return fmt.Sprintf("%s-%s-%d", strings.TrimSpace(runID), strings.TrimSpace(profileName), channelIndex)
 }
 
+// GroupChannelIDForHashSlot returns a stable channel ID that hashes to the requested physical hash slot.
+func GroupChannelIDForHashSlot(runID, profileName string, channelIndex int, hashSlotCount uint16) string {
+	if hashSlotCount == 0 {
+		return GroupChannelID(runID, profileName, channelIndex)
+	}
+	desired := uint16(channelIndex % int(hashSlotCount))
+	base := fmt.Sprintf("%s-%s-hs-%d", strings.TrimSpace(runID), strings.TrimSpace(profileName), desired)
+	for nonce := 0; ; nonce++ {
+		candidate := base
+		if nonce > 0 {
+			candidate = fmt.Sprintf("%s-%d", base, nonce)
+		}
+		if physicalHashSlotForKey(candidate, hashSlotCount) == desired {
+			return candidate
+		}
+	}
+}
+
+// physicalHashSlotForKey mirrors pkg/hashslot.HashSlotForKey without importing
+// the server-side Slot Raft dependency graph into the black-box benchmark.
+func physicalHashSlotForKey(key string, hashSlotCount uint16) uint16 {
+	if hashSlotCount == 0 {
+		return 0
+	}
+	return uint16(crc32.ChecksumIEEE([]byte(key)) % uint32(hashSlotCount))
+}
+
 // GroupLocalRate returns the worker share of a split group rate without multiplying by channel count.
 func GroupLocalRate(global model.Rate, partitionCount int, ownedPartitions []int) model.Rate {
 	if partitionCount <= 0 || len(ownedPartitions) == 0 {
@@ -311,6 +351,11 @@ func (w *GroupWorkload) Run(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// RunMeasuredWindow sends one uniquely named window at the configured measured rate.
+func (w *GroupWorkload) RunMeasuredWindow(ctx context.Context, duration time.Duration, window int) error {
+	return w.RunWindow(ctx, GroupRunConfig{Phase: fmt.Sprintf("run-window-%d", window), Duration: duration, Rate: w.cfg.LocalRate})
 }
 
 // Cooldown waits for the configured drain period without emitting new sends.
@@ -480,6 +525,25 @@ func (w *GroupWorkload) senderUID(ch GroupChannel, messageIndex int) string {
 			idx += len(ch.OnlineMembers)
 		}
 		return ch.OnlineMembers[idx]
+	case groupSenderPickWeighted8020:
+		if len(ch.OnlineMembers) == 1 {
+			return ch.OnlineMembers[0]
+		}
+		hotCount := int(math.Ceil(float64(len(ch.OnlineMembers)) * 0.2))
+		if hotCount >= len(ch.OnlineMembers) {
+			hotCount = len(ch.OnlineMembers) - 1
+		}
+		index := messageIndex
+		if index < 0 {
+			index = -index
+		}
+		cycle := index % 5
+		if cycle < 4 {
+			hotIndex := ((index / 5) * 4) + cycle
+			return ch.OnlineMembers[hotIndex%hotCount]
+		}
+		coldCount := len(ch.OnlineMembers) - hotCount
+		return ch.OnlineMembers[hotCount+(index/5)%coldCount]
 	default:
 		return ch.OnlineMembers[0]
 	}
@@ -487,7 +551,7 @@ func (w *GroupWorkload) senderUID(ch GroupChannel, messageIndex int) string {
 
 func (w *GroupWorkload) sendMetricLabels(phase string) metrics.Labels {
 	return metrics.Labels{
-		"phase":        strings.TrimSpace(phase),
+		"phase":        stableMetricPhase(phase),
 		"channel_type": model.ChannelTypeGroup,
 		"profile":      w.cfg.ProfileName,
 		"traffic":      w.cfg.TrafficName,
@@ -525,7 +589,7 @@ func normalizeGroupPrepareConfig(cfg GroupPrepareConfig) GroupPrepareConfig {
 func upsertGroupChannels(ctx context.Context, cfg GroupPrepareConfig, target GroupPrepareTarget, large bool) error {
 	channels := make([]model.ChannelItem, 0, cfg.ChannelRange.Len())
 	for channelIndex := cfg.ChannelRange.Start; channelIndex < cfg.ChannelRange.End; channelIndex++ {
-		channels = append(channels, model.ChannelItem{ChannelID: GroupChannelID(cfg.RunID, cfg.ProfileName, channelIndex), ChannelType: frame.ChannelTypeGroup, Large: large})
+		channels = append(channels, model.ChannelItem{ChannelID: groupPreparedChannelID(cfg, channelIndex), ChannelType: frame.ChannelTypeGroup, Large: large})
 	}
 	if len(channels) == 0 {
 		return nil
@@ -553,7 +617,7 @@ func addHugeGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, target
 	if cfg.MemberRange.Len() <= 0 || cfg.ChannelRange.Len() <= 0 {
 		return nil
 	}
-	channelID := GroupChannelID(cfg.RunID, cfg.ProfileName, cfg.ChannelRange.Start)
+	channelID := groupPreparedChannelID(cfg, cfg.ChannelRange.Start)
 	for start := cfg.MemberRange.Start; start < cfg.MemberRange.End; {
 		end := groupSubscriberBatchEnd(cfg, start, cfg.MemberRange.End)
 		if err := addSubscriberBatch(ctx, target, cfg, channelID, start, end); err != nil {
@@ -593,7 +657,7 @@ func addSmallGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, targe
 		if len(memberIndexes) == 0 {
 			continue
 		}
-		channelID := GroupChannelID(cfg.RunID, cfg.ProfileName, channelIndex)
+		channelID := groupPreparedChannelID(cfg, channelIndex)
 		for start := 0; start < len(memberIndexes); {
 			end := groupSubscriberIndexBatchEnd(cfg, start, len(memberIndexes))
 			if batchStart < 0 {
@@ -615,8 +679,26 @@ func addSmallGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, targe
 	return flush()
 }
 
+func groupPreparedChannelID(cfg GroupPrepareConfig, channelIndex int) string {
+	if cfg.HashSlotSpread {
+		return GroupChannelIDForHashSlot(cfg.RunID, cfg.ProfileName, channelIndex, cfg.HashSlotCount)
+	}
+	return GroupChannelID(cfg.RunID, cfg.ProfileName, channelIndex)
+}
+
 func smallGroupMemberIndexes(cfg GroupPrepareConfig, channelIndex int) []int {
 	if strings.TrimSpace(cfg.MemberReusePolicy) == "allowed" && cfg.MemberRange.Len() > 0 {
+		if cfg.TotalUserCount > cfg.OnlineUserCount && cfg.OnlineUserCount > 0 {
+			return deterministicGroupMembersByAvailability(
+				cfg.RunID,
+				cfg.ProfileName,
+				channelIndex,
+				model.Range{Start: 0, End: cfg.OnlineUserCount},
+				model.Range{Start: cfg.OnlineUserCount, End: cfg.TotalUserCount},
+				cfg.MembersPerChannel,
+				groupOnlineMemberCount(cfg.MembersPerChannel, cfg.OnlineMemberRatio),
+			)
+		}
 		return DeterministicGroupMemberIndexes(cfg.RunID, cfg.ProfileName, channelIndex, cfg.MemberRange, cfg.MembersPerChannel)
 	}
 	memberStart := cfg.MemberBase + (channelIndex-cfg.ChannelRange.Start)*cfg.MembersPerChannel
@@ -628,6 +710,44 @@ func smallGroupMemberIndexes(cfg GroupPrepareConfig, channelIndex int) []int {
 		indexes = append(indexes, idx)
 	}
 	return indexes
+}
+
+func deterministicGroupMembersByAvailability(runID, profileName string, channelIndex int, onlinePool, offlinePool model.Range, count, onlineCount int) []int {
+	if count <= 0 {
+		return nil
+	}
+	if onlineCount < 0 {
+		onlineCount = 0
+	}
+	if onlineCount > count {
+		onlineCount = count
+	}
+	online := DeterministicGroupMemberIndexes(runID, profileName+"/online", channelIndex, onlinePool, onlineCount)
+	offline := DeterministicGroupMemberIndexes(runID, profileName+"/offline", channelIndex, offlinePool, count-len(online))
+	return append(online, offline...)
+}
+
+// DeterministicGroupMemberIndexesByAvailability selects the configured online
+// prefix first and fills the remaining membership from the offline identity pool.
+func DeterministicGroupMemberIndexesByAvailability(runID, profileName string, channelIndex int, onlinePool, offlinePool model.Range, count int, onlineRatio float64) []int {
+	return deterministicGroupMembersByAvailability(runID, profileName, channelIndex, onlinePool, offlinePool, count, groupOnlineMemberCount(count, onlineRatio))
+}
+
+func groupOnlineMemberCount(memberCount int, ratio float64) int {
+	if memberCount <= 0 {
+		return 0
+	}
+	if ratio <= 0 || ratio >= 1 {
+		return memberCount
+	}
+	count := int(math.Round(float64(memberCount) * ratio))
+	if count < 1 {
+		return 1
+	}
+	if count > memberCount {
+		return memberCount
+	}
+	return count
 }
 
 // DeterministicGroupMemberIndexes selects stable members from a shared group member pool.

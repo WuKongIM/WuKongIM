@@ -44,6 +44,36 @@ const (
 	StatusFailed Status = "failed"
 )
 
+// StabilityVerdict is the explicit long-run classification used by cloud simulations.
+type StabilityVerdict string
+
+const (
+	// VerdictPassed means a standard-duration run completed with complete passing evidence.
+	VerdictPassed StabilityVerdict = "passed"
+	// VerdictProductFailure means enforced product correctness or performance limits failed.
+	VerdictProductFailure StabilityVerdict = "product_failure"
+	// VerdictInfrastructureFailure means cloud or host infrastructure invalidated the run.
+	VerdictInfrastructureFailure StabilityVerdict = "infrastructure_failure"
+	// VerdictHarnessInvalid means the simulator or benchmark harness invalidated the run.
+	VerdictHarnessInvalid StabilityVerdict = "harness_invalid"
+	// VerdictOperatorModified means an operator changed the system during the run.
+	VerdictOperatorModified StabilityVerdict = "operator_modified"
+	// VerdictInsufficientEvidence means the run cannot support a standard stability conclusion.
+	VerdictInsufficientEvidence StabilityVerdict = "insufficient_evidence"
+)
+
+// StabilityClassification carries bounded external evidence that wkbench cannot infer.
+type StabilityClassification struct {
+	// EvidenceComplete reports whether every required evidence source was available.
+	EvidenceComplete bool `json:"evidence_complete"`
+	// InfrastructureFailure reports a proven infrastructure failure.
+	InfrastructureFailure bool `json:"infrastructure_failure"`
+	// HarnessInvalid reports a proven simulator or harness failure.
+	HarnessInvalid bool `json:"harness_invalid"`
+	// OperatorModified reports a successful operator mutation during the run.
+	OperatorModified bool `json:"operator_modified"`
+}
+
 // Summary contains run quality measurements used for limit checks.
 type Summary struct {
 	// ConnectErrorRate is failed connects divided by attempted connects.
@@ -126,6 +156,8 @@ type Input struct {
 	ErrorSamples []metrics.ErrorSample
 	// CoordinatorLog contains optional coordinator log content.
 	CoordinatorLog string
+	// Classification contains optional external stability evidence and provenance.
+	Classification *StabilityClassification
 }
 
 // Report is the deterministic JSON report written at the end of a run.
@@ -136,6 +168,8 @@ type Report struct {
 	Status Status `json:"status"`
 	// ExitCode is the wkbench process exit code associated with the verdict.
 	ExitCode int `json:"exit_code"`
+	// StabilityVerdict is the explicit standard stability classification.
+	StabilityVerdict StabilityVerdict `json:"stability_verdict"`
 	// Summary contains run quality measurements.
 	Summary Summary `json:"summary"`
 	// Violations contains enforced limit failures.
@@ -207,7 +241,32 @@ func Build(in Input) Report {
 		rep.Status = StatusFailed
 		rep.ExitCode = ExitHardLimitFailed
 	}
+	rep.StabilityVerdict = classifyStability(in.Scenario, rep.Violations, in.Classification)
 	return rep
+}
+
+func classifyStability(scenario model.Scenario, violations []Violation, classification *StabilityClassification) StabilityVerdict {
+	if classification != nil {
+		if classification.OperatorModified {
+			return VerdictOperatorModified
+		}
+		if classification.HarnessInvalid {
+			return VerdictHarnessInvalid
+		}
+		if classification.InfrastructureFailure {
+			return VerdictInfrastructureFailure
+		}
+		if !classification.EvidenceComplete {
+			return VerdictInsufficientEvidence
+		}
+	}
+	if len(violations) > 0 {
+		return VerdictProductFailure
+	}
+	if !scenario.Objectives.Standard || (scenario.Run.Duration != 48*time.Hour && scenario.Run.Duration != 168*time.Hour) {
+		return VerdictInsufficientEvidence
+	}
+	return VerdictPassed
 }
 
 // WriteDir writes all standard wkbench report artifacts into dir.

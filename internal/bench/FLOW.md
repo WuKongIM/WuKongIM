@@ -18,6 +18,26 @@ Shared wkbench schema, plan, report, and bench/v1 API DTOs live in `pkg/bench/mo
 - `metrics`: worker-local counters, histograms, bounded error samples, aggregation helpers, and low-cardinality Prometheus attribution parsing.
 - `report`: deterministic report construction and report directory writing.
 
+Reviewed stability scenarios separate the full generated identity pool from
+the connected online prefix. Group preparation writes the requested total
+subscriber count from both pools, while execution connects only the planned
+online identities. The planner validates reviewed ingress QPS exactly, checks
+estimated online fanout within the declared tolerance, and rejects any profile
+that cannot emit at least one message per required active-channel window.
+
+During measured scheduled churn, the worker runs traffic in bounded windows.
+At each boundary it archives the completed workload metrics, reconnects the
+same-UID share, replaces the identity-swap share from deterministic offline
+lanes, refreshes bench tokens, and rebuilds person/group workloads before
+traffic resumes. `OnlineIdentityIndexes` is worker-local runtime mapping state;
+an empty mapping preserves the initial plan. Each measured window gets a unique
+message identity namespace while report metrics normalize it back to the stable
+`run` phase. Churn never requests history sync.
+
+Group `sender_pick: weighted_80_20` emits four of each five deterministic
+messages from the first 20% of online members and the fifth from the remaining
+80%. This distribution is per channel and does not change channel rate.
+
 The WKProto bench client is a thin adapter over `pkg/client`. The shared client
 owns CONNECT/CONNACK, optional payload encryption, socket decoding, SENDACK
 matching, RECV decryption, and the single writer/reader pumps. The bench adapter
@@ -80,6 +100,12 @@ Coordinator terminal statuses map directly to CLI exit codes:
 - `worker_failed` -> `4`
 - `target_unavailable` -> `5`
 - `canceled` or `internal_failed` -> `6`
+
+Reports additionally carry a `stability_verdict`: `passed`,
+`product_failure`, `infrastructure_failure`, `harness_invalid`,
+`operator_modified`, or `insufficient_evidence`. Diagnostic durations cannot
+produce a standard passed verdict. Worker/harness evidence and external Cloud
+View purity classification take precedence over product-limit inference.
 
 Explicit TCP source pool errors are worker-local configuration or capacity
 failures and therefore resolve to `worker_failed`, never
@@ -417,6 +443,12 @@ split_members_and_traffic group
 ```
 
 Allowed-overlap group members are selected from a shared identity pool by deterministic hash. Disallowed-overlap group members reserve disjoint user ranges. Person participants are distinct from their own profile ranges, but allowed-overlap groups may reuse the global identity pool.
+
+When a group profile enables `hash_slot_spread`, its channel count must equal
+`hash_slot_count`. Preparation and traffic construction use the same
+deterministic channel-ID search so channel index `n` hashes to physical hash
+slot `n`; reviewed stability presets use this for one `max-group` channel in
+each of the 256 physical hash slots.
 
 ## Workload Flow
 

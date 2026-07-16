@@ -1,17 +1,17 @@
 version: wkbench/v1
 run:
-  id: cloud-small
+  id: cloud-large
   duration: 48h
   warmup: 10m
   cooldown: 1m
   random_seed: 20260716
   fail_fast: true
-  report_dir: /var/lib/wukongim-cloud/reports/cloud-small
+  report_dir: /var/lib/wukongim-cloud/reports/cloud-large
 objectives:
-  scale: small
+  scale: large
   standard: true
-  ingress_qps: 500/s
-  online_fanout_qps: 5000/s
+  ingress_qps: 20000/s
+  online_fanout_qps: 200000/s
   tolerance_ratio: 0.1
   active_channel_window: 5m
   require_all_channels_active: true
@@ -26,97 +26,74 @@ limits:
     max_sendack_p99: 1s
     max_recv_p99: 2s
 prepare:
-  concurrency: 64
-  rate_limit: 500/s
-  retry:
-    max_attempts: 3
-    backoff: 200ms
+  concurrency: 512
+  rate_limit: 5000/s
+  retry: {max_attempts: 3, backoff: 200ms}
 identity:
-  total_users: 10000
-  uid_prefix: cloud-small-u
-  device_prefix: cloud-small-d
-  client_msg_prefix: cloud-small-msg
-  token:
-    mode: bench_api
+  total_users: 1000000
+  uid_prefix: cloud-large-u
+  device_prefix: cloud-large-d
+  client_msg_prefix: cloud-large-msg
+  token: {mode: bench_api}
 online:
-  total_users: 1000
-  connect_rate: 1.6666666667/s
+  total_users: 100000
+  connect_rate: 166.6666666667/s
   gateway_balance: round_robin
-  reconnect:
-    enabled: true
-    backoff: 1s
-    max_attempts: 5
+  reconnect: {enabled: true, backoff: 1s, max_attempts: 5}
   churn: {enabled: true, interval: 5m, ratio: 0.01, same_user_ratio: 0.5, identity_swap_ratio: 0.5, history_sync: false}
-  heartbeat:
-    enabled: true
-    interval: 30s
-    timeout: 5s
+  heartbeat: {enabled: true, interval: 30s, timeout: 5s}
 channels:
   profiles:
     - name: person-hot
       channel_type: person
-      count: 100
-      participants:
-        pick: round_robin
-      online:
-        sender_ratio: 1
-        recipient_ratio: 1
-      shard:
-        mode: hash
-      prepare:
-        subscribers_batch_size: 1000
+      count: 10000
+      participants: {pick: round_robin}
+      online: {sender_ratio: 1, recipient_ratio: 1}
+      shard: {mode: hash}
+      prepare: {subscribers_batch_size: 1000}
     - name: person-cold
       channel_type: person
-      count: 400
-      participants:
-        pick: round_robin
-      online:
-        sender_ratio: 1
-        recipient_ratio: 1
-      shard:
-        mode: hash
-      prepare:
-        subscribers_batch_size: 1000
+      count: 40000
+      participants: {pick: round_robin}
+      online: {sender_ratio: 1, recipient_ratio: 1}
+      shard: {mode: hash}
+      prepare: {subscribers_batch_size: 1000}
     - name: ordinary-small-group
       channel_type: group
-      count: 171
-      members: {count: 10, pick: deterministic_hash, overlap: allowed}
-      online: {member_ratio: 1}
+      count: 34821
+      members: {count: 50, pick: deterministic_hash, overlap: allowed}
+      online: {member_ratio: 0.1}
       shard: {mode: hash}
       prepare: {subscribers_batch_size: 1000}
     - name: ordinary-medium-group
       channel_type: group
-      count: 61
-      members: {count: 30, pick: deterministic_hash, overlap: allowed}
-      online: {member_ratio: 1}
+      count: 12436
+      members: {count: 500, pick: deterministic_hash, overlap: allowed}
+      online: {member_ratio: 0.03}
       shard: {mode: hash}
       prepare: {subscribers_batch_size: 1000}
     - name: ordinary-large-group
       channel_type: group
-      count: 12
-      members: {count: 60, pick: deterministic_hash, overlap: allowed}
-      online: {member_ratio: 1}
+      count: 2487
+      members: {count: 2000, pick: deterministic_hash, overlap: allowed}
+      online: {member_ratio: 0.025}
       shard: {mode: hash}
       prepare: {subscribers_batch_size: 1000}
     - name: max-group
       channel_type: group
       count: 256
-      members: {count: 100, pick: deterministic_hash, overlap: allowed}
+      members: {count: 10000, pick: deterministic_hash, overlap: allowed}
       online: {member_ratio: 0.1}
       shard: {mode: hash, hash_slot_spread: true, hash_slot_count: 256}
       prepare: {subscribers_batch_size: 1000}
-cleanup:
-  enabled: false
-  strategy: keep_data
+cleanup: {enabled: false, strategy: keep_data}
 messages:
-  payload:
-    size_bytes: 256
-    mode: deterministic
+  payload: {size_bytes: 256, mode: deterministic}
   traffic:
     - name: person-hot-send
       channel_ref: person-hot
-      rate_per_channel: 2/s
-      concurrency: 256
+      rate_per_channel: 0.8/s
+      concurrency: 4096
       ack_timeout: 15s
       recv_timeout: 15s
       sender_pick: round_robin
@@ -124,8 +101,8 @@ messages:
       verify: {recv: {mode: full}}
     - name: person-cold-send
       channel_ref: person-cold
-      rate_per_channel: 0.125/s
-      concurrency: 256
+      rate_per_channel: 0.05/s
+      concurrency: 4096
       ack_timeout: 15s
       recv_timeout: 15s
       sender_pick: round_robin
@@ -133,32 +110,32 @@ messages:
       verify: {recv: {mode: full}}
     - name: ordinary-small-group-send
       channel_ref: ordinary-small-group
-      rate_per_channel: 0.43859649122807015/s
-      concurrency: 256
+      rate_per_channel: 0.143017144826398/s
+      concurrency: 4096
       ack_timeout: 15s
       sender_pick: weighted_80_20
       recv_ack: true
       verify: {recv: {mode: none}}
     - name: ordinary-medium-group-send
       channel_ref: ordinary-medium-group
-      rate_per_channel: 0.860655737704918/s
-      concurrency: 256
+      rate_per_channel: 0.280315213895143/s
+      concurrency: 4096
       ack_timeout: 15s
       sender_pick: weighted_80_20
       recv_ack: true
       verify: {recv: {mode: none}}
     - name: ordinary-large-group-send
       channel_ref: ordinary-large-group
-      rate_per_channel: 1.875/s
-      concurrency: 256
+      rate_per_channel: 0.600723763570567/s
+      concurrency: 4096
       ack_timeout: 15s
       sender_pick: weighted_80_20
       recv_ack: true
       verify: {recv: {mode: none}}
     - name: max-group-send
       channel_ref: max-group
-      rate_per_channel: 0.390625/s
-      concurrency: 256
+      rate_per_channel: 0.15625/s
+      concurrency: 4096
       ack_timeout: 15s
       sender_pick: weighted_80_20
       recv_ack: true

@@ -21,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
@@ -735,6 +736,63 @@ func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
 }
 
+func TestWorkerHTTPUsesSamePhysicalHashSlotChannelsForPrepareAndTraffic(t *testing.T) {
+	prepared := make([]string, 0, 2)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			var req model.BatchChannelsRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			for _, channel := range req.Channels {
+				prepared = append(prepared, channel.ChannelID)
+			}
+		case "/bench/v1/channels/subscribers":
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	assignment := groupShardAssignment(target.URL)
+	assignment.Scenario.Identity.TotalUsers = 2
+	assignment.Scenario.Online.TotalUsers = 2
+	assignment.Scenario.Channels.Profiles[0] = model.ChannelProfile{
+		Name: "max-group", ChannelType: model.ChannelTypeGroup, Count: 2,
+		Members: model.MembersConfig{Count: 1, Overlap: "allowed"},
+		Online:  model.ChannelOnlineConfig{MemberRatio: 1},
+		Shard:   model.ShardConfig{Mode: "hash", HashSlotSpread: true, HashSlotCount: 2},
+		Prepare: model.ChannelPrepareConfig{SubscribersBatchSize: 2},
+	}
+	assignment.Scenario.Messages.Traffic[0].ChannelRef = "max-group"
+	assignment.Plan.IdentityRange = model.Range{Start: 0, End: 2}
+	assignment.Plan.Profiles = map[string]model.ProfileShard{"max-group": {
+		Name: "max-group", ChannelType: model.ChannelTypeGroup,
+		ChannelRange: model.Range{Start: 0, End: 2}, MemberRange: model.Range{Start: 0, End: 2}, MemberReusePolicy: "allowed",
+	}}
+
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignFull(t, srv, "secret", assignment)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+
+	require.Len(t, prepared, 2)
+	trafficChannels := make(map[string]struct{}, 2)
+	for _, client := range pool.clients {
+		for _, sent := range client.sentFrames {
+			trafficChannels[sent.ChannelID] = struct{}{}
+		}
+	}
+	for slot, channelID := range prepared {
+		require.Equal(t, uint16(slot), hashslot.HashSlotForKey(channelID, 2))
+		_, usedByTraffic := trafficChannels[channelID]
+		require.True(t, usedByTraffic, "prepared channel %q was not used by traffic", channelID)
+	}
+}
+
 func TestBuildGroupWorkloadsUsesTrafficRatePerStream(t *testing.T) {
 	assignment := groupShardAssignment("http://target.invalid")
 	assignment.Scenario.Run.Duration = time.Second
@@ -1314,6 +1372,7 @@ func assignFull(t *testing.T, srv *Server, token string, assignment Assignment) 
 type workerPersonClientPool struct {
 	clients       map[string]*workerPersonClient
 	initialFrames map[string][]frame.Frame
+	createdUIDs   []string
 }
 
 func newWorkerPersonClientPool() *workerPersonClientPool {
@@ -1323,7 +1382,18 @@ func newWorkerPersonClientPool() *workerPersonClientPool {
 func (p *workerPersonClientPool) newClient(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error) {
 	client := &workerPersonClient{uid: user.UID, addr: addr, readFrames: append([]frame.Frame(nil), p.initialFrames[user.UID]...)}
 	p.clients[user.UID] = client
+	p.createdUIDs = append(p.createdUIDs, user.UID)
 	return client, nil
+}
+
+func (p *workerPersonClientPool) createdCount(uid string) int {
+	count := 0
+	for _, createdUID := range p.createdUIDs {
+		if createdUID == uid {
+			count++
+		}
+	}
+	return count
 }
 
 func (p *workerPersonClientPool) client(uid string) *workerPersonClient {
@@ -1621,6 +1691,190 @@ func TestWorkerDefaultRunnerUsesPlannedMemberRangeForSmallGroups(t *testing.T) {
 	require.Equal(t, []seenSubscribers{{channelID: "bench-run-huge-group-1", uids: []string{"bench-u-5000", "bench-u-5001"}}, {channelID: "bench-run-huge-group-1", uids: []string{"bench-u-5002", "bench-u-5003"}}}, seen)
 }
 
+func TestWorkerKeepsPreparedOfflineGroupMembersDisconnected(t *testing.T) {
+	var subscriberUIDs []string
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			for _, item := range req.Items {
+				subscriberUIDs = append(subscriberUIDs, item.Subscribers...)
+			}
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := Assignment{
+		RunID: "run-offline-members", WorkerID: "worker-a",
+		Target: model.Target{
+			BenchAPI: model.BenchAPIConfig{Addrs: []string{target.URL}},
+			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}},
+		},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-offline-members"},
+			Identity: model.IdentityConfig{TotalUsers: 100, UIDPrefix: "bench-u", DevicePrefix: "bench-d"},
+			Online:   model.OnlineConfig{TotalUsers: 10, GatewayBalance: "round_robin"},
+			Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
+				Name: "group-a", ChannelType: model.ChannelTypeGroup, Count: 1,
+				Members: model.MembersConfig{Count: 10, Overlap: "allowed"},
+				Online:  model.ChannelOnlineConfig{MemberRatio: 0.2},
+				Prepare: model.ChannelPrepareConfig{SubscribersBatchSize: 100},
+			}}},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{Name: "group-send", ChannelRef: "group-a"}}},
+		},
+		Plan: model.WorkerPlan{
+			WorkerID: "worker-a", IdentityRange: model.Range{Start: 0, End: 10},
+			Profiles: map[string]model.ProfileShard{"group-a": {
+				Name: "group-a", ChannelType: model.ChannelTypeGroup,
+				ChannelRange: model.Range{Start: 0, End: 1}, MemberRange: model.Range{Start: 0, End: 100},
+				MemberReusePolicy: "allowed",
+			}},
+		},
+	}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+
+	require.Len(t, subscriberUIDs, 10)
+	onlineSubscribers := 0
+	for _, uid := range subscriberUIDs {
+		var index int
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(uid, "bench-u-")), &index))
+		if index < 10 {
+			onlineSubscribers++
+		}
+	}
+	require.Equal(t, 2, onlineSubscribers)
+	require.Len(t, pool.clients, 10)
+	for uid := range pool.clients {
+		var index int
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(uid, "bench-u-")), &index))
+		require.Less(t, index, 10)
+	}
+}
+
+func TestWorkerHTTPAppliesWeightedEightyTwentyGroupSenders(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels", "/bench/v1/channels/subscribers":
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+	}))
+	defer target.Close()
+
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := Assignment{
+		RunID: "run-weighted-senders", WorkerID: "worker-a",
+		Target: model.Target{
+			BenchAPI: model.BenchAPIConfig{Addrs: []string{target.URL}},
+			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}},
+		},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-weighted-senders", Duration: 5 * time.Nanosecond},
+			Identity: model.IdentityConfig{TotalUsers: 5, UIDPrefix: "bench-u", DevicePrefix: "bench-d"},
+			Online:   model.OnlineConfig{TotalUsers: 5, GatewayBalance: "round_robin"},
+			Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
+				Name: "group-a", ChannelType: model.ChannelTypeGroup, Count: 1,
+				Members: model.MembersConfig{Count: 5, Overlap: "allowed"},
+				Online:  model.ChannelOnlineConfig{MemberRatio: 1},
+			}}},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{
+				Name: "group-send", ChannelRef: "group-a", SenderPick: "weighted_80_20",
+				RatePerChannel: model.Rate{PerSecond: 1_000_000_000},
+			}}},
+		},
+		Plan: model.WorkerPlan{
+			WorkerID: "worker-a", IdentityRange: model.Range{Start: 0, End: 5},
+			Profiles: map[string]model.ProfileShard{"group-a": {
+				Name: "group-a", ChannelType: model.ChannelTypeGroup,
+				ChannelRange: model.Range{Start: 0, End: 1}, MemberRange: model.Range{Start: 0, End: 5},
+				MemberReusePolicy: "allowed",
+			}},
+		},
+	}
+	assignFull(t, srv, "secret", assignment)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+
+	require.Len(t, pool.client("bench-u-0").sentFrames, 4)
+	require.Len(t, pool.client("bench-u-1").sentFrames, 1)
+	for _, uid := range []string{"bench-u-2", "bench-u-3", "bench-u-4"} {
+		require.Empty(t, pool.client(uid).sentFrames)
+	}
+}
+
+func TestWorkerHTTPChurnReconnectsAndSwapsOfflineIdentity(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bench/v1/users/tokens" {
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := Assignment{
+		RunID: "run-churn", WorkerID: "worker-a",
+		Target: model.Target{
+			BenchAPI: model.BenchAPIConfig{Addrs: []string{target.URL}},
+			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}},
+		},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-churn", Duration: 2 * time.Nanosecond},
+			Identity: model.IdentityConfig{TotalUsers: 8, UIDPrefix: "bench-u", DevicePrefix: "bench-d", Token: model.TokenConfig{Mode: "bench_api"}},
+			Online: model.OnlineConfig{TotalUsers: 4, GatewayBalance: "round_robin", Churn: model.ChurnConfig{
+				Enabled: true, Interval: time.Nanosecond, Ratio: 0.5,
+				SameUserRatio: 0.5, IdentitySwapRatio: 0.5, HistorySync: false,
+			}},
+			Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
+				Name: "person-a", ChannelType: model.ChannelTypePerson, Count: 2,
+			}}},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{
+				Name: "person-send", ChannelRef: "person-a", RatePerChannel: model.Rate{PerSecond: 1_000_000_000},
+			}}},
+		},
+		Plan: model.WorkerPlan{
+			WorkerID: "worker-a", IdentityRange: model.Range{Start: 0, End: 4},
+			Profiles: map[string]model.ProfileShard{"person-a": {
+				Name: "person-a", ChannelType: model.ChannelTypePerson,
+				ChannelRange: model.Range{Start: 0, End: 2}, ParticipantRange: model.Range{Start: 0, End: 4},
+			}},
+		},
+	}
+	assignFull(t, srv, "secret", assignment)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+
+	require.Equal(t, 2, pool.createdCount("bench-u-0"), "same-user half should reconnect")
+	require.Equal(t, 1, pool.createdCount("bench-u-5"), "identity-swap half should connect an offline user")
+	require.Len(t, pool.clients, 5)
+	clientMsgNos := make(map[string]struct{})
+	for _, client := range pool.clients {
+		for _, sent := range client.sentFrames {
+			_, duplicate := clientMsgNos[sent.ClientMsgNo]
+			require.False(t, duplicate, "churn windows must not reuse client message number %q", sent.ClientMsgNo)
+			clientMsgNos[sent.ClientMsgNo] = struct{}{}
+		}
+	}
+	require.NotEmpty(t, clientMsgNos)
+}
+
 func TestGroupChannelsForShardAllowedOverlapStaysInsideSharedPool(t *testing.T) {
 	shard := model.ProfileShard{
 		Name:              "group-hot",
@@ -1636,7 +1890,7 @@ func TestGroupChannelsForShardAllowedOverlapStaysInsideSharedPool(t *testing.T) 
 		Members:     model.MembersConfig{Count: 60, Overlap: "allowed", Pick: "deterministic_hash"},
 	}
 
-	channels := groupChannelsForShard("run-a", shard, profile, model.IdentityConfig{UIDPrefix: "bench-u"})
+	channels := groupChannelsForShard("run-a", shard, profile, model.IdentityConfig{UIDPrefix: "bench-u"}, 0, model.WorkerPlan{})
 
 	require.Len(t, channels, 2)
 	for _, ch := range channels {

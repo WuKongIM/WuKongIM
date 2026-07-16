@@ -14,6 +14,8 @@ type BootstrapSnapshot struct {
 	ClusterMemberCount int `json:"cluster_member_count"`
 	// HashSlotCount is the converged cluster hash-slot count.
 	HashSlotCount int `json:"hash_slot_count"`
+	// SlotGroupCount is the number of logical Slot Raft Groups that own hash slots.
+	SlotGroupCount int `json:"slot_group_count"`
 	// HealthySlotLeaders is the count of slots with a healthy current leader.
 	HealthySlotLeaders int `json:"healthy_slot_leaders"`
 	// HealthySlotReplicas is the count of slots with the required voter set.
@@ -77,7 +79,10 @@ func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) Ga
 		result.Failures = append(result.Failures, "cluster member count is not three")
 	}
 	if snapshot.HashSlotCount != 256 || snapshot.HealthySlotLeaders != 256 || snapshot.HealthySlotReplicas != 256 {
-		result.Failures = append(result.Failures, "256 slots, leaders, and replicas are not healthy")
+		result.Failures = append(result.Failures, "256 hash slots, leaders, and replicas are not healthy")
+	}
+	if snapshot.SlotGroupCount != 10 {
+		result.Failures = append(result.Failures, "logical Slot Raft Group count is not ten")
 	}
 	if snapshot.PendingControllerTask != 0 {
 		result.Failures = append(result.Failures, "controller convergence is pending")

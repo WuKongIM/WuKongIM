@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	benchreport "github.com/WuKongIM/WuKongIM/internal/bench/report"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/cloudviewstate"
 )
 
@@ -80,6 +81,19 @@ func annotateReport(ctx context.Context, statusURL, reportPath string) error {
 		return err
 	}
 	report["benchmark_purity"] = purity
+	var stabilityVerdict benchreport.StabilityVerdict
+	if status.OperatorModified && stateKnown {
+		stabilityVerdict = benchreport.VerdictOperatorModified
+	} else if !stateKnown || !persistenceHealthy {
+		stabilityVerdict = benchreport.VerdictInsufficientEvidence
+	}
+	if stabilityVerdict != "" {
+		encodedVerdict, err := json.Marshal(stabilityVerdict)
+		if err != nil {
+			return err
+		}
+		report["stability_verdict"] = encodedVerdict
+	}
 	body, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return err

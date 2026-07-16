@@ -4,10 +4,46 @@
 keeps a deterministic user set online, and sends person/group messages through
 the public bench API and WKProto gateways.
 
-`cloud-small.yaml` is a separate deterministic `wkbench/v1` Phase 1 analysis
-fixture. It is mounted into `wk-analysis` so `run_inspect` can return the exact
-effective scenario, canonical digest, non-zero seed, and 256 hash-slot identity.
-It is not executed by the `dev-sim` supervisor.
+`cloud-small.yaml`, `cloud-medium.yaml`, and `cloud-large.yaml` are reviewed
+Cloud Simulation stability profiles. They are not executed by the local
+`dev-sim` supervisor. The provision workflow renders the selected profile into
+the immutable deployment bundle and may override only its allowlisted duration.
+
+| Scale | Total users | Online | Person + group channels | Ingress QPS | Online fanout QPS | Max group |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| small | 10,000 | 1,000 | 500 + 500 | 500 | 5,000 | 100 |
+| medium | 100,000 | 10,000 | 5,000 + 5,000 | 5,000 | 50,000 | 1,000 |
+| large | 1,000,000 | 100,000 | 50,000 + 50,000 | 20,000 | 200,000 | 10,000 |
+
+Every profile has 256 `max-group` channels, one for each physical hash slot.
+Ordinary group profiles use the reviewed 70/25/5 channel distribution and all
+channels receive at least one message in every five-minute window. Group
+senders use deterministic `weighted_80_20`; the configured online member ratio
+is applied to the connected user pool while remaining subscribers come from the
+offline identity pool.
+
+The measured phase keeps one device per online user and uses 256-byte payloads.
+Every five minutes, 1% of worker-local connections churn: half reconnect the
+same UID and half swap to an offline identity, without history sync. Person and
+group traffic is paused at the churn boundary and rebuilt against the new
+session mapping before the next measured window.
+
+Standard stability verdicts require `48h` or `168h`. The `30m`, `2h`, and `24h`
+durations are diagnostic or calibration runs and report
+`insufficient_evidence` for standard stability. Before a 48h/168h run, the
+workflow requires a completed 30-minute storage calibration Run Identity and
+its measured worst-node bytes per message. It sizes every independent data disk
+with a 50% compaction margin while preserving 30% free space. A large 168h run
+also requires explicit cost confirmation.
+
+The cloud topology is three WuKongIM nodes plus one simulator. WuKongIM uses
+256 physical hash slots mapped onto 10 logical Slot Raft Groups; Controller,
+Slot, and Channel replication remain three replicas with a minimum ISR of two.
+Prometheus scrapes every 15 seconds and retains 72 hours for a 48-hour run or
+192 hours for a seven-day run. The separate monitor workflow patrols running
+runs every 30 minutes; this schedule observes existing runs and never starts a
+simulation. Deprecated workflow inputs `cloud-standard` and `cloud-stress` map
+to `cloud-medium` and `cloud-large` with a warning.
 
 Start the three-node development cluster with the simulator profile:
 

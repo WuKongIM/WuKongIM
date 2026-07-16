@@ -18,25 +18,30 @@ on:
         required: true
         default: cloud-small
         type: choice
-        options: [cloud-small, cloud-standard, cloud-stress]
+        options: [cloud-small, cloud-medium, cloud-large, cloud-standard, cloud-stress]
       infrastructure_preset:
         description: Provider-neutral capacity class
         required: true
         default: small
         type: choice
-        options: [small, standard, stress]
+        options: [small, medium, large, standard, stress]
       duration:
         description: Active workload duration
         required: true
-        default: 2h
+        default: 48h
         type: choice
-        options: [30m, 2h, 24h, 48h]
+        options: [30m, 2h, 24h, 48h, 168h]
       analysis_grace:
         description: Live analysis grace after workload completion
         required: true
-        default: 30m
+        default: 2h
         type: choice
-        options: [30m, 1h, 6h]
+        options: [2h, 6h]
+      confirm_large_168h_cost:
+        description: Explicitly confirm the extra cost of a large seven-day simulation
+        required: true
+        default: false
+        type: boolean
       public_observation:
         description: Expose Manager, Demo, Prometheus, and WebSocket through the simulator public IP
         required: true
@@ -46,6 +51,16 @@ on:
         description: Hard maximum total cost in CNY
         required: true
         default: "50"
+        type: string
+      storage_calibration_run_id:
+        description: Completed 30m calibration Run Identity; required for 48h and 168h
+        required: false
+        default: ""
+        type: string
+      storage_bytes_per_message:
+        description: Worst-node retained bytes per message measured by that 30m calibration
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -65,6 +80,7 @@ jobs:
       source_sha: ${{ steps.source.outputs.source_sha }}
       bundle_digest: ${{ steps.bundle.outputs.bundle_digest }}
       scenario_digest: ${{ steps.bundle.outputs.scenario_digest }}
+      effective_scenario: ${{ steps.scale.outputs.effective_scenario }}
     env:
       GOWORK: "off"
       REQUESTED_SOURCE_SHA: ${{ inputs.source_sha }}
@@ -72,6 +88,9 @@ jobs:
       ACTIVE_DURATION: ${{ inputs.duration }}
       ALIBABA_REGION: ${{ inputs.region }}
       PUBLIC_OBSERVATION: ${{ inputs.public_observation }}
+      STORAGE_CALIBRATION_RUN_ID: ${{ inputs.storage_calibration_run_id }}
+      STORAGE_BYTES_PER_MESSAGE: ${{ inputs.storage_bytes_per_message }}
+      CONFIRM_LARGE_168H_COST: ${{ inputs.confirm_large_168h_cost }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -82,6 +101,30 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
+      - name: Resolve reviewed scenario scale
+        id: scale
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$SCENARIO_NAME" in
+            cloud-small) effective_scenario=cloud-small ;;
+            cloud-medium) effective_scenario=cloud-medium ;;
+            cloud-large) effective_scenario=cloud-large ;;
+            cloud-standard)
+              echo "::warning::cloud-standard is deprecated; using cloud-medium"
+              effective_scenario=cloud-medium
+              ;;
+            cloud-stress)
+              echo "::warning::cloud-stress is deprecated; using cloud-large"
+              effective_scenario=cloud-large
+              ;;
+          esac
+          if [[ "$effective_scenario" == "cloud-large" && "$ACTIVE_DURATION" == "168h" && "$CONFIRM_LARGE_168H_COST" != "true" ]]; then
+            echo "Large 168h simulation requires confirm_large_168h_cost=true" >&2
+            exit 1
+          fi
+          echo "EFFECTIVE_SCENARIO=$effective_scenario" >>"$GITHUB_ENV"
+          echo "effective_scenario=$effective_scenario" >>"$GITHUB_OUTPUT"
       - name: Prove source is a trusted main revision
         id: source
         shell: bash
@@ -153,7 +196,7 @@ jobs:
           RUN_ID: ${{ steps.identity.outputs.run_id }}
         run: |
           set -euo pipefail
-          scenario_path="docker/sim/${SCENARIO_NAME}.yaml"
+          scenario_path="docker/sim/${EFFECTIVE_SCENARIO}.yaml"
           test -f "$scenario_path"
           source_scenario_digest="$(bundle/bin/wkcloudsim scenario-digest --scenario "$scenario_path" | jq -er .digest)"
           jq -n \
@@ -195,9 +238,12 @@ jobs:
       BUNDLE_DIGEST: ${{ needs.build.outputs.bundle_digest }}
       SCENARIO_DIGEST: ${{ needs.build.outputs.scenario_digest }}
       SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+      EFFECTIVE_SCENARIO: ${{ needs.build.outputs.effective_scenario }}
       ALIBABA_REGION: ${{ inputs.region }}
       MAX_TOTAL_COST: ${{ inputs.max_total_cost }}
       PUBLIC_OBSERVATION: ${{ inputs.public_observation }}
+      STORAGE_CALIBRATION_RUN_ID: ${{ inputs.storage_calibration_run_id }}
+      STORAGE_BYTES_PER_MESSAGE: ${{ inputs.storage_bytes_per_message }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -244,6 +290,23 @@ jobs:
           fi
           test "$(jq -er .region provider.json)" = "$ALIBABA_REGION"
           jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' provider.json >/dev/null
+          case '${{ inputs.duration }}' in
+            48h|168h)
+              if [[ ! "$STORAGE_CALIBRATION_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] ||
+                 ! jq -en --arg value "$STORAGE_BYTES_PER_MESSAGE" '$value | tonumber | . > 0' >/dev/null; then
+                echo "Standard stability runs require a completed 30m storage calibration" >&2
+                exit 1
+              fi
+              ingress_qps="$(case "$EFFECTIVE_SCENARIO" in cloud-small) echo 500;; cloud-medium) echo 5000;; cloud-large) echo 20000;; esac)"
+              duration_seconds="$(case '${{ inputs.duration }}' in 48h) echo 172800;; 168h) echo 604800;; esac)"
+              calibrated_data_disk_gib="$(jq -nr \
+                --argjson qps "$ingress_qps" --argjson seconds "$duration_seconds" --argjson bytes "$STORAGE_BYTES_PER_MESSAGE" \
+                '($qps * $seconds * $bytes * 1.5 / 0.7 / 1073741824 | ceil) | if . < 100 then 100 else . end')"
+              jq --argjson size "$calibrated_data_disk_gib" '.data_disk_size_gib = $size' provider.json >provider-calibrated.json
+              mv provider-calibrated.json provider.json
+              echo "calibrated_data_disk_gib=$calibrated_data_disk_gib" >>"$GITHUB_OUTPUT"
+              ;;
+          esac
           account_hash_hex="$(jq -er '.account_id_hash | sub("^sha256:"; "")' provider.json)"
           echo "account_hash_hex=$account_hash_hex" >>"$GITHUB_OUTPUT"
       - name: Persist provider config before creating billable resources
@@ -263,25 +326,27 @@ jobs:
           test "$(bundle/bin/wkcloudbundle verify --root bundle | jq -er .bundle_digest)" = "$BUNDLE_DIGEST"
           ssh-keygen -q -t ed25519 -N '' -C "$RUN_ID" -f bootstrap-key
           chmod 0600 bootstrap-key
-          openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 3 \
+          openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 10 \
             -subj "/CN=${RUN_ID}-analysis-ca" \
             -addext 'basicConstraints=critical,CA:TRUE,pathlen:0' \
             -addext 'keyUsage=critical,keyCertSign,cRLSign' \
             -keyout ca-key.pem -out ca.pem
           ca_fingerprint="sha256:$(openssl x509 -in ca.pem -outform DER | sha256sum | awk '{print $1}')"
-          duration_seconds="$(case '${{ inputs.duration }}' in 30m) echo 1800;; 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
-          grace_seconds="$(case '${{ inputs.analysis_grace }}' in 30m) echo 1800;; 1h) echo 3600;; 6h) echo 21600;; esac)"
+          duration_seconds="$(case '${{ inputs.duration }}' in 30m) echo 1800;; 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; 168h) echo 604800;; esac)"
+          grace_seconds="$(case '${{ inputs.analysis_grace }}' in 2h) echo 7200;; 6h) echo 21600;; esac)"
           provisioning_budget_seconds=3000
-          expires_epoch="$(( $(date -u +%s) + provisioning_budget_seconds + duration_seconds + grace_seconds ))"
+          warmup_budget_seconds=1200
+          expires_epoch="$(( $(date -u +%s) + provisioning_budget_seconds + warmup_budget_seconds + duration_seconds + grace_seconds ))"
           expires_at="$(date -u -d "@${expires_epoch}" +%Y-%m-%dT%H:%M:%SZ)"
           max_cost_micros="$(jq -nr --arg value "$MAX_TOTAL_COST" '$value | tonumber * 1000000 | floor')"
           account_hash="$(jq -er .account_id_hash provider.json)"
-          minimum_preset="$(case '${{ inputs.scenario }}' in cloud-small) echo small;; cloud-standard) echo standard;; cloud-stress) echo stress;; esac)"
+          minimum_preset="$(case "$EFFECTIVE_SCENARIO" in cloud-small) echo small;; cloud-medium) echo standard;; cloud-large) echo stress;; esac)"
+          provider_preset="$(case '${{ inputs.infrastructure_preset }}' in small) echo small;; medium|standard) echo standard;; large|stress) echo stress;; esac)"
           jq -n \
             --arg run_id "$RUN_ID" --arg region "$ALIBABA_REGION" --arg account_hash "$account_hash" \
             --arg repository "$GITHUB_REPOSITORY" --arg source_sha "$SOURCE_SHA" --arg scenario_digest "$SCENARIO_DIGEST" \
             --arg bundle_digest "$BUNDLE_DIGEST" --arg cert_fingerprint "$ca_fingerprint" \
-            --arg ssh_key "$(cat bootstrap-key.pub)" --arg preset '${{ inputs.infrastructure_preset }}' \
+            --arg ssh_key "$(cat bootstrap-key.pub)" --arg preset "$provider_preset" \
             --arg minimum_preset "$minimum_preset" --arg expires_at "$expires_at" --argjson max_cost "$max_cost_micros" \
             '{run_id:$run_id,provider:"alibaba",region:$region,account_id_hash:$account_hash,repository:$repository,
               source_sha:$source_sha,scenario_digest:$scenario_digest,deployment_bundle_digest:$bundle_digest,
@@ -462,10 +527,11 @@ jobs:
           WK_CLOUD_SIM_PUBLIC_IP: ${{ steps.create.outputs.sim_public }}
         run: |
           set -euo pipefail
-          duration_seconds="$(case '${{ inputs.duration }}' in 30m) echo 1800;; 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; esac)"
-          active_until_epoch="$(($(date -u +%s) + duration_seconds))"
+          duration_seconds="$(case '${{ inputs.duration }}' in 30m) echo 1800;; 2h) echo 7200;; 24h) echo 86400;; 48h) echo 172800;; 168h) echo 604800;; esac)"
+          warmup_budget_seconds=1200
+          active_until_epoch="$(($(date -u +%s) + warmup_budget_seconds + duration_seconds))"
           active_until="$(date -u -d "@$active_until_epoch" +%Y-%m-%dT%H:%M:%SZ)"
-          analysis_ready_delay_seconds="$(case '${{ inputs.scenario }}' in cloud-small) echo 180;; cloud-standard) echo 300;; cloud-stress) echo 600;; esac)"
+          analysis_ready_delay_seconds="$(case "$EFFECTIVE_SCENARIO" in cloud-small) echo 180;; cloud-medium) echo 300;; cloud-large) echo 600;; esac)"
           analysis_ready_at="$(date -u -d "@$((active_until_epoch + analysis_ready_delay_seconds))" +%Y-%m-%dT%H:%M:%SZ)"
           ssh -i bootstrap-key -o BatchMode=yes -o StrictHostKeyChecking=accept-new "wukong@${WK_CLOUD_SIM_PUBLIC_IP}" \
             'sudo systemctl enable wkbench-run.service && sudo systemctl start --no-block wkbench-run.service'

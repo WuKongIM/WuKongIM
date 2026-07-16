@@ -307,6 +307,7 @@ prepare:
     max_attempts: 3
     backoff: 100ms
 identity:
+  total_users: 1000
   uid_prefix: bench-u
   device_prefix: bench-d
   client_msg_prefix: bench-m
@@ -320,6 +321,13 @@ online:
     enabled: true
     backoff: 1s
     max_attempts: 5
+  churn:
+    enabled: true
+    interval: 5m
+    ratio: 0.01
+    same_user_ratio: 0.5
+    identity_swap_ratio: 0.5
+    history_sync: false
   heartbeat:
     enabled: true
     interval: 30s
@@ -378,11 +386,15 @@ messages:
 	require.Equal(t, 200*time.Millisecond, scenario.Limits.Soft.MaxSendackP99)
 	require.Equal(t, 100.0, scenario.Prepare.RateLimit.PerSecond)
 	require.Equal(t, "bench-u", scenario.Identity.UIDPrefix)
+	require.Equal(t, 1000, scenario.Identity.TotalUsers)
 	require.Equal(t, "bench_api", scenario.Identity.Token.Mode)
 	require.Equal(t, 100, scenario.Online.TotalUsers)
 	require.Equal(t, 25.5, scenario.Online.ConnectRate.PerSecond)
 	require.True(t, scenario.Online.Reconnect.Enabled)
 	require.Equal(t, time.Second, scenario.Online.Reconnect.Backoff)
+	require.True(t, scenario.Online.Churn.Enabled)
+	require.Equal(t, 5*time.Minute, scenario.Online.Churn.Interval)
+	require.Equal(t, 0.01, scenario.Online.Churn.Ratio)
 	require.Equal(t, "allowed", scenario.Channels.Profiles[0].Members.Overlap)
 	require.False(t, scenario.Cleanup.Enabled)
 	require.Equal(t, "keep_data", scenario.Cleanup.Strategy)

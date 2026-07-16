@@ -260,6 +260,10 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 		TargetSnapshots:   targetSnapshots,
 		PresenceSnapshots: presenceSnapshots,
 		ErrorSamples:      agg.Errors,
+		Classification: &report.StabilityClassification{
+			EvidenceComplete: result.Status != StatusTargetUnavailable,
+			HarnessInvalid:   len(failedWorkers) > 0 && result.Status != StatusTargetUnavailable,
+		},
 	}
 	rep := report.Build(input)
 	if rep.ExitCode == report.ExitHardLimitFailed {

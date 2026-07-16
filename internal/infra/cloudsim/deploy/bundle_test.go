@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -89,7 +90,7 @@ func TestRenderOmitsCloudViewWhenPublicObservationDisabled(t *testing.T) {
 }
 
 func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
-	units := systemdUnits(true)
+	units := systemdUnits(true, 48*time.Hour)
 	if !strings.Contains(units["wkbench-run.service"], "Restart=no") || strings.Contains(units["wkbench-run.service"], "Restart=always") {
 		t.Fatal("wkbench run is not a non-restarting systemd unit")
 	}
@@ -105,8 +106,13 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 		t.Fatalf("Cloud View unit does not preserve public listener and dynamic public URL contract:\n%s", units["wkcloudview.service"])
 	}
 	if !strings.Contains(units["prometheus.service"], "WK_CLOUD_VIEW_PROMETHEUS_EXTERNAL_URL") ||
-		!strings.Contains(units["prometheus.service"], "--web.route-prefix=/") {
+		!strings.Contains(units["prometheus.service"], "--web.route-prefix=/") ||
+		!strings.Contains(units["prometheus.service"], "--storage.tsdb.retention.time=72h") {
 		t.Fatalf("Prometheus unit lacks proxied public path contract:\n%s", units["prometheus.service"])
+	}
+	weekUnits := systemdUnits(true, 168*time.Hour)
+	if !strings.Contains(weekUnits["prometheus.service"], "--storage.tsdb.retention.time=192h") {
+		t.Fatalf("week-long Prometheus unit lacks eight-day retention:\n%s", weekUnits["prometheus.service"])
 	}
 	cloudView := cloudViewConfig(testBundleSpec("unused").RunID, testBundleSpec("unused").PrivateIPv4)
 	for _, required := range []string{`"listen_addr": "0.0.0.0:19443"`, `"id": 1`, `"id": 2`, `"id": 3`,
@@ -116,11 +122,13 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 		}
 	}
 	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4)
-	if !strings.Contains(config, "hash_slot_count = 256") || strings.Count(config, "[[cluster.nodes]]") != 3 {
-		t.Fatalf("node config does not preserve three-node 256-slot contract:\n%s", config)
+	if !strings.Contains(config, "hash_slot_count = 256") || !strings.Contains(config, "initial_slot_count = 10") || !strings.Contains(config, "channel_replica_n = 3") || strings.Count(config, "[[cluster.nodes]]") != 3 {
+		t.Fatalf("node config does not preserve the three-node 256 hash-slot and 10 Slot Group contract:\n%s", config)
 	}
 	prometheus := prometheusConfig(testBundleSpec("unused").PrivateIPv4)
-	if !strings.Contains(prometheus, `labels: {role: "sim"}`) || strings.Count(prometheus, "labels: {role:") != 7 {
+	if !strings.Contains(prometheus, "scrape_interval: 15s") ||
+		!strings.Contains(prometheus, "evaluation_interval: 15s") ||
+		!strings.Contains(prometheus, `labels: {role: "sim"}`) || strings.Count(prometheus, "labels: {role:") != 7 {
 		t.Fatalf("Prometheus targets do not preserve per-role attribution:\n%s", prometheus)
 	}
 	workers := workerConfig(testBundleSpec("unused").SimulatorSourceIPv4)
@@ -133,6 +141,14 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	}
 }
 
+func TestBundleSpecAllowsWeekLongStabilityDuration(t *testing.T) {
+	spec := testBundleSpec("scenario.yaml")
+	spec.Duration = 168 * time.Hour
+	if err := validateSpec(spec); err != nil {
+		t.Fatalf("validateSpec(168h) error = %v", err)
+	}
+}
+
 func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 	digest := "sha256:bundle"
 	snapshot := BootstrapSnapshot{
@@ -141,7 +157,7 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 			"node-1": {"wukongim", "node-exporter"}, "node-2": {"wukongim", "node-exporter"}, "node-3": {"wukongim", "node-exporter"},
 			"sim": {"wkbench-worker", "prometheus", "node-exporter", "wkanalysis", "wkcloudview"},
 		},
-		ReadyNodeIDs: []uint64{1, 2, 3}, ClusterMemberCount: 3, HashSlotCount: 256,
+		ReadyNodeIDs: []uint64{1, 2, 3}, ClusterMemberCount: 3, HashSlotCount: 256, SlotGroupCount: 10,
 		HealthySlotLeaders: 256, HealthySlotReplicas: 256, PrometheusTargetsUp: 7, PrometheusTargetsWant: 7,
 		AnalysisMCPSelfCheck: true, PublicViewEnabled: true, CloudViewSelfCheck: true,
 		WKBenchValidate: true, WKBenchDoctor: true,
@@ -149,6 +165,11 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 	if result := EvaluateBootstrapGate(snapshot, digest); !result.Passed {
 		t.Fatalf("complete gate = %#v", result)
 	}
+	snapshot.SlotGroupCount = 256
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || !slices.Contains(result.Failures, "logical Slot Raft Group count is not ten") {
+		t.Fatalf("wrong Slot Raft Group count gate = %#v, want explicit failure", result)
+	}
+	snapshot.SlotGroupCount = 10
 	snapshot.PendingControllerTask = 1
 	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || len(result.Failures) == 0 {
 		t.Fatalf("incomplete gate = %#v, want fail closed", result)

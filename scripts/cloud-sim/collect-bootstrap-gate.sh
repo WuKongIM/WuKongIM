@@ -88,6 +88,7 @@ slots_json="$(ssh_sim "curl --fail --silent --show-error --max-time 15 -H 'Autho
 tasks_json="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/controller/tasks?limit=50'")"
 
 member_count="$(jq -er '[.items[] | select(.membership.join_state == "active" and .health.runtime_ready == true)] | length' <<<"$nodes_json")"
+slot_group_count="$(jq -er '.items | length' <<<"$slots_json")"
 hash_slot_count="$(jq -er '[.items[].hash_slots.count // 0] | add // 0' <<<"$slots_json")"
 healthy_slot_leaders="$(jq -er '[.items[] | select(.state.quorum == "ready" and .state.sync == "matched" and .state.leader_match == true) | .hash_slots.count // 0] | add // 0' <<<"$slots_json")"
 healthy_slot_replicas="$(jq -er '[.items[] | select(.state.quorum == "ready" and .state.sync == "matched" and (.runtime.current_voters | length) == 3) | .hash_slots.count // 0] | add // 0' <<<"$slots_json")"
@@ -113,7 +114,7 @@ jq -n \
   --arg expected "$WK_CLOUD_BUNDLE_DIGEST" \
   --arg node1_digest "$node1_digest" --arg node2_digest "$node2_digest" --arg node3_digest "$node3_digest" --arg sim_digest "$sim_digest" \
   --argjson node1_services "$node1_services" --argjson node2_services "$node2_services" --argjson node3_services "$node3_services" --argjson sim_services "$sim_services" \
-  --argjson ready_nodes "$ready_json" --argjson member_count "$member_count" --argjson hash_slot_count "$hash_slot_count" \
+  --argjson ready_nodes "$ready_json" --argjson member_count "$member_count" --argjson hash_slot_count "$hash_slot_count" --argjson slot_group_count "$slot_group_count" \
   --argjson healthy_slot_leaders "$healthy_slot_leaders" --argjson healthy_slot_replicas "$healthy_slot_replicas" \
   --argjson pending_tasks "$pending_tasks" --argjson targets_up "$targets_up" --argjson targets_want "$targets_want" \
   --argjson analysis_self_check "$analysis_self_check" --argjson public_view_enabled "$WK_CLOUD_PUBLIC_OBSERVATION" \
@@ -121,7 +122,7 @@ jq -n \
   '{
     bundle_digests:{"node-1":$node1_digest,"node-2":$node2_digest,"node-3":$node3_digest,sim:$sim_digest},
     active_services:{"node-1":$node1_services,"node-2":$node2_services,"node-3":$node3_services,sim:$sim_services},
-    ready_node_ids:$ready_nodes,cluster_member_count:$member_count,hash_slot_count:$hash_slot_count,
+    ready_node_ids:$ready_nodes,cluster_member_count:$member_count,hash_slot_count:$hash_slot_count,slot_group_count:$slot_group_count,
     healthy_slot_leaders:$healthy_slot_leaders,healthy_slot_replicas:$healthy_slot_replicas,
     pending_controller_tasks:$pending_tasks,prometheus_targets_up:$targets_up,prometheus_targets_want:$targets_want,
     analysis_mcp_self_check:$analysis_self_check,public_view_enabled:$public_view_enabled,

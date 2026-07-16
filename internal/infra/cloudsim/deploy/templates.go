@@ -3,6 +3,7 @@ package deploy
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 func cloudViewConfig(runID string, addresses map[string]string) string {
@@ -41,8 +42,9 @@ data_dir = "/var/lib/wukongim-cloud/node"
 [cluster]
 listen_addr = "0.0.0.0:7000"
 hash_slot_count = 256
-initial_slot_count = 256
+initial_slot_count = 10
 slot_replica_n = 3
+channel_replica_n = 3
 slot_tick_interval = "50ms"
 slot_heartbeat_tick = 2
 slot_election_tick = 20
@@ -159,8 +161,8 @@ func workerConfig(sourceAddresses []string) string {
 
 func prometheusConfig(addresses map[string]string) string {
 	return fmt.Sprintf(`global:
-  scrape_interval: 10s
-  evaluation_interval: 10s
+  scrape_interval: 15s
+  evaluation_interval: 15s
 scrape_configs:
   - job_name: wukongim
     static_configs:
@@ -183,7 +185,11 @@ scrape_configs:
 `, addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses["sim"])
 }
 
-func systemdUnits(publicViewEnabled bool) map[string]string {
+func systemdUnits(publicViewEnabled bool, duration time.Duration) map[string]string {
+	prometheusRetention := "72h"
+	if duration == 168*time.Hour {
+		prometheusRetention = "192h"
+	}
 	units := map[string]string{
 		"wukongim.service": `[Unit]
 Description=WuKongIM cloud simulation node
@@ -244,7 +250,7 @@ TimeoutStartSec=infinity
 [Install]
 WantedBy=multi-user.target
 `,
-		"prometheus.service": `[Unit]
+		"prometheus.service": fmt.Sprintf(`[Unit]
 Description=Run-scoped Prometheus
 After=network-online.target local-fs.target
 
@@ -253,13 +259,13 @@ Type=simple
 User=wukongim
 Group=wukongim
 EnvironmentFile=/etc/wukongim/sim.env
-ExecStart=/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=55h --web.external-url=${WK_CLOUD_VIEW_PROMETHEUS_EXTERNAL_URL} --web.route-prefix=/
+ExecStart=/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=%s --web.external-url=${WK_CLOUD_VIEW_PROMETHEUS_EXTERNAL_URL} --web.route-prefix=/
 Restart=on-failure
 NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
-`,
+`, prometheusRetention),
 	}
 	for name, content := range baseSystemdUnits() {
 		units[name] = content

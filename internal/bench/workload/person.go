@@ -259,6 +259,11 @@ func (w *PersonWorkload) Run(ctx context.Context) error {
 	return w.RunWindow(ctx, PersonRunConfig{Phase: "run", Duration: w.cfg.RunDuration, Rate: w.cfg.Rate})
 }
 
+// RunMeasuredWindow sends one uniquely named window at the configured measured rate.
+func (w *PersonWorkload) RunMeasuredWindow(ctx context.Context, duration time.Duration, window int) error {
+	return w.RunWindow(ctx, PersonRunConfig{Phase: fmt.Sprintf("run-window-%d", window), Duration: duration, Rate: w.cfg.Rate})
+}
+
 // Cooldown waits for the configured drain period without emitting new sends.
 func (w *PersonWorkload) Cooldown(ctx context.Context) error {
 	if w.cfg.CooldownDuration <= 0 {
@@ -423,11 +428,19 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 
 func (w *PersonWorkload) sendMetricLabels(phase string) metrics.Labels {
 	return metrics.Labels{
-		"phase":        strings.TrimSpace(phase),
+		"phase":        stableMetricPhase(phase),
 		"channel_type": model.ChannelTypePerson,
 		"profile":      w.cfg.ProfileName,
 		"traffic":      w.cfg.TrafficName,
 	}
+}
+
+func stableMetricPhase(phase string) string {
+	phase = strings.TrimSpace(phase)
+	if strings.HasPrefix(phase, "run-window-") {
+		return "run"
+	}
+	return phase
 }
 
 func (w *PersonWorkload) isConnected(uid string) bool {
