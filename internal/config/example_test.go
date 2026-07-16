@@ -30,6 +30,25 @@ func TestCommandTOMLExampleLoads(t *testing.T) {
 	}
 }
 
+func TestSingleNodeClusterPrometheusExamplesUseDedicatedDefaultPort(t *testing.T) {
+	files := []string{
+		filepath.Join("..", "..", "wukongim.toml.example"),
+		filepath.Join("..", "..", "cmd", "wukongim", "wukongim.toml.example"),
+		filepath.Join("..", "..", "scripts", "wukongim", "wukongim.toml"),
+	}
+	for _, file := range files {
+		t.Run(file, func(t *testing.T) {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatalf("ReadFile(%s) error = %v", file, err)
+			}
+			if !strings.Contains(string(content), `listen_addr = "127.0.0.1:9099"`) {
+				t.Fatalf("%s must use the dedicated app-managed Prometheus port 9099", file)
+			}
+		})
+	}
+}
+
 func TestPresenceExamplesDocumentTouchMaxRoutesPerFlush(t *testing.T) {
 	files := []string{filepath.Join("..", "..", "wukongim.toml.example")}
 	for _, pattern := range []string{

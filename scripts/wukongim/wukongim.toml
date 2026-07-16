@@ -119,7 +119,8 @@ enable = false
 
 binary_path = ""
 
-listen_addr = "127.0.0.1:9090"
+# The dedicated 9099 default avoids common local controller services on 9090.
+listen_addr = "127.0.0.1:9099"
 
 data_dir = "./data/wukongim-single-node-data/prometheus"
 

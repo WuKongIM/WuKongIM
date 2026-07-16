@@ -2216,8 +2216,8 @@ func TestPrometheusConfigDefaultsAndValidation(t *testing.T) {
 	if prom.BinaryPath != "" {
 		t.Fatalf("Prometheus.BinaryPath = %q, want empty embedded default", prom.BinaryPath)
 	}
-	if prom.ListenAddr != "127.0.0.1:9090" {
-		t.Fatalf("Prometheus.ListenAddr = %q, want 127.0.0.1:9090", prom.ListenAddr)
+	if prom.ListenAddr != "127.0.0.1:9099" {
+		t.Fatalf("Prometheus.ListenAddr = %q, want 127.0.0.1:9099", prom.ListenAddr)
 	}
 	if prom.DataDir != filepath.Join(dir, "prometheus") {
 		t.Fatalf("Prometheus.DataDir = %q", prom.DataDir)

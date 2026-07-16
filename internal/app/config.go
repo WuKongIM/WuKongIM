@@ -748,7 +748,7 @@ func NormalizeTopConfig(cfg TopConfig) (TopConfig, error) {
 func defaultPrometheusConfig(cfg PrometheusConfig) PrometheusConfig {
 	cfg.QueryBaseURL = strings.TrimRight(strings.TrimSpace(cfg.QueryBaseURL), "/")
 	if cfg.ListenAddr == "" {
-		cfg.ListenAddr = "127.0.0.1:9090"
+		cfg.ListenAddr = "127.0.0.1:9099"
 	}
 	if cfg.RetentionTime == 0 {
 		cfg.RetentionTime = 15 * 24 * time.Hour

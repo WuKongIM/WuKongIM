@@ -67,7 +67,8 @@ query_base_url = ""
 # Optional external Prometheus binary path for the app-managed child process; empty uses the embedded binary.
 binary_path = ""
 # Prometheus web listen address for the app-managed child process and default manager query target when query_base_url is empty.
-listen_addr = "127.0.0.1:9090"
+# Port 9099 avoids common local controller services that bind 9090.
+listen_addr = "127.0.0.1:9099"
 # Data directory for the generated Prometheus configuration and TSDB files used by the app-managed child process.
 data_dir = "./data/wukongim-single-node-data/prometheus"
 # Time-based retention window for the app-managed Prometheus TSDB.
