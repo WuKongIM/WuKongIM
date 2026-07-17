@@ -1,6 +1,7 @@
 package gateway_test
 
 import (
+	"context"
 	"net"
 	"sync"
 	"testing"
@@ -36,14 +37,17 @@ func TestGatewayLoggerFlowsToTransportConnectionLogs(t *testing.T) {
 	}
 	_ = conn.Close()
 
-	waitUntil(t, time.Second, func() bool {
-		return logger.hasEvent("gateway.transport.conn.connected")
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if !logger.waitForEvent(ctx, "gateway.transport.conn.connected") {
+		t.Fatal("logger did not record gateway.transport.conn.connected before timeout")
+	}
 }
 
 type gatewayRecordingLogger struct {
 	mu      sync.Mutex
 	entries []gatewayRecordedEntry
+	changed chan struct{}
 }
 
 type gatewayRecordedEntry struct {
@@ -72,11 +76,34 @@ func (r *gatewayRecordingLogger) record(fields ...wklog.Field) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.entries = append(r.entries, gatewayRecordedEntry{fields: append([]wklog.Field(nil), fields...)})
+	if r.changed != nil {
+		close(r.changed)
+		r.changed = nil
+	}
 }
 
-func (r *gatewayRecordingLogger) hasEvent(event string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *gatewayRecordingLogger) waitForEvent(ctx context.Context, event string) bool {
+	for {
+		r.mu.Lock()
+		if r.hasEventLocked(event) {
+			r.mu.Unlock()
+			return true
+		}
+		if r.changed == nil {
+			r.changed = make(chan struct{})
+		}
+		changed := r.changed
+		r.mu.Unlock()
+
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+func (r *gatewayRecordingLogger) hasEventLocked(event string) bool {
 	for _, entry := range r.entries {
 		for _, field := range entry.fields {
 			if field.Key == "event" && field.Value == event {

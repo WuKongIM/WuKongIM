@@ -1,6 +1,7 @@
 package gateway_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -48,7 +49,7 @@ func TestGatewayStartStopTCPWKProto(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	waitUntil(t, time.Second, func() bool { return handler.FrameCount() == 1 })
+	waitForFrameCount(t, handler, 1)
 }
 
 func TestGatewayWKProtoAuthRejectsBadToken(t *testing.T) {
@@ -192,7 +193,7 @@ func TestGatewayWKProtoAuthAcceptsConnectBeforeDispatchingFrames(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	waitUntil(t, 3*time.Second, func() bool { return handler.FrameCount() == 1 })
+	waitForFrameCount(t, handler, 1)
 	if got := handler.Contexts[0].Session.Value(gateway.SessionValueUID); got != "u1" {
 		t.Fatalf("expected session uid to be stored, got %#v", got)
 	}
@@ -241,7 +242,7 @@ func TestGatewayWKProtoActivationSeesDeviceIDBeforeConnectSucceeds(t *testing.T)
 		t.Fatalf("expected success connack, got %v", connack.ReasonCode)
 	}
 
-	waitUntil(t, time.Second, func() bool { return handler.openSeen() })
+	waitForActivationOpen(t, handler)
 	if got := handler.deviceID(); got != "d1" {
 		t.Fatalf("expected activation to see device id, got %#v", got)
 	}
@@ -285,7 +286,7 @@ func TestGatewayWKProtoActivationSeesDeviceIDWithCustomAuthenticator(t *testing.
 		t.Fatalf("expected success connack, got %v", connack.ReasonCode)
 	}
 
-	waitUntil(t, time.Second, func() bool { return handler.openSeen() })
+	waitForActivationOpen(t, handler)
 	if got := handler.deviceID(); got != "d1" {
 		t.Fatalf("expected activation to see device id, got %#v", got)
 	}
@@ -299,6 +300,7 @@ type activationHandler struct {
 	order         []string
 	deviceIDValue string
 	open          bool
+	openChanged   chan struct{}
 }
 
 func (h *activationHandler) OnListenerError(string, error) {}
@@ -320,6 +322,10 @@ func (h *activationHandler) OnSessionOpen(ctx gateway.Context) error {
 	defer h.mu.Unlock()
 	h.order = append(h.order, "open")
 	h.open = true
+	if h.openChanged != nil {
+		close(h.openChanged)
+		h.openChanged = nil
+	}
 	return nil
 }
 
@@ -333,10 +339,25 @@ func (h *activationHandler) deviceID() string {
 	return h.deviceIDValue
 }
 
-func (h *activationHandler) openSeen() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.open
+func (h *activationHandler) waitForOpen(ctx context.Context) bool {
+	for {
+		h.mu.Lock()
+		if h.open {
+			h.mu.Unlock()
+			return true
+		}
+		if h.openChanged == nil {
+			h.openChanged = make(chan struct{})
+		}
+		changed := h.openChanged
+		h.mu.Unlock()
+
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return false
+		}
+	}
 }
 
 func (h *activationHandler) callOrder() []string {
@@ -382,7 +403,7 @@ func TestGatewayStartStopWSJSONRPC(t *testing.T) {
 		t.Fatalf("WriteMessage: %v", err)
 	}
 
-	waitUntil(t, time.Second, func() bool { return handler.FrameCount() == 1 })
+	waitForFrameCount(t, handler, 1)
 }
 
 func TestGatewayWSMuxSupportsJSONRPCAndWKProto(t *testing.T) {
@@ -430,8 +451,10 @@ func TestGatewayWSMuxSupportsJSONRPCAndWKProto(t *testing.T) {
 		t.Fatalf("WriteMessage(jsonrpc): %v", err)
 	}
 
-	waitUntil(t, time.Second, func() bool { return handler.FrameCount() == 1 })
-	waitUntil(t, time.Second, func() bool { return handlerHasProtocol(handler, "jsonrpc") })
+	waitForFrameCount(t, handler, 1)
+	if !handlerHasProtocol(handler, "jsonrpc") {
+		t.Fatal("handler did not record the jsonrpc protocol")
+	}
 
 	wkConn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
@@ -455,21 +478,33 @@ func TestGatewayWSMuxSupportsJSONRPCAndWKProto(t *testing.T) {
 		t.Fatalf("WriteMessage(wkproto ping): %v", err)
 	}
 
-	waitUntil(t, time.Second, func() bool { return handler.FrameCount() == 2 })
-	waitUntil(t, time.Second, func() bool { return handlerHasProtocol(handler, "wkproto") })
+	waitForFrameCount(t, handler, 2)
+	if !handlerHasProtocol(handler, "wkproto") {
+		t.Fatal("handler did not record the wkproto protocol")
+	}
 }
 
-func waitUntil(t *testing.T, timeout time.Duration, cond func() bool) {
+func waitForFrameCount(t *testing.T, handler *testkit.RecordingHandler, count int) {
 	t.Helper()
 
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if !handler.WaitForFrameCount(ctx, count) {
+		t.Fatalf("recorded frames = %d, want %d before timeout", handler.FrameCount(), count)
 	}
-	t.Fatal("condition not satisfied before timeout")
+	if got := handler.FrameCount(); got != count {
+		t.Fatalf("recorded frames = %d, want %d", got, count)
+	}
+}
+
+func waitForActivationOpen(t *testing.T, handler *activationHandler) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if !handler.waitForOpen(ctx) {
+		t.Fatal("activation handler did not observe session open before timeout")
+	}
 }
 
 func dialTCPGateway(t *testing.T, gw *gateway.Gateway, listener string) net.Conn {

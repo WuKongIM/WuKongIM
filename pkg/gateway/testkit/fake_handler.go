@@ -1,6 +1,7 @@
 package testkit
 
 import (
+	"context"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -14,6 +15,9 @@ type ListenerError struct {
 
 type RecordingHandler struct {
 	mu sync.Mutex
+
+	// frameChanged wakes tests waiting for an OnFrame observation.
+	frameChanged chan struct{}
 
 	CallOrder      []string
 	ListenerErrors []ListenerError
@@ -70,6 +74,7 @@ func (h *RecordingHandler) OnFrame(ctx gateway.Context, f frame.Frame) error {
 	h.ReplyTokens = append(h.ReplyTokens, ctx.ReplyToken)
 	h.CloseReasons = append(h.CloseReasons, ctx.CloseReason)
 	h.Frames = append(h.Frames, f)
+	h.notifyFrameChangedLocked()
 	return h.OnFrameErr
 }
 
@@ -110,6 +115,43 @@ func (h *RecordingHandler) FrameCount() int {
 	defer h.mu.Unlock()
 
 	return len(h.Frames)
+}
+
+// WaitForFrameCount blocks until at least count frames have been recorded or ctx is done.
+func (h *RecordingHandler) WaitForFrameCount(ctx context.Context, count int) bool {
+	if count <= 0 {
+		return true
+	}
+	if h == nil {
+		return false
+	}
+
+	for {
+		h.mu.Lock()
+		if len(h.Frames) >= count {
+			h.mu.Unlock()
+			return true
+		}
+		if h.frameChanged == nil {
+			h.frameChanged = make(chan struct{})
+		}
+		changed := h.frameChanged
+		h.mu.Unlock()
+
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+func (h *RecordingHandler) notifyFrameChangedLocked() {
+	if h.frameChanged == nil {
+		return
+	}
+	close(h.frameChanged)
+	h.frameChanged = nil
 }
 
 func (h *RecordingHandler) Protocols() []string {
