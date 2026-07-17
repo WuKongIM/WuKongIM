@@ -305,16 +305,23 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 	endedAt := startedAt.Add(30 * time.Minute)
 	rep := Build(Input{
 		RunID:   "run-1",
-		Summary: Summary{SendSuccess: 889785, WorkerFailed: 1},
-		Limits:  model.LimitsConfig{Hard: model.HardLimitsConfig{MaxWorkerFailed: 1}},
+		Summary: Summary{SendSuccess: 889785, WorkerFailed: 2},
+		Limits:  model.LimitsConfig{Hard: model.HardLimitsConfig{MaxWorkerFailed: 2}},
 		PhaseWindows: []PhaseWindow{{
 			Phase: "run", StartedAt: startedAt, EndedAt: endedAt,
 		}},
-		WorkerFailures: []WorkerFailure{{
-			WorkerID: "worker-3", Phase: "cooldown", ReasonCode: "phase_wait_failed",
-			Detail:     "GET http://worker-3:19090/v1/status?token=secret failed with Authorization: Bearer secret",
-			ObservedAt: endedAt,
-		}},
+		WorkerFailures: []WorkerFailure{
+			{
+				WorkerID: "worker-3", Phase: "cooldown", ReasonCode: "phase_wait_failed",
+				Detail:     "GET http://worker-3:19090/v1/status?token=secret failed with Authorization: Bearer secret",
+				ObservedAt: endedAt,
+			},
+			{
+				WorkerID: "worker-4", Phase: "collect", ReasonCode: "worker_report_unavailable",
+				Detail:     `open /var/lib/wukongim/run.log via file:///tmp/run.log or ws://sim:9000 failed`,
+				ObservedAt: endedAt,
+			},
+		},
 	})
 	rep.Status = StatusFailed
 	rep.ExitCode = ExitWorkerFailed
@@ -336,11 +343,16 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 	if len(got.PhaseWindows) != 1 || !got.PhaseWindows[0].StartedAt.Equal(startedAt) || !got.PhaseWindows[0].EndedAt.Equal(endedAt) {
 		t.Fatalf("phase windows = %+v", got.PhaseWindows)
 	}
-	if len(got.FailedWorkers) != 1 || got.FailedWorkers[0].WorkerID != "worker-3" || got.FailedWorkers[0].Phase != "cooldown" || got.FailedWorkers[0].ReasonCode != "phase_wait_failed" {
+	if len(got.FailedWorkers) != 2 || got.FailedWorkers[0].WorkerID != "worker-3" || got.FailedWorkers[0].Phase != "cooldown" || got.FailedWorkers[0].ReasonCode != "phase_wait_failed" {
 		t.Fatalf("failed workers = %+v", got.FailedWorkers)
 	}
 	encoded := string(data)
-	if strings.Contains(encoded, "http://") || strings.Contains(encoded, "secret") || strings.Contains(encoded, "Authorization") || strings.Contains(encoded, "Bearer") {
+	for _, forbidden := range []string{"http://", "ws://", "file://", "/var/lib", "/tmp", "secret", "Authorization", "Bearer"} {
+		if strings.Contains(encoded, forbidden) {
+			t.Fatalf("diagnostic summary contains unredacted %q detail: %s", forbidden, encoded)
+		}
+	}
+	if got.FailedWorkers[0].Detail != "[redacted]" || got.FailedWorkers[1].Detail != "[redacted]" {
 		t.Fatalf("diagnostic summary contains unredacted detail: %s", encoded)
 	}
 	if !strings.Contains(encoded, `"violations": []`) || !strings.Contains(encoded, `"warnings": []`) {

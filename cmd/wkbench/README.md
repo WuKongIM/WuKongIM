@@ -577,7 +577,7 @@ When `run.report_dir` is set, wkbench writes a report directory containing:
 - `scenario.yaml`, `target.yaml`, and `workers.yaml`: copied effective inputs.
 - `plan.json`: deterministic worker assignment.
 - `report.json`: machine-readable verdict, summary, limits, metrics, and errors.
-- `diagnostic-summary.json`: bounded, redacted machine contract with actual phase windows and structured worker failures.
+- `diagnostic-summary.json`: bounded, redacted machine contract with actual phase windows and structured worker failures, including assignment and report-collection failures that occur outside workload phases.
 - `summary.md`: human-readable summary.
 - `workers/`: raw worker reports.
 - `metrics/` and `errors/`: jsonl details for metrics and error samples.

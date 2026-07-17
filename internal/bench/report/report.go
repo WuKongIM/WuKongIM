@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -40,8 +39,6 @@ const (
 	maxDiagnosticFailures   = 16
 	maxFailureDetailBytes   = 256
 )
-
-var diagnosticURLPattern = regexp.MustCompile(`https?://[^\s"']+`)
 
 // Status is the benchmark report verdict.
 type Status string
@@ -425,9 +422,14 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 
 func safeFailureDetail(raw string) string {
 	detail := strings.Join(strings.Fields(strings.TrimSpace(raw)), " ")
-	detail = diagnosticURLPattern.ReplaceAllString(detail, "[redacted-url]")
 	lower := strings.ToLower(detail)
-	for _, marker := range []string{"authorization", "bearer", "token", "password", "secret"} {
+	if strings.Contains(detail, "/") || strings.Contains(detail, `\`) || strings.Contains(lower, "://") || strings.HasPrefix(lower, "file:") {
+		return "[redacted]"
+	}
+	for _, marker := range []string{
+		"authorization", "bearer", "token", "password", "secret", "cookie", "api_key", "access_key",
+		"payload", "message", "body", "client_msg_no", "channel_id", "uid=", "uid:",
+	} {
 		if strings.Contains(lower, marker) {
 			return "[redacted]"
 		}

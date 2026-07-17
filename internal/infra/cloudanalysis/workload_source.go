@@ -97,7 +97,7 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
 	}
 	if !validWorkloadSummary(document.Summary) || !validWorkloadLimits(document.Violations) || !validWorkloadLimits(document.Warnings) ||
-		!validWorkloadPhaseWindows(document.PhaseWindows) || !validWorkloadFailures(document.FailedWorkers, document.Summary.WorkerFailed) {
+		!validWorkloadPhaseWindows(document.PhaseWindows) || !validWorkloadFailures(document.FailedWorkers, document.Summary.WorkerFailed, document.FailedWorkersTruncated) {
 		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
 	}
 	phaseWindows := make([]analysis.WorkloadPhaseWindow, 0, len(document.PhaseWindows))
@@ -223,19 +223,25 @@ func validWorkloadPhaseWindows(windows []workloadDiagnosticWindow) bool {
 	return true
 }
 
-func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int) bool {
+func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int, truncated bool) bool {
 	if len(failures) > 16 {
 		return false
 	}
 	workers := make(map[string]struct{}, len(failures))
 	for _, failure := range failures {
-		if !workloadWorkerIDPattern.MatchString(failure.WorkerID) || failure.Phase != "" && !validWorkloadPhase(failure.Phase) ||
+		if !workloadWorkerIDPattern.MatchString(failure.WorkerID) || failure.Phase != "" && !validWorkloadFailurePhase(failure.Phase) ||
 			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || len(failure.Detail) > 256 || failure.ObservedAt.IsZero() {
 			return false
 		}
 		workers[failure.WorkerID] = struct{}{}
 	}
-	return len(workers) <= failedCount
+	if failedCount == 0 {
+		return len(failures) == 0 && !truncated
+	}
+	if truncated {
+		return len(failures) == 16 && len(workers) <= failedCount
+	}
+	return len(workers) == failedCount
 }
 
 func validWorkloadPhase(phase string) bool {
@@ -245,6 +251,10 @@ func validWorkloadPhase(phase string) bool {
 	default:
 		return false
 	}
+}
+
+func validWorkloadFailurePhase(phase string) bool {
+	return phase == "assign" || phase == "collect" || validWorkloadPhase(phase)
 }
 
 func mapWorkloadLimits(input []workloadDiagnosticLimit) []analysis.WorkloadLimit {

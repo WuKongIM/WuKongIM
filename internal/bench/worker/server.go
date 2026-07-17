@@ -211,10 +211,10 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			s.clearPhaseCancel(assignment.RunID, phase)
 			if err != nil {
 				if errors.Is(err, errTargetUnavailable) {
-					writeError(w, http.StatusServiceUnavailable, err.Error())
+					writePhaseError(w, http.StatusServiceUnavailable, err)
 					return
 				}
-				writeError(w, http.StatusInternalServerError, err.Error())
+				writePhaseError(w, http.StatusInternalServerError, err)
 				return
 			}
 			writeJSON(w, http.StatusOK, s.state.Status())
@@ -416,6 +416,13 @@ func methodNotAllowed(w http.ResponseWriter) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writePhaseError(w http.ResponseWriter, status int, err error) {
+	writeJSON(w, status, map[string]string{
+		"error":       err.Error(),
+		"reason_code": string(failureReasonForError(err)),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

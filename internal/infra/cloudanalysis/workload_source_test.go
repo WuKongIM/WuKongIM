@@ -76,6 +76,26 @@ func TestWorkloadSummarySourceRejectsIdentityMismatchAndOversize(t *testing.T) {
 	}
 }
 
+func TestWorkloadSummarySourceRejectsIncompleteFailureDetails(t *testing.T) {
+	summary := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[],
+  "failed_workers_truncated":false
+}`
+
+	if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+		t.Fatalf("incomplete failure details error = %v, want %v", err, errInvalidWorkloadSummary)
+	}
+}
+
 func TestWorkloadSummarySourceCanBeExplicitlyUnavailable(t *testing.T) {
 	result, err := newWorkloadSummarySource("").inspect(context.Background(), "run-1")
 	if err != nil {

@@ -150,13 +150,20 @@ func TestCoordinatorStopsAssignedWorkersWhenLaterAssignmentFails(t *testing.T) {
 		PollTimeout:  100 * time.Millisecond,
 	})
 
-	result, err := coord.Run(context.Background(), fakeScenario())
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = t.TempDir()
+	result, err := coord.Run(context.Background(), scenario)
 
 	require.Error(t, err)
 	require.Equal(t, StatusWorkerFailed, result.Status)
 	require.Contains(t, err.Error(), "assign exploded")
 	require.True(t, workers[0].Stopped(), "already assigned worker should be stopped")
 	require.False(t, workers[1].Stopped(), "worker that rejected assignment was not active")
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "b", result.Report.WorkerFailures[0].WorkerID)
+	require.Equal(t, "assign", result.Report.WorkerFailures[0].Phase)
+	require.Equal(t, "worker_assignment_failed", result.Report.WorkerFailures[0].ReasonCode)
+	require.FileExists(t, filepath.Join(scenario.Run.ReportDir, "diagnostic-summary.json"))
 }
 
 func TestCoordinatorReturnsWorkerFailedWhenPhasePostFails(t *testing.T) {
@@ -510,6 +517,7 @@ func TestCoordinatorWorkerMetricsCollectionFailureFailsSuccessfulRun(t *testing.
 	require.Equal(t, "worker_metrics_error", result.Report.WorkerMetrics[0].Metrics.Errors[0].Name)
 	require.Len(t, result.Report.WorkerFailures, 1)
 	require.Equal(t, "a", result.Report.WorkerFailures[0].WorkerID)
+	require.Equal(t, "collect", result.Report.WorkerFailures[0].Phase)
 	require.Equal(t, "worker_metrics_unavailable", result.Report.WorkerFailures[0].ReasonCode)
 }
 
@@ -536,6 +544,7 @@ func TestCoordinatorWorkerReportCollectionFailureFailsSuccessfulRunWithFallback(
 	require.Equal(t, "worker_report_error", result.Report.ErrorSamples[0].Name)
 	require.Len(t, result.Report.WorkerFailures, 1)
 	require.Equal(t, "a", result.Report.WorkerFailures[0].WorkerID)
+	require.Equal(t, "collect", result.Report.WorkerFailures[0].Phase)
 	require.Equal(t, "worker_report_unavailable", result.Report.WorkerFailures[0].ReasonCode)
 }
 
@@ -932,6 +941,30 @@ func TestCoordinatorClassifiesWorkerTCPSourceFailuresAsWorkerFailed(t *testing.T
 			require.Equal(t, tt.reasonCode, result.Report.WorkerFailures[0].ReasonCode)
 		})
 	}
+}
+
+func TestCoordinatorDoesNotInferReasonCodeFromWorkerErrorText(t *testing.T) {
+	workerServer := httptest.NewServer(worker.NewServer(worker.Config{
+		ControlToken:   "secret",
+		WorkloadRunner: &tcpSourceFailureRunner{connectErr: errors.New("tcp source unavailable mentioned by an untyped hook")},
+	}))
+	defer workerServer.Close()
+	coord := New(CoordinatorConfig{
+		Workers: []model.Worker{{ID: "a", Addr: workerServer.URL, Weight: 1, ControlToken: "secret"}},
+		Target:  fakeTargetOK(),
+		Preflight: preflightFunc(func(context.Context, model.Target, model.WorkerSet) error {
+			return nil
+		}),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "phase_hook_failed", result.Report.WorkerFailures[0].ReasonCode)
 }
 
 func TestCoordinatorTargetUnavailableReportUsesTargetExitCode(t *testing.T) {

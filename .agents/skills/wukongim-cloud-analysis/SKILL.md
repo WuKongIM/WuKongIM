@@ -30,7 +30,8 @@ When `workload_inspect` reports failed workers, route by that structured evidenc
 - `tcp_source_pool_exhausted` or `tcp_source_unavailable`: verify simulator headroom and cluster availability over the failed phase only, then classify the invalid load-generator path as `scenario_invalid` when those signals do not support a server or infrastructure failure.
 - `target_unavailable`: check target availability and provider/cluster evidence before choosing `infrastructure_interrupted` or `insufficient_evidence`.
 - `worker_metrics_unavailable` or `worker_report_unavailable`: treat the missing worker evidence as `insufficient_evidence` unless another bounded source independently proves the cause.
-- `phase_timeout`, `phase_start_failed`, or `phase_wait_failed`: use the failed worker, phase, actual phase window, and bounded detail to select the smallest contradicting metric or log query.
+- `worker_assignment_failed`: the workload never started on that worker; inspect worker/simulator availability and classify as `scenario_invalid`, `infrastructure_interrupted`, or `insufficient_evidence` from bounded corroboration.
+- `phase_hook_failed`, `phase_timeout`, `phase_start_failed`, or `phase_wait_failed`: use the failed worker, phase, actual phase window, and bounded detail to select the smallest contradicting metric or log query.
 - An unknown reason code, truncated failure list, or failed-worker count without matching structured evidence remains explicit missing evidence.
 
 Do not begin with broad application-log searches when the structured worker failure already identifies a simulator or harness cause.

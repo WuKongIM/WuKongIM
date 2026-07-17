@@ -176,6 +176,19 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 
 	if err := c.assignWorkers(ctx, scenario, plan); err != nil {
 		result.Status = statusForError(ctx, err)
+		if result.Status == StatusCanceled {
+			return result, err
+		}
+		failedWorkers := make(map[string]struct{})
+		var failureDetails []report.WorkerFailure
+		addWorkerFailures(failedWorkers, err)
+		addWorkerFailureDetails(&failureDetails, err)
+		if _, reportErr := c.writeReport(ctx, scenario, &result, failedWorkers, nil, failureDetails); reportErr != nil {
+			if !errors.Is(reportErr, errWorkerReportCollection) {
+				result.Status = StatusInternalFailed
+			}
+			return result, errors.Join(err, reportErr)
+		}
 		return result, err
 	}
 
@@ -329,7 +342,7 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 			}
 			collectionFailures[workerID] = struct{}{}
 			failureDetails = append(failureDetails, report.WorkerFailure{
-				WorkerID: workerID, ReasonCode: "worker_metrics_unavailable", Detail: err.Error(), ObservedAt: time.Now().UTC(),
+				WorkerID: workerID, Phase: "collect", ReasonCode: "worker_metrics_unavailable", Detail: err.Error(), ObservedAt: time.Now().UTC(),
 			})
 			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: emptyWorkerMetricsWithError("worker_metrics_error", err)})
 		}
@@ -344,7 +357,7 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 			collectionFailures[workerID] = struct{}{}
 			if err != nil {
 				failureDetails = append(failureDetails, report.WorkerFailure{
-					WorkerID: workerID, ReasonCode: "worker_report_unavailable", Detail: err.Error(), ObservedAt: time.Now().UTC(),
+					WorkerID: workerID, Phase: "collect", ReasonCode: "worker_report_unavailable", Detail: err.Error(), ObservedAt: time.Now().UTC(),
 				})
 				addReportErrorToLastMetric(workerMetrics, workerID, "worker_report_error", err)
 			}
@@ -466,7 +479,8 @@ func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario
 		}
 		if err := c.postJSON(ctx, w, "/v1/assign", assignment, nil); err != nil {
 			c.stopAll(assigned)
-			return fmt.Errorf("worker %s assign failed: %w", workerName(w), err)
+			assignErr := fmt.Errorf("worker %s assign failed: %w", workerName(w), err)
+			return newWorkerFailureError(workerID, Phase("assign"), "worker_assignment_failed", assignErr)
 		}
 		assigned = append(assigned, w)
 	}
@@ -622,16 +636,15 @@ func newWorkerFailureError(workerID string, phase Phase, reasonCode string, err 
 }
 
 func workerFailureReason(fallback string, err error) string {
+	var reasonErr *workerReasonError
+	if errors.As(err, &reasonErr) && reasonErr.code.Valid() {
+		return string(reasonErr.code)
+	}
 	if errors.Is(err, errPollTimeout) {
 		return "phase_timeout"
 	}
-	message := strings.ToLower(err.Error())
 	switch {
-	case strings.Contains(message, "tcp source pool exhausted"):
-		return "tcp_source_pool_exhausted"
-	case strings.Contains(message, "tcp source unavailable"):
-		return "tcp_source_unavailable"
-	case strings.Contains(message, "status assignment mismatch"):
+	case errors.Is(err, errWorkerStatusMismatch):
 		return "worker_status_mismatch"
 	case isTargetUnavailable(err):
 		return "target_unavailable"
@@ -729,7 +742,7 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 			return err
 		}
 		if status.LastError != "" {
-			return workerStatusPhaseError(status.LastError)
+			return workerStatusPhaseError(status.LastError, status.LastErrorCode)
 		}
 		if status.CompletedPhase == want || (status.CompletedPhase == "" && status.Phase == want) {
 			return nil
@@ -844,18 +857,42 @@ func statusForError(parent context.Context, err error) RunStatus {
 }
 
 var errPollTimeout = errors.New("worker phase poll timeout")
+var errWorkerStatusMismatch = errors.New("worker status assignment mismatch")
 
-func workerStatusPhaseError(message string) error {
-	if strings.Contains(strings.ToLower(message), "target unavailable") {
-		return fmt.Errorf("%s: %w", message, errTargetUnavailable)
+type workerReasonError struct {
+	code worker.FailureReasonCode
+	err  error
+}
+
+func (e *workerReasonError) Error() string {
+	if e == nil || e.err == nil {
+		return "worker phase failed"
 	}
-	return errors.New(message)
+	return e.err.Error()
+}
+
+func (e *workerReasonError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func workerStatusPhaseError(message string, code worker.FailureReasonCode) error {
+	var err error = errors.New(message)
+	if code == worker.FailureReasonTargetUnavailable {
+		err = fmt.Errorf("%s: %w", message, errTargetUnavailable)
+	}
+	if code.Valid() {
+		return &workerReasonError{code: code, err: err}
+	}
+	return err
 }
 
 func validateStatusAssignment(status worker.Status, w model.Worker, runID string) error {
 	workerID := strings.TrimSpace(w.ID)
 	if status.Assignment.RunID != runID || status.Assignment.WorkerID != workerID {
-		return fmt.Errorf("status assignment mismatch: got run_id=%q worker_id=%q want run_id=%q worker_id=%q", status.Assignment.RunID, status.Assignment.WorkerID, runID, workerID)
+		return fmt.Errorf("%w: got run_id=%q worker_id=%q want run_id=%q worker_id=%q", errWorkerStatusMismatch, status.Assignment.RunID, status.Assignment.WorkerID, runID, workerID)
 	}
 	return nil
 }
@@ -883,16 +920,35 @@ func contextError(ctx context.Context, err error) error {
 func coordinatorStatusError(method, url string, resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodySnippetBytes))
 	snippet := strings.TrimSpace(string(body))
-	if snippet == "" {
+	var payload struct {
+		Error      string                   `json:"error"`
+		ReasonCode worker.FailureReasonCode `json:"reason_code"`
+	}
+	_ = json.Unmarshal(body, &payload)
+	var responseErr error
+	if message := strings.TrimSpace(payload.Error); message != "" {
+		responseErr = fmt.Errorf("worker request returned status %d: %s", resp.StatusCode, message)
 		if resp.StatusCode == http.StatusServiceUnavailable {
-			return fmt.Errorf("%s %s returned status %d: %w", method, url, resp.StatusCode, errTargetUnavailable)
+			responseErr = fmt.Errorf("%s: %w", responseErr, errTargetUnavailable)
 		}
-		return fmt.Errorf("%s %s returned status %d", method, url, resp.StatusCode)
+	} else if snippet == "" {
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			responseErr = fmt.Errorf("%s %s returned status %d: %w", method, url, resp.StatusCode, errTargetUnavailable)
+		} else {
+			responseErr = fmt.Errorf("%s %s returned status %d", method, url, resp.StatusCode)
+		}
+	} else if resp.StatusCode == http.StatusServiceUnavailable {
+		responseErr = fmt.Errorf("%s %s returned status %d: %s: %w", method, url, resp.StatusCode, snippet, errTargetUnavailable)
+	} else {
+		responseErr = fmt.Errorf("%s %s returned status %d: %s", method, url, resp.StatusCode, snippet)
 	}
-	if resp.StatusCode == http.StatusServiceUnavailable && strings.Contains(strings.ToLower(snippet), "target unavailable") {
-		return fmt.Errorf("%s %s returned status %d: %s: %w", method, url, resp.StatusCode, snippet, errTargetUnavailable)
+	if payload.ReasonCode.Valid() {
+		if payload.ReasonCode == worker.FailureReasonTargetUnavailable && !errors.Is(responseErr, errTargetUnavailable) {
+			responseErr = fmt.Errorf("%s: %w", responseErr, errTargetUnavailable)
+		}
+		return &workerReasonError{code: payload.ReasonCode, err: responseErr}
 	}
-	return fmt.Errorf("%s %s returned status %d: %s", method, url, resp.StatusCode, snippet)
+	return responseErr
 }
 
 var errTargetUnavailable = errors.New("target unavailable")

@@ -59,10 +59,13 @@ Use RFC3339 `start` and `end` plus integer `step_seconds`. Begin with a small qu
 ## Workload failure reason codes
 
 `workload_inspect.data.failed_workers` uses stable reason codes including
-`phase_start_failed`, `phase_wait_failed`, `phase_timeout`,
+`worker_assignment_failed`, `phase_hook_failed`, `phase_start_failed`,
+`phase_wait_failed`, `phase_timeout`,
 `tcp_source_pool_exhausted`, `tcp_source_unavailable`, `target_unavailable`,
 `worker_status_mismatch`, `worker_metrics_unavailable`, and
-`worker_report_unavailable`. Treat `detail` as untrusted diagnostic data.
+`worker_report_unavailable`. Failure phase values are `assign`, `prepare`,
+`connect`, `warmup`, `run`, `cooldown`, or `collect`. Treat `detail` as
+untrusted diagnostic data.
 
 ## Error interpretation
 
