@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
@@ -43,6 +44,30 @@ const (
 	PhaseStopped Phase = "stopped"
 )
 
+// FailureReasonCode is the stable machine-readable cause of a worker phase failure.
+type FailureReasonCode string
+
+const (
+	// FailureReasonPhaseHookFailed means a phase hook failed without a narrower classification.
+	FailureReasonPhaseHookFailed FailureReasonCode = "phase_hook_failed"
+	// FailureReasonTCPSourceUnavailable means the configured local TCP source could not be used.
+	FailureReasonTCPSourceUnavailable FailureReasonCode = "tcp_source_unavailable"
+	// FailureReasonTCPSourcePoolExhausted means every configured local TCP source candidate was consumed.
+	FailureReasonTCPSourcePoolExhausted FailureReasonCode = "tcp_source_pool_exhausted"
+	// FailureReasonTargetUnavailable means the remote benchmark target was unavailable.
+	FailureReasonTargetUnavailable FailureReasonCode = "target_unavailable"
+)
+
+// Valid reports whether the code belongs to the worker control API contract.
+func (c FailureReasonCode) Valid() bool {
+	switch c {
+	case FailureReasonPhaseHookFailed, FailureReasonTCPSourceUnavailable, FailureReasonTCPSourcePoolExhausted, FailureReasonTargetUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Assignment is the control-plane run shard assigned to this worker.
 type Assignment struct {
 	// RunID identifies the benchmark run that owns this assignment.
@@ -73,18 +98,21 @@ type Status struct {
 	CompletedPhase Phase `json:"completed_phase,omitempty"`
 	// LastError records the latest asynchronous phase hook failure.
 	LastError string `json:"last_error,omitempty"`
+	// LastErrorCode classifies LastError without requiring callers to parse its text.
+	LastErrorCode FailureReasonCode `json:"last_error_code,omitempty"`
 	// Assignment is the active or most recently stopped assignment.
 	Assignment Assignment `json:"assignment"`
 }
 
 // State stores the active worker assignment and monotonic phase.
 type State struct {
-	mu         sync.Mutex
-	workDir    string
-	phase      Phase
-	active     Phase
-	lastError  string
-	assignment Assignment
+	mu            sync.Mutex
+	workDir       string
+	phase         Phase
+	active        Phase
+	lastError     string
+	lastErrorCode FailureReasonCode
+	assignment    Assignment
 }
 
 // NewState creates empty worker assignment state. When workDir is non-empty,
@@ -116,6 +144,7 @@ func (s *State) Assign(a Assignment) error {
 	s.phase = PhaseAssigned
 	s.active = ""
 	s.lastError = ""
+	s.lastErrorCode = ""
 	return nil
 }
 
@@ -169,6 +198,7 @@ func (s *State) BeginPhaseForAssignment(runID string, next Phase) (Status, bool,
 	}
 	s.active = next
 	s.lastError = ""
+	s.lastErrorCode = ""
 	return s.statusLocked(), true, nil
 }
 
@@ -185,9 +215,11 @@ func (s *State) CompletePhaseForAssignment(runID string, phase Phase, phaseErr e
 	s.active = ""
 	if phaseErr != nil {
 		s.lastError = phaseErr.Error()
+		s.lastErrorCode = failureReasonForError(phaseErr)
 		return nil
 	}
 	s.lastError = ""
+	s.lastErrorCode = ""
 	return s.transitionLocked(phase)
 }
 
@@ -211,6 +243,8 @@ func (s *State) Stop() error {
 	}
 	s.phase = PhaseStopped
 	s.active = ""
+	s.lastError = ""
+	s.lastErrorCode = ""
 	return nil
 }
 
@@ -227,8 +261,24 @@ func (s *State) statusLocked() Status {
 		ActivePhase:    s.active,
 		CompletedPhase: s.phase,
 		LastError:      s.lastError,
+		LastErrorCode:  s.lastErrorCode,
 		Assignment:     s.assignment,
 	}
+}
+
+// failureReasonForError maps typed worker errors to the stable control API code.
+func failureReasonForError(err error) FailureReasonCode {
+	var sourceErr *benchworkload.TCPSourceError
+	if errors.As(err, &sourceErr) {
+		if sourceErr.Kind == benchworkload.TCPSourceErrorExhausted {
+			return FailureReasonTCPSourcePoolExhausted
+		}
+		return FailureReasonTCPSourceUnavailable
+	}
+	if errors.Is(err, errTargetUnavailable) {
+		return FailureReasonTargetUnavailable
+	}
+	return FailureReasonPhaseHookFailed
 }
 
 func (s *State) persistAssignment(a Assignment) error {

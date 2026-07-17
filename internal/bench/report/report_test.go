@@ -271,6 +271,7 @@ func TestWriterCreatesDeterministicRunDirectoryFiles(t *testing.T) {
 		"workers.yaml",
 		"plan.json",
 		"summary.md",
+		"diagnostic-summary.json",
 		"report.json",
 		"coordinator.log",
 		"workers/w1.report.json",
@@ -295,6 +296,67 @@ func TestWriterCreatesDeterministicRunDirectoryFiles(t *testing.T) {
 	}
 	if len(decoded.PresenceSnapshots) != 1 || decoded.PresenceSnapshots[0].OwnerRoutesActive != 2 {
 		t.Fatalf("unexpected report presence snapshots: %+v", decoded.PresenceSnapshots)
+	}
+}
+
+func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
+	dir := t.TempDir()
+	startedAt := time.Date(2026, time.July, 17, 3, 23, 18, 0, time.UTC)
+	endedAt := startedAt.Add(30 * time.Minute)
+	rep := Build(Input{
+		RunID:   "run-1",
+		Summary: Summary{SendSuccess: 889785, WorkerFailed: 2},
+		Limits:  model.LimitsConfig{Hard: model.HardLimitsConfig{MaxWorkerFailed: 2}},
+		PhaseWindows: []PhaseWindow{{
+			Phase: "run", StartedAt: startedAt, EndedAt: endedAt,
+		}},
+		WorkerFailures: []WorkerFailure{
+			{
+				WorkerID: "worker-3", Phase: "cooldown", ReasonCode: "phase_wait_failed",
+				Detail:     "GET http://worker-3:19090/v1/status?token=secret failed with Authorization: Bearer secret",
+				ObservedAt: endedAt,
+			},
+			{
+				WorkerID: "worker-4", Phase: "collect", ReasonCode: "worker_report_unavailable",
+				Detail:     `open /var/lib/wukongim/run.log via file:///tmp/run.log or ws://sim:9000 failed`,
+				ObservedAt: endedAt,
+			},
+		},
+	})
+	rep.Status = StatusFailed
+	rep.ExitCode = ExitWorkerFailed
+
+	if err := WriteDir(dir, rep); err != nil {
+		t.Fatalf("WriteDir: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "diagnostic-summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got DiagnosticSummary
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("diagnostic-summary.json should be valid JSON: %v", err)
+	}
+	if got.Schema != DiagnosticSummarySchema || got.RunID != "run-1" || got.Summary.SendSuccess != 889785 {
+		t.Fatalf("diagnostic summary identity = %+v", got)
+	}
+	if len(got.PhaseWindows) != 1 || !got.PhaseWindows[0].StartedAt.Equal(startedAt) || !got.PhaseWindows[0].EndedAt.Equal(endedAt) {
+		t.Fatalf("phase windows = %+v", got.PhaseWindows)
+	}
+	if len(got.FailedWorkers) != 2 || got.FailedWorkers[0].WorkerID != "worker-3" || got.FailedWorkers[0].Phase != "cooldown" || got.FailedWorkers[0].ReasonCode != "phase_wait_failed" {
+		t.Fatalf("failed workers = %+v", got.FailedWorkers)
+	}
+	encoded := string(data)
+	for _, forbidden := range []string{"http://", "ws://", "file://", "/var/lib", "/tmp", "secret", "Authorization", "Bearer"} {
+		if strings.Contains(encoded, forbidden) {
+			t.Fatalf("diagnostic summary contains unredacted %q detail: %s", forbidden, encoded)
+		}
+	}
+	if got.FailedWorkers[0].Detail != "worker phase status failed" || got.FailedWorkers[1].Detail != "worker report unavailable" {
+		t.Fatalf("diagnostic summary contains unredacted detail: %s", encoded)
+	}
+	if !strings.Contains(encoded, `"violations": []`) || !strings.Contains(encoded, `"warnings": []`) {
+		t.Fatalf("diagnostic summary must encode empty collections as arrays: %s", encoded)
 	}
 }
 

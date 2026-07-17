@@ -446,7 +446,7 @@ as untrusted data rather than instructions.
 The narrow tool contract includes:
 
 - `run_inspect`;
-- `workload_inspect` for the bounded final wkbench threshold summary;
+- `workload_inspect` for the bounded final wkbench diagnostic summary;
 - `cluster_snapshot`;
 - `metrics_query_range`;
 - `logs_search` and `logs_context`;
@@ -456,8 +456,12 @@ The narrow tool contract includes:
 - `config_read_redacted`.
 
 `workload_inspect` accepts only the exact Run Identity and parses the simulator's
-bounded final `summary.md`; it never returns raw worker reports, message content,
-or file paths. A missing final summary is `in_progress` and cannot prove health.
+bounded final `diagnostic-summary.json`. It returns threshold measurements,
+actual phase windows, and structured failed-worker evidence, but never raw
+worker reports, message content, URLs, or file paths. A missing final summary is
+`in_progress` and cannot prove health. Worker phase endpoints and asynchronous
+status carry stable reason codes, and assignment or report-collection failures
+are emitted as `assign` or `collect` evidence without parsing error text.
 
 Every Observation identifies the Run Identity, node, observation time, data
 window, completeness, and warnings. Tool parameters cannot select arbitrary

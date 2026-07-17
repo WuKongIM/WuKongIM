@@ -22,5 +22,11 @@ Phase 1 can exercise a provider-backed inspector locally with
 `ProviderRunInspector`. That inspector requires a valid Run Locator and matches
 provider, region, account hash, repository, source SHA, scenario digest,
 creation time, and lease. A static inspector cannot claim a released run.
-The workload source strictly parses the bounded final `summary.md`, including
-the measured-run successful send count used as the storage-growth denominator.
+The workload source strictly parses the bounded final `diagnostic-summary.json`,
+including actual phase windows, structured failed workers, and the measured-run
+successful send count used as the storage-growth denominator. It never reads
+the raw report or human `summary.md`. Non-truncated failure evidence must account
+for every worker included in `summary.worker_failed`; otherwise the source rejects
+the document instead of reporting complete evidence. Failure detail accepts only
+fixed reason-code templates or an explicit redaction marker, so forged producer
+text cannot cross the MCP boundary.

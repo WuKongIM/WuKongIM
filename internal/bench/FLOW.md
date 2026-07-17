@@ -112,6 +112,10 @@ View purity classification take precedence over product-limit inference.
 The bounded final summary also records the successful send acknowledgement
 count from the measured `run` phase so storage calibration can use the exact
 workload denominator even when a run terminates early.
+`report.WriteDir` additionally writes `diagnostic-summary.json`, a bounded,
+redacted machine contract with actual coordinator phase windows and structured
+worker failures. `summary.md` remains human-readable and is not the analysis
+machine contract.
 
 Explicit TCP source pool errors are worker-local configuration or capacity
 failures and therefore resolve to `worker_failed`, never
@@ -330,7 +334,7 @@ GET  /v1/metrics
 GET  /v1/report
 ```
 
-`worker.State` stores the active assignment and lifecycle phase. Phase hooks are asynchronous when they take longer than the short start grace period. In that case the worker returns `202 Accepted`, sets `active_phase`, and later updates `completed_phase` after the hook finishes. Duplicate phase requests are idempotent when the requested phase is already active or complete.
+`worker.State` stores the active assignment and lifecycle phase. Phase hooks are asynchronous when they take longer than the short start grace period. In that case the worker returns `202 Accepted`, sets `active_phase`, and later updates `completed_phase` after the hook finishes. Synchronous error responses and asynchronous status failures both carry the same stable `reason_code`; the coordinator preserves that code instead of classifying failures from human-readable text. Duplicate phase requests are idempotent when the requested phase is already active or complete.
 
 The in-process dev simulator also uses the worker runner's traffic recovery hook after a runtime traffic error. This repairs only failed WKProto sessions when the workload can identify them, then rebuilds person/group workload objects with a new client message prefix while preserving healthy sessions. This avoids full online-user churn for a single send/recv failure.
 
@@ -506,6 +510,8 @@ The server-side implementation lives outside this package. Keep request/response
 - Static configuration and planning errors become `config_failed`.
 - Target, worker, capability, or gateway preflight errors become `preflight_failed`.
 - Worker phase errors become `worker_failed` unless the error is classified as target unavailable.
+- Worker assignment failures are recorded with phase `assign`; assignment failures that happen before workload phases still write a terminal diagnostic summary when `run.report_dir` is configured, without polling worker metrics or reports that may belong to an older assignment.
+- Missing worker metrics or reports are recorded with phase `collect`.
 - Target connection failures during worker execution are wrapped as `target_unavailable`.
 - Hard limit violations in report evaluation become `hard_limit_failed`.
 - Context cancellation becomes `canceled`.

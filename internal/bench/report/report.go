@@ -32,7 +32,25 @@ const (
 	ExitTargetUnavailable = 5
 	// ExitInternalError means wkbench hit an unexpected internal error.
 	ExitInternalError = 6
+
+	// DiagnosticSummarySchema is the stable machine-readable diagnostic projection contract.
+	DiagnosticSummarySchema = "wukongim/wkbench-diagnostic-summary/v1"
+	maxDiagnosticFailures   = 16
 )
+
+var diagnosticFailureDetail = map[string]string{
+	"worker_assignment_failed":   "worker assignment failed",
+	"phase_hook_failed":          "worker phase hook failed",
+	"phase_start_failed":         "worker phase request failed",
+	"phase_wait_failed":          "worker phase status failed",
+	"phase_timeout":              "worker phase timed out",
+	"tcp_source_pool_exhausted":  "tcp source pool exhausted",
+	"tcp_source_unavailable":     "tcp source unavailable",
+	"target_unavailable":         "target unavailable",
+	"worker_status_mismatch":     "worker status assignment mismatch",
+	"worker_metrics_unavailable": "worker metrics unavailable",
+	"worker_report_unavailable":  "worker report unavailable",
+}
 
 // Status is the benchmark report verdict.
 type Status string
@@ -128,6 +146,56 @@ type WorkerReport struct {
 	Report json.RawMessage `json:"report"`
 }
 
+// PhaseWindow records the actual coordinator wall-clock interval for one workload phase.
+type PhaseWindow struct {
+	// Phase is the stable wkbench lifecycle phase name.
+	Phase string `json:"phase"`
+	// StartedAt is when the coordinator began the phase.
+	StartedAt time.Time `json:"started_at"`
+	// EndedAt is when the coordinator observed the phase terminal result.
+	EndedAt time.Time `json:"ended_at"`
+}
+
+// WorkerFailure is one bounded structured worker failure retained for diagnosis.
+type WorkerFailure struct {
+	// WorkerID identifies the failed or unreachable worker.
+	WorkerID string `json:"worker_id"`
+	// Phase identifies the lifecycle phase when the failure was observed.
+	Phase string `json:"phase"`
+	// ReasonCode is a stable machine-readable failure classification.
+	ReasonCode string `json:"reason_code"`
+	// Detail is a bounded diagnostic description; diagnostic projections redact unsafe content.
+	Detail string `json:"detail"`
+	// ObservedAt records when the coordinator observed the failure.
+	ObservedAt time.Time `json:"observed_at"`
+}
+
+// DiagnosticSummary is the bounded, redacted machine contract consumed by live analysis.
+type DiagnosticSummary struct {
+	// Schema identifies the exact diagnostic summary contract.
+	Schema string `json:"schema"`
+	// RunID is the exact benchmark run identity.
+	RunID string `json:"run_id"`
+	// Status is the final benchmark result.
+	Status Status `json:"status"`
+	// ExitCode is the stable wkbench exit code.
+	ExitCode int `json:"exit_code"`
+	// StabilityVerdict is the explicit standard stability classification.
+	StabilityVerdict StabilityVerdict `json:"stability_verdict"`
+	// Summary contains bounded measurements used by declared limits.
+	Summary Summary `json:"summary"`
+	// Violations contains enforced limit failures.
+	Violations []Violation `json:"violations"`
+	// Warnings contains non-enforced limit warnings.
+	Warnings []Violation `json:"warnings"`
+	// PhaseWindows contains actual coordinator phase intervals.
+	PhaseWindows []PhaseWindow `json:"phase_windows"`
+	// FailedWorkers contains bounded structured worker failures.
+	FailedWorkers []WorkerFailure `json:"failed_workers"`
+	// FailedWorkersTruncated reports that additional failure details were omitted.
+	FailedWorkersTruncated bool `json:"failed_workers_truncated"`
+}
+
 // Input carries all deterministic data needed to build and write a run report.
 type Input struct {
 	// RunID is the benchmark run identifier written to report metadata.
@@ -148,6 +216,10 @@ type Input struct {
 	Metrics metrics.SnapshotData
 	// WorkerReports contains raw per-worker report payloads.
 	WorkerReports []WorkerReport
+	// PhaseWindows contains actual coordinator phase intervals.
+	PhaseWindows []PhaseWindow
+	// WorkerFailures contains structured worker failure evidence.
+	WorkerFailures []WorkerFailure
 	// WorkerMetrics contains per-worker metric snapshots for jsonl output.
 	WorkerMetrics []metrics.WorkerSnapshot
 	// TargetSnapshots contains raw target snapshots for jsonl output.
@@ -190,6 +262,10 @@ type Report struct {
 	Metrics metrics.SnapshotData `json:"metrics"`
 	// WorkerReports contains raw per-worker report payloads.
 	WorkerReports []WorkerReport `json:"worker_reports,omitempty"`
+	// PhaseWindows contains actual coordinator phase intervals.
+	PhaseWindows []PhaseWindow `json:"phase_windows,omitempty"`
+	// WorkerFailures contains structured worker failure evidence.
+	WorkerFailures []WorkerFailure `json:"worker_failures,omitempty"`
 	// WorkerMetrics contains per-worker metric snapshots for jsonl output.
 	WorkerMetrics []metrics.WorkerSnapshot `json:"worker_metrics,omitempty"`
 	// TargetSnapshots contains raw target snapshots for jsonl output.
@@ -223,6 +299,8 @@ func Build(in Input) Report {
 		Plan:              in.Plan,
 		Metrics:           in.Metrics,
 		WorkerReports:     append([]WorkerReport(nil), in.WorkerReports...),
+		PhaseWindows:      append([]PhaseWindow(nil), in.PhaseWindows...),
+		WorkerFailures:    append([]WorkerFailure(nil), in.WorkerFailures...),
 		WorkerMetrics:     append([]metrics.WorkerSnapshot(nil), in.WorkerMetrics...),
 		TargetSnapshots:   append([]json.RawMessage(nil), in.TargetSnapshots...),
 		PresenceSnapshots: append([]model.PresenceSnapshot(nil), in.PresenceSnapshots...),
@@ -299,6 +377,9 @@ func WriteDir(dir string, rep Report) error {
 	if err := writeJSON(filepath.Join(dir, "report.json"), rep); err != nil {
 		return err
 	}
+	if err := writeJSON(filepath.Join(dir, "diagnostic-summary.json"), diagnosticSummary(rep)); err != nil {
+		return err
+	}
 	if err := os.WriteFile(filepath.Join(dir, "summary.md"), []byte(summaryMarkdown(rep)), 0o644); err != nil {
 		return err
 	}
@@ -319,6 +400,45 @@ func WriteDir(dir string, rep Report) error {
 		return err
 	}
 	return writeErrorSamples(filepath.Join(dir, "errors", "samples.jsonl"), rep.ErrorSamples)
+}
+
+func diagnosticSummary(rep Report) DiagnosticSummary {
+	failures := append([]WorkerFailure{}, rep.WorkerFailures...)
+	sort.SliceStable(failures, func(i, j int) bool {
+		if failures[i].WorkerID != failures[j].WorkerID {
+			return failures[i].WorkerID < failures[j].WorkerID
+		}
+		if failures[i].Phase != failures[j].Phase {
+			return failures[i].Phase < failures[j].Phase
+		}
+		if failures[i].ReasonCode != failures[j].ReasonCode {
+			return failures[i].ReasonCode < failures[j].ReasonCode
+		}
+		return failures[i].ObservedAt.Before(failures[j].ObservedAt)
+	})
+	truncated := len(failures) > maxDiagnosticFailures
+	if truncated {
+		failures = failures[:maxDiagnosticFailures]
+	}
+	for i := range failures {
+		failures[i].Detail = safeFailureDetail(failures[i].ReasonCode)
+	}
+	return DiagnosticSummary{
+		Schema: DiagnosticSummarySchema, RunID: rep.RunID, Status: rep.Status, ExitCode: rep.ExitCode,
+		StabilityVerdict: rep.StabilityVerdict, Summary: rep.Summary,
+		Violations: append([]Violation{}, rep.Violations...), Warnings: append([]Violation{}, rep.Warnings...),
+		PhaseWindows: append([]PhaseWindow{}, rep.PhaseWindows...), FailedWorkers: failures,
+		FailedWorkersTruncated: truncated,
+	}
+}
+
+// safeFailureDetail returns only a reason-code-owned template and never raw
+// worker text, URLs, paths, credentials, or message content.
+func safeFailureDetail(reasonCode string) string {
+	if detail, ok := diagnosticFailureDetail[reasonCode]; ok {
+		return detail
+	}
+	return "[redacted]"
 }
 
 func hardLimitViolations(l model.HardLimitsConfig, s Summary) []Violation {

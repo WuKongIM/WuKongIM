@@ -14,8 +14,10 @@ HTTPS Streamable MCP request
 ```
 
 The MCP endpoint is stateless and JSON-response-only. `workload_inspect` exposes
-only the bounded, parsed wkbench final threshold summary plus the measured-run
-successful send count, and never raw report content or paths. The tool list contains no
+only the bounded, parsed wkbench diagnostic summary: threshold measurements,
+actual phase windows, structured failed workers, and the measured-run successful
+send count. Failure details are fixed reason-code-owned templates; raw worker
+text, report content, URLs, messages, and paths are never returned. The tool list contains no
 shell, file, URL, process, service restart, configuration write, cloud resource,
 or deletion operation. `trace_start` and `profile_capture` are annotated as
 active non-destructive diagnostics; all other tools are read-only and closed

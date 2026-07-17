@@ -1,0 +1,51 @@
+{
+  "schema": "wukongim.analysis.skill_fixture/v1",
+  "name": "worker_status_mismatch",
+  "run_id": "fixture-status-mismatch",
+  "observations": [
+    {
+      "tool": "run_inspect",
+      "run_id": "fixture-status-mismatch",
+      "node": "run",
+      "source": "run_inventory",
+      "observed_at": "2026-07-14T10:00:00Z",
+      "window": {"start": "2026-07-14T10:00:00Z", "end": "2026-07-14T10:00:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"state": "running", "inventory_count": 12, "scenario": {"expected_send_rate": 250, "random_seed": 20260714, "hash_slot_count": 256}}
+    },
+    {
+      "tool": "workload_inspect",
+      "run_id": "fixture-status-mismatch",
+      "node": "sim",
+      "source": "wkbench_diagnostic_summary",
+      "observed_at": "2026-07-14T10:00:01Z",
+      "window": {"start": "2026-07-14T09:59:00Z", "end": "2026-07-14T10:00:01Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {
+        "state": "completed",
+        "status": "failed",
+        "exit_code": 4,
+        "stability_verdict": "harness_invalid",
+        "summary": {"send_success": 0, "connect_error_rate": 0, "sendack_error_rate": 0, "recv_verify_error_rate": 0, "worker_failed": 1, "sendack_max_worker_p99": "0s", "recv_max_worker_p99": "0s"},
+        "phase_windows": [{"phase": "prepare", "started_at": "2026-07-14T09:59:00Z", "ended_at": "2026-07-14T10:00:01Z"}],
+        "failed_workers": [{"worker_id": "sim-worker-2", "phase": "prepare", "reason_code": "worker_status_mismatch", "detail": "worker status assignment mismatch", "observed_at": "2026-07-14T10:00:01Z"}],
+        "failed_workers_truncated": false
+      }
+    },
+    {
+      "tool": "cluster_snapshot",
+      "run_id": "fixture-status-mismatch",
+      "node": "cluster",
+      "source": "manager",
+      "observed_at": "2026-07-14T10:00:02Z",
+      "window": {"start": "2026-07-14T10:00:02Z", "end": "2026-07-14T10:00:02Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"ready_nodes": 3, "workqueue_pressure": 0.01}
+    }
+  ],
+  "expected_verdict": "scenario_invalid",
+  "expected_route": "worker_status_mismatch"
+}

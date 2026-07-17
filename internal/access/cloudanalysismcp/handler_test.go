@@ -2,9 +2,11 @@ package cloudanalysismcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,8 +63,12 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 		t.Fatalf("ListTools() error = %v", err)
 	}
 	names := make([]string, 0, len(listed.Tools))
+	var workloadTool *mcp.Tool
 	for _, tool := range listed.Tools {
 		names = append(names, tool.Name)
+		if tool.Name == "workload_inspect" {
+			workloadTool = tool
+		}
 	}
 	sort.Strings(names)
 	want := []string{
@@ -78,6 +84,16 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 		if names[index] != want[index] {
 			t.Fatalf("tools = %v, want %v", names, want)
 		}
+	}
+	if workloadTool == nil || workloadTool.OutputSchema == nil {
+		t.Fatal("workload_inspect must publish a concrete output schema")
+	}
+	workloadSchema, err := json.Marshal(workloadTool.OutputSchema)
+	if err != nil {
+		t.Fatalf("marshal workload output schema: %v", err)
+	}
+	if !strings.Contains(string(workloadSchema), `"failed_workers"`) || !strings.Contains(string(workloadSchema), `"phase_windows"`) {
+		t.Fatalf("workload output schema does not describe diagnostic evidence: %s", workloadSchema)
 	}
 
 	called, err := session.CallTool(context.Background(), &mcp.CallToolParams{
@@ -139,7 +155,7 @@ func (s mcpSourcesStub) InspectRun(context.Context, string) (analysis.RunInspect
 
 func (mcpSourcesStub) WorkloadInspect(_ context.Context, runID string) (analysis.SourceResult, error) {
 	return analysis.SourceResult{
-		Node: "sim", Source: "wkbench_summary", Completeness: analysis.CompletenessComplete,
+		Node: "sim", Source: "wkbench_diagnostic_summary", Completeness: analysis.CompletenessComplete,
 		Data: analysis.WorkloadInspection{RunID: runID, State: "completed", Status: "passed"},
 	}, nil
 }

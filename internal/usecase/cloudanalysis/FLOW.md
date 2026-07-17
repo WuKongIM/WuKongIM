@@ -24,5 +24,10 @@ so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or
 `goroutine`; CPU capture is limited to 30 seconds per call and 60 seconds per
 Analysis Session.
 
+`workload_inspect` returns the bounded diagnostic summary contract rather than
+raw worker reports. Its actual phase windows and structured worker failures let
+consumers choose the narrowest next observation without parsing Markdown or
+guessing a failed worker from aggregate counts.
+
 The package owns no HTTP, MCP protocol, cloud SDK, shell, filesystem, restart,
 configuration-write, or cleanup behavior.

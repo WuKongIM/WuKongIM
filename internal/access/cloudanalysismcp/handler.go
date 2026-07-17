@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -84,6 +85,29 @@ type traceStartInput struct {
 	TTLSeconds  int    `json:"ttl_seconds" jsonschema:"tracking lifetime from 1 through 900 seconds"`
 }
 
+type observationOutput[T any] struct {
+	RunID        string                `json:"run_id"`
+	Node         string                `json:"node"`
+	Source       string                `json:"source"`
+	ObservedAt   time.Time             `json:"observed_at"`
+	Window       *analysis.TimeWindow  `json:"window,omitempty"`
+	Completeness analysis.Completeness `json:"completeness"`
+	Warnings     []string              `json:"warnings"`
+	Data         T                     `json:"data"`
+}
+
+func typedObservation[T any](observation analysis.Observation) (observationOutput[T], error) {
+	data, ok := observation.Data.(T)
+	if !ok {
+		return observationOutput[T]{}, fmt.Errorf("cloud analysis observation data type %T does not match the tool contract", observation.Data)
+	}
+	return observationOutput[T]{
+		RunID: observation.RunID, Node: observation.Node, Source: observation.Source,
+		ObservedAt: observation.ObservedAt, Window: observation.Window,
+		Completeness: observation.Completeness, Warnings: observation.Warnings, Data: data,
+	}, nil
+}
+
 func registerTools(server *mcp.Server, service *analysis.Service) {
 	readOnly := toolAnnotations(true)
 	active := toolAnnotations(false)
@@ -98,10 +122,14 @@ func registerTools(server *mcp.Server, service *analysis.Service) {
 			output, err := service.ClusterSnapshot(ctx, input)
 			return nil, output, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "workload_inspect", Description: "Read the bounded final wkbench threshold summary or explicit in-progress state.", Annotations: readOnly},
-		func(ctx context.Context, _ *mcp.CallToolRequest, input analysis.RunRequest) (*mcp.CallToolResult, analysis.Observation, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "workload_inspect", Description: "Read the bounded final wkbench diagnostic summary, actual phase windows, structured worker failures, or explicit in-progress state.", Annotations: readOnly},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input analysis.RunRequest) (*mcp.CallToolResult, observationOutput[analysis.WorkloadInspection], error) {
 			output, err := service.WorkloadInspect(ctx, input)
-			return nil, output, err
+			if err != nil {
+				return nil, observationOutput[analysis.WorkloadInspection]{}, err
+			}
+			typed, err := typedObservation[analysis.WorkloadInspection](output)
+			return nil, typed, err
 		})
 	mcp.AddTool(server, &mcp.Tool{Name: "metrics_query_range", Description: "Query one server-allowlisted Prometheus signal over a bounded time range.", Annotations: readOnly},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input metricsQueryRangeInput) (*mcp.CallToolResult, analysis.Observation, error) {

@@ -1057,7 +1057,10 @@ func TestWorkerPhaseHookFailureDoesNotAdvanceStatus(t *testing.T) {
 	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
-	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+	require.JSONEq(t, `{"error":"phase connect failed","reason_code":"phase_hook_failed"}`, rec.Body.String())
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+	require.Equal(t, FailureReasonPhaseHookFailed, status.LastErrorCode)
 }
 
 func TestWorkerAsyncPhaseHookFailureIsVisibleInStatus(t *testing.T) {
@@ -1082,6 +1085,7 @@ func TestWorkerAsyncPhaseHookFailureIsVisibleInStatus(t *testing.T) {
 		return status["phase"] == string(PhasePrepare) &&
 			status["completed_phase"] == string(PhasePrepare) &&
 			status["active_phase"] == nil &&
+			status["last_error_code"] == string(FailureReasonPhaseHookFailed) &&
 			strings.Contains(lastError, "phase connect failed")
 	}, time.Second, 10*time.Millisecond)
 }
@@ -1096,7 +1100,46 @@ func TestWorkerTargetUnavailableHookFailureReturnsServiceUnavailable(t *testing.
 
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Contains(t, rec.Body.String(), "target unavailable")
-	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+	require.Contains(t, rec.Body.String(), `"reason_code":"target_unavailable"`)
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+	require.Equal(t, FailureReasonTargetUnavailable, status.LastErrorCode)
+}
+
+func TestWorkerPrepareChannelsTargetUnavailableReturnsStructuredReasonCode(t *testing.T) {
+	runner := &prepareChannelsFailureRunner{err: fmt.Errorf("%w: prepare channels", errTargetUnavailable)}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/prepare/channels", "secret", nil)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Contains(t, rec.Body.String(), `"reason_code":"target_unavailable"`)
+}
+
+func TestWorkerTCPSourceHookFailureReturnsStructuredReasonCode(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want FailureReasonCode
+	}{
+		{name: "unavailable", err: &benchworkload.TCPSourceError{Kind: benchworkload.TCPSourceErrorUnavailable}, want: FailureReasonTCPSourceUnavailable},
+		{name: "exhausted", err: &benchworkload.TCPSourceError{Kind: benchworkload.TCPSourceErrorExhausted}, want: FailureReasonTCPSourcePoolExhausted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runner := &recordingWorkloadRunner{failPhase: PhaseConnect, failErr: tt.err}
+			srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+			assign(t, srv, "secret", "run-a")
+			postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+			rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+			require.Equal(t, http.StatusInternalServerError, rec.Code)
+			require.Contains(t, rec.Body.String(), `"reason_code":"`+string(tt.want)+`"`)
+			require.Equal(t, tt.want, workerStatus(t, srv, "secret").LastErrorCode)
+		})
+	}
 }
 
 type recordingWorkloadRunner struct {
@@ -1104,6 +1147,15 @@ type recordingWorkloadRunner struct {
 	runIDs    []string
 	failPhase Phase
 	failErr   error
+}
+
+type prepareChannelsFailureRunner struct {
+	recordingWorkloadRunner
+	err error
+}
+
+func (r *prepareChannelsFailureRunner) PrepareChannels(context.Context, Assignment) error {
+	return r.err
 }
 
 func (r *recordingWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
