@@ -67,47 +67,84 @@ func TestSocketStartWaitsForReadiness(t *testing.T) {
 	socketPath := filepath.Join(dir, "plugin.sock")
 	backend := &fakeSocketBackend{}
 	server := newSocketServerWithBackend(socketPath, backend)
-	server.readyTimeout = time.Second
-	ready := make(chan struct{})
-	ackSent := make(chan struct{})
-	var listener net.Listener
-	t.Cleanup(func() {
-		if listener != nil {
-			_ = listener.Close()
+	readyCheckStarted := make(chan struct{})
+	releaseReadyCheck := make(chan struct{})
+	defer func() {
+		select {
+		case <-releaseReadyCheck:
+		default:
+			close(releaseReadyCheck)
 		}
-	})
-	backend.onStart = func() {
-		go func() {
-			time.Sleep(25 * time.Millisecond)
-			var err error
-			listener, err = net.Listen("unix", socketPath)
-			require.NoError(t, err)
-			close(ready)
-			conn, err := listener.Accept()
-			require.NoError(t, err)
-			defer func() { _ = conn.Close() }()
-			time.Sleep(25 * time.Millisecond)
-			body, err := (&wkrpcproto.Connack{Id: 1, Status: wkrpcproto.StatusOK}).Marshal()
-			require.NoError(t, err)
-			packet, err := wkrpcproto.New().Encode(body, wkrpcproto.MsgTypeConnack)
-			require.NoError(t, err)
-			_, err = conn.Write(packet)
-			require.NoError(t, err)
-			close(ackSent)
-		}()
+	}()
+	server.readyCheck = func(string, time.Duration) error {
+		close(readyCheckStarted)
+		<-releaseReadyCheck
+		return nil
 	}
 
-	require.NoError(t, server.Start())
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- server.Start()
+	}()
 
 	select {
-	case <-ready:
-	default:
-		t.Fatal("Start returned before socket path was ready")
+	case <-readyCheckStarted:
+	case err := <-startDone:
+		t.Fatalf("Start returned before readiness checking began: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("readiness checking did not begin before timeout")
 	}
 	select {
-	case <-ackSent:
+	case err := <-startDone:
+		t.Fatalf("Start returned before readiness checking completed: %v", err)
 	default:
-		t.Fatal("Start returned before the readiness handshake completed")
+	}
+
+	close(releaseReadyCheck)
+	select {
+	case err := <-startDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("Start did not return after readiness checking completed")
+	}
+}
+
+func TestWaitUnixSocketReadyCompletesConnackHandshake(t *testing.T) {
+	dir := shortSocketTempDir(t)
+	socketPath := filepath.Join(dir, "plugin.sock")
+	listener, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+
+	serveDone := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			serveDone <- err
+			return
+		}
+		defer func() { _ = conn.Close() }()
+
+		body, err := (&wkrpcproto.Connack{Id: 1, Status: wkrpcproto.StatusOK}).Marshal()
+		if err != nil {
+			serveDone <- err
+			return
+		}
+		packet, err := wkrpcproto.New().Encode(body, wkrpcproto.MsgTypeConnack)
+		if err != nil {
+			serveDone <- err
+			return
+		}
+		_, err = conn.Write(packet)
+		serveDone <- err
+	}()
+
+	require.NoError(t, waitUnixSocketReady(socketPath, time.Second))
+	select {
+	case err := <-serveDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("readiness server did not complete before timeout")
 	}
 }
 
