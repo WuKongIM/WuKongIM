@@ -183,10 +183,8 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 		var failureDetails []report.WorkerFailure
 		addWorkerFailures(failedWorkers, err)
 		addWorkerFailureDetails(&failureDetails, err)
-		if _, reportErr := c.writeReport(ctx, scenario, &result, failedWorkers, nil, failureDetails); reportErr != nil {
-			if !errors.Is(reportErr, errWorkerReportCollection) {
-				result.Status = StatusInternalFailed
-			}
+		if reportErr := c.writeAssignmentFailureReport(scenario, &result, failedWorkers, failureDetails); reportErr != nil {
+			result.Status = StatusInternalFailed
 			return result, errors.Join(err, reportErr)
 		}
 		return result, err
@@ -246,6 +244,33 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	}
 	result.Status = StatusCompleted
 	return result, nil
+}
+
+// writeAssignmentFailureReport writes exact-run terminal evidence without polling
+// workers that may still expose metrics or reports from an older assignment.
+func (c *Coordinator) writeAssignmentFailureReport(
+	scenario model.Scenario,
+	result *RunResult,
+	failedWorkers map[string]struct{},
+	workerFailures []report.WorkerFailure,
+) error {
+	rep := report.Build(report.Input{
+		RunID:          scenario.Run.ID,
+		Scenario:       scenario,
+		Target:         c.cfg.Target,
+		Workers:        model.WorkerSet{Workers: c.cfg.Workers},
+		Plan:           result.Plan,
+		Summary:        report.Summary{WorkerFailed: len(failedWorkers)},
+		WorkerFailures: workerFailures,
+		Classification: &report.StabilityClassification{EvidenceComplete: true, HarnessInvalid: true},
+	})
+	rep.Status = report.StatusFailed
+	rep.ExitCode = report.ExitWorkerFailed
+	result.Report = rep
+	if strings.TrimSpace(scenario.Run.ReportDir) == "" {
+		return nil
+	}
+	return report.WriteDir(scenario.Run.ReportDir, rep)
 }
 
 func (c *Coordinator) writeReport(
@@ -928,17 +953,8 @@ func coordinatorStatusError(method, url string, resp *http.Response) error {
 	var responseErr error
 	if message := strings.TrimSpace(payload.Error); message != "" {
 		responseErr = fmt.Errorf("worker request returned status %d: %s", resp.StatusCode, message)
-		if resp.StatusCode == http.StatusServiceUnavailable {
-			responseErr = fmt.Errorf("%s: %w", responseErr, errTargetUnavailable)
-		}
 	} else if snippet == "" {
-		if resp.StatusCode == http.StatusServiceUnavailable {
-			responseErr = fmt.Errorf("%s %s returned status %d: %w", method, url, resp.StatusCode, errTargetUnavailable)
-		} else {
-			responseErr = fmt.Errorf("%s %s returned status %d", method, url, resp.StatusCode)
-		}
-	} else if resp.StatusCode == http.StatusServiceUnavailable {
-		responseErr = fmt.Errorf("%s %s returned status %d: %s: %w", method, url, resp.StatusCode, snippet, errTargetUnavailable)
+		responseErr = fmt.Errorf("%s %s returned status %d", method, url, resp.StatusCode)
 	} else {
 		responseErr = fmt.Errorf("%s %s returned status %d: %s", method, url, resp.StatusCode, snippet)
 	}

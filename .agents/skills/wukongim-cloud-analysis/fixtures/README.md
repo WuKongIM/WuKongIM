@@ -1,6 +1,7 @@
 # Analysis Skill Fixtures
 
-These five fixtures exercise the terminal verdict vocabulary of the Skill.
+These six fixtures exercise the terminal verdict vocabulary and the explicit
+worker-status-mismatch route of the Skill.
 They are deliberately small, ordered MCP transcripts rather than archived run
 evidence. `scripts/cloud_analysis_skill_fixtures_test.go` validates their schema,
 Run Identity binding, first-tool gate, one-to-one verdict coverage, and the

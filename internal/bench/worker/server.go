@@ -295,7 +295,7 @@ func (s *Server) prepareChannels(w http.ResponseWriter, r *http.Request) {
 	if runner, ok := s.runner.(PrepareChannelsRunner); ok {
 		if err := runner.PrepareChannels(r.Context(), status.Assignment); err != nil {
 			if errors.Is(err, errTargetUnavailable) {
-				writeError(w, http.StatusServiceUnavailable, err.Error())
+				writePhaseError(w, http.StatusServiceUnavailable, err)
 				return
 			}
 			writeError(w, http.StatusInternalServerError, err.Error())

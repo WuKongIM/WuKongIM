@@ -141,6 +141,8 @@ func TestCloneWorkerTCPSourceConfigReturnsIndependentCopy(t *testing.T) {
 
 func TestCoordinatorStopsAssignedWorkersWhenLaterAssignmentFails(t *testing.T) {
 	workers := newFakeWorkers(t, 2)
+	workers[0].SetMetrics(metrics.SnapshotData{Counters: map[string]uint64{"person_send_success_total{phase=run}": 999}})
+	workers[0].SetReport(json.RawMessage(`{"worker_id":"a","report":{"run_id":"old-run"}}`))
 	workers[1].FailAssign(http.StatusInternalServerError, "assign exploded")
 	coord := New(CoordinatorConfig{
 		Workers:      workers.ClientConfigs(),
@@ -163,6 +165,9 @@ func TestCoordinatorStopsAssignedWorkersWhenLaterAssignmentFails(t *testing.T) {
 	require.Equal(t, "b", result.Report.WorkerFailures[0].WorkerID)
 	require.Equal(t, "assign", result.Report.WorkerFailures[0].Phase)
 	require.Equal(t, "worker_assignment_failed", result.Report.WorkerFailures[0].ReasonCode)
+	require.Zero(t, result.Report.Summary.SendSuccess, "assignment failure must not reuse metrics from another run")
+	require.Empty(t, result.Report.WorkerMetrics)
+	require.Empty(t, result.Report.WorkerReports)
 	require.FileExists(t, filepath.Join(scenario.Run.ReportDir, "diagnostic-summary.json"))
 }
 
@@ -879,7 +884,7 @@ func TestCoordinatorReportWriteFailureReturnsInternalFailed(t *testing.T) {
 
 func TestCoordinatorReturnsTargetUnavailableForMarkedWorkerError(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
-	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable"}`)
+	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable","reason_code":"target_unavailable"}`)
 	coord := New(CoordinatorConfig{
 		Workers:      workers.ClientConfigs(),
 		Target:       fakeTargetOK(),
@@ -892,6 +897,25 @@ func TestCoordinatorReturnsTargetUnavailableForMarkedWorkerError(t *testing.T) {
 
 	require.Error(t, err)
 	require.Equal(t, StatusTargetUnavailable, result.Status)
+}
+
+func TestCoordinatorDoesNotInferTargetUnavailableFromHTTPStatus(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"worker overloaded"}`)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "phase_start_failed", result.Report.WorkerFailures[0].ReasonCode)
 }
 
 func TestCoordinatorClassifiesWorkerTCPSourceFailuresAsWorkerFailed(t *testing.T) {
@@ -969,7 +993,7 @@ func TestCoordinatorDoesNotInferReasonCodeFromWorkerErrorText(t *testing.T) {
 
 func TestCoordinatorTargetUnavailableReportUsesTargetExitCode(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
-	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable"}`)
+	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable","reason_code":"target_unavailable"}`)
 	coord := New(CoordinatorConfig{
 		Workers:      workers.ClientConfigs(),
 		Target:       fakeTargetOK(),

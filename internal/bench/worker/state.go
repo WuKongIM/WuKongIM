@@ -266,6 +266,7 @@ func (s *State) statusLocked() Status {
 	}
 }
 
+// failureReasonForError maps typed worker errors to the stable control API code.
 func failureReasonForError(err error) FailureReasonCode {
 	var sourceErr *benchworkload.TCPSourceError
 	if errors.As(err, &sourceErr) {

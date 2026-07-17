@@ -1106,6 +1106,17 @@ func TestWorkerTargetUnavailableHookFailureReturnsServiceUnavailable(t *testing.
 	require.Equal(t, FailureReasonTargetUnavailable, status.LastErrorCode)
 }
 
+func TestWorkerPrepareChannelsTargetUnavailableReturnsStructuredReasonCode(t *testing.T) {
+	runner := &prepareChannelsFailureRunner{err: fmt.Errorf("%w: prepare channels", errTargetUnavailable)}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/prepare/channels", "secret", nil)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Contains(t, rec.Body.String(), `"reason_code":"target_unavailable"`)
+}
+
 func TestWorkerTCPSourceHookFailureReturnsStructuredReasonCode(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1136,6 +1147,15 @@ type recordingWorkloadRunner struct {
 	runIDs    []string
 	failPhase Phase
 	failErr   error
+}
+
+type prepareChannelsFailureRunner struct {
+	recordingWorkloadRunner
+	err error
+}
+
+func (r *prepareChannelsFailureRunner) PrepareChannels(context.Context, Assignment) error {
+	return r.err
 }
 
 func (r *recordingWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {

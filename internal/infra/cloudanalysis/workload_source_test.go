@@ -23,7 +23,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
   "violations":[],
   "warnings":[],
   "phase_windows":[{"phase":"run","started_at":"2026-07-17T03:23:18Z","ended_at":"2026-07-17T03:53:18Z"}],
-  "failed_workers":[{"worker_id":"worker-3","phase":"cooldown","reason_code":"phase_wait_failed","detail":"connect exploded","observed_at":"2026-07-17T03:53:18Z"}],
+  "failed_workers":[{"worker_id":"worker-3","phase":"cooldown","reason_code":"phase_wait_failed","detail":"worker phase status failed","observed_at":"2026-07-17T03:53:18Z"}],
   "failed_workers_truncated":false
 }`
 	if err := os.WriteFile(filepath.Join(reportDir, "diagnostic-summary.json"), []byte(summary), 0o600); err != nil {
@@ -93,6 +93,26 @@ func TestWorkloadSummarySourceRejectsIncompleteFailureDetails(t *testing.T) {
 
 	if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
 		t.Fatalf("incomplete failure details error = %v, want %v", err, errInvalidWorkloadSummary)
+	}
+}
+
+func TestWorkloadSummarySourceRejectsUntrustedFailureDetail(t *testing.T) {
+	summary := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[{"worker_id":"worker-1","phase":"collect","reason_code":"worker_report_unavailable","detail":"open current-run.json: permission denied","observed_at":"2026-07-17T03:53:18Z"}],
+  "failed_workers_truncated":false
+}`
+
+	if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+		t.Fatalf("untrusted failure detail error = %v, want %v", err, errInvalidWorkloadSummary)
 	}
 }
 

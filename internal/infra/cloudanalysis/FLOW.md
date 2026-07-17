@@ -27,4 +27,6 @@ including actual phase windows, structured failed workers, and the measured-run
 successful send count used as the storage-growth denominator. It never reads
 the raw report or human `summary.md`. Non-truncated failure evidence must account
 for every worker included in `summary.worker_failed`; otherwise the source rejects
-the document instead of reporting complete evidence.
+the document instead of reporting complete evidence. Failure detail accepts only
+fixed reason-code templates or an explicit redaction marker, so forged producer
+text cannot cross the MCP boundary.

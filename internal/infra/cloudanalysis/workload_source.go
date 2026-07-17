@@ -25,6 +25,19 @@ var errInvalidWorkloadSummary = errors.New("internal/infra/cloudanalysis: invali
 var (
 	workloadWorkerIDPattern   = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 	workloadReasonCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+	workloadFailureDetail     = map[string]string{
+		"worker_assignment_failed":   "worker assignment failed",
+		"phase_hook_failed":          "worker phase hook failed",
+		"phase_start_failed":         "worker phase request failed",
+		"phase_wait_failed":          "worker phase status failed",
+		"phase_timeout":              "worker phase timed out",
+		"tcp_source_pool_exhausted":  "tcp source pool exhausted",
+		"tcp_source_unavailable":     "tcp source unavailable",
+		"target_unavailable":         "target unavailable",
+		"worker_status_mismatch":     "worker status assignment mismatch",
+		"worker_metrics_unavailable": "worker metrics unavailable",
+		"worker_report_unavailable":  "worker report unavailable",
+	}
 )
 
 type workloadSummarySource struct {
@@ -223,6 +236,7 @@ func validWorkloadPhaseWindows(windows []workloadDiagnosticWindow) bool {
 	return true
 }
 
+// validWorkloadFailures enforces bounded, complete, fail-closed worker evidence.
 func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int, truncated bool) bool {
 	if len(failures) > 16 {
 		return false
@@ -230,7 +244,7 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 	workers := make(map[string]struct{}, len(failures))
 	for _, failure := range failures {
 		if !workloadWorkerIDPattern.MatchString(failure.WorkerID) || failure.Phase != "" && !validWorkloadFailurePhase(failure.Phase) ||
-			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || len(failure.Detail) > 256 || failure.ObservedAt.IsZero() {
+			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || !validWorkloadFailureDetail(failure.ReasonCode, failure.Detail) || failure.ObservedAt.IsZero() {
 			return false
 		}
 		workers[failure.WorkerID] = struct{}{}
@@ -242,6 +256,16 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 		return len(failures) == 16 && len(workers) <= failedCount
 	}
 	return len(workers) == failedCount
+}
+
+// validWorkloadFailureDetail accepts only fixed reason-code templates or an
+// explicit redaction marker; arbitrary producer text never crosses the MCP.
+func validWorkloadFailureDetail(reasonCode, detail string) bool {
+	if detail == "" || detail == "[redacted]" {
+		return true
+	}
+	want, ok := workloadFailureDetail[reasonCode]
+	return ok && detail == want
 }
 
 func validWorkloadPhase(phase string) bool {

@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
@@ -37,8 +36,21 @@ const (
 	// DiagnosticSummarySchema is the stable machine-readable diagnostic projection contract.
 	DiagnosticSummarySchema = "wukongim/wkbench-diagnostic-summary/v1"
 	maxDiagnosticFailures   = 16
-	maxFailureDetailBytes   = 256
 )
+
+var diagnosticFailureDetail = map[string]string{
+	"worker_assignment_failed":   "worker assignment failed",
+	"phase_hook_failed":          "worker phase hook failed",
+	"phase_start_failed":         "worker phase request failed",
+	"phase_wait_failed":          "worker phase status failed",
+	"phase_timeout":              "worker phase timed out",
+	"tcp_source_pool_exhausted":  "tcp source pool exhausted",
+	"tcp_source_unavailable":     "tcp source unavailable",
+	"target_unavailable":         "target unavailable",
+	"worker_status_mismatch":     "worker status assignment mismatch",
+	"worker_metrics_unavailable": "worker metrics unavailable",
+	"worker_report_unavailable":  "worker report unavailable",
+}
 
 // Status is the benchmark report verdict.
 type Status string
@@ -409,7 +421,7 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 		failures = failures[:maxDiagnosticFailures]
 	}
 	for i := range failures {
-		failures[i].Detail = safeFailureDetail(failures[i].Detail)
+		failures[i].Detail = safeFailureDetail(failures[i].ReasonCode)
 	}
 	return DiagnosticSummary{
 		Schema: DiagnosticSummarySchema, RunID: rep.RunID, Status: rep.Status, ExitCode: rep.ExitCode,
@@ -420,28 +432,13 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 	}
 }
 
-func safeFailureDetail(raw string) string {
-	detail := strings.Join(strings.Fields(strings.TrimSpace(raw)), " ")
-	lower := strings.ToLower(detail)
-	if strings.Contains(detail, "/") || strings.Contains(detail, `\`) || strings.Contains(lower, "://") || strings.HasPrefix(lower, "file:") {
-		return "[redacted]"
-	}
-	for _, marker := range []string{
-		"authorization", "bearer", "token", "password", "secret", "cookie", "api_key", "access_key",
-		"payload", "message", "body", "client_msg_no", "channel_id", "uid=", "uid:",
-	} {
-		if strings.Contains(lower, marker) {
-			return "[redacted]"
-		}
-	}
-	if len(detail) <= maxFailureDetailBytes {
+// safeFailureDetail returns only a reason-code-owned template and never raw
+// worker text, URLs, paths, credentials, or message content.
+func safeFailureDetail(reasonCode string) string {
+	if detail, ok := diagnosticFailureDetail[reasonCode]; ok {
 		return detail
 	}
-	detail = detail[:maxFailureDetailBytes]
-	for !utf8.ValidString(detail) {
-		detail = detail[:len(detail)-1]
-	}
-	return detail
+	return "[redacted]"
 }
 
 func hardLimitViolations(l model.HardLimitsConfig, s Summary) []Violation {

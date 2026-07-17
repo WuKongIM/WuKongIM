@@ -510,7 +510,7 @@ The server-side implementation lives outside this package. Keep request/response
 - Static configuration and planning errors become `config_failed`.
 - Target, worker, capability, or gateway preflight errors become `preflight_failed`.
 - Worker phase errors become `worker_failed` unless the error is classified as target unavailable.
-- Worker assignment failures are recorded with phase `assign`; assignment failures that happen before workload phases still write a terminal diagnostic summary when `run.report_dir` is configured.
+- Worker assignment failures are recorded with phase `assign`; assignment failures that happen before workload phases still write a terminal diagnostic summary when `run.report_dir` is configured, without polling worker metrics or reports that may belong to an older assignment.
 - Missing worker metrics or reports are recorded with phase `collect`.
 - Target connection failures during worker execution are wrapped as `target_unavailable`.
 - Hard limit violations in report evaluation become `hard_limit_failed`.

@@ -352,7 +352,7 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 			t.Fatalf("diagnostic summary contains unredacted %q detail: %s", forbidden, encoded)
 		}
 	}
-	if got.FailedWorkers[0].Detail != "[redacted]" || got.FailedWorkers[1].Detail != "[redacted]" {
+	if got.FailedWorkers[0].Detail != "worker phase status failed" || got.FailedWorkers[1].Detail != "worker report unavailable" {
 		t.Fatalf("diagnostic summary contains unredacted detail: %s", encoded)
 	}
 	if !strings.Contains(encoded, `"violations": []`) || !strings.Contains(encoded, `"warnings": []`) {

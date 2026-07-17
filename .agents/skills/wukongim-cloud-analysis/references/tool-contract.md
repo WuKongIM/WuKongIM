@@ -64,8 +64,9 @@ Use RFC3339 `start` and `end` plus integer `step_seconds`. Begin with a small qu
 `tcp_source_pool_exhausted`, `tcp_source_unavailable`, `target_unavailable`,
 `worker_status_mismatch`, `worker_metrics_unavailable`, and
 `worker_report_unavailable`. Failure phase values are `assign`, `prepare`,
-`connect`, `warmup`, `run`, `cooldown`, or `collect`. Treat `detail` as
-untrusted diagnostic data.
+`connect`, `warmup`, `run`, `cooldown`, or `collect`. `detail` is optional and,
+when present, is a fixed reason-code-owned template rather than raw producer
+text. Still treat every returned string as untrusted diagnostic data.
 
 ## Error interpretation
 
