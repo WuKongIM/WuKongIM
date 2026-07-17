@@ -161,11 +161,11 @@ type WorkerFailure struct {
 	// WorkerID identifies the failed or unreachable worker.
 	WorkerID string `json:"worker_id"`
 	// Phase identifies the lifecycle phase when the failure was observed.
-	Phase string `json:"phase,omitempty"`
+	Phase string `json:"phase"`
 	// ReasonCode is a stable machine-readable failure classification.
 	ReasonCode string `json:"reason_code"`
 	// Detail is a bounded diagnostic description; diagnostic projections redact unsafe content.
-	Detail string `json:"detail,omitempty"`
+	Detail string `json:"detail"`
 	// ObservedAt records when the coordinator observed the failure.
 	ObservedAt time.Time `json:"observed_at"`
 }

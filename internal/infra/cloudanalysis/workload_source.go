@@ -179,9 +179,9 @@ type workloadDiagnosticWindow struct {
 
 type workloadDiagnosticFailure struct {
 	WorkerID   string    `json:"worker_id"`
-	Phase      string    `json:"phase,omitempty"`
+	Phase      string    `json:"phase"`
 	ReasonCode string    `json:"reason_code"`
-	Detail     string    `json:"detail,omitempty"`
+	Detail     string    `json:"detail"`
 	ObservedAt time.Time `json:"observed_at"`
 }
 
@@ -243,7 +243,7 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 	}
 	workers := make(map[string]struct{}, len(failures))
 	for _, failure := range failures {
-		if !workloadWorkerIDPattern.MatchString(failure.WorkerID) || failure.Phase != "" && !validWorkloadFailurePhase(failure.Phase) ||
+		if !workloadWorkerIDPattern.MatchString(failure.WorkerID) || !validWorkloadFailurePhase(failure.Phase) ||
 			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || !validWorkloadFailureDetail(failure.ReasonCode, failure.Detail) || failure.ObservedAt.IsZero() {
 			return false
 		}
@@ -261,7 +261,7 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 // validWorkloadFailureDetail accepts only fixed reason-code templates or an
 // explicit redaction marker; arbitrary producer text never crosses the MCP.
 func validWorkloadFailureDetail(reasonCode, detail string) bool {
-	if detail == "" || detail == "[redacted]" {
+	if detail == "[redacted]" {
 		return true
 	}
 	want, ok := workloadFailureDetail[reasonCode]

@@ -116,6 +116,33 @@ func TestWorkloadSummarySourceRejectsUntrustedFailureDetail(t *testing.T) {
 	}
 }
 
+func TestWorkloadSummarySourceRejectsIncompleteFailureTuple(t *testing.T) {
+	valid := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[{"worker_id":"worker-1","phase":"collect","reason_code":"worker_report_unavailable","detail":"worker report unavailable","observed_at":"2026-07-17T03:53:18Z"}],
+  "failed_workers_truncated":false
+}`
+	tests := map[string]string{
+		"missing phase":  strings.Replace(valid, `"phase":"collect",`, "", 1),
+		"missing detail": strings.Replace(valid, `"detail":"worker report unavailable",`, "", 1),
+	}
+	for name, summary := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+				t.Fatalf("incomplete failure tuple error = %v, want %v", err, errInvalidWorkloadSummary)
+			}
+		})
+	}
+}
+
 func TestWorkloadSummarySourceCanBeExplicitlyUnavailable(t *testing.T) {
 	result, err := newWorkloadSummarySource("").inspect(context.Background(), "run-1")
 	if err != nil {
