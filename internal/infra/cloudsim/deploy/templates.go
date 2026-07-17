@@ -152,6 +152,11 @@ func workerConfig(sourceAddresses []string) string {
     addr: http://127.0.0.1:19090
     weight: 1
     control_token: ${WK_BENCH_WORKER_TOKEN}
+    client:
+      send_queue_capacity: 16
+      max_inflight: 1
+      read_buffer_size: 1024
+      frame_buffer_size: 4
     tcp_source:
       ipv4_addrs:
 %s      port_min: 1024
