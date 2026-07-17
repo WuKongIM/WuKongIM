@@ -36,6 +36,15 @@ func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 				t.Fatalf("fixture %s observation is not run-bound: %#v", path, observation)
 			}
 		}
+		if fixture.Name == "scenario_invalid" {
+			if fixture.ExpectedRoute != "worker_failure" {
+				t.Fatalf("fixture %s route = %q, want worker_failure", path, fixture.ExpectedRoute)
+			}
+			failedWorkers, ok := fixture.Observations[1].Data["failed_workers"].([]any)
+			if !ok || len(failedWorkers) == 0 {
+				t.Fatalf("fixture %s must expose structured worker failure evidence", path)
+			}
+		}
 		got = append(got, fixture.ExpectedVerdict)
 	}
 	sort.Strings(got)
@@ -55,6 +64,7 @@ type cloudAnalysisSkillFixture struct {
 	RunID           string                          `json:"run_id"`
 	Observations    []cloudAnalysisSkillObservation `json:"observations"`
 	ExpectedVerdict string                          `json:"expected_verdict"`
+	ExpectedRoute   string                          `json:"expected_route,omitempty"`
 }
 
 type cloudAnalysisSkillObservation struct {

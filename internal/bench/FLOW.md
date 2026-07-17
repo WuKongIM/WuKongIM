@@ -112,6 +112,10 @@ View purity classification take precedence over product-limit inference.
 The bounded final summary also records the successful send acknowledgement
 count from the measured `run` phase so storage calibration can use the exact
 workload denominator even when a run terminates early.
+`report.WriteDir` additionally writes `diagnostic-summary.json`, a bounded,
+redacted machine contract with actual coordinator phase windows and structured
+worker failures. `summary.md` remains human-readable and is not the analysis
+machine contract.
 
 Explicit TCP source pool errors are worker-local configuration or capacity
 failures and therefore resolve to `worker_failed`, never

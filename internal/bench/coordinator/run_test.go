@@ -508,6 +508,9 @@ func TestCoordinatorWorkerMetricsCollectionFailureFailsSuccessfulRun(t *testing.
 	require.NotEmpty(t, result.Report.WorkerMetrics)
 	require.NotEmpty(t, result.Report.WorkerMetrics[0].Metrics.Errors)
 	require.Equal(t, "worker_metrics_error", result.Report.WorkerMetrics[0].Metrics.Errors[0].Name)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "a", result.Report.WorkerFailures[0].WorkerID)
+	require.Equal(t, "worker_metrics_unavailable", result.Report.WorkerFailures[0].ReasonCode)
 }
 
 func TestCoordinatorWorkerReportCollectionFailureFailsSuccessfulRunWithFallback(t *testing.T) {
@@ -531,6 +534,9 @@ func TestCoordinatorWorkerReportCollectionFailureFailsSuccessfulRunWithFallback(
 	require.JSONEq(t, `{"worker_id":"a","error":"worker report unavailable"}`, string(result.Report.WorkerReports[0].Report))
 	require.NotEmpty(t, result.Report.ErrorSamples)
 	require.Equal(t, "worker_report_error", result.Report.ErrorSamples[0].Name)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "a", result.Report.WorkerFailures[0].WorkerID)
+	require.Equal(t, "worker_report_unavailable", result.Report.WorkerFailures[0].ReasonCode)
 }
 
 func TestCoordinatorCollectWorkerReportsUnwrapsWorkerEnvelopeAndNormalizesID(t *testing.T) {
@@ -544,10 +550,11 @@ func TestCoordinatorCollectWorkerReportsUnwrapsWorkerEnvelopeAndNormalizesID(t *
 		PollTimeout:  100 * time.Millisecond,
 	})
 
-	_, workerReports, collectionFailures, err := coord.collectWorkerReports(context.Background())
+	_, workerReports, collectionFailures, failureDetails, err := coord.collectWorkerReports(context.Background())
 
 	require.NoError(t, err)
 	require.Empty(t, collectionFailures)
+	require.Empty(t, failureDetails)
 	require.Len(t, workerReports, 1)
 	require.Equal(t, "a", workerReports[0].WorkerID)
 	require.JSONEq(t, `{"run_id":"run-1","phase":"run","metrics":{"counters":{"send_success_total":1}}}`, string(workerReports[0].Report))
@@ -718,6 +725,43 @@ func TestCoordinatorFailsWhenWorkerStatusReportsPhaseError(t *testing.T) {
 	require.False(t, workers[0].SawPhaseAttempt(PhaseWarmup), "coordinator must not advance after status reports a phase error")
 }
 
+func TestCoordinatorWritesStructuredPhaseFailureForDiagnosis(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailPhaseAfterAccept(PhaseConnect, "connect exploded")
+	reportDir := t.TempDir()
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = reportDir
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	failure := result.Report.WorkerFailures[0]
+	require.Equal(t, "a", failure.WorkerID)
+	require.Equal(t, string(PhaseConnect), failure.Phase)
+	require.Equal(t, "phase_wait_failed", failure.ReasonCode)
+	require.Contains(t, failure.Detail, "connect exploded")
+	require.False(t, failure.ObservedAt.IsZero())
+	require.Len(t, result.Report.PhaseWindows, 2)
+	require.Equal(t, string(PhaseConnect), result.Report.PhaseWindows[1].Phase)
+	require.False(t, result.Report.PhaseWindows[1].EndedAt.Before(result.Report.PhaseWindows[1].StartedAt))
+
+	data, readErr := os.ReadFile(filepath.Join(reportDir, "diagnostic-summary.json"))
+	require.NoError(t, readErr)
+	var summary report.DiagnosticSummary
+	require.NoError(t, json.Unmarshal(data, &summary))
+	require.Len(t, summary.FailedWorkers, 1)
+	require.Equal(t, "phase_wait_failed", summary.FailedWorkers[0].ReasonCode)
+}
+
 func TestCoordinatorStopAllContinuesWhenOneWorkerStopHangs(t *testing.T) {
 	workers := newFakeWorkers(t, 2)
 	workers[0].HangStop()
@@ -843,19 +887,22 @@ func TestCoordinatorReturnsTargetUnavailableForMarkedWorkerError(t *testing.T) {
 
 func TestCoordinatorClassifiesWorkerTCPSourceFailuresAsWorkerFailed(t *testing.T) {
 	tests := []struct {
-		name string
-		err  error
+		name       string
+		err        error
+		reasonCode string
 	}{
 		{
-			name: "unavailable",
+			name:       "unavailable",
+			reasonCode: "tcp_source_unavailable",
 			err: &benchworkload.TCPSourceError{
 				Kind: benchworkload.TCPSourceErrorUnavailable,
 				Err:  &net.OpError{Op: "dial", Net: "tcp", Err: syscall.EADDRNOTAVAIL},
 			},
 		},
 		{
-			name: "exhausted",
-			err:  &benchworkload.TCPSourceError{Kind: benchworkload.TCPSourceErrorExhausted, Capacity: 2, Examined: 2, Conflicts: 2},
+			name:       "exhausted",
+			reasonCode: "tcp_source_pool_exhausted",
+			err:        &benchworkload.TCPSourceError{Kind: benchworkload.TCPSourceErrorExhausted, Capacity: 2, Examined: 2, Conflicts: 2},
 		},
 	}
 	for _, tt := range tests {
@@ -881,6 +928,8 @@ func TestCoordinatorClassifiesWorkerTCPSourceFailuresAsWorkerFailed(t *testing.T
 			require.Equal(t, StatusWorkerFailed, result.Status)
 			require.NotEqual(t, StatusTargetUnavailable, result.Status)
 			require.Contains(t, err.Error(), "tcp source")
+			require.Len(t, result.Report.WorkerFailures, 1)
+			require.Equal(t, tt.reasonCode, result.Report.WorkerFailures[0].ReasonCode)
 		})
 	}
 }

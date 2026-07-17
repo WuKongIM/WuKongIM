@@ -13,19 +13,20 @@ import (
 
 func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 	reportDir := t.TempDir()
-	summary := `# wkbench report
-- run_id: run-1
-- status: passed
-- exit_code: 0
-- send_success: 123456
-- sendack_error_rate: 0.000001
-- connect_error_rate: 0.000002
-- recv_verify_error_rate: 0.000003
-- worker_failed: 0
-- sendack_max_worker_p99: 125ms
-- recv_max_worker_p99: 250ms
-`
-	if err := os.WriteFile(filepath.Join(reportDir, "summary.md"), []byte(summary), 0o600); err != nil {
+	summary := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":123456,"connect_error_rate":0.000002,"sendack_error_rate":0.000001,"recv_verify_error_rate":0.000003,"worker_failed":1,"sendack_max_worker_p99":125000000,"recv_max_worker_p99":250000000},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[{"phase":"run","started_at":"2026-07-17T03:23:18Z","ended_at":"2026-07-17T03:53:18Z"}],
+  "failed_workers":[{"worker_id":"worker-3","phase":"cooldown","reason_code":"phase_wait_failed","detail":"connect exploded","observed_at":"2026-07-17T03:53:18Z"}],
+  "failed_workers_truncated":false
+}`
+	if err := os.WriteFile(filepath.Join(reportDir, "diagnostic-summary.json"), []byte(summary), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -40,11 +41,14 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 	if !ok {
 		t.Fatalf("data type = %T, want WorkloadInspection", result.Data)
 	}
-	if inspection.RunID != "run-1" || inspection.State != "completed" || inspection.Status != "passed" || inspection.ExitCode != 0 {
+	if inspection.RunID != "run-1" || inspection.State != "completed" || inspection.Status != "failed" || inspection.ExitCode != 4 || inspection.StabilityVerdict != "harness_invalid" {
 		t.Fatalf("inspection = %+v", inspection)
 	}
 	if inspection.Summary.SendSuccess != 123456 || inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
 		t.Fatalf("summary = %+v", inspection.Summary)
+	}
+	if len(inspection.PhaseWindows) != 1 || inspection.PhaseWindows[0].Phase != "run" || len(inspection.FailedWorkers) != 1 || inspection.FailedWorkers[0].WorkerID != "worker-3" || inspection.FailedWorkers[0].ReasonCode != "phase_wait_failed" {
+		t.Fatalf("diagnostic evidence = %+v", inspection)
 	}
 }
 
@@ -63,18 +67,7 @@ func TestWorkloadSummarySourceReportsMissingSummaryAsInProgress(t *testing.T) {
 }
 
 func TestWorkloadSummarySourceRejectsIdentityMismatchAndOversize(t *testing.T) {
-	valid := `# wkbench report
-- run_id: other-run
-- status: failed
-- exit_code: 2
-- send_success: 42
-- sendack_error_rate: 0
-- connect_error_rate: 0
-- recv_verify_error_rate: 0
-- worker_failed: 1
-- sendack_max_worker_p99: 1s
-- recv_max_worker_p99: 1s
-`
+	valid := `{"schema":"wukongim/wkbench-diagnostic-summary/v1","run_id":"other-run","status":"failed","exit_code":2,"stability_verdict":"harness_invalid","summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":1000000000,"recv_max_worker_p99":1000000000},"violations":[],"warnings":[],"phase_windows":[],"failed_workers":[],"failed_workers_truncated":false}`
 	if _, err := decodeWorkloadSummary(strings.NewReader(valid), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
 		t.Fatalf("identity mismatch error = %v, want %v", err, errInvalidWorkloadSummary)
 	}

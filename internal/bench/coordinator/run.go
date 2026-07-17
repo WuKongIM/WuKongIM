@@ -180,9 +180,14 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	}
 
 	phaseFailures := make(map[string]struct{})
+	var workerFailures []report.WorkerFailure
+	var phaseWindows []report.PhaseWindow
 	var phaseErrs []error
 	for _, phase := range runPhases() {
-		if err := c.runPhase(ctx, scenario, phase, phaseFailures, plan); err != nil {
+		startedAt := time.Now().UTC()
+		err := c.runPhase(ctx, scenario, phase, phaseFailures, plan)
+		phaseWindows = append(phaseWindows, report.PhaseWindow{Phase: string(phase), StartedAt: startedAt, EndedAt: time.Now().UTC()})
+		if err != nil {
 			result.Status = statusForError(ctx, err)
 			if result.Status == StatusCanceled {
 				c.stopAll(c.cfg.Workers)
@@ -190,6 +195,7 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 			}
 			phaseErrs = append(phaseErrs, err)
 			addWorkerFailures(phaseFailures, err)
+			addWorkerFailureDetails(&workerFailures, err)
 			if scenario.Run.FailFast {
 				c.stopAll(c.cfg.Workers)
 				break
@@ -201,7 +207,7 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 		if isTargetUnavailable(errors.Join(phaseErrs...)) {
 			result.Status = StatusTargetUnavailable
 		}
-		if _, err := c.writeReport(ctx, scenario, &result, phaseFailures); err != nil {
+		if _, err := c.writeReport(ctx, scenario, &result, phaseFailures, phaseWindows, workerFailures); err != nil {
 			if errorsIsContext(err) {
 				result.Status = StatusCanceled
 			} else if !errors.Is(err, errWorkerReportCollection) {
@@ -211,7 +217,7 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 		}
 		return result, errors.Join(phaseErrs...)
 	}
-	rep, err := c.writeReport(ctx, scenario, &result, nil)
+	rep, err := c.writeReport(ctx, scenario, &result, nil, phaseWindows, nil)
 	if err != nil {
 		if errorsIsContext(err) {
 			result.Status = StatusCanceled
@@ -229,8 +235,15 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	return result, nil
 }
 
-func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, result *RunResult, workerFailures map[string]struct{}) (report.Report, error) {
-	workerMetrics, workerReports, collectionFailures, err := c.collectWorkerReports(ctx)
+func (c *Coordinator) writeReport(
+	ctx context.Context,
+	scenario model.Scenario,
+	result *RunResult,
+	workerFailureSet map[string]struct{},
+	phaseWindows []report.PhaseWindow,
+	workerFailures []report.WorkerFailure,
+) (report.Report, error) {
+	workerMetrics, workerReports, collectionFailures, collectionFailureDetails, err := c.collectWorkerReports(ctx)
 	if err != nil {
 		return report.Report{}, err
 	}
@@ -245,7 +258,8 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 	for _, sample := range targetErrors {
 		agg.Errors = appendBoundedReportError(agg.Errors, sample)
 	}
-	failedWorkers := mergeWorkerFailureSets(workerFailures, collectionFailures)
+	failedWorkers := mergeWorkerFailureSets(workerFailureSet, collectionFailures)
+	workerFailures = append(workerFailures, collectionFailureDetails...)
 	summary := report.SummaryFromMetrics(agg, len(failedWorkers))
 	input := report.Input{
 		RunID:             scenario.Run.ID,
@@ -256,6 +270,8 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 		Summary:           summary,
 		Metrics:           agg,
 		WorkerReports:     workerReports,
+		PhaseWindows:      phaseWindows,
+		WorkerFailures:    workerFailures,
 		WorkerMetrics:     workerMetrics,
 		TargetSnapshots:   targetSnapshots,
 		PresenceSnapshots: presenceSnapshots,
@@ -297,10 +313,11 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 	return rep, nil
 }
 
-func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.WorkerSnapshot, []report.WorkerReport, map[string]struct{}, error) {
+func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.WorkerSnapshot, []report.WorkerReport, map[string]struct{}, []report.WorkerFailure, error) {
 	workerMetrics := make([]metrics.WorkerSnapshot, 0, len(c.cfg.Workers))
 	workerReports := make([]report.WorkerReport, 0, len(c.cfg.Workers))
 	collectionFailures := make(map[string]struct{})
+	var failureDetails []report.WorkerFailure
 	for _, w := range c.cfg.Workers {
 		workerID := strings.TrimSpace(w.ID)
 		var snap metrics.SnapshotData
@@ -308,9 +325,12 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: snap})
 		} else {
 			if contextCanceled(ctx, err) {
-				return nil, nil, nil, contextError(ctx, err)
+				return nil, nil, nil, nil, contextError(ctx, err)
 			}
 			collectionFailures[workerID] = struct{}{}
+			failureDetails = append(failureDetails, report.WorkerFailure{
+				WorkerID: workerID, ReasonCode: "worker_metrics_unavailable", Detail: err.Error(), ObservedAt: time.Now().UTC(),
+			})
 			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: emptyWorkerMetricsWithError("worker_metrics_error", err)})
 		}
 
@@ -319,17 +339,20 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 			workerReports = append(workerReports, normalizeWorkerReport(workerID, raw))
 		} else {
 			if contextCanceled(ctx, err) {
-				return nil, nil, nil, contextError(ctx, err)
+				return nil, nil, nil, nil, contextError(ctx, err)
 			}
 			collectionFailures[workerID] = struct{}{}
 			if err != nil {
+				failureDetails = append(failureDetails, report.WorkerFailure{
+					WorkerID: workerID, ReasonCode: "worker_report_unavailable", Detail: err.Error(), ObservedAt: time.Now().UTC(),
+				})
 				addReportErrorToLastMetric(workerMetrics, workerID, "worker_report_error", err)
 			}
 			payload, _ := json.Marshal(map[string]any{"worker_id": workerID, "error": "worker report unavailable"})
 			workerReports = append(workerReports, report.WorkerReport{WorkerID: workerID, Report: payload})
 		}
 	}
-	return workerMetrics, workerReports, collectionFailures, nil
+	return workerMetrics, workerReports, collectionFailures, failureDetails, nil
 }
 
 // normalizeWorkerReport unwraps the current worker envelope while preserving legacy raw payloads.
@@ -482,7 +505,7 @@ func (c *Coordinator) runPreparePhase(ctx context.Context, runID string, failed 
 		}
 		if err := c.postJSON(ctx, w, "/v1/prepare/channels", nil, nil); err != nil {
 			ownerErr := fmt.Errorf("worker %s prepare channels failed: %w", workerName(w), err)
-			errs = append(errs, &workerFailureError{workerID: strings.TrimSpace(w.ID), err: ownerErr})
+			errs = append(errs, newWorkerFailureError(strings.TrimSpace(w.ID), PhasePrepare, workerFailureReason("phase_start_failed", ownerErr), ownerErr))
 			if errorsIsParentContext(ctx, err) {
 				return errors.Join(errs...)
 			}
@@ -559,7 +582,7 @@ func (c *Coordinator) runWorkerPhase(ctx context.Context, runID string, phase Ph
 		}
 		if err := c.postJSON(ctx, w, "/v1/phase/"+string(phase), nil, nil); err != nil {
 			phaseErr := fmt.Errorf("worker %s phase %s failed: %w", workerName(w), phase, err)
-			errs = append(errs, &workerFailureError{workerID: strings.TrimSpace(w.ID), err: phaseErr})
+			errs = append(errs, newWorkerFailureError(strings.TrimSpace(w.ID), phase, workerFailureReason("phase_start_failed", phaseErr), phaseErr))
 			if errorsIsParentContext(ctx, err) {
 				return errors.Join(errs...)
 			}
@@ -573,7 +596,8 @@ func (c *Coordinator) runWorkerPhase(ctx context.Context, runID string, phase Ph
 		}
 		if err := c.waitForPhase(ctx, w, runID, phase, pollTimeout); err != nil {
 			waitErr := fmt.Errorf("worker %s wait for phase %s failed: %w", workerName(w), phase, err)
-			errs = append(errs, &workerFailureError{workerID: strings.TrimSpace(w.ID), err: waitErr})
+			reasonCode := workerFailureReason("phase_wait_failed", err)
+			errs = append(errs, newWorkerFailureError(strings.TrimSpace(w.ID), phase, reasonCode, waitErr))
 			if errorsIsParentContext(ctx, err) {
 				return errors.Join(errs...)
 			}
@@ -583,8 +607,37 @@ func (c *Coordinator) runWorkerPhase(ctx context.Context, runID string, phase Ph
 }
 
 type workerFailureError struct {
-	workerID string
-	err      error
+	workerID   string
+	phase      Phase
+	reasonCode string
+	observedAt time.Time
+	err        error
+}
+
+func newWorkerFailureError(workerID string, phase Phase, reasonCode string, err error) *workerFailureError {
+	return &workerFailureError{
+		workerID: strings.TrimSpace(workerID), phase: phase, reasonCode: reasonCode,
+		observedAt: time.Now().UTC(), err: err,
+	}
+}
+
+func workerFailureReason(fallback string, err error) string {
+	if errors.Is(err, errPollTimeout) {
+		return "phase_timeout"
+	}
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "tcp source pool exhausted"):
+		return "tcp_source_pool_exhausted"
+	case strings.Contains(message, "tcp source unavailable"):
+		return "tcp_source_unavailable"
+	case strings.Contains(message, "status assignment mismatch"):
+		return "worker_status_mismatch"
+	case isTargetUnavailable(err):
+		return "target_unavailable"
+	default:
+		return fallback
+	}
 }
 
 func (e *workerFailureError) Error() string {
@@ -603,6 +656,36 @@ func (e *workerFailureError) Unwrap() error {
 
 func addWorkerFailures(failed map[string]struct{}, err error) {
 	collectWorkerFailures(failed, err)
+}
+
+func addWorkerFailureDetails(failures *[]report.WorkerFailure, err error) {
+	collectWorkerFailureDetails(failures, err)
+}
+
+func collectWorkerFailureDetails(failures *[]report.WorkerFailure, err error) {
+	if err == nil {
+		return
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, child := range joined.Unwrap() {
+			collectWorkerFailureDetails(failures, child)
+		}
+		return
+	}
+	if workerErr, ok := err.(*workerFailureError); ok {
+		failure := report.WorkerFailure{
+			WorkerID: workerErr.workerID, Phase: string(workerErr.phase), ReasonCode: workerErr.reasonCode,
+			ObservedAt: workerErr.observedAt,
+		}
+		if workerErr.err != nil {
+			failure.Detail = workerErr.err.Error()
+		}
+		*failures = append(*failures, failure)
+		return
+	}
+	if wrapped := errors.Unwrap(err); wrapped != nil {
+		collectWorkerFailureDetails(failures, wrapped)
+	}
 }
 
 func collectWorkerFailures(failed map[string]struct{}, err error) {

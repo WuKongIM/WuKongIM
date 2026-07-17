@@ -23,7 +23,17 @@ forward-testing changes to this Skill; they are test inputs, not run archives.
 
 ## 2. Establish the passive baseline
 
-After a live result, read [references/tool-contract.md](references/tool-contract.md). Call `workload_inspect` to establish whether wkbench has produced a final threshold result, then select a bounded analysis window from the request; otherwise start with the last 30 minutes without exceeding the run lifetime. A missing or in-progress final summary is explicit missing evidence and cannot support `healthy`.
+After a live result, read [references/tool-contract.md](references/tool-contract.md). Call `workload_inspect` to establish whether wkbench has produced a final threshold result. Prefer its actual phase windows over schedule arithmetic when selecting metric and log windows; otherwise start with the last 30 minutes without exceeding the run lifetime. A missing or in-progress final summary is explicit missing evidence and cannot support `healthy`.
+
+When `workload_inspect` reports failed workers, route by that structured evidence before the generic baseline:
+
+- `tcp_source_pool_exhausted` or `tcp_source_unavailable`: verify simulator headroom and cluster availability over the failed phase only, then classify the invalid load-generator path as `scenario_invalid` when those signals do not support a server or infrastructure failure.
+- `target_unavailable`: check target availability and provider/cluster evidence before choosing `infrastructure_interrupted` or `insufficient_evidence`.
+- `worker_metrics_unavailable` or `worker_report_unavailable`: treat the missing worker evidence as `insufficient_evidence` unless another bounded source independently proves the cause.
+- `phase_timeout`, `phase_start_failed`, or `phase_wait_failed`: use the failed worker, phase, actual phase window, and bounded detail to select the smallest contradicting metric or log query.
+- An unknown reason code, truncated failure list, or failed-worker count without matching structured evidence remains explicit missing evidence.
+
+Do not begin with broad application-log searches when the structured worker failure already identifies a simulator or harness cause.
 
 Call `cluster_snapshot`, then query the smallest useful metric set:
 

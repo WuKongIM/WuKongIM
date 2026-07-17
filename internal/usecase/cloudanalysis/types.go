@@ -160,8 +160,56 @@ type WorkloadInspection struct {
 	Status string `json:"status,omitempty"`
 	// ExitCode is the stable wkbench result code after completion.
 	ExitCode int `json:"exit_code,omitempty"`
+	// StabilityVerdict is wkbench's evidence-aware long-run classification.
+	StabilityVerdict string `json:"stability_verdict,omitempty"`
 	// Summary contains only the measurements used by declared limit gates.
 	Summary WorkloadSummary `json:"summary"`
+	// Violations contains enforced workload limit failures.
+	Violations []WorkloadLimit `json:"violations"`
+	// LimitWarnings contains non-enforced workload limit warnings.
+	LimitWarnings []WorkloadLimit `json:"limit_warnings"`
+	// PhaseWindows contains actual coordinator phase intervals.
+	PhaseWindows []WorkloadPhaseWindow `json:"phase_windows"`
+	// FailedWorkers contains bounded structured worker failure evidence.
+	FailedWorkers []WorkloadWorkerFailure `json:"failed_workers"`
+	// FailedWorkersTruncated reports that additional failure details were omitted.
+	FailedWorkersTruncated bool `json:"failed_workers_truncated"`
+}
+
+// WorkloadLimit describes one enforced violation or non-enforced warning.
+type WorkloadLimit struct {
+	// Name is the stable workload limit identifier.
+	Name string `json:"name"`
+	// Actual is the measured value.
+	Actual float64 `json:"actual"`
+	// Limit is the configured threshold.
+	Limit float64 `json:"limit"`
+	// Hard reports whether the limit affects the workload exit code.
+	Hard bool `json:"hard"`
+}
+
+// WorkloadPhaseWindow records one actual coordinator phase interval.
+type WorkloadPhaseWindow struct {
+	// Phase is the stable wkbench lifecycle phase name.
+	Phase string `json:"phase"`
+	// StartedAt is when the coordinator began the phase.
+	StartedAt time.Time `json:"started_at"`
+	// EndedAt is when the coordinator observed the phase terminal result.
+	EndedAt time.Time `json:"ended_at"`
+}
+
+// WorkloadWorkerFailure is one bounded structured worker failure.
+type WorkloadWorkerFailure struct {
+	// WorkerID identifies the failed or unreachable worker.
+	WorkerID string `json:"worker_id"`
+	// Phase identifies the lifecycle phase when the failure was observed.
+	Phase string `json:"phase,omitempty"`
+	// ReasonCode is a stable machine-readable failure classification.
+	ReasonCode string `json:"reason_code"`
+	// Detail is a bounded redacted diagnostic description.
+	Detail string `json:"detail,omitempty"`
+	// ObservedAt records when the coordinator observed the failure.
+	ObservedAt time.Time `json:"observed_at"`
 }
 
 // WorkloadSummary contains bounded load-generator quality measurements.
