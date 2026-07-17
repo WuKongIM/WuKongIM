@@ -139,6 +139,11 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	if err := yaml.Unmarshal([]byte(workers), &workerSet); err != nil || len(workerSet.Workers) != 1 || model.TCPSourceCapacity(workerSet.Workers[0].TCPSource) < 100000 {
 		t.Fatalf("worker source capacity cannot sustain the 100k profile: workers=%#v err=%v", workerSet, err)
 	}
+	client := workerSet.Workers[0].Client
+	if client == nil || client.SendQueueCapacity != 16 || client.MaxInflight != 1 ||
+		client.ReadBufferSize != 1024 || client.FrameBufferSize != 4 {
+		t.Fatalf("cloud worker must use the bounded stability client profile: client=%#v", client)
+	}
 }
 
 func TestBundleSpecAllowsWeekLongStabilityDuration(t *testing.T) {
