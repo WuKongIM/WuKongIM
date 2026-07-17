@@ -17,11 +17,18 @@ func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 		t.Fatalf("glob fixtures: %v", err)
 	}
 	want := []string{"healthy", "infrastructure_interrupted", "insufficient_evidence", "product_defect", "scenario_invalid"}
+	allowedVerdicts := make(map[string]struct{}, len(want))
+	for _, verdict := range want {
+		allowedVerdicts[verdict] = struct{}{}
+	}
 	got := make([]string, 0, len(paths))
 	for _, path := range paths {
 		fixture := decodeCloudAnalysisSkillFixture(t, path)
 		if fixture.Schema != "wukongim.analysis.skill_fixture/v1" || fixture.Name == "" || fixture.ExpectedVerdict == "" {
 			t.Fatalf("fixture %s identity = %#v", path, fixture)
+		}
+		if _, ok := allowedVerdicts[fixture.ExpectedVerdict]; !ok {
+			t.Fatalf("fixture %s verdict = %q, want one of %v", path, fixture.ExpectedVerdict, want)
 		}
 		if fixture.RunID == "" || len(fixture.Observations) < 2 || fixture.Observations[0].Tool != "run_inspect" {
 			t.Fatalf("fixture %s must begin with run_inspect", path)
