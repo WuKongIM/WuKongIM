@@ -27,7 +27,7 @@ After a live result, read [references/tool-contract.md](references/tool-contract
 
 Call `cluster_snapshot`, then query the smallest useful metric set:
 
-1. target availability plus `simulator_cpu_percent`, `simulator_memory_percent`, TCP/source-port, network, and disk headroom;
+1. target availability plus `simulator_cpu_percent`, `simulator_memory_percent`, TCP/source-port, network, simulator disk headroom, and per-node data-disk bytes when storage growth matters;
 2. send, delivery, and append rates;
 3. append errors;
 4. gateway, runtime, storage-commit, and delivery-retry queue pressure.

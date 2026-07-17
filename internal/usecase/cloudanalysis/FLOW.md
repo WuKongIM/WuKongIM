@@ -16,7 +16,8 @@ MCP tool input
   -> JSON response-size gate
 ```
 
-Metrics select server-owned query IDs rather than accepting PromQL. Logs and
+Metrics select server-owned query IDs rather than accepting PromQL, including
+per-node data-disk used bytes for bounded storage-growth calibration. Logs and
 diagnostics use fixed private API selectors and opaque cursors. Active
 diagnostics are serialized across expiring trace rules and all profile kinds,
 so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or

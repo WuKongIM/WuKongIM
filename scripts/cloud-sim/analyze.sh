@@ -447,6 +447,16 @@ set -e
 ((codex_status != 142)) || fail "local Codex diagnosis exceeded the Analysis Token deadline"
 ((codex_status == 0)) || fail "local Codex diagnosis failed"
 
+# State and status describe the workload lifecycle only. Structured output can
+# still populate these nullable fields for other observations, so canonicalize
+# the inapplicable values before closing the live Analysis Session and running
+# the stricter repository semantic validator.
+diagnosis_canonical="$analysis_temp/diagnosis-canonical.json"
+jq '(.observation_references[] | select(.tool != "workload_inspect") | .state) = null |
+    (.observation_references[] | select(.tool != "workload_inspect") | .status) = null' \
+  "$diagnosis_json" >"$diagnosis_canonical"
+mv "$diagnosis_canonical" "$diagnosis_json"
+
 analysis_token=""
 dispatch_session_operation close >/dev/null
 session_open=false

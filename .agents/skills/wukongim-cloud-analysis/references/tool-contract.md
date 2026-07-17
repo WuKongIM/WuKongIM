@@ -7,7 +7,7 @@ Use only the run-specific MCP configured by the local Analysis Session. Every in
 | Tool | Purpose | Key bounds |
 |---|---|---|
 | `run_inspect` | Prove exact run state and inventory | Always first |
-| `workload_inspect` | Parsed final wkbench threshold summary | Simulator-local `summary.md`, maximum 16 KiB; no raw reports, messages, or paths |
+| `workload_inspect` | Parsed final wkbench threshold summary and measured-run successful send count | Simulator-local `summary.md`, maximum 16 KiB; no raw reports, messages, or paths |
 | `cluster_snapshot` | Nodes and workqueues | Aggregate, bounded response |
 | `metrics_query_range` | Server-owned PromQL by `query_id` | Maximum 72 hours, 5,000 samples/series, step 1–900 seconds |
 | `logs_search` | Literal log search on one node | Sources `app` or `error`, maximum 200 lines |
@@ -52,6 +52,7 @@ diagnostics perturb only one node at a time.
 - `simulator_tcp_time_wait`
 - `simulator_network_bytes`
 - `simulator_disk_used_percent`
+- `node_data_disk_used_bytes`
 
 Use RFC3339 `start` and `end` plus integer `step_seconds`. Begin with a small query set and widen only when the result changes the diagnosis.
 

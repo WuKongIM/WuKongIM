@@ -22,3 +22,5 @@ Phase 1 can exercise a provider-backed inspector locally with
 `ProviderRunInspector`. That inspector requires a valid Run Locator and matches
 provider, region, account hash, repository, source SHA, scenario digest,
 creation time, and lease. A static inspector cannot claim a released run.
+The workload source strictly parses the bounded final `summary.md`, including
+the measured-run successful send count used as the storage-growth denominator.

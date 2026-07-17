@@ -76,6 +76,8 @@ type StabilityClassification struct {
 
 // Summary contains run quality measurements used for limit checks.
 type Summary struct {
+	// SendSuccess is the successful send acknowledgement count during the measured run phase.
+	SendSuccess uint64 `json:"send_success"`
 	// ConnectErrorRate is failed connects divided by attempted connects.
 	ConnectErrorRate float64 `json:"connect_error_rate"`
 	// SendackErrorRate is failed send acknowledgements divided by attempted sends.
@@ -358,6 +360,7 @@ func SummaryFromMetrics(snapshot metrics.SnapshotData, workerFailed int) Summary
 	recvSuccess := counterSum(snapshot, "person_recv_success_total", "group_recv_success_total", "recv_verify_success_total")
 	recvErrors := counterSum(snapshot, "person_recv_error_total", "group_recv_error_total", "recv_verify_error_total")
 	return Summary{
+		SendSuccess:         counterSumWithPhase(snapshot, "run", "person_send_success_total", "group_send_success_total", "sendack_success_total"),
 		ConnectErrorRate:    connectErrorRate(connectErrors, connectSuccess, connectAttempts),
 		SendackErrorRate:    errorRate(sendErrors, sendSuccess),
 		RecvVerifyErrorRate: errorRate(recvErrors, recvSuccess),
@@ -542,6 +545,7 @@ func summaryMarkdown(rep Report) string {
 	fmt.Fprintf(&b, "- run_id: %s\n", rep.RunID)
 	fmt.Fprintf(&b, "- status: %s\n", rep.Status)
 	fmt.Fprintf(&b, "- exit_code: %d\n", rep.ExitCode)
+	fmt.Fprintf(&b, "- send_success: %d\n", rep.Summary.SendSuccess)
 	fmt.Fprintf(&b, "- sendack_error_rate: %.6f\n", rep.Summary.SendackErrorRate)
 	fmt.Fprintf(&b, "- connect_error_rate: %.6f\n", rep.Summary.ConnectErrorRate)
 	fmt.Fprintf(&b, "- recv_verify_error_rate: %.6f\n", rep.Summary.RecvVerifyErrorRate)

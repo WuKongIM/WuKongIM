@@ -187,6 +187,57 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 	}
 }
 
+func TestCloudSimulationAnalyzeClearsNonWorkloadObservationState(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+	if err := os.WriteFile(filepath.Join(temp, "diagnosis-mode"), []byte("nonworkload-state"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	resultFile := filepath.Join(temp, "analysis-result.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project", "--result-file", resultFile)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		calls, _ := os.ReadFile(callLog)
+		t.Fatalf("analyze: %v\n%s\ncalls:\n%s", err, output, calls)
+	}
+	result, err := os.ReadFile(resultFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outcome struct {
+		Diagnosis struct {
+			Observations []struct {
+				Tool   string  `json:"tool"`
+				State  *string `json:"state"`
+				Status *string `json:"status"`
+			} `json:"observation_references"`
+		} `json:"diagnosis"`
+	}
+	if err := json.Unmarshal(result, &outcome); err != nil {
+		t.Fatalf("decode result: %v\n%s", err, result)
+	}
+	for _, observation := range outcome.Diagnosis.Observations {
+		if observation.Tool == "run_inspect" && (observation.State != nil || observation.Status != nil) {
+			t.Fatalf("run_inspect state/status must be null after canonicalization: %+v", observation)
+		}
+	}
+}
+
 func TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH(t *testing.T) {
 	root := repoRoot(t)
 	temp := t.TempDir()
@@ -625,6 +676,9 @@ cat >"$output" <<'JSON'
 JSON
 if [[ "$mode" == mismatch ]]; then
   jq '.run_identity.source_sha = "cccccccccccccccccccccccccccccccccccccccc"' "$output" >"$output.tmp"
+  mv "$output.tmp" "$output"
+elif [[ "$mode" == nonworkload-state ]]; then
+  jq '.observation_references += [{"tool":"run_inspect","node":"run","observed_at":"2026-07-14T00:30:00Z","window":"point-in-time","complete":true,"state":"in_progress","status":"passed","note":null}]' "$output" >"$output.tmp"
   mv "$output.tmp" "$output"
 fi
 `)

@@ -94,6 +94,10 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 	if err != nil || exitCode < 0 || exitCode > 6 || status != "passed" && status != "failed" || status == "passed" && exitCode != 0 || status == "failed" && exitCode == 0 {
 		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
 	}
+	sendSuccess, err := strconv.ParseUint(values["send_success"], 10, 64)
+	if err != nil {
+		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
+	}
 	connectRate, err := parseWorkloadRate(values["connect_error_rate"])
 	if err != nil {
 		return analysis.WorkloadInspection{}, err
@@ -121,6 +125,7 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 	return analysis.WorkloadInspection{
 		RunID: expectedRunID, State: "completed", Status: status, ExitCode: exitCode,
 		Summary: analysis.WorkloadSummary{
+			SendSuccess:      sendSuccess,
 			ConnectErrorRate: connectRate, SendackErrorRate: sendackRate, RecvVerifyErrorRate: recvRate,
 			WorkerFailed: workerFailed, SendackMaxWorkerP99: sendackP99, ReceiveMaxWorkerP99: recvP99,
 		},

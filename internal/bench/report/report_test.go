@@ -113,6 +113,18 @@ func TestSummaryFromMetricsComputesRatesAndMaxWorkerP99(t *testing.T) {
 	}
 }
 
+func TestSummaryFromMetricsIncludesOnlyMeasuredRunSendSuccess(t *testing.T) {
+	summary := SummaryFromMetrics(metrics.SnapshotData{Counters: map[string]uint64{
+		"person_send_success_total{phase=warmup}": 100,
+		"person_send_success_total{phase=run}":    7,
+		"group_send_success_total{phase=run}":     3,
+	}}, 0)
+
+	if summary.SendSuccess != 10 {
+		t.Fatalf("send_success = %d, want run-phase 10", summary.SendSuccess)
+	}
+}
+
 func TestSummaryFromMetricsUsesOnlyRunPhaseForLatencyLimits(t *testing.T) {
 	summary := SummaryFromMetrics(metrics.SnapshotData{
 		Histograms: map[string]metrics.HistogramSummary{
@@ -181,9 +193,12 @@ func TestSendRunSummaryFromMetricsUsesOnlyRunPhase(t *testing.T) {
 }
 
 func TestSummaryMarkdownLabelsMaxWorkerPercentiles(t *testing.T) {
-	rep := Build(Input{RunID: "run-1", Summary: Summary{SendackMaxWorkerP99: 50 * time.Millisecond, RecvMaxWorkerP99: 70 * time.Millisecond}})
+	rep := Build(Input{RunID: "run-1", Summary: Summary{SendSuccess: 123, SendackMaxWorkerP99: 50 * time.Millisecond, RecvMaxWorkerP99: 70 * time.Millisecond}})
 
 	md := summaryMarkdown(rep)
+	if !strings.Contains(md, "send_success: 123") {
+		t.Fatalf("summary markdown should expose measured-run successful sends, got:\n%s", md)
+	}
 	if !strings.Contains(md, "sendack_max_worker_p99") || !strings.Contains(md, "recv_max_worker_p99") {
 		t.Fatalf("summary markdown should label max-worker percentiles, got:\n%s", md)
 	}
