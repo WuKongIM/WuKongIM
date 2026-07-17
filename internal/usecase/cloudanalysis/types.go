@@ -166,6 +166,8 @@ type WorkloadInspection struct {
 
 // WorkloadSummary contains bounded load-generator quality measurements.
 type WorkloadSummary struct {
+	// SendSuccess is the successful send acknowledgement count during the measured run phase.
+	SendSuccess uint64 `json:"send_success"`
 	// ConnectErrorRate is the final failed-connection fraction across workers.
 	ConnectErrorRate float64 `json:"connect_error_rate"`
 	// SendackErrorRate is the final failed-SENDACK fraction across workers.

@@ -17,6 +17,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 - run_id: run-1
 - status: passed
 - exit_code: 0
+- send_success: 123456
 - sendack_error_rate: 0.000001
 - connect_error_rate: 0.000002
 - recv_verify_error_rate: 0.000003
@@ -42,7 +43,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 	if inspection.RunID != "run-1" || inspection.State != "completed" || inspection.Status != "passed" || inspection.ExitCode != 0 {
 		t.Fatalf("inspection = %+v", inspection)
 	}
-	if inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
+	if inspection.Summary.SendSuccess != 123456 || inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
 		t.Fatalf("summary = %+v", inspection.Summary)
 	}
 }
@@ -66,6 +67,7 @@ func TestWorkloadSummarySourceRejectsIdentityMismatchAndOversize(t *testing.T) {
 - run_id: other-run
 - status: failed
 - exit_code: 2
+- send_success: 42
 - sendack_error_rate: 0
 - connect_error_rate: 0
 - recv_verify_error_rate: 0

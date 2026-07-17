@@ -53,13 +53,13 @@
         "type": "object", "additionalProperties": false,
         "required": ["tool", "node", "observed_at", "window", "complete", "state", "status", "note"],
         "properties": {
-          "tool": {"type": "string", "minLength": 1, "maxLength": 64},
+          "tool": {"type": "string", "minLength": 1, "maxLength": 64, "description": "Analysis MCP tool that produced this observation."},
           "node": {"type": "string", "minLength": 1, "maxLength": 64},
           "observed_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"},
           "window": {"type": "string", "maxLength": 256},
           "complete": {"type": "boolean"},
-          "state": {"type": ["string", "null"], "enum": ["in_progress", "completed", null]},
-          "status": {"type": ["string", "null"], "enum": ["passed", "failed", null]},
+          "state": {"type": ["string", "null"], "enum": ["in_progress", "completed", null], "description": "Workload lifecycle state for workload_inspect; null for every other tool."},
+          "status": {"type": ["string", "null"], "enum": ["passed", "failed", null], "description": "Workload result for workload_inspect; null for every other tool."},
           "note": {"type": ["string", "null"], "maxLength": 500}
         }
       }
