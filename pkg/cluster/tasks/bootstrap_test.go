@@ -14,7 +14,7 @@ func TestBootstrapExecutorReportsParticipantDoneAfterEnsure(t *testing.T) {
 	manager := &fakeSlotManager{}
 	writer := &recordingWriter{}
 	status := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 1, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
-	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 2, Slots: manager, Status: status, Writer: writer})
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 2, Slots: manager, Runtime: status, Writer: writer})
 
 	err := executor.Reconcile(context.Background(), bootstrapSnapshot())
 
@@ -29,7 +29,7 @@ func TestBootstrapExecutorReportsParticipantDoneAfterEnsure(t *testing.T) {
 	}
 }
 
-func TestBootstrapExecutorCompletesAfterAllParticipantsDoneAndQuorumObserved(t *testing.T) {
+func TestBootstrapExecutorCompletesAfterAllParticipantsDoneAndTargetLeaderObserved(t *testing.T) {
 	manager := &fakeSlotManager{}
 	writer := &recordingWriter{}
 	status := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 1, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
@@ -37,7 +37,7 @@ func TestBootstrapExecutorCompletesAfterAllParticipantsDoneAndQuorumObserved(t *
 	for i := range snapshot.Tasks[0].ParticipantProgress {
 		snapshot.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
 	}
-	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Status: status, Writer: writer})
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Runtime: status, Writer: writer})
 
 	err := executor.Reconcile(context.Background(), snapshot)
 
@@ -57,7 +57,7 @@ func TestBootstrapExecutorDoesNotCompleteWithoutQuorumObservation(t *testing.T) 
 	for i := range snapshot.Tasks[0].ParticipantProgress {
 		snapshot.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
 	}
-	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Status: status, Writer: writer})
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Runtime: status, Writer: writer})
 
 	err := executor.Reconcile(context.Background(), snapshot)
 
@@ -81,7 +81,7 @@ func TestBootstrapExecutorRetriesFailedParticipantWithAdvancedAttempt(t *testing
 			snapshot.Tasks[0].ParticipantProgress[i].LastError = "open failed"
 		}
 	}
-	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 2, Slots: manager, Status: status, Writer: writer})
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 2, Slots: manager, Runtime: status, Writer: writer})
 
 	err := executor.Reconcile(context.Background(), snapshot)
 
@@ -104,7 +104,7 @@ func TestBootstrapExecutorSkipsLocalProgressForNonTargetNode(t *testing.T) {
 	manager := &fakeSlotManager{}
 	writer := &recordingWriter{}
 	status := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 1, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
-	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 9, Slots: manager, Status: status, Writer: writer})
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 9, Slots: manager, Runtime: status, Writer: writer})
 
 	err := executor.Reconcile(context.Background(), bootstrapSnapshot())
 
@@ -127,7 +127,7 @@ func TestBootstrapExecutorDoesNotCompleteWhenObservedVotersDifferFromTargetPeers
 	for i := range snapshot.Tasks[0].ParticipantProgress {
 		snapshot.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
 	}
-	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Status: status, Writer: writer})
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Runtime: status, Writer: writer})
 
 	err := executor.Reconcile(context.Background(), snapshot)
 
@@ -147,7 +147,7 @@ func TestBootstrapExecutorDoesNotCompleteWithoutObservedLeader(t *testing.T) {
 	for i := range snapshot.Tasks[0].ParticipantProgress {
 		snapshot.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
 	}
-	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Status: status, Writer: writer})
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Runtime: status, Writer: writer})
 
 	err := executor.Reconcile(context.Background(), snapshot)
 
@@ -156,6 +156,56 @@ func TestBootstrapExecutorDoesNotCompleteWithoutObservedLeader(t *testing.T) {
 	}
 	if len(writer.completed) != 0 {
 		t.Fatalf("completed = %#v, want none without observed leader", writer.completed)
+	}
+}
+
+func TestBootstrapExecutorTransfersObservedLeaderToTargetBeforeCompletion(t *testing.T) {
+	manager := &fakeSlotManager{}
+	writer := &recordingWriter{}
+	runtime := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 2, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
+	snapshot := bootstrapSnapshot()
+	for i := range snapshot.Tasks[0].ParticipantProgress {
+		snapshot.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
+	}
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 2, Slots: manager, Runtime: runtime, Writer: writer})
+
+	if err := executor.Reconcile(context.Background(), snapshot); err != nil {
+		t.Fatalf("first Reconcile() error = %v", err)
+	}
+	if runtime.expectCalls != 1 || runtime.transferCalls != 1 || runtime.lastTarget != 1 {
+		t.Fatalf("runtime expect=%d transfer=%d target=%d, want 1/1/1", runtime.expectCalls, runtime.transferCalls, runtime.lastTarget)
+	}
+	if len(writer.completed) != 0 {
+		t.Fatalf("completed = %#v, want none before target leadership is observed", writer.completed)
+	}
+
+	runtime.status.LeaderID = 1
+	if err := executor.Reconcile(context.Background(), snapshot); err != nil {
+		t.Fatalf("second Reconcile() error = %v", err)
+	}
+	if len(writer.completed) != 1 || writer.completed[0].TaskID != "slot-1-bootstrap-1" {
+		t.Fatalf("completed = %#v, want target-leader convergence completion", writer.completed)
+	}
+}
+
+func TestBootstrapExecutorFollowerDoesNotTransferMismatchedLeader(t *testing.T) {
+	manager := &fakeSlotManager{}
+	writer := &recordingWriter{}
+	runtime := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 2, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
+	snapshot := bootstrapSnapshot()
+	for i := range snapshot.Tasks[0].ParticipantProgress {
+		snapshot.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
+	}
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 3, Slots: manager, Runtime: runtime, Writer: writer})
+
+	if err := executor.Reconcile(context.Background(), snapshot); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if runtime.expectCalls != 1 || runtime.transferCalls != 0 {
+		t.Fatalf("runtime expect=%d transfer=%d, want follower expectation without transfer", runtime.expectCalls, runtime.transferCalls)
+	}
+	if len(writer.completed) != 0 {
+		t.Fatalf("completed = %#v, want none while target leader is not observed", writer.completed)
 	}
 }
 
@@ -201,12 +251,29 @@ func (f *fakeSlotManager) Ensure(ctx context.Context, assignment slots.Assignmen
 }
 
 type fakeStatusReader struct {
-	status multiraft.Status
-	err    error
+	status        multiraft.Status
+	err           error
+	expectErr     error
+	transferErr   error
+	expectCalls   int
+	transferCalls int
+	lastTarget    multiraft.NodeID
 }
 
 func (f *fakeStatusReader) Status(slotID multiraft.SlotID) (multiraft.Status, error) {
 	return f.status, f.err
+}
+
+func (f *fakeStatusReader) ExpectLeaderTransfer(_ context.Context, _ multiraft.SlotID, target multiraft.NodeID) error {
+	f.expectCalls++
+	f.lastTarget = target
+	return f.expectErr
+}
+
+func (f *fakeStatusReader) TransferLeadership(_ context.Context, _ multiraft.SlotID, target multiraft.NodeID) error {
+	f.transferCalls++
+	f.lastTarget = target
+	return f.transferErr
 }
 
 type recordingWriter struct {

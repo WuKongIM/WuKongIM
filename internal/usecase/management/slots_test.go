@@ -46,20 +46,21 @@ func TestListSlotsBuildsReadOnlySlotInventory(t *testing.T) {
 	if first.HashSlots == nil || first.HashSlots.Count != 3 || !sameUint16Slice(first.HashSlots.Items, []uint16{0, 1, 2}) {
 		t.Fatalf("first hash slots = %#v, want 0,1,2", first.HashSlots)
 	}
-	if first.State.Quorum != "ready" || first.State.Sync != "matched" || !first.State.LeaderMatch || first.State.LeaderTransferPending {
-		t.Fatalf("first state = %#v, want ready matched leader match without transfer", first.State)
+	if first.State.Quorum != "unknown" || first.State.Sync != "unreported" || first.State.LeaderMatch || first.State.LeaderTransferPending {
+		t.Fatalf("first state = %#v, want unknown runtime without fabricated health", first.State)
 	}
 	if !sameUint64Slice(first.Assignment.DesiredPeers, []uint64{1, 2}) || first.Assignment.PreferredLeader != 1 || first.Assignment.ConfigEpoch != 7 || first.Assignment.BalanceVersion != 0 {
 		t.Fatalf("first assignment = %#v, want desired [1 2] preferred 1 epoch 7", first.Assignment)
 	}
-	if !sameUint64Slice(first.Runtime.CurrentPeers, []uint64{1, 2}) ||
-		!sameUint64Slice(first.Runtime.CurrentVoters, []uint64{1, 2}) ||
+	if len(first.Runtime.CurrentPeers) != 0 ||
+		len(first.Runtime.CurrentVoters) != 0 ||
+		first.Runtime.LeaderID != 0 ||
 		first.Runtime.PreferredLeaderID != 1 ||
-		first.Runtime.HealthyVoters != 2 ||
-		!first.Runtime.HasQuorum ||
-		first.Runtime.ObservedConfigEpoch != 7 ||
-		!first.Runtime.LastReportAt.Equal(generatedAt) {
-		t.Fatalf("first runtime = %#v, want derived desired runtime", first.Runtime)
+		first.Runtime.HealthyVoters != 0 ||
+		first.Runtime.HasQuorum ||
+		first.Runtime.ObservedConfigEpoch != 0 ||
+		!first.Runtime.LastReportAt.IsZero() {
+		t.Fatalf("first runtime = %#v, want preferred intent with unknown live runtime", first.Runtime)
 	}
 	if first.NodeLog != nil {
 		t.Fatalf("first NodeLog = %#v, want nil before log migration", first.NodeLog)
@@ -69,8 +70,8 @@ func TestListSlotsBuildsReadOnlySlotInventory(t *testing.T) {
 	if second.SlotID != 2 || second.HashSlots == nil || second.HashSlots.Count != 3 || !sameUint16Slice(second.HashSlots.Items, []uint16{3, 4, 5}) {
 		t.Fatalf("second slot = %#v, want slot 2 with hash slots 3,4,5", second)
 	}
-	if second.Runtime.PreferredLeaderID != 2 || second.Runtime.HealthyVoters != 1 || !second.Runtime.HasQuorum {
-		t.Fatalf("second runtime = %#v, want single-voter ready runtime", second.Runtime)
+	if second.Runtime.PreferredLeaderID != 2 || second.Runtime.HealthyVoters != 0 || second.Runtime.HasQuorum {
+		t.Fatalf("second runtime = %#v, want preferred intent with unknown live runtime", second.Runtime)
 	}
 }
 
@@ -79,11 +80,12 @@ func TestListSlotsIncludesSelectedNodeRaftStatus(t *testing.T) {
 	slotRaft := &fakeSlotRaftStatusReader{
 		statuses: map[slotRaftStatusKey]SlotNodeLogStatus{
 			{nodeID: 1, slotID: 9}: {
-				NodeID:       1,
-				LeaderID:     1,
-				Role:         "leader",
-				CommitIndex:  93,
-				AppliedIndex: 91,
+				NodeID:        1,
+				LeaderID:      1,
+				Role:          "leader",
+				CurrentVoters: []uint64{1, 2},
+				CommitIndex:   93,
+				AppliedIndex:  91,
 			},
 		},
 	}
@@ -114,8 +116,54 @@ func TestListSlotsIncludesSelectedNodeRaftStatus(t *testing.T) {
 	if nodeLog.NodeID != 1 || nodeLog.LeaderID != 1 || nodeLog.Role != "leader" || nodeLog.CommitIndex != 93 || nodeLog.AppliedIndex != 91 {
 		t.Fatalf("NodeLog = %#v, want node 1 leader role with commit/applied watermarks", nodeLog)
 	}
+	if got[0].Runtime.LeaderID != 1 || !sameUint64Slice(got[0].Runtime.CurrentVoters, []uint64{1, 2}) || !got[0].Runtime.HasQuorum {
+		t.Fatalf("Runtime = %#v, want live leader and voter evidence", got[0].Runtime)
+	}
 	if slotRaft.requests != 1 {
 		t.Fatalf("slot raft status requests = %d, want 1", slotRaft.requests)
+	}
+}
+
+func TestListSlotsUsesLiveDefaultObservationForLeaderMatch(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 16, 11, 0, 0, 0, time.UTC)
+	slotRaft := &fakeSlotRaftStatusReader{
+		statuses: map[slotRaftStatusKey]SlotNodeLogStatus{
+			{nodeID: 1, slotID: 9}: {
+				NodeID:        1,
+				LeaderID:      2,
+				Role:          "follower",
+				CurrentVoters: []uint64{1, 2, 3},
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				Slots: []control.SlotAssignment{
+					{SlotID: 9, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 1},
+				},
+			},
+		},
+		SlotRaft: slotRaft,
+		Now:      func() time.Time { return generatedAt },
+	})
+
+	got, err := app.ListSlots(context.Background(), ListSlotsOptions{})
+	if err != nil {
+		t.Fatalf("ListSlots() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("slots len = %d, want 1", len(got))
+	}
+	if got[0].State.Quorum != "ready" || got[0].State.Sync != "matched" || got[0].State.LeaderMatch {
+		t.Fatalf("State = %#v, want ready matched with actual/preferred leader mismatch", got[0].State)
+	}
+	if got[0].Runtime.LeaderID != 2 || got[0].Runtime.PreferredLeaderID != 1 || !got[0].Runtime.LastReportAt.Equal(generatedAt) {
+		t.Fatalf("Runtime = %#v, want actual leader 2 and preferred leader 1", got[0].Runtime)
+	}
+	if got[0].NodeLog != nil {
+		t.Fatalf("NodeLog = %#v, want hidden default observation", got[0].NodeLog)
 	}
 }
 

@@ -54,6 +54,7 @@ const slotRow = {
   assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
   runtime: {
     current_peers: [1, 2, 3],
+    leader_id: 2,
     preferred_leader_id: 1,
     healthy_voters: 3,
     has_quorum: true,
@@ -250,6 +251,7 @@ test("adds a physical slot and opens the returned detail", async () => {
     runtime: {
       ...slotRow.runtime,
       current_peers: [],
+      leader_id: 0,
       preferred_leader_id: 0,
       healthy_voters: 0,
       has_quorum: false,
@@ -445,6 +447,23 @@ test("shows hash slot ownership as a compact count and range summary", async () 
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
   expect(screen.getByText("4 hash slots")).toBeInTheDocument()
   expect(screen.getByText("0-2, 7")).toBeInTheDocument()
+})
+
+test("shows the live runtime leader without requiring a selected-node log", async () => {
+  getSlotsMock.mockResolvedValueOnce({
+    total: 1,
+    items: [{
+      ...slotRow,
+      runtime: { ...slotRow.runtime, leader_id: 3 },
+      node_log: null,
+    }],
+  })
+
+  renderSlotsPage()
+
+  const slotCell = await screen.findByText("Slot 9")
+  const cells = slotCell.closest("tr")?.querySelectorAll("td")
+  expect(cells?.[6]).toHaveTextContent("3")
 })
 
 test("defaults to the local node filter and shows selected-node log height", async () => {

@@ -70,7 +70,9 @@ type SlotRuntime struct {
 	CurrentPeers []uint64
 	// CurrentVoters is the currently observed slot voter set.
 	CurrentVoters []uint64
-	// PreferredLeaderID is the controller preferred leader projected into the fallback runtime view.
+	// LeaderID is the live Slot Raft leader observed from one assigned node.
+	LeaderID uint64
+	// PreferredLeaderID is the controller preferred leader from the desired assignment.
 	PreferredLeaderID uint64
 	// HealthyVoters is the observed healthy voter count.
 	HealthyVoters uint32
@@ -168,12 +170,31 @@ func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, err
 	}
 	slots := make([]Slot, 0, len(snapshot.Slots))
 	for _, assignment := range snapshot.Slots {
-		slot := slotFromControlAssignment(assignment, snapshot.HashSlots, generatedAt, tasksBySlot[assignment.SlotID])
-		if opts.NodeID != 0 && !containsUint64(slot.Assignment.DesiredPeers, opts.NodeID) {
+		if opts.NodeID != 0 && !containsUint64(assignment.DesiredPeers, opts.NodeID) {
 			continue
 		}
+		observationNodeID := opts.NodeID
+		if observationNodeID == 0 {
+			observationNodeID = a.cluster.NodeID()
+		}
+		if observationNodeID == 0 || !containsUint64(assignment.DesiredPeers, observationNodeID) {
+			observationNodeID = firstUint64(assignment.DesiredPeers)
+		}
+		observed := a.slotNodeLogStatus(ctx, observationNodeID, assignment.SlotID)
+		if observed == nil && opts.NodeID == 0 {
+			for _, peerID := range assignment.DesiredPeers {
+				if peerID == observationNodeID {
+					continue
+				}
+				observed = a.slotNodeLogStatus(ctx, peerID, assignment.SlotID)
+				if observed != nil {
+					break
+				}
+			}
+		}
+		slot := slotFromControlAssignment(assignment, snapshot.HashSlots, generatedAt, tasksBySlot[assignment.SlotID], observed)
 		if opts.NodeID != 0 {
-			slot.NodeLog = a.slotNodeLogStatus(ctx, opts.NodeID, slot.SlotID)
+			slot.NodeLog = observed
 		}
 		slots = append(slots, slot)
 	}
@@ -181,16 +202,17 @@ func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, err
 	return slots, nil
 }
 
-func slotFromControlAssignment(assignment control.SlotAssignment, hashSlots control.HashSlotTable, generatedAt time.Time, task *SlotTask) Slot {
-	runtime, hasRuntime := runtimeFromControlAssignment(assignment, generatedAt)
+func slotFromControlAssignment(assignment control.SlotAssignment, hashSlots control.HashSlotTable, generatedAt time.Time, task *SlotTask, observed *SlotNodeLogStatus) Slot {
+	runtime, hasRuntime := runtimeFromSlotObservation(assignment, observed, generatedAt)
+	matched := hasRuntime && sameSlotVoterSet(runtime.CurrentVoters, assignment.DesiredPeers)
 	return Slot{
 		SlotID:    assignment.SlotID,
 		HashSlots: slotHashSlotsFromControlTable(hashSlots, assignment.SlotID),
 		Task:      task,
 		State: SlotState{
 			Quorum:      managerSlotQuorumState(hasRuntime, runtime.HasQuorum),
-			Sync:        managerSlotSyncState(hasRuntime),
-			LeaderMatch: assignment.PreferredLeader != 0 && assignment.PreferredLeader == runtime.PreferredLeaderID,
+			Sync:        managerSlotSyncState(hasRuntime, matched),
+			LeaderMatch: hasRuntime && assignment.PreferredLeader != 0 && assignment.PreferredLeader == runtime.LeaderID,
 		},
 		Assignment: SlotAssignment{
 			DesiredPeers:    append([]uint64(nil), assignment.DesiredPeers...),
@@ -231,19 +253,24 @@ func slotTaskFromControl(task control.ReconcileTask) *SlotTask {
 	}
 }
 
-func runtimeFromControlAssignment(assignment control.SlotAssignment, generatedAt time.Time) (SlotRuntime, bool) {
-	if len(assignment.DesiredPeers) == 0 {
-		return SlotRuntime{}, false
+func runtimeFromSlotObservation(assignment control.SlotAssignment, observed *SlotNodeLogStatus, generatedAt time.Time) (SlotRuntime, bool) {
+	if observed == nil {
+		return SlotRuntime{PreferredLeaderID: assignment.PreferredLeader}, false
 	}
-	peers := append([]uint64(nil), assignment.DesiredPeers...)
+	voters := append([]uint64(nil), observed.CurrentVoters...)
+	hasQuorum := observed.LeaderID != 0 && uint32(len(voters)) >= quorumSize(len(assignment.DesiredPeers))
+	healthyVoters := uint32(0)
+	if observed.LeaderID != 0 {
+		healthyVoters = uint32(len(voters))
+	}
 	return SlotRuntime{
-		CurrentPeers:        peers,
-		CurrentVoters:       append([]uint64(nil), peers...),
-		PreferredLeaderID:   assignment.PreferredLeader,
-		HealthyVoters:       uint32(len(peers)),
-		HasQuorum:           uint32(len(peers)) >= quorumSize(len(peers)),
-		ObservedConfigEpoch: assignment.ConfigEpoch,
-		LastReportAt:        generatedAt,
+		CurrentPeers:      append([]uint64(nil), voters...),
+		CurrentVoters:     voters,
+		LeaderID:          observed.LeaderID,
+		PreferredLeaderID: assignment.PreferredLeader,
+		HealthyVoters:     healthyVoters,
+		HasQuorum:         hasQuorum,
+		LastReportAt:      generatedAt,
 	}, true
 }
 
@@ -281,15 +308,18 @@ func managerSlotQuorumState(hasRuntime, hasQuorum bool) string {
 	return "lost"
 }
 
-func managerSlotSyncState(hasRuntime bool) string {
+func managerSlotSyncState(hasRuntime, matched bool) string {
 	if !hasRuntime {
 		return "unreported"
 	}
-	return "matched"
+	if matched {
+		return "matched"
+	}
+	return "mismatch"
 }
 
 func (a *App) slotNodeLogStatus(ctx context.Context, nodeID uint64, slotID uint32) *SlotNodeLogStatus {
-	if a == nil || a.slotRaft == nil {
+	if a == nil || a.slotRaft == nil || nodeID == 0 {
 		return nil
 	}
 	status, err := a.slotRaft.SlotRaftStatus(ctx, nodeID, slotID)
@@ -312,4 +342,28 @@ func containsUint64(items []uint64, want uint64) bool {
 		}
 	}
 	return false
+}
+
+func firstUint64(items []uint64) uint64 {
+	if len(items) == 0 {
+		return 0
+	}
+	return items[0]
+}
+
+func sameSlotVoterSet(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := make(map[uint64]int, len(left))
+	for _, item := range left {
+		counts[item]++
+	}
+	for _, item := range right {
+		counts[item]--
+		if counts[item] < 0 {
+			return false
+		}
+	}
+	return true
 }

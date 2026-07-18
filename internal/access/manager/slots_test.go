@@ -75,6 +75,7 @@ func TestManagerSlotsReturnsTaskProofFieldsInJSON(t *testing.T) {
 			"runtime": {
 				"current_peers": null,
 				"current_voters": null,
+				"leader_id": 0,
 				"preferred_leader_id": 0,
 				"healthy_voters": 0,
 				"has_quorum": false,
