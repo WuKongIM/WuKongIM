@@ -133,12 +133,23 @@ func TestWorkerSlowEnqueueAcceptsMultipleWaitersAfterCapacityFrees(t *testing.T)
 	observer := &recordingObserver{}
 	worker := NewWorker(Options{Usecase: usecase, QueueSize: 2, Workers: 2, Timeout: time.Second, Observer: observer})
 	require.NoError(t, worker.Start(context.Background()))
-	defer worker.Stop(context.Background())
+	t.Cleanup(func() {
+		// Always unblock the fake usecase before stopping so a failed assertion
+		// cannot hide its evidence behind an unbounded cleanup wait.
+		usecase.releasePhaseOne()
+		usecase.releasePhaseTwo()
+		stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, worker.Stop(stopCtx))
+	})
 
-	for i := 1; i <= 4; i++ {
+	for i := 1; i <= 2; i++ {
 		worker.EnqueuePersistAfter(context.Background(), pluginevents.PersistAfterCommitted{MessageID: uint64(i)})
 	}
 	usecase.waitStartedCalls(t, 2)
+	for i := 3; i <= 4; i++ {
+		worker.EnqueuePersistAfter(context.Background(), pluginevents.PersistAfterCommitted{MessageID: uint64(i)})
+	}
 	require.Eventually(t, func() bool { return observer.enqueueCount(enqueueResultAccepted) >= 4 }, time.Second, time.Millisecond)
 
 	waiterDone := make(chan struct{}, 2)
