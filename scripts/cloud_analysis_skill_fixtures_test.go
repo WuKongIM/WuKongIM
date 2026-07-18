@@ -6,9 +6,30 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestCloudAnalysisSkillDocumentsProcessLossGuard(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, queryID := range []string{
+		"node_memory_percent", "node_oom_kills", "process_start_time_seconds",
+		"gateway_active_connections", "channel_active_channels",
+	} {
+		if !strings.Contains(skill, "`"+queryID+"`") {
+			t.Fatalf("SKILL.md must route process-loss analysis through %q", queryID)
+		}
+		if !strings.Contains(contract, "`"+queryID+"`") {
+			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
+		}
+	}
+	if !strings.Contains(skill, "invalidates performance and storage calibration") {
+		t.Fatal("SKILL.md must reject calibration evidence after a node OOM or process restart")
+	}
+}
 
 func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 	fixtureDir := filepath.Join(repoRoot(t), ".agents", "skills", "wukongim-cloud-analysis", "fixtures")
@@ -63,6 +84,22 @@ func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 			failure, ok := failedWorkers[0].(map[string]any)
 			if !ok || failure["reason_code"] != "worker_status_mismatch" {
 				t.Fatalf("fixture %s reason = %#v, want worker_status_mismatch", path, failedWorkers[0])
+			}
+		}
+		if fixture.Name == "process_loss_ambiguous" {
+			if fixture.ExpectedVerdict != "insufficient_evidence" || fixture.ExpectedRoute != "process_loss" {
+				t.Fatalf("fixture %s process-loss route = %q/%q", path, fixture.ExpectedVerdict, fixture.ExpectedRoute)
+			}
+			queryIDs := make(map[string]struct{})
+			for _, observation := range fixture.Observations {
+				if queryID, ok := observation.Data["query_id"].(string); ok {
+					queryIDs[queryID] = struct{}{}
+				}
+			}
+			for _, queryID := range []string{"node_oom_kills", "process_start_time_seconds", "channel_active_channels"} {
+				if _, ok := queryIDs[queryID]; !ok {
+					t.Fatalf("fixture %s missing process-loss query %q", path, queryID)
+				}
 			}
 		}
 		got = append(got, fixture.ExpectedVerdict)

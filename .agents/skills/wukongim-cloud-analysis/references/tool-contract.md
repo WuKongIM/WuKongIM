@@ -52,6 +52,11 @@ diagnostics perturb only one node at a time.
 - `simulator_tcp_time_wait`
 - `simulator_network_bytes`
 - `simulator_disk_used_percent`
+- `node_memory_percent`
+- `node_oom_kills`
+- `process_start_time_seconds`
+- `gateway_active_connections`
+- `channel_active_channels`
 - `node_data_disk_used_bytes`
 
 Use RFC3339 `start` and `end` plus integer `step_seconds`. Begin with a small query set and widen only when the result changes the diagnosis.

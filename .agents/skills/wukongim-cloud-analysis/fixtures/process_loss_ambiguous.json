@@ -1,0 +1,99 @@
+{
+  "schema": "wukongim.analysis.skill_fixture/v1",
+  "name": "process_loss_ambiguous",
+  "run_id": "fixture-process-loss",
+  "observations": [
+    {
+      "tool": "run_inspect",
+      "run_id": "fixture-process-loss",
+      "node": "run",
+      "source": "run_inventory",
+      "observed_at": "2026-07-18T12:42:00Z",
+      "window": {"start": "2026-07-18T12:42:00Z", "end": "2026-07-18T12:42:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"state": "running", "inventory_count": 12}
+    },
+    {
+      "tool": "workload_inspect",
+      "run_id": "fixture-process-loss",
+      "node": "sim",
+      "source": "wkbench_diagnostic_summary",
+      "observed_at": "2026-07-18T12:42:00Z",
+      "window": {"start": "2026-07-18T12:30:00Z", "end": "2026-07-18T12:42:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {
+        "state": "completed",
+        "status": "failed",
+        "stability_verdict": "infrastructure_failure",
+        "summary": {"send_success": 0, "worker_failed": 1},
+        "phase_windows": [
+          {"phase": "connect", "started_at": "2026-07-18T12:30:00Z", "ended_at": "2026-07-18T12:40:00Z"},
+          {"phase": "warmup", "started_at": "2026-07-18T12:40:00Z", "ended_at": "2026-07-18T12:42:00Z"}
+        ],
+        "failed_workers": [
+          {"worker_id": "sim-worker-1", "phase": "warmup", "reason_code": "target_unavailable", "detail": "target unavailable", "observed_at": "2026-07-18T12:41:30Z"}
+        ],
+        "failed_workers_truncated": false
+      }
+    },
+    {
+      "tool": "metrics_query_range",
+      "run_id": "fixture-process-loss",
+      "node": "sim",
+      "source": "prometheus",
+      "observed_at": "2026-07-18T12:42:01Z",
+      "window": {"start": "2026-07-18T12:30:00Z", "end": "2026-07-18T12:42:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"query_id": "simulator_memory_percent", "max": 15}
+    },
+    {
+      "tool": "metrics_query_range",
+      "run_id": "fixture-process-loss",
+      "node": "node-2",
+      "source": "prometheus",
+      "observed_at": "2026-07-18T12:42:02Z",
+      "window": {"start": "2026-07-18T12:30:00Z", "end": "2026-07-18T12:42:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"query_id": "node_oom_kills", "first": 0, "last": 1}
+    },
+    {
+      "tool": "metrics_query_range",
+      "run_id": "fixture-process-loss",
+      "node": "node-2",
+      "source": "prometheus",
+      "observed_at": "2026-07-18T12:42:03Z",
+      "window": {"start": "2026-07-18T12:30:00Z", "end": "2026-07-18T12:42:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"query_id": "process_start_time_seconds", "changed": true}
+    },
+    {
+      "tool": "metrics_query_range",
+      "run_id": "fixture-process-loss",
+      "node": "cluster",
+      "source": "prometheus",
+      "observed_at": "2026-07-18T12:42:04Z",
+      "window": {"start": "2026-07-18T12:39:00Z", "end": "2026-07-18T12:42:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"query_id": "channel_active_channels", "node_1_last": 1500, "node_2_last_before_restart": 2000, "node_3_last": 1500}
+    },
+    {
+      "tool": "logs_search",
+      "run_id": "fixture-process-loss",
+      "node": "node-2",
+      "source": "manager",
+      "observed_at": "2026-07-18T12:42:05Z",
+      "window": {"start": "2026-07-18T12:40:00Z", "end": "2026-07-18T12:42:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"query": "panic", "matches": 0}
+    }
+  ],
+  "expected_verdict": "insufficient_evidence",
+  "expected_route": "process_loss"
+}

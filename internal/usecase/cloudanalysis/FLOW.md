@@ -17,7 +17,9 @@ MCP tool input
 ```
 
 Metrics select server-owned query IDs rather than accepting PromQL, including
-per-node data-disk used bytes for bounded storage-growth calibration. Logs and
+per-node memory, OOM counters, process start times, active gateway connections,
+active channels, and data-disk used bytes for process-continuity guards and
+bounded storage-growth calibration. Logs and
 diagnostics use fixed private API selectors and opaque cursors. Active
 diagnostics are serialized across expiring trace rules and all profile kinds,
 so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or

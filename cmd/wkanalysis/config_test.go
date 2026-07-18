@@ -52,6 +52,22 @@ func TestLoadServeConfigBindsThreeNodeClusterAndTokenLease(t *testing.T) {
 	}
 }
 
+func TestDefaultMetricQueriesIncludeNodeProcessLossAndMemoryEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	want := map[string]string{
+		"node_memory_percent":        `100 * (1 - (node_memory_MemAvailable_bytes{job="hosts",role=~"node-[123]"} / clamp_min(node_memory_MemTotal_bytes{job="hosts",role=~"node-[123]"}, 1)))`,
+		"node_oom_kills":             `node_vmstat_oom_kill{job="hosts",role=~"node-[123]"}`,
+		"process_start_time_seconds": `process_start_time_seconds{job="wukongim"}`,
+		"gateway_active_connections": `sum by (instance, node_name) (wukongim_gateway_connections_active{job="wukongim"})`,
+		"channel_active_channels":    `sum by (instance, node_name) (wukongim_channel_active_channels{job="wukongim"})`,
+	}
+	for id, query := range want {
+		if queries[id] != query {
+			t.Fatalf("metric query %q = %q, want %q", id, queries[id], query)
+		}
+	}
+}
+
 func TestLoadServeConfigRejectsTokenPastLeaseGuard(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	env := map[string]string{
