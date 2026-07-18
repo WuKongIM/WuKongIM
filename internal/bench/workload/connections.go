@@ -495,12 +495,14 @@ func normalizeGatewayAddrs(addrs []string) []string {
 type connectRateLimiter struct {
 	interval time.Duration
 	sleep    func(context.Context, time.Duration) error
+	now      func() time.Time
 	mu       sync.Mutex
 	started  bool
+	last     time.Time
 }
 
 func newConnectRateLimiter(rate model.Rate, sleep func(context.Context, time.Duration) error) *connectRateLimiter {
-	limiter := &connectRateLimiter{sleep: sleep}
+	limiter := &connectRateLimiter{sleep: sleep, now: time.Now}
 	if rate.PerSecond > 0 {
 		limiter.interval = time.Duration(float64(time.Second) / rate.PerSecond)
 	}
@@ -516,11 +518,24 @@ func (l *connectRateLimiter) Wait(ctx context.Context) error {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	now := l.now()
 	if !l.started {
 		l.started = true
+		l.last = now
 		return nil
 	}
-	return l.sleep(ctx, l.interval)
+	next := l.last.Add(l.interval)
+	if delay := next.Sub(now); delay > 0 {
+		if err := l.sleep(ctx, delay); err != nil {
+			return err
+		}
+		now = l.now()
+		if now.Before(next) {
+			now = next
+		}
+	}
+	l.last = now
+	return nil
 }
 
 func sleepContext(ctx context.Context, d time.Duration) error {
