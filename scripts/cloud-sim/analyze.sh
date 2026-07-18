@@ -24,6 +24,7 @@ analysis_worktree=""
 analysis_worktree_added=false
 remote_branch_pushed=false
 draft_pr_created=false
+codex_bin=""
 
 usage() {
   cat <<'EOF'
@@ -40,6 +41,8 @@ Options:
   -h, --help                    Show this help
 
 One-time local prerequisites: gh auth login; codex login (choose ChatGPT).
+The newest compatible Codex from PATH or the ChatGPT app is selected. Set
+WK_CODEX_BIN only when an explicit compatible CLI must be used.
 EOF
 }
 
@@ -77,6 +80,53 @@ ensure_go_on_path() {
     fi
   done
   return 1
+}
+
+# resolve_codex_bin avoids silently selecting a stale package-manager Codex
+# when the current ChatGPT application ships a newer compatible CLI.
+resolve_codex_bin() {
+  local minimum_key=000000000000000140000000000
+  local selected=""
+  local selected_key=""
+  local candidate=""
+  local version_output=""
+  local key=""
+  local major=0
+  local minor=0
+  local patch=0
+  local -a candidates=()
+
+  if [[ -n "${WK_CODEX_BIN:-}" ]]; then
+    candidates+=("$WK_CODEX_BIN")
+  else
+    candidate="$(command -v codex 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+      candidates+=("$candidate")
+    fi
+    candidate="${WK_CODEX_BUNDLED_BIN:-/Applications/ChatGPT.app/Contents/Resources/codex}"
+    if [[ -x "$candidate" ]]; then
+      candidates+=("$candidate")
+    fi
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    [[ -x "$candidate" ]] || continue
+    version_output="$("$candidate" --version 2>/dev/null || true)"
+    if [[ ! "$version_output" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+      continue
+    fi
+    major=$((10#${BASH_REMATCH[1]}))
+    minor=$((10#${BASH_REMATCH[2]}))
+    patch=$((10#${BASH_REMATCH[3]}))
+    printf -v key '%09d%09d%09d' "$major" "$minor" "$patch"
+    if [[ -z "$selected_key" || "$key" > "$selected_key" ]]; then
+      selected="$candidate"
+      selected_key="$key"
+    fi
+  done
+
+  [[ -n "$selected" && "$selected_key" > "$minimum_key" || "$selected_key" == "$minimum_key" ]] || return 1
+  printf '%s\n' "$selected"
 }
 
 toml_string() {
@@ -327,10 +377,11 @@ case "$session_state" in
 esac
 
 ensure_go_on_path || fail "go is required"
-for command in codex git perl; do
-  command -v "$command" >/dev/null 2>&1 || fail "$command is required"
+for command in git perl; do
+	command -v "$command" >/dev/null 2>&1 || fail "$command is required"
 done
-login_status="$(codex login status 2>&1 || true)"
+codex_bin="$(resolve_codex_bin)" || fail "Codex 0.140.0 or newer is required; update ChatGPT/Codex or set WK_CODEX_BIN"
+login_status="$("$codex_bin" login status 2>&1 || true)"
 [[ "$login_status" == *"Logged in using ChatGPT"* ]] || \
   fail "Codex is not using ChatGPT authentication; run 'codex login' and choose ChatGPT"
 
@@ -428,7 +479,7 @@ set +e
 env -i PATH="$PATH" HOME="$analysis_home" USER="${USER:-}" TMPDIR="${TMPDIR:-/tmp}" LANG=C LC_ALL=C \
   CODEX_HOME="$local_codex_home" WK_ANALYSIS_MCP_TOKEN="$analysis_token" SSL_CERT_FILE="$combined_ca" \
   perl -e 'alarm shift @ARGV; exec @ARGV or die "exec codex: $!\n"' "$diagnosis_timeout_seconds" \
-  codex exec --ephemeral --ignore-user-config --ignore-rules --strict-config -C "$analysis_worktree" \
+  "$codex_bin" exec --ephemeral --ignore-user-config --ignore-rules --strict-config -C "$analysis_worktree" \
     -c 'default_permissions="cloud-analysis"' \
     -c 'permissions.cloud-analysis.filesystem={":minimal"="read",":workspace_roots"={"."="read"}}' \
     -c 'permissions.cloud-analysis.network.enabled=false' \
@@ -513,7 +564,7 @@ If the diagnosis remains supported, read each affected package's FLOW.md first, 
   remediation_filesystem="{\":minimal\"=\"read\",\":workspace_roots\"={\".\"=\"write\"},$remediation_go_root_toml=\"read\",$remediation_mod_cache_toml=\"read\",$remediation_go_cache_toml=\"write\",$remediation_tmp_toml=\"write\"}"
   env -i PATH="$PATH" HOME="$remediation_home" USER="${USER:-}" TMPDIR="${TMPDIR:-/tmp}" LANG=C LC_ALL=C \
     CODEX_HOME="$local_codex_home" \
-    codex exec --ephemeral --ignore-user-config --ignore-rules --strict-config -C "$remediation_worktree" \
+    "$codex_bin" exec --ephemeral --ignore-user-config --ignore-rules --strict-config -C "$remediation_worktree" \
       -c 'default_permissions="cloud-remediation"' \
       -c "permissions.cloud-remediation.filesystem=$remediation_filesystem" \
       -c 'permissions.cloud-remediation.network.enabled=false' \

@@ -55,7 +55,7 @@ func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) Ga
 		}
 	}
 	required := map[string][]string{
-		"node-1": {"wukongim", "node-exporter"}, "node-2": {"wukongim", "node-exporter"}, "node-3": {"wukongim", "node-exporter"},
+		"node-1": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"}, "node-2": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"}, "node-3": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"},
 		"sim": {"wkbench-worker", "prometheus", "node-exporter", "wkanalysis"},
 	}
 	if snapshot.PublicViewEnabled {

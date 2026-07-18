@@ -62,9 +62,9 @@ node2_digest="$(bundle_digest node-2 "$WK_CLOUD_NODE2_IP")"
 node3_digest="$(bundle_digest node-3 "$WK_CLOUD_NODE3_IP")"
 sim_digest="$(bundle_digest sim "")"
 
-node1_services="$(active_services node-1 "$WK_CLOUD_NODE1_IP" wukongim node-exporter)"
-node2_services="$(active_services node-2 "$WK_CLOUD_NODE2_IP" wukongim node-exporter)"
-node3_services="$(active_services node-3 "$WK_CLOUD_NODE3_IP" wukongim node-exporter)"
+node1_services="$(active_services node-1 "$WK_CLOUD_NODE1_IP" wukongim node-exporter wukongim-cgroup-metrics)"
+node2_services="$(active_services node-2 "$WK_CLOUD_NODE2_IP" wukongim node-exporter wukongim-cgroup-metrics)"
+node3_services="$(active_services node-3 "$WK_CLOUD_NODE3_IP" wukongim node-exporter wukongim-cgroup-metrics)"
 sim_required_services=(wkbench-worker prometheus node-exporter wkanalysis)
 if [[ "$WK_CLOUD_PUBLIC_OBSERVATION" == "true" ]]; then
   sim_required_services+=(wkcloudview)

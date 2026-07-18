@@ -246,7 +246,7 @@ func TestCloudSimulationWorkflowGatesOptionalPublicObservation(t *testing.T) {
 		}
 	}
 	bootstrap := string(mustReadFile(t, filepath.Join(repositoryRoot(t), "scripts", "cloud-sim", "collect-bootstrap-gate.sh")))
-	for _, required := range []string{"WK_CLOUD_PUBLIC_OBSERVATION", "wkcloudview", "cloud_view_self_check"} {
+	for _, required := range []string{"WK_CLOUD_PUBLIC_OBSERVATION", "wkcloudview", "cloud_view_self_check", "wukongim-cgroup-metrics"} {
 		if !strings.Contains(bootstrap, required) {
 			t.Fatalf("Bootstrap Gate missing optional Cloud View contract %q", required)
 		}

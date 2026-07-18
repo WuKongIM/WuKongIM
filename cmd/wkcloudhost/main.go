@@ -115,6 +115,9 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 		if err := copyRegular(filepath.Join(options.bundleRoot, "config", options.role+".toml"), rooted(options.rootPrefix, "etc/wukongim/wukongim.toml"), 0o640); err != nil {
 			return deploy.Manifest{}, err
 		}
+		if err := copyRegular(filepath.Join(options.bundleRoot, "scripts", "wukongim-cgroup-metrics.sh"), rooted(options.rootPrefix, "opt/wukongim/bin/wukongim-cgroup-metrics"), 0o755); err != nil {
+			return deploy.Manifest{}, err
+		}
 		if err := copyRegular(filepath.Join(options.envDir, "node.env"), rooted(options.rootPrefix, "etc/wukongim/node.env"), 0o600); err != nil {
 			return deploy.Manifest{}, err
 		}
@@ -141,7 +144,7 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 		}
 	}
 	for unit, content := range selectedUnits(options.bundleRoot, options.role, options.publicObservation) {
-		if err := copyRegular(content, rooted(options.rootPrefix, "etc/systemd/system/"+unit+".service"), 0o644); err != nil {
+		if err := copyRegular(content, rooted(options.rootPrefix, "etc/systemd/system/"+unit), 0o644); err != nil {
 			return deploy.Manifest{}, err
 		}
 	}
@@ -171,18 +174,18 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 }
 
 func selectedUnits(bundleRoot, role string, publicObservation bool) map[string]string {
-	names := []string{"node-exporter"}
+	names := []string{"node-exporter.service"}
 	if strings.HasPrefix(role, "node-") {
-		names = append(names, "wukongim")
+		names = append(names, "wukongim.service", "wukongim-cgroup-metrics.service")
 	} else {
-		names = append(names, "wkbench-worker", "wkbench-run", "prometheus", "wkanalysis")
+		names = append(names, "wkbench-worker.service", "wkbench-run.service", "prometheus.service", "wkanalysis.service")
 		if publicObservation {
-			names = append(names, "wkcloudview")
+			names = append(names, "wkcloudview.service")
 		}
 	}
 	result := make(map[string]string, len(names))
 	for _, name := range names {
-		result[name] = filepath.Join(bundleRoot, "systemd", name+".service")
+		result[name] = filepath.Join(bundleRoot, "systemd", name)
 	}
 	return result
 }
@@ -193,7 +196,7 @@ func startRoleServices(role string, publicObservation bool) error {
 	}
 	names := []string{"node-exporter.service"}
 	if strings.HasPrefix(role, "node-") {
-		names = append(names, "wukongim.service")
+		names = append(names, "wukongim.service", "wukongim-cgroup-metrics.service")
 	} else {
 		names = append(names, "prometheus.service", "wkbench-worker.service", "wkanalysis.service")
 		if publicObservation {

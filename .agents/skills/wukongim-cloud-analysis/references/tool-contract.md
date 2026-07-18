@@ -57,6 +57,17 @@ allocations since process start. Other caller-selected sample types are rejected
 - `simulator_disk_used_percent`
 - `node_memory_percent`
 - `node_oom_kills`
+- `node_service_cgroup_available`
+- `node_service_memory_current_bytes`
+- `node_service_memory_peak_bytes`
+- `node_service_memory_peak_native_available`
+- `node_service_memory_limit_bytes`
+- `node_service_memory_limit_unlimited`
+- `node_service_memory_events_oom`
+- `node_service_memory_events_oom_kill`
+- `node_service_memory_swap_current_bytes`
+- `node_service_memory_swap_limit_bytes`
+- `node_service_memory_swap_limit_unlimited`
 - `process_start_time_seconds`
 - `gateway_active_connections`
 - `channel_active_channels`
