@@ -780,7 +780,7 @@ func parseRunBenchConfig(args []string, stderr io.Writer) (runBenchConfig, int) 
 	fs.SetOutput(stderr)
 	var cfg runBenchConfig
 	bindBenchConfigPathFlags(fs, &cfg.paths)
-	fs.DurationVar(&cfg.phasePollTimeout, "phase-poll-timeout", 0, "base worker phase poll timeout; connect/warmup/run/cooldown add their configured schedule duration; 0 uses the wkbench default")
+	fs.DurationVar(&cfg.phasePollTimeout, "phase-poll-timeout", 0, "base worker phase poll timeout; phases add their configured schedule and run adds churn reconnect pacing; 0 uses the wkbench default")
 	if err := fs.Parse(args); err != nil {
 		return runBenchConfig{}, exitConfig
 	}
