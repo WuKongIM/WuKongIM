@@ -82,6 +82,7 @@ func TestBuildExplicitZeroHardLimitFailsWhenActualIsPositive(t *testing.T) {
 func TestSummaryFromMetricsComputesRatesAndMaxWorkerP99(t *testing.T) {
 	summary := SummaryFromMetrics(metrics.SnapshotData{
 		Counters: map[string]uint64{
+			"connect_attempt_total":     10,
 			"connect_success_total":     8,
 			"connect_error_total":       2,
 			"person_send_success_total": 9,
@@ -96,6 +97,9 @@ func TestSummaryFromMetricsComputesRatesAndMaxWorkerP99(t *testing.T) {
 		},
 	}, 2)
 
+	if summary.ConnectAttempts != 10 || summary.ConnectSuccess != 8 || summary.ConnectErrors != 2 {
+		t.Fatalf("connect counts = %d/%d/%d, want 10/8/2", summary.ConnectAttempts, summary.ConnectSuccess, summary.ConnectErrors)
+	}
 	if summary.ConnectErrorRate != 0.2 {
 		t.Fatalf("connect_error_rate = %v, want 0.2", summary.ConnectErrorRate)
 	}
@@ -305,7 +309,7 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 	endedAt := startedAt.Add(30 * time.Minute)
 	rep := Build(Input{
 		RunID:   "run-1",
-		Summary: Summary{SendSuccess: 889785, WorkerFailed: 2},
+		Summary: Summary{SendSuccess: 889785, ConnectAttempts: 10000, ConnectSuccess: 9999, ConnectErrors: 1, WorkerFailed: 2},
 		Limits:  model.LimitsConfig{Hard: model.HardLimitsConfig{MaxWorkerFailed: 2}},
 		PhaseWindows: []PhaseWindow{{
 			Phase: "run", StartedAt: startedAt, EndedAt: endedAt,
@@ -337,7 +341,7 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("diagnostic-summary.json should be valid JSON: %v", err)
 	}
-	if got.Schema != DiagnosticSummarySchema || got.RunID != "run-1" || got.Summary.SendSuccess != 889785 {
+	if got.Schema != DiagnosticSummarySchema || got.RunID != "run-1" || got.Summary.SendSuccess != 889785 || got.Summary.ConnectAttempts != 10000 || got.Summary.ConnectSuccess != 9999 || got.Summary.ConnectErrors != 1 {
 		t.Fatalf("diagnostic summary identity = %+v", got)
 	}
 	if len(got.PhaseWindows) != 1 || !got.PhaseWindows[0].StartedAt.Equal(startedAt) || !got.PhaseWindows[0].EndedAt.Equal(endedAt) {

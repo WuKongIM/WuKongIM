@@ -19,7 +19,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":123456,"connect_error_rate":0.000002,"sendack_error_rate":0.000001,"recv_verify_error_rate":0.000003,"worker_failed":1,"sendack_max_worker_p99":125000000,"recv_max_worker_p99":250000000},
+  "summary":{"send_success":123456,"connect_attempts":10000,"connect_success":9999,"connect_errors":1,"connect_error_rate":0.000002,"sendack_error_rate":0.000001,"recv_verify_error_rate":0.000003,"worker_failed":1,"sendack_max_worker_p99":125000000,"recv_max_worker_p99":250000000},
   "violations":[],
   "warnings":[],
   "phase_windows":[{"phase":"run","started_at":"2026-07-17T03:23:18Z","ended_at":"2026-07-17T03:53:18Z"}],
@@ -44,7 +44,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 	if inspection.RunID != "run-1" || inspection.State != "completed" || inspection.Status != "failed" || inspection.ExitCode != 4 || inspection.StabilityVerdict != "harness_invalid" {
 		t.Fatalf("inspection = %+v", inspection)
 	}
-	if inspection.Summary.SendSuccess != 123456 || inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
+	if inspection.Summary.SendSuccess != 123456 || inspection.Summary.ConnectAttempts != 10000 || inspection.Summary.ConnectSuccess != 9999 || inspection.Summary.ConnectErrors != 1 || inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
 		t.Fatalf("summary = %+v", inspection.Summary)
 	}
 	if len(inspection.PhaseWindows) != 1 || inspection.PhaseWindows[0].Phase != "run" || len(inspection.FailedWorkers) != 1 || inspection.FailedWorkers[0].WorkerID != "worker-3" || inspection.FailedWorkers[0].ReasonCode != "phase_wait_failed" {

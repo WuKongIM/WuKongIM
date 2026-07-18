@@ -131,6 +131,9 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 		StabilityVerdict: document.StabilityVerdict,
 		Summary: analysis.WorkloadSummary{
 			SendSuccess:      document.Summary.SendSuccess,
+			ConnectAttempts:  document.Summary.ConnectAttempts,
+			ConnectSuccess:   document.Summary.ConnectSuccess,
+			ConnectErrors:    document.Summary.ConnectErrors,
 			ConnectErrorRate: document.Summary.ConnectErrorRate, SendackErrorRate: document.Summary.SendackErrorRate,
 			RecvVerifyErrorRate: document.Summary.RecvVerifyErrorRate, WorkerFailed: document.Summary.WorkerFailed,
 			SendackMaxWorkerP99: document.Summary.SendackMaxWorkerP99.String(), ReceiveMaxWorkerP99: document.Summary.ReceiveMaxWorkerP99.String(),
@@ -156,6 +159,9 @@ type workloadDiagnosticSummary struct {
 
 type workloadDiagnosticMetrics struct {
 	SendSuccess         uint64        `json:"send_success"`
+	ConnectAttempts     uint64        `json:"connect_attempts"`
+	ConnectSuccess      uint64        `json:"connect_success"`
+	ConnectErrors       uint64        `json:"connect_errors"`
 	ConnectErrorRate    float64       `json:"connect_error_rate"`
 	SendackErrorRate    float64       `json:"sendack_error_rate"`
 	RecvVerifyErrorRate float64       `json:"recv_verify_error_rate"`

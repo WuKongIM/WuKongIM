@@ -216,6 +216,12 @@ type WorkloadWorkerFailure struct {
 type WorkloadSummary struct {
 	// SendSuccess is the successful send acknowledgement count during the measured run phase.
 	SendSuccess uint64 `json:"send_success"`
+	// ConnectAttempts is the number of gateway connection attempts started by workers.
+	ConnectAttempts uint64 `json:"connect_attempts"`
+	// ConnectSuccess is the number of gateway connections established by workers.
+	ConnectSuccess uint64 `json:"connect_success"`
+	// ConnectErrors is the number of connection failures observed by workers.
+	ConnectErrors uint64 `json:"connect_errors"`
 	// ConnectErrorRate is the final failed-connection fraction across workers.
 	ConnectErrorRate float64 `json:"connect_error_rate"`
 	// SendackErrorRate is the final failed-SENDACK fraction across workers.

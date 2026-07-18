@@ -96,6 +96,12 @@ type StabilityClassification struct {
 type Summary struct {
 	// SendSuccess is the successful send acknowledgement count during the measured run phase.
 	SendSuccess uint64 `json:"send_success"`
+	// ConnectAttempts is the number of gateway connection attempts started by workers.
+	ConnectAttempts uint64 `json:"connect_attempts"`
+	// ConnectSuccess is the number of gateway connections established by workers.
+	ConnectSuccess uint64 `json:"connect_success"`
+	// ConnectErrors is the number of connection failures observed by workers.
+	ConnectErrors uint64 `json:"connect_errors"`
 	// ConnectErrorRate is failed connects divided by attempted connects.
 	ConnectErrorRate float64 `json:"connect_error_rate"`
 	// SendackErrorRate is failed send acknowledgements divided by attempted sends.
@@ -481,6 +487,9 @@ func SummaryFromMetrics(snapshot metrics.SnapshotData, workerFailed int) Summary
 	recvErrors := counterSum(snapshot, "person_recv_error_total", "group_recv_error_total", "recv_verify_error_total")
 	return Summary{
 		SendSuccess:         counterSumWithPhase(snapshot, "run", "person_send_success_total", "group_send_success_total", "sendack_success_total"),
+		ConnectAttempts:     connectAttempts,
+		ConnectSuccess:      connectSuccess,
+		ConnectErrors:       connectErrors,
 		ConnectErrorRate:    connectErrorRate(connectErrors, connectSuccess, connectAttempts),
 		SendackErrorRate:    errorRate(sendErrors, sendSuccess),
 		RecvVerifyErrorRate: errorRate(recvErrors, recvSuccess),
@@ -666,6 +675,9 @@ func summaryMarkdown(rep Report) string {
 	fmt.Fprintf(&b, "- status: %s\n", rep.Status)
 	fmt.Fprintf(&b, "- exit_code: %d\n", rep.ExitCode)
 	fmt.Fprintf(&b, "- send_success: %d\n", rep.Summary.SendSuccess)
+	fmt.Fprintf(&b, "- connect_attempts: %d\n", rep.Summary.ConnectAttempts)
+	fmt.Fprintf(&b, "- connect_success: %d\n", rep.Summary.ConnectSuccess)
+	fmt.Fprintf(&b, "- connect_errors: %d\n", rep.Summary.ConnectErrors)
 	fmt.Fprintf(&b, "- sendack_error_rate: %.6f\n", rep.Summary.SendackErrorRate)
 	fmt.Fprintf(&b, "- connect_error_rate: %.6f\n", rep.Summary.ConnectErrorRate)
 	fmt.Fprintf(&b, "- recv_verify_error_rate: %.6f\n", rep.Summary.RecvVerifyErrorRate)

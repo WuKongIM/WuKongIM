@@ -86,12 +86,14 @@ func TestConnectionManagerAppliesDefaultAndPerUserTokens(t *testing.T) {
 
 func TestConnectionManagerRateLimitsConnectAttempts(t *testing.T) {
 	var sleeps []time.Duration
+	now := time.Unix(0, 0)
 	manager, err := NewConnectionManager(ConnectionManagerConfig{
 		GatewayAddrs:  []string{"gw-a:5100"},
 		ConnectRate:   model.Rate{PerSecond: 10},
 		ClientFactory: (&recordingClientFactory{}).newClient,
 		sleep: func(ctx context.Context, d time.Duration) error {
 			sleeps = append(sleeps, d)
+			now = now.Add(d)
 			return nil
 		},
 	})
@@ -99,12 +101,36 @@ func TestConnectionManagerRateLimitsConnectAttempts(t *testing.T) {
 		t.Fatalf("NewConnectionManager() error = %v", err)
 	}
 	defer manager.Close()
+	manager.rateLimiter.now = func() time.Time { return now }
 
 	if err := manager.Connect(context.Background(), []ConnectionUser{{UID: "u1", DeviceID: "d1"}, {UID: "u2", DeviceID: "d2"}, {UID: "u3", DeviceID: "d3"}}); err != nil {
 		t.Fatalf("Connect() error = %v", err)
 	}
 	if got, want := sleeps, []time.Duration{100 * time.Millisecond, 100 * time.Millisecond}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("rate-limit sleeps = %v, want %v", got, want)
+	}
+}
+
+func TestConnectRateLimiterAccountsForConnectionWorkBetweenAttempts(t *testing.T) {
+	var slept time.Duration
+	now := time.Unix(0, 0)
+	limiter := newConnectRateLimiter(model.Rate{PerSecond: 10}, func(_ context.Context, d time.Duration) error {
+		slept = d
+		now = now.Add(d)
+		return nil
+	})
+	limiter.now = func() time.Time { return now }
+
+	if err := limiter.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait(first) error = %v", err)
+	}
+	now = now.Add(30 * time.Millisecond)
+	if err := limiter.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait(second) error = %v", err)
+	}
+
+	if got, want := slept, 70*time.Millisecond; got != want {
+		t.Fatalf("second pacing sleep = %v, want %v after deducting connection work", got, want)
 	}
 }
 

@@ -63,6 +63,11 @@ worker failures, while remote target errors retain their normal target
 classification. Omitting `tcp_source` preserves ordinary `net.Dialer`
 behavior. Worker clients are additionally wrapped by a matching reader that buffers unmatched frames for
 foreground waiters and applies the recv-ack policy selected by the scenario.
+Connection pacing measures the interval between attempt start times, so time
+spent performing the previous WKProto handshake is deducted from the next
+wait. An unconditional post-handshake sleep would accumulate handshake latency
+across large online pools and make the coordinator's deterministic connect
+schedule underestimate the real phase duration.
 Scheduled traffic uses per-key pending queues plus a ready-key queue when a
 workload supplies a serialization key. That keeps one busy client or channel
 from forcing a linear scan across a large pending list. Person/group timed
@@ -112,6 +117,9 @@ View purity classification take precedence over product-limit inference.
 The bounded final summary also records the successful send acknowledgement
 count from the measured `run` phase so storage calibration can use the exact
 workload denominator even when a run terminates early.
+It also records connection attempt, success, and error counts so a failed
+connect phase can be diagnosed without reconstructing integers from a rounded
+error rate.
 `report.WriteDir` additionally writes `diagnostic-summary.json`, a bounded,
 redacted machine contract with actual coordinator phase windows and structured
 worker failures. `summary.md` remains human-readable and is not the analysis
