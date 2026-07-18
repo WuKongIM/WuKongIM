@@ -125,6 +125,9 @@ failures and therefore resolve to `worker_failed`, never
 When it is omitted, the coordinator default is used. The coordinator then adds
 the expected phase schedule duration for connect, warmup, run, and cooldown;
 for example, connect waits for `phase_poll_timeout + total_users/connect_rate`.
+The run phase also adds the deterministic reconnect pacing between scheduled
+churn windows for the busiest worker. Churn maintenance therefore does not
+consume the base control-plane grace or create a false `phase_timeout`.
 
 `PhasePrepare` has one extra coordinator step for split large groups: before normal prepare, the coordinator calls `/v1/prepare/channels` on workers that own split group channels. This creates owner channels before all workers append subscribers.
 

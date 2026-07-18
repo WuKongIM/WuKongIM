@@ -699,6 +699,52 @@ func TestCoordinatorPollTimeoutIncludesScenarioPhaseDurations(t *testing.T) {
 	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown))
 }
 
+func TestCoordinatorPollTimeoutIncludesChurnReconnectSchedule(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].CompletePhaseAfter(PhaseRun, 70*time.Millisecond)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  10 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.Duration = 40 * time.Millisecond
+	scenario.Identity.TotalUsers = 20
+	scenario.Online.ConnectRate = model.Rate{PerSecond: 500}
+	scenario.Online.Churn = model.ChurnConfig{
+		Enabled:           true,
+		Interval:          10 * time.Millisecond,
+		Ratio:             0.5,
+		SameUserRatio:     0.5,
+		IdentitySwapRatio: 0.5,
+	}
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown))
+}
+
+func TestChurnReconnectScheduleDurationUsesBusiestWorker(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Run.Duration = 30 * time.Minute
+	scenario.Online.ConnectRate = model.Rate{PerSecond: 2}
+	scenario.Online.Churn = model.ChurnConfig{
+		Enabled:  true,
+		Interval: 5 * time.Minute,
+		Ratio:    0.01,
+	}
+	plan := model.Plan{Workers: map[string]model.WorkerPlan{
+		"smaller": {IdentityRange: model.Range{Start: 0, End: 400}},
+		"busiest": {IdentityRange: model.Range{Start: 400, End: 1000}},
+	}}
+
+	require.Equal(t, 15*time.Second, churnReconnectScheduleDuration(scenario, plan))
+}
+
 func TestCoordinatorPollTimeoutIncludesConnectSchedule(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].CompletePhaseAfter(PhaseConnect, 12*time.Millisecond)

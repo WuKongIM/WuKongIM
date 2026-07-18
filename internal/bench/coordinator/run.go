@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -116,7 +117,7 @@ type CoordinatorConfig struct {
 	Preflight PreflightChecker
 	// PollInterval is the delay between worker status polls.
 	PollInterval time.Duration
-	// PollTimeout is the maximum wait for a worker to report a requested phase.
+	// PollTimeout is the base control-plane grace after the planned phase schedule ends.
 	PollTimeout time.Duration
 	// StopTimeout bounds best-effort stop requests after failure or cancellation.
 	StopTimeout time.Duration
@@ -533,7 +534,7 @@ func (c *Coordinator) runPhase(ctx context.Context, scenario model.Scenario, pha
 	if phase == PhasePrepare {
 		return c.runPreparePhase(ctx, scenario.Run.ID, failed, plan)
 	}
-	return c.runWorkerPhase(ctx, scenario.Run.ID, phase, c.phasePollTimeout(scenario, phase), failed, c.cfg.Workers)
+	return c.runWorkerPhase(ctx, scenario.Run.ID, phase, c.phasePollTimeout(scenario, phase, plan), failed, c.cfg.Workers)
 }
 
 func (c *Coordinator) runPreparePhase(ctx context.Context, runID string, failed map[string]struct{}, plan model.Plan) error {
@@ -581,7 +582,7 @@ func (c *Coordinator) prepareOwners(plan model.Plan) []model.Worker {
 	return owners
 }
 
-func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase) time.Duration {
+func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase, plan model.Plan) time.Duration {
 	timeout := c.cfg.PollTimeout
 	switch phase {
 	case PhaseConnect:
@@ -590,10 +591,43 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase) tim
 		timeout += positiveDuration(scenario.Run.Warmup)
 	case PhaseRun:
 		timeout += positiveDuration(scenario.Run.Duration)
+		timeout += churnReconnectScheduleDuration(scenario, plan)
 	case PhaseCooldown:
 		timeout += positiveDuration(scenario.Run.Cooldown)
 	}
 	return timeout
+}
+
+// churnReconnectScheduleDuration returns the deterministic reconnect pacing that
+// runWithScheduledChurn performs between measured traffic windows on the busiest worker.
+func churnReconnectScheduleDuration(scenario model.Scenario, plan model.Plan) time.Duration {
+	churn := scenario.Online.Churn
+	runDuration := positiveDuration(scenario.Run.Duration)
+	if !churn.Enabled || runDuration <= 0 || churn.Interval <= 0 || scenario.Online.ConnectRate.PerSecond <= 0 {
+		return 0
+	}
+	transitions := (runDuration - 1) / churn.Interval
+	if transitions <= 0 {
+		return 0
+	}
+	maxIdentityCount := 0
+	for _, workerPlan := range plan.Workers {
+		if count := workerPlan.IdentityRange.Len(); count > maxIdentityCount {
+			maxIdentityCount = count
+		}
+	}
+	if maxIdentityCount <= 0 {
+		return 0
+	}
+	churnCount := int(math.Round(float64(maxIdentityCount) * churn.Ratio))
+	if churnCount < 1 {
+		churnCount = 1
+	}
+	if churnCount > maxIdentityCount {
+		churnCount = maxIdentityCount
+	}
+	connectInterval := time.Duration(float64(time.Second) / scenario.Online.ConnectRate.PerSecond)
+	return transitions * time.Duration(churnCount) * connectInterval
 }
 
 func connectScheduleDuration(scenario model.Scenario) time.Duration {

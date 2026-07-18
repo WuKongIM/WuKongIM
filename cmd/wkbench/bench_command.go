@@ -20,7 +20,7 @@ func newRunCommand(stderr io.Writer) *cobra.Command {
 		},
 	}
 	bindBenchConfigPathFlags(cmd.Flags(), &cfg.paths)
-	cmd.Flags().DurationVar(&cfg.phasePollTimeout, "phase-poll-timeout", 0, "base worker phase poll timeout; connect/warmup/run/cooldown add their configured schedule duration; 0 uses the wkbench default")
+	cmd.Flags().DurationVar(&cfg.phasePollTimeout, "phase-poll-timeout", 0, "base worker phase poll timeout; phases add their configured schedule and run adds churn reconnect pacing; 0 uses the wkbench default")
 	return cmd
 }
 
