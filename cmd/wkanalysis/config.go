@@ -222,6 +222,11 @@ func defaultMetricQueries() map[string]string {
 		"simulator_tcp_time_wait":     `node_sockstat_TCP_tw{job="hosts",role="sim"}`,
 		"simulator_network_bytes":     `sum by (instance) (rate(node_network_receive_bytes_total{job="hosts",role="sim",device!~"lo"}[1m]) + rate(node_network_transmit_bytes_total{job="hosts",role="sim",device!~"lo"}[1m]))`,
 		"simulator_disk_used_percent": `100 * (1 - (node_filesystem_avail_bytes{job="hosts",role="sim",mountpoint="/var/lib/wukongim-cloud"} / clamp_min(node_filesystem_size_bytes{job="hosts",role="sim",mountpoint="/var/lib/wukongim-cloud"}, 1)))`,
+		"node_memory_percent":         `100 * (1 - (node_memory_MemAvailable_bytes{job="hosts",role=~"node-[123]"} / clamp_min(node_memory_MemTotal_bytes{job="hosts",role=~"node-[123]"}, 1)))`,
+		"node_oom_kills":              `node_vmstat_oom_kill{job="hosts",role=~"node-[123]"}`,
+		"process_start_time_seconds":  `process_start_time_seconds{job="wukongim"}`,
+		"gateway_active_connections":  `sum by (instance, node_name) (wukongim_gateway_connections_active{job="wukongim"})`,
+		"channel_active_channels":     `sum by (instance, node_name) (wukongim_channel_active_channels{job="wukongim"})`,
 		"node_data_disk_used_bytes":   `max by (instance, role) (node_filesystem_size_bytes{job="hosts",role=~"node-[123]",mountpoint="/var/lib/wukongim-cloud"} - node_filesystem_avail_bytes{job="hosts",role=~"node-[123]",mountpoint="/var/lib/wukongim-cloud"})`,
 	}
 }
