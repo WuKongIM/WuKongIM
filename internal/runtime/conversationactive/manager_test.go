@@ -3,8 +3,10 @@ package conversationactive
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -897,6 +899,82 @@ func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
 	}
 }
 
+func TestConcurrentCachePressureDoesNotDuplicateFullFlush(t *testing.T) {
+	const (
+		maxRows = 64
+		workers = 8
+	)
+	ctx := context.Background()
+	store := &blockingActiveStore{
+		entered: make(chan int, workers),
+		release: make(chan struct{}),
+	}
+	releaseStore := sync.OnceFunc(func() { close(store.release) })
+	defer releaseStore()
+	m := NewManager(Options{Store: store, MaxCachedRows: maxRows})
+	initial := make([]ActivePatch, 0, maxRows)
+	for i := 0; i < maxRows; i++ {
+		initial = append(initial, ActivePatch{
+			Kind:        metadb.ConversationKindNormal,
+			UID:         fmt.Sprintf("existing-%d", i),
+			ChannelID:   "room",
+			ChannelType: 2,
+			ActiveAtMS:  1000,
+		})
+	}
+	if err := m.MarkActive(ctx, initial); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+
+	start := make(chan struct{})
+	ready := sync.WaitGroup{}
+	ready.Add(workers)
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		go func(worker int) {
+			ready.Done()
+			<-start
+			errs <- m.MarkActive(ctx, []ActivePatch{{
+				Kind:        metadb.ConversationKindNormal,
+				UID:         fmt.Sprintf("new-%d", worker),
+				ChannelID:   "room",
+				ChannelType: 2,
+				ActiveAtMS:  2000,
+			}})
+		}(i)
+	}
+	ready.Wait()
+	close(start)
+
+	select {
+	case selected := <-store.entered:
+		if selected != maxRows {
+			t.Fatalf("first pressure flush selected %d rows, want %d", selected, maxRows)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first pressure flush did not reach the store")
+	}
+
+	duplicateFullFlush := false
+	select {
+	case selected := <-store.entered:
+		duplicateFullFlush = selected == maxRows
+	case <-time.After(200 * time.Millisecond):
+	}
+	releaseStore()
+	for i := 0; i < workers; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("MarkActive(concurrent pressure) error = %v", err)
+		}
+	}
+	if duplicateFullFlush {
+		t.Fatal("concurrent cache pressure duplicated the same full-cache flush snapshot")
+	}
+	if got := store.maxConcurrentCalls(); got != 1 {
+		t.Fatalf("maximum concurrent store flushes = %d, want 1", got)
+	}
+}
+
 type recordingActiveStore struct {
 	rows      []metadb.ConversationState
 	primary   map[metadb.ConversationStateKey]metadb.ConversationState
@@ -910,6 +988,38 @@ type recordingActiveStore struct {
 	touchErr  error
 	touchHook func()
 	touches   [][]metadb.ConversationActivePatch
+}
+
+type blockingActiveStore struct {
+	recordingActiveStore
+	mu            sync.Mutex
+	entered       chan int
+	release       chan struct{}
+	concurrent    int
+	maxConcurrent int
+}
+
+func (s *blockingActiveStore) TouchConversationActiveAt(_ context.Context, patches []metadb.ConversationActivePatch) error {
+	s.mu.Lock()
+	s.concurrent++
+	if s.concurrent > s.maxConcurrent {
+		s.maxConcurrent = s.concurrent
+	}
+	s.mu.Unlock()
+
+	s.entered <- len(patches)
+	<-s.release
+
+	s.mu.Lock()
+	s.concurrent--
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *blockingActiveStore) maxConcurrentCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maxConcurrent
 }
 
 type recordingConversationActiveObserver struct {

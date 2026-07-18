@@ -48,6 +48,8 @@ type flushEntry struct {
 type Manager struct {
 	// mu protects cache and all per-UID conversation rows.
 	mu sync.RWMutex
+	// flushMu serializes dirty snapshots through durable completion to bound concurrent snapshot memory.
+	flushMu sync.Mutex
 	// nowMS supplies ActiveAtMS when an admitted batch does not provide one.
 	nowMS func() int64
 	// store reads and persists durable active rows for cache/store merging.
@@ -277,7 +279,17 @@ func (m *Manager) spillForPressure(ctx context.Context, newRows int) error {
 	if m.store == nil {
 		return ErrCachePressure
 	}
-	if _, err := m.flushDirty(ctx, 0); err != nil {
+
+	m.flushMu.Lock()
+	defer m.flushMu.Unlock()
+
+	m.mu.RLock()
+	needsSpill := m.cacheWouldExceedLocked(newRows)
+	m.mu.RUnlock()
+	if !needsSpill {
+		return nil
+	}
+	if _, err := m.flushDirtySerialized(ctx, 0); err != nil {
 		return err
 	}
 
@@ -332,6 +344,9 @@ func (m *Manager) FlushHashSlot(ctx context.Context, hashSlot uint16, limit int)
 	if m.store == nil {
 		return FlushResult{}, ErrStoreRequired
 	}
+	m.flushMu.Lock()
+	defer m.flushMu.Unlock()
+
 	startedAt := time.Now()
 	return m.flushDirtyEntries(ctx, startedAt, m.dirtyFlushEntriesForHashSlot(hashSlot, limit))
 }
@@ -340,6 +355,13 @@ func (m *Manager) flushDirty(ctx context.Context, limit int) (FlushResult, error
 	if m.store == nil {
 		return FlushResult{}, ErrStoreRequired
 	}
+	m.flushMu.Lock()
+	defer m.flushMu.Unlock()
+
+	return m.flushDirtySerialized(ctx, limit)
+}
+
+func (m *Manager) flushDirtySerialized(ctx context.Context, limit int) (FlushResult, error) {
 	startedAt := time.Now()
 
 	return m.flushDirtyEntries(ctx, startedAt, m.dirtyFlushEntries(limit))

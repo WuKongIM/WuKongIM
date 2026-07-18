@@ -8,9 +8,17 @@ Current flow:
 
 1. Channel append or another authority-owned caller submits an `ActiveBatch`.
 2. The manager merges rows by `(uid, kind, channel_id, channel_type)`.
-3. Dirty rows flush through `ActiveStore.TouchConversationActiveAt`.
-4. Active view reads merge cache rows with durable `(uid, kind)` active-index pages.
-5. Hash-slot handoff drains dirty rows scoped by UID hash slot before authority moves.
+3. Dirty flushes are serialized from cache snapshot through durable completion,
+   then write through `ActiveStore.TouchConversationActiveAt`.
+4. Cache-pressure admission rechecks capacity after it owns the flush lane, flushes
+   dirty rows, and evicts only clean rows before retrying admission.
+5. Active view reads merge cache rows with durable `(uid, kind)` active-index pages.
+6. Hash-slot handoff drains dirty rows scoped by UID hash slot before authority moves.
+
+Serialization covers scheduled, cache-pressure, and hash-slot-scoped flushes. It
+prevents concurrent admissions at the row cap from each retaining a duplicate
+whole-cache snapshot while preserving version fencing for updates that arrive
+during durable I/O.
 
 Cache observations report aggregate row/dirty counts plus fixed kind-aware
 normal/CMD counts maintained incrementally on cache mutation. Observation does
