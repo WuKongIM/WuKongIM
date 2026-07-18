@@ -842,9 +842,12 @@ func TestBuildGroupWorkloadsAppliesTrafficAckTimeout(t *testing.T) {
 	workloads, err := buildGroupWorkloads(assignment, groupBundlesForTest(t, assignment), clients)
 	require.NoError(t, err)
 
-	require.Error(t, workloads[0].Run(context.Background()))
+	require.NoError(t, workloads[0].Run(context.Background()))
 	observed := <-clients["bench-u-0"].(*deadlineObservingPersonClient).observed
 	require.Less(t, observed, 100*time.Millisecond)
+	require.Equal(t, uint64(1), workloads[0].Metrics().CounterValue("group_send_error_total", metrics.Labels{
+		"phase": "run", "channel_type": "group", "profile": "huge-group", "traffic": "group-send",
+	}))
 }
 
 func TestConnectionAckTimeoutUsesLargestTrafficWindow(t *testing.T) {

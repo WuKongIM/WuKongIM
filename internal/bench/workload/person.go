@@ -299,7 +299,11 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 			return pair.SenderUID
 		}, func(ctx context.Context, messageOffset int) error {
 			pair := w.pairs[messageOffset%len(w.pairs)]
-			return w.sendPairInPhase(ctx, pair, phase, messageOffset)
+			err := w.sendPairInPhase(ctx, pair, phase, messageOffset)
+			if shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+				return nil
+			}
+			return err
 		}, stats)
 		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
 		return err
@@ -312,7 +316,9 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 		}
 		pair := w.pairs[messageOffset%len(w.pairs)]
 		if err := w.sendPairInPhase(ctx, pair, phase, messageOffset); err != nil {
-			return err
+			if !shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+				return err
+			}
 		}
 		if interval > 0 {
 			if err := w.cfg.sleep(ctx, interval); err != nil {

@@ -382,6 +382,35 @@ func TestGroupWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testing
 	require.Contains(t, err.Error(), "sendack not received")
 }
 
+func TestGroupWorkloadMeasuredRunKeepsGoingAfterOperationError(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	sender.readErrors = append(sender.readErrors, context.DeadlineExceeded)
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     50 * time.Millisecond,
+		LocalRate:       model.Rate{PerSecond: 100},
+		MaxConcurrency:  4,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Run(context.Background()))
+
+	labels := groupSendLabels("run", "group-profile", "group-send")
+	require.Len(t, sender.sentFrames, 5)
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_error_total", labels))
+	require.Equal(t, uint64(4), workload.Metrics().CounterValue("group_send_success_total", labels))
+}
+
 func TestGroupWorkloadPipelinesSendackOperationsPerWrappedClient(t *testing.T) {
 	raw := newSerialSendackClient()
 	clients := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u-0": raw})

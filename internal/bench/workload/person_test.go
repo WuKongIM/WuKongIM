@@ -1009,6 +1009,33 @@ func TestPersonWorkloadRunHonorsRateDurationPerChannel(t *testing.T) {
 	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", personSendLabels("run", "profile-a", "traffic-a")))
 }
 
+func TestPersonWorkloadMeasuredRunKeepsGoingAfterOperationError(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	sender.readErrors = append(sender.readErrors, context.DeadlineExceeded)
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     50 * time.Millisecond,
+		Rate:            model.Rate{PerSecond: 100},
+		MaxConcurrency:  4,
+		Pairs: []PersonPair{
+			{ChannelIndex: 0, SenderUID: "u1", RecipientUID: "u2"},
+		},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": newRecordingPersonClient()})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Run(context.Background()))
+
+	labels := personSendLabels("run", "profile-a", "traffic-a")
+	require.Len(t, sender.sentFrames, 5)
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_error_total", labels))
+	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", labels))
+}
+
 func TestPersonWorkloadWarmupTouchesEveryPairAtLeastOnce(t *testing.T) {
 	clients := map[string]*recordingPersonClient{
 		"u1": newRecordingPersonClient(),
