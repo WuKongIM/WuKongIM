@@ -23,6 +23,10 @@ or deletion operation. `trace_start` and `profile_capture` are annotated as
 active non-destructive diagnostics; all other tools are read-only and closed
 world.
 
+`profile_top` keeps raw profiles private and exposes only bounded symbol rows.
+Heap callers may explicitly choose the closed `inuse_space` or `alloc_space`
+sample view; an omitted sample type preserves the profile's default view.
+
 `POST /analysis/token` is also owned by this access adapter. It parses the
 GitHub OIDC bearer request and serializes the bounded token response, while
 `cmd/wkanalysis` supplies the claim verifier and session issuer as narrow

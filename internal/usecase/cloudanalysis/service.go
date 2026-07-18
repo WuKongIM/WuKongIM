@@ -296,7 +296,7 @@ func (s *Service) ProfileCapture(ctx context.Context, req ProfileCaptureRequest)
 
 // ProfileTop returns a bounded symbolic summary for one opaque capture identity.
 func (s *Service) ProfileTop(ctx context.Context, req ProfileTopRequest) (Observation, error) {
-	if !validOpaqueID(req.ProfileID) {
+	if !validOpaqueID(req.ProfileID) || !validProfileSampleType(req.SampleType) {
 		return Observation{}, ErrInvalidToolInput
 	}
 	if req.Limit == 0 {
@@ -308,6 +308,15 @@ func (s *Service) ProfileTop(ctx context.Context, req ProfileTopRequest) (Observ
 	return s.read(ctx, req.RunID, func(callCtx context.Context) (SourceResult, error) {
 		return s.sources.ProfileTop(callCtx, req)
 	})
+}
+
+func validProfileSampleType(sampleType ProfileSampleType) bool {
+	switch sampleType {
+	case "", ProfileSampleInuseSpace, ProfileSampleAllocSpace:
+		return true
+	default:
+		return false
+	}
 }
 
 // ProfileList returns bounded capture metadata for one or all allowlisted nodes.

@@ -49,6 +49,8 @@ type ProfileTopRow struct {
 	Cumulative int64 `json:"cumulative"`
 	// Unit is the selected pprof sample unit.
 	Unit string `json:"unit"`
+	// SampleType is the selected pprof sample type.
+	SampleType string `json:"sample_type"`
 }
 
 type storedProfile struct {
@@ -162,7 +164,10 @@ func (s *profileStore) top(req analysis.ProfileTopRequest) (analysis.SourceResul
 	if err != nil {
 		return analysis.SourceResult{}, err
 	}
-	rows := summarizeProfile(parsed, req.Limit)
+	rows, err := summarizeProfile(parsed, req.Limit, req.SampleType)
+	if err != nil {
+		return analysis.SourceResult{}, err
+	}
 	window := stored.metadata.Window
 	return analysis.SourceResult{
 		Node: "node-" + strconv.FormatUint(stored.metadata.NodeID, 10), Source: "pprof", Window: &window,
@@ -206,11 +211,24 @@ func (s *profileStore) store(profile storedProfile) bool {
 	return true
 }
 
-func summarizeProfile(profile *pprofprofile.Profile, limit int) []ProfileTopRow {
+func summarizeProfile(profile *pprofprofile.Profile, limit int, requested analysis.ProfileSampleType) ([]ProfileTopRow, error) {
 	if profile == nil || len(profile.SampleType) == 0 {
-		return []ProfileTopRow{}
+		return []ProfileTopRow{}, nil
 	}
 	valueIndex := len(profile.SampleType) - 1
+	if requested != "" {
+		valueIndex = -1
+		for index, sampleType := range profile.SampleType {
+			if sampleType != nil && sampleType.Type == string(requested) {
+				valueIndex = index
+				break
+			}
+		}
+		if valueIndex < 0 {
+			return nil, analysis.ErrInvalidToolInput
+		}
+	}
+	sampleType := profile.SampleType[valueIndex].Type
 	unit := profile.SampleType[valueIndex].Unit
 	type aggregate struct {
 		flat int64
@@ -243,7 +261,9 @@ func summarizeProfile(profile *pprofprofile.Profile, limit int) []ProfileTopRow 
 	}
 	rows := make([]ProfileTopRow, 0, len(aggregates))
 	for function, aggregate := range aggregates {
-		rows = append(rows, ProfileTopRow{Function: function, Flat: aggregate.flat, Cumulative: aggregate.cum, Unit: unit})
+		rows = append(rows, ProfileTopRow{
+			Function: function, Flat: aggregate.flat, Cumulative: aggregate.cum, Unit: unit, SampleType: sampleType,
+		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Cumulative != rows[j].Cumulative {
@@ -254,5 +274,5 @@ func summarizeProfile(profile *pprofprofile.Profile, limit int) []ProfileTopRow 
 	if len(rows) > limit {
 		rows = rows[:limit]
 	}
-	return rows
+	return rows, nil
 }

@@ -370,6 +370,16 @@ const (
 	ProfileGoroutine ProfileKind = "goroutine"
 )
 
+// ProfileSampleType selects one allowlisted sample view from a captured profile.
+type ProfileSampleType string
+
+const (
+	// ProfileSampleInuseSpace reports currently retained heap bytes.
+	ProfileSampleInuseSpace ProfileSampleType = "inuse_space"
+	// ProfileSampleAllocSpace reports cumulative heap bytes allocated since process start.
+	ProfileSampleAllocSpace ProfileSampleType = "alloc_space"
+)
+
 // ProfileCaptureRequest captures one bounded profile from one cluster node.
 type ProfileCaptureRequest struct {
 	// RunID is the exact Run Identity.
@@ -390,6 +400,8 @@ type ProfileTopRequest struct {
 	ProfileID string `json:"profile_id"`
 	// Limit is the maximum returned symbolic row count.
 	Limit int `json:"limit,omitempty"`
+	// SampleType optionally selects inuse_space or alloc_space for heap profiles.
+	SampleType ProfileSampleType `json:"sample_type,omitempty"`
 }
 
 // ProfileListRequest lists bounded profile metadata for one node or all nodes.

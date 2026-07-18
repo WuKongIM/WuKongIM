@@ -78,6 +78,27 @@ func TestServiceBoundsLogsAndDiagnostics(t *testing.T) {
 	}
 }
 
+func TestServiceAllowsOnlyBoundedHeapProfileSampleTypes(t *testing.T) {
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	sources := &sourceStub{inspection: RunInspection{RunID: "run-1", State: "running", InventoryCount: 12}}
+	service := mustService(t, now, sources)
+
+	_, err := service.ProfileTop(context.Background(), ProfileTopRequest{
+		RunID: "run-1", ProfileID: "p-1-heap-1", SampleType: "goroutine",
+	})
+	if !errors.Is(err, ErrInvalidToolInput) {
+		t.Fatalf("ProfileTop(unbounded sample type) error = %v, want ErrInvalidToolInput", err)
+	}
+	if _, err := service.ProfileTop(context.Background(), ProfileTopRequest{
+		RunID: "run-1", ProfileID: "p-1-heap-1", SampleType: ProfileSampleAllocSpace,
+	}); err != nil {
+		t.Fatalf("ProfileTop(alloc_space) error = %v", err)
+	}
+	if sources.profileTopRequest.SampleType != ProfileSampleAllocSpace {
+		t.Fatalf("ProfileTop() sample type = %q, want %q", sources.profileTopRequest.SampleType, ProfileSampleAllocSpace)
+	}
+}
+
 func TestServiceCPUProfileBudgetIsSessionScopedAndSerialized(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	sources := &sourceStub{
@@ -195,13 +216,14 @@ func mustService(t *testing.T, now time.Time, sources *sourceStub) *Service {
 }
 
 type sourceStub struct {
-	mu             sync.Mutex
-	inspection     RunInspection
-	clusterCalls   int
-	clusterData    any
-	metricsRequest MetricsQueryRangeRequest
-	profileStarted chan struct{}
-	profileRelease chan struct{}
+	mu                sync.Mutex
+	inspection        RunInspection
+	clusterCalls      int
+	clusterData       any
+	metricsRequest    MetricsQueryRangeRequest
+	profileStarted    chan struct{}
+	profileRelease    chan struct{}
+	profileTopRequest ProfileTopRequest
 }
 
 func (s *sourceStub) InspectRun(context.Context, string) (RunInspection, error) {
@@ -276,7 +298,8 @@ func (s *sourceStub) ProfileCapture(_ context.Context, req ProfileCaptureRequest
 	return SourceResult{Data: map[string]any{"profile_id": "p-1"}, Completeness: CompletenessComplete}, nil
 }
 
-func (s *sourceStub) ProfileTop(context.Context, ProfileTopRequest) (SourceResult, error) {
+func (s *sourceStub) ProfileTop(_ context.Context, req ProfileTopRequest) (SourceResult, error) {
+	s.profileTopRequest = req
 	return SourceResult{Data: []any{}, Completeness: CompletenessComplete}, nil
 }
 

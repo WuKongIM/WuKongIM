@@ -29,6 +29,14 @@ func TestCloudAnalysisSkillDocumentsProcessLossGuard(t *testing.T) {
 	if !strings.Contains(skill, "invalidates performance and storage calibration") {
 		t.Fatal("SKILL.md must reject calibration evidence after a node OOM or process restart")
 	}
+	for _, required := range []string{"step_seconds=5", "`inuse_space`", "`alloc_space`"} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document bounded transient-memory evidence %q", required)
+		}
+		if required != "step_seconds=5" && !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document heap sample view %q", required)
+		}
+	}
 }
 
 func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {

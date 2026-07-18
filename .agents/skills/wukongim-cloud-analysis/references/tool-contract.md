@@ -15,7 +15,7 @@ Use only the run-specific MCP configured by the local Analysis Session. Every in
 | `diagnostics_query` | Retained diagnostics filters | Maximum 500 events |
 | `task_audits_query` | Retained Controller task history | Maximum 200 tasks |
 | `trace_query` | Events for an exact trace ID | Maximum 500 events |
-| `profile_top` | Symbolized rows for a gateway profile ID | Maximum 100 rows |
+| `profile_top` | Symbolized rows for a gateway profile ID | Maximum 100 rows; heap `sample_type` is omitted, `inuse_space`, or `alloc_space` |
 | `profile_list` | Profile metadata | Maximum 100 captures |
 | `config_read_redacted` | Allowlisted effective node config | One node; already redacted |
 
@@ -31,6 +31,9 @@ An unexpired trace rule blocks another trace or profile capture so active
 diagnostics perturb only one node at a time.
 
 `profile_capture` accepts one node and `cpu`, `heap`, or `goroutine`. CPU requires `seconds=1..30`; snapshots omit seconds. Raw profile bytes and file paths are never returned.
+For a captured heap profile, use `profile_top sample_type=inuse_space` to rank
+retained bytes and `profile_top sample_type=alloc_space` to rank cumulative
+allocations since process start. Other caller-selected sample types are rejected.
 
 ## Metric query IDs
 

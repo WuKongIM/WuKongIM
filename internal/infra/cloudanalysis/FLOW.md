@@ -15,7 +15,9 @@ human manager session. HTTP bodies and profile retention are size bounded.
 
 Raw profiles remain in an in-memory bounded store on the gateway. MCP consumers
 receive metadata or symbolized top rows, never raw profile bytes or filesystem
-paths. Local Compose uses `StaticRunInspector`; the cloud Analysis Workflow
+paths. Heap summaries may select only `inuse_space` or `alloc_space`, so retained
+and transient cumulative allocation evidence stay explicit without widening the
+profile surface. Local Compose uses `StaticRunInspector`; the cloud Analysis Workflow
 proves provider inventory and Run Locator identity before opening ingress, then
 the host-local gateway reports runtime state without receiving a cloud role.
 Phase 1 can exercise a provider-backed inspector locally with

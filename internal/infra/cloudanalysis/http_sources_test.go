@@ -225,8 +225,18 @@ func TestHTTPSourcesCaptureListAndSummarizeProfileWithoutRawBytes(t *testing.T) 
 		t.Fatalf("ProfileTop() error = %v", err)
 	}
 	rows, ok := top.Data.([]ProfileTopRow)
-	if !ok || len(rows) != 1 || rows[0].Function != "hotFunction" || rows[0].Cumulative != 4096 {
+	if !ok || len(rows) != 1 || rows[0].Function != "hotFunction" || rows[0].Cumulative != 4096 || rows[0].SampleType != "inuse_space" {
 		t.Fatalf("top rows = %#v", top.Data)
+	}
+	allocTop, err := sources.ProfileTop(context.Background(), analysis.ProfileTopRequest{
+		ProfileID: metadata.ProfileID, Limit: 10, SampleType: analysis.ProfileSampleAllocSpace,
+	})
+	if err != nil {
+		t.Fatalf("ProfileTop(alloc_space) error = %v", err)
+	}
+	allocRows, ok := allocTop.Data.([]ProfileTopRow)
+	if !ok || len(allocRows) != 1 || allocRows[0].Cumulative != 8192 || allocRows[0].SampleType != "alloc_space" {
+		t.Fatalf("alloc top rows = %#v", allocTop.Data)
 	}
 	listed, err := sources.ProfileList(context.Background(), analysis.ProfileListRequest{NodeID: 1, Limit: 10})
 	if err != nil {
@@ -296,8 +306,8 @@ func encodedProfile(t *testing.T) []byte {
 	fn := &pprofprofile.Function{ID: 1, Name: "hotFunction", SystemName: "hotFunction", Filename: "hot.go"}
 	location := &pprofprofile.Location{ID: 1, Line: []pprofprofile.Line{{Function: fn, Line: 42}}}
 	profile := &pprofprofile.Profile{
-		SampleType: []*pprofprofile.ValueType{{Type: "inuse_space", Unit: "bytes"}},
-		Sample:     []*pprofprofile.Sample{{Location: []*pprofprofile.Location{location}, Value: []int64{4096}}},
+		SampleType: []*pprofprofile.ValueType{{Type: "alloc_space", Unit: "bytes"}, {Type: "inuse_space", Unit: "bytes"}},
+		Sample:     []*pprofprofile.Sample{{Location: []*pprofprofile.Location{location}, Value: []int64{8192, 4096}}},
 		Location:   []*pprofprofile.Location{location},
 		Function:   []*pprofprofile.Function{fn},
 		TimeNanos:  time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC).UnixNano(),
