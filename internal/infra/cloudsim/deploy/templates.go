@@ -198,7 +198,7 @@ umask 022
 
 output="${WK_TEXTFILE_OUTPUT:-/var/lib/wukongim/textfile/wukongim-cgroup.prom}"
 state_dir="${WK_CGROUP_METRICS_STATE_DIR:-/var/lib/wukongim/cgroup-metrics-state}"
-cgroup_path="${WK_CGROUP_PATH:-/sys/fs/cgroup/system.slice/wukongim.service}"
+cgroup_path="${WK_CGROUP_PATH:-}"
 cgroup_root="${WK_CGROUP_ROOT:-/sys/fs/cgroup}"
 watch=false
 if [[ "${1:-}" == --watch ]]; then
@@ -270,21 +270,54 @@ write_state() {
   mv "$temporary" "$path"
 }
 
-if [[ ! -r "$cgroup_path/memory.current" ]]; then
+cgroup_version=0
+detect_cgroup_version() {
+  local path="$1"
+  if [[ -r "$path/memory.current" ]]; then
+    cgroup_version=2
+    cgroup_path="$path"
+    return 0
+  fi
+  if [[ -r "$path/memory.usage_in_bytes" ]]; then
+    cgroup_version=1
+    cgroup_path="$path"
+    return 0
+  fi
+  return 1
+}
+
+if [[ -n "$cgroup_path" ]]; then
+  detect_cgroup_version "$cgroup_path" || true
+fi
+if [[ "$cgroup_version" == 0 ]]; then
   control_group="$(systemctl show --property=ControlGroup --value wukongim.service 2>/dev/null || true)"
   if [[ "$control_group" == /* ]]; then
-    cgroup_path="${cgroup_root}${control_group}"
+    detect_cgroup_version "${cgroup_root}${control_group}" || \
+      detect_cgroup_version "${cgroup_root}/memory${control_group}" || true
   fi
+fi
+if [[ "$cgroup_version" == 0 ]]; then
+  detect_cgroup_version "${cgroup_root}/system.slice/wukongim.service" || \
+    detect_cgroup_version "${cgroup_root}/memory/system.slice/wukongim.service" || true
 fi
 
 available=0
 current=""
 raw_peak=""
 native_peak_available=0
-if [[ -n "$cgroup_path" && -r "$cgroup_path/memory.current" ]]; then
+if [[ "$cgroup_version" == 2 ]]; then
   available=1
   current="$(read_number "$cgroup_path/memory.current" || true)"
   raw_peak="$(read_number "$cgroup_path/memory.peak" || true)"
+  if [[ "$raw_peak" =~ ^[0-9]+$ ]]; then
+    native_peak_available=1
+  else
+    raw_peak="$current"
+  fi
+elif [[ "$cgroup_version" == 1 ]]; then
+  available=1
+  current="$(read_number "$cgroup_path/memory.usage_in_bytes" || true)"
+  raw_peak="$(read_number "$cgroup_path/memory.max_usage_in_bytes" || true)"
   if [[ "$raw_peak" =~ ^[0-9]+$ ]]; then
     native_peak_available=1
   else
@@ -300,8 +333,17 @@ if [[ "$raw_peak" =~ ^[0-9]+$ ]] && ((raw_peak > persistent_peak)); then
 fi
 
 limit_state="$state_dir/memory_limit"
-if [[ "$available" == 1 && -r "$cgroup_path/memory.max" ]]; then
-  IFS= read -r memory_limit <"$cgroup_path/memory.max" || true
+memory_limit_path=""
+if [[ "$cgroup_version" == 2 ]]; then
+  memory_limit_path="$cgroup_path/memory.max"
+elif [[ "$cgroup_version" == 1 ]]; then
+  memory_limit_path="$cgroup_path/memory.limit_in_bytes"
+fi
+if [[ "$available" == 1 && -r "$memory_limit_path" ]]; then
+  IFS= read -r memory_limit <"$memory_limit_path" || true
+  if [[ "$cgroup_version" == 1 && "$memory_limit" =~ ^[0-9]+$ ]] && ((memory_limit >= 1152921504606846976)); then
+    memory_limit=max
+  fi
   if [[ "$memory_limit" == max || "$memory_limit" =~ ^[0-9]+$ ]]; then
     write_state "$limit_state" "$memory_limit"
   fi
@@ -313,7 +355,7 @@ fi
 
 swap_current=""
 swap_limit=""
-if [[ "$available" == 1 ]]; then
+if [[ "$cgroup_version" == 2 ]]; then
   swap_current="$(read_number "$cgroup_path/memory.swap.current" || true)"
   if [[ -r "$cgroup_path/memory.swap.max" ]]; then
     IFS= read -r swap_limit <"$cgroup_path/memory.swap.max" || true
@@ -324,12 +366,36 @@ if [[ "$available" == 1 ]]; then
       write_state "$state_dir/memory_swap_limit" "$swap_limit"
     fi
   fi
+elif [[ "$cgroup_version" == 1 ]]; then
+  memsw_current="$(read_number "$cgroup_path/memory.memsw.usage_in_bytes" || true)"
+  if [[ "$current" =~ ^[0-9]+$ && "$memsw_current" =~ ^[0-9]+$ ]]; then
+    if ((memsw_current >= current)); then
+      swap_current=$((memsw_current - current))
+    else
+      swap_current=0
+    fi
+  fi
+  memsw_limit="$(read_number "$cgroup_path/memory.memsw.limit_in_bytes" || true)"
+  if [[ "$memsw_limit" =~ ^[0-9]+$ ]]; then
+    if ((memsw_limit >= 1152921504606846976)); then
+      swap_limit=max
+    elif [[ "$memory_limit" =~ ^[0-9]+$ ]]; then
+      if ((memsw_limit >= memory_limit)); then
+        swap_limit=$((memsw_limit - memory_limit))
+      else
+        swap_limit=0
+      fi
+    fi
+    if [[ -n "$swap_limit" ]]; then
+      write_state "$state_dir/memory_swap_limit" "$swap_limit"
+    fi
+  fi
 fi
 if [[ -z "$swap_limit" && -r "$state_dir/memory_swap_limit" ]]; then
   IFS= read -r swap_limit <"$state_dir/memory_swap_limit" || true
 fi
 
-events_file=""
+events_available=false
 event_low=0
 event_high=0
 event_max=0
@@ -337,7 +403,7 @@ event_oom=0
 event_oom_kill=0
 event_oom_group_kill=0
 if [[ "$available" == 1 && -r "$cgroup_path/memory.events" ]]; then
-  events_file="$cgroup_path/memory.events"
+  events_available=true
   while read -r event_name event_value; do
     [[ "$event_value" =~ ^[0-9]+$ ]] || continue
     case "$event_name" in
@@ -348,7 +414,15 @@ if [[ "$available" == 1 && -r "$cgroup_path/memory.events" ]]; then
       oom_kill) event_oom_kill="$event_value" ;;
       oom_group_kill) event_oom_group_kill="$event_value" ;;
     esac
-  done <"$events_file"
+  done <"$cgroup_path/memory.events"
+elif [[ "$cgroup_version" == 1 && -r "$cgroup_path/memory.oom_control" ]]; then
+  events_available=true
+  while read -r event_name event_value; do
+    [[ "$event_value" =~ ^[0-9]+$ ]] || continue
+    case "$event_name" in
+      oom_kill) event_oom_kill="$event_value" ;;
+    esac
+  done <"$cgroup_path/memory.oom_control"
 fi
 
 temporary="${output}.tmp.$$"
@@ -378,7 +452,7 @@ trap 'rm -f "$temporary"; rm -rf "$lock_dir"' EXIT
     printf 'wukongim_service_cgroup_memory_swap_limit_unlimited 0\n'
   fi
   for event in low high max oom oom_kill oom_group_kill; do
-    if [[ -n "$events_file" ]]; then
+    if [[ "$events_available" == true ]]; then
       case "$event" in
         low) raw="$event_low" ;;
         high) raw="$event_high" ;;

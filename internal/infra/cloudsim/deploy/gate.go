@@ -8,6 +8,8 @@ type BootstrapSnapshot struct {
 	BundleDigests map[string]string `json:"bundle_digests"`
 	// ActiveServices maps every host role to its active systemd units.
 	ActiveServices map[string][]string `json:"active_services"`
+	// CgroupMetricsAvailableNodeIDs contains nodes whose service memory cgroup is readable.
+	CgroupMetricsAvailableNodeIDs []uint64 `json:"cgroup_metrics_available_node_ids"`
 	// ReadyNodeIDs contains cluster node IDs whose readiness probes passed.
 	ReadyNodeIDs []uint64 `json:"ready_node_ids"`
 	// ClusterMemberCount is the count of active, runtime-ready cluster members.
@@ -70,6 +72,16 @@ func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) Ga
 			if _, ok := active[service]; !ok {
 				result.Failures = append(result.Failures, fmt.Sprintf("%s service %s inactive", role, service))
 			}
+		}
+	}
+	cgroupNodes := make(map[uint64]struct{}, len(snapshot.CgroupMetricsAvailableNodeIDs))
+	for _, nodeID := range snapshot.CgroupMetricsAvailableNodeIDs {
+		cgroupNodes[nodeID] = struct{}{}
+	}
+	for _, nodeID := range []uint64{1, 2, 3} {
+		if _, ok := cgroupNodes[nodeID]; !ok {
+			result.Failures = append(result.Failures, "service cgroup memory evidence is unavailable")
+			break
 		}
 	}
 	if len(snapshot.ReadyNodeIDs) != 3 {

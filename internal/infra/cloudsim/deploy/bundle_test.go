@@ -152,7 +152,7 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	}
 }
 
-func TestCgroupMetricsCollectorPersistsPeakAndResetEventCounters(t *testing.T) {
+func TestCgroupV2MetricsCollectorPersistsPeakAndResetEventCounters(t *testing.T) {
 	root := t.TempDir()
 	cgroup := filepath.Join(root, "cgroup")
 	state := filepath.Join(root, "state")
@@ -219,6 +219,82 @@ func TestCgroupMetricsCollectorPersistsPeakAndResetEventCounters(t *testing.T) {
 	}
 }
 
+func TestCgroupV1MetricsCollectorMapsMemoryAndSwapEvidence(t *testing.T) {
+	root := t.TempDir()
+	cgroupRoot := filepath.Join(root, "cgroup-root")
+	cgroup := filepath.Join(cgroupRoot, "memory", "system.slice", "wukongim.service")
+	state := filepath.Join(root, "state")
+	output := filepath.Join(root, "textfile", "cgroup.prom")
+	if err := os.MkdirAll(cgroup, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, value string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(cgroup, name), []byte(value+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("memory.usage_in_bytes", "700")
+	write("memory.max_usage_in_bytes", "800")
+	write("memory.limit_in_bytes", "9223372036854771712")
+	write("memory.memsw.usage_in_bytes", "750")
+	write("memory.memsw.limit_in_bytes", "9223372036854771712")
+	write("memory.oom_control", "oom_kill_disable 0\nunder_oom 0\noom_kill 1")
+	script := filepath.Join(root, "collector.sh")
+	if err := os.WriteFile(script, []byte(cgroupMetricsCollector()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run := func() string {
+		t.Helper()
+		command := exec.Command("bash", script)
+		command.Env = append(os.Environ(), "WK_CGROUP_ROOT="+cgroupRoot, "WK_CGROUP_METRICS_STATE_DIR="+state, "WK_TEXTFILE_OUTPUT="+output)
+		if combined, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("collector failed: %v\n%s", err, combined)
+		}
+		data, err := os.ReadFile(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	first := run()
+	for _, fragment := range []string{
+		"wukongim_service_cgroup_available 1",
+		"wukongim_service_cgroup_memory_current_bytes 700",
+		"wukongim_service_cgroup_memory_peak_bytes 800",
+		"wukongim_service_cgroup_memory_peak_native_available 1",
+		"wukongim_service_cgroup_memory_limit_unlimited 1",
+		"wukongim_service_cgroup_memory_swap_current_bytes 50",
+		"wukongim_service_cgroup_memory_swap_limit_unlimited 1",
+		`wukongim_service_cgroup_memory_events_total{event="oom_kill"} 1`,
+	} {
+		if !strings.Contains(first, fragment) {
+			t.Fatalf("first cgroup v1 collector output missing %q:\n%s", fragment, first)
+		}
+	}
+
+	write("memory.usage_in_bytes", "400")
+	write("memory.max_usage_in_bytes", "500")
+	write("memory.limit_in_bytes", "1024")
+	write("memory.memsw.usage_in_bytes", "500")
+	write("memory.memsw.limit_in_bytes", "1536")
+	write("memory.oom_control", "oom_kill_disable 0\nunder_oom 0\noom_kill 0")
+	second := run()
+	for _, fragment := range []string{
+		"wukongim_service_cgroup_memory_peak_bytes 800",
+		"wukongim_service_cgroup_memory_limit_bytes 1024",
+		"wukongim_service_cgroup_memory_limit_unlimited 0",
+		"wukongim_service_cgroup_memory_swap_current_bytes 100",
+		"wukongim_service_cgroup_memory_swap_limit_bytes 512",
+		"wukongim_service_cgroup_memory_swap_limit_unlimited 0",
+		`wukongim_service_cgroup_memory_events_total{event="oom_kill"} 1`,
+	} {
+		if !strings.Contains(second, fragment) {
+			t.Fatalf("second cgroup v1 collector output missing %q:\n%s", fragment, second)
+		}
+	}
+}
+
 func TestBundleSpecAllowsWeekLongStabilityDuration(t *testing.T) {
 	spec := testBundleSpec("scenario.yaml")
 	spec.Duration = 168 * time.Hour
@@ -235,7 +311,8 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 			"node-1": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"}, "node-2": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"}, "node-3": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"},
 			"sim": {"wkbench-worker", "prometheus", "node-exporter", "wkanalysis", "wkcloudview"},
 		},
-		ReadyNodeIDs: []uint64{1, 2, 3}, ClusterMemberCount: 3, HashSlotCount: 256, SlotGroupCount: 10,
+		CgroupMetricsAvailableNodeIDs: []uint64{1, 2, 3},
+		ReadyNodeIDs:                  []uint64{1, 2, 3}, ClusterMemberCount: 3, HashSlotCount: 256, SlotGroupCount: 10,
 		HealthySlotLeaders: 256, HealthySlotReplicas: 256, PrometheusTargetsUp: 7, PrometheusTargetsWant: 7,
 		AnalysisMCPSelfCheck: true, PublicViewEnabled: true, CloudViewSelfCheck: true,
 		WKBenchValidate: true, WKBenchDoctor: true,
@@ -248,6 +325,11 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 		t.Fatalf("wrong Slot Raft Group count gate = %#v, want explicit failure", result)
 	}
 	snapshot.SlotGroupCount = 10
+	snapshot.CgroupMetricsAvailableNodeIDs = []uint64{1, 2}
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || !slices.Contains(result.Failures, "service cgroup memory evidence is unavailable") {
+		t.Fatalf("missing cgroup metric gate = %#v, want explicit failure", result)
+	}
+	snapshot.CgroupMetricsAvailableNodeIDs = []uint64{1, 2, 3}
 	snapshot.PendingControllerTask = 1
 	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || len(result.Failures) == 0 {
 		t.Fatalf("incomplete gate = %#v, want fail closed", result)
