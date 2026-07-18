@@ -50,7 +50,7 @@ on:
       max_total_cost:
         description: Hard maximum total cost in CNY
         required: true
-        default: "50"
+        default: "70"
         type: string
       storage_calibration_run_id:
         description: Completed 30m calibration Run Identity; required for 48h and 168h
