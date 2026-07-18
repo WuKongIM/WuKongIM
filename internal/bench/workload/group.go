@@ -387,7 +387,11 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 		}, func(ctx context.Context, localOffset int) error {
 			ch := w.channels[localOffset%len(w.channels)]
 			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
-			return w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex)
+			err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex)
+			if shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+				return nil
+			}
+			return err
 		}, stats)
 		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
 		return err
@@ -401,7 +405,9 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 		ch := w.channels[localOffset%len(w.channels)]
 		messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 		if err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex); err != nil {
-			return err
+			if !shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+				return err
+			}
 		}
 		if interval > 0 {
 			if err := w.cfg.sleep(ctx, interval); err != nil {
