@@ -44,6 +44,25 @@ func TestCloudSimulationWorkflowsPreferAccessKeyAndRetainOIDCFallback(t *testing
 	}
 }
 
+func TestCloudSimulationDefaultCostCeilingIsSeventyCNY(t *testing.T) {
+	root := repoRoot(t)
+	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "cloud-sim-provision.yml"))
+	if err != nil {
+		t.Fatalf("read provision workflow: %v", err)
+	}
+	if !strings.Contains(string(workflow), "max_total_cost:\n        description: Hard maximum total cost in CNY\n        required: true\n        default: \"70\"") {
+		t.Fatal("provision workflow default max_total_cost is not 70 CNY")
+	}
+
+	setup, err := os.ReadFile(filepath.Join(root, "scripts", "cloud-sim", "setup.sh"))
+	if err != nil {
+		t.Fatalf("read setup script: %v", err)
+	}
+	if !strings.Contains(string(setup), "max_total_cost=70") {
+		t.Fatal("setup recommendation does not use the 70 CNY default cost ceiling")
+	}
+}
+
 func TestResolveAlibabaCredentialMode(t *testing.T) {
 	script := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "resolve-alibaba-credential-mode.sh")
 	tests := []struct {

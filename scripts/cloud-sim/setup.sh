@@ -608,7 +608,7 @@ Recommended inputs:
   infrastructure_preset=small
   duration=30m
   analysis_grace=30m
-  max_total_cost=50
+  max_total_cost=70
 
 After Provision prints a Run Identity, finalize it with your ChatGPT login:
   ./scripts/cloud-sim/finalize.sh <run_id> --allow-fix-pr
