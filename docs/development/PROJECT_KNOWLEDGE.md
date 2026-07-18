@@ -40,6 +40,7 @@
 - `ActiveAt` is a best-effort hint: updates may be batched, throttled, dropped, and merged from the kind-aware conversation active cache during `ListConversationActiveView`.
 - Legacy `UserConversation*` and `CMDConversation*` APIs in `pkg/db/meta` are source compatibility shims only; they must map to the unified kind-aware conversation table.
 - Conversation active flush attempts must carry a bounded context because Slot proposal futures rely on caller deadlines for stale or uncommitted proposals.
+- Conversation active dirty flushes must be serialized across scheduled, cache-pressure, and hash-slot drains; concurrent full-cache snapshots multiply memory by admission concurrency.
 - Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
 - Duplicate/stale delete barriers must not clear an `ActiveAt` written by a newer message.
