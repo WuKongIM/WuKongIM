@@ -89,7 +89,7 @@ func TestCloudSimulationAnalyzeHelpDescribesChatGPTContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, fragment := range []string{"diagnosis_timeout_seconds", "2700", "alarm shift", "trap 'exit 130' INT TERM"} {
+	for _, fragment := range []string{"diagnosis_timeout_seconds", "2700", "alarm shift", "trap 'exit 130' INT TERM", "resolve_codex_bin", "Codex 0.140.0 or newer"} {
 		if !strings.Contains(string(source), fragment) {
 			t.Fatalf("analyze script missing bounded local Codex lifecycle %q", fragment)
 		}
@@ -106,6 +106,18 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 		t.Fatal(err)
 	}
 	writeAnalyzeFakes(t, bin)
+	bundledCodex := filepath.Join(bin, "codex-bundled")
+	if err := os.Rename(filepath.Join(bin, "codex"), bundledCodex); err != nil {
+		t.Fatal(err)
+	}
+	writeSetupExecutable(t, filepath.Join(bin, "codex"), `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "--version" ]]; then
+  printf '%s\n' 'codex-cli 0.134.0'
+  exit 0
+fi
+exit 89
+`)
 	resultFile := filepath.Join(temp, "analysis-result.json")
 
 	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
@@ -117,6 +129,7 @@ func TestCloudSimulationAnalyzeUsesEncryptedSessionAndLocalChatGPT(t *testing.T)
 		"WK_ANALYZE_CALL_LOG="+callLog,
 		"WK_ANALYZE_STATE_DIR="+stateDir,
 		"WK_ANALYZE_SESSION_STATE=live",
+		"WK_CODEX_BUNDLED_BIN="+bundledCodex,
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -622,6 +635,10 @@ esac
 set -euo pipefail
 call_log="${WK_ANALYZE_CALL_LOG:-$(cd "$(dirname "$0")/.." && pwd)/calls.log}"
 printf 'codex %s\n' "$*" >>"$call_log"
+if [[ "$1" == "--version" ]]; then
+  printf '%s\n' 'codex-cli 999.0.0'
+  exit 0
+fi
 if [[ "$1 $2" == "login status" ]]; then
   printf '%s\n' 'Logged in using ChatGPT'
   exit 0

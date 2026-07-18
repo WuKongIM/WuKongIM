@@ -5,7 +5,8 @@ over startup-configured private origins only:
 
 ```text
 manager -> nodes, workqueues, app logs, diagnostics, task audits, redacted config
-prometheus -> /api/v1/query_range with usecase-resolved PromQL
+prometheus -> /api/v1/query_range with usecase-resolved PromQL, including
+              node-exporter textfile evidence for service cgroup memory
 node APIs -> /debug/pprof for allowlisted node IDs
 ```
 
@@ -32,3 +33,11 @@ for every worker included in `summary.worker_failed`; otherwise the source rejec
 the document instead of reporting complete evidence. Failure detail accepts only
 fixed reason-code templates or an explicit redaction marker, so forged producer
 text cannot cross the MCP boundary.
+
+Node hosts sample the `wukongim.service` cgroup once per second from one bounded
+collector process and again from
+`ExecStopPost`. The textfile collector preserves the maximum observed
+`memory.peak`, the effective limit and swap settings, and monotonic OOM event
+totals across service restarts. This closes the evidence gap left by the normal
+15-second Prometheus interval without granting the Analysis MCP arbitrary
+PromQL or systemd access.

@@ -55,11 +55,18 @@ func TestLoadServeConfigBindsThreeNodeClusterAndTokenLease(t *testing.T) {
 func TestDefaultMetricQueriesIncludeNodeProcessLossAndMemoryEvidence(t *testing.T) {
 	queries := defaultMetricQueries()
 	want := map[string]string{
-		"node_memory_percent":        `100 * (1 - (node_memory_MemAvailable_bytes{job="hosts",role=~"node-[123]"} / clamp_min(node_memory_MemTotal_bytes{job="hosts",role=~"node-[123]"}, 1)))`,
-		"node_oom_kills":             `node_vmstat_oom_kill{job="hosts",role=~"node-[123]"}`,
-		"process_start_time_seconds": `process_start_time_seconds{job="wukongim"}`,
-		"gateway_active_connections": `sum by (instance, node_name) (wukongim_gateway_connections_active{job="wukongim"})`,
-		"channel_active_channels":    `sum by (instance, node_name) (wukongim_channel_active_channels{job="wukongim"})`,
+		"node_memory_percent":                       `100 * (1 - (node_memory_MemAvailable_bytes{job="hosts",role=~"node-[123]"} / clamp_min(node_memory_MemTotal_bytes{job="hosts",role=~"node-[123]"}, 1)))`,
+		"node_oom_kills":                            `node_vmstat_oom_kill{job="hosts",role=~"node-[123]"}`,
+		"node_service_cgroup_available":             `wukongim_service_cgroup_available{job="hosts",role=~"node-[123]"}`,
+		"node_service_memory_peak_bytes":            `wukongim_service_cgroup_memory_peak_bytes{job="hosts",role=~"node-[123]"}`,
+		"node_service_memory_peak_native_available": `wukongim_service_cgroup_memory_peak_native_available{job="hosts",role=~"node-[123]"}`,
+		"node_service_memory_limit_bytes":           `wukongim_service_cgroup_memory_limit_bytes{job="hosts",role=~"node-[123]"}`,
+		"node_service_memory_limit_unlimited":       `wukongim_service_cgroup_memory_limit_unlimited{job="hosts",role=~"node-[123]"}`,
+		"node_service_memory_events_oom":            `wukongim_service_cgroup_memory_events_total{job="hosts",role=~"node-[123]",event="oom"}`,
+		"node_service_memory_events_oom_kill":       `wukongim_service_cgroup_memory_events_total{job="hosts",role=~"node-[123]",event="oom_kill"}`,
+		"process_start_time_seconds":                `process_start_time_seconds{job="wukongim"}`,
+		"gateway_active_connections":                `sum by (instance, node_name) (wukongim_gateway_connections_active{job="wukongim"})`,
+		"channel_active_channels":                   `sum by (instance, node_name) (wukongim_channel_active_channels{job="wukongim"})`,
 	}
 	for id, query := range want {
 		if queries[id] != query {

@@ -95,7 +95,7 @@ func Render(root string, spec BundleSpec) error {
 			return fmt.Errorf("%w: missing static binary %s", ErrInvalidBundle, name)
 		}
 	}
-	for _, dir := range []string{"config", "systemd"} {
+	for _, dir := range []string{"config", "scripts", "systemd"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			return err
 		}
@@ -121,6 +121,9 @@ func Render(root string, spec BundleSpec) error {
 		if err := writeBundleFile(root, name, []byte(content), 0o640); err != nil {
 			return err
 		}
+	}
+	if err := writeBundleFile(root, filepath.Join("scripts", "wukongim-cgroup-metrics.sh"), []byte(cgroupMetricsCollector()), 0o755); err != nil {
+		return err
 	}
 	for name, content := range systemdUnits(spec.PublicViewEnabled, spec.Duration) {
 		if err := writeBundleFile(root, filepath.Join("systemd", name), []byte(content), 0o644); err != nil {

@@ -33,6 +33,14 @@ func TestInstallBundleCopiesOnlyRoleFilesAndRevokesBootstrapKey(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "etc/wukongim/wukongim.toml")); err != nil {
 		t.Fatalf("node config not installed: %v", err)
 	}
+	for _, path := range []string{
+		"opt/wukongim/bin/wukongim-cgroup-metrics",
+		"etc/systemd/system/wukongim-cgroup-metrics.service",
+	} {
+		if _, err := os.Stat(filepath.Join(root, path)); err != nil {
+			t.Fatalf("node cgroup evidence file %s not installed: %v", path, err)
+		}
+	}
 	if _, err := os.Stat(authorized); !os.IsNotExist(err) {
 		t.Fatalf("authorized key still exists: %v", err)
 	}
@@ -69,6 +77,9 @@ func TestInstallSimulatorEnablesCloudViewOnlyWhenRequested(t *testing.T) {
 			}
 			if !enabled && (!os.IsNotExist(unitErr) || !os.IsNotExist(configErr)) {
 				t.Fatalf("Cloud View files installed while disabled: unit=%v config=%v", unitErr, configErr)
+			}
+			if _, err := os.Stat(filepath.Join(root, "etc/systemd/system/wukongim-cgroup-metrics.service")); !os.IsNotExist(err) {
+				t.Fatalf("node-only cgroup metrics service installed on simulator: %v", err)
 			}
 		})
 	}

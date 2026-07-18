@@ -3,6 +3,7 @@ package deploy
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -98,8 +99,13 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 		!strings.Contains(units["wkbench-run.service"], "annotate-report") {
 		t.Fatal("wkbench run does not annotate the final report with Cloud View purity")
 	}
-	if !strings.Contains(units["wukongim.service"], "NoNewPrivileges=true") {
-		t.Fatal("wukongim unit lacks hardening")
+	if !strings.Contains(units["wukongim.service"], "NoNewPrivileges=true") ||
+		!strings.Contains(units["wukongim.service"], "ExecStopPost=-/opt/wukongim/bin/wukongim-cgroup-metrics") {
+		t.Fatal("wukongim unit lacks hardening or stop-time cgroup evidence capture")
+	}
+	if !strings.Contains(units["wukongim-cgroup-metrics.service"], "User=wukongim") ||
+		!strings.Contains(units["wukongim-cgroup-metrics.service"], "ExecStart=/opt/wukongim/bin/wukongim-cgroup-metrics --watch") {
+		t.Fatal("cgroup memory evidence collector is not installed as a bounded long-running service")
 	}
 	if !strings.Contains(units["wkcloudview.service"], "TCP/19443") ||
 		!strings.Contains(units["wkcloudview.service"], "EnvironmentFile=/etc/wukongim/sim.env") {
@@ -146,6 +152,73 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	}
 }
 
+func TestCgroupMetricsCollectorPersistsPeakAndResetEventCounters(t *testing.T) {
+	root := t.TempDir()
+	cgroup := filepath.Join(root, "cgroup")
+	state := filepath.Join(root, "state")
+	output := filepath.Join(root, "textfile", "cgroup.prom")
+	if err := os.MkdirAll(cgroup, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, value string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(cgroup, name), []byte(value+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("memory.current", "700")
+	write("memory.peak", "800")
+	write("memory.max", "max")
+	write("memory.swap.current", "10")
+	write("memory.swap.max", "max")
+	write("memory.events", "low 0\nhigh 0\nmax 2\noom 3\noom_kill 1\noom_group_kill 0")
+	script := filepath.Join(root, "collector.sh")
+	if err := os.WriteFile(script, []byte(cgroupMetricsCollector()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run := func() string {
+		t.Helper()
+		command := exec.Command("bash", script)
+		command.Env = append(os.Environ(), "WK_CGROUP_PATH="+cgroup, "WK_CGROUP_METRICS_STATE_DIR="+state, "WK_TEXTFILE_OUTPUT="+output)
+		if combined, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("collector failed: %v\n%s", err, combined)
+		}
+		data, err := os.ReadFile(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	first := run()
+	for _, fragment := range []string{
+		"wukongim_service_cgroup_available 1",
+		"wukongim_service_cgroup_memory_peak_bytes 800",
+		"wukongim_service_cgroup_memory_limit_unlimited 1",
+		`wukongim_service_cgroup_memory_events_total{event="oom_kill"} 1`,
+	} {
+		if !strings.Contains(first, fragment) {
+			t.Fatalf("first collector output missing %q:\n%s", fragment, first)
+		}
+	}
+
+	write("memory.current", "400")
+	write("memory.peak", "500")
+	write("memory.max", "1024")
+	write("memory.events", "low 0\nhigh 0\nmax 0\noom 1\noom_kill 0\noom_group_kill 0")
+	second := run()
+	for _, fragment := range []string{
+		"wukongim_service_cgroup_memory_peak_bytes 800",
+		"wukongim_service_cgroup_memory_limit_bytes 1024",
+		"wukongim_service_cgroup_memory_limit_unlimited 0",
+		`wukongim_service_cgroup_memory_events_total{event="oom"} 4`,
+		`wukongim_service_cgroup_memory_events_total{event="oom_kill"} 1`,
+	} {
+		if !strings.Contains(second, fragment) {
+			t.Fatalf("second collector output missing %q:\n%s", fragment, second)
+		}
+	}
+}
+
 func TestBundleSpecAllowsWeekLongStabilityDuration(t *testing.T) {
 	spec := testBundleSpec("scenario.yaml")
 	spec.Duration = 168 * time.Hour
@@ -159,7 +232,7 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 	snapshot := BootstrapSnapshot{
 		BundleDigests: map[string]string{"node-1": digest, "node-2": digest, "node-3": digest, "sim": digest},
 		ActiveServices: map[string][]string{
-			"node-1": {"wukongim", "node-exporter"}, "node-2": {"wukongim", "node-exporter"}, "node-3": {"wukongim", "node-exporter"},
+			"node-1": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"}, "node-2": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"}, "node-3": {"wukongim", "node-exporter", "wukongim-cgroup-metrics"},
 			"sim": {"wkbench-worker", "prometheus", "node-exporter", "wkanalysis", "wkcloudview"},
 		},
 		ReadyNodeIDs: []uint64{1, 2, 3}, ClusterMemberCount: 3, HashSlotCount: 256, SlotGroupCount: 10,

@@ -190,6 +190,239 @@ scrape_configs:
 `, addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses["sim"])
 }
 
+func cgroupMetricsCollector() string {
+	return `#!/usr/bin/env bash
+set -euo pipefail
+
+umask 022
+
+output="${WK_TEXTFILE_OUTPUT:-/var/lib/wukongim/textfile/wukongim-cgroup.prom}"
+state_dir="${WK_CGROUP_METRICS_STATE_DIR:-/var/lib/wukongim/cgroup-metrics-state}"
+cgroup_path="${WK_CGROUP_PATH:-/sys/fs/cgroup/system.slice/wukongim.service}"
+cgroup_root="${WK_CGROUP_ROOT:-/sys/fs/cgroup}"
+watch=false
+if [[ "${1:-}" == --watch ]]; then
+  watch=true
+fi
+
+collect() {
+mkdir -p "$(dirname "$output")" "$state_dir"
+lock_dir="$state_dir/collector.lock"
+lock_acquired=false
+for ((attempt = 0; attempt < 40; attempt += 1)); do
+  if mkdir "$lock_dir" 2>/dev/null; then
+    printf '%s\n' "$$" >"$lock_dir/pid"
+    lock_acquired=true
+    break
+  fi
+  owner_pid=""
+  if [[ -r "$lock_dir/pid" ]]; then
+    IFS= read -r owner_pid <"$lock_dir/pid" || true
+  fi
+  if [[ "$owner_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$owner_pid" 2>/dev/null; then
+    rm -rf "$lock_dir"
+    continue
+  fi
+  sleep 0.05
+done
+[[ "$lock_acquired" == true ]] || exit 0
+trap 'rm -rf "$lock_dir"' EXIT
+
+read_number() {
+  local path="$1"
+  local value=""
+  if [[ -r "$path" ]]; then
+    IFS= read -r value <"$path" || true
+  fi
+  if [[ "$value" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+  return 1
+}
+
+read_state_number() {
+  local path="$1"
+  local fallback="$2"
+  local value=""
+  if [[ -r "$path" ]]; then
+    IFS= read -r value <"$path" || true
+  fi
+  if [[ "$value" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$value"
+  else
+    printf '%s\n' "$fallback"
+  fi
+}
+
+write_state() {
+  local path="$1"
+  local value="$2"
+  local existing=""
+  if [[ -r "$path" ]]; then
+    IFS= read -r existing <"$path" || true
+  fi
+  if [[ "$existing" == "$value" ]]; then
+    return 0
+  fi
+  local temporary="${path}.tmp.$$"
+  printf '%s\n' "$value" >"$temporary"
+  mv "$temporary" "$path"
+}
+
+if [[ ! -r "$cgroup_path/memory.current" ]]; then
+  control_group="$(systemctl show --property=ControlGroup --value wukongim.service 2>/dev/null || true)"
+  if [[ "$control_group" == /* ]]; then
+    cgroup_path="${cgroup_root}${control_group}"
+  fi
+fi
+
+available=0
+current=""
+raw_peak=""
+native_peak_available=0
+if [[ -n "$cgroup_path" && -r "$cgroup_path/memory.current" ]]; then
+  available=1
+  current="$(read_number "$cgroup_path/memory.current" || true)"
+  raw_peak="$(read_number "$cgroup_path/memory.peak" || true)"
+  if [[ "$raw_peak" =~ ^[0-9]+$ ]]; then
+    native_peak_available=1
+  else
+    raw_peak="$current"
+  fi
+fi
+
+peak_state="$state_dir/memory_peak_bytes"
+persistent_peak="$(read_state_number "$peak_state" 0)"
+if [[ "$raw_peak" =~ ^[0-9]+$ ]] && ((raw_peak > persistent_peak)); then
+  persistent_peak="$raw_peak"
+  write_state "$peak_state" "$persistent_peak"
+fi
+
+limit_state="$state_dir/memory_limit"
+if [[ "$available" == 1 && -r "$cgroup_path/memory.max" ]]; then
+  IFS= read -r memory_limit <"$cgroup_path/memory.max" || true
+  if [[ "$memory_limit" == max || "$memory_limit" =~ ^[0-9]+$ ]]; then
+    write_state "$limit_state" "$memory_limit"
+  fi
+fi
+memory_limit=""
+if [[ -r "$limit_state" ]]; then
+  IFS= read -r memory_limit <"$limit_state" || true
+fi
+
+swap_current=""
+swap_limit=""
+if [[ "$available" == 1 ]]; then
+  swap_current="$(read_number "$cgroup_path/memory.swap.current" || true)"
+  if [[ -r "$cgroup_path/memory.swap.max" ]]; then
+    IFS= read -r swap_limit <"$cgroup_path/memory.swap.max" || true
+    if [[ "$swap_limit" != max && ! "$swap_limit" =~ ^[0-9]+$ ]]; then
+      swap_limit=""
+    fi
+    if [[ -n "$swap_limit" ]]; then
+      write_state "$state_dir/memory_swap_limit" "$swap_limit"
+    fi
+  fi
+fi
+if [[ -z "$swap_limit" && -r "$state_dir/memory_swap_limit" ]]; then
+  IFS= read -r swap_limit <"$state_dir/memory_swap_limit" || true
+fi
+
+events_file=""
+event_low=0
+event_high=0
+event_max=0
+event_oom=0
+event_oom_kill=0
+event_oom_group_kill=0
+if [[ "$available" == 1 && -r "$cgroup_path/memory.events" ]]; then
+  events_file="$cgroup_path/memory.events"
+  while read -r event_name event_value; do
+    [[ "$event_value" =~ ^[0-9]+$ ]] || continue
+    case "$event_name" in
+      low) event_low="$event_value" ;;
+      high) event_high="$event_value" ;;
+      max) event_max="$event_value" ;;
+      oom) event_oom="$event_value" ;;
+      oom_kill) event_oom_kill="$event_value" ;;
+      oom_group_kill) event_oom_group_kill="$event_value" ;;
+    esac
+  done <"$events_file"
+fi
+
+temporary="${output}.tmp.$$"
+trap 'rm -f "$temporary"; rm -rf "$lock_dir"' EXIT
+{
+  printf '# HELP wukongim_service_cgroup_available Whether the WuKongIM systemd service cgroup is readable.\n'
+  printf '# TYPE wukongim_service_cgroup_available gauge\n'
+  printf 'wukongim_service_cgroup_available %s\n' "$available"
+  if [[ "$current" =~ ^[0-9]+$ ]]; then
+    printf 'wukongim_service_cgroup_memory_current_bytes %s\n' "$current"
+  fi
+  printf 'wukongim_service_cgroup_memory_peak_bytes %s\n' "$persistent_peak"
+  printf 'wukongim_service_cgroup_memory_peak_native_available %s\n' "$native_peak_available"
+  if [[ "$memory_limit" == max ]]; then
+    printf 'wukongim_service_cgroup_memory_limit_unlimited 1\n'
+  elif [[ "$memory_limit" =~ ^[0-9]+$ ]]; then
+    printf 'wukongim_service_cgroup_memory_limit_bytes %s\n' "$memory_limit"
+    printf 'wukongim_service_cgroup_memory_limit_unlimited 0\n'
+  fi
+  if [[ "$swap_current" =~ ^[0-9]+$ ]]; then
+    printf 'wukongim_service_cgroup_memory_swap_current_bytes %s\n' "$swap_current"
+  fi
+  if [[ "$swap_limit" == max ]]; then
+    printf 'wukongim_service_cgroup_memory_swap_limit_unlimited 1\n'
+  elif [[ "$swap_limit" =~ ^[0-9]+$ ]]; then
+    printf 'wukongim_service_cgroup_memory_swap_limit_bytes %s\n' "$swap_limit"
+    printf 'wukongim_service_cgroup_memory_swap_limit_unlimited 0\n'
+  fi
+  for event in low high max oom oom_kill oom_group_kill; do
+    if [[ -n "$events_file" ]]; then
+      case "$event" in
+        low) raw="$event_low" ;;
+        high) raw="$event_high" ;;
+        max) raw="$event_max" ;;
+        oom) raw="$event_oom" ;;
+        oom_kill) raw="$event_oom_kill" ;;
+        oom_group_kill) raw="$event_oom_group_kill" ;;
+      esac
+      previous="$(read_state_number "$state_dir/event_${event}_previous" 0)"
+      total="$(read_state_number "$state_dir/event_${event}_total" 0)"
+      if ((raw >= previous)); then
+        delta=$((raw - previous))
+      else
+        delta=$raw
+      fi
+      total=$((total + delta))
+      write_state "$state_dir/event_${event}_previous" "$raw"
+      write_state "$state_dir/event_${event}_total" "$total"
+    else
+      total="$(read_state_number "$state_dir/event_${event}_total" 0)"
+    fi
+    printf 'wukongim_service_cgroup_memory_events_total{event="%s"} %s\n' "$event" "$total"
+  done
+  if [[ "$available" == 1 ]]; then
+    printf 'wukongim_service_cgroup_collector_last_success_unixtime_seconds %s\n' "$(date +%s)"
+  fi
+} >"$temporary"
+chmod 0644 "$temporary"
+mv "$temporary" "$output"
+rm -rf "$lock_dir"
+trap - EXIT
+}
+
+if [[ "$watch" == true ]]; then
+  while true; do
+    collect
+    sleep 1
+  done
+else
+  collect
+fi
+`
+}
+
 func systemdUnits(publicViewEnabled bool, duration time.Duration) map[string]string {
 	prometheusRetention := "72h"
 	if duration == 168*time.Hour {
@@ -207,6 +440,7 @@ User=wukongim
 Group=wukongim
 EnvironmentFile=/etc/wukongim/node.env
 ExecStart=/opt/wukongim/bin/wukongim -config /etc/wukongim/wukongim.toml
+ExecStopPost=-/opt/wukongim/bin/wukongim-cgroup-metrics
 Restart=on-failure
 RestartSec=2s
 LimitNOFILE=1048576
@@ -331,6 +565,22 @@ EnvironmentFile=/etc/wukongim/analysis.env
 ExecStart=/opt/wukongim/bin/wkanalysis
 Restart=on-failure
 RestartSec=2s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+`,
+		"wukongim-cgroup-metrics.service": `[Unit]
+Description=Persist WuKongIM service cgroup memory evidence
+After=wukongim.service
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+ExecStart=/opt/wukongim/bin/wukongim-cgroup-metrics --watch
+Restart=on-failure
+RestartSec=1s
 NoNewPrivileges=true
 
 [Install]
