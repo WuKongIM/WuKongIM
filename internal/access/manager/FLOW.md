@@ -325,9 +325,11 @@ the HTTP response layer.
 `/manager/slots` preserves the legacy list response shape for the web Slot list
 view, including `node_id` filtering. It reads the same control snapshot through
 `internal/usecase/management`; `runtime.preferred_leader_id` is the
-Controller preferred leader from the assignment, while the selected node's
-actual local Slot Raft leader is exposed as `node_log.leader_id` when
-available. The route also returns the selected node's local Slot Raft role plus
+Controller preferred leader from the assignment, while `runtime.leader_id` and
+the row health fields come from a live Slot Raft status read. Missing live
+evidence is returned as unknown/unreported rather than projected from desired
+placement. The selected node's actual local Slot Raft leader is also exposed as
+`node_log.leader_id` when available. The route returns its local Slot Raft role plus
 commit/applied watermarks in `node_log` for the web status and log-height
 columns. The response may include active task summaries and participant
 progress for display only. `/manager/slots/leader-transfer-plan`

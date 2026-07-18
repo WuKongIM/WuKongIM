@@ -15,11 +15,6 @@ type SlotManager interface {
 	Ensure(context.Context, slots.Assignment) error
 }
 
-// StatusReader reads local Slot Multi-Raft status.
-type StatusReader interface {
-	Status(multiraft.SlotID) (multiraft.Status, error)
-}
-
 // Writer submits fenced Controller task progress and results.
 type Writer interface {
 	CompleteTask(context.Context, controller.TaskResult) error
@@ -33,8 +28,8 @@ type BootstrapExecutorConfig struct {
 	LocalNode uint64
 	// Slots ensures local Slot runtime state.
 	Slots SlotManager
-	// Status observes local Slot Multi-Raft status after convergence.
-	Status StatusReader
+	// Runtime observes local Slot Multi-Raft status and converges the target leader.
+	Runtime LeaderTransferRuntime
 	// Writer persists task progress through the Controller facade.
 	Writer Writer
 }
@@ -73,7 +68,14 @@ func (e *BootstrapExecutor) Reconcile(ctx context.Context, snapshot control.Snap
 				return err
 			}
 		}
-		if allParticipantsDone(task) && e.observedConverged(task) {
+		if !allParticipantsDone(task) {
+			continue
+		}
+		converged, err := e.reconcileConvergence(ctx, task)
+		if err != nil {
+			return err
+		}
+		if converged {
 			if err := e.cfg.Writer.CompleteTask(ctx, controller.TaskResult{
 				TaskID:      task.TaskID,
 				SlotID:      task.SlotID,
@@ -97,13 +99,14 @@ func (e *BootstrapExecutor) ensureLocal(ctx context.Context, table control.HashS
 	})
 }
 
-func (e *BootstrapExecutor) observedConverged(task control.ReconcileTask) bool {
-	if e == nil || e.cfg.Status == nil {
-		return false
+func (e *BootstrapExecutor) reconcileConvergence(ctx context.Context, task control.ReconcileTask) (bool, error) {
+	if e == nil || e.cfg.Runtime == nil {
+		return false, nil
 	}
-	status, err := e.cfg.Status.Status(multiraft.SlotID(task.SlotID))
+	slotID := multiraft.SlotID(task.SlotID)
+	status, err := e.cfg.Runtime.Status(slotID)
 	if err != nil || status.LeaderID == 0 {
-		return false
+		return false, nil
 	}
 	voters := make([]uint64, 0, len(status.CurrentVoters))
 	for _, voter := range status.CurrentVoters {
@@ -111,20 +114,35 @@ func (e *BootstrapExecutor) observedConverged(task control.ReconcileTask) bool {
 	}
 	quorum := len(task.TargetPeers)/2 + 1
 	if len(voters) < quorum {
-		return false
+		return false, nil
 	}
 	sort.Slice(voters, func(i, j int) bool { return voters[i] < voters[j] })
 	targets := append([]uint64(nil), task.TargetPeers...)
 	sort.Slice(targets, func(i, j int) bool { return targets[i] < targets[j] })
 	if len(voters) != len(targets) {
-		return false
+		return false, nil
 	}
 	for i := range voters {
 		if voters[i] != targets[i] {
-			return false
+			return false, nil
 		}
 	}
-	return true
+	if task.TargetNode == 0 || !containsNode(targets, task.TargetNode) {
+		return false, nil
+	}
+	if uint64(status.LeaderID) == task.TargetNode {
+		return true, nil
+	}
+	if err := e.cfg.Runtime.ExpectLeaderTransfer(ctx, slotID, multiraft.NodeID(task.TargetNode)); err != nil {
+		return false, err
+	}
+	if uint64(status.LeaderID) != e.cfg.LocalNode {
+		return false, nil
+	}
+	if err := e.cfg.Runtime.TransferLeadership(ctx, slotID, multiraft.NodeID(task.TargetNode)); err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func findSlot(slots []control.SlotAssignment, slotID uint32) (control.SlotAssignment, bool) {

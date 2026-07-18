@@ -827,6 +827,7 @@ export type ManagerSlot = {
   runtime: {
     current_peers: number[]
     current_voters?: number[]
+    leader_id?: number
     preferred_leader_id: number
     healthy_voters: number
     has_quorum: boolean

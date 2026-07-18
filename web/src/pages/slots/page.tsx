@@ -181,7 +181,7 @@ function nodeRaftStatus(slot: ManagerSlotsResponse["items"][number]) {
 }
 
 function formatActualLeader(slot: ManagerSlotsResponse["items"][number]) {
-  const leaderId = slot.node_log?.leader_id ?? 0
+  const leaderId = slot.runtime.leader_id || slot.node_log?.leader_id || 0
   return leaderId > 0 ? String(leaderId) : "-"
 }
 

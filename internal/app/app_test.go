@@ -2074,6 +2074,13 @@ func TestManagerServerListsSlotsFromClusterSnapshot(t *testing.T) {
 				},
 			},
 		},
+		slotRaftStatus: clusterpkg.SlotRaftStatus{
+			NodeID:        2,
+			SlotID:        2,
+			LeaderID:      2,
+			Role:          "leader",
+			CurrentVoters: []uint64{1, 2},
+		},
 	}
 	app, err := newTestApp(t, Config{
 		Manager: ManagerConfig{
@@ -2135,6 +2142,7 @@ func TestManagerServerListsSlotsFromClusterSnapshot(t *testing.T) {
 				LeaderMatch bool   `json:"leader_match"`
 			} `json:"state"`
 			Runtime struct {
+				LeaderID          uint64 `json:"leader_id"`
 				PreferredLeaderID uint64 `json:"preferred_leader_id"`
 			} `json:"runtime"`
 		} `json:"items"`
@@ -2149,8 +2157,8 @@ func TestManagerServerListsSlotsFromClusterSnapshot(t *testing.T) {
 	if row.SlotID != 2 || row.HashSlots.Count != 2 || len(row.HashSlots.Items) != 2 || row.HashSlots.Items[0] != 2 || row.HashSlots.Items[1] != 3 {
 		t.Fatalf("slot row hash slots = %+v, want slot 2 owning hash slots 2 and 3", row)
 	}
-	if row.State.Quorum != "ready" || row.State.Sync != "matched" || !row.State.LeaderMatch || row.Runtime.PreferredLeaderID != 2 {
-		t.Fatalf("slot row state/runtime = %+v/%+v, want ready matched preferred leader 2", row.State, row.Runtime)
+	if row.State.Quorum != "ready" || row.State.Sync != "matched" || !row.State.LeaderMatch || row.Runtime.LeaderID != 2 || row.Runtime.PreferredLeaderID != 2 {
+		t.Fatalf("slot row state/runtime = %+v/%+v, want ready matched actual/preferred leader 2", row.State, row.Runtime)
 	}
 }
 

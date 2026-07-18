@@ -368,19 +368,22 @@ manager HTTP handler
   -> management.App.ListSlots
   -> ControlSnapshotReader.LocalControlSnapshot
   -> cluster control snapshot
+  -> SlotRaftOperator.SlotRaftStatus(local or assigned peer)
   -> sorted manager Slot DTO rows
 ```
 
 The Slot projection derives physical Slot assignments, preferred leaders,
 config epochs, and logical hash-slot ownership from the local cluster control
-snapshot. The list uses desired peers as the fallback display runtime so the
-web Slot list can always render quorum, sync, preferred leader, and voter
-columns. `runtime.preferred_leader_id` is the control-plane preferred leader; it
-is not the live Raft leader. When a positive `node_id` is selected and the Slot
-Raft operator is wired, the usecase also performs a best-effort node-local or
-routed peer status read for each returned Slot and attaches the selected node's
-Raft leader, role, and commit/applied watermarks in `node_log`. Status read
-misses are omitted from the row rather than failing the inventory response.
+snapshot. For every returned Slot, the usecase performs a best-effort live Raft
+status read from the selected node, the local assigned node, or one desired peer.
+`runtime.leader_id`, current voters, quorum, sync, and leader-match are derived
+only from that live evidence; desired peers never fabricate a healthy runtime.
+When no live status is available, quorum is `unknown`, sync is `unreported`,
+leader-match is false, and only `runtime.preferred_leader_id` retains the
+control-plane intent. A positive `node_id` additionally exposes that selected
+node's role and commit/applied watermarks in `node_log`; default-list live status
+remains in `runtime` without exposing an implicit node log. Status read misses
+do not fail the inventory response.
 Active task summaries are derived from the same cluster control snapshot and
 attached to the matching Slot row. Slot leader-transfer requests use the same
 control snapshot plus a live Slot runtime status reader to validate the current

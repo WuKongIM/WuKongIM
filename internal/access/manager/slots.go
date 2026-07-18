@@ -73,7 +73,9 @@ type SlotRuntimeDTO struct {
 	CurrentPeers []uint64 `json:"current_peers"`
 	// CurrentVoters is the currently observed voter set.
 	CurrentVoters []uint64 `json:"current_voters"`
-	// PreferredLeaderID is the controller preferred leader projected into the fallback runtime view.
+	// LeaderID is the live Slot Raft leader observed from one assigned node.
+	LeaderID uint64 `json:"leader_id"`
+	// PreferredLeaderID is the controller preferred leader from the desired assignment.
 	PreferredLeaderID uint64 `json:"preferred_leader_id"`
 	// HealthyVoters is the observed healthy voter count.
 	HealthyVoters uint32 `json:"healthy_voters"`
@@ -211,6 +213,7 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 		Runtime: SlotRuntimeDTO{
 			CurrentPeers:        append([]uint64(nil), item.Runtime.CurrentPeers...),
 			CurrentVoters:       append([]uint64(nil), item.Runtime.CurrentVoters...),
+			LeaderID:            item.Runtime.LeaderID,
 			PreferredLeaderID:   item.Runtime.PreferredLeaderID,
 			HealthyVoters:       item.Runtime.HealthyVoters,
 			HasQuorum:           item.Runtime.HasQuorum,

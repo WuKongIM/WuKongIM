@@ -83,7 +83,7 @@ func (n *Node) ensureDefaultSlots() error {
 			tasks.NewBootstrapExecutor(tasks.BootstrapExecutorConfig{
 				LocalNode: n.cfg.NodeID,
 				Slots:     manager,
-				Status:    runtime,
+				Runtime:   runtime,
 				Writer:    n.control,
 			}),
 			tasks.NewLeaderTransferExecutor(tasks.LeaderTransferExecutorConfig{
