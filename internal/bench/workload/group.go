@@ -164,6 +164,8 @@ type GroupWorkload struct {
 	metrics  *metrics.Registry
 	channels []GroupChannel
 	clients  map[string]PersonClient
+	// warmupOperationDeadline caps the final in-flight warmup operation tail.
+	warmupOperationDeadline time.Time
 }
 
 // PrepareGroup creates owned group channels, waits for the channel barrier, and appends subscribers.
@@ -1000,20 +1002,21 @@ func (w *GroupWorkload) recordError(name string, err error) {
 }
 
 func (w *GroupWorkload) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if timeout <= 0 {
-		return context.WithTimeout(ctx, defaultWorkloadTimeout)
-	}
+	timeout = boundedWarmupOperationTimeout(timeout, w.warmupOperationDeadline, time.Now())
 	return context.WithTimeout(ctx, timeout)
 }
 
 func (w *GroupWorkload) useWarmupTimeouts() func() {
 	ackTimeout := w.cfg.AckTimeout
 	recvTimeout := w.cfg.RecvTimeout
+	deadline := w.warmupOperationDeadline
+	w.warmupOperationDeadline = time.Now().Add(w.cfg.WarmupDuration + warmupOperationTailTimeout(ackTimeout, recvTimeout))
 	w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
 	w.cfg.RecvTimeout = warmupOperationTimeout(w.cfg.RecvTimeout, w.cfg.WarmupDuration)
 	return func() {
 		w.cfg.AckTimeout = ackTimeout
 		w.cfg.RecvTimeout = recvTimeout
+		w.warmupOperationDeadline = deadline
 	}
 }
 

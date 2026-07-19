@@ -113,6 +113,8 @@ type PersonWorkload struct {
 	pairs                    []PersonPair
 	clients                  map[string]PersonClient
 	useMessageIndexAsChannel bool
+	// warmupOperationDeadline caps the final in-flight warmup operation tail.
+	warmupOperationDeadline time.Time
 
 	mu        sync.Mutex
 	connected map[string]struct{}
@@ -1091,21 +1093,52 @@ func (w *PersonWorkload) recordError(name string, err error) {
 }
 
 func (w *PersonWorkload) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if timeout <= 0 {
-		return context.WithTimeout(ctx, defaultWorkloadTimeout)
-	}
+	timeout = boundedWarmupOperationTimeout(timeout, w.warmupOperationDeadline, time.Now())
 	return context.WithTimeout(ctx, timeout)
 }
 
 func (w *PersonWorkload) useWarmupTimeouts() func() {
 	ackTimeout := w.cfg.AckTimeout
 	recvTimeout := w.cfg.RecvTimeout
+	deadline := w.warmupOperationDeadline
+	w.warmupOperationDeadline = time.Now().Add(w.cfg.WarmupDuration + warmupOperationTailTimeout(ackTimeout, recvTimeout))
 	w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
 	w.cfg.RecvTimeout = warmupOperationTimeout(w.cfg.RecvTimeout, w.cfg.WarmupDuration)
 	return func() {
 		w.cfg.AckTimeout = ackTimeout
 		w.cfg.RecvTimeout = recvTimeout
+		w.warmupOperationDeadline = deadline
 	}
+}
+
+func warmupOperationTailTimeout(ackTimeout, recvTimeout time.Duration) time.Duration {
+	maximum := defaultWorkloadTimeout
+	for _, timeout := range []time.Duration{ackTimeout, recvTimeout} {
+		if timeout <= 0 {
+			timeout = defaultWorkloadTimeout
+		}
+		if timeout > maximum {
+			maximum = timeout
+		}
+	}
+	return maximum
+}
+
+func boundedWarmupOperationTimeout(timeout time.Duration, deadline, now time.Time) time.Duration {
+	if timeout <= 0 {
+		timeout = defaultWorkloadTimeout
+	}
+	if deadline.IsZero() {
+		return timeout
+	}
+	remaining := deadline.Sub(now)
+	if remaining <= 0 {
+		return time.Nanosecond
+	}
+	if remaining < timeout {
+		return remaining
+	}
+	return timeout
 }
 
 func warmupOperationTimeout(timeout, duration time.Duration) time.Duration {

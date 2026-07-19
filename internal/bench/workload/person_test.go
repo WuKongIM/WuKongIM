@@ -924,6 +924,17 @@ func TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T)
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", personSendLabels("warmup", "profile-a", "person-send")))
 }
 
+func TestBoundedWarmupOperationTimeoutCapsAtPhaseTail(t *testing.T) {
+	startedAt := time.Unix(100, 0)
+	warmup := 10 * time.Minute
+	tail := 15 * time.Second
+	deadline := startedAt.Add(warmup + tail)
+
+	require.Equal(t, warmup, boundedWarmupOperationTimeout(warmup, deadline, startedAt))
+	require.Equal(t, tail, boundedWarmupOperationTimeout(warmup, deadline, startedAt.Add(warmup)))
+	require.Equal(t, time.Nanosecond, boundedWarmupOperationTimeout(warmup, deadline, deadline.Add(time.Second)))
+}
+
 type blockingReadPersonClient struct {
 	frames       []frame.Frame
 	blockStarted chan struct{}

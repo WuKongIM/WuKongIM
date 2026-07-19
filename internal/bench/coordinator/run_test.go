@@ -662,6 +662,25 @@ func TestCoordinatorPollTimeoutReturnsWorkerFailed(t *testing.T) {
 	require.Equal(t, StatusWorkerFailed, result.Status)
 }
 
+func TestCoordinatorWorkerStatusDeadlineIsReportedAsPhaseTimeout(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].BlockStatus(PhaseConnect)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  5 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "phase_timeout", result.Report.WorkerFailures[0].ReasonCode)
+}
+
 func TestCoordinatorWaitsForCompletedPhaseBeforeAdvancing(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].KeepPhaseInProgress(PhasePrepare)
@@ -698,6 +717,27 @@ func TestCoordinatorPollTimeoutIncludesScenarioPhaseDurations(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, StatusCompleted, result.Status)
 	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown))
+}
+
+func TestCoordinatorWarmupPollTimeoutIncludesOperationTail(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].CompletePhaseAfter(PhaseWarmup, 35*time.Millisecond)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  5 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.Warmup = 20 * time.Millisecond
+	scenario.Messages.Traffic[0].AckTimeout = 20 * time.Millisecond
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.True(t, workers[0].SawPhaseAttempt(PhaseRun))
 }
 
 func TestCoordinatorPollTimeoutIncludesChurnReconnectSchedule(t *testing.T) {

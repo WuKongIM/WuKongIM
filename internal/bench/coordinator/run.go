@@ -22,10 +22,11 @@ import (
 )
 
 const (
-	defaultPollInterval = 25 * time.Millisecond
-	defaultPollTimeout  = 10 * time.Second
-	defaultStopTimeout  = 2 * time.Second
-	maxBodySnippetBytes = 512
+	defaultPollInterval            = 25 * time.Millisecond
+	defaultPollTimeout             = 10 * time.Second
+	defaultStopTimeout             = 2 * time.Second
+	defaultTrafficOperationTimeout = 5 * time.Second
+	maxBodySnippetBytes            = 512
 )
 
 var errWorkerReportCollection = errors.New("worker report collection failed")
@@ -589,6 +590,7 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase, pla
 		timeout += connectScheduleDuration(scenario)
 	case PhaseWarmup:
 		timeout += positiveDuration(scenario.Run.Warmup)
+		timeout += maximumTrafficOperationTimeout(scenario)
 	case PhaseRun:
 		timeout += positiveDuration(scenario.Run.Duration)
 		timeout += churnReconnectScheduleDuration(scenario, plan)
@@ -596,6 +598,23 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase, pla
 		timeout += positiveDuration(scenario.Run.Cooldown)
 	}
 	return timeout
+}
+
+// maximumTrafficOperationTimeout returns the largest declared SENDACK or RECV
+// wait that may remain in flight after a timed warmup stops scheduling work.
+func maximumTrafficOperationTimeout(scenario model.Scenario) time.Duration {
+	maximum := defaultTrafficOperationTimeout
+	for _, traffic := range scenario.Messages.Traffic {
+		for _, timeout := range []time.Duration{traffic.AckTimeout, traffic.RecvTimeout} {
+			if timeout <= 0 {
+				timeout = defaultTrafficOperationTimeout
+			}
+			if timeout > maximum {
+				maximum = timeout
+			}
+		}
+	}
+	return maximum
 }
 
 // churnReconnectScheduleDuration returns the deterministic reconnect pacing that
@@ -803,6 +822,9 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 		if err != nil {
 			if errorsIsParentContext(parent, err) {
 				return parent.Err()
+			}
+			if ctx.Err() != nil {
+				return errPollTimeout
 			}
 			return err
 		}
