@@ -312,6 +312,32 @@ func TestPersonWorkloadDoesNotCountPhaseCancellationAsSendError(t *testing.T) {
 	require.Empty(t, workload.Metrics().ErrorSamples())
 }
 
+func TestPersonWorkloadDoesNotCountPhaseCancellationAsRecvError(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	recipient.readErrors = append(recipient.readErrors, context.Canceled)
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		SenderUID:       "u1",
+		RecipientUID:    "u2",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "full",
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = workload.SendOne(ctx, 1)
+
+	require.Error(t, err)
+	require.Zero(t, workload.Metrics().CounterValue("person_recv_error_total", personSendLabels("run", "profile-a", "traffic-a")))
+	require.Empty(t, workload.Metrics().ErrorSamples())
+}
+
 func TestPersonWorkloadConnectsAssignedPairClients(t *testing.T) {
 	sender := newRecordingPersonClient()
 	recipient := newRecordingPersonClient()

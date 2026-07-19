@@ -435,13 +435,15 @@ and briefly yields to foreground sendack/recv matchers when they are queued.
 
 ### Warmup, Run, Cooldown
 
-Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup also raises per-message sendack/recv waits to at least the warmup duration, preventing cold bootstrap latency from being cut off by the shorter measured-run operation timeout. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed run windows stop scheduling new messages when the window expires and then wait only for already-started send operations to finish; overloaded attempts therefore report lower actual QPS instead of extending the measured window to drain the full original schedule. Cooldown waits for the configured drain period without new sends.
+Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup also raises per-message sendack/recv waits to at least the warmup duration, preventing cold bootstrap latency from being cut off by the shorter measured-run operation timeout. A typed per-session warmup operation failure is recorded and does not terminate the hook; the report's declared error-rate limits own the final verdict. Non-session warmup failures remain fail-fast. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed run windows stop scheduling new messages when the window expires and then wait only for already-started send operations to finish; overloaded attempts therefore report lower actual QPS instead of extending the measured window to drain the full original schedule. Cooldown waits for the configured drain period without new sends.
 
 Timed measured run windows record individual send, SENDACK, receive-verification,
-and RECVACK failures in workload metrics and continue scheduling. The declared
-error-rate limits own the final verdict; one message-level failure must not turn
-the worker into a `phase_hook_failed` harness result. Parent phase cancellation,
-warmup failures, and untimed direct operations remain fail-fast.
+and RECVACK failures in workload metrics and continue scheduling. Warmup does
+the same for typed session-operation failures while keeping structural errors
+fail-fast. The declared error-rate limits own the final verdict; one operation
+failure must not turn the worker into a `phase_hook_failed` harness result.
+Parent phase cancellation never contributes send or receive error counters.
+Untimed direct operations remain fail-fast.
 
 ## Planner Flow
 

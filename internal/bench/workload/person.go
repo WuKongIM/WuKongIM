@@ -300,7 +300,7 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 		}, func(ctx context.Context, messageOffset int) error {
 			pair := w.pairs[messageOffset%len(w.pairs)]
 			err := w.sendPairInPhase(ctx, pair, phase, messageOffset)
-			if shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+			if shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
 				return nil
 			}
 			return err
@@ -316,7 +316,7 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 		}
 		pair := w.pairs[messageOffset%len(w.pairs)]
 		if err := w.sendPairInPhase(ctx, pair, phase, messageOffset); err != nil {
-			if !shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+			if !shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
 				return err
 			}
 		}
@@ -407,8 +407,10 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	}
 	recv, err := w.waitForRecv(ctx, recipient, clientMsgNo, pair.SenderUID, expectedMessageID, ack.MessageSeq)
 	if err != nil {
-		w.recordError("person_recv_error", err)
-		w.metrics.IncCounter("person_recv_error_total", sendLabels)
+		if shouldRecordPhaseOperationError(ctx, err) {
+			w.recordError("person_recv_error", err)
+			w.metrics.IncCounter("person_recv_error_total", sendLabels)
+		}
 		if errors.Is(err, io.EOF) {
 			return sessionOperationError(pair.RecipientUID, "person recv", err)
 		}
@@ -422,8 +424,10 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	}
 	if w.cfg.RecvAck {
 		if err := recipient.RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {
-			w.recordError("person_recv_error", err)
-			w.metrics.IncCounter("person_recv_error_total", sendLabels)
+			if shouldRecordPhaseOperationError(ctx, err) {
+				w.recordError("person_recv_error", err)
+				w.metrics.IncCounter("person_recv_error_total", sendLabels)
+			}
 			return sessionOperationError(pair.RecipientUID, "person recvack", err)
 		}
 	}
