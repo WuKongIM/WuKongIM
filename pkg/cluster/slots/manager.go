@@ -24,9 +24,9 @@ func NewManager(cfg Config) *Manager {
 	return &Manager{localNode: cfg.LocalNode, runtime: cfg.Runtime, storage: cfg.Storage, stateMach: cfg.StateMachine, unassigned: make(map[uint32]struct{})}
 }
 
-// BootstrapOwner returns the deterministic node allowed to bootstrap assignment.
-func BootstrapOwner(assignment Assignment) uint64 {
-	if assignment.PreferredLeader != 0 {
+// BootstrapCampaignNode returns the initial voter that should campaign first.
+func BootstrapCampaignNode(assignment Assignment) uint64 {
+	if assignment.PreferredLeader != 0 && containsNode(assignment.DesiredPeers, assignment.PreferredLeader) {
 		return assignment.PreferredLeader
 	}
 	if len(assignment.DesiredPeers) == 0 {
@@ -35,6 +35,11 @@ func BootstrapOwner(assignment Assignment) uint64 {
 	peers := append([]uint64(nil), assignment.DesiredPeers...)
 	sort.Slice(peers, func(i, j int) bool { return peers[i] < peers[j] })
 	return peers[0]
+}
+
+// BootstrapOwner is deprecated; use BootstrapCampaignNode.
+func BootstrapOwner(assignment Assignment) uint64 {
+	return BootstrapCampaignNode(assignment)
 }
 
 // Ensure opens or bootstraps the local Slot state for assignment.
@@ -70,7 +75,11 @@ func (m *Manager) Ensure(ctx context.Context, assignment Assignment) error {
 	if !raft.IsEmptyHardState(initial.HardState) {
 		return m.runtime.OpenSlot(ctx, opts)
 	}
-	return m.runtime.BootstrapSlot(ctx, multiraft.BootstrapSlotRequest{Slot: opts, Voters: nodeIDs(assignment.DesiredPeers)})
+	return m.runtime.BootstrapSlot(ctx, multiraft.BootstrapSlotRequest{
+		Slot:     opts,
+		Voters:   nodeIDs(assignment.DesiredPeers),
+		Campaign: BootstrapCampaignNode(assignment) == m.localNode,
+	})
 }
 
 // OpenLearner opens local Slot runtime state for a staged learner target.

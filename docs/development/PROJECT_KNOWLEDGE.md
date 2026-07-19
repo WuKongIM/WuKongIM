@@ -154,7 +154,7 @@
 - Manager Slot inventory keeps control intent and live Raft status separate: `runtime.preferred_leader_id` is Controller intent; `runtime.leader_id`, voter membership, quorum, sync, and leader-match require live Raft evidence, while selected-node detail also uses `node_log.leader_id` and `node_log.role`. Missing evidence stays unknown/unreported.
 - Manager node-list Slot `leader_count` is also actual Slot Raft leadership from runtime status, not the Controller preferred leader count.
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.
-- Bootstrap planning rotates `Task.TargetNode` across DesiredPeers by SlotID; cluster execution must observe exact voter membership and that target as the live Slot leader before completing the task, transferring from the observed current leader when needed.
+- Bootstrap planning rotates the preferred `Task.TargetNode` across DesiredPeers by SlotID. That voter campaigns first after initial membership applies, but Raft eligibility and quorum remain authoritative; bootstrap completes with exact voter membership and any live leader in that voter set, without a post-election forced transfer.
 - V2 UID authority targets must use distributed Slot identity `(hash slot, slot id, leader node, leader term, config epoch)` as the hard fence. Node-local `AuthorityEpoch` is diagnostic/order metadata only and must not be used as a cross-node hard fence.
 
 ### Controller Raft transport

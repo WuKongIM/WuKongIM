@@ -2,6 +2,7 @@ package pluginhost
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -118,13 +119,6 @@ func TestWaitUnixSocketReadyCompletesConnackHandshake(t *testing.T) {
 
 	serveDone := make(chan error, 1)
 	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			serveDone <- err
-			return
-		}
-		defer func() { _ = conn.Close() }()
-
 		body, err := (&wkrpcproto.Connack{Id: 1, Status: wkrpcproto.StatusOK}).Marshal()
 		if err != nil {
 			serveDone <- err
@@ -135,11 +129,23 @@ func TestWaitUnixSocketReadyCompletesConnackHandshake(t *testing.T) {
 			serveDone <- err
 			return
 		}
-		_, err = conn.Write(packet)
-		serveDone <- err
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					serveDone <- nil
+				} else {
+					serveDone <- err
+				}
+				return
+			}
+			_, _ = conn.Write(packet)
+			_ = conn.Close()
+		}
 	}()
 
 	require.NoError(t, waitUnixSocketReady(socketPath, time.Second))
+	require.NoError(t, listener.Close())
 	select {
 	case err := <-serveDone:
 		require.NoError(t, err)
