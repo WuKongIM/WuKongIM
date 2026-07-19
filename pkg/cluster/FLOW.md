@@ -210,12 +210,14 @@ advancement, fenced commit, or fenced completion through the control task
 writer facade; they do not mutate Controller state directly. Task and
 generic control writes from non-leader Controller runtimes, including
 `PromoteControllerVoter`, are forwarded to the current Controller leader.
-Bootstrap execution completes only after all target peers report done, the
-observed voter set exactly matches `TargetPeers`, and the live Slot Raft leader
-equals the bootstrap `TargetNode`. If voter membership is converged under a
-different leader, every replica records the transfer expectation and only the
-observed current leader calls Slot Raft `TransferLeadership`; a later reconcile
-must observe the target leader before completing the Controller task.
+During initial Slot bootstrap, every target peer installs the same voter set.
+The `PreferredLeader` target asks only that local voter to campaign as soon as
+the initial membership is durably applied; ordinary Raft election timeouts stay
+active as the fallback. Raft vote eligibility, log freshness, and quorum remain
+authoritative. Bootstrap execution completes after all target peers report done,
+the observed voter set exactly matches `TargetPeers`, and the live Slot Raft
+leader belongs to that voter set. It does not force a post-election leadership
+transfer when the observed leader differs from the preference.
 Leader-transfer execution calls Slot Raft `TransferLeadership` from
 the current Slot leader and completes once the observed actual leader is any
 legal non-source Slot Raft leader; the requested `target_node` is preferred,

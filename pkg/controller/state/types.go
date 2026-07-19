@@ -231,7 +231,7 @@ type SlotAssignment struct {
 	DesiredPeers []uint64 `json:"desired_peers"`
 	// ConfigEpoch changes whenever the desired assignment changes.
 	ConfigEpoch uint64 `json:"config_epoch"`
-	// PreferredLeader is the desired leader node for this slot when non-zero.
+	// PreferredLeader is the voter preferred for the initial Slot Raft election.
 	PreferredLeader uint64 `json:"preferred_leader,omitempty"`
 }
 

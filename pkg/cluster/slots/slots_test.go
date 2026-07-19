@@ -10,17 +10,24 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func TestBootstrapOwnerUsesPreferredLeader(t *testing.T) {
+func TestBootstrapCampaignNodeUsesPreferredLeader(t *testing.T) {
 	assignment := Assignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 2}
-	if got := BootstrapOwner(assignment); got != 2 {
-		t.Fatalf("BootstrapOwner() = %d, want 2", got)
+	if got := BootstrapCampaignNode(assignment); got != 2 {
+		t.Fatalf("BootstrapCampaignNode() = %d, want 2", got)
 	}
 }
 
-func TestBootstrapOwnerFallsBackToLowestPeer(t *testing.T) {
+func TestBootstrapCampaignNodeFallsBackToLowestPeer(t *testing.T) {
 	assignment := Assignment{SlotID: 1, DesiredPeers: []uint64{3, 1, 2}}
-	if got := BootstrapOwner(assignment); got != 1 {
-		t.Fatalf("BootstrapOwner() = %d, want 1", got)
+	if got := BootstrapCampaignNode(assignment); got != 1 {
+		t.Fatalf("BootstrapCampaignNode() = %d, want 1", got)
+	}
+}
+
+func TestBootstrapCampaignNodeIgnoresPreferredLeaderOutsideVoters(t *testing.T) {
+	assignment := Assignment{SlotID: 1, DesiredPeers: []uint64{3, 1, 2}, PreferredLeader: 9}
+	if got := BootstrapCampaignNode(assignment); got != 1 {
+		t.Fatalf("BootstrapCampaignNode() = %d, want fallback voter 1", got)
 	}
 }
 
@@ -32,6 +39,9 @@ func TestManagerBootstrapsOwnerWithEmptyState(t *testing.T) {
 	}
 	if runtime.bootstrapCalls != 1 || runtime.openCalls != 0 {
 		t.Fatalf("bootstrap=%d open=%d, want bootstrap=1 open=0", runtime.bootstrapCalls, runtime.openCalls)
+	}
+	if !runtime.lastCampaign {
+		t.Fatal("bootstrap campaign = false, want preferred node to campaign")
 	}
 }
 
@@ -46,6 +56,9 @@ func TestManagerAssignedPeerBootstrapsWithEmptyState(t *testing.T) {
 	}
 	if got, want := runtime.lastVoters, []multiraft.NodeID{1, 2, 3}; !equalNodeIDs(got, want) {
 		t.Fatalf("bootstrap voters = %#v, want %#v", got, want)
+	}
+	if runtime.lastCampaign {
+		t.Fatal("bootstrap campaign = true, want non-preferred node to wait for Raft election")
 	}
 }
 
@@ -110,6 +123,7 @@ type fakeRuntime struct {
 	bootstrapCalls int
 	openCalls      int
 	lastVoters     []multiraft.NodeID
+	lastCampaign   bool
 }
 
 func newFakeRuntime() *fakeRuntime { return &fakeRuntime{status: make(map[uint32]multiraft.Status)} }
@@ -120,6 +134,7 @@ func (r *fakeRuntime) OpenSlot(context.Context, multiraft.SlotOptions) error {
 func (r *fakeRuntime) BootstrapSlot(_ context.Context, req multiraft.BootstrapSlotRequest) error {
 	r.bootstrapCalls++
 	r.lastVoters = append([]multiraft.NodeID(nil), req.Voters...)
+	r.lastCampaign = req.Campaign
 	return nil
 }
 func (r *fakeRuntime) ChangeConfig(context.Context, multiraft.SlotID, multiraft.ConfigChange) (multiraft.Future, error) {

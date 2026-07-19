@@ -3,6 +3,7 @@ package multiraft
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 
 	raft "go.etcd.io/raft/v3"
@@ -77,6 +78,9 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 	if err := validateSlotOptions(req.Slot); err != nil {
 		return err
 	}
+	if req.Campaign && !containsNodeID(req.Voters, r.opts.NodeID) {
+		return fmt.Errorf("%w: local campaign node %d is not an initial voter", ErrInvalidOptions, r.opts.NodeID)
+	}
 
 	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, req.Slot, r.opts.Observer, r.apply)
 	if err != nil {
@@ -103,7 +107,7 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 			r.mu.Unlock()
 			return err
 		}
-		if len(req.Voters) == 1 && req.Voters[0] == r.opts.NodeID {
+		if req.Campaign || (len(req.Voters) == 1 && req.Voters[0] == r.opts.NodeID) {
 			g.requestCampaignAfterReady()
 		}
 	}
@@ -111,6 +115,15 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 
 	r.scheduler.enqueue(req.Slot.ID)
 	return nil
+}
+
+func containsNodeID(nodeIDs []NodeID, target NodeID) bool {
+	for _, nodeID := range nodeIDs {
+		if nodeID == target {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {

@@ -12,7 +12,7 @@ type Assignment struct {
 	SlotID uint32
 	// DesiredPeers are node IDs that should host this Slot.
 	DesiredPeers []uint64
-	// PreferredLeader is the desired bootstrap owner when set.
+	// PreferredLeader is the voter that should campaign first during initial bootstrap.
 	PreferredLeader uint64
 	// HashSlots are logical hash slots currently owned by this physical Slot.
 	HashSlots []uint16

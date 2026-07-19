@@ -29,7 +29,7 @@ func TestBootstrapExecutorReportsParticipantDoneAfterEnsure(t *testing.T) {
 	}
 }
 
-func TestBootstrapExecutorCompletesAfterAllParticipantsDoneAndTargetLeaderObserved(t *testing.T) {
+func TestBootstrapExecutorCompletesAfterAllParticipantsDoneAndLegalLeaderObserved(t *testing.T) {
 	manager := &fakeSlotManager{}
 	writer := &recordingWriter{}
 	status := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 1, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
@@ -159,7 +159,25 @@ func TestBootstrapExecutorDoesNotCompleteWithoutObservedLeader(t *testing.T) {
 	}
 }
 
-func TestBootstrapExecutorTransfersObservedLeaderToTargetBeforeCompletion(t *testing.T) {
+func TestBootstrapExecutorDoesNotCompleteWithLeaderOutsideTargetVoters(t *testing.T) {
+	manager := &fakeSlotManager{}
+	writer := &recordingWriter{}
+	status := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 9, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
+	snapshot := bootstrapSnapshot()
+	for i := range snapshot.Tasks[0].ParticipantProgress {
+		snapshot.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
+	}
+	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 1, Slots: manager, Runtime: status, Writer: writer})
+
+	if err := executor.Reconcile(context.Background(), snapshot); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if len(writer.completed) != 0 {
+		t.Fatalf("completed = %#v, want none for leader outside target voters", writer.completed)
+	}
+}
+
+func TestBootstrapExecutorAcceptsRaftLeaderDifferentFromPreferredTarget(t *testing.T) {
 	manager := &fakeSlotManager{}
 	writer := &recordingWriter{}
 	runtime := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 2, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
@@ -170,25 +188,17 @@ func TestBootstrapExecutorTransfersObservedLeaderToTargetBeforeCompletion(t *tes
 	executor := NewBootstrapExecutor(BootstrapExecutorConfig{LocalNode: 2, Slots: manager, Runtime: runtime, Writer: writer})
 
 	if err := executor.Reconcile(context.Background(), snapshot); err != nil {
-		t.Fatalf("first Reconcile() error = %v", err)
+		t.Fatalf("Reconcile() error = %v", err)
 	}
-	if runtime.expectCalls != 1 || runtime.transferCalls != 1 || runtime.lastTarget != 1 {
-		t.Fatalf("runtime expect=%d transfer=%d target=%d, want 1/1/1", runtime.expectCalls, runtime.transferCalls, runtime.lastTarget)
-	}
-	if len(writer.completed) != 0 {
-		t.Fatalf("completed = %#v, want none before target leadership is observed", writer.completed)
-	}
-
-	runtime.status.LeaderID = 1
-	if err := executor.Reconcile(context.Background(), snapshot); err != nil {
-		t.Fatalf("second Reconcile() error = %v", err)
+	if runtime.expectCalls != 0 || runtime.transferCalls != 0 {
+		t.Fatalf("runtime expect=%d transfer=%d, want no bootstrap leader transfer", runtime.expectCalls, runtime.transferCalls)
 	}
 	if len(writer.completed) != 1 || writer.completed[0].TaskID != "slot-1-bootstrap-1" {
-		t.Fatalf("completed = %#v, want target-leader convergence completion", writer.completed)
+		t.Fatalf("completed = %#v, want Raft-leader convergence completion", writer.completed)
 	}
 }
 
-func TestBootstrapExecutorFollowerDoesNotTransferMismatchedLeader(t *testing.T) {
+func TestBootstrapExecutorFollowerAcceptsRaftLeaderDifferentFromPreferredTarget(t *testing.T) {
 	manager := &fakeSlotManager{}
 	writer := &recordingWriter{}
 	runtime := &fakeStatusReader{status: multiraft.Status{SlotID: 1, LeaderID: 2, CurrentVoters: []multiraft.NodeID{1, 2, 3}}}
@@ -201,11 +211,11 @@ func TestBootstrapExecutorFollowerDoesNotTransferMismatchedLeader(t *testing.T) 
 	if err := executor.Reconcile(context.Background(), snapshot); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
-	if runtime.expectCalls != 1 || runtime.transferCalls != 0 {
-		t.Fatalf("runtime expect=%d transfer=%d, want follower expectation without transfer", runtime.expectCalls, runtime.transferCalls)
+	if runtime.expectCalls != 0 || runtime.transferCalls != 0 {
+		t.Fatalf("runtime expect=%d transfer=%d, want no bootstrap leader transfer", runtime.expectCalls, runtime.transferCalls)
 	}
-	if len(writer.completed) != 0 {
-		t.Fatalf("completed = %#v, want none while target leader is not observed", writer.completed)
+	if len(writer.completed) != 1 {
+		t.Fatalf("completed = %#v, want task completion under legal Raft leader", writer.completed)
 	}
 }
 

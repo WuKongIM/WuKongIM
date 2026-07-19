@@ -22,14 +22,19 @@ type Writer interface {
 	ReportTaskProgress(context.Context, controller.TaskProgress) error
 }
 
+// BootstrapRuntime is the Slot Raft status surface needed to verify bootstrap convergence.
+type BootstrapRuntime interface {
+	Status(multiraft.SlotID) (multiraft.Status, error)
+}
+
 // BootstrapExecutorConfig wires a bootstrap task executor.
 type BootstrapExecutorConfig struct {
 	// LocalNode is this node's stable cluster identity.
 	LocalNode uint64
 	// Slots ensures local Slot runtime state.
 	Slots SlotManager
-	// Runtime observes local Slot Multi-Raft status and converges the target leader.
-	Runtime LeaderTransferRuntime
+	// Runtime observes local Slot Multi-Raft status after every participant has opened the group.
+	Runtime BootstrapRuntime
 	// Writer persists task progress through the Controller facade.
 	Writer Writer
 }
@@ -99,7 +104,7 @@ func (e *BootstrapExecutor) ensureLocal(ctx context.Context, table control.HashS
 	})
 }
 
-func (e *BootstrapExecutor) reconcileConvergence(ctx context.Context, task control.ReconcileTask) (bool, error) {
+func (e *BootstrapExecutor) reconcileConvergence(_ context.Context, task control.ReconcileTask) (bool, error) {
 	if e == nil || e.cfg.Runtime == nil {
 		return false, nil
 	}
@@ -127,22 +132,7 @@ func (e *BootstrapExecutor) reconcileConvergence(ctx context.Context, task contr
 			return false, nil
 		}
 	}
-	if task.TargetNode == 0 || !containsNode(targets, task.TargetNode) {
-		return false, nil
-	}
-	if uint64(status.LeaderID) == task.TargetNode {
-		return true, nil
-	}
-	if err := e.cfg.Runtime.ExpectLeaderTransfer(ctx, slotID, multiraft.NodeID(task.TargetNode)); err != nil {
-		return false, err
-	}
-	if uint64(status.LeaderID) != e.cfg.LocalNode {
-		return false, nil
-	}
-	if err := e.cfg.Runtime.TransferLeadership(ctx, slotID, multiraft.NodeID(task.TargetNode)); err != nil {
-		return false, err
-	}
-	return false, nil
+	return containsNode(targets, uint64(status.LeaderID)), nil
 }
 
 func findSlot(slots []control.SlotAssignment, slotID uint32) (control.SlotAssignment, bool) {

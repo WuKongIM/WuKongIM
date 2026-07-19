@@ -137,8 +137,11 @@ type SlotOptions struct {
 }
 
 type BootstrapSlotRequest struct {
-	Slot   SlotOptions
+	Slot SlotOptions
+	// Voters is the initial Raft voter set installed on every replica.
 	Voters []NodeID
+	// Campaign asks this local voter to campaign after the initial membership is durably applied.
+	Campaign bool
 }
 
 type Envelope struct {

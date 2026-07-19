@@ -60,6 +60,52 @@ func TestExpectLeaderTransferRejectsUnknownSlot(t *testing.T) {
 	}
 }
 
+func TestBootstrapSlotCampaignsAfterInitialMembershipIsReady(t *testing.T) {
+	transport := &recordingTransport{}
+	rt, err := New(Options{
+		NodeID:       1,
+		TickInterval: time.Hour,
+		Workers:      1,
+		Transport:    transport,
+		Raft: RaftOptions{
+			ElectionTick:  10,
+			HeartbeatTick: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := rt.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:     newInternalSlotOptions(100),
+		Voters:   []NodeID{1, 2, 3},
+		Campaign: true,
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		return transport.countMessagesOfType(raftpb.MsgVote) > 0
+	})
+}
+
+func TestBootstrapSlotRejectsCampaignFromNonVoter(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:     newInternalSlotOptions(101),
+		Voters:   []NodeID{2, 3},
+		Campaign: true,
+	})
+	if !errors.Is(err, ErrInvalidOptions) {
+		t.Fatalf("BootstrapSlot() error = %v, want %v", err, ErrInvalidOptions)
+	}
+}
+
 func TestSelectLeaderTransferTransfereePrefersEligiblePreferred(t *testing.T) {
 	st := raft.Status{
 		BasicStatus: raft.BasicStatus{
