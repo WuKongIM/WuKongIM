@@ -476,7 +476,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		err := fmt.Errorf("group workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)
 		w.recordError("group_send_error", err)
 		w.metrics.IncCounter("group_send_error_total", sendLabels)
-		return err
+		return sessionOperationError(senderUID, "group sendack", err)
 	}
 	w.metrics.IncCounter("group_send_success_total", sendLabels)
 	w.metrics.ObserveLatency("group_send_latency_seconds", sendLabels, time.Since(sendStart))
@@ -503,7 +503,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 			err := fmt.Errorf("group workload: recv payload mismatch for %q", clientMsgNo)
 			w.recordError("group_recv_error", err)
 			w.metrics.IncCounter("group_recv_error_total", sendLabels)
-			return err
+			return sessionOperationError(uid, "group recv", err)
 		}
 		if w.cfg.RecvAck {
 			if err := w.clients[uid].RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {

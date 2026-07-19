@@ -392,7 +392,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		err := fmt.Errorf("person workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)
 		w.recordError("person_send_error", err)
 		w.metrics.IncCounter("person_send_error_total", sendLabels)
-		return err
+		return sessionOperationError(pair.SenderUID, "person sendack", err)
 	}
 	w.metrics.IncCounter("person_send_success_total", sendLabels)
 	w.metrics.ObserveLatency("person_send_latency_seconds", sendLabels, time.Since(sendStart))
@@ -417,7 +417,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		err := fmt.Errorf("person workload: recv payload mismatch for %q", clientMsgNo)
 		w.recordError("person_recv_error", err)
 		w.metrics.IncCounter("person_recv_error_total", sendLabels)
-		return err
+		return sessionOperationError(pair.RecipientUID, "person recv", err)
 	}
 	if w.cfg.RecvAck {
 		if err := recipient.RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {

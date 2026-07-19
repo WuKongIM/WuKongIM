@@ -77,6 +77,32 @@ func TestPersonWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testin
 	require.Contains(t, err.Error(), "sendack not received")
 }
 
+func TestPersonWorkloadSendackRejectionIdentifiesFailedSession(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.sendacks = append(sender.sendacks, &frame.SendackPacket{
+		ClientSeq:   7,
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-run-ch7-msg7",
+		ReasonCode:  frame.ReasonRateLimit,
+	})
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		SenderUID:       "u1",
+		RecipientUID:    "u2",
+		ClientMsgPrefix: "bench-msg",
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": newRecordingPersonClient()})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 7)
+
+	var sessionErr *SessionError
+	require.ErrorAs(t, err, &sessionErr)
+	require.Equal(t, "u1", sessionErr.UID)
+	require.Equal(t, "person sendack", sessionErr.Operation)
+}
+
 func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testing.T) {
 	sender := newRecordingPersonClient()
 	recipient := newRecordingPersonClient()
@@ -236,6 +262,45 @@ func TestPersonWorkloadRecvVerificationRejectsWrongFromUID(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_error_total", personSendLabels("run", "profile-a", "traffic-a")))
 	require.NotEmpty(t, workload.Metrics().ErrorSamples())
+}
+
+func TestPersonWorkloadPayloadMismatchIdentifiesFailedSession(t *testing.T) {
+	sender := newRecordingPersonClient()
+	recipient := newRecordingPersonClient()
+	ack := &frame.SendackPacket{
+		MessageID:   100,
+		MessageSeq:  42,
+		ClientSeq:   42,
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-run-ch3-msg42",
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	sender.sendacks = append(sender.sendacks, ack)
+	recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
+		MessageID:   ack.MessageID,
+		MessageSeq:  ack.MessageSeq,
+		FromUID:     "u1",
+		ChannelID:   "u1",
+		ChannelType: frame.ChannelTypePerson,
+		ClientMsgNo: ack.ClientMsgNo,
+		Payload:     []byte("wrong payload"),
+	})
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		Pairs:           []PersonPair{{ChannelIndex: 3, SenderUID: "u1", RecipientUID: "u2"}},
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  verifyRecvModeFull,
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 42)
+
+	var sessionErr *SessionError
+	require.ErrorAs(t, err, &sessionErr)
+	require.Equal(t, "u2", sessionErr.UID)
+	require.Equal(t, "person recv", sessionErr.Operation)
 }
 
 func TestPersonWorkloadSendOneRecordsFailures(t *testing.T) {
@@ -1099,6 +1164,48 @@ func TestPersonWorkloadWarmupKeepsGoingAfterRecvTimeout(t *testing.T) {
 		ChannelType: frame.ChannelTypePerson,
 		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a phase=warmup channel=0 message=1"),
 	})
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		ClientMsgPrefix: "bench-msg",
+		WarmupDuration:  40 * time.Millisecond,
+		Rate:            model.Rate{PerSecond: 500},
+		MaxConcurrency:  1,
+		VerifyRecvMode:  verifyRecvModeFull,
+		Pairs: []PersonPair{
+			{ChannelIndex: 0, SenderUID: "u1", RecipientUID: "u2"},
+		},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	labels := personSendLabels("warmup", "profile-a", "traffic-a")
+	require.Len(t, sender.sentFrames, 2)
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_error_total", labels))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", labels))
+}
+
+func TestPersonWorkloadWarmupKeepsGoingAfterPayloadMismatch(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	recipient.recvFrames = append(recipient.recvFrames,
+		&frame.RecvPacket{
+			ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-warmup-ch0-msg0",
+			FromUID:     "u1",
+			ChannelType: frame.ChannelTypePerson,
+			Payload:     []byte("wrong payload"),
+		},
+		&frame.RecvPacket{
+			ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-warmup-ch0-msg1",
+			FromUID:     "u1",
+			ChannelType: frame.ChannelTypePerson,
+			Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a phase=warmup channel=0 message=1"),
+		},
+	)
 	workload, err := NewPersonWorkload(PersonConfig{
 		RunID:           "run-a",
 		ProfileName:     "profile-a",
