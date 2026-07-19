@@ -554,6 +554,35 @@ func TestGroupWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 	require.Contains(t, workload.Metrics().ErrorSamples()[0].Message, "bench-msg-run-a-group-profile-group-send-run-ch0-msg1")
 }
 
+func TestGroupWorkloadRecvReadErrorIdentifiesFailedSession(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	recipient.readErrors = append(recipient.readErrors, context.DeadlineExceeded)
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  verifyRecvModeFull,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender, "u-1": recipient})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 0, 1)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, []string{"u-1"}, SessionErrorUIDs(err))
+	var sessionErr *SessionError
+	require.ErrorAs(t, err, &sessionErr)
+	require.Equal(t, "group recv", sessionErr.Operation)
+}
+
 func TestGroupWorkloadDoesNotCountPhaseCancellationAsSendError(t *testing.T) {
 	sender := newRecordingPersonClient()
 	sender.readErrors = append(sender.readErrors, context.Canceled)

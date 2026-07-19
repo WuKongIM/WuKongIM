@@ -289,6 +289,32 @@ func TestPersonWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 	require.Contains(t, workload.Metrics().ErrorSamples()[0].Message, "bench-msg-run-a-profile-a-traffic-a-run-ch1-msg1")
 }
 
+func TestPersonWorkloadRecvReadErrorIdentifiesFailedSession(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	recipient.readErrors = append(recipient.readErrors, context.DeadlineExceeded)
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		SenderUID:       "u1",
+		RecipientUID:    "u2",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  verifyRecvModeFull,
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 1)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, []string{"u2"}, SessionErrorUIDs(err))
+	var sessionErr *SessionError
+	require.ErrorAs(t, err, &sessionErr)
+	require.Equal(t, "person recv", sessionErr.Operation)
+}
+
 func TestPersonWorkloadDoesNotCountPhaseCancellationAsSendError(t *testing.T) {
 	sender := newRecordingPersonClient()
 	sender.readErrors = append(sender.readErrors, context.Canceled)
@@ -1060,6 +1086,41 @@ func TestPersonWorkloadMeasuredRunKeepsGoingAfterOperationError(t *testing.T) {
 	require.Len(t, sender.sentFrames, 5)
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_error_total", labels))
 	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", labels))
+}
+
+func TestPersonWorkloadWarmupKeepsGoingAfterRecvTimeout(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	recipient.readErrors = append(recipient.readErrors, context.DeadlineExceeded)
+	recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-warmup-ch0-msg1",
+		FromUID:     "u1",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a phase=warmup channel=0 message=1"),
+	})
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		ClientMsgPrefix: "bench-msg",
+		WarmupDuration:  40 * time.Millisecond,
+		Rate:            model.Rate{PerSecond: 500},
+		MaxConcurrency:  1,
+		VerifyRecvMode:  verifyRecvModeFull,
+		Pairs: []PersonPair{
+			{ChannelIndex: 0, SenderUID: "u1", RecipientUID: "u2"},
+		},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	labels := personSendLabels("warmup", "profile-a", "traffic-a")
+	require.Len(t, sender.sentFrames, 2)
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_error_total", labels))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", labels))
 }
 
 func TestPersonWorkloadWarmupTouchesEveryPairAtLeastOnce(t *testing.T) {
