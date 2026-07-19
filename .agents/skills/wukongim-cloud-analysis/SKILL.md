@@ -32,7 +32,13 @@ When `workload_inspect` reports failed workers, route by that structured evidenc
 - `worker_metrics_unavailable` or `worker_report_unavailable`: treat the missing worker evidence as `insufficient_evidence` unless another bounded source independently proves the cause.
 - `worker_assignment_failed`: the workload never started on that worker; inspect worker/simulator availability and classify as `scenario_invalid`, `infrastructure_interrupted`, or `insufficient_evidence` from bounded corroboration.
 - `worker_status_mismatch`: verify the exact run assignment and simulator control state; a proven stale or mismatched worker assignment is `scenario_invalid`, while ambiguous control state is `insufficient_evidence`.
-- `phase_hook_failed`, `phase_timeout`, `phase_start_failed`, or `phase_wait_failed`: use the failed worker, phase, actual phase window, and bounded detail to select the smallest contradicting metric or log query.
+- `phase_hook_failed`, `phase_timeout`, `phase_start_failed`, or `phase_wait_failed`: use the failed worker, phase, actual phase window, optional bounded operation, and fixed detail to select the smallest contradicting metric or log query. Route a present operation without parsing detail text:
+  - `person_sendack_lock` or `group_sendack_lock`: inspect simulator concurrency/session serialization and worker pressure first; do not attribute lock acquisition to the server without independent target evidence.
+  - `person_send` or `group_send`: inspect target availability, send rate, and gateway/append errors over the failed phase.
+  - `person_sendack` or `group_sendack`: inspect send acceptance, append success/error, and SENDACK evidence over the failed phase.
+  - `person_recv` or `group_recv`: inspect delivery/fanout rates, queue pressure, and receive-verification errors over the failed phase.
+  - `person_recvack` or `group_recvack`: inspect gateway session continuity, receive-ack handling, and simulator headroom over the failed phase.
+- A missing operation is `unknown`; do not infer it from fixed detail or logs. An unknown operation is invalid producer evidence.
 - An unknown reason code, truncated failure list, or failed-worker count without matching structured evidence remains explicit missing evidence.
 
 Do not begin with broad application-log searches when the structured worker failure already identifies a simulator or harness cause.

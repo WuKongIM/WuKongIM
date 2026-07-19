@@ -206,6 +206,8 @@ type WorkloadWorkerFailure struct {
 	Phase string `json:"phase"`
 	// ReasonCode is a stable machine-readable failure classification.
 	ReasonCode string `json:"reason_code"`
+	// Operation identifies a safe low-cardinality workload operation when known.
+	Operation string `json:"operation,omitempty"`
 	// Detail is a fixed reason-code-owned diagnostic description.
 	Detail string `json:"detail"`
 	// ObservedAt records when the coordinator observed the failure.

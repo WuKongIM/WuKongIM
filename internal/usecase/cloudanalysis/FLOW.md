@@ -29,7 +29,9 @@ Analysis Session.
 `workload_inspect` returns the bounded diagnostic summary contract rather than
 raw worker reports. Its actual phase windows and structured worker failures let
 consumers choose the narrowest next observation without parsing Markdown or
-guessing a failed worker from aggregate counts.
+guessing a failed worker from aggregate counts. A failed worker may include an
+allowlisted low-cardinality person/group `operation`; missing operation remains
+explicitly unknown and never falls back to parsing detail text.
 
 The package owns no HTTP, MCP protocol, cloud SDK, shell, filesystem, restart,
 configuration-write, or cleanup behavior.

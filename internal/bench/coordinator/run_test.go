@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1037,6 +1038,89 @@ func TestCoordinatorDoesNotInferReasonCodeFromWorkerErrorText(t *testing.T) {
 	require.Equal(t, "phase_hook_failed", result.Report.WorkerFailures[0].ReasonCode)
 }
 
+func TestCoordinatorPreservesSafeWorkerFailureOperation(t *testing.T) {
+	workerServer := httptest.NewServer(worker.NewServer(worker.Config{
+		ControlToken: "secret",
+		WorkloadRunner: &tcpSourceFailureRunner{connectErr: &benchworkload.SessionError{
+			UID:       "secret-user",
+			Operation: "group sendack",
+			Err:       io.EOF,
+		}},
+	}))
+	defer workerServer.Close()
+	reportDir := t.TempDir()
+	coord := New(CoordinatorConfig{
+		Workers: []model.Worker{{ID: "a", Addr: workerServer.URL, Weight: 1, ControlToken: "secret"}},
+		Target:  fakeTargetOK(),
+		Preflight: preflightFunc(func(context.Context, model.Target, model.WorkerSet) error {
+			return nil
+		}),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = reportDir
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	failureJSON, marshalErr := json.Marshal(result.Report.WorkerFailures[0])
+	require.NoError(t, marshalErr)
+	var failure map[string]any
+	require.NoError(t, json.Unmarshal(failureJSON, &failure))
+	require.Equal(t, "group_sendack", failure["operation"])
+
+	data, readErr := os.ReadFile(filepath.Join(reportDir, "diagnostic-summary.json"))
+	require.NoError(t, readErr)
+	var summary map[string]any
+	require.NoError(t, json.Unmarshal(data, &summary))
+	failedWorkers := summary["failed_workers"].([]any)
+	diagnosticFailure := failedWorkers[0].(map[string]any)
+	require.Equal(t, "group_sendack", diagnosticFailure["operation"])
+	require.NotContains(t, string(data), "secret-user")
+}
+
+func TestCoordinatorPreservesAsyncWorkerFailureOperation(t *testing.T) {
+	workerServer := httptest.NewServer(worker.NewServer(worker.Config{
+		ControlToken: "secret",
+		WorkloadRunner: &delayedConnectFailureRunner{
+			delay: 50 * time.Millisecond,
+			err: &benchworkload.SessionError{
+				UID:       "secret-user",
+				Operation: "person recv",
+				Err:       io.EOF,
+			},
+		},
+	}))
+	defer workerServer.Close()
+	coord := New(CoordinatorConfig{
+		Workers: []model.Worker{{ID: "a", Addr: workerServer.URL, Weight: 1, ControlToken: "secret"}},
+		Target:  fakeTargetOK(),
+		Preflight: preflightFunc(func(context.Context, model.Target, model.WorkerSet) error {
+			return nil
+		}),
+		PollInterval: time.Millisecond,
+		PollTimeout:  250 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = t.TempDir()
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	failureJSON, marshalErr := json.Marshal(result.Report.WorkerFailures[0])
+	require.NoError(t, marshalErr)
+	require.Contains(t, string(failureJSON), `"operation":"person_recv"`)
+	data, readErr := os.ReadFile(filepath.Join(scenario.Run.ReportDir, "diagnostic-summary.json"))
+	require.NoError(t, readErr)
+	require.Contains(t, string(data), `"operation": "person_recv"`)
+	require.NotContains(t, string(data), "secret-user")
+}
+
 func TestCoordinatorTargetUnavailableReportUsesTargetExitCode(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable","reason_code":"target_unavailable"}`)
@@ -1068,6 +1152,28 @@ type preflightFunc func(context.Context, model.Target, model.WorkerSet) error
 
 type tcpSourceFailureRunner struct {
 	connectErr error
+}
+
+type delayedConnectFailureRunner struct {
+	delay time.Duration
+	err   error
+}
+
+func (r *delayedConnectFailureRunner) Prepare(context.Context, worker.Assignment) error { return nil }
+func (r *delayedConnectFailureRunner) Connect(ctx context.Context, _ worker.Assignment) error {
+	timer := time.NewTimer(r.delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return r.err
+	}
+}
+func (r *delayedConnectFailureRunner) Warmup(context.Context, worker.Assignment) error { return nil }
+func (r *delayedConnectFailureRunner) Run(context.Context, worker.Assignment) error    { return nil }
+func (r *delayedConnectFailureRunner) Cooldown(context.Context, worker.Assignment) error {
+	return nil
 }
 
 func (r *tcpSourceFailureRunner) Prepare(context.Context, worker.Assignment) error { return nil }

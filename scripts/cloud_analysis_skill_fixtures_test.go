@@ -39,6 +39,25 @@ func TestCloudAnalysisSkillDocumentsProcessLossGuard(t *testing.T) {
 	}
 }
 
+func TestCloudAnalysisSkillDocumentsFailureOperationRouting(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, operation := range []string{
+		"person_sendack_lock", "person_send", "person_sendack", "person_recv", "person_recvack",
+		"group_sendack_lock", "group_send", "group_sendack", "group_recv", "group_recvack",
+	} {
+		if !strings.Contains(contract, "`"+operation+"`") {
+			t.Fatalf("tool-contract.md must list failure operation %q", operation)
+		}
+	}
+	for _, route := range []string{"sendack_lock", "send` or `group_send", "sendack`", "recv` or `group_recv", "recvack`"} {
+		if !strings.Contains(skill, route) {
+			t.Fatalf("SKILL.md must route failure operation family %q", route)
+		}
+	}
+}
+
 func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 	fixtureDir := filepath.Join(repoRoot(t), ".agents", "skills", "wukongim-cloud-analysis", "fixtures")
 	paths, err := filepath.Glob(filepath.Join(fixtureDir, "*.json"))

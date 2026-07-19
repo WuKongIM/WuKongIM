@@ -683,6 +683,7 @@ type workerFailureError struct {
 	workerID   string
 	phase      Phase
 	reasonCode string
+	operation  string
 	observedAt time.Time
 	err        error
 }
@@ -690,7 +691,7 @@ type workerFailureError struct {
 func newWorkerFailureError(workerID string, phase Phase, reasonCode string, err error) *workerFailureError {
 	return &workerFailureError{
 		workerID: strings.TrimSpace(workerID), phase: phase, reasonCode: reasonCode,
-		observedAt: time.Now().UTC(), err: err,
+		operation: workerFailureOperation(err), observedAt: time.Now().UTC(), err: err,
 	}
 }
 
@@ -710,6 +711,14 @@ func workerFailureReason(fallback string, err error) string {
 	default:
 		return fallback
 	}
+}
+
+func workerFailureOperation(err error) string {
+	var reasonErr *workerReasonError
+	if errors.As(err, &reasonErr) && reasonErr.operation.Valid() {
+		return string(reasonErr.operation)
+	}
+	return ""
 }
 
 func (e *workerFailureError) Error() string {
@@ -747,7 +756,7 @@ func collectWorkerFailureDetails(failures *[]report.WorkerFailure, err error) {
 	if workerErr, ok := err.(*workerFailureError); ok {
 		failure := report.WorkerFailure{
 			WorkerID: workerErr.workerID, Phase: string(workerErr.phase), ReasonCode: workerErr.reasonCode,
-			ObservedAt: workerErr.observedAt,
+			Operation: workerErr.operation, ObservedAt: workerErr.observedAt,
 		}
 		if workerErr.err != nil {
 			failure.Detail = workerErr.err.Error()
@@ -801,7 +810,7 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 			return err
 		}
 		if status.LastError != "" {
-			return workerStatusPhaseError(status.LastError, status.LastErrorCode)
+			return workerStatusPhaseError(status.LastError, status.LastErrorCode, status.LastErrorOperation)
 		}
 		if status.CompletedPhase == want || (status.CompletedPhase == "" && status.Phase == want) {
 			return nil
@@ -919,8 +928,9 @@ var errPollTimeout = errors.New("worker phase poll timeout")
 var errWorkerStatusMismatch = errors.New("worker status assignment mismatch")
 
 type workerReasonError struct {
-	code worker.FailureReasonCode
-	err  error
+	code      worker.FailureReasonCode
+	operation worker.FailureOperationCode
+	err       error
 }
 
 func (e *workerReasonError) Error() string {
@@ -937,13 +947,16 @@ func (e *workerReasonError) Unwrap() error {
 	return e.err
 }
 
-func workerStatusPhaseError(message string, code worker.FailureReasonCode) error {
+func workerStatusPhaseError(message string, code worker.FailureReasonCode, operation worker.FailureOperationCode) error {
 	var err error = errors.New(message)
 	if code == worker.FailureReasonTargetUnavailable {
 		err = fmt.Errorf("%s: %w", message, errTargetUnavailable)
 	}
 	if code.Valid() {
-		return &workerReasonError{code: code, err: err}
+		if !operation.Valid() {
+			operation = ""
+		}
+		return &workerReasonError{code: code, operation: operation, err: err}
 	}
 	return err
 }
@@ -980,8 +993,9 @@ func coordinatorStatusError(method, url string, resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodySnippetBytes))
 	snippet := strings.TrimSpace(string(body))
 	var payload struct {
-		Error      string                   `json:"error"`
-		ReasonCode worker.FailureReasonCode `json:"reason_code"`
+		Error      string                      `json:"error"`
+		ReasonCode worker.FailureReasonCode    `json:"reason_code"`
+		Operation  worker.FailureOperationCode `json:"operation"`
 	}
 	_ = json.Unmarshal(body, &payload)
 	var responseErr error
@@ -996,7 +1010,10 @@ func coordinatorStatusError(method, url string, resp *http.Response) error {
 		if payload.ReasonCode == worker.FailureReasonTargetUnavailable && !errors.Is(responseErr, errTargetUnavailable) {
 			responseErr = fmt.Errorf("%s: %w", responseErr, errTargetUnavailable)
 		}
-		return &workerReasonError{code: payload.ReasonCode, err: responseErr}
+		if !payload.Operation.Valid() {
+			payload.Operation = ""
+		}
+		return &workerReasonError{code: payload.ReasonCode, operation: payload.Operation, err: responseErr}
 	}
 	return responseErr
 }

@@ -38,6 +38,18 @@ var (
 		"worker_metrics_unavailable": "worker metrics unavailable",
 		"worker_report_unavailable":  "worker report unavailable",
 	}
+	workloadFailureOperations = map[string]struct{}{
+		"person_sendack_lock": {},
+		"person_send":         {},
+		"person_sendack":      {},
+		"person_recv":         {},
+		"person_recvack":      {},
+		"group_sendack_lock":  {},
+		"group_send":          {},
+		"group_sendack":       {},
+		"group_recv":          {},
+		"group_recvack":       {},
+	}
 )
 
 type workloadSummarySource struct {
@@ -123,7 +135,7 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 	for _, failure := range document.FailedWorkers {
 		failedWorkers = append(failedWorkers, analysis.WorkloadWorkerFailure{
 			WorkerID: failure.WorkerID, Phase: failure.Phase, ReasonCode: failure.ReasonCode,
-			Detail: failure.Detail, ObservedAt: failure.ObservedAt,
+			Operation: failure.Operation, Detail: failure.Detail, ObservedAt: failure.ObservedAt,
 		})
 	}
 	return analysis.WorkloadInspection{
@@ -187,6 +199,7 @@ type workloadDiagnosticFailure struct {
 	WorkerID   string    `json:"worker_id"`
 	Phase      string    `json:"phase"`
 	ReasonCode string    `json:"reason_code"`
+	Operation  string    `json:"operation,omitempty"`
 	Detail     string    `json:"detail"`
 	ObservedAt time.Time `json:"observed_at"`
 }
@@ -250,7 +263,8 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 	workers := make(map[string]struct{}, len(failures))
 	for _, failure := range failures {
 		if !workloadWorkerIDPattern.MatchString(failure.WorkerID) || !validWorkloadFailurePhase(failure.Phase) ||
-			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || !validWorkloadFailureDetail(failure.ReasonCode, failure.Detail) || failure.ObservedAt.IsZero() {
+			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || !validWorkloadFailureOperation(failure.ReasonCode, failure.Operation) ||
+			!validWorkloadFailureDetail(failure.ReasonCode, failure.Detail) || failure.ObservedAt.IsZero() {
 			return false
 		}
 		workers[failure.WorkerID] = struct{}{}
@@ -262,6 +276,17 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 		return len(failures) == 16 && len(workers) <= failedCount
 	}
 	return len(workers) == failedCount
+}
+
+func validWorkloadFailureOperation(reasonCode, operation string) bool {
+	if operation == "" {
+		return true
+	}
+	if reasonCode != "phase_hook_failed" && reasonCode != "target_unavailable" {
+		return false
+	}
+	_, ok := workloadFailureOperations[operation]
+	return ok
 }
 
 // validWorkloadFailureDetail accepts only fixed reason-code templates or an

@@ -23,7 +23,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
   "violations":[],
   "warnings":[],
   "phase_windows":[{"phase":"run","started_at":"2026-07-17T03:23:18Z","ended_at":"2026-07-17T03:53:18Z"}],
-  "failed_workers":[{"worker_id":"worker-3","phase":"cooldown","reason_code":"phase_wait_failed","detail":"worker phase status failed","observed_at":"2026-07-17T03:53:18Z"}],
+  "failed_workers":[{"worker_id":"worker-3","phase":"cooldown","reason_code":"phase_hook_failed","operation":"group_sendack","detail":"worker phase hook failed","observed_at":"2026-07-17T03:53:18Z"}],
   "failed_workers_truncated":false
 }`
 	if err := os.WriteFile(filepath.Join(reportDir, "diagnostic-summary.json"), []byte(summary), 0o600); err != nil {
@@ -47,7 +47,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 	if inspection.Summary.SendSuccess != 123456 || inspection.Summary.ConnectAttempts != 10000 || inspection.Summary.ConnectSuccess != 9999 || inspection.Summary.ConnectErrors != 1 || inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
 		t.Fatalf("summary = %+v", inspection.Summary)
 	}
-	if len(inspection.PhaseWindows) != 1 || inspection.PhaseWindows[0].Phase != "run" || len(inspection.FailedWorkers) != 1 || inspection.FailedWorkers[0].WorkerID != "worker-3" || inspection.FailedWorkers[0].ReasonCode != "phase_wait_failed" {
+	if len(inspection.PhaseWindows) != 1 || inspection.PhaseWindows[0].Phase != "run" || len(inspection.FailedWorkers) != 1 || inspection.FailedWorkers[0].WorkerID != "worker-3" || inspection.FailedWorkers[0].ReasonCode != "phase_hook_failed" || inspection.FailedWorkers[0].Operation != "group_sendack" {
 		t.Fatalf("diagnostic evidence = %+v", inspection)
 	}
 }
@@ -113,6 +113,29 @@ func TestWorkloadSummarySourceRejectsUntrustedFailureDetail(t *testing.T) {
 
 	if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
 		t.Fatalf("untrusted failure detail error = %v, want %v", err, errInvalidWorkloadSummary)
+	}
+}
+
+func TestWorkloadSummarySourceRejectsUntrustedFailureOperation(t *testing.T) {
+	summary := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[{"worker_id":"worker-1","phase":"warmup","reason_code":"phase_hook_failed","operation":"file:///tmp/forged-operation","detail":"worker phase hook failed","observed_at":"2026-07-17T03:53:18Z"}],
+  "failed_workers_truncated":false
+}`
+
+	if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+		t.Fatalf("untrusted failure operation error = %v, want %v", err, errInvalidWorkloadSummary)
+	}
+	if validWorkloadFailureOperation("worker_report_unavailable", "group_sendack") {
+		t.Fatal("session operation must not attach to a non-session failure reason")
 	}
 }
 

@@ -316,12 +316,14 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 		}},
 		WorkerFailures: []WorkerFailure{
 			{
-				WorkerID: "worker-3", Phase: "cooldown", ReasonCode: "phase_wait_failed",
+				WorkerID: "worker-3", Phase: "cooldown", ReasonCode: "phase_hook_failed",
+				Operation:  "group_sendack",
 				Detail:     "GET http://worker-3:19090/v1/status?token=secret failed with Authorization: Bearer secret",
 				ObservedAt: endedAt,
 			},
 			{
 				WorkerID: "worker-4", Phase: "collect", ReasonCode: "worker_report_unavailable",
+				Operation:  "group_recv",
 				Detail:     `open /var/lib/wukongim/run.log via file:///tmp/run.log or ws://sim:9000 failed`,
 				ObservedAt: endedAt,
 			},
@@ -347,7 +349,7 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 	if len(got.PhaseWindows) != 1 || !got.PhaseWindows[0].StartedAt.Equal(startedAt) || !got.PhaseWindows[0].EndedAt.Equal(endedAt) {
 		t.Fatalf("phase windows = %+v", got.PhaseWindows)
 	}
-	if len(got.FailedWorkers) != 2 || got.FailedWorkers[0].WorkerID != "worker-3" || got.FailedWorkers[0].Phase != "cooldown" || got.FailedWorkers[0].ReasonCode != "phase_wait_failed" {
+	if len(got.FailedWorkers) != 2 || got.FailedWorkers[0].WorkerID != "worker-3" || got.FailedWorkers[0].Phase != "cooldown" || got.FailedWorkers[0].ReasonCode != "phase_hook_failed" {
 		t.Fatalf("failed workers = %+v", got.FailedWorkers)
 	}
 	encoded := string(data)
@@ -356,8 +358,11 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 			t.Fatalf("diagnostic summary contains unredacted %q detail: %s", forbidden, encoded)
 		}
 	}
-	if got.FailedWorkers[0].Detail != "worker phase status failed" || got.FailedWorkers[1].Detail != "worker report unavailable" {
+	if got.FailedWorkers[0].Detail != "worker phase hook failed" || got.FailedWorkers[1].Detail != "worker report unavailable" {
 		t.Fatalf("diagnostic summary contains unredacted detail: %s", encoded)
+	}
+	if got.FailedWorkers[0].Operation != "group_sendack" || got.FailedWorkers[1].Operation != "" {
+		t.Fatalf("diagnostic summary operation sanitization = %+v", got.FailedWorkers)
 	}
 	if !strings.Contains(encoded, `"violations": []`) || !strings.Contains(encoded, `"warnings": []`) {
 		t.Fatalf("diagnostic summary must encode empty collections as arrays: %s", encoded)
