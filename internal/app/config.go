@@ -336,7 +336,7 @@ type ConversationConfig struct {
 	AuthorityFlushInterval time.Duration
 	// AuthorityFlushTimeout bounds one authority active-row flush attempt.
 	AuthorityFlushTimeout time.Duration
-	// AuthorityFlushBatchRows bounds dirty authority active rows flushed in one tick.
+	// AuthorityFlushBatchRows bounds dirty authority active rows flushed in one tick or cache-pressure spill.
 	AuthorityFlushBatchRows int
 	// AuthorityAdmitBatchRows limits active rows in one authority admission batch.
 	AuthorityAdmitBatchRows int

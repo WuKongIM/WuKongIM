@@ -9,6 +9,8 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
+const defaultPressureSpillRows = 128
+
 type conversationKey struct {
 	kind        metadb.ConversationKind
 	channelID   string
@@ -58,6 +60,8 @@ type Manager struct {
 	activeCooldown time.Duration
 	// maxCachedRows bounds cached rows across all UIDs; zero means unbounded.
 	maxCachedRows int
+	// pressureSpillRows sets the reusable headroom for one synchronous cache-pressure flush and eviction.
+	pressureSpillRows int
 	// observer receives cache and flush observations.
 	observer Observer
 	// totalRows tracks cached active rows across all UID maps.
@@ -88,11 +92,16 @@ func NewManager(opts Options) *Manager {
 			return time.Now().UnixMilli()
 		}
 	}
+	pressureSpillRows := opts.PressureSpillRows
+	if pressureSpillRows <= 0 {
+		pressureSpillRows = defaultPressureSpillRows
+	}
 	return &Manager{
 		nowMS:               nowMS,
 		store:               opts.Store,
 		activeCooldown:      opts.ActiveCooldown,
 		maxCachedRows:       opts.MaxCachedRows,
+		pressureSpillRows:   pressureSpillRows,
 		observer:            opts.Observer,
 		rowsByKind:          make(map[metadb.ConversationKind]int),
 		dirtyRowsByKind:     make(map[metadb.ConversationKind]int),
@@ -288,23 +297,30 @@ func (m *Manager) spillForPressure(ctx context.Context, newRows int) error {
 	defer m.flushMu.Unlock()
 
 	m.mu.RLock()
-	needsSpill := m.cacheWouldExceedLocked(newRows)
+	over := m.totalRows + newRows - m.maxCachedRows
 	m.mu.RUnlock()
-	if !needsSpill {
+	if over <= 0 {
 		return nil
 	}
-	if _, err := m.flushDirtySerialized(ctx, 0); err != nil {
+	spillRows := m.pressureSpillRows
+	if over > spillRows {
+		spillRows = over
+	}
+	if _, err := m.flushDirtySerialized(ctx, spillRows); err != nil {
 		return err
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	over := m.totalRows + newRows - m.maxCachedRows
+	over = m.totalRows + newRows - m.maxCachedRows
 	if over <= 0 {
 		return nil
 	}
-	if evicted := m.evictCleanRowsLocked(over); evicted < over {
+	if over > spillRows {
+		spillRows = over
+	}
+	if evicted := m.evictCleanRowsLocked(spillRows); evicted < over {
 		return ErrCachePressure
 	}
 	return nil

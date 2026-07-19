@@ -40,7 +40,7 @@ type conversationAuthorityOptions struct {
 	AdmissionConcurrency int
 	// ActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
 	ActiveCooldown time.Duration
-	// FlushBatchRows bounds dirty rows flushed per authority handoff iteration.
+	// FlushBatchRows bounds dirty rows per scheduled flush, pressure spill, and authority handoff iteration.
 	FlushBatchRows int
 	// CurrentRouteTarget returns the locally visible authority target for one hash slot.
 	CurrentRouteTarget func(uint16) (conversationusecase.RouteTarget, bool)
@@ -209,10 +209,11 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 		activeObserver = observer
 	}
 	authority.active = conversationactive.NewManager(conversationactive.Options{
-		Store:          conversationActiveStoreAdapter{authority: authority},
-		ActiveCooldown: opts.ActiveCooldown,
-		MaxCachedRows:  opts.MaxRows,
-		Observer:       activeObserver,
+		Store:             conversationActiveStoreAdapter{authority: authority},
+		ActiveCooldown:    opts.ActiveCooldown,
+		MaxCachedRows:     opts.MaxRows,
+		PressureSpillRows: opts.FlushBatchRows,
+		Observer:          activeObserver,
 	})
 	return authority
 }
