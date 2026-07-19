@@ -419,10 +419,14 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 func writePhaseError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{
+	payload := map[string]string{
 		"error":       err.Error(),
 		"reason_code": string(failureReasonForError(err)),
-	})
+	}
+	if operation := failureOperationForError(err); operation.Valid() {
+		payload["operation"] = string(operation)
+	}
+	writeJSON(w, status, payload)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

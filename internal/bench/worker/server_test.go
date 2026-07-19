@@ -1066,6 +1066,50 @@ func TestWorkerPhaseHookFailureDoesNotAdvanceStatus(t *testing.T) {
 	require.Equal(t, FailureReasonPhaseHookFailed, status.LastErrorCode)
 }
 
+func TestWorkerPhaseHookFailurePublishesSafeOperationCode(t *testing.T) {
+	runner := &recordingWorkloadRunner{
+		failPhase: PhaseWarmup,
+		failErr: &benchworkload.SessionError{
+			UID:       "secret-user",
+			Operation: "group sendack",
+			Err:       io.EOF,
+		},
+	}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/warmup", "secret", nil)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	status := workerStatusMap(t, srv, "secret")
+	require.Equal(t, string(FailureReasonPhaseHookFailed), status["last_error_code"])
+	require.Equal(t, "group_sendack", status["last_error_operation"])
+}
+
+func TestWorkerPhaseHookFailureDropsUnknownOperation(t *testing.T) {
+	runner := &recordingWorkloadRunner{
+		failPhase: PhaseWarmup,
+		failErr: &benchworkload.SessionError{
+			UID:       "secret-user",
+			Operation: "file:///tmp/forged-operation",
+			Err:       io.EOF,
+		},
+	}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/warmup", "secret", nil)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.NotContains(t, rec.Body.String(), `"operation"`)
+	status := workerStatusMap(t, srv, "secret")
+	require.NotContains(t, status, "last_error_operation")
+}
+
 func TestWorkerAsyncPhaseHookFailureIsVisibleInStatus(t *testing.T) {
 	runner := newBlockingConnectRunner()
 	runner.err = fmt.Errorf("phase connect failed")

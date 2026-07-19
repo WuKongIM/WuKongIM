@@ -68,6 +68,44 @@ func (c FailureReasonCode) Valid() bool {
 	}
 }
 
+// FailureOperationCode identifies the bounded workload operation that failed.
+type FailureOperationCode string
+
+const (
+	// FailureOperationPersonSendackLock means a person sender could not acquire its sendack lock.
+	FailureOperationPersonSendackLock FailureOperationCode = "person_sendack_lock"
+	// FailureOperationPersonSend means a person message send failed.
+	FailureOperationPersonSend FailureOperationCode = "person_send"
+	// FailureOperationPersonSendack means a person send acknowledgement failed.
+	FailureOperationPersonSendack FailureOperationCode = "person_sendack"
+	// FailureOperationPersonRecv means a person receive verification failed.
+	FailureOperationPersonRecv FailureOperationCode = "person_recv"
+	// FailureOperationPersonRecvack means a person receive acknowledgement failed.
+	FailureOperationPersonRecvack FailureOperationCode = "person_recvack"
+	// FailureOperationGroupSendackLock means a group sender could not acquire its sendack lock.
+	FailureOperationGroupSendackLock FailureOperationCode = "group_sendack_lock"
+	// FailureOperationGroupSend means a group message send failed.
+	FailureOperationGroupSend FailureOperationCode = "group_send"
+	// FailureOperationGroupSendack means a group send acknowledgement failed.
+	FailureOperationGroupSendack FailureOperationCode = "group_sendack"
+	// FailureOperationGroupRecv means a group receive verification failed.
+	FailureOperationGroupRecv FailureOperationCode = "group_recv"
+	// FailureOperationGroupRecvack means a group receive acknowledgement failed.
+	FailureOperationGroupRecvack FailureOperationCode = "group_recvack"
+)
+
+// Valid reports whether the operation belongs to the worker control API contract.
+func (c FailureOperationCode) Valid() bool {
+	switch c {
+	case FailureOperationPersonSendackLock, FailureOperationPersonSend, FailureOperationPersonSendack,
+		FailureOperationPersonRecv, FailureOperationPersonRecvack, FailureOperationGroupSendackLock,
+		FailureOperationGroupSend, FailureOperationGroupSendack, FailureOperationGroupRecv, FailureOperationGroupRecvack:
+		return true
+	default:
+		return false
+	}
+}
+
 // Assignment is the control-plane run shard assigned to this worker.
 type Assignment struct {
 	// RunID identifies the benchmark run that owns this assignment.
@@ -100,19 +138,22 @@ type Status struct {
 	LastError string `json:"last_error,omitempty"`
 	// LastErrorCode classifies LastError without requiring callers to parse its text.
 	LastErrorCode FailureReasonCode `json:"last_error_code,omitempty"`
+	// LastErrorOperation identifies a safe low-cardinality workload operation when known.
+	LastErrorOperation FailureOperationCode `json:"last_error_operation,omitempty"`
 	// Assignment is the active or most recently stopped assignment.
 	Assignment Assignment `json:"assignment"`
 }
 
 // State stores the active worker assignment and monotonic phase.
 type State struct {
-	mu            sync.Mutex
-	workDir       string
-	phase         Phase
-	active        Phase
-	lastError     string
-	lastErrorCode FailureReasonCode
-	assignment    Assignment
+	mu                 sync.Mutex
+	workDir            string
+	phase              Phase
+	active             Phase
+	lastError          string
+	lastErrorCode      FailureReasonCode
+	lastErrorOperation FailureOperationCode
+	assignment         Assignment
 }
 
 // NewState creates empty worker assignment state. When workDir is non-empty,
@@ -145,6 +186,7 @@ func (s *State) Assign(a Assignment) error {
 	s.active = ""
 	s.lastError = ""
 	s.lastErrorCode = ""
+	s.lastErrorOperation = ""
 	return nil
 }
 
@@ -199,6 +241,7 @@ func (s *State) BeginPhaseForAssignment(runID string, next Phase) (Status, bool,
 	s.active = next
 	s.lastError = ""
 	s.lastErrorCode = ""
+	s.lastErrorOperation = ""
 	return s.statusLocked(), true, nil
 }
 
@@ -216,10 +259,12 @@ func (s *State) CompletePhaseForAssignment(runID string, phase Phase, phaseErr e
 	if phaseErr != nil {
 		s.lastError = phaseErr.Error()
 		s.lastErrorCode = failureReasonForError(phaseErr)
+		s.lastErrorOperation = failureOperationForError(phaseErr)
 		return nil
 	}
 	s.lastError = ""
 	s.lastErrorCode = ""
+	s.lastErrorOperation = ""
 	return s.transitionLocked(phase)
 }
 
@@ -245,6 +290,7 @@ func (s *State) Stop() error {
 	s.active = ""
 	s.lastError = ""
 	s.lastErrorCode = ""
+	s.lastErrorOperation = ""
 	return nil
 }
 
@@ -257,12 +303,13 @@ func (s *State) Status() Status {
 
 func (s *State) statusLocked() Status {
 	return Status{
-		Phase:          s.phase,
-		ActivePhase:    s.active,
-		CompletedPhase: s.phase,
-		LastError:      s.lastError,
-		LastErrorCode:  s.lastErrorCode,
-		Assignment:     s.assignment,
+		Phase:              s.phase,
+		ActivePhase:        s.active,
+		CompletedPhase:     s.phase,
+		LastError:          s.lastError,
+		LastErrorCode:      s.lastErrorCode,
+		LastErrorOperation: s.lastErrorOperation,
+		Assignment:         s.assignment,
 	}
 }
 
@@ -279,6 +326,38 @@ func failureReasonForError(err error) FailureReasonCode {
 		return FailureReasonTargetUnavailable
 	}
 	return FailureReasonPhaseHookFailed
+}
+
+// failureOperationForError maps typed session failures to a fixed operation code.
+func failureOperationForError(err error) FailureOperationCode {
+	var sessionErr *benchworkload.SessionError
+	if !errors.As(err, &sessionErr) || sessionErr == nil {
+		return ""
+	}
+	switch strings.TrimSpace(sessionErr.Operation) {
+	case "person sendack lock":
+		return FailureOperationPersonSendackLock
+	case "person send":
+		return FailureOperationPersonSend
+	case "person sendack":
+		return FailureOperationPersonSendack
+	case "person recv":
+		return FailureOperationPersonRecv
+	case "person recvack":
+		return FailureOperationPersonRecvack
+	case "group sendack lock":
+		return FailureOperationGroupSendackLock
+	case "group send":
+		return FailureOperationGroupSend
+	case "group sendack":
+		return FailureOperationGroupSendack
+	case "group recv":
+		return FailureOperationGroupRecv
+	case "group recvack":
+		return FailureOperationGroupRecvack
+	default:
+		return ""
+	}
 }
 
 func (s *State) persistAssignment(a Assignment) error {

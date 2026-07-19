@@ -52,6 +52,19 @@ var diagnosticFailureDetail = map[string]string{
 	"worker_report_unavailable":  "worker report unavailable",
 }
 
+var diagnosticFailureOperations = map[string]struct{}{
+	"person_sendack_lock": {},
+	"person_send":         {},
+	"person_sendack":      {},
+	"person_recv":         {},
+	"person_recvack":      {},
+	"group_sendack_lock":  {},
+	"group_send":          {},
+	"group_sendack":       {},
+	"group_recv":          {},
+	"group_recvack":       {},
+}
+
 // Status is the benchmark report verdict.
 type Status string
 
@@ -170,6 +183,8 @@ type WorkerFailure struct {
 	Phase string `json:"phase"`
 	// ReasonCode is a stable machine-readable failure classification.
 	ReasonCode string `json:"reason_code"`
+	// Operation identifies a safe low-cardinality workload operation when known.
+	Operation string `json:"operation,omitempty"`
 	// Detail is a bounded diagnostic description; diagnostic projections redact unsafe content.
 	Detail string `json:"detail"`
 	// ObservedAt records when the coordinator observed the failure.
@@ -420,6 +435,9 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 		if failures[i].ReasonCode != failures[j].ReasonCode {
 			return failures[i].ReasonCode < failures[j].ReasonCode
 		}
+		if failures[i].Operation != failures[j].Operation {
+			return failures[i].Operation < failures[j].Operation
+		}
 		return failures[i].ObservedAt.Before(failures[j].ObservedAt)
 	})
 	truncated := len(failures) > maxDiagnosticFailures
@@ -427,6 +445,7 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 		failures = failures[:maxDiagnosticFailures]
 	}
 	for i := range failures {
+		failures[i].Operation = safeFailureOperation(failures[i].ReasonCode, failures[i].Operation)
 		failures[i].Detail = safeFailureDetail(failures[i].ReasonCode)
 	}
 	return DiagnosticSummary{
@@ -436,6 +455,16 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 		PhaseWindows: append([]PhaseWindow{}, rep.PhaseWindows...), FailedWorkers: failures,
 		FailedWorkersTruncated: truncated,
 	}
+}
+
+func safeFailureOperation(reasonCode, operation string) string {
+	if reasonCode != "phase_hook_failed" && reasonCode != "target_unavailable" {
+		return ""
+	}
+	if _, ok := diagnosticFailureOperations[operation]; ok {
+		return operation
+	}
+	return ""
 }
 
 // safeFailureDetail returns only a reason-code-owned template and never raw

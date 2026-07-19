@@ -32,7 +32,9 @@ the raw report or human `summary.md`. Non-truncated failure evidence must accoun
 for every worker included in `summary.worker_failed`; otherwise the source rejects
 the document instead of reporting complete evidence. Failure detail accepts only
 fixed reason-code templates or an explicit redaction marker, so forged producer
-text cannot cross the MCP boundary.
+text cannot cross the MCP boundary. The optional failed-worker `operation` also
+uses a fixed person/group send, sendack, recv, recvack, or sendack-lock allowlist;
+unknown operation text is rejected rather than exposed through the MCP.
 
 Node hosts sample the `wukongim.service` cgroup once per second from one bounded
 collector process and again from

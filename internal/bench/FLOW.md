@@ -122,8 +122,10 @@ connect phase can be diagnosed without reconstructing integers from a rounded
 error rate.
 `report.WriteDir` additionally writes `diagnostic-summary.json`, a bounded,
 redacted machine contract with actual coordinator phase windows and structured
-worker failures. `summary.md` remains human-readable and is not the analysis
-machine contract.
+worker failures. Typed person/group session failures retain an optional
+low-cardinality `operation` such as `group_sendack`; unknown values are omitted,
+and raw UIDs, URLs, paths, and error text never enter this projection.
+`summary.md` remains human-readable and is not the analysis machine contract.
 
 Explicit TCP source pool errors are worker-local configuration or capacity
 failures and therefore resolve to `worker_failed`, never
@@ -345,7 +347,7 @@ GET  /v1/metrics
 GET  /v1/report
 ```
 
-`worker.State` stores the active assignment and lifecycle phase. Phase hooks are asynchronous when they take longer than the short start grace period. In that case the worker returns `202 Accepted`, sets `active_phase`, and later updates `completed_phase` after the hook finishes. Synchronous error responses and asynchronous status failures both carry the same stable `reason_code`; the coordinator preserves that code instead of classifying failures from human-readable text. Duplicate phase requests are idempotent when the requested phase is already active or complete.
+`worker.State` stores the active assignment and lifecycle phase. Phase hooks are asynchronous when they take longer than the short start grace period. In that case the worker returns `202 Accepted`, sets `active_phase`, and later updates `completed_phase` after the hook finishes. Synchronous error responses and asynchronous status failures both carry the same stable `reason_code` and, for typed session failures, an allowlisted person/group `operation`; the coordinator preserves those codes instead of classifying failures from human-readable text. Duplicate phase requests are idempotent when the requested phase is already active or complete.
 
 The in-process dev simulator also uses the worker runner's traffic recovery hook after a runtime traffic error. This repairs only failed WKProto sessions when the workload can identify them, then rebuilds person/group workload objects with a new client message prefix while preserving healthy sessions. This avoids full online-user churn for a single send/recv failure.
 
