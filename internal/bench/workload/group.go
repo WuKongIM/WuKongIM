@@ -2,7 +2,6 @@ package workload
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"hash/crc32"
 	"hash/fnv"
@@ -498,10 +497,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 				w.recordError("group_recv_error", err)
 				w.metrics.IncCounter("group_recv_error_total", sendLabels)
 			}
-			if errors.Is(err, io.EOF) {
-				return sessionOperationError(uid, "group recv", err)
-			}
-			return err
+			return sessionOperationError(uid, "group recv", err)
 		}
 		if string(recv.Payload) != string(payload) {
 			err := fmt.Errorf("group workload: recv payload mismatch for %q", clientMsgNo)

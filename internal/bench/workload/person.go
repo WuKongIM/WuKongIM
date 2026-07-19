@@ -411,10 +411,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 			w.recordError("person_recv_error", err)
 			w.metrics.IncCounter("person_recv_error_total", sendLabels)
 		}
-		if errors.Is(err, io.EOF) {
-			return sessionOperationError(pair.RecipientUID, "person recv", err)
-		}
-		return err
+		return sessionOperationError(pair.RecipientUID, "person recv", err)
 	}
 	if string(recv.Payload) != string(payload) {
 		err := fmt.Errorf("person workload: recv payload mismatch for %q", clientMsgNo)
