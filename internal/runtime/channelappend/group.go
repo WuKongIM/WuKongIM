@@ -37,7 +37,7 @@ func New(opts Options) *Group {
 	limits := stateLimitsFromOptions(opts)
 	advancePool := newWorkerPool(opts.AdvancePoolSize)
 	appendPool := newWorkerPool(opts.EffectPoolSize)
-	postCommitPool := newWorkerPool(opts.EffectPoolSize)
+	postCommitPool := newNonblockingWorkerPool(opts.EffectPoolSize)
 	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
 	group := &Group{
 		opts:           opts,

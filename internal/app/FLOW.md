@@ -389,6 +389,13 @@ count with a minimum of four. `ChannelAppend.AdvancePoolSize` is the direct ants
 pool capacity used to activate channelappend writer state machines.
 `ChannelAppend.EffectPoolSize` is the direct ants pool capacity used separately
 by foreground channelappend append effects and post-append recipient effects.
+The post-append pool uses non-blocking saturated admission and drops the
+already-best-effort effect through the scheduler-failure observation instead of
+blocking a channel writer advance worker; the foreground append pool keeps its
+blocking worker admission semantics. Each channel also keeps the post-commit
+backlog separately bounded from foreground append admission; a full side-effect
+backlog records and drops the newest already-durable envelope without returning
+`ErrChannelBusy` to a later SEND.
 Prepare runs inline on the writer advance path; append remains the foreground
 durable path that determines SEND/SENDACK throughput.
 `ChannelAppend.RecipientAuthorityDispatchConcurrency` defaults to a bounded

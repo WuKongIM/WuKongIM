@@ -12,10 +12,20 @@ type workerPool struct {
 }
 
 func newWorkerPool(size int) *workerPool {
+	return newWorkerPoolWithAdmission(size, false)
+}
+
+// newNonblockingWorkerPool creates a bounded pool whose saturated admission
+// returns an error instead of pinning the caller until a worker becomes free.
+func newNonblockingWorkerPool(size int) *workerPool {
+	return newWorkerPoolWithAdmission(size, true)
+}
+
+func newWorkerPoolWithAdmission(size int, nonblocking bool) *workerPool {
 	if size <= 0 {
 		size = 1
 	}
-	pool, err := ants.NewPool(size, ants.WithNonblocking(false), ants.WithDisablePurge(true))
+	pool, err := ants.NewPool(size, ants.WithNonblocking(nonblocking), ants.WithDisablePurge(true))
 	if err != nil {
 		panic("channelappend: create worker pool: " + err.Error())
 	}

@@ -899,6 +899,51 @@ func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
 	}
 }
 
+func TestAdmitUnderCachePressureEvictsCleanRowsWithoutFlush(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	observer := &recordingConversationActiveObserver{}
+	m := NewManager(Options{Store: store, MaxCachedRows: 2, Observer: observer})
+	if err := m.MarkActive(ctx, []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "old-1", ChannelType: 2, ActiveAtMS: 1000},
+		{Kind: metadb.ConversationKindNormal, UID: "u2", ChannelID: "old-2", ChannelType: 2, ActiveAtMS: 1000},
+	}); err != nil {
+		t.Fatalf("MarkActive(old) error = %v", err)
+	}
+	if _, err := m.Flush(ctx, 0); err != nil {
+		t.Fatalf("Flush(old) error = %v", err)
+	}
+	flushObservations := len(observer.flush)
+	store.touches = nil
+
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u3",
+		ChannelID:   "new",
+		ChannelType: 2,
+		ActiveAtMS:  2000,
+	}}); err != nil {
+		t.Fatalf("MarkActive(new) error = %v", err)
+	}
+
+	if len(observer.flush) != flushObservations {
+		t.Fatalf("flush observations = %d, want unchanged %d when clean rows can be evicted", len(observer.flush), flushObservations)
+	}
+	if len(store.touches) != 0 {
+		t.Fatalf("touches = %+v, want no durable flush for clean-row eviction", store.touches)
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u3", "new", 2); !ok {
+		t.Fatal("new row was not cached")
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("DirtyCountForTest() = %d, want only new dirty row", got)
+	}
+	cache := observer.lastCache(t)
+	if cache.Rows != 2 || cache.DirtyRows != 1 {
+		t.Fatalf("cache observation = %+v, want rows=2 dirty=1", cache)
+	}
+}
+
 func TestConcurrentCachePressureDoesNotDuplicateFullFlush(t *testing.T) {
 	const (
 		maxRows = 64

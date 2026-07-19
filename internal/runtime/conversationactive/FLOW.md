@@ -10,8 +10,9 @@ Current flow:
 2. The manager merges rows by `(uid, kind, channel_id, channel_type)`.
 3. Dirty flushes are serialized from cache snapshot through durable completion,
    then write through `ActiveStore.TouchConversationActiveAt`.
-4. Cache-pressure admission rechecks capacity after it owns the flush lane, flushes
-   dirty rows, and evicts only clean rows before retrying admission.
+4. Cache-pressure admission first evicts already-clean rows while holding the
+   cache lock. Only an insufficient clean working set enters the serialized
+   flush lane to persist dirty rows before retrying admission.
 5. Active view reads merge cache rows with durable `(uid, kind)` active-index pages.
 6. Hash-slot handoff drains dirty rows scoped by UID hash slot before authority moves.
 

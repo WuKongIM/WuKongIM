@@ -198,9 +198,11 @@ sampled recipient, target, and dispatch context so route-resolution failures
 can be distinguished from conversation active admission and delivery enqueue
 failures in logs. Each channel keeps only one committed envelope in flight at a
 time, and concurrency inside that envelope is limited to recipient authority
-targets. Unprocessed and in-flight commit backlog still participates in the
-channel high-watermark, but failed best-effort work is dropped promptly to
-avoid retaining unbounded payloads.
+targets. Foreground append admission and the post-commit backlog use separate
+bounds derived from `ChannelBacklogHighWatermark`. When the best-effort bound
+is full, the newest already-durable envelope is reported as an admission-phase
+post-commit failure and dropped; it never turns a later foreground SEND into
+`ErrChannelBusy`.
 
 When a PersistAfter enqueuer is configured, each successful durable committed
 envelope is cloned into the configured side-effect sinks from the same
@@ -296,8 +298,11 @@ Pending append, append in-flight, and post-commit backlog counters are updated
 by the writer as items move between queues. Append effects run on a foreground
 append pool, while post-commit and realtime recipient effects run on an
 isolated post-commit pool so best-effort side effects cannot occupy durable
-append workers. The writer pressure observer reports the local writer group
-aggregate rather than a per-channel event loop. When the observer supports ants
+append workers. Post-commit pool admission is bounded and non-blocking: a full
+pool produces the normal scheduler failure observation and drops that committed
+envelope, so saturated best-effort work cannot pin writer-advance workers or
+delay later durable appends. The writer pressure observer reports the local
+writer group aggregate rather than a per-channel event loop. When the observer supports ants
 pool samples, the group also emits direct ants/v2 running/capacity/waiting
 observations for the advance, append_effect, and post_commit pools; benchmark
 scripts use these samples for the per-node peak `used/cap` ants pool summary.
