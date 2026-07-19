@@ -388,7 +388,7 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 			ch := w.channels[localOffset%len(w.channels)]
 			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 			err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex)
-			if shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+			if shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
 				return nil
 			}
 			return err
@@ -405,7 +405,7 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 		ch := w.channels[localOffset%len(w.channels)]
 		messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 		if err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex); err != nil {
-			if !shouldContinueMeasuredMessageError(ctx, cfg.Phase, err) {
+			if !shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
 				return err
 			}
 		}
@@ -494,8 +494,10 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		recvStart := time.Now()
 		recv, err := w.waitForRecv(ctx, w.clients[uid], ch.ChannelID, clientMsgNo, senderUID, expectedMessageID, ack.MessageSeq)
 		if err != nil {
-			w.recordError("group_recv_error", err)
-			w.metrics.IncCounter("group_recv_error_total", sendLabels)
+			if shouldRecordPhaseOperationError(ctx, err) {
+				w.recordError("group_recv_error", err)
+				w.metrics.IncCounter("group_recv_error_total", sendLabels)
+			}
 			if errors.Is(err, io.EOF) {
 				return sessionOperationError(uid, "group recv", err)
 			}
@@ -509,8 +511,10 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		}
 		if w.cfg.RecvAck {
 			if err := w.clients[uid].RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {
-				w.recordError("group_recv_error", err)
-				w.metrics.IncCounter("group_recv_error_total", sendLabels)
+				if shouldRecordPhaseOperationError(ctx, err) {
+					w.recordError("group_recv_error", err)
+					w.metrics.IncCounter("group_recv_error_total", sendLabels)
+				}
 				return sessionOperationError(uid, "group recvack", err)
 			}
 		}

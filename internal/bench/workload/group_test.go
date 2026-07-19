@@ -411,6 +411,39 @@ func TestGroupWorkloadMeasuredRunKeepsGoingAfterOperationError(t *testing.T) {
 	require.Equal(t, uint64(4), workload.Metrics().CounterValue("group_send_success_total", labels))
 }
 
+func TestGroupWorkloadWarmupKeepsGoingAfterOperationError(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	sender.readErrors = append(sender.readErrors, context.DeadlineExceeded)
+	channels := make([]GroupChannel, 2)
+	for i := range channels {
+		channels[i] = GroupChannel{
+			ChannelIndex:  i,
+			ChannelID:     fmt.Sprintf("run-a-group-profile-%d", i),
+			OnlineMembers: []string{"u-0"},
+		}
+	}
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		WarmupDuration:  50 * time.Millisecond,
+		LocalRate:       model.Rate{PerSecond: 100},
+		MaxConcurrency:  1,
+		Channels:        channels,
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	labels := groupSendLabels("warmup", "group-profile", "group-send")
+	require.Len(t, sender.sentFrames, 2)
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_error_total", labels))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", labels))
+}
+
 func TestGroupWorkloadPipelinesSendackOperationsPerWrappedClient(t *testing.T) {
 	raw := newSerialSendackClient()
 	clients := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u-0": raw})
@@ -544,6 +577,35 @@ func TestGroupWorkloadDoesNotCountPhaseCancellationAsSendError(t *testing.T) {
 
 	require.Error(t, err)
 	require.Zero(t, workload.Metrics().CounterValue("group_send_error_total", groupSendLabels("run", "group-profile", "group-send")))
+	require.Empty(t, workload.Metrics().ErrorSamples())
+}
+
+func TestGroupWorkloadDoesNotCountPhaseCancellationAsRecvError(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	recipient := newRecordingPersonClient()
+	recipient.readErrors = append(recipient.readErrors, context.Canceled)
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "full",
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender, "u-1": recipient})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = workload.SendOne(ctx, 0, 1)
+
+	require.Error(t, err)
+	require.Zero(t, workload.Metrics().CounterValue("group_recv_error_total", groupSendLabels("run", "group-profile", "group-send")))
 	require.Empty(t, workload.Metrics().ErrorSamples())
 }
 

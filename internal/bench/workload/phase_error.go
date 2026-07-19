@@ -20,10 +20,19 @@ func shouldRecordPhaseOperationError(ctx context.Context, err error) bool {
 	return !errors.Is(err, ctxErr)
 }
 
-// shouldContinueMeasuredMessageError keeps one message-level failure from
-// invalidating a timed measurement whose declared error-rate limits own the verdict.
-func shouldContinueMeasuredMessageError(ctx context.Context, phase string, err error) bool {
-	if err == nil || phase != "run" && !strings.HasPrefix(phase, "run-window-") {
+// shouldContinueTrafficOperationError keeps a typed warmup session failure or
+// one measured message failure from bypassing the declared error-rate limits.
+func shouldContinueTrafficOperationError(ctx context.Context, phase string, err error) bool {
+	if err == nil {
+		return false
+	}
+	measured := phase == "run" || strings.HasPrefix(phase, "run-window-")
+	if phase == "warmup" {
+		var sessionErr *SessionError
+		if !errors.As(err, &sessionErr) {
+			return false
+		}
+	} else if !measured {
 		return false
 	}
 	if ctx == nil || ctx.Err() == nil {
