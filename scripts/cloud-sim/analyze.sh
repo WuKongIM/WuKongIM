@@ -407,11 +407,10 @@ else
 fi
 [[ "$expiry_epoch" =~ ^[0-9]+$ ]] || fail "invalid Analysis Token expiry"
 ((expiry_epoch > $(date -u +%s) + 60)) || fail "Analysis Token expired before local Codex started"
-if command -v sha256sum >/dev/null 2>&1; then
-  actual_ca_fingerprint="sha256:$(openssl x509 -in "$pinned_ca" -outform DER | sha256sum | awk '{print $1}')"
-else
-  actual_ca_fingerprint="sha256:$(openssl x509 -in "$pinned_ca" -outform DER | shasum -a 256 | awk '{print $1}')"
-fi
+# Keep fingerprint verification independent of platform hash wrappers. macOS
+# shasum is implemented by system Perl, which aborts when the caller inherited
+# a Linux-only locale such as C.UTF-8.
+actual_ca_fingerprint="sha256:$(openssl x509 -in "$pinned_ca" -outform DER | openssl dgst -sha256 | awk '{print $NF}')"
 [[ "$actual_ca_fingerprint" == "$expected_ca_fingerprint" ]] || fail "Analysis MCP CA fingerprint mismatch"
 
 analysis_token="$(openssl pkeyutl -decrypt -inkey "$private_key" \

@@ -285,21 +285,6 @@ func TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	hashCommandFound := false
-	for _, command := range []string{"sha256sum", "shasum"} {
-		source, err := exec.LookPath(command)
-		if err != nil {
-			continue
-		}
-		hashCommandFound = true
-		if err := os.Symlink(source, filepath.Join(bin, command)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if !hashCommandFound {
-		t.Fatal("find required SHA-256 test command")
-	}
-
 	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
 		"run-live", "--repository", "example/project")
 	command.Dir = root
@@ -628,6 +613,10 @@ case "$1" in
     ;;
   pkeyutl) printf '%s' 'analysis-secret-token-0123456789abcdef' ;;
   x509) printf '%s' 'DERDATA' ;;
+  dgst)
+    cat >/dev/null
+    printf '%s\n' '494c9d9f353d3aa18a4ada2697e2a7bac90492022d9821ba0a5a6f4c3b15233a'
+    ;;
   *) exit 97 ;;
 esac
 `)
@@ -764,11 +753,7 @@ case "$1" in
         elif [[ "$WK_ANALYZE_SESSION_STATE" == insufficient_evidence ]]; then
           jq -n --arg request_id "$request_id" --arg message "${WK_ANALYZE_SESSION_MESSAGE:-Provider preflight could not establish a live identity-matched Simulation Run.}" '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:"insufficient_evidence",run_id:"run-insufficient",request_id:$request_id,message:$message}' >"$destination/session.json"
         else
-		  if command -v sha256sum >/dev/null 2>&1; then
-		    fingerprint="sha256:$(printf '%s' DERDATA | sha256sum | awk '{print $1}')"
-		  else
-		    fingerprint="sha256:$(printf '%s' DERDATA | shasum -a 256 | awk '{print $1}')"
-		  fi
+		  fingerprint='sha256:494c9d9f353d3aa18a4ada2697e2a7bac90492022d9821ba0a5a6f4c3b15233a'
           jq -n --arg request_id "$request_id" --arg fingerprint "$fingerprint" '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:"live",run_id:"run-live",request_id:$request_id,source_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",scenario_digest:"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",mcp_url:"https://198.51.100.20:19092/mcp",expires_at:"2099-07-14T01:00:00Z",ca_fingerprint:$fingerprint}' >"$destination/session.json"
           printf '%s' encrypted >"$destination/encrypted-token.bin"
           printf '%s' certificate >"$destination/pinned-ca.pem"
