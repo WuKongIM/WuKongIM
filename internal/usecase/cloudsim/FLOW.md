@@ -40,7 +40,12 @@ the resulting size into the provider config before quote and creation. Large
 
 The immutable node bundle configures 256 physical hash slots owned by 10
 logical Slot Raft Groups. Bootstrap evidence records and gates both counts; the
-healthy leader/replica totals remain aggregated across all 256 hash slots.
+healthy leader/replica totals remain aggregated across all 256 hash slots. A
+healthy Slot leader is the non-zero actual Raft leader contained in the current
+voter set while quorum is ready and runtime peers match the assignment.
+`PreferredLeader` mismatch remains observable placement drift and is not a
+Bootstrap Gate failure because Raft eligibility and the elected leader are
+authoritative.
 Prometheus uses a 15-second interval with 72h retention for runs through 48h
 and 192h retention for 168h.
 

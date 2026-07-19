@@ -18,7 +18,8 @@ type BootstrapSnapshot struct {
 	HashSlotCount int `json:"hash_slot_count"`
 	// SlotGroupCount is the number of logical Slot Raft Groups that own hash slots.
 	SlotGroupCount int `json:"slot_group_count"`
-	// HealthySlotLeaders is the count of slots with a healthy current leader.
+	// HealthySlotLeaders is the count of slots whose actual leader is a current voter with ready quorum and matched peers.
+	// A PreferredLeader mismatch is observable placement drift, not a Raft health failure.
 	HealthySlotLeaders int `json:"healthy_slot_leaders"`
 	// HealthySlotReplicas is the count of slots with the required voter set.
 	HealthySlotReplicas int `json:"healthy_slot_replicas"`
