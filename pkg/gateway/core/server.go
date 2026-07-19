@@ -108,11 +108,14 @@ type sessionState struct {
 	// closeErrs preserves close errors until lifecycle callbacks are safe to emit.
 	closeErrs []error
 	// closeNotified prevents duplicate OnSessionError/OnSessionClose callbacks.
-	closeNotified  bool
-	closing        bool
-	authenticated  bool
-	authPending    bool
-	authRequired   bool
+	closeNotified bool
+	closing       bool
+	authenticated bool
+	authPending   bool
+	authRequired  bool
+	// openPending gates post-CONNACK frames while the successful authentication
+	// worker finishes the write and starts OnSessionOpen.
+	openPending    bool
 	openDispatched bool
 	openCompleted  bool
 	openDone       chan struct{}
@@ -817,6 +820,17 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 		suppressObservation = true
 		return
 	}
+	openAlreadyDispatched := state.openWasDispatched()
+	if connack.ReasonCode == frame.ReasonSuccess {
+		if openAlreadyDispatched {
+			state.setAuthenticated(true)
+			state.setAuthPending(false)
+		} else if !state.beginAuthenticatedOpen() {
+			s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
+			suppressObservation = true
+			return
+		}
+	}
 	if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
 		if connack.ReasonCode == frame.ReasonSuccess {
 			failure = authFailureConnackWriteError
@@ -831,19 +845,16 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 	}
 	status = authStatusOK
 	failure = authFailureNone
-	if !state.openWasDispatched() {
-		if !state.beginAuthenticatedOpen() {
-			s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
-			suppressObservation = true
-			return
-		}
+	if state.isClosed() {
+		s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
+		suppressObservation = true
+		return
+	}
+	if !openAlreadyDispatched {
 		if err := s.dispatchSessionOpen(state); err != nil {
 			s.handleHandlerError(state, err)
 			return
 		}
-	} else {
-		state.setAuthenticated(true)
-		state.setAuthPending(false)
 	}
 }
 
@@ -1788,12 +1799,12 @@ func (st *sessionState) beginAuthenticatedOpen() bool {
 
 	st.metaMu.Lock()
 	defer st.metaMu.Unlock()
-	if st.closing || st.authenticated || st.openDispatched {
+	if st.closing || st.authenticated || st.openPending || st.openDispatched {
 		return false
 	}
 	st.authenticated = true
 	st.authPending = false
-	st.openDispatched = true
+	st.openPending = true
 	st.openCompleted = false
 	if st.openDone == nil {
 		st.openDone = make(chan struct{})
@@ -1878,6 +1889,7 @@ func (st *sessionState) markOpenDispatched() {
 	}
 
 	st.metaMu.Lock()
+	st.openPending = false
 	st.openDispatched = true
 	if st.openDone == nil {
 		st.openDone = make(chan struct{})
@@ -1892,6 +1904,7 @@ func (st *sessionState) markOpenComplete() {
 
 	st.metaMu.Lock()
 	if !st.openCompleted {
+		st.openPending = false
 		st.openCompleted = true
 		if st.openDone != nil {
 			close(st.openDone)
@@ -1906,11 +1919,12 @@ func (st *sessionState) waitOpenComplete() {
 	}
 
 	st.metaMu.RLock()
+	openPending := st.openPending
 	openDispatched := st.openDispatched
 	openCompleted := st.openCompleted
 	openDone := st.openDone
 	st.metaMu.RUnlock()
-	if !openDispatched || openCompleted || openDone == nil {
+	if (!openPending && !openDispatched) || openCompleted || openDone == nil {
 		return
 	}
 

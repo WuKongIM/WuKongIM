@@ -372,6 +372,50 @@ func TestServerAsyncAuthRollsBackWhenConnackWriteSucceedsButSessionClosesBeforeO
 	}
 }
 
+func TestServerAsyncAuthAcceptsFrameVisibleDuringSuccessConnackWrite(t *testing.T) {
+	handler := asyncAuthNoopHandler{}
+	srv := &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler: handler,
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	state := &sessionState{
+		server:   srv,
+		listener: &listenerRuntime{adapter: asyncAuthEncodeOnlyProtocol{}},
+		closedCh: make(chan struct{}),
+	}
+	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
+	state.session = session.New(session.Config{ID: 1})
+	state.setAuthRequired(true)
+	state.setAuthPending(true)
+
+	var handled bool
+	var handleErr error
+	state.conn = asyncAuthCloseOnWriteConn{onWrite: func() {
+		handled, handleErr = srv.handleAuthFrame(state, "", &frame.PingPacket{}, false)
+	}}
+
+	srv.runAuthTask(asyncAuthTask{
+		state:      state,
+		connect:    &frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP},
+		enqueuedAt: time.Now(),
+	})
+
+	if handleErr != nil {
+		t.Fatalf("handle post-CONNACK frame error = %v", handleErr)
+	}
+	if handled {
+		t.Fatal("post-CONNACK frame was treated as an authentication frame")
+	}
+	if state.isClosed() {
+		t.Fatalf("session closed after post-CONNACK frame, reason=%q", state.closeReason())
+	}
+}
+
 func TestAsyncAuthReportsQueueAndAdmission(t *testing.T) {
 	observer := &recordingAsyncSendObserver{}
 	srv := &Server{options: gatewaytypes.Options{Observer: observer}}
