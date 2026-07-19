@@ -399,6 +399,7 @@ func (w *channelWriter) runRealtimeDispatch(dispatch realtimeDispatch) {
 
 func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 	var dispatch []appendCompletionDispatchItem
+	var postCommitFailures []PostCommitFailureObservation
 	w.mu.Lock()
 	w.state.recordAppendCompletion(event)
 	for {
@@ -414,14 +415,26 @@ func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 				completion.traceErr == nil &&
 				completion.result.Err == nil &&
 				completion.result.Result.Reason == ReasonSuccess {
-				w.state.enqueueCommitted(committedEnvelopeForAppend(completion.item, completion.appended))
-				w.ports.metrics.addPostCommitBacklog(1)
+				envelope := committedEnvelopeForAppend(completion.item, completion.appended)
+				if w.state.enqueueCommitted(envelope) {
+					w.ports.metrics.addPostCommitBacklog(1)
+				} else {
+					postCommitFailures = append(postCommitFailures, postCommitAdmissionFailure(envelope))
+				}
 			}
 			dispatch = append(dispatch, appendCompletionDispatchItem{completion: completion, duration: next.duration})
 		}
 	}
 	w.ports.metrics.observePressure()
 	w.mu.Unlock()
+	for _, failure := range postCommitFailures {
+		observeEffect(w.ports.append.observer, EffectObservation{
+			Stage:  effectStagePostCommit,
+			Result: failure.Result,
+			Items:  1,
+		})
+		observePostCommitFailure(w.ports.append.observer, failure)
+	}
 	for _, item := range dispatch {
 		w.dispatchAppendItemCompletion(item.completion, item.duration)
 	}
@@ -450,11 +463,14 @@ func (w *channelWriter) nextCommitLocked(out *commitEffect) bool {
 
 func (w *channelWriter) runCommit(effect *commitEffect) {
 	snapshot := *effect
-	_ = w.ports.postCommitPool.submit(func() {
+	if err := w.ports.postCommitPool.submit(func() {
 		completion := snapshot.run(w.ports.runtimeCtx, w.ports.commit)
 		w.applyCommitCompletion(completion)
 		w.rescheduleIfNeeded()
-	})
+	}); err != nil {
+		w.applyCommitCompletion(commitScheduleErrorCompletion(snapshot, err))
+		w.rescheduleIfNeeded()
+	}
 }
 
 func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {

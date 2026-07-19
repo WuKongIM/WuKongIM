@@ -150,6 +150,59 @@ func TestPostCommitEffectDoesNotBlockDurableAppendPool(t *testing.T) {
 	waitCommitBacklogForTest(t, group, postCommitTarget.ChannelID, 0)
 }
 
+func TestPostCommitSaturationDoesNotBlockForegroundAppend(t *testing.T) {
+	delivery := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(10),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		AdvancePoolSize:            1,
+		EffectPoolSize:             1,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  delivery,
+		RecipientBatchSize:         16,
+	})
+	t.Cleanup(delivery.release)
+
+	firstTarget := localTargetForAppendTest("post-commit-first")
+	firstItem := appendSendItemForTest("u1", firstTarget.ChannelID.ID, "first")
+	firstItem.Command.MessageScopedUIDs = []string{"u2"}
+	first, err := group.SubmitLocal(context.Background(), firstTarget, []SendBatchItem{firstItem})
+	if err != nil {
+		t.Fatalf("SubmitLocal(first) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, first), 0, 10, 1)
+	delivery.waitStarted(t)
+
+	secondTarget := localTargetForAppendTest("post-commit-second")
+	secondItem := appendSendItemForTest("u1", secondTarget.ChannelID.ID, "second")
+	secondItem.Command.MessageScopedUIDs = []string{"u2"}
+	second, err := group.SubmitLocal(context.Background(), secondTarget, []SendBatchItem{secondItem})
+	if err != nil {
+		t.Fatalf("SubmitLocal(second) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, second), 0, 11, 2)
+
+	deadline := time.Now().Add(time.Second)
+	for group.postCommitPool.waiting() == 0 && commitBacklogForTest(group, secondTarget.ChannelID) > 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("second post-commit effect neither waited nor completed")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	foregroundTarget := localTargetForAppendTest("foreground")
+	foregroundItem := appendSendItemForTest("u1", foregroundTarget.ChannelID.ID, "foreground")
+	foregroundItem.Command.MessageScopedUIDs = []string{"u2"}
+	foregroundResult := receiveSubmitResult(t, submitNoWaitForAppendTest(group, foregroundTarget, foregroundItem))
+	if foregroundResult.err != nil {
+		t.Fatalf("SubmitLocal(foreground) error = %v", foregroundResult.err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, foregroundResult.future), 0, 12, 3)
+	waitCommitBacklogForTest(t, group, secondTarget.ChannelID, 0)
+	waitCommitBacklogForTest(t, group, foregroundTarget.ChannelID, 0)
+}
+
 func TestGroupDisablesWriterPressureMetricsWithoutObserver(t *testing.T) {
 	group := New(Options{
 		LocalNodeID:         1,

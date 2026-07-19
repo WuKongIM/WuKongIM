@@ -510,13 +510,15 @@ func TestLargeGroupSubscribersRemainPagedPerCommittedMessage(t *testing.T) {
 	}
 }
 
-func TestBlockedCommitBacklogBackpressuresLaterSubmit(t *testing.T) {
+func TestBlockedCommitBacklogDropsBestEffortWorkWithoutBackpressuringLaterSubmit(t *testing.T) {
 	enqueuer := newBlockingRecipientDeliveryEnqueuerForCommitTest()
 	t.Cleanup(enqueuer.release)
+	observer := &recordingPostCommitFailureObserverForTest{}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                 1,
 		MessageID:                   newSequenceIDsForPrepare(1200),
 		Appender:                    newRecordingAppenderForAppendTest(),
+		Observer:                    observer,
 		RecipientAuthorityResolver:  staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
 		RecipientDeliveryEnqueuer:   enqueuer,
 		RecipientBatchSize:          16,
@@ -539,9 +541,16 @@ func TestBlockedCommitBacklogBackpressuresLaterSubmit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second SubmitLocal() error = %v", err)
 	}
-	results := waitFutureForTest(t, secondFuture)
-	if !errors.Is(results[0].Err, ErrChannelBusy) {
-		t.Fatalf("second result error = %v, want ErrChannelBusy from commit backlog pressure", results[0].Err)
+	requireAppendSuccess(t, waitFutureForTest(t, secondFuture), 0, 1201, 2)
+	observer.waitFailures(t, 1)
+	observer.mu.Lock()
+	failure := observer.failures[0]
+	observer.mu.Unlock()
+	if failure.MessageID != 1201 || failure.Phase != "admission" || failure.Result != channelAppendResultBackpressured {
+		t.Fatalf("post-commit failure = %#v, want bounded admission drop for message 1201", failure)
+	}
+	if calls := enqueuer.callCount(); calls != 1 {
+		t.Fatalf("recipient delivery calls = %d, want only the already in-flight post-commit effect", calls)
 	}
 }
 

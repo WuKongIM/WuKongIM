@@ -368,7 +368,7 @@ type Options struct {
 	AdvancePoolSize int
 	// AdmissionCapacityPerShard bounds admitted-but-incomplete items per shard. Values <= 0 use a conservative bounded default.
 	AdmissionCapacityPerShard int
-	// ChannelBacklogHighWatermark is reserved for per-channel admission pressure. Values <= 0 use a bounded default.
+	// ChannelBacklogHighWatermark independently bounds per-channel foreground append admission and best-effort post-commit backlog. Values <= 0 use a bounded default.
 	ChannelBacklogHighWatermark int
 	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use the runtime default.
 	AppendInflightBatchesPerChannel int
@@ -493,7 +493,8 @@ func commitPortsFromOptions(opts Options) commitPorts {
 
 func stateLimitsFromOptions(opts Options) channelStateLimits {
 	return channelStateLimits{
-		pendingItemHighWatermark: opts.ChannelBacklogHighWatermark,
-		appendInflightLimit:      opts.AppendInflightBatchesPerChannel,
+		pendingItemHighWatermark:       opts.ChannelBacklogHighWatermark,
+		postCommitBacklogHighWatermark: opts.ChannelBacklogHighWatermark,
+		appendInflightLimit:            opts.AppendInflightBatchesPerChannel,
 	}
 }

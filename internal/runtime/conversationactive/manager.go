@@ -174,6 +174,14 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 	for {
 		m.mu.Lock()
 		newRows := m.countNewRowsLocked(patches)
+		if m.cacheWouldExceedLocked(newRows) {
+			if newRows > m.maxCachedRows {
+				m.mu.Unlock()
+				return ErrCachePressure
+			}
+			over := m.totalRows + newRows - m.maxCachedRows
+			m.evictCleanRowsLocked(over)
+		}
 		if !m.cacheWouldExceedLocked(newRows) {
 			for _, patch := range patches {
 				if patch.UID == "" {
@@ -184,10 +192,6 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 			m.mu.Unlock()
 			m.observeCache()
 			return nil
-		}
-		if newRows > m.maxCachedRows {
-			m.mu.Unlock()
-			return ErrCachePressure
 		}
 		m.mu.Unlock()
 

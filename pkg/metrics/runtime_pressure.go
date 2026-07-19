@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var runtimePressureDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+var runtimePressureDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 
 // RuntimePressureQueueObservation captures current pressure gauges for a bounded runtime queue.
 type RuntimePressureQueueObservation struct {

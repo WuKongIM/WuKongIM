@@ -157,6 +157,11 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	}).GetCounter().GetValue())
 }
 
+func TestLatencyHistogramBucketsCoverSevereStalls(t *testing.T) {
+	require.Equal(t, float64(30), gatewayFrameDurationBuckets[len(gatewayFrameDurationBuckets)-1])
+	require.Equal(t, float64(30), runtimePressureDurationBuckets[len(runtimePressureDurationBuckets)-1])
+}
+
 func TestClusterMonitorGaugesStayAbsentUntilObserved(t *testing.T) {
 	reg := New(1, "node-1")
 
