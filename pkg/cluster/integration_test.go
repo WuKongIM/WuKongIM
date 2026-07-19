@@ -85,7 +85,7 @@ func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
-	waitRouteKeyLeaderReady(t, nodes[0], channelID.ID)
+	waitNodeWriteReady(t, nodes[0])
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -216,6 +216,23 @@ func waitClusterReady(t testing.TB, nodes ...*Node) {
 	if err := WaitClusterReady(ctx, nodes...); err != nil {
 		t.Fatalf("WaitClusterReady() error = %v", err)
 	}
+}
+
+// waitNodeWriteReady proves that the routed Slot runtime can commit a bounded metadata write.
+func waitNodeWriteReady(t testing.TB, node *Node) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		lastErr = node.ProbeWriteReady(ctx)
+		cancel()
+		if lastErr == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("ProbeWriteReady(node=%d) error = %v", node.NodeID(), lastErr)
 }
 
 func waitRouteLeader(t testing.TB, node *Node, hashSlot uint16, want uint64) {

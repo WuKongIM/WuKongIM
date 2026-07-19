@@ -282,10 +282,11 @@ WKProto CONNECT:
   ⑤ 若 Handler 实现 SessionActivator，调用 OnSessionActivate
      - access/gateway 在这里调用 presence.Activate
      - 可返回 Connack override
-  ⑥ 写出 CONNACK；非 success 时关闭连接
+  ⑥ success CONNACK 写出前原子进入 authenticated + open-pending gate；非 success 时不进入该状态并在写出后关闭连接
+     - 客户端并发观察到 success CONNACK 并立即发送的业务 frame 会等待 open gate，不会被误判为 auth pending 协议违规，也不会早于 OnSessionOpen 进入 handler
      - 若激活已成功但 success CONNACK 写出失败，或写出前发现连接已关闭/正在关闭，调用 SessionActivationRollbacker 回滚激活，再关闭物理连接
-  ⑦ success CONNACK 写出后标记 authenticated，清理 authPending，并 dispatch OnSessionOpen
-  ⑧ 认证完成后到达的业务 frame 必须等待 OnSessionOpen 返回后，才记录 OnFrameIn 并进入 handler；认证 pending 期间到达的业务 frame 已在步骤 ② 按 policy_violation 关闭
+  ⑦ success CONNACK 写出后 dispatch OnSessionOpen，返回后释放 open gate
+  ⑧ 认证完成后到达的业务 frame 必须等待 OnSessionOpen 返回后，才记录 OnFrameIn 并进入 handler；认证结果尚未进入 success gate 时到达的业务 frame 仍在步骤 ② 按 policy_violation 关闭
 ```
 
 认证失败会尽量先写出对应 CONNACK，再关闭连接；CONNECT 同批尾帧、认证 pending 期间的重复帧或非 CONNECT 首帧属于协议违规，直接关闭连接。`Observer.OnAuth` 会携带 `status` 与低基数 `failure` 类别；Authenticator error、SessionActivator error 和 async auth 队列满会使用不同 failure class，队列满的 failure class 为 `auth_queue_full`，关闭原因为 `async_auth_queue_full`，方便区分客户端侧同为 SystemError 的失败来源。认证成功后的 `RequestContext` 会在 session close / gateway stop 时取消，用例层可用它中止正在进行的发送。

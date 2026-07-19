@@ -840,13 +840,14 @@ func TestAppendCancellationSweepSendsOverdueResumeHint(t *testing.T) {
 	meta.MinISR = 2
 	r := NewReactor(ReactorConfig{
 		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
-		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Hour,
 	})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	follower := rc.lifecycle.followers[2]
 	require.NotNil(t, follower)
-	follower.lastPullAt = time.Now()
+	now := time.Now()
+	follower.lastPullAt = now
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -859,9 +860,9 @@ func TestAppendCancellationSweepSendsOverdueResumeHint(t *testing.T) {
 	requireFuturePending(t, future)
 
 	require.Equal(t, 0, tr.pullHintCount(2))
-	follower.hint.retryAt = time.Now().Add(-time.Millisecond)
+	follower.hint.retryAt = now.Add(time.Hour)
 
-	r.sweepAppendCancellationsForChannel(rc)
+	r.sweepAppendCancellationsForChannelAt(rc, now.Add(time.Hour+time.Millisecond))
 
 	require.Eventually(t, func() bool {
 		return tr.pullHintCount(2) == 1 && tr.lastPullHintVersion(2) == rc.lifecycle.version
