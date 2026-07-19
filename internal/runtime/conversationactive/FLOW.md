@@ -12,14 +12,16 @@ Current flow:
    then write through `ActiveStore.TouchConversationActiveAt`.
 4. Cache-pressure admission first evicts already-clean rows while holding the
    cache lock. Only an insufficient clean working set enters the serialized
-   flush lane to persist dirty rows before retrying admission.
+   flush lane, where the larger of required admission capacity and configured
+   headroom is persisted and evicted. Spill size follows bounded admission work
+   instead of scaling to the whole dirty cache.
 5. Active view reads merge cache rows with durable `(uid, kind)` active-index pages.
 6. Hash-slot handoff drains dirty rows scoped by UID hash slot before authority moves.
 
 Serialization covers scheduled, cache-pressure, and hash-slot-scoped flushes. It
-prevents concurrent admissions at the row cap from each retaining a duplicate
-whole-cache snapshot while preserving version fencing for updates that arrive
-during durable I/O.
+prevents concurrent admissions at the row cap from duplicating a pressure
+snapshot while preserving version fencing for updates that arrive during
+durable I/O.
 
 Cache observations report aggregate row/dirty counts plus fixed kind-aware
 normal/CMD counts maintained incrementally on cache mutation. Observation does

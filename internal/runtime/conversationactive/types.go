@@ -24,6 +24,8 @@ type Options struct {
 	ActiveCooldown time.Duration
 	// MaxCachedRows bounds in-memory active rows across all users; zero disables the bound.
 	MaxCachedRows int
+	// PressureSpillRows sets reusable headroom for a cache-pressure spill; a larger immediate admission requirement takes precedence.
+	PressureSpillRows int
 	// Observer receives low-cardinality cache and flush observations.
 	Observer Observer
 }

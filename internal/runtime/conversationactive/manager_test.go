@@ -944,10 +944,76 @@ func TestAdmitUnderCachePressureEvictsCleanRowsWithoutFlush(t *testing.T) {
 	}
 }
 
-func TestConcurrentCachePressureDoesNotDuplicateFullFlush(t *testing.T) {
+func TestCachePressureSpillIsBoundedAndCreatesHeadroom(t *testing.T) {
 	const (
-		maxRows = 64
-		workers = 8
+		maxRows           = 16
+		pressureSpillRows = 4
+	)
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	observer := &recordingConversationActiveObserver{}
+	m := NewManager(Options{
+		Store:             store,
+		MaxCachedRows:     maxRows,
+		PressureSpillRows: pressureSpillRows,
+		Observer:          observer,
+	})
+	initial := make([]ActivePatch, 0, maxRows)
+	for i := 0; i < maxRows; i++ {
+		initial = append(initial, ActivePatch{
+			Kind:        metadb.ConversationKindNormal,
+			UID:         fmt.Sprintf("existing-%d", i),
+			ChannelID:   "room",
+			ChannelType: 2,
+			ActiveAtMS:  1000,
+		})
+	}
+	if err := m.MarkActive(ctx, initial); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "new-0",
+		ChannelID:   "room",
+		ChannelType: 2,
+		ActiveAtMS:  2000,
+	}}); err != nil {
+		t.Fatalf("MarkActive(first pressure) error = %v", err)
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != pressureSpillRows {
+		t.Fatalf("first pressure touches = %+v, want one bounded %d-row spill", store.touches, pressureSpillRows)
+	}
+	cache := observer.lastCache(t)
+	if cache.Rows != maxRows-pressureSpillRows+1 {
+		t.Fatalf("cache rows after spill = %d, want %d rows with reusable headroom", cache.Rows, maxRows-pressureSpillRows+1)
+	}
+
+	for i := 1; i < pressureSpillRows; i++ {
+		if err := m.MarkActive(ctx, []ActivePatch{{
+			Kind:        metadb.ConversationKindNormal,
+			UID:         fmt.Sprintf("new-%d", i),
+			ChannelID:   "room",
+			ChannelType: 2,
+			ActiveAtMS:  2000,
+		}}); err != nil {
+			t.Fatalf("MarkActive(headroom %d) error = %v", i, err)
+		}
+	}
+	if len(store.touches) != 1 {
+		t.Fatalf("touch calls after consuming headroom = %d, want 1", len(store.touches))
+	}
+	cache = observer.lastCache(t)
+	if cache.Rows != maxRows {
+		t.Fatalf("cache rows after consuming headroom = %d, want %d", cache.Rows, maxRows)
+	}
+}
+
+func TestConcurrentCachePressureDoesNotDuplicateBoundedSpill(t *testing.T) {
+	const (
+		maxRows           = 64
+		pressureSpillRows = 8
+		workers           = 8
 	)
 	ctx := context.Background()
 	store := &blockingActiveStore{
@@ -956,7 +1022,7 @@ func TestConcurrentCachePressureDoesNotDuplicateFullFlush(t *testing.T) {
 	}
 	releaseStore := sync.OnceFunc(func() { close(store.release) })
 	defer releaseStore()
-	m := NewManager(Options{Store: store, MaxCachedRows: maxRows})
+	m := NewManager(Options{Store: store, MaxCachedRows: maxRows, PressureSpillRows: pressureSpillRows})
 	initial := make([]ActivePatch, 0, maxRows)
 	for i := 0; i < maxRows; i++ {
 		initial = append(initial, ActivePatch{
@@ -993,17 +1059,17 @@ func TestConcurrentCachePressureDoesNotDuplicateFullFlush(t *testing.T) {
 
 	select {
 	case selected := <-store.entered:
-		if selected != maxRows {
-			t.Fatalf("first pressure flush selected %d rows, want %d", selected, maxRows)
+		if selected != pressureSpillRows {
+			t.Fatalf("first pressure flush selected %d rows, want bounded %d", selected, pressureSpillRows)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("first pressure flush did not reach the store")
 	}
 
-	duplicateFullFlush := false
+	duplicateSpill := false
 	select {
 	case selected := <-store.entered:
-		duplicateFullFlush = selected == maxRows
+		duplicateSpill = selected == pressureSpillRows
 	case <-time.After(200 * time.Millisecond):
 	}
 	releaseStore()
@@ -1012,8 +1078,8 @@ func TestConcurrentCachePressureDoesNotDuplicateFullFlush(t *testing.T) {
 			t.Fatalf("MarkActive(concurrent pressure) error = %v", err)
 		}
 	}
-	if duplicateFullFlush {
-		t.Fatal("concurrent cache pressure duplicated the same full-cache flush snapshot")
+	if duplicateSpill {
+		t.Fatal("concurrent cache pressure duplicated the same bounded flush snapshot")
 	}
 	if got := store.maxConcurrentCalls(); got != 1 {
 		t.Fatalf("maximum concurrent store flushes = %d, want 1", got)
