@@ -346,9 +346,42 @@ func TestGroupWorkloadRecvErrorUsesPhaseLabels(t *testing.T) {
 	}, map[string]PersonClient{"u-0": sender, "u-1": recipient})
 	require.NoError(t, err)
 
-	require.Error(t, workload.sendOneInPhase(context.Background(), "warmup", 0, 0))
+	err = workload.sendOneInPhase(context.Background(), "warmup", 0, 0)
+	var sessionErr *SessionError
+	require.ErrorAs(t, err, &sessionErr)
+	require.Equal(t, "u-1", sessionErr.UID)
+	require.Equal(t, "group recv", sessionErr.Operation)
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_recv_error_total", groupSendLabels("warmup", "group-profile", "group-send")))
 	require.Zero(t, workload.Metrics().CounterValue("group_recv_error_total", nil))
+}
+
+func TestGroupWorkloadSendackRejectionIdentifiesFailedSession(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.sendacks = append(sender.sendacks, &frame.SendackPacket{
+		ClientSeq:   1,
+		ClientMsgNo: "bench-msg-run-a-group-profile-group-send-run-ch0-msg1",
+		ReasonCode:  frame.ReasonRateLimit,
+	})
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 0, 1)
+
+	var sessionErr *SessionError
+	require.ErrorAs(t, err, &sessionErr)
+	require.Equal(t, "u-0", sessionErr.UID)
+	require.Equal(t, "group sendack", sessionErr.Operation)
 }
 
 func TestGroupWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testing.T) {
@@ -433,6 +466,39 @@ func TestGroupWorkloadWarmupKeepsGoingAfterOperationError(t *testing.T) {
 		MaxConcurrency:  1,
 		Channels:        channels,
 		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	labels := groupSendLabels("warmup", "group-profile", "group-send")
+	require.Len(t, sender.sentFrames, 2)
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_error_total", labels))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", labels))
+}
+
+func TestGroupWorkloadWarmupKeepsGoingAfterSendackRejection(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.autoSendack = true
+	sender.sendacks = append(sender.sendacks, &frame.SendackPacket{
+		ClientSeq:   0,
+		ClientMsgNo: "bench-msg-run-a-group-profile-group-send-warmup-ch0-msg0",
+		ReasonCode:  frame.ReasonRateLimit,
+	})
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		WarmupDuration:  40 * time.Millisecond,
+		LocalRate:       model.Rate{PerSecond: 500},
+		MaxConcurrency:  1,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0"},
+		}},
+		Metrics: metrics.NewRegistry(),
 	}, map[string]PersonClient{"u-0": sender})
 	require.NoError(t, err)
 
