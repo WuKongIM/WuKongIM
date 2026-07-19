@@ -220,6 +220,7 @@
 - Cloud Simulation cleanup reconstructs temporary ingress deadlines from provider security rules; sweeps preserve unexpired local Analysis Windows and close expired, malformed, or duplicate windows.
 - Cloud Simulation normal completion uses a non-diagnostic Finalization Schedule plus local `finalize.sh`: retry an explicit in-progress workload while the lease permits, run exact cleanup even after diagnosis/remediation failure, then require structured provider-confirmed empty inventory.
 - Cloud Simulation stability topology uses 256 physical hash slots mapped to 10 logical Slot Raft Groups; bootstrap gates both values separately.
+- Cloud Simulation Bootstrap Gate accepts a non-zero actual Slot Raft leader that belongs to the current voter set when quorum and peer sync are healthy; `PreferredLeader` mismatch is placement evidence, not a health failure.
 - Standard Cloud Simulation verdicts require a 48h/168h reviewed small, medium, or large profile plus empirical 30m storage calibration; shorter durations are diagnostic evidence only.
 - Any node OOM increment or WuKongIM process start-time change during a Cloud Simulation run invalidates performance and storage calibration; use an intentional phase-boundary profiling rerun for root-cause isolation, then a separate passive calibration after remediation.
 - Phase-ending process loss may occur after the last coarse scrape; query at 5-second steps through 90 seconds after the phase end, and compare heap `inuse_space` with `alloc_space` so transient allocation spikes are not mistaken for retained memory.

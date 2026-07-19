@@ -99,8 +99,9 @@ tasks_json="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Autho
 member_count="$(jq -er '[.items[] | select(.membership.join_state == "active" and .health.runtime_ready == true)] | length' <<<"$nodes_json")"
 slot_group_count="$(jq -er '.items | length' <<<"$slots_json")"
 hash_slot_count="$(jq -er '[.items[].hash_slots.count // 0] | add // 0' <<<"$slots_json")"
-healthy_slot_leaders="$(jq -er '[.items[] | select(.state.quorum == "ready" and .state.sync == "matched" and .state.leader_match == true) | .hash_slots.count // 0] | add // 0' <<<"$slots_json")"
-healthy_slot_replicas="$(jq -er '[.items[] | select(.state.quorum == "ready" and .state.sync == "matched" and (.runtime.current_voters | length) == 3) | .hash_slots.count // 0] | add // 0' <<<"$slots_json")"
+slot_health="$(jq -cer -f "$(dirname "$0")/bootstrap-slot-health.jq" <<<"$slots_json")"
+healthy_slot_leaders="$(jq -er '.healthy_slot_leaders' <<<"$slot_health")"
+healthy_slot_replicas="$(jq -er '.healthy_slot_replicas' <<<"$slot_health")"
 pending_tasks="$(jq -er '.total' <<<"$tasks_json")"
 
 prometheus_targets="$(ssh_sim "curl --fail --silent --show-error --max-time 10 'http://127.0.0.1:9090/api/v1/targets?state=active'")"
