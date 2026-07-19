@@ -135,13 +135,14 @@ failures and therefore resolve to `worker_failed`, never
 When it is omitted, the coordinator default is used. The coordinator then adds
 the expected phase schedule duration for connect, warmup, run, and cooldown;
 for example, connect waits for `phase_poll_timeout + total_users/connect_rate`.
-Warmup also adds the largest declared SENDACK/RECV operation timeout so the
-last scheduled operation can settle without consuming the control-plane grace.
+Warmup and run also add the largest declared SENDACK/RECV operation timeout so
+the last scheduled operation can settle without consuming the control-plane grace.
 If a status request itself reaches that child deadline, the coordinator reports
 `phase_timeout` instead of the ambiguous `phase_wait_failed` fallback.
-The run phase also adds the deterministic reconnect pacing between scheduled
-churn windows for the busiest worker. Churn maintenance therefore does not
-consume the base control-plane grace or create a false `phase_timeout`.
+The run phase additionally adds the deterministic reconnect pacing between
+scheduled churn windows for the busiest worker. Churn maintenance and the
+final measured operation tail therefore do not consume the base control-plane
+grace or create a false `phase_timeout`.
 
 `PhasePrepare` has one extra coordinator step for split large groups: before normal prepare, the coordinator calls `/v1/prepare/channels` on workers that own split group channels. This creates owner channels before all workers append subscribers.
 
@@ -428,7 +429,7 @@ Each worker keeps its assigned `online.total_users` identity range connected eve
 
 The client wrapper serializes access to each underlying queued `ReadFrame` call and buffers unmatched frames. This lets concurrent person/group workloads on the same UID wait for different sendack or recv frames without stealing each other's frames. The wrapper also allocates monotonically increasing ClientSeq values per simulated TCP client, and each waiter still matches the exact ClientSeq and ClientMsgNo.
 
-When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only when receive verification is enabled (`full` or `sampled`); send-only simulator traffic with receive verification disabled acknowledges and drops drained recv frames to avoid building a verification backlog that no workload will consume.
+When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only for channel types whose traffic enables receive verification (`full` or `sampled`). Other channel types are acknowledged and dropped immediately, so a mixed person-verification/group-fanout scenario cannot retain an unconsumed group-frame backlog.
 
 The shared `pkg/client` session owns WKProto CONNECT reads, socket decoding,
 crypto, pending SENDACK matching, and the bounded RECV queue. The benchmark

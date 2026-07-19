@@ -210,7 +210,7 @@ func defaultMetricQueries() map[string]string {
 		"append_ok_rate":                            `sum(rate(wukongim_message_append_total{result="ok"}[1m]))`,
 		"append_error_rate":                         `sum(rate(wukongim_message_append_errors_total[1m])) by (path, class)`,
 		"gateway_queue_depth":                       `sum(wukongim_gateway_async_send_queue_depth)`,
-		"runtime_queue_pressure":                    `max(wukongim_runtime_pool_queue_depth / clamp_min(wukongim_runtime_pool_queue_capacity, 1))`,
+		"runtime_queue_pressure":                    `max(wukongim_runtime_pool_queue_depth / (wukongim_runtime_pool_queue_capacity > 0))`,
 		"storage_commit_queue_depth":                `sum(wukongim_storage_commit_queue_depth) by (store)`,
 		"delivery_retry_queue_depth":                `sum(wukongim_delivery_retry_queue_depth)`,
 		"process_cpu_rate":                          `sum by (instance) (rate(process_cpu_seconds_total[1m]))`,

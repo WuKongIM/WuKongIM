@@ -75,6 +75,14 @@ func TestDefaultMetricQueriesIncludeNodeProcessLossAndMemoryEvidence(t *testing.
 	}
 }
 
+func TestDefaultMetricQueriesExcludeZeroCapacityRuntimeQueues(t *testing.T) {
+	got := defaultMetricQueries()["runtime_queue_pressure"]
+	want := `max(wukongim_runtime_pool_queue_depth / (wukongim_runtime_pool_queue_capacity > 0))`
+	if got != want {
+		t.Fatalf("runtime_queue_pressure = %q, want %q", got, want)
+	}
+}
+
 func TestLoadServeConfigRejectsTokenPastLeaseGuard(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	env := map[string]string{

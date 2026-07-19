@@ -1050,9 +1050,11 @@ func assignmentWantsRecvDrain(assignment Assignment) bool {
 }
 
 func autoRecvAckOptionsForAssignment(assignment Assignment) benchworkload.AutoRecvAckOptions {
+	bufferChannelTypes := assignmentRecvVerificationChannelTypes(assignment)
 	return benchworkload.AutoRecvAckOptions{
-		BufferRecvFrames: assignmentWantsRecvVerification(assignment),
-		DisableRecvAck:   !assignmentWantsRecvAck(assignment),
+		BufferRecvFrames:       len(bufferChannelTypes) > 0,
+		BufferRecvChannelTypes: bufferChannelTypes,
+		DisableRecvAck:         !assignmentWantsRecvAck(assignment),
 	}
 }
 
@@ -1078,13 +1080,32 @@ func autoRecvAckClients(clients map[string]benchworkload.PersonClient, userGroup
 }
 
 func assignmentWantsRecvVerification(assignment Assignment) bool {
+	return len(assignmentRecvVerificationChannelTypes(assignment)) > 0
+}
+
+func assignmentRecvVerificationChannelTypes(assignment Assignment) map[uint8]struct{} {
+	profileTypes := make(map[string]string, len(assignment.Plan.Profiles)+len(assignment.Scenario.Channels.Profiles))
+	for name, profile := range assignment.Plan.Profiles {
+		profileTypes[name] = profile.ChannelType
+	}
+	for _, profile := range assignment.Scenario.Channels.Profiles {
+		if _, exists := profileTypes[profile.Name]; !exists {
+			profileTypes[profile.Name] = profile.ChannelType
+		}
+	}
+	result := make(map[uint8]struct{}, 2)
 	for _, traffic := range assignment.Scenario.Messages.Traffic {
 		switch strings.ToLower(strings.TrimSpace(traffic.Verify.Recv.Mode)) {
 		case "full", "sampled":
-			return true
+			switch strings.ToLower(strings.TrimSpace(profileTypes[traffic.ChannelRef])) {
+			case model.ChannelTypePerson:
+				result[uint8(frame.ChannelTypePerson)] = struct{}{}
+			case model.ChannelTypeGroup:
+				result[uint8(frame.ChannelTypeGroup)] = struct{}{}
+			}
 		}
 	}
-	return false
+	return result
 }
 
 func mergeConnectionUsers(groups ...[]benchworkload.ConnectionUser) []benchworkload.ConnectionUser {

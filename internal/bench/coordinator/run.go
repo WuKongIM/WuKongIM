@@ -594,6 +594,7 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase, pla
 	case PhaseRun:
 		timeout += positiveDuration(scenario.Run.Duration)
 		timeout += churnReconnectScheduleDuration(scenario, plan)
+		timeout += maximumTrafficOperationTimeout(scenario)
 	case PhaseCooldown:
 		timeout += positiveDuration(scenario.Run.Cooldown)
 	}
@@ -601,7 +602,7 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase, pla
 }
 
 // maximumTrafficOperationTimeout returns the largest declared SENDACK or RECV
-// wait that may remain in flight after a timed warmup stops scheduling work.
+// wait that may remain in flight after a timed traffic phase stops scheduling work.
 func maximumTrafficOperationTimeout(scenario model.Scenario) time.Duration {
 	maximum := defaultTrafficOperationTimeout
 	for _, traffic := range scenario.Messages.Traffic {
