@@ -201,6 +201,9 @@ func WrapPersonClientsForConcurrentReads(clients map[string]PersonClient) map[st
 type AutoRecvAckOptions struct {
 	// BufferRecvFrames keeps drained recv frames available for explicit verification waiters.
 	BufferRecvFrames bool
+	// BufferRecvChannelTypes restricts retained RECV frames to channel types
+	// that have explicit verification waiters. An empty set retains all types.
+	BufferRecvChannelTypes map[uint8]struct{}
 	// DisableRecvAck drains recv frames without acknowledging them.
 	DisableRecvAck bool
 }
@@ -607,15 +610,17 @@ type matchingPersonClient struct {
 	foregroundWaiters     int
 	autoRecvAck           bool
 	autoRecvAckBufferRecv bool
-	autoRecvAckDisableAck bool
-	autoRecvAckReader     bool
-	autoRecvAckReadErr    error
-	debugReadFrames       uint64
-	debugReadSendacks     uint64
-	debugReadRecvs        uint64
-	debugDroppedSendacks  uint64
-	debugDroppedRecvs     uint64
-	debugLastFrames       []string
+	// autoRecvAckBufferChannels limits retained RECV frames to verified channel types.
+	autoRecvAckBufferChannels map[uint8]struct{}
+	autoRecvAckDisableAck     bool
+	autoRecvAckReader         bool
+	autoRecvAckReadErr        error
+	debugReadFrames           uint64
+	debugReadSendacks         uint64
+	debugReadRecvs            uint64
+	debugDroppedSendacks      uint64
+	debugDroppedRecvs         uint64
+	debugLastFrames           []string
 }
 
 func (c *matchingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -748,7 +753,7 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 			continue
 		}
 		dropUnverifiedRecv := false
-		if _, ok := f.(*frame.RecvPacket); ok && autoAck && !c.autoRecvAckBufferRecv {
+		if _, ok := f.(*frame.RecvPacket); ok && autoAck && !c.shouldBufferRecvFrameLocked(f) {
 			dropUnverifiedRecv = true
 		}
 		if !dropUnverifiedRecv {
@@ -772,6 +777,7 @@ func (c *matchingPersonClient) startAutoRecvAckWithOptions(ctx context.Context, 
 	}
 	c.autoRecvAck = true
 	c.autoRecvAckBufferRecv = opts.BufferRecvFrames
+	c.autoRecvAckBufferChannels = cloneRecvChannelTypes(opts.BufferRecvChannelTypes)
 	c.autoRecvAckDisableAck = opts.DisableRecvAck
 	c.autoRecvAckReader = true
 	c.autoRecvAckReadErr = nil
@@ -840,7 +846,7 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 		return nil
 	}
 	ackRecv := c.autoRecvAck && !c.autoRecvAckDisableAck
-	if _, ok := f.(*frame.RecvPacket); ok && !c.autoRecvAckBufferRecv {
+	if _, ok := f.(*frame.RecvPacket); ok && !c.shouldBufferRecvFrameLocked(f) {
 		yield := c.shouldYieldToForegroundLocked()
 		if yield {
 			c.autoRecvAckReader = false
@@ -865,6 +871,29 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 		return c.finishAutoRecvAckYield(ctx)
 	}
 	return nil
+}
+
+func (c *matchingPersonClient) shouldBufferRecvFrameLocked(f frame.Frame) bool {
+	if !c.autoRecvAckBufferRecv {
+		return false
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok || len(c.autoRecvAckBufferChannels) == 0 {
+		return true
+	}
+	_, ok = c.autoRecvAckBufferChannels[uint8(recv.ChannelType)]
+	return ok
+}
+
+func cloneRecvChannelTypes(src map[uint8]struct{}) map[uint8]struct{} {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[uint8]struct{}, len(src))
+	for channelType := range src {
+		dst[channelType] = struct{}{}
+	}
+	return dst
 }
 
 func (c *matchingPersonClient) shouldYieldToForegroundLocked() bool {

@@ -441,14 +441,21 @@ func TestWorkerAutoRecvDrainDisablesAckWhenRecvAckDisabled(t *testing.T) {
 	require.True(t, assignmentWantsRecvDrain(assignment))
 }
 
-func TestWorkerAutoRecvAckBuffersFramesWhenAnyTrafficVerifiesRecv(t *testing.T) {
+func TestWorkerAutoRecvAckBuffersOnlyVerifiedChannelTypes(t *testing.T) {
 	assignment := personShardAssignment()
 	assignment.Scenario.Messages.Traffic[0].RecvAck = true
 	assignment.Scenario.Messages.Traffic[0].Verify.Recv.Mode = "full"
+	assignment.Scenario.Messages.Traffic = append(assignment.Scenario.Messages.Traffic, model.TrafficConfig{
+		Name: "group-send", ChannelRef: "group-a", RecvAck: true,
+		Verify: model.VerifyConfig{Recv: model.RecvVerifyConfig{Mode: "none"}},
+	})
+	assignment.Plan.Profiles["group-a"] = model.ProfileShard{Name: "group-a", ChannelType: model.ChannelTypeGroup}
 
 	opts := autoRecvAckOptionsForAssignment(assignment)
 
 	require.True(t, opts.BufferRecvFrames)
+	require.Contains(t, opts.BufferRecvChannelTypes, uint8(frame.ChannelTypePerson))
+	require.NotContains(t, opts.BufferRecvChannelTypes, uint8(frame.ChannelTypeGroup))
 	require.False(t, opts.DisableRecvAck)
 }
 

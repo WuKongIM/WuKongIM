@@ -729,6 +729,36 @@ func TestAutoRecvAckReadMatcherDropsUnverifiedRecvFrames(t *testing.T) {
 	require.Empty(t, wrapped.buffer)
 }
 
+func TestAutoRecvAckReadMatcherBuffersOnlySelectedChannelTypes(t *testing.T) {
+	raw := &orderedPersonClient{frames: []frame.Frame{
+		&frame.RecvPacket{
+			MessageID: 50, MessageSeq: 13, ClientMsgNo: "group-unverified",
+			ChannelID: "group-a", ChannelType: frame.ChannelTypeGroup,
+		},
+		&frame.RecvPacket{
+			MessageID: 51, MessageSeq: 14, ClientMsgNo: "person-verified",
+			ChannelID: "person-a", ChannelType: frame.ChannelTypePerson,
+		},
+	}}
+	wrapped := &matchingPersonClient{
+		client:                    raw,
+		bufferLimit:               defaultMatchingBufferLimit,
+		autoRecvAck:               true,
+		autoRecvAckBufferRecv:     true,
+		autoRecvAckBufferChannels: map[uint8]struct{}{uint8(frame.ChannelTypePerson): {}},
+	}
+
+	got, err := readFrameMatching(context.Background(), wrapped, func(f frame.Frame) bool {
+		recv, ok := f.(*frame.RecvPacket)
+		return ok && recv.ClientMsgNo == "person-verified"
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "person-verified", got.(*frame.RecvPacket).ClientMsgNo)
+	require.Equal(t, []recvAckCall{{messageID: 50, messageSeq: 13}, {messageID: 51, messageSeq: 14}}, raw.recvAckCalls)
+	require.Empty(t, wrapped.buffer)
+}
+
 func TestAutoRecvAckReadMatcherCanDrainWithoutRecvAck(t *testing.T) {
 	raw := &orderedPersonClient{frames: []frame.Frame{
 		&frame.RecvPacket{

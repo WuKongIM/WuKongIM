@@ -740,6 +740,27 @@ func TestCoordinatorWarmupPollTimeoutIncludesOperationTail(t *testing.T) {
 	require.True(t, workers[0].SawPhaseAttempt(PhaseRun))
 }
 
+func TestCoordinatorRunPollTimeoutIncludesOperationTail(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].CompletePhaseAfter(PhaseRun, 35*time.Millisecond)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  5 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.Duration = 20 * time.Millisecond
+	scenario.Messages.Traffic[0].RecvTimeout = 20 * time.Millisecond
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown))
+}
+
 func TestCoordinatorPollTimeoutIncludesChurnReconnectSchedule(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].CompletePhaseAfter(PhaseRun, 70*time.Millisecond)
