@@ -111,6 +111,7 @@ type multiTransportObserver []transport.Observer
 type multiControllerRaftObserver []controller.RaftObserver
 type multiControlSnapshotObserver []cluster.ControlSnapshotObserver
 type multiSlotReplicaMoveObserver []cluster.SlotReplicaMoveObserver
+type multiPreferredLeaderObserver []cluster.PreferredLeaderObserver
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 type multiMessageEventObserver []cluster.MessageEventObserver
 type multiGatewayObserver []accessgateway.Observer
@@ -935,6 +936,20 @@ func (o slotMetricsObserver) SetSlotApplyState(slotID multiraft.SlotID, commitIn
 	o.metrics.Slot.SetApplyGap(uint32(slotID), slotApplyGap(commitIndex, appliedIndex))
 }
 
+func (o slotMetricsObserver) ObservePreferredLeaderDecision(decision string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObservePreferredLeaderDecision(decision)
+}
+
+func (o slotMetricsObserver) ObservePreferredLeaderStrictWait(decision string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObservePreferredLeaderStrictWait(decision, d)
+}
+
 func slotApplyGap(commitIndex, appliedIndex uint64) uint64 {
 	if commitIndex <= appliedIndex {
 		return 0
@@ -1599,6 +1614,16 @@ func combineSlotReplicaMoveObservers(first, second cluster.SlotReplicaMoveObserv
 	return multiSlotReplicaMoveObserver{first, second}
 }
 
+func combinePreferredLeaderObservers(first, second cluster.PreferredLeaderObserver) cluster.PreferredLeaderObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiPreferredLeaderObserver{first, second}
+}
+
 func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinatorObserver) messagedb.CommitCoordinatorObserver {
 	if first == nil {
 		return second
@@ -2210,6 +2235,22 @@ func (o multiSlotReplicaMoveObserver) ObserveSlotReplicaMovePhase(step, result s
 	}
 }
 
+func (o multiPreferredLeaderObserver) ObservePreferredLeaderDecision(decision string) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObservePreferredLeaderDecision(decision)
+		}
+	}
+}
+
+func (o multiPreferredLeaderObserver) ObservePreferredLeaderStrictWait(decision string, d time.Duration) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObservePreferredLeaderStrictWait(decision, d)
+		}
+	}
+}
+
 func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(depth int) {
 	o.SetCommitCoordinatorQueue(depth, 0)
 }
@@ -2526,6 +2567,7 @@ var _ multiraft.SchedulerObserver = slotMetricsObserver{}
 var _ multiraft.ProposalObserver = slotMetricsObserver{}
 var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
 var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
+var _ cluster.PreferredLeaderObserver = slotMetricsObserver{}
 var _ transport.Observer = (*transportMetricsObserver)(nil)
 var _ controller.RaftObserver = controllerRaftMetricsObserver{}
 var _ controller.ApplyStateObserver = controllerRaftMetricsObserver{}
@@ -2554,6 +2596,7 @@ var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ multiraft.ProposalObserver = multiSlotObserver{}
 var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}
 var _ multiraft.ApplyStateObserver = multiSlotObserver{}
+var _ cluster.PreferredLeaderObserver = multiPreferredLeaderObserver{}
 var _ controller.RaftObserver = multiControllerRaftObserver{}
 var _ controller.ApplyStateObserver = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}

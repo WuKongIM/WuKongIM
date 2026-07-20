@@ -672,6 +672,26 @@ func TestSlotMetricsObserverMapsLeaderChanges(t *testing.T) {
 	}
 }
 
+func TestSlotMetricsObserverMapsPreferredLeaderDecisions(t *testing.T) {
+	reg := obsmetrics.New(2, "node-2")
+	observer := combinePreferredLeaderObservers(slotMetricsObserver{metrics: reg}, nil)
+	observer.ObservePreferredLeaderDecision("preferred_inactive")
+	observer.ObservePreferredLeaderStrictWait("transfer_started", 8*time.Millisecond)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	decisions := requireAppMetricFamily(t, families, "wukongim_slot_preferred_leader_reconcile_total")
+	if got := findAppMetricByLabels(t, decisions, map[string]string{"decision": "preferred_inactive"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("preferred leader decisions = %v, want 1", got)
+	}
+	wait := requireAppMetricFamily(t, families, "wukongim_slot_preferred_leader_strict_wait_duration_seconds")
+	if got := findAppMetricByLabels(t, wait, map[string]string{"decision": "transfer_started"}).GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("preferred leader strict waits = %v, want 1", got)
+	}
+}
+
 func TestStorageCommitMetricsObserverUsesConfiguredWorkers(t *testing.T) {
 	reg := obsmetrics.New(1, "node-1")
 	observer := storageCommitMetricsObserver{metrics: reg, workers: 4}
@@ -909,6 +929,9 @@ func TestConfigureObservabilityWiresSlotReplicaMovePhaseObserver(t *testing.T) {
 
 	if clusterCfg.Slots.ReplicaMoveObserver == nil {
 		t.Fatal("Slot replica move phase observer was not wired")
+	}
+	if clusterCfg.Slots.PreferredLeaderObserver == nil {
+		t.Fatal("Slot preferred leader observer was not wired")
 	}
 }
 

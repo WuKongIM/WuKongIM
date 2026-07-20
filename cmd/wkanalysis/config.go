@@ -249,6 +249,8 @@ func defaultMetricQueries() map[string]string {
 		"conversation_active_pressure_state":        `wukongim_conversation_active_pressure_draining{job="wukongim"}`,
 		"conversation_active_pressure_wakeup_p99":   `histogram_quantile(0.99, sum by (instance, node_name, le) (rate(wukongim_conversation_active_pressure_wakeup_wait_duration_seconds_bucket{job="wukongim"}[1m])))`,
 		"node_data_disk_used_bytes":                 `max by (instance, role) (node_filesystem_size_bytes{job="hosts",role=~"node-[123]",mountpoint="/var/lib/wukongim-cloud"} - node_filesystem_avail_bytes{job="hosts",role=~"node-[123]",mountpoint="/var/lib/wukongim-cloud"})`,
+		"slot_preferred_leader_reconcile_rate":      `sum by (instance, node_name, decision) (rate(wukongim_slot_preferred_leader_reconcile_total{job="wukongim"}[1m]))`,
+		"slot_preferred_leader_strict_wait_p99":     `histogram_quantile(0.99, sum by (le, instance, node_name, decision) (rate(wukongim_slot_preferred_leader_strict_wait_duration_seconds_bucket{job="wukongim"}[5m])))`,
 	}
 }
 

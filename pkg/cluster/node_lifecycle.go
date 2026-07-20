@@ -56,6 +56,7 @@ func (n *Node) Start(ctx context.Context) error {
 		n.startWatchLoop()
 	}
 	n.startTaskReconcileLoop()
+	n.startPreferredLeaderReconcileLoop()
 	n.startSlotLeaderLoop()
 	n.markChannelsReady(n.channels != nil)
 	n.startChannelTickLoop()
@@ -92,6 +93,7 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.stopHealthReportLoop(ctx)
 	n.stopWatchLoop()
 	n.stopTaskReconcileLoop()
+	n.stopPreferredLeaderReconcileLoop()
 	n.closeRouteAuthorityWatchers()
 	n.stopSlotLeaderLoop()
 	n.stopChannelTickLoop()
@@ -140,6 +142,10 @@ func (n *Node) Stop(ctx context.Context) error {
 		}
 		n.defaultSlotProposer = nil
 		n.slots = nil
+		if n.defaultPreferredLeaderReconciler {
+			n.preferredLeaderReconciler = nil
+			n.defaultPreferredLeaderReconciler = false
+		}
 		n.defaultSlots = false
 	}
 	n.discardDefaultControl()

@@ -922,6 +922,9 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 	reg.Slot.ObserveLeaderChangeCause(3, "planned_transfer")
 	reg.Slot.SetApplyGap(3, 4)
 	reg.Slot.SetReplicaLag(1, 2, 150*time.Millisecond)
+	reg.Slot.ObservePreferredLeaderDecision("preferred_lagging")
+	reg.Slot.ObservePreferredLeaderDecision("slot-3/raw-error")
+	reg.Slot.ObservePreferredLeaderStrictWait("transfer_started", 15*time.Millisecond)
 	reg.Transport.ObserveRPC("controller_list_nodes", "ok", 7*time.Millisecond)
 	reg.Transport.ObserveRPC("controller_list_nodes", "err", 9*time.Millisecond)
 	reg.Transport.ObserveSentBytes("rpc_request", 64)
@@ -996,6 +999,27 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 	})
 	require.Equal(t, 0.15, replicaLag.GetMetric()[0].GetGauge().GetValue())
 
+	preferredDecisions := requireMetricFamily(t, families, "wukongim_slot_preferred_leader_reconcile_total")
+	require.Len(t, preferredDecisions.GetMetric(), 2)
+	require.Equal(t, float64(1), findMetricByLabels(t, preferredDecisions, map[string]string{
+		"node_id": "9", "node_name": "node-9", "decision": "preferred_lagging",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, preferredDecisions, map[string]string{
+		"node_id": "9", "node_name": "node-9", "decision": "unknown",
+	}).GetCounter().GetValue())
+	for _, metric := range preferredDecisions.GetMetric() {
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == "slot_id" {
+				t.Fatal("preferred-leader decision metric must not expose slot_id")
+			}
+		}
+	}
+	preferredWait := requireMetricFamily(t, families, "wukongim_slot_preferred_leader_strict_wait_duration_seconds")
+	require.Len(t, preferredWait.GetMetric(), 1)
+	require.Equal(t, uint64(1), findMetricByLabels(t, preferredWait, map[string]string{
+		"node_id": "9", "node_name": "node-9", "decision": "transfer_started",
+	}).GetHistogram().GetSampleCount())
+
 	rpcTotal := requireMetricFamily(t, families, "wukongim_transport_rpc_total")
 	require.Len(t, rpcTotal.GetMetric(), 2)
 	for _, metric := range rpcTotal.GetMetric() {
@@ -1029,6 +1053,21 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 
 	poolIdle := requireMetricFamily(t, families, "wukongim_transport_connections_pool_idle")
 	require.Len(t, poolIdle.GetMetric(), 2)
+}
+
+func TestNormalizePreferredLeaderDecisionKeepsOnlyBoundedValues(t *testing.T) {
+	for _, decision := range []string{
+		"active_task", "cooldown", "stale_intent", "voter_mismatch", "joint_config",
+		"transfer_in_progress", "preferred_inactive", "preferred_lagging", "transfer_started",
+		"timeout", "error", "match",
+	} {
+		if got := normalizePreferredLeaderDecision(decision); got != decision {
+			t.Fatalf("normalizePreferredLeaderDecision(%q) = %q", decision, got)
+		}
+	}
+	if got := normalizePreferredLeaderDecision("slot-999/remote-error"); got != "unknown" {
+		t.Fatalf("unbounded decision normalized to %q, want unknown", got)
+	}
 }
 
 func TestTransportMetricsTrackRPCClientDialAndEnqueue(t *testing.T) {

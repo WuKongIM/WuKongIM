@@ -387,6 +387,10 @@ func (n *Node) discardDefaultSlots() {
 	}
 	n.defaultSlotProposer = nil
 	n.slots = nil
+	if n.defaultPreferredLeaderReconciler {
+		n.preferredLeaderReconciler = nil
+		n.defaultPreferredLeaderReconciler = false
+	}
 	n.defaultSlots = false
 }
 

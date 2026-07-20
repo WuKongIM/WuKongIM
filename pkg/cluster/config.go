@@ -102,6 +102,13 @@ type SlotReplicaMoveObserver interface {
 	ObserveSlotReplicaMovePhase(step, result string, d time.Duration)
 }
 
+// PreferredLeaderObserver receives bounded steady-state Slot placement
+// decisions and strict Raft-worker wait durations.
+type PreferredLeaderObserver interface {
+	ObservePreferredLeaderDecision(decision string)
+	ObservePreferredLeaderStrictWait(decision string, d time.Duration)
+}
+
 // ControlRole declares how this node participates in Controller.
 type ControlRole string
 
@@ -140,6 +147,8 @@ type SlotConfig struct {
 	Observer multiraft.SchedulerObserver
 	// ReplicaMoveObserver receives low-cardinality Slot replica move phase observations.
 	ReplicaMoveObserver SlotReplicaMoveObserver
+	// PreferredLeaderObserver receives low-cardinality preferred-leader convergence observations.
+	PreferredLeaderObserver PreferredLeaderObserver
 }
 
 // ChannelConfig contains Channel service configuration.

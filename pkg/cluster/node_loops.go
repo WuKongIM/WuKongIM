@@ -2,10 +2,14 @@ package cluster
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/observe"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/tasks"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const (
@@ -205,12 +209,13 @@ func (n *Node) startTaskReconcileLoop() {
 					timer.Reset(nextInterval)
 					continue
 				}
-				if len(snapshot.Tasks) == 0 {
+				if len(snapshot.Tasks) != 0 {
+					nextInterval = fastInterval
+				} else {
 					n.clearTaskReconcileError()
 					timer.Reset(nextInterval)
 					continue
 				}
-				nextInterval = fastInterval
 				if err := n.reconcileTasks(ctx, snapshot); err != nil {
 					n.recordTaskReconcileError("reconcile", err)
 				} else {
@@ -264,6 +269,167 @@ func (n *Node) stopTaskReconcileLoop() {
 	n.taskReconcileCancel()
 	n.taskReconcileWG.Wait()
 	n.taskReconcileCancel = nil
+}
+
+func (n *Node) startPreferredLeaderReconcileLoop() {
+	if n == nil || n.control == nil || n.preferredLeaderReconciler == nil || n.preferredLeaderCancel != nil {
+		return
+	}
+	interval := n.preferredLeaderInterval
+	if interval <= 0 {
+		interval = taskReconcileIdleInterval(n.taskReconcileFastInterval())
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	n.preferredLeaderCancel = cancel
+	n.preferredLeaderWG.Add(1)
+	go func() {
+		defer n.preferredLeaderWG.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				snapshot, err := n.control.LocalSnapshot(ctx)
+				if err != nil {
+					continue
+				}
+				_ = n.preferredLeaderReconciler.Reconcile(ctx, snapshot)
+			}
+		}
+	}()
+}
+
+func (n *Node) stopPreferredLeaderReconcileLoop() {
+	if n == nil {
+		return
+	}
+	n.invalidatePreferredLeaderIntent()
+	if n.preferredLeaderCancel == nil {
+		return
+	}
+	n.preferredLeaderCancel()
+	n.preferredLeaderWG.Wait()
+	n.preferredLeaderCancel = nil
+}
+
+func (n *Node) beginPreferredLeaderIntentApply() {
+	if n == nil {
+		return
+	}
+	n.preferredLeaderIntentMu.Lock()
+	generation := n.preferredLeaderIntentGeneration
+	n.preferredLeaderIntentGeneration = nil
+	n.preferredLeaderIntentMu.Unlock()
+	if generation != nil {
+		generation.invalidate()
+	}
+}
+
+func (n *Node) publishPreferredLeaderIntent(snapshot control.Snapshot) {
+	if n == nil {
+		return
+	}
+	generation := newPreferredLeaderIntentGeneration(snapshot)
+	n.preferredLeaderIntentMu.Lock()
+	if n.stopping.Load() {
+		n.preferredLeaderIntentMu.Unlock()
+		generation.invalidate()
+		return
+	}
+	previous := n.preferredLeaderIntentGeneration
+	n.preferredLeaderIntentGeneration = generation
+	n.preferredLeaderIntentMu.Unlock()
+	if previous != nil {
+		previous.invalidate()
+	}
+}
+
+func (n *Node) invalidatePreferredLeaderIntent() {
+	n.beginPreferredLeaderIntentApply()
+}
+
+func (n *Node) preferredLeaderIntentGuard(intent tasks.PreferredLeaderIntent) (multiraft.PreferredLeaderTransferGuard, bool) {
+	if n == nil {
+		return nil, false
+	}
+	n.preferredLeaderIntentMu.Lock()
+	generation := n.preferredLeaderIntentGeneration
+	n.preferredLeaderIntentMu.Unlock()
+	if generation == nil || !generation.matches(intent) {
+		return nil, false
+	}
+	return generation, true
+}
+
+func newPreferredLeaderIntentGeneration(snapshot control.Snapshot) *preferredLeaderIntentGeneration {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &preferredLeaderIntentGeneration{
+		ctx:      ctx,
+		cancel:   cancel,
+		current:  true,
+		snapshot: snapshot.Clone(),
+	}
+}
+
+func (g *preferredLeaderIntentGeneration) Context() context.Context {
+	if g == nil {
+		return nil
+	}
+	return g.ctx
+}
+
+func (g *preferredLeaderIntentGeneration) ExecuteIfCurrent(action func()) bool {
+	if g == nil {
+		return false
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.current {
+		return false
+	}
+	if action != nil {
+		action()
+	}
+	return true
+}
+
+func (g *preferredLeaderIntentGeneration) matches(intent tasks.PreferredLeaderIntent) bool {
+	if g == nil {
+		return false
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.current || g.ctx == nil || g.ctx.Err() != nil {
+		return false
+	}
+	snapshot := g.snapshot
+	if snapshot.Revision != intent.Revision || len(snapshot.Tasks) != 0 {
+		return false
+	}
+	for _, assignment := range snapshot.Slots {
+		if assignment.SlotID != intent.SlotID {
+			continue
+		}
+		current := assignment.ConfigEpoch == intent.ConfigEpoch &&
+			assignment.PreferredLeader == intent.PreferredLeader &&
+			slices.Equal(assignment.DesiredPeers, intent.DesiredPeers)
+		return current
+	}
+	return false
+}
+
+func (g *preferredLeaderIntentGeneration) invalidate() {
+	if g == nil {
+		return
+	}
+	g.mu.Lock()
+	if g.current {
+		g.current = false
+		g.cancel()
+	}
+	g.mu.Unlock()
 }
 
 func (n *Node) startChannelTickLoop() {

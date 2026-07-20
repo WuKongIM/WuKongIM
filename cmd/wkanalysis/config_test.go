@@ -107,6 +107,19 @@ func TestDefaultMetricQueriesIncludeConversationActiveConservationEvidence(t *te
 	}
 }
 
+func TestDefaultMetricQueriesIncludePreferredLeaderReconcileEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	want := map[string]string{
+		"slot_preferred_leader_reconcile_rate":  `sum by (instance, node_name, decision) (rate(wukongim_slot_preferred_leader_reconcile_total{job="wukongim"}[1m]))`,
+		"slot_preferred_leader_strict_wait_p99": `histogram_quantile(0.99, sum by (le, instance, node_name, decision) (rate(wukongim_slot_preferred_leader_strict_wait_duration_seconds_bucket{job="wukongim"}[5m])))`,
+	}
+	for id, query := range want {
+		if queries[id] != query {
+			t.Fatalf("metric query %q = %q, want %q", id, queries[id], query)
+		}
+	}
+}
+
 func TestLoadServeConfigRejectsTokenPastLeaseGuard(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	env := map[string]string{

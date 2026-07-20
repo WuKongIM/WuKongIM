@@ -158,6 +158,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, channelMetricsObserver{metrics: a.metrics})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, slotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Slots.ReplicaMoveObserver = combineSlotReplicaMoveObservers(clusterCfg.Slots.ReplicaMoveObserver, a.metrics.NodeLifecycle)
+		clusterCfg.Slots.PreferredLeaderObserver = combinePreferredLeaderObservers(clusterCfg.Slots.PreferredLeaderObserver, slotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: a.metrics})
 		clusterCfg.Control.SnapshotObserver = combineControlSnapshotObservers(clusterCfg.Control.SnapshotObserver, controlSnapshotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{

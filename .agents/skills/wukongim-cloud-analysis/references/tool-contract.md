@@ -82,6 +82,14 @@ allocations since process start. Other caller-selected sample types are rejected
 - `conversation_active_pressure_state`
 - `conversation_active_pressure_wakeup_p99`
 - `node_data_disk_used_bytes`
+- `slot_preferred_leader_reconcile_rate`
+- `slot_preferred_leader_strict_wait_p99`
+
+Preferred-leader queries preserve `instance`, `node_name`, and bounded
+`decision` labels. `transfer_started` is only an issued Raft transfer request;
+verify the later actual leader from `cluster_snapshot`. Missing decision series
+remain unknown rather than zero, and Slot IDs are intentionally unavailable as
+Prometheus labels.
 
 Successful conversation-active conservation counter series are preinitialized
 at process start. If a complete range Observation omits either endpoint, treat

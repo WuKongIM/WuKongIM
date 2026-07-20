@@ -116,6 +116,33 @@ func TestCloudAnalysisSkillDocumentsConversationActiveConservation(t *testing.T)
 	}
 }
 
+func TestCloudAnalysisSkillDocumentsPreferredLeaderEvidence(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, queryID := range []string{
+		"slot_preferred_leader_reconcile_rate",
+		"slot_preferred_leader_strict_wait_p99",
+	} {
+		if !strings.Contains(skill, "`"+queryID+"`") {
+			t.Fatalf("SKILL.md must route preferred-leader analysis through %q", queryID)
+		}
+		if !strings.Contains(contract, "`"+queryID+"`") {
+			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
+		}
+	}
+	for _, required := range []string{
+		"`transfer_started` means",
+		"`TransferLeader` was issued",
+		"unknown loop evidence",
+		"never substitute",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document preferred-leader evidence rule %q", required)
+		}
+	}
+}
+
 func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 	fixtureDir := filepath.Join(repoRoot(t), ".agents", "skills", "wukongim-cloud-analysis", "fixtures")
 	stopFixturePath := filepath.Join(fixtureDir, "worker_stop_failed.json")

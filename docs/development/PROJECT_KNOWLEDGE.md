@@ -155,7 +155,7 @@
 - Dynamic physical Slot add/remove/rebalance creates hash-slot migrations and requires `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED=true`; the default is disabled and manager add-slot reports `hash slot migration disabled`.
 
 ### Planning writes
-- Slot preferred leaders are controller soft intent. Raft remains authoritative; leader-transfer tasks must target observed current voters only.
+- Slot preferred leaders are Controller soft intent and Raft remains authoritative. When Controller tasks are idle, an independent background seam may transfer only from the fenced actual leader to the exact recently-active preferred voter after the latest applied intent and fresh Raft progress prove it is still current and caught up through commit. Start/snapshot apply never wait for this seam; strict checks default to 250ms, each pass rotates across at most four checks, preserves an existing manual transfer, and retains the valid actual leader without fallback for stale, ineligible, inactive, or lagging preferences.
 - Manager Slot inventory keeps control intent and live Raft status separate: `runtime.preferred_leader_id` is Controller intent; `runtime.leader_id`, voter membership, quorum, sync, and leader-match require live Raft evidence, while selected-node detail also uses `node_log.leader_id` and `node_log.role`. Missing evidence stays unknown/unreported.
 - Manager node-list Slot `leader_count` is also actual Slot Raft leadership from runtime status, not the Controller preferred leader count.
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.

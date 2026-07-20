@@ -246,6 +246,91 @@ func (r *Runtime) TransferLeadership(ctx context.Context, slotID SlotID, target 
 	return nil
 }
 
+// PreferredLeaderTransferDecision is the bounded result of one fresh strict
+// preferred-leader safety check.
+type PreferredLeaderTransferDecision string
+
+const (
+	PreferredLeaderTransferStaleIntent       PreferredLeaderTransferDecision = "stale_intent"
+	PreferredLeaderTransferVoterMismatch     PreferredLeaderTransferDecision = "voter_mismatch"
+	PreferredLeaderTransferJointConfig       PreferredLeaderTransferDecision = "joint_config"
+	PreferredLeaderTransferInProgress        PreferredLeaderTransferDecision = "transfer_in_progress"
+	PreferredLeaderTransferPreferredInactive PreferredLeaderTransferDecision = "preferred_inactive"
+	PreferredLeaderTransferPreferredLagging  PreferredLeaderTransferDecision = "preferred_lagging"
+	PreferredLeaderTransferStarted           PreferredLeaderTransferDecision = "transfer_started"
+)
+
+// PreferredLeaderTransferGuard linearizes Controller-intent invalidation with
+// the final nonblocking Raft TransferLeader call. ExecuteIfCurrent must run the
+// supplied action under the same guard used by the owner to invalidate the
+// generation before applying newer intent.
+type PreferredLeaderTransferGuard interface {
+	Context() context.Context
+	ExecuteIfCurrent(func()) bool
+}
+
+// TryTransferLeadershipToPreferred transfers leadership only when the caller's
+// observed leader, term, and voter set still match, no transfer is already in
+// progress, and the exact preferred voter is recently active and replicated
+// through the current commit index. It never falls back to a different voter.
+func (r *Runtime) TryTransferLeadershipToPreferred(
+	ctx context.Context,
+	slotID SlotID,
+	expectedLeader NodeID,
+	expectedTerm uint64,
+	expectedVoters []NodeID,
+	preferred NodeID,
+	guard PreferredLeaderTransferGuard,
+) (PreferredLeaderTransferDecision, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if guard == nil || guard.Context() == nil || guard.Context().Err() != nil {
+		return PreferredLeaderTransferStaleIntent, nil
+	}
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		return "", ErrRuntimeClosed
+	}
+	g, ok := r.slots[slotID]
+	r.mu.RUnlock()
+	if !ok {
+		return "", ErrSlotNotFound
+	}
+
+	request := strictLeaderTransferRequest{
+		ctx:            ctx,
+		expectedLeader: expectedLeader,
+		expectedTerm:   expectedTerm,
+		expectedVoters: append([]NodeID(nil), expectedVoters...),
+		target:         preferred,
+		guard:          guard,
+		resp:           make(chan strictLeaderTransferResponse, 1),
+	}
+	if err := g.enqueueControl(controlAction{kind: controlTransferLeader, strictTransfer: &request}); err != nil {
+		return "", err
+	}
+	r.scheduler.enqueue(slotID)
+
+	select {
+	case response := <-request.resp:
+		return response.decision, response.err
+	case <-ctx.Done():
+		if request.cancel(ctx.Err()) {
+			return "", ctx.Err()
+		}
+		// Crossing into executing commits only the already-fenced, non-blocking
+		// RawNode transfer call. Wait for that result instead of reporting a
+		// timeout no-op after the action has been issued.
+		response := <-request.resp
+		return response.decision, response.err
+	}
+}
+
 // ExpectLeaderTransfer marks an externally planned Slot leader transfer so observers can classify the next matching change.
 func (r *Runtime) ExpectLeaderTransfer(ctx context.Context, slotID SlotID, target NodeID) error {
 	if ctx == nil {

@@ -8,13 +8,15 @@ import (
 )
 
 type SlotMetrics struct {
-	proposalsTotal    *prometheus.CounterVec
-	proposalAdmission *prometheus.CounterVec
-	applyDuration     *prometheus.HistogramVec
-	applyGap          *prometheus.GaugeVec
-	leaderElections   prometheus.Counter
-	leaderChanges     *prometheus.CounterVec
-	replicaLag        *prometheus.GaugeVec
+	proposalsTotal            *prometheus.CounterVec
+	proposalAdmission         *prometheus.CounterVec
+	applyDuration             *prometheus.HistogramVec
+	applyGap                  *prometheus.GaugeVec
+	leaderElections           prometheus.Counter
+	leaderChanges             *prometheus.CounterVec
+	replicaLag                *prometheus.GaugeVec
+	preferredLeaderDecisions  *prometheus.CounterVec
+	preferredLeaderStrictWait *prometheus.HistogramVec
 }
 
 func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *SlotMetrics {
@@ -55,6 +57,17 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 			Help:        "Current Slot replica lag in seconds grouped by physical slot and replica node.",
 			ConstLabels: labels,
 		}, []string{"slot_id", "replica_node"}),
+		preferredLeaderDecisions: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_slot_preferred_leader_reconcile_total",
+			Help:        "Total steady-state preferred-leader reconciliation decisions.",
+			ConstLabels: labels,
+		}, []string{"decision"}),
+		preferredLeaderStrictWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_slot_preferred_leader_strict_wait_duration_seconds",
+			Help:        "Strict Slot Raft worker wait duration for preferred-leader reconciliation.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"decision"}),
 	}
 
 	registry.MustRegister(
@@ -65,9 +78,38 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 		m.leaderElections,
 		m.leaderChanges,
 		m.replicaLag,
+		m.preferredLeaderDecisions,
+		m.preferredLeaderStrictWait,
 	)
 
 	return m
+}
+
+// ObservePreferredLeaderDecision records one bounded steady-state placement decision.
+func (m *SlotMetrics) ObservePreferredLeaderDecision(decision string) {
+	if m == nil {
+		return
+	}
+	m.preferredLeaderDecisions.WithLabelValues(normalizePreferredLeaderDecision(decision)).Inc()
+}
+
+// ObservePreferredLeaderStrictWait records one bounded strict Raft-worker wait.
+func (m *SlotMetrics) ObservePreferredLeaderStrictWait(decision string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	m.preferredLeaderStrictWait.WithLabelValues(normalizePreferredLeaderDecision(decision)).Observe(d.Seconds())
+}
+
+func normalizePreferredLeaderDecision(decision string) string {
+	switch decision {
+	case "active_task", "cooldown", "stale_intent", "voter_mismatch", "joint_config",
+		"transfer_in_progress", "preferred_inactive", "preferred_lagging", "transfer_started",
+		"timeout", "error", "match":
+		return decision
+	default:
+		return "unknown"
+	}
 }
 
 func (m *SlotMetrics) ObserveProposal(slotID uint32, dur time.Duration) {
