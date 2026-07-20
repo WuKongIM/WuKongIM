@@ -88,8 +88,11 @@ func TestDefaultMetricQueriesIncludeConversationActiveConservationEvidence(t *te
 	wantIDs := []string{
 		"conversation_active_cache_rows",
 		"conversation_active_dirty_rows",
+		"conversation_active_dirty_queue_rows",
+		"conversation_active_dirty_age_buckets",
 		"conversation_active_oldest_dirty_age",
 		"conversation_active_dirty_mutation_rate",
+		"conversation_active_cache_lock_p99",
 		"conversation_active_flush_rows_cumulative",
 		"conversation_active_flush_stage_p99",
 		"conversation_active_flush_attempt_rate",
@@ -104,6 +107,34 @@ func TestDefaultMetricQueriesIncludeConversationActiveConservationEvidence(t *te
 	}
 	if got := queries["conversation_active_flush_rows_cumulative"]; got != `sum by (instance, node_name, result, stage, reason) (wukongim_conversation_active_flush_rows_total{job="wukongim"})` {
 		t.Fatalf("conversation flush conservation query = %q", got)
+	}
+}
+
+func TestDefaultMetricQueriesIncludeConversationPersistDrilldownEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	wantIDs := []string{
+		"storage_commit_queue_depth",
+		"storage_commit_request_p99",
+		"storage_commit_batch_stage_p99",
+		"slot_proposal_rate",
+		"slot_proposal_apply_p99",
+		"slot_apply_gap",
+		"slot_background_proposal_admission_rate",
+		"slot_runtime_queue_pressure",
+	}
+	for _, id := range wantIDs {
+		if queries[id] == "" {
+			t.Fatalf("metric query %q is missing from the Analysis allowlist", id)
+		}
+	}
+	if got := queries["storage_commit_queue_depth"]; got != `sum by (instance, node_name, store) (wukongim_storage_commit_queue_depth{job="wukongim"})` {
+		t.Fatalf("storage commit queue query = %q, want node-preserving dimensions", got)
+	}
+	if got := queries["conversation_active_cache_lock_p99"]; got != `histogram_quantile(0.99, sum by (instance, node_name, result, phase, le) (rate(wukongim_conversation_active_cache_lock_duration_seconds_bucket{job="wukongim"}[1m])))` {
+		t.Fatalf("conversation cache lock query = %q, want result and phase dimensions", got)
+	}
+	if got := queries["slot_proposal_apply_p99"]; got != `histogram_quantile(0.99, sum by (instance, node_name, le) (rate(wukongim_slot_apply_duration_seconds_bucket{job="wukongim"}[1m])))` {
+		t.Fatalf("slot proposal apply query = %q, want per-node aggregation without slot_id", got)
 	}
 }
 

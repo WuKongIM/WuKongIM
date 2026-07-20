@@ -45,6 +45,8 @@ allocations since process start. Other caller-selected sample types are rejected
 - `gateway_queue_depth`
 - `runtime_queue_pressure`
 - `storage_commit_queue_depth`
+- `storage_commit_request_p99`
+- `storage_commit_batch_stage_p99`
 - `delivery_retry_queue_depth`
 - `process_cpu_rate`
 - `process_resident_memory`
@@ -73,8 +75,11 @@ allocations since process start. Other caller-selected sample types are rejected
 - `channel_active_channels`
 - `conversation_active_cache_rows`
 - `conversation_active_dirty_rows`
+- `conversation_active_dirty_queue_rows`
+- `conversation_active_dirty_age_buckets`
 - `conversation_active_oldest_dirty_age`
 - `conversation_active_dirty_mutation_rate`
+- `conversation_active_cache_lock_p99`
 - `conversation_active_flush_rows_cumulative`
 - `conversation_active_flush_stage_p99`
 - `conversation_active_flush_attempt_rate`
@@ -82,14 +87,28 @@ allocations since process start. Other caller-selected sample types are rejected
 - `conversation_active_pressure_state`
 - `conversation_active_pressure_wakeup_p99`
 - `node_data_disk_used_bytes`
+- `slot_proposal_rate`
+- `slot_proposal_apply_p99`
+- `slot_apply_gap`
+- `slot_background_proposal_admission_rate`
+- `slot_runtime_queue_pressure`
 - `slot_preferred_leader_reconcile_rate`
 - `slot_preferred_leader_strict_wait_p99`
 
-Preferred-leader queries preserve `instance`, `node_name`, and bounded
+Storage and Slot drilldown queries preserve `instance` and `node_name` while
+aggregating away individual Slot IDs. Preferred-leader queries additionally
+preserve bounded
 `decision` labels. `transfer_started` is only an issued Raft transfer request;
 verify the later actual leader from `cluster_snapshot`. Missing decision series
 remain unknown rather than zero, and Slot IDs are intentionally unavailable as
 Prometheus labels.
+
+The `storage_commit_*` queries observe message/channel-log group-commit
+co-pressure; conversation-active persistence uses background Slot proposals and
+the Slot FSM/meta DB instead. Storage series are correlation evidence only, not
+direct proof that conversation meta persistence is slow. Slot proposal apply
+P99 contains completed proposals and must be interpreted with background
+admission results because failed or incomplete proposals may be absent.
 
 For one physical Slot, use `diagnostics_query` with `slot_id` and
 `stage=slot.preferred_leader_reconcile`. Start cluster-wide or query every node

@@ -58,8 +58,15 @@ Call `cluster_snapshot`, then query the smallest useful metric set:
 When conversation-active pressure is present, use the allowlisted conservation
 queries before reading broad logs. Establish cache size, dirty backlog, oldest
 dirty age, and attempt cadence with `conversation_active_cache_rows`,
-`conversation_active_dirty_rows`, `conversation_active_oldest_dirty_age`, and
-`conversation_active_flush_attempt_rate`. Read
+`conversation_active_dirty_rows`, `conversation_active_dirty_queue_rows`,
+`conversation_active_dirty_age_buckets`,
+`conversation_active_oldest_dirty_age`, and
+`conversation_active_flush_attempt_rate`. Across at least two consecutive
+complete samples, require dirty queue rows to equal dirty rows and dirty-age
+buckets to remain less than or equal to dirty rows. Treat sustained
+`dirty_rows > 0` with zero age buckets or unavailable oldest age as missing or
+inconsistent age-index evidence rather than healthy. Do not classify one
+mixed scrape of independently exported gauges as an index defect. Read
 `conversation_active_flush_rows_cumulative` at the first and last complete
 samples of the exact measured window and compute per-node counter deltas. For a
 successful flush, require both `selected = persisted + skipped` and
@@ -82,16 +89,31 @@ order:
    `dirty_updated` identifies hot rows advancing during durable I/O;
 3. use `conversation_active_flush_stage_p99` to separate serialized
    `lane_wait`, snapshot `select`, durable-state `filter`, store `persist`, and
-   version-fenced `clear` latency;
-4. use `conversation_active_pressure_events`,
+   version-fenced `clear` latency; within clear, compare `clear_lock_wait` with
+   `clear_apply` before attributing a slow clear to row work;
+4. use `conversation_active_cache_lock_p99` results `ok` and `cache_pressure`
+   with phases `wait`, `hold`, and `observation` to prove admission-side lock
+   contention or snapshot overhead without excluding rejected attempts;
+5. use `conversation_active_pressure_events`,
    `conversation_active_pressure_state`, and
    `conversation_active_pressure_wakeup_p99` to distinguish worker wakeup delay,
    coalescing, retry without progress, and a drain paused by timeout/error;
    compute pressure-event counter deltas from the same exact measured-window
    endpoint samples instead of using warmup or pre-run cumulative values;
-5. correlate the same interval with actual versus Preferred Slot leaders from
-   `cluster_snapshot`, per-node CPU, Slot/transport queues, and storage commit
-   latency before assigning the slow stage to Leader skew or storage.
+6. when `persist` dominates, first compare `slot_proposal_rate`,
+   `slot_proposal_apply_p99`, `slot_apply_gap`,
+   `slot_background_proposal_admission_rate`, and
+   `slot_runtime_queue_pressure`; correlate the same interval with actual
+   versus Preferred Slot leaders from `cluster_snapshot` and per-node CPU.
+   `storage_commit_queue_depth`, `storage_commit_request_p99`, and
+   `storage_commit_batch_stage_p99` describe message/channel-log group-commit
+   co-pressure on the node; they are not direct observations of the
+   conversation meta-DB write. Do not label a conversation persist delay as a
+   disk defect from those storage series alone. A slow conversation `persist`
+   stage without matching Slot proposal/apply evidence remains unresolved
+   rather than being labeled a disk, Raft, or leader-skew defect. Treat a low
+   or absent proposal-apply P99 together with background admission failures as
+   possible incomplete proposals, not proof of healthy Raft completion.
 
 Do not infer cleared progress from a successful store call, and do not add UID,
 channel, hash-slot, or Slot IDs as Prometheus labels while drilling down.

@@ -12,39 +12,42 @@ var conversationListSizeBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 256,
 
 // ConversationMetrics exposes conversation read latency and page-shape metrics.
 type ConversationMetrics struct {
-	activeCacheMu             sync.Mutex
-	activeCacheRevision       uint64
-	listTotal                 *prometheus.CounterVec
-	listDuration              *prometheus.HistogramVec
-	listReturnedItems         *prometheus.HistogramVec
-	listSparseItems           *prometheus.HistogramVec
-	listLastMessageLoads      *prometheus.HistogramVec
-	listLastMessageErrors     *prometheus.HistogramVec
-	listActiveIndexStaleSkips *prometheus.HistogramVec
-	syncTotal                 *prometheus.CounterVec
-	syncDuration              *prometheus.HistogramVec
-	syncReturnedItems         *prometheus.HistogramVec
-	syncOverlayItems          *prometheus.HistogramVec
-	syncRecentLoadDuration    *prometheus.HistogramVec
-	authorityAdmitTotal       *prometheus.CounterVec
-	authorityCachePressure    *prometheus.CounterVec
-	authorityListTotal        *prometheus.CounterVec
-	authorityHandoffTotal     *prometheus.CounterVec
-	activeCacheRows           prometheus.Gauge
-	activeCacheDirtyRows      prometheus.Gauge
-	activeCacheKindRows       *prometheus.GaugeVec
-	activeCacheKindDirtyRows  *prometheus.GaugeVec
-	activeCacheOldestDirtyAge prometheus.Gauge
-	activePressureDraining    prometheus.Gauge
-	activeDirtyMutations      *prometheus.CounterVec
-	activeFlushTotal          *prometheus.CounterVec
-	activeFlushRows           *prometheus.HistogramVec
-	activeFlushRowsTotal      *prometheus.CounterVec
-	activeFlushDuration       *prometheus.HistogramVec
-	activeFlushStageDuration  *prometheus.HistogramVec
-	activePressureEvents      *prometheus.CounterVec
-	activePressureLastEvent   *prometheus.GaugeVec
-	activePressureWakeupWait  prometheus.Histogram
+	activeCacheMu              sync.Mutex
+	activeCacheRevision        uint64
+	listTotal                  *prometheus.CounterVec
+	listDuration               *prometheus.HistogramVec
+	listReturnedItems          *prometheus.HistogramVec
+	listSparseItems            *prometheus.HistogramVec
+	listLastMessageLoads       *prometheus.HistogramVec
+	listLastMessageErrors      *prometheus.HistogramVec
+	listActiveIndexStaleSkips  *prometheus.HistogramVec
+	syncTotal                  *prometheus.CounterVec
+	syncDuration               *prometheus.HistogramVec
+	syncReturnedItems          *prometheus.HistogramVec
+	syncOverlayItems           *prometheus.HistogramVec
+	syncRecentLoadDuration     *prometheus.HistogramVec
+	authorityAdmitTotal        *prometheus.CounterVec
+	authorityCachePressure     *prometheus.CounterVec
+	authorityListTotal         *prometheus.CounterVec
+	authorityHandoffTotal      *prometheus.CounterVec
+	activeCacheRows            prometheus.Gauge
+	activeCacheDirtyRows       prometheus.Gauge
+	activeCacheDirtyQueueRows  prometheus.Gauge
+	activeCacheDirtyAgeBuckets prometheus.Gauge
+	activeCacheKindRows        *prometheus.GaugeVec
+	activeCacheKindDirtyRows   *prometheus.GaugeVec
+	activeCacheOldestDirtyAge  prometheus.Gauge
+	activePressureDraining     prometheus.Gauge
+	activeDirtyMutations       *prometheus.CounterVec
+	activeCacheLockDuration    *prometheus.HistogramVec
+	activeFlushTotal           *prometheus.CounterVec
+	activeFlushRows            *prometheus.HistogramVec
+	activeFlushRowsTotal       *prometheus.CounterVec
+	activeFlushDuration        *prometheus.HistogramVec
+	activeFlushStageDuration   *prometheus.HistogramVec
+	activePressureEvents       *prometheus.CounterVec
+	activePressureLastEvent    *prometheus.GaugeVec
+	activePressureWakeupWait   prometheus.Histogram
 }
 
 // ConversationActiveCacheSample contains one ordered active-cache gauge snapshot.
@@ -55,6 +58,10 @@ type ConversationActiveCacheSample struct {
 	Rows int
 	// DirtyRows is the total dirty active-row count.
 	DirtyRows int
+	// DirtyQueueRows is the number of unique addresses in the fair dirty queue.
+	DirtyQueueRows int
+	// DirtyAgeBuckets is the number of distinct live positive dirty ActiveAtMS values.
+	DirtyAgeBuckets int
 	// OldestDirtyAge is the age of the oldest dirty row.
 	OldestDirtyAge time.Duration
 	// PressureDraining reports whether pressure draining is active.
@@ -99,6 +106,10 @@ type ConversationActiveFlushSample struct {
 	PersistDuration time.Duration
 	// ClearDuration is time spent applying version-fenced clear results.
 	ClearDuration time.Duration
+	// ClearLockWaitDuration is clear-stage cache lock wait time.
+	ClearLockWaitDuration time.Duration
+	// ClearApplyDuration is clear-stage work while holding the cache lock.
+	ClearApplyDuration time.Duration
 	// Duration is total flush attempt latency including lane wait.
 	Duration time.Duration
 }
@@ -205,6 +216,16 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 			Help:        "Current dirty rows in the conversation active cache.",
 			ConstLabels: labels,
 		}),
+		activeCacheDirtyQueueRows: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_conversation_active_cache_dirty_queue_rows",
+			Help:        "Current unique live dirty addresses in the fair conversation active flush queue.",
+			ConstLabels: labels,
+		}),
+		activeCacheDirtyAgeBuckets: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_conversation_active_cache_dirty_age_buckets",
+			Help:        "Current distinct live positive ActiveAtMS buckets in the bounded dirty-age index.",
+			ConstLabels: labels,
+		}),
 		activeCacheKindRows: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_conversation_active_cache_kind_rows",
 			Help:        "Current rows in the conversation active cache by fixed conversation kind.",
@@ -230,6 +251,12 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 			Help:        "Conversation active cache row mutations grouped by bounded event.",
 			ConstLabels: labels,
 		}, []string{"event"}),
+		activeCacheLockDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_active_cache_lock_duration_seconds",
+			Help:        "Conversation active cache admission lock wait, hold, and sampled observation duration in seconds by bounded result.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result", "phase"}),
 		activeFlushTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_conversation_active_flush_total",
 			Help:        "Total conversation active cache flush attempts by normalized result.",
@@ -295,11 +322,14 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.authorityHandoffTotal,
 		m.activeCacheRows,
 		m.activeCacheDirtyRows,
+		m.activeCacheDirtyQueueRows,
+		m.activeCacheDirtyAgeBuckets,
 		m.activeCacheKindRows,
 		m.activeCacheKindDirtyRows,
 		m.activeCacheOldestDirtyAge,
 		m.activePressureDraining,
 		m.activeDirtyMutations,
+		m.activeCacheLockDuration,
 		m.activeFlushTotal,
 		m.activeFlushRows,
 		m.activeFlushRowsTotal,
@@ -430,6 +460,8 @@ func (m *ConversationMetrics) SetActiveCache(sample ConversationActiveCacheSampl
 	m.activeCacheRevision = sample.Revision
 	m.activeCacheRows.Set(float64(nonNegative(sample.Rows)))
 	m.activeCacheDirtyRows.Set(float64(nonNegative(sample.DirtyRows)))
+	m.activeCacheDirtyQueueRows.Set(float64(nonNegative(sample.DirtyQueueRows)))
+	m.activeCacheDirtyAgeBuckets.Set(float64(nonNegative(sample.DirtyAgeBuckets)))
 	m.activeCacheOldestDirtyAge.Set(nonNegativeMetricDuration(sample.OldestDirtyAge).Seconds())
 	if sample.PressureDraining {
 		m.activePressureDraining.Set(1)
@@ -450,6 +482,19 @@ func (m *ConversationMetrics) ObserveActiveMutation(becameDirty, dirtyUpdated, u
 	m.addActiveDirtyMutation("became_dirty", becameDirty)
 	m.addActiveDirtyMutation("dirty_updated", dirtyUpdated)
 	m.addActiveDirtyMutation("unchanged", unchanged)
+}
+
+// ObserveActiveMutationLock records bounded admission-path cache lock costs by result.
+func (m *ConversationMetrics) ObserveActiveMutationLock(result string, wait, hold, observation time.Duration) {
+	if m == nil {
+		return
+	}
+	result = conversationAuthorityResult(result)
+	m.activeCacheLockDuration.WithLabelValues(result, "wait").Observe(nonNegativeMetricDuration(wait).Seconds())
+	m.activeCacheLockDuration.WithLabelValues(result, "hold").Observe(nonNegativeMetricDuration(hold).Seconds())
+	if observation > 0 {
+		m.activeCacheLockDuration.WithLabelValues(result, "observation").Observe(nonNegativeMetricDuration(observation).Seconds())
+	}
 }
 
 func (m *ConversationMetrics) addActiveDirtyMutation(event string, rows int) {
@@ -492,6 +537,8 @@ func (m *ConversationMetrics) ObserveActiveFlush(sample ConversationActiveFlushS
 	}
 	if result == "ok" && sample.Selected > 0 {
 		m.observeActiveFlushStage(result, "clear", sample.ClearDuration)
+		m.observeActiveFlushStage(result, "clear_lock_wait", sample.ClearLockWaitDuration)
+		m.observeActiveFlushStage(result, "clear_apply", sample.ClearApplyDuration)
 	}
 	m.activeFlushDuration.WithLabelValues(result).Observe(nonNegativeMetricDuration(sample.Duration).Seconds())
 }
@@ -581,7 +628,7 @@ func conversationActiveFlushReason(reason string) string {
 
 func conversationActiveFlushStage(stage string) string {
 	switch stage {
-	case "lane_wait", "select", "filter", "persist", "clear":
+	case "lane_wait", "select", "filter", "persist", "clear", "clear_lock_wait", "clear_apply":
 		return stage
 	default:
 		return "other"

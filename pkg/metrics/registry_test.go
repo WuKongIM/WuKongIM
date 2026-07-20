@@ -2284,25 +2284,29 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 	reg := New(11, "node-11")
 
 	reg.Conversation.SetActiveCache(ConversationActiveCacheSample{
-		Revision: 1, Rows: 12, DirtyRows: 5, OldestDirtyAge: 2 * time.Second, PressureDraining: true,
+		Revision: 1, Rows: 12, DirtyRows: 5, DirtyQueueRows: 5, DirtyAgeBuckets: 3,
+		OldestDirtyAge: 2 * time.Second, PressureDraining: true,
 		NormalRows: 8, NormalDirtyRows: 2, CMDRows: 4, CMDDirtyRows: 3,
 	})
 	reg.Conversation.ObserveActiveMutation(4, 2, 1)
+	reg.Conversation.ObserveActiveMutationLock("ok", time.Millisecond, 2*time.Millisecond, 3*time.Millisecond)
 	reg.Conversation.ObserveActiveFlush(ConversationActiveFlushSample{
-		Result:           "ok",
-		Selected:         4,
-		Persisted:        3,
-		Skipped:          1,
-		Cleared:          2,
-		VersionConflicts: 1,
-		Superseded:       1,
-		Requeued:         1,
-		LaneWaitDuration: time.Millisecond,
-		SelectDuration:   2 * time.Millisecond,
-		FilterDuration:   3 * time.Millisecond,
-		PersistDuration:  4 * time.Millisecond,
-		ClearDuration:    5 * time.Millisecond,
-		Duration:         7 * time.Millisecond,
+		Result:                "ok",
+		Selected:              4,
+		Persisted:             3,
+		Skipped:               1,
+		Cleared:               2,
+		VersionConflicts:      1,
+		Superseded:            1,
+		Requeued:              1,
+		LaneWaitDuration:      time.Millisecond,
+		SelectDuration:        2 * time.Millisecond,
+		FilterDuration:        3 * time.Millisecond,
+		PersistDuration:       4 * time.Millisecond,
+		ClearDuration:         5 * time.Millisecond,
+		ClearLockWaitDuration: time.Millisecond,
+		ClearApplyDuration:    4 * time.Millisecond,
+		Duration:              7 * time.Millisecond,
 	})
 	reg.Conversation.ObserveActiveFlush(ConversationActiveFlushSample{
 		Result:         "error",
@@ -2327,6 +2331,14 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 	require.Equal(t, float64(5), findMetricByLabels(t, dirty, map[string]string{
 		"node_id":   "11",
 		"node_name": "node-11",
+	}).GetGauge().GetValue())
+	dirtyQueue := requireMetricFamily(t, families, "wukongim_conversation_active_cache_dirty_queue_rows")
+	require.Equal(t, float64(5), findMetricByLabels(t, dirtyQueue, map[string]string{
+		"node_id": "11", "node_name": "node-11",
+	}).GetGauge().GetValue())
+	dirtyAgeBuckets := requireMetricFamily(t, families, "wukongim_conversation_active_cache_dirty_age_buckets")
+	require.Equal(t, float64(3), findMetricByLabels(t, dirtyAgeBuckets, map[string]string{
+		"node_id": "11", "node_name": "node-11",
 	}).GetGauge().GetValue())
 
 	age := requireMetricFamily(t, families, "wukongim_conversation_active_cache_oldest_dirty_age_seconds")
@@ -2413,6 +2425,10 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 		"node_name": "node-11",
 		"event":     "became_dirty",
 	}).GetCounter().GetValue())
+	cacheLock := requireMetricFamily(t, families, "wukongim_conversation_active_cache_lock_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, cacheLock, map[string]string{
+		"node_id": "11", "node_name": "node-11", "result": "ok", "phase": "wait",
+	}).GetHistogram().GetSampleCount())
 	require.Equal(t, float64(3), findMetricByLabels(t, flushRows, map[string]string{
 		"node_id":   "11",
 		"node_name": "node-11",
@@ -2438,6 +2454,12 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 		"node_name": "node-11",
 		"result":    "ok",
 		"stage":     "persist",
+	}).GetHistogram().GetSampleCount())
+	require.Equal(t, uint64(1), findMetricByLabels(t, stageDuration, map[string]string{
+		"node_id": "11", "node_name": "node-11", "result": "ok", "stage": "clear_lock_wait",
+	}).GetHistogram().GetSampleCount())
+	require.Equal(t, uint64(1), findMetricByLabels(t, stageDuration, map[string]string{
+		"node_id": "11", "node_name": "node-11", "result": "ok", "stage": "clear_apply",
 	}).GetHistogram().GetSampleCount())
 	pressureEvents := requireMetricFamily(t, families, "wukongim_conversation_active_pressure_events_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, pressureEvents, map[string]string{
