@@ -414,6 +414,16 @@
           "expr": "sum by (kind) (wukongim_conversation_active_cache_kind_dirty_rows{node_name=~\"$node_name\"})",
           "legendFormat": "dirty rows {{kind}}",
           "refId": "H"
+        },
+        {
+          "expr": "sum(wukongim_conversation_active_cache_dirty_queue_rows{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "dirty queue rows {{node_name}}",
+          "refId": "I"
+        },
+        {
+          "expr": "sum(wukongim_conversation_active_cache_dirty_age_buckets{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "dirty age buckets {{node_name}}",
+          "refId": "J"
         }
       ],
       "title": "Conversation Active Cache And Flush",
@@ -985,9 +995,14 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_pressure_wakeup_wait_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name))",
           "legendFormat": "wakeup p95 {{node_name}}",
           "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_cache_lock_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, phase))",
+          "legendFormat": "cache lock p95 {{node_name}} {{result}} {{phase}}",
+          "refId": "C"
         }
       ],
-      "title": "Conversation Active Flush Stage Latency",
+      "title": "Conversation Active Latency Breakdown",
       "type": "timeseries"
     },
     {

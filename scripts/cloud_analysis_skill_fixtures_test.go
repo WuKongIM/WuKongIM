@@ -88,14 +88,25 @@ func TestCloudAnalysisSkillDocumentsConversationActiveConservation(t *testing.T)
 	for _, queryID := range []string{
 		"conversation_active_cache_rows",
 		"conversation_active_dirty_rows",
+		"conversation_active_dirty_queue_rows",
+		"conversation_active_dirty_age_buckets",
 		"conversation_active_oldest_dirty_age",
 		"conversation_active_dirty_mutation_rate",
+		"conversation_active_cache_lock_p99",
 		"conversation_active_flush_rows_cumulative",
 		"conversation_active_flush_stage_p99",
 		"conversation_active_flush_attempt_rate",
 		"conversation_active_pressure_events",
 		"conversation_active_pressure_state",
 		"conversation_active_pressure_wakeup_p99",
+		"storage_commit_queue_depth",
+		"storage_commit_request_p99",
+		"storage_commit_batch_stage_p99",
+		"slot_proposal_rate",
+		"slot_proposal_apply_p99",
+		"slot_apply_gap",
+		"slot_background_proposal_admission_rate",
+		"slot_runtime_queue_pressure",
 	} {
 		if !strings.Contains(skill, "`"+queryID+"`") {
 			t.Fatalf("SKILL.md must route conversation-active analysis through %q", queryID)
@@ -109,6 +120,10 @@ func TestCloudAnalysisSkillDocumentsConversationActiveConservation(t *testing.T)
 		"selected = cleared + requeued + superseded",
 		"durable row count is unknown",
 		"exact measured-window",
+		"two consecutive",
+		"`clear_lock_wait`",
+		"`clear_apply`",
+		"`cache_pressure`",
 	} {
 		if !strings.Contains(skill, required) {
 			t.Fatalf("SKILL.md must document conversation-active evidence rule %q", required)

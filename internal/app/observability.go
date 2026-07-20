@@ -495,6 +495,8 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveCache(eve
 		Revision:         event.Revision,
 		Rows:             event.Rows,
 		DirtyRows:        event.DirtyRows,
+		DirtyQueueRows:   event.DirtyQueueRows,
+		DirtyAgeBuckets:  event.DirtyAgeBuckets,
 		OldestDirtyAge:   event.OldestDirtyAge,
 		PressureDraining: event.PressureDraining,
 		NormalRows:       event.RowsByKind[metadb.ConversationKindNormal],
@@ -509,6 +511,7 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveMutation(
 		return
 	}
 	o.metrics.Conversation.ObserveActiveMutation(event.BecameDirty, event.DirtyUpdated, event.Unchanged)
+	o.metrics.Conversation.ObserveActiveMutationLock(event.Result, event.LockWaitDuration, event.LockHoldDuration, event.CacheObservationDuration)
 }
 
 func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(event conversationactive.FlushObservation) {
@@ -516,21 +519,23 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(eve
 		return
 	}
 	o.metrics.Conversation.ObserveActiveFlush(obsmetrics.ConversationActiveFlushSample{
-		Result:           event.Result,
-		FailureStage:     event.FailureStage,
-		Selected:         event.Selected,
-		Persisted:        event.Persisted,
-		Skipped:          event.Skipped,
-		Cleared:          event.Cleared,
-		VersionConflicts: event.VersionConflicts,
-		Superseded:       event.Superseded,
-		Requeued:         event.Requeued,
-		LaneWaitDuration: event.LaneWaitDuration,
-		SelectDuration:   event.SelectDuration,
-		FilterDuration:   event.FilterDuration,
-		PersistDuration:  event.PersistDuration,
-		ClearDuration:    event.ClearDuration,
-		Duration:         event.Duration,
+		Result:                event.Result,
+		FailureStage:          event.FailureStage,
+		Selected:              event.Selected,
+		Persisted:             event.Persisted,
+		Skipped:               event.Skipped,
+		Cleared:               event.Cleared,
+		VersionConflicts:      event.VersionConflicts,
+		Superseded:            event.Superseded,
+		Requeued:              event.Requeued,
+		LaneWaitDuration:      event.LaneWaitDuration,
+		SelectDuration:        event.SelectDuration,
+		FilterDuration:        event.FilterDuration,
+		PersistDuration:       event.PersistDuration,
+		ClearDuration:         event.ClearDuration,
+		ClearLockWaitDuration: event.ClearLockWaitDuration,
+		ClearApplyDuration:    event.ClearApplyDuration,
+		Duration:              event.Duration,
 	})
 }
 

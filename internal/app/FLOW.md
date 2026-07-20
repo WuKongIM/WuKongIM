@@ -40,7 +40,9 @@ New(Config)
      push metric families used by runtime fanout, conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache gauges, dirty-mutation counters, persisted/cleared/requeued/superseded
-     flush conservation counters, flush-stage histograms, and pressure-wakeup
+     flush conservation counters, fair dirty-queue and bounded dirty-age-index
+     gauges, accepted/rejected admission cache-lock wait/hold histograms, split clear lock-wait/apply
+     flush-stage histograms, and pressure-wakeup
      lifecycle metrics, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
      touch-flush route/chunk/target-group counters, recipient delivery worker
@@ -578,9 +580,10 @@ When metrics are enabled, the app maps API conversation-list observations to
 Prometheus metrics for latency, returned items, sparse items, last-message
 loads, last-message errors, active-index stale skips, and whether another active
 page exists using only low-cardinality labels. It also maps conversation active
-cache observations to Prometheus gauges for cached rows, dirty rows, oldest
-dirty age, fixed normal/CMD row and dirty-row counts, and flush
-result/row/duration metrics.
+cache observations to Prometheus gauges for cached rows, dirty rows, fair
+dirty-queue rows, bounded dirty-age buckets, oldest dirty age, fixed normal/CMD
+row and dirty-row counts, accepted/rejected admission cache-lock latency, and
+flush result/row/stage-duration metrics.
 
 Conversation list with authority enabled:
 
@@ -645,6 +648,9 @@ touch patches through the conversation active flush worker or handoff drain.
 Cache pressure only sends a nonblocking wakeup to that worker; admission never
 performs durable I/O. The app conversation authority keeps route target fencing,
 lifecycle handoff, observer mapping, and usecase/RPC type adaptation.
+Aggregate admission cache snapshots are coalesced to a 100ms interval in the
+production authority wiring; pressure transitions and flush completion still
+publish immediate snapshots, while mutation counters remain unsampled.
 
 SEND with channel authority routing enabled:
 
@@ -822,7 +828,8 @@ periodic tick or coalesced cache-pressure wakeup
   -> skip receiver-only ActiveAt updates inside AuthorityActiveCooldown
   -> store.TouchConversationActiveAtBatch persists remaining ActiveAt/ReadSeq/UpdatedAt
   -> after a successful pressure-cycle attempt, requeue one wakeup while dirty
-     rows remain above the 70% low watermark
+     rows remain above the 70% low watermark and at least one dirty marker was
+     cleared; a zero-progress attempt waits for the next periodic tick
 
 cache admission
   -> at 80% total occupancy with dirty rows above the 70% low watermark, start

@@ -212,11 +212,12 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 		activeObserver = observer
 	}
 	authority.active = conversationactive.NewManager(conversationactive.Options{
-		Store:          conversationActiveStoreAdapter{authority: authority},
-		ActiveCooldown: opts.ActiveCooldown,
-		MaxCachedRows:  opts.MaxRows,
-		PressureNotify: opts.PressureNotify,
-		Observer:       activeObserver,
+		Store:                    conversationActiveStoreAdapter{authority: authority},
+		ActiveCooldown:           opts.ActiveCooldown,
+		MaxCachedRows:            opts.MaxRows,
+		PressureNotify:           opts.PressureNotify,
+		CacheObservationInterval: 100 * time.Millisecond,
+		Observer:                 activeObserver,
 	})
 	return authority
 }

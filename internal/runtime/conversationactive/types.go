@@ -26,6 +26,8 @@ type Options struct {
 	MaxCachedRows int
 	// PressureNotify receives nonblocking coalesced wakeups for proactive or hard-bound dirty cache pressure.
 	PressureNotify chan<- PressureSignal
+	// CacheObservationInterval coalesces aggregate cache snapshots on the admission path; zero observes every mutation.
+	CacheObservationInterval time.Duration
 	// Observer receives low-cardinality cache and flush observations.
 	Observer Observer
 }
@@ -57,6 +59,10 @@ type CacheObservation struct {
 	Rows int
 	// DirtyRows is the number of cached rows still waiting to flush.
 	DirtyRows int
+	// DirtyQueueRows is the number of unique live dirty addresses in the fair flush queue.
+	DirtyQueueRows int
+	// DirtyAgeBuckets is the number of distinct live positive ActiveAtMS values in the bounded dirty-age index.
+	DirtyAgeBuckets int
 	// RowsByKind counts cached rows by conversation kind.
 	RowsByKind map[metadb.ConversationKind]int
 	// DirtyRowsByKind counts dirty cached rows by conversation kind.
@@ -67,14 +73,22 @@ type CacheObservation struct {
 	PressureDraining bool
 }
 
-// MutationObservation reports how one admission batch changed dirty cache work.
+// MutationObservation reports how one nonempty admission attempt affected dirty cache work and cache-lock latency.
 type MutationObservation struct {
+	// Result is ok or cache_pressure for the admission attempt.
+	Result string
 	// BecameDirty is the number of new or previously clean rows that became dirty.
 	BecameDirty int
 	// DirtyUpdated is the number of already-dirty rows advanced to a newer version.
 	DirtyUpdated int
 	// Unchanged is the number of existing rows whose projection and ownership were unchanged.
 	Unchanged int
+	// LockWaitDuration is time spent waiting for the node-local cache lock.
+	LockWaitDuration time.Duration
+	// LockHoldDuration is time spent holding the node-local cache lock.
+	LockHoldDuration time.Duration
+	// CacheObservationDuration is the in-lock cost of a sampled aggregate cache snapshot.
+	CacheObservationDuration time.Duration
 }
 
 // FlushObservation reports one active dirty-row flush attempt.
@@ -108,6 +122,10 @@ type FlushObservation struct {
 	PersistDuration time.Duration
 	// ClearDuration is time spent applying version-fenced dirty clears.
 	ClearDuration time.Duration
+	// ClearLockWaitDuration is the clear-stage time spent waiting for the cache lock.
+	ClearLockWaitDuration time.Duration
+	// ClearApplyDuration is the clear-stage time spent applying version-fenced cache mutations while holding the lock.
+	ClearApplyDuration time.Duration
 	// Duration is the flush attempt latency.
 	Duration time.Duration
 }
