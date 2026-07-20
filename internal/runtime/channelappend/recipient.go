@@ -189,6 +189,9 @@ func dispatchRecipientDelivery(ctx context.Context, event CommittedEnvelope, rec
 		grouped[target] = append(grouped[target], recipient)
 	}
 	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
+	if planEnqueuer, ok := enqueuer.(RecipientDeliveryPlanEnqueuer); ok {
+		return dispatchRecipientPlans(ctx, event, order, grouped, batchSize, planEnqueuer)
+	}
 	concurrency := boundedPositive(ports.recipientDispatchConcurrency, 1)
 	if concurrency <= 1 || len(order) <= 1 {
 		for _, target := range order {
@@ -199,6 +202,59 @@ func dispatchRecipientDelivery(ctx context.Context, event CommittedEnvelope, rec
 		return nil
 	}
 	return dispatchRecipientTargetsConcurrent(ctx, event, order, grouped, batchSize, concurrency, enqueuer)
+}
+
+func dispatchRecipientPlans(
+	ctx context.Context,
+	event CommittedEnvelope,
+	order []RecipientAuthorityTarget,
+	grouped map[RecipientAuthorityTarget][]Recipient,
+	batchSize int,
+	enqueuer RecipientDeliveryPlanEnqueuer,
+) error {
+	planTargetCapacity := min(batchSize, len(order))
+	plan := RecipientDeliveryPlan{Event: event, Targets: make([]RecipientTargetBatch, 0, planTargetCapacity)}
+	flush := func() error {
+		if plan.RecipientCount() == 0 {
+			return nil
+		}
+		if err := enqueuer.EnqueueRecipientDeliveryPlan(ctx, plan); err != nil {
+			target := plan.Targets[0].Target
+			detail := postCommitTargetDetail(target)
+			detail.Phase = "recipient_dispatch"
+			detail.UID = firstRecipientUID(plan.Targets[0].Recipients)
+			detail.RecipientCount = plan.RecipientCount()
+			detail.DispatchTargetCount = len(plan.Targets)
+			detail.DispatchBatchSize = plan.RecipientCount()
+			return withPostCommitFailureDetail(err, detail)
+		}
+		plan = RecipientDeliveryPlan{Event: event, Targets: make([]RecipientTargetBatch, 0, planTargetCapacity)}
+		return nil
+	}
+
+	remaining := batchSize
+	for _, target := range order {
+		recipients := grouped[target]
+		for len(recipients) > 0 {
+			if remaining == 0 {
+				if err := flush(); err != nil {
+					return err
+				}
+				remaining = batchSize
+			}
+			n := remaining
+			if n > len(recipients) {
+				n = len(recipients)
+			}
+			plan.Targets = append(plan.Targets, RecipientTargetBatch{
+				Target:     target,
+				Recipients: append([]Recipient(nil), recipients[:n]...),
+			})
+			recipients = recipients[n:]
+			remaining -= n
+		}
+	}
+	return flush()
 }
 
 func effectiveRecipientDeliveryEnqueuer(ports commitPorts) RecipientDeliveryEnqueuer {

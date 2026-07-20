@@ -27,6 +27,49 @@ func TestDirectoryRejectsStaleTarget(t *testing.T) {
 	}
 }
 
+func TestDirectoryEndpointsByUIDsReturnsRoutesInInputUIDOrder(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3}
+	dir.BecomeAuthority(target)
+
+	routes := []Route{
+		{UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20, DeviceID: "d2"},
+		{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1"},
+		{UID: "u2", OwnerNodeID: 3, OwnerBootID: 1, OwnerSeq: 1, SessionID: 30, DeviceID: "d3"},
+	}
+	for _, route := range routes {
+		if _, err := dir.RegisterRoute(target, route); err != nil {
+			t.Fatalf("RegisterRoute(%q) error = %v", route.UID, err)
+		}
+	}
+
+	got, err := dir.EndpointsByUIDs(target, []string{"u2", "missing", "u1"})
+	if err != nil {
+		t.Fatalf("EndpointsByUIDs() error = %v", err)
+	}
+	want := []Route{routes[2], routes[1], routes[0]}
+	if len(got) != len(want) {
+		t.Fatalf("EndpointsByUIDs() routes = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("EndpointsByUIDs() route[%d] = %#v, want %#v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestDirectoryEndpointsByUIDsRejectsStaleTargetAsOneGroup(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3}
+	dir.BecomeAuthority(target)
+
+	stale := target
+	stale.LeaderTerm--
+	if _, err := dir.EndpointsByUIDs(stale, []string{"u1", "u2"}); !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("EndpointsByUIDs(stale target) error = %v, want ErrNotLeader", err)
+	}
+}
+
 func TestDirectoryAcceptsDifferentLocalAuthorityEpochWithSameRaftIdentity(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{LocalNodeID: 1})
 	installed := RouteTarget{

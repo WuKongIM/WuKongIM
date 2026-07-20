@@ -16,6 +16,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -30,13 +31,14 @@ const (
 	rpcStatusInvalidArgument         = "invalid_argument"
 	rpcStatusRejected                = "rejected"
 
-	presenceOpRegisterRoute    = "register_route"
-	presenceOpCommitRoute      = "commit_route"
-	presenceOpAbortRoute       = "abort_route"
-	presenceOpUnregisterRoute  = "unregister_route"
-	presenceOpEndpointsByUID   = "endpoints_by_uid"
-	presenceOpTouchRoutes      = "touch_routes"
-	presenceOpApplyRouteAction = "apply_route_action"
+	presenceOpRegisterRoute      = "register_route"
+	presenceOpCommitRoute        = "commit_route"
+	presenceOpAbortRoute         = "abort_route"
+	presenceOpUnregisterRoute    = "unregister_route"
+	presenceOpEndpointsByUID     = "endpoints_by_uid"
+	presenceOpEndpointsByTargets = "endpoints_by_targets"
+	presenceOpTouchRoutes        = "touch_routes"
+	presenceOpApplyRouteAction   = "apply_route_action"
 )
 
 // PresenceAuthorityRPCServiceID is the cluster RPC service for UID route authority calls.
@@ -53,6 +55,11 @@ type PresenceAuthority interface {
 	UnregisterRoute(context.Context, presence.RouteTarget, presence.RouteIdentity, uint64) error
 	EndpointsByUID(context.Context, presence.RouteTarget, string) ([]presence.Route, error)
 	TouchRoutes(context.Context, presence.RouteTarget, []presence.Route) error
+}
+
+// PresenceBatchAuthority optionally resolves multiple UIDs under one exact authority fence.
+type PresenceBatchAuthority interface {
+	EndpointsByUIDs(context.Context, presence.RouteTarget, []string) ([]presence.Route, error)
 }
 
 // PresenceOwner applies authority-requested actions to owner-local sessions.
@@ -351,6 +358,13 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 		return nil, err
 	}
 	if a == nil || a.authority == nil {
+		if req.Op == presenceOpEndpointsByTargets {
+			results := make([]presenceRPCEndpointLookupResult, len(req.EndpointGroups))
+			for i := range results {
+				results[i].Status = rpcStatusRejected
+			}
+			return encodePresenceEndpointsByTargetsResponseBinary(results)
+		}
 		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: rpcStatusRejected})
 	}
 
@@ -386,6 +400,8 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 			return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: status})
 		}
 		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: rpcStatusOK, Endpoints: routes})
+	case presenceOpEndpointsByTargets:
+		return a.handlePresenceEndpointsByTargets(ctx, req.EndpointGroups)
 	case presenceOpTouchRoutes:
 		err := a.authority.TouchRoutes(ctx, req.Target, req.Routes)
 		status := presenceRPCStatusForError(err)
@@ -400,6 +416,34 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 		)
 		return nil, err
 	}
+}
+
+func (a *Adapter) handlePresenceEndpointsByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) ([]byte, error) {
+	results := make([]presenceRPCEndpointLookupResult, len(groups))
+	batchAuthority, hasBatchAuthority := a.authority.(PresenceBatchAuthority)
+	for i, group := range groups {
+		var routes []presence.Route
+		var err error
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			err = ctxErr
+		} else if hasBatchAuthority {
+			routes, err = batchAuthority.EndpointsByUIDs(ctx, group.Target, group.UIDs)
+		} else {
+			for _, uid := range group.UIDs {
+				var uidRoutes []presence.Route
+				uidRoutes, err = a.authority.EndpointsByUID(ctx, group.Target, uid)
+				if err != nil {
+					break
+				}
+				routes = append(routes, uidRoutes...)
+			}
+		}
+		results[i].Status = presenceRPCStatusForError(err)
+		if err == nil {
+			results[i].Routes = routes
+		}
+	}
+	return encodePresenceEndpointsByTargetsResponseBinary(results)
 }
 
 // HandlePresenceOwnerRPC handles one encoded presence owner-action RPC payload.
@@ -541,6 +585,83 @@ func (c *Client) EndpointsByUID(ctx context.Context, target presence.RouteTarget
 	return resp.Endpoints, nil
 }
 
+// EndpointsByTargets resolves exact-target UID groups on one destination node.
+func (c *Client) EndpointsByTargets(ctx context.Context, nodeID uint64, groups []presence.EndpointLookupGroup) ([]presence.EndpointLookupResult, error) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+	if nodeID == 0 {
+		return nil, fmt.Errorf("internal/access/node: presence endpoint destination node is zero")
+	}
+	for i, group := range groups {
+		if group.Target.LeaderNodeID != nodeID {
+			return nil, fmt.Errorf("internal/access/node: presence endpoint group %d leader %d does not match destination %d", i, group.Target.LeaderNodeID, nodeID)
+		}
+	}
+	if c == nil || c.node == nil {
+		return nil, fmt.Errorf("internal/access/node: presence rpc client not configured")
+	}
+	body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{
+		Op:             presenceOpEndpointsByTargets,
+		EndpointGroups: groups,
+	})
+	if err != nil {
+		return nil, err
+	}
+	responseBody, err := c.node.CallRPC(ctx, nodeID, PresenceAuthorityRPCServiceID, body)
+	if err != nil {
+		if isPresenceEndpointsByTargetsUnsupported(err) {
+			return c.endpointsByTargetsLegacy(ctx, groups), nil
+		}
+		return nil, err
+	}
+	wireResults, err := decodePresenceEndpointsByTargetsResponseBinary(responseBody)
+	if err != nil {
+		return nil, err
+	}
+	if len(wireResults) != len(groups) {
+		return nil, fmt.Errorf("internal/access/node: presence endpoint result count %d does not match group count %d", len(wireResults), len(groups))
+	}
+	results := make([]presence.EndpointLookupResult, len(wireResults))
+	for i, result := range wireResults {
+		results[i] = presence.EndpointLookupResult{
+			Routes: result.Routes,
+			Err:    presenceRPCErrorForStatus(result.Status),
+		}
+	}
+	return results, nil
+}
+
+func (c *Client) endpointsByTargetsLegacy(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	results := make([]presence.EndpointLookupResult, len(groups))
+	for i, group := range groups {
+		for _, uid := range group.UIDs {
+			if uid == "" {
+				continue
+			}
+			routes, err := c.EndpointsByUID(ctx, group.Target, uid)
+			if err != nil {
+				results[i].Err = err
+				break
+			}
+			results[i].Routes = append(results[i].Routes, routes...)
+		}
+	}
+	return results
+}
+
+func isPresenceEndpointsByTargetsUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	var remoteErr transport.RemoteError
+	if !errors.As(err, &remoteErr) {
+		return false
+	}
+	return remoteErr.Code == "remote_error" &&
+		remoteErr.Message == fmt.Sprintf("internal/access/node: unknown presence op id %d", presenceOpEndpointsByTargetsID)
+}
+
 // TouchRoutes refreshes owner routes on the target authority node.
 func (c *Client) TouchRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	resp, err := c.call(ctx, target, presenceRPCRequest{Op: presenceOpTouchRoutes, Target: target, Routes: routes})
@@ -588,6 +709,10 @@ func presenceRPCStatusForError(err error) string {
 		return rpcStatusStaleRoute
 	case errors.Is(err, authoritypresence.ErrRouteNotReady):
 		return rpcStatusRouteNotReady
+	case errors.Is(err, context.Canceled):
+		return rpcStatusContextCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return rpcStatusContextDeadlineExceeded
 	default:
 		return rpcStatusRejected
 	}
@@ -603,6 +728,10 @@ func presenceRPCErrorForStatus(status string) error {
 		return authoritypresence.ErrStaleRoute
 	case rpcStatusRouteNotReady:
 		return authoritypresence.ErrRouteNotReady
+	case rpcStatusContextCanceled:
+		return context.Canceled
+	case rpcStatusContextDeadlineExceeded:
+		return context.DeadlineExceeded
 	case rpcStatusRejected:
 		return fmt.Errorf("internal/access/node: presence rpc rejected")
 	default:

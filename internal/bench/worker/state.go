@@ -152,6 +152,39 @@ type Status struct {
 	Assignment Assignment `json:"assignment"`
 }
 
+type statusAssignmentIdentity struct {
+	RunID        string `json:"run_id"`
+	AssignmentID string `json:"assignment_id"`
+	WorkerID     string `json:"worker_id,omitempty"`
+}
+
+type statusJSON struct {
+	Phase              Phase                    `json:"phase"`
+	ActivePhase        Phase                    `json:"active_phase,omitempty"`
+	CompletedPhase     Phase                    `json:"completed_phase,omitempty"`
+	LastError          string                   `json:"last_error,omitempty"`
+	LastErrorCode      FailureReasonCode        `json:"last_error_code,omitempty"`
+	LastErrorOperation FailureOperationCode     `json:"last_error_operation,omitempty"`
+	Assignment         statusAssignmentIdentity `json:"assignment"`
+}
+
+// MarshalJSON keeps the worker control response independent from assignment plan size.
+func (s Status) MarshalJSON() ([]byte, error) {
+	return json.Marshal(statusJSON{
+		Phase:              s.Phase,
+		ActivePhase:        s.ActivePhase,
+		CompletedPhase:     s.CompletedPhase,
+		LastError:          s.LastError,
+		LastErrorCode:      s.LastErrorCode,
+		LastErrorOperation: s.LastErrorOperation,
+		Assignment: statusAssignmentIdentity{
+			RunID:        s.Assignment.RunID,
+			AssignmentID: s.Assignment.AssignmentID,
+			WorkerID:     s.Assignment.WorkerID,
+		},
+	})
+}
+
 // State stores the active worker assignment and monotonic phase.
 type State struct {
 	mu                 sync.Mutex

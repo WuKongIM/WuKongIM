@@ -20,6 +20,7 @@ const (
 	presenceOpEndpointsByUIDID
 	presenceOpTouchRoutesID
 	presenceOpApplyRouteActionID
+	presenceOpEndpointsByTargetsID
 )
 
 const maxPresenceRPCCollectionLen = 4096
@@ -44,6 +45,16 @@ type presenceRPCRequest struct {
 	UID string
 	// OwnerSeq carries owner-side fencing for unregister requests.
 	OwnerSeq uint64
+	// EndpointGroups carries exact-target UID batches for grouped endpoint lookups.
+	EndpointGroups []presence.EndpointLookupGroup
+}
+
+// presenceRPCEndpointLookupResult is one group-aligned endpoint lookup wire result.
+type presenceRPCEndpointLookupResult struct {
+	// Status carries the stable error classification for this group.
+	Status string
+	// Routes contains all active routes returned for the group's UIDs.
+	Routes []presence.Route
 }
 
 // presenceRPCResponse is the deterministic binary DTO returned by authority calls.
@@ -64,6 +75,9 @@ func encodePresenceRPCRequestBinary(req presenceRPCRequest) ([]byte, error) {
 	dst := make([]byte, 0, 128)
 	dst = append(dst, presenceRPCRequestMagic[:]...)
 	dst = append(dst, opID)
+	if req.Op == presenceOpEndpointsByTargets {
+		return appendPresenceEndpointLookupGroups(dst, req.EndpointGroups)
+	}
 	dst = appendPresenceRouteTarget(dst, req.Target)
 	dst = appendPresenceRoute(dst, req.Route)
 	dst = appendPresenceRoutes(dst, req.Routes)
@@ -92,6 +106,15 @@ func decodePresenceRPCRequest(body []byte) (presenceRPCRequest, error) {
 
 	var req presenceRPCRequest
 	req.Op = op
+	if req.Op == presenceOpEndpointsByTargets {
+		if req.EndpointGroups, offset, err = readPresenceEndpointLookupGroups(body, offset); err != nil {
+			return presenceRPCRequest{}, err
+		}
+		if offset != len(body) {
+			return presenceRPCRequest{}, fmt.Errorf("internal/access/node: trailing presence request bytes")
+		}
+		return req, nil
+	}
 	if req.Target, offset, err = readPresenceRouteTarget(body, offset); err != nil {
 		return presenceRPCRequest{}, err
 	}
@@ -157,6 +180,64 @@ func decodePresenceRPCResponseBinary(body []byte) (presenceRPCResponse, error) {
 	return resp, nil
 }
 
+func encodePresenceEndpointsByTargetsResponseBinary(results []presenceRPCEndpointLookupResult) ([]byte, error) {
+	if len(results) > maxPresenceRPCCollectionLen {
+		return nil, fmt.Errorf("internal/access/node: presence endpoint results length exceeds limit")
+	}
+	dst := make([]byte, 0, 128)
+	dst = append(dst, presenceRPCResponseMagic[:]...)
+	dst = appendUvarint(dst, uint64(len(results)))
+	totalRoutes := 0
+	for _, result := range results {
+		status := result.Status
+		routes := result.Routes
+		if len(routes) > maxPresenceRPCCollectionLen || totalRoutes+len(routes) > maxPresenceRPCCollectionLen {
+			status = rpcStatusRejected
+			routes = nil
+		} else {
+			totalRoutes += len(routes)
+		}
+		dst = appendString(dst, status)
+		dst = appendPresenceRoutes(dst, routes)
+	}
+	return dst, nil
+}
+
+func decodePresenceEndpointsByTargetsResponseBinary(body []byte) ([]presenceRPCEndpointLookupResult, error) {
+	if !isPresenceRPCResponseBinary(body) {
+		return nil, fmt.Errorf("internal/access/node: invalid presence response codec")
+	}
+	offset := len(presenceRPCResponseMagic)
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, err
+	}
+	offset = next
+	if err := validateCollectionLen(count, len(body)-offset, "presence endpoint results"); err != nil {
+		return nil, err
+	}
+	results := make([]presenceRPCEndpointLookupResult, 0, int(count))
+	totalRoutes := 0
+	for i := uint64(0); i < count; i++ {
+		var result presenceRPCEndpointLookupResult
+		if result.Status, offset, err = readString(body, offset); err != nil {
+			return nil, err
+		}
+		if result.Routes, offset, err = readPresenceRoutes(body, offset); err != nil {
+			return nil, err
+		}
+		totalRoutes += len(result.Routes)
+		if totalRoutes > maxPresenceRPCCollectionLen {
+			return nil, fmt.Errorf("internal/access/node: aggregate presence endpoint routes length exceeds limit")
+		}
+		results = append(results, result)
+	}
+	if offset != len(body) {
+		return nil, fmt.Errorf("internal/access/node: trailing presence response bytes")
+	}
+	return results, nil
+}
+
 func isPresenceRPCRequestBinary(body []byte) bool {
 	return hasMagic(body, presenceRPCRequestMagic[:])
 }
@@ -181,6 +262,8 @@ func presenceOpID(op string) (byte, error) {
 		return presenceOpTouchRoutesID, nil
 	case presenceOpApplyRouteAction:
 		return presenceOpApplyRouteActionID, nil
+	case presenceOpEndpointsByTargets:
+		return presenceOpEndpointsByTargetsID, nil
 	default:
 		return 0, fmt.Errorf("internal/access/node: unknown presence op %q", op)
 	}
@@ -202,9 +285,78 @@ func presenceOpFromID(op byte) (string, error) {
 		return presenceOpTouchRoutes, nil
 	case presenceOpApplyRouteActionID:
 		return presenceOpApplyRouteAction, nil
+	case presenceOpEndpointsByTargetsID:
+		return presenceOpEndpointsByTargets, nil
 	default:
 		return "", fmt.Errorf("internal/access/node: unknown presence op id %d", op)
 	}
+}
+
+func appendPresenceEndpointLookupGroups(dst []byte, groups []presence.EndpointLookupGroup) ([]byte, error) {
+	if len(groups) > maxPresenceRPCCollectionLen {
+		return nil, fmt.Errorf("internal/access/node: presence endpoint groups length exceeds limit")
+	}
+	totalUIDs := 0
+	for _, group := range groups {
+		if len(group.UIDs) > maxPresenceRPCCollectionLen {
+			return nil, fmt.Errorf("internal/access/node: presence endpoint UIDs length exceeds limit")
+		}
+		totalUIDs += len(group.UIDs)
+		if totalUIDs > maxPresenceRPCCollectionLen {
+			return nil, fmt.Errorf("internal/access/node: aggregate presence endpoint UIDs length exceeds limit")
+		}
+	}
+	dst = appendUvarint(dst, uint64(len(groups)))
+	for _, group := range groups {
+		dst = appendPresenceRouteTarget(dst, group.Target)
+		dst = appendUvarint(dst, uint64(len(group.UIDs)))
+		for _, uid := range group.UIDs {
+			dst = appendString(dst, uid)
+		}
+	}
+	return dst, nil
+}
+
+func readPresenceEndpointLookupGroups(body []byte, offset int) ([]presence.EndpointLookupGroup, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	offset = next
+	if err := validateCollectionLen(count, len(body)-offset, "presence endpoint groups"); err != nil {
+		return nil, offset, err
+	}
+	groups := make([]presence.EndpointLookupGroup, 0, int(count))
+	totalUIDs := 0
+	for i := uint64(0); i < count; i++ {
+		var group presence.EndpointLookupGroup
+		if group.Target, offset, err = readPresenceRouteTarget(body, offset); err != nil {
+			return nil, offset, err
+		}
+		uidCount, next, err := readUvarint(body, offset)
+		if err != nil {
+			return nil, offset, err
+		}
+		offset = next
+		if err := validateCollectionLen(uidCount, len(body)-offset, "presence endpoint UIDs"); err != nil {
+			return nil, offset, err
+		}
+		totalUIDs += int(uidCount)
+		if totalUIDs > maxPresenceRPCCollectionLen {
+			return nil, offset, fmt.Errorf("internal/access/node: aggregate presence endpoint UIDs length exceeds limit")
+		}
+		group.UIDs = make([]string, 0, int(uidCount))
+		for j := uint64(0); j < uidCount; j++ {
+			uid, next, err := readString(body, offset)
+			if err != nil {
+				return nil, offset, err
+			}
+			offset = next
+			group.UIDs = append(group.UIDs, uid)
+		}
+		groups = append(groups, group)
+	}
+	return groups, offset, nil
 }
 
 func appendPresenceRouteTarget(dst []byte, target presence.RouteTarget) []byte {

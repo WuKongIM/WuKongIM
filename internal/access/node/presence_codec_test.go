@@ -166,6 +166,123 @@ func TestPresenceCodecResponseRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPresenceCodecEndpointsByTargetsRoundTrip(t *testing.T) {
+	secondTarget := testPresenceTarget()
+	secondTarget.HashSlot++
+	secondTarget.SlotID++
+	groups := []presence.EndpointLookupGroup{
+		{Target: testPresenceTarget(), UIDs: []string{"u1", "u2"}},
+		{Target: secondTarget, UIDs: []string{"u3"}},
+	}
+	body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{
+		Op:             presenceOpEndpointsByTargets,
+		EndpointGroups: groups,
+	})
+	if err != nil {
+		t.Fatalf("encodePresenceRPCRequestBinary() error = %v", err)
+	}
+	got, err := decodePresenceRPCRequest(body)
+	if err != nil {
+		t.Fatalf("decodePresenceRPCRequest() error = %v", err)
+	}
+	if got.Op != presenceOpEndpointsByTargets || !reflect.DeepEqual(got.EndpointGroups, groups) {
+		t.Fatalf("decoded request = %#v, want groups %#v", got, groups)
+	}
+
+	results := []presenceRPCEndpointLookupResult{
+		{Status: rpcStatusOK, Routes: []presence.Route{testPresenceRoute("u1", 101)}},
+		{Status: rpcStatusNotLeader},
+	}
+	responseBody, err := encodePresenceEndpointsByTargetsResponseBinary(results)
+	if err != nil {
+		t.Fatalf("encodePresenceEndpointsByTargetsResponseBinary() error = %v", err)
+	}
+	gotResults, err := decodePresenceEndpointsByTargetsResponseBinary(responseBody)
+	if err != nil {
+		t.Fatalf("decodePresenceEndpointsByTargetsResponseBinary() error = %v", err)
+	}
+	if !reflect.DeepEqual(gotResults, results) {
+		t.Fatalf("decoded results = %#v, want %#v", gotResults, results)
+	}
+}
+
+func TestPresenceCodecEndpointsByTargetsEnforcesAggregateBounds(t *testing.T) {
+	tooManyUIDs := make([]string, maxPresenceRPCCollectionLen+1)
+	if _, err := encodePresenceRPCRequestBinary(presenceRPCRequest{
+		Op: presenceOpEndpointsByTargets,
+		EndpointGroups: []presence.EndpointLookupGroup{{
+			Target: testPresenceTarget(),
+			UIDs:   tooManyUIDs,
+		}},
+	}); err == nil {
+		t.Fatal("encodePresenceRPCRequestBinary() accepted too many aggregate UIDs")
+	}
+
+	tooManyResults := make([]presenceRPCEndpointLookupResult, maxPresenceRPCCollectionLen+1)
+	if _, err := encodePresenceEndpointsByTargetsResponseBinary(tooManyResults); err == nil {
+		t.Fatal("encodePresenceEndpointsByTargetsResponseBinary() accepted too many results")
+	}
+}
+
+func TestPresenceCodecEndpointsByTargetsIsolatesRouteOverflowToOneGroup(t *testing.T) {
+	results := []presenceRPCEndpointLookupResult{
+		{Status: rpcStatusOK, Routes: make([]presence.Route, maxPresenceRPCCollectionLen-1)},
+		{Status: rpcStatusOK, Routes: []presence.Route{{UID: "overflow-1"}, {UID: "overflow-2"}}},
+		{Status: rpcStatusOK, Routes: []presence.Route{{UID: "sibling"}}},
+	}
+
+	body, err := encodePresenceEndpointsByTargetsResponseBinary(results)
+	if err != nil {
+		t.Fatalf("encodePresenceEndpointsByTargetsResponseBinary() error = %v", err)
+	}
+	got, err := decodePresenceEndpointsByTargetsResponseBinary(body)
+	if err != nil {
+		t.Fatalf("decodePresenceEndpointsByTargetsResponseBinary() error = %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("decoded results = %d, want 3", len(got))
+	}
+	if got[0].Status != rpcStatusOK || len(got[0].Routes) != maxPresenceRPCCollectionLen-1 {
+		t.Fatalf("first result = status %q routes %d", got[0].Status, len(got[0].Routes))
+	}
+	if got[1].Status != rpcStatusRejected || len(got[1].Routes) != 0 {
+		t.Fatalf("overflow result = status %q routes %d, want isolated rejection", got[1].Status, len(got[1].Routes))
+	}
+	if got[2].Status != rpcStatusOK || len(got[2].Routes) != 1 || got[2].Routes[0].UID != "sibling" {
+		t.Fatalf("sibling result = %#v, want success", got[2])
+	}
+}
+
+func TestPresenceCodecEndpointsByTargetsRejectsTruncatedAndTrailingBytes(t *testing.T) {
+	body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{
+		Op: presenceOpEndpointsByTargets,
+		EndpointGroups: []presence.EndpointLookupGroup{{
+			Target: testPresenceTarget(),
+			UIDs:   []string{"u1"},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("encodePresenceRPCRequestBinary() error = %v", err)
+	}
+	if _, err := decodePresenceRPCRequest(body[:len(body)-1]); err == nil {
+		t.Fatal("decodePresenceRPCRequest() accepted truncated endpoint groups")
+	}
+	if _, err := decodePresenceRPCRequest(append(append([]byte(nil), body...), 0)); err == nil {
+		t.Fatal("decodePresenceRPCRequest() accepted trailing endpoint group bytes")
+	}
+
+	responseBody, err := encodePresenceEndpointsByTargetsResponseBinary([]presenceRPCEndpointLookupResult{{Status: rpcStatusOK}})
+	if err != nil {
+		t.Fatalf("encodePresenceEndpointsByTargetsResponseBinary() error = %v", err)
+	}
+	if _, err := decodePresenceEndpointsByTargetsResponseBinary(responseBody[:len(responseBody)-1]); err == nil {
+		t.Fatal("decodePresenceEndpointsByTargetsResponseBinary() accepted truncated results")
+	}
+	if _, err := decodePresenceEndpointsByTargetsResponseBinary(append(append([]byte(nil), responseBody...), 0)); err == nil {
+		t.Fatal("decodePresenceEndpointsByTargetsResponseBinary() accepted trailing result bytes")
+	}
+}
+
 func TestPresenceCodecRejectsMalformedTruncatedAndTrailingBytes(t *testing.T) {
 	reqBody, err := encodePresenceRPCRequestBinary(presenceRPCRequest{
 		Op:     presenceOpEndpointsByUID,

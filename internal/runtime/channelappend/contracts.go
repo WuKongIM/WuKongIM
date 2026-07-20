@@ -95,6 +95,48 @@ type Recipient = contract.Recipient
 // RecipientBatch carries one committed envelope and the recipients to process together.
 type RecipientBatch = contract.RecipientBatch
 
+// RecipientTargetBatch groups recipients that share one exact UID authority fence.
+type RecipientTargetBatch struct {
+	// Target is the exact recipient authority fence resolved before queue admission.
+	Target RecipientAuthorityTarget
+	// Recipients are the recipients owned by Target.
+	Recipients []Recipient
+}
+
+// Clone returns an independent recipient target batch.
+func (b RecipientTargetBatch) Clone() RecipientTargetBatch {
+	b.Recipients = append([]Recipient(nil), b.Recipients...)
+	return b
+}
+
+// RecipientDeliveryPlan carries one committed envelope and all exact-target
+// recipient groups selected for one bounded delivery command.
+type RecipientDeliveryPlan struct {
+	// Event is the immutable committed message being delivered.
+	Event CommittedEnvelope
+	// Targets preserve the exact UID authority fences resolved for the recipients.
+	Targets []RecipientTargetBatch
+}
+
+// Clone returns an independent delivery plan.
+func (p RecipientDeliveryPlan) Clone() RecipientDeliveryPlan {
+	p.Event = p.Event.Clone()
+	p.Targets = append([]RecipientTargetBatch(nil), p.Targets...)
+	for i := range p.Targets {
+		p.Targets[i] = p.Targets[i].Clone()
+	}
+	return p
+}
+
+// RecipientCount returns the number of recipient entries carried by the plan.
+func (p RecipientDeliveryPlan) RecipientCount() int {
+	total := 0
+	for _, target := range p.Targets {
+		total += len(target.Recipients)
+	}
+	return total
+}
+
 // OfflineRecipientsEvent reports durable recipients with no online route.
 type OfflineRecipientsEvent struct {
 	// Event is the committed message whose recipients were classified offline.

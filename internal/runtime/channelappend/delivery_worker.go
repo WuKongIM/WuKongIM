@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	defaultRecipientDeliveryQueueSize = 1024
-	defaultRecipientDeliveryWorkers   = 1
+	defaultRecipientDeliveryQueueSize   = 1024
+	defaultRecipientDeliveryWorkers     = 1
+	defaultRecipientDeliveryPlanTimeout = 5 * time.Second
 )
 
-// ErrRecipientDeliveryWorkerClosed reports that the recipient delivery worker is not accepting batches.
+// ErrRecipientDeliveryWorkerClosed reports that the recipient delivery worker is not accepting plans.
 var ErrRecipientDeliveryWorkerClosed = errors.New("internal/channelappend: recipient delivery worker closed")
 
 type recipientDeliveryWorkerState uint8
@@ -28,31 +29,40 @@ const (
 
 // RecipientDeliveryWorkerOptions configures the bounded recipient delivery worker.
 type RecipientDeliveryWorkerOptions struct {
-	// Processor runs one accepted recipient-authority delivery batch.
+	// Processor runs one accepted recipient delivery plan.
 	Processor *RecipientProcessor
-	// QueueSize bounds accepted recipient batches waiting for workers.
+	// QueueSize bounds accepted recipient delivery plans waiting for workers.
 	QueueSize int
 	// Workers controls the number of delivery worker goroutines.
 	Workers int
+	// PlanTimeout bounds one accepted delivery plan. Values <= 0 use a bounded default.
+	PlanTimeout time.Duration
 	// Observer receives terminal processing failures.
 	Observer AppendObserver
 }
 
-// RecipientDeliveryWorker owns bounded async delivery admission for recipient-authority batches.
+// RecipientDeliveryWorker owns bounded async delivery admission for recipient delivery plans.
 type RecipientDeliveryWorker struct {
-	processor  *RecipientProcessor
-	queue      chan recipientDeliveryCommand
-	workers    int
-	observer   AppendObserver
-	goroutines *goroutine.Registry
+	processor   *RecipientProcessor
+	queue       chan recipientDeliveryCommand
+	workers     int
+	planTimeout time.Duration
+	observer    AppendObserver
+	goroutines  *goroutine.Registry
 
 	mu sync.Mutex
 	// state gates admission and lifecycle transitions.
 	state recipientDeliveryWorkerState
 	// acceptDone closes when the current lifecycle stops accepting enqueue waiters.
 	acceptDone chan struct{}
+	// stopReady closes after every sender admitted before Stop has left Enqueue.
+	stopReady chan struct{}
+	// runCancel cancels in-flight and queued delivery plans for the current lifecycle.
+	runCancel context.CancelFunc
 	// done closes after all workers exit.
 	done chan struct{}
+	// admissionSenders counts Enqueue calls that crossed the open-state gate.
+	admissionSenders sync.WaitGroup
 
 	// inflight covers commands currently executing inside runCommand.
 	inflight atomic.Int64
@@ -69,8 +79,7 @@ func (w *RecipientDeliveryWorker) WorkerCapacity() int {
 }
 
 type recipientDeliveryCommand struct {
-	target RecipientAuthorityTarget
-	batch  RecipientBatch
+	plan RecipientDeliveryPlan
 }
 
 // NewRecipientDeliveryWorker creates a bounded async recipient delivery worker.
@@ -83,12 +92,17 @@ func NewRecipientDeliveryWorker(opts RecipientDeliveryWorkerOptions) *RecipientD
 	if workers <= 0 {
 		workers = defaultRecipientDeliveryWorkers
 	}
+	planTimeout := opts.PlanTimeout
+	if planTimeout <= 0 {
+		planTimeout = defaultRecipientDeliveryPlanTimeout
+	}
 	return &RecipientDeliveryWorker{
-		processor: opts.Processor,
-		queue:     make(chan recipientDeliveryCommand, queueSize),
-		workers:   workers,
-		observer:  opts.Observer,
-		state:     recipientDeliveryWorkerClosed,
+		processor:   opts.Processor,
+		queue:       make(chan recipientDeliveryCommand, queueSize),
+		workers:     workers,
+		planTimeout: planTimeout,
+		observer:    opts.Observer,
+		state:       recipientDeliveryWorkerClosed,
 	}
 }
 
@@ -109,13 +123,15 @@ func (w *RecipientDeliveryWorker) Start(context.Context) error {
 	}
 
 	acceptDone := make(chan struct{})
+	stopReady := make(chan struct{})
+	runCtx, runCancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(w.workers)
 	for i := 0; i < w.workers; i++ {
 		goroutine.SafeGo(w.goroutines, "channelappend", "delivery_worker", func() {
 			defer wg.Done()
-			w.runWorker(acceptDone)
+			w.runWorker(runCtx, stopReady)
 		})
 	}
 	goroutine.SafeGo(w.goroutines, "channelappend", "delivery_done_wait", func() {
@@ -123,13 +139,15 @@ func (w *RecipientDeliveryWorker) Start(context.Context) error {
 		close(done)
 	})
 	w.acceptDone = acceptDone
+	w.stopReady = stopReady
+	w.runCancel = runCancel
 	w.done = done
 	w.state = recipientDeliveryWorkerOpen
 	w.observePressure()
 	return nil
 }
 
-// Stop closes admission and drains already accepted delivery batches.
+// Stop closes admission and drains already accepted delivery plans.
 func (w *RecipientDeliveryWorker) Stop(ctx context.Context) error {
 	if w == nil {
 		return nil
@@ -149,15 +167,36 @@ func (w *RecipientDeliveryWorker) Stop(ctx context.Context) error {
 		return w.waitClosed(ctx, done)
 	}
 	acceptDone := w.acceptDone
+	stopReady := w.stopReady
+	runCancel := w.runCancel
 	done := w.done
 	w.state = recipientDeliveryWorkerClosing
 	close(acceptDone)
 	w.mu.Unlock()
+	if runCancel != nil {
+		runCancel()
+	}
+	goroutine.SafeGo(w.goroutines, "channelappend", "delivery_admission_wait", func() {
+		w.admissionSenders.Wait()
+		close(stopReady)
+	})
 	return w.waitClosed(ctx, done)
 }
 
 // EnqueueRecipientBatch admits one recipient-authority batch for asynchronous delivery processing.
 func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, target RecipientAuthorityTarget, batch RecipientBatch) error {
+	return w.EnqueueRecipientDeliveryPlan(ctx, RecipientDeliveryPlan{
+		Event: batch.Event,
+		Targets: []RecipientTargetBatch{{
+			Target:     target,
+			Recipients: batch.Recipients,
+		}},
+	})
+}
+
+// EnqueueRecipientDeliveryPlan admits one bounded multi-target recipient plan
+// for asynchronous delivery processing.
+func (w *RecipientDeliveryWorker) EnqueueRecipientDeliveryPlan(ctx context.Context, plan RecipientDeliveryPlan) error {
 	if w == nil {
 		return nil
 	}
@@ -173,7 +212,7 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 		admissionResult = recipientDeliveryAdmissionResultFromError(err)
 		return err
 	}
-	cmd := recipientDeliveryCommand{target: target, batch: batch}
+	cmd := recipientDeliveryCommand{plan: plan}
 	w.mu.Lock()
 	if w.state != recipientDeliveryWorkerOpen {
 		w.mu.Unlock()
@@ -182,7 +221,9 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 	}
 	queue := w.queue
 	acceptDone := w.acceptDone
+	w.admissionSenders.Add(1)
 	w.mu.Unlock()
+	defer w.admissionSenders.Done()
 
 	select {
 	case queue <- cmd:
@@ -197,30 +238,30 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 	}
 }
 
-func (w *RecipientDeliveryWorker) runWorker(acceptDone <-chan struct{}) {
+func (w *RecipientDeliveryWorker) runWorker(runCtx context.Context, stopReady <-chan struct{}) {
 	for {
 		select {
 		case cmd := <-w.queue:
-			w.runCommand(cmd)
-		case <-acceptDone:
-			w.drain()
+			w.runCommand(runCtx, cmd)
+		case <-stopReady:
+			w.drain(runCtx)
 			return
 		}
 	}
 }
 
-func (w *RecipientDeliveryWorker) drain() {
+func (w *RecipientDeliveryWorker) drain(runCtx context.Context) {
 	for {
 		select {
 		case cmd := <-w.queue:
-			w.runCommand(cmd)
+			w.runCommand(runCtx, cmd)
 		default:
 			return
 		}
 	}
 }
 
-func (w *RecipientDeliveryWorker) runCommand(cmd recipientDeliveryCommand) {
+func (w *RecipientDeliveryWorker) runCommand(runCtx context.Context, cmd recipientDeliveryCommand) {
 	w.inflight.Add(1)
 	defer func() {
 		w.inflight.Add(-1)
@@ -233,21 +274,50 @@ func (w *RecipientDeliveryWorker) runCommand(cmd recipientDeliveryCommand) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = recipientDeliveryResultPanic
-			w.observeProcessingFailure(cmd, withPostCommitFailureDetail(effectPanicError(effectStagePostCommit, recovered), postCommitBatchDetail("panic", cmd.batch)))
+			target, batch := recipientDeliveryCommandTarget(cmd, 0)
+			w.observeProcessingFailure(cmd, withPostCommitFailureDetail(effectPanicError(effectStagePostCommit, recovered), postCommitBatchDetail("panic", batch)), target)
 		}
 		w.observeProcess(RecipientDeliveryProcessObservation{
 			Result:     result,
-			Recipients: len(cmd.batch.Recipients),
+			Recipients: cmd.plan.RecipientCount(),
 			Duration:   positiveRecipientDeliveryDuration(time.Since(startedAt)),
 		})
 	}()
 	if w.processor == nil {
 		return
 	}
-	if err := w.processor.ProcessRecipientBatch(context.Background(), cmd.batch); err != nil {
-		result = recipientDeliveryResultError
-		w.observeProcessingFailure(cmd, err)
+	planCtx, cancel := context.WithTimeout(runCtx, w.planTimeout)
+	defer cancel()
+	for i, err := range w.processor.ProcessRecipientDeliveryPlan(planCtx, cmd.plan) {
+		if err == nil {
+			continue
+		}
+		result = recipientDeliveryProcessResult(result, err)
+		target, _ := recipientDeliveryCommandTarget(cmd, i)
+		w.observeProcessingFailure(cmd, err, target)
 	}
+}
+
+func recipientDeliveryProcessResult(current string, err error) string {
+	if errors.Is(err, ErrEffectPanic) {
+		return recipientDeliveryResultPanic
+	}
+	if current == recipientDeliveryResultPanic {
+		return current
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return recipientDeliveryResultTimeout
+	}
+	if current == recipientDeliveryResultTimeout {
+		return current
+	}
+	if errors.Is(err, context.Canceled) {
+		return recipientDeliveryResultCanceled
+	}
+	if current == recipientDeliveryResultCanceled {
+		return current
+	}
+	return recipientDeliveryResultError
 }
 
 func (w *RecipientDeliveryWorker) observePressure() {
@@ -298,13 +368,21 @@ func positiveRecipientDeliveryDuration(d time.Duration) time.Duration {
 	return d
 }
 
-func (w *RecipientDeliveryWorker) observeProcessingFailure(cmd recipientDeliveryCommand, err error) {
+func (w *RecipientDeliveryWorker) observeProcessingFailure(cmd recipientDeliveryCommand, err error, target RecipientAuthorityTarget) {
 	detail := postCommitFailureDetailFromError(err)
 	if detail.Phase == "" {
 		detail.Phase = "recipient_delivery"
 	}
-	detail = detail.withFallback(postCommitTargetDetail(cmd.target))
-	observePostCommitFailure(w.observer, detail.toObservation(cmd.batch.Event, 0, errorClass(err), err))
+	detail = detail.withFallback(postCommitTargetDetail(target))
+	observePostCommitFailure(w.observer, detail.toObservation(cmd.plan.Event, 0, errorClass(err), err))
+}
+
+func recipientDeliveryCommandTarget(cmd recipientDeliveryCommand, index int) (RecipientAuthorityTarget, RecipientBatch) {
+	if index < 0 || index >= len(cmd.plan.Targets) {
+		return RecipientAuthorityTarget{}, RecipientBatch{Event: cmd.plan.Event}
+	}
+	target := cmd.plan.Targets[index]
+	return target.Target, RecipientBatch{Event: cmd.plan.Event, Recipients: target.Recipients}
 }
 
 func (w *RecipientDeliveryWorker) waitClosed(ctx context.Context, done <-chan struct{}) error {
@@ -327,6 +405,8 @@ func (w *RecipientDeliveryWorker) finishClosedForDone(done <-chan struct{}) {
 	if w.state == recipientDeliveryWorkerClosing && w.done == done {
 		w.state = recipientDeliveryWorkerClosed
 		w.acceptDone = nil
+		w.stopReady = nil
+		w.runCancel = nil
 		w.done = nil
 		closed = true
 	}
@@ -341,12 +421,16 @@ func (w *RecipientDeliveryWorker) finishClosedIfDoneLocked() bool {
 	if done == nil {
 		w.state = recipientDeliveryWorkerClosed
 		w.acceptDone = nil
+		w.stopReady = nil
+		w.runCancel = nil
 		return true
 	}
 	select {
 	case <-done:
 		w.state = recipientDeliveryWorkerClosed
 		w.acceptDone = nil
+		w.stopReady = nil
+		w.runCancel = nil
 		w.done = nil
 		return true
 	default:

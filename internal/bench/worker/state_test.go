@@ -20,6 +20,33 @@ func TestStateRejectsOutOfOrderPhaseTransition(t *testing.T) {
 	require.Equal(t, PhaseAssigned, state.Status().Phase)
 }
 
+func TestStatusUnmarshalAcceptsLegacyExpandedAssignment(t *testing.T) {
+	legacy := []byte(`{
+		"phase":"run",
+		"active_phase":"run",
+		"completed_phase":"warmup",
+		"assignment":{
+			"run_id":"run-legacy",
+			"assignment_id":"generation-legacy",
+			"worker_id":"worker-legacy",
+			"plan":{"worker_id":"worker-legacy","online_identity_indexes":[1,2,3]},
+			"channel_owners":{"group":{"1":"worker-legacy"}}
+		}
+	}`)
+
+	var status Status
+	require.NoError(t, json.Unmarshal(legacy, &status))
+	require.Equal(t, PhaseRun, status.Phase)
+	require.Equal(t, PhaseRun, status.ActivePhase)
+	require.Equal(t, PhaseWarmup, status.CompletedPhase)
+	require.Equal(t, "run-legacy", status.Assignment.RunID)
+	require.Equal(t, "generation-legacy", status.Assignment.AssignmentID)
+	require.Equal(t, "worker-legacy", status.Assignment.WorkerID)
+	require.Equal(t, "worker-legacy", status.Assignment.Plan.WorkerID)
+	require.Equal(t, []int{1, 2, 3}, status.Assignment.Plan.OnlineIdentityIndexes, "legacy expanded status fields must remain available")
+	require.Equal(t, map[string]map[int]string{"group": {1: "worker-legacy"}}, status.Assignment.ChannelOwners)
+}
+
 func TestStateRejectsAssignmentWithoutAssignmentID(t *testing.T) {
 	state := NewState("")
 

@@ -27,7 +27,24 @@ Supported authority calls:
 - `AbortRoute(RouteTarget, PendingRouteToken)`
 - `UnregisterRoute(RouteTarget, RouteIdentity, ownerSeq)`
 - `EndpointsByUID(RouteTarget, uid)`
+- `EndpointsByTargets([]{RouteTarget, []uid})`
 - `TouchRoutes(RouteTarget, []Route)`
+
+`EndpointsByTargets` is the bounded fanout lookup path. One request carries
+multiple exact authority targets that all name the destination leader, and the
+response stays aligned with the input groups. Each group has its own stable
+status and routes, so a stale target does not discard successful sibling
+groups. Authorities may implement `EndpointsByUIDs` to validate and read one
+target under a single directory lock; otherwise the adapter preserves
+compatibility by calling `EndpointsByUID` for each UID in that group. Both the
+group count and aggregate UID/route counts use the presence RPC collection
+limit. A group that would exceed the per-response route budget is returned as a
+group-scoped rejection while bounded sibling groups keep their aligned results.
+The original single-UID operation and its `WKVP2`/`WKVR2` byte layout
+remain unchanged. During a rolling upgrade, an older peer reports the new op id
+as unsupported; the new client recognizes only that capability error and falls
+back to the original single-UID RPC for the affected destination. Other
+transport failures do not trigger the compatibility fanout.
 
 ## Presence Owner RPC
 

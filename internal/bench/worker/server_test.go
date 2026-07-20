@@ -448,6 +448,33 @@ func TestWorkerPhaseEndpointsAdvanceStatus(t *testing.T) {
 	require.Equal(t, PhaseConnect, status.Phase)
 }
 
+func TestWorkerStatusResponseStaysCompactForLargeAssignment(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assignment := Assignment{
+		RunID:        "run-large",
+		AssignmentID: "generation-large",
+		WorkerID:     "worker-large",
+		Plan: model.WorkerPlan{
+			WorkerID:              "worker-large",
+			OnlineIdentityIndexes: make([]int, 100_000),
+		},
+	}
+	require.NoError(t, srv.state.Assign(assignment))
+
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/status", "secret", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Less(t, rec.Body.Len(), 1024, "status body must not scale with the worker plan")
+	require.NotContains(t, rec.Body.String(), "online_identity_indexes")
+	var status Status
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+	require.Equal(t, assignment.RunID, status.Assignment.RunID)
+	require.Equal(t, assignment.AssignmentID, status.Assignment.AssignmentID)
+	require.Equal(t, assignment.WorkerID, status.Assignment.WorkerID)
+	require.Empty(t, status.Assignment.Plan.OnlineIdentityIndexes)
+	require.Len(t, srv.state.Status().Assignment.Plan.OnlineIdentityIndexes, 100_000, "internal state must retain the full assignment")
+}
+
 func TestWorkerStopAllowsNewRunAssignment(t *testing.T) {
 	srv := NewServer(Config{ControlToken: "secret"})
 	assign(t, srv, "secret", "run-a")

@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -472,6 +473,156 @@ func TestPresenceAuthorityClientResolveRouteTargetsFansOutCanceledContext(t *tes
 	require.Zero(t, node.routeKeyCalls)
 }
 
+func TestPresenceAuthorityClientEndpointsByTargetsBatchesRemoteRPCsByLeader(t *testing.T) {
+	local := &fakePresenceAuthority{}
+	remoteTwo := &fakePresenceAuthority{}
+	remoteThree := &fakePresenceAuthority{}
+	node := &fakePresenceCluster{
+		nodeID: 1,
+		rpcByNode: map[uint64]cluster.NodeRPCHandler{
+			2: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteTwo})},
+			3: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteThree})},
+		},
+	}
+	client := NewPresenceAuthorityClient(node, local)
+
+	groups := make([]presence.EndpointLookupGroup, 0, 256)
+	for i := 0; i < 256; i++ {
+		leader := uint64(i%3 + 1)
+		groups = append(groups, presence.EndpointLookupGroup{
+			Target: presence.RouteTarget{
+				HashSlot:       uint16(i),
+				SlotID:         uint32(i%10 + 1),
+				LeaderNodeID:   leader,
+				LeaderTerm:     100 + leader,
+				ConfigEpoch:    200 + leader,
+				RouteRevision:  uint64(300 + i),
+				AuthorityEpoch: uint64(400 + i),
+			},
+			UIDs: []string{fmt.Sprintf("u-%03d-a", i), fmt.Sprintf("u-%03d-b", i)},
+		})
+	}
+
+	results := client.EndpointsByTargets(context.Background(), groups)
+
+	require.Len(t, results, len(groups))
+	for i, result := range results {
+		require.NoError(t, result.Err, "result index %d", i)
+		require.Equal(t, []string{groups[i].UIDs[0], groups[i].UIDs[1]}, []string{result.Routes[0].UID, result.Routes[1].UID})
+	}
+	require.Len(t, node.calls, 2, "remote RPC count must scale with remote leaders, not UIDs or hash slots")
+	require.ElementsMatch(t, []uint64{2, 3}, []uint64{node.calls[0].nodeID, node.calls[1].nodeID})
+	require.Zero(t, node.routeKeyCalls, "exact-target lookup must not resolve RouteKey again")
+	require.Empty(t, node.routeKeysCalls, "exact-target lookup must not resolve RouteKeysPartial again")
+
+	gotGroups := make(map[presence.RouteTarget][]string, len(groups))
+	for _, authority := range []*fakePresenceAuthority{local, remoteTwo, remoteThree} {
+		for _, call := range authority.endpointBatchCalls {
+			gotGroups[call.target] = call.uids
+		}
+	}
+	require.Len(t, gotGroups, len(groups))
+	for _, group := range groups {
+		require.Equal(t, group.UIDs, gotGroups[group.Target], "full authority fence must survive local and remote batching")
+	}
+}
+
+func TestPresenceAuthorityClientEndpointsByTargetsKeepsGroupErrorsPartialAndAligned(t *testing.T) {
+	local := &fakePresenceAuthority{}
+	remoteTwo := &fakePresenceAuthority{endpointBatchErrs: map[uint16]error{22: context.Canceled}}
+	remoteThree := &fakePresenceAuthority{}
+	node := &fakePresenceCluster{
+		nodeID: 1,
+		rpcByNode: map[uint64]cluster.NodeRPCHandler{
+			2: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteTwo})},
+			3: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteThree})},
+		},
+	}
+	client := NewPresenceAuthorityClient(node, local)
+	groups := []presence.EndpointLookupGroup{
+		{Target: testEndpointLookupTarget(11, 1), UIDs: []string{"local"}},
+		{Target: testEndpointLookupTarget(22, 2), UIDs: []string{"stale"}},
+		{Target: testEndpointLookupTarget(23, 2), UIDs: []string{"remote-two"}},
+		{Target: testEndpointLookupTarget(33, 3), UIDs: []string{"remote-three"}},
+	}
+
+	results := client.EndpointsByTargets(context.Background(), groups)
+
+	require.Len(t, results, len(groups))
+	require.Equal(t, "local", results[0].Routes[0].UID)
+	require.NoError(t, results[0].Err)
+	require.Empty(t, results[1].Routes)
+	require.ErrorIs(t, results[1].Err, context.Canceled)
+	require.Equal(t, "remote-two", results[2].Routes[0].UID)
+	require.NoError(t, results[2].Err)
+	require.Equal(t, "remote-three", results[3].Routes[0].UID)
+	require.NoError(t, results[3].Err)
+	require.Len(t, node.calls, 2)
+	require.Zero(t, node.routeKeyCalls)
+	require.Empty(t, node.routeKeysCalls)
+}
+
+func TestPresenceAuthorityClientEndpointsByTargetsReroutesOnlyStaleGroupOnce(t *testing.T) {
+	local := &fakePresenceAuthority{}
+	remoteTwo := &fakePresenceAuthority{endpointBatchErrs: map[uint16]error{22: authoritypresence.ErrStaleRoute}}
+	remoteThree := &fakePresenceAuthority{}
+	fresh := cluster.Route{
+		HashSlot:       22,
+		SlotID:         3,
+		Leader:         3,
+		LeaderTerm:     303,
+		ConfigEpoch:    403,
+		Revision:       503,
+		AuthorityEpoch: 603,
+	}
+	node := &fakePresenceCluster{
+		nodeID:          1,
+		routeKeyResults: []cluster.RouteKeyResult{{Route: fresh}},
+		rpcByNode: map[uint64]cluster.NodeRPCHandler{
+			2: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteTwo})},
+			3: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteThree})},
+		},
+	}
+	client := NewPresenceAuthorityClient(node, local)
+	groups := []presence.EndpointLookupGroup{
+		{Target: testEndpointLookupTarget(11, 1), UIDs: []string{"local"}},
+		{Target: testEndpointLookupTarget(22, 2), UIDs: []string{"stale"}},
+		{Target: testEndpointLookupTarget(23, 2), UIDs: []string{"remote-two"}},
+		{Target: testEndpointLookupTarget(33, 3), UIDs: []string{"remote-three"}},
+	}
+
+	results := client.EndpointsByTargets(context.Background(), groups)
+
+	require.Len(t, results, len(groups))
+	for i, result := range results {
+		require.NoError(t, result.Err, "result index %d", i)
+		require.Len(t, result.Routes, 1, "result index %d", i)
+	}
+	require.Equal(t, [][]string{{"stale"}}, node.routeKeysCalls, "only the stale group may be rerouted")
+	require.Zero(t, node.routeKeyCalls)
+	require.Len(t, node.calls, 3, "two initial leaders plus one bounded stale-group retry")
+	require.Equal(t, []presenceEndpointBatchCall{
+		{target: groups[1].Target, uids: []string{"stale"}},
+		{target: groups[2].Target, uids: []string{"remote-two"}},
+	}, remoteTwo.endpointBatchCalls)
+	require.Equal(t, []presenceEndpointBatchCall{
+		{target: groups[3].Target, uids: []string{"remote-three"}},
+		{target: routeTargetFromClusterRoute(fresh), uids: []string{"stale"}},
+	}, remoteThree.endpointBatchCalls)
+}
+
+func testEndpointLookupTarget(hashSlot uint16, leader uint64) presence.RouteTarget {
+	return presence.RouteTarget{
+		HashSlot:       hashSlot,
+		SlotID:         uint32(hashSlot%10 + 1),
+		LeaderNodeID:   leader,
+		LeaderTerm:     101 + leader,
+		ConfigEpoch:    201 + leader,
+		RouteRevision:  301 + uint64(hashSlot),
+		AuthorityEpoch: 401 + uint64(hashSlot),
+	}
+}
+
 func TestPresenceClientReturnsRouteNotReadyWhenRouteKeyFails(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID:   1,
@@ -513,6 +664,7 @@ type fakePresenceCluster struct {
 	routeKeyResults []cluster.RouteKeyResult
 	routeKeysErr    error
 	rpc             cluster.NodeRPCHandler
+	rpcByNode       map[uint64]cluster.NodeRPCHandler
 	calls           []rpcCall
 	routeKeyCalls   int
 	routeKeysCalls  [][]string
@@ -575,6 +727,9 @@ func (f *fakePresenceCluster) RouteHashSlot(uint16) (cluster.Route, error) {
 
 func (f *fakePresenceCluster) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
 	f.calls = append(f.calls, rpcCall{nodeID: nodeID, serviceID: serviceID, payload: append([]byte(nil), payload...)})
+	if handler := f.rpcByNode[nodeID]; handler != nil {
+		return handler.HandleRPC(ctx, payload)
+	}
 	if f.rpc != nil {
 		return f.rpc.HandleRPC(ctx, payload)
 	}
@@ -599,17 +754,19 @@ func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan cluster.RouteAuthor
 }
 
 type fakePresenceAuthority struct {
-	registerResult presence.RegisterResult
-	registerErrs   []error
-	registerHook   func() error
-	commitErrs     []error
-	abortErrs      []error
-	registerCalls  []presenceRegisterCall
-	commitCalls    []presenceTokenCall
-	abortCalls     []presenceTokenCall
-	unregCalls     []presenceUnregisterCall
-	endpointCalls  []presenceEndpointCall
-	touchCalls     []presenceTouchCall
+	registerResult     presence.RegisterResult
+	registerErrs       []error
+	registerHook       func() error
+	commitErrs         []error
+	abortErrs          []error
+	registerCalls      []presenceRegisterCall
+	commitCalls        []presenceTokenCall
+	abortCalls         []presenceTokenCall
+	unregCalls         []presenceUnregisterCall
+	endpointCalls      []presenceEndpointCall
+	endpointBatchCalls []presenceEndpointBatchCall
+	endpointBatchErrs  map[uint16]error
+	touchCalls         []presenceTouchCall
 }
 
 type fakePresenceOwner struct {
@@ -668,6 +825,21 @@ func (f *fakePresenceAuthority) EndpointsByUID(_ context.Context, target presenc
 	return []presence.Route{testInfraPresenceRoute(uid, 301)}, nil
 }
 
+func (f *fakePresenceAuthority) EndpointsByUIDs(_ context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
+	f.endpointBatchCalls = append(f.endpointBatchCalls, presenceEndpointBatchCall{
+		target: target,
+		uids:   append([]string(nil), uids...),
+	})
+	if err := f.endpointBatchErrs[target.HashSlot]; err != nil {
+		return nil, err
+	}
+	routes := make([]presence.Route, 0, len(uids))
+	for i, uid := range uids {
+		routes = append(routes, testInfraPresenceRoute(uid, uint64(i+1)))
+	}
+	return routes, nil
+}
+
 func (f *fakePresenceAuthority) TouchRoutes(_ context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	f.touchCalls = append(f.touchCalls, presenceTouchCall{target: target, routes: append([]presence.Route(nil), routes...)})
 	return nil
@@ -692,6 +864,11 @@ type presenceUnregisterCall struct {
 type presenceEndpointCall struct {
 	target presence.RouteTarget
 	uid    string
+}
+
+type presenceEndpointBatchCall struct {
+	target presence.RouteTarget
+	uids   []string
 }
 
 type presenceTouchCall struct {

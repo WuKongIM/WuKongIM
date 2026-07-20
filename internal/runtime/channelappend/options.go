@@ -237,7 +237,7 @@ type EffectObserver interface {
 
 // RecipientDeliveryQueueObservation describes the dedicated recipient delivery worker queue.
 type RecipientDeliveryQueueObservation struct {
-	// QueueDepth is the current queued recipient delivery batch count.
+	// QueueDepth is the current queued recipient delivery plan count.
 	QueueDepth int
 	// QueueCapacity is the configured recipient delivery queue capacity.
 	QueueCapacity int
@@ -285,7 +285,7 @@ type RecipientDeliveryAdmissionObserver interface {
 type RecipientDeliveryProcessObservation struct {
 	// Result is ok, error, or panic.
 	Result string
-	// Recipients is the number of recipients in the processed batch.
+	// Recipients is the total number of recipients in the processed plan.
 	Recipients int
 	// Duration is the worker processing latency.
 	Duration time.Duration
@@ -324,6 +324,13 @@ type RecipientDeliveryEnqueuer interface {
 	EnqueueRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch) error
 }
 
+// RecipientDeliveryPlanEnqueuer accepts one bounded recipient set while
+// preserving every exact authority target in the same queue command.
+type RecipientDeliveryPlanEnqueuer interface {
+	// EnqueueRecipientDeliveryPlan queues one bounded exact-target delivery plan.
+	EnqueueRecipientDeliveryPlan(context.Context, RecipientDeliveryPlan) error
+}
+
 // PersistAfterEnqueuer accepts durable committed messages for plugin PersistAfter hooks.
 type PersistAfterEnqueuer interface {
 	// EnqueuePersistAfter queues one committed message for plugin side effects.
@@ -340,6 +347,22 @@ type ConversationActiveAdmitter interface {
 type PresenceResolver interface {
 	// EndpointsByUIDs returns currently known online endpoints for uids.
 	EndpointsByUIDs(context.Context, []string) ([]Route, error)
+}
+
+// RecipientTargetPresenceResult is one result aligned with an exact-target
+// recipient batch supplied to RecipientTargetPresenceResolver.
+type RecipientTargetPresenceResult struct {
+	// Routes are the currently known online endpoints for the target batch.
+	Routes []Route
+	// Err reports an authority lookup failure for only the aligned target batch.
+	Err error
+}
+
+// RecipientTargetPresenceResolver resolves multiple exact-target recipient
+// groups without discarding their authority fences.
+type RecipientTargetPresenceResolver interface {
+	// EndpointsByTargets returns one result per input target batch in the same order.
+	EndpointsByTargets(context.Context, []RecipientTargetBatch) []RecipientTargetPresenceResult
 }
 
 // OwnerPusher pushes committed messages to owner-node gateway sessions.
@@ -394,7 +417,7 @@ type Options struct {
 	ConversationActiveAdmitter ConversationActiveAdmitter
 	// SubscriberScanPageSize bounds each group-channel subscriber scan page. Values <= 0 use a bounded default.
 	SubscriberScanPageSize int
-	// RecipientBatchSize bounds one dispatched recipient batch. Values <= 0 use a bounded default.
+	// RecipientBatchSize bounds total recipients in one delivery plan. Values <= 0 use a bounded default.
 	RecipientBatchSize int
 	// RecipientAuthorityDispatchConcurrency bounds per-message recipient-authority dispatch fanout. Values <= 0 use a bounded default.
 	RecipientAuthorityDispatchConcurrency int

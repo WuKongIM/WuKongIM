@@ -739,6 +739,12 @@ presence.Route / uid
   -> one cluster.RouteKeysPartial(uids) snapshot lookup
   -> aligned []presence.RouteTargetResult with complete route fences
 
+[{exact presence.RouteTarget, uids}]
+  -> group target batches by LeaderNodeID without another route lookup
+  -> local leader: one target-batch authority read per exact target
+  -> remote leader: one access/node batch envelope RPC per leader
+  -> aligned []presence.EndpointLookupResult with group-scoped errors
+
 presence.RouteAction
   -> action.OwnerNodeID
   -> local accessnode.PresenceOwner when owner is this node
@@ -763,6 +769,20 @@ successful items retain the hash Slot, physical Slot, leader term, config
 epoch, route revision, and authority epoch fences from the single cluster
 routing snapshot. The app worker owns exact route requeue for failed items so a
 later flush can resolve them against a newer routing snapshot.
+
+Target-aware endpoint lookup consumes those already-resolved target fences. It
+never calls `RouteKey` or `RouteKeysPartial` on the happy path. Multiple exact
+hash-slot targets for the same remote leader share one RPC envelope, so network
+work scales with leader count instead of recipient or hash-slot count. The
+local path uses the optional batch authority surface and keeps each exact target
+fence intact. Remote transport or response-cardinality failures are copied only
+to groups assigned to that leader; per-group stale/not-leader errors remain
+aligned and do not discard successful results from other groups.
+If one group returns not-leader, stale-route, or route-not-ready after waiting
+in the asynchronous delivery queue, the adapter batch-resolves current targets
+for only that group's UIDs and retries it once. Successful sibling groups are
+not issued again. The retry remains aligned to the original group and rejects
+an inconsistent refresh whose UIDs no longer share one exact target.
 
 For the individual register, unregister, endpoint, commit, and abort paths, if
 route resolution reports route-not-ready, stale routing, or not-leader, the

@@ -925,6 +925,27 @@ func TestCoordinatorLaterWorkerStatusDeadlineStillReportsWorkerStatus(t *testing
 	require.Equal(t, "worker_status", result.Report.WorkerFailures[0].Operation)
 }
 
+func TestCoordinatorDeadlineStraddleFinalActiveStatusReportsPhaseCompletion(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].KeepPhaseInProgress(PhasePrepare)
+	workers[0].BlockOneStatusAfter(PhasePrepare, 1)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  10 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Len(t, result.Report.WorkerFailures, 1)
+	require.Equal(t, "phase_timeout", result.Report.WorkerFailures[0].ReasonCode)
+	require.Equal(t, "phase_completion", result.Report.WorkerFailures[0].Operation)
+}
+
 func TestCoordinatorNonFailFastTimeoutStopsActiveWorker(t *testing.T) {
 	runner := newCoordinatorBlockingPrepareRunner()
 	workerServer := httptest.NewServer(worker.NewServer(worker.Config{
@@ -1777,6 +1798,7 @@ func newFakeWorkers(t *testing.T, count int) fakeWorkers {
 			failPhases:       make(map[Phase]fakePhaseFailure),
 			blockStatus:      make(map[Phase]bool),
 			blockStatusAfter: make(map[Phase]int),
+			blockStatusOnce:  make(map[Phase]int),
 			statusCalls:      make(map[Phase]int),
 			activePhase:      make(map[Phase]bool),
 			completeAfter:    make(map[Phase]time.Duration),
@@ -1826,6 +1848,7 @@ type fakeWorker struct {
 	lagPhases           map[Phase]bool
 	blockStatus         map[Phase]bool
 	blockStatusAfter    map[Phase]int
+	blockStatusOnce     map[Phase]int
 	statusCalls         map[Phase]int
 	activePhase         map[Phase]bool
 	completeAfter       map[Phase]time.Duration
@@ -1948,6 +1971,12 @@ func (fw *fakeWorker) BlockStatusAfter(phase Phase, successfulCalls int) {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
 	fw.blockStatusAfter[phase] = successfulCalls
+}
+
+func (fw *fakeWorker) BlockOneStatusAfter(phase Phase, successfulCalls int) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.blockStatusOnce[phase] = successfulCalls + 1
 }
 
 func (fw *fakeWorker) LagPhase(phase Phase) {
@@ -2222,7 +2251,11 @@ func (fw *fakeWorker) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	phase := Phase(fw.phase)
 	fw.statusCalls[phase]++
-	blocked := fw.blockStatus[phase] || fw.blockStatusAfter[phase] > 0 && fw.statusCalls[phase] > fw.blockStatusAfter[phase]
+	blockedOnce := fw.blockStatusOnce[phase] > 0 && fw.statusCalls[phase] == fw.blockStatusOnce[phase]
+	if blockedOnce {
+		delete(fw.blockStatusOnce, phase)
+	}
+	blocked := blockedOnce || fw.blockStatus[phase] || fw.blockStatusAfter[phase] > 0 && fw.statusCalls[phase] > fw.blockStatusAfter[phase]
 	assignment := fw.assignment
 	if fw.statusAssignment != nil {
 		assignment = *fw.statusAssignment

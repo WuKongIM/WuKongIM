@@ -247,8 +247,8 @@ page's recipients are admitted or dispatched, avoiding partial side effects for
 the invalid page before the envelope is dropped.
 
 After each recipient set is formed, channelappend first resolves the fenced
-recipient authority targets and enqueues recipient delivery batches, then admits
-one independent `conversationactive.ActiveBatch` projection.
+recipient authority targets and enqueues bounded recipient delivery plans, then
+admits one independent `conversationactive.ActiveBatch` projection.
 The batch carries an explicit `metadb.ConversationKind`: normal for ordinary
 channel commits, CMD for one-shot sync commits or command-channel ids. It also
 carries `SenderUID` from the committed event, channel identity, message
@@ -261,31 +261,49 @@ configured. If active admission fails, the post-commit failure phase is
 a successfully loaded non-large subscriber snapshot continue independently.
 
 Recipient delivery is an enqueue contract. When delivery enqueueing is
-configured, recipient batches are grouped by the full fenced recipient
-authority target, including Slot leader term and Slot config epoch. UID
-authority resolution is performed once per unique trimmed UID and uses the
-optional batch resolver when available; invalid
-or missing targets map to route-not-ready before enqueueing.
-Different recipient authority targets may enqueue concurrently up to
-`RecipientAuthorityDispatchConcurrency`; batches for the same target are enqueued
-sequentially. The dedicated delivery worker drains the accepted batches,
-resolves presence, groups routes by owner node, skips only the sender's exact
-accepted session for echo suppression, retries retryable owner pushes, and
-performs owner-local concrete session writes outside `channelState`.
+configured, recipients are grouped by the full fenced recipient authority
+target, including Slot leader term and Slot config epoch. UID authority
+resolution is performed once per unique trimmed UID and uses the optional batch
+resolver when available; invalid or missing targets map to route-not-ready
+before enqueueing. The production plan-capable enqueuer packs those exact-target
+groups into commands whose total recipient count is bounded by the existing
+recipient batch size. This preserves the complete target fence across the queue
+boundary while allowing one subscriber page to be admitted as one plan when it
+fits that bound. A legacy batch-only enqueuer remains supported; only that
+compatibility path dispatches different targets concurrently up to
+`RecipientAuthorityDispatchConcurrency`, while batches for the same target stay
+sequential.
+
+The dedicated delivery worker drains accepted plans. A target-aware presence
+resolver receives all target groups from one plan together and returns aligned
+per-group results, so one failed group is observed without suppressing the
+other groups. A legacy presence resolver remains supported by resolving the
+groups individually. A panic while processing one resolved group is converted
+to that group's terminal error and does not prevent later sibling groups from
+running. Successfully resolved routes are grouped by owner node,
+skip only the sender's exact accepted session for echo suppression, retry
+retryable owner pushes, and perform owner-local concrete session writes outside
+`channelState`.
 
 `RecipientDeliveryWorker` owns the bounded async queue for those delivery
-batches. The buffered queue is the admission backpressure primitive; there is
+plans. The buffered queue is the admission backpressure primitive; there is
 no second slot semaphore. Admission is open only between `Start` and `Stop`;
 closed admission returns `ErrRecipientDeliveryWorkerClosed`, and a full queue
 waits for capacity until the caller context expires. `Stop` closes admission
-first, then drains already accepted batches until the caller context expires.
+first and cancels the worker lifecycle context. Enqueue calls that crossed the
+open-state gate are counted until their queue send returns; workers may exit
+only after that sender barrier closes, then terminally drain every accepted
+plan with the canceled lifecycle context. Each plan also has a bounded
+processing deadline, so a transport RPC that never responds cannot occupy one
+worker indefinitely. The caller's Stop context bounds only how long Stop waits
+for this asynchronous shutdown protocol to finish.
 Processing failures are terminal best-effort delivery failures: they are
 observed through the same post-commit failure surface with the recipient
 authority target attached, and they are not returned to channelappend after the
-batch has been accepted. The worker also emits low-cardinality queue, admission,
+plan has been accepted. The worker also emits low-cardinality queue, admission,
 process, and execution-pressure observations: queue depth/capacity, configured
 worker capacity/current in-flight commands, enqueue result/wait time,
-processing result/duration, and recipient batch size. Queue and worker gauge
+processing result/duration, and total recipients per plan. Queue and worker gauge
 samples are serialized and read from current state so concurrent worker starts,
 finishes, and queue changes cannot leave a stale terminal gauge; every accepted
 command increments in-flight for the complete `runCommand` execution and the
