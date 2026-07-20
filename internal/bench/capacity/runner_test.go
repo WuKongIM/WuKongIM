@@ -2,6 +2,7 @@ package capacity
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,165 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStopWorkerPostsExactAssignmentAndRequiresTerminalResponse(t *testing.T) {
+	var got worker.StopRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		writeCapacityJSON(t, w, worker.Status{
+			Phase: worker.PhaseStopped,
+			Assignment: worker.Assignment{
+				RunID:        got.RunID,
+				AssignmentID: got.AssignmentID,
+				WorkerID:     "worker-a",
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	err := stopWorker(context.Background(), model.Worker{ID: "worker-a", Addr: server.URL, InsecureControl: true}, worker.StopRequest{
+		RunID:        "run-a",
+		AssignmentID: "generation-a",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, worker.StopRequest{RunID: "run-a", AssignmentID: "generation-a"}, got)
+}
+
+func TestStopWorkerRejectsMissingIdentityAndNonSuccessStatus(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		http.Error(w, "assignment mismatch", http.StatusConflict)
+	}))
+	t.Cleanup(server.Close)
+	w := model.Worker{ID: "worker-a", Addr: server.URL, InsecureControl: true}
+
+	err := stopWorker(context.Background(), w, worker.StopRequest{RunID: "run-a"})
+	require.ErrorContains(t, err, "exact run_id and assignment_id")
+	require.False(t, called, "an incomplete identity must not reach the worker")
+
+	err = stopWorker(context.Background(), w, worker.StopRequest{RunID: "run-a", AssignmentID: "generation-a"})
+	require.ErrorContains(t, err, "409 Conflict")
+	require.ErrorContains(t, err, "assignment mismatch")
+}
+
+func TestStopWorkerRejectsMatchingButNonTerminalResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeCapacityJSON(t, w, worker.Status{
+			Phase:       worker.PhaseRun,
+			ActivePhase: worker.PhaseRun,
+			Assignment: worker.Assignment{
+				RunID:        "run-a",
+				AssignmentID: "generation-a",
+				WorkerID:     "worker-a",
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	err := stopWorker(
+		context.Background(),
+		model.Worker{ID: "worker-a", Addr: server.URL, InsecureControl: true},
+		worker.StopRequest{RunID: "run-a", AssignmentID: "generation-a"},
+	)
+
+	require.ErrorContains(t, err, "not terminal")
+}
+
+func TestRunnerStopWorkersFromStatusUsesExactCurrentGeneration(t *testing.T) {
+	var got worker.StopRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/status":
+			writeCapacityJSON(t, w, worker.Status{
+				Phase:       worker.PhaseRun,
+				ActivePhase: worker.PhaseRun,
+				Assignment: worker.Assignment{
+					RunID:        "run-a",
+					AssignmentID: "generation-a",
+					WorkerID:     "worker-a",
+				},
+			})
+		case "/v1/stop":
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+			writeCapacityJSON(t, w, worker.Status{
+				Phase: worker.PhaseStopped,
+				Assignment: worker.Assignment{
+					RunID:        got.RunID,
+					AssignmentID: got.AssignmentID,
+					WorkerID:     "worker-a",
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	runner := &Runner{workers: []model.Worker{{ID: "worker-a", Addr: server.URL, InsecureControl: true}}}
+
+	err := runner.stopWorkersFromStatus()
+
+	require.NoError(t, err)
+	require.Equal(t, worker.StopRequest{RunID: "run-a", AssignmentID: "generation-a"}, got)
+}
+
+func TestStopCapacityWorkersAllowsIdleWorkerAfterAssignmentFailure(t *testing.T) {
+	stopCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/status":
+			writeCapacityJSON(t, w, worker.Status{Phase: worker.PhaseIdle})
+		case "/v1/stop":
+			stopCalls++
+			http.Error(w, "idle worker must not receive stop", http.StatusConflict)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	err := stopCapacityWorkers(
+		[]model.Worker{{ID: "worker-a", Addr: server.URL, InsecureControl: true}},
+		worker.StopRequest{RunID: "run-a", AssignmentID: "generation-a"},
+	)
+
+	require.NoError(t, err)
+	require.Zero(t, stopCalls)
+}
+
+func TestStopCapacityWorkersRejectsDifferentGenerationWithoutStoppingIt(t *testing.T) {
+	stopCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/status":
+			writeCapacityJSON(t, w, worker.Status{
+				Phase: worker.PhaseStopped,
+				Assignment: worker.Assignment{
+					RunID:        "run-a",
+					AssignmentID: "new-generation",
+					WorkerID:     "worker-a",
+				},
+			})
+		case "/v1/stop":
+			stopCalls++
+			http.Error(w, "must not stop a different generation", http.StatusConflict)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	err := stopCapacityWorkers(
+		[]model.Worker{{ID: "worker-a", Addr: server.URL, InsecureControl: true}},
+		worker.StopRequest{RunID: "run-a", AssignmentID: "old-generation"},
+	)
+
+	require.ErrorContains(t, err, "cleanup identity conflict")
+	require.Zero(t, stopCalls)
+}
 
 func TestEvaluateAttemptClassifiesPassAndFailureReasons(t *testing.T) {
 	cfg := DefaultConfig()

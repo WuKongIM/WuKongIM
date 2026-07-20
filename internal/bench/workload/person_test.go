@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -696,6 +697,41 @@ func TestAutoRecvAckCanDropUnverifiedRecvFrames(t *testing.T) {
 	require.Zero(t, buffered)
 }
 
+func TestAutoRecvAckHandleWaitsForEveryDrainToExit(t *testing.T) {
+	raw := newDelayedCancelReadPersonClient()
+	t.Cleanup(raw.release)
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	handle := StartAutoRecvAckHandleWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	require.True(t, waitPersonTestSignal(raw.started, time.Second), "background drain did not start")
+
+	handle.Cancel()
+	require.True(t, waitPersonTestSignal(raw.canceled, time.Second), "background drain did not observe cancellation")
+	waitDone := make(chan struct{})
+	go func() {
+		handle.Wait()
+		close(waitDone)
+	}()
+	require.False(t, waitPersonTestSignal(waitDone, 20*time.Millisecond), "Wait returned before the drain exited")
+
+	raw.release()
+	require.True(t, waitPersonTestSignal(waitDone, time.Second), "Wait did not return after the drain exited")
+}
+
+func TestAutoRecvAckHandleCanRestartSameWrappedClient(t *testing.T) {
+	raw := newRestartableCancelReadPersonClient()
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+
+	first := StartAutoRecvAckHandleWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	require.Equal(t, int32(1), raw.waitStart(t, time.Second))
+	first.Cancel()
+	first.Wait()
+
+	second := StartAutoRecvAckHandleWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	require.Equal(t, int32(2), raw.waitStart(t, time.Second), "a joined wrapper should start a fresh receive drain")
+	second.Cancel()
+	second.Wait()
+}
+
 func TestAutoRecvAckReadMatcherDropsUnverifiedRecvFrames(t *testing.T) {
 	raw := &orderedPersonClient{frames: []frame.Frame{
 		&frame.RecvPacket{
@@ -969,6 +1005,90 @@ type blockingReadPersonClient struct {
 	frames       []frame.Frame
 	blockStarted chan struct{}
 	blockOnce    sync.Once
+}
+
+type delayedCancelReadPersonClient struct {
+	started     chan struct{}
+	canceled    chan struct{}
+	releaseC    chan struct{}
+	startOnce   sync.Once
+	cancelOnce  sync.Once
+	releaseOnce sync.Once
+}
+
+type restartableCancelReadPersonClient struct {
+	starts chan int32
+	calls  atomic.Int32
+}
+
+func newDelayedCancelReadPersonClient() *delayedCancelReadPersonClient {
+	return &delayedCancelReadPersonClient{
+		started:  make(chan struct{}),
+		canceled: make(chan struct{}),
+		releaseC: make(chan struct{}),
+	}
+}
+
+func newRestartableCancelReadPersonClient() *restartableCancelReadPersonClient {
+	return &restartableCancelReadPersonClient{starts: make(chan int32, 2)}
+}
+
+func (c *restartableCancelReadPersonClient) Connect(context.Context, string, string) error {
+	return nil
+}
+
+func (c *restartableCancelReadPersonClient) Send(context.Context, *frame.SendPacket) error {
+	return nil
+}
+
+func (c *restartableCancelReadPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	call := c.calls.Add(1)
+	c.starts <- call
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (c *restartableCancelReadPersonClient) RecvAck(context.Context, int64, uint64) error {
+	return nil
+}
+
+func (c *restartableCancelReadPersonClient) Close() error { return nil }
+
+func (c *restartableCancelReadPersonClient) waitStart(t *testing.T, timeout time.Duration) int32 {
+	t.Helper()
+	select {
+	case call := <-c.starts:
+		return call
+	case <-time.After(timeout):
+		t.Fatal("receive drain did not start")
+		return 0
+	}
+}
+
+func (c *delayedCancelReadPersonClient) Connect(context.Context, string, string) error { return nil }
+func (c *delayedCancelReadPersonClient) Send(context.Context, *frame.SendPacket) error { return nil }
+func (c *delayedCancelReadPersonClient) RecvAck(context.Context, int64, uint64) error  { return nil }
+func (c *delayedCancelReadPersonClient) Close() error                                  { return nil }
+
+func (c *delayedCancelReadPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	c.startOnce.Do(func() { close(c.started) })
+	<-ctx.Done()
+	c.cancelOnce.Do(func() { close(c.canceled) })
+	<-c.releaseC
+	return nil, ctx.Err()
+}
+
+func (c *delayedCancelReadPersonClient) release() {
+	c.releaseOnce.Do(func() { close(c.releaseC) })
+}
+
+func waitPersonTestSignal(signal <-chan struct{}, timeout time.Duration) bool {
+	select {
+	case <-signal:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 func newBlockingReadPersonClient(frames []frame.Frame) *blockingReadPersonClient {

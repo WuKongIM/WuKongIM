@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -241,6 +242,185 @@ func TestConnectionManagerSendsHeartbeatPings(t *testing.T) {
 	t.Fatal("heartbeat ping was not sent")
 }
 
+func TestConnectionManagerCloseWaitsForHeartbeatUnblockedByClientClose(t *testing.T) {
+	client := newCloseUnblocksHeartbeatClient()
+	t.Cleanup(client.releasePing)
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs: []string{"gw-a:5100"},
+		Heartbeat:    model.HeartbeatConfig{Enabled: true, Interval: time.Nanosecond, Timeout: time.Second},
+		ClientFactory: func(ConnectionUser, string) (ConnectionClient, error) {
+			return client, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	if _, err := manager.ConnectUser(context.Background(), ConnectionUser{UID: "u1", DeviceID: "d1"}); err != nil {
+		t.Fatalf("ConnectUser() error = %v", err)
+	}
+	if !waitConnectionTestSignal(client.pingStarted, time.Second) {
+		t.Fatal("heartbeat Ping did not start")
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- manager.Close() }()
+	if !waitConnectionTestSignal(client.closeCalled, time.Second) {
+		t.Fatal("ConnectionManager.Close() did not close the client")
+	}
+	select {
+	case err := <-closeDone:
+		t.Fatalf("ConnectionManager.Close() returned before the heartbeat exited: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	client.releasePing()
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("ConnectionManager.Close() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ConnectionManager.Close() deadlocked after client Close unblocked Ping")
+	}
+
+	first := manager.MetricsSnapshot()
+	second := manager.MetricsSnapshot()
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("metrics changed after Close returned: first=%#v second=%#v", first, second)
+	}
+}
+
+func TestConnectionManagerCloseClosesEveryClientBeforeJoiningHeartbeats(t *testing.T) {
+	factory := &closeUnblocksHeartbeatFactory{}
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs:  []string{"gw-a:5100"},
+		Heartbeat:     model.HeartbeatConfig{Enabled: true, Interval: time.Nanosecond, Timeout: time.Second},
+		ClientFactory: factory.newClient,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	users := []ConnectionUser{{UID: "u1", DeviceID: "d1"}, {UID: "u2", DeviceID: "d2"}}
+	if err := manager.Connect(context.Background(), users); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	clients := []*closeUnblocksHeartbeatClient{factory.client(0), factory.client(1)}
+	for index, client := range clients {
+		t.Cleanup(client.releasePing)
+		if !waitConnectionTestSignal(client.pingStarted, time.Second) {
+			t.Fatalf("heartbeat Ping %d did not start", index)
+		}
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- manager.Close() }()
+	for index, client := range clients {
+		if !waitConnectionTestSignal(client.closeCalled, time.Second) {
+			t.Fatalf("client %d was not closed before heartbeat joins", index)
+		}
+	}
+	select {
+	case err := <-closeDone:
+		t.Fatalf("ConnectionManager.Close() returned before heartbeat release: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	for _, client := range clients {
+		client.releasePing()
+	}
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("ConnectionManager.Close() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ConnectionManager.Close() did not join every heartbeat")
+	}
+}
+
+func TestConnectionManagerSessionReplacementWaitsForPreviousHeartbeatExit(t *testing.T) {
+	tests := []struct {
+		name    string
+		replace func(*ConnectionManager) error
+	}{
+		{
+			name: "reconnect",
+			replace: func(manager *ConnectionManager) error {
+				_, err := manager.ReconnectUser(context.Background(), ConnectionUser{UID: "u1", DeviceID: "d1"})
+				return err
+			},
+		},
+		{
+			name: "replace uid",
+			replace: func(manager *ConnectionManager) error {
+				_, err := manager.ReplaceUser(context.Background(), "u1", ConnectionUser{UID: "u2", DeviceID: "d2"})
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := &closeUnblocksHeartbeatFactory{}
+			manager, err := NewConnectionManager(ConnectionManagerConfig{
+				GatewayAddrs:  []string{"gw-a:5100"},
+				Heartbeat:     model.HeartbeatConfig{Enabled: true, Interval: time.Nanosecond, Timeout: time.Second},
+				ClientFactory: factory.newClient,
+			})
+			if err != nil {
+				t.Fatalf("NewConnectionManager() error = %v", err)
+			}
+			if _, err := manager.ConnectUser(context.Background(), ConnectionUser{UID: "u1", DeviceID: "d1"}); err != nil {
+				t.Fatalf("ConnectUser() error = %v", err)
+			}
+			first := factory.client(0)
+			t.Cleanup(first.releasePing)
+			if !waitConnectionTestSignal(first.pingStarted, time.Second) {
+				t.Fatal("initial heartbeat Ping did not start")
+			}
+
+			replaceDone := make(chan error, 1)
+			go func() { replaceDone <- tt.replace(manager) }()
+			if !waitConnectionTestSignal(first.closeCalled, time.Second) {
+				t.Fatal("session replacement did not close the previous client")
+			}
+			select {
+			case err := <-replaceDone:
+				t.Fatalf("session replacement returned before the previous heartbeat exited: %v", err)
+			case <-time.After(20 * time.Millisecond):
+			}
+
+			first.releasePing()
+			select {
+			case err := <-replaceDone:
+				if err != nil {
+					t.Fatalf("session replacement error = %v", err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("session replacement did not finish after the previous heartbeat exited")
+			}
+
+			second := factory.client(1)
+			t.Cleanup(second.releasePing)
+			if !waitConnectionTestSignal(second.pingStarted, time.Second) {
+				t.Fatal("replacement heartbeat Ping did not start")
+			}
+			closeDone := make(chan error, 1)
+			go func() { closeDone <- manager.Close() }()
+			if !waitConnectionTestSignal(second.closeCalled, time.Second) {
+				t.Fatal("manager close did not close the replacement client")
+			}
+			second.releasePing()
+			select {
+			case err := <-closeDone:
+				if err != nil {
+					t.Fatalf("ConnectionManager.Close() error = %v", err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("ConnectionManager.Close() did not join the replacement heartbeat")
+			}
+		})
+	}
+}
+
 func TestConnectionManagerRejectsInvalidConfig(t *testing.T) {
 	if _, err := NewConnectionManager(ConnectionManagerConfig{}); err == nil {
 		t.Fatal("NewConnectionManager() error = nil, want missing gateway error")
@@ -387,6 +567,71 @@ type recordingClient struct {
 	connected []ConnectionUser
 	closed    bool
 	pings     atomic.Int32
+}
+
+type closeUnblocksHeartbeatClient struct {
+	pingStarted chan struct{}
+	closeCalled chan struct{}
+	releaseC    chan struct{}
+	pingOnce    sync.Once
+	closeOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+type closeUnblocksHeartbeatFactory struct {
+	mu      sync.Mutex
+	clients []*closeUnblocksHeartbeatClient
+}
+
+func (f *closeUnblocksHeartbeatFactory) newClient(ConnectionUser, string) (ConnectionClient, error) {
+	client := newCloseUnblocksHeartbeatClient()
+	f.mu.Lock()
+	f.clients = append(f.clients, client)
+	f.mu.Unlock()
+	return client, nil
+}
+
+func (f *closeUnblocksHeartbeatFactory) client(index int) *closeUnblocksHeartbeatClient {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.clients[index]
+}
+
+func newCloseUnblocksHeartbeatClient() *closeUnblocksHeartbeatClient {
+	return &closeUnblocksHeartbeatClient{
+		pingStarted: make(chan struct{}),
+		closeCalled: make(chan struct{}),
+		releaseC:    make(chan struct{}),
+	}
+}
+
+func (c *closeUnblocksHeartbeatClient) Connect(context.Context, string, string) error {
+	return nil
+}
+
+func (c *closeUnblocksHeartbeatClient) Close() error {
+	c.closeOnce.Do(func() { close(c.closeCalled) })
+	return nil
+}
+
+func (c *closeUnblocksHeartbeatClient) Ping(context.Context) error {
+	c.pingOnce.Do(func() { close(c.pingStarted) })
+	<-c.closeCalled
+	<-c.releaseC
+	return nil
+}
+
+func (c *closeUnblocksHeartbeatClient) releasePing() {
+	c.releaseOnce.Do(func() { close(c.releaseC) })
+}
+
+func waitConnectionTestSignal(signal <-chan struct{}, timeout time.Duration) bool {
+	select {
+	case <-signal:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 func (c *recordingClient) Connect(ctx context.Context, uid, deviceID string) error {

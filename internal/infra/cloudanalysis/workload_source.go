@@ -20,6 +20,8 @@ const maxWorkloadSummaryBytes = 16 << 10
 
 const workloadDiagnosticSummarySchema = "wukongim/wkbench-diagnostic-summary/v1"
 
+const workloadWorkerFailureExitCode = 4
+
 var errInvalidWorkloadSummary = errors.New("internal/infra/cloudanalysis: invalid workload summary")
 
 var (
@@ -37,8 +39,9 @@ var (
 		"worker_status_mismatch":     "worker status assignment mismatch",
 		"worker_metrics_unavailable": "worker metrics unavailable",
 		"worker_report_unavailable":  "worker report unavailable",
+		"worker_stop_failed":         "worker terminal stop failed",
 	}
-	workloadFailureOperations = map[string]struct{}{
+	workloadSessionFailureOperations = map[string]struct{}{
 		"person_sendack_lock": {},
 		"person_send":         {},
 		"person_sendack":      {},
@@ -49,6 +52,10 @@ var (
 		"group_sendack":       {},
 		"group_recv":          {},
 		"group_recvack":       {},
+	}
+	workloadTimeoutOperations = map[string]struct{}{
+		"worker_status":    {},
+		"phase_completion": {},
 	}
 )
 
@@ -122,7 +129,8 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
 	}
 	if !validWorkloadSummary(document.Summary) || !validWorkloadLimits(document.Violations) || !validWorkloadLimits(document.Warnings) ||
-		!validWorkloadPhaseWindows(document.PhaseWindows) || !validWorkloadFailures(document.FailedWorkers, document.Summary.WorkerFailed, document.FailedWorkersTruncated) {
+		!validWorkloadPhaseWindows(document.PhaseWindows) || !validWorkloadFailures(document.FailedWorkers, document.Summary.WorkerFailed, document.FailedWorkersTruncated) ||
+		!validWorkloadFailureTerminal(document) {
 		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
 	}
 	phaseWindows := make([]analysis.WorkloadPhaseWindow, 0, len(document.PhaseWindows))
@@ -216,6 +224,23 @@ func validWorkloadTerminal(status string, exitCode int, verdict string) bool {
 	}
 }
 
+// validWorkloadFailureTerminal prevents structured worker failure evidence from
+// contradicting the document's terminal status, exit code, or verdict.
+func validWorkloadFailureTerminal(document workloadDiagnosticSummary) bool {
+	if document.Summary.WorkerFailed == 0 {
+		return true
+	}
+	if document.Status == "passed" || document.ExitCode == 0 || document.StabilityVerdict == "passed" {
+		return false
+	}
+	for _, failure := range document.FailedWorkers {
+		if failure.ReasonCode == "worker_stop_failed" {
+			return document.Status == "failed" && document.ExitCode == workloadWorkerFailureExitCode && document.StabilityVerdict == "harness_invalid"
+		}
+	}
+	return true
+}
+
 func validWorkloadSummary(summary workloadDiagnosticMetrics) bool {
 	return validWorkloadRate(summary.ConnectErrorRate) && validWorkloadRate(summary.SendackErrorRate) &&
 		validWorkloadRate(summary.RecvVerifyErrorRate) && summary.WorkerFailed >= 0 &&
@@ -263,7 +288,8 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 	workers := make(map[string]struct{}, len(failures))
 	for _, failure := range failures {
 		if !workloadWorkerIDPattern.MatchString(failure.WorkerID) || !validWorkloadFailurePhase(failure.Phase) ||
-			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || !validWorkloadFailureOperation(failure.ReasonCode, failure.Operation) ||
+			!workloadReasonCodePattern.MatchString(failure.ReasonCode) || !validWorkloadFailureTuple(failure.Phase, failure.ReasonCode) ||
+			!validWorkloadFailureOperation(failure.ReasonCode, failure.Operation) ||
 			!validWorkloadFailureDetail(failure.ReasonCode, failure.Detail) || failure.ObservedAt.IsZero() {
 			return false
 		}
@@ -278,15 +304,27 @@ func validWorkloadFailures(failures []workloadDiagnosticFailure, failedCount int
 	return len(workers) == failedCount
 }
 
+func validWorkloadFailureTuple(phase, reasonCode string) bool {
+	if phase == "stop" || reasonCode == "worker_stop_failed" {
+		return phase == "stop" && reasonCode == "worker_stop_failed"
+	}
+	return true
+}
+
 func validWorkloadFailureOperation(reasonCode, operation string) bool {
 	if operation == "" {
 		return true
 	}
-	if reasonCode != "phase_hook_failed" && reasonCode != "target_unavailable" {
+	switch reasonCode {
+	case "phase_hook_failed", "target_unavailable":
+		_, ok := workloadSessionFailureOperations[operation]
+		return ok
+	case "phase_timeout":
+		_, ok := workloadTimeoutOperations[operation]
+		return ok
+	default:
 		return false
 	}
-	_, ok := workloadFailureOperations[operation]
-	return ok
 }
 
 // validWorkloadFailureDetail accepts only fixed reason-code templates or an
@@ -309,7 +347,7 @@ func validWorkloadPhase(phase string) bool {
 }
 
 func validWorkloadFailurePhase(phase string) bool {
-	return phase == "assign" || phase == "collect" || validWorkloadPhase(phase)
+	return phase == "assign" || phase == "collect" || phase == "stop" || validWorkloadPhase(phase)
 }
 
 func mapWorkloadLimits(input []workloadDiagnosticLimit) []analysis.WorkloadLimit {

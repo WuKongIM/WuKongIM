@@ -208,6 +208,28 @@ type AutoRecvAckOptions struct {
 	DisableRecvAck bool
 }
 
+// AutoRecvAckHandle controls one group of background receive drains.
+type AutoRecvAckHandle struct {
+	cancel context.CancelFunc
+	done   <-chan struct{}
+}
+
+// Cancel requests cancellation for every receive drain owned by the handle.
+func (h *AutoRecvAckHandle) Cancel() {
+	if h == nil || h.cancel == nil {
+		return
+	}
+	h.cancel()
+}
+
+// Wait blocks until every receive drain owned by the handle has exited.
+func (h *AutoRecvAckHandle) Wait() {
+	if h == nil || h.done == nil {
+		return
+	}
+	<-h.done
+}
+
 // StartAutoRecvAck continuously drains recv frames and sends protocol receive acks.
 func StartAutoRecvAck(clients map[string]PersonClient) context.CancelFunc {
 	return StartAutoRecvAckWithOptions(clients, AutoRecvAckOptions{BufferRecvFrames: true})
@@ -215,17 +237,37 @@ func StartAutoRecvAck(clients map[string]PersonClient) context.CancelFunc {
 
 // StartAutoRecvAckWithOptions continuously drains recv frames using explicit buffering policy.
 func StartAutoRecvAckWithOptions(clients map[string]PersonClient, opts AutoRecvAckOptions) context.CancelFunc {
+	handle := StartAutoRecvAckHandleWithOptions(clients, opts)
+	return func() {
+		handle.Cancel()
+		handle.Wait()
+	}
+}
+
+// StartAutoRecvAckHandleWithOptions starts receive drains and returns a handle
+// that can both cancel and join their lifecycle.
+func StartAutoRecvAckHandleWithOptions(clients map[string]PersonClient, opts AutoRecvAckOptions) *AutoRecvAckHandle {
 	ctx, cancel := context.WithCancel(context.Background())
+	drains := make([]<-chan struct{}, 0, len(clients))
 	for _, client := range clients {
 		starter, ok := client.(interface {
-			startAutoRecvAckWithOptions(context.Context, AutoRecvAckOptions)
+			startAutoRecvAckWithOptions(context.Context, AutoRecvAckOptions) <-chan struct{}
 		})
 		if !ok || starter == nil {
 			continue
 		}
-		starter.startAutoRecvAckWithOptions(ctx, opts)
+		if done := starter.startAutoRecvAckWithOptions(ctx, opts); done != nil {
+			drains = append(drains, done)
+		}
 	}
-	return cancel
+	done := make(chan struct{})
+	go func() {
+		for _, drain := range drains {
+			<-drain
+		}
+		close(done)
+	}()
+	return &AutoRecvAckHandle{cancel: cancel, done: done}
 }
 
 // Connect opens the sender and recipient sessions for all assigned person pairs.
@@ -615,6 +657,7 @@ type matchingPersonClient struct {
 	autoRecvAckDisableAck     bool
 	autoRecvAckReader         bool
 	autoRecvAckReadErr        error
+	autoRecvAckDone           <-chan struct{}
 	debugReadFrames           uint64
 	debugReadSendacks         uint64
 	debugReadRecvs            uint64
@@ -769,20 +812,37 @@ func (c *matchingPersonClient) startAutoRecvAck(ctx context.Context) {
 	c.startAutoRecvAckWithOptions(ctx, AutoRecvAckOptions{BufferRecvFrames: true})
 }
 
-func (c *matchingPersonClient) startAutoRecvAckWithOptions(ctx context.Context, opts AutoRecvAckOptions) {
+func (c *matchingPersonClient) startAutoRecvAckWithOptions(ctx context.Context, opts AutoRecvAckOptions) <-chan struct{} {
 	c.mu.Lock()
 	if c.autoRecvAck {
+		done := c.autoRecvAckDone
 		c.mu.Unlock()
-		return
+		return done
 	}
+	done := make(chan struct{})
 	c.autoRecvAck = true
 	c.autoRecvAckBufferRecv = opts.BufferRecvFrames
 	c.autoRecvAckBufferChannels = cloneRecvChannelTypes(opts.BufferRecvChannelTypes)
 	c.autoRecvAckDisableAck = opts.DisableRecvAck
 	c.autoRecvAckReader = true
 	c.autoRecvAckReadErr = nil
+	c.autoRecvAckDone = done
 	c.mu.Unlock()
-	go c.autoRecvAckLoop(ctx)
+	go func() {
+		defer func() {
+			c.mu.Lock()
+			if c.autoRecvAckDone == done {
+				c.autoRecvAck = false
+				c.autoRecvAckReader = false
+				c.autoRecvAckDone = nil
+				c.signalLocked()
+			}
+			c.mu.Unlock()
+			close(done)
+		}()
+		c.autoRecvAckLoop(ctx)
+	}()
+	return done
 }
 
 func (c *matchingPersonClient) autoRecvAckLoop(ctx context.Context) {

@@ -46,6 +46,7 @@ func TestCloudAnalysisSkillDocumentsFailureOperationRouting(t *testing.T) {
 	for _, operation := range []string{
 		"person_sendack_lock", "person_send", "person_sendack", "person_recv", "person_recvack",
 		"group_sendack_lock", "group_send", "group_sendack", "group_recv", "group_recvack",
+		"worker_status", "phase_completion",
 	} {
 		if !strings.Contains(contract, "`"+operation+"`") {
 			t.Fatalf("tool-contract.md must list failure operation %q", operation)
@@ -56,10 +57,36 @@ func TestCloudAnalysisSkillDocumentsFailureOperationRouting(t *testing.T) {
 			t.Fatalf("SKILL.md must route failure operation family %q", route)
 		}
 	}
+	for _, route := range []string{"`worker_status`", "`phase_completion`"} {
+		if !strings.Contains(skill, route) {
+			t.Fatalf("SKILL.md must route timeout stage %q", route)
+		}
+	}
+	for _, required := range []string{"`worker_stop_failed`", "`stop`"} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must route terminal stop evidence %q", required)
+		}
+		if !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document terminal stop evidence %q", required)
+		}
+	}
+}
+
+func TestCloudAnalysisSkillDocumentsObservationNodeContract(t *testing.T) {
+	contract := readFile(t, filepath.Join(repoRoot(t), ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, required := range []string{"Observation node is `cluster`", "no simulator log target"} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document %q", required)
+		}
+	}
 }
 
 func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 	fixtureDir := filepath.Join(repoRoot(t), ".agents", "skills", "wukongim-cloud-analysis", "fixtures")
+	stopFixturePath := filepath.Join(fixtureDir, "worker_stop_failed.json")
+	if _, err := os.Stat(stopFixturePath); err != nil {
+		t.Fatalf("terminal stop fixture must be committed: %v", err)
+	}
 	paths, err := filepath.Glob(filepath.Join(fixtureDir, "*.json"))
 	if err != nil {
 		t.Fatalf("glob fixtures: %v", err)
@@ -111,6 +138,45 @@ func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 			failure, ok := failedWorkers[0].(map[string]any)
 			if !ok || failure["reason_code"] != "worker_status_mismatch" {
 				t.Fatalf("fixture %s reason = %#v, want worker_status_mismatch", path, failedWorkers[0])
+			}
+		}
+		if fixture.Name == "worker_stop_failed" {
+			if fixture.ExpectedVerdict != "insufficient_evidence" || fixture.ExpectedRoute != "worker_stop_failed" {
+				t.Fatalf("fixture %s stop-failure route = %q/%q", path, fixture.ExpectedVerdict, fixture.ExpectedRoute)
+			}
+			if len(fixture.Observations) < 3 || fixture.Observations[2].Tool != "cluster_snapshot" {
+				t.Fatalf("fixture %s must establish cluster state before stop-failure drilldown", path)
+			}
+			failedWorkers, ok := fixture.Observations[1].Data["failed_workers"].([]any)
+			if !ok || len(failedWorkers) != 1 {
+				t.Fatalf("fixture %s must expose one terminal stop failure", path)
+			}
+			failure, ok := failedWorkers[0].(map[string]any)
+			if !ok || failure["phase"] != "stop" || failure["reason_code"] != "worker_stop_failed" {
+				t.Fatalf("fixture %s stop failure = %#v", path, failedWorkers[0])
+			}
+			simulatorMemoryObserved := false
+			for _, observation := range fixture.Observations[3:] {
+				switch observation.Tool {
+				case "metrics_query_range":
+					if observation.Node != "cluster" || observation.Source != "prometheus" {
+						t.Fatalf("fixture %s Prometheus observation node/source = %q/%q, want cluster/prometheus", path, observation.Node, observation.Source)
+					}
+					queryID, _ := observation.Data["query_id"].(string)
+					if queryID == "process_start_time_seconds" {
+						t.Fatalf("fixture %s must not use the server process-start query as simulator continuity evidence", path)
+					}
+					if queryID == "simulator_memory_percent" {
+						simulatorMemoryObserved = true
+					}
+				case "logs_search":
+					if observation.Node == "sim" {
+						t.Fatalf("fixture %s must not invent a simulator logs_search node", path)
+					}
+				}
+			}
+			if !simulatorMemoryObserved {
+				t.Fatalf("fixture %s must retain bounded simulator headroom evidence", path)
 			}
 		}
 		if fixture.Name == "process_loss_ambiguous" {

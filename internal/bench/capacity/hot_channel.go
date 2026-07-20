@@ -2,11 +2,12 @@ package capacity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
+	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
@@ -138,12 +139,14 @@ func NewHotChannelRunner(cfg HotChannelConfig, discovered DiscoveredTarget) *Hot
 }
 
 // Run executes the configured hot-channel capacity search.
-func (r *HotChannelRunner) Run(ctx context.Context) (Result, error) {
+func (r *HotChannelRunner) Run(ctx context.Context) (result Result, err error) {
 	if err := r.base.startWorker(); err != nil {
 		return Result{}, err
 	}
-	defer r.base.close()
-	result, err := Search(ctx, r.cfg.Config, hotChannelAttemptRunner{cfg: r.cfg, discovered: r.discovered, workers: r.base.workers})
+	defer func() {
+		err = errors.Join(err, r.base.close())
+	}()
+	result, err = Search(ctx, r.cfg.Config, hotChannelAttemptRunner{cfg: r.cfg, discovered: r.discovered, workers: r.base.workers})
 	result.Profile = "hot-channel"
 	result.ReportDir = r.cfg.ReportDir
 	return result, err
@@ -158,18 +161,27 @@ type hotChannelAttemptRunner struct {
 func (r hotChannelAttemptRunner) RunAttempt(ctx context.Context, attempt Attempt) (AttemptResult, error) {
 	scenario := BuildHotChannelScenario(r.cfg, attempt)
 	coord := coordinator.New(coordinator.CoordinatorConfig{Workers: r.workers, Target: r.discovered.Target})
-	defer func() {
-		for _, w := range r.workers {
-			stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			_ = stopWorker(stopCtx, w)
-			cancel()
-		}
-	}()
 	result, err := coord.Run(ctx, scenario)
+	var stopErr error
+	if strings.TrimSpace(result.AssignmentID) != "" {
+		stopErr = stopCapacityWorkers(r.workers, worker.StopRequest{RunID: result.RunID, AssignmentID: result.AssignmentID})
+	}
+	err = errors.Join(err, stopErr)
 	attemptResult := EvaluateAttempt(r.cfg.Config, attempt, result.Report)
 	attemptResult.ReportDir = scenario.Run.ReportDir
+	if stopErr != nil {
+		attemptResult.Passed = false
+		attemptResult.WorkerFailed = max(attemptResult.WorkerFailed, 1)
+		attemptResult.FailureReason = "worker_stop_failed"
+	}
 	if err != nil && result.Status != coordinator.StatusHardLimitFailed {
 		applyCoordinatorFailure(&attemptResult, result)
+		if stopErr != nil {
+			attemptResult.FailureReason = "worker_stop_failed"
+		}
+	}
+	if stopErr != nil {
+		return attemptResult, err
 	}
 	if err != nil && !hasAttemptReport(result.Report) {
 		return attemptResult, err

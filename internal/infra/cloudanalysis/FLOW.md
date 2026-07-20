@@ -33,8 +33,15 @@ for every worker included in `summary.worker_failed`; otherwise the source rejec
 the document instead of reporting complete evidence. Failure detail accepts only
 fixed reason-code templates or an explicit redaction marker, so forged producer
 text cannot cross the MCP boundary. The optional failed-worker `operation` also
-uses a fixed person/group send, sendack, recv, recvack, or sendack-lock allowlist;
-unknown operation text is rejected rather than exposed through the MCP.
+uses a reason-bound allowlist: person/group send, sendack, recv, recvack, or
+sendack-lock for session failures, and `worker_status` or `phase_completion` for
+phase timeouts. `worker_stop_failed` is accepted only with phase `stop`; unknown
+operations and mismatched reason/phase tuples are rejected rather than exposed
+through the MCP. Any structured worker failure also requires a failed status,
+non-zero exit code, and non-passed stability verdict. A `worker_stop_failed`
+record further requires worker-failure exit code `4` and verdict
+`harness_invalid`, so stop evidence cannot coexist with a passing or unrelated
+terminal outcome.
 
 Node hosts sample the `wukongim.service` cgroup once per second from one bounded
 collector process and again from

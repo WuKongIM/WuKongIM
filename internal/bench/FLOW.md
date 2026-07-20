@@ -26,13 +26,17 @@ estimated online fanout within the declared tolerance, and rejects any profile
 that cannot emit at least one message per required active-channel window.
 
 During measured scheduled churn, the worker runs traffic in bounded windows.
-At each boundary it archives the completed workload metrics, reconnects the
-same-UID share, replaces the identity-swap share from deterministic offline
-lanes, refreshes bench tokens, adds replacement UIDs to every affected group,
-removes the replaced UIDs, and rebuilds person/group workloads before traffic
-resumes. The add-before-remove order prevents a replacement sender from
-temporarily losing membership, while removal keeps long-running group sizes
-bounded. `OnlineIdentityIndexes` is worker-local runtime mapping state;
+At each boundary it reconnects the same-UID share, replaces the identity-swap
+share from deterministic offline lanes, refreshes bench tokens, adds replacement
+UIDs to every affected group, removes the replaced UIDs, and builds the next
+person/group workload generation. A successful generation swap joins the old
+receive drains, then atomically archives the completed generation and installs
+the replacement; a failed rebuild leaves the old generation active and
+unarchived. Archived workload counters and histograms accumulate across
+generations, gauges retain their temporal maximum, and the runner keeps one
+bounded cumulative snapshot. The add-before-remove order prevents a replacement
+sender from temporarily losing membership, while removal keeps long-running
+group sizes bounded. `OnlineIdentityIndexes` is worker-local runtime mapping state;
 an empty mapping preserves the initial plan. Each measured window gets a unique
 message identity namespace while report metrics normalize it back to the stable
 `run` phase. Churn never requests history sync.
@@ -89,11 +93,16 @@ cmd/wkbench run
        -> gateway checker
   -> coordinator.assignWorkers
        -> copy only each selected worker's client capacity profile and TCP source pool into its assignment
+       -> bind a required immutable assignment_id generation within the run
        -> omit worker control credentials from the assignment payload
        -> POST worker /v1/assign
   -> phases: prepare -> connect -> warmup -> run -> cooldown
        -> POST worker /v1/phase/<phase>
        -> poll worker /v1/status until completed_phase catches up
+  -> POST /v1/stop to every assigned worker before terminal report collection
+       -> synchronously fence new phase and owner-channel preparation admission
+       -> cancel and join the active worker lifecycle task
+       -> release assignment-scoped connections and background receive drains
   -> collect worker metrics and reports
   -> collect target setup snapshots and supported presence snapshots
   -> report.Build and report.WriteDir
@@ -130,6 +139,13 @@ and raw UIDs, URLs, paths, and error text never enter this projection.
 Explicit TCP source pool errors are worker-local configuration or capacity
 failures and therefore resolve to `worker_failed`, never
 `target_unavailable`.
+
+Terminal stop applies to successful, fail-fast, and non-fail-fast runs. In a
+non-fail-fast run, a failed worker is skipped by later phases, so the common
+terminal stop is what prevents its phase context, connections, and background
+receive drains from outliving the coordinator result. Stop retains the latest
+assignment and bounded metrics so report collection can still identify the
+exact assignment generation.
 
 `wkbench run --phase-poll-timeout` controls the base worker phase poll wait.
 When it is omitted, the coordinator default is used. The coordinator then adds
@@ -186,6 +202,13 @@ channel and sets the offered QPS as that channel's `rate_per_channel`. Its
 `--senders` value controls how many online group members fan into the one
 logical channel, and group traffic uses `sender_pick: round_robin` to spread
 sendack waits across those senders.
+
+Capacity attempt cleanup reuses the exact `run_id + assignment_id` returned by
+the coordinator and validates the worker's terminal stop response. Final local
+worker shutdown first reads `/v1/status`, and only issues a stop when that
+status supplies both identifiers. A missing or non-terminal identity is an
+explicit cleanup failure; capacity runners never fall back to a run-only or
+empty stop request.
 
 ## Capacity Activate-Channels Flow
 
@@ -285,6 +308,16 @@ ceiling. The longer timeout budget covers rare quorum tails after the measured
 p99 remains healthy. General configs keep the runtime defaults unless this
 benchmark-specific environment override is set.
 
+The single-node and three-node 1,000-channel helpers also bind between-attempt
+cleanup to the worker's current `/v1/status` assignment generation. They POST
+that exact pair as JSON and require a matching terminal response before the next
+QPS attempt; an idle worker is the only case where no stop is sent. This keeps a
+failed prior attempt from poisoning later samples without reintroducing an
+unsafe run-only stop.
+
+The delivery and three-node presence helpers apply the same status-bound exact
+stop contract in their temporary-worker cleanup traps.
+
 ## Capacity Message-Event Flow
 
 `capacity message-event` is a fixed-size pressure run for the migrated message
@@ -352,7 +385,21 @@ GET  /v1/metrics
 GET  /v1/report
 ```
 
-`worker.State` stores the active assignment and lifecycle phase. Phase hooks are asynchronous when they take longer than the short start grace period. In that case the worker returns `202 Accepted`, sets `active_phase`, and later updates `completed_phase` after the hook finishes. Synchronous error responses and asynchronous status failures both carry the same stable `reason_code` and, for typed session failures, an allowlisted person/group `operation`; the coordinator preserves those codes instead of classifying failures from human-readable text. Duplicate phase requests are idempotent when the requested phase is already active or complete.
+`worker.State` stores the active assignment and lifecycle phase. Every assignment
+has a required `assignment_id`, which is an immutable generation token within
+`run_id`; reusing a run ID never makes two assignment generations equivalent.
+Phase and owner-channel preparation requests carry both values in their JSON
+body, stop carries both values in `StopRequest`, and metrics/report evidence
+reads carry both as query parameters. Missing identifiers are rejected, and a
+request must match both before it can observe or mutate state. Phase hooks are
+asynchronous when they take longer than the short start grace period. In that
+case the worker returns `202 Accepted`, sets `active_phase`, and later updates
+`completed_phase` after the hook finishes. Synchronous error responses and
+asynchronous status failures both carry the same stable `reason_code` and, for
+typed session failures, an allowlisted person/group `operation`; the coordinator
+preserves those codes instead of classifying failures from human-readable text.
+Duplicate phase requests are idempotent when the requested phase is already
+active or complete for the same assignment generation.
 
 The in-process dev simulator also uses the worker runner's traffic recovery hook after a runtime traffic error. This repairs only failed WKProto sessions when the workload can identify them, then rebuilds person/group workload objects with a new client message prefix while preserving healthy sessions. This avoids full online-user churn for a single send/recv failure.
 
@@ -362,7 +409,34 @@ The monotonic phase order is:
 idle -> assigned -> prepare -> connect -> warmup -> run -> cooldown -> stopped
 ```
 
-`/v1/stop` cancels the active phase hook when possible and marks the worker stopped. A stopped worker may accept a new assignment.
+`/v1/stop` requires the exact `run_id` and `assignment_id` and synchronously
+publishes an assignment-generation-bound stopping gate before starting
+background finalization. New assignment work, phase admission, and owner-only
+channel preparation are rejected promptly while the gate is active. Phase hooks
+and `/v1/prepare/channels` publish one shared lifecycle-task shape keyed by both
+identifiers, with a unique task sequence, cancellation function, and completion
+signal; stop cancels the matching published task, waits for its hook to exit,
+tears down runner-owned connections/background drains, and only then commits
+`stopped`. A stopped assignment identity is terminal and cannot be reactivated
+or mutated by a delayed `/v1/assign`. The cleanup runs independently of the HTTP caller deadline;
+concurrent retries for the same two-part identity join one finalizer, and a
+timed-out caller receives no false acknowledgement while cleanup continues. The
+task sequence prevents an older operation from erasing a newer task's
+cancellation handle. A teardown error leaves the assignment non-stopped and
+admission fenced; the default runner preserves the error across retries and
+requires worker recovery/restart rather than falsely acknowledging resource
+release. A stopped worker may accept only a distinct assignment identity,
+including a new generation of the same run, which clears the old stopping gate
+and stop task.
+
+The coordinator sends exact-assignment stop requests to all assigned workers
+before terminal report collection on both successful and failed runs. It
+requires matching `run_id` and `assignment_id`, `phase=stopped`, and an empty
+`active_phase`; successful evidence reads carry the same pair and are atomically
+rejected after another generation starts, even when it reuses the run ID. If
+stop is not confirmed, the coordinator does not read moving worker
+metrics/reports and writes only a minimal harness-invalid result with
+`phase=stop`, `reason_code=worker_stop_failed`.
 
 ## Dev-Sim Flow
 
@@ -430,6 +504,10 @@ Each worker keeps its assigned `online.total_users` identity range connected eve
 The client wrapper serializes access to each underlying queued `ReadFrame` call and buffers unmatched frames. This lets concurrent person/group workloads on the same UID wait for different sendack or recv frames without stealing each other's frames. The wrapper also allocates monotonically increasing ClientSeq values per simulated TCP client, and each waiter still matches the exact ClientSeq and ClientMsgNo.
 
 When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only for channel types whose traffic enables receive verification (`full` or `sampled`). Other channel types are acknowledged and dropped immediately, so a mixed person-verification/group-fanout scenario cannot retain an unconsumed group-frame backlog.
+Receive-drain handles support both cancellation and joining. Traffic generation
+replacement starts new readers only after old readers exit, while terminal
+teardown cancels drains, closes their owning connections to unblock reads, and
+waits for every drain before acknowledging stop.
 
 The shared `pkg/client` session owns WKProto CONNECT reads, socket decoding,
 crypto, pending SENDACK matching, and the bounded RECV queue. The benchmark

@@ -217,10 +217,51 @@ split_csv "$METRICS_ADDRS" METRICS_VALUES
 WORKER_PID=""
 CLUSTER_PID=""
 
+stop_worker_exact_from_status() {
+  local reason="${1:-cleanup}"
+  local status run_id assignment_id phase payload response
+  if ! command -v jq >/dev/null 2>&1; then
+    log "cannot stop worker exactly during $reason: jq is unavailable"
+    return 1
+  fi
+  if ! status="$(curl -fsS --connect-timeout 1 --max-time 2 "${WORKER_ADDR%/}/v1/status")"; then
+    log "cannot read worker status during $reason"
+    return 1
+  fi
+  if ! jq -e 'type == "object" and (.phase | type == "string") and (.assignment | type == "object")' >/dev/null <<<"$status"; then
+    log "worker returned invalid status during $reason"
+    return 1
+  fi
+  phase="$(jq -r '.phase // ""' <<<"$status")"
+  run_id="$(jq -r '.assignment.run_id // ""' <<<"$status")"
+  assignment_id="$(jq -r '.assignment.assignment_id // ""' <<<"$status")"
+  if [[ "$phase" == "idle" && -z "$run_id" && -z "$assignment_id" ]]; then
+    return 0
+  fi
+  if [[ -z "$run_id" || -z "$assignment_id" ]]; then
+    log "refusing non-exact worker stop during $reason: phase=$phase run_id=${run_id:-missing} assignment_id=${assignment_id:-missing}"
+    return 1
+  fi
+  payload="$(jq -cn --arg run_id "$run_id" --arg assignment_id "$assignment_id" '{run_id:$run_id,assignment_id:$assignment_id}')"
+  if ! response="$(curl -fsS --connect-timeout 1 --max-time 15 -X POST -H 'Content-Type: application/json' --data "$payload" "${WORKER_ADDR%/}/v1/stop")"; then
+    log "exact worker stop failed during $reason: run_id=$run_id assignment_id=$assignment_id"
+    return 1
+  fi
+  if ! jq -e --arg run_id "$run_id" --arg assignment_id "$assignment_id" '
+    .phase == "stopped" and
+    ((.active_phase // "") == "") and
+    (.assignment.run_id == $run_id) and
+    (.assignment.assignment_id == $assignment_id)
+  ' >/dev/null <<<"$response"; then
+    log "worker stop was not terminal or changed identity during $reason: run_id=$run_id assignment_id=$assignment_id"
+    return 1
+  fi
+}
+
 cleanup() {
   if [[ -n "$WORKER_PID" ]]; then
     log "stopping temporary worker pid=$WORKER_PID"
-    curl -fsS -X POST "${WORKER_ADDR%/}/v1/stop" >/dev/null 2>&1 || true
+    stop_worker_exact_from_status "script cleanup" || true
     kill "$WORKER_PID" >/dev/null 2>&1 || true
     wait "$WORKER_PID" 2>/dev/null || true
   fi

@@ -60,6 +60,7 @@ type ConnectionSession struct {
 	Client ConnectionClient
 
 	cancelHeartbeat context.CancelFunc
+	heartbeatDone   <-chan struct{}
 }
 
 // ConnectionManagerConfig controls benchmark WKProto connection creation.
@@ -236,15 +237,13 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 	}
 	m.startHeartbeat(session)
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if existing := m.sessions[normalized.UID]; existing != nil {
-		if session.cancelHeartbeat != nil {
-			session.cancelHeartbeat()
-		}
-		_ = client.Close()
+		m.mu.Unlock()
+		_ = closeSession(session)
 		return existing, nil
 	}
 	m.sessions[normalized.UID] = session
+	m.mu.Unlock()
 	m.recordConnectSuccess()
 	return session, nil
 }
@@ -384,7 +383,12 @@ func (m *ConnectionManager) startHeartbeat(session *ConnectionSession) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	session.cancelHeartbeat = cancel
-	go m.heartbeatLoop(ctx, client, interval, timeout)
+	done := make(chan struct{})
+	session.heartbeatDone = done
+	go func() {
+		defer close(done)
+		m.heartbeatLoop(ctx, client, interval, timeout)
+	}()
 }
 
 func (m *ConnectionManager) heartbeatLoop(ctx context.Context, client HeartbeatClient, interval, timeout time.Duration) {
@@ -444,11 +448,21 @@ func (m *ConnectionManager) Close() error {
 	m.sessions = make(map[string]*ConnectionSession)
 	m.mu.Unlock()
 
+	// Cancel every heartbeat first, then close every socket before joining any
+	// heartbeat. This lets large assignments tear down in parallel instead of
+	// paying one goroutine scheduling delay per session, while client Close still
+	// unblocks heartbeat implementations that ignore context cancellation.
+	for _, session := range sessions {
+		cancelSessionHeartbeat(session)
+	}
 	var closeErr error
 	for _, session := range sessions {
-		if err := closeSession(session); err != nil && closeErr == nil {
+		if err := closeSessionClient(session); err != nil && closeErr == nil {
 			closeErr = err
 		}
+	}
+	for _, session := range sessions {
+		waitSessionHeartbeat(session)
 	}
 	return closeErr
 }
@@ -457,14 +471,33 @@ func closeSession(session *ConnectionSession) error {
 	if session == nil {
 		return nil
 	}
-	if session.cancelHeartbeat != nil {
-		session.cancelHeartbeat()
-		session.cancelHeartbeat = nil
+	cancelSessionHeartbeat(session)
+	closeErr := closeSessionClient(session)
+	waitSessionHeartbeat(session)
+	return closeErr
+}
+
+func cancelSessionHeartbeat(session *ConnectionSession) {
+	if session == nil || session.cancelHeartbeat == nil {
+		return
 	}
-	if session.Client == nil {
+	session.cancelHeartbeat()
+	session.cancelHeartbeat = nil
+}
+
+func closeSessionClient(session *ConnectionSession) error {
+	if session == nil || session.Client == nil {
 		return nil
 	}
 	return session.Client.Close()
+}
+
+func waitSessionHeartbeat(session *ConnectionSession) {
+	if session == nil || session.heartbeatDone == nil {
+		return
+	}
+	<-session.heartbeatDone
+	session.heartbeatDone = nil
 }
 
 func (m *ConnectionManager) selectGateway() string {

@@ -39,6 +39,8 @@ type defaultWorkloadRunner struct {
 	clientFactory WorkloadClientFactory
 
 	mu sync.Mutex
+	// replaceMu serializes traffic generation swaps that reuse one connection manager.
+	replaceMu sync.Mutex
 	// metrics stores worker-level counters for connection lifecycle events.
 	metrics *metrics.Registry
 	// runID is the assignment currently bound to manager and workloads.
@@ -51,10 +53,14 @@ type defaultWorkloadRunner struct {
 	personWorkloads []*benchworkload.PersonWorkload
 	// groupWorkloads contains the active group traffic executors for the active run.
 	groupWorkloads []*benchworkload.GroupWorkload
-	// archivedWorkloadMetrics preserves completed churn-window metrics after workloads are rebuilt.
+	// archivedWorkloadMetrics contains at most one temporally merged snapshot of
+	// completed traffic generations, keeping long-running churn memory bounded.
 	archivedWorkloadMetrics []metrics.SnapshotData
-	// cancelAutoRecvAck stops background recv-ack drains bound to the current run.
-	cancelAutoRecvAck context.CancelFunc
+	// autoRecvAck controls and joins background recv-ack drains bound to the current run.
+	autoRecvAck *benchworkload.AutoRecvAckHandle
+	// teardownErr preserves a terminal resource-release failure for this run so
+	// a retry cannot falsely acknowledge stopped after references were detached.
+	teardownErr error
 }
 
 // personWorkloadBundle binds one profile shard, one traffic stream, and its pairs.
@@ -90,6 +96,12 @@ func (r *defaultWorkloadRunner) BeginAssignment(assignment Assignment) {
 	r.beginRun(assignment.RunID, true)
 }
 
+// EndAssignment releases connections and background receive drains for a
+// terminal assignment while retaining its bounded metrics for report reads.
+func (r *defaultWorkloadRunner) EndAssignment(assignment Assignment) error {
+	return r.closeCurrent(assignment.RunID)
+}
+
 func (r *defaultWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
 	if err := prepareBenchTokens(ctx, assignment); err != nil {
 		return err
@@ -121,13 +133,13 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		return err
 	}
 	if err := manager.Connect(ctx, users); err != nil {
-		r.mergeConnectionMetrics(manager)
 		_ = manager.Close()
+		r.mergeConnectionMetrics(manager)
 		return markTargetUnavailable(err)
 	}
 	if err := r.rebuildTrafficFromManager(assignment, manager); err != nil {
-		r.mergeConnectionMetrics(manager)
 		_ = manager.Close()
+		r.mergeConnectionMetrics(manager)
 		return err
 	}
 	return nil
@@ -260,8 +272,7 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 	}
 	users := mergeConnectionUsers(plan.users, groupPlan.users, identityRangeUsers(assignment))
 	if len(users) == 0 {
-		r.store(assignment.RunID, manager, nil, nil, nil)
-		return nil
+		return r.replaceTrafficGeneration(assignment.RunID, manager, nil, nil, nil)
 	}
 	rawClients, err := personClientsFromManager(manager, users)
 	if err != nil {
@@ -276,49 +287,104 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 	if err != nil {
 		return err
 	}
-	var cancelAutoRecvAck context.CancelFunc
+	var startAutoRecvAck func() *benchworkload.AutoRecvAckHandle
 	if assignmentWantsRecvDrain(assignment) {
-		cancelAutoRecvAck = benchworkload.StartAutoRecvAckWithOptions(autoRecvAckClients(clients, plan.users, groupPlan.users), autoRecvAckOptionsForAssignment(assignment))
+		startAutoRecvAck = func() *benchworkload.AutoRecvAckHandle {
+			return benchworkload.StartAutoRecvAckHandleWithOptions(autoRecvAckClients(clients, plan.users, groupPlan.users), autoRecvAckOptionsForAssignment(assignment))
+		}
 	}
-	r.store(assignment.RunID, manager, workloads, groupWorkloads, cancelAutoRecvAck)
-	return nil
+	return r.replaceTrafficGeneration(assignment.RunID, manager, workloads, groupWorkloads, startAutoRecvAck)
 }
 
 // MetricsSnapshot returns the merged metrics from active worker-local workloads.
 func (r *defaultWorkloadRunner) MetricsSnapshot() metrics.SnapshotData {
-	manager, personWorkloads, groupWorkloads, registry := r.metricsState()
-	r.mu.Lock()
-	archived := append([]metrics.SnapshotData(nil), r.archivedWorkloadMetrics...)
-	r.mu.Unlock()
-	workerSnapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads)+len(archived)+2)
-	for _, snapshot := range archived {
-		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: snapshot})
+	manager, personWorkloads, groupWorkloads, archived, registry := r.metricsState()
+	workloadWindows := append([]metrics.SnapshotData(nil), archived...)
+	if active, ok, err := spatialWorkloadMetrics(personWorkloads, groupWorkloads); err != nil {
+		return emptyWorkerMetricsSnapshot()
+	} else if ok {
+		workloadWindows = append(workloadWindows, active)
 	}
+	workerSnapshots := make([]metrics.WorkerSnapshot, 0, 3)
 	if registry != nil {
 		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: registry.Collect()})
 	}
 	if manager != nil {
 		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: manager.MetricsSnapshot()})
 	}
-	for _, wl := range personWorkloads {
-		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: wl.Metrics().Collect()})
-	}
-	for _, wl := range groupWorkloads {
-		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: wl.Metrics().Collect()})
+	if len(workloadWindows) > 0 {
+		workload, err := mergeTemporalWorkloadMetrics(workloadWindows)
+		if err != nil {
+			return emptyWorkerMetricsSnapshot()
+		}
+		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: workload})
 	}
 	agg, err := metrics.Aggregate(workerSnapshots)
 	if err != nil {
-		return metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}}
+		return emptyWorkerMetricsSnapshot()
 	}
 	return agg
 }
 
-func (r *defaultWorkloadRunner) metricsState() (*benchworkload.ConnectionManager, []*benchworkload.PersonWorkload, []*benchworkload.GroupWorkload, *metrics.Registry) {
+func emptyWorkerMetricsSnapshot() metrics.SnapshotData {
+	return metrics.SnapshotData{
+		Counters:   map[string]uint64{},
+		Gauges:     map[string]float64{},
+		Histograms: map[string]metrics.HistogramSummary{},
+	}
+}
+
+func spatialWorkloadMetrics(personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload) (metrics.SnapshotData, bool, error) {
+	snapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads))
+	for _, workload := range personWorkloads {
+		if workload != nil && workload.Metrics() != nil {
+			snapshots = append(snapshots, metrics.WorkerSnapshot{Metrics: workload.Metrics().Collect()})
+		}
+	}
+	for _, workload := range groupWorkloads {
+		if workload != nil && workload.Metrics() != nil {
+			snapshots = append(snapshots, metrics.WorkerSnapshot{Metrics: workload.Metrics().Collect()})
+		}
+	}
+	if len(snapshots) == 0 {
+		return metrics.SnapshotData{}, false, nil
+	}
+	aggregated, err := metrics.Aggregate(snapshots)
+	return aggregated, true, err
+}
+
+// mergeTemporalWorkloadMetrics combines sequential workload generations.
+// Counters and histograms accumulate, while gauges retain the largest
+// generation-local value instead of summing mutually exclusive windows.
+func mergeTemporalWorkloadMetrics(windows []metrics.SnapshotData) (metrics.SnapshotData, error) {
+	snapshots := make([]metrics.WorkerSnapshot, 0, len(windows))
+	for _, window := range windows {
+		snapshots = append(snapshots, metrics.WorkerSnapshot{Metrics: window})
+	}
+	aggregated, err := metrics.Aggregate(snapshots)
+	if err != nil {
+		return metrics.SnapshotData{}, err
+	}
+	aggregated.Gauges = make(map[string]float64)
+	seen := make(map[string]struct{})
+	for _, window := range windows {
+		for key, value := range window.Gauges {
+			if _, ok := seen[key]; !ok || value > aggregated.Gauges[key] {
+				aggregated.Gauges[key] = value
+				seen[key] = struct{}{}
+			}
+		}
+	}
+	return aggregated, nil
+}
+
+func (r *defaultWorkloadRunner) metricsState() (*benchworkload.ConnectionManager, []*benchworkload.PersonWorkload, []*benchworkload.GroupWorkload, []metrics.SnapshotData, *metrics.Registry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.manager,
 		append([]*benchworkload.PersonWorkload(nil), r.personWorkloads...),
 		append([]*benchworkload.GroupWorkload(nil), r.groupWorkloads...),
+		append([]metrics.SnapshotData(nil), r.archivedWorkloadMetrics...),
 		r.metrics
 }
 
@@ -468,7 +534,6 @@ func (r *defaultWorkloadRunner) applyScheduledChurn(ctx context.Context, assignm
 		return err
 	}
 
-	r.archiveCurrentWorkloadMetrics()
 	if err := r.rebuildTrafficFromManager(*assignment, manager); err != nil {
 		return err
 	}
@@ -491,8 +556,7 @@ func (r *defaultWorkloadRunner) Cooldown(ctx context.Context, assignment Assignm
 		}
 		return group.Cooldown(phaseCtx)
 	})
-	r.closeCurrent(assignment.RunID)
-	return err
+	return errors.Join(err, r.closeCurrent(assignment.RunID))
 }
 
 func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignment, fn func(context.Context, *benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error) error {
@@ -909,36 +973,74 @@ func mappedOnlineIdentityIndex(workerPlan model.WorkerPlan, logicalIndex int) in
 	return workerPlan.OnlineIdentityIndexes[logicalIndex-workerPlan.IdentityRange.Start]
 }
 
-func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload, cancelAutoRecvAck context.CancelFunc) {
+func (r *defaultWorkloadRunner) replaceTrafficGeneration(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload, startAutoRecvAck func() *benchworkload.AutoRecvAckHandle) error {
+	r.replaceMu.Lock()
+	defer r.replaceMu.Unlock()
+
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.cancelAutoRecvAck != nil {
-		r.cancelAutoRecvAck()
-		r.cancelAutoRecvAck = nil
+	if r.runID != runID {
+		r.mu.Unlock()
+		return fmt.Errorf("worker runner: cannot replace traffic for inactive run %q", runID)
 	}
-	if r.manager != nil && r.manager != manager {
-		_ = r.manager.Close()
+	previousAutoRecvAck := r.autoRecvAck
+	previousManager := r.manager
+	r.autoRecvAck = nil
+	r.mu.Unlock()
+
+	if previousAutoRecvAck != nil {
+		previousAutoRecvAck.Cancel()
 	}
-	r.runID = runID
+	if previousManager != nil && previousManager != manager {
+		_ = previousManager.Close()
+	}
+	if previousAutoRecvAck != nil {
+		previousAutoRecvAck.Wait()
+	}
+
+	var autoRecvAck *benchworkload.AutoRecvAckHandle
+	if startAutoRecvAck != nil {
+		autoRecvAck = startAutoRecvAck()
+	}
+	r.mu.Lock()
+	if r.runID != runID || (previousManager != nil && r.manager != previousManager) {
+		r.mu.Unlock()
+		if autoRecvAck != nil {
+			autoRecvAck.Cancel()
+			autoRecvAck.Wait()
+		}
+		return fmt.Errorf("worker runner: traffic generation changed while replacing run %q", runID)
+	}
+	if err := r.archiveCurrentWorkloadMetricsLocked(); err != nil {
+		r.mu.Unlock()
+		if autoRecvAck != nil {
+			autoRecvAck.Cancel()
+			autoRecvAck.Wait()
+		}
+		return err
+	}
 	r.manager = manager
 	r.personWorkloads = personWorkloads
 	r.groupWorkloads = groupWorkloads
-	r.cancelAutoRecvAck = cancelAutoRecvAck
+	r.autoRecvAck = autoRecvAck
+	r.mu.Unlock()
+	return nil
 }
 
-func (r *defaultWorkloadRunner) archiveCurrentWorkloadMetrics() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, workload := range r.personWorkloads {
-		if workload != nil && workload.Metrics() != nil {
-			r.archivedWorkloadMetrics = append(r.archivedWorkloadMetrics, workload.Metrics().Collect())
-		}
+func (r *defaultWorkloadRunner) archiveCurrentWorkloadMetricsLocked() error {
+	current, ok, err := spatialWorkloadMetrics(r.personWorkloads, r.groupWorkloads)
+	if err != nil {
+		return fmt.Errorf("worker runner: aggregate active workload metrics: %w", err)
 	}
-	for _, workload := range r.groupWorkloads {
-		if workload != nil && workload.Metrics() != nil {
-			r.archivedWorkloadMetrics = append(r.archivedWorkloadMetrics, workload.Metrics().Collect())
-		}
+	if !ok {
+		return nil
 	}
+	windows := append(append([]metrics.SnapshotData(nil), r.archivedWorkloadMetrics...), current)
+	archived, err := mergeTemporalWorkloadMetrics(windows)
+	if err != nil {
+		return fmt.Errorf("worker runner: merge archived workload metrics: %w", err)
+	}
+	r.archivedWorkloadMetrics = []metrics.SnapshotData{archived}
+	return nil
 }
 
 func (r *defaultWorkloadRunner) mergeConnectionMetrics(manager *benchworkload.ConnectionManager) {
@@ -966,25 +1068,48 @@ func (r *defaultWorkloadRunner) snapshot(runID string) ([]*benchworkload.PersonW
 	return append([]*benchworkload.PersonWorkload(nil), r.personWorkloads...), append([]*benchworkload.GroupWorkload(nil), r.groupWorkloads...), true
 }
 
-func (r *defaultWorkloadRunner) closeCurrent(runID string) {
+func (r *defaultWorkloadRunner) closeCurrent(runID string) error {
 	r.mu.Lock()
 	if r.runID != runID {
 		r.mu.Unlock()
-		return
+		return nil
 	}
-	cancelAutoRecvAck := r.cancelAutoRecvAck
+	if r.teardownErr != nil {
+		err := r.teardownErr
+		r.mu.Unlock()
+		return err
+	}
+	autoRecvAck := r.autoRecvAck
 	manager := r.manager
-	r.cancelAutoRecvAck = nil
+	archiveErr := r.archiveCurrentWorkloadMetricsLocked()
+	r.autoRecvAck = nil
 	r.manager = nil
+	r.personWorkloads = nil
+	r.groupWorkloads = nil
 	r.mu.Unlock()
 
-	if cancelAutoRecvAck != nil {
-		cancelAutoRecvAck()
+	if autoRecvAck != nil {
+		autoRecvAck.Cancel()
+	}
+	var closeErr error
+	if manager != nil {
+		closeErr = manager.Close()
+	}
+	if autoRecvAck != nil {
+		autoRecvAck.Wait()
 	}
 	if manager != nil {
-		_ = manager.Close()
 		r.mergeConnectionMetrics(manager)
 	}
+	teardownErr := errors.Join(archiveErr, closeErr)
+	if teardownErr != nil {
+		r.mu.Lock()
+		if r.runID == runID && r.teardownErr == nil {
+			r.teardownErr = teardownErr
+		}
+		r.mu.Unlock()
+	}
+	return teardownErr
 }
 
 func markTargetUnavailable(err error) error {
@@ -1011,24 +1136,32 @@ func (r *defaultWorkloadRunner) reset(runID string) {
 
 func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if !force && r.runID == runID {
+		r.mu.Unlock()
 		return
 	}
-	if r.cancelAutoRecvAck != nil {
-		r.cancelAutoRecvAck()
-		r.cancelAutoRecvAck = nil
-	}
-	if r.manager != nil {
-		_ = r.manager.Close()
-	}
+	autoRecvAck := r.autoRecvAck
+	manager := r.manager
 	r.runID = runID
 	r.manager = nil
+	r.autoRecvAck = nil
+	r.teardownErr = nil
 	atomic.StoreUint64(&r.reconnectedUsers, 0)
 	r.personWorkloads = nil
 	r.groupWorkloads = nil
 	r.archivedWorkloadMetrics = nil
 	r.metrics = metrics.NewRegistry()
+	r.mu.Unlock()
+
+	if autoRecvAck != nil {
+		autoRecvAck.Cancel()
+	}
+	if manager != nil {
+		_ = manager.Close()
+	}
+	if autoRecvAck != nil {
+		autoRecvAck.Wait()
+	}
 }
 
 func assignmentWantsRecvAck(assignment Assignment) bool {

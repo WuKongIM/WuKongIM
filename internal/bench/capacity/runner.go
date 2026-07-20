@@ -1,8 +1,12 @@
 package capacity
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -30,12 +34,14 @@ func NewRunner(cfg Config, discovered DiscoveredTarget) *Runner {
 }
 
 // Run executes the configured capacity search.
-func (r *Runner) Run(ctx context.Context) (Result, error) {
+func (r *Runner) Run(ctx context.Context) (result Result, err error) {
 	if err := r.startWorker(); err != nil {
 		return Result{}, err
 	}
-	defer r.close()
-	result, err := Search(ctx, r.cfg, r)
+	defer func() {
+		err = errors.Join(err, r.close())
+	}()
+	result, err = Search(ctx, r.cfg, r)
 	result.ReportDir = r.cfg.ReportDir
 	return result, err
 }
@@ -44,12 +50,27 @@ func (r *Runner) Run(ctx context.Context) (Result, error) {
 func (r *Runner) RunAttempt(ctx context.Context, attempt Attempt) (AttemptResult, error) {
 	scenario := BuildScenario(r.cfg, attempt)
 	coord := coordinator.New(coordinator.CoordinatorConfig{Workers: r.workers, Target: r.discovered.Target})
-	defer r.stopWorkers()
 	result, err := coord.Run(ctx, scenario)
+	var stopErr error
+	if strings.TrimSpace(result.AssignmentID) != "" {
+		stopErr = r.stopWorkers(worker.StopRequest{RunID: result.RunID, AssignmentID: result.AssignmentID})
+	}
+	err = errors.Join(err, stopErr)
 	attemptResult := EvaluateAttempt(r.cfg, attempt, result.Report)
 	attemptResult.ReportDir = scenario.Run.ReportDir
+	if stopErr != nil {
+		attemptResult.Passed = false
+		attemptResult.WorkerFailed = max(attemptResult.WorkerFailed, 1)
+		attemptResult.FailureReason = "worker_stop_failed"
+	}
 	if err != nil && result.Status != coordinator.StatusHardLimitFailed {
 		applyCoordinatorFailure(&attemptResult, result)
+		if stopErr != nil {
+			attemptResult.FailureReason = "worker_stop_failed"
+		}
+	}
+	if stopErr != nil {
+		return attemptResult, err
 	}
 	if err != nil && !hasAttemptReport(result.Report) {
 		return attemptResult, err
@@ -93,31 +114,110 @@ func (r *Runner) startWorker() error {
 	return nil
 }
 
-func (r *Runner) close() {
-	r.stopWorkers()
+func (r *Runner) close() error {
+	stopErr := r.stopWorkersFromStatus()
 	if r.server != nil {
 		r.server.Close()
 		r.server = nil
 	}
+	return stopErr
 }
 
-func (r *Runner) stopWorkers() {
+func (r *Runner) stopWorkers(request worker.StopRequest) error {
+	return stopCapacityWorkers(r.workers, request)
+}
+
+func stopCapacityWorkers(workers []model.Worker, request worker.StopRequest) error {
+	request.RunID = strings.TrimSpace(request.RunID)
+	request.AssignmentID = strings.TrimSpace(request.AssignmentID)
+	if request.RunID == "" && request.AssignmentID == "" {
+		return nil
+	}
+	if request.RunID == "" || request.AssignmentID == "" {
+		return fmt.Errorf("capacity worker stop requires exact run_id and assignment_id")
+	}
+	var errs []error
+	for _, w := range workers {
+		if strings.TrimSpace(w.Addr) == "" {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		status, err := capacityWorkerStatus(ctx, w)
+		if err == nil {
+			statusRunID := strings.TrimSpace(status.Assignment.RunID)
+			statusAssignmentID := strings.TrimSpace(status.Assignment.AssignmentID)
+			if status.Phase == worker.PhaseIdle && statusRunID == "" && statusAssignmentID == "" {
+				cancel()
+				continue
+			}
+			if statusRunID != request.RunID || statusAssignmentID != request.AssignmentID || strings.TrimSpace(status.Assignment.WorkerID) != strings.TrimSpace(w.ID) {
+				err = fmt.Errorf(
+					"worker %s cleanup identity conflict: got %q/%q/%q want %q/%q/%q",
+					strings.TrimSpace(w.ID),
+					statusRunID,
+					statusAssignmentID,
+					strings.TrimSpace(status.Assignment.WorkerID),
+					request.RunID,
+					request.AssignmentID,
+					strings.TrimSpace(w.ID),
+				)
+			} else if status.Phase == worker.PhaseStopped && status.ActivePhase == "" {
+				cancel()
+				continue
+			} else {
+				err = stopWorker(ctx, w, request)
+			}
+		}
+		cancel()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (r *Runner) stopWorkersFromStatus() error {
+	var errs []error
 	for _, w := range r.workers {
 		if strings.TrimSpace(w.Addr) == "" {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_ = stopWorker(ctx, w)
+		status, err := capacityWorkerStatus(ctx, w)
+		if err == nil && status.Phase == worker.PhaseIdle && strings.TrimSpace(status.Assignment.RunID) == "" && strings.TrimSpace(status.Assignment.AssignmentID) == "" {
+			cancel()
+			continue
+		}
+		if err == nil {
+			err = stopWorker(ctx, w, worker.StopRequest{
+				RunID:        status.Assignment.RunID,
+				AssignmentID: status.Assignment.AssignmentID,
+			})
+		}
 		cancel()
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
+	return errors.Join(errs...)
 }
 
-func stopWorker(ctx context.Context, w model.Worker) error {
+func stopWorker(ctx context.Context, w model.Worker, request worker.StopRequest) error {
+	request.RunID = strings.TrimSpace(request.RunID)
+	request.AssignmentID = strings.TrimSpace(request.AssignmentID)
+	if request.RunID == "" || request.AssignmentID == "" {
+		return fmt.Errorf("worker %s stop requires exact run_id and assignment_id", strings.TrimSpace(w.ID))
+	}
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("encode worker %s stop request: %w", strings.TrimSpace(w.ID), err)
+	}
 	url := strings.TrimRight(strings.TrimSpace(w.Addr), "/") + "/v1/stop"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	if !w.InsecureControl && strings.TrimSpace(w.ControlToken) != "" {
 		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(w.ControlToken))
 	}
@@ -125,7 +225,56 @@ func stopWorker(ctx context.Context, w model.Worker) error {
 	if err != nil {
 		return err
 	}
-	return resp.Body.Close()
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("worker %s stop returned %s: %s", strings.TrimSpace(w.ID), resp.Status, strings.TrimSpace(string(detail)))
+	}
+	var status worker.Status
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&status); err != nil {
+		return fmt.Errorf("decode worker %s stop response: %w", strings.TrimSpace(w.ID), err)
+	}
+	if status.Assignment.RunID != request.RunID || status.Assignment.AssignmentID != request.AssignmentID || strings.TrimSpace(status.Assignment.WorkerID) != strings.TrimSpace(w.ID) {
+		return fmt.Errorf(
+			"worker %s stop response identity mismatch: got %q/%q/%q want %q/%q/%q",
+			strings.TrimSpace(w.ID),
+			status.Assignment.RunID,
+			status.Assignment.AssignmentID,
+			status.Assignment.WorkerID,
+			request.RunID,
+			request.AssignmentID,
+			strings.TrimSpace(w.ID),
+		)
+	}
+	if status.Phase != worker.PhaseStopped || status.ActivePhase != "" {
+		return fmt.Errorf("worker %s stop response is not terminal: phase=%q active_phase=%q", strings.TrimSpace(w.ID), status.Phase, status.ActivePhase)
+	}
+	return nil
+}
+
+func capacityWorkerStatus(ctx context.Context, w model.Worker) (worker.Status, error) {
+	url := strings.TrimRight(strings.TrimSpace(w.Addr), "/") + "/v1/status"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return worker.Status{}, err
+	}
+	if !w.InsecureControl && strings.TrimSpace(w.ControlToken) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(w.ControlToken))
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return worker.Status{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return worker.Status{}, fmt.Errorf("worker %s status returned %s: %s", strings.TrimSpace(w.ID), resp.Status, strings.TrimSpace(string(detail)))
+	}
+	var status worker.Status
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&status); err != nil {
+		return worker.Status{}, fmt.Errorf("decode worker %s status response: %w", strings.TrimSpace(w.ID), err)
+	}
+	return status, nil
 }
 
 // EvaluateAttempt classifies one coordinator report against capacity criteria.

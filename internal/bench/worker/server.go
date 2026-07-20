@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -47,6 +48,59 @@ type AssignmentStarter interface {
 	BeginAssignment(assignment Assignment)
 }
 
+// AssignmentStopper releases resources owned by a terminal worker assignment.
+type AssignmentStopper interface {
+	// EndAssignment closes assignment-scoped connections and background work.
+	// Implementations must be idempotent because stop requests may be retried.
+	EndAssignment(assignment Assignment) error
+}
+
+// StopRequest identifies the exact assignment that a coordinator intends to stop.
+type StopRequest struct {
+	// RunID prevents a delayed stop request from terminating a newer assignment.
+	RunID string `json:"run_id"`
+	// AssignmentID prevents a delayed stop from terminating a newer generation of RunID.
+	AssignmentID string `json:"assignment_id"`
+}
+
+// RunRequest binds an assignment operation to one exact worker assignment generation.
+type RunRequest struct {
+	// RunID prevents a delayed control request from operating on a newer assignment.
+	RunID string `json:"run_id"`
+	// AssignmentID prevents a delayed control request from crossing run generations.
+	AssignmentID string `json:"assignment_id"`
+}
+
+// assignmentIdentity identifies one immutable worker assignment generation.
+type assignmentIdentity struct {
+	// runID identifies the parent benchmark run.
+	runID string
+	// assignmentID identifies one generation within runID.
+	assignmentID string
+}
+
+func requiredAssignmentIdentity(runID, assignmentID string) (assignmentIdentity, error) {
+	identity := assignmentIdentity{
+		runID:        strings.TrimSpace(runID),
+		assignmentID: strings.TrimSpace(assignmentID),
+	}
+	if identity.runID == "" {
+		return assignmentIdentity{}, fmt.Errorf("run_id is required")
+	}
+	if identity.assignmentID == "" {
+		return assignmentIdentity{}, fmt.Errorf("assignment_id is required")
+	}
+	return identity, nil
+}
+
+func (i assignmentIdentity) matches(assignment Assignment) bool {
+	return assignmentIdentityMatches(assignment, i.runID, i.assignmentID)
+}
+
+func (i assignmentIdentity) isZero() bool {
+	return i.runID == "" && i.assignmentID == ""
+}
+
 // TrafficResetter rebuilds traffic executors for an assignment without reconnecting sessions.
 type TrafficResetter interface {
 	// ResetTraffic applies assignment traffic changes while preserving existing connections.
@@ -80,14 +134,45 @@ type Server struct {
 	runner WorkloadRunner
 	mux    *http.ServeMux
 
-	phaseMu sync.Mutex
-	cancel  phaseCancel
+	// lifecycleMu serializes assignment admission, phase task publication, and
+	// terminal stop commit without covering the phase hook's execution time.
+	lifecycleMu sync.Mutex
+	taskMu      sync.Mutex
+	taskSeq     uint64
+	activeTask  lifecycleTask
+	stopMu      sync.Mutex
+	stopTask    *terminalStopTask
+	// stoppingAssignment fences assignment work as soon as an exact-generation
+	// stop is admitted. It remains set until a stopped assignment is replaced.
+	stoppingAssignment assignmentIdentity
 }
 
-type phaseCancel struct {
-	runID  string
-	phase  Phase
-	cancel context.CancelFunc
+// lifecycleTaskKind identifies assignment work that terminal stop must cancel and join.
+type lifecycleTaskKind string
+
+const (
+	lifecycleTaskPhase           lifecycleTaskKind = "phase"
+	lifecycleTaskPrepareChannels lifecycleTaskKind = "prepare_channels"
+)
+
+// lifecycleTask is the single published phase or owner-channel preparation hook.
+type lifecycleTask struct {
+	id           uint64
+	runID        string
+	assignmentID string
+	kind         lifecycleTaskKind
+	phase        Phase
+	cancel       context.CancelFunc
+	done         <-chan struct{}
+}
+
+// terminalStopTask is the shared exact-run finalization outcome joined by stop retries.
+type terminalStopTask struct {
+	runID        string
+	assignmentID string
+	done         chan struct{}
+	status       Status
+	err          error
 }
 
 // NewServer builds a worker control server with in-memory assignment state.
@@ -149,7 +234,13 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid assignment json")
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 	before := s.state.Status()
+	if !s.stoppingAssignment.isZero() && before.Phase != PhaseStopped {
+		writeError(w, http.StatusConflict, fmt.Sprintf("%v: assignment %q/%q is stopping", ErrInvalidPhaseTransition, s.stoppingAssignment.runID, s.stoppingAssignment.assignmentID))
+		return
+	}
 	if err := s.state.Assign(a); err != nil {
 		switch {
 		case errors.Is(err, ErrActiveRunConflict):
@@ -163,6 +254,10 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 	}
 	status := s.state.Status()
 	if assignmentStarted(before, status) {
+		s.stoppingAssignment = assignmentIdentity{}
+		s.stopMu.Lock()
+		s.stopTask = nil
+		s.stopMu.Unlock()
 		if starter, ok := s.runner.(AssignmentStarter); ok {
 			starter.BeginAssignment(status.Assignment)
 		}
@@ -171,16 +266,16 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 }
 
 func assignmentStarted(before, after Status) bool {
-	if after.Phase != PhaseAssigned || strings.TrimSpace(after.Assignment.RunID) == "" {
+	if after.Phase != PhaseAssigned || strings.TrimSpace(after.Assignment.RunID) == "" || strings.TrimSpace(after.Assignment.AssignmentID) == "" {
 		return false
 	}
 	if strings.TrimSpace(before.Assignment.RunID) == "" {
 		return true
 	}
 	if before.Phase == PhaseStopped {
-		return true
+		return !assignmentIdentityMatches(before.Assignment, after.Assignment.RunID, after.Assignment.AssignmentID)
 	}
-	return before.Assignment.RunID != after.Assignment.RunID
+	return !assignmentIdentityMatches(before.Assignment, after.Assignment.RunID, after.Assignment.AssignmentID)
 }
 
 func (s *Server) phase(phase Phase) http.HandlerFunc {
@@ -189,26 +284,64 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			methodNotAllowed(w)
 			return
 		}
-		status := s.state.Status()
-		nextStatus, started, err := s.state.BeginPhaseForAssignment(status.Assignment.RunID, phase)
+		var request RunRequest
+		if r.Body != nil && r.ContentLength != 0 {
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid phase json")
+				return
+			}
+		}
+		identity, err := requiredAssignmentIdentity(request.RunID, request.AssignmentID)
 		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		s.lifecycleMu.Lock()
+		status := s.state.Status()
+		if !identity.matches(status.Assignment) {
+			s.lifecycleMu.Unlock()
+			writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, identity.runID, identity.assignmentID).Error())
+			return
+		}
+		if !s.stoppingAssignment.isZero() {
+			stopping := s.stoppingAssignment
+			s.lifecycleMu.Unlock()
+			writeError(w, http.StatusConflict, fmt.Sprintf("%v: assignment %q/%q is stopping", ErrInvalidPhaseTransition, stopping.runID, stopping.assignmentID))
+			return
+		}
+		activeTask := s.currentLifecycleTask()
+		if activeTask.id != 0 && !(activeTask.kind == lifecycleTaskPhase && activeTask.runID == identity.runID && activeTask.assignmentID == identity.assignmentID && activeTask.phase == phase) {
+			s.lifecycleMu.Unlock()
+			writeError(w, http.StatusConflict, fmt.Sprintf("%v: lifecycle task %q already running", ErrInvalidPhaseTransition, activeTask.kind))
+			return
+		}
+		nextStatus, started, err := s.state.BeginPhaseForAssignment(identity.runID, identity.assignmentID, phase)
+		if err != nil {
+			s.lifecycleMu.Unlock()
 			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
 		if !started {
+			s.lifecycleMu.Unlock()
 			writeJSON(w, http.StatusOK, nextStatus)
 			return
 		}
 		assignment := nextStatus.Assignment
 		phaseCtx, phaseCancel := context.WithCancel(context.Background())
-		s.storePhaseCancel(assignment.RunID, phase, phaseCancel)
-		done := make(chan error, 1)
+		phaseDone := make(chan struct{})
+		phaseTaskID := s.storeLifecycleTask(assignment.RunID, assignment.AssignmentID, lifecycleTaskPhase, phase, phaseCancel, phaseDone)
+		result := make(chan error, 1)
 		go func() {
-			done <- s.completePhase(phaseCtx, phase, assignment)
+			err := s.completePhase(phaseCtx, phase, assignment)
+			close(phaseDone)
+			s.clearLifecycleTask(phaseTaskID)
+			result <- err
 		}()
+		// Publishing the phase task before releasing lifecycleMu makes stop either
+		// observe and cancel this task or commit stopped before this admission.
+		s.lifecycleMu.Unlock()
 		select {
-		case err := <-done:
-			s.clearPhaseCancel(assignment.RunID, phase)
+		case err := <-result:
 			if err != nil {
 				if errors.Is(err, errTargetUnavailable) {
 					writePhaseError(w, http.StatusServiceUnavailable, err)
@@ -226,8 +359,7 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 
 func (s *Server) completePhase(ctx context.Context, phase Phase, assignment Assignment) error {
 	err := s.runPhaseHook(ctx, phase, assignment)
-	s.clearPhaseCancel(assignment.RunID, phase)
-	completeErr := s.state.CompletePhaseForAssignment(assignment.RunID, phase, err)
+	completeErr := s.state.CompletePhaseForAssignment(assignment.RunID, assignment.AssignmentID, phase, err)
 	if errors.Is(err, context.Canceled) && errors.Is(completeErr, ErrInvalidPhaseTransition) {
 		return nil
 	}
@@ -237,28 +369,56 @@ func (s *Server) completePhase(ctx context.Context, phase Phase, assignment Assi
 	return completeErr
 }
 
-func (s *Server) storePhaseCancel(runID string, phase Phase, cancel context.CancelFunc) {
-	s.phaseMu.Lock()
-	defer s.phaseMu.Unlock()
-	s.cancel = phaseCancel{runID: runID, phase: phase, cancel: cancel}
+func (s *Server) storeLifecycleTask(runID, assignmentID string, kind lifecycleTaskKind, phase Phase, cancel context.CancelFunc, done <-chan struct{}) uint64 {
+	s.taskMu.Lock()
+	defer s.taskMu.Unlock()
+	s.taskSeq++
+	s.activeTask = lifecycleTask{id: s.taskSeq, runID: runID, assignmentID: assignmentID, kind: kind, phase: phase, cancel: cancel, done: done}
+	return s.taskSeq
 }
 
-func (s *Server) clearPhaseCancel(runID string, phase Phase) {
-	s.phaseMu.Lock()
-	defer s.phaseMu.Unlock()
-	if s.cancel.runID != runID || s.cancel.phase != phase {
+// clearLifecycleTask removes only the exact task generation that completed.
+func (s *Server) clearLifecycleTask(taskID uint64) {
+	s.taskMu.Lock()
+	defer s.taskMu.Unlock()
+	if s.activeTask.id != taskID {
 		return
 	}
-	s.cancel = phaseCancel{}
+	s.activeTask = lifecycleTask{}
 }
 
-func (s *Server) cancelActivePhase() {
-	s.phaseMu.Lock()
-	cancel := s.cancel.cancel
-	s.cancel = phaseCancel{}
-	s.phaseMu.Unlock()
+// currentLifecycleTask returns the published task, reaping a completed generation.
+func (s *Server) currentLifecycleTask() lifecycleTask {
+	s.taskMu.Lock()
+	defer s.taskMu.Unlock()
+	if s.activeTask.id != 0 && lifecycleTaskDone(s.activeTask.done) {
+		s.activeTask = lifecycleTask{}
+	}
+	return s.activeTask
+}
+
+// cancelActiveLifecycleTask requests cancellation and returns the task completion signal.
+func (s *Server) cancelActiveLifecycleTask(expected assignmentIdentity) <-chan struct{} {
+	task := s.currentLifecycleTask()
+	if task.id != 0 && (task.runID != expected.runID || task.assignmentID != expected.assignmentID) {
+		return nil
+	}
+	cancel := task.cancel
 	if cancel != nil {
 		cancel()
+	}
+	return task.done
+}
+
+func lifecycleTaskDone(done <-chan struct{}) bool {
+	if done == nil {
+		return false
+	}
+	select {
+	case <-done:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -287,20 +447,64 @@ func (s *Server) prepareChannels(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	var request RunRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid prepare channels json")
+			return
+		}
+	}
+	identity, err := requiredAssignmentIdentity(request.RunID, request.AssignmentID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.lifecycleMu.Lock()
 	status := s.state.Status()
+	if !identity.matches(status.Assignment) {
+		s.lifecycleMu.Unlock()
+		writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, identity.runID, identity.assignmentID).Error())
+		return
+	}
+	if !s.stoppingAssignment.isZero() {
+		stopping := s.stoppingAssignment
+		s.lifecycleMu.Unlock()
+		writeError(w, http.StatusConflict, fmt.Sprintf("%v: assignment %q/%q is stopping", ErrInvalidPhaseTransition, stopping.runID, stopping.assignmentID))
+		return
+	}
 	if status.Assignment.RunID == "" || status.Phase == PhaseIdle || status.Phase == PhaseStopped {
+		s.lifecycleMu.Unlock()
 		writeError(w, http.StatusConflict, "worker is not assigned")
 		return
 	}
-	if runner, ok := s.runner.(PrepareChannelsRunner); ok {
-		if err := runner.PrepareChannels(r.Context(), status.Assignment); err != nil {
-			if errors.Is(err, errTargetUnavailable) {
-				writePhaseError(w, http.StatusServiceUnavailable, err)
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err.Error())
+	if activeTask := s.currentLifecycleTask(); activeTask.id != 0 {
+		s.lifecycleMu.Unlock()
+		writeError(w, http.StatusConflict, fmt.Sprintf("%v: lifecycle task %q already running", ErrInvalidPhaseTransition, activeTask.kind))
+		return
+	}
+	runner, ok := s.runner.(PrepareChannelsRunner)
+	if !ok {
+		s.lifecycleMu.Unlock()
+		writeJSON(w, http.StatusOK, status)
+		return
+	}
+	prepareCtx, prepareCancel := context.WithCancel(r.Context())
+	prepareDone := make(chan struct{})
+	taskID := s.storeLifecycleTask(status.Assignment.RunID, status.Assignment.AssignmentID, lifecycleTaskPrepareChannels, "", prepareCancel, prepareDone)
+	assignment := status.Assignment
+	s.lifecycleMu.Unlock()
+
+	err = runner.PrepareChannels(prepareCtx, assignment)
+	prepareCancel()
+	close(prepareDone)
+	s.clearLifecycleTask(taskID)
+	if err != nil {
+		if errors.Is(err, errTargetUnavailable) {
+			writePhaseError(w, http.StatusServiceUnavailable, err)
 			return
 		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	writeJSON(w, http.StatusOK, s.state.Status())
 }
@@ -310,12 +514,124 @@ func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	s.cancelActivePhase()
-	if err := s.state.Stop(); err != nil {
-		writeError(w, http.StatusConflict, err.Error())
+	var request StopRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid stop json")
+			return
+		}
+	}
+	identity, err := requiredAssignmentIdentity(request.RunID, request.AssignmentID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, s.state.Status())
+	task := s.beginTerminalStop(identity)
+	select {
+	case <-task.done:
+		if task.err != nil {
+			statusCode := http.StatusInternalServerError
+			if errors.Is(task.err, ErrActiveRunConflict) || errors.Is(task.err, ErrInvalidPhaseTransition) {
+				statusCode = http.StatusConflict
+			}
+			writeError(w, statusCode, task.err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, task.status)
+	case <-r.Context().Done():
+		return
+	}
+}
+
+func (s *Server) beginTerminalStop(expected assignmentIdentity) *terminalStopTask {
+	// Stop admission is synchronous with assignment and phase admission. Once
+	// this lock is released, no new assignment work for the run may start.
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	current := s.state.Status()
+	if !expected.matches(current.Assignment) {
+		task := &terminalStopTask{
+			runID:        expected.runID,
+			assignmentID: expected.assignmentID,
+			done:         make(chan struct{}),
+			status:       current,
+			err:          assignmentIdentityConflict(current.Assignment, expected.runID, expected.assignmentID),
+		}
+		close(task.done)
+		return task
+	}
+	if current.Phase == PhaseIdle {
+		task := &terminalStopTask{
+			runID:        expected.runID,
+			assignmentID: expected.assignmentID,
+			done:         make(chan struct{}),
+			status:       current,
+			err:          fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, current.Phase, PhaseStopped),
+		}
+		close(task.done)
+		return task
+	}
+	s.stopMu.Lock()
+	defer s.stopMu.Unlock()
+	if existing := s.stopTask; existing != nil && existing.runID == expected.runID && existing.assignmentID == expected.assignmentID {
+		select {
+		case <-existing.done:
+			if existing.err == nil {
+				return existing
+			}
+		default:
+			return existing
+		}
+	}
+	task := &terminalStopTask{runID: expected.runID, assignmentID: expected.assignmentID, done: make(chan struct{})}
+	s.stopTask = task
+	s.stoppingAssignment = expected
+	activeDone := s.cancelActiveLifecycleTask(expected)
+	// Terminal cleanup must outlive the caller's HTTP deadline. Concurrent
+	// retries for the same run join this one bounded background finalizer.
+	go func() {
+		task.status, task.err = s.finalizeStop(expected, activeDone)
+		close(task.done)
+	}()
+	return task
+}
+
+func (s *Server) finalizeStop(expected assignmentIdentity, activeDone <-chan struct{}) (Status, error) {
+	if activeDone != nil {
+		<-activeDone
+	}
+
+	s.lifecycleMu.Lock()
+	before := s.state.Status()
+	if !expected.matches(before.Assignment) {
+		s.lifecycleMu.Unlock()
+		return before, assignmentIdentityConflict(before.Assignment, expected.runID, expected.assignmentID)
+	}
+	if before.Phase == PhaseStopped {
+		s.lifecycleMu.Unlock()
+		return before, nil
+	}
+	assignment := before.Assignment
+	s.lifecycleMu.Unlock()
+
+	// Admission remains fenced while teardown runs, so a slow runner cannot
+	// make exact-run phase or prepare requests wait behind this cleanup.
+	if stopper, ok := s.runner.(AssignmentStopper); ok {
+		if err := stopper.EndAssignment(assignment); err != nil {
+			return s.state.Status(), fmt.Errorf("end assignment %q/%q: %w", assignment.RunID, assignment.AssignmentID, err)
+		}
+	}
+
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	current := s.state.Status()
+	if !expected.matches(current.Assignment) {
+		return current, assignmentIdentityConflict(current.Assignment, expected.runID, expected.assignmentID)
+	}
+	if err := s.state.StopForAssignment(expected.runID, expected.assignmentID); err != nil {
+		return s.state.Status(), err
+	}
+	return s.state.Status(), nil
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
@@ -331,6 +647,11 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if !s.validateEvidenceRun(w, r) {
+		return
+	}
 	writeJSON(w, http.StatusOK, s.metricsSnapshot())
 }
 
@@ -339,12 +660,18 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if !s.validateEvidenceRun(w, r) {
+		return
+	}
 	status := s.state.Status()
 	payload := map[string]any{
-		"run_id":    status.Assignment.RunID,
-		"worker_id": status.Assignment.WorkerID,
-		"phase":     status.Phase,
-		"metrics":   s.metricsSnapshot(),
+		"run_id":        status.Assignment.RunID,
+		"assignment_id": status.Assignment.AssignmentID,
+		"worker_id":     status.Assignment.WorkerID,
+		"phase":         status.Phase,
+		"metrics":       s.metricsSnapshot(),
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -352,6 +679,24 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, report.WorkerReport{WorkerID: status.Assignment.WorkerID, Report: data})
+}
+
+func (s *Server) validateEvidenceRun(w http.ResponseWriter, r *http.Request) bool {
+	expected, err := requiredAssignmentIdentity(r.URL.Query().Get("run_id"), r.URL.Query().Get("assignment_id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return false
+	}
+	status := s.state.Status()
+	if expected.matches(status.Assignment) && status.Phase == PhaseStopped && status.ActivePhase == "" {
+		return true
+	}
+	if expected.matches(status.Assignment) {
+		writeError(w, http.StatusConflict, fmt.Sprintf("evidence assignment %q/%q is not terminal: phase=%q active_phase=%q", expected.runID, expected.assignmentID, status.Phase, status.ActivePhase))
+		return false
+	}
+	writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, expected.runID, expected.assignmentID).Error())
+	return false
 }
 
 func (s *Server) metricsSnapshot() metrics.SnapshotData {

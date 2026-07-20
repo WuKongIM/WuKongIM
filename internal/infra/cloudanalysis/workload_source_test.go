@@ -52,6 +52,45 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 	}
 }
 
+func TestWorkloadSummarySourceRejectsWorkerFailureWithPassingTerminal(t *testing.T) {
+	valid := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[{"worker_id":"worker-1","phase":"collect","reason_code":"worker_report_unavailable","detail":"worker report unavailable","observed_at":"2026-07-20T07:00:00Z"}],
+  "failed_workers_truncated":false
+}`
+	tests := []struct {
+		name    string
+		summary string
+	}{
+		{
+			name: "passed status and zero exit",
+			summary: strings.NewReplacer(
+				`"status":"failed"`, `"status":"passed"`,
+				`"exit_code":4`, `"exit_code":0`,
+			).Replace(valid),
+		},
+		{
+			name:    "passed stability verdict",
+			summary: strings.Replace(valid, `"stability_verdict":"harness_invalid"`, `"stability_verdict":"passed"`, 1),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := decodeWorkloadSummary(strings.NewReader(test.summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+				t.Fatalf("worker failure terminal error = %v, want %v", err, errInvalidWorkloadSummary)
+			}
+		})
+	}
+}
+
 func TestWorkloadSummarySourceReportsMissingSummaryAsInProgress(t *testing.T) {
 	result, err := newWorkloadSummarySource(t.TempDir()).inspect(context.Background(), "run-1")
 	if err != nil {
@@ -136,6 +175,129 @@ func TestWorkloadSummarySourceRejectsUntrustedFailureOperation(t *testing.T) {
 	}
 	if validWorkloadFailureOperation("worker_report_unavailable", "group_sendack") {
 		t.Fatal("session operation must not attach to a non-session failure reason")
+	}
+}
+
+func TestWorkloadSummarySourceAcceptsPhaseTimeoutStage(t *testing.T) {
+	for _, stage := range []string{"worker_status", "phase_completion"} {
+		t.Run(stage, func(t *testing.T) {
+			summary := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[{"phase":"run","started_at":"2026-07-20T06:18:03Z","ended_at":"2026-07-20T06:48:58Z"}],
+  "failed_workers":[{"worker_id":"worker-1","phase":"run","reason_code":"phase_timeout","operation":"` + stage + `","detail":"worker phase timed out","observed_at":"2026-07-20T06:48:58Z"}],
+  "failed_workers_truncated":false
+}`
+
+			inspection, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1")
+			if err != nil {
+				t.Fatalf("decode phase timeout stage: %v", err)
+			}
+			if len(inspection.FailedWorkers) != 1 || inspection.FailedWorkers[0].Operation != stage {
+				t.Fatalf("phase timeout failure = %+v, want %q", inspection.FailedWorkers, stage)
+			}
+		})
+	}
+}
+
+func TestWorkloadSummarySourceAcceptsWorkerStopFailure(t *testing.T) {
+	summary := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[{"worker_id":"worker-1","phase":"stop","reason_code":"worker_stop_failed","detail":"worker terminal stop failed","observed_at":"2026-07-20T07:00:00Z"}],
+  "failed_workers_truncated":false
+}`
+
+	inspection, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1")
+	if err != nil {
+		t.Fatalf("decode worker stop failure: %v", err)
+	}
+	if len(inspection.FailedWorkers) != 1 || inspection.FailedWorkers[0].Phase != "stop" ||
+		inspection.FailedWorkers[0].ReasonCode != "worker_stop_failed" {
+		t.Fatalf("worker stop failure = %+v", inspection.FailedWorkers)
+	}
+}
+
+func TestWorkloadSummarySourceRejectsWorkerStopFailureWithNonHarnessTerminal(t *testing.T) {
+	valid := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[{"worker_id":"worker-1","phase":"stop","reason_code":"worker_stop_failed","detail":"worker terminal stop failed","observed_at":"2026-07-20T07:00:00Z"}],
+  "failed_workers_truncated":false
+}`
+	tests := []struct {
+		name    string
+		summary string
+	}{
+		{
+			name: "passed status and zero exit",
+			summary: strings.NewReplacer(
+				`"status":"failed"`, `"status":"passed"`,
+				`"exit_code":4`, `"exit_code":0`,
+			).Replace(valid),
+		},
+		{
+			name:    "non-worker exit",
+			summary: strings.Replace(valid, `"exit_code":4`, `"exit_code":3`, 1),
+		},
+		{
+			name:    "non-harness verdict",
+			summary: strings.Replace(valid, `"stability_verdict":"harness_invalid"`, `"stability_verdict":"insufficient_evidence"`, 1),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := decodeWorkloadSummary(strings.NewReader(test.summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+				t.Fatalf("worker stop terminal error = %v, want %v", err, errInvalidWorkloadSummary)
+			}
+		})
+	}
+}
+
+func TestWorkloadSummarySourceRejectsMismatchedWorkerStopFailureTuple(t *testing.T) {
+	valid := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":4,
+  "stability_verdict":"harness_invalid",
+  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[{"worker_id":"worker-1","phase":"stop","reason_code":"worker_stop_failed","detail":"worker terminal stop failed","observed_at":"2026-07-20T07:00:00Z"}],
+  "failed_workers_truncated":false
+}`
+	tests := map[string]string{
+		"stop reason outside stop phase": strings.Replace(valid, `"phase":"stop"`, `"phase":"run"`, 1),
+		"other reason in stop phase":     strings.Replace(valid, `"reason_code":"worker_stop_failed","detail":"worker terminal stop failed"`, `"reason_code":"phase_timeout","detail":"worker phase timed out"`, 1),
+	}
+	for name, summary := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+				t.Fatalf("mismatched stop failure tuple error = %v, want %v", err, errInvalidWorkloadSummary)
+			}
+		})
 	}
 }
 

@@ -68,7 +68,8 @@ func (c FailureReasonCode) Valid() bool {
 	}
 }
 
-// FailureOperationCode identifies the bounded workload operation that failed.
+// FailureOperationCode identifies a bounded workload operation or control
+// stage that failed.
 type FailureOperationCode string
 
 const (
@@ -92,6 +93,10 @@ const (
 	FailureOperationGroupRecv FailureOperationCode = "group_recv"
 	// FailureOperationGroupRecvack means a group receive acknowledgement failed.
 	FailureOperationGroupRecvack FailureOperationCode = "group_recvack"
+	// FailureOperationWorkerStatus means the coordinator could not read worker status before the phase deadline.
+	FailureOperationWorkerStatus FailureOperationCode = "worker_status"
+	// FailureOperationPhaseCompletion means an exact-run worker status was observed but the phase did not complete before its deadline.
+	FailureOperationPhaseCompletion FailureOperationCode = "phase_completion"
 )
 
 // Valid reports whether the operation belongs to the worker control API contract.
@@ -99,7 +104,8 @@ func (c FailureOperationCode) Valid() bool {
 	switch c {
 	case FailureOperationPersonSendackLock, FailureOperationPersonSend, FailureOperationPersonSendack,
 		FailureOperationPersonRecv, FailureOperationPersonRecvack, FailureOperationGroupSendackLock,
-		FailureOperationGroupSend, FailureOperationGroupSendack, FailureOperationGroupRecv, FailureOperationGroupRecvack:
+		FailureOperationGroupSend, FailureOperationGroupSendack, FailureOperationGroupRecv, FailureOperationGroupRecvack,
+		FailureOperationWorkerStatus, FailureOperationPhaseCompletion:
 		return true
 	default:
 		return false
@@ -110,6 +116,8 @@ func (c FailureOperationCode) Valid() bool {
 type Assignment struct {
 	// RunID identifies the benchmark run that owns this assignment.
 	RunID string `json:"run_id"`
+	// AssignmentID identifies one immutable worker-assignment generation within RunID.
+	AssignmentID string `json:"assignment_id"`
 	// WorkerID identifies this worker within the benchmark worker set.
 	WorkerID string `json:"worker_id,omitempty"`
 	// Client contains only this worker's optional per-session client capacity profile.
@@ -165,18 +173,30 @@ func NewState(workDir string) *State {
 // Assign stores a run assignment unless another non-equivalent assignment is active.
 func (s *State) Assign(a Assignment) error {
 	a.RunID = strings.TrimSpace(a.RunID)
+	a.AssignmentID = strings.TrimSpace(a.AssignmentID)
 	a.WorkerID = strings.TrimSpace(a.WorkerID)
 	if a.RunID == "" {
 		return fmt.Errorf("run_id is required")
 	}
+	if a.AssignmentID == "" {
+		return fmt.Errorf("assignment_id is required")
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.assignment.RunID != "" && s.phase != PhaseStopped {
-		if assignmentsEqual(s.assignment, a) {
+	if s.assignment.RunID != "" {
+		if assignmentsEqual(s.assignment, a) && s.phase != PhaseStopped {
 			return nil
 		}
-		return ErrActiveRunConflict
+		if s.phase != PhaseStopped || assignmentIdentityMatches(s.assignment, a.RunID, a.AssignmentID) {
+			return fmt.Errorf(
+				"%w: assignment %q/%q cannot replace phase %s",
+				ErrActiveRunConflict,
+				s.assignment.RunID,
+				s.assignment.AssignmentID,
+				s.phase,
+			)
+		}
 	}
 	if err := s.persistAssignment(a); err != nil {
 		return fmt.Errorf("%w: %v", ErrAssignmentPersistence, err)
@@ -209,22 +229,22 @@ func (s *State) Transition(next Phase) error {
 	return s.transitionLocked(next)
 }
 
-// TransitionForAssignment advances the phase only if the active run still matches runID.
-func (s *State) TransitionForAssignment(runID string, next Phase) error {
+// TransitionForAssignment advances the phase only if the exact assignment generation matches.
+func (s *State) TransitionForAssignment(runID, assignmentID string, next Phase) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.assignment.RunID != strings.TrimSpace(runID) {
-		return fmt.Errorf("%w: active run %q does not match %q", ErrActiveRunConflict, s.assignment.RunID, strings.TrimSpace(runID))
+	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
+		return assignmentIdentityConflict(s.assignment, runID, assignmentID)
 	}
 	return s.transitionLocked(next)
 }
 
 // BeginPhaseForAssignment starts a phase hook if it is not already running or complete.
-func (s *State) BeginPhaseForAssignment(runID string, next Phase) (Status, bool, error) {
+func (s *State) BeginPhaseForAssignment(runID, assignmentID string, next Phase) (Status, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.assignment.RunID != strings.TrimSpace(runID) {
-		return s.statusLocked(), false, fmt.Errorf("%w: active run %q does not match %q", ErrActiveRunConflict, s.assignment.RunID, strings.TrimSpace(runID))
+	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
+		return s.statusLocked(), false, assignmentIdentityConflict(s.assignment, runID, assignmentID)
 	}
 	if s.phase == next && s.active == "" {
 		return s.statusLocked(), false, nil
@@ -246,11 +266,11 @@ func (s *State) BeginPhaseForAssignment(runID string, next Phase) (Status, bool,
 }
 
 // CompletePhaseForAssignment records the terminal result of an asynchronous phase hook.
-func (s *State) CompletePhaseForAssignment(runID string, phase Phase, phaseErr error) error {
+func (s *State) CompletePhaseForAssignment(runID, assignmentID string, phase Phase, phaseErr error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.assignment.RunID != strings.TrimSpace(runID) {
-		return fmt.Errorf("%w: active run %q does not match %q", ErrActiveRunConflict, s.assignment.RunID, strings.TrimSpace(runID))
+	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
+		return assignmentIdentityConflict(s.assignment, runID, assignmentID)
 	}
 	if s.active != phase {
 		return fmt.Errorf("%w: active phase %q does not match %q", ErrInvalidPhaseTransition, s.active, phase)
@@ -292,6 +312,39 @@ func (s *State) Stop() error {
 	s.lastErrorCode = ""
 	s.lastErrorOperation = ""
 	return nil
+}
+
+// StopForAssignment marks only the exact active assignment generation stopped.
+func (s *State) StopForAssignment(runID, assignmentID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
+		return assignmentIdentityConflict(s.assignment, runID, assignmentID)
+	}
+	if s.assignment.RunID == "" || s.phase == PhaseIdle {
+		return fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, s.phase, PhaseStopped)
+	}
+	s.phase = PhaseStopped
+	s.active = ""
+	s.lastError = ""
+	s.lastErrorCode = ""
+	s.lastErrorOperation = ""
+	return nil
+}
+
+func assignmentIdentityMatches(assignment Assignment, runID, assignmentID string) bool {
+	return assignment.RunID == strings.TrimSpace(runID) && assignment.AssignmentID == strings.TrimSpace(assignmentID)
+}
+
+func assignmentIdentityConflict(active Assignment, runID, assignmentID string) error {
+	return fmt.Errorf(
+		"%w: active assignment %q/%q does not match %q/%q",
+		ErrActiveRunConflict,
+		active.RunID,
+		active.AssignmentID,
+		strings.TrimSpace(runID),
+		strings.TrimSpace(assignmentID),
+	)
 }
 
 // Status returns a copy of the current worker control state.
