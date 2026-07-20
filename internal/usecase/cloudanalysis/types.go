@@ -296,6 +296,8 @@ type DiagnosticsQueryRequest struct {
 	RunID string `json:"run_id"`
 	// NodeID optionally restricts the query to one cluster node.
 	NodeID uint64 `json:"node_id,omitempty"`
+	// SlotID optionally restricts the query to one physical Slot.
+	SlotID uint32 `json:"slot_id,omitempty"`
 	// TraceID filters by diagnostics trace identity.
 	TraceID string `json:"trace_id,omitempty"`
 	// ClientMsgNo filters by client message number.

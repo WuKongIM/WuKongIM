@@ -240,8 +240,13 @@ func TestRunScheduledMessagesCatchesUpAfterBlockedDispatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	started := make(chan int, 4)
-	err := runScheduledMessages(ctx, 4, 10*time.Millisecond, 1, func(ctx context.Context, offset int) error {
+	// Keep a wide window after the blocked first dispatch. With only four
+	// messages the old test left roughly 10ms between the first timer wakeup and
+	// window expiry, so repository-wide parallel test load could measure the
+	// scheduler after expiry and exercise the valid drop path instead.
+	const totalMessages = 20
+	started := make(chan int, totalMessages)
+	err := runScheduledMessages(ctx, totalMessages, 10*time.Millisecond, 1, func(ctx context.Context, offset int) error {
 		started <- offset
 		if offset == 0 {
 			select {
@@ -255,7 +260,11 @@ func TestRunScheduledMessagesCatchesUpAfterBlockedDispatch(t *testing.T) {
 
 	require.NoError(t, err)
 	close(started)
-	require.ElementsMatch(t, []int{0, 1, 2, 3}, drainStartedOffsets(started))
+	want := make([]int, totalMessages)
+	for offset := range want {
+		want[offset] = offset
+	}
+	require.ElementsMatch(t, want, drainStartedOffsets(started))
 }
 
 func TestRunScheduledMessagesByKeyDispatchesReadyKeysBehindLargeBusyPrefix(t *testing.T) {

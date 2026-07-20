@@ -14,6 +14,7 @@ import (
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -157,6 +158,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, channelMetricsObserver{metrics: a.metrics})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, slotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Slots.ReplicaMoveObserver = combineSlotReplicaMoveObservers(clusterCfg.Slots.ReplicaMoveObserver, a.metrics.NodeLifecycle)
+		clusterCfg.Slots.PreferredLeaderObserver = combinePreferredLeaderObservers(clusterCfg.Slots.PreferredLeaderObserver, slotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: a.metrics})
 		clusterCfg.Control.SnapshotObserver = combineControlSnapshotObservers(clusterCfg.Control.SnapshotObserver, controlSnapshotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{
@@ -175,6 +177,10 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 	}
 	if a.cfg.Observability.Diagnostics.Enabled {
 		a.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(a.cfg))
+		clusterCfg.Slots.PreferredLeaderObserver = combinePreferredLeaderObservers(
+			clusterCfg.Slots.PreferredLeaderObserver,
+			&preferredLeaderDiagnosticsObserver{store: a.diagnostics, nodeID: clusterCfg.NodeID},
+		)
 		a.diagnosticsTracking = obsdiagnostics.NewTrackingRules(obsdiagnostics.TrackingRulesOptions{})
 		samplerOptions := diagnosticsSamplerOptions(a.cfg)
 		samplerOptions.TrackingRules = a.diagnosticsTracking
@@ -287,7 +293,12 @@ func (a *App) wireConversationAuthority() {
 		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ConversationAuthorityNode)
 		authorityStore, hasAuthorityStore := a.cluster.(conversationAuthorityStore)
 		if hasAuthorityNode && hasAuthorityStore {
-			pressureSignals := make(chan struct{}, 1)
+			pressureSignals := make(chan conversationactive.PressureSignal, 1)
+			conversationObserver := a.conversationAuthorityObserver()
+			var activeObserver conversationactive.Observer
+			if observer, ok := conversationObserver.(conversationactive.Observer); ok {
+				activeObserver = observer
+			}
 			authority := newConversationAuthority(conversationAuthorityOptions{
 				LocalNodeID:          authorityNode.NodeID(),
 				Store:                authorityStore,
@@ -300,7 +311,7 @@ func (a *App) wireConversationAuthority() {
 				FlushBatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
 				PressureNotify:       pressureSignals,
 				CurrentRouteTarget:   a.currentConversationAuthorityRouteTarget,
-				Observer:             a.conversationAuthorityObserver(),
+				Observer:             conversationObserver,
 			})
 			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
 			a.conversationAuthority = authority
@@ -312,6 +323,7 @@ func (a *App) wireConversationAuthority() {
 					FlushTimeout:    a.cfg.Conversation.AuthorityFlushTimeout,
 					BatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
 					PressureSignals: pressureSignals,
+					Observer:        activeObserver,
 					Logger:          a.logger.Named("conversation_active_flush"),
 				})
 			}

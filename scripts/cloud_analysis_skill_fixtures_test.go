@@ -81,6 +81,93 @@ func TestCloudAnalysisSkillDocumentsObservationNodeContract(t *testing.T) {
 	}
 }
 
+func TestCloudAnalysisSkillDocumentsConversationActiveConservation(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, queryID := range []string{
+		"conversation_active_cache_rows",
+		"conversation_active_dirty_rows",
+		"conversation_active_oldest_dirty_age",
+		"conversation_active_dirty_mutation_rate",
+		"conversation_active_flush_rows_cumulative",
+		"conversation_active_flush_stage_p99",
+		"conversation_active_flush_attempt_rate",
+		"conversation_active_pressure_events",
+		"conversation_active_pressure_state",
+		"conversation_active_pressure_wakeup_p99",
+	} {
+		if !strings.Contains(skill, "`"+queryID+"`") {
+			t.Fatalf("SKILL.md must route conversation-active analysis through %q", queryID)
+		}
+		if !strings.Contains(contract, "`"+queryID+"`") {
+			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
+		}
+	}
+	for _, required := range []string{
+		"selected = persisted + skipped",
+		"selected = cleared + requeued + superseded",
+		"durable row count is unknown",
+		"exact measured-window",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document conversation-active evidence rule %q", required)
+		}
+	}
+}
+
+func TestCloudAnalysisSkillDocumentsPreferredLeaderEvidence(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, queryID := range []string{
+		"slot_preferred_leader_reconcile_rate",
+		"slot_preferred_leader_strict_wait_p99",
+	} {
+		if !strings.Contains(skill, "`"+queryID+"`") {
+			t.Fatalf("SKILL.md must route preferred-leader analysis through %q", queryID)
+		}
+		if !strings.Contains(contract, "`"+queryID+"`") {
+			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
+		}
+	}
+	for _, required := range []string{
+		"`transfer_started` means",
+		"`TransferLeader` was issued",
+		"unknown loop evidence",
+		"never substitute",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document preferred-leader evidence rule %q", required)
+		}
+	}
+	for _, required := range []string{
+		"`slot_id`",
+		"`stage=slot.preferred_leader_reconcile`",
+		"`actual_leader_id`",
+		"`preferred_leader_id`",
+		"`raft_term`",
+		"`config_epoch`",
+		"intentionally omitted",
+		"node-local events",
+		"recovery evidence",
+		"owning Slot",
+		"remain unknown",
+		"former leader",
+		"cluster-wide",
+		"at most once every 30 seconds",
+		"event counts",
+		"Prometheus",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document preferred-leader diagnostics contract %q", required)
+		}
+		if !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document preferred-leader diagnostics contract %q", required)
+		}
+	}
+}
+
 func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {
 	fixtureDir := filepath.Join(repoRoot(t), ".agents", "skills", "wukongim-cloud-analysis", "fixtures")
 	stopFixturePath := filepath.Join(fixtureDir, "worker_stop_failed.json")

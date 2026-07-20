@@ -19,7 +19,8 @@ type conversationAuthorityStore interface {
 	GetConversationState(context.Context, metadb.ConversationKind, string, string, int64) (metadb.ConversationState, bool, error)
 	// GetConversationStates returns durable primary rows used for flush-time active_at filtering.
 	GetConversationStates(context.Context, []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error)
-	// TouchConversationActiveAtBatch atomically flushes activity hints.
+	// TouchConversationActiveAtBatch flushes activity hints across bounded Slot proposals.
+	// An error does not prove that no earlier proposal committed, so callers must retain the full batch for idempotent retry.
 	TouchConversationActiveAtBatch(context.Context, []metadb.ConversationActivePatch) error
 }
 
@@ -43,7 +44,7 @@ type conversationAuthorityOptions struct {
 	// FlushBatchRows bounds dirty rows per periodic, pressure-woken, and authority handoff flush attempt.
 	FlushBatchRows int
 	// PressureNotify receives nonblocking dirty-cache pressure wakeups for the app flush worker.
-	PressureNotify chan<- struct{}
+	PressureNotify chan<- conversationactive.PressureSignal
 	// CurrentRouteTarget returns the locally visible authority target for one hash slot.
 	CurrentRouteTarget func(uint16) (conversationusecase.RouteTarget, bool)
 	// Observer receives low-cardinality authority cache/list/handoff observations.

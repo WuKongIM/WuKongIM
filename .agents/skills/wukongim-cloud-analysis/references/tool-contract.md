@@ -12,7 +12,7 @@ Use only the run-specific MCP configured by the local Analysis Session. Every in
 | `metrics_query_range` | Server-owned PromQL by `query_id` | Maximum 72 hours, 5,000 samples/series, step 1–900 seconds; the returned Observation node is `cluster`, including queries whose series select the simulator role |
 | `logs_search` | Literal log search on one cluster node | Sources `app` or `error`, maximum 200 lines; there is no simulator log target |
 | `logs_context` | Cursor page from one node/source | Opaque returned cursor, maximum 200 combined entries |
-| `diagnostics_query` | Retained diagnostics filters | Maximum 500 events |
+| `diagnostics_query` | Retained diagnostics filters, including optional exact physical `slot_id` | Maximum 500 events |
 | `task_audits_query` | Retained Controller task history | Maximum 200 tasks |
 | `trace_query` | Events for an exact trace ID | Maximum 500 events |
 | `profile_top` | Symbolized rows for a gateway profile ID | Maximum 100 rows; heap `sample_type` is omitted, `inuse_space`, or `alloc_space` |
@@ -71,7 +71,51 @@ allocations since process start. Other caller-selected sample types are rejected
 - `process_start_time_seconds`
 - `gateway_active_connections`
 - `channel_active_channels`
+- `conversation_active_cache_rows`
+- `conversation_active_dirty_rows`
+- `conversation_active_oldest_dirty_age`
+- `conversation_active_dirty_mutation_rate`
+- `conversation_active_flush_rows_cumulative`
+- `conversation_active_flush_stage_p99`
+- `conversation_active_flush_attempt_rate`
+- `conversation_active_pressure_events`
+- `conversation_active_pressure_state`
+- `conversation_active_pressure_wakeup_p99`
 - `node_data_disk_used_bytes`
+- `slot_preferred_leader_reconcile_rate`
+- `slot_preferred_leader_strict_wait_p99`
+
+Preferred-leader queries preserve `instance`, `node_name`, and bounded
+`decision` labels. `transfer_started` is only an issued Raft transfer request;
+verify the later actual leader from `cluster_snapshot`. Missing decision series
+remain unknown rather than zero, and Slot IDs are intentionally unavailable as
+Prometheus labels.
+
+For one physical Slot, use `diagnostics_query` with `slot_id` and
+`stage=slot.preferred_leader_reconcile`. Start cluster-wide or query every node
+implicated by earlier/later snapshots because a former leader retains its own
+recovery history. PreferredLeader events expose the
+explicit `decision`, `actual_leader_id`, `preferred_leader_id`, `raft_term`, and
+`config_epoch` fields. These fields must not be reconstructed from `peer_node_id`,
+`attempt`, or error text. A non-match-to-`match` transition is retained once as
+recovery evidence; initial and repeated steady `match` decisions are
+intentionally omitted from node-local events to protect the bounded ring. A
+changed decision, actual or preferred leader, Raft
+term, or config epoch is retained immediately; an unchanged signature is
+resampled at most once every 30 seconds. Diagnostic event counts are therefore
+not frequency evidence. Use the low-cardinality Prometheus decision counters for
+rates and a later `cluster_snapshot` to prove convergence.
+For strict-check outcomes, `actual_leader_id` and `raft_term` are emitted only
+from a fresh owning Slot worker Raft observation. If a timeout or error occurs
+before that observation, the fields are omitted and remain unknown; consumers
+must not backfill them from an earlier precheck or snapshot.
+
+Successful conversation-active conservation counter series are preinitialized
+at process start. If a complete range Observation omits either endpoint, treat
+that value as unavailable rather than zero. The persisted/cleared conservation
+equations apply only to `result="ok"`; a failed or timed-out store call can
+have an unknown committed prefix across Slot proposals. Pressure-event counters
+also require first/last deltas over the exact analyzed window.
 
 Use RFC3339 `start` and `end` plus integer `step_seconds`. Begin with a small query set and widen only when the result changes the diagnosis.
 

@@ -25,7 +25,7 @@ func TestManagerDiagnosticsRPCQueriesLocalStore(t *testing.T) {
 	adapter := New(Options{ManagerDiagnostics: service})
 	body, err := encodeManagerDiagnosticsRequest(managerDiagnosticsRPCRequest{
 		Op:    managerDiagnosticsOpQuery,
-		Query: diagnostics.Query{TraceID: "trace-1", Limit: 50},
+		Query: diagnostics.Query{TraceID: "trace-1", SlotID: 42, Limit: 50},
 	})
 	if err != nil {
 		t.Fatalf("encodeManagerDiagnosticsRequest() error = %v", err)
@@ -43,8 +43,8 @@ func TestManagerDiagnosticsRPCQueriesLocalStore(t *testing.T) {
 	if resp.Status != rpcStatusOK || resp.Result.NodeID != 2 || len(resp.Result.Events) != 1 {
 		t.Fatalf("response = %#v, want ok diagnostics result", resp)
 	}
-	if service.query.TraceID != "trace-1" || service.query.Limit != 50 {
-		t.Fatalf("query = %#v, want trace-1 limit 50", service.query)
+	if service.query.TraceID != "trace-1" || service.query.SlotID != 42 || service.query.Limit != 50 {
+		t.Fatalf("query = %#v, want trace-1 physical Slot 42 limit 50", service.query)
 	}
 }
 

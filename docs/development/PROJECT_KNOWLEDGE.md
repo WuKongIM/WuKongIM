@@ -111,6 +111,8 @@
 - Normal channel long-poll wait expiry is a successful long-poll response with `TimedOut:true`, and needs an explicit response observer before counting expected timeouts.
 - Transport RPC calls do not wait for a per-call write ACK; write failures must close the mux connection so pending RPCs wake through the reader shutdown path.
 - Diagnostics hot-path events use `pkg/observability/sendtrace` and are consumed by `internal/observability/diagnostics`; recording must be bounded, non-blocking, and must not add high-cardinality Prometheus labels.
+- Physical-Slot PreferredLeader diagnostics retain state changes, including one non-match-to-match recovery event, suppress steady matches, and resample an unchanged decision signature at most every 30 seconds; event counts are not reconcile rates, which stay in low-cardinality Prometheus counters.
+- PreferredLeader strict-check diagnostics use leader and term only from the owning Slot worker's fresh Raft status; a pre-worker timeout or error keeps them unknown instead of reusing the eligibility precheck.
 - Diagnostics `channel_key` debug matches use `channel/<channel_type>/<base64url(channel_id)>`; gateway send, sendack, and durable send events must carry it so channel-scoped sampling can still be queried by `client_msg_no`.
 - Manager diagnostics routes require `cluster.diagnostics:r`; cluster-wide diagnostics queries include alive, suspect, and draining nodes, skip dead nodes, and return `partial` when results are incomplete.
 - Manager diagnostics tracking rules are runtime-only, TTL-bound sampler overrides for future events; sender UID rules match messages sent by that UID and never expose `from_uid` in manager event DTOs.
@@ -155,7 +157,7 @@
 - Dynamic physical Slot add/remove/rebalance creates hash-slot migrations and requires `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED=true`; the default is disabled and manager add-slot reports `hash slot migration disabled`.
 
 ### Planning writes
-- Slot preferred leaders are controller soft intent. Raft remains authoritative; leader-transfer tasks must target observed current voters only.
+- Slot preferred leaders are Controller soft intent and Raft remains authoritative. When Controller tasks are idle, an independent background seam may transfer only from the fenced actual leader to the exact recently-active preferred voter after the latest applied intent and fresh Raft progress prove it is still current and caught up through commit. Start/snapshot apply never wait for this seam; strict checks default to 250ms, each pass rotates across at most four checks, preserves an existing manual transfer, and retains the valid actual leader without fallback for stale, ineligible, inactive, or lagging preferences.
 - Manager Slot inventory keeps control intent and live Raft status separate: `runtime.preferred_leader_id` is Controller intent; `runtime.leader_id`, voter membership, quorum, sync, and leader-match require live Raft evidence, while selected-node detail also uses `node_log.leader_id` and `node_log.role`. Missing evidence stays unknown/unreported.
 - Manager node-list Slot `leader_count` is also actual Slot Raft leadership from runtime status, not the Controller preferred leader count.
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.
@@ -227,6 +229,7 @@
 - Cloud Simulation normal completion uses a non-diagnostic Finalization Schedule plus local `finalize.sh`: retry an explicit in-progress workload while the lease permits, run exact cleanup even after diagnosis/remediation failure, then require structured provider-confirmed empty inventory.
 - Cloud Simulation stability topology uses 256 physical hash slots mapped to 10 logical Slot Raft Groups; bootstrap gates both values separately.
 - Cloud Simulation Bootstrap Gate accepts a non-zero actual Slot Raft leader that belongs to the current voter set when quorum and peer sync are healthy; `PreferredLeader` mismatch is placement evidence, not a health failure.
+- Conversation-active flush evidence must distinguish selected, acknowledged-persisted, cooldown-skipped, actually cleared, version-conflicted retry rows, and superseded stale snapshots; a successful store call does not prove that version-fenced dirty markers were cleared, while a failed cross-Slot store call leaves durable progress unknown.
 - Standard Cloud Simulation verdicts require a 48h/168h reviewed small, medium, or large profile plus empirical 30m storage calibration; shorter durations are diagnostic evidence only.
 - Any node OOM increment or WuKongIM process start-time change during a Cloud Simulation run invalidates performance and storage calibration; use an intentional phase-boundary profiling rerun for root-cause isolation, then a separate passive calibration after remediation.
 - Phase-ending process loss may occur after the last coarse scrape; query at 5-second steps through 90 seconds after the phase end, and compare heap `inuse_space` with `alloc_space` so transient allocation spikes are not mistaken for retained memory.

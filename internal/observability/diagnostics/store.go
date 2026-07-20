@@ -211,6 +211,9 @@ func matchesQuery(event Event, q Query) bool {
 	if q.UID != "" && event.FromUID != q.UID {
 		return false
 	}
+	if q.SlotID > 0 && event.SlotID != q.SlotID {
+		return false
+	}
 	if q.MessageSeq > 0 && !event.ContainsMessageSeq(q.MessageSeq) {
 		return false
 	}

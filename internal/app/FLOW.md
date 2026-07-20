@@ -34,12 +34,14 @@ New(Config)
      Prometheus metrics and the optional Top collector
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
-     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure and low-cardinality preferred-leader reconcile decisions/strict-wait latency, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus direct channelappend owner-push attempts on the same bounded delivery
      push metric families used by runtime fanout, conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
-     cache/flush gauges and histograms, channel append and post-commit
+     cache gauges, dirty-mutation counters, persisted/cleared/requeued/superseded
+     flush conservation counters, flush-stage histograms, and pressure-wakeup
+     lifecycle metrics, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
      touch-flush route/chunk/target-group counters, recipient delivery worker
      queue/admission/process metrics plus configured worker capacity and current
@@ -97,7 +99,11 @@ New(Config)
      fields without scanning loaded channel maps.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
-       sampler, and sendtrace sink; install the process-wide sendtrace sink
+       sampler, and sendtrace sink; attach PreferredLeader reconciliation
+       diagnostics that retain explicit physical Slot, actual/preferred leader,
+       Raft term, and config epoch fields while retaining recovery-to-match
+       transitions, suppressing steady matches, and coalescing identical
+       30-second repeats; install the process-wide sendtrace sink
        and expose local diagnostics debug APIs only when
        Observability.DebugAPIEnabled=true
   -> when an effective node data dir is configured:
@@ -370,6 +376,14 @@ tracking sampler, and process-wide sendtrace sink. Manager diagnostics routes
 use that same store for local reads and tracking-rule mutations; non-local
 node-scoped reads and mutations route through the manager diagnostics RPC path
 without falling back to legacy `internal` diagnostics state.
+PreferredLeader details remain node-local diagnostics rather than Prometheus
+labels: one bounded signature per observed physical Slot preserves state changes
+immediately and resamples an unchanged non-match decision at most once every 30
+seconds. A non-match to `match` recovery is retained once, while initial or
+repeated steady `match` decisions remain available only through aggregate
+metrics and later cluster snapshots so they cannot churn the diagnostics ring.
+Diagnostic event counts are transition evidence, not reconcile-rate evidence;
+aggregate Prometheus counters remain the frequency source.
 
 Controller Raft status and manual compaction use a cluster-routed management
 operator created in the app composition root. Local reads and compaction call

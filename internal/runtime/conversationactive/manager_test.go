@@ -453,8 +453,11 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Flush() error = %v", err)
 	}
-	if result.Flushed != 1 {
-		t.Fatalf("Flush() flushed = %d, want 1", result.Flushed)
+	if result.Persisted != 1 {
+		t.Fatalf("Flush() persisted = %d, want 1", result.Persisted)
+	}
+	if result.Cleared != 1 || result.VersionConflicts != 0 || result.Requeued != 0 {
+		t.Fatalf("Flush() result = %+v, want persisted=1 cleared=1 with no requeue", result)
 	}
 	if got := m.DirtyCountForTest(); got != 0 {
 		t.Fatalf("DirtyCountForTest() = %d, want 0", got)
@@ -522,8 +525,8 @@ func TestFlushSkipsReceiverActiveWithinCooldown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Flush() error = %v", err)
 	}
-	if result.Selected != 1 || result.Flushed != 0 {
-		t.Fatalf("Flush() result = %+v, want selected=1 flushed=0", result)
+	if result.Selected != 1 || result.Persisted != 0 || result.Skipped != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush() result = %+v, want selected=1 skipped=1 cleared=1 persisted=0", result)
 	}
 	if len(store.touches) != 0 {
 		t.Fatalf("touches = %+v, want no durable touch inside cooldown", store.touches)
@@ -537,6 +540,51 @@ func TestFlushSkipsReceiverActiveWithinCooldown(t *testing.T) {
 	}
 	if entry.ActiveAtMS != previousActiveAt {
 		t.Fatalf("cached ActiveAtMS = %d, want durable active_at %d", entry.ActiveAtMS, previousActiveAt)
+	}
+}
+
+func TestFlushCooldownSkipRetainsConcurrentNewerVersion(t *testing.T) {
+	ctx := context.Background()
+	key := metadb.ConversationStateKey{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "room-1", ChannelType: 2}
+	lookupStarted := make(chan struct{})
+	releaseLookup := make(chan struct{})
+	store := &recordingActiveStore{
+		primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+			key: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "room-1", ChannelType: 2, ActiveAt: 1_000},
+		},
+		batchLookupHook: func() {
+			close(lookupStarted)
+			<-releaseLookup
+		},
+	}
+	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour})
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1_100}}); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+
+	type flushOutcome struct {
+		result FlushResult
+		err    error
+	}
+	finished := make(chan flushOutcome, 1)
+	go func() {
+		result, err := m.Flush(ctx, 1)
+		finished <- flushOutcome{result: result, err: err}
+	}()
+	<-lookupStarted
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1_200}}); err != nil {
+		t.Fatalf("MarkActive(concurrent) error = %v", err)
+	}
+	close(releaseLookup)
+	outcome := <-finished
+	if outcome.err != nil {
+		t.Fatalf("Flush() error = %v", outcome.err)
+	}
+	if got := outcome.result; got.Selected != 1 || got.Persisted != 0 || got.Skipped != 1 || got.Cleared != 0 || got.VersionConflicts != 1 || got.Requeued != 1 || got.Superseded != 0 {
+		t.Fatalf("Flush() result = %+v, want selected=skipped=requeued=1 with one version conflict", got)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows = %d, want concurrent newer version retained", got)
 	}
 }
 
@@ -565,8 +613,8 @@ func TestFlushKeepsSenderActiveWithinCooldown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Flush() error = %v", err)
 	}
-	if result.Selected != 1 || result.Flushed != 1 {
-		t.Fatalf("Flush() result = %+v, want selected=1 flushed=1", result)
+	if result.Selected != 1 || result.Persisted != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush() result = %+v, want selected=1 persisted=1 cleared=1", result)
 	}
 	want := metadb.ConversationActivePatch{
 		UID:         "u1",
@@ -582,6 +630,32 @@ func TestFlushKeepsSenderActiveWithinCooldown(t *testing.T) {
 	}
 	if got := store.touches[0][0]; !reflect.DeepEqual(got, want) {
 		t.Fatalf("touch patch = %+v, want %+v", got, want)
+	}
+}
+
+func TestFlushReportsFilterFailureAsRequeued(t *testing.T) {
+	ctx := context.Background()
+	lookupErr := errors.New("durable state lookup failed")
+	observer := &recordingConversationActiveObserver{}
+	store := &recordingActiveStore{lookupErr: lookupErr}
+	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour, Observer: observer})
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	result, err := m.Flush(ctx, 1)
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf("Flush() error = %v, want %v", err, lookupErr)
+	}
+	if result.Selected != 1 || result.Persisted != 0 || result.Requeued != 1 {
+		t.Fatalf("Flush() result = %+v, want selected=1 persisted=0 requeued=1", result)
+	}
+	observation := observer.lastFlush(t)
+	if observation.Result != "error" || observation.FailureStage != "filter" || observation.Requeued != 1 {
+		t.Fatalf("flush observation = %+v, want filter error with one requeued row", observation)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows = %d, want failed filter row retained", got)
 	}
 }
 
@@ -647,8 +721,8 @@ func TestFlushZeroLimitFlushesAllDirtyRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Flush() error = %v", err)
 	}
-	if result.Selected != 2 || result.Flushed != 2 {
-		t.Fatalf("Flush() result = %+v, want selected=2 flushed=2", result)
+	if result.Selected != 2 || result.Persisted != 2 {
+		t.Fatalf("Flush() result = %+v, want selected=2 persisted=2", result)
 	}
 	if len(store.touches) != 1 || len(store.touches[0]) != 2 {
 		t.Fatalf("touches = %+v, want one batch with two patches", store.touches)
@@ -677,8 +751,8 @@ func TestFlushHashSlotFlushesOnlyTargetDirtyRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FlushHashSlot(slot 1) error = %v", err)
 	}
-	if result.Selected != 1 || result.Flushed != 1 {
-		t.Fatalf("FlushHashSlot(slot 1) result = %+v, want selected=1 flushed=1", result)
+	if result.Selected != 1 || result.Persisted != 1 {
+		t.Fatalf("FlushHashSlot(slot 1) result = %+v, want selected=1 persisted=1", result)
 	}
 	if len(store.touches) != 1 || len(store.touches[0]) != 1 || store.touches[0][0].ChannelID != "slot-1" {
 		t.Fatalf("touches = %+v, want only slot-1 flushed", store.touches)
@@ -691,8 +765,8 @@ func TestFlushHashSlotFlushesOnlyTargetDirtyRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FlushHashSlot(slot 9) error = %v", err)
 	}
-	if result.Selected != 1 || result.Flushed != 1 {
-		t.Fatalf("FlushHashSlot(slot 9) result = %+v, want selected=1 flushed=1", result)
+	if result.Selected != 1 || result.Persisted != 1 {
+		t.Fatalf("FlushHashSlot(slot 9) result = %+v, want selected=1 persisted=1", result)
 	}
 	if len(store.touches) != 2 || len(store.touches[1]) != 1 || store.touches[1][0].ChannelID != "slot-9" {
 		t.Fatalf("touches = %+v, want slot-9 flushed second", store.touches)
@@ -722,8 +796,8 @@ func TestFlushHashSlotFailureDoesNotSelectOtherSlots(t *testing.T) {
 	if !errors.Is(err, touchErr) {
 		t.Fatalf("FlushHashSlot(slot 1) error = %v, want %v", err, touchErr)
 	}
-	if result.Selected != 1 || result.Flushed != 0 {
-		t.Fatalf("FlushHashSlot(slot 1) result = %+v, want selected=1 flushed=0", result)
+	if result.Selected != 1 || result.Persisted != 0 {
+		t.Fatalf("FlushHashSlot(slot 1) result = %+v, want selected=1 persisted=0", result)
 	}
 	if len(store.touches) != 1 || len(store.touches[0]) != 1 || store.touches[0][0].ChannelID != "slot-1" {
 		t.Fatalf("touches = %+v, want failed attempt to include only slot-1", store.touches)
@@ -750,16 +824,20 @@ func TestManagerObservesFlushResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Flush() error = %v", err)
 	}
-	if result.Selected != 1 || result.Flushed != 1 {
-		t.Fatalf("Flush() result = %+v, want selected=1 flushed=1", result)
+	if result.Selected != 1 || result.Persisted != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush() result = %+v, want selected=1 persisted=1 cleared=1", result)
 	}
 
 	flush := observer.lastFlush(t)
-	if flush.Result != "ok" || flush.Selected != 1 || flush.Flushed != 1 {
-		t.Fatalf("flush observation = %+v, want ok selected=1 flushed=1", flush)
+	if flush.Result != "ok" || flush.Selected != 1 || flush.Persisted != 1 || flush.Cleared != 1 || flush.Requeued != 0 {
+		t.Fatalf("flush observation = %+v, want ok selected=1 persisted=1 cleared=1 requeued=0", flush)
 	}
 	if flush.Duration <= 0 {
 		t.Fatalf("flush duration = %s, want positive", flush.Duration)
+	}
+	mutation := observer.lastMutation(t)
+	if mutation.BecameDirty != 1 || mutation.DirtyUpdated != 0 || mutation.Unchanged != 0 {
+		t.Fatalf("mutation observation = %+v, want one became_dirty row", mutation)
 	}
 	cache := observer.lastCache(t)
 	if cache.Rows != 1 || cache.DirtyRows != 0 || cache.OldestDirtyAge != 0 {
@@ -785,8 +863,8 @@ func TestManagerObservesFlushFailureAndNoDirty(t *testing.T) {
 		t.Fatalf("Flush(error) = %v, want %v", err, touchErr)
 	}
 	failed := observer.lastFlush(t)
-	if failed.Result != "error" || failed.Selected != 1 || failed.Flushed != 0 {
-		t.Fatalf("failed flush observation = %+v, want error selected=1 flushed=0", failed)
+	if failed.Result != "error" || failed.FailureStage != "persist" || failed.Selected != 1 || failed.Persisted != 0 || failed.Requeued != 1 {
+		t.Fatalf("failed flush observation = %+v, want persist error selected=1 persisted=0 requeued=1", failed)
 	}
 
 	store.touchErr = nil
@@ -797,8 +875,8 @@ func TestManagerObservesFlushFailureAndNoDirty(t *testing.T) {
 		t.Fatalf("Flush(no dirty) error = %v", err)
 	}
 	noDirty := observer.lastFlush(t)
-	if noDirty.Result != "no_dirty" || noDirty.Selected != 0 || noDirty.Flushed != 0 {
-		t.Fatalf("no-dirty flush observation = %+v, want no_dirty selected=0 flushed=0", noDirty)
+	if noDirty.Result != "no_dirty" || noDirty.Selected != 0 || noDirty.Persisted != 0 {
+		t.Fatalf("no-dirty flush observation = %+v, want no_dirty selected=0 persisted=0", noDirty)
 	}
 }
 
@@ -838,8 +916,8 @@ func TestFlushFailureKeepsDirty(t *testing.T) {
 	if !errors.Is(err, touchErr) {
 		t.Fatalf("Flush() error = %v, want %v", err, touchErr)
 	}
-	if result.Flushed != 0 {
-		t.Fatalf("Flush() flushed = %d, want 0 on failure", result.Flushed)
+	if result.Persisted != 0 || result.Requeued != 1 {
+		t.Fatalf("Flush() result = %+v, want persisted=0 requeued=1 on failure", result)
 	}
 	if got := m.DirtyCountForTest(); got != 1 {
 		t.Fatalf("DirtyCountForTest() = %d, want 1", got)
@@ -863,8 +941,11 @@ func TestFlushDoesNotClearConcurrentDirtyUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Flush() error = %v", err)
 	}
-	if result.Flushed != 1 {
-		t.Fatalf("Flush() flushed = %d, want 1", result.Flushed)
+	if result.Persisted != 1 {
+		t.Fatalf("Flush() persisted = %d, want 1", result.Persisted)
+	}
+	if result.Cleared != 0 || result.VersionConflicts != 1 || result.Requeued != 1 {
+		t.Fatalf("Flush() result = %+v, want persisted=1 cleared=0 version_conflicts=1 requeued=1", result)
 	}
 	if got := m.DirtyCountForTest(); got != 1 {
 		t.Fatalf("DirtyCountForTest() = %d, want 1 after concurrent update", got)
@@ -878,6 +959,91 @@ func TestFlushDoesNotClearConcurrentDirtyUpdate(t *testing.T) {
 	}
 	if got := store.touches[0][0].ActiveAt; got != 1000 {
 		t.Fatalf("flushed ActiveAt = %d, want original snapshot 1000", got)
+	}
+}
+
+func TestClearFlushedDirtyClassifiesAlreadyCleanSnapshotAsSuperseded(t *testing.T) {
+	m := NewManager(Options{Store: &recordingActiveStore{}})
+	if err := m.MarkActive(context.Background(), []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1000,
+	}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	entries := m.dirtyFlushEntries(1)
+	if len(entries) != 1 {
+		t.Fatalf("dirty entries = %d, want 1", len(entries))
+	}
+	if got := m.clearFlushedDirty(entries); got.cleared != 1 || got.versionConflicts != 0 || got.staleSnapshots != 0 {
+		t.Fatalf("first clear = %+v, want one cleared row", got)
+	}
+	if got := m.clearFlushedDirty(entries); got.cleared != 0 || got.versionConflicts != 0 || got.staleSnapshots != 1 {
+		t.Fatalf("second clear = %+v, want one superseded snapshot", got)
+	}
+}
+
+func TestFlushReportsPersistedRowsSeparateFromConcurrentVersionConflicts(t *testing.T) {
+	const (
+		cacheRows = 64
+		batchRows = 16
+		attempts  = 4
+	)
+	ctx := context.Background()
+	store := &concurrentVersionUpdateStore{
+		persisted: make(chan []metadb.ConversationActivePatch),
+		updated:   make(chan error),
+	}
+	m := NewManager(Options{Store: store, MaxCachedRows: cacheRows})
+	initial := make([]ActivePatch, 0, cacheRows)
+	for i := 0; i < cacheRows; i++ {
+		initial = append(initial, ActivePatch{
+			Kind:        metadb.ConversationKindNormal,
+			UID:         fmt.Sprintf("u-%02d", i),
+			ChannelID:   "room",
+			ChannelType: 2,
+			ActiveAtMS:  1_000,
+		})
+	}
+	if err := m.MarkActive(ctx, initial); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+
+	updaterDone := make(chan struct{})
+	go func() {
+		defer close(updaterDone)
+		for attempt := 0; attempt < attempts; attempt++ {
+			persisted := <-store.persisted
+			updates := make([]ActivePatch, 0, len(persisted))
+			for _, patch := range persisted {
+				updates = append(updates, ActivePatch{
+					Kind:        patch.Kind,
+					UID:         patch.UID,
+					ChannelID:   patch.ChannelID,
+					ChannelType: uint8(patch.ChannelType),
+					ActiveAtMS:  patch.ActiveAt + int64(attempt) + 1,
+				})
+			}
+			store.updated <- m.MarkActive(ctx, updates)
+		}
+	}()
+
+	var durablyWritten, actuallyCleared, versionConflicts, requeued int
+	for attempt := 0; attempt < attempts; attempt++ {
+		result, err := m.Flush(ctx, batchRows)
+		if err != nil {
+			t.Fatalf("Flush(attempt=%d) error = %v", attempt, err)
+		}
+		durablyWritten += result.Persisted
+		actuallyCleared += result.Cleared
+		versionConflicts += result.VersionConflicts
+		requeued += result.Requeued
+	}
+	<-updaterDone
+
+	if durablyWritten != cacheRows || actuallyCleared != 0 || versionConflicts != cacheRows || requeued != cacheRows {
+		t.Fatalf("flush accounting persisted=%d cleared=%d conflicts=%d requeued=%d, want %d/0/%d/%d", durablyWritten, actuallyCleared, versionConflicts, requeued, cacheRows, cacheRows, cacheRows)
+	}
+	if remainingDirty := m.DirtyCountForTest(); remainingDirty != cacheRows {
+		t.Fatalf("dirty rows = %d, want all %d concurrent versions retained", remainingDirty, cacheRows)
 	}
 }
 
@@ -922,7 +1088,7 @@ func TestCachePressureAdmissionDoesNotPerformDurableIO(t *testing.T) {
 
 func TestCachePressureAdmissionSignalsAsyncFlush(t *testing.T) {
 	ctx := context.Background()
-	pressureSignals := make(chan struct{}, 1)
+	pressureSignals := make(chan PressureSignal, 1)
 	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: 1, PressureNotify: pressureSignals})
 	if err := m.MarkActive(ctx, []ActivePatch{{
 		Kind:        metadb.ConversationKindNormal,
@@ -1028,8 +1194,8 @@ func TestCachePressureAdmissionRecoversAfterAsyncFlush(t *testing.T) {
 	if len(store.touches) != 0 {
 		t.Fatalf("admission durable writes = %d, want 0", len(store.touches))
 	}
-	if result, err := m.Flush(ctx, 1); err != nil || result.Flushed != 1 {
-		t.Fatalf("Flush() = %+v, %v, want one flushed row", result, err)
+	if result, err := m.Flush(ctx, 1); err != nil || result.Persisted != 1 {
+		t.Fatalf("Flush() = %+v, %v, want one persisted row", result, err)
 	}
 	if err := m.AdmitActiveBatch(ctx, batch); err != nil {
 		t.Fatalf("AdmitActiveBatch(after flush) error = %v", err)
@@ -1141,7 +1307,7 @@ func TestCachePressureDoesNotEvictCleanRowUpdatedBySameBatch(t *testing.T) {
 		t.Fatal("rejected new row was partially cached")
 	}
 	cache := m.cacheObservation()
-	if cache.Rows != 2 || cache.DirtyRows != 1 ||
+	if cache.Revision == 0 || cache.Rows != 2 || cache.DirtyRows != 1 ||
 		cache.RowsByKind[metadb.ConversationKindNormal] != 2 ||
 		cache.DirtyRowsByKind[metadb.ConversationKindNormal] != 1 {
 		t.Fatalf("cache observation = %+v, want rows=2 dirty=1 with matching normal-kind counts", cache)
@@ -1154,11 +1320,13 @@ func TestCachePressureFlushContinuesUntilDirtyLowWatermark(t *testing.T) {
 	)
 	ctx := context.Background()
 	store := &recordingActiveStore{}
-	pressureSignals := make(chan struct{}, 1)
+	pressureSignals := make(chan PressureSignal, 1)
+	observer := &recordingConversationActiveObserver{}
 	m := NewManager(Options{
 		Store:          store,
 		MaxCachedRows:  maxRows,
 		PressureNotify: pressureSignals,
+		Observer:       observer,
 	})
 	initial := make([]ActivePatch, 0, maxRows)
 	for i := 0; i < maxRows; i++ {
@@ -1179,7 +1347,7 @@ func TestCachePressureFlushContinuesUntilDirtyLowWatermark(t *testing.T) {
 		t.Fatal("high watermark did not start an asynchronous pressure flush cycle")
 	}
 
-	if result, err := m.Flush(ctx, 1); err != nil || result.Flushed != 1 {
+	if result, err := m.Flush(ctx, 1); err != nil || result.Persisted != 1 {
 		t.Fatalf("Flush(first) = %+v, %v, want one bounded row", result, err)
 	}
 	select {
@@ -1187,13 +1355,18 @@ func TestCachePressureFlushContinuesUntilDirtyLowWatermark(t *testing.T) {
 	default:
 		t.Fatal("dirty rows above the low watermark did not continue the pressure flush cycle")
 	}
-	if result, err := m.Flush(ctx, 2); err != nil || result.Flushed != 2 {
+	if result, err := m.Flush(ctx, 2); err != nil || result.Persisted != 2 {
 		t.Fatalf("Flush(to low watermark) = %+v, %v, want two bounded rows", result, err)
 	}
 	select {
 	case <-pressureSignals:
 		t.Fatal("pressure flush cycle continued after dirty rows reached the 70 percent low watermark")
 	default:
+	}
+	for _, event := range []string{"start_high_watermark", "signal_sent", "requeue_progress", "stop_low_watermark"} {
+		if observer.pressureEventCount(event) == 0 {
+			t.Fatalf("pressure events = %+v, want %q", observer.pressure, event)
+		}
 	}
 }
 
@@ -1204,7 +1377,7 @@ func TestConcurrentCachePressureCoalescesAsyncFlushSignal(t *testing.T) {
 	)
 	ctx := context.Background()
 	store := &recordingActiveStore{}
-	pressureSignals := make(chan struct{}, 1)
+	pressureSignals := make(chan PressureSignal, 1)
 	m := NewManager(Options{Store: store, MaxCachedRows: maxRows, PressureNotify: pressureSignals})
 	initial := make([]ActivePatch, 0, maxRows)
 	for i := 0; i < maxRows; i++ {
@@ -1315,18 +1488,19 @@ func TestFullDirtyCachePressureAdmissionRemainsBounded(t *testing.T) {
 }
 
 type recordingActiveStore struct {
-	rows      []metadb.ConversationState
-	primary   map[metadb.ConversationStateKey]metadb.ConversationState
-	calls     int
-	lastKind  metadb.ConversationKind
-	lastAfter metadb.ConversationActiveCursor
-	lastLimit int
-	lookupErr error
-	lookups   []metadb.ConversationStateKey
-	batchKeys []metadb.ConversationStateKey
-	touchErr  error
-	touchHook func()
-	touches   [][]metadb.ConversationActivePatch
+	rows            []metadb.ConversationState
+	primary         map[metadb.ConversationStateKey]metadb.ConversationState
+	calls           int
+	lastKind        metadb.ConversationKind
+	lastAfter       metadb.ConversationActiveCursor
+	lastLimit       int
+	lookupErr       error
+	lookups         []metadb.ConversationStateKey
+	batchKeys       []metadb.ConversationStateKey
+	batchLookupHook func()
+	touchErr        error
+	touchHook       func()
+	touches         [][]metadb.ConversationActivePatch
 }
 
 type blockingActiveStore struct {
@@ -1336,6 +1510,18 @@ type blockingActiveStore struct {
 	release       chan struct{}
 	concurrent    int
 	maxConcurrent int
+}
+
+type concurrentVersionUpdateStore struct {
+	recordingActiveStore
+	persisted chan []metadb.ConversationActivePatch
+	updated   chan error
+}
+
+func (s *concurrentVersionUpdateStore) TouchConversationActiveAt(_ context.Context, patches []metadb.ConversationActivePatch) error {
+	persisted := append([]metadb.ConversationActivePatch(nil), patches...)
+	s.persisted <- persisted
+	return <-s.updated
 }
 
 func (s *blockingActiveStore) TouchConversationActiveAt(_ context.Context, patches []metadb.ConversationActivePatch) error {
@@ -1362,16 +1548,26 @@ func (s *blockingActiveStore) maxConcurrentCalls() int {
 }
 
 type recordingConversationActiveObserver struct {
-	cache []CacheObservation
-	flush []FlushObservation
+	cache    []CacheObservation
+	mutation []MutationObservation
+	flush    []FlushObservation
+	pressure []PressureObservation
 }
 
 func (o *recordingConversationActiveObserver) ObserveConversationActiveCache(event CacheObservation) {
 	o.cache = append(o.cache, event)
 }
 
+func (o *recordingConversationActiveObserver) ObserveConversationActiveMutation(event MutationObservation) {
+	o.mutation = append(o.mutation, event)
+}
+
 func (o *recordingConversationActiveObserver) ObserveConversationActiveFlush(event FlushObservation) {
 	o.flush = append(o.flush, event)
+}
+
+func (o *recordingConversationActiveObserver) ObserveConversationActivePressure(event PressureObservation) {
+	o.pressure = append(o.pressure, event)
 }
 
 func (o *recordingConversationActiveObserver) lastCache(t *testing.T) CacheObservation {
@@ -1388,6 +1584,24 @@ func (o *recordingConversationActiveObserver) lastFlush(t *testing.T) FlushObser
 		t.Fatalf("no flush observations")
 	}
 	return o.flush[len(o.flush)-1]
+}
+
+func (o *recordingConversationActiveObserver) lastMutation(t *testing.T) MutationObservation {
+	t.Helper()
+	if len(o.mutation) == 0 {
+		t.Fatalf("no mutation observations")
+	}
+	return o.mutation[len(o.mutation)-1]
+}
+
+func (o *recordingConversationActiveObserver) pressureEventCount(event string) int {
+	var count int
+	for _, observed := range o.pressure {
+		if observed.Event == event {
+			count++
+		}
+	}
+	return count
 }
 
 func (s *recordingActiveStore) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
@@ -1441,6 +1655,9 @@ func (s *recordingActiveStore) GetConversationState(_ context.Context, kind meta
 
 func (s *recordingActiveStore) GetConversationStates(_ context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
 	s.batchKeys = append(s.batchKeys, keys...)
+	if s.batchLookupHook != nil {
+		s.batchLookupHook()
+	}
 	if s.lookupErr != nil {
 		return nil, s.lookupErr
 	}

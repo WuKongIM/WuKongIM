@@ -60,7 +60,7 @@ GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.
 GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
 GET  /manager/diagnostics/trace/:trace_id (diagnostics trace aggregation; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/message (diagnostics message lookup; requires cluster.diagnostics:r when Auth.On=true)
-GET  /manager/diagnostics/events (diagnostics event query; requires cluster.diagnostics:r when Auth.On=true)
+GET  /manager/diagnostics/events (diagnostics event query, including optional exact physical slot_id; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/tracking-rules (diagnostics tracking rule list; requires cluster.diagnostics:r when Auth.On=true)
 POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule on all eligible nodes by default, or one exact optional node_id; requires cluster.diagnostics:w when Auth.On=true)
 DELETE /manager/diagnostics/tracking-rules/:rule_id (delete diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
@@ -401,6 +401,9 @@ parses trace/message/event query parameters, enforces the dedicated
 tracking-rule mutations to `internal/usecase/management`. These routes use
 the internal diagnostics store and do not import or query legacy
 `internal/observability/diagnostics` state.
+The event route accepts an optional positive physical `slot_id` and returns
+explicit PreferredLeader decision, actual/preferred leader, Raft term, and
+config epoch fields without repurposing generic peer, retry, or error fields.
 
 `/manager/channels` preserves the legacy business channel list response shape
 for the web channel list view, including `node_id`, `type`, `keyword`, `limit`,

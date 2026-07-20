@@ -50,6 +50,20 @@ type flushEntry struct {
 	version uint64
 }
 
+type cacheMutationKind uint8
+
+const (
+	cacheMutationUnchanged cacheMutationKind = iota
+	cacheMutationBecameDirty
+	cacheMutationDirtyUpdated
+)
+
+type dirtyClearResult struct {
+	cleared          int
+	versionConflicts int
+	staleSnapshots   int
+}
+
 // Manager owns the in-memory UID conversation active cache.
 type Manager struct {
 	// mu protects cache and all per-UID conversation rows.
@@ -71,7 +85,7 @@ type Manager struct {
 	// pressureDraining reports that the asynchronous worker is draining a high-pressure cache.
 	pressureDraining bool
 	// pressureNotify receives nonblocking cache-pressure wakeups owned by the app flush worker.
-	pressureNotify chan<- struct{}
+	pressureNotify chan<- PressureSignal
 	// observer receives cache and flush observations.
 	observer Observer
 	// totalRows tracks cached active rows across all UID maps.
@@ -88,6 +102,8 @@ type Manager struct {
 	dirtyActiveAtHeap dirtyActiveAtMinHeap
 	// nextVersion allocates monotonic cache-entry versions for dirty flush fencing.
 	nextVersion uint64
+	// observationRevision orders cache snapshots delivered by concurrent callers.
+	observationRevision uint64
 	// cache stores UID -> conversation key -> active projection entry.
 	cache map[string]map[conversationKey]cacheEntry
 	// dirtyByHashSlot indexes dirty cache rows by UID hash slot for bounded authority handoff drains.
@@ -206,17 +222,27 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 			}
 		}
 		if !m.cacheWouldExceedLocked(newRows) {
+			mutation := MutationObservation{}
 			for _, patch := range patches {
 				if patch.UID == "" {
 					continue
 				}
-				m.markActiveLocked(patch, hashSlot, hasHashSlot)
+				switch m.markActiveLocked(patch, hashSlot, hasHashSlot) {
+				case cacheMutationBecameDirty:
+					mutation.BecameDirty++
+				case cacheMutationDirtyUpdated:
+					mutation.DirtyUpdated++
+				default:
+					mutation.Unchanged++
+				}
 			}
 			signalPressure := m.startPressureDrainLocked()
 			m.mu.Unlock()
 			if signalPressure {
+				m.observePressure(PressureObservation{Event: "start_high_watermark"})
 				m.signalPressure()
 			}
+			m.observeMutation(mutation)
 			m.observeCache()
 			return nil
 		}
@@ -224,8 +250,10 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 		m.pressureDraining = true
 		m.mu.Unlock()
 		if signalPressure {
+			m.observePressure(PressureObservation{Event: "start_hard_limit"})
 			m.signalPressure()
 		}
+		m.observeCache()
 		return ErrCachePressure
 	}
 }
@@ -235,8 +263,10 @@ func (m *Manager) signalPressure() {
 		return
 	}
 	select {
-	case m.pressureNotify <- struct{}{}:
+	case m.pressureNotify <- PressureSignal{EnqueuedAt: time.Now()}:
+		m.observePressure(PressureObservation{Event: "signal_sent"})
 	default:
+		m.observePressure(PressureObservation{Event: "signal_coalesced"})
 	}
 }
 
@@ -248,7 +278,7 @@ func (m *Manager) startPressureDrainLocked() bool {
 	return true
 }
 
-func (m *Manager) continuePressureDrain() {
+func (m *Manager) continuePressureDrain(cleared int) {
 	if m == nil {
 		return
 	}
@@ -260,9 +290,15 @@ func (m *Manager) continuePressureDrain() {
 	if m.dirtyRows <= m.pressureLowDirtyRows {
 		m.pressureDraining = false
 		m.mu.Unlock()
+		m.observePressure(PressureObservation{Event: "stop_low_watermark"})
 		return
 	}
 	m.mu.Unlock()
+	if cleared > 0 {
+		m.observePressure(PressureObservation{Event: "requeue_progress"})
+	} else {
+		m.observePressure(PressureObservation{Event: "requeue_no_progress"})
+	}
 	m.signalPressure()
 }
 
@@ -284,7 +320,7 @@ func pressureWatermarks(maxRows int) (int, int) {
 	return high, low
 }
 
-func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSlot bool) {
+func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSlot bool) cacheMutationKind {
 	key := conversationKey{kind: patch.Kind, channelID: patch.ChannelID, channelType: patch.ChannelType}
 	address := cacheAddress{uid: patch.UID, key: key}
 	byChannel := m.cache[patch.UID]
@@ -304,7 +340,7 @@ func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSl
 		}
 		m.rowsByKind[key.kind]++
 		m.trackDirtyLocked(address, entry)
-		return
+		return cacheMutationBecameDirty
 	}
 
 	merged := current.patch
@@ -316,14 +352,15 @@ func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSl
 	}
 	slotChanged := current.hashSlot != hashSlot || current.hasHashSlot != hasHashSlot
 	if merged == current.patch && !slotChanged {
-		return
+		return cacheMutationUnchanged
 	}
 
 	next := current
 	next.patch = merged
 	next.hashSlot = hashSlot
 	next.hasHashSlot = hasHashSlot
-	if current.dirty {
+	wasDirty := current.dirty
+	if wasDirty {
 		m.moveDirtyLocked(address, current, next)
 	} else {
 		next.dirty = true
@@ -333,6 +370,10 @@ func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSl
 	next.version = m.nextVersion
 	next.dirty = true
 	byChannel[key] = next
+	if wasDirty {
+		return cacheMutationDirtyUpdated
+	}
+	return cacheMutationBecameDirty
 }
 
 func (m *Manager) batchAddressesAndNewRowsLocked(patches []ActivePatch) (map[cacheAddress]struct{}, int) {
@@ -426,61 +467,104 @@ func (m *Manager) FlushHashSlot(ctx context.Context, hashSlot uint16, limit int)
 	if m.store == nil {
 		return FlushResult{}, ErrStoreRequired
 	}
+	startedAt := time.Now()
 	m.flushMu.Lock()
 	defer m.flushMu.Unlock()
+	laneWaitDuration := time.Since(startedAt)
 
-	startedAt := time.Now()
-	return m.flushDirtyEntries(ctx, startedAt, m.dirtyFlushEntriesForHashSlot(hashSlot, limit))
+	selectStartedAt := time.Now()
+	entries := m.dirtyFlushEntriesForHashSlot(hashSlot, limit)
+	return m.flushDirtyEntries(ctx, startedAt, laneWaitDuration, time.Since(selectStartedAt), entries)
 }
 
 func (m *Manager) flushDirty(ctx context.Context, limit int) (FlushResult, error) {
 	if m.store == nil {
 		return FlushResult{}, ErrStoreRequired
 	}
+	startedAt := time.Now()
 	m.flushMu.Lock()
 	defer m.flushMu.Unlock()
 
-	return m.flushDirtySerialized(ctx, limit)
+	return m.flushDirtySerialized(ctx, startedAt, time.Since(startedAt), limit)
 }
 
-func (m *Manager) flushDirtySerialized(ctx context.Context, limit int) (FlushResult, error) {
-	startedAt := time.Now()
-
-	return m.flushDirtyEntries(ctx, startedAt, m.dirtyFlushEntries(limit))
+func (m *Manager) flushDirtySerialized(ctx context.Context, startedAt time.Time, laneWaitDuration time.Duration, limit int) (FlushResult, error) {
+	selectStartedAt := time.Now()
+	entries := m.dirtyFlushEntries(limit)
+	return m.flushDirtyEntries(ctx, startedAt, laneWaitDuration, time.Since(selectStartedAt), entries)
 }
 
-func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, entries []flushEntry) (FlushResult, error) {
+func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, laneWaitDuration time.Duration, selectDuration time.Duration, entries []flushEntry) (FlushResult, error) {
+	observation := FlushObservation{
+		Selected:         len(entries),
+		LaneWaitDuration: nonNegativeDuration(laneWaitDuration),
+		SelectDuration:   nonNegativeDuration(selectDuration),
+	}
 	if len(entries) == 0 {
-		m.continuePressureDrain()
-		m.observeFlush(FlushObservation{Result: "no_dirty", Duration: positiveDuration(time.Since(startedAt))})
+		m.continuePressureDrain(0)
+		observation.Result = "no_dirty"
+		observation.Duration = positiveDuration(time.Since(startedAt))
+		m.observeFlush(observation)
 		m.observeCache()
 		return FlushResult{}, nil
 	}
 
+	filterStartedAt := time.Now()
 	flushEntries, skippedEntries, err := m.filterFlushEntries(ctx, entries)
+	observation.FilterDuration = nonNegativeDuration(time.Since(filterStartedAt))
 	if err != nil {
-		m.observeFlush(FlushObservation{Result: flushErrorResult(err), Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+		observation.Result = flushErrorResult(err)
+		observation.FailureStage = "filter"
+		observation.Requeued = len(entries)
+		observation.Duration = positiveDuration(time.Since(startedAt))
+		m.observeFlush(observation)
+		m.observePressurePause(err)
 		m.observeCache()
-		return FlushResult{Selected: len(entries)}, err
+		return FlushResult{Selected: len(entries), Requeued: len(entries)}, err
 	}
-
 	patches := make([]metadb.ConversationActivePatch, 0, len(flushEntries))
 	for _, entry := range flushEntries {
 		patches = append(patches, activePatchMetaPatch(entry.patch))
 	}
 	if len(patches) > 0 {
+		persistStartedAt := time.Now()
 		if err := m.store.TouchConversationActiveAt(ctx, patches); err != nil {
-			m.observeFlush(FlushObservation{Result: flushErrorResult(err), Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+			observation.PersistDuration = nonNegativeDuration(time.Since(persistStartedAt))
+			observation.Result = flushErrorResult(err)
+			observation.FailureStage = "persist"
+			observation.Requeued = len(entries)
+			observation.Duration = positiveDuration(time.Since(startedAt))
+			m.observeFlush(observation)
+			m.observePressurePause(err)
 			m.observeCache()
-			return FlushResult{Selected: len(entries)}, err
+			return FlushResult{Selected: len(entries), Requeued: len(entries)}, err
 		}
+		observation.PersistDuration = nonNegativeDuration(time.Since(persistStartedAt))
 	}
-	m.clearSkippedDirty(skippedEntries)
-	m.clearFlushedDirty(flushEntries)
-	m.continuePressureDrain()
-	m.observeFlush(FlushObservation{Result: "ok", Selected: len(entries), Flushed: len(flushEntries), Duration: positiveDuration(time.Since(startedAt))})
+	observation.Persisted = len(flushEntries)
+	observation.Skipped = len(skippedEntries)
+	clearStartedAt := time.Now()
+	skippedClear := m.clearSkippedDirty(skippedEntries)
+	persistedClear := m.clearFlushedDirty(flushEntries)
+	observation.ClearDuration = nonNegativeDuration(time.Since(clearStartedAt))
+	observation.Cleared = skippedClear.cleared + persistedClear.cleared
+	observation.VersionConflicts = skippedClear.versionConflicts + persistedClear.versionConflicts
+	observation.Superseded = skippedClear.staleSnapshots + persistedClear.staleSnapshots
+	observation.Requeued = observation.VersionConflicts
+	m.continuePressureDrain(observation.Cleared)
+	observation.Result = "ok"
+	observation.Duration = positiveDuration(time.Since(startedAt))
+	m.observeFlush(observation)
 	m.observeCache()
-	return FlushResult{Selected: len(entries), Flushed: len(flushEntries)}, nil
+	return FlushResult{
+		Selected:         observation.Selected,
+		Persisted:        observation.Persisted,
+		Skipped:          observation.Skipped,
+		Cleared:          observation.Cleared,
+		VersionConflicts: observation.VersionConflicts,
+		Superseded:       observation.Superseded,
+		Requeued:         observation.Requeued,
+	}, nil
 }
 
 func flushErrorResult(err error) string {
@@ -488,6 +572,25 @@ func flushErrorResult(err error) string {
 		return "timeout"
 	}
 	return "error"
+}
+
+func pressurePauseEvent(err error) string {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return "pause_timeout"
+	}
+	return "pause_error"
+}
+
+func (m *Manager) observePressurePause(err error) {
+	if m == nil {
+		return
+	}
+	m.mu.RLock()
+	draining := m.pressureDraining
+	m.mu.RUnlock()
+	if draining {
+		m.observePressure(PressureObservation{Event: pressurePauseEvent(err)})
+	}
 }
 
 func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) ([]flushEntry, []flushEntry, error) {
@@ -541,20 +644,27 @@ func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) 
 	return flushEntries, skippedEntries, nil
 }
 
-func (m *Manager) clearSkippedDirty(entries []flushEntry) {
+func (m *Manager) clearSkippedDirty(entries []flushEntry) dirtyClearResult {
 	if len(entries) == 0 {
-		return
+		return dirtyClearResult{}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	result := dirtyClearResult{}
 	for _, skipped := range entries {
 		byChannel := m.cache[skipped.uid]
 		if byChannel == nil {
+			result.staleSnapshots++
 			continue
 		}
 		current, ok := byChannel[skipped.key]
-		if !ok || current.version != skipped.version || !current.dirty {
+		if !ok || !current.dirty {
+			result.staleSnapshots++
+			continue
+		}
+		if current.version != skipped.version {
+			result.versionConflicts++
 			continue
 		}
 		m.untrackDirtyLocked(cacheAddress{uid: skipped.uid, key: skipped.key}, current)
@@ -563,7 +673,9 @@ func (m *Manager) clearSkippedDirty(entries []flushEntry) {
 		m.nextVersion++
 		current.version = m.nextVersion
 		byChannel[skipped.key] = current
+		result.cleared++
 	}
+	return result
 }
 
 func (m *Manager) observeCache() {
@@ -573,6 +685,13 @@ func (m *Manager) observeCache() {
 	m.observer.ObserveConversationActiveCache(m.cacheObservation())
 }
 
+func (m *Manager) observeMutation(obs MutationObservation) {
+	if m.observer == nil || (obs.BecameDirty == 0 && obs.DirtyUpdated == 0 && obs.Unchanged == 0) {
+		return
+	}
+	m.observer.ObserveConversationActiveMutation(obs)
+}
+
 func (m *Manager) observeFlush(obs FlushObservation) {
 	if m.observer == nil {
 		return
@@ -580,20 +699,35 @@ func (m *Manager) observeFlush(obs FlushObservation) {
 	m.observer.ObserveConversationActiveFlush(obs)
 }
 
+func (m *Manager) observePressure(obs PressureObservation) {
+	if m.observer == nil || obs.Event == "" {
+		return
+	}
+	m.observer.ObserveConversationActivePressure(obs)
+}
+
 func (m *Manager) cacheObservation() CacheObservation {
 	m.mu.Lock()
+	m.observationRevision++
+	if m.observationRevision == 0 {
+		m.observationRevision++
+	}
+	revision := m.observationRevision
 	rows := m.totalRows
 	dirtyRows := m.dirtyRows
 	rowsByKind := cloneKindCounts(m.rowsByKind)
 	dirtyRowsByKind := cloneKindCounts(m.dirtyRowsByKind)
 	oldestDirtyAt := m.oldestDirtyAtLocked()
+	pressureDraining := m.pressureDraining
 	m.mu.Unlock()
 	return CacheObservation{
-		Rows:            rows,
-		DirtyRows:       dirtyRows,
-		RowsByKind:      rowsByKind,
-		DirtyRowsByKind: dirtyRowsByKind,
-		OldestDirtyAge:  dirtyAge(m.nowMS(), oldestDirtyAt),
+		Revision:         revision,
+		Rows:             rows,
+		DirtyRows:        dirtyRows,
+		RowsByKind:       rowsByKind,
+		DirtyRowsByKind:  dirtyRowsByKind,
+		OldestDirtyAge:   dirtyAge(m.nowMS(), oldestDirtyAt),
+		PressureDraining: pressureDraining,
 	}
 }
 
@@ -607,6 +741,13 @@ func dirtyAge(nowMS int64, oldestDirtyAtMS int64) time.Duration {
 func positiveDuration(d time.Duration) time.Duration {
 	if d <= 0 {
 		return time.Nanosecond
+	}
+	return d
+}
+
+func nonNegativeDuration(d time.Duration) time.Duration {
+	if d < 0 {
+		return 0
 	}
 	return d
 }
@@ -666,23 +807,35 @@ func (m *Manager) dirtyFlushEntriesForHashSlot(hashSlot uint16, limit int) []flu
 	return entries
 }
 
-func (m *Manager) clearFlushedDirty(entries []flushEntry) {
+func (m *Manager) clearFlushedDirty(entries []flushEntry) dirtyClearResult {
+	if len(entries) == 0 {
+		return dirtyClearResult{}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	result := dirtyClearResult{}
 	for _, flushed := range entries {
 		byChannel := m.cache[flushed.uid]
 		if byChannel == nil {
+			result.staleSnapshots++
 			continue
 		}
 		current, ok := byChannel[flushed.key]
-		if !ok || current.version != flushed.version || !current.dirty {
+		if !ok || !current.dirty {
+			result.staleSnapshots++
+			continue
+		}
+		if current.version != flushed.version {
+			result.versionConflicts++
 			continue
 		}
 		current.dirty = false
 		byChannel[flushed.key] = current
 		m.untrackDirtyLocked(cacheAddress{uid: flushed.uid, key: flushed.key}, current)
+		result.cleared++
 	}
+	return result
 }
 
 func (m *Manager) trackDirtyLocked(address cacheAddress, entry cacheEntry) {

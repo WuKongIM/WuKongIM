@@ -104,6 +104,9 @@ func (c *managerClient) logsContext(ctx context.Context, req analysis.LogsContex
 func (c *managerClient) diagnosticsQuery(ctx context.Context, req analysis.DiagnosticsQueryRequest) (analysis.SourceResult, error) {
 	query := url.Values{"limit": {strconv.Itoa(req.Limit)}}
 	setOptionalUint64(query, "node_id", req.NodeID)
+	if req.SlotID != 0 {
+		query.Set("slot_id", strconv.FormatUint(uint64(req.SlotID), 10))
+	}
 	setOptional(query, "trace_id", req.TraceID)
 	setOptional(query, "client_msg_no", req.ClientMsgNo)
 	setOptional(query, "channel_key", req.ChannelKey)

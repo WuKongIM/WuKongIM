@@ -80,7 +80,10 @@ type Node struct {
 	slotStatusRuntime slotStatusRuntime
 	slots             slotReconciler
 	tasks             taskExecutor
-	channels          channelService
+	// preferredLeaderReconciler is an idle-only background seam and is never
+	// invoked synchronously by Start, applySnapshot, or the control watch loop.
+	preferredLeaderReconciler taskExecutor
+	channels                  channelService
 	// channelDataNodes tracks health-schedulable data nodes for default Channel placement.
 	channelDataNodes dataNodeView
 	// channelDataPlaneLease gates local Channel leader appends on fresh control visibility.
@@ -100,6 +103,8 @@ type Node struct {
 	channelStoreFactory channelstore.Factory
 	// defaultSlots reports whether Node constructed the local Slot runtime.
 	defaultSlots bool
+	// defaultPreferredLeaderReconciler reports whether Node constructed the idle placement reconciler.
+	defaultPreferredLeaderReconciler bool
 	// defaultSlotRuntime owns the Node-created Slot Multi-Raft runtime.
 	defaultSlotRuntime *multiraft.Runtime
 	// defaultSlotRaftDB owns the Node-created Slot Raft log store.
@@ -131,20 +136,28 @@ type Node struct {
 	snapshot        Snapshot
 	controlSnapshot control.Snapshot
 	// controlApplyMu serializes control snapshot application from startup, watches, and probes.
-	controlApplyMu         sync.Mutex
-	taskReconcileMu        sync.Mutex
-	taskReconcileCancel    context.CancelFunc
-	taskReconcileWG        sync.WaitGroup
-	watchCancel            context.CancelFunc
-	watchWG                sync.WaitGroup
-	channelTickCancel      context.CancelFunc
-	channelTickWG          sync.WaitGroup
-	channelRetentionCancel context.CancelFunc
-	channelRetentionWG     sync.WaitGroup
-	channelRetentionGCMu   sync.Mutex
-	channelRetentionCursor channelruntime.ChannelKey
-	channelMigrationCancel context.CancelFunc
-	channelMigrationWG     sync.WaitGroup
+	controlApplyMu        sync.Mutex
+	taskReconcileMu       sync.Mutex
+	taskReconcileCancel   context.CancelFunc
+	taskReconcileWG       sync.WaitGroup
+	preferredLeaderCancel context.CancelFunc
+	preferredLeaderWG     sync.WaitGroup
+	// preferredLeaderInterval is a test override for the idle background interval.
+	preferredLeaderInterval time.Duration
+	// preferredLeaderIntentMu protects the currently published Controller-intent
+	// generation used to cancel strict transfers before a newer snapshot apply begins.
+	preferredLeaderIntentMu         sync.Mutex
+	preferredLeaderIntentGeneration *preferredLeaderIntentGeneration
+	watchCancel                     context.CancelFunc
+	watchWG                         sync.WaitGroup
+	channelTickCancel               context.CancelFunc
+	channelTickWG                   sync.WaitGroup
+	channelRetentionCancel          context.CancelFunc
+	channelRetentionWG              sync.WaitGroup
+	channelRetentionGCMu            sync.Mutex
+	channelRetentionCursor          channelruntime.ChannelKey
+	channelMigrationCancel          context.CancelFunc
+	channelMigrationWG              sync.WaitGroup
 	// healthReportCancel stops the low-frequency Controller health reporter.
 	healthReportCancel context.CancelFunc
 	// healthReporter sends low-frequency Controller node health reports.
@@ -155,6 +168,21 @@ type Node struct {
 	slotLeaderWG     sync.WaitGroup
 	started          atomic.Bool
 	stopping         atomic.Bool
+}
+
+// preferredLeaderIntentGeneration linearizes snapshot invalidation against
+// the final nonblocking Raft TransferLeader call.
+type preferredLeaderIntentGeneration struct {
+	// mu serializes invalidation with the final guarded transfer action.
+	mu sync.Mutex
+	// ctx is canceled when snapshot apply or shutdown invalidates this generation.
+	ctx context.Context
+	// cancel cancels ctx exactly once while mu is held.
+	cancel context.CancelFunc
+	// current reports whether guarded actions may still execute.
+	current bool
+	// snapshot is the immutable applied Controller intent for exact matching.
+	snapshot control.Snapshot
 }
 
 // New validates cfg and creates a cluster node.
@@ -192,6 +220,14 @@ func withSlotStatusRuntime(runtime slotStatusRuntime) Option {
 
 func withTaskExecutor(executor taskExecutor) Option {
 	return func(n *Node) { n.tasks = executor }
+}
+
+func withPreferredLeaderReconciler(reconciler taskExecutor) Option {
+	return func(n *Node) { n.preferredLeaderReconciler = reconciler }
+}
+
+func withPreferredLeaderReconcileInterval(interval time.Duration) Option {
+	return func(n *Node) { n.preferredLeaderInterval = interval }
 }
 
 // WithChannels overrides the default Channel service hosted by Node.

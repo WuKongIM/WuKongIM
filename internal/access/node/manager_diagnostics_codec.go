@@ -7,8 +7,10 @@ import (
 )
 
 var (
-	managerDiagnosticsRequestMagic  = [...]byte{'W', 'K', 'V', 'D', 'Q', 1}
-	managerDiagnosticsResponseMagic = [...]byte{'W', 'K', 'V', 'D', 'R', 1}
+	managerDiagnosticsRequestMagicV1  = [...]byte{'W', 'K', 'V', 'D', 'Q', 1}
+	managerDiagnosticsRequestMagic    = [...]byte{'W', 'K', 'V', 'D', 'Q', 2}
+	managerDiagnosticsResponseMagicV1 = [...]byte{'W', 'K', 'V', 'D', 'R', 1}
+	managerDiagnosticsResponseMagic   = [...]byte{'W', 'K', 'V', 'D', 'R', 2}
 )
 
 const (
@@ -56,7 +58,8 @@ func decodeManagerDiagnosticsRequest(body []byte) (managerDiagnosticsRPCRequest,
 	if len(body) > maxDiagnosticsBodyBytes {
 		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internal/access/node: manager diagnostics request body too large")
 	}
-	if !hasMagic(body, managerDiagnosticsRequestMagic[:]) {
+	version := managerDiagnosticsRequestCodecVersion(body)
+	if version == 0 {
 		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager diagnostics request codec")
 	}
 	offset := len(managerDiagnosticsRequestMagic)
@@ -69,7 +72,7 @@ func decodeManagerDiagnosticsRequest(body []byte) (managerDiagnosticsRPCRequest,
 	if err != nil {
 		return managerDiagnosticsRPCRequest{}, err
 	}
-	query, next, err := readDiagnosticsQuery(body, offset)
+	query, next, err := readDiagnosticsQuery(body, offset, version >= 2)
 	if err != nil {
 		return managerDiagnosticsRPCRequest{}, err
 	}
@@ -104,7 +107,8 @@ func decodeManagerDiagnosticsResponse(body []byte) (managerDiagnosticsRPCRespons
 	if len(body) > maxDiagnosticsBodyBytes {
 		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internal/access/node: manager diagnostics response body too large")
 	}
-	if !hasMagic(body, managerDiagnosticsResponseMagic[:]) {
+	version := managerDiagnosticsResponseCodecVersion(body)
+	if version == 0 {
 		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager diagnostics response codec")
 	}
 	offset := len(managerDiagnosticsResponseMagic)
@@ -116,7 +120,11 @@ func decodeManagerDiagnosticsResponse(body []byte) (managerDiagnosticsRPCRespons
 	if resp.Error, offset, err = readString(body, offset); err != nil {
 		return managerDiagnosticsRPCResponse{}, err
 	}
-	if resp.Result, offset, err = readDiagnosticsQueryResult(body, offset, 3); err != nil {
+	eventCodecVersion := 3
+	if version >= 2 {
+		eventCodecVersion = 4
+	}
+	if resp.Result, offset, err = readDiagnosticsQueryResult(body, offset, version >= 2, eventCodecVersion); err != nil {
 		return managerDiagnosticsRPCResponse{}, err
 	}
 	if resp.Rule, offset, err = readDiagnosticsTrackingRule(body, offset); err != nil {
@@ -129,6 +137,28 @@ func decodeManagerDiagnosticsResponse(body []byte) (managerDiagnosticsRPCRespons
 		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager diagnostics response bytes")
 	}
 	return resp, nil
+}
+
+func managerDiagnosticsRequestCodecVersion(body []byte) int {
+	switch {
+	case hasMagic(body, managerDiagnosticsRequestMagic[:]):
+		return 2
+	case hasMagic(body, managerDiagnosticsRequestMagicV1[:]):
+		return 1
+	default:
+		return 0
+	}
+}
+
+func managerDiagnosticsResponseCodecVersion(body []byte) int {
+	switch {
+	case hasMagic(body, managerDiagnosticsResponseMagic[:]):
+		return 2
+	case hasMagic(body, managerDiagnosticsResponseMagicV1[:]):
+		return 1
+	default:
+		return 0
+	}
 }
 
 func managerDiagnosticsOpID(op string) (byte, error) {

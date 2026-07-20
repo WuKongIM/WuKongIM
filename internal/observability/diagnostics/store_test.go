@@ -59,6 +59,33 @@ func TestStoreQueriesByTraceAndClientMsgNo(t *testing.T) {
 	require.Len(t, byClient.Events, 2)
 }
 
+func TestStoreQueriesByPhysicalSlotID(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 8, MaxEventsPerKey: 8, MaxKeysPerIndex: 8})
+	store.Record(Event{
+		Stage:             "slot.preferred_leader_reconcile",
+		SlotID:            7,
+		Decision:          "preferred_lagging",
+		ActualLeaderID:    1,
+		PreferredLeaderID: 2,
+		RaftTerm:          11,
+		ConfigEpoch:       4,
+		Result:            ResultSkipped,
+	})
+	store.Record(Event{Stage: "slot.preferred_leader_reconcile", SlotID: 8, Decision: "match", Result: ResultOK})
+
+	result := store.Query(context.Background(), Query{SlotID: 7, Limit: 10})
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, uint32(7), result.Query.SlotID)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, uint32(7), result.Events[0].SlotID)
+	require.Equal(t, "preferred_lagging", result.Events[0].Decision)
+	require.Equal(t, uint64(1), result.Events[0].ActualLeaderID)
+	require.Equal(t, uint64(2), result.Events[0].PreferredLeaderID)
+	require.Equal(t, uint64(11), result.Events[0].RaftTerm)
+	require.Equal(t, uint64(4), result.Events[0].ConfigEpoch)
+}
+
 func TestStoreQueryFiltersByResultBeforeLimit(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	store := NewStore(StoreOptions{NodeID: 1, Capacity: 16, Now: func() time.Time { return now }})

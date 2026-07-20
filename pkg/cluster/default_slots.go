@@ -100,6 +100,15 @@ func (n *Node) ensureDefaultSlots() error {
 			}),
 		)
 	}
+	if n.preferredLeaderReconciler == nil && n.control != nil {
+		n.preferredLeaderReconciler = tasks.NewPreferredLeaderReconciler(tasks.PreferredLeaderReconcilerConfig{
+			LocalNode:   n.cfg.NodeID,
+			Runtime:     runtime,
+			IntentGuard: n.preferredLeaderIntentGuard,
+			Observer:    n.cfg.Slots.PreferredLeaderObserver,
+		})
+		n.defaultPreferredLeaderReconciler = true
+	}
 	n.defaultSlotRuntime = runtime
 	n.defaultSlotRaftDB = raftDB
 	n.defaultSlotMetaDB = metaDB

@@ -10,6 +10,7 @@ type indexes struct {
 	channelSeq  *boundedIndex
 	node        *boundedIndex
 	peerNode    *boundedIndex
+	slot        *boundedIndex
 	stage       *boundedIndex
 	channelSpan *boundedRangeIndex
 }
@@ -29,6 +30,7 @@ func newIndexes(maxEventsPerKey, maxKeys int) *indexes {
 		channelSeq:  newBoundedIndex(maxEventsPerKey, maxKeys),
 		node:        newBoundedIndex(maxEventsPerKey, maxKeys),
 		peerNode:    newBoundedIndex(maxEventsPerKey, maxKeys),
+		slot:        newBoundedIndex(maxEventsPerKey, maxKeys),
 		stage:       newBoundedIndex(maxEventsPerKey, maxKeys),
 		channelSpan: newBoundedRangeIndex(maxEventsPerKey, maxKeys),
 	}
@@ -56,6 +58,9 @@ func (i *indexes) add(id uint64, event Event) {
 	if event.PeerNodeID > 0 {
 		i.peerNode.Add(fmt.Sprint(event.PeerNodeID), id)
 	}
+	if event.SlotID > 0 {
+		i.slot.Add(fmt.Sprint(event.SlotID), id)
+	}
 	if event.Stage != "" {
 		i.stage.Add(string(event.Stage), id)
 	}
@@ -82,6 +87,9 @@ func (i *indexes) lookup(q Query) []uint64 {
 	}
 	if q.UID != "" {
 		ids = append(ids, i.uid.Get(q.UID)...)
+	}
+	if q.SlotID > 0 {
+		ids = append(ids, i.slot.Get(fmt.Sprint(q.SlotID))...)
 	}
 	if q.Stage != "" {
 		ids = append(ids, i.stage.Get(string(q.Stage))...)

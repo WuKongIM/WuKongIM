@@ -52,7 +52,7 @@ WriteBatch.AppendMessageEvent
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
 Runtime.Step(ctx, Envelope)                  // 接收远端 Raft 消息
 Runtime.Propose(ctx, slotID, data) → Future  // 提交提案
-Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
+Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / CompactLog / Status
 ```
 
 ## 4. 关键类型
@@ -167,6 +167,8 @@ Worker 循环:
     ① beginProcessing → 抢占锁，防并发处理
     ② processRequests → 入站消息 Step 到 rawNode
     ③ processControls → Propose / ConfigChange / Campaign / TransferLeader
+       - ordinary TransferLeadership keeps the operator/task advisory-target fallback semantics
+       - TryTransferLeadershipToPreferred checks fresh RawNode leader/term, stable exact voters, no in-flight transfer, target RecentActive, and target Match >= Commit in the Slot worker; immediately before issuing TransferLeader the intent guard wraps a Slot-mutex action that rechecks close/fatal state, so waiting for intent never holds the Slot mutex and invalidation/terminal state wins unless the nonblocking issue point already linearized. It returns a bounded decision (`stale_intent`, `voter_mismatch`, `joint_config`, `transfer_in_progress`, `preferred_inactive`, `preferred_lagging`, or `transfer_started`) together with the fresh worker-observed leader/term and an explicit observation-presence bit, honors caller cancellation before that issue point, and never falls back to another voter
     ④ processTick    → tickPending 时 rawNode.Tick()
     ⑤ processReady   → 核心处理:
        - storageView.persistReady(HardState + Entries + Snapshot)

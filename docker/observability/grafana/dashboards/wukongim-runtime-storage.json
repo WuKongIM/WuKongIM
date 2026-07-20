@@ -2374,7 +2374,20 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^strict wait p99/"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -2424,9 +2437,19 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_slot_replica_move_phase_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, step, result))",
           "legendFormat": "phase p95 {{step}} {{result}}",
           "refId": "F"
+        },
+        {
+          "expr": "sum by (instance, node_name, decision) (rate(wukongim_slot_preferred_leader_reconcile_total{job=\"wukongim\",node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "preferred {{node_name}} {{decision}}",
+          "refId": "G"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_slot_preferred_leader_strict_wait_duration_seconds_bucket{job=\"wukongim\",node_name=~\"$node_name\"}[$__rate_interval])) by (le, instance, node_name, decision))",
+          "legendFormat": "strict wait p99 {{node_name}} {{decision}}",
+          "refId": "H"
         }
       ],
-      "title": "Slot Replica Movement",
+      "title": "Slot Placement and Replica Movement",
       "type": "timeseries"
     },
     {

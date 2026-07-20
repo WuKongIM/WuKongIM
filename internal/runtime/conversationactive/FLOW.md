@@ -36,3 +36,18 @@ Cache observations report aggregate row/dirty counts plus fixed kind-aware
 normal/CMD counts maintained incrementally on cache mutation. Observation does
 not scan all UID rows, so large active-cache snapshots stay bounded by the
 number of fixed conversation kinds rather than total cached conversations.
+Each snapshot carries a manager-local monotonic revision; the metrics adapter
+rejects delayed older snapshots so concurrent admissions cannot regress gauges.
+
+Successful flush observations use an explicit conservation model. `Selected`
+is divided into acknowledged `Persisted` and cooldown `Skipped` rows; after
+durable completion those same rows are divided into actually `Cleared` rows,
+version-conflicted rows retained for retry, and `Superseded` stale snapshots
+that are no longer present or dirty. Persisted
+rows are never reported as cleared merely because the store call succeeded. A
+store error keeps every selected dirty marker for idempotent retry, but its
+durable row count is unknown because the adapter may have completed an earlier
+Slot proposal. The observer also records the serialized lane wait plus select,
+filter, persist, and clear stage durations.
+Pressure signals carry their enqueue time so the app-owned worker can report
+signal-to-receive wait without adding UID, channel, hash-slot, or Slot labels.

@@ -3,6 +3,7 @@ package multiraft
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -50,6 +51,333 @@ func TestTransferLeadershipRejectsUnknownSlot(t *testing.T) {
 	if !errors.Is(err, ErrSlotNotFound) {
 		t.Fatalf("expected ErrSlotNotFound, got %v", err)
 	}
+}
+
+func TestTryTransferLeadershipToPreferredRejectsUnknownSlot(t *testing.T) {
+	rt := newStartedRuntime(t)
+	result, err := rt.TryTransferLeadershipToPreferred(context.Background(), 999, 1, 7, []NodeID{1, 2, 3}, 2, alwaysCurrentPreferredLeaderGuard{})
+	if result != (PreferredLeaderTransferResult{}) || !errors.Is(err, ErrSlotNotFound) {
+		t.Fatalf("TryTransferLeadershipToPreferred() = (%+v, %v), want (empty, %v)", result, err, ErrSlotNotFound)
+	}
+}
+
+func TestTryTransferLeadershipToPreferredReturnsFreshWorkerLeaderAndTerm(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 78)
+	precheck, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if precheck.Term < 2 {
+		t.Fatalf("Status().Term = %d, want at least 2", precheck.Term)
+	}
+
+	result, err := rt.TryTransferLeadershipToPreferred(
+		context.Background(), slotID, precheck.LeaderID, precheck.Term-1,
+		[]NodeID{1}, 2, alwaysCurrentPreferredLeaderGuard{},
+	)
+	if err != nil {
+		t.Fatalf("TryTransferLeadershipToPreferred() error = %v", err)
+	}
+	if result.Decision != PreferredLeaderTransferStaleIntent || !result.RaftObserved ||
+		result.ObservedLeaderID != precheck.LeaderID || result.ObservedTerm != precheck.Term {
+		t.Fatalf("strict result = %+v, want fresh worker leader=%d term=%d", result, precheck.LeaderID, precheck.Term)
+	}
+}
+
+type alwaysCurrentPreferredLeaderGuard struct{}
+
+func (alwaysCurrentPreferredLeaderGuard) Context() context.Context { return context.Background() }
+
+func (alwaysCurrentPreferredLeaderGuard) ExecuteIfCurrent(action func()) bool {
+	if action != nil {
+		action()
+	}
+	return true
+}
+
+func TestClosingSlotCancelsQueuedStrictLeaderTransfer(t *testing.T) {
+	g := newLeaderTestSlotForDrain()
+	request := &strictLeaderTransferRequest{
+		ctx:            context.Background(),
+		expectedLeader: 1,
+		expectedTerm:   7,
+		expectedVoters: []NodeID{1, 2, 3},
+		target:         2,
+		resp:           make(chan strictLeaderTransferResponse, 1),
+	}
+	if err := g.enqueueControl(controlAction{kind: controlTransferLeader, strictTransfer: request}); err != nil {
+		t.Fatalf("enqueueControl() error = %v", err)
+	}
+
+	g.mu.Lock()
+	g.closed = true
+	g.failPendingLocked(ErrSlotClosed)
+	g.mu.Unlock()
+
+	select {
+	case response := <-request.resp:
+		if response.result != (PreferredLeaderTransferResult{}) || !errors.Is(response.err, ErrSlotClosed) {
+			t.Fatalf("strict response = %+v, want canceled with %v", response, ErrSlotClosed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("queued strict transfer was not canceled when Slot closed")
+	}
+	if request.claim() {
+		t.Fatal("canceled strict transfer remained claimable")
+	}
+}
+
+func TestStrictLeaderTransferTimeoutCancelsClaimedRequestBeforeExecution(t *testing.T) {
+	request := &strictLeaderTransferRequest{
+		resp: make(chan strictLeaderTransferResponse, 1),
+	}
+	if !request.claim() {
+		t.Fatal("request was not claimed")
+	}
+	if !request.cancel(context.DeadlineExceeded) {
+		t.Fatal("processing request was not canceled before execution")
+	}
+	if request.beginExecution() {
+		t.Fatal("timed-out request crossed into execution")
+	}
+	response := <-request.resp
+	if !errors.Is(response.err, context.DeadlineExceeded) {
+		t.Fatalf("response error = %v, want deadline exceeded", response.err)
+	}
+}
+
+func TestExtractedStrictLeaderTransferRejectsTerminalSlotBeforeExecution(t *testing.T) {
+	fatalErr := errors.New("slot fatal")
+	tests := []struct {
+		name    string
+		prepare func(*slot)
+		wantErr error
+	}{
+		{name: "close slot", prepare: func(g *slot) { g.closed = true }, wantErr: ErrSlotClosed},
+		{name: "fatal", prepare: func(g *slot) { g.fatalErr = fatalErr }, wantErr: fatalErr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := newLeaderTestSlotForDrain()
+			request := newClaimedStrictLeaderTransferRequest(alwaysCurrentPreferredLeaderGuard{})
+			g.mu.Lock()
+			tt.prepare(g)
+			g.mu.Unlock()
+
+			// The action has already been extracted from g.controls and claimed by
+			// the worker. The final g.mu-fenced admission check must still win.
+			g.executeStrictLeaderTransfer(request, 2, testFreshPreferredLeaderResult())
+			response := <-request.resp
+			if response.result.Decision != "" || !response.result.RaftObserved || !errors.Is(response.err, tt.wantErr) {
+				t.Fatalf("strict response = %+v, want terminal error %v", response, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestRuntimeCloseCancelsQueuedStrictLeaderTransfer(t *testing.T) {
+	rt := newStartedRuntime(t)
+	const slotID SlotID = 77
+	if err := rt.OpenSlot(context.Background(), newInternalSlotOptions(slotID)); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	rt.mu.RLock()
+	g := rt.slots[slotID]
+	rt.mu.RUnlock()
+	if g == nil {
+		t.Fatal("opened Slot is missing from Runtime")
+	}
+
+	// Keep the real worker from extracting the request so Runtime.Close must
+	// cancel it through failPendingLocked before waiting for Slot idleness.
+	g.mu.Lock()
+	g.processing = true
+	g.mu.Unlock()
+
+	type result struct {
+		transfer PreferredLeaderTransferResult
+		err      error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		transfer, err := rt.TryTransferLeadershipToPreferred(
+			context.Background(), slotID, 1, 7, []NodeID{1, 2, 3}, 2,
+			alwaysCurrentPreferredLeaderGuard{},
+		)
+		resultCh <- result{transfer: transfer, err: err}
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		g.mu.Lock()
+		queued := len(g.controls) == 1 && g.controls[0].strictTransfer != nil
+		g.mu.Unlock()
+		if queued {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("strict transfer was not queued before Runtime.Close")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- rt.Close() }()
+	select {
+	case got := <-resultCh:
+		if got.transfer != (PreferredLeaderTransferResult{}) || !errors.Is(got.err, ErrRuntimeClosed) {
+			t.Fatalf("strict result = (%+v, %v), want (empty, %v)", got.transfer, got.err, ErrRuntimeClosed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Runtime.Close did not cancel the queued strict transfer")
+	}
+
+	g.mu.Lock()
+	g.processing = false
+	if g.cond != nil {
+		g.cond.Broadcast()
+	}
+	g.mu.Unlock()
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("Runtime.Close() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Runtime.Close did not finish after Slot became idle")
+	}
+}
+
+func TestExtractedStrictLeaderTransferRejectsInvalidatedIntentAtExecutionGap(t *testing.T) {
+	g := newLeaderTestSlotForDrain()
+	guard := newInvalidatablePreferredLeaderGuard()
+	request := newClaimedStrictLeaderTransferRequest(guard)
+	guard.invalidate()
+
+	// Fresh Raft selection has already happened. The shared execution guard
+	// must prevent the final TransferLeader issue after Controller invalidation.
+	g.executeStrictLeaderTransfer(request, 2, testFreshPreferredLeaderResult())
+	response := <-request.resp
+	if response.err != nil || response.result.Decision != PreferredLeaderTransferStaleIntent || !response.result.RaftObserved {
+		t.Fatalf("strict response = %+v, want stale_intent no-op", response)
+	}
+}
+
+func TestExtractedStrictLeaderTransferDoesNotHoldSlotLockWhileGuardWaits(t *testing.T) {
+	g := newLeaderTestSlotForDrain()
+	guard := &blockingBeforeActionPreferredLeaderGuard{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	request := newClaimedStrictLeaderTransferRequest(guard)
+	executeDone := make(chan struct{})
+	go func() {
+		g.executeStrictLeaderTransfer(request, 2, testFreshPreferredLeaderResult())
+		close(executeDone)
+	}()
+	select {
+	case <-guard.entered:
+	case <-time.After(time.Second):
+		t.Fatal("strict transfer did not reach the intent guard")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		g.mu.Lock()
+		g.closed = true
+		g.mu.Unlock()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("intent guard wait held the Slot mutex")
+	}
+	close(guard.release)
+	select {
+	case <-executeDone:
+	case <-time.After(time.Second):
+		t.Fatal("strict transfer did not finish after the guard was released")
+	}
+	response := <-request.resp
+	if response.result.Decision != "" || !response.result.RaftObserved || !errors.Is(response.err, ErrSlotClosed) {
+		t.Fatalf("strict response = %+v, want terminal Slot close", response)
+	}
+}
+
+func newClaimedStrictLeaderTransferRequest(guard PreferredLeaderTransferGuard) *strictLeaderTransferRequest {
+	request := &strictLeaderTransferRequest{
+		ctx:            context.Background(),
+		expectedLeader: 1,
+		expectedTerm:   7,
+		expectedVoters: []NodeID{1, 2, 3},
+		target:         2,
+		guard:          guard,
+		resp:           make(chan strictLeaderTransferResponse, 1),
+	}
+	request.claim()
+	return request
+}
+
+func testFreshPreferredLeaderResult() PreferredLeaderTransferResult {
+	return PreferredLeaderTransferResult{
+		Decision:         PreferredLeaderTransferStarted,
+		ObservedLeaderID: 1,
+		ObservedTerm:     7,
+		RaftObserved:     true,
+	}
+}
+
+type invalidatablePreferredLeaderGuard struct {
+	mu      sync.Mutex
+	ctx     context.Context
+	cancel  context.CancelFunc
+	current bool
+}
+
+type blockingBeforeActionPreferredLeaderGuard struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (g *blockingBeforeActionPreferredLeaderGuard) Context() context.Context {
+	return context.Background()
+}
+
+func (g *blockingBeforeActionPreferredLeaderGuard) ExecuteIfCurrent(action func()) bool {
+	close(g.entered)
+	<-g.release
+	if action != nil {
+		action()
+	}
+	return true
+}
+
+func newInvalidatablePreferredLeaderGuard() *invalidatablePreferredLeaderGuard {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &invalidatablePreferredLeaderGuard{ctx: ctx, cancel: cancel, current: true}
+}
+
+func (g *invalidatablePreferredLeaderGuard) Context() context.Context { return g.ctx }
+
+func (g *invalidatablePreferredLeaderGuard) ExecuteIfCurrent(action func()) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.current {
+		return false
+	}
+	if action != nil {
+		action()
+	}
+	return true
+}
+
+func (g *invalidatablePreferredLeaderGuard) invalidate() {
+	g.mu.Lock()
+	g.current = false
+	g.cancel()
+	g.mu.Unlock()
 }
 
 func TestExpectLeaderTransferRejectsUnknownSlot(t *testing.T) {
@@ -124,6 +452,117 @@ func TestSelectLeaderTransferTransfereePrefersEligiblePreferred(t *testing.T) {
 
 	if got := selectLeaderTransferTransferee(st, 2); got != 2 {
 		t.Fatalf("selectLeaderTransferTransferee() = %d, want preferred 2", got)
+	}
+}
+
+func TestSelectStrictLeaderTransferTargetAcceptsEligiblePreferred(t *testing.T) {
+	st := raft.Status{
+		BasicStatus: raft.BasicStatus{
+			ID:        1,
+			SoftState: raft.SoftState{Lead: 1, RaftState: raft.StateLeader},
+			HardState: raftpb.HardState{Term: 7, Commit: 10},
+		},
+		Config: tracker.Config{Voters: quorum.JointConfig{
+			quorum.MajorityConfig{1: {}, 2: {}, 3: {}},
+		}},
+		Progress: map[uint64]tracker.Progress{
+			1: {Match: 12, RecentActive: true},
+			2: {Match: 10, RecentActive: true},
+			3: {Match: 9, RecentActive: true},
+		},
+	}
+
+	if got, decision := selectStrictLeaderTransferTarget(st, 1, 7, []NodeID{1, 2, 3}, 2); got != 2 || decision != PreferredLeaderTransferStarted {
+		t.Fatalf("selectStrictLeaderTransferTarget() = (%d, %q), want eligible preferred 2 and transfer_started", got, decision)
+	}
+}
+
+func TestSelectStrictLeaderTransferTargetRejectsUnsafeOrStaleRequest(t *testing.T) {
+	base := raft.Status{
+		BasicStatus: raft.BasicStatus{
+			ID:        1,
+			SoftState: raft.SoftState{Lead: 1, RaftState: raft.StateLeader},
+			HardState: raftpb.HardState{Term: 7, Commit: 10},
+		},
+		Config: tracker.Config{Voters: quorum.JointConfig{
+			quorum.MajorityConfig{1: {}, 2: {}, 3: {}},
+		}},
+		Progress: map[uint64]tracker.Progress{
+			1: {Match: 12, RecentActive: true},
+			2: {Match: 9, RecentActive: true},
+			3: {Match: 10, RecentActive: true},
+		},
+	}
+	inactive := base
+	inactive.Progress = map[uint64]tracker.Progress{
+		1: {Match: 12, RecentActive: true},
+		2: {Match: 9, RecentActive: true},
+		3: {Match: 10},
+	}
+	transferring := base
+	transferring.LeadTransferee = 3
+
+	tests := []struct {
+		name           string
+		status         raft.Status
+		expectedLeader NodeID
+		expectedTerm   uint64
+		expectedVoters []NodeID
+		preferred      NodeID
+		wantDecision   PreferredLeaderTransferDecision
+	}{
+		{name: "preferred behind commit", status: base, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 3}, preferred: 2, wantDecision: PreferredLeaderTransferPreferredLagging},
+		{name: "preferred not voter", status: base, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 3}, preferred: 4, wantDecision: PreferredLeaderTransferVoterMismatch},
+		{name: "stale leader", status: base, expectedLeader: 2, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 3}, preferred: 3, wantDecision: PreferredLeaderTransferStaleIntent},
+		{name: "stale term", status: base, expectedLeader: 1, expectedTerm: 6, expectedVoters: []NodeID{1, 2, 3}, preferred: 3, wantDecision: PreferredLeaderTransferStaleIntent},
+		{name: "stale voter set", status: base, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 4}, preferred: 3, wantDecision: PreferredLeaderTransferVoterMismatch},
+		{name: "duplicate expected voter", status: base, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 2}, preferred: 3, wantDecision: PreferredLeaderTransferVoterMismatch},
+		{name: "zero expected voter", status: base, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{0, 2, 3}, preferred: 3, wantDecision: PreferredLeaderTransferVoterMismatch},
+		{name: "preferred inactive", status: inactive, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 3}, preferred: 3, wantDecision: PreferredLeaderTransferPreferredInactive},
+		{name: "transfer already in progress", status: transferring, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 3}, preferred: 3, wantDecision: PreferredLeaderTransferInProgress},
+		{name: "preferred already leader", status: base, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 3}, preferred: 1, wantDecision: PreferredLeaderTransferStaleIntent},
+	}
+	joint := base
+	joint.Config.Voters[1] = quorum.MajorityConfig{1: {}, 2: {}, 3: {}}
+	tests = append(tests, struct {
+		name           string
+		status         raft.Status
+		expectedLeader NodeID
+		expectedTerm   uint64
+		expectedVoters []NodeID
+		preferred      NodeID
+		wantDecision   PreferredLeaderTransferDecision
+	}{name: "joint membership", status: joint, expectedLeader: 1, expectedTerm: 7, expectedVoters: []NodeID{1, 2, 3}, preferred: 3, wantDecision: PreferredLeaderTransferJointConfig})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, decision := selectStrictLeaderTransferTarget(tt.status, tt.expectedLeader, tt.expectedTerm, tt.expectedVoters, tt.preferred); got != 0 || decision != tt.wantDecision {
+				t.Fatalf("selectStrictLeaderTransferTarget() = (%d, %q), want (0, %q)", got, decision, tt.wantDecision)
+			}
+		})
+	}
+}
+
+func TestSelectStrictLeaderTransferTargetPreservesManualTransferTarget(t *testing.T) {
+	st := raft.Status{
+		BasicStatus: raft.BasicStatus{
+			ID:             1,
+			SoftState:      raft.SoftState{Lead: 1, RaftState: raft.StateLeader},
+			HardState:      raftpb.HardState{Term: 7, Commit: 10},
+			LeadTransferee: 3,
+		},
+		Config: tracker.Config{Voters: quorum.JointConfig{
+			quorum.MajorityConfig{1: {}, 2: {}, 3: {}},
+		}},
+		Progress: map[uint64]tracker.Progress{
+			1: {Match: 10, RecentActive: true},
+			2: {Match: 10, RecentActive: true},
+			3: {Match: 10, RecentActive: true},
+		},
+	}
+
+	target, decision := selectStrictLeaderTransferTarget(st, 1, 7, []NodeID{1, 2, 3}, 2)
+	if target != 0 || decision != PreferredLeaderTransferInProgress || st.LeadTransferee != 3 {
+		t.Fatalf("strict selection = (%d, %q), manual target=%d; want no-op preserving target 3", target, decision, st.LeadTransferee)
 	}
 }
 

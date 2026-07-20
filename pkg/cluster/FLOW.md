@@ -152,6 +152,7 @@ Start(ctx)
   -> discovery.Update(control node addresses plus seed-join seed addresses when configured)
   -> slots.Reconcile(snapshot)
   -> start Controller watch loop for later snapshots
+  -> start the independent idle preferred-leader reconciliation loop; Start and snapshot apply never wait for it
   -> start the default Slot leader observation loop when the default Slot runtime is active
   -> mark Channel runtime ready and start the tick loop
   -> mark node started
@@ -217,7 +218,37 @@ active as the fallback. Raft vote eligibility, log freshness, and quorum remain
 authoritative. Bootstrap execution completes after all target peers report done,
 the observed voter set exactly matches `TargetPeers`, and the live Slot Raft
 leader belongs to that voter set. It does not force a post-election leadership
-transfer when the observed leader differs from the preference.
+transfer during bootstrap when the observed leader differs from the preference.
+After Controller tasks become idle, an independent low-frequency Node loop runs
+steady-state preferred-leader reconciliation. It is not part of the task
+executor composite, so `Start`, `applySnapshot`, and the Controller watch path
+never synchronously wait for placement convergence. Only the observed local Raft
+leader may act, the runtime voter set must exactly match `DesiredPeers`, and a
+per-Slot `(leader, term, preferred, config_epoch)` cooldown suppresses duplicate
+requests. Immediately before enqueue, a read-only Node callback verifies that
+the latest applied snapshot still has the exact revision, Slot, config epoch,
+preferred leader, desired peers, and no active task. Each strict worker request
+has a 250ms deadline, each pass performs at most four strict checks, and a
+rotating cursor prevents earlier Slots from starving later Slots. Cooldown state
+for physical Slot IDs absent from the current snapshot is discarded, so removing
+and later re-adding a Slot does not inherit an obsolete attempt. The Slot worker
+rechecks the leader/term/voter-set fence and fresh
+Raft progress; it does not interrupt another transfer already in progress, and
+it transfers only to the exact preferred voter after that voter is recently
+active and has replicated through the current commit index. If the preference
+is stale, ineligible, inactive, or behind, the valid actual Raft leader remains
+authoritative and no fallback voter is selected. Low-cardinality decision and
+strict-wait metrics expose why reconciliation did or did not transfer without a
+`slot_id` label. Bounded physical-Slot diagnostics use the fresh leader and term
+returned by that strict Slot worker; if the request returned before the worker
+observed Raft state, those fields remain unknown instead of reusing the earlier
+eligibility precheck.
+The former leader observes `actual == preferred` before its local-leader gate,
+so a successful transfer can close that node's retained non-match diagnostic
+history with one recovery `match`; this follower path emits detailed diagnostics
+only, while the actual leader remains the sole source of aggregate `match`
+counters. Nodes without prior non-match state suppress their steady detailed
+match observations.
 Leader-transfer execution calls Slot Raft `TransferLeadership` from
 the current Slot leader and completes once the observed actual leader is any
 legal non-source Slot Raft leader; the requested `target_node` is preferred,
@@ -283,15 +314,21 @@ readiness as diagnostics; it is not a distributed authority source.
 
 ```text
 Stop(ctx)
-  -> mark stopping and reject new foreground calls
+  -> mark stopping, reject new foreground calls, and immediately invalidate the current preferred-leader intent generation
   -> stop low-frequency Controller health reporting
   -> stop Controller watch loop
+  -> stop Controller task reconciliation loop
+  -> stop the independent preferred-leader reconciliation loop
+  -> close route-authority watchers
+  -> stop Slot leader observation loop
   -> stop Channel runtime tick loop
   -> stop Channel runtime physical retention cleanup loop
   -> stop Channel runtime migration executor/repair scanner loop
   -> close hosted Channel runtime service
   -> stop Controller-backed Controller or injected Controller
   -> stop injected lifecycle resources in reverse order
+  -> close the default Slot runtime and its Raft and metadata stores
+  -> discard default Controller/transport state and mark the Node stopped
 ```
 
 ## Propose Hot Path

@@ -56,6 +56,10 @@ func emptyControlSnapshot(snapshot control.Snapshot) bool {
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
 	n.controlApplyMu.Lock()
 	defer n.controlApplyMu.Unlock()
+	// Cancel the previously published placement generation before applying any
+	// newer Controller state. Strict Slot-worker requests use this cancellation
+	// as their nonblocking fence against an apply-in-progress stale intent.
+	n.beginPreferredLeaderIntentApply()
 
 	n.mu.RLock()
 	previous := n.controlSnapshot.Clone()
@@ -111,6 +115,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.controlSnapshot = snapshot.Clone()
 	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: slotsReady, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
+	n.publishPreferredLeaderIntent(snapshot)
 	if observer := n.cfg.Control.SnapshotObserver; observer != nil {
 		observer.ObserveControlSnapshot(snapshot.Clone())
 	}

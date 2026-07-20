@@ -46,6 +46,8 @@ type DiagnosticsQueryDTO struct {
 	ChannelKey string `json:"channel_key,omitempty"`
 	// UID filters events by sender UID without exposing FromUID in event DTOs.
 	UID string `json:"uid,omitempty"`
+	// SlotID filters events by exact physical Slot identity.
+	SlotID uint32 `json:"slot_id,omitempty"`
 	// MessageSeq filters events by channel message sequence.
 	MessageSeq uint64 `json:"message_seq,omitempty"`
 	// Stage filters events by diagnostics stage.
@@ -92,22 +94,32 @@ type DiagnosticsEventDTO struct {
 	NodeID       uint64    `json:"node_id"`
 	PeerNodeID   uint64    `json:"peer_node_id"`
 	SlotID       uint32    `json:"slot_id"`
-	ChannelKey   string    `json:"channel_key"`
-	ClientMsgNo  string    `json:"client_msg_no"`
-	MessageSeq   uint64    `json:"message_seq"`
-	RangeStart   uint64    `json:"range_start"`
-	RangeEnd     uint64    `json:"range_end"`
-	Service      string    `json:"service"`
-	Result       string    `json:"result"`
-	ErrorCode    string    `json:"error_code"`
-	Error        string    `json:"error"`
-	Attempt      int       `json:"attempt"`
-	RequestCount int       `json:"request_count"`
-	RecordCount  int       `json:"record_count"`
-	ByteCount    int       `json:"byte_count"`
-	QueueDepth   int       `json:"queue_depth"`
-	ReplicaRole  string    `json:"replica_role"`
-	SampleReason string    `json:"sample_reason"`
+	// Decision is the stable reconciliation outcome when the event represents a decision.
+	Decision string `json:"decision,omitempty"`
+	// ActualLeaderID is the Raft leader observed for the physical Slot.
+	ActualLeaderID uint64 `json:"actual_leader_id,omitempty"`
+	// PreferredLeaderID is the Controller's soft placement target for the physical Slot.
+	PreferredLeaderID uint64 `json:"preferred_leader_id,omitempty"`
+	// RaftTerm is the term observed with ActualLeaderID.
+	RaftTerm uint64 `json:"raft_term,omitempty"`
+	// ConfigEpoch fences the Controller voter assignment used by the decision.
+	ConfigEpoch  uint64 `json:"config_epoch,omitempty"`
+	ChannelKey   string `json:"channel_key"`
+	ClientMsgNo  string `json:"client_msg_no"`
+	MessageSeq   uint64 `json:"message_seq"`
+	RangeStart   uint64 `json:"range_start"`
+	RangeEnd     uint64 `json:"range_end"`
+	Service      string `json:"service"`
+	Result       string `json:"result"`
+	ErrorCode    string `json:"error_code"`
+	Error        string `json:"error"`
+	Attempt      int    `json:"attempt"`
+	RequestCount int    `json:"request_count"`
+	RecordCount  int    `json:"record_count"`
+	ByteCount    int    `json:"byte_count"`
+	QueueDepth   int    `json:"queue_depth"`
+	ReplicaRole  string `json:"replica_role"`
+	SampleReason string `json:"sample_reason"`
 }
 
 func (s *Server) handleDiagnosticsTrace(c *gin.Context) {
@@ -171,6 +183,12 @@ func (s *Server) handleDiagnosticsEvents(c *gin.Context) {
 	if channelKey := strings.TrimSpace(c.Query("channel_key")); channelKey != "" {
 		req.Query.ChannelKey = channelKey
 	}
+	slotID, err := parseOptionalPositiveUint32(c.Query("slot_id"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid slot_id")
+		return
+	}
+	req.Query.SlotID = slotID
 	result, valid := parseDiagnosticsResult(c.Query("result"))
 	if !valid {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid result")
@@ -228,6 +246,17 @@ func parseOptionalPositiveUint64(raw string) (uint64, error) {
 	return parsePositiveUint64(raw)
 }
 
+func parseOptionalPositiveUint32(raw string) (uint32, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || value == 0 {
+		return 0, strconv.ErrSyntax
+	}
+	return uint32(value), nil
+}
+
 func parsePositiveUint64(raw string) (uint64, error) {
 	value, err := strconv.ParseUint(raw, 10, 64)
 	if err != nil || value == 0 {
@@ -278,6 +307,7 @@ func diagnosticsQueryDTO(query diagnostics.Query) DiagnosticsQueryDTO {
 		ClientMsgNo: query.ClientMsgNo,
 		ChannelKey:  query.ChannelKey,
 		UID:         query.UID,
+		SlotID:      query.SlotID,
 		MessageSeq:  query.MessageSeq,
 		Stage:       string(query.Stage),
 		Result:      string(query.Result),
@@ -320,31 +350,36 @@ func diagnosticsEventsDTO(events []managementusecase.DiagnosticsEvent) []Diagnos
 	out := make([]DiagnosticsEventDTO, 0, len(events))
 	for _, event := range events {
 		out = append(out, DiagnosticsEventDTO{
-			TraceID:      event.TraceID,
-			SpanID:       event.SpanID,
-			ParentSpanID: event.ParentSpanID,
-			Stage:        event.Stage,
-			At:           event.At,
-			DurationMS:   event.DurationMS,
-			NodeID:       event.NodeID,
-			PeerNodeID:   event.PeerNodeID,
-			SlotID:       event.SlotID,
-			ChannelKey:   event.ChannelKey,
-			ClientMsgNo:  event.ClientMsgNo,
-			MessageSeq:   event.MessageSeq,
-			RangeStart:   event.RangeStart,
-			RangeEnd:     event.RangeEnd,
-			Service:      event.Service,
-			Result:       event.Result,
-			ErrorCode:    event.ErrorCode,
-			Error:        event.Error,
-			Attempt:      event.Attempt,
-			RequestCount: event.RequestCount,
-			RecordCount:  event.RecordCount,
-			ByteCount:    event.ByteCount,
-			QueueDepth:   event.QueueDepth,
-			ReplicaRole:  event.ReplicaRole,
-			SampleReason: event.SampleReason,
+			TraceID:           event.TraceID,
+			SpanID:            event.SpanID,
+			ParentSpanID:      event.ParentSpanID,
+			Stage:             event.Stage,
+			At:                event.At,
+			DurationMS:        event.DurationMS,
+			NodeID:            event.NodeID,
+			PeerNodeID:        event.PeerNodeID,
+			SlotID:            event.SlotID,
+			Decision:          event.Decision,
+			ActualLeaderID:    event.ActualLeaderID,
+			PreferredLeaderID: event.PreferredLeaderID,
+			RaftTerm:          event.RaftTerm,
+			ConfigEpoch:       event.ConfigEpoch,
+			ChannelKey:        event.ChannelKey,
+			ClientMsgNo:       event.ClientMsgNo,
+			MessageSeq:        event.MessageSeq,
+			RangeStart:        event.RangeStart,
+			RangeEnd:          event.RangeEnd,
+			Service:           event.Service,
+			Result:            event.Result,
+			ErrorCode:         event.ErrorCode,
+			Error:             event.Error,
+			Attempt:           event.Attempt,
+			RequestCount:      event.RequestCount,
+			RecordCount:       event.RecordCount,
+			ByteCount:         event.ByteCount,
+			QueueDepth:        event.QueueDepth,
+			ReplicaRole:       event.ReplicaRole,
+			SampleReason:      event.SampleReason,
 		})
 	}
 	return out

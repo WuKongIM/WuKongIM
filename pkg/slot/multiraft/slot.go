@@ -9,6 +9,7 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -99,13 +100,91 @@ const (
 )
 
 type controlAction struct {
-	kind          controlKind
-	data          []byte
-	proposalClass ProposalClass
-	future        *future
-	target        NodeID
-	change        ConfigChange
-	compact       *logCompactionRequest
+	kind           controlKind
+	data           []byte
+	proposalClass  ProposalClass
+	future         *future
+	target         NodeID
+	change         ConfigChange
+	compact        *logCompactionRequest
+	strictTransfer *strictLeaderTransferRequest
+}
+
+// strictLeaderTransferRequest carries one exact, timeout-bounded placement
+// intent from the cluster reconciler to the owning Slot worker.
+type strictLeaderTransferRequest struct {
+	// ctx cancels the request before it crosses the nonblocking issue point.
+	ctx context.Context
+	// expectedLeader fences the actual leader observed by the reconciler.
+	expectedLeader NodeID
+	// expectedTerm fences the Raft term observed by the reconciler.
+	expectedTerm uint64
+	// expectedVoters fences the stable voter set observed by the reconciler.
+	expectedVoters []NodeID
+	// target is the exact preferred voter; strict placement never falls back.
+	target NodeID
+	// guard linearizes Controller-intent invalidation with the final issue point.
+	guard PreferredLeaderTransferGuard
+	// resp carries the single terminal decision or error to the caller.
+	resp chan strictLeaderTransferResponse
+	// state prevents cancellation, execution, and completion from winning twice.
+	state atomic.Uint32
+}
+
+// strictLeaderTransferResponse is the single terminal result returned by the
+// Slot worker for a strict preferred-leader request.
+type strictLeaderTransferResponse struct {
+	// result contains the bounded decision and any fresh Raft observation.
+	result PreferredLeaderTransferResult
+	// err reports cancellation or terminal Slot/runtime failure.
+	err error
+}
+
+const (
+	strictLeaderTransferPending uint32 = iota
+	strictLeaderTransferProcessing
+	strictLeaderTransferExecuting
+	strictLeaderTransferDone
+)
+
+func (r *strictLeaderTransferRequest) claim() bool {
+	return r != nil && r.state.CompareAndSwap(strictLeaderTransferPending, strictLeaderTransferProcessing)
+}
+
+func (r *strictLeaderTransferRequest) finish(response strictLeaderTransferResponse) {
+	if r == nil {
+		return
+	}
+	for {
+		state := r.state.Load()
+		if state != strictLeaderTransferProcessing && state != strictLeaderTransferExecuting {
+			return
+		}
+		if r.state.CompareAndSwap(state, strictLeaderTransferDone) {
+			r.resp <- response
+			return
+		}
+	}
+}
+
+func (r *strictLeaderTransferRequest) cancel(err error) bool {
+	if r == nil {
+		return false
+	}
+	for {
+		state := r.state.Load()
+		if state == strictLeaderTransferExecuting || state == strictLeaderTransferDone {
+			return false
+		}
+		if r.state.CompareAndSwap(state, strictLeaderTransferDone) {
+			r.resp <- strictLeaderTransferResponse{err: err}
+			return true
+		}
+	}
+}
+
+func (r *strictLeaderTransferRequest) beginExecution() bool {
+	return r != nil && r.state.CompareAndSwap(strictLeaderTransferProcessing, strictLeaderTransferExecuting)
 }
 
 type logCompactionRequest struct {
@@ -350,6 +429,41 @@ func (g *slot) processControls(ctx context.Context) bool {
 		case controlCampaign:
 			_ = g.rawNode.Campaign()
 		case controlTransferLeader:
+			if action.strictTransfer != nil {
+				request := action.strictTransfer
+				if !request.claim() {
+					continue
+				}
+				if err := request.ctx.Err(); err != nil {
+					request.finish(strictLeaderTransferResponse{err: err})
+					continue
+				}
+				status := g.rawNode.Status()
+				target, decision := selectStrictLeaderTransferTarget(
+					status,
+					request.expectedLeader,
+					request.expectedTerm,
+					request.expectedVoters,
+					request.target,
+				)
+				result := PreferredLeaderTransferResult{
+					Decision:         decision,
+					ObservedLeaderID: NodeID(status.Lead),
+					ObservedTerm:     status.Term,
+					RaftObserved:     true,
+				}
+				if target == 0 {
+					request.finish(strictLeaderTransferResponse{result: result})
+					continue
+				}
+				if err := request.ctx.Err(); err != nil {
+					result.Decision = ""
+					request.finish(strictLeaderTransferResponse{result: result, err: err})
+					continue
+				}
+				g.executeStrictLeaderTransfer(request, target, result)
+				continue
+			}
 			target := selectLeaderTransferTransferee(g.rawNode.Status(), action.target)
 			if target != 0 {
 				g.expectLeaderTransfer(target)
@@ -377,6 +491,50 @@ func (g *slot) processControls(ctx context.Context) bool {
 		}
 	}
 	return len(controls) > 0
+}
+
+func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest, target NodeID, result PreferredLeaderTransferResult) {
+	if g == nil || request == nil || target == 0 {
+		return
+	}
+	started := false
+	var terminalErr error
+	current := request.guard != nil && request.guard.ExecuteIfCurrent(func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		if err := g.admissionErrLocked(); err != nil {
+			terminalErr = err
+			return
+		}
+		if request.ctx.Err() != nil || !request.beginExecution() {
+			return
+		}
+		g.expectLeaderTransferLocked(target)
+		g.rawNode.TransferLeader(uint64(target))
+		started = true
+	})
+	if !current {
+		result.Decision = PreferredLeaderTransferStaleIntent
+		request.finish(strictLeaderTransferResponse{result: result})
+		return
+	}
+	if terminalErr != nil {
+		result.Decision = ""
+		request.finish(strictLeaderTransferResponse{result: result, err: terminalErr})
+		return
+	}
+	if started {
+		result.Decision = PreferredLeaderTransferStarted
+		request.finish(strictLeaderTransferResponse{result: result})
+		return
+	}
+	if err := request.ctx.Err(); err != nil {
+		result.Decision = ""
+		request.finish(strictLeaderTransferResponse{result: result, err: err})
+		return
+	}
+	result.Decision = PreferredLeaderTransferStaleIntent
+	request.finish(strictLeaderTransferResponse{result: result})
 }
 
 func (g *slot) takeRequestBatch() []raftpb.Message {
@@ -1183,6 +1341,53 @@ func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
 	return NodeID(selected)
 }
 
+// selectStrictLeaderTransferTarget returns preferred only when the caller's
+// leader fence still matches and preferred is a caught-up voter. Unlike the
+// operator-facing advisory transfer path, it never falls back to another
+// voter; steady-state placement reconciliation must retain the valid current
+// leader when the preferred voter cannot safely lead yet.
+func selectStrictLeaderTransferTarget(st raft.Status, expectedLeader NodeID, expectedTerm uint64, expectedVoters []NodeID, preferred NodeID) (NodeID, PreferredLeaderTransferDecision) {
+	if expectedLeader == 0 || preferred == 0 || preferred == expectedLeader ||
+		st.ID != uint64(expectedLeader) || st.Lead != uint64(expectedLeader) ||
+		st.Term != expectedTerm || st.RaftState != raft.StateLeader {
+		return 0, PreferredLeaderTransferStaleIntent
+	}
+	if st.LeadTransferee != 0 {
+		return 0, PreferredLeaderTransferInProgress
+	}
+	if len(st.Config.Voters[1]) != 0 {
+		return 0, PreferredLeaderTransferJointConfig
+	}
+	currentVoters := st.Config.Voters[0]
+	if len(currentVoters) != len(expectedVoters) {
+		return 0, PreferredLeaderTransferVoterMismatch
+	}
+	for i, voter := range expectedVoters {
+		if voter == 0 {
+			return 0, PreferredLeaderTransferVoterMismatch
+		}
+		for _, previous := range expectedVoters[:i] {
+			if previous == voter {
+				return 0, PreferredLeaderTransferVoterMismatch
+			}
+		}
+		if _, ok := currentVoters[uint64(voter)]; !ok {
+			return 0, PreferredLeaderTransferVoterMismatch
+		}
+	}
+	if _, ok := st.Config.Voters.IDs()[uint64(preferred)]; !ok {
+		return 0, PreferredLeaderTransferVoterMismatch
+	}
+	progress, ok := st.Progress[uint64(preferred)]
+	if !ok || !progress.RecentActive {
+		return 0, PreferredLeaderTransferPreferredInactive
+	}
+	if progress.Match < st.Commit {
+		return 0, PreferredLeaderTransferPreferredLagging
+	}
+	return preferred, PreferredLeaderTransferStarted
+}
+
 func (g *slot) appliedIndex() uint64 {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -1323,6 +1528,13 @@ func (g *slot) expectLeaderTransfer(target NodeID) {
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.expectLeaderTransferLocked(target)
+}
+
+func (g *slot) expectLeaderTransferLocked(target NodeID) {
+	if target == 0 {
+		return
+	}
 	g.pendingLeaderTransferTarget = target
 }
 
@@ -1632,6 +1844,11 @@ func (g *slot) failPending(err error) {
 }
 
 func (g *slot) failPendingLocked(err error) {
+	for i := range g.controls {
+		if g.controls[i].strictTransfer != nil {
+			g.controls[i].strictTransfer.cancel(err)
+		}
+	}
 	for _, fut := range g.submittedProposals {
 		fut.resolve(Result{}, err)
 	}
