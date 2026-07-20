@@ -41,6 +41,35 @@ func TestConversationActiveFlushWorkerFlushesPeriodicallyAndOnStop(t *testing.T)
 	}
 }
 
+func TestConversationActiveFlushWorkerWakesOnCachePressure(t *testing.T) {
+	flusher := &pressureAwareConversationActiveFlusher{
+		recordingConversationActiveFlusher: &recordingConversationActiveFlusher{firstFlush: make(chan struct{})},
+		pressure:                           make(chan struct{}, 1),
+	}
+	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+		Authority:       flusher,
+		FlushInterval:   time.Hour,
+		BatchRows:       7,
+		PressureSignals: flusher.pressure,
+	})
+
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	flusher.pressure <- struct{}{}
+	select {
+	case <-flusher.firstFlush:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for cache-pressure flush")
+	}
+	if err := worker.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := flusher.batchRows(); len(got) < 2 || got[0] != 7 {
+		t.Fatalf("flush batches = %#v, want immediate pressure flush bounded by 7 plus final drain", got)
+	}
+}
+
 func TestConversationActiveFlushWorkerStopReturnsFinalFlushError(t *testing.T) {
 	flushErr := errors.New("store unavailable")
 	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
@@ -142,6 +171,11 @@ type recordingConversationActiveFlusher struct {
 	err        error
 	results    []conversationactive.FlushResult
 	batches    []int
+}
+
+type pressureAwareConversationActiveFlusher struct {
+	*recordingConversationActiveFlusher
+	pressure chan struct{}
 }
 
 func (f *recordingConversationActiveFlusher) FlushActiveRows(_ context.Context, batchRows int) (conversationactive.FlushResult, error) {

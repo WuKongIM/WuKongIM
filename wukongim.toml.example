@@ -142,7 +142,8 @@ authority_list_db_window_max = 1000
 authority_handoff_timeout = "3s"
 authority_flush_interval = "1s"
 authority_flush_timeout = "5s"
-authority_flush_batch_rows = 512
+# Maximum dirty active rows persisted by one periodic, pressure-woken, or authority-handoff flush attempt.
+authority_flush_batch_rows = 128
 authority_admit_batch_rows = 512
 authority_admit_concurrency = 16
 

@@ -22,7 +22,7 @@
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
 - Channelappend post-commit pool admission and per-channel backlog must stay bounded and independent from foreground append admission; saturation is observed and dropped so best-effort conversation/delivery work cannot pin writer-advance workers, delay durable SEND/SENDACK, or return `ErrChannelBusy` for an otherwise admissible send.
-- Conversation-active cache churn must evict clean rows before entering the serialized dirty-flush lane; a full clean cache must not turn every new-channel admission into a global flush-lane operation.
+- Conversation-active cache churn may evict clean rows during memory-only admission; dirty persistence stays exclusively on periodic, pressure-woken, or handoff flush workers.
 
 ## Gateway Runtime
 
@@ -42,8 +42,9 @@
 - `ActiveAt` is a best-effort hint: updates may be batched, throttled, dropped, and merged from the kind-aware conversation active cache during `ListConversationActiveView`.
 - Legacy `UserConversation*` and `CMDConversation*` APIs in `pkg/db/meta` are source compatibility shims only; they must map to the unified kind-aware conversation table.
 - Conversation active flush attempts must carry a bounded context because Slot proposal futures rely on caller deadlines for stale or uncommitted proposals.
-- Conversation active dirty flushes must be serialized across scheduled, cache-pressure, and hash-slot drains; concurrent full-cache snapshots multiply memory by admission concurrency.
-- Conversation active cache pressure must flush and evict only a bounded batch with reusable headroom; synchronously flushing the whole dirty cache blocks authority RPCs and amplifies writes at high cardinality.
+- Conversation active admission is memory-only: it may evict clean rows or return cache pressure, but it must never perform durable I/O or wait for the serialized flush lane.
+- Conversation active pressure uses one coalesced async worker wakeup, bounded flush attempts, and 80%/70% high/dirty-low watermarks; clean rows below the dirty watermark are the reusable eviction reserve.
+- Conversation active projection failure is observed independently and must not block recipient delivery, later large-channel pages, or subscriber snapshot caching.
 - Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
 - Duplicate/stale delete barriers must not clear an `ActiveAt` written by a newer message.

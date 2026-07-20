@@ -36,10 +36,12 @@ type commitEffect struct {
 }
 
 type commitCompletedEvent struct {
-	key             string
-	seq             uint64
-	attempt         int
-	items           []commitCompletedItem
+	key     string
+	seq     uint64
+	attempt int
+	items   []commitCompletedItem
+	// failures contains observation-only side-effect failures that must not change item completion.
+	failures        []commitCompletedItem
 	subscriberCache subscriberCache
 }
 
@@ -62,7 +64,15 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 		seq:             e.seq,
 		attempt:         e.attempt,
 		items:           make([]commitCompletedItem, 0, len(e.events)),
+		failures:        make([]commitCompletedItem, 0, len(e.events)),
 		subscriberCache: e.subscriberCache,
+	}
+	recordResult := func(itemResult string) {
+		if result == channelAppendResultOK {
+			result = itemResult
+		} else if result != itemResult {
+			result = channelAppendResultMixed
+		}
 	}
 	cache := e.subscriberCache
 	for _, event := range e.events {
@@ -72,13 +82,19 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 			continue
 		}
 		dispatch, err := dispatchCommittedRecipientsForTarget(runtimeCtx, e.target, event, cache, ports)
+		if dispatch.activeErr != nil {
+			itemResult := errorClass(dispatch.activeErr)
+			recordResult(itemResult)
+			completion.failures = append(completion.failures, commitCompletedItem{
+				err:    fmt.Errorf("%w: %w", ErrCommitEffectFailed, dispatch.activeErr),
+				result: itemResult,
+				event:  event,
+				detail: postCommitFailureDetailFromError(dispatch.activeErr),
+			})
+		}
 		if err != nil {
 			itemResult := errorClass(err)
-			if result == channelAppendResultOK {
-				result = itemResult
-			} else if result != itemResult {
-				result = channelAppendResultMixed
-			}
+			recordResult(itemResult)
 			detail := postCommitFailureDetailFromError(err)
 			completion.items = append(completion.items, commitCompletedItem{
 				err:    fmt.Errorf("%w: %w", ErrCommitEffectFailed, err),

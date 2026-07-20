@@ -474,7 +474,7 @@ func (w *channelWriter) runCommit(effect *commitEffect) {
 }
 
 func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
-	var failures []commitCompletedItem
+	failures := append([]commitCompletedItem(nil), event.failures...)
 	w.mu.Lock()
 	backlogBefore := w.state.commitBacklog()
 	if len(event.items) > 0 {

@@ -802,6 +802,29 @@ func TestManagerObservesFlushFailureAndNoDirty(t *testing.T) {
 	}
 }
 
+func TestManagerObservesFlushDeadlineAsTimeout(t *testing.T) {
+	ctx := context.Background()
+	observer := &recordingConversationActiveObserver{}
+	store := &recordingActiveStore{touchErr: context.DeadlineExceeded}
+	m := NewManager(Options{Store: store, Observer: observer})
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u1",
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ActiveAtMS:  1000,
+	}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	if _, err := m.Flush(ctx, 1); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Flush() error = %v, want deadline exceeded", err)
+	}
+	if flush := observer.lastFlush(t); flush.Result != "timeout" || flush.Selected != 1 {
+		t.Fatalf("flush observation = %+v, want timeout selected=1", flush)
+	}
+}
+
 func TestFlushFailureKeepsDirty(t *testing.T) {
 	ctx := context.Background()
 	touchErr := errors.New("touch failed")
@@ -858,7 +881,132 @@ func TestFlushDoesNotClearConcurrentDirtyUpdate(t *testing.T) {
 	}
 }
 
-func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
+func TestCachePressureAdmissionDoesNotPerformDurableIO(t *testing.T) {
+	ctx := context.Background()
+	storeErr := errors.New("durable store must not be called by admission")
+	store := &recordingActiveStore{touchErr: storeErr}
+	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour, MaxCachedRows: 1})
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u1",
+		ChannelID:   "old",
+		ChannelType: 2,
+		ActiveAtMS:  1000,
+	}}); err != nil {
+		t.Fatalf("MarkActive(old) error = %v", err)
+	}
+
+	err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u2",
+		ChannelID:   "new",
+		ChannelType: 2,
+		ActiveAtMS:  2000,
+	}})
+	if !errors.Is(err, ErrCachePressure) {
+		t.Fatalf("MarkActive(pressure) error = %v, want %v", err, ErrCachePressure)
+	}
+	if len(store.touches) != 0 {
+		t.Fatalf("admission durable writes = %d, want 0", len(store.touches))
+	}
+	if len(store.batchKeys) != 0 {
+		t.Fatalf("admission durable reads = %d, want 0", len(store.batchKeys))
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "old", 2); !ok {
+		t.Fatal("existing dirty row was removed after rejected pressure admission")
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u2", "new", 2); ok {
+		t.Fatal("rejected pressure row was partially cached")
+	}
+}
+
+func TestCachePressureAdmissionSignalsAsyncFlush(t *testing.T) {
+	ctx := context.Background()
+	pressureSignals := make(chan struct{}, 1)
+	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: 1, PressureNotify: pressureSignals})
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u1",
+		ChannelID:   "old",
+		ChannelType: 2,
+		ActiveAtMS:  1000,
+	}}); err != nil {
+		t.Fatalf("MarkActive(old) error = %v", err)
+	}
+
+	err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u2",
+		ChannelID:   "new",
+		ChannelType: 2,
+		ActiveAtMS:  2000,
+	}})
+	if !errors.Is(err, ErrCachePressure) {
+		t.Fatalf("MarkActive(pressure) error = %v, want %v", err, ErrCachePressure)
+	}
+	select {
+	case <-pressureSignals:
+	default:
+		t.Fatal("cache pressure admission did not signal the async flush worker")
+	}
+}
+
+func TestCachePressureAdmissionDoesNotWaitForInFlightFlush(t *testing.T) {
+	ctx := context.Background()
+	store := &blockingActiveStore{
+		entered: make(chan int, 1),
+		release: make(chan struct{}),
+	}
+	releaseStore := sync.OnceFunc(func() { close(store.release) })
+	defer releaseStore()
+	m := NewManager(Options{Store: store, MaxCachedRows: 1})
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u1",
+		ChannelID:   "old",
+		ChannelType: 2,
+		ActiveAtMS:  1000,
+	}}); err != nil {
+		t.Fatalf("MarkActive(old) error = %v", err)
+	}
+
+	flushDone := make(chan error, 1)
+	go func() {
+		_, err := m.Flush(ctx, 1)
+		flushDone <- err
+	}()
+	select {
+	case <-store.entered:
+	case <-time.After(time.Second):
+		t.Fatal("flush did not reach the blocking durable store")
+	}
+
+	admissionDone := make(chan error, 1)
+	go func() {
+		admissionDone <- m.MarkActive(ctx, []ActivePatch{{
+			Kind:        metadb.ConversationKindNormal,
+			UID:         "u2",
+			ChannelID:   "new",
+			ChannelType: 2,
+			ActiveAtMS:  2000,
+		}})
+	}()
+	select {
+	case err := <-admissionDone:
+		if !errors.Is(err, ErrCachePressure) {
+			t.Fatalf("MarkActive(pressure) error = %v, want %v", err, ErrCachePressure)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("cache-pressure admission waited for the in-flight durable flush")
+	}
+
+	releaseStore()
+	if err := <-flushDone; err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+}
+
+func TestCachePressureAdmissionRecoversAfterAsyncFlush(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store, MaxCachedRows: 1})
@@ -866,16 +1014,25 @@ func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
 		t.Fatalf("MarkActive(old) error = %v", err)
 	}
 
-	err := m.AdmitActiveBatch(ctx, ActiveBatch{
+	batch := ActiveBatch{
 		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "u1",
 		ChannelID:   "new",
 		ChannelType: 2,
 		MessageSeq:  10,
 		ActiveAtMS:  2000,
-	})
-	if err != nil {
-		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if err := m.AdmitActiveBatch(ctx, batch); !errors.Is(err, ErrCachePressure) {
+		t.Fatalf("AdmitActiveBatch(before flush) error = %v, want %v", err, ErrCachePressure)
+	}
+	if len(store.touches) != 0 {
+		t.Fatalf("admission durable writes = %d, want 0", len(store.touches))
+	}
+	if result, err := m.Flush(ctx, 1); err != nil || result.Flushed != 1 {
+		t.Fatalf("Flush() = %+v, %v, want one flushed row", result, err)
+	}
+	if err := m.AdmitActiveBatch(ctx, batch); err != nil {
+		t.Fatalf("AdmitActiveBatch(after flush) error = %v", err)
 	}
 
 	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "old", 2); ok {
@@ -944,19 +1101,17 @@ func TestAdmitUnderCachePressureEvictsCleanRowsWithoutFlush(t *testing.T) {
 	}
 }
 
-func TestCachePressureSpillIsBoundedAndCreatesHeadroom(t *testing.T) {
+func TestCachePressureFlushContinuesUntilDirtyLowWatermark(t *testing.T) {
 	const (
-		maxRows           = 16
-		pressureSpillRows = 4
+		maxRows = 10
 	)
 	ctx := context.Background()
 	store := &recordingActiveStore{}
-	observer := &recordingConversationActiveObserver{}
+	pressureSignals := make(chan struct{}, 1)
 	m := NewManager(Options{
-		Store:             store,
-		MaxCachedRows:     maxRows,
-		PressureSpillRows: pressureSpillRows,
-		Observer:          observer,
+		Store:          store,
+		MaxCachedRows:  maxRows,
+		PressureNotify: pressureSignals,
 	})
 	initial := make([]ActivePatch, 0, maxRows)
 	for i := 0; i < maxRows; i++ {
@@ -971,58 +1126,39 @@ func TestCachePressureSpillIsBoundedAndCreatesHeadroom(t *testing.T) {
 	if err := m.MarkActive(ctx, initial); err != nil {
 		t.Fatalf("MarkActive(initial) error = %v", err)
 	}
-
-	if err := m.MarkActive(ctx, []ActivePatch{{
-		Kind:        metadb.ConversationKindNormal,
-		UID:         "new-0",
-		ChannelID:   "room",
-		ChannelType: 2,
-		ActiveAtMS:  2000,
-	}}); err != nil {
-		t.Fatalf("MarkActive(first pressure) error = %v", err)
-	}
-	if len(store.touches) != 1 || len(store.touches[0]) != pressureSpillRows {
-		t.Fatalf("first pressure touches = %+v, want one bounded %d-row spill", store.touches, pressureSpillRows)
-	}
-	cache := observer.lastCache(t)
-	if cache.Rows != maxRows-pressureSpillRows+1 {
-		t.Fatalf("cache rows after spill = %d, want %d rows with reusable headroom", cache.Rows, maxRows-pressureSpillRows+1)
+	select {
+	case <-pressureSignals:
+	default:
+		t.Fatal("high watermark did not start an asynchronous pressure flush cycle")
 	}
 
-	for i := 1; i < pressureSpillRows; i++ {
-		if err := m.MarkActive(ctx, []ActivePatch{{
-			Kind:        metadb.ConversationKindNormal,
-			UID:         fmt.Sprintf("new-%d", i),
-			ChannelID:   "room",
-			ChannelType: 2,
-			ActiveAtMS:  2000,
-		}}); err != nil {
-			t.Fatalf("MarkActive(headroom %d) error = %v", i, err)
-		}
+	if result, err := m.Flush(ctx, 1); err != nil || result.Flushed != 1 {
+		t.Fatalf("Flush(first) = %+v, %v, want one bounded row", result, err)
 	}
-	if len(store.touches) != 1 {
-		t.Fatalf("touch calls after consuming headroom = %d, want 1", len(store.touches))
+	select {
+	case <-pressureSignals:
+	default:
+		t.Fatal("dirty rows above the low watermark did not continue the pressure flush cycle")
 	}
-	cache = observer.lastCache(t)
-	if cache.Rows != maxRows {
-		t.Fatalf("cache rows after consuming headroom = %d, want %d", cache.Rows, maxRows)
+	if result, err := m.Flush(ctx, 2); err != nil || result.Flushed != 2 {
+		t.Fatalf("Flush(to low watermark) = %+v, %v, want two bounded rows", result, err)
+	}
+	select {
+	case <-pressureSignals:
+		t.Fatal("pressure flush cycle continued after dirty rows reached the 70 percent low watermark")
+	default:
 	}
 }
 
-func TestConcurrentCachePressureDoesNotDuplicateBoundedSpill(t *testing.T) {
+func TestConcurrentCachePressureCoalescesAsyncFlushSignal(t *testing.T) {
 	const (
-		maxRows           = 64
-		pressureSpillRows = 8
-		workers           = 8
+		maxRows = 64
+		workers = 8
 	)
 	ctx := context.Background()
-	store := &blockingActiveStore{
-		entered: make(chan int, workers),
-		release: make(chan struct{}),
-	}
-	releaseStore := sync.OnceFunc(func() { close(store.release) })
-	defer releaseStore()
-	m := NewManager(Options{Store: store, MaxCachedRows: maxRows, PressureSpillRows: pressureSpillRows})
+	store := &recordingActiveStore{}
+	pressureSignals := make(chan struct{}, 1)
+	m := NewManager(Options{Store: store, MaxCachedRows: maxRows, PressureNotify: pressureSignals})
 	initial := make([]ActivePatch, 0, maxRows)
 	for i := 0; i < maxRows; i++ {
 		initial = append(initial, ActivePatch{
@@ -1035,6 +1171,11 @@ func TestConcurrentCachePressureDoesNotDuplicateBoundedSpill(t *testing.T) {
 	}
 	if err := m.MarkActive(ctx, initial); err != nil {
 		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+	select {
+	case <-pressureSignals:
+	default:
+		t.Fatal("initial high watermark did not signal pressure")
 	}
 
 	start := make(chan struct{})
@@ -1057,32 +1198,21 @@ func TestConcurrentCachePressureDoesNotDuplicateBoundedSpill(t *testing.T) {
 	ready.Wait()
 	close(start)
 
-	select {
-	case selected := <-store.entered:
-		if selected != pressureSpillRows {
-			t.Fatalf("first pressure flush selected %d rows, want bounded %d", selected, pressureSpillRows)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("first pressure flush did not reach the store")
-	}
-
-	duplicateSpill := false
-	select {
-	case selected := <-store.entered:
-		duplicateSpill = selected == pressureSpillRows
-	case <-time.After(200 * time.Millisecond):
-	}
-	releaseStore()
 	for i := 0; i < workers; i++ {
-		if err := <-errs; err != nil {
-			t.Fatalf("MarkActive(concurrent pressure) error = %v", err)
+		if err := <-errs; !errors.Is(err, ErrCachePressure) {
+			t.Fatalf("MarkActive(concurrent pressure) error = %v, want %v", err, ErrCachePressure)
 		}
 	}
-	if duplicateSpill {
-		t.Fatal("concurrent cache pressure duplicated the same bounded flush snapshot")
+	if len(store.touches) != 0 || len(store.batchKeys) != 0 {
+		t.Fatalf("concurrent admission performed durable IO: writes=%d reads=%d", len(store.touches), len(store.batchKeys))
 	}
-	if got := store.maxConcurrentCalls(); got != 1 {
-		t.Fatalf("maximum concurrent store flushes = %d, want 1", got)
+	select {
+	case <-pressureSignals:
+		t.Fatal("rejected admissions duplicated the in-progress pressure-cycle signal")
+	default:
+	}
+	if got := m.DirtyCountForTest(); got != maxRows {
+		t.Fatalf("dirty rows = %d, want unchanged %d after rejected admissions", got, maxRows)
 	}
 }
 

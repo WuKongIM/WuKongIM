@@ -8,20 +8,24 @@ Current flow:
 
 1. Channel append or another authority-owned caller submits an `ActiveBatch`.
 2. The manager merges rows by `(uid, kind, channel_id, channel_type)`.
-3. Dirty flushes are serialized from cache snapshot through durable completion,
-   then write through `ActiveStore.TouchConversationActiveAt`.
-4. Cache-pressure admission first evicts already-clean rows while holding the
-   cache lock. Only an insufficient clean working set enters the serialized
-   flush lane, where the larger of required admission capacity and configured
-   headroom is persisted and evicted. Spill size follows bounded admission work
-   instead of scaling to the whole dirty cache.
-5. Active view reads merge cache rows with durable `(uid, kind)` active-index pages.
-6. Hash-slot handoff drains dirty rows scoped by UID hash slot before authority moves.
+3. Admission mutates cache state only. It may evict already-clean rows while
+   holding the cache lock, but it never reads or writes `ActiveStore` and never
+   waits for the serialized durable flush lane. If a new row still exceeds the
+   hard bound, the whole admission is rejected with `ErrCachePressure`.
+4. At 80% total cache occupancy with more than 70% of configured capacity still
+   dirty, the manager starts a pressure-drain cycle by sending one nonblocking,
+   coalesced wakeup to the app flush worker. A full dirty cache uses the same
+   wakeup and rejection path.
+5. Each pressure wake persists at most the configured flush batch through
+   `ActiveStore.TouchConversationActiveAt`. Successful attempts requeue one
+   wakeup while dirty rows remain above the 70% low watermark. Retained clean
+   rows form an immediately evictable reserve for later admissions.
+6. Active view reads merge cache rows with durable `(uid, kind)` active-index pages.
+7. Hash-slot handoff drains dirty rows scoped by UID hash slot before authority moves.
 
-Serialization covers scheduled, cache-pressure, and hash-slot-scoped flushes. It
-prevents concurrent admissions at the row cap from duplicating a pressure
-snapshot while preserving version fencing for updates that arrive during
-durable I/O.
+Only periodic, pressure-woken, and hash-slot-scoped durable flush attempts enter
+the serialized flush lane. Version fencing preserves updates that arrive during
+durable I/O; admission remains independent from that lane.
 
 Cache observations report aggregate row/dirty counts plus fixed kind-aware
 normal/CMD counts maintained incrementally on cache mutation. Observation does
