@@ -683,6 +683,39 @@ func TestWukongIMBenchScriptsKeepChannelSummaryLegacyAliasCompatibility(t *testi
 	}
 }
 
+func TestWukongIMBenchScriptsStopOnlyExactWorkerAssignment(t *testing.T) {
+	root := repoRoot(t)
+	cases := []struct {
+		path        string
+		cleanupCall string
+	}{
+		{path: "scripts/bench-wukongim-three-nodes-1000ch.sh", cleanupCall: `stop_worker_exact_from_status "before qps=$qps"`},
+		{path: "scripts/bench-wukongim-single-node-1000ch.sh", cleanupCall: `stop_worker_exact_from_status "before qps=$qps"`},
+		{path: "scripts/bench-wukongim-delivery.sh", cleanupCall: `stop_worker_exact_from_status "script cleanup"`},
+		{path: "scripts/bench-wukongim-three-nodes-presence.sh", cleanupCall: `stop_worker_exact_from_status "script cleanup"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			script := readFile(t, filepath.Join(root, tc.path))
+			for _, want := range []string{
+				"stop_worker_exact_from_status()",
+				`.assignment.assignment_id // ""`,
+				`{run_id:$run_id,assignment_id:$assignment_id}`,
+				`--data "$payload" "${WORKER_ADDR%/}/v1/stop"`,
+				`.phase == "stopped"`,
+				tc.cleanupCall,
+			} {
+				if !strings.Contains(script, want) {
+					t.Fatalf("bench script missing exact worker cleanup contract %q", want)
+				}
+			}
+			if strings.Contains(script, `curl -fsS -X POST "${WORKER_ADDR%/}/v1/stop"`) {
+				t.Fatal("bench script must not fall back to an empty or run-only worker stop")
+			}
+		})
+	}
+}
+
 func TestWukongIMRealQPSScriptsFallbackToLegacyChannelSummaryAlias(t *testing.T) {
 	root := repoRoot(t)
 	cases := []struct {
@@ -3323,10 +3356,21 @@ mkdir -p "` + callsDir + `"
 echo "$*" >> "` + callsDir + `/curl.calls"
 url="${@: -1}"
 case "$url" in
-  http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz|http://127.0.0.1:19130/v1/stop)
-    echo 'ok'
-    ;;
-	http://127.0.0.1:19130/v1/status)
+	  http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz)
+	    echo 'ok'
+	    ;;
+	  http://127.0.0.1:19130/v1/stop)
+	    if [[ "$*" != *'"assignment_id":"fake-assignment"'* ]]; then
+	      echo 'missing exact assignment_id' >&2
+	      exit 22
+	    fi
+	    run_id="three-node-fixed-1ch-000001-qps"
+	    if [[ -f "` + callsDir + `/wkbench.run_id" ]]; then
+	      run_id="$(cat "` + callsDir + `/wkbench.run_id")"
+	    fi
+	    printf '{"phase":"stopped","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+	    ;;
+		http://127.0.0.1:19130/v1/status)
 		state="prepare"
 		run_id="three-node-fixed-1ch-000001-qps"
 		if [[ -f "` + callsDir + `/wkbench.phase" ]]; then
@@ -3335,18 +3379,18 @@ case "$url" in
 		if [[ -f "` + callsDir + `/wkbench.run_id" ]]; then
 			run_id="$(cat "` + callsDir + `/wkbench.run_id")"
 		fi
-		case "$state" in
-			run)
-				printf '{"phase":"warmup","active_phase":"run","completed_phase":"warmup","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
-				;;
-			cooldown)
-				printf '{"phase":"run","active_phase":"cooldown","completed_phase":"run","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
-				;;
-			done)
-				printf '{"phase":"run","completed_phase":"run","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
-				;;
-			*)
-				printf '{"phase":"prepare","active_phase":"prepare","last_error":"","assignment":{"run_id":"%s"}}\n' "$run_id"
+			case "$state" in
+				run)
+					printf '{"phase":"warmup","active_phase":"run","completed_phase":"warmup","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+					;;
+				cooldown)
+					printf '{"phase":"run","active_phase":"cooldown","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+					;;
+				done)
+					printf '{"phase":"run","completed_phase":"run","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
+					;;
+				*)
+					printf '{"phase":"prepare","active_phase":"prepare","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
 				;;
 		esac
 		if [[ -f "` + callsDir + `/profile.finished" ]]; then

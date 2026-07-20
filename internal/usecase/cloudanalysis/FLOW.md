@@ -29,9 +29,11 @@ Analysis Session.
 `workload_inspect` returns the bounded diagnostic summary contract rather than
 raw worker reports. Its actual phase windows and structured worker failures let
 consumers choose the narrowest next observation without parsing Markdown or
-guessing a failed worker from aggregate counts. A failed worker may include an
-allowlisted low-cardinality person/group `operation`; missing operation remains
-explicitly unknown and never falls back to parsing detail text.
+guessing a failed worker from aggregate counts. A failed worker may include a
+reason-bound low-cardinality person/group operation or the `worker_status` /
+`phase_completion` timeout control stage; missing operation remains explicitly
+unknown and never falls back to parsing detail text. Terminal stop failures use
+the exact `phase=stop`, `reason_code=worker_stop_failed` tuple.
 
 The package owns no HTTP, MCP protocol, cloud SDK, shell, filesystem, restart,
 configuration-write, or cleanup behavior.

@@ -3,12 +3,15 @@ package coordinator
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +96,8 @@ func (s RunStatus) ExitCode() int {
 type RunResult struct {
 	// RunID is the scenario run identifier.
 	RunID string
+	// AssignmentID uniquely identifies this coordinator execution of RunID.
+	AssignmentID string
 	// Status is the terminal coordinator status.
 	Status RunStatus
 	// Plan is the deterministic worker assignment used for the run.
@@ -120,7 +125,7 @@ type CoordinatorConfig struct {
 	PollInterval time.Duration
 	// PollTimeout is the base control-plane grace after the planned phase schedule ends.
 	PollTimeout time.Duration
-	// StopTimeout bounds best-effort stop requests after failure or cancellation.
+	// StopTimeout bounds exact-run stop acknowledgement after failure, success, or cancellation.
 	StopTimeout time.Duration
 }
 
@@ -175,17 +180,39 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	if err := c.checkContext(ctx, &result); err != nil {
 		return result, err
 	}
+	assignmentID, err := newAssignmentID()
+	if err != nil {
+		result.Status = StatusInternalFailed
+		return result, fmt.Errorf("generate assignment identity: %w", err)
+	}
+	result.AssignmentID = assignmentID
 
-	if err := c.assignWorkers(ctx, scenario, plan); err != nil {
+	if err := c.assignWorkers(ctx, scenario, plan, assignmentID); err != nil {
 		result.Status = statusForError(ctx, err)
 		if result.Status == StatusCanceled {
+			failedWorkers := make(map[string]struct{})
+			var failureDetails []report.WorkerFailure
+			addWorkerFailures(failedWorkers, err)
+			addWorkerFailureDetails(&failureDetails, err)
+			if containsWorkerFailureReason(failureDetails, "worker_stop_failed") {
+				if reportErr := c.writeTerminalStopFailureReport(scenario, &result, failedWorkers, nil, failureDetails); reportErr != nil {
+					result.Status = StatusInternalFailed
+					return result, errors.Join(err, reportErr)
+				}
+			}
 			return result, err
 		}
 		failedWorkers := make(map[string]struct{})
 		var failureDetails []report.WorkerFailure
 		addWorkerFailures(failedWorkers, err)
 		addWorkerFailureDetails(&failureDetails, err)
-		if reportErr := c.writeAssignmentFailureReport(scenario, &result, failedWorkers, failureDetails); reportErr != nil {
+		var reportErr error
+		if containsWorkerFailureReason(failureDetails, "worker_stop_failed") {
+			reportErr = c.writeTerminalStopFailureReport(scenario, &result, failedWorkers, nil, failureDetails)
+		} else {
+			reportErr = c.writeAssignmentFailureReport(scenario, &result, failedWorkers, failureDetails)
+		}
+		if reportErr != nil {
 			result.Status = StatusInternalFailed
 			return result, errors.Join(err, reportErr)
 		}
@@ -198,22 +225,43 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	var phaseErrs []error
 	for _, phase := range runPhases() {
 		startedAt := time.Now().UTC()
-		err := c.runPhase(ctx, scenario, phase, phaseFailures, plan)
+		err := c.runPhase(ctx, scenario, assignmentID, phase, phaseFailures, plan)
 		phaseWindows = append(phaseWindows, report.PhaseWindow{Phase: string(phase), StartedAt: startedAt, EndedAt: time.Now().UTC()})
 		if err != nil {
 			result.Status = statusForError(ctx, err)
 			if result.Status == StatusCanceled {
-				c.stopAll(c.cfg.Workers)
-				return result, err
+				stopErr := c.stopAll(scenario.Run.ID, assignmentID, c.cfg.Workers)
+				if stopErr != nil {
+					addWorkerFailures(phaseFailures, stopErr)
+					addWorkerFailureDetails(&workerFailures, stopErr)
+					if reportErr := c.writeTerminalStopFailureReport(scenario, &result, phaseFailures, phaseWindows, workerFailures); reportErr != nil {
+						result.Status = StatusInternalFailed
+						return result, errors.Join(err, stopErr, reportErr)
+					}
+				}
+				return result, errors.Join(err, stopErr)
 			}
 			phaseErrs = append(phaseErrs, err)
 			addWorkerFailures(phaseFailures, err)
 			addWorkerFailureDetails(&workerFailures, err)
 			if scenario.Run.FailFast {
-				c.stopAll(c.cfg.Workers)
 				break
 			}
 		}
+	}
+	// Stop every assigned worker before terminal report collection. A failed
+	// non-fail-fast worker is skipped by later phases and would otherwise keep
+	// its active phase and background assignment resources alive.
+	if stopErr := c.stopAll(scenario.Run.ID, assignmentID, c.cfg.Workers); stopErr != nil {
+		phaseErrs = append(phaseErrs, stopErr)
+		addWorkerFailures(phaseFailures, stopErr)
+		addWorkerFailureDetails(&workerFailures, stopErr)
+		result.Status = StatusWorkerFailed
+		if reportErr := c.writeTerminalStopFailureReport(scenario, &result, phaseFailures, phaseWindows, workerFailures); reportErr != nil {
+			result.Status = StatusInternalFailed
+			return result, errors.Join(errors.Join(phaseErrs...), reportErr)
+		}
+		return result, errors.Join(phaseErrs...)
 	}
 	if len(phaseErrs) > 0 {
 		result.Status = StatusWorkerFailed
@@ -248,6 +296,23 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	return result, nil
 }
 
+func containsWorkerFailureReason(failures []report.WorkerFailure, reasonCode string) bool {
+	for _, failure := range failures {
+		if failure.ReasonCode == reasonCode {
+			return true
+		}
+	}
+	return false
+}
+
+// assignmentFailureClassification marks terminal-stop uncertainty as incomplete evidence.
+func assignmentFailureClassification(failures []report.WorkerFailure) *report.StabilityClassification {
+	return &report.StabilityClassification{
+		EvidenceComplete: !containsWorkerFailureReason(failures, "worker_stop_failed"),
+		HarnessInvalid:   true,
+	}
+}
+
 // writeAssignmentFailureReport writes exact-run terminal evidence without polling
 // workers that may still expose metrics or reports from an older assignment.
 func (c *Coordinator) writeAssignmentFailureReport(
@@ -264,7 +329,36 @@ func (c *Coordinator) writeAssignmentFailureReport(
 		Plan:           result.Plan,
 		Summary:        report.Summary{WorkerFailed: len(failedWorkers)},
 		WorkerFailures: workerFailures,
-		Classification: &report.StabilityClassification{EvidenceComplete: true, HarnessInvalid: true},
+		Classification: assignmentFailureClassification(workerFailures),
+	})
+	rep.Status = report.StatusFailed
+	rep.ExitCode = report.ExitWorkerFailed
+	result.Report = rep
+	if strings.TrimSpace(scenario.Run.ReportDir) == "" {
+		return nil
+	}
+	return report.WriteDir(scenario.Run.ReportDir, rep)
+}
+
+// writeTerminalStopFailureReport writes immutable exact-run failure evidence
+// without reading worker metrics or reports that may still be changing.
+func (c *Coordinator) writeTerminalStopFailureReport(
+	scenario model.Scenario,
+	result *RunResult,
+	failedWorkers map[string]struct{},
+	phaseWindows []report.PhaseWindow,
+	workerFailures []report.WorkerFailure,
+) error {
+	rep := report.Build(report.Input{
+		RunID:          scenario.Run.ID,
+		Scenario:       scenario,
+		Target:         c.cfg.Target,
+		Workers:        model.WorkerSet{Workers: c.cfg.Workers},
+		Plan:           result.Plan,
+		Summary:        report.Summary{WorkerFailed: len(failedWorkers)},
+		PhaseWindows:   phaseWindows,
+		WorkerFailures: workerFailures,
+		Classification: &report.StabilityClassification{EvidenceComplete: false, HarnessInvalid: true},
 	})
 	rep.Status = report.StatusFailed
 	rep.ExitCode = report.ExitWorkerFailed
@@ -283,7 +377,7 @@ func (c *Coordinator) writeReport(
 	phaseWindows []report.PhaseWindow,
 	workerFailures []report.WorkerFailure,
 ) (report.Report, error) {
-	workerMetrics, workerReports, collectionFailures, collectionFailureDetails, err := c.collectWorkerReports(ctx)
+	workerMetrics, workerReports, collectionFailures, collectionFailureDetails, err := c.collectWorkerReports(ctx, scenario.Run.ID, result.AssignmentID)
 	if err != nil {
 		return report.Report{}, err
 	}
@@ -316,10 +410,7 @@ func (c *Coordinator) writeReport(
 		TargetSnapshots:   targetSnapshots,
 		PresenceSnapshots: presenceSnapshots,
 		ErrorSamples:      agg.Errors,
-		Classification: &report.StabilityClassification{
-			EvidenceComplete: result.Status != StatusTargetUnavailable,
-			HarnessInvalid:   len(failedWorkers) > 0 && result.Status != StatusTargetUnavailable,
-		},
+		Classification:    workloadReportClassification(result.Status, len(failedWorkers), len(collectionFailures)),
 	}
 	rep := report.Build(input)
 	if rep.ExitCode == report.ExitHardLimitFailed {
@@ -353,7 +444,21 @@ func (c *Coordinator) writeReport(
 	return rep, nil
 }
 
-func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.WorkerSnapshot, []report.WorkerReport, map[string]struct{}, []report.WorkerFailure, error) {
+// workloadReportClassification keeps missing worker evidence explicit even when
+// the same worker is already classified as a harness failure.
+func workloadReportClassification(status RunStatus, failedWorkerCount, collectionFailureCount int) *report.StabilityClassification {
+	return &report.StabilityClassification{
+		EvidenceComplete: status != StatusTargetUnavailable && collectionFailureCount == 0,
+		HarnessInvalid:   failedWorkerCount > 0 && status != StatusTargetUnavailable,
+	}
+}
+
+func (c *Coordinator) collectWorkerReports(ctx context.Context, runID, assignmentID string) ([]metrics.WorkerSnapshot, []report.WorkerReport, map[string]struct{}, []report.WorkerFailure, error) {
+	runID = strings.TrimSpace(runID)
+	assignmentID = strings.TrimSpace(assignmentID)
+	if runID == "" || assignmentID == "" {
+		return nil, nil, nil, nil, fmt.Errorf("worker evidence requires run_id and assignment_id")
+	}
 	workerMetrics := make([]metrics.WorkerSnapshot, 0, len(c.cfg.Workers))
 	workerReports := make([]report.WorkerReport, 0, len(c.cfg.Workers))
 	collectionFailures := make(map[string]struct{})
@@ -361,7 +466,7 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 	for _, w := range c.cfg.Workers {
 		workerID := strings.TrimSpace(w.ID)
 		var snap metrics.SnapshotData
-		if err := c.getJSON(ctx, w, "/v1/metrics", &snap); err == nil {
+		if err := c.getJSON(ctx, w, workerEvidencePath("/v1/metrics", runID, assignmentID), &snap); err == nil {
 			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: snap})
 		} else {
 			if contextCanceled(ctx, err) {
@@ -375,7 +480,7 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 		}
 
 		var raw json.RawMessage
-		if err := c.getJSON(ctx, w, "/v1/report", &raw); err == nil && len(raw) > 0 {
+		if err := c.getJSON(ctx, w, workerEvidencePath("/v1/report", runID, assignmentID), &raw); err == nil && len(raw) > 0 {
 			workerReports = append(workerReports, normalizeWorkerReport(workerID, raw))
 		} else {
 			if contextCanceled(ctx, err) {
@@ -393,6 +498,13 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 		}
 	}
 	return workerMetrics, workerReports, collectionFailures, failureDetails, nil
+}
+
+func workerEvidencePath(path, runID, assignmentID string) string {
+	query := url.Values{}
+	query.Set("run_id", strings.TrimSpace(runID))
+	query.Set("assignment_id", strings.TrimSpace(assignmentID))
+	return path + "?" + query.Encode()
 }
 
 // normalizeWorkerReport unwraps the current worker envelope while preserving legacy raw payloads.
@@ -490,12 +602,13 @@ func appendBoundedReportError(samples []metrics.ErrorSample, sample metrics.Erro
 	return append(samples, sample)
 }
 
-func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario, plan model.Plan) error {
+func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario, plan model.Plan, assignmentID string) error {
 	assigned := make([]model.Worker, 0, len(c.cfg.Workers))
 	for _, w := range c.cfg.Workers {
 		workerID := strings.TrimSpace(w.ID)
 		assignment := worker.Assignment{
 			RunID:         scenario.Run.ID,
+			AssignmentID:  assignmentID,
 			WorkerID:      workerID,
 			Client:        cloneWorkerClientConfig(w.Client),
 			TCPSource:     cloneWorkerTCPSourceConfig(w.TCPSource),
@@ -505,9 +618,13 @@ func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario
 			Scenario:      scenario,
 		}
 		if err := c.postJSON(ctx, w, "/v1/assign", assignment, nil); err != nil {
-			c.stopAll(assigned)
+			cleanupWorkers := assigned
+			if isAmbiguousWorkerRequest(err) {
+				cleanupWorkers = append(append([]model.Worker(nil), assigned...), w)
+			}
+			stopErr := c.stopAll(scenario.Run.ID, assignmentID, cleanupWorkers)
 			assignErr := fmt.Errorf("worker %s assign failed: %w", workerName(w), err)
-			return newWorkerFailureError(workerID, Phase("assign"), "worker_assignment_failed", assignErr)
+			return errors.Join(newWorkerFailureError(workerID, Phase("assign"), "worker_assignment_failed", assignErr), stopErr)
 		}
 		assigned = append(assigned, w)
 	}
@@ -531,20 +648,20 @@ func cloneWorkerTCPSourceConfig(cfg *model.TCPSourceConfig) *model.TCPSourceConf
 	return &cloned
 }
 
-func (c *Coordinator) runPhase(ctx context.Context, scenario model.Scenario, phase Phase, failed map[string]struct{}, plan model.Plan) error {
+func (c *Coordinator) runPhase(ctx context.Context, scenario model.Scenario, assignmentID string, phase Phase, failed map[string]struct{}, plan model.Plan) error {
 	if phase == PhasePrepare {
-		return c.runPreparePhase(ctx, scenario.Run.ID, failed, plan)
+		return c.runPreparePhase(ctx, scenario.Run.ID, assignmentID, failed, plan)
 	}
-	return c.runWorkerPhase(ctx, scenario.Run.ID, phase, c.phasePollTimeout(scenario, phase, plan), failed, c.cfg.Workers)
+	return c.runWorkerPhase(ctx, scenario.Run.ID, assignmentID, phase, c.phasePollTimeout(scenario, phase, plan), failed, c.cfg.Workers)
 }
 
-func (c *Coordinator) runPreparePhase(ctx context.Context, runID string, failed map[string]struct{}, plan model.Plan) error {
+func (c *Coordinator) runPreparePhase(ctx context.Context, runID, assignmentID string, failed map[string]struct{}, plan model.Plan) error {
 	var errs []error
 	for _, w := range c.prepareOwners(plan) {
 		if _, skip := failed[strings.TrimSpace(w.ID)]; skip {
 			continue
 		}
-		if err := c.postJSON(ctx, w, "/v1/prepare/channels", nil, nil); err != nil {
+		if err := c.postJSON(ctx, w, "/v1/prepare/channels", worker.RunRequest{RunID: runID, AssignmentID: assignmentID}, nil); err != nil {
 			ownerErr := fmt.Errorf("worker %s prepare channels failed: %w", workerName(w), err)
 			errs = append(errs, newWorkerFailureError(strings.TrimSpace(w.ID), PhasePrepare, workerFailureReason("phase_start_failed", ownerErr), ownerErr))
 			if errorsIsParentContext(ctx, err) {
@@ -555,7 +672,7 @@ func (c *Coordinator) runPreparePhase(ctx context.Context, runID string, failed 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
-	return c.runWorkerPhase(ctx, runID, PhasePrepare, c.cfg.PollTimeout, failed, c.cfg.Workers)
+	return c.runWorkerPhase(ctx, runID, assignmentID, PhasePrepare, c.cfg.PollTimeout, failed, c.cfg.Workers)
 }
 
 func (c *Coordinator) prepareOwners(plan model.Plan) []model.Worker {
@@ -666,14 +783,14 @@ func positiveDuration(d time.Duration) time.Duration {
 	return d
 }
 
-func (c *Coordinator) runWorkerPhase(ctx context.Context, runID string, phase Phase, pollTimeout time.Duration, failed map[string]struct{}, workers []model.Worker) error {
+func (c *Coordinator) runWorkerPhase(ctx context.Context, runID, assignmentID string, phase Phase, pollTimeout time.Duration, failed map[string]struct{}, workers []model.Worker) error {
 	accepted := make([]model.Worker, 0, len(c.cfg.Workers))
 	var errs []error
 	for _, w := range workers {
 		if _, skip := failed[strings.TrimSpace(w.ID)]; skip {
 			continue
 		}
-		if err := c.postJSON(ctx, w, "/v1/phase/"+string(phase), nil, nil); err != nil {
+		if err := c.postJSON(ctx, w, "/v1/phase/"+string(phase), worker.RunRequest{RunID: runID, AssignmentID: assignmentID}, nil); err != nil {
 			phaseErr := fmt.Errorf("worker %s phase %s failed: %w", workerName(w), phase, err)
 			errs = append(errs, newWorkerFailureError(strings.TrimSpace(w.ID), phase, workerFailureReason("phase_start_failed", phaseErr), phaseErr))
 			if errorsIsParentContext(ctx, err) {
@@ -687,7 +804,7 @@ func (c *Coordinator) runWorkerPhase(ctx context.Context, runID string, phase Ph
 		if _, skip := failed[strings.TrimSpace(w.ID)]; skip {
 			continue
 		}
-		if err := c.waitForPhase(ctx, w, runID, phase, pollTimeout); err != nil {
+		if err := c.waitForPhase(ctx, w, runID, assignmentID, phase, pollTimeout); err != nil {
 			waitErr := fmt.Errorf("worker %s wait for phase %s failed: %w", workerName(w), phase, err)
 			reasonCode := workerFailureReason("phase_wait_failed", err)
 			errs = append(errs, newWorkerFailureError(strings.TrimSpace(w.ID), phase, reasonCode, waitErr))
@@ -810,7 +927,7 @@ func collectWorkerFailures(failed map[string]struct{}, err error) {
 	}
 }
 
-func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID string, want Phase, pollTimeout time.Duration) error {
+func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID, assignmentID string, want Phase, pollTimeout time.Duration) error {
 	if pollTimeout <= 0 {
 		pollTimeout = c.cfg.PollTimeout
 	}
@@ -825,11 +942,11 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 				return parent.Err()
 			}
 			if ctx.Err() != nil {
-				return errPollTimeout
+				return phaseTimeoutOperationError(worker.FailureOperationWorkerStatus)
 			}
 			return err
 		}
-		if err := validateStatusAssignment(status, w, runID); err != nil {
+		if err := validateStatusAssignment(status, w, runID, assignmentID); err != nil {
 			return err
 		}
 		if status.LastError != "" {
@@ -848,7 +965,7 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 			if parentErr := parent.Err(); parentErr != nil {
 				return parentErr
 			}
-			return errPollTimeout
+			return phaseTimeoutOperationError(worker.FailureOperationPhaseCompletion)
 		case <-ticker.C:
 		}
 	}
@@ -862,19 +979,70 @@ func (c *Coordinator) workerStatus(ctx context.Context, w model.Worker) (worker.
 	return status, nil
 }
 
-func (c *Coordinator) stopAll(workers []model.Worker) {
+func (c *Coordinator) stopAll(runID, assignmentID string, workers []model.Worker) error {
 	var wg sync.WaitGroup
-	for _, w := range workers {
+	errs := make([]error, len(workers))
+	for i, w := range workers {
+		i := i
 		w := w
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), c.cfg.StopTimeout)
-			defer cancel()
-			_ = c.postJSON(ctx, w, "/v1/stop", nil, nil)
+			if err := c.stopWorker(runID, assignmentID, w); err != nil {
+				errs[i] = newWorkerFailureError(strings.TrimSpace(w.ID), Phase("stop"), "worker_stop_failed", err)
+			}
 		}()
 	}
 	wg.Wait()
+	var joined []error
+	for _, err := range errs {
+		if err != nil {
+			joined = append(joined, err)
+		}
+	}
+	return errors.Join(joined...)
+}
+
+// stopWorker retries exact-run stop within one total budget and succeeds only
+// after the worker returns a matching terminal status.
+func (c *Coordinator) stopWorker(runID, assignmentID string, w model.Worker) error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.StopTimeout)
+	defer cancel()
+	attemptTimeout := c.stopAttemptTimeout()
+	var lastErr error
+	for {
+		var status worker.Status
+		attemptCtx, attemptCancel := context.WithTimeout(ctx, attemptTimeout)
+		err := c.postJSON(attemptCtx, w, "/v1/stop", worker.StopRequest{RunID: runID, AssignmentID: assignmentID}, &status)
+		attemptCancel()
+		if err != nil {
+			lastErr = fmt.Errorf("worker %s stop failed: %w", workerName(w), err)
+		} else if err := validateStatusAssignment(status, w, runID, assignmentID); err != nil {
+			lastErr = fmt.Errorf("worker %s stop response failed validation: %w", workerName(w), err)
+		} else if status.Phase != worker.PhaseStopped || status.ActivePhase != "" {
+			lastErr = fmt.Errorf("worker %s stop response is not terminal: phase=%q active_phase=%q", workerName(w), status.Phase, status.ActivePhase)
+		} else {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return lastErr
+		case <-time.After(c.cfg.PollInterval):
+		}
+	}
+}
+
+// stopAttemptTimeout leaves enough of the total stop budget for retries while
+// bounding a delivered request whose response never returns.
+func (c *Coordinator) stopAttemptTimeout() time.Duration {
+	timeout := c.cfg.StopTimeout / 3
+	if timeout > 250*time.Millisecond {
+		timeout = 250 * time.Millisecond
+	}
+	if timeout < time.Millisecond {
+		timeout = time.Millisecond
+	}
+	return timeout
 }
 
 func (c *Coordinator) postJSON(ctx context.Context, w model.Worker, path string, body any, out any) error {
@@ -907,7 +1075,7 @@ func (c *Coordinator) doJSON(ctx context.Context, method string, w model.Worker,
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("%s %s: %w", method, url, err)
+		return &workerTransportError{method: method, url: url, err: err}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -921,6 +1089,32 @@ func (c *Coordinator) doJSON(ctx context.Context, method string, w model.Worker,
 		return fmt.Errorf("decode %s %s: %w", method, url, err)
 	}
 	return nil
+}
+
+// workerTransportError means request delivery or response receipt is ambiguous.
+type workerTransportError struct {
+	method string
+	url    string
+	err    error
+}
+
+func (e *workerTransportError) Error() string {
+	if e == nil || e.err == nil {
+		return "worker transport failed"
+	}
+	return fmt.Sprintf("%s %s: %v", e.method, e.url, e.err)
+}
+
+func (e *workerTransportError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func isAmbiguousWorkerRequest(err error) bool {
+	var transportErr *workerTransportError
+	return errors.As(err, &transportErr)
 }
 
 func (c *Coordinator) checkContext(ctx context.Context, result *RunResult) error {
@@ -949,6 +1143,13 @@ func statusForError(parent context.Context, err error) RunStatus {
 
 var errPollTimeout = errors.New("worker phase poll timeout")
 var errWorkerStatusMismatch = errors.New("worker status assignment mismatch")
+
+func phaseTimeoutOperationError(operation worker.FailureOperationCode) error {
+	if !operation.Valid() {
+		return errPollTimeout
+	}
+	return &workerReasonError{operation: operation, err: errPollTimeout}
+}
 
 type workerReasonError struct {
 	code      worker.FailureReasonCode
@@ -984,12 +1185,20 @@ func workerStatusPhaseError(message string, code worker.FailureReasonCode, opera
 	return err
 }
 
-func validateStatusAssignment(status worker.Status, w model.Worker, runID string) error {
+func validateStatusAssignment(status worker.Status, w model.Worker, runID, assignmentID string) error {
 	workerID := strings.TrimSpace(w.ID)
-	if status.Assignment.RunID != runID || status.Assignment.WorkerID != workerID {
-		return fmt.Errorf("%w: got run_id=%q worker_id=%q want run_id=%q worker_id=%q", errWorkerStatusMismatch, status.Assignment.RunID, status.Assignment.WorkerID, runID, workerID)
+	if status.Assignment.RunID != runID || status.Assignment.AssignmentID != assignmentID || status.Assignment.WorkerID != workerID {
+		return fmt.Errorf("%w: got run_id=%q assignment_id=%q worker_id=%q want run_id=%q assignment_id=%q worker_id=%q", errWorkerStatusMismatch, status.Assignment.RunID, status.Assignment.AssignmentID, status.Assignment.WorkerID, runID, assignmentID, workerID)
 	}
 	return nil
+}
+
+func newAssignmentID() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw[:]), nil
 }
 
 func errorsIsParentContext(parent context.Context, err error) bool {

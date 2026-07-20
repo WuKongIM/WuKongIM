@@ -1,0 +1,62 @@
+{
+  "schema": "wukongim.analysis.skill_fixture/v1",
+  "name": "worker_stop_failed",
+  "run_id": "fixture-stop-failed",
+  "observations": [
+    {
+      "tool": "run_inspect",
+      "run_id": "fixture-stop-failed",
+      "node": "run",
+      "source": "run_inventory",
+      "observed_at": "2026-07-20T07:00:00Z",
+      "window": {"start": "2026-07-20T07:00:00Z", "end": "2026-07-20T07:00:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"state": "running", "inventory_count": 12}
+    },
+    {
+      "tool": "workload_inspect",
+      "run_id": "fixture-stop-failed",
+      "node": "sim",
+      "source": "wkbench_diagnostic_summary",
+      "observed_at": "2026-07-20T07:00:01Z",
+      "window": {"start": "2026-07-20T06:30:00Z", "end": "2026-07-20T07:00:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {
+        "state": "completed",
+        "status": "failed",
+        "exit_code": 4,
+        "stability_verdict": "harness_invalid",
+        "summary": {"send_success": 0, "connect_error_rate": 0, "sendack_error_rate": 0, "recv_verify_error_rate": 0, "worker_failed": 1, "sendack_max_worker_p99": "0s", "recv_max_worker_p99": "0s"},
+        "phase_windows": [{"phase": "run", "started_at": "2026-07-20T06:30:00Z", "ended_at": "2026-07-20T07:00:00Z"}],
+        "failed_workers": [{"worker_id": "sim-worker-1", "phase": "stop", "reason_code": "worker_stop_failed", "detail": "worker terminal stop failed", "observed_at": "2026-07-20T07:00:00Z"}],
+        "failed_workers_truncated": false
+      }
+    },
+    {
+      "tool": "cluster_snapshot",
+      "run_id": "fixture-stop-failed",
+      "node": "cluster",
+      "source": "manager",
+      "observed_at": "2026-07-20T07:00:02Z",
+      "window": {"start": "2026-07-20T07:00:02Z", "end": "2026-07-20T07:00:02Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"ready_nodes": 3, "workqueue_pressure": 0.04}
+    },
+    {
+      "tool": "metrics_query_range",
+      "run_id": "fixture-stop-failed",
+      "node": "cluster",
+      "source": "prometheus",
+      "observed_at": "2026-07-20T07:00:03Z",
+      "window": {"start": "2026-07-20T06:30:00Z", "end": "2026-07-20T07:00:00Z"},
+      "completeness": "complete",
+      "warnings": [],
+      "data": {"query_id": "simulator_memory_percent", "max": 43}
+    }
+  ],
+  "expected_verdict": "insufficient_evidence",
+  "expected_route": "worker_stop_failed"
+}

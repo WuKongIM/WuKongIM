@@ -369,6 +369,40 @@ func TestWriterCreatesBoundedRedactedDiagnosticSummary(t *testing.T) {
 	}
 }
 
+func TestDiagnosticSummaryPreservesPhaseTimeoutStage(t *testing.T) {
+	observedAt := time.Date(2026, time.July, 20, 6, 48, 58, 0, time.UTC)
+	for _, stage := range []string{"worker_status", "phase_completion"} {
+		t.Run(stage, func(t *testing.T) {
+			summary := diagnosticSummary(Report{WorkerFailures: []WorkerFailure{{
+				WorkerID:   "worker-1",
+				Phase:      "run",
+				ReasonCode: "phase_timeout",
+				Operation:  stage,
+				ObservedAt: observedAt,
+			}}})
+			if len(summary.FailedWorkers) != 1 || summary.FailedWorkers[0].Operation != stage {
+				t.Fatalf("phase timeout stage = %+v, want %q", summary.FailedWorkers, stage)
+			}
+		})
+	}
+}
+
+func TestDiagnosticSummaryPreservesWorkerStopFailure(t *testing.T) {
+	observedAt := time.Date(2026, time.July, 20, 7, 0, 0, 0, time.UTC)
+	summary := diagnosticSummary(Report{WorkerFailures: []WorkerFailure{{
+		WorkerID:   "worker-1",
+		Phase:      "stop",
+		ReasonCode: "worker_stop_failed",
+		Detail:     "POST http://worker-1/v1/stop?token=secret timed out",
+		ObservedAt: observedAt,
+	}}})
+	if len(summary.FailedWorkers) != 1 || summary.FailedWorkers[0].Phase != "stop" ||
+		summary.FailedWorkers[0].ReasonCode != "worker_stop_failed" ||
+		summary.FailedWorkers[0].Detail != "worker terminal stop failed" {
+		t.Fatalf("worker stop failure = %+v", summary.FailedWorkers)
+	}
+}
+
 func TestFinishBufferedWriteReturnsFlushAndCloseErrors(t *testing.T) {
 	flushErr := errors.New("flush failed")
 	closeErr := errors.New("close failed")

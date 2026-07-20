@@ -50,9 +50,10 @@ var diagnosticFailureDetail = map[string]string{
 	"worker_status_mismatch":     "worker status assignment mismatch",
 	"worker_metrics_unavailable": "worker metrics unavailable",
 	"worker_report_unavailable":  "worker report unavailable",
+	"worker_stop_failed":         "worker terminal stop failed",
 }
 
-var diagnosticFailureOperations = map[string]struct{}{
+var diagnosticSessionFailureOperations = map[string]struct{}{
 	"person_sendack_lock": {},
 	"person_send":         {},
 	"person_sendack":      {},
@@ -63,6 +64,11 @@ var diagnosticFailureOperations = map[string]struct{}{
 	"group_sendack":       {},
 	"group_recv":          {},
 	"group_recvack":       {},
+}
+
+var diagnosticTimeoutOperations = map[string]struct{}{
+	"worker_status":    {},
+	"phase_completion": {},
 }
 
 // Status is the benchmark report verdict.
@@ -179,11 +185,11 @@ type PhaseWindow struct {
 type WorkerFailure struct {
 	// WorkerID identifies the failed or unreachable worker.
 	WorkerID string `json:"worker_id"`
-	// Phase identifies the lifecycle phase when the failure was observed.
+	// Phase identifies the lifecycle or terminal control phase when the failure was observed.
 	Phase string `json:"phase"`
 	// ReasonCode is a stable machine-readable failure classification.
 	ReasonCode string `json:"reason_code"`
-	// Operation identifies a safe low-cardinality workload operation when known.
+	// Operation identifies a safe low-cardinality workload operation or control stage when known.
 	Operation string `json:"operation,omitempty"`
 	// Detail is a bounded diagnostic description; diagnostic projections redact unsafe content.
 	Detail string `json:"detail"`
@@ -458,11 +464,15 @@ func diagnosticSummary(rep Report) DiagnosticSummary {
 }
 
 func safeFailureOperation(reasonCode, operation string) string {
-	if reasonCode != "phase_hook_failed" && reasonCode != "target_unavailable" {
-		return ""
-	}
-	if _, ok := diagnosticFailureOperations[operation]; ok {
-		return operation
+	switch reasonCode {
+	case "phase_hook_failed", "target_unavailable":
+		if _, ok := diagnosticSessionFailureOperations[operation]; ok {
+			return operation
+		}
+	case "phase_timeout":
+		if _, ok := diagnosticTimeoutOperations[operation]; ok {
+			return operation
+		}
 	}
 	return ""
 }

@@ -1193,16 +1193,31 @@ workers:
 func TestRunCommandReturnsWorkerExitCodeForPhaseFailure(t *testing.T) {
 	targetSrv := goodWkbenchTargetServer(t)
 	defer targetSrv.Close()
+	phase := "idle"
+	assignment := map[string]string{}
 	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer secret" {
 			http.Error(w, "missing auth", http.StatusUnauthorized)
 			return
 		}
+		if !validateWkbenchTestControlIdentity(t, w, r, assignment) {
+			return
+		}
 		switch r.URL.Path {
-		case "/v1/info", "/v1/status":
-			writeWkbenchJSON(t, w, map[string]any{"phase": "prepare", "assignment": map[string]string{"run_id": "bench-run", "worker_id": "w1"}})
-		case "/v1/assign", "/v1/phase/prepare", "/v1/stop":
-			writeWkbenchJSON(t, w, map[string]any{"phase": "prepare", "assignment": map[string]string{"run_id": "bench-run", "worker_id": "w1"}})
+		case "/v1/info":
+			writeWkbenchJSON(t, w, map[string]string{"worker": "wkbench"})
+		case "/v1/status":
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/assign":
+			assignment = readWkbenchTestAssignment(t, r)
+			phase = "assigned"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/phase/prepare":
+			phase = "prepare"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/stop":
+			phase = "stopped"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
 		case "/v1/phase/connect":
 			http.Error(w, "connect failed", http.StatusInternalServerError)
 		default:
@@ -1394,16 +1409,20 @@ func goodWkbenchTargetServer(t *testing.T) *httptest.Server {
 func goodWkbenchWorkerServer(t *testing.T, token string) *httptest.Server {
 	t.Helper()
 	phase := "assigned"
-	assignment := map[string]string{"run_id": "bench-run", "worker_id": "w1"}
+	assignment := map[string]string{}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
 			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		if !validateWkbenchTestControlIdentity(t, w, r, assignment) {
 			return
 		}
 		switch r.URL.Path {
 		case "/v1/info":
 			writeWkbenchJSON(t, w, map[string]string{"worker": "wkbench"})
 		case "/v1/assign":
+			assignment = readWkbenchTestAssignment(t, r)
 			phase = "assigned"
 			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
 		case "/v1/phase/prepare":
@@ -1442,16 +1461,20 @@ func delayedConnectWkbenchWorkerServer(t *testing.T, token string, delay time.Du
 	completedPhase := ""
 	activePhase := ""
 	var connectStarted time.Time
-	assignment := map[string]string{"run_id": "bench-run", "worker_id": "w1"}
+	assignment := map[string]string{}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
 			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		if !validateWkbenchTestControlIdentity(t, w, r, assignment) {
 			return
 		}
 		switch r.URL.Path {
 		case "/v1/info":
 			writeWkbenchJSON(t, w, map[string]string{"worker": "wkbench"})
 		case "/v1/assign":
+			assignment = readWkbenchTestAssignment(t, r)
 			phase = "assigned"
 			completedPhase = ""
 			activePhase = ""
@@ -1504,16 +1527,20 @@ func delayedConnectWkbenchWorkerServer(t *testing.T, token string, delay time.Du
 func hardLimitAndCollectionFailureWorkerServer(t *testing.T, token string) *httptest.Server {
 	t.Helper()
 	phase := "assigned"
-	assignment := map[string]string{"run_id": "bench-run", "worker_id": "w1"}
+	assignment := map[string]string{}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
 			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		if !validateWkbenchTestControlIdentity(t, w, r, assignment) {
 			return
 		}
 		switch r.URL.Path {
 		case "/v1/info":
 			writeWkbenchJSON(t, w, map[string]string{"worker": "wkbench"})
 		case "/v1/assign":
+			assignment = readWkbenchTestAssignment(t, r)
 			phase = "assigned"
 			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
 		case "/v1/phase/prepare":
@@ -1544,6 +1571,56 @@ func hardLimitAndCollectionFailureWorkerServer(t *testing.T, token string) *http
 			http.NotFound(w, r)
 		}
 	}))
+}
+
+func readWkbenchTestAssignment(t *testing.T, r *http.Request) map[string]string {
+	t.Helper()
+	var assignment struct {
+		RunID        string `json:"run_id"`
+		AssignmentID string `json:"assignment_id"`
+		WorkerID     string `json:"worker_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&assignment); err != nil {
+		t.Fatalf("decode worker assignment: %v", err)
+	}
+	if assignment.RunID == "" || assignment.AssignmentID == "" || assignment.WorkerID == "" {
+		t.Fatalf("worker assignment identity is incomplete: %+v", assignment)
+	}
+	return map[string]string{
+		"run_id":        assignment.RunID,
+		"assignment_id": assignment.AssignmentID,
+		"worker_id":     assignment.WorkerID,
+	}
+}
+
+func validateWkbenchTestControlIdentity(t *testing.T, w http.ResponseWriter, r *http.Request, assignment map[string]string) bool {
+	t.Helper()
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/v1/phase/") || r.URL.Path == "/v1/stop":
+		var request struct {
+			RunID        string `json:"run_id"`
+			AssignmentID string `json:"assignment_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode %s identity: %v", r.URL.Path, err)
+			http.Error(w, "invalid assignment identity", http.StatusBadRequest)
+			return false
+		}
+		if request.RunID != assignment["run_id"] || request.AssignmentID != assignment["assignment_id"] {
+			t.Errorf("%s identity = %q/%q, want %q/%q", r.URL.Path, request.RunID, request.AssignmentID, assignment["run_id"], assignment["assignment_id"])
+			http.Error(w, "active assignment conflict", http.StatusConflict)
+			return false
+		}
+	case r.URL.Path == "/v1/metrics" || r.URL.Path == "/v1/report":
+		runID := r.URL.Query().Get("run_id")
+		assignmentID := r.URL.Query().Get("assignment_id")
+		if runID != assignment["run_id"] || assignmentID != assignment["assignment_id"] {
+			t.Errorf("%s identity = %q/%q, want %q/%q", r.URL.Path, runID, assignmentID, assignment["run_id"], assignment["assignment_id"])
+			http.Error(w, "active assignment conflict", http.StatusConflict)
+			return false
+		}
+	}
+	return true
 }
 
 func writeWkbenchJSON(t *testing.T, w http.ResponseWriter, v any) {
