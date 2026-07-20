@@ -230,14 +230,7 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 				}
 				return err
 			}
-			pushResult := DeliveryResultOK
-			errorClass := DeliveryErrorClassNone
-			if len(result.Retryable) > 0 {
-				pushResult = DeliveryResultRetryable
-				errorClass = DeliveryErrorClassRetryable
-			} else if len(result.Accepted) == 0 && len(result.Dropped) > 0 {
-				pushResult = DeliveryResultDropped
-			}
+			pushResult, errorClass := ClassifyPushObservation(len(result.Retryable), len(result.Dropped), nil)
 			if observing {
 				w.observeFanoutPush(FanoutPushEvent{
 					OwnerNodeID: ownerNodeID,

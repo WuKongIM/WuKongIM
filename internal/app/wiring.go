@@ -767,9 +767,11 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			}
 			if a.cfg.Delivery.Enabled {
 				offlineSingle, offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
+				deliveryObserver := a.deliveryObserver()
 				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
 					PresenceResolver:            channelAppendPresenceResolver{presence: a.presence},
-					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID),
+					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID, deliveryObserver),
+					OwnerPushBatchSize:          a.cfg.Delivery.PushBatchSize,
 					OfflineRecipientObserver:    offlineSingle,
 					OfflineRecipientsObserver:   offlineBatch,
 					DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
@@ -823,7 +825,7 @@ func (a *App) ensureChannelAppendMetadataCache() *clusterinfra.ChannelAppendMeta
 	return a.channelAppendMetadata
 }
 
-func (a *App) channelAppendOwnerPusher(nodeID uint64) channelappend.OwnerPusher {
+func (a *App) channelAppendOwnerPusher(nodeID uint64, observer runtimedelivery.Observer) channelappend.OwnerPusher {
 	if a.localOwnerPusher == nil {
 		return nil
 	}
@@ -831,7 +833,7 @@ func (a *App) channelAppendOwnerPusher(nodeID uint64) channelappend.OwnerPusher 
 	if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
 		pusher = clusterinfra.NewDeliveryPusher(nodeID, a.localOwnerPusher, accessnode.NewClient(rpcNode))
 	}
-	return channelAppendOwnerPusher{next: pusher}
+	return channelAppendOwnerPusher{next: pusher, observer: observer}
 }
 
 func (a *App) wireMessages() {

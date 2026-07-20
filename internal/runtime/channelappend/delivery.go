@@ -28,6 +28,8 @@ type RecipientProcessorOptions struct {
 	PresenceResolver PresenceResolver
 	// OwnerPusher pushes online delivery commands to owner nodes.
 	OwnerPusher OwnerPusher
+	// OwnerPushBatchSize bounds routes sent in one owner-node push. Values <= 0 use a bounded default.
+	OwnerPushBatchSize int
 	// OfflineRecipientsObserver receives durable offline recipients in one batch.
 	OfflineRecipientsObserver OfflineRecipientsObserver
 	// OfflineRecipientObserver receives durable recipients with no online route.
@@ -48,6 +50,7 @@ type RecipientProcessor struct {
 type recipientPorts struct {
 	presence                    PresenceResolver
 	pusher                      OwnerPusher
+	ownerPushBatchSize          int
 	offlineRecipientsObserver   OfflineRecipientsObserver
 	offlineRecipientObserver    OfflineRecipientObserver
 	deliveryRetryMaxAttempts    int
@@ -60,6 +63,7 @@ func NewRecipientProcessor(opts RecipientProcessorOptions) *RecipientProcessor {
 	return &RecipientProcessor{ports: recipientPorts{
 		presence:                    opts.PresenceResolver,
 		pusher:                      opts.OwnerPusher,
+		ownerPushBatchSize:          opts.OwnerPushBatchSize,
 		offlineRecipientsObserver:   opts.OfflineRecipientsObserver,
 		offlineRecipientObserver:    opts.OfflineRecipientObserver,
 		deliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
@@ -106,6 +110,8 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 	}
 
 	resolved := targetResolver.EndpointsByTargets(ctx, plan.Targets)
+	grouped := make(map[uint64]*recipientPlanOwnerRoutes)
+	ownerOrder := make([]uint64, 0)
 	for i, target := range plan.Targets {
 		batch := RecipientBatch{Event: plan.Event, Recipients: target.Recipients}
 		if i >= len(resolved) {
@@ -118,9 +124,138 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 			results[i] = withPostCommitFailureDetail(resolved[i].Err, detail)
 			continue
 		}
-		results[i] = processRecipientBatchWithRoutesSafely(ctx, batch, resolved[i].Routes, p.ports)
+		routes, err := prepareRecipientBatchRoutesSafely(ctx, batch, resolved[i].Routes, p.ports)
+		if err != nil {
+			results[i] = err
+			continue
+		}
+		for _, route := range routes {
+			ownerRoutes, exists := grouped[route.OwnerNodeID]
+			if !exists {
+				ownerRoutes = &recipientPlanOwnerRoutes{}
+				grouped[route.OwnerNodeID] = ownerRoutes
+				ownerOrder = append(ownerOrder, route.OwnerNodeID)
+			}
+			ownerRoutes.routes = append(ownerRoutes.routes, route)
+			ownerRoutes.targetIndexes = append(ownerRoutes.targetIndexes, i)
+		}
+	}
+	if p.ports.pusher == nil {
+		return results
+	}
+	batchSize := boundedPositive(p.ports.ownerPushBatchSize, defaultRecipientBatchSize)
+	for _, ownerNodeID := range ownerOrder {
+		ownerRoutes := grouped[ownerNodeID]
+		for start := 0; start < len(ownerRoutes.routes); start += batchSize {
+			end := start + batchSize
+			if end > len(ownerRoutes.routes) {
+				end = len(ownerRoutes.routes)
+			}
+			routes := ownerRoutes.routes[start:end]
+			targetIndexes := ownerRoutes.targetIndexes[start:end]
+			failedRoutes, err := pushOwnerRoutesWithRetry(ctx, p.ports, PushCommand{
+				OwnerNodeID: ownerNodeID,
+				Envelope:    plan.Event,
+				Routes:      routes,
+			})
+			if err == nil {
+				continue
+			}
+			applyRecipientPlanOwnerPushFailure(results, plan, ownerNodeID, routes, targetIndexes, failedRoutes, err)
+		}
 	}
 	return results
+}
+
+type recipientPlanOwnerRoutes struct {
+	routes        []Route
+	targetIndexes []int
+}
+
+func prepareRecipientBatchRoutesSafely(
+	ctx context.Context,
+	batch RecipientBatch,
+	routes []Route,
+	ports recipientPorts,
+) (prepared []Route, err error) {
+	defer recoverRecipientBatchPanic(batch, &err)
+	uids := recipientUIDs(batch.Recipients)
+	observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientsObserver, ports.offlineRecipientObserver)
+	if ports.pusher == nil {
+		return nil, nil
+	}
+	return filterSenderEchoRoute(batch.Event, routes), nil
+}
+
+func applyRecipientPlanOwnerPushFailure(
+	results []error,
+	plan RecipientDeliveryPlan,
+	ownerNodeID uint64,
+	routes []Route,
+	targetIndexes []int,
+	failedRoutes []Route,
+	err error,
+) {
+	orderedTargets, routesByTarget := failedRecipientPlanRoutesByTarget(routes, targetIndexes, failedRoutes)
+	for _, targetIndex := range orderedTargets {
+		if targetIndex < 0 || targetIndex >= len(plan.Targets) || results[targetIndex] != nil {
+			continue
+		}
+		batch := RecipientBatch{Event: plan.Event, Recipients: plan.Targets[targetIndex].Recipients}
+		targetRoutes := routesByTarget[targetIndex]
+		detail := postCommitBatchDetail("owner_push", batch)
+		detail.UID = firstRouteUID(targetRoutes)
+		detail.DispatchOwnerNodeID = ownerNodeID
+		detail.DispatchOwnerRouteNum = len(targetRoutes)
+		results[targetIndex] = withPostCommitFailureDetail(err, detail)
+	}
+}
+
+func failedRecipientPlanRoutesByTarget(
+	routes []Route,
+	targetIndexes []int,
+	failedRoutes []Route,
+) ([]int, map[int][]Route) {
+	if len(routes) != len(targetIndexes) || len(failedRoutes) == 0 {
+		return allRecipientPlanRoutesByTarget(routes, targetIndexes)
+	}
+	positions := make(map[Route][]int, len(routes))
+	for i, route := range routes {
+		positions[route] = append(positions[route], i)
+	}
+	used := make(map[Route]int, len(failedRoutes))
+	orderedTargets := make([]int, 0)
+	routesByTarget := make(map[int][]Route)
+	for _, route := range failedRoutes {
+		positionList := positions[route]
+		positionIndex := used[route]
+		if positionIndex >= len(positionList) {
+			return allRecipientPlanRoutesByTarget(routes, targetIndexes)
+		}
+		used[route] = positionIndex + 1
+		targetIndex := targetIndexes[positionList[positionIndex]]
+		if _, exists := routesByTarget[targetIndex]; !exists {
+			orderedTargets = append(orderedTargets, targetIndex)
+		}
+		routesByTarget[targetIndex] = append(routesByTarget[targetIndex], route)
+	}
+	return orderedTargets, routesByTarget
+}
+
+func allRecipientPlanRoutesByTarget(routes []Route, targetIndexes []int) ([]int, map[int][]Route) {
+	orderedTargets := make([]int, 0)
+	routesByTarget := make(map[int][]Route)
+	for i, route := range routes {
+		if i >= len(targetIndexes) {
+			break
+		}
+		targetIndex := targetIndexes[i]
+		if _, exists := routesByTarget[targetIndex]; !exists {
+			orderedTargets = append(orderedTargets, targetIndex)
+		}
+		routesByTarget[targetIndex] = append(routesByTarget[targetIndex], route)
+	}
+	return orderedTargets, routesByTarget
 }
 
 func processRecipientBatchSafely(ctx context.Context, batch RecipientBatch, ports recipientPorts) (err error) {
@@ -171,19 +306,27 @@ func processRecipientBatchWithRoutes(ctx context.Context, batch RecipientBatch, 
 	}
 	routes = filterSenderEchoRoute(batch.Event, routes)
 	grouped, ownerOrder := routesByOwner(routes)
+	batchSize := boundedPositive(ports.ownerPushBatchSize, defaultRecipientBatchSize)
 	for _, ownerNodeID := range ownerOrder {
 		ownerRoutes := grouped[ownerNodeID]
-		if err := pushOwnerRoutesWithRetry(ctx, ports, PushCommand{
-			OwnerNodeID: ownerNodeID,
-			Envelope:    batch.Event,
-			Routes:      ownerRoutes,
-		}); err != nil {
-			detail := postCommitBatchDetail("owner_push", batch)
-			detail.UID = firstRouteUID(ownerRoutes)
-			detail.UIDCount = len(uids)
-			detail.DispatchOwnerNodeID = ownerNodeID
-			detail.DispatchOwnerRouteNum = len(ownerRoutes)
-			return withPostCommitFailureDetail(err, detail)
+		for start := 0; start < len(ownerRoutes); start += batchSize {
+			end := start + batchSize
+			if end > len(ownerRoutes) {
+				end = len(ownerRoutes)
+			}
+			failedRoutes, err := pushOwnerRoutesWithRetry(ctx, ports, PushCommand{
+				OwnerNodeID: ownerNodeID,
+				Envelope:    batch.Event,
+				Routes:      ownerRoutes[start:end],
+			})
+			if err != nil {
+				detail := postCommitBatchDetail("owner_push", batch)
+				detail.UID = firstRouteUID(failedRoutes)
+				detail.UIDCount = len(uids)
+				detail.DispatchOwnerNodeID = ownerNodeID
+				detail.DispatchOwnerRouteNum = len(failedRoutes)
+				return withPostCommitFailureDetail(err, detail)
+			}
 		}
 	}
 	return nil
@@ -299,7 +442,7 @@ func firstRouteUID(routes []Route) string {
 	return routes[0].UID
 }
 
-func pushOwnerRoutesWithRetry(ctx context.Context, ports recipientPorts, cmd PushCommand) error {
+func pushOwnerRoutesWithRetry(ctx context.Context, ports recipientPorts, cmd PushCommand) ([]Route, error) {
 	attempts := ports.deliveryRetryMaxAttempts
 	if attempts <= 0 {
 		attempts = defaultDeliveryRetryMaxAttempts
@@ -313,32 +456,45 @@ func pushOwnerRoutesWithRetry(ctx context.Context, ports recipientPorts, cmd Pus
 		maxBackoff = defaultDeliveryRetryMaxBackoff
 	}
 	if len(cmd.Routes) == 0 {
-		return nil
+		return nil, nil
 	}
 	for attempt := 1; attempt <= attempts; attempt++ {
 		if err := contextErr(ctx); err != nil {
-			return err
+			return append([]Route(nil), cmd.Routes...), err
 		}
-		result, err := ports.pusher.Push(ctx, cmd)
+		result, err := pushOwnerRoutesSafely(ctx, ports.pusher, cmd)
 		if err != nil {
+			if errors.Is(err, ErrEffectPanic) {
+				return append([]Route(nil), cmd.Routes...), err
+			}
 			if attempt == attempts {
-				return err
+				return append([]Route(nil), cmd.Routes...), err
 			}
 		} else {
 			if len(result.Retryable) == 0 {
-				return nil
+				return nil, nil
 			}
 			cmd.Routes = append([]Route(nil), result.Retryable...)
 			if attempt == attempts {
-				return ErrDeliveryRetryExhausted
+				return append([]Route(nil), cmd.Routes...), ErrDeliveryRetryExhausted
 			}
 		}
 		if err := sleepDeliveryRetry(ctx, backoff); err != nil {
-			return err
+			return append([]Route(nil), cmd.Routes...), err
 		}
 		backoff = nextDeliveryRetryBackoff(backoff, maxBackoff)
 	}
-	return nil
+	return nil, nil
+}
+
+func pushOwnerRoutesSafely(ctx context.Context, pusher OwnerPusher, cmd PushCommand) (result PushResult, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = PushResult{}
+			err = effectPanicError(effectStagePostCommit, recovered)
+		}
+	}()
+	return pusher.Push(ctx, cmd)
 }
 
 func sleepDeliveryRetry(ctx context.Context, backoff time.Duration) error {

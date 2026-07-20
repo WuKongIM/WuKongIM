@@ -209,3 +209,17 @@ func deliveryResultForError(err error) string {
 	}
 	return DeliveryResultError
 }
+
+// ClassifyPushObservation returns bounded result and error-class labels for one owner push attempt.
+func ClassifyPushObservation(retryableRoutes, droppedRoutes int, err error) (string, string) {
+	if err != nil {
+		return deliveryResultForError(err), DeliveryErrorClass(err)
+	}
+	if retryableRoutes > 0 {
+		return DeliveryResultRetryable, DeliveryErrorClassRetryable
+	}
+	if droppedRoutes > 0 {
+		return DeliveryResultDropped, DeliveryErrorClassNone
+	}
+	return DeliveryResultOK, DeliveryErrorClassNone
+}

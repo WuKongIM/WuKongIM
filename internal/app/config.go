@@ -366,7 +366,7 @@ type DeliveryConfig struct {
 	// FanoutPageSize limits subscriber UIDs read by one fanout page.
 	FanoutPageSize int
 	// PushBatchSize limits recipients in one exact-target lookup and delivery plan,
-	// which also bounds the owner-node routes produced from that plan.
+	// and independently limits routes in each plan-wide owner-node push chunk.
 	PushBatchSize int
 	// PendingAckTTL bounds stale pending recvack cleanup during delivery activity.
 	PendingAckTTL time.Duration

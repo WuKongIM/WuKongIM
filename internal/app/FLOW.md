@@ -36,7 +36,8 @@ New(Config)
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
-     plus conversation list request latency/page-shape metrics, conversation
+     plus direct channelappend owner-push attempts on the same bounded delivery
+     push metric families used by runtime fanout, conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
@@ -424,7 +425,11 @@ subscriber scan, recipient authority grouping, delivery enqueue, and the
 independent conversation active projection all run after SENDACK from the
 authority writer's best-effort post-commit pipeline. The recipient delivery worker later
 drains accepted plans, resolves all exact-target groups through the batched
-presence seam, and pushes owner-node delivery commands. Post-commit persistence
+presence seam, coalesces successful routes by owner across each whole plan,
+splits each owner group by `Delivery.PushBatchSize`, and pushes those bounded
+commands in first-seen order. The owner-push adapter records every actual local
+or remote attempt in the delivery push count, route-count, and duration metrics.
+Post-commit persistence
 and restart replay are not part of
 channelappend. Post-commit enqueue failures are logged with the failing phase and
 route/dispatch context, counted through effect metrics, and dropped after the

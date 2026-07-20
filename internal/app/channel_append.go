@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -283,12 +284,28 @@ func appendChannelAppendRoutes(out []channelappend.Route, routes []presenceuseca
 
 // channelAppendOwnerPusher adapts owner-node delivery pushes to channelappend.
 type channelAppendOwnerPusher struct {
-	next runtimedelivery.Pusher
+	next     runtimedelivery.Pusher
+	observer runtimedelivery.Observer
 }
 
 func (p channelAppendOwnerPusher) Push(ctx context.Context, cmd channelappend.PushCommand) (channelappend.PushResult, error) {
+	startedAt := time.Now()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			p.observe(
+				cmd.OwnerNodeID,
+				len(cmd.Routes),
+				channelappend.PushResult{},
+				fmt.Errorf("channel append owner push panic: %v", recovered),
+				time.Since(startedAt),
+			)
+			panic(recovered)
+		}
+	}()
 	if p.next == nil {
-		return channelappend.PushResult{Dropped: append([]channelappend.Route(nil), cmd.Routes...)}, nil
+		result := channelappend.PushResult{Dropped: append([]channelappend.Route(nil), cmd.Routes...)}
+		p.observe(cmd.OwnerNodeID, len(cmd.Routes), result, nil, time.Since(startedAt))
+		return result, nil
 	}
 	result, err := p.next.Push(ctx, runtimedelivery.PushCommand{
 		OwnerNodeID: cmd.OwnerNodeID,
@@ -296,13 +313,39 @@ func (p channelAppendOwnerPusher) Push(ctx context.Context, cmd channelappend.Pu
 		Routes:      deliveryRoutesFromChannelAppend(cmd.Routes),
 	})
 	if err != nil {
+		p.observe(cmd.OwnerNodeID, len(cmd.Routes), channelappend.PushResult{}, err, time.Since(startedAt))
 		return channelappend.PushResult{}, err
 	}
-	return channelappend.PushResult{
+	converted := channelappend.PushResult{
 		Accepted:  channelAppendRoutesFromDelivery(result.Accepted),
 		Retryable: channelAppendRoutesFromDelivery(result.Retryable),
 		Dropped:   channelAppendRoutesFromDelivery(result.Dropped),
-	}, nil
+	}
+	p.observe(cmd.OwnerNodeID, len(cmd.Routes), converted, nil, time.Since(startedAt))
+	return converted, nil
+}
+
+func (p channelAppendOwnerPusher) observe(
+	ownerNodeID uint64,
+	routes int,
+	result channelappend.PushResult,
+	err error,
+	duration time.Duration,
+) {
+	if p.observer == nil {
+		return
+	}
+	resultLabel, errorClass := runtimedelivery.ClassifyPushObservation(len(result.Retryable), len(result.Dropped), err)
+	p.observer.ObserveFanoutPush(runtimedelivery.FanoutPushEvent{
+		OwnerNodeID: ownerNodeID,
+		Result:      resultLabel,
+		ErrorClass:  errorClass,
+		Duration:    duration,
+		Routes:      routes,
+		Accepted:    len(result.Accepted),
+		Retryable:   len(result.Retryable),
+		Dropped:     len(result.Dropped),
+	})
 }
 
 func channelAppendErrorResults(n int, err error) []channelappend.SendBatchItemResult {
