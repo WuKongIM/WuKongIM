@@ -112,6 +112,7 @@ func TestClusterThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
+	waitNodeWriteReady(t, nodes[0])
 	route := waitRouteKeyLeaderConverged(t, nodes, channelID.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
