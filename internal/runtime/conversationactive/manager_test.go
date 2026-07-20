@@ -1101,6 +1101,53 @@ func TestAdmitUnderCachePressureEvictsCleanRowsWithoutFlush(t *testing.T) {
 	}
 }
 
+func TestCachePressureDoesNotEvictCleanRowUpdatedBySameBatch(t *testing.T) {
+	ctx := context.Background()
+	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: 2})
+	if err := m.MarkActive(ctx, []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "protected", ChannelType: 2, ActiveAtMS: 3000, ReadSeq: 30},
+		{Kind: metadb.ConversationKindNormal, UID: "u2", ChannelID: "dirty", ChannelType: 2, ActiveAtMS: 1000},
+	}); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+	if _, err := m.Flush(ctx, 0); err != nil {
+		t.Fatalf("Flush(initial) error = %v", err)
+	}
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind:        metadb.ConversationKindNormal,
+		UID:         "u2",
+		ChannelID:   "dirty",
+		ChannelType: 2,
+		ActiveAtMS:  2000,
+	}}); err != nil {
+		t.Fatalf("MarkActive(dirty) error = %v", err)
+	}
+
+	err := m.MarkActive(ctx, []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "protected", ChannelType: 2, ActiveAtMS: 2000, ReadSeq: 20},
+		{Kind: metadb.ConversationKindNormal, UID: "u3", ChannelID: "new", ChannelType: 2, ActiveAtMS: 4000},
+	})
+	if !errors.Is(err, ErrCachePressure) {
+		t.Fatalf("MarkActive(protected batch) error = %v, want %v", err, ErrCachePressure)
+	}
+	protected, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "protected", 2)
+	if !ok || protected.ActiveAtMS != 3000 || protected.ReadSeq != 30 {
+		t.Fatalf("protected entry = %+v, %t, want retained active=3000 read=30", protected, ok)
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u2", "dirty", 2); !ok {
+		t.Fatal("existing dirty row was removed after rejected protected batch")
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u3", "new", 2); ok {
+		t.Fatal("rejected new row was partially cached")
+	}
+	cache := m.cacheObservation()
+	if cache.Rows != 2 || cache.DirtyRows != 1 ||
+		cache.RowsByKind[metadb.ConversationKindNormal] != 2 ||
+		cache.DirtyRowsByKind[metadb.ConversationKindNormal] != 1 {
+		t.Fatalf("cache observation = %+v, want rows=2 dirty=1 with matching normal-kind counts", cache)
+	}
+}
+
 func TestCachePressureFlushContinuesUntilDirtyLowWatermark(t *testing.T) {
 	const (
 		maxRows = 10
@@ -1213,6 +1260,57 @@ func TestConcurrentCachePressureCoalescesAsyncFlushSignal(t *testing.T) {
 	}
 	if got := m.DirtyCountForTest(); got != maxRows {
 		t.Fatalf("dirty rows = %d, want unchanged %d after rejected admissions", got, maxRows)
+	}
+}
+
+func TestFullDirtyCachePressureAdmissionRemainsBounded(t *testing.T) {
+	const (
+		maxRows = 100_000
+		workers = 512
+	)
+	ctx := context.Background()
+	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: maxRows})
+	initial := make([]ActivePatch, 0, maxRows)
+	for i := 0; i < maxRows; i++ {
+		initial = append(initial, ActivePatch{
+			Kind:        metadb.ConversationKindNormal,
+			UID:         fmt.Sprintf("existing-%d", i),
+			ChannelID:   "room",
+			ChannelType: 2,
+			ActiveAtMS:  1000,
+		})
+	}
+	if err := m.MarkActive(ctx, initial); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+
+	start := make(chan struct{})
+	ready := sync.WaitGroup{}
+	ready.Add(workers)
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		go func(worker int) {
+			ready.Done()
+			<-start
+			errs <- m.MarkActive(ctx, []ActivePatch{{
+				Kind:        metadb.ConversationKindNormal,
+				UID:         fmt.Sprintf("new-%d", worker),
+				ChannelID:   "room",
+				ChannelType: 2,
+				ActiveAtMS:  2000,
+			}})
+		}(i)
+	}
+	ready.Wait()
+	startedAt := time.Now()
+	close(start)
+	for i := 0; i < workers; i++ {
+		if err := <-errs; !errors.Is(err, ErrCachePressure) {
+			t.Fatalf("MarkActive(full dirty cache) error = %v, want %v", err, ErrCachePressure)
+		}
+	}
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("full dirty cache pressure admissions took %s, want <= 1s", elapsed)
 	}
 }
 

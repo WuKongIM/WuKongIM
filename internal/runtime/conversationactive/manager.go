@@ -191,14 +191,19 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 
 	for {
 		m.mu.Lock()
-		newRows := m.countNewRowsLocked(patches)
+		batchAddresses, newRows := m.batchAddressesAndNewRowsLocked(patches)
 		if m.cacheWouldExceedLocked(newRows) {
 			if newRows > m.maxCachedRows {
 				m.mu.Unlock()
 				return ErrCachePressure
 			}
 			over := m.totalRows + newRows - m.maxCachedRows
-			m.evictCleanRowsLocked(over)
+			// Reject without scanning the cache when the whole batch cannot fit by
+			// evicting clean rows outside this batch. A full dirty cache must keep
+			// admission bounded, and an existing batch row must never evict itself.
+			if m.evictableCleanRowsLocked(batchAddresses) >= over {
+				m.evictCleanRowsLocked(over, batchAddresses)
+			}
 		}
 		if !m.cacheWouldExceedLocked(newRows) {
 			for _, patch := range patches {
@@ -330,7 +335,7 @@ func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSl
 	byChannel[key] = next
 }
 
-func (m *Manager) countNewRowsLocked(patches []ActivePatch) int {
+func (m *Manager) batchAddressesAndNewRowsLocked(patches []ActivePatch) (map[cacheAddress]struct{}, int) {
 	seen := make(map[cacheAddress]struct{}, len(patches))
 	var count int
 	for _, patch := range patches {
@@ -350,14 +355,37 @@ func (m *Manager) countNewRowsLocked(patches []ActivePatch) int {
 		}
 		count++
 	}
-	return count
+	return seen, count
 }
 
 func (m *Manager) cacheWouldExceedLocked(newRows int) bool {
 	return m.maxCachedRows > 0 && newRows > 0 && m.totalRows+newRows > m.maxCachedRows
 }
 
-func (m *Manager) evictCleanRowsLocked(limit int) int {
+func (m *Manager) cleanRowsLocked() int {
+	clean := m.totalRows - m.dirtyRows
+	if clean < 0 {
+		return 0
+	}
+	return clean
+}
+
+func (m *Manager) evictableCleanRowsLocked(protected map[cacheAddress]struct{}) int {
+	clean := m.cleanRowsLocked()
+	for address := range protected {
+		byChannel := m.cache[address.uid]
+		entry, ok := byChannel[address.key]
+		if ok && !entry.dirty {
+			clean--
+		}
+	}
+	if clean < 0 {
+		return 0
+	}
+	return clean
+}
+
+func (m *Manager) evictCleanRowsLocked(limit int, protected map[cacheAddress]struct{}) int {
 	if limit <= 0 {
 		return 0
 	}
@@ -365,6 +393,9 @@ func (m *Manager) evictCleanRowsLocked(limit int) int {
 	for uid, byChannel := range m.cache {
 		for key, entry := range byChannel {
 			if entry.dirty {
+				continue
+			}
+			if _, ok := protected[cacheAddress{uid: uid, key: key}]; ok {
 				continue
 			}
 			delete(byChannel, key)
