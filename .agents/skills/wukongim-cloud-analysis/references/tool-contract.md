@@ -71,7 +71,24 @@ allocations since process start. Other caller-selected sample types are rejected
 - `process_start_time_seconds`
 - `gateway_active_connections`
 - `channel_active_channels`
+- `conversation_active_cache_rows`
+- `conversation_active_dirty_rows`
+- `conversation_active_oldest_dirty_age`
+- `conversation_active_dirty_mutation_rate`
+- `conversation_active_flush_rows_cumulative`
+- `conversation_active_flush_stage_p99`
+- `conversation_active_flush_attempt_rate`
+- `conversation_active_pressure_events`
+- `conversation_active_pressure_state`
+- `conversation_active_pressure_wakeup_p99`
 - `node_data_disk_used_bytes`
+
+Successful conversation-active conservation counter series are preinitialized
+at process start. If a complete range Observation omits either endpoint, treat
+that value as unavailable rather than zero. The persisted/cleared conservation
+equations apply only to `result="ok"`; a failed or timed-out store call can
+have an unknown committed prefix across Slot proposals. Pressure-event counters
+also require first/last deltas over the exact analyzed window.
 
 Use RFC3339 `start` and `end` plus integer `step_seconds`. Begin with a small query set and widen only when the result changes the diagnosis.
 

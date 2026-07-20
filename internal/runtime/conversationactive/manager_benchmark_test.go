@@ -57,8 +57,8 @@ func benchmarkFlushHashSlotSelectedRows(b *testing.B, totalRows int, targetRows 
 		if err != nil {
 			b.Fatal(err)
 		}
-		if result.Selected != targetRows || result.Flushed != targetRows {
-			b.Fatalf("FlushHashSlot() result = %+v, want selected=%d flushed=%d", result, targetRows, targetRows)
+		if result.Selected != targetRows || result.Persisted != targetRows {
+			b.Fatalf("FlushHashSlot() result = %+v, want selected=%d persisted=%d", result, targetRows, targetRows)
 		}
 		if len(store.touches) != 1 || len(store.touches[0]) != targetRows {
 			touchedRows := 0

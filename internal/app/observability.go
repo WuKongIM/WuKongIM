@@ -449,17 +449,54 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveCache(eve
 	if o.metrics == nil || o.metrics.Conversation == nil {
 		return
 	}
-	o.metrics.Conversation.SetActiveCache(event.Rows, event.DirtyRows, event.OldestDirtyAge)
-	for _, kind := range []metadb.ConversationKind{metadb.ConversationKindNormal, metadb.ConversationKindCMD} {
-		o.metrics.Conversation.SetActiveCacheKind(conversationKindMetricLabel(kind), event.RowsByKind[kind], event.DirtyRowsByKind[kind])
+	o.metrics.Conversation.SetActiveCache(obsmetrics.ConversationActiveCacheSample{
+		Revision:         event.Revision,
+		Rows:             event.Rows,
+		DirtyRows:        event.DirtyRows,
+		OldestDirtyAge:   event.OldestDirtyAge,
+		PressureDraining: event.PressureDraining,
+		NormalRows:       event.RowsByKind[metadb.ConversationKindNormal],
+		NormalDirtyRows:  event.DirtyRowsByKind[metadb.ConversationKindNormal],
+		CMDRows:          event.RowsByKind[metadb.ConversationKindCMD],
+		CMDDirtyRows:     event.DirtyRowsByKind[metadb.ConversationKindCMD],
+	})
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationActiveMutation(event conversationactive.MutationObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
 	}
+	o.metrics.Conversation.ObserveActiveMutation(event.BecameDirty, event.DirtyUpdated, event.Unchanged)
 }
 
 func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(event conversationactive.FlushObservation) {
 	if o.metrics == nil || o.metrics.Conversation == nil {
 		return
 	}
-	o.metrics.Conversation.ObserveActiveFlush(event.Result, event.Selected, event.Flushed, event.Duration)
+	o.metrics.Conversation.ObserveActiveFlush(obsmetrics.ConversationActiveFlushSample{
+		Result:           event.Result,
+		FailureStage:     event.FailureStage,
+		Selected:         event.Selected,
+		Persisted:        event.Persisted,
+		Skipped:          event.Skipped,
+		Cleared:          event.Cleared,
+		VersionConflicts: event.VersionConflicts,
+		Superseded:       event.Superseded,
+		Requeued:         event.Requeued,
+		LaneWaitDuration: event.LaneWaitDuration,
+		SelectDuration:   event.SelectDuration,
+		FilterDuration:   event.FilterDuration,
+		PersistDuration:  event.PersistDuration,
+		ClearDuration:    event.ClearDuration,
+		Duration:         event.Duration,
+	})
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationActivePressure(event conversationactive.PressureObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveActivePressure(event.Event, event.WakeupWaitDuration)
 }
 
 func (o presenceMetricsObserver) ObservePresenceExpiry(result authoritypresence.ExpireResult, duration time.Duration) {
@@ -2465,6 +2502,7 @@ var _ accessgateway.TransportPressureObserver = gatewayMetricsObserver{}
 var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
 var _ accessapi.ConversationSyncObserver = conversationSyncMetricsObserver{}
 var _ conversationAuthorityObserver = conversationAuthorityMetricsObserver{}
+var _ conversationactive.Observer = conversationAuthorityMetricsObserver{}
 var _ reactor.Observer = channelMetricsObserver{}
 var _ reactor.MailboxPressureObserver = channelMetricsObserver{}
 var _ reactor.AppendQueuePressureObserver = channelMetricsObserver{}

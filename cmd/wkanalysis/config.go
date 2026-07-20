@@ -238,6 +238,16 @@ func defaultMetricQueries() map[string]string {
 		"process_start_time_seconds":                `process_start_time_seconds{job="wukongim"}`,
 		"gateway_active_connections":                `sum by (instance, node_name) (wukongim_gateway_connections_active{job="wukongim"})`,
 		"channel_active_channels":                   `sum by (instance, node_name) (wukongim_channel_active_channels{job="wukongim"})`,
+		"conversation_active_cache_rows":            `wukongim_conversation_active_cache_rows{job="wukongim"}`,
+		"conversation_active_dirty_rows":            `wukongim_conversation_active_cache_dirty_rows{job="wukongim"}`,
+		"conversation_active_oldest_dirty_age":      `wukongim_conversation_active_cache_oldest_dirty_age_seconds{job="wukongim"}`,
+		"conversation_active_dirty_mutation_rate":   `sum by (instance, node_name, event) (rate(wukongim_conversation_active_dirty_mutations_total{job="wukongim"}[1m]))`,
+		"conversation_active_flush_rows_cumulative": `sum by (instance, node_name, result, stage, reason) (wukongim_conversation_active_flush_rows_total{job="wukongim"})`,
+		"conversation_active_flush_stage_p99":       `histogram_quantile(0.99, sum by (instance, node_name, result, stage, le) (rate(wukongim_conversation_active_flush_stage_duration_seconds_bucket{job="wukongim"}[1m])))`,
+		"conversation_active_flush_attempt_rate":    `sum by (instance, node_name, result) (rate(wukongim_conversation_active_flush_total{job="wukongim"}[1m]))`,
+		"conversation_active_pressure_events":       `sum by (instance, node_name, event) (wukongim_conversation_active_pressure_events_total{job="wukongim"})`,
+		"conversation_active_pressure_state":        `wukongim_conversation_active_pressure_draining{job="wukongim"}`,
+		"conversation_active_pressure_wakeup_p99":   `histogram_quantile(0.99, sum by (instance, node_name, le) (rate(wukongim_conversation_active_pressure_wakeup_wait_duration_seconds_bucket{job="wukongim"}[1m])))`,
 		"node_data_disk_used_bytes":                 `max by (instance, role) (node_filesystem_size_bytes{job="hosts",role=~"node-[123]",mountpoint="/var/lib/wukongim-cloud"} - node_filesystem_avail_bytes{job="hosts",role=~"node-[123]",mountpoint="/var/lib/wukongim-cloud"})`,
 	}
 }

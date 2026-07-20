@@ -895,6 +895,189 @@
       ],
       "title": "Channel registry lifecycle rate",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_conversation_active_dirty_mutations_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, event)",
+          "legendFormat": "mutation {{node_name}} {{event}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_conversation_active_flush_rows_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result, stage, reason)",
+          "legendFormat": "flush {{node_name}} {{result}} {{stage}} {{reason}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Conversation Active Conservation Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, stage))",
+          "legendFormat": "stage p95 {{node_name}} {{result}} {{stage}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_pressure_wakeup_wait_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name))",
+          "legendFormat": "wakeup p95 {{node_name}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Conversation Active Flush Stage Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 64
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(wukongim_conversation_active_pressure_draining{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "draining {{node_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_conversation_active_pressure_events_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, event)",
+          "legendFormat": "event/s {{node_name}} {{event}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Conversation Active Pressure Lifecycle",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "time() - max(wukongim_conversation_active_pressure_last_event_timestamp_seconds{node_name=~\"$node_name\"}) by (node_name, event)",
+          "legendFormat": "event age {{node_name}} {{event}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Conversation Active Pressure Event Age",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

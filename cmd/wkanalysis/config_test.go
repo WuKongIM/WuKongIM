@@ -83,6 +83,30 @@ func TestDefaultMetricQueriesExcludeZeroCapacityRuntimeQueues(t *testing.T) {
 	}
 }
 
+func TestDefaultMetricQueriesIncludeConversationActiveConservationEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	wantIDs := []string{
+		"conversation_active_cache_rows",
+		"conversation_active_dirty_rows",
+		"conversation_active_oldest_dirty_age",
+		"conversation_active_dirty_mutation_rate",
+		"conversation_active_flush_rows_cumulative",
+		"conversation_active_flush_stage_p99",
+		"conversation_active_flush_attempt_rate",
+		"conversation_active_pressure_events",
+		"conversation_active_pressure_state",
+		"conversation_active_pressure_wakeup_p99",
+	}
+	for _, id := range wantIDs {
+		if queries[id] == "" {
+			t.Fatalf("metric query %q is missing from the Analysis allowlist", id)
+		}
+	}
+	if got := queries["conversation_active_flush_rows_cumulative"]; got != `sum by (instance, node_name, result, stage, reason) (wukongim_conversation_active_flush_rows_total{job="wukongim"})` {
+		t.Fatalf("conversation flush conservation query = %q", got)
+	}
+}
+
 func TestLoadServeConfigRejectsTokenPastLeaseGuard(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	env := map[string]string{

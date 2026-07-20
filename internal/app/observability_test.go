@@ -1099,9 +1099,11 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	observer.ObserveConversationAuthorityList(conversationAuthorityListEvent{Result: "route_not_ready"})
 	observer.ObserveConversationAuthorityHandoff(conversationAuthorityHandoffEvent{Result: "drained"})
 	observer.ObserveConversationActiveCache(conversationactive.CacheObservation{
-		Rows:           10,
-		DirtyRows:      4,
-		OldestDirtyAge: 3 * time.Second,
+		Revision:         1,
+		Rows:             10,
+		DirtyRows:        4,
+		OldestDirtyAge:   3 * time.Second,
+		PressureDraining: true,
 		RowsByKind: map[metadb.ConversationKind]int{
 			metadb.ConversationKindNormal: 7,
 			metadb.ConversationKindCMD:    3,
@@ -1111,12 +1113,23 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 			metadb.ConversationKindCMD:    3,
 		},
 	})
+	observer.ObserveConversationActiveMutation(conversationactive.MutationObservation{BecameDirty: 3, DirtyUpdated: 2, Unchanged: 1})
 	observer.ObserveConversationActiveFlush(conversationactive.FlushObservation{
-		Result:   "ok",
-		Selected: 5,
-		Flushed:  4,
-		Duration: 6 * time.Millisecond,
+		Result:           "ok",
+		Selected:         5,
+		Persisted:        4,
+		Skipped:          1,
+		Cleared:          4,
+		VersionConflicts: 1,
+		Requeued:         1,
+		LaneWaitDuration: time.Millisecond,
+		SelectDuration:   2 * time.Millisecond,
+		FilterDuration:   3 * time.Millisecond,
+		PersistDuration:  4 * time.Millisecond,
+		ClearDuration:    5 * time.Millisecond,
+		Duration:         6 * time.Millisecond,
 	})
+	observer.ObserveConversationActivePressure(conversationactive.PressureObservation{Event: "signal_received", WakeupWaitDuration: time.Millisecond})
 
 	families, err := reg.Gather()
 	if err != nil {
@@ -1153,8 +1166,20 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 		t.Fatalf("cmd active cache dirty rows metric = %v, want 3", got)
 	}
 	flushRows := requireAppMetricFamily(t, families, "wukongim_conversation_active_flush_rows")
-	if got := findAppMetricByLabels(t, flushRows, map[string]string{"result": "ok", "kind": "flushed"}).GetHistogram().GetSampleSum(); got != 4 {
-		t.Fatalf("active flush flushed rows metric = %v, want 4", got)
+	if got := findAppMetricByLabels(t, flushRows, map[string]string{"result": "ok", "kind": "persisted"}).GetHistogram().GetSampleSum(); got != 4 {
+		t.Fatalf("active flush persisted rows metric = %v, want 4", got)
+	}
+	flushRowsTotal := requireAppMetricFamily(t, families, "wukongim_conversation_active_flush_rows_total")
+	if got := findAppMetricByLabels(t, flushRowsTotal, map[string]string{"result": "ok", "stage": "requeued", "reason": "version_conflict"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("active flush version-conflict rows metric = %v, want 1", got)
+	}
+	dirtyMutations := requireAppMetricFamily(t, families, "wukongim_conversation_active_dirty_mutations_total")
+	if got := findAppMetricByLabels(t, dirtyMutations, map[string]string{"event": "became_dirty"}).GetCounter().GetValue(); got != 3 {
+		t.Fatalf("active dirty became metric = %v, want 3", got)
+	}
+	pressureEvents := requireAppMetricFamily(t, families, "wukongim_conversation_active_pressure_events_total")
+	if got := findAppMetricByLabels(t, pressureEvents, map[string]string{"event": "signal_received"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("active pressure signal_received metric = %v, want 1", got)
 	}
 	list := requireAppMetricFamily(t, families, "wukongim_conversation_authority_list_total")
 	if got := findAppMetricByLabels(t, list, map[string]string{"result": "route_not_ready"}).GetCounter().GetValue(); got != 1 {

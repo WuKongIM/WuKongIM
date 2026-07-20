@@ -39,7 +39,9 @@ New(Config)
      plus direct channelappend owner-push attempts on the same bounded delivery
      push metric families used by runtime fanout, conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
-     cache/flush gauges and histograms, channel append and post-commit
+     cache gauges, dirty-mutation counters, persisted/cleared/requeued/superseded
+     flush conservation counters, flush-stage histograms, and pressure-wakeup
+     lifecycle metrics, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
      touch-flush route/chunk/target-group counters, recipient delivery worker
      queue/admission/process metrics plus configured worker capacity and current

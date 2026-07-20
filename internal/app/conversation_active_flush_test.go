@@ -42,25 +42,35 @@ func TestConversationActiveFlushWorkerFlushesPeriodicallyAndOnStop(t *testing.T)
 }
 
 func TestConversationActiveFlushWorkerWakesOnCachePressure(t *testing.T) {
+	observer := &recordingConversationActivePressureObserver{events: make(chan conversationactive.PressureObservation, 1)}
 	flusher := &pressureAwareConversationActiveFlusher{
 		recordingConversationActiveFlusher: &recordingConversationActiveFlusher{firstFlush: make(chan struct{})},
-		pressure:                           make(chan struct{}, 1),
+		pressure:                           make(chan conversationactive.PressureSignal, 1),
 	}
 	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
 		Authority:       flusher,
 		FlushInterval:   time.Hour,
 		BatchRows:       7,
 		PressureSignals: flusher.pressure,
+		Observer:        observer,
 	})
 
 	if err := worker.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	flusher.pressure <- struct{}{}
+	flusher.pressure <- conversationactive.PressureSignal{EnqueuedAt: time.Now()}
 	select {
 	case <-flusher.firstFlush:
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for cache-pressure flush")
+	}
+	select {
+	case event := <-observer.events:
+		if event.Event != "signal_received" || event.WakeupWaitDuration < 0 {
+			t.Fatalf("pressure observation = %+v, want signal_received with nonnegative wait", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pressure wakeup observation")
 	}
 	if err := worker.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -90,8 +100,8 @@ func TestConversationActiveFlushWorkerStopReturnsFinalFlushError(t *testing.T) {
 func TestConversationActiveFlushWorkerStopDrainsDirtyRows(t *testing.T) {
 	flusher := &recordingConversationActiveFlusher{
 		results: []conversationactive.FlushResult{
-			{Selected: 3, Flushed: 3},
-			{Selected: 1, Flushed: 1},
+			{Selected: 3, Persisted: 3},
+			{Selected: 1, Persisted: 1},
 			{},
 		},
 	}
@@ -175,7 +185,24 @@ type recordingConversationActiveFlusher struct {
 
 type pressureAwareConversationActiveFlusher struct {
 	*recordingConversationActiveFlusher
-	pressure chan struct{}
+	pressure chan conversationactive.PressureSignal
+}
+
+type recordingConversationActivePressureObserver struct {
+	events chan conversationactive.PressureObservation
+}
+
+func (*recordingConversationActivePressureObserver) ObserveConversationActiveCache(conversationactive.CacheObservation) {
+}
+
+func (*recordingConversationActivePressureObserver) ObserveConversationActiveMutation(conversationactive.MutationObservation) {
+}
+
+func (*recordingConversationActivePressureObserver) ObserveConversationActiveFlush(conversationactive.FlushObservation) {
+}
+
+func (o *recordingConversationActivePressureObserver) ObserveConversationActivePressure(event conversationactive.PressureObservation) {
+	o.events <- event
 }
 
 func (f *recordingConversationActiveFlusher) FlushActiveRows(_ context.Context, batchRows int) (conversationactive.FlushResult, error) {

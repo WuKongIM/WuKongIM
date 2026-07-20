@@ -24,7 +24,9 @@ type conversationActiveFlushWorkerOptions struct {
 	// BatchRows bounds dirty active rows flushed in one tick.
 	BatchRows int
 	// PressureSignals receives coalesced dirty-cache pressure wakeups.
-	PressureSignals <-chan struct{}
+	PressureSignals <-chan conversationactive.PressureSignal
+	// Observer receives pressure wakeup wait observations from the app-owned worker.
+	Observer conversationactive.Observer
 	// Logger records periodic flush failures.
 	Logger wklog.Logger
 }
@@ -116,10 +118,20 @@ func (w *conversationActiveFlushWorker) tick(ctx context.Context) {
 			return
 		case <-ticker.C:
 			_, _ = w.flushOnce(ctx, false)
-		case _, ok := <-pressureSignals:
+		case signal, ok := <-pressureSignals:
 			if !ok {
 				pressureSignals = nil
 				continue
+			}
+			if w.opts.Observer != nil {
+				wait := time.Since(signal.EnqueuedAt)
+				if signal.EnqueuedAt.IsZero() || wait < 0 {
+					wait = 0
+				}
+				w.opts.Observer.ObserveConversationActivePressure(conversationactive.PressureObservation{
+					Event:              "signal_received",
+					WakeupWaitDuration: wait,
+				})
 			}
 			_, _ = w.flushOnce(ctx, false)
 		}

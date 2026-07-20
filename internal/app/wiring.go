@@ -14,6 +14,7 @@ import (
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -287,7 +288,12 @@ func (a *App) wireConversationAuthority() {
 		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ConversationAuthorityNode)
 		authorityStore, hasAuthorityStore := a.cluster.(conversationAuthorityStore)
 		if hasAuthorityNode && hasAuthorityStore {
-			pressureSignals := make(chan struct{}, 1)
+			pressureSignals := make(chan conversationactive.PressureSignal, 1)
+			conversationObserver := a.conversationAuthorityObserver()
+			var activeObserver conversationactive.Observer
+			if observer, ok := conversationObserver.(conversationactive.Observer); ok {
+				activeObserver = observer
+			}
 			authority := newConversationAuthority(conversationAuthorityOptions{
 				LocalNodeID:          authorityNode.NodeID(),
 				Store:                authorityStore,
@@ -300,7 +306,7 @@ func (a *App) wireConversationAuthority() {
 				FlushBatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
 				PressureNotify:       pressureSignals,
 				CurrentRouteTarget:   a.currentConversationAuthorityRouteTarget,
-				Observer:             a.conversationAuthorityObserver(),
+				Observer:             conversationObserver,
 			})
 			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
 			a.conversationAuthority = authority
@@ -312,6 +318,7 @@ func (a *App) wireConversationAuthority() {
 					FlushTimeout:    a.cfg.Conversation.AuthorityFlushTimeout,
 					BatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
 					PressureSignals: pressureSignals,
+					Observer:        activeObserver,
 					Logger:          a.logger.Named("conversation_active_flush"),
 				})
 			}
