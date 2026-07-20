@@ -19,6 +19,11 @@ updates. `AuthorityEpoch` is local diagnostic metadata and is not a distributed
 authority fence. `LoseAuthority` removes the complete hash-slot state, including
 its expiry index, so stale callers receive `ErrNotLeader`.
 
+`EndpointsByUIDs` validates one exact target once, holds the corresponding
+shard read lock once, and returns routes in UID input order with deterministic
+route ordering inside each UID. A stale target rejects the whole exact-target
+group; callers isolate that error from groups carrying other targets.
+
 ## Register And Conflicts
 
 Routes without conflicts become active immediately. Conflicting routes are

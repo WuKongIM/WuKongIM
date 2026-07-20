@@ -154,7 +154,14 @@ for example, connect waits for `phase_poll_timeout + total_users/connect_rate`.
 Warmup and run also add the largest declared SENDACK/RECV operation timeout so
 the last scheduled operation can settle without consuming the control-plane grace.
 If a status request itself reaches that child deadline, the coordinator reports
-`phase_timeout` instead of the ambiguous `phase_wait_failed` fallback.
+`phase_timeout` instead of the ambiguous `phase_wait_failed` fallback. A worker
+whose status endpoint never produced a valid response is attributed to the
+`worker_status` operation. Each ordinary status request has an independent
+short bound, so it cannot consume a long phase schedule by itself. When a GET
+straddles the total phase deadline, the coordinator performs one independent
+bounded final probe. A final active status is attributed to `phase_completion`,
+because the exhausted phase budget is then the terminal fact; a final probe
+that also blocks is attributed to `worker_status` as a real control-plane stall.
 The run phase additionally adds the deterministic reconnect pacing between
 scheduled churn windows for the busiest worker. Churn maintenance and the
 final measured operation tail therefore do not consume the base control-plane
@@ -388,6 +395,12 @@ GET  /v1/report
 `worker.State` stores the active assignment and lifecycle phase. Every assignment
 has a required `assignment_id`, which is an immutable generation token within
 `run_id`; reusing a run ID never makes two assignment generations equivalent.
+The in-process state retains the complete Assignment for runner execution,
+teardown, and report collection. `/v1/status` and other status-shaped control
+responses serialize only `run_id`, `assignment_id`, and `worker_id` from that
+assignment, so their response size does not grow with ChannelOwners, Plan,
+Target, or Scenario. Status decoding also accepts legacy expanded Assignment
+objects and preserves their additional fields during rolling upgrades.
 Phase and owner-channel preparation requests carry both values in their JSON
 body, stop carries both values in `StopRequest`, and metrics/report evidence
 reads carry both as query parameters. Missing identifiers are rejected, and a

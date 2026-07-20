@@ -243,6 +243,190 @@ func (c *PresenceAuthorityClient) EndpointsByUIDs(ctx context.Context, uids []st
 	return out, nil
 }
 
+// EndpointsByTargets reads aligned endpoint groups through their exact observed targets.
+func (c *PresenceAuthorityClient) EndpointsByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	results := c.endpointsByTargetsOnce(ctx, groups)
+	return c.retryStaleEndpointLookupGroups(ctx, groups, results)
+}
+
+func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	results := make([]presence.EndpointLookupResult, len(groups))
+	if len(groups) == 0 {
+		return results
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if c == nil || c.node == nil {
+		return fillPresenceEndpointLookupErrors(results, nil, authoritypresence.ErrRouteNotReady)
+	}
+
+	type leaderBatch struct {
+		indexes []int
+		groups  []presence.EndpointLookupGroup
+	}
+	byLeader := make(map[uint64]*leaderBatch)
+	for i, group := range groups {
+		if len(group.UIDs) == 0 {
+			continue
+		}
+		if group.Target.LeaderNodeID == 0 {
+			results[i].Err = fmt.Errorf("%w: endpoint lookup target leader is unknown", authoritypresence.ErrRouteNotReady)
+			continue
+		}
+		batch := byLeader[group.Target.LeaderNodeID]
+		if batch == nil {
+			batch = &leaderBatch{}
+			byLeader[group.Target.LeaderNodeID] = batch
+		}
+		batch.indexes = append(batch.indexes, i)
+		batch.groups = append(batch.groups, group)
+	}
+
+	for leaderNodeID, batch := range byLeader {
+		if err := ctx.Err(); err != nil {
+			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
+			continue
+		}
+		if leaderNodeID == c.node.NodeID() {
+			for i, group := range batch.groups {
+				results[batch.indexes[i]] = c.endpointsByExactTarget(ctx, group)
+			}
+			continue
+		}
+		if c.remote == nil {
+			fillPresenceEndpointLookupErrors(results, batch.indexes, authoritypresence.ErrRouteNotReady)
+			continue
+		}
+		remoteResults, err := c.remote.EndpointsByTargets(ctx, leaderNodeID, batch.groups)
+		if err != nil {
+			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
+			continue
+		}
+		if len(remoteResults) != len(batch.indexes) {
+			err := fmt.Errorf("%w: aligned endpoint result count %d does not match group count %d", authoritypresence.ErrRouteNotReady, len(remoteResults), len(batch.indexes))
+			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
+			continue
+		}
+		for i, result := range remoteResults {
+			results[batch.indexes[i]] = result
+		}
+	}
+	return results
+}
+
+func (c *PresenceAuthorityClient) retryStaleEndpointLookupGroups(
+	ctx context.Context,
+	groups []presence.EndpointLookupGroup,
+	results []presence.EndpointLookupResult,
+) []presence.EndpointLookupResult {
+	retryIndexes := make([]int, 0)
+	retryUIDs := make([]string, 0)
+	retryUIDCounts := make([]int, 0)
+	for i, result := range results {
+		if !shouldRetryPresenceRouteLookup(result.Err) || i >= len(groups) {
+			continue
+		}
+		groupUIDs := nonEmptyPresenceUIDs(groups[i].UIDs)
+		if len(groupUIDs) == 0 {
+			results[i] = presence.EndpointLookupResult{}
+			continue
+		}
+		retryIndexes = append(retryIndexes, i)
+		retryUIDCounts = append(retryUIDCounts, len(groupUIDs))
+		retryUIDs = append(retryUIDs, groupUIDs...)
+	}
+	if len(retryIndexes) == 0 {
+		return results
+	}
+
+	refreshedTargets := c.ResolveRouteTargets(ctx, retryUIDs)
+	refreshedGroups := make([]presence.EndpointLookupGroup, 0, len(retryIndexes))
+	refreshedIndexes := make([]int, 0, len(retryIndexes))
+	offset := 0
+	for retryIndex, resultIndex := range retryIndexes {
+		uidCount := retryUIDCounts[retryIndex]
+		next := offset + uidCount
+		if next > len(refreshedTargets) {
+			results[resultIndex] = presence.EndpointLookupResult{Err: fmt.Errorf("%w: refreshed target result count is not aligned", authoritypresence.ErrRouteNotReady)}
+			offset = next
+			continue
+		}
+		target, err := onePresenceRouteTarget(refreshedTargets[offset:next])
+		offset = next
+		if err != nil {
+			results[resultIndex] = presence.EndpointLookupResult{Err: err}
+			continue
+		}
+		refreshedGroups = append(refreshedGroups, presence.EndpointLookupGroup{
+			Target: target,
+			UIDs:   nonEmptyPresenceUIDs(groups[resultIndex].UIDs),
+		})
+		refreshedIndexes = append(refreshedIndexes, resultIndex)
+	}
+	if len(refreshedGroups) == 0 {
+		return results
+	}
+
+	retried := c.endpointsByTargetsOnce(ctx, refreshedGroups)
+	for i, resultIndex := range refreshedIndexes {
+		if i >= len(retried) {
+			results[resultIndex] = presence.EndpointLookupResult{Err: fmt.Errorf("%w: retried endpoint result count is not aligned", authoritypresence.ErrRouteNotReady)}
+			continue
+		}
+		results[resultIndex] = retried[i]
+	}
+	return results
+}
+
+func nonEmptyPresenceUIDs(uids []string) []string {
+	out := make([]string, 0, len(uids))
+	for _, uid := range uids {
+		if uid != "" {
+			out = append(out, uid)
+		}
+	}
+	return out
+}
+
+func onePresenceRouteTarget(results []presence.RouteTargetResult) (presence.RouteTarget, error) {
+	if len(results) == 0 {
+		return presence.RouteTarget{}, authoritypresence.ErrRouteNotReady
+	}
+	target := results[0].Target
+	for _, result := range results {
+		if result.Err != nil {
+			return presence.RouteTarget{}, result.Err
+		}
+		if result.Target != target {
+			return presence.RouteTarget{}, fmt.Errorf("%w: refreshed UIDs no longer share one exact target", authoritypresence.ErrRouteNotReady)
+		}
+	}
+	return target, nil
+}
+
+func (c *PresenceAuthorityClient) endpointsByExactTarget(ctx context.Context, group presence.EndpointLookupGroup) presence.EndpointLookupResult {
+	if c.local == nil {
+		return presence.EndpointLookupResult{Err: authoritypresence.ErrRouteNotReady}
+	}
+	if batch, ok := c.local.(accessnode.PresenceBatchAuthority); ok {
+		routes, err := batch.EndpointsByUIDs(ctx, group.Target, group.UIDs)
+		return presence.EndpointLookupResult{Routes: routes, Err: err}
+	}
+	var routes []presence.Route
+	for _, uid := range group.UIDs {
+		if uid == "" {
+			continue
+		}
+		uidRoutes, err := c.local.EndpointsByUID(ctx, group.Target, uid)
+		if err != nil {
+			return presence.EndpointLookupResult{Routes: routes, Err: err}
+		}
+		routes = append(routes, uidRoutes...)
+	}
+	return presence.EndpointLookupResult{Routes: routes}
+}
+
 // TouchRoutesTo refreshes owner routes in a specific observed authority epoch.
 func (c *PresenceAuthorityClient) TouchRoutesTo(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	authority, err := c.authorityForTarget(target)
@@ -379,6 +563,19 @@ func routeTargetFromClusterRoute(route cluster.Route) presence.RouteTarget {
 func fillPresenceRouteTargetErrors(results []presence.RouteTargetResult, err error) []presence.RouteTargetResult {
 	for i := range results {
 		results[i].Err = err
+	}
+	return results
+}
+
+func fillPresenceEndpointLookupErrors(results []presence.EndpointLookupResult, indexes []int, err error) []presence.EndpointLookupResult {
+	if indexes == nil {
+		for i := range results {
+			results[i].Err = err
+		}
+		return results
+	}
+	for _, index := range indexes {
+		results[index].Err = err
 	}
 	return results
 }

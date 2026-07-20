@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -51,6 +52,104 @@ func TestRecipientDeliveryWorkerProcessesAcceptedBatches(t *testing.T) {
 	}
 
 	waitDeliveryWorkerCondition(t, func() bool { return pusher.callCount() == 1 })
+}
+
+func TestRecipientDeliveryWorkerPreservesTargetsAndContinuesPartialPlan(t *testing.T) {
+	first := recipientAuthorityTargetForTest(1, 10, 100)
+	second := recipientAuthorityTargetForTest(2, 20, 200)
+	presenceErr := errors.New("first target unavailable")
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{results: []RecipientTargetPresenceResult{
+		{Err: presenceErr},
+		{Routes: []Route{{UID: "u2", OwnerNodeID: 3, SessionID: 20}}},
+	}}
+	pusher := &recordingOwnerPusherForDeliveryTest{}
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		Processor: NewRecipientProcessor(RecipientProcessorOptions{
+			PresenceResolver: resolver,
+			OwnerPusher:      pusher,
+		}),
+		QueueSize: 1,
+		Workers:   1,
+		Observer:  observer,
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = worker.Stop(context.Background()) })
+
+	plan := RecipientDeliveryPlan{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Targets: []RecipientTargetBatch{
+			{Target: first, Recipients: []Recipient{{UID: "u1"}}},
+			{Target: second, Recipients: []Recipient{{UID: "u2"}}},
+		},
+	}
+	if err := worker.EnqueueRecipientDeliveryPlan(context.Background(), plan); err != nil {
+		t.Fatalf("EnqueueRecipientDeliveryPlan() error = %v", err)
+	}
+
+	observer.waitFailures(t, 1)
+	waitDeliveryWorkerCondition(t, func() bool { return pusher.callCount() == 1 })
+	if resolver.legacyCalls != 0 || resolver.targetCalls != 1 {
+		t.Fatalf("presence calls legacy/target = %d/%d, want 0/1", resolver.legacyCalls, resolver.targetCalls)
+	}
+	if !reflect.DeepEqual(resolver.targets, []RecipientAuthorityTarget{first, second}) {
+		t.Fatalf("resolved targets = %#v, want exact queued targets", resolver.targets)
+	}
+	got := observer.failures[0]
+	if got.TargetHashSlot != first.HashSlot || got.TargetLeaderNodeID != first.LeaderNodeID || !errors.Is(got.Err, presenceErr) {
+		t.Fatalf("first target failure = %#v, want exact first target and error", got)
+	}
+}
+
+func TestRecipientDeliveryWorkerIsolatesTargetPanicAndContinuesSiblingGroups(t *testing.T) {
+	first := recipientAuthorityTargetForTest(1, 10, 100)
+	second := recipientAuthorityTargetForTest(2, 20, 200)
+	third := recipientAuthorityTargetForTest(3, 30, 300)
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{results: []RecipientTargetPresenceResult{
+		{Routes: []Route{{UID: "u1", OwnerNodeID: 1, SessionID: 10}}},
+		{Routes: []Route{{UID: "u2", OwnerNodeID: 2, SessionID: 20}}},
+		{Routes: []Route{{UID: "u3", OwnerNodeID: 3, SessionID: 30}}},
+	}}
+	pusher := &selectivePanicOwnerPusherForDeliveryWorkerTest{panicOwnerNodeID: 2}
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		Processor: NewRecipientProcessor(RecipientProcessorOptions{
+			PresenceResolver: resolver,
+			OwnerPusher:      pusher,
+		}),
+		QueueSize: 1,
+		Workers:   1,
+		Observer:  observer,
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = worker.Stop(context.Background()) })
+
+	plan := RecipientDeliveryPlan{
+		Event: CommittedEnvelope{MessageID: 20, MessageSeq: 5, ChannelID: "g2", ChannelType: 2},
+		Targets: []RecipientTargetBatch{
+			{Target: first, Recipients: []Recipient{{UID: "u1"}}},
+			{Target: second, Recipients: []Recipient{{UID: "u2"}}},
+			{Target: third, Recipients: []Recipient{{UID: "u3"}}},
+		},
+	}
+	if err := worker.EnqueueRecipientDeliveryPlan(context.Background(), plan); err != nil {
+		t.Fatalf("EnqueueRecipientDeliveryPlan() error = %v", err)
+	}
+
+	observer.waitFailures(t, 1)
+	failure := observer.failures[0]
+	if failure.TargetHashSlot != second.HashSlot || failure.TargetLeaderNodeID != second.LeaderNodeID || !errors.Is(failure.Err, ErrEffectPanic) {
+		t.Fatalf("panic failure = %#v, want exact second target", failure)
+	}
+	waitDeliveryWorkerCondition(t, func() bool { return reflect.DeepEqual(pusher.ownerNodeIDs(), []uint64{1, 2, 3}) })
+	observer.waitProcesses(t, 1)
+	if got := observer.processes[0]; got.Result != recipientDeliveryResultPanic || got.Recipients != 3 {
+		t.Fatalf("panic process observation = %+v, want panic recipients=3", got)
+	}
 }
 
 func TestRecipientDeliveryWorkerSharesImmutableEnvelopeWithOwnerPush(t *testing.T) {
@@ -219,9 +318,47 @@ func TestRecipientDeliveryWorkerObservesConcurrentInflightAndReturnsToZero(t *te
 	}
 }
 
-func TestRecipientDeliveryWorkerStopDrainsAcceptedBatches(t *testing.T) {
+func TestRecipientDeliveryWorkerPlanDeadlineCancelsStalledProcessor(t *testing.T) {
+	blocker := newBlockingPresenceResolverForDeliveryWorkerTest()
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		Processor: NewRecipientProcessor(RecipientProcessorOptions{
+			PresenceResolver: blocker,
+			OwnerPusher:      &recordingOwnerPusherForDeliveryTest{},
+		}),
+		QueueSize:   1,
+		Workers:     1,
+		PlanTimeout: 20 * time.Millisecond,
+		Observer:    observer,
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		blocker.release()
+		_ = worker.Stop(context.Background())
+	})
+
+	batch := RecipientBatch{Event: CommittedEnvelope{MessageID: 1}, Recipients: []Recipient{{UID: "u1"}}}
+	if err := worker.EnqueueRecipientBatch(context.Background(), recipientAuthorityTargetForTest(1, 1, 1), batch); err != nil {
+		t.Fatalf("EnqueueRecipientBatch() error = %v", err)
+	}
+	blocker.waitStarted(t)
+	observer.waitFailures(t, 1)
+	observer.waitProcesses(t, 1)
+
+	if got := observer.failures[0]; !errors.Is(got.Err, context.DeadlineExceeded) {
+		t.Fatalf("processing failure = %v, want context deadline exceeded", got.Err)
+	}
+	if got := observer.processes[0]; got.Result != recipientDeliveryResultTimeout {
+		t.Fatalf("process result = %q, want %q", got.Result, recipientDeliveryResultTimeout)
+	}
+}
+
+func TestRecipientDeliveryWorkerStopCancelsAcceptedBatches(t *testing.T) {
 	blocker := newBlockingPresenceResolverForDeliveryWorkerTest()
 	pusher := &recordingOwnerPusherForDeliveryTest{}
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
 	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
 		Processor: NewRecipientProcessor(RecipientProcessorOptions{
 			PresenceResolver: blocker,
@@ -229,10 +366,12 @@ func TestRecipientDeliveryWorkerStopDrainsAcceptedBatches(t *testing.T) {
 		}),
 		QueueSize: 2,
 		Workers:   1,
+		Observer:  observer,
 	})
 	if err := worker.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	t.Cleanup(blocker.release)
 	batch := RecipientBatch{Event: CommittedEnvelope{MessageID: 1}, Recipients: []Recipient{{UID: "u1"}}}
 	if err := worker.EnqueueRecipientBatch(context.Background(), recipientAuthorityTargetForTest(1, 1, 1), batch); err != nil {
 		t.Fatalf("first EnqueueRecipientBatch() error = %v", err)
@@ -242,24 +381,105 @@ func TestRecipientDeliveryWorkerStopDrainsAcceptedBatches(t *testing.T) {
 		t.Fatalf("second EnqueueRecipientBatch() error = %v", err)
 	}
 
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := worker.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := pusher.callCount(); got != 0 {
+		t.Fatalf("push calls = %d, want canceled plans to stop before owner push", got)
+	}
+	if len(observer.processes) != 2 {
+		t.Fatalf("process observations = %d, want both accepted batches terminated", len(observer.processes))
+	}
+	for i, got := range observer.processes {
+		if got.Result != recipientDeliveryResultCanceled {
+			t.Fatalf("process[%d] result = %q, want %q", i, got.Result, recipientDeliveryResultCanceled)
+		}
+	}
+	if len(observer.failures) != 2 {
+		t.Fatalf("processing failures = %d, want both accepted batches observed", len(observer.failures))
+	}
+	for i, got := range observer.failures {
+		if !errors.Is(got.Err, context.Canceled) {
+			t.Fatalf("failure[%d] = %v, want context canceled", i, got.Err)
+		}
+	}
+}
+
+func TestRecipientDeliveryWorkerStopWaitsForSenderPastAdmissionGate(t *testing.T) {
+	blocker := newBlockingPresenceResolverForDeliveryWorkerTest()
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		Processor: NewRecipientProcessor(RecipientProcessorOptions{
+			PresenceResolver: blocker,
+			OwnerPusher:      &recordingOwnerPusherForDeliveryTest{},
+		}),
+		QueueSize: 1,
+		Workers:   1,
+		Observer:  observer,
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	// Model the exact interleaving after Enqueue crosses the open-state gate but
+	// before its channel send. Stop must not let workers exit during this window.
+	worker.mu.Lock()
+	worker.admissionSenders.Add(1)
+	queue := worker.queue
+	worker.mu.Unlock()
+	senderReleased := false
+	t.Cleanup(func() {
+		if !senderReleased {
+			worker.admissionSenders.Done()
+		}
+		blocker.release()
+		_ = worker.Stop(context.Background())
+	})
+
 	stopResult := make(chan error, 1)
 	go func() { stopResult <- worker.Stop(context.Background()) }()
+	waitDeliveryWorkerCondition(t, func() bool {
+		worker.mu.Lock()
+		defer worker.mu.Unlock()
+		return worker.state == recipientDeliveryWorkerClosing
+	})
 	select {
 	case err := <-stopResult:
-		t.Fatalf("Stop() returned before blocked batch was released: %v", err)
+		t.Fatalf("Stop() returned while an admitted sender was active: %v", err)
 	case <-time.After(20 * time.Millisecond):
 	}
-	blocker.release()
+
+	queue <- recipientDeliveryCommand{plan: RecipientDeliveryPlan{
+		Event: CommittedEnvelope{MessageID: 99},
+		Targets: []RecipientTargetBatch{{
+			Target:     recipientAuthorityTargetForTest(1, 1, 1),
+			Recipients: []Recipient{{UID: "u1"}},
+		}},
+	}}
+	observer.waitProcesses(t, 1)
+	select {
+	case err := <-stopResult:
+		t.Fatalf("Stop() returned before admitted sender left Enqueue: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	worker.admissionSenders.Done()
+	senderReleased = true
 	select {
 	case err := <-stopResult:
 		if err != nil {
 			t.Fatalf("Stop() error = %v", err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("Stop() did not drain accepted batches")
+		t.Fatal("Stop() did not finish after admitted sender left Enqueue")
 	}
-	if got := pusher.callCount(); got != 2 {
-		t.Fatalf("push calls = %d, want both accepted batches drained", got)
+	if len(worker.queue) != 0 {
+		t.Fatalf("queue depth after Stop = %d, want 0", len(worker.queue))
+	}
+	if got := observer.failures[0]; got.MessageID != 99 || !errors.Is(got.Err, context.Canceled) {
+		t.Fatalf("admitted command failure = %#v, want canceled message 99", got)
 	}
 }
 
@@ -477,6 +697,55 @@ func (o *recordingRecipientDeliveryWorkerObserverForTest) lastWorkerPressure(t *
 		t.Fatalf("no worker pressure observations")
 	}
 	return o.workers[len(o.workers)-1]
+}
+
+type recordingTargetPresenceResolverForDeliveryWorkerTest struct {
+	legacyCalls int
+	targetCalls int
+	targets     []RecipientAuthorityTarget
+	results     []RecipientTargetPresenceResult
+}
+
+type selectivePanicOwnerPusherForDeliveryWorkerTest struct {
+	mu               sync.Mutex
+	panicOwnerNodeID uint64
+	owners           []uint64
+}
+
+func (p *selectivePanicOwnerPusherForDeliveryWorkerTest) Push(_ context.Context, cmd PushCommand) (PushResult, error) {
+	p.mu.Lock()
+	p.owners = append(p.owners, cmd.OwnerNodeID)
+	panicOwnerNodeID := p.panicOwnerNodeID
+	p.mu.Unlock()
+	if cmd.OwnerNodeID == panicOwnerNodeID {
+		panic("target owner push panic")
+	}
+	return PushResult{Accepted: append([]Route(nil), cmd.Routes...)}, nil
+}
+
+func (p *selectivePanicOwnerPusherForDeliveryWorkerTest) ownerNodeIDs() []uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]uint64(nil), p.owners...)
+}
+
+func (r *recordingTargetPresenceResolverForDeliveryWorkerTest) EndpointsByUIDs(context.Context, []string) ([]Route, error) {
+	r.legacyCalls++
+	return nil, nil
+}
+
+func (r *recordingTargetPresenceResolverForDeliveryWorkerTest) EndpointsByTargets(_ context.Context, batches []RecipientTargetBatch) []RecipientTargetPresenceResult {
+	r.targetCalls++
+	r.targets = make([]RecipientAuthorityTarget, len(batches))
+	for i, batch := range batches {
+		r.targets[i] = batch.Target
+	}
+	results := make([]RecipientTargetPresenceResult, len(r.results))
+	copy(results, r.results)
+	for i := range results {
+		results[i].Routes = append([]Route(nil), results[i].Routes...)
+	}
+	return results
 }
 
 type errorPresenceResolverForDeliveryWorkerTest struct {

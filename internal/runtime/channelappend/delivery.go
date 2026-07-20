@@ -17,6 +17,9 @@ var (
 	ErrEffectPanic = errors.New("internal/channelappend: effect panic")
 	// ErrRealtimeDeliveryRequired reports a transient send without a realtime delivery queue.
 	ErrRealtimeDeliveryRequired = errors.New("internal/channelappend: realtime delivery required")
+	// ErrRecipientPresenceResultMissing reports a target-aware presence response
+	// that is not aligned with the submitted exact-target groups.
+	ErrRecipientPresenceResultMissing = errors.New("internal/channelappend: recipient presence result missing")
 )
 
 // RecipientProcessorOptions configures recipient-authority post-commit processing.
@@ -73,6 +76,72 @@ func (p *RecipientProcessor) ProcessRecipientBatch(ctx context.Context, batch Re
 	return processRecipientBatch(ctx, batch, p.ports)
 }
 
+// ProcessRecipientDeliveryPlan resolves and processes every exact-target group
+// in one bounded plan. Returned errors align with plan.Targets; one failed
+// authority group does not prevent other groups from being delivered.
+func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, plan RecipientDeliveryPlan) []error {
+	results := make([]error, len(plan.Targets))
+	if p == nil || len(plan.Targets) == 0 {
+		return results
+	}
+	if p.ports.presence == nil ||
+		(p.ports.pusher == nil && p.ports.offlineRecipientsObserver == nil && p.ports.offlineRecipientObserver == nil) {
+		return results
+	}
+	if err := contextErr(ctx); err != nil {
+		for i, target := range plan.Targets {
+			results[i] = withPostCommitFailureDetail(err, postCommitBatchDetail("context", RecipientBatch{
+				Event:      plan.Event,
+				Recipients: target.Recipients,
+			}))
+		}
+		return results
+	}
+	targetResolver, ok := p.ports.presence.(RecipientTargetPresenceResolver)
+	if !ok {
+		for i, target := range plan.Targets {
+			results[i] = processRecipientBatchSafely(ctx, RecipientBatch{Event: plan.Event, Recipients: target.Recipients}, p.ports)
+		}
+		return results
+	}
+
+	resolved := targetResolver.EndpointsByTargets(ctx, plan.Targets)
+	for i, target := range plan.Targets {
+		batch := RecipientBatch{Event: plan.Event, Recipients: target.Recipients}
+		if i >= len(resolved) {
+			results[i] = withPostCommitFailureDetail(ErrRecipientPresenceResultMissing, postCommitBatchDetail("presence_resolve", batch))
+			continue
+		}
+		if resolved[i].Err != nil {
+			detail := postCommitBatchDetail("presence_resolve", batch)
+			detail.UIDCount = len(recipientUIDs(batch.Recipients))
+			results[i] = withPostCommitFailureDetail(resolved[i].Err, detail)
+			continue
+		}
+		results[i] = processRecipientBatchWithRoutesSafely(ctx, batch, resolved[i].Routes, p.ports)
+	}
+	return results
+}
+
+func processRecipientBatchSafely(ctx context.Context, batch RecipientBatch, ports recipientPorts) (err error) {
+	defer recoverRecipientBatchPanic(batch, &err)
+	return processRecipientBatch(ctx, batch, ports)
+}
+
+func processRecipientBatchWithRoutesSafely(ctx context.Context, batch RecipientBatch, routes []Route, ports recipientPorts) (err error) {
+	defer recoverRecipientBatchPanic(batch, &err)
+	return processRecipientBatchWithRoutes(ctx, batch, routes, ports)
+}
+
+func recoverRecipientBatchPanic(batch RecipientBatch, err *error) {
+	if recovered := recover(); recovered != nil {
+		*err = withPostCommitFailureDetail(
+			effectPanicError(effectStagePostCommit, recovered),
+			postCommitBatchDetail("panic", batch),
+		)
+	}
+}
+
 func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports recipientPorts) error {
 	if len(batch.Recipients) == 0 {
 		return nil
@@ -91,6 +160,11 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 		detail.UIDCount = len(uids)
 		return withPostCommitFailureDetail(err, detail)
 	}
+	return processRecipientBatchWithRoutes(ctx, batch, routes, ports)
+}
+
+func processRecipientBatchWithRoutes(ctx context.Context, batch RecipientBatch, routes []Route, ports recipientPorts) error {
+	uids := recipientUIDs(batch.Recipients)
 	observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientsObserver, ports.offlineRecipientObserver)
 	if ports.pusher == nil {
 		return nil

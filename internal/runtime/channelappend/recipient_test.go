@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -466,6 +467,80 @@ func TestRecipientDeliveryBatchesAreEnqueuedByRecipientAuthorityTarget(t *testin
 	}
 }
 
+func TestRecipientDeliveryPageUsesOneBoundedPlanAcrossAuthorityTargets(t *testing.T) {
+	enqueuer := &recordingRecipientPlanEnqueuerForRecipientTest{}
+	first := authority.Target{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
+	second := authority.Target{HashSlot: 2, SlotID: 12, LeaderNodeID: 10, LeaderTerm: 102, ConfigEpoch: 1002, RouteRevision: 101, AuthorityEpoch: 1001}
+	third := authority.Target{HashSlot: 3, SlotID: 13, LeaderNodeID: 20, LeaderTerm: 103, ConfigEpoch: 1003, RouteRevision: 102, AuthorityEpoch: 1002}
+
+	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{MessageID: 1}, []Recipient{
+		{UID: "u1"},
+		{UID: "u2"},
+		{UID: "u3"},
+		{UID: "u4"},
+	}, commitPorts{
+		recipientAuthorityResolver: mapRecipientAuthorityResolverForRecipientTest{targets: map[string]RecipientAuthorityTarget{
+			"u1": first,
+			"u2": second,
+			"u3": first,
+			"u4": third,
+		}},
+		deliveryEnqueuer:   enqueuer,
+		recipientBatchSize: 4,
+	})
+	if err != nil {
+		t.Fatalf("dispatchRecipientSet() error = %v", err)
+	}
+
+	if enqueuer.legacyCalls != 0 {
+		t.Fatalf("legacy enqueue calls = %d, want 0 when plan admission is available", enqueuer.legacyCalls)
+	}
+	if len(enqueuer.plans) != 1 {
+		t.Fatalf("delivery plans = %d, want one recipient-page plan", len(enqueuer.plans))
+	}
+	plan := enqueuer.plans[0]
+	if plan.Event.MessageID != 1 || plan.RecipientCount() != 4 {
+		t.Fatalf("delivery plan = %#v, want message 1 and 4 recipients", plan)
+	}
+	if len(plan.Targets) != 3 {
+		t.Fatalf("target groups = %d, want 3 exact fenced targets", len(plan.Targets))
+	}
+	if plan.Targets[0].Target != first || plan.Targets[1].Target != second || plan.Targets[2].Target != third {
+		t.Fatalf("target order = %#v, want first-seen exact targets", plan.Targets)
+	}
+	if got := recipientUIDs(plan.Targets[0].Recipients); !reflect.DeepEqual(got, []string{"u1", "u3"}) {
+		t.Fatalf("first target recipients = %#v, want u1,u3", got)
+	}
+}
+
+func TestRecipientDeliveryPlansBoundTotalRecipientsAcrossTargets(t *testing.T) {
+	enqueuer := &recordingRecipientPlanEnqueuerForRecipientTest{}
+	targets := make(map[string]RecipientAuthorityTarget, 5)
+	recipients := make([]Recipient, 0, 5)
+	for i := 0; i < 5; i++ {
+		uid := fmt.Sprintf("u%d", i+1)
+		targets[uid] = recipientAuthorityTargetForTest(uint16(i+1), uint64(i+1), 100)
+		recipients = append(recipients, Recipient{UID: uid})
+	}
+
+	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{MessageID: 2}, recipients, commitPorts{
+		recipientAuthorityResolver: mapRecipientAuthorityResolverForRecipientTest{targets: targets},
+		deliveryEnqueuer:           enqueuer,
+		recipientBatchSize:         2,
+	})
+	if err != nil {
+		t.Fatalf("dispatchRecipientSet() error = %v", err)
+	}
+	if len(enqueuer.plans) != 3 {
+		t.Fatalf("delivery plans = %d, want 3 bounded plans", len(enqueuer.plans))
+	}
+	for i, plan := range enqueuer.plans {
+		if got := plan.RecipientCount(); got < 1 || got > 2 {
+			t.Fatalf("plan %d recipients = %d, want 1..2", i, got)
+		}
+	}
+}
+
 func TestDispatchRecipientSetSharesImmutablePayloadBeforeDeliveryQueue(t *testing.T) {
 	payload := []byte("payload")
 	enqueuer := &payloadAliasRecipientEnqueuerForRecipientTest{payload: payload}
@@ -898,6 +973,21 @@ type recordingRecipientDeliveryEnqueuerForRecipientTest struct {
 	steps   *orderedStepsForDeliveryTest
 	targets []RecipientAuthorityTarget
 	batches []RecipientBatch
+}
+
+type recordingRecipientPlanEnqueuerForRecipientTest struct {
+	legacyCalls int
+	plans       []RecipientDeliveryPlan
+}
+
+func (e *recordingRecipientPlanEnqueuerForRecipientTest) EnqueueRecipientBatch(_ context.Context, _ RecipientAuthorityTarget, _ RecipientBatch) error {
+	e.legacyCalls++
+	return nil
+}
+
+func (e *recordingRecipientPlanEnqueuerForRecipientTest) EnqueueRecipientDeliveryPlan(_ context.Context, plan RecipientDeliveryPlan) error {
+	e.plans = append(e.plans, plan.Clone())
+	return nil
 }
 
 func (e *recordingRecipientDeliveryEnqueuerForRecipientTest) EnqueueRecipientBatch(_ context.Context, target RecipientAuthorityTarget, batch RecipientBatch) error {

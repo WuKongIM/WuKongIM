@@ -269,18 +269,39 @@ func (d *Directory) EndpointsByUID(target RouteTarget, uid string) ([]Route, err
 	if err != nil {
 		return nil, err
 	}
-	keys := slot.byUID[uid]
+	return slot.endpointsByUIDLocked(uid), nil
+}
+
+// EndpointsByUIDs returns active routes for one exact authority target in UID input order.
+func (d *Directory) EndpointsByUIDs(target RouteTarget, uids []string) ([]Route, error) {
+	shard := d.shard(target.HashSlot)
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
+
+	slot, err := d.validateTargetLocked(shard, target)
+	if err != nil {
+		return nil, err
+	}
+	var routes []Route
+	for _, uid := range uids {
+		routes = append(routes, slot.endpointsByUIDLocked(uid)...)
+	}
+	return routes, nil
+}
+
+func (s *authoritySlot) endpointsByUIDLocked(uid string) []Route {
+	keys := s.byUID[uid]
 	if len(keys) == 0 {
-		return nil, nil
+		return nil
 	}
 	routes := make([]Route, 0, len(keys))
 	for key := range keys {
-		if route, ok := slot.active[key]; ok {
+		if route, ok := s.active[key]; ok {
 			routes = append(routes, route)
 		}
 	}
 	sortRoutes(routes)
-	return routes, nil
+	return routes
 }
 
 // Identity returns the immutable identity fields for this route.

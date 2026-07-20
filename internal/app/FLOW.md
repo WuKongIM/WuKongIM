@@ -383,7 +383,12 @@ delivery disabled, committed message effects still run inside the channel
 authority writer so recent conversation state is updated, but no online
 delivery is submitted. With delivery enabled, gateway RECVACK and session close
 feedback flows to the delivery usecase, while channelappend post-commit effects
-enqueue recipient-authority delivery batches into the recipient delivery worker.
+enqueue bounded multi-target recipient delivery plans into the recipient
+delivery worker. Each plan retains every exact Slot authority fence. The app
+presence adapter converts all plan groups in one call; the cluster adapter then
+batches local groups in the presence directory and sends at most one batch RPC
+to each remote Slot leader. Results remain aligned per exact target so a failed
+leader group does not discard successful groups from the same plan.
 `Config.ChannelAppend.AuthorityShardCount` defaults to a CPU-aware lookup-shard
 count with a minimum of four. `ChannelAppend.AdvancePoolSize` is the direct ants
 pool capacity used to activate channelappend writer state machines.
@@ -399,11 +404,13 @@ backlog records and drops the newest already-durable envelope without returning
 Prepare runs inline on the writer advance path; append remains the foreground
 durable path that determines SEND/SENDACK throughput.
 `ChannelAppend.RecipientAuthorityDispatchConcurrency` defaults to a bounded
-recipient-authority target fanout per post-commit envelope.
+recipient-authority target fanout for legacy batch-only enqueuers. The
+production plan-capable worker admits exact-target groups together instead of
+using this target fanout.
 `Delivery.RecipientWorkerConcurrency` independently defaults to 100 and controls
-only the goroutines draining the bounded recipient delivery queue, so target
-fanout and delivery execution capacity can be tuned without changing each
-other. The lookup-shard count controls writer map sharding; effect workers run only blocking effects and never write channel
+only the goroutines draining the bounded recipient delivery queue. The legacy
+target fanout and production plan execution capacities therefore remain
+independent. The lookup-shard count controls writer map sharding; effect workers run only blocking effects and never write channel
 state concurrently with another advance for the same channel. The delivery
 observer maps aggregate writer pressure and effect pool observations into
 Prometheus, and also records direct ants/v2 occupancy for the channelappend
@@ -416,8 +423,9 @@ The foreground SEND path waits only for channel-authority durable append;
 subscriber scan, recipient authority grouping, delivery enqueue, and the
 independent conversation active projection all run after SENDACK from the
 authority writer's best-effort post-commit pipeline. The recipient delivery worker later
-drains accepted batches, resolves online routes, and pushes owner-node delivery
-commands. Post-commit persistence and restart replay are not part of
+drains accepted plans, resolves all exact-target groups through the batched
+presence seam, and pushes owner-node delivery commands. Post-commit persistence
+and restart replay are not part of
 channelappend. Post-commit enqueue failures are logged with the failing phase and
 route/dispatch context, counted through effect metrics, and dropped after the
 routed helper's bounded retry window; they do not change channel durability or
@@ -445,12 +453,15 @@ subscriber source, or the cluster Slot metadata source. When cluster exposes
 batch key routing, the app recipient resolver resolves each subscriber page's
 unique UIDs through one batch route lookup. After each recipient set is formed,
 channelappend groups recipients by exact UID hash-slot authority
-target including Slot leader term and Slot config epoch, then enqueues delivery.
+target including Slot leader term and Slot config epoch, then packs the groups
+into a bounded delivery plan. The worker preserves those fences while the
+presence usecase groups target lookups by actual leader and returns partial
+per-target results.
 It next admits an independent kind-aware `conversationactive.ActiveBatch`
 through the shared `ConversationAuthorityClient`; channelappend chooses normal
 versus CMD kind from the committed envelope, and active admission still runs
 when online delivery is disabled. When delivery is enabled, the app wires a bounded
-recipient delivery worker that drains those batches and runs the delivery-only
+recipient delivery worker that drains those plans and runs the delivery-only
 channelappend recipient processor outside the authority writer. `/bench/v1/channels`,
 `/bench/v1/channels/subscribers`, and `/bench/v1/channels/subscribers/remove`
 write real channel metadata or add/remove subscriber rows through Slot proposals.
@@ -458,7 +469,7 @@ The benchmark data writer uses bounded concurrency for independent
 channel/subscriber mutations while preserving subscriber mutation order within
 the same channel. Scoped UID delivery bypasses subscriber scan and
 flows through recipient authority grouping, presence resolution, and the local
-or RPC owner pusher after the recipient delivery worker accepts the batch.
+or RPC owner pusher after the recipient delivery worker accepts the plan.
 The app maps the worker's serialized execution-pressure observation into
 Prometheus worker capacity and in-flight gauges. These metrics do not include
 UID, channel, slot, or per-target labels.

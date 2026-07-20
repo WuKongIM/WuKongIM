@@ -45,6 +45,7 @@
 - Conversation active admission is memory-only: it may evict clean rows or return cache pressure, but it must never perform durable I/O or wait for the serialized flush lane.
 - Conversation active pressure uses one coalesced async worker wakeup, bounded flush attempts, and 80%/70% high/dirty-low watermarks; clean rows below the dirty watermark are the reusable eviction reserve.
 - Conversation active projection failure is observed independently and must not block recipient delivery, later large-channel pages, or subscriber snapshot caching.
+- Recipient delivery plans preserve complete UID-authority fences and batch presence RPC by actual leader; only stale/not-ready groups may batch-resolve fresh targets and retry once, without replaying successful siblings.
 - Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
 - Duplicate/stale delete barriers must not clear an `ActiveAt` written by a newer message.
@@ -239,6 +240,8 @@
 - `wkbench dev-sim` must run warmup after prepare/connect and before measured run windows; warmup must touch every assigned channel at least once, and warmup counters are a baseline that must not be counted in `/status` measured traffic.
 - `wkbench dev-sim` `/status` distinguishes the configured steady-state online pool (`connected_users`) from the latest sampled live count (`active_users`) and reconnect churn (`reconnected_users`) so online flapping is visible during triage.
 - `wkbench` run-phase polling must budget deterministic churn reconnect pacing in addition to measured traffic duration; otherwise low connect rates turn healthy scheduled churn into a false `phase_timeout`.
+- `wkbench` worker state retains the complete Assignment, but status JSON must expose only assignment identity so polling cost is independent of Plan/Scenario size; legacy expanded status responses remain decodable.
+- A bounded worker status request that times out before the phase deadline is `worker_status`; at the phase deadline, use one independent final probe so an active response is `phase_completion` while another blocked response remains `worker_status`.
 - `wkbench` must prove every assigned worker reached exact `run_id + assignment_id` terminal stop before report collection, including non-fail-fast timeouts; a stopped identity is immutable and cannot be reused, `assignment_id` changes on same-ID reruns, stop serializes assignment work, outlives the HTTP caller, joins retries, waits hook exit, and tears down runner resources. Unconfirmed stop writes only minimal `worker_stop_failed` evidence; successful metrics/report reads use the same two-part identity.
 - Timed `wkbench` warmup and run polling must also budget the largest declared SENDACK/RECV timeout after scheduling stops; the base control-plane grace is not an operation-tail budget.
 - Mixed `wkbench` traffic must retain drained RECV frames only for channel types with receive verification; buffering unverified group fanout because person traffic verifies will create an unconsumed simulator backlog and invalidate the run.

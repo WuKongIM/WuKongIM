@@ -207,20 +207,78 @@ func (r channelAppendPresenceResolver) EndpointsByUIDs(ctx context.Context, uids
 	}
 	out := make([]channelappend.Route, 0)
 	for _, routes := range routesByUID {
-		for _, route := range routes {
-			out = append(out, channelappend.Route{
-				UID:         route.UID,
-				OwnerNodeID: route.OwnerNodeID,
-				OwnerBootID: route.OwnerBootID,
-				OwnerSeq:    route.OwnerSeq,
-				SessionID:   route.SessionID,
-				DeviceID:    route.DeviceID,
-				DeviceFlag:  route.DeviceFlag,
-				DeviceLevel: route.DeviceLevel,
-			})
-		}
+		out = appendChannelAppendRoutes(out, routes)
 	}
 	return out, nil
+}
+
+func (r channelAppendPresenceResolver) EndpointsByTargets(ctx context.Context, batches []channelappend.RecipientTargetBatch) []channelappend.RecipientTargetPresenceResult {
+	results := make([]channelappend.RecipientTargetPresenceResult, len(batches))
+	if len(batches) == 0 {
+		return results
+	}
+	if r.presence == nil {
+		for i := range results {
+			results[i].Err = presenceusecase.ErrAuthorityUnavailable
+		}
+		return results
+	}
+	groups := make([]presenceusecase.EndpointLookupGroup, len(batches))
+	for i, batch := range batches {
+		uids := make([]string, 0, len(batch.Recipients))
+		for _, recipient := range batch.Recipients {
+			if recipient.UID != "" {
+				uids = append(uids, recipient.UID)
+			}
+		}
+		groups[i] = presenceusecase.EndpointLookupGroup{
+			Target: presenceTargetFromRecipientTarget(batch.Target),
+			UIDs:   uids,
+		}
+	}
+	resolved := r.presence.EndpointsByTargets(ctx, groups)
+	for i := range results {
+		if i >= len(resolved) {
+			results[i].Err = channelappend.ErrRecipientPresenceResultMissing
+			continue
+		}
+		results[i].Err = resolved[i].Err
+		results[i].Routes = channelAppendRoutesFromPresence(resolved[i].Routes)
+	}
+	return results
+}
+
+func presenceTargetFromRecipientTarget(target channelappend.RecipientAuthorityTarget) presenceusecase.RouteTarget {
+	return presenceusecase.RouteTarget{
+		HashSlot:       target.HashSlot,
+		SlotID:         target.SlotID,
+		LeaderNodeID:   target.LeaderNodeID,
+		LeaderTerm:     target.LeaderTerm,
+		ConfigEpoch:    target.ConfigEpoch,
+		RouteRevision:  target.RouteRevision,
+		AuthorityEpoch: target.AuthorityEpoch,
+	}
+}
+
+func channelAppendRoutesFromPresence(routes []presenceusecase.Route) []channelappend.Route {
+	out := make([]channelappend.Route, 0, len(routes))
+	return appendChannelAppendRoutes(out, routes)
+}
+
+func appendChannelAppendRoutes(out []channelappend.Route, routes []presenceusecase.Route) []channelappend.Route {
+	for _, route := range routes {
+		out = append(out, channelappend.Route{
+			UID:         route.UID,
+			OwnerNodeID: route.OwnerNodeID,
+			OwnerBootID: route.OwnerBootID,
+			OwnerSeq:    route.OwnerSeq,
+			SessionID:   route.SessionID,
+			DeviceID:    route.DeviceID,
+			DeviceFlag:  route.DeviceFlag,
+			DeviceLevel: route.DeviceLevel,
+		})
+	}
+	return out
 }
 
 // channelAppendOwnerPusher adapts owner-node delivery pushes to channelappend.

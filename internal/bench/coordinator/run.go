@@ -27,6 +27,7 @@ import (
 const (
 	defaultPollInterval            = 25 * time.Millisecond
 	defaultPollTimeout             = 10 * time.Second
+	defaultWorkerStatusTimeout     = time.Second
 	defaultStopTimeout             = 2 * time.Second
 	defaultTrafficOperationTimeout = 5 * time.Second
 	maxBodySnippetBytes            = 512
@@ -936,12 +937,15 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 	ticker := time.NewTicker(c.cfg.PollInterval)
 	defer ticker.Stop()
 	for {
-		status, err := c.workerStatus(ctx, w)
+		status, err := c.workerStatusBounded(ctx, w)
 		if err != nil {
 			if errorsIsParentContext(parent, err) {
 				return parent.Err()
 			}
 			if ctx.Err() != nil {
+				return c.finalPhaseStatus(parent, w, runID, assignmentID, want)
+			}
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 				return phaseTimeoutOperationError(worker.FailureOperationWorkerStatus)
 			}
 			return err
@@ -965,10 +969,58 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 			if parentErr := parent.Err(); parentErr != nil {
 				return parentErr
 			}
-			return phaseTimeoutOperationError(worker.FailureOperationPhaseCompletion)
+			return c.finalPhaseStatus(parent, w, runID, assignmentID, want)
 		case <-ticker.C:
 		}
 	}
+}
+
+func (c *Coordinator) workerStatusBounded(ctx context.Context, w model.Worker) (worker.Status, error) {
+	requestCtx, cancel := context.WithTimeout(ctx, c.workerStatusTimeout())
+	defer cancel()
+	return c.workerStatus(requestCtx, w)
+}
+
+func (c *Coordinator) finalPhaseStatus(parent context.Context, w model.Worker, runID, assignmentID string, want Phase) error {
+	if err := parent.Err(); err != nil {
+		return err
+	}
+	probeCtx, cancel := context.WithTimeout(parent, c.workerStatusTimeout())
+	defer cancel()
+	status, err := c.workerStatus(probeCtx, w)
+	if err != nil {
+		if parentErr := parent.Err(); parentErr != nil {
+			return parentErr
+		}
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return phaseTimeoutOperationError(worker.FailureOperationWorkerStatus)
+		}
+		return err
+	}
+	if err := validateStatusAssignment(status, w, runID, assignmentID); err != nil {
+		return err
+	}
+	if status.LastError != "" {
+		return workerStatusPhaseError(status.LastError, status.LastErrorCode, status.LastErrorOperation)
+	}
+	if status.CompletedPhase == want || (status.CompletedPhase == "" && status.Phase == want) {
+		return nil
+	}
+	if status.Phase == worker.PhaseStopped {
+		return fmt.Errorf("worker stopped before phase %s", want)
+	}
+	return phaseTimeoutOperationError(worker.FailureOperationPhaseCompletion)
+}
+
+func (c *Coordinator) workerStatusTimeout() time.Duration {
+	timeout := defaultWorkerStatusTimeout
+	if c.cfg.PollTimeout > 0 && c.cfg.PollTimeout < timeout {
+		timeout = c.cfg.PollTimeout
+	}
+	if timeout <= 0 {
+		return defaultWorkerStatusTimeout
+	}
+	return timeout
 }
 
 func (c *Coordinator) workerStatus(ctx context.Context, w model.Worker) (worker.Status, error) {

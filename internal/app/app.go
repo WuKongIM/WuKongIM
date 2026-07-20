@@ -785,6 +785,13 @@ func (a presenceDirectoryAuthority) EndpointsByUID(ctx context.Context, target p
 	return a.directory.EndpointsByUID(target, uid)
 }
 
+func (a presenceDirectoryAuthority) EndpointsByUIDs(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return a.directory.EndpointsByUIDs(target, uids)
+}
+
 func (a presenceDirectoryAuthority) TouchRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	if err := ctx.Err(); err != nil {
 		return err

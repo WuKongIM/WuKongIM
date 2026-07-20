@@ -78,9 +78,20 @@ EndpointsByUIDs(uids)
   -> authority.EndpointsByUIDs(uids) when the authority client exposes the
      optional batch surface
   -> otherwise loop through authority.EndpointsByUID(uid)
+
+EndpointsByTargets([{exact target, uids}])
+  -> authority.EndpointsByTargets(groups) when the authority client exposes the
+     target-aware batch surface
+  -> otherwise loop through authority.EndpointsByUID(uid) within each group
+     for compatibility with limited harnesses
 ```
 
-Lookup stays authority-routed behind the `AuthorityClient` port.
+Target-aware lookup returns one aligned `EndpointLookupResult` per input group.
+A group-scoped lookup error is recorded on that result and does not abort later
+groups. Production cluster adapters preserve the supplied complete target
+fence; the legacy fallback deliberately cannot do so and exists only for
+compatibility with older or limited authority implementations. Lookup stays
+authority-routed behind the `AuthorityClient` port.
 
 ## Import Boundary
 
