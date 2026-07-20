@@ -240,6 +240,48 @@ func TestExtractedStrictLeaderTransferRejectsInvalidatedIntentAtExecutionGap(t *
 	}
 }
 
+func TestExtractedStrictLeaderTransferDoesNotHoldSlotLockWhileGuardWaits(t *testing.T) {
+	g := newLeaderTestSlotForDrain()
+	guard := &blockingBeforeActionPreferredLeaderGuard{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	request := newClaimedStrictLeaderTransferRequest(guard)
+	executeDone := make(chan struct{})
+	go func() {
+		g.executeStrictLeaderTransfer(request, 2)
+		close(executeDone)
+	}()
+	select {
+	case <-guard.entered:
+	case <-time.After(time.Second):
+		t.Fatal("strict transfer did not reach the intent guard")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		g.mu.Lock()
+		g.closed = true
+		g.mu.Unlock()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("intent guard wait held the Slot mutex")
+	}
+	close(guard.release)
+	select {
+	case <-executeDone:
+	case <-time.After(time.Second):
+		t.Fatal("strict transfer did not finish after the guard was released")
+	}
+	response := <-request.resp
+	if response.decision != "" || !errors.Is(response.err, ErrSlotClosed) {
+		t.Fatalf("strict response = %+v, want terminal Slot close", response)
+	}
+}
+
 func newClaimedStrictLeaderTransferRequest(guard PreferredLeaderTransferGuard) *strictLeaderTransferRequest {
 	request := &strictLeaderTransferRequest{
 		ctx:            context.Background(),
@@ -259,6 +301,24 @@ type invalidatablePreferredLeaderGuard struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	current bool
+}
+
+type blockingBeforeActionPreferredLeaderGuard struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (g *blockingBeforeActionPreferredLeaderGuard) Context() context.Context {
+	return context.Background()
+}
+
+func (g *blockingBeforeActionPreferredLeaderGuard) ExecuteIfCurrent(action func()) bool {
+	close(g.entered)
+	<-g.release
+	if action != nil {
+		action()
+	}
+	return true
 }
 
 func newInvalidatablePreferredLeaderGuard() *invalidatablePreferredLeaderGuard {

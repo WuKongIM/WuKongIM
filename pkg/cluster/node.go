@@ -173,10 +173,15 @@ type Node struct {
 // preferredLeaderIntentGeneration linearizes snapshot invalidation against
 // the final nonblocking Raft TransferLeader call.
 type preferredLeaderIntentGeneration struct {
-	mu       sync.Mutex
-	ctx      context.Context
-	cancel   context.CancelFunc
-	current  bool
+	// mu serializes invalidation with the final guarded transfer action.
+	mu sync.Mutex
+	// ctx is canceled when snapshot apply or shutdown invalidates this generation.
+	ctx context.Context
+	// cancel cancels ctx exactly once while mu is held.
+	cancel context.CancelFunc
+	// current reports whether guarded actions may still execute.
+	current bool
+	// snapshot is the immutable applied Controller intent for exact matching.
 	snapshot control.Snapshot
 }
 

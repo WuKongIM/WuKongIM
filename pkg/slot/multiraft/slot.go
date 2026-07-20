@@ -110,20 +110,34 @@ type controlAction struct {
 	strictTransfer *strictLeaderTransferRequest
 }
 
+// strictLeaderTransferRequest carries one exact, timeout-bounded placement
+// intent from the cluster reconciler to the owning Slot worker.
 type strictLeaderTransferRequest struct {
-	ctx            context.Context
+	// ctx cancels the request before it crosses the nonblocking issue point.
+	ctx context.Context
+	// expectedLeader fences the actual leader observed by the reconciler.
 	expectedLeader NodeID
-	expectedTerm   uint64
+	// expectedTerm fences the Raft term observed by the reconciler.
+	expectedTerm uint64
+	// expectedVoters fences the stable voter set observed by the reconciler.
 	expectedVoters []NodeID
-	target         NodeID
-	guard          PreferredLeaderTransferGuard
-	resp           chan strictLeaderTransferResponse
-	state          atomic.Uint32
+	// target is the exact preferred voter; strict placement never falls back.
+	target NodeID
+	// guard linearizes Controller-intent invalidation with the final issue point.
+	guard PreferredLeaderTransferGuard
+	// resp carries the single terminal decision or error to the caller.
+	resp chan strictLeaderTransferResponse
+	// state prevents cancellation, execution, and completion from winning twice.
+	state atomic.Uint32
 }
 
+// strictLeaderTransferResponse is the single terminal result returned by the
+// Slot worker for a strict preferred-leader request.
 type strictLeaderTransferResponse struct {
+	// decision is a bounded no-op or transfer-started classification.
 	decision PreferredLeaderTransferDecision
-	err      error
+	// err reports cancellation or terminal Slot/runtime failure.
+	err error
 }
 
 const (
@@ -475,14 +489,15 @@ func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest,
 	if g == nil || request == nil || target == 0 {
 		return
 	}
-	g.mu.Lock()
-	if err := g.admissionErrLocked(); err != nil {
-		g.mu.Unlock()
-		request.finish(strictLeaderTransferResponse{err: err})
-		return
-	}
 	started := false
+	var terminalErr error
 	current := request.guard != nil && request.guard.ExecuteIfCurrent(func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		if err := g.admissionErrLocked(); err != nil {
+			terminalErr = err
+			return
+		}
 		if request.ctx.Err() != nil || !request.beginExecution() {
 			return
 		}
@@ -490,9 +505,12 @@ func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest,
 		g.rawNode.TransferLeader(uint64(target))
 		started = true
 	})
-	g.mu.Unlock()
 	if !current {
 		request.finish(strictLeaderTransferResponse{decision: PreferredLeaderTransferStaleIntent})
+		return
+	}
+	if terminalErr != nil {
+		request.finish(strictLeaderTransferResponse{err: terminalErr})
 		return
 	}
 	if started {
@@ -501,7 +519,9 @@ func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest,
 	}
 	if err := request.ctx.Err(); err != nil {
 		request.finish(strictLeaderTransferResponse{err: err})
+		return
 	}
+	request.finish(strictLeaderTransferResponse{decision: PreferredLeaderTransferStaleIntent})
 }
 
 func (g *slot) takeRequestBatch() []raftpb.Message {

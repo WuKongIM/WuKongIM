@@ -263,9 +263,13 @@ const (
 // PreferredLeaderTransferGuard linearizes Controller-intent invalidation with
 // the final nonblocking Raft TransferLeader call. ExecuteIfCurrent must run the
 // supplied action under the same guard used by the owner to invalidate the
-// generation before applying newer intent.
+// generation before applying newer intent. Implementations must invoke the
+// action synchronously at most once, return promptly, and must not call back
+// into Runtime or Slot APIs; the Slot worker waits for this method to return.
 type PreferredLeaderTransferGuard interface {
+	// Context is canceled when the guarded Controller-intent generation expires.
 	Context() context.Context
+	// ExecuteIfCurrent invokes action only while this generation is current.
 	ExecuteIfCurrent(func()) bool
 }
 
