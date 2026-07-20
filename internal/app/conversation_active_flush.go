@@ -23,6 +23,8 @@ type conversationActiveFlushWorkerOptions struct {
 	FlushTimeout time.Duration
 	// BatchRows bounds dirty active rows flushed in one tick.
 	BatchRows int
+	// PressureSignals receives coalesced dirty-cache pressure wakeups.
+	PressureSignals <-chan struct{}
 	// Logger records periodic flush failures.
 	Logger wklog.Logger
 }
@@ -107,11 +109,18 @@ func (w *conversationActiveFlushWorker) tick(ctx context.Context) {
 	defer w.wg.Done()
 	ticker := time.NewTicker(w.opts.FlushInterval)
 	defer ticker.Stop()
+	pressureSignals := w.opts.PressureSignals
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			_, _ = w.flushOnce(ctx, false)
+		case _, ok := <-pressureSignals:
+			if !ok {
+				pressureSignals = nil
+				continue
+			}
 			_, _ = w.flushOnce(ctx, false)
 		}
 	}

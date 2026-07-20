@@ -287,6 +287,7 @@ func (a *App) wireConversationAuthority() {
 		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ConversationAuthorityNode)
 		authorityStore, hasAuthorityStore := a.cluster.(conversationAuthorityStore)
 		if hasAuthorityNode && hasAuthorityStore {
+			pressureSignals := make(chan struct{}, 1)
 			authority := newConversationAuthority(conversationAuthorityOptions{
 				LocalNodeID:          authorityNode.NodeID(),
 				Store:                authorityStore,
@@ -297,6 +298,7 @@ func (a *App) wireConversationAuthority() {
 				AdmissionConcurrency: a.cfg.Conversation.AuthorityAdmitConcurrency,
 				ActiveCooldown:       a.cfg.Conversation.AuthorityActiveCooldown,
 				FlushBatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
+				PressureNotify:       pressureSignals,
 				CurrentRouteTarget:   a.currentConversationAuthorityRouteTarget,
 				Observer:             a.conversationAuthorityObserver(),
 			})
@@ -305,11 +307,12 @@ func (a *App) wireConversationAuthority() {
 			a.conversationAuthorityClient = client
 			if a.conversationActiveWorker == nil {
 				a.conversationActiveWorker = newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
-					Authority:     authority,
-					FlushInterval: a.cfg.Conversation.AuthorityFlushInterval,
-					FlushTimeout:  a.cfg.Conversation.AuthorityFlushTimeout,
-					BatchRows:     a.cfg.Conversation.AuthorityFlushBatchRows,
-					Logger:        a.logger.Named("conversation_active_flush"),
+					Authority:       authority,
+					FlushInterval:   a.cfg.Conversation.AuthorityFlushInterval,
+					FlushTimeout:    a.cfg.Conversation.AuthorityFlushTimeout,
+					BatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
+					PressureSignals: pressureSignals,
+					Logger:          a.logger.Named("conversation_active_flush"),
 				})
 			}
 			if a.conversationRouteLifecycle == nil {

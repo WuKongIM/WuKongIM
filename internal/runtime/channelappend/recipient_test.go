@@ -44,7 +44,7 @@ func TestScopedUIDsBypassSubscriberScan(t *testing.T) {
 	}
 }
 
-func TestActiveBatchAdmittedBeforeRecipientEnqueuer(t *testing.T) {
+func TestRecipientDeliveryDoesNotWaitForActiveBatchAdmission(t *testing.T) {
 	steps := &orderedStepsForDeliveryTest{}
 	active := &recordingActiveAdmitterForRecipientTest{steps: steps}
 	enqueuer := &recordingRecipientEnqueuerForRecipientTest{steps: steps}
@@ -69,8 +69,8 @@ func TestActiveBatchAdmittedBeforeRecipientEnqueuer(t *testing.T) {
 		t.Fatalf("dispatchCommittedRecipients() error = %v", err)
 	}
 
-	if got := steps.snapshot(); !reflect.DeepEqual(got, []string{"active", "delivery"}) {
-		t.Fatalf("steps = %#v, want active before delivery", got)
+	if got := steps.snapshot(); !reflect.DeepEqual(got, []string{"delivery", "active"}) {
+		t.Fatalf("steps = %#v, want delivery before active projection", got)
 	}
 	if len(active.batches) != 1 {
 		t.Fatalf("active batches = %d, want 1", len(active.batches))
@@ -176,12 +176,15 @@ func TestRecipientProcessorAdmitsCMDConversationKind(t *testing.T) {
 	}
 }
 
-func TestActiveBatchFailureStopsRecipientEnqueuer(t *testing.T) {
+func TestActiveBatchFailureDoesNotStopRecipientEnqueuer(t *testing.T) {
 	activeErr := errors.New("active unavailable")
 	active := &recordingActiveAdmitterForRecipientTest{err: activeErr}
 	enqueuer := &recordingRecipientEnqueuerForRecipientTest{}
 
-	err := dispatchCommittedRecipients(context.Background(), CommittedEnvelope{
+	dispatch, err := dispatchCommittedRecipientsForTarget(context.Background(), AuthorityTarget{
+		ChannelID: ChannelID{ID: "g1", Type: 2},
+		Large:     true,
+	}, CommittedEnvelope{
 		MessageID:         1,
 		MessageSeq:        7,
 		ChannelID:         "g1",
@@ -189,21 +192,122 @@ func TestActiveBatchFailureStopsRecipientEnqueuer(t *testing.T) {
 		FromUID:           "sender",
 		ServerTimestampMS: 99,
 		MessageScopedUIDs: []string{"u2"},
-	}, commitPorts{
+	}, subscriberCache{}, commitPorts{
 		activeAdmitter:             active,
 		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
 		deliveryEnqueuer:           enqueuer,
 		recipientBatchSize:         16,
 	})
-	if !errors.Is(err, activeErr) {
-		t.Fatalf("dispatchCommittedRecipients() error = %v, want active error", err)
+	if err != nil {
+		t.Fatalf("dispatchCommittedRecipientsForTarget() delivery error = %v, want nil", err)
 	}
-	detail := postCommitFailureDetailFromError(err)
+	if !errors.Is(dispatch.activeErr, activeErr) {
+		t.Fatalf("active projection error = %v, want %v", dispatch.activeErr, activeErr)
+	}
+	detail := postCommitFailureDetailFromError(dispatch.activeErr)
 	if detail.Phase != "conversation_active" || detail.UID != "u2" || detail.RecipientCount != 1 {
 		t.Fatalf("post-commit failure detail = %#v, want conversation_active detail", detail)
 	}
-	if got := enqueuer.callCount(); got != 0 {
-		t.Fatalf("enqueuer calls = %d, want 0 after active failure", got)
+	if got := enqueuer.callCount(); got != 1 {
+		t.Fatalf("enqueuer calls = %d, want 1 despite active failure", got)
+	}
+}
+
+func TestActiveBatchFailureDoesNotStopLargeSubscriberPages(t *testing.T) {
+	activeErr := errors.New("active unavailable")
+	active := &recordingActiveAdmitterForRecipientTest{err: activeErr}
+	enqueuer := &recordingRecipientEnqueuerForRecipientTest{}
+	source := &recordingSubscriberSourceForRecipientTest{pages: []SubscriberPage{
+		{Recipients: []Recipient{{UID: "u2"}}, Cursor: "next"},
+		{Recipients: []Recipient{{UID: "u3"}}, Done: true},
+	}}
+
+	dispatch, err := dispatchCommittedRecipientsForTarget(context.Background(), AuthorityTarget{
+		ChannelID: ChannelID{ID: "g1", Type: 2},
+		Large:     true,
+	}, CommittedEnvelope{
+		MessageID:   1,
+		MessageSeq:  7,
+		ChannelID:   "g1",
+		ChannelType: 2,
+		FromUID:     "sender",
+	}, subscriberCache{}, commitPorts{
+		activeAdmitter:             active,
+		subscribers:                source,
+		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
+		deliveryEnqueuer:           enqueuer,
+		recipientBatchSize:         16,
+		subscriberPageSize:         1,
+	})
+	if err != nil {
+		t.Fatalf("dispatchCommittedRecipientsForTarget() delivery error = %v, want nil", err)
+	}
+	if !errors.Is(dispatch.activeErr, activeErr) {
+		t.Fatalf("active projection error = %v, want %v", dispatch.activeErr, activeErr)
+	}
+	if source.calls != 2 {
+		t.Fatalf("subscriber page calls = %d, want all 2 pages", source.calls)
+	}
+	if got := enqueuer.allUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3"}) {
+		t.Fatalf("enqueued recipients = %#v, want all large-channel pages", got)
+	}
+}
+
+func TestActiveBatchFailureStillCommitsSubscriberSnapshot(t *testing.T) {
+	activeErr := errors.New("active unavailable")
+	target := AuthorityTarget{
+		ChannelID:                 ChannelID{ID: "g1", Type: 2},
+		SubscriberMutationVersion: 9,
+	}
+	dispatch, err := dispatchCommittedRecipientsForTarget(context.Background(), target, CommittedEnvelope{
+		MessageID:   1,
+		MessageSeq:  7,
+		ChannelID:   "g1",
+		ChannelType: 2,
+		FromUID:     "sender",
+	}, subscriberCache{}, commitPorts{
+		activeAdmitter: &recordingActiveAdmitterForRecipientTest{err: activeErr},
+		subscribers: &recordingSubscriberSourceForRecipientTest{pages: []SubscriberPage{{
+			Recipients: []Recipient{{UID: "u2"}},
+			Done:       true,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("dispatchCommittedRecipientsForTarget() delivery error = %v, want nil", err)
+	}
+	if !errors.Is(dispatch.activeErr, activeErr) {
+		t.Fatalf("active projection error = %v, want %v", dispatch.activeErr, activeErr)
+	}
+	if !dispatch.subscriberCache.matches(target) {
+		t.Fatalf("subscriber cache = %#v, want ready version %d despite active failure", dispatch.subscriberCache, target.SubscriberMutationVersion)
+	}
+}
+
+func TestSubscriberSnapshotDoubleFailurePreservesIndependentActiveError(t *testing.T) {
+	target := AuthorityTarget{
+		ChannelID:                 ChannelID{ID: "g1", Type: 2},
+		SubscriberMutationVersion: 9,
+	}
+	dispatch, err := dispatchCommittedRecipientsForTarget(context.Background(), target, CommittedEnvelope{
+		MessageID:   1,
+		MessageSeq:  7,
+		ChannelID:   "g1",
+		ChannelType: 2,
+		FromUID:     "sender",
+	}, subscriberCache{}, commitPorts{
+		activeAdmitter:             &recordingActiveAdmitterForRecipientTest{err: context.DeadlineExceeded},
+		subscribers:                &recordingSubscriberSourceForRecipientTest{pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}}, Done: true}}},
+		recipientAuthorityResolver: failingRecipientAuthorityResolverForRecipientTest{err: ErrRouteNotReady},
+		deliveryEnqueuer:           &recordingRecipientEnqueuerForRecipientTest{},
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("delivery error = %v, want %v", err, ErrRouteNotReady)
+	}
+	if !errors.Is(dispatch.activeErr, context.DeadlineExceeded) {
+		t.Fatalf("active projection error = %v, want deadline exceeded", dispatch.activeErr)
+	}
+	if dispatch.subscriberCache.ready {
+		t.Fatal("subscriber cache committed despite delivery failure")
 	}
 }
 

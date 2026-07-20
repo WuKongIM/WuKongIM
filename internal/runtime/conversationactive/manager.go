@@ -3,13 +3,17 @@ package conversationactive
 import (
 	"container/heap"
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-const defaultPressureSpillRows = 128
+const (
+	pressureHighWatermarkPercent = 80
+	pressureLowWatermarkPercent  = 70
+)
 
 type conversationKey struct {
 	kind        metadb.ConversationKind
@@ -60,8 +64,14 @@ type Manager struct {
 	activeCooldown time.Duration
 	// maxCachedRows bounds cached rows across all UIDs; zero means unbounded.
 	maxCachedRows int
-	// pressureSpillRows sets the reusable headroom for one synchronous cache-pressure flush and eviction.
-	pressureSpillRows int
+	// pressureHighRows starts proactive asynchronous flushing at this cache size.
+	pressureHighRows int
+	// pressureLowDirtyRows stops a pressure-triggered flush cycle while retaining clean rows as an eviction reserve.
+	pressureLowDirtyRows int
+	// pressureDraining reports that the asynchronous worker is draining a high-pressure cache.
+	pressureDraining bool
+	// pressureNotify receives nonblocking cache-pressure wakeups owned by the app flush worker.
+	pressureNotify chan<- struct{}
 	// observer receives cache and flush observations.
 	observer Observer
 	// totalRows tracks cached active rows across all UID maps.
@@ -92,22 +102,21 @@ func NewManager(opts Options) *Manager {
 			return time.Now().UnixMilli()
 		}
 	}
-	pressureSpillRows := opts.PressureSpillRows
-	if pressureSpillRows <= 0 {
-		pressureSpillRows = defaultPressureSpillRows
-	}
+	pressureHighRows, pressureLowDirtyRows := pressureWatermarks(opts.MaxCachedRows)
 	return &Manager{
-		nowMS:               nowMS,
-		store:               opts.Store,
-		activeCooldown:      opts.ActiveCooldown,
-		maxCachedRows:       opts.MaxCachedRows,
-		pressureSpillRows:   pressureSpillRows,
-		observer:            opts.Observer,
-		rowsByKind:          make(map[metadb.ConversationKind]int),
-		dirtyRowsByKind:     make(map[metadb.ConversationKind]int),
-		dirtyActiveAtCounts: make(map[int64]int),
-		cache:               make(map[string]map[conversationKey]cacheEntry),
-		dirtyByHashSlot:     make(map[uint16]map[cacheAddress]struct{}),
+		nowMS:                nowMS,
+		store:                opts.Store,
+		activeCooldown:       opts.ActiveCooldown,
+		maxCachedRows:        opts.MaxCachedRows,
+		pressureHighRows:     pressureHighRows,
+		pressureLowDirtyRows: pressureLowDirtyRows,
+		pressureNotify:       opts.PressureNotify,
+		observer:             opts.Observer,
+		rowsByKind:           make(map[metadb.ConversationKind]int),
+		dirtyRowsByKind:      make(map[metadb.ConversationKind]int),
+		dirtyActiveAtCounts:  make(map[int64]int),
+		cache:                make(map[string]map[conversationKey]cacheEntry),
+		dirtyByHashSlot:      make(map[uint16]map[cacheAddress]struct{}),
 	}
 }
 
@@ -198,16 +207,76 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 				}
 				m.markActiveLocked(patch, hashSlot, hasHashSlot)
 			}
+			signalPressure := m.startPressureDrainLocked()
 			m.mu.Unlock()
+			if signalPressure {
+				m.signalPressure()
+			}
 			m.observeCache()
 			return nil
 		}
+		signalPressure := !m.pressureDraining
+		m.pressureDraining = true
 		m.mu.Unlock()
-
-		if err := m.spillForPressure(ctx, newRows); err != nil {
-			return err
+		if signalPressure {
+			m.signalPressure()
 		}
+		return ErrCachePressure
 	}
+}
+
+func (m *Manager) signalPressure() {
+	if m == nil || m.pressureNotify == nil {
+		return
+	}
+	select {
+	case m.pressureNotify <- struct{}{}:
+	default:
+	}
+}
+
+func (m *Manager) startPressureDrainLocked() bool {
+	if m.pressureDraining || m.maxCachedRows <= 0 || m.pressureHighRows <= 0 || m.totalRows < m.pressureHighRows || m.dirtyRows <= m.pressureLowDirtyRows {
+		return false
+	}
+	m.pressureDraining = true
+	return true
+}
+
+func (m *Manager) continuePressureDrain() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	if !m.pressureDraining {
+		m.mu.Unlock()
+		return
+	}
+	if m.dirtyRows <= m.pressureLowDirtyRows {
+		m.pressureDraining = false
+		m.mu.Unlock()
+		return
+	}
+	m.mu.Unlock()
+	m.signalPressure()
+}
+
+func pressureWatermarks(maxRows int) (int, int) {
+	if maxRows <= 0 {
+		return 0, 0
+	}
+	high := maxRows * pressureHighWatermarkPercent / 100
+	if high <= 0 {
+		high = 1
+	}
+	low := maxRows * pressureLowWatermarkPercent / 100
+	if low >= high {
+		low = high - 1
+	}
+	if low < 0 {
+		low = 0
+	}
+	return high, low
 }
 
 func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSlot bool) {
@@ -288,44 +357,6 @@ func (m *Manager) cacheWouldExceedLocked(newRows int) bool {
 	return m.maxCachedRows > 0 && newRows > 0 && m.totalRows+newRows > m.maxCachedRows
 }
 
-func (m *Manager) spillForPressure(ctx context.Context, newRows int) error {
-	if m.store == nil {
-		return ErrCachePressure
-	}
-
-	m.flushMu.Lock()
-	defer m.flushMu.Unlock()
-
-	m.mu.RLock()
-	over := m.totalRows + newRows - m.maxCachedRows
-	m.mu.RUnlock()
-	if over <= 0 {
-		return nil
-	}
-	spillRows := m.pressureSpillRows
-	if over > spillRows {
-		spillRows = over
-	}
-	if _, err := m.flushDirtySerialized(ctx, spillRows); err != nil {
-		return err
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	over = m.totalRows + newRows - m.maxCachedRows
-	if over <= 0 {
-		return nil
-	}
-	if over > spillRows {
-		spillRows = over
-	}
-	if evicted := m.evictCleanRowsLocked(spillRows); evicted < over {
-		return ErrCachePressure
-	}
-	return nil
-}
-
 func (m *Manager) evictCleanRowsLocked(limit int) int {
 	if limit <= 0 {
 		return 0
@@ -389,6 +420,7 @@ func (m *Manager) flushDirtySerialized(ctx context.Context, limit int) (FlushRes
 
 func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, entries []flushEntry) (FlushResult, error) {
 	if len(entries) == 0 {
+		m.continuePressureDrain()
 		m.observeFlush(FlushObservation{Result: "no_dirty", Duration: positiveDuration(time.Since(startedAt))})
 		m.observeCache()
 		return FlushResult{}, nil
@@ -396,7 +428,7 @@ func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, en
 
 	flushEntries, skippedEntries, err := m.filterFlushEntries(ctx, entries)
 	if err != nil {
-		m.observeFlush(FlushObservation{Result: "error", Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+		m.observeFlush(FlushObservation{Result: flushErrorResult(err), Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
 		m.observeCache()
 		return FlushResult{Selected: len(entries)}, err
 	}
@@ -407,16 +439,24 @@ func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, en
 	}
 	if len(patches) > 0 {
 		if err := m.store.TouchConversationActiveAt(ctx, patches); err != nil {
-			m.observeFlush(FlushObservation{Result: "error", Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+			m.observeFlush(FlushObservation{Result: flushErrorResult(err), Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
 			m.observeCache()
 			return FlushResult{Selected: len(entries)}, err
 		}
 	}
 	m.clearSkippedDirty(skippedEntries)
 	m.clearFlushedDirty(flushEntries)
+	m.continuePressureDrain()
 	m.observeFlush(FlushObservation{Result: "ok", Selected: len(entries), Flushed: len(flushEntries), Duration: positiveDuration(time.Since(startedAt))})
 	m.observeCache()
 	return FlushResult{Selected: len(entries), Flushed: len(flushEntries)}, nil
+}
+
+func flushErrorResult(err error) string {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return "timeout"
+	}
+	return "error"
 }
 
 func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) ([]flushEntry, []flushEntry, error) {

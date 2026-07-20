@@ -324,7 +324,7 @@ type ConversationConfig struct {
 	MaxLastMessageConcurrency int
 	// AuthorityCacheMaxRowsPerUID is retained for config compatibility; the runtime-backed authority currently does not enforce a per-UID cache bound.
 	AuthorityCacheMaxRowsPerUID int
-	// AuthorityCacheMaxRows bounds all unflushed authority cache rows on this node.
+	// AuthorityCacheMaxRows bounds all cached authority active rows on this node, including clean eviction reserves.
 	AuthorityCacheMaxRows int
 	// AuthorityListDBWindowMax is retained for config compatibility; the runtime-backed authority currently owns its active-view DB window internally.
 	AuthorityListDBWindowMax int
@@ -336,7 +336,7 @@ type ConversationConfig struct {
 	AuthorityFlushInterval time.Duration
 	// AuthorityFlushTimeout bounds one authority active-row flush attempt.
 	AuthorityFlushTimeout time.Duration
-	// AuthorityFlushBatchRows bounds dirty authority active rows flushed in one tick or cache-pressure spill.
+	// AuthorityFlushBatchRows bounds dirty authority active rows flushed by one periodic, pressure-woken, or handoff attempt.
 	AuthorityFlushBatchRows int
 	// AuthorityAdmitBatchRows limits active rows in one authority admission batch.
 	AuthorityAdmitBatchRows int

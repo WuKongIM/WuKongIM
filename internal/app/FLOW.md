@@ -413,18 +413,19 @@ script summarizes these in `channelappend_metrics_summary.tsv` and
 by the single-writer invariant even when different channels run through
 different shards or workers.
 The foreground SEND path waits only for channel-authority durable append;
-subscriber scan, conversation active-batch admission, recipient authority
-grouping, and delivery enqueue all run after SENDACK from the authority
-writer's best-effort post-commit pipeline. The recipient delivery worker later
+subscriber scan, recipient authority grouping, delivery enqueue, and the
+independent conversation active projection all run after SENDACK from the
+authority writer's best-effort post-commit pipeline. The recipient delivery worker later
 drains accepted batches, resolves online routes, and pushes owner-node delivery
 commands. Post-commit persistence and restart replay are not part of
 channelappend. Post-commit enqueue failures are logged with the failing phase and
 route/dispatch context, counted through effect metrics, and dropped after the
 routed helper's bounded retry window; they do not change channel durability or
 the already-successful SENDACK decision. Conversation active-batch admission
-performs only a short bounded fresh-route retry in the routed client; failures
-surface as the `conversation_active` post-commit phase before online delivery
-is enqueued.
+performs only a short bounded fresh-route retry in the routed client. Delivery
+is enqueued first; active projection failures surface independently as the
+`conversation_active` post-commit phase and do not stop online delivery or later
+large-channel pages.
 Runtime fanout failures are counted with normalized delivery error classes.
 Retryable fanout failures enter
 a bounded in-memory retry scheduler with a small fixed attempt cap; retry queue
@@ -440,17 +441,15 @@ errors and short append results.
 The channel append commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
-subscriber source, or the cluster Slot metadata source. After each recipient
-set is formed, channelappend admits a kind-aware
-`conversationactive.ActiveBatch` through the shared
-`ConversationAuthorityClient`; channelappend chooses normal versus CMD kind
-from the committed envelope, and active admission still runs when online
-delivery is disabled.
-Recipients are then grouped by exact UID hash-slot authority target including
-Slot leader term and Slot config epoch for delivery; when cluster exposes
+subscriber source, or the cluster Slot metadata source. When cluster exposes
 batch key routing, the app recipient resolver resolves each subscriber page's
-unique UIDs through one batch route lookup before grouping. When delivery is
-enabled, the app wires a bounded
+unique UIDs through one batch route lookup. After each recipient set is formed,
+channelappend groups recipients by exact UID hash-slot authority
+target including Slot leader term and Slot config epoch, then enqueues delivery.
+It next admits an independent kind-aware `conversationactive.ActiveBatch`
+through the shared `ConversationAuthorityClient`; channelappend chooses normal
+versus CMD kind from the committed envelope, and active admission still runs
+when online delivery is disabled. When delivery is enabled, the app wires a bounded
 recipient delivery worker that drains those batches and runs the delivery-only
 channelappend recipient processor outside the authority writer. `/bench/v1/channels`,
 `/bench/v1/channels/subscribers`, and `/bench/v1/channels/subscribers/remove`
@@ -612,8 +611,9 @@ Conversation active rows remain working-set hints: delayed or dropped
 post-commit work does not change message durability or SENDACK success. The
 runtime/conversationactive.Manager coalesces active rows, serves list reads by
 merging cached rows with UID-owned DB active rows, and flushes durable active
-touch patches through the conversation active flush worker, handoff drain, or
-cache pressure. The app conversation authority keeps route target fencing,
+touch patches through the conversation active flush worker or handoff drain.
+Cache pressure only sends a nonblocking wakeup to that worker; admission never
+performs durable I/O. The app conversation authority keeps route target fencing,
 lifecycle handoff, observer mapping, and usecase/RPC type adaptation.
 
 SEND with channel authority routing enabled:
@@ -632,9 +632,9 @@ gateway/API send
   -> SENDACK returns to sender
   -> authority writer post-commit effect:
        scope person recipients or page subscribers
-       ConversationAuthorityClient.AdmitActiveBatch for the expanded recipient set
        group recipients by UID authority target, including Slot leader term and config epoch, for delivery
        enqueue recipient delivery batch when delivery is enabled
+       ConversationAuthorityClient.AdmitActiveBatch as an independent projection
        drop the in-memory post-commit envelope after one enqueue attempt
 ```
 
@@ -659,7 +659,8 @@ Start(ctx)
   -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
   -> wait for cluster write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and Channel runtime placement data-node candidates before gateway SEND admission
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
-  -> conversation active flush worker Start(ctx): periodically persist dirty active rows
+  -> conversation active flush worker Start(ctx): persist dirty active rows
+     periodically or on a coalesced cache-pressure wakeup
   -> presence touch worker Start(ctx)
   -> plugin runtime Start(ctx): open the host RPC socket, scan local plugins, and start enabled processes
   -> plugin PersistAfter worker Start(ctx): accept durable commit side effects before channel append opens
@@ -783,13 +784,22 @@ touch summary but does not run or observe expiry.
 ## Conversation Active Flush Worker
 
 ```text
-periodic flush
+periodic tick or coalesced cache-pressure wakeup
   -> derive an AuthorityFlushTimeout-bounded attempt context
   -> conversationAuthority.FlushActiveRows(attemptCtx, AuthorityFlushBatchRows)
   -> runtime/conversationactive.Manager selects dirty rows with version fencing
   -> batch-read durable conversation rows for receiver-only cooldown filtering
   -> skip receiver-only ActiveAt updates inside AuthorityActiveCooldown
   -> store.TouchConversationActiveAtBatch persists remaining ActiveAt/ReadSeq/UpdatedAt
+  -> after a successful pressure-cycle attempt, requeue one wakeup while dirty
+     rows remain above the 70% low watermark
+
+cache admission
+  -> at 80% total occupancy with dirty rows above the 70% low watermark, start
+     one pressure cycle
+  -> if clean-row eviction cannot satisfy the hard cache bound, reject
+     atomically with cache_pressure
+  -> never call the store or wait for an in-flight flush
 
 Stop(ctx)
   -> channelappend has already closed admission and drained accepted post-commit effects
@@ -801,7 +811,9 @@ Stop(ctx)
 The flush worker does not construct conversation rows and does not read message
 payloads. It only persists dirty active rows already admitted into the
 conversationactive cache, keeping cache visibility immediate while bounding
-eventual durable lag.
+eventual durable lag. The capacity-1 pressure channel and single worker goroutine
+coalesce concurrent wakeups; every attempt remains bounded by
+`AuthorityFlushBatchRows` and `AuthorityFlushTimeout`.
 
 ## Conversation Authority Handoff
 

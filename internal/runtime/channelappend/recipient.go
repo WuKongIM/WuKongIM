@@ -14,7 +14,15 @@ import (
 const subscriberSnapshotLoadLimit = 1 << 30
 
 type recipientDispatchResult struct {
+	// subscriberCache carries a successfully loaded non-large recipient snapshot.
 	subscriberCache subscriberCache
+	// activeErr reports an independent conversation projection failure without failing delivery.
+	activeErr error
+}
+
+type recipientSetDispatchResult struct {
+	// activeErr reports the best-effort conversation projection outcome for this recipient set.
+	activeErr error
 }
 
 func dispatchCommittedRecipients(ctx context.Context, event CommittedEnvelope, ports commitPorts) error {
@@ -35,31 +43,34 @@ func dispatchCommittedRecipientsForTarget(ctx context.Context, target AuthorityT
 		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 	}
 	if len(event.MessageScopedUIDs) > 0 {
-		return recipientDispatchResult{}, dispatchRecipientSet(ctx, event, recipientsFromUIDs(event.MessageScopedUIDs), ports)
+		result, err := dispatchRecipientSetResult(ctx, event, recipientsFromUIDs(event.MessageScopedUIDs), ports)
+		return recipientDispatchResult{activeErr: result.activeErr}, err
 	}
 	if event.ChannelType == channelTypePerson {
 		left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
 		if err != nil {
 			return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "person_channel_decode"})
 		}
-		return recipientDispatchResult{}, dispatchRecipientSet(ctx, event, []Recipient{{UID: left}, {UID: right}}, ports)
+		result, dispatchErr := dispatchRecipientSetResult(ctx, event, []Recipient{{UID: left}, {UID: right}}, ports)
+		return recipientDispatchResult{activeErr: result.activeErr}, dispatchErr
 	}
 	if target.Large {
-		return recipientDispatchResult{}, dispatchSubscriberPages(ctx, event, ports)
+		return dispatchSubscriberPages(ctx, event, ports)
 	}
 	return dispatchSubscriberSnapshot(ctx, target, event, cache, ports)
 }
 
-func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports commitPorts) error {
+func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports commitPorts) (recipientDispatchResult, error) {
 	if ports.subscribers == nil {
-		return nil
+		return recipientDispatchResult{}, nil
 	}
 	pageSize := boundedPositive(ports.subscriberPageSize, defaultSubscriberScanPageSize)
 	cursor := ""
+	var result recipientDispatchResult
 	for {
 		previousCursor := cursor
 		if err := contextErr(ctx); err != nil {
-			return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
+			return result, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 		}
 		page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
 			ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
@@ -67,19 +78,23 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 			Limit:     pageSize,
 		})
 		if err != nil {
-			return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_page"})
+			return result, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_page"})
 		}
 		if !page.Done && (page.Cursor == "" || page.Cursor == previousCursor) {
-			return withPostCommitFailureDetail(ErrInvalidSubscriberCursor, PostCommitFailureDetail{
+			return result, withPostCommitFailureDetail(ErrInvalidSubscriberCursor, PostCommitFailureDetail{
 				Phase:          "subscriber_cursor",
 				RecipientCount: len(page.Recipients),
 			})
 		}
-		if err := dispatchRecipientSet(ctx, event, page.Recipients, ports); err != nil {
-			return err
+		pageResult, dispatchErr := dispatchRecipientSetResult(ctx, event, page.Recipients, ports)
+		if result.activeErr == nil {
+			result.activeErr = pageResult.activeErr
+		}
+		if dispatchErr != nil {
+			return result, dispatchErr
 		}
 		if page.Done {
-			return nil
+			return result, nil
 		}
 		cursor = page.Cursor
 	}
@@ -90,7 +105,8 @@ func dispatchSubscriberSnapshot(ctx context.Context, target AuthorityTarget, eve
 		return recipientDispatchResult{}, nil
 	}
 	if cache.matches(target) {
-		return recipientDispatchResult{}, dispatchRecipientSet(ctx, event, cache.recipients, ports)
+		result, err := dispatchRecipientSetResult(ctx, event, cache.recipients, ports)
+		return recipientDispatchResult{subscriberCache: cache, activeErr: result.activeErr}, err
 	}
 	if err := contextErr(ctx); err != nil {
 		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
@@ -113,25 +129,33 @@ func dispatchSubscriberSnapshot(ctx context.Context, target AuthorityTarget, eve
 		mutationVersion: target.SubscriberMutationVersion,
 		recipients:      append([]Recipient(nil), page.Recipients...),
 	}
-	if err := dispatchRecipientSet(ctx, event, page.Recipients, ports); err != nil {
-		return recipientDispatchResult{}, err
+	dispatch, err := dispatchRecipientSetResult(ctx, event, page.Recipients, ports)
+	if err != nil {
+		return recipientDispatchResult{activeErr: dispatch.activeErr}, err
 	}
-	return recipientDispatchResult{subscriberCache: nextCache}, nil
+	return recipientDispatchResult{subscriberCache: nextCache, activeErr: dispatch.activeErr}, nil
 }
 
 func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipients []Recipient, ports commitPorts) error {
+	_, err := dispatchRecipientSetResult(ctx, event, recipients, ports)
+	return err
+}
+
+func dispatchRecipientSetResult(ctx context.Context, event CommittedEnvelope, recipients []Recipient, ports commitPorts) (recipientSetDispatchResult, error) {
 	enqueuer := effectiveRecipientDeliveryEnqueuer(ports)
 	if len(recipients) == 0 || (ports.activeAdmitter == nil && enqueuer == nil) {
-		return nil
+		return recipientSetDispatchResult{}, nil
 	}
-	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
 	recipients, uids := normalizeRecipientsForAuthorityResolution(recipients)
 	if len(recipients) == 0 {
-		return nil
+		return recipientSetDispatchResult{}, nil
 	}
-	if err := admitConversationActiveBatch(ctx, event, recipients, uids, ports.activeAdmitter); err != nil {
-		return err
-	}
+	deliveryErr := dispatchRecipientDelivery(ctx, event, recipients, uids, ports, enqueuer)
+	activeErr := admitConversationActiveBatch(ctx, event, recipients, uids, ports.activeAdmitter)
+	return recipientSetDispatchResult{activeErr: activeErr}, deliveryErr
+}
+
+func dispatchRecipientDelivery(ctx context.Context, event CommittedEnvelope, recipients []Recipient, uids []string, ports commitPorts, enqueuer RecipientDeliveryEnqueuer) error {
 	if enqueuer == nil {
 		return nil
 	}
@@ -164,6 +188,7 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 		}
 		grouped[target] = append(grouped[target], recipient)
 	}
+	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
 	concurrency := boundedPositive(ports.recipientDispatchConcurrency, 1)
 	if concurrency <= 1 || len(order) <= 1 {
 		for _, target := range order {

@@ -189,11 +189,13 @@ The committed envelope owns one payload copy when it enters the async
 post-commit backlog; later state and recipient dispatch steps pass that
 immutable envelope by reference through the delivery worker and owner-push
 planning. Concrete owner push adapters copy or serialize at their boundary.
-Success prunes the payload-bearing envelope from the backlog. Failure is logged
-through `PostCommitFailureObserver`, counted through effect metrics, and then
-the envelope is dropped without retry so one bad active-admission, recipient
-route, or delivery enqueue side effect cannot block later messages on the same
-channel. The failure observation carries a precise post-commit phase plus
+Success prunes the payload-bearing envelope from the backlog. Recipient route or
+delivery enqueue failure is logged through `PostCommitFailureObserver`, counted
+through effect metrics, and then the envelope is dropped without retry so one
+bad recipient side effect cannot block later messages on the same channel.
+Conversation-active projection failures are recorded independently and do not
+turn a successful delivery enqueue into a failed item completion. Failure
+observations carry a precise post-commit phase plus
 sampled recipient, target, and dispatch context so route-resolution failures
 can be distinguished from conversation active admission and delivery enqueue
 failures in logs. Each channel keeps only one committed envelope in flight at a
@@ -244,24 +246,25 @@ cursor different from the previous cursor; otherwise dispatch fails before that
 page's recipients are admitted or dispatched, avoiding partial side effects for
 the invalid page before the envelope is dropped.
 
-After each recipient set is formed, channelappend admits one
-`conversationactive.ActiveBatch` before enqueueing recipient delivery batches.
+After each recipient set is formed, channelappend first resolves the fenced
+recipient authority targets and enqueues recipient delivery batches, then admits
+one independent `conversationactive.ActiveBatch` projection.
 The batch carries an explicit `metadb.ConversationKind`: normal for ordinary
 channel commits, CMD for one-shot sync commits or command-channel ids. It also
 carries `SenderUID` from the committed event, channel identity, message
 sequence, activity timestamp, and the expanded recipient UIDs. Receiver entries
 leave `IsSender` unset; the active worker advances the sender read sequence
-from `SenderUID` semantics. This active admission still runs when online
+from `SenderUID` semantics. Active admission still runs when online
 delivery enqueueing is disabled or no `RecipientDeliveryEnqueuer` is
 configured. If active admission fails, the post-commit failure phase is
-`conversation_active` and recipient delivery is not enqueued for that recipient
-set.
+`conversation_active`, while accepted delivery, later large-channel pages, and
+a successfully loaded non-large subscriber snapshot continue independently.
 
 Recipient delivery is an enqueue contract. When delivery enqueueing is
 configured, recipient batches are grouped by the full fenced recipient
-authority target, including Slot leader term and Slot config epoch, after
-active admission succeeds. UID authority resolution is performed once per
-unique trimmed UID and uses the optional batch resolver when available; invalid
+authority target, including Slot leader term and Slot config epoch. UID
+authority resolution is performed once per unique trimmed UID and uses the
+optional batch resolver when available; invalid
 or missing targets map to route-not-ready before enqueueing.
 Different recipient authority targets may enqueue concurrently up to
 `RecipientAuthorityDispatchConcurrency`; batches for the same target are enqueued
