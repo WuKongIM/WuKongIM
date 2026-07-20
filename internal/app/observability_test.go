@@ -31,6 +31,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	clustertasks "github.com/WuKongIM/WuKongIM/pkg/cluster/tasks"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -690,6 +691,138 @@ func TestSlotMetricsObserverMapsPreferredLeaderDecisions(t *testing.T) {
 	if got := findAppMetricByLabels(t, wait, map[string]string{"decision": "transfer_started"}).GetHistogram().GetSampleCount(); got != 1 {
 		t.Fatalf("preferred leader strict waits = %v, want 1", got)
 	}
+	for _, family := range []*dto.MetricFamily{decisions, wait} {
+		for _, metric := range family.Metric {
+			for _, label := range metric.Label {
+				if label.GetName() == "slot_id" {
+					t.Fatalf("preferred-leader metric %s unexpectedly exposes slot_id", family.GetName())
+				}
+			}
+		}
+	}
+}
+
+func TestPreferredLeaderDiagnosticsObserverRetainsMismatchWithoutMatchChurn(t *testing.T) {
+	store := diagnostics.NewStore(diagnostics.StoreOptions{NodeID: 2, Capacity: 8})
+	observer := combinePreferredLeaderObservers(
+		slotMetricsObserver{},
+		&preferredLeaderDiagnosticsObserver{store: store, nodeID: 2},
+	)
+	detailed, ok := observer.(clustertasks.PreferredLeaderDiagnosticObserver)
+	if !ok {
+		t.Fatal("combined preferred-leader observer does not expose detailed diagnostics")
+	}
+	detailed.ObservePreferredLeaderReconcile(clustertasks.PreferredLeaderObservation{
+		Decision:           "preferred_lagging",
+		SlotID:             7,
+		ActualLeaderID:     1,
+		PreferredLeaderID:  2,
+		RaftTerm:           11,
+		ConfigEpoch:        4,
+		StrictWaitDuration: 8 * time.Millisecond,
+	})
+	detailed.ObservePreferredLeaderReconcile(clustertasks.PreferredLeaderObservation{
+		Decision:          "match",
+		SlotID:            8,
+		ActualLeaderID:    2,
+		PreferredLeaderID: 2,
+		RaftTerm:          12,
+		ConfigEpoch:       5,
+	})
+
+	result := store.Query(context.Background(), diagnostics.Query{Stage: diagnostics.StageSlotPreferredLeaderReconcile, Limit: 10})
+	if len(result.Events) != 1 {
+		t.Fatalf("diagnostics events = %#v, want only the non-match decision", result.Events)
+	}
+	event := result.Events[0]
+	if event.NodeID != 2 || event.SlotID != 7 || event.Decision != "preferred_lagging" ||
+		event.ActualLeaderID != 1 || event.PreferredLeaderID != 2 || event.RaftTerm != 11 || event.ConfigEpoch != 4 ||
+		event.Result != diagnostics.ResultSkipped || event.Duration != 8*time.Millisecond {
+		t.Fatalf("diagnostics event = %#v, want explicit physical Slot decision context", event)
+	}
+}
+
+func TestPreferredLeaderDiagnosticsObserverBoundsRepeatedSlotDecisions(t *testing.T) {
+	now := time.Unix(100, 0)
+	store := diagnostics.NewStore(diagnostics.StoreOptions{NodeID: 2, Capacity: 16, Now: func() time.Time { return now }})
+	observer := &preferredLeaderDiagnosticsObserver{
+		store:          store,
+		nodeID:         2,
+		now:            func() time.Time { return now },
+		repeatInterval: 30 * time.Second,
+	}
+	base := clustertasks.PreferredLeaderObservation{
+		Decision: "voter_mismatch", SlotID: 7, ActualLeaderID: 1,
+		PreferredLeaderID: 2, RaftTerm: 11, ConfigEpoch: 4,
+	}
+
+	observer.ObservePreferredLeaderReconcile(base)
+	observer.ObservePreferredLeaderReconcile(base)
+	changedDecision := base
+	changedDecision.Decision = "preferred_lagging"
+	observer.ObservePreferredLeaderReconcile(changedDecision)
+	changedTerm := changedDecision
+	changedTerm.RaftTerm = 12
+	observer.ObservePreferredLeaderReconcile(changedTerm)
+	matched := changedTerm
+	matched.Decision = "match"
+	matched.ActualLeaderID = matched.PreferredLeaderID
+	observer.ObservePreferredLeaderReconcile(matched)
+	observer.ObservePreferredLeaderReconcile(changedTerm)
+	now = now.Add(30 * time.Second)
+	observer.ObservePreferredLeaderReconcile(changedTerm)
+
+	result := store.Query(context.Background(), diagnostics.Query{SlotID: 7, Limit: 10})
+	if len(result.Events) != 6 {
+		t.Fatalf("diagnostics events = %#v, want duplicate suppressed, changes immediate, recovery match retained, and interval resample", result.Events)
+	}
+	if result.Events[0].Decision != "voter_mismatch" || result.Events[1].Decision != "preferred_lagging" ||
+		result.Events[2].RaftTerm != 12 || result.Events[3].Decision != "match" ||
+		result.Events[3].Result != diagnostics.ResultOK || result.Events[4].Decision != "preferred_lagging" ||
+		result.Events[5].Decision != "preferred_lagging" {
+		t.Fatalf("diagnostics events = %#v, want stable transition ordering", result.Events)
+	}
+}
+
+func TestPreferredLeaderDiagnosticsObserverSuppressesRepeatedHealthyMatch(t *testing.T) {
+	now := time.Unix(100, 0)
+	store := diagnostics.NewStore(diagnostics.StoreOptions{Capacity: 8, Now: func() time.Time { return now }})
+	observer := &preferredLeaderDiagnosticsObserver{store: store, nodeID: 2, now: func() time.Time { return now }}
+	match := clustertasks.PreferredLeaderObservation{
+		Decision: "match", SlotID: 7, ActualLeaderID: 2,
+		PreferredLeaderID: 2, RaftTerm: 11, ConfigEpoch: 4,
+	}
+
+	observer.ObservePreferredLeaderReconcile(match)
+	observer.ObservePreferredLeaderReconcile(match)
+	now = now.Add(time.Minute)
+	observer.ObservePreferredLeaderReconcile(match)
+
+	result := store.Query(context.Background(), diagnostics.Query{SlotID: 7, Limit: 10})
+	if len(result.Events) != 0 {
+		t.Fatalf("steady healthy match events = %#v, want none", result.Events)
+	}
+}
+
+func TestPreferredLeaderDiagnosticsObserverBoundsRememberedPhysicalSlots(t *testing.T) {
+	store := diagnostics.NewStore(diagnostics.StoreOptions{Capacity: 1})
+	observer := &preferredLeaderDiagnosticsObserver{store: store, nodeID: 2}
+	for slotID := uint32(1); slotID <= maxPreferredLeaderDiagnosticSlots+1; slotID++ {
+		observer.ObservePreferredLeaderReconcile(clustertasks.PreferredLeaderObservation{
+			Decision: "voter_mismatch", SlotID: slotID, ActualLeaderID: 1,
+			PreferredLeaderID: 2, RaftTerm: 11, ConfigEpoch: 4,
+		})
+	}
+
+	if got := len(observer.lastBySlot); got != maxPreferredLeaderDiagnosticSlots {
+		t.Fatalf("remembered physical Slots = %d, want %d", got, maxPreferredLeaderDiagnosticSlots)
+	}
+	if _, exists := observer.lastBySlot[1]; exists {
+		t.Fatal("oldest physical Slot signature was not evicted")
+	}
+	if _, exists := observer.lastBySlot[maxPreferredLeaderDiagnosticSlots+1]; !exists {
+		t.Fatal("latest physical Slot signature was not retained")
+	}
 }
 
 func TestStorageCommitMetricsObserverUsesConfiguredWorkers(t *testing.T) {
@@ -932,6 +1065,32 @@ func TestConfigureObservabilityWiresSlotReplicaMovePhaseObserver(t *testing.T) {
 	}
 	if clusterCfg.Slots.PreferredLeaderObserver == nil {
 		t.Fatal("Slot preferred leader observer was not wired")
+	}
+}
+
+func TestConfigureObservabilityWiresPreferredLeaderDiagnosticsWithoutMetrics(t *testing.T) {
+	app := &App{
+		cfg: Config{Observability: ObservabilityConfig{Diagnostics: DiagnosticsConfig{Enabled: true}}},
+	}
+	t.Cleanup(app.restoreDiagnosticsSink)
+	clusterCfg := cluster.Config{NodeID: 2}
+
+	app.configureObservability(&clusterCfg)
+
+	detailed, ok := clusterCfg.Slots.PreferredLeaderObserver.(clustertasks.PreferredLeaderDiagnosticObserver)
+	if !ok {
+		t.Fatal("PreferredLeader detailed diagnostics observer was not wired")
+	}
+	detailed.ObservePreferredLeaderReconcile(clustertasks.PreferredLeaderObservation{
+		Decision: "preferred_lagging", SlotID: 7, ActualLeaderID: 1,
+		PreferredLeaderID: 2, RaftTerm: 11, ConfigEpoch: 4,
+	})
+	result := app.diagnostics.Query(context.Background(), diagnostics.Query{SlotID: 7})
+	if len(result.Events) != 1 || result.Events[0].Decision != "preferred_lagging" {
+		t.Fatalf("diagnostics result = %#v, want wired physical Slot decision", result)
+	}
+	if app.metrics != nil {
+		t.Fatal("metrics registry was created while metrics were disabled")
 	}
 }
 

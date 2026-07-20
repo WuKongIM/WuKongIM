@@ -99,7 +99,11 @@ New(Config)
      fields without scanning loaded channel maps.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
-       sampler, and sendtrace sink; install the process-wide sendtrace sink
+       sampler, and sendtrace sink; attach PreferredLeader reconciliation
+       diagnostics that retain explicit physical Slot, actual/preferred leader,
+       Raft term, and config epoch fields while retaining recovery-to-match
+       transitions, suppressing steady matches, and coalescing identical
+       30-second repeats; install the process-wide sendtrace sink
        and expose local diagnostics debug APIs only when
        Observability.DebugAPIEnabled=true
   -> when an effective node data dir is configured:
@@ -372,6 +376,14 @@ tracking sampler, and process-wide sendtrace sink. Manager diagnostics routes
 use that same store for local reads and tracking-rule mutations; non-local
 node-scoped reads and mutations route through the manager diagnostics RPC path
 without falling back to legacy `internal` diagnostics state.
+PreferredLeader details remain node-local diagnostics rather than Prometheus
+labels: one bounded signature per observed physical Slot preserves state changes
+immediately and resamples an unchanged non-match decision at most once every 30
+seconds. A non-match to `match` recovery is retained once, while initial or
+repeated steady `match` decisions remain available only through aggregate
+metrics and later cluster snapshots so they cannot churn the diagnostics ring.
+Diagnostic event counts are transition evidence, not reconcile-rate evidence;
+aggregate Prometheus counters remain the frequency source.
 
 Controller Raft status and manual compaction use a cluster-routed management
 operator created in the app composition root. Local reads and compaction call

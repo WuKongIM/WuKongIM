@@ -141,6 +141,31 @@ func TestCloudAnalysisSkillDocumentsPreferredLeaderEvidence(t *testing.T) {
 			t.Fatalf("SKILL.md must document preferred-leader evidence rule %q", required)
 		}
 	}
+	for _, required := range []string{
+		"`slot_id`",
+		"`stage=slot.preferred_leader_reconcile`",
+		"`actual_leader_id`",
+		"`preferred_leader_id`",
+		"`raft_term`",
+		"`config_epoch`",
+		"intentionally omitted",
+		"node-local events",
+		"recovery evidence",
+		"owning Slot",
+		"remain unknown",
+		"former leader",
+		"cluster-wide",
+		"at most once every 30 seconds",
+		"event counts",
+		"Prometheus",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document preferred-leader diagnostics contract %q", required)
+		}
+		if !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document preferred-leader diagnostics contract %q", required)
+		}
+	}
 }
 
 func TestCloudAnalysisSkillFixturesCoverEveryVerdict(t *testing.T) {

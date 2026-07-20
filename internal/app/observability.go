@@ -12,6 +12,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internal/access/gateway"
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -24,6 +25,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	clustertasks "github.com/WuKongIM/WuKongIM/pkg/cluster/tasks"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -45,6 +47,43 @@ type channelMetricsObserver struct {
 
 type slotMetricsObserver struct {
 	metrics *obsmetrics.Registry
+}
+
+type preferredLeaderDiagnosticsObserver struct {
+	// store retains bounded node-local diagnostic events.
+	store *obsdiagnostics.Store
+	// nodeID identifies the local cluster node that made the decision.
+	nodeID uint64
+	// now supplies time for deterministic repeat suppression tests.
+	now func() time.Time
+	// repeatInterval bounds identical per-Slot decision retention frequency.
+	repeatInterval time.Duration
+	// mu protects lastBySlot and slotOrder.
+	mu sync.Mutex
+	// lastBySlot retains at most one decision signature per observed physical Slot.
+	lastBySlot map[uint32]preferredLeaderDiagnosticState
+	// slotOrder provides deterministic bounded eviction for stale physical Slot IDs.
+	slotOrder []uint32
+}
+
+type preferredLeaderDiagnosticState struct {
+	// signature is the last observed state for this physical Slot.
+	signature preferredLeaderDiagnosticSignature
+	// at is when the signature was last retained or acknowledged as a match.
+	at time.Time
+}
+
+type preferredLeaderDiagnosticSignature struct {
+	// decision is the stable reconciliation outcome.
+	decision string
+	// actualLeaderID is the observed Raft leader.
+	actualLeaderID uint64
+	// preferredLeaderID is the Controller's soft placement target.
+	preferredLeaderID uint64
+	// raftTerm fences the observed actual leader.
+	raftTerm uint64
+	// configEpoch fences the Controller voter assignment.
+	configEpoch uint64
 }
 
 type transportMetricsObserver struct {
@@ -128,6 +167,8 @@ const (
 	channelRuntimePressureComponent   = "channel"
 	transportRuntimePressureComponent = "transport"
 	channelLeaderPullObservationEvery = uint64(16)
+	preferredLeaderDiagnosticRepeat   = 30 * time.Second
+	maxPreferredLeaderDiagnosticSlots = 1024
 )
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
@@ -948,6 +989,90 @@ func (o slotMetricsObserver) ObservePreferredLeaderStrictWait(decision string, d
 		return
 	}
 	o.metrics.Slot.ObservePreferredLeaderStrictWait(decision, d)
+}
+
+func (*preferredLeaderDiagnosticsObserver) ObservePreferredLeaderDecision(string) {}
+
+func (*preferredLeaderDiagnosticsObserver) ObservePreferredLeaderStrictWait(string, time.Duration) {}
+
+func (o *preferredLeaderDiagnosticsObserver) ObservePreferredLeaderReconcile(observation clustertasks.PreferredLeaderObservation) {
+	if o == nil || o.store == nil || observation.SlotID == 0 || observation.Decision == "" {
+		return
+	}
+	if !o.shouldRecordPreferredLeaderDecision(observation) {
+		return
+	}
+	o.store.Record(obsdiagnostics.Event{
+		Stage:             obsdiagnostics.StageSlotPreferredLeaderReconcile,
+		Duration:          observation.StrictWaitDuration,
+		NodeID:            o.nodeID,
+		SlotID:            observation.SlotID,
+		Decision:          observation.Decision,
+		ActualLeaderID:    observation.ActualLeaderID,
+		PreferredLeaderID: observation.PreferredLeaderID,
+		RaftTerm:          observation.RaftTerm,
+		ConfigEpoch:       observation.ConfigEpoch,
+		Service:           "cluster.preferred_leader",
+		Result:            preferredLeaderDiagnosticsResult(observation.Decision),
+	})
+}
+
+func (o *preferredLeaderDiagnosticsObserver) shouldRecordPreferredLeaderDecision(observation clustertasks.PreferredLeaderObservation) bool {
+	now := time.Now
+	if o.now != nil {
+		now = o.now
+	}
+	repeatInterval := o.repeatInterval
+	if repeatInterval <= 0 {
+		repeatInterval = preferredLeaderDiagnosticRepeat
+	}
+	signature := preferredLeaderDiagnosticSignature{
+		decision:          observation.Decision,
+		actualLeaderID:    observation.ActualLeaderID,
+		preferredLeaderID: observation.PreferredLeaderID,
+		raftTerm:          observation.RaftTerm,
+		configEpoch:       observation.ConfigEpoch,
+	}
+	at := now()
+
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	previous, exists := o.lastBySlot[observation.SlotID]
+	if observation.Decision == "match" {
+		if exists {
+			o.lastBySlot[observation.SlotID] = preferredLeaderDiagnosticState{signature: signature, at: at}
+		}
+		return exists && previous.signature.decision != "match"
+	}
+	if exists && previous.signature == signature && at.Sub(previous.at) < repeatInterval {
+		return false
+	}
+	if !exists {
+		if o.lastBySlot == nil {
+			o.lastBySlot = make(map[uint32]preferredLeaderDiagnosticState)
+		}
+		if len(o.lastBySlot) >= maxPreferredLeaderDiagnosticSlots {
+			oldest := o.slotOrder[0]
+			o.slotOrder = o.slotOrder[1:]
+			delete(o.lastBySlot, oldest)
+		}
+		o.slotOrder = append(o.slotOrder, observation.SlotID)
+	}
+	o.lastBySlot[observation.SlotID] = preferredLeaderDiagnosticState{signature: signature, at: at}
+	return true
+}
+
+func preferredLeaderDiagnosticsResult(decision string) obsdiagnostics.Result {
+	switch decision {
+	case "match", "transfer_started":
+		return obsdiagnostics.ResultOK
+	case "timeout":
+		return obsdiagnostics.ResultTimeout
+	case "error":
+		return obsdiagnostics.ResultError
+	default:
+		return obsdiagnostics.ResultSkipped
+	}
 }
 
 func slotApplyGap(commitIndex, appliedIndex uint64) uint64 {
@@ -2251,6 +2376,15 @@ func (o multiPreferredLeaderObserver) ObservePreferredLeaderStrictWait(decision 
 	}
 }
 
+func (o multiPreferredLeaderObserver) ObservePreferredLeaderReconcile(observation clustertasks.PreferredLeaderObservation) {
+	for _, observer := range o {
+		detailed, ok := observer.(clustertasks.PreferredLeaderDiagnosticObserver)
+		if ok && detailed != nil {
+			detailed.ObservePreferredLeaderReconcile(observation)
+		}
+	}
+}
+
 func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(depth int) {
 	o.SetCommitCoordinatorQueue(depth, 0)
 }
@@ -2568,6 +2702,8 @@ var _ multiraft.ProposalObserver = slotMetricsObserver{}
 var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
 var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
 var _ cluster.PreferredLeaderObserver = slotMetricsObserver{}
+var _ cluster.PreferredLeaderObserver = (*preferredLeaderDiagnosticsObserver)(nil)
+var _ clustertasks.PreferredLeaderDiagnosticObserver = (*preferredLeaderDiagnosticsObserver)(nil)
 var _ transport.Observer = (*transportMetricsObserver)(nil)
 var _ controller.RaftObserver = controllerRaftMetricsObserver{}
 var _ controller.ApplyStateObserver = controllerRaftMetricsObserver{}
@@ -2597,6 +2733,7 @@ var _ multiraft.ProposalObserver = multiSlotObserver{}
 var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}
 var _ multiraft.ApplyStateObserver = multiSlotObserver{}
 var _ cluster.PreferredLeaderObserver = multiPreferredLeaderObserver{}
+var _ clustertasks.PreferredLeaderDiagnosticObserver = multiPreferredLeaderObserver{}
 var _ controller.RaftObserver = multiControllerRaftObserver{}
 var _ controller.ApplyStateObserver = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}

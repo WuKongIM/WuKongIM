@@ -111,6 +111,8 @@
 - Normal channel long-poll wait expiry is a successful long-poll response with `TimedOut:true`, and needs an explicit response observer before counting expected timeouts.
 - Transport RPC calls do not wait for a per-call write ACK; write failures must close the mux connection so pending RPCs wake through the reader shutdown path.
 - Diagnostics hot-path events use `pkg/observability/sendtrace` and are consumed by `internal/observability/diagnostics`; recording must be bounded, non-blocking, and must not add high-cardinality Prometheus labels.
+- Physical-Slot PreferredLeader diagnostics retain state changes, including one non-match-to-match recovery event, suppress steady matches, and resample an unchanged decision signature at most every 30 seconds; event counts are not reconcile rates, which stay in low-cardinality Prometheus counters.
+- PreferredLeader strict-check diagnostics use leader and term only from the owning Slot worker's fresh Raft status; a pre-worker timeout or error keeps them unknown instead of reusing the eligibility precheck.
 - Diagnostics `channel_key` debug matches use `channel/<channel_type>/<base64url(channel_id)>`; gateway send, sendack, and durable send events must carry it so channel-scoped sampling can still be queried by `client_msg_no`.
 - Manager diagnostics routes require `cluster.diagnostics:r`; cluster-wide diagnostics queries include alive, suspect, and draining nodes, skip dead nodes, and return `partial` when results are incomplete.
 - Manager diagnostics tracking rules are runtime-only, TTL-bound sampler overrides for future events; sender UID rules match messages sent by that UID and never expose `from_uid` in manager event DTOs.

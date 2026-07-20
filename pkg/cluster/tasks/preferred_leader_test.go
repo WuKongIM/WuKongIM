@@ -71,6 +71,99 @@ func TestPreferredLeaderReconcilerRetainsActualWhenPreferredIsLagging(t *testing
 	}
 }
 
+func TestPreferredLeaderReconcilerReportsPhysicalSlotDecisionContext(t *testing.T) {
+	runtime := &recordingPreferredLeaderRuntime{
+		statuses: map[multiraft.SlotID]multiraft.Status{
+			1: preferredLeaderStatus(1, 7, 1, 2, 3),
+		},
+		decision: multiraft.PreferredLeaderTransferPreferredLagging,
+	}
+	observer := &recordingPreferredLeaderObserver{}
+	reconciler := NewPreferredLeaderReconciler(PreferredLeaderReconcilerConfig{
+		LocalNode:   1,
+		Runtime:     runtime,
+		IntentGuard: currentPreferredLeaderIntent,
+		Observer:    observer,
+	})
+
+	if err := reconciler.Reconcile(context.Background(), preferredLeaderSnapshot()); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	details := observer.detailSnapshot()
+	if len(details) != 1 {
+		t.Fatalf("detailed observations = %#v, want one", details)
+	}
+	got := details[0]
+	if got.Decision != string(multiraft.PreferredLeaderTransferPreferredLagging) ||
+		got.SlotID != 1 || got.ActualLeaderID != 1 || got.PreferredLeaderID != 2 ||
+		got.RaftTerm != 7 || got.ConfigEpoch != 9 || got.StrictWaitDuration < 0 {
+		t.Fatalf("detailed observation = %#v, want physical Slot and Raft decision context", got)
+	}
+}
+
+func TestPreferredLeaderReconcilerReportsFreshWorkerLeaderAndTerm(t *testing.T) {
+	runtime := &advancingPreferredLeaderRuntime{
+		precheck: preferredLeaderStatus(1, 7, 1, 2, 3),
+		worker:   preferredLeaderStatus(3, 8, 1, 2, 3),
+	}
+	observer := &recordingPreferredLeaderObserver{}
+	reconciler := NewPreferredLeaderReconciler(PreferredLeaderReconcilerConfig{
+		LocalNode:   1,
+		Runtime:     runtime,
+		IntentGuard: currentPreferredLeaderIntent,
+		Observer:    observer,
+	})
+
+	if err := reconciler.Reconcile(context.Background(), preferredLeaderSnapshot()); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	details := observer.detailSnapshot()
+	if len(details) != 1 {
+		t.Fatalf("detailed observations = %#v, want one", details)
+	}
+	if got := details[0]; got.Decision != string(multiraft.PreferredLeaderTransferStaleIntent) ||
+		got.ActualLeaderID != 3 || got.RaftTerm != 8 {
+		t.Fatalf("detailed observation = %#v, want fresh worker leader=3 term=8", got)
+	}
+}
+
+func TestPreferredLeaderReconcilerReportsRemotePreferredMatchAfterTransfer(t *testing.T) {
+	runtime := &recordingPreferredLeaderRuntime{
+		statuses: map[multiraft.SlotID]multiraft.Status{
+			1: preferredLeaderStatus(1, 7, 1, 2, 3),
+		},
+		decision: multiraft.PreferredLeaderTransferStarted,
+	}
+	observer := &recordingPreferredLeaderObserver{}
+	reconciler := NewPreferredLeaderReconciler(PreferredLeaderReconcilerConfig{
+		LocalNode:   1,
+		Runtime:     runtime,
+		IntentGuard: currentPreferredLeaderIntent,
+		Observer:    observer,
+	})
+
+	if err := reconciler.Reconcile(context.Background(), preferredLeaderSnapshot()); err != nil {
+		t.Fatalf("first Reconcile() error = %v", err)
+	}
+	runtime.mu.Lock()
+	runtime.statuses[1] = preferredLeaderStatus(2, 8, 1, 2, 3)
+	runtime.mu.Unlock()
+	if err := reconciler.Reconcile(context.Background(), preferredLeaderSnapshot()); err != nil {
+		t.Fatalf("second Reconcile() error = %v", err)
+	}
+
+	details := observer.detailSnapshot()
+	if len(details) != 2 {
+		t.Fatalf("detailed observations = %#v, want transfer and remote match", details)
+	}
+	if got := details[1]; got.Decision != preferredLeaderDecisionMatch || got.ActualLeaderID != 2 || got.RaftTerm != 8 {
+		t.Fatalf("recovery observation = %#v, want remote preferred match leader=2 term=8", got)
+	}
+	if observer.hasDecision(preferredLeaderDecisionMatch) {
+		t.Fatalf("aggregate observations = %#v, remote follower must not inflate match rate", observer.snapshot())
+	}
+}
+
 func TestPreferredLeaderReconcilerSkipsIneligiblePreferred(t *testing.T) {
 	runtime := &recordingPreferredLeaderRuntime{
 		statuses: map[multiraft.SlotID]multiraft.Status{
@@ -233,6 +326,36 @@ func TestPreferredLeaderReconcilerTimesOutStrictAttemptAsNoOp(t *testing.T) {
 	if !observer.hasDecision(preferredLeaderDecisionTimeout) || !observer.hasWait(preferredLeaderDecisionTimeout) {
 		t.Fatalf("observer = %+v, want timeout decision and wait", observer.snapshot())
 	}
+	details := observer.detailSnapshot()
+	if len(details) != 1 || details[0].ActualLeaderID != 0 || details[0].RaftTerm != 0 {
+		t.Fatalf("detailed observations = %#v, want unknown worker leader and term after pre-worker timeout", details)
+	}
+}
+
+func TestPreferredLeaderReconcilerDoesNotReusePrecheckAfterStrictError(t *testing.T) {
+	strictErr := errors.New("strict worker unavailable")
+	runtime := &recordingPreferredLeaderRuntime{
+		statuses: map[multiraft.SlotID]multiraft.Status{
+			1: preferredLeaderStatus(1, 7, 1, 2, 3),
+		},
+		transferErr: strictErr,
+	}
+	observer := &recordingPreferredLeaderObserver{}
+	reconciler := NewPreferredLeaderReconciler(PreferredLeaderReconcilerConfig{
+		LocalNode:   1,
+		Runtime:     runtime,
+		IntentGuard: currentPreferredLeaderIntent,
+		Observer:    observer,
+	})
+
+	if err := reconciler.Reconcile(context.Background(), preferredLeaderSnapshot()); !errors.Is(err, strictErr) {
+		t.Fatalf("Reconcile() error = %v, want %v", err, strictErr)
+	}
+	details := observer.detailSnapshot()
+	if len(details) != 1 || details[0].Decision != preferredLeaderDecisionError ||
+		details[0].ActualLeaderID != 0 || details[0].RaftTerm != 0 {
+		t.Fatalf("detailed observations = %#v, want error with unknown worker leader and term", details)
+	}
 }
 
 func TestPreferredLeaderReconcilerRejectsStaleAppliedIntentAfterStatus(t *testing.T) {
@@ -385,6 +508,7 @@ type recordingPreferredLeaderRuntime struct {
 	statuses     map[multiraft.SlotID]multiraft.Status
 	statusErrors map[multiraft.SlotID]error
 	decision     multiraft.PreferredLeaderTransferDecision
+	transferErr  error
 	calls        []preferredLeaderTransferCall
 	statusCalls  int
 }
@@ -413,7 +537,7 @@ func (r *recordingPreferredLeaderRuntime) TryTransferLeadershipToPreferred(
 	expectedVoters []multiraft.NodeID,
 	preferred multiraft.NodeID,
 	_ multiraft.PreferredLeaderTransferGuard,
-) (multiraft.PreferredLeaderTransferDecision, error) {
+) (multiraft.PreferredLeaderTransferResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls = append(r.calls, preferredLeaderTransferCall{
@@ -423,7 +547,14 @@ func (r *recordingPreferredLeaderRuntime) TryTransferLeadershipToPreferred(
 		expectedVoters: append([]multiraft.NodeID(nil), expectedVoters...),
 		preferred:      preferred,
 	})
-	return r.decision, nil
+	result := multiraft.PreferredLeaderTransferResult{Decision: r.decision}
+	if r.transferErr == nil {
+		workerStatus := r.statuses[slotID]
+		result.ObservedLeaderID = workerStatus.LeaderID
+		result.ObservedTerm = workerStatus.Term
+		result.RaftObserved = true
+	}
+	return result, r.transferErr
 }
 
 type blockingPreferredLeaderRuntime struct {
@@ -442,9 +573,35 @@ func (r *blockingPreferredLeaderRuntime) TryTransferLeadershipToPreferred(
 	_ []multiraft.NodeID,
 	_ multiraft.NodeID,
 	_ multiraft.PreferredLeaderTransferGuard,
-) (multiraft.PreferredLeaderTransferDecision, error) {
+) (multiraft.PreferredLeaderTransferResult, error) {
 	<-ctx.Done()
-	return "", ctx.Err()
+	return multiraft.PreferredLeaderTransferResult{}, ctx.Err()
+}
+
+type advancingPreferredLeaderRuntime struct {
+	precheck multiraft.Status
+	worker   multiraft.Status
+}
+
+func (r *advancingPreferredLeaderRuntime) Status(multiraft.SlotID) (multiraft.Status, error) {
+	return r.precheck, nil
+}
+
+func (r *advancingPreferredLeaderRuntime) TryTransferLeadershipToPreferred(
+	context.Context,
+	multiraft.SlotID,
+	multiraft.NodeID,
+	uint64,
+	[]multiraft.NodeID,
+	multiraft.NodeID,
+	multiraft.PreferredLeaderTransferGuard,
+) (multiraft.PreferredLeaderTransferResult, error) {
+	return multiraft.PreferredLeaderTransferResult{
+		Decision:         multiraft.PreferredLeaderTransferStaleIntent,
+		ObservedLeaderID: r.worker.LeaderID,
+		ObservedTerm:     r.worker.Term,
+		RaftObserved:     true,
+	}, nil
 }
 
 type preferredLeaderObservation struct {
@@ -455,6 +612,13 @@ type preferredLeaderObservation struct {
 type recordingPreferredLeaderObserver struct {
 	mu           sync.Mutex
 	observations []preferredLeaderObservation
+	details      []PreferredLeaderObservation
+}
+
+func (o *recordingPreferredLeaderObserver) ObservePreferredLeaderReconcile(observation PreferredLeaderObservation) {
+	o.mu.Lock()
+	o.details = append(o.details, observation)
+	o.mu.Unlock()
 }
 
 func (o *recordingPreferredLeaderObserver) ObservePreferredLeaderDecision(decision string) {
@@ -491,6 +655,12 @@ func (o *recordingPreferredLeaderObserver) snapshot() []preferredLeaderObservati
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]preferredLeaderObservation(nil), o.observations...)
+}
+
+func (o *recordingPreferredLeaderObserver) detailSnapshot() []PreferredLeaderObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]PreferredLeaderObservation(nil), o.details...)
 }
 
 func (r *recordingPreferredLeaderRuntime) Calls() []preferredLeaderTransferCall {

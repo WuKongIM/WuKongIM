@@ -22,6 +22,9 @@ shell, file, URL, process, service restart, configuration write, cloud resource,
 or deletion operation. `trace_start` and `profile_capture` are annotated as
 active non-destructive diagnostics; all other tools are read-only and closed
 world.
+The inferred `diagnostics_query` input schema exposes an optional physical
+`slot_id`; the adapter forwards it unchanged to the usecase so agents can pair
+it with `stage=slot.preferred_leader_reconcile`.
 
 `profile_top` keeps raw profiles private and exposes only bounded symbol rows.
 Heap callers may explicitly choose the closed `inuse_space` or `alloc_space`

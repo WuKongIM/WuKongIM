@@ -188,6 +188,41 @@ func TestHTTPSourcesTraceStartTargetsOneNodeAndRecordsTTLWindow(t *testing.T) {
 	}
 }
 
+func TestHTTPSourcesDiagnosticsQueryForwardsPhysicalSlotID(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/manager/diagnostics/events" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		query := r.URL.Query()
+		if query.Get("node_id") != "2" || query.Get("slot_id") != "7" ||
+			query.Get("stage") != "slot.preferred_leader_reconcile" || query.Get("limit") != "10" {
+			t.Errorf("diagnostics query = %s", r.URL.RawQuery)
+		}
+		writeJSON(w, map[string]any{"status": "ok", "events": []any{}})
+	}))
+	defer manager.Close()
+	sources, err := NewHTTPSources(HTTPConfig{
+		Inspector:         StaticRunInspector{Inspection: analysis.RunInspection{RunID: "run-1", State: "running", InventoryCount: 12}},
+		ManagerBaseURL:    manager.URL,
+		ManagerAuth:       ManagerAuth{BearerToken: "manager-token"},
+		PrometheusBaseURL: manager.URL,
+		NodeAPIBaseURLs:   map[uint64]string{2: manager.URL},
+	})
+	if err != nil {
+		t.Fatalf("NewHTTPSources() error = %v", err)
+	}
+
+	_, err = sources.DiagnosticsQuery(context.Background(), analysis.DiagnosticsQueryRequest{
+		NodeID: 2,
+		SlotID: 7,
+		Stage:  "slot.preferred_leader_reconcile",
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("DiagnosticsQuery() error = %v", err)
+	}
+}
+
 func TestHTTPSourcesCaptureListAndSummarizeProfileWithoutRawBytes(t *testing.T) {
 	data := encodedProfile(t)
 	node := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

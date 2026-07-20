@@ -93,6 +93,16 @@ type DiagnosticsEvent struct {
 	NodeID       uint64
 	PeerNodeID   uint64
 	SlotID       uint32
+	// Decision is the stable reconciliation outcome when the event represents a decision.
+	Decision string
+	// ActualLeaderID is the Raft leader observed for the physical Slot.
+	ActualLeaderID uint64
+	// PreferredLeaderID is the Controller's soft placement target for the physical Slot.
+	PreferredLeaderID uint64
+	// RaftTerm is the term observed with ActualLeaderID.
+	RaftTerm uint64
+	// ConfigEpoch fences the Controller voter assignment used by the decision.
+	ConfigEpoch  uint64
 	ChannelKey   string
 	ClientMsgNo  string
 	MessageSeq   uint64
@@ -270,31 +280,36 @@ func (a *App) diagnosticsTargets(ctx context.Context, requested uint64) (scope s
 
 func managerDiagnosticsEvent(event diagnostics.Event) DiagnosticsEvent {
 	return DiagnosticsEvent{
-		TraceID:      event.TraceID,
-		SpanID:       event.SpanID,
-		ParentSpanID: event.ParentSpanID,
-		Stage:        string(event.Stage),
-		At:           event.At,
-		DurationMS:   event.Duration.Milliseconds(),
-		NodeID:       event.NodeID,
-		PeerNodeID:   event.PeerNodeID,
-		SlotID:       event.SlotID,
-		ChannelKey:   event.ChannelKey,
-		ClientMsgNo:  event.ClientMsgNo,
-		MessageSeq:   event.MessageSeq,
-		RangeStart:   event.RangeStart,
-		RangeEnd:     event.RangeEnd,
-		Service:      event.Service,
-		Result:       string(event.Result),
-		ErrorCode:    string(event.ErrorCode),
-		Error:        event.Error,
-		Attempt:      event.Attempt,
-		RequestCount: event.RequestCount,
-		RecordCount:  event.RecordCount,
-		ByteCount:    event.ByteCount,
-		QueueDepth:   event.QueueDepth,
-		ReplicaRole:  event.ReplicaRole,
-		SampleReason: event.SampleReason,
+		TraceID:           event.TraceID,
+		SpanID:            event.SpanID,
+		ParentSpanID:      event.ParentSpanID,
+		Stage:             string(event.Stage),
+		At:                event.At,
+		DurationMS:        event.Duration.Milliseconds(),
+		NodeID:            event.NodeID,
+		PeerNodeID:        event.PeerNodeID,
+		SlotID:            event.SlotID,
+		Decision:          event.Decision,
+		ActualLeaderID:    event.ActualLeaderID,
+		PreferredLeaderID: event.PreferredLeaderID,
+		RaftTerm:          event.RaftTerm,
+		ConfigEpoch:       event.ConfigEpoch,
+		ChannelKey:        event.ChannelKey,
+		ClientMsgNo:       event.ClientMsgNo,
+		MessageSeq:        event.MessageSeq,
+		RangeStart:        event.RangeStart,
+		RangeEnd:          event.RangeEnd,
+		Service:           event.Service,
+		Result:            string(event.Result),
+		ErrorCode:         string(event.ErrorCode),
+		Error:             event.Error,
+		Attempt:           event.Attempt,
+		RequestCount:      event.RequestCount,
+		RecordCount:       event.RecordCount,
+		ByteCount:         event.ByteCount,
+		QueueDepth:        event.QueueDepth,
+		ReplicaRole:       event.ReplicaRole,
+		SampleReason:      event.SampleReason,
 	}
 }
 

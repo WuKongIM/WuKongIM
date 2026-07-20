@@ -15,9 +15,11 @@ const (
 )
 
 var (
-	diagnosticsRequestMagic    = [...]byte{'W', 'K', 'D', 'Q', 2}
+	diagnosticsRequestMagicV2  = [...]byte{'W', 'K', 'D', 'Q', 2}
+	diagnosticsRequestMagic    = [...]byte{'W', 'K', 'D', 'Q', 3}
 	diagnosticsResponseMagicV2 = [...]byte{'W', 'K', 'D', 'R', 2}
-	diagnosticsResponseMagic   = [...]byte{'W', 'K', 'D', 'R', 3}
+	diagnosticsResponseMagicV3 = [...]byte{'W', 'K', 'D', 'R', 3}
+	diagnosticsResponseMagic   = [...]byte{'W', 'K', 'D', 'R', 4}
 )
 
 type diagnosticsRequest struct {
@@ -44,8 +46,9 @@ func decodeDiagnosticsRequest(body []byte) (diagnosticsRequest, error) {
 	if !isDiagnosticsRequestBinary(body) {
 		return diagnosticsRequest{}, fmt.Errorf("internal/access/node: invalid diagnostics request codec")
 	}
+	version := diagnosticsRequestCodecVersion(body)
 	offset := len(diagnosticsRequestMagic)
-	query, next, err := readDiagnosticsQuery(body, offset)
+	query, next, err := readDiagnosticsQuery(body, offset, version >= 3)
 	if err != nil {
 		return diagnosticsRequest{}, err
 	}
@@ -77,7 +80,7 @@ func decodeDiagnosticsResponse(body []byte) (diagnosticsResponse, error) {
 	if resp.Status, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnosticsResponse{}, err
 	}
-	if resp.Result, offset, err = readDiagnosticsQueryResult(body, offset, version); err != nil {
+	if resp.Result, offset, err = readDiagnosticsQueryResult(body, offset, version >= 4, version); err != nil {
 		return diagnosticsResponse{}, err
 	}
 	if offset != len(body) {
@@ -87,16 +90,29 @@ func decodeDiagnosticsResponse(body []byte) (diagnosticsResponse, error) {
 }
 
 func isDiagnosticsRequestBinary(body []byte) bool {
-	return hasMagic(body, diagnosticsRequestMagic[:])
+	return diagnosticsRequestCodecVersion(body) != 0
 }
 
 func isDiagnosticsResponseBinary(body []byte) bool {
 	return diagnosticsResponseCodecVersion(body) != 0
 }
 
+func diagnosticsRequestCodecVersion(body []byte) int {
+	switch {
+	case hasMagic(body, diagnosticsRequestMagic[:]):
+		return 3
+	case hasMagic(body, diagnosticsRequestMagicV2[:]):
+		return 2
+	default:
+		return 0
+	}
+}
+
 func diagnosticsResponseCodecVersion(body []byte) int {
 	switch {
 	case hasMagic(body, diagnosticsResponseMagic[:]):
+		return 4
+	case hasMagic(body, diagnosticsResponseMagicV3[:]):
 		return 3
 	case hasMagic(body, diagnosticsResponseMagicV2[:]):
 		return 2
@@ -114,13 +130,15 @@ func appendDiagnosticsQuery(dst []byte, query diagnostics.Query) []byte {
 	dst = appendString(dst, string(query.Stage))
 	dst = appendString(dst, string(query.Result))
 	dst = appendNodeInt(dst, query.Limit)
+	dst = appendUvarint(dst, uint64(query.SlotID))
 	return dst
 }
 
-func readDiagnosticsQuery(body []byte, offset int) (diagnostics.Query, int, error) {
+func readDiagnosticsQuery(body []byte, offset int, includeSlotID bool) (diagnostics.Query, int, error) {
 	var query diagnostics.Query
 	var stage string
 	var result string
+	var slotID uint64
 	var err error
 	if query.TraceID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
@@ -146,6 +164,15 @@ func readDiagnosticsQuery(body []byte, offset int) (diagnostics.Query, int, erro
 	if query.Limit, offset, err = readNodeInt(body, offset, "diagnostics query limit"); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
+	if includeSlotID {
+		if slotID, offset, err = readUvarint(body, offset); err != nil {
+			return diagnostics.Query{}, offset, err
+		}
+		if slotID > uint64(^uint32(0)) {
+			return diagnostics.Query{}, offset, fmt.Errorf("internal/access/node: diagnostics query slot id overflows uint32")
+		}
+		query.SlotID = uint32(slotID)
+	}
 	query.Stage = diagnostics.Stage(stage)
 	query.Result = diagnostics.Result(result)
 	return query, offset, nil
@@ -169,7 +196,7 @@ func appendDiagnosticsQueryResult(dst []byte, result diagnostics.QueryResult) []
 	return dst
 }
 
-func readDiagnosticsQueryResult(body []byte, offset int, eventCodecVersion int) (diagnostics.QueryResult, int, error) {
+func readDiagnosticsQueryResult(body []byte, offset int, queryIncludesSlotID bool, eventCodecVersion int) (diagnostics.QueryResult, int, error) {
 	var result diagnostics.QueryResult
 	var status string
 	var err error
@@ -194,7 +221,7 @@ func readDiagnosticsQueryResult(body []byte, offset int, eventCodecVersion int) 
 	if result.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
-	if result.Query, offset, err = readDiagnosticsQuery(body, offset); err != nil {
+	if result.Query, offset, err = readDiagnosticsQuery(body, offset, queryIncludesSlotID); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
 	if status, offset, err = readDiagnosticsString(body, offset); err != nil {
@@ -309,6 +336,11 @@ func appendDiagnosticsEvent(dst []byte, event diagnostics.Event) []byte {
 	dst = appendNodeInt(dst, event.QueueDepth)
 	dst = appendString(dst, event.ReplicaRole)
 	dst = appendString(dst, event.SampleReason)
+	dst = appendString(dst, event.Decision)
+	dst = appendUvarint(dst, event.ActualLeaderID)
+	dst = appendUvarint(dst, event.PreferredLeaderID)
+	dst = appendUvarint(dst, event.RaftTerm)
+	dst = appendUvarint(dst, event.ConfigEpoch)
 	return dst
 }
 
@@ -400,6 +432,23 @@ func readDiagnosticsEvent(body []byte, offset int, eventCodecVersion int) (diagn
 	if event.SampleReason, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
+	if eventCodecVersion >= 4 {
+		if event.Decision, offset, err = readDiagnosticsString(body, offset); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
+		if event.ActualLeaderID, offset, err = readUvarint(body, offset); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
+		if event.PreferredLeaderID, offset, err = readUvarint(body, offset); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
+		if event.RaftTerm, offset, err = readUvarint(body, offset); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
+		if event.ConfigEpoch, offset, err = readUvarint(body, offset); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
+	}
 	event.Stage = diagnostics.Stage(stage)
 	event.Duration = time.Duration(duration)
 	event.SlotID = uint32(slotID)
@@ -482,7 +531,8 @@ func estimateDiagnosticsEventsBinarySize(events []diagnostics.Event) int {
 	for _, event := range events {
 		size += len(event.TraceID) + len(event.SpanID) + len(event.ParentSpanID) + len(event.Stage)
 		size += len(event.ChannelKey) + len(event.ClientMsgNo) + len(event.Service) + len(event.Result)
-		size += len(event.ErrorCode) + len(event.Error) + len(event.ReplicaRole) + len(event.SampleReason) + 160
+		size += len(event.ErrorCode) + len(event.Error) + len(event.ReplicaRole) + len(event.SampleReason)
+		size += len(event.Decision) + 200
 	}
 	return size
 }

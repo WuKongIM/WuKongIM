@@ -134,8 +134,8 @@ type strictLeaderTransferRequest struct {
 // strictLeaderTransferResponse is the single terminal result returned by the
 // Slot worker for a strict preferred-leader request.
 type strictLeaderTransferResponse struct {
-	// decision is a bounded no-op or transfer-started classification.
-	decision PreferredLeaderTransferDecision
+	// result contains the bounded decision and any fresh Raft observation.
+	result PreferredLeaderTransferResult
 	// err reports cancellation or terminal Slot/runtime failure.
 	err error
 }
@@ -438,22 +438,30 @@ func (g *slot) processControls(ctx context.Context) bool {
 					request.finish(strictLeaderTransferResponse{err: err})
 					continue
 				}
+				status := g.rawNode.Status()
 				target, decision := selectStrictLeaderTransferTarget(
-					g.rawNode.Status(),
+					status,
 					request.expectedLeader,
 					request.expectedTerm,
 					request.expectedVoters,
 					request.target,
 				)
+				result := PreferredLeaderTransferResult{
+					Decision:         decision,
+					ObservedLeaderID: NodeID(status.Lead),
+					ObservedTerm:     status.Term,
+					RaftObserved:     true,
+				}
 				if target == 0 {
-					request.finish(strictLeaderTransferResponse{decision: decision})
+					request.finish(strictLeaderTransferResponse{result: result})
 					continue
 				}
 				if err := request.ctx.Err(); err != nil {
-					request.finish(strictLeaderTransferResponse{err: err})
+					result.Decision = ""
+					request.finish(strictLeaderTransferResponse{result: result, err: err})
 					continue
 				}
-				g.executeStrictLeaderTransfer(request, target)
+				g.executeStrictLeaderTransfer(request, target, result)
 				continue
 			}
 			target := selectLeaderTransferTransferee(g.rawNode.Status(), action.target)
@@ -485,7 +493,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 	return len(controls) > 0
 }
 
-func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest, target NodeID) {
+func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest, target NodeID, result PreferredLeaderTransferResult) {
 	if g == nil || request == nil || target == 0 {
 		return
 	}
@@ -506,22 +514,27 @@ func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest,
 		started = true
 	})
 	if !current {
-		request.finish(strictLeaderTransferResponse{decision: PreferredLeaderTransferStaleIntent})
+		result.Decision = PreferredLeaderTransferStaleIntent
+		request.finish(strictLeaderTransferResponse{result: result})
 		return
 	}
 	if terminalErr != nil {
-		request.finish(strictLeaderTransferResponse{err: terminalErr})
+		result.Decision = ""
+		request.finish(strictLeaderTransferResponse{result: result, err: terminalErr})
 		return
 	}
 	if started {
-		request.finish(strictLeaderTransferResponse{decision: PreferredLeaderTransferStarted})
+		result.Decision = PreferredLeaderTransferStarted
+		request.finish(strictLeaderTransferResponse{result: result})
 		return
 	}
 	if err := request.ctx.Err(); err != nil {
-		request.finish(strictLeaderTransferResponse{err: err})
+		result.Decision = ""
+		request.finish(strictLeaderTransferResponse{result: result, err: err})
 		return
 	}
-	request.finish(strictLeaderTransferResponse{decision: PreferredLeaderTransferStaleIntent})
+	result.Decision = PreferredLeaderTransferStaleIntent
+	request.finish(strictLeaderTransferResponse{result: result})
 }
 
 func (g *slot) takeRequestBatch() []raftpb.Message {

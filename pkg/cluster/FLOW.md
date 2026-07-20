@@ -239,7 +239,16 @@ active and has replicated through the current commit index. If the preference
 is stale, ineligible, inactive, or behind, the valid actual Raft leader remains
 authoritative and no fallback voter is selected. Low-cardinality decision and
 strict-wait metrics expose why reconciliation did or did not transfer without a
-`slot_id` label.
+`slot_id` label. Bounded physical-Slot diagnostics use the fresh leader and term
+returned by that strict Slot worker; if the request returned before the worker
+observed Raft state, those fields remain unknown instead of reusing the earlier
+eligibility precheck.
+The former leader observes `actual == preferred` before its local-leader gate,
+so a successful transfer can close that node's retained non-match diagnostic
+history with one recovery `match`; this follower path emits detailed diagnostics
+only, while the actual leader remains the sole source of aggregate `match`
+counters. Nodes without prior non-match state suppress their steady detailed
+match observations.
 Leader-transfer execution calls Slot Raft `TransferLeadership` from
 the current Slot leader and completes once the observed actual leader is any
 legal non-source Slot Raft leader; the requested `target_node` is preferred,

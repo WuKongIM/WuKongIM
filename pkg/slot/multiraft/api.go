@@ -260,6 +260,20 @@ const (
 	PreferredLeaderTransferStarted           PreferredLeaderTransferDecision = "transfer_started"
 )
 
+// PreferredLeaderTransferResult reports one strict check together with the
+// fresh Raft leader and term observed by the owning Slot worker.
+type PreferredLeaderTransferResult struct {
+	// Decision is the bounded safety-check or transfer-started outcome.
+	Decision PreferredLeaderTransferDecision
+	// ObservedLeaderID is the leader in the worker's fresh RawNode status.
+	ObservedLeaderID NodeID
+	// ObservedTerm is the term paired with ObservedLeaderID.
+	ObservedTerm uint64
+	// RaftObserved distinguishes a fresh no-leader observation from paths that
+	// returned before the owning Slot worker inspected RawNode status.
+	RaftObserved bool
+}
+
 // PreferredLeaderTransferGuard linearizes Controller-intent invalidation with
 // the final nonblocking Raft TransferLeader call. ExecuteIfCurrent must run the
 // supplied action under the same guard used by the owner to invalidate the
@@ -285,25 +299,25 @@ func (r *Runtime) TryTransferLeadershipToPreferred(
 	expectedVoters []NodeID,
 	preferred NodeID,
 	guard PreferredLeaderTransferGuard,
-) (PreferredLeaderTransferDecision, error) {
+) (PreferredLeaderTransferResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return PreferredLeaderTransferResult{}, err
 	}
 	if guard == nil || guard.Context() == nil || guard.Context().Err() != nil {
-		return PreferredLeaderTransferStaleIntent, nil
+		return PreferredLeaderTransferResult{Decision: PreferredLeaderTransferStaleIntent}, nil
 	}
 	r.mu.RLock()
 	if r.closed {
 		r.mu.RUnlock()
-		return "", ErrRuntimeClosed
+		return PreferredLeaderTransferResult{}, ErrRuntimeClosed
 	}
 	g, ok := r.slots[slotID]
 	r.mu.RUnlock()
 	if !ok {
-		return "", ErrSlotNotFound
+		return PreferredLeaderTransferResult{}, ErrSlotNotFound
 	}
 
 	request := strictLeaderTransferRequest{
@@ -316,22 +330,22 @@ func (r *Runtime) TryTransferLeadershipToPreferred(
 		resp:           make(chan strictLeaderTransferResponse, 1),
 	}
 	if err := g.enqueueControl(controlAction{kind: controlTransferLeader, strictTransfer: &request}); err != nil {
-		return "", err
+		return PreferredLeaderTransferResult{}, err
 	}
 	r.scheduler.enqueue(slotID)
 
 	select {
 	case response := <-request.resp:
-		return response.decision, response.err
+		return response.result, response.err
 	case <-ctx.Done():
 		if request.cancel(ctx.Err()) {
-			return "", ctx.Err()
+			return PreferredLeaderTransferResult{}, ctx.Err()
 		}
 		// Crossing into executing commits only the already-fenced, non-blocking
 		// RawNode transfer call. Wait for that result instead of reporting a
 		// timeout no-op after the action has been issued.
 		response := <-request.resp
-		return response.decision, response.err
+		return response.result, response.err
 	}
 }
 

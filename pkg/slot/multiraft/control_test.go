@@ -55,9 +55,33 @@ func TestTransferLeadershipRejectsUnknownSlot(t *testing.T) {
 
 func TestTryTransferLeadershipToPreferredRejectsUnknownSlot(t *testing.T) {
 	rt := newStartedRuntime(t)
-	decision, err := rt.TryTransferLeadershipToPreferred(context.Background(), 999, 1, 7, []NodeID{1, 2, 3}, 2, alwaysCurrentPreferredLeaderGuard{})
-	if decision != "" || !errors.Is(err, ErrSlotNotFound) {
-		t.Fatalf("TryTransferLeadershipToPreferred() = (%q, %v), want (empty, %v)", decision, err, ErrSlotNotFound)
+	result, err := rt.TryTransferLeadershipToPreferred(context.Background(), 999, 1, 7, []NodeID{1, 2, 3}, 2, alwaysCurrentPreferredLeaderGuard{})
+	if result != (PreferredLeaderTransferResult{}) || !errors.Is(err, ErrSlotNotFound) {
+		t.Fatalf("TryTransferLeadershipToPreferred() = (%+v, %v), want (empty, %v)", result, err, ErrSlotNotFound)
+	}
+}
+
+func TestTryTransferLeadershipToPreferredReturnsFreshWorkerLeaderAndTerm(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 78)
+	precheck, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if precheck.Term < 2 {
+		t.Fatalf("Status().Term = %d, want at least 2", precheck.Term)
+	}
+
+	result, err := rt.TryTransferLeadershipToPreferred(
+		context.Background(), slotID, precheck.LeaderID, precheck.Term-1,
+		[]NodeID{1}, 2, alwaysCurrentPreferredLeaderGuard{},
+	)
+	if err != nil {
+		t.Fatalf("TryTransferLeadershipToPreferred() error = %v", err)
+	}
+	if result.Decision != PreferredLeaderTransferStaleIntent || !result.RaftObserved ||
+		result.ObservedLeaderID != precheck.LeaderID || result.ObservedTerm != precheck.Term {
+		t.Fatalf("strict result = %+v, want fresh worker leader=%d term=%d", result, precheck.LeaderID, precheck.Term)
 	}
 }
 
@@ -93,7 +117,7 @@ func TestClosingSlotCancelsQueuedStrictLeaderTransfer(t *testing.T) {
 
 	select {
 	case response := <-request.resp:
-		if response.decision != "" || !errors.Is(response.err, ErrSlotClosed) {
+		if response.result != (PreferredLeaderTransferResult{}) || !errors.Is(response.err, ErrSlotClosed) {
 			t.Fatalf("strict response = %+v, want canceled with %v", response, ErrSlotClosed)
 		}
 	case <-time.After(time.Second):
@@ -143,9 +167,9 @@ func TestExtractedStrictLeaderTransferRejectsTerminalSlotBeforeExecution(t *test
 
 			// The action has already been extracted from g.controls and claimed by
 			// the worker. The final g.mu-fenced admission check must still win.
-			g.executeStrictLeaderTransfer(request, 2)
+			g.executeStrictLeaderTransfer(request, 2, testFreshPreferredLeaderResult())
 			response := <-request.resp
-			if response.decision != "" || !errors.Is(response.err, tt.wantErr) {
+			if response.result.Decision != "" || !response.result.RaftObserved || !errors.Is(response.err, tt.wantErr) {
 				t.Fatalf("strict response = %+v, want terminal error %v", response, tt.wantErr)
 			}
 		})
@@ -172,16 +196,16 @@ func TestRuntimeCloseCancelsQueuedStrictLeaderTransfer(t *testing.T) {
 	g.mu.Unlock()
 
 	type result struct {
-		decision PreferredLeaderTransferDecision
+		transfer PreferredLeaderTransferResult
 		err      error
 	}
 	resultCh := make(chan result, 1)
 	go func() {
-		decision, err := rt.TryTransferLeadershipToPreferred(
+		transfer, err := rt.TryTransferLeadershipToPreferred(
 			context.Background(), slotID, 1, 7, []NodeID{1, 2, 3}, 2,
 			alwaysCurrentPreferredLeaderGuard{},
 		)
-		resultCh <- result{decision: decision, err: err}
+		resultCh <- result{transfer: transfer, err: err}
 	}()
 
 	deadline := time.Now().Add(time.Second)
@@ -202,8 +226,8 @@ func TestRuntimeCloseCancelsQueuedStrictLeaderTransfer(t *testing.T) {
 	go func() { closeDone <- rt.Close() }()
 	select {
 	case got := <-resultCh:
-		if got.decision != "" || !errors.Is(got.err, ErrRuntimeClosed) {
-			t.Fatalf("strict result = (%q, %v), want (empty, %v)", got.decision, got.err, ErrRuntimeClosed)
+		if got.transfer != (PreferredLeaderTransferResult{}) || !errors.Is(got.err, ErrRuntimeClosed) {
+			t.Fatalf("strict result = (%+v, %v), want (empty, %v)", got.transfer, got.err, ErrRuntimeClosed)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Runtime.Close did not cancel the queued strict transfer")
@@ -233,9 +257,9 @@ func TestExtractedStrictLeaderTransferRejectsInvalidatedIntentAtExecutionGap(t *
 
 	// Fresh Raft selection has already happened. The shared execution guard
 	// must prevent the final TransferLeader issue after Controller invalidation.
-	g.executeStrictLeaderTransfer(request, 2)
+	g.executeStrictLeaderTransfer(request, 2, testFreshPreferredLeaderResult())
 	response := <-request.resp
-	if response.err != nil || response.decision != PreferredLeaderTransferStaleIntent {
+	if response.err != nil || response.result.Decision != PreferredLeaderTransferStaleIntent || !response.result.RaftObserved {
 		t.Fatalf("strict response = %+v, want stale_intent no-op", response)
 	}
 }
@@ -249,7 +273,7 @@ func TestExtractedStrictLeaderTransferDoesNotHoldSlotLockWhileGuardWaits(t *test
 	request := newClaimedStrictLeaderTransferRequest(guard)
 	executeDone := make(chan struct{})
 	go func() {
-		g.executeStrictLeaderTransfer(request, 2)
+		g.executeStrictLeaderTransfer(request, 2, testFreshPreferredLeaderResult())
 		close(executeDone)
 	}()
 	select {
@@ -277,7 +301,7 @@ func TestExtractedStrictLeaderTransferDoesNotHoldSlotLockWhileGuardWaits(t *test
 		t.Fatal("strict transfer did not finish after the guard was released")
 	}
 	response := <-request.resp
-	if response.decision != "" || !errors.Is(response.err, ErrSlotClosed) {
+	if response.result.Decision != "" || !response.result.RaftObserved || !errors.Is(response.err, ErrSlotClosed) {
 		t.Fatalf("strict response = %+v, want terminal Slot close", response)
 	}
 }
@@ -294,6 +318,15 @@ func newClaimedStrictLeaderTransferRequest(guard PreferredLeaderTransferGuard) *
 	}
 	request.claim()
 	return request
+}
+
+func testFreshPreferredLeaderResult() PreferredLeaderTransferResult {
+	return PreferredLeaderTransferResult{
+		Decision:         PreferredLeaderTransferStarted,
+		ObservedLeaderID: 1,
+		ObservedTerm:     7,
+		RaftObserved:     true,
+	}
 }
 
 type invalidatablePreferredLeaderGuard struct {

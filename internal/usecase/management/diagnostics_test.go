@@ -58,6 +58,23 @@ func TestQueryDiagnosticsAggregatesControlSnapshotNodes(t *testing.T) {
 	}
 }
 
+func TestManagerDiagnosticsEventPreservesPreferredLeaderDecisionContext(t *testing.T) {
+	got := managerDiagnosticsEvent(diagnostics.Event{
+		Stage:             diagnostics.StageSlotPreferredLeaderReconcile,
+		SlotID:            7,
+		Decision:          "preferred_lagging",
+		ActualLeaderID:    1,
+		PreferredLeaderID: 2,
+		RaftTerm:          11,
+		ConfigEpoch:       4,
+	})
+
+	if got.SlotID != 7 || got.Decision != "preferred_lagging" || got.ActualLeaderID != 1 ||
+		got.PreferredLeaderID != 2 || got.RaftTerm != 11 || got.ConfigEpoch != 4 {
+		t.Fatalf("manager event = %#v, want explicit preferred-leader decision context", got)
+	}
+}
+
 func TestQueryDiagnosticsSkipsDownNodesAndMarksPartial(t *testing.T) {
 	now := time.Date(2026, 6, 19, 11, 0, 0, 0, time.UTC)
 	reader := &fakeDiagnosticsReader{

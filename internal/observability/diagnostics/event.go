@@ -15,6 +15,12 @@ type ErrorCode string
 type Status string
 
 const (
+	// StageSlotPreferredLeaderReconcile identifies one retained physical-Slot
+	// PreferredLeader reconciliation decision.
+	StageSlotPreferredLeaderReconcile Stage = "slot.preferred_leader_reconcile"
+)
+
+const (
 	// StatusOK indicates the query found only successful events.
 	StatusOK Status = "ok"
 	// StatusError indicates the query found at least one failed event.
@@ -73,6 +79,16 @@ type Event struct {
 	PeerNodeID uint64 `json:"peer_node_id,omitempty"`
 	// SlotID identifies the slot associated with the event, when known.
 	SlotID uint32 `json:"slot_id,omitempty"`
+	// Decision records the stable decision produced by a reconciliation step.
+	Decision string `json:"decision,omitempty"`
+	// ActualLeaderID is the Raft leader observed for the physical Slot.
+	ActualLeaderID uint64 `json:"actual_leader_id,omitempty"`
+	// PreferredLeaderID is the Controller's soft placement target for the physical Slot.
+	PreferredLeaderID uint64 `json:"preferred_leader_id,omitempty"`
+	// RaftTerm is the term observed with ActualLeaderID.
+	RaftTerm uint64 `json:"raft_term,omitempty"`
+	// ConfigEpoch fences the Controller voter assignment used by the decision.
+	ConfigEpoch uint64 `json:"config_epoch,omitempty"`
 	// ChannelKey is the diagnostics-safe channel identifier used for lookups.
 	ChannelKey string `json:"channel_key,omitempty"`
 	// ClientMsgNo is the client message number used for idempotency correlation.
@@ -115,7 +131,9 @@ type Query struct {
 	ClientMsgNo string `json:"client_msg_no,omitempty"`
 	ChannelKey  string `json:"channel_key,omitempty"`
 	// UID filters events by sender UID and must not cause event FromUID exposure.
-	UID        string `json:"uid,omitempty"`
+	UID string `json:"uid,omitempty"`
+	// SlotID filters events by exact physical Slot identity.
+	SlotID     uint32 `json:"slot_id,omitempty"`
 	MessageSeq uint64 `json:"message_seq,omitempty"`
 	Stage      Stage  `json:"stage,omitempty"`
 	Result     Result `json:"result,omitempty"`

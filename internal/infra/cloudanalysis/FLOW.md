@@ -4,7 +4,7 @@
 over startup-configured private origins only:
 
 ```text
-manager -> nodes, workqueues, app logs, diagnostics, task audits, redacted config
+manager -> nodes, workqueues, app logs, physical-Slot-filtered diagnostics, task audits, redacted config
 prometheus -> /api/v1/query_range with usecase-resolved PromQL, including
               node-exporter textfile evidence for service cgroup memory
 node APIs -> /debug/pprof for allowlisted node IDs
@@ -12,7 +12,9 @@ node APIs -> /debug/pprof for allowlisted node IDs
 
 The manager client authenticates with a dedicated run-scoped capability user or
 pre-issued bearer token and caches only the short-lived JWT. It does not reuse a
-human manager session. HTTP bodies and profile retention are size bounded.
+human manager session. Diagnostics forward the optional exact physical
+`slot_id` selector to the private Manager API. HTTP bodies and profile retention
+are size bounded.
 
 Raw profiles remain in an in-memory bounded store on the gateway. MCP consumers
 receive metadata or symbolized top rows, never raw profile bytes or filesystem

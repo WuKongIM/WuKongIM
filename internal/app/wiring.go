@@ -177,6 +177,10 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 	}
 	if a.cfg.Observability.Diagnostics.Enabled {
 		a.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(a.cfg))
+		clusterCfg.Slots.PreferredLeaderObserver = combinePreferredLeaderObservers(
+			clusterCfg.Slots.PreferredLeaderObserver,
+			&preferredLeaderDiagnosticsObserver{store: a.diagnostics, nodeID: clusterCfg.NodeID},
+		)
 		a.diagnosticsTracking = obsdiagnostics.NewTrackingRules(obsdiagnostics.TrackingRulesOptions{})
 		samplerOptions := diagnosticsSamplerOptions(a.cfg)
 		samplerOptions.TrackingRules = a.diagnosticsTracking

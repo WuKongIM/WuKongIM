@@ -20,7 +20,11 @@ Metrics select server-owned query IDs rather than accepting PromQL, including
 per-node memory, OOM counters, process start times, active gateway connections,
 active channels, and data-disk used bytes for process-continuity guards and
 bounded storage-growth calibration. Logs and
-diagnostics use fixed private API selectors and opaque cursors. Active
+diagnostics use fixed private API selectors and opaque cursors. A diagnostics
+query can combine an exact physical `slot_id` with the stable PreferredLeader
+reconciliation stage without widening Prometheus label cardinality. Those
+events are transition evidence with at-most-30-second unchanged resampling, not
+frequency counters; reconciliation rates remain Prometheus evidence. Active
 diagnostics are serialized across expiring trace rules and all profile kinds,
 so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or
 `goroutine`; CPU capture is limited to 30 seconds per call and 60 seconds per

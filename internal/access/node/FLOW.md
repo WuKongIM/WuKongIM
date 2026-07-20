@@ -414,7 +414,12 @@ only the configured local diagnostics port; aggregate node selection,
 alive/suspect/down filtering, and HTTP permission checks are decided above this
 package by the management usecase and manager access layer. The payload uses
 internal diagnostics DTOs and does not read legacy `internal` diagnostics
-state.
+state. Event queries may select one exact physical `SlotID`. PreferredLeader
+reconciliation events preserve their decision, actual and preferred leader,
+Raft term, and Controller config epoch as explicit fields rather than reusing
+generic peer or error fields. Event count is not a reconcile-rate signal:
+node-local retention keeps state changes immediately and resamples an unchanged
+signature at most once every 30 seconds, while Prometheus keeps aggregate rates.
 
 ## Manager Application Log RPC
 
@@ -507,8 +512,14 @@ Manager DB Inspect RPC uses fixed magic headers:
 
 Manager Diagnostics RPC uses fixed magic headers:
 
-- Request: `W K V D Q`
-- Response: `W K V D R`
+- Request: `W K V D Q 2`
+- Response: `W K V D R 2`
+
+The version 2 Manager diagnostics reader also accepts version 1 request and
+response payloads. The shared diagnostics binary helper emits `W K D Q 3`
+requests and `W K D R 4` responses while accepting request version 2 and
+response versions 2-3. Older payloads decode the physical Slot query and
+PreferredLeader reconciliation fields as zero values.
 
 Manager Application Log RPC uses fixed magic headers:
 
@@ -524,9 +535,10 @@ Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
 unknown operations, malformed varints, oversized collections, truncated
 payloads, and trailing bytes.
-The codec is an internal node-to-node contract and does not provide
-mixed-version rolling-upgrade compatibility yet; incompatible payload layout
-changes must bump the magic version when that compatibility is required.
+The codec is an internal node-to-node contract. Layout changes must bump the
+magic version. Decoders accept only the explicitly documented older payloads,
+while encoders always emit the latest version; this does not promise
+bidirectional mixed-version rolling-upgrade compatibility.
 
 Stable response statuses are:
 

@@ -976,7 +976,7 @@ func (r *delayedGuardPreferredLeaderRuntime) TryTransferLeadershipToPreferred(
 	_ []multiraft.NodeID,
 	_ multiraft.NodeID,
 	guard multiraft.PreferredLeaderTransferGuard,
-) (multiraft.PreferredLeaderTransferDecision, error) {
+) (multiraft.PreferredLeaderTransferResult, error) {
 	r.once.Do(func() { close(r.entered) })
 	<-r.allowExecution
 	if guard == nil || !guard.ExecuteIfCurrent(func() {
@@ -984,9 +984,9 @@ func (r *delayedGuardPreferredLeaderRuntime) TryTransferLeadershipToPreferred(
 		r.transferStarted = true
 		r.mu.Unlock()
 	}) {
-		return multiraft.PreferredLeaderTransferStaleIntent, nil
+		return multiraft.PreferredLeaderTransferResult{Decision: multiraft.PreferredLeaderTransferStaleIntent}, nil
 	}
-	return multiraft.PreferredLeaderTransferStarted, nil
+	return multiraft.PreferredLeaderTransferResult{Decision: multiraft.PreferredLeaderTransferStarted}, nil
 }
 
 func (r *delayedGuardPreferredLeaderRuntime) TransferStarted() bool {

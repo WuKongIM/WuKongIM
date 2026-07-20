@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -127,6 +128,75 @@ func TestManagerDiagnosticsTraceReturnsAggregate(t *testing.T) {
 		"notes": ["aggregate note"]
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerDiagnosticsEventsFiltersPhysicalSlotAndReturnsDecisionContext(t *testing.T) {
+	var received managementusecase.DiagnosticsQueryRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "admin",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.diagnostics", Actions: []string{"r"}}},
+		}}),
+		Management: managerNodesStub{
+			diagnosticsReqSink: &received,
+			diagnosticsResponse: managementusecase.DiagnosticsQueryResponse{
+				Scope:  "local_node",
+				Status: managementusecase.DiagnosticsStatusOK,
+				Query: diagnostics.Query{
+					SlotID: 7,
+					Stage:  diagnostics.StageSlotPreferredLeaderReconcile,
+					Limit:  10,
+				},
+				Events: []managementusecase.DiagnosticsEvent{{
+					Stage:             string(diagnostics.StageSlotPreferredLeaderReconcile),
+					NodeID:            2,
+					SlotID:            7,
+					Decision:          "preferred_lagging",
+					ActualLeaderID:    1,
+					PreferredLeaderID: 2,
+					RaftTerm:          11,
+					ConfigEpoch:       4,
+					Result:            "skipped",
+				}},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/diagnostics/events?node_id=2&slot_id=7&stage=slot.preferred_leader_reconcile&limit=10", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want ok; body=%s", rec.Code, rec.Body.String())
+	}
+	if received.NodeID != 2 || received.Query.SlotID != 7 || received.Query.Stage != diagnostics.StageSlotPreferredLeaderReconcile {
+		t.Fatalf("request = %#v, want node 2 physical Slot 7 preferred-leader stage", received)
+	}
+	var body DiagnosticsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Query.SlotID != 7 || len(body.Events) != 1 {
+		t.Fatalf("response = %#v, want physical Slot query and one event", body)
+	}
+	event := body.Events[0]
+	if event.Decision != "preferred_lagging" || event.ActualLeaderID != 1 || event.PreferredLeaderID != 2 || event.RaftTerm != 11 || event.ConfigEpoch != 4 {
+		t.Fatalf("event = %#v, want explicit preferred-leader decision context", event)
+	}
+}
+
+func TestManagerDiagnosticsEventsRejectsPhysicalSlotOverflow(t *testing.T) {
+	srv := New(Options{})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/diagnostics/events?slot_id=4294967296", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want bad request; body=%s", rec.Code, rec.Body.String())
 	}
 }
 

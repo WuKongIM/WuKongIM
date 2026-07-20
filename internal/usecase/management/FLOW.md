@@ -740,12 +740,14 @@ manager HTTP handler
   -> internal diagnostics query result or tracking-rule mutation result
 ```
 
-Diagnostics queries normalize trace, message, and event filters in the
+Diagnostics queries normalize trace, message, physical Slot, and event filters in the
 management usecase, select alive or suspect nodes from the cluster control
 snapshot for aggregate reads, and skip down nodes with per-node notes instead
 of masking the cluster shape. Tracking-rule mutations fan out to eligible
 nodes and preserve per-node successes, skips, and errors. The usecase depends
-only on the internal diagnostics DTOs and the narrow diagnostics ports.
+only on the internal diagnostics DTOs and the narrow diagnostics ports. The
+physical Slot filter and explicit PreferredLeader decision context are
+preserved across local and manager-RPC reads.
 
 ## User Management Flow
 

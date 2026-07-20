@@ -38,7 +38,7 @@ type PreferredLeaderRuntime interface {
 		[]multiraft.NodeID,
 		multiraft.NodeID,
 		multiraft.PreferredLeaderTransferGuard,
-	) (multiraft.PreferredLeaderTransferDecision, error)
+	) (multiraft.PreferredLeaderTransferResult, error)
 }
 
 // PreferredLeaderIntent identifies the exact applied Controller intent that
@@ -61,6 +61,31 @@ type PreferredLeaderIntent struct {
 type PreferredLeaderObserver interface {
 	ObservePreferredLeaderDecision(decision string)
 	ObservePreferredLeaderStrictWait(decision string, d time.Duration)
+}
+
+// PreferredLeaderObservation describes one physical-Slot reconciliation
+// decision without introducing Slot identity into Prometheus labels.
+type PreferredLeaderObservation struct {
+	// Decision is the stable reconciliation outcome.
+	Decision string
+	// SlotID identifies the physical Slot being reconciled.
+	SlotID uint32
+	// ActualLeaderID is the Raft leader observed before the decision; zero means unknown or no leader.
+	ActualLeaderID uint64
+	// PreferredLeaderID is the Controller's soft placement target.
+	PreferredLeaderID uint64
+	// RaftTerm is the term observed with ActualLeaderID; zero means unknown.
+	RaftTerm uint64
+	// ConfigEpoch fences the Controller voter assignment used by the decision.
+	ConfigEpoch uint64
+	// StrictWaitDuration is non-zero when the decision required a strict Raft-worker check.
+	StrictWaitDuration time.Duration
+}
+
+// PreferredLeaderDiagnosticObserver receives detailed physical-Slot decisions
+// for bounded node-local diagnostics. Prometheus observers should not implement it.
+type PreferredLeaderDiagnosticObserver interface {
+	ObservePreferredLeaderReconcile(PreferredLeaderObservation)
 }
 
 // PreferredLeaderReconcilerConfig wires steady-state preferred-leader convergence.
@@ -160,22 +185,31 @@ func (r *PreferredLeaderReconciler) Reconcile(ctx context.Context, snapshot cont
 
 		status, err := r.cfg.Runtime.Status(multiraft.SlotID(assignment.SlotID))
 		if err != nil {
-			r.observeDecision(preferredLeaderDecisionError)
+			r.observeSlotDecision(preferredLeaderDecisionError, assignment, multiraft.Status{}, 0)
 			r.cursor = (index + 1) % len(snapshot.Slots)
 			return err
+		}
+		// Observe convergence before the local-leader gate. After a successful
+		// transfer, the former leader is a follower but still owns the diagnostic
+		// history needed to close its earlier non-match state.
+		if status.Term != 0 && status.LeaderID == multiraft.NodeID(assignment.PreferredLeader) {
+			r.clearAttempt(assignment.SlotID)
+			if uint64(status.LeaderID) == r.cfg.LocalNode {
+				r.observeSlotDecision(preferredLeaderDecisionMatch, assignment, status, 0)
+			} else {
+				// Followers only close their node-local diagnostic history. The
+				// acting leader remains the sole source of aggregate match counts.
+				r.observeSlotDetail(preferredLeaderDecisionMatch, assignment, status, 0)
+			}
+			continue
 		}
 		if uint64(status.LeaderID) != r.cfg.LocalNode || status.Term == 0 {
 			r.clearAttempt(assignment.SlotID)
 			continue
 		}
-		if status.LeaderID == multiraft.NodeID(assignment.PreferredLeader) {
-			r.clearAttempt(assignment.SlotID)
-			r.observeDecision(preferredLeaderDecisionMatch)
-			continue
-		}
 		if !sameVoterSet(status.CurrentVoters, assignment.DesiredPeers) {
 			r.clearAttempt(assignment.SlotID)
-			r.observeDecision(preferredLeaderDecisionVoterMismatch)
+			r.observeSlotDecision(preferredLeaderDecisionVoterMismatch, assignment, status, 0)
 			continue
 		}
 
@@ -186,7 +220,7 @@ func (r *PreferredLeaderReconciler) Reconcile(ctx context.Context, snapshot cont
 			configEpoch: assignment.ConfigEpoch,
 		}
 		if !r.reserveAttempt(assignment.SlotID, fingerprint) {
-			r.observeDecision(preferredLeaderDecisionCooldown)
+			r.observeSlotDecision(preferredLeaderDecisionCooldown, assignment, status, 0)
 			continue
 		}
 		checks++
@@ -203,7 +237,7 @@ func (r *PreferredLeaderReconciler) Reconcile(ctx context.Context, snapshot cont
 		}
 		if !current || intentGuard == nil || intentGuard.Context() == nil || intentGuard.Context().Err() != nil {
 			r.clearAttempt(assignment.SlotID)
-			r.observeDecision(preferredLeaderDecisionStaleIntent)
+			r.observeSlotDecision(preferredLeaderDecisionStaleIntent, assignment, status, 0)
 			r.cursor = (index + 1) % len(snapshot.Slots)
 			if checks >= maxPreferredLeaderChecksPerReconcile {
 				return nil
@@ -217,7 +251,7 @@ func (r *PreferredLeaderReconciler) Reconcile(ctx context.Context, snapshot cont
 		attemptCtx, cancel := context.WithTimeout(intentCtx, r.cfg.AttemptTimeout)
 		stopOuterCancel := context.AfterFunc(ctx, cancel)
 		startedAt := time.Now()
-		decision, err := r.cfg.Runtime.TryTransferLeadershipToPreferred(
+		result, err := r.cfg.Runtime.TryTransferLeadershipToPreferred(
 			attemptCtx,
 			multiraft.SlotID(assignment.SlotID),
 			status.LeaderID,
@@ -229,32 +263,44 @@ func (r *PreferredLeaderReconciler) Reconcile(ctx context.Context, snapshot cont
 		stopOuterCancel()
 		cancel()
 		r.cursor = (index + 1) % len(snapshot.Slots)
+		// A strict outcome belongs to the worker observation, not the earlier
+		// eligibility precheck. Keep unknown as zero when the request returned
+		// before the owning Slot worker inspected fresh Raft state.
+		strictStatus := multiraft.Status{}
+		if result.RaftObserved {
+			strictStatus.LeaderID = result.ObservedLeaderID
+			strictStatus.Term = result.ObservedTerm
+		}
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
 			if intentCtx.Err() != nil {
 				r.clearAttempt(assignment.SlotID)
-				r.observeStrictWait(preferredLeaderDecisionStaleIntent, time.Since(startedAt))
-				r.observeDecision(preferredLeaderDecisionStaleIntent)
+				wait := time.Since(startedAt)
+				r.observeStrictWait(preferredLeaderDecisionStaleIntent, wait)
+				r.observeSlotDecision(preferredLeaderDecisionStaleIntent, assignment, strictStatus, wait)
 				return nil
 			}
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(attemptCtx.Err(), context.DeadlineExceeded) {
-				r.observeStrictWait(preferredLeaderDecisionTimeout, time.Since(startedAt))
-				r.observeDecision(preferredLeaderDecisionTimeout)
+				wait := time.Since(startedAt)
+				r.observeStrictWait(preferredLeaderDecisionTimeout, wait)
+				r.observeSlotDecision(preferredLeaderDecisionTimeout, assignment, strictStatus, wait)
 				return nil
 			}
-			r.observeStrictWait(preferredLeaderDecisionError, time.Since(startedAt))
-			r.observeDecision(preferredLeaderDecisionError)
+			wait := time.Since(startedAt)
+			r.observeStrictWait(preferredLeaderDecisionError, wait)
+			r.observeSlotDecision(preferredLeaderDecisionError, assignment, strictStatus, wait)
 			return err
 		}
-		decisionLabel := string(decision)
+		decisionLabel := string(result.Decision)
 		if decisionLabel == "" {
 			decisionLabel = preferredLeaderDecisionError
 		}
-		r.observeStrictWait(decisionLabel, time.Since(startedAt))
-		r.observeDecision(decisionLabel)
-		if decision == multiraft.PreferredLeaderTransferStarted || checks >= maxPreferredLeaderChecksPerReconcile {
+		wait := time.Since(startedAt)
+		r.observeStrictWait(decisionLabel, wait)
+		r.observeSlotDecision(decisionLabel, assignment, strictStatus, wait)
+		if result.Decision == multiraft.PreferredLeaderTransferStarted || checks >= maxPreferredLeaderChecksPerReconcile {
 			return nil
 		}
 	}
@@ -272,6 +318,27 @@ func (r *PreferredLeaderReconciler) observeStrictWait(decision string, d time.Du
 	if r != nil && r.cfg.Observer != nil {
 		r.cfg.Observer.ObservePreferredLeaderStrictWait(decision, d)
 	}
+}
+
+func (r *PreferredLeaderReconciler) observeSlotDecision(decision string, assignment control.SlotAssignment, status multiraft.Status, strictWait time.Duration) {
+	r.observeDecision(decision)
+	r.observeSlotDetail(decision, assignment, status, strictWait)
+}
+
+func (r *PreferredLeaderReconciler) observeSlotDetail(decision string, assignment control.SlotAssignment, status multiraft.Status, strictWait time.Duration) {
+	observer, ok := r.cfg.Observer.(PreferredLeaderDiagnosticObserver)
+	if !ok || observer == nil || assignment.SlotID == 0 {
+		return
+	}
+	observer.ObservePreferredLeaderReconcile(PreferredLeaderObservation{
+		Decision:           decision,
+		SlotID:             assignment.SlotID,
+		ActualLeaderID:     uint64(status.LeaderID),
+		PreferredLeaderID:  assignment.PreferredLeader,
+		RaftTerm:           status.Term,
+		ConfigEpoch:        assignment.ConfigEpoch,
+		StrictWaitDuration: strictWait,
+	})
 }
 
 func toMultiRaftNodeIDs(nodeIDs []uint64) []multiraft.NodeID {

@@ -64,10 +64,14 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 	}
 	names := make([]string, 0, len(listed.Tools))
 	var workloadTool *mcp.Tool
+	var diagnosticsTool *mcp.Tool
 	for _, tool := range listed.Tools {
 		names = append(names, tool.Name)
 		if tool.Name == "workload_inspect" {
 			workloadTool = tool
+		}
+		if tool.Name == "diagnostics_query" {
+			diagnosticsTool = tool
 		}
 	}
 	sort.Strings(names)
@@ -94,6 +98,16 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 	}
 	if !strings.Contains(string(workloadSchema), `"failed_workers"`) || !strings.Contains(string(workloadSchema), `"phase_windows"`) {
 		t.Fatalf("workload output schema does not describe diagnostic evidence: %s", workloadSchema)
+	}
+	if diagnosticsTool == nil || diagnosticsTool.InputSchema == nil {
+		t.Fatal("diagnostics_query must publish a concrete input schema")
+	}
+	diagnosticsSchema, err := json.Marshal(diagnosticsTool.InputSchema)
+	if err != nil {
+		t.Fatalf("marshal diagnostics input schema: %v", err)
+	}
+	if !strings.Contains(string(diagnosticsSchema), `"slot_id"`) {
+		t.Fatalf("diagnostics input schema does not expose physical slot_id: %s", diagnosticsSchema)
 	}
 
 	called, err := session.CallTool(context.Background(), &mcp.CallToolParams{
