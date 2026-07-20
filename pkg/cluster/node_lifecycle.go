@@ -90,6 +90,10 @@ func (n *Node) Stop(ctx context.Context) error {
 		return err
 	}
 	n.stopping.Store(true)
+	// Stop entry is the mutation fence for background preferred-leader work.
+	// An already-issued nonblocking transfer may finish, but no stale intent may
+	// cross the generation guard while the other background loops wind down.
+	n.invalidatePreferredLeaderIntent()
 	n.stopHealthReportLoop(ctx)
 	n.stopWatchLoop()
 	n.stopTaskReconcileLoop()

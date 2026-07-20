@@ -131,7 +131,6 @@ func TestExtractedStrictLeaderTransferRejectsTerminalSlotBeforeExecution(t *test
 		wantErr error
 	}{
 		{name: "close slot", prepare: func(g *slot) { g.closed = true }, wantErr: ErrSlotClosed},
-		{name: "runtime close", prepare: func(g *slot) { g.closed = true }, wantErr: ErrSlotClosed},
 		{name: "fatal", prepare: func(g *slot) { g.fatalErr = fatalErr }, wantErr: fatalErr},
 	}
 	for _, tt := range tests {
@@ -150,6 +149,79 @@ func TestExtractedStrictLeaderTransferRejectsTerminalSlotBeforeExecution(t *test
 				t.Fatalf("strict response = %+v, want terminal error %v", response, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestRuntimeCloseCancelsQueuedStrictLeaderTransfer(t *testing.T) {
+	rt := newStartedRuntime(t)
+	const slotID SlotID = 77
+	if err := rt.OpenSlot(context.Background(), newInternalSlotOptions(slotID)); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	rt.mu.RLock()
+	g := rt.slots[slotID]
+	rt.mu.RUnlock()
+	if g == nil {
+		t.Fatal("opened Slot is missing from Runtime")
+	}
+
+	// Keep the real worker from extracting the request so Runtime.Close must
+	// cancel it through failPendingLocked before waiting for Slot idleness.
+	g.mu.Lock()
+	g.processing = true
+	g.mu.Unlock()
+
+	type result struct {
+		decision PreferredLeaderTransferDecision
+		err      error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		decision, err := rt.TryTransferLeadershipToPreferred(
+			context.Background(), slotID, 1, 7, []NodeID{1, 2, 3}, 2,
+			alwaysCurrentPreferredLeaderGuard{},
+		)
+		resultCh <- result{decision: decision, err: err}
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		g.mu.Lock()
+		queued := len(g.controls) == 1 && g.controls[0].strictTransfer != nil
+		g.mu.Unlock()
+		if queued {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("strict transfer was not queued before Runtime.Close")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- rt.Close() }()
+	select {
+	case got := <-resultCh:
+		if got.decision != "" || !errors.Is(got.err, ErrRuntimeClosed) {
+			t.Fatalf("strict result = (%q, %v), want (empty, %v)", got.decision, got.err, ErrRuntimeClosed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Runtime.Close did not cancel the queued strict transfer")
+	}
+
+	g.mu.Lock()
+	g.processing = false
+	if g.cond != nil {
+		g.cond.Broadcast()
+	}
+	g.mu.Unlock()
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("Runtime.Close() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Runtime.Close did not finish after Slot became idle")
 	}
 }
 

@@ -305,11 +305,11 @@ readiness as diagnostics; it is not a distributed authority source.
 
 ```text
 Stop(ctx)
-  -> mark stopping and reject new foreground calls
+  -> mark stopping, reject new foreground calls, and immediately invalidate the current preferred-leader intent generation
   -> stop low-frequency Controller health reporting
   -> stop Controller watch loop
   -> stop Controller task reconciliation loop
-  -> invalidate the current preferred-leader intent generation and stop its independent reconciliation loop
+  -> stop the independent preferred-leader reconciliation loop
   -> close route-authority watchers
   -> stop Slot leader observation loop
   -> stop Channel runtime tick loop

@@ -624,6 +624,125 @@ func TestPreferredLeaderIntentGuardRejectsExecutionDuringNewSnapshotApply(t *tes
 	}
 }
 
+func TestPreferredLeaderIntentGuardExecutionLinearizesBeforeNewSnapshotApply(t *testing.T) {
+	previous := nodeControlSnapshot()
+	node := &Node{controlSnapshot: previous.Clone()}
+	node.publishPreferredLeaderIntent(previous)
+	t.Cleanup(node.invalidatePreferredLeaderIntent)
+	intent := clustertasks.PreferredLeaderIntent{
+		Revision:        previous.Revision,
+		SlotID:          previous.Slots[0].SlotID,
+		ConfigEpoch:     previous.Slots[0].ConfigEpoch,
+		PreferredLeader: previous.Slots[0].PreferredLeader,
+		DesiredPeers:    append([]uint64(nil), previous.Slots[0].DesiredPeers...),
+	}
+	guard, ok := node.preferredLeaderIntentGuard(intent)
+	if !ok {
+		t.Fatal("current preferred-leader intent guard was rejected")
+	}
+
+	actionEntered := make(chan struct{})
+	releaseAction := make(chan struct{})
+	executionDone := make(chan bool, 1)
+	go func() {
+		executionDone <- guard.ExecuteIfCurrent(func() {
+			close(actionEntered)
+			<-releaseAction
+		})
+	}()
+	select {
+	case <-actionEntered:
+	case <-time.After(time.Second):
+		t.Fatal("guarded transfer action did not begin")
+	}
+
+	next := previous.Clone()
+	next.Revision++
+	next.Slots[0].PreferredLeader = 3
+	applyDone := make(chan error, 1)
+	go func() { applyDone <- node.applySnapshot(context.Background(), next) }()
+	waitUntil(t, func() bool {
+		node.preferredLeaderIntentMu.Lock()
+		defer node.preferredLeaderIntentMu.Unlock()
+		return node.preferredLeaderIntentGeneration == nil
+	})
+	select {
+	case err := <-applyDone:
+		t.Fatalf("applySnapshot() returned before the earlier guarded action linearized: %v", err)
+	default:
+	}
+
+	close(releaseAction)
+	select {
+	case current := <-executionDone:
+		if !current {
+			t.Fatal("execution that acquired the generation guard first was rejected")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("guarded execution did not finish")
+	}
+	select {
+	case err := <-applyDone:
+		if err != nil {
+			t.Fatalf("applySnapshot() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("applySnapshot did not continue after guarded execution completed")
+	}
+	if guard.Context().Err() == nil {
+		t.Fatal("old generation context remained current after newer snapshot apply")
+	}
+}
+
+func TestStopInvalidatesPreferredLeaderIntentBeforeWaitingForOtherLoops(t *testing.T) {
+	previous := nodeControlSnapshot()
+	node := &Node{}
+	node.publishPreferredLeaderIntent(previous)
+	intent := clustertasks.PreferredLeaderIntent{
+		Revision:        previous.Revision,
+		SlotID:          previous.Slots[0].SlotID,
+		ConfigEpoch:     previous.Slots[0].ConfigEpoch,
+		PreferredLeader: previous.Slots[0].PreferredLeader,
+		DesiredPeers:    append([]uint64(nil), previous.Slots[0].DesiredPeers...),
+	}
+	guard, ok := node.preferredLeaderIntentGuard(intent)
+	if !ok {
+		t.Fatal("current preferred-leader intent guard was rejected")
+	}
+
+	healthCtx, healthCancel := context.WithCancel(context.Background())
+	healthLoopStopping := make(chan struct{})
+	releaseHealthLoop := make(chan struct{})
+	node.healthReportCancel = healthCancel
+	node.healthReportWG.Add(1)
+	go func() {
+		defer node.healthReportWG.Done()
+		<-healthCtx.Done()
+		close(healthLoopStopping)
+		<-releaseHealthLoop
+	}()
+
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- node.Stop(context.Background()) }()
+	select {
+	case <-healthLoopStopping:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not reach the blocking health-loop shutdown")
+	}
+	if guard.Context().Err() == nil {
+		t.Fatal("Stop waited for another loop before invalidating preferred-leader intent")
+	}
+	close(releaseHealthLoop)
+	select {
+	case err := <-stopDone:
+		if err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not finish after the blocking loop exited")
+	}
+}
+
 func TestTaskReconcileLoopRecordsLocalSnapshotError(t *testing.T) {
 	initial := nodeControlSnapshot()
 	initial.Tasks = []control.ReconcileTask{bootstrapTaskForNodeSnapshotTest()}
