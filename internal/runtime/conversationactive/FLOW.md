@@ -9,9 +9,14 @@ Current flow:
 1. Channel append or another authority-owned caller submits an `ActiveBatch`.
 2. The manager merges rows by `(uid, kind, channel_id, channel_type)`.
 3. Admission mutates cache state only. It may evict already-clean rows while
-   holding the cache lock, but it never reads or writes `ActiveStore` and never
-   waits for the serialized durable flush lane. If a new row still exceeds the
-   hard bound, the whole admission is rejected with `ErrCachePressure`.
+   holding the cache lock, but it protects every address present in the incoming
+   batch and first compares the remaining exact clean-row count with the space
+   required by the whole batch. When too few evictable clean rows exist it
+   rejects immediately instead of scanning a full dirty cache or evicting a row
+   that the same batch will update. Admission never reads or writes
+   `ActiveStore` and never waits for the serialized durable flush lane. If a new
+   row still exceeds the hard bound, the whole admission is rejected with
+   `ErrCachePressure`.
 4. At 80% total cache occupancy with more than 70% of configured capacity still
    dirty, the manager starts a pressure-drain cycle by sending one nonblocking,
    coalesced wakeup to the app flush worker. A full dirty cache uses the same
