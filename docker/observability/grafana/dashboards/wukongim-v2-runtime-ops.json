@@ -396,13 +396,13 @@
           "refId": "D"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
-          "legendFormat": "flush p95 {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "flush p95 {{node_name}} {{result}}",
           "refId": "E"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_rows_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
-          "legendFormat": "flush rows p95 {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_rows_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, kind))",
+          "legendFormat": "flush rows p95 {{node_name}} {{result}} {{kind}}",
           "refId": "F"
         },
         {
