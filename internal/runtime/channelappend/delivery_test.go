@@ -28,6 +28,46 @@ func TestRecipientProcessorPushesDeliveryWithPresenceAndPusher(t *testing.T) {
 	}
 }
 
+func TestRecipientProcessorLegacyPresenceOwnerPushChunksStayBoundedAndOrdered(t *testing.T) {
+	routes := []Route{
+		{UID: "u1", OwnerNodeID: 3, SessionID: 10},
+		{UID: "u2", OwnerNodeID: 3, SessionID: 20},
+		{UID: "u3", OwnerNodeID: 3, SessionID: 30},
+		{UID: "u4", OwnerNodeID: 3, SessionID: 40},
+		{UID: "u5", OwnerNodeID: 3, SessionID: 50},
+	}
+	pusher := &recordingOwnerPusherForDeliveryTest{}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver:   &recordingPresenceResolverForDeliveryTest{routes: routes},
+		OwnerPusher:        pusher,
+		OwnerPushBatchSize: 2,
+	})
+
+	err := processor.ProcessRecipientBatch(context.Background(), RecipientBatch{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Recipients: []Recipient{
+			{UID: "u1"}, {UID: "u2"}, {UID: "u3"}, {UID: "u4"}, {UID: "u5"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ProcessRecipientBatch() error = %v", err)
+	}
+	commands := pusher.commandsSnapshot()
+	if got, want := len(commands), 3; got != want {
+		t.Fatalf("owner push calls = %d, want %d bounded chunks", got, want)
+	}
+	wantUIDs := [][]string{{"u1", "u2"}, {"u3", "u4"}, {"u5"}}
+	for i, command := range commands {
+		gotUIDs := make([]string, 0, len(command.Routes))
+		for _, route := range command.Routes {
+			gotUIDs = append(gotUIDs, route.UID)
+		}
+		if !reflect.DeepEqual(gotUIDs, wantUIDs[i]) {
+			t.Fatalf("chunk %d routes = %#v, want %#v", i, gotUIDs, wantUIDs[i])
+		}
+	}
+}
+
 func TestRecipientProcessorSkipsOnlySameSenderOwnerSessionEcho(t *testing.T) {
 	pusher := &recordingOwnerPusherForDeliveryTest{}
 	resolver := &recordingPresenceResolverForDeliveryTest{routes: []Route{
@@ -116,6 +156,236 @@ func TestRetryableOwnerPushRoutesReturnErrorAfterMaxAttempts(t *testing.T) {
 	}
 	if got := pusher.callCount(); got != 2 {
 		t.Fatalf("push calls = %d, want max attempts", got)
+	}
+}
+
+func TestRecipientProcessorCoalescesOwnerPushesAcrossExactTargets(t *testing.T) {
+	const targetCount = 7
+	targets := make([]RecipientTargetBatch, 0, targetCount)
+	results := make([]RecipientTargetPresenceResult, 0, targetCount)
+	for i := 0; i < targetCount; i++ {
+		uid := "u" + strconv.Itoa(i+1)
+		ownerNodeID := uint64(i%3 + 1)
+		targets = append(targets, RecipientTargetBatch{
+			Target:     recipientAuthorityTargetForTest(uint16(i+1), uint64(i+10), uint64(i+100)),
+			Recipients: []Recipient{{UID: uid}},
+		})
+		results = append(results, RecipientTargetPresenceResult{Routes: []Route{{
+			UID:         uid,
+			OwnerNodeID: ownerNodeID,
+			SessionID:   uint64(i + 1000),
+		}}})
+	}
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{results: results}
+	pusher := &recordingOwnerPusherForDeliveryTest{}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver: resolver,
+		OwnerPusher:      pusher,
+	})
+
+	errs := processor.ProcessRecipientDeliveryPlan(context.Background(), RecipientDeliveryPlan{
+		Event:   CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Targets: targets,
+	})
+
+	if got, want := errs, make([]error, targetCount); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want %#v", got, want)
+	}
+	commands := pusher.commandsSnapshot()
+	if got, want := len(commands), 3; got != want {
+		t.Fatalf("owner push calls = %d, want %d plan-wide owner batches", got, want)
+	}
+	if got, want := []uint64{commands[0].OwnerNodeID, commands[1].OwnerNodeID, commands[2].OwnerNodeID}, []uint64{1, 2, 3}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("owner push order = %#v, want first-seen order %#v", got, want)
+	}
+	wantUIDs := map[uint64][]string{
+		1: {"u1", "u4", "u7"},
+		2: {"u2", "u5"},
+		3: {"u3", "u6"},
+	}
+	for _, command := range commands {
+		gotUIDs := make([]string, 0, len(command.Routes))
+		for _, route := range command.Routes {
+			gotUIDs = append(gotUIDs, route.UID)
+		}
+		if want := wantUIDs[command.OwnerNodeID]; !reflect.DeepEqual(gotUIDs, want) {
+			t.Fatalf("owner %d routes = %#v, want %#v", command.OwnerNodeID, gotUIDs, want)
+		}
+	}
+}
+
+func TestRecipientProcessorPlanRetryMapsOnlyFailedRouteTarget(t *testing.T) {
+	firstRoute := Route{UID: "u1", OwnerNodeID: 3, SessionID: 10}
+	secondRoute := Route{UID: "u2", OwnerNodeID: 3, SessionID: 20}
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{results: []RecipientTargetPresenceResult{
+		{Routes: []Route{firstRoute}},
+		{Routes: []Route{secondRoute}},
+	}}
+	pusher := &recordingOwnerPusherForDeliveryTest{results: []PushResult{
+		{Accepted: []Route{firstRoute}, Retryable: []Route{secondRoute}},
+		{Retryable: []Route{secondRoute}},
+	}}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver:            resolver,
+		OwnerPusher:                 pusher,
+		DeliveryRetryMaxAttempts:    2,
+		DeliveryRetryInitialBackoff: time.Millisecond,
+		DeliveryRetryMaxBackoff:     time.Millisecond,
+	})
+
+	errs := processor.ProcessRecipientDeliveryPlan(context.Background(), RecipientDeliveryPlan{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Targets: []RecipientTargetBatch{
+			{Target: recipientAuthorityTargetForTest(1, 10, 100), Recipients: []Recipient{{UID: "u1"}}},
+			{Target: recipientAuthorityTargetForTest(2, 20, 200), Recipients: []Recipient{{UID: "u2"}}},
+		},
+	})
+
+	if len(errs) != 2 || errs[0] != nil || !errors.Is(errs[1], ErrDeliveryRetryExhausted) {
+		t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want only second target retry exhaustion", errs)
+	}
+	commands := pusher.commandsSnapshot()
+	if got, want := len(commands), 2; got != want {
+		t.Fatalf("owner push calls = %d, want initial push plus one narrowed retry", got)
+	}
+	if got, want := commands[0].Routes, []Route{firstRoute, secondRoute}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("initial routes = %#v, want %#v", got, want)
+	}
+	if got, want := commands[1].Routes, []Route{secondRoute}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("retry routes = %#v, want %#v", got, want)
+	}
+}
+
+func TestRecipientProcessorPlanRetryPanicMapsOnlyCurrentRoutes(t *testing.T) {
+	firstRoute := Route{UID: "u1", OwnerNodeID: 3, SessionID: 10}
+	secondRoute := Route{UID: "u2", OwnerNodeID: 3, SessionID: 20}
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{results: []RecipientTargetPresenceResult{
+		{Routes: []Route{firstRoute}},
+		{Routes: []Route{secondRoute}},
+	}}
+	pusher := &recordingOwnerPusherForDeliveryTest{
+		results: []PushResult{{Accepted: []Route{firstRoute}, Retryable: []Route{secondRoute}}},
+		panicAt: 2,
+	}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver:            resolver,
+		OwnerPusher:                 pusher,
+		DeliveryRetryMaxAttempts:    3,
+		DeliveryRetryInitialBackoff: time.Millisecond,
+		DeliveryRetryMaxBackoff:     time.Millisecond,
+	})
+
+	errs := processor.ProcessRecipientDeliveryPlan(context.Background(), RecipientDeliveryPlan{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Targets: []RecipientTargetBatch{
+			{Target: recipientAuthorityTargetForTest(1, 10, 100), Recipients: []Recipient{{UID: "u1"}}},
+			{Target: recipientAuthorityTargetForTest(2, 20, 200), Recipients: []Recipient{{UID: "u2"}}},
+		},
+	})
+
+	if len(errs) != 2 || errs[0] != nil || !errors.Is(errs[1], ErrEffectPanic) {
+		t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want only second target panic", errs)
+	}
+	commands := pusher.commandsSnapshot()
+	if got, want := len(commands), 2; got != want {
+		t.Fatalf("owner push calls = %d, want initial push plus one narrowed retry", got)
+	}
+	if got, want := commands[1].Routes, []Route{secondRoute}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("panic attempt routes = %#v, want %#v", got, want)
+	}
+}
+
+func TestRecipientProcessorPlanOwnerPushChunksStayBoundedAndOrdered(t *testing.T) {
+	const routeCount = 5
+	targets := make([]RecipientTargetBatch, 0, routeCount)
+	results := make([]RecipientTargetPresenceResult, 0, routeCount)
+	for i := 0; i < routeCount; i++ {
+		uid := "u" + strconv.Itoa(i+1)
+		targets = append(targets, RecipientTargetBatch{
+			Target:     recipientAuthorityTargetForTest(uint16(i+1), uint64(i+10), uint64(i+100)),
+			Recipients: []Recipient{{UID: uid}},
+		})
+		results = append(results, RecipientTargetPresenceResult{Routes: []Route{{
+			UID:         uid,
+			OwnerNodeID: 3,
+			SessionID:   uint64(i + 1000),
+		}}})
+	}
+	pusher := &recordingOwnerPusherForDeliveryTest{}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver:   &recordingTargetPresenceResolverForDeliveryWorkerTest{results: results},
+		OwnerPusher:        pusher,
+		OwnerPushBatchSize: 2,
+	})
+
+	errs := processor.ProcessRecipientDeliveryPlan(context.Background(), RecipientDeliveryPlan{
+		Event:   CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Targets: targets,
+	})
+
+	if got, want := errs, make([]error, routeCount); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want %#v", got, want)
+	}
+	commands := pusher.commandsSnapshot()
+	if got, want := len(commands), 3; got != want {
+		t.Fatalf("owner push calls = %d, want %d bounded chunks", got, want)
+	}
+	wantUIDs := [][]string{{"u1", "u2"}, {"u3", "u4"}, {"u5"}}
+	for i, command := range commands {
+		gotUIDs := make([]string, 0, len(command.Routes))
+		for _, route := range command.Routes {
+			gotUIDs = append(gotUIDs, route.UID)
+		}
+		if !reflect.DeepEqual(gotUIDs, wantUIDs[i]) {
+			t.Fatalf("chunk %d routes = %#v, want %#v", i, gotUIDs, wantUIDs[i])
+		}
+	}
+}
+
+func TestRecipientProcessorPlanCoalescingPreservesExactSenderEchoSuppression(t *testing.T) {
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{results: []RecipientTargetPresenceResult{
+		{Routes: []Route{
+			{UID: "sender", OwnerNodeID: 1, SessionID: 10, DeviceID: "exact-sender-session"},
+			{UID: "sender", OwnerNodeID: 1, SessionID: 11, DeviceID: "same-owner-other-session"},
+		}},
+		{Routes: []Route{
+			{UID: "sender", OwnerNodeID: 2, SessionID: 10, DeviceID: "other-owner-same-session"},
+			{UID: "recipient", OwnerNodeID: 1, SessionID: 20, DeviceID: "recipient"},
+		}},
+	}}
+	pusher := &recordingOwnerPusherForDeliveryTest{}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver: resolver,
+		OwnerPusher:      pusher,
+	})
+
+	errs := processor.ProcessRecipientDeliveryPlan(context.Background(), RecipientDeliveryPlan{
+		Event: CommittedEnvelope{
+			MessageID:       10,
+			MessageSeq:      4,
+			ChannelID:       "g1",
+			ChannelType:     2,
+			FromUID:         "sender",
+			SenderNodeID:    1,
+			SenderSessionID: 10,
+		},
+		Targets: []RecipientTargetBatch{
+			{Target: recipientAuthorityTargetForTest(1, 10, 100), Recipients: []Recipient{{UID: "sender"}}},
+			{Target: recipientAuthorityTargetForTest(2, 20, 200), Recipients: []Recipient{{UID: "sender"}, {UID: "recipient"}}},
+		},
+	})
+
+	if got, want := errs, make([]error, 2); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want %#v", got, want)
+	}
+	got := deviceIDSetForDeliveryTest(pusher.deviceIDs())
+	want := map[string]bool{
+		"same-owner-other-session": true,
+		"other-owner-same-session": true,
+		"recipient":                true,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("pushed device ids = %#v, want %#v", got, want)
 	}
 }
 
@@ -365,6 +635,7 @@ type recordingOwnerPusherForDeliveryTest struct {
 	mu       sync.Mutex
 	commands []PushCommand
 	results  []PushResult
+	panicAt  int
 }
 
 func (p *recordingOwnerPusherForDeliveryTest) Push(_ context.Context, cmd PushCommand) (PushResult, error) {
@@ -372,6 +643,9 @@ func (p *recordingOwnerPusherForDeliveryTest) Push(_ context.Context, cmd PushCo
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.commands = append(p.commands, cmd.Clone())
+	if p.panicAt == len(p.commands) {
+		panic("owner push panic")
+	}
 	if len(p.results) >= len(p.commands) {
 		return p.results[len(p.commands)-1].Clone(), nil
 	}
@@ -411,6 +685,16 @@ func (p *recordingOwnerPusherForDeliveryTest) callCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return len(p.commands)
+}
+
+func (p *recordingOwnerPusherForDeliveryTest) commandsSnapshot() []PushCommand {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	commands := make([]PushCommand, len(p.commands))
+	for i, command := range p.commands {
+		commands[i] = command.Clone()
+	}
+	return commands
 }
 
 func (p *recordingOwnerPusherForDeliveryTest) deviceIDs() []string {

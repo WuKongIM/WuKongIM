@@ -34,6 +34,31 @@ func TestDeliveryErrorClassifiesRetryableErrors(t *testing.T) {
 	}
 }
 
+func TestClassifyPushObservation(t *testing.T) {
+	tests := []struct {
+		name       string
+		retryable  int
+		dropped    int
+		err        error
+		wantResult string
+		wantClass  string
+	}{
+		{name: "success", wantResult: DeliveryResultOK, wantClass: DeliveryErrorClassNone},
+		{name: "retryable routes take precedence", retryable: 1, dropped: 1, wantResult: DeliveryResultRetryable, wantClass: DeliveryErrorClassRetryable},
+		{name: "mixed accepted and dropped", dropped: 1, wantResult: DeliveryResultDropped, wantClass: DeliveryErrorClassNone},
+		{name: "retryable error", err: ErrRouteNotReady, wantResult: DeliveryResultRetryable, wantClass: DeliveryErrorClassRouteNotReady},
+		{name: "hard error", err: errors.New("push failed"), wantResult: DeliveryResultError, wantClass: DeliveryErrorClassError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult, gotClass := ClassifyPushObservation(tt.retryable, tt.dropped, tt.err)
+			if gotResult != tt.wantResult || gotClass != tt.wantClass {
+				t.Fatalf("ClassifyPushObservation() = (%q, %q), want (%q, %q)", gotResult, gotClass, tt.wantResult, tt.wantClass)
+			}
+		})
+	}
+}
+
 func TestFanoutWorkerObserverRecordsResolveAndRetryablePush(t *testing.T) {
 	observer := &recordingDeliveryObserver{}
 	worker := NewFanoutWorker(FanoutWorkerOptions{

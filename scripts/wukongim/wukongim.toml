@@ -260,6 +260,7 @@ enable = true
 
 fanout_page_size = 512
 
+# Maximum recipients per delivery plan and routes per plan-wide owner push chunk.
 push_batch_size = 512
 
 pending_ack_ttl = "30s"
