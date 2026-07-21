@@ -226,7 +226,23 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 		"go build -trimpath -o wkcloudsim ./cmd/wkcloudsim",
 		"discover-config --region \"$ALIBABA_REGION\" >provider.json",
 		"./scripts/cloud-sim/write-ssh-config.sh",
+		"source ./scripts/cloud-sim/ssh-retry.sh",
+		`echo "bootstrap_deadline_epoch=$((until_epoch - 180))" >>"$GITHUB_OUTPUT"`,
+		"WK_CLOUD_SSH_DEADLINE_EPOCH: ${{ steps.ingress.outputs.bootstrap_deadline_epoch }}",
 		"ssh_opts=(-F cloud-sim-ssh-config)",
+		"cloud_ssh_retry sim-ready 30 5 ssh",
+		"cloud_ssh_retry sim-upload 3 5 scp",
+		`cloud_ssh_retry "${role}-ready" 12 5 ssh`,
+		`cloud_ssh_retry "${role}-upload" 3 5 scp`,
+		`cloud_ssh_retry_capture "${role}-data-device" 3 5 ssh`,
+		`cloud_ssh_retry "${role}-install" 3 5 ssh`,
+		"cloud_ssh_retry_capture sim-data-device 3 5 ssh",
+		"cloud_ssh_retry sim-install 3 5 ssh",
+		"id: preserve_failed_provisioning",
+		"released=true",
+		`trap 'printf "released=%s\n" "$released" >>"$GITHUB_OUTPUT"' EXIT`,
+		"steps.preserve_failed_provisioning.outputs.released != 'true'",
+		"steps.preserve_failed_provisioning.outputs.released != 'true' && steps.create.outputs.sim_public != ''",
 		"ssh_opts=(-F cloud-sim-ssh-config -o ConnectTimeout=5)",
 		"name: cloud-sim-provider-config--${{ needs.build.outputs.run_id }}--${{ inputs.region }}--${{ steps.provider_config.outputs.account_hash_hex }}",
 		"retention-days: 90",
@@ -243,6 +259,15 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 	}
 	if strings.Contains(provision, `ProxyJump=wukong@${SIM_PUBLIC}`) {
 		t.Fatal("provision workflow uses a ProxyJump whose connection does not pin the bootstrap identity")
+	}
+	transferStart := strings.Index(provision, "      - name: Transfer and install the same verified bundle on all hosts")
+	transferEnd := strings.Index(provision, "      - name: Prove Bootstrap Gate")
+	if transferStart < 0 || transferEnd <= transferStart {
+		t.Fatal("provision workflow does not retain the bounded transfer step")
+	}
+	transferStep := provision[transferStart:transferEnd]
+	if !strings.Contains(transferStep, "WK_CLOUD_SSH_DEADLINE_EPOCH: ${{ steps.ingress.outputs.bootstrap_deadline_epoch }}") {
+		t.Fatal("provision transfer step does not receive the bounded SSH deadline")
 	}
 
 	cleanup := read("cloud-sim-cleanup.yml")

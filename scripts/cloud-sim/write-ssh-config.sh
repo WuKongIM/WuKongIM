@@ -38,6 +38,9 @@ Host wukong-sim-jump
   IdentitiesOnly yes
   BatchMode yes
   ConnectTimeout 10
+  ConnectionAttempts 1
+  ServerAliveInterval 15
+  ServerAliveCountMax 3
   StrictHostKeyChecking accept-new
 
 Host $WK_CLOUD_NODE1_IP $WK_CLOUD_NODE2_IP $WK_CLOUD_NODE3_IP
@@ -46,6 +49,9 @@ Host $WK_CLOUD_NODE1_IP $WK_CLOUD_NODE2_IP $WK_CLOUD_NODE3_IP
   IdentitiesOnly yes
   BatchMode yes
   ConnectTimeout 10
+  ConnectionAttempts 1
+  ServerAliveInterval 15
+  ServerAliveCountMax 3
   StrictHostKeyChecking accept-new
   ProxyJump wukong-sim-jump
 EOF

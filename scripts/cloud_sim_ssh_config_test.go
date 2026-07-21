@@ -77,6 +77,9 @@ func TestCloudSimulationSSHConfigPinsJumpAndTargetIdentity(t *testing.T) {
 			"user wukong",
 			"identityfile " + canonicalKeyPath,
 			"identitiesonly yes",
+			"connectionattempts 1",
+			"serveraliveinterval 15",
+			"serveralivecountmax 3",
 		} {
 			if !strings.Contains(string(output), setting+"\n") {
 				t.Fatalf("resolved SSH config for %s missing %q:\n%s", test.host, setting, output)
