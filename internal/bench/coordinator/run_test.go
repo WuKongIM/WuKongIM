@@ -884,15 +884,42 @@ func TestCoordinatorPollTimeoutReturnsWorkerFailed(t *testing.T) {
 	require.Equal(t, "phase_completion", result.Report.WorkerFailures[0].Operation)
 }
 
-func TestCoordinatorWorkerStatusDeadlineIsReportedAsPhaseTimeout(t *testing.T) {
+func TestCoordinatorWorkerStatusTimeoutIsIndependentFromPhasePollTimeout(t *testing.T) {
+	coord := New(CoordinatorConfig{PollTimeout: 5 * time.Millisecond})
+
+	require.Equal(t, defaultWorkerStatusTimeout, coord.workerStatusTimeout())
+}
+
+func TestCoordinatorPhaseBudgetSurvivesStatusRequestPastPollGrace(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
-	workers[0].BlockStatus(PhaseConnect)
+	workers[0].DelayStatus(PhaseRun, 20*time.Millisecond)
+	workers[0].CompletePhaseAfter(PhaseRun, 35*time.Millisecond)
 	coord := New(CoordinatorConfig{
 		Workers:      workers.ClientConfigs(),
 		Target:       fakeTargetOK(),
 		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
 		PollInterval: time.Millisecond,
 		PollTimeout:  5 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.Duration = 20 * time.Millisecond
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+}
+
+func TestCoordinatorWorkerStatusDeadlineIsReportedAsPhaseTimeout(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].BlockStatus(PhaseConnect)
+	coord := New(CoordinatorConfig{
+		Workers:             workers.ClientConfigs(),
+		Target:              fakeTargetOK(),
+		Preflight:           preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval:        time.Millisecond,
+		PollTimeout:         5 * time.Millisecond,
+		WorkerStatusTimeout: 5 * time.Millisecond,
 	})
 
 	result, err := coord.Run(context.Background(), fakeScenario())
@@ -909,11 +936,12 @@ func TestCoordinatorLaterWorkerStatusDeadlineStillReportsWorkerStatus(t *testing
 	workers[0].KeepPhaseInProgress(PhasePrepare)
 	workers[0].BlockStatusAfter(PhasePrepare, 1)
 	coord := New(CoordinatorConfig{
-		Workers:      workers.ClientConfigs(),
-		Target:       fakeTargetOK(),
-		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
-		PollInterval: time.Millisecond,
-		PollTimeout:  10 * time.Millisecond,
+		Workers:             workers.ClientConfigs(),
+		Target:              fakeTargetOK(),
+		Preflight:           preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval:        time.Millisecond,
+		PollTimeout:         10 * time.Millisecond,
+		WorkerStatusTimeout: 10 * time.Millisecond,
 	})
 
 	result, err := coord.Run(context.Background(), fakeScenario())
@@ -930,11 +958,12 @@ func TestCoordinatorDeadlineStraddleFinalActiveStatusReportsPhaseCompletion(t *t
 	workers[0].KeepPhaseInProgress(PhasePrepare)
 	workers[0].BlockOneStatusAfter(PhasePrepare, 1)
 	coord := New(CoordinatorConfig{
-		Workers:      workers.ClientConfigs(),
-		Target:       fakeTargetOK(),
-		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
-		PollInterval: time.Millisecond,
-		PollTimeout:  10 * time.Millisecond,
+		Workers:             workers.ClientConfigs(),
+		Target:              fakeTargetOK(),
+		Preflight:           preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval:        time.Millisecond,
+		PollTimeout:         10 * time.Millisecond,
+		WorkerStatusTimeout: 10 * time.Millisecond,
 	})
 
 	result, err := coord.Run(context.Background(), fakeScenario())
@@ -1803,6 +1832,7 @@ func newFakeWorkers(t *testing.T, count int) fakeWorkers {
 			activePhase:      make(map[Phase]bool),
 			completeAfter:    make(map[Phase]time.Duration),
 			phaseAcceptedAt:  make(map[Phase]time.Time),
+			statusDelay:      make(map[Phase]time.Duration),
 			failAfterAccept:  make(map[Phase]string),
 		}
 		fw.server = httptest.NewServer(http.HandlerFunc(fw.handle))
@@ -1853,6 +1883,7 @@ type fakeWorker struct {
 	activePhase         map[Phase]bool
 	completeAfter       map[Phase]time.Duration
 	phaseAcceptedAt     map[Phase]time.Time
+	statusDelay         map[Phase]time.Duration
 	failAfterAccept     map[Phase]string
 	cancelOnAssign      context.CancelFunc
 	cancelOnStatusPoll  context.CancelFunc
@@ -2001,6 +2032,12 @@ func (fw *fakeWorker) CompletePhaseAfter(phase Phase, d time.Duration) {
 		fw.completeAfter = make(map[Phase]time.Duration)
 	}
 	fw.completeAfter[phase] = d
+}
+
+func (fw *fakeWorker) DelayStatus(phase Phase, d time.Duration) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.statusDelay[phase] = d
 }
 
 func (fw *fakeWorker) FailPhaseAfterAccept(phase Phase, message string) {
@@ -2274,10 +2311,14 @@ func (fw *fakeWorker) handleStatus(w http.ResponseWriter, r *http.Request) {
 	} else {
 		status.CompletedPhase = fw.phase
 	}
+	delay := fw.statusDelay[phase]
 	fw.mu.Unlock()
 	if blocked {
 		<-r.Context().Done()
 		return
+	}
+	if delay > 0 {
+		time.Sleep(delay)
 	}
 	writeRunTestJSON(w, status)
 }
