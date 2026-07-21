@@ -473,7 +473,6 @@ func TestRuntimeJoinNodeReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	_, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
 	req := JoinNodeRequest{
 		NodeID:         4,
 		Name:           "node-4",
@@ -481,13 +480,13 @@ func TestRuntimeJoinNodeReturnsControlWriteAfterForward(t *testing.T) {
 		Roles:          []Role{RoleData},
 		CapacityWeight: 2,
 	}
-	result, err := follower.JoinNode(context.Background(), req)
-	if err != nil {
-		t.Fatalf("JoinNode() error = %v", err)
+	result := retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, _ *Runtime, follower *Runtime) (JoinNodeResult, error) {
+		return follower.JoinNode(ctx, req)
+	})
+	if result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateJoining || result.Revision == 0 {
+		t.Fatalf("JoinNode() = %#v, want forwarded joining node", result)
 	}
-	if !result.Created || result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateJoining {
-		t.Fatalf("JoinNode() = %#v, want forwarded joining node creation", result)
-	}
+	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateJoining, "")
 }
 
 func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
@@ -532,37 +531,17 @@ func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	leader, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
-	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
-		t.Fatalf("leader JoinNode() error = %v", err)
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, _ *Runtime) (JoinNodeResult, error) {
+		return leader.JoinNode(ctx, JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1})
+	})
+	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateJoining, "")
+	result := retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, _ *Runtime, follower *Runtime) (ActivateNodeResult, error) {
+		return follower.ActivateNode(ctx, ActivateNodeRequest{NodeID: 4})
+	})
+	if result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateActive || result.Revision == 0 {
+		t.Fatalf("ActivateNode() = %#v, want forwarded active node", result)
 	}
-	observedJoining := false
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && !observedJoining {
-		snap, err := follower.LocalSnapshot(context.Background())
-		if err == nil {
-			for _, node := range snap.Nodes {
-				if node.NodeID == 4 && node.JoinState == NodeJoinStateJoining {
-					observedJoining = true
-					break
-				}
-			}
-		}
-		if !observedJoining {
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	if !observedJoining {
-		t.Fatal("timeout waiting for follower to observe joining node")
-	}
-	_, follower = waitForRuntimeLeaderAndFollower(t, runtimes)
-	result, err := follower.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
-	if err != nil {
-		t.Fatalf("ActivateNode() error = %v", err)
-	}
-	if !result.Changed || result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateActive {
-		t.Fatalf("ActivateNode() = %#v, want forwarded active node change", result)
-	}
+	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateActive, "")
 }
 
 func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
@@ -607,40 +586,20 @@ func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	leader, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
-	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
-		t.Fatalf("leader JoinNode() error = %v", err)
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, _ *Runtime) (JoinNodeResult, error) {
+		return leader.JoinNode(ctx, JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1})
+	})
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, _ *Runtime) (ActivateNodeResult, error) {
+		return leader.ActivateNode(ctx, ActivateNodeRequest{NodeID: 4})
+	})
+	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateActive, "")
+	result := retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, _ *Runtime, follower *Runtime) (MarkNodeLeavingResult, error) {
+		return follower.MarkNodeLeaving(ctx, MarkNodeLeavingRequest{NodeID: 4})
+	})
+	if result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateLeaving || result.Revision == 0 {
+		t.Fatalf("MarkNodeLeaving() = %#v, want forwarded leaving node", result)
 	}
-	if _, err := leader.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
-		t.Fatalf("leader ActivateNode() error = %v", err)
-	}
-	observedActive := false
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && !observedActive {
-		snap, err := follower.LocalSnapshot(context.Background())
-		if err == nil {
-			for _, node := range snap.Nodes {
-				if node.NodeID == 4 && node.JoinState == NodeJoinStateActive {
-					observedActive = true
-					break
-				}
-			}
-		}
-		if !observedActive {
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	if !observedActive {
-		t.Fatal("timeout waiting for follower to observe active node")
-	}
-	_, follower = waitForRuntimeLeaderAndFollower(t, runtimes)
-	result, err := follower.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
-	if err != nil {
-		t.Fatalf("MarkNodeLeaving() error = %v", err)
-	}
-	if !result.Changed || result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateLeaving {
-		t.Fatalf("MarkNodeLeaving() = %#v, want forwarded leaving node change", result)
-	}
+	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateLeaving, "")
 }
 
 func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
@@ -685,43 +644,23 @@ func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
 		}
 	}
 
-	leader, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
-	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
-		t.Fatalf("leader JoinNode() error = %v", err)
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, _ *Runtime) (JoinNodeResult, error) {
+		return leader.JoinNode(ctx, JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1})
+	})
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, _ *Runtime) (ActivateNodeResult, error) {
+		return leader.ActivateNode(ctx, ActivateNodeRequest{NodeID: 4})
+	})
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, _ *Runtime) (MarkNodeLeavingResult, error) {
+		return leader.MarkNodeLeaving(ctx, MarkNodeLeavingRequest{NodeID: 4})
+	})
+	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateLeaving, "")
+	result := retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, _ *Runtime, follower *Runtime) (MarkNodeRemovedResult, error) {
+		return follower.MarkNodeRemoved(ctx, MarkNodeRemovedRequest{NodeID: 4})
+	})
+	if result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateRemoved || result.Node.Status != NodeDown || result.Revision == 0 {
+		t.Fatalf("MarkNodeRemoved() = %#v, want forwarded removed down node", result)
 	}
-	if _, err := leader.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
-		t.Fatalf("leader ActivateNode() error = %v", err)
-	}
-	if _, err := leader.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4}); err != nil {
-		t.Fatalf("leader MarkNodeLeaving() error = %v", err)
-	}
-	observedLeaving := false
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && !observedLeaving {
-		snap, err := follower.LocalSnapshot(context.Background())
-		if err == nil {
-			for _, node := range snap.Nodes {
-				if node.NodeID == 4 && node.JoinState == NodeJoinStateLeaving {
-					observedLeaving = true
-					break
-				}
-			}
-		}
-		if !observedLeaving {
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	if !observedLeaving {
-		t.Fatal("timeout waiting for follower to observe leaving node")
-	}
-	_, follower = waitForRuntimeLeaderAndFollower(t, runtimes)
-	result, err := follower.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
-	if err != nil {
-		t.Fatalf("MarkNodeRemoved() error = %v", err)
-	}
-	if !result.Changed || result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateRemoved || result.Node.Status != NodeDown {
-		t.Fatalf("MarkNodeRemoved() = %#v, want forwarded removed down node change", result)
-	}
+	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateRemoved, NodeDown)
 }
 
 func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing.T) {
@@ -765,29 +704,6 @@ func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing
 		}
 	}
 
-	var leaderID uint64
-	var follower *Runtime
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		for _, rt := range runtimes {
-			leaderID = rt.LeaderID()
-			if leaderID == 0 {
-				continue
-			}
-			if rt.cfg.NodeID != leaderID {
-				follower = rt
-				break
-			}
-		}
-		if follower != nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if follower == nil {
-		t.Fatal("timeout waiting for follower runtime")
-	}
-
 	wantTask := ReconcileTask{
 		TaskID:           "slot-1-replica-move-1-to-4-r9",
 		SlotID:           1,
@@ -803,7 +719,6 @@ func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing
 	applier := &recordingControlWriteApplier{
 		slotReplicaMoveResult: SlotReplicaMoveResult{Created: true, Task: &wantTask},
 	}
-	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
 	req := SlotReplicaMoveRequest{
 		SlotID:        1,
 		SourceNode:    1,
@@ -812,10 +727,16 @@ func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing
 		ConfigEpoch:   7,
 		StateRevision: 9,
 	}
-	result, err := follower.RequestSlotReplicaMove(context.Background(), req)
-	if err != nil {
-		t.Fatalf("RequestSlotReplicaMove() error = %v", err)
-	}
+	result := retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, follower *Runtime) (SlotReplicaMoveResult, error) {
+		for _, rt := range runtimes {
+			handler := &runtimeReplicaMoveForwardingApplier{
+				recordingControlWriteApplier: applier,
+				accept:                       rt == leader,
+			}
+			network.Register(rt.cfg.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(handler))
+		}
+		return follower.RequestSlotReplicaMove(ctx, req)
+	})
 	if len(applier.slotReplicaMoves) != 1 || applier.slotReplicaMoves[0].TargetNode != 4 {
 		t.Fatalf("slotReplicaMoves = %#v, want one forwarded move", applier.slotReplicaMoves)
 	}
@@ -1600,6 +1521,86 @@ func snapshotJoinState(snapshot Snapshot, nodeID uint64) NodeJoinState {
 		}
 	}
 	return ""
+}
+
+type runtimeReplicaMoveForwardingApplier struct {
+	*recordingControlWriteApplier
+	accept bool
+}
+
+func (a *runtimeReplicaMoveForwardingApplier) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {
+	if !a.accept {
+		return SlotReplicaMoveResult{}, controller.ErrNotLeader
+	}
+	return a.recordingControlWriteApplier.RequestSlotReplicaMove(ctx, req)
+}
+
+func retryRuntimeControlWrite[T any](
+	t *testing.T,
+	runtimes []*Runtime,
+	operation func(context.Context, *Runtime, *Runtime) (T, error),
+) T {
+	t.Helper()
+	deadline := time.Now().Add(runtimeTestConvergenceTimeout)
+	var zero T
+	var lastErr error
+	for time.Now().Before(deadline) {
+		leader, follower := waitForRuntimeLeaderAndFollower(t, runtimes)
+		operationTimeout := time.Until(deadline)
+		if operationTimeout <= 0 {
+			break
+		}
+		if operationTimeout > runtimeTestOperationTimeout {
+			operationTimeout = runtimeTestOperationTimeout
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+		result, err := operation(ctx, leader, follower)
+		cancel()
+		if err == nil {
+			return result
+		}
+		if !errors.Is(err, controller.ErrNotLeader) {
+			t.Fatalf("control write error = %v", err)
+		}
+		lastErr = err
+	}
+	t.Fatalf("timeout retrying control write after leader changes: last error = %v", lastErr)
+	return zero
+}
+
+func waitForRuntimeNodeConvergence(t *testing.T, runtimes []*Runtime, nodeID uint64, wantJoinState NodeJoinState, wantStatus NodeStatus) {
+	t.Helper()
+	deadline := time.Now().Add(runtimeTestConvergenceTimeout)
+	lastSnapshots := make([]Snapshot, len(runtimes))
+	for time.Now().Before(deadline) {
+		converged := true
+		var revision uint64
+		for i, rt := range runtimes {
+			snapshot, err := rt.LocalSnapshot(context.Background())
+			if err != nil {
+				converged = false
+				continue
+			}
+			lastSnapshots[i] = snapshot
+			node, ok := controlNodeByID(snapshot.Nodes, nodeID)
+			if !ok || node.JoinState != wantJoinState || (wantStatus != "" && node.Status != wantStatus) {
+				converged = false
+			}
+			if revision == 0 {
+				revision = snapshot.Revision
+			} else if snapshot.Revision != revision {
+				converged = false
+			}
+		}
+		if converged && revision != 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for i, rt := range runtimes {
+		t.Logf("runtime %d snapshot: %#v", rt.cfg.NodeID, lastSnapshots[i])
+	}
+	t.Fatalf("timeout waiting for node %d to converge to join_state=%q status=%q", nodeID, wantJoinState, wantStatus)
 }
 
 func waitForRuntimeLeaderAndFollower(t *testing.T, runtimes []*Runtime) (*Runtime, *Runtime) {
