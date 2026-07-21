@@ -28,6 +28,16 @@ annotate-report` reads live simulator-local state and adds the final purity
 verdict to the wkbench report. Missing or degraded state writes `pure=false`
 and fails the systemd post-stop action instead of leaving a pure result.
 
+`GET /cloud-view/status` is a passive control-plane read. It reports the direct
+transport peer as `observed_ipv4` from `RemoteAddr`, ignores forwarded-address
+headers, and does not change benchmark purity. Local Analysis uses that
+same-destination observation to bind its single `/32` ingress rule when a
+transparent VPN or policy router gives public IP echo services another egress.
+The response is `no-store`, and Analysis adds a per-session cache buster. This
+plain-HTTP signal is only a best-effort rebind hint: unavailable, legacy, or
+invalid status falls back to the HTTPS public echo address, while the pinned-TLS
+MCP health check remains the authority for accepting the Analysis endpoint.
+
 For real interactive traffic, the conservative marker is persisted before the
 request is forwarded. If persistence is degraded, Cloud View returns `503` and
 does not execute the Demo/API/WS request or an irreversible Manager operation.

@@ -292,6 +292,17 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 	if got := strings.Count(analyze, "timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis"); got != 3 {
 		t.Fatalf("bounded analysis ingress cleanup count = %d, want 3", got)
 	}
+	handoffStart := strings.Index(analyze, "      - name: Encrypt handoff and move ingress to local Codex")
+	handoffEnd := strings.Index(analyze, "      - name: Materialize terminal session state")
+	if handoffStart < 0 || handoffEnd <= handoffStart {
+		t.Fatal("analysis workflow does not retain the bounded handoff step")
+	}
+	handoff := analyze[handoffStart:handoffEnd]
+	closeIndex := strings.Index(handoff, `close-analysis "$RUN_ID"`)
+	openIndex := strings.Index(handoff, `open-analysis "$RUN_ID"`)
+	if closeIndex < 0 || openIndex <= closeIndex {
+		t.Fatal("analysis handoff does not close the previous /32 before opening its replacement")
+	}
 	if !strings.Contains(analyze, `curl --fail --silent --show-error --connect-timeout 5 --max-time 10 --proto '=https' --tlsv1.2 https://api.ipify.org`) {
 		t.Fatal("analysis runner public-IP discovery is not bounded")
 	}

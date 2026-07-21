@@ -182,3 +182,13 @@ func requestSource(request *http.Request) string {
 	}
 	return "unknown"
 }
+
+// requestIPv4 returns the canonical transport peer IPv4 and never trusts
+// caller-controlled forwarding headers.
+func requestIPv4(request *http.Request) string {
+	address := net.ParseIP(requestSource(request))
+	if address == nil || address.To4() == nil {
+		return ""
+	}
+	return address.String()
+}

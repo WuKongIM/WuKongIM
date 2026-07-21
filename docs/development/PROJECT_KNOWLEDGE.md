@@ -23,6 +23,7 @@
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
 - Channelappend post-commit pool admission and per-channel backlog must stay bounded and independent from foreground append admission; saturation is observed and dropped so best-effort conversation/delivery work cannot pin writer-advance workers, delay durable SEND/SENDACK, or return `ErrChannelBusy` for an otherwise admissible send.
 - Conversation-active cache churn may evict clean rows during memory-only admission; dirty persistence stays exclusively on periodic, pressure-woken, or handoff flush workers.
+- Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
 
 ## Gateway Runtime
 
@@ -30,6 +31,7 @@
 
 ## Channel Runtime
 
+- Node-local Channel reactor routing must avalanche stable hashes before a power-of-two modulus; raw FNV-64a low bits collapse sequential canonical person-channel IDs onto a subset of reactors. Reactor partitions are not cluster hash slots or persisted ownership.
 - Channel runtime data replicas are selected by Channel placement, not by Slot metadata peers; Slot route peers describe metadata ownership only.
 
 ### Conversation working set
