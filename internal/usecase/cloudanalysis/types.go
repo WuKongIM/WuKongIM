@@ -218,6 +218,8 @@ type WorkloadWorkerFailure struct {
 type WorkloadSummary struct {
 	// SendSuccess is the successful send acknowledgement count during the measured run phase.
 	SendSuccess uint64 `json:"send_success"`
+	// IngressQPS is the successful measured-run send acknowledgement rate.
+	IngressQPS float64 `json:"ingress_qps"`
 	// ConnectAttempts is the number of gateway connection attempts started by workers.
 	ConnectAttempts uint64 `json:"connect_attempts"`
 	// ConnectSuccess is the number of gateway connections established by workers.

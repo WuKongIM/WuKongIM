@@ -195,15 +195,15 @@ func TestRecipientProcessorCoalescesOwnerPushesAcrossExactTargets(t *testing.T) 
 	if got, want := len(commands), 3; got != want {
 		t.Fatalf("owner push calls = %d, want %d plan-wide owner batches", got, want)
 	}
-	if got, want := []uint64{commands[0].OwnerNodeID, commands[1].OwnerNodeID, commands[2].OwnerNodeID}, []uint64{1, 2, 3}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("owner push order = %#v, want first-seen order %#v", got, want)
-	}
 	wantUIDs := map[uint64][]string{
 		1: {"u1", "u4", "u7"},
 		2: {"u2", "u5"},
 		3: {"u3", "u6"},
 	}
 	for _, command := range commands {
+		if _, ok := wantUIDs[command.OwnerNodeID]; !ok {
+			t.Fatalf("unexpected owner push: %+v", command)
+		}
 		gotUIDs := make([]string, 0, len(command.Routes))
 		for _, route := range command.Routes {
 			gotUIDs = append(gotUIDs, route.UID)
@@ -211,6 +211,65 @@ func TestRecipientProcessorCoalescesOwnerPushesAcrossExactTargets(t *testing.T) 
 		if want := wantUIDs[command.OwnerNodeID]; !reflect.DeepEqual(gotUIDs, want) {
 			t.Fatalf("owner %d routes = %#v, want %#v", command.OwnerNodeID, gotUIDs, want)
 		}
+	}
+}
+
+func TestRecipientProcessorOverlapsIndependentOwnerPushesAndKeepsTargetResultsAligned(t *testing.T) {
+	wantOwnerTwoErr := errors.New("owner two push failed")
+	pusher := &overlapBarrierOwnerPusherForDeliveryTest{
+		started: make(chan uint64, 2),
+		release: make(chan struct{}),
+		errs:    map[uint64]error{2: wantOwnerTwoErr},
+	}
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() { close(pusher.release) })
+	}
+	defer release()
+
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver: &recordingTargetPresenceResolverForDeliveryWorkerTest{results: []RecipientTargetPresenceResult{
+			{Routes: []Route{{UID: "u1", OwnerNodeID: 1, SessionID: 10}}},
+			{Routes: []Route{{UID: "u2", OwnerNodeID: 2, SessionID: 20}}},
+		}},
+		OwnerPusher:              pusher,
+		DeliveryRetryMaxAttempts: 1,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resultC := make(chan []error, 1)
+	go func() {
+		resultC <- processor.ProcessRecipientDeliveryPlan(ctx, RecipientDeliveryPlan{
+			Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+			Targets: []RecipientTargetBatch{
+				{Target: recipientAuthorityTargetForTest(1, 10, 100), Recipients: []Recipient{{UID: "u1"}}},
+				{Target: recipientAuthorityTargetForTest(2, 20, 200), Recipients: []Recipient{{UID: "u2"}}},
+			},
+		})
+	}()
+
+	timer := time.NewTimer(500 * time.Millisecond)
+	defer timer.Stop()
+	startedOwners := make(map[uint64]struct{}, 2)
+	for len(startedOwners) < 2 {
+		select {
+		case ownerNodeID := <-pusher.started:
+			startedOwners[ownerNodeID] = struct{}{}
+		case <-timer.C:
+			t.Fatalf("independent owner pushes did not overlap: started owners = %v", startedOwners)
+		case <-ctx.Done():
+			t.Fatalf("independent owner pushes did not overlap before context ended: %v", ctx.Err())
+		}
+	}
+	release()
+
+	select {
+	case got := <-resultC:
+		if len(got) != 2 || got[0] != nil || !errors.Is(got[1], wantOwnerTwoErr) {
+			t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want [nil, owner two error] aligned to targets", got)
+		}
+	case <-ctx.Done():
+		t.Fatalf("ProcessRecipientDeliveryPlan() did not finish after releasing owner pushes: %v", ctx.Err())
 	}
 }
 
@@ -636,6 +695,29 @@ type recordingOwnerPusherForDeliveryTest struct {
 	commands []PushCommand
 	results  []PushResult
 	panicAt  int
+}
+
+type overlapBarrierOwnerPusherForDeliveryTest struct {
+	started chan uint64
+	release chan struct{}
+	errs    map[uint64]error
+}
+
+func (p *overlapBarrierOwnerPusherForDeliveryTest) Push(ctx context.Context, cmd PushCommand) (PushResult, error) {
+	select {
+	case p.started <- cmd.OwnerNodeID:
+	case <-ctx.Done():
+		return PushResult{}, ctx.Err()
+	}
+	select {
+	case <-p.release:
+	case <-ctx.Done():
+		return PushResult{}, ctx.Err()
+	}
+	if err := p.errs[cmd.OwnerNodeID]; err != nil {
+		return PushResult{}, err
+	}
+	return PushResult{Accepted: append([]Route(nil), cmd.Routes...)}, nil
 }
 
 func (p *recordingOwnerPusherForDeliveryTest) Push(_ context.Context, cmd PushCommand) (PushResult, error) {

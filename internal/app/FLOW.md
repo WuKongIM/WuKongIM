@@ -811,7 +811,12 @@ best-effort and do not change SENDACK, durable append, plugin hooks,
 conversation active admission, or owner delivery.
 The manager drains accepted fanout before the retry scheduler stops, so queued
 retries remain available while accepted manager work completes. Stale pending
-recvacks expire during owner-local push activity.
+recvacks expire during owner-local push activity. The owner pusher admits at
+most one full pending-ack scan per second and never overlaps scans; ordinary
+pushes, binds, and Recvacks therefore do not pay an O(pending acks) sweep on
+every owner batch. The tracker uses second-resolution delivery timestamps, so
+under an advancing clock and continuing push activity the gate adds at most one
+scheduling interval before the next stale-entry scan.
 
 ## Presence Touch Worker
 

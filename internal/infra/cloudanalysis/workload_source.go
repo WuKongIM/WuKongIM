@@ -1,6 +1,7 @@
 package cloudanalysis
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -112,6 +113,9 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 	if err != nil || len(data) > maxWorkloadSummaryBytes {
 		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
 	}
+	if !hasRequiredWorkloadSummaryFields(data) {
+		return analysis.WorkloadInspection{}, errInvalidWorkloadSummary
+	}
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
 	var document workloadDiagnosticSummary
@@ -151,6 +155,7 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 		StabilityVerdict: document.StabilityVerdict,
 		Summary: analysis.WorkloadSummary{
 			SendSuccess:      document.Summary.SendSuccess,
+			IngressQPS:       *document.Summary.IngressQPS,
 			ConnectAttempts:  document.Summary.ConnectAttempts,
 			ConnectSuccess:   document.Summary.ConnectSuccess,
 			ConnectErrors:    document.Summary.ConnectErrors,
@@ -161,6 +166,56 @@ func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.Wor
 		Violations: mapWorkloadLimits(document.Violations), LimitWarnings: mapWorkloadLimits(document.Warnings),
 		PhaseWindows: phaseWindows, FailedWorkers: failedWorkers, FailedWorkersTruncated: document.FailedWorkersTruncated,
 	}, nil
+}
+
+func hasRequiredWorkloadSummaryFields(data []byte) bool {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil || !hasNonNullJSONFields(root,
+		"schema", "run_id", "status", "exit_code", "stability_verdict", "summary",
+		"violations", "warnings", "phase_windows", "failed_workers", "failed_workers_truncated",
+	) {
+		return false
+	}
+
+	var summary map[string]json.RawMessage
+	if err := json.Unmarshal(root["summary"], &summary); err != nil || !hasNonNullJSONFields(summary,
+		"send_success", "ingress_qps", "connect_attempts", "connect_success", "connect_errors",
+		"connect_error_rate", "sendack_error_rate", "recv_verify_error_rate", "worker_failed",
+		"sendack_max_worker_p99", "recv_max_worker_p99",
+	) {
+		return false
+	}
+	return hasRequiredWorkloadArrayFields(root["violations"], "name", "actual", "limit", "hard") &&
+		hasRequiredWorkloadArrayFields(root["warnings"], "name", "actual", "limit", "hard") &&
+		hasRequiredWorkloadArrayFields(root["phase_windows"], "phase", "started_at", "ended_at") &&
+		hasRequiredWorkloadArrayFields(root["failed_workers"], "worker_id", "phase", "reason_code", "detail", "observed_at")
+}
+
+func hasNonNullJSONFields(object map[string]json.RawMessage, fields ...string) bool {
+	for _, field := range fields {
+		raw, ok := object[field]
+		if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasRequiredWorkloadArrayFields(raw json.RawMessage, fields ...string) bool {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		return false
+	}
+	var items []map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &items); err != nil {
+		return false
+	}
+	for _, item := range items {
+		if !hasNonNullJSONFields(item, fields...) {
+			return false
+		}
+	}
+	return true
 }
 
 type workloadDiagnosticSummary struct {
@@ -179,6 +234,7 @@ type workloadDiagnosticSummary struct {
 
 type workloadDiagnosticMetrics struct {
 	SendSuccess         uint64        `json:"send_success"`
+	IngressQPS          *float64      `json:"ingress_qps"`
 	ConnectAttempts     uint64        `json:"connect_attempts"`
 	ConnectSuccess      uint64        `json:"connect_success"`
 	ConnectErrors       uint64        `json:"connect_errors"`
@@ -242,9 +298,13 @@ func validWorkloadFailureTerminal(document workloadDiagnosticSummary) bool {
 }
 
 func validWorkloadSummary(summary workloadDiagnosticMetrics) bool {
-	return validWorkloadRate(summary.ConnectErrorRate) && validWorkloadRate(summary.SendackErrorRate) &&
+	return summary.IngressQPS != nil && validWorkloadNonNegative(*summary.IngressQPS) && validWorkloadRate(summary.ConnectErrorRate) && validWorkloadRate(summary.SendackErrorRate) &&
 		validWorkloadRate(summary.RecvVerifyErrorRate) && summary.WorkerFailed >= 0 &&
 		summary.SendackMaxWorkerP99 >= 0 && summary.ReceiveMaxWorkerP99 >= 0
+}
+
+func validWorkloadNonNegative(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value >= 0
 }
 
 func validWorkloadRate(value float64) bool {

@@ -629,13 +629,21 @@ set -e
 ((codex_status != 142)) || fail "local Codex diagnosis exceeded the Analysis Token deadline"
 ((codex_status == 0)) || fail "local Codex diagnosis failed"
 
-# State and status describe the workload lifecycle only. Structured output can
-# still populate these nullable fields for other observations, so canonicalize
-# the inapplicable values before closing the live Analysis Session and running
-# the stricter repository semantic validator.
+# State and status describe the workload lifecycle only. Every nullable key is
+# required by the Diagnosis JSON Schema, so preserve workload values, fill
+# omitted workload/error values with null, clear inapplicable lifecycle values,
+# and ensure note is present before repository semantic validation.
 diagnosis_canonical="$analysis_temp/diagnosis-canonical.json"
-jq '(.observation_references[] | select(.tool != "workload_inspect") | .state) = null |
-    (.observation_references[] | select(.tool != "workload_inspect") | .status) = null' \
+jq '.observation_references |= map(
+      .note = (.note // null) |
+      if .tool == "workload_inspect" then
+        .state = (.state // null) |
+        .status = (.status // null)
+      else
+        .state = null |
+        .status = null
+      end
+    )' \
   "$diagnosis_json" >"$diagnosis_canonical"
 mv "$diagnosis_canonical" "$diagnosis_json"
 

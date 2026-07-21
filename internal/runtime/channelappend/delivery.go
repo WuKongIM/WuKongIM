@@ -3,8 +3,12 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"time"
 )
+
+const defaultRecipientOwnerPushConcurrency = 4
 
 var (
 	// ErrInvalidSubscriberCursor reports a non-terminal subscriber page without a usable next cursor.
@@ -144,8 +148,11 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 		return results
 	}
 	batchSize := boundedPositive(p.ports.ownerPushBatchSize, defaultRecipientBatchSize)
-	for _, ownerNodeID := range ownerOrder {
+	errorsByOwner := make([][]error, len(ownerOrder))
+	processOwner := func(ownerIndex int) {
+		ownerNodeID := ownerOrder[ownerIndex]
 		ownerRoutes := grouped[ownerNodeID]
+		var ownerErrors []error
 		for start := 0; start < len(ownerRoutes.routes); start += batchSize {
 			end := start + batchSize
 			if end > len(ownerRoutes.routes) {
@@ -161,10 +168,57 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 			if err == nil {
 				continue
 			}
-			applyRecipientPlanOwnerPushFailure(results, plan, ownerNodeID, routes, targetIndexes, failedRoutes, err)
+			if ownerErrors == nil {
+				ownerErrors = make([]error, len(plan.Targets))
+			}
+			applyRecipientPlanOwnerPushFailure(ownerErrors, plan, ownerNodeID, routes, targetIndexes, failedRoutes, err)
+		}
+		errorsByOwner[ownerIndex] = ownerErrors
+	}
+	runBoundedRecipientOwnerPushes(len(ownerOrder), defaultRecipientOwnerPushConcurrency, processOwner)
+	for _, ownerErrors := range errorsByOwner {
+		for targetIndex, err := range ownerErrors {
+			if err != nil && results[targetIndex] == nil {
+				results[targetIndex] = err
+			}
 		}
 	}
 	return results
+}
+
+func runBoundedRecipientOwnerPushes(count, concurrency int, run func(int)) {
+	if count <= 0 {
+		return
+	}
+	if concurrency <= 1 || count == 1 {
+		for index := 0; index < count; index++ {
+			run(index)
+		}
+		return
+	}
+	if concurrency > count {
+		concurrency = count
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	worker := func() {
+		for {
+			index := int(next.Add(1) - 1)
+			if index >= count {
+				return
+			}
+			run(index)
+		}
+	}
+	wg.Add(concurrency - 1)
+	for i := 1; i < concurrency; i++ {
+		go func() {
+			defer wg.Done()
+			worker()
+		}()
+	}
+	worker()
+	wg.Wait()
 }
 
 type recipientPlanOwnerRoutes struct {
