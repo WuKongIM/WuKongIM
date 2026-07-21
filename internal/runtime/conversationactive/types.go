@@ -20,7 +20,7 @@ type Options struct {
 	NowMS func() int64
 	// Store reads and persists durable active conversation rows that have already flushed to DB.
 	Store ActiveStore
-	// ActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
+	// ActiveCooldown suppresses receiver-only dirty work and flushes newer than the durable row by less than this duration.
 	ActiveCooldown time.Duration
 	// MaxCachedRows bounds in-memory active rows across all users; zero disables the bound.
 	MaxCachedRows int
@@ -81,6 +81,8 @@ type MutationObservation struct {
 	BecameDirty int
 	// DirtyUpdated is the number of unique already-dirty rows advanced to a newer version.
 	DirtyUpdated int
+	// CooldownSuppressed is the number of clean receiver rows whose latest view advanced without durable dirty work.
+	CooldownSuppressed int
 	// Unchanged is the number of unique existing rows whose projection and ownership were unchanged.
 	Unchanged int
 	// LockWaitDuration is time spent waiting for the node-local cache lock.
@@ -104,6 +106,8 @@ type FlushObservation struct {
 	Persisted int
 	// Skipped is the number of selected rows routed through the cooldown no-write path after durable-state comparison.
 	Skipped int
+	// DeleteFenced is the number of selected rows rejected by a durable delete barrier without a touch write.
+	DeleteFenced int
 	// Cleared is the number of dirty markers actually cleared after version fencing.
 	Cleared int
 	// VersionConflicts is the number of dirty markers retained because a concurrent update advanced the version.
@@ -160,6 +164,8 @@ type FlushResult struct {
 	Persisted int
 	// Skipped is the number of rows routed through the cooldown no-write path.
 	Skipped int
+	// DeleteFenced is the number of rows rejected by a durable delete barrier without a touch write.
+	DeleteFenced int
 	// Cleared is the number of dirty markers actually cleared after version fencing.
 	Cleared int
 	// VersionConflicts is the number of dirty markers retained after concurrent updates.
@@ -216,8 +222,10 @@ type ActivePatch struct {
 	ChannelID string
 	// ChannelType identifies the active conversation channel type.
 	ChannelType uint8
-	// ActiveAtMS is the maximum observed Unix millisecond activity timestamp.
+	// ActiveAtMS is the latest observed Unix millisecond activity timestamp exposed by the cache view.
 	ActiveAtMS int64
 	// ReadSeq is advanced only for the sender's own conversation row.
 	ReadSeq uint64
+	// MessageSeq is the latest committed channel sequence represented by this activity observation.
+	MessageSeq uint64
 }

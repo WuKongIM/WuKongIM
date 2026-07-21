@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -163,6 +164,107 @@ func BenchmarkFlushHashSlotSelected128Of10KDirtyRows(b *testing.B) {
 
 func BenchmarkFlushHashSlotSelected128Of100KDirtyRows(b *testing.B) {
 	benchmarkFlushHashSlotSelectedRows(b, 100_000, 128)
+}
+
+func BenchmarkFlushHashSlotCooldown128Rows(b *testing.B) {
+	testCases := []struct {
+		name             string
+		readSeq          uint64
+		durable          bool
+		deletedToSeq     uint64
+		wantPersisted    int
+		wantSkipped      int
+		wantDeleteFenced int
+		wantCleared      int
+		wantSuperseded   int
+		wantTouchBatches int
+	}{
+		{name: "receiver_within_cooldown", durable: true, wantSkipped: 128, wantCleared: 128},
+		{name: "sender_within_cooldown", durable: true, readSeq: 10, wantPersisted: 128, wantCleared: 128, wantTouchBatches: 1},
+		{name: "receiver_missing_durable_row", wantPersisted: 128, wantCleared: 128, wantTouchBatches: 1},
+		{name: "receiver_fenced_by_delete", durable: true, deletedToSeq: 10, wantDeleteFenced: 128, wantSuperseded: 128},
+	}
+	for _, testCase := range testCases {
+		b.Run(testCase.name, func(b *testing.B) {
+			const rows = 128
+			ctx := context.Background()
+			b.ReportAllocs()
+			for iteration := 0; iteration < b.N; iteration++ {
+				b.StopTimer()
+				store := &recordingActiveStore{primary: make(map[metadb.ConversationStateKey]metadb.ConversationState, rows)}
+				manager := NewManager(Options{Store: store, ActiveCooldown: 2 * time.Hour, MaxCachedRows: rows})
+				patches := make([]ActivePatch, 0, rows)
+				for row := 0; row < rows; row++ {
+					uid := fmt.Sprintf("u-%03d", row)
+					key := metadb.ConversationStateKey{
+						UID: uid, Kind: metadb.ConversationKindNormal, ChannelID: "room", ChannelType: 2,
+					}
+					patches = append(patches, ActivePatch{
+						UID: uid, Kind: key.Kind, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType),
+						ActiveAtMS: 2_000, ReadSeq: testCase.readSeq, MessageSeq: 10,
+					})
+					if testCase.durable {
+						store.primary[key] = metadb.ConversationState{
+							UID: uid, Kind: key.Kind, ChannelID: key.ChannelID, ChannelType: key.ChannelType,
+							ActiveAt: 1_000, DeletedToSeq: testCase.deletedToSeq,
+						}
+					}
+				}
+				if err := manager.MarkActiveForHashSlot(ctx, 7, patches); err != nil {
+					b.Fatal(err)
+				}
+				b.StartTimer()
+
+				result, err := manager.FlushHashSlot(ctx, 7, rows)
+
+				b.StopTimer()
+				if err != nil {
+					b.Fatal(err)
+				}
+				if result.Selected != rows || result.Persisted != testCase.wantPersisted || result.Skipped != testCase.wantSkipped || result.DeleteFenced != testCase.wantDeleteFenced ||
+					result.Cleared != testCase.wantCleared || result.Superseded != testCase.wantSuperseded {
+					b.Fatalf("FlushHashSlot() = %+v, want selected=%d persisted=%d skipped=%d delete_fenced=%d cleared=%d superseded=%d",
+						result, rows, testCase.wantPersisted, testCase.wantSkipped, testCase.wantDeleteFenced, testCase.wantCleared, testCase.wantSuperseded)
+				}
+				if len(store.batchKeys) != rows {
+					b.Fatalf("durable lookup keys = %d, want %d", len(store.batchKeys), rows)
+				}
+				if len(store.touches) != testCase.wantTouchBatches {
+					b.Fatalf("touch batches = %d, want %d", len(store.touches), testCase.wantTouchBatches)
+				}
+				if testCase.wantTouchBatches > 0 && len(store.touches[0]) != rows {
+					b.Fatalf("touched rows = %d, want %d", len(store.touches[0]), rows)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkPurgeCleanHashSlot128Of100KCleanRows(b *testing.B) {
+	const (
+		totalRows      = 100_000
+		targetRows     = 128
+		targetHashSlot = uint16(7)
+	)
+	ctx := context.Background()
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: totalRows})
+		seedDirtyHashSlots(b, ctx, m, totalRows, targetHashSlot, targetRows)
+		if result, err := m.Flush(ctx, 0); err != nil || result.Cleared != totalRows {
+			b.Fatalf("Flush() = %+v, %v, want %d clean rows", result, err, totalRows)
+		}
+		b.StartTimer()
+
+		purged := m.PurgeCleanHashSlot(targetHashSlot)
+
+		b.StopTimer()
+		if purged != targetRows {
+			b.Fatalf("PurgeCleanHashSlot() = %d, want %d", purged, targetRows)
+		}
+	}
 }
 
 func BenchmarkMarkActiveCoalesces100KUpdates(b *testing.B) {

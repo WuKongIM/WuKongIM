@@ -2262,6 +2262,7 @@ func TestConversationMetricsPreinitializeActiveConservationBaselines(t *testing.
 		{"result": "ok", "stage": "selected", "reason": "none"},
 		{"result": "ok", "stage": "persisted", "reason": "none"},
 		{"result": "ok", "stage": "skipped", "reason": "active_cooldown"},
+		{"result": "ok", "stage": "skipped", "reason": "delete_barrier"},
 		{"result": "ok", "stage": "cleared", "reason": "none"},
 		{"result": "ok", "stage": "requeued", "reason": "version_conflict"},
 		{"result": "ok", "stage": "superseded", "reason": "stale_snapshot"},
@@ -2271,9 +2272,11 @@ func TestConversationMetricsPreinitializeActiveConservationBaselines(t *testing.
 		require.Zero(t, findMetricByLabels(t, flushRows, labels).GetCounter().GetValue())
 	}
 	dirtyMutations := requireMetricFamily(t, families, "wukongim_conversation_active_dirty_mutations_total")
-	require.Zero(t, findMetricByLabels(t, dirtyMutations, map[string]string{
-		"node_id": "11", "node_name": "node-11", "event": "became_dirty",
-	}).GetCounter().GetValue())
+	for _, event := range []string{"became_dirty", "cooldown_suppressed"} {
+		require.Zero(t, findMetricByLabels(t, dirtyMutations, map[string]string{
+			"node_id": "11", "node_name": "node-11", "event": event,
+		}).GetCounter().GetValue())
+	}
 	pressureEvents := requireMetricFamily(t, families, "wukongim_conversation_active_pressure_events_total")
 	require.Zero(t, findMetricByLabels(t, pressureEvents, map[string]string{
 		"node_id": "11", "node_name": "node-11", "event": "signal_received",
@@ -2288,13 +2291,14 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 		OldestDirtyAge: 2 * time.Second, PressureDraining: true,
 		NormalRows: 8, NormalDirtyRows: 2, CMDRows: 4, CMDDirtyRows: 3,
 	})
-	reg.Conversation.ObserveActiveMutation(4, 2, 1)
+	reg.Conversation.ObserveActiveMutation(4, 2, 3, 1)
 	reg.Conversation.ObserveActiveMutationLock("ok", time.Millisecond, 2*time.Millisecond, 3*time.Millisecond)
 	reg.Conversation.ObserveActiveFlush(ConversationActiveFlushSample{
 		Result:                "ok",
-		Selected:              4,
+		Selected:              6,
 		Persisted:             3,
 		Skipped:               1,
+		DeleteFenced:          2,
 		Cleared:               2,
 		VersionConflicts:      1,
 		Superseded:            1,
@@ -2315,6 +2319,16 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 		Requeued:       2,
 		FilterDuration: time.Millisecond,
 		Duration:       time.Millisecond,
+	})
+	reg.Conversation.ObserveActiveFlush(ConversationActiveFlushSample{
+		Result:          "error",
+		FailureStage:    "persist",
+		Selected:        2,
+		DeleteFenced:    1,
+		Requeued:        1,
+		FilterDuration:  time.Millisecond,
+		PersistDuration: time.Millisecond,
+		Duration:        2 * time.Millisecond,
 	})
 	reg.Conversation.ObserveActivePressure("signal_received", 6*time.Millisecond)
 
@@ -2384,7 +2398,7 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 	}).GetCounter().GetValue())
 
 	flushRows := requireMetricFamily(t, families, "wukongim_conversation_active_flush_rows")
-	require.Equal(t, float64(4), findMetricByLabels(t, flushRows, map[string]string{
+	require.Equal(t, float64(6), findMetricByLabels(t, flushRows, map[string]string{
 		"node_id":   "11",
 		"node_name": "node-11",
 		"result":    "ok",
@@ -2397,6 +2411,34 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 		"result":    "ok",
 		"stage":     "persisted",
 		"reason":    "none",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, flushRowsTotal, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"stage":     "skipped",
+		"reason":    "active_cooldown",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(2), findMetricByLabels(t, flushRowsTotal, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"stage":     "skipped",
+		"reason":    "delete_barrier",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, flushRowsTotal, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "error",
+		"stage":     "skipped",
+		"reason":    "delete_barrier",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, flushRowsTotal, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "error",
+		"stage":     "requeued",
+		"reason":    "persist_error",
 	}).GetCounter().GetValue())
 	require.Equal(t, float64(1), findMetricByLabels(t, flushRowsTotal, map[string]string{
 		"node_id":   "11",

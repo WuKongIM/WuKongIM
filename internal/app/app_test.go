@@ -7339,6 +7339,34 @@ func (s *appRecordingConversationAuthorityStore) TouchConversationActiveAtBatch(
 	return nil
 }
 
+func (s *appRecordingConversationAuthorityStore) HideConversationsBatch(ctx context.Context, deletes []metadb.ConversationDelete) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.rows == nil {
+		s.rows = make(map[metadb.ConversationKey]metadb.ConversationState)
+	}
+	for _, req := range deletes {
+		key := metadb.ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}
+		row := s.rows[key]
+		if row.UID == "" {
+			row = metadb.ConversationState{UID: req.UID, Kind: req.Kind, ChannelID: req.ChannelID, ChannelType: req.ChannelType}
+		}
+		if req.DeletedToSeq <= row.DeletedToSeq {
+			continue
+		}
+		row.DeletedToSeq = req.DeletedToSeq
+		row.ActiveAt = 0
+		if req.UpdatedAt > row.UpdatedAt {
+			row.UpdatedAt = req.UpdatedAt
+		}
+		s.rows[key] = row
+	}
+	return nil
+}
+
 func (s *appRecordingConversationAuthorityStore) UpsertConversationStatesBatch(ctx context.Context, states []metadb.ConversationState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -7900,6 +7928,10 @@ func (f *fakeConversationFallbackCluster) UpsertConversationStatesBatch(_ contex
 
 func (f *fakeConversationFallbackCluster) TouchConversationActiveAtBatch(context.Context, []metadb.ConversationActivePatch) error {
 	return errors.New("unexpected authority active patch fallback write")
+}
+
+func (f *fakeConversationFallbackCluster) HideConversationsBatch(context.Context, []metadb.ConversationDelete) error {
+	return errors.New("unexpected authority conversation hide fallback write")
 }
 
 func (f *fakeConversationFallbackCluster) ListChannelSubscribersPage(_ context.Context, channelID string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {

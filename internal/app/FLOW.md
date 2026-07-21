@@ -129,8 +129,8 @@ New(Config)
        runtime/conversationactive.Manager plus one routed
        ConversationAuthorityClient, register the conversation authority RPC
        adapter, create the route-authority lifecycle, and use that client as
-       the conversation list Store while keeping the read adapter as Messages,
-       durable state reads, read-cursor writes, and delete-barrier writes
+       the conversation list and delete Store while keeping the read adapter as
+       Messages, durable state reads, and read-cursor writes
   -> when the cluster exposes cluster Slot metadata subscriber APIs, create
      a delivery metadata adapter backed by real storage for bench setup,
      channelappend subscriber scans, and optional delivery fanout
@@ -621,6 +621,26 @@ normalize zero conversation kinds. It trusts the cluster-routed client to send
 `SenderUID` only to the sender-owned authority target; non-sender recipient
 targets arrive with an empty sender field.
 
+Conversation delete with authority enabled:
+
+```text
+DeleteConversation
+  -> ConversationAuthorityClient groups deletes by UID and resolves a fresh exact target
+  -> local or access/node RPC authority HideConversationsForTarget
+  -> durable HideConversationsBatch advances deleted_to_seq and clears active_at
+  -> runtime/conversationactive.Manager reconciles cached MessageSeq against the barrier
+  -> authority revalidates the exact target before returning success
+```
+
+Rows at or below the delete barrier are removed from cache. A concurrently
+observed newer message stays visible and becomes dirty against the cleared
+durable baseline. A successful store call applies those confirmed barriers to
+cache. A multi-proposal store error can have an unknown committed prefix, so it
+only invalidates every requested durable baseline and forces present rows dirty;
+it never removes an unconfirmed tail. Later durable hydration fences the
+committed prefix, while the routed client retries the monotonic barrier when the
+error is retryable.
+
 Legacy user management requests flow from internal HTTP through
 `internal/usecase/user` and the `internal/infra/cluster`
 `UserMetadataStore` adapter to `pkg/cluster.Node` Slot metadata facades.
@@ -648,6 +668,11 @@ touch patches through the conversation active flush worker or handoff drain.
 Cache pressure only sends a nonblocking wakeup to that worker; admission never
 performs durable I/O. The app conversation authority keeps route target fencing,
 lifecycle handoff, observer mapping, and usecase/RPC type adaptation.
+Authority activation and final drain keep the exact clean-slot purge atomic
+with target publish/fencing under the authority mutex. The purge mutates only
+cache state in that critical section; aggregate cache observers run after the
+target state is published and the authority mutex is released, so observer
+callbacks may safely re-enter authority reads.
 Aggregate admission cache snapshots are coalesced to a 100ms interval in the
 production authority wiring; pressure transitions and flush completion still
 publish immediate snapshots, while mutation counters remain unsampled.
@@ -832,6 +857,9 @@ periodic tick or coalesced cache-pressure wakeup
      cleared; a zero-progress attempt waits for the next periodic tick
 
 cache admission
+  -> keep the latest receiver activity visible in cache while suppressing only
+     its durable dirty work against a separately tracked clean ActiveAt baseline
+     strictly inside AuthorityActiveCooldown
   -> at 80% total occupancy with dirty rows above the 70% low watermark, start
      one pressure cycle
   -> if clean-row eviction cannot satisfy the hard cache bound, reject
@@ -859,6 +887,7 @@ cluster.RouteAuthorityEvent
   -> ignore stale events by hash-slot route revision, Slot config epoch, Slot leader term, and diagnostic authority epoch tie-break
   -> if local node becomes authority:
        mark the exact conversation authority target active
+       purge clean rows for that hash slot before reusing its cache baseline
   -> if leader becomes unknown:
        drain the previous local or warming target with AuthorityHandoffTimeout
        mark the no-leader target warming
@@ -872,7 +901,13 @@ through the routed `ConversationAuthorityClient`. The watcher only maintains
 local cache/list readiness for targets that this node can serve. Handoff drains
 only dirty runtime rows indexed under the previous target's UID hash slot, using
 `AuthorityFlushBatchRows` per iteration until the target is clean or
-`AuthorityHandoffTimeout` expires. Dirty rows for other hash slots stay owned by
+`AuthorityHandoffTimeout` expires. A successful drain then purges clean rows for
+that hash slot; activation also purges any clean rows retained from an older
+leader tenure, so a stale durable baseline is never reused after leadership
+returns. Every drain iteration and its final purge revalidate the exact draining
+target. If a newer local tenure has replaced it, the obsolete drain returns
+`transferred` without purging or continuing through the new tenure. Dirty rows
+for other hash slots stay owned by
 their current authorities and are left for their own scoped drains or the normal
 conversation active flush worker. The lifecycle also periodically pulls current
 authorities from the same initial route source so missed watch events and startup

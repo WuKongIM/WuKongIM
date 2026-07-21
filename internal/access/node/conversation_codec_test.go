@@ -1,6 +1,8 @@
 package node
 
 import (
+	"bytes"
+	"encoding/hex"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,6 +11,58 @@ import (
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+func TestConversationAuthorityCodecHideConversationsWireLayout(t *testing.T) {
+	req := conversationAuthorityRequest{
+		Op:     conversationOpHideConversations,
+		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, LeaderTerm: 4, ConfigEpoch: 5, RouteRevision: 6, AuthorityEpoch: 7},
+		Kind:   metadb.ConversationKindNormal,
+		Deletes: []metadb.ConversationDelete{{
+			UID: "u", Kind: metadb.ConversationKindCMD, ChannelID: "g", ChannelType: 2, DeletedToSeq: 3, UpdatedAt: 4,
+		}},
+	}
+	want, err := hex.DecodeString("574b5643011d686964655f636f6e766572736174696f6e735f666f725f7461726765740102030405060700010000000000010175020167040308")
+	if err != nil {
+		t.Fatalf("decode golden bytes: %v", err)
+	}
+	got, err := encodeConversationAuthorityRequest(req)
+	if err != nil {
+		t.Fatalf("encodeConversationAuthorityRequest() error = %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("encoded hide request = %x, want %x", got, want)
+	}
+}
+
+func TestConversationAuthorityCodecRoundTripHideConversations(t *testing.T) {
+	req := conversationAuthorityRequest{
+		Op:     conversationOpHideConversations,
+		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, LeaderTerm: 6, ConfigEpoch: 7, RouteRevision: 4, AuthorityEpoch: 5},
+		Kind:   metadb.ConversationKindNormal,
+		Deletes: []metadb.ConversationDelete{
+			{UID: "u2", Kind: metadb.ConversationKindCMD, ChannelID: "g2____cmd", ChannelType: 3, DeletedToSeq: 19, UpdatedAt: 102},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 101},
+		},
+	}
+	body, err := encodeConversationAuthorityRequest(req)
+	if err != nil {
+		t.Fatalf("encodeConversationAuthorityRequest() error = %v", err)
+	}
+	secondBody, err := encodeConversationAuthorityRequest(req)
+	if err != nil {
+		t.Fatalf("second encodeConversationAuthorityRequest() error = %v", err)
+	}
+	if !bytes.Equal(body, secondBody) {
+		t.Fatal("encoded hide request is not deterministic")
+	}
+	got, err := decodeConversationAuthorityRequest(body)
+	if err != nil {
+		t.Fatalf("decodeConversationAuthorityRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("decoded = %#v, want %#v", got, req)
+	}
+}
 
 func TestConversationAuthorityCodecRoundTripAdmit(t *testing.T) {
 	req := conversationAuthorityRequest{
@@ -142,6 +196,8 @@ func TestConversationAuthorityCodecRejectsMalformedPayloads(t *testing.T) {
 		{name: "trailing bytes", body: append(append([]byte(nil), validReq...), 0)},
 		{name: "truncated payload", body: validReq[:len(validReq)-1]},
 		{name: "oversized patches", body: conversationAuthorityRequestWithPatchCount(maxConversationAuthorityCollectionLen + 1)},
+		{name: "oversized deletes", body: conversationAuthorityRequestWithDeleteCount(maxConversationAuthorityCollectionLen + 1)},
+		{name: "truncated delete", body: truncatedConversationAuthorityDeleteRequest(t)},
 		{name: "invalid op", body: conversationAuthorityRequestWithOp("unknown")},
 		{name: "invalid patch bool", body: conversationAuthorityRequestWithPatchBool(2)},
 		{name: "invalid response bool", body: conversationAuthorityResponseWithStateBool(2)},
@@ -159,6 +215,17 @@ func TestConversationAuthorityCodecRejectsMalformedPayloads(t *testing.T) {
 				t.Fatal("decode error = nil, want error")
 			}
 		})
+	}
+}
+
+func TestConversationAuthorityCodecRejectsOversizedDeleteCollectionOnEncode(t *testing.T) {
+	req := conversationAuthorityRequest{
+		Op:      conversationOpHideConversations,
+		Kind:    metadb.ConversationKindNormal,
+		Deletes: make([]metadb.ConversationDelete, maxConversationAuthorityCollectionLen+1),
+	}
+	if _, err := encodeConversationAuthorityRequest(req); err == nil {
+		t.Fatal("encodeConversationAuthorityRequest() error = nil, want collection limit error")
 	}
 }
 
@@ -205,6 +272,32 @@ func conversationAuthorityRequestWithPatchCount(count int) []byte {
 	dst = dst[:len(dst)-1]
 	dst = appendUvarint(dst, uint64(count))
 	return append(dst, make([]byte, count)...)
+}
+
+func conversationAuthorityRequestWithDeleteCount(count int) []byte {
+	dst := conversationAuthorityRequestWithOpAndLimit(conversationOpHideConversations, 1)
+	dst = appendUvarint(dst, uint64(count))
+	for i := 0; i < count; i++ {
+		// Six zero varints encode empty UID, normal kind, empty channel,
+		// channel type 0, deleted sequence 0, and update time 0.
+		dst = append(dst, 0, 0, 0, 0, 0, 0)
+	}
+	return dst
+}
+
+func truncatedConversationAuthorityDeleteRequest(t *testing.T) []byte {
+	t.Helper()
+	body, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{
+		Op:   conversationOpHideConversations,
+		Kind: metadb.ConversationKindNormal,
+		Deletes: []metadb.ConversationDelete{{
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 101,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("encode hide request: %v", err)
+	}
+	return body[:len(body)-1]
 }
 
 func conversationAuthorityRequestWithPatchBool(flag byte) []byte {

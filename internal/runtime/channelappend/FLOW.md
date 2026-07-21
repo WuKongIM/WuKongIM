@@ -31,8 +31,10 @@ transient realtime enqueue.
 Router.SendBatch
   -> side-effect-safe pre-route validation / canonical channel derivation
   -> AuthorityResolver.ResolveAppendAuthority(canonical channel)
-  -> local target: LocalSubmitter.SubmitLocal(target, original items)
-  -> remote target: RemoteForwarder.ForwardSendBatch(target, original items)
+  -> bounded concurrent submission of independent canonical-channel groups
+     -> local target: LocalSubmitter.SubmitLocal(target, original items)
+     -> remote target: RemoteForwarder.ForwardSendBatch(target, original items)
+  -> fold group results in original group/item order
   -> item-aligned results
 ```
 
@@ -46,7 +48,23 @@ leader movement without hiding caller/session cancellation. Retry sleeps wake
 when pending item cancellation or deadlines arrive, so expired work does not
 wait for the whole backoff. Remote outbound admission is bounded per
 `LeaderNodeID`, not per channel, so different channels to the same remote
-authority share the same pressure limit.
+authority share the same pressure limit. Resolved remote groups in one batch
+are assigned to at most `MaxOutboundPerNode` batch-local lanes for that leader.
+Groups in one lane submit serially, so they do not reject one another merely
+because the router made independent groups concurrent. The existing global
+outbound admission remains fail-fast, so occupancy from another `SendBatch`
+still returns real cross-batch backpressure. When no leader exceeds the bound,
+the hot path submits group indexes directly and does not allocate lane maps or
+per-group lane slices.
+
+Authority resolution remains ordered and side-effect safe. After resolution,
+different canonical-channel groups from one multi-item batch are submitted with
+a fixed per-batch concurrency bound. The caller participates as one worker, so
+the router creates at most `bound-1` helper goroutines. A single canonical
+channel still forms one ordered group, and completed group results are folded
+in original group and item order before retry selection. This removes
+cross-channel head-of-line waiting without adding an unbounded goroutine or a
+second cross-request queue.
 
 Router submit contexts are neutral batch transport contexts. Per-item contexts
 and deadlines are checked before route lookup, before submission, and while

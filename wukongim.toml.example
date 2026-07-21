@@ -140,6 +140,10 @@ authority_cache_max_rows_per_uid = 4096
 authority_cache_max_rows = 100000
 authority_list_db_window_max = 1000
 authority_handoff_timeout = "3s"
+# Coalesces receiver-only active_at persistence while keeping the latest
+# activity visible in the UID authority cache. Delete barriers invalidate the
+# cached durable baseline before any later message can reuse this cooldown.
+authority_active_cooldown = "2h"
 authority_flush_interval = "1s"
 authority_flush_timeout = "5s"
 # Maximum dirty active rows persisted by one periodic, pressure-woken, or authority-handoff flush attempt.

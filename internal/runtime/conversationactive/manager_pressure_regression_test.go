@@ -65,7 +65,7 @@ func TestMarkActiveCoalescesDuplicateAddressesBeforeMutation(t *testing.T) {
 	for index := 0; index < cap(initial); index++ {
 		initial = append(initial, ActivePatch{
 			Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2,
-			ActiveAtMS: 1_000 + int64(index*25), ReadSeq: uint64(9 - index),
+			ActiveAtMS: 1_000 + int64(index*25), ReadSeq: uint64(9 - index), MessageSeq: uint64(index + 1),
 		})
 	}
 	if err := m.MarkActive(ctx, initial); err != nil {
@@ -78,14 +78,14 @@ func TestMarkActiveCoalescesDuplicateAddressesBeforeMutation(t *testing.T) {
 		t.Fatalf("initial version allocator=%d, want one version for one unique row", m.nextVersion)
 	}
 	entry, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "room", 2)
-	if !ok || entry.ActiveAtMS != 1_200 || entry.ReadSeq != 9 {
+	if !ok || entry.ActiveAtMS != 1_200 || entry.ReadSeq != 9 || entry.MessageSeq != 9 {
 		t.Fatalf("coalesced initial entry=%+v present=%v, want max active/read values", entry, ok)
 	}
 
 	updates := []ActivePatch{
-		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_300, ReadSeq: 9},
-		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_250, ReadSeq: 10},
-		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_400, ReadSeq: 8},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_300, ReadSeq: 9, MessageSeq: 10},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_250, ReadSeq: 10, MessageSeq: 12},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_400, ReadSeq: 8, MessageSeq: 11},
 	}
 	if err := m.MarkActive(ctx, updates); err != nil {
 		t.Fatalf("MarkActive(update duplicates) error = %v", err)
@@ -97,7 +97,7 @@ func TestMarkActiveCoalescesDuplicateAddressesBeforeMutation(t *testing.T) {
 		t.Fatalf("updated version allocator=%d, want one new version for one unique row", m.nextVersion)
 	}
 	entry, ok = m.EntryForTest(metadb.ConversationKindNormal, "u1", "room", 2)
-	if !ok || entry.ActiveAtMS != 1_400 || entry.ReadSeq != 10 {
+	if !ok || entry.ActiveAtMS != 1_400 || entry.ReadSeq != 10 || entry.MessageSeq != 12 {
 		t.Fatalf("coalesced updated entry=%+v present=%v, want max active/read values", entry, ok)
 	}
 	requireCacheIndexConservation(t, m)
@@ -140,7 +140,7 @@ func TestBoundedFlushSelectionVisitsEveryDirtyRowBeforeRepeating(t *testing.T) {
 	requireDirtyIndexConservation(t, m)
 }
 
-func TestReceiverCooldownDoesNotInheritHistoricalSenderReadSeq(t *testing.T) {
+func TestCleanReceiverCooldownDoesNotInheritHistoricalSenderReadSeq(t *testing.T) {
 	ctx := context.Background()
 	const (
 		initialActiveAt  int64 = 1_000
@@ -181,11 +181,19 @@ func TestReceiverCooldownDoesNotInheritHistoricalSenderReadSeq(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Flush(receiver) error = %v", err)
 	}
-	if result.Selected != 1 || result.Persisted != 0 || result.Skipped != 1 || result.Cleared != 1 {
-		t.Fatalf("Flush(receiver) = %+v, want cooldown skip despite cached historical ReadSeq", result)
+	if result.Selected != 0 {
+		t.Fatalf("Flush(receiver) = %+v, want clean receiver update suppressed inside cooldown", result)
 	}
 	if got := len(store.touches); got != 1 {
 		t.Fatalf("durable touch batches = %d, want only initial sender flush", got)
+	}
+	entry, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "room", 2)
+	if !ok || entry.ActiveAtMS != receiverActiveAt || entry.ReadSeq != 9 {
+		t.Fatalf("cache entry = %+v present=%v, want latest receiver view with historical sender read floor", entry, ok)
+	}
+	address := cacheAddress{uid: "u1", key: conversationKey{kind: metadb.ConversationKindNormal, channelID: "room", channelType: 2}}
+	if baseline := m.cache[address.uid][address.key].durableActiveAtMS; baseline != initialActiveAt {
+		t.Fatalf("durable baseline = %d, want %d", baseline, initialActiveAt)
 	}
 	requireDirtyIndexConservation(t, m)
 }
@@ -327,8 +335,8 @@ func TestMixedSenderAndReceiverFlushPreservesCurrentDirtyClassification(t *testi
 		t.Fatalf("durable touches = %+v, want only sticky sender update", store.touches)
 	}
 	receiver, ok := m.EntryForTest(metadb.ConversationKindNormal, "receiver", "room", 2)
-	if !ok || receiver.ActiveAtMS != 900 {
-		t.Fatalf("receiver cache entry = %+v present=%v, want durable ActiveAt 900 restored", receiver, ok)
+	if !ok || receiver.ActiveAtMS != 1_100 {
+		t.Fatalf("receiver cache entry = %+v present=%v, want latest receiver ActiveAt 1100", receiver, ok)
 	}
 	requireDirtyIndexConservation(t, m)
 	if observation := m.cacheObservation(); observation.DirtyRows != 0 || observation.DirtyQueueRows != 0 || observation.DirtyAgeBuckets != 0 {
@@ -415,6 +423,92 @@ func TestPressureDrainDoesNotSpinAfterZeroProgress(t *testing.T) {
 	case <-pressureSignals:
 	default:
 		t.Fatal("progressing periodic flush did not resume pressure drain")
+	}
+	requireDirtyIndexConservation(t, m)
+}
+
+func TestReceiverCooldownTrafficDoesNotRestartPressureDrain(t *testing.T) {
+	ctx := context.Background()
+	const rows = 10
+	const durableActiveAt int64 = 1_000
+	pressureSignals := make(chan PressureSignal, 1)
+	observer := &recordingConversationActiveObserver{}
+	primary := make(map[metadb.ConversationStateKey]metadb.ConversationState, rows)
+	initial := make([]ActivePatch, 0, rows)
+	for index := 0; index < rows; index++ {
+		uid := fmt.Sprintf("u-%02d", index)
+		key := metadb.ConversationStateKey{
+			UID:         uid,
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   "room",
+			ChannelType: 2,
+		}
+		primary[key] = metadb.ConversationState{
+			UID:         uid,
+			Kind:        key.Kind,
+			ChannelID:   key.ChannelID,
+			ChannelType: key.ChannelType,
+			ActiveAt:    durableActiveAt,
+		}
+		initial = append(initial, ActivePatch{
+			Kind:        key.Kind,
+			UID:         uid,
+			ChannelID:   key.ChannelID,
+			ChannelType: uint8(key.ChannelType),
+			ActiveAtMS:  durableActiveAt + int64(30*time.Minute/time.Millisecond),
+			MessageSeq:  1,
+		})
+	}
+	m := NewManager(Options{
+		Store:          &recordingActiveStore{primary: primary},
+		ActiveCooldown: time.Hour,
+		MaxCachedRows:  rows,
+		PressureNotify: pressureSignals,
+		Observer:       observer,
+	})
+	if err := m.MarkActive(ctx, initial); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+	select {
+	case <-pressureSignals:
+	default:
+		t.Fatal("initial dirty rows did not start pressure drain")
+	}
+	if result, err := m.Flush(ctx, 0); err != nil || result.Skipped != rows || result.Cleared != rows {
+		t.Fatalf("Flush(initial) = %+v, %v, want all receiver rows skipped and cleared", result, err)
+	}
+	if got := m.cacheObservation(); got.DirtyRows != 0 || got.PressureDraining {
+		t.Fatalf("post-flush cache = %+v, want clean rows below pressure watermark", got)
+	}
+
+	for iteration := 0; iteration < 100; iteration++ {
+		updates := append([]ActivePatch(nil), initial...)
+		for index := range updates {
+			updates[index].ActiveAtMS = durableActiveAt + int64(45*time.Minute/time.Millisecond) + int64(iteration)
+			updates[index].MessageSeq = uint64(iteration + 2)
+		}
+		if err := m.MarkActive(ctx, updates); err != nil {
+			t.Fatalf("MarkActive(iteration=%d) error = %v", iteration, err)
+		}
+	}
+	if got := m.cacheObservation(); got.DirtyRows != 0 || got.DirtyQueueRows != 0 || got.DirtyAgeBuckets != 0 || got.PressureDraining {
+		t.Fatalf("steady receiver cooldown cache = %+v, want clean pressure-free cache", got)
+	}
+	lastActiveAt := durableActiveAt + int64(45*time.Minute/time.Millisecond) + 99
+	for index := 0; index < rows; index++ {
+		uid := fmt.Sprintf("u-%02d", index)
+		entry, ok := m.EntryForTest(metadb.ConversationKindNormal, uid, "room", 2)
+		if !ok || entry.ActiveAtMS != lastActiveAt || entry.MessageSeq != 101 {
+			t.Fatalf("steady receiver row %s = %+v present=%t, want latest view active=%d seq=101", uid, entry, ok, lastActiveAt)
+		}
+	}
+	if mutation := observer.lastMutation(t); mutation.CooldownSuppressed != rows || mutation.Unchanged != 0 || mutation.BecameDirty != 0 || mutation.DirtyUpdated != 0 {
+		t.Fatalf("steady receiver mutation = %+v, want %d cooldown-suppressed rows", mutation, rows)
+	}
+	select {
+	case signal := <-pressureSignals:
+		t.Fatalf("receiver cooldown traffic restarted pressure drain: %+v", signal)
+	default:
 	}
 	requireDirtyIndexConservation(t, m)
 }
@@ -573,6 +667,39 @@ func requireCacheIndexConservation(t *testing.T, manager *Manager) {
 
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
+	var indexedHashSlotRows int
+	for hashSlot, byAddress := range manager.cleanByHashSlot {
+		if len(byAddress) == 0 {
+			t.Fatalf("clean hash-slot index %d contains an empty address set", hashSlot)
+		}
+		for address := range byAddress {
+			indexedHashSlotRows++
+			byChannel := manager.cache[address.uid]
+			entry, ok := byChannel[address.key]
+			if !ok {
+				t.Fatalf("clean hash-slot index %d contains missing cache address %+v", hashSlot, address)
+			}
+			if entry.dirty || !entry.hasHashSlot || entry.hashSlot != hashSlot {
+				t.Fatalf("clean hash-slot index %d contains invalid cache entry %+v for address %+v", hashSlot, entry, address)
+			}
+		}
+	}
+	var wantHashSlotRows int
+	for uid, byChannel := range manager.cache {
+		for key, entry := range byChannel {
+			if entry.dirty || !entry.hasHashSlot {
+				continue
+			}
+			wantHashSlotRows++
+			address := cacheAddress{uid: uid, key: key}
+			if _, ok := manager.cleanByHashSlot[entry.hashSlot][address]; !ok {
+				t.Fatalf("clean cache address %+v is missing from hash-slot index %d", address, entry.hashSlot)
+			}
+		}
+	}
+	if indexedHashSlotRows != wantHashSlotRows {
+		t.Fatalf("clean hash-slot index rows=%d, clean hash-slot cache rows=%d", indexedHashSlotRows, wantHashSlotRows)
+	}
 	if manager.maxCachedRows <= 0 {
 		if manager.cleanIndex != nil {
 			t.Fatalf("unbounded manager clean index is initialized with %d rows", len(manager.cleanIndex))

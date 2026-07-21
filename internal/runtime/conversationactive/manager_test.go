@@ -43,6 +43,9 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 	if sender.ReadSeq != 42 {
 		t.Fatalf("sender ReadSeq = %d, want 42", sender.ReadSeq)
 	}
+	if sender.MessageSeq != 42 {
+		t.Fatalf("sender MessageSeq = %d, want 42", sender.MessageSeq)
+	}
 
 	receiver, ok := m.EntryForTest(metadb.ConversationKindNormal, "bob", "room-1", 2)
 	if !ok {
@@ -53,6 +56,9 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 	}
 	if receiver.ReadSeq != 0 {
 		t.Fatalf("receiver ReadSeq = %d, want 0", receiver.ReadSeq)
+	}
+	if receiver.MessageSeq != 42 {
+		t.Fatalf("receiver MessageSeq = %d, want 42", receiver.MessageSeq)
 	}
 }
 
@@ -286,7 +292,7 @@ func TestListActiveViewMergesCacheOverDB(t *testing.T) {
 	m := NewManager(Options{Store: store})
 
 	err := m.MarkActive(ctx, []ActivePatch{
-		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10, MessageSeq: 8},
 		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "b-cache-tie", ChannelType: 2, ActiveAtMS: 800},
 	})
 	if err != nil {
@@ -334,7 +340,7 @@ func TestListActiveViewHydratesCacheOnlyDurableRow(t *testing.T) {
 	}
 	m := NewManager(Options{Store: store})
 	err := m.MarkActive(ctx, []ActivePatch{
-		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10, MessageSeq: 8},
 	})
 	if err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
@@ -354,6 +360,97 @@ func TestListActiveViewHydratesCacheOnlyDurableRow(t *testing.T) {
 	}
 	if len(store.lookups) != 1 || store.lookups[0] != (metadb.ConversationStateKey{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "shared", ChannelType: 2}) {
 		t.Fatalf("lookups = %+v, want shared primary lookup", store.lookups)
+	}
+}
+
+func TestListActiveViewFencesStaleCacheActivityAtDurableDeleteBarrier(t *testing.T) {
+	ctx := context.Background()
+	key := metadb.ConversationStateKey{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "deleted",
+		ChannelType: 2,
+	}
+	store := &recordingActiveStore{primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+		key: {
+			UID:          key.UID,
+			Kind:         key.Kind,
+			ChannelID:    key.ChannelID,
+			ChannelType:  key.ChannelType,
+			DeletedToSeq: 10,
+		},
+	}}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind: key.Kind, UID: key.UID, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType),
+		ActiveAtMS: 2_000, MessageSeq: 10,
+	}}); err != nil {
+		t.Fatalf("MarkActive(stale) error = %v", err)
+	}
+
+	page, err := m.ListActiveView(ctx, key.Kind, key.UID, metadb.ConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView() error = %v", err)
+	}
+	if len(page.Rows) != 0 {
+		t.Fatalf("ListActiveView() rows = %+v, want stale cache activity hidden by delete barrier", page.Rows)
+	}
+}
+
+func TestFlushFencesStaleActivityWithoutListBeforeNewerActivity(t *testing.T) {
+	ctx := context.Background()
+	key := metadb.ConversationStateKey{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "deleted",
+		ChannelType: 2,
+	}
+	store := &recordingActiveStore{primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+		key: {
+			UID:          key.UID,
+			Kind:         key.Kind,
+			ChannelID:    key.ChannelID,
+			ChannelType:  key.ChannelType,
+			DeletedToSeq: 10,
+		},
+	}}
+	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour})
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind: key.Kind, UID: key.UID, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType),
+		ActiveAtMS: 2_000, ReadSeq: 10, MessageSeq: 10,
+	}}); err != nil {
+		t.Fatalf("MarkActive(stale) error = %v", err)
+	}
+	result, err := m.Flush(ctx, 1)
+	if err != nil {
+		t.Fatalf("Flush(stale) error = %v", err)
+	}
+	if result.Skipped != 0 || result.DeleteFenced != 1 || result.Superseded != 1 || result.Persisted != 0 || m.DirtyCountForTest() != 0 {
+		t.Fatalf("Flush(stale) = %+v dirty=%d, want durable barrier to remove stale activity without a touch", result, m.DirtyCountForTest())
+	}
+	if _, ok := m.EntryForTest(key.Kind, key.UID, key.ChannelID, uint8(key.ChannelType)); ok {
+		t.Fatal("stale activity remained cached after durable barrier filtering")
+	}
+
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind: key.Kind, UID: key.UID, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType),
+		ActiveAtMS: 2_100, MessageSeq: 11,
+	}}); err != nil {
+		t.Fatalf("MarkActive(newer) error = %v", err)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows after newer activity = %d, want durable reactivation without list hydration", got)
+	}
+	result, err = m.Flush(ctx, 1)
+	if err != nil {
+		t.Fatalf("Flush(newer) error = %v", err)
+	}
+	if result.Persisted != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush(newer) = %+v, want sequence above barrier persisted", result)
+	}
+	last := store.touches[len(store.touches)-1][0]
+	if last.MessageSeq != 11 || last.ActiveAt != 2_100 {
+		t.Fatalf("persisted newer activity = %+v, want message_seq=11 active_at=2100", last)
 	}
 }
 
@@ -442,7 +539,7 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store, MaxCachedRows: 1})
-	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7, MessageSeq: 42}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 	requireCacheIndexConservation(t, m)
@@ -473,6 +570,7 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 		ReadSeq:     7,
 		ActiveAt:    1000,
 		UpdatedAt:   1000,
+		MessageSeq:  42,
 	}
 	if len(store.touches) != 1 || len(store.touches[0]) != 1 {
 		t.Fatalf("touches = %+v, want one patch", store.touches)
@@ -480,7 +578,7 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	if got := store.touches[0][0]; !reflect.DeepEqual(got, want) {
 		t.Fatalf("touch patch = %+v, want %+v", got, want)
 	}
-	if patch := store.touches[0][0]; patch.DeletedToSeq != 0 || patch.MessageSeq != 0 || patch.SparseActive || patch.SparseActiveSet {
+	if patch := store.touches[0][0]; patch.DeletedToSeq != 0 || patch.MessageSeq != 42 || patch.SparseActive || patch.SparseActiveSet {
 		t.Fatalf("touch patch set unmanaged fields: %+v", patch)
 	}
 }
@@ -541,8 +639,581 @@ func TestFlushSkipsReceiverActiveWithinCooldown(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected cache entry to remain after filtered flush")
 	}
-	if entry.ActiveAtMS != previousActiveAt {
-		t.Fatalf("cached ActiveAtMS = %d, want durable active_at %d", entry.ActiveAtMS, previousActiveAt)
+	if entry.ActiveAtMS != nextActiveAt {
+		t.Fatalf("cached ActiveAtMS = %d, want latest observed active_at %d", entry.ActiveAtMS, nextActiveAt)
+	}
+	page, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 1)
+	if err != nil {
+		t.Fatalf("ListActiveView() error = %v", err)
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ActiveAt != nextActiveAt {
+		t.Fatalf("ListActiveView() rows = %+v, want immediate latest active_at %d", page.Rows, nextActiveAt)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestCleanReceiverWithinCooldownDoesNotRedirty(t *testing.T) {
+	ctx := context.Background()
+	const previousActiveAt int64 = 1_000
+	cooldown := 2 * time.Hour
+	key := metadb.ConversationStateKey{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "room-1",
+		ChannelType: 2,
+	}
+	store := &recordingActiveStore{
+		primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+			key: {
+				UID:         key.UID,
+				Kind:        key.Kind,
+				ChannelID:   key.ChannelID,
+				ChannelType: key.ChannelType,
+				ActiveAt:    previousActiveAt,
+			},
+		},
+	}
+	observer := &recordingConversationActiveObserver{}
+	m := NewManager(Options{
+		Store:          store,
+		ActiveCooldown: cooldown,
+		MaxCachedRows:  1,
+		Observer:       observer,
+	})
+	initial := ActivePatch{
+		Kind:        key.Kind,
+		UID:         key.UID,
+		ChannelID:   key.ChannelID,
+		ChannelType: uint8(key.ChannelType),
+		ActiveAtMS:  previousActiveAt + int64(time.Hour/time.Millisecond),
+	}
+	if err := m.MarkActive(ctx, []ActivePatch{initial}); err != nil {
+		t.Fatalf("MarkActive(initial) error = %v", err)
+	}
+	if result, err := m.Flush(ctx, 0); err != nil || result.Skipped != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush(initial) = %+v, %v, want one cooldown skip and clear", result, err)
+	}
+	address := cacheAddress{uid: key.UID, key: conversationKey{kind: key.Kind, channelID: key.ChannelID, channelType: uint8(key.ChannelType)}}
+	version := m.cache[key.UID][address.key].version
+	lookups := len(store.batchKeys)
+
+	withinCooldown := initial
+	withinCooldown.ActiveAtMS = previousActiveAt + int64(90*time.Minute/time.Millisecond)
+	if err := m.MarkActive(ctx, []ActivePatch{withinCooldown}); err != nil {
+		t.Fatalf("MarkActive(within cooldown) error = %v", err)
+	}
+	if got := m.DirtyCountForTest(); got != 0 {
+		t.Fatalf("DirtyCountForTest() = %d, want clean receiver row to stay clean inside cooldown", got)
+	}
+	entry := m.cache[key.UID][address.key]
+	if entry.version <= version || entry.patch.ActiveAtMS != withinCooldown.ActiveAtMS {
+		t.Fatalf("cache entry = %+v, want latest observed active_at=%d with a new version after suppression", entry, withinCooldown.ActiveAtMS)
+	}
+	if mutation := observer.lastMutation(t); mutation.CooldownSuppressed != 1 || mutation.Unchanged != 0 || mutation.BecameDirty != 0 || mutation.DirtyUpdated != 0 {
+		t.Fatalf("receiver cooldown mutation = %+v, want one cooldown-suppressed row", mutation)
+	}
+	page, err := m.ListActiveView(ctx, key.Kind, key.UID, metadb.ConversationActiveCursor{}, 1)
+	if err != nil {
+		t.Fatalf("ListActiveView(after suppression) error = %v", err)
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ActiveAt != withinCooldown.ActiveAtMS {
+		t.Fatalf("ListActiveView(after suppression) rows = %+v, want immediate active_at=%d", page.Rows, withinCooldown.ActiveAtMS)
+	}
+	result, err := m.Flush(ctx, 0)
+	if err != nil || result.Selected != 0 {
+		t.Fatalf("Flush(after suppressed receiver update) = %+v, %v, want no dirty selection", result, err)
+	}
+	if got := len(store.batchKeys); got != lookups {
+		t.Fatalf("durable lookup keys = %d, want unchanged %d", got, lookups)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestCleanReceiverCooldownSuppressionBoundaries(t *testing.T) {
+	ctx := context.Background()
+	const baselineActiveAt int64 = 1_000
+	cooldown := time.Hour
+	cooldownMS := int64(cooldown / time.Millisecond)
+	tests := []struct {
+		name       string
+		cooldown   time.Duration
+		activeAtMS int64
+		readSeq    uint64
+		hashSlot   uint16
+		wantDirty  bool
+	}{
+		{name: "inside cooldown", cooldown: cooldown, activeAtMS: baselineActiveAt + cooldownMS - 1, hashSlot: 1},
+		{name: "at cooldown", cooldown: cooldown, activeAtMS: baselineActiveAt + cooldownMS, hashSlot: 1, wantDirty: true},
+		{name: "after cooldown", cooldown: cooldown, activeAtMS: baselineActiveAt + cooldownMS + 1, hashSlot: 1, wantDirty: true},
+		{name: "sender read sequence advances", cooldown: cooldown, activeAtMS: baselineActiveAt + 1, readSeq: 10, hashSlot: 1, wantDirty: true},
+		{name: "hash slot changes", cooldown: cooldown, activeAtMS: baselineActiveAt + 1, hashSlot: 2, wantDirty: true},
+		{name: "cooldown disabled", activeAtMS: baselineActiveAt + 1, hashSlot: 1, wantDirty: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewManager(Options{Store: &recordingActiveStore{}, ActiveCooldown: tt.cooldown, MaxCachedRows: 1})
+			baseline := ActivePatch{
+				Kind:        metadb.ConversationKindNormal,
+				UID:         "u1",
+				ChannelID:   "room-1",
+				ChannelType: 2,
+				ActiveAtMS:  baselineActiveAt,
+				ReadSeq:     9,
+			}
+			if err := m.MarkActiveForHashSlot(ctx, 1, []ActivePatch{baseline}); err != nil {
+				t.Fatalf("MarkActiveForHashSlot(baseline) error = %v", err)
+			}
+			if result, err := m.Flush(ctx, 0); err != nil || result.Persisted != 1 || result.Cleared != 1 {
+				t.Fatalf("Flush(baseline) = %+v, %v, want persisted clean baseline", result, err)
+			}
+			incoming := baseline
+			incoming.ActiveAtMS = tt.activeAtMS
+			incoming.ReadSeq = tt.readSeq
+			if err := m.MarkActiveForHashSlot(ctx, tt.hashSlot, []ActivePatch{incoming}); err != nil {
+				t.Fatalf("MarkActiveForHashSlot(incoming) error = %v", err)
+			}
+			if got := m.DirtyCountForTest(); (got == 1) != tt.wantDirty {
+				t.Fatalf("DirtyCountForTest() = %d, wantDirty=%v", got, tt.wantDirty)
+			}
+			requireCacheIndexConservation(t, m)
+		})
+	}
+}
+
+func TestApplyConversationDeletesUsesLatestMessageSequenceBarrier(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour, MaxCachedRows: 8})
+	for _, patch := range []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1_000, MessageSeq: 10},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "new", ChannelType: 2, ActiveAtMS: 2_000, MessageSeq: 20},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "unknown", ChannelType: 2, ActiveAtMS: 3_000},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "other", ChannelType: 2, ActiveAtMS: 4_000, MessageSeq: 40},
+	} {
+		if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{patch}); err != nil {
+			t.Fatalf("MarkActiveForHashSlot(%s) error = %v", patch.ChannelID, err)
+		}
+	}
+	if result, err := m.Flush(ctx, 0); err != nil || result.Cleared != 4 {
+		t.Fatalf("Flush(initial) = %+v, %v, want four clean rows", result, err)
+	}
+
+	deletes := []metadb.ConversationDelete{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "old", ChannelType: 2, DeletedToSeq: 10},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "new", ChannelType: 2, DeletedToSeq: 15},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "unknown", ChannelType: 2, DeletedToSeq: 15},
+	}
+	m.ApplyConversationDeletes(deletes)
+
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "old", 2); ok {
+		t.Fatal("message at the delete barrier remained cached")
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "unknown", 2); ok {
+		t.Fatal("message with an unknown sequence remained cached")
+	}
+	newer, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "new", 2)
+	if !ok || newer.ActiveAtMS != 2_000 || newer.MessageSeq != 20 {
+		t.Fatalf("newer row = %+v present=%t, want latest view retained", newer, ok)
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "other", 2); !ok {
+		t.Fatal("unrelated row was removed")
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows = %d, want only the newer row forced dirty", got)
+	}
+	entry := m.cache["u1"][conversationKey{kind: metadb.ConversationKindNormal, channelID: "new", channelType: 2}]
+	if entry.durableActiveAtMS != 0 || !entry.dirty {
+		t.Fatalf("newer cache entry = %+v, want invalid durable baseline and dirty retry", entry)
+	}
+	m.ApplyConversationDeletes(deletes)
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows after duplicate apply = %d, want idempotent one", got)
+	}
+	repeated := m.cache["u1"][conversationKey{kind: metadb.ConversationKindNormal, channelID: "new", channelType: 2}]
+	if repeated.version != entry.version {
+		t.Fatalf("duplicate delete advanced version from %d to %d", entry.version, repeated.version)
+	}
+	m.ApplyConversationDeletes([]metadb.ConversationDelete{{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "new", ChannelType: 2, DeletedToSeq: 14,
+	}})
+	lower := m.cache["u1"][conversationKey{kind: metadb.ConversationKindNormal, channelID: "new", channelType: 2}]
+	if lower.version != entry.version || lower.deleteBarrier != 15 {
+		t.Fatalf("lower delete barrier changed cache entry from %+v to %+v", entry, lower)
+	}
+	requireCacheIndexConservation(t, m)
+
+	store.primary = map[metadb.ConversationStateKey]metadb.ConversationState{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "new", ChannelType: 2}: {
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "new", ChannelType: 2, DeletedToSeq: 15,
+		},
+	}
+	if result, err := m.Flush(ctx, 1); err != nil || result.Persisted != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush(newer) = %+v, %v, want newer sequence persisted", result, err)
+	}
+	last := store.touches[len(store.touches)-1][0]
+	if last.ChannelID != "new" || last.MessageSeq != 20 || last.ActiveAt != 2_000 {
+		t.Fatalf("persisted newer patch = %+v", last)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestEqualDeleteBarrierRetryRedirtiesCleanNewerActivity(t *testing.T) {
+	ctx := context.Background()
+	key := metadb.ConversationStateKey{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "room",
+		ChannelType: 2,
+	}
+	store := &recordingActiveStore{primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+		key: {
+			UID:         key.UID,
+			Kind:        key.Kind,
+			ChannelID:   key.ChannelID,
+			ChannelType: key.ChannelType,
+			ActiveAt:    1_000,
+		},
+	}}
+	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour, MaxCachedRows: 1})
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind: key.Kind, UID: key.UID, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType),
+		ActiveAtMS: 1_100, MessageSeq: 11,
+	}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	deletion := metadb.ConversationDelete{
+		UID: key.UID, Kind: key.Kind, ChannelID: key.ChannelID, ChannelType: key.ChannelType, DeletedToSeq: 10,
+	}
+
+	// A confirmed callback can race a stale durable read snapshot that does not
+	// yet expose the barrier, allowing one cooldown skip to leave the row clean.
+	m.ApplyConversationDeletes([]metadb.ConversationDelete{deletion})
+	result, err := m.Flush(ctx, 1)
+	if err != nil {
+		t.Fatalf("Flush(before durable hide) error = %v", err)
+	}
+	if result.Skipped != 1 || result.Cleared != 1 || m.DirtyCountForTest() != 0 {
+		t.Fatalf("Flush(before durable hide) = %+v dirty=%d, want cooldown skip to leave the newer row clean", result, m.DirtyCountForTest())
+	}
+
+	// Later hydration rediscovers the same confirmed barrier. Equal-barrier
+	// reconciliation must re-invalidate the clean row while durable ActiveAt is
+	// still cleared.
+	store.primary[key] = metadb.ConversationState{
+		UID: key.UID, Kind: key.Kind, ChannelID: key.ChannelID, ChannelType: key.ChannelType, DeletedToSeq: 10,
+	}
+	m.ApplyConversationDeletes([]metadb.ConversationDelete{deletion})
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows after equal confirmed retry = %d, want newer activity forced dirty", got)
+	}
+	result, err = m.Flush(ctx, 1)
+	if err != nil {
+		t.Fatalf("Flush(after confirmed retry) error = %v", err)
+	}
+	if result.Persisted != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush(after confirmed retry) = %+v, want newer activity reactivated durably", result)
+	}
+	last := store.touches[len(store.touches)-1][0]
+	if last.MessageSeq != 11 || last.ActiveAt != 1_100 {
+		t.Fatalf("reactivation patch = %+v, want message_seq=11 active_at=1100", last)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestSuppressedReceiverAfterDeleteBecomesDirtyAndPersists(t *testing.T) {
+	ctx := context.Background()
+	key := metadb.ConversationStateKey{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "room", ChannelType: 2}
+	store := &recordingActiveStore{primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+		key: {UID: key.UID, Kind: key.Kind, ChannelID: key.ChannelID, ChannelType: key.ChannelType, ActiveAt: 1_000},
+	}}
+	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour, MaxCachedRows: 1})
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: key.Kind, UID: key.UID, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType), ActiveAtMS: 1_500, MessageSeq: 10,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(initial) error = %v", err)
+	}
+	if result, err := m.Flush(ctx, 1); err != nil || result.Skipped != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush(initial) = %+v, %v, want cooldown skip", result, err)
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: key.Kind, UID: key.UID, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType), ActiveAtMS: 1_600, MessageSeq: 11,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(suppressed) error = %v", err)
+	}
+	if got := m.DirtyCountForTest(); got != 0 {
+		t.Fatalf("dirty rows before delete = %d, want suppressed clean row", got)
+	}
+
+	m.ApplyConversationDeletes([]metadb.ConversationDelete{{
+		UID: key.UID, Kind: key.Kind, ChannelID: key.ChannelID, ChannelType: key.ChannelType, DeletedToSeq: 11,
+	}})
+	if _, ok := m.EntryForTest(key.Kind, key.UID, key.ChannelID, uint8(key.ChannelType)); ok {
+		t.Fatal("suppressed row at delete barrier remained cached")
+	}
+	store.primary[key] = metadb.ConversationState{
+		UID: key.UID, Kind: key.Kind, ChannelID: key.ChannelID, ChannelType: key.ChannelType, DeletedToSeq: 11,
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: key.Kind, UID: key.UID, ChannelID: key.ChannelID, ChannelType: uint8(key.ChannelType), ActiveAtMS: 1_700, MessageSeq: 12,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(after delete) error = %v", err)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows after delete = %d, want newer receiver dirty", got)
+	}
+	if result, err := m.Flush(ctx, 1); err != nil || result.Persisted != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush(after delete) = %+v, %v, want newer receiver persisted", result, err)
+	}
+	last := store.touches[len(store.touches)-1][0]
+	if last.MessageSeq != 12 || last.ActiveAt != 1_700 {
+		t.Fatalf("persisted after-delete patch = %+v, want message_seq=12 active_at=1700", last)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestInvalidateConversationDeleteAttemptsPreservesUnconfirmedRows(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store, MaxCachedRows: 4})
+	patches := []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1_000, MessageSeq: 5},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "new", ChannelType: 2, ActiveAtMS: 2_000, MessageSeq: 20},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "unknown", ChannelType: 2, ActiveAtMS: 3_000},
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 7, patches); err != nil {
+		t.Fatalf("MarkActiveForHashSlot() error = %v", err)
+	}
+	if result, err := m.Flush(ctx, 0); err != nil || result.Cleared != len(patches) {
+		t.Fatalf("Flush(initial) = %+v, %v, want clean cached rows", result, err)
+	}
+
+	deletes := []metadb.ConversationDelete{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "old", ChannelType: 2, DeletedToSeq: 10},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "new", ChannelType: 2, DeletedToSeq: 10},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "unknown", ChannelType: 2, DeletedToSeq: 10},
+	}
+	m.InvalidateConversationDeleteAttempts(deletes)
+	for _, patch := range patches {
+		got, ok := m.EntryForTest(patch.Kind, patch.UID, patch.ChannelID, patch.ChannelType)
+		if !ok || got.ActiveAtMS != patch.ActiveAtMS || got.MessageSeq != patch.MessageSeq {
+			t.Fatalf("unconfirmed row %s = %+v present=%t, want preserved cache projection %+v", patch.ChannelID, got, ok, patch)
+		}
+		entry := m.cache[patch.UID][conversationKey{kind: patch.Kind, channelID: patch.ChannelID, channelType: patch.ChannelType}]
+		if !entry.dirty || entry.durableActiveAtMS != 0 || entry.deleteBarrier != 0 {
+			t.Fatalf("unconfirmed cache entry %s = %+v, want dirty invalid baseline without confirmed barrier", patch.ChannelID, entry)
+		}
+	}
+	if got := m.DirtyCountForTest(); got != len(patches) {
+		t.Fatalf("dirty rows = %d, want all %d uncertain rows retried", got, len(patches))
+	}
+	if result, err := m.Flush(ctx, 0); err != nil || result.Persisted != len(patches) || result.Cleared != len(patches) {
+		t.Fatalf("Flush(unconfirmed) = %+v, %v, want rows restored when durable barriers were not committed", result, err)
+	}
+	for _, patch := range patches {
+		if _, ok := m.EntryForTest(patch.Kind, patch.UID, patch.ChannelID, patch.ChannelType); !ok {
+			t.Fatalf("unconfirmed row %s disappeared after successful retry flush", patch.ChannelID)
+		}
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestApplyConversationDeletesRemovesDirtyOldRowAndPreservesUnrelatedDirty(t *testing.T) {
+	ctx := context.Background()
+	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: 4})
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "deleted", ChannelType: 2, ActiveAtMS: 1_000, MessageSeq: 5},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "unrelated", ChannelType: 2, ActiveAtMS: 2_000, MessageSeq: 6},
+	}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot() error = %v", err)
+	}
+	m.ApplyConversationDeletes([]metadb.ConversationDelete{{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "deleted", ChannelType: 2, DeletedToSeq: 5,
+	}})
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "deleted", 2); ok {
+		t.Fatal("dirty row at the delete barrier remained cached")
+	}
+	if row, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "unrelated", 2); !ok || row.MessageSeq != 6 {
+		t.Fatalf("unrelated dirty row = %+v present=%t", row, ok)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows = %d, want one unrelated row", got)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestDeleteInvalidationFencesInFlightDurableBaseline(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store, MaxCachedRows: 1})
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 2_000, MessageSeq: 20,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot() error = %v", err)
+	}
+	store.touchHook = func() {
+		store.touchHook = nil
+		m.ApplyConversationDeletes([]metadb.ConversationDelete{{
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "room", ChannelType: 2, DeletedToSeq: 15,
+		}})
+	}
+	result, err := m.Flush(ctx, 1)
+	if err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if result.Persisted != 1 || result.Cleared != 0 || result.VersionConflicts != 1 || result.Requeued != 1 {
+		t.Fatalf("Flush() = %+v, want persisted stale snapshot fenced by delete invalidation", result)
+	}
+	address := cacheAddress{uid: "u1", key: conversationKey{kind: metadb.ConversationKindNormal, channelID: "room", channelType: 2}}
+	entry := m.cache[address.uid][address.key]
+	if !entry.dirty || entry.durableActiveAtMS != 0 || entry.patch.MessageSeq != 20 {
+		t.Fatalf("cache entry after in-flight delete = %+v, want dirty newer view with invalid baseline", entry)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestPurgeCleanHashSlotPreservesDirtyAndOtherSlots(t *testing.T) {
+	ctx := context.Background()
+	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: 4})
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "clean-7", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_000, MessageSeq: 1,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(clean 7) error = %v", err)
+	}
+	if result, err := m.FlushHashSlot(ctx, 7, 1); err != nil || result.Cleared != 1 {
+		t.Fatalf("FlushHashSlot(7) = %+v, %v", result, err)
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "dirty-7", ChannelID: "room", ChannelType: 2, ActiveAtMS: 2_000, MessageSeq: 2,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(dirty 7) error = %v", err)
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 9, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "clean-9", ChannelID: "room", ChannelType: 2, ActiveAtMS: 3_000, MessageSeq: 3,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(9) error = %v", err)
+	}
+	if result, err := m.FlushHashSlot(ctx, 9, 1); err != nil || result.Cleared != 1 {
+		t.Fatalf("FlushHashSlot(9) = %+v, %v", result, err)
+	}
+
+	if purged := m.PurgeCleanHashSlot(7); purged != 1 {
+		t.Fatalf("PurgeCleanHashSlot(7) = %d, want 1", purged)
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "clean-7", "room", 2); ok {
+		t.Fatal("clean target-slot row remained cached")
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "dirty-7", "room", 2); !ok {
+		t.Fatal("dirty target-slot row was purged")
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "clean-9", "room", 2); !ok {
+		t.Fatal("clean other-slot row was purged")
+	}
+	if purged := m.PurgeCleanHashSlot(7); purged != 0 {
+		t.Fatalf("duplicate PurgeCleanHashSlot(7) = %d, want 0", purged)
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestPurgeCleanHashSlotWorksWithoutBoundedCleanIndex(t *testing.T) {
+	ctx := context.Background()
+	m := NewManager(Options{Store: &recordingActiveStore{}})
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "clean-7", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_000, MessageSeq: 1,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot() error = %v", err)
+	}
+	if result, err := m.FlushHashSlot(ctx, 7, 1); err != nil || result.Cleared != 1 {
+		t.Fatalf("FlushHashSlot() = %+v, %v", result, err)
+	}
+	if purged := m.PurgeCleanHashSlot(7); purged != 1 {
+		t.Fatalf("PurgeCleanHashSlot(7) = %d, want 1", purged)
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "clean-7", "room", 2); ok {
+		t.Fatal("unbounded manager retained the clean target-slot row")
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestPurgeCleanHashSlotTracksCleanDirtyAndSlotTransitions(t *testing.T) {
+	ctx := context.Background()
+	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: 2})
+	patch := ActivePatch{
+		Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_000, MessageSeq: 1,
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{patch}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(slot 7) error = %v", err)
+	}
+	if result, err := m.FlushHashSlot(ctx, 7, 1); err != nil || result.Cleared != 1 {
+		t.Fatalf("FlushHashSlot(7) = %+v, %v", result, err)
+	}
+	requireCacheIndexConservation(t, m)
+
+	patch.ActiveAtMS = 2_000
+	patch.MessageSeq = 2
+	if err := m.MarkActiveForHashSlot(ctx, 9, []ActivePatch{patch}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(slot 9) error = %v", err)
+	}
+	if purged := m.PurgeCleanHashSlot(7); purged != 0 {
+		t.Fatalf("PurgeCleanHashSlot(7) = %d, want moved dirty row preserved", purged)
+	}
+	if purged := m.PurgeCleanHashSlot(9); purged != 0 {
+		t.Fatalf("PurgeCleanHashSlot(9) = %d, want dirty row preserved", purged)
+	}
+	requireCacheIndexConservation(t, m)
+
+	if result, err := m.FlushHashSlot(ctx, 9, 1); err != nil || result.Cleared != 1 {
+		t.Fatalf("FlushHashSlot(9) = %+v, %v", result, err)
+	}
+	if purged := m.PurgeCleanHashSlot(9); purged != 1 {
+		t.Fatalf("PurgeCleanHashSlot(9) = %d, want clean moved row purged", purged)
+	}
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "room", 2); ok {
+		t.Fatal("clean moved row remained cached")
+	}
+	requireCacheIndexConservation(t, m)
+}
+
+func TestPurgeCleanHashSlotStateOnlyDefersCacheObservation(t *testing.T) {
+	ctx := context.Background()
+	observer := &recordingConversationActiveObserver{}
+	m := NewManager(Options{Store: &recordingActiveStore{}, MaxCachedRows: 1, Observer: observer})
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_000, MessageSeq: 1,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot() error = %v", err)
+	}
+	if result, err := m.FlushHashSlot(ctx, 7, 1); err != nil || result.Cleared != 1 {
+		t.Fatalf("FlushHashSlot() = %+v, %v", result, err)
+	}
+	observationsBeforePurge := len(observer.cache)
+
+	if purged := m.PurgeCleanHashSlotStateOnly(7); purged != 1 {
+		t.Fatalf("PurgeCleanHashSlotStateOnly() = %d, want 1", purged)
+	}
+	if len(observer.cache) != observationsBeforePurge {
+		t.Fatalf("state-only purge emitted %d cache observations, want none", len(observer.cache)-observationsBeforePurge)
+	}
+	m.ObserveCacheState()
+	if len(observer.cache) != observationsBeforePurge+1 {
+		t.Fatalf("ObserveCacheState() cache observations = %d, want %d", len(observer.cache), observationsBeforePurge+1)
+	}
+	if got := observer.lastCache(t); got.Rows != 0 || got.DirtyRows != 0 {
+		t.Fatalf("observed cache after purge = %+v, want empty", got)
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "u2", ChannelID: "room", ChannelType: 2, ActiveAtMS: 2_000, MessageSeq: 2,
+	}}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(second row) error = %v", err)
+	}
+	if result, err := m.FlushHashSlot(ctx, 7, 1); err != nil || result.Cleared != 1 {
+		t.Fatalf("FlushHashSlot(second row) = %+v, %v", result, err)
+	}
+	observationsBeforeNormalPurge := len(observer.cache)
+	if purged := m.PurgeCleanHashSlot(7); purged != 1 {
+		t.Fatalf("PurgeCleanHashSlot() = %d, want 1", purged)
+	}
+	if len(observer.cache) != observationsBeforeNormalPurge+1 {
+		t.Fatalf("normal purge cache observations = %d, want %d", len(observer.cache), observationsBeforeNormalPurge+1)
 	}
 	requireCacheIndexConservation(t, m)
 }
@@ -562,7 +1233,7 @@ func TestFlushCooldownSkipRetainsConcurrentNewerVersion(t *testing.T) {
 		},
 	}
 	m := NewManager(Options{Store: store, ActiveCooldown: time.Hour})
-	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1_100}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1_100, MessageSeq: 10}}); err != nil {
 		t.Fatalf("MarkActive(initial) error = %v", err)
 	}
 
@@ -576,7 +1247,7 @@ func TestFlushCooldownSkipRetainsConcurrentNewerVersion(t *testing.T) {
 		finished <- flushOutcome{result: result, err: err}
 	}()
 	<-lookupStarted
-	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1_200}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1_200, MessageSeq: 11}}); err != nil {
 		t.Fatalf("MarkActive(concurrent) error = %v", err)
 	}
 	close(releaseLookup)
@@ -589,6 +1260,24 @@ func TestFlushCooldownSkipRetainsConcurrentNewerVersion(t *testing.T) {
 	}
 	if got := m.DirtyCountForTest(); got != 1 {
 		t.Fatalf("dirty rows = %d, want concurrent newer version retained", got)
+	}
+	address := cacheAddress{uid: "u1", key: conversationKey{kind: metadb.ConversationKindNormal, channelID: "room-1", channelType: 2}}
+	entry := m.cache[address.uid][address.key]
+	if entry.durableActiveAtMS != 1_000 || entry.patch.ActiveAtMS != 1_200 || entry.patch.MessageSeq != 11 {
+		t.Fatalf("cache after version conflict = %+v, want confirmed baseline 1000 and latest view 1200/seq11", entry)
+	}
+	store.batchLookupHook = nil
+	if result, err := m.Flush(ctx, 1); err != nil || result.Skipped != 1 || result.Cleared != 1 {
+		t.Fatalf("Flush(retry) = %+v, %v, want cooldown skip and clear", result, err)
+	}
+	if err := m.MarkActive(ctx, []ActivePatch{{
+		Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1_300, MessageSeq: 12,
+	}}); err != nil {
+		t.Fatalf("MarkActive(after confirmed baseline) error = %v", err)
+	}
+	entry = m.cache[address.uid][address.key]
+	if entry.dirty || entry.durableActiveAtMS != 1_000 || entry.patch.ActiveAtMS != 1_300 || entry.patch.MessageSeq != 12 {
+		t.Fatalf("cache after clean suppression = %+v, want clean latest view on confirmed baseline", entry)
 	}
 }
 
@@ -661,6 +1350,116 @@ func TestFlushReportsFilterFailureAsRequeued(t *testing.T) {
 	if got := m.DirtyCountForTest(); got != 1 {
 		t.Fatalf("dirty rows = %d, want failed filter row retained", got)
 	}
+}
+
+func TestFlushPersistFailureAccountsDeleteFencedRowsWithoutRequeueingThem(t *testing.T) {
+	ctx := context.Background()
+	deleteKey := metadb.ConversationStateKey{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "deleted", ChannelType: 2,
+	}
+	liveKey := metadb.ConversationStateKey{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "live", ChannelType: 2,
+	}
+	touchErr := errors.New("touch failed")
+	store := &recordingActiveStore{
+		primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+			deleteKey: {
+				UID: deleteKey.UID, Kind: deleteKey.Kind, ChannelID: deleteKey.ChannelID,
+				ChannelType: deleteKey.ChannelType, DeletedToSeq: 10,
+			},
+		},
+		touchErr: touchErr,
+	}
+	observer := &recordingConversationActiveObserver{}
+	manager := NewManager(Options{Store: store, ActiveCooldown: time.Hour, Observer: observer})
+	if err := manager.MarkActiveForHashSlot(ctx, 7, []ActivePatch{
+		{UID: deleteKey.UID, Kind: deleteKey.Kind, ChannelID: deleteKey.ChannelID, ChannelType: uint8(deleteKey.ChannelType), ActiveAtMS: 1_000, MessageSeq: 10},
+		{UID: liveKey.UID, Kind: liveKey.Kind, ChannelID: liveKey.ChannelID, ChannelType: uint8(liveKey.ChannelType), ActiveAtMS: 2_000, MessageSeq: 11},
+	}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot() error = %v", err)
+	}
+
+	result, err := manager.FlushHashSlot(ctx, 7, 2)
+	if !errors.Is(err, touchErr) {
+		t.Fatalf("FlushHashSlot() error = %v, want %v", err, touchErr)
+	}
+	if result.Selected != 2 || result.Persisted != 0 || result.Skipped != 0 || result.DeleteFenced != 1 || result.Requeued != 1 {
+		t.Fatalf("FlushHashSlot() = %+v, want selected=2 delete_fenced=1 requeued=1", result)
+	}
+	if _, ok := manager.EntryForTest(deleteKey.Kind, deleteKey.UID, deleteKey.ChannelID, uint8(deleteKey.ChannelType)); ok {
+		t.Fatal("delete-fenced row remained cached after durable reconciliation")
+	}
+	if _, ok := manager.EntryForTest(liveKey.Kind, liveKey.UID, liveKey.ChannelID, uint8(liveKey.ChannelType)); !ok {
+		t.Fatal("persist-failed live row disappeared instead of remaining dirty")
+	}
+	if got := manager.DirtyCountForTest(); got != 1 {
+		t.Fatalf("dirty rows = %d, want only the persist-failed live row", got)
+	}
+	observation := observer.lastFlush(t)
+	if observation.Result != "error" || observation.FailureStage != "persist" || observation.Selected != 2 ||
+		observation.DeleteFenced != 1 || observation.Requeued != 1 {
+		t.Fatalf("flush observation = %+v, want persist error with delete_fenced=1 requeued=1", observation)
+	}
+	requireCacheIndexConservation(t, manager)
+}
+
+func TestFlushPersistFailureCountsNewerActivityAfterDeleteFenceAsRequeued(t *testing.T) {
+	ctx := context.Background()
+	deleteKey := metadb.ConversationStateKey{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "deleted", ChannelType: 2,
+	}
+	liveKey := metadb.ConversationStateKey{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "live", ChannelType: 2,
+	}
+	touchErr := errors.New("touch failed")
+	store := &recordingActiveStore{
+		primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+			deleteKey: {
+				UID: deleteKey.UID, Kind: deleteKey.Kind, ChannelID: deleteKey.ChannelID,
+				ChannelType: deleteKey.ChannelType, DeletedToSeq: 10,
+			},
+		},
+		touchErr: touchErr,
+	}
+	observer := &recordingConversationActiveObserver{}
+	manager := NewManager(Options{Store: store, ActiveCooldown: time.Hour, Observer: observer})
+	if err := manager.MarkActiveForHashSlot(ctx, 7, []ActivePatch{
+		{UID: deleteKey.UID, Kind: deleteKey.Kind, ChannelID: deleteKey.ChannelID, ChannelType: uint8(deleteKey.ChannelType), ActiveAtMS: 1_000, MessageSeq: 10},
+		{UID: liveKey.UID, Kind: liveKey.Kind, ChannelID: liveKey.ChannelID, ChannelType: uint8(liveKey.ChannelType), ActiveAtMS: 2_000, MessageSeq: 11},
+	}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot() error = %v", err)
+	}
+	var concurrentErr error
+	store.touchHook = func() {
+		store.touchHook = nil
+		concurrentErr = manager.MarkActiveForHashSlot(ctx, 7, []ActivePatch{{
+			UID: deleteKey.UID, Kind: deleteKey.Kind, ChannelID: deleteKey.ChannelID,
+			ChannelType: uint8(deleteKey.ChannelType), ActiveAtMS: 3_000, MessageSeq: 11,
+		}})
+	}
+
+	result, err := manager.FlushHashSlot(ctx, 7, 2)
+	if concurrentErr != nil {
+		t.Fatalf("concurrent MarkActiveForHashSlot() error = %v", concurrentErr)
+	}
+	if !errors.Is(err, touchErr) {
+		t.Fatalf("FlushHashSlot() error = %v, want %v", err, touchErr)
+	}
+	if result.Selected != 2 || result.DeleteFenced != 1 || result.Requeued != 2 {
+		t.Fatalf("FlushHashSlot() = %+v, want selected=2 delete_fenced=1 requeued=2 after newer activity", result)
+	}
+	newer, ok := manager.EntryForTest(deleteKey.Kind, deleteKey.UID, deleteKey.ChannelID, uint8(deleteKey.ChannelType))
+	if !ok || newer.MessageSeq != 11 || newer.ActiveAtMS != 3_000 {
+		t.Fatalf("newer delete-fenced activity = %+v present=%t, want seq=11 active_at=3000", newer, ok)
+	}
+	if got := manager.DirtyCountForTest(); got != 2 {
+		t.Fatalf("dirty rows = %d, want newer activity and persist-failed live row", got)
+	}
+	observation := observer.lastFlush(t)
+	if observation.DeleteFenced != 1 || observation.Requeued != 2 {
+		t.Fatalf("flush observation = %+v, want delete_fenced=1 requeued=2", observation)
+	}
+	requireCacheIndexConservation(t, manager)
 }
 
 func TestManagerObservesCacheRowsAndDirtyLag(t *testing.T) {

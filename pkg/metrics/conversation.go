@@ -88,6 +88,8 @@ type ConversationActiveFlushSample struct {
 	Persisted int
 	// Skipped is the number of rows routed through the cooldown no-write path.
 	Skipped int
+	// DeleteFenced is the number of rows rejected by a durable delete barrier without a touch write.
+	DeleteFenced int
 	// Cleared is the number of version-fenced dirty markers actually cleared.
 	Cleared int
 	// VersionConflicts is the number of newer dirty versions retained for retry.
@@ -100,7 +102,7 @@ type ConversationActiveFlushSample struct {
 	LaneWaitDuration time.Duration
 	// SelectDuration is time spent selecting a bounded dirty snapshot.
 	SelectDuration time.Duration
-	// FilterDuration is time spent comparing cooldown candidates with durable state.
+	// FilterDuration is time spent comparing selected rows with durable state for cooldown and delete barriers.
 	FilterDuration time.Duration
 	// PersistDuration is time spent in the store call.
 	PersistDuration time.Duration
@@ -348,13 +350,14 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 // present before the first non-zero observation so measured-window deltas do
 // not silently lose the first flush or mutation event.
 func (m *ConversationMetrics) initializeActiveConservationSeries() {
-	for _, event := range []string{"became_dirty", "dirty_updated", "unchanged"} {
+	for _, event := range []string{"became_dirty", "dirty_updated", "cooldown_suppressed", "unchanged"} {
 		m.activeDirtyMutations.WithLabelValues(event)
 	}
 	for _, labels := range [][3]string{
 		{"ok", "selected", "none"},
 		{"ok", "persisted", "none"},
 		{"ok", "skipped", "active_cooldown"},
+		{"ok", "skipped", "delete_barrier"},
 		{"ok", "cleared", "none"},
 		{"ok", "requeued", "version_conflict"},
 		{"ok", "superseded", "stale_snapshot"},
@@ -475,12 +478,13 @@ func (m *ConversationMetrics) SetActiveCache(sample ConversationActiveCacheSampl
 }
 
 // ObserveActiveMutation records one conversation active cache mutation batch.
-func (m *ConversationMetrics) ObserveActiveMutation(becameDirty, dirtyUpdated, unchanged int) {
+func (m *ConversationMetrics) ObserveActiveMutation(becameDirty, dirtyUpdated, cooldownSuppressed, unchanged int) {
 	if m == nil {
 		return
 	}
 	m.addActiveDirtyMutation("became_dirty", becameDirty)
 	m.addActiveDirtyMutation("dirty_updated", dirtyUpdated)
+	m.addActiveDirtyMutation("cooldown_suppressed", cooldownSuppressed)
 	m.addActiveDirtyMutation("unchanged", unchanged)
 }
 
@@ -515,7 +519,9 @@ func (m *ConversationMetrics) ObserveActiveFlush(sample ConversationActiveFlushS
 	m.observeActiveFlushRows(result, "persisted", "none", sample.Persisted)
 	// Keep the legacy histogram label stable; explicit conservation uses persisted.
 	m.activeFlushRows.WithLabelValues(result, "flushed").Observe(float64(nonNegative(sample.Persisted)))
-	m.observeActiveFlushRows(result, "skipped", "active_cooldown", sample.Skipped)
+	m.activeFlushRows.WithLabelValues(result, "skipped").Observe(float64(nonNegative(sample.Skipped) + nonNegative(sample.DeleteFenced)))
+	m.addActiveFlushRowsTotal(result, "skipped", "active_cooldown", sample.Skipped)
+	m.addActiveFlushRowsTotal(result, "skipped", "delete_barrier", sample.DeleteFenced)
 	m.observeActiveFlushRows(result, "cleared", "none", sample.Cleared)
 	if sample.VersionConflicts > 0 {
 		m.observeActiveFlushRows(result, "requeued", "version_conflict", sample.VersionConflicts)
@@ -548,9 +554,17 @@ func (m *ConversationMetrics) observeActiveFlushRows(result, stage, reason strin
 	stage = conversationActiveFlushRowsKind(stage)
 	reason = conversationActiveFlushReason(reason)
 	m.activeFlushRows.WithLabelValues(result, stage).Observe(float64(rows))
-	if rows > 0 {
-		m.activeFlushRowsTotal.WithLabelValues(result, stage, reason).Add(float64(rows))
+	m.addActiveFlushRowsTotal(result, stage, reason, rows)
+}
+
+func (m *ConversationMetrics) addActiveFlushRowsTotal(result, stage, reason string, rows int) {
+	rows = nonNegative(rows)
+	if rows <= 0 {
+		return
 	}
+	stage = conversationActiveFlushRowsKind(stage)
+	reason = conversationActiveFlushReason(reason)
+	m.activeFlushRowsTotal.WithLabelValues(result, stage, reason).Add(float64(rows))
 }
 
 func (m *ConversationMetrics) observeActiveFlushStage(result, stage string, dur time.Duration) {
@@ -610,7 +624,7 @@ func conversationActiveFlushRowsKind(kind string) string {
 
 func conversationActiveMutationEvent(event string) string {
 	switch event {
-	case "became_dirty", "dirty_updated", "unchanged":
+	case "became_dirty", "dirty_updated", "cooldown_suppressed", "unchanged":
 		return event
 	default:
 		return "other"
@@ -619,7 +633,7 @@ func conversationActiveMutationEvent(event string) string {
 
 func conversationActiveFlushReason(reason string) string {
 	switch reason {
-	case "none", "active_cooldown", "version_conflict", "filter_error", "persist_error", "timeout", "stale_snapshot":
+	case "none", "active_cooldown", "delete_barrier", "version_conflict", "filter_error", "persist_error", "timeout", "stale_snapshot":
 		return reason
 	default:
 		return "other"

@@ -510,7 +510,7 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveMutation(
 	if o.metrics == nil || o.metrics.Conversation == nil {
 		return
 	}
-	o.metrics.Conversation.ObserveActiveMutation(event.BecameDirty, event.DirtyUpdated, event.Unchanged)
+	o.metrics.Conversation.ObserveActiveMutation(event.BecameDirty, event.DirtyUpdated, event.CooldownSuppressed, event.Unchanged)
 	o.metrics.Conversation.ObserveActiveMutationLock(event.Result, event.LockWaitDuration, event.LockHoldDuration, event.CacheObservationDuration)
 }
 
@@ -524,6 +524,7 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(eve
 		Selected:              event.Selected,
 		Persisted:             event.Persisted,
 		Skipped:               event.Skipped,
+		DeleteFenced:          event.DeleteFenced,
 		Cleared:               event.Cleared,
 		VersionConflicts:      event.VersionConflicts,
 		Superseded:            event.Superseded,

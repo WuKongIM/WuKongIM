@@ -12,6 +12,13 @@ type activeViewKey struct {
 	channelType int64
 }
 
+type activeViewCacheRow struct {
+	// state is the cache projection exposed through the active view.
+	state metadb.ConversationState
+	// messageSeq fences this cache projection against a durable delete barrier.
+	messageSeq uint64
+}
+
 // ListActiveView returns active conversations from cache and durable store.
 func (m *Manager) ListActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (ActiveViewPage, error) {
 	if m.store == nil {
@@ -48,7 +55,7 @@ func (m *Manager) ListActiveView(ctx context.Context, kind metadb.ConversationKi
 	}, nil
 }
 
-func (m *Manager) cacheRowsForActiveView(kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor) ([]metadb.ConversationState, map[activeViewKey]metadb.ConversationState, map[activeViewKey]metadb.ConversationState) {
+func (m *Manager) cacheRowsForActiveView(kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor) ([]activeViewCacheRow, map[activeViewKey]activeViewCacheRow, map[activeViewKey]activeViewCacheRow) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -57,61 +64,115 @@ func (m *Manager) cacheRowsForActiveView(kind metadb.ConversationKind, uid strin
 		return nil, nil, nil
 	}
 
-	rows := make([]metadb.ConversationState, 0, len(byChannel))
-	afterRows := make(map[activeViewKey]metadb.ConversationState, len(byChannel))
-	allRows := make(map[activeViewKey]metadb.ConversationState, len(byChannel))
+	rows := make([]activeViewCacheRow, 0, len(byChannel))
+	afterRows := make(map[activeViewKey]activeViewCacheRow, len(byChannel))
+	allRows := make(map[activeViewKey]activeViewCacheRow, len(byChannel))
 	for key, entry := range byChannel {
 		if key.kind != kind {
 			continue
 		}
-		row := activePatchState(entry.patch)
-		if row.ActiveAt <= 0 {
+		state := activePatchState(entry.patch)
+		if state.ActiveAt <= 0 {
 			continue
 		}
+		row := activeViewCacheRow{state: state, messageSeq: entry.patch.MessageSeq}
 		viewKey := activeViewKey{channelID: key.channelID, channelType: int64(key.channelType)}
 		allRows[viewKey] = row
-		if !activeRowAfter(row, after) {
+		if !activeRowAfter(state, after) {
 			continue
 		}
 		rows = append(rows, row)
 		afterRows[viewKey] = row
 	}
-	sortActiveViewRows(rows)
+	sortActiveViewCacheRows(rows)
 	return rows, afterRows, allRows
 }
 
-func (m *Manager) mergeActiveViewRows(ctx context.Context, kind metadb.ConversationKind, uid string, dbRows []metadb.ConversationState, cacheRows []metadb.ConversationState, cacheAfter map[activeViewKey]metadb.ConversationState, cacheAll map[activeViewKey]metadb.ConversationState) ([]metadb.ConversationState, error) {
+func (m *Manager) mergeActiveViewRows(ctx context.Context, kind metadb.ConversationKind, uid string, dbRows []metadb.ConversationState, cacheRows []activeViewCacheRow, cacheAfter map[activeViewKey]activeViewCacheRow, cacheAll map[activeViewKey]activeViewCacheRow) ([]metadb.ConversationState, error) {
 	merged := make([]metadb.ConversationState, 0, len(dbRows)+len(cacheRows))
 	mergedKeys := make(map[activeViewKey]struct{}, len(dbRows)+len(cacheRows))
+	deleteReconciliations := make([]metadb.ConversationDelete, 0)
 	for _, dbRow := range dbRows {
 		key := activeViewKey{channelID: dbRow.ChannelID, channelType: dbRow.ChannelType}
 		if cacheRow, ok := cacheAfter[key]; ok {
-			merged = append(merged, mergeActiveViewState(dbRow, cacheRow))
+			if cacheActivityNeedsDeleteReconciliation(cacheRow.state, cacheRow.messageSeq, dbRow) {
+				deleteReconciliations = append(deleteReconciliations, activeViewDeleteReconciliation(dbRow))
+			}
+			if cacheActivityFencedByDelete(cacheRow.messageSeq, dbRow.DeletedToSeq) {
+				merged = append(merged, dbRow)
+			} else {
+				merged = append(merged, mergeActiveViewState(dbRow, cacheRow.state))
+			}
 			mergedKeys[key] = struct{}{}
 			continue
 		}
-		if _, ok := cacheAll[key]; ok {
+		if cacheRow, ok := cacheAll[key]; ok {
+			if cacheActivityNeedsDeleteReconciliation(cacheRow.state, cacheRow.messageSeq, dbRow) {
+				deleteReconciliations = append(deleteReconciliations, activeViewDeleteReconciliation(dbRow))
+			}
+			if cacheActivityFencedByDelete(cacheRow.messageSeq, dbRow.DeletedToSeq) {
+				merged = append(merged, dbRow)
+				mergedKeys[key] = struct{}{}
+			}
 			continue
 		}
 		merged = append(merged, dbRow)
 		mergedKeys[key] = struct{}{}
 	}
 	for _, cacheRow := range cacheRows {
-		key := activeViewKey{channelID: cacheRow.ChannelID, channelType: cacheRow.ChannelType}
+		key := activeViewKey{channelID: cacheRow.state.ChannelID, channelType: cacheRow.state.ChannelType}
 		if _, ok := mergedKeys[key]; ok {
 			continue
 		}
-		durable, ok, err := m.store.GetConversationState(ctx, kind, uid, cacheRow.ChannelID, cacheRow.ChannelType)
+		durable, ok, err := m.store.GetConversationState(ctx, kind, uid, cacheRow.state.ChannelID, cacheRow.state.ChannelType)
 		if err != nil {
 			return nil, err
 		}
 		if ok {
-			cacheRow = mergeActiveViewState(durable, cacheRow)
+			if cacheActivityNeedsDeleteReconciliation(cacheRow.state, cacheRow.messageSeq, durable) {
+				deleteReconciliations = append(deleteReconciliations, activeViewDeleteReconciliation(durable))
+			}
+			if cacheActivityFencedByDelete(cacheRow.messageSeq, durable.DeletedToSeq) {
+				continue
+			}
+			cacheRow.state = mergeActiveViewState(durable, cacheRow.state)
 		}
-		merged = append(merged, cacheRow)
+		merged = append(merged, cacheRow.state)
 		mergedKeys[key] = struct{}{}
 	}
+	m.ApplyConversationDeletes(deleteReconciliations)
 	return merged, nil
+}
+
+// cacheActivityFencedByDelete reports whether a durable delete barrier rejects
+// the message sequence represented by one cached activity observation.
+func cacheActivityFencedByDelete(messageSeq, deletedToSeq uint64) bool {
+	return deletedToSeq > 0 && (messageSeq == 0 || messageSeq <= deletedToSeq)
+}
+
+// cacheActivityNeedsDeleteReconciliation reports whether hydration discovered
+// a barrier or durable lag that must be reflected back into the cache indexes.
+func cacheActivityNeedsDeleteReconciliation(cacheRow metadb.ConversationState, messageSeq uint64, durable metadb.ConversationState) bool {
+	if durable.DeletedToSeq == 0 {
+		return false
+	}
+	if cacheActivityFencedByDelete(messageSeq, durable.DeletedToSeq) {
+		return true
+	}
+	return cacheRow.ActiveAt > durable.ActiveAt || cacheRow.ReadSeq > durable.ReadSeq
+}
+
+// activeViewDeleteReconciliation maps hydrated durable state to the exact-row
+// cache invalidation contract shared with committed delete callbacks.
+func activeViewDeleteReconciliation(durable metadb.ConversationState) metadb.ConversationDelete {
+	return metadb.ConversationDelete{
+		UID:          durable.UID,
+		Kind:         durable.Kind,
+		ChannelID:    durable.ChannelID,
+		ChannelType:  durable.ChannelType,
+		DeletedToSeq: durable.DeletedToSeq,
+		UpdatedAt:    durable.UpdatedAt,
+	}
 }
 
 func activePatchState(patch ActivePatch) metadb.ConversationState {
@@ -169,5 +230,19 @@ func sortActiveViewRows(rows []metadb.ConversationState) {
 			return rows[i].ChannelID < rows[j].ChannelID
 		}
 		return rows[i].ChannelType < rows[j].ChannelType
+	})
+}
+
+func sortActiveViewCacheRows(rows []activeViewCacheRow) {
+	sort.Slice(rows, func(i, j int) bool {
+		left := rows[i].state
+		right := rows[j].state
+		if left.ActiveAt != right.ActiveAt {
+			return left.ActiveAt > right.ActiveAt
+		}
+		if left.ChannelID != right.ChannelID {
+			return left.ChannelID < right.ChannelID
+		}
+		return left.ChannelType < right.ChannelType
 	})
 }

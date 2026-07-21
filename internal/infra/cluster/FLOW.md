@@ -574,13 +574,17 @@ conversation sync usecase
        -> filter SyncOnce/CMD rows from ordinary legacy recents
        -> channel-owned committed rows used for legacy recents
 
-conversation mutation usecase
+conversation read-state mutation usecase
   -> UpsertConversationStates(uid-owned normal-kind read row)
        -> UpsertConversationStatesBatch
        -> UID-owned Slot metadata propose
+
+conversation delete usecase
   -> HideConversations(uid-owned normal-kind delete barrier)
-       -> HideConversationsBatch
-       -> UID-owned Slot metadata propose that clears active_at
+       -> ConversationAuthorityClient resolves the UID's exact RouteTarget
+       -> local or RPC authority HideConversationsForTarget
+       -> authority-owned HideConversationsBatch propose clears durable active_at
+       -> authority reconciles the exact active-cache row before returning
 ```
 
 The adapter clones row slices and message payloads across the boundary. It does
@@ -619,6 +623,11 @@ admission retries route-not-ready, stale-route, not-leader, and background Slot
 proposal backpressure within a small bounded fresh-route window, regrouping
 only target groups that failed on the prior attempt; continued failure is
 returned to the caller so the post-commit path remains bounded.
+Delete-barrier writes group rows by UID and use the same fresh-target retry
+loop as authority reads. The actual Slot write runs on the resolved authority
+leader, which reconciles its cache and revalidates the exact target before it
+returns. A stale target therefore causes an idempotent retry against the new
+leader instead of leaving a clean cache baseline detached from durable state.
 The remote RPC client chunks large patch groups and active-batch recipient
 groups at the codec collection limit before sending them. List resolves the
 requested UID once per retry attempt and reads the active view from that
@@ -644,6 +653,12 @@ ConversationAuthorityClient
        -> RouteKey(uid)
        -> local conversation authority active view for kind when local
        -> access/node Conversation Authority List RPC carrying kind when remote
+  -> HideConversations([]ConversationDelete)
+     -> group by UID and reject any group above the bounded 4096-row RPC contract before leader selection
+       -> group rows by UID
+       -> resolve a fresh exact RouteTarget for each UID group
+       -> local authority hide when local
+       -> access/node Conversation Authority Hide RPC when remote
   -> DrainAuthority(target)
        -> local drain when target leader is this node
        -> access/node Conversation Authority Drain RPC when remote
