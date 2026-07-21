@@ -108,6 +108,13 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 	if !strings.Contains(prepareSection, "id: handoff\n        if: steps.ingress.outputs.opened == 'true'\n        continue-on-error: true") {
 		t.Fatal("analysis broker cannot materialize an insufficient-evidence handoff after exchange failure")
 	}
+	if !strings.Contains(prepareSection, "id: ingress\n        if: steps.preflight.outputs.state == 'live'\n        continue-on-error: true") {
+		t.Fatal("analysis broker cannot materialize an insufficient-evidence session after bounded ingress failure")
+	}
+	if !strings.Contains(prepareSection, `echo "attempted=true" >>"$GITHUB_OUTPUT"`) ||
+		!strings.Contains(prepareSection, "steps.ingress.outputs.attempted == 'true' && steps.handoff.outputs.client_window != 'true'") {
+		t.Fatal("analysis broker cannot revoke a possibly-created exchange rule after a timed-out ingress command")
+	}
 	for _, forbidden := range []string{"OPENAI_API_KEY", "openai/codex-action", "environment: cloud-sim-remediation", "contents: write", "WK_ANALYSIS_MCP_TOKEN="} {
 		if strings.Contains(analysis, forbidden) {
 			t.Fatalf("analysis broker contains forbidden credential or repository-write capability %q", forbidden)

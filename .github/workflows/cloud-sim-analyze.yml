@@ -146,12 +146,14 @@ jobs:
       - name: Open temporary runner exchange window
         id: ingress
         if: steps.preflight.outputs.state == 'live'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          runner_ip="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 https://api.ipify.org)"
+          runner_ip="$(curl --fail --silent --show-error --connect-timeout 5 --max-time 10 --proto '=https' --tlsv1.2 https://api.ipify.org)"
           until="$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)"
-          ./wkcloudsim --provider alibaba --provider-config provider.json open-analysis "$RUN_ID" \
+          echo "attempted=true" >>"$GITHUB_OUTPUT"
+          timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json open-analysis "$RUN_ID" \
             --source "${runner_ip}/32" --until "$until" >/dev/null
           echo "opened=true" >>"$GITHUB_OUTPUT"
       - name: Encrypt handoff and move ingress to local Codex
@@ -199,8 +201,8 @@ jobs:
           cp pinned-ca.pem session/pinned-ca.pem
           ca_fingerprint="sha256:$(openssl x509 -in pinned-ca.pem -outform DER | sha256sum | awk '{print $1}')"
 
-          ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
-          ./wkcloudsim --provider alibaba --provider-config provider.json open-analysis "$RUN_ID" \
+          timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
+          timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json open-analysis "$RUN_ID" \
             --source "${CLIENT_IPV4}/32" --until "$expires_at" >/dev/null
           jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" \
             --arg source_sha '${{ steps.locator.outputs.source_sha }}' \
@@ -238,10 +240,10 @@ jobs:
             '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:$state,run_id:$run_id,
               request_id:$request_id,message:$message}' >session/session.json
       - name: Close failed temporary exchange window
-        if: always() && steps.ingress.outputs.opened == 'true' && steps.handoff.outputs.client_window != 'true'
+        if: always() && steps.ingress.outputs.attempted == 'true' && steps.handoff.outputs.client_window != 'true'
         continue-on-error: true
         shell: bash
-        run: ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
+        run: timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
       - name: Upload encrypted one-day local handoff
         if: always() && hashFiles('session/session.json') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -321,4 +323,4 @@ jobs:
         run: |
           set -euo pipefail
           go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
-          ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
+          timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
