@@ -43,6 +43,7 @@
 - Legacy `UserConversation*` and `CMDConversation*` APIs in `pkg/db/meta` are source compatibility shims only; they must map to the unified kind-aware conversation table.
 - Conversation active flush attempts must carry a bounded context because Slot proposal futures rely on caller deadlines for stale or uncommitted proposals.
 - Conversation active admission is memory-only: it may evict clean rows or return cache pressure, but it must never perform durable I/O or wait for the serialized flush lane.
+- Bounded conversation-active admission must locate clean eviction victims through an exact clean index and coalesce duplicate addresses before taking the cache lock; never scan the full dirty cache under that lock.
 - Conversation active pressure uses one coalesced async worker wakeup, bounded flush attempts, and 80%/70% high/dirty-low watermarks; clean rows below the dirty watermark are the reusable eviction reserve.
 - Conversation active projection failure is observed independently and must not block recipient delivery, later large-channel pages, or subscriber snapshot caching.
 - Recipient delivery plans preserve complete UID-authority fences and batch presence RPC by actual leader; only stale/not-ready groups may batch-resolve fresh targets and retry once, without replaying successful siblings.
