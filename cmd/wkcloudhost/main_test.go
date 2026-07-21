@@ -97,7 +97,7 @@ func buildTestBundle(t *testing.T) string {
 		}
 	}
 	scenario := filepath.Join(t.TempDir(), "scenario.yaml")
-	if err := os.WriteFile(scenario, []byte("version: wkbench/v1\nrun:\n  id: test\n  duration: 2h\n  report_dir: /tmp/reports\n"), 0o600); err != nil {
+	if err := os.WriteFile(scenario, []byte("version: wkbench/v1\nrun:\n  id: test\n  duration: 2h\n  report_dir: /tmp/reports\nobjectives:\n  scale: small\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	spec := deploy.BundleSpec{

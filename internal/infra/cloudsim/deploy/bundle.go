@@ -85,6 +85,10 @@ func Render(root string, spec BundleSpec) error {
 	if err := validateSpec(spec); err != nil {
 		return err
 	}
+	authorityCacheMaxRows, err := authorityCacheMaxRowsForScenario(spec.ScenarioPath)
+	if err != nil {
+		return err
+	}
 	requiredBinaries := []string{"wukongim", "wkbench", "wkanalysis", "prometheus", "node_exporter"}
 	if spec.PublicViewEnabled {
 		requiredBinaries = append(requiredBinaries, "wkcloudview")
@@ -101,7 +105,7 @@ func Render(root string, spec BundleSpec) error {
 		}
 	}
 	for index, role := range []string{"node-1", "node-2", "node-3"} {
-		content := nodeConfig(index+1, spec.PrivateIPv4)
+		content := nodeConfig(index+1, spec.PrivateIPv4, authorityCacheMaxRows)
 		if err := writeBundleFile(root, filepath.Join("config", role+".toml"), []byte(content), 0o640); err != nil {
 			return err
 		}
@@ -131,6 +135,34 @@ func Render(root string, spec BundleSpec) error {
 		}
 	}
 	return nil
+}
+
+// authorityCacheMaxRowsForScenario returns the reviewed per-scale cache
+// ceiling declared by the effective scenario rather than inferring it from a
+// filename or applying the Medium ceiling to every cloud scale.
+func authorityCacheMaxRowsForScenario(path string) (int, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	var document struct {
+		Objectives struct {
+			Scale string `yaml:"scale"`
+		} `yaml:"objectives"`
+	}
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return 0, fmt.Errorf("%w: scenario YAML: %v", ErrInvalidBundle, err)
+	}
+	switch strings.ToLower(strings.TrimSpace(document.Objectives.Scale)) {
+	case "small":
+		return cloudSmallAuthorityCacheMaxRows, nil
+	case "medium":
+		return cloudMediumAuthorityCacheMaxRows, nil
+	case "large":
+		return cloudLargeAuthorityCacheMaxRows, nil
+	default:
+		return 0, fmt.Errorf("%w: scenario objectives.scale must be small, medium, or large", ErrInvalidBundle)
+	}
 }
 
 // Seal inventories all bundle files and writes a self-contained manifest.

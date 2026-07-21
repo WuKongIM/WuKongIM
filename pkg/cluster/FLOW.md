@@ -544,6 +544,46 @@ Node.AppendChannel / AppendChannelBatch
   -> follower reactor Pull / Apply / Ack
 ```
 
+Foreground append-authority resolution reuses the service's fenced
+`ChannelRuntimeMeta` cache instead of rereading Slot metadata for every SEND.
+Concurrent fresh resolutions and explicit migration `ApplyMeta` calls install
+cache entries monotonically. Explicit metadata first canonicalizes an omitted
+channel key from its typed channel ID. A fixed 256-way channel-key lock then serializes
+local runtime metadata application, so a delayed cached append cannot apply
+after and roll back a newer explicit write fence or membership view. A known
+generation is never replaced by an unknown generation. Among legacy unknown
+generations, `(epoch, leader_epoch)` still orders authority changes; equal
+fences cannot change leaders. For known generations, the same authority uses
+`route_generation` to order complete metadata changes such as retention and
+write fences.
+Internal append retries invalidate only the exact cached metadata they used.
+Known generations compare the authority tuple plus generation; legacy
+zero-generation metadata compares the complete cloned metadata value.
+Invalidation marks that exact entry stale instead of deleting its monotonic
+version floor: hot reads miss and force a fresh resolve, late older responses
+still compare against the retained floor, and only an exact or newer
+authoritative response revalidates the cache. Fresh resolution keeps the
+candidate's provenance separate from the selected floor: an older response
+cannot impersonate the retained version, reactivate it, reach local append, or
+be forwarded. A delayed older response may reuse a newer floor only while that
+floor remains active and appendable. Known-generation non-appendable metadata
+is retained only as a monotonic floor and never exposed as a hot route;
+generation-zero invalid legacy metadata remains uncached so a corrected record
+at the same legacy fence can recover. Resolve-authority and remote forwarding
+fail closed for every non-appendable selection. Local resolution may still
+apply a non-appendable candidate to the runtime for exact validation, but it
+does not enter runtime append afterward. Explicit `ApplyMeta` updates or
+revalidates the cache only after runtime application succeeds, and uses the
+original authoritative candidate rather than a newer floor selected for
+runtime safety. External
+router invalidation carries `(channel, leader, epoch, leader_epoch,
+route_generation)` through the Node facade. A zero generation keeps tuple-only
+compatibility only when the cached entry is also legacy/unknown; it cannot
+delete known complete metadata. Production Slot metadata always uses the
+projected generation. A newer cache entry is therefore not removed by an older
+failed attempt. The next resolve refreshes from authoritative Slot metadata
+without turning ordinary hot-path reads into per-message storage lookups.
+
 Append forwarding uses a channel-key shard on the typed node RPC transport, and
 the default transport wiring gives append, follower pull, and pull-hint
 traffic separate service queues plus weighted priorities. Foreground channel
@@ -658,7 +698,7 @@ leader-forwarding control facade as other Controller writes. Cluster fan-out,
 target readiness checks, and safety fences are owned by
 `internal/usecase/management`, not cluster.
 
-`channels.Service` keeps a combined runtime interface because the public Channel runtime `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into Channel runtime metadata for production wiring, including the durable write-fence token/version/reason/deadline used to block new leader appends. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any Channel runtime append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same Channel runtime stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
+`channels.Service` keeps a combined runtime interface because the public Channel runtime `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into Channel runtime metadata for production wiring, including `RouteGeneration` for complete append-cache versioning and the durable write-fence token/version/reason/deadline used to block new leader appends. The generation remains cache metadata and is not added to Channel replication RPC codecs or machine decisions. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any Channel runtime append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same Channel runtime stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 
 Initial Channel runtime placement is data-plane placement, not Slot metadata
 placement. Slot routing identifies the authoritative metadata Slot and its

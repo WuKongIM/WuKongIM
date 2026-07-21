@@ -6,6 +6,18 @@ import (
 	"time"
 )
 
+const (
+	// cloudSmallAuthorityCacheMaxRows preserves the default cache ceiling while
+	// covering the complete 30,860-row Cloud Small conversation working set.
+	cloudSmallAuthorityCacheMaxRows = 100_000
+	// cloudMediumAuthorityCacheMaxRows covers the complete 569,520-row Cloud
+	// Medium working set plus bounded churn and temporary leader skew.
+	cloudMediumAuthorityCacheMaxRows = 750_000
+	// cloudLargeAuthorityCacheMaxRows covers the complete 15,593,050-row Cloud
+	// Large working set plus bounded churn and temporary leader skew.
+	cloudLargeAuthorityCacheMaxRows = 20_000_000
+)
+
 func cloudViewConfig(runID string, addresses map[string]string) string {
 	return fmt.Sprintf(`{
   "listen_addr": "0.0.0.0:19443",
@@ -34,7 +46,7 @@ func cloudViewConfig(runID string, addresses map[string]string) string {
 		addresses["node-3"], addresses["node-3"], addresses["node-3"])
 }
 
-func nodeConfig(nodeID int, addresses map[string]string) string {
+func nodeConfig(nodeID int, addresses map[string]string, authorityCacheMaxRows int) string {
 	return fmt.Sprintf(`[node]
 id = %d
 data_dir = "/var/lib/wukongim-cloud/node"
@@ -83,6 +95,12 @@ gnet_num_event_loop = 4
 runtime_async_send_workers = 128
 runtime_async_send_queue_capacity = 131072
 
+[conversation]
+# Bounds per-node active-conversation authority rows for the selected reviewed
+# scale. Entries allocate on demand; the ceiling includes bounded churn
+# headroom even when actual Raft leaders are temporarily skewed.
+authority_cache_max_rows = %d
+
 [[gateway.listeners]]
 name = "tcp-wkproto"
 network = "tcp"
@@ -110,7 +128,7 @@ query_base_url = "http://%s:9090"
 
 [diagnostics]
 enable = true
-`, nodeID, addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses[fmt.Sprintf("node-%d", nodeID)], addresses[fmt.Sprintf("node-%d", nodeID)], addresses["sim"])
+`, nodeID, addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses[fmt.Sprintf("node-%d", nodeID)], addresses[fmt.Sprintf("node-%d", nodeID)], authorityCacheMaxRows, addresses["sim"])
 }
 
 func targetConfig(addresses map[string]string) string {

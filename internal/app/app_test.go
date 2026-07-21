@@ -4010,6 +4010,147 @@ func TestConversationAuthorityRouteLifecycleDrainDoesNotBlockNewLocalAuthority(t
 	})
 }
 
+func TestConversationAuthorityRouteLifecycleReservationWaitDoesNotBlockNewLocalAuthority(t *testing.T) {
+	oldLocalTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	remoteTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 10, ConfigEpoch: 3, RouteRevision: 11, AuthorityEpoch: 21}
+	newLocalTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 11, ConfigEpoch: 3, RouteRevision: 12, AuthorityEpoch: 22}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: &appRecordingConversationAuthorityStore{}, MaxRows: 10})
+	watch := make(chan clusterpkg.RouteAuthorityEvent, 2)
+	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Initial: func() []clusterpkg.RouteAuthority {
+			return []clusterpkg.RouteAuthority{authorityFromConversationTarget(oldLocalTarget)}
+		},
+		Watch:          func() <-chan clusterpkg.RouteAuthorityEvent { return watch },
+		HandoffTimeout: 250 * time.Millisecond,
+	})
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	mutationReady := make(chan struct{})
+	releaseMutation := make(chan struct{})
+	local.beforeActiveMutation = func() {
+		close(mutationReady)
+		<-releaseMutation
+	}
+	admitDone := make(chan error, 1)
+	go func() {
+		admitDone <- local.AdmitActiveBatch(context.Background(), oldLocalTarget, conversationactive.ActiveBatch{
+			Kind: metadb.ConversationKindNormal, SenderUID: "old", ChannelID: "reservation-wait", ChannelType: 2, MessageSeq: 7, ActiveAtMS: 100,
+		})
+	}()
+	<-mutationReady
+
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
+	waitUntil(t, 75*time.Millisecond, func() bool {
+		local.mu.Lock()
+		defer local.mu.Unlock()
+		return local.targets[targetKey(oldLocalTarget)] == conversationAuthorityDraining
+	})
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(newLocalTarget)}}
+	waitUntil(t, 75*time.Millisecond, func() bool {
+		return local.AdmitPatches(context.Background(), newLocalTarget, nil) == nil
+	})
+
+	close(releaseMutation)
+	if err := <-admitDone; err != nil {
+		t.Fatalf("old AdmitActiveBatch() error = %v", err)
+	}
+	if err := lifecycle.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
+func TestConversationAuthorityRouteLifecycleUnknownThenRemoteRetainsOlderDrainReservation(t *testing.T) {
+	oldLocalTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	unknownTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 0, LeaderTerm: 10, ConfigEpoch: 3, RouteRevision: 11, AuthorityEpoch: 21}
+	remoteTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 11, ConfigEpoch: 3, RouteRevision: 12, AuthorityEpoch: 22}
+	store := &appRecordingConversationAuthorityStore{}
+	observer := &appHandoffChannelObserver{results: make(chan string, 4)}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRows: 10, Observer: observer})
+	watch := make(chan clusterpkg.RouteAuthorityEvent, 2)
+	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Initial: func() []clusterpkg.RouteAuthority {
+			return []clusterpkg.RouteAuthority{authorityFromConversationTarget(oldLocalTarget)}
+		},
+		Watch:          func() <-chan clusterpkg.RouteAuthorityEvent { return watch },
+		HandoffTimeout: time.Second,
+	})
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	mutationReady := make(chan struct{})
+	releaseMutation := make(chan struct{})
+	local.beforeActiveMutation = func() {
+		close(mutationReady)
+		<-releaseMutation
+	}
+	admitDone := make(chan error, 1)
+	go func() {
+		admitDone <- local.AdmitActiveBatch(context.Background(), oldLocalTarget, conversationactive.ActiveBatch{
+			Kind: metadb.ConversationKindNormal, SenderUID: "old", ChannelID: "unknown-remote-reservation", ChannelType: 2, MessageSeq: 7, ActiveAtMS: 100,
+		})
+	}()
+	<-mutationReady
+
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(unknownTarget)}}
+	waitUntil(t, 75*time.Millisecond, func() bool {
+		local.mu.Lock()
+		defer local.mu.Unlock()
+		return local.targets[targetKey(unknownTarget)] == conversationAuthorityWarming
+	})
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
+	deadline := time.After(500 * time.Millisecond)
+	for {
+		select {
+		case result := <-observer.results:
+			if result == string(conversationDrainResultNoDirty) {
+				goto remoteDrainComplete
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for the successor remote drain to complete empty")
+		}
+	}
+
+remoteDrainComplete:
+
+	close(releaseMutation)
+	if err := <-admitDone; err != nil {
+		t.Fatalf("old AdmitActiveBatch() error = %v", err)
+	}
+	waitUntil(t, time.Second, func() bool {
+		return store.totalTouchPatches() == 1
+	})
+	if err := lifecycle.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
+type appHandoffChannelObserver struct {
+	results chan string
+}
+
+func (*appHandoffChannelObserver) ObserveConversationAuthorityAdmit(conversationAuthorityAdmitEvent) {
+}
+
+func (*appHandoffChannelObserver) ObserveConversationAuthorityCachePressure(conversationAuthorityCachePressureEvent) {
+}
+
+func (*appHandoffChannelObserver) ObserveConversationAuthorityList(conversationAuthorityListEvent) {
+}
+
+func (o *appHandoffChannelObserver) ObserveConversationAuthorityHandoff(event conversationAuthorityHandoffEvent) {
+	if o == nil || o.results == nil {
+		return
+	}
+	o.results <- event.Result
+}
+
 func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T) {
 	currentTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
 	staleTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 9, AuthorityEpoch: 99}
@@ -7412,10 +7553,11 @@ func (s *appRecordingConversationAuthorityStore) lastTouchDeadlineWithin(timeout
 }
 
 type recordingConversationAuthorityRouteNode struct {
-	nodeID  uint64
-	routes  map[string]clusterpkg.Route
-	watch   <-chan clusterpkg.RouteAuthorityEvent
-	handler clusterpkg.NodeRPCHandler
+	nodeID                uint64
+	routes                map[string]clusterpkg.Route
+	watch                 <-chan clusterpkg.RouteAuthorityEvent
+	handler               clusterpkg.NodeRPCHandler
+	routeKeysPartialCalls int
 }
 
 func (n *recordingConversationAuthorityRouteNode) NodeID() uint64 {
@@ -7428,6 +7570,16 @@ func (n *recordingConversationAuthorityRouteNode) RouteKey(uid string) (clusterp
 		return clusterpkg.Route{}, clusterpkg.ErrRouteNotReady
 	}
 	return route, nil
+}
+
+func (n *recordingConversationAuthorityRouteNode) RouteKeysPartial(uids []string) ([]clusterpkg.RouteKeyResult, error) {
+	n.routeKeysPartialCalls++
+	results := make([]clusterpkg.RouteKeyResult, len(uids))
+	for index, uid := range uids {
+		route, err := n.RouteKey(uid)
+		results[index] = clusterpkg.RouteKeyResult{Route: route, Err: err}
+	}
+	return results, nil
 }
 
 func (n *recordingConversationAuthorityRouteNode) CallRPC(ctx context.Context, _ uint64, _ uint8, payload []byte) ([]byte, error) {

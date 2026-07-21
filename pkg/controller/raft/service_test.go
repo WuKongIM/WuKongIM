@@ -21,7 +21,6 @@ import (
 
 const (
 	testRaftTickInterval = 20 * time.Millisecond
-	testRaftStepTimeout  = 10 * time.Millisecond
 )
 
 func TestNewServiceValidatesConfig(t *testing.T) {
@@ -825,12 +824,22 @@ func (t *memoryRaftTransport) deliver(msg raftpb.Message) {
 	if service == nil {
 		return
 	}
-	// The test transport must not let one slow peer stall the sender's Raft loop.
-	ctx, cancel := context.WithTimeout(context.Background(), testRaftStepTimeout)
-	err := service.Step(ctx, msg)
-	cancel()
-	if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) && !errors.Is(err, context.DeadlineExceeded) {
+	service.mu.Lock()
+	if !service.started || service.stopping {
+		service.mu.Unlock()
 		return
+	}
+	stepCh := service.stepCh
+	service.mu.Unlock()
+	if stepCh == nil {
+		return
+	}
+	// The test transport must not let one slow peer stall the sender's Raft loop.
+	// Drop only when the peer queue is actually full; scheduler delay alone must
+	// not turn a healthy in-memory link into packet loss.
+	select {
+	case stepCh <- msg:
+	default:
 	}
 }
 

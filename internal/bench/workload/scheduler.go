@@ -9,6 +9,53 @@ func runScheduledMessages(ctx context.Context, totalMessages int, interval time.
 	return runScheduledMessagesByKey(ctx, totalMessages, interval, maxConcurrency, nil, send)
 }
 
+// runSequentialMessagesWithinWindow preserves the zero/one-concurrency path
+// while refusing to start another operation after the measured window closes.
+// The operation already in flight is allowed to settle as the single phase
+// tail covered by the coordinator timeout budget.
+func runSequentialMessagesWithinWindow(ctx context.Context, duration time.Duration, totalMessages int, interval time.Duration, sleep func(context.Context, time.Duration) error, send func(context.Context, int) error) error {
+	if totalMessages <= 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	stopAt := time.Now().Add(duration)
+	for offset := 0; offset < totalMessages; offset++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if offset > 0 && duration > 0 && !time.Now().Before(stopAt) {
+			return nil
+		}
+		if err := send(ctx, offset); err != nil {
+			return err
+		}
+		if duration > 0 && !time.Now().Before(stopAt) {
+			return nil
+		}
+		if interval <= 0 || sleep == nil {
+			continue
+		}
+		wait := interval
+		if duration > 0 {
+			remaining := time.Until(stopAt)
+			if remaining <= 0 {
+				return nil
+			}
+			if remaining < wait {
+				wait = remaining
+			}
+		}
+		if err := sleep(ctx, wait); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // runScheduledMessagesByKey bounds global in-flight sends and serializes sends
 // that share a key, which keeps one simulated client from pipelining sendacks.
 func runScheduledMessagesByKey(ctx context.Context, totalMessages int, interval time.Duration, maxConcurrency int, keyForOffset func(int) string, send func(context.Context, int) error) error {

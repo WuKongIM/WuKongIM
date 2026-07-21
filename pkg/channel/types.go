@@ -111,6 +111,9 @@ type Meta struct {
 	Epoch uint64
 	// LeaderEpoch fences leader changes within an epoch.
 	LeaderEpoch uint64
+	// RouteGeneration is the authoritative version of the complete routing record.
+	// It is a cache/version fence and is not part of the Channel state machine.
+	RouteGeneration uint64
 	// Leader is the authoritative leader node.
 	Leader NodeID
 	// Replicas are nodes that should receive channel log data.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -16,6 +17,8 @@ import (
 )
 
 const forwardAppendRecoveryTimeout = 100 * time.Millisecond
+
+const channelMetaApplyLockCount = 256
 
 const (
 	appendStageForwardAppend       = "forward_append"
@@ -122,8 +125,11 @@ type Service struct {
 	forward    ForwardClient
 	store      channelstore.Factory
 	metaCache  channelMetaCache
-	observer   any
-	migration  *MigrationStore
+	// metaApplyLocks serialize complete metadata application per channel shard.
+	// They prevent a delayed cached apply from following a newer explicit apply.
+	metaApplyLocks [channelMetaApplyLockCount]sync.Mutex
+	observer       any
+	migration      *MigrationStore
 }
 
 // NewService creates a Service from cfg.
@@ -183,43 +189,57 @@ func (s *Service) MigrationStore() *MigrationStore {
 	return s.migration
 }
 
-// ApplyMeta applies authoritative metadata to the local Channel runtime.
-func (s *Service) ApplyMeta(meta ch.Meta) error { return s.runtime.ApplyMeta(meta) }
+// ApplyMeta applies authoritative metadata to the local Channel runtime and
+// advances the append cache through the same per-channel ordering boundary.
+func (s *Service) ApplyMeta(meta ch.Meta) error { return s.applyRuntimeMeta(meta, true) }
 
 // Append appends one message.
 func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
-	res, err, usedCache := s.appendOnce(ctx, req)
+	res, err, usedMeta, usedCache := s.appendOnce(ctx, req)
 	if err == nil || !usedCache || !retryableMetaCacheError(err) {
 		return res, err
 	}
-	s.metaCache.invalidate(req.ChannelID)
-	s.observeMetaCache("invalidate")
+	if s.metaCache.invalidateUsedMeta(req.ChannelID, usedMeta) {
+		s.observeMetaCache("invalidate")
+	}
 	return s.appendFresh(ctx, req)
 }
 
 // AppendBatch appends messages to one channel.
 func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
-	res, err, usedCache := s.appendBatchOnce(ctx, req)
+	res, err, usedMeta, usedCache := s.appendBatchOnce(ctx, req)
 	if err == nil || !usedCache || !retryableMetaCacheError(err) {
 		return res, err
 	}
-	s.metaCache.invalidate(req.ChannelID)
-	s.observeMetaCache("invalidate")
+	if s.metaCache.invalidateUsedMeta(req.ChannelID, usedMeta) {
+		s.observeMetaCache("invalidate")
+	}
 	return s.appendBatchFresh(ctx, req)
 }
 
 // ResolveAppendAuthority resolves the current append authority using append metadata admission.
 func (s *Service) ResolveAppendAuthority(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
 	started := time.Now()
-	meta, ok, err := s.resolveAppendMetaFresh(ctx, id)
+	meta, ok, _, err := s.resolveAppendMetaCached(ctx, id)
 	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
 		return ch.Meta{}, err
 	}
-	if !ok || meta.Leader == 0 {
-		return ch.Meta{}, ch.ErrNotReady
+	if !ok || !cacheableAppendMeta(id, meta) {
+		return ch.Meta{}, unavailableAppendMetaError(meta)
 	}
 	return meta, nil
+}
+
+// InvalidateAppendAuthority removes the cached authority only when it still
+// matches the failed route version observed by the caller.
+func (s *Service) InvalidateAppendAuthority(id ch.ChannelID, leader ch.NodeID, epoch uint64, leaderEpoch uint64, routeGeneration uint64) {
+	if s == nil {
+		return
+	}
+	if s.metaCache.invalidateAuthority(id, leader, epoch, leaderEpoch, routeGeneration) {
+		s.observeMetaCache("invalidate")
+	}
 }
 
 // Tick advances Channel background work.
@@ -327,15 +347,15 @@ func metaOlderThanRequest(meta ch.Meta, req LastVisibleRequest) bool {
 		(req.ExpectedLeaderEpoch != 0 && meta.LeaderEpoch < req.ExpectedLeaderEpoch)
 }
 
-func (s *Service) appendOnce(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error, bool) {
+func (s *Service) appendOnce(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error, ch.Meta, bool) {
 	started := time.Now()
 	meta, ok, usedCache, err := s.resolveAppendMetaCached(ctx, req.ChannelID)
 	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
-		return ch.AppendResult{}, err, usedCache
+		return ch.AppendResult{}, err, meta, usedCache
 	}
 	res, err := s.appendWithMeta(ctx, req, meta, ok)
-	return res, err, usedCache
+	return res, err, meta, usedCache
 }
 
 func (s *Service) appendFresh(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
@@ -350,7 +370,11 @@ func (s *Service) appendFresh(ctx context.Context, req ch.AppendRequest) (ch.App
 
 func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta ch.Meta, ok bool) (ch.AppendResult, error) {
 	if ok {
+		appendable := cacheableAppendMeta(req.ChannelID, meta)
 		if meta.Leader != 0 && meta.Leader != s.localNode {
+			if !appendable {
+				return ch.AppendResult{}, unavailableAppendMetaError(meta)
+			}
 			if s.forward == nil {
 				return ch.AppendResult{}, ch.ErrNotLeader
 			}
@@ -377,10 +401,13 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			return res, err
 		}
 		started := time.Now()
-		err := s.runtime.ApplyMeta(meta)
+		err := s.applyRuntimeMeta(meta, false)
 		s.observeAppendStage("meta_apply", err, time.Since(started))
 		if err != nil {
 			return ch.AppendResult{}, err
+		}
+		if !appendable {
+			return ch.AppendResult{}, unavailableAppendMetaError(meta)
 		}
 	}
 	started := time.Now()
@@ -389,15 +416,15 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 	return res, err
 }
 
-func (s *Service) appendBatchOnce(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error, bool) {
+func (s *Service) appendBatchOnce(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error, ch.Meta, bool) {
 	started := time.Now()
 	meta, ok, usedCache, err := s.resolveAppendMetaCached(ctx, req.ChannelID)
 	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
-		return ch.AppendBatchResult{}, err, usedCache
+		return ch.AppendBatchResult{}, err, meta, usedCache
 	}
 	res, err := s.appendBatchWithMeta(ctx, req, meta, ok)
-	return res, err, usedCache
+	return res, err, meta, usedCache
 }
 
 func (s *Service) appendBatchFresh(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
@@ -412,7 +439,11 @@ func (s *Service) appendBatchFresh(ctx context.Context, req ch.AppendBatchReques
 
 func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchRequest, meta ch.Meta, ok bool) (ch.AppendBatchResult, error) {
 	if ok {
+		appendable := cacheableAppendMeta(req.ChannelID, meta)
 		if meta.Leader != 0 && meta.Leader != s.localNode {
+			if !appendable {
+				return ch.AppendBatchResult{}, unavailableAppendMetaError(meta)
+			}
 			if s.forward == nil {
 				return ch.AppendBatchResult{}, ch.ErrNotLeader
 			}
@@ -432,10 +463,13 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 			return res, err
 		}
 		started := time.Now()
-		err := s.runtime.ApplyMeta(meta)
+		err := s.applyRuntimeMeta(meta, false)
 		s.observeAppendStage("meta_apply", err, time.Since(started))
 		if err != nil {
 			return ch.AppendBatchResult{}, err
+		}
+		if !appendable {
+			return ch.AppendBatchResult{}, unavailableAppendMetaError(meta)
 		}
 	}
 	started := time.Now()
@@ -504,6 +538,49 @@ func recoveredAppendError(recovered bool, err error) error {
 	return err
 }
 
+func (s *Service) applyRuntimeMeta(meta ch.Meta, authoritative bool) error {
+	if s == nil || s.runtime == nil {
+		return ch.ErrNotReady
+	}
+	if meta.Key == "" {
+		meta.Key = ch.ChannelKeyForID(meta.ID)
+	}
+	if !validAppendMetaIdentity(meta.ID, meta) {
+		return s.runtime.ApplyMeta(meta)
+	}
+	lock := &s.metaApplyLocks[channelMetaApplyLockIndex(meta.ID)]
+	lock.Lock()
+	defer lock.Unlock()
+
+	candidate := cloneMeta(meta)
+	selected, _ := s.metaCache.preferCurrent(meta.ID, candidate)
+	if err := s.runtime.ApplyMeta(selected); err != nil {
+		return err
+	}
+	if authoritative {
+		// Keep the original authoritative candidate as provenance. A retained
+		// newer floor selected for runtime safety must not impersonate an exact
+		// refresh and reactivate an invalidated cache entry.
+		s.metaCache.installIfNewer(candidate.ID, candidate)
+	}
+	return nil
+}
+
+func channelMetaApplyLockIndex(id ch.ChannelID) int {
+	const (
+		offset64 = uint64(14695981039346656037)
+		prime64  = uint64(1099511628211)
+	)
+	hash := offset64
+	for index := 0; index < len(id.ID); index++ {
+		hash ^= uint64(id.ID[index])
+		hash *= prime64
+	}
+	hash ^= uint64(id.Type)
+	hash *= prime64
+	return int(hash % channelMetaApplyLockCount)
+}
+
 func (s *Service) resolveAppendMetaCached(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, bool, error) {
 	if s == nil {
 		return ch.Meta{}, false, false, nil
@@ -516,7 +593,10 @@ func (s *Service) resolveAppendMetaCached(ctx context.Context, id ch.ChannelID) 
 		s.observeMetaCache("miss")
 	}
 	meta, ok, err := s.resolveAppendMetaFresh(ctx, id)
-	return meta, ok, ok && cacheableAppendMeta(id, meta), err
+	if err != nil {
+		return meta, ok, false, err
+	}
+	return meta, ok, ok && cacheableAppendMeta(id, meta), nil
 }
 
 func (s *Service) resolveAppendMetaFresh(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, error) {
@@ -524,10 +604,19 @@ func (s *Service) resolveAppendMetaFresh(ctx context.Context, id ch.ChannelID) (
 	if err != nil || !ok {
 		return meta, ok, err
 	}
-	if cacheableAppendMeta(id, meta) {
-		s.metaCache.put(id, meta)
+	var freshEnough bool
+	meta, freshEnough = s.metaCache.selectResolved(id, meta)
+	if !freshEnough {
+		return meta, true, ch.ErrStaleMeta
 	}
 	return meta, ok, nil
+}
+
+func unavailableAppendMetaError(meta ch.Meta) error {
+	if meta.Status == ch.StatusDeleting || meta.Status == ch.StatusDeleted {
+		return ch.ErrChannelNotFound
+	}
+	return ch.ErrNotReady
 }
 
 func retryableMetaCacheError(err error) bool {

@@ -607,19 +607,35 @@ Conversation active-batch admission with authority enabled:
 channelappend active producer
   -> emits conversationactive.ActiveBatch with explicit normal or CMD kind
   -> ConversationAuthorityClient.AdmitActiveBatch
-       -> cluster groups SenderUID and recipient UIDs by exact UID authority
-  -> local authority:
-       validate the exact RouteTarget
-       delegate ActiveBatch to runtime/conversationactive.Manager.AdmitActiveBatch
+       -> cluster resolves SenderUID and recipient UIDs from one route snapshot
+       -> groups rows by exact UID authority and packs same-leader groups together
+  -> local authority bulk entry:
+       validate all exact RouteTargets and reserve each unique valid exact
+       target under one short authority lock
+       lazily activate only stale groups that still match the current local route
+       finish lazy activation with one unified revalidation-and-reservation pass
+       keep stale/not-leader results aligned while valid siblings continue;
+       fragments for the same exact target share one in-flight reservation
+       release the authority lock before delegating all valid groups to one
+       runtime/conversationactive.Manager.AdmitRoutedActiveBatches cache transaction
+       release exact-target reservations after the cache mutation returns
   -> remote authority:
-       access/node Conversation Authority ActiveBatch RPC
-       remote local authority applies the same target validation and runtime admission
+       access/node Conversation Authority bulk ActiveBatch RPC
+       remote local authority applies the same per-target validation and one
+       routed cache transaction, returning one aligned status per exact group
 ```
 
 The app authority does not regroup or reinterpret active batches and does not
 normalize zero conversation kinds. It trusts the cluster-routed client to send
 `SenderUID` only to the sender-owned authority target; non-sender recipient
-targets arrive with an empty sender field.
+targets arrive with an empty sender field. The hard local fence remains
+`(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`; `RouteRevision` and
+`AuthorityEpoch` remain observation-order and diagnostic fields. One stale
+group cannot reject valid siblings, while cache pressure or a conflicting
+cache-address hash slot rejects the complete set of otherwise-valid sibling
+groups before any cache mutation. Legacy single-batch and ActivePatch entries
+use the same exact-target reservation fence, including rolling-upgrade fallback
+traffic that does not use the bulk RPC.
 
 Conversation delete with authority enabled:
 
@@ -673,6 +689,11 @@ with target publish/fencing under the authority mutex. The purge mutates only
 cache state in that critical section; aggregate cache observers run after the
 target state is published and the authority mutex is released, so observer
 callbacks may safely re-enter authority reads.
+Foreground cache admissions reserve the full hard target identity under that
+same mutex before calling the runtime Manager and release it after the cache
+mutation returns. The authority mutex is not held across Manager calls, so
+synchronous runtime observers can re-enter authority reads. Route-lifecycle
+handoff is initiated outside those admission observer callbacks.
 Aggregate admission cache snapshots are coalesced to a 100ms interval in the
 production authority wiring; pressure transitions and flush completion still
 publish immediate snapshots, while mutation counters remain unsampled.
@@ -893,6 +914,12 @@ busy loop.
 ```text
 cluster.RouteAuthorityEvent
   -> ignore stale events by hash-slot route revision, Slot config epoch, Slot leader term, and diagnostic authority epoch tie-break
+  -> when handing off a previous local target, mark that exact target draining
+     under the authority mutex so no new admission reservation can start
+  -> hand the reservation wait and flush/purge to a bounded background drain;
+     the route watcher remains free to publish a newer local tenure
+  -> in that background drain, wait within the handoff timeout for only that
+     exact target's accepted admission reservations to reach zero
   -> if local node becomes authority:
        mark the exact conversation authority target active
        purge clean rows for that hash slot before reusing its cache baseline
@@ -907,9 +934,11 @@ cluster.RouteAuthorityEvent
 Foreground committed-message admission still resolves the current UID authority
 through the routed `ConversationAuthorityClient`. The watcher only maintains
 local cache/list readiness for targets that this node can serve. Handoff drains
-only dirty runtime rows indexed under the previous target's UID hash slot, using
+only after the previous exact target's accepted cache mutations have returned;
+it then drains dirty runtime rows indexed under the previous target's UID hash slot, using
 `AuthorityFlushBatchRows` per iteration until the target is clean or
-`AuthorityHandoffTimeout` expires. A successful drain then purges clean rows for
+`AuthorityHandoffTimeout` expires. The same timeout bounds reservation wait and
+durable drain together. A successful drain then purges clean rows for
 that hash slot; activation also purges any clean rows retained from an older
 leader tenure, so a stale durable baseline is never reused after leadership
 returns. Every drain iteration and its final purge revalidate the exact draining
@@ -923,6 +952,16 @@ races repair local authority state. The hard local authority identity is
 `(HashSlot, SlotID, LeaderNodeID, Slot leader term, Slot config epoch)`; route
 revision orders observations, and the authority epoch is retained only as a
 local diagnostic tie-breaker for the same distributed identity.
+Reservations are keyed by that complete hard identity rather than hash slot, so
+an old target waiting to drain does not serialize admission to a newly published
+local target for the same logical hash slot. Chained unknown or remote route
+events retain every older exact target that is already draining until its
+accepted reservations and scoped flush complete; a newly active local tenure
+may supersede those drains because it owns any late cache mutation for the hash
+slot. A successful final purge retires that exact draining target atomically,
+so completed remote/unknown handoffs do not accumulate route state. A failed or
+timed-out drain remains fenced for an explicit bounded retry or later local
+tenure replacement.
 
 ## Cloud Analysis Gateway Composition
 

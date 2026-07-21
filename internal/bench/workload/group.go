@@ -397,12 +397,11 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
 		return err
 	}
-	for localOffset := 0; localOffset < totalMessages; localOffset++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+	windowDuration := cfg.Duration
+	if strings.EqualFold(strings.TrimSpace(cfg.Phase), "warmup") {
+		windowDuration = 0
+	}
+	return runSequentialMessagesWithinWindow(ctx, windowDuration, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, localOffset int) error {
 		ch := w.channels[localOffset%len(w.channels)]
 		messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 		if err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex); err != nil {
@@ -410,13 +409,8 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 				return err
 			}
 		}
-		if interval > 0 {
-			if err := w.cfg.sleep(ctx, interval); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // SendOne sends one deterministic group-channel message.

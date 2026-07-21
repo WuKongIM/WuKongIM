@@ -355,25 +355,19 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
 		return err
 	}
-	for messageOffset := 0; messageOffset < totalMessages; messageOffset++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+	windowDuration := cfg.Duration
+	if strings.EqualFold(strings.TrimSpace(cfg.Phase), "warmup") {
+		windowDuration = 0
+	}
+	return runSequentialMessagesWithinWindow(ctx, windowDuration, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, messageOffset int) error {
 		pair := w.pairs[messageOffset%len(w.pairs)]
 		if err := w.sendPairInPhase(ctx, pair, phase, messageOffset); err != nil {
 			if !shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
 				return err
 			}
 		}
-		if interval > 0 {
-			if err := w.cfg.sleep(ctx, interval); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // SendOne sends one deterministic person-channel message for the assigned pair at messageIndex.

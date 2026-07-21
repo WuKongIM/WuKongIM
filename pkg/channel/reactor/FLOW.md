@@ -76,8 +76,12 @@ Maintenance
   dueColdActivation
 ```
 
-The loop drains mailbox events in priority order and runs ready due work after
-each drained batch as well as while idle. This keeps append flushes, follower
+The loop prefers high-priority mailbox events but, after at most 32 consecutive
+high dequeues, admits one waiting normal event before returning to high traffic;
+low priority remains idle-only. The fairness counter carries across small drain
+batches and `WaitOne`, so sustained Pull/worker-result traffic cannot starve
+foreground Append/Ack events. The loop runs ready due work after each drained
+batch as well as while idle. This keeps append flushes, follower
 replication retries, lifecycle checks, pending-meta deadlines, and fixed cold
 activation deadlines from waiting for the mailbox to become completely empty
 during sustained load.

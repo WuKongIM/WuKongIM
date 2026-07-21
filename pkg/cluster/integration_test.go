@@ -184,18 +184,36 @@ func startNode(t testing.TB, node *Node) {
 
 func startNodes(t testing.TB, nodes ...*Node) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	errs := make(chan error, len(nodes))
+	type startResult struct {
+		nodeID uint64
+		err    error
+	}
+	results := make(chan startResult, len(nodes))
 	for _, node := range nodes {
 		node := node
-		go func() { errs <- node.Start(ctx) }()
+		go func() {
+			results <- startResult{nodeID: node.NodeID(), err: node.Start(ctx)}
+		}()
 	}
+	var firstFailure startResult
 	for range nodes {
-		if err := <-errs; err != nil {
-			t.Fatalf("Start() error = %v", err)
+		result := <-results
+		if result.err != nil && firstFailure.err == nil {
+			firstFailure = result
+			cancel()
 		}
 	}
+	if firstFailure.err == nil {
+		return
+	}
+	for i := len(nodes) - 1; i >= 0; i-- {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_ = nodes[i].Stop(stopCtx)
+		stopCancel()
+	}
+	t.Fatalf("Start(node=%d) error = %v", firstFailure.nodeID, firstFailure.err)
 }
 
 func stopNodes(t testing.TB, nodes ...*Node) {

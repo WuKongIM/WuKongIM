@@ -1314,6 +1314,30 @@ func TestPersonWorkloadMeasuredRunKeepsGoingAfterOperationError(t *testing.T) {
 	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", labels))
 }
 
+func TestPersonWorkloadSequentialRunStopsSchedulingAtWindowEnd(t *testing.T) {
+	sender := newDelayedSendackClient(30 * time.Millisecond)
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     15 * time.Millisecond,
+		Rate:            model.Rate{PerSecond: 200},
+		MaxConcurrency:  1,
+		Pairs: []PersonPair{{
+			ChannelIndex: 0,
+			SenderUID:    "u1",
+			RecipientUID: "u2",
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": newRecordingPersonClient()})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Run(context.Background()))
+
+	require.Len(t, sender.sentFrames, 1)
+}
+
 func TestPersonWorkloadWarmupKeepsGoingAfterRecvTimeout(t *testing.T) {
 	sender := newRecordingPersonClient()
 	sender.autoSendack = true

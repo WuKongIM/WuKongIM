@@ -117,6 +117,193 @@ func TestConversationAuthorityCodecRoundTripActiveBatch(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityBulkCodecRoundTripPreservesAlignedGroupsAndResults(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	secondTarget := target
+	secondTarget.HashSlot = 2
+	secondTarget.SlotID = 3
+	groups := []ConversationActiveBatchGroup{
+		{
+			Target: target,
+			Batch: conversationactive.ActiveBatch{
+				Kind:        metadb.ConversationKindNormal,
+				SenderUID:   "sender",
+				ChannelID:   "g1",
+				ChannelType: 2,
+				MessageSeq:  9,
+				ActiveAtMS:  100,
+			},
+		},
+		{
+			Target: secondTarget,
+			Batch: conversationactive.ActiveBatch{
+				Kind:        metadb.ConversationKindCMD,
+				ChannelID:   "g1____cmd",
+				ChannelType: 2,
+				MessageSeq:  9,
+				ActiveAtMS:  100,
+				Recipients: []conversationactive.ActiveEntry{
+					{UID: "u1"},
+					{UID: "u2"},
+				},
+			},
+		},
+	}
+	body, err := encodeConversationActiveBatchGroups(groups)
+	if err != nil {
+		t.Fatalf("encodeConversationActiveBatchGroups() error = %v", err)
+	}
+	if !hasMagic(body, conversationAuthorityBatchRequestMagic[:]) {
+		t.Fatalf("bulk request magic = %x", body[:len(conversationAuthorityBatchRequestMagic)])
+	}
+	gotGroups, err := decodeConversationActiveBatchGroups(body)
+	if err != nil {
+		t.Fatalf("decodeConversationActiveBatchGroups() error = %v", err)
+	}
+	if !reflect.DeepEqual(gotGroups, groups) {
+		t.Fatalf("decoded groups = %#v, want %#v", gotGroups, groups)
+	}
+
+	results := []conversationActiveBatchWireResult{
+		{Status: conversationRPCStatusOK},
+		{Status: conversationRPCStatusStaleRoute},
+	}
+	responseBody, err := encodeConversationActiveBatchResults(results)
+	if err != nil {
+		t.Fatalf("encodeConversationActiveBatchResults() error = %v", err)
+	}
+	if !hasMagic(responseBody, conversationAuthorityBatchResponseMagic[:]) {
+		t.Fatalf("bulk response magic = %x", responseBody[:len(conversationAuthorityBatchResponseMagic)])
+	}
+	gotResults, err := decodeConversationActiveBatchResults(responseBody)
+	if err != nil {
+		t.Fatalf("decodeConversationActiveBatchResults() error = %v", err)
+	}
+	if !reflect.DeepEqual(gotResults, results) {
+		t.Fatalf("decoded results = %#v, want %#v", gotResults, results)
+	}
+}
+
+func TestConversationAuthorityBulkCodecAcceptsMaximumAggregateRows(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	groups := []ConversationActiveBatchGroup{{
+		Target: target,
+		Batch: conversationactive.ActiveBatch{
+			Kind:       metadb.ConversationKindNormal,
+			SenderUID:  "sender",
+			Recipients: make([]conversationactive.ActiveEntry, maxConversationAuthorityCollectionLen-1),
+		},
+	}}
+	body, err := encodeConversationActiveBatchGroups(groups)
+	if err != nil {
+		t.Fatalf("encodeConversationActiveBatchGroups(maximum) error = %v", err)
+	}
+	if _, err := decodeConversationActiveBatchGroups(body); err != nil {
+		t.Fatalf("decodeConversationActiveBatchGroups(maximum) error = %v", err)
+	}
+}
+
+func TestConversationAuthorityBulkCodecRejectsInvalidAndOversizedRequests(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	validGroups := []ConversationActiveBatchGroup{{
+		Target: target,
+		Batch: conversationactive.ActiveBatch{
+			Kind:       metadb.ConversationKindNormal,
+			Recipients: []conversationactive.ActiveEntry{{UID: "u1"}},
+		},
+	}}
+	validBody, err := encodeConversationActiveBatchGroups(validGroups)
+	if err != nil {
+		t.Fatalf("encode valid groups: %v", err)
+	}
+	secondTarget := target
+	secondTarget.HashSlot++
+	overRows := []ConversationActiveBatchGroup{
+		{Target: target, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, Recipients: make([]conversationactive.ActiveEntry, maxConversationAuthorityCollectionLen/2)}},
+		{Target: secondTarget, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, Recipients: make([]conversationactive.ActiveEntry, maxConversationAuthorityCollectionLen/2+1)}},
+	}
+	zeroLeader := append([]ConversationActiveBatchGroup(nil), validGroups...)
+	zeroLeader[0].Target.LeaderNodeID = 0
+	invalidKind := append([]ConversationActiveBatchGroup(nil), validGroups...)
+	invalidKind[0].Batch.Kind = metadb.ConversationKind(99)
+	tooManyGroups := make([]ConversationActiveBatchGroup, maxConversationAuthorityCollectionLen+1)
+
+	encodeTests := []struct {
+		name   string
+		groups []ConversationActiveBatchGroup
+	}{
+		{name: "too many groups", groups: tooManyGroups},
+		{name: "aggregate rows", groups: overRows},
+		{name: "zero leader", groups: zeroLeader},
+		{name: "invalid kind", groups: invalidKind},
+	}
+	for _, tt := range encodeTests {
+		t.Run("encode "+tt.name, func(t *testing.T) {
+			if _, err := encodeConversationActiveBatchGroups(tt.groups); err == nil {
+				t.Fatal("encodeConversationActiveBatchGroups() error = nil, want error")
+			}
+		})
+	}
+
+	decodeTests := []struct {
+		name string
+		body []byte
+	}{
+		{name: "invalid magic", body: []byte("bad")},
+		{name: "truncated", body: validBody[:len(validBody)-1]},
+		{name: "trailing", body: append(append([]byte(nil), validBody...), 0)},
+		{name: "too many groups", body: conversationBulkBodyWithGroupCount(maxConversationAuthorityCollectionLen + 1)},
+		{name: "aggregate rows", body: conversationBulkBodyWithGroupRows([]conversationusecase.RouteTarget{target, secondTarget}, []int{maxConversationAuthorityCollectionLen / 2, maxConversationAuthorityCollectionLen/2 + 1})},
+		{name: "zero leader", body: conversationBulkBodyWithRows(conversationusecase.RouteTarget{}, 1)},
+		{name: "invalid kind", body: conversationBulkBodyWithKind(target, metadb.ConversationKind(99), 1)},
+	}
+	for _, tt := range decodeTests {
+		t.Run("decode "+tt.name, func(t *testing.T) {
+			if _, err := decodeConversationActiveBatchGroups(tt.body); err == nil {
+				t.Fatal("decodeConversationActiveBatchGroups() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestConversationAuthorityBulkCodecRejectsMalformedResponses(t *testing.T) {
+	validBody, err := encodeConversationActiveBatchResults([]conversationActiveBatchWireResult{{Status: conversationRPCStatusOK}})
+	if err != nil {
+		t.Fatalf("encode valid results: %v", err)
+	}
+	tooMany := make([]conversationActiveBatchWireResult, maxConversationAuthorityCollectionLen+1)
+	for i := range tooMany {
+		tooMany[i].Status = conversationRPCStatusOK
+	}
+	if _, err := encodeConversationActiveBatchResults(tooMany); err == nil {
+		t.Fatal("encodeConversationActiveBatchResults(too many) error = nil, want error")
+	}
+	if _, err := encodeConversationActiveBatchResults([]conversationActiveBatchWireResult{{Status: "mystery"}}); err == nil {
+		t.Fatal("encodeConversationActiveBatchResults(unknown status) error = nil, want error")
+	}
+	unknownStatus := append(append([]byte(nil), conversationAuthorityBatchResponseMagic[:]...), 1)
+	unknownStatus = appendString(unknownStatus, "mystery")
+	tooManyResults := append(append([]byte(nil), conversationAuthorityBatchResponseMagic[:]...), appendUvarint(nil, maxConversationAuthorityCollectionLen+1)...)
+	tooManyResults = append(tooManyResults, make([]byte, maxConversationAuthorityCollectionLen+1)...)
+	decodeTests := []struct {
+		name string
+		body []byte
+	}{
+		{name: "invalid magic", body: []byte("bad")},
+		{name: "truncated", body: validBody[:len(validBody)-1]},
+		{name: "trailing", body: append(append([]byte(nil), validBody...), 0)},
+		{name: "unknown status", body: unknownStatus},
+		{name: "too many results", body: tooManyResults},
+	}
+	for _, tt := range decodeTests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := decodeConversationActiveBatchResults(tt.body); err == nil {
+				t.Fatal("decodeConversationActiveBatchResults() error = nil, want error")
+			}
+		})
+	}
+}
+
 func TestConversationAuthorityCodecRoundTripListResponse(t *testing.T) {
 	resp := conversationAuthorityResponse{
 		Status: conversationRPCStatusOK,
@@ -339,4 +526,52 @@ func conversationAuthorityResponseWithStateBool(flag byte) []byte {
 	dst = appendConversationActiveCursor(dst, metadb.ConversationActiveCursor{})
 	dst = appendConversationBool(dst, true)
 	return appendString(dst, "")
+}
+
+func conversationBulkBodyWithGroupCount(count int) []byte {
+	dst := append([]byte(nil), conversationAuthorityBatchRequestMagic[:]...)
+	dst = appendUvarint(dst, uint64(count))
+	return append(dst, make([]byte, count)...)
+}
+
+func conversationBulkBodyWithRows(target conversationusecase.RouteTarget, rows int) []byte {
+	return conversationBulkBodyWithKind(target, metadb.ConversationKindNormal, rows)
+}
+
+func conversationBulkBodyWithKind(target conversationusecase.RouteTarget, kind metadb.ConversationKind, rows int) []byte {
+	dst := append([]byte(nil), conversationAuthorityBatchRequestMagic[:]...)
+	dst = appendUvarint(dst, 1)
+	dst = appendConversationRouteTarget(dst, target)
+	dst = appendConversationKind(dst, kind)
+	dst = appendString(dst, "")
+	dst = appendString(dst, "g1")
+	dst = appendUvarint(dst, 2)
+	dst = appendUvarint(dst, 9)
+	dst = appendVarint(dst, 100)
+	dst = appendUvarint(dst, uint64(rows))
+	for i := 0; i < rows; i++ {
+		dst = appendString(dst, "u")
+		dst = appendConversationBool(dst, false)
+	}
+	return dst
+}
+
+func conversationBulkBodyWithGroupRows(targets []conversationusecase.RouteTarget, rows []int) []byte {
+	dst := append([]byte(nil), conversationAuthorityBatchRequestMagic[:]...)
+	dst = appendUvarint(dst, uint64(len(targets)))
+	for i, target := range targets {
+		dst = appendConversationRouteTarget(dst, target)
+		dst = appendConversationKind(dst, metadb.ConversationKindNormal)
+		dst = appendString(dst, "")
+		dst = appendString(dst, "g1")
+		dst = appendUvarint(dst, 2)
+		dst = appendUvarint(dst, 9)
+		dst = appendVarint(dst, 100)
+		dst = appendUvarint(dst, uint64(rows[i]))
+		for j := 0; j < rows[i]; j++ {
+			dst = appendString(dst, "u")
+			dst = appendConversationBool(dst, false)
+		}
+	}
+	return dst
 }

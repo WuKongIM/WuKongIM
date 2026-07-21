@@ -1012,6 +1012,30 @@ func TestGroupWorkloadRunRecordsSchedulerWindowDropMetrics(t *testing.T) {
 	require.GreaterOrEqual(t, workload.Metrics().GaugeValue("workload_scheduler_max_pending", labels), float64(1))
 }
 
+func TestGroupWorkloadSequentialRunStopsSchedulingAtWindowEnd(t *testing.T) {
+	sender := newDelayedSendackClient(30 * time.Millisecond)
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "hot-group",
+		TrafficName:     "hot-send",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     15 * time.Millisecond,
+		LocalRate:       model.Rate{PerSecond: 200},
+		MaxConcurrency:  1,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-hot-group-0",
+			OnlineMembers: []string{"u-0"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Run(context.Background()))
+
+	require.Len(t, sender.sentFrames, 1)
+}
+
 func TestGroupWorkloadWarmupTouchesEveryChannelAtLeastOnce(t *testing.T) {
 	clients := map[string]PersonClient{
 		"u-0": newRecordingPersonClient(),

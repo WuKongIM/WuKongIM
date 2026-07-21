@@ -98,11 +98,14 @@ separate Delivery Push RPC after presence resolution.
 
 ```text
 remote conversation authority client
-  -> encode W K V C 1 request
+  -> encode W K V C 1 single-target request
+     or W K V C 2 multi-target active-batch request
   -> cluster RPCConversationAuthority
   -> Adapter.HandleConversationAuthorityRPC
   -> ConversationAuthority port
-  -> encode W K V c 1 response
+     or optional ConversationBatchAuthority port
+  -> encode W K V c 1 single-target response
+     or W K V c 2 group-aligned response
 ```
 
 Supported conversation authority calls:
@@ -124,6 +127,25 @@ The RPC boundary is deliberately narrow:
   authority target. Sender/recipient route grouping is performed by
   `internal/infra/cluster`; this package only transports the exact batch
   subset it receives.
+- Bulk active-batch admit carries multiple exact targets for one destination
+  leader in one `WKVC2` envelope. Every group retains its own hash slot, Slot,
+  leader term, config epoch, route revision, and authority epoch fence. The
+  `WKVc2` response contains one stable status per input group in the same
+  order, so one stale target does not discard successful sibling groups. The
+  adapter uses `ConversationBatchAuthority` when implemented and otherwise
+  preserves compatibility by calling `AdmitActiveBatch` once per group.
+- Bulk request group count and aggregate active-row count are both limited to
+  4,096. The client rejects a zero or mismatched destination leader before
+  transport, and both codecs reject malformed, truncated, oversized, unknown-
+  status, or trailing data. Existing `WKVC1`/`WKVc1` bytes and the single-group
+  API remain unchanged.
+- During a rolling upgrade, only the exact old-peer `WKVC2` invalid-codec
+  remote error enables fallback to the original `WKVC1` calls. Other transport
+  or protocol errors do not fan out. Unsupported capability is cached per
+  client and destination node for a bounded TTL to avoid repeated hot-path
+  probes. A transport cancellation is normalized to `context.Canceled`; a
+  retryable connection timeout remains distinct for the routed client to
+  classify without weakening the caller deadline.
 - Hide carries one exact, ordered `ConversationDelete` collection to the fenced
   UID authority target. The client does not split the mutation collection:
   collections above 4,096 entries fail before transport, and malformed or
@@ -473,8 +495,15 @@ Delivery fanout RPC uses fixed magic headers:
 
 Conversation authority RPC uses fixed magic headers:
 
-- Request: `W K V C 1`
-- Response: `W K V c 1`
+- Single-group request: `W K V C 1`
+- Single-group response: `W K V c 1`
+- Bulk-group request: `W K V C 2` (`WKVC2`)
+- Bulk-group response: `W K V c 2` (`WKVc2`)
+
+`WKVC2` carries an ordered collection of exact `RouteTarget` plus
+`ActiveBatch` groups, bounded by 4,096 aggregate rows. `WKVc2` carries one
+status for every input group in the same order. `WKVC1`/`WKVc1` retain their
+original single-group layout for rolling-upgrade fallback.
 
 Conversation authority request targets carry `HashSlot`, `SlotID`,
 `LeaderNodeID`, Slot `LeaderTerm`, Slot `ConfigEpoch`, route revision, and the

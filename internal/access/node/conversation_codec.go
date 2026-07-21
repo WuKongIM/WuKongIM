@@ -9,11 +9,15 @@ import (
 )
 
 var (
-	conversationAuthorityRequestMagic  = [...]byte{'W', 'K', 'V', 'C', 1}
-	conversationAuthorityResponseMagic = [...]byte{'W', 'K', 'V', 'c', 1}
+	conversationAuthorityRequestMagic       = [...]byte{'W', 'K', 'V', 'C', 1}
+	conversationAuthorityResponseMagic      = [...]byte{'W', 'K', 'V', 'c', 1}
+	conversationAuthorityBatchRequestMagic  = [...]byte{'W', 'K', 'V', 'C', 2}
+	conversationAuthorityBatchResponseMagic = [...]byte{'W', 'K', 'V', 'c', 2}
 )
 
 const maxConversationAuthorityCollectionLen = 4096
+
+const conversationAuthorityV1InvalidRequestCodecMessage = "internal/access/node: invalid conversation authority request codec"
 
 var maxConversationAuthorityDecodeLimit = int64(int(^uint(0) >> 1))
 
@@ -71,6 +75,12 @@ type conversationAuthorityResponse struct {
 	DrainResult string
 }
 
+// conversationActiveBatchWireResult is one input-aligned bulk admission status.
+type conversationActiveBatchWireResult struct {
+	// Status is one of the stable conversation RPC status strings.
+	Status string
+}
+
 func encodeConversationAuthorityRequest(req conversationAuthorityRequest) ([]byte, error) {
 	dst := make([]byte, 0, 128)
 	dst = append(dst, conversationAuthorityRequestMagic[:]...)
@@ -95,7 +105,7 @@ func encodeConversationAuthorityRequest(req conversationAuthorityRequest) ([]byt
 
 func decodeConversationAuthorityRequest(body []byte) (conversationAuthorityRequest, error) {
 	if !hasMagic(body, conversationAuthorityRequestMagic[:]) {
-		return conversationAuthorityRequest{}, fmt.Errorf("internal/access/node: invalid conversation authority request codec")
+		return conversationAuthorityRequest{}, fmt.Errorf("%s", conversationAuthorityV1InvalidRequestCodecMessage)
 	}
 	offset := len(conversationAuthorityRequestMagic)
 	var req conversationAuthorityRequest
@@ -177,6 +187,142 @@ func decodeConversationAuthorityResponse(body []byte) (conversationAuthorityResp
 		return conversationAuthorityResponse{}, fmt.Errorf("internal/access/node: trailing conversation authority response bytes")
 	}
 	return resp, nil
+}
+
+func encodeConversationActiveBatchGroups(groups []ConversationActiveBatchGroup) ([]byte, error) {
+	if len(groups) > maxConversationAuthorityCollectionLen {
+		return nil, fmt.Errorf("internal/access/node: conversation active batch groups length exceeds limit")
+	}
+	dst := make([]byte, 0, 128)
+	dst = append(dst, conversationAuthorityBatchRequestMagic[:]...)
+	dst = appendUvarint(dst, uint64(len(groups)))
+	totalRows := 0
+	for i, group := range groups {
+		if group.Target.LeaderNodeID == 0 {
+			return nil, fmt.Errorf("internal/access/node: conversation active batch group %d leader is zero", i)
+		}
+		if err := validateConversationKind(group.Batch.Kind); err != nil {
+			return nil, fmt.Errorf("internal/access/node: conversation active batch group %d: %w", i, err)
+		}
+		rows := conversationActiveBatchRowCount(group.Batch)
+		if rows > maxConversationAuthorityCollectionLen || totalRows > maxConversationAuthorityCollectionLen-rows {
+			return nil, fmt.Errorf("internal/access/node: aggregate conversation active batch rows length exceeds limit")
+		}
+		totalRows += rows
+		dst = appendConversationRouteTarget(dst, group.Target)
+		dst = appendConversationActiveBatch(dst, group.Batch)
+	}
+	return dst, nil
+}
+
+func decodeConversationActiveBatchGroups(body []byte) ([]ConversationActiveBatchGroup, error) {
+	if !hasMagic(body, conversationAuthorityBatchRequestMagic[:]) {
+		return nil, fmt.Errorf("internal/access/node: invalid conversation active batch request codec")
+	}
+	offset := len(conversationAuthorityBatchRequestMagic)
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, err
+	}
+	offset = next
+	if err := validateConversationCollectionLen(count, len(body)-offset, "conversation active batch groups"); err != nil {
+		return nil, err
+	}
+	groups := make([]ConversationActiveBatchGroup, 0, int(count))
+	totalRows := 0
+	for i := uint64(0); i < count; i++ {
+		var group ConversationActiveBatchGroup
+		if group.Target, offset, err = readConversationRouteTarget(body, offset); err != nil {
+			return nil, err
+		}
+		if group.Target.LeaderNodeID == 0 {
+			return nil, fmt.Errorf("internal/access/node: conversation active batch group %d leader is zero", i)
+		}
+		if group.Batch, offset, err = readConversationActiveBatch(body, offset); err != nil {
+			return nil, err
+		}
+		rows := conversationActiveBatchRowCount(group.Batch)
+		if rows > maxConversationAuthorityCollectionLen || totalRows > maxConversationAuthorityCollectionLen-rows {
+			return nil, fmt.Errorf("internal/access/node: aggregate conversation active batch rows length exceeds limit")
+		}
+		totalRows += rows
+		groups = append(groups, group)
+	}
+	if offset != len(body) {
+		return nil, fmt.Errorf("internal/access/node: trailing conversation active batch request bytes")
+	}
+	return groups, nil
+}
+
+func encodeConversationActiveBatchResults(results []conversationActiveBatchWireResult) ([]byte, error) {
+	if len(results) > maxConversationAuthorityCollectionLen {
+		return nil, fmt.Errorf("internal/access/node: conversation active batch results length exceeds limit")
+	}
+	dst := make([]byte, 0, 64)
+	dst = append(dst, conversationAuthorityBatchResponseMagic[:]...)
+	dst = appendUvarint(dst, uint64(len(results)))
+	for i, result := range results {
+		if err := validateConversationRPCStatus(result.Status); err != nil {
+			return nil, fmt.Errorf("internal/access/node: conversation active batch result %d: %w", i, err)
+		}
+		dst = appendString(dst, result.Status)
+	}
+	return dst, nil
+}
+
+func decodeConversationActiveBatchResults(body []byte) ([]conversationActiveBatchWireResult, error) {
+	if !hasMagic(body, conversationAuthorityBatchResponseMagic[:]) {
+		return nil, fmt.Errorf("internal/access/node: invalid conversation active batch response codec")
+	}
+	offset := len(conversationAuthorityBatchResponseMagic)
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, err
+	}
+	offset = next
+	if err := validateConversationCollectionLen(count, len(body)-offset, "conversation active batch results"); err != nil {
+		return nil, err
+	}
+	results := make([]conversationActiveBatchWireResult, 0, int(count))
+	for i := uint64(0); i < count; i++ {
+		status, next, err := readString(body, offset)
+		if err != nil {
+			return nil, err
+		}
+		offset = next
+		if err := validateConversationRPCStatus(status); err != nil {
+			return nil, fmt.Errorf("internal/access/node: conversation active batch result %d: %w", i, err)
+		}
+		results = append(results, conversationActiveBatchWireResult{Status: status})
+	}
+	if offset != len(body) {
+		return nil, fmt.Errorf("internal/access/node: trailing conversation active batch response bytes")
+	}
+	return results, nil
+}
+
+func conversationActiveBatchRowCount(batch conversationactive.ActiveBatch) int {
+	rows := len(batch.Recipients)
+	if batch.SenderUID != "" {
+		rows++
+	}
+	return rows
+}
+
+func validateConversationRPCStatus(status string) error {
+	switch status {
+	case conversationRPCStatusOK,
+		conversationRPCStatusNotLeader,
+		conversationRPCStatusStaleRoute,
+		conversationRPCStatusRouteNotReady,
+		conversationRPCStatusCachePressure,
+		conversationRPCStatusCanceled,
+		conversationRPCStatusDeadline,
+		conversationRPCStatusRejected:
+		return nil
+	default:
+		return fmt.Errorf("unknown conversation authority rpc status %q", status)
+	}
 }
 
 func validateConversationAuthorityOp(op string) error {
@@ -302,18 +448,25 @@ func appendConversationKind(dst []byte, kind metadb.ConversationKind) []byte {
 	return appendUvarint(dst, uint64(kind))
 }
 
+func validateConversationKind(kind metadb.ConversationKind) error {
+	switch kind {
+	case metadb.ConversationKindNormal, metadb.ConversationKindCMD:
+		return nil
+	default:
+		return fmt.Errorf("invalid conversation kind %d", kind)
+	}
+}
+
 func readConversationKind(body []byte, offset int) (metadb.ConversationKind, int, error) {
 	v, next, err := readUvarint(body, offset)
 	if err != nil {
 		return 0, offset, err
 	}
 	kind := metadb.ConversationKind(v)
-	switch kind {
-	case metadb.ConversationKindNormal, metadb.ConversationKindCMD:
-		return kind, next, nil
-	default:
-		return 0, offset, fmt.Errorf("internal/access/node: invalid conversation kind %d", v)
+	if err := validateConversationKind(kind); err != nil {
+		return 0, offset, fmt.Errorf("internal/access/node: %w", err)
 	}
+	return kind, next, nil
 }
 
 func appendConversationActiveCursor(dst []byte, cursor metadb.ConversationActiveCursor) []byte {

@@ -610,26 +610,37 @@ identity. Legacy patch admission is best-effort and does not retry
 route-not-ready, stale-route, or not-leader errors; callers are expected to log
 and drop failed active admission.
 Active-batch admission resolves the affected UID set as `SenderUID` plus each
-unique recipient UID, caches each UID's `RouteTarget` for the current attempt,
+unique recipient UID through one `RouteKeysPartial` snapshot per attempt,
 coalesces duplicate recipient entries with `IsSender` OR semantics, and sends
-one target-scoped batch per group. Only the sender-owned target receives
+one target-scoped batch per group. Aligned key-specific route failures do not
+discard successfully routed siblings. Only the sender-owned target receives
 `SenderUID`; other target batches carry an empty `SenderUID` and only their
 recipient subset, so a receiver authority cannot cache the sender row by
 mistake. Each target-scoped batch preserves the source
 `metadb.ConversationKind`; invalid or zero kinds are left for downstream
 validation instead of being normalized. If the sender is not in the recipient
-set, the sender target still receives a sender-only batch. Active-batch
-admission retries route-not-ready, stale-route, not-leader, and background Slot
-proposal backpressure within a small bounded fresh-route window, regrouping
-only target groups that failed on the prior attempt; continued failure is
+set, the sender target still receives a sender-only batch. Exact target groups
+are packed by `LeaderNodeID` for transport, but the leader envelope never
+replaces each group's hash-slot, physical Slot, leader-term, and config-epoch
+fence. Active-batch admission retries route-not-ready, stale-route, not-leader,
+and background Slot proposal backpressure within a small bounded fresh-route
+window. Only aligned failed groups or failed UID route items are resolved
+again; successful siblings are never issued twice. Continued failure is
 returned to the caller so the post-commit path remains bounded.
 Delete-barrier writes group rows by UID and use the same fresh-target retry
 loop as authority reads. The actual Slot write runs on the resolved authority
 leader, which reconciles its cache and revalidates the exact target before it
 returns. A stale target therefore causes an idempotent retry against the new
 leader instead of leaving a clean cache baseline detached from durable state.
-The remote RPC client chunks large patch groups and active-batch recipient
-groups at the codec collection limit before sending them. List resolves the
+The remote RPC client chunks large patch groups at the codec collection limit.
+Active-batch groups for the same remote leader are packed into one or more
+`WKVC2` envelopes of at most 4,096 aggregate active rows and receive `WKVc2`
+group-aligned statuses. A target group larger than one envelope is split while
+preserving the sender only in its first fragment. The local path uses the same
+bounded packing and optional bulk authority contract. A retryable transport
+failure re-routes only the groups from the failed envelope; completed sibling
+leaders and envelopes are not replayed. Context cancellation/deadline, codec,
+and business errors are not classified as transport retries. List resolves the
 requested UID once per retry attempt and reads the active view from that
 authority target; the active-view response is not satisfied by a local DB-only
 fallback when the UID authority is remote. Drain uses the caller-supplied exact
@@ -643,12 +654,14 @@ ConversationAuthorityClient
        -> local conversation authority for local groups
        -> access/node Conversation Authority Admit RPC for remote groups
   -> AdmitActiveBatch(ActiveBatch)
-       -> RouteKey(SenderUID) plus RouteKey(recipient.UID) once per unique UID
+       -> one RouteKeysPartial snapshot for all pending unique UIDs
        -> coalesce duplicate recipient entries with IsSender OR
        -> group by exact RouteTarget
        -> set SenderUID only on the sender target's batch
-       -> local conversation authority for local groups
-       -> access/node Conversation Authority ActiveBatch RPC for remote groups
+       -> pack exact groups by LeaderNodeID without weakening target fences
+       -> bounded local bulk authority calls of at most 4,096 active rows
+       -> bounded access/node WKVC2 bulk RPC envelopes per remote leader
+       -> preserve group-aligned statuses and re-route only failed groups
   -> ListConversationActiveView(kind, uid)
        -> RouteKey(uid)
        -> local conversation authority active view for kind when local
@@ -668,7 +681,9 @@ List route-not-ready, stale-route, and not-leader results are retried with a
 short bounded backoff so authority movement can settle without changing
 conversation list semantics. Legacy patch admission returns those errors
 directly, while active-batch admission makes a small bounded fresh-route retry
-window. Raw
+window. A route snapshot outer failure retries the pending set, while an
+aligned UID failure retries only that UID subset after already-routed siblings
+have completed. Raw
 cluster route errors returned by remote RPC calls are mapped to the same
 conversation route sentinels before retry decisions.
 
@@ -685,7 +700,11 @@ same cache, so hot channels avoid a foreground Slot metadata lookup on every
 SEND while still seeing low-churn fanout metadata changes. The adapter maps
 `channel.Meta` and recipient fanout metadata to `channelappend.AuthorityTarget`
 with the canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`,
-`LeaderEpoch`, `Large`, and `SubscriberMutationVersion`.
+`LeaderEpoch`, `RouteGeneration`, `Large`, and `SubscriberMutationVersion`.
+It also exposes conditional authority invalidation to the router. Invalidation
+delegates the generation through `cluster.Node` and removes only the exact
+failed authority version; zero generation retains static/legacy tuple
+compatibility. Subscriber/fanout metadata caching remains independent.
 
 ```text
 channelappend.Router

@@ -126,6 +126,10 @@ View purity classification take precedence over product-limit inference.
 The bounded final summary also records the successful send acknowledgement
 count from the measured `run` phase so storage calibration can use the exact
 workload denominator even when a run terminates early.
+It derives actual ingress QPS from that count and the configured measured-run
+duration. A reviewed objective with `ingress_qps` is a hard lower-bound gate at
+`target * (1 - tolerance_ratio)`, so a stable but under-delivering run cannot be
+reported as passed.
 It also records connection attempt, success, and error counts so a failed
 connect phase can be diagnosed without reconstructing integers from a rounded
 error rate.
@@ -151,8 +155,17 @@ exact assignment generation.
 When it is omitted, the coordinator default is used. The coordinator then adds
 the expected phase schedule duration for connect, warmup, run, and cooldown;
 for example, connect waits for `phase_poll_timeout + total_users/connect_rate`.
-Warmup and run also add the largest declared SENDACK/RECV operation timeout so
-the last scheduled operation can settle without consuming the control-plane grace.
+Warmup adds the shared warmup-operation deadline tail so its last scheduled
+operation can settle without consuming the control-plane grace. A measured
+group-operation tail includes SENDACK followed by every full or sampled RECV
+wait performed serially for that message. Split groups use the largest actual
+worker-local online member shard rather than the global member count. A churned
+run adds that tail for every sequential measured window, because each window
+joins its active operations before reconnect maintenance and the next window
+begins. Measured traffic with zero or one configured concurrency checks
+the window after every settled operation and never starts another operation
+after it closes, so only one operation tail can remain instead of an entire
+overloaded schedule.
 If a status request itself reaches that child deadline, the coordinator reports
 `phase_timeout` instead of the ambiguous `phase_wait_failed` fallback. A worker
 whose status endpoint never produced a valid response is attributed to the
@@ -531,7 +544,7 @@ and briefly yields to foreground sendack/recv matchers when they are queued.
 
 ### Warmup, Run, Cooldown
 
-Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup raises per-message sendack/recv waits to at least the warmup duration so early cold bootstrap work is not cut off by the shorter measured-run timeout, but every wait shares a final deadline at `warmup end + the traffic's original operation timeout`; late messages therefore cannot extend the phase by another full warmup duration. Every send, sendack, recv, and recvack failure is bound to its session and low-cardinality operation, including explicit SENDACK rejection and receive payload mismatch; a typed per-session warmup operation failure is recorded and does not terminate the hook, so the report's declared error-rate limits own the final verdict. Non-session warmup failures remain fail-fast. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed run windows stop scheduling new messages when the window expires and then wait only for already-started send operations to finish; overloaded attempts therefore report lower actual QPS instead of extending the measured window to drain the full original schedule. Cooldown waits for the configured drain period without new sends.
+Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup raises per-message sendack/recv waits to at least the warmup duration so early cold bootstrap work is not cut off by the shorter measured-run timeout, but every wait shares a final deadline at `warmup end + the traffic's original operation timeout`; late messages therefore cannot extend the phase by another full warmup duration. Every send, sendack, recv, and recvack failure is bound to its session and low-cardinality operation, including explicit SENDACK rejection and receive payload mismatch; a typed per-session warmup operation failure is recorded and does not terminate the hook, so the report's declared error-rate limits own the final verdict. Non-session warmup failures remain fail-fast. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed run windows stop scheduling new messages when the window expires and then wait only for already-started send operations to finish; overloaded attempts therefore report lower actual QPS instead of extending the measured window to drain the full original schedule. The zero/one-concurrency path enforces the same hard window between sequential operations and cannot accumulate every planned SENDACK/RECV timeout after the deadline. Cooldown waits for the configured drain period without new sends.
 
 Timed measured run windows record individual send, SENDACK, receive-verification,
 and RECVACK failures in workload metrics and continue scheduling. Warmup does
