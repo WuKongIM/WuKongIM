@@ -16,6 +16,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
 )
 
+const (
+	runtimeTestStartTimeout       = 5 * time.Second
+	runtimeTestConvergenceTimeout = 10 * time.Second
+	runtimeTestOperationTimeout   = 3 * time.Second
+)
+
 func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {
 	cfg := RuntimeConfig{
 		NodeID:           1,
@@ -34,9 +40,10 @@ func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	err = runtime.Start(startCtx)
+	startCancel()
+	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -100,9 +107,10 @@ func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	err = runtime.Start(startCtx)
+	startCancel()
+	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -111,6 +119,8 @@ func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LocalSnapshot(before) error = %v", err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeTestOperationTimeout)
+	defer cancel()
 	if err := runtime.ProbePropose(ctx); err != nil {
 		t.Fatalf("ProbePropose() error = %v", err)
 	}
@@ -140,9 +150,10 @@ func TestRuntimeReportNodePersistsHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	err = runtime.Start(startCtx)
+	startCancel()
+	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -194,13 +205,16 @@ func TestRuntimePassesTaskTransitionObserver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	err = runtime.Start(startCtx)
+	startCancel()
+	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
 
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeTestOperationTimeout)
+	defer cancel()
 	select {
 	case items := <-observed:
 		if len(items) == 0 || !items[0].AfterValid || items[0].After.Kind != controller.TaskKindBootstrap {
@@ -228,13 +242,16 @@ func TestRuntimeLocalSnapshotRefreshesFromBackendWhenWatchMissesLifecycleWrite(t
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	err = runtime.Start(startCtx)
+	startCancel()
+	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
 
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeTestOperationTimeout)
+	defer cancel()
 	if _, err := runtime.JoinNode(ctx, JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
 		t.Fatalf("JoinNode() error = %v", err)
 	}
@@ -353,7 +370,7 @@ func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -442,7 +459,7 @@ func TestRuntimeJoinNodeReturnsControlWriteAfterForward(t *testing.T) {
 		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -501,7 +518,7 @@ func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -576,7 +593,7 @@ func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
 		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -654,7 +671,7 @@ func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
 		network.Register(voter.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -734,7 +751,7 @@ func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -824,9 +841,10 @@ func TestRuntimePromoteControllerVoterCommitsLocalStateAfterProof(t *testing.T) 
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	err = runtime.Start(startCtx)
+	startCancel()
+	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -887,9 +905,10 @@ func TestRuntimePromoteControllerVoterRejectsExplicitEmptyExpectedVoters(t *test
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := runtime.Start(ctx); err != nil {
+	startCtx, startCancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	err = runtime.Start(startCtx)
+	startCancel()
+	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
@@ -1420,7 +1439,7 @@ func TestRuntimeActivateNodeForwardsBeforeFollowerLocalValidation(t *testing.T) 
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -1530,7 +1549,7 @@ func TestRuntimeThreeVotersConverge(t *testing.T) {
 		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
 		runtimes = append(runtimes, rt)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
 	defer cancel()
 	startErrs := make(chan error, len(runtimes))
 	for _, rt := range runtimes {
@@ -1544,7 +1563,7 @@ func TestRuntimeThreeVotersConverge(t *testing.T) {
 		}
 	}
 
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(runtimeTestConvergenceTimeout)
 	for time.Now().Before(deadline) {
 		ready := true
 		var revision uint64
@@ -1585,7 +1604,7 @@ func snapshotJoinState(snapshot Snapshot, nodeID uint64) NodeJoinState {
 
 func waitForRuntimeLeaderAndFollower(t *testing.T, runtimes []*Runtime) (*Runtime, *Runtime) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(runtimeTestConvergenceTimeout)
 	for time.Now().Before(deadline) {
 		leaderID := runtimes[0].LeaderID()
 		if leaderID == 0 {

@@ -665,6 +665,21 @@ func (n *Node) ResolveChannelAppendAuthority(ctx context.Context, id channelrunt
 	return n.channels.ResolveAppendAuthority(ctx, id)
 }
 
+// InvalidateChannelAppendAuthority conditionally removes one failed cached
+// authority version so the next bounded router attempt resolves fresh metadata.
+func (n *Node) InvalidateChannelAppendAuthority(id channelruntime.ChannelID, leader uint64, epoch uint64, leaderEpoch uint64, routeGeneration uint64) {
+	if n == nil || n.channels == nil {
+		return
+	}
+	invalidator, ok := n.channels.(interface {
+		InvalidateAppendAuthority(channelruntime.ChannelID, channelruntime.NodeID, uint64, uint64, uint64)
+	})
+	if !ok {
+		return
+	}
+	invalidator.InvalidateAppendAuthority(id, channelruntime.NodeID(leader), epoch, leaderEpoch, routeGeneration)
+}
+
 // ReadChannelCommitted reads locally committed channel messages from the Node-created Channel store.
 func (n *Node) ReadChannelCommitted(ctx context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	if err := ctxErr(ctx); err != nil {

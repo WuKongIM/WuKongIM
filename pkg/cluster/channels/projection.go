@@ -37,6 +37,7 @@ func ProjectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
 		ID:                  id,
 		Epoch:               meta.ChannelEpoch,
 		LeaderEpoch:         meta.LeaderEpoch,
+		RouteGeneration:     meta.RouteGeneration,
 		Leader:              ch.NodeID(meta.Leader),
 		Replicas:            projectNodeIDs(meta.Replicas),
 		ISR:                 projectNodeIDs(meta.ISR),

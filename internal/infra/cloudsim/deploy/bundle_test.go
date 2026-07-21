@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,7 @@ func TestRenderSealVerifyAndTamperDetection(t *testing.T) {
 		}
 	}
 	scenario := filepath.Join(t.TempDir(), "scenario.yaml")
-	if err := os.WriteFile(scenario, []byte("version: wkbench/v1\nrun:\n  id: cloud-small\n  duration: 2h\n  report_dir: /tmp/reports\n"), 0o600); err != nil {
+	if err := os.WriteFile(scenario, []byte("version: wkbench/v1\nrun:\n  id: cloud-small\n  duration: 2h\n  report_dir: /tmp/reports\nobjectives:\n  scale: small\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	spec := testBundleSpec(scenario)
@@ -68,7 +69,7 @@ func TestRenderOmitsCloudViewWhenPublicObservationDisabled(t *testing.T) {
 		}
 	}
 	scenario := filepath.Join(t.TempDir(), "scenario.yaml")
-	if err := os.WriteFile(scenario, []byte("version: wkbench/v1\nrun:\n  id: test\n  duration: 2h\n  report_dir: /tmp/reports\n"), 0o600); err != nil {
+	if err := os.WriteFile(scenario, []byte("version: wkbench/v1\nrun:\n  id: test\n  duration: 2h\n  report_dir: /tmp/reports\nobjectives:\n  scale: small\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	spec := testBundleSpec(scenario)
@@ -127,9 +128,12 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 			t.Fatalf("Cloud View config lacks %s:\n%s", required, cloudView)
 		}
 	}
-	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4)
+	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, cloudMediumAuthorityCacheMaxRows)
 	if !strings.Contains(config, "hash_slot_count = 256") || !strings.Contains(config, "initial_slot_count = 10") || !strings.Contains(config, "channel_replica_n = 3") || strings.Count(config, "[[cluster.nodes]]") != 3 {
 		t.Fatalf("node config does not preserve the three-node 256 hash-slot and 10 Slot Group contract:\n%s", config)
+	}
+	if !strings.Contains(config, "[conversation]") || !strings.Contains(config, "authority_cache_max_rows = 750000") {
+		t.Fatalf("cloud node config does not retain the bounded Medium conversation working set:\n%s", config)
 	}
 	prometheus := prometheusConfig(testBundleSpec("unused").PrivateIPv4)
 	if !strings.Contains(prometheus, "scrape_interval: 15s") ||
@@ -149,6 +153,37 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	if client == nil || client.SendQueueCapacity != 16 || client.MaxInflight != 1 ||
 		client.ReadBufferSize != 1024 || client.FrameBufferSize != 4 {
 		t.Fatalf("cloud worker must use the bounded stability client profile: client=%#v", client)
+	}
+}
+
+func TestAuthorityCacheMaxRowsUsesReviewedCloudScale(t *testing.T) {
+	tests := []struct {
+		scale string
+		want  int
+	}{
+		{scale: "small", want: cloudSmallAuthorityCacheMaxRows},
+		{scale: "medium", want: cloudMediumAuthorityCacheMaxRows},
+		{scale: "large", want: cloudLargeAuthorityCacheMaxRows},
+	}
+	for _, test := range tests {
+		t.Run(test.scale, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "scenario.yaml")
+			content := "version: wkbench/v1\nobjectives:\n  scale: " + test.scale + "\n"
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := authorityCacheMaxRowsForScenario(path)
+			if err != nil {
+				t.Fatalf("authorityCacheMaxRowsForScenario() error = %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("authority cache max rows = %d, want %d", got, test.want)
+			}
+			config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, got)
+			if !strings.Contains(config, fmt.Sprintf("authority_cache_max_rows = %d", test.want)) {
+				t.Fatalf("node config does not use %s ceiling %d:\n%s", test.scale, test.want, config)
+			}
+		})
 	}
 }
 

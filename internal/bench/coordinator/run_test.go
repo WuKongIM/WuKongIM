@@ -1137,6 +1137,97 @@ func TestCoordinatorRunPollTimeoutIncludesOperationTail(t *testing.T) {
 	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown))
 }
 
+func TestMaximumTrafficOperationTimeoutSumsSequentialSendackAndRecvWaits(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Messages.Traffic[0].AckTimeout = 7 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 11 * time.Second
+	scenario.Messages.Traffic[0].Verify.Recv.Mode = "full"
+
+	// The five-member group has one sender and four recipients. Group receive
+	// verification waits for those recipients serially after the SENDACK.
+	require.Equal(t, 51*time.Second, maximumTrafficOperationTimeout(scenario, model.Plan{}))
+}
+
+func TestMaximumTrafficOperationTimeoutBoundsSampledGroupRecipientWaits(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Messages.Traffic[0].AckTimeout = 7 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 11 * time.Second
+	scenario.Messages.Traffic[0].Verify.Recv.Mode = "sampled"
+	scenario.Messages.Traffic[0].Verify.Recv.SampleSizePerMessage = 2
+
+	require.Equal(t, 29*time.Second, maximumTrafficOperationTimeout(scenario, model.Plan{}))
+}
+
+func TestMaximumTrafficOperationTimeoutUsesLargestSplitWorkerLocalRecipientSet(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Channels.Profiles[0].Members.Count = 100_000
+	scenario.Channels.Profiles[0].Shard.Mode = model.ShardModeSplitMembersAndTraffic
+	scenario.Messages.Traffic[0].AckTimeout = 2 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 3 * time.Second
+	scenario.Messages.Traffic[0].Verify.Recv.Mode = "full"
+	plan := model.Plan{Workers: map[string]model.WorkerPlan{
+		"worker-1": {Profiles: map[string]model.ProfileShard{
+			"group-hot": {
+				Name:         "group-hot",
+				ChannelType:  model.ChannelTypeGroup,
+				ChannelRange: model.Range{Start: 0, End: 1},
+				MemberRange:  model.Range{Start: 0, End: 3},
+			},
+		}},
+		"worker-2": {Profiles: map[string]model.ProfileShard{
+			"group-hot": {
+				Name:         "group-hot",
+				ChannelType:  model.ChannelTypeGroup,
+				ChannelRange: model.Range{Start: 0, End: 1},
+				MemberRange:  model.Range{Start: 3, End: 5},
+			},
+		}},
+	}}
+
+	// The busiest worker verifies two recipients after its local sender. The
+	// global 100k-member shape must not inflate the exact worker phase tail.
+	require.Equal(t, 8*time.Second, maximumTrafficOperationTimeout(scenario, plan))
+}
+
+func TestMaximumTrafficOperationTimeoutIgnoresRecvWhenVerificationDisabled(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Messages.Traffic[0].AckTimeout = 7 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 11 * time.Second
+	scenario.Messages.Traffic[0].Verify.Recv.Mode = "none"
+
+	require.Equal(t, 7*time.Second, maximumTrafficOperationTimeout(scenario, model.Plan{}))
+}
+
+func TestMaximumWarmupOperationTimeoutUsesSharedDeadlineTail(t *testing.T) {
+	scenario := fakeScenario()
+	scenario.Messages.Traffic[0].AckTimeout = 7 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 11 * time.Second
+	scenario.Messages.Traffic[0].Verify.Recv.Mode = "full"
+
+	require.Equal(t, 11*time.Second, maximumWarmupOperationTimeout(scenario))
+}
+
+func TestCoordinatorRunPollTimeoutIncludesEveryChurnWindowOperationTail(t *testing.T) {
+	coord := New(CoordinatorConfig{PollTimeout: 10 * time.Second})
+	scenario := fakeScenario()
+	scenario.Run.Duration = 30 * time.Minute
+	scenario.Online.ConnectRate = model.Rate{PerSecond: 10}
+	scenario.Online.Churn = model.ChurnConfig{
+		Enabled:  true,
+		Interval: 5 * time.Minute,
+		Ratio:    0.1,
+	}
+	scenario.Messages.Traffic[0].AckTimeout = 15 * time.Second
+	scenario.Messages.Traffic[0].RecvTimeout = 15 * time.Second
+	scenario.Messages.Traffic[0].Verify.Recv.Mode = "full"
+	plan := model.Plan{Workers: map[string]model.WorkerPlan{
+		"worker-1": {IdentityRange: model.Range{Start: 0, End: 100}},
+	}}
+
+	require.Equal(t, 6, measuredTrafficWindowCount(scenario))
+	require.Equal(t, 30*time.Minute+5*time.Second+6*75*time.Second+10*time.Second, coord.phasePollTimeout(scenario, PhaseRun, plan))
+}
+
 func TestCoordinatorPollTimeoutIncludesChurnReconnectSchedule(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].CompletePhaseAfter(PhaseRun, 70*time.Millisecond)

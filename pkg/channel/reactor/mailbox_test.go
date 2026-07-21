@@ -45,6 +45,35 @@ func TestMailboxDrainIntoReusesProvidedBuffer(t *testing.T) {
 	require.Equal(t, ch.ChannelKey("normal"), events[1].Key)
 }
 
+func TestMailboxBoundsConsecutiveHighBeforeNormal(t *testing.T) {
+	mailbox := NewMailbox(MailboxConfig{HighSize: maxConsecutiveHigh + 1, NormalSize: 1, LowSize: 1})
+	for index := 0; index < maxConsecutiveHigh+1; index++ {
+		require.NoError(t, mailbox.Submit(PriorityHigh, Event{Kind: EventWorkerResult, Key: ch.ChannelKey("high-" + strconv.Itoa(index))}))
+	}
+	require.NoError(t, mailbox.Submit(PriorityNormal, Event{Kind: EventAppend, Key: ch.ChannelKey("normal")}))
+
+	events := mailbox.Drain(maxConsecutiveHigh + 1)
+	require.Len(t, events, maxConsecutiveHigh+1)
+	require.Equal(t, ch.ChannelKey("normal"), events[maxConsecutiveHigh].Key)
+}
+
+func TestMailboxFairnessCarriesAcrossSingleItemDrains(t *testing.T) {
+	mailbox := NewMailbox(MailboxConfig{HighSize: maxConsecutiveHigh + 1, NormalSize: 1, LowSize: 1})
+	for index := 0; index < maxConsecutiveHigh+1; index++ {
+		require.NoError(t, mailbox.Submit(PriorityHigh, Event{Kind: EventWorkerResult, Key: ch.ChannelKey("high-" + strconv.Itoa(index))}))
+	}
+	require.NoError(t, mailbox.Submit(PriorityNormal, Event{Kind: EventAppend, Key: ch.ChannelKey("normal")}))
+
+	for index := 0; index < maxConsecutiveHigh; index++ {
+		events := mailbox.Drain(1)
+		require.Len(t, events, 1)
+		require.NotEqual(t, ch.ChannelKey("normal"), events[0].Key)
+	}
+	events := mailbox.Drain(1)
+	require.Len(t, events, 1)
+	require.Equal(t, ch.ChannelKey("normal"), events[0].Key)
+}
+
 func TestMailboxWaitOneWakesOnSubmit(t *testing.T) {
 	mailbox := NewMailbox(MailboxConfig{HighSize: 1, NormalSize: 1, LowSize: 1})
 	stop := make(chan struct{})

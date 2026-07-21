@@ -3,12 +3,14 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestConversationAuthorityRPCDispatchesList(t *testing.T) {
@@ -124,6 +126,78 @@ func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityRPCDispatchesBulkActiveBatchesWithAlignedResults(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	secondTarget := target
+	secondTarget.HashSlot = 2
+	groups := []ConversationActiveBatchGroup{
+		{Target: target, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender", ChannelID: "g1"}},
+		{Target: secondTarget, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, ChannelID: "g1", Recipients: []conversationactive.ActiveEntry{{UID: "u1"}}}},
+	}
+	local := &fakeConversationBatchAuthority{results: []ConversationActiveBatchResult{
+		{},
+		{Err: conversationusecase.ErrStaleRoute},
+	}}
+	adapter := New(Options{ConversationAuthority: local})
+	body, err := encodeConversationActiveBatchGroups(groups)
+	if err != nil {
+		t.Fatalf("encode bulk request: %v", err)
+	}
+	responseBody, err := adapter.HandleConversationAuthorityRPC(context.Background(), body)
+	if err != nil {
+		t.Fatalf("HandleConversationAuthorityRPC(bulk) error = %v", err)
+	}
+	wireResults, err := decodeConversationActiveBatchResults(responseBody)
+	if err != nil {
+		t.Fatalf("decode bulk response: %v", err)
+	}
+	if local.calls != 1 || !reflect.DeepEqual(local.groups, groups) {
+		t.Fatalf("bulk authority calls/groups = %d/%#v, want one/%#v", local.calls, local.groups, groups)
+	}
+	wantResults := []conversationActiveBatchWireResult{
+		{Status: conversationRPCStatusOK},
+		{Status: conversationRPCStatusStaleRoute},
+	}
+	if !reflect.DeepEqual(wireResults, wantResults) {
+		t.Fatalf("wire results = %#v, want %#v", wireResults, wantResults)
+	}
+}
+
+func TestConversationAuthorityRPCBulkFallsBackToLegacyAuthorityWithAlignedResults(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	secondTarget := target
+	secondTarget.HashSlot = 2
+	groups := []ConversationActiveBatchGroup{
+		{Target: target, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender", ChannelID: "g1"}},
+		{Target: secondTarget, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, ChannelID: "g1", Recipients: []conversationactive.ActiveEntry{{UID: "u1"}}}},
+	}
+	local := &fakeConversationAuthority{activeErrors: []error{nil, conversationusecase.ErrCachePressure}}
+	adapter := New(Options{ConversationAuthority: local})
+	body, err := encodeConversationActiveBatchGroups(groups)
+	if err != nil {
+		t.Fatalf("encode bulk request: %v", err)
+	}
+	responseBody, err := adapter.HandleConversationAuthorityRPC(context.Background(), body)
+	if err != nil {
+		t.Fatalf("HandleConversationAuthorityRPC(bulk legacy) error = %v", err)
+	}
+	wireResults, err := decodeConversationActiveBatchResults(responseBody)
+	if err != nil {
+		t.Fatalf("decode bulk response: %v", err)
+	}
+	if !reflect.DeepEqual(local.activeTargets, []conversationusecase.RouteTarget{target, secondTarget}) ||
+		!reflect.DeepEqual(local.activeBatches, []conversationactive.ActiveBatch{groups[0].Batch, groups[1].Batch}) {
+		t.Fatalf("legacy active calls = %#v/%#v", local.activeTargets, local.activeBatches)
+	}
+	wantResults := []conversationActiveBatchWireResult{
+		{Status: conversationRPCStatusOK},
+		{Status: conversationRPCStatusCachePressure},
+	}
+	if !reflect.DeepEqual(wireResults, wantResults) {
+		t.Fatalf("wire results = %#v, want %#v", wireResults, wantResults)
+	}
+}
+
 func TestConversationAuthorityRPCDispatchesHideConversations(t *testing.T) {
 	target := testConversationAuthorityTarget()
 	deletes := []metadb.ConversationDelete{
@@ -221,6 +295,198 @@ func TestConversationAuthorityClientAdmitActiveBatchMapsStatus(t *testing.T) {
 	}
 	if !reflect.DeepEqual(req.Target, target) {
 		t.Fatalf("target = %#v, want %#v", req.Target, target)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchesPreservesAlignedPartialFailures(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	target.LeaderNodeID = 13
+	secondTarget := target
+	secondTarget.HashSlot = 2
+	groups := []ConversationActiveBatchGroup{
+		{Target: target, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender", ChannelID: "g1"}},
+		{Target: secondTarget, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, ChannelID: "g1", Recipients: []conversationactive.ActiveEntry{{UID: "u1"}}}},
+	}
+	node := &fakeConversationBulkRPCNode{results: []conversationActiveBatchWireResult{
+		{Status: conversationRPCStatusOK},
+		{Status: conversationRPCStatusNotLeader},
+	}}
+	client := NewClient(node)
+
+	results, err := client.AdmitConversationActiveBatches(context.Background(), 13, groups)
+	if err != nil {
+		t.Fatalf("AdmitConversationActiveBatches() error = %v", err)
+	}
+	if len(results) != 2 || results[0].Err != nil || !errors.Is(results[1].Err, conversationusecase.ErrNotLeader) {
+		t.Fatalf("results = %#v", results)
+	}
+	if node.nodeID != 13 || node.serviceID != ConversationAuthorityRPCServiceID || node.calls != 1 {
+		t.Fatalf("rpc destination/calls = node %d service %d calls %d", node.nodeID, node.serviceID, node.calls)
+	}
+	gotGroups, err := decodeConversationActiveBatchGroups(node.payload)
+	if err != nil {
+		t.Fatalf("decode client bulk payload: %v", err)
+	}
+	if !reflect.DeepEqual(gotGroups, groups) {
+		t.Fatalf("client bulk groups = %#v, want %#v", gotGroups, groups)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchesRejectsDestinationMismatchAndMisalignedResponse(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	target.LeaderNodeID = 13
+	groups := []ConversationActiveBatchGroup{{
+		Target: target,
+		Batch:  conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender"},
+	}}
+	node := &fakeConversationBulkRPCNode{results: []conversationActiveBatchWireResult{{Status: conversationRPCStatusOK}}}
+	client := NewClient(node)
+	if _, err := client.AdmitConversationActiveBatches(context.Background(), 14, groups); err == nil {
+		t.Fatal("AdmitConversationActiveBatches(destination mismatch) error = nil, want error")
+	}
+	if node.calls != 0 {
+		t.Fatalf("transport calls after destination mismatch = %d, want zero", node.calls)
+	}
+
+	groups = append(groups, groups[0])
+	if _, err := client.AdmitConversationActiveBatches(context.Background(), 13, groups); err == nil {
+		t.Fatal("AdmitConversationActiveBatches(misaligned response) error = nil, want error")
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchesFallsBackOnceAndCachesUnsupportedPeer(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	target.LeaderNodeID = 13
+	secondTarget := target
+	secondTarget.HashSlot = 2
+	groups := []ConversationActiveBatchGroup{
+		{Target: target, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender"}},
+		{Target: secondTarget, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, Recipients: []conversationactive.ActiveEntry{{UID: "u1"}}}},
+	}
+	authority := &fakeConversationAuthority{}
+	node := &rollingUpgradeConversationRPCNode{adapter: New(Options{ConversationAuthority: authority})}
+	client := NewClient(node)
+	for attempt := 0; attempt < 2; attempt++ {
+		results, err := client.AdmitConversationActiveBatches(context.Background(), 13, groups)
+		if err != nil {
+			t.Fatalf("AdmitConversationActiveBatches(attempt %d) error = %v", attempt+1, err)
+		}
+		if len(results) != len(groups) || results[0].Err != nil || results[1].Err != nil {
+			t.Fatalf("attempt %d results = %#v", attempt+1, results)
+		}
+	}
+	if node.bulkCalls != 1 || node.legacyCalls != 4 {
+		t.Fatalf("bulk/legacy calls = %d/%d, want 1/4", node.bulkCalls, node.legacyCalls)
+	}
+	if len(authority.activeTargets) != 4 {
+		t.Fatalf("authority legacy calls = %d, want 4", len(authority.activeTargets))
+	}
+	overRows := []ConversationActiveBatchGroup{
+		{Target: target, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, Recipients: make([]conversationactive.ActiveEntry, maxConversationAuthorityCollectionLen/2)}},
+		{Target: secondTarget, Batch: conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, Recipients: make([]conversationactive.ActiveEntry, maxConversationAuthorityCollectionLen/2+1)}},
+	}
+	if _, err := client.AdmitConversationActiveBatches(context.Background(), 13, overRows); err == nil {
+		t.Fatal("AdmitConversationActiveBatches(cached unsupported oversized) error = nil, want error")
+	}
+	if node.bulkCalls != 1 || node.legacyCalls != 4 {
+		t.Fatalf("oversized cached call reached transport: bulk/legacy = %d/%d", node.bulkCalls, node.legacyCalls)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchesDoesNotFallbackForOtherErrors(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	target.LeaderNodeID = 13
+	groups := []ConversationActiveBatchGroup{{
+		Target: target,
+		Batch:  conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender"},
+	}}
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "timeout",
+			err:  context.DeadlineExceeded,
+		},
+		{
+			name: "ordinary transport error",
+			err:  errors.New("connection reset"),
+		},
+		{
+			name: "different remote code",
+			err: transport.RemoteError{
+				Code:    "permission_denied",
+				Message: conversationAuthorityV1InvalidRequestCodecMessage,
+			},
+		},
+		{
+			name: "similar remote message",
+			err: transport.RemoteError{
+				Code:    "remote_error",
+				Message: "proxy rejected: invalid conversation authority request codec",
+			},
+		},
+		{
+			name: "non remote error",
+			err:  errors.New(conversationAuthorityV1InvalidRequestCodecMessage),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := &fakeConversationBulkRPCNode{err: tt.err}
+			results, err := NewClient(node).AdmitConversationActiveBatches(context.Background(), 13, groups)
+			if err == nil || err.Error() != tt.err.Error() {
+				t.Fatalf("AdmitConversationActiveBatches() error = %v, want %v", err, tt.err)
+			}
+			if results != nil {
+				t.Fatalf("results = %#v, want nil", results)
+			}
+			if node.calls != 1 {
+				t.Fatalf("transport calls = %d, want one", node.calls)
+			}
+		})
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchesMapsTransportCancellation(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	target.LeaderNodeID = 13
+	groups := []ConversationActiveBatchGroup{{
+		Target: target,
+		Batch:  conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender"},
+	}}
+	node := &fakeConversationBulkRPCNode{err: transport.ErrCanceled}
+
+	results, err := NewClient(node).AdmitConversationActiveBatches(context.Background(), 13, groups)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("AdmitConversationActiveBatches() error = %v, want context.Canceled", err)
+	}
+	if results != nil {
+		t.Fatalf("results = %#v, want nil", results)
+	}
+	if node.calls != 1 {
+		t.Fatalf("transport calls = %d, want one without fallback", node.calls)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchesDoesNotFallbackForInvalidV2Response(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	target.LeaderNodeID = 13
+	groups := []ConversationActiveBatchGroup{{
+		Target: target,
+		Batch:  conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender"},
+	}}
+	node := &fakeConversationBulkRPCNode{rawResponse: []byte("invalid WKVc2")}
+	results, err := NewClient(node).AdmitConversationActiveBatches(context.Background(), 13, groups)
+	if err == nil {
+		t.Fatal("AdmitConversationActiveBatches() error = nil, want invalid response codec error")
+	}
+	if results != nil {
+		t.Fatalf("results = %#v, want nil", results)
+	}
+	if node.calls != 1 {
+		t.Fatalf("transport calls = %d, want one without fallback", node.calls)
 	}
 }
 
@@ -408,18 +674,21 @@ func TestConversationAuthorityRPCStatusMapping(t *testing.T) {
 }
 
 type fakeConversationAuthority struct {
-	target       conversationusecase.RouteTarget
-	admitTarget  conversationusecase.RouteTarget
-	activeTarget conversationusecase.RouteTarget
-	hideTarget   conversationusecase.RouteTarget
-	drainTarget  conversationusecase.RouteTarget
-	patches      []conversationusecase.ActivePatch
-	activeBatch  conversationactive.ActiveBatch
-	deletes      []metadb.ConversationDelete
-	page         conversationusecase.ActiveViewPage
-	drainResult  string
-	listKind     metadb.ConversationKind
-	hideErr      error
+	target        conversationusecase.RouteTarget
+	admitTarget   conversationusecase.RouteTarget
+	activeTarget  conversationusecase.RouteTarget
+	activeTargets []conversationusecase.RouteTarget
+	hideTarget    conversationusecase.RouteTarget
+	drainTarget   conversationusecase.RouteTarget
+	patches       []conversationusecase.ActivePatch
+	activeBatch   conversationactive.ActiveBatch
+	activeBatches []conversationactive.ActiveBatch
+	activeErrors  []error
+	deletes       []metadb.ConversationDelete
+	page          conversationusecase.ActiveViewPage
+	drainResult   string
+	listKind      metadb.ConversationKind
+	hideErr       error
 }
 
 func testConversationAuthorityTarget() conversationusecase.RouteTarget {
@@ -443,6 +712,12 @@ func (f *fakeConversationAuthority) AdmitPatches(_ context.Context, target conve
 func (f *fakeConversationAuthority) AdmitActiveBatch(_ context.Context, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) error {
 	f.activeTarget = target
 	f.activeBatch = batch
+	f.activeTargets = append(f.activeTargets, target)
+	f.activeBatches = append(f.activeBatches, batch)
+	call := len(f.activeTargets) - 1
+	if call < len(f.activeErrors) {
+		return f.activeErrors[call]
+	}
 	return nil
 }
 
@@ -473,6 +748,64 @@ type fakeConversationRPCNode struct {
 	serviceID uint8
 	payload   []byte
 	payloads  [][]byte
+}
+
+type fakeConversationBatchAuthority struct {
+	fakeConversationAuthority
+	groups  []ConversationActiveBatchGroup
+	results []ConversationActiveBatchResult
+	calls   int
+}
+
+func (f *fakeConversationBatchAuthority) AdmitActiveBatches(_ context.Context, groups []ConversationActiveBatchGroup) []ConversationActiveBatchResult {
+	f.calls++
+	f.groups = append([]ConversationActiveBatchGroup(nil), groups...)
+	return append([]ConversationActiveBatchResult(nil), f.results...)
+}
+
+type fakeConversationBulkRPCNode struct {
+	results     []conversationActiveBatchWireResult
+	rawResponse []byte
+	err         error
+	nodeID      uint64
+	serviceID   uint8
+	payload     []byte
+	calls       int
+}
+
+func (f *fakeConversationBulkRPCNode) CallRPC(_ context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	f.calls++
+	f.nodeID = nodeID
+	f.serviceID = serviceID
+	f.payload = append([]byte(nil), payload...)
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.rawResponse != nil {
+		return append([]byte(nil), f.rawResponse...), nil
+	}
+	return encodeConversationActiveBatchResults(f.results)
+}
+
+type rollingUpgradeConversationRPCNode struct {
+	adapter     *Adapter
+	bulkCalls   int
+	legacyCalls int
+}
+
+func (n *rollingUpgradeConversationRPCNode) CallRPC(ctx context.Context, _ uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	if serviceID != ConversationAuthorityRPCServiceID {
+		return nil, fmt.Errorf("unexpected service %d", serviceID)
+	}
+	if hasMagic(payload, conversationAuthorityBatchRequestMagic[:]) {
+		n.bulkCalls++
+		return nil, transport.RemoteError{
+			Code:    "remote_error",
+			Message: conversationAuthorityV1InvalidRequestCodecMessage,
+		}
+	}
+	n.legacyCalls++
+	return n.adapter.HandleConversationAuthorityRPC(ctx, payload)
 }
 
 func (f *fakeConversationRPCNode) CallRPC(_ context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {

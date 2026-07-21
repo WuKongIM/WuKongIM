@@ -713,32 +713,163 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase, pla
 		timeout += connectScheduleDuration(scenario)
 	case PhaseWarmup:
 		timeout += positiveDuration(scenario.Run.Warmup)
-		timeout += maximumTrafficOperationTimeout(scenario)
+		timeout += maximumWarmupOperationTimeout(scenario)
 	case PhaseRun:
 		timeout += positiveDuration(scenario.Run.Duration)
 		timeout += churnReconnectScheduleDuration(scenario, plan)
-		timeout += maximumTrafficOperationTimeout(scenario)
+		timeout = saturatingDurationAdd(timeout, saturatingDurationMultiply(maximumTrafficOperationTimeout(scenario, plan), measuredTrafficWindowCount(scenario)))
 	case PhaseCooldown:
 		timeout += positiveDuration(scenario.Run.Cooldown)
 	}
 	return timeout
 }
 
-// maximumTrafficOperationTimeout returns the largest declared SENDACK or RECV
-// wait that may remain in flight after a timed traffic phase stops scheduling work.
-func maximumTrafficOperationTimeout(scenario model.Scenario) time.Duration {
+// maximumWarmupOperationTimeout returns the conservative operation tail shared
+// by the warmup workload deadline. The workload caps all warmup operations at
+// warmup end plus this configured SENDACK/RECV tail.
+func maximumWarmupOperationTimeout(scenario model.Scenario) time.Duration {
 	maximum := defaultTrafficOperationTimeout
 	for _, traffic := range scenario.Messages.Traffic {
 		for _, timeout := range []time.Duration{traffic.AckTimeout, traffic.RecvTimeout} {
-			if timeout <= 0 {
-				timeout = defaultTrafficOperationTimeout
-			}
+			timeout = positiveTrafficOperationTimeout(timeout)
 			if timeout > maximum {
 				maximum = timeout
 			}
 		}
 	}
 	return maximum
+}
+
+// maximumTrafficOperationTimeout returns the largest SENDACK followed by all
+// sequential receive-verification waits that one in-flight measured operation
+// can retain after its traffic window stops scheduling work.
+func maximumTrafficOperationTimeout(scenario model.Scenario, plan model.Plan) time.Duration {
+	maximum := defaultTrafficOperationTimeout
+	profiles := make(map[string]model.ChannelProfile, len(scenario.Channels.Profiles))
+	for _, profile := range scenario.Channels.Profiles {
+		profiles[strings.TrimSpace(profile.Name)] = profile
+	}
+	for _, traffic := range scenario.Messages.Traffic {
+		ackTimeout := positiveTrafficOperationTimeout(traffic.AckTimeout)
+		recvWaits := trafficReceiveVerificationWaits(traffic, profiles[strings.TrimSpace(traffic.ChannelRef)], plan)
+		operationTimeout := saturatingDurationAdd(ackTimeout, saturatingDurationMultiply(positiveTrafficOperationTimeout(traffic.RecvTimeout), recvWaits))
+		if operationTimeout > maximum {
+			maximum = operationTimeout
+		}
+	}
+	return maximum
+}
+
+func positiveTrafficOperationTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return defaultTrafficOperationTimeout
+	}
+	return timeout
+}
+
+func trafficReceiveVerificationWaits(traffic model.TrafficConfig, profile model.ChannelProfile, plan model.Plan) int {
+	mode := strings.ToLower(strings.TrimSpace(traffic.Verify.Recv.Mode))
+	switch strings.ToLower(strings.TrimSpace(profile.ChannelType)) {
+	case model.ChannelTypePerson:
+		if mode == "full" {
+			return 1
+		}
+		return 0
+	case model.ChannelTypeGroup:
+		if mode != "full" && mode != "sampled" {
+			return 0
+		}
+		onlineMembers := maximumWorkerOnlineGroupMembers(profile, plan)
+		recipients := onlineMembers - 1
+		if recipients < 1 {
+			return 0
+		}
+		if mode == "sampled" {
+			sampleSize := traffic.Verify.Recv.SampleSizePerMessage
+			if sampleSize <= 0 {
+				return 0
+			}
+			if sampleSize < recipients {
+				return sampleSize
+			}
+		}
+		return recipients
+	default:
+		if mode == "full" || mode == "sampled" {
+			return 1
+		}
+		return 0
+	}
+}
+
+func maximumWorkerOnlineGroupMembers(profile model.ChannelProfile, plan model.Plan) int {
+	maximum := 0
+	foundShard := false
+	for _, workerPlan := range plan.Workers {
+		shard, ok := workerPlan.Profiles[strings.TrimSpace(profile.Name)]
+		if !ok || shard.ChannelRange.Len() <= 0 {
+			continue
+		}
+		foundShard = true
+		memberCount := profile.Members.Count
+		if profile.Shard.Mode == model.ShardModeSplitMembersAndTraffic {
+			memberCount = shard.MemberRange.Len()
+		}
+		if online := onlineGroupMemberCount(memberCount, profile.Online.MemberRatio); online > maximum {
+			maximum = online
+		}
+	}
+	if foundShard {
+		return maximum
+	}
+	return onlineGroupMemberCount(profile.Members.Count, profile.Online.MemberRatio)
+}
+
+func onlineGroupMemberCount(memberCount int, ratio float64) int {
+	if memberCount <= 0 {
+		return 0
+	}
+	if ratio <= 0 || ratio >= 1 {
+		return memberCount
+	}
+	count := int(math.Round(float64(memberCount) * ratio))
+	if count < 1 {
+		return 1
+	}
+	if count > memberCount {
+		return memberCount
+	}
+	return count
+}
+
+func saturatingDurationMultiply(duration time.Duration, count int) time.Duration {
+	if duration <= 0 || count <= 0 {
+		return 0
+	}
+	maximum := time.Duration(1<<63 - 1)
+	if duration > maximum/time.Duration(count) {
+		return maximum
+	}
+	return duration * time.Duration(count)
+}
+
+func saturatingDurationAdd(left, right time.Duration) time.Duration {
+	maximum := time.Duration(1<<63 - 1)
+	if left >= maximum-right {
+		return maximum
+	}
+	return left + right
+}
+
+// measuredTrafficWindowCount returns the number of sequential traffic windows
+// whose final in-flight operation must drain during a churned measured phase.
+func measuredTrafficWindowCount(scenario model.Scenario) int {
+	duration := positiveDuration(scenario.Run.Duration)
+	interval := scenario.Online.Churn.Interval
+	if !scenario.Online.Churn.Enabled || duration <= 0 || interval <= 0 {
+		return 1
+	}
+	return int((duration + interval - 1) / interval)
 }
 
 // churnReconnectScheduleDuration returns the deterministic reconnect pacing that

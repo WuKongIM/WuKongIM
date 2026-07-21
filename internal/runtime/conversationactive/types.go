@@ -14,6 +14,10 @@ var ErrStoreRequired = errors.New("conversationactive: store required")
 // ErrCachePressure reports that admitting new active rows would exceed the cache bound.
 var ErrCachePressure = errors.New("conversationactive: cache pressure")
 
+// ErrHashSlotConflict reports that one exact cache address was assigned to
+// different logical hash slots inside a routed admission transaction.
+var ErrHashSlotConflict = errors.New("conversationactive: hash slot conflict")
+
 // Options configures the conversation active admission manager.
 type Options struct {
 	// NowMS returns the current Unix millisecond when a batch does not carry ActiveAtMS.
@@ -202,6 +206,16 @@ type ActiveBatch struct {
 	ActiveAtMS int64
 	// Recipients contains the users whose active conversation cache should be touched.
 	Recipients []ActiveEntry
+}
+
+// RoutedActiveBatch binds one already-partitioned active batch to its exact
+// logical UID hash slot. Callers must preserve the authority fence separately;
+// the manager uses only HashSlot for cache ownership indexes.
+type RoutedActiveBatch struct {
+	// HashSlot is the logical UID hash slot that owns every non-empty UID in Batch.
+	HashSlot uint16
+	// Batch contains only sender and recipient rows already routed to HashSlot.
+	Batch ActiveBatch
 }
 
 // ActiveEntry identifies one user touched by an active batch.

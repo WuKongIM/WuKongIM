@@ -198,21 +198,32 @@ func (l *conversationAuthorityRouteLifecycle) startAuthorityDrain(ctx context.Co
 	if l == nil || l.localAuthority == nil {
 		return
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	drainCtx := ctx
+	cancel := func() {}
+	if l.handoffTimeout > 0 {
+		drainCtx, cancel = context.WithTimeout(ctx, l.handoffTimeout)
+	}
 	result, err := l.localAuthority.beginDrainAuthority(target)
 	if err != nil {
+		cancel()
 		l.localAuthority.observeHandoff(result, err)
 		return
 	}
 	l.mu.Lock()
 	if l.cancel == nil {
 		l.mu.Unlock()
+		cancel()
 		return
 	}
 	l.wg.Add(1)
 	l.mu.Unlock()
 	go func() {
 		defer l.wg.Done()
-		l.drainAuthorityTarget(ctx, target)
+		defer cancel()
+		l.drainAuthorityTarget(drainCtx, target)
 	}()
 }
 
@@ -223,13 +234,7 @@ func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.C
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	drainCtx := ctx
-	var cancel context.CancelFunc
-	if l.handoffTimeout > 0 {
-		drainCtx, cancel = context.WithTimeout(ctx, l.handoffTimeout)
-		defer cancel()
-	}
-	_, _ = l.localAuthority.finishDrainingAuthority(drainCtx, target)
+	_, _ = l.localAuthority.finishDrainingAuthority(ctx, target)
 }
 
 func conversationAuthorityRouteTargetNewer(next, current conversationusecase.RouteTarget) bool {

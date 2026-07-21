@@ -28,13 +28,20 @@ type cacheAddress struct {
 }
 
 type preparedActivePatch struct {
-	address cacheAddress
-	patch   ActivePatch
+	address     cacheAddress
+	patch       ActivePatch
+	hashSlot    uint16
+	hasHashSlot bool
 }
 
 type preparedActiveBatch struct {
 	rows      []preparedActivePatch
 	positions map[cacheAddress]int
+}
+
+type routedActivePatch struct {
+	hashSlot uint16
+	patch    ActivePatch
 }
 
 type cacheEntry struct {
@@ -185,6 +192,18 @@ func (m *Manager) AdmitActiveBatch(ctx context.Context, batch ActiveBatch) error
 // AdmitActiveBatchForHashSlot admits a channelappend recipient batch for one UID hash slot.
 func (m *Manager) AdmitActiveBatchForHashSlot(ctx context.Context, hashSlot uint16, batch ActiveBatch) error {
 	return m.admitActiveBatch(ctx, hashSlot, true, batch)
+}
+
+// AdmitRoutedActiveBatches atomically admits multiple already-partitioned
+// exact hash-slot groups under one cache lock. A cache-address hash-slot
+// conflict or cache-pressure rejection leaves every group unapplied.
+func (m *Manager) AdmitRoutedActiveBatches(ctx context.Context, batches []RoutedActiveBatch) error {
+	var inlineRows [inlineActivePatchRows]preparedActivePatch
+	prepared, err := m.prepareRoutedActiveBatches(batches, inlineRows[:0])
+	if err != nil {
+		return err
+	}
+	return m.markPreparedActive(ctx, prepared, true)
 }
 
 func (m *Manager) admitActiveBatch(ctx context.Context, hashSlot uint16, hasHashSlot bool, batch ActiveBatch) error {
@@ -426,11 +445,28 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 	if len(prepared.rows) == 0 {
 		return nil
 	}
+	for index := range prepared.rows {
+		prepared.rows[index].hashSlot = hashSlot
+		prepared.rows[index].hasHashSlot = hasHashSlot
+	}
+	return m.markPreparedActive(ctx, prepared, false)
+}
 
+func (m *Manager) markPreparedActive(_ context.Context, prepared preparedActiveBatch, rejectHashSlotConflict bool) error {
+	if len(prepared.rows) == 0 {
+		return nil
+	}
 	lockStartedAt := time.Now()
 	m.mu.Lock()
 	lockAcquiredAt := time.Now()
 	mutation := MutationObservation{Result: "ok", LockWaitDuration: nonNegativeDuration(lockAcquiredAt.Sub(lockStartedAt))}
+	if rejectHashSlotConflict && m.hashSlotConflictLocked(prepared.rows) {
+		mutation.Result = "error"
+		mutation.LockHoldDuration = nonNegativeDuration(time.Since(lockAcquiredAt))
+		m.mu.Unlock()
+		m.observeMutation(mutation)
+		return ErrHashSlotConflict
+	}
 	newRows := m.newRowsLocked(prepared.rows)
 	if m.cacheWouldExceedLocked(newRows) {
 		if newRows > m.maxCachedRows {
@@ -457,7 +493,7 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 	}
 	if !m.cacheWouldExceedLocked(newRows) {
 		for _, row := range prepared.rows {
-			switch m.markActiveLocked(row, hashSlot, hasHashSlot) {
+			switch m.markActiveLocked(row, row.hashSlot, row.hasHashSlot) {
 			case cacheMutationBecameDirty:
 				mutation.BecameDirty++
 			case cacheMutationDirtyUpdated:
@@ -501,6 +537,193 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 	m.observeMutation(mutation)
 	m.observeCacheSnapshot(cacheObservation, observeCache)
 	return ErrCachePressure
+}
+
+func (m *Manager) prepareRoutedActiveBatches(batches []RoutedActiveBatch, inline []preparedActivePatch) (preparedActiveBatch, error) {
+	if len(batches) == 0 {
+		return preparedActiveBatch{}, nil
+	}
+	capacity := 0
+	for _, routed := range batches {
+		capacity += len(routed.Batch.Recipients)
+		if routed.Batch.SenderUID != "" {
+			capacity++
+		}
+	}
+	if capacity <= cap(inline) {
+		return m.prepareSmallRoutedActiveBatches(batches, inline)
+	}
+	return m.prepareLargeRoutedActiveBatches(batches, capacity)
+}
+
+func (m *Manager) prepareSmallRoutedActiveBatches(batches []RoutedActiveBatch, inline []preparedActivePatch) (preparedActiveBatch, error) {
+	var inlinePatches [inlineActivePatchRows]routedActivePatch
+	patches := inlinePatches[:0]
+	for _, routed := range batches {
+		batch := routed.Batch
+		activeAtMS := batch.ActiveAtMS
+		if activeAtMS == 0 {
+			activeAtMS = m.nowMS()
+		}
+		if batch.SenderUID != "" {
+			patches = append(patches, routedActivePatch{hashSlot: routed.HashSlot, patch: ActivePatch{
+				UID:         batch.SenderUID,
+				Kind:        batch.Kind,
+				ChannelID:   batch.ChannelID,
+				ChannelType: batch.ChannelType,
+				ActiveAtMS:  activeAtMS,
+				ReadSeq:     batch.MessageSeq,
+				MessageSeq:  batch.MessageSeq,
+			}})
+		}
+		for _, recipient := range batch.Recipients {
+			if recipient.UID == "" || batch.SenderUID != "" && recipient.UID == batch.SenderUID {
+				continue
+			}
+			var readSeq uint64
+			if recipient.IsSender {
+				readSeq = batch.MessageSeq
+			}
+			patches = append(patches, routedActivePatch{hashSlot: routed.HashSlot, patch: ActivePatch{
+				UID:         recipient.UID,
+				Kind:        batch.Kind,
+				ChannelID:   batch.ChannelID,
+				ChannelType: batch.ChannelType,
+				ActiveAtMS:  activeAtMS,
+				ReadSeq:     readSeq,
+				MessageSeq:  batch.MessageSeq,
+			}})
+		}
+	}
+
+	rows := inline[:0]
+	for _, routed := range patches {
+		address := activePatchAddress(routed.patch)
+		merged := false
+		for index := range rows {
+			current := &rows[index]
+			if current.address != address {
+				continue
+			}
+			if current.hashSlot != routed.hashSlot {
+				return preparedActiveBatch{}, ErrHashSlotConflict
+			}
+			mergeActivePatch(&current.patch, routed.patch)
+			merged = true
+			break
+		}
+		if !merged {
+			rows = append(rows, preparedActivePatch{
+				address:     address,
+				patch:       routed.patch,
+				hashSlot:    routed.hashSlot,
+				hasHashSlot: true,
+			})
+		}
+	}
+	return preparedActiveBatch{rows: rows}, nil
+}
+
+func (m *Manager) prepareLargeRoutedActiveBatches(batches []RoutedActiveBatch, capacity int) (preparedActiveBatch, error) {
+	prepared := preparedActiveBatch{
+		rows:      make([]preparedActivePatch, 0, capacity),
+		positions: make(map[cacheAddress]int, capacity),
+	}
+	for _, routed := range batches {
+		batch := routed.Batch
+		activeAtMS := batch.ActiveAtMS
+		if activeAtMS == 0 {
+			activeAtMS = m.nowMS()
+		}
+		if batch.SenderUID != "" {
+			if err := appendPreparedRoutedPatch(&prepared, routed.HashSlot, ActivePatch{
+				UID:         batch.SenderUID,
+				Kind:        batch.Kind,
+				ChannelID:   batch.ChannelID,
+				ChannelType: batch.ChannelType,
+				ActiveAtMS:  activeAtMS,
+				ReadSeq:     batch.MessageSeq,
+				MessageSeq:  batch.MessageSeq,
+			}); err != nil {
+				return preparedActiveBatch{}, err
+			}
+		}
+		for _, recipient := range batch.Recipients {
+			if recipient.UID == "" || batch.SenderUID != "" && recipient.UID == batch.SenderUID {
+				continue
+			}
+			var readSeq uint64
+			if recipient.IsSender {
+				readSeq = batch.MessageSeq
+			}
+			if err := appendPreparedRoutedPatch(&prepared, routed.HashSlot, ActivePatch{
+				UID:         recipient.UID,
+				Kind:        batch.Kind,
+				ChannelID:   batch.ChannelID,
+				ChannelType: batch.ChannelType,
+				ActiveAtMS:  activeAtMS,
+				ReadSeq:     readSeq,
+				MessageSeq:  batch.MessageSeq,
+			}); err != nil {
+				return preparedActiveBatch{}, err
+			}
+		}
+	}
+	return prepared, nil
+}
+
+func appendPreparedRoutedPatch(prepared *preparedActiveBatch, hashSlot uint16, patch ActivePatch) error {
+	if prepared == nil || patch.UID == "" {
+		return nil
+	}
+	address := activePatchAddress(patch)
+	if prepared.positions != nil {
+		if index, ok := prepared.positions[address]; ok {
+			current := &prepared.rows[index]
+			if current.hasHashSlot && current.hashSlot != hashSlot {
+				return ErrHashSlotConflict
+			}
+			mergeActivePatch(&current.patch, patch)
+			return nil
+		}
+		prepared.positions[address] = len(prepared.rows)
+	} else {
+		for index := range prepared.rows {
+			current := &prepared.rows[index]
+			if current.address != address {
+				continue
+			}
+			if current.hasHashSlot && current.hashSlot != hashSlot {
+				return ErrHashSlotConflict
+			}
+			mergeActivePatch(&current.patch, patch)
+			return nil
+		}
+	}
+	prepared.rows = append(prepared.rows, preparedActivePatch{
+		address:     address,
+		patch:       patch,
+		hashSlot:    hashSlot,
+		hasHashSlot: true,
+	})
+	return nil
+}
+
+func (m *Manager) hashSlotConflictLocked(rows []preparedActivePatch) bool {
+	for _, row := range rows {
+		if !row.hasHashSlot {
+			continue
+		}
+		byChannel := m.cache[row.address.uid]
+		if byChannel == nil {
+			continue
+		}
+		current, ok := byChannel[row.address.key]
+		if ok && current.hasHashSlot && current.hashSlot != row.hashSlot {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Manager) signalPressure() {

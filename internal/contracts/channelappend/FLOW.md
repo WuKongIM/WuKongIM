@@ -34,7 +34,8 @@ resolve routes, append messages, dispatch recipients, or push gateway frames.
   pass that envelope by reference until a concrete push adapter serializes or
   copies it.
 - `AuthorityTarget` identifies the fenced channel authority route used for
-  write admission.
+  write admission. `RouteGeneration` versions the complete projected route for
+  cache invalidation; it is not a Channel machine or wire-protocol fence.
 - `AppendBatchRequest` carries the expected authority epoch and leader epoch so
   append adapters can reject stale writes without re-resolving caller intent.
 - Reason constants and append/routing error sentinels remain stable so entry

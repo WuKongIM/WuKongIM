@@ -18,11 +18,12 @@ func TestChannelAppendClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 	node := &channelAppendNodeForTest{
 		nodeID: 1,
 		meta: channelruntime.Meta{
-			ID:          channelruntime.ChannelID{ID: channelID.ID, Type: channelID.Type},
-			Key:         "2:room",
-			Leader:      3,
-			Epoch:       11,
-			LeaderEpoch: 7,
+			ID:              channelruntime.ChannelID{ID: channelID.ID, Type: channelID.Type},
+			Key:             "2:room",
+			Leader:          3,
+			Epoch:           11,
+			LeaderEpoch:     7,
+			RouteGeneration: 23,
 		},
 		channel: metadb.Channel{
 			ChannelID:                 channelID.ID,
@@ -40,7 +41,7 @@ func TestChannelAppendClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 	if node.calls != 1 || node.lastID.ID != "room" || node.lastID.Type != 2 {
 		t.Fatalf("node calls/id = %d/%#v, want one canonical resolve", node.calls, node.lastID)
 	}
-	if target.ChannelID != channelID || target.ChannelKey != "2:room" || target.LeaderNodeID != 3 || target.Epoch != 11 || target.LeaderEpoch != 7 ||
+	if target.ChannelID != channelID || target.ChannelKey != "2:room" || target.LeaderNodeID != 3 || target.Epoch != 11 || target.LeaderEpoch != 7 || target.RouteGeneration != 23 ||
 		!target.Large || target.SubscriberMutationVersion != 19 {
 		t.Fatalf("target = %#v, want mapped authority fields", target)
 	}
@@ -165,14 +166,42 @@ func TestChannelAppendClientForwardsRemoteResultsWithoutInterpretation(t *testin
 	}
 }
 
+func TestChannelAppendClientInvalidatesExactFailedAuthority(t *testing.T) {
+	id := channelappend.ChannelID{ID: "stale", Type: 2}
+	node := &channelAppendNodeForTest{}
+	client := NewChannelAppendClient(node, nil, nil)
+	target := channelappend.AuthorityTarget{ChannelID: id, ChannelKey: "2:stale", LeaderNodeID: 3, Epoch: 11, LeaderEpoch: 7, RouteGeneration: 19}
+
+	client.InvalidateAppendAuthority(id, target)
+
+	if node.invalidateCalls != 1 || node.invalidatedID != (channelruntime.ChannelID{ID: id.ID, Type: id.Type}) || node.invalidatedLeader != 3 || node.invalidatedEpoch != 11 || node.invalidatedLeaderEpoch != 7 || node.invalidatedRouteGeneration != 19 {
+		t.Fatalf("invalidation = calls:%d id:%#v leader:%d epoch:%d/%d generation:%d, want exact failed authority", node.invalidateCalls, node.invalidatedID, node.invalidatedLeader, node.invalidatedEpoch, node.invalidatedLeaderEpoch, node.invalidatedRouteGeneration)
+	}
+}
+
 type channelAppendNodeForTest struct {
-	nodeID        uint64
-	meta          channelruntime.Meta
-	channel       metadb.Channel
-	err           error
-	lastID        channelruntime.ChannelID
-	calls         int
-	metadataCalls int
+	nodeID                     uint64
+	meta                       channelruntime.Meta
+	channel                    metadb.Channel
+	err                        error
+	lastID                     channelruntime.ChannelID
+	calls                      int
+	metadataCalls              int
+	invalidateCalls            int
+	invalidatedID              channelruntime.ChannelID
+	invalidatedLeader          uint64
+	invalidatedEpoch           uint64
+	invalidatedLeaderEpoch     uint64
+	invalidatedRouteGeneration uint64
+}
+
+func (n *channelAppendNodeForTest) InvalidateChannelAppendAuthority(id channelruntime.ChannelID, leader uint64, epoch uint64, leaderEpoch uint64, routeGeneration uint64) {
+	n.invalidateCalls++
+	n.invalidatedID = id
+	n.invalidatedLeader = leader
+	n.invalidatedEpoch = epoch
+	n.invalidatedLeaderEpoch = leaderEpoch
+	n.invalidatedRouteGeneration = routeGeneration
 }
 
 func (n *channelAppendNodeForTest) NodeID() uint64 {

@@ -67,6 +67,29 @@ func BenchmarkAdmitActiveBatchOneRecipient(b *testing.B) {
 	}
 }
 
+func BenchmarkAdmitRoutedActiveBatchesOneRecipient(b *testing.B) {
+	ctx := context.Background()
+	m := NewManager(Options{MaxCachedRows: 100_000})
+	routed := []RoutedActiveBatch{{
+		HashSlot: 7,
+		Batch: ActiveBatch{
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   "room",
+			ChannelType: 2,
+			Recipients:  []ActiveEntry{{UID: "u1"}},
+		},
+	}}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		routed[0].Batch.ActiveAtMS = int64(i + 1)
+		if err := m.AdmitRoutedActiveBatches(ctx, routed); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkAdmitActiveBatch512Recipients(b *testing.B) {
 	ctx := context.Background()
 	recipients := make([]ActiveEntry, 0, 512)

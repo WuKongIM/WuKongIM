@@ -408,7 +408,31 @@ func TestRouterRetriesRouteErrorsWithinDeadline(t *testing.T) {
 			if resolver.calls != 2 || local.calls != 2 {
 				t.Fatalf("resolver/local calls = %d/%d, want retry through fresh resolve and submit", resolver.calls, local.calls)
 			}
+			if len(resolver.invalidated) != 1 || resolver.invalidated[0].ChannelID != target.ChannelID {
+				t.Fatalf("invalidated targets = %#v, want exact failed authority", resolver.invalidated)
+			}
 		})
+	}
+}
+
+func TestRouterInvalidatesFailedAuthorityAfterRetryBudgetIsExhausted(t *testing.T) {
+	target := routerTarget("terminal-stale", 2, 7)
+	resolver := &routerResolverForTest{targets: []AuthorityTarget{target}}
+	local := &routerLocalSubmitterForTest{errs: []error{ErrStaleRoute}}
+	router := NewRouter(RouterOptions{
+		LocalNodeID:      7,
+		Resolver:         resolver,
+		Local:            local,
+		MaxRouteAttempts: 1,
+	})
+
+	results := router.SendBatch([]SendBatchItem{routerItem("u1", "terminal-stale", 2)})
+
+	if len(results) != 1 || !errors.Is(results[0].Err, ErrStaleRoute) {
+		t.Fatalf("results = %#v, want terminal stale route", results)
+	}
+	if len(resolver.invalidated) != 1 || resolver.invalidated[0] != target {
+		t.Fatalf("invalidated targets = %#v, want exact terminal failed authority", resolver.invalidated)
 	}
 }
 
@@ -664,6 +688,7 @@ type routerResolverForTest struct {
 	errs             []error
 	lastID           ChannelID
 	calls            int
+	invalidated      []AuthorityTarget
 }
 
 func (r *routerResolverForTest) ResolveAppendAuthority(_ context.Context, id ChannelID) (AuthorityTarget, error) {
@@ -680,6 +705,12 @@ func (r *routerResolverForTest) ResolveAppendAuthority(_ context.Context, id Cha
 		return r.targetsByChannel[id], nil
 	}
 	return AuthorityTarget{}, ErrRouteNotReady
+}
+
+func (r *routerResolverForTest) InvalidateAppendAuthority(id ChannelID, target AuthorityTarget) {
+	if target.ChannelID == id {
+		r.invalidated = append(r.invalidated, target)
+	}
 }
 
 type routerLocalSubmitterForTest struct {

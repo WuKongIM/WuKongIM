@@ -79,6 +79,67 @@ func TestBuildExplicitZeroHardLimitFailsWhenActualIsPositive(t *testing.T) {
 	}
 }
 
+func TestBuildFailsWhenMeasuredIngressMissesObjectiveTolerance(t *testing.T) {
+	r := Build(Input{
+		RunID: "run-1",
+		Scenario: model.Scenario{
+			Run: model.RunConfig{Duration: 10 * time.Second},
+			Objectives: model.ObjectivesConfig{
+				IngressQPS:     model.Rate{PerSecond: 100},
+				ToleranceRatio: 0.1,
+			},
+		},
+		Limits:  model.LimitsConfig{Hard: model.HardLimitsConfig{MaxWorkerFailed: -1, MaxConnectErrorRate: -1, MaxSendackErrorRate: -1, MaxRecvVerifyErrorRate: -1}},
+		Summary: Summary{SendSuccess: 899},
+	})
+
+	if r.Status != StatusFailed || r.ExitCode != ExitHardLimitFailed {
+		t.Fatalf("status/exit = %s/%d, want failed/%d", r.Status, r.ExitCode, ExitHardLimitFailed)
+	}
+	if r.Summary.IngressQPS != 89.9 {
+		t.Fatalf("ingress_qps = %v, want 89.9", r.Summary.IngressQPS)
+	}
+	if len(r.Violations) != 1 || r.Violations[0].Name != "min_ingress_qps" || r.Violations[0].Limit != 90 {
+		t.Fatalf("unexpected violations: %+v", r.Violations)
+	}
+}
+
+func TestBuildPassesWhenMeasuredIngressMeetsObjectiveToleranceBoundary(t *testing.T) {
+	r := Build(Input{
+		RunID: "run-1",
+		Scenario: model.Scenario{
+			Run: model.RunConfig{Duration: 10 * time.Second},
+			Objectives: model.ObjectivesConfig{
+				IngressQPS:     model.Rate{PerSecond: 100},
+				ToleranceRatio: 0.1,
+			},
+		},
+		Limits:  model.LimitsConfig{Hard: model.HardLimitsConfig{MaxWorkerFailed: -1, MaxConnectErrorRate: -1, MaxSendackErrorRate: -1, MaxRecvVerifyErrorRate: -1}},
+		Summary: Summary{SendSuccess: 900},
+	})
+
+	if r.Status != StatusPassed || r.Summary.IngressQPS != 90 {
+		t.Fatalf("status/ingress = %s/%v, want passed/90", r.Status, r.Summary.IngressQPS)
+	}
+}
+
+func TestBuildDoesNotMaskHarnessFailureWithIncompleteIngressObjective(t *testing.T) {
+	r := Build(Input{
+		RunID: "run-1",
+		Scenario: model.Scenario{
+			Run:        model.RunConfig{Duration: 10 * time.Second},
+			Objectives: model.ObjectivesConfig{IngressQPS: model.Rate{PerSecond: 100}},
+		},
+		Limits:         model.LimitsConfig{Hard: model.HardLimitsConfig{MaxWorkerFailed: -1, MaxConnectErrorRate: -1, MaxSendackErrorRate: -1, MaxRecvVerifyErrorRate: -1}},
+		Summary:        Summary{SendSuccess: 1},
+		Classification: &StabilityClassification{EvidenceComplete: true, HarnessInvalid: true},
+	})
+
+	if len(r.Violations) != 0 || r.ExitCode != ExitSuccess || r.StabilityVerdict != VerdictHarnessInvalid {
+		t.Fatalf("harness-invalid report = %+v, want no derived throughput violation", r)
+	}
+}
+
 func TestSummaryFromMetricsComputesRatesAndMaxWorkerP99(t *testing.T) {
 	summary := SummaryFromMetrics(metrics.SnapshotData{
 		Counters: map[string]uint64{

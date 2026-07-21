@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
@@ -299,6 +300,59 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesOnlyFailedTargetGroup
 	if got := node.routeKeyCallsForUID("receiver"); got != 2 {
 		t.Fatalf("RouteKey(receiver) calls = %d, want retry only failed receiver group", got)
 	}
+	wantInputs := [][]string{{"sender", "receiver"}, {"receiver"}}
+	if !reflect.DeepEqual(node.routeKeysPartialInputs, wantInputs) {
+		t.Fatalf("RouteKeysPartial() inputs = %#v, want only the failed target regrouped on retry %#v", node.routeKeysPartialInputs, wantInputs)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchRetriesOnlyFailedRemoteEnvelopeGroup(t *testing.T) {
+	remote := &fakeConversationAuthorityLocal{
+		activeBatchErrsByHashSlot: map[uint16][]error{
+			2: {conversationusecase.ErrStaleRoute, nil},
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remote})
+	senderTarget := cluster.Route{HashSlot: 1, SlotID: 1, Leader: 2, LeaderTerm: 3, ConfigEpoch: 4, Revision: 10}
+	receiverTarget := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 2, LeaderTerm: 3, ConfigEpoch: 4, Revision: 11}
+	receiverFreshTarget := receiverTarget
+	receiverFreshTarget.LeaderTerm++
+	receiverFreshTarget.Revision++
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUIDSequence: map[string][]cluster.Route{
+			"sender":   {senderTarget},
+			"receiver": {receiverTarget, receiverFreshTarget},
+		},
+		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return adapter.HandleConversationAuthorityRPC(ctx, payload)
+		}),
+	}
+	client := NewConversationAuthorityClient(node, nil)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
+		SenderUID:   "sender",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if len(node.calls) != 2 {
+		t.Fatalf("remote envelope calls = %d, want initial envelope plus failed-group-only retry", len(node.calls))
+	}
+	if got := activeBatchAttemptCountsByHashSlot(remote.activeBatches); got[1] != 1 || got[2] != 2 {
+		t.Fatalf("remote active attempts by hash slot = %#v, want successful sender once and stale receiver twice", got)
+	}
+	wantInputs := [][]string{{"sender", "receiver"}, {"receiver"}}
+	if !reflect.DeepEqual(node.routeKeysPartialInputs, wantInputs) {
+		t.Fatalf("RouteKeysPartial() inputs = %#v, want %#v", node.routeKeysPartialInputs, wantInputs)
+	}
 }
 
 func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBoundedFreshRoutes(t *testing.T) {
@@ -347,6 +401,200 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBounded
 		if attempt.target.RouteRevision != wantRevision {
 			t.Fatalf("active batch attempt %d route revision = %d, want %d", i, attempt.target.RouteRevision, wantRevision)
 		}
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchUsesOneRouteSnapshotAndOneEnvelopePerLeader(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
+	remote := &fakeConversationAuthorityLocal{}
+	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remote})
+	node := &fakeConversationAuthorityNode{
+		nodeID:      1,
+		routesByUID: make(map[string]cluster.Route),
+		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return adapter.HandleConversationAuthorityRPC(ctx, payload)
+		}),
+	}
+	recipients := make([]conversationactive.ActiveEntry, 0, 90)
+	for index := 0; index < 90; index++ {
+		uid := fmt.Sprintf("receiver-%03d", index)
+		leader := uint64(index%3 + 1)
+		node.routesByUID[uid] = cluster.Route{
+			HashSlot:       uint16(index),
+			SlotID:         uint32(index % 10),
+			Leader:         leader,
+			LeaderTerm:     7,
+			ConfigEpoch:    9,
+			Revision:       11,
+			AuthorityEpoch: 13,
+		}
+		recipients = append(recipients, conversationactive.ActiveEntry{UID: uid})
+	}
+	client := NewConversationAuthorityClient(node, local)
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "g-bulk",
+		ChannelType: 2,
+		MessageSeq:  99,
+		ActiveAtMS:  1000,
+		Recipients:  recipients,
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if node.routeKeysPartialCalls != 1 || node.routeKeyCalls != 0 {
+		t.Fatalf("route calls partial/single = %d/%d, want 1/0", node.routeKeysPartialCalls, node.routeKeyCalls)
+	}
+	if len(node.calls) != 2 {
+		t.Fatalf("remote RPC calls = %d, want one envelope for each of two remote leaders", len(node.calls))
+	}
+	remoteCallsByNode := make(map[uint64]int)
+	for _, call := range node.calls {
+		remoteCallsByNode[call.nodeID]++
+	}
+	if remoteCallsByNode[2] != 1 || remoteCallsByNode[3] != 1 {
+		t.Fatalf("remote calls by node = %#v, want one each for nodes 2 and 3", remoteCallsByNode)
+	}
+	if local.activeBatchBulkCalls != 1 || remote.activeBatchBulkCalls != 2 {
+		t.Fatalf("bulk authority calls local/remote = %d/%d, want 1/2", local.activeBatchBulkCalls, remote.activeBatchBulkCalls)
+	}
+	uidCounts := deliveredConversationActiveUIDCounts(append(append([]activeBatchDelivery(nil), local.activeBatches...), remote.activeBatches...))
+	for _, recipient := range recipients {
+		if uidCounts[recipient.UID] != 1 {
+			t.Fatalf("delivery count for %q = %d, want exactly once", recipient.UID, uidCounts[recipient.UID])
+		}
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchSplitsRemoteEnvelopeAtRowLimit(t *testing.T) {
+	remote := &fakeConversationAuthorityLocal{}
+	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remote})
+	const recipientCount = 4096
+	target := cluster.Route{HashSlot: 1, SlotID: 1, Leader: 2, LeaderTerm: 3, ConfigEpoch: 4, Revision: 5}
+	node := &fakeConversationAuthorityNode{
+		nodeID:      1,
+		routesByUID: make(map[string]cluster.Route, recipientCount+1),
+		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return adapter.HandleConversationAuthorityRPC(ctx, payload)
+		}),
+	}
+	node.routesByUID["sender"] = target
+	recipients := make([]conversationactive.ActiveEntry, 0, recipientCount)
+	for index := 0; index < recipientCount; index++ {
+		uid := fmt.Sprintf("receiver-%04d", index)
+		node.routesByUID[uid] = target
+		recipients = append(recipients, conversationactive.ActiveEntry{UID: uid})
+	}
+	client := NewConversationAuthorityClient(node, nil)
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
+		SenderUID:   "sender",
+		ChannelID:   "g-limit",
+		ChannelType: 2,
+		MessageSeq:  99,
+		ActiveAtMS:  1000,
+		Recipients:  recipients,
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if len(node.calls) != 2 {
+		t.Fatalf("remote RPC calls = %d, want 2 bounded envelopes for 4097 rows", len(node.calls))
+	}
+	uidCounts := deliveredConversationActiveUIDCounts(remote.activeBatches)
+	if uidCounts["sender"] != 1 {
+		t.Fatalf("sender delivery count = %d, want 1", uidCounts["sender"])
+	}
+	for _, recipient := range recipients {
+		if uidCounts[recipient.UID] != 1 {
+			t.Fatalf("delivery count for %q = %d, want exactly once", recipient.UID, uidCounts[recipient.UID])
+		}
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchRetriesOnlyFailedTransportEnvelope(t *testing.T) {
+	remote := &fakeConversationAuthorityLocal{}
+	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remote})
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]cluster.Route{
+			"leader-2": {HashSlot: 2, SlotID: 2, Leader: 2, LeaderTerm: 3, ConfigEpoch: 4},
+			"leader-3": {HashSlot: 3, SlotID: 3, Leader: 3, LeaderTerm: 3, ConfigEpoch: 4},
+		},
+		rpcErrs: []error{transport.ErrBusy, nil, nil},
+		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return adapter.HandleConversationAuthorityRPC(ctx, payload)
+		}),
+	}
+	client := NewConversationAuthorityClient(node, nil)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "g-transport-retry",
+		ChannelType: 2,
+		MessageSeq:  7,
+		Recipients: []conversationactive.ActiveEntry{
+			{UID: "leader-2"},
+			{UID: "leader-3"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	callsByNode := make(map[uint64]int)
+	for _, call := range node.calls {
+		callsByNode[call.nodeID]++
+	}
+	if callsByNode[2] != 2 || callsByNode[3] != 1 {
+		t.Fatalf("remote calls by node = %#v, want failed leader retried and successful sibling untouched", callsByNode)
+	}
+	uidCounts := deliveredConversationActiveUIDCounts(remote.activeBatches)
+	if uidCounts["leader-2"] != 1 || uidCounts["leader-3"] != 1 {
+		t.Fatalf("delivered UID counts = %#v, want each sibling exactly once", uidCounts)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchRetriesOnlyAlignedRouteFailure(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
+	senderTarget := cluster.Route{HashSlot: 1, SlotID: 1, Leader: 1, LeaderTerm: 2, ConfigEpoch: 3, Revision: 4}
+	receiverTarget := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, LeaderTerm: 2, ConfigEpoch: 3, Revision: 5}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]cluster.Route{
+			"sender":   senderTarget,
+			"receiver": receiverTarget,
+		},
+		routeErrsByUIDSequence: map[string][]error{
+			"receiver": {cluster.ErrRouteNotReady, nil},
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
+		SenderUID:   "sender",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if node.routeKeysPartialCalls != 2 {
+		t.Fatalf("RouteKeysPartial() calls = %d, want initial plus one failed-UID retry", node.routeKeysPartialCalls)
+	}
+	wantInputs := [][]string{{"sender", "receiver"}, {"receiver"}}
+	if !reflect.DeepEqual(node.routeKeysPartialInputs, wantInputs) {
+		t.Fatalf("RouteKeysPartial() inputs = %#v, want %#v", node.routeKeysPartialInputs, wantInputs)
+	}
+	if got := activeBatchAttemptCountsByHashSlot(local.activeBatches); got[1] != 1 || got[2] != 1 {
+		t.Fatalf("active attempts by hash slot = %#v, want sender and receiver admitted exactly once", got)
 	}
 }
 
@@ -879,19 +1127,22 @@ func (f nodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]by
 }
 
 type fakeConversationAuthorityNode struct {
-	nodeID              uint64
-	route               cluster.Route
-	routesByUID         map[string]cluster.Route
-	routesByUIDSequence map[string][]cluster.Route
-	routes              []cluster.Route
-	routeErr            error
-	rpcErrs             []error
-	handler             cluster.NodeRPCHandler
-	calls               []rpcCall
-	routeKeyCalls       int
-	routeKeyCallsByUID  map[string]int
-	registered          map[uint8]cluster.NodeRPCHandler
-	watch               chan cluster.RouteAuthorityEvent
+	nodeID                 uint64
+	route                  cluster.Route
+	routesByUID            map[string]cluster.Route
+	routesByUIDSequence    map[string][]cluster.Route
+	routes                 []cluster.Route
+	routeErr               error
+	rpcErrs                []error
+	handler                cluster.NodeRPCHandler
+	calls                  []rpcCall
+	routeKeyCalls          int
+	routeKeyCallsByUID     map[string]int
+	routeKeysPartialCalls  int
+	routeKeysPartialInputs [][]string
+	routeErrsByUIDSequence map[string][]error
+	registered             map[uint8]cluster.NodeRPCHandler
+	watch                  chan cluster.RouteAuthorityEvent
 }
 
 func (f *fakeConversationAuthorityNode) NodeID() uint64 {
@@ -900,6 +1151,23 @@ func (f *fakeConversationAuthorityNode) NodeID() uint64 {
 
 func (f *fakeConversationAuthorityNode) RouteKey(uid string) (cluster.Route, error) {
 	f.routeKeyCalls++
+	return f.resolveRouteForUID(uid)
+}
+
+func (f *fakeConversationAuthorityNode) RouteKeysPartial(uids []string) ([]cluster.RouteKeyResult, error) {
+	f.routeKeysPartialCalls++
+	f.routeKeysPartialInputs = append(f.routeKeysPartialInputs, append([]string(nil), uids...))
+	if f.routeErr != nil {
+		return nil, f.routeErr
+	}
+	results := make([]cluster.RouteKeyResult, len(uids))
+	for index, uid := range uids {
+		results[index].Route, results[index].Err = f.resolveRouteForUID(uid)
+	}
+	return results, nil
+}
+
+func (f *fakeConversationAuthorityNode) resolveRouteForUID(uid string) (cluster.Route, error) {
 	if f.routeKeyCallsByUID == nil {
 		f.routeKeyCallsByUID = make(map[string]int)
 	}
@@ -907,6 +1175,15 @@ func (f *fakeConversationAuthorityNode) RouteKey(uid string) (cluster.Route, err
 	f.routeKeyCallsByUID[uid] = uidCallIndex + 1
 	if f.routeErr != nil {
 		return cluster.Route{}, f.routeErr
+	}
+	if errs := f.routeErrsByUIDSequence[uid]; len(errs) > 0 {
+		index := uidCallIndex
+		if index >= len(errs) {
+			index = len(errs) - 1
+		}
+		if errs[index] != nil {
+			return cluster.Route{}, errs[index]
+		}
 	}
 	if routes, ok := f.routesByUIDSequence[uid]; ok && len(routes) > 0 {
 		if uidCallIndex >= len(routes) {
@@ -918,7 +1195,7 @@ func (f *fakeConversationAuthorityNode) RouteKey(uid string) (cluster.Route, err
 		return route, nil
 	}
 	if len(f.routes) > 0 {
-		idx := f.routeKeyCalls - 1
+		idx := uidCallIndex
 		if idx >= len(f.routes) {
 			idx = len(f.routes) - 1
 		}
@@ -982,6 +1259,7 @@ type fakeConversationAuthorityLocal struct {
 	drainTargets              []conversationusecase.RouteTarget
 	hideAttempts              []conversationDeleteDelivery
 	hideErrs                  []error
+	activeBatchBulkCalls      int
 }
 
 func (f *fakeConversationAuthorityLocal) AdmitPatches(_ context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
@@ -1024,6 +1302,15 @@ func (f *fakeConversationAuthorityLocal) AdmitActiveBatch(_ context.Context, tar
 		}
 	}
 	return nil
+}
+
+func (f *fakeConversationAuthorityLocal) AdmitActiveBatches(ctx context.Context, groups []accessnode.ConversationActiveBatchGroup) []accessnode.ConversationActiveBatchResult {
+	f.activeBatchBulkCalls++
+	results := make([]accessnode.ConversationActiveBatchResult, len(groups))
+	for index, group := range groups {
+		results[index].Err = f.AdmitActiveBatch(ctx, group.Target, group.Batch)
+	}
+	return results
 }
 
 func (f *fakeConversationAuthorityLocal) ListConversationActiveViewForTarget(_ context.Context, target conversationusecase.RouteTarget, _ metadb.ConversationKind, _ string, _ metadb.ConversationActiveCursor, _ int) (conversationusecase.ActiveViewPage, error) {
@@ -1083,6 +1370,19 @@ func activeBatchAttemptCountsByHashSlot(deliveries []activeBatchDelivery) map[ui
 	out := make(map[uint16]int, len(deliveries))
 	for _, delivery := range deliveries {
 		out[delivery.target.HashSlot]++
+	}
+	return out
+}
+
+func deliveredConversationActiveUIDCounts(deliveries []activeBatchDelivery) map[string]int {
+	out := make(map[string]int)
+	for _, delivery := range deliveries {
+		if delivery.batch.SenderUID != "" {
+			out[delivery.batch.SenderUID]++
+		}
+		for _, recipient := range delivery.batch.Recipients {
+			out[recipient.UID]++
+		}
 	}
 	return out
 }

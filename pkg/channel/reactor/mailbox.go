@@ -13,6 +13,10 @@ const (
 	PriorityHigh Priority = iota + 1
 	PriorityNormal
 	PriorityLow
+
+	// maxConsecutiveHigh preserves completion/control priority while bounding
+	// foreground append starvation when high-priority replication stays hot.
+	maxConsecutiveHigh = 32
 )
 
 // MailboxConfig bounds each priority queue.
@@ -24,9 +28,10 @@ type MailboxConfig struct {
 
 // Mailbox is a bounded priority mailbox.
 type Mailbox struct {
-	high   chan Event
-	normal chan Event
-	low    chan Event
+	high            chan Event
+	normal          chan Event
+	low             chan Event
+	consecutiveHigh int
 }
 
 type mailboxSubmitResult string
@@ -91,7 +96,7 @@ func (m *Mailbox) submitBlockingWithResult(priority Priority, event Event, stop 
 	}
 }
 
-// Drain removes up to max events, honoring high before normal before low.
+// Drain removes up to max events with bounded high-priority preference.
 func (m *Mailbox) Drain(max int) []Event {
 	if max <= 0 {
 		return nil
@@ -99,18 +104,28 @@ func (m *Mailbox) Drain(max int) []Event {
 	return m.DrainInto(make([]Event, 0, max), max)
 }
 
-// DrainInto removes up to max events into dst, honoring high before normal before low.
+// DrainInto removes up to max events into dst. High priority is preferred, but
+// one waiting normal event is admitted after a bounded high-priority burst.
 func (m *Mailbox) DrainInto(dst []Event, max int) []Event {
 	if m == nil || max <= 0 {
 		return dst[:0]
 	}
 	events := dst[:0]
 	for len(events) < max {
+		if m.consecutiveHigh >= maxConsecutiveHigh {
+			if event, ok := tryRecv(m.normal); ok {
+				m.recordDequeue(PriorityNormal)
+				events = append(events, event)
+				continue
+			}
+		}
 		if event, ok := tryRecv(m.high); ok {
+			m.recordDequeue(PriorityHigh)
 			events = append(events, event)
 			continue
 		}
 		if event, ok := tryRecv(m.normal); ok {
+			m.recordDequeue(PriorityNormal)
 			events = append(events, event)
 			continue
 		}
@@ -128,10 +143,18 @@ func (m *Mailbox) WaitOne(stop <-chan struct{}, timer <-chan time.Time) (Event, 
 	if m == nil {
 		return Event{}, false
 	}
+	if m.consecutiveHigh >= maxConsecutiveHigh {
+		if event, ok := tryRecv(m.normal); ok {
+			m.recordDequeue(PriorityNormal)
+			return event, true
+		}
+	}
 	select {
 	case event := <-m.high:
+		m.recordDequeue(PriorityHigh)
 		return event, true
 	case event := <-m.normal:
+		m.recordDequeue(PriorityNormal)
 		return event, true
 	case event := <-m.low:
 		return event, true
@@ -139,6 +162,16 @@ func (m *Mailbox) WaitOne(stop <-chan struct{}, timer <-chan time.Time) (Event, 
 		return Event{}, false
 	case <-timer:
 		return Event{}, false
+	}
+}
+
+func (m *Mailbox) recordDequeue(priority Priority) {
+	if priority == PriorityNormal {
+		m.consecutiveHigh = 0
+		return
+	}
+	if priority == PriorityHigh && m.consecutiveHigh < maxConsecutiveHigh {
+		m.consecutiveHigh++
 	}
 }
 

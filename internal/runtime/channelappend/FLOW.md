@@ -42,7 +42,13 @@ The local path is the only path that may enter `SubmitLocal`; remote targets are
 forwarded and must not create local `channelWriter` state. Route movement errors
 (`ErrStaleRoute`, `ErrNotChannelAuthority`, `ErrNotLeader`,
 `ErrRouteNotReady`) are retried with bounded backoff while item deadlines allow
-it. A downstream `context.Canceled` is also retried when the item itself is
+it. Before that retry, an optional authority invalidator removes only the exact
+failed `(channel, leader, epoch, leader_epoch, route_generation)` cache version, forcing the next
+resolve to refresh while preserving any concurrently installed newer route.
+This invalidation also happens when the current item has exhausted its own
+retry budget, so later requests do not inherit a proven stale entry. Successful
+results, non-route terminal errors, and caller cancellation do not invalidate.
+A downstream `context.Canceled` is also retried when the item itself is
 still active, covering authority-node shutdown or transport cancellation during
 leader movement without hiding caller/session cancellation. Retry sleeps wake
 when pending item cancellation or deadlines arrive, so expired work does not

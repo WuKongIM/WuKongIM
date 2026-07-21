@@ -115,6 +115,8 @@ type StabilityClassification struct {
 type Summary struct {
 	// SendSuccess is the successful send acknowledgement count during the measured run phase.
 	SendSuccess uint64 `json:"send_success"`
+	// IngressQPS is the successful measured-run send acknowledgement rate.
+	IngressQPS float64 `json:"ingress_qps"`
 	// ConnectAttempts is the number of gateway connection attempts started by workers.
 	ConnectAttempts uint64 `json:"connect_attempts"`
 	// ConnectSuccess is the number of gateway connections established by workers.
@@ -315,11 +317,13 @@ func Build(in Input) Report {
 	if runID == "" {
 		runID = in.Scenario.Run.ID
 	}
+	summary := in.Summary
+	summary.IngressQPS = qps(summary.SendSuccess, in.Scenario.Run.Duration)
 	rep := Report{
 		RunID:             runID,
 		Status:            StatusPassed,
 		ExitCode:          ExitSuccess,
-		Summary:           in.Summary,
+		Summary:           summary,
 		Scenario:          in.Scenario,
 		Target:            in.Target,
 		Workers:           in.Workers,
@@ -334,8 +338,11 @@ func Build(in Input) Report {
 		ErrorSamples:      append([]metrics.ErrorSample(nil), in.ErrorSamples...),
 		CoordinatorLog:    in.CoordinatorLog,
 	}
-	rep.Violations = append(rep.Violations, hardLimitViolations(limits.Hard, in.Summary)...)
-	soft := softLimitViolations(limits.Soft, in.Summary)
+	rep.Violations = append(rep.Violations, hardLimitViolations(limits.Hard, summary)...)
+	if objectiveEvidenceComplete(in.Classification) {
+		rep.Violations = append(rep.Violations, objectiveViolations(in.Scenario.Objectives, summary)...)
+	}
+	soft := softLimitViolations(limits.Soft, summary)
 	if limits.FailOnSoft {
 		for i := range soft {
 			soft[i].Hard = true
@@ -495,6 +502,35 @@ func hardLimitViolations(l model.HardLimitsConfig, s Summary) []Violation {
 		out = append(out, Violation{Name: "max_worker_failed", Actual: float64(s.WorkerFailed), Limit: float64(l.MaxWorkerFailed), Hard: true})
 	}
 	return out
+}
+
+func objectiveViolations(objectives model.ObjectivesConfig, summary Summary) []Violation {
+	target := objectives.IngressQPS.PerSecond
+	if target <= 0 {
+		return nil
+	}
+	tolerance := objectives.ToleranceRatio
+	if tolerance < 0 {
+		tolerance = 0
+	}
+	if tolerance > 1 {
+		tolerance = 1
+	}
+	minimum := target * (1 - tolerance)
+	if summary.IngressQPS >= minimum {
+		return nil
+	}
+	return []Violation{{Name: "min_ingress_qps", Actual: summary.IngressQPS, Limit: minimum, Hard: true}}
+}
+
+func objectiveEvidenceComplete(classification *StabilityClassification) bool {
+	if classification == nil {
+		return true
+	}
+	return classification.EvidenceComplete &&
+		!classification.InfrastructureFailure &&
+		!classification.HarnessInvalid &&
+		!classification.OperatorModified
 }
 
 func softLimitViolations(l model.SoftLimitsConfig, s Summary) []Violation {
@@ -714,6 +750,7 @@ func summaryMarkdown(rep Report) string {
 	fmt.Fprintf(&b, "- status: %s\n", rep.Status)
 	fmt.Fprintf(&b, "- exit_code: %d\n", rep.ExitCode)
 	fmt.Fprintf(&b, "- send_success: %d\n", rep.Summary.SendSuccess)
+	fmt.Fprintf(&b, "- ingress_qps: %.3f\n", rep.Summary.IngressQPS)
 	fmt.Fprintf(&b, "- connect_attempts: %d\n", rep.Summary.ConnectAttempts)
 	fmt.Fprintf(&b, "- connect_success: %d\n", rep.Summary.ConnectSuccess)
 	fmt.Fprintf(&b, "- connect_errors: %d\n", rep.Summary.ConnectErrors)

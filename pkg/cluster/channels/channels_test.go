@@ -53,6 +53,7 @@ func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
 		ChannelType:         int64(id.Type),
 		ChannelEpoch:        2,
 		LeaderEpoch:         3,
+		RouteGeneration:     13,
 		Leader:              2,
 		Replicas:            []uint64{3, 1, 2},
 		ISR:                 []uint64{2, 1},
@@ -70,7 +71,7 @@ func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveChannelMeta() error = %v", err)
 	}
-	if meta.Key != ch.ChannelKeyForID(id) || meta.ID != id || meta.Epoch != 2 || meta.LeaderEpoch != 3 || meta.Leader != 2 {
+	if meta.Key != ch.ChannelKeyForID(id) || meta.ID != id || meta.Epoch != 2 || meta.LeaderEpoch != 3 || meta.RouteGeneration != 13 || meta.Leader != 2 {
 		t.Fatalf("meta identity/epochs = %#v", meta)
 	}
 	if got, want := meta.Replicas, []ch.NodeID{1, 2, 3}; !equalNodeIDs(got, want) {
@@ -1973,6 +1974,456 @@ func TestServiceUsesAppendMetaCacheAfterFirstResolve(t *testing.T) {
 	require.Equal(t, 1, source.ensureCalls)
 }
 
+func TestServiceResolveAppendAuthorityUsesCacheAndConditionallyInvalidates(t *testing.T) {
+	id := ch.ChannelID{ID: "cached-authority", Type: 1}
+	stale := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, RouteGeneration: 10, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
+	fresh := stale
+	fresh.Leader = 2
+	fresh.LeaderEpoch = 2
+	fresh.RouteGeneration = 11
+	source := &countingMetaSource{metas: []ch.Meta{stale, fresh}}
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	for index := 0; index < 2; index++ {
+		got, resolveErr := svc.ResolveAppendAuthority(context.Background(), id)
+		require.NoError(t, resolveErr)
+		require.Equal(t, stale.Leader, got.Leader)
+	}
+	require.Equal(t, 1, source.ensureCalls)
+
+	svc.InvalidateAppendAuthority(id, stale.Leader, stale.Epoch, stale.LeaderEpoch+1, 0)
+	_, err = svc.ResolveAppendAuthority(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, 1, source.ensureCalls, "a mismatched fence must not evict newer cached authority")
+
+	svc.InvalidateAppendAuthority(id, stale.Leader, stale.Epoch, stale.LeaderEpoch, stale.RouteGeneration+1)
+	_, err = svc.ResolveAppendAuthority(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, 1, source.ensureCalls, "a mismatched route generation must not evict cached authority")
+
+	svc.InvalidateAppendAuthority(id, stale.Leader, stale.Epoch, stale.LeaderEpoch, stale.RouteGeneration)
+	got, err := svc.ResolveAppendAuthority(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, fresh.Leader, got.Leader)
+	require.Equal(t, fresh.LeaderEpoch, got.LeaderEpoch)
+	require.Equal(t, 2, source.ensureCalls)
+}
+
+func TestChannelMetaCacheRejectsLateOlderAuthorityFence(t *testing.T) {
+	id := ch.ChannelID{ID: "out-of-order-authority", Type: 1}
+	older := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 4, LeaderEpoch: 8, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
+	newer := older
+	newer.Leader = 2
+	newer.LeaderEpoch = 9
+
+	var cache channelMetaCache
+	require.Equal(t, newer, cache.installIfNewer(id, newer))
+	require.Equal(t, newer, cache.installIfNewer(id, older), "a late older resolve must retain the newer authority fence")
+
+	got, ok := cache.get(id)
+	require.True(t, ok)
+	require.Equal(t, newer, got)
+
+	newEpoch := older
+	newEpoch.Epoch = 5
+	newEpoch.LeaderEpoch = 1
+	require.Equal(t, newEpoch, cache.installIfNewer(id, newEpoch), "channel epoch orders before leader epoch")
+}
+
+func TestChannelMetaCacheOrdersCompleteMetadataWithinAuthorityFence(t *testing.T) {
+	id := ch.ChannelID{ID: "same-authority-generation", Type: 1}
+	base := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 4, LeaderEpoch: 8, Leader: 1,
+		Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1,
+		RouteGeneration: 20, RetentionThroughSeq: 10, Status: ch.StatusActive,
+	}
+	newer := cloneMeta(base)
+	newer.RouteGeneration = 21
+	newer.RetentionThroughSeq = 30
+	newer.WriteFence = ch.WriteFence{Token: "migration-21", Version: 21, Reason: ch.WriteFenceReasonLeaderTransfer, Until: time.Unix(21, 0).UTC()}
+	lateOld := cloneMeta(base)
+	lateOld.RetentionThroughSeq = 5
+
+	var cache channelMetaCache
+	require.Equal(t, newer, cache.installIfNewer(id, newer))
+	require.Equal(t, newer, cache.installIfNewer(id, lateOld), "a late lower generation must not roll back retention or the write fence")
+
+	conflictingLeader := cloneMeta(newer)
+	conflictingLeader.Leader = 2
+	conflictingLeader.RouteGeneration = 22
+	require.Equal(t, newer, cache.installIfNewer(id, conflictingLeader), "the same epoch fence cannot change leaders")
+
+	unknownGeneration := cloneMeta(newer)
+	unknownGeneration.RouteGeneration = 0
+	require.Equal(t, newer, cache.installIfNewer(id, unknownGeneration), "unknown generation cannot replace a known generation")
+	higherFenceUnknown := cloneMeta(newer)
+	higherFenceUnknown.LeaderEpoch++
+	higherFenceUnknown.RouteGeneration = 0
+	require.Equal(t, newer, cache.installIfNewer(id, higherFenceUnknown), "unknown generation cannot replace a known generation across authority fences")
+
+	var legacy channelMetaCache
+	legacyBase := cloneMeta(base)
+	legacyBase.RouteGeneration = 0
+	legacyChanged := cloneMeta(legacyBase)
+	legacyChanged.RetentionThroughSeq++
+	require.Equal(t, legacyBase, legacy.installIfNewer(id, legacyBase))
+	require.Equal(t, legacyBase, legacy.installIfNewer(id, legacyChanged), "two unknown generations retain the current complete metadata")
+	require.Equal(t, newer, legacy.installIfNewer(id, newer), "a known generation upgrades unknown metadata")
+}
+
+func TestChannelMetaCacheInvalidatesOnlyExactUsedMetadata(t *testing.T) {
+	id := ch.ChannelID{ID: "exact-used-meta", Type: 1}
+	used := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 2, Leader: 1,
+		Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1}, MinISR: 1,
+		LeaseUntil: time.Unix(10, 0).UTC(), RetentionThroughSeq: 3,
+		WriteFence: ch.WriteFence{Version: 4}, Status: ch.StatusActive,
+	}
+	concurrent := cloneMeta(used)
+	concurrent.RetentionThroughSeq = 5
+	concurrent.ISR = []ch.NodeID{1, 2}
+	concurrent.LeaseUntil = time.Unix(11, 0).UTC()
+
+	cache := channelMetaCache{items: map[ch.ChannelID]ch.Meta{id: cloneMeta(concurrent)}}
+	require.False(t, cache.invalidateUsedMeta(id, used), "zero-generation invalidation must compare the complete cached metadata")
+	got, ok := cache.get(id)
+	require.True(t, ok)
+	require.Equal(t, concurrent, got)
+	require.True(t, cache.invalidateUsedMeta(id, concurrent))
+}
+
+func TestChannelMetaCacheInvalidationRetainsMonotonicFloor(t *testing.T) {
+	id := ch.ChannelID{ID: "invalidate-floor", Type: 1}
+	older := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 2, Leader: 1, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}
+	newer := cloneMeta(older)
+	newer.RouteGeneration = 11
+	newer.WriteFence = ch.WriteFence{Token: "migration-11", Version: 11, Reason: ch.WriteFenceReasonReplicaReplace, Until: time.Unix(11, 0).UTC()}
+
+	var cache channelMetaCache
+	cache.installIfNewer(id, newer)
+	require.True(t, cache.invalidateUsedMeta(id, newer))
+	_, ok := cache.get(id)
+	require.False(t, ok, "invalidated metadata must force a fresh resolve")
+
+	require.Equal(t, newer, cache.installIfNewer(id, older), "a late older resolve must not cross the invalidation floor")
+	_, ok = cache.get(id)
+	require.False(t, ok, "an older response must not revalidate the retained floor")
+
+	require.Equal(t, newer, cache.installIfNewer(id, newer))
+	got, ok := cache.get(id)
+	require.True(t, ok, "an exact authoritative refresh should revalidate the floor")
+	require.Equal(t, newer, got)
+}
+
+func TestServiceDelayedOlderResolveCannotRevalidateInvalidatedFloor(t *testing.T) {
+	id := ch.ChannelID{ID: "delayed-resolve-floor", Type: 1}
+	older := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 2, Leader: 1, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}
+	newer := cloneMeta(older)
+	newer.RouteGeneration = 11
+	newer.WriteFence = ch.WriteFence{Token: "migration-11", Version: 11, Reason: ch.WriteFenceReasonReplicaReplace, Until: time.Unix(11, 0).UTC()}
+	runtime := &fakeRuntime{}
+	source := &countingMetaSource{meta: older}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+	svc.metaCache.installIfNewer(id, newer)
+	require.True(t, svc.metaCache.invalidateUsedMeta(id, newer))
+
+	_, err = svc.Append(context.Background(), ch.AppendRequest{ChannelID: id})
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.Equal(t, 1, source.ensureCalls, "a rejected fresh result must not consume the runtime retry budget")
+	require.Zero(t, runtime.applyCalls)
+	require.Zero(t, runtime.appendCalls)
+	_, ok := svc.metaCache.get(id)
+	require.False(t, ok, "a floor synthesized from an older response must remain stale")
+}
+
+func TestServiceDelayedOlderResolveCannotExposeInvalidatedRemoteFloor(t *testing.T) {
+	id := ch.ChannelID{ID: "delayed-remote-floor", Type: 1}
+	older := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 2, Leader: 2, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive,
+	}
+	newer := cloneMeta(older)
+	newer.RouteGeneration = 11
+
+	for _, tc := range []struct {
+		name string
+		run  func(*Service) error
+	}{
+		{
+			name: "resolve authority",
+			run: func(svc *Service) error {
+				_, err := svc.ResolveAppendAuthority(context.Background(), id)
+				return err
+			},
+		},
+		{
+			name: "append forward",
+			run: func(svc *Service) error {
+				_, err := svc.AppendBatch(context.Background(), ch.AppendBatchRequest{
+					ChannelID: id,
+					Messages:  []ch.Message{{Payload: []byte("hello")}},
+				})
+				return err
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := &countingMetaSource{meta: older}
+			forward := &deadlineForwardClient{}
+			svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Forward: forward})
+			require.NoError(t, err)
+			svc.metaCache.installIfNewer(id, newer)
+			require.True(t, svc.metaCache.invalidateUsedMeta(id, newer))
+
+			require.ErrorIs(t, tc.run(svc), ch.ErrStaleMeta)
+			require.Equal(t, 1, source.ensureCalls)
+			require.Zero(t, forward.batchCalls, "an invalidated floor must never reach remote forwarding")
+			_, ok := svc.metaCache.get(id)
+			require.False(t, ok)
+		})
+	}
+}
+
+func TestServiceDelayedOlderResolveCanUseNonStaleNewerCache(t *testing.T) {
+	id := ch.ChannelID{ID: "delayed-resolve-active", Type: 1}
+	older := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 2, Leader: 1, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}
+	newer := cloneMeta(older)
+	newer.RouteGeneration = 11
+	source := &countingMetaSource{meta: older}
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+	svc.metaCache.installIfNewer(id, newer)
+
+	selected, ok, err := svc.resolveAppendMetaFresh(context.Background(), id)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, newer, selected, "a delayed response may retain an active newer cache entry")
+	cached, ok := svc.metaCache.get(id)
+	require.True(t, ok)
+	require.Equal(t, newer, cached)
+}
+
+func TestServiceDelayedNonAppendableResolveCannotCrossInvalidatedFloor(t *testing.T) {
+	id := ch.ChannelID{ID: "delayed-nonappendable-floor", Type: 1}
+	older := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 2, Leader: 2, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusDeleting,
+	}
+	newer := cloneMeta(older)
+	newer.RouteGeneration = 11
+	source := &countingMetaSource{meta: older}
+	forward := &deadlineForwardClient{}
+	runtime := &fakeRuntime{}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source, Forward: forward})
+	require.NoError(t, err)
+	svc.metaCache.installIfNewer(id, newer)
+	require.True(t, svc.metaCache.invalidateUsedMeta(id, newer))
+
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{
+		ChannelID: id,
+		Messages:  []ch.Message{{Payload: []byte("hello")}},
+	})
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.Equal(t, 1, source.ensureCalls)
+	require.Zero(t, forward.batchCalls, "a non-appendable stale floor must never be forwarded")
+	require.Zero(t, runtime.applyCalls)
+	require.Zero(t, runtime.appendBatchCalls)
+	_, ok := svc.metaCache.get(id)
+	require.False(t, ok)
+}
+
+func TestChannelMetaCacheNonAppendableMetadataRemainsMonotonicFloor(t *testing.T) {
+	id := ch.ChannelID{ID: "nonappendable-floor", Type: 1}
+	base := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 2, Leader: 1, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusDeleting,
+	}
+	newer := cloneMeta(base)
+	newer.RouteGeneration = 11
+
+	var cache channelMetaCache
+	selected, freshEnough := cache.selectResolved(id, base)
+	require.Equal(t, base, selected)
+	require.True(t, freshEnough)
+	_, ok := cache.get(id)
+	require.False(t, ok, "non-appendable metadata is a floor, not a hot route")
+
+	selected, freshEnough = cache.selectResolved(id, newer)
+	require.Equal(t, newer, selected)
+	require.True(t, freshEnough)
+	selected, freshEnough = cache.selectResolved(id, base)
+	require.Equal(t, newer, selected, "an older non-appendable response cannot roll back the floor")
+	require.False(t, freshEnough)
+}
+
+func TestChannelMetaCacheExternalInvalidationDoesNotDeleteKnownGeneration(t *testing.T) {
+	id := ch.ChannelID{ID: "legacy-external-invalidate", Type: 1}
+	meta := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 2, LeaderEpoch: 3, Leader: 1, RouteGeneration: 9,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}
+	var cache channelMetaCache
+	cache.installIfNewer(id, meta)
+	require.False(t, cache.invalidateAuthority(id, meta.Leader, meta.Epoch, meta.LeaderEpoch, meta.RouteGeneration+1))
+	require.False(t, cache.invalidateAuthority(id, meta.Leader, meta.Epoch, meta.LeaderEpoch, 0), "unknown generation must not delete known complete metadata")
+	got, ok := cache.get(id)
+	require.True(t, ok)
+	require.Equal(t, meta, got)
+
+	legacyMeta := cloneMeta(meta)
+	legacyMeta.RouteGeneration = 0
+	var legacy channelMetaCache
+	legacy.installIfNewer(id, legacyMeta)
+	require.True(t, legacy.invalidateAuthority(id, legacyMeta.Leader, legacyMeta.Epoch, legacyMeta.LeaderEpoch, 0), "unknown generation keeps tuple-only invalidation for an unknown cached entry")
+}
+
+func TestServiceExplicitApplyMetaRefreshesCachedAppendFence(t *testing.T) {
+	id := ch.ChannelID{ID: "explicit-apply-cache-fence", Type: 1}
+	stale := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 1, Leader: 1, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}
+	fenced := cloneMeta(stale)
+	fenced.RouteGeneration = 11
+	fenced.WriteFence = ch.WriteFence{Token: "migration-11", Version: 11, Reason: ch.WriteFenceReasonReplicaReplace, Until: time.Now().Add(time.Minute)}
+	fenced.Key = ""
+	sourceFenced := cloneMeta(fenced)
+	sourceFenced.Key = ch.ChannelKeyForID(id)
+	runtime := &writeFenceRuntime{}
+	source := &countingMetaSource{metas: []ch.Meta{stale, sourceFenced}}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	_, err = svc.ResolveAppendAuthority(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, 1, source.ensureCalls)
+	require.NoError(t, svc.ApplyMeta(fenced))
+
+	_, err = svc.Append(context.Background(), ch.AppendRequest{ChannelID: id})
+	require.ErrorIs(t, err, ch.ErrWriteFenced)
+	require.Equal(t, 2, source.ensureCalls, "write-fenced append performs only its bounded fresh confirmation")
+}
+
+func TestServiceFailedExplicitApplyMetaCannotRevalidateInvalidatedFloor(t *testing.T) {
+	id := ch.ChannelID{ID: "failed-explicit-apply-floor", Type: 1}
+	floor := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 1, Leader: 1, RouteGeneration: 11,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}
+	applyErr := errors.New("apply failed")
+	for _, tc := range []struct {
+		name      string
+		candidate ch.Meta
+	}{
+		{name: "exact", candidate: cloneMeta(floor)},
+		{name: "newer", candidate: func() ch.Meta {
+			candidate := cloneMeta(floor)
+			candidate.RouteGeneration++
+			return candidate
+		}()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runtime := &fakeRuntime{applyErr: applyErr}
+			svc, err := NewService(Config{Runtime: runtime, LocalNode: 1})
+			require.NoError(t, err)
+			svc.metaCache.installIfNewer(id, floor)
+			require.True(t, svc.metaCache.invalidateUsedMeta(id, floor))
+
+			require.ErrorIs(t, svc.ApplyMeta(tc.candidate), applyErr)
+			svc.metaCache.mu.RLock()
+			cached := cloneMeta(svc.metaCache.items[id])
+			_, invalidated := svc.metaCache.stale[id]
+			svc.metaCache.mu.RUnlock()
+			require.Equal(t, floor, cached, "a failed runtime apply must not advance the floor")
+			require.True(t, invalidated, "a failed runtime apply must not reactivate the cache")
+		})
+	}
+}
+
+func TestServiceSerializesExplicitMetaAgainstCachedAppendApply(t *testing.T) {
+	id := ch.ChannelID{ID: "explicit-apply-cache-order", Type: 1}
+	stale := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 1, Leader: 1, RouteGeneration: 10,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
+	}
+	fenced := cloneMeta(stale)
+	fenced.RouteGeneration = 11
+	fenced.WriteFence = ch.WriteFence{Token: "migration-11", Version: 11, Reason: ch.WriteFenceReasonReplicaReplace, Until: time.Now().Add(time.Minute)}
+	runtime := newOrderedWriteFenceRuntime()
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: &countingMetaSource{meta: stale}})
+	require.NoError(t, err)
+	_, err = svc.ResolveAppendAuthority(context.Background(), id)
+	require.NoError(t, err)
+
+	appendDone := make(chan error, 1)
+	go func() {
+		_, appendErr := svc.appendWithMeta(context.Background(), ch.AppendRequest{ChannelID: id}, stale, true)
+		appendDone <- appendErr
+	}()
+	<-runtime.firstApplyStarted
+
+	applyDone := make(chan error, 1)
+	go func() { applyDone <- svc.ApplyMeta(fenced) }()
+	select {
+	case <-runtime.secondApplyStarted:
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(runtime.releaseFirstApply)
+	require.NoError(t, <-applyDone)
+	<-appendDone
+	require.True(t, runtime.isFenced(), "a delayed cached apply must not clear a newer explicit write fence")
+}
+
+func TestServiceOldCachedAppendErrorDoesNotDeleteConcurrentHigherGeneration(t *testing.T) {
+	id := ch.ChannelID{ID: "concurrent-cache-upgrade", Type: 1}
+	old := ch.Meta{
+		Key: ch.ChannelKeyForID(id), ID: id,
+		Epoch: 1, LeaderEpoch: 1, Leader: 1,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1,
+		RouteGeneration: 10, Status: ch.StatusActive,
+	}
+	newer := cloneMeta(old)
+	newer.RouteGeneration = 11
+	newer.RetentionThroughSeq = 7
+	runtime := &concurrentMetaUpgradeRuntime{}
+	source := &countingMetaSource{meta: old}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+	runtime.onFirstBatch = func() { svc.metaCache.installIfNewer(id, newer) }
+
+	_, err = svc.ResolveAppendAuthority(context.Background(), id)
+	require.NoError(t, err)
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("hello")}}})
+	require.NoError(t, err)
+
+	got, ok := svc.metaCache.get(id)
+	require.True(t, ok)
+	require.Equal(t, newer, got, "the stale result from the old cached append must not remove a concurrent cache upgrade")
+}
+
 func TestServiceInvalidatesAppendMetaCacheAndRetriesOnce(t *testing.T) {
 	id := ch.ChannelID{ID: "stale", Type: 1}
 	stale := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
@@ -2553,6 +3004,7 @@ type fakeRuntime struct {
 	committed          map[uint64]ch.Message
 	lookupErr          error
 	lastApplied        ch.Meta
+	applyErr           error
 	pullCalls          int
 	applyCalls         int
 	appendCalls        int
@@ -2564,6 +3016,9 @@ type fakeRuntime struct {
 func (f *fakeRuntime) ApplyMeta(meta ch.Meta) error {
 	f.applyCalls++
 	f.lastApplied = meta
+	if f.applyErr != nil {
+		return f.applyErr
+	}
 	return nil
 }
 func (f *fakeRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
@@ -2746,6 +3201,40 @@ type staleOnceRuntime struct {
 	appendCalls int
 }
 
+type concurrentMetaUpgradeRuntime struct {
+	onFirstBatch func()
+	appendCalls  int
+}
+
+func (r *concurrentMetaUpgradeRuntime) ApplyMeta(ch.Meta) error { return nil }
+func (r *concurrentMetaUpgradeRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
+	return ch.AppendResult{}, nil
+}
+func (r *concurrentMetaUpgradeRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	r.appendCalls++
+	if r.appendCalls == 1 {
+		if r.onFirstBatch != nil {
+			r.onFirstBatch()
+		}
+		return ch.AppendBatchResult{}, ch.ErrStaleMeta
+	}
+	return ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 1}}}, nil
+}
+func (r *concurrentMetaUpgradeRuntime) Tick(context.Context) error { return nil }
+func (r *concurrentMetaUpgradeRuntime) Close() error               { return nil }
+func (r *concurrentMetaUpgradeRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, nil
+}
+func (r *concurrentMetaUpgradeRuntime) HandleAck(context.Context, channeltransport.AckRequest) error {
+	return nil
+}
+func (r *concurrentMetaUpgradeRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return nil
+}
+func (r *concurrentMetaUpgradeRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return nil
+}
+
 func (r *staleOnceRuntime) ApplyMeta(ch.Meta) error { return nil }
 func (r *staleOnceRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
 	return ch.AppendResult{}, nil
@@ -2841,6 +3330,76 @@ func (r *writeFenceRuntime) HandleNotify(context.Context, channeltransport.Notif
 }
 func (r *writeFenceRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
 	return nil
+}
+
+type orderedWriteFenceRuntime struct {
+	mu                 sync.Mutex
+	applyCalls         int
+	fenced             bool
+	firstApplyStarted  chan struct{}
+	secondApplyStarted chan struct{}
+	releaseFirstApply  chan struct{}
+}
+
+func newOrderedWriteFenceRuntime() *orderedWriteFenceRuntime {
+	return &orderedWriteFenceRuntime{
+		firstApplyStarted:  make(chan struct{}),
+		secondApplyStarted: make(chan struct{}),
+		releaseFirstApply:  make(chan struct{}),
+	}
+}
+
+func (r *orderedWriteFenceRuntime) ApplyMeta(meta ch.Meta) error {
+	r.mu.Lock()
+	r.applyCalls++
+	call := r.applyCalls
+	r.mu.Unlock()
+	switch call {
+	case 1:
+		close(r.firstApplyStarted)
+		<-r.releaseFirstApply
+	case 2:
+		close(r.secondApplyStarted)
+	}
+	r.mu.Lock()
+	r.fenced = meta.WriteFence.Set()
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *orderedWriteFenceRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
+	if r.isFenced() {
+		return ch.AppendResult{}, ch.ErrWriteFenced
+	}
+	return ch.AppendResult{MessageSeq: 1}, nil
+}
+
+func (r *orderedWriteFenceRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	if r.isFenced() {
+		return ch.AppendBatchResult{}, ch.ErrWriteFenced
+	}
+	return ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 1}}}, nil
+}
+
+func (r *orderedWriteFenceRuntime) Tick(context.Context) error { return nil }
+func (r *orderedWriteFenceRuntime) Close() error               { return nil }
+func (r *orderedWriteFenceRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, nil
+}
+func (r *orderedWriteFenceRuntime) HandleAck(context.Context, channeltransport.AckRequest) error {
+	return nil
+}
+func (r *orderedWriteFenceRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return nil
+}
+func (r *orderedWriteFenceRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return nil
+}
+
+func (r *orderedWriteFenceRuntime) isFenced() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.fenced
 }
 
 type validatingRuntime struct {

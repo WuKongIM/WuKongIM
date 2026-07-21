@@ -11,7 +11,12 @@ Current flow:
    `(uid, kind, channel_id, channel_type)` using maximum `ActiveAtMS`,
    `ReadSeq`, and `MessageSeq`. Small authority batches use an inline path
    without a temporary map, so repeated addresses cause only one version and
-   dirty-index mutation.
+   dirty-index mutation. The routed bulk entry accepts multiple exact
+   hash-slot groups, coalesces their rows together, and rejects the complete
+   transaction when the same cache address appears under different logical
+   hash slots. Routed batches with at most eight candidate rows use stack
+   scratch plus linear coalescing; only larger batches allocate the position
+   map used for bulk de-duplication.
 3. Admission mutates cache state only. Bounded managers maintain an exact index
    of clean cache addresses. When space is required, admission protects every
    address present in the incoming batch and first selects the complete clean
@@ -21,7 +26,10 @@ Current flow:
    that the same batch will update. Admission never reads or writes
    `ActiveStore` and never waits for the serialized durable flush lane. If a new
    row still exceeds the hard bound, the whole admission is rejected with
-   `ErrCachePressure`. A clean row keeps its latest observed `ActiveAtMS` and
+   `ErrCachePressure`. Routed bulk admission performs the conflict check,
+   clean-victim plan, hard-bound check, and all valid-group mutations under one
+   cache lock; it never partially applies sibling groups. Each admitted row is
+   indexed by its own exact hash slot. A clean row keeps its latest observed `ActiveAtMS` and
    `MessageSeq` for immediate list reads separately from its confirmed durable
    `ActiveAt` baseline. Receiver-only activity that remains strictly inside
    `ActiveCooldown` advances the cached view, emits a low-cardinality

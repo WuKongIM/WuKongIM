@@ -79,6 +79,8 @@ type AuthorityTarget struct {
 	Epoch uint64
 	// LeaderEpoch fences authority leadership changes.
 	LeaderEpoch uint64
+	// RouteGeneration versions the complete authoritative channel routing record.
+	RouteGeneration uint64
 	// Large reports whether the channel should use paged subscriber fanout.
 	Large bool
 	// SubscriberMutationVersion identifies the subscriber-list version used for recipient cache invalidation.

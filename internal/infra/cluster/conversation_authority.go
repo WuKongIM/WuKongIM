@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"syscall"
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
@@ -12,12 +15,14 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // ConversationAuthorityNode is the cluster surface needed by authority routing.
 type ConversationAuthorityNode interface {
 	NodeID() uint64
 	RouteKey(string) (cluster.Route, error)
+	RouteKeysPartial([]string) ([]cluster.RouteKeyResult, error)
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 	RegisterRPC(uint8, cluster.NodeRPCHandler)
 	WatchRouteAuthorities() <-chan cluster.RouteAuthorityEvent
@@ -40,6 +45,8 @@ const (
 	defaultConversationRouteRetryAttempts = 100
 	conversationAdmissionRetryAttempts    = 3
 	defaultConversationRouteRetryBackoff  = 5 * time.Millisecond
+	// maxConversationActiveBatchEnvelopeRows matches the bounded WKVC2 wire contract.
+	maxConversationActiveBatchEnvelopeRows = 4096
 	// maxConversationAuthorityDeleteGroup matches the bounded node RPC collection contract.
 	// Validate before authority selection so local and remote leaders expose identical behavior.
 	maxConversationAuthorityDeleteGroup = 4096
@@ -96,7 +103,7 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 
 	pending := []conversationactive.ActiveBatch{batch}
 	for attempt := 0; attempt < conversationAdmissionRetryAttempts; attempt++ {
-		groups, err := c.groupActiveBatchesByTarget(pending)
+		groups, routeFailures, err := c.groupActiveBatchesByTargetPartial(pending)
 		if err != nil {
 			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(err) {
 				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
@@ -106,15 +113,34 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 			}
 			return err
 		}
-		failed := make([]conversationactive.ActiveBatch, 0)
-		for _, group := range groups {
-			if err := c.admitActiveBatchGroup(ctx, group); err != nil {
-				if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRoute(err) {
-					failed = append(failed, group.batch)
-					continue
-				}
-				return err
+
+		groups = splitConversationActiveBatchGroups(groups, maxConversationActiveBatchEnvelopeRows)
+		failed := make([]conversationactive.ActiveBatch, 0, len(routeFailures)+len(groups))
+		var terminalErr error
+		for _, failure := range routeFailures {
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(failure.err) {
+				failed = append(failed, failure.batch)
+				continue
 			}
+			if terminalErr == nil {
+				terminalErr = failure.err
+			}
+		}
+		results := c.admitActiveBatchGroups(ctx, groups)
+		for index, result := range results {
+			if result.Err == nil {
+				continue
+			}
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationAdmission(result.Err) {
+				failed = append(failed, groups[index].batch)
+				continue
+			}
+			if terminalErr == nil {
+				terminalErr = result.Err
+			}
+		}
+		if terminalErr != nil {
+			return terminalErr
 		}
 		if len(failed) == 0 {
 			return nil
@@ -197,6 +223,11 @@ type conversationAuthorityActiveBatchGroup struct {
 	batch  conversationactive.ActiveBatch
 }
 
+type conversationAuthorityActiveBatchFailure struct {
+	batch conversationactive.ActiveBatch
+	err   error
+}
+
 type conversationAuthorityDeleteGroup struct {
 	uid     string
 	deletes []metadb.ConversationDelete
@@ -237,50 +268,104 @@ func (c *ConversationAuthorityClient) groupByTarget(patches []conversationusecas
 	return groups, nil
 }
 
-func (c *ConversationAuthorityClient) groupActiveBatchByTarget(batch conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, error) {
-	groupIndex := make(map[conversationusecase.RouteTarget]int)
-	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(batch.Recipients)+1)
-	routeCache := make(map[string]conversationusecase.RouteTarget, len(batch.Recipients)+1)
-	resolveUID := func(uid string) (conversationusecase.RouteTarget, error) {
-		if target, ok := routeCache[uid]; ok {
-			return target, nil
-		}
-		target, err := c.resolve(uid)
-		if err != nil {
-			return conversationusecase.RouteTarget{}, err
-		}
-		routeCache[uid] = target
-		return target, nil
+// groupActiveBatchesByTargetPartial routes every pending UID through one
+// installed route snapshot. Key-specific lookup failures remain isolated so
+// successful exact-target siblings can be admitted without being replayed.
+func (c *ConversationAuthorityClient) groupActiveBatchesByTargetPartial(batches []conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, []conversationAuthorityActiveBatchFailure, error) {
+	if c == nil || c.node == nil {
+		return nil, nil, conversationusecase.ErrRouteNotReady
 	}
-	if batch.SenderUID != "" {
-		target, err := resolveUID(batch.SenderUID)
-		if err != nil {
-			return nil, err
+	uids := make([]string, 0)
+	uidIndex := make(map[string]int)
+	addUID := func(uid string) {
+		if uid == "" {
+			return
 		}
-		idx := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
-		groups[idx].batch.SenderUID = batch.SenderUID
-	}
-	for _, recipient := range coalesceConversationActiveRecipients(batch.Recipients) {
-		target, err := resolveUID(recipient.UID)
-		if err != nil {
-			return nil, err
+		if _, ok := uidIndex[uid]; ok {
+			return
 		}
-		idx := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
-		groups[idx].batch.Recipients = append(groups[idx].batch.Recipients, recipient)
+		uidIndex[uid] = len(uids)
+		uids = append(uids, uid)
 	}
-	return groups, nil
-}
+	coalescedRecipients := make([][]conversationactive.ActiveEntry, len(batches))
+	for index, batch := range batches {
+		addUID(batch.SenderUID)
+		coalescedRecipients[index] = coalesceConversationActiveRecipients(batch.Recipients)
+		for _, recipient := range coalescedRecipients[index] {
+			addUID(recipient.UID)
+		}
+	}
+	if len(uids) == 0 {
+		return nil, nil, nil
+	}
 
-func (c *ConversationAuthorityClient) groupActiveBatchesByTarget(batches []conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, error) {
-	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(batches))
-	for _, batch := range batches {
-		batchGroups, err := c.groupActiveBatchByTarget(batch)
-		if err != nil {
-			return nil, err
-		}
-		groups = append(groups, batchGroups...)
+	routes, err := c.node.RouteKeysPartial(uids)
+	if err != nil {
+		return nil, nil, mapConversationRouteError(err)
 	}
-	return groups, nil
+	if len(routes) != len(uids) {
+		return nil, nil, fmt.Errorf("%w: aligned route result count %d does not match UID count %d", conversationusecase.ErrRouteNotReady, len(routes), len(uids))
+	}
+	targets := make([]conversationusecase.RouteTarget, len(routes))
+	routeErrs := make([]error, len(routes))
+	for index, result := range routes {
+		if result.Err != nil {
+			routeErrs[index] = mapConversationRouteError(result.Err)
+			continue
+		}
+		if result.Route.Leader == 0 {
+			routeErrs[index] = fmt.Errorf("%w: route leader is unknown", conversationusecase.ErrRouteNotReady)
+			continue
+		}
+		targets[index] = conversationRouteTargetFromClusterRoute(result.Route)
+	}
+
+	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(uids))
+	failures := make([]conversationAuthorityActiveBatchFailure, 0)
+	for batchIndex, batch := range batches {
+		groupIndex := make(map[conversationusecase.RouteTarget]int)
+		failureIndex := make(map[string]int)
+		addFailure := func(uid string, sender bool, recipient *conversationactive.ActiveEntry, routeErr error) {
+			index, ok := failureIndex[uid]
+			if !ok {
+				index = len(failures)
+				failureIndex[uid] = index
+				failures = append(failures, conversationAuthorityActiveBatchFailure{
+					batch: conversationActiveBatchMetadata(batch),
+					err:   routeErr,
+				})
+			}
+			if sender {
+				failures[index].batch.SenderUID = uid
+			}
+			if recipient != nil {
+				failures[index].batch.Recipients = append(failures[index].batch.Recipients, *recipient)
+			}
+		}
+		addRouted := func(uid string, sender bool, recipient *conversationactive.ActiveEntry) {
+			routeIndex := uidIndex[uid]
+			if routeErrs[routeIndex] != nil {
+				addFailure(uid, sender, recipient, routeErrs[routeIndex])
+				return
+			}
+			target := targets[routeIndex]
+			index := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
+			if sender {
+				groups[index].batch.SenderUID = uid
+			}
+			if recipient != nil {
+				groups[index].batch.Recipients = append(groups[index].batch.Recipients, *recipient)
+			}
+		}
+		if batch.SenderUID != "" {
+			addRouted(batch.SenderUID, true, nil)
+		}
+		for recipientIndex := range coalescedRecipients[batchIndex] {
+			recipient := &coalescedRecipients[batchIndex][recipientIndex]
+			addRouted(recipient.UID, false, recipient)
+		}
+	}
+	return groups, failures, nil
 }
 
 func coalesceConversationActiveRecipients(recipients []conversationactive.ActiveEntry) []conversationactive.ActiveEntry {
@@ -307,23 +392,147 @@ func ensureConversationActiveBatchGroup(groups *[]conversationAuthorityActiveBat
 	groupIndex[target] = len(*groups)
 	*groups = append(*groups, conversationAuthorityActiveBatchGroup{
 		target: target,
-		batch: conversationactive.ActiveBatch{
-			Kind:        source.Kind,
-			ChannelID:   source.ChannelID,
-			ChannelType: source.ChannelType,
-			MessageSeq:  source.MessageSeq,
-			ActiveAtMS:  source.ActiveAtMS,
-		},
+		batch:  conversationActiveBatchMetadata(source),
 	})
 	return len(*groups) - 1
 }
 
-func (c *ConversationAuthorityClient) admitActiveBatchGroup(ctx context.Context, group conversationAuthorityActiveBatchGroup) error {
-	authority, err := c.authorityForTarget(group.target)
-	if err != nil {
-		return err
+func conversationActiveBatchMetadata(source conversationactive.ActiveBatch) conversationactive.ActiveBatch {
+	return conversationactive.ActiveBatch{
+		Kind:        source.Kind,
+		ChannelID:   source.ChannelID,
+		ChannelType: source.ChannelType,
+		MessageSeq:  source.MessageSeq,
+		ActiveAtMS:  source.ActiveAtMS,
 	}
-	return authority.AdmitActiveBatch(ctx, group.target, group.batch)
+}
+
+func splitConversationActiveBatchGroups(groups []conversationAuthorityActiveBatchGroup, maxRows int) []conversationAuthorityActiveBatchGroup {
+	if len(groups) == 0 || maxRows <= 0 {
+		return groups
+	}
+	result := make([]conversationAuthorityActiveBatchGroup, 0, len(groups))
+	for _, group := range groups {
+		if conversationActiveBatchRows(group.batch) <= maxRows {
+			result = append(result, group)
+			continue
+		}
+		remaining := group.batch.Recipients
+		first := true
+		for first || len(remaining) > 0 {
+			chunk := conversationActiveBatchMetadata(group.batch)
+			capacity := maxRows
+			if first && group.batch.SenderUID != "" {
+				chunk.SenderUID = group.batch.SenderUID
+				capacity--
+			}
+			count := capacity
+			if count > len(remaining) {
+				count = len(remaining)
+			}
+			chunk.Recipients = remaining[:count]
+			result = append(result, conversationAuthorityActiveBatchGroup{target: group.target, batch: chunk})
+			remaining = remaining[count:]
+			first = false
+		}
+	}
+	return result
+}
+
+func conversationActiveBatchRows(batch conversationactive.ActiveBatch) int {
+	rows := len(batch.Recipients)
+	if batch.SenderUID != "" {
+		rows++
+	}
+	return rows
+}
+
+// admitActiveBatchGroups sends one aligned bulk call per destination leader.
+// Exact targets remain separate inside each envelope; leader grouping is only
+// a transport optimization and never weakens a hash-slot authority fence.
+func (c *ConversationAuthorityClient) admitActiveBatchGroups(ctx context.Context, groups []conversationAuthorityActiveBatchGroup) []accessnode.ConversationActiveBatchResult {
+	results := make([]accessnode.ConversationActiveBatchResult, len(groups))
+	if len(groups) == 0 {
+		return results
+	}
+	type leaderBatch struct {
+		indexes []int
+		groups  []accessnode.ConversationActiveBatchGroup
+		rows    int
+	}
+	byLeader := make(map[uint64][]*leaderBatch)
+	leaderOrder := make([]uint64, 0)
+	for index, group := range groups {
+		leaderNodeID := group.target.LeaderNodeID
+		if leaderNodeID == 0 {
+			results[index].Err = fmt.Errorf("%w: active batch target leader is unknown", conversationusecase.ErrRouteNotReady)
+			continue
+		}
+		batches := byLeader[leaderNodeID]
+		rows := conversationActiveBatchRows(group.batch)
+		if len(batches) == 0 {
+			leaderOrder = append(leaderOrder, leaderNodeID)
+		}
+		if len(batches) == 0 || batches[len(batches)-1].rows+rows > maxConversationActiveBatchEnvelopeRows {
+			batches = append(batches, &leaderBatch{})
+			byLeader[leaderNodeID] = batches
+		}
+		batch := batches[len(batches)-1]
+		batch.indexes = append(batch.indexes, index)
+		batch.groups = append(batch.groups, accessnode.ConversationActiveBatchGroup{Target: group.target, Batch: group.batch})
+		batch.rows += rows
+	}
+
+	for _, leaderNodeID := range leaderOrder {
+		for _, batch := range byLeader[leaderNodeID] {
+			if err := ctx.Err(); err != nil {
+				fillConversationActiveBatchErrors(results, batch.indexes, err)
+				continue
+			}
+			var batchResults []accessnode.ConversationActiveBatchResult
+			if leaderNodeID == c.node.NodeID() {
+				if c.local == nil {
+					fillConversationActiveBatchErrors(results, batch.indexes, conversationusecase.ErrRouteNotReady)
+					continue
+				}
+				if authority, ok := c.local.(accessnode.ConversationBatchAuthority); ok {
+					batchResults = authority.AdmitActiveBatches(ctx, batch.groups)
+				} else {
+					batchResults = make([]accessnode.ConversationActiveBatchResult, len(batch.groups))
+					for index, group := range batch.groups {
+						batchResults[index].Err = c.local.AdmitActiveBatch(ctx, group.Target, group.Batch)
+					}
+				}
+			} else {
+				if c.remote == nil {
+					fillConversationActiveBatchErrors(results, batch.indexes, conversationusecase.ErrRouteNotReady)
+					continue
+				}
+				var err error
+				batchResults, err = c.remote.AdmitConversationActiveBatches(ctx, leaderNodeID, batch.groups)
+				if err != nil {
+					fillConversationActiveBatchErrors(results, batch.indexes, mapConversationRouteError(err))
+					continue
+				}
+			}
+			if len(batchResults) != len(batch.indexes) {
+				err := fmt.Errorf("%w: aligned active batch result count %d does not match group count %d", conversationusecase.ErrRouteNotReady, len(batchResults), len(batch.indexes))
+				fillConversationActiveBatchErrors(results, batch.indexes, err)
+				continue
+			}
+			for index, result := range batchResults {
+				result.Err = mapConversationRouteError(result.Err)
+				results[batch.indexes[index]] = result
+			}
+		}
+	}
+	return results
+}
+
+func fillConversationActiveBatchErrors(results []accessnode.ConversationActiveBatchResult, indexes []int, err error) {
+	for _, index := range indexes {
+		results[index].Err = err
+	}
 }
 
 func (c *ConversationAuthorityClient) withFreshTarget(ctx context.Context, uid string, call func(conversationusecase.RouteTarget) error) error {
@@ -424,6 +633,33 @@ func shouldRetryConversationRoute(err error) bool {
 	return errors.Is(err, conversationusecase.ErrStaleRoute) ||
 		errors.Is(err, conversationusecase.ErrNotLeader) ||
 		errors.Is(err, conversationusecase.ErrRouteNotReady)
+}
+
+func shouldRetryConversationAdmission(err error) bool {
+	return shouldRetryConversationRoute(err) || isRetryableConversationTransportError(err)
+}
+
+func isRetryableConversationTransportError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, transport.ErrCanceled) {
+		return false
+	}
+	switch {
+	case errors.Is(err, transport.ErrStopped),
+		errors.Is(err, transport.ErrTimeout),
+		errors.Is(err, transport.ErrNodeNotFound),
+		errors.Is(err, transport.ErrQueueFull),
+		errors.Is(err, transport.ErrDialFailed),
+		errors.Is(err, transport.ErrBusy),
+		errors.Is(err, net.ErrClosed),
+		errors.Is(err, io.EOF),
+		errors.Is(err, io.ErrUnexpectedEOF),
+		errors.Is(err, syscall.ECONNRESET),
+		errors.Is(err, syscall.ECONNREFUSED),
+		errors.Is(err, syscall.EPIPE):
+		return true
+	default:
+		return false
+	}
 }
 
 func shouldRetryConversationRouteLookup(err error) bool {
