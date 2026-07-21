@@ -27,11 +27,13 @@ import (
 )
 
 const (
-	defaultSDKPollInterval = 2 * time.Second
-	defaultSDKWaitTimeout  = 3 * time.Minute
-	maxDiscoveryPages      = 20
-	discoveryPageSize      = 100
-	vpcInventoryPageSize   = 50
+	defaultSDKPollInterval         = 2 * time.Second
+	defaultSDKWaitTimeout          = 3 * time.Minute
+	defaultSDKConnectTimeoutMillis = 10_000
+	defaultSDKReadTimeoutMillis    = 30_000
+	maxDiscoveryPages              = 20
+	discoveryPageSize              = 100
+	vpcInventoryPageSize           = 50
 )
 
 type linuxImageCandidate struct {
@@ -85,6 +87,18 @@ func NewOpenAPIFromDefaultCredential(region string) (*OpenAPI, error) {
 }
 
 func newOpenAPI(config *openapiutil.Config) (*OpenAPI, error) {
+	if config == nil {
+		return nil, ErrInvalidConfig
+	}
+	// Several generated Alibaba methods do not expose a context-aware variant.
+	// Client-level transport deadlines keep those calls bounded even when the
+	// surrounding workflow context is cancelled or the provider stops replying.
+	if config.ConnectTimeout == nil || dara.IntValue(config.ConnectTimeout) <= 0 {
+		config.SetConnectTimeout(defaultSDKConnectTimeoutMillis)
+	}
+	if config.ReadTimeout == nil || dara.IntValue(config.ReadTimeout) <= 0 {
+		config.SetReadTimeout(defaultSDKReadTimeoutMillis)
+	}
 	ecsClient, err := ecs.NewClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("create ECS client: %w", err)

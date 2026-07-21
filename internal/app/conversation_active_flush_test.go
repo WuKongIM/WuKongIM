@@ -80,6 +80,137 @@ func TestConversationActiveFlushWorkerWakesOnCachePressure(t *testing.T) {
 	}
 }
 
+func TestConversationActiveFlushWorkerRetriesZeroProgressPressureWithoutPeriodicTick(t *testing.T) {
+	pressureSignals := make(chan conversationactive.PressureSignal, 1)
+	flusher := &recordingConversationActiveFlusher{
+		firstFlush: make(chan struct{}),
+		results: []conversationactive.FlushResult{
+			{Selected: 128, Persisted: 128, Requeued: 128, VersionConflicts: 128},
+			{Selected: 128, Persisted: 128, Cleared: 128},
+			{},
+		},
+	}
+	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+		Authority:       flusher,
+		FlushInterval:   time.Hour,
+		BatchRows:       128,
+		PressureSignals: pressureSignals,
+	})
+
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := worker.Stop(context.Background()); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
+	})
+	pressureSignals <- conversationactive.PressureSignal{EnqueuedAt: time.Now()}
+	select {
+	case <-flusher.firstFlush:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the initial pressure flush")
+	}
+
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for len(flusher.batchRows()) < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := flusher.batchRows(); len(got) < 2 {
+		t.Fatalf("flush batches = %#v, want a bounded retry after zero-progress pressure without waiting for the periodic tick", got)
+	}
+}
+
+func TestConversationActiveFlushWorkerBacksOffRepeatedZeroProgressPressure(t *testing.T) {
+	pressureSignals := make(chan conversationactive.PressureSignal, 1)
+	flusher := &recordingConversationActiveFlusher{
+		firstFlush: make(chan struct{}),
+		results: []conversationactive.FlushResult{
+			{Selected: 128, Persisted: 128, Requeued: 128, VersionConflicts: 128},
+			{Selected: 128, Persisted: 128, Requeued: 128, VersionConflicts: 128},
+			{Selected: 128, Persisted: 128, Requeued: 128, VersionConflicts: 128},
+			{Selected: 128, Persisted: 128, Cleared: 128},
+			{},
+		},
+	}
+	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+		Authority:             flusher,
+		FlushInterval:         time.Hour,
+		BatchRows:             128,
+		PressureSignals:       pressureSignals,
+		PressureRetryMinDelay: 20 * time.Millisecond,
+		PressureRetryMaxDelay: 80 * time.Millisecond,
+	})
+
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := worker.Stop(context.Background()); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
+	})
+	pressureSignals <- conversationactive.PressureSignal{EnqueuedAt: time.Now()}
+	deadline := time.Now().Add(time.Second)
+	for len(flusher.batchRows()) < 4 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	callTimes := flusher.flushCallTimes()
+	if len(callTimes) != 4 {
+		t.Fatalf("flush calls = %d, want three delayed zero-progress retries followed by progress", len(callTimes))
+	}
+	wantMinimumDelays := []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
+	for index, wantMinimum := range wantMinimumDelays {
+		if elapsed := callTimes[index+1].Sub(callTimes[index]); elapsed < wantMinimum {
+			t.Fatalf("pressure retry delay[%d] = %v, want at least %v to avoid a busy loop", index, elapsed, wantMinimum)
+		}
+	}
+	time.Sleep(100 * time.Millisecond)
+	if got := len(flusher.batchRows()); got != 4 {
+		t.Fatalf("flush calls after progress = %d, want retry loop to stop at 4", got)
+	}
+}
+
+func TestConversationActiveFlushWorkerStopCancelsPendingPressureRetry(t *testing.T) {
+	pressureSignals := make(chan conversationactive.PressureSignal, 1)
+	flusher := &recordingConversationActiveFlusher{
+		firstFlush: make(chan struct{}),
+		results: []conversationactive.FlushResult{
+			{Selected: 128, Persisted: 128, Requeued: 128, VersionConflicts: 128},
+			{},
+		},
+	}
+	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+		Authority:             flusher,
+		FlushInterval:         time.Hour,
+		BatchRows:             128,
+		PressureSignals:       pressureSignals,
+		PressureRetryMinDelay: 250 * time.Millisecond,
+		PressureRetryMaxDelay: 250 * time.Millisecond,
+	})
+
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	pressureSignals <- conversationactive.PressureSignal{EnqueuedAt: time.Now()}
+	select {
+	case <-flusher.firstFlush:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the initial pressure flush")
+	}
+	if err := worker.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := len(flusher.batchRows()); got != 2 {
+		t.Fatalf("flush calls after Stop() = %d, want initial pressure attempt plus final empty drain", got)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if got := len(flusher.batchRows()); got != 2 {
+		t.Fatalf("flush calls after pending retry deadline = %d, want canceled retry to stay stopped", got)
+	}
+}
+
 func TestConversationActiveFlushWorkerStopReturnsFinalFlushError(t *testing.T) {
 	flushErr := errors.New("store unavailable")
 	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
@@ -181,6 +312,7 @@ type recordingConversationActiveFlusher struct {
 	err        error
 	results    []conversationactive.FlushResult
 	batches    []int
+	callTimes  []time.Time
 }
 
 type pressureAwareConversationActiveFlusher struct {
@@ -212,6 +344,7 @@ func (f *recordingConversationActiveFlusher) FlushActiveRows(_ context.Context, 
 		result = f.results[len(f.batches)]
 	}
 	f.batches = append(f.batches, batchRows)
+	f.callTimes = append(f.callTimes, time.Now())
 	f.mu.Unlock()
 	f.firstOnce.Do(func() {
 		if f.firstFlush != nil {
@@ -228,6 +361,12 @@ func (f *recordingConversationActiveFlusher) batchRows() []int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]int(nil), f.batches...)
+}
+
+func (f *recordingConversationActiveFlusher) flushCallTimes() []time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]time.Time(nil), f.callTimes...)
 }
 
 type contextBlockingConversationActiveFlusher struct {

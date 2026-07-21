@@ -78,6 +78,9 @@ func TestScriptWukongIMTOMLConfigsLoad(t *testing.T) {
 			if len(cfg.Gateway.Listeners) != 2 {
 				t.Fatalf("Gateway.Listeners len = %d, want 2", len(cfg.Gateway.Listeners))
 			}
+			if cfg.Conversation.AuthorityFlushBatchRows != 512 {
+				t.Fatalf("Conversation.AuthorityFlushBatchRows = %d, want 512", cfg.Conversation.AuthorityFlushBatchRows)
+			}
 		})
 	}
 }

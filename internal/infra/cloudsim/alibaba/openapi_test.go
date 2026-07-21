@@ -9,8 +9,35 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
+	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
+	"github.com/alibabacloud-go/tea/dara"
 	"gopkg.in/yaml.v3"
 )
+
+func TestNewOpenAPIAppliesBoundedTransportTimeouts(t *testing.T) {
+	api, err := newOpenAPI(&openapiutil.Config{
+		AccessKeyId:     dara.String("test-access-key"),
+		AccessKeySecret: dara.String("test-access-secret"),
+		RegionId:        dara.String("cn-hangzhou"),
+	})
+	if err != nil {
+		t.Fatalf("newOpenAPI() error = %v", err)
+	}
+	if api.ecs.ConnectTimeout == nil || *api.ecs.ConnectTimeout <= 0 {
+		t.Fatalf("ECS ConnectTimeout = %v, want a bounded positive timeout", api.ecs.ConnectTimeout)
+	}
+	if api.ecs.ReadTimeout == nil || *api.ecs.ReadTimeout <= 0 {
+		t.Fatalf("ECS ReadTimeout = %v, want a bounded positive timeout", api.ecs.ReadTimeout)
+	}
+	if api.vpc.ConnectTimeout == nil || *api.vpc.ConnectTimeout != *api.ecs.ConnectTimeout ||
+		api.sts.ConnectTimeout == nil || *api.sts.ConnectTimeout != *api.ecs.ConnectTimeout {
+		t.Fatalf("SDK connect timeouts are inconsistent: ECS=%v VPC=%v STS=%v", api.ecs.ConnectTimeout, api.vpc.ConnectTimeout, api.sts.ConnectTimeout)
+	}
+	if api.vpc.ReadTimeout == nil || *api.vpc.ReadTimeout != *api.ecs.ReadTimeout ||
+		api.sts.ReadTimeout == nil || *api.sts.ReadTimeout != *api.ecs.ReadTimeout {
+		t.Fatalf("SDK read timeouts are inconsistent: ECS=%v VPC=%v STS=%v", api.ecs.ReadTimeout, api.vpc.ReadTimeout, api.sts.ReadTimeout)
+	}
+}
 
 func TestCloudInitConfiguresOnlyProviderAssignedSecondaryAddresses(t *testing.T) {
 	content := cloudInit("ssh-ed25519 AAAATEST run", []string{"10.42.0.21", "10.42.0.22"}, 24)

@@ -250,7 +250,7 @@ authority_flush_interval = "1s"
 
 authority_flush_timeout = "5s"
 
-authority_flush_batch_rows = 128
+authority_flush_batch_rows = 512
 
 authority_admit_batch_rows = 512
 

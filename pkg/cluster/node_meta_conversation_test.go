@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -155,6 +156,219 @@ func TestTouchConversationActiveAtBatchMarksProposalBackground(t *testing.T) {
 	if got := propose.ProposalClassFromContext(proposer.ctx); got != propose.ProposalClassBackground {
 		t.Fatalf("proposal class = %q, want %q", got, propose.ProposalClassBackground)
 	}
+}
+
+func TestTouchConversationActiveAtBatchProposesIndependentSlotsConcurrently(t *testing.T) {
+	proposer := newBlockingConversationProposer(3)
+	node := newConversationProposalTestNode(t, 3, proposer)
+
+	patches := make([]metadb.ConversationActivePatch, 0, 3)
+	for hashSlot := uint16(0); hashSlot < 3; hashSlot++ {
+		patches = append(patches, metadb.ConversationActivePatch{
+			UID:         uidForHashSlot(t, 3, hashSlot),
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   fmt.Sprintf("g-%d", hashSlot),
+			ChannelType: 2,
+			ActiveAt:    10,
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- node.TouchConversationActiveAtBatch(ctx, patches)
+	}()
+	defer proposer.releaseAll()
+
+	entered := make(map[uint32]struct{}, 3)
+	for len(entered) < 3 {
+		select {
+		case slotID := <-proposer.entered:
+			entered[slotID] = struct{}{}
+		case <-time.After(250 * time.Millisecond):
+			t.Fatalf("proposal slots entered before release = %v, want all independent slots; proposals are serialized", entered)
+		}
+	}
+	proposer.releaseAll()
+	if err := <-done; err != nil {
+		t.Fatalf("TouchConversationActiveAtBatch() error = %v", err)
+	}
+}
+
+func TestTouchConversationActiveAtBatchBoundsSlotConcurrency(t *testing.T) {
+	const slotCount = uint16(6)
+	proposer := newBlockingConversationProposer(int(slotCount))
+	node := newConversationProposalTestNode(t, slotCount, proposer)
+	patches := make([]metadb.ConversationActivePatch, 0, slotCount)
+	for hashSlot := uint16(0); hashSlot < slotCount; hashSlot++ {
+		patches = append(patches, metadb.ConversationActivePatch{
+			UID:         uidForHashSlot(t, slotCount, hashSlot),
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   fmt.Sprintf("g-%d", hashSlot),
+			ChannelType: 2,
+			ActiveAt:    10,
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- node.TouchConversationActiveAtBatch(ctx, patches)
+	}()
+	defer proposer.releaseAll()
+
+	entered := make(map[uint32]struct{}, maxConversationTouchSlotConcurrency)
+	for len(entered) < maxConversationTouchSlotConcurrency {
+		select {
+		case slotID := <-proposer.entered:
+			entered[slotID] = struct{}{}
+		case <-time.After(250 * time.Millisecond):
+			t.Fatalf("proposal slots entered before release = %v, want %d", entered, maxConversationTouchSlotConcurrency)
+		}
+	}
+	select {
+	case slotID := <-proposer.entered:
+		t.Fatalf("proposal slot %d exceeded concurrency limit %d", slotID, maxConversationTouchSlotConcurrency)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	proposer.releaseAll()
+	if err := <-done; err != nil {
+		t.Fatalf("TouchConversationActiveAtBatch() error = %v", err)
+	}
+}
+
+func TestTouchConversationActiveAtBatchPreservesSameSlotChunkOrder(t *testing.T) {
+	proposer := newBlockingConversationProposer(2)
+	node := newConversationProposalTestNode(t, 1, proposer)
+	uid := uidForHashSlot(t, 1, 0)
+	patches := make([]metadb.ConversationActivePatch, 0, maxConversationBatchItems+1)
+	for i := 0; i < maxConversationBatchItems+1; i++ {
+		patches = append(patches, metadb.ConversationActivePatch{
+			UID:         uid,
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   fmt.Sprintf("g-%d", i),
+			ChannelType: 2,
+			ActiveAt:    int64(i + 1),
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- node.TouchConversationActiveAtBatch(ctx, patches)
+	}()
+	defer proposer.releaseAll()
+
+	select {
+	case <-proposer.entered:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("first same-Slot proposal did not start")
+	}
+	select {
+	case slotID := <-proposer.entered:
+		t.Fatalf("second same-Slot proposal entered before the first completed: slot=%d", slotID)
+	case <-time.After(100 * time.Millisecond):
+	}
+	proposer.releaseAll()
+	if err := <-done; err != nil {
+		t.Fatalf("TouchConversationActiveAtBatch() error = %v", err)
+	}
+	select {
+	case slotID := <-proposer.entered:
+		if slotID != 1 {
+			t.Fatalf("second proposal slot = %d, want 1", slotID)
+		}
+	default:
+		t.Fatal("second same-Slot chunk was not proposed")
+	}
+}
+
+func TestTouchConversationActiveAtBatchReturnsLowestSlotErrorDeterministically(t *testing.T) {
+	errSlot1 := errors.New("slot 1 failed")
+	errSlot2 := errors.New("slot 2 failed")
+	proposer := newControlledConversationProposer(map[uint32]error{1: errSlot1, 2: errSlot2})
+	node := newConversationProposalTestNode(t, 2, proposer)
+	patches := []metadb.ConversationActivePatch{
+		{UID: uidForHashSlot(t, 2, 0), Kind: metadb.ConversationKindNormal, ChannelID: "g-0", ChannelType: 2, ActiveAt: 10},
+		{UID: uidForHashSlot(t, 2, 1), Kind: metadb.ConversationKindNormal, ChannelID: "g-1", ChannelType: 2, ActiveAt: 10},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- node.TouchConversationActiveAtBatch(context.Background(), patches)
+	}()
+	for entered := 0; entered < 2; entered++ {
+		select {
+		case <-proposer.entered:
+		case <-time.After(250 * time.Millisecond):
+			t.Fatal("independent Slot proposals did not start")
+		}
+	}
+	close(proposer.release[2])
+	select {
+	case err := <-done:
+		t.Fatalf("TouchConversationActiveAtBatch() returned before all Slot groups completed: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(proposer.release[1])
+	if err := <-done; !errors.Is(err, errSlot1) {
+		t.Fatalf("TouchConversationActiveAtBatch() error = %v, want lowest Slot error %v", err, errSlot1)
+	}
+}
+
+func BenchmarkTouchConversationActiveAtBatchTenSlots128Rows(b *testing.B) {
+	const slotCount = uint16(10)
+	node := newConversationProposalTestNode(b, slotCount, delayedConversationProposer{delay: time.Millisecond})
+	uids := make([]string, slotCount)
+	for hashSlot := uint16(0); hashSlot < slotCount; hashSlot++ {
+		uids[hashSlot] = uidForHashSlot(b, slotCount, hashSlot)
+	}
+	patches := make([]metadb.ConversationActivePatch, 0, 128)
+	for i := 0; i < 128; i++ {
+		patches = append(patches, metadb.ConversationActivePatch{
+			UID:         uids[i%int(slotCount)],
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   fmt.Sprintf("g-%d", i),
+			ChannelType: 2,
+			ActiveAt:    int64(i + 1),
+		})
+	}
+	b.Run("serial_reference", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ReportMetric(float64(len(patches)), "rows/op")
+		for i := 0; i < b.N; i++ {
+			if err := touchConversationActiveAtBatchSerialReference(node, patches); err != nil {
+				b.Fatalf("serial TouchConversationActiveAtBatch() error = %v", err)
+			}
+		}
+	})
+	b.Run("bounded_parallel", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ReportMetric(float64(len(patches)), "rows/op")
+		for i := 0; i < b.N; i++ {
+			if err := node.TouchConversationActiveAtBatch(context.Background(), patches); err != nil {
+				b.Fatalf("TouchConversationActiveAtBatch() error = %v", err)
+			}
+		}
+	})
+}
+
+func touchConversationActiveAtBatchSerialReference(node *Node, patches []metadb.ConversationActivePatch) error {
+	ctx := propose.WithProposalClass(context.Background(), propose.ProposalClassBackground)
+	groups, err := node.groupConversationPatchesBySlot(patches)
+	if err != nil {
+		return err
+	}
+	for _, slotID := range sortedConversationSlotIDs(groups) {
+		if err := node.touchConversationSlotBatch(ctx, slotID, groups[slotID]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestClusterHideConversationsBatchRoutesByUID(t *testing.T) {
@@ -332,4 +546,121 @@ func conversationRouteKeyForHashSlot(t testing.TB, node *Node, want uint16) stri
 	}
 	t.Fatalf("could not find route key for hash slot %d", want)
 	return ""
+}
+
+type blockingConversationProposer struct {
+	entered chan uint32
+	release chan struct{}
+}
+
+type controlledConversationProposer struct {
+	entered chan uint32
+	release map[uint32]chan struct{}
+	errs    map[uint32]error
+}
+
+func newControlledConversationProposer(errs map[uint32]error) *controlledConversationProposer {
+	release := make(map[uint32]chan struct{}, len(errs))
+	for slotID := range errs {
+		release[slotID] = make(chan struct{})
+	}
+	return &controlledConversationProposer{
+		entered: make(chan uint32, len(errs)),
+		release: release,
+		errs:    errs,
+	}
+}
+
+func (p *controlledConversationProposer) Propose(ctx context.Context, req propose.Request) error {
+	p.entered <- req.Target.SlotID
+	select {
+	case <-p.release[req.Target.SlotID]:
+		return p.errs[req.Target.SlotID]
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+type delayedConversationProposer struct {
+	delay time.Duration
+}
+
+func (p delayedConversationProposer) Propose(ctx context.Context, _ propose.Request) error {
+	timer := time.NewTimer(p.delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func newConversationProposalTestNode(t testing.TB, slotCount uint16, proposer interface {
+	Propose(context.Context, propose.Request) error
+}) *Node {
+	t.Helper()
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()}
+	cfg.Slots.InitialSlotCount = uint32(slotCount)
+	cfg.Slots.HashSlotCount = slotCount
+	cfg.Slots.ReplicaCount = 1
+	node, err := New(cfg, WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	slots := make([]control.SlotAssignment, 0, slotCount)
+	ranges := make([]control.HashSlotRange, 0, slotCount)
+	statuses := make([]routing.SlotStatus, 0, slotCount)
+	for hashSlot := uint16(0); hashSlot < slotCount; hashSlot++ {
+		slotID := uint32(hashSlot) + 1
+		slots = append(slots, control.SlotAssignment{SlotID: slotID, DesiredPeers: []uint64{1}, ConfigEpoch: 1, PreferredLeader: 1})
+		ranges = append(ranges, control.HashSlotRange{From: hashSlot, To: hashSlot, SlotID: slotID})
+		statuses = append(statuses, routing.SlotStatus{SlotID: slotID, Leader: 1})
+	}
+	snapshot := control.Snapshot{
+		Revision:     1,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots:     slots,
+		HashSlots: control.HashSlotTable{Revision: 1, Count: slotCount, Ranges: ranges},
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders(statuses)
+	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: uint32(slotCount), HashSlotCount: slotCount}
+	node.started.Store(true)
+	return node
+}
+
+func newBlockingConversationProposer(capacity int) *blockingConversationProposer {
+	return &blockingConversationProposer{
+		entered: make(chan uint32, capacity),
+		release: make(chan struct{}),
+	}
+}
+
+func (p *blockingConversationProposer) Propose(ctx context.Context, req propose.Request) error {
+	select {
+	case p.entered <- req.Target.SlotID:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-p.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (p *blockingConversationProposer) releaseAll() {
+	select {
+	case <-p.release:
+		return
+	default:
+		close(p.release)
+	}
 }

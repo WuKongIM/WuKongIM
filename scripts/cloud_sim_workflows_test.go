@@ -261,6 +261,15 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 	if got := strings.Count(analyze, "resolve-exact-provider-config.sh"); got != 2 {
 		t.Fatalf("analysis provider config selector count = %d, want 2", got)
 	}
+	if got := strings.Count(analyze, "timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json open-analysis"); got != 2 {
+		t.Fatalf("bounded analysis ingress count = %d, want 2", got)
+	}
+	if got := strings.Count(analyze, "timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis"); got != 3 {
+		t.Fatalf("bounded analysis ingress cleanup count = %d, want 3", got)
+	}
+	if !strings.Contains(analyze, `curl --fail --silent --show-error --connect-timeout 5 --max-time 10 --proto '=https' --tlsv1.2 https://api.ipify.org`) {
+		t.Fatal("analysis runner public-IP discovery is not bounded")
+	}
 	if strings.Contains(analyze, "\n      PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}") {
 		t.Fatal("analysis workflow still requires the setup-created provider config variable")
 	}
