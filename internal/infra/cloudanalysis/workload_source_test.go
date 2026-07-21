@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	benchreport "github.com/WuKongIM/WuKongIM/internal/bench/report"
 	analysis "github.com/WuKongIM/WuKongIM/internal/usecase/cloudanalysis"
 )
 
@@ -19,7 +20,7 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":123456,"connect_attempts":10000,"connect_success":9999,"connect_errors":1,"connect_error_rate":0.000002,"sendack_error_rate":0.000001,"recv_verify_error_rate":0.000003,"worker_failed":1,"sendack_max_worker_p99":125000000,"recv_max_worker_p99":250000000},
+  "summary":{"send_success":123456,"ingress_qps":3210.5,"connect_attempts":10000,"connect_success":9999,"connect_errors":1,"connect_error_rate":0.000002,"sendack_error_rate":0.000001,"recv_verify_error_rate":0.000003,"worker_failed":1,"sendack_max_worker_p99":125000000,"recv_max_worker_p99":250000000},
   "violations":[],
   "warnings":[],
   "phase_windows":[{"phase":"run","started_at":"2026-07-17T03:23:18Z","ended_at":"2026-07-17T03:53:18Z"}],
@@ -44,11 +45,78 @@ func TestWorkloadSummarySourceParsesBoundedFinalSummary(t *testing.T) {
 	if inspection.RunID != "run-1" || inspection.State != "completed" || inspection.Status != "failed" || inspection.ExitCode != 4 || inspection.StabilityVerdict != "harness_invalid" {
 		t.Fatalf("inspection = %+v", inspection)
 	}
-	if inspection.Summary.SendSuccess != 123456 || inspection.Summary.ConnectAttempts != 10000 || inspection.Summary.ConnectSuccess != 9999 || inspection.Summary.ConnectErrors != 1 || inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
+	if inspection.Summary.SendSuccess != 123456 || inspection.Summary.IngressQPS != 3210.5 || inspection.Summary.ConnectAttempts != 10000 || inspection.Summary.ConnectSuccess != 9999 || inspection.Summary.ConnectErrors != 1 || inspection.Summary.ConnectErrorRate != 0.000002 || inspection.Summary.SendackMaxWorkerP99 != "125ms" || inspection.Summary.ReceiveMaxWorkerP99 != "250ms" {
 		t.Fatalf("summary = %+v", inspection.Summary)
 	}
 	if len(inspection.PhaseWindows) != 1 || inspection.PhaseWindows[0].Phase != "run" || len(inspection.FailedWorkers) != 1 || inspection.FailedWorkers[0].WorkerID != "worker-3" || inspection.FailedWorkers[0].ReasonCode != "phase_hook_failed" || inspection.FailedWorkers[0].Operation != "group_sendack" {
 		t.Fatalf("diagnostic evidence = %+v", inspection)
+	}
+}
+
+func TestWorkloadSummarySourceParsesReportProducerOutput(t *testing.T) {
+	reportDir := t.TempDir()
+	if err := benchreport.WriteDir(reportDir, benchreport.Report{
+		RunID:            "run-1",
+		Status:           benchreport.StatusPassed,
+		ExitCode:         benchreport.ExitSuccess,
+		StabilityVerdict: benchreport.VerdictPassed,
+		Summary:          benchreport.Summary{SendSuccess: 135000, IngressQPS: 4500},
+	}); err != nil {
+		t.Fatalf("WriteDir() error = %v", err)
+	}
+
+	result, err := newWorkloadSummarySource(reportDir).inspect(context.Background(), "run-1")
+	if err != nil {
+		t.Fatalf("inspect producer output error = %v", err)
+	}
+	inspection := result.Data.(analysis.WorkloadInspection)
+	if inspection.Summary.SendSuccess != 135000 || inspection.Summary.IngressQPS != 4500 {
+		t.Fatalf("summary = %+v", inspection.Summary)
+	}
+}
+
+func TestWorkloadSummarySourceRejectsMissingIngressQPS(t *testing.T) {
+	summary := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"passed",
+  "exit_code":0,
+  "stability_verdict":"passed",
+  "summary":{"send_success":123456,"connect_attempts":10000,"connect_success":10000,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":0,"sendack_max_worker_p99":125000000,"recv_max_worker_p99":250000000},
+  "violations":[],"warnings":[],"phase_windows":[],"failed_workers":[],"failed_workers_truncated":false
+}`
+
+	if _, err := decodeWorkloadSummary(strings.NewReader(summary), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+		t.Fatalf("missing ingress_qps error = %v, want %v", err, errInvalidWorkloadSummary)
+	}
+}
+
+func TestWorkloadSummarySourceRejectsMissingRequiredProducerFields(t *testing.T) {
+	valid := `{
+  "schema":"wukongim/wkbench-diagnostic-summary/v1",
+  "run_id":"run-1",
+  "status":"failed",
+  "exit_code":3,
+  "stability_verdict":"product_failure",
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":10,"connect_success":10,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":0,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "violations":[{"name":"sendack_p99","actual":2,"limit":1,"hard":true}],
+  "warnings":[],
+  "phase_windows":[],
+  "failed_workers":[],
+  "failed_workers_truncated":false
+}`
+	cases := map[string]string{
+		"summary scalar":    strings.Replace(valid, `"send_success":42,`, "", 1),
+		"top level array":   strings.Replace(valid, `  "warnings":[],`+"\n", "", 1),
+		"nested boolean":    strings.Replace(valid, `,"hard":true`, "", 1),
+		"top level boolean": strings.Replace(valid, `,`+"\n"+`  "failed_workers_truncated":false`, "", 1),
+	}
+	for name, document := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := decodeWorkloadSummary(strings.NewReader(document), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
+				t.Fatalf("missing producer field error = %v, want %v", err, errInvalidWorkloadSummary)
+			}
+		})
 	}
 }
 
@@ -59,7 +127,7 @@ func TestWorkloadSummarySourceRejectsWorkerFailureWithPassingTerminal(t *testing
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],
@@ -106,7 +174,7 @@ func TestWorkloadSummarySourceReportsMissingSummaryAsInProgress(t *testing.T) {
 }
 
 func TestWorkloadSummarySourceRejectsIdentityMismatchAndOversize(t *testing.T) {
-	valid := `{"schema":"wukongim/wkbench-diagnostic-summary/v1","run_id":"other-run","status":"failed","exit_code":2,"stability_verdict":"harness_invalid","summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":1000000000,"recv_max_worker_p99":1000000000},"violations":[],"warnings":[],"phase_windows":[],"failed_workers":[],"failed_workers_truncated":false}`
+	valid := `{"schema":"wukongim/wkbench-diagnostic-summary/v1","run_id":"other-run","status":"failed","exit_code":2,"stability_verdict":"harness_invalid","summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":1000000000,"recv_max_worker_p99":1000000000},"violations":[],"warnings":[],"phase_windows":[],"failed_workers":[],"failed_workers_truncated":false}`
 	if _, err := decodeWorkloadSummary(strings.NewReader(valid), "run-1"); !errors.Is(err, errInvalidWorkloadSummary) {
 		t.Fatalf("identity mismatch error = %v, want %v", err, errInvalidWorkloadSummary)
 	}
@@ -122,7 +190,7 @@ func TestWorkloadSummarySourceRejectsIncompleteFailureDetails(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],
@@ -142,7 +210,7 @@ func TestWorkloadSummarySourceRejectsUntrustedFailureDetail(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],
@@ -162,7 +230,7 @@ func TestWorkloadSummarySourceRejectsUntrustedFailureOperation(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],
@@ -187,7 +255,7 @@ func TestWorkloadSummarySourceAcceptsPhaseTimeoutStage(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[{"phase":"run","started_at":"2026-07-20T06:18:03Z","ended_at":"2026-07-20T06:48:58Z"}],
@@ -213,7 +281,7 @@ func TestWorkloadSummarySourceAcceptsWorkerStopFailure(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],
@@ -238,7 +306,7 @@ func TestWorkloadSummarySourceRejectsWorkerStopFailureWithNonHarnessTerminal(t *
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],
@@ -281,7 +349,7 @@ func TestWorkloadSummarySourceRejectsMismatchedWorkerStopFailureTuple(t *testing
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":42,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":42,"ingress_qps":1,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],
@@ -308,7 +376,7 @@ func TestWorkloadSummarySourceRejectsIncompleteFailureTuple(t *testing.T) {
   "status":"failed",
   "exit_code":4,
   "stability_verdict":"harness_invalid",
-  "summary":{"send_success":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
+  "summary":{"send_success":0,"ingress_qps":0,"connect_attempts":0,"connect_success":0,"connect_errors":0,"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0,"worker_failed":1,"sendack_max_worker_p99":0,"recv_max_worker_p99":0},
   "violations":[],
   "warnings":[],
   "phase_windows":[],

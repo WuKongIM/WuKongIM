@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -527,6 +528,97 @@ func TestPresenceAuthorityClientEndpointsByTargetsBatchesRemoteRPCsByLeader(t *t
 	}
 }
 
+func TestPresenceAuthorityClientEndpointsByTargetsOverlapsRemoteLeadersAndKeepsResultsAligned(t *testing.T) {
+	started := make(chan uint64, 2)
+	releaseC := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() { close(releaseC) })
+	}
+	defer release()
+
+	remoteTwo := &fakePresenceAuthority{}
+	remoteThree := &fakePresenceAuthority{}
+	node := &fakePresenceCluster{
+		nodeID: 1,
+		rpcByNode: map[uint64]cluster.NodeRPCHandler{
+			2: overlapBarrierPresenceRPCHandler{
+				nodeID:  2,
+				started: started,
+				release: releaseC,
+				next:    presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteTwo})},
+			},
+			3: overlapBarrierPresenceRPCHandler{
+				nodeID:  3,
+				started: started,
+				release: releaseC,
+				next:    presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteThree})},
+			},
+		},
+	}
+	client := NewPresenceAuthorityClient(node, &fakePresenceAuthority{})
+	groups := []presence.EndpointLookupGroup{
+		{Target: testEndpointLookupTarget(33, 3), UIDs: []string{"remote-three"}},
+		{Target: testEndpointLookupTarget(22, 2), UIDs: []string{"remote-two"}},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resultC := make(chan []presence.EndpointLookupResult, 1)
+	go func() {
+		resultC <- client.EndpointsByTargets(ctx, groups)
+	}()
+
+	timer := time.NewTimer(500 * time.Millisecond)
+	defer timer.Stop()
+	startedLeaders := make(map[uint64]struct{}, 2)
+	for len(startedLeaders) < 2 {
+		select {
+		case leaderNodeID := <-started:
+			startedLeaders[leaderNodeID] = struct{}{}
+		case <-timer.C:
+			t.Fatalf("remote presence leader batches did not overlap: started leaders = %v", startedLeaders)
+		case <-ctx.Done():
+			t.Fatalf("remote presence leader batches did not overlap before context ended: %v", ctx.Err())
+		}
+	}
+	release()
+
+	select {
+	case results := <-resultC:
+		require.Len(t, results, 2)
+		require.NoError(t, results[0].Err)
+		require.NoError(t, results[1].Err)
+		require.Equal(t, "remote-three", results[0].Routes[0].UID)
+		require.Equal(t, "remote-two", results[1].Routes[0].UID)
+	case <-ctx.Done():
+		t.Fatalf("EndpointsByTargets() did not finish after releasing leader batches: %v", ctx.Err())
+	}
+}
+
+func TestPresenceAuthorityClientEndpointsByTargetsIsolatesRemoteLeaderPanic(t *testing.T) {
+	remoteThree := &fakePresenceAuthority{}
+	node := &fakePresenceCluster{
+		nodeID: 1,
+		rpcByNode: map[uint64]cluster.NodeRPCHandler{
+			2: panicPresenceRPCHandler{},
+			3: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteThree})},
+		},
+	}
+	client := NewPresenceAuthorityClient(node, &fakePresenceAuthority{})
+	groups := []presence.EndpointLookupGroup{
+		{Target: testEndpointLookupTarget(22, 2), UIDs: []string{"panics"}},
+		{Target: testEndpointLookupTarget(33, 3), UIDs: []string{"succeeds"}},
+	}
+
+	results := client.EndpointsByTargets(context.Background(), groups)
+
+	require.Len(t, results, 2)
+	require.ErrorIs(t, results[0].Err, errPresenceEndpointLookupPanic)
+	require.Empty(t, results[0].Routes)
+	require.NoError(t, results[1].Err)
+	require.Equal(t, "succeeds", results[1].Routes[0].UID)
+}
+
 func TestPresenceAuthorityClientEndpointsByTargetsKeepsGroupErrorsPartialAndAligned(t *testing.T) {
 	local := &fakePresenceAuthority{}
 	remoteTwo := &fakePresenceAuthority{endpointBatchErrs: map[uint16]error{22: context.Canceled}}
@@ -656,6 +748,7 @@ type rpcCall struct {
 }
 
 type fakePresenceCluster struct {
+	rpcMu           sync.Mutex
 	nodeID          uint64
 	route           cluster.Route
 	routesByUID     map[string]cluster.Route
@@ -674,6 +767,33 @@ type fakePresenceCluster struct {
 
 type presenceRPCHandler struct {
 	adapter *accessnode.Adapter
+}
+
+type overlapBarrierPresenceRPCHandler struct {
+	nodeID  uint64
+	started chan uint64
+	release chan struct{}
+	next    cluster.NodeRPCHandler
+}
+
+type panicPresenceRPCHandler struct{}
+
+func (panicPresenceRPCHandler) HandleRPC(context.Context, []byte) ([]byte, error) {
+	panic("remote presence lookup panic")
+}
+
+func (h overlapBarrierPresenceRPCHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	select {
+	case h.started <- h.nodeID:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	select {
+	case <-h.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return h.next.HandleRPC(ctx, payload)
 }
 
 func (h presenceRPCHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
@@ -726,15 +846,20 @@ func (f *fakePresenceCluster) RouteHashSlot(uint16) (cluster.Route, error) {
 }
 
 func (f *fakePresenceCluster) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	f.rpcMu.Lock()
 	f.calls = append(f.calls, rpcCall{nodeID: nodeID, serviceID: serviceID, payload: append([]byte(nil), payload...)})
-	if handler := f.rpcByNode[nodeID]; handler != nil {
+	handler := f.rpcByNode[nodeID]
+	fallback := f.rpc
+	registered := f.registered[serviceID]
+	f.rpcMu.Unlock()
+	if handler != nil {
 		return handler.HandleRPC(ctx, payload)
 	}
-	if f.rpc != nil {
-		return f.rpc.HandleRPC(ctx, payload)
+	if fallback != nil {
+		return fallback.HandleRPC(ctx, payload)
 	}
-	if handler := f.registered[serviceID]; handler != nil {
-		return handler.HandleRPC(ctx, payload)
+	if registered != nil {
+		return registered.HandleRPC(ctx, payload)
 	}
 	return nil, errors.New("missing rpc handler")
 }

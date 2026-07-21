@@ -58,8 +58,8 @@
           "observed_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"},
           "window": {"type": "string", "maxLength": 256},
           "complete": {"type": "boolean"},
-          "state": {"type": ["string", "null"], "enum": ["in_progress", "completed", null], "description": "Workload lifecycle state for workload_inspect; null for every other tool."},
-          "status": {"type": ["string", "null"], "enum": ["passed", "failed", null], "description": "Workload result for workload_inspect; null for every other tool."},
+          "state": {"type": ["string", "null"], "enum": ["in_progress", "completed", null], "description": "Workload lifecycle state: completed only with complete=true; in_progress or null only with complete=false; null for every other tool."},
+          "status": {"type": ["string", "null"], "enum": ["passed", "failed", null], "description": "Workload result: passed or failed only with complete=true and state=completed; otherwise null."},
           "note": {"type": ["string", "null"], "maxLength": 500}
         }
       }

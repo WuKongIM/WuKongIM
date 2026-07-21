@@ -5032,6 +5032,128 @@ func TestLocalOwnerPusherExpiresPendingAcksDuringPushActivity(t *testing.T) {
 	}
 }
 
+func TestLocalOwnerPusherThrottlesPendingAckExpiryPerWindow(t *testing.T) {
+	clock := &localOwnerPusherTestClock{now: time.Unix(200, 0)}
+	observer := &localOwnerPusherAckObserver{}
+	tracker := runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
+		ShardCount: 4,
+		Now: func() int64 {
+			return clock.Now().Unix()
+		},
+	})
+	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+		Acks:        tracker,
+		AckObserver: observer,
+	})
+	manager.BindPendingAck(runtimedelivery.PendingRecvAck{
+		UID:         "expired-first",
+		SessionID:   101,
+		MessageID:   1,
+		DeliveredAt: 100,
+	})
+	pusher := &localOwnerPusher{
+		delivery:      manager,
+		pendingAckTTL: 50 * time.Second,
+		now:           clock.Now,
+	}
+
+	const concurrentPushes = 64
+	start := make(chan struct{})
+	errC := make(chan error, concurrentPushes)
+	var wg sync.WaitGroup
+	for i := 0; i < concurrentPushes; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{})
+			errC <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errC)
+	for err := range errC {
+		if err != nil {
+			t.Fatalf("Push() error = %v", err)
+		}
+	}
+
+	if got := observer.ActionCount(runtimedelivery.DeliveryAckActionExpire); got != 1 {
+		t.Fatalf("expire ack events in one window = %d, want 1", got)
+	}
+	if got := manager.PendingAckCount(); got != 0 {
+		t.Fatalf("pending ack count after first expiry = %d, want 0", got)
+	}
+
+	manager.BindPendingAck(runtimedelivery.PendingRecvAck{
+		UID:         "expired-second",
+		SessionID:   102,
+		MessageID:   2,
+		DeliveredAt: 100,
+	})
+	if _, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{}); err != nil {
+		t.Fatalf("Push(same window) error = %v", err)
+	}
+	if got := observer.ActionCount(runtimedelivery.DeliveryAckActionExpire); got != 1 {
+		t.Fatalf("expire ack events before next window = %d, want 1", got)
+	}
+	if got := manager.PendingAckCount(); got != 1 {
+		t.Fatalf("pending ack count before next window = %d, want 1", got)
+	}
+
+	clock.Advance(time.Second)
+	if _, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{}); err != nil {
+		t.Fatalf("Push(next window) error = %v", err)
+	}
+	if got := observer.ActionCount(runtimedelivery.DeliveryAckActionExpire); got != 2 {
+		t.Fatalf("expire ack events after next window = %d, want 2", got)
+	}
+	if got := manager.PendingAckCount(); got != 0 {
+		t.Fatalf("pending ack count after next-window expiry = %d, want 0", got)
+	}
+}
+
+type localOwnerPusherTestClock struct {
+	mu  sync.RWMutex
+	now time.Time
+}
+
+func (c *localOwnerPusherTestClock) Now() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.now
+}
+
+func (c *localOwnerPusherTestClock) Advance(delta time.Duration) {
+	c.mu.Lock()
+	c.now = c.now.Add(delta)
+	c.mu.Unlock()
+}
+
+type localOwnerPusherAckObserver struct {
+	mu     sync.Mutex
+	events []runtimedelivery.AckEvent
+}
+
+func (o *localOwnerPusherAckObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	o.mu.Lock()
+	o.events = append(o.events, event)
+	o.mu.Unlock()
+}
+
+func (o *localOwnerPusherAckObserver) ActionCount(action string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	count := 0
+	for _, event := range o.events {
+		if event.Action == action {
+			count++
+		}
+	}
+	return count
+}
+
 func TestLocalOwnerPusherDropsOverflowMessageID(t *testing.T) {
 	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
 	session := &recordingSessionHandle{}

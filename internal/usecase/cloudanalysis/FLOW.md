@@ -31,13 +31,19 @@ so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or
 Analysis Session.
 
 `workload_inspect` returns the bounded diagnostic summary contract rather than
-raw worker reports. Its actual phase windows and structured worker failures let
+raw worker reports. It includes actual ingress QPS and successful send count.
+Its actual phase windows and structured worker failures let
 consumers choose the narrowest next observation without parsing Markdown or
 guessing a failed worker from aggregate counts. A failed worker may include a
 reason-bound low-cardinality person/group operation or the `worker_status` /
 `phase_completion` timeout control stage; missing operation remains explicitly
 unknown and never falls back to parsing detail text. Terminal stop failures use
 the exact `phase=stop`, `reason_code=worker_stop_failed` tuple.
+Diagnosis references preserve three workload lifecycle shapes: terminal
+`complete=true + completed + passed|failed`, running
+`complete=false + in_progress + null`, and incomplete source/tool failure with
+`complete=false` plus null state and status. Nullable lifecycle and note keys
+remain present so unknown evidence is never rewritten as an empty string or zero.
 
 The package owns no HTTP, MCP protocol, cloud SDK, shell, filesystem, restart,
 configuration-write, or cleanup behavior.

@@ -807,11 +807,16 @@ later flush can resolve them against a newer routing snapshot.
 Target-aware endpoint lookup consumes those already-resolved target fences. It
 never calls `RouteKey` or `RouteKeysPartial` on the happy path. Multiple exact
 hash-slot targets for the same remote leader share one RPC envelope, so network
-work scales with leader count instead of recipient or hash-slot count. The
-local path uses the optional batch authority surface and keeps each exact target
-fence intact. Remote transport or response-cardinality failures are copied only
-to groups assigned to that leader; per-group stale/not-leader errors remain
-aligned and do not discard successful results from other groups.
+work scales with leader count instead of recipient or hash-slot count.
+Independent leader envelopes execute concurrently under a fixed bound while
+aligned results remain in original input order. Each leader execution boundary
+also converts a local-authority or remote-client panic into a terminal error for
+only that leader's aligned groups, so a child worker cannot terminate the
+process or discard successful sibling leaders. The local path uses the optional
+batch authority surface and keeps each exact target fence intact. Remote
+transport or response-cardinality failures are copied only to groups assigned
+to that leader; per-group stale/not-leader errors remain aligned and do not
+discard successful results from other groups.
 If one group returns not-leader, stale-route, or route-not-ready after waiting
 in the asynchronous delivery queue, the adapter batch-resolves current targets
 for only that group's UIDs and retries it once. Successful sibling groups are

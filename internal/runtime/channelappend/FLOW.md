@@ -306,9 +306,11 @@ groups individually. A panic while processing one resolved group is converted
 to that group's terminal error and does not prevent later sibling groups from
 running. Successfully resolved groups observe offline recipients and skip only
 the sender's exact accepted session before their routes are coalesced by owner
-across the whole plan. Owner order follows first appearance, route order follows
-target and resolver order, and each owner group is split into bounded push
-chunks. Retryable results narrow retries to only their returned routes; terminal
+across the whole plan. Owner groups retain first-appearance order for stable
+error folding, route order follows target and resolver order, and each owner
+group is split into bounded push chunks. Different owners execute concurrently
+under a fixed bound, while chunks for the same owner remain sequential.
+Retryable results narrow retries to only their returned routes; terminal
 push failures map back only to the exact target groups that contributed those
 routes, while unrelated owners and targets continue. Owner-local concrete
 session writes remain outside `channelState`.

@@ -206,6 +206,25 @@ func validateRequiredDiagnosisJSON(data []byte) error {
 		}
 		return nil
 	}
+	requirePresent := func(object map[string]json.RawMessage, names ...string) error {
+		for _, name := range names {
+			if _, ok := object[name]; !ok {
+				return invalid("missing required field " + name)
+			}
+		}
+		return nil
+	}
+	requireNullableEnum := func(object map[string]json.RawMessage, name string, values ...string) error {
+		raw := bytes.TrimSpace(object[name])
+		if bytes.Equal(raw, []byte("null")) {
+			return nil
+		}
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil || !oneOf(value, values...) {
+			return invalid("invalid nullable field " + name)
+		}
+		return nil
+	}
 	root, err := decodeObject(data)
 	if err != nil {
 		return err
@@ -248,14 +267,14 @@ func validateRequiredDiagnosisJSON(data []byte) error {
 		if err := require(reference, "tool", "node", "observed_at", "window", "complete"); err != nil {
 			return err
 		}
-		var tool string
-		if err := json.Unmarshal(reference["tool"], &tool); err != nil {
-			return invalid("observation tool")
+		if err := requirePresent(reference, "state", "status", "note"); err != nil {
+			return err
 		}
-		if tool == "workload_inspect" {
-			if err := require(reference, "state"); err != nil {
-				return err
-			}
+		if err := requireNullableEnum(reference, "state", "in_progress", "completed"); err != nil {
+			return err
+		}
+		if err := requireNullableEnum(reference, "status", "passed", "failed"); err != nil {
+			return err
 		}
 	}
 	for _, name := range []string{"supporting_signals", "contradictory_signals", "unresolved_signals", "proposed_regression_coverage"} {
@@ -292,7 +311,16 @@ func (d DiagnosisResult) Validate() error {
 			return invalid("observation reference")
 		}
 		if ref.Tool == "workload_inspect" {
-			if ref.State != "in_progress" && ref.State != "completed" || ref.State == "completed" && ref.Status != "passed" && ref.Status != "failed" || ref.State == "in_progress" && ref.Status != "" {
+			switch ref.State {
+			case "", "in_progress":
+				if ref.Complete || ref.Status != "" {
+					return invalid("workload observation reference")
+				}
+			case "completed":
+				if !ref.Complete || ref.Status != "passed" && ref.Status != "failed" {
+					return invalid("workload observation reference")
+				}
+			default:
 				return invalid("workload observation reference")
 			}
 		} else if ref.State != "" || ref.Status != "" {

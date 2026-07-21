@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
@@ -43,10 +44,13 @@ type PresenceAuthorityClient struct {
 }
 
 const (
-	defaultPresenceUnregisterTimeout  = 3 * time.Second
-	defaultPresenceRouteRetryAttempts = 100
-	defaultPresenceRouteRetryBackoff  = 5 * time.Millisecond
+	defaultPresenceUnregisterTimeout         = 3 * time.Second
+	defaultPresenceRouteRetryAttempts        = 100
+	defaultPresenceRouteRetryBackoff         = 5 * time.Millisecond
+	defaultPresenceEndpointLeaderConcurrency = 4
 )
+
+var errPresenceEndpointLookupPanic = errors.New("internal/infra/cluster: presence endpoint lookup panicked")
 
 type pendingRouteRef struct {
 	uid      string
@@ -266,6 +270,7 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 		groups  []presence.EndpointLookupGroup
 	}
 	byLeader := make(map[uint64]*leaderBatch)
+	leaderOrder := make([]uint64, 0)
 	for i, group := range groups {
 		if len(group.UIDs) == 0 {
 			continue
@@ -278,41 +283,84 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 		if batch == nil {
 			batch = &leaderBatch{}
 			byLeader[group.Target.LeaderNodeID] = batch
+			leaderOrder = append(leaderOrder, group.Target.LeaderNodeID)
 		}
 		batch.indexes = append(batch.indexes, i)
 		batch.groups = append(batch.groups, group)
 	}
 
-	for leaderNodeID, batch := range byLeader {
+	processLeader := func(leaderNodeID uint64) {
+		batch := byLeader[leaderNodeID]
+		defer func() {
+			if recover() != nil {
+				fillPresenceEndpointLookupErrors(results, batch.indexes, errPresenceEndpointLookupPanic)
+			}
+		}()
 		if err := ctx.Err(); err != nil {
 			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
-			continue
+			return
 		}
 		if leaderNodeID == c.node.NodeID() {
 			for i, group := range batch.groups {
 				results[batch.indexes[i]] = c.endpointsByExactTarget(ctx, group)
 			}
-			continue
+			return
 		}
 		if c.remote == nil {
 			fillPresenceEndpointLookupErrors(results, batch.indexes, authoritypresence.ErrRouteNotReady)
-			continue
+			return
 		}
 		remoteResults, err := c.remote.EndpointsByTargets(ctx, leaderNodeID, batch.groups)
 		if err != nil {
 			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
-			continue
+			return
 		}
 		if len(remoteResults) != len(batch.indexes) {
 			err := fmt.Errorf("%w: aligned endpoint result count %d does not match group count %d", authoritypresence.ErrRouteNotReady, len(remoteResults), len(batch.indexes))
 			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
-			continue
+			return
 		}
 		for i, result := range remoteResults {
 			results[batch.indexes[i]] = result
 		}
 	}
+	runBoundedPresenceLeaderBatches(leaderOrder, defaultPresenceEndpointLeaderConcurrency, processLeader)
 	return results
+}
+
+func runBoundedPresenceLeaderBatches(leaders []uint64, concurrency int, run func(uint64)) {
+	if len(leaders) == 0 {
+		return
+	}
+	if concurrency <= 1 || len(leaders) == 1 {
+		for _, leaderNodeID := range leaders {
+			run(leaderNodeID)
+		}
+		return
+	}
+	if concurrency > len(leaders) {
+		concurrency = len(leaders)
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	worker := func() {
+		for {
+			index := int(next.Add(1) - 1)
+			if index >= len(leaders) {
+				return
+			}
+			run(leaders[index])
+		}
+	}
+	wg.Add(concurrency - 1)
+	for i := 1; i < concurrency; i++ {
+		go func() {
+			defer wg.Done()
+			worker()
+		}()
+	}
+	worker()
+	wg.Wait()
 }
 
 func (c *PresenceAuthorityClient) retryStaleEndpointLookupGroups(

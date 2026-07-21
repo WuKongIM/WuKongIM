@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
@@ -25,6 +26,8 @@ var errRecvMessageIDOverflow = errors.New("internal/app: delivery message id ove
 
 const defaultDeliveryRetryMaxAttempts = 3
 const defaultDeliveryRetryBackoff = 10 * time.Millisecond
+const pendingAckExpiryInterval = time.Second
+const pendingAckExpiryInProgress = int64(1<<63 - 1)
 
 type deliveryRuntimeAdapter struct {
 	// manager handles committed-message fanout and ack mutations.
@@ -360,14 +363,16 @@ type localOwnerPusher struct {
 	delivery *runtimedelivery.Manager
 	// pendingAckTTL bounds stale pending recvack cleanup during delivery activity.
 	pendingAckTTL time.Duration
+	// now provides the wall clock for bounded pending-ack expiry scheduling.
+	now func() time.Time
+	// pendingAckExpiryNext gates the O(pending acks) expiry scan to one caller per interval.
+	pendingAckExpiryNext atomic.Int64
 	// logger records owner-local delivery failures before they become retryable or dropped results.
 	logger wklog.Logger
 }
 
-func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
-	if p.pendingAckTTL > 0 && p.delivery != nil {
-		p.delivery.ExpirePendingAcks(p.pendingAckTTL)
-	}
+func (p *localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
+	p.expirePendingAcksIfDue()
 	payload := append([]byte(nil), cmd.Envelope.Payload...)
 	timestamp := int32(time.Now().Unix())
 	var result runtimedelivery.PushResult
@@ -453,14 +458,41 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 	return result, nil
 }
 
-func (p localOwnerPusher) loggerOrNop() wklog.Logger {
+func (p *localOwnerPusher) expirePendingAcksIfDue() {
+	if p == nil || p.pendingAckTTL <= 0 || p.delivery == nil {
+		return
+	}
+	now := p.nowTime()
+	for {
+		next := p.pendingAckExpiryNext.Load()
+		if next == pendingAckExpiryInProgress || now.UnixNano() < next {
+			return
+		}
+		if p.pendingAckExpiryNext.CompareAndSwap(next, pendingAckExpiryInProgress) {
+			break
+		}
+	}
+	defer func() {
+		p.pendingAckExpiryNext.Store(p.nowTime().Add(pendingAckExpiryInterval).UnixNano())
+	}()
+	p.delivery.ExpirePendingAcks(p.pendingAckTTL)
+}
+
+func (p *localOwnerPusher) nowTime() time.Time {
+	if p != nil && p.now != nil {
+		return p.now()
+	}
+	return time.Now()
+}
+
+func (p *localOwnerPusher) loggerOrNop() wklog.Logger {
 	if p.logger == nil {
 		return wklog.NewNop()
 	}
 	return p.logger
 }
 
-func (p localOwnerPusher) localSession(route runtimedelivery.Route) (online.LocalSession, bool) {
+func (p *localOwnerPusher) localSession(route runtimedelivery.Route) (online.LocalSession, bool) {
 	if p.online == nil || route.UID == "" || route.SessionID == 0 || route.OwnerNodeID == 0 || route.OwnerBootID == 0 || route.OwnerSeq == 0 {
 		return online.LocalSession{}, false
 	}

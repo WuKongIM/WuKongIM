@@ -145,7 +145,17 @@ func TestRecipientDeliveryWorkerIsolatesTargetPanicAndContinuesSiblingGroups(t *
 	if failure.TargetHashSlot != second.HashSlot || failure.TargetLeaderNodeID != second.LeaderNodeID || !errors.Is(failure.Err, ErrEffectPanic) {
 		t.Fatalf("panic failure = %#v, want exact second target", failure)
 	}
-	waitDeliveryWorkerCondition(t, func() bool { return reflect.DeepEqual(pusher.ownerNodeIDs(), []uint64{1, 2, 3}) })
+	waitDeliveryWorkerCondition(t, func() bool {
+		owners := pusher.ownerNodeIDs()
+		if len(owners) != 3 {
+			return false
+		}
+		seen := make(map[uint64]int, len(owners))
+		for _, ownerNodeID := range owners {
+			seen[ownerNodeID]++
+		}
+		return seen[1] == 1 && seen[2] == 1 && seen[3] == 1
+	})
 	observer.waitProcesses(t, 1)
 	if got := observer.processes[0]; got.Result != recipientDeliveryResultPanic || got.Recipients != 3 {
 		t.Fatalf("panic process observation = %+v, want panic recipients=3", got)

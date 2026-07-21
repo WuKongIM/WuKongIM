@@ -534,9 +534,10 @@ func TestCloudSimulationAnalyzeClearsNonWorkloadObservationState(t *testing.T) {
 	var outcome struct {
 		Diagnosis struct {
 			Observations []struct {
-				Tool   string  `json:"tool"`
-				State  *string `json:"state"`
-				Status *string `json:"status"`
+				Tool   string          `json:"tool"`
+				State  json.RawMessage `json:"state"`
+				Status json.RawMessage `json:"status"`
+				Note   json.RawMessage `json:"note"`
 			} `json:"observation_references"`
 		} `json:"diagnosis"`
 	}
@@ -544,8 +545,11 @@ func TestCloudSimulationAnalyzeClearsNonWorkloadObservationState(t *testing.T) {
 		t.Fatalf("decode result: %v\n%s", err, result)
 	}
 	for _, observation := range outcome.Diagnosis.Observations {
-		if observation.Tool == "run_inspect" && (observation.State != nil || observation.Status != nil) {
-			t.Fatalf("run_inspect state/status must be null after canonicalization: %+v", observation)
+		if len(observation.State) == 0 || len(observation.Status) == 0 || len(observation.Note) == 0 {
+			t.Fatalf("observation nullable keys must be present: %+v", observation)
+		}
+		if observation.Tool != "workload_inspect" && (string(observation.State) != "null" || string(observation.Status) != "null") {
+			t.Fatalf("non-workload state/status must be null after canonicalization: %+v", observation)
 		}
 	}
 }
@@ -1008,18 +1012,21 @@ test ! -e "$(dirname "$output")/client-private.pem"
 test ! -e "$(dirname "$output")/session/encrypted-token.bin"
 if [[ "$mode" == product ]]; then
 cat >"$output" <<'JSON'
-{"schema":"wukongim/cloud-simulation-diagnosis/v1","run_identity":{"run_id":"run-live","source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scenario_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"analyzed_window":{"start":"2026-07-14T00:00:00Z","end":"2026-07-14T00:30:00Z"},"verdict":"product_defect","severity":"high","confidence":0.91,"root_cause_scope":"product","summary":"Confirmed append defect.","observation_references":[{"tool":"workload_inspect","node":"sim","observed_at":"2026-07-14T00:30:00Z","window":"final","complete":true,"state":"completed","status":"failed"}],"supporting_signals":["append errors"],"contradictory_signals":[],"unresolved_signals":[],"remediation_eligibility":{"eligible":true,"reason":"repository attributable and testable","repository_attributable":true,"testable":true},"proposed_regression_coverage":["add deterministic append regression"],"cloud_revalidation_required":true}
+{"schema":"wukongim/cloud-simulation-diagnosis/v1","run_identity":{"run_id":"run-live","source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scenario_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"analyzed_window":{"start":"2026-07-14T00:00:00Z","end":"2026-07-14T00:30:00Z"},"verdict":"product_defect","severity":"high","confidence":0.91,"root_cause_scope":"product","summary":"Confirmed append defect.","observation_references":[{"tool":"workload_inspect","node":"sim","observed_at":"2026-07-14T00:30:00Z","window":"final","complete":true,"state":"completed","status":"failed","note":null}],"supporting_signals":["append errors"],"contradictory_signals":[],"unresolved_signals":[],"remediation_eligibility":{"eligible":true,"reason":"repository attributable and testable","repository_attributable":true,"testable":true},"proposed_regression_coverage":["add deterministic append regression"],"cloud_revalidation_required":true}
 JSON
 exit 0
 fi
 cat >"$output" <<'JSON'
-{"schema":"wukongim/cloud-simulation-diagnosis/v1","run_identity":{"run_id":"run-live","source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scenario_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"analyzed_window":{"start":"2026-07-14T00:00:00Z","end":"2026-07-14T00:30:00Z"},"verdict":"healthy","severity":"none","confidence":0.99,"root_cause_scope":"none","summary":"No anomaly found.","observation_references":[{"tool":"workload_inspect","node":"sim","observed_at":"2026-07-14T00:30:00Z","window":"final","complete":true,"state":"completed","status":"passed"}],"supporting_signals":["workload passed"],"contradictory_signals":[],"unresolved_signals":[],"remediation_eligibility":{"eligible":false,"reason":"healthy","repository_attributable":false,"testable":false},"proposed_regression_coverage":[],"cloud_revalidation_required":false}
+{"schema":"wukongim/cloud-simulation-diagnosis/v1","run_identity":{"run_id":"run-live","source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scenario_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"analyzed_window":{"start":"2026-07-14T00:00:00Z","end":"2026-07-14T00:30:00Z"},"verdict":"healthy","severity":"none","confidence":0.99,"root_cause_scope":"none","summary":"No anomaly found.","observation_references":[{"tool":"workload_inspect","node":"sim","observed_at":"2026-07-14T00:30:00Z","window":"final","complete":true,"state":"completed","status":"passed","note":null}],"supporting_signals":["workload passed"],"contradictory_signals":[],"unresolved_signals":[],"remediation_eligibility":{"eligible":false,"reason":"healthy","repository_attributable":false,"testable":false},"proposed_regression_coverage":[],"cloud_revalidation_required":false}
 JSON
 if [[ "$mode" == mismatch ]]; then
   jq '.run_identity.source_sha = "cccccccccccccccccccccccccccccccccccccccc"' "$output" >"$output.tmp"
   mv "$output.tmp" "$output"
 elif [[ "$mode" == nonworkload-state ]]; then
-  jq '.observation_references += [{"tool":"run_inspect","node":"run","observed_at":"2026-07-14T00:30:00Z","window":"point-in-time","complete":true,"state":"in_progress","status":"passed","note":null}]' "$output" >"$output.tmp"
+  jq '.observation_references += [
+        {"tool":"run_inspect","node":"run","observed_at":"2026-07-14T00:30:00Z","window":"point-in-time","complete":true,"state":"in_progress","status":"passed"},
+        {"tool":"logs_search","node":"node-1","observed_at":"2026-07-14T00:30:00Z","window":"bounded","complete":true}
+      ]' "$output" >"$output.tmp"
   mv "$output.tmp" "$output"
 fi
 `)
