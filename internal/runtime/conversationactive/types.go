@@ -73,15 +73,15 @@ type CacheObservation struct {
 	PressureDraining bool
 }
 
-// MutationObservation reports how one nonempty admission attempt affected dirty cache work and cache-lock latency.
+// MutationObservation reports how one admission with at least one non-empty UID affected dirty cache work and cache-lock latency.
 type MutationObservation struct {
 	// Result is ok or cache_pressure for the admission attempt.
 	Result string
-	// BecameDirty is the number of new or previously clean rows that became dirty.
+	// BecameDirty is the number of unique new or previously clean rows that became dirty.
 	BecameDirty int
-	// DirtyUpdated is the number of already-dirty rows advanced to a newer version.
+	// DirtyUpdated is the number of unique already-dirty rows advanced to a newer version.
 	DirtyUpdated int
-	// Unchanged is the number of existing rows whose projection and ownership were unchanged.
+	// Unchanged is the number of unique existing rows whose projection and ownership were unchanged.
 	Unchanged int
 	// LockWaitDuration is time spent waiting for the node-local cache lock.
 	LockWaitDuration time.Duration

@@ -54,7 +54,53 @@ func TestDirtyActiveAtIndexRemainsBoundedAcrossHotUpdates(t *testing.T) {
 	if got := m.dirtyAge.Oldest(); got != finalHotActiveAt {
 		t.Fatalf("oldest dirty active-at after cold clear = %d, want final hot bucket %d", got, finalHotActiveAt)
 	}
-	requireDirtyIndexConservation(t, m)
+	requireCacheIndexConservation(t, m)
+}
+
+func TestMarkActiveCoalescesDuplicateAddressesBeforeMutation(t *testing.T) {
+	ctx := context.Background()
+	observer := &recordingConversationActiveObserver{}
+	m := NewManager(Options{Observer: observer, MaxCachedRows: 4})
+	initial := make([]ActivePatch, 0, 9)
+	for index := 0; index < cap(initial); index++ {
+		initial = append(initial, ActivePatch{
+			Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2,
+			ActiveAtMS: 1_000 + int64(index*25), ReadSeq: uint64(9 - index),
+		})
+	}
+	if err := m.MarkActive(ctx, initial); err != nil {
+		t.Fatalf("MarkActive(initial duplicates) error = %v", err)
+	}
+	if got := observer.lastMutation(t); got.BecameDirty != 1 || got.DirtyUpdated != 0 || got.Unchanged != 0 {
+		t.Fatalf("initial mutation = %+v, want one unique row transition", got)
+	}
+	if m.nextVersion != 1 {
+		t.Fatalf("initial version allocator=%d, want one version for one unique row", m.nextVersion)
+	}
+	entry, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "room", 2)
+	if !ok || entry.ActiveAtMS != 1_200 || entry.ReadSeq != 9 {
+		t.Fatalf("coalesced initial entry=%+v present=%v, want max active/read values", entry, ok)
+	}
+
+	updates := []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_300, ReadSeq: 9},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_250, ReadSeq: 10},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room", ChannelType: 2, ActiveAtMS: 1_400, ReadSeq: 8},
+	}
+	if err := m.MarkActive(ctx, updates); err != nil {
+		t.Fatalf("MarkActive(update duplicates) error = %v", err)
+	}
+	if got := observer.lastMutation(t); got.BecameDirty != 0 || got.DirtyUpdated != 1 || got.Unchanged != 0 {
+		t.Fatalf("update mutation = %+v, want one unique dirty update", got)
+	}
+	if m.nextVersion != 2 {
+		t.Fatalf("updated version allocator=%d, want one new version for one unique row", m.nextVersion)
+	}
+	entry, ok = m.EntryForTest(metadb.ConversationKindNormal, "u1", "room", 2)
+	if !ok || entry.ActiveAtMS != 1_400 || entry.ReadSeq != 10 {
+		t.Fatalf("coalesced updated entry=%+v present=%v, want max active/read values", entry, ok)
+	}
+	requireCacheIndexConservation(t, m)
 }
 
 func TestBoundedFlushSelectionVisitsEveryDirtyRowBeforeRepeating(t *testing.T) {
@@ -518,5 +564,54 @@ func requireDirtyIndexConservation(t *testing.T, manager *Manager) {
 	}
 	if observation.DirtyAgeBuckets > observation.DirtyRows {
 		t.Fatalf("dirty age buckets=%d, dirty rows=%d", observation.DirtyAgeBuckets, observation.DirtyRows)
+	}
+}
+
+func requireCacheIndexConservation(t *testing.T, manager *Manager) {
+	t.Helper()
+	requireDirtyIndexConservation(t, manager)
+
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+	if manager.maxCachedRows <= 0 {
+		if manager.cleanIndex != nil {
+			t.Fatalf("unbounded manager clean index is initialized with %d rows", len(manager.cleanIndex))
+		}
+		return
+	}
+	wantCleanRows := manager.totalRows - manager.dirtyRows
+	if got := len(manager.cleanIndex); got != wantCleanRows {
+		t.Fatalf("clean index rows=%d, total-clean rows=%d", got, wantCleanRows)
+	}
+	if manager.totalRows > manager.maxCachedRows {
+		t.Fatalf("cached rows=%d exceed bound=%d", manager.totalRows, manager.maxCachedRows)
+	}
+
+	var cachedRows int
+	for uid, byChannel := range manager.cache {
+		for key, entry := range byChannel {
+			cachedRows++
+			address := cacheAddress{uid: uid, key: key}
+			_, indexedClean := manager.cleanIndex[address]
+			if entry.dirty && indexedClean {
+				t.Fatalf("dirty cache address %+v is also indexed clean", address)
+			}
+			if !entry.dirty && !indexedClean {
+				t.Fatalf("clean cache address %+v is missing from clean index", address)
+			}
+		}
+	}
+	if cachedRows != manager.totalRows {
+		t.Fatalf("cache iteration rows=%d, tracked total rows=%d", cachedRows, manager.totalRows)
+	}
+	for address := range manager.cleanIndex {
+		byChannel := manager.cache[address.uid]
+		entry, ok := byChannel[address.key]
+		if !ok {
+			t.Fatalf("clean index contains missing cache address %+v", address)
+		}
+		if entry.dirty {
+			t.Fatalf("clean index contains dirty cache address %+v", address)
+		}
 	}
 }

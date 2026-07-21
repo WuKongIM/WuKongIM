@@ -12,6 +12,8 @@ import (
 const (
 	pressureHighWatermarkPercent = 80
 	pressureLowWatermarkPercent  = 70
+	inlineActivePatchRows        = 8
+	preparedBatchInitialRows     = 512
 )
 
 type conversationKey struct {
@@ -23,6 +25,16 @@ type conversationKey struct {
 type cacheAddress struct {
 	uid string
 	key conversationKey
+}
+
+type preparedActivePatch struct {
+	address cacheAddress
+	patch   ActivePatch
+}
+
+type preparedActiveBatch struct {
+	rows      []preparedActivePatch
+	positions map[cacheAddress]int
 }
 
 type cacheEntry struct {
@@ -113,6 +125,9 @@ type Manager struct {
 	observationRevision uint64
 	// cache stores UID -> conversation key -> active projection entry.
 	cache map[string]map[conversationKey]cacheEntry
+	// cleanIndex contains every clean cache address when maxCachedRows is bounded.
+	// It lets admission find an eviction reserve without scanning dirty cache rows.
+	cleanIndex map[cacheAddress]struct{}
 	// dirtyByHashSlot indexes dirty cache rows by UID hash slot for bounded authority handoff drains.
 	dirtyByHashSlot map[uint16]map[cacheAddress]struct{}
 }
@@ -126,7 +141,7 @@ func NewManager(opts Options) *Manager {
 		}
 	}
 	pressureHighRows, pressureLowDirtyRows := pressureWatermarks(opts.MaxCachedRows)
-	return &Manager{
+	manager := &Manager{
 		nowMS:                    nowMS,
 		store:                    opts.Store,
 		activeCooldown:           opts.ActiveCooldown,
@@ -141,6 +156,10 @@ func NewManager(opts Options) *Manager {
 		cache:                    make(map[string]map[conversationKey]cacheEntry),
 		dirtyByHashSlot:          make(map[uint16]map[cacheAddress]struct{}),
 	}
+	if opts.MaxCachedRows > 0 {
+		manager.cleanIndex = make(map[cacheAddress]struct{})
+	}
+	return manager
 }
 
 // AdmitActiveBatch admits a channelappend recipient batch into the active cache.
@@ -159,7 +178,15 @@ func (m *Manager) admitActiveBatch(ctx context.Context, hashSlot uint16, hasHash
 		activeAtMS = m.nowMS()
 	}
 
-	patches := make([]ActivePatch, 0, len(batch.Recipients)+1)
+	patchCapacity := len(batch.Recipients)
+	if batch.SenderUID != "" {
+		patchCapacity++
+	}
+	var inlinePatches [inlineActivePatchRows]ActivePatch
+	patches := inlinePatches[:0]
+	if patchCapacity > cap(inlinePatches) {
+		patches = make([]ActivePatch, 0, patchCapacity)
+	}
 	if batch.SenderUID != "" {
 		patches = append(patches, ActivePatch{
 			UID:         batch.SenderUID,
@@ -211,12 +238,17 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 	if len(patches) == 0 {
 		return nil
 	}
+	var inlineRows [inlineActivePatchRows]preparedActivePatch
+	prepared := prepareActiveBatch(patches, inlineRows[:0])
+	if len(prepared.rows) == 0 {
+		return nil
+	}
 
 	lockStartedAt := time.Now()
 	m.mu.Lock()
 	lockAcquiredAt := time.Now()
 	mutation := MutationObservation{Result: "ok", LockWaitDuration: nonNegativeDuration(lockAcquiredAt.Sub(lockStartedAt))}
-	batchAddresses, newRows := m.batchAddressesAndNewRowsLocked(patches)
+	newRows := m.newRowsLocked(prepared.rows)
 	if m.cacheWouldExceedLocked(newRows) {
 		if newRows > m.maxCachedRows {
 			mutation.Result = "cache_pressure"
@@ -232,19 +264,17 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 			return ErrCachePressure
 		}
 		over := m.totalRows + newRows - m.maxCachedRows
-		// Reject without scanning the cache when the whole batch cannot fit by
-		// evicting clean rows outside this batch. A full dirty cache must keep
-		// admission bounded, and an existing batch row must never evict itself.
-		if m.evictableCleanRowsLocked(batchAddresses) >= over {
-			m.evictCleanRowsLocked(over, batchAddresses)
+		var inlineVictims [inlineActivePatchRows]cacheAddress
+		if m.evictableCleanRowsLocked(prepared) >= over {
+			victims, ok := m.planCleanEvictionsLocked(over, prepared, inlineVictims[:0])
+			if ok {
+				m.evictCleanVictimsLocked(victims)
+			}
 		}
 	}
 	if !m.cacheWouldExceedLocked(newRows) {
-		for _, patch := range patches {
-			if patch.UID == "" {
-				continue
-			}
-			switch m.markActiveLocked(patch, hashSlot, hasHashSlot) {
+		for _, row := range prepared.rows {
+			switch m.markActiveLocked(row, hashSlot, hasHashSlot) {
 			case cacheMutationBecameDirty:
 				mutation.BecameDirty++
 			case cacheMutationDirtyUpdated:
@@ -350,9 +380,10 @@ func pressureWatermarks(maxRows int) (int, int) {
 	return high, low
 }
 
-func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSlot bool) cacheMutationKind {
-	key := conversationKey{kind: patch.Kind, channelID: patch.ChannelID, channelType: patch.ChannelType}
-	address := cacheAddress{uid: patch.UID, key: key}
+func (m *Manager) markActiveLocked(row preparedActivePatch, hashSlot uint16, hasHashSlot bool) cacheMutationKind {
+	patch := row.patch
+	address := row.address
+	key := address.key
 	byChannel := m.cache[patch.UID]
 	if byChannel == nil {
 		byChannel = make(map[conversationKey]cacheEntry)
@@ -402,6 +433,7 @@ func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSl
 		next.readSeqDirty = current.readSeqDirty || readSeqAdvanced
 		m.moveDirtyLocked(address, current, next)
 	} else {
+		m.untrackCleanLocked(address)
 		next.dirty = true
 		next.readSeqDirty = readSeqAdvanced
 		m.trackDirtyLocked(address, next)
@@ -416,85 +448,157 @@ func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSl
 	return cacheMutationBecameDirty
 }
 
-func (m *Manager) batchAddressesAndNewRowsLocked(patches []ActivePatch) (map[cacheAddress]struct{}, int) {
-	seen := make(map[cacheAddress]struct{}, len(patches))
-	var count int
+func prepareActiveBatch(patches []ActivePatch, inline []preparedActivePatch) preparedActiveBatch {
+	if len(patches) <= cap(inline) {
+		rows := inline[:0]
+		for _, patch := range patches {
+			if patch.UID == "" {
+				continue
+			}
+			address := activePatchAddress(patch)
+			merged := false
+			for index := range rows {
+				if rows[index].address != address {
+					continue
+				}
+				mergeActivePatch(&rows[index].patch, patch)
+				merged = true
+				break
+			}
+			if !merged {
+				rows = append(rows, preparedActivePatch{address: address, patch: patch})
+			}
+		}
+		return preparedActiveBatch{rows: rows}
+	}
+
+	capacity := len(patches)
+	if capacity > preparedBatchInitialRows {
+		capacity = preparedBatchInitialRows
+	}
+	rows := make([]preparedActivePatch, 0, capacity)
+	positions := make(map[cacheAddress]int, capacity)
 	for _, patch := range patches {
 		if patch.UID == "" {
 			continue
 		}
-		key := conversationKey{kind: patch.Kind, channelID: patch.ChannelID, channelType: patch.ChannelType}
-		address := cacheAddress{uid: patch.UID, key: key}
-		if _, ok := seen[address]; ok {
+		address := activePatchAddress(patch)
+		if index, ok := positions[address]; ok {
+			mergeActivePatch(&rows[index].patch, patch)
 			continue
 		}
-		seen[address] = struct{}{}
-		if byChannel := m.cache[patch.UID]; byChannel != nil {
-			if _, ok := byChannel[key]; ok {
-				continue
-			}
-		}
-		count++
+		positions[address] = len(rows)
+		rows = append(rows, preparedActivePatch{address: address, patch: patch})
 	}
-	return seen, count
+	return preparedActiveBatch{rows: rows, positions: positions}
+}
+
+func activePatchAddress(patch ActivePatch) cacheAddress {
+	return cacheAddress{
+		uid: patch.UID,
+		key: conversationKey{kind: patch.Kind, channelID: patch.ChannelID, channelType: patch.ChannelType},
+	}
+}
+
+func mergeActivePatch(current *ActivePatch, incoming ActivePatch) {
+	if incoming.ActiveAtMS > current.ActiveAtMS {
+		current.ActiveAtMS = incoming.ActiveAtMS
+	}
+	if incoming.ReadSeq > current.ReadSeq {
+		current.ReadSeq = incoming.ReadSeq
+	}
+}
+
+func (b preparedActiveBatch) contains(address cacheAddress) bool {
+	if b.positions != nil {
+		_, ok := b.positions[address]
+		return ok
+	}
+	for _, row := range b.rows {
+		if row.address == address {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Manager) newRowsLocked(rows []preparedActivePatch) int {
+	var count int
+	for _, row := range rows {
+		byChannel := m.cache[row.address.uid]
+		if byChannel == nil {
+			count++
+			continue
+		}
+		if _, ok := byChannel[row.address.key]; !ok {
+			count++
+		}
+	}
+	return count
 }
 
 func (m *Manager) cacheWouldExceedLocked(newRows int) bool {
 	return m.maxCachedRows > 0 && newRows > 0 && m.totalRows+newRows > m.maxCachedRows
 }
 
-func (m *Manager) cleanRowsLocked() int {
-	clean := m.totalRows - m.dirtyRows
-	if clean < 0 {
+func (m *Manager) evictableCleanRowsLocked(protected preparedActiveBatch) int {
+	cleanRows := len(m.cleanIndex)
+	for _, row := range protected.rows {
+		if _, ok := m.cleanIndex[row.address]; ok {
+			cleanRows--
+		}
+	}
+	if cleanRows < 0 {
 		return 0
 	}
-	return clean
+	return cleanRows
 }
 
-func (m *Manager) evictableCleanRowsLocked(protected map[cacheAddress]struct{}) int {
-	clean := m.cleanRowsLocked()
-	for address := range protected {
+func (m *Manager) planCleanEvictionsLocked(limit int, protected preparedActiveBatch, scratch []cacheAddress) ([]cacheAddress, bool) {
+	if limit <= 0 {
+		return scratch[:0], true
+	}
+	if cap(scratch) < limit {
+		scratch = make([]cacheAddress, 0, limit)
+	} else {
+		scratch = scratch[:0]
+	}
+	for address := range m.cleanIndex {
+		if protected.contains(address) {
+			continue
+		}
 		byChannel := m.cache[address.uid]
 		entry, ok := byChannel[address.key]
-		if ok && !entry.dirty {
-			clean--
+		if !ok || entry.dirty {
+			continue
+		}
+		scratch = append(scratch, address)
+		if len(scratch) == limit {
+			return scratch, true
 		}
 	}
-	if clean < 0 {
-		return 0
-	}
-	return clean
+	return scratch, false
 }
 
-func (m *Manager) evictCleanRowsLocked(limit int, protected map[cacheAddress]struct{}) int {
-	if limit <= 0 {
-		return 0
-	}
-	var evicted int
-	for uid, byChannel := range m.cache {
-		for key, entry := range byChannel {
-			if entry.dirty {
-				continue
-			}
-			if _, ok := protected[cacheAddress{uid: uid, key: key}]; ok {
-				continue
-			}
-			delete(byChannel, key)
-			m.totalRows--
-			decrementKindCount(m.rowsByKind, key.kind)
-			evicted++
-			if evicted >= limit {
-				break
-			}
+func (m *Manager) evictCleanVictimsLocked(victims []cacheAddress) bool {
+	for _, address := range victims {
+		byChannel := m.cache[address.uid]
+		entry, ok := byChannel[address.key]
+		if !ok || entry.dirty {
+			return false
 		}
+	}
+	for _, address := range victims {
+		byChannel := m.cache[address.uid]
+		delete(byChannel, address.key)
+		m.untrackCleanLocked(address)
+		m.totalRows--
+		decrementKindCount(m.rowsByKind, address.key.kind)
 		if len(byChannel) == 0 {
-			delete(m.cache, uid)
-		}
-		if evicted >= limit {
-			break
+			delete(m.cache, address.uid)
 		}
 	}
-	return evicted
+	return true
 }
 
 // Flush persists dirty active rows and clears only unchanged dirty markers.
@@ -925,7 +1029,20 @@ func (m *Manager) clearDirtyEntryLocked(entry flushEntry, restoreDurableActiveAt
 	current.dirty = false
 	current.readSeqDirty = false
 	byChannel[entry.key] = current
+	m.trackCleanLocked(cacheAddress{uid: entry.uid, key: entry.key})
 	result.cleared++
+}
+
+func (m *Manager) trackCleanLocked(address cacheAddress) {
+	if m.cleanIndex != nil {
+		m.cleanIndex[address] = struct{}{}
+	}
+}
+
+func (m *Manager) untrackCleanLocked(address cacheAddress) {
+	if m.cleanIndex != nil {
+		delete(m.cleanIndex, address)
+	}
 }
 
 func (m *Manager) trackDirtyLocked(address cacheAddress, entry cacheEntry) {

@@ -7,12 +7,16 @@ does not infer kind from channel IDs.
 Current flow:
 
 1. Channel append or another authority-owned caller submits an `ActiveBatch`.
-2. The manager merges rows by `(uid, kind, channel_id, channel_type)`.
-3. Admission mutates cache state only. It may evict already-clean rows while
-   holding the cache lock, but it protects every address present in the incoming
-   batch and first compares the remaining exact clean-row count with the space
-   required by the whole batch. When too few evictable clean rows exist it
-   rejects immediately instead of scanning a full dirty cache or evicting a row
+2. Before taking the cache lock, the manager coalesces rows by
+   `(uid, kind, channel_id, channel_type)` using maximum `ActiveAtMS` and
+   `ReadSeq`. Small authority batches use an inline path without a temporary
+   map, so repeated addresses cause only one version and dirty-index mutation.
+3. Admission mutates cache state only. Bounded managers maintain an exact index
+   of clean cache addresses. When space is required, admission protects every
+   address present in the incoming batch and first selects the complete clean
+   victim set from that index. It mutates the cache only after all victims have
+   been found. When too few evictable clean rows exist it rejects immediately
+   without scanning dirty rows, partially evicting the batch, or evicting a row
    that the same batch will update. Admission never reads or writes
    `ActiveStore` and never waits for the serialized durable flush lane. If a new
    row still exceeds the hard bound, the whole admission is rejected with
@@ -54,7 +58,8 @@ Each snapshot carries a manager-local monotonic revision; the metrics adapter
 rejects delayed older snapshots so concurrent admissions cannot regress gauges.
 Production wiring coalesces admission-path aggregate snapshots to one per 100ms;
 flush completion and pressure transitions force a fresh snapshot. Mutation
-counts remain per admission. Cache observations also expose dirty FIFO rows and
+counts remain per admission and count unique coalesced row transitions. Cache
+observations also expose dirty FIFO rows and
 live dirty-age bucket counts, while mutation and flush observations split cache
 lock wait from in-lock work. Admission lock histograms retain bounded
 `ok`/`cache_pressure` results so rejected attempts do not disappear from the
