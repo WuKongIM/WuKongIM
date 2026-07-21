@@ -142,6 +142,133 @@ listen_addr = "127.0.0.1:7001"
 	}
 }
 
+func TestLoadBackupDefaultsDisabled(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := Load(Options{Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=" + dir + "/node1",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Backup.Enabled {
+		t.Fatal("Backup.Enabled = true, want disabled by default")
+	}
+}
+
+func TestLoadBackupConfigFromTOMLAndEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.toml")
+	writeFile(t, path, `
+[node]
+id = 1
+data_dir = "`+dir+`/node1"
+
+[cluster]
+listen_addr = "127.0.0.1:7001"
+
+[backup]
+enabled = true
+repository_id = "cluster-a-dr"
+source_generation = "generation-1"
+staging_dir = "`+dir+`/backup-staging"
+kms_key_id = "kms-encryption-v1"
+signing_key_id = "kms-signing-v1"
+garbage_collector_role_arn = "arn:aws:iam::123456789012:role/wukongim-backup-gc"
+kms_region = "region-a"
+incremental_interval = "1m"
+restore_point_interval = "5m"
+synthetic_full_interval = "24h"
+chunk_size_bytes = 8388608
+staging_max_bytes = 10737418240
+max_parallel_partitions = 4
+monthly_retention_months = 0
+object_lock_days = 7
+
+[backup.primary]
+endpoint = "https://s3.primary.example"
+region = "region-a"
+bucket = "wukongim-backup-primary"
+prefix = "prod/cluster-a"
+
+[backup.secondary]
+endpoint = "https://s3.secondary.example"
+region = "region-b"
+bucket = "wukongim-backup-secondary"
+prefix = "prod/cluster-a"
+`)
+
+	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_BACKUP_MAX_PARALLEL_PARTITIONS=6",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.Backup.Enabled || cfg.Backup.RepositoryID != "cluster-a-dr" {
+		t.Fatalf("Backup identity = %#v", cfg.Backup)
+	}
+	if cfg.Backup.Primary.Region != "region-a" || cfg.Backup.Secondary.Region != "region-b" {
+		t.Fatalf("Backup repositories = %#v/%#v", cfg.Backup.Primary, cfg.Backup.Secondary)
+	}
+	if cfg.Backup.MaxParallelPartitions != 6 {
+		t.Fatalf("Backup.MaxParallelPartitions = %d, want env override 6", cfg.Backup.MaxParallelPartitions)
+	}
+	if cfg.Backup.RestorePointInterval.String() != "5m0s" || cfg.Backup.StagingMaxBytes != 10*1024*1024*1024 {
+		t.Fatalf("Backup schedule/quota = %#v", cfg.Backup)
+	}
+}
+
+func TestLoadBackupEnabledRequiresCompleteProductionConfig(t *testing.T) {
+	dir := t.TempDir()
+	_, err := Load(Options{Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=" + dir + "/node1",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_BACKUP_ENABLED=true",
+	}})
+	if err == nil {
+		t.Fatal("Load() error = nil, want incomplete enabled backup config rejection")
+	}
+	if !strings.Contains(err.Error(), "WK_BACKUP_REPOSITORY_ID") {
+		t.Fatalf("Load() error = %v, want first required backup key", err)
+	}
+}
+
+func TestLoadBackupRestoreModeUsesIndependentTargetGeneration(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := Load(Options{Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=" + dir + "/node1",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_BACKUP_RESTORE_MODE=true",
+		"WK_BACKUP_REPOSITORY_ID=cluster-a-dr",
+		"WK_BACKUP_TARGET_GENERATION=generation-2",
+		"WK_BACKUP_STAGING_DIR=" + dir + "/backup-staging",
+		"WK_BACKUP_KMS_KEY_ID=kms-encryption-v1",
+		"WK_BACKUP_SIGNING_KEY_ID=kms-signing-v1",
+		"WK_BACKUP_KMS_REGION=region-a",
+		"WK_BACKUP_PRIMARY_ENDPOINT=https://s3.primary.example",
+		"WK_BACKUP_PRIMARY_REGION=region-a",
+		"WK_BACKUP_PRIMARY_BUCKET=wukongim-backup-primary",
+		"WK_BACKUP_PRIMARY_PREFIX=prod/cluster-a",
+		"WK_BACKUP_SECONDARY_ENDPOINT=https://s3.secondary.example",
+		"WK_BACKUP_SECONDARY_REGION=region-b",
+		"WK_BACKUP_SECONDARY_BUCKET=wukongim-backup-secondary",
+		"WK_BACKUP_SECONDARY_PREFIX=prod/cluster-a",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.Backup.RestoreMode || cfg.Backup.TargetGeneration != "generation-2" || cfg.Backup.SourceGeneration != "" {
+		t.Fatalf("Backup restore identity = %#v", cfg.Backup)
+	}
+}
+
 func TestLoadPresenceTouchMaxRoutesPerFlushFromTOML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "wukongim.toml")

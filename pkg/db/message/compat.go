@@ -332,6 +332,61 @@ func (e *Engine) ListChannelsPage(ctx context.Context, after ChannelKey, limit i
 	return entries, cursor, more, toChannelError(err)
 }
 
+// OpenBackupSnapshot pins and streams exact committed channel cuts for cluster backup.
+func (e *Engine) OpenBackupSnapshot(ctx context.Context, request BackupSnapshotRequest) (io.ReadCloser, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if e == nil {
+		return nil, channel.ErrClosed
+	}
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return nil, channel.ErrClosed
+	}
+	reader, err := db.OpenBackupSnapshot(ctx, request)
+	return reader, toChannelError(err)
+}
+
+// ImportBackupSnapshot verifies and installs a portable message backup snapshot.
+func (e *Engine) ImportBackupSnapshot(ctx context.Context, data []byte) (BackupSnapshotStats, error) {
+	if err := ctxErr(ctx); err != nil {
+		return BackupSnapshotStats{}, err
+	}
+	if e == nil {
+		return BackupSnapshotStats{}, channel.ErrClosed
+	}
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return BackupSnapshotStats{}, channel.ErrClosed
+	}
+	stats, err := db.ImportBackupSnapshot(ctx, data)
+	return stats, toChannelError(err)
+}
+
+// ImportBackupSnapshotReader validates and installs a seekable portable stream
+// with bounded memory.
+func (e *Engine) ImportBackupSnapshotReader(ctx context.Context, reader io.ReadSeeker, size int64) (BackupSnapshotStats, error) {
+	if err := ctxErr(ctx); err != nil {
+		return BackupSnapshotStats{}, err
+	}
+	if e == nil {
+		return BackupSnapshotStats{}, channel.ErrClosed
+	}
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return BackupSnapshotStats{}, channel.ErrClosed
+	}
+	stats, err := db.ImportBackupSnapshotReader(ctx, reader, size)
+	return stats, toChannelError(err)
+}
+
 // ListLatestMessages returns one node-local newest-first message page.
 func (e *Engine) ListLatestMessages(ctx context.Context, beforeMessageID uint64, limit int) (LatestMessagePage, error) {
 	if err := ctx.Err(); err != nil {

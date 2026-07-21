@@ -91,6 +91,16 @@ const (
 	RPCManagerNodeConfig
 	// RPCManagerLatestMessages serves node-local newest-message index reads.
 	RPCManagerLatestMessages
+	// RPCBackupMessageShard captures one bounded committed-message shard directly on its source node.
+	RPCBackupMessageShard
+	// RPCBackupPartition captures one logical hash-slot partition on its current Slot leader.
+	RPCBackupPartition
+	// RPCBackupRestoreTarget inspects one node's semantic storage emptiness in explicit restore mode.
+	RPCBackupRestoreTarget
+	// RPCBackupRestoreInstall installs one authenticated logical partition on a restore-mode node.
+	RPCBackupRestoreInstall
+	// RPCBackupRestoreVerify validates restored durable Channel cuts on one node.
+	RPCBackupRestoreVerify
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -163,6 +173,14 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager node config"
 	case RPCManagerLatestMessages:
 		return "manager latest messages"
+	case RPCBackupMessageShard:
+		return "backup message shard"
+	case RPCBackupPartition:
+		return "backup partition"
+	case RPCBackupRestoreTarget:
+		return "backup restore target"
+	case RPCBackupRestoreInstall:
+		return "backup restore install"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
 	case RPCNodeLifecycle:

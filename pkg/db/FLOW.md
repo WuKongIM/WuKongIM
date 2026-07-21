@@ -22,6 +22,9 @@ Current flow:
    engine is closed exactly once; metadata then closes independently. The root
    lifecycle write lock also makes concurrent Close callers wait for the same
    terminal physical shutdown.
+6. Internal engine snapshots provide a Pebble-neutral pinned read view with
+   bounded iterators. Callers must close the view; later writes and compactions
+   may proceed while the snapshot is streamed.
 
 Pebble-specific code must stay under `pkg/db/internal/*` and must not leak into
 callers.

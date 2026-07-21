@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"io"
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -377,6 +378,49 @@ func (db *DB) ExportHashSlotSnapshot(ctx context.Context, hashSlots []uint16) (S
 		return SlotSnapshot{}, dberrors.ErrClosed
 	}
 	return db.meta.ExportHashSlotSnapshot(ctx, hashSlots)
+}
+
+// OpenHashSlotSnapshot opens a pinned streaming snapshot for selected hash slots.
+func (db *DB) OpenHashSlotSnapshot(ctx context.Context, hashSlots []uint16) (io.ReadCloser, error) {
+	if db == nil || db.meta == nil {
+		return nil, dberrors.ErrClosed
+	}
+	return db.meta.OpenHashSlotSnapshot(ctx, hashSlots)
+}
+
+// OpenBackupHashSlotSnapshot opens a pinned semantic backup snapshot.
+func (db *DB) OpenBackupHashSlotSnapshot(ctx context.Context, hashSlots []uint16) (io.ReadCloser, error) {
+	if db == nil || db.meta == nil {
+		return nil, dberrors.ErrClosed
+	}
+	return db.meta.OpenBackupHashSlotSnapshot(ctx, hashSlots)
+}
+
+// HasBackupBusinessData reports whether selected hash slots contain semantic
+// rows that make a restore target non-empty.
+func (db *DB) HasBackupBusinessData(ctx context.Context, hashSlots []uint16) (bool, error) {
+	if db == nil || db.meta == nil {
+		return false, dberrors.ErrClosed
+	}
+	return db.meta.HasBackupBusinessData(ctx, hashSlots)
+}
+
+// ImportHashSlotSnapshotReaderPreservingMigrationMeta installs a seekable
+// semantic snapshot with bounded memory while retaining target-local migration rows.
+func (db *DB) ImportHashSlotSnapshotReaderPreservingMigrationMeta(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64) error {
+	if db == nil || db.meta == nil {
+		return dberrors.ErrClosed
+	}
+	return db.meta.ImportHashSlotSnapshotReaderPreservingMigrationMeta(ctx, hashSlots, reader, size)
+}
+
+// ImportHashSlotSnapshotReaderForRestore installs semantic metadata with
+// bounded memory and optional authentication-token invalidation.
+func (db *DB) ImportHashSlotSnapshotReaderForRestore(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) error {
+	if db == nil || db.meta == nil {
+		return dberrors.ErrClosed
+	}
+	return db.meta.ImportHashSlotSnapshotReaderForRestore(ctx, hashSlots, reader, size, invalidateTokens)
 }
 
 // ImportHashSlotSnapshot imports selected hash slots.

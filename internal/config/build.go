@@ -1362,8 +1362,156 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		MaxTrimMessages:   cfg.ChannelMessageRetention.MaxTrimMessages,
 		MaxTrimBytes:      cfg.ChannelMessageRetention.MaxTrimBytes,
 	}
+	backupCfg, err := buildBackupConfig(values)
+	if err != nil {
+		return app.Config{}, err
+	}
+	cfg.Backup = backupCfg
 
 	return cfg, nil
+}
+
+var requiredBackupRepositoryKeys = []string{
+	"WK_BACKUP_REPOSITORY_ID",
+	"WK_BACKUP_STAGING_DIR",
+	"WK_BACKUP_KMS_KEY_ID",
+	"WK_BACKUP_SIGNING_KEY_ID",
+	"WK_BACKUP_KMS_REGION",
+	"WK_BACKUP_PRIMARY_ENDPOINT",
+	"WK_BACKUP_PRIMARY_REGION",
+	"WK_BACKUP_PRIMARY_BUCKET",
+	"WK_BACKUP_PRIMARY_PREFIX",
+	"WK_BACKUP_SECONDARY_ENDPOINT",
+	"WK_BACKUP_SECONDARY_REGION",
+	"WK_BACKUP_SECONDARY_BUCKET",
+	"WK_BACKUP_SECONDARY_PREFIX",
+}
+
+var requiredAutomaticBackupKeys = []string{
+	"WK_BACKUP_SOURCE_GENERATION",
+	"WK_BACKUP_GARBAGE_COLLECTOR_ROLE_ARN",
+	"WK_BACKUP_INCREMENTAL_INTERVAL",
+	"WK_BACKUP_RESTORE_POINT_INTERVAL",
+	"WK_BACKUP_SYNTHETIC_FULL_INTERVAL",
+	"WK_BACKUP_CHUNK_SIZE_BYTES",
+	"WK_BACKUP_STAGING_MAX_BYTES",
+	"WK_BACKUP_MAX_PARALLEL_PARTITIONS",
+	"WK_BACKUP_OBJECT_LOCK_DAYS",
+}
+
+var requiredRestoreKeys = []string{"WK_BACKUP_TARGET_GENERATION"}
+
+func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
+	cfg := app.BackupConfig{
+		RepositoryID:            configValue(values, "WK_BACKUP_REPOSITORY_ID"),
+		SourceGeneration:        configValue(values, "WK_BACKUP_SOURCE_GENERATION"),
+		TargetGeneration:        configValue(values, "WK_BACKUP_TARGET_GENERATION"),
+		StagingDir:              configValue(values, "WK_BACKUP_STAGING_DIR"),
+		KMSKeyID:                configValue(values, "WK_BACKUP_KMS_KEY_ID"),
+		SigningKeyID:            configValue(values, "WK_BACKUP_SIGNING_KEY_ID"),
+		GarbageCollectorRoleARN: configValue(values, "WK_BACKUP_GARBAGE_COLLECTOR_ROLE_ARN"),
+		KMSRegion:               configValue(values, "WK_BACKUP_KMS_REGION"),
+		KMSEndpoint:             configValue(values, "WK_BACKUP_KMS_ENDPOINT"),
+		Primary: app.BackupRepositoryConfig{
+			Endpoint: configValue(values, "WK_BACKUP_PRIMARY_ENDPOINT"),
+			Region:   configValue(values, "WK_BACKUP_PRIMARY_REGION"),
+			Bucket:   configValue(values, "WK_BACKUP_PRIMARY_BUCKET"),
+			Prefix:   configValue(values, "WK_BACKUP_PRIMARY_PREFIX"),
+		},
+		Secondary: app.BackupRepositoryConfig{
+			Endpoint: configValue(values, "WK_BACKUP_SECONDARY_ENDPOINT"),
+			Region:   configValue(values, "WK_BACKUP_SECONDARY_REGION"),
+			Bucket:   configValue(values, "WK_BACKUP_SECONDARY_BUCKET"),
+			Prefix:   configValue(values, "WK_BACKUP_SECONDARY_PREFIX"),
+		},
+	}
+	var err error
+	if configKeyPresent(values, "WK_BACKUP_ENABLED") {
+		cfg.Enabled, err = parseBool("WK_BACKUP_ENABLED", configValue(values, "WK_BACKUP_ENABLED"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_RESTORE_MODE") {
+		cfg.RestoreMode, err = parseBool("WK_BACKUP_RESTORE_MODE", configValue(values, "WK_BACKUP_RESTORE_MODE"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if cfg.Enabled || cfg.RestoreMode {
+		for _, key := range requiredBackupRepositoryKeys {
+			if strings.TrimSpace(values[key]) == "" {
+				return app.BackupConfig{}, fmt.Errorf("load config: missing required config key %s when backup or restore mode is enabled", key)
+			}
+		}
+	}
+	if cfg.Enabled {
+		for _, key := range requiredAutomaticBackupKeys {
+			if strings.TrimSpace(values[key]) == "" {
+				return app.BackupConfig{}, fmt.Errorf("load config: missing required config key %s when automatic backup is enabled", key)
+			}
+		}
+	}
+	if cfg.RestoreMode {
+		for _, key := range requiredRestoreKeys {
+			if strings.TrimSpace(values[key]) == "" {
+				return app.BackupConfig{}, fmt.Errorf("load config: missing required config key %s in restore mode", key)
+			}
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_INCREMENTAL_INTERVAL") {
+		cfg.IncrementalInterval, err = parseDuration("WK_BACKUP_INCREMENTAL_INTERVAL", configValue(values, "WK_BACKUP_INCREMENTAL_INTERVAL"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_RESTORE_POINT_INTERVAL") {
+		cfg.RestorePointInterval, err = parseDuration("WK_BACKUP_RESTORE_POINT_INTERVAL", configValue(values, "WK_BACKUP_RESTORE_POINT_INTERVAL"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_SYNTHETIC_FULL_INTERVAL") {
+		cfg.SyntheticFullInterval, err = parseDuration("WK_BACKUP_SYNTHETIC_FULL_INTERVAL", configValue(values, "WK_BACKUP_SYNTHETIC_FULL_INTERVAL"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_CHUNK_SIZE_BYTES") {
+		cfg.ChunkSizeBytes, err = parseUint64("WK_BACKUP_CHUNK_SIZE_BYTES", configValue(values, "WK_BACKUP_CHUNK_SIZE_BYTES"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_STAGING_MAX_BYTES") {
+		cfg.StagingMaxBytes, err = parseUint64("WK_BACKUP_STAGING_MAX_BYTES", configValue(values, "WK_BACKUP_STAGING_MAX_BYTES"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_MAX_PARALLEL_PARTITIONS") {
+		cfg.MaxParallelPartitions, err = parseInt("WK_BACKUP_MAX_PARALLEL_PARTITIONS", configValue(values, "WK_BACKUP_MAX_PARALLEL_PARTITIONS"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_MONTHLY_RETENTION_MONTHS") {
+		cfg.MonthlyRetentionMonths, err = parseInt("WK_BACKUP_MONTHLY_RETENTION_MONTHS", configValue(values, "WK_BACKUP_MONTHLY_RETENTION_MONTHS"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_OBJECT_LOCK_DAYS") {
+		cfg.ObjectLockDays, err = parseInt("WK_BACKUP_OBJECT_LOCK_DAYS", configValue(values, "WK_BACKUP_OBJECT_LOCK_DAYS"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	normalized, err := app.NormalizeBackupConfig(cfg)
+	if err != nil {
+		return app.BackupConfig{}, fmt.Errorf("load config: %w", err)
+	}
+	return normalized, nil
 }
 
 func defaultGatewayListeners() []gateway.ListenerOptions {

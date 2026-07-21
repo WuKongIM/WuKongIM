@@ -14,5 +14,7 @@ var (
 	ErrBackgroundProposalThrottled = errors.New("multiraft: background proposal throttled")
 	ErrApplyBacklogHigh            = errors.New("multiraft: apply backlog high")
 	ErrConfigChangePending         = errors.New("multiraft: config change pending")
+	ErrHashSlotSnapshotUnsupported = errors.New("multiraft: hash-slot snapshot unsupported")
+	ErrHashSlotSnapshotUnavailable = errors.New("multiraft: hash-slot snapshot unavailable")
 	errNotImplemented              = errors.New("multiraft: not implemented")
 )

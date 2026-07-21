@@ -42,6 +42,26 @@ func TestMessageDBStoreAdapterCheckpointPreservesExistingFields(t *testing.T) {
 	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 2, HW: 8}, current)
 }
 
+func TestMessageDBFactoryVerifyRestoreBoundariesRequiresExactCheckpointAndLEO(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "restored-room", Type: 2}
+	key := ch.ChannelKeyForID(id)
+	cs, err := factory.ChannelStore(key, id)
+	require.NoError(t, err)
+	adapter := cs.(*messageDBChannelStoreAdapter)
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Epoch: 3, Payload: []byte("one"), SizeBytes: 3}}, Sync: true})
+	require.NoError(t, err)
+	require.NoError(t, adapter.store.StoreCheckpoint(channel.Checkpoint{Epoch: 3, HW: 1}))
+	require.NoError(t, cs.Close())
+
+	expected := []BackupChannelCut{{Key: key, ID: id, Epoch: 3, HW: 1}}
+	require.NoError(t, factory.VerifyRestoreBoundaries(ctx, expected))
+	expected[0].HW = 2
+	require.Error(t, factory.VerifyRestoreBoundaries(ctx, expected))
+}
+
 func TestMessageDBTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
 	ctx := context.Background()
 	factory := NewMessageDBFactory(t.TempDir())

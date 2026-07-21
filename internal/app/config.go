@@ -72,6 +72,208 @@ type Config struct {
 	Webhook WebhookConfig
 	// Plugin configures node-local PDK-compatible plugin runtime integration.
 	Plugin PluginConfig
+	// Backup configures cluster-semantic automatic backup and recovery-point publication.
+	Backup BackupConfig
+}
+
+// BackupConfig configures the disabled-by-default cluster backup runtime.
+type BackupConfig struct {
+	// Enabled starts backup coordination and node capture workers after startup doctor checks.
+	Enabled bool
+	// RestoreMode starts only recovery, restricted Manager, metrics, and audit surfaces.
+	RestoreMode bool
+	// RepositoryID is the stable logical identity shared by both repository copies.
+	RepositoryID string
+	// SourceGeneration fences this cluster incarnation from a restored successor.
+	SourceGeneration string
+	// TargetGeneration identifies the fresh successor cluster incarnation used only during restore mode.
+	TargetGeneration string
+	// StagingDir stores bounded node-local temporary backup data and must not be a repository path.
+	StagingDir string
+	// KMSKeyID identifies the external KMS key used to wrap per-object data keys.
+	KMSKeyID string
+	// SigningKeyID identifies the external asymmetric key used to sign canonical restore-point manifests.
+	SigningKeyID string
+	// GarbageCollectorRoleARN is the separately authorized AWS-compatible role assumed only for immutable-version deletion.
+	GarbageCollectorRoleARN string
+	// KMSRegion is the AWS-compatible signing region used for encryption and manifest-signing calls.
+	KMSRegion string
+	// KMSEndpoint optionally overrides the AWS KMS API origin for a compatible provider.
+	KMSEndpoint string
+	// IncrementalInterval controls how often the Controller Leader reevaluates the incremental schedule.
+	IncrementalInterval time.Duration
+	// RestorePointInterval controls how often verified increments become published recovery points.
+	RestorePointInterval time.Duration
+	// SyntheticFullInterval is the target independent-full cadence; the current safe fallback rereads source data.
+	SyntheticFullInterval time.Duration
+	// ChunkSizeBytes bounds plaintext bytes read into one encrypted repository object.
+	ChunkSizeBytes uint64
+	// StagingMaxBytes bounds node-local disk space reserved for backup staging.
+	StagingMaxBytes uint64
+	// MaxParallelPartitions bounds backup partition work admitted on one node.
+	MaxParallelPartitions int
+	// MonthlyRetentionMonths controls optional monthly materialized-full retention; zero disables it.
+	MonthlyRetentionMonths int
+	// ObjectLockDays is the minimum per-object compliance retention applied to every repository write.
+	ObjectLockDays int
+	// Primary configures the first independently verified S3-compatible repository.
+	Primary BackupRepositoryConfig
+	// Secondary configures the cross-region S3-compatible repository that determines effective RPO.
+	Secondary BackupRepositoryConfig
+}
+
+// BackupRepositoryConfig describes one S3-compatible immutable backup repository.
+type BackupRepositoryConfig struct {
+	// Endpoint is the HTTPS S3-compatible API origin.
+	Endpoint string
+	// Region is the repository signing region or provider region identifier.
+	Region string
+	// Bucket is the versioned, Object-Lock-enabled destination bucket.
+	Bucket string
+	// Prefix is the object namespace reserved for this cluster repository identity.
+	Prefix string
+}
+
+const (
+	defaultBackupChunkSizeBytes  = 8 * 1024 * 1024
+	maximumBackupChunkSizeBytes  = 256 * 1024 * 1024
+	defaultBackupStagingMaxBytes = 10 * 1024 * 1024 * 1024
+	maximumBackupParallelWorkers = 256
+)
+
+// NormalizeBackupConfig applies safe policy defaults and validates the complete
+// production contract when automatic backup is enabled.
+func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
+	if cfg.IncrementalInterval == 0 {
+		cfg.IncrementalInterval = time.Minute
+	}
+	if cfg.RestorePointInterval == 0 {
+		cfg.RestorePointInterval = 5 * time.Minute
+	}
+	if cfg.SyntheticFullInterval == 0 {
+		cfg.SyntheticFullInterval = 24 * time.Hour
+	}
+	if cfg.ChunkSizeBytes == 0 {
+		cfg.ChunkSizeBytes = defaultBackupChunkSizeBytes
+	}
+	if cfg.StagingMaxBytes == 0 {
+		cfg.StagingMaxBytes = defaultBackupStagingMaxBytes
+	}
+	if cfg.MaxParallelPartitions == 0 {
+		cfg.MaxParallelPartitions = 4
+	}
+	if err := validateBackupConfig(cfg); err != nil {
+		return BackupConfig{}, err
+	}
+	return cfg, nil
+}
+
+func validateBackupConfig(cfg BackupConfig) error {
+	if cfg.Enabled && cfg.RestoreMode {
+		return fmt.Errorf("%w: automatic backup and restore mode are mutually exclusive", ErrInvalidConfig)
+	}
+	if cfg.IncrementalInterval <= 0 {
+		return fmt.Errorf("%w: backup incremental interval must be positive", ErrInvalidConfig)
+	}
+	if cfg.RestorePointInterval <= 0 || cfg.IncrementalInterval > cfg.RestorePointInterval {
+		return fmt.Errorf("%w: backup restore point interval must be positive and not shorter than the incremental interval", ErrInvalidConfig)
+	}
+	if cfg.SyntheticFullInterval < cfg.RestorePointInterval {
+		return fmt.Errorf("%w: backup synthetic full interval must not be shorter than the restore point interval", ErrInvalidConfig)
+	}
+	if cfg.ChunkSizeBytes < 1024*1024 || cfg.ChunkSizeBytes > maximumBackupChunkSizeBytes {
+		return fmt.Errorf("%w: backup chunk size must be between 1 MiB and 256 MiB", ErrInvalidConfig)
+	}
+	if cfg.StagingMaxBytes < cfg.ChunkSizeBytes {
+		return fmt.Errorf("%w: backup staging quota must be at least one chunk", ErrInvalidConfig)
+	}
+	if cfg.MaxParallelPartitions <= 0 || cfg.MaxParallelPartitions > maximumBackupParallelWorkers {
+		return fmt.Errorf("%w: backup parallel partitions must be between 1 and %d", ErrInvalidConfig, maximumBackupParallelWorkers)
+	}
+	if cfg.MonthlyRetentionMonths < 0 || cfg.MonthlyRetentionMonths > 120 {
+		return fmt.Errorf("%w: backup monthly retention months must be between 0 and 120", ErrInvalidConfig)
+	}
+	if cfg.Enabled && (cfg.ObjectLockDays < 7 || cfg.ObjectLockDays > 36500) {
+		return fmt.Errorf("%w: backup object lock days must be between 7 and 36500", ErrInvalidConfig)
+	}
+	if !cfg.Enabled && !cfg.RestoreMode {
+		return nil
+	}
+	if !validBackupIdentity(cfg.RepositoryID) {
+		return fmt.Errorf("%w: backup repository identity is required and must use only letters, digits, dot, dash, or underscore", ErrInvalidConfig)
+	}
+	if cfg.Enabled && !validBackupIdentity(cfg.SourceGeneration) {
+		return fmt.Errorf("%w: backup source generation is required and must use only letters, digits, dot, dash, or underscore", ErrInvalidConfig)
+	}
+	if cfg.RestoreMode && !validBackupIdentity(cfg.TargetGeneration) {
+		return fmt.Errorf("%w: backup target generation is required in restore mode and must use only letters, digits, dot, dash, or underscore", ErrInvalidConfig)
+	}
+	if !filepath.IsAbs(strings.TrimSpace(cfg.StagingDir)) {
+		return fmt.Errorf("%w: backup staging directory must be an absolute path", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(cfg.KMSKeyID) == "" {
+		return fmt.Errorf("%w: backup KMS encryption key id is required", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(cfg.SigningKeyID) == "" {
+		return fmt.Errorf("%w: backup manifest signing key id is required", ErrInvalidConfig)
+	}
+	if cfg.Enabled && strings.TrimSpace(cfg.GarbageCollectorRoleARN) == "" {
+		return fmt.Errorf("%w: backup garbage collector role ARN is required to separate upload and deletion authority", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(cfg.KMSRegion) == "" {
+		return fmt.Errorf("%w: backup KMS region is required", ErrInvalidConfig)
+	}
+	if endpoint := strings.TrimSpace(cfg.KMSEndpoint); endpoint != "" {
+		parsed, err := url.Parse(endpoint)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return fmt.Errorf("%w: backup KMS endpoint must be an HTTPS origin without credentials, query, or fragment", ErrInvalidConfig)
+		}
+	}
+	if err := validateBackupRepository("primary", cfg.Primary); err != nil {
+		return err
+	}
+	if err := validateBackupRepository("secondary", cfg.Secondary); err != nil {
+		return err
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Primary.Region), strings.TrimSpace(cfg.Secondary.Region)) {
+		return fmt.Errorf("%w: backup repositories must use different regions", ErrInvalidConfig)
+	}
+	if backupRepositoryIdentity(cfg.Primary) == backupRepositoryIdentity(cfg.Secondary) {
+		return fmt.Errorf("%w: backup primary and secondary repositories must be distinct", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validBackupIdentity(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for _, ch := range value {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func validateBackupRepository(name string, cfg BackupRepositoryConfig) error {
+	endpoint, err := url.Parse(strings.TrimSpace(cfg.Endpoint))
+	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+		return fmt.Errorf("%w: backup %s repository endpoint must be an HTTPS origin without credentials, query, or fragment", ErrInvalidConfig, name)
+	}
+	if strings.TrimSpace(cfg.Region) == "" || strings.TrimSpace(cfg.Bucket) == "" || strings.Trim(strings.TrimSpace(cfg.Prefix), "/") == "" {
+		return fmt.Errorf("%w: backup %s repository region, bucket, and prefix are required", ErrInvalidConfig, name)
+	}
+	if strings.Contains(cfg.Prefix, "..") || strings.HasPrefix(strings.TrimSpace(cfg.Prefix), "/") {
+		return fmt.Errorf("%w: backup %s repository prefix must be a safe relative object prefix", ErrInvalidConfig, name)
+	}
+	return nil
+}
+
+func backupRepositoryIdentity(cfg BackupRepositoryConfig) string {
+	return strings.ToLower(strings.TrimSpace(cfg.Endpoint)) + "\x00" + strings.TrimSpace(cfg.Bucket) + "\x00" + strings.Trim(strings.TrimSpace(cfg.Prefix), "/")
 }
 
 // APIConfig contains HTTP API settings for the standalone v2 entry.
@@ -861,6 +1063,28 @@ func validateManagerConfig(cfg ManagerConfig) error {
 		}
 	}
 	return nil
+}
+
+func validateRestoreModeManagerConfig(backup BackupConfig, manager ManagerConfig) error {
+	if !backup.RestoreMode {
+		return nil
+	}
+	if strings.TrimSpace(manager.ListenAddr) == "" || !manager.AuthOn {
+		return fmt.Errorf("%w: restore mode requires an authenticated manager listener", ErrInvalidConfig)
+	}
+	for _, user := range manager.Users {
+		for _, permission := range user.Permissions {
+			if permission.Resource != "cluster.restore.activation" {
+				continue
+			}
+			for _, action := range permission.Actions {
+				if action == "w" || action == "*" {
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("%w: restore mode requires an explicit cluster.restore.activation write grant", ErrInvalidConfig)
 }
 
 func validManagerPermissionAction(action string) bool {

@@ -87,6 +87,16 @@ func (a authState) hasPermission(username, resource, action string) bool {
 		hasPermissionAction(principal.permissions["*"], action)
 }
 
+// hasExplicitPermission deliberately excludes wildcard grants. It is reserved
+// for recovery actions that require a separately reviewed operator grant.
+func (a authState) hasExplicitPermission(username, resource, action string) bool {
+	principal, ok := a.users[username]
+	if !ok {
+		return false
+	}
+	return hasPermissionAction(principal.permissions[resource], action)
+}
+
 func hasPermissionAction(actions map[string]struct{}, action string) bool {
 	if len(actions) == 0 {
 		return false
@@ -140,6 +150,22 @@ func (s *Server) requirePermission(resource, action string) gin.HandlerFunc {
 			return
 		}
 		if !s.auth.hasPermission(username, resource, action) {
+			jsonError(c, http.StatusForbidden, "forbidden", "forbidden")
+			return
+		}
+		c.Set(managerUsernameContextKey, username)
+		c.Next()
+	}
+}
+
+func (s *Server) requireExplicitPermission(resource, action string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		username, err := s.authenticateRequest(c.Request.Header.Get("Authorization"))
+		if err != nil {
+			jsonError(c, http.StatusUnauthorized, "unauthorized", "unauthorized")
+			return
+		}
+		if !s.auth.hasExplicitPermission(username, resource, action) {
 			jsonError(c, http.StatusForbidden, "forbidden", "forbidden")
 			return
 		}

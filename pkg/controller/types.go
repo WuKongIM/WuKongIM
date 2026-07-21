@@ -47,6 +47,26 @@ type (
 	HashSlotRange = state.HashSlotRange
 	// ReconcileTask is an active durable task needed to converge data-plane state.
 	ReconcileTask = state.ReconcileTask
+	// BackupCoordinationState stores bounded backup coordination metadata.
+	BackupCoordinationState = state.BackupCoordinationState
+	// BackupRestorePointKind identifies how a restore point was materialized.
+	BackupRestorePointKind = state.BackupRestorePointKind
+	// BackupJobStatus identifies one durable backup coordination phase.
+	BackupJobStatus = state.BackupJobStatus
+	// BackupJob is one bounded cluster-coordinated backup attempt.
+	BackupJob = state.BackupJob
+	// BackupPartitionReport is one logical hash-slot completion summary.
+	BackupPartitionReport = state.BackupPartitionReport
+	// BackupRestorePoint is one bounded published restore-point reference.
+	BackupRestorePoint = state.BackupRestorePoint
+	// RestoreCoordinationState stores bounded explicit recovery metadata.
+	RestoreCoordinationState = state.RestoreCoordinationState
+	// RestorePlan stores one recovery plan and bounded progress.
+	RestorePlan = state.RestorePlan
+	// RestorePartition stores one logical recovery progress record.
+	RestorePartition = state.RestorePartition
+	// RestoreStatus identifies one explicit recovery phase.
+	RestoreStatus = state.RestoreStatus
 	// TaskKind describes one reconcile workflow kind.
 	TaskKind = state.TaskKind
 	// TaskStep describes the current step inside a reconcile workflow.

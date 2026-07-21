@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	backupcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/backup"
 	benchcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench"
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
 	contextcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context"
@@ -76,6 +77,7 @@ func newRootCommand(deps command.Deps, factories []command.Factory) *cobra.Comma
 func defaultCommandFactories() []command.Factory {
 	return []command.Factory{
 		contextcmd.NewCommand,
+		backupcmd.NewCommand,
 		topcmd.NewCommand,
 		benchcmd.NewCommand,
 		simcmd.NewCommand,

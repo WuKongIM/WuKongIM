@@ -39,6 +39,42 @@ func (s *ClusterState) Normalize() {
 		sort.Slice(s.Tasks[i].ObservedLearners, func(a, b int) bool { return s.Tasks[i].ObservedLearners[a] < s.Tasks[i].ObservedLearners[b] })
 		normalizeTaskProgress(&s.Tasks[i])
 	}
+	if s.Backup != nil {
+		if s.Backup.RestorePoints == nil {
+			s.Backup.RestorePoints = []BackupRestorePoint{}
+		}
+		if s.Backup.PendingGarbage == nil {
+			s.Backup.PendingGarbage = []BackupRestorePoint{}
+		}
+		if s.Backup.Active != nil {
+			if s.Backup.Active.Partitions == nil {
+				s.Backup.Active.Partitions = []BackupPartitionReport{}
+			}
+			sort.Slice(s.Backup.Active.Partitions, func(i, j int) bool {
+				return s.Backup.Active.Partitions[i].HashSlot < s.Backup.Active.Partitions[j].HashSlot
+			})
+		}
+		sort.Slice(s.Backup.RestorePoints, func(i, j int) bool {
+			if s.Backup.RestorePoints[i].EffectiveAtUnixMillis == s.Backup.RestorePoints[j].EffectiveAtUnixMillis {
+				return s.Backup.RestorePoints[i].ID < s.Backup.RestorePoints[j].ID
+			}
+			return s.Backup.RestorePoints[i].EffectiveAtUnixMillis > s.Backup.RestorePoints[j].EffectiveAtUnixMillis
+		})
+		sort.Slice(s.Backup.PendingGarbage, func(i, j int) bool {
+			if s.Backup.PendingGarbage[i].CreatedAtUnixMillis == s.Backup.PendingGarbage[j].CreatedAtUnixMillis {
+				return s.Backup.PendingGarbage[i].ID < s.Backup.PendingGarbage[j].ID
+			}
+			return s.Backup.PendingGarbage[i].CreatedAtUnixMillis < s.Backup.PendingGarbage[j].CreatedAtUnixMillis
+		})
+	}
+	if s.Restore != nil && s.Restore.Plan != nil {
+		if s.Restore.Plan.Partitions == nil {
+			s.Restore.Plan.Partitions = []RestorePartition{}
+		}
+		sort.Slice(s.Restore.Plan.Partitions, func(i, j int) bool {
+			return s.Restore.Plan.Partitions[i].HashSlot < s.Restore.Plan.Partitions[j].HashSlot
+		})
+	}
 	sort.Slice(s.Controllers, func(i, j int) bool { return s.Controllers[i].NodeID < s.Controllers[j].NodeID })
 	sort.Slice(s.Nodes, func(i, j int) bool { return s.Nodes[i].NodeID < s.Nodes[j].NodeID })
 	sort.Slice(s.Slots, func(i, j int) bool { return s.Slots[i].SlotID < s.Slots[j].SlotID })
@@ -76,6 +112,14 @@ func (s ClusterState) Clone() ClusterState {
 		out.Tasks[i].ParticipantProgress = cloneSlice(s.Tasks[i].ParticipantProgress)
 		out.Tasks[i].ObservedVoters = cloneUint64s(s.Tasks[i].ObservedVoters)
 		out.Tasks[i].ObservedLearners = cloneUint64s(s.Tasks[i].ObservedLearners)
+	}
+	if s.Backup != nil {
+		backup := s.Backup.Clone()
+		out.Backup = &backup
+	}
+	if s.Restore != nil {
+		restore := s.Restore.Clone()
+		out.Restore = &restore
 	}
 	return out
 }

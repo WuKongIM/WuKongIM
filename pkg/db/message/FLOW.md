@@ -104,6 +104,12 @@ Current flow:
     separate durable header column from the legacy `Timestamp` field; old rows
     without the new column decode `ServerTimestampMS` as zero, and new leader
     appends default it at the DB boundary when callers omit it.
-18. Schema and key helpers define the durable message table layout.
+18. Backup snapshot readers pin one engine view and stream a portable,
+    checksummed hash-slot payload containing committed messages, checkpoint,
+    epoch history, retention state, and idempotency fields. Incremental reads
+    start strictly after the authenticated prior HW. Restore imports are
+    bounded and idempotent, reject conflicting existing rows, and verify final
+    Channel epoch/log-start/HW boundaries.
+19. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

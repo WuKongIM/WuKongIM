@@ -202,6 +202,12 @@ type Options struct {
 	Auth AuthConfig
 	// Management provides manager read usecases.
 	Management Management
+	// Backup provides optional cluster backup control operations.
+	Backup BackupManagement
+	// Restore provides explicit disaster-recovery control operations.
+	Restore RestoreManagement
+	// RestoreMode restricts the Manager API to recovery-only routes.
+	RestoreMode bool
 	// RealtimeMonitor provides unified realtime monitor snapshots.
 	RealtimeMonitor RealtimeMonitorProvider
 	// Top provides local runtime pressure snapshots for read-only runtime views.
@@ -221,6 +227,9 @@ type Server struct {
 	listenAddr      string
 	addr            string
 	management      Management
+	backup          BackupManagement
+	restore         RestoreManagement
+	restoreMode     bool
 	realtimeMonitor RealtimeMonitorProvider
 	top             accessapi.TopSnapshotProvider
 	webhookConfig   WebhookConfigProvider
@@ -243,6 +252,9 @@ func New(opts Options) *Server {
 		engine:          engine,
 		listenAddr:      strings.TrimSpace(opts.ListenAddr),
 		management:      opts.Management,
+		backup:          opts.Backup,
+		restore:         opts.Restore,
+		restoreMode:     opts.RestoreMode,
 		realtimeMonitor: opts.RealtimeMonitor,
 		top:             opts.Top,
 		webhookConfig:   opts.WebhookConfig,
@@ -345,6 +357,10 @@ func (s *Server) registerRoutes() {
 		permissions.Use(s.requirePermission("cluster.permission", "r"))
 	}
 	permissions.GET("/permissions", s.handlePermissions)
+	if s.restoreMode {
+		s.registerRestoreRoutes()
+		return
+	}
 
 	nodes := s.engine.Group("/manager")
 	if s.auth.enabled() {
@@ -409,6 +425,23 @@ func (s *Server) registerRoutes() {
 	controllerRaftWrites.POST("/nodes/:node_id/controller-raft/compact", s.handleCompactControllerRaftLog)
 	controllerRaftWrites.POST("/nodes/:node_id/controller-voter/promote", s.handlePromoteControllerVoter)
 	controllerRaftWrites.POST("/controller-raft/compact", s.handleCompactControllerRaftLogs)
+
+	backupReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		backupReads.Use(s.requirePermission("cluster.backup", "r"))
+	}
+	backupReads.GET("/backups/status", s.handleBackupStatus)
+	backupReads.GET("/backups/restore-points", s.handleBackupRestorePoints)
+
+	backupWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		backupWrites.Use(s.requirePermission("cluster.backup", "w"))
+	}
+	backupWrites.POST("/backups/trigger", s.handleBackupTrigger)
+	backupWrites.POST("/backups/restore-points/:restore_point_id/verify", s.handleBackupVerify)
+	backupWrites.POST("/backups/jobs/:job_id/cancel", s.handleBackupCancel)
+	backupWrites.POST("/backups/restore-points/:restore_point_id/hold", s.handleBackupHold)
+	backupWrites.POST("/backups/restore-points/:restore_point_id/release", s.handleBackupRelease)
 
 	diagnostics := s.engine.Group("/manager")
 	if s.auth.enabled() {

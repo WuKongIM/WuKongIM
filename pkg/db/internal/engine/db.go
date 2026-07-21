@@ -82,18 +82,22 @@ func (e *DB) NewIter(span Span, opts IterOptions) (*Iter, error) {
 	if e == nil || e.pdb == nil {
 		return nil, dberrors.ErrClosed
 	}
-	iterOpts := &pebble.IterOptions{}
-	if len(span.Start) > 0 {
-		iterOpts.LowerBound = append([]byte(nil), span.Start...)
-	}
-	if len(span.End) > 0 {
-		iterOpts.UpperBound = append([]byte(nil), span.End...)
-	}
-	iter, err := e.pdb.NewIter(iterOpts)
+	iter, err := e.pdb.NewIter(pebbleIterOptions(span, opts))
 	if err != nil {
 		return nil, err
 	}
 	return &Iter{iter: iter}, nil
+}
+
+func pebbleIterOptions(span Span, _ IterOptions) *pebble.IterOptions {
+	options := &pebble.IterOptions{}
+	if len(span.Start) > 0 {
+		options.LowerBound = append([]byte(nil), span.Start...)
+	}
+	if len(span.End) > 0 {
+		options.UpperBound = append([]byte(nil), span.End...)
+	}
+	return options
 }
 
 func pebbleOptions(opts Options) *pebble.Options {

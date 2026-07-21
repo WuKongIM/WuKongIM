@@ -404,6 +404,45 @@ func (r *Runtime) CompactLog(ctx context.Context, slotID SlotID) (LogCompactionR
 	}
 }
 
+// CaptureHashSlotSnapshot opens a pinned logical snapshot at the owning Slot worker's durable applied boundary.
+func (r *Runtime) CaptureHashSlotSnapshot(ctx context.Context, slotID SlotID, hashSlot uint16) (CapturedHashSlotSnapshot, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return CapturedHashSlotSnapshot{}, err
+	}
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		return CapturedHashSlotSnapshot{}, ErrRuntimeClosed
+	}
+	g, ok := r.slots[slotID]
+	r.mu.RUnlock()
+	if !ok {
+		return CapturedHashSlotSnapshot{}, ErrSlotNotFound
+	}
+	request := hashSlotSnapshotRequest{
+		ctx:      ctx,
+		hashSlot: hashSlot,
+		resp:     make(chan hashSlotSnapshotResponse, 1),
+	}
+	if err := g.enqueueControl(controlAction{kind: controlCaptureHashSlotSnapshot, backupSnapshot: &request}); err != nil {
+		return CapturedHashSlotSnapshot{}, err
+	}
+	r.scheduler.enqueue(slotID)
+	select {
+	case response := <-request.resp:
+		return response.result, response.err
+	case <-ctx.Done():
+		if request.finish(hashSlotSnapshotResponse{err: ctx.Err()}) {
+			return CapturedHashSlotSnapshot{}, ctx.Err()
+		}
+		response := <-request.resp
+		return response.result, response.err
+	}
+}
+
 func (r *Runtime) Status(slotID SlotID) (Status, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

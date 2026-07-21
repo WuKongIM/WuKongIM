@@ -991,3 +991,23 @@ public browser gateway. It injects the fixed private node API, Manager,
 WebSocket, and Prometheus origins into `internal/access/cloudview`. The process
 never joins the cluster, decodes WKProto frames, or receives cloud credentials;
 the Cloud Simulation lifecycle separately owns public TCP/19443 ingress.
+
+## Backup Composition
+
+When backup and restore mode are both false, composition creates no repository,
+KMS, worker, or timer. Automatic mode wires two S3-compatible repositories,
+KMS envelope/signing, a separate garbage-collector role, Controller state,
+Slot-leader planning, source-node message capture, the coordinator, Manager,
+node RPC, and low-cardinality metrics. Backup doctor or runtime failure is
+reported independently and never changes ordinary message readiness.
+
+Restore mode wires repository inspection, all-node empty-target proof,
+restore-only installers/verifiers, Controller restore state, a leader-resuming
+coordinator, restricted authenticated Manager, and metrics. Construction
+requires at least one explicit `cluster.restore.activation:w` grant; ordinary
+or wildcard Manager grants cannot activate the successor. Lifecycle waits for restore-safe
+cluster readiness without issuing an ordinary write probe, and does not start
+Gateway, business APIs, webhooks, plugins, or ordinary workers. Normal startup
+reads the persisted restore plan before its write probe and rejects any plan
+that is not activated or whose activated generation differs from
+`backup.source_generation`.

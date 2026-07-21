@@ -5,10 +5,28 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
+	"io"
+	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
+
+type snapshotReadView interface {
+	NewIter(span engine.Span, opts engine.IterOptions) (*engine.Iter, error)
+}
+
+type slotSnapshotStream struct {
+	reader io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (s *slotSnapshotStream) Read(buffer []byte) (int, error) { return s.reader.Read(buffer) }
+
+func (s *slotSnapshotStream) Close() error {
+	s.cancel()
+	return s.reader.Close()
+}
 
 var slotSnapshotMagic = [4]byte{'W', 'K', 'D', 'B'}
 
@@ -92,6 +110,195 @@ func (db *MetaDB) ExportHashSlotSnapshot(ctx context.Context, hashSlots []uint16
 	}
 	data, stats := finishSlotSnapshotPayload(data, countPos, entryCount)
 	return SlotSnapshot{HashSlots: uint16HashSlots(normalized), Data: data, Stats: stats}, nil
+}
+
+// OpenHashSlotSnapshot opens the existing portable snapshot format from a pinned, streaming read view.
+func (db *MetaDB) OpenHashSlotSnapshot(ctx context.Context, hashSlots []uint16) (io.ReadCloser, error) {
+	return db.openHashSlotSnapshot(ctx, hashSlots, false)
+}
+
+// OpenBackupHashSlotSnapshot opens a portable pinned snapshot containing only
+// business-authoritative and recovery-critical metadata. Runtime ownership and
+// migration workflow rows are intentionally excluded.
+func (db *MetaDB) OpenBackupHashSlotSnapshot(ctx context.Context, hashSlots []uint16) (io.ReadCloser, error) {
+	return db.openHashSlotSnapshot(ctx, hashSlots, true)
+}
+
+// HasBackupBusinessData reports whether any recovery-authoritative table row
+// exists in the selected hash slots. Runtime ownership and migration workflow
+// rows are intentionally ignored because an empty restore target may bootstrap
+// those local coordination records before recovery planning.
+func (db *MetaDB) HasBackupBusinessData(ctx context.Context, hashSlots []uint16) (bool, error) {
+	normalized, err := normalizeSnapshotHashSlots(hashSlots)
+	if err != nil {
+		return false, err
+	}
+	if err := checkSnapshotDB(ctx, db); err != nil {
+		return false, err
+	}
+	view, err := db.engine.NewSnapshot()
+	if err != nil {
+		return false, err
+	}
+	defer view.Close()
+	for _, hashSlot := range normalized {
+		for _, table := range defaultMetaRegistry.tables() {
+			if table.ID == TableIDChannelRuntimeMeta || table.ID == TableIDChannelMigration || table.ID == TableIDHashSlotMigration {
+				continue
+			}
+			span := prefixSpan(encodeRowPrefix(hashSlot, table.ID))
+			iter, err := view.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+			if err != nil {
+				return false, err
+			}
+			present := iter.First()
+			iterErr := iter.Error()
+			closeErr := iter.Close()
+			if iterErr != nil {
+				return false, iterErr
+			}
+			if closeErr != nil {
+				return false, closeErr
+			}
+			if present {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func (db *MetaDB) openHashSlotSnapshot(ctx context.Context, hashSlots []uint16, backupOnly bool) (io.ReadCloser, error) {
+	normalized, err := normalizeSnapshotHashSlots(hashSlots)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkSnapshotDB(ctx, db); err != nil {
+		return nil, err
+	}
+	view, err := db.engine.NewSnapshot()
+	if err != nil {
+		return nil, err
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	streamContext, cancel := context.WithCancel(ctx)
+	reader, writer := io.Pipe()
+	go func() {
+		defer view.Close()
+		if err := writeHashSlotSnapshotStream(streamContext, writer, view, normalized, backupOnly); err != nil {
+			_ = writer.CloseWithError(err)
+			return
+		}
+		_ = writer.Close()
+	}()
+	return &slotSnapshotStream{reader: reader, cancel: cancel}, nil
+}
+
+func writeHashSlotSnapshotStream(ctx context.Context, writer io.Writer, view snapshotReadView, hashSlots []HashSlot, backupOnly bool) error {
+	entryCount, err := countSnapshotEntries(ctx, view, hashSlots, backupOnly)
+	if err != nil {
+		return err
+	}
+	checksum := crc32.NewIEEE()
+	payload := io.MultiWriter(writer, checksum)
+	header := make([]byte, 0, 4+2+2+len(hashSlots)*2+8)
+	header = append(header, slotSnapshotMagic[:]...)
+	header = binary.BigEndian.AppendUint16(header, slotSnapshotVersion)
+	header = binary.BigEndian.AppendUint16(header, uint16(len(hashSlots)))
+	for _, hashSlot := range hashSlots {
+		header = binary.BigEndian.AppendUint16(header, uint16(hashSlot))
+	}
+	header = binary.BigEndian.AppendUint64(header, entryCount)
+	if _, err := payload.Write(header); err != nil {
+		return err
+	}
+	if err := visitSnapshotEntries(ctx, view, hashSlots, backupOnly, func(key, value []byte) error {
+		lengths := make([]byte, 0, binary.MaxVarintLen64*2)
+		lengths = binary.AppendUvarint(lengths, uint64(len(key)))
+		lengths = binary.AppendUvarint(lengths, uint64(len(value)))
+		if _, err := payload.Write(lengths); err != nil {
+			return err
+		}
+		if _, err := payload.Write(key); err != nil {
+			return err
+		}
+		_, err := payload.Write(value)
+		return err
+	}); err != nil {
+		return err
+	}
+	trailer := make([]byte, 4)
+	binary.BigEndian.PutUint32(trailer, checksum.Sum32())
+	_, err = writer.Write(trailer)
+	return err
+}
+
+func countSnapshotEntries(ctx context.Context, view snapshotReadView, hashSlots []HashSlot, backupOnly bool) (uint64, error) {
+	var count uint64
+	err := visitSnapshotEntries(ctx, view, hashSlots, backupOnly, func(_, _ []byte) error {
+		if count == math.MaxInt {
+			return dberrors.ErrInvalidArgument
+		}
+		count++
+		return nil
+	})
+	return count, err
+}
+
+func visitSnapshotEntries(ctx context.Context, view snapshotReadView, hashSlots []HashSlot, backupOnly bool, visit func(key, value []byte) error) error {
+	for _, hashSlot := range hashSlots {
+		spans := hashSlotAllDataSpans(hashSlot)
+		if backupOnly {
+			spans = hashSlotBackupDataSpans(hashSlot)
+		}
+		for _, span := range spans {
+			iter, err := view.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+			if err != nil {
+				return err
+			}
+			for ok := iter.First(); ok; ok = iter.Next() {
+				if err := contextErr(ctx); err != nil {
+					_ = iter.Close()
+					return err
+				}
+				value, err := iter.Value()
+				if err != nil {
+					_ = iter.Close()
+					return err
+				}
+				if err := visit(iter.Key(), value); err != nil {
+					_ = iter.Close()
+					return err
+				}
+			}
+			if err := iter.Error(); err != nil {
+				_ = iter.Close()
+				return err
+			}
+			if err := iter.Close(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func hashSlotBackupDataSpans(hashSlot HashSlot) []Span {
+	tables := defaultMetaRegistry.tables()
+	spans := make([]Span, 0, len(tables)*2+1)
+	for _, table := range tables {
+		if table.ID == TableIDChannelRuntimeMeta || table.ID == TableIDChannelMigration || table.ID == TableIDHashSlotMigration {
+			continue
+		}
+		spans = append(spans, prefixSpan(encodeRowPrefix(hashSlot, table.ID)))
+		for _, index := range table.Indexes {
+			spans = append(spans, prefixSpan(encodeIndexPrefix(hashSlot, table.ID, index.ID)))
+		}
+	}
+	spans = append(spans, hashSlotSystemSpan(hashSlot))
+	return spans
 }
 
 // ImportHashSlotSnapshot replaces hash-slot data with snap.

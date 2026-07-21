@@ -233,6 +233,13 @@ Channel runtime cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/
   ⑥ 启动时先 Restore snapshot，再从 snapshot index 之后 replay committed entries
 ```
 
+备份读取使用独立的 `Runtime.CaptureHashSlotSnapshot` 控制动作。Slot worker
+先等待异步 apply 归零，证明当前 commit index 与 durable applied index 相等，记录该
+证据的 UTC watermark 与 term，再让 FSM 为一个当前归属的
+逻辑 hash slot 创建 Pebble pinned read view。控制动作只负责建立一致性点；返回的
+reader 在 worker 外分块消费，后续 Slot apply 不被整个导出时长阻塞。该读取不会创建
+Raft snapshot、不会裁剪日志，也不会改变业务状态。
+
 ### 5.6 Channel Migration Task Flow
 
 ```
@@ -367,3 +374,4 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **RPC Handler 注册**: `proxy.New` 在构造时调用 `cluster.RPCMux().Handle(...)` 注册 7 个 handler，漏任一个该类远端查询会全部失败。
 - **写入 Key 路由**: `HashSlotForKey(key)` 先算逻辑 hash slot，再通过 `SlotForKey(key)` 查表定位物理 Slot；**同一实体必须使用同一 Key**（User 用 uid，Channel 用 channelID，Device 用 uid 而非 deviceFlag）。用错 Key 会写到不同 hash slot / Slot，读不到。
 - **值 CRC 校验失败**: Pebble 存储值带 CRC32，校验失败返回 `ErrCorruptValue`。表明磁盘损坏或编解码器版本不兼容。
+- **备份快照边界**: `CaptureHashSlotSnapshot` 只在本地 Slot leader 上证明 commit index 等于 durable applied index 后建立固定 Pebble 视图，并返回 SlotID、hashSlot、term、commit/applied index 与证据 UTC watermark；备份层必须在读取期间复核这些 fence，不能把未提交日志、apply lag 或迁移中的临时路由状态当成业务恢复数据。

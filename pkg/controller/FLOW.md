@@ -106,6 +106,27 @@ bounded `NodeHealthReport` per node. It updates durable health evidence and
 heartbeat churn. Consumers that need health freshness compare report age against
 the configured TTL instead of interpreting membership `JoinState` as liveness.
 
+### Backup Coordination State
+
+`BackupCoordinationState` is an optional bounded section of `cluster-state.json`.
+It stores one active backup job, at most one compact completion report per logical
+hash slot, and bounded published restore-point references. Large partition
+manifests, encrypted objects, KMS material, and repository credentials remain
+outside Controller Raft. `ReplaceBackupCoordinationState` uses the normal global
+Controller `Revision` fence, so a stale coordinator reloads after any concurrent
+control-plane change before retrying.
+
+`RestoreCoordinationState` is a separate optional bounded section. It stores
+one immutable restore selection, one compact install/verify report per hash
+slot, target generation, and activation fencing evidence. Installed reports
+must carry a lowercase canonical metadata SHA-256. Normal startup consumes this
+state as an activation fence before ordinary writes.
+
+Retention removes no repository data inside Controller Raft. Expired restore
+points first move atomically from the selectable list into `PendingGarbage`;
+the external collector later removes the queue entry only after both immutable
+manifest copies are absent.
+
 ## Server Facade Flow
 
 ```text

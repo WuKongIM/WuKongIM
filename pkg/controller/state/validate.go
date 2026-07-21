@@ -1,9 +1,12 @@
 package state
 
 import (
+	"encoding/hex"
 	"fmt"
+	"path"
 	"reflect"
 	"sort"
+	"strings"
 )
 
 // Validate checks whether the cluster state satisfies durable Controller invariants.
@@ -46,7 +49,159 @@ func (s ClusterState) Validate() error {
 	if err := validateTasks(s.Tasks, assignments, nodes); err != nil {
 		return err
 	}
+	if err := validateBackup(s.Backup, s.Config.HashSlotCount); err != nil {
+		return err
+	}
+	if err := validateRestore(s.Restore, s.Config.HashSlotCount); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) error {
+	if restore == nil || restore.Plan == nil {
+		return nil
+	}
+	plan := restore.Plan
+	if !validBackupIdentity(plan.ID) || !validBackupIdentity(plan.RestorePointID) || !validSHA256(plan.ManifestSHA256) {
+		return invalid("restore plan identity is invalid")
+	}
+	if plan.Repository != "primary" && plan.Repository != "secondary" {
+		return invalid("restore repository selector is invalid")
+	}
+	if plan.SourceClusterID == "" || plan.TargetClusterID == "" || plan.SourceClusterID == plan.TargetClusterID ||
+		plan.SourceGeneration == "" || plan.TargetGeneration == "" || plan.SourceGeneration == plan.TargetGeneration {
+		return invalid("restore source and target generations must differ")
+	}
+	if plan.HashSlotCount != hashSlotCount || len(plan.Partitions) != int(hashSlotCount) {
+		return invalid("restore hash_slot_count or partition count is invalid")
+	}
+	switch plan.Status {
+	case RestoreStatusPlanned, RestoreStatusInstalling, RestoreStatusInstalled, RestoreStatusVerified, RestoreStatusActivated, RestoreStatusAbandoned:
+	default:
+		return invalid("restore status is invalid")
+	}
+	if plan.CreatedAtUnixMillis <= 0 || plan.UpdatedAtUnixMillis < plan.CreatedAtUnixMillis || plan.VerifiedAtUnixMillis < 0 || plan.ActivatedAtUnixMillis < 0 {
+		return invalid("restore timestamps are invalid")
+	}
+	if (plan.Status == RestoreStatusVerified || plan.Status == RestoreStatusActivated) && plan.VerifiedAtUnixMillis <= 0 {
+		return invalid("verified restore has no verification timestamp")
+	}
+	if plan.Status == RestoreStatusActivated && (plan.ActivatedAtUnixMillis <= 0 || !validSHA256(plan.ActivationFenceDigest)) {
+		return invalid("activated restore has no fencing evidence")
+	}
+	for index, partition := range plan.Partitions {
+		if partition.HashSlot != uint16(index) || len(partition.FailureCategory) > 128 || partition.UpdatedAtUnixMillis < 0 {
+			return invalid("restore partition progress is invalid")
+		}
+		if partition.Verified && !partition.Installed {
+			return invalid("restore partition verified before installation")
+		}
+		if partition.Installed && !validSHA256(partition.MetadataSHA256) {
+			return invalid("installed restore partition metadata digest is invalid")
+		}
+	}
+	return nil
+}
+
+func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error {
+	if backup == nil {
+		return nil
+	}
+	if len(backup.RestorePoints)+len(backup.PendingGarbage) > MaxBackupRestorePoints {
+		return invalid("backup restore-point references exceed limit")
+	}
+	if backup.Active != nil {
+		job := backup.Active
+		if job.ID == "" || job.Epoch == 0 || job.Epoch > backup.LastEpoch {
+			return invalid("backup active job identity or epoch is invalid")
+		}
+		if !validBackupKind(job.Kind) || !validBackupJobStatus(job.Status) {
+			return invalid("backup active job kind or status is invalid")
+		}
+		if job.HashSlotCount != hashSlotCount {
+			return invalid("backup active job hash_slot_count must match cluster config")
+		}
+		if !validSHA256(job.ConfigFingerprint) {
+			return invalid("backup config fingerprint must be sha256 hex")
+		}
+		if !validBackupIdentity(job.RestorePointID) || (job.BaseRestorePointID != "" && !validBackupIdentity(job.BaseRestorePointID)) {
+			return invalid("backup restore-point publication fence is invalid")
+		}
+		if job.StartedAtUnixMillis <= 0 || job.UpdatedAtUnixMillis < job.StartedAtUnixMillis {
+			return invalid("backup active job timestamps are invalid")
+		}
+		if len(job.FailureCategory) > 128 {
+			return invalid("backup failure category exceeds limit")
+		}
+		if len(job.Partitions) > int(hashSlotCount) {
+			return invalid("backup partition reports exceed hash_slot_count")
+		}
+		for index, report := range job.Partitions {
+			if index > 0 && job.Partitions[index-1].HashSlot >= report.HashSlot {
+				return invalid("backup partition reports must be unique and sorted")
+			}
+			if report.JobID != job.ID || report.BackupEpoch != job.Epoch || report.HashSlot >= hashSlotCount {
+				return invalid("backup partition report fence is invalid")
+			}
+			if report.RaftIndex == 0 || report.CommittedAtUnixMillis <= 0 || report.ObjectCount == 0 || report.CiphertextBytes == 0 {
+				return invalid("backup partition report boundary is invalid")
+			}
+			if !validBackupObjectKey(report.ManifestKey) || !validSHA256(report.ManifestSHA256) {
+				return invalid("backup partition manifest reference is invalid")
+			}
+		}
+	}
+	seenIDs := make(map[string]struct{}, len(backup.RestorePoints)+len(backup.PendingGarbage))
+	for _, restorePoint := range append(cloneSlice(backup.RestorePoints), backup.PendingGarbage...) {
+		if restorePoint.ID == "" || restorePoint.JobID == "" || restorePoint.BackupEpoch == 0 || restorePoint.BackupEpoch > backup.LastEpoch {
+			return invalid("backup restore-point identity or epoch is invalid")
+		}
+		if _, exists := seenIDs[restorePoint.ID]; exists {
+			return invalid("duplicate backup restore-point id")
+		}
+		seenIDs[restorePoint.ID] = struct{}{}
+		if !validBackupKind(restorePoint.Kind) || restorePoint.EffectiveAtUnixMillis <= 0 || restorePoint.CreatedAtUnixMillis < restorePoint.EffectiveAtUnixMillis {
+			return invalid("backup restore-point kind or timestamps are invalid")
+		}
+		if !validSHA256(restorePoint.ManifestSHA256) || !restorePoint.PrimaryVerified || !restorePoint.SecondaryVerified {
+			return invalid("backup restore-point is not verified in both repositories")
+		}
+	}
+	return nil
+}
+
+func validBackupIdentity(value string) bool {
+	if value == "" || len(value) > 128 || strings.Contains(value, "..") {
+		return false
+	}
+	for index, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_' || (char == '.' && index > 0) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func validBackupKind(kind BackupRestorePointKind) bool {
+	return kind == BackupRestorePointKindIncremental || kind == BackupRestorePointKindSyntheticFull || kind == BackupRestorePointKindMaterializedFull
+}
+
+func validBackupJobStatus(status BackupJobStatus) bool {
+	return status == BackupJobStatusPreparing || status == BackupJobStatusCapturing || status == BackupJobStatusPublishing || status == BackupJobStatusDegraded || status == BackupJobStatusFailed
+}
+
+func validSHA256(value string) bool {
+	if len(value) != 64 || strings.ToLower(value) != value {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
+}
+
+func validBackupObjectKey(key string) bool {
+	return key != "" && len(key) <= 1024 && !strings.HasPrefix(key, "/") && !strings.Contains(key, "\\") && path.Clean(key) == key && key != "."
 }
 
 func validateNodes(nodes []Node) (map[uint64]Node, error) {

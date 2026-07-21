@@ -1,9 +1,11 @@
 package multiraft
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
+	"io"
 	"reflect"
 	"sync"
 	"testing"
@@ -1854,4 +1856,16 @@ func (f *internalFakeStateMachine) Restore(ctx context.Context, snap Snapshot) e
 
 func (f *internalFakeStateMachine) Snapshot(ctx context.Context) (Snapshot, error) {
 	return Snapshot{}, nil
+}
+
+func (f *internalFakeStateMachine) OpenHashSlotSnapshot(_ context.Context, hashSlot uint16) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var data []byte
+	for _, command := range f.commands {
+		if command.HashSlot == hashSlot {
+			data = append([]byte(nil), command.Data...)
+		}
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
 }

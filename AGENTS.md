@@ -60,7 +60,7 @@ cmd/
   wkcloudsim/            云模拟生命周期 CLI，支持 fake 与 Alibaba Provider
   wkcloudview/           云模拟公网 Manager、Demo、Prometheus 与 WebSocket 统一入口
   wkclouddiagnosis/      云模拟 Diagnosis Result 严格校验 CLI
-  wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
+  wkcli/                 可扩展 Cobra 运维 CLI，包含 context、cluster、backup 等运维命令
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
 
@@ -84,12 +84,14 @@ internal/
     coordinator/         coordinator preflight 检查 target、worker 与 gateway placeholder
     worker/              wkbench worker 控制 HTTP API 与运行状态
   contracts/             跨用例/运行时的轻量事件合约
+    backup/              备份/恢复跨 usecase、runtime、infra 的有界协调 DTO
     channelappend/       channel append command/result 合约
     channelmembers/      legacy 兼容 member-list channel id 命名合约
     messageevents/       消息提交事件合约
     pluginevents/        插件生命周期与 hook 事件合约
     protocolmeta/        入口无关的协议枚举值合约
   infra/                 新架构外部运行时适配器
+    backup/              Controller、双仓库、KMS、保留 GC 与恢复基础设施适配
     cloudanalysis/       Analysis MCP 到 manager、Prometheus、pprof 与 run inventory 的适配
     cloudsim/            云厂商生命周期适配器；提供 Alibaba、持久化 fake 与原生主机部署能力
     cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
@@ -98,6 +100,7 @@ internal/
     diagnostics/         节点内有界诊断事件、采样、索引与查询
     taskaudit/           控制器任务审计事件投递与查询辅助
   usecase/               可复用业务用例，不依赖具体入口协议
+    backup/              集群备份、保留与显式恢复状态机
     channel/             频道资料、订阅者、黑白名单等兼容用例
     cloudanalysis/       Run Identity 绑定、工具输入边界、响应上限与诊断预算
     cloudsim/            云模拟生命周期、成本/容量/租期护栏与 Run Locator 合约
@@ -110,6 +113,7 @@ internal/
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度
     user/                用户 token、device quit、在线状态与 system UID legacy 兼容用例
   runtime/               新架构节点内运行时原语
+    backup/              Controller Leader 协调的分区备份与恢复 worker
     cloudviewstate/      云模拟交互与管理修改状态的单调持久化和指标投影
     channelappend/       channel authority write group 与单写者 append 状态机
     conversationactive/  节点内最近会话活跃缓存 admission runtime
@@ -120,6 +124,7 @@ internal/
     webhook/             节点内 webhook 有界队列、重试和发送 runtime
 
 pkg/
+  backup/                版本化、加密、签名的集群备份制品与仓库合约
   bench/
     model/               wkbench spec-shaped 配置、计划与 bench/v1 API 共享 DTO
   gateway/               通用客户端网关基础设施，提供 listener、transport、protocol、session、auth、dispatch、testkit

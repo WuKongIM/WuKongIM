@@ -118,6 +118,10 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		result = sm.applyPromoteControllerVoter(next, cmd)
 	case command.KindReplaceHashSlotTable:
 		result = sm.applyReplaceHashSlotTable(next, cmd)
+	case command.KindReplaceBackupCoordinationState:
+		result = sm.applyReplaceBackupCoordinationState(next, cmd)
+	case command.KindReplaceRestoreCoordinationState:
+		result = sm.applyReplaceRestoreCoordinationState(next, cmd)
 	case command.KindUpsertSlotAssignmentAndTask:
 		result = sm.applyUpsertSlotAssignmentAndTask(next, cmd)
 	case command.KindUpsertSlotReplicaMoveTask:

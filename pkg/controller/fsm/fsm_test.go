@@ -67,6 +67,95 @@ func TestApplyUpsertNodeNoopDoesNotIncrementRevisionButAdvancesAppliedIndex(t *t
 	require.Equal(t, uint64(2), persisted.AppliedRaftIndex)
 }
 
+func TestFSMReplacesBackupCoordinationStateWithRevisionFence(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	expected := uint64(1)
+	backupState := state.BackupCoordinationState{
+		LastEpoch: 1,
+		Active: &state.BackupJob{
+			ID:                  "backup-1",
+			Epoch:               1,
+			Kind:                state.BackupRestorePointKindIncremental,
+			Status:              state.BackupJobStatusCapturing,
+			HashSlotCount:       16,
+			ConfigFingerprint:   strings.Repeat("a", 64),
+			RestorePointID:      "restore-job-3",
+			StartedAtUnixMillis: 1710000000000,
+			UpdatedAtUnixMillis: 1710000001000,
+			Partitions: []state.BackupPartitionReport{
+				{
+					JobID:                 "backup-1",
+					BackupEpoch:           1,
+					HashSlot:              0,
+					RaftIndex:             9,
+					CommittedAtUnixMillis: 1710000000000,
+					ManifestKey:           "jobs/backup-1/partitions/0.json",
+					ManifestSHA256:        strings.Repeat("b", 64),
+					ObjectCount:           1,
+					CiphertextBytes:       128,
+				},
+			},
+		},
+		RestorePoints:  []state.BackupRestorePoint{},
+		PendingGarbage: []state.BackupRestorePoint{},
+	}
+
+	result, err := sm.Apply(ctx, 2, command.Command{
+		Kind:             command.KindReplaceBackupCoordinationState,
+		ExpectedRevision: &expected,
+		Backup:           &backupState,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 2, AppliedRaftIndex: 2}, result)
+	require.Equal(t, &backupState, sm.Snapshot(ctx).Backup)
+
+	stale := uint64(1)
+	replacement := backupState
+	replacement.LastEpoch = 2
+	result, err = sm.Apply(ctx, 3, command.Command{
+		Kind:             command.KindReplaceBackupCoordinationState,
+		ExpectedRevision: &stale,
+		Backup:           &replacement,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonExpectedRevisionMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+	require.Equal(t, &backupState, sm.Snapshot(ctx).Backup)
+}
+
+func TestFSMReplacesRestoreCoordinationStateWithRevisionFence(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	expected := uint64(1)
+	partitions := make([]state.RestorePartition, 16)
+	for hashSlot := range partitions {
+		partitions[hashSlot].HashSlot = uint16(hashSlot)
+	}
+	restoreState := state.RestoreCoordinationState{Plan: &state.RestorePlan{
+		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: strings.Repeat("c", 64), Repository: "primary",
+		SourceClusterID: "cluster-a", SourceGeneration: "generation-a", TargetClusterID: "wk-fsm-test", TargetGeneration: "generation-b",
+		HashSlotCount: 16, Status: state.RestoreStatusPlanned, CreatedAtUnixMillis: 1710000000000, UpdatedAtUnixMillis: 1710000000000,
+		Partitions: partitions,
+	}}
+
+	result, err := sm.Apply(ctx, 2, command.Command{
+		Kind: command.KindReplaceRestoreCoordinationState, ExpectedRevision: &expected, Restore: &restoreState,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 2, AppliedRaftIndex: 2}, result)
+	require.Equal(t, &restoreState, sm.Snapshot(ctx).Restore)
+
+	stale := uint64(1)
+	replacement := restoreState.Clone()
+	replacement.Plan.Status = state.RestoreStatusInstalling
+	result, err = sm.Apply(ctx, 3, command.Command{
+		Kind: command.KindReplaceRestoreCoordinationState, ExpectedRevision: &stale, Restore: &replacement,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonExpectedRevisionMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+	require.Equal(t, &restoreState, sm.Snapshot(ctx).Restore)
+}
+
 func TestApplyReportNodeHealthPersistsWithoutLogicalRevisionBump(t *testing.T) {
 	sm := newLoadedStateMachine(t)
 	before := sm.Snapshot(context.Background())

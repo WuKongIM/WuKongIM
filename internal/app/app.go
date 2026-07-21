@@ -20,6 +20,7 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -145,7 +146,19 @@ type App struct {
 	diagnosticsRestore func()
 	// controllerTaskAudit stores retained Controller task history for manager reads.
 	controllerTaskAudit *controllerTaskAuditRuntime
-	logger              wklog.Logger
+	// backup owns the entry-independent cluster backup state machine when enabled.
+	backup *backupusecase.App
+	// restore owns the explicit disaster-recovery state machine in restore mode.
+	restore *backupusecase.RestoreApp
+	// backupRuntime owns backup-only doctor, scheduling, and failover resume work.
+	backupRuntime WorkerRuntime
+	// restoreRuntime owns restore-only leader coordination and resumable installation.
+	restoreRuntime WorkerRuntime
+	// backupInitErr records enabled-mode construction failure without failing message startup.
+	backupInitErr error
+	// backupFingerprint is the non-secret cluster backup configuration fence.
+	backupFingerprint string
+	logger            wklog.Logger
 	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
 	startupConsole *startupConsole
 
@@ -162,6 +175,8 @@ type App struct {
 	pluginRuntimeStarted      bool
 	pluginHookStarted         bool
 	webhookStarted            bool
+	backupRuntimeStarted      bool
+	restoreRuntimeStarted     bool
 	apiStarted                bool
 	managerStarted            bool
 	prometheusStarted         bool
@@ -206,6 +221,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireConversationAuthority()
 	app.wireConversations(conversationReadStore)
 	app.wirePresence()
+	app.wireBackup(clusterCfg)
 	app.wireManagerConnectionRPC()
 	app.wireManagerLogRPC()
 	app.wireManagerControllerRaftRPC()
@@ -488,6 +504,7 @@ func defaultClusterConfig(cfg Config) cluster.Config {
 	if clusterCfg.DataDir == "" {
 		clusterCfg.DataDir = cfg.DataDir
 	}
+	clusterCfg.RestoreMode = cfg.Backup.RestoreMode
 	clusterCfg.ChannelRetention = cluster.ChannelRetentionConfig{
 		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,
 		ScanInterval:      cfg.ChannelMessageRetention.ScanInterval,

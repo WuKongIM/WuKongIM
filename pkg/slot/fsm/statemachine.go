@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 	"time"
@@ -714,6 +715,17 @@ func (m *stateMachine) Snapshot(ctx context.Context) (multiraft.Snapshot, error)
 
 func (m *stateMachine) ExportHashSlotSnapshot(ctx context.Context, hashSlot uint16) (metadb.SlotSnapshot, error) {
 	return m.db.ExportHashSlotSnapshot(ctx, []uint16{hashSlot})
+}
+
+// OpenHashSlotSnapshot pins and streams one currently owned logical hash slot.
+func (m *stateMachine) OpenHashSlotSnapshot(ctx context.Context, hashSlot uint16) (io.ReadCloser, error) {
+	m.ownershipMu.RLock()
+	_, owned := m.ownedHashSlots[hashSlot]
+	m.ownershipMu.RUnlock()
+	if !owned {
+		return nil, metadb.ErrInvalidArgument
+	}
+	return m.db.OpenBackupHashSlotSnapshot(ctx, []uint16{hashSlot})
 }
 
 func (m *stateMachine) ImportHashSlotSnapshot(ctx context.Context, snap metadb.SlotSnapshot) error {

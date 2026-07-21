@@ -63,6 +63,16 @@ var builtinManagerPermissionResources = []ManagerPermissionResource{
 		Description: "Read Controller state and perform Controller operations.",
 	},
 	{
+		Resource:    "cluster.backup",
+		Actions:     []string{"r", "w"},
+		Description: "Read cluster backup evidence and control backup jobs or restore-point holds.",
+	},
+	{
+		Resource:    "cluster.restore.activation",
+		Actions:     []string{"w"},
+		Description: "Activate a verified successor only with a separately reviewed explicit grant; wildcard grants do not apply.",
+	},
+	{
 		Resource:    "cluster.diagnostics",
 		Actions:     []string{"r", "w"},
 		Description: "Read diagnostics data and manage tracking rules.",

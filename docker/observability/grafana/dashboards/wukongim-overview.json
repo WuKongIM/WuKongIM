@@ -625,6 +625,117 @@
       ],
       "title": "Controller Node Health",
       "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(wukongim_backup_recovery_point_age_seconds{node_name=~\"$node_name\"})",
+          "legendFormat": "recovery point age seconds",
+          "refId": "A"
+        },
+        {
+          "expr": "max(wukongim_backup_verification_age_seconds{node_name=~\"$node_name\"})",
+          "legendFormat": "verification age seconds",
+          "refId": "B"
+        },
+        {
+          "expr": "max(wukongim_backup_job_active{node_name=~\"$node_name\"})",
+          "legendFormat": "job active",
+          "refId": "C"
+        },
+        {
+          "expr": "max(wukongim_backup_controller_leader{node_name=~\"$node_name\"})",
+          "legendFormat": "controller leader",
+          "refId": "D"
+        },
+        {
+          "expr": "max by (state) (wukongim_backup_doctor_health{node_name=~\"$node_name\"})",
+          "legendFormat": "doctor {{state}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Backup Recovery Evidence",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (category) (rate(wukongim_backup_failures_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "failures {{category}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (phase) (wukongim_backup_restore_partitions{node_name=~\"$node_name\"})",
+          "legendFormat": "restore {{phase}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Backup Failures And Restore Progress",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

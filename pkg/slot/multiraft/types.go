@@ -2,6 +2,7 @@ package multiraft
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -238,6 +239,30 @@ type StateMachine interface {
 	Apply(ctx context.Context, cmd Command) ([]byte, error)
 	Restore(ctx context.Context, snap Snapshot) error
 	Snapshot(ctx context.Context) (Snapshot, error)
+}
+
+// HashSlotSnapshotter opens one pinned logical hash-slot snapshot without blocking later applies.
+type HashSlotSnapshotter interface {
+	// OpenHashSlotSnapshot must pin the state visible at the call before returning.
+	OpenHashSlotSnapshot(ctx context.Context, hashSlot uint16) (io.ReadCloser, error)
+}
+
+// CapturedHashSlotSnapshot is a portable stream paired with its exact local applied boundary.
+type CapturedHashSlotSnapshot struct {
+	// SlotID is the physical Raft group that produced the snapshot.
+	SlotID SlotID
+	// HashSlot is the logical partition carried by Reader.
+	HashSlot uint16
+	// AppliedIndex is the durable Slot Raft boundary visible in Reader.
+	AppliedIndex uint64
+	// CommitIndex is the Raft commit boundary observed atomically before Reader was opened.
+	CommitIndex uint64
+	// Term is the Raft term at AppliedIndex.
+	Term uint64
+	// CapturedAtUnixMillis is the UTC watermark observed only after commit and apply matched.
+	CapturedAtUnixMillis int64
+	// Reader streams the pinned snapshot and must be closed by the caller.
+	Reader io.ReadCloser
 }
 
 // BatchStateMachine extends StateMachine with batched apply support.

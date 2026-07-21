@@ -7,12 +7,15 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
@@ -201,6 +204,31 @@ type ManagerLatestMessageReader interface {
 	ListLocalLatestMessages(context.Context, uint64, int) (managementusecase.ListMessagesResponse, error)
 }
 
+// BackupMessageShardCapturer uploads one bounded local committed-message shard.
+type BackupMessageShardCapturer interface {
+	CaptureMessageShard(context.Context, runtimebackup.CaptureRequest, runtimebackup.MessageShard) (runtimebackup.MessageShardCapture, error)
+}
+
+// BackupPartitionCapturer captures one logical hash-slot partition locally.
+type BackupPartitionCapturer interface {
+	CaptureBackupPartition(context.Context, runtimebackup.CaptureRequest) (backupusecase.PartitionReport, error)
+}
+
+// BackupRestoreTargetInspector checks this node's durable semantic storage.
+type BackupRestoreTargetInspector interface {
+	InspectLocalRestoreTarget(context.Context) (clusterpkg.RestoreTargetLocalState, error)
+}
+
+// BackupRestorePartitionInstaller installs one authenticated partition locally.
+type BackupRestorePartitionInstaller interface {
+	InstallPartition(context.Context, backupusecase.RestorePlan, uint16) (backupusecase.RestorePartition, error)
+}
+
+// BackupRestorePartitionVerifier checks restored durable Channel boundaries locally.
+type BackupRestorePartitionVerifier interface {
+	VerifyLocalRestorePartition(context.Context, uint16, string, []clusterpkg.RestoreVerifyBoundary) error
+}
+
 // Options configures the internal node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -253,6 +281,16 @@ type Options struct {
 	NodeLifecycleJoinToken string
 	// PluginHTTPRoutes handles node-local plugin HTTP route requests.
 	PluginHTTPRoutes PluginHTTPRouter
+	// BackupMessages captures bounded committed-message shards on this node.
+	BackupMessages BackupMessageShardCapturer
+	// BackupPartitions captures logical hash-slot partitions on this node.
+	BackupPartitions BackupPartitionCapturer
+	// BackupRestoreTarget inspects local semantic storage during explicit restore mode.
+	BackupRestoreTarget BackupRestoreTargetInspector
+	// BackupRestoreInstaller installs authenticated recovery partitions locally.
+	BackupRestoreInstaller BackupRestorePartitionInstaller
+	// BackupRestoreVerifier validates authenticated recovery boundaries locally.
+	BackupRestoreVerifier BackupRestorePartitionVerifier
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -309,6 +347,16 @@ type Adapter struct {
 	nodeLifecycleJoinToken string
 	// pluginHTTPRoutes invokes node-local plugin HTTP route hooks.
 	pluginHTTPRoutes PluginHTTPRouter
+	// backupMessages uploads local committed-message shards.
+	backupMessages BackupMessageShardCapturer
+	// backupPartitions captures local Slot-leader logical partitions.
+	backupPartitions BackupPartitionCapturer
+	// backupRestoreTarget checks this node's semantic storage emptiness.
+	backupRestoreTarget BackupRestoreTargetInspector
+	// backupRestoreInstaller installs authenticated recovery partitions locally.
+	backupRestoreInstaller BackupRestorePartitionInstaller
+	// backupRestoreVerifier validates restored durable boundaries locally.
+	backupRestoreVerifier BackupRestorePartitionVerifier
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -344,6 +392,11 @@ func New(opts Options) *Adapter {
 		nodeLifecycleClusterID:   opts.NodeLifecycleClusterID,
 		nodeLifecycleJoinToken:   opts.NodeLifecycleJoinToken,
 		pluginHTTPRoutes:         opts.PluginHTTPRoutes,
+		backupMessages:           opts.BackupMessages,
+		backupPartitions:         opts.BackupPartitions,
+		backupRestoreTarget:      opts.BackupRestoreTarget,
+		backupRestoreInstaller:   opts.BackupRestoreInstaller,
+		backupRestoreVerifier:    opts.BackupRestoreVerifier,
 		logger:                   opts.Logger,
 	}
 }

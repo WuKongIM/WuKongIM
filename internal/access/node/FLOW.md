@@ -630,3 +630,17 @@ Delivery push and fanout responses currently use:
   manager log reader, manager plugin reader, manager DB inspect reader,
   manager diagnostics reader/operator, and manager application log reader
   adapter interfaces.
+
+## Backup RPC
+
+Backup RPCs carry only bounded control requests, logical cut summaries, and
+repository references. Message payload capture executes on the selected source
+node and uploads directly to both repositories. Restore target inspection,
+partition installation, and verification are registered only for explicit
+restore mode. Verification carries the expected canonical metadata SHA-256 on
+the first batch and bounded Channel cut batches thereafter.
+
+The fixed request/response magic pairs are `WKVB/WKVb` for message shards,
+`WKVP/WKVp` for partitions, `WKVR/WKVr` for target inspection, `WKVI/WKVi`
+for restore install, and `WKVY/WKVy` for restore verification. Decoders reject
+unknown JSON fields, trailing bytes, invalid digests, and oversized batches.

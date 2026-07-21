@@ -33,8 +33,16 @@ import (
 )
 
 func (a *App) applyConfigDefaults() error {
+	var err error
+	a.cfg.Backup, err = NormalizeBackupConfig(a.cfg.Backup)
+	if err != nil {
+		return err
+	}
 	a.cfg.Manager = defaultManagerConfig(a.cfg.Manager)
 	if err := validateManagerConfig(a.cfg.Manager); err != nil {
+		return err
+	}
+	if err := validateRestoreModeManagerConfig(a.cfg.Backup, a.cfg.Manager); err != nil {
 		return err
 	}
 	a.cfg.Message = defaultMessageConfig(a.cfg.Message)
@@ -84,7 +92,6 @@ func (a *App) applyConfigDefaults() error {
 	if err := validatePrometheusConfig(a.cfg); err != nil {
 		return err
 	}
-	var err error
 	a.cfg.Top, err = NormalizeTopConfig(a.cfg.Top)
 	if err != nil {
 		return err
@@ -960,6 +967,9 @@ func (a *App) wireManager() {
 			RealtimeMonitor: a.newManagerMonitorProvider(management),
 			Top:             a.topProvider,
 			WebhookConfig:   a,
+			Backup:          a.newBackupManagement(),
+			Restore:         a.newRestoreManagement(),
+			RestoreMode:     a.cfg.Backup.RestoreMode,
 			Logger:          a.logger.Named("access.manager"),
 		})
 	}

@@ -8,6 +8,86 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
+	app := &App{cfg: Config{DataDir: t.TempDir()}}
+	require.NoError(t, app.applyConfigDefaults())
+	require.False(t, app.cfg.Backup.Enabled)
+	require.Equal(t, time.Minute, app.cfg.Backup.IncrementalInterval)
+	require.Equal(t, 5*time.Minute, app.cfg.Backup.RestorePointInterval)
+	require.Equal(t, uint64(8*1024*1024), app.cfg.Backup.ChunkSizeBytes)
+}
+
+func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
+	cfg := BackupConfig{
+		Enabled:                 true,
+		RepositoryID:            "cluster-a-dr",
+		SourceGeneration:        "generation-1",
+		StagingDir:              filepath.Join(t.TempDir(), "backup-staging"),
+		KMSKeyID:                "kms-encryption-v1",
+		SigningKeyID:            "kms-signing-v1",
+		GarbageCollectorRoleARN: "arn:aws:iam::123456789012:role/wukongim-backup-gc",
+		MonthlyRetentionMonths:  12,
+		Primary: BackupRepositoryConfig{
+			Endpoint: "https://primary.example",
+			Region:   "region-a",
+			Bucket:   "primary",
+			Prefix:   "cluster-a",
+		},
+		Secondary: BackupRepositoryConfig{
+			Endpoint: "https://secondary.example",
+			Region:   "region-a",
+			Bucket:   "secondary",
+			Prefix:   "cluster-a",
+		},
+	}
+	_, err := NormalizeBackupConfig(cfg)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+}
+
+func TestBackupRestoreModeRequiresFreshTargetGenerationInsteadOfSourceGeneration(t *testing.T) {
+	cfg := BackupConfig{
+		RestoreMode:      true,
+		RepositoryID:     "cluster-a-dr",
+		TargetGeneration: "generation-2",
+		StagingDir:       filepath.Join(t.TempDir(), "backup-staging"),
+		KMSKeyID:         "kms-encryption-v1",
+		SigningKeyID:     "kms-signing-v1",
+		KMSRegion:        "region-a",
+		Primary: BackupRepositoryConfig{
+			Endpoint: "https://primary.example", Region: "region-a", Bucket: "primary", Prefix: "cluster-a",
+		},
+		Secondary: BackupRepositoryConfig{
+			Endpoint: "https://secondary.example", Region: "region-b", Bucket: "secondary", Prefix: "cluster-a",
+		},
+	}
+	normalized, err := NormalizeBackupConfig(cfg)
+	require.NoError(t, err)
+	require.Empty(t, normalized.SourceGeneration)
+	require.Equal(t, "generation-2", normalized.TargetGeneration)
+
+	cfg.TargetGeneration = ""
+	_, err = NormalizeBackupConfig(cfg)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+}
+
+func TestRestoreModeManagerRequiresAuthAndExplicitActivationGrant(t *testing.T) {
+	backup := BackupConfig{RestoreMode: true}
+	manager := ManagerConfig{ListenAddr: "127.0.0.1:5300"}
+	require.ErrorIs(t, validateRestoreModeManagerConfig(backup, manager), ErrInvalidConfig)
+
+	manager.AuthOn = true
+	manager.Users = []ManagerUserConfig{{
+		Username: "admin", Password: "secret",
+		Permissions: []ManagerPermissionConfig{{Resource: "*", Actions: []string{"*"}}},
+	}}
+	require.ErrorIs(t, validateRestoreModeManagerConfig(backup, manager), ErrInvalidConfig)
+
+	manager.Users[0].Permissions = append(manager.Users[0].Permissions, ManagerPermissionConfig{
+		Resource: "cluster.restore.activation", Actions: []string{"w"},
+	})
+	require.NoError(t, validateRestoreModeManagerConfig(backup, manager))
+}
+
 func TestWebhookConfigDefaultsWhenEndpointConfigured(t *testing.T) {
 	cfg, err := NormalizeWebhookConfig(WebhookConfig{
 		HTTPAddr: "http://127.0.0.1:18080/hook",

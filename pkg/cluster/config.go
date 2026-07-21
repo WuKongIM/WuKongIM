@@ -27,6 +27,9 @@ type Config struct {
 	ListenAddr string
 	// DataDir is the root directory for cluster data files.
 	DataDir string
+	// RestoreMode permits only explicit recovery installation APIs. Ordinary
+	// entry runtimes remain disabled by the application composition root.
+	RestoreMode bool
 
 	// Control contains Controller adapter configuration.
 	Control ControlConfig

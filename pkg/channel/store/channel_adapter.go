@@ -17,6 +17,33 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
+// BackupChannelCut identifies one exact committed channel boundary selected by cluster coordination.
+type BackupChannelCut struct {
+	// Key is the stable channel storage partition key.
+	Key ch.ChannelKey
+	// ID is the durable channel identity.
+	ID ch.ChannelID
+	// Epoch is the durable channel epoch represented by the cut.
+	Epoch uint64
+	// LogStartOffset is the first retained logical offset.
+	LogStartOffset uint64
+	// HW is the authoritative committed high watermark.
+	HW uint64
+	// FromExclusive is the exact previously published committed boundary.
+	FromExclusive uint64
+}
+
+// BackupSnapshotRequest selects one logical hash-slot message snapshot.
+type BackupSnapshotRequest struct {
+	// HashSlot identifies the logical partition represented by the stream.
+	HashSlot uint16
+	// Channels contains exact cluster-selected committed cuts.
+	Channels []BackupChannelCut
+}
+
+// BackupSnapshotStats summarizes an imported message backup snapshot.
+type BackupSnapshotStats = messagedb.BackupSnapshotStats
+
 // MessageDBFactory adapts the shared message DB engine to the channel runtime.
 type MessageDBFactory struct {
 	// engine owns the compatibility message database runtime.
@@ -102,6 +129,86 @@ func (f *MessageDBFactory) ListChannelsPage(ctx context.Context, after ch.Channe
 		})
 	}
 	return out, ch.ChannelKey(cursor), more, nil
+}
+
+// OpenBackupSnapshot pins and streams exact committed channel cuts.
+func (f *MessageDBFactory) OpenBackupSnapshot(ctx context.Context, request BackupSnapshotRequest) (io.ReadCloser, error) {
+	if err := f.availabilityError(); err != nil {
+		return nil, err
+	}
+	channels := make([]messagedb.BackupChannelCut, len(request.Channels))
+	for index, channelCut := range request.Channels {
+		channels[index] = messagedb.BackupChannelCut{
+			Key:           messagedb.ChannelKey(channelCut.Key),
+			ID:            messagedb.ChannelID{ID: channelCut.ID.ID, Type: channelCut.ID.Type},
+			FromExclusive: channelCut.FromExclusive,
+			Checkpoint: messagedb.Checkpoint{
+				Epoch:          channelCut.Epoch,
+				LogStartOffset: channelCut.LogStartOffset,
+				HW:             channelCut.HW,
+			},
+		}
+	}
+	reader, err := f.engine.OpenBackupSnapshot(ctx, messagedb.BackupSnapshotRequest{HashSlot: request.HashSlot, Channels: channels})
+	return reader, f.mapError(err)
+}
+
+// ImportBackupSnapshot verifies and installs a portable message snapshot.
+func (f *MessageDBFactory) ImportBackupSnapshot(ctx context.Context, data []byte) (BackupSnapshotStats, error) {
+	if err := f.availabilityError(); err != nil {
+		return BackupSnapshotStats{}, err
+	}
+	stats, err := f.engine.ImportBackupSnapshot(ctx, data)
+	return stats, f.mapError(err)
+}
+
+// ImportBackupSnapshotReader validates and installs a seekable message stream
+// without loading the complete shard into memory.
+func (f *MessageDBFactory) ImportBackupSnapshotReader(ctx context.Context, reader io.ReadSeeker, size int64) (BackupSnapshotStats, error) {
+	if err := f.availabilityError(); err != nil {
+		return BackupSnapshotStats{}, err
+	}
+	stats, err := f.engine.ImportBackupSnapshotReader(ctx, reader, size)
+	return stats, f.mapError(err)
+}
+
+// VerifyRestoreBoundaries checks exact durable checkpoints and log ends after
+// a restore import without activating Channel runtimes.
+func (f *MessageDBFactory) VerifyRestoreBoundaries(ctx context.Context, boundaries []BackupChannelCut) error {
+	if err := f.availabilityError(); err != nil {
+		return err
+	}
+	if len(boundaries) > 4096 {
+		return ch.ErrInvalidConfig
+	}
+	for _, boundary := range boundaries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if boundary.Key == "" || boundary.ID.ID == "" || boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW {
+			return ch.ErrInvalidConfig
+		}
+		store, err := f.engine.ForChannel(channel.ChannelKey(boundary.Key), channel.ChannelID{ID: boundary.ID.ID, Type: boundary.ID.Type})
+		if err != nil {
+			return f.mapError(err)
+		}
+		checkpoint, checkpointErr := store.LoadCheckpoint()
+		leo, leoErr := store.LEOWithError()
+		closeErr := store.Close()
+		if checkpointErr != nil {
+			return f.mapError(checkpointErr)
+		}
+		if leoErr != nil {
+			return f.mapError(leoErr)
+		}
+		if closeErr != nil {
+			return f.mapError(closeErr)
+		}
+		if checkpoint.Epoch != boundary.Epoch || checkpoint.LogStartOffset != boundary.LogStartOffset || checkpoint.HW != boundary.HW || leo != boundary.HW {
+			return channel.ErrCorruptState
+		}
+	}
+	return nil
 }
 
 // ListLatestMessages returns one newest-first page from the node-local shared message database.

@@ -151,6 +151,60 @@ authority_flush_batch_rows = 512
 authority_admit_batch_rows = 512
 authority_admit_concurrency = 16
 
+[backup]
+# Automatic cluster-semantic backup is disabled by default. Enabling it requires
+# two distinct cross-region S3-compatible repositories plus external KMS keys.
+enabled = false
+# Recovery mode is mutually exclusive with automatic backup and keeps ordinary
+# client/API traffic and side effects disabled until explicit activation.
+restore_mode = false
+# Stable logical identity shared by both repository copies.
+repository_id = ""
+# Stable generation of the live source cluster; required only when automatic backup is enabled.
+source_generation = ""
+# Fresh successor generation; required only in restore mode and must differ from the selected source.
+target_generation = ""
+# Absolute node-local directory for bounded temporary backup data.
+staging_dir = ""
+# External KMS identifiers; credentials come only from the provider credential chain.
+kms_key_id = ""
+signing_key_id = ""
+# Separate AWS-compatible role assumed only for version deletion during garbage collection.
+garbage_collector_role_arn = ""
+kms_region = ""
+# Optional HTTPS KMS-compatible origin; empty uses the AWS regional endpoint.
+kms_endpoint = ""
+# Controller-Leader schedule reevaluation and cross-region recovery-point publication cadence.
+incremental_interval = "1m"
+restore_point_interval = "5m"
+# Publish an independent daily baseline. The current implementation rematerializes source data; repository object-reuse optimization is a release gate.
+synthetic_full_interval = "24h"
+# Plaintext bytes per compressed-and-encrypted object (1 MiB through 256 MiB).
+chunk_size_bytes = 8388608
+# Hard node-local staging quota and bounded partition concurrency.
+staging_max_bytes = 10737418240
+max_parallel_partitions = 4
+# Optional monthly materialized-full retention; zero disables this tier.
+monthly_retention_months = 0
+# Minimum compliance-mode Object Lock retention applied to every object.
+object_lock_days = 7
+
+[backup.primary]
+# HTTPS S3-compatible API origin. The startup snapshot redacts this value.
+endpoint = ""
+region = ""
+# The bucket must have versioning and Object Lock/WORM enabled for at least seven days.
+bucket = ""
+prefix = ""
+
+[backup.secondary]
+# This independently verified cross-region repository determines effective RPO.
+endpoint = ""
+region = ""
+bucket = ""
+prefix = ""
+
+
 [delivery]
 enable = true
 fanout_page_size = 512

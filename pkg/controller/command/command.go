@@ -36,6 +36,10 @@ const (
 	KindReportNodeHealth Kind = "report_node_health"
 	// KindReplaceHashSlotTable replaces the hash-slot routing table.
 	KindReplaceHashSlotTable Kind = "replace_hash_slot_table"
+	// KindReplaceBackupCoordinationState replaces bounded backup coordination metadata.
+	KindReplaceBackupCoordinationState Kind = "replace_backup_coordination_state"
+	// KindReplaceRestoreCoordinationState replaces bounded explicit recovery metadata.
+	KindReplaceRestoreCoordinationState Kind = "replace_restore_coordination_state"
 )
 
 // Command is the versioned payload replicated through Controller Raft.
@@ -70,6 +74,10 @@ type Command struct {
 	NodeHealth *state.NodeHealthReport `json:"node_health,omitempty"`
 	// HashSlots contains a replacement hash-slot table.
 	HashSlots *state.HashSlotTable `json:"hash_slots,omitempty"`
+	// Backup contains replacement bounded backup coordination metadata.
+	Backup *state.BackupCoordinationState `json:"backup,omitempty"`
+	// Restore contains replacement bounded explicit recovery metadata.
+	Restore *state.RestoreCoordinationState `json:"restore,omitempty"`
 }
 
 // ControllerVoterPromotion records a proven promotion of one node into Controller Raft voting membership.

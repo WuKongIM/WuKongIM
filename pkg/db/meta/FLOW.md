@@ -79,6 +79,9 @@ Current flow:
     slots into a checksummed payload; imports validate the payload, lock slots
     in sorted order, replace existing spans, write entries in one sync commit,
     and clear the channel cache.
+    Backup callers can open the same portable format from a pinned Pebble read
+    view; counting and encoding scan the stable view without accumulating the
+    full payload or blocking later metadata writes.
 19. Preserving snapshot imports keep local hash-slot migration rows when they
     already exist, while still importing incoming migration rows that are not
     present locally.

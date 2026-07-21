@@ -451,6 +451,116 @@ func TestStartLogsStartupSummaryAfterAllEntriesAreReady(t *testing.T) {
 	}
 }
 
+func TestRestoreModeStartsOnlyRecoveryRuntimeManagerAndMetrics(t *testing.T) {
+	calls := make([]string, 0, 12)
+	app := &App{
+		cfg:            Config{Backup: BackupConfig{RestoreMode: true}},
+		cluster:        &fakeCluster{calls: &calls},
+		restoreRuntime: &fakeWorkerRuntime{name: "restore", calls: &calls},
+		backupRuntime:  &fakeWorkerRuntime{name: "backup", calls: &calls},
+		api:            &fakeAPI{calls: &calls},
+		manager:        &fakeManager{calls: &calls},
+		prometheus:     &fakeWorkerRuntime{name: "prometheus", calls: &calls},
+		gateway:        &fakeGateway{calls: &calls},
+		logger:         wklog.NewNop(),
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,restore.start,manager.start,prometheus.start" {
+		t.Fatalf("start calls = %s", got)
+	}
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,restore.start,manager.start,prometheus.start,prometheus.stop,manager.stop,restore.stop,cluster.stop" {
+		t.Fatalf("lifecycle calls = %s", got)
+	}
+}
+
+func TestRestoreModeDoesNotRunOrdinaryClusterWriteProbe(t *testing.T) {
+	calls := make([]string, 0, 8)
+	clusterRuntime := &fakeWriteReadyCluster{
+		fakeCluster: fakeCluster{calls: &calls},
+		snapshots: []clusterpkg.Snapshot{{
+			RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: 1,
+		}},
+		routes:      map[uint16]clusterpkg.Route{0: {HashSlot: 0, Leader: 1}},
+		probeErrors: []error{errors.New("ordinary write probe must remain disabled")},
+	}
+	app := &App{
+		cfg: Config{
+			Backup:  BackupConfig{RestoreMode: true},
+			Cluster: clusterpkg.Config{Timeouts: clusterpkg.TimeoutConfig{Start: time.Second}},
+		},
+		cluster:        clusterRuntime,
+		restoreRuntime: &fakeWorkerRuntime{name: "restore", calls: &calls},
+		logger:         wklog.NewNop(),
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	for _, call := range calls {
+		if call == "cluster.probe" {
+			t.Fatalf("calls = %v, ordinary write probe must remain disabled", calls)
+		}
+	}
+	if got := joinCalls(calls); got != "cluster.start,cluster.route,restore.start" {
+		t.Fatalf("start calls = %s", got)
+	}
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
+func TestNormalModeRejectsUnactivatedRestoreBeforeWriteProbe(t *testing.T) {
+	calls := make([]string, 0, 8)
+	clusterRuntime := &fakeRestoreFenceCluster{
+		fakeWriteReadyCluster: fakeWriteReadyCluster{
+			fakeCluster: fakeCluster{calls: &calls},
+			snapshots: []clusterpkg.Snapshot{{
+				RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: 1,
+			}},
+			routes: map[uint16]clusterpkg.Route{0: {HashSlot: 0, Leader: 1}},
+		},
+		state: controller.ClusterState{
+			ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
+			Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
+				ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
+				HashSlotCount: 1, Status: controller.RestoreStatus("verified"),
+			}},
+		},
+	}
+	app := &App{
+		cfg:     Config{Cluster: clusterpkg.Config{Timeouts: clusterpkg.TimeoutConfig{Start: time.Second}}},
+		cluster: clusterRuntime,
+		logger:  wklog.NewNop(),
+	}
+	err := app.Start(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "activate it in restore mode") {
+		t.Fatalf("Start() error = %v, want restore activation fence", err)
+	}
+	for _, call := range calls {
+		if call == "cluster.probe" {
+			t.Fatalf("calls = %v, ordinary write probe ran before activation fence", calls)
+		}
+	}
+}
+
+func TestActivatedRestoreRequiresSuccessorGenerationBeforeBackupStarts(t *testing.T) {
+	app := &App{cfg: Config{Backup: BackupConfig{Enabled: true, SourceGeneration: "wrong-generation"}}}
+	err := app.validateRestoreActivationFence(controller.ClusterState{
+		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 256},
+		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
+			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
+			HashSlotCount: 256, Status: controller.RestoreStatus("activated"),
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "generation-2") {
+		t.Fatalf("validateRestoreActivationFence() error = %v", err)
+	}
+}
+
 func TestStartWritesPlainStartupConsoleAfterAllEntriesAreReady(t *testing.T) {
 	var console bytes.Buffer
 	calls := make([]string, 0, 4)
@@ -6795,6 +6905,25 @@ type fakeCluster struct {
 	nodeCount  int
 }
 
+type fakeWorkerRuntime struct {
+	name  string
+	calls *[]string
+}
+
+func (f *fakeWorkerRuntime) Start(context.Context) error {
+	if f.calls != nil {
+		*f.calls = append(*f.calls, f.name+".start")
+	}
+	return nil
+}
+
+func (f *fakeWorkerRuntime) Stop(context.Context) error {
+	if f.calls != nil {
+		*f.calls = append(*f.calls, f.name+".stop")
+	}
+	return nil
+}
+
 func (f *fakeCluster) Start(context.Context) error {
 	if f.calls != nil {
 		*f.calls = append(*f.calls, "cluster.start")
@@ -7365,6 +7494,16 @@ type fakeWriteReadyCluster struct {
 	routes        map[uint16]clusterpkg.Route
 	probeErrors   []error
 	probeTimeouts []time.Duration
+}
+
+type fakeRestoreFenceCluster struct {
+	fakeWriteReadyCluster
+	state controller.ClusterState
+	err   error
+}
+
+func (f *fakeRestoreFenceCluster) LoadRestoreCoordinationState(context.Context) (controller.ClusterState, error) {
+	return f.state, f.err
 }
 
 func (f *fakeWriteReadyCluster) Snapshot() clusterpkg.Snapshot {

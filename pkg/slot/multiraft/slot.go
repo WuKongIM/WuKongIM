@@ -97,6 +97,7 @@ const (
 	controlConfigChange
 	controlTransferLeader
 	controlCompactLog
+	controlCaptureHashSlotSnapshot
 )
 
 type controlAction struct {
@@ -107,6 +108,7 @@ type controlAction struct {
 	target         NodeID
 	change         ConfigChange
 	compact        *logCompactionRequest
+	backupSnapshot *hashSlotSnapshotRequest
 	strictTransfer *strictLeaderTransferRequest
 }
 
@@ -195,6 +197,29 @@ type logCompactionRequest struct {
 type logCompactionResponse struct {
 	result LogCompactionResult
 	err    error
+}
+
+type hashSlotSnapshotRequest struct {
+	ctx      context.Context
+	hashSlot uint16
+	resp     chan hashSlotSnapshotResponse
+	done     atomic.Bool
+}
+
+type hashSlotSnapshotResponse struct {
+	result CapturedHashSlotSnapshot
+	err    error
+}
+
+func (r *hashSlotSnapshotRequest) finish(response hashSlotSnapshotResponse) bool {
+	if r == nil || !r.done.CompareAndSwap(false, true) {
+		if response.result.Reader != nil {
+			_ = response.result.Reader.Close()
+		}
+		return false
+	}
+	r.resp <- response
+	return true
 }
 
 type applyStateEvent struct {
@@ -488,6 +513,57 @@ func (g *slot) processControls(ctx context.Context) bool {
 			applied := g.appliedIndex()
 			result, err := g.compactLogManually(action.compact.ctx, applied)
 			action.compact.resp <- logCompactionResponse{result: result, err: err}
+		case controlCaptureHashSlotSnapshot:
+			request := action.backupSnapshot
+			if request == nil || request.done.Load() {
+				continue
+			}
+			if err := request.ctx.Err(); err != nil {
+				request.finish(hashSlotSnapshotResponse{err: err})
+				continue
+			}
+			if err := g.waitApplyIdle(request.ctx); err != nil {
+				request.finish(hashSlotSnapshotResponse{err: err})
+				continue
+			}
+			if err := g.currentErr(); err != nil {
+				request.finish(hashSlotSnapshotResponse{err: err})
+				continue
+			}
+			snapshotter, ok := g.stateMachine.(HashSlotSnapshotter)
+			if !ok {
+				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnsupported})
+				continue
+			}
+			applied := g.appliedIndex()
+			if applied == 0 {
+				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
+				continue
+			}
+			commit := g.rawNode.Status().Commit
+			if commit == 0 || commit != applied {
+				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
+				continue
+			}
+			term, err := g.storageView.memory.Term(applied)
+			if err != nil {
+				request.finish(hashSlotSnapshotResponse{err: err})
+				continue
+			}
+			reader, err := snapshotter.OpenHashSlotSnapshot(request.ctx, request.hashSlot)
+			if err != nil {
+				request.finish(hashSlotSnapshotResponse{err: err})
+				continue
+			}
+			request.finish(hashSlotSnapshotResponse{result: CapturedHashSlotSnapshot{
+				SlotID:               g.id,
+				HashSlot:             request.hashSlot,
+				AppliedIndex:         applied,
+				CommitIndex:          commit,
+				Term:                 term,
+				CapturedAtUnixMillis: time.Now().UTC().UnixMilli(),
+				Reader:               reader,
+			}})
 		}
 	}
 	return len(controls) > 0
@@ -1847,6 +1923,9 @@ func (g *slot) failPendingLocked(err error) {
 	for i := range g.controls {
 		if g.controls[i].strictTransfer != nil {
 			g.controls[i].strictTransfer.cancel(err)
+		}
+		if g.controls[i].backupSnapshot != nil {
+			g.controls[i].backupSnapshot.finish(hashSlotSnapshotResponse{err: err})
 		}
 	}
 	for _, fut := range g.submittedProposals {

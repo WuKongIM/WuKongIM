@@ -506,3 +506,21 @@ The manager server uses its own listen address from the composition root and is
 separate from `internal/access/api`. In `cmd/wukongim`, that listener is
 configured by `WK_MANAGER_LISTEN_ADDR`; JWT settings and static users are
 configured by the `WK_MANAGER_*` auth keys.
+
+## Backup And Restore
+
+Normal mode exposes backup status and restore-point inventory through
+`cluster.backup:r`, and trigger/cancel/verify/hold/release through
+`cluster.backup:w`. DTOs deliberately omit object keys, config fingerprints,
+credentials, Channel IDs, and plaintext. A disabled backup still returns an
+explicit disabled status through the app facade.
+
+Restore mode registers only permission discovery plus the restricted
+`/manager/restore/*` plan, start, status, verify, and activate routes; it does
+not register ordinary cluster, user, message, plugin, or webhook operations.
+Activation always requires authenticated JWT identity plus an explicit
+`cluster.restore.activation:w` grant; wildcard grants do not satisfy this
+recovery boundary. Composition rejects restore mode unless Manager auth and at
+least one explicit activation grant are configured.
+The HTTP layer parses requests and maps errors while restore eligibility and
+transitions remain in `internal/usecase/backup`.

@@ -10,18 +10,20 @@ import (
 )
 
 type checksumClusterState struct {
-	SchemaVersion     uint32             `json:"schema_version"`
-	ClusterID         string             `json:"cluster_id"`
-	Revision          uint64             `json:"revision"`
-	AppliedRaftIndex  uint64             `json:"applied_raft_index"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	Config            ClusterConfig      `json:"config"`
-	Controllers       []ControllerVoter  `json:"controllers"`
-	Nodes             []Node             `json:"nodes"`
-	Slots             []SlotAssignment   `json:"slots"`
-	NodeHealthReports []NodeHealthReport `json:"node_health_reports,omitempty"`
-	HashSlots         HashSlotTable      `json:"hash_slots"`
-	Tasks             []ReconcileTask    `json:"tasks"`
+	SchemaVersion     uint32                    `json:"schema_version"`
+	ClusterID         string                    `json:"cluster_id"`
+	Revision          uint64                    `json:"revision"`
+	AppliedRaftIndex  uint64                    `json:"applied_raft_index"`
+	UpdatedAt         time.Time                 `json:"updated_at"`
+	Config            ClusterConfig             `json:"config"`
+	Controllers       []ControllerVoter         `json:"controllers"`
+	Nodes             []Node                    `json:"nodes"`
+	Slots             []SlotAssignment          `json:"slots"`
+	NodeHealthReports []NodeHealthReport        `json:"node_health_reports,omitempty"`
+	HashSlots         HashSlotTable             `json:"hash_slots"`
+	Tasks             []ReconcileTask           `json:"tasks"`
+	Backup            *BackupCoordinationState  `json:"backup,omitempty"`
+	Restore           *RestoreCoordinationState `json:"restore,omitempty"`
 }
 
 // Encode returns normalized canonical JSON with a CRC32C checksum.
@@ -104,5 +106,7 @@ func checksumView(st ClusterState) checksumClusterState {
 		NodeHealthReports: st.NodeHealthReports,
 		HashSlots:         st.HashSlots,
 		Tasks:             st.Tasks,
+		Backup:            st.Backup,
+		Restore:           st.Restore,
 	}
 }

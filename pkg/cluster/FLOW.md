@@ -745,3 +745,13 @@ When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware 
   binary frame version; v3/v4 remain decode-only compatibility inputs and are
   not negotiated response formats.
 - Observe loops are intentionally small and low-frequency; foreground write paths only read atomic route/channel state.
+
+## Backup And Restore Seams
+
+`Node` exposes cluster-semantic backup seams without creating a single-node
+bypass. Slot metadata snapshots are captured from the applied Slot state, and
+Channel message snapshots validate current leader/epoch/MinISR fences before
+reading only through durable HW. Restore-only methods reject normal mode,
+stream portable metadata/message imports, invalidate tokens when requested,
+and verify both Channel boundaries and canonical per-hash-slot metadata
+digests.

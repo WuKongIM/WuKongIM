@@ -1,12 +1,188 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
+
+func TestOpenHashSlotSnapshotPinsViewBeforeConcurrentWrites(t *testing.T) {
+	source := openTestMetaStore(t)
+	defer source.close(t)
+	ctx := context.Background()
+	shard := source.db.HashSlot(5)
+	if err := shard.CreateUser(ctx, User{UID: "u1", Token: "before"}); err != nil {
+		t.Fatalf("CreateUser(): %v", err)
+	}
+
+	reader, err := source.db.OpenHashSlotSnapshot(ctx, []uint16{5})
+	if err != nil {
+		t.Fatalf("OpenHashSlotSnapshot(): %v", err)
+	}
+	if err := shard.UpsertUser(ctx, User{UID: "u1", Token: "after"}); err != nil {
+		t.Fatalf("UpsertUser(): %v", err)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("ReadAll(snapshot): %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("Close(snapshot): %v", err)
+	}
+
+	target := openTestMetaStore(t)
+	defer target.close(t)
+	if err := target.db.ImportHashSlotSnapshot(ctx, SlotSnapshot{HashSlots: []uint16{5}, Data: body}); err != nil {
+		t.Fatalf("ImportHashSlotSnapshot(): %v", err)
+	}
+	user, ok, err := target.db.HashSlot(5).GetUser(ctx, "u1")
+	if err != nil || !ok || user.Token != "before" {
+		t.Fatalf("restored user = %+v ok=%v err=%v, want pinned before value", user, ok, err)
+	}
+}
+
+func TestOpenBackupHashSlotSnapshotExcludesRuntimeOwnershipAndMigrationRows(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(6)
+	if err := shard.CreateUser(ctx, User{UID: "u-backup", Token: "token"}); err != nil {
+		t.Fatalf("CreateUser(): %v", err)
+	}
+	if _, err := shard.UpsertChannelRuntimeMeta(ctx, ChannelRuntimeMeta{ChannelID: "room", ChannelType: 2, ChannelEpoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: 1}); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+	if err := shard.CreateChannelMigrationTask(ctx, testChannelMigrationTask("task-backup", "room")); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+	if err := shard.UpsertHashSlotMigrationState(ctx, HashSlotMigrationState{HashSlot: 6, SourceSlot: 1, TargetSlot: 2}); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	reader, err := store.db.OpenBackupHashSlotSnapshot(ctx, []uint16{6})
+	if err != nil {
+		t.Fatalf("OpenBackupHashSlotSnapshot(): %v", err)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("ReadAll(): %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+	seenUser := false
+	_, err = visitSlotSnapshotPayload(body, func(key, _ []byte) error {
+		if bytesHasPrefix(key, encodeRowPrefix(6, TableIDChannelRuntimeMeta)) || bytesHasPrefix(key, encodeRowPrefix(6, TableIDChannelMigration)) || bytesHasPrefix(key, encodeRowPrefix(6, TableIDHashSlotMigration)) || bytesHasPrefix(key, encodeIndexPrefix(6, TableIDChannelMigration, channelMigrationActiveIndexID)) {
+			t.Fatalf("backup snapshot contains runtime-only key %x", key)
+		}
+		if bytesHasPrefix(key, encodeRowPrefix(6, TableIDUser)) {
+			seenUser = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("visitSlotSnapshotPayload(): %v", err)
+	}
+	if !seenUser {
+		t.Fatal("backup snapshot omitted business user row")
+	}
+}
+
+func TestHasBackupBusinessDataIgnoresRuntimeRowsAndFindsSemanticRows(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	present, err := store.db.HasBackupBusinessData(ctx, []uint16{6})
+	if err != nil || present {
+		t.Fatalf("HasBackupBusinessData(empty) = %v, %v, want false, nil", present, err)
+	}
+	if _, err := store.db.HashSlot(6).UpsertChannelRuntimeMeta(ctx, ChannelRuntimeMeta{
+		ChannelID: "room", ChannelType: 2, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: 1,
+	}); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+	present, err = store.db.HasBackupBusinessData(ctx, []uint16{6})
+	if err != nil || present {
+		t.Fatalf("HasBackupBusinessData(runtime only) = %v, %v, want false, nil", present, err)
+	}
+	if err := store.db.HashSlot(6).CreateUser(ctx, User{UID: "u1", Token: "token"}); err != nil {
+		t.Fatalf("CreateUser(): %v", err)
+	}
+	present, err = store.db.HasBackupBusinessData(ctx, []uint16{6})
+	if err != nil || !present {
+		t.Fatalf("HasBackupBusinessData(user) = %v, %v, want true, nil", present, err)
+	}
+}
+
+func TestImportHashSlotSnapshotReaderRestoresWithoutWholePayloadAPI(t *testing.T) {
+	if !snapshotEntryInHashSlots(encodeUserRowKey(5, "probe", userPrimaryFamilyID), []HashSlot{5}) {
+		t.Fatal("user key is outside its hash-slot row span")
+	}
+	source := openTestMetaStore(t)
+	defer source.close(t)
+	target := openTestMetaStore(t)
+	defer target.close(t)
+	ctx := context.Background()
+	if err := source.db.HashSlot(5).CreateUser(ctx, User{UID: "u-stream", Token: "token"}); err != nil {
+		t.Fatalf("CreateUser(): %v", err)
+	}
+	reader, err := source.db.OpenBackupHashSlotSnapshot(ctx, []uint16{5})
+	if err != nil {
+		t.Fatalf("OpenBackupHashSlotSnapshot(): %v", err)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("ReadAll(): %v", err)
+	}
+	_ = reader.Close()
+	if err := target.db.ImportHashSlotSnapshotReaderPreservingMigrationMeta(ctx, []uint16{5}, bytes.NewReader(body), int64(len(body))); err != nil {
+		t.Fatalf("ImportHashSlotSnapshotReaderPreservingMigrationMeta(): %v", err)
+	}
+	user, ok, err := target.db.HashSlot(5).GetUser(ctx, "u-stream")
+	if err != nil || !ok || user.Token != "token" {
+		t.Fatalf("GetUser() = %#v, %v, %v", user, ok, err)
+	}
+}
+
+func TestImportHashSlotSnapshotReaderForRestoreInvalidatesAuthenticationTokens(t *testing.T) {
+	ctx := context.Background()
+	source := openTestMetaStore(t)
+	defer source.close(t)
+	target := openTestMetaStore(t)
+	defer target.close(t)
+	shard := source.db.HashSlot(5)
+	if err := shard.CreateUser(ctx, User{UID: "u-stream", Token: "user-token", DeviceFlag: 1, DeviceLevel: 2}); err != nil {
+		t.Fatalf("CreateUser(): %v", err)
+	}
+	if err := shard.UpsertDevice(ctx, Device{UID: "u-stream", DeviceFlag: 1, Token: "device-token", DeviceLevel: 2}); err != nil {
+		t.Fatalf("UpsertDevice(): %v", err)
+	}
+	reader, err := source.db.OpenBackupHashSlotSnapshot(ctx, []uint16{5})
+	if err != nil {
+		t.Fatalf("OpenBackupHashSlotSnapshot(): %v", err)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("ReadAll(): %v", err)
+	}
+	_ = reader.Close()
+	if err := target.db.ImportHashSlotSnapshotReaderForRestore(ctx, []uint16{5}, bytes.NewReader(body), int64(len(body)), true); err != nil {
+		t.Fatalf("ImportHashSlotSnapshotReaderForRestore(): %v", err)
+	}
+	user, ok, err := target.db.HashSlot(5).GetUser(ctx, "u-stream")
+	if err != nil || !ok || user.Token != "" || user.DeviceFlag != 1 || user.DeviceLevel != 2 {
+		t.Fatalf("restored user = %#v, %v, %v", user, ok, err)
+	}
+	device, ok, err := target.db.HashSlot(5).GetDevice(ctx, "u-stream", 1)
+	if err != nil || !ok || device.Token != "" || device.DeviceLevel != 2 {
+		t.Fatalf("restored device = %#v, %v, %v", device, ok, err)
+	}
+}
 
 func TestSnapshotReplaceSpansUseRegistryPolicies(t *testing.T) {
 	spans := hashSlotSnapshotReplaceSpans(9, true)
