@@ -129,6 +129,43 @@ func TestServerRateLimitsHTTPPerSourceIP(t *testing.T) {
 	}
 }
 
+func TestServerStatusReportsRemoteIPv4WithoutChangingRunPurity(t *testing.T) {
+	server, err := New(Options{
+		RunID:         "run-1",
+		PublicBaseURL: "http://198.51.100.20:19443",
+		Nodes: []NodeUpstream{{
+			ID: 1, APIBaseURL: "http://127.0.0.1:1", ManagerBaseURL: "http://127.0.0.1:1", WebSocketBaseURL: "http://127.0.0.1:1",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/cloud-view/status", nil)
+	request.RemoteAddr = "203.0.113.10:50000"
+	request.Header.Set("X-Forwarded-For", "198.51.100.99")
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+
+	var status struct {
+		ObservedIPv4     string `json:"observed_ipv4"`
+		Interactive      bool   `json:"interactive"`
+		OperatorModified bool   `json:"operator_modified"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode cloud view status: %v; body=%q", err, recorder.Body.String())
+	}
+	if recorder.Code != http.StatusOK || status.ObservedIPv4 != "203.0.113.10" {
+		t.Fatalf("cloud view status = %#v code=%d, want transport peer IPv4", status, recorder.Code)
+	}
+	if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("cloud view status Cache-Control = %q, want no-store", got)
+	}
+	if status.Interactive || status.OperatorModified {
+		t.Fatalf("cloud view status changed run purity: %#v", status)
+	}
+}
+
 func TestServerLimitsConcurrentWebSocketsPerSourceIP(t *testing.T) {
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/readyz" {

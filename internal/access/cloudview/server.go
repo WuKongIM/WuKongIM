@@ -33,6 +33,8 @@ type statusResponse struct {
 	cloudviewstate.State
 	// PersistenceHealthy is false while a failed durable projection is retrying.
 	PersistenceHealthy bool `json:"persistence_healthy"`
+	// ObservedIPv4 is the direct transport peer used to reach this Cloud View.
+	ObservedIPv4 string `json:"observed_ipv4"`
 }
 
 // NodeUpstream contains the private endpoints for one WuKongIM cluster node.
@@ -195,10 +197,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/cloud-view/status" {
+		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
 		state, persistenceHealthy := s.state.StatusSnapshot()
 		_ = json.NewEncoder(w).Encode(statusResponse{
-			State: state, PersistenceHealthy: persistenceHealthy,
+			State: state, PersistenceHealthy: persistenceHealthy, ObservedIPv4: requestIPv4(r),
 		})
 		return
 	}

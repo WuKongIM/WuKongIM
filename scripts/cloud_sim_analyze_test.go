@@ -163,6 +163,9 @@ exit 89
 		t.Fatal(err)
 	}
 	callText := string(calls)
+	if got := strings.Count(callText, "-f operation=prepare"); got != 1 {
+		t.Fatalf("prepare dispatches = %d, want one when same-host IPv4 matches public echo:\n%s", got, calls)
+	}
 	for _, fragment := range []string{
 		"codex login status",
 		"gh workflow run cloud-sim-analyze.yml --repo example/project --ref main -f operation=prepare",
@@ -197,6 +200,302 @@ exit 89
 	}
 	if strings.Contains(callText, "gh run watch 999") {
 		t.Fatalf("analysis selected a concurrent decoy workflow run:\n%s", calls)
+	}
+}
+
+func TestCloudSimulationAnalyzeRepreparesForSameHostObservedIPv4(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+		"WK_ANALYZE_OBSERVED_IPV4=198.51.100.8",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		calls, _ := os.ReadFile(callLog)
+		t.Fatalf("analyze: %v\n%s\ncalls:\n%s", err, output, calls)
+	}
+	calls, err := os.ReadFile(callLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	callText := string(calls)
+	if got := strings.Count(callText, "-f operation=prepare"); got != 2 {
+		t.Fatalf("prepare dispatches = %d, want one initial prepare and one reprepare:\n%s", got, calls)
+	}
+	operations := make([]string, 0, 4)
+	for _, line := range strings.Split(callText, "\n") {
+		if !strings.HasPrefix(line, "gh workflow run cloud-sim-analyze.yml ") {
+			continue
+		}
+		switch {
+		case strings.Contains(line, "-f operation=prepare"):
+			operations = append(operations, "prepare")
+		case strings.Contains(line, "-f operation=close"):
+			operations = append(operations, "close")
+		}
+	}
+	if got := strings.Join(operations, ","); got != "prepare,close,prepare,close" {
+		t.Fatalf("Analysis window operations = %q, want prepare,close,prepare,close:\n%s", got, calls)
+	}
+	if !strings.Contains(callText, "-f request_id=local-0123456789abcdef-rebind") {
+		t.Fatalf("second prepare did not use a unique rebind request correlation:\n%s", calls)
+	}
+	first := strings.Index(callText, "-f client_ipv4=203.0.113.7")
+	second := strings.LastIndex(callText, "-f client_ipv4=198.51.100.8")
+	if first < 0 || second <= first {
+		t.Fatalf("analysis did not replace public echo IPv4 with same-host observation:\n%s", calls)
+	}
+	if got := strings.Count(callText, "http://198.51.100.20:19443/cloud-view/status"); got != 2 {
+		t.Fatalf("same-host IPv4 probes = %d, want one per prepared session:\n%s", got, calls)
+	}
+}
+
+func TestCloudSimulationAnalyzeFallsBackWhenSameHostObservationIsUnavailable(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		env  string
+	}{
+		{name: "public view closed", env: "WK_ANALYZE_CLOUD_VIEW_CURL_EXIT=7"},
+		{name: "legacy status response", env: "WK_ANALYZE_OMIT_OBSERVED_IPV4=true"},
+		{name: "malformed status response", env: "WK_ANALYZE_INVALID_CLOUD_VIEW_JSON=true"},
+		{name: "unhealthy status persistence", env: "WK_ANALYZE_CLOUD_VIEW_PERSISTENCE_UNHEALTHY=true"},
+		{name: "mismatched status identity", env: "WK_ANALYZE_CLOUD_VIEW_RUN_ID_MISMATCH=true"},
+		{name: "invalid observed IPv4", env: "WK_ANALYZE_OBSERVED_IPV4=999.1.1.1"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := repoRoot(t)
+			temp := t.TempDir()
+			bin := filepath.Join(temp, "bin")
+			stateDir := filepath.Join(temp, "state")
+			callLog := filepath.Join(temp, "calls.log")
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeAnalyzeFakes(t, bin)
+
+			command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+				"run-live", "--repository", "example/project")
+			command.Dir = root
+			command.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"WK_ANALYZE_CALL_LOG="+callLog,
+				"WK_ANALYZE_STATE_DIR="+stateDir,
+				"WK_ANALYZE_SESSION_STATE=live",
+				testCase.env,
+			)
+			output, err := command.CombinedOutput()
+			if err != nil {
+				calls, _ := os.ReadFile(callLog)
+				t.Fatalf("analyze: %v\n%s\ncalls:\n%s", err, output, calls)
+			}
+			if !strings.Contains(string(output), "using public echo IPv4 203.0.113.7") {
+				t.Fatalf("analysis output missing compatible fallback:\n%s", output)
+			}
+			calls, err := os.ReadFile(callLog)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Count(string(calls), "-f operation=prepare"); got != 1 {
+				t.Fatalf("prepare dispatches = %d, want one fallback session:\n%s", got, calls)
+			}
+			if !strings.Contains(string(calls), "Cache-Control: no-cache") ||
+				!strings.Contains(string(calls), "/cloud-view/status?request_id=local-0123456789abcdef") {
+				t.Fatalf("same-host probe was cacheable:\n%s", calls)
+			}
+		})
+	}
+}
+
+func TestCloudSimulationAnalyzeClosesWindowWhenPrepareHandoffFails(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		env  string
+	}{
+		{name: "workflow watch", env: "WK_ANALYZE_PREPARE_WATCH_EXIT=72"},
+		{name: "session artifact download", env: "WK_ANALYZE_DOWNLOAD_EXIT=71"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := repoRoot(t)
+			temp := t.TempDir()
+			bin := filepath.Join(temp, "bin")
+			stateDir := filepath.Join(temp, "state")
+			callLog := filepath.Join(temp, "calls.log")
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeAnalyzeFakes(t, bin)
+
+			command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+				"run-live", "--repository", "example/project")
+			command.Dir = root
+			command.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"WK_ANALYZE_CALL_LOG="+callLog,
+				"WK_ANALYZE_STATE_DIR="+stateDir,
+				"WK_ANALYZE_SESSION_STATE=live",
+				testCase.env,
+			)
+			output, err := command.CombinedOutput()
+			if err == nil {
+				t.Fatalf("analysis accepted a failed prepare handoff:\n%s", output)
+			}
+			calls, readErr := os.ReadFile(callLog)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			callText := string(calls)
+			operations := make([]string, 0, 2)
+			for _, line := range strings.Split(callText, "\n") {
+				if !strings.HasPrefix(line, "gh workflow run cloud-sim-analyze.yml ") {
+					continue
+				}
+				switch {
+				case strings.Contains(line, "-f operation=prepare"):
+					operations = append(operations, "prepare")
+				case strings.Contains(line, "-f operation=close"):
+					operations = append(operations, "close")
+				}
+			}
+			if got := strings.Join(operations, ","); got != "prepare,close" {
+				t.Fatalf("Analysis window operations = %q, want prepare,close:\n%s", got, calls)
+			}
+			if strings.Contains(callText, "codex login status") || strings.Contains(callText, "codex exec") {
+				t.Fatalf("prepare handoff failure started Codex:\n%s", calls)
+			}
+		})
+	}
+}
+
+func TestCloudSimulationAnalyzeFailsClosedWhenSameHostIPv4ChangesAgain(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+		"WK_ANALYZE_OBSERVED_IPV4_SEQUENCE=198.51.100.8,192.0.2.44",
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "same-host Analysis egress IPv4 changed again after one rebind") {
+		t.Fatalf("analyze error = %v, want second-change failure:\n%s", err, output)
+	}
+	calls, readErr := os.ReadFile(callLog)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	callText := string(calls)
+	if got := strings.Count(callText, "-f operation=prepare"); got != 2 {
+		t.Fatalf("prepare dispatches = %d, want bounded two attempts:\n%s", got, calls)
+	}
+	if !strings.Contains(callText, "-f operation=close") {
+		t.Fatalf("failed rebind did not close the live Analysis window:\n%s", calls)
+	}
+}
+
+func TestCloudSimulationAnalyzeFailsClosedOnInvalidSameHostIPv4(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+		"WK_ANALYZE_OBSERVED_IPV4_SEQUENCE=198.51.100.8,999.1.1.1",
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "cannot verify the same-host Analysis egress IPv4 after rebind: invalid_response") {
+		t.Fatalf("analyze error = %v, want invalid-source failure:\n%s", err, output)
+	}
+	calls, readErr := os.ReadFile(callLog)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	callText := string(calls)
+	if got := strings.Count(callText, "-f operation=prepare"); got != 2 {
+		t.Fatalf("prepare dispatches = %d, want bounded two attempts:\n%s", got, calls)
+	}
+	if !strings.Contains(callText, "-f operation=close") {
+		t.Fatalf("invalid rebind did not close the live Analysis window:\n%s", calls)
+	}
+}
+
+func TestCloudSimulationAnalyzeClassifiesHealthCurlFailure(t *testing.T) {
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+	writeSetupExecutable(t, filepath.Join(bin, "sleep"), `#!/usr/bin/env bash
+exit 0
+`)
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
+		"run-live", "--repository", "example/project")
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+		"WK_ANALYZE_HEALTH_CURL_EXIT=28",
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "Analysis MCP health attempt 1/12 failed: timeout (curl exit 28)") ||
+		!strings.Contains(string(output), "last failure: timeout") {
+		t.Fatalf("analyze error = %v, want bounded curl failure classification:\n%s", err, output)
+	}
+	calls, readErr := os.ReadFile(callLog)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	callText := string(calls)
+	if got := strings.Count(callText, ":19092/healthz"); got != 12 {
+		t.Fatalf("health attempts = %d, want 12:\n%s", got, calls)
+	}
+	if !strings.Contains(callText, "-f operation=close") {
+		t.Fatalf("health failure did not close the live Analysis window:\n%s", calls)
 	}
 }
 
@@ -506,6 +805,9 @@ func TestCloudSimulationAnalyzeReportsBrokerInsufficientEvidenceBeforeCodex(t *t
 	if strings.Contains(string(calls), "codex login status") || strings.Contains(string(calls), "codex exec") {
 		t.Fatalf("broker failure started Codex:\n%s", calls)
 	}
+	if !strings.Contains(string(calls), "-f operation=close") {
+		t.Fatalf("broker failure did not conservatively close possible Analysis access:\n%s", calls)
+	}
 }
 
 func TestCloudSimulationAnalyzeCreatesTestedDraftPRAfterClosingLiveSession(t *testing.T) {
@@ -595,7 +897,40 @@ func writeAnalyzeFakes(t *testing.T, bin string) {
 set -euo pipefail
 printf 'curl %s\n' "$*" >>"$WK_ANALYZE_CALL_LOG"
 if [[ "$*" == *'/healthz'* ]]; then
+	if [[ -n "${WK_ANALYZE_HEALTH_CURL_EXIT:-}" ]]; then
+		exit "$WK_ANALYZE_HEALTH_CURL_EXIT"
+	fi
   printf '%s\n' '{"status":"ok","run_id":"run-live","run_state":"running"}'
+  exit 0
+fi
+if [[ "$*" == *':19443/cloud-view/status'* ]]; then
+	if [[ -n "${WK_ANALYZE_CLOUD_VIEW_CURL_EXIT:-}" ]]; then
+		exit "$WK_ANALYZE_CLOUD_VIEW_CURL_EXIT"
+	fi
+	if [[ "${WK_ANALYZE_INVALID_CLOUD_VIEW_JSON:-}" == true ]]; then
+		printf '%s\n' '{'
+		exit 0
+	fi
+	if [[ "${WK_ANALYZE_OMIT_OBSERVED_IPV4:-}" == true ]]; then
+		printf '%s\n' '{"run_id":"run-live","interactive":false,"operator_modified":false,"persistence_healthy":true}'
+		exit 0
+	fi
+	status_run_id=run-live
+	status_persistence_healthy=true
+	if [[ "${WK_ANALYZE_CLOUD_VIEW_RUN_ID_MISMATCH:-}" == true ]]; then status_run_id=run-other; fi
+	if [[ "${WK_ANALYZE_CLOUD_VIEW_PERSISTENCE_UNHEALTHY:-}" == true ]]; then status_persistence_healthy=false; fi
+	observed_ipv4="${WK_ANALYZE_OBSERVED_IPV4:-203.0.113.7}"
+	if [[ -n "${WK_ANALYZE_OBSERVED_IPV4_SEQUENCE:-}" ]]; then
+		counter_file="$WK_ANALYZE_STATE_DIR/observed-ipv4-count"
+		counter="$(cat "$counter_file" 2>/dev/null || printf '0')"
+		IFS=, read -r -a observed_values <<<"$WK_ANALYZE_OBSERVED_IPV4_SEQUENCE"
+		if ((counter >= ${#observed_values[@]})); then counter=$((${#observed_values[@]} - 1)); fi
+		observed_ipv4="${observed_values[$counter]}"
+		printf '%s' "$((counter + 1))" >"$counter_file"
+	fi
+  jq -cn --arg run_id "$status_run_id" --arg observed_ipv4 "$observed_ipv4" \
+    --argjson persistence_healthy "$status_persistence_healthy" \
+    '{run_id:$run_id,interactive:false,operator_modified:false,persistence_healthy:$persistence_healthy,observed_ipv4:$observed_ipv4}'
   exit 0
 fi
 printf '%s\n' '203.0.113.7'
@@ -741,8 +1076,14 @@ case "$1" in
           [{databaseId:999,displayTitle:"Cloud Simulation Analysis prepare another-request"},
            {databaseId:$current,displayTitle:("Cloud Simulation Analysis " + $operation + " " + $request_id)}]'
         ;;
-      watch) exit 0 ;;
+      watch)
+        if [[ -n "${WK_ANALYZE_PREPARE_WATCH_EXIT:-}" && "$(cat "$WK_ANALYZE_STATE_DIR/operation")" == prepare ]]; then
+          exit "$WK_ANALYZE_PREPARE_WATCH_EXIT"
+        fi
+        exit 0
+        ;;
       download)
+        if [[ -n "${WK_ANALYZE_DOWNLOAD_EXIT:-}" ]]; then exit "$WK_ANALYZE_DOWNLOAD_EXIT"; fi
         destination=""
         while (($#)); do if [[ "$1" == --dir ]]; then destination="$2"; break; fi; shift; done
         test -n "$destination"

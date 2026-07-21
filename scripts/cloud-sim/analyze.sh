@@ -266,6 +266,33 @@ publish_result() {
   result_temp=""
 }
 
+is_valid_ipv4() {
+  local value="$1"
+  local octet
+  local -a octets
+  [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  IFS=. read -r -a octets <<<"$value"
+  ((${#octets[@]} == 4)) || return 1
+  for octet in "${octets[@]}"; do
+    [[ "$octet" == 0 || "$octet" != 0* ]] || return 1
+    ((10#$octet <= 255)) || return 1
+  done
+}
+
+curl_failure_class() {
+  case "$1" in
+    6) printf '%s\n' dns_failure ;;
+    7) printf '%s\n' connect_failure ;;
+    22) printf '%s\n' http_error ;;
+    28) printf '%s\n' timeout ;;
+    35) printf '%s\n' tls_handshake_failure ;;
+    52) printf '%s\n' empty_response ;;
+    56) printf '%s\n' receive_failure ;;
+    60) printf '%s\n' tls_verification_failure ;;
+    *) printf 'curl_exit_%s\n' "$1" ;;
+  esac
+}
+
 analysis_temp="$(mktemp -d "${TMPDIR:-/tmp}/wukongim-cloud-analysis.XXXXXX")"
 private_key="$analysis_temp/client-private.pem"
 public_key="$analysis_temp/client-public.pem"
@@ -282,12 +309,12 @@ for ip_echo_url in https://api.ipify.org https://api-ipv4.ip.sb/ip; do
     --proto '=https' --tlsv1.2 "$ip_echo_url" 2>/dev/null || true)"
   candidate_ipv4="${candidate_ipv4//$'\r'/}"
   candidate_ipv4="${candidate_ipv4//$'\n'/}"
-  if [[ "$candidate_ipv4" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+  if is_valid_ipv4 "$candidate_ipv4"; then
     client_ipv4="$candidate_ipv4"
     break
   fi
 done
-[[ "$client_ipv4" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || \
+is_valid_ipv4 "$client_ipv4" || \
   fail "cannot determine the direct public IPv4 used to reach the Analysis MCP"
 request_id="local-$(openssl rand -hex 8)"
 
@@ -346,35 +373,124 @@ dispatch_session_operation() {
   printf '%s\n' "$workflow_run"
 }
 
-prepare_run="$(dispatch_session_operation prepare)"
-gh run download "$prepare_run" --repo "$repository" \
-  --name "cloud-sim-analysis-session-$request_id" --dir "$session_dir"
-
 session_json="$session_dir/session.json"
-[[ -f "$session_json" ]] || fail "analysis workflow returned no session descriptor"
-jq -e --arg run_id "$run_id" --arg request_id "$request_id" '
-  .schema == "wukongim/cloud-simulation-analysis-session/v1" and
-  .run_id == $run_id and .request_id == $request_id and
-  (.state == "live" or .state == "released" or .state == "unknown_run" or .state == "insufficient_evidence")
-' "$session_json" >/dev/null || fail "analysis workflow returned an invalid session descriptor"
+prepare_analysis_session() {
+  local prepare_run session_state session_message
+  # Once prepare is dispatched, a lost local workflow watch or artifact can no
+  # longer prove whether the client /32 opened. Conservatively own cleanup
+  # before dispatch so the EXIT trap closes every ambiguous handoff.
+  session_open=true
+  prepare_run="$(dispatch_session_operation prepare)"
+  rm -rf "$session_dir"
+  mkdir -p "$session_dir"
+  gh run download "$prepare_run" --repo "$repository" \
+    --name "cloud-sim-analysis-session-$request_id" --dir "$session_dir"
 
-session_state="$(jq -er .state "$session_json")"
-case "$session_state" in
-  released)
-    publish_result released
-    printf 'Simulation Run %s 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。\n' "$run_id"
-    exit 0
-    ;;
-  unknown_run)
-    fail "no unique retained Run Locator exists for $run_id"
-    ;;
-  insufficient_evidence)
-    session_message="$(jq -er '.message | strings | select(length > 0 and length <= 512)' "$session_json")" || \
-      fail "analysis session broker returned insufficient evidence without a valid explanation"
-    fail "$session_message"
-    ;;
-  live) session_open=true ;;
-esac
+  [[ -f "$session_json" ]] || fail "analysis workflow returned no session descriptor"
+  jq -e --arg run_id "$run_id" --arg request_id "$request_id" '
+    .schema == "wukongim/cloud-simulation-analysis-session/v1" and
+    .run_id == $run_id and .request_id == $request_id and
+    (.state == "live" or .state == "released" or .state == "unknown_run" or .state == "insufficient_evidence")
+  ' "$session_json" >/dev/null || fail "analysis workflow returned an invalid session descriptor"
+
+  session_state="$(jq -er .state "$session_json")"
+  case "$session_state" in
+    released)
+      session_open=false
+      publish_result released
+      printf 'Simulation Run %s 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。\n' "$run_id"
+      exit 0
+      ;;
+    unknown_run)
+      session_open=false
+      fail "no unique retained Run Locator exists for $run_id"
+      ;;
+    insufficient_evidence)
+      session_message="$(jq -er '.message | strings | select(length > 0 and length <= 512)' "$session_json")" || \
+        fail "analysis session broker returned insufficient evidence without a valid explanation"
+      fail "$session_message"
+      ;;
+    live) ;;
+  esac
+}
+
+observed_ipv4=""
+observed_ipv4_error=""
+probe_same_host_ipv4() {
+  local endpoint_url="$1"
+  local endpoint_host status_url status_json curl_status error_file candidate
+  endpoint_host="${endpoint_url#https://}"
+  endpoint_host="${endpoint_host%%:*}"
+  is_valid_ipv4 "$endpoint_host" || {
+    observed_ipv4_error=invalid_analysis_endpoint
+    return 1
+  }
+  status_url="http://${endpoint_host}:19443/cloud-view/status?request_id=${request_id}"
+  error_file="$analysis_temp/cloud-view-source-probe.err"
+  if status_json="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 5 --max-time 10 \
+    --header 'Cache-Control: no-cache' --proto '=http' "$status_url" 2>"$error_file")"; then
+    if ! jq -e . <<<"$status_json" >/dev/null 2>&1; then
+      observed_ipv4_error=invalid_response
+      return 1
+    fi
+    if ! jq -e --arg run_id "$run_id" 'select(.run_id == $run_id)' \
+      <<<"$status_json" >/dev/null 2>&1; then
+      observed_ipv4_error=identity_mismatch
+      return 1
+    fi
+    if ! jq -e 'select(.persistence_healthy == true)' <<<"$status_json" >/dev/null 2>&1; then
+      observed_ipv4_error=persistence_unhealthy
+      return 1
+    fi
+    candidate="$(jq -er '.observed_ipv4 | strings' <<<"$status_json" 2>/dev/null || true)"
+    if [[ -z "$candidate" ]]; then
+      observed_ipv4_error=unsupported
+      return 2
+    fi
+    if ! is_valid_ipv4 "$candidate"; then
+      observed_ipv4_error=invalid_response
+      return 1
+    fi
+    observed_ipv4="$candidate"
+    observed_ipv4_error=""
+    return 0
+  else
+    curl_status=$?
+    observed_ipv4_error="$(curl_failure_class "$curl_status")"
+    return 2
+  fi
+}
+
+prepare_analysis_session
+mcp_url="$(jq -er '.mcp_url | select(test("^https://[0-9.]+:19092/mcp$"))' "$session_json")" || \
+  fail "invalid Analysis MCP URL"
+initial_mcp_url="$mcp_url"
+same_host_probe_ready=false
+if probe_same_host_ipv4 "$mcp_url"; then
+  same_host_probe_ready=true
+else
+  if [[ "$observed_ipv4_error" == invalid_analysis_endpoint ]]; then
+    fail "cannot verify the same-host Analysis egress IPv4: $observed_ipv4_error"
+  fi
+  printf 'Cloud View cannot provide a trustworthy same-host Analysis egress IPv4 (%s); using public echo IPv4 %s.\n' \
+    "$observed_ipv4_error" "$client_ipv4" >&2
+fi
+if [[ "$same_host_probe_ready" == true && "$observed_ipv4" != "$client_ipv4" ]]; then
+  printf 'Cloud View observed Analysis egress IPv4 %s instead of public echo IPv4 %s; rebinding once.\n' \
+    "$observed_ipv4" "$client_ipv4" >&2
+  dispatch_session_operation close >/dev/null
+  session_open=false
+  client_ipv4="$observed_ipv4"
+  request_id="${request_id}-rebind"
+  prepare_analysis_session
+  mcp_url="$(jq -er '.mcp_url | select(test("^https://[0-9.]+:19092/mcp$"))' "$session_json")" || \
+    fail "invalid Analysis MCP URL after rebind"
+  [[ "$mcp_url" == "$initial_mcp_url" ]] || fail "Analysis MCP endpoint changed during egress rebind"
+  probe_same_host_ipv4 "$mcp_url" || \
+    fail "cannot verify the same-host Analysis egress IPv4 after rebind: $observed_ipv4_error"
+  [[ "$observed_ipv4" == "$client_ipv4" ]] || \
+    fail "same-host Analysis egress IPv4 changed again after one rebind"
+fi
 
 ensure_go_on_path || fail "go is required"
 for command in git perl; do
@@ -424,19 +540,35 @@ rm -f "$private_key" "$encrypted_token"
 # much shorter MCP initialization deadline.
 health_url="${mcp_url%/mcp}/healthz"
 mcp_reachable=false
+health_failure=not_attempted
+health_error_file="$analysis_temp/analysis-health.err"
 for ((attempt = 1; attempt <= 12; attempt += 1)); do
   if health_json="$(curl --noproxy '*' --fail --silent --show-error --connect-timeout 5 --max-time 10 \
-    --cacert "$pinned_ca" "$health_url" 2>/dev/null)" &&
-    jq -e --arg run_id "$run_id" \
+    --cacert "$pinned_ca" "$health_url" 2>"$health_error_file")"; then
+    if jq -e --arg run_id "$run_id" \
       '.status == "ok" and .run_id == $run_id and .run_state == "running"' \
-      <<<"$health_json" >/dev/null; then
-    mcp_reachable=true
-    break
+      <<<"$health_json" >/dev/null 2>&1; then
+      mcp_reachable=true
+      break
+    fi
+    if jq -e . <<<"$health_json" >/dev/null 2>&1; then
+      health_failure=identity_mismatch
+    else
+      health_failure=invalid_response
+    fi
+    printf 'Analysis MCP health attempt %d/12 failed: %s\n' "$attempt" "$health_failure" >&2
+  else
+    curl_status=$?
+    health_failure="$(curl_failure_class "$curl_status")"
+    printf 'Analysis MCP health attempt %d/12 failed: %s (curl exit %d)\n' \
+      "$attempt" "$health_failure" "$curl_status" >&2
   fi
-  sleep 5
+  if ((attempt < 12)); then
+    sleep 5
+  fi
 done
 [[ "$mcp_reachable" == true ]] || \
-  fail "Analysis MCP did not become reachable from local IPv4 $client_ipv4 before its access window deadline"
+  fail "Analysis MCP did not become reachable from local IPv4 $client_ipv4 before its access window deadline; last failure: $health_failure"
 
 source_sha="$(jq -er '.source_sha | select(test("^[0-9a-f]{40}$"))' "$session_json")" || fail "invalid source SHA"
 scenario_digest="$(jq -er '.scenario_digest | select(test("^sha256:[0-9a-f]{64}$"))' "$session_json")" || fail "invalid scenario digest"

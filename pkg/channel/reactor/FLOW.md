@@ -6,6 +6,12 @@
 reactor goroutine is the writer for each loaded channel runtime. Blocking store
 and RPC work leaves the reactor through bounded worker pools and returns as
 fenced worker completions.
+Channel keys use stable FNV-64a followed by an avalanche mix before the
+node-local reactor modulus. The mix prevents structured person-channel IDs from
+collapsing onto the weak low bits of power-of-two reactor counts. This reactor
+partition is in-memory execution ownership; it is not a cluster hash slot or a
+persisted routing decision, so a restart may remap keys after the reactor count
+or implementation changes.
 Started reactors also open/load channel stores and close detached store handles
 through worker tasks, so metadata activation and runtime eviction do not wait on
 store I/O inside the reactor loop.
