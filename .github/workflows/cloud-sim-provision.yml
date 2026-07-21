@@ -376,9 +376,11 @@ jobs:
         run: |
           set -euo pipefail
           runner_ip="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 https://api.ipify.org)"
-          until="$(date -u -d '+19 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+          until_epoch="$(date -u -d '+19 minutes' +%s)"
+          until="$(date -u -d "@${until_epoch}" +%Y-%m-%dT%H:%M:%SZ)"
           ./wkcloudsim --provider alibaba --provider-config provider.json open-deployment "$RUN_ID" \
             --source "${runner_ip}/32" --until "$until" >/dev/null
+          echo "bootstrap_deadline_epoch=$((until_epoch - 180))" >>"$GITHUB_OUTPUT"
       - name: Generate run-scoped internal capabilities and MCP certificate
         shell: bash
         env:
@@ -442,6 +444,7 @@ jobs:
           NODE1_PRIVATE: ${{ steps.create.outputs.node1_private }}
           NODE2_PRIVATE: ${{ steps.create.outputs.node2_private }}
           NODE3_PRIVATE: ${{ steps.create.outputs.node3_private }}
+          WK_CLOUD_SSH_DEADLINE_EPOCH: ${{ steps.ingress.outputs.bootstrap_deadline_epoch }}
         run: |
           set -euo pipefail
           WK_CLOUD_SIM_PUBLIC_IP="$SIM_PUBLIC" \
@@ -451,32 +454,32 @@ jobs:
           WK_CLOUD_SSH_KEY="$PWD/bootstrap-key" \
           WK_CLOUD_SSH_CONFIG="$PWD/cloud-sim-ssh-config" \
             ./scripts/cloud-sim/write-ssh-config.sh
+          source ./scripts/cloud-sim/ssh-retry.sh
           ssh_opts=(-F cloud-sim-ssh-config)
-          for attempt in $(seq 1 30); do
-            if ssh "${ssh_opts[@]}" wukong-sim-jump true; then break; fi
-            test "$attempt" -lt 30
-            sleep 5
-          done
+          cloud_ssh_retry sim-ready 30 5 ssh "${ssh_opts[@]}" wukong-sim-jump true
           tar -czf node-secrets.tar.gz -C secrets-node .
           tar -czf sim-secrets.tar.gz -C secrets .
-          scp "${ssh_opts[@]}" artifact/deployment-bundle.tar.gz sim-secrets.tar.gz wukong-sim-jump:/home/wukong/
+          cloud_ssh_retry sim-upload 3 5 scp "${ssh_opts[@]}" \
+            artifact/deployment-bundle.tar.gz sim-secrets.tar.gz wukong-sim-jump:/home/wukong/
           for pair in "node-1:${NODE1_PRIVATE}" "node-2:${NODE2_PRIVATE}" "node-3:${NODE3_PRIVATE}"; do
             role="${pair%%:*}"; address="${pair#*:}"
-            scp "${ssh_opts[@]}" artifact/deployment-bundle.tar.gz node-secrets.tar.gz "${address}:/home/wukong/"
-            ssh "${ssh_opts[@]}" "$address" \
+            cloud_ssh_retry "${role}-ready" 12 5 ssh "${ssh_opts[@]}" "$address" true
+            cloud_ssh_retry "${role}-upload" 3 5 scp "${ssh_opts[@]}" \
+              artifact/deployment-bundle.tar.gz node-secrets.tar.gz "${address}:/home/wukong/"
+            cloud_ssh_retry "${role}-unpack" 3 5 ssh "${ssh_opts[@]}" "$address" \
               "rm -rf /home/wukong/bundle /home/wukong/run-secrets && mkdir /home/wukong/bundle /home/wukong/run-secrets && tar -xzf /home/wukong/deployment-bundle.tar.gz -C /home/wukong/bundle && tar -xzf /home/wukong/node-secrets.tar.gz -C /home/wukong/run-secrets"
-            data_device="$(ssh "${ssh_opts[@]}" "$address" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
-            ssh "${ssh_opts[@]}" "$address" \
+            data_device="$(cloud_ssh_retry_capture "${role}-data-device" 3 5 ssh "${ssh_opts[@]}" "$address" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
+            cloud_ssh_retry "${role}-install" 3 5 ssh "${ssh_opts[@]}" "$address" \
               "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role '$role' --env-dir /home/wukong/run-secrets --data-device '$data_device' --authorized-keys ''"
           done
-          ssh "${ssh_opts[@]}" wukong-sim-jump \
+          cloud_ssh_retry sim-unpack 3 5 ssh "${ssh_opts[@]}" wukong-sim-jump \
             "rm -rf /home/wukong/bundle /home/wukong/run-secrets && mkdir /home/wukong/bundle /home/wukong/run-secrets && tar -xzf /home/wukong/deployment-bundle.tar.gz -C /home/wukong/bundle && tar -xzf /home/wukong/sim-secrets.tar.gz -C /home/wukong/run-secrets"
-          sim_data_device="$(ssh "${ssh_opts[@]}" wukong-sim-jump 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
+          sim_data_device="$(cloud_ssh_retry_capture sim-data-device 3 5 ssh "${ssh_opts[@]}" wukong-sim-jump 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1; exit}'\''')"
           public_observation_arg=""
           if [[ "$PUBLIC_OBSERVATION" == "true" ]]; then
             public_observation_arg="--public-observation"
           fi
-          ssh "${ssh_opts[@]}" wukong-sim-jump \
+          cloud_ssh_retry sim-install 3 5 ssh "${ssh_opts[@]}" wukong-sim-jump \
             "sudo /home/wukong/bundle/bin/wkcloudhost install --bundle /home/wukong/bundle --role sim --env-dir /home/wukong/run-secrets --data-device '$sim_data_device' --authorized-keys '' $public_observation_arg"
 
       - name: Prove Bootstrap Gate
@@ -553,17 +556,25 @@ jobs:
           if-no-files-found: error
 
       - name: Preserve diagnostics or release unusable failed provisioning
+        id: preserve_failed_provisioning
         if: failure() && steps.create.outcome == 'success'
         shell: bash
         env:
           PUBLIC_OBSERVATION_GATE_OUTCOME: ${{ steps.public_observation.outcome }}
         run: |
           set -euo pipefail
+          released=false
+          trap 'printf "released=%s\n" "$released" >>"$GITHUB_OUTPUT"' EXIT
+          release_failed_run() {
+            ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >failed-provision-release.json
+            jq -e '.state == "released" and (.resources | length) == 0' failed-provision-release.json >/dev/null
+            released=true
+          }
           if [[ "$PUBLIC_OBSERVATION" == "true" && "$PUBLIC_OBSERVATION_GATE_OUTCOME" != "success" ]]; then
             ./wkcloudsim --provider alibaba --provider-config provider.json close-public-view "$RUN_ID" >/dev/null || true
           fi
           if ! status_json="$(./wkcloudsim --provider alibaba --provider-config provider.json status "$RUN_ID")"; then
-            ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+            release_failed_run
             exit 0
           fi
           state="$(jq -er .state <<<"$status_json")"
@@ -577,14 +588,14 @@ jobs:
               analysis_grace)
                 ;;
               *)
-                ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+                release_failed_run
                 ;;
             esac
           else
-            ./wkcloudsim --provider alibaba --provider-config provider.json destroy "$RUN_ID" >/dev/null
+            release_failed_run
           fi
       - name: Revoke ephemeral SSH keys on all hosts
-        if: always() && steps.create.outputs.sim_public != ''
+        if: always() && steps.preserve_failed_provisioning.outputs.released != 'true' && steps.create.outputs.sim_public != ''
         continue-on-error: true
         shell: bash
         env:
@@ -606,7 +617,7 @@ jobs:
           done
           ssh "${ssh_opts[@]}" wukong-sim-jump 'sudo rm -f /home/wukong/.ssh/authorized_keys' || true
       - name: Close deployment ingress
-        if: always() && steps.create.outcome == 'success'
+        if: always() && steps.create.outcome == 'success' && steps.preserve_failed_provisioning.outputs.released != 'true'
         shell: bash
         run: ./wkcloudsim --provider alibaba --provider-config provider.json close-deployment "$RUN_ID"
       - name: Upload minimal Run Locator

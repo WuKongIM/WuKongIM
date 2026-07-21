@@ -126,6 +126,8 @@ type CoordinatorConfig struct {
 	PollInterval time.Duration
 	// PollTimeout is the base control-plane grace after the planned phase schedule ends.
 	PollTimeout time.Duration
+	// WorkerStatusTimeout bounds one status request independently of PollTimeout while respecting the phase context.
+	WorkerStatusTimeout time.Duration
 	// StopTimeout bounds exact-run stop acknowledgement after failure, success, or cancellation.
 	StopTimeout time.Duration
 }
@@ -152,6 +154,9 @@ func New(cfg CoordinatorConfig) *Coordinator {
 	}
 	if cfg.PollTimeout <= 0 {
 		cfg.PollTimeout = defaultPollTimeout
+	}
+	if cfg.WorkerStatusTimeout <= 0 {
+		cfg.WorkerStatusTimeout = defaultWorkerStatusTimeout
 	}
 	if cfg.StopTimeout <= 0 {
 		cfg.StopTimeout = defaultStopTimeout
@@ -1013,14 +1018,10 @@ func (c *Coordinator) finalPhaseStatus(parent context.Context, w model.Worker, r
 }
 
 func (c *Coordinator) workerStatusTimeout() time.Duration {
-	timeout := defaultWorkerStatusTimeout
-	if c.cfg.PollTimeout > 0 && c.cfg.PollTimeout < timeout {
-		timeout = c.cfg.PollTimeout
-	}
-	if timeout <= 0 {
+	if c.cfg.WorkerStatusTimeout <= 0 {
 		return defaultWorkerStatusTimeout
 	}
-	return timeout
+	return c.cfg.WorkerStatusTimeout
 }
 
 func (c *Coordinator) workerStatus(ctx context.Context, w model.Worker) (worker.Status, error) {
