@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
@@ -12,8 +13,9 @@ import (
 )
 
 const (
-	maxChannelLatestBatchItems = 512
-	maxConversationBatchItems  = 512
+	maxChannelLatestBatchItems          = 512
+	maxConversationBatchItems           = 512
+	maxConversationTouchSlotConcurrency = 4
 )
 
 // CreateUserMetadata persists durable UID metadata through Slot ownership.
@@ -739,36 +741,7 @@ func (n *Node) TouchConversationActiveAtBatch(ctx context.Context, patches []met
 	if err != nil {
 		return err
 	}
-	for _, slotID := range sortedConversationSlotIDs(groups) {
-		group := groups[slotID]
-		for start := 0; start < len(group.patchItems); start += maxConversationBatchItems {
-			end := start + maxConversationBatchItems
-			if end > len(group.patchItems) {
-				end = len(group.patchItems)
-			}
-			items := group.patchItems[start:end]
-			command, err := metafsm.EncodeTouchConversationActiveAtBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
-			if err != nil {
-				return err
-			}
-			routeHashSlot := group.routeHashSlot
-			if len(items) > 0 {
-				routeHashSlot = items[0].HashSlot
-			}
-			if err := n.Propose(ctx, ProposeRequest{
-				Command: command,
-				Target: ProposeTarget{
-					SlotID:      slotID,
-					HasSlotID:   true,
-					HashSlot:    routeHashSlot,
-					HasHashSlot: true,
-				},
-			}); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return n.touchConversationSlotBatches(ctx, groups)
 }
 
 // GetConversationState reads one UID-owned conversation row from Slot metadata storage.
@@ -807,12 +780,17 @@ func (n *Node) GetConversationStates(ctx context.Context, keys []metadb.Conversa
 	if n.defaultSlotMetaDB == nil {
 		return nil, ErrNotStarted
 	}
+	uids := make([]string, len(keys))
+	for i := range keys {
+		uids[i] = keys[i].UID
+	}
+	routes, err := n.RouteKeys(uids)
+	if err != nil {
+		return nil, err
+	}
 	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
-	for _, key := range keys {
-		route, err := n.RouteKey(key.UID)
-		if err != nil {
-			return nil, err
-		}
+	for i, key := range keys {
+		route := routes[i]
 		state, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetConversationState(ctx, key.Kind, key.UID, key.ChannelID, key.ChannelType)
 		if err != nil {
 			if errors.Is(err, metadb.ErrNotFound) {
@@ -911,15 +889,20 @@ func (n *Node) groupConversationStatesBySlot(states []metadb.ConversationState) 
 }
 
 func (n *Node) groupConversationPatchesBySlot(patches []metadb.ConversationActivePatch) (map[uint32]conversationSlotBatch, error) {
-	groups := make(map[uint32]conversationSlotBatch)
-	for _, patch := range patches {
+	uids := make([]string, len(patches))
+	for i, patch := range patches {
 		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 {
 			return nil, metadb.ErrInvalidArgument
 		}
-		route, err := n.RouteKey(patch.UID)
-		if err != nil {
-			return nil, err
-		}
+		uids[i] = patch.UID
+	}
+	routes, err := n.RouteKeys(uids)
+	if err != nil {
+		return nil, err
+	}
+	groups := make(map[uint32]conversationSlotBatch)
+	for i, patch := range patches {
+		route := routes[i]
 		group := groups[route.SlotID]
 		if len(group.stateItems) == 0 && len(group.patchItems) == 0 && len(group.deleteItems) == 0 {
 			group.routeHashSlot = route.HashSlot
@@ -931,6 +914,81 @@ func (n *Node) groupConversationPatchesBySlot(patches []metadb.ConversationActiv
 		groups[route.SlotID] = group
 	}
 	return groups, nil
+}
+
+// touchConversationSlotBatches persists independent physical Slot groups with
+// bounded concurrency. Commands for one Slot remain ordered because one worker
+// owns the complete group, while errors are selected in sorted Slot order.
+func (n *Node) touchConversationSlotBatches(ctx context.Context, groups map[uint32]conversationSlotBatch) error {
+	slotIDs := sortedConversationSlotIDs(groups)
+	if len(slotIDs) == 0 {
+		return nil
+	}
+	if len(slotIDs) == 1 {
+		return n.touchConversationSlotBatch(ctx, slotIDs[0], groups[slotIDs[0]])
+	}
+
+	workerCount := len(slotIDs)
+	if workerCount > maxConversationTouchSlotConcurrency {
+		workerCount = maxConversationTouchSlotConcurrency
+	}
+	jobs := make(chan int)
+	errs := make([]error, len(slotIDs))
+	var wg sync.WaitGroup
+	wg.Add(workerCount)
+	for worker := 0; worker < workerCount; worker++ {
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				slotID := slotIDs[index]
+				errs[index] = n.touchConversationSlotBatch(ctx, slotID, groups[slotID])
+			}
+		}()
+	}
+	for index := range slotIDs {
+		jobs <- index
+	}
+	close(jobs)
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// touchConversationSlotBatch preserves proposal order for chunks that mutate
+// the same physical Slot. Conversation active patches are monotonic and
+// idempotent, so callers may safely retry the full batch after a partial error.
+func (n *Node) touchConversationSlotBatch(ctx context.Context, slotID uint32, group conversationSlotBatch) error {
+	for start := 0; start < len(group.patchItems); start += maxConversationBatchItems {
+		end := start + maxConversationBatchItems
+		if end > len(group.patchItems) {
+			end = len(group.patchItems)
+		}
+		items := group.patchItems[start:end]
+		command, err := metafsm.EncodeTouchConversationActiveAtBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
+		if err != nil {
+			return err
+		}
+		routeHashSlot := group.routeHashSlot
+		if len(items) > 0 {
+			routeHashSlot = items[0].HashSlot
+		}
+		if err := n.Propose(ctx, ProposeRequest{
+			Command: command,
+			Target: ProposeTarget{
+				SlotID:      slotID,
+				HasSlotID:   true,
+				HashSlot:    routeHashSlot,
+				HasHashSlot: true,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (n *Node) groupConversationDeletesBySlot(deletes []metadb.ConversationDelete) (map[uint32]conversationSlotBatch, error) {

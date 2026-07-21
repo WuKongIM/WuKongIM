@@ -504,9 +504,14 @@ Kind-aware UID-owned conversation rows are the active recent-conversation path.
 `HideConversationsBatch` route each row by `RouteKey(uid)`, group rows by
 physical Slot, and submit bounded Slot FSM commands that carry each row's real
 UID hash slot plus its `ConversationKind`. `TouchConversationActiveAtBatch`
-marks those proposals as background admission work because they are retryable
-active-cache projection flushes; user-facing UID metadata writes keep the
-default foreground class. The Slot FSM then applies each conversation state,
+resolves the patch UIDs against one route snapshot, then submits independent
+physical-Slot groups with at most four proposals in flight. Chunks for the same
+physical Slot remain ordered, and errors are returned in sorted Slot order after
+all admitted groups finish. Active patches are monotonic and idempotent, so a
+caller may retry the full batch after a partial cross-Slot failure without
+requiring cross-Slot atomicity. The proposals use background admission because
+they are retryable active-cache projection flushes; user-facing UID metadata
+writes keep the default foreground class. The Slot FSM then applies each conversation state,
 active patch, or delete barrier to that UID-owned hash slot and logical kind,
 preserving `SparseActive`, read/delete visibility floors, and the active
 ordering anchor in one metadata mutation. Hide requests advance `DeletedToSeq`
@@ -516,7 +521,9 @@ and clear `active_at` through the same Slot ownership path. Reads such as
 `ConversationKind` so normal and CMD projections stay isolated. Active pages
 scan the local conversation active index for that UID hash slot and selected
 kind with the `(active_at, channel_id, channel_type)` cursor; kind is part of
-the scan scope, not the cursor. Legacy `channel_latest` remains a channel-owned
+the scan scope, not the cursor. `GetConversationStates` resolves all requested
+UIDs against one route snapshot before issuing hash-slot-local point reads.
+Legacy `channel_latest` remains a channel-owned
 projection for old callers and is not the recent-conversation active path.
 
 ## Channel runtime Flow
