@@ -86,6 +86,7 @@ type RouterObservation struct {
 }
 
 // RouterObserver receives foreground channel authority routing observations.
+// Implementations must be safe for concurrent calls from SendBatch.
 type RouterObserver interface {
 	// ObserveChannelAppendRouter records one routed foreground SEND group.
 	ObserveChannelAppendRouter(RouterObservation)

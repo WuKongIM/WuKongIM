@@ -109,6 +109,8 @@ Supported conversation authority calls:
 
 - `AdmitPatches(RouteTarget, []ActivePatch)`
 - `AdmitActiveBatch(RouteTarget, conversationactive.ActiveBatch)`
+- `HideConversationsForTarget(RouteTarget, []metadb.ConversationDelete)`
+  preserves canceled/deadline status across the node RPC boundary, matching local authority calls.
 - `ListConversationActiveViewForTarget(RouteTarget, kind, uid, activeCursor, limit)`
 - `DrainAuthority(RouteTarget)`
 
@@ -122,6 +124,15 @@ The RPC boundary is deliberately narrow:
   authority target. Sender/recipient route grouping is performed by
   `internal/infra/cluster`; this package only transports the exact batch
   subset it receives.
+- Hide carries one exact, ordered `ConversationDelete` collection to the fenced
+  UID authority target. The client does not split the mutation collection:
+  collections above 4,096 entries fail before transport, and malformed or
+  oversized wire collections fail closed during decode. The adapter waits for
+  the authority result and maps it through the existing route status contract.
+  The `WKVC1` hide extension follows the existing common request prefix and
+  appends `DeleteCount`, then each delete in the stable field order `UID`,
+  `Kind`, `ChannelID`, `ChannelType`, `DeletedToSeq`, and `UpdatedAt`. Existing
+  operation byte layouts are unchanged.
 - List reads the target-owned active view for one `metadb.ConversationKind`
   from the authority node. The local authority implementation decides how to
   merge unflushed cache rows with DB rows; this package only transports the

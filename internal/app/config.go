@@ -330,7 +330,7 @@ type ConversationConfig struct {
 	AuthorityListDBWindowMax int
 	// AuthorityHandoffTimeout bounds how long a new authority waits for old-authority drain before explicit abandon.
 	AuthorityHandoffTimeout time.Duration
-	// AuthorityActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
+	// AuthorityActiveCooldown coalesces receiver-only active_at persistence while the authority cache keeps the latest activity visible.
 	AuthorityActiveCooldown time.Duration
 	// AuthorityFlushInterval controls how often dirty authority active rows are flushed to durable storage.
 	AuthorityFlushInterval time.Duration

@@ -34,11 +34,15 @@ type ConversationAuthorityClient struct {
 }
 
 var _ conversationusecase.Store = (*ConversationAuthorityClient)(nil)
+var _ conversationusecase.DeleteStore = (*ConversationAuthorityClient)(nil)
 
 const (
 	defaultConversationRouteRetryAttempts = 100
 	conversationAdmissionRetryAttempts    = 3
 	defaultConversationRouteRetryBackoff  = 5 * time.Millisecond
+	// maxConversationAuthorityDeleteGroup matches the bounded node RPC collection contract.
+	// Validate before authority selection so local and remote leaders expose identical behavior.
+	maxConversationAuthorityDeleteGroup = 4096
 )
 
 // NewConversationAuthorityClient creates a cluster-routed conversation authority client.
@@ -143,6 +147,37 @@ func (c *ConversationAuthorityClient) ListConversationActiveView(ctx context.Con
 	return page, nil
 }
 
+// HideConversations routes durable delete barriers through the exact UID
+// authority so the leader can reconcile its active cache before returning.
+func (c *ConversationAuthorityClient) HideConversations(ctx context.Context, deletes []metadb.ConversationDelete) error {
+	if len(deletes) == 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	for _, group := range groupConversationDeletesByUID(deletes) {
+		group := group
+		if len(group.deletes) > maxConversationAuthorityDeleteGroup {
+			return fmt.Errorf("internal/infra/cluster: conversation deletes for one UID exceed limit")
+		}
+		if err := c.withFreshTarget(ctx, group.uid, func(target conversationusecase.RouteTarget) error {
+			authority, err := c.authorityForTarget(target)
+			if err != nil {
+				return err
+			}
+			return mapConversationRouteError(authority.HideConversationsForTarget(ctx, target, group.deletes))
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // DrainAuthority drains one exact authority target for handoff.
 func (c *ConversationAuthorityClient) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (string, error) {
 	authority, err := c.authorityForTarget(target)
@@ -160,6 +195,25 @@ type conversationAuthorityPatchGroup struct {
 type conversationAuthorityActiveBatchGroup struct {
 	target conversationusecase.RouteTarget
 	batch  conversationactive.ActiveBatch
+}
+
+type conversationAuthorityDeleteGroup struct {
+	uid     string
+	deletes []metadb.ConversationDelete
+}
+
+func groupConversationDeletesByUID(deletes []metadb.ConversationDelete) []conversationAuthorityDeleteGroup {
+	groupIndex := make(map[string]int, len(deletes))
+	groups := make([]conversationAuthorityDeleteGroup, 0, len(deletes))
+	for _, req := range deletes {
+		if idx, ok := groupIndex[req.UID]; ok {
+			groups[idx].deletes = append(groups[idx].deletes, req)
+			continue
+		}
+		groupIndex[req.UID] = len(groups)
+		groups = append(groups, conversationAuthorityDeleteGroup{uid: req.UID, deletes: []metadb.ConversationDelete{req}})
+	}
+	return groups
 }
 
 func (c *ConversationAuthorityClient) groupByTarget(patches []conversationusecase.ActivePatch) ([]conversationAuthorityPatchGroup, error) {
@@ -385,7 +439,7 @@ func mapConversationRouteError(err error) error {
 		return err
 	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader):
 		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
-	case errors.Is(err, cluster.ErrNotLeader):
+	case errors.Is(err, cluster.ErrNotLeader), errors.Is(err, propose.ErrNotLeader):
 		return fmt.Errorf("%w: %w", conversationusecase.ErrNotLeader, err)
 	case errors.Is(err, propose.ErrProposalBackpressure), errors.Is(err, propose.ErrBackgroundProposalThrottled):
 		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
@@ -419,6 +473,13 @@ func (a remoteConversationAuthority) ListConversationActiveViewForTarget(ctx con
 	}
 	page, err := a.client.ListConversations(ctx, a.nodeID, target, kind, uid, after, limit)
 	return page, mapConversationRouteError(err)
+}
+
+func (a remoteConversationAuthority) HideConversationsForTarget(ctx context.Context, target conversationusecase.RouteTarget, deletes []metadb.ConversationDelete) error {
+	if a.client == nil || a.nodeID == 0 {
+		return conversationusecase.ErrRouteNotReady
+	}
+	return mapConversationRouteError(a.client.HideConversations(ctx, a.nodeID, target, deletes))
 }
 
 func (a remoteConversationAuthority) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (string, error) {

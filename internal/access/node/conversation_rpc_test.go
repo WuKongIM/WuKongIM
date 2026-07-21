@@ -124,6 +124,39 @@ func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityRPCDispatchesHideConversations(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	deletes := []metadb.ConversationDelete{
+		{UID: "u2", Kind: metadb.ConversationKindCMD, ChannelID: "g2____cmd", ChannelType: 3, DeletedToSeq: 19, UpdatedAt: 102},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 101},
+	}
+	local := &fakeConversationAuthority{hideErr: conversationusecase.ErrStaleRoute}
+	adapter := New(Options{ConversationAuthority: local})
+	body, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{
+		Op:      conversationOpHideConversations,
+		Target:  target,
+		Kind:    metadb.ConversationKindNormal,
+		Deletes: deletes,
+	})
+	if err != nil {
+		t.Fatalf("encode hide request: %v", err)
+	}
+	respBody, err := adapter.HandleConversationAuthorityRPC(context.Background(), body)
+	if err != nil {
+		t.Fatalf("HandleConversationAuthorityRPC(hide) error = %v", err)
+	}
+	resp, err := decodeConversationAuthorityResponse(respBody)
+	if err != nil {
+		t.Fatalf("decode hide response: %v", err)
+	}
+	if resp.Status != conversationRPCStatusStaleRoute {
+		t.Fatalf("hide status = %q, want %q", resp.Status, conversationRPCStatusStaleRoute)
+	}
+	if local.hideTarget != target || !reflect.DeepEqual(local.deletes, deletes) {
+		t.Fatalf("hide target/deletes = %#v/%#v, want %#v/%#v", local.hideTarget, local.deletes, target, deletes)
+	}
+}
+
 func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing.T) {
 	target := testConversationAuthorityTarget()
 	after := metadb.ConversationActiveCursor{ActiveAt: 99, ChannelID: "g0____cmd", ChannelType: 2}
@@ -191,6 +224,66 @@ func TestConversationAuthorityClientAdmitActiveBatchMapsStatus(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityClientHideConversationsMapsStatus(t *testing.T) {
+	target := testConversationAuthorityTarget()
+	deletes := []metadb.ConversationDelete{
+		{UID: "u2", Kind: metadb.ConversationKindCMD, ChannelID: "g2____cmd", ChannelType: 3, DeletedToSeq: 19, UpdatedAt: 102},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 101},
+	}
+	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusRouteNotReady}}
+	client := NewClient(node)
+
+	err := client.HideConversations(context.Background(), 13, target, deletes)
+	if !errors.Is(err, conversationusecase.ErrRouteNotReady) {
+		t.Fatalf("HideConversations() error = %v, want ErrRouteNotReady", err)
+	}
+	if node.nodeID != 13 || node.serviceID != ConversationAuthorityRPCServiceID {
+		t.Fatalf("rpc target = node %d service %d, want node 13 service %d", node.nodeID, node.serviceID, ConversationAuthorityRPCServiceID)
+	}
+	req, err := decodeConversationAuthorityRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodeConversationAuthorityRequest(client hide payload) error = %v", err)
+	}
+	if req.Op != conversationOpHideConversations || req.Target != target || !reflect.DeepEqual(req.Deletes, deletes) {
+		t.Fatalf("client hide request = %#v, want target %#v deletes %#v", req, target, deletes)
+	}
+}
+
+func TestConversationAuthorityClientRejectsOversizedHideCollectionBeforeTransport(t *testing.T) {
+	deletes := make([]metadb.ConversationDelete, maxConversationAuthorityCollectionLen+1)
+	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusOK}}
+	err := NewClient(node).HideConversations(context.Background(), 13, testConversationAuthorityTarget(), deletes)
+	if err == nil {
+		t.Fatal("HideConversations() error = nil, want collection limit error")
+	}
+	if len(node.payloads) != 0 {
+		t.Fatalf("rpc payload count = %d, want 0", len(node.payloads))
+	}
+}
+
+func TestConversationAuthorityClientAcceptsMaximumHideCollection(t *testing.T) {
+	deletes := make([]metadb.ConversationDelete, maxConversationAuthorityCollectionLen)
+	for i := range deletes {
+		deletes[i] = metadb.ConversationDelete{
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: uint64(i + 1), UpdatedAt: int64(i + 1),
+		}
+	}
+	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusOK}}
+	if err := NewClient(node).HideConversations(context.Background(), 13, testConversationAuthorityTarget(), deletes); err != nil {
+		t.Fatalf("HideConversations() error = %v", err)
+	}
+	if len(node.payloads) != 1 {
+		t.Fatalf("rpc payload count = %d, want 1", len(node.payloads))
+	}
+	req, err := decodeConversationAuthorityRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodeConversationAuthorityRequest(maximum hide payload) error = %v", err)
+	}
+	if !reflect.DeepEqual(req.Deletes, deletes) {
+		t.Fatalf("decoded delete count/content mismatch: got %d entries, want %d", len(req.Deletes), len(deletes))
+	}
+}
+
 func TestConversationAuthorityClientChunksOversizedAdmitPayloads(t *testing.T) {
 	target := testConversationAuthorityTarget()
 	patches := make([]conversationusecase.ActivePatch, maxConversationAuthorityCollectionLen+1)
@@ -240,6 +333,12 @@ func TestConversationAuthorityClientRejectsNilNodeAndUnknownStatus(t *testing.T)
 			},
 		},
 		{
+			name: "hide",
+			call: func(client *Client) error {
+				return client.HideConversations(context.Background(), 13, target, nil)
+			},
+		},
+		{
 			name: "list",
 			call: func(client *Client) error {
 				_, err := client.ListConversations(context.Background(), 13, target, metadb.ConversationKindCMD, "u1", metadb.ConversationActiveCursor{}, 10)
@@ -285,6 +384,8 @@ func TestConversationAuthorityRPCStatusMapping(t *testing.T) {
 		{name: "stale route", err: conversationusecase.ErrStaleRoute, status: conversationRPCStatusStaleRoute},
 		{name: "route not ready", err: conversationusecase.ErrRouteNotReady, status: conversationRPCStatusRouteNotReady},
 		{name: "cache pressure", err: conversationusecase.ErrCachePressure, status: conversationRPCStatusCachePressure},
+		{name: "context canceled", err: context.Canceled, status: conversationRPCStatusCanceled},
+		{name: "deadline exceeded", err: context.DeadlineExceeded, status: conversationRPCStatusDeadline},
 		{name: "rejected", err: errors.New("boom"), status: conversationRPCStatusRejected},
 	}
 	for _, tt := range tests {
@@ -310,12 +411,15 @@ type fakeConversationAuthority struct {
 	target       conversationusecase.RouteTarget
 	admitTarget  conversationusecase.RouteTarget
 	activeTarget conversationusecase.RouteTarget
+	hideTarget   conversationusecase.RouteTarget
 	drainTarget  conversationusecase.RouteTarget
 	patches      []conversationusecase.ActivePatch
 	activeBatch  conversationactive.ActiveBatch
+	deletes      []metadb.ConversationDelete
 	page         conversationusecase.ActiveViewPage
 	drainResult  string
 	listKind     metadb.ConversationKind
+	hideErr      error
 }
 
 func testConversationAuthorityTarget() conversationusecase.RouteTarget {
@@ -340,6 +444,12 @@ func (f *fakeConversationAuthority) AdmitActiveBatch(_ context.Context, target c
 	f.activeTarget = target
 	f.activeBatch = batch
 	return nil
+}
+
+func (f *fakeConversationAuthority) HideConversationsForTarget(_ context.Context, target conversationusecase.RouteTarget, deletes []metadb.ConversationDelete) error {
+	f.hideTarget = target
+	f.deletes = append([]metadb.ConversationDelete(nil), deletes...)
+	return f.hideErr
 }
 
 func (f *fakeConversationAuthority) ListConversationActiveViewForTarget(_ context.Context, target conversationusecase.RouteTarget, kind metadb.ConversationKind, _ string, _ metadb.ConversationActiveCursor, _ int) (conversationusecase.ActiveViewPage, error) {

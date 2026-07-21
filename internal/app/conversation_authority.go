@@ -9,6 +9,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -22,6 +24,9 @@ type conversationAuthorityStore interface {
 	// TouchConversationActiveAtBatch flushes activity hints across bounded Slot proposals.
 	// An error does not prove that no earlier proposal committed, so callers must retain the full batch for idempotent retry.
 	TouchConversationActiveAtBatch(context.Context, []metadb.ConversationActivePatch) error
+	// HideConversationsBatch durably advances UID-owned delete barriers through Slot ownership.
+	// An error does not prove that no earlier proposal committed.
+	HideConversationsBatch(context.Context, []metadb.ConversationDelete) error
 }
 
 type conversationAuthorityOptions struct {
@@ -39,7 +44,7 @@ type conversationAuthorityOptions struct {
 	AdmissionBatchRows int
 	// AdmissionConcurrency mirrors routed-client admission config and is retained for config compatibility.
 	AdmissionConcurrency int
-	// ActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
+	// ActiveCooldown coalesces receiver-only active_at persistence while the authority cache keeps the latest activity visible.
 	ActiveCooldown time.Duration
 	// FlushBatchRows bounds dirty rows per periodic, pressure-woken, and authority handoff flush attempt.
 	FlushBatchRows int
@@ -224,9 +229,24 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 
 // markActive marks a fenced target ready for local cache admission and list reads.
 func (a *conversationAuthority) markActive(target conversationusecase.RouteTarget) {
+	if a == nil {
+		return
+	}
+	key := targetKey(target)
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.setTargetStateLocked(targetKey(target), conversationAuthorityActive)
+	alreadyActive := a.targets[key] == conversationAuthorityActive
+	// Purge stale clean rows before publishing the target as active. Publishing
+	// first would allow a concurrent cooldown-suppressed admission to refresh a
+	// clean row that the subsequent purge could then discard.
+	purged := 0
+	if !alreadyActive && a.active != nil {
+		purged = a.active.PurgeCleanHashSlotStateOnly(target.HashSlot)
+	}
+	a.setTargetStateLocked(key, conversationAuthorityActive)
+	a.mu.Unlock()
+	if purged > 0 {
+		a.active.ObserveCacheState()
+	}
 }
 
 // markWarming marks a target as not yet safe to serve active-view reads.
@@ -290,6 +310,61 @@ func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target con
 	return err
 }
 
+// HideConversationsForTarget persists delete barriers through the exact local
+// authority and then reconciles the corresponding cache rows before success.
+func (a *conversationAuthority) HideConversationsForTarget(ctx context.Context, target conversationusecase.RouteTarget, deletes []metadb.ConversationDelete) (err error) {
+	if a == nil {
+		return conversationusecase.ErrRouteNotReady
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err = validateConversationDeletes(deletes); err != nil {
+		return err
+	}
+	if len(deletes) == 0 {
+		return nil
+	}
+	if a.store == nil {
+		return conversationusecase.ErrRouteNotReady
+	}
+	if err = a.ensureTarget(target); err != nil {
+		return err
+	}
+
+	deletes = append([]metadb.ConversationDelete(nil), deletes...)
+	err = mapConversationActiveError(a.store.HideConversationsBatch(ctx, deletes))
+	if err != nil {
+		// A bounded multi-proposal error can have an unknown committed prefix.
+		// Invalidate every requested baseline without treating an unconfirmed
+		// tail as deleted; durable hydration decides which barriers committed.
+		a.active.InvalidateConversationDeleteAttempts(deletes)
+		return err
+	}
+	a.active.ApplyConversationDeletes(deletes)
+	a.mu.Lock()
+	err = a.ensureTargetKeyLocked(targetKey(target))
+	a.mu.Unlock()
+	return err
+}
+
+func validateConversationDeletes(deletes []metadb.ConversationDelete) error {
+	var uid string
+	for _, req := range deletes {
+		if req.UID == "" || req.ChannelID == "" || req.ChannelType <= 0 || req.ChannelType > 255 || req.DeletedToSeq == 0 || !validConversationKind(req.Kind) {
+			return fmt.Errorf("internal/app: invalid conversation delete")
+		}
+		if uid == "" {
+			uid = req.UID
+			continue
+		}
+		if req.UID != uid {
+			return fmt.Errorf("internal/app: conversation deletes span multiple UIDs")
+		}
+	}
+	return nil
+}
+
 func (a *conversationAuthority) ensureTargetLocked(target conversationusecase.RouteTarget) error {
 	return a.ensureTargetKeyLocked(targetKey(target))
 }
@@ -308,16 +383,28 @@ func (a *conversationAuthority) ensureTarget(target conversationusecase.RouteTar
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) || !a.canLazyActivateTarget(target) {
 		return err
 	}
-	current, ok := a.currentRouteTarget(target.HashSlot)
-	if !ok || targetKey(current) != key {
-		return err
-	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if err := a.ensureTargetKeyLocked(key); err == nil {
+		a.mu.Unlock()
 		return nil
 	}
+	// Re-read the authoritative route only after serializing with lifecycle
+	// marks. Otherwise a newer markActive can win between the route lookup and
+	// this lazy activation, only to be overwritten by the stale target.
+	current, ok := a.currentRouteTarget(target.HashSlot)
+	if !ok || targetKey(current) != key {
+		a.mu.Unlock()
+		return err
+	}
+	purged := 0
+	if a.active != nil {
+		purged = a.active.PurgeCleanHashSlotStateOnly(target.HashSlot)
+	}
 	a.setTargetStateLocked(key, conversationAuthorityActive)
+	a.mu.Unlock()
+	if purged > 0 {
+		a.active.ObserveCacheState()
+	}
 	return nil
 }
 
@@ -395,7 +482,7 @@ func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conve
 	if err != nil {
 		return result, err
 	}
-	return a.flushDrainingAuthority(ctx, target.HashSlot)
+	return a.flushDrainingAuthority(ctx, target)
 }
 
 func (a *conversationAuthority) beginDrainAuthority(target conversationusecase.RouteTarget) (conversationDrainResult, error) {
@@ -423,20 +510,43 @@ func (a *conversationAuthority) finishDrainingAuthority(ctx context.Context, tar
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return a.flushDrainingAuthority(ctx, target.HashSlot)
+	return a.flushDrainingAuthority(ctx, target)
 }
 
-func (a *conversationAuthority) flushDrainingAuthority(ctx context.Context, hashSlot uint16) (conversationDrainResult, error) {
+func (a *conversationAuthority) flushDrainingAuthority(ctx context.Context, target conversationusecase.RouteTarget) (conversationDrainResult, error) {
+	targetKey := targetKey(target)
 	selected := 0
 	for {
 		if err := ctx.Err(); err != nil {
 			return conversationDrainResultBusy, err
 		}
-		flush, flushErr := a.active.FlushHashSlot(ctx, hashSlot, a.flushBatchRows)
+		if err := a.ensureDrainingTarget(targetKey); err != nil {
+			if errors.Is(err, conversationusecase.ErrStaleRoute) {
+				return conversationDrainResultTransferred, nil
+			}
+			return conversationDrainResultBusy, err
+		}
+		flush, flushErr := a.active.FlushHashSlot(ctx, target.HashSlot, a.flushBatchRows)
 		if flushErr != nil {
 			return conversationDrainResultBusy, mapConversationActiveError(flushErr)
 		}
 		if flush.Selected == 0 {
+			// Keep the exact draining-target check and clean purge atomic with
+			// respect to markActive. An obsolete drain must never purge rows
+			// admitted by a newer local authority tenure for the same hash slot.
+			a.mu.Lock()
+			if err := a.ensureDrainingTargetKeyLocked(targetKey); err != nil {
+				a.mu.Unlock()
+				if errors.Is(err, conversationusecase.ErrStaleRoute) {
+					return conversationDrainResultTransferred, nil
+				}
+				return conversationDrainResultBusy, err
+			}
+			purged := a.active.PurgeCleanHashSlotStateOnly(target.HashSlot)
+			a.mu.Unlock()
+			if purged > 0 {
+				a.active.ObserveCacheState()
+			}
 			if selected == 0 {
 				return conversationDrainResultNoDirty, nil
 			}
@@ -444,6 +554,22 @@ func (a *conversationAuthority) flushDrainingAuthority(ctx context.Context, hash
 		}
 		selected += flush.Selected
 	}
+}
+
+func (a *conversationAuthority) ensureDrainingTarget(target conversationAuthorityTargetKey) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.ensureDrainingTargetKeyLocked(target)
+}
+
+func (a *conversationAuthority) ensureDrainingTargetKeyLocked(target conversationAuthorityTargetKey) error {
+	if target.leaderNodeID != 0 && target.leaderNodeID != a.localNodeID {
+		return conversationusecase.ErrNotLeader
+	}
+	if a.targets[target] != conversationAuthorityDraining {
+		return conversationusecase.ErrStaleRoute
+	}
+	return nil
 }
 
 // ListConversationActiveView is a conservative test/backward adapter for unscoped reads.
@@ -561,6 +687,7 @@ func conversationActivePatches(patches []conversationusecase.ActivePatch) ([]con
 			ChannelType: uint8(patch.ChannelType),
 			ActiveAtMS:  patch.ActiveAt,
 			ReadSeq:     patch.ReadSeq,
+			MessageSeq:  patch.MessageSeq,
 		})
 	}
 	return activePatches, nil
@@ -580,6 +707,11 @@ func mapConversationActiveError(err error) error {
 		return nil
 	}
 	switch {
+	case errors.Is(err, clusterpkg.ErrNotLeader), errors.Is(err, propose.ErrNotLeader):
+		return fmt.Errorf("%w: %w", conversationusecase.ErrNotLeader, err)
+	case errors.Is(err, clusterpkg.ErrRouteNotReady), errors.Is(err, clusterpkg.ErrNoSlotLeader),
+		errors.Is(err, propose.ErrProposalBackpressure), errors.Is(err, propose.ErrBackgroundProposalThrottled):
+		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
 	case errors.Is(err, conversationactive.ErrCachePressure):
 		return conversationusecase.ErrCachePressure
 	case errors.Is(err, conversationactive.ErrStoreRequired):

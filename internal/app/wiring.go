@@ -348,14 +348,16 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 	if a.conversations == nil {
 		if conversationReadStore != nil {
 			var store conversationusecase.Store = conversationReadStore
+			var deleteStore conversationusecase.DeleteStore = conversationReadStore
 			if a.conversationAuthorityClient != nil {
 				store = a.conversationAuthorityClient
+				deleteStore = a.conversationAuthorityClient
 			}
 			a.conversations = conversationusecase.New(conversationusecase.Options{
 				Store:              store,
 				StateStore:         conversationReadStore,
 				StateMutationStore: conversationReadStore,
-				DeleteStore:        conversationReadStore,
+				DeleteStore:        deleteStore,
 				Messages:           conversationReadStore,
 			})
 		}

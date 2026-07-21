@@ -38,8 +38,14 @@ type preparedActiveBatch struct {
 }
 
 type cacheEntry struct {
-	// patch is the latest coalesced active projection for this cached row.
+	// patch is the latest observed active projection exposed by the cache view and used by the next required flush.
 	patch ActivePatch
+	// durableActiveAtMS is the latest ActiveAt confirmed by a durable read or successful write for this baseline generation.
+	durableActiveAtMS int64
+	// baselineGeneration fences durable confirmations from a removed, recreated, or delete-invalidated entry.
+	baselineGeneration uint64
+	// deleteBarrier is the newest durable delete floor already applied to this cached entry.
+	deleteBarrier uint64
 	// version changes whenever patch content changes, fencing stale flush snapshots.
 	version uint64
 	// dirty reports that patch still needs to be flushed to the durable store.
@@ -61,6 +67,10 @@ type flushEntry struct {
 	patch ActivePatch
 	// version fences dirty clearing against concurrent cache updates.
 	version uint64
+	// baselineGeneration fences durable confirmations against delete invalidation or row recreation.
+	baselineGeneration uint64
+	// confirmedActiveAtMS is filled after a durable cooldown read for skipped snapshots.
+	confirmedActiveAtMS int64
 	// readSeqDirty keeps receiver-only cooldown classification independent from a historical cached ReadSeq.
 	readSeqDirty bool
 }
@@ -71,6 +81,7 @@ const (
 	cacheMutationUnchanged cacheMutationKind = iota
 	cacheMutationBecameDirty
 	cacheMutationDirtyUpdated
+	cacheMutationCooldownSuppressed
 )
 
 type dirtyClearResult struct {
@@ -89,7 +100,7 @@ type Manager struct {
 	nowMS func() int64
 	// store reads and persists durable active rows for cache/store merging.
 	store ActiveStore
-	// activeCooldown skips receiver-only active_at flushes within this durable row age window.
+	// activeCooldown suppresses receiver-only re-dirtying and flushes within this durable row age window.
 	activeCooldown time.Duration
 	// maxCachedRows bounds cached rows across all UIDs; zero means unbounded.
 	maxCachedRows int
@@ -121,6 +132,8 @@ type Manager struct {
 	dirtyQueue dirtyAddressQueue
 	// nextVersion allocates monotonic cache-entry versions for dirty flush fencing.
 	nextVersion uint64
+	// nextBaselineGeneration allocates identities for durable baselines across deletion and row recreation.
+	nextBaselineGeneration uint64
 	// observationRevision orders cache snapshots delivered by concurrent callers.
 	observationRevision uint64
 	// cache stores UID -> conversation key -> active projection entry.
@@ -128,6 +141,8 @@ type Manager struct {
 	// cleanIndex contains every clean cache address when maxCachedRows is bounded.
 	// It lets admission find an eviction reserve without scanning dirty cache rows.
 	cleanIndex map[cacheAddress]struct{}
+	// cleanByHashSlot indexes clean cache rows with an authority hash slot for bounded handoff purges.
+	cleanByHashSlot map[uint16]map[cacheAddress]struct{}
 	// dirtyByHashSlot indexes dirty cache rows by UID hash slot for bounded authority handoff drains.
 	dirtyByHashSlot map[uint16]map[cacheAddress]struct{}
 }
@@ -195,6 +210,7 @@ func (m *Manager) admitActiveBatch(ctx context.Context, hashSlot uint16, hasHash
 			ChannelType: batch.ChannelType,
 			ActiveAtMS:  activeAtMS,
 			ReadSeq:     batch.MessageSeq,
+			MessageSeq:  batch.MessageSeq,
 		})
 	}
 
@@ -218,6 +234,7 @@ func (m *Manager) admitActiveBatch(ctx context.Context, hashSlot uint16, hasHash
 			ChannelType: batch.ChannelType,
 			ActiveAtMS:  activeAtMS,
 			ReadSeq:     readSeq,
+			MessageSeq:  batch.MessageSeq,
 		})
 	}
 
@@ -232,6 +249,172 @@ func (m *Manager) MarkActive(ctx context.Context, patches []ActivePatch) error {
 // MarkActiveForHashSlot merges active conversation patches owned by one UID hash slot.
 func (m *Manager) MarkActiveForHashSlot(ctx context.Context, hashSlot uint16, patches []ActivePatch) error {
 	return m.markActive(ctx, hashSlot, true, patches)
+}
+
+// ApplyConversationDeletes reconciles committed delete barriers with exact cached rows.
+// Rows at or below the barrier, including rows with an unknown message sequence, are removed.
+// Newer rows retain their latest active view and become dirty against an invalid durable baseline.
+// Reapplying the same barrier re-invalidates a clean newer row after a prior uncommitted delete attempt.
+func (m *Manager) ApplyConversationDeletes(deletes []metadb.ConversationDelete) {
+	if m == nil || len(deletes) == 0 {
+		return
+	}
+
+	m.mu.Lock()
+	for _, deletion := range deletes {
+		if deletion.UID == "" || deletion.ChannelID == "" || deletion.ChannelType <= 0 || deletion.ChannelType > 255 || deletion.DeletedToSeq == 0 {
+			continue
+		}
+		key := conversationKey{kind: deletion.Kind, channelID: deletion.ChannelID, channelType: uint8(deletion.ChannelType)}
+		address := cacheAddress{uid: deletion.UID, key: key}
+		byChannel := m.cache[deletion.UID]
+		if byChannel == nil {
+			continue
+		}
+		current, ok := byChannel[key]
+		if !ok || deletion.DeletedToSeq < current.deleteBarrier {
+			continue
+		}
+		if current.patch.MessageSeq == 0 || current.patch.MessageSeq <= deletion.DeletedToSeq {
+			m.removeCacheEntryLocked(address, current)
+			continue
+		}
+		if deletion.DeletedToSeq == current.deleteBarrier && current.dirty {
+			continue
+		}
+
+		current.deleteBarrier = deletion.DeletedToSeq
+		current.durableActiveAtMS = 0
+		m.nextBaselineGeneration++
+		current.baselineGeneration = m.nextBaselineGeneration
+		if !current.dirty {
+			m.untrackCleanLocked(address, current)
+			current.dirty = true
+			current.readSeqDirty = false
+			m.trackDirtyLocked(address, current)
+		}
+		m.nextVersion++
+		current.version = m.nextVersion
+		byChannel[key] = current
+	}
+	signalPressure := m.startPressureDrainLocked()
+	stopPressure := false
+	if m.pressureDraining && m.dirtyRows <= m.pressureLowDirtyRows {
+		m.pressureDraining = false
+		stopPressure = true
+		signalPressure = false
+	}
+	m.mu.Unlock()
+
+	if stopPressure {
+		m.observePressure(PressureObservation{Event: "stop_low_watermark"})
+	}
+	if signalPressure {
+		m.observePressure(PressureObservation{Event: "start_high_watermark"})
+		m.signalPressure()
+	}
+	m.observeCache()
+}
+
+// InvalidateConversationDeleteAttempts conservatively fences cache baselines
+// after a delete batch returns an unknown committed prefix. It never treats an
+// attempted barrier as confirmed and never removes a cached row; every present
+// row is forced dirty so durable state decides whether its activity survives.
+func (m *Manager) InvalidateConversationDeleteAttempts(deletes []metadb.ConversationDelete) {
+	if m == nil || len(deletes) == 0 {
+		return
+	}
+
+	m.mu.Lock()
+	for _, deletion := range deletes {
+		if deletion.UID == "" || deletion.ChannelID == "" || deletion.ChannelType <= 0 || deletion.ChannelType > 255 || deletion.DeletedToSeq == 0 {
+			continue
+		}
+		key := conversationKey{kind: deletion.Kind, channelID: deletion.ChannelID, channelType: uint8(deletion.ChannelType)}
+		address := cacheAddress{uid: deletion.UID, key: key}
+		byChannel := m.cache[deletion.UID]
+		if byChannel == nil {
+			continue
+		}
+		current, ok := byChannel[key]
+		if !ok {
+			continue
+		}
+
+		current.durableActiveAtMS = 0
+		m.nextBaselineGeneration++
+		current.baselineGeneration = m.nextBaselineGeneration
+		if !current.dirty {
+			m.untrackCleanLocked(address, current)
+			current.dirty = true
+			current.readSeqDirty = false
+			m.trackDirtyLocked(address, current)
+		}
+		m.nextVersion++
+		current.version = m.nextVersion
+		byChannel[key] = current
+	}
+	signalPressure := m.startPressureDrainLocked()
+	stopPressure := false
+	if m.pressureDraining && m.dirtyRows <= m.pressureLowDirtyRows {
+		m.pressureDraining = false
+		stopPressure = true
+		signalPressure = false
+	}
+	m.mu.Unlock()
+
+	if stopPressure {
+		m.observePressure(PressureObservation{Event: "stop_low_watermark"})
+	}
+	if signalPressure {
+		m.observePressure(PressureObservation{Event: "start_high_watermark"})
+		m.signalPressure()
+	}
+	m.observeCache()
+}
+
+// PurgeCleanHashSlot removes clean cache rows retained from one authority hash slot.
+// Dirty rows are preserved for the existing scoped handoff drain.
+func (m *Manager) PurgeCleanHashSlot(hashSlot uint16) int {
+	purged := m.PurgeCleanHashSlotStateOnly(hashSlot)
+	if purged > 0 {
+		m.ObserveCacheState()
+	}
+	return purged
+}
+
+// PurgeCleanHashSlotStateOnly removes clean rows without invoking the observer.
+// Callers holding an outer lifecycle lock must observe after publishing state and unlocking.
+func (m *Manager) PurgeCleanHashSlotStateOnly(hashSlot uint16) int {
+	if m == nil {
+		return 0
+	}
+
+	m.mu.Lock()
+	purged := 0
+	for address := range m.cleanByHashSlot[hashSlot] {
+		entry, ok := m.cache[address.uid][address.key]
+		if !ok || entry.dirty || !entry.hasHashSlot || entry.hashSlot != hashSlot {
+			// Discard a stale index entry defensively without falling back to a full-cache scan.
+			delete(m.cleanByHashSlot[hashSlot], address)
+			continue
+		}
+		m.removeCacheEntryLocked(address, entry)
+		purged++
+	}
+	if len(m.cleanByHashSlot[hashSlot]) == 0 {
+		delete(m.cleanByHashSlot, hashSlot)
+	}
+	m.mu.Unlock()
+	return purged
+}
+
+// ObserveCacheState publishes one current cache snapshot outside caller lifecycle locks.
+func (m *Manager) ObserveCacheState() {
+	if m == nil {
+		return
+	}
+	m.observeCache()
 }
 
 func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot bool, patches []ActivePatch) error {
@@ -279,6 +462,8 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 				mutation.BecameDirty++
 			case cacheMutationDirtyUpdated:
 				mutation.DirtyUpdated++
+			case cacheMutationCooldownSuppressed:
+				mutation.CooldownSuppressed++
 			default:
 				mutation.Unchanged++
 			}
@@ -393,13 +578,15 @@ func (m *Manager) markActiveLocked(row preparedActivePatch, hashSlot uint16, has
 	current, ok := byChannel[key]
 	if !ok {
 		m.nextVersion++
+		m.nextBaselineGeneration++
 		entry := cacheEntry{
-			patch:        patch,
-			version:      m.nextVersion,
-			dirty:        true,
-			readSeqDirty: patch.ReadSeq > 0,
-			hashSlot:     hashSlot,
-			hasHashSlot:  hasHashSlot,
+			patch:              patch,
+			version:            m.nextVersion,
+			baselineGeneration: m.nextBaselineGeneration,
+			dirty:              true,
+			readSeqDirty:       patch.ReadSeq > 0,
+			hashSlot:           hashSlot,
+			hasHashSlot:        hasHashSlot,
 		}
 		byChannel[key] = entry
 		m.totalRows++
@@ -411,6 +598,7 @@ func (m *Manager) markActiveLocked(row preparedActivePatch, hashSlot uint16, has
 		return cacheMutationBecameDirty
 	}
 
+	slotChanged := current.hashSlot != hashSlot || current.hasHashSlot != hasHashSlot
 	merged := current.patch
 	readSeqAdvanced := patch.ReadSeq > merged.ReadSeq
 	if patch.ActiveAtMS > merged.ActiveAtMS {
@@ -419,9 +607,18 @@ func (m *Manager) markActiveLocked(row preparedActivePatch, hashSlot uint16, has
 	if patch.ReadSeq > merged.ReadSeq {
 		merged.ReadSeq = patch.ReadSeq
 	}
-	slotChanged := current.hashSlot != hashSlot || current.hasHashSlot != hasHashSlot
+	if patch.MessageSeq > merged.MessageSeq {
+		merged.MessageSeq = patch.MessageSeq
+	}
 	if merged == current.patch && !slotChanged {
 		return cacheMutationUnchanged
+	}
+	if m.shouldSuppressCleanReceiverActive(current, merged, readSeqAdvanced, slotChanged) {
+		m.nextVersion++
+		current.patch = merged
+		current.version = m.nextVersion
+		byChannel[key] = current
+		return cacheMutationCooldownSuppressed
 	}
 
 	next := current
@@ -433,7 +630,7 @@ func (m *Manager) markActiveLocked(row preparedActivePatch, hashSlot uint16, has
 		next.readSeqDirty = current.readSeqDirty || readSeqAdvanced
 		m.moveDirtyLocked(address, current, next)
 	} else {
-		m.untrackCleanLocked(address)
+		m.untrackCleanLocked(address, current)
 		next.dirty = true
 		next.readSeqDirty = readSeqAdvanced
 		m.trackDirtyLocked(address, next)
@@ -446,6 +643,19 @@ func (m *Manager) markActiveLocked(row preparedActivePatch, hashSlot uint16, has
 		return cacheMutationDirtyUpdated
 	}
 	return cacheMutationBecameDirty
+}
+
+// shouldSuppressCleanReceiverActive reports whether a receiver-only update is
+// still covered by the durable ActiveAt baseline retained in a clean entry.
+func (m *Manager) shouldSuppressCleanReceiverActive(current cacheEntry, merged ActivePatch, readSeqAdvanced, slotChanged bool) bool {
+	if current.dirty || slotChanged || readSeqAdvanced {
+		return false
+	}
+	cooldownMS := int64(m.activeCooldown / time.Millisecond)
+	if cooldownMS <= 0 || current.durableActiveAtMS <= 0 || merged.ActiveAtMS < current.durableActiveAtMS {
+		return false
+	}
+	return merged.ActiveAtMS-current.durableActiveAtMS < cooldownMS
 }
 
 func prepareActiveBatch(patches []ActivePatch, inline []preparedActivePatch) preparedActiveBatch {
@@ -506,6 +716,9 @@ func mergeActivePatch(current *ActivePatch, incoming ActivePatch) {
 	}
 	if incoming.ReadSeq > current.ReadSeq {
 		current.ReadSeq = incoming.ReadSeq
+	}
+	if incoming.MessageSeq > current.MessageSeq {
+		current.MessageSeq = incoming.MessageSeq
 	}
 }
 
@@ -590,15 +803,29 @@ func (m *Manager) evictCleanVictimsLocked(victims []cacheAddress) bool {
 	}
 	for _, address := range victims {
 		byChannel := m.cache[address.uid]
-		delete(byChannel, address.key)
-		m.untrackCleanLocked(address)
-		m.totalRows--
-		decrementKindCount(m.rowsByKind, address.key.kind)
-		if len(byChannel) == 0 {
-			delete(m.cache, address.uid)
-		}
+		m.removeCacheEntryLocked(address, byChannel[address.key])
 	}
 	return true
+}
+
+func (m *Manager) removeCacheEntryLocked(address cacheAddress, entry cacheEntry) {
+	byChannel := m.cache[address.uid]
+	if byChannel == nil {
+		return
+	}
+	if entry.dirty {
+		m.untrackDirtyLocked(address, entry)
+	} else {
+		m.untrackCleanLocked(address, entry)
+	}
+	delete(byChannel, address.key)
+	if m.totalRows > 0 {
+		m.totalRows--
+	}
+	decrementKindCount(m.rowsByKind, address.key.kind)
+	if len(byChannel) == 0 {
+		delete(m.cache, address.uid)
+	}
 }
 
 // Flush persists dirty active rows and clears only unchanged dirty markers.
@@ -654,18 +881,22 @@ func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, la
 	}
 
 	filterStartedAt := time.Now()
-	flushEntries, skippedEntries, err := m.filterFlushEntries(ctx, entries)
+	flushEntries, skippedEntries, deleteFenced, err := m.filterFlushEntries(ctx, entries)
 	observation.FilterDuration = nonNegativeDuration(time.Since(filterStartedAt))
 	if err != nil {
 		observation.Result = flushErrorResult(err)
 		observation.FailureStage = "filter"
-		observation.Requeued = len(entries)
+		observation.Requeued = m.currentDirtySelectedCount(entries)
 		observation.Duration = positiveDuration(time.Since(startedAt))
 		m.observeFlush(observation)
 		m.observePressurePause(err)
 		m.observeCache()
-		return FlushResult{Selected: len(entries), Requeued: len(entries)}, err
+		return FlushResult{Selected: len(entries), Requeued: observation.Requeued}, err
 	}
+	// Durable delete reconciliation already removed these rows during filtering.
+	// Publish that terminal classification even if a later touch for the
+	// remaining rows fails; only rows still present can be requeued.
+	observation.DeleteFenced = deleteFenced
 	patches := make([]metadb.ConversationActivePatch, 0, len(flushEntries))
 	for _, entry := range flushEntries {
 		patches = append(patches, activePatchMetaPatch(entry.patch))
@@ -676,17 +907,17 @@ func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, la
 			observation.PersistDuration = nonNegativeDuration(time.Since(persistStartedAt))
 			observation.Result = flushErrorResult(err)
 			observation.FailureStage = "persist"
-			observation.Requeued = len(entries)
+			observation.Requeued = m.currentDirtySelectedCount(entries)
 			observation.Duration = positiveDuration(time.Since(startedAt))
 			m.observeFlush(observation)
 			m.observePressurePause(err)
 			m.observeCache()
-			return FlushResult{Selected: len(entries), Requeued: len(entries)}, err
+			return FlushResult{Selected: len(entries), DeleteFenced: deleteFenced, Requeued: observation.Requeued}, err
 		}
 		observation.PersistDuration = nonNegativeDuration(time.Since(persistStartedAt))
 	}
 	observation.Persisted = len(flushEntries)
-	observation.Skipped = len(skippedEntries)
+	observation.Skipped = len(skippedEntries) - deleteFenced
 	clearStartedAt := time.Now()
 	skippedClear, persistedClear, clearLockWait, clearApply := m.clearDirtyEntries(skippedEntries, flushEntries)
 	observation.ClearDuration = nonNegativeDuration(time.Since(clearStartedAt))
@@ -705,11 +936,31 @@ func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, la
 		Selected:         observation.Selected,
 		Persisted:        observation.Persisted,
 		Skipped:          observation.Skipped,
+		DeleteFenced:     observation.DeleteFenced,
 		Cleared:          observation.Cleared,
 		VersionConflicts: observation.VersionConflicts,
 		Superseded:       observation.Superseded,
 		Requeued:         observation.Requeued,
 	}, nil
+}
+
+// currentDirtySelectedCount reports how many selected addresses currently
+// retain dirty work. A delete-fenced snapshot can be removed and then become
+// dirty again when a newer activity version arrives before an error returns.
+func (m *Manager) currentDirtySelectedCount(entries []flushEntry) int {
+	if m == nil || len(entries) == 0 {
+		return 0
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	dirty := 0
+	for _, entry := range entries {
+		current, ok := m.cache[entry.uid][entry.key]
+		if ok && current.dirty {
+			dirty++
+		}
+	}
+	return dirty
 }
 
 func flushErrorResult(err error) string {
@@ -738,15 +989,12 @@ func (m *Manager) observePressurePause(err error) {
 	}
 }
 
-func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) ([]flushEntry, []flushEntry, error) {
+func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) ([]flushEntry, []flushEntry, int, error) {
 	if m.activeCooldown <= 0 {
-		return entries, nil, nil
+		return entries, nil, 0, nil
 	}
 	keys := make([]metadb.ConversationStateKey, 0, len(entries))
 	for _, entry := range entries {
-		if entry.readSeqDirty {
-			continue
-		}
 		keys = append(keys, metadb.ConversationStateKey{
 			UID:         entry.patch.UID,
 			Kind:        entry.patch.Kind,
@@ -755,23 +1003,21 @@ func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) 
 		})
 	}
 	if len(keys) == 0 {
-		return entries, nil, nil
+		return entries, nil, 0, nil
 	}
 	states, err := m.store.GetConversationStates(ctx, keys)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	cooldownMS := int64(m.activeCooldown / time.Millisecond)
 	if cooldownMS <= 0 {
-		return entries, nil, nil
+		return entries, nil, 0, nil
 	}
 	flushEntries := make([]flushEntry, 0, len(entries))
 	skippedEntries := make([]flushEntry, 0)
+	deleteReconciliations := make([]metadb.ConversationDelete, 0)
+	deleteFenced := 0
 	for _, entry := range entries {
-		if entry.readSeqDirty {
-			flushEntries = append(flushEntries, entry)
-			continue
-		}
 		key := metadb.ConversationStateKey{
 			UID:         entry.patch.UID,
 			Kind:        entry.patch.Kind,
@@ -779,14 +1025,26 @@ func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) 
 			ChannelType: int64(entry.patch.ChannelType),
 		}
 		state, ok := states[key]
+		if ok && cacheActivityFencedByDelete(entry.patch.MessageSeq, state.DeletedToSeq) {
+			entry.confirmedActiveAtMS = state.ActiveAt
+			skippedEntries = append(skippedEntries, entry)
+			deleteReconciliations = append(deleteReconciliations, activeViewDeleteReconciliation(state))
+			deleteFenced++
+			continue
+		}
+		if entry.readSeqDirty {
+			flushEntries = append(flushEntries, entry)
+			continue
+		}
 		if !ok || state.ActiveAt <= 0 || entry.patch.ActiveAtMS-state.ActiveAt >= cooldownMS {
 			flushEntries = append(flushEntries, entry)
 			continue
 		}
-		entry.patch.ActiveAtMS = state.ActiveAt
+		entry.confirmedActiveAtMS = state.ActiveAt
 		skippedEntries = append(skippedEntries, entry)
 	}
-	return flushEntries, skippedEntries, nil
+	m.ApplyConversationDeletes(deleteReconciliations)
+	return flushEntries, skippedEntries, deleteFenced, nil
 }
 
 func (m *Manager) clearSkippedDirty(entries []flushEntry) dirtyClearResult {
@@ -947,11 +1205,12 @@ func (m *Manager) dirtyFlushEntriesForHashSlot(hashSlot uint16, limit int) []flu
 			continue
 		}
 		entries = append(entries, flushEntry{
-			uid:          address.uid,
-			key:          address.key,
-			patch:        entry.patch,
-			version:      entry.version,
-			readSeqDirty: entry.readSeqDirty,
+			uid:                address.uid,
+			key:                address.key,
+			patch:              entry.patch,
+			version:            entry.version,
+			baselineGeneration: entry.baselineGeneration,
+			readSeqDirty:       entry.readSeqDirty,
 		})
 		if limit > 0 && len(entries) >= limit {
 			return entries
@@ -962,11 +1221,12 @@ func (m *Manager) dirtyFlushEntriesForHashSlot(hashSlot uint16, limit int) []flu
 
 func newFlushEntry(address cacheAddress, entry cacheEntry) flushEntry {
 	return flushEntry{
-		uid:          address.uid,
-		key:          address.key,
-		patch:        entry.patch,
-		version:      entry.version,
-		readSeqDirty: entry.readSeqDirty,
+		uid:                address.uid,
+		key:                address.key,
+		patch:              entry.patch,
+		version:            entry.version,
+		baselineGeneration: entry.baselineGeneration,
+		readSeqDirty:       entry.readSeqDirty,
 	}
 }
 
@@ -1008,6 +1268,13 @@ func (m *Manager) clearDirtyEntryLocked(entry flushEntry, restoreDurableActiveAt
 		result.staleSnapshots++
 		return
 	}
+	confirmedActiveAtMS := entry.patch.ActiveAtMS
+	if restoreDurableActiveAt {
+		confirmedActiveAtMS = entry.confirmedActiveAtMS
+	}
+	if current.baselineGeneration == entry.baselineGeneration {
+		current.durableActiveAtMS = confirmedActiveAtMS
+	}
 	if current.version != entry.version {
 		if !restoreDurableActiveAt {
 			// A successful persisted snapshot covers its ReadSeq even when a
@@ -1015,33 +1282,48 @@ func (m *Manager) clearDirtyEntryLocked(entry flushEntry, restoreDurableActiveAt
 			// Rebase classification so only a newer sender sequence bypasses
 			// cooldown on the retry.
 			current.readSeqDirty = current.patch.ReadSeq > entry.patch.ReadSeq
-			byChannel[entry.key] = current
 		}
+		byChannel[entry.key] = current
 		result.versionConflicts++
 		return
 	}
 	m.untrackDirtyLocked(cacheAddress{uid: entry.uid, key: entry.key}, current)
-	if restoreDurableActiveAt {
-		current.patch.ActiveAtMS = entry.patch.ActiveAtMS
-		m.nextVersion++
-		current.version = m.nextVersion
-	}
 	current.dirty = false
 	current.readSeqDirty = false
 	byChannel[entry.key] = current
-	m.trackCleanLocked(cacheAddress{uid: entry.uid, key: entry.key})
+	m.trackCleanLocked(cacheAddress{uid: entry.uid, key: entry.key}, current)
 	result.cleared++
 }
 
-func (m *Manager) trackCleanLocked(address cacheAddress) {
+func (m *Manager) trackCleanLocked(address cacheAddress, entry cacheEntry) {
 	if m.cleanIndex != nil {
 		m.cleanIndex[address] = struct{}{}
 	}
+	if !entry.hasHashSlot {
+		return
+	}
+	if m.cleanByHashSlot == nil {
+		m.cleanByHashSlot = make(map[uint16]map[cacheAddress]struct{})
+	}
+	byAddress := m.cleanByHashSlot[entry.hashSlot]
+	if byAddress == nil {
+		byAddress = make(map[cacheAddress]struct{})
+		m.cleanByHashSlot[entry.hashSlot] = byAddress
+	}
+	byAddress[address] = struct{}{}
 }
 
-func (m *Manager) untrackCleanLocked(address cacheAddress) {
+func (m *Manager) untrackCleanLocked(address cacheAddress, entry cacheEntry) {
 	if m.cleanIndex != nil {
 		delete(m.cleanIndex, address)
+	}
+	if !entry.hasHashSlot {
+		return
+	}
+	byAddress := m.cleanByHashSlot[entry.hashSlot]
+	delete(byAddress, address)
+	if len(byAddress) == 0 {
+		delete(m.cleanByHashSlot, entry.hashSlot)
 	}
 }
 
@@ -1136,6 +1418,7 @@ func activePatchMetaPatch(patch ActivePatch) metadb.ConversationActivePatch {
 		ReadSeq:     patch.ReadSeq,
 		ActiveAt:    patch.ActiveAtMS,
 		UpdatedAt:   patch.ActiveAtMS,
+		MessageSeq:  patch.MessageSeq,
 	}
 }
 

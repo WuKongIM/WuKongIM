@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -372,6 +373,122 @@ func TestConversationAuthorityClientRoutesRemoteList(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityClientRoutesDeletesThroughExactLocalAuthority(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
+	target := cluster.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}
+	node := &fakeConversationAuthorityNode{nodeID: 1, route: target}
+	client := NewConversationAuthorityClient(node, local)
+	deletes := []metadb.ConversationDelete{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 100},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g2", ChannelType: 2, DeletedToSeq: 10, UpdatedAt: 101},
+	}
+
+	if err := client.HideConversations(context.Background(), deletes); err != nil {
+		t.Fatalf("HideConversations() error = %v", err)
+	}
+	wantTarget := conversationRouteTargetFromClusterRoute(target)
+	if len(local.hideAttempts) != 1 || local.hideAttempts[0].target != wantTarget || !reflect.DeepEqual(local.hideAttempts[0].deletes, deletes) {
+		t.Fatalf("hide attempts = %#v, want exact target %#v and deletes %#v", local.hideAttempts, wantTarget, deletes)
+	}
+}
+
+func TestConversationAuthorityClientRejectsOversizedDeleteGroupBeforeAuthoritySelection(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		route:  cluster.Route{HashSlot: 7, SlotID: 2, Leader: 1, Revision: 3, AuthorityEpoch: 4},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	deletes := make([]metadb.ConversationDelete, maxConversationAuthorityDeleteGroup+1)
+	for index := range deletes {
+		deletes[index] = metadb.ConversationDelete{
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: fmt.Sprintf("g-%d", index), ChannelType: 2, DeletedToSeq: 9,
+		}
+	}
+
+	err := client.HideConversations(context.Background(), deletes)
+	if err == nil {
+		t.Fatal("HideConversations() error = nil, want per-UID collection limit error")
+	}
+	if got := node.routeKeyCallsForUID("u1"); got != 0 {
+		t.Fatalf("RouteKey(u1) calls = %d, want oversized group rejected before leader selection", got)
+	}
+	if len(local.hideAttempts) != 0 {
+		t.Fatalf("local hide attempts = %d, want none", len(local.hideAttempts))
+	}
+}
+
+func TestConversationAuthorityClientRetriesDeleteOnFreshAuthorityTarget(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{hideErrs: []error{conversationusecase.ErrStaleRoute, nil}}
+	first := cluster.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}
+	fresh := first
+	fresh.LeaderTerm++
+	fresh.Revision++
+	node := &fakeConversationAuthorityNode{
+		nodeID:              1,
+		routesByUIDSequence: map[string][]cluster.Route{"u1": {first, fresh}},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+	deletes := []metadb.ConversationDelete{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9}}
+
+	if err := client.HideConversations(context.Background(), deletes); err != nil {
+		t.Fatalf("HideConversations() error = %v", err)
+	}
+	if got := node.routeKeyCallsForUID("u1"); got != 2 {
+		t.Fatalf("RouteKey(u1) calls = %d, want 2", got)
+	}
+	if len(local.hideAttempts) != 2 || local.hideAttempts[0].target.RouteRevision != first.Revision || local.hideAttempts[1].target.RouteRevision != fresh.Revision {
+		t.Fatalf("hide attempts = %#v, want stale then fresh target", local.hideAttempts)
+	}
+}
+
+func TestConversationAuthorityClientRetriesDeleteOnProposalNotLeader(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{hideErrs: []error{propose.ErrNotLeader, nil}}
+	first := cluster.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}
+	fresh := first
+	fresh.LeaderTerm++
+	fresh.Revision++
+	node := &fakeConversationAuthorityNode{
+		nodeID:              1,
+		routesByUIDSequence: map[string][]cluster.Route{"u1": {first, fresh}},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+	deletes := []metadb.ConversationDelete{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9}}
+
+	if err := client.HideConversations(context.Background(), deletes); err != nil {
+		t.Fatalf("HideConversations() error = %v", err)
+	}
+	if got := node.routeKeyCallsForUID("u1"); got != 2 {
+		t.Fatalf("RouteKey(u1) calls = %d, want 2", got)
+	}
+	if len(local.hideAttempts) != 2 || local.hideAttempts[0].target.RouteRevision != first.Revision || local.hideAttempts[1].target.RouteRevision != fresh.Revision {
+		t.Fatalf("hide attempts = %#v, want proposal-not-leader then fresh target", local.hideAttempts)
+	}
+}
+
+func TestConversationAuthorityClientRoutesRemoteDelete(t *testing.T) {
+	remoteAuthority := &fakeConversationAuthorityLocal{}
+	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		route:  cluster.Route{HashSlot: 7, SlotID: 2, Leader: 2, Revision: 3, AuthorityEpoch: 4},
+		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return adapter.HandleConversationAuthorityRPC(ctx, payload)
+		}),
+	}
+	client := NewConversationAuthorityClient(node, nil)
+	deletes := []metadb.ConversationDelete{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9}}
+
+	if err := client.HideConversations(context.Background(), deletes); err != nil {
+		t.Fatalf("HideConversations() error = %v", err)
+	}
+	if len(remoteAuthority.hideAttempts) != 1 || !reflect.DeepEqual(remoteAuthority.hideAttempts[0].deletes, deletes) {
+		t.Fatalf("remote hide attempts = %#v, want %#v", remoteAuthority.hideAttempts, deletes)
+	}
+}
+
 func TestConversationAuthorityClientGroupsByExactTarget(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{
@@ -735,6 +852,7 @@ func TestConversationAuthorityClientMapsRouteErrors(t *testing.T) {
 		{name: "route not ready", err: cluster.ErrRouteNotReady, want: conversationusecase.ErrRouteNotReady},
 		{name: "no slot leader", err: cluster.ErrNoSlotLeader, want: conversationusecase.ErrRouteNotReady},
 		{name: "not leader", err: cluster.ErrNotLeader, want: conversationusecase.ErrNotLeader},
+		{name: "proposal not leader", err: propose.ErrNotLeader, want: conversationusecase.ErrNotLeader},
 		{name: "proposal backpressure", err: propose.ErrProposalBackpressure, want: conversationusecase.ErrRouteNotReady},
 		{name: "background proposal throttled", err: propose.ErrBackgroundProposalThrottled, want: conversationusecase.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled},
@@ -862,6 +980,8 @@ type fakeConversationAuthorityLocal struct {
 	listErrs                  []error
 	drainResult               string
 	drainTargets              []conversationusecase.RouteTarget
+	hideAttempts              []conversationDeleteDelivery
+	hideErrs                  []error
 }
 
 func (f *fakeConversationAuthorityLocal) AdmitPatches(_ context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
@@ -918,6 +1038,16 @@ func (f *fakeConversationAuthorityLocal) ListConversationActiveViewForTarget(_ c
 	return f.page, nil
 }
 
+func (f *fakeConversationAuthorityLocal) HideConversationsForTarget(_ context.Context, target conversationusecase.RouteTarget, deletes []metadb.ConversationDelete) error {
+	f.hideAttempts = append(f.hideAttempts, conversationDeleteDelivery{target: target, deletes: append([]metadb.ConversationDelete(nil), deletes...)})
+	if len(f.hideErrs) == 0 {
+		return nil
+	}
+	err := f.hideErrs[0]
+	f.hideErrs = f.hideErrs[1:]
+	return err
+}
+
 func (f *fakeConversationAuthorityLocal) DrainAuthority(_ context.Context, target conversationusecase.RouteTarget) (string, error) {
 	f.drainTargets = append(f.drainTargets, target)
 	return f.drainResult, nil
@@ -934,6 +1064,11 @@ func deliveredConversationPatchUIDCounts(patches []conversationusecase.ActivePat
 type activeBatchDelivery struct {
 	target conversationusecase.RouteTarget
 	batch  conversationactive.ActiveBatch
+}
+
+type conversationDeleteDelivery struct {
+	target  conversationusecase.RouteTarget
+	deletes []metadb.ConversationDelete
 }
 
 func activeBatchesByHashSlot(deliveries []activeBatchDelivery) map[uint16]conversationactive.ActiveBatch {

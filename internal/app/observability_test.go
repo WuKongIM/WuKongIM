@@ -1298,7 +1298,7 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 		},
 	})
 	observer.ObserveConversationActiveMutation(conversationactive.MutationObservation{
-		Result: "ok", BecameDirty: 3, DirtyUpdated: 2, Unchanged: 1,
+		Result: "ok", BecameDirty: 3, DirtyUpdated: 2, CooldownSuppressed: 4, Unchanged: 1,
 		LockWaitDuration: time.Millisecond, LockHoldDuration: 2 * time.Millisecond,
 		CacheObservationDuration: 3 * time.Millisecond,
 	})
@@ -1307,9 +1307,10 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	})
 	observer.ObserveConversationActiveFlush(conversationactive.FlushObservation{
 		Result:                "ok",
-		Selected:              5,
+		Selected:              7,
 		Persisted:             4,
 		Skipped:               1,
+		DeleteFenced:          2,
 		Cleared:               4,
 		VersionConflicts:      1,
 		Requeued:              1,
@@ -1374,9 +1375,18 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	if got := findAppMetricByLabels(t, flushRowsTotal, map[string]string{"result": "ok", "stage": "requeued", "reason": "version_conflict"}).GetCounter().GetValue(); got != 1 {
 		t.Fatalf("active flush version-conflict rows metric = %v, want 1", got)
 	}
+	if got := findAppMetricByLabels(t, flushRowsTotal, map[string]string{"result": "ok", "stage": "skipped", "reason": "active_cooldown"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("active flush cooldown rows metric = %v, want 1", got)
+	}
+	if got := findAppMetricByLabels(t, flushRowsTotal, map[string]string{"result": "ok", "stage": "skipped", "reason": "delete_barrier"}).GetCounter().GetValue(); got != 2 {
+		t.Fatalf("active flush delete-barrier rows metric = %v, want 2", got)
+	}
 	dirtyMutations := requireAppMetricFamily(t, families, "wukongim_conversation_active_dirty_mutations_total")
 	if got := findAppMetricByLabels(t, dirtyMutations, map[string]string{"event": "became_dirty"}).GetCounter().GetValue(); got != 3 {
 		t.Fatalf("active dirty became metric = %v, want 3", got)
+	}
+	if got := findAppMetricByLabels(t, dirtyMutations, map[string]string{"event": "cooldown_suppressed"}).GetCounter().GetValue(); got != 4 {
+		t.Fatalf("active cooldown suppressed metric = %v, want 4", got)
 	}
 	cacheLock := requireAppMetricFamily(t, families, "wukongim_conversation_active_cache_lock_duration_seconds")
 	if got := findAppMetricByLabels(t, cacheLock, map[string]string{"result": "ok", "phase": "wait"}).GetHistogram().GetSampleCount(); got != 1 {

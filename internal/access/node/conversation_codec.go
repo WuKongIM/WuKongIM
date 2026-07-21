@@ -18,16 +18,19 @@ const maxConversationAuthorityCollectionLen = 4096
 var maxConversationAuthorityDecodeLimit = int64(int(^uint(0) >> 1))
 
 const (
-	conversationOpAdmitPatches     = "admit_conversation_active_patches"
-	conversationOpAdmitActiveBatch = "admit_conversation_active_batch"
-	conversationOpList             = "list_conversations"
-	conversationOpDrain            = "drain_conversation_authority"
+	conversationOpAdmitPatches      = "admit_conversation_active_patches"
+	conversationOpAdmitActiveBatch  = "admit_conversation_active_batch"
+	conversationOpHideConversations = "hide_conversations_for_target"
+	conversationOpList              = "list_conversations"
+	conversationOpDrain             = "drain_conversation_authority"
 
 	conversationRPCStatusOK            = rpcStatusOK
 	conversationRPCStatusNotLeader     = rpcStatusNotLeader
 	conversationRPCStatusStaleRoute    = rpcStatusStaleRoute
 	conversationRPCStatusRouteNotReady = rpcStatusRouteNotReady
 	conversationRPCStatusCachePressure = "cache_pressure"
+	conversationRPCStatusCanceled      = rpcStatusContextCanceled
+	conversationRPCStatusDeadline      = rpcStatusContextDeadlineExceeded
 	conversationRPCStatusRejected      = rpcStatusRejected
 
 	conversationDrainResultDrained     = "drained"
@@ -54,6 +57,8 @@ type conversationAuthorityRequest struct {
 	Patches []conversationusecase.ActivePatch
 	// ActiveBatch carries channelappend active admission input for active-batch requests.
 	ActiveBatch conversationactive.ActiveBatch
+	// Deletes carries exact conversation hide mutations for hide requests.
+	Deletes []metadb.ConversationDelete
 }
 
 // conversationAuthorityResponse is the deterministic binary DTO returned by authority calls.
@@ -76,6 +81,12 @@ func encodeConversationAuthorityRequest(req conversationAuthorityRequest) ([]byt
 	dst = appendConversationActiveCursor(dst, req.After)
 	dst = appendVarint(dst, int64(req.Limit))
 	dst = appendConversationActivePatches(dst, req.Patches)
+	if req.Op == conversationOpHideConversations {
+		if len(req.Deletes) > maxConversationAuthorityCollectionLen {
+			return nil, fmt.Errorf("internal/access/node: conversation deletes length exceeds limit")
+		}
+		dst = appendConversationDeletes(dst, req.Deletes)
+	}
 	if req.Op == conversationOpAdmitActiveBatch {
 		dst = appendConversationActiveBatch(dst, req.ActiveBatch)
 	}
@@ -121,6 +132,11 @@ func decodeConversationAuthorityRequest(body []byte) (conversationAuthorityReque
 	if req.Patches, offset, err = readConversationActivePatches(body, offset); err != nil {
 		return conversationAuthorityRequest{}, err
 	}
+	if req.Op == conversationOpHideConversations {
+		if req.Deletes, offset, err = readConversationDeletes(body, offset); err != nil {
+			return conversationAuthorityRequest{}, err
+		}
+	}
 	if req.Op == conversationOpAdmitActiveBatch {
 		if req.ActiveBatch, offset, err = readConversationActiveBatch(body, offset); err != nil {
 			return conversationAuthorityRequest{}, err
@@ -165,11 +181,75 @@ func decodeConversationAuthorityResponse(body []byte) (conversationAuthorityResp
 
 func validateConversationAuthorityOp(op string) error {
 	switch op {
-	case conversationOpAdmitPatches, conversationOpAdmitActiveBatch, conversationOpList, conversationOpDrain:
+	case conversationOpAdmitPatches, conversationOpAdmitActiveBatch, conversationOpHideConversations, conversationOpList, conversationOpDrain:
 		return nil
 	default:
 		return fmt.Errorf("internal/access/node: unknown conversation authority op %q", op)
 	}
+}
+
+func appendConversationDelete(dst []byte, req metadb.ConversationDelete) []byte {
+	dst = appendString(dst, req.UID)
+	dst = appendConversationKind(dst, req.Kind)
+	dst = appendString(dst, req.ChannelID)
+	dst = appendVarint(dst, req.ChannelType)
+	dst = appendUvarint(dst, req.DeletedToSeq)
+	return appendVarint(dst, req.UpdatedAt)
+}
+
+func readConversationDelete(body []byte, offset int) (metadb.ConversationDelete, int, error) {
+	var req metadb.ConversationDelete
+	var err error
+	if req.UID, offset, err = readString(body, offset); err != nil {
+		return metadb.ConversationDelete{}, offset, err
+	}
+	if req.Kind, offset, err = readConversationKind(body, offset); err != nil {
+		return metadb.ConversationDelete{}, offset, err
+	}
+	if req.ChannelID, offset, err = readString(body, offset); err != nil {
+		return metadb.ConversationDelete{}, offset, err
+	}
+	if req.ChannelType, offset, err = readVarint(body, offset); err != nil {
+		return metadb.ConversationDelete{}, offset, err
+	}
+	if req.DeletedToSeq, offset, err = readUvarint(body, offset); err != nil {
+		return metadb.ConversationDelete{}, offset, err
+	}
+	if req.UpdatedAt, offset, err = readVarint(body, offset); err != nil {
+		return metadb.ConversationDelete{}, offset, err
+	}
+	return req, offset, nil
+}
+
+func appendConversationDeletes(dst []byte, reqs []metadb.ConversationDelete) []byte {
+	dst = appendUvarint(dst, uint64(len(reqs)))
+	for _, req := range reqs {
+		dst = appendConversationDelete(dst, req)
+	}
+	return dst
+}
+
+func readConversationDeletes(body []byte, offset int) ([]metadb.ConversationDelete, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	offset = next
+	if count == 0 {
+		return nil, offset, nil
+	}
+	if err := validateConversationCollectionLen(count, len(body)-offset, "conversation deletes"); err != nil {
+		return nil, offset, err
+	}
+	reqs := make([]metadb.ConversationDelete, 0, int(count))
+	for i := uint64(0); i < count; i++ {
+		var req metadb.ConversationDelete
+		if req, offset, err = readConversationDelete(body, offset); err != nil {
+			return nil, offset, err
+		}
+		reqs = append(reqs, req)
+	}
+	return reqs, offset, nil
 }
 
 func appendConversationRouteTarget(dst []byte, target conversationusecase.RouteTarget) []byte {

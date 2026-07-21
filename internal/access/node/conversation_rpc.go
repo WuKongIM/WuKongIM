@@ -36,6 +36,9 @@ func (a *Adapter) HandleConversationAuthorityRPC(ctx context.Context, payload []
 	case conversationOpAdmitActiveBatch:
 		err = a.conversation.AdmitActiveBatch(ctx, req.Target, req.ActiveBatch)
 		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err)})
+	case conversationOpHideConversations:
+		err = a.conversation.HideConversationsForTarget(ctx, req.Target, req.Deletes)
+		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err)})
 	case conversationOpList:
 		page, err := a.conversation.ListConversationActiveViewForTarget(ctx, req.Target, req.Kind, req.UID, req.After, req.Limit)
 		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err), Page: page})
@@ -109,6 +112,23 @@ func (c *Client) AdmitConversationActiveBatch(ctx context.Context, nodeID uint64
 	return nil
 }
 
+// HideConversations forwards one bounded exact-target hide collection to nodeID.
+func (c *Client) HideConversations(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, deletes []metadb.ConversationDelete) error {
+	if len(deletes) > maxConversationAuthorityCollectionLen {
+		return fmt.Errorf("internal/access/node: conversation deletes length exceeds limit")
+	}
+	resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{
+		Op:      conversationOpHideConversations,
+		Target:  target,
+		Kind:    metadb.ConversationKindNormal,
+		Deletes: deletes,
+	})
+	if err != nil {
+		return err
+	}
+	return conversationRPCErrorForStatus(resp.Status)
+}
+
 // ListConversations reads the target-owned active conversation page from nodeID.
 func (c *Client) ListConversations(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
 	resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpList, Target: target, Kind: kind, UID: uid, After: after, Limit: limit})
@@ -160,6 +180,10 @@ func conversationRPCStatusForError(err error) string {
 		return conversationRPCStatusRouteNotReady
 	case errors.Is(err, conversationusecase.ErrCachePressure):
 		return conversationRPCStatusCachePressure
+	case errors.Is(err, context.Canceled):
+		return conversationRPCStatusCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return conversationRPCStatusDeadline
 	default:
 		return conversationRPCStatusRejected
 	}
@@ -177,6 +201,10 @@ func conversationRPCErrorForStatus(status string) error {
 		return conversationusecase.ErrRouteNotReady
 	case conversationRPCStatusCachePressure:
 		return conversationusecase.ErrCachePressure
+	case conversationRPCStatusCanceled:
+		return context.Canceled
+	case conversationRPCStatusDeadline:
+		return context.DeadlineExceeded
 	case conversationRPCStatusRejected:
 		return fmt.Errorf("internal/access/node: conversation authority rpc rejected")
 	default:
