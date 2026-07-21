@@ -26,6 +26,8 @@ var (
 	ErrStopped = errors.New("internal/app: stopped")
 )
 
+const defaultConversationAuthorityFlushBatchRows = 512
+
 // Config contains phase-1 internal app configuration.
 type Config struct {
 	// NodeID is the stable cluster node identity.
@@ -692,7 +694,7 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 		cfg.AuthorityFlushTimeout = 5 * time.Second
 	}
 	if cfg.AuthorityFlushBatchRows == 0 {
-		cfg.AuthorityFlushBatchRows = 128
+		cfg.AuthorityFlushBatchRows = defaultConversationAuthorityFlushBatchRows
 	}
 	if cfg.AuthorityAdmitBatchRows == 0 {
 		cfg.AuthorityAdmitBatchRows = 512

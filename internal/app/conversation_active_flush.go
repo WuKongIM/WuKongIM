@@ -25,6 +25,12 @@ type conversationActiveFlushWorkerOptions struct {
 	BatchRows int
 	// PressureSignals receives coalesced dirty-cache pressure wakeups.
 	PressureSignals <-chan conversationactive.PressureSignal
+	// PressureRetryMinDelay is the first delay before retrying a pressure flush
+	// that made no clear progress while retryable rows remain.
+	PressureRetryMinDelay time.Duration
+	// PressureRetryMaxDelay caps exponential pressure retry backoff while
+	// selected rows keep making no clear progress.
+	PressureRetryMaxDelay time.Duration
 	// Observer receives pressure wakeup wait observations from the app-owned worker.
 	Observer conversationactive.Observer
 	// Logger records periodic flush failures.
@@ -49,6 +55,15 @@ func newConversationActiveFlushWorker(opts conversationActiveFlushWorkerOptions)
 	}
 	if opts.BatchRows <= 0 {
 		opts.BatchRows = 512
+	}
+	if opts.PressureRetryMinDelay <= 0 {
+		opts.PressureRetryMinDelay = 25 * time.Millisecond
+	}
+	if opts.PressureRetryMaxDelay <= 0 {
+		opts.PressureRetryMaxDelay = 250 * time.Millisecond
+	}
+	if opts.PressureRetryMaxDelay < opts.PressureRetryMinDelay {
+		opts.PressureRetryMaxDelay = opts.PressureRetryMinDelay
 	}
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
@@ -112,12 +127,57 @@ func (w *conversationActiveFlushWorker) tick(ctx context.Context) {
 	ticker := time.NewTicker(w.opts.FlushInterval)
 	defer ticker.Stop()
 	pressureSignals := w.opts.PressureSignals
+	var pressureRetryTimer *time.Timer
+	var pressureRetry <-chan time.Time
+	pressureRetryDelay := w.opts.PressureRetryMinDelay
+	stopPressureRetry := func(resetDelay bool) {
+		if pressureRetryTimer != nil {
+			if !pressureRetryTimer.Stop() {
+				select {
+				case <-pressureRetryTimer.C:
+				default:
+				}
+			}
+		}
+		pressureRetry = nil
+		if resetDelay {
+			pressureRetryDelay = w.opts.PressureRetryMinDelay
+		}
+	}
+	defer stopPressureRetry(false)
+	schedulePressureRetry := func() {
+		if pressureRetryTimer == nil {
+			pressureRetryTimer = time.NewTimer(pressureRetryDelay)
+		} else {
+			stopPressureRetry(false)
+			pressureRetryTimer.Reset(pressureRetryDelay)
+		}
+		pressureRetry = pressureRetryTimer.C
+		pressureRetryDelay = nextConversationActivePressureRetryDelay(
+			pressureRetryDelay,
+			w.opts.PressureRetryMaxDelay,
+		)
+	}
+	handlePressureResult := func(result conversationactive.FlushResult, err error) {
+		if err == nil && result.Selected > 0 && result.Cleared == 0 && result.Requeued > 0 {
+			schedulePressureRetry()
+			return
+		}
+		stopPressureRetry(true)
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_, _ = w.flushOnce(ctx, false)
+			result, err := w.flushOnce(ctx, false)
+			if pressureRetry != nil {
+				handlePressureResult(result, err)
+			}
+		case <-pressureRetry:
+			pressureRetry = nil
+			result, err := w.flushOnce(ctx, false)
+			handlePressureResult(result, err)
 		case signal, ok := <-pressureSignals:
 			if !ok {
 				pressureSignals = nil
@@ -133,9 +193,21 @@ func (w *conversationActiveFlushWorker) tick(ctx context.Context) {
 					WakeupWaitDuration: wait,
 				})
 			}
-			_, _ = w.flushOnce(ctx, false)
+			stopPressureRetry(true)
+			result, err := w.flushOnce(ctx, false)
+			handlePressureResult(result, err)
 		}
 	}
+}
+
+func nextConversationActivePressureRetryDelay(current, maximum time.Duration) time.Duration {
+	if current <= 0 {
+		return maximum
+	}
+	if current >= maximum || current > maximum/2 {
+		return maximum
+	}
+	return current * 2
 }
 
 func (w *conversationActiveFlushWorker) flushFinal(ctx context.Context) error {

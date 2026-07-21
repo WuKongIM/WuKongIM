@@ -2907,7 +2907,7 @@ func TestDefaultConversationAuthorityConfig(t *testing.T) {
 		cfg.AuthorityActiveCooldown != 2*time.Hour ||
 		cfg.AuthorityFlushInterval != time.Second ||
 		cfg.AuthorityFlushTimeout != 5*time.Second ||
-		cfg.AuthorityFlushBatchRows != 128 ||
+		cfg.AuthorityFlushBatchRows != 512 ||
 		cfg.AuthorityAdmitBatchRows != 512 ||
 		cfg.AuthorityAdmitConcurrency != 16 {
 		t.Fatalf("conversation authority defaults = %#v", cfg)

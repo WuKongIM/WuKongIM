@@ -852,9 +852,14 @@ periodic tick or coalesced cache-pressure wakeup
   -> batch-read durable conversation rows for receiver-only cooldown filtering
   -> skip receiver-only ActiveAt updates inside AuthorityActiveCooldown
   -> store.TouchConversationActiveAtBatch persists remaining ActiveAt/ReadSeq/UpdatedAt
-  -> after a successful pressure-cycle attempt, requeue one wakeup while dirty
-     rows remain above the 70% low watermark and at least one dirty marker was
-     cleared; a zero-progress attempt waits for the next periodic tick
+  -> after a successful pressure-cycle attempt with cleared rows, the Manager
+     requeues one coalesced wakeup while dirty rows remain above the 70% low
+     watermark
+  -> when a selected pressure batch clears no dirty marker while retryable rows
+     remain, the app worker schedules one cancellation-safe delayed retry with
+     bounded exponential backoff from 25ms to 250ms; progress, no work, or an error
+     cancels that retry and returns continuation ownership to the normal
+     Manager pressure signal or periodic tick
 
 cache admission
   -> keep the latest receiver activity visible in cache while suppressing only
@@ -878,7 +883,10 @@ payloads. It only persists dirty active rows already admitted into the
 conversationactive cache, keeping cache visibility immediate while bounding
 eventual durable lag. The capacity-1 pressure channel and single worker goroutine
 coalesce concurrent wakeups; every attempt remains bounded by
-`AuthorityFlushBatchRows` and `AuthorityFlushTimeout`.
+`AuthorityFlushBatchRows` and `AuthorityFlushTimeout`. The worker owns and reuses
+the delayed pressure-retry timer, stops it on cancellation, and never immediately
+re-signals a zero-progress batch, so repeated version conflicts cannot create a
+busy loop.
 
 ## Conversation Authority Handoff
 

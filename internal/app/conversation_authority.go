@@ -202,7 +202,7 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 		opts.MaxRows = 100000
 	}
 	if opts.FlushBatchRows <= 0 {
-		opts.FlushBatchRows = 128
+		opts.FlushBatchRows = defaultConversationAuthorityFlushBatchRows
 	}
 	authority := &conversationAuthority{
 		localNodeID:        opts.LocalNodeID,

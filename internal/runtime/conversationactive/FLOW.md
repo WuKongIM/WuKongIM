@@ -38,10 +38,13 @@ Current flow:
    `MessageSeq` is reconciled out of cache instead of treating the store's
    idempotent no-op as a confirmed active baseline. Successful attempts requeue one
    wakeup while dirty rows remain above the 70% low watermark and the attempt
-   cleared at least one dirty marker. A zero-progress attempt keeps the drain
-   active but waits for the periodic worker tick instead of forming a tight
-   wakeup loop. Retained clean rows form an immediately evictable reserve for
-   later admissions.
+   cleared at least one dirty marker. The manager does not immediately
+   self-signal after a zero-progress attempt. Instead, the app-owned worker
+   keeps the drain active with a cancellation-safe delayed retry and bounded
+   exponential backoff from 25ms to 250ms; progress, no work, or an error ends
+   that retry chain. This avoids both a tight wakeup loop and a one-second
+   periodic-tick stall under continuous version conflicts. Retained clean rows
+   form an immediately evictable reserve for later admissions.
 6. Active view reads carry each cache row's `MessageSeq` while merging the
    latest cached view with durable `(uid, kind)` active-index pages and primary
    row hydration. A durable `DeletedToSeq` hides an unknown or older cached
