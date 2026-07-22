@@ -37,8 +37,34 @@ func (l channelAppendAuthorityLocal) SubmitForAuthority(ctx context.Context, tar
 
 // channelAppendRecipientResolver resolves UID authority targets from cluster hash-slot routes.
 type channelAppendRecipientResolver struct {
-	node recipientAuthorityRouteNode
+	node     recipientAuthorityRouteNode
+	observer recipientAuthorityResolveObserver
 }
+
+type recipientAuthorityResolveObserver interface {
+	ObserveRecipientAuthorityResolve(recipientAuthorityResolveObservation)
+}
+
+// recipientAuthorityResolveObservation describes one aligned recipient authority batch lookup.
+type recipientAuthorityResolveObservation struct {
+	// Result is a bounded batch outcome.
+	Result string
+	// Items is the number of requested UID items.
+	Items int
+	// Targets is the number of distinct successful physical hash-slot targets.
+	Targets int
+	// Duration is the complete batch lookup latency.
+	Duration time.Duration
+}
+
+const (
+	recipientAuthorityResolveResultOK            = "ok"
+	recipientAuthorityResolveResultPartial       = "partial"
+	recipientAuthorityResolveResultRouteNotReady = "route_not_ready"
+	recipientAuthorityResolveResultCanceled      = "canceled"
+	recipientAuthorityResolveResultDeadline      = "deadline"
+	recipientAuthorityResolveResultError         = "error"
+)
 
 type recipientAuthorityRouteNode interface {
 	RouteKey(string) (cluster.Route, error)
@@ -82,7 +108,19 @@ func (r channelAppendRecipientResolver) ResolveRecipientAuthority(ctx context.Co
 	return channelAppendRecipientTargetFromRoute(route)
 }
 
-func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.Context, uids []string) ([]channelappend.RecipientAuthorityResult, error) {
+func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.Context, uids []string) (resolved []channelappend.RecipientAuthorityResult, resolveErr error) {
+	var started time.Time
+	if r.observer != nil {
+		started = time.Now()
+		defer func() {
+			r.observer.ObserveRecipientAuthorityResolve(recipientAuthorityResolveObservation{
+				Result:   recipientAuthorityResolveResult(resolved, resolveErr),
+				Items:    len(uids),
+				Targets:  recipientAuthorityResolveTargetCount(resolved),
+				Duration: time.Since(started),
+			})
+		}()
+	}
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -191,6 +229,82 @@ func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.
 		results[i].Target = target
 	}
 	return results, nil
+}
+
+func recipientAuthorityResolveResult(results []channelappend.RecipientAuthorityResult, err error) string {
+	if err != nil {
+		return recipientAuthorityResolveErrorResult(err)
+	}
+	succeeded := 0
+	failed := 0
+	allRouteNotReady := true
+	for _, result := range results {
+		if result.Err == nil {
+			succeeded++
+			continue
+		}
+		failed++
+		if recipientAuthorityResolveErrorResult(result.Err) != recipientAuthorityResolveResultRouteNotReady {
+			allRouteNotReady = false
+		}
+	}
+	if failed == 0 {
+		return recipientAuthorityResolveResultOK
+	}
+	if succeeded > 0 {
+		return recipientAuthorityResolveResultPartial
+	}
+	if allRouteNotReady {
+		return recipientAuthorityResolveResultRouteNotReady
+	}
+	return recipientAuthorityResolveResultError
+}
+
+func recipientAuthorityResolveErrorResult(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return recipientAuthorityResolveResultCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return recipientAuthorityResolveResultDeadline
+	case errors.Is(err, channelappend.ErrRouteNotReady),
+		errors.Is(err, channelappend.ErrStaleRoute),
+		errors.Is(err, channelappend.ErrNotLeader),
+		errors.Is(err, channelappend.ErrNotChannelAuthority):
+		return recipientAuthorityResolveResultRouteNotReady
+	default:
+		return recipientAuthorityResolveResultError
+	}
+}
+
+func recipientAuthorityResolveTargetCount(results []channelappend.RecipientAuthorityResult) int {
+	// Cloud and default deployments use 256 physical hash slots. Keep that
+	// common case allocation-free and allocate only for explicitly larger maps.
+	var defaultSlots [4]uint64
+	var overflow map[uint16]struct{}
+	targets := 0
+	for _, result := range results {
+		if result.Err != nil || result.Target.LeaderNodeID == 0 {
+			continue
+		}
+		hashSlot := result.Target.HashSlot
+		if hashSlot < 256 {
+			word := hashSlot / 64
+			bit := uint64(1) << (hashSlot % 64)
+			if defaultSlots[word]&bit == 0 {
+				defaultSlots[word] |= bit
+				targets++
+			}
+			continue
+		}
+		if overflow == nil {
+			overflow = make(map[uint16]struct{})
+		}
+		if _, exists := overflow[hashSlot]; !exists {
+			overflow[hashSlot] = struct{}{}
+			targets++
+		}
+	}
+	return targets
 }
 
 func channelAppendRecipientTargetFromRoute(route cluster.Route) (channelappend.RecipientAuthorityTarget, error) {

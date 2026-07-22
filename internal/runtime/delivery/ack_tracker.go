@@ -49,8 +49,12 @@ func (t AckBindToken) Valid() bool {
 type AckBindBatchResult struct {
 	// Tokens preserves input alignment; a zero token means that item was rejected.
 	Tokens []AckBindToken
+	// Bound is the number of items that received a non-zero reservation token.
+	Bound int
 	// Added is the number of new pending ack entries created by the batch.
 	Added int
+	// Shards is the number of tracker shards locked by the batch.
+	Shards int
 	// PendingCount is the owner-local pending ack count after the batch mutation.
 	PendingCount int
 }
@@ -255,6 +259,7 @@ func (t *AckTracker) BindBatch(pending []PendingRecvAck) AckBindBatchResult {
 		if start == end {
 			continue
 		}
+		result.Shards++
 		shard := &t.shards[shardIndex]
 		shard.mu.Lock()
 		addedInShard := 0
@@ -279,6 +284,7 @@ func (t *AckTracker) BindBatch(pending []PendingRecvAck) AckBindBatchResult {
 			shard.byMessage[messageKey] = entry
 			messages[item.MessageID] = struct{}{}
 			result.Tokens[inputIndex] = token
+			result.Bound++
 			if !existed {
 				addedInShard++
 			}
@@ -310,8 +316,13 @@ func (t *AckTracker) FinishBind(pending PendingRecvAck, token AckBindToken) bool
 // FinishBindBatch commits successful item indexes while acquiring each
 // affected tracker shard once. Pending rows and tokens remain input-aligned.
 func (t *AckTracker) FinishBindBatch(pending []PendingRecvAck, tokens []AckBindToken, indexes []int) int {
+	finished, _, _ := t.finishBindBatch(pending, tokens, indexes)
+	return finished
+}
+
+func (t *AckTracker) finishBindBatch(pending []PendingRecvAck, tokens []AckBindToken, indexes []int) (finished, shards, selected int) {
 	if t == nil || len(indexes) == 0 || len(pending) == 0 || len(tokens) == 0 {
-		return 0
+		return 0, 0, 0
 	}
 	var shardEndsStack [ackBindBatchStackShards]int
 	var shardEnds []int
@@ -329,8 +340,9 @@ func (t *AckTracker) FinishBindBatch(pending []PendingRecvAck, tokens []AckBindT
 		validCount++
 	}
 	if validCount == 0 {
-		return 0
+		return 0, 0, 0
 	}
+	selected = validCount
 	var orderedIndexesStack [localAckFinishBatchStackEntries]int
 	var orderedIndexes []int
 	if validCount <= len(orderedIndexesStack) {
@@ -353,12 +365,12 @@ func (t *AckTracker) FinishBindBatch(pending []PendingRecvAck, tokens []AckBindT
 		shardEnds[shardIndex]++
 	}
 
-	finished := 0
 	start := 0
 	for shardIndex, end := range shardEnds {
 		if start == end {
 			continue
 		}
+		shards++
 		shard := &t.shards[shardIndex]
 		shard.mu.Lock()
 		for _, inputIndex := range orderedIndexes[start:end] {
@@ -369,7 +381,7 @@ func (t *AckTracker) FinishBindBatch(pending []PendingRecvAck, tokens []AckBindT
 		shard.mu.Unlock()
 		start = end
 	}
-	return finished
+	return finished, shards, selected
 }
 
 // CancelBind cancels only one failed delivery's bind reservation. The pending

@@ -373,6 +373,9 @@ func (a *App) wirePresence() {
 		ownerActions := presenceOwnerActions{local: a.online}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
+		if a.metrics != nil {
+			client.SetEndpointLookupObserver(observer)
+		}
 		a.presenceAuthorityClient = client
 		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, Logger: a.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
@@ -710,13 +713,18 @@ func (a *App) wireDelivery() {
 		if observer, ok := deliveryObserver.(runtimedelivery.AckObserver); ok {
 			ackObserver = observer
 		}
+		var ackBatchObserver runtimedelivery.AckBatchObserver
+		if a.metrics != nil {
+			ackBatchObserver = deliveryMetricsObserver{metrics: a.metrics}
+		}
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-			Planner:         runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
-			Runner:          retryScheduler,
-			AsyncQueueSize:  a.cfg.Delivery.EventQueueSize,
-			AsyncWorkers:    1,
-			ManagerObserver: managerObserver,
-			AckObserver:     ackObserver,
+			Planner:          runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
+			Runner:           retryScheduler,
+			AsyncQueueSize:   a.cfg.Delivery.EventQueueSize,
+			AsyncWorkers:     1,
+			ManagerObserver:  managerObserver,
+			AckObserver:      ackObserver,
+			AckBatchObserver: ackBatchObserver,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 				MaxPendingPerSession: a.cfg.Delivery.PendingAckMaxPerSession,
 			}),
@@ -768,7 +776,11 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.Subscribers = channelAppendSubscriberSource{node: subscriberNode}
 			}
 			if recipientNode, ok := a.cluster.(recipientAuthorityRouteNode); ok {
-				opts.RecipientAuthorityResolver = channelAppendRecipientResolver{node: recipientNode}
+				resolver := channelAppendRecipientResolver{node: recipientNode}
+				if a.metrics != nil {
+					resolver.observer = deliveryMetricsObserver{metrics: a.metrics}
+				}
+				opts.RecipientAuthorityResolver = resolver
 			}
 			if a.conversationAuthorityClient != nil {
 				opts.ConversationActiveAdmitter = a.conversationAuthorityClient

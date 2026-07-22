@@ -85,7 +85,7 @@ func BenchmarkManagerCommittedRefresh55RoutesParallel(b *testing.B) {
 		if warm.Added != len(pending) {
 			b.Fatalf("warm BindPendingAcks() Added = %d, want %d", warm.Added, len(pending))
 		}
-		if finished := manager.FinishPendingAcks(pending, warm.Tokens, indexes); finished != len(pending) {
+		if finished := manager.FinishPendingAcks(pending, warm.Tokens, indexes, 0); finished != len(pending) {
 			b.Fatalf("warm FinishPendingAcks() = %d, want %d", finished, len(pending))
 		}
 		b.ReportAllocs()
@@ -96,7 +96,7 @@ func BenchmarkManagerCommittedRefresh55RoutesParallel(b *testing.B) {
 				if len(result.Tokens) != len(pending) || !result.Tokens[len(result.Tokens)-1].Valid() {
 					panic("BindPendingAcks() returned unaligned result")
 				}
-				if finished := manager.FinishPendingAcks(pending, result.Tokens, indexes); finished != len(pending) {
+				if finished := manager.FinishPendingAcks(pending, result.Tokens, indexes, 0); finished != len(pending) {
 					panic("FinishPendingAcks() returned incomplete result")
 				}
 			}

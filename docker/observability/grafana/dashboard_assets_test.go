@@ -711,3 +711,155 @@ func TestRuntimeOpsDashboardIncludesChannelRegistryPanels(t *testing.T) {
 		}
 	}
 }
+
+func TestRuntimeOpsDashboardIncludesRecipientPipelinePanels(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("dashboards", "wukongim-v2-runtime-ops.json"))
+	if err != nil {
+		t.Fatalf("read runtime ops dashboard: %v", err)
+	}
+
+	type panel struct {
+		ID      int    `json:"id"`
+		Title   string `json:"title"`
+		GridPos struct {
+			H int `json:"h"`
+			W int `json:"w"`
+			X int `json:"x"`
+			Y int `json:"y"`
+		} `json:"gridPos"`
+		FieldConfig struct {
+			Defaults struct {
+				Unit string `json:"unit"`
+			} `json:"defaults"`
+		} `json:"fieldConfig"`
+		Targets []struct {
+			Expr         string `json:"expr"`
+			LegendFormat string `json:"legendFormat"`
+			RefID        string `json:"refId"`
+		} `json:"targets"`
+	}
+	var dashboard struct {
+		Panels []panel `json:"panels"`
+	}
+	if err := json.Unmarshal(raw, &dashboard); err != nil {
+		t.Fatalf("parse runtime ops dashboard: %v", err)
+	}
+
+	byTitle := make(map[string]panel, len(dashboard.Panels))
+	for _, item := range dashboard.Panels {
+		byTitle[item.Title] = item
+	}
+	want := []struct {
+		title        string
+		id           int
+		x, y         int
+		unit         string
+		counterGroup string
+		latencyGroup string
+		metrics      []string
+	}{
+		{
+			title: "Recipient Authority Resolution Work", id: 18, x: 0, y: 72, unit: "ops",
+			counterGroup: "by (node_name, result)",
+			metrics: []string{
+				"wukongim_delivery_recipient_authority_resolve_total",
+				"wukongim_delivery_recipient_authority_resolve_items_total",
+				"wukongim_delivery_recipient_authority_resolve_targets_total",
+			},
+		},
+		{
+			title: "Recipient Authority Resolution Latency", id: 19, x: 12, y: 72, unit: "s",
+			latencyGroup: "by (le, node_name, result)",
+			metrics:      []string{"wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket"},
+		},
+		{
+			title: "Presence Endpoint Lookup Work", id: 20, x: 0, y: 80, unit: "ops",
+			counterGroup: "by (node_name, path, outcome, stale_retry)",
+			metrics: []string{
+				"wukongim_presence_endpoint_lookup_total",
+				"wukongim_presence_endpoint_lookup_items_total",
+				"wukongim_presence_endpoint_lookup_groups_total",
+			},
+		},
+		{
+			title: "Presence Endpoint Lookup Latency", id: 21, x: 12, y: 80, unit: "s",
+			latencyGroup: "by (le, node_name, path, outcome, stale_retry)",
+			metrics:      []string{"wukongim_presence_endpoint_lookup_duration_seconds_bucket"},
+		},
+		{
+			title: "ACK Batch Work", id: 22, x: 0, y: 88, unit: "ops",
+			counterGroup: "by (node_name, phase, outcome)",
+			metrics: []string{
+				"wukongim_delivery_ack_batch_total",
+				"wukongim_delivery_ack_batch_items_total",
+				"wukongim_delivery_ack_batch_shards_total",
+				"wukongim_delivery_ack_batch_rejected_total",
+				"wukongim_delivery_ack_batch_rollback_total",
+			},
+		},
+		{
+			title: "ACK Batch Latency", id: 23, x: 12, y: 88, unit: "s",
+			latencyGroup: "by (le, node_name, phase, outcome)",
+			metrics:      []string{"wukongim_delivery_ack_batch_duration_seconds_bucket"},
+		},
+	}
+	for _, expected := range want {
+		got, ok := byTitle[expected.title]
+		if !ok {
+			t.Errorf("runtime ops dashboard missing panel %q", expected.title)
+			continue
+		}
+		if got.ID != expected.id || got.GridPos.X != expected.x || got.GridPos.Y != expected.y || got.GridPos.W != 12 || got.GridPos.H != 8 {
+			t.Errorf("panel %q layout = id:%d x:%d y:%d w:%d h:%d", expected.title, got.ID, got.GridPos.X, got.GridPos.Y, got.GridPos.W, got.GridPos.H)
+		}
+		if got.FieldConfig.Defaults.Unit != expected.unit {
+			t.Errorf("panel %q unit = %q, want %q", expected.title, got.FieldConfig.Defaults.Unit, expected.unit)
+		}
+		if len(got.Targets) != len(expected.metrics) {
+			t.Errorf("panel %q targets = %d, want %d", expected.title, len(got.Targets), len(expected.metrics))
+		}
+		refIDs := make(map[string]struct{}, len(got.Targets))
+		legends := make(map[string]struct{}, len(got.Targets))
+		for _, target := range got.Targets {
+			refID := strings.TrimSpace(target.RefID)
+			legend := strings.TrimSpace(target.LegendFormat)
+			if refID == "" || legend == "" {
+				t.Errorf("panel %q target lacks refId or legend: %#v", expected.title, target)
+				continue
+			}
+			if _, exists := refIDs[refID]; exists {
+				t.Errorf("panel %q has duplicate refId %q", expected.title, refID)
+			}
+			if _, exists := legends[legend]; exists {
+				t.Errorf("panel %q has duplicate legend %q", expected.title, legend)
+			}
+			refIDs[refID] = struct{}{}
+			legends[legend] = struct{}{}
+		}
+		for _, metric := range expected.metrics {
+			found := false
+			for _, target := range got.Targets {
+				if !strings.Contains(target.Expr, metric) {
+					continue
+				}
+				found = true
+				if !strings.Contains(target.Expr, `node_name=~"$node_name"`) || !strings.Contains(target.Expr, "$__rate_interval") {
+					t.Errorf("panel %q query for %s lacks fixed node/rate-window scope: %s", expected.title, metric, target.Expr)
+				}
+				if !strings.Contains(target.Expr, "sum(rate(") {
+					t.Errorf("panel %q query for %s is not a summed rate: %s", expected.title, metric, target.Expr)
+				}
+				if strings.Contains(metric, "duration_seconds") {
+					if !strings.Contains(target.Expr, "histogram_quantile(0.95") || !strings.Contains(target.Expr, expected.latencyGroup) {
+						t.Errorf("panel %q latency query for %s lacks p95 or bounded grouping %q: %s", expected.title, metric, expected.latencyGroup, target.Expr)
+					}
+				} else if !strings.Contains(target.Expr, expected.counterGroup) {
+					t.Errorf("panel %q counter query for %s lacks bounded grouping %q: %s", expected.title, metric, expected.counterGroup, target.Expr)
+				}
+			}
+			if !found {
+				t.Errorf("panel %q does not query %s", expected.title, metric)
+			}
+		}
+	}
+}

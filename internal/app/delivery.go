@@ -450,6 +450,7 @@ func (p *localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComma
 	}
 	var acceptedIndexStack [localOwnerDuplicateAckStackRoutes]int
 	var acceptedIndexes []int
+	rollbackCount := 0
 	if p.delivery != nil {
 		if len(cmd.Routes) <= len(acceptedIndexStack) {
 			acceptedIndexes = acceptedIndexStack[:0]
@@ -490,7 +491,9 @@ func (p *localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComma
 			// its earlier batch reservation first so a failed duplicate cannot
 			// leave an unconfirmed token behind when another write already owns
 			// the shared identity.
-			p.rollbackPendingAck(pending, bindToken)
+			if p.rollbackPendingAck(pending, bindToken) {
+				rollbackCount++
+			}
 			duplicateBind := p.delivery.BindPendingAckResult(pending)
 			if !duplicateBind.Bound {
 				p.loggerOrNop().Warn("delivery pending ack limit reached",
@@ -513,18 +516,24 @@ func (p *localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComma
 		// route after the original batch reservation was created.
 		session, ok := p.localSession(route)
 		if !ok {
-			p.rollbackPendingAck(pending, bindToken)
+			if p.rollbackPendingAck(pending, bindToken) {
+				rollbackCount++
+			}
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
 		packet, err := buildRecvPacket(cmd.Envelope, route.UID, payload, timestamp)
 		if err != nil {
-			p.rollbackPendingAck(pending, bindToken)
+			if p.rollbackPendingAck(pending, bindToken) {
+				rollbackCount++
+			}
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
 		if err := session.Session.WriteDelivery(packet); err != nil {
-			p.rollbackPendingAck(pending, bindToken)
+			if p.rollbackPendingAck(pending, bindToken) {
+				rollbackCount++
+			}
 			terminal := terminalLocalDeliveryWriteError(err)
 			p.loggerOrNop().Warn("delivery write failed",
 				wklog.Event("internal.app.delivery.write_failed"),
@@ -549,8 +558,8 @@ func (p *localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComma
 			acceptedIndexes = append(acceptedIndexes, i)
 		}
 	}
-	if p.delivery != nil && len(acceptedIndexes) > 0 {
-		p.delivery.FinishPendingAcks(pendings, bindResult.Tokens, acceptedIndexes)
+	if p.delivery != nil && validCount > 0 {
+		p.delivery.FinishPendingAcks(pendings, bindResult.Tokens, acceptedIndexes, rollbackCount)
 	}
 	return result, nil
 }
@@ -636,13 +645,13 @@ func (p *localOwnerPusher) pushSingleRoute(cmd runtimedelivery.PushCommand) (run
 	return result, nil
 }
 
-func (p *localOwnerPusher) rollbackPendingAck(pending runtimedelivery.PendingRecvAck, token runtimedelivery.AckBindToken) {
+func (p *localOwnerPusher) rollbackPendingAck(pending runtimedelivery.PendingRecvAck, token runtimedelivery.AckBindToken) bool {
 	if p == nil || p.delivery == nil {
-		return
+		return false
 	}
 	// A miss is expected when a fast client Recvack or session close already
 	// consumed the identity, so rollback stays silent and idempotent to callers.
-	p.delivery.RollbackPendingAck(pending, token)
+	return p.delivery.RollbackPendingAck(pending, token)
 }
 
 func localOwnerAckKeyBucket(sessionID, messageID uint64) uint64 {

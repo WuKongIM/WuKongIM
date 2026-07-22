@@ -13,7 +13,10 @@ configured. Runtime `Observer`, `ManagerObserver`, and `AckObserver` events
 describe fanout routing, UID route resolution, owner push attempts, manager
 admission, terminal async outcomes, and owner-local ack state changes with
 bounded result and error-class labels; concrete metrics and logging remain app
-concerns.
+concerns. The separately configured optional `AckBatchObserver` adds one
+aggregate callback per batch bind or finish stage with numeric
+shape/rejection/rollback fields; it does not add callbacks inside tracker item
+or shard loops, and an ordinary `AckObserver` never enables that extra work.
 `RetryScheduler` can wrap any `FanoutTaskRunner` with a bounded in-memory
 retry queue. It executes the first attempt inline; retryable failures are
 queued for background workers, while non-retryable failures and queue overflow
@@ -124,6 +127,13 @@ Recvack flow:
    cannot change the pending identity count. The event remains a gauge
    projection, while per-route mixed bind rejections stay visible in owner-push
    classification and bounded logs.
+   Separately, an optional `AckBatchObserver` emits one post-operation stage for
+   each multi-item bind and finish. The event reports bounded phase/outcome plus
+   item, touched-shard, rejection, rollback, and duration values. The
+   owner-push caller passes the number of bind reservations it actually
+   canceled; omitted indexes remain in-flight and are not inferred to be
+   rollbacks. The observer does not scan tracker state or time individual shard
+   locks.
 8. `Manager` serializes each ack mutation with its `AckEvent` emission, so
    observers do not apply an older pending count after a newer state change.
 9. App top and Prometheus observers consume the same ack event path, so

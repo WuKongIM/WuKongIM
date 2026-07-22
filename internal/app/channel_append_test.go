@@ -30,7 +30,8 @@ func TestChannelAppendRecipientResolverPrefersAlignedLightweightAuthorityBatch(t
 		},
 		authorityErrs: map[string]error{"u2": secondErr},
 	}
-	resolver := channelAppendRecipientResolver{node: node}
+	observer := &recordingRecipientAuthorityResolveObserver{}
+	resolver := channelAppendRecipientResolver{node: node, observer: observer}
 
 	got, err := resolver.ResolveRecipientAuthorities(context.Background(), []string{"u1", "u2"})
 	if err != nil {
@@ -49,6 +50,13 @@ func TestChannelAppendRecipientResolverPrefersAlignedLightweightAuthorityBatch(t
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("targets = %#v, want %#v", got, want)
+	}
+	if len(observer.events) != 1 {
+		t.Fatalf("recipient authority observations = %#v, want exactly one batch event", observer.events)
+	}
+	event := observer.events[0]
+	if event.Result != recipientAuthorityResolveResultPartial || event.Items != 2 || event.Targets != 1 || event.Duration < 0 {
+		t.Fatalf("recipient authority observation = %#v, want partial items=2 targets=1", event)
 	}
 }
 
@@ -314,6 +322,14 @@ func (p *recordingRuntimeOwnerPusherForChannelAppendTest) Push(context.Context, 
 
 type recordingDeliveryObserverForChannelAppendTest struct {
 	pushes []runtimedelivery.FanoutPushEvent
+}
+
+type recordingRecipientAuthorityResolveObserver struct {
+	events []recipientAuthorityResolveObservation
+}
+
+func (o *recordingRecipientAuthorityResolveObserver) ObserveRecipientAuthorityResolve(event recipientAuthorityResolveObservation) {
+	o.events = append(o.events, event)
 }
 
 func (o *recordingDeliveryObserverForChannelAppendTest) ObserveFanoutTask(runtimedelivery.FanoutTaskEvent) {

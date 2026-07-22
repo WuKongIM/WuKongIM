@@ -45,9 +45,12 @@ New(Config)
      flush-stage histograms, and pressure-wakeup
      lifecycle metrics, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
-     touch-flush route/chunk/target-group counters, recipient delivery worker
+     touch-flush route/chunk/target-group counters plus aggregate exact-target
+     endpoint lookup path/outcome/retry metrics, recipient authority batch
+     calls/items/physical-targets/duration, recipient delivery worker
      queue/admission/process metrics plus configured worker capacity and current
-     in-flight command gauges,
+     in-flight command gauges, and owner-local ACK batch bind/finish shape,
+     rejection, rollback, and duration metrics,
      plugin PersistAfter and Receive hook enqueue/invoke counters and
      histograms, and synchronous plugin Send hook invoke counters and histograms
      plus node lifecycle gauges/counters from control snapshots and scale-in
@@ -485,6 +488,13 @@ write failure rolls back only that route's token. Successful writes are
 finished in one shard-grouped batch using aligned pending/token slices and a
 fixed 512-index stack, falling back to heap storage only above that bound. The
 tracker marks the identity committed and releases the finished in-flight token.
+When metrics are enabled, the batch bind and finish stages each emit one
+aggregate observation after the tracker operation, carrying only bounded
+phase/outcome labels and numeric items, touched shards, rejected items,
+rollbacks, and duration; no route or per-item metric callback runs in the hot
+loop. The metrics registry lazily caches the bounded label combinations after
+their first use, so steady-state aggregate observations do not allocate merely
+to resolve CounterVec or HistogramVec children.
 Committed pending metadata remains stable across failed refresh attempts;
 finishing a refresh promotes that attempt's metadata, and the tracker removes a
 failed key only when no committed or concurrent in-flight attempt remains. Later
@@ -509,7 +519,10 @@ lightweight authority batch routing, the app recipient resolver resolves each
 subscriber page's sender plus unique recipient UIDs through one aligned
 `RouteAuthoritiesPartial` snapshot, preserves key-specific errors in place, and
 avoids cloning placement-only Slot peers for every UID. The legacy `RouteKeys`
-batch remains a compatibility fallback. After each recipient set is formed,
+batch remains a compatibility fallback. With metrics enabled, that resolver
+emits one aggregate batch observation with a bounded outcome, requested item
+count, distinct successful physical hash-slot target count, and duration; it
+does not label or observe individual UIDs. After each recipient set is formed,
 channelappend groups recipients by exact physical hash-slot and logical Slot
 Raft Group authority target including leader term and config epoch, then packs
 the groups into a bounded delivery plan. The worker preserves those fences

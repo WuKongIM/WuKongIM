@@ -12,8 +12,9 @@ import (
 func TestManagerAckObserverReportsPendingTransitions(t *testing.T) {
 	observer := &recordingAckObserver{}
 	manager := NewManager(ManagerOptions{
-		Acks:        newAckTrackerWithClock(100),
-		AckObserver: observer,
+		Acks:             newAckTrackerWithClock(100),
+		AckObserver:      observer,
+		AckBatchObserver: observer,
 	})
 
 	if ok := manager.BindPendingAck(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 1001}); !ok {
@@ -159,12 +160,60 @@ func TestManagerBindPendingAcksReportsOneFinalObservation(t *testing.T) {
 		{UID: "u1", SessionID: 10, MessageID: 1001},
 		{UID: "u1", SessionID: 10, MessageID: 1002},
 		{UID: "u2", SessionID: 11, MessageID: 2001},
-	}, result.Tokens, []int{0, 2}); finished != 2 {
+	}, result.Tokens, []int{0, 2}, 0); finished != 2 {
 		t.Fatalf("FinishPendingAcks() = %d, want 2", finished)
 	}
 	if got := len(observer.Events()); got != len(wantEvents) {
 		t.Fatalf("ack events after finish = %d, want finish unobserved", got)
 	}
+	if got := observer.BatchEvents(); len(got) != 0 {
+		t.Fatalf("ack batch events without AckBatchObserver option = %#v, want none", got)
+	}
+}
+
+func TestManagerAckBatchObserverReportsAggregateBindAndFinishStages(t *testing.T) {
+	observer := &recordingAckObserver{}
+	manager := NewManager(ManagerOptions{
+		Acks: NewAckTracker(AckTrackerOptions{
+			ShardCount:           4,
+			MaxPendingPerSession: 1,
+		}),
+		AckObserver:      observer,
+		AckBatchObserver: observer,
+	})
+	pending := []PendingRecvAck{
+		{UID: "u1", SessionID: 1, MessageID: 1001},
+		{UID: "u1", SessionID: 1, MessageID: 1002},
+		{UID: "u2", SessionID: 2, MessageID: 2001},
+		{SessionID: 3, MessageID: 3001},
+	}
+
+	result := manager.BindPendingAcks(pending)
+	if result.Bound != 2 || result.Shards != 2 {
+		t.Fatalf("BindPendingAcks() = %#v, want 2 bound items across 2 shards", result)
+	}
+	if rolledBack := manager.RollbackPendingAck(pending[2], result.Tokens[2]); !rolledBack {
+		t.Fatal("RollbackPendingAck() = false, want actual cancellation before finish observation")
+	}
+	if finished := manager.FinishPendingAcks(pending, result.Tokens, []int{0}, 1); finished != 1 {
+		t.Fatalf("FinishPendingAcks() = %d, want 1", finished)
+	}
+
+	events := observer.BatchEvents()
+	if len(events) != 2 {
+		t.Fatalf("ack batch events = %#v, want bind and finish", events)
+	}
+	assertAckBatchEvent := func(got AckBatchEvent, phase, outcome string, items, shards, rejected, rollback int) {
+		t.Helper()
+		if got.Phase != phase || got.Outcome != outcome || got.Items != items || got.Shards != shards || got.Rejected != rejected || got.Rollback != rollback {
+			t.Fatalf("ack batch event = %#v, want phase=%s outcome=%s items=%d shards=%d rejected=%d rollback=%d", got, phase, outcome, items, shards, rejected, rollback)
+		}
+		if got.Duration < 0 {
+			t.Fatalf("ack batch duration = %s, want non-negative", got.Duration)
+		}
+	}
+	assertAckBatchEvent(events[0], DeliveryAckBatchPhaseBind, DeliveryAckBatchOutcomePartial, 4, 2, 2, 0)
+	assertAckBatchEvent(events[1], DeliveryAckBatchPhaseFinish, DeliveryAckBatchOutcomePartial, 4, 1, 2, 1)
 }
 
 func TestManagerBindPendingAcksSerializesObservationBeforeRecvack(t *testing.T) {
@@ -281,7 +330,8 @@ func newAckTrackerWithClock(now int64) *AckTracker {
 }
 
 type recordingAckObserver struct {
-	events []AckEvent
+	events      []AckEvent
+	batchEvents []AckBatchEvent
 }
 
 func (o *recordingAckObserver) ObserveAck(event AckEvent) {
@@ -290,6 +340,14 @@ func (o *recordingAckObserver) ObserveAck(event AckEvent) {
 
 func (o *recordingAckObserver) Events() []AckEvent {
 	return append([]AckEvent(nil), o.events...)
+}
+
+func (o *recordingAckObserver) ObserveAckBatch(event AckBatchEvent) {
+	o.batchEvents = append(o.batchEvents, event)
+}
+
+func (o *recordingAckObserver) BatchEvents() []AckBatchEvent {
+	return append([]AckBatchEvent(nil), o.batchEvents...)
 }
 
 type delayedBindAckObserver struct {

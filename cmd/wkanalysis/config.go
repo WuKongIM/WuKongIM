@@ -203,7 +203,7 @@ func parseNodeURLs(raw string) (map[uint64]string, error) {
 }
 
 func defaultMetricQueries() map[string]string {
-	return map[string]string{
+	queries := map[string]string{
 		"targets_up":                                              `up`,
 		"send_rate":                                               `sum(rate(wukongim_gateway_messages_received_total[1m]))`,
 		"deliver_rate":                                            `sum(rate(wukongim_gateway_messages_delivered_total[1m]))`,
@@ -275,6 +275,21 @@ func defaultMetricQueries() map[string]string {
 		"slot_preferred_leader_reconcile_rate":                    `sum by (instance, node_name, decision) (rate(wukongim_slot_preferred_leader_reconcile_total{job="wukongim"}[1m]))`,
 		"slot_preferred_leader_strict_wait_p99":                   `histogram_quantile(0.99, sum by (le, instance, node_name, decision) (rate(wukongim_slot_preferred_leader_strict_wait_duration_seconds_bucket{job="wukongim"}[5m])))`,
 	}
+	queries[cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveRate] = `sum by (instance, node_name, result) (rate(wukongim_delivery_recipient_authority_resolve_total{job="wukongim"}[1m]))`
+	queries[cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveItemsRate] = `sum by (instance, node_name, result) (rate(wukongim_delivery_recipient_authority_resolve_items_total{job="wukongim"}[1m]))`
+	queries[cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveTargetsRate] = `sum by (instance, node_name, result) (rate(wukongim_delivery_recipient_authority_resolve_targets_total{job="wukongim"}[1m]))`
+	queries[cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveP99] = `histogram_quantile(0.99, sum by (instance, node_name, result, le) (rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{job="wukongim"}[1m])))`
+	queries[cloudanalysis.MetricQueryPresenceEndpointLookupRate] = `sum by (instance, node_name, path, outcome, stale_retry) (rate(wukongim_presence_endpoint_lookup_total{job="wukongim"}[1m]))`
+	queries[cloudanalysis.MetricQueryPresenceEndpointLookupItemsRate] = `sum by (instance, node_name, path, outcome, stale_retry) (rate(wukongim_presence_endpoint_lookup_items_total{job="wukongim"}[1m]))`
+	queries[cloudanalysis.MetricQueryPresenceEndpointLookupGroupsRate] = `sum by (instance, node_name, path, outcome, stale_retry) (rate(wukongim_presence_endpoint_lookup_groups_total{job="wukongim"}[1m]))`
+	queries[cloudanalysis.MetricQueryPresenceEndpointLookupP99] = `histogram_quantile(0.99, sum by (instance, node_name, path, outcome, stale_retry, le) (rate(wukongim_presence_endpoint_lookup_duration_seconds_bucket{job="wukongim"}[1m])))`
+	queries[cloudanalysis.MetricQueryDeliveryAckBatchCumulative] = `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_total{job="wukongim"})`
+	queries[cloudanalysis.MetricQueryDeliveryAckBatchItemsCumulative] = `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_items_total{job="wukongim"})`
+	queries[cloudanalysis.MetricQueryDeliveryAckBatchShardsCumulative] = `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_shards_total{job="wukongim"})`
+	queries[cloudanalysis.MetricQueryDeliveryAckBatchRejectedCumulative] = `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_rejected_total{job="wukongim"})`
+	queries[cloudanalysis.MetricQueryDeliveryAckBatchRollbackCumulative] = `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_rollback_total{job="wukongim"})`
+	queries[cloudanalysis.MetricQueryDeliveryAckBatchP99] = `histogram_quantile(0.99, sum by (instance, node_name, phase, outcome, le) (rate(wukongim_delivery_ack_batch_duration_seconds_bucket{job="wukongim"}[1m])))`
+	return queries
 }
 
 func optionalTime(raw string, fallback time.Time) (time.Time, error) {

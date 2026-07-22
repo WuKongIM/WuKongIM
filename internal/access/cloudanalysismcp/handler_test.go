@@ -65,6 +65,7 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 	names := make([]string, 0, len(listed.Tools))
 	var workloadTool *mcp.Tool
 	var diagnosticsTool *mcp.Tool
+	var metricsTool *mcp.Tool
 	for _, tool := range listed.Tools {
 		names = append(names, tool.Name)
 		if tool.Name == "workload_inspect" {
@@ -72,6 +73,9 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 		}
 		if tool.Name == "diagnostics_query" {
 			diagnosticsTool = tool
+		}
+		if tool.Name == "metrics_query_range" {
+			metricsTool = tool
 		}
 	}
 	sort.Strings(names)
@@ -108,6 +112,22 @@ func TestHandlerListsOnlyBoundedAnalysisToolsAndCallsRunInspect(t *testing.T) {
 	}
 	if !strings.Contains(string(diagnosticsSchema), `"slot_id"`) {
 		t.Fatalf("diagnostics input schema does not expose physical slot_id: %s", diagnosticsSchema)
+	}
+	if metricsTool == nil || metricsTool.InputSchema == nil {
+		t.Fatal("metrics_query_range must publish a concrete input schema")
+	}
+	metricsSchema, err := json.Marshal(metricsTool.InputSchema)
+	if err != nil {
+		t.Fatalf("marshal metrics input schema: %v", err)
+	}
+	for _, queryID := range []string{
+		analysis.MetricQueryDeliveryRecipientAuthorityResolveRate,
+		analysis.MetricQueryPresenceEndpointLookupRate,
+		analysis.MetricQueryDeliveryAckBatchCumulative,
+	} {
+		if !strings.Contains(string(metricsSchema), queryID) {
+			t.Fatalf("metrics input schema does not advertise %q: %s", queryID, metricsSchema)
+		}
 	}
 
 	called, err := session.CallTool(context.Background(), &mcp.CallToolParams{

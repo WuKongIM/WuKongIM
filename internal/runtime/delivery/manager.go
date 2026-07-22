@@ -24,17 +24,20 @@ type ManagerOptions struct {
 	ManagerObserver ManagerObserver
 	// AckObserver receives owner-local pending recvack state changes.
 	AckObserver AckObserver
+	// AckBatchObserver receives optional aggregate bind and finish stage observations.
+	AckBatchObserver AckBatchObserver
 }
 
 // Manager is the delivery runtime facade used by app adapters.
 // It admits committed work into a bounded queue when fanout ports are configured.
 type Manager struct {
-	planner     *Planner
-	runner      FanoutTaskRunner
-	acks        *AckTracker
-	async       *managerAsync
-	ackObserver AckObserver
-	ackMu       sync.Mutex
+	planner          *Planner
+	runner           FanoutTaskRunner
+	acks             *AckTracker
+	async            *managerAsync
+	ackObserver      AckObserver
+	ackBatchObserver AckBatchObserver
+	ackMu            sync.Mutex
 }
 
 // NewManager creates a delivery runtime facade.
@@ -49,10 +52,11 @@ func NewManager(opts ManagerOptions) *Manager {
 		asyncWorkers = defaultManagerAsyncWorkers
 	}
 	manager := &Manager{
-		planner:     opts.Planner,
-		runner:      runner,
-		acks:        acks,
-		ackObserver: opts.AckObserver,
+		planner:          opts.Planner,
+		runner:           runner,
+		acks:             acks,
+		ackObserver:      opts.AckObserver,
+		ackBatchObserver: opts.AckBatchObserver,
 	}
 	if opts.Planner != nil && runner != nil {
 		manager.async = newManagerAsync(manager, opts.AsyncQueueSize, asyncWorkers, opts.ManagerObserver)
@@ -200,11 +204,37 @@ func (m *Manager) FinishPendingAck(pending PendingRecvAck, token AckBindToken) b
 
 // FinishPendingAcks commits successful aligned batch indexes with one lock per
 // affected tracker shard and without emitting a no-count-change observation.
-func (m *Manager) FinishPendingAcks(pending []PendingRecvAck, tokens []AckBindToken, indexes []int) int {
+// rollback is the number of bind reservations the caller actually canceled
+// while processing this owner-push batch; omitted in-flight tokens are not
+// inferred to have rolled back.
+func (m *Manager) FinishPendingAcks(pending []PendingRecvAck, tokens []AckBindToken, indexes []int, rollback int) int {
 	if m == nil || m.acks == nil {
 		return 0
 	}
-	return m.acks.FinishBindBatch(pending, tokens, indexes)
+	batchObserver := m.ackBatchObserver
+	observeBatch := batchObserver != nil
+	var started time.Time
+	if observeBatch {
+		started = time.Now()
+	}
+	finished, shards, selected := m.acks.finishBindBatch(pending, tokens, indexes)
+	if observeBatch {
+		bound := countBoundAckTokens(pending, tokens)
+		rejected := len(pending) - bound
+		if rollback < 0 {
+			rollback = 0
+		}
+		batchObserver.ObserveAckBatch(AckBatchEvent{
+			Phase:    DeliveryAckBatchPhaseFinish,
+			Outcome:  finishAckBatchOutcome(finished, selected, rejected, rollback),
+			Items:    len(pending),
+			Shards:   shards,
+			Rejected: rejected,
+			Rollback: rollback,
+			Duration: time.Since(started),
+		})
+	}
+	return finished
 }
 
 // BindPendingAcks reserves an item-aligned delivery batch waiting for client
@@ -219,18 +249,38 @@ func (m *Manager) BindPendingAcks(pending []PendingRecvAck) AckBindBatchResult {
 	if len(pending) == 0 {
 		return AckBindBatchResult{PendingCount: m.acks.PendingCount()}
 	}
-	m.ackMu.Lock()
-	defer m.ackMu.Unlock()
-
-	result := m.acks.BindBatch(pending)
-	eventResult := DeliveryAckResultRejected
-	for _, token := range result.Tokens {
-		if token.Valid() {
-			eventResult = DeliveryAckResultOK
-			break
-		}
+	batchObserver := m.ackBatchObserver
+	observeBatch := batchObserver != nil
+	var started time.Time
+	if observeBatch {
+		started = time.Now()
 	}
-	m.observeAck(DeliveryAckActionBind, eventResult, result.Added, result.PendingCount)
+	result := func() AckBindBatchResult {
+		m.ackMu.Lock()
+		defer m.ackMu.Unlock()
+
+		result := m.acks.BindBatch(pending)
+		eventResult := DeliveryAckResultRejected
+		for _, token := range result.Tokens {
+			if token.Valid() {
+				eventResult = DeliveryAckResultOK
+				break
+			}
+		}
+		m.observeAck(DeliveryAckActionBind, eventResult, result.Added, result.PendingCount)
+		return result
+	}()
+	if observeBatch {
+		rejected := len(pending) - result.Bound
+		batchObserver.ObserveAckBatch(AckBatchEvent{
+			Phase:    DeliveryAckBatchPhaseBind,
+			Outcome:  bindAckBatchOutcome(result.Bound, rejected),
+			Items:    len(pending),
+			Shards:   result.Shards,
+			Rejected: rejected,
+			Duration: time.Since(started),
+		})
+	}
 	return result
 }
 
@@ -269,6 +319,46 @@ func (m *Manager) observeAck(action, result string, changed, pendingCount int) {
 		Changed:      changed,
 		PendingCount: pendingCount,
 	})
+}
+
+func countBoundAckTokens(pending []PendingRecvAck, tokens []AckBindToken) int {
+	limit := len(pending)
+	if len(tokens) < limit {
+		limit = len(tokens)
+	}
+	bound := 0
+	for i := 0; i < limit; i++ {
+		if validPendingRecvAck(pending[i]) && tokens[i].Valid() {
+			bound++
+		}
+	}
+	return bound
+}
+
+func bindAckBatchOutcome(bound, rejected int) string {
+	switch {
+	case bound == 0:
+		return DeliveryAckBatchOutcomeRejected
+	case rejected > 0:
+		return DeliveryAckBatchOutcomePartial
+	default:
+		return DeliveryAckBatchOutcomeOK
+	}
+}
+
+func finishAckBatchOutcome(finished, selected, rejected, rollback int) string {
+	switch {
+	case finished == selected && selected > 0 && rejected == 0 && rollback == 0:
+		return DeliveryAckBatchOutcomeOK
+	case finished > 0:
+		return DeliveryAckBatchOutcomePartial
+	case rollback > 0:
+		return DeliveryAckBatchOutcomeRolledBack
+	case rejected > 0 && selected == 0:
+		return DeliveryAckBatchOutcomeRejected
+	default:
+		return DeliveryAckBatchOutcomeMiss
+	}
 }
 
 func envelopeFromEvent(event messageevents.MessageCommitted) Envelope {

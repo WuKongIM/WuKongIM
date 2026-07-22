@@ -5132,8 +5132,21 @@ func (c *localOwnerPusherTestClock) Advance(delta time.Duration) {
 }
 
 type localOwnerPusherAckObserver struct {
-	mu     sync.Mutex
-	events []runtimedelivery.AckEvent
+	mu          sync.Mutex
+	events      []runtimedelivery.AckEvent
+	batchEvents []runtimedelivery.AckBatchEvent
+}
+
+func (o *localOwnerPusherAckObserver) ObserveAckBatch(event runtimedelivery.AckBatchEvent) {
+	o.mu.Lock()
+	o.batchEvents = append(o.batchEvents, event)
+	o.mu.Unlock()
+}
+
+func (o *localOwnerPusherAckObserver) BatchEvents() []runtimedelivery.AckBatchEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]runtimedelivery.AckBatchEvent(nil), o.batchEvents...)
 }
 
 func (o *localOwnerPusherAckObserver) ObserveAck(event runtimedelivery.AckEvent) {

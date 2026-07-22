@@ -246,12 +246,46 @@ type RunRequest struct {
 	RunID string `json:"run_id" jsonschema:"exact Simulation Run identity"`
 }
 
+const (
+	// MetricQueryDeliveryRecipientAuthorityResolveRate selects per-node recipient-authority batch call rates.
+	MetricQueryDeliveryRecipientAuthorityResolveRate = "delivery_recipient_authority_resolve_rate"
+	// MetricQueryDeliveryRecipientAuthorityResolveItemsRate selects per-node recipient-authority UID item rates.
+	MetricQueryDeliveryRecipientAuthorityResolveItemsRate = "delivery_recipient_authority_resolve_items_rate"
+	// MetricQueryDeliveryRecipientAuthorityResolveTargetsRate selects per-node distinct physical-target rates.
+	MetricQueryDeliveryRecipientAuthorityResolveTargetsRate = "delivery_recipient_authority_resolve_targets_rate"
+	// MetricQueryDeliveryRecipientAuthorityResolveP99 selects per-node recipient-authority resolution P99 latency.
+	MetricQueryDeliveryRecipientAuthorityResolveP99 = "delivery_recipient_authority_resolve_p99"
+
+	// MetricQueryPresenceEndpointLookupRate selects per-node exact-target endpoint lookup rates.
+	MetricQueryPresenceEndpointLookupRate = "presence_endpoint_lookup_rate"
+	// MetricQueryPresenceEndpointLookupItemsRate selects per-node endpoint lookup UID item rates.
+	MetricQueryPresenceEndpointLookupItemsRate = "presence_endpoint_lookup_items_rate"
+	// MetricQueryPresenceEndpointLookupGroupsRate selects per-node exact-target group rates.
+	MetricQueryPresenceEndpointLookupGroupsRate = "presence_endpoint_lookup_groups_rate"
+	// MetricQueryPresenceEndpointLookupP99 selects per-node exact-target endpoint lookup P99 latency.
+	MetricQueryPresenceEndpointLookupP99 = "presence_endpoint_lookup_p99"
+
+	// MetricQueryDeliveryAckBatchCumulative selects per-node ACK batch stage counters.
+	MetricQueryDeliveryAckBatchCumulative = "delivery_ack_batch_cumulative"
+	// MetricQueryDeliveryAckBatchItemsCumulative selects per-node ACK batch item counters.
+	MetricQueryDeliveryAckBatchItemsCumulative = "delivery_ack_batch_items_cumulative"
+	// MetricQueryDeliveryAckBatchShardsCumulative selects per-node ACK tracker shard counters.
+	MetricQueryDeliveryAckBatchShardsCumulative = "delivery_ack_batch_shards_cumulative"
+	// MetricQueryDeliveryAckBatchRejectedCumulative selects per-node rejected ACK item counters.
+	MetricQueryDeliveryAckBatchRejectedCumulative = "delivery_ack_batch_rejected_cumulative"
+	// MetricQueryDeliveryAckBatchRollbackCumulative selects per-node canceled ACK reservation counters.
+	MetricQueryDeliveryAckBatchRollbackCumulative = "delivery_ack_batch_rollback_cumulative"
+	// MetricQueryDeliveryAckBatchP99 selects per-node ACK batch stage P99 latency.
+	MetricQueryDeliveryAckBatchP99 = "delivery_ack_batch_p99"
+)
+
 // MetricsQueryRangeRequest selects one allowlisted metric query over a bounded interval.
 type MetricsQueryRangeRequest struct {
 	// RunID is the exact Run Identity.
 	RunID string `json:"run_id" jsonschema:"exact Simulation Run identity"`
-	// QueryID selects one server-side allowlisted PromQL expression.
-	QueryID string `json:"query_id" jsonschema:"allowlisted metric query identifier"`
+	// QueryID selects one server-side allowlisted PromQL expression, including
+	// bounded recipient-authority, presence-endpoint, and ACK-batch pipeline queries.
+	QueryID string `json:"query_id" jsonschema:"allowlisted metric query identifier including recipient authority, presence endpoint, and ACK batch pipeline evidence"`
 	// Start is the inclusive query start time.
 	Start time.Time `json:"start" jsonschema:"RFC3339 query start"`
 	// End is the inclusive query end time.

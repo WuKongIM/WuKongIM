@@ -542,6 +542,8 @@ func TestPresenceAuthorityClientEndpointsByTargetsUsesOneLocalTargetBatchCall(t 
 	}
 	node := &fakePresenceCluster{nodeID: 1}
 	client := NewPresenceAuthorityClient(node, local)
+	observer := &recordingPresenceEndpointLookupObserver{}
+	client.SetEndpointLookupObserver(observer)
 
 	results := client.EndpointsByTargets(context.Background(), groups)
 
@@ -554,6 +556,12 @@ func TestPresenceAuthorityClientEndpointsByTargetsUsesOneLocalTargetBatchCall(t 
 	require.ErrorIs(t, results[1].Err, context.Canceled)
 	require.Empty(t, node.calls)
 	require.Empty(t, node.routeKeysCalls)
+	observations := observer.Events()
+	require.Len(t, observations, 1)
+	assertPresenceLookupObservation(t, observations, PresenceEndpointLookupObservation{
+		Path: PresenceEndpointLookupPathLocalBulk, Outcome: PresenceEndpointLookupOutcomePartial,
+		Items: 3, Groups: 2,
+	})
 }
 
 func TestPresenceAuthorityClientEndpointsByTargetsOverlapsRemoteLeadersAndKeepsResultsAligned(t *testing.T) {
@@ -647,6 +655,43 @@ func TestPresenceAuthorityClientEndpointsByTargetsIsolatesRemoteLeaderPanic(t *t
 	require.Equal(t, "succeeds", results[1].Routes[0].UID)
 }
 
+func TestPresenceAuthorityClientEndpointsByTargetsContainsNodeIDAndObserverPanics(t *testing.T) {
+	t.Run("node id", func(t *testing.T) {
+		node := &fakePresenceCluster{nodeIDPanic: true}
+		client := NewPresenceAuthorityClient(node, &fakePresenceAuthority{})
+		observer := &recordingPresenceEndpointLookupObserver{}
+		client.SetEndpointLookupObserver(observer)
+
+		results := client.EndpointsByTargets(context.Background(), []presence.EndpointLookupGroup{{
+			Target: testEndpointLookupTarget(22, 2), UIDs: []string{"u1"},
+		}})
+
+		require.Len(t, results, 1)
+		require.ErrorIs(t, results[0].Err, errPresenceEndpointLookupPanic)
+		observations := observer.Events()
+		require.Len(t, observations, 1)
+		require.Equal(t, PresenceEndpointLookupOutcomePanic, observations[0].Outcome)
+		require.Empty(t, observations[0].Path, "path must remain unknown when node identity panics")
+	})
+
+	t.Run("observer", func(t *testing.T) {
+		local := &fakeTargetBatchPresenceAuthority{
+			fakePresenceAuthority: &fakePresenceAuthority{},
+			results:               []presence.EndpointLookupResult{{}},
+		}
+		client := NewPresenceAuthorityClient(&fakePresenceCluster{nodeID: 1}, local)
+		client.SetEndpointLookupObserver(panicPresenceEndpointLookupObserver{})
+
+		require.NotPanics(t, func() {
+			results := client.EndpointsByTargets(context.Background(), []presence.EndpointLookupGroup{{
+				Target: testEndpointLookupTarget(11, 1), UIDs: []string{"u1"},
+			}})
+			require.Len(t, results, 1)
+			require.NoError(t, results[0].Err)
+		})
+	})
+}
+
 func TestPresenceAuthorityClientEndpointsByTargetsKeepsGroupErrorsPartialAndAligned(t *testing.T) {
 	local := &fakePresenceAuthority{}
 	remoteTwo := &fakePresenceAuthority{endpointBatchErrs: map[uint16]error{22: context.Canceled}}
@@ -704,6 +749,8 @@ func TestPresenceAuthorityClientEndpointsByTargetsReroutesOnlyStaleGroupOnce(t *
 		},
 	}
 	client := NewPresenceAuthorityClient(node, local)
+	observer := &recordingPresenceEndpointLookupObserver{}
+	client.SetEndpointLookupObserver(observer)
 	groups := []presence.EndpointLookupGroup{
 		{Target: testEndpointLookupTarget(11, 1), UIDs: []string{"local"}},
 		{Target: testEndpointLookupTarget(22, 2), UIDs: []string{"stale"}},
@@ -729,6 +776,32 @@ func TestPresenceAuthorityClientEndpointsByTargetsReroutesOnlyStaleGroupOnce(t *
 		{target: groups[3].Target, uids: []string{"remote-three"}},
 		{target: routeTargetFromClusterRoute(fresh), uids: []string{"stale"}},
 	}, remoteThree.endpointBatchCalls)
+
+	observations := observer.Events()
+	require.Len(t, observations, 4, "three initial leader stages plus one stale retry")
+	assertPresenceLookupObservation(t, observations, PresenceEndpointLookupObservation{
+		Path: PresenceEndpointLookupPathLegacyFallback, Outcome: PresenceEndpointLookupOutcomeOK,
+		Items: 1, Groups: 1,
+	})
+	assertPresenceLookupObservation(t, observations, PresenceEndpointLookupObservation{
+		Path: PresenceEndpointLookupPathRemoteBulk, Outcome: PresenceEndpointLookupOutcomePartial,
+		Items: 2, Groups: 2,
+	})
+	assertPresenceLookupObservation(t, observations, PresenceEndpointLookupObservation{
+		Path: PresenceEndpointLookupPathRemoteBulk, Outcome: PresenceEndpointLookupOutcomeOK,
+		StaleRetry: true, Items: 1, Groups: 1,
+	})
+}
+
+func assertPresenceLookupObservation(t *testing.T, observations []PresenceEndpointLookupObservation, want PresenceEndpointLookupObservation) {
+	t.Helper()
+	for _, got := range observations {
+		if got.Path == want.Path && got.Outcome == want.Outcome && got.StaleRetry == want.StaleRetry && got.Items == want.Items && got.Groups == want.Groups {
+			require.GreaterOrEqual(t, got.Duration, time.Duration(0))
+			return
+		}
+	}
+	t.Fatalf("presence endpoint observations = %#v, missing %#v", observations, want)
 }
 
 func testEndpointLookupTarget(hashSlot uint16, leader uint64) presence.RouteTarget {
@@ -776,6 +849,7 @@ type rpcCall struct {
 }
 
 type fakePresenceCluster struct {
+	nodeIDPanic     bool
 	rpcMu           sync.Mutex
 	nodeID          uint64
 	route           cluster.Route
@@ -837,6 +911,9 @@ func (h presenceOwnerRPCHandler) HandleRPC(ctx context.Context, payload []byte) 
 }
 
 func (f *fakePresenceCluster) NodeID() uint64 {
+	if f.nodeIDPanic {
+		panic("test node id panic")
+	}
 	return f.nodeID
 }
 
@@ -926,6 +1003,29 @@ type fakeTargetBatchPresenceAuthority struct {
 	*fakePresenceAuthority
 	calls   [][]presence.EndpointLookupGroup
 	results []presence.EndpointLookupResult
+}
+
+type recordingPresenceEndpointLookupObserver struct {
+	mu     sync.Mutex
+	events []PresenceEndpointLookupObservation
+}
+
+type panicPresenceEndpointLookupObserver struct{}
+
+func (panicPresenceEndpointLookupObserver) ObservePresenceEndpointLookup(PresenceEndpointLookupObservation) {
+	panic("test observer panic")
+}
+
+func (o *recordingPresenceEndpointLookupObserver) ObservePresenceEndpointLookup(event PresenceEndpointLookupObservation) {
+	o.mu.Lock()
+	o.events = append(o.events, event)
+	o.mu.Unlock()
+}
+
+func (o *recordingPresenceEndpointLookupObserver) Events() []PresenceEndpointLookupObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]PresenceEndpointLookupObservation(nil), o.events...)
 }
 
 func (f *fakeTargetBatchPresenceAuthority) EndpointsByTargets(_ context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {

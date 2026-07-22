@@ -57,6 +57,20 @@ allocations since process start. Other caller-selected sample types are rejected
 - `delivery_recipient_worker_process_cumulative`
 - `delivery_recipient_worker_process_p99`
 - `delivery_recipient_worker_process_recipients_cumulative`
+- `delivery_recipient_authority_resolve_rate`
+- `delivery_recipient_authority_resolve_items_rate`
+- `delivery_recipient_authority_resolve_targets_rate`
+- `delivery_recipient_authority_resolve_p99`
+- `presence_endpoint_lookup_rate`
+- `presence_endpoint_lookup_items_rate`
+- `presence_endpoint_lookup_groups_rate`
+- `presence_endpoint_lookup_p99`
+- `delivery_ack_batch_cumulative`
+- `delivery_ack_batch_items_cumulative`
+- `delivery_ack_batch_shards_cumulative`
+- `delivery_ack_batch_rejected_cumulative`
+- `delivery_ack_batch_rollback_cumulative`
+- `delivery_ack_batch_p99`
 - `channelappend_post_commit_handoff_depth`
 - `channelappend_post_commit_handoff_capacity`
 - `channelappend_post_commit_retry_queue_depth`
@@ -127,6 +141,37 @@ and durable post-commit items; depth alone cannot identify which phase is
 pressured. Saturation can reject a not-yet-appended item with `ErrChannelBusy`.
 Retry depth counts waiting channel writers and excludes the selected retry-turn
 owner; retry depth can be zero while contended remains one.
+
+Recipient-authority resolution queries preserve `instance`, `node_name`, and
+the bounded `result` values `ok`, `partial`, `route_not_ready`, `canceled`,
+`deadline`, `error`, or `unknown`. Call, UID-item, and distinct successful
+physical-target rates have different units. Their P99 is the complete aligned
+batch-resolution latency in seconds. Target rate is not a Slot count and must
+not be used to infer individual physical or logical Slot identity.
+
+Presence endpoint lookup queries preserve `instance`, `node_name`, bounded
+`path` (`local_bulk`, `remote_bulk`, `legacy_fallback`, or `unknown` when path
+selection itself panics), bounded `outcome`,
+and boolean `stale_retry`. One observation is one leader execution stage, so
+one recipient batch can create multiple path calls and stale retries repeat
+the retried items/groups. Items and groups are therefore attempted work, not
+unique recipients or successful deliveries. Compare the per-path rates and
+P99 over the exact phase before attributing recipient pressure to local lookup,
+remote RPC, or compatibility fallback.
+
+ACK batch cumulative queries preserve `instance`, `node_name`, bounded `phase`
+(`bind` or `finish`), and bounded `outcome` (`ok`, `partial`, `rejected`,
+`rolled_back`, `miss`, or `unknown`). Compute first/last counter deltas over the
+same bounded phase. `items` is observed in both phases and is the aligned input
+batch size, so do not sum bind and finish item deltas as unique deliveries.
+`shards` counts tracker shards touched by that stage; `rejected` is repeated on
+the corresponding finish observation. `rollback` applies to finish and counts
+actual canceled reservations, so duplicate delivery attempts can produce more
+rollbacks than aligned input items. The
+histogram P99 is stage latency in seconds. These metric families are updated
+separately, so exact cross-series equations require quiescent bracketing
+samples; absent series, resets, or active endpoints remain unknown rather than
+zero.
 
 Storage and Slot drilldown queries preserve `instance` and `node_name` while
 aggregating away individual Slot IDs. Preferred-leader queries additionally

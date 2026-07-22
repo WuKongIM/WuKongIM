@@ -11,6 +11,7 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
+	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 )
 
 func TestLocalOwnerPusherBatchesAckObservationAndCleansOnlyFailedWrites(t *testing.T) {
@@ -25,8 +26,9 @@ func TestLocalOwnerPusherBatchesAckObservationAndCleansOnlyFailedWrites(t *testi
 	}
 	observer := &localOwnerPusherAckObserver{}
 	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-		Acks:        runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{ShardCount: 4}),
-		AckObserver: observer,
+		Acks:             runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{ShardCount: 4}),
+		AckObserver:      observer,
+		AckBatchObserver: observer,
 	})
 	pusher := &localOwnerPusher{online: registry, delivery: manager}
 
@@ -52,6 +54,14 @@ func TestLocalOwnerPusherBatchesAckObservationAndCleansOnlyFailedWrites(t *testi
 	}
 	if got := observer.ActionCount(runtimedelivery.DeliveryAckActionRollback); got != 1 {
 		t.Fatalf("rollback observations = %d, want one failed-write token cleanup", got)
+	}
+	batchEvents := observer.BatchEvents()
+	if len(batchEvents) != 2 {
+		t.Fatalf("batch events = %#v, want bind and finish", batchEvents)
+	}
+	finish := batchEvents[1]
+	if finish.Phase != runtimedelivery.DeliveryAckBatchPhaseFinish || finish.Rollback != 1 || finish.Outcome != runtimedelivery.DeliveryAckBatchOutcomePartial {
+		t.Fatalf("finish batch event = %#v, want one actual rollback and partial outcome", finish)
 	}
 }
 
@@ -210,7 +220,10 @@ func TestLocalOwnerPusherBatchRebindsDuplicateAckKeyAfterEarlierWriteFailure(t *
 
 func TestLocalOwnerPusherBatchDuplicateFailuresRollbackEveryReservation(t *testing.T) {
 	registry := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})
+	observer := &localOwnerPusherAckObserver{}
+	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+		AckBatchObserver: observer,
+	})
 	session := &ackBatchSequenceSession{writeErrs: []error{
 		errors.New("temporary first duplicate failure"),
 		errors.New("temporary second duplicate failure"),
@@ -231,6 +244,14 @@ func TestLocalOwnerPusherBatchDuplicateFailuresRollbackEveryReservation(t *testi
 	}
 	if got := manager.PendingAckCount(); got != 0 {
 		t.Fatalf("PendingAckCount() = %d, want every failed duplicate reservation rolled back", got)
+	}
+	batchEvents := observer.BatchEvents()
+	if len(batchEvents) != 2 {
+		t.Fatalf("batch events = %#v, want bind and finish", batchEvents)
+	}
+	finish := batchEvents[1]
+	if finish.Phase != runtimedelivery.DeliveryAckBatchPhaseFinish || finish.Rollback != 3 || finish.Outcome != runtimedelivery.DeliveryAckBatchOutcomeRolledBack {
+		t.Fatalf("finish batch event = %#v, want all three actual cancellations including the duplicate rebind", finish)
 	}
 }
 
@@ -619,6 +640,25 @@ func BenchmarkLocalOwnerPusherAckBinding55Routes(b *testing.B) {
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
 			Acks:        runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{ShardCount: 32}),
 			AckObserver: &ackBatchBenchmarkObserver{},
+		})
+		pusher := &localOwnerPusher{online: registry, delivery: manager}
+		if _, err := pusher.Push(context.Background(), cmd); err != nil {
+			b.Fatalf("warm Push() error = %v", err)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			result, err := pusher.Push(context.Background(), cmd)
+			if err != nil || len(result.Accepted) != len(cmd.Routes) {
+				b.Fatalf("Push() result = %#v error = %v", result, err)
+			}
+		}
+	})
+	b.Run("batch_bind_metrics_enabled", func(b *testing.B) {
+		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+			Acks:             runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{ShardCount: 32}),
+			AckObserver:      &ackBatchBenchmarkObserver{},
+			AckBatchObserver: deliveryMetricsObserver{metrics: obsmetrics.New(1, "benchmark")},
 		})
 		pusher := &localOwnerPusher{online: registry, delivery: manager}
 		if _, err := pusher.Push(context.Background(), cmd); err != nil {

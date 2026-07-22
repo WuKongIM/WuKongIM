@@ -69,7 +69,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 
 type metricsQueryRangeInput struct {
 	RunID       string `json:"run_id" jsonschema:"exact Simulation Run identity"`
-	QueryID     string `json:"query_id" jsonschema:"server allowlisted metric query identifier"`
+	QueryID     string `json:"query_id" jsonschema:"server allowlisted metric query identifier; recipient pipeline includes delivery_recipient_authority_resolve_rate, presence_endpoint_lookup_rate, delivery_ack_batch_cumulative, and their bounded item, target, group, shard, rejected, rollback, and P99 companions"`
 	Start       string `json:"start" jsonschema:"inclusive RFC3339 start time"`
 	End         string `json:"end" jsonschema:"inclusive RFC3339 end time"`
 	StepSeconds int    `json:"step_seconds" jsonschema:"sample resolution in seconds"`
@@ -131,7 +131,7 @@ func registerTools(server *mcp.Server, service *analysis.Service) {
 			typed, err := typedObservation[analysis.WorkloadInspection](output)
 			return nil, typed, err
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "metrics_query_range", Description: "Query one server-allowlisted Prometheus signal over a bounded time range.", Annotations: readOnly},
+	mcp.AddTool(server, &mcp.Tool{Name: "metrics_query_range", Description: "Query one server-allowlisted low-cardinality Prometheus signal over a bounded time range.", Annotations: readOnly},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input metricsQueryRangeInput) (*mcp.CallToolResult, analysis.Observation, error) {
 			start, startErr := time.Parse(time.RFC3339, input.Start)
 			end, endErr := time.Parse(time.RFC3339, input.End)

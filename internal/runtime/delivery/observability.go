@@ -40,6 +40,22 @@ const (
 	// DeliveryAckResultNoop reports that a cleanup mutation had no matching state to remove.
 	DeliveryAckResultNoop = "noop"
 
+	// DeliveryAckBatchPhaseBind reports one item-aligned tracker batch reservation stage.
+	DeliveryAckBatchPhaseBind = "bind"
+	// DeliveryAckBatchPhaseFinish reports one shard-grouped successful-write finish stage.
+	DeliveryAckBatchPhaseFinish = "finish"
+
+	// DeliveryAckBatchOutcomeOK reports a complete batch stage without rejected or rolled-back items.
+	DeliveryAckBatchOutcomeOK = "ok"
+	// DeliveryAckBatchOutcomePartial reports a batch stage with both successful and unsuccessful items.
+	DeliveryAckBatchOutcomePartial = "partial"
+	// DeliveryAckBatchOutcomeRejected reports a bind stage where every item was rejected.
+	DeliveryAckBatchOutcomeRejected = "rejected"
+	// DeliveryAckBatchOutcomeRolledBack reports a finish stage with no successful item and at least one rollback.
+	DeliveryAckBatchOutcomeRolledBack = "rolled_back"
+	// DeliveryAckBatchOutcomeMiss reports a finish stage whose selected tokens were already consumed.
+	DeliveryAckBatchOutcomeMiss = "miss"
+
 	// DeliveryErrorClassNone reports that no error was present.
 	DeliveryErrorClassNone = "none"
 	// DeliveryErrorClassRetryable reports a retryable fanout or push error.
@@ -86,6 +102,11 @@ type AckObserver interface {
 	ObserveAck(AckEvent)
 }
 
+// AckBatchObserver receives aggregate owner-local batch bind and finish stages.
+type AckBatchObserver interface {
+	ObserveAckBatch(AckBatchEvent)
+}
+
 // AckEvent describes one owner-local pending recvack mutation.
 type AckEvent struct {
 	// Action is bind, rollback, ack, session_closed, or expire.
@@ -96,6 +117,24 @@ type AckEvent struct {
 	Changed int
 	// PendingCount is the owner-local pending ack count after the mutation.
 	PendingCount int
+}
+
+// AckBatchEvent describes one owner-local pending recvack batch stage.
+type AckBatchEvent struct {
+	// Phase is bind or finish.
+	Phase string
+	// Outcome is ok, partial, rejected, rolled_back, or miss.
+	Outcome string
+	// Items is the aligned batch item count.
+	Items int
+	// Shards is the number of tracker shards touched by this stage.
+	Shards int
+	// Rejected is the number of items that did not receive a bind token.
+	Rejected int
+	// Rollback is the number of bound reservations actually canceled by the caller.
+	Rollback int
+	// Duration is the complete tracker batch stage latency.
+	Duration time.Duration
 }
 
 // ManagerAdmissionEvent describes one manager admission decision.

@@ -853,6 +853,12 @@ in the asynchronous delivery queue, the adapter batch-resolves current targets
 for only that group's UIDs and retries it once. Successful sibling groups are
 not issued again. The retry remains aligned to the original group and rejects
 an inconsistent refresh whose UIDs no longer share one exact target.
+An optional observer emits exactly once for each leader execution stage, after
+the aligned results are final. It uses only the fixed paths `local_bulk`,
+`remote_bulk`, and `legacy_fallback`, bounded outcomes, and a boolean stale
+retry label; item count, exact-target group count, and duration are numeric.
+The observer is outside UID and target loops, and never labels UIDs, node IDs,
+hash slots, route revisions, or authority epochs.
 
 For the individual register, unregister, endpoint, commit, and abort paths, if
 route resolution reports route-not-ready, stale routing, or not-leader, the

@@ -41,6 +41,7 @@ type PresenceAuthorityClient struct {
 
 	routeRetryBackoff time.Duration
 	routeRetrySleep   func(context.Context, time.Duration) error
+	endpointObserver  PresenceEndpointLookupObserver
 }
 
 const (
@@ -51,6 +52,56 @@ const (
 )
 
 var errPresenceEndpointLookupPanic = errors.New("internal/infra/cluster: presence endpoint lookup panicked")
+
+const (
+	// PresenceEndpointLookupPathLocalBulk identifies one local target-group batch call.
+	PresenceEndpointLookupPathLocalBulk = "local_bulk"
+	// PresenceEndpointLookupPathRemoteBulk identifies one remote leader envelope call.
+	PresenceEndpointLookupPathRemoteBulk = "remote_bulk"
+	// PresenceEndpointLookupPathLegacyFallback identifies local authorities without the target-group batch contract.
+	PresenceEndpointLookupPathLegacyFallback = "legacy_fallback"
+
+	// PresenceEndpointLookupOutcomeOK reports that every target group succeeded.
+	PresenceEndpointLookupOutcomeOK = "ok"
+	// PresenceEndpointLookupOutcomePartial reports mixed successful and failed target groups.
+	PresenceEndpointLookupOutcomePartial = "partial"
+	// PresenceEndpointLookupOutcomeRouteNotReady reports only route-not-ready failures.
+	PresenceEndpointLookupOutcomeRouteNotReady = "route_not_ready"
+	// PresenceEndpointLookupOutcomeStaleRoute reports only stale-route failures.
+	PresenceEndpointLookupOutcomeStaleRoute = "stale_route"
+	// PresenceEndpointLookupOutcomeNotLeader reports only not-leader failures.
+	PresenceEndpointLookupOutcomeNotLeader = "not_leader"
+	// PresenceEndpointLookupOutcomeCanceled reports only canceled failures.
+	PresenceEndpointLookupOutcomeCanceled = "canceled"
+	// PresenceEndpointLookupOutcomeDeadline reports only deadline failures.
+	PresenceEndpointLookupOutcomeDeadline = "deadline"
+	// PresenceEndpointLookupOutcomePanic reports a recovered leader execution panic.
+	PresenceEndpointLookupOutcomePanic = "panic"
+	// PresenceEndpointLookupOutcomeError reports an unclassified or mixed all-error result.
+	PresenceEndpointLookupOutcomeError = "error"
+)
+
+// PresenceEndpointLookupObservation describes one exact-target leader execution stage.
+type PresenceEndpointLookupObservation struct {
+	// Path is local_bulk, remote_bulk, or legacy_fallback; it is empty only when
+	// selecting the path itself panicked and the stage was contained.
+	Path string
+	// Outcome is a bounded aggregate result for the leader batch.
+	Outcome string
+	// StaleRetry reports whether this stage followed a stale target refresh.
+	StaleRetry bool
+	// Items is the number of non-empty UIDs handled by the stage.
+	Items int
+	// Groups is the number of exact target groups handled by the stage.
+	Groups int
+	// Duration is the complete leader execution latency.
+	Duration time.Duration
+}
+
+// PresenceEndpointLookupObserver receives one aggregate event per leader execution stage.
+type PresenceEndpointLookupObserver interface {
+	ObservePresenceEndpointLookup(PresenceEndpointLookupObservation)
+}
 
 type pendingRouteRef struct {
 	uid      string
@@ -75,6 +126,15 @@ func (c *PresenceAuthorityClient) SetLocalOwner(owner accessnode.PresenceOwner) 
 		return
 	}
 	c.localOwner = owner
+}
+
+// SetEndpointLookupObserver installs the aggregate exact-target lookup observer.
+// It must be called before concurrent endpoint lookups begin.
+func (c *PresenceAuthorityClient) SetEndpointLookupObserver(observer PresenceEndpointLookupObserver) {
+	if c == nil {
+		return
+	}
+	c.endpointObserver = observer
 }
 
 // ResolveRouteTarget returns the current authority target for uid.
@@ -249,11 +309,11 @@ func (c *PresenceAuthorityClient) EndpointsByUIDs(ctx context.Context, uids []st
 
 // EndpointsByTargets reads aligned endpoint groups through their exact observed targets.
 func (c *PresenceAuthorityClient) EndpointsByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
-	results := c.endpointsByTargetsOnce(ctx, groups)
+	results := c.endpointsByTargetsOnce(ctx, groups, false)
 	return c.retryStaleEndpointLookupGroups(ctx, groups, results)
 }
 
-func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, groups []presence.EndpointLookupGroup, staleRetry bool) []presence.EndpointLookupResult {
 	results := make([]presence.EndpointLookupResult, len(groups))
 	if len(groups) == 0 {
 		return results
@@ -268,6 +328,7 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 	type leaderBatch struct {
 		indexes []int
 		groups  []presence.EndpointLookupGroup
+		items   int
 	}
 	byLeader := make(map[uint64]*leaderBatch)
 	leaderOrder := make([]uint64, 0)
@@ -287,20 +348,45 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 		}
 		batch.indexes = append(batch.indexes, i)
 		batch.groups = append(batch.groups, group)
+		batch.items += countNonEmptyPresenceUIDs(group.UIDs)
 	}
 
 	processLeader := func(leaderNodeID uint64) {
 		batch := byLeader[leaderNodeID]
+		path := ""
+		observer := c.endpointObserver
+		var started time.Time
+		if observer != nil {
+			started = time.Now()
+		}
 		defer func() {
 			if recover() != nil {
 				fillPresenceEndpointLookupErrors(results, batch.indexes, errPresenceEndpointLookupPanic)
 			}
+			if observer != nil {
+				observePresenceEndpointLookupSafely(observer, PresenceEndpointLookupObservation{
+					Path:       path,
+					Outcome:    presenceEndpointLookupOutcome(results, batch.indexes),
+					StaleRetry: staleRetry,
+					Items:      batch.items,
+					Groups:     len(batch.groups),
+					Duration:   time.Since(started),
+				})
+			}
 		}()
+		localNodeID := c.node.NodeID()
+		path = PresenceEndpointLookupPathRemoteBulk
+		if leaderNodeID == localNodeID {
+			path = PresenceEndpointLookupPathLegacyFallback
+			if _, ok := c.local.(accessnode.PresenceTargetBatchAuthority); ok {
+				path = PresenceEndpointLookupPathLocalBulk
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
 			return
 		}
-		if leaderNodeID == c.node.NodeID() {
+		if leaderNodeID == localNodeID {
 			if targetBatch, ok := c.local.(accessnode.PresenceTargetBatchAuthority); ok {
 				localResults := targetBatch.EndpointsByTargets(ctx, batch.groups)
 				if len(localResults) != len(batch.indexes) {
@@ -338,6 +424,16 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 	}
 	runBoundedPresenceLeaderBatches(leaderOrder, defaultPresenceEndpointLeaderConcurrency, processLeader)
 	return results
+}
+
+func observePresenceEndpointLookupSafely(observer PresenceEndpointLookupObserver, event PresenceEndpointLookupObservation) {
+	if observer == nil {
+		return
+	}
+	defer func() {
+		_ = recover()
+	}()
+	observer.ObservePresenceEndpointLookup(event)
 }
 
 func runBoundedPresenceLeaderBatches(leaders []uint64, concurrency int, run func(uint64)) {
@@ -428,7 +524,7 @@ func (c *PresenceAuthorityClient) retryStaleEndpointLookupGroups(
 		return results
 	}
 
-	retried := c.endpointsByTargetsOnce(ctx, refreshedGroups)
+	retried := c.endpointsByTargetsOnce(ctx, refreshedGroups, true)
 	for i, resultIndex := range refreshedIndexes {
 		if i >= len(retried) {
 			results[resultIndex] = presence.EndpointLookupResult{Err: fmt.Errorf("%w: retried endpoint result count is not aligned", authoritypresence.ErrRouteNotReady)}
@@ -447,6 +543,69 @@ func nonEmptyPresenceUIDs(uids []string) []string {
 		}
 	}
 	return out
+}
+
+func countNonEmptyPresenceUIDs(uids []string) int {
+	count := 0
+	for _, uid := range uids {
+		if uid != "" {
+			count++
+		}
+	}
+	return count
+}
+
+func presenceEndpointLookupOutcome(results []presence.EndpointLookupResult, indexes []int) string {
+	succeeded := 0
+	failed := 0
+	commonFailure := ""
+	for _, index := range indexes {
+		if index < 0 || index >= len(results) {
+			failed++
+			commonFailure = PresenceEndpointLookupOutcomeError
+			continue
+		}
+		if results[index].Err == nil {
+			succeeded++
+			continue
+		}
+		failed++
+		outcome := presenceEndpointLookupErrorOutcome(results[index].Err)
+		if commonFailure == "" {
+			commonFailure = outcome
+		} else if commonFailure != outcome {
+			commonFailure = PresenceEndpointLookupOutcomeError
+		}
+	}
+	if failed == 0 {
+		return PresenceEndpointLookupOutcomeOK
+	}
+	if succeeded > 0 {
+		return PresenceEndpointLookupOutcomePartial
+	}
+	if commonFailure == "" {
+		return PresenceEndpointLookupOutcomeError
+	}
+	return commonFailure
+}
+
+func presenceEndpointLookupErrorOutcome(err error) string {
+	switch {
+	case errors.Is(err, errPresenceEndpointLookupPanic):
+		return PresenceEndpointLookupOutcomePanic
+	case errors.Is(err, context.Canceled):
+		return PresenceEndpointLookupOutcomeCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return PresenceEndpointLookupOutcomeDeadline
+	case errors.Is(err, authoritypresence.ErrRouteNotReady):
+		return PresenceEndpointLookupOutcomeRouteNotReady
+	case errors.Is(err, authoritypresence.ErrStaleRoute):
+		return PresenceEndpointLookupOutcomeStaleRoute
+	case errors.Is(err, authoritypresence.ErrNotLeader):
+		return PresenceEndpointLookupOutcomeNotLeader
+	default:
+		return PresenceEndpointLookupOutcomeError
+	}
 }
 
 func onePresenceRouteTarget(results []presence.RouteTargetResult) (presence.RouteTarget, error) {
