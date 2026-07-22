@@ -33,6 +33,17 @@ so only one node is perturbed at a time. Profiles select only `cpu`, `heap`, or
 `goroutine`; CPU capture is limited to 30 seconds per call and 60 seconds per
 Analysis Session.
 
+The recipient pipeline query contract also exposes the three aggregate stages
+that precede or follow the recipient worker. Recipient-authority resolution
+rates retain only `instance`, `node_name`, and bounded `result`; exact-target
+presence lookup rates retain those node dimensions plus bounded `path`,
+`outcome`, and `stale_retry`; ACK batch cumulative counters and P99 retain only
+the node dimensions plus bounded `phase` and `outcome`. Counter queries
+aggregate away the metric's internal `node_id`, and no query exposes a UID,
+authority target, route, physical hash slot, logical Slot, session, or message
+identifier. ACK cumulative values are intended for bounded endpoint deltas;
+the duration queries use a fixed one-minute histogram window.
+
 `workload_inspect` returns the bounded diagnostic summary contract rather than
 raw worker reports. It includes actual ingress QPS and successful send count.
 Its actual phase windows and structured worker failures let

@@ -637,6 +637,85 @@ func TestWukongIMThreeNodeBenchScriptKeepsRunPprofPerQPSAttempt(t *testing.T) {
 	}
 }
 
+func TestFakeThreeNodeStatusSnapshotCannotAcknowledgeAnotherRun(t *testing.T) {
+	callsDir := t.TempDir()
+	curlPath := filepath.Join(t.TempDir(), "curl")
+	writeFakeThreeNode1000Curl(t, curlPath, callsDir)
+
+	const firstRunID = "three-node-fixed-1ch-000001-qps"
+	const secondRunID = "three-node-fixed-1ch-000002-qps"
+	statePath := filepath.Join(callsDir, "wkbench.state")
+	publishFakeState := func(runID, phase string) {
+		t.Helper()
+		tmp := statePath + ".tmp"
+		if err := os.WriteFile(tmp, []byte(runID+"\t"+phase+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(tmp, statePath); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publishFakeState(firstRunID, "done")
+	if err := os.WriteFile(filepath.Join(callsDir, "profile."+firstRunID+".finished"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	readyFile := filepath.Join(callsDir, "delayed-status.ready")
+	releaseFile := filepath.Join(callsDir, "delayed-status.release")
+	cmd := exec.Command(curlPath, "-fsS", "http://127.0.0.1:19130/v1/status")
+	cmd.Env = append(os.Environ(),
+		"WK_FAKE_STATUS_DELAY_RUN_ID="+firstRunID,
+		"WK_FAKE_STATUS_DELAY_PHASE=done",
+		"WK_FAKE_STATUS_DELAY_READY_FILE="+readyFile,
+		"WK_FAKE_STATUS_DELAY_RELEASE_FILE="+releaseFile,
+	)
+	var output strings.Builder
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(readyFile); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		if time.Now().After(deadline) {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			t.Fatalf("fake status did not expose its delayed first-run snapshot: %s", output.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	publishFakeState(secondRunID, "run")
+	if err := os.WriteFile(filepath.Join(callsDir, "profile."+secondRunID+".finished"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(releaseFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("delayed fake status failed: %v\n%s", err, output.String())
+	}
+
+	if !strings.Contains(output.String(), `"run_id":"`+firstRunID+`"`) {
+		t.Fatalf("status should return its atomic first-run snapshot:\n%s", output.String())
+	}
+	if _, err := os.Stat(filepath.Join(callsDir, "profile."+firstRunID+".end_checked")); err != nil {
+		t.Fatalf("first-run status should acknowledge only its own profile: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(callsDir, "profile."+secondRunID+".end_checked")); !os.IsNotExist(err) {
+		t.Fatalf("delayed first-run status must not acknowledge the second run: %v", err)
+	}
+}
+
 func TestWukongIMBenchDefaultEvidenceAssertionsUsePrimaryChannelSummary(t *testing.T) {
 	root := repoRoot(t)
 	source := readFile(t, filepath.Join(root, "scripts", "wukongim_three_node_bench_script_test.go"))
@@ -3244,24 +3323,29 @@ if [[ "${1:-}" == "run" ]]; then
     echo "missing report_dir in scenario" >&2
     exit 2
   fi
-	if [[ "${WK_FAKE_WKBENCH_PHASED_RUN:-0}" == "1" ]]; then
-		rm -f "` + callsDir + `/profile.finished" "` + callsDir + `/profile.end_checked"
-		printf 'prepare\n' > "` + callsDir + `/wkbench.phase"
-	fi
   run_id="$(awk '$1 == "id:" { print $2; exit }' "$scenario")"
-  printf '%s\n' "$run_id" > "` + callsDir + `/wkbench.run_id"
 	mkdir -p "$report_dir"
 	if [[ "${WK_FAKE_WKBENCH_PHASED_RUN:-0}" == "1" ]]; then
-		printf 'run\n' > "` + callsDir + `/wkbench.phase"
+		state_file="` + callsDir + `/wkbench.state"
+		publish_state() {
+			local tmp="${state_file}.tmp.$$.$RANDOM"
+			printf '%s\t%s\n' "$run_id" "$1" > "$tmp"
+			mv -f "$tmp" "$state_file"
+		}
+		profile_finished="` + callsDir + `/profile.${run_id}.finished"
+		profile_end_checked="` + callsDir + `/profile.${run_id}.end_checked"
+		rm -f "$profile_finished" "$profile_end_checked"
+		publish_state prepare
+		publish_state run
 		for ((attempt = 0; attempt < 300; attempt++)); do
-			[[ -f "` + callsDir + `/profile.end_checked" ]] && break
+			[[ -f "$profile_end_checked" ]] && break
 			sleep 0.01
 		done
-		if [[ ! -f "` + callsDir + `/profile.end_checked" ]]; then
+		if [[ ! -f "$profile_end_checked" ]]; then
 			echo 'timed out waiting for profile end-status handshake' >&2
 			exit 2
 		fi
-		printf 'done\n' > "` + callsDir + `/wkbench.phase"
+		publish_state done
 	fi
   if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
     sleep "$WK_FAKE_WKBENCH_RUN_SLEEP"
@@ -3355,6 +3439,26 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 echo "$*" >> "` + callsDir + `/curl.calls"
 url="${@: -1}"
+state_file="` + callsDir + `/wkbench.state"
+read_fake_state() {
+	run_id="three-node-fixed-1ch-000001-qps"
+	state="prepare"
+	if [[ -f "$state_file" ]]; then
+		local snapshot_run_id="" snapshot_phase=""
+		IFS=$'\t' read -r snapshot_run_id snapshot_phase < "$state_file" || true
+		if [[ -n "$snapshot_run_id" && -n "$snapshot_phase" ]]; then
+			run_id="$snapshot_run_id"
+			state="$snapshot_phase"
+		fi
+	fi
+}
+publish_fake_state() {
+	local state_run_id="$1"
+	local state_phase="$2"
+	local tmp="${state_file}.tmp.$$.$RANDOM"
+	printf '%s\t%s\n' "$state_run_id" "$state_phase" > "$tmp"
+	mv -f "$tmp" "$state_file"
+}
 case "$url" in
 	  http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz)
 	    echo 'ok'
@@ -3364,20 +3468,20 @@ case "$url" in
 	      echo 'missing exact assignment_id' >&2
 	      exit 22
 	    fi
-	    run_id="three-node-fixed-1ch-000001-qps"
-	    if [[ -f "` + callsDir + `/wkbench.run_id" ]]; then
-	      run_id="$(cat "` + callsDir + `/wkbench.run_id")"
-	    fi
+	    read_fake_state
 	    printf '{"phase":"stopped","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
 	    ;;
 		http://127.0.0.1:19130/v1/status)
-		state="prepare"
-		run_id="three-node-fixed-1ch-000001-qps"
-		if [[ -f "` + callsDir + `/wkbench.phase" ]]; then
-			state="$(cat "` + callsDir + `/wkbench.phase")"
-		fi
-		if [[ -f "` + callsDir + `/wkbench.run_id" ]]; then
-			run_id="$(cat "` + callsDir + `/wkbench.run_id")"
+		read_fake_state
+		if [[ -n "${WK_FAKE_STATUS_DELAY_RUN_ID:-}" && "$run_id" == "$WK_FAKE_STATUS_DELAY_RUN_ID" && "$state" == "${WK_FAKE_STATUS_DELAY_PHASE:-}" ]]; then
+			: "${WK_FAKE_STATUS_DELAY_READY_FILE:?missing delayed status ready file}"
+			: "${WK_FAKE_STATUS_DELAY_RELEASE_FILE:?missing delayed status release file}"
+			touch "$WK_FAKE_STATUS_DELAY_READY_FILE"
+			for ((attempt = 0; attempt < 200; attempt++)); do
+				[[ -f "$WK_FAKE_STATUS_DELAY_RELEASE_FILE" ]] && break
+				sleep 0.01
+			done
+			[[ -f "$WK_FAKE_STATUS_DELAY_RELEASE_FILE" ]] || exit 28
 		fi
 			case "$state" in
 				run)
@@ -3393,8 +3497,8 @@ case "$url" in
 					printf '{"phase":"prepare","active_phase":"prepare","last_error":"","assignment":{"run_id":"%s","assignment_id":"fake-assignment","worker_id":"w1"}}\n' "$run_id"
 				;;
 		esac
-		if [[ -f "` + callsDir + `/profile.finished" ]]; then
-			touch "` + callsDir + `/profile.end_checked"
+		if [[ -f "` + callsDir + `/profile.${run_id}.finished" ]]; then
+			touch "` + callsDir + `/profile.${run_id}.end_checked"
 		fi
 		;;
 	  http://127.0.0.1:501*/metrics)
@@ -3497,11 +3601,8 @@ OUT
     echo 'heap profile'
     ;;
 	http://127.0.0.1:501*/debug/pprof/profile?seconds=*)
+		read_fake_state
 		if [[ "$*" == *"X-WK-Bench-Evidence: pprof-run"* ]]; then
-			state=""
-			if [[ -f "` + callsDir + `/wkbench.phase" ]]; then
-				state="$(cat "` + callsDir + `/wkbench.phase")"
-			fi
 			if [[ "$state" != "run" ]]; then
 				if [[ -n "${WK_FAKE_PROFILE_VIOLATION_FILE:-}" ]]; then
 					touch "$WK_FAKE_PROFILE_VIOLATION_FILE"
@@ -3509,11 +3610,11 @@ OUT
 				exit 22
 			fi
 			if [[ "${WK_FAKE_PROFILE_TRANSITION_TO_COOLDOWN:-0}" == "1" ]]; then
-				printf 'cooldown\n' > "` + callsDir + `/wkbench.phase"
+				publish_fake_state "$run_id" cooldown
 			fi
 		fi
 		echo 'cpu profile'
-		touch "` + callsDir + `/profile.finished"
+		touch "` + callsDir + `/profile.${run_id}.finished"
 		;;
   *)
     echo "unexpected curl url: $url" >&2

@@ -1801,6 +1801,10 @@ func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 	reg.Delivery.SetRecipientWorkerPressure(2, 4)
 	reg.Delivery.ObserveRecipientWorkerAdmission("accepted", 2*time.Millisecond)
 	reg.Delivery.ObserveRecipientWorkerProcess("ok", 4, 5*time.Millisecond)
+	reg.Delivery.ObserveRecipientAuthorityResolve("partial", 3, 2, 6*time.Millisecond)
+	reg.Delivery.ObserveRecipientAuthorityResolve("raw uid result", -1, -1, -time.Second)
+	reg.Delivery.ObserveAckBatch("bind", "partial", 4, 2, 2, 0, 7*time.Millisecond)
+	reg.Delivery.ObserveAckBatch("raw phase", "raw outcome", -1, -1, -1, -1, -time.Second)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -1851,6 +1855,69 @@ func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 		"node_name": "n1",
 		"result":    "ok",
 	}).GetHistogram().GetSampleSum())
+
+	authorityTotal := requireMetricFamily(t, families, "wukongim_delivery_recipient_authority_resolve_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, authorityTotal, map[string]string{
+		"node_id": "1", "node_name": "n1", "result": "partial",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, authorityTotal, map[string]string{
+		"node_id": "1", "node_name": "n1", "result": "unknown",
+	}).GetCounter().GetValue())
+	authorityItems := requireMetricFamily(t, families, "wukongim_delivery_recipient_authority_resolve_items_total")
+	require.Equal(t, float64(3), findMetricByLabels(t, authorityItems, map[string]string{
+		"node_id": "1", "node_name": "n1", "result": "partial",
+	}).GetCounter().GetValue())
+	authorityTargets := requireMetricFamily(t, families, "wukongim_delivery_recipient_authority_resolve_targets_total")
+	require.Equal(t, float64(2), findMetricByLabels(t, authorityTargets, map[string]string{
+		"node_id": "1", "node_name": "n1", "result": "partial",
+	}).GetCounter().GetValue())
+	authorityDuration := requireMetricFamily(t, families, "wukongim_delivery_recipient_authority_resolve_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, authorityDuration, map[string]string{
+		"node_id": "1", "node_name": "n1", "result": "unknown",
+	}).GetHistogram().GetSampleCount())
+	require.Zero(t, findMetricByLabels(t, authorityDuration, map[string]string{
+		"node_id": "1", "node_name": "n1", "result": "unknown",
+	}).GetHistogram().GetSampleSum())
+
+	ackBatchTotal := requireMetricFamily(t, families, "wukongim_delivery_ack_batch_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, ackBatchTotal, map[string]string{
+		"node_id": "1", "node_name": "n1", "phase": "bind", "outcome": "partial",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, ackBatchTotal, map[string]string{
+		"node_id": "1", "node_name": "n1", "phase": "unknown", "outcome": "unknown",
+	}).GetCounter().GetValue())
+	for name, want := range map[string]float64{
+		"wukongim_delivery_ack_batch_items_total":    4,
+		"wukongim_delivery_ack_batch_shards_total":   2,
+		"wukongim_delivery_ack_batch_rejected_total": 2,
+		"wukongim_delivery_ack_batch_rollback_total": 0,
+	} {
+		family := requireMetricFamily(t, families, name)
+		require.Equal(t, want, findMetricByLabels(t, family, map[string]string{
+			"node_id": "1", "node_name": "n1", "phase": "bind", "outcome": "partial",
+		}).GetCounter().GetValue(), name)
+	}
+	for _, family := range []*dto.MetricFamily{authorityTotal, authorityItems, authorityTargets, authorityDuration, ackBatchTotal} {
+		for _, metric := range family.GetMetric() {
+			requireNoMetricLabel(t, metric, "uid")
+			requireNoMetricLabel(t, metric, "target")
+			requireNoMetricLabel(t, metric, "node")
+		}
+	}
+}
+
+func TestDeliveryBatchObservabilitySteadyStateAllocationBudget(t *testing.T) {
+	reg := New(1, "n1")
+	reg.Delivery.ObserveRecipientAuthorityResolve("ok", 512, 221, time.Millisecond)
+	reg.Delivery.ObserveAckBatch("bind", "ok", 55, 32, 0, 0, time.Millisecond)
+	reg.Delivery.ObserveAckBatch("finish", "partial", 55, 32, 1, 1, time.Millisecond)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		reg.Delivery.ObserveRecipientAuthorityResolve("ok", 512, 221, time.Millisecond)
+		reg.Delivery.ObserveAckBatch("bind", "ok", 55, 32, 0, 0, time.Millisecond)
+		reg.Delivery.ObserveAckBatch("finish", "partial", 55, 32, 1, 1, time.Millisecond)
+	})
+	require.Zero(t, allocs, "steady-state bounded delivery batch metrics must not allocate")
 }
 
 func TestRegistryIncludesDiagnosticsMetrics(t *testing.T) {

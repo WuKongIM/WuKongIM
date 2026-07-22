@@ -307,9 +307,15 @@ cursor different from the previous cursor; otherwise dispatch fails before that
 page's recipients are admitted or dispatched, avoiding partial side effects for
 the invalid page before the envelope is dropped.
 
-After each recipient set is formed, channelappend first resolves the fenced
-recipient authority targets and enqueues bounded recipient delivery plans, then
-admits one independent `conversationactive.ActiveBatch` projection.
+After each recipient set is formed, channelappend resolves one item-aligned
+authority snapshot for the sender plus every unique trimmed recipient. Delivery
+rows retain integer indexes into that snapshot, while the conversation-active
+first attempt reuses the same exact-target groups; neither path rebuilds a
+`map[string]Target` or performs a second route lookup. Group identity includes
+the complete physical hash-slot fence, so the 256 hash slots remain distinct
+even when they map onto only 10 logical Slot Raft Groups. Channelappend then
+enqueues bounded recipient delivery plans and admits one independent
+`conversationactive.ActiveBatch` projection.
 The batch carries an explicit `metadb.ConversationKind`: normal for ordinary
 channel commits, CMD for one-shot sync commits or command-channel ids. It also
 carries `SenderUID` from the committed event, channel identity, message
@@ -319,14 +325,18 @@ from `SenderUID` semantics. Active admission still runs when online
 delivery enqueueing is disabled or no `RecipientDeliveryEnqueuer` is
 configured. If active admission fails, the post-commit failure phase is
 `conversation_active`, while accepted delivery, later large-channel pages, and
-a successfully loaded non-large subscriber snapshot continue independently.
+a successfully loaded non-large subscriber snapshot continue independently. A
+sender-only aligned route failure does not suppress valid recipient delivery;
+active projection falls back to the legacy admission surface so it can obtain a
+fresh compatible route. A recipient item failure keeps delivery all-or-nothing
+for that set and uses the same active compatibility fallback.
 
 Recipient delivery is an enqueue contract. When delivery enqueueing is
 configured, recipients are grouped by the full fenced recipient authority
 target, including Slot leader term and Slot config epoch. UID authority
-resolution is performed once per unique trimmed UID and uses the optional batch
-resolver when available; invalid or missing targets map to route-not-ready
-before enqueueing. The production plan-capable enqueuer packs those exact-target
+resolution is performed once per aligned sender-and-recipient snapshot and uses
+the optional batch resolver when available; invalid or missing recipient targets
+map to route-not-ready before enqueueing. The production plan-capable enqueuer packs those exact-target
 groups into commands whose total recipient count is bounded by the existing
 recipient batch size. This preserves the complete target fence across the queue
 boundary while allowing one subscriber page to be admitted as one plan when it

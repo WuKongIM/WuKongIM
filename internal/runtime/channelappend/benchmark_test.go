@@ -610,6 +610,36 @@ func BenchmarkRecipientDeliveryWorkerEnqueue(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
+func BenchmarkRecipientProcessorCloudMediumPlan(b *testing.B) {
+	plan, resolver := benchmarkCloudMediumRecipientPlan(512, 221, 55)
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver: resolver,
+		OwnerPusher:      benchmarkRecipientPlanPusher{},
+	})
+
+	b.ReportAllocs()
+	b.ReportMetric(float64(plan.RecipientCount()), "recipients/op")
+	b.ReportMetric(float64(len(plan.Targets)), "target-groups/op")
+	b.ReportMetric(55, "online-routes/op")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if errs := processor.ProcessRecipientDeliveryPlan(context.Background(), plan); firstBenchmarkRecipientPlanError(errs) != nil {
+			b.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v", errs)
+		}
+	}
+}
+
+func BenchmarkRecipientOwnerPushScheduling(b *testing.B) {
+	for _, concurrency := range []int{1, 3} {
+		b.Run("concurrency-"+strconv.Itoa(concurrency), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				runBoundedRecipientOwnerPushes(3, concurrency, func(int) {})
+			}
+		})
+	}
+}
+
 func maxBenchmarkInt(a, b int) int {
 	if a > b {
 		return a
@@ -651,6 +681,77 @@ type benchmarkPresenceResolver struct {
 
 func (r benchmarkPresenceResolver) EndpointsByUIDs(context.Context, []string) ([]Route, error) {
 	return r.routes, nil
+}
+
+type benchmarkTargetPresenceResolver struct {
+	results []RecipientTargetPresenceResult
+}
+
+func (r benchmarkTargetPresenceResolver) EndpointsByUIDs(context.Context, []string) ([]Route, error) {
+	return nil, nil
+}
+
+func (r benchmarkTargetPresenceResolver) EndpointsByTargets(context.Context, []RecipientTargetBatch) []RecipientTargetPresenceResult {
+	return r.results
+}
+
+type benchmarkRecipientPlanPusher struct{}
+
+func (benchmarkRecipientPlanPusher) Push(_ context.Context, cmd PushCommand) (PushResult, error) {
+	return PushResult{Accepted: cmd.Routes}, nil
+}
+
+func benchmarkCloudMediumRecipientPlan(recipientCount, targetCount, onlineRouteCount int) (RecipientDeliveryPlan, benchmarkTargetPresenceResolver) {
+	if targetCount <= 0 || targetCount > recipientCount {
+		panic("benchmark target count must be within recipient count")
+	}
+	plan := RecipientDeliveryPlan{
+		Event: CommittedEnvelope{
+			MessageID:   1,
+			MessageSeq:  1,
+			ChannelID:   "bench-cloud-medium",
+			ChannelType: 2,
+			FromUID:     "sender",
+			Payload:     benchmarkPayload,
+		},
+		Targets: make([]RecipientTargetBatch, targetCount),
+	}
+	results := make([]RecipientTargetPresenceResult, targetCount)
+	for targetIndex := 0; targetIndex < targetCount; targetIndex++ {
+		plan.Targets[targetIndex].Target = RecipientAuthorityTarget{
+			HashSlot:       uint16(targetIndex % 256),
+			SlotID:         uint32(targetIndex%10 + 1),
+			LeaderNodeID:   uint64(targetIndex%3 + 1),
+			LeaderTerm:     1,
+			ConfigEpoch:    1,
+			RouteRevision:  1,
+			AuthorityEpoch: 1,
+		}
+	}
+	for recipientIndex := 0; recipientIndex < recipientCount; recipientIndex++ {
+		uid := "cloud-medium-u" + strconv.Itoa(recipientIndex)
+		targetIndex := recipientIndex % targetCount
+		plan.Targets[targetIndex].Recipients = append(plan.Targets[targetIndex].Recipients, Recipient{UID: uid})
+		if recipientIndex < onlineRouteCount {
+			results[targetIndex].Routes = append(results[targetIndex].Routes, Route{
+				UID:         uid,
+				OwnerNodeID: uint64(recipientIndex%3 + 1),
+				OwnerBootID: 1,
+				OwnerSeq:    1,
+				SessionID:   uint64(recipientIndex + 1),
+			})
+		}
+	}
+	return plan, benchmarkTargetPresenceResolver{results: results}
+}
+
+func firstBenchmarkRecipientPlanError(errs []error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type benchmarkOfflineRecipientObserver struct {

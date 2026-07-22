@@ -1,6 +1,10 @@
 package cluster
 
-import "context"
+import (
+	"context"
+
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
+)
 
 // NodeRPCHandler handles one cluster node RPC payload.
 type NodeRPCHandler interface {
@@ -8,47 +12,38 @@ type NodeRPCHandler interface {
 	HandleRPC(context.Context, []byte) ([]byte, error)
 }
 
-// RouteAuthority identifies the current authority for one logical hash slot.
-type RouteAuthority struct {
-	// HashSlot is the logical hash slot covered by this authority.
-	HashSlot uint16
-	// SlotID is the physical Slot that owns HashSlot.
-	SlotID uint32
-	// LeaderNodeID is the best-known Slot leader that currently owns routing authority.
-	LeaderNodeID uint64
-	// LeaderTerm is the Slot Raft term observed for LeaderNodeID.
-	LeaderTerm uint64
-	// ConfigEpoch is the control-plane Slot config epoch.
-	ConfigEpoch uint64
-	// RouteRevision is the control route revision that produced this authority.
-	RouteRevision uint64
-	// AuthorityEpoch is a local observation sequence for diagnostics and compatibility. It is not a distributed fence.
-	AuthorityEpoch uint64
-}
+// RouteAuthority identifies the current authority for one physical hash slot.
+// It aliases the scalar-only routing representation so hot batch lookups can
+// fill the Node-local AuthorityEpoch without copying another result slice.
+type RouteAuthority = routing.AuthorityRoute
+
+// RouteAuthorityResult is the aligned lightweight authority routing outcome
+// for one batch key.
+type RouteAuthorityResult = routing.AuthorityRouteResult
 
 // RouteAuthorityEvent reports route authority changes.
 type RouteAuthorityEvent struct {
-	// Authorities lists changed logical hash-slot authorities.
+	// Authorities lists changed physical hash-slot authorities.
 	Authorities []RouteAuthority
 }
 
 // ProposeRequest submits one Slot metadata command through cluster routing.
 type ProposeRequest struct {
-	// Key is the logical routing key used when Target does not carry an explicit hash slot.
+	// Key is the routing key used when Target does not carry an explicit physical hash slot.
 	Key string
 	// Command is the encoded Slot state machine command payload.
 	Command []byte
-	// Target optionally carries an explicit hash slot and physical Slot target.
+	// Target optionally carries an explicit physical hash slot and logical Slot Raft Group target.
 	Target ProposeTarget
 }
 
-// ProposeTarget identifies an explicit hash slot and optional physical Slot target.
+// ProposeTarget identifies an explicit physical hash slot and optional logical Slot Raft Group target.
 type ProposeTarget struct {
-	// HashSlot is the logical hash slot. It is valid only when HasHashSlot is true.
+	// HashSlot is the physical hash slot. It is valid only when HasHashSlot is true.
 	HashSlot uint16
 	// HasHashSlot distinguishes an explicit hash slot 0 from an omitted hash slot.
 	HasHashSlot bool
-	// SlotID is the physical Slot ID. It is valid only when HasSlotID is true.
+	// SlotID is the logical Slot Raft Group ID. It is valid only when HasSlotID is true.
 	SlotID uint32
 	// HasSlotID indicates whether SlotID was explicitly provided by the caller.
 	HasSlotID bool
@@ -56,9 +51,9 @@ type ProposeTarget struct {
 
 // Route describes the current routing decision for one hash slot.
 type Route struct {
-	// HashSlot is the logical hash slot selected for the request.
+	// HashSlot is the physical hash slot selected for the request.
 	HashSlot uint16
-	// SlotID is the physical Slot that owns HashSlot.
+	// SlotID is the logical Slot Raft Group that owns HashSlot.
 	SlotID uint32
 	// Leader is the best-known Slot Raft leader node ID. Zero means unknown.
 	Leader uint64
@@ -98,9 +93,9 @@ type Snapshot struct {
 	SlotsReady bool
 	// ChannelsReady reports whether the Channel service is available.
 	ChannelsReady bool
-	// SlotCount is the number of physical Slots in the current control view.
+	// SlotCount is the number of logical Slot Raft Groups in the current control view.
 	SlotCount uint32
-	// HashSlotCount is the number of logical hash slots in the current route table.
+	// HashSlotCount is the number of physical hash slots in the current route table.
 	HashSlotCount uint16
 	// LastTaskReconcileError records the latest background task reconcile error for diagnostics.
 	LastTaskReconcileError string

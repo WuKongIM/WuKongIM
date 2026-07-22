@@ -9,6 +9,7 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -16,6 +17,44 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
+
+func TestConversationAuthorityClientPrefersLightweightPartialRoutes(t *testing.T) {
+	legacy := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]cluster.Route{
+			"sender":    {HashSlot: 1, SlotID: 11, Leader: 1, LeaderTerm: 101, ConfigEpoch: 1001, Revision: 100, AuthorityEpoch: 1000},
+			"recipient": {HashSlot: 2, SlotID: 22, Leader: 2, LeaderTerm: 202, ConfigEpoch: 2002, Revision: 200, AuthorityEpoch: 2000},
+		},
+	}
+	node := &lightweightConversationAuthorityNode{fakeConversationAuthorityNode: legacy}
+	client := NewConversationAuthorityClient(node, &fakeConversationAuthorityLocal{})
+
+	groups, failures, err := client.groupActiveBatchesByTargetPartial([]conversationactive.ActiveBatch{{
+		Kind:      metadb.ConversationKindNormal,
+		SenderUID: "sender",
+		Recipients: []conversationactive.ActiveEntry{
+			{UID: "recipient"},
+		},
+	}})
+	if err != nil {
+		t.Fatalf("groupActiveBatchesByTargetPartial() error = %v", err)
+	}
+	if len(failures) != 0 || len(groups) != 2 {
+		t.Fatalf("groups=%#v failures=%#v, want two successful exact targets", groups, failures)
+	}
+	if node.authorityPartialCalls != 1 {
+		t.Fatalf("RouteAuthoritiesPartial() calls = %d, want 1", node.authorityPartialCalls)
+	}
+	if legacy.routeKeysPartialCalls != 0 {
+		t.Fatalf("RouteKeysPartial() calls = %d, want 0", legacy.routeKeysPartialCalls)
+	}
+	if got := groups[0].target; got.HashSlot != 1 || got.SlotID != 11 || got.LeaderNodeID != 1 || got.LeaderTerm != 101 || got.ConfigEpoch != 1001 || got.RouteRevision != 100 || got.AuthorityEpoch != 1000 {
+		t.Fatalf("sender target = %#v, want exact lightweight authority fence", got)
+	}
+	if got := groups[1].target; got.HashSlot != 2 || got.SlotID != 22 || got.LeaderNodeID != 2 || got.LeaderTerm != 202 || got.ConfigEpoch != 2002 || got.RouteRevision != 200 || got.AuthorityEpoch != 2000 {
+		t.Fatalf("recipient target = %#v, want exact lightweight authority fence", got)
+	}
+}
 
 func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
@@ -257,6 +296,287 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithFreshRo
 	}
 	if local.activeBatches[0].target.RouteRevision != 10 || local.activeBatches[1].target.RouteRevision != 11 {
 		t.Fatalf("active batch targets = %#v, want original then fresh route", local.activeBatches)
+	}
+}
+
+func TestConversationAuthorityClientAdmitRoutedActiveBatchesFreshRoutesOnlyFailedGroupOnce(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		firstErr error
+	}{
+		{name: "stale_route", firstErr: conversationusecase.ErrStaleRoute},
+		{name: "not_leader", firstErr: conversationusecase.ErrNotLeader},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			local := &fakeConversationAuthorityLocal{
+				activeBatchErrsByHashSlot: map[uint16][]error{
+					2: {testCase.firstErr, nil},
+				},
+			}
+			senderTarget := channelappend.RecipientAuthorityTarget{
+				HashSlot: 1, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 10,
+				ConfigEpoch: 20, RouteRevision: 30, AuthorityEpoch: 40,
+			}
+			receiverTarget := channelappend.RecipientAuthorityTarget{
+				HashSlot: 2, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 11,
+				ConfigEpoch: 21, RouteRevision: 31, AuthorityEpoch: 41,
+			}
+			receiverFreshRoute := cluster.Route{
+				HashSlot: 2, SlotID: 7, Leader: 1, LeaderTerm: 12,
+				ConfigEpoch: 22, Revision: 32, AuthorityEpoch: 42,
+			}
+			node := &fakeConversationAuthorityNode{
+				nodeID: 1,
+				routesByUIDSequence: map[string][]cluster.Route{
+					"receiver": {receiverFreshRoute},
+				},
+			}
+			client := NewConversationAuthorityClient(node, local)
+			client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+			err := client.AdmitRoutedActiveBatches(context.Background(), []channelappend.ConversationActiveTargetBatch{
+				{
+					Target: senderTarget,
+					Batch: conversationactive.ActiveBatch{
+						Kind: metadb.ConversationKindNormal, SenderUID: "sender",
+						ChannelID: "g1", ChannelType: 2, MessageSeq: 9, ActiveAtMS: 100,
+					},
+				},
+				{
+					Target: receiverTarget,
+					Batch: conversationactive.ActiveBatch{
+						Kind:      metadb.ConversationKindNormal,
+						ChannelID: "g1", ChannelType: 2, MessageSeq: 9, ActiveAtMS: 100,
+						Recipients: []conversationactive.ActiveEntry{{UID: "receiver"}},
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("AdmitRoutedActiveBatches() error = %v", err)
+			}
+			if got := activeBatchAttemptCountsByHashSlot(local.activeBatches); got[1] != 1 || got[2] != 2 {
+				t.Fatalf("active batch attempts by hash slot = %#v, want sender once and receiver twice", got)
+			}
+			if got := node.routeKeyCallsForUID("sender"); got != 0 {
+				t.Fatalf("RouteKey(sender) calls = %d, want supplied successful target reused without lookup", got)
+			}
+			if got := node.routeKeyCallsForUID("receiver"); got != 1 {
+				t.Fatalf("RouteKey(receiver) calls = %d, want one failed-group fresh route", got)
+			}
+			wantInputs := [][]string{{"receiver"}}
+			if !reflect.DeepEqual(node.routeKeysPartialInputs, wantInputs) {
+				t.Fatalf("RouteKeysPartial() inputs = %#v, want only failed receiver group %#v", node.routeKeysPartialInputs, wantInputs)
+			}
+			if got := local.activeBatches[0].target; got != conversationRouteTargetFromRecipientAuthority(senderTarget) {
+				t.Fatalf("sender target = %#v, want exact supplied fence %#v", got, senderTarget)
+			}
+			if got := local.activeBatches[1].target; got != conversationRouteTargetFromRecipientAuthority(receiverTarget) {
+				t.Fatalf("receiver first target = %#v, want exact supplied fence %#v", got, receiverTarget)
+			}
+			if got := local.activeBatches[2].target; got != conversationRouteTargetFromClusterRoute(receiverFreshRoute) {
+				t.Fatalf("receiver retry target = %#v, want fresh exact fence %#v", got, receiverFreshRoute)
+			}
+		})
+	}
+}
+
+func TestConversationAuthorityClientAdmitRoutedActiveBatchesRetriesRetryableSiblingBeforeReturningTerminalError(t *testing.T) {
+	terminalErr := errors.New("terminal active admission failure")
+	local := &fakeConversationAuthorityLocal{
+		activeBatchErrsByHashSlot: map[uint16][]error{
+			1: {terminalErr},
+			2: {conversationusecase.ErrStaleRoute, nil},
+		},
+	}
+	senderTarget := channelappend.RecipientAuthorityTarget{
+		HashSlot: 1, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 10,
+		ConfigEpoch: 20, RouteRevision: 30, AuthorityEpoch: 40,
+	}
+	receiverTarget := channelappend.RecipientAuthorityTarget{
+		HashSlot: 2, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 11,
+		ConfigEpoch: 21, RouteRevision: 31, AuthorityEpoch: 41,
+	}
+	receiverFreshRoute := cluster.Route{
+		HashSlot: 2, SlotID: 7, Leader: 1, LeaderTerm: 12,
+		ConfigEpoch: 22, Revision: 32, AuthorityEpoch: 42,
+	}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUIDSequence: map[string][]cluster.Route{
+			"receiver": {receiverFreshRoute},
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitRoutedActiveBatches(context.Background(), []channelappend.ConversationActiveTargetBatch{
+		{
+			Target: senderTarget,
+			Batch: conversationactive.ActiveBatch{
+				Kind: metadb.ConversationKindNormal, SenderUID: "sender",
+				ChannelID: "g1", ChannelType: 2, MessageSeq: 9, ActiveAtMS: 100,
+			},
+		},
+		{
+			Target: receiverTarget,
+			Batch: conversationactive.ActiveBatch{
+				Kind:      metadb.ConversationKindNormal,
+				ChannelID: "g1", ChannelType: 2, MessageSeq: 9, ActiveAtMS: 100,
+				Recipients: []conversationactive.ActiveEntry{{UID: "receiver"}},
+			},
+		},
+	})
+	if !errors.Is(err, terminalErr) {
+		t.Fatalf("AdmitRoutedActiveBatches() error = %v, want terminal admission error", err)
+	}
+	if got := activeBatchAttemptCountsByHashSlot(local.activeBatches); got[1] != 1 || got[2] != 2 {
+		t.Fatalf("active batch attempts by hash slot = %#v, want terminal sender once and retryable receiver twice", got)
+	}
+	if got := node.routeKeyCallsForUID("sender"); got != 0 {
+		t.Fatalf("RouteKey(sender) calls = %d, want terminal sender not retried", got)
+	}
+	if got := node.routeKeyCallsForUID("receiver"); got != 1 {
+		t.Fatalf("RouteKey(receiver) calls = %d, want one failed-group fresh route despite terminal sibling", got)
+	}
+	wantInputs := [][]string{{"receiver"}}
+	if !reflect.DeepEqual(node.routeKeysPartialInputs, wantInputs) {
+		t.Fatalf("RouteKeysPartial() inputs = %#v, want only retryable receiver group %#v", node.routeKeysPartialInputs, wantInputs)
+	}
+	if got := local.activeBatches[2].target; got != conversationRouteTargetFromClusterRoute(receiverFreshRoute) {
+		t.Fatalf("receiver retry target = %#v, want fresh exact fence %#v", got, receiverFreshRoute)
+	}
+}
+
+func TestConversationAuthorityClientAdmitRoutedActiveBatchesPreservesTerminalAndRetryFailure(t *testing.T) {
+	for _, testCase := range []struct {
+		name                 string
+		sleepErr             error
+		routeErr             error
+		retryAdmissionErr    error
+		wantReceiverAttempts int
+		wantRouteCalls       int
+		wantSecondaryErr     error
+	}{
+		{
+			name:                 "backoff_canceled",
+			sleepErr:             context.Canceled,
+			wantReceiverAttempts: 1,
+			wantRouteCalls:       0,
+			wantSecondaryErr:     context.Canceled,
+		},
+		{
+			name:                 "fresh_route_outer_error",
+			routeErr:             cluster.ErrRouteNotReady,
+			wantReceiverAttempts: 1,
+			wantRouteCalls:       0,
+			wantSecondaryErr:     conversationusecase.ErrRouteNotReady,
+		},
+		{
+			name:                 "retry_admission_canceled",
+			retryAdmissionErr:    context.Canceled,
+			wantReceiverAttempts: 2,
+			wantRouteCalls:       1,
+			wantSecondaryErr:     context.Canceled,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			terminalErr := errors.New("terminal active admission failure")
+			receiverErrors := []error{conversationusecase.ErrStaleRoute}
+			if testCase.retryAdmissionErr != nil {
+				receiverErrors = append(receiverErrors, testCase.retryAdmissionErr)
+			}
+			local := &fakeConversationAuthorityLocal{
+				activeBatchErrsByHashSlot: map[uint16][]error{
+					1: {terminalErr},
+					2: receiverErrors,
+				},
+			}
+			node := &fakeConversationAuthorityNode{
+				nodeID:   1,
+				routeErr: testCase.routeErr,
+				routesByUIDSequence: map[string][]cluster.Route{
+					"receiver": {{
+						HashSlot: 2, SlotID: 7, Leader: 1, LeaderTerm: 12,
+						ConfigEpoch: 22, Revision: 32, AuthorityEpoch: 42,
+					}},
+				},
+			}
+			client := NewConversationAuthorityClient(node, local)
+			client.routeRetrySleep = func(context.Context, time.Duration) error {
+				return testCase.sleepErr
+			}
+
+			err := client.AdmitRoutedActiveBatches(context.Background(), []channelappend.ConversationActiveTargetBatch{
+				{
+					Target: channelappend.RecipientAuthorityTarget{
+						HashSlot: 1, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 10,
+						ConfigEpoch: 20, RouteRevision: 30, AuthorityEpoch: 40,
+					},
+					Batch: conversationactive.ActiveBatch{
+						Kind: metadb.ConversationKindNormal, SenderUID: "sender",
+						ChannelID: "g1", ChannelType: 2, MessageSeq: 9, ActiveAtMS: 100,
+					},
+				},
+				{
+					Target: channelappend.RecipientAuthorityTarget{
+						HashSlot: 2, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 11,
+						ConfigEpoch: 21, RouteRevision: 31, AuthorityEpoch: 41,
+					},
+					Batch: conversationactive.ActiveBatch{
+						Kind:      metadb.ConversationKindNormal,
+						ChannelID: "g1", ChannelType: 2, MessageSeq: 9, ActiveAtMS: 100,
+						Recipients: []conversationactive.ActiveEntry{{UID: "receiver"}},
+					},
+				},
+			})
+			if !errors.Is(err, terminalErr) || !errors.Is(err, testCase.wantSecondaryErr) {
+				t.Fatalf("AdmitRoutedActiveBatches() error = %v, want terminal %v joined with %v", err, terminalErr, testCase.wantSecondaryErr)
+			}
+			if got := activeBatchAttemptCountsByHashSlot(local.activeBatches); got[1] != 1 || got[2] != testCase.wantReceiverAttempts {
+				t.Fatalf("active batch attempts by hash slot = %#v, want terminal sender once and receiver %d times", got, testCase.wantReceiverAttempts)
+			}
+			if got := node.routeKeyCallsForUID("receiver"); got != testCase.wantRouteCalls {
+				t.Fatalf("RouteKey(receiver) calls = %d, want %d", got, testCase.wantRouteCalls)
+			}
+		})
+	}
+}
+
+func TestConversationAuthorityClientAdmitRoutedActiveBatchesBoundsFreshRouteToOneRetry(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{
+		activeBatchErrsByHashSlot: map[uint16][]error{
+			2: {conversationusecase.ErrStaleRoute, conversationusecase.ErrStaleRoute, nil},
+		},
+	}
+	receiverTarget := channelappend.RecipientAuthorityTarget{
+		HashSlot: 2, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 11,
+		ConfigEpoch: 21, RouteRevision: 31, AuthorityEpoch: 41,
+	}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUIDSequence: map[string][]cluster.Route{
+			"receiver": {{HashSlot: 2, SlotID: 7, Leader: 1, LeaderTerm: 12, ConfigEpoch: 22, Revision: 32, AuthorityEpoch: 42}},
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitRoutedActiveBatches(context.Background(), []channelappend.ConversationActiveTargetBatch{{
+		Target: receiverTarget,
+		Batch: conversationactive.ActiveBatch{
+			Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2,
+			MessageSeq: 9, ActiveAtMS: 100,
+			Recipients: []conversationactive.ActiveEntry{{UID: "receiver"}},
+		},
+	}})
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("AdmitRoutedActiveBatches() error = %v, want ErrStaleRoute after one fresh retry", err)
+	}
+	if got := activeBatchAttemptCountsByHashSlot(local.activeBatches)[2]; got != 2 {
+		t.Fatalf("receiver attempts = %d, want supplied attempt plus one fresh-route retry", got)
+	}
+	if got := node.routeKeyCallsForUID("receiver"); got != 1 {
+		t.Fatalf("RouteKey(receiver) calls = %d, want exactly one fresh route", got)
 	}
 }
 
@@ -1145,6 +1465,11 @@ type fakeConversationAuthorityNode struct {
 	watch                  chan cluster.RouteAuthorityEvent
 }
 
+type lightweightConversationAuthorityNode struct {
+	*fakeConversationAuthorityNode
+	authorityPartialCalls int
+}
+
 func (f *fakeConversationAuthorityNode) NodeID() uint64 {
 	return f.nodeID
 }
@@ -1163,6 +1488,28 @@ func (f *fakeConversationAuthorityNode) RouteKeysPartial(uids []string) ([]clust
 	results := make([]cluster.RouteKeyResult, len(uids))
 	for index, uid := range uids {
 		results[index].Route, results[index].Err = f.resolveRouteForUID(uid)
+	}
+	return results, nil
+}
+
+func (f *lightweightConversationAuthorityNode) RouteAuthoritiesPartial(uids []string) ([]cluster.RouteAuthorityResult, error) {
+	f.authorityPartialCalls++
+	if f.routeErr != nil {
+		return nil, f.routeErr
+	}
+	results := make([]cluster.RouteAuthorityResult, len(uids))
+	for index, uid := range uids {
+		route, err := f.resolveRouteForUID(uid)
+		results[index].Err = err
+		results[index].Authority = cluster.RouteAuthority{
+			HashSlot:       route.HashSlot,
+			SlotID:         route.SlotID,
+			LeaderNodeID:   route.Leader,
+			LeaderTerm:     route.LeaderTerm,
+			ConfigEpoch:    route.ConfigEpoch,
+			RouteRevision:  route.Revision,
+			AuthorityEpoch: route.AuthorityEpoch,
+		}
 	}
 	return results, nil
 }

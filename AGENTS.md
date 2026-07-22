@@ -93,6 +93,7 @@ internal/
     cloudanalysis/       Analysis MCP 到 manager、Prometheus、pprof 与 run inventory 的适配
     cloudsim/            云厂商生命周期适配器；提供 Alibaba、持久化 fake 与原生主机部署能力
     cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
+    delivery/            delivery runtime 到 owner-local online/gateway 会话与 WuKong 协议出站包的适配
   log/                   新架构应用日志配置与 zap/lumberjack 封装
   observability/         新架构节点内诊断事件、追踪采样与 sendtrace 辅助
     diagnostics/         节点内有界诊断事件、采样、索引与查询
@@ -163,6 +164,7 @@ docker/
 
 scripts/                 仓库辅助脚本
   cloud-sim/             CloudShell 一键初始化、本地 Codex 云模拟分析、部署门禁与演练辅助脚本
+    local-medium-rc/     Cloud Medium 跨 revision 共用 workload、薄适配器与本地编译等价性门禁
   wukongim/              wukongim 本地启动脚本使用的真实配置文件
 
 test/

@@ -298,6 +298,17 @@ type ProviderAuthority struct {
 	AccountIDHash string `json:"account_id_hash"`
 }
 
+// InventorySnapshot is a read-only, authority-bound candidate-discovery view.
+// An absent run is not proof that it was released; callers must use Preflight
+// with an exact Run Locator before making a released-state decision.
+type InventorySnapshot struct {
+	// Authority identifies the provider account and region queried for Runs.
+	Authority ProviderAuthority `json:"authority"`
+	// Runs contains only discovery candidates bound to Authority.
+	// An empty slice cannot prove that any previously known run was released.
+	Runs []Run `json:"runs"`
+}
+
 // TransitionRequest asks the provider to persist one allowed lifecycle step.
 type TransitionRequest struct {
 	// RunID is the exact Simulation Run identity.

@@ -1,8 +1,10 @@
 package presence
 
 import (
+	"context"
 	"errors"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -67,6 +69,171 @@ func TestDirectoryEndpointsByUIDsRejectsStaleTargetAsOneGroup(t *testing.T) {
 	stale.LeaderTerm--
 	if _, err := dir.EndpointsByUIDs(stale, []string{"u1", "u2"}); !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("EndpointsByUIDs(stale target) error = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestDirectoryEndpointsByTargetsPreservesAlignedPartialFailures(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{LocalNodeID: 1, ShardCount: 4})
+	first := RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 11}
+	second := RouteTarget{HashSlot: 5, SlotID: 6, LeaderNodeID: 1, LeaderTerm: 10, ConfigEpoch: 4, RouteRevision: 12, AuthorityEpoch: 13}
+	third := RouteTarget{HashSlot: 2, SlotID: 3, LeaderNodeID: 1, LeaderTerm: 11, ConfigEpoch: 5, RouteRevision: 14, AuthorityEpoch: 15}
+	for _, target := range []RouteTarget{first, second, third} {
+		dir.BecomeAuthority(target)
+	}
+	routes := []struct {
+		target RouteTarget
+		route  Route
+	}{
+		{target: first, route: Route{UID: "first-b", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20}},
+		{target: first, route: Route{UID: "first-a", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 30, DeviceID: "device-b"}},
+		{target: first, route: Route{UID: "first-a", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "device-a"}},
+		{target: second, route: Route{UID: "second", OwnerNodeID: 3, OwnerBootID: 1, OwnerSeq: 1, SessionID: 40}},
+	}
+	for _, item := range routes {
+		if _, err := dir.RegisterRoute(item.target, item.route); err != nil {
+			t.Fatalf("RegisterRoute(%q) error = %v", item.route.UID, err)
+		}
+	}
+	stale := first
+	stale.LeaderTerm--
+	groups := []EndpointLookupGroup{
+		{Target: second, UIDs: []string{"second"}},
+		{Target: stale, UIDs: []string{"first-a"}},
+		{Target: first, UIDs: []string{"first-b", "missing", "first-a"}},
+		{Target: third, UIDs: []string{"missing"}},
+	}
+
+	results := dir.EndpointsByTargets(groups)
+
+	if len(results) != len(groups) {
+		t.Fatalf("result count = %d, want %d", len(results), len(groups))
+	}
+	if results[0].Err != nil || len(results[0].Routes) != 1 || results[0].Routes[0] != routes[3].route {
+		t.Fatalf("results[0] = %#v, want second target route", results[0])
+	}
+	if !errors.Is(results[1].Err, ErrNotLeader) || len(results[1].Routes) != 0 {
+		t.Fatalf("results[1] = %#v, want group-scoped ErrNotLeader", results[1])
+	}
+	wantFirst := []Route{routes[0].route, routes[2].route, routes[1].route}
+	if results[2].Err != nil || len(results[2].Routes) != len(wantFirst) {
+		t.Fatalf("results[2] = %#v, want %#v", results[2], wantFirst)
+	}
+	for i := range wantFirst {
+		if results[2].Routes[i] != wantFirst[i] {
+			t.Fatalf("results[2].Routes[%d] = %#v, want %#v", i, results[2].Routes[i], wantFirst[i])
+		}
+	}
+	if results[3].Err != nil || len(results[3].Routes) != 0 {
+		t.Fatalf("results[3] = %#v, want successful empty group", results[3])
+	}
+}
+
+func TestDirectoryEndpointsByTargetsReturnsCapacityLimitedCallOwnedSnapshots(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{LocalNodeID: 1, ShardCount: 4})
+	first := RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3}
+	second := RouteTarget{HashSlot: 5, SlotID: 6, LeaderNodeID: 1, LeaderTerm: 10, ConfigEpoch: 4}
+	for _, target := range []RouteTarget{first, second} {
+		dir.BecomeAuthority(target)
+	}
+	firstRoute := Route{UID: "first", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, LastSeenUnix: 1}
+	secondRoute := Route{UID: "second", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20}
+	if _, err := dir.RegisterRoute(first, firstRoute); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dir.RegisterRoute(second, secondRoute); err != nil {
+		t.Fatal(err)
+	}
+	groups := []EndpointLookupGroup{
+		{Target: first, UIDs: []string{"first"}},
+		{Target: second, UIDs: []string{"second"}},
+	}
+
+	results := dir.EndpointsByTargets(groups)
+	if cap(results[0].Routes) != len(results[0].Routes) || cap(results[1].Routes) != len(results[1].Routes) {
+		t.Fatalf("route result capacities = %d/%d and %d/%d, want capacity-limited slices", len(results[0].Routes), cap(results[0].Routes), len(results[1].Routes), cap(results[1].Routes))
+	}
+	secondBefore := results[1].Routes[0]
+	appended := append(results[0].Routes, Route{UID: "appended"})
+	if len(appended) != 2 || results[1].Routes[0] != secondBefore {
+		t.Fatalf("append to first group affected sibling result: appended=%#v sibling=%#v", appended, results[1].Routes)
+	}
+
+	retained := results[0].Routes
+	updated := firstRoute
+	updated.LastSeenUnix = 2
+	if err := dir.TouchRoutes(first, []Route{updated}); err != nil {
+		t.Fatal(err)
+	}
+	next := dir.EndpointsByTargets(groups)
+	if len(next[0].Routes) != 1 || next[0].Routes[0] != updated || len(retained) != 1 || retained[0] != firstRoute {
+		t.Fatalf("retained snapshot changed after directory mutation: retained=%#v next=%#v", retained, next[0])
+	}
+	retained[0].UID = "mutated-result"
+	if routes, err := dir.EndpointsByUID(first, "first"); err != nil || len(routes) != 1 || routes[0] != updated {
+		t.Fatalf("mutating call-owned result affected directory: routes=%#v err=%v", routes, err)
+	}
+}
+
+func TestDirectoryEndpointsByTargetsIsSafeDuringConcurrentTouches(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{LocalNodeID: 1, ShardCount: 4})
+	first := RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3}
+	second := RouteTarget{HashSlot: 5, SlotID: 6, LeaderNodeID: 1, LeaderTerm: 10, ConfigEpoch: 4}
+	for _, target := range []RouteTarget{first, second} {
+		dir.BecomeAuthority(target)
+	}
+	firstRoute := Route{UID: "first", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, LastSeenUnix: 1}
+	secondRoute := Route{UID: "second", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20, LastSeenUnix: 1}
+	if _, err := dir.RegisterRoute(first, firstRoute); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dir.RegisterRoute(second, secondRoute); err != nil {
+		t.Fatal(err)
+	}
+	groups := []EndpointLookupGroup{
+		{Target: first, UIDs: []string{"first"}},
+		{Target: second, UIDs: []string{"second"}},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var readers sync.WaitGroup
+	for readerIndex := 0; readerIndex < 4; readerIndex++ {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			for ctx.Err() == nil {
+				results := dir.EndpointsByTargets(groups)
+				if len(results) != 2 || results[0].Err != nil || results[1].Err != nil || len(results[0].Routes) != 1 || len(results[1].Routes) != 1 {
+					t.Errorf("EndpointsByTargets() = %#v", results)
+					return
+				}
+			}
+		}()
+	}
+	for i := int64(2); i < 500; i++ {
+		firstRoute.LastSeenUnix = i
+		secondRoute.LastSeenUnix = i
+		if err := dir.TouchRoutes(first, []Route{firstRoute}); err != nil {
+			t.Fatal(err)
+		}
+		if err := dir.TouchRoutes(second, []Route{secondRoute}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cancel()
+	readers.Wait()
+}
+
+func TestDirectoryEndpointsByTargetsCloudMediumAllocationBudget(t *testing.T) {
+	dir, groups := benchmarkCloudMediumEndpointDirectory()
+	allocs := testing.AllocsPerRun(100, func() {
+		results := dir.EndpointsByTargets(groups)
+		if len(results) != len(groups) {
+			panic("misaligned endpoint results")
+		}
+	})
+	if allocs > 24 {
+		t.Fatalf("Cloud Medium target-batch allocations = %.0f, want <= 24", allocs)
 	}
 }
 

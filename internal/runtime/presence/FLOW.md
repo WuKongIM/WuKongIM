@@ -23,6 +23,14 @@ its expiry index, so stale callers receive `ErrNotLeader`.
 shard read lock once, and returns routes in UID input order with deterministic
 route ordering inside each UID. A stale target rejects the whole exact-target
 group; callers isolate that error from groups carrying other targets.
+`EndpointsByTargets` preserves that group-level fence and aligned partial-error
+semantics while grouping every input target by the directory's physical shard.
+It acquires each touched shard read lock once, validates every complete target
+inside that lock, and returns successful sibling groups even when another group
+on the same shard is stale. Route values are copied into call-owned per-shard
+backing arrays; group slices are capacity-limited and must be treated as
+immutable snapshots, so retaining or appending one result cannot alias the
+directory or overwrite a sibling group.
 
 ## Register And Conflicts
 

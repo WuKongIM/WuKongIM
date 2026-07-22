@@ -41,9 +41,39 @@ type DeliveryMetrics struct {
 	recipientProcessTotal      *prometheus.CounterVec
 	recipientProcessDuration   *prometheus.HistogramVec
 	recipientProcessRecipients *prometheus.HistogramVec
+	recipientAuthorityTotal    *prometheus.CounterVec
+	recipientAuthorityItems    *prometheus.CounterVec
+	recipientAuthorityTargets  *prometheus.CounterVec
+	recipientAuthorityDuration *prometheus.HistogramVec
+	ackBatchTotal              *prometheus.CounterVec
+	ackBatchItems              *prometheus.CounterVec
+	ackBatchShards             *prometheus.CounterVec
+	ackBatchRejected           *prometheus.CounterVec
+	ackBatchRollback           *prometheus.CounterVec
+	ackBatchDuration           *prometheus.HistogramVec
+	recipientAuthoritySeries   [7]deliveryRecipientAuthoritySeries
+	ackBatchSeries             [3][6]deliveryAckBatchSeries
 	mu                         sync.Mutex
 	actorInflightV             int64
 	ackBindingsV               int64
+}
+
+type deliveryRecipientAuthoritySeries struct {
+	once     sync.Once
+	total    prometheus.Counter
+	items    prometheus.Counter
+	targets  prometheus.Counter
+	duration prometheus.Observer
+}
+
+type deliveryAckBatchSeries struct {
+	once     sync.Once
+	total    prometheus.Counter
+	items    prometheus.Counter
+	shards   prometheus.Counter
+	rejected prometheus.Counter
+	rollback prometheus.Counter
+	duration prometheus.Observer
 }
 
 func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels) *DeliveryMetrics {
@@ -174,6 +204,58 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			ConstLabels: labels,
 			Buckets:     conversationListSizeBuckets,
 		}, []string{"result"}),
+		recipientAuthorityTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_recipient_authority_resolve_total",
+			Help:        "Total recipient authority batch resolutions by bounded result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		recipientAuthorityItems: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_recipient_authority_resolve_items_total",
+			Help:        "Total UID items handled by recipient authority batch resolutions.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		recipientAuthorityTargets: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_recipient_authority_resolve_targets_total",
+			Help:        "Total distinct physical hash-slot targets returned by recipient authority batch resolutions.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		recipientAuthorityDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_delivery_recipient_authority_resolve_duration_seconds",
+			Help:        "Recipient authority batch resolution latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result"}),
+		ackBatchTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_ack_batch_total",
+			Help:        "Total owner-local pending ACK batch stages by phase and outcome.",
+			ConstLabels: labels,
+		}, []string{"phase", "outcome"}),
+		ackBatchItems: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_ack_batch_items_total",
+			Help:        "Total owner-local pending ACK items handled by batch stage.",
+			ConstLabels: labels,
+		}, []string{"phase", "outcome"}),
+		ackBatchShards: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_ack_batch_shards_total",
+			Help:        "Total tracker shards touched by owner-local pending ACK batch stages.",
+			ConstLabels: labels,
+		}, []string{"phase", "outcome"}),
+		ackBatchRejected: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_ack_batch_rejected_total",
+			Help:        "Total owner-local pending ACK batch items rejected before delivery.",
+			ConstLabels: labels,
+		}, []string{"phase", "outcome"}),
+		ackBatchRollback: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_ack_batch_rollback_total",
+			Help:        "Total bound ACK reservations actually canceled by the caller.",
+			ConstLabels: labels,
+		}, []string{"phase", "outcome"}),
+		ackBatchDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_delivery_ack_batch_duration_seconds",
+			Help:        "Owner-local pending ACK batch stage latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"phase", "outcome"}),
 	}
 
 	registry.MustRegister(
@@ -201,6 +283,16 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 		m.recipientProcessTotal,
 		m.recipientProcessDuration,
 		m.recipientProcessRecipients,
+		m.recipientAuthorityTotal,
+		m.recipientAuthorityItems,
+		m.recipientAuthorityTargets,
+		m.recipientAuthorityDuration,
+		m.ackBatchTotal,
+		m.ackBatchItems,
+		m.ackBatchShards,
+		m.ackBatchRejected,
+		m.ackBatchRollback,
+		m.ackBatchDuration,
 	)
 
 	return m
@@ -346,6 +438,55 @@ func (m *DeliveryMetrics) ObserveRecipientWorkerProcess(result string, recipient
 	m.recipientProcessRecipients.WithLabelValues(result).Observe(float64(nonNegative(recipients)))
 }
 
+// ObserveRecipientAuthorityResolve records one recipient authority batch resolution.
+func (m *DeliveryMetrics) ObserveRecipientAuthorityResolve(result string, items, targets int, dur time.Duration) {
+	if m == nil {
+		return
+	}
+	result = normalizeRecipientAuthorityResolveResult(result)
+	series := &m.recipientAuthoritySeries[recipientAuthorityResolveResultIndex(result)]
+	series.once.Do(func() {
+		series.total = m.recipientAuthorityTotal.WithLabelValues(result)
+		series.items = m.recipientAuthorityItems.WithLabelValues(result)
+		series.targets = m.recipientAuthorityTargets.WithLabelValues(result)
+		series.duration = m.recipientAuthorityDuration.WithLabelValues(result)
+	})
+	if dur < 0 {
+		dur = 0
+	}
+	series.total.Inc()
+	series.items.Add(float64(nonNegative(items)))
+	series.targets.Add(float64(nonNegative(targets)))
+	series.duration.Observe(dur.Seconds())
+}
+
+// ObserveAckBatch records one owner-local pending ACK batch bind or finish stage.
+func (m *DeliveryMetrics) ObserveAckBatch(phase, outcome string, items, shards, rejected, rollback int, dur time.Duration) {
+	if m == nil {
+		return
+	}
+	phase = normalizeAckBatchPhase(phase)
+	outcome = normalizeAckBatchOutcome(outcome)
+	series := &m.ackBatchSeries[ackBatchPhaseIndex(phase)][ackBatchOutcomeIndex(outcome)]
+	series.once.Do(func() {
+		series.total = m.ackBatchTotal.WithLabelValues(phase, outcome)
+		series.items = m.ackBatchItems.WithLabelValues(phase, outcome)
+		series.shards = m.ackBatchShards.WithLabelValues(phase, outcome)
+		series.rejected = m.ackBatchRejected.WithLabelValues(phase, outcome)
+		series.rollback = m.ackBatchRollback.WithLabelValues(phase, outcome)
+		series.duration = m.ackBatchDuration.WithLabelValues(phase, outcome)
+	})
+	if dur < 0 {
+		dur = 0
+	}
+	series.total.Inc()
+	series.items.Add(float64(nonNegative(items)))
+	series.shards.Add(float64(nonNegative(shards)))
+	series.rejected.Add(float64(nonNegative(rejected)))
+	series.rollback.Add(float64(nonNegative(rollback)))
+	series.duration.Observe(dur.Seconds())
+}
+
 // Snapshot returns the latest delivery gauge values.
 func (m *DeliveryMetrics) Snapshot() DeliverySnapshot {
 	if m == nil {
@@ -364,4 +505,78 @@ func normalizeDeliveryLabel(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func normalizeRecipientAuthorityResolveResult(result string) string {
+	switch result {
+	case "ok", "partial", "route_not_ready", "canceled", "deadline", "error":
+		return result
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeAckBatchPhase(phase string) string {
+	switch phase {
+	case "bind", "finish":
+		return phase
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeAckBatchOutcome(outcome string) string {
+	switch outcome {
+	case "ok", "partial", "rejected", "rolled_back", "miss":
+		return outcome
+	default:
+		return "unknown"
+	}
+}
+
+func recipientAuthorityResolveResultIndex(result string) int {
+	switch result {
+	case "ok":
+		return 0
+	case "partial":
+		return 1
+	case "route_not_ready":
+		return 2
+	case "canceled":
+		return 3
+	case "deadline":
+		return 4
+	case "error":
+		return 5
+	default:
+		return 6
+	}
+}
+
+func ackBatchPhaseIndex(phase string) int {
+	switch phase {
+	case "bind":
+		return 0
+	case "finish":
+		return 1
+	default:
+		return 2
+	}
+}
+
+func ackBatchOutcomeIndex(outcome string) int {
+	switch outcome {
+	case "ok":
+		return 0
+	case "partial":
+		return 1
+	case "rejected":
+		return 2
+	case "rolled_back":
+		return 3
+	case "miss":
+		return 4
+	default:
+		return 5
+	}
 }

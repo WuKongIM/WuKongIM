@@ -1,0 +1,564 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"sync/atomic"
+	"testing"
+
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	pkgcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+)
+
+const (
+	localMediumRCPhysicalHashSlots = 256
+	localMediumRCLogicalSlots      = 10
+	localMediumRCRecipients        = 512
+	localMediumRCTargetGroups      = 221
+	localMediumRCOnlineRoutes      = 55
+	localMediumRCPayloadBytes      = 256
+)
+
+type localMediumRCAuthoritySummary struct {
+	items   int
+	targets int
+	digest  uint64
+}
+
+type localMediumRCRevisionAdapter interface {
+	Variant() string
+	ResolveAuthorities(context.Context, []string) error
+	ValidateAuthorities([]string) (localMediumRCAuthoritySummary, error)
+	OwnerPusher() channelappend.OwnerPusher
+}
+
+type localMediumRCNode struct {
+	routes          map[string]pkgcluster.Route
+	byHashSlot      [localMediumRCPhysicalHashSlots]pkgcluster.Route
+	authorityEvents chan pkgcluster.RouteAuthorityEvent
+	fullBatchCalls  atomic.Uint64
+	authorityCalls  atomic.Uint64
+}
+
+func (n *localMediumRCNode) NodeID() uint64 { return 1 }
+
+func (n *localMediumRCNode) RouteKey(uid string) (pkgcluster.Route, error) {
+	route, ok := n.routes[uid]
+	if !ok {
+		return pkgcluster.Route{}, fmt.Errorf("local medium RC route for %q not found", uid)
+	}
+	return cloneLocalMediumRCRoute(route), nil
+}
+
+func (n *localMediumRCNode) RouteKeys(uids []string) ([]pkgcluster.Route, error) {
+	n.fullBatchCalls.Add(1)
+	routes := make([]pkgcluster.Route, len(uids))
+	for index, uid := range uids {
+		route, ok := n.routes[uid]
+		if !ok {
+			return nil, fmt.Errorf("local medium RC route for %q not found", uid)
+		}
+		routes[index] = cloneLocalMediumRCRoute(route)
+	}
+	return routes, nil
+}
+
+func (n *localMediumRCNode) RouteKeysPartial(uids []string) ([]pkgcluster.RouteKeyResult, error) {
+	results := make([]pkgcluster.RouteKeyResult, len(uids))
+	for index, uid := range uids {
+		route, ok := n.routes[uid]
+		if !ok {
+			results[index].Err = fmt.Errorf("local medium RC route for %q not found", uid)
+			continue
+		}
+		results[index].Route = cloneLocalMediumRCRoute(route)
+	}
+	return results, nil
+}
+
+func (n *localMediumRCNode) RouteHashSlot(hashSlot uint16) (pkgcluster.Route, error) {
+	if int(hashSlot) >= len(n.byHashSlot) {
+		return pkgcluster.Route{}, fmt.Errorf("local medium RC hash slot %d out of range", hashSlot)
+	}
+	return cloneLocalMediumRCRoute(n.byHashSlot[hashSlot]), nil
+}
+
+func (*localMediumRCNode) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	return nil, fmt.Errorf("local medium RC workload attempted remote RPC")
+}
+
+func (*localMediumRCNode) RegisterRPC(uint8, pkgcluster.NodeRPCHandler) {}
+
+func (n *localMediumRCNode) WatchRouteAuthorities() <-chan pkgcluster.RouteAuthorityEvent {
+	return n.authorityEvents
+}
+
+func cloneLocalMediumRCRoute(route pkgcluster.Route) pkgcluster.Route {
+	route.Peers = append([]uint64(nil), route.Peers...)
+	return route
+}
+
+type localMediumRCSession struct {
+	writes atomic.Uint64
+}
+
+func (s *localMediumRCSession) WriteDelivery(value any) error {
+	if _, ok := value.(*frame.RecvPacket); !ok {
+		return fmt.Errorf("local medium RC delivery payload type = %T", value)
+	}
+	s.writes.Add(1)
+	return nil
+}
+
+func (*localMediumRCSession) CloseSession(string) error { return nil }
+
+// localMediumRCPresenceResolver keeps the owner-push workload revision-neutral
+// by adapting the stable presence directory APIs directly.
+type localMediumRCPresenceResolver struct {
+	node      *localMediumRCNode
+	directory *authoritypresence.Directory
+}
+
+// EndpointsByUIDs implements the scalar compatibility path used by both revisions.
+func (r localMediumRCPresenceResolver) EndpointsByUIDs(ctx context.Context, uids []string) ([]channelappend.Route, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var resolved []channelappend.Route
+	for _, uid := range uids {
+		route, ok := r.node.routes[uid]
+		if !ok {
+			return nil, fmt.Errorf("local medium RC presence route for %q not found", uid)
+		}
+		endpoints, err := r.directory.EndpointsByUIDs(localMediumRCPresenceTarget(route), []string{uid})
+		if err != nil {
+			return nil, err
+		}
+		resolved = appendLocalMediumRCEndpoints(resolved, endpoints)
+	}
+	return resolved, nil
+}
+
+// EndpointsByTargets preserves each exact physical hash-slot fence while
+// returning one result aligned with each logical target batch.
+func (r localMediumRCPresenceResolver) EndpointsByTargets(
+	ctx context.Context,
+	batches []channelappend.RecipientTargetBatch,
+) []channelappend.RecipientTargetPresenceResult {
+	results := make([]channelappend.RecipientTargetPresenceResult, len(batches))
+	for batchIndex, batch := range batches {
+		if err := ctx.Err(); err != nil {
+			results[batchIndex].Err = err
+			continue
+		}
+		uids := make([]string, 0, len(batch.Recipients))
+		for _, recipient := range batch.Recipients {
+			if recipient.UID != "" {
+				uids = append(uids, recipient.UID)
+			}
+		}
+		endpoints, err := r.directory.EndpointsByUIDs(localMediumRCPresenceTargetFromRecipient(batch.Target), uids)
+		if err != nil {
+			results[batchIndex].Err = err
+			continue
+		}
+		results[batchIndex].Routes = appendLocalMediumRCEndpoints(nil, endpoints)
+	}
+	return results
+}
+
+func appendLocalMediumRCEndpoints(dst []channelappend.Route, routes []authoritypresence.Route) []channelappend.Route {
+	for _, route := range routes {
+		dst = append(dst, channelappend.Route{
+			UID:         route.UID,
+			OwnerNodeID: route.OwnerNodeID,
+			OwnerBootID: route.OwnerBootID,
+			OwnerSeq:    route.OwnerSeq,
+			SessionID:   route.SessionID,
+			DeviceID:    route.DeviceID,
+			DeviceFlag:  route.DeviceFlag,
+			DeviceLevel: route.DeviceLevel,
+		})
+	}
+	return dst
+}
+
+type localMediumRCFixture struct {
+	adapter         localMediumRCRevisionAdapter
+	node            *localMediumRCNode
+	delivery        *runtimedelivery.Manager
+	processor       *channelappend.RecipientProcessor
+	uids            []string
+	plan            channelappend.RecipientDeliveryPlan
+	acks            []runtimedelivery.Recvack
+	sessions        []*localMediumRCSession
+	expectedSummary localMediumRCAuthoritySummary
+}
+
+func newLocalMediumRCFixture(tb testing.TB) *localMediumRCFixture {
+	tb.Helper()
+	node := &localMediumRCNode{
+		routes:          make(map[string]pkgcluster.Route, localMediumRCRecipients),
+		authorityEvents: make(chan pkgcluster.RouteAuthorityEvent),
+	}
+	directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{
+		LocalNodeID: 1,
+		ShardCount:  localMediumRCLogicalSlots,
+	})
+	for hashSlot := 0; hashSlot < localMediumRCPhysicalHashSlots; hashSlot++ {
+		preferredLeader := uint64(1)
+		if hashSlot%3 == 0 {
+			preferredLeader = 2
+		}
+		route := pkgcluster.Route{
+			HashSlot:        uint16(hashSlot),
+			SlotID:          uint32(hashSlot%localMediumRCLogicalSlots + 1),
+			Leader:          1,
+			LeaderTerm:      7,
+			ConfigEpoch:     11,
+			PreferredLeader: preferredLeader,
+			Peers:           []uint64{1, 2, 3},
+			Revision:        13,
+			AuthorityEpoch:  17,
+		}
+		node.byHashSlot[hashSlot] = route
+		directory.BecomeAuthority(localMediumRCPresenceTarget(route))
+	}
+
+	registry := online.NewRegistry(online.RegistryOptions{ShardCount: 32})
+	delivery := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+		Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
+			ShardCount:           32,
+			MaxPendingPerSession: 1024,
+		}),
+	})
+	uids := make([]string, localMediumRCRecipients)
+	plan := channelappend.RecipientDeliveryPlan{
+		Event: channelappend.CommittedEnvelope{
+			ChannelID:   "local-medium-rc",
+			ChannelType: frame.ChannelTypeGroup,
+			FromUID:     "local-medium-rc-sender",
+			ClientMsgNo: "local-medium-rc-message",
+			Payload:     make([]byte, localMediumRCPayloadBytes),
+		},
+		Targets: make([]channelappend.RecipientTargetBatch, localMediumRCTargetGroups),
+	}
+	for targetIndex := range plan.Targets {
+		plan.Targets[targetIndex].Target = localMediumRCRecipientTarget(node.byHashSlot[targetIndex])
+	}
+	acks := make([]runtimedelivery.Recvack, 0, localMediumRCOnlineRoutes)
+	sessions := make([]*localMediumRCSession, 0, localMediumRCOnlineRoutes)
+	for recipientIndex := 0; recipientIndex < localMediumRCRecipients; recipientIndex++ {
+		uid := "local-medium-rc-recipient-" + strconv.Itoa(recipientIndex)
+		uids[recipientIndex] = uid
+		targetIndex := recipientIndex % localMediumRCTargetGroups
+		route := node.byHashSlot[targetIndex]
+		node.routes[uid] = route
+		plan.Targets[targetIndex].Recipients = append(plan.Targets[targetIndex].Recipients, channelappend.Recipient{UID: uid})
+		if recipientIndex >= localMediumRCOnlineRoutes {
+			continue
+		}
+		sessionID := uint64(recipientIndex + 1)
+		presenceRoute := authoritypresence.Route{
+			UID:           uid,
+			OwnerNodeID:   1,
+			OwnerBootID:   1,
+			OwnerSeq:      sessionID,
+			SessionID:     sessionID,
+			ConnectedUnix: 1,
+			LastSeenUnix:  1,
+		}
+		registered, err := directory.RegisterRoute(localMediumRCPresenceTarget(route), presenceRoute)
+		if err != nil {
+			tb.Fatalf("RegisterRoute(%q): %v", uid, err)
+		}
+		if registered.PendingToken != "" || len(registered.Actions) != 0 {
+			tb.Fatalf("RegisterRoute(%q) = %#v, want immediate active route", uid, registered)
+		}
+		session := &localMediumRCSession{}
+		if err := registry.RegisterPending(online.LocalSession{
+			Route: online.OwnerRoute{
+				UID:              uid,
+				HashSlot:         route.HashSlot,
+				OwnerNodeID:      1,
+				OwnerBootID:      1,
+				OwnerSeq:         sessionID,
+				SessionID:        sessionID,
+				ConnectedUnix:    1,
+				LastActivityUnix: 1,
+			},
+			Session: session,
+		}); err != nil {
+			tb.Fatalf("RegisterPending(%q): %v", uid, err)
+		}
+		if err := registry.MarkActive(sessionID); err != nil {
+			tb.Fatalf("MarkActive(%q): %v", uid, err)
+		}
+		acks = append(acks, runtimedelivery.Recvack{UID: uid, SessionID: sessionID})
+		sessions = append(sessions, session)
+	}
+
+	adapter := newLocalMediumRCRevisionAdapter(node, registry, delivery)
+	processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
+		PresenceResolver:   localMediumRCPresenceResolver{node: node, directory: directory},
+		OwnerPusher:        adapter.OwnerPusher(),
+		OwnerPushBatchSize: localMediumRCRecipients,
+	})
+	fixture := &localMediumRCFixture{
+		adapter:   adapter,
+		node:      node,
+		delivery:  delivery,
+		processor: processor,
+		uids:      uids,
+		plan:      plan,
+		acks:      acks,
+		sessions:  sessions,
+	}
+	fixture.expectedSummary = fixture.summarizeExpectedAuthorities(tb)
+	return fixture
+}
+
+func (f *localMediumRCFixture) summarizeExpectedAuthorities(tb testing.TB) localMediumRCAuthoritySummary {
+	tb.Helper()
+	// The contract deliberately derives LeaderNodeID from the actual Raft
+	// leader. PreferredLeader is advisory and must not enter routing fences.
+	summary, err := summarizeLocalMediumRCAuthorities(f.uids, func(index int, uid string) (channelappend.RecipientAuthorityTarget, error) {
+		route, ok := f.node.routes[uid]
+		if !ok {
+			return channelappend.RecipientAuthorityTarget{}, fmt.Errorf("expected route %d for %q not found", index, uid)
+		}
+		return localMediumRCRecipientTarget(route), nil
+	})
+	if err != nil {
+		tb.Fatalf("summarize expected authorities: %v", err)
+	}
+	return summary
+}
+
+func (f *localMediumRCFixture) resolveAndValidate(ctx context.Context) error {
+	if err := f.adapter.ResolveAuthorities(ctx, f.uids); err != nil {
+		return err
+	}
+	return f.validateResolvedAuthorities()
+}
+
+func (f *localMediumRCFixture) validateResolvedAuthorities() error {
+	resolved, err := f.adapter.ValidateAuthorities(f.uids)
+	if err != nil {
+		return err
+	}
+	if resolved != f.expectedSummary {
+		return fmt.Errorf("authority summary = %#v, want %#v", resolved, f.expectedSummary)
+	}
+	return nil
+}
+
+func (f *localMediumRCFixture) pushAndAck(ctx context.Context, messageID uint64) error {
+	before := f.totalWrites()
+	if err := f.pushAndAckCore(ctx, messageID); err != nil {
+		return err
+	}
+	return f.validatePushAndAck(before, localMediumRCOnlineRoutes)
+}
+
+func (f *localMediumRCFixture) pushAndAckCore(ctx context.Context, messageID uint64) error {
+	f.plan.Event.MessageID = messageID
+	f.plan.Event.MessageSeq = messageID
+	errs := f.processor.ProcessRecipientDeliveryPlan(ctx, f.plan)
+	for targetIndex, err := range errs {
+		if err != nil {
+			return fmt.Errorf("target %d: %w", targetIndex, err)
+		}
+	}
+	if got := f.delivery.PendingAckCount(); got != localMediumRCOnlineRoutes {
+		return fmt.Errorf("pending ack count before recvacks = %d, want %d", got, localMediumRCOnlineRoutes)
+	}
+	for ackIndex := range f.acks {
+		ack := f.acks[ackIndex]
+		ack.MessageID = messageID
+		ack.MessageSeq = messageID
+		if err := f.delivery.Recvack(ctx, ack); err != nil {
+			return fmt.Errorf("recvack %d: %w", ackIndex, err)
+		}
+	}
+	if got := f.delivery.PendingAckCount(); got != 0 {
+		return fmt.Errorf("pending ack count after recvacks = %d, want 0", got)
+	}
+	return nil
+}
+
+func (f *localMediumRCFixture) validatePushAndAck(before uint64, expectedWrites uint64) error {
+	if got := f.delivery.PendingAckCount(); got != 0 {
+		return fmt.Errorf("pending ack count = %d, want 0", got)
+	}
+	if got := f.totalWrites() - before; got != expectedWrites {
+		return fmt.Errorf("owner writes = %d, want %d", got, expectedWrites)
+	}
+	return nil
+}
+
+func (f *localMediumRCFixture) totalWrites() uint64 {
+	var total uint64
+	for _, session := range f.sessions {
+		total += session.writes.Load()
+	}
+	return total
+}
+
+func localMediumRCPresenceTarget(route pkgcluster.Route) authoritypresence.RouteTarget {
+	return authoritypresence.RouteTarget{
+		HashSlot:       route.HashSlot,
+		SlotID:         route.SlotID,
+		LeaderNodeID:   route.Leader,
+		LeaderTerm:     route.LeaderTerm,
+		ConfigEpoch:    route.ConfigEpoch,
+		RouteRevision:  route.Revision,
+		AuthorityEpoch: route.AuthorityEpoch,
+	}
+}
+
+func localMediumRCPresenceTargetFromRecipient(target channelappend.RecipientAuthorityTarget) authoritypresence.RouteTarget {
+	return authoritypresence.RouteTarget{
+		HashSlot:       target.HashSlot,
+		SlotID:         target.SlotID,
+		LeaderNodeID:   target.LeaderNodeID,
+		LeaderTerm:     target.LeaderTerm,
+		ConfigEpoch:    target.ConfigEpoch,
+		RouteRevision:  target.RouteRevision,
+		AuthorityEpoch: target.AuthorityEpoch,
+	}
+}
+
+func localMediumRCRecipientTarget(route pkgcluster.Route) channelappend.RecipientAuthorityTarget {
+	return channelappend.RecipientAuthorityTarget{
+		HashSlot:       route.HashSlot,
+		SlotID:         route.SlotID,
+		LeaderNodeID:   route.Leader,
+		LeaderTerm:     route.LeaderTerm,
+		ConfigEpoch:    route.ConfigEpoch,
+		RouteRevision:  route.Revision,
+		AuthorityEpoch: route.AuthorityEpoch,
+	}
+}
+
+func summarizeLocalMediumRCAuthorities(
+	uids []string,
+	lookup func(int, string) (channelappend.RecipientAuthorityTarget, error),
+) (localMediumRCAuthoritySummary, error) {
+	summary := localMediumRCAuthoritySummary{items: len(uids), digest: 1469598103934665603}
+	var seen [4]uint64
+	for index, uid := range uids {
+		target, err := lookup(index, uid)
+		if err != nil {
+			return localMediumRCAuthoritySummary{}, err
+		}
+		if err := target.Validate(); err != nil {
+			return localMediumRCAuthoritySummary{}, err
+		}
+		word := target.HashSlot / 64
+		bit := uint64(1) << (target.HashSlot % 64)
+		if seen[word]&bit == 0 {
+			seen[word] |= bit
+			summary.targets++
+		}
+		for _, value := range []uint64{
+			uint64(index), uint64(target.HashSlot), uint64(target.SlotID), target.LeaderNodeID,
+			target.LeaderTerm, target.ConfigEpoch, target.RouteRevision, target.AuthorityEpoch,
+		} {
+			summary.digest ^= value
+			summary.digest *= 1099511628211
+		}
+	}
+	return summary, nil
+}
+
+func TestLocalMediumRCWorkloadEquivalence(t *testing.T) {
+	fixture := newLocalMediumRCFixture(t)
+	if len(fixture.node.byHashSlot) != localMediumRCPhysicalHashSlots {
+		t.Fatalf("physical hash slots = %d", len(fixture.node.byHashSlot))
+	}
+	logicalSlots := make(map[uint32]struct{}, localMediumRCLogicalSlots)
+	for _, route := range fixture.node.byHashSlot {
+		logicalSlots[route.SlotID] = struct{}{}
+	}
+	if len(logicalSlots) != localMediumRCLogicalSlots {
+		t.Fatalf("logical slots = %d, want %d", len(logicalSlots), localMediumRCLogicalSlots)
+	}
+	preferredLeaderMismatches := 0
+	for _, route := range fixture.node.byHashSlot {
+		if route.PreferredLeader != route.Leader {
+			preferredLeaderMismatches++
+		}
+	}
+	if preferredLeaderMismatches == 0 {
+		t.Fatal("workload has no PreferredLeader/actual Leader mismatch")
+	}
+	if err := fixture.resolveAndValidate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	switch fixture.adapter.Variant() {
+	case "baseline":
+		if full, authority := fixture.node.fullBatchCalls.Load(), fixture.node.authorityCalls.Load(); full != 1 || authority != 0 {
+			t.Fatalf("baseline route calls full/authority = %d/%d, want 1/0", full, authority)
+		}
+	case "candidate":
+		if full, authority := fixture.node.fullBatchCalls.Load(), fixture.node.authorityCalls.Load(); full != 0 || authority != 1 {
+			t.Fatalf("candidate route calls full/authority = %d/%d, want 0/1", full, authority)
+		}
+	default:
+		t.Fatalf("unknown revision adapter %q", fixture.adapter.Variant())
+	}
+	if err := fixture.pushAndAck(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("WKRC-EQUIVALENCE variant=%s physical_hash_slots=%d logical_slots=%d recipients=%d target_groups=%d online_routes=%d preferred_leader_mismatches=%d digest=%d",
+		fixture.adapter.Variant(), localMediumRCPhysicalHashSlots, localMediumRCLogicalSlots,
+		localMediumRCRecipients, localMediumRCTargetGroups, localMediumRCOnlineRoutes,
+		preferredLeaderMismatches, fixture.expectedSummary.digest)
+}
+
+func BenchmarkLocalMediumRCRevisionNeutralAuthorityResolve512x256(b *testing.B) {
+	fixture := newLocalMediumRCFixture(b)
+	if err := fixture.resolveAndValidate(context.Background()); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ReportMetric(localMediumRCRecipients, "recipients/op")
+	b.ReportMetric(localMediumRCTargetGroups, "target-groups/op")
+	b.ResetTimer()
+	for iteration := 0; iteration < b.N; iteration++ {
+		if err := fixture.adapter.ResolveAuthorities(context.Background(), fixture.uids); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.StopTimer()
+	if err := fixture.validateResolvedAuthorities(); err != nil {
+		b.Fatal(err)
+	}
+}
+
+func BenchmarkLocalMediumRCRevisionNeutralOwnerPushAck512x221x55(b *testing.B) {
+	fixture := newLocalMediumRCFixture(b)
+	before := fixture.totalWrites()
+	b.ReportAllocs()
+	b.ReportMetric(localMediumRCRecipients, "recipients/op")
+	b.ReportMetric(localMediumRCTargetGroups, "target-groups/op")
+	b.ReportMetric(localMediumRCOnlineRoutes, "online-routes/op")
+	b.ReportMetric(localMediumRCOnlineRoutes, "recvacks/op")
+	b.SetBytes(localMediumRCPayloadBytes)
+	b.ResetTimer()
+	for iteration := 0; iteration < b.N; iteration++ {
+		if err := fixture.pushAndAckCore(context.Background(), uint64(iteration+1)); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.StopTimer()
+	if err := fixture.validatePushAndAck(before, uint64(b.N*localMediumRCOnlineRoutes)); err != nil {
+		b.Fatal(err)
+	}
+}

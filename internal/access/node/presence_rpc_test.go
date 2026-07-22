@@ -239,6 +239,47 @@ func TestPresenceAuthorityRPCHandlerReturnsAlignedEndpointTargetResults(t *testi
 	}
 }
 
+func TestPresenceAuthorityRPCHandlerUsesOneTargetBatchAuthorityCall(t *testing.T) {
+	first := testPresenceTarget()
+	second := first
+	second.HashSlot++
+	second.SlotID++
+	groups := []presence.EndpointLookupGroup{
+		{Target: first, UIDs: []string{"u1", "u2"}},
+		{Target: second, UIDs: []string{"u3"}},
+	}
+	authority := &fakeTargetBatchPresenceAuthority{
+		fakePresenceAuthority: newFakePresenceAuthority(),
+		results: []presence.EndpointLookupResult{
+			{Routes: []presence.Route{testPresenceRoute("u1", 101), testPresenceRoute("u2", 102)}},
+			{Err: authoritypresence.ErrNotLeader},
+		},
+	}
+	adapter := New(Options{Authority: authority})
+	body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{Op: presenceOpEndpointsByTargets, EndpointGroups: groups})
+	if err != nil {
+		t.Fatalf("encodePresenceRPCRequestBinary() error = %v", err)
+	}
+
+	responseBody, err := adapter.HandlePresenceAuthorityRPC(context.Background(), body)
+	if err != nil {
+		t.Fatalf("HandlePresenceAuthorityRPC() error = %v", err)
+	}
+	results, err := decodePresenceEndpointsByTargetsResponseBinary(responseBody)
+	if err != nil {
+		t.Fatalf("decodePresenceEndpointsByTargetsResponseBinary() error = %v", err)
+	}
+	if len(authority.calls) != 1 || !reflect.DeepEqual(authority.calls[0], groups) {
+		t.Fatalf("target batch calls = %#v, want one call with %#v", authority.calls, groups)
+	}
+	if len(authority.endpointCalls) != 0 {
+		t.Fatalf("single UID calls = %#v, want none", authority.endpointCalls)
+	}
+	if len(results) != 2 || results[0].Status != rpcStatusOK || len(results[0].Routes) != 2 || results[1].Status != rpcStatusNotLeader {
+		t.Fatalf("results = %#v, want aligned partial success", results)
+	}
+}
+
 func TestPresenceAuthorityRPCHandlerFallsBackToSingleUIDAuthority(t *testing.T) {
 	authority := newFakePresenceAuthority()
 	adapter := New(Options{Authority: authority})
@@ -593,6 +634,21 @@ type fakeBatchPresenceAuthority struct {
 	*fakePresenceAuthority
 	batchCalls       []presence.EndpointLookupGroup
 	errorsByHashSlot map[uint16]error
+}
+
+type fakeTargetBatchPresenceAuthority struct {
+	*fakePresenceAuthority
+	calls   [][]presence.EndpointLookupGroup
+	results []presence.EndpointLookupResult
+}
+
+func (f *fakeTargetBatchPresenceAuthority) EndpointsByTargets(_ context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	cloned := make([]presence.EndpointLookupGroup, len(groups))
+	for i, group := range groups {
+		cloned[i] = presence.EndpointLookupGroup{Target: group.Target, UIDs: append([]string(nil), group.UIDs...)}
+	}
+	f.calls = append(f.calls, cloned)
+	return append([]presence.EndpointLookupResult(nil), f.results...)
 }
 
 func (f *fakeBatchPresenceAuthority) EndpointsByUIDs(_ context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {

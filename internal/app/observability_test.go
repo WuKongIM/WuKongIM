@@ -2744,9 +2744,16 @@ func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
 	if !ok {
 		t.Fatalf("combined observer does not implement AckObserver")
 	}
+	if _, ok := observer.(runtimedelivery.AckBatchObserver); ok {
+		t.Fatalf("combined observer unexpectedly implements AckBatchObserver; batch metrics must be enabled explicitly")
+	}
 
 	collector.recordSampleAt(time.Unix(100, 0))
 	ackObserver.ObserveAck(runtimedelivery.AckEvent{PendingCount: 9})
+	deliveryMetricsObserver{metrics: reg}.ObserveAckBatch(runtimedelivery.AckBatchEvent{
+		Phase: runtimedelivery.DeliveryAckBatchPhaseBind, Outcome: runtimedelivery.DeliveryAckBatchOutcomePartial,
+		Items: 3, Shards: 2, Rejected: 1, Duration: time.Millisecond,
+	})
 	collector.recordSampleAt(time.Unix(110, 0))
 
 	families, err := reg.Gather()
@@ -2756,6 +2763,10 @@ func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
 	ackBindings := requireAppMetricFamily(t, families, "wukongim_delivery_ack_bindings")
 	if got := findAppMetricByLabels(t, ackBindings, nil).GetGauge().GetValue(); got != 9 {
 		t.Fatalf("metrics ack bindings = %v, want 9", got)
+	}
+	ackBatch := requireAppMetricFamily(t, families, "wukongim_delivery_ack_batch_total")
+	if got := findAppMetricByLabels(t, ackBatch, map[string]string{"phase": "bind", "outcome": "partial"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("metrics ack bind batch = %v, want 1", got)
 	}
 	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
 		Window: 10 * time.Second,

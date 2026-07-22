@@ -45,6 +45,36 @@ func BenchmarkRouteKeys64(b *testing.B) {
 	}
 }
 
+func BenchmarkRouteAuthorities64(b *testing.B) {
+	router := newBenchRouter(b, 1)
+	keys := make([]string, 64)
+	for i := range keys {
+		keys[i] = "bench-user-" + strconv.Itoa(i)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := router.RouteAuthorities(keys); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRouteAuthoritiesPartial64(b *testing.B) {
+	router := newBenchRouter(b, 1)
+	keys := make([]string, 64)
+	for i := range keys {
+		keys[i] = "bench-user-" + strconv.Itoa(i)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := router.RouteAuthoritiesPartial(keys); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkLocalPropose(b *testing.B) {
 	router := newBenchRouter(b, 1)
 	slots := &benchmarkSlotRuntime{localNode: 1, leader: 1}

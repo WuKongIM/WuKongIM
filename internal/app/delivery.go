@@ -4,30 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
-	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-var errRecvMessageIDOverflow = errors.New("internal/app: delivery message id overflows recv packet")
-
 const defaultDeliveryRetryMaxAttempts = 3
 const defaultDeliveryRetryBackoff = 10 * time.Millisecond
-const pendingAckExpiryInterval = time.Second
-const pendingAckExpiryInProgress = int64(1<<63 - 1)
 
 type deliveryRuntimeAdapter struct {
 	// manager handles committed-message fanout and ack mutations.
@@ -358,206 +350,6 @@ func (a deliveryRuntimeAdapter) SessionClosed(ctx context.Context, cmd deliveryu
 		return nil
 	}
 	return a.manager.SessionClosed(ctx, runtimedelivery.SessionClosed{UID: cmd.UID, SessionID: cmd.SessionID})
-}
-
-type localOwnerPusher struct {
-	// online resolves owner-local concrete sessions.
-	online *online.Registry
-	// delivery tracks pending recvacks after successful local writes.
-	delivery *runtimedelivery.Manager
-	// pendingAckTTL bounds stale pending recvack cleanup during delivery activity.
-	pendingAckTTL time.Duration
-	// now provides the wall clock for bounded pending-ack expiry scheduling.
-	now func() time.Time
-	// pendingAckExpiryNext gates the O(pending acks) expiry scan to one caller per interval.
-	pendingAckExpiryNext atomic.Int64
-	// logger records owner-local delivery failures before they become retryable or dropped results.
-	logger wklog.Logger
-}
-
-func (p *localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
-	p.expirePendingAcksIfDue()
-	payload := append([]byte(nil), cmd.Envelope.Payload...)
-	timestamp := int32(time.Now().Unix())
-	var result runtimedelivery.PushResult
-	for _, route := range cmd.Routes {
-		session, ok := p.localSession(route)
-		if !ok {
-			result.Dropped = append(result.Dropped, route)
-			continue
-		}
-		packet, err := buildRecvPacket(cmd.Envelope, route.UID, payload, timestamp)
-		if err != nil {
-			p.loggerOrNop().Warn("delivery recv packet build failed",
-				wklog.Event("internal.app.delivery.recv_packet_build_failed"),
-				wklog.UID(route.UID),
-				wklog.SessionID(route.SessionID),
-				wklog.ChannelID(cmd.Envelope.ChannelID),
-				wklog.ChannelType(int64(cmd.Envelope.ChannelType)),
-				wklog.Uint64("messageID", cmd.Envelope.MessageID),
-				wklog.MessageSeq(cmd.Envelope.MessageSeq),
-				wklog.Error(err),
-			)
-			result.Dropped = append(result.Dropped, route)
-			continue
-		}
-		pending := runtimedelivery.PendingRecvAck{
-			UID:         route.UID,
-			SessionID:   route.SessionID,
-			MessageID:   cmd.Envelope.MessageID,
-			MessageSeq:  cmd.Envelope.MessageSeq,
-			ChannelID:   cmd.Envelope.ChannelID,
-			ChannelType: cmd.Envelope.ChannelType,
-		}
-		if p.delivery != nil && !p.delivery.BindPendingAck(pending) {
-			p.loggerOrNop().Warn("delivery pending ack limit reached",
-				wklog.Event("internal.app.delivery.pending_ack_limit_reached"),
-				wklog.UID(route.UID),
-				wklog.SessionID(route.SessionID),
-				wklog.ChannelID(cmd.Envelope.ChannelID),
-				wklog.ChannelType(int64(cmd.Envelope.ChannelType)),
-				wklog.Uint64("messageID", cmd.Envelope.MessageID),
-				wklog.MessageSeq(cmd.Envelope.MessageSeq),
-			)
-			result.Dropped = append(result.Dropped, route)
-			continue
-		}
-		if err := session.Session.WriteDelivery(packet); err != nil {
-			if p.delivery != nil {
-				if ackErr := p.delivery.Recvack(context.Background(), runtimedelivery.Recvack{
-					UID:       route.UID,
-					SessionID: route.SessionID,
-					MessageID: cmd.Envelope.MessageID,
-				}); ackErr != nil {
-					p.loggerOrNop().Warn("delivery pending ack cleanup failed",
-						wklog.Event("internal.app.delivery.pending_ack_cleanup_failed"),
-						wklog.UID(route.UID),
-						wklog.SessionID(route.SessionID),
-						wklog.Uint64("messageID", cmd.Envelope.MessageID),
-						wklog.Error(ackErr),
-					)
-				}
-			}
-			terminal := terminalLocalDeliveryWriteError(err)
-			p.loggerOrNop().Warn("delivery write failed",
-				wklog.Event("internal.app.delivery.write_failed"),
-				wklog.UID(route.UID),
-				wklog.SessionID(route.SessionID),
-				wklog.ChannelID(cmd.Envelope.ChannelID),
-				wklog.ChannelType(int64(cmd.Envelope.ChannelType)),
-				wklog.Uint64("messageID", cmd.Envelope.MessageID),
-				wklog.MessageSeq(cmd.Envelope.MessageSeq),
-				wklog.Bool("terminal", terminal),
-				wklog.Error(err),
-			)
-			if terminal {
-				result.Dropped = append(result.Dropped, route)
-			} else {
-				result.Retryable = append(result.Retryable, route)
-			}
-			continue
-		}
-		result.Accepted = append(result.Accepted, route)
-	}
-	return result, nil
-}
-
-func (p *localOwnerPusher) expirePendingAcksIfDue() {
-	if p == nil || p.pendingAckTTL <= 0 || p.delivery == nil {
-		return
-	}
-	now := p.nowTime()
-	for {
-		next := p.pendingAckExpiryNext.Load()
-		if next == pendingAckExpiryInProgress || now.UnixNano() < next {
-			return
-		}
-		if p.pendingAckExpiryNext.CompareAndSwap(next, pendingAckExpiryInProgress) {
-			break
-		}
-	}
-	defer func() {
-		p.pendingAckExpiryNext.Store(p.nowTime().Add(pendingAckExpiryInterval).UnixNano())
-	}()
-	p.delivery.ExpirePendingAcks(p.pendingAckTTL)
-}
-
-func (p *localOwnerPusher) nowTime() time.Time {
-	if p != nil && p.now != nil {
-		return p.now()
-	}
-	return time.Now()
-}
-
-func (p *localOwnerPusher) loggerOrNop() wklog.Logger {
-	if p.logger == nil {
-		return wklog.NewNop()
-	}
-	return p.logger
-}
-
-func (p *localOwnerPusher) localSession(route runtimedelivery.Route) (online.LocalSession, bool) {
-	if p.online == nil || route.UID == "" || route.SessionID == 0 || route.OwnerNodeID == 0 || route.OwnerBootID == 0 || route.OwnerSeq == 0 {
-		return online.LocalSession{}, false
-	}
-	session, ok := p.online.LocalSession(route.SessionID)
-	if !ok || session.State != online.RouteStateActive || session.Session == nil {
-		return online.LocalSession{}, false
-	}
-	local := session.Route
-	if local.UID != route.UID || local.SessionID != route.SessionID {
-		return online.LocalSession{}, false
-	}
-	if local.OwnerNodeID != route.OwnerNodeID || local.OwnerBootID != route.OwnerBootID || local.OwnerSeq != route.OwnerSeq {
-		return online.LocalSession{}, false
-	}
-	return session, true
-}
-
-func terminalLocalDeliveryWriteError(err error) bool {
-	return errors.Is(err, gatewaysession.ErrSessionClosed) ||
-		errors.Is(err, gatewaytransport.ErrOutboundBytesExceeded)
-}
-
-func buildRecvPacket(env runtimedelivery.Envelope, uid string, payload []byte, timestamp int32) (*frame.RecvPacket, error) {
-	if env.MessageID > uint64(1<<63-1) {
-		return nil, errRecvMessageIDOverflow
-	}
-	channelID := env.ChannelID
-	if env.ChannelType == frame.ChannelTypePerson {
-		channelID = recipientPersonChannelView(env, uid)
-	}
-	return &frame.RecvPacket{
-		Framer: frame.Framer{
-			RedDot: env.RedDot,
-		},
-		MessageID:   int64(env.MessageID),
-		MessageSeq:  env.MessageSeq,
-		ClientMsgNo: env.ClientMsgNo,
-		Timestamp:   timestamp,
-		ChannelID:   channelID,
-		ChannelType: env.ChannelType,
-		FromUID:     env.FromUID,
-		Payload:     payload,
-	}, nil
-}
-
-func recipientPersonChannelView(env runtimedelivery.Envelope, recipientUID string) string {
-	if recipientUID == "" {
-		return env.ChannelID
-	}
-	left, right, err := runtimechannelid.DecodePersonChannel(env.ChannelID)
-	if err != nil {
-		return env.FromUID
-	}
-	switch recipientUID {
-	case left:
-		return right
-	case right:
-		return left
-	default:
-		return env.FromUID
-	}
 }
 
 type appSubscriberPlanner struct {

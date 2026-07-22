@@ -85,6 +85,36 @@ different units and must not be compared directly. Counter resets,
 missing result series, incomplete endpoints, and one-scrape gauge skew must
 remain unknown rather than zero.
 
+When the recipient worker itself has headroom but ingress, SENDACK, or receive
+latency is still elevated, inspect the surrounding batch stages before broad
+logs. Query `delivery_recipient_authority_resolve_rate`,
+`delivery_recipient_authority_resolve_items_rate`,
+`delivery_recipient_authority_resolve_targets_rate`, and
+`delivery_recipient_authority_resolve_p99` to separate resolution failures from
+large or fragmented recipient batches. Then query
+`presence_endpoint_lookup_rate`, `presence_endpoint_lookup_items_rate`,
+`presence_endpoint_lookup_groups_rate`, and
+`presence_endpoint_lookup_p99`. Preserve the bounded `path`, `outcome`, and
+`stale_retry` dimensions: one recipient batch can fan out to multiple leader
+stages, and a stale retry repeats its attempted items and groups, so those
+counters do not represent unique recipients or confirmed delivery.
+
+For owner-local pending receive acknowledgements, read
+`delivery_ack_batch_cumulative`, `delivery_ack_batch_items_cumulative`,
+`delivery_ack_batch_shards_cumulative`,
+`delivery_ack_batch_rejected_cumulative`,
+`delivery_ack_batch_rollback_cumulative`, and `delivery_ack_batch_p99` over the
+same exact phase. Compute cumulative deltas separately for `phase="bind"` and
+`phase="finish"`; items are observed in both phases and must not be added as
+unique deliveries. Rejected items are also carried into the finish observation.
+Rollback applies to finish and counts actual canceled reservations, so duplicate
+delivery attempts can produce more rollbacks than aligned input items. Shard
+totals count tracker shards touched rather than messages. Require quiescent
+bracketing samples before treating cross-series
+delta equations as exact because these metric families are not updated in one
+atomic Prometheus snapshot. Missing phase/outcome series and counter resets
+remain unknown rather than zero. The P99 values are seconds.
+
 Then query `channelappend_post_commit_handoff_depth`,
 `channelappend_post_commit_handoff_capacity`,
 `channelappend_post_commit_retry_queue_depth`, and

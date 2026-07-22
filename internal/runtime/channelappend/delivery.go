@@ -124,7 +124,7 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 		}
 		if resolved[i].Err != nil {
 			detail := postCommitBatchDetail("presence_resolve", batch)
-			detail.UIDCount = len(recipientUIDs(batch.Recipients))
+			detail.UIDCount = recipientUIDCount(batch.Recipients)
 			results[i] = withPostCommitFailureDetail(resolved[i].Err, detail)
 			continue
 		}
@@ -233,8 +233,10 @@ func prepareRecipientBatchRoutesSafely(
 	ports recipientPorts,
 ) (prepared []Route, err error) {
 	defer recoverRecipientBatchPanic(batch, &err)
-	uids := recipientUIDs(batch.Recipients)
-	observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientsObserver, ports.offlineRecipientObserver)
+	if shouldObserveOfflineRecipients(batch.Event, ports.offlineRecipientsObserver, ports.offlineRecipientObserver) {
+		uids := recipientUIDs(batch.Recipients)
+		observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientsObserver, ports.offlineRecipientObserver)
+	}
 	if ports.pusher == nil {
 		return nil, nil
 	}
@@ -353,8 +355,10 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 }
 
 func processRecipientBatchWithRoutes(ctx context.Context, batch RecipientBatch, routes []Route, ports recipientPorts) error {
-	uids := recipientUIDs(batch.Recipients)
-	observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientsObserver, ports.offlineRecipientObserver)
+	if shouldObserveOfflineRecipients(batch.Event, ports.offlineRecipientsObserver, ports.offlineRecipientObserver) {
+		uids := recipientUIDs(batch.Recipients)
+		observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientsObserver, ports.offlineRecipientObserver)
+	}
 	if ports.pusher == nil {
 		return nil
 	}
@@ -376,7 +380,7 @@ func processRecipientBatchWithRoutes(ctx context.Context, batch RecipientBatch, 
 			if err != nil {
 				detail := postCommitBatchDetail("owner_push", batch)
 				detail.UID = firstRouteUID(failedRoutes)
-				detail.UIDCount = len(uids)
+				detail.UIDCount = recipientUIDCount(batch.Recipients)
 				detail.DispatchOwnerNodeID = ownerNodeID
 				detail.DispatchOwnerRouteNum = len(failedRoutes)
 				return withPostCommitFailureDetail(err, detail)
@@ -384,6 +388,14 @@ func processRecipientBatchWithRoutes(ctx context.Context, batch RecipientBatch, 
 		}
 	}
 	return nil
+}
+
+func shouldObserveOfflineRecipients(
+	event CommittedEnvelope,
+	batchObserver OfflineRecipientsObserver,
+	singleObserver OfflineRecipientObserver,
+) bool {
+	return (batchObserver != nil || singleObserver != nil) && offlineRecipientObserverEligible(event)
 }
 
 func observeOfflineRecipients(
@@ -462,6 +474,16 @@ func recipientUIDs(recipients []Recipient) []string {
 		uids = append(uids, recipient.UID)
 	}
 	return uids
+}
+
+func recipientUIDCount(recipients []Recipient) int {
+	count := 0
+	for _, recipient := range recipients {
+		if recipient.UID != "" {
+			count++
+		}
+	}
+	return count
 }
 
 func filterSenderEchoRoute(event CommittedEnvelope, routes []Route) []Route {

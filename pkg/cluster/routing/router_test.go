@@ -2,12 +2,49 @@ package routing
 
 import (
 	"errors"
+	"hash/crc32"
+	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
+
+var (
+	authorityRouteSink       []AuthorityRoute
+	authorityRouteResultSink []AuthorityRouteResult
+)
+
+func TestChecksumIEEEStringMatchesStandard(t *testing.T) {
+	assertEqual := func(value string) {
+		t.Helper()
+		got := checksumIEEEString(value)
+		want := crc32.ChecksumIEEE([]byte(value))
+		if got != want {
+			t.Fatalf("checksumIEEEString(%x) = %08x, want %08x", value, got, want)
+		}
+	}
+
+	assertEqual("")
+	for value := 0; value <= 0xff; value++ {
+		assertEqual(string([]byte{byte(value)}))
+	}
+	for first := 0; first <= 0xff; first++ {
+		for second := 0; second <= 0xff; second++ {
+			assertEqual(string([]byte{byte(first), byte(second)}))
+		}
+	}
+
+	rng := rand.New(rand.NewSource(1))
+	for iteration := 0; iteration < 2000; iteration++ {
+		payload := make([]byte, rng.Intn(1025))
+		if _, err := rng.Read(payload); err != nil {
+			t.Fatalf("random payload: %v", err)
+		}
+		assertEqual(string(payload))
+	}
+}
 
 func TestRouterRoutesHashSlotZero(t *testing.T) {
 	r := NewRouter()
@@ -139,6 +176,92 @@ func TestRouterRouteKeysPreservesInputOrder(t *testing.T) {
 	}
 	if routes[1].HashSlot != 0 || routes[1].SlotID != 1 || routes[1].Leader != 1 {
 		t.Fatalf("second route = %#v, want hashSlot=0 slot=1 leader=1", routes[1])
+	}
+}
+
+func TestRouterRouteAuthoritiesPreservesInputOrderAndFences(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}, {SlotID: 2, Leader: 2, LeaderTerm: 10}})
+	first := keyForHashSlot(t, 3, 4)
+	second := keyForHashSlot(t, 0, 4)
+
+	authorities, err := r.RouteAuthorities([]string{first, second})
+	if err != nil {
+		t.Fatalf("RouteAuthorities() error = %v", err)
+	}
+	if len(authorities) != 2 {
+		t.Fatalf("authorities = %d, want 2", len(authorities))
+	}
+	if got := authorities[0]; got.HashSlot != 3 || got.SlotID != 2 || got.LeaderNodeID != 2 || got.LeaderTerm != 10 || got.ConfigEpoch != 1 || got.RouteRevision != 10 || got.AuthorityEpoch != 0 {
+		t.Fatalf("first authority = %#v, want hashSlot=3 slot=2 leader=2 term=10 configEpoch=1 revision=10", got)
+	}
+	if got := authorities[1]; got.HashSlot != 0 || got.SlotID != 1 || got.LeaderNodeID != 1 || got.LeaderTerm != 9 || got.ConfigEpoch != 1 || got.RouteRevision != 10 || got.AuthorityEpoch != 0 {
+		t.Fatalf("second authority = %#v, want hashSlot=0 slot=1 leader=1 term=9 configEpoch=1 revision=10", got)
+	}
+}
+
+func TestRouterRouteAuthoritiesPartialPreservesAlignedFailures(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	first := keyForHashSlot(t, 0, 4)
+	second := keyForHashSlot(t, 3, 4)
+	third := keyForHashSlot(t, 1, 4)
+
+	results, err := r.RouteAuthoritiesPartial([]string{first, second, third})
+	if err != nil {
+		t.Fatalf("RouteAuthoritiesPartial() error = %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("results = %d, want 3", len(results))
+	}
+	if results[0].Err != nil || results[0].Authority.HashSlot != 0 || results[0].Authority.LeaderNodeID != 1 {
+		t.Fatalf("first result = %#v, want led physical hash slot 0", results[0])
+	}
+	if !errors.Is(results[1].Err, ErrNoSlotLeader) {
+		t.Fatalf("second result error = %v, want ErrNoSlotLeader", results[1].Err)
+	}
+	if results[2].Err != nil || results[2].Authority.HashSlot != 1 || results[2].Authority.LeaderNodeID != 1 {
+		t.Fatalf("third result = %#v, want led physical hash slot 1", results[2])
+	}
+}
+
+func TestRouterRouteAuthorityBatchAllocationBudget(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
+	keys := make([]string, 64)
+	for i := range keys {
+		keys[i] = "authority-allocation-user-" + strconv.Itoa(i)
+	}
+
+	authorityAllocs := testing.AllocsPerRun(100, func() {
+		var err error
+		authorityRouteSink, err = r.RouteAuthorities(keys)
+		if err != nil {
+			panic(err)
+		}
+	})
+	if authorityAllocs > 1 {
+		t.Fatalf("RouteAuthorities() allocations = %.0f, want at most 1 result-slice allocation", authorityAllocs)
+	}
+
+	partialAllocs := testing.AllocsPerRun(100, func() {
+		var err error
+		authorityRouteResultSink, err = r.RouteAuthoritiesPartial(keys)
+		if err != nil {
+			panic(err)
+		}
+	})
+	if partialAllocs > 1 {
+		t.Fatalf("RouteAuthoritiesPartial() allocations = %.0f, want at most 1 result-slice allocation", partialAllocs)
 	}
 }
 

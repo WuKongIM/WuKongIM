@@ -18,7 +18,8 @@ conversation authority active cache/list reads, and opt-in local online
 delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
-and protocol details stay in access packages.
+entry-protocol details stay in access packages, and concrete runtime adapters
+stay in infra packages.
 
 ## Construction Flow
 
@@ -45,9 +46,12 @@ New(Config)
      flush-stage histograms, and pressure-wakeup
      lifecycle metrics, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
-     touch-flush route/chunk/target-group counters, recipient delivery worker
+     touch-flush route/chunk/target-group counters plus aggregate exact-target
+     endpoint lookup path/outcome/retry metrics, recipient authority batch
+     calls/items/physical-targets/duration, recipient delivery worker
      queue/admission/process metrics plus configured worker capacity and current
-     in-flight command gauges,
+     in-flight command gauges, and owner-local ACK batch bind/finish shape,
+     rejection, rollback, and duration metrics,
      plugin PersistAfter and Receive hook enqueue/invoke counters and
      histograms, and synchronous plugin Send hook invoke counters and histograms
      plus node lifecycle gauges/counters from control snapshots and scale-in
@@ -207,8 +211,10 @@ New(Config)
        channel metadata adapter as the system UID store
   -> when Delivery.Enabled=true:
        create a cluster-backed delivery partitioner
+       create infra/delivery.LocalOwnerPusher for exact owner-local session,
+       packet, and pending-RECVACK adaptation
        when route snapshots are available, an app subscriber planner, presence
-       resolver, local/cluster delivery pusher, and partition-leader fanout router
+       resolver, cluster delivery pusher, and partition-leader fanout router
        wrap the fanout runner with a bounded in-memory retry scheduler
        create runtime/delivery Manager in bounded async mode around the runner
        attach delivery observer for metrics and async error logging
@@ -255,7 +261,7 @@ New(Config)
        create channelappend.Group with hash-sharded per-channel authority writers,
        cluster ChannelAppender, node-scoped message IDs, subscriber source,
        cluster-backed idempotency lookup when the cluster exposes it,
-       recipient authority resolver, conversation active-batch admitter,
+       infra/cluster recipient authority resolver adapter, conversation active-batch admitter,
        optional recipient delivery worker enqueuer, optional plugin/webhook
        PersistAfter enqueuers, optional plugin/webhook offline-recipient
        observers, append metrics observer, and shared append/post-commit worker
@@ -403,8 +409,10 @@ feedback flows to the delivery usecase, while channelappend post-commit effects
 enqueue bounded multi-target recipient delivery plans into the recipient
 delivery worker. Each plan retains every exact Slot authority fence. The app
 presence adapter converts all plan groups in one call; the cluster adapter then
-batches local groups in the presence directory and sends at most one batch RPC
-to each remote Slot leader. Results remain aligned per exact target so a failed
+batches local groups in the presence directory, acquiring one read lock per
+touched directory shard while preserving group-aligned partial errors, and
+sends at most one batch RPC to each remote Slot leader. Results remain aligned
+per exact target so a failed
 leader group does not discard successful groups from the same plan.
 `Config.ChannelAppend.AuthorityShardCount` defaults to a CPU-aware lookup-shard
 count with a minimum of four. `ChannelAppend.AdvancePoolSize` is the direct ants
@@ -463,13 +471,14 @@ is enqueued first; active projection failures surface independently as the
 `conversation_active` post-commit phase and do not stop online delivery or later
 large-channel pages.
 Runtime fanout failures are counted with normalized delivery error classes.
-Retryable fanout failures enter
-a bounded in-memory retry scheduler with a small fixed attempt cap; retry queue
-overflow is surfaced as `queue_full`. Owner-local pushes write `RecvPacket` values through
-`online.SessionHandle.WriteDelivery`. Each owner push snapshots the immutable
-envelope payload once and reuses that snapshot across recipient packets;
-closed-session and outbound-overflow write errors are terminal drops, while
-unknown write errors remain retryable. The same append observer records
+Retryable fanout failures enter a bounded in-memory retry scheduler with a small
+fixed attempt cap; retry queue overflow is surfaced as `queue_full`. The
+composition root supplies `infra/delivery.LocalOwnerPusher` to that runtime and
+installs the delivery Manager before workers start. Exact owner-local session
+revalidation, recipient-specific `RecvPacket` construction, item-aligned pending
+RECVACK bind/finish/rollback, duplicate reservation refresh, write-error
+classification, and activity-throttled expiry remain inside the adapter; see
+`internal/infra/delivery/FLOW.md` for that state machine. The same append observer records
 per-message append success/error latency and classifies append failures with
 low-cardinality labels for benchmark triage, including typed Channel runtime/cluster
 errors and short append results.
@@ -477,18 +486,22 @@ errors and short append results.
 The channel append commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
-subscriber source, or the cluster Slot metadata source. When cluster exposes
-batch key routing, the app recipient resolver resolves each subscriber page's
-unique UIDs through one batch route lookup. After each recipient set is formed,
-channelappend groups recipients by exact UID hash-slot authority
-target including Slot leader term and Slot config epoch, then packs the groups
-into a bounded delivery plan. The worker preserves those fences while the
-presence usecase groups target lookups by actual leader and returns partial
-per-target results.
+subscriber source, or the cluster Slot metadata source. The composition root
+constructs `infra/cluster.RecipientAuthorityResolver` and supplies its optional
+aggregate metrics observer; cluster capability probing, route-error mapping,
+aligned route DTO conversion, and physical hash-slot target counting remain
+inside that adapter. After each recipient set is formed,
+channelappend groups recipients by exact physical hash-slot and logical Slot
+Raft Group authority target including leader term and config epoch, then packs
+the groups into a bounded delivery plan. The worker preserves those fences
+while the presence usecase groups target lookups by actual leader and returns
+partial per-target results.
 It next admits an independent kind-aware `conversationactive.ActiveBatch`
-through the shared `ConversationAuthorityClient`; channelappend chooses normal
-versus CMD kind from the committed envelope, and active admission still runs
-when online delivery is disabled. When delivery is enabled, the app wires a bounded
+through the shared `ConversationAuthorityClient`; its first attempt consumes
+the already-grouped aligned snapshot, while exceptional sender or recipient
+route items use the legacy active-admission compatibility path. Channelappend
+chooses normal versus CMD kind from the committed envelope, and active admission
+still runs when online delivery is disabled. When delivery is enabled, the app wires a bounded
 recipient delivery worker that drains those plans and runs the delivery-only
 channelappend recipient processor outside the authority writer. `/bench/v1/channels`,
 `/bench/v1/channels/subscribers`, and `/bench/v1/channels/subscribers/remove`
