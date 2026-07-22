@@ -7,6 +7,7 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -52,6 +53,49 @@ func TestManagementMessageRetentionOperatorAdvancesLocalLeaderBoundary(t *testin
 	}
 	if node.lastReadReq.MinSeq != 1 || !node.lastReadReq.Reverse || node.lastReadReq.Limit != 1 {
 		t.Fatalf("read request = %+v, want latest visible committed read", node.lastReadReq)
+	}
+}
+
+func TestManagementMessageRetentionRecordsPermanentErasureBeforeAdvancing(t *testing.T) {
+	events := make([]string, 0, 2)
+	node := &recordingRetentionNode{
+		nodeID: 7, meta: localRetentionMeta("room-1", 2, 7),
+		readResult:    channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 10}}},
+		retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10}, events: &events,
+	}
+	recorder := &recordingPermanentErasureRecorder{events: &events}
+	operator := NewManagementMessageRetentionOperator(node, recorder)
+	operator.now = func() time.Time { return time.UnixMilli(1713859200123) }
+
+	_, err := operator.AdvanceMessageRetention(context.Background(), managementusecase.AdvanceMessageRetentionRequest{ChannelID: "room-1", ChannelType: 2, ThroughSeq: 5})
+
+	if err != nil {
+		t.Fatalf("AdvanceMessageRetention() error = %v", err)
+	}
+	if len(recorder.requests) != 1 || recorder.requests[0].ThroughSeq != 5 || recorder.requests[0].RequestedAtUnixMillis != 1713859200123 {
+		t.Fatalf("recorded requests = %+v, want through 5 at request time", recorder.requests)
+	}
+	if len(events) != 2 || events[0] != "ledger" || events[1] != "advance" {
+		t.Fatalf("events = %v, want ledger before advance", events)
+	}
+}
+
+func TestManagementMessageRetentionDoesNotAdvanceWhenPermanentErasureLedgerFails(t *testing.T) {
+	node := &recordingRetentionNode{
+		nodeID: 7, meta: localRetentionMeta("room-1", 2, 7),
+		readResult:    channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 10}}},
+		retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10},
+	}
+	wantErr := errors.New("secondary repository unavailable")
+	operator := NewManagementMessageRetentionOperator(node, &recordingPermanentErasureRecorder{err: wantErr})
+
+	_, err := operator.AdvanceMessageRetention(context.Background(), managementusecase.AdvanceMessageRetentionRequest{ChannelID: "room-1", ChannelType: 2, ThroughSeq: 5})
+
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("AdvanceMessageRetention() error = %v, want %v", err, wantErr)
+	}
+	if node.advanceCalled {
+		t.Fatalf("AdvanceChannelRetentionThroughSeq called after ledger failure")
 	}
 }
 
@@ -339,6 +383,7 @@ type recordingRetentionNode struct {
 	advance             metadb.ChannelRetentionAdvance
 	advanceCalled       bool
 	advanceErr          error
+	events              *[]string
 }
 
 func (n *recordingRetentionNode) NodeID() uint64 {
@@ -366,9 +411,26 @@ func (n *recordingRetentionNode) ReadChannelCommitted(_ context.Context, _ chann
 }
 
 func (n *recordingRetentionNode) AdvanceChannelRetentionThroughSeq(_ context.Context, req metadb.ChannelRetentionAdvance) error {
+	if n.events != nil {
+		*n.events = append(*n.events, "advance")
+	}
 	n.advance = req
 	n.advanceCalled = true
 	return n.advanceErr
+}
+
+type recordingPermanentErasureRecorder struct {
+	requests []backupcontract.PermanentMessageErasure
+	err      error
+	events   *[]string
+}
+
+func (r *recordingPermanentErasureRecorder) RecordPermanentMessageErasure(_ context.Context, request backupcontract.PermanentMessageErasure) (backupcontract.ErasureLedgerReceipt, error) {
+	if r.events != nil {
+		*r.events = append(*r.events, "ledger")
+	}
+	r.requests = append(r.requests, request)
+	return backupcontract.ErasureLedgerReceipt{Sequence: 1, EventID: "event"}, r.err
 }
 
 func localRetentionMeta(channelID string, channelType int64, leader uint64) metadb.ChannelRuntimeMeta {

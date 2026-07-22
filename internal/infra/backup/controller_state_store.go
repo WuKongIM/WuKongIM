@@ -41,6 +41,9 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 		return result, nil
 	}
 	result.LastEpoch = clusterState.Backup.LastEpoch
+	result.ErasureLedgerBoundary = clusterState.Backup.ErasureLedgerBoundary
+	result.PendingErasureLedger = erasureLedgerReferenceFromController(clusterState.Backup.PendingErasureLedger)
+	result.LastCommittedErasureLedger = erasureLedgerReferenceFromController(clusterState.Backup.LastCommittedErasureLedger)
 	result.Active = jobFromController(clusterState.Backup.Active)
 	result.RestorePoints = make([]backupusecase.RestorePoint, len(clusterState.Backup.RestorePoints))
 	for index, restorePoint := range clusterState.Backup.RestorePoints {
@@ -56,10 +59,13 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 // CompareAndSwap stores next only when the Controller cluster revision still matches revision.
 func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint64, next backupusecase.State) error {
 	replacement := controller.BackupCoordinationState{
-		LastEpoch:      next.LastEpoch,
-		Active:         jobToController(next.Active),
-		RestorePoints:  make([]controller.BackupRestorePoint, len(next.RestorePoints)),
-		PendingGarbage: make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
+		LastEpoch:                  next.LastEpoch,
+		Active:                     jobToController(next.Active),
+		RestorePoints:              make([]controller.BackupRestorePoint, len(next.RestorePoints)),
+		PendingGarbage:             make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
+		ErasureLedgerBoundary:      next.ErasureLedgerBoundary,
+		PendingErasureLedger:       erasureLedgerReferenceToController(next.PendingErasureLedger),
+		LastCommittedErasureLedger: erasureLedgerReferenceToController(next.LastCommittedErasureLedger),
 	}
 	for index, restorePoint := range next.RestorePoints {
 		replacement.RestorePoints[index] = restorePointToController(restorePoint)
@@ -74,6 +80,24 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		return err
 	}
 	return nil
+}
+
+func erasureLedgerReferenceFromController(reference *controller.BackupErasureLedgerReference) *backupusecase.ErasureLedgerRecordReference {
+	if reference == nil {
+		return nil
+	}
+	return &backupusecase.ErasureLedgerRecordReference{
+		Sequence: reference.Sequence, EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
+	}
+}
+
+func erasureLedgerReferenceToController(reference *backupusecase.ErasureLedgerRecordReference) *controller.BackupErasureLedgerReference {
+	if reference == nil {
+		return nil
+	}
+	return &controller.BackupErasureLedgerReference{
+		Sequence: reference.Sequence, EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
+	}
 }
 
 func jobFromController(job *controller.BackupJob) *backupusecase.Job {

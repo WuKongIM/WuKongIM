@@ -14,6 +14,7 @@ import (
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -175,6 +176,10 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		ApplicationVersion: backupApplicationVersion(), RepositoryID: a.cfg.Backup.RepositoryID,
 		SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
 		Now: time.Now, NewRestorePointID: func() string { return newBackupID("restore") },
+		ErasureLedgerBoundary: func(ctx context.Context) (uint64, error) {
+			state, err := stateStore.Load(ctx)
+			return state.ErasureLedgerBoundary, err
+		},
 	})
 	if err != nil {
 		a.backupInitErr = err
@@ -185,18 +190,20 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
-	primaryGarbage, err := loadAppBackupGarbageRepository(context.Background(), "primary-gc", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
+	primaryGarbage, err := loadAppBackupGarbageRepository(context.Background(), "primary", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	secondaryGarbage, err := loadAppBackupGarbageRepository(context.Background(), "secondary-gc", a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region, a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
+	secondaryGarbage, err := loadAppBackupGarbageRepository(context.Background(), "secondary", a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region, a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
 	garbageCollector, err := backupinfra.NewRestorePointGarbageCollector(backupinfra.RestorePointGarbageCollectorOptions{
-		Primary: primaryGarbage, Secondary: secondaryGarbage, Signer: manifestSigner,
+		Primary: primaryGarbage, Secondary: secondaryGarbage, Signer: manifestSigner, Codec: codec,
+		PrimaryRepository: primary.Name(), SecondaryRepository: secondary.Name(),
+		RepositoryID: a.cfg.Backup.RepositoryID, SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration, HashSlotCount: clusterCfg.Slots.HashSlotCount,
 		MinimumAge: time.Duration(a.cfg.Backup.ObjectLockDays) * 24 * time.Hour,
 	})
 	if err != nil {
@@ -211,6 +218,18 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
+	erasureLedger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
+		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: a.backup,
+		Signer: manifestSigner, SigningKeyID: a.cfg.Backup.SigningKeyID, KMSKeyID: a.cfg.Backup.KMSKeyID,
+		RepositoryID: a.cfg.Backup.RepositoryID, SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
+		HashSlotCount: clusterCfg.Slots.HashSlotCount, Now: time.Now, NewAttemptID: func() string { return newBackupID("erasure") },
+	})
+	if err != nil {
+		a.backupInitErr = err
+		a.backup = nil
+		return
+	}
+	a.permanentErasureRecorder = erasureLedger
 	primaryClock, err := newAppBackupClockProbe(a.cfg.Backup.Primary.Endpoint)
 	if err != nil {
 		a.backupInitErr = err
@@ -249,6 +268,27 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	node.RegisterRPC(accessnode.BackupPartitionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupPartitionRPC))
 }
 
+type unavailablePermanentErasureRecorder struct {
+	err error
+}
+
+func (r unavailablePermanentErasureRecorder) RecordPermanentMessageErasure(context.Context, backupinfra.PermanentMessageErasure) (backupinfra.ErasureLedgerReceipt, error) {
+	if r.err != nil {
+		return backupinfra.ErasureLedgerReceipt{}, fmt.Errorf("backup permanent erasure ledger unavailable: %w", r.err)
+	}
+	return backupinfra.ErasureLedgerReceipt{}, fmt.Errorf("backup permanent erasure ledger unavailable")
+}
+
+func (a *App) managerPermanentErasureRecorder() clusterinfra.PermanentMessageErasureRecorder {
+	if a == nil || !a.cfg.Backup.Enabled {
+		return nil
+	}
+	if a.permanentErasureRecorder != nil {
+		return a.permanentErasureRecorder
+	}
+	return unavailablePermanentErasureRecorder{err: a.backupInitErr}
+}
+
 func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupartifact.Repository, signer backupartifact.ManifestSigner, codec *backupartifact.ObjectCodec, observer runtimebackup.RuntimeObserver) {
 	node, ok := a.cluster.(appRestoreNode)
 	if !ok {
@@ -265,7 +305,7 @@ func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupar
 		return
 	}
 	inspector, err := backupinfra.NewRestoreInspector(backupinfra.RestoreInspectorOptions{
-		Primary: primary, Secondary: secondary, Signer: signer,
+		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec,
 		RepositoryID: a.cfg.Backup.RepositoryID, Target: target,
 	})
 	if err != nil {

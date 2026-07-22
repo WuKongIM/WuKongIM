@@ -144,7 +144,11 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 		result.DeletedThroughSeq = msg.MessageSeq
 		result.Deleted++
 	}
-	if result.DeletedThroughSeq > next.PhysicalRetentionThroughSeq {
+	if !result.More && throughSeq > next.PhysicalRetentionThroughSeq {
+		// readRows exhausted the complete requested range, so absence across a
+		// sparse or empty suffix is durable physical-erasure evidence too.
+		next.PhysicalRetentionThroughSeq = throughSeq
+	} else if result.DeletedThroughSeq > next.PhysicalRetentionThroughSeq {
 		next.PhysicalRetentionThroughSeq = result.DeletedThroughSeq
 	}
 	if err := validateRetentionState(next); err != nil {

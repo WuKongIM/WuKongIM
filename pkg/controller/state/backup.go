@@ -106,6 +106,19 @@ type BackupRestorePoint struct {
 	Held bool `json:"held,omitempty"`
 }
 
+// BackupErasureLedgerReference is the only bounded pending permanent-erasure
+// ledger record stored in Controller state.
+type BackupErasureLedgerReference struct {
+	// Sequence is the next contiguous ledger commit sequence.
+	Sequence uint64 `json:"sequence"`
+	// EventID is the deterministic permanent-erasure event identity.
+	EventID string `json:"event_id"`
+	// RecordKey points to the immutable signed event record.
+	RecordKey string `json:"record_key"`
+	// RecordSHA256 authenticates the exact signed record bytes.
+	RecordSHA256 string `json:"record_sha256"`
+}
+
 // BackupCoordinationState stores only bounded backup coordination metadata in Controller Raft.
 type BackupCoordinationState struct {
 	// LastEpoch is the latest allocated backup epoch.
@@ -116,6 +129,12 @@ type BackupCoordinationState struct {
 	RestorePoints []BackupRestorePoint `json:"restore_points"`
 	// PendingGarbage contains expired restore-point graphs awaiting reference-safe repository collection.
 	PendingGarbage []BackupRestorePoint `json:"pending_garbage,omitempty"`
+	// ErasureLedgerBoundary is the highest durably committed contiguous ledger sequence.
+	ErasureLedgerBoundary uint64 `json:"erasure_ledger_boundary,omitempty"`
+	// PendingErasureLedger contains at most one record awaiting commit-marker publication.
+	PendingErasureLedger *BackupErasureLedgerReference `json:"pending_erasure_ledger,omitempty"`
+	// LastCommittedErasureLedger preserves bounded idempotency for the latest accepted request.
+	LastCommittedErasureLedger *BackupErasureLedgerReference `json:"last_committed_erasure_ledger,omitempty"`
 }
 
 // Clone returns a deep copy safe for normalization and mutation.
@@ -128,5 +147,13 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 	}
 	out.RestorePoints = cloneSlice(s.RestorePoints)
 	out.PendingGarbage = cloneSlice(s.PendingGarbage)
+	if s.PendingErasureLedger != nil {
+		pending := *s.PendingErasureLedger
+		out.PendingErasureLedger = &pending
+	}
+	if s.LastCommittedErasureLedger != nil {
+		committed := *s.LastCommittedErasureLedger
+		out.LastCommittedErasureLedger = &committed
+	}
 	return out
 }

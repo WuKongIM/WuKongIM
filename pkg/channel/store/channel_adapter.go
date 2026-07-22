@@ -29,6 +29,9 @@ type BackupChannelCut struct {
 	LogStartOffset uint64
 	// HW is the authoritative committed high watermark.
 	HW uint64
+	// PermanentEraseThroughSeq is the inclusive prefix that must have durable
+	// physical-retention evidence and no remaining message rows.
+	PermanentEraseThroughSeq uint64
 	// FromExclusive is the exact previously published committed boundary.
 	FromExclusive uint64
 }
@@ -68,6 +71,16 @@ type MessageDBFactoryOptions struct {
 	CommitObserver messagedb.CommitCoordinatorObserver
 	// Logger receives structured diagnostics from the shared message DB engine.
 	Logger wklog.Logger
+}
+
+// RestorePermanentErasure identifies one replayed permanent Channel prefix deletion.
+type RestorePermanentErasure struct {
+	// ID is the durable Channel identity.
+	ID ch.ChannelID
+	// Epoch is the restored Channel epoch.
+	Epoch uint64
+	// ThroughSeq is the inclusive highest sequence that must remain unavailable.
+	ThroughSeq uint64
 }
 
 // NewMessageDBFactory opens a message DB engine behind the v2 adapter.
@@ -110,6 +123,73 @@ func (f *MessageDBFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Cha
 		return nil, f.mapError(err)
 	}
 	return &messageDBChannelStoreAdapter{store: dbStore, id: id, owner: f}, nil
+}
+
+// ApplyRestorePermanentErasures physically removes imported rows and advances
+// full durable checkpoints before a restored Channel runtime can be activated.
+func (f *MessageDBFactory) ApplyRestorePermanentErasures(ctx context.Context, erasures []RestorePermanentErasure) error {
+	if err := f.availabilityError(); err != nil {
+		return err
+	}
+	if len(erasures) > 4096 {
+		return ch.ErrInvalidConfig
+	}
+	seen := make(map[ch.ChannelID]struct{}, len(erasures))
+	for _, erasure := range erasures {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if erasure.ID.ID == "" || erasure.ID.Type == 0 || erasure.Epoch == 0 || erasure.ThroughSeq == 0 {
+			return ch.ErrInvalidConfig
+		}
+		if _, exists := seen[erasure.ID]; exists {
+			return ch.ErrInvalidConfig
+		}
+		seen[erasure.ID] = struct{}{}
+		store, err := f.engine.ForChannel(channel.ChannelKey(ch.ChannelKeyForID(erasure.ID)), channel.ChannelID{ID: erasure.ID.ID, Type: erasure.ID.Type})
+		if err != nil {
+			return f.mapError(err)
+		}
+		applyErr := applyRestorePermanentErasure(ctx, store, erasure)
+		closeErr := store.Close()
+		if applyErr != nil {
+			return f.mapError(applyErr)
+		}
+		if closeErr != nil {
+			return f.mapError(closeErr)
+		}
+	}
+	return nil
+}
+
+func applyRestorePermanentErasure(ctx context.Context, store *messagedb.ChannelStore, erasure RestorePermanentErasure) error {
+	checkpoint, err := store.LoadCheckpoint()
+	if errors.Is(err, channel.ErrEmptyState) {
+		checkpoint = channel.Checkpoint{Epoch: erasure.Epoch}
+	} else if err != nil {
+		return err
+	}
+	if checkpoint.Epoch == 0 {
+		checkpoint.Epoch = erasure.Epoch
+	}
+	if checkpoint.Epoch != erasure.Epoch {
+		return channel.ErrCorruptState
+	}
+	if err := store.AdoptRetentionBoundary(ctx, erasure.ThroughSeq, "committed"); err != nil {
+		return err
+	}
+	for {
+		result, err := store.TrimMessagesThroughLimit(ctx, erasure.ThroughSeq, messagedb.RetentionTrimOptions{MaxMessages: 4096, MaxBytes: 64 << 20})
+		if err != nil {
+			return err
+		}
+		if !result.More {
+			break
+		}
+	}
+	checkpoint.LogStartOffset = maxUint64(checkpoint.LogStartOffset, erasure.ThroughSeq)
+	checkpoint.HW = maxUint64(checkpoint.HW, erasure.ThroughSeq)
+	return store.StoreCheckpoint(checkpoint)
 }
 
 // ListChannelsPage returns one ordered page from the local message channel catalog.
@@ -206,7 +286,8 @@ func (f *MessageDBFactory) VerifyRestoreBoundaries(ctx context.Context, boundari
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if boundary.Key == "" || boundary.ID.ID == "" || boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW {
+		if boundary.Key == "" || boundary.ID.ID == "" || boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW ||
+			boundary.PermanentEraseThroughSeq > boundary.LogStartOffset {
 			return ch.ErrInvalidConfig
 		}
 		store, err := f.engine.ForChannel(channel.ChannelKey(boundary.Key), channel.ChannelID{ID: boundary.ID.ID, Type: boundary.ID.Type})
@@ -215,6 +296,26 @@ func (f *MessageDBFactory) VerifyRestoreBoundaries(ctx context.Context, boundari
 		}
 		checkpoint, checkpointErr := store.LoadCheckpoint()
 		leo, leoErr := store.LEOWithError()
+		if checkpointErr == nil && leoErr == nil && boundary.PermanentEraseThroughSeq > 0 {
+			retention, retentionErr := store.LoadRetentionState()
+			if retentionErr != nil {
+				_ = store.Close()
+				return f.mapError(retentionErr)
+			}
+			if retention.LocalRetentionThroughSeq < boundary.PermanentEraseThroughSeq || retention.PhysicalRetentionThroughSeq < boundary.PermanentEraseThroughSeq {
+				_ = store.Close()
+				return channel.ErrCorruptState
+			}
+			messages, readErr := store.ListMessagesBySeq(ctx, 1, 1, 0, false)
+			if readErr != nil {
+				_ = store.Close()
+				return f.mapError(readErr)
+			}
+			if len(messages) > 0 && messages[0].MessageSeq <= boundary.PermanentEraseThroughSeq {
+				_ = store.Close()
+				return channel.ErrCorruptState
+			}
+		}
 		closeErr := store.Close()
 		if checkpointErr != nil {
 			return f.mapError(checkpointErr)

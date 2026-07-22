@@ -1,6 +1,10 @@
 package state
 
-import "sort"
+import (
+	"sort"
+
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+)
 
 // Normalize applies deterministic defaults and ordering to a cluster state.
 func (s *ClusterState) Normalize() {
@@ -68,6 +72,10 @@ func (s *ClusterState) Normalize() {
 		})
 	}
 	if s.Restore != nil && s.Restore.Plan != nil {
+		if s.Restore.Plan.ErasureLedgerVersion == 0 && s.Restore.Plan.ErasureLedgerBoundary == 0 && s.Restore.Plan.ErasureLedgerSHA256 == "" {
+			s.Restore.Plan.ErasureLedgerVersion = backupartifact.ErasureLedgerSnapshotVersion
+			s.Restore.Plan.ErasureLedgerSHA256 = backupartifact.EmptyErasureLedgerSnapshotSHA256
+		}
 		if s.Restore.Plan.Partitions == nil {
 			s.Restore.Plan.Partitions = []RestorePartition{}
 		}

@@ -29,6 +29,13 @@ Current flow:
    reports including record counts and the message-ID fence, requires final
    semantic verification, and accepts activation only with a lowercase SHA-256
    old-cluster fence digest.
+8. Permanent-erasure publication reserves one contiguous Controller sequence
+   at a time. The bounded state keeps the committed boundary, one pending
+   record reference, and the latest committed reference so immediate retries
+   can repair either repository. Deterministic signed repository receipts retain
+   idempotency for older committed events without an unbounded Controller map. A restore plan
+   immutably pins the authenticated current ledger prefix independently of the
+   selected restore point.
 
 Large channel/object manifests stay in repositories. Coordination state stores
 only one bounded summary per logical hash slot.

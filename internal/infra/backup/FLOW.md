@@ -65,8 +65,12 @@ and message payload bytes remain streaming.
 ## Restore And Retention
 
 Restore inspection authenticates both repository copies, requires matching
-manifest bytes and identities, and asks every current target node for semantic
-storage emptiness before persisting a plan. Installation resolves each hash
+manifest bytes and identities, authenticates the current contiguous permanent-
+erasure ledger in both repositories, pins its version, boundary, and SHA-256,
+and asks every current target node for semantic storage emptiness before
+persisting a plan. The ledger pin is current even when the operator deliberately
+selects an older restore point, so deletion cannot be undone through rollback.
+Installation resolves each hash
 slot through the successor `HashSlotTable` and installs its encrypted objects
 only on that physical Slot's `DesiredPeers`, with at most eight node installs
 in flight per partition. Unrelated cluster members never receive a full copy
@@ -82,7 +86,27 @@ metadata, and the post-transform canonical metadata SHA-256 on the same target
 Slot replicas. The configured staging-byte ceiling is shared by all concurrent
 partition streams on one node, not multiplied per stream.
 
+Before ordinary retention metadata advances, `PermanentErasureLedger` encrypts
+the Channel identity and boundary, publishes identical immutable ciphertext and
+signed record bytes to both repositories, reserves the next Controller sequence,
+publishes the identical signed commit marker and deterministic per-event receipt
+to both repositories, and commits the Controller boundary. One partially
+published sequence is repaired before a new sequence is admitted. The receipt
+lets any older committed event retry return its original sequence in constant
+time. If any ledger step fails, live retention fails closed
+without advancing the deletion boundary. Restore decrypts the plan-pinned
+prefix, collapses repeated events to the greatest per-Channel boundary, applies
+bounded physical prefix deletion plus checkpoint/LEO fences on every successor
+Slot replica, and only then installs reconstructed runtime metadata. Channels
+present only in the ledger still receive a sequence fence so erased sequence
+numbers cannot be reused.
+
 Retention first moves expired Controller references into `PendingGarbage`.
 The garbage collector authenticates every retained graph in both repositories,
-marks reachable keys, protects active job prefixes, and deletes only exact old
-unreachable versions through the separate garbage-collector credentials.
+authenticates and marks every committed ledger event/record/commit/receipt
+object, and also authenticates and marks the one Controller-referenced pending
+event so failover can resume after the grace period. It protects active job
+prefixes and deletes only exact old unreachable versions through separate
+garbage-collector credentials that retain the signed logical repository names.
+Unreferenced uncommitted ledger orphans remain eligible for age-gated
+collection; no broad prefix is permanently exempted.

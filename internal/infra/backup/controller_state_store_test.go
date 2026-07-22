@@ -15,7 +15,11 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 7,
 		Backup: &controller.BackupCoordinationState{
-			LastEpoch: 3,
+			LastEpoch:             3,
+			ErasureLedgerBoundary: 4,
+			PendingErasureLedger: &controller.BackupErasureLedgerReference{
+				Sequence: 5, EventID: strings.Repeat("d", 64), RecordKey: "erasure-ledger/events/0002/" + strings.Repeat("d", 64) + ".json", RecordSHA256: strings.Repeat("e", 64),
+			},
 			Active: &controller.BackupJob{
 				ID:                  "backup-3",
 				Epoch:               3,
@@ -59,9 +63,28 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	require.Equal(t, backupusecase.JobStatusCapturing, state.Active.Status)
 	require.Equal(t, uint16(2), state.Active.Partitions[0].HashSlot)
 	require.Equal(t, "restore-expired", state.PendingGarbage[0].ID)
+	require.Equal(t, uint64(4), state.ErasureLedgerBoundary)
+	require.Equal(t, uint64(5), state.PendingErasureLedger.Sequence)
 
 	state.Active.Partitions[0].ManifestKey = "mutated"
 	require.Equal(t, "jobs/backup-3/partitions/2.json", runtime.state.Backup.Active.Partitions[0].ManifestKey)
+}
+
+func TestControllerStateStorePersistsErasureLedgerCoordination(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{Revision: 9}}
+	store, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	pending := &backupusecase.ErasureLedgerRecordReference{
+		Sequence: 3, EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json", RecordSHA256: strings.Repeat("b", 64),
+	}
+
+	err = store.CompareAndSwap(context.Background(), 9, backupusecase.State{ErasureLedgerBoundary: 2, PendingErasureLedger: pending})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), runtime.replacement.ErasureLedgerBoundary)
+	require.Equal(t, uint64(3), runtime.replacement.PendingErasureLedger.Sequence)
+
+	pending.EventID = "mutated"
+	require.Equal(t, strings.Repeat("a", 64), runtime.replacement.PendingErasureLedger.EventID)
 }
 
 func TestControllerStateStoreMapsRevisionConflict(t *testing.T) {

@@ -767,3 +767,13 @@ the nodes that received the partition; ordinary first-write Channel placement
 continues to use all health-schedulable data nodes. Verification requires those
 exact target rows in addition to Channel boundaries and canonical per-hash-slot
 metadata digests.
+
+After all message layers are imported, restore applies the plan-pinned
+permanent-erasure boundaries in deterministic batches of at most 4096 through
+the message-store restore seam. It validates each Channel's real hash-slot
+route, physically removes the restored prefix, advances retention and
+checkpoint/LEO fences, and completes this work before reconstructed runtime
+metadata can become visible. Final verification independently requires durable
+local and physical retention progress through the pinned erasure boundary and
+scans the raw sequence index to prove no message row remains in that prefix on
+every target Slot replica.

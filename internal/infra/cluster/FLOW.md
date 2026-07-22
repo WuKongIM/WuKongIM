@@ -259,9 +259,13 @@ management.MessageRetentionOperator.AdvanceMessageRetention
   -> leader re-reads ChannelRuntimeMeta and verifies local leadership
   -> ChannelRetentionView reads local Channel runtime HW/MinISR safety
   -> ReadChannelCommitted(reverse latest, min_seq = RetentionThroughSeq + 1)
+  -> PermanentErasureLedger.RecordPermanentMessageErasure(dual-repository commit)
   -> AdvanceChannelRetentionThroughSeq(fenced Slot metadata command)
   -> manager retention response
 ```
+
+Ledger publication is fail closed: any record, event, commit, receipt, or
+Controller coordination failure prevents the Slot retention metadata command.
 
 The manager retention adapter treats history deletion as logical channel log
 compaction. It never deletes message rows. It computes a safe boundary no higher

@@ -152,6 +152,8 @@ type App struct {
 	controllerTaskAudit *controllerTaskAuditRuntime
 	// backup owns the entry-independent cluster backup state machine when enabled.
 	backup *backupusecase.App
+	// permanentErasureRecorder makes explicit message deletion durable in the backup ledger before live metadata advances.
+	permanentErasureRecorder clusterinfra.PermanentMessageErasureRecorder
 	// restore owns the explicit disaster-recovery state machine in restore mode.
 	restore *backupusecase.RestoreApp
 	// backupRuntime owns backup-only doctor, scheduling, and failover resume work.

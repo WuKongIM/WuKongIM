@@ -3,6 +3,7 @@ package backup_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -127,6 +128,66 @@ func TestStatusKeepsRecoveryPointAgeUnknownBeforeFirstPublish(t *testing.T) {
 	}
 	if status.RecoveryPointAgeSeconds != nil {
 		t.Fatalf("Status() recovery point age = %d, want unknown", *status.RecoveryPointAgeSeconds)
+	}
+}
+
+func TestErasureLedgerCommitReservationIsBoundedIdempotentAndContiguous(t *testing.T) {
+	t.Parallel()
+
+	store := &memoryStateStore{}
+	app, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled:       true,
+		HashSlotCount: 2,
+		Store:         store,
+		Publisher:     &recordingPublisher{},
+		Now:           func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
+		NewJobID:      func() string { return "backup-job-erasure" },
+	})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	first := backupusecase.ErasureLedgerRecordReference{
+		EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json",
+		RecordSHA256: strings.Repeat("b", 64),
+	}
+	reserved, err := app.ReserveErasureLedgerCommit(context.Background(), first)
+	if err != nil {
+		t.Fatalf("ReserveErasureLedgerCommit() error = %v", err)
+	}
+	if reserved.Sequence != 1 || reserved.EventID != first.EventID {
+		t.Fatalf("ReserveErasureLedgerCommit() = %#v, want sequence 1", reserved)
+	}
+	retry, err := app.ReserveErasureLedgerCommit(context.Background(), first)
+	if err != nil || retry != reserved {
+		t.Fatalf("ReserveErasureLedgerCommit(retry) = %#v err=%v, want idempotent %#v", retry, err, reserved)
+	}
+	second := backupusecase.ErasureLedgerRecordReference{
+		EventID: strings.Repeat("c", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("c", 64) + ".json",
+		RecordSHA256: strings.Repeat("d", 64),
+	}
+	if _, err := app.ReserveErasureLedgerCommit(context.Background(), second); !errors.Is(err, backupusecase.ErrErasureLedgerPending) {
+		t.Fatalf("ReserveErasureLedgerCommit(concurrent) error = %v, want %v", err, backupusecase.ErrErasureLedgerPending)
+	}
+	if err := app.CommitErasureLedgerCommit(context.Background(), reserved.Sequence, second.EventID); !errors.Is(err, backupusecase.ErrStateConflict) {
+		t.Fatalf("CommitErasureLedgerCommit(mismatch) error = %v, want %v", err, backupusecase.ErrStateConflict)
+	}
+	if err := app.CommitErasureLedgerCommit(context.Background(), reserved.Sequence, reserved.EventID); err != nil {
+		t.Fatalf("CommitErasureLedgerCommit() error = %v", err)
+	}
+	if err := app.CommitErasureLedgerCommit(context.Background(), reserved.Sequence, reserved.EventID); err != nil {
+		t.Fatalf("CommitErasureLedgerCommit(retry) error = %v", err)
+	}
+	committedRetry, err := app.ReserveErasureLedgerCommit(context.Background(), first)
+	if err != nil || committedRetry != reserved {
+		t.Fatalf("ReserveErasureLedgerCommit(committed retry) = %#v err=%v, want %#v", committedRetry, err, reserved)
+	}
+	next, err := app.ReserveErasureLedgerCommit(context.Background(), second)
+	if err != nil || next.Sequence != 2 {
+		t.Fatalf("ReserveErasureLedgerCommit(next) = %#v err=%v, want sequence 2", next, err)
+	}
+	state, err := store.Load(context.Background())
+	if err != nil || state.ErasureLedgerBoundary != 1 || state.PendingErasureLedger == nil || state.PendingErasureLedger.Sequence != 2 {
+		t.Fatalf("state = %#v err=%v, want committed boundary 1 and pending sequence 2", state, err)
 	}
 }
 

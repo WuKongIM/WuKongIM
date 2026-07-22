@@ -34,8 +34,8 @@ type RestorePointPublisherOptions struct {
 	SourceClusterID string
 	// SourceGeneration fences the source disaster-recovery generation.
 	SourceGeneration string
-	// ErasureLedgerBoundary is the permanent-erasure sequence included by publication.
-	ErasureLedgerBoundary uint64
+	// ErasureLedgerBoundary returns the committed permanent-erasure sequence included by publication.
+	ErasureLedgerBoundary func(context.Context) (uint64, error)
 	// Now returns the UTC publication time.
 	Now func() time.Time
 	// NewRestorePointID returns a globally unique restore-point identity.
@@ -53,7 +53,7 @@ type RestorePointPublisher struct {
 	repositoryID          string
 	sourceClusterID       string
 	sourceGeneration      string
-	erasureLedgerBoundary uint64
+	erasureLedgerBoundary func(context.Context) (uint64, error)
 	now                   func() time.Time
 	newRestorePointID     func() string
 }
@@ -137,6 +137,14 @@ func (p *RestorePointPublisher) Publish(ctx context.Context, job backupusecase.J
 		restorePointID = strings.TrimSpace(p.newRestorePointID())
 	}
 	createdAt := p.now().UTC().UnixMilli()
+	erasureLedgerBoundary := uint64(0)
+	if p.erasureLedgerBoundary != nil {
+		boundary, boundaryErr := p.erasureLedgerBoundary(ctx)
+		if boundaryErr != nil {
+			return backupusecase.RestorePoint{}, fmt.Errorf("backup restore-point publisher: read erasure-ledger boundary: %w", boundaryErr)
+		}
+		erasureLedgerBoundary = boundary
+	}
 	manifest := backupartifact.Manifest{
 		Format:                backupartifact.ManifestFormat,
 		Version:               backupartifact.ManifestVersion,
@@ -152,7 +160,7 @@ func (p *RestorePointPublisher) Publish(ctx context.Context, job backupusecase.J
 		EffectiveAtMillis:     effectiveAt,
 		Cuts:                  cuts,
 		Partitions:            partitions,
-		ErasureLedgerBoundary: p.erasureLedgerBoundary,
+		ErasureLedgerBoundary: erasureLedgerBoundary,
 	}
 	signed, err := p.publisher.PublishReferences(ctx, manifest, p.signer, p.signingKeyID)
 	if err != nil {

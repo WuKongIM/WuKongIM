@@ -520,7 +520,7 @@ func (a *App) wireManagerMessageRetentionRPC() {
 		return
 	}
 	service := managementusecase.New(managementusecase.Options{
-		MessageRetention: clusterinfra.NewLocalManagementMessageRetentionOperator(node),
+		MessageRetention: clusterinfra.NewLocalManagementMessageRetentionOperator(node, a.managerPermanentErasureRecorder()),
 	})
 	adapter := accessnode.New(accessnode.Options{ManagerMessageRetention: service, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerMessageRetentionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerMessageRetentionRPC))
@@ -1068,7 +1068,7 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.LatestMessages = reader
 		}
 		if retentionNode, ok := a.cluster.(clusterinfra.MessageRetentionNode); ok {
-			opts.MessageRetention = clusterinfra.NewManagementMessageRetentionOperator(retentionNode)
+			opts.MessageRetention = clusterinfra.NewManagementMessageRetentionOperator(retentionNode, a.managerPermanentErasureRecorder())
 		}
 		if a.online != nil {
 			opts.Connections = a.online

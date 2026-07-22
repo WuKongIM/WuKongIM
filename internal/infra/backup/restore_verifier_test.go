@@ -94,6 +94,7 @@ func TestClusterRestoreVerifierChecksTargetSlotReplicasAgainstAuthenticatedIndex
 		ID: "plan-1", RestorePointID: signed.RestorePointID, ManifestSHA256: hex.EncodeToString(manifestHash[:]), Repository: "primary",
 		SourceClusterID: signed.SourceClusterID, SourceGeneration: signed.SourceGeneration,
 		TargetClusterID: "cluster-b", HashSlotCount: 1,
+		ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion, ErasureLedgerSHA256: backupartifact.EmptyErasureLedgerSnapshotSHA256,
 		Partitions: []backupusecase.RestorePartition{{
 			HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 99, MetadataRecordCount: 7, MessageCount: 3, MaxMessageID: 101, MetadataSHA256: metadataDigest,
 		}},
@@ -111,6 +112,7 @@ func TestClusterRestoreVerifierChecksTargetSlotReplicasAgainstAuthenticatedIndex
 		ID: "plan-2", RestorePointID: signed.RestorePointID, ManifestSHA256: hex.EncodeToString(manifestHash[:]), Repository: "primary",
 		SourceClusterID: signed.SourceClusterID, SourceGeneration: signed.SourceGeneration,
 		TargetClusterID: "cluster-b", HashSlotCount: 1,
+		ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion, ErasureLedgerSHA256: backupartifact.EmptyErasureLedgerSnapshotSHA256,
 		Partitions: []backupusecase.RestorePartition{{
 			HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, MetadataRecordCount: 7, MessageCount: 2, MaxMessageID: 101, MetadataSHA256: metadataDigest,
 		}},

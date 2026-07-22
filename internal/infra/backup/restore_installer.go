@@ -24,6 +24,7 @@ import (
 type RestoreInstallNode interface {
 	InstallRestoreHashSlotMetadata(context.Context, uint16, io.ReadSeeker, int64, bool) (uint64, error)
 	InstallRestoreMessageStream(context.Context, io.ReadSeeker, int64) (channelstore.BackupSnapshotStats, error)
+	ApplyRestorePermanentErasures(context.Context, uint16, []clusterpkg.RestorePermanentErasure) error
 	InstallRestoreChannelRuntimeMeta(context.Context, uint16, []clusterpkg.RestoreVerifyBoundary) error
 	RestoreHashSlotMetadataDigest(context.Context, uint16) (string, error)
 }
@@ -52,6 +53,7 @@ type LocalRestoreInstaller struct {
 
 	mu        sync.Mutex
 	manifests map[string]backupartifact.Manifest
+	ledgers   map[string]ErasureLedgerSnapshot
 
 	stagingMu    sync.Mutex
 	stagingBytes uint64
@@ -78,7 +80,7 @@ func NewLocalRestoreInstaller(options LocalRestoreInstallerOptions) (*LocalResto
 	return &LocalRestoreInstaller{
 		primary: options.Primary, secondary: options.Secondary, signer: options.Signer, codec: options.Codec,
 		node: options.Node, stagingDir: resolved, stagingMaxBytes: options.StagingMaxBytes,
-		manifests: make(map[string]backupartifact.Manifest),
+		manifests: make(map[string]backupartifact.Manifest), ledgers: make(map[string]ErasureLedgerSnapshot),
 	}, nil
 }
 
@@ -94,11 +96,19 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 	if err != nil {
 		return backupusecase.RestorePartition{}, err
 	}
+	ledger, err := i.loadPlanLedger(ctx, plan, manifest.RepositoryID)
+	if err != nil {
+		return backupusecase.RestorePartition{}, err
+	}
 	layers, err := loadRestorePartitionLayers(ctx, repository, manifest.Partitions[hashSlot])
 	if err != nil {
 		return backupusecase.RestorePartition{}, err
 	}
 	boundaries, err := loadRestoreExpectedBoundariesFromLayers(ctx, repository, i.codec, manifest.Partitions[hashSlot].HashSlot, layers)
+	if err != nil {
+		return backupusecase.RestorePartition{}, err
+	}
+	boundaries, erasures, err := mergeRestorePermanentErasures(boundaries, ledger.Boundaries(hashSlot))
 	if err != nil {
 		return backupusecase.RestorePartition{}, err
 	}
@@ -147,6 +157,15 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 			result.PlainBytes += plainBytes
 		}
 	}
+	for start := 0; start < len(erasures); start += maxRestoreVerifyBoundariesPerRequest {
+		end := start + maxRestoreVerifyBoundariesPerRequest
+		if end > len(erasures) {
+			end = len(erasures)
+		}
+		if err := i.node.ApplyRestorePermanentErasures(ctx, hashSlot, erasures[start:end]); err != nil {
+			return backupusecase.RestorePartition{}, fmt.Errorf("backup restore: replay permanent erasure ledger: %w", err)
+		}
+	}
 	for start := 0; start < len(boundaries); start += maxRestoreVerifyBoundariesPerRequest {
 		end := start + maxRestoreVerifyBoundariesPerRequest
 		if end > len(boundaries) {
@@ -165,6 +184,82 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 	}
 	result.Installed = true
 	return result, nil
+}
+
+func (i *LocalRestoreInstaller) loadPlanLedger(ctx context.Context, plan backupusecase.RestorePlan, repositoryID string) (ErasureLedgerSnapshot, error) {
+	cacheKey := plan.Repository + ":" + repositoryID + ":" + plan.SourceClusterID + ":" + plan.SourceGeneration + ":" + strconv.FormatUint(plan.ErasureLedgerBoundary, 10) + ":" + plan.ErasureLedgerSHA256
+	i.mu.Lock()
+	ledger, ok := i.ledgers[cacheKey]
+	i.mu.Unlock()
+	if ok {
+		return ledger, nil
+	}
+	loader, err := NewErasureLedgerLoader(ErasureLedgerLoaderOptions{
+		Primary: i.primary, Secondary: i.secondary, Signer: i.signer, Codec: i.codec,
+		RepositoryID: repositoryID, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration, HashSlotCount: plan.HashSlotCount,
+	})
+	if err != nil {
+		return ErasureLedgerSnapshot{}, err
+	}
+	ledger, err = loader.LoadPinnedSnapshot(ctx, plan.Repository, plan.ErasureLedgerVersion, plan.ErasureLedgerBoundary, plan.ErasureLedgerSHA256)
+	if err != nil {
+		return ErasureLedgerSnapshot{}, err
+	}
+	i.mu.Lock()
+	i.ledgers[cacheKey] = ledger
+	i.mu.Unlock()
+	return ledger, nil
+}
+
+func mergeRestorePermanentErasures(boundaries []clusterpkg.RestoreVerifyBoundary, erasures []PermanentErasureBoundary) ([]clusterpkg.RestoreVerifyBoundary, []clusterpkg.RestorePermanentErasure, error) {
+	type channelIdentity struct {
+		id  string
+		typ uint8
+	}
+	merged := make(map[channelIdentity]clusterpkg.RestoreVerifyBoundary, len(boundaries)+len(erasures))
+	for _, boundary := range boundaries {
+		identity := channelIdentity{id: boundary.ChannelID, typ: boundary.ChannelType}
+		if boundary.ChannelID == "" || boundary.ChannelType == 0 || boundary.Epoch == 0 {
+			return nil, nil, fmt.Errorf("%w: restore boundary identity is invalid", backupartifact.ErrInvalidManifest)
+		}
+		merged[identity] = boundary
+	}
+	apply := make([]clusterpkg.RestorePermanentErasure, 0, len(erasures))
+	for _, erasure := range erasures {
+		identity := channelIdentity{id: erasure.ChannelID, typ: erasure.ChannelType}
+		boundary, found := merged[identity]
+		if !found {
+			boundary = clusterpkg.RestoreVerifyBoundary{ChannelID: erasure.ChannelID, ChannelType: erasure.ChannelType, Epoch: 1}
+		}
+		if erasure.ThroughSeq > boundary.LogStartOffset {
+			boundary.LogStartOffset = erasure.ThroughSeq
+		}
+		if erasure.ThroughSeq > boundary.HW {
+			boundary.HW = erasure.ThroughSeq
+		}
+		if erasure.ThroughSeq > boundary.PermanentEraseThroughSeq {
+			boundary.PermanentEraseThroughSeq = erasure.ThroughSeq
+		}
+		merged[identity] = boundary
+		apply = append(apply, clusterpkg.RestorePermanentErasure{ChannelID: boundary.ChannelID, ChannelType: boundary.ChannelType, Epoch: boundary.Epoch, ThroughSeq: erasure.ThroughSeq})
+	}
+	result := make([]clusterpkg.RestoreVerifyBoundary, 0, len(merged))
+	for _, boundary := range merged {
+		result = append(result, boundary)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].ChannelID == result[j].ChannelID {
+			return result[i].ChannelType < result[j].ChannelType
+		}
+		return result[i].ChannelID < result[j].ChannelID
+	})
+	sort.Slice(apply, func(i, j int) bool {
+		if apply[i].ChannelID == apply[j].ChannelID {
+			return apply[i].ChannelType < apply[j].ChannelType
+		}
+		return apply[i].ChannelID < apply[j].ChannelID
+	})
+	return result, apply, nil
 }
 
 func validLowerSHA256(value string) bool {

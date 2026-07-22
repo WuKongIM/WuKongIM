@@ -375,6 +375,47 @@ func (r *S3Repository) ListRestorePointIDs(ctx context.Context) ([]string, error
 	return result, nil
 }
 
+// ListErasureLedgerCommitKeys returns bounded lexically ordered commit-marker keys.
+func (r *S3Repository) ListErasureLedgerCommitKeys(ctx context.Context) ([]string, error) {
+	if r == nil || r.client == nil {
+		return nil, fmt.Errorf("backup s3 repository: repository is required")
+	}
+	prefix := r.prefix + "/erasure-ledger/commits/"
+	keys := make([]string, 0)
+	var continuationToken *string
+	for {
+		output, err := r.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket: aws.String(r.bucket), Prefix: aws.String(prefix), ContinuationToken: continuationToken,
+		})
+		if err != nil {
+			return nil, mapS3Error(err)
+		}
+		if output == nil {
+			return nil, fmt.Errorf("backup s3 repository: erasure-ledger listing is missing")
+		}
+		for _, object := range output.Contents {
+			fullKey := aws.ToString(object.Key)
+			relative := strings.TrimPrefix(fullKey, r.prefix+"/")
+			if relative == fullKey || !validErasureLedgerCommitKey(relative) {
+				return nil, fmt.Errorf("%w: invalid listed erasure-ledger commit key", backupartifact.ErrObjectCorrupt)
+			}
+			keys = append(keys, relative)
+			if len(keys) > maxErasureLedgerCommits {
+				return nil, fmt.Errorf("backup s3 repository: erasure-ledger commit listing exceeds limit")
+			}
+		}
+		if !aws.ToBool(output.IsTruncated) {
+			break
+		}
+		if output.NextContinuationToken == nil || aws.ToString(output.NextContinuationToken) == "" || (continuationToken != nil && aws.ToString(output.NextContinuationToken) == aws.ToString(continuationToken)) {
+			return nil, fmt.Errorf("backup s3 repository: invalid erasure-ledger listing continuation token")
+		}
+		continuationToken = output.NextContinuationToken
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
 // Check verifies bucket reachability, versioning, and Object Lock before backup
 // scheduling is allowed to start.
 func (r *S3Repository) Check(ctx context.Context) error {

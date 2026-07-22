@@ -22,12 +22,30 @@ type GarbageRepository interface {
 
 // RestorePointGarbageCollectorOptions configures dual-repository mark and sweep.
 type RestorePointGarbageCollectorOptions struct {
-	Primary                 GarbageRepository
-	Secondary               GarbageRepository
-	Signer                  backupartifact.ManifestSigner
-	MinimumAge              time.Duration
+	// Primary and Secondary use the restricted garbage-collector credentials.
+	Primary   GarbageRepository
+	Secondary GarbageRepository
+	// PrimaryRepository and SecondaryRepository identify the logical upload
+	// repositories whose names are embedded in signed ledger commits.
+	PrimaryRepository   string
+	SecondaryRepository string
+	// Signer authenticates retained manifests and permanent-erasure artifacts.
+	Signer backupartifact.ManifestSigner
+	// Codec decrypts authenticated permanent-erasure events during marking.
+	Codec *backupartifact.ObjectCodec
+	// RepositoryID identifies the logical dual-repository backup.
+	RepositoryID string
+	// SourceClusterID and SourceGeneration fence retained source data.
+	SourceClusterID  string
+	SourceGeneration string
+	// HashSlotCount validates event routing against the current source contract.
+	HashSlotCount uint16
+	// MinimumAge is the immutable-object grace period before deletion.
+	MinimumAge time.Duration
+	// MaxDeletesPerRepository bounds each sweep's destructive work.
 	MaxDeletesPerRepository int
-	Now                     func() time.Time
+	// Now supplies the collection clock.
+	Now func() time.Time
 }
 
 // GarbageCollectionResult is bounded completion evidence for one sweep.
@@ -42,11 +60,12 @@ type RestorePointGarbageCollector struct {
 	minimumAge time.Duration
 	maxDeletes int
 	now        func() time.Time
+	ledger     *ErasureLedgerLoader
 }
 
 // NewRestorePointGarbageCollector creates a fail-closed cross-region collector.
 func NewRestorePointGarbageCollector(options RestorePointGarbageCollectorOptions) (*RestorePointGarbageCollector, error) {
-	if options.Primary == nil || options.Secondary == nil || options.Signer == nil || options.Primary.Name() == "" ||
+	if options.Primary == nil || options.Secondary == nil || options.Signer == nil || options.Codec == nil || options.Primary.Name() == "" ||
 		options.Secondary.Name() == "" || options.Primary.Name() == options.Secondary.Name() || options.MinimumAge < 7*24*time.Hour {
 		return nil, fmt.Errorf("backup garbage collector: invalid options")
 	}
@@ -59,19 +78,43 @@ func NewRestorePointGarbageCollector(options RestorePointGarbageCollectorOptions
 	if options.Now == nil {
 		options.Now = time.Now
 	}
+	ledger, err := NewErasureLedgerLoader(ErasureLedgerLoaderOptions{
+		Primary: options.Primary, Secondary: options.Secondary, Signer: options.Signer, Codec: options.Codec,
+		PrimaryRepository: options.PrimaryRepository, SecondaryRepository: options.SecondaryRepository,
+		RepositoryID: options.RepositoryID, SourceClusterID: options.SourceClusterID, SourceGeneration: options.SourceGeneration, HashSlotCount: options.HashSlotCount,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &RestorePointGarbageCollector{
 		primary: options.Primary, secondary: options.Secondary, signer: options.Signer,
-		minimumAge: options.MinimumAge, maxDeletes: options.MaxDeletesPerRepository, now: options.Now,
+		minimumAge: options.MinimumAge, maxDeletes: options.MaxDeletesPerRepository, now: options.Now, ledger: ledger,
 	}, nil
 }
 
 // Collect performs one bounded sweep and reports pending restore points whose
 // discoverable manifests are absent from both repositories.
-func (c *RestorePointGarbageCollector) Collect(ctx context.Context, retained, pending []backupusecase.RestorePoint, active *backupusecase.Job) (GarbageCollectionResult, error) {
+func (c *RestorePointGarbageCollector) Collect(ctx context.Context, retained, pending []backupusecase.RestorePoint, active *backupusecase.Job, pendingLedger *backupusecase.ErasureLedgerRecordReference) (GarbageCollectionResult, error) {
 	if c == nil {
 		return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: collector is required")
 	}
 	marked := make(map[string]struct{})
+	ledger, err := c.ledger.LoadDualSnapshot(ctx)
+	if err != nil {
+		return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: authenticate erasure ledger: %w", err)
+	}
+	for _, key := range ledger.Keys {
+		marked[key] = struct{}{}
+	}
+	if pendingLedger != nil {
+		keys, err := c.ledger.LoadPendingReferenceKeys(ctx, *pendingLedger)
+		if err != nil {
+			return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: authenticate pending erasure ledger: %w", err)
+		}
+		for _, key := range keys {
+			marked[key] = struct{}{}
+		}
+	}
 	for _, point := range retained {
 		primaryGraph, err := c.loadRetainedGraph(ctx, c.primary, point)
 		if err != nil {
@@ -187,5 +230,5 @@ func restorePointGarbagePublicationKey(restorePointID string) string {
 }
 
 var _ interface {
-	Collect(context.Context, []backupusecase.RestorePoint, []backupusecase.RestorePoint, *backupusecase.Job) (GarbageCollectionResult, error)
+	Collect(context.Context, []backupusecase.RestorePoint, []backupusecase.RestorePoint, *backupusecase.Job, *backupusecase.ErasureLedgerRecordReference) (GarbageCollectionResult, error)
 } = (*RestorePointGarbageCollector)(nil)

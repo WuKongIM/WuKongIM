@@ -3,10 +3,13 @@ package state
 import (
 	"encoding/hex"
 	"fmt"
+	"math"
 	"path"
 	"reflect"
 	"sort"
 	"strings"
+
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 // Validate checks whether the cluster state satisfies durable Controller invariants.
@@ -76,6 +79,9 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 	if plan.HashSlotCount != hashSlotCount || len(plan.Partitions) != int(hashSlotCount) {
 		return invalid("restore hash_slot_count or partition count is invalid")
 	}
+	if plan.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validSHA256(plan.ErasureLedgerSHA256) {
+		return invalid("restore erasure-ledger snapshot fence is invalid")
+	}
 	switch plan.Status {
 	case RestoreStatusPlanned, RestoreStatusInstalling, RestoreStatusInstalled, RestoreStatusVerified, RestoreStatusActivated, RestoreStatusAbandoned:
 	default:
@@ -116,6 +122,18 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 	}
 	if len(backup.RestorePoints)+len(backup.PendingGarbage) > MaxBackupRestorePoints {
 		return invalid("backup restore-point references exceed limit")
+	}
+	if backup.PendingErasureLedger != nil {
+		pending := backup.PendingErasureLedger
+		if backup.ErasureLedgerBoundary == math.MaxUint64 || pending.Sequence != backup.ErasureLedgerBoundary+1 || !validSHA256(pending.EventID) || !validSHA256(pending.RecordSHA256) || backupartifact.ValidateErasureLedgerRecordKey(pending.RecordKey, pending.EventID) != nil {
+			return invalid("backup pending erasure-ledger reference is invalid")
+		}
+	}
+	if backup.LastCommittedErasureLedger != nil {
+		committed := backup.LastCommittedErasureLedger
+		if committed.Sequence == 0 || committed.Sequence != backup.ErasureLedgerBoundary || !validSHA256(committed.EventID) || !validSHA256(committed.RecordSHA256) || backupartifact.ValidateErasureLedgerRecordKey(committed.RecordKey, committed.EventID) != nil {
+			return invalid("backup last committed erasure-ledger reference is invalid")
+		}
 	}
 	if backup.Active != nil {
 		job := backup.Active

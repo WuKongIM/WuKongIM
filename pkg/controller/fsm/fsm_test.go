@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
@@ -135,6 +136,7 @@ func TestFSMReplacesRestoreCoordinationStateWithRevisionFence(t *testing.T) {
 		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: strings.Repeat("c", 64), Repository: "primary",
 		SourceClusterID: "cluster-a", SourceGeneration: "generation-a", TargetClusterID: "wk-fsm-test", TargetGeneration: "generation-b",
 		HashSlotCount: 16, Status: state.RestoreStatusPlanned, CreatedAtUnixMillis: 1710000000000, UpdatedAtUnixMillis: 1710000000000,
+		ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion, ErasureLedgerSHA256: backupartifact.EmptyErasureLedgerSnapshotSHA256,
 		Partitions: partitions,
 	}}
 

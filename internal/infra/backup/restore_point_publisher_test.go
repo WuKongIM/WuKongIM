@@ -84,16 +84,17 @@ func TestRestorePointPublisherLoadsEveryPartitionFromBothRepositories(t *testing
 	seed := sha256.Sum256([]byte("restore-point-publisher-test"))
 	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
 	publisher, err := backupinfra.NewRestorePointPublisher(backupinfra.RestorePointPublisherOptions{
-		Primary:            primary,
-		Secondary:          secondary,
-		Signer:             signer,
-		SigningKeyID:       "signing-key",
-		ApplicationVersion: "3.0.0-beta.1",
-		RepositoryID:       "repo-prod",
-		SourceClusterID:    "cluster-a",
-		SourceGeneration:   "generation-1",
-		Now:                func() time.Time { return time.UnixMilli(1710000010000).UTC() },
-		NewRestorePointID:  func() string { return "restore-point-12" },
+		Primary:               primary,
+		Secondary:             secondary,
+		Signer:                signer,
+		SigningKeyID:          "signing-key",
+		ApplicationVersion:    "3.0.0-beta.1",
+		RepositoryID:          "repo-prod",
+		SourceClusterID:       "cluster-a",
+		SourceGeneration:      "generation-1",
+		Now:                   func() time.Time { return time.UnixMilli(1710000010000).UTC() },
+		NewRestorePointID:     func() string { return "restore-point-12" },
+		ErasureLedgerBoundary: func(context.Context) (uint64, error) { return 4, nil },
 	})
 	require.NoError(t, err)
 
@@ -105,6 +106,7 @@ func TestRestorePointPublisherLoadsEveryPartitionFromBothRepositories(t *testing
 	loaded, err := backupartifact.LoadRestorePoint(context.Background(), secondary, restorePoint.ID, signer)
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), loaded.Partitions[0].Evidence.MaxMessageID)
+	require.Equal(t, uint64(4), loaded.ErasureLedgerBoundary)
 }
 
 func TestRestorePointPublisherRejectsIncrementalWhenSecondaryBaseObjectIsMissing(t *testing.T) {

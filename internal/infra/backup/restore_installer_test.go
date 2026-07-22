@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
@@ -78,6 +79,25 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	}
 	signed, err := backupartifact.NewReplicatedPublisher(primary, secondary).PublishReferences(ctx, manifest, signer, "signing-key")
 	require.NoError(t, err)
+	coordination, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled: true, HashSlotCount: 1, Store: &erasureLedgerStateStore{}, Publisher: erasureLedgerNoopPublisher{},
+		Now: func() time.Time { return time.UnixMilli(1710000010000) }, NewJobID: func() string { return "unused" },
+	})
+	require.NoError(t, err)
+	ledger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
+		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: coordination, Signer: signer,
+		SigningKeyID: "signing-key", KMSKeyID: "kms-backup", RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 1,
+		Now: func() time.Time { return time.UnixMilli(1710000010000) }, NewAttemptID: func() string { return "erasure-attempt" },
+	})
+	require.NoError(t, err)
+	_, err = ledger.RecordPermanentMessageErasure(ctx, backupinfra.PermanentMessageErasure{ChannelID: "room", ChannelType: 2, ThroughSeq: 5, RequestedAtUnixMillis: 1710000010000})
+	require.NoError(t, err)
+	loader, err := backupinfra.NewErasureLedgerLoader(backupinfra.ErasureLedgerLoaderOptions{
+		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec, RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 1,
+	})
+	require.NoError(t, err)
+	ledgerSnapshot, err := loader.LoadDualSnapshot(ctx)
+	require.NoError(t, err)
 	manifestBody, err := backupartifact.MarshalManifest(signed)
 	require.NoError(t, err)
 	manifestHash := sha256.Sum256(manifestBody)
@@ -90,6 +110,7 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	result, err := installer.InstallPartition(ctx, backupusecase.RestorePlan{
 		ID: "plan-1", RestorePointID: signed.RestorePointID, ManifestSHA256: hex.EncodeToString(manifestHash[:]), Repository: "secondary",
 		SourceClusterID: signed.SourceClusterID, SourceGeneration: signed.SourceGeneration, HashSlotCount: 1,
+		ErasureLedgerVersion: ledgerSnapshot.Version, ErasureLedgerBoundary: ledgerSnapshot.Boundary, ErasureLedgerSHA256: ledgerSnapshot.SHA256,
 	}, 0)
 	require.NoError(t, err)
 	require.True(t, result.Installed)
@@ -101,14 +122,16 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	require.Equal(t, metadataBody, node.metadata)
 	require.Equal(t, messageBody, node.messages)
 	require.Equal(t, []clusterpkg.RestoreVerifyBoundary{{
-		ChannelID: "room", ChannelType: 2, Epoch: 7, LogStartOffset: 3, HW: 9,
+		ChannelID: "room", ChannelType: 2, Epoch: 7, LogStartOffset: 5, HW: 9, PermanentEraseThroughSeq: 5,
 	}}, node.boundaries)
+	require.Equal(t, []clusterpkg.RestorePermanentErasure{{ChannelID: "room", ChannelType: 2, Epoch: 7, ThroughSeq: 5}}, node.erasures)
 }
 
 type recordingRestoreInstallNode struct {
 	metadata   []byte
 	messages   []byte
 	boundaries []clusterpkg.RestoreVerifyBoundary
+	erasures   []clusterpkg.RestorePermanentErasure
 }
 
 func (n *recordingRestoreInstallNode) InstallRestoreHashSlotMetadata(_ context.Context, _ uint16, reader io.ReadSeeker, size int64, _ bool) (uint64, error) {
@@ -119,6 +142,11 @@ func (n *recordingRestoreInstallNode) InstallRestoreHashSlotMetadata(_ context.C
 func (n *recordingRestoreInstallNode) InstallRestoreMessageStream(_ context.Context, reader io.ReadSeeker, size int64) (channelstore.BackupSnapshotStats, error) {
 	n.messages = append(n.messages, readExactRestoreTestStream(reader, size)...)
 	return channelstore.BackupSnapshotStats{HashSlot: 0, ChannelCount: 1, MessageCount: 2, MaxMessageID: 19}, nil
+}
+
+func (n *recordingRestoreInstallNode) ApplyRestorePermanentErasures(_ context.Context, _ uint16, erasures []clusterpkg.RestorePermanentErasure) error {
+	n.erasures = append(n.erasures, erasures...)
+	return nil
 }
 
 func (n *recordingRestoreInstallNode) InstallRestoreChannelRuntimeMeta(_ context.Context, _ uint16, boundaries []clusterpkg.RestoreVerifyBoundary) error {

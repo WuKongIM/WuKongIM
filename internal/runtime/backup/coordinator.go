@@ -47,7 +47,7 @@ type PartitionDispatcher interface {
 
 // RetentionGarbageCollector sweeps only objects unreachable from authenticated retained points.
 type RetentionGarbageCollector interface {
-	Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job) (backupcontract.GarbageCollectionResult, error)
+	Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job, *backupcontract.ErasureLedgerRecordReference) (backupcontract.GarbageCollectionResult, error)
 }
 
 // ScheduleDecider applies the entry-independent scheduling policy supplied by
@@ -349,7 +349,7 @@ func (c *Coordinator) reconcileRetention(ctx context.Context, state backupcontra
 	if err != nil {
 		return state, err
 	}
-	result, err := c.options.GarbageCollector.Collect(ctx, current.RestorePoints, current.PendingGarbage, cloneJobPointer(current.Active))
+	result, err := c.options.GarbageCollector.Collect(ctx, current.RestorePoints, current.PendingGarbage, cloneJobPointer(current.Active), cloneErasureLedgerReference(current.PendingErasureLedger))
 	if err != nil {
 		return current, err
 	}
@@ -370,6 +370,14 @@ func cloneJobPointer(job *backupcontract.Job) *backupcontract.Job {
 	}
 	copy := *job
 	copy.Partitions = append([]backupcontract.PartitionReport(nil), job.Partitions...)
+	return &copy
+}
+
+func cloneErasureLedgerReference(reference *backupcontract.ErasureLedgerRecordReference) *backupcontract.ErasureLedgerRecordReference {
+	if reference == nil {
+		return nil
+	}
+	copy := *reference
 	return &copy
 }
 

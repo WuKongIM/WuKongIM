@@ -221,7 +221,7 @@ type fakeRetentionGarbageCollector struct {
 	err    error
 }
 
-func (f *fakeRetentionGarbageCollector) Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job) (backupcontract.GarbageCollectionResult, error) {
+func (f *fakeRetentionGarbageCollector) Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job, *backupcontract.ErasureLedgerRecordReference) (backupcontract.GarbageCollectionResult, error) {
 	f.calls++
 	return f.result, f.err
 }

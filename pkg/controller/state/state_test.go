@@ -430,6 +430,19 @@ func TestDecodeRejectsUnknownTopLevelField(t *testing.T) {
 	require.NotErrorIs(t, err, ErrChecksumMismatch)
 }
 
+func TestValidateRejectsNonContiguousPendingErasureLedgerCommit(t *testing.T) {
+	st := testState()
+	st.Backup = &BackupCoordinationState{
+		RestorePoints:         []BackupRestorePoint{},
+		ErasureLedgerBoundary: 7,
+		PendingErasureLedger: &BackupErasureLedgerReference{
+			Sequence: 9, EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json", RecordSHA256: strings.Repeat("b", 64),
+		},
+	}
+
+	require.ErrorIs(t, st.Validate(), ErrInvalidState)
+}
+
 func TestDecodeRejectsUnknownNestedField(t *testing.T) {
 	data, err := Encode(testState())
 	require.NoError(t, err)

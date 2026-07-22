@@ -42,6 +42,21 @@ type RestoreVerifyBoundary struct {
 	LogStartOffset uint64
 	// HW is the restored committed high watermark.
 	HW uint64
+	// PermanentEraseThroughSeq is the inclusive prefix whose physical absence
+	// must be independently verified before activation.
+	PermanentEraseThroughSeq uint64
+}
+
+// RestorePermanentErasure is one authenticated message prefix that must be
+// physically absent before the restored Channel runtime is installed.
+type RestorePermanentErasure struct {
+	// ChannelID and ChannelType identify the restored durable Channel.
+	ChannelID   string
+	ChannelType uint8
+	// Epoch is the restored Channel epoch.
+	Epoch uint64
+	// ThroughSeq is the inclusive highest permanently erased sequence.
+	ThroughSeq uint64
 }
 
 // BackupChannelFence identifies one Channel leader and metadata generation
@@ -211,6 +226,28 @@ func (n *Node) InstallRestoreMessageStream(ctx context.Context, reader io.ReadSe
 	return n.defaultChannelStore.ImportBackupSnapshotReader(ctx, reader, size)
 }
 
+// ApplyRestorePermanentErasures removes imported rows and advances durable
+// message boundaries before target-topology Channel metadata is installed.
+func (n *Node) ApplyRestorePermanentErasures(ctx context.Context, hashSlot uint16, erasures []RestorePermanentErasure) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil || !n.cfg.RestoreMode || n.defaultChannelStore == nil || n.router == nil || hashSlot >= n.cfg.Slots.HashSlotCount || len(erasures) > maxBackupMessageChannelsPerRequest {
+		return ErrInvalidConfig
+	}
+	items := make([]channelstore.RestorePermanentErasure, len(erasures))
+	for index, erasure := range erasures {
+		route, err := n.router.RouteKey(erasure.ChannelID)
+		if err != nil || route.HashSlot != hashSlot {
+			return ErrInvalidConfig
+		}
+		items[index] = channelstore.RestorePermanentErasure{
+			ID: channelruntime.ChannelID{ID: erasure.ChannelID, Type: erasure.ChannelType}, Epoch: erasure.Epoch, ThroughSeq: erasure.ThroughSeq,
+		}
+	}
+	return n.defaultChannelStore.ApplyRestorePermanentErasures(ctx, items)
+}
+
 // InstallRestoreChannelRuntimeMeta reconstructs target-topology Channel
 // routing metadata from authenticated durable message boundaries. Source
 // topology is never copied into the successor cluster.
@@ -317,7 +354,7 @@ func (n *Node) VerifyLocalRestorePartition(ctx context.Context, hashSlot uint16,
 		}
 		cuts[index] = channelstore.BackupChannelCut{
 			Key: channelruntime.ChannelKeyForID(id), ID: id, Epoch: boundary.Epoch,
-			LogStartOffset: boundary.LogStartOffset, HW: boundary.HW,
+			LogStartOffset: boundary.LogStartOffset, HW: boundary.HW, PermanentEraseThroughSeq: boundary.PermanentEraseThroughSeq,
 		}
 	}
 	return n.defaultChannelStore.VerifyRestoreBoundaries(ctx, cuts)

@@ -21,6 +21,8 @@ var (
 	ErrPartitionsIncomplete = errors.New("backup usecase: logical partitions incomplete")
 	// ErrRestorePointNotFound reports an unknown published restore-point identity.
 	ErrRestorePointNotFound = errors.New("backup usecase: restore point not found")
+	// ErrErasureLedgerPending reports a different record already reserved the next commit sequence.
+	ErrErasureLedgerPending = errors.New("backup usecase: erasure ledger commit pending")
 )
 
 type JobStatus = backupcontract.JobStatus
@@ -49,6 +51,7 @@ type PartitionReport = backupcontract.PartitionReport
 type Job = backupcontract.Job
 type RestorePoint = backupcontract.RestorePoint
 type Verification = backupcontract.Verification
+type ErasureLedgerRecordReference = backupcontract.ErasureLedgerRecordReference
 type State = backupcontract.State
 type TriggerRequest = backupcontract.TriggerRequest
 type SchedulePolicy = backupcontract.SchedulePolicy

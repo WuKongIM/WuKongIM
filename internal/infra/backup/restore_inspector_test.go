@@ -25,7 +25,7 @@ func TestRestoreInspectorLoadsSelectedRepositoryAndPreservesExactEstimates(t *te
 		ClusterID: "cluster-b", Generation: "generation-2", HashSlotCount: 1, Empty: true,
 	}}
 	inspector, err := backupinfra.NewRestoreInspector(backupinfra.RestoreInspectorOptions{
-		Primary: primary, Secondary: secondary, Signer: signer, RepositoryID: "repo-prod", Target: target,
+		Primary: primary, Secondary: secondary, Signer: signer, Codec: restoreInspectorCodec(), RepositoryID: "repo-prod", Target: target,
 	})
 	require.NoError(t, err)
 
@@ -42,6 +42,9 @@ func TestRestoreInspectorLoadsSelectedRepositoryAndPreservesExactEstimates(t *te
 	require.Equal(t, uint64(37), *inspection.EstimatedPlainBytes)
 	require.Equal(t, uint64(len("ciphertext-restore-1")), *inspection.EstimatedCipherBytes)
 	require.Len(t, inspection.ManifestSHA256, 64)
+	require.Equal(t, backupartifact.ErasureLedgerSnapshotVersion, inspection.ErasureLedgerVersion)
+	require.Zero(t, inspection.ErasureLedgerBoundary)
+	require.Equal(t, backupartifact.EmptyErasureLedgerSnapshotSHA256, inspection.ErasureLedgerSHA256)
 }
 
 func TestRestoreInspectorLatestVerifiedRequiresIdenticalCompleteCopies(t *testing.T) {
@@ -55,7 +58,7 @@ func TestRestoreInspectorLatestVerifiedRequiresIdenticalCompleteCopies(t *testin
 	publishDirectRestorePoint(t, primary, secondary, signer, "restore-common", 1710000000000, 11)
 	publishDirectRestorePoint(t, primary, temporary, signer, "restore-primary-only", 1710000010000, 12)
 	inspector, err := backupinfra.NewRestoreInspector(backupinfra.RestoreInspectorOptions{
-		Primary: primary, Secondary: secondary, Signer: signer, RepositoryID: "repo-prod",
+		Primary: primary, Secondary: secondary, Signer: signer, Codec: restoreInspectorCodec(), RepositoryID: "repo-prod",
 		Target: staticRestoreTarget{state: backupinfra.RestoreTargetState{ClusterID: "cluster-b", Generation: "generation-2", HashSlotCount: 1, Empty: true}},
 	})
 	require.NoError(t, err)
@@ -83,7 +86,7 @@ func TestRestoreInspectorRejectsNonEmptyOrIdentityCompatibleTarget(t *testing.T)
 	} {
 		t.Run(name, func(t *testing.T) {
 			inspector, err := backupinfra.NewRestoreInspector(backupinfra.RestoreInspectorOptions{
-				Primary: primary, Secondary: secondary, Signer: signer, RepositoryID: "repo-prod", Target: staticRestoreTarget{state: state},
+				Primary: primary, Secondary: secondary, Signer: signer, Codec: restoreInspectorCodec(), RepositoryID: "repo-prod", Target: staticRestoreTarget{state: state},
 			})
 			require.NoError(t, err)
 			_, err = inspector.Inspect(context.Background(), backupusecase.RestorePlanRequest{RestorePointID: "restore-unsafe", Repository: "primary"})
@@ -104,6 +107,10 @@ func (t staticRestoreTarget) InspectRestoreTarget(context.Context) (backupinfra.
 func restoreInspectorSigner() testEd25519Signer {
 	seed := sha256.Sum256([]byte("restore-inspector-test"))
 	return testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+}
+
+func restoreInspectorCodec() *backupartifact.ObjectCodec {
+	return backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x11}, 64)))
 }
 
 func publishDirectRestorePoint(t *testing.T, primary, secondary backupartifact.Repository, signer backupartifact.ManifestSigner, restorePointID string, createdAt int64, plaintextBytes int64) {

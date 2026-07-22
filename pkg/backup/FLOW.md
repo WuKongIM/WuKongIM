@@ -48,3 +48,14 @@ partition reference repeats the authenticated tip's latest metadata-record
 count, cumulative base-to-tip message-record count, and cumulative maximum
 message ID. A missing evidence version is not an empty partition. Base
 references cannot regress cumulative counts or the allocator fence.
+
+Permanent message erasure uses a separate portable append-only artifact chain.
+The Channel identity and deletion boundary live only in a freshly encrypted
+event object. A signed record binds that object to its hash slot and stable
+event ID, and a signed, contiguous sequence commit makes the record visible.
+The same signed commit bytes are also stored at a deterministic per-event
+receipt key, which preserves idempotency after later events advance the
+contiguous sequence without growing Controller state.
+Restore plans pin an exact versioned ledger prefix by boundary and SHA-256;
+boundary zero is represented by the explicit digest of the empty prefix, never
+by missing evidence.

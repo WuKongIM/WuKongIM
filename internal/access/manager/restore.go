@@ -52,6 +52,9 @@ type restorePlanDTO struct {
 	TargetClusterID       string                      `json:"target_cluster_id"`
 	TargetGeneration      string                      `json:"target_generation"`
 	HashSlotCount         uint16                      `json:"hash_slot_count"`
+	ErasureLedgerVersion  uint32                      `json:"erasure_ledger_version"`
+	ErasureLedgerBoundary uint64                      `json:"erasure_ledger_boundary"`
+	ErasureLedgerSHA256   string                      `json:"erasure_ledger_sha256"`
 	InvalidateTokens      bool                        `json:"invalidate_tokens"`
 	EstimatedPlainBytes   *uint64                     `json:"estimated_plain_bytes"`
 	EstimatedCipherBytes  *uint64                     `json:"estimated_cipher_bytes"`
@@ -170,6 +173,7 @@ func restorePlanResponse(plan backupusecase.RestorePlan) restorePlanDTO {
 		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256, Repository: plan.Repository,
 		SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
 		TargetClusterID: plan.TargetClusterID, TargetGeneration: plan.TargetGeneration, HashSlotCount: plan.HashSlotCount,
+		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureLedgerBoundary: plan.ErasureLedgerBoundary, ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
 		InvalidateTokens: plan.InvalidateTokens, EstimatedPlainBytes: plan.EstimatedPlainBytes, EstimatedCipherBytes: plan.EstimatedCipherBytes,
 		Status: plan.Status, CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
 		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis,

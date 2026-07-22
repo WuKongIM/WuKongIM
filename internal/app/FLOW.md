@@ -1008,6 +1008,14 @@ The cluster-wide config fingerprint excludes the node-local staging directory;
 repository, identity, schedule, retention, and cryptographic policy remain in
 the agreement fence.
 
+When automatic backup is enabled, the same composition root injects the
+dual-repository permanent-erasure ledger into local and forwarded Manager
+message-retention paths. Retention fails closed before its Slot metadata command
+when ledger construction or publication is unavailable. With backup disabled,
+the existing cluster-authoritative retention path remains unchanged. The
+garbage collector uses separately assumed delete credentials while preserving
+the signed logical repository identities `primary` and `secondary`.
+
 An `e2e`-tagged binary may replace repository, key, and clock adapters only
 when the explicit backup E2E file-root environment is present. Without that
 environment, including ordinary tagged scenarios, the production S3/KMS/clock
@@ -1028,4 +1036,5 @@ node-scoped Snowflake allocator is already above the greatest restored message
 ID before ordinary traffic is admitted. Startup fails closed instead of
 synthesizing future IDs that a restart could reuse before wall-clock catch-up.
 Per-Channel sequence allocation continues from the separately
-verified checkpoint/LEO cuts.
+verified checkpoint/LEO cuts, including the plan-pinned permanent-erasure
+ledger applied to every target Slot replica before runtime metadata is installed.

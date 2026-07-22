@@ -652,3 +652,9 @@ contains record counts and the message-ID fence. The unchanged pairs are
 `WKVY1/WKVy1` for restore verification. Decoders reject unknown JSON fields,
 trailing bytes, invalid digests, oversized batches, and older evidence-free
 response/install versions.
+
+The restore install request also carries the immutable permanent-erasure
+ledger version, boundary, and SHA-256 from the Controller plan. Every node
+rejects missing or malformed ledger evidence before entering the restore-only
+installer. Restore verification batches carry each Channel's independently
+verified physical-erasure prefix in addition to checkpoint/LEO boundaries.

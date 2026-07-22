@@ -31,6 +31,7 @@ replica and reconstructs the same bounded report without reopening the source.
 The Controller Leader coordinator resumes missing partition reports from
 Controller state, runs backup doctor checks without changing message
 readiness, publishes only complete jobs, applies reference retention, retries
-dual-repository garbage collection, and performs a daily remote audit. The
+dual-repository garbage collection while forwarding the one Controller-pending
+erasure reference into its protected mark set, and performs a daily remote audit. The
 restore coordinator similarly resumes missing installs only on the Controller
 Leader and bounds concurrent logical partitions.

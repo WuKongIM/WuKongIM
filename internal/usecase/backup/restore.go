@@ -44,13 +44,19 @@ type RestorePlanRequest struct {
 
 // RestoreInspection is trusted manifest and empty-target evidence returned before plan persistence.
 type RestoreInspection struct {
-	RestorePointID       string
-	ManifestSHA256       string
-	SourceClusterID      string
-	SourceGeneration     string
-	TargetClusterID      string
-	TargetGeneration     string
-	HashSlotCount        uint16
+	RestorePointID   string
+	ManifestSHA256   string
+	SourceClusterID  string
+	SourceGeneration string
+	TargetClusterID  string
+	TargetGeneration string
+	HashSlotCount    uint16
+	// ErasureLedgerVersion identifies the authenticated permanent-erasure snapshot schema.
+	ErasureLedgerVersion uint32
+	// ErasureLedgerBoundary pins the exact contiguous commit prefix to replay.
+	ErasureLedgerBoundary uint64
+	// ErasureLedgerSHA256 authenticates the exact pinned ledger prefix.
+	ErasureLedgerSHA256  string
 	EstimatedPlainBytes  *uint64
 	EstimatedCipherBytes *uint64
 	TargetEmpty          bool
@@ -121,7 +127,8 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 	if err != nil {
 		return RestorePlan{}, err
 	}
-	if !inspection.TargetEmpty || inspection.RestorePointID == "" || !validRestoreDigest(inspection.ManifestSHA256) || inspection.HashSlotCount == 0 || inspection.TargetClusterID == inspection.SourceClusterID || inspection.TargetGeneration == inspection.SourceGeneration {
+	if !inspection.TargetEmpty || inspection.RestorePointID == "" || !validRestoreDigest(inspection.ManifestSHA256) || inspection.HashSlotCount == 0 || inspection.TargetClusterID == inspection.SourceClusterID || inspection.TargetGeneration == inspection.SourceGeneration ||
+		inspection.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validRestoreDigest(inspection.ErasureLedgerSHA256) {
 		return RestorePlan{}, fmt.Errorf("%w: restore inspection is unsafe", ErrInvalidRequest)
 	}
 	now := a.now().UTC().UnixMilli()
@@ -131,6 +138,7 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 		SourceClusterID: inspection.SourceClusterID, SourceGeneration: inspection.SourceGeneration,
 		TargetClusterID: inspection.TargetClusterID, TargetGeneration: inspection.TargetGeneration,
 		HashSlotCount: inspection.HashSlotCount, InvalidateTokens: request.InvalidateTokens,
+		ErasureLedgerVersion: inspection.ErasureLedgerVersion, ErasureLedgerBoundary: inspection.ErasureLedgerBoundary, ErasureLedgerSHA256: inspection.ErasureLedgerSHA256,
 		EstimatedPlainBytes: inspection.EstimatedPlainBytes, EstimatedCipherBytes: inspection.EstimatedCipherBytes,
 		Status: RestoreStatusPlanned, CreatedAtUnixMillis: now, UpdatedAtUnixMillis: now,
 		Partitions: make([]RestorePartition, inspection.HashSlotCount),

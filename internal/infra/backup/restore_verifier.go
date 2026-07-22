@@ -87,6 +87,17 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 		manifest.SourceGeneration != plan.SourceGeneration || manifest.HashSlotCount != plan.HashSlotCount || len(manifest.Partitions) != int(plan.HashSlotCount) {
 		return nil, fmt.Errorf("%w: restore verification manifest fence mismatch", backupartifact.ErrInvalidManifest)
 	}
+	ledgerLoader, err := NewErasureLedgerLoader(ErasureLedgerLoaderOptions{
+		Primary: v.primary, Secondary: v.secondary, Signer: v.signer, Codec: v.codec,
+		RepositoryID: manifest.RepositoryID, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration, HashSlotCount: plan.HashSlotCount,
+	})
+	if err != nil {
+		return nil, err
+	}
+	ledger, err := ledgerLoader.LoadPinnedSnapshot(ctx, plan.Repository, plan.ErasureLedgerVersion, plan.ErasureLedgerBoundary, plan.ErasureLedgerSHA256)
+	if err != nil {
+		return nil, err
+	}
 	placement, err := v.currentPlacement(ctx, plan)
 	if err != nil {
 		return nil, err
@@ -110,6 +121,9 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 			for hashSlot := range work {
 				reference := manifest.Partitions[hashSlot]
 				boundaries, err := v.loadExpectedBoundaries(ctx, repository, reference)
+				if err == nil {
+					boundaries, _, err = mergeRestorePermanentErasures(boundaries, ledger.Boundaries(hashSlot))
+				}
 				if err == nil {
 					nodeIDs, placementErr := placement.nodeIDs(hashSlot)
 					if placementErr != nil {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,16 +46,19 @@ type restorePoint struct {
 }
 
 type restorePlan struct {
-	ID               string             `json:"id"`
-	RestorePointID   string             `json:"restore_point_id"`
-	ManifestSHA256   string             `json:"manifest_sha256"`
-	SourceClusterID  string             `json:"source_cluster_id"`
-	SourceGeneration string             `json:"source_generation"`
-	TargetClusterID  string             `json:"target_cluster_id"`
-	TargetGeneration string             `json:"target_generation"`
-	HashSlotCount    uint16             `json:"hash_slot_count"`
-	Status           string             `json:"status"`
-	Partitions       []restorePartition `json:"partitions"`
+	ID                    string             `json:"id"`
+	RestorePointID        string             `json:"restore_point_id"`
+	ManifestSHA256        string             `json:"manifest_sha256"`
+	ErasureLedgerVersion  uint32             `json:"erasure_ledger_version"`
+	ErasureLedgerBoundary uint64             `json:"erasure_ledger_boundary"`
+	ErasureLedgerSHA256   string             `json:"erasure_ledger_sha256"`
+	SourceClusterID       string             `json:"source_cluster_id"`
+	SourceGeneration      string             `json:"source_generation"`
+	TargetClusterID       string             `json:"target_cluster_id"`
+	TargetGeneration      string             `json:"target_generation"`
+	HashSlotCount         uint16             `json:"hash_slot_count"`
+	Status                string             `json:"status"`
+	Partitions            []restorePartition `json:"partitions"`
 }
 
 type restorePartition struct {
@@ -71,6 +75,17 @@ type restoreStatus struct {
 
 type managerLogin struct {
 	AccessToken string `json:"access_token"`
+}
+
+type retentionResponse struct {
+	Status             string `json:"status"`
+	AdvancedThroughSeq uint64 `json:"advanced_through_seq"`
+}
+
+type managerMessagePage struct {
+	Items []struct {
+		MessageSeq uint64 `json:"message_seq"`
+	} `json:"items"`
 }
 
 func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
@@ -117,6 +132,12 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		}
 		return nil
 	})
+
+	const (
+		erasureChannelID   = "backup-e2e-erasure-group"
+		erasureChannelType = frame.ChannelTypeGroup
+	)
+	erasedMessages := appendGroupMessages(t, cluster, erasureChannelID, erasureChannelType, 2)
 	waitForConversationDurable(t, cluster, 10*time.Second)
 
 	triggered := triggerBackup(t, cluster, "incremental")
@@ -126,11 +147,18 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 	require.True(t, incremental.PrimaryVerified)
 	require.True(t, incremental.SecondaryVerified)
 
+	erasure := advanceMessageRetentionEventually(t, cluster, erasureChannelID, erasureChannelType, erasedMessages[1].MessageSeq)
+	require.Equal(t, "advanced", erasure.Status)
+	require.Equal(t, erasedMessages[1].MessageSeq, erasure.AdvancedThroughSeq)
+
 	stopCluster(t, cluster)
 	target := startRestoreCluster(t, repositoryRoot)
 	token := loginRestoreManager(t, target)
-	plan := createRestorePlan(t, target, token)
+	plan := createRestorePlan(t, target, token, incremental.ID)
 	require.Equal(t, incremental.ID, plan.RestorePointID)
+	require.Equal(t, uint32(1), plan.ErasureLedgerVersion)
+	require.Equal(t, uint64(1), plan.ErasureLedgerBoundary)
+	require.Len(t, plan.ErasureLedgerSHA256, 64)
 	require.Equal(t, "wukongim-e2e-three", plan.SourceClusterID)
 	require.Equal(t, "source-generation", plan.SourceGeneration)
 	require.Equal(t, "wukongim-e2e-restore", plan.TargetClusterID)
@@ -170,6 +198,12 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		}
 		return nil
 	})
+	requireManagerMessageSeqsEventually(t, target, token, erasureChannelID, erasureChannelType, nil)
+
+	postErasure := appendGroupMessages(t, target, erasureChannelID, erasureChannelType, 1)[0]
+	require.Equal(t, erasedMessages[1].MessageSeq+1, postErasure.MessageSeq)
+	require.Greater(t, postErasure.MessageID, erasedMessages[1].MessageID)
+	requireManagerMessageSeqsEventually(t, target, token, erasureChannelID, erasureChannelType, []uint64{postErasure.MessageSeq})
 
 	const secondPayload = "message committed after restore activation"
 	secondCtx, cancelSecond := context.WithTimeout(context.Background(), 15*time.Second)
@@ -195,6 +229,84 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+func appendGroupMessages(t *testing.T, cluster *suite.StartedCluster, channelID string, channelType uint8, count int) []suite.MessageSendResponse {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	require.NoError(t, suite.PostChannel(ctx, cluster.MustNode(1).APIAddr(), map[string]any{
+		"channel_id": channelID, "channel_type": channelType,
+		"subscribers": []string{"backup-erasure-sender", "backup-erasure-member"},
+	}), cluster.DumpDiagnostics())
+	messages := make([]suite.MessageSendResponse, 0, count)
+	for index := 0; index < count; index++ {
+		message, err := suite.PostMessageSendEventually(ctx, cluster.MustNode(1).APIAddr(), map[string]any{
+			"from_uid": "backup-erasure-sender", "channel_id": channelID, "channel_type": channelType,
+			"client_msg_no": fmt.Sprintf("backup-erasure-%d-%d", time.Now().UnixNano(), index),
+			"payload":       base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("erasure payload %d", index))),
+		})
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		require.Equal(t, uint8(frame.ReasonSuccess), message.Reason)
+		messages = append(messages, message)
+	}
+	return messages
+}
+
+func advanceMessageRetentionEventually(t *testing.T, cluster *suite.StartedCluster, channelID string, channelType uint8, throughSeq uint64) retentionResponse {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	var last retentionResponse
+	var lastErr error
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, lastErr = suite.PostJSON(ctx, "http://"+cluster.MustNode(1).ManagerAddr()+"/manager/messages/retention", map[string]any{
+			"channel_id": channelID, "channel_type": channelType, "through_seq": throughSeq,
+		}, &last)
+		cancel()
+		if lastErr == nil && last.Status == "advanced" {
+			return last
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("permanent retention did not advance: last=%+v err=%v\n%s", last, lastErr, cluster.DumpDiagnostics())
+	return retentionResponse{}
+}
+
+func requireManagerMessageSeqsEventually(t *testing.T, cluster *suite.StartedCluster, token, channelID string, channelType uint8, want []uint64) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	query := url.Values{}
+	query.Set("channel_id", channelID)
+	query.Set("channel_type", fmt.Sprintf("%d", channelType))
+	query.Set("limit", "10")
+	var last managerMessagePage
+	var lastErr error
+	for time.Now().Before(deadline) {
+		last = managerMessagePage{}
+		lastErr = managerRequestError(cluster, token, http.MethodGet, "/manager/messages?"+query.Encode(), nil, &last)
+		got := make([]uint64, 0, len(last.Items))
+		for _, item := range last.Items {
+			got = append(got, item.MessageSeq)
+		}
+		if lastErr == nil && equalUint64s(got, want) {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("manager message sequence mismatch: items=%+v want=%v err=%v\n%s", last.Items, want, lastErr, cluster.DumpDiagnostics())
+}
+
+func equalUint64s(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func sourceBackupConfig(root string, nodeID uint64) map[string]string {
@@ -252,7 +364,7 @@ func targetRestoreConfig(root string, nodeID uint64) map[string]string {
 		"WK_MANAGER_JWT_SECRET":             "e2e-restore-jwt-secret",
 		"WK_MANAGER_JWT_ISSUER":             "wukongim-e2e",
 		"WK_MANAGER_JWT_EXPIRE":             "1h",
-		"WK_MANAGER_USERS":                  `[{"username":"restore-admin","password":"restore-secret","permissions":[{"resource":"cluster.backup","actions":["r","w"]},{"resource":"cluster.restore.activation","actions":["w"]}]}]`,
+		"WK_MANAGER_USERS":                  `[{"username":"restore-admin","password":"restore-secret","permissions":[{"resource":"cluster.backup","actions":["r","w"]},{"resource":"cluster.restore.activation","actions":["w"]},{"resource":"cluster.channel","actions":["r"]}]}]`,
 	}
 }
 
@@ -358,11 +470,11 @@ func loginRestoreManager(t *testing.T, cluster *suite.StartedCluster) string {
 	return login.AccessToken
 }
 
-func createRestorePlan(t *testing.T, cluster *suite.StartedCluster, token string) restorePlan {
+func createRestorePlan(t *testing.T, cluster *suite.StartedCluster, token, restorePointID string) restorePlan {
 	t.Helper()
 	var plan restorePlan
 	managerRequest(t, cluster, token, http.MethodPost, "/manager/restore/plan", map[string]any{
-		"latest_verified":   true,
+		"restore_point_id":  restorePointID,
 		"repository":        "primary",
 		"invalidate_tokens": false,
 	}, &plan)

@@ -20,6 +20,7 @@ func TestControllerRestoreStateStoreRoundTripsPointersAndMapsConflict(t *testing
 		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: strings.Repeat("a", 64), Repository: "secondary",
 		SourceClusterID: "cluster-a", SourceGeneration: "generation-a", TargetClusterID: "cluster-b", TargetGeneration: "generation-b",
 		HashSlotCount: 1, EstimatedPlainBytes: &plain, EstimatedCipherBytes: &cipher,
+		ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion, ErasureLedgerBoundary: 3, ErasureLedgerSHA256: strings.Repeat("e", 64),
 		Status: controllerstate.RestoreStatusInstalling, CreatedAtUnixMillis: 1, UpdatedAtUnixMillis: 2,
 		Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, MetadataSHA256: strings.Repeat("b", 64)}},
 	}}}}
@@ -32,6 +33,8 @@ func TestControllerRestoreStateStoreRoundTripsPointersAndMapsConflict(t *testing
 	require.Equal(t, backupartifact.PartitionEvidenceVersion, loaded.Plan.Partitions[0].EvidenceVersion)
 	require.Equal(t, strings.Repeat("b", 64), loaded.Plan.Partitions[0].MetadataSHA256)
 	require.Equal(t, uint64(11), *loaded.Plan.EstimatedPlainBytes)
+	require.Equal(t, uint64(3), loaded.Plan.ErasureLedgerBoundary)
+	require.Equal(t, strings.Repeat("e", 64), loaded.Plan.ErasureLedgerSHA256)
 	*loaded.Plan.EstimatedPlainBytes = 99
 	require.Equal(t, uint64(11), *runtime.state.Restore.Plan.EstimatedPlainBytes)
 

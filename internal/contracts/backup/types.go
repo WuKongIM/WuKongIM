@@ -118,6 +118,39 @@ type Verification struct {
 	ManifestSHA256 string
 }
 
+// ErasureLedgerRecordReference is the bounded Controller coordination fence for
+// one dual-repository permanent-erasure ledger record.
+type ErasureLedgerRecordReference struct {
+	// Sequence is the next contiguous committed-ledger sequence.
+	Sequence uint64
+	// EventID is the deterministic permanent-erasure event identity.
+	EventID string
+	// RecordKey points to the immutable signed event record.
+	RecordKey string
+	// RecordSHA256 authenticates the exact signed record bytes.
+	RecordSHA256 string
+}
+
+// PermanentMessageErasure identifies one accepted permanent Channel message-prefix deletion.
+type PermanentMessageErasure struct {
+	// ChannelID identifies the permanently erased Channel log.
+	ChannelID string
+	// ChannelType identifies the Channel namespace.
+	ChannelType uint8
+	// ThroughSeq is the inclusive highest permanently erased message sequence.
+	ThroughSeq uint64
+	// RequestedAtUnixMillis is the accepted operator request time in UTC.
+	RequestedAtUnixMillis int64
+}
+
+// ErasureLedgerReceipt identifies one durable dual-repository ledger commit.
+type ErasureLedgerReceipt struct {
+	// Sequence is the contiguous committed ledger position.
+	Sequence uint64
+	// EventID is the deterministic permanent-erasure identity.
+	EventID string
+}
+
 // State is the bounded Controller-persisted backup coordination state.
 type State struct {
 	// Revision is the Controller compare-and-swap revision.
@@ -130,6 +163,12 @@ type State struct {
 	RestorePoints []RestorePoint
 	// PendingGarbage contains expired references awaiting external collection.
 	PendingGarbage []RestorePoint
+	// ErasureLedgerBoundary is the highest durably committed contiguous ledger sequence.
+	ErasureLedgerBoundary uint64
+	// PendingErasureLedger contains at most one record awaiting commit-marker publication.
+	PendingErasureLedger *ErasureLedgerRecordReference
+	// LastCommittedErasureLedger preserves bounded idempotency for the latest accepted request.
+	LastCommittedErasureLedger *ErasureLedgerRecordReference
 }
 
 // Clone returns a deep copy safe for mutation by a caller.
@@ -142,6 +181,14 @@ func (s State) Clone() State {
 	}
 	out.RestorePoints = append([]RestorePoint(nil), s.RestorePoints...)
 	out.PendingGarbage = append([]RestorePoint(nil), s.PendingGarbage...)
+	if s.PendingErasureLedger != nil {
+		pending := *s.PendingErasureLedger
+		out.PendingErasureLedger = &pending
+	}
+	if s.LastCommittedErasureLedger != nil {
+		committed := *s.LastCommittedErasureLedger
+		out.LastCommittedErasureLedger = &committed
+	}
 	return out
 }
 
@@ -249,6 +296,12 @@ type RestorePlan struct {
 	TargetGeneration string
 	// HashSlotCount must match source and target.
 	HashSlotCount uint16
+	// ErasureLedgerVersion identifies the authenticated restore ledger snapshot schema.
+	ErasureLedgerVersion uint32
+	// ErasureLedgerBoundary is the exact contiguous permanent-erasure prefix to replay.
+	ErasureLedgerBoundary uint64
+	// ErasureLedgerSHA256 authenticates that exact ledger prefix, including encrypted event objects.
+	ErasureLedgerSHA256 string
 	// InvalidateTokens applies the explicit restore-time credential transform.
 	InvalidateTokens bool
 	// EstimatedPlainBytes and EstimatedCipherBytes preserve unknown as nil.

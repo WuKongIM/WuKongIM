@@ -58,6 +58,12 @@ type RestorePlan struct {
 	TargetGeneration string `json:"target_generation"`
 	// HashSlotCount is the immutable logical partition count shared by source and target.
 	HashSlotCount uint16 `json:"hash_slot_count"`
+	// ErasureLedgerVersion identifies the authenticated restore ledger snapshot schema.
+	ErasureLedgerVersion uint32 `json:"erasure_ledger_version"`
+	// ErasureLedgerBoundary is the exact contiguous permanent-erasure prefix to replay.
+	ErasureLedgerBoundary uint64 `json:"erasure_ledger_boundary"`
+	// ErasureLedgerSHA256 authenticates that exact ledger prefix.
+	ErasureLedgerSHA256 string `json:"erasure_ledger_sha256"`
 	// InvalidateTokens records the explicit restore-time credential transform.
 	InvalidateTokens bool `json:"invalidate_tokens,omitempty"`
 	// EstimatedPlainBytes preserves the authenticated plaintext size estimate; nil is unknown.

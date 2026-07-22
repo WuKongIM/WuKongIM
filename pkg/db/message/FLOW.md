@@ -114,6 +114,14 @@ Current flow:
     Channel epoch/log-start/HW boundaries. The existing count pass also derives
     the exact message-row count and maximum message ID from the same pinned
     view; restore parsing independently recomputes both values.
-19. Schema and key helpers define the durable message table layout.
+19. Restore-only permanent erasure applies bounded physical prefix trims after
+    message import, advances local retention and retained-LEO state, and updates
+    the full checkpoint without changing its epoch. `LogStartOffset` and HW are
+    both fenced at least through the erased boundary so an older restore point
+    cannot expose or reuse erased sequences after activation. When the bounded
+    raw-row scan exhausts the requested range, physical retention advances to
+    the requested boundary even if the imported tail ended earlier or the
+    Channel existed only in the erasure ledger.
+20. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

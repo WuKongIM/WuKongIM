@@ -27,6 +27,10 @@ and Alertmanager coverage in its own environment.
 - Upload credentials do not delete. Garbage collection assumes the separately
   configured restricted role and deletes exact object versions only after the
   Object Lock-safe grace period.
+- With automatic backup enabled, a permanent message-retention request commits
+  an encrypted, signed entry to both repositories before Slot retention
+  metadata may advance. Repository, KMS, signature, or Controller failure
+  blocks the deletion rather than creating an unrecorded erasure.
 - Backup failure does not make message traffic unready. Backup health and RPO
   become degraded or failed independently.
 - Restore accepts only a fresh cluster generation with the same
@@ -118,9 +122,13 @@ the active incremental base remain protected.
 
 Expiration first moves the restore-point reference into a durable pending-GC
 queue. Collection authenticates the retained graphs in both repositories,
-marks every reachable object, protects active job prefixes, and then removes
-only old unreachable exact versions. An Object Lock denial leaves the queue
-entry pending for a later retry.
+authenticates the complete contiguous permanent-erasure ledger, marks every
+committed ledger and restore-point object, protects the one authenticated
+Controller-pending erasure plus active job prefixes, and then removes only old
+unreachable exact versions. Unreferenced uncommitted ledger attempts are
+ordinary age-gated orphans. The collector assumes separate delete credentials
+but retains the signed logical repository identities. An Object Lock denial
+leaves the queue entry pending for a later retry.
 
 ## Restore Runbook
 
@@ -145,16 +153,26 @@ entry pending for a later retry.
    wkcli backup restore activate PLAN_ID --old-cluster-fence-digest SHA256 --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
    ```
 
+   Plan creation also authenticates the current permanent-erasure ledger in
+   both repositories and pins its version, boundary, and SHA-256. This pin is
+   intentionally independent of restore-point time: selecting an old restore
+   point cannot resurrect messages erased after that point.
+
 5. Verification authenticates the repository chain; compares each partition's
    restored metadata-record count, cumulative message-record count, and maximum
    message ID with signed manifest evidence; checks every restored Channel
    sequence boundary; checks the reconstructed successor-topology
    `ChannelRuntimeMeta`; and compares a canonical semantic metadata digest on
-   each successor physical Slot replica. Channel epoch and retention floor
+   each successor physical Slot replica. For every pinned permanent erasure it
+   also requires durable local/physical retention progress and proves that the
+   raw message sequence index contains no row in the erased prefix. Channel epoch and retention floor
    come from the signed Channel cut, while leader, replicas, ISR, and MinISR
    come from that target Slot's desired peers. Unrelated target members do not
-   receive a complete partition copy. Activation remains impossible before
-   every partition is installed and verified.
+   receive a complete partition copy. Before runtime metadata is installed,
+   every target Slot replica replays the pinned erasure prefix, physically
+   removes restored rows, and advances retention/checkpoint/LEO fences. A
+   ledger-only Channel receives a sequence fence to prevent reuse. Activation
+   remains impossible before every partition is installed and verified.
 6. Stop the restore-mode processes. Set `backup.restore_mode = false`. If
    automatic backup will resume, set `backup.enabled = true` and set
    `backup.source_generation` to the activated target generation. Restart the
@@ -181,10 +199,12 @@ GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -time
 ```
 
 The scenario starts real `cmd/wukongim` processes, publishes a materialized
-baseline and an incremental point, stops the source, restores into a fresh
+baseline and an incremental point, permanently erases a Channel prefix after
+that point, stops the source, explicitly restores the older point into a fresh
 three-node cluster, verifies and activates it through Manager, restarts the
-same target data in normal mode, reads restored history, and proves the next
-message ID and per-Channel sequence advance. A second scenario stops the
+same target data in normal mode, proves erased rows do not return and their
+sequences are not reused, reads unaffected restored history, and proves the
+next message ID and per-Channel sequence advance. A second scenario stops the
 active Controller Leader during an incremental job, observes a different
 Controller Leader and the same persisted job through public Manager and
 metrics surfaces, rejoins the stopped node, and requires the new coordinator
@@ -248,9 +268,9 @@ nodes or replace the required real object-storage failure qualification. The
 qualified 1 TB profile must restore within 60 minutes and stay inside the
 foreground throughput and SENDACK P99 budgets in the design spec.
 
-The current implementation also needs explicit qualification or completion for
-permanent-erasure ledger replay; source-log pin budget enforcement and public
-pin controls; true synthetic-full chain flattening (the current scheduler emits
+The current implementation also needs explicit production qualification for
+permanent-erasure ledger replay, plus completion of source-log pin budget
+enforcement and public pin controls; true synthetic-full chain flattening (the current scheduler emits
 a source-materialized independent fallback and rejects manual
 `synthetic_full`); topology/quorum/migration/protocol-version publication gates;
 non-default-topology restore placement and MinISR qualification; complete

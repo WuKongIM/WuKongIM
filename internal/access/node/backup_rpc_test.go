@@ -46,6 +46,7 @@ func TestBackupEvidenceCodecsRejectV1WireShapes(t *testing.T) {
 	plan := backupusecase.RestorePlan{
 		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: strings.Repeat("a", 64),
 		Repository: "primary", HashSlotCount: 1, Partitions: []backupusecase.RestorePartition{{HashSlot: 0}},
+		ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion, ErasureLedgerSHA256: backupartifact.EmptyErasureLedgerSnapshotSHA256,
 	}
 	installBody, err := encodeBackupRestoreInstallRequest(backupRestoreInstallRPCRequest{Plan: plan})
 	if err != nil {
@@ -88,6 +89,7 @@ func TestBackupRestoreInstallRPCReturnsPartitionReport(t *testing.T) {
 	plan := backupusecase.RestorePlan{
 		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: strings.Repeat("a", 64),
 		Repository: "primary", HashSlotCount: 1, Partitions: []backupusecase.RestorePartition{{HashSlot: 0}},
+		ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion, ErasureLedgerSHA256: backupartifact.EmptyErasureLedgerSnapshotSHA256,
 	}
 	report, err := NewClient(node).InstallBackupRestorePartition(context.Background(), 2, plan, 0)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -198,6 +199,92 @@ func (a *App) CoordinationState(ctx context.Context) (State, error) {
 		return State{}, err
 	}
 	return state.Clone(), nil
+}
+
+// ReserveErasureLedgerCommit allocates the next contiguous ledger sequence
+// while keeping Controller state bounded to one pending immutable record.
+func (a *App) ReserveErasureLedgerCommit(ctx context.Context, reference ErasureLedgerRecordReference) (ErasureLedgerRecordReference, error) {
+	if !a.enabled {
+		return ErasureLedgerRecordReference{}, ErrDisabled
+	}
+	reference.EventID = strings.TrimSpace(reference.EventID)
+	reference.RecordKey = strings.TrimSpace(reference.RecordKey)
+	reference.RecordSHA256 = strings.TrimSpace(reference.RecordSHA256)
+	if reference.Sequence != 0 || !validErasureLedgerRecordReference(reference) {
+		return ErasureLedgerRecordReference{}, fmt.Errorf("%w: invalid erasure ledger record reference", ErrInvalidRequest)
+	}
+	var reserved ErasureLedgerRecordReference
+	err := a.mutate(ctx, func(state *State) error {
+		if state.PendingErasureLedger != nil {
+			pending := *state.PendingErasureLedger
+			candidate := reference
+			candidate.Sequence = pending.Sequence
+			if pending == candidate {
+				reserved = pending
+				return nil
+			}
+			return ErrErasureLedgerPending
+		}
+		if state.LastCommittedErasureLedger != nil {
+			committed := *state.LastCommittedErasureLedger
+			candidate := reference
+			candidate.Sequence = committed.Sequence
+			if committed == candidate {
+				reserved = committed
+				return nil
+			}
+		}
+		if state.ErasureLedgerBoundary == math.MaxUint64 {
+			return fmt.Errorf("%w: erasure ledger sequence exhausted", ErrStateConflict)
+		}
+		reserved = reference
+		reserved.Sequence = state.ErasureLedgerBoundary + 1
+		state.PendingErasureLedger = &reserved
+		return nil
+	})
+	return reserved, err
+}
+
+// CommitErasureLedgerCommit advances the contiguous boundary after both
+// repositories durably contain the signed commit marker.
+func (a *App) CommitErasureLedgerCommit(ctx context.Context, sequence uint64, eventID string) error {
+	if !a.enabled {
+		return ErrDisabled
+	}
+	eventID = strings.TrimSpace(eventID)
+	if sequence == 0 || !validLowerSHA256(eventID) {
+		return fmt.Errorf("%w: invalid erasure ledger commit identity", ErrInvalidRequest)
+	}
+	return a.mutate(ctx, func(state *State) error {
+		if state.PendingErasureLedger == nil {
+			if state.ErasureLedgerBoundary == sequence {
+				return nil
+			}
+			return fmt.Errorf("%w: erasure ledger commit is not pending", ErrStateConflict)
+		}
+		pending := state.PendingErasureLedger
+		if pending.Sequence != sequence || pending.EventID != eventID || sequence != state.ErasureLedgerBoundary+1 {
+			return fmt.Errorf("%w: erasure ledger commit fence mismatch", ErrStateConflict)
+		}
+		committed := *pending
+		state.ErasureLedgerBoundary = sequence
+		state.PendingErasureLedger = nil
+		state.LastCommittedErasureLedger = &committed
+		return nil
+	})
+}
+
+func validErasureLedgerRecordReference(reference ErasureLedgerRecordReference) bool {
+	return validLowerSHA256(reference.EventID) && validLowerSHA256(reference.RecordSHA256) &&
+		backupartifact.ValidateErasureLedgerRecordKey(reference.RecordKey, reference.EventID) == nil
+}
+
+func validLowerSHA256(value string) bool {
+	if len(value) != 64 || strings.ToLower(value) != value {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func latestRestorePoint(points []RestorePoint) (RestorePoint, bool) {

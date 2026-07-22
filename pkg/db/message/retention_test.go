@@ -240,3 +240,29 @@ func TestChannelStoreTrimMessagesThroughLimit(t *testing.T) {
 		t.Fatalf("second trim result = %#v, want through=2 deleted=1 more=false", result)
 	}
 }
+
+func TestRetentionTrimCompletesPhysicalBoundaryAcrossEmptySuffix(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	log := testChannelLog(store)
+	if _, err := log.Append(context.Background(), []Record{
+		{ID: 701, ClientMsgNo: "c-1", FromUID: "u1", Payload: []byte("one")},
+		{ID: 702, ClientMsgNo: "c-2", FromUID: "u2", Payload: []byte("two")},
+	}, AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+	result, err := log.TrimPrefixThrough(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("TrimPrefixThrough(): %v", err)
+	}
+	if result.DeletedThroughSeq != 2 || result.Deleted != 2 || result.More {
+		t.Fatalf("trim result = %#v, want actual deleted through=2 and complete", result)
+	}
+	state, ok, err := log.LoadRetentionState(context.Background())
+	if err != nil {
+		t.Fatalf("LoadRetentionState(): %v", err)
+	}
+	if !ok || state.LocalRetentionThroughSeq != 5 || state.PhysicalRetentionThroughSeq != 5 || state.RetainedMaxSeq != 5 {
+		t.Fatalf("retention state = (%+v, %v), want complete boundary=5", state, ok)
+	}
+}

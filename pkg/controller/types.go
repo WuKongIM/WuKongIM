@@ -59,6 +59,8 @@ type (
 	BackupPartitionReport = state.BackupPartitionReport
 	// BackupRestorePoint is one bounded published restore-point reference.
 	BackupRestorePoint = state.BackupRestorePoint
+	// BackupErasureLedgerReference is the bounded pending permanent-erasure record reference.
+	BackupErasureLedgerReference = state.BackupErasureLedgerReference
 	// RestoreCoordinationState stores bounded explicit recovery metadata.
 	RestoreCoordinationState = state.RestoreCoordinationState
 	// RestorePlan stores one recovery plan and bounded progress.

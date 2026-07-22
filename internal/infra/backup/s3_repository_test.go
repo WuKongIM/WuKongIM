@@ -107,6 +107,26 @@ func TestS3RepositoryListsOnlyCommittedRestorePoints(t *testing.T) {
 	}
 }
 
+func TestS3RepositoryListsErasureLedgerCommitsLexically(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a", ObjectLockDays: 7, Client: client})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	second := backupartifact.ErasureLedgerCommitKey(2)
+	first := backupartifact.ErasureLedgerCommitKey(1)
+	client.objects["prod/cluster-a/"+second] = fakeS3Object{}
+	client.objects["prod/cluster-a/"+first] = fakeS3Object{}
+
+	keys, err := repository.ListErasureLedgerCommitKeys(context.Background())
+	if err != nil {
+		t.Fatalf("ListErasureLedgerCommitKeys() error = %v", err)
+	}
+	if len(keys) != 2 || keys[0] != first || keys[1] != second {
+		t.Fatalf("ListErasureLedgerCommitKeys() = %v, want [%s %s]", keys, first, second)
+	}
+}
+
 func TestS3RepositoryDeletesExactGarbageObjectVersions(t *testing.T) {
 	client := newFakeS3Client()
 	repository, err := NewS3Repository(S3RepositoryOptions{Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a", ObjectLockDays: 7, Client: client})

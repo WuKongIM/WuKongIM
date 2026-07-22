@@ -143,7 +143,8 @@ func decodeBackupRestoreInstallRequest(body []byte) (backupRestoreInstallRPCRequ
 func validateBackupRestoreInstallRequest(request backupRestoreInstallRPCRequest) error {
 	plan := request.Plan
 	if plan.ID == "" || plan.RestorePointID == "" || len(plan.ManifestSHA256) != 64 || plan.HashSlotCount == 0 || request.HashSlot >= plan.HashSlotCount ||
-		(plan.Repository != "primary" && plan.Repository != "secondary") || len(plan.Partitions) != int(plan.HashSlotCount) {
+		(plan.Repository != "primary" && plan.Repository != "secondary") || len(plan.Partitions) != int(plan.HashSlotCount) ||
+		plan.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validBackupSHA256(plan.ErasureLedgerSHA256) {
 		return fmt.Errorf("internal/access/node: invalid restore install request")
 	}
 	return nil

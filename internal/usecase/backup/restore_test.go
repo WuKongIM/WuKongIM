@@ -19,6 +19,7 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 			RestorePointID: "restore-7", ManifestSHA256: strings.Repeat("a", 64),
 			SourceClusterID: "old", SourceGeneration: "old-gen", TargetClusterID: "new", TargetGeneration: "new-gen",
 			HashSlotCount: 2, TargetEmpty: true,
+			ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion, ErasureLedgerBoundary: 7, ErasureLedgerSHA256: strings.Repeat("e", 64),
 		}},
 		Verifier: fakeRestoreVerifier{}, Now: func() time.Time { return now }, NewPlanID: func() string { return "plan-7" },
 	})
@@ -28,6 +29,9 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	plan, err := app.Plan(context.Background(), backupusecase.RestorePlanRequest{RestorePointID: "restore-7", Repository: "primary"})
 	if err != nil || plan.Status != backupusecase.RestoreStatusPlanned {
 		t.Fatalf("Plan() plan=%+v err=%v", plan, err)
+	}
+	if plan.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || plan.ErasureLedgerBoundary != 7 || plan.ErasureLedgerSHA256 != strings.Repeat("e", 64) {
+		t.Fatalf("Plan() erasure ledger fence = version:%d boundary:%d sha:%q", plan.ErasureLedgerVersion, plan.ErasureLedgerBoundary, plan.ErasureLedgerSHA256)
 	}
 	if _, err := app.Plan(context.Background(), backupusecase.RestorePlanRequest{RestorePointID: "restore-7", Repository: "primary"}); err == nil {
 		t.Fatal("second Plan() error = nil")

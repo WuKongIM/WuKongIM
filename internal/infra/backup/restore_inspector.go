@@ -44,6 +44,7 @@ type RestoreInspectorOptions struct {
 	Primary      backupartifact.Repository
 	Secondary    backupartifact.Repository
 	Signer       backupartifact.ManifestSigner
+	Codec        *backupartifact.ObjectCodec
 	RepositoryID string
 	Target       RestoreTargetProbe
 }
@@ -54,19 +55,20 @@ type RestoreInspector struct {
 	primary      backupartifact.Repository
 	secondary    backupartifact.Repository
 	signer       backupartifact.ManifestSigner
+	codec        *backupartifact.ObjectCodec
 	repositoryID string
 	target       RestoreTargetProbe
 }
 
 // NewRestoreInspector creates a repository and target preflight inspector.
 func NewRestoreInspector(options RestoreInspectorOptions) (*RestoreInspector, error) {
-	if options.Primary == nil || options.Secondary == nil || options.Signer == nil || options.Target == nil ||
+	if options.Primary == nil || options.Secondary == nil || options.Signer == nil || options.Codec == nil || options.Target == nil ||
 		strings.TrimSpace(options.RepositoryID) == "" || options.Primary.Name() == "" || options.Secondary.Name() == "" ||
 		options.Primary.Name() == options.Secondary.Name() {
 		return nil, fmt.Errorf("backup restore inspector: invalid options")
 	}
 	return &RestoreInspector{
-		primary: options.Primary, secondary: options.Secondary, signer: options.Signer,
+		primary: options.Primary, secondary: options.Secondary, signer: options.Signer, codec: options.Codec,
 		repositoryID: strings.TrimSpace(options.RepositoryID), target: options.Target,
 	}, nil
 }
@@ -101,6 +103,20 @@ func (i *RestoreInspector) Inspect(ctx context.Context, request backupusecase.Re
 	if manifest.RepositoryID != i.repositoryID || manifest.SourceClusterID == target.ClusterID || manifest.SourceGeneration == target.Generation || manifest.HashSlotCount != target.HashSlotCount {
 		return backupusecase.RestoreInspection{}, fmt.Errorf("%w: restore point and target identity are incompatible", backupartifact.ErrInvalidManifest)
 	}
+	ledgerLoader, err := NewErasureLedgerLoader(ErasureLedgerLoaderOptions{
+		Primary: i.primary, Secondary: i.secondary, Signer: i.signer, Codec: i.codec,
+		RepositoryID: i.repositoryID, SourceClusterID: manifest.SourceClusterID, SourceGeneration: manifest.SourceGeneration, HashSlotCount: target.HashSlotCount,
+	})
+	if err != nil {
+		return backupusecase.RestoreInspection{}, err
+	}
+	ledger, err := ledgerLoader.LoadDualSnapshot(ctx)
+	if err != nil {
+		return backupusecase.RestoreInspection{}, err
+	}
+	if ledger.Boundary < manifest.ErasureLedgerBoundary {
+		return backupusecase.RestoreInspection{}, fmt.Errorf("%w: restore point requires a missing erasure-ledger prefix", backupartifact.ErrRepositoryIncomplete)
+	}
 	plainBytes, cipherBytes, err := estimateRestorePoint(ctx, repository, manifest)
 	if err != nil {
 		return backupusecase.RestoreInspection{}, err
@@ -114,6 +130,7 @@ func (i *RestoreInspector) Inspect(ctx context.Context, request backupusecase.Re
 		RestorePointID: manifest.RestorePointID, ManifestSHA256: hex.EncodeToString(hash[:]),
 		SourceClusterID: manifest.SourceClusterID, SourceGeneration: manifest.SourceGeneration,
 		TargetClusterID: target.ClusterID, TargetGeneration: target.Generation, HashSlotCount: target.HashSlotCount,
+		ErasureLedgerVersion: ledger.Version, ErasureLedgerBoundary: ledger.Boundary, ErasureLedgerSHA256: ledger.SHA256,
 		EstimatedPlainBytes: &plainBytes, EstimatedCipherBytes: &cipherBytes, TargetEmpty: true,
 	}, nil
 }
