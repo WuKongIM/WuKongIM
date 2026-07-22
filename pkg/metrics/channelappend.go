@@ -90,12 +90,12 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 		}, []string{"kind"}),
 		postCommitHandoff: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_post_commit_handoff_depth",
-			Help:        "Current durable messages owning a channel append post-commit reservation.",
+			Help:        "Current messages owning a channel append reservation across pending append, append execution, and durable post-commit work.",
 			ConstLabels: labels,
 		}, nil),
 		postCommitHandoffCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_post_commit_handoff_capacity",
-			Help:        "Configured durable-message reservation capacity for channel append post-commit work.",
+			Help:        "Configured message reservation capacity spanning pending append, append execution, and durable post-commit work.",
 			ConstLabels: labels,
 		}, nil),
 		postCommitRetryQueue: prometheus.NewGaugeVec(prometheus.GaugeOpts{

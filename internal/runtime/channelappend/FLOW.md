@@ -163,10 +163,12 @@ items enter the writer state's pending queue in input order only when the
 state's pending plus in-flight item count is below
 `ChannelBacklogHighWatermark`; saturated channels complete those items with
 `ErrChannelBusy` before they reach the append port. When any post-commit port is
-configured, every durable prepared item must also reserve one slot from the
-group-wide `PostCommitHandoffCapacity` before append. An item that cannot reserve
-a slot completes with `ErrChannelBusy` and is never passed to `Appender`; append
-failure or terminal post-commit completion returns the slot. The default is the
+configured, every append-bound prepared item must also reserve one slot from
+the group-wide `PostCommitHandoffCapacity` before append. The reservation spans
+pending append, append execution, and durable post-commit work. An item that
+cannot reserve a slot completes with `ErrChannelBusy` and is never passed to
+`Appender`; append failure or terminal post-commit completion returns the slot.
+The default is the
 larger of `ChannelBacklogHighWatermark` and
 `EffectPoolSize * commitBatchMaxEvents`.
 Both worker-pool sizes are capped at the maximum positive int32 capacity used by
@@ -368,7 +370,9 @@ authority target attached, and they are not returned to channelappend after the
 plan has been accepted. The worker also emits low-cardinality queue, admission,
 process, and execution-pressure observations: queue depth/capacity, configured
 worker capacity/current in-flight commands, enqueue result/wait time,
-processing result/duration, and total recipients per plan. Queue and worker gauge
+processing result/duration, and attempted recipients per plan. Recipient totals
+describe planned processing work rather than proven successful online delivery.
+Queue and worker gauge
 samples are serialized and read from current state so concurrent worker starts,
 finishes, and queue changes cannot leave a stale terminal gauge; every accepted
 command increments in-flight for the complete `runCommand` execution and the
@@ -392,9 +396,10 @@ returns item-local `ErrChannelBusy` and emits a post-commit backpressure effect
 observation. The writer pressure observer reports the local
 writer group aggregate rather than a per-channel event loop. It also reports
 the global post-commit handoff depth/capacity and the fair-retry FIFO depth plus
-its contended bit. Handoff depth counts durable messages holding reservations;
-retry depth counts de-duplicated writers still waiting in the FIFO and excludes
-the writer that already owns the selected retry turn. Consequently retry depth
+its contended bit. Handoff depth counts reservations spanning pending append,
+append execution, and durable post-commit work; retry depth counts de-duplicated
+writers still waiting in the FIFO and excludes the writer that already owns the
+selected retry turn. Consequently retry depth
 may be zero while contended remains true. These snapshots read only atomics and
 never acquire the retry scheduler mutex on the append hot path. Concurrent
 publication requests use a non-blocking, coalesced wakeup for one group-local

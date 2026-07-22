@@ -17,7 +17,7 @@ type Group struct {
 	appendPool *workerPool
 	// postCommitPool runs best-effort post-commit and realtime recipient effects.
 	postCommitPool *workerPool
-	// handoff bounds durable messages that still own post-commit work.
+	// handoff bounds append-bound messages across append and post-commit work.
 	handoff *postCommitHandoff
 	// postCommitRetries fairly retries writers rejected by the non-blocking effect pool.
 	postCommitRetries *postCommitRetryScheduler

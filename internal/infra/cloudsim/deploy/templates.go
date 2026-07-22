@@ -16,7 +16,19 @@ const (
 	// cloudLargeAuthorityCacheMaxRows covers the complete 15,593,050-row Cloud
 	// Large working set plus bounded churn and temporary leader skew.
 	cloudLargeAuthorityCacheMaxRows = 20_000_000
+	// cloudMediumRecipientWorkerConcurrency is the measured Cloud Medium plan
+	// capacity. At 108-113 ms per plan, 320 workers cover the reviewed 5,100
+	// plans/s cluster load when the busiest node owns 40 percent of the ten Slot
+	// Groups, with bounded headroom. Other scales keep the product default until
+	// they have their own completed calibration.
+	cloudMediumRecipientWorkerConcurrency = 320
 )
+
+// nodeRuntimeProfile contains only reviewed per-scale node overrides.
+type nodeRuntimeProfile struct {
+	authorityCacheMaxRows      int
+	recipientWorkerConcurrency int
+}
 
 func cloudViewConfig(runID string, addresses map[string]string) string {
 	return fmt.Sprintf(`{
@@ -46,7 +58,17 @@ func cloudViewConfig(runID string, addresses map[string]string) string {
 		addresses["node-3"], addresses["node-3"], addresses["node-3"])
 }
 
-func nodeConfig(nodeID int, addresses map[string]string, authorityCacheMaxRows int) string {
+func nodeConfig(nodeID int, addresses map[string]string, profile nodeRuntimeProfile) string {
+	deliveryConfig := ""
+	if profile.recipientWorkerConcurrency > 0 {
+		deliveryConfig = fmt.Sprintf(`
+[delivery]
+# Runs recipient-authority delivery plans outside channel append writers.
+# Cloud Medium requires about 5,100 plans/s; this measured capacity covers a
+# 40%% busiest-node share and 108-113 ms processing with bounded headroom.
+recipient_worker_concurrency = %d
+`, profile.recipientWorkerConcurrency)
+	}
 	return fmt.Sprintf(`[node]
 id = %d
 data_dir = "/var/lib/wukongim-cloud/node"
@@ -95,6 +117,7 @@ gnet_num_event_loop = 4
 runtime_async_send_workers = 128
 runtime_async_send_queue_capacity = 131072
 
+%s
 [conversation]
 # Bounds per-node active-conversation authority rows for the selected reviewed
 # scale. Entries allocate on demand; the ceiling includes bounded churn
@@ -128,7 +151,7 @@ query_base_url = "http://%s:9090"
 
 [diagnostics]
 enable = true
-`, nodeID, addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses[fmt.Sprintf("node-%d", nodeID)], addresses[fmt.Sprintf("node-%d", nodeID)], authorityCacheMaxRows, addresses["sim"])
+`, nodeID, addresses["node-1"], addresses["node-2"], addresses["node-3"], addresses[fmt.Sprintf("node-%d", nodeID)], addresses[fmt.Sprintf("node-%d", nodeID)], deliveryConfig, profile.authorityCacheMaxRows, addresses["sim"])
 }
 
 func targetConfig(addresses map[string]string) string {

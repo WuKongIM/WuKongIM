@@ -81,6 +81,50 @@ func TestCloudAnalysisSkillDocumentsObservationNodeContract(t *testing.T) {
 	}
 }
 
+func TestCloudAnalysisSkillDocumentsRecipientDeliveryAndPostCommitEvidence(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, queryID := range []string{
+		"delivery_recipient_worker_queue_depth",
+		"delivery_recipient_worker_queue_capacity",
+		"delivery_recipient_worker_inflight",
+		"delivery_recipient_worker_capacity",
+		"delivery_recipient_worker_admission_cumulative",
+		"delivery_recipient_worker_admission_wait_p99",
+		"delivery_recipient_worker_process_cumulative",
+		"delivery_recipient_worker_process_p99",
+		"delivery_recipient_worker_process_recipients_cumulative",
+		"channelappend_post_commit_handoff_depth",
+		"channelappend_post_commit_handoff_capacity",
+		"channelappend_post_commit_retry_queue_depth",
+		"channelappend_post_commit_retry_contended",
+	} {
+		if !strings.Contains(skill, "`"+queryID+"`") {
+			t.Fatalf("SKILL.md must route recipient delivery analysis through %q", queryID)
+		}
+		if !strings.Contains(contract, "`"+queryID+"`") {
+			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
+		}
+	}
+	for _, required := range []string{
+		"accepted_delta - processed_delta = backlog_end - backlog_start",
+		"quiescent bracketing endpoint samples",
+		"planned or attempted recipients",
+		"pending append, append in-flight",
+		"`ErrChannelBusy`",
+		"retry depth can be zero while contended remains one",
+		"must remain approximate or unknown",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document recipient delivery evidence rule %q", required)
+		}
+		if !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document recipient delivery evidence rule %q", required)
+		}
+	}
+}
+
 func TestCloudAnalysisSkillDocumentsConversationActiveConservation(t *testing.T) {
 	root := repoRoot(t)
 	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))

@@ -3,6 +3,7 @@ package deploy
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	productconfig "github.com/WuKongIM/WuKongIM/internal/config"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"gopkg.in/yaml.v3"
 )
@@ -128,12 +130,18 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 			t.Fatalf("Cloud View config lacks %s:\n%s", required, cloudView)
 		}
 	}
-	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, cloudMediumAuthorityCacheMaxRows)
+	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, nodeRuntimeProfile{
+		authorityCacheMaxRows:      cloudMediumAuthorityCacheMaxRows,
+		recipientWorkerConcurrency: cloudMediumRecipientWorkerConcurrency,
+	})
 	if !strings.Contains(config, "hash_slot_count = 256") || !strings.Contains(config, "initial_slot_count = 10") || !strings.Contains(config, "channel_replica_n = 3") || strings.Count(config, "[[cluster.nodes]]") != 3 {
 		t.Fatalf("node config does not preserve the three-node 256 hash-slot and 10 Slot Group contract:\n%s", config)
 	}
 	if !strings.Contains(config, "[conversation]") || !strings.Contains(config, "authority_cache_max_rows = 750000") {
 		t.Fatalf("cloud node config does not retain the bounded Medium conversation working set:\n%s", config)
+	}
+	if !strings.Contains(config, "[delivery]") || !strings.Contains(config, fmt.Sprintf("recipient_worker_concurrency = %d", cloudMediumRecipientWorkerConcurrency)) {
+		t.Fatalf("cloud Medium node config does not retain the measured recipient worker capacity:\n%s", config)
 	}
 	prometheus := prometheusConfig(testBundleSpec("unused").PrivateIPv4)
 	if !strings.Contains(prometheus, "scrape_interval: 15s") ||
@@ -156,14 +164,15 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	}
 }
 
-func TestAuthorityCacheMaxRowsUsesReviewedCloudScale(t *testing.T) {
+func TestNodeRuntimeProfileUsesReviewedCloudScale(t *testing.T) {
 	tests := []struct {
-		scale string
-		want  int
+		scale                string
+		wantCacheRows        int
+		wantRecipientWorkers int
 	}{
-		{scale: "small", want: cloudSmallAuthorityCacheMaxRows},
-		{scale: "medium", want: cloudMediumAuthorityCacheMaxRows},
-		{scale: "large", want: cloudLargeAuthorityCacheMaxRows},
+		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows},
+		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency},
+		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -172,18 +181,102 @@ func TestAuthorityCacheMaxRowsUsesReviewedCloudScale(t *testing.T) {
 			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			got, err := authorityCacheMaxRowsForScenario(path)
+			profile, err := nodeRuntimeProfileForScenario(path)
 			if err != nil {
-				t.Fatalf("authorityCacheMaxRowsForScenario() error = %v", err)
+				t.Fatalf("nodeRuntimeProfileForScenario() error = %v", err)
 			}
-			if got != test.want {
-				t.Fatalf("authority cache max rows = %d, want %d", got, test.want)
+			if profile.authorityCacheMaxRows != test.wantCacheRows {
+				t.Fatalf("authority cache max rows = %d, want %d", profile.authorityCacheMaxRows, test.wantCacheRows)
 			}
-			config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, got)
-			if !strings.Contains(config, fmt.Sprintf("authority_cache_max_rows = %d", test.want)) {
-				t.Fatalf("node config does not use %s ceiling %d:\n%s", test.scale, test.want, config)
+			if profile.recipientWorkerConcurrency != test.wantRecipientWorkers {
+				t.Fatalf("recipient worker concurrency = %d, want %d", profile.recipientWorkerConcurrency, test.wantRecipientWorkers)
+			}
+			config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, profile)
+			if !strings.Contains(config, fmt.Sprintf("authority_cache_max_rows = %d", test.wantCacheRows)) {
+				t.Fatalf("node config does not use %s ceiling %d:\n%s", test.scale, test.wantCacheRows, config)
+			}
+			workerConfigLine := fmt.Sprintf("recipient_worker_concurrency = %d", test.wantRecipientWorkers)
+			if test.wantRecipientWorkers > 0 && !strings.Contains(config, workerConfigLine) {
+				t.Fatalf("node config does not use %s recipient worker capacity %d:\n%s", test.scale, test.wantRecipientWorkers, config)
+			}
+			if test.wantRecipientWorkers == 0 && strings.Contains(config, "recipient_worker_concurrency") {
+				t.Fatalf("node config invents an unreviewed %s recipient worker override:\n%s", test.scale, config)
 			}
 		})
+	}
+}
+
+func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
+	tests := []struct {
+		scale                string
+		wantCacheRows        int
+		wantRecipientWorkers int
+	}{
+		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows, wantRecipientWorkers: 100},
+		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency},
+		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows, wantRecipientWorkers: 100},
+	}
+	for _, test := range tests {
+		t.Run(test.scale, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
+				if err := os.WriteFile(filepath.Join(root, "bin", name), []byte(name), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			scenario := filepath.Join("..", "..", "..", "..", "docker", "sim", "cloud-"+test.scale+".yaml")
+			if err := Render(root, testBundleSpec(scenario)); err != nil {
+				t.Fatalf("Render() error = %v", err)
+			}
+			path := filepath.Join(root, "config", "node-1.toml")
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hasRecipientOverride := strings.Contains(string(raw), "recipient_worker_concurrency")
+			if test.scale == "medium" && !hasRecipientOverride {
+				t.Fatalf("rendered Medium config omits the measured recipient worker override:\n%s", raw)
+			}
+			if test.scale != "medium" && hasRecipientOverride {
+				t.Fatalf("rendered %s config invents an unreviewed recipient worker override:\n%s", test.scale, raw)
+			}
+			loaded, err := productconfig.Load(productconfig.Options{
+				Args:    []string{"-config", path},
+				Environ: []string{"PATH=/usr/bin"},
+			})
+			if err != nil {
+				t.Fatalf("config.Load() error = %v", err)
+			}
+			if loaded.Delivery.RecipientWorkerConcurrency != test.wantRecipientWorkers {
+				t.Fatalf("recipient worker concurrency = %d, want %d", loaded.Delivery.RecipientWorkerConcurrency, test.wantRecipientWorkers)
+			}
+			if loaded.Conversation.AuthorityCacheMaxRows != test.wantCacheRows {
+				t.Fatalf("authority cache max rows = %d, want %d", loaded.Conversation.AuthorityCacheMaxRows, test.wantCacheRows)
+			}
+			if loaded.Cluster.Slots.HashSlotCount != 256 || loaded.Cluster.Slots.InitialSlotCount != 10 {
+				t.Fatalf("cluster slots = hash %d / initial %d, want 256 / 10", loaded.Cluster.Slots.HashSlotCount, loaded.Cluster.Slots.InitialSlotCount)
+			}
+		})
+	}
+}
+
+func TestCloudMediumRecipientWorkerCapacityCoversMeasuredPlanRate(t *testing.T) {
+	const (
+		clusterPlansPerSecond        = 5100
+		worstNodePlanShare           = 0.40
+		worstMeanPlanSeconds         = 0.113
+		capacityHeadroom             = 1.25
+		productDefaultWorkerCapacity = 100
+	)
+	required := int(math.Ceil(float64(clusterPlansPerSecond) * worstNodePlanShare * worstMeanPlanSeconds * capacityHeadroom))
+	if productDefaultWorkerCapacity >= required {
+		t.Fatalf("test invariant invalid: product default %d unexpectedly covers required capacity %d", productDefaultWorkerCapacity, required)
+	}
+	if cloudMediumRecipientWorkerConcurrency < required {
+		t.Fatalf("Cloud Medium recipient worker capacity = %d, want at least %d", cloudMediumRecipientWorkerConcurrency, required)
 	}
 }
 
