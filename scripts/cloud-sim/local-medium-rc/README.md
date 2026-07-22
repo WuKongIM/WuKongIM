@@ -20,7 +20,20 @@ fixtures into the baseline.
   hashes the Go binary selected from the exact candidate worktree, canonical
   GOROOT, and the actual compile, link, and asm tools used by the build. Once
   selected, the build uses `GOTOOLCHAIN=local` so no different toolchain can be
-  chosen underneath either revision.
+  chosen underneath either revision. Because Go overlays only replace files
+  already discovered by the package loader, the script creates two fixed empty
+  test placeholders inside each detached worktree, compiles through the
+  overlay, removes the placeholders, and then proves the worktree is clean.
+  The temporary worktree root is canonicalized with `pwd -P` before overlay
+  keys are generated so macOS `/var` -> `/private/var` aliases cannot bypass
+  replacement.
+  Placeholders are created with a host-specific no-dereference hard-link
+  operation that rejects existing files and symlinks. The output directory is
+  atomically reserved before detached worktrees are created, so concurrent
+  invocations cannot nest or overwrite a completed result. Failed or
+  interrupted build/equivalence artifacts are retained at `OUTPUT_DIR.failed`.
+  Long-running build and equivalence commands run in isolated process groups;
+  signal cleanup terminates and reaps the whole group before moving evidence.
 - `run-micro-abba.sh` consumes only that manifest and those two binaries. It
   runs the exact `A1/B1/B2/A2` timing order after a clean-host check before
   every leg and a minimum 120-second cooldown between legs.

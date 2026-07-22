@@ -12,6 +12,11 @@ BUILD_MANIFEST_POLICY="scripts/cloud-sim/local-medium-rc/validate-build-smoke-ma
 OVERLAY_COMMON_TARGET="internal/app/zz_local_medium_rc_workload_test.go"
 OVERLAY_ADAPTER_TARGET="internal/app/zz_local_medium_rc_adapter_test.go"
 EQUIVALENCE_TEST='^TestLocalMediumRCWorkloadEquivalence$'
+ACTIVE_CHILD_PID=""
+ACTIVE_CHILD_PGID=""
+CHILD_LAUNCHING=0
+PENDING_INTERRUPT=""
+CHILD_TERM_GRACE_SECONDS=10
 
 die() {
   printf 'local-medium-rc-build-smoke: %s\n' "$*" >&2
@@ -22,7 +27,80 @@ sha256() {
   LC_ALL=C LANG=C shasum -a 256 "$1" | awk '{print $1}'
 }
 
+clear_active_child() {
+  ACTIVE_CHILD_PID=""
+  ACTIVE_CHILD_PGID=""
+}
+
+process_group_exists() {
+  local pgid="$1"
+  ps -Ao pgid=,stat= | awk -v pgid="$pgid" '$1 == pgid && $2 !~ /^Z/ {found = 1} END {exit !found}'
+}
+
+start_managed_child() {
+  local kind="$1" attempt pgid pending_interrupt
+  shift
+  set -m
+  CHILD_LAUNCHING=1
+  "$@" &
+  ACTIVE_CHILD_PID="$!" ACTIVE_CHILD_PGID="$!"
+  CHILD_LAUNCHING=0
+  set +m
+  if [[ -n "$PENDING_INTERRUPT" ]]; then
+    pending_interrupt="$PENDING_INTERRUPT"
+    PENDING_INTERRUPT=""
+    interrupt_build "$pending_interrupt"
+  fi
+  for ((attempt = 0; attempt < 20; attempt++)); do
+    pgid="$(ps -p "$ACTIVE_CHILD_PID" -o pgid= 2>/dev/null | awk '{print $1}')"
+    if [[ "$pgid" == "$ACTIVE_CHILD_PID" ]]; then
+      ACTIVE_CHILD_PGID="$pgid"
+      return 0
+    fi
+    kill -0 "$ACTIVE_CHILD_PID" 2>/dev/null || break
+    sleep 0.05
+  done
+  kill -TERM "$ACTIVE_CHILD_PID" 2>/dev/null || true
+  wait "$ACTIVE_CHILD_PID" 2>/dev/null || true
+  clear_active_child
+  die "could not establish an isolated $kind process group"
+}
+
+wait_managed_child() {
+  local rc=0
+  wait "$ACTIVE_CHILD_PID" || rc=$?
+  clear_active_child
+  return "$rc"
+}
+
+cleanup_active_child() {
+  local attempt pgid
+  [[ -n "$ACTIVE_CHILD_PGID" ]] || return 0
+  pgid="$ACTIVE_CHILD_PGID"
+  if process_group_exists "$pgid"; then
+    kill -TERM -- "-$pgid" 2>/dev/null || true
+  fi
+  for ((attempt = 0; attempt < CHILD_TERM_GRACE_SECONDS; attempt++)); do
+    if ! process_group_exists "$pgid"; then
+      wait "$ACTIVE_CHILD_PID" 2>/dev/null || true
+      clear_active_child
+      return 0
+    fi
+    sleep 1
+  done
+  if process_group_exists "$pgid"; then
+    kill -KILL -- "-$pgid" 2>/dev/null || true
+  fi
+  for ((attempt = 0; attempt < 2; attempt++)); do
+    process_group_exists "$pgid" || break
+    sleep 1
+  done
+  wait "$ACTIVE_CHILD_PID" 2>/dev/null || true
+  clear_active_child
+}
+
 cleanup() {
+  cleanup_active_child
   if [[ -n "${BASE_WORKTREE:-}" && -d "$BASE_WORKTREE" ]]; then
     git -C "$ROOT_DIR" worktree remove --force "$BASE_WORKTREE" >/dev/null 2>&1 || true
   fi
@@ -30,9 +108,35 @@ cleanup() {
     git -C "$ROOT_DIR" worktree remove --force "$CANDIDATE_WORKTREE" >/dev/null 2>&1 || true
   fi
   [[ -z "${WORK_ROOT:-}" || ! -d "$WORK_ROOT" ]] || rm -rf "$WORK_ROOT"
-  [[ -z "${STAGE_ROOT:-}" || ! -d "$STAGE_ROOT" ]] || rm -rf "$STAGE_ROOT"
+  if [[ -n "${STAGE_ROOT:-}" && -d "$STAGE_ROOT" ]]; then
+    if [[ -n "${failed_output_dir:-}" && ! -e "$failed_output_dir" && ! -L "$failed_output_dir" ]]; then
+      if mv "$STAGE_ROOT" "$failed_output_dir"; then
+        printf 'local-medium-rc-build-smoke: retained failed evidence at %s\n' "$failed_output_dir" >&2
+        STAGE_ROOT=""
+      else
+        printf 'local-medium-rc-build-smoke: could not move failed evidence; retained stage at %s\n' "$STAGE_ROOT" >&2
+      fi
+    else
+      printf 'local-medium-rc-build-smoke: failed evidence destination is unavailable; retained stage at %s\n' "$STAGE_ROOT" >&2
+    fi
+  fi
 }
+
+interrupt_build() {
+  local exit_code="$1"
+  if [[ "$CHILD_LAUNCHING" == "1" ]]; then
+    [[ -n "$PENDING_INTERRUPT" ]] || PENDING_INTERRUPT="$exit_code"
+    return 0
+  fi
+  trap - INT TERM HUP
+  cleanup_active_child
+  exit "$exit_code"
+}
+
 trap cleanup EXIT
+trap 'interrupt_build 130' INT
+trap 'interrupt_build 143' TERM
+trap 'interrupt_build 129' HUP
 
 if [[ $# -ne 3 ]]; then
   die "usage: build-smoke.sh BASELINE_COMMIT CANDIDATE_COMMIT OUTPUT_DIR"
@@ -40,7 +144,15 @@ fi
 
 baseline_source="$(git -C "$ROOT_DIR" rev-parse --verify "$1^{commit}")" || die "baseline commit not found"
 candidate_source="$(git -C "$ROOT_DIR" rev-parse --verify "$2^{commit}")" || die "candidate commit not found"
-output_dir="$3"
+requested_output_dir="$3"
+[[ -n "$requested_output_dir" ]] || die "output path is empty"
+output_parent="$(dirname "$requested_output_dir")"
+mkdir -p "$output_parent" || die "could not create output parent"
+output_parent="$(cd "$output_parent" && pwd -P)" || die "could not resolve output parent"
+output_name="$(basename "$requested_output_dir")"
+[[ -n "$output_name" && "$output_name" != "." && "$output_name" != ".." ]] || die "output name is unsafe"
+output_dir="$output_parent/$output_name"
+failed_output_dir="${output_dir}.failed"
 [[ -f "$ROOT_DIR/$BASELINE_LOCK" && ! -L "$ROOT_DIR/$BASELINE_LOCK" ]] || die "baseline lock is missing or symlinked"
 baseline_lock_schema="$(jq -er '.schema' "$ROOT_DIR/$BASELINE_LOCK")" || die "baseline lock schema is missing"
 baseline_lock_source="$(jq -er '.baseline_source_sha' "$ROOT_DIR/$BASELINE_LOCK")" || die "baseline lock source is missing"
@@ -55,7 +167,8 @@ jq -e '
 [[ "$baseline_source" != "$candidate_source" ]] || die "baseline and candidate commits are identical"
 git -C "$ROOT_DIR" merge-base --is-ancestor "$baseline_source" "$candidate_source" ||
   die "candidate is not a descendant of baseline"
-[[ ! -e "$output_dir" ]] || die "output already exists: $output_dir"
+[[ ! -e "$output_dir" && ! -L "$output_dir" ]] || die "output already exists: $output_dir"
+[[ ! -e "$failed_output_dir" && ! -L "$failed_output_dir" ]] || die "failed evidence output already exists: $failed_output_dir"
 
 for source in "$BUILD_SCRIPT" "$COMMON_SOURCE" "$BASELINE_ADAPTER" "$CANDIDATE_ADAPTER" "$BASELINE_LOCK" "$BUILD_MANIFEST_POLICY"; do
   [[ -f "$ROOT_DIR/$source" && ! -L "$ROOT_DIR/$source" ]] || die "missing or symlinked harness source: $source"
@@ -64,11 +177,13 @@ for source in "$BUILD_SCRIPT" "$COMMON_SOURCE" "$BASELINE_ADAPTER" "$CANDIDATE_A
     die "working harness source does not match candidate commit: $source"
 done
 
+mkdir "$output_dir" || die "could not reserve output directory"
+STAGE_ROOT="$output_dir"
+mkdir -p "$STAGE_ROOT/bin" "$STAGE_ROOT/equivalence"
 WORK_ROOT="$(mktemp -d "${TMPDIR:-/private/tmp}/wk-local-medium-rc-smoke.XXXXXX")"
+WORK_ROOT="$(cd "$WORK_ROOT" && pwd -P)" || die "could not canonicalize work root"
 BASE_WORKTREE="$WORK_ROOT/baseline"
 CANDIDATE_WORKTREE="$WORK_ROOT/candidate"
-STAGE_ROOT="$(mktemp -d "${TMPDIR:-/private/tmp}/wk-local-medium-rc-output.XXXXXX")"
-mkdir -p "$STAGE_ROOT/bin" "$STAGE_ROOT/equivalence"
 git -C "$ROOT_DIR" worktree add --detach "$BASE_WORKTREE" "$baseline_source" >/dev/null
 git -C "$ROOT_DIR" worktree add --detach "$CANDIDATE_WORKTREE" "$candidate_source" >/dev/null
 
@@ -98,30 +213,73 @@ compile_sha="$(sha256 "$compile_tool")"
 link_sha="$(sha256 "$link_tool")"
 asm_sha="$(sha256 "$asm_tool")"
 
+create_overlay_placeholder() {
+  local source="$1" target="$2"
+  case "$(uname -s)" in
+    Darwin) ln -h "$source" "$target" ;;
+    Linux) ln -T "$source" "$target" ;;
+    *) die "unsupported host for no-follow overlay placeholder creation" ;;
+  esac
+}
+
+compile_test_binary() {
+  local worktree="$1" overlay="$2" binary="$3"
+  cd "$worktree"
+  exec env -i PATH="$(dirname "$go_tool"):/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" LANG=C LC_ALL=C TZ=UTC \
+    GOWORK=off GOTOOLCHAIN=local "$go_tool" test -c -trimpath -overlay "$overlay" -o "$binary" ./internal/app
+}
+
+run_equivalence_binary() {
+  local binary="$1" output="$2"
+  exec env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" LANG=C LC_ALL=C TZ=UTC \
+    "$binary" -test.run "$EQUIVALENCE_TEST" -test.count 1 -test.v >"$output" 2>&1
+}
+
 build_variant() {
   local variant="$1" worktree="$2" adapter_source="$3" source_sha="$4"
   local overlay="$WORK_ROOT/$variant-overlay.json"
   local binary="$STAGE_ROOT/bin/app-$variant.test"
   local output="$STAGE_ROOT/equivalence/$variant.txt"
+  local common_target="$worktree/$OVERLAY_COMMON_TARGET"
+  local adapter_target="$worktree/$OVERLAY_ADAPTER_TARGET"
+  local placeholder_seed
+
+  # Go overlays replace files discovered by the package loader; they do not
+  # introduce a brand-new file into an existing package. Create fixed empty
+  # placeholders only in the detached worktree, then remove them immediately
+  # after compilation so the source revision remains clean.
+  [[ ! -e "$common_target" && ! -L "$common_target" ]] || die "$variant common overlay target already exists"
+  [[ ! -e "$adapter_target" && ! -L "$adapter_target" ]] || die "$variant adapter overlay target already exists"
+  placeholder_seed="$(mktemp "$worktree/.wkrc-overlay-placeholder.XXXXXX")" ||
+    die "$variant could not create overlay placeholder seed"
+  if ! create_overlay_placeholder "$placeholder_seed" "$common_target"; then
+    rm -f "$placeholder_seed"
+    die "$variant could not create common overlay placeholder"
+  fi
+  if ! create_overlay_placeholder "$placeholder_seed" "$adapter_target"; then
+    rm -f "$common_target" "$placeholder_seed"
+    die "$variant could not create adapter overlay placeholder"
+  fi
+  rm -f "$placeholder_seed"
 
   jq -n \
-    --arg common_target "$worktree/$OVERLAY_COMMON_TARGET" \
+    --arg common_target "$common_target" \
     --arg common_source "$ROOT_DIR/$COMMON_SOURCE" \
-    --arg adapter_target "$worktree/$OVERLAY_ADAPTER_TARGET" \
+    --arg adapter_target "$adapter_target" \
     --arg adapter_source "$ROOT_DIR/$adapter_source" \
     '{Replace:{($common_target):$common_source,($adapter_target):$adapter_source}}' >"$overlay"
 
-  (
-    cd "$worktree"
-    env -i PATH="$(dirname "$go_tool"):/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" LANG=C LC_ALL=C TZ=UTC \
-      GOWORK=off GOTOOLCHAIN=local "$go_tool" test -c -trimpath -overlay "$overlay" -o "$binary" ./internal/app
-  )
+  start_managed_child "$variant build" compile_test_binary "$worktree" "$overlay" "$binary"
+  if ! wait_managed_child; then
+    rm -f "$common_target" "$adapter_target"
+    die "$variant test binary build failed"
+  fi
+  rm -f "$common_target" "$adapter_target"
   [[ -z "$(git -C "$worktree" status --porcelain=v1 --untracked-files=normal)" ]] ||
     die "$variant worktree changed during build"
 
-  env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" LANG=C LC_ALL=C TZ=UTC \
-    "$binary" -test.run "$EQUIVALENCE_TEST" -test.count 1 -test.v >"$output" 2>&1 ||
-    die "$variant equivalence test failed; see $output"
+  start_managed_child "$variant equivalence" run_equivalence_binary "$binary" "$output"
+  wait_managed_child || die "$variant equivalence test failed; see $output"
   grep -F "WKRC-EQUIVALENCE variant=$variant " "$output" >/dev/null ||
     die "$variant equivalence marker missing"
 
@@ -191,7 +349,5 @@ jq -n \
 jq -e -f "$ROOT_DIR/$BUILD_MANIFEST_POLICY" "$STAGE_ROOT/build-smoke-manifest.json" >/dev/null ||
   die "generated build-smoke manifest contract is invalid"
 
-mkdir -p "$(dirname "$output_dir")"
-mv "$STAGE_ROOT" "$output_dir"
 STAGE_ROOT=""
 printf 'local-medium-rc-build-smoke: PASS manifest=%s/build-smoke-manifest.json\n' "$output_dir"
