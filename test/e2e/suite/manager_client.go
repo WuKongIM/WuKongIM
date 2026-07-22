@@ -569,12 +569,14 @@ type SlotAssignmentDTO struct {
 
 // SlotRuntimeDTO contains the manager-observed Slot runtime subset used by tests.
 type SlotRuntimeDTO struct {
-	CurrentPeers        []uint64 `json:"current_peers"`
-	CurrentVoters       []uint64 `json:"current_voters"`
-	PreferredLeaderID   uint64   `json:"preferred_leader_id"`
-	HealthyVoters       uint32   `json:"healthy_voters"`
-	HasQuorum           bool     `json:"has_quorum"`
-	ObservedConfigEpoch uint64   `json:"observed_config_epoch"`
+	CurrentPeers  []uint64 `json:"current_peers"`
+	CurrentVoters []uint64 `json:"current_voters"`
+	// LeaderID is the live Slot Raft leader observed through Manager.
+	LeaderID            uint64 `json:"leader_id"`
+	PreferredLeaderID   uint64 `json:"preferred_leader_id"`
+	HealthyVoters       uint32 `json:"healthy_voters"`
+	HasQuorum           bool   `json:"has_quorum"`
+	ObservedConfigEpoch uint64 `json:"observed_config_epoch"`
 }
 
 // SlotNodeLogDTO contains one node's local Slot Raft leader observation.

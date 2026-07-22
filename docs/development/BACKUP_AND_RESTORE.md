@@ -184,12 +184,26 @@ message ID and per-Channel sequence advance. A second scenario stops the
 active Controller Leader during an incremental job, observes a different
 Controller Leader and the same persisted job through public Manager and
 metrics surfaces, rejoins the stopped node, and requires the new coordinator
-to publish and explicitly verify that original restore point.
+to publish and explicitly verify that original restore point. A third scenario
+stops a non-Controller-Leader node that currently leads at least one Slot before
+incremental capture finishes, keeps it offline, and requires the original job
+to publish and verify its exact restore point through the remaining nodes. That
+scenario keeps three Slot replicas for quorum and explicitly uses two Channel
+replicas, then requires both surviving nodes to recover public readiness. With
+three Channel replicas on only three nodes, `/readyz` correctly rejects new
+Channel placement while one data node is unavailable instead of silently
+weakening the configured durability.
 
 Run the failover scenario alone with:
 
 ```bash
 GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_failover -count=1 -timeout 3m -p=1
+```
+
+Run the sustained data-node outage scenario alone with:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/backup/data_node_outage -count=1 -timeout 3m -p=1
 ```
 
 `.github/workflows/backup-qualification.yml` runs these backup scenarios every
@@ -208,14 +222,16 @@ failure behavior.
 ## Qualification Gates
 
 Production enablement remains blocked until a real three-node environment
-proves online baseline and incremental capture, sustained data-node failure,
-primary outage, secondary recovery, retention/tombstone correctness,
-corruption rejection, different target topology, restored client sync/send,
-and a weekly isolated restore drill. The local qualification now covers a
-Controller process failover after the stopped node rejoins; it does not claim
-that backup can complete while one combined Controller/data node remains
-offline. The qualified 1 TB profile must restore within 60 minutes and stay
-inside the foreground throughput and SENDACK P99 budgets in the design spec.
+proves online baseline and incremental capture, sustained combined
+Controller-Leader/data-node failure, primary outage, secondary recovery,
+retention/tombstone correctness, corruption rejection, different target
+topology, restored client sync/send, and a weekly isolated restore drill. The
+local qualification now covers a non-Controller-Leader Slot leader remaining
+offline and a Controller process failover after the stopped node rejoins; it
+does not claim that backup can complete while the stopped Controller Leader's
+data role remains offline. The qualified 1 TB profile must restore within 60
+minutes and stay inside the foreground throughput and SENDACK P99 budgets in
+the design spec.
 
 The current implementation also needs explicit qualification or completion for
 permanent-erasure ledger replay; source-log pin budget enforcement and public

@@ -51,3 +51,9 @@ redacted using case-insensitive, separator-independent key matching.
 HTTP helpers preserve typed non-2xx response details. Message-send recovery
 retries only the exact public `503 {"error":"retry required"}` signal while
 reusing one serialized request body and idempotency key.
+
+Backup scenarios share tagged source-node configuration plus public Manager
+DTOs and polling helpers here. Each status poll decodes into a fresh DTO so an
+omitted `active` field cannot retain stale state from an earlier response. A
+scenario can explicitly override Channel replica count when its failure model
+requires a different placement-availability contract from the cluster default.

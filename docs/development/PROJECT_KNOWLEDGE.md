@@ -211,6 +211,7 @@
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
 - Prebuilt binaries passed through `WK_E2E_BINARY` must be built with `go build -tags=e2e`; tagged product substitutes remain dormant unless each scenario also supplies its explicit harness environment.
+- Backup data-node outage qualification uses three Slot replicas and two Channel replicas, stops a non-Controller-Leader Slot leader before capture completes, and keeps it offline while surviving nodes recover readiness and verify the exact restore point.
 
 ### Worktree testing
 - The chat Demo is embedded under the product API listener at `/demo/`; it defaults to the page origin for HTTP APIs and discovers WebSocket addresses through `/route`.
