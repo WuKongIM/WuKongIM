@@ -65,12 +65,17 @@ Restore inspection authenticates both repository copies, requires matching
 manifest bytes and identities, and asks every current target node for semantic
 storage emptiness before persisting a plan. Installation streams encrypted
 objects through a bounded staging file into restore-only metadata/message
-imports. Installation independently recomputes metadata records, message rows,
-and maximum message ID. Final verification compares them with the signed
-partition evidence, then checks every authenticated Channel sequence cut and
-the post-transform canonical metadata SHA-256 on every current node. The
-configured staging-byte ceiling is shared by all concurrent partition streams
-on one node, not multiplied per stream.
+imports. The latest authenticated Channel index also rebuilds
+`ChannelRuntimeMeta` on every target node in batches of at most 4096: Channel
+epoch and retention floor come from the durable cut, while leader, replicas,
+ISR, and MinISR are derived from the successor topology. Source runtime
+placement is never restored. Installation independently recomputes metadata
+records, message rows, and maximum message ID. Final verification compares
+them with the signed partition evidence, then checks every authenticated
+Channel sequence cut, rebuilt target runtime metadata, and the post-transform
+canonical metadata SHA-256 on every current node. The configured staging-byte
+ceiling is shared by all concurrent partition streams on one node, not
+multiplied per stream.
 
 Retention first moves expired Controller references into `PendingGarbage`.
 The garbage collector authenticates every retained graph in both repositories,

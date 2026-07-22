@@ -15,6 +15,7 @@ import (
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +36,14 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	require.NoError(t, err)
 	messages, err := replicator.Replicate(ctx, backupinfra.StreamDescriptor{JobID: "restore-job", HashSlot: 0, Kind: backupartifact.ObjectKindMessages, ShardID: "n1-0000"}, bytes.NewReader(messageBody))
 	require.NoError(t, err)
+	channelIndexBody, err := backupartifact.MarshalChannelIndex(0, []backupartifact.ChannelBoundary{{
+		ChannelID: "room", ChannelType: 2, Epoch: 7, LogStartOffset: 3, HW: 9,
+	}})
+	require.NoError(t, err)
+	channelIndex, err := replicator.Replicate(ctx, backupinfra.StreamDescriptor{JobID: "restore-job", HashSlot: 0, Kind: backupartifact.ObjectKindChannelIndex}, bytes.NewReader(channelIndexBody))
+	require.NoError(t, err)
 	objects := append(metadata, messages...)
+	objects = append(objects, channelIndex...)
 	sort.Slice(objects, func(left, right int) bool { return objects[left].Key < objects[right].Key })
 	partition := backupartifact.PartitionManifest{
 		Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion,
@@ -92,11 +100,15 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	require.Equal(t, uint64(19), result.MaxMessageID)
 	require.Equal(t, metadataBody, node.metadata)
 	require.Equal(t, messageBody, node.messages)
+	require.Equal(t, []clusterpkg.RestoreVerifyBoundary{{
+		ChannelID: "room", ChannelType: 2, Epoch: 7, LogStartOffset: 3, HW: 9,
+	}}, node.boundaries)
 }
 
 type recordingRestoreInstallNode struct {
-	metadata []byte
-	messages []byte
+	metadata   []byte
+	messages   []byte
+	boundaries []clusterpkg.RestoreVerifyBoundary
 }
 
 func (n *recordingRestoreInstallNode) InstallRestoreHashSlotMetadata(_ context.Context, _ uint16, reader io.ReadSeeker, size int64, _ bool) (uint64, error) {
@@ -107,6 +119,11 @@ func (n *recordingRestoreInstallNode) InstallRestoreHashSlotMetadata(_ context.C
 func (n *recordingRestoreInstallNode) InstallRestoreMessageStream(_ context.Context, reader io.ReadSeeker, size int64) (channelstore.BackupSnapshotStats, error) {
 	n.messages = append(n.messages, readExactRestoreTestStream(reader, size)...)
 	return channelstore.BackupSnapshotStats{HashSlot: 0, ChannelCount: 1, MessageCount: 2, MaxMessageID: 19}, nil
+}
+
+func (n *recordingRestoreInstallNode) InstallRestoreChannelRuntimeMeta(_ context.Context, _ uint16, boundaries []clusterpkg.RestoreVerifyBoundary) error {
+	n.boundaries = append(n.boundaries, boundaries...)
+	return nil
 }
 
 func (n *recordingRestoreInstallNode) RestoreHashSlotMetadataDigest(context.Context, uint16) (string, error) {

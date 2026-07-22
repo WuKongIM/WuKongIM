@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -38,6 +39,7 @@ func TestClusterRestoreVerifierChecksEveryCurrentNodeAgainstAuthenticatedIndex(t
 	metadataObjects, err := replicator.Replicate(ctx, backupinfra.StreamDescriptor{JobID: "verify-job", HashSlot: 0, Kind: backupartifact.ObjectKindMetadata}, bytes.NewReader([]byte("metadata")))
 	require.NoError(t, err)
 	objects = append(objects, metadataObjects...)
+	sort.Slice(objects, func(left, right int) bool { return objects[left].Key < objects[right].Key })
 	partition := backupartifact.PartitionManifest{
 		Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion,
 		JobID: "verify-job", BackupEpoch: 4, Cut: backupartifact.PartitionCut{HashSlot: 0, RaftIndex: 5, CommittedAtMillis: 1710000000000},

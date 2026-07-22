@@ -172,6 +172,7 @@ scripts/                 仓库辅助脚本
 
 test/
   e2e/                   转正后的真实 cmd/wukongim 黑盒 e2e 测试与子进程 harness
+    backup/              三节点备份、增量恢复与恢复后续写黑盒场景
     cluster/             动态节点、控制面任务、故障注入等黑盒场景
     message/             internal 消息、会话与 recipient authority 黑盒场景
     control/             控制面 bootstrap、Slot leader transfer 等黑盒场景

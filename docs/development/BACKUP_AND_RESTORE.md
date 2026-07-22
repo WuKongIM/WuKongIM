@@ -7,6 +7,10 @@ artifact, repository, coordination, capture, restore, retention, Manager, CLI,
 metrics, signed record-count, and allocator-fence seams, but it is not
 production-qualified until the three-node failure matrix and the 1 TB
 RTO/performance gate documented in the design spec have passed.
+The repository includes a local three-node process-level regression drill for
+baseline, incremental, fresh-cluster restore, normal restart, restored history,
+and sequence-continuous writes. That drill is a correctness gate, not external
+infrastructure qualification.
 
 Do not enable it merely because a node starts successfully. A deployment must
 also prove repository immutability, key retention, restore drills, capacity,
@@ -141,9 +145,12 @@ entry pending for a later retry.
 5. Verification authenticates the repository chain; compares each partition's
    restored metadata-record count, cumulative message-record count, and maximum
    message ID with signed manifest evidence; checks every restored Channel
-   sequence boundary; and compares a canonical semantic metadata digest on each
-   target node. Activation remains impossible before every partition is
-   installed and verified.
+   sequence boundary; checks the reconstructed successor-topology
+   `ChannelRuntimeMeta`; and compares a canonical semantic metadata digest on
+   each target node. Channel epoch and retention floor come from the signed
+   Channel cut, while leader, replicas, ISR, and MinISR come from the target
+   cluster. Activation remains impossible before every partition is installed
+   and verified.
 6. Stop the restore-mode processes. Set `backup.restore_mode = false`. If
    automatic backup will resume, set `backup.enabled = true` and set
    `backup.source_generation` to the activated target generation. Restart the
@@ -161,6 +168,26 @@ Never reuse the source generation, restore into a non-empty target, change the
 hash-slot count during recovery, or delete the target automatically after a
 failed restore.
 
+## Local Regression Drill
+
+Run the process-level three-node drill with:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 5m -p=1
+```
+
+The scenario starts real `cmd/wukongim` processes, publishes a materialized
+baseline and an incremental point, stops the source, restores into a fresh
+three-node cluster, verifies and activates it through Manager, restarts the
+same target data in normal mode, reads restored history, and proves the next
+message ID and per-Channel sequence advance.
+
+The tagged harness uses local immutable file repositories and a deterministic
+local key authority selected by an explicit E2E-only environment variable. It
+does not qualify S3 versioning, cross-region replication, KMS key retention,
+Object Lock/WORM, garbage-collector IAM, external clock skew, or production
+failure behavior.
+
 ## Qualification Gates
 
 Production enablement remains blocked until a real three-node environment
@@ -176,7 +203,7 @@ permanent-erasure ledger replay; source-log pin budget enforcement and public
 pin controls; true synthetic-full chain flattening (the current scheduler emits
 a source-materialized independent fallback and rejects manual
 `synthetic_full`); topology/quorum/migration/protocol-version publication gates;
-topology-sized restore replica placement and MinISR validation; complete
+non-default-topology restore placement and MinISR qualification; complete
 disk/network/replica/time restore estimates; signed drill reports; a durable
 queryable audit history; high-mutation partition-planner starvation and memory
 qualification; and automatic throttling from live foreground latency. These

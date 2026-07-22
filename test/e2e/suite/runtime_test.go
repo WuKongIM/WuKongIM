@@ -359,6 +359,51 @@ func TestStartedClusterStartStoppedNodeStartsDetachedProcess(t *testing.T) {
 	require.Equal(t, spec.ConfigPath, node.Process.Spec.ConfigPath)
 }
 
+func TestStartedClusterReconfigureStoppedNodesReplacesConfigEnvironmentAndKeepsExternalEnvironment(t *testing.T) {
+	rootDir := t.TempDir()
+	specs := make([]NodeSpec, 3)
+	for index := range specs {
+		nodeID := uint64(index + 1)
+		nodeRoot := filepath.Join(rootDir, "node-"+strconv.FormatUint(nodeID, 10))
+		require.NoError(t, os.MkdirAll(nodeRoot, 0o755))
+		specs[index] = NodeSpec{
+			ID:          nodeID,
+			RootDir:     nodeRoot,
+			DataDir:     filepath.Join(nodeRoot, "data"),
+			ConfigPath:  filepath.Join(nodeRoot, "wukongim.toml"),
+			ClusterAddr: fmt.Sprintf("127.0.0.1:%d", 7100+index),
+			GatewayAddr: fmt.Sprintf("127.0.0.1:%d", 7200+index),
+			APIAddr:     fmt.Sprintf("127.0.0.1:%d", 7300+index),
+			ManagerAddr: fmt.Sprintf("127.0.0.1:%d", 7400+index),
+			ConfigOverrides: map[string]string{
+				"WK_BACKUP_RESTORE_MODE": "true",
+			},
+		}
+	}
+	for index := range specs {
+		rendered := RenderClusterConfig(specs[index], specs)
+		require.NoError(t, os.WriteFile(specs[index].ConfigPath, []byte(rendered), 0o644))
+		specs[index].Env = append(envFromConfig(rendered), "WUKONGIM_BACKUP_E2E_FILE_ROOT=/repository", "AWS_ACCESS_KEY_ID=e2e")
+	}
+	cluster := &StartedCluster{Nodes: []StartedNode{{Spec: specs[0]}, {Spec: specs[1]}, {Spec: specs[2]}}}
+
+	require.NoError(t, cluster.ReconfigureStoppedNodes(map[uint64]map[string]string{
+		1: {"WK_BACKUP_RESTORE_MODE": "false"},
+		2: {"WK_BACKUP_RESTORE_MODE": "false"},
+		3: {"WK_BACKUP_RESTORE_MODE": "false"},
+	}))
+
+	for _, node := range cluster.Nodes {
+		require.Contains(t, node.Spec.Env, "WK_BACKUP_RESTORE_MODE=false")
+		require.NotContains(t, node.Spec.Env, "WK_BACKUP_RESTORE_MODE=true")
+		require.Contains(t, node.Spec.Env, "WUKONGIM_BACKUP_E2E_FILE_ROOT=/repository")
+		require.Contains(t, node.Spec.Env, "AWS_ACCESS_KEY_ID=e2e")
+		body, err := os.ReadFile(node.Spec.ConfigPath)
+		require.NoError(t, err)
+		require.Contains(t, string(body), "restore_mode = false")
+	}
+}
+
 func startFakeNodeProcess(t *testing.T, binaryPath string, name string) *NodeProcess {
 	t.Helper()
 

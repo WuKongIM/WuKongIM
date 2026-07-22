@@ -1000,6 +1000,14 @@ KMS envelope/signing, a separate garbage-collector role, Controller state,
 Slot-leader planning, source-node message capture, the coordinator, Manager,
 node RPC, and low-cardinality metrics. Backup doctor or runtime failure is
 reported independently and never changes ordinary message readiness.
+The cluster-wide config fingerprint excludes the node-local staging directory;
+repository, identity, schedule, retention, and cryptographic policy remain in
+the agreement fence.
+
+An `e2e`-tagged binary may replace repository, key, and clock adapters only
+when the explicit backup E2E file-root environment is present. Without that
+environment, including ordinary tagged scenarios, the production S3/KMS/clock
+loaders remain authoritative.
 
 Restore mode wires repository inspection, all-node empty-target proof,
 restore-only installers/verifiers, Controller restore state, a leader-resuming

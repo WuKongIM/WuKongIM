@@ -152,6 +152,39 @@ func (r *FileRepository) Stat(ctx context.Context, key string) (backupartifact.R
 	return backupartifact.RepositoryObject{Key: key, Size: info.Size(), SHA256: hex.EncodeToString(hash.Sum(nil))}, nil
 }
 
+// Check verifies that the development repository root remains a real,
+// writable directory. Production durability controls remain S3-specific.
+func (r *FileRepository) Check(ctx context.Context) error {
+	if r == nil || r.root == "" {
+		return fmt.Errorf("backup file repository: repository is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	info, err := os.Lstat(r.root)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return fmt.Errorf("backup file repository: root must be a real directory")
+	}
+	probe, err := os.CreateTemp(r.root, ".repository-doctor-*")
+	if err != nil {
+		return err
+	}
+	name := probe.Name()
+	defer os.Remove(name)
+	if _, err := probe.Write([]byte("wukongim-backup-file-repository-doctor-v1")); err != nil {
+		_ = probe.Close()
+		return err
+	}
+	if err := probe.Sync(); err != nil {
+		_ = probe.Close()
+		return err
+	}
+	return probe.Close()
+}
+
 // DeleteGarbageObject removes one already-unreachable immutable development
 // object. Production authorization remains separate in the S3 adapter.
 func (r *FileRepository) DeleteGarbageObject(_ context.Context, key string) error {
@@ -318,4 +351,5 @@ func (r contextReader) Read(buffer []byte) (int, error) {
 }
 
 var _ backupartifact.Repository = (*FileRepository)(nil)
+var _ RepositoryDoctor = (*FileRepository)(nil)
 var _ RestorePointLister = (*FileRepository)(nil)

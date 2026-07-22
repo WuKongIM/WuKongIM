@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"os"
 	"testing"
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
@@ -58,4 +59,19 @@ func TestFileRepositoryDeletesOnlyExplicitGarbageObject(t *testing.T) {
 	_, err = repository.Stat(context.Background(), key)
 	require.ErrorIs(t, err, backupartifact.ErrObjectNotFound)
 	require.NoError(t, repository.DeleteGarbageObject(context.Background(), key))
+}
+
+func TestFileRepositoryCheckProvesWritableRootWithoutLeavingProbe(t *testing.T) {
+	root := t.TempDir()
+	repository, err := backupinfra.NewFileRepository("primary-dev", root)
+	require.NoError(t, err)
+
+	require.NoError(t, repository.Check(context.Background()))
+	entries, err := os.ReadDir(root)
+	require.NoError(t, err)
+	require.Empty(t, entries)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, repository.Check(ctx), context.Canceled)
 }

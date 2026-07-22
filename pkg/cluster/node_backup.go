@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"slices"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -209,6 +211,42 @@ func (n *Node) InstallRestoreMessageStream(ctx context.Context, reader io.ReadSe
 	return n.defaultChannelStore.ImportBackupSnapshotReader(ctx, reader, size)
 }
 
+// InstallRestoreChannelRuntimeMeta reconstructs target-topology Channel
+// routing metadata from authenticated durable message boundaries. Source
+// topology is never copied into the successor cluster.
+func (n *Node) InstallRestoreChannelRuntimeMeta(ctx context.Context, hashSlot uint16, boundaries []RestoreVerifyBoundary) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil || !n.cfg.RestoreMode || n.defaultSlotMetaDB == nil || n.router == nil || hashSlot >= n.cfg.Slots.HashSlotCount || len(boundaries) > maxBackupMessageChannelsPerRequest {
+		return ErrInvalidConfig
+	}
+	if len(boundaries) == 0 {
+		return nil
+	}
+	placement := channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, int(n.cfg.Channel.ReplicaCount))
+	batch := n.defaultSlotMetaDB.NewWriteBatch()
+	defer func() { _ = batch.Close() }()
+	seen := make(map[channelruntime.ChannelID]struct{}, len(boundaries))
+	for _, boundary := range boundaries {
+		if err := ctxErr(ctx); err != nil {
+			return err
+		}
+		meta, id, err := n.buildRestoreChannelRuntimeMeta(ctx, hashSlot, boundary, placement)
+		if err != nil {
+			return err
+		}
+		if _, exists := seen[id]; exists {
+			return ErrInvalidConfig
+		}
+		seen[id] = struct{}{}
+		if err := batch.UpsertChannelRuntimeMeta(hashSlot, meta); err != nil {
+			return err
+		}
+	}
+	return batch.Commit()
+}
+
 // RestoreHashSlotMetadataDigest returns the canonical semantic snapshot digest
 // after restore-time transforms such as token invalidation have been applied.
 func (n *Node) RestoreHashSlotMetadataDigest(ctx context.Context, hashSlot uint16) (string, error) {
@@ -240,7 +278,7 @@ func (n *Node) VerifyLocalRestorePartition(ctx context.Context, hashSlot uint16,
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if n == nil || !n.cfg.RestoreMode || n.defaultChannelStore == nil || hashSlot >= n.cfg.Slots.HashSlotCount || len(boundaries) > maxBackupMessageChannelsPerRequest {
+	if n == nil || !n.cfg.RestoreMode || n.defaultChannelStore == nil || n.defaultSlotMetaDB == nil || (len(boundaries) > 0 && n.router == nil) || hashSlot >= n.cfg.Slots.HashSlotCount || len(boundaries) > maxBackupMessageChannelsPerRequest {
 		return ErrInvalidConfig
 	}
 	if metadataSHA256 != "" {
@@ -253,17 +291,19 @@ func (n *Node) VerifyLocalRestorePartition(ctx context.Context, hashSlot uint16,
 		}
 	}
 	cuts := make([]channelstore.BackupChannelCut, len(boundaries))
+	placement := channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, int(n.cfg.Channel.ReplicaCount))
 	for index, boundary := range boundaries {
-		id := channelruntime.ChannelID{ID: boundary.ChannelID, Type: boundary.ChannelType}
-		if id.ID == "" || boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW {
-			return ErrInvalidConfig
-		}
-		route, err := n.RouteKey(boundary.ChannelID)
+		expected, id, err := n.buildRestoreChannelRuntimeMeta(ctx, hashSlot, boundary, placement)
 		if err != nil {
 			return err
 		}
-		if route.HashSlot != hashSlot {
-			return ErrInvalidConfig
+		actual, err := n.defaultSlotMetaDB.ForHashSlot(hashSlot).GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+		if err != nil {
+			return fmt.Errorf("cluster: restored channel runtime metadata missing: %w", err)
+		}
+		actual = metadb.NormalizeChannelRuntimeMeta(actual)
+		if !sameRestoreChannelRuntimeMeta(actual, expected) {
+			return fmt.Errorf("cluster: restored channel runtime metadata mismatch")
 		}
 		cuts[index] = channelstore.BackupChannelCut{
 			Key: channelruntime.ChannelKeyForID(id), ID: id, Epoch: boundary.Epoch,
@@ -271,6 +311,44 @@ func (n *Node) VerifyLocalRestorePartition(ctx context.Context, hashSlot uint16,
 		}
 	}
 	return n.defaultChannelStore.VerifyRestoreBoundaries(ctx, cuts)
+}
+
+func (n *Node) buildRestoreChannelRuntimeMeta(ctx context.Context, hashSlot uint16, boundary RestoreVerifyBoundary, placement *channels.SlotPlacementResolver) (metadb.ChannelRuntimeMeta, channelruntime.ChannelID, error) {
+	id := channelruntime.ChannelID{ID: boundary.ChannelID, Type: boundary.ChannelType}
+	if id.ID == "" || boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW || placement == nil {
+		return metadb.ChannelRuntimeMeta{}, channelruntime.ChannelID{}, ErrInvalidConfig
+	}
+	route, err := n.router.RouteKey(boundary.ChannelID)
+	if err != nil {
+		return metadb.ChannelRuntimeMeta{}, channelruntime.ChannelID{}, err
+	}
+	if route.HashSlot != hashSlot {
+		return metadb.ChannelRuntimeMeta{}, channelruntime.ChannelID{}, ErrInvalidConfig
+	}
+	target, err := placement.ResolveChannelPlacement(ctx, id)
+	if err != nil {
+		return metadb.ChannelRuntimeMeta{}, channelruntime.ChannelID{}, err
+	}
+	replicas := make([]uint64, len(target.Replicas))
+	for index, replica := range target.Replicas {
+		replicas[index] = uint64(replica)
+	}
+	meta := metadb.NormalizeChannelRuntimeMeta(metadb.ChannelRuntimeMeta{
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: boundary.Epoch, LeaderEpoch: 1,
+		Leader: uint64(target.Leader), Replicas: replicas, ISR: append([]uint64(nil), replicas...), MinISR: int64(target.MinISR),
+		Status: uint8(channelruntime.StatusActive), RetentionThroughSeq: boundary.LogStartOffset,
+	})
+	return meta, id, nil
+}
+
+func sameRestoreChannelRuntimeMeta(actual, expected metadb.ChannelRuntimeMeta) bool {
+	return actual.ChannelID == expected.ChannelID && actual.ChannelType == expected.ChannelType &&
+		actual.ChannelEpoch == expected.ChannelEpoch && actual.LeaderEpoch == expected.LeaderEpoch && actual.RouteGeneration == expected.RouteGeneration &&
+		actual.Leader == expected.Leader && actual.MinISR == expected.MinISR && actual.Status == expected.Status && actual.Features == expected.Features &&
+		actual.LeaseUntilMS == expected.LeaseUntilMS && actual.RetentionThroughSeq == expected.RetentionThroughSeq && actual.RetentionUpdatedAtMS == expected.RetentionUpdatedAtMS &&
+		actual.WriteFenceToken == expected.WriteFenceToken && actual.WriteFenceVersion == expected.WriteFenceVersion && actual.WriteFenceReason == expected.WriteFenceReason &&
+		actual.WriteFenceUntilMS == expected.WriteFenceUntilMS &&
+		slices.Equal(actual.Replicas, expected.Replicas) && slices.Equal(actual.ISR, expected.ISR)
 }
 
 // CaptureBackupHashSlotSnapshot pins one logical metadata partition at the local Slot leader's applied boundary.

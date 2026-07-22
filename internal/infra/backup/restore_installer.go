@@ -17,12 +17,14 @@ import (
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 // RestoreInstallNode owns restore-only local database installation methods.
 type RestoreInstallNode interface {
 	InstallRestoreHashSlotMetadata(context.Context, uint16, io.ReadSeeker, int64, bool) (uint64, error)
 	InstallRestoreMessageStream(context.Context, io.ReadSeeker, int64) (channelstore.BackupSnapshotStats, error)
+	InstallRestoreChannelRuntimeMeta(context.Context, uint16, []clusterpkg.RestoreVerifyBoundary) error
 	RestoreHashSlotMetadataDigest(context.Context, uint16) (string, error)
 }
 
@@ -96,6 +98,10 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 	if err != nil {
 		return backupusecase.RestorePartition{}, err
 	}
+	boundaries, err := loadRestoreExpectedBoundariesFromLayers(ctx, repository, i.codec, manifest.Partitions[hashSlot].HashSlot, layers)
+	if err != nil {
+		return backupusecase.RestorePartition{}, err
+	}
 	result := backupusecase.RestorePartition{HashSlot: hashSlot, EvidenceVersion: backupartifact.PartitionEvidenceVersion}
 	metadataGroups, err := restoreObjectGroups(layers[len(layers)-1].Objects, backupartifact.ObjectKindMetadata)
 	if err != nil || len(metadataGroups) != 1 || metadataGroups[0].Name != string(backupartifact.ObjectKindMetadata) {
@@ -139,6 +145,15 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 				return backupusecase.RestorePartition{}, fmt.Errorf("%w: restored byte count overflow", backupartifact.ErrInvalidManifest)
 			}
 			result.PlainBytes += plainBytes
+		}
+	}
+	for start := 0; start < len(boundaries); start += maxRestoreVerifyBoundariesPerRequest {
+		end := start + maxRestoreVerifyBoundariesPerRequest
+		if end > len(boundaries) {
+			end = len(boundaries)
+		}
+		if err := i.node.InstallRestoreChannelRuntimeMeta(ctx, hashSlot, boundaries[start:end]); err != nil {
+			return backupusecase.RestorePartition{}, fmt.Errorf("backup restore: install target channel runtime metadata: %w", err)
 		}
 	}
 	result.MetadataSHA256, err = i.node.RestoreHashSlotMetadataDigest(ctx, hashSlot)

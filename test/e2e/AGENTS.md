@@ -49,6 +49,7 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
+| `backup` | `test/e2e/backup/three_node_restore` | Prove a real three-node source publishes a baseline plus incremental point, a fresh three-node successor restores and activates it, and normal-mode history plus sequence-continuous writes work after restart. | `GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 5m -p=1` |
 | `message` | `test/e2e/message/single_node_send` | Prove `cmd/wukongim` can complete one single-node cluster WKProto `SEND -> SENDACK` closure and expose sender/receiver rows through `/conversation/list`. | `GOWORK=off go test -tags=e2e ./test/e2e/message/single_node_send -count=1` |
 | `message` | `test/e2e/message/webhook` | Prove a single-node cluster posts `user.onlinestatus`, `msg.notify`, and `msg.offline` webhook callbacks to an external HTTP endpoint after a real WKProto SEND. | `GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=1` |
 | `message` | `test/e2e/message/message_event_stream` | Prove `/message/event` buffers stream deltas in the Slot-leader cache, forwards from non-leader nodes, fails closed after Slot-leader cache loss, proposes one finish batch, exposes public metrics, and survives restart through `/channel/messagesync` event summaries. | `GOWORK=off go test -tags=e2e ./test/e2e/message/message_event_stream -count=1 -timeout 2m` |

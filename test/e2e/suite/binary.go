@@ -17,7 +17,7 @@ const (
 	e2eBinaryCacheFileName     = "wukongim-e2e"
 	e2eBinaryCacheDirNameGlob  = "wukongim-e2e-bin-*"
 	e2eBinaryBuildPackage      = "./cmd/wukongim"
-	e2eBinaryBuildCommandLabel = "go build ./cmd/wukongim"
+	e2eBinaryBuildCommandLabel = "go build -tags=e2e ./cmd/wukongim"
 )
 
 // BinaryCache builds and caches the e2e wukongim binary once per test process.
@@ -84,7 +84,7 @@ func defaultBinaryCacheRoot() (string, error) {
 }
 
 func buildBinary(dst string) error {
-	cmd := exec.Command("go", "build", "-o", dst, e2eBinaryBuildPackage)
+	cmd := exec.Command("go", "build", "-tags=e2e", "-o", dst, e2eBinaryBuildPackage)
 	cmd.Dir = repoRoot()
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	output, err := cmd.CombinedOutput()

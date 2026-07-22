@@ -8,10 +8,18 @@ HTTP helpers for real `cmd/wukongim` tests.
 1. `Suite` allocates a test workspace, loopback ports, and a short independent
    plugin socket root.
 2. Config renderers write node TOML and derive the product environment.
-3. `NodeProcess.Start` removes the harness-only `WK_E2E_*` namespace before
-   starting the child process.
+3. The default binary cache builds `cmd/wukongim` with the `e2e` build tag;
+   tagged product substitutes remain dormant unless their separate explicit
+   harness environment is present. `NodeProcess.Start` removes the
+   harness-only `WK_E2E_*` namespace before starting the child process.
 4. Test cleanup stops the current process for every registered node, including
    nodes appended after cluster startup and processes replaced by restart.
+
+`ReconfigureStoppedNodes` rewrites a static cluster generation only after all
+nodes are stopped. It preserves data directories and non-product external
+environment, replaces schema-known product config environment, and lets a
+restore scenario restart the same successor data in normal mode without a
+mixed restore/normal generation.
 
 ## Failure diagnostics
 

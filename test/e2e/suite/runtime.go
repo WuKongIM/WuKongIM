@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	productconfig "github.com/WuKongIM/WuKongIM/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -433,6 +434,73 @@ func (c *StartedCluster) StartStoppedNode(nodeID uint64) error {
 	}
 	node.Process = process
 	return nil
+}
+
+// ReconfigureStoppedNodes rewrites static-node configs while preserving their
+// data directories and non-product environment. Every node must be stopped so
+// one cluster restart cannot observe a mixed configuration generation.
+func (c *StartedCluster) ReconfigureStoppedNodes(overrides map[uint64]map[string]string) error {
+	if c == nil {
+		return fmt.Errorf("started cluster is nil")
+	}
+	if len(c.Nodes) == 0 {
+		return fmt.Errorf("started cluster has no nodes")
+	}
+	schema := schemaByEnvKey()
+	for _, node := range c.Nodes {
+		if node.Process != nil {
+			return fmt.Errorf("node %d must be stopped before cluster reconfiguration", node.Spec.ID)
+		}
+	}
+	for nodeID, nodeOverrides := range overrides {
+		node, ok := c.Node(nodeID)
+		if !ok {
+			return fmt.Errorf("node %d not found", nodeID)
+		}
+		for key, value := range nodeOverrides {
+			if _, ok := schema[key]; !ok {
+				return fmt.Errorf("unsupported config key %s", key)
+			}
+			setSpecConfigOverride(&node.Spec, key, value)
+			if c.options.nodeConfigOverrides == nil {
+				c.options.nodeConfigOverrides = make(map[uint64]map[string]string)
+			}
+			if c.options.nodeConfigOverrides[nodeID] == nil {
+				c.options.nodeConfigOverrides[nodeID] = make(map[string]string)
+			}
+			c.options.nodeConfigOverrides[nodeID][key] = value
+		}
+	}
+
+	specs := make([]NodeSpec, len(c.Nodes))
+	for index := range c.Nodes {
+		specs[index] = c.Nodes[index].Spec
+	}
+	for index := range c.Nodes {
+		rendered := RenderClusterConfig(specs[index], specs)
+		if err := os.WriteFile(specs[index].ConfigPath, []byte(rendered), 0o644); err != nil {
+			return fmt.Errorf("write node %d config: %w", specs[index].ID, err)
+		}
+		externalEnv := nonConfigEnvironment(specs[index].Env, schema)
+		specs[index].Env = append(envFromConfig(rendered), externalEnv...)
+		c.Nodes[index].Spec = specs[index]
+	}
+	c.lastReadyz = make(map[uint64]HTTPObservation, len(c.Nodes))
+	return nil
+}
+
+func nonConfigEnvironment(env []string, schema map[string]productconfig.SchemaField) []string {
+	result := make([]string, 0, len(env))
+	for _, entry := range env {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, isProductConfig := schema[key]; isProductConfig {
+				continue
+			}
+		}
+		result = append(result, entry)
+	}
+	return result
 }
 
 // APIAddr returns the public HTTP API listen address for the started node.

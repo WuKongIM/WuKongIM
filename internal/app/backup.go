@@ -44,6 +44,33 @@ type appRestoreNode interface {
 	nodeRPCRegistrar
 }
 
+type appBackupRepository interface {
+	backupartifact.Repository
+	backupinfra.RepositoryDoctor
+	backupinfra.RestorePointLister
+}
+
+type appBackupKeyService interface {
+	backupartifact.DataKeyManager
+	backupartifact.ManifestSigner
+	backupinfra.KMSDoctor
+}
+
+var (
+	loadAppBackupRepository = func(ctx context.Context, name, endpoint, region, bucket, prefix string, objectLockDays int) (appBackupRepository, error) {
+		return backupinfra.LoadS3Repository(ctx, name, endpoint, region, bucket, prefix, objectLockDays)
+	}
+	loadAppBackupGarbageRepository = func(ctx context.Context, name, endpoint, region, bucket, prefix string, objectLockDays int, roleARN string) (backupinfra.GarbageRepository, error) {
+		return backupinfra.LoadS3GarbageRepository(ctx, name, endpoint, region, bucket, prefix, objectLockDays, roleARN)
+	}
+	loadAppBackupKeyService = func(ctx context.Context, region, endpoint string) (appBackupKeyService, error) {
+		return backupinfra.LoadKMSAdapter(ctx, region, endpoint)
+	}
+	newAppBackupClockProbe = func(endpoint string) (backupinfra.ClockProbe, error) {
+		return backupinfra.NewEndpointClockProbe(endpoint, nil)
+	}
+)
+
 func (a *App) wireBackup(clusterCfg cluster.Config) {
 	if a == nil || (!a.cfg.Backup.Enabled && !a.cfg.Backup.RestoreMode) {
 		return
@@ -54,17 +81,17 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	a.backupFingerprint = fingerprint
-	primary, err := backupinfra.LoadS3Repository(context.Background(), "primary", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays)
+	primary, err := loadAppBackupRepository(context.Background(), "primary", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	secondary, err := backupinfra.LoadS3Repository(context.Background(), "secondary", a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region, a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix, a.cfg.Backup.ObjectLockDays)
+	secondary, err := loadAppBackupRepository(context.Background(), "secondary", a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region, a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix, a.cfg.Backup.ObjectLockDays)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	kms, err := backupinfra.LoadKMSAdapter(context.Background(), a.cfg.Backup.KMSRegion, a.cfg.Backup.KMSEndpoint)
+	kms, err := loadAppBackupKeyService(context.Background(), a.cfg.Backup.KMSRegion, a.cfg.Backup.KMSEndpoint)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -150,12 +177,12 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
-	primaryGarbage, err := backupinfra.LoadS3GarbageRepository(context.Background(), "primary-gc", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
+	primaryGarbage, err := loadAppBackupGarbageRepository(context.Background(), "primary-gc", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	secondaryGarbage, err := backupinfra.LoadS3GarbageRepository(context.Background(), "secondary-gc", a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region, a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
+	secondaryGarbage, err := loadAppBackupGarbageRepository(context.Background(), "secondary-gc", a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region, a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -176,12 +203,12 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
-	primaryClock, err := backupinfra.NewEndpointClockProbe(a.cfg.Backup.Primary.Endpoint, nil)
+	primaryClock, err := newAppBackupClockProbe(a.cfg.Backup.Primary.Endpoint)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	secondaryClock, err := backupinfra.NewEndpointClockProbe(a.cfg.Backup.Secondary.Endpoint, nil)
+	secondaryClock, err := newAppBackupClockProbe(a.cfg.Backup.Secondary.Endpoint)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -293,6 +320,9 @@ func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupar
 }
 
 func backupConfigFingerprint(cfg BackupConfig, clusterID string, hashSlotCount uint16) (string, error) {
+	// StagingDir is node-local scratch space, so it cannot participate in the
+	// cluster-wide agreement fence carried by backup jobs and partition RPCs.
+	cfg.StagingDir = ""
 	value := struct {
 		Backup        BackupConfig `json:"backup"`
 		ClusterID     string       `json:"cluster_id"`

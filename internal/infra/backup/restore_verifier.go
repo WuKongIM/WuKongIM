@@ -187,9 +187,20 @@ func (v *ClusterRestoreVerifier) currentNodeIDs(ctx context.Context, plan backup
 }
 
 func (v *ClusterRestoreVerifier) loadExpectedBoundaries(ctx context.Context, repository backupartifact.Repository, reference backupartifact.PartitionReference) ([]clusterpkg.RestoreVerifyBoundary, error) {
+	return loadRestoreExpectedBoundaries(ctx, repository, v.codec, reference)
+}
+
+func loadRestoreExpectedBoundaries(ctx context.Context, repository backupartifact.Repository, codec *backupartifact.ObjectCodec, reference backupartifact.PartitionReference) ([]clusterpkg.RestoreVerifyBoundary, error) {
 	layers, err := loadRestorePartitionLayers(ctx, repository, reference)
 	if err != nil {
 		return nil, err
+	}
+	return loadRestoreExpectedBoundariesFromLayers(ctx, repository, codec, reference.HashSlot, layers)
+}
+
+func loadRestoreExpectedBoundariesFromLayers(ctx context.Context, repository backupartifact.Repository, codec *backupartifact.ObjectCodec, expectedHashSlot uint16, layers []backupartifact.PartitionManifest) ([]clusterpkg.RestoreVerifyBoundary, error) {
+	if len(layers) == 0 {
+		return nil, fmt.Errorf("%w: restore partition chain is empty", backupartifact.ErrInvalidManifest)
 	}
 	groups, err := restoreObjectGroups(layers[len(layers)-1].Objects, backupartifact.ObjectKindChannelIndex)
 	if err != nil || len(groups) != 1 || groups[0].Name != string(backupartifact.ObjectKindChannelIndex) {
@@ -204,7 +215,7 @@ func (v *ClusterRestoreVerifier) loadExpectedBoundaries(ctx context.Context, rep
 		if err != nil {
 			return nil, err
 		}
-		chunk, err := v.codec.Open(ctx, object, ciphertext)
+		chunk, err := codec.Open(ctx, object, ciphertext)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +225,7 @@ func (v *ClusterRestoreVerifier) loadExpectedBoundaries(ctx context.Context, rep
 	if err != nil {
 		return nil, err
 	}
-	if hashSlot != reference.HashSlot {
+	if hashSlot != expectedHashSlot {
 		return nil, fmt.Errorf("%w: restore channel index hash slot mismatch", backupartifact.ErrInvalidManifest)
 	}
 	result := make([]clusterpkg.RestoreVerifyBoundary, len(boundaries))

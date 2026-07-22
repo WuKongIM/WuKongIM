@@ -755,5 +755,9 @@ reading only through durable HW. Snapshot results include exact record counts
 and the greatest captured message ID derived from their pinned views.
 Restore-only methods reject normal mode, stream portable metadata/message
 imports while recomputing the same evidence, invalidate tokens when requested,
-and verify both Channel boundaries and canonical per-hash-slot metadata
-digests.
+and reconstruct target-topology `ChannelRuntimeMeta` from authenticated
+Channel cuts through bounded local metadata batches. The reconstructed row
+preserves the durable Channel epoch and retention floor but derives leader,
+replicas, ISR, and MinISR from the successor cluster. Verification requires
+those exact target rows in addition to Channel boundaries and canonical
+per-hash-slot metadata digests.
