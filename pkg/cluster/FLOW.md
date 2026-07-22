@@ -672,7 +672,10 @@ instead of JSON encoding, avoiding base64 expansion on the metadata replication
 path. The default Slot Raft transport declares `ReadyMessagePayloadOwner`
 because it synchronously encodes the batch before `Send` returns, so
 `pkg/slot/multiraft` can avoid deep-copying large entry and snapshot payloads on
-this production path.
+this production path. A batched send attempts every destination even when one
+peer is unavailable, then returns the first send error after fanout; an offline
+peer therefore cannot suppress vote or heartbeat delivery to the remaining
+quorum members in the same Ready batch.
 
 ## Distributed Log Inspection Flow
 

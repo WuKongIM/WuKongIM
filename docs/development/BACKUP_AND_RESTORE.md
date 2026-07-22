@@ -192,7 +192,11 @@ scenario keeps three Slot replicas for quorum and explicitly uses two Channel
 replicas, then requires both surviving nodes to recover public readiness. With
 three Channel replicas on only three nodes, `/readyz` correctly rejects new
 Channel placement while one data node is unavailable instead of silently
-weakening the configured durability.
+weakening the configured durability. A fourth scenario stops the active
+Controller Leader while it also leads a Slot, keeps that combined
+Controller/data node offline, and requires a new Controller Leader to resume
+the same job and publish the exact restore point while both survivors recover
+public readiness under the same three-Slot-replica/two-Channel-replica policy.
 
 Run the failover scenario alone with:
 
@@ -204,6 +208,12 @@ Run the sustained data-node outage scenario alone with:
 
 ```bash
 GOWORK=off go test -tags=e2e ./test/e2e/backup/data_node_outage -count=1 -timeout 3m -p=1
+```
+
+Run the sustained Controller-Leader/data-node outage scenario alone with:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_outage -count=1 -timeout 3m -p=1
 ```
 
 `.github/workflows/backup-qualification.yml` runs these backup scenarios every
@@ -226,12 +236,13 @@ proves online baseline and incremental capture, sustained combined
 Controller-Leader/data-node failure, primary outage, secondary recovery,
 retention/tombstone correctness, corruption rejection, different target
 topology, restored client sync/send, and a weekly isolated restore drill. The
-local qualification now covers a non-Controller-Leader Slot leader remaining
-offline and a Controller process failover after the stopped node rejoins; it
-does not claim that backup can complete while the stopped Controller Leader's
-data role remains offline. The qualified 1 TB profile must restore within 60
-minutes and stay inside the foreground throughput and SENDACK P99 budgets in
-the design spec.
+local qualification now covers both a non-Controller-Leader Slot leader and a
+Controller Leader/Slot leader remaining offline with an explicit Channel
+replica count of two, plus Controller process failover followed by node rejoin.
+It does not qualify three-Channel-replica readiness with only two surviving
+nodes or replace the required real object-storage failure qualification. The
+qualified 1 TB profile must restore within 60 minutes and stay inside the
+foreground throughput and SENDACK P99 budgets in the design spec.
 
 The current implementation also needs explicit qualification or completion for
 permanent-erasure ledger replay; source-log pin budget enforcement and public

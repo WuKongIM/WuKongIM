@@ -4,7 +4,6 @@ package controller_leader_failover
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -33,7 +32,7 @@ func TestThreeNodeBackupControllerLeaderFailoverResumesIncremental(t *testing.T)
 
 	baseline := cluster.ManagerClient(t, 1).WaitBackupRestorePointPublished(t, "", "materialized_full", 30*time.Second)
 	oldLeader := cluster.WaitControllerLeader(t, []uint64{1, 2, 3}, 0, 15*time.Second)
-	waitForBackupCoordinator(t, cluster, oldLeader, false, 10*time.Second)
+	cluster.WaitBackupCoordinator(t, oldLeader, false, 10*time.Second)
 	oldManager := cluster.ManagerClient(t, oldLeader)
 	triggerCtx, cancelTrigger := context.WithTimeout(context.Background(), 5*time.Second)
 	triggered, err := oldManager.TriggerBackup(triggerCtx, "incremental")
@@ -44,7 +43,7 @@ func TestThreeNodeBackupControllerLeaderFailoverResumesIncremental(t *testing.T)
 	require.NotEmpty(t, triggered.RestorePointID)
 	oldActive := oldManager.WaitBackupActive(t, triggered.ID, 10*time.Second)
 	require.Equal(t, triggered.RestorePointID, oldActive.RestorePointID)
-	waitForBackupCoordinator(t, cluster, oldLeader, true, 10*time.Second)
+	cluster.WaitBackupCoordinator(t, oldLeader, true, 10*time.Second)
 
 	require.NoError(t, cluster.MustNode(oldLeader).Stop(), cluster.DumpDiagnostics())
 	survivors := nodeIDsExcept([]uint64{1, 2, 3}, oldLeader)
@@ -53,7 +52,7 @@ func TestThreeNodeBackupControllerLeaderFailoverResumesIncremental(t *testing.T)
 	newManager := cluster.ManagerClient(t, newLeader)
 	newActive := newManager.WaitBackupActive(t, triggered.ID, 10*time.Second)
 	require.Equal(t, triggered.RestorePointID, newActive.RestorePointID)
-	waitForBackupCoordinator(t, cluster, newLeader, true, 10*time.Second)
+	cluster.WaitBackupCoordinator(t, newLeader, true, 10*time.Second)
 
 	require.NoError(t, cluster.StartStoppedNode(oldLeader), cluster.DumpDiagnostics())
 	rejoinCtx, cancelRejoin := context.WithTimeout(context.Background(), 30*time.Second)
@@ -76,32 +75,6 @@ func TestThreeNodeBackupControllerLeaderFailoverResumesIncremental(t *testing.T)
 	require.True(t, verification.PrimaryVerified)
 	require.True(t, verification.SecondaryVerified)
 	require.Len(t, verification.ManifestSHA256, 64)
-}
-
-func waitForBackupCoordinator(t *testing.T, cluster *suite.StartedCluster, nodeID uint64, active bool, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	wantActive := 0.0
-	if active {
-		wantActive = 1
-	}
-	var lastLeader, lastActive float64
-	var lastErr error
-	for time.Now().Before(deadline) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		leader, leaderErr := suite.FetchMetricValue(ctx, cluster.MustNode(nodeID).APIAddr(), "wukongim_backup_controller_leader", nil)
-		cancel()
-		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
-		jobActive, activeErr := suite.FetchMetricValue(ctx, cluster.MustNode(nodeID).APIAddr(), "wukongim_backup_job_active", nil)
-		cancel()
-		lastLeader, lastActive = leader, jobActive
-		if leaderErr == nil && activeErr == nil && leader == 1 && jobActive == wantActive {
-			return
-		}
-		lastErr = fmt.Errorf("leader metric: %v; active metric: %v", leaderErr, activeErr)
-		time.Sleep(25 * time.Millisecond)
-	}
-	t.Fatalf("node %d backup coordinator did not reach leader=1 active=%v: leader=%v active=%v err=%v\n%s", nodeID, active, lastLeader, lastActive, lastErr, cluster.DumpDiagnostics())
 }
 
 func nodeIDsExcept(nodeIDs []uint64, excluded uint64) []uint64 {

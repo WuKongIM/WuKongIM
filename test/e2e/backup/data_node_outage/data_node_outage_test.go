@@ -50,7 +50,7 @@ func TestThreeNodeBackupCompletesWhileDataNodeRemainsOffline(t *testing.T) {
 	require.NotZero(t, failedNodeID, "a non-Controller-Leader node must lead at least one Slot immediately before the fault")
 	require.NoError(t, cluster.MustNode(failedNodeID).Stop(), cluster.DumpDiagnostics())
 	survivors := nodeIDsExcept(nodeIDs, failedNodeID)
-	requireNodesReady(t, cluster, survivors)
+	cluster.WaitNodesReady(t, survivors, 20*time.Second)
 	controllerLeader = cluster.WaitControllerLeader(t, survivors, failedNodeID, 15*time.Second)
 	manager = cluster.ManagerClient(t, controllerLeader)
 	resumed := manager.WaitBackupActive(t, triggered.ID, 10*time.Second)
@@ -69,7 +69,7 @@ func TestThreeNodeBackupCompletesWhileDataNodeRemainsOffline(t *testing.T) {
 	require.True(t, verification.PrimaryVerified)
 	require.True(t, verification.SecondaryVerified)
 	require.Len(t, verification.ManifestSHA256, 64)
-	requireNodesReady(t, cluster, survivors)
+	cluster.WaitNodesReady(t, survivors, 20*time.Second)
 }
 
 func firstSlotLeaderExcept(slots []suite.SlotDTO, excluded uint64) uint64 {
@@ -89,22 +89,4 @@ func nodeIDsExcept(nodeIDs []uint64, excluded uint64) []uint64 {
 		}
 	}
 	return result
-}
-
-func requireNodesReady(t *testing.T, cluster *suite.StartedCluster, nodeIDs []uint64) {
-	t.Helper()
-	for _, nodeID := range nodeIDs {
-		deadline := time.Now().Add(20 * time.Second)
-		var lastErr error
-		for time.Now().Before(deadline) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			lastErr = suite.WaitHTTPReady(ctx, cluster.MustNode(nodeID).APIAddr(), "/readyz")
-			cancel()
-			if lastErr == nil {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		require.NoError(t, lastErr, "surviving node %d must recover readiness\n%s", nodeID, cluster.DumpDiagnostics())
-	}
 }

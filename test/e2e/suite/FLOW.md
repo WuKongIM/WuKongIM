@@ -57,3 +57,6 @@ DTOs and polling helpers here. Each status poll decodes into a fresh DTO so an
 omitted `active` field cannot retain stale state from an earlier response. A
 scenario can explicitly override Channel replica count when its failure model
 requires a different placement-availability contract from the cluster default.
+Shared bounded polling also observes Controller leadership, backup-coordinator
+metrics, active-or-already-published backup continuation, and public readiness
+without exposing runtime internals to scenarios.

@@ -184,6 +184,7 @@
 - Slot Raft snapshot restore follows the same boundary as Controller Raft: restore snapshot data first, then replay committed entries after the snapshot index.
 - After Slot Raft log compaction exists, membership changes must refresh the snapshot ConfState so newly added learners can install a snapshot and catch up.
 - Large Slot Raft snapshots are chunked only in `pkg/cluster` raft transport; receivers reassemble chunks into the original `MsgSnap` before calling `multiraft.Runtime.Step`.
+- Slot Raft batched fanout must attempt every peer before returning a send error; one offline peer must not block quorum messages to healthy peers in the same batch.
 
 ### Local storage
 - `pkg/db` is the single local storage library: `message` owns channel logs and `meta` owns hash-slot metadata.
@@ -211,7 +212,7 @@
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
 - Prebuilt binaries passed through `WK_E2E_BINARY` must be built with `go build -tags=e2e`; tagged product substitutes remain dormant unless each scenario also supplies its explicit harness environment.
-- Backup data-node outage qualification uses three Slot replicas and two Channel replicas, stops a non-Controller-Leader Slot leader before capture completes, and keeps it offline while surviving nodes recover readiness and verify the exact restore point.
+- Backup sustained-outage qualification uses three Slot replicas and two Channel replicas, keeps either a Controller Leader/Slot leader or a non-Controller-Leader Slot leader offline, and requires surviving nodes to recover readiness and verify the exact restore point.
 
 ### Worktree testing
 - The chat Demo is embedded under the product API listener at `/demo/`; it defaults to the page origin for HTTP APIs and discovers WebSocket addresses through `/route`.

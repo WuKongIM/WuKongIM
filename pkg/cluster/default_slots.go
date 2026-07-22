@@ -153,16 +153,19 @@ func (t networkSlotTransport) Send(ctx context.Context, batch []multiraft.Envelo
 	if t.sender == nil {
 		return nil
 	}
+	var firstErr error
 	for nodeID, envelopes := range groupSlotRaftEnvelopes(batch) {
 		payload, err := encodeSlotRaftBatch(envelopes)
 		if err != nil {
 			return err
 		}
 		if err := clusternet.SendOwnedPayload(ctx, t.sender, nodeID, clusternet.MsgSlotRaftBatch, payload); err != nil {
-			return err
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 	}
-	return nil
+	return firstErr
 }
 
 func groupSlotRaftEnvelopes(batch []multiraft.Envelope) map[uint64][]multiraft.Envelope {

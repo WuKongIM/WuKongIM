@@ -143,6 +143,44 @@ func (m *ManagerClient) WaitBackupActive(t testing.TB, jobID string, timeout tim
 	return BackupJobDTO{}
 }
 
+// WaitBackupActiveOrPublished waits until the exact job is active or its restore point is published.
+func (m *ManagerClient) WaitBackupActiveOrPublished(t testing.TB, jobID, restorePointID string, timeout time.Duration) (*BackupJobDTO, *BackupRestorePointDTO) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var lastStatus BackupStatusDTO
+	var lastRestorePoints backupRestorePointListDTO
+	var lastErr error
+	for time.Now().Before(deadline) {
+		var currentStatus BackupStatusDTO
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, statusErr := GetJSON(ctx, m.baseURL+"/manager/backups/status", &currentStatus)
+		cancel()
+		lastStatus = currentStatus
+		if statusErr == nil && currentStatus.Active != nil && currentStatus.Active.ID == jobID && currentStatus.Active.RestorePointID == restorePointID {
+			active := *currentStatus.Active
+			return &active, nil
+		}
+
+		var currentRestorePoints backupRestorePointListDTO
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		_, restorePointsErr := GetJSON(ctx, m.baseURL+"/manager/backups/restore-points", &currentRestorePoints)
+		cancel()
+		lastRestorePoints = currentRestorePoints
+		if restorePointsErr == nil {
+			for _, point := range currentRestorePoints.Items {
+				if point.ID == restorePointID {
+					published := point
+					return nil, &published
+				}
+			}
+		}
+		lastErr = fmt.Errorf("status: %v; restore points: %v", statusErr, restorePointsErr)
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("backup job or restore point not observed: job_id=%s restore_point_id=%s active=%+v items=%+v err=%v\n%s", jobID, restorePointID, lastStatus.Active, lastRestorePoints.Items, lastErr, m.cluster.DumpDiagnostics())
+	return nil, nil
+}
+
 // WaitBackupRestorePointPublished waits for a healthy newly published restore point.
 func (m *ManagerClient) WaitBackupRestorePointPublished(t testing.TB, previousID, kind string, timeout time.Duration) BackupRestorePointDTO {
 	t.Helper()
@@ -223,4 +261,48 @@ func (c *StartedCluster) WaitControllerLeader(t testing.TB, nodeIDs []uint64, ex
 	}
 	t.Fatalf("controller leader not observed: nodes=%v excluded=%d last=%d err=%v\n%s", nodeIDs, excludedNodeID, lastLeader, lastErr, c.DumpDiagnostics())
 	return 0
+}
+
+// WaitBackupCoordinator waits for one node to expose the expected coordinator metrics.
+func (c *StartedCluster) WaitBackupCoordinator(t testing.TB, nodeID uint64, active bool, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	wantActive := 0.0
+	if active {
+		wantActive = 1
+	}
+	var lastLeader, lastActive float64
+	var lastErr error
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		leader, leaderErr := FetchMetricValue(ctx, c.MustNode(nodeID).APIAddr(), "wukongim_backup_controller_leader", nil)
+		cancel()
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		jobActive, activeErr := FetchMetricValue(ctx, c.MustNode(nodeID).APIAddr(), "wukongim_backup_job_active", nil)
+		cancel()
+		lastLeader, lastActive = leader, jobActive
+		if leaderErr == nil && activeErr == nil && leader == 1 && jobActive == wantActive {
+			return
+		}
+		lastErr = fmt.Errorf("leader metric: %v; active metric: %v", leaderErr, activeErr)
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("node %d backup coordinator did not reach leader=1 active=%v: leader=%v active=%v err=%v\n%s", nodeID, active, lastLeader, lastActive, lastErr, c.DumpDiagnostics())
+}
+
+// WaitNodesReady waits for every listed node to report public readiness.
+func (c *StartedCluster) WaitNodesReady(t testing.TB, nodeIDs []uint64, timeout time.Duration) {
+	t.Helper()
+	if c.lastReadyz == nil {
+		c.lastReadyz = make(map[uint64]HTTPObservation, len(nodeIDs))
+	}
+	for _, nodeID := range nodeIDs {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		observation, err := waitHTTPReadyDetailed(ctx, c.MustNode(nodeID).APIAddr(), "/readyz")
+		cancel()
+		c.lastReadyz[nodeID] = observation
+		if err != nil {
+			t.Fatalf("surviving node %d did not recover readiness: %v\n%s", nodeID, err, c.DumpDiagnostics())
+		}
+	}
 }
