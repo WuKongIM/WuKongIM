@@ -7,7 +7,7 @@ successor cluster.
 ## Run
 
 ```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 5m -p=1
+GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 8m -p=1
 ```
 
 ## Rules

@@ -173,7 +173,7 @@ failed restore.
 Run the process-level three-node drill with:
 
 ```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 5m -p=1
+GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 8m -p=1
 ```
 
 The scenario starts real `cmd/wukongim` processes, publishes a materialized
@@ -201,19 +201,19 @@ public readiness under the same three-Slot-replica/two-Channel-replica policy.
 Run the failover scenario alone with:
 
 ```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_failover -count=1 -timeout 3m -p=1
+GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_failover -count=1 -timeout 8m -p=1
 ```
 
 Run the sustained data-node outage scenario alone with:
 
 ```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/data_node_outage -count=1 -timeout 3m -p=1
+GOWORK=off go test -tags=e2e ./test/e2e/backup/data_node_outage -count=1 -timeout 8m -p=1
 ```
 
 Run the sustained Controller-Leader/data-node outage scenario alone with:
 
 ```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_outage -count=1 -timeout 3m -p=1
+GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_outage -count=1 -timeout 8m -p=1
 ```
 
 `.github/workflows/backup-qualification.yml` runs these backup scenarios every

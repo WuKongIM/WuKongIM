@@ -26,14 +26,14 @@ func TestThreeNodeBackupCompletesWhileDataNodeRemainsOffline(t *testing.T) {
 		)
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(options...)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), suite.BackupClusterReadyTimeout)
 	defer cancel()
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
 
 	nodeIDs := []uint64{1, 2, 3}
 	controllerLeader := cluster.WaitControllerLeader(t, nodeIDs, 0, 15*time.Second)
 	manager := cluster.ManagerClient(t, controllerLeader)
-	baseline := manager.WaitBackupRestorePointPublished(t, "", "materialized_full", 45*time.Second)
+	baseline := manager.WaitBackupRestorePointPublished(t, "", "materialized_full", suite.BackupPublicationTimeout)
 	triggerCtx, cancelTrigger := context.WithTimeout(context.Background(), 5*time.Second)
 	triggered, err := manager.TriggerBackup(triggerCtx, "incremental")
 	cancelTrigger()

@@ -8,7 +8,7 @@ declared Channel placement durability.
 ## Run
 
 ```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/data_node_outage -count=1 -timeout 3m -p=1
+GOWORK=off go test -tags=e2e ./test/e2e/backup/data_node_outage -count=1 -timeout 8m -p=1
 ```
 
 ## Rules

@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+const (
+	// BackupClusterReadyTimeout allows local clusters to start with other E2E packages.
+	BackupClusterReadyTimeout = 90 * time.Second
+	// BackupPublicationTimeout allows 64-partition local qualification to run with other E2E packages.
+	BackupPublicationTimeout = 90 * time.Second
+)
+
 // BackupStatusDTO is the public Manager backup status subset used by e2e scenarios.
 type BackupStatusDTO struct {
 	Health          string                 `json:"health"`

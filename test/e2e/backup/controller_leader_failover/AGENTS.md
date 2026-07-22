@@ -6,7 +6,7 @@ incremental backup job after a process failover and node rejoin.
 ## Run
 
 ```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_failover -count=1 -timeout 3m -p=1
+GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_failover -count=1 -timeout 8m -p=1
 ```
 
 ## Rules

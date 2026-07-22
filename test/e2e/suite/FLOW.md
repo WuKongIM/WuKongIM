@@ -6,7 +6,10 @@ HTTP helpers for real `cmd/wukongim` tests.
 ## Process lifecycle
 
 1. `Suite` allocates a test workspace, loopback ports, and a short independent
-   plugin socket root.
+   plugin socket root. Each `go test` process holds one sentinel listener for
+   its process-lifetime port block, so concurrently running E2E packages cannot
+   return overlapping listener addresses; individual addresses are still
+   probed before use to avoid unrelated host listeners.
 2. Config renderers write node TOML and derive the product environment.
 3. The default binary cache builds `cmd/wukongim` with the `e2e` build tag;
    tagged product substitutes remain dormant unless their separate explicit
@@ -59,4 +62,6 @@ scenario can explicitly override Channel replica count when its failure model
 requires a different placement-availability contract from the cluster default.
 Shared bounded polling also observes Controller leadership, backup-coordinator
 metrics, active-or-already-published backup continuation, and public readiness
-without exposing runtime internals to scenarios.
+without exposing runtime internals to scenarios. Shared cluster-readiness and
+64-partition publication timeouts absorb package-parallel CI load only; they
+are not product RPO, RTO, or performance qualification thresholds.

@@ -88,7 +88,7 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		)
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(options...)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), suite.BackupClusterReadyTimeout)
 	defer cancel()
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
 
@@ -320,7 +320,7 @@ func startRestoreCluster(t *testing.T, repositoryRoot string) *suite.StartedClus
 		)
 	}
 	target := suite.New(t).StartThreeNodeCluster(options...)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), suite.BackupClusterReadyTimeout)
 	defer cancel()
 	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
 		require.NoError(t, suite.WaitTCPReady(ctx, target.MustNode(nodeID).ManagerAddr()), target.DumpDiagnostics())
@@ -339,7 +339,7 @@ func restartActivatedCluster(t *testing.T, cluster *suite.StartedCluster) {
 	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
 		require.NoError(t, cluster.StartStoppedNode(nodeID), cluster.DumpDiagnostics())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), suite.BackupClusterReadyTimeout)
 	defer cancel()
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
 }
