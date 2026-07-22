@@ -20,7 +20,7 @@ def lower_hex($width):
 (.toolchain | keys | sort) == ["goroot", "gotoolchain", "path", "sha256", "tools", "version"] and
 .toolchain.gotoolchain == "local" and
 (.toolchain.path | type == "string" and length > 0) and
-(.toolchain.version | type == "string" and test("^go version go[^ ]+ (darwin|linux)/[^ ]+$")) and
+(.toolchain.version | type == "string" and test("^go version go1\\.25\\.11 (darwin|linux)/[^ ]+$")) and
 (.toolchain.sha256 | lower_hex(64)) and
 (.toolchain.goroot | keys | sort) == ["gohostarch", "gohostos", "path"] and
 (.toolchain.goroot.path | type == "string" and startswith("/")) and

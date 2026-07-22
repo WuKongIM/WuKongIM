@@ -14,6 +14,7 @@ OVERLAY_ADAPTER_TARGET="internal/app/zz_local_medium_rc_adapter_test.go"
 EQUIVALENCE_TEST='^TestLocalMediumRCWorkloadEquivalence$'
 ACTIVE_CHILD_PID=""
 ACTIVE_CHILD_PGID=""
+ACTIVE_CHILD_STATUS=""
 CHILD_LAUNCHING=0
 PENDING_INTERRUPT=""
 CHILD_TERM_GRACE_SECONDS=10
@@ -24,17 +25,45 @@ die() {
 }
 
 sha256() {
-  LC_ALL=C LANG=C shasum -a 256 "$1" | awk '{print $1}'
+  if command -v sha256sum >/dev/null 2>&1; then
+    LC_ALL=C LANG=C sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    LC_ALL=C LANG=C shasum -a 256 "$1" | awk '{print $1}'
+  else
+    die "sha256sum or shasum is required"
+  fi
+}
+
+require_commands() {
+  local command_name
+  for command_name in awk basename cmp dirname env git grep jq ln mkdir mktemp mv ps rm sleep uname; do
+    command -v "$command_name" >/dev/null 2>&1 || die "$command_name is required"
+  done
+  if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+    die "sha256sum or shasum is required"
+  fi
 }
 
 clear_active_child() {
   ACTIVE_CHILD_PID=""
   ACTIVE_CHILD_PGID=""
+  ACTIVE_CHILD_STATUS=""
 }
 
 process_group_exists() {
   local pgid="$1"
+  [[ -n "$pgid" ]] || return 1
   ps -Ao pgid=,stat= | awk -v pgid="$pgid" '$1 == pgid && $2 !~ /^Z/ {found = 1} END {exit !found}'
+}
+
+managed_child_leader_state() {
+  local pid="$1" observation parent pgid stat
+  observation="$(ps -p "$pid" -o ppid=,pgid=,stat= 2>/dev/null)" || return 1
+  read -r parent pgid stat <<<"$observation"
+  [[ -n "$parent" && -n "$pgid" && -n "$stat" && "$stat" != Z* ]] || return 1
+  [[ "$parent" == "$$" ]] || return 2
+  [[ "$pgid" == "$pid" ]] || return 3
+  return 0
 }
 
 clone_source() {
@@ -48,8 +77,9 @@ checkout_source() {
 }
 
 start_managed_child() {
-  local kind="$1" attempt pgid pending_interrupt
+  local kind="$1" attempt leader_state pending_interrupt rc
   shift
+  ACTIVE_CHILD_STATUS=""
   set -m
   CHILD_LAUNCHING=1
   "$@" &
@@ -62,31 +92,98 @@ start_managed_child() {
     interrupt_build "$pending_interrupt"
   fi
   for ((attempt = 0; attempt < 20; attempt++)); do
-    pgid="$(ps -p "$ACTIVE_CHILD_PID" -o pgid= 2>/dev/null | awk '{print $1}')"
-    if [[ "$pgid" == "$ACTIVE_CHILD_PID" ]]; then
-      ACTIVE_CHILD_PGID="$pgid"
-      return 0
-    fi
-    kill -0 "$ACTIVE_CHILD_PID" 2>/dev/null || break
-    sleep 0.05
+    leader_state=0
+    managed_child_leader_state "$ACTIVE_CHILD_PID" || leader_state=$?
+    case "$leader_state" in
+      0)
+        return 0
+        ;;
+      1)
+        rc=0
+        wait "$ACTIVE_CHILD_PID" || rc=$?
+        ACTIVE_CHILD_STATUS="$rc"
+        return 0
+        ;;
+      2)
+        rc=0
+        wait "$ACTIVE_CHILD_PID" || rc=$?
+        ACTIVE_CHILD_STATUS="$rc"
+        ACTIVE_CHILD_PID=""
+        ACTIVE_CHILD_PGID=""
+        return 0
+        ;;
+      3)
+        sleep 0.05
+        ;;
+      *)
+        die "could not inspect the $kind process-group leader"
+        ;;
+    esac
   done
-  kill -TERM "$ACTIVE_CHILD_PID" 2>/dev/null || true
-  wait "$ACTIVE_CHILD_PID" 2>/dev/null || true
-  clear_active_child
-  die "could not establish an isolated $kind process group"
+  leader_state=0
+  managed_child_leader_state "$ACTIVE_CHILD_PID" || leader_state=$?
+  case "$leader_state" in
+    0)
+      return 0
+      ;;
+    1)
+      rc=0
+      wait "$ACTIVE_CHILD_PID" || rc=$?
+      ACTIVE_CHILD_STATUS="$rc"
+      return 0
+      ;;
+    2)
+      rc=0
+      wait "$ACTIVE_CHILD_PID" || rc=$?
+      ACTIVE_CHILD_STATUS="$rc"
+      ACTIVE_CHILD_PID=""
+      ACTIVE_CHILD_PGID=""
+      return 0
+      ;;
+    3)
+      kill -TERM "$ACTIVE_CHILD_PID" 2>/dev/null || true
+      wait "$ACTIVE_CHILD_PID" 2>/dev/null || true
+      clear_active_child
+      die "could not establish an isolated $kind process group"
+      ;;
+    *)
+      die "could not inspect the $kind process-group leader"
+      ;;
+  esac
 }
 
 wait_managed_child() {
   local rc=0
-  wait "$ACTIVE_CHILD_PID" || rc=$?
-  clear_active_child
+  if [[ -n "$ACTIVE_CHILD_STATUS" ]]; then
+    rc="$ACTIVE_CHILD_STATUS"
+  else
+    wait "$ACTIVE_CHILD_PID" || rc=$?
+  fi
+  if process_group_exists "$ACTIVE_CHILD_PGID"; then
+    cleanup_active_child
+  else
+    clear_active_child
+  fi
   return "$rc"
 }
 
 cleanup_active_child() {
-  local attempt pgid
+  local attempt leader_state pgid
   [[ -n "$ACTIVE_CHILD_PGID" ]] || return 0
   pgid="$ACTIVE_CHILD_PGID"
+  leader_state=0
+  managed_child_leader_state "$ACTIVE_CHILD_PID" || leader_state=$?
+  if [[ "$leader_state" == "2" ]]; then
+    wait "$ACTIVE_CHILD_PID" 2>/dev/null || true
+    clear_active_child
+    return 0
+  fi
+  if [[ "$leader_state" == "3" ]]; then
+    kill -TERM "$ACTIVE_CHILD_PID" 2>/dev/null || true
+    wait "$ACTIVE_CHILD_PID" 2>/dev/null || true
+    clear_active_child
+    return 0
+  fi
   if process_group_exists "$pgid"; then
     kill -TERM -- "-$pgid" 2>/dev/null || true
   fi
@@ -137,6 +234,12 @@ interrupt_build() {
   exit "$exit_code"
 }
 
+# Lifecycle tests source the real managed-child state machine without entering
+# the build workflow or installing its process-level traps.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
+
 trap cleanup EXIT
 trap 'interrupt_build 130' INT
 trap 'interrupt_build 143' TERM
@@ -145,6 +248,10 @@ trap 'interrupt_build 129' HUP
 if [[ $# -ne 3 ]]; then
   die "usage: build-smoke.sh BASELINE_COMMIT CANDIDATE_COMMIT OUTPUT_DIR"
 fi
+
+require_commands
+go_launcher="${WK_LOCAL_RC_GO:-go}"
+go_launcher="$(command -v "$go_launcher")" || die "Go launcher not found"
 
 baseline_source="$(git -C "$ROOT_DIR" rev-parse --verify "$1^{commit}")" || die "baseline commit not found"
 candidate_source="$(git -C "$ROOT_DIR" rev-parse --verify "$2^{commit}")" || die "candidate commit not found"
@@ -184,7 +291,7 @@ done
 mkdir "$output_dir" || die "could not reserve output directory"
 STAGE_ROOT="$output_dir"
 mkdir -p "$STAGE_ROOT/bin" "$STAGE_ROOT/equivalence"
-WORK_ROOT="$(mktemp -d "${TMPDIR:-/private/tmp}/wk-local-medium-rc-smoke.XXXXXX")"
+WORK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/wk-local-medium-rc-smoke.XXXXXX")"
 WORK_ROOT="$(cd "$WORK_ROOT" && pwd -P)" || die "could not canonicalize work root"
 BASE_WORKTREE="$WORK_ROOT/baseline"
 CANDIDATE_WORKTREE="$WORK_ROOT/candidate"
@@ -197,21 +304,23 @@ wait_managed_child || die "could not check out baseline source"
 start_managed_child "candidate checkout" checkout_source "$CANDIDATE_WORKTREE" "$candidate_source"
 wait_managed_child || die "could not check out candidate source"
 
-go_launcher="${WK_LOCAL_RC_GO:-go}"
-go_launcher="$(command -v "$go_launcher")" || die "Go launcher not found"
-selected_go_root="$(cd "$CANDIDATE_WORKTREE" && env GOTOOLCHAIN=auto "$go_launcher" env GOROOT)" ||
+declared_go_version="$(awk '$1 == "toolchain" && NF == 2 {print $2; exit}' "$CANDIDATE_WORKTREE/go.mod")"
+[[ "$declared_go_version" =~ ^go[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "candidate Go toolchain declaration is invalid"
+selected_go_root="$(cd "$CANDIDATE_WORKTREE" && env GOWORK=off GOTOOLCHAIN="$declared_go_version" "$go_launcher" env GOROOT)" ||
   die "could not select the candidate repository Go toolchain"
 [[ -d "$selected_go_root" ]] || die "selected Go toolchain root is unavailable"
 selected_go_root="$(cd "$selected_go_root" && pwd -P)"
 go_tool="$selected_go_root/bin/go"
 [[ -f "$go_tool" && ! -L "$go_tool" && -x "$go_tool" ]] || die "selected Go tool is missing, symlinked, or not executable"
-go_version="$(env GOTOOLCHAIN=local "$go_tool" version)" || die "could not read local Go version"
+go_version="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" version)" || die "could not read local Go version"
 go_sha="$(sha256 "$go_tool")"
-go_root="$(env GOTOOLCHAIN=local "$go_tool" env GOROOT)" || die "could not read local GOROOT"
+actual_go_version="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" env GOVERSION)" || die "could not read local Go version identity"
+[[ "$actual_go_version" == "$declared_go_version" ]] || die "selected Go toolchain differs from candidate declaration"
+go_root="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" env GOROOT)" || die "could not read local GOROOT"
 [[ -d "$go_root" ]] || die "GOROOT is unavailable"
 go_root="$(cd "$go_root" && pwd -P)"
-go_host_os="$(env GOTOOLCHAIN=local "$go_tool" env GOHOSTOS)" || die "could not read local GOHOSTOS"
-go_host_arch="$(env GOTOOLCHAIN=local "$go_tool" env GOHOSTARCH)" || die "could not read local GOHOSTARCH"
+go_host_os="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" env GOHOSTOS)" || die "could not read local GOHOSTOS"
+go_host_arch="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" env GOHOSTARCH)" || die "could not read local GOHOSTARCH"
 go_tool_dir="$go_root/pkg/tool/${go_host_os}_${go_host_arch}"
 compile_tool="$go_tool_dir/compile"
 link_tool="$go_tool_dir/link"
@@ -294,7 +403,7 @@ build_variant() {
   grep -F "WKRC-EQUIVALENCE variant=$variant " "$output" >/dev/null ||
     die "$variant equivalence marker missing"
 
-  metadata="$(env GOTOOLCHAIN=local "$go_tool" version -m "$binary")" || die "could not read $variant binary metadata"
+  metadata="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" version -m "$binary")" || die "could not read $variant binary metadata"
   grep -F "vcs.revision=$source_sha" <<<"$metadata" >/dev/null || die "$variant binary revision mismatch"
   grep -F 'vcs.modified=false' <<<"$metadata" >/dev/null || die "$variant binary is marked modified"
   grep -F -- '-trimpath=true' <<<"$metadata" >/dev/null || die "$variant binary is not trimpath"

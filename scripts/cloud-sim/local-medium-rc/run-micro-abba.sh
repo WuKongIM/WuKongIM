@@ -161,14 +161,14 @@ metadata_value() {
 go_tool="$(jq -er '.toolchain.path' "$MANIFEST")"
 [[ -x "$go_tool" && ! -d "$go_tool" ]] || die "recorded Go tool is unavailable"
 [[ "$(sha256 "$go_tool")" == "$(jq -er '.toolchain.sha256' "$MANIFEST")" ]] || die "Go tool SHA-256 mismatch"
-[[ "$(env GOTOOLCHAIN=local "$go_tool" version)" == "$(jq -er '.toolchain.version' "$MANIFEST")" ]] || die "Go tool version mismatch"
+[[ "$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" version)" == "$(jq -er '.toolchain.version' "$MANIFEST")" ]] || die "Go tool version mismatch"
 verify_recorded_toolchain() {
   local actual_root host_os host_arch name expected_path actual_path expected_sha
-  actual_root="$(env GOTOOLCHAIN=local "$go_tool" env GOROOT)" || die "could not read recorded toolchain GOROOT"
+  actual_root="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" env GOROOT)" || die "could not read recorded toolchain GOROOT"
   [[ -d "$actual_root" ]] || die "recorded toolchain GOROOT is unavailable"
   actual_root="$(cd "$actual_root" && pwd -P)"
-  host_os="$(env GOTOOLCHAIN=local "$go_tool" env GOHOSTOS)" || die "could not read recorded toolchain GOHOSTOS"
-  host_arch="$(env GOTOOLCHAIN=local "$go_tool" env GOHOSTARCH)" || die "could not read recorded toolchain GOHOSTARCH"
+  host_os="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" env GOHOSTOS)" || die "could not read recorded toolchain GOHOSTOS"
+  host_arch="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" env GOHOSTARCH)" || die "could not read recorded toolchain GOHOSTARCH"
   [[ "$actual_root" == "$(jq -er '.toolchain.goroot.path' "$MANIFEST")" ]] || die "recorded toolchain GOROOT mismatch"
   [[ "$host_os" == "$(jq -er '.toolchain.goroot.gohostos' "$MANIFEST")" ]] || die "recorded toolchain GOHOSTOS mismatch"
   [[ "$host_arch" == "$(jq -er '.toolchain.goroot.gohostarch' "$MANIFEST")" ]] || die "recorded toolchain GOHOSTARCH mismatch"
@@ -187,7 +187,7 @@ BENCHMARK_REGEX="^(${AUTHORITY_BENCHMARK}|${OWNER_BENCHMARK})$"
 EXPECTED_BENCHMARKS="$(printf '%s\n%s\n' "$AUTHORITY_BENCHMARK" "$OWNER_BENCHMARK" | LC_ALL=C sort)"
 verify_binary_contract() {
   local variant="$1" binary="$2" source="$3" metadata listed embedded_go expected_go
-  metadata="$(env GOTOOLCHAIN=local "$go_tool" version -m "$binary")" || die "could not read $variant binary metadata"
+  metadata="$(env GOWORK=off GOTOOLCHAIN=local "$go_tool" version -m "$binary")" || die "could not read $variant binary metadata"
   embedded_go="$(awk 'NR == 1 {print $NF}' <<<"$metadata")"
   expected_go="$(awk '{print $3}' <<<"$(jq -er '.toolchain.version' "$MANIFEST")")"
   [[ "$embedded_go" == "$expected_go" ]] || die "$variant binary embedded Go version differs from build-smoke toolchain"

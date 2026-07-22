@@ -72,6 +72,15 @@ scripts/cloud-sim/local-medium-rc/build-smoke.sh \
   /tmp/wukongim-local-medium-rc-smoke
 ```
 
+The gate preflights Bash plus the external commands it uses: `awk`, `basename`,
+`cmp`, `dirname`, `env`, Git, `grep`, jq, `ln`, `mkdir`, `mktemp`, `mv`,
+`ps`, `rm`, `sleep`, `uname`, and either `sha256sum` or `shasum`. It also needs
+a Go launcher. It disables any parent `go.work`, selects the exact `toolchain`
+declared by the candidate `go.mod`, then pins that resolved toolchain for both
+revisions. If `go` is not on `PATH`, pass its absolute path with
+`WK_LOCAL_RC_GO=/path/to/go`. Temporary clones use `${TMPDIR}` when set and the
+portable `/tmp` default otherwise.
+
 This command never starts a server or a cloud workflow. It intentionally does
 not perform timing. A release-candidate ABBA executor must consume the two
 recorded binaries and hashes, keep the exact `A1/B1/B2/A2` order, apply clean

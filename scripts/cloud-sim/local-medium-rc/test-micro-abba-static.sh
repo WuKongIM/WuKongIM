@@ -110,7 +110,7 @@ jq -n '{
   equivalence:{baseline:{path:"equivalence/baseline.txt",sha256:("3"*64)},candidate:{path:"equivalence/candidate.txt",sha256:("4"*64)}}
 }' >"$manifest_fixture"
 jq -e -f "$SCRIPT_DIR/validate-build-smoke-manifest.jq" "$manifest_fixture" >/dev/null
-for tamper in unexpected_top_level missing_adapters missing_equivalence changed_overlay_path missing_baseline_lock changed_locked_baseline missing_compile relative_goroot wrong_toolchain_selection; do
+for tamper in unexpected_top_level missing_adapters missing_equivalence changed_overlay_path missing_baseline_lock changed_locked_baseline missing_compile relative_goroot wrong_toolchain_selection wrong_go_version; do
   case "$tamper" in
     unexpected_top_level) jq '.unreviewed = true' "$manifest_fixture" >"$manifest_fixture.fail" ;;
     missing_adapters) jq 'del(.adapters)' "$manifest_fixture" >"$manifest_fixture.fail" ;;
@@ -121,6 +121,7 @@ for tamper in unexpected_top_level missing_adapters missing_equivalence changed_
     missing_compile) jq 'del(.toolchain.tools.compile)' "$manifest_fixture" >"$manifest_fixture.fail" ;;
     relative_goroot) jq '.toolchain.goroot.path = "goroot"' "$manifest_fixture" >"$manifest_fixture.fail" ;;
     wrong_toolchain_selection) jq '.toolchain.gotoolchain = "auto"' "$manifest_fixture" >"$manifest_fixture.fail" ;;
+    wrong_go_version) jq '.toolchain.version = "go version go1.26.4 darwin/arm64"' "$manifest_fixture" >"$manifest_fixture.fail" ;;
   esac
   if jq -e -f "$SCRIPT_DIR/validate-build-smoke-manifest.jq" "$manifest_fixture.fail" >/dev/null 2>&1; then
     printf 'tampered build-smoke manifest unexpectedly passed: %s\n' "$tamper" >&2

@@ -33,6 +33,54 @@ func TestLocalMediumRCBuildSmokeLifecycle(t *testing.T) {
 		fixture.requireClean(t)
 	})
 
+	t.Run("uses the portable default temporary root", func(t *testing.T) {
+		fixture := newLocalMediumRCBuildFixture(t, false)
+		output := filepath.Join(filepath.Dir(fixture.root), "artifacts-default-tmp", "smoke")
+		command := fixture.command(output)
+		environment := make([]string, 0, len(command.Env)+1)
+		for _, entry := range command.Env {
+			if !strings.HasPrefix(entry, "TMPDIR=") {
+				environment = append(environment, entry)
+			}
+		}
+		command.Env = append(environment, "TMPDIR=")
+		if combined, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("build-smoke with default temporary root failed: %v\n%s", err, combined)
+		}
+		if _, err := os.Stat(filepath.Join(output, "build-smoke-manifest.json")); err != nil {
+			t.Fatalf("build-smoke manifest: %v", err)
+		}
+		mktempCalls, err := os.ReadFile(filepath.Join(fixture.toolRoot, "mktemp.calls"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(mktempCalls), "-d /tmp/wk-local-medium-rc-smoke.") {
+			t.Fatalf("build-smoke did not use the portable default temporary root:\n%s", mktempCalls)
+		}
+		fixture.requireOnlyPrimaryWorktree(t)
+		fixture.requireClean(t)
+	})
+
+	t.Run("rejects a launcher that selects the wrong Go toolchain", func(t *testing.T) {
+		fixture := newLocalMediumRCBuildFixture(t, false)
+		if err := os.WriteFile(filepath.Join(fixture.toolRoot, "wrong-go-version"), []byte("1\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		output := filepath.Join(filepath.Dir(fixture.root), "artifacts-wrong-go", "smoke")
+		combined, err := fixture.command(output).CombinedOutput()
+		if err == nil {
+			t.Fatalf("build-smoke unexpectedly accepted the wrong Go toolchain:\n%s", combined)
+		}
+		if !strings.Contains(string(combined), "selected Go toolchain differs from candidate declaration") {
+			t.Fatalf("unexpected wrong-toolchain failure:\n%s", combined)
+		}
+		if info, err := os.Stat(output + ".failed"); err != nil || !info.IsDir() {
+			t.Fatalf("wrong-toolchain evidence was not retained: info=%v err=%v", info, err)
+		}
+		fixture.requireOnlyPrimaryWorktree(t)
+		fixture.requireClean(t)
+	})
+
 	t.Run("rejects dangling placeholder symlink and retains failure", func(t *testing.T) {
 		fixture := newLocalMediumRCBuildFixture(t, true)
 		output := filepath.Join(filepath.Dir(fixture.root), "artifacts-symlink", "missing-parent", "smoke")
@@ -162,6 +210,115 @@ func TestLocalMediumRCBuildSmokeLifecycle(t *testing.T) {
 		fixture.requireOnlyPrimaryWorktree(t)
 		fixture.requireClean(t)
 	})
+
+	t.Run("preserves fast exit status and cleans leaderless group", func(t *testing.T) {
+		root := repoRoot(t)
+		buildScript := filepath.Join(root, "scripts", "cloud-sim", "local-medium-rc", "build-smoke.sh")
+		pidFile := filepath.Join(t.TempDir(), "descendant.pid")
+		testScript := `
+set -euo pipefail
+source "$1"
+
+# Force the pre-reaped branch deterministically instead of relying on the host
+# scheduler to retire these short-lived leaders before the first ps sample.
+managed_child_leader_state() { return 1; }
+start_managed_child "fast success" /bin/bash -c 'exit 0'
+wait_managed_child
+[[ -z "$ACTIVE_CHILD_PID" && -z "$ACTIVE_CHILD_PGID" && -z "$ACTIVE_CHILD_STATUS" ]]
+
+start_managed_child "fast failure" /bin/bash -c 'exit 23'
+set +e
+wait_managed_child
+rc=$?
+set -e
+[[ "$rc" == "23" ]]
+[[ -z "$ACTIVE_CHILD_PID" && -z "$ACTIVE_CHILD_PGID" && -z "$ACTIVE_CHILD_STATUS" ]]
+
+unset -f managed_child_leader_state
+source "$1"
+
+# A PID observed with a different parent is a reused identity. The stored child
+# status remains authoritative and no signal may target that numeric PID/PGID.
+KILL_MARKER="$3"
+managed_child_leader_state() { return 2; }
+kill() { : >"$KILL_MARKER"; return 0; }
+start_managed_child "reused pid" /bin/bash -c 'exit 37'
+set +e
+wait_managed_child
+rc=$?
+set -e
+[[ "$rc" == "37" ]]
+[[ ! -e "$KILL_MARKER" ]]
+unset -f managed_child_leader_state kill
+source "$1"
+
+start_managed_child "leaderless group" /bin/bash -c '
+  trap "" HUP
+  /bin/sleep 60 &
+  printf "%s\n" "$!" >"$1"
+  exit 29
+' _ "$2"
+set +e
+wait_managed_child
+rc=$?
+set -e
+[[ "$rc" == "29" ]]
+[[ -s "$2" ]]
+`
+		killMarker := filepath.Join(filepath.Dir(pidFile), "unexpected-kill")
+		command := exec.Command("/bin/bash", "-c", testScript, "managed-child-test", buildScript, pidFile, killMarker)
+		command.Dir = root
+		combined, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("managed-child state machine: %v\n%s", err, combined)
+		}
+		descendantPID := readLocalMediumRCPID(t, pidFile)
+		t.Cleanup(func() { _ = syscall.Kill(descendantPID, syscall.SIGKILL) })
+		requireLocalMediumRCProcessGone(t, descendantPID)
+	})
+
+	t.Run("preflights commands and supports shasum-only hosts", func(t *testing.T) {
+		root := repoRoot(t)
+		buildScript := filepath.Join(root, "scripts", "cloud-sim", "local-medium-rc", "build-smoke.sh")
+		fixtureRoot := t.TempDir()
+		binDir := filepath.Join(fixtureRoot, "bin")
+		if err := os.MkdirAll(binDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		awkPath, err := exec.LookPath("awk")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(awkPath, filepath.Join(binDir, "awk")); err != nil {
+			t.Fatal(err)
+		}
+		fakeDigest := strings.Repeat("a", 64)
+		writeLocalMediumRCFile(t, filepath.Join(binDir, "shasum"), []byte("#!/bin/bash\nprintf '"+fakeDigest+"  fixture\\n'\n"), 0o755)
+		input := filepath.Join(fixtureRoot, "input")
+		writeLocalMediumRCFile(t, input, []byte("fixture\n"), 0o600)
+		testScript := `
+set -euo pipefail
+source "$1"
+original_path="$PATH"
+PATH="$2"
+[[ "$(sha256 "$3")" == "$4" ]]
+PATH="$original_path"
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then return 1; fi
+  builtin command "$@"
+}
+set +e
+failure="$( (require_commands) 2>&1 )"
+rc=$?
+set -e
+[[ "$rc" != "0" && "$failure" == *"jq is required"* ]]
+`
+		command := exec.Command("/bin/bash", "-c", testScript, "environment-test", buildScript, binDir, input, fakeDigest)
+		command.Dir = root
+		if combined, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("environment capability state machine: %v\n%s", err, combined)
+		}
+	})
 }
 
 type localMediumRCBuildFixture struct {
@@ -185,8 +342,9 @@ func newLocalMediumRCBuildFixture(t *testing.T, danglingPlaceholder bool) localM
 	runLocalMediumRCGit(t, root, "config", "user.email", "local-medium-rc@example.invalid")
 	runLocalMediumRCGit(t, root, "config", "user.name", "Local Medium RC")
 	writeLocalMediumRCFile(t, filepath.Join(root, "README.md"), []byte("baseline\n"), 0o644)
+	writeLocalMediumRCFile(t, filepath.Join(root, "go.mod"), []byte("module example.invalid/local-medium-rc\n\ngo 1.25.0\n\ntoolchain go1.25.11\n"), 0o644)
 	writeLocalMediumRCFile(t, filepath.Join(root, "internal", "app", "app.go"), []byte("package app\n"), 0o644)
-	runLocalMediumRCGit(t, root, "add", "README.md", "internal/app/app.go")
+	runLocalMediumRCGit(t, root, "add", "README.md", "go.mod", "internal/app/app.go")
 	runLocalMediumRCGit(t, root, "commit", "-q", "-m", "baseline")
 	baseline := strings.TrimSpace(runLocalMediumRCGit(t, root, "rev-parse", "HEAD"))
 
@@ -288,9 +446,17 @@ func writeLocalMediumRCFakeToolchain(t *testing.T, root string) {
 set -euo pipefail
 tool_root="$(cd "$(dirname "$0")/.." && pwd -P)"
 case "${1:-}" in
-  env)
-    case "${2:-}" in
-      GOROOT) printf '%s\n' "$tool_root" ;;
+	  env)
+	    [[ "${GOWORK:-}" == off ]] || { printf 'GOWORK must be off for toolchain selection\n' >&2; exit 17; }
+	    if [[ "$PWD" == */candidate && "${2:-}" == GOROOT && "${GOTOOLCHAIN:-}" != go1.25.11 ]]; then
+	      printf 'candidate toolchain selection was not pinned: %s\n' "${GOTOOLCHAIN:-}" >&2
+	      exit 18
+	    fi
+	    case "${2:-}" in
+	      GOROOT) printf '%s\n' "$tool_root" ;;
+	      GOVERSION)
+	        if [[ -f "$tool_root/wrong-go-version" ]]; then printf 'go1.25.10\n'; else printf 'go1.25.11\n'; fi
+	        ;;
       GOHOSTOS) printf 'linux\n' ;;
       GOHOSTARCH) printf 'arm64\n' ;;
       *) exit 2 ;;
@@ -387,8 +553,15 @@ if [[ "${1:-}" == clone && -f "$tool_root/block-clone" ]]; then
 fi
 exec /usr/bin/git "$@"
 `
+	mktempTool := `#!/bin/bash
+set -euo pipefail
+tool_root="$(cd "$(dirname "$0")/.." && pwd -P)"
+printf '%s\n' "$*" >>"$tool_root/mktemp.calls"
+exec /usr/bin/mktemp "$@"
+`
 	writeLocalMediumRCFile(t, filepath.Join(root, "bin", "go"), []byte(goTool), 0o755)
 	writeLocalMediumRCFile(t, filepath.Join(root, "bin", "git"), []byte(gitTool), 0o755)
+	writeLocalMediumRCFile(t, filepath.Join(root, "bin", "mktemp"), []byte(mktempTool), 0o755)
 	writeLocalMediumRCFile(t, filepath.Join(root, "fake-test-binary"), []byte(fakeBinary), 0o755)
 	for _, name := range []string{"compile", "link", "asm"} {
 		writeLocalMediumRCFile(t, filepath.Join(root, "pkg", "tool", "linux_arm64", name), []byte("#!/bin/sh\nexit 0\n"), 0o755)
