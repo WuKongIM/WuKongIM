@@ -37,6 +37,16 @@ process_group_exists() {
   ps -Ao pgid=,stat= | awk -v pgid="$pgid" '$1 == pgid && $2 !~ /^Z/ {found = 1} END {exit !found}'
 }
 
+clone_source() {
+  local destination="$1"
+  exec git clone --quiet --shared --no-checkout "$ROOT_DIR" "$destination"
+}
+
+checkout_source() {
+  local source_tree="$1" source_sha="$2"
+  exec git -C "$source_tree" checkout --quiet --detach "$source_sha"
+}
+
 start_managed_child() {
   local kind="$1" attempt pgid pending_interrupt
   shift
@@ -101,12 +111,6 @@ cleanup_active_child() {
 
 cleanup() {
   cleanup_active_child
-  if [[ -n "${BASE_WORKTREE:-}" && -d "$BASE_WORKTREE" ]]; then
-    git -C "$ROOT_DIR" worktree remove --force "$BASE_WORKTREE" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${CANDIDATE_WORKTREE:-}" && -d "$CANDIDATE_WORKTREE" ]]; then
-    git -C "$ROOT_DIR" worktree remove --force "$CANDIDATE_WORKTREE" >/dev/null 2>&1 || true
-  fi
   [[ -z "${WORK_ROOT:-}" || ! -d "$WORK_ROOT" ]] || rm -rf "$WORK_ROOT"
   if [[ -n "${STAGE_ROOT:-}" && -d "$STAGE_ROOT" ]]; then
     if [[ -n "${failed_output_dir:-}" && ! -e "$failed_output_dir" && ! -L "$failed_output_dir" ]]; then
@@ -184,8 +188,14 @@ WORK_ROOT="$(mktemp -d "${TMPDIR:-/private/tmp}/wk-local-medium-rc-smoke.XXXXXX"
 WORK_ROOT="$(cd "$WORK_ROOT" && pwd -P)" || die "could not canonicalize work root"
 BASE_WORKTREE="$WORK_ROOT/baseline"
 CANDIDATE_WORKTREE="$WORK_ROOT/candidate"
-git -C "$ROOT_DIR" worktree add --detach "$BASE_WORKTREE" "$baseline_source" >/dev/null
-git -C "$ROOT_DIR" worktree add --detach "$CANDIDATE_WORKTREE" "$candidate_source" >/dev/null
+start_managed_child "baseline clone" clone_source "$BASE_WORKTREE"
+wait_managed_child || die "could not clone baseline source"
+start_managed_child "candidate clone" clone_source "$CANDIDATE_WORKTREE"
+wait_managed_child || die "could not clone candidate source"
+start_managed_child "baseline checkout" checkout_source "$BASE_WORKTREE" "$baseline_source"
+wait_managed_child || die "could not check out baseline source"
+start_managed_child "candidate checkout" checkout_source "$CANDIDATE_WORKTREE" "$candidate_source"
+wait_managed_child || die "could not check out candidate source"
 
 go_launcher="${WK_LOCAL_RC_GO:-go}"
 go_launcher="$(command -v "$go_launcher")" || die "Go launcher not found"
@@ -226,7 +236,8 @@ compile_test_binary() {
   local worktree="$1" overlay="$2" binary="$3"
   cd "$worktree"
   exec env -i PATH="$(dirname "$go_tool"):/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" LANG=C LC_ALL=C TZ=UTC \
-    GOWORK=off GOTOOLCHAIN=local "$go_tool" test -c -trimpath -overlay "$overlay" -o "$binary" ./internal/app
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=status.showUntrackedFiles GIT_CONFIG_VALUE_0=no \
+    GOWORK=off GOTOOLCHAIN=local "$go_tool" test -c -buildvcs=true -trimpath -overlay "$overlay" -o "$binary" ./internal/app
 }
 
 run_equivalence_binary() {

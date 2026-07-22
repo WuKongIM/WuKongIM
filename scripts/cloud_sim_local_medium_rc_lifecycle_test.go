@@ -54,7 +54,7 @@ func TestLocalMediumRCBuildSmokeLifecycle(t *testing.T) {
 		fixture.requireClean(t)
 	})
 
-	t.Run("term cleans detached worktrees and retains failure", func(t *testing.T) {
+	t.Run("term cleans compile process group and isolated clones", func(t *testing.T) {
 		fixture := newLocalMediumRCBuildFixture(t, false)
 		if err := os.WriteFile(filepath.Join(fixture.toolRoot, "sleep"), []byte("1\n"), 0o600); err != nil {
 			t.Fatal(err)
@@ -110,6 +110,58 @@ func TestLocalMediumRCBuildSmokeLifecycle(t *testing.T) {
 		fixture.requireOnlyPrimaryWorktree(t)
 		fixture.requireClean(t)
 	})
+
+	t.Run("term cleans clone process group and partial clone", func(t *testing.T) {
+		fixture := newLocalMediumRCBuildFixture(t, false)
+		if err := os.WriteFile(filepath.Join(fixture.toolRoot, "block-clone"), []byte("1\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		output := filepath.Join(filepath.Dir(fixture.root), "artifacts-clone-signal", "signal", "smoke")
+		command := fixture.command(output)
+		command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		var combined bytes.Buffer
+		command.Stdout = &combined
+		command.Stderr = &combined
+		if err := command.Start(); err != nil {
+			t.Fatal(err)
+		}
+		started := filepath.Join(fixture.toolRoot, "clone-started")
+		deadline := time.Now().Add(10 * time.Second)
+		for {
+			if _, err := os.Stat(started); err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+				_ = command.Wait()
+				t.Fatalf("fake clone did not start:\n%s", combined.String())
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		fakeGitPID := readLocalMediumRCPID(t, filepath.Join(fixture.toolRoot, "fake-git.pid"))
+		cloneSleepPID := readLocalMediumRCPID(t, filepath.Join(fixture.toolRoot, "clone-sleep.pid"))
+		if err := command.Process.Signal(syscall.SIGTERM); err != nil {
+			t.Fatal(err)
+		}
+		waited := make(chan error, 1)
+		go func() { waited <- command.Wait() }()
+		select {
+		case err := <-waited:
+			if err == nil {
+				t.Fatalf("TERM during clone unexpectedly succeeded:\n%s", combined.String())
+			}
+		case <-time.After(10 * time.Second):
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+			t.Fatal("TERM during clone did not exit within 10 seconds")
+		}
+		if info, err := os.Stat(output + ".failed"); err != nil || !info.IsDir() {
+			t.Fatalf("clone interruption evidence was not retained: info=%v err=%v\n%s", info, err, combined.String())
+		}
+		requireLocalMediumRCProcessGone(t, fakeGitPID)
+		requireLocalMediumRCProcessGone(t, cloneSleepPID)
+		fixture.requireOnlyPrimaryWorktree(t)
+		fixture.requireClean(t)
+	})
 }
 
 type localMediumRCBuildFixture struct {
@@ -119,6 +171,7 @@ type localMediumRCBuildFixture struct {
 	buildScript   string
 	goTool        string
 	toolRoot      string
+	scratchRoot   string
 	outsideTarget string
 }
 
@@ -178,6 +231,10 @@ func newLocalMediumRCBuildFixture(t *testing.T, danglingPlaceholder bool) localM
 
 	toolRoot := filepath.Join(filepath.Dir(root), "fake-go")
 	writeLocalMediumRCFakeToolchain(t, toolRoot)
+	scratchRoot := filepath.Join(filepath.Dir(root), "scratch")
+	if err := os.MkdirAll(scratchRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	return localMediumRCBuildFixture{
 		root:          root,
 		baseline:      baseline,
@@ -185,6 +242,7 @@ func newLocalMediumRCBuildFixture(t *testing.T, danglingPlaceholder bool) localM
 		buildScript:   filepath.Join(destinationDir, "build-smoke.sh"),
 		goTool:        filepath.Join(toolRoot, "bin", "go"),
 		toolRoot:      toolRoot,
+		scratchRoot:   scratchRoot,
 		outsideTarget: outsideTarget,
 	}
 }
@@ -192,7 +250,7 @@ func newLocalMediumRCBuildFixture(t *testing.T, danglingPlaceholder bool) localM
 func (f localMediumRCBuildFixture) command(output string) *exec.Cmd {
 	command := exec.Command("/bin/bash", f.buildScript, f.baseline, f.candidate, output)
 	command.Dir = f.root
-	command.Env = append(os.Environ(), "WK_LOCAL_RC_GO="+f.goTool)
+	command.Env = append(os.Environ(), "WK_LOCAL_RC_GO="+f.goTool, "TMPDIR="+f.scratchRoot, "PATH="+filepath.Join(f.toolRoot, "bin")+":"+os.Getenv("PATH"))
 	return command
 }
 
@@ -207,6 +265,13 @@ func (f localMediumRCBuildFixture) requireOnlyPrimaryWorktree(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("worktree count = %d, want 1\n%s", count, listing)
+	}
+	entries, err := os.ReadDir(f.scratchRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("temporary source clones were retained: %v", entries)
 	}
 }
 
@@ -246,6 +311,7 @@ case "${1:-}" in
   test)
     output=""
     overlay=""
+    buildvcs=""
     while (($#)); do
       if [[ "$1" == "-o" ]]; then
         output="$2"
@@ -257,10 +323,15 @@ case "${1:-}" in
         shift 2
         continue
       fi
+      if [[ "$1" == "-buildvcs=true" ]]; then
+        buildvcs=true
+      fi
       shift
     done
     [[ -n "$output" ]] || { printf 'missing output argument\n' >&2; exit 2; }
     [[ -f "$overlay" && ! -L "$overlay" ]] || { printf 'invalid overlay: %s\n' "$overlay" >&2; exit 2; }
+    [[ "$buildvcs" == true ]] || { printf 'buildvcs was not required\n' >&2; exit 2; }
+    [[ "${GIT_CONFIG_COUNT:-}" == 1 && "${GIT_CONFIG_KEY_0:-}" == status.showUntrackedFiles && "${GIT_CONFIG_VALUE_0:-}" == no ]] || { printf 'untracked-only placeholder VCS policy absent\n' >&2; exit 2; }
     common_target="$PWD/internal/app/zz_local_medium_rc_workload_test.go"
     adapter_target="$PWD/internal/app/zz_local_medium_rc_adapter_test.go"
     [[ -f "$common_target" && ! -L "$common_target" && ! -s "$common_target" ]] || { printf 'invalid common placeholder: %s\n' "$common_target" >&2; exit 2; }
@@ -303,7 +374,21 @@ printf '    fixture: WKRC-EQUIVALENCE variant=%s physical_hash_slots=256 logical
 printf '%s\n' '--- PASS: TestLocalMediumRCWorkloadEquivalence (0.00s)'
 printf 'PASS\n'
 `
+	gitTool := `#!/bin/bash
+set -euo pipefail
+tool_root="$(cd "$(dirname "$0")/.." && pwd -P)"
+if [[ "${1:-}" == clone && -f "$tool_root/block-clone" ]]; then
+  printf '%s\n' "$$" >"$tool_root/fake-git.pid"
+  /bin/sleep 60 &
+  sleep_pid="$!"
+  printf '%s\n' "$sleep_pid" >"$tool_root/clone-sleep.pid"
+  : >"$tool_root/clone-started"
+  wait "$sleep_pid"
+fi
+exec /usr/bin/git "$@"
+`
 	writeLocalMediumRCFile(t, filepath.Join(root, "bin", "go"), []byte(goTool), 0o755)
+	writeLocalMediumRCFile(t, filepath.Join(root, "bin", "git"), []byte(gitTool), 0o755)
 	writeLocalMediumRCFile(t, filepath.Join(root, "fake-test-binary"), []byte(fakeBinary), 0o755)
 	for _, name := range []string{"compile", "link", "asm"} {
 		writeLocalMediumRCFile(t, filepath.Join(root, "pkg", "tool", "linux_arm64", name), []byte("#!/bin/sh\nexit 0\n"), 0o755)

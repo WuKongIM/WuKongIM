@@ -14,26 +14,32 @@ fixtures into the baseline.
 - `baseline-lock.json` freezes the released failed Cloud Medium run and exact
   source SHA used as the baseline. The lock is part of the candidate commit;
   build, run, and evaluation all reject a caller-selected alternate ancestor.
-- `build-smoke.sh` compiles each adapter only against its declared revision,
-  runs the same equivalence test in both binaries, and records the common
-  workload hash plus separate adapter and binary hashes. It also records and
-  hashes the Go binary selected from the exact candidate worktree, canonical
-  GOROOT, and the actual compile, link, and asm tools used by the build. Once
+- `build-smoke.sh` compiles each adapter only against its declared revision in
+  an isolated local clone, runs the same equivalence test in both binaries, and
+  records the common workload hash plus separate adapter and binary hashes.
+  The clones share immutable Git objects with the source repository; unlike
+  linked worktrees, they let Go stamp exact revision/modified metadata into the
+  test binaries. The script also records and hashes the Go binary selected from
+  the exact candidate clone, canonical GOROOT, and the actual compile, link,
+  and asm tools used by the build. Once
   selected, the build uses `GOTOOLCHAIN=local` so no different toolchain can be
   chosen underneath either revision. Because Go overlays only replace files
   already discovered by the package loader, the script creates two fixed empty
-  test placeholders inside each detached worktree, compiles through the
-  overlay, removes the placeholders, and then proves the worktree is clean.
-  The temporary worktree root is canonicalized with `pwd -P` before overlay
+  test placeholders inside each isolated clone, compiles through the overlay,
+  removes the placeholders, and then proves the clone is clean.
+  The temporary clone root is canonicalized with `pwd -P` before overlay
   keys are generated so macOS `/var` -> `/private/var` aliases cannot bypass
   replacement.
   Placeholders are created with a host-specific no-dereference hard-link
   operation that rejects existing files and symlinks. The output directory is
-  atomically reserved before detached worktrees are created, so concurrent
+  atomically reserved before isolated clones are created, so concurrent
   invocations cannot nest or overwrite a completed result. Failed or
   interrupted build/equivalence artifacts are retained at `OUTPUT_DIR.failed`.
   Long-running build and equivalence commands run in isolated process groups;
   signal cleanup terminates and reaps the whole group before moving evidence.
+  Test compilation requires Go VCS stamping. The build hides only the two
+  untracked placeholder files from Git status while stamping; the subsequent
+  clean-worktree check and manifest-bound overlay hashes remain authoritative.
 - `run-micro-abba.sh` consumes only that manifest and those two binaries. It
   runs the exact `A1/B1/B2/A2` timing order after a clean-host check before
   every leg and a minimum 120-second cooldown between legs.
