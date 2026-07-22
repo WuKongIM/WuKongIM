@@ -16,9 +16,10 @@ const (
 	postCommitRetryTurnOverloaded
 )
 
-// postCommitHandoff bounds the number of durable messages that own unfinished
-// post-commit work. A reservation is acquired before append and released only
-// after append fails or one terminal post-commit attempt completes.
+// postCommitHandoff bounds append-bound messages across pending append, append
+// execution, and unfinished durable post-commit work. A reservation is acquired
+// before append and released after append fails or one terminal post-commit
+// attempt completes.
 type postCommitHandoff struct {
 	capacity int64
 	used     atomic.Int64

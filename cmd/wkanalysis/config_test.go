@@ -83,6 +83,30 @@ func TestDefaultMetricQueriesExcludeZeroCapacityRuntimeQueues(t *testing.T) {
 	}
 }
 
+func TestDefaultMetricQueriesIncludeRecipientDeliveryAndPostCommitEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	want := map[string]string{
+		"delivery_recipient_worker_queue_depth":                   `max by (instance, node_name) (wukongim_delivery_recipient_worker_queue_depth{job="wukongim"})`,
+		"delivery_recipient_worker_queue_capacity":                `max by (instance, node_name) (wukongim_delivery_recipient_worker_queue_capacity{job="wukongim"})`,
+		"delivery_recipient_worker_inflight":                      `max by (instance, node_name) (wukongim_delivery_recipient_worker_inflight{job="wukongim"})`,
+		"delivery_recipient_worker_capacity":                      `max by (instance, node_name) (wukongim_delivery_recipient_worker_capacity{job="wukongim"})`,
+		"delivery_recipient_worker_admission_cumulative":          `sum by (instance, node_name, result) (wukongim_delivery_recipient_worker_admission_total{job="wukongim"})`,
+		"delivery_recipient_worker_admission_wait_p99":            `histogram_quantile(0.99, sum by (instance, node_name, result, le) (rate(wukongim_delivery_recipient_worker_admission_wait_seconds_bucket{job="wukongim"}[1m])))`,
+		"delivery_recipient_worker_process_cumulative":            `sum by (instance, node_name, result) (wukongim_delivery_recipient_worker_process_total{job="wukongim"})`,
+		"delivery_recipient_worker_process_p99":                   `histogram_quantile(0.99, sum by (instance, node_name, result, le) (rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{job="wukongim"}[1m])))`,
+		"delivery_recipient_worker_process_recipients_cumulative": `sum by (instance, node_name, result) (wukongim_delivery_recipient_worker_process_recipients_sum{job="wukongim"})`,
+		"channelappend_post_commit_handoff_depth":                 `max by (instance, node_name) (wukongim_channelappend_post_commit_handoff_depth{job="wukongim"})`,
+		"channelappend_post_commit_handoff_capacity":              `max by (instance, node_name) (wukongim_channelappend_post_commit_handoff_capacity{job="wukongim"})`,
+		"channelappend_post_commit_retry_queue_depth":             `max by (instance, node_name) (wukongim_channelappend_post_commit_retry_queue_depth{job="wukongim"})`,
+		"channelappend_post_commit_retry_contended":               `max by (instance, node_name) (wukongim_channelappend_post_commit_retry_contended{job="wukongim"})`,
+	}
+	for id, query := range want {
+		if queries[id] != query {
+			t.Fatalf("metric query %q = %q, want %q", id, queries[id], query)
+		}
+	}
+}
+
 func TestDefaultMetricQueriesIncludeConversationActiveConservationEvidence(t *testing.T) {
 	queries := defaultMetricQueries()
 	wantIDs := []string{

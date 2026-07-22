@@ -48,6 +48,19 @@ allocations since process start. Other caller-selected sample types are rejected
 - `storage_commit_request_p99`
 - `storage_commit_batch_stage_p99`
 - `delivery_retry_queue_depth`
+- `delivery_recipient_worker_queue_depth`
+- `delivery_recipient_worker_queue_capacity`
+- `delivery_recipient_worker_inflight`
+- `delivery_recipient_worker_capacity`
+- `delivery_recipient_worker_admission_cumulative`
+- `delivery_recipient_worker_admission_wait_p99`
+- `delivery_recipient_worker_process_cumulative`
+- `delivery_recipient_worker_process_p99`
+- `delivery_recipient_worker_process_recipients_cumulative`
+- `channelappend_post_commit_handoff_depth`
+- `channelappend_post_commit_handoff_capacity`
+- `channelappend_post_commit_retry_queue_depth`
+- `channelappend_post_commit_retry_contended`
 - `process_cpu_rate`
 - `process_resident_memory`
 - `go_goroutines`
@@ -94,6 +107,26 @@ allocations since process start. Other caller-selected sample types are rejected
 - `slot_runtime_queue_pressure`
 - `slot_preferred_leader_reconcile_rate`
 - `slot_preferred_leader_strict_wait_p99`
+
+Recipient-worker and post-commit queries preserve `instance` and `node_name`.
+Admission/process cumulative and P99 queries additionally preserve the bounded
+`result` label; latency P99 values are seconds. Read accepted admission-wait P99
+for saturation and `ok` process P99 for normal command latency. With unchanged
+process start time and quiescent bracketing endpoint samples at a coarse step,
+define backlog as queue depth plus in-flight commands and check
+`accepted_delta - processed_delta = backlog_end - backlog_start`; admission
+uses only `result="accepted"` while process sums every terminal result. Exact
+conservation additionally requires queue/in-flight gauges and accepted/process
+counters to remain unchanged across adjacent scrapes around each endpoint.
+Counter and gauge updates are not one atomic scrape, so active, incomplete, or
+unbracketed endpoints must remain approximate or unknown. The recipient cumulative query counts planned or attempted recipients,
+not commands or proven successful online deliveries.
+Missing result series and counter resets also remain unknown rather than zero.
+Handoff depth counts reservations spanning pending append, append in-flight,
+and durable post-commit items; depth alone cannot identify which phase is
+pressured. Saturation can reject a not-yet-appended item with `ErrChannelBusy`.
+Retry depth counts waiting channel writers and excludes the selected retry-turn
+owner; retry depth can be zero while contended remains one.
 
 Storage and Slot drilldown queries preserve `instance` and `node_name` while
 aggregating away individual Slot IDs. Preferred-leader queries additionally

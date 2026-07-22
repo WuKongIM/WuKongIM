@@ -18,8 +18,11 @@ MCP tool input
 
 Metrics select server-owned query IDs rather than accepting PromQL, including
 per-node memory, OOM counters, process start times, active gateway connections,
-active channels, and data-disk used bytes for process-continuity guards and
-bounded storage-growth calibration. Logs and
+active channels, recipient-delivery queue/execution/conservation pressure,
+channel-append post-commit handoff/retry pressure, and data-disk used bytes for
+process-continuity guards and bounded storage-growth calibration. These
+delivery queries preserve only bounded node and result dimensions, never UID,
+channel, authority-target, or Slot labels. Logs and
 diagnostics use fixed private API selectors and opaque cursors. A diagnostics
 query can combine an exact physical `slot_id` with the stable PreferredLeader
 reconciliation stage without widening Prometheus label cardinality. Those

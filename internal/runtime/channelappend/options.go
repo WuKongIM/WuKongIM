@@ -125,9 +125,9 @@ type WriterPressureObservation struct {
 	AppendInflightItems int
 	// PostCommitBacklog is the total committed post-commit backlog count.
 	PostCommitBacklog int
-	// PostCommitHandoffDepth is the number of durable messages that currently own a post-commit reservation.
+	// PostCommitHandoffDepth is the number of messages owning a reservation across pending append, append execution, and durable post-commit work.
 	PostCommitHandoffDepth int
-	// PostCommitHandoffCapacity is the configured durable-message reservation capacity.
+	// PostCommitHandoffCapacity is the configured append-bound message reservation capacity.
 	PostCommitHandoffCapacity int
 	// PostCommitRetryQueueDepth is the number of de-duplicated channel writers waiting in the retry FIFO.
 	PostCommitRetryQueueDepth int
@@ -407,7 +407,7 @@ type Options struct {
 	AdmissionCapacityPerShard int
 	// ChannelBacklogHighWatermark bounds per-channel foreground append admission. Values <= 0 use a bounded default.
 	ChannelBacklogHighWatermark int
-	// PostCommitHandoffCapacity globally bounds durable messages whose required post-commit work has not reached a terminal attempt. Admission reserves one slot before append so an acknowledged durable message is never dropped between append and post-commit scheduling. Values <= 0 derive a capacity from the foreground backlog and effect-pool batch throughput.
+	// PostCommitHandoffCapacity globally bounds append-bound messages across pending append, append execution, and required durable post-commit work. Admission reserves one slot before append so an acknowledged durable message is never dropped between append and post-commit scheduling. Values <= 0 derive a capacity from the foreground backlog and effect-pool batch throughput.
 	PostCommitHandoffCapacity int
 	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use the runtime default.
 	AppendInflightBatchesPerChannel int
