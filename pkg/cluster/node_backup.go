@@ -224,7 +224,10 @@ func (n *Node) InstallRestoreChannelRuntimeMeta(ctx context.Context, hashSlot ui
 	if len(boundaries) == 0 {
 		return nil
 	}
-	placement := channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, int(n.cfg.Channel.ReplicaCount))
+	placement, err := n.restoreChannelPlacement(hashSlot)
+	if err != nil {
+		return err
+	}
 	batch := n.defaultSlotMetaDB.NewWriteBatch()
 	defer func() { _ = batch.Close() }()
 	seen := make(map[channelruntime.ChannelID]struct{}, len(boundaries))
@@ -291,7 +294,14 @@ func (n *Node) VerifyLocalRestorePartition(ctx context.Context, hashSlot uint16,
 		}
 	}
 	cuts := make([]channelstore.BackupChannelCut, len(boundaries))
-	placement := channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, int(n.cfg.Channel.ReplicaCount))
+	var placement *channels.SlotPlacementResolver
+	if len(boundaries) > 0 {
+		var err error
+		placement, err = n.restoreChannelPlacement(hashSlot)
+		if err != nil {
+			return err
+		}
+	}
 	for index, boundary := range boundaries {
 		expected, id, err := n.buildRestoreChannelRuntimeMeta(ctx, hashSlot, boundary, placement)
 		if err != nil {
@@ -339,6 +349,29 @@ func (n *Node) buildRestoreChannelRuntimeMeta(ctx context.Context, hashSlot uint
 		Status: uint8(channelruntime.StatusActive), RetentionThroughSeq: boundary.LogStartOffset,
 	})
 	return meta, id, nil
+}
+
+type restoreSlotDataNodes []uint64
+
+func (n restoreSlotDataNodes) DataNodes() []uint64 {
+	return append([]uint64(nil), n...)
+}
+
+// restoreChannelPlacement keeps restored Channel replicas on the physical
+// Slot replicas that received the partition. Normal runtime placement remains
+// free to use the full active data-node set for newly created Channels.
+func (n *Node) restoreChannelPlacement(hashSlot uint16) (*channels.SlotPlacementResolver, error) {
+	if n == nil || n.router == nil || n.cfg.Channel.ReplicaCount == 0 {
+		return nil, ErrInvalidConfig
+	}
+	route, err := n.router.RouteHashSlot(hashSlot)
+	if err != nil {
+		return nil, err
+	}
+	if route.HashSlot != hashSlot || len(route.Peers) < int(n.cfg.Channel.ReplicaCount) {
+		return nil, ErrInvalidConfig
+	}
+	return channels.NewSlotPlacementResolver(n.router, restoreSlotDataNodes(route.Peers), int(n.cfg.Channel.ReplicaCount)), nil
 }
 
 func sameRestoreChannelRuntimeMeta(actual, expected metadb.ChannelRuntimeMeta) bool {

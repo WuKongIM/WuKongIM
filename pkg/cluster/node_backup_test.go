@@ -140,21 +140,21 @@ func TestInstallRestoreChannelRuntimeMetaBuildsTargetTopologyInBoundedBatch(t *t
 		defaultSlotMetaDB:   meta,
 		defaultChannelStore: messages,
 	}
-	node.channelDataNodes.Update([]uint64{1, 2, 3})
+	node.channelDataNodes.Update([]uint64{1, 2, 3, 4})
 	t.Cleanup(func() {
 		_ = messages.Close()
 		_ = meta.Close()
 	})
 
-	hashSlot := routing.HashSlotForKey("room", 2)
-	boundary := RestoreVerifyBoundary{ChannelID: "room", ChannelType: 2, Epoch: 7, LogStartOffset: 3, HW: 9}
+	hashSlot := routing.HashSlotForKey("channel-a", 2)
+	boundary := RestoreVerifyBoundary{ChannelID: "channel-a", ChannelType: 2, Epoch: 7, LogStartOffset: 3, HW: 9}
 	if err := node.VerifyLocalRestorePartition(context.Background(), hashSlot, "", []RestoreVerifyBoundary{boundary}); err == nil {
 		t.Fatal("VerifyLocalRestorePartition(missing runtime metadata) error = nil")
 	}
 	if err := node.InstallRestoreChannelRuntimeMeta(context.Background(), hashSlot, []RestoreVerifyBoundary{boundary}); err != nil {
 		t.Fatalf("InstallRestoreChannelRuntimeMeta() error = %v", err)
 	}
-	got, err := meta.ForHashSlot(hashSlot).GetChannelRuntimeMeta(context.Background(), "room", 2)
+	got, err := meta.ForHashSlot(hashSlot).GetChannelRuntimeMeta(context.Background(), "channel-a", 2)
 	if err != nil {
 		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
 	}

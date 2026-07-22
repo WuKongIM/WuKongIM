@@ -35,22 +35,25 @@ replaced. Reads reject symlinks and paths outside the configured root.
 `ChunkReplicator` bounds plaintext memory, compresses before encryption, gives
 every chunk a fresh envelope data key, and verifies each immutable object in
 both repositories before returning its manifest reference. Every stream attempt
-also gets a fresh immutable key namespace, so a retry never collides with
-different randomized ciphertext from a partial attempt. A failed stream may
-leave unreachable immutable chunks, but it cannot expose a restore point.
+also gets a fresh immutable key namespace nested below `objects/<jobID>/`, so a
+retry never collides with different randomized ciphertext from a partial
+attempt while active-job garbage-collection protection still matches every
+attempt. A failed stream may leave unreachable immutable chunks, but it cannot
+expose a restore point.
 
 Partition and top-level manifest publication are retryable without overwrites.
-If only one repository accepted an immutable manifest, the retry authenticates
-the existing exact bytes, verifies their references, repairs the missing copy,
-and reuses the original signature/report instead of generating a conflicting
-object for the fixed manifest key.
+The top-level manifest is first staged and verified in both repositories, then
+a separately signed publication marker makes it discoverable. If only one
+repository accepted an immutable manifest or marker, the retry authenticates
+the existing exact bytes, repairs the missing copy, and reuses the original
+signature/report instead of generating a conflicting object for the fixed key.
 
 The Controller-side `RestorePointPublisher` reloads every partition manifest
 from both repositories, compares the exact bytes and job/cut summaries, stats
-all referenced objects, copies the authenticated cumulative record counts and
-message-ID fence into the signed top-level partition reference, then publishes
-the manifest. It never trusts a node report as proof that repository data
-exists.
+the complete recursive base-to-tip object graph in both repositories, copies
+the authenticated cumulative record counts and message-ID fence into the
+signed top-level partition reference, then publishes the manifest. It never
+trusts a node report as proof that repository data exists.
 
 `PartitionPlanner` first obtains a Slot snapshot whose commit and durable apply
 indexes match, then pages Channel runtime metadata directly into compact
@@ -63,19 +66,21 @@ and message payload bytes remain streaming.
 
 Restore inspection authenticates both repository copies, requires matching
 manifest bytes and identities, and asks every current target node for semantic
-storage emptiness before persisting a plan. Installation streams encrypted
-objects through a bounded staging file into restore-only metadata/message
-imports. The latest authenticated Channel index also rebuilds
-`ChannelRuntimeMeta` on every target node in batches of at most 4096: Channel
-epoch and retention floor come from the durable cut, while leader, replicas,
-ISR, and MinISR are derived from the successor topology. Source runtime
-placement is never restored. Installation independently recomputes metadata
-records, message rows, and maximum message ID. Final verification compares
-them with the signed partition evidence, then checks every authenticated
-Channel sequence cut, rebuilt target runtime metadata, and the post-transform
-canonical metadata SHA-256 on every current node. The configured staging-byte
-ceiling is shared by all concurrent partition streams on one node, not
-multiplied per stream.
+storage emptiness before persisting a plan. Installation resolves each hash
+slot through the successor `HashSlotTable` and installs its encrypted objects
+only on that physical Slot's `DesiredPeers`, with at most eight node installs
+in flight per partition. Unrelated cluster members never receive a full copy
+of the partition. The latest authenticated Channel index also rebuilds
+`ChannelRuntimeMeta` on those target Slot replicas in batches of at most 4096:
+Channel epoch and retention floor come from the durable cut, while leader,
+replicas, ISR, and MinISR are derived from the successor Slot replica
+candidates. Source runtime placement is never restored. Installation
+independently recomputes metadata records, message rows, and maximum message
+ID. Final verification compares them with the signed partition evidence, then
+checks every authenticated Channel sequence cut, rebuilt target runtime
+metadata, and the post-transform canonical metadata SHA-256 on the same target
+Slot replicas. The configured staging-byte ceiling is shared by all concurrent
+partition streams on one node, not multiplied per stream.
 
 Retention first moves expired Controller references into `PendingGarbage`.
 The garbage collector authenticates every retained graph in both repositories,

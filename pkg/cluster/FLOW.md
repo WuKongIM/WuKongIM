@@ -761,6 +761,9 @@ imports while recomputing the same evidence, invalidate tokens when requested,
 and reconstruct target-topology `ChannelRuntimeMeta` from authenticated
 Channel cuts through bounded local metadata batches. The reconstructed row
 preserves the durable Channel epoch and retention floor but derives leader,
-replicas, ISR, and MinISR from the successor cluster. Verification requires
-those exact target rows in addition to Channel boundaries and canonical
-per-hash-slot metadata digests.
+replicas, ISR, and MinISR from the successor physical Slot's desired peers.
+This restore-only candidate restriction keeps the rebuilt Channel replicas on
+the nodes that received the partition; ordinary first-write Channel placement
+continues to use all health-schedulable data nodes. Verification requires those
+exact target rows in addition to Channel boundaries and canonical per-hash-slot
+metadata digests.

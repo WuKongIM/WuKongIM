@@ -68,7 +68,7 @@ func (r *ChunkReplicator) Replicate(ctx context.Context, descriptor StreamDescri
 	if _, err := rand.Read(attemptBytes[:]); err != nil {
 		return nil, fmt.Errorf("backup chunk replicator: create attempt namespace: %w", err)
 	}
-	attemptNamespace := descriptor.JobID + "-" + hex.EncodeToString(attemptBytes[:])
+	attemptNamespace := hex.EncodeToString(attemptBytes[:])
 	for ordinal := 0; ; ordinal++ {
 		if ordinal >= maxBackupChunksPerStream {
 			return nil, fmt.Errorf("%w: stream chunk count exceeds limit", backupartifact.ErrInvalidObject)
@@ -89,7 +89,7 @@ func (r *ChunkReplicator) Replicate(ctx context.Context, descriptor StreamDescri
 		if descriptor.ShardID != "" {
 			streamName += "-" + descriptor.ShardID
 		}
-		key := fmt.Sprintf("objects/%s/%05d/%s-%06d.bin", attemptNamespace, descriptor.HashSlot, streamName, ordinal)
+		key := fmt.Sprintf("objects/%s/%s/%05d/%s-%06d.bin", descriptor.JobID, attemptNamespace, descriptor.HashSlot, streamName, ordinal)
 		sealed, err := r.codec.Seal(ctx, backupartifact.ObjectDescriptor{
 			Key:      key,
 			Kind:     descriptor.Kind,

@@ -13,13 +13,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClusterRestorePartitionInstallerInstallsEveryCurrentNode(t *testing.T) {
+func TestClusterRestorePartitionInstallerInstallsOnlyTargetSlotReplicas(t *testing.T) {
 	node := &fakeRestoreInstallClusterNode{nodeID: 2, snapshot: control.Snapshot{
-		ClusterID: "cluster-b", HashSlots: control.HashSlotTable{Count: 256},
+		ClusterID: "cluster-b",
+		HashSlots: control.HashSlotTable{Count: 256, Ranges: []control.HashSlotRange{{From: 0, To: 255, SlotID: 11}}},
+		Slots:     []control.SlotAssignment{{SlotID: 11, DesiredPeers: []uint64{3, 2}}},
 		Nodes: []control.Node{
-			{NodeID: 3, JoinState: control.NodeJoinStateActive},
+			{NodeID: 3, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
 			{NodeID: 1, JoinState: control.NodeJoinStateRemoved},
-			{NodeID: 2, JoinState: control.NodeJoinStateActive},
+			{NodeID: 2, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+			{NodeID: 4, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
 		},
 	}}
 	local := &fakeRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 7, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 99, MessageCount: 4, MaxMessageID: 19, MetadataSHA256: strings.Repeat("a", 64)}}
@@ -40,8 +43,12 @@ func TestClusterRestorePartitionInstallerInstallsEveryCurrentNode(t *testing.T) 
 
 func TestClusterRestorePartitionInstallerRejectsDifferentNodeResults(t *testing.T) {
 	node := &fakeRestoreInstallClusterNode{nodeID: 1, snapshot: control.Snapshot{
-		ClusterID: "cluster-b", HashSlots: control.HashSlotTable{Count: 1},
-		Nodes: []control.Node{{NodeID: 1, JoinState: control.NodeJoinStateActive}, {NodeID: 2, JoinState: control.NodeJoinStateActive}},
+		ClusterID: "cluster-b", HashSlots: control.HashSlotTable{Count: 1, Ranges: []control.HashSlotRange{{From: 0, To: 0, SlotID: 1}}},
+		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}}},
+		Nodes: []control.Node{
+			{NodeID: 1, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+			{NodeID: 2, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+		},
 	}}
 	local := &fakeRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 9, MetadataSHA256: strings.Repeat("a", 64)}}
 	remote := &fakeRemoteRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 10, MetadataSHA256: strings.Repeat("a", 64)}}

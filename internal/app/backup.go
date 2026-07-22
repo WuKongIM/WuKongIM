@@ -96,13 +96,21 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
+	trustedSigningKeyIDs := make([]string, 0, len(a.cfg.Backup.TrustedSigningKeyIDs)+1)
+	trustedSigningKeyIDs = append(trustedSigningKeyIDs, a.cfg.Backup.SigningKeyID)
+	trustedSigningKeyIDs = append(trustedSigningKeyIDs, a.cfg.Backup.TrustedSigningKeyIDs...)
+	manifestSigner, err := backupartifact.NewKeyPinnedManifestSigner(kms, trustedSigningKeyIDs...)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
 	codec := backupartifact.NewObjectCodec(kms, rand.Reader)
 	var observer runtimebackup.RuntimeObserver
 	if a.metrics != nil {
 		observer = a.metrics.Backup
 	}
 	if a.cfg.Backup.RestoreMode {
-		a.wireRestore(clusterCfg, primary, secondary, kms, codec, observer)
+		a.wireRestore(clusterCfg, primary, secondary, manifestSigner, codec, observer)
 		return
 	}
 	node, ok := a.cluster.(appBackupNode)
@@ -134,7 +142,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	baseResolver, err := backupinfra.NewBaseResolver(backupinfra.BaseResolverOptions{
-		Repository: primary, Signer: kms, Codec: codec, RepositoryID: a.cfg.Backup.RepositoryID,
+		Repository: primary, Signer: manifestSigner, Codec: codec, RepositoryID: a.cfg.Backup.RepositoryID,
 		SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
 		HashSlotCount: clusterCfg.Slots.HashSlotCount,
 	})
@@ -163,7 +171,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	publisher, err := backupinfra.NewRestorePointPublisher(backupinfra.RestorePointPublisherOptions{
-		Primary: primary, Secondary: secondary, Signer: kms, SigningKeyID: a.cfg.Backup.SigningKeyID,
+		Primary: primary, Secondary: secondary, Signer: manifestSigner, SigningKeyID: a.cfg.Backup.SigningKeyID,
 		ApplicationVersion: backupApplicationVersion(), RepositoryID: a.cfg.Backup.RepositoryID,
 		SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
 		Now: time.Now, NewRestorePointID: func() string { return newBackupID("restore") },
@@ -172,7 +180,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
-	verifier, err := backupinfra.NewRestorePointVerifier(primary, secondary, kms, time.Now)
+	verifier, err := backupinfra.NewRestorePointVerifier(primary, secondary, manifestSigner, time.Now)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -188,7 +196,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	garbageCollector, err := backupinfra.NewRestorePointGarbageCollector(backupinfra.RestorePointGarbageCollectorOptions{
-		Primary: primaryGarbage, Secondary: secondaryGarbage, Signer: kms,
+		Primary: primaryGarbage, Secondary: secondaryGarbage, Signer: manifestSigner,
 		MinimumAge: time.Duration(a.cfg.Backup.ObjectLockDays) * 24 * time.Hour,
 	})
 	if err != nil {
@@ -357,6 +365,10 @@ func newBackupID(prefix string) string {
 
 type backupManagerFacade struct{ app *App }
 
+type backupRuntimeStatusProvider interface {
+	Status() runtimebackup.CoordinatorStatus
+}
+
 func (a *App) newBackupManagement() accessmanager.BackupManagement {
 	return backupManagerFacade{app: a}
 }
@@ -432,12 +444,14 @@ func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSn
 	if err != nil {
 		return backupusecase.StatusSnapshot{}, err
 	}
-	if coordinator, ok := f.app.backupRuntime.(*runtimebackup.Coordinator); ok {
-		operational := coordinator.Status()
+	if provider, ok := f.app.backupRuntime.(backupRuntimeStatusProvider); ok {
+		operational := provider.Status()
 		if operational.DoctorHealth == backupusecase.HealthFailed {
 			status.Health = backupusecase.HealthFailed
 		} else if operational.LastFailureCategory != "" && status.Health == backupusecase.HealthHealthy {
 			status.Health = backupusecase.HealthDegraded
+		} else if operational.DoctorHealth != backupusecase.HealthHealthy && status.Health == backupusecase.HealthHealthy {
+			status.Health = backupusecase.HealthUnknown
 		}
 		status.FailureCategory = operational.LastFailureCategory
 		if operational.LastAuditSuccessUnixMillis > 0 {
@@ -446,7 +460,11 @@ func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSn
 				age = 0
 			}
 			status.VerificationAgeSeconds = &age
+		} else if status.Health == backupusecase.HealthHealthy {
+			status.Health = backupusecase.HealthUnknown
 		}
+	} else if status.Health == backupusecase.HealthHealthy {
+		status.Health = backupusecase.HealthUnknown
 	}
 	return status, nil
 }
@@ -462,7 +480,7 @@ func (f backupManagerFacade) Trigger(ctx context.Context, kind backupartifact.Re
 	if f.app == nil || f.app.backup == nil {
 		return backupusecase.Job{}, backupFacadeUnavailable(f.app)
 	}
-	if coordinator, ok := f.app.backupRuntime.(*runtimebackup.Coordinator); ok && coordinator.Status().DoctorHealth != backupusecase.HealthHealthy {
+	if coordinator, ok := f.app.backupRuntime.(backupRuntimeStatusProvider); ok && coordinator.Status().DoctorHealth != backupusecase.HealthHealthy {
 		return backupusecase.Job{}, fmt.Errorf("backup doctor is not healthy")
 	}
 	job, err := f.app.backup.Trigger(ctx, backupusecase.TriggerRequest{Kind: kind, ConfigFingerprint: f.app.backupFingerprint})

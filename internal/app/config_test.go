@@ -17,6 +17,15 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 	require.Equal(t, uint64(8*1024*1024), app.cfg.Backup.ChunkSizeBytes)
 }
 
+func TestBackupConfigNormalizesPreviousTrustedSigningKeys(t *testing.T) {
+	normalized, err := normalizeBackupSigningKeyIDs("kms-signing-v2", []string{" kms-signing-v1 ", "kms-signing-v2", "kms-signing-v1"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"kms-signing-v1"}, normalized)
+
+	_, err = normalizeBackupSigningKeyIDs("kms-signing-v2", []string{""})
+	require.ErrorIs(t, err, ErrInvalidConfig)
+}
+
 func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
 	cfg := BackupConfig{
 		Enabled:                 true,

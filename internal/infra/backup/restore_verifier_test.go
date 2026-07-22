@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClusterRestoreVerifierChecksEveryCurrentNodeAgainstAuthenticatedIndex(t *testing.T) {
+func TestClusterRestoreVerifierChecksTargetSlotReplicasAgainstAuthenticatedIndex(t *testing.T) {
 	ctx := context.Background()
 	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
 	require.NoError(t, err)
@@ -77,8 +77,13 @@ func TestClusterRestoreVerifierChecksEveryCurrentNodeAgainstAuthenticatedIndex(t
 	manifestHash := sha256.Sum256(manifestBody)
 	metadataDigest := strings.Repeat("d", 64)
 	node := &fakeRestoreVerificationNode{nodeID: 1, snapshot: control.Snapshot{
-		ClusterID: "cluster-b", HashSlots: control.HashSlotTable{Count: 1},
-		Nodes: []control.Node{{NodeID: 1, JoinState: control.NodeJoinStateActive}, {NodeID: 2, JoinState: control.NodeJoinStateActive}},
+		ClusterID: "cluster-b", HashSlots: control.HashSlotTable{Count: 1, Ranges: []control.HashSlotRange{{From: 0, To: 0, SlotID: 7}}},
+		Slots: []control.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{2, 1}}},
+		Nodes: []control.Node{
+			{NodeID: 1, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+			{NodeID: 2, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+			{NodeID: 3, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+		},
 	}}
 	remote := &fakeRemoteRestoreVerifier{}
 	verifier, err := backupinfra.NewClusterRestoreVerifier(backupinfra.ClusterRestoreVerifierOptions{

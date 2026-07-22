@@ -93,7 +93,7 @@ func TestReplicatedPublisherPublishesPreviouslyUploadedReferences(t *testing.T) 
 	if err != nil {
 		t.Fatalf("LoadRestorePointGraph() error = %v", err)
 	}
-	wantKeys := []string{"objects/00/meta.wkb", "objects/01/meta.wkb", "restore-points/rp-publish/manifest.json"}
+	wantKeys := []string{"objects/00/meta.wkb", "objects/01/meta.wkb", "restore-points/rp-publish/manifest.json", "restore-points/rp-publish/published.json"}
 	if !equalStrings(graph.Keys, wantKeys) || graph.Manifest.RestorePointID != "rp-publish" {
 		t.Fatalf("LoadRestorePointGraph() = %#v, want keys %v", graph, wantKeys)
 	}
@@ -119,6 +119,9 @@ func TestReplicatedPublisherRepairsPartialManifestPublishOnRetry(t *testing.T) {
 	if primary.has(key) || !secondary.has(key) {
 		t.Fatalf("partial publish state primary=%v secondary=%v", primary.has(key), secondary.has(key))
 	}
+	if _, err := backup.LoadRestorePoint(context.Background(), secondary, "rp-publish", signer); !errors.Is(err, backup.ErrObjectNotFound) {
+		t.Fatalf("LoadRestorePoint() from staged-only secondary error = %v, want object not found", err)
+	}
 	primary.failPut = false
 	retry := testPublishManifest(objects)
 	retry.CreatedAtUnixMillis++
@@ -127,6 +130,42 @@ func TestReplicatedPublisherRepairsPartialManifestPublishOnRetry(t *testing.T) {
 	}
 	if !bytes.Equal(primary.body(key), secondary.body(key)) {
 		t.Fatal("repaired manifest copies differ")
+	}
+}
+
+func TestReplicatedPublisherRepairsPartialPublicationMarkerOnRetry(t *testing.T) {
+	primary := newMemoryRepository("primary")
+	secondary := newMemoryRepository("secondary")
+	publisher := backup.NewReplicatedPublisher(primary, secondary)
+	objects := []backup.SealedObject{testSealedObject("objects/00/meta.wkb", 0, []byte("slot-zero")), testSealedObject("objects/01/meta.wkb", 1, []byte("slot-one"))}
+	for _, object := range objects {
+		if err := publisher.ReplicateObject(context.Background(), object); err != nil {
+			t.Fatalf("ReplicateObject(): %v", err)
+		}
+	}
+	seed := sha256.Sum256([]byte("repository-publication-retry-key"))
+	signer := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+	publicationKey := "restore-points/rp-publish/published.json"
+	primary.failPutKey = publicationKey
+	if _, err := publisher.PublishReferences(context.Background(), testPublishManifest(objects), signer, "signing-key"); !errors.Is(err, backup.ErrRepositoryIncomplete) {
+		t.Fatalf("first PublishReferences() error = %v", err)
+	}
+	if primary.has(publicationKey) || !secondary.has(publicationKey) {
+		t.Fatalf("partial publication state primary=%v secondary=%v", primary.has(publicationKey), secondary.has(publicationKey))
+	}
+	if _, err := backup.LoadRestorePoint(context.Background(), secondary, "rp-publish", signer); err != nil {
+		t.Fatalf("LoadRestorePoint() from committed secondary: %v", err)
+	}
+	if _, err := backup.LoadRestorePoint(context.Background(), primary, "rp-publish", signer); !errors.Is(err, backup.ErrObjectNotFound) {
+		t.Fatalf("LoadRestorePoint() from staged primary error = %v, want object not found", err)
+	}
+
+	primary.failPutKey = ""
+	if _, err := publisher.PublishReferences(context.Background(), testPublishManifest(objects), signer, "signing-key"); err != nil {
+		t.Fatalf("retry PublishReferences(): %v", err)
+	}
+	if !bytes.Equal(primary.body(publicationKey), secondary.body(publicationKey)) {
+		t.Fatal("repaired publication marker copies differ")
 	}
 }
 
@@ -189,10 +228,11 @@ func testPublishManifest(objects []backup.SealedObject) backup.Manifest {
 }
 
 type memoryRepository struct {
-	name    string
-	mu      sync.Mutex
-	objects map[string][]byte
-	failPut bool
+	name       string
+	mu         sync.Mutex
+	objects    map[string][]byte
+	failPut    bool
+	failPutKey string
 }
 
 func newMemoryRepository(name string) *memoryRepository {
@@ -204,7 +244,7 @@ func (r *memoryRepository) Name() string { return r.name }
 func (r *memoryRepository) PutImmutable(_ context.Context, key string, size int64, checksum string, body io.Reader) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.failPut {
+	if r.failPut || key == r.failPutKey {
 		return errors.New("repository unavailable")
 	}
 	if _, ok := r.objects[key]; ok {

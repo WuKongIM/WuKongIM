@@ -13,14 +13,22 @@ Current flow:
 3. `MarshalManifest` validates and serializes the signed manifest.
 4. `LoadManifest` strictly decodes JSON, validates the complete contract,
    rebuilds the same unsigned canonical bytes, and verifies the signature before
-   returning trusted metadata.
+   returning trusted metadata. Production composition wraps the provider signer
+   with `NewKeyPinnedManifestSigner`, so only the active signing key and an
+   explicit operator-managed retained-key allowlist are trusted even when
+   provider IAM can verify other keys.
 5. `ReplicatedPublisher.Publish` uploads and verifies every immutable object in
-   both explicit repositories before it signs and writes the discoverable
-   restore-point manifest. Failed copies leave only undiscoverable orphan
-   objects for later garbage collection.
-6. `LoadRestorePoint` verifies the repository copy of the signed manifest and
-   proves that every referenced immutable object still has the expected size
-   and ciphertext checksum before restore may consume it.
+   both explicit repositories before it signs and stages the identical
+   restore-point manifest in both repositories. Partition references are
+   verified recursively through their complete base chain in both repositories,
+   so a new incremental point cannot hide missing historical objects. Only
+   after both manifests verify does it write a separately signed publication
+   marker; failed manifest copies leave only undiscoverable orphan objects for
+   later garbage collection.
+6. `LoadRestorePoint` requires and authenticates the publication marker, binds
+   it to the staged signed manifest checksum, then proves that every referenced
+   immutable object still has the expected size and ciphertext checksum before
+   restore may consume it.
 7. `LoadRestorePointGraph` authenticates the complete top-level and recursive
    partition-manifest graph and returns the exact reachable key set used by
    retention mark-and-sweep.

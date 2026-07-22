@@ -104,6 +104,70 @@ func TestSignManifestRejectsSignerKeyMismatch(t *testing.T) {
 	}
 }
 
+func TestKeyPinnedManifestSignerRejectsAValidSignatureFromAnUntrustedKey(t *testing.T) {
+	t.Parallel()
+
+	seed := sha256.Sum256([]byte("manifest-trust-policy-test-key"))
+	underlying := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+	pinned, err := backup.NewKeyPinnedManifestSigner(underlying, "trusted-signing-key")
+	if err != nil {
+		t.Fatalf("NewKeyPinnedManifestSigner() error = %v", err)
+	}
+	objects := []backup.SealedObject{
+		testSealedObject("objects/00/meta.wkb", 0, []byte("slot-zero")),
+		testSealedObject("objects/01/meta.wkb", 1, []byte("slot-one")),
+	}
+	untrusted, err := backup.SignManifest(context.Background(), testPublishManifest(objects), underlying, "untrusted-signing-key")
+	if err != nil {
+		t.Fatalf("SignManifest() error = %v", err)
+	}
+	body, err := backup.MarshalManifest(untrusted)
+	if err != nil {
+		t.Fatalf("MarshalManifest() error = %v", err)
+	}
+	if _, err := backup.LoadManifest(context.Background(), body, pinned); err == nil {
+		t.Fatal("LoadManifest() error = nil, want untrusted signing key rejection")
+	}
+
+	trusted, err := backup.SignManifest(context.Background(), testPublishManifest(objects), pinned, "trusted-signing-key")
+	if err != nil {
+		t.Fatalf("SignManifest() with pinned signer error = %v", err)
+	}
+	trustedBody, err := backup.MarshalManifest(trusted)
+	if err != nil {
+		t.Fatalf("MarshalManifest() trusted error = %v", err)
+	}
+	if _, err := backup.LoadManifest(context.Background(), trustedBody, pinned); err != nil {
+		t.Fatalf("LoadManifest() trusted error = %v", err)
+	}
+}
+
+func TestKeyPinnedManifestSignerAcceptsRetainedPreviousVerificationKey(t *testing.T) {
+	t.Parallel()
+
+	seed := sha256.Sum256([]byte("manifest-signing-rotation-test-key"))
+	underlying := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+	pinned, err := backup.NewKeyPinnedManifestSigner(underlying, "signing-v2", "signing-v1")
+	if err != nil {
+		t.Fatalf("NewKeyPinnedManifestSigner() error = %v", err)
+	}
+	objects := []backup.SealedObject{
+		testSealedObject("objects/00/meta.wkb", 0, []byte("slot-zero")),
+		testSealedObject("objects/01/meta.wkb", 1, []byte("slot-one")),
+	}
+	previous, err := backup.SignManifest(context.Background(), testPublishManifest(objects), underlying, "signing-v1")
+	if err != nil {
+		t.Fatalf("SignManifest() error = %v", err)
+	}
+	body, err := backup.MarshalManifest(previous)
+	if err != nil {
+		t.Fatalf("MarshalManifest() error = %v", err)
+	}
+	if _, err := backup.LoadManifest(context.Background(), body, pinned); err != nil {
+		t.Fatalf("LoadManifest() retained previous key error = %v", err)
+	}
+}
+
 type ed25519ManifestSigner struct {
 	privateKey ed25519.PrivateKey
 }

@@ -3,15 +3,12 @@ package backup
 import (
 	"context"
 	"fmt"
-	"sort"
 	"sync"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
-
-const maxRestoreInstallNodes = 1024
 
 // RestoreInstallClusterNode exposes current membership for restore dispatch.
 type RestoreInstallClusterNode interface {
@@ -29,16 +26,15 @@ type RestorePartitionInstaller interface {
 	InstallPartition(context.Context, backupusecase.RestorePlan, uint16) (backupusecase.RestorePartition, error)
 }
 
-// ClusterRestorePartitionInstallerOptions configures all-node installation.
+// ClusterRestorePartitionInstallerOptions configures replica-aware installation.
 type ClusterRestorePartitionInstallerOptions struct {
 	Node   RestoreInstallClusterNode
 	Local  RestorePartitionInstaller
 	Remote RemoteRestoreInstallClient
 }
 
-// ClusterRestorePartitionInstaller installs every partition on all current
-// non-removed nodes. The qualified three-node topology therefore materializes
-// the normal three durable message copies before activation.
+// ClusterRestorePartitionInstaller installs each partition only on the desired
+// replicas of its target physical Slot.
 type ClusterRestorePartitionInstaller struct {
 	node   RestoreInstallClusterNode
 	local  RestorePartitionInstaller
@@ -53,8 +49,8 @@ func NewClusterRestorePartitionInstaller(options ClusterRestorePartitionInstalle
 	return &ClusterRestorePartitionInstaller{node: options.Node, local: options.Local, remote: options.Remote}, nil
 }
 
-// InstallPartition installs one logical partition concurrently on every
-// current node and accepts only identical logical results.
+// InstallPartition installs one logical partition on its bounded target Slot
+// replica set and accepts only identical logical results.
 func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context, plan backupusecase.RestorePlan, hashSlot uint16) (backupusecase.RestorePartition, error) {
 	if i == nil || hashSlot >= plan.HashSlotCount {
 		return backupusecase.RestorePartition{}, backupusecase.ErrInvalidRequest
@@ -66,28 +62,14 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 	if snapshot.ClusterID != plan.TargetClusterID || snapshot.HashSlots.Count != plan.HashSlotCount {
 		return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: target topology fence mismatch")
 	}
-	nodeIDs := make([]uint64, 0, len(snapshot.Nodes))
-	seen := make(map[uint64]struct{}, len(snapshot.Nodes))
-	for _, node := range snapshot.Nodes {
-		if node.JoinState == control.NodeJoinStateRemoved {
-			continue
-		}
-		if node.NodeID == 0 {
-			return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: invalid current node")
-		}
-		if _, exists := seen[node.NodeID]; exists {
-			return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: duplicate current node")
-		}
-		seen[node.NodeID] = struct{}{}
-		nodeIDs = append(nodeIDs, node.NodeID)
+	placement, err := newRestoreReplicaPlacement(snapshot, plan.HashSlotCount, i.node.NodeID())
+	if err != nil {
+		return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: %w", err)
 	}
-	if len(nodeIDs) == 0 || len(nodeIDs) > maxRestoreInstallNodes {
-		return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: current node count is invalid")
+	nodeIDs, err := placement.nodeIDs(hashSlot)
+	if err != nil {
+		return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: %w", err)
 	}
-	if _, exists := seen[i.node.NodeID()]; !exists {
-		return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: local node is outside membership")
-	}
-	sort.Slice(nodeIDs, func(left, right int) bool { return nodeIDs[left] < nodeIDs[right] })
 
 	type installResult struct {
 		nodeID uint64
@@ -95,26 +77,44 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 		err    error
 	}
 	results := make(chan installResult, len(nodeIDs))
+	work := make(chan uint64)
 	var wait sync.WaitGroup
-	for _, nodeID := range nodeIDs {
-		nodeID := nodeID
+	workers := len(nodeIDs)
+	if workers > maxRestoreInstallParallel {
+		workers = maxRestoreInstallParallel
+	}
+	for worker := 0; worker < workers; worker++ {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			var report backupusecase.RestorePartition
-			var installErr error
-			if nodeID == i.node.NodeID() {
-				report, installErr = i.local.InstallPartition(ctx, plan, hashSlot)
-			} else {
-				report, installErr = i.remote.InstallBackupRestorePartition(ctx, nodeID, plan, hashSlot)
+			for nodeID := range work {
+				var report backupusecase.RestorePartition
+				var installErr error
+				if nodeID == i.node.NodeID() {
+					report, installErr = i.local.InstallPartition(ctx, plan, hashSlot)
+				} else {
+					report, installErr = i.remote.InstallBackupRestorePartition(ctx, nodeID, plan, hashSlot)
+				}
+				results <- installResult{nodeID: nodeID, report: report, err: installErr}
 			}
-			results <- installResult{nodeID: nodeID, report: report, err: installErr}
 		}()
 	}
+	go func() {
+		defer close(work)
+		for _, nodeID := range nodeIDs {
+			select {
+			case work <- nodeID:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	wait.Wait()
 	close(results)
 	var canonical *backupusecase.RestorePartition
+	completed := 0
 	for result := range results {
+		completed++
 		if result.err != nil {
 			return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: node %d: %w", result.nodeID, result.err)
 		}
@@ -130,6 +130,12 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 		if !sameLogicalRestoreReport(*canonical, result.report) {
 			return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: node reports differ")
 		}
+	}
+	if completed != len(nodeIDs) {
+		if err := ctx.Err(); err != nil {
+			return backupusecase.RestorePartition{}, err
+		}
+		return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: replica installation incomplete")
 	}
 	if canonical == nil {
 		return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: no node report")

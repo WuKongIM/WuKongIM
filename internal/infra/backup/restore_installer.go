@@ -290,10 +290,14 @@ func restoreObjectGroups(objects []backupartifact.ObjectEntry, kind backupartifa
 
 func parseRestoreObjectStreamKey(key string) (string, int, error) {
 	parts := strings.Split(key, "/")
-	if len(parts) != 4 || parts[0] != "objects" {
+	// Four components are retained for restore compatibility with objects
+	// created before attempts were nested below an explicit job prefix. New
+	// objects use objects/<job>/<attempt>/<slot>/<stream>-<ordinal>.bin so GC
+	// can protect every in-flight object with one job-scoped prefix.
+	if (len(parts) != 4 && len(parts) != 5) || parts[0] != "objects" {
 		return "", 0, fmt.Errorf("invalid object key")
 	}
-	filename := parts[3]
+	filename := parts[len(parts)-1]
 	if len(filename) < 12 || !strings.HasSuffix(filename, ".bin") || filename[len(filename)-11] != '-' {
 		return "", 0, fmt.Errorf("invalid stream filename")
 	}

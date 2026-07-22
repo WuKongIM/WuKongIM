@@ -44,7 +44,10 @@ Before setting `backup.enabled = true`, provide:
    `backup.object_lock_days`.
 2. A KMS encryption key and an asymmetric signing key in
    `backup.kms_region`. Old decrypt and verification key versions must remain
-   available while retained restore points reference them.
+   available while retained restore points reference them. During signing-key
+   rotation, add previous key IDs to `backup.trusted_signing_key_ids` (or the
+   JSON-list `WK_BACKUP_TRUSTED_SIGNING_KEY_IDS`); only
+   `backup.signing_key_id` signs new restore points.
 3. Default-chain workload credentials that can put, get, list, and head but
    cannot delete repository objects.
 4. `backup.garbage_collector_role_arn`, assumed only by the garbage collector,
@@ -147,10 +150,11 @@ entry pending for a later retry.
    message ID with signed manifest evidence; checks every restored Channel
    sequence boundary; checks the reconstructed successor-topology
    `ChannelRuntimeMeta`; and compares a canonical semantic metadata digest on
-   each target node. Channel epoch and retention floor come from the signed
-   Channel cut, while leader, replicas, ISR, and MinISR come from the target
-   cluster. Activation remains impossible before every partition is installed
-   and verified.
+   each successor physical Slot replica. Channel epoch and retention floor
+   come from the signed Channel cut, while leader, replicas, ISR, and MinISR
+   come from that target Slot's desired peers. Unrelated target members do not
+   receive a complete partition copy. Activation remains impossible before
+   every partition is installed and verified.
 6. Stop the restore-mode processes. Set `backup.restore_mode = false`. If
    automatic backup will resume, set `backup.enabled = true` and set
    `backup.source_generation` to the activated target generation. Restart the

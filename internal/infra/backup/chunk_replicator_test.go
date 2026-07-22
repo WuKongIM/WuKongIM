@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
@@ -81,6 +82,7 @@ func TestChunkReplicatorRetryAfterPartialUploadUsesFreshImmutableNamespace(t *te
 	require.Len(t, primary.putKeys, 2)
 	require.NotEqual(t, primary.putKeys[0], primary.putKeys[1])
 	require.Equal(t, primary.putKeys[1], second[0].Key)
+	require.True(t, strings.HasPrefix(second[0].Key, "objects/backup-retry/"), second[0].Key)
 }
 
 type recordingRepository struct {

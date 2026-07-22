@@ -1426,6 +1426,12 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 		},
 	}
 	var err error
+	if configKeyPresent(values, "WK_BACKUP_TRUSTED_SIGNING_KEY_IDS") {
+		cfg.TrustedSigningKeyIDs, err = parseStringList("WK_BACKUP_TRUSTED_SIGNING_KEY_IDS", configValue(values, "WK_BACKUP_TRUSTED_SIGNING_KEY_IDS"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
 	if configKeyPresent(values, "WK_BACKUP_ENABLED") {
 		cfg.Enabled, err = parseBool("WK_BACKUP_ENABLED", configValue(values, "WK_BACKUP_ENABLED"))
 		if err != nil {

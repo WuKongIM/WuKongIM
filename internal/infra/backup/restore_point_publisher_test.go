@@ -107,6 +107,90 @@ func TestRestorePointPublisherLoadsEveryPartitionFromBothRepositories(t *testing
 	require.Equal(t, uint64(100), loaded.Partitions[0].Evidence.MaxMessageID)
 }
 
+func TestRestorePointPublisherRejectsIncrementalWhenSecondaryBaseObjectIsMissing(t *testing.T) {
+	ctx := context.Background()
+	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
+	require.NoError(t, err)
+	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
+	require.NoError(t, err)
+	manifestStore, err := backupinfra.NewReplicatedManifestStore(primary, secondary)
+	require.NoError(t, err)
+
+	baseObject := publisherTestObject("objects/base/metadata.bin", []byte("base"))
+	putPublisherTestObject(t, primary, baseObject, []byte("base"))
+	putPublisherTestObject(t, secondary, baseObject, []byte("base"))
+	baseManifest := backupartifact.PartitionManifest{
+		Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion,
+		JobID: "base-job", BackupEpoch: 1,
+		Cut:      backupartifact.PartitionCut{HashSlot: 0, RaftIndex: 10, CommittedAtMillis: 1710000000000},
+		Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion},
+		Objects:  []backupartifact.ObjectEntry{baseObject},
+	}
+	baseBody, err := backupartifact.MarshalPartitionManifest(baseManifest)
+	require.NoError(t, err)
+	baseHash := sha256.Sum256(baseBody)
+	baseKey := "partition-manifests/base-job/00000.json"
+	require.NoError(t, manifestStore.Put(ctx, baseKey, fmt.Sprintf("%x", baseHash), baseBody))
+	baseReference := backupartifact.PartitionReference{
+		HashSlot: 0, Key: baseKey, SHA256: fmt.Sprintf("%x", baseHash), Bytes: int64(len(baseBody)),
+		ObjectCount: 1, CiphertextBytes: uint64(baseObject.CiphertextBytes), Evidence: baseManifest.Evidence,
+	}
+
+	tipObject := publisherTestObject("objects/tip/metadata.bin", []byte("tip"))
+	putPublisherTestObject(t, primary, tipObject, []byte("tip"))
+	putPublisherTestObject(t, secondary, tipObject, []byte("tip"))
+	tipManifest := backupartifact.PartitionManifest{
+		Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion,
+		JobID: "tip-job", BackupEpoch: 2,
+		Cut:      backupartifact.PartitionCut{HashSlot: 0, RaftIndex: 20, CommittedAtMillis: 1710000001000},
+		Base:     &baseReference,
+		Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion},
+		Objects:  []backupartifact.ObjectEntry{tipObject},
+	}
+	tipBody, err := backupartifact.MarshalPartitionManifest(tipManifest)
+	require.NoError(t, err)
+	tipHash := sha256.Sum256(tipBody)
+	tipKey := "partition-manifests/tip-job/00000.json"
+	require.NoError(t, manifestStore.Put(ctx, tipKey, fmt.Sprintf("%x", tipHash), tipBody))
+	require.NoError(t, secondary.DeleteGarbageObject(ctx, baseObject.Key))
+
+	seed := sha256.Sum256([]byte("restore-point-secondary-base-test"))
+	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+	publisher, err := backupinfra.NewRestorePointPublisher(backupinfra.RestorePointPublisherOptions{
+		Primary: primary, Secondary: secondary, Signer: signer, SigningKeyID: "signing-key",
+		ApplicationVersion: "test", RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1",
+		Now: func() time.Time { return time.UnixMilli(1710000010000).UTC() }, NewRestorePointID: func() string { return "restore-incomplete" },
+	})
+	require.NoError(t, err)
+	job := backupusecase.Job{
+		ID: "tip-job", Epoch: 2, Kind: backupartifact.RestorePointIncremental, HashSlotCount: 1,
+		Partitions: []backupusecase.PartitionReport{{
+			JobID: "tip-job", BackupEpoch: 2, HashSlot: 0, RaftIndex: 20, CommittedAtUnixMillis: 1710000001000,
+			ManifestKey: tipKey, ManifestSHA256: fmt.Sprintf("%x", tipHash), ObjectCount: 1, CiphertextBytes: uint64(tipObject.CiphertextBytes),
+		}},
+	}
+
+	_, err = publisher.Publish(ctx, job)
+	require.Error(t, err)
+	_, err = secondary.Stat(ctx, "restore-points/restore-incomplete/manifest.json")
+	require.ErrorIs(t, err, backupartifact.ErrObjectNotFound)
+}
+
+func publisherTestObject(key string, body []byte) backupartifact.ObjectEntry {
+	hash := sha256.Sum256(body)
+	return backupartifact.ObjectEntry{
+		Key: key, Kind: backupartifact.ObjectKindMetadata, HashSlot: 0,
+		PlaintextSHA256: strings.Repeat("a", 64), CiphertextSHA256: fmt.Sprintf("%x", hash),
+		PlaintextBytes: 1, CiphertextBytes: int64(len(body)), Compression: backupartifact.CompressionZstd,
+		Encryption: backupartifact.EncryptionAES256GCM, KMSKeyID: "kms-backup", WrappedKey: "d3JhcHBlZA==", Nonce: "MDEyMzQ1Njc4OTAx",
+	}
+}
+
+func putPublisherTestObject(t *testing.T, repository backupartifact.Repository, entry backupartifact.ObjectEntry, body []byte) {
+	t.Helper()
+	require.NoError(t, repository.PutImmutable(context.Background(), entry.Key, int64(len(body)), entry.CiphertextSHA256, bytes.NewReader(body)))
+}
+
 type testEd25519Signer struct {
 	privateKey ed25519.PrivateKey
 }

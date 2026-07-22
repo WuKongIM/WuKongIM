@@ -48,6 +48,24 @@ func TestFileRepositoryRejectsMismatchWithoutPublishing(t *testing.T) {
 	require.True(t, errors.Is(err, backupartifact.ErrObjectNotFound))
 }
 
+func TestFileRepositoryListsOnlyCommittedRestorePoints(t *testing.T) {
+	repository, err := backupinfra.NewFileRepository("primary-dev", t.TempDir())
+	require.NoError(t, err)
+	body := []byte("staged")
+	hash := sha256.Sum256(body)
+	checksum := hex.EncodeToString(hash[:])
+	require.NoError(t, repository.PutImmutable(context.Background(), "restore-points/rp-staged/manifest.json", int64(len(body)), checksum, bytes.NewReader(body)))
+
+	ids, err := repository.ListRestorePointIDs(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, ids)
+
+	require.NoError(t, repository.PutImmutable(context.Background(), "restore-points/rp-staged/published.json", int64(len(body)), checksum, bytes.NewReader(body)))
+	ids, err = repository.ListRestorePointIDs(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []string{"rp-staged"}, ids)
+}
+
 func TestFileRepositoryDeletesOnlyExplicitGarbageObject(t *testing.T) {
 	repository, err := backupinfra.NewFileRepository("primary-dev", t.TempDir())
 	require.NoError(t, err)

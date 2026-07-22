@@ -94,6 +94,8 @@ type BackupConfig struct {
 	KMSKeyID string
 	// SigningKeyID identifies the external asymmetric key used to sign canonical restore-point manifests.
 	SigningKeyID string
+	// TrustedSigningKeyIDs lists retained previous signing keys accepted only when verifying historical restore points.
+	TrustedSigningKeyIDs []string
 	// GarbageCollectorRoleARN is the separately authorized AWS-compatible role assumed only for immutable-version deletion.
 	GarbageCollectorRoleARN string
 	// KMSRegion is the AWS-compatible signing region used for encryption and manifest-signing calls.
@@ -144,6 +146,11 @@ const (
 // NormalizeBackupConfig applies safe policy defaults and validates the complete
 // production contract when automatic backup is enabled.
 func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
+	trustedSigningKeyIDs, err := normalizeBackupSigningKeyIDs(cfg.SigningKeyID, cfg.TrustedSigningKeyIDs)
+	if err != nil {
+		return BackupConfig{}, err
+	}
+	cfg.TrustedSigningKeyIDs = trustedSigningKeyIDs
 	if cfg.IncrementalInterval == 0 {
 		cfg.IncrementalInterval = time.Minute
 	}
@@ -166,6 +173,27 @@ func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
 		return BackupConfig{}, err
 	}
 	return cfg, nil
+}
+
+func normalizeBackupSigningKeyIDs(active string, previous []string) ([]string, error) {
+	active = strings.TrimSpace(active)
+	seen := make(map[string]struct{}, len(previous)+1)
+	if active != "" {
+		seen[active] = struct{}{}
+	}
+	normalized := make([]string, 0, len(previous))
+	for _, keyID := range previous {
+		keyID = strings.TrimSpace(keyID)
+		if keyID == "" {
+			return nil, fmt.Errorf("%w: backup trusted signing key ids must not contain empty values", ErrInvalidConfig)
+		}
+		if _, ok := seen[keyID]; ok {
+			continue
+		}
+		seen[keyID] = struct{}{}
+		normalized = append(normalized, keyID)
+	}
+	return normalized, nil
 }
 
 func validateBackupConfig(cfg BackupConfig) error {

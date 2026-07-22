@@ -100,11 +100,11 @@ func (c *RestorePointGarbageCollector) Collect(ctx context.Context, retained, pe
 	}
 	result := GarbageCollectionResult{DeletedObjects: deletedPrimary + deletedSecondary}
 	for _, point := range pending {
-		missingPrimary, err := garbageManifestMissing(ctx, c.primary, point.ID)
+		missingPrimary, err := garbagePublicationMissing(ctx, c.primary, point.ID)
 		if err != nil {
 			return GarbageCollectionResult{}, err
 		}
-		missingSecondary, err := garbageManifestMissing(ctx, c.secondary, point.ID)
+		missingSecondary, err := garbagePublicationMissing(ctx, c.secondary, point.ID)
 		if err != nil {
 			return GarbageCollectionResult{}, err
 		}
@@ -170,8 +170,8 @@ func hasAnyPrefix(key string, prefixes []string) bool {
 	return false
 }
 
-func garbageManifestMissing(ctx context.Context, repository GarbageRepository, restorePointID string) (bool, error) {
-	_, err := repository.Stat(ctx, restorePointGarbageManifestKey(restorePointID))
+func garbagePublicationMissing(ctx context.Context, repository GarbageRepository, restorePointID string) (bool, error) {
+	_, err := repository.Stat(ctx, restorePointGarbagePublicationKey(restorePointID))
 	if errors.Is(err, backupartifact.ErrObjectNotFound) {
 		return true, nil
 	}
@@ -180,6 +180,10 @@ func garbageManifestMissing(ctx context.Context, repository GarbageRepository, r
 
 func restorePointGarbageManifestKey(restorePointID string) string {
 	return "restore-points/" + restorePointID + "/manifest.json"
+}
+
+func restorePointGarbagePublicationKey(restorePointID string) string {
+	return "restore-points/" + restorePointID + "/published.json"
 }
 
 var _ interface {

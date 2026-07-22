@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"sort"
 	"sync"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
@@ -41,7 +40,7 @@ type ClusterRestoreVerifierOptions struct {
 }
 
 // ClusterRestoreVerifier authenticates the selected restore point and proves
-// every expected durable Channel cut on every current target node.
+// every expected durable Channel cut on the target Slot replicas.
 type ClusterRestoreVerifier struct {
 	primary     backupartifact.Repository
 	secondary   backupartifact.Repository
@@ -64,8 +63,8 @@ func NewClusterRestoreVerifier(options ClusterRestoreVerifierOptions) (*ClusterR
 	}, nil
 }
 
-// VerifyRestore returns ordered verified reports only after every current node
-// proves the authenticated expected cuts for every logical hash slot.
+// VerifyRestore returns ordered verified reports only after every target Slot
+// replica proves the authenticated expected cuts for its logical hash slots.
 func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupusecase.RestorePlan) ([]backupusecase.RestorePartition, error) {
 	if v == nil || plan.ID == "" || plan.RestorePointID == "" || plan.HashSlotCount == 0 || len(plan.Partitions) != int(plan.HashSlotCount) ||
 		(plan.Repository != "primary" && plan.Repository != "secondary") {
@@ -88,7 +87,7 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 		manifest.SourceGeneration != plan.SourceGeneration || manifest.HashSlotCount != plan.HashSlotCount || len(manifest.Partitions) != int(plan.HashSlotCount) {
 		return nil, fmt.Errorf("%w: restore verification manifest fence mismatch", backupartifact.ErrInvalidManifest)
 	}
-	nodeIDs, err := v.currentNodeIDs(ctx, plan)
+	placement, err := v.currentPlacement(ctx, plan)
 	if err != nil {
 		return nil, err
 	}
@@ -112,12 +111,16 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 				reference := manifest.Partitions[hashSlot]
 				boundaries, err := v.loadExpectedBoundaries(ctx, repository, reference)
 				if err == nil {
+					nodeIDs, placementErr := placement.nodeIDs(hashSlot)
+					if placementErr != nil {
+						err = placementErr
+					}
 					report := plan.Partitions[hashSlot]
-					if report.HashSlot != hashSlot || report.EvidenceVersion != reference.Evidence.Version || !report.Installed || !validLowerSHA256(report.MetadataSHA256) ||
+					if err == nil && (report.HashSlot != hashSlot || report.EvidenceVersion != reference.Evidence.Version || !report.Installed || !validLowerSHA256(report.MetadataSHA256) ||
 						report.MetadataRecordCount != reference.Evidence.MetadataRecords || report.MessageCount != reference.Evidence.MessageRecords ||
-						report.MaxMessageID != reference.Evidence.MaxMessageID {
+						report.MaxMessageID != reference.Evidence.MaxMessageID) {
 						err = backupusecase.ErrStateConflict
-					} else {
+					} else if err == nil {
 						err = v.verifyPartitionOnNodes(ctx, nodeIDs, hashSlot, report.MetadataSHA256, boundaries)
 					}
 				}
@@ -153,7 +156,7 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 	return reports, nil
 }
 
-func (v *ClusterRestoreVerifier) currentNodeIDs(ctx context.Context, plan backupusecase.RestorePlan) ([]uint64, error) {
+func (v *ClusterRestoreVerifier) currentPlacement(ctx context.Context, plan backupusecase.RestorePlan) (*restoreReplicaPlacement, error) {
 	snapshot, err := v.node.LocalControlSnapshot(ctx)
 	if err != nil {
 		return nil, err
@@ -161,29 +164,11 @@ func (v *ClusterRestoreVerifier) currentNodeIDs(ctx context.Context, plan backup
 	if snapshot.ClusterID != plan.TargetClusterID || snapshot.HashSlots.Count != plan.HashSlotCount {
 		return nil, fmt.Errorf("backup cluster restore verifier: target topology fence mismatch")
 	}
-	seen := make(map[uint64]struct{}, len(snapshot.Nodes))
-	nodeIDs := make([]uint64, 0, len(snapshot.Nodes))
-	for _, node := range snapshot.Nodes {
-		if node.JoinState == control.NodeJoinStateRemoved {
-			continue
-		}
-		if node.NodeID == 0 {
-			return nil, fmt.Errorf("backup cluster restore verifier: invalid current node")
-		}
-		if _, exists := seen[node.NodeID]; exists {
-			return nil, fmt.Errorf("backup cluster restore verifier: duplicate current node")
-		}
-		seen[node.NodeID] = struct{}{}
-		nodeIDs = append(nodeIDs, node.NodeID)
+	placement, err := newRestoreReplicaPlacement(snapshot, plan.HashSlotCount, v.node.NodeID())
+	if err != nil {
+		return nil, fmt.Errorf("backup cluster restore verifier: %w", err)
 	}
-	if len(nodeIDs) == 0 || len(nodeIDs) > maxRestoreInstallNodes {
-		return nil, fmt.Errorf("backup cluster restore verifier: current node count is invalid")
-	}
-	if _, exists := seen[v.node.NodeID()]; !exists {
-		return nil, fmt.Errorf("backup cluster restore verifier: local node is outside membership")
-	}
-	sort.Slice(nodeIDs, func(left, right int) bool { return nodeIDs[left] < nodeIDs[right] })
-	return nodeIDs, nil
+	return placement, nil
 }
 
 func (v *ClusterRestoreVerifier) loadExpectedBoundaries(ctx context.Context, repository backupartifact.Repository, reference backupartifact.PartitionReference) ([]clusterpkg.RestoreVerifyBoundary, error) {

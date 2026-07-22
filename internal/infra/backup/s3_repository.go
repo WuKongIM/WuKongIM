@@ -326,8 +326,8 @@ func (r *S3Repository) WalkGarbageObjects(ctx context.Context, before time.Time,
 	}
 }
 
-// ListRestorePointIDs lists manifest keys under the repository namespace.
-// Every returned manifest is still authenticated by the restore inspector.
+// ListRestorePointIDs lists publication markers under the repository namespace.
+// Every returned marker and manifest is still authenticated by the restore inspector.
 func (r *S3Repository) ListRestorePointIDs(ctx context.Context) ([]string, error) {
 	if r == nil || r.client == nil {
 		return nil, fmt.Errorf("backup s3 repository: repository is required")
@@ -348,10 +348,10 @@ func (r *S3Repository) ListRestorePointIDs(ctx context.Context) ([]string, error
 		for _, object := range output.Contents {
 			key := aws.ToString(object.Key)
 			relative := strings.TrimPrefix(key, prefix)
-			if relative == key || !strings.HasSuffix(relative, "/manifest.json") {
+			if relative == key || !strings.HasSuffix(relative, "/published.json") {
 				continue
 			}
-			id := strings.TrimSuffix(relative, "/manifest.json")
+			id := strings.TrimSuffix(relative, "/published.json")
 			if !strings.Contains(id, "/") && safeRestorePointID(id) {
 				ids[id] = struct{}{}
 			}

@@ -169,6 +169,8 @@ staging_dir = ""
 # External KMS identifiers; credentials come only from the provider credential chain.
 kms_key_id = ""
 signing_key_id = ""
+# Previous signing keys retained for verification during key rotation; environment overrides use a JSON string list.
+trusted_signing_key_ids = []
 # Separate AWS-compatible role assumed only for version deletion during garbage collection.
 garbage_collector_role_arn = ""
 kms_region = ""

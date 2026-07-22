@@ -255,7 +255,8 @@ func (r *FileRepository) WalkGarbageObjects(ctx context.Context, before time.Tim
 }
 
 // ListRestorePointIDs returns bounded restore-point directories that expose a
-// regular immutable manifest file. Manifest contents are verified separately.
+// regular immutable publication marker. Marker and manifest contents are
+// verified separately.
 func (r *FileRepository) ListRestorePointIDs(ctx context.Context) ([]string, error) {
 	if r == nil || r.root == "" {
 		return nil, fmt.Errorf("backup file repository: repository is required")
@@ -279,7 +280,7 @@ func (r *FileRepository) ListRestorePointIDs(ctx context.Context) ([]string, err
 		if !entry.IsDir() || !safeRestorePointID(entry.Name()) {
 			continue
 		}
-		info, err := os.Lstat(filepath.Join(root, entry.Name(), "manifest.json"))
+		info, err := os.Lstat(filepath.Join(root, entry.Name(), "published.json"))
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}

@@ -996,10 +996,14 @@ the Cloud Simulation lifecycle separately owns public TCP/19443 ingress.
 
 When backup and restore mode are both false, composition creates no repository,
 KMS, worker, or timer. Automatic mode wires two S3-compatible repositories,
-KMS envelope/signing, a separate garbage-collector role, Controller state,
+KMS envelope/signing with manifest verification pinned to the configured
+active key plus explicitly retained previous verification keys, a separate
+garbage-collector role, Controller state,
 Slot-leader planning, source-node message capture, the coordinator, Manager,
 node RPC, and low-cardinality metrics. Backup doctor or runtime failure is
 reported independently and never changes ordinary message readiness.
+Manager backup health remains `unknown` when node-local doctor or successful
+dual-repository audit evidence is missing, even if the latest RPO is fresh.
 The cluster-wide config fingerprint excludes the node-local staging directory;
 repository, identity, schedule, retention, and cryptographic policy remain in
 the agreement fence.

@@ -83,6 +83,30 @@ func TestS3RepositoryDoctorRequiresVersioningAndObjectLock(t *testing.T) {
 	}
 }
 
+func TestS3RepositoryListsOnlyCommittedRestorePoints(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a", ObjectLockDays: 7, Client: client})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	client.objects["prod/cluster-a/restore-points/rp-staged/manifest.json"] = fakeS3Object{}
+	ids, err := repository.ListRestorePointIDs(context.Background())
+	if err != nil {
+		t.Fatalf("ListRestorePointIDs() error = %v", err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("ListRestorePointIDs() = %v, want staged manifest hidden", ids)
+	}
+	client.objects["prod/cluster-a/restore-points/rp-staged/published.json"] = fakeS3Object{}
+	ids, err = repository.ListRestorePointIDs(context.Background())
+	if err != nil {
+		t.Fatalf("ListRestorePointIDs() error = %v", err)
+	}
+	if len(ids) != 1 || ids[0] != "rp-staged" {
+		t.Fatalf("ListRestorePointIDs() = %v, want [rp-staged]", ids)
+	}
+}
+
 func TestS3RepositoryDeletesExactGarbageObjectVersions(t *testing.T) {
 	client := newFakeS3Client()
 	repository, err := NewS3Repository(S3RepositoryOptions{Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a", ObjectLockDays: 7, Client: client})
