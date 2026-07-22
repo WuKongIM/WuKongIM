@@ -76,11 +76,20 @@ expired or malformed public window, while `Destroy` closes it before deleting
 run-owned resources. This capability does not change Analysis MCP semantics.
 
 `cloud-sim-monitor.yml` is an observer-only workflow. It runs every 30 minutes
-or for an explicitly dispatched Run Identity, discovers existing running runs,
-and reads public Cloud View and Prometheus evidence. It never calls Create or
-starts wkbench. Patrol evidence includes target liveness, 30-minute sustained
+or for an explicitly dispatched Run Identity. Scheduled discovery resolves one
+retained provider config per account/region binding, takes one read-only
+authority-validated Inventory Snapshot per binding, and selects only `running`
+runs owned by this repository. Provider-config, binding, and running-candidate
+budgets fail with structured evidence instead of truncating discovery. A
+retained Run Locator remains only an identity candidate: each selected run must
+still pass exact `Preflight` before public access. Provider-confirmed `released`
+or no-longer-running candidates are skipped normally, and only a locator-bound
+live run in `running` state can reach Cloud View and Prometheus. Missing,
+ambiguous, mismatched, or timed-out inventory and Preflight evidence fails
+closed. The workflow never calls Create
+or starts wkbench. Patrol evidence includes target liveness, 30-minute sustained
 target loss, CPU, RSS, disk use, and bounded queue saturation; missing evidence
-fails closed and remains distinct from the cleanup lease backstop.
+remains distinct from the cleanup lease backstop.
 
 `ValidateTencentAdmission` is a delivery-order gate, not a Tencent adapter. It
 requires repository-owner-reviewed real Alibaba workflow references and

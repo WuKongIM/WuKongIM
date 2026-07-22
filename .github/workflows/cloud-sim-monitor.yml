@@ -24,7 +24,7 @@ jobs:
   monitor:
     name: Patrol running cloud simulations
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     environment: cloud-sim-analysis
     permissions:
       contents: read
@@ -34,6 +34,10 @@ jobs:
       GOWORK: "off"
       RUN_ID: ${{ inputs.run_id || '' }}
       GH_TOKEN: ${{ github.token }}
+      MAX_PROVIDER_CONFIG_ARTIFACTS: "512"
+      MAX_PROVIDER_BINDINGS: "4"
+      MAX_RUNNING_CANDIDATES: "4"
+      PROVIDER_COMMAND_TIMEOUT_SECONDS: "60"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -62,17 +66,155 @@ jobs:
       - name: Build read-only lifecycle client
         shell: bash
         run: go build -trimpath -o wkcloudsim ./cmd/wkcloudsim
-      - name: Resolve run identities
+      - name: Discover running provider inventory
         shell: bash
+        env:
+          LEGACY_PROVIDER_CONFIG_JSON: ${{ vars.ALIBABA_CLOUD_SIM_CONFIG_JSON }}
         run: |
           set -euo pipefail
+          : >inventory-candidates.tsv
+          : >discovery-errors.jsonl
+          mkdir -p provider-configs downloads inventory-snapshots
+          record_discovery_error() {
+            local error="$1"
+            shift
+            jq -cn --arg error "$error" "$@" \
+              '{run_id:"discovery",state:"unknown",verdict:"insufficient_evidence",error:$error} + $ARGS.named' \
+              >>discovery-errors.jsonl
+          }
+          retain_config() {
+            local source="$1"
+            local region account_hash account_hex destination
+            region="$(jq -er '.region | select(test("^[a-z0-9-]+$"))' "$source")" || return 1
+            account_hash="$(jq -er '.account_id_hash | select(test("^sha256:[0-9a-f]{64}$"))' "$source")" || return 1
+            account_hex="${account_hash#sha256:}"
+            destination="provider-configs/${region}--${account_hex}.json"
+            if [[ ! -e "$destination" ]]; then
+              jq -cS . "$source" >"$destination" || return 1
+            fi
+            printf '%s\n' "$destination"
+          }
+          download_config() {
+            local artifact_id="$1"
+            local destination="downloads/provider-${artifact_id}"
+            mkdir -p "$destination" || return 1
+            timeout "$PROVIDER_COMMAND_TIMEOUT_SECONDS" \
+              gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${destination}.zip" || return 1
+            unzip -q "${destination}.zip" -d "$destination" || return 1
+            test -f "$destination/provider.json" || return 1
+            retain_config "$destination/provider.json"
+          }
           if [[ -n "$RUN_ID" ]]; then
-            [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
-            printf '%s\n' "$RUN_ID" >run-ids.txt
+            if ! [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+              record_discovery_error invalid_run_identity --arg run_id "$RUN_ID"
+            elif provider_config="$(timeout "$PROVIDER_COMMAND_TIMEOUT_SECONDS" \
+                 ./scripts/cloud-sim/resolve-exact-provider-config.sh "$RUN_ID" downloads/exact-provider.json)" &&
+               provider_config="$(retain_config downloads/exact-provider.json)"; then
+              printf '%s\t%s\n' "$RUN_ID" "$provider_config" >inventory-candidates.tsv
+            else
+              record_discovery_error provider_config_unavailable --arg run_id "$RUN_ID"
+            fi
           else
-            gh api --paginate -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
-              --jq '.artifacts[] | select(.expired == false and (.name | startswith("cloud-sim-locator-"))) | .name' \
-              | sed 's/^cloud-sim-locator-//' | sort -u | tail -n 25 >run-ids.txt
+            if ! timeout "$PROVIDER_COMMAND_TIMEOUT_SECONDS" \
+              gh api --paginate --slurp -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f per_page=100 \
+              >downloads/provider-artifact-pages.json; then
+              record_discovery_error provider_artifact_listing_unavailable
+            elif ! jq -e '
+                [.[] | .artifacts[]? | select(.expired == false and (.name | startswith("cloud-sim-provider-config")))]
+                | if all(.[];
+                    (.id | type == "number") and
+                    (.name | type == "string") and
+                    (.created_at | type == "string")
+                  ) then . else error("invalid provider artifact metadata") end
+              ' \
+              downloads/provider-artifact-pages.json >downloads/provider-artifacts.json; then
+              record_discovery_error provider_artifact_listing_invalid
+            else
+              artifact_count="$(jq -er 'length' downloads/provider-artifacts.json)"
+            fi
+            if [[ -s discovery-errors.jsonl ]]; then
+              :
+            elif (( artifact_count > MAX_PROVIDER_CONFIG_ARTIFACTS )); then
+              record_discovery_error provider_config_artifact_budget_exceeded \
+                --argjson observed "$artifact_count" --argjson budget "$MAX_PROVIDER_CONFIG_ARTIFACTS"
+            else
+              jq -r 'sort_by(.created_at) | reverse[] | [.id,.name] | @tsv' downloads/provider-artifacts.json \
+                >downloads/provider-artifacts.tsv
+              if ! ./scripts/cloud-sim/select-provider-config-artifacts.sh \
+                <downloads/provider-artifacts.tsv >downloads/provider-artifact-ids; then
+                record_discovery_error provider_artifact_selection_invalid
+              else
+                binding_count="$(wc -l <downloads/provider-artifact-ids | tr -d '[:space:]')"
+              fi
+              if [[ -s discovery-errors.jsonl ]]; then
+                :
+              elif (( binding_count > MAX_PROVIDER_BINDINGS )); then
+                record_discovery_error provider_binding_budget_exceeded \
+                  --argjson observed "$binding_count" --argjson budget "$MAX_PROVIDER_BINDINGS"
+              else
+                while IFS= read -r artifact_id; do
+                  if ! [[ "$artifact_id" =~ ^[0-9]+$ ]]; then
+                    record_discovery_error provider_artifact_selection_invalid --arg artifact_id "$artifact_id"
+                    continue
+                  fi
+                  if ! download_config "$artifact_id" >/dev/null; then
+                    record_discovery_error provider_config_unavailable --arg artifact_id "$artifact_id"
+                  fi
+                done <downloads/provider-artifact-ids
+                if [[ -n "$LEGACY_PROVIDER_CONFIG_JSON" ]]; then
+                  printf '%s' "$LEGACY_PROVIDER_CONFIG_JSON" >downloads/legacy-provider.json
+                  if ! retain_config downloads/legacy-provider.json >/dev/null; then
+                    record_discovery_error provider_config_unavailable --arg source legacy
+                  fi
+                fi
+                resolved_binding_count="$(find provider-configs -type f -name '*.json' | wc -l | tr -d '[:space:]')"
+                if (( resolved_binding_count > MAX_PROVIDER_BINDINGS )); then
+                  record_discovery_error provider_binding_budget_exceeded \
+                    --argjson observed "$resolved_binding_count" --argjson budget "$MAX_PROVIDER_BINDINGS"
+                fi
+              fi
+            fi
+            if [[ ! -s discovery-errors.jsonl ]]; then
+              index=0
+              while IFS= read -r provider_config; do
+                index=$((index + 1))
+                snapshot="inventory-snapshots/${index}.json"
+                if ! timeout "$PROVIDER_COMMAND_TIMEOUT_SECONDS" \
+                     ./wkcloudsim --provider alibaba --provider-config "$provider_config" inventory >"$snapshot"; then
+                  record_discovery_error inventory_unavailable --arg provider_config "$provider_config"
+                  continue
+                fi
+                if ! jq -e --arg repository "$GITHUB_REPOSITORY" '
+                    (.authority.provider == "alibaba") and
+                    (.authority.region | test("^[a-z0-9-]+$")) and
+                    (.authority.account_id_hash | test("^sha256:[0-9a-f]{64}$")) and
+                    (.runs | type == "array") and
+                    all(.runs[];
+                      (.id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")) and
+                      (.repository | type == "string") and
+                      (.state | type == "string")
+                    )
+                  ' "$snapshot" >/dev/null; then
+                  record_discovery_error inventory_invalid --arg provider_config "$provider_config"
+                  continue
+                fi
+                jq -r --arg repository "$GITHUB_REPOSITORY" --arg provider_config "$provider_config" '
+                    .runs[] | select(.repository == $repository and .state == "running")
+                    | [.id,$provider_config] | @tsv
+                  ' "$snapshot" >>inventory-candidates.tsv
+              done < <(find provider-configs -type f -name '*.json' | sort)
+              duplicate_run_id="$(cut -f1 inventory-candidates.tsv | sort | uniq -d | sed -n '1p')"
+              if [[ -n "$duplicate_run_id" ]]; then
+                : >inventory-candidates.tsv
+                record_discovery_error inventory_ambiguous --arg run_id "$duplicate_run_id"
+              fi
+              candidate_count="$(wc -l <inventory-candidates.tsv | tr -d '[:space:]')"
+              if (( candidate_count > MAX_RUNNING_CANDIDATES )); then
+                : >inventory-candidates.tsv
+                record_discovery_error running_candidate_budget_exceeded \
+                  --argjson observed "$candidate_count" --argjson budget "$MAX_RUNNING_CANDIDATES"
+              fi
+            fi
           fi
       - name: Patrol public liveness and Prometheus evidence
         id: patrol
@@ -81,49 +223,137 @@ jobs:
           set -euo pipefail
           : >monitor-results.jsonl
           patrol_failed=0
-          while IFS= read -r run_id; do
+          record_patrol_error() {
+            local run_id="$1"
+            local state="$2"
+            local error="$3"
+            jq -cn --arg run_id "$run_id" --arg state "$state" --arg error "$error" \
+              '{run_id:$run_id,state:$state,verdict:"insufficient_evidence",error:$error}' >>monitor-results.jsonl
+            patrol_failed=1
+          }
+          if [[ -s discovery-errors.jsonl ]]; then
+            cat discovery-errors.jsonl >>monitor-results.jsonl
+            patrol_failed=1
+            echo "patrol_failed=$patrol_failed" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          resolve_locator() {
+            local run_id="$1"
+            local locator_path="$2"
+            local artifact_name artifacts locator_count locator_id locator_dir locator_zip
+            artifact_name="cloud-sim-locator-${run_id}"
+            artifacts="$(timeout "$PROVIDER_COMMAND_TIMEOUT_SECONDS" \
+              gh api --paginate --slurp -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$artifact_name" -f per_page=100)" || return 1
+            locator_count="$(jq -er '[.[] | .artifacts[]? | select(.expired == false)] | length' <<<"$artifacts")" || return 1
+            [[ "$locator_count" == "1" ]] || return 1
+            locator_id="$(jq -er '[.[] | .artifacts[]? | select(.expired == false)][0].id' <<<"$artifacts")" || return 1
+            locator_dir="$(dirname "$locator_path")"
+            locator_zip="${locator_dir}.zip"
+            mkdir -p "$locator_dir"
+            timeout "$PROVIDER_COMMAND_TIMEOUT_SECONDS" \
+              gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${locator_id}/zip" >"$locator_zip" || return 1
+            unzip -q "$locator_zip" -d "$locator_dir" || return 1
+            test -f "$locator_path" || return 1
+            jq -e --arg run_id "$run_id" '.run_id == $run_id' "$locator_path" >/dev/null || return 1
+          }
+          while IFS=$'\t' read -r run_id provider_config; do
             [[ -n "$run_id" ]] || continue
-            safe_run_id="${run_id//[^A-Za-z0-9._-]/_}"
-            provider_config="provider-${safe_run_id}.json"
-            if ! ./scripts/cloud-sim/resolve-exact-provider-config.sh "$run_id" "$provider_config"; then
+            if [[ -z "$provider_config" || ! -f "$provider_config" ]]; then
               jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"provider_config_unavailable"}' >>monitor-results.jsonl
               patrol_failed=1
               continue
             fi
-            if ! status_json="$(./wkcloudsim --provider alibaba --provider-config "$provider_config" status "$run_id")"; then
-              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"status_unavailable"}' >>monitor-results.jsonl
+            safe_run_id="${run_id//[^A-Za-z0-9._-]/_}"
+            locator_path="locator-${safe_run_id}/run-locator.json"
+            if ! resolve_locator "$run_id" "$locator_path"; then
+              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"locator_unavailable"}' >>monitor-results.jsonl
               patrol_failed=1
               continue
             fi
-            state="$(jq -er .state <<<"$status_json")"
+            if ! expected_region="$(jq -er '.region | select(test("^[a-z0-9-]+$"))' "$provider_config")" ||
+               ! expected_account_id_hash="$(jq -er '.account_id_hash | select(test("^sha256:[0-9a-f]{64}$"))' "$provider_config")" ||
+               ! jq -e --arg region "$expected_region" --arg account_id_hash "$expected_account_id_hash" \
+                  '.region == $region and .account_id_hash == $account_id_hash' "$locator_path" >/dev/null; then
+              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"locator_invalid"}' >>monitor-results.jsonl
+              patrol_failed=1
+              continue
+            fi
+            preflight_path="preflight-${safe_run_id}.json"
+            if ! timeout "$PROVIDER_COMMAND_TIMEOUT_SECONDS" \
+                 ./wkcloudsim --provider alibaba --provider-config "$provider_config" preflight --locator "$locator_path" >"$preflight_path"; then
+              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"preflight_unavailable"}' >>monitor-results.jsonl
+              patrol_failed=1
+              continue
+            fi
+            if ! preflight_state="$(jq -er '.state | select(. == "live" or . == "released")' "$preflight_path")"; then
+              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"preflight_invalid"}' >>monitor-results.jsonl
+              patrol_failed=1
+              continue
+            fi
+            if [[ "$preflight_state" == "released" ]]; then
+              continue
+            fi
+            if ! run_json="$(jq -cer '.run' "$preflight_path")" ||
+               ! state="$(jq -er '.state | strings' <<<"$run_json")"; then
+              jq -cn --arg run_id "$run_id" '{run_id:$run_id,state:"unknown",verdict:"insufficient_evidence",error:"preflight_invalid"}' >>monitor-results.jsonl
+              patrol_failed=1
+              continue
+            fi
             if [[ "$state" != "running" ]]; then
               continue
             fi
-            sim_public="$(jq -er '.resources[] | select(.kind=="public-address" and .role=="sim") | .public_address' <<<"$status_json")"
+            if ! sim_public="$(jq -er '
+                [.resources[]? | select(.kind=="public-address" and .role=="sim") | .public_address]
+                | if length == 1 and (.[0] | type == "string" and length > 0) then .[0] else error("missing or ambiguous simulator public address") end
+              ' <<<"$run_json")"; then
+              record_patrol_error "$run_id" "$state" simulator_public_address_unavailable
+              continue
+            fi
             base_url="http://${sim_public}:19443"
             if ! view_status="$(curl --fail --silent --show-error --max-time 15 "${base_url}/cloud-view/status")" ||
                ! jq -e --arg run_id "$run_id" '.run_id == $run_id and .persistence_healthy == true' <<<"$view_status" >/dev/null; then
-              jq -cn --arg run_id "$run_id" --arg state "$state" '{run_id:$run_id,state:$state,verdict:"insufficient_evidence",error:"cloud_view_unavailable"}' >>monitor-results.jsonl
-              patrol_failed=1
+              record_patrol_error "$run_id" "$state" cloud_view_unavailable
               continue
             fi
-            targets="$(curl --fail --silent --show-error --max-time 15 "${base_url}/prometheus/api/v1/targets?state=active")"
-            target_count="$(jq -er '.data.activeTargets | length' <<<"$targets")"
-            targets_up="$(jq -er '[.data.activeTargets[] | select(.health == "up")] | length' <<<"$targets")"
-            sustained="$(curl --fail --silent --show-error --max-time 15 --get \
-              --data-urlencode 'query=min_over_time(up[30m])' \
-              "${base_url}/prometheus/api/v1/query")"
-            sustained_down="$(jq -er '[.data.result[] | select((.value[1] | tonumber) == 0)] | length' <<<"$sustained")"
+            if ! targets="$(curl --fail --silent --show-error --max-time 15 "${base_url}/prometheus/api/v1/targets?state=active")" ||
+               ! target_count="$(jq -er '.data.activeTargets | if type == "array" then length else error("missing active targets") end' <<<"$targets")" ||
+               ! targets_up="$(jq -er '[.data.activeTargets[] | select(.health == "up")] | length' <<<"$targets")"; then
+              record_patrol_error "$run_id" "$state" prometheus_targets_unavailable
+              continue
+            fi
+            if ! sustained="$(curl --fail --silent --show-error --max-time 15 --get \
+                 --data-urlencode 'query=min_over_time(up[30m])' \
+                 "${base_url}/prometheus/api/v1/query")" ||
+               ! sustained_down="$(jq -er '
+                   .data.result
+                   | if type != "array" or length == 0 then error("missing sustained target evidence")
+                     else [.[] | select((.value[1] | tonumber) == 0)] | length end
+                 ' <<<"$sustained")"; then
+              record_patrol_error "$run_id" "$state" prometheus_sustained_targets_unavailable
+              continue
+            fi
             prom_max() {
               local query="$1"
               curl --fail --silent --show-error --max-time 15 --get --data-urlencode "query=${query}" \
                 "${base_url}/prometheus/api/v1/query" \
                 | jq -er '.data.result | if length == 0 then error("missing evidence") else map(.value[1] | tonumber) | max end'
             }
-            cpu_p95="$(prom_max 'max(quantile_over_time(0.95, (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))))[30m:15s]))')"
-            rss_percent="$(prom_max 'max(100 * process_resident_memory_bytes{job="wukongim"} / on(role) group_left node_memory_MemTotal_bytes{job="hosts"})')"
-            disk_percent="$(prom_max 'max(100 * (1 - node_filesystem_avail_bytes{job="hosts",mountpoint="/var/lib/wukongim-cloud"} / node_filesystem_size_bytes{job="hosts",mountpoint="/var/lib/wukongim-cloud"}))')"
-            queue_ratio="$(prom_max 'max((wukongim_gateway_async_send_queue_depth / wukongim_gateway_async_send_queue_capacity) or (wukongim_delivery_recipient_worker_queue_depth / wukongim_delivery_recipient_worker_queue_capacity))')"
+            if ! cpu_p95="$(prom_max 'max(quantile_over_time(0.95, (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))))[30m:15s]))')"; then
+              record_patrol_error "$run_id" "$state" prometheus_cpu_unavailable
+              continue
+            fi
+            if ! rss_percent="$(prom_max 'max(100 * process_resident_memory_bytes{job="wukongim"} / on(role) group_left node_memory_MemTotal_bytes{job="hosts"})')"; then
+              record_patrol_error "$run_id" "$state" prometheus_memory_unavailable
+              continue
+            fi
+            if ! disk_percent="$(prom_max 'max(100 * (1 - node_filesystem_avail_bytes{job="hosts",mountpoint="/var/lib/wukongim-cloud"} / node_filesystem_size_bytes{job="hosts",mountpoint="/var/lib/wukongim-cloud"}))')"; then
+              record_patrol_error "$run_id" "$state" prometheus_disk_unavailable
+              continue
+            fi
+            if ! queue_ratio="$(prom_max 'max((wukongim_gateway_async_send_queue_depth / wukongim_gateway_async_send_queue_capacity) or (wukongim_delivery_recipient_worker_queue_depth / wukongim_delivery_recipient_worker_queue_capacity))')"; then
+              record_patrol_error "$run_id" "$state" prometheus_queue_unavailable
+              continue
+            fi
             verdict=healthy
             if [[ "$target_count" != 7 || "$targets_up" != 7 || "$sustained_down" != 0 ]] ||
                awk -v value="$cpu_p95" 'BEGIN {exit !(value > 85)}' ||
@@ -140,7 +370,7 @@ jobs:
                 sustained_down_30m:$sustained_down,cpu_5m_p95_percent:$cpu_p95,rss_percent:$rss_percent,
                 disk_used_percent:$disk_percent,max_queue_ratio:$queue_ratio}' \
               >>monitor-results.jsonl
-          done <run-ids.txt
+          done <inventory-candidates.tsv
           echo "patrol_failed=$patrol_failed" >>"$GITHUB_OUTPUT"
       - name: Upload bounded patrol evidence
         if: always()

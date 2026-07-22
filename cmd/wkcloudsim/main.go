@@ -86,6 +86,7 @@ func newRootCommand(stdout, stderr io.Writer, now func() time.Time) *cobra.Comma
 			return cloudsimalibaba.NewOpenAPIFromEnvironment(region)
 		}),
 		newCreateCommand(stdout, control),
+		newInventoryCommand(stdout, control),
 		newStatusCommand(stdout, control),
 		newTransitionCommand(stdout, control),
 		newPreflightCommand(stdout, control),
@@ -230,6 +231,25 @@ func newStatusCommand(stdout io.Writer, factory controlFactory) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func newInventoryCommand(stdout io.Writer, factory controlFactory) *cobra.Command {
+	return &cobra.Command{
+		Use:   "inventory",
+		Short: "List authority-bound run candidates without proving release",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			control, err := factory()
+			if err != nil {
+				return err
+			}
+			snapshot, err := control.InventorySnapshot(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeJSON(stdout, snapshot)
+		},
+	}
 }
 
 func newTransitionCommand(stdout io.Writer, factory controlFactory) *cobra.Command {
