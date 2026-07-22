@@ -512,7 +512,9 @@ configured by the `WK_MANAGER_*` auth keys.
 Normal mode exposes backup status and restore-point inventory through
 `cluster.backup:r`, and trigger/cancel/verify/hold/release through
 `cluster.backup:w`. DTOs deliberately omit object keys, config fingerprints,
-credentials, Channel IDs, and plaintext. A disabled backup still returns an
+credentials, Channel IDs, and plaintext. Job DTOs expose the preallocated
+`restore_point_id` so operators and black-box qualification can correlate one
+persisted job with its eventual immutable publication. A disabled backup still returns an
 explicit disabled status through the app facade.
 
 Restore mode registers only permission discovery plus the restricted

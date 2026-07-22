@@ -180,7 +180,24 @@ The scenario starts real `cmd/wukongim` processes, publishes a materialized
 baseline and an incremental point, stops the source, restores into a fresh
 three-node cluster, verifies and activates it through Manager, restarts the
 same target data in normal mode, reads restored history, and proves the next
-message ID and per-Channel sequence advance.
+message ID and per-Channel sequence advance. A second scenario stops the
+active Controller Leader during an incremental job, observes a different
+Controller Leader and the same persisted job through public Manager and
+metrics surfaces, rejoins the stopped node, and requires the new coordinator
+to publish and explicitly verify that original restore point.
+
+Run the failover scenario alone with:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_failover -count=1 -timeout 3m -p=1
+```
+
+`.github/workflows/backup-qualification.yml` runs these backup scenarios every
+night and on manual dispatch with one E2E-tagged product binary. The ordinary
+Nightly E2E job also builds its shared binary with the `e2e` tag so the same
+explicit harness substitutes are available when the full package wildcard
+reaches the backup scenarios. Failure artifacts contain only the final 1 MiB of
+the bounded test log and its allowlisted process diagnostics.
 
 The tagged harness uses local immutable file repositories and a deterministic
 local key authority selected by an explicit E2E-only environment variable. It
@@ -191,12 +208,14 @@ failure behavior.
 ## Qualification Gates
 
 Production enablement remains blocked until a real three-node environment
-proves online baseline and incremental capture, Controller failover, data-node
-failure, primary outage, secondary recovery, retention/tombstone correctness,
+proves online baseline and incremental capture, sustained data-node failure,
+primary outage, secondary recovery, retention/tombstone correctness,
 corruption rejection, different target topology, restored client sync/send,
-and a weekly isolated restore drill. The qualified 1 TB profile must restore
-within 60 minutes and stay inside the foreground throughput and SENDACK P99
-budgets in the design spec.
+and a weekly isolated restore drill. The local qualification now covers a
+Controller process failover after the stopped node rejoins; it does not claim
+that backup can complete while one combined Controller/data node remains
+offline. The qualified 1 TB profile must restore within 60 minutes and stay
+inside the foreground throughput and SENDACK P99 budgets in the design spec.
 
 The current implementation also needs explicit qualification or completion for
 permanent-erasure ledger replay; source-log pin budget enforcement and public

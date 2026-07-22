@@ -1,0 +1,63 @@
+name: Backup qualification
+
+on:
+  schedule:
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  three-node-backup:
+    name: Three-node backup and restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Build e2e-tagged product binary
+        shell: bash
+        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim
+      - name: Run backup qualification scenarios
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-qualification.log
+        run: |
+          set -o pipefail
+          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 10m \
+            go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=8m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Prepare bounded failure evidence
+        if: failure()
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-qualification.log
+          EVIDENCE_FILE: ${{ runner.temp }}/backup-qualification-failure.log
+        run: |
+          if [[ -f "$LOG_FILE" ]]; then
+            tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+          else
+            printf '%s\n' 'backup qualification log was not created' > "$EVIDENCE_FILE"
+          fi
+      - name: Upload bounded failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backup-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backup-qualification-failure.log
+          if-no-files-found: warn
+          retention-days: 7

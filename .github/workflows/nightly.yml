@@ -110,7 +110,7 @@ jobs:
         run: test "$(go env GOVERSION)" = "go1.25.11"
       - name: Build e2e binary once
         shell: bash
-        run: go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
+        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
       - name: Run e2e packages
         shell: bash
         env:

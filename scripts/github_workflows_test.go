@@ -251,6 +251,16 @@ ${{ runner.temp }}/${{ env.SMOKE_OUT }}/cluster.log
 ${{ runner.temp }}/${{ env.SMOKE_OUT }}/sim.jsonl
 ${{ runner.temp }}/${{ env.SMOKE_OUT }}/node-logs/*.log
 `
+	backupQualificationCommand = `set -o pipefail
+WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 10m \
+  go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=8m -p=1 2>&1 | tee "$LOG_FILE"
+`
+	backupQualificationEvidenceCommand = `if [[ -f "$LOG_FILE" ]]; then
+  tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+else
+  printf '%s\n' 'backup qualification log was not created' > "$EVIDENCE_FILE"
+fi
+`
 )
 
 var expectedNightlyJobs = map[string]ciJob{
@@ -338,7 +348,7 @@ var expectedNightlyJobs = map[string]ciJob{
 			{
 				Name:  "Build e2e binary once",
 				Shell: "bash",
-				Run:   `go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
+				Run:   `go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
 			},
 			{
 				Name:  "Run e2e packages",
@@ -395,6 +405,52 @@ var expectedNightlyJobs = map[string]ciJob{
 	},
 }
 
+var expectedBackupQualificationJobs = map[string]ciJob{
+	"three-node-backup": {
+		Name:           "Three-node backup and restore",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 15,
+		Env:            map[string]string{"GOWORK": "off"},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Build e2e-tagged product binary",
+				Shell: "bash",
+				Run:   `go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim`,
+			},
+			{
+				Name:  "Run backup qualification scenarios",
+				Shell: "bash",
+				Env:   map[string]string{"LOG_FILE": "${{ runner.temp }}/backup-qualification.log"},
+				Run:   backupQualificationCommand,
+			},
+			{
+				Name:  "Prepare bounded failure evidence",
+				If:    "failure()",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE":      "${{ runner.temp }}/backup-qualification.log",
+					"EVIDENCE_FILE": "${{ runner.temp }}/backup-qualification-failure.log",
+				},
+				Run: backupQualificationEvidenceCommand,
+			},
+			{
+				Name: "Upload bounded failure evidence",
+				If:   "failure()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "backup-qualification-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/backup-qualification-failure.log",
+					"if-no-files-found": "warn",
+					"retention-days":    7,
+				},
+			},
+		},
+	},
+}
+
 func checkoutStep() ciStep {
 	return ciStep{
 		Uses: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
@@ -428,6 +484,24 @@ func TestNightlyWorkflowContract(t *testing.T) {
 	raw := readWorkflow(t, "nightly.yml")
 	if err := validateNightlyWorkflow(raw); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBackupQualificationWorkflowContract(t *testing.T) {
+	raw := readWorkflow(t, "backup-qualification.yml")
+	if err := validateBackupQualificationWorkflow(raw); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBackupQualificationWorkflowRejectsUntaggedBinary(t *testing.T) {
+	raw := string(readWorkflow(t, "backup-qualification.yml"))
+	mutated := replaceWorkflowFirst(t, raw,
+		`        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim`,
+		`        run: go build -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim`,
+	)
+	if err := validateBackupQualificationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted an untagged backup qualification binary")
 	}
 }
 
@@ -641,8 +715,8 @@ func TestNightlyWorkflowContractRejectsMutations(t *testing.T) {
 			name: "e2e prebuild command is exact",
 			mutate: func(t *testing.T, workflow string) string {
 				return replaceWorkflowFirst(t, workflow,
-					`        run: go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
-					`        run: go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/... # go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
+					`        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
+					`        run: go build -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim # go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim`,
 				)
 			},
 		},
@@ -854,6 +928,32 @@ func validateCIWorkflow(raw []byte) error {
 }
 
 func validateNightlyWorkflow(raw []byte) error {
+	return validateScheduledWorkflow(
+		raw,
+		"Nightly",
+		"0 18 * * *",
+		[]string{"go-race", "go-integration", "go-e2e", "three-node-smoke"},
+		expectedNightlyJobs,
+	)
+}
+
+func validateBackupQualificationWorkflow(raw []byte) error {
+	return validateScheduledWorkflow(
+		raw,
+		"Backup qualification",
+		"30 19 * * *",
+		[]string{"three-node-backup"},
+		expectedBackupQualificationJobs,
+	)
+}
+
+func validateScheduledWorkflow(
+	raw []byte,
+	wantName string,
+	wantCron string,
+	jobNames []string,
+	expectedJobs map[string]ciJob,
+) error {
 	document, workflow, err := decodeWorkflow(raw)
 	if err != nil {
 		return err
@@ -863,15 +963,15 @@ func validateNightlyWorkflow(raw []byte) error {
 	}
 	if err := validateWorkflowStructure(
 		document,
-		[]string{"go-race", "go-integration", "go-e2e", "three-node-smoke"},
-		expectedNightlyJobs,
+		jobNames,
+		expectedJobs,
 	); err != nil {
 		return err
 	}
-	if workflow.Name != "Nightly" {
-		return fmt.Errorf("workflow name = %q, want Nightly", workflow.Name)
+	if workflow.Name != wantName {
+		return fmt.Errorf("workflow name = %q, want %s", workflow.Name, wantName)
 	}
-	if err := validateNightlyTriggers(workflow.On); err != nil {
+	if err := validateScheduledTriggers(workflow.On, wantName, wantCron); err != nil {
 		return err
 	}
 	wantPermissions := map[string]string{"contents": "read"}
@@ -885,10 +985,10 @@ func validateNightlyWorkflow(raw []byte) error {
 	if !reflect.DeepEqual(workflow.Concurrency, wantConcurrency) {
 		return fmt.Errorf("concurrency = %#v, want %#v", workflow.Concurrency, wantConcurrency)
 	}
-	if len(workflow.Jobs) != len(expectedNightlyJobs) {
-		return fmt.Errorf("workflow jobs = %d, want exactly %d", len(workflow.Jobs), len(expectedNightlyJobs))
+	if len(workflow.Jobs) != len(expectedJobs) {
+		return fmt.Errorf("workflow jobs = %d, want exactly %d", len(workflow.Jobs), len(expectedJobs))
 	}
-	for name, want := range expectedNightlyJobs {
+	for name, want := range expectedJobs {
 		got, ok := workflow.Jobs[name]
 		if !ok {
 			return fmt.Errorf("workflow missing required job %q", name)
@@ -1104,7 +1204,7 @@ func validateCITriggers(triggers map[string]yaml.Node) error {
 	return nil
 }
 
-func validateNightlyTriggers(triggers map[string]yaml.Node) error {
+func validateScheduledTriggers(triggers map[string]yaml.Node, workflowName, wantCron string) error {
 	if len(triggers) != 2 {
 		return fmt.Errorf("workflow trigger keys = %d, want exactly schedule and workflow_dispatch", len(triggers))
 	}
@@ -1123,12 +1223,13 @@ func validateNightlyTriggers(triggers map[string]yaml.Node) error {
 		return fmt.Errorf("schedule trigger must contain exactly one cron entry")
 	}
 	entry := schedule.Content[0]
-	if err := validateMappingKeys(entry, []string{"cron"}, "nightly schedule entry"); err != nil {
+	context := strings.ToLower(workflowName) + " schedule entry"
+	if err := validateMappingKeys(entry, []string{"cron"}, context); err != nil {
 		return err
 	}
 	cron, ok := mappingValue(entry, "cron")
-	if !ok || cron.Kind != yaml.ScalarNode || cron.Value != "0 18 * * *" {
-		return fmt.Errorf("nightly cron = %q, want exactly %q", cronValue(cron), "0 18 * * *")
+	if !ok || cron.Kind != yaml.ScalarNode || cron.Value != wantCron {
+		return fmt.Errorf("%s cron = %q, want exactly %q", strings.ToLower(workflowName), cronValue(cron), wantCron)
 	}
 	return nil
 }

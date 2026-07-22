@@ -25,6 +25,7 @@ func TestManagerBackupStatusSanitizesControllerAndRepositoryDetails(t *testing.T
 		Active: &backupusecase.Job{
 			ID: "job-1", Epoch: 3, Kind: backupartifact.RestorePointIncremental,
 			Status: backupusecase.JobStatusCapturing, HashSlotCount: 256,
+			RestorePointID:    "restore-job-1",
 			ConfigFingerprint: "secret-config-fingerprint",
 			Partitions:        []backupusecase.PartitionReport{{ManifestKey: "objects/private/key"}},
 		},
@@ -49,6 +50,9 @@ func TestManagerBackupStatusSanitizesControllerAndRepositoryDetails(t *testing.T
 	active := decoded["active"].(map[string]any)
 	if active["completed_partitions"].(float64) != 1 || active["hash_slot_count"].(float64) != 256 {
 		t.Fatalf("active = %#v", active)
+	}
+	if active["restore_point_id"] != "restore-job-1" {
+		t.Fatalf("active restore_point_id = %#v", active["restore_point_id"])
 	}
 	if decoded["verification_age_seconds"].(float64) != 3600 || decoded["pending_garbage_count"].(float64) != 7 || decoded["failure_category"] != "retention" {
 		t.Fatalf("operational backup status = %#v", decoded)
@@ -79,7 +83,7 @@ func TestManagerBackupRoutesEnforceReadWritePermissions(t *testing.T) {
 	allowedReq.Header.Set("Content-Type", "application/json")
 	allowedReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "writer"))
 	srv.Engine().ServeHTTP(allowed, allowedReq)
-	if allowed.Code != http.StatusAccepted || !provider.triggered {
+	if allowed.Code != http.StatusAccepted || !provider.triggered || !bytes.Contains(allowed.Body.Bytes(), []byte(`"restore_point_id":"restore-job-1"`)) {
 		t.Fatalf("allowed status=%d body=%s triggered=%v", allowed.Code, allowed.Body.String(), provider.triggered)
 	}
 
@@ -107,7 +111,7 @@ func (f *fakeBackupManagement) ListRestorePoints(context.Context) ([]backupuseca
 
 func (f *fakeBackupManagement) Trigger(_ context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
 	f.triggered = true
-	return backupusecase.Job{ID: "job-1", Epoch: 1, Kind: kind, Status: backupusecase.JobStatusCapturing, HashSlotCount: 256}, nil
+	return backupusecase.Job{ID: "job-1", Epoch: 1, Kind: kind, Status: backupusecase.JobStatusCapturing, HashSlotCount: 256, RestorePointID: "restore-job-1"}, nil
 }
 
 func (f *fakeBackupManagement) Cancel(context.Context, string, uint64) (backupusecase.Job, error) {

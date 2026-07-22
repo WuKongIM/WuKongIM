@@ -23,15 +23,17 @@ type BackupManagement interface {
 }
 
 type backupJobDTO struct {
-	ID                  string                          `json:"id"`
-	Epoch               uint64                          `json:"epoch"`
-	Kind                backupartifact.RestorePointKind `json:"kind"`
-	Status              backupusecase.JobStatus         `json:"status"`
-	HashSlotCount       uint16                          `json:"hash_slot_count"`
-	CompletedPartitions int                             `json:"completed_partitions"`
-	StartedAtUnixMillis int64                           `json:"started_at_unix_millis"`
-	UpdatedAtUnixMillis int64                           `json:"updated_at_unix_millis"`
-	FailureCategory     string                          `json:"failure_category,omitempty"`
+	ID            string                          `json:"id"`
+	Epoch         uint64                          `json:"epoch"`
+	Kind          backupartifact.RestorePointKind `json:"kind"`
+	Status        backupusecase.JobStatus         `json:"status"`
+	HashSlotCount uint16                          `json:"hash_slot_count"`
+	// RestorePointID is the preallocated immutable publication identity for this job.
+	RestorePointID      string `json:"restore_point_id"`
+	CompletedPartitions int    `json:"completed_partitions"`
+	StartedAtUnixMillis int64  `json:"started_at_unix_millis"`
+	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
+	FailureCategory     string `json:"failure_category,omitempty"`
 }
 
 type backupRestorePointDTO struct {
@@ -203,7 +205,7 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 func backupJobResponse(job backupusecase.Job) backupJobDTO {
 	return backupJobDTO{
 		ID: job.ID, Epoch: job.Epoch, Kind: job.Kind, Status: job.Status,
-		HashSlotCount: job.HashSlotCount, CompletedPartitions: len(job.Partitions),
+		HashSlotCount: job.HashSlotCount, RestorePointID: job.RestorePointID, CompletedPartitions: len(job.Partitions),
 		StartedAtUnixMillis: job.StartedAtUnixMillis, UpdatedAtUnixMillis: job.UpdatedAtUnixMillis,
 		FailureCategory: job.FailureCategory,
 	}
