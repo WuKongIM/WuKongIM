@@ -25,7 +25,7 @@ func BenchmarkPlannerPartition100K(b *testing.B) {
 	}
 }
 
-func BenchmarkRecipientAckTrackerRecvack(b *testing.B) {
+func BenchmarkAckTrackerUniqueBindFinishAck(b *testing.B) {
 	tracker := NewAckTracker(AckTrackerOptions{ShardCount: 64, Now: func() int64 { return 100 }})
 
 	b.ReportAllocs()
@@ -33,9 +33,75 @@ func BenchmarkRecipientAckTrackerRecvack(b *testing.B) {
 		sessionID := uint64(i%10000 + 1)
 		messageID := uint64(i + 1)
 		uid := "u" + strconv.Itoa(i%10000)
-		tracker.Bind(PendingRecvAck{UID: uid, SessionID: sessionID, MessageID: messageID})
+		pending := PendingRecvAck{UID: uid, SessionID: sessionID, MessageID: messageID}
+		bound := tracker.BindResult(pending)
+		if !bound.Bound || !tracker.FinishBind(pending, bound.Token) {
+			b.Fatal("unique bind/finish failed")
+		}
 		_, _ = tracker.Ack(Recvack{UID: uid, SessionID: sessionID, MessageID: messageID})
 	}
+}
+
+func BenchmarkManagerCommittedRefresh55RoutesParallel(b *testing.B) {
+	pending := make([]PendingRecvAck, 55)
+	indexes := make([]int, 55)
+	for i := range pending {
+		pending[i] = PendingRecvAck{
+			UID:       "u" + strconv.Itoa(i),
+			SessionID: uint64(i + 1),
+			MessageID: 1001,
+		}
+		indexes[i] = i
+	}
+
+	b.Run("single_refresh", func(b *testing.B) {
+		manager := NewManager(ManagerOptions{
+			Acks:        NewAckTracker(AckTrackerOptions{ShardCount: 32}),
+			AckObserver: &benchmarkAckObserver{},
+		})
+		for _, item := range pending {
+			if !manager.BindPendingAck(item) {
+				b.Fatal("warm BindPendingAck() = false")
+			}
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				for _, item := range pending {
+					if !manager.BindPendingAck(item) {
+						panic("BindPendingAck() = false")
+					}
+				}
+			}
+		})
+	})
+	b.Run("batch_refresh", func(b *testing.B) {
+		manager := NewManager(ManagerOptions{
+			Acks:        NewAckTracker(AckTrackerOptions{ShardCount: 32}),
+			AckObserver: &benchmarkAckObserver{},
+		})
+		warm := manager.BindPendingAcks(pending)
+		if warm.Added != len(pending) {
+			b.Fatalf("warm BindPendingAcks() Added = %d, want %d", warm.Added, len(pending))
+		}
+		if finished := manager.FinishPendingAcks(pending, warm.Tokens, indexes); finished != len(pending) {
+			b.Fatalf("warm FinishPendingAcks() = %d, want %d", finished, len(pending))
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				result := manager.BindPendingAcks(pending)
+				if len(result.Tokens) != len(pending) || !result.Tokens[len(result.Tokens)-1].Valid() {
+					panic("BindPendingAcks() returned unaligned result")
+				}
+				if finished := manager.FinishPendingAcks(pending, result.Tokens, indexes); finished != len(pending) {
+					panic("FinishPendingAcks() returned incomplete result")
+				}
+			}
+		})
+	})
 }
 
 func BenchmarkFanoutWorkerLocalPresence(b *testing.B) {
@@ -315,6 +381,14 @@ func (benchmarkRetryableFanoutTaskRunner) RunTask(context.Context, FanoutTask) e
 
 type benchmarkCountingFanoutTaskRunner struct {
 	count atomic.Uint64
+}
+
+type benchmarkAckObserver struct {
+	pending atomic.Int64
+}
+
+func (o *benchmarkAckObserver) ObserveAck(event AckEvent) {
+	o.pending.Store(int64(event.PendingCount))
 }
 
 func (r *benchmarkCountingFanoutTaskRunner) RunTask(context.Context, FanoutTask) error {

@@ -646,6 +646,166 @@ func TestRecipientAuthorityBatchResolverResolvesUniqueTrimmedUIDsOnce(t *testing
 	}
 }
 
+func TestDispatchRecipientSetSharesAlignedAuthoritySnapshotWithRoutedActive(t *testing.T) {
+	senderTarget := authority.Target{HashSlot: 1, SlotID: 7, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
+	firstTarget := authority.Target{HashSlot: 2, SlotID: 7, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
+	secondTarget := authority.Target{HashSlot: 12, SlotID: 7, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
+	resolver := &alignedRecipientAuthorityResolverForRecipientTest{results: map[string]RecipientAuthorityResult{
+		"sender": {Target: senderTarget},
+		"u1":     {Target: firstTarget},
+		"u2":     {Target: secondTarget},
+	}}
+	delivery := &recordingRecipientPlanEnqueuerForRecipientTest{}
+	active := &recordingRoutedActiveAdmitterForRecipientTest{}
+
+	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{
+		MessageID:         1,
+		MessageSeq:        9,
+		ChannelID:         "room",
+		ChannelType:       2,
+		FromUID:           "sender",
+		ServerTimestampMS: 123,
+	}, []Recipient{{UID: " u1 "}, {UID: "u2"}, {UID: "u1"}}, commitPorts{
+		activeAdmitter:             active,
+		recipientAuthorityResolver: resolver,
+		deliveryEnqueuer:           delivery,
+		recipientBatchSize:         16,
+	})
+	if err != nil {
+		t.Fatalf("dispatchRecipientSet() error = %v", err)
+	}
+	if resolver.singleCalls != 0 || resolver.batchCalls != 1 {
+		t.Fatalf("resolver calls = single:%d batch:%d, want one aligned batch only", resolver.singleCalls, resolver.batchCalls)
+	}
+	if !reflect.DeepEqual(resolver.batchUIDs, []string{"sender", "u1", "u2"}) {
+		t.Fatalf("resolver UIDs = %#v, want sender then unique trimmed recipients", resolver.batchUIDs)
+	}
+	if active.legacyCalls != 0 || active.routedCalls != 1 {
+		t.Fatalf("active calls = legacy:%d routed:%d, want one routed call only", active.legacyCalls, active.routedCalls)
+	}
+	if len(active.groups) != 3 {
+		t.Fatalf("active groups = %d, want sender plus two physical hash-slot groups", len(active.groups))
+	}
+	if active.groups[0].Target != senderTarget || active.groups[0].Batch.SenderUID != "sender" || len(active.groups[0].Batch.Recipients) != 0 {
+		t.Fatalf("sender active group = %#v, want sender-only exact target", active.groups[0])
+	}
+	if active.groups[1].Target != firstTarget || active.groups[2].Target != secondTarget {
+		t.Fatalf("recipient active targets = %#v, want distinct physical hash slots despite one logical Slot", active.groups[1:])
+	}
+	if got := activeRecipientUIDsForTarget(active.groups[1]); !reflect.DeepEqual(got, []string{"u1"}) {
+		t.Fatalf("first active recipients = %#v, want coalesced u1", got)
+	}
+	if got := activeRecipientUIDsForTarget(active.groups[2]); !reflect.DeepEqual(got, []string{"u2"}) {
+		t.Fatalf("second active recipients = %#v, want u2", got)
+	}
+	if len(delivery.plans) != 1 || len(delivery.plans[0].Targets) != 2 {
+		t.Fatalf("delivery plans = %#v, want one plan with two recipient targets", delivery.plans)
+	}
+	if delivery.plans[0].Targets[0].Target != firstTarget || delivery.plans[0].Targets[1].Target != secondTarget {
+		t.Fatalf("delivery targets = %#v, want aligned exact targets", delivery.plans[0].Targets)
+	}
+	if got := recipientUIDs(delivery.plans[0].Targets[0].Recipients); !reflect.DeepEqual(got, []string{"u1", "u1"}) {
+		t.Fatalf("delivery first target recipients = %#v, want duplicate delivery rows preserved", got)
+	}
+	activeRows := 0
+	for _, group := range active.groups {
+		activeRows += len(group.Batch.Recipients)
+		for _, recipient := range group.Batch.Recipients {
+			if recipient.UID == "" {
+				t.Fatalf("active group contains empty UID: %#v", group)
+			}
+		}
+	}
+	if activeRows != 2 {
+		t.Fatalf("active recipient rows = %d, want exactly two unique recipients", activeRows)
+	}
+	deliveryRows := 0
+	for _, target := range delivery.plans[0].Targets {
+		deliveryRows += len(target.Recipients)
+		for _, recipient := range target.Recipients {
+			if recipient.UID == "" {
+				t.Fatalf("delivery target contains empty UID: %#v", target)
+			}
+		}
+	}
+	if deliveryRows != 3 {
+		t.Fatalf("delivery recipient rows = %d, want exactly three normalized rows", deliveryRows)
+	}
+}
+
+func TestDispatchRecipientSetSenderRouteFailureKeepsDeliveryAndFallsBackActive(t *testing.T) {
+	senderErr := errors.New("sender route unavailable")
+	activeErr := errors.New("active fallback unavailable")
+	recipientTarget := recipientAuthorityTargetForTest(9, 20, 200)
+	resolver := &alignedRecipientAuthorityResolverForRecipientTest{results: map[string]RecipientAuthorityResult{
+		"sender": {Err: senderErr},
+		"u1":     {Target: recipientTarget},
+	}}
+	delivery := &recordingRecipientPlanEnqueuerForRecipientTest{}
+	active := &recordingRoutedActiveAdmitterForRecipientTest{err: activeErr}
+
+	dispatch, err := dispatchRecipientSetResult(context.Background(), CommittedEnvelope{
+		MessageID: 1,
+		FromUID:   "sender",
+	}, []Recipient{{UID: "u1"}}, commitPorts{
+		activeAdmitter:             active,
+		recipientAuthorityResolver: resolver,
+		deliveryEnqueuer:           delivery,
+		recipientBatchSize:         16,
+	})
+	if err != nil {
+		t.Fatalf("delivery error = %v, want sender-only route failure isolated", err)
+	}
+	if !errors.Is(dispatch.activeErr, activeErr) {
+		t.Fatalf("active fallback error = %v, want %v", dispatch.activeErr, activeErr)
+	}
+	detail := postCommitFailureDetailFromError(dispatch.activeErr)
+	if detail.UID != "u1" || detail.UIDCount != 1 || detail.RecipientCount != 1 {
+		t.Fatalf("active fallback detail = %#v, want recipient-only diagnostics", detail)
+	}
+	if len(delivery.plans) != 1 || delivery.plans[0].RecipientCount() != 1 || delivery.plans[0].Targets[0].Target != recipientTarget {
+		t.Fatalf("delivery plans = %#v, want successful u1 delivery", delivery.plans)
+	}
+	if active.routedCalls != 0 || active.legacyCalls != 1 {
+		t.Fatalf("active calls = routed:%d legacy:%d, want one compatibility fallback", active.routedCalls, active.legacyCalls)
+	}
+	if resolver.batchCalls != 1 || !reflect.DeepEqual(resolver.batchUIDs, []string{"sender", "u1"}) {
+		t.Fatalf("resolver calls/uids = %d %#v, want one aligned sender+recipient snapshot", resolver.batchCalls, resolver.batchUIDs)
+	}
+}
+
+func TestDispatchRecipientSetRecipientRouteFailureSkipsDeliveryAndFallsBackActive(t *testing.T) {
+	recipientErr := errors.New("recipient route unavailable")
+	resolver := &alignedRecipientAuthorityResolverForRecipientTest{results: map[string]RecipientAuthorityResult{
+		"sender": {Target: recipientAuthorityTargetForTest(1, 10, 100)},
+		"u1":     {Err: recipientErr},
+	}}
+	delivery := &recordingRecipientPlanEnqueuerForRecipientTest{}
+	active := &recordingRoutedActiveAdmitterForRecipientTest{}
+
+	dispatch, err := dispatchRecipientSetResult(context.Background(), CommittedEnvelope{
+		MessageID: 1,
+		FromUID:   "sender",
+	}, []Recipient{{UID: "u1"}}, commitPorts{
+		activeAdmitter:             active,
+		recipientAuthorityResolver: resolver,
+		deliveryEnqueuer:           delivery,
+		recipientBatchSize:         16,
+	})
+	if !errors.Is(err, recipientErr) {
+		t.Fatalf("delivery error = %v, want recipient route error", err)
+	}
+	if dispatch.activeErr != nil {
+		t.Fatalf("active fallback error = %v, want nil", dispatch.activeErr)
+	}
+	if len(delivery.plans) != 0 {
+		t.Fatalf("delivery plans = %#v, want all-or-nothing skip", delivery.plans)
+	}
+	if active.routedCalls != 0 || active.legacyCalls != 1 {
+		t.Fatalf("active calls = routed:%d legacy:%d, want one compatibility fallback", active.routedCalls, active.legacyCalls)
+	}
+}
+
 func TestRecipientAuthorityFallbackResolverReusesDuplicateUIDTarget(t *testing.T) {
 	enqueuer := &recordingRecipientEnqueuerForRecipientTest{}
 	target := recipientAuthorityTargetForTest(1, 10, 100)
@@ -880,17 +1040,40 @@ type batchRecipientAuthorityResolverForRecipientTest struct {
 	batchUIDs   []string
 }
 
+type alignedRecipientAuthorityResolverForRecipientTest struct {
+	results     map[string]RecipientAuthorityResult
+	singleCalls int
+	batchCalls  int
+	batchUIDs   []string
+}
+
+func (r *alignedRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthority(_ context.Context, uid string) (RecipientAuthorityTarget, error) {
+	r.singleCalls++
+	result := r.results[uid]
+	return result.Target, result.Err
+}
+
+func (r *alignedRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthorities(_ context.Context, uids []string) ([]RecipientAuthorityResult, error) {
+	r.batchCalls++
+	r.batchUIDs = append([]string(nil), uids...)
+	results := make([]RecipientAuthorityResult, len(uids))
+	for index, uid := range uids {
+		results[index] = r.results[uid]
+	}
+	return results, nil
+}
+
 func (r *batchRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthority(_ context.Context, uid string) (RecipientAuthorityTarget, error) {
 	r.singleCalls++
 	return r.targets[uid], nil
 }
 
-func (r *batchRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthorities(_ context.Context, uids []string) (map[string]RecipientAuthorityTarget, error) {
+func (r *batchRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthorities(_ context.Context, uids []string) ([]RecipientAuthorityResult, error) {
 	r.batchCalls++
 	r.batchUIDs = append([]string(nil), uids...)
-	out := make(map[string]RecipientAuthorityTarget, len(uids))
-	for _, uid := range uids {
-		out[uid] = r.targets[uid]
+	out := make([]RecipientAuthorityResult, len(uids))
+	for index, uid := range uids {
+		out[index].Target = r.targets[uid]
 	}
 	return out, nil
 }
@@ -1115,6 +1298,35 @@ type recordingActiveAdmitterForRecipientTest struct {
 	steps   *orderedStepsForDeliveryTest
 	err     error
 	batches []conversationactive.ActiveBatch
+}
+
+type recordingRoutedActiveAdmitterForRecipientTest struct {
+	legacyCalls int
+	routedCalls int
+	groups      []ConversationActiveTargetBatch
+	err         error
+}
+
+func (a *recordingRoutedActiveAdmitterForRecipientTest) AdmitActiveBatch(_ context.Context, _ conversationactive.ActiveBatch) error {
+	a.legacyCalls++
+	return a.err
+}
+
+func (a *recordingRoutedActiveAdmitterForRecipientTest) AdmitRoutedActiveBatches(_ context.Context, groups []ConversationActiveTargetBatch) error {
+	a.routedCalls++
+	a.groups = append([]ConversationActiveTargetBatch(nil), groups...)
+	for index := range a.groups {
+		a.groups[index].Batch.Recipients = append([]conversationactive.ActiveEntry(nil), groups[index].Batch.Recipients...)
+	}
+	return a.err
+}
+
+func activeRecipientUIDsForTarget(group ConversationActiveTargetBatch) []string {
+	uids := make([]string, 0, len(group.Batch.Recipients))
+	for _, recipient := range group.Batch.Recipients {
+		uids = append(uids, recipient.UID)
+	}
+	return uids
 }
 
 func (a *recordingActiveAdmitterForRecipientTest) AdmitActiveBatch(_ context.Context, batch conversationactive.ActiveBatch) error {

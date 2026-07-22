@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -23,6 +24,51 @@ type recipientDispatchResult struct {
 type recipientSetDispatchResult struct {
 	// activeErr reports the best-effort conversation projection outcome for this recipient set.
 	activeErr error
+}
+
+type normalizedRecipientAuthoritySet struct {
+	// recipients preserves the normalized delivery input order, including duplicate UIDs.
+	recipients []Recipient
+	// authorityUIDs contains each UID once for aligned authority resolution.
+	authorityUIDs []string
+	// authorityRecipient marks authorityUIDs entries that also receive delivery.
+	authorityRecipient []bool
+	// recipientAuthorityIndexes maps each recipient back to its authorityUIDs entry.
+	recipientAuthorityIndexes []int
+	// senderAuthorityIndex is the sender entry in authorityUIDs, or -1 when omitted.
+	senderAuthorityIndex int
+	// uniqueRecipientCount counts distinct normalized recipient UIDs.
+	uniqueRecipientCount int
+}
+
+type recipientAuthorityGroup struct {
+	// target is the exact fenced authority shared by this group.
+	target RecipientAuthorityTarget
+	// recipientCount sizes the delivery slice before the fill pass.
+	recipientCount int
+	// recipients preserves delivery order for UIDs owned by target.
+	recipients []Recipient
+	// activeCount sizes the conversation-active slice before the fill pass.
+	activeCount int
+	// activeRecipients contains recipient projections owned by target.
+	activeRecipients []conversationactive.ActiveEntry
+	// senderUID is populated only for the sender authority group.
+	senderUID string
+	// deliverySeen reports whether target has at least one delivery recipient.
+	deliverySeen bool
+	// activeSeen reports whether target participates in conversation projection.
+	activeSeen bool
+}
+
+type recipientAuthorityGrouping struct {
+	// groups stores one entry per distinct exact authority target.
+	groups []recipientAuthorityGroup
+	// deliveryOrder preserves first-seen target order for delivery dispatch.
+	deliveryOrder []int
+	// activeOrder preserves first-seen target order for conversation projection.
+	activeOrder []int
+	// activeReady reports whether every sender and recipient active route is usable.
+	activeReady bool
 }
 
 func dispatchCommittedRecipients(ctx context.Context, event CommittedEnvelope, ports commitPorts) error {
@@ -146,69 +192,74 @@ func dispatchRecipientSetResult(ctx context.Context, event CommittedEnvelope, re
 	if len(recipients) == 0 || (ports.activeAdmitter == nil && enqueuer == nil) {
 		return recipientSetDispatchResult{}, nil
 	}
-	recipients, uids := normalizeRecipientsForAuthorityResolution(recipients)
-	if len(recipients) == 0 {
+	routedActive, hasRoutedActive := ports.activeAdmitter.(RoutedConversationActiveAdmitter)
+	normalized := normalizeRecipientsForAuthorityResolution(event.FromUID, recipients, hasRoutedActive)
+	if len(normalized.recipients) == 0 {
 		return recipientSetDispatchResult{}, nil
 	}
-	deliveryErr := dispatchRecipientDelivery(ctx, event, recipients, uids, ports, enqueuer)
-	activeErr := admitConversationActiveBatch(ctx, event, recipients, uids, ports.activeAdmitter)
+
+	var (
+		results    []RecipientAuthorityResult
+		resolveErr error
+		grouping   recipientAuthorityGrouping
+		groupErr   error
+	)
+	if ports.recipientAuthorityResolver != nil && (enqueuer != nil || hasRoutedActive) {
+		results, resolveErr = resolveRecipientAuthorityTargets(ctx, ports.recipientAuthorityResolver, normalized.authorityUIDs)
+		if resolveErr == nil {
+			grouping, groupErr = groupRecipientAuthorities(normalized, results, event.FromUID)
+		}
+	}
+
+	var deliveryErr error
+	if enqueuer != nil {
+		switch {
+		case ports.recipientAuthorityResolver == nil:
+			deliveryErr = withPostCommitFailureDetail(errors.New("channelappend: recipient authority resolver required"), PostCommitFailureDetail{Phase: "recipient_route_resolve"})
+		case resolveErr != nil:
+			deliveryErr = withRecipientRouteResolveDetail(resolveErr, normalized)
+		case groupErr != nil:
+			deliveryErr = groupErr
+		default:
+			deliveryErr = dispatchRecipientDelivery(ctx, event, grouping, ports, enqueuer)
+		}
+	}
+
+	var activeErr error
+	if hasRoutedActive && resolveErr == nil && groupErr == nil && grouping.activeReady {
+		activeErr = admitRoutedConversationActiveBatches(ctx, event, normalized, grouping, routedActive)
+	} else {
+		activeErr = admitConversationActiveBatch(ctx, event, normalized.recipients, normalized.uniqueRecipientCount, ports.activeAdmitter)
+	}
 	return recipientSetDispatchResult{activeErr: activeErr}, deliveryErr
 }
 
-func dispatchRecipientDelivery(ctx context.Context, event CommittedEnvelope, recipients []Recipient, uids []string, ports commitPorts, enqueuer RecipientDeliveryEnqueuer) error {
+func dispatchRecipientDelivery(ctx context.Context, event CommittedEnvelope, grouping recipientAuthorityGrouping, ports commitPorts, enqueuer RecipientDeliveryEnqueuer) error {
 	if enqueuer == nil {
 		return nil
 	}
-	if ports.recipientAuthorityResolver == nil {
-		return withPostCommitFailureDetail(errors.New("channelappend: recipient authority resolver required"), PostCommitFailureDetail{Phase: "recipient_route_resolve"})
-	}
-	targets, err := resolveRecipientAuthorityTargets(ctx, ports.recipientAuthorityResolver, uids)
-	if err != nil {
-		return withPostCommitFailureDetail(err, PostCommitFailureDetail{
-			Phase:          "recipient_route_resolve",
-			UID:            firstString(uids),
-			UIDCount:       len(uids),
-			RecipientCount: len(recipients),
-		})
-	}
-	grouped := make(map[RecipientAuthorityTarget][]Recipient)
-	order := make([]RecipientAuthorityTarget, 0)
-	for _, recipient := range recipients {
-		target := targets[recipient.UID]
-		if err := target.Validate(); err != nil {
-			detail := postCommitTargetDetail(target)
-			detail.Phase = "recipient_target_validate"
-			detail.UID = recipient.UID
-			detail.UIDCount = len(uids)
-			detail.RecipientCount = len(recipients)
-			return withPostCommitFailureDetail(ErrRouteNotReady, detail)
-		}
-		if _, ok := grouped[target]; !ok {
-			order = append(order, target)
-		}
-		grouped[target] = append(grouped[target], recipient)
-	}
 	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
 	if planEnqueuer, ok := enqueuer.(RecipientDeliveryPlanEnqueuer); ok {
-		return dispatchRecipientPlans(ctx, event, order, grouped, batchSize, planEnqueuer)
+		return dispatchRecipientPlans(ctx, event, grouping.groups, grouping.deliveryOrder, batchSize, planEnqueuer)
 	}
 	concurrency := boundedPositive(ports.recipientDispatchConcurrency, 1)
-	if concurrency <= 1 || len(order) <= 1 {
-		for _, target := range order {
-			if err := dispatchRecipientTarget(ctx, event, target, grouped[target], batchSize, len(order), enqueuer); err != nil {
+	if concurrency <= 1 || len(grouping.deliveryOrder) <= 1 {
+		for _, groupIndex := range grouping.deliveryOrder {
+			group := grouping.groups[groupIndex]
+			if err := dispatchRecipientTarget(ctx, event, group.target, group.recipients, batchSize, len(grouping.deliveryOrder), enqueuer); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	return dispatchRecipientTargetsConcurrent(ctx, event, order, grouped, batchSize, concurrency, enqueuer)
+	return dispatchRecipientTargetsConcurrent(ctx, event, grouping.groups, grouping.deliveryOrder, batchSize, concurrency, enqueuer)
 }
 
 func dispatchRecipientPlans(
 	ctx context.Context,
 	event CommittedEnvelope,
-	order []RecipientAuthorityTarget,
-	grouped map[RecipientAuthorityTarget][]Recipient,
+	groups []recipientAuthorityGroup,
+	order []int,
 	batchSize int,
 	enqueuer RecipientDeliveryPlanEnqueuer,
 ) error {
@@ -233,8 +284,10 @@ func dispatchRecipientPlans(
 	}
 
 	remaining := batchSize
-	for _, target := range order {
-		recipients := grouped[target]
+	for _, groupIndex := range order {
+		group := groups[groupIndex]
+		target := group.target
+		recipients := group.recipients
 		for len(recipients) > 0 {
 			if remaining == 0 {
 				if err := flush(); err != nil {
@@ -261,7 +314,7 @@ func effectiveRecipientDeliveryEnqueuer(ports commitPorts) RecipientDeliveryEnqu
 	return ports.deliveryEnqueuer
 }
 
-func admitConversationActiveBatch(ctx context.Context, event CommittedEnvelope, recipients []Recipient, uids []string, admitter ConversationActiveAdmitter) error {
+func admitConversationActiveBatch(ctx context.Context, event CommittedEnvelope, recipients []Recipient, uniqueRecipientCount int, admitter ConversationActiveAdmitter) error {
 	if admitter == nil {
 		return nil
 	}
@@ -287,8 +340,8 @@ func admitConversationActiveBatch(ctx context.Context, event CommittedEnvelope, 
 	if err := admitter.AdmitActiveBatch(ctx, batch); err != nil {
 		return withPostCommitFailureDetail(err, PostCommitFailureDetail{
 			Phase:          "conversation_active",
-			UID:            firstString(uids),
-			UIDCount:       len(uids),
+			UID:            firstRecipientUID(recipients),
+			UIDCount:       uniqueRecipientCount,
 			RecipientCount: len(recipients),
 		})
 	}
@@ -302,43 +355,217 @@ func conversationKindForCommittedEnvelope(event CommittedEnvelope) metadb.Conver
 	return metadb.ConversationKindNormal
 }
 
-func normalizeRecipientsForAuthorityResolution(recipients []Recipient) ([]Recipient, []string) {
-	normalized := make([]Recipient, 0, len(recipients))
-	uids := make([]string, 0, len(recipients))
-	seen := make(map[string]struct{}, len(recipients))
+func normalizeRecipientsForAuthorityResolution(senderUID string, recipients []Recipient, includeSender bool) normalizedRecipientAuthoritySet {
+	type uidState struct {
+		index     int
+		recipient bool
+	}
+	set := normalizedRecipientAuthoritySet{
+		recipients:                make([]Recipient, 0, len(recipients)),
+		authorityUIDs:             make([]string, 0, len(recipients)+1),
+		authorityRecipient:        make([]bool, 0, len(recipients)+1),
+		recipientAuthorityIndexes: make([]int, 0, len(recipients)),
+		senderAuthorityIndex:      -1,
+	}
+	seen := make(map[string]uidState, len(recipients)+1)
+	if includeSender && senderUID != "" {
+		set.senderAuthorityIndex = 0
+		set.authorityUIDs = append(set.authorityUIDs, senderUID)
+		set.authorityRecipient = append(set.authorityRecipient, false)
+		seen[senderUID] = uidState{index: 0}
+	}
 	for _, recipient := range recipients {
 		uid := strings.TrimSpace(recipient.UID)
 		if uid == "" {
 			continue
 		}
 		recipient.UID = uid
-		normalized = append(normalized, recipient)
-		if _, ok := seen[uid]; ok {
-			continue
+		set.recipients = append(set.recipients, recipient)
+		state, ok := seen[uid]
+		if !ok {
+			state.index = len(set.authorityUIDs)
+			set.authorityUIDs = append(set.authorityUIDs, uid)
+			set.authorityRecipient = append(set.authorityRecipient, true)
+			state.recipient = true
+			set.uniqueRecipientCount++
+			seen[uid] = state
+		} else if !state.recipient {
+			state.recipient = true
+			set.authorityRecipient[state.index] = true
+			set.uniqueRecipientCount++
+			seen[uid] = state
 		}
-		seen[uid] = struct{}{}
-		uids = append(uids, uid)
+		set.recipientAuthorityIndexes = append(set.recipientAuthorityIndexes, state.index)
 	}
-	return normalized, uids
+	return set
 }
 
-func resolveRecipientAuthorityTargets(ctx context.Context, resolver RecipientAuthorityResolver, uids []string) (map[string]RecipientAuthorityTarget, error) {
+func resolveRecipientAuthorityTargets(ctx context.Context, resolver RecipientAuthorityResolver, uids []string) ([]RecipientAuthorityResult, error) {
 	if batchResolver, ok := resolver.(BatchRecipientAuthorityResolver); ok {
-		targets, err := batchResolver.ResolveRecipientAuthorities(ctx, append([]string(nil), uids...))
+		results, err := batchResolver.ResolveRecipientAuthorities(ctx, uids)
 		if err != nil {
 			return nil, err
 		}
-		return targets, nil
+		if len(results) != len(uids) {
+			return nil, fmt.Errorf("channelappend: aligned recipient authority result count %d does not match UID count %d: %w", len(results), len(uids), ErrRouteNotReady)
+		}
+		return results, nil
 	}
-	targets := make(map[string]RecipientAuthorityTarget, len(uids))
-	for _, uid := range uids {
+	results := make([]RecipientAuthorityResult, len(uids))
+	for index, uid := range uids {
 		target, err := resolver.ResolveRecipientAuthority(ctx, uid)
 		if err != nil {
-			return nil, err
+			results[index].Err = err
+			continue
 		}
-		targets[uid] = target
+		results[index].Target = target
 	}
-	return targets, nil
+	return results, nil
+}
+
+func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []RecipientAuthorityResult, senderUID string) (recipientAuthorityGrouping, error) {
+	grouping := recipientAuthorityGrouping{activeReady: len(results) == len(set.authorityUIDs)}
+	if len(results) != len(set.authorityUIDs) {
+		return grouping, fmt.Errorf("channelappend: aligned recipient authority result count %d does not match UID count %d: %w", len(results), len(set.authorityUIDs), ErrRouteNotReady)
+	}
+	groupIndex := make(map[RecipientAuthorityTarget]int, min(len(results), 256))
+	authorityGroupIndexes := make([]int, len(results))
+	for index := range authorityGroupIndexes {
+		authorityGroupIndexes[index] = -1
+	}
+	ensureGroup := func(target RecipientAuthorityTarget) int {
+		if index, ok := groupIndex[target]; ok {
+			return index
+		}
+		index := len(grouping.groups)
+		groupIndex[target] = index
+		grouping.groups = append(grouping.groups, recipientAuthorityGroup{target: target})
+		return index
+	}
+	for index, result := range results {
+		if result.Err != nil || result.Target.Validate() != nil {
+			grouping.activeReady = false
+			continue
+		}
+		indexForGroup := ensureGroup(result.Target)
+		authorityGroupIndexes[index] = indexForGroup
+		group := &grouping.groups[indexForGroup]
+		if !group.activeSeen {
+			group.activeSeen = true
+			grouping.activeOrder = append(grouping.activeOrder, indexForGroup)
+		}
+		if index == set.senderAuthorityIndex {
+			group.senderUID = senderUID
+		}
+		if set.authorityRecipient[index] {
+			group.activeCount++
+		}
+	}
+
+	recipientGroupIndexes := make([]int, len(set.recipients))
+	for index, recipient := range set.recipients {
+		authorityIndex := set.recipientAuthorityIndexes[index]
+		result := results[authorityIndex]
+		if result.Err != nil {
+			grouping.activeReady = false
+			return grouping, withRecipientRouteResolveDetail(result.Err, set)
+		}
+		if err := result.Target.Validate(); err != nil {
+			grouping.activeReady = false
+			detail := postCommitTargetDetail(result.Target)
+			detail.Phase = "recipient_target_validate"
+			detail.UID = recipient.UID
+			detail.UIDCount = set.uniqueRecipientCount
+			detail.RecipientCount = len(set.recipients)
+			return grouping, withPostCommitFailureDetail(ErrRouteNotReady, detail)
+		}
+		indexForGroup := authorityGroupIndexes[authorityIndex]
+		recipientGroupIndexes[index] = indexForGroup
+		group := &grouping.groups[indexForGroup]
+		if !group.deliverySeen {
+			group.deliverySeen = true
+			grouping.deliveryOrder = append(grouping.deliveryOrder, indexForGroup)
+		}
+		group.recipientCount++
+	}
+
+	recipientStorage := make([]Recipient, len(set.recipients))
+	recipientOffset := 0
+	for index := range grouping.groups {
+		count := grouping.groups[index].recipientCount
+		if count == 0 {
+			continue
+		}
+		end := recipientOffset + count
+		grouping.groups[index].recipients = recipientStorage[recipientOffset:recipientOffset:end]
+		recipientOffset = end
+	}
+	for index, recipient := range set.recipients {
+		groupIndex := recipientGroupIndexes[index]
+		grouping.groups[groupIndex].recipients = append(grouping.groups[groupIndex].recipients, recipient)
+	}
+
+	if grouping.activeReady {
+		activeStorage := make([]conversationactive.ActiveEntry, set.uniqueRecipientCount)
+		activeOffset := 0
+		for index := range grouping.groups {
+			count := grouping.groups[index].activeCount
+			if count == 0 {
+				continue
+			}
+			end := activeOffset + count
+			grouping.groups[index].activeRecipients = activeStorage[activeOffset:activeOffset:end]
+			activeOffset = end
+		}
+		for authorityIndex, recipient := range set.authorityRecipient {
+			if !recipient {
+				continue
+			}
+			groupIndex := authorityGroupIndexes[authorityIndex]
+			grouping.groups[groupIndex].activeRecipients = append(grouping.groups[groupIndex].activeRecipients, conversationactive.ActiveEntry{UID: set.authorityUIDs[authorityIndex]})
+		}
+	}
+	return grouping, nil
+}
+
+func withRecipientRouteResolveDetail(err error, set normalizedRecipientAuthoritySet) error {
+	return withPostCommitFailureDetail(err, PostCommitFailureDetail{
+		Phase:          "recipient_route_resolve",
+		UID:            firstRecipientUID(set.recipients),
+		UIDCount:       set.uniqueRecipientCount,
+		RecipientCount: len(set.recipients),
+	})
+}
+
+func admitRoutedConversationActiveBatches(ctx context.Context, event CommittedEnvelope, set normalizedRecipientAuthoritySet, grouping recipientAuthorityGrouping, admitter RoutedConversationActiveAdmitter) error {
+	groups := make([]ConversationActiveTargetBatch, 0, len(grouping.activeOrder))
+	for _, groupIndex := range grouping.activeOrder {
+		group := grouping.groups[groupIndex]
+		groups = append(groups, ConversationActiveTargetBatch{
+			Target: group.target,
+			Batch: conversationactive.ActiveBatch{
+				Kind:        conversationKindForCommittedEnvelope(event),
+				SenderUID:   group.senderUID,
+				ChannelID:   event.ChannelID,
+				ChannelType: event.ChannelType,
+				MessageSeq:  event.MessageSeq,
+				ActiveAtMS:  event.ServerTimestampMS,
+				Recipients:  group.activeRecipients,
+			},
+		})
+	}
+	if len(groups) == 0 {
+		return nil
+	}
+	if err := admitter.AdmitRoutedActiveBatches(ctx, groups); err != nil {
+		return withPostCommitFailureDetail(err, PostCommitFailureDetail{
+			Phase:          "conversation_active",
+			UID:            firstRecipientUID(set.recipients),
+			UIDCount:       set.uniqueRecipientCount,
+			RecipientCount: len(set.recipients),
+		})
+	}
+	return nil
 }
 
 func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, target RecipientAuthorityTarget, recipients []Recipient, batchSize int, targetCount int, enqueuer RecipientDeliveryEnqueuer) error {
@@ -365,19 +592,20 @@ func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, targe
 	return nil
 }
 
-func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnvelope, order []RecipientAuthorityTarget, grouped map[RecipientAuthorityTarget][]Recipient, batchSize int, concurrency int, enqueuer RecipientDeliveryEnqueuer) error {
+func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnvelope, groups []recipientAuthorityGroup, order []int, batchSize int, concurrency int, enqueuer RecipientDeliveryEnqueuer) error {
 	if concurrency > len(order) {
 		concurrency = len(order)
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	targets := make(chan RecipientAuthorityTarget)
+	targets := make(chan int)
 	errs := make(chan error, 1)
 	var wg sync.WaitGroup
 	worker := func() {
 		defer wg.Done()
-		for target := range targets {
-			if err := dispatchRecipientTarget(runCtx, event, target, grouped[target], batchSize, len(order), enqueuer); err != nil {
+		for groupIndex := range targets {
+			group := groups[groupIndex]
+			if err := dispatchRecipientTarget(runCtx, event, group.target, group.recipients, batchSize, len(order), enqueuer); err != nil {
 				select {
 				case errs <- err:
 					cancel()
@@ -391,9 +619,9 @@ func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnve
 	for i := 0; i < concurrency; i++ {
 		go worker()
 	}
-	for _, target := range order {
+	for _, groupIndex := range order {
 		select {
-		case targets <- target:
+		case targets <- groupIndex:
 		case <-runCtx.Done():
 			break
 		}

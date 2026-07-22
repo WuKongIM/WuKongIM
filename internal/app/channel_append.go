@@ -44,8 +44,20 @@ type recipientAuthorityRouteNode interface {
 	RouteKey(string) (cluster.Route, error)
 }
 
+type recipientAuthorityBatchNode interface {
+	RouteAuthorities([]string) ([]cluster.RouteAuthority, error)
+}
+
+type recipientAuthorityPartialBatchNode interface {
+	RouteAuthoritiesPartial([]string) ([]cluster.RouteAuthorityResult, error)
+}
+
 type recipientAuthorityBatchRouteNode interface {
 	RouteKeys([]string) ([]cluster.Route, error)
+}
+
+type recipientAuthorityPartialBatchRouteNode interface {
+	RouteKeysPartial([]string) ([]cluster.RouteKeyResult, error)
 }
 
 func (r channelAppendRecipientResolver) ResolveRecipientAuthority(ctx context.Context, uid string) (channelappend.RecipientAuthorityTarget, error) {
@@ -70,7 +82,7 @@ func (r channelAppendRecipientResolver) ResolveRecipientAuthority(ctx context.Co
 	return channelAppendRecipientTargetFromRoute(route)
 }
 
-func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.Context, uids []string) (map[string]channelappend.RecipientAuthorityTarget, error) {
+func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.Context, uids []string) ([]channelappend.RecipientAuthorityResult, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -85,6 +97,71 @@ func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.
 	if r.node == nil {
 		return nil, channelappend.ErrRouteNotReady
 	}
+	if authorityNode, ok := r.node.(recipientAuthorityPartialBatchNode); ok {
+		authorities, err := authorityNode.RouteAuthoritiesPartial(uids)
+		if err != nil {
+			return nil, fmt.Errorf("recipient route authorities partial uidCount=%d sampleUID=%q: %w", len(uids), firstUIDForRouteLog(uids), channelAppendRouteError(err))
+		}
+		if len(authorities) != len(uids) {
+			return nil, fmt.Errorf("recipient route authorities partial returned %d routes for %d uids sampleUID=%q: %w", len(authorities), len(uids), firstUIDForRouteLog(uids), channelappend.ErrRouteNotReady)
+		}
+		results := make([]channelappend.RecipientAuthorityResult, len(uids))
+		for i, result := range authorities {
+			if result.Err != nil {
+				results[i].Err = channelAppendRouteError(result.Err)
+				continue
+			}
+			target, err := channelAppendRecipientTargetFromAuthority(result.Authority)
+			if err != nil {
+				results[i].Err = err
+				continue
+			}
+			results[i].Target = target
+		}
+		return results, nil
+	}
+	if authorityNode, ok := r.node.(recipientAuthorityBatchNode); ok {
+		authorities, err := authorityNode.RouteAuthorities(uids)
+		if err != nil {
+			return nil, fmt.Errorf("recipient route authorities uidCount=%d sampleUID=%q: %w", len(uids), firstUIDForRouteLog(uids), channelAppendRouteError(err))
+		}
+		if len(authorities) != len(uids) {
+			return nil, fmt.Errorf("recipient route authorities returned %d routes for %d uids sampleUID=%q: %w", len(authorities), len(uids), firstUIDForRouteLog(uids), channelappend.ErrRouteNotReady)
+		}
+		results := make([]channelappend.RecipientAuthorityResult, len(uids))
+		for i := range uids {
+			target, err := channelAppendRecipientTargetFromAuthority(authorities[i])
+			if err != nil {
+				results[i].Err = err
+				continue
+			}
+			results[i].Target = target
+		}
+		return results, nil
+	}
+	if batchNode, ok := r.node.(recipientAuthorityPartialBatchRouteNode); ok {
+		routes, err := batchNode.RouteKeysPartial(uids)
+		if err != nil {
+			return nil, fmt.Errorf("recipient route keys partial uidCount=%d sampleUID=%q: %w", len(uids), firstUIDForRouteLog(uids), channelAppendRouteError(err))
+		}
+		if len(routes) != len(uids) {
+			return nil, fmt.Errorf("recipient route keys partial returned %d routes for %d uids sampleUID=%q: %w", len(routes), len(uids), firstUIDForRouteLog(uids), channelappend.ErrRouteNotReady)
+		}
+		results := make([]channelappend.RecipientAuthorityResult, len(uids))
+		for i, result := range routes {
+			if result.Err != nil {
+				results[i].Err = channelAppendRouteError(result.Err)
+				continue
+			}
+			target, err := channelAppendRecipientTargetFromRoute(result.Route)
+			if err != nil {
+				results[i].Err = err
+				continue
+			}
+			results[i].Target = target
+		}
+		return results, nil
+	}
 	if batchNode, ok := r.node.(recipientAuthorityBatchRouteNode); ok {
 		routes, err := batchNode.RouteKeys(uids)
 		if err != nil {
@@ -93,32 +170,31 @@ func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.
 		if len(routes) != len(uids) {
 			return nil, fmt.Errorf("recipient route keys returned %d routes for %d uids sampleUID=%q: %w", len(routes), len(uids), firstUIDForRouteLog(uids), channelappend.ErrRouteNotReady)
 		}
-		targets := make(map[string]channelappend.RecipientAuthorityTarget, len(uids))
-		for i, uid := range uids {
+		results := make([]channelappend.RecipientAuthorityResult, len(uids))
+		for i := range uids {
 			target, err := channelAppendRecipientTargetFromRoute(routes[i])
 			if err != nil {
-				return nil, fmt.Errorf("recipient route key uid=%q index=%d: %w", uid, i, err)
+				results[i].Err = err
+				continue
 			}
-			targets[uid] = target
+			results[i].Target = target
 		}
-		return targets, nil
+		return results, nil
 	}
-	targets := make(map[string]channelappend.RecipientAuthorityTarget, len(uids))
-	for _, uid := range uids {
+	results := make([]channelappend.RecipientAuthorityResult, len(uids))
+	for i, uid := range uids {
 		target, err := r.ResolveRecipientAuthority(ctx, uid)
 		if err != nil {
-			return nil, err
+			results[i].Err = err
+			continue
 		}
-		targets[uid] = target
+		results[i].Target = target
 	}
-	return targets, nil
+	return results, nil
 }
 
 func channelAppendRecipientTargetFromRoute(route cluster.Route) (channelappend.RecipientAuthorityTarget, error) {
-	if route.Leader == 0 {
-		return channelappend.RecipientAuthorityTarget{}, fmt.Errorf("recipient route has no leader hashSlot=%d slotID=%d revision=%d authorityEpoch=%d: %w", route.HashSlot, route.SlotID, route.Revision, route.AuthorityEpoch, channelappend.ErrRouteNotReady)
-	}
-	return channelappend.RecipientAuthorityTarget{
+	return channelAppendRecipientTargetFromAuthority(cluster.RouteAuthority{
 		HashSlot:       route.HashSlot,
 		SlotID:         route.SlotID,
 		LeaderNodeID:   route.Leader,
@@ -126,6 +202,21 @@ func channelAppendRecipientTargetFromRoute(route cluster.Route) (channelappend.R
 		ConfigEpoch:    route.ConfigEpoch,
 		RouteRevision:  route.Revision,
 		AuthorityEpoch: route.AuthorityEpoch,
+	})
+}
+
+func channelAppendRecipientTargetFromAuthority(authority cluster.RouteAuthority) (channelappend.RecipientAuthorityTarget, error) {
+	if authority.LeaderNodeID == 0 {
+		return channelappend.RecipientAuthorityTarget{}, fmt.Errorf("recipient route has no leader hashSlot=%d slotID=%d revision=%d authorityEpoch=%d: %w", authority.HashSlot, authority.SlotID, authority.RouteRevision, authority.AuthorityEpoch, channelappend.ErrRouteNotReady)
+	}
+	return channelappend.RecipientAuthorityTarget{
+		HashSlot:       authority.HashSlot,
+		SlotID:         authority.SlotID,
+		LeaderNodeID:   authority.LeaderNodeID,
+		LeaderTerm:     authority.LeaderTerm,
+		ConfigEpoch:    authority.ConfigEpoch,
+		RouteRevision:  authority.RouteRevision,
+		AuthorityEpoch: authority.AuthorityEpoch,
 	}, nil
 }
 

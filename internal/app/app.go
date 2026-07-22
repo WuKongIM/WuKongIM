@@ -792,6 +792,27 @@ func (a presenceDirectoryAuthority) EndpointsByUIDs(ctx context.Context, target 
 	return a.directory.EndpointsByUIDs(target, uids)
 }
 
+func (a presenceDirectoryAuthority) EndpointsByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		results := make([]presence.EndpointLookupResult, len(groups))
+		for i := range results {
+			results[i].Err = err
+		}
+		return results
+	}
+	if a.directory == nil {
+		results := make([]presence.EndpointLookupResult, len(groups))
+		for i := range results {
+			results[i].Err = authoritypresence.ErrRouteNotReady
+		}
+		return results
+	}
+	return a.directory.EndpointsByTargets(groups)
+}
+
 func (a presenceDirectoryAuthority) TouchRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	if err := ctx.Err(); err != nil {
 		return err

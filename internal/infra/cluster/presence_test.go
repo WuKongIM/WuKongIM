@@ -528,6 +528,34 @@ func TestPresenceAuthorityClientEndpointsByTargetsBatchesRemoteRPCsByLeader(t *t
 	}
 }
 
+func TestPresenceAuthorityClientEndpointsByTargetsUsesOneLocalTargetBatchCall(t *testing.T) {
+	groups := []presence.EndpointLookupGroup{
+		{Target: testEndpointLookupTarget(11, 1), UIDs: []string{"first-a", "first-b"}},
+		{Target: testEndpointLookupTarget(21, 1), UIDs: []string{"second"}},
+	}
+	local := &fakeTargetBatchPresenceAuthority{
+		fakePresenceAuthority: &fakePresenceAuthority{},
+		results: []presence.EndpointLookupResult{
+			{Routes: []presence.Route{testInfraPresenceRoute("first-a", 1), testInfraPresenceRoute("first-b", 2)}},
+			{Err: context.Canceled},
+		},
+	}
+	node := &fakePresenceCluster{nodeID: 1}
+	client := NewPresenceAuthorityClient(node, local)
+
+	results := client.EndpointsByTargets(context.Background(), groups)
+
+	require.Len(t, local.calls, 1)
+	require.Equal(t, groups, local.calls[0])
+	require.Empty(t, local.endpointBatchCalls, "local exact targets must not fall back to one call per target")
+	require.Len(t, results, len(groups))
+	require.NoError(t, results[0].Err)
+	require.Equal(t, []string{"first-a", "first-b"}, []string{results[0].Routes[0].UID, results[0].Routes[1].UID})
+	require.ErrorIs(t, results[1].Err, context.Canceled)
+	require.Empty(t, node.calls)
+	require.Empty(t, node.routeKeysCalls)
+}
+
 func TestPresenceAuthorityClientEndpointsByTargetsOverlapsRemoteLeadersAndKeepsResultsAligned(t *testing.T) {
 	started := make(chan uint64, 2)
 	releaseC := make(chan struct{})
@@ -892,6 +920,21 @@ type fakePresenceAuthority struct {
 	endpointBatchCalls []presenceEndpointBatchCall
 	endpointBatchErrs  map[uint16]error
 	touchCalls         []presenceTouchCall
+}
+
+type fakeTargetBatchPresenceAuthority struct {
+	*fakePresenceAuthority
+	calls   [][]presence.EndpointLookupGroup
+	results []presence.EndpointLookupResult
+}
+
+func (f *fakeTargetBatchPresenceAuthority) EndpointsByTargets(_ context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	cloned := make([]presence.EndpointLookupGroup, len(groups))
+	for i, group := range groups {
+		cloned[i] = presence.EndpointLookupGroup{Target: group.Target, UIDs: append([]string(nil), group.UIDs...)}
+	}
+	f.calls = append(f.calls, cloned)
+	return append([]presence.EndpointLookupResult(nil), f.results...)
 }
 
 type fakePresenceOwner struct {

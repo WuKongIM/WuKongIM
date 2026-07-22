@@ -28,6 +28,23 @@ func TestRecipientProcessorPushesDeliveryWithPresenceAndPusher(t *testing.T) {
 	}
 }
 
+func TestRecipientProcessorCloudMediumPlanAllocationBudget(t *testing.T) {
+	plan, resolver := benchmarkCloudMediumRecipientPlan(512, 221, 55)
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver: resolver,
+		OwnerPusher:      benchmarkRecipientPlanPusher{},
+	})
+
+	allocs := testing.AllocsPerRun(20, func() {
+		if errs := processor.ProcessRecipientDeliveryPlan(context.Background(), plan); firstBenchmarkRecipientPlanError(errs) != nil {
+			t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v", errs)
+		}
+	})
+	if allocs > 80 {
+		t.Fatalf("Cloud Medium recipient plan allocations = %.0f, want <= 80", allocs)
+	}
+}
+
 func TestRecipientProcessorLegacyPresenceOwnerPushChunksStayBoundedAndOrdered(t *testing.T) {
 	routes := []Route{
 		{UID: "u1", OwnerNodeID: 3, SessionID: 10},

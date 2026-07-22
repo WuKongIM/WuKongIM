@@ -610,7 +610,9 @@ identity. Legacy patch admission is best-effort and does not retry
 route-not-ready, stale-route, or not-leader errors; callers are expected to log
 and drop failed active admission.
 Active-batch admission resolves the affected UID set as `SenderUID` plus each
-unique recipient UID through one `RouteKeysPartial` snapshot per attempt,
+unique recipient UID through one lightweight `RouteAuthoritiesPartial`
+snapshot per attempt when supported, with `RouteKeysPartial` retained as the
+compatibility fallback,
 coalesces duplicate recipient entries with `IsSender` OR semantics, and sends
 one target-scoped batch per group. Aligned key-specific route failures do not
 discard successfully routed siblings. Only the sender-owned target receives
@@ -621,12 +623,26 @@ mistake. Each target-scoped batch preserves the source
 validation instead of being normalized. If the sender is not in the recipient
 set, the sender target still receives a sender-only batch. Exact target groups
 are packed by `LeaderNodeID` for transport, but the leader envelope never
-replaces each group's hash-slot, physical Slot, leader-term, and config-epoch
-fence. Active-batch admission retries route-not-ready, stale-route, not-leader,
-and background Slot proposal backpressure within a small bounded fresh-route
-window. Only aligned failed groups or failed UID route items are resolved
-again; successful siblings are never issued twice. Continued failure is
-returned to the caller so the post-commit path remains bounded.
+replaces each group's physical hash-slot, logical Slot Raft Group, leader-term,
+and config-epoch fence. Active-batch admission retries route-not-ready,
+stale-route, not-leader, and background Slot proposal backpressure within a
+small bounded fresh-route window. Only aligned failed groups or failed UID
+route items are resolved again; successful siblings are never issued twice.
+Continued failure is returned to the caller so the post-commit path remains
+bounded.
+The routed active-batch surface is the normal channelappend fast path. Its first
+attempt consumes caller-supplied exact target groups without another route
+snapshot. If stale-route, not-leader, route-not-ready, proposal backpressure, or
+a retryable transport failure affects a group, only that group's sender and
+recipient rows are resolved again, and only once. Successfully admitted sibling
+groups are never replayed. A terminal sibling failure is retained as the
+overall result but does not suppress that one bounded retry for independent
+retryable siblings. If backoff, fresh routing, or the retry attempt also
+fails, the adapter joins that error with the retained terminal failure so
+callers can classify both causes with `errors.Is`. The legacy
+`AdmitActiveBatch` surface retains its
+three-attempt compatibility window for callers that do not already own an
+aligned route snapshot.
 The normal one-batch path coalesces UIDs and recipient roles once, counts each
 exact target group before allocation, and fills disjoint capacity-limited
 slices from one shared recipient backing store. This avoids per-target growth
@@ -660,7 +676,8 @@ ConversationAuthorityClient
        -> local conversation authority for local groups
        -> access/node Conversation Authority Admit RPC for remote groups
   -> AdmitActiveBatch(ActiveBatch)
-       -> one RouteKeysPartial snapshot for all pending unique UIDs
+       -> one RouteAuthoritiesPartial snapshot for all pending unique UIDs
+          (RouteKeysPartial compatibility fallback)
        -> coalesce duplicate recipient entries with IsSender OR
        -> group by exact RouteTarget
        -> set SenderUID only on the sender target's batch
@@ -668,6 +685,10 @@ ConversationAuthorityClient
        -> bounded local bulk authority calls of at most 4,096 active rows
        -> bounded access/node WKVC2 bulk RPC envelopes per remote leader
        -> preserve group-aligned statuses and re-route only failed groups
+  -> AdmitRoutedActiveBatches([]ConversationActiveTargetBatch)
+       -> admit caller-supplied exact targets without an initial route lookup
+       -> preserve every physical hash-slot and logical Slot fence
+       -> fresh-route only failed groups once; never replay successful siblings
   -> ListConversationActiveView(kind, uid)
        -> RouteKey(uid)
        -> local conversation authority active view for kind when local
@@ -805,7 +826,7 @@ Batch target resolution preserves input order and cardinality without falling
 back to per-UID `RouteKey` calls or retrying individual failed entries inside
 the batch. A batch-level routing or context error is copied to every aligned
 item, while a key-specific error is mapped only onto its corresponding item;
-successful items retain the hash Slot, physical Slot, leader term, config
+successful items retain the physical hash slot, logical Slot, leader term, config
 epoch, route revision, and authority epoch fences from the single cluster
 routing snapshot. The app worker owns exact route requeue for failed items so a
 later flush can resolve them against a newer routing snapshot.
@@ -819,7 +840,11 @@ aligned results remain in original input order. Each leader execution boundary
 also converts a local-authority or remote-client panic into a terminal error for
 only that leader's aligned groups, so a child worker cannot terminate the
 process or discard successful sibling leaders. The local path uses the optional
-batch authority surface and keeps each exact target fence intact. Remote
+target-group batch authority surface once for all groups assigned to the local
+leader and keeps each exact target fence intact. The production local authority
+then groups those targets by directory shard, so physical hash-slot groups touch
+at most the configured shard count of read locks rather than being collapsed
+into the smaller logical Slot set. Remote
 transport or response-cardinality failures are copied only to groups assigned
 to that leader; per-group stale/not-leader errors remain aligned and do not
 discard successful results from other groups.

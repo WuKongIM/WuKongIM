@@ -34,9 +34,13 @@ Supported authority calls:
 multiple exact authority targets that all name the destination leader, and the
 response stays aligned with the input groups. Each group has its own stable
 status and routes, so a stale target does not discard successful sibling
-groups. Authorities may implement `EndpointsByUIDs` to validate and read one
-target under a single directory lock; otherwise the adapter preserves
-compatibility by calling `EndpointsByUID` for each UID in that group. Both the
+groups. Authorities may implement `EndpointsByTargets` to resolve the complete
+ordered group collection in one call. The production directory uses that seam
+to lock each touched directory shard once while retaining every group's
+complete target fence and aligned status. Authorities that do not expose that
+seam may implement `EndpointsByUIDs` to validate and read one target under a
+single directory lock; otherwise the adapter preserves compatibility by calling
+`EndpointsByUID` for each UID in that group. Both the
 group count and aggregate UID/route counts use the presence RPC collection
 limit. A group that would exceed the per-response route budget is returned as a
 group-scoped rejection while bounded sibling groups keep their aligned results.

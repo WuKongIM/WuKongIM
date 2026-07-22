@@ -327,6 +327,24 @@ func (n *Node) RouteKeys(keys []string) ([]Route, error) {
 	return out, nil
 }
 
+// RouteAuthorities routes keys using one installed route snapshot and returns
+// only distributed authority fence fields plus the local observation epoch.
+func (n *Node) RouteAuthorities(keys []string) ([]RouteAuthority, error) {
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	authorities, err := n.router.RouteAuthorities(keys)
+	if err != nil {
+		return nil, mapRouteError(err)
+	}
+	n.mu.RLock()
+	for i := range authorities {
+		authorities[i].AuthorityEpoch = n.routeAuthorityEpochs[authorities[i].HashSlot]
+	}
+	n.mu.RUnlock()
+	return authorities, nil
+}
+
 // RouteKeysPartial routes keys using one installed route snapshot and preserves aligned key-specific failures.
 // The outer error reports Node lifecycle or missing-table failures; key-specific failures stay in the result.
 func (n *Node) RouteKeysPartial(keys []string) ([]RouteKeyResult, error) {
@@ -354,6 +372,28 @@ func (n *Node) RouteKeysPartial(keys []string) ([]RouteKeyResult, error) {
 	}
 	n.mu.RUnlock()
 	return out, nil
+}
+
+// RouteAuthoritiesPartial routes keys using one installed route snapshot and
+// preserves aligned key-specific failures without cloning placement fields.
+func (n *Node) RouteAuthoritiesPartial(keys []string) ([]RouteAuthorityResult, error) {
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	results, err := n.router.RouteAuthoritiesPartial(keys)
+	if err != nil {
+		return nil, mapRouteError(err)
+	}
+	n.mu.RLock()
+	for i := range results {
+		if results[i].Err != nil {
+			results[i].Err = mapRouteError(results[i].Err)
+			continue
+		}
+		results[i].Authority.AuthorityEpoch = n.routeAuthorityEpochs[results[i].Authority.HashSlot]
+	}
+	n.mu.RUnlock()
+	return results, nil
 }
 
 // RouteHashSlot routes hashSlot using the currently installed route snapshot.

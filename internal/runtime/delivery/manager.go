@@ -133,10 +133,22 @@ func (m *Manager) SessionClosed(_ context.Context, cmd SessionClosed) error {
 	return nil
 }
 
-// BindPendingAck records one delivery waiting for a client recvack.
+// BindPendingAck records one already-successful delivery waiting for a client recvack.
 func (m *Manager) BindPendingAck(pending PendingRecvAck) bool {
-	if m == nil || m.acks == nil {
+	result := m.BindPendingAckResult(pending)
+	if !result.Bound {
 		return false
+	}
+	// A concurrent identity cleanup may consume the reservation first.
+	m.FinishPendingAck(pending, result.Token)
+	return true
+}
+
+// BindPendingAckResult records one delivery and returns a token that scopes a
+// later success finish or failed-delivery rollback to this bind attempt.
+func (m *Manager) BindPendingAckResult(pending PendingRecvAck) AckBindResult {
+	if m == nil || m.acks == nil {
+		return AckBindResult{}
 	}
 	m.ackMu.Lock()
 	defer m.ackMu.Unlock()
@@ -151,7 +163,75 @@ func (m *Manager) BindPendingAck(pending PendingRecvAck) bool {
 		}
 	}
 	m.observeAck(DeliveryAckActionBind, eventResult, changed, result.PendingCount)
-	return result.Bound
+	return result
+}
+
+// RollbackPendingAck cancels only the bind token owned by one failed delivery.
+// It never clears a concurrent or earlier successful bind for the same key.
+func (m *Manager) RollbackPendingAck(pending PendingRecvAck, token AckBindToken) bool {
+	if m == nil || m.acks == nil {
+		return false
+	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
+	result := m.acks.CancelBind(pending, token)
+	eventResult := DeliveryAckResultMiss
+	changed := 0
+	if result.Canceled {
+		eventResult = DeliveryAckResultOK
+		if result.Removed {
+			changed = 1
+		}
+	}
+	m.observeAck(DeliveryAckActionRollback, eventResult, changed, result.PendingCount)
+	return result.Canceled
+}
+
+// FinishPendingAck commits one successful delivery reservation. It deliberately
+// bypasses the Manager observation lock because finishing cannot change the
+// pending identity count exposed by observers.
+func (m *Manager) FinishPendingAck(pending PendingRecvAck, token AckBindToken) bool {
+	if m == nil || m.acks == nil {
+		return false
+	}
+	return m.acks.FinishBind(pending, token)
+}
+
+// FinishPendingAcks commits successful aligned batch indexes with one lock per
+// affected tracker shard and without emitting a no-count-change observation.
+func (m *Manager) FinishPendingAcks(pending []PendingRecvAck, tokens []AckBindToken, indexes []int) int {
+	if m == nil || m.acks == nil {
+		return 0
+	}
+	return m.acks.FinishBindBatch(pending, tokens, indexes)
+}
+
+// BindPendingAcks reserves an item-aligned delivery batch waiting for client
+// recvacks. Every non-zero token must be finished or rolled back unless
+// identity cleanup wins first. The batch holds the manager
+// mutation/observation lock once and the tracker acquires each affected
+// internal shard once.
+func (m *Manager) BindPendingAcks(pending []PendingRecvAck) AckBindBatchResult {
+	if m == nil || m.acks == nil {
+		return AckBindBatchResult{Tokens: make([]AckBindToken, len(pending))}
+	}
+	if len(pending) == 0 {
+		return AckBindBatchResult{PendingCount: m.acks.PendingCount()}
+	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
+	result := m.acks.BindBatch(pending)
+	eventResult := DeliveryAckResultRejected
+	for _, token := range result.Tokens {
+		if token.Valid() {
+			eventResult = DeliveryAckResultOK
+			break
+		}
+	}
+	m.observeAck(DeliveryAckActionBind, eventResult, result.Added, result.PendingCount)
+	return result
 }
 
 // ExpirePendingAcks removes pending recvacks older than ttl.

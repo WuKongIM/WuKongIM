@@ -17,7 +17,7 @@ type PostCommitFailureDetail struct {
 	RecipientCount int
 	// TargetHashSlot is the recipient authority hash slot when known.
 	TargetHashSlot uint16
-	// TargetSlotID is the physical Slot that owns TargetHashSlot when known.
+	// TargetSlotID is the logical Slot Raft Group that owns TargetHashSlot when known.
 	TargetSlotID uint32
 	// TargetLeaderNodeID is the recipient authority leader node when known.
 	TargetLeaderNodeID uint64

@@ -24,6 +24,8 @@ const (
 	DeliveryAckActionBind = "bind"
 	// DeliveryAckActionAck reports a client recvack mutation attempt.
 	DeliveryAckActionAck = "ack"
+	// DeliveryAckActionRollback reports a failed delivery's token-scoped rollback.
+	DeliveryAckActionRollback = "rollback"
 	// DeliveryAckActionSessionClosed reports cleanup for a closed owner-local session.
 	DeliveryAckActionSessionClosed = "session_closed"
 	// DeliveryAckActionExpire reports TTL cleanup for stale pending acks.
@@ -86,7 +88,7 @@ type AckObserver interface {
 
 // AckEvent describes one owner-local pending recvack mutation.
 type AckEvent struct {
-	// Action is bind, ack, session_closed, or expire.
+	// Action is bind, rollback, ack, session_closed, or expire.
 	Action string
 	// Result is ok, miss, rejected, or noop.
 	Result string

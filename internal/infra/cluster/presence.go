@@ -301,6 +301,18 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 			return
 		}
 		if leaderNodeID == c.node.NodeID() {
+			if targetBatch, ok := c.local.(accessnode.PresenceTargetBatchAuthority); ok {
+				localResults := targetBatch.EndpointsByTargets(ctx, batch.groups)
+				if len(localResults) != len(batch.indexes) {
+					err := fmt.Errorf("%w: aligned local endpoint result count %d does not match group count %d", authoritypresence.ErrRouteNotReady, len(localResults), len(batch.indexes))
+					fillPresenceEndpointLookupErrors(results, batch.indexes, err)
+					return
+				}
+				for i, result := range localResults {
+					results[batch.indexes[i]] = result
+				}
+				return
+			}
 			for i, group := range batch.groups {
 				results[batch.indexes[i]] = c.endpointsByExactTarget(ctx, group)
 			}

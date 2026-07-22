@@ -205,7 +205,7 @@ type PostCommitFailureObservation struct {
 	RecipientCount int
 	// TargetHashSlot is the recipient authority hash slot when known.
 	TargetHashSlot uint16
-	// TargetSlotID is the physical Slot that owns TargetHashSlot when known.
+	// TargetSlotID is the logical Slot Raft Group that owns TargetHashSlot when known.
 	TargetSlotID uint32
 	// TargetLeaderNodeID is the recipient authority leader node when known.
 	TargetLeaderNodeID uint64
@@ -326,10 +326,21 @@ type RecipientAuthorityResolver interface {
 	ResolveRecipientAuthority(context.Context, string) (RecipientAuthorityTarget, error)
 }
 
+// RecipientAuthorityResult is one UID authority lookup result aligned to the
+// corresponding batch input UID.
+type RecipientAuthorityResult struct {
+	// Target is the exact UID authority fence when Err is nil.
+	Target RecipientAuthorityTarget
+	// Err reports a key-specific route failure without discarding aligned siblings.
+	Err error
+}
+
 // BatchRecipientAuthorityResolver resolves authority targets for multiple recipient UIDs.
 type BatchRecipientAuthorityResolver interface {
-	// ResolveRecipientAuthorities returns authority targets keyed by UID.
-	ResolveRecipientAuthorities(context.Context, []string) (map[string]RecipientAuthorityTarget, error)
+	// ResolveRecipientAuthorities returns one result per UID in input order. The
+	// outer error is reserved for snapshot-wide or lifecycle failures. The
+	// implementation must not retain the borrowed UID slice after return.
+	ResolveRecipientAuthorities(context.Context, []string) ([]RecipientAuthorityResult, error)
 }
 
 // RecipientDeliveryEnqueuer accepts post-commit recipient batches for asynchronous delivery processing.
@@ -355,6 +366,23 @@ type PersistAfterEnqueuer interface {
 type ConversationActiveAdmitter interface {
 	// AdmitActiveBatch hands one committed recipient set to the conversation active worker.
 	AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error
+}
+
+// ConversationActiveTargetBatch binds one active projection batch to the
+// complete exact UID authority fence resolved by channelappend.
+type ConversationActiveTargetBatch struct {
+	// Target is the complete physical hash-slot authority fence.
+	Target RecipientAuthorityTarget
+	// Batch contains only sender and recipient rows owned by Target.
+	Batch conversationactive.ActiveBatch
+}
+
+// RoutedConversationActiveAdmitter accepts active groups whose first-attempt
+// authority targets were already resolved by channelappend.
+type RoutedConversationActiveAdmitter interface {
+	// AdmitRoutedActiveBatches preserves aligned exact targets and may fresh-route
+	// only failed groups under its bounded retry policy.
+	AdmitRoutedActiveBatches(context.Context, []ConversationActiveTargetBatch) error
 }
 
 // PresenceResolver resolves online endpoints for recipient UIDs.

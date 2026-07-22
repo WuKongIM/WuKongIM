@@ -3,11 +3,17 @@ package cluster
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
+)
+
+var (
+	nodeAuthorityRoutesSink       []RouteAuthority
+	nodeAuthorityRouteResultsSink []RouteAuthorityResult
 )
 
 func TestWatchRouteAuthoritiesReceivesLeadershipChange(t *testing.T) {
@@ -71,6 +77,66 @@ func TestRouteIncludesLeaderTermAndConfigEpoch(t *testing.T) {
 	}
 	if route.LeaderTerm != 9 || route.ConfigEpoch != 1 {
 		t.Fatalf("route = %#v, want leaderTerm=9 configEpoch=1", route)
+	}
+}
+
+func TestNodeRouteAuthoritiesAddLocalEpochs(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{0: 7, 1: 11}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(10)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.started.Store(true)
+	first := keyForNodeHashSlot(t, 2, 1)
+	second := keyForNodeHashSlot(t, 2, 0)
+
+	authorities, err := node.RouteAuthorities([]string{first, second})
+	if err != nil {
+		t.Fatalf("RouteAuthorities() error = %v", err)
+	}
+	if len(authorities) != 2 {
+		t.Fatalf("authorities = %d, want 2", len(authorities))
+	}
+	if got := authorities[0]; got.HashSlot != 1 || got.SlotID != 1 || got.LeaderNodeID != 1 || got.LeaderTerm != 9 || got.ConfigEpoch != 1 || got.RouteRevision != 10 || got.AuthorityEpoch != 11 {
+		t.Fatalf("first authority = %#v, want physical hash slot 1 with local epoch 11", got)
+	}
+	if got := authorities[1]; got.HashSlot != 0 || got.AuthorityEpoch != 7 {
+		t.Fatalf("second authority = %#v, want physical hash slot 0 with local epoch 7", got)
+	}
+}
+
+func TestNodeRouteAuthorityBatchAllocationBudget(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{0: 7, 1: 11}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(10)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.started.Store(true)
+	keys := make([]string, 64)
+	for i := range keys {
+		keys[i] = "node-authority-allocation-user-" + strconv.Itoa(i)
+	}
+
+	authorityAllocs := testing.AllocsPerRun(100, func() {
+		var err error
+		nodeAuthorityRoutesSink, err = node.RouteAuthorities(keys)
+		if err != nil {
+			panic(err)
+		}
+	})
+	if authorityAllocs > 1 {
+		t.Fatalf("Node.RouteAuthorities() allocations = %.0f, want at most 1 result-slice allocation", authorityAllocs)
+	}
+
+	partialAllocs := testing.AllocsPerRun(100, func() {
+		var err error
+		nodeAuthorityRouteResultsSink, err = node.RouteAuthoritiesPartial(keys)
+		if err != nil {
+			panic(err)
+		}
+	})
+	if partialAllocs > 1 {
+		t.Fatalf("Node.RouteAuthoritiesPartial() allocations = %.0f, want at most 1 result-slice allocation", partialAllocs)
 	}
 }
 

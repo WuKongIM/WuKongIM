@@ -14,6 +14,44 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
+func TestChannelAppendRecipientResolverPrefersAlignedLightweightAuthorityBatch(t *testing.T) {
+	secondErr := errors.New("second route unavailable")
+	legacy := &batchRecipientRouteNodeForChannelAppendTest{
+		routes: map[string]cluster.Route{
+			"u1": {HashSlot: 99, SlotID: 99, Leader: 99},
+			"u2": {HashSlot: 99, SlotID: 99, Leader: 99},
+		},
+	}
+	node := &authorityRecipientRouteNodeForChannelAppendTest{
+		batchRecipientRouteNodeForChannelAppendTest: legacy,
+		authorities: map[string]cluster.RouteAuthority{
+			"u1": {HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000},
+			"u2": {HashSlot: 2, SlotID: 22, LeaderNodeID: 20, LeaderTerm: 202, ConfigEpoch: 2002, RouteRevision: 200, AuthorityEpoch: 2000},
+		},
+		authorityErrs: map[string]error{"u2": secondErr},
+	}
+	resolver := channelAppendRecipientResolver{node: node}
+
+	got, err := resolver.ResolveRecipientAuthorities(context.Background(), []string{"u1", "u2"})
+	if err != nil {
+		t.Fatalf("ResolveRecipientAuthorities() error = %v", err)
+	}
+
+	if node.authorityCalls != 1 {
+		t.Fatalf("RouteAuthorities calls = %d, want 1", node.authorityCalls)
+	}
+	if legacy.batchCalls != 0 || legacy.singleCalls != 0 {
+		t.Fatalf("legacy route calls = batch:%d single:%d, want zero", legacy.batchCalls, legacy.singleCalls)
+	}
+	want := []channelappend.RecipientAuthorityResult{
+		{Target: channelappend.RecipientAuthorityTarget{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}},
+		{Err: secondErr},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("targets = %#v, want %#v", got, want)
+	}
+}
+
 func TestChannelAppendRecipientResolverUsesBatchRouteNode(t *testing.T) {
 	node := &batchRecipientRouteNodeForChannelAppendTest{
 		routes: map[string]cluster.Route{
@@ -37,9 +75,9 @@ func TestChannelAppendRecipientResolverUsesBatchRouteNode(t *testing.T) {
 	if !reflect.DeepEqual(node.batchKeys, []string{"u1", "u2"}) {
 		t.Fatalf("RouteKeys keys = %#v, want u1,u2", node.batchKeys)
 	}
-	want := map[string]channelappend.RecipientAuthorityTarget{
-		"u1": {HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000},
-		"u2": {HashSlot: 2, SlotID: 22, LeaderNodeID: 20, LeaderTerm: 202, ConfigEpoch: 2002, RouteRevision: 200, AuthorityEpoch: 2000},
+	want := []channelappend.RecipientAuthorityResult{
+		{Target: channelappend.RecipientAuthorityTarget{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}},
+		{Target: channelappend.RecipientAuthorityTarget{HashSlot: 2, SlotID: 22, LeaderNodeID: 20, LeaderTerm: 202, ConfigEpoch: 2002, RouteRevision: 200, AuthorityEpoch: 2000}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("targets = %#v, want %#v", got, want)
@@ -244,6 +282,13 @@ type batchRecipientRouteNodeForChannelAppendTest struct {
 	batchKeys   []string
 }
 
+type authorityRecipientRouteNodeForChannelAppendTest struct {
+	*batchRecipientRouteNodeForChannelAppendTest
+	authorities    map[string]cluster.RouteAuthority
+	authorityErrs  map[string]error
+	authorityCalls int
+}
+
 type targetedPresenceAuthorityForChannelAppendTest struct {
 	groups      []presenceusecase.EndpointLookupGroup
 	results     []presenceusecase.EndpointLookupResult
@@ -334,4 +379,22 @@ func (n *batchRecipientRouteNodeForChannelAppendTest) RouteKeys(keys []string) (
 		routes[i] = n.routes[key]
 	}
 	return routes, nil
+}
+
+func (n *authorityRecipientRouteNodeForChannelAppendTest) RouteAuthorities(keys []string) ([]cluster.RouteAuthority, error) {
+	n.authorityCalls++
+	authorities := make([]cluster.RouteAuthority, len(keys))
+	for i, key := range keys {
+		authorities[i] = n.authorities[key]
+	}
+	return authorities, nil
+}
+
+func (n *authorityRecipientRouteNodeForChannelAppendTest) RouteAuthoritiesPartial(keys []string) ([]cluster.RouteAuthorityResult, error) {
+	n.authorityCalls++
+	results := make([]cluster.RouteAuthorityResult, len(keys))
+	for i, key := range keys {
+		results[i] = cluster.RouteAuthorityResult{Authority: n.authorities[key], Err: n.authorityErrs[key]}
+	}
+	return results, nil
 }

@@ -105,23 +105,29 @@ outbound connections per peer and shards typed RPCs by service class, keeping
 foreground Channel runtime append forwarding off the same connection used by follower
 pull and pull-hint traffic.
 
-`WatchRouteAuthorities` publishes hash-slot authority changes derived from the
-installed routing table. Each `RouteAuthority` carries
+`WatchRouteAuthorities` publishes physical hash-slot authority changes derived
+from the installed routing table. Each `RouteAuthority` carries
 `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch, RouteRevision,
 AuthorityEpoch)`. `LeaderTerm` comes from the observed Slot Raft leader and
-`ConfigEpoch` comes from the control-plane Slot assignment, so upper layers can
+`ConfigEpoch` comes from the control-plane logical Slot Raft Group assignment,
+so upper layers can
 use `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)` as the
 distributed authority identity. `AuthorityEpoch` is only a node-local
 observation sequence retained for diagnostics and compatibility; it must not be
-used as a distributed fence. `RouteKey`, `RouteKeys`, `RouteKeysPartial`, and
-`RouteHashSlot` include the distributed identity fields plus the local epoch.
+used as a distributed fence. `RouteKey`, `RouteKeys`, `RouteKeysPartial`,
+`RouteAuthorities`, `RouteAuthoritiesPartial`, and `RouteHashSlot` include the
+distributed identity fields plus the local epoch.
 `RouteKeys` preserves its all-or-error contract while resolving all keys against
 one installed routing snapshot and returning results in input order.
 `RouteKeysPartial` uses the same one-snapshot rule but returns one aligned result
 per input key: missing-leader or invalid-route failures stay on that result,
 while the outer error is reserved for a missing routing table or Node lifecycle
-failure. These batch APIs let upper layers resolve UID authorities without
-repeatedly loading the foreground route table. Real publication paths remember
+failure. The lightweight authority variants preserve those all-or-error and
+aligned-partial contracts while omitting placement-only `PreferredLeader` and
+`Peers`; their Node result carries only scalar fences and therefore does not
+clone replica slices per UID. These batch APIs let upper layers resolve UID
+authorities without repeatedly loading the foreground route table. Real
+publication paths remember
 the last distributed identity published per hash slot and suppress duplicate
 events for the same `(SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`, so a
 local `AuthorityEpoch` is not manufactured for already-published identities.
