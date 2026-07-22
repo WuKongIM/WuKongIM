@@ -9,7 +9,9 @@ const (
 	// ManifestFormat identifies WuKongIM cluster backup manifests.
 	ManifestFormat = "wukongim-cluster-backup"
 	// ManifestVersion is the current cluster backup manifest version.
-	ManifestVersion uint32 = 1
+	ManifestVersion uint32 = 2
+	// PartitionEvidenceVersion is the signed restore evidence schema version.
+	PartitionEvidenceVersion uint32 = 1
 )
 
 var (
@@ -138,6 +140,22 @@ type PartitionReference struct {
 	ObjectCount uint64 `json:"object_count"`
 	// CiphertextBytes is the direct encrypted payload size for this layer.
 	CiphertextBytes uint64 `json:"ciphertext_bytes"`
+	// Evidence carries signed cumulative restore counts and allocator fences.
+	Evidence PartitionEvidence `json:"evidence"`
+}
+
+// PartitionEvidence is the cumulative semantic evidence required to restore
+// one logical partition fail-closed. Channel sequence fences remain in the
+// authenticated Channel index because they are keyed per Channel.
+type PartitionEvidence struct {
+	// Version distinguishes explicit empty evidence from a missing field.
+	Version uint32 `json:"version"`
+	// MetadataRecords is the entry count in the latest full metadata snapshot.
+	MetadataRecords uint64 `json:"metadata_records"`
+	// MessageRecords is the cumulative message-row count installed base to tip.
+	MessageRecords uint64 `json:"message_records"`
+	// MaxMessageID is the greatest durable message ID installed base to tip.
+	MaxMessageID uint64 `json:"max_message_id"`
 }
 
 // Manifest is the signed, complete logical contract for one cluster restore point.

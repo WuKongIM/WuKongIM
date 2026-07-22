@@ -63,6 +63,49 @@ func TestChunkReplicatorUsesShardIDToAvoidMessageKeyCollisions(t *testing.T) {
 	require.NotEqual(t, first[0].Key, second[0].Key)
 }
 
+func TestChunkReplicatorRetryAfterPartialUploadUsesFreshImmutableNamespace(t *testing.T) {
+	primaryFile, err := backupinfra.NewFileRepository("primary", t.TempDir())
+	require.NoError(t, err)
+	secondaryFile, err := backupinfra.NewFileRepository("secondary", t.TempDir())
+	require.NoError(t, err)
+	primary := &recordingRepository{Repository: primaryFile}
+	secondary := &failOncePutRepository{Repository: secondaryFile, remaining: 1}
+	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x55}, 256)))
+	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{Codec: codec, Publisher: backupartifact.NewReplicatedPublisher(primary, secondary), KMSKeyID: "kms-backup", ChunkBytes: 16})
+	require.NoError(t, err)
+	descriptor := backupinfra.StreamDescriptor{JobID: "backup-retry", HashSlot: 2, Kind: backupartifact.ObjectKindMetadata}
+	_, err = replicator.Replicate(context.Background(), descriptor, bytes.NewReader([]byte("same stream")))
+	require.Error(t, err)
+	second, err := replicator.Replicate(context.Background(), descriptor, bytes.NewReader([]byte("same stream")))
+	require.NoError(t, err)
+	require.Len(t, primary.putKeys, 2)
+	require.NotEqual(t, primary.putKeys[0], primary.putKeys[1])
+	require.Equal(t, primary.putKeys[1], second[0].Key)
+}
+
+type recordingRepository struct {
+	backupartifact.Repository
+	putKeys []string
+}
+
+func (r *recordingRepository) PutImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error {
+	r.putKeys = append(r.putKeys, key)
+	return r.Repository.PutImmutable(ctx, key, size, checksum, body)
+}
+
+type failOncePutRepository struct {
+	backupartifact.Repository
+	remaining int
+}
+
+func (r *failOncePutRepository) PutImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error {
+	if r.remaining > 0 {
+		r.remaining--
+		return io.ErrUnexpectedEOF
+	}
+	return r.Repository.PutImmutable(ctx, key, size, checksum, body)
+}
+
 type testWrappingKeyManager struct {
 	mask byte
 }

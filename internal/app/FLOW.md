@@ -1010,4 +1010,10 @@ cluster readiness without issuing an ordinary write probe, and does not start
 Gateway, business APIs, webhooks, plugins, or ordinary workers. Normal startup
 reads the persisted restore plan before its write probe and rejects any plan
 that is not activated or whose activated generation differs from
-`backup.source_generation`.
+`backup.source_generation`. It also requires every activated partition report
+to remain installed and verified, then proves the natural clock-derived
+node-scoped Snowflake allocator is already above the greatest restored message
+ID before ordinary traffic is admitted. Startup fails closed instead of
+synthesizing future IDs that a restart could reuse before wall-clock catch-up.
+Per-Channel sequence allocation continues from the separately
+verified checkpoint/LEO cuts.

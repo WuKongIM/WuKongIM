@@ -78,6 +78,11 @@ func (p *PartitionPlanner) OpenPlan(ctx context.Context, request runtimebackup.C
 		}
 		return nil, runtimebackup.ErrStaleCapture
 	}
+	metadataReader, metadataStats, err := metadb.InspectBackupHashSlotSnapshotHeader(first.Reader)
+	if err != nil {
+		return nil, err
+	}
+	first.Reader = metadataReader
 	closeFirst := true
 	defer func() {
 		if closeFirst {
@@ -100,10 +105,11 @@ func (p *PartitionPlanner) OpenPlan(ctx context.Context, request runtimebackup.C
 	}
 	closeFirst = false
 	return &partitionPlan{
-		cut:      backupartifact.PartitionCut{HashSlot: request.HashSlot, RaftIndex: first.AppliedIndex, CommittedAtMillis: first.CapturedAtUnixMillis},
-		metadata: first.Reader,
-		shards:   shards,
-		base:     clonePartitionReference(baseReference),
+		cut:             backupartifact.PartitionCut{HashSlot: request.HashSlot, RaftIndex: first.AppliedIndex, CommittedAtMillis: first.CapturedAtUnixMillis},
+		metadata:        first.Reader,
+		metadataRecords: metadataStats.EntryCount,
+		shards:          shards,
+		base:            clonePartitionReference(baseReference),
 	}, nil
 }
 
@@ -177,12 +183,13 @@ func (p *PartitionPlanner) listMessageShards(ctx context.Context, hashSlot uint1
 }
 
 type partitionPlan struct {
-	cut      backupartifact.PartitionCut
-	metadata io.ReadCloser
-	shards   []runtimebackup.MessageShard
-	base     *backupartifact.PartitionReference
-	mu       sync.Mutex
-	opened   bool
+	cut             backupartifact.PartitionCut
+	metadata        io.ReadCloser
+	metadataRecords uint64
+	shards          []runtimebackup.MessageShard
+	base            *backupartifact.PartitionReference
+	mu              sync.Mutex
+	opened          bool
 }
 
 func (p *partitionPlan) Cut() backupartifact.PartitionCut { return p.cut }
@@ -205,6 +212,8 @@ func (p *partitionPlan) MessageShards() []runtimebackup.MessageShard {
 	}
 	return out
 }
+
+func (p *partitionPlan) MetadataRecordCount() uint64 { return p.metadataRecords }
 
 func (p *partitionPlan) Base() *backupartifact.PartitionReference {
 	p.mu.Lock()

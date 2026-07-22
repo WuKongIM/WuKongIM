@@ -12,7 +12,7 @@ const (
 	// PartitionManifestFormat identifies one logical hash-slot backup manifest.
 	PartitionManifestFormat = "wukongim-cluster-backup-partition"
 	// PartitionManifestVersion is the current partition manifest schema version.
-	PartitionManifestVersion  uint32 = 1
+	PartitionManifestVersion  uint32 = 2
 	maxPartitionManifestBytes        = 16 << 20
 )
 
@@ -31,6 +31,8 @@ type PartitionManifest struct {
 	// Base is the previous partition layer for an incremental chain. Nil marks
 	// a source-materialized base layer.
 	Base *PartitionReference `json:"base,omitempty"`
+	// Evidence carries cumulative signed counts and the message-ID fence.
+	Evidence PartitionEvidence `json:"evidence"`
 	// Objects contains encrypted immutable chunks in repository-key order.
 	Objects []ObjectEntry `json:"objects"`
 }
@@ -83,6 +85,9 @@ func validatePartitionManifest(manifest PartitionManifest) error {
 	if manifest.BackupEpoch == 0 || manifest.Cut.RaftIndex == 0 || manifest.Cut.CommittedAtMillis <= 0 {
 		return fmt.Errorf("%w: partition epoch and cut must be positive", ErrInvalidManifest)
 	}
+	if err := validatePartitionEvidence(manifest.Evidence); err != nil {
+		return err
+	}
 	if manifest.Base != nil {
 		if manifest.Base.HashSlot != manifest.Cut.HashSlot || manifest.Base.Bytes <= 0 || manifest.Base.ObjectCount == 0 || manifest.Base.CiphertextBytes == 0 {
 			return fmt.Errorf("%w: partition base summary is invalid", ErrInvalidManifest)
@@ -92,6 +97,12 @@ func validatePartitionManifest(manifest PartitionManifest) error {
 		}
 		if err := validateSHA256(manifest.Base.SHA256); err != nil {
 			return fmt.Errorf("%w: partition base checksum: %v", ErrInvalidManifest, err)
+		}
+		if err := validatePartitionEvidence(manifest.Base.Evidence); err != nil {
+			return err
+		}
+		if manifest.Evidence.MessageRecords < manifest.Base.Evidence.MessageRecords || manifest.Evidence.MaxMessageID < manifest.Base.Evidence.MaxMessageID {
+			return fmt.Errorf("%w: cumulative partition evidence regresses its base", ErrInvalidManifest)
 		}
 	}
 	if len(manifest.Objects) == 0 {
@@ -116,6 +127,16 @@ func validatePartitionManifest(manifest PartitionManifest) error {
 	}
 	if !metadataPresent {
 		return fmt.Errorf("%w: partition metadata object is required", ErrInvalidManifest)
+	}
+	return nil
+}
+
+func validatePartitionEvidence(evidence PartitionEvidence) error {
+	if evidence.Version != PartitionEvidenceVersion {
+		return fmt.Errorf("%w: partition evidence version %d is unsupported", ErrInvalidManifest, evidence.Version)
+	}
+	if (evidence.MessageRecords == 0) != (evidence.MaxMessageID == 0) {
+		return fmt.Errorf("%w: message record evidence and allocator fence disagree", ErrInvalidManifest)
 	}
 	return nil
 }

@@ -18,13 +18,13 @@ import (
 
 var (
 	backupMessageShardRequestMagic    = [...]byte{'W', 'K', 'V', 'B', 1}
-	backupMessageShardResponseMagic   = [...]byte{'W', 'K', 'V', 'b', 1}
+	backupMessageShardResponseMagic   = [...]byte{'W', 'K', 'V', 'b', 2}
 	backupPartitionRequestMagic       = [...]byte{'W', 'K', 'V', 'P', 1}
 	backupPartitionResponseMagic      = [...]byte{'W', 'K', 'V', 'p', 1}
 	backupRestoreTargetRequestMagic   = [...]byte{'W', 'K', 'V', 'R', 1}
 	backupRestoreTargetResponseMagic  = [...]byte{'W', 'K', 'V', 'r', 1}
-	backupRestoreInstallRequestMagic  = [...]byte{'W', 'K', 'V', 'I', 1}
-	backupRestoreInstallResponseMagic = [...]byte{'W', 'K', 'V', 'i', 1}
+	backupRestoreInstallRequestMagic  = [...]byte{'W', 'K', 'V', 'I', 2}
+	backupRestoreInstallResponseMagic = [...]byte{'W', 'K', 'V', 'i', 2}
 	backupRestoreVerifyRequestMagic   = [...]byte{'W', 'K', 'V', 'Y', 1}
 	backupRestoreVerifyResponseMagic  = [...]byte{'W', 'K', 'V', 'y', 1}
 )
@@ -41,9 +41,11 @@ type backupMessageShardRPCRequest struct {
 }
 
 type backupMessageShardRPCResponse struct {
-	Status     string                           `json:"status"`
-	Objects    []backupartifact.ObjectEntry     `json:"objects"`
-	Boundaries []backupartifact.ChannelBoundary `json:"boundaries"`
+	Status         string                           `json:"status"`
+	Objects        []backupartifact.ObjectEntry     `json:"objects"`
+	Boundaries     []backupartifact.ChannelBoundary `json:"boundaries"`
+	MessageRecords uint64                           `json:"message_records"`
+	MaxMessageID   uint64                           `json:"max_message_id"`
 }
 
 type backupPartitionRPCRequest struct {

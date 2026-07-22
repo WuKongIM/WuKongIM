@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -20,6 +21,14 @@ type slotSnapshotStream struct {
 	reader io.ReadCloser
 	cancel context.CancelFunc
 }
+
+type prefixedSnapshotStream struct {
+	reader io.Reader
+	closer io.Closer
+}
+
+func (s *prefixedSnapshotStream) Read(buffer []byte) (int, error) { return s.reader.Read(buffer) }
+func (s *prefixedSnapshotStream) Close() error                    { return s.closer.Close() }
 
 func (s *slotSnapshotStream) Read(buffer []byte) (int, error) { return s.reader.Read(buffer) }
 
@@ -48,6 +57,12 @@ type SnapshotStats struct {
 	EntryCount int
 	// Bytes is the encoded snapshot size.
 	Bytes int
+}
+
+// BackupSnapshotStats summarizes a pinned semantic metadata stream.
+type BackupSnapshotStats struct {
+	// EntryCount is the exact number of key/value records encoded in the stream.
+	EntryCount uint64
 }
 
 type snapshotEntry struct {
@@ -122,6 +137,44 @@ func (db *MetaDB) OpenHashSlotSnapshot(ctx context.Context, hashSlots []uint16) 
 // migration workflow rows are intentionally excluded.
 func (db *MetaDB) OpenBackupHashSlotSnapshot(ctx context.Context, hashSlots []uint16) (io.ReadCloser, error) {
 	return db.openHashSlotSnapshot(ctx, hashSlots, true)
+}
+
+// InspectBackupHashSlotSnapshotHeader reads only the portable header and
+// returns a replacement reader that still yields the complete original stream.
+func InspectBackupHashSlotSnapshotHeader(reader io.ReadCloser) (io.ReadCloser, BackupSnapshotStats, error) {
+	if reader == nil {
+		return nil, BackupSnapshotStats{}, dberrors.ErrInvalidArgument
+	}
+	var prefix bytes.Buffer
+	teed := io.TeeReader(reader, &prefix)
+	var magic [4]byte
+	if _, err := io.ReadFull(teed, magic[:]); err != nil || magic != slotSnapshotMagic {
+		_ = reader.Close()
+		return nil, BackupSnapshotStats{}, dberrors.ErrCorruptValue
+	}
+	version, err := readSlotStreamUint16(teed)
+	if err != nil || version != slotSnapshotVersion {
+		_ = reader.Close()
+		return nil, BackupSnapshotStats{}, dberrors.ErrCorruptValue
+	}
+	hashSlotCount, err := readSlotStreamUint16(teed)
+	if err != nil || hashSlotCount == 0 {
+		_ = reader.Close()
+		return nil, BackupSnapshotStats{}, dberrors.ErrCorruptValue
+	}
+	for index := uint16(0); index < hashSlotCount; index++ {
+		if _, err := readSlotStreamUint16(teed); err != nil {
+			_ = reader.Close()
+			return nil, BackupSnapshotStats{}, dberrors.ErrCorruptValue
+		}
+	}
+	entryCount, err := readSlotStreamUint64(teed)
+	if err != nil || entryCount > math.MaxInt {
+		_ = reader.Close()
+		return nil, BackupSnapshotStats{}, dberrors.ErrCorruptValue
+	}
+	wrapped := &prefixedSnapshotStream{reader: io.MultiReader(bytes.NewReader(prefix.Bytes()), reader), closer: reader}
+	return wrapped, BackupSnapshotStats{EntryCount: entryCount}, nil
 }
 
 // HasBackupBusinessData reports whether any recovery-authoritative table row

@@ -40,7 +40,9 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	partition := backupartifact.PartitionManifest{
 		Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion,
 		JobID: "restore-job", BackupEpoch: 9,
-		Cut: backupartifact.PartitionCut{HashSlot: 0, RaftIndex: 7, CommittedAtMillis: 1710000000000}, Objects: objects,
+		Cut:      backupartifact.PartitionCut{HashSlot: 0, RaftIndex: 7, CommittedAtMillis: 1710000000000},
+		Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: 3, MessageRecords: 2, MaxMessageID: 19},
+		Objects:  objects,
 	}
 	partitionBody, err := backupartifact.MarshalPartitionManifest(partition)
 	require.NoError(t, err)
@@ -55,7 +57,7 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	}
 	reference := backupartifact.PartitionReference{
 		HashSlot: 0, Key: partitionKey, SHA256: hex.EncodeToString(partitionHash[:]), Bytes: int64(len(partitionBody)),
-		ObjectCount: uint64(len(objects)), CiphertextBytes: ciphertextBytes,
+		ObjectCount: uint64(len(objects)), CiphertextBytes: ciphertextBytes, Evidence: partition.Evidence,
 	}
 	seed := sha256.Sum256([]byte("local-restore-installer"))
 	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
@@ -83,8 +85,11 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	}, 0)
 	require.NoError(t, err)
 	require.True(t, result.Installed)
+	require.Equal(t, backupartifact.PartitionEvidenceVersion, result.EvidenceVersion)
 	require.Equal(t, strings.Repeat("c", 64), result.MetadataSHA256)
 	require.Equal(t, uint64(2), result.MessageCount)
+	require.Equal(t, uint64(3), result.MetadataRecordCount)
+	require.Equal(t, uint64(19), result.MaxMessageID)
 	require.Equal(t, metadataBody, node.metadata)
 	require.Equal(t, messageBody, node.messages)
 }
@@ -94,14 +99,14 @@ type recordingRestoreInstallNode struct {
 	messages []byte
 }
 
-func (n *recordingRestoreInstallNode) InstallRestoreHashSlotMetadata(_ context.Context, _ uint16, reader io.ReadSeeker, size int64, _ bool) error {
+func (n *recordingRestoreInstallNode) InstallRestoreHashSlotMetadata(_ context.Context, _ uint16, reader io.ReadSeeker, size int64, _ bool) (uint64, error) {
 	n.metadata = readExactRestoreTestStream(reader, size)
-	return nil
+	return 3, nil
 }
 
 func (n *recordingRestoreInstallNode) InstallRestoreMessageStream(_ context.Context, reader io.ReadSeeker, size int64) (channelstore.BackupSnapshotStats, error) {
 	n.messages = append(n.messages, readExactRestoreTestStream(reader, size)...)
-	return channelstore.BackupSnapshotStats{HashSlot: 0, ChannelCount: 1, MessageCount: 2}, nil
+	return channelstore.BackupSnapshotStats{HashSlot: 0, ChannelCount: 1, MessageCount: 2, MaxMessageID: 19}, nil
 }
 
 func (n *recordingRestoreInstallNode) RestoreHashSlotMetadataDigest(context.Context, uint16) (string, error) {

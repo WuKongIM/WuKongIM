@@ -753,6 +753,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			if err != nil {
 				return fmt.Errorf("internal/app: create message id generator: %w", err)
 			}
+			a.messageIDs = messageIDs
 			opts := channelappend.Options{
 				LocalNodeID:                           nodeID,
 				Appender:                              clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),

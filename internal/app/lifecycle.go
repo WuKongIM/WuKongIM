@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -313,6 +314,27 @@ func (a *App) validateRestoreActivationFence(state controller.ClusterState) erro
 	}
 	if a.cfg.Backup.Enabled && a.cfg.Backup.SourceGeneration != plan.TargetGeneration {
 		return fmt.Errorf("internal/app: backup source generation must equal activated restore target generation %q", plan.TargetGeneration)
+	}
+	if len(plan.Partitions) != int(plan.HashSlotCount) {
+		return fmt.Errorf("internal/app: activated restore plan has incomplete partition evidence")
+	}
+	var maxMessageID uint64
+	for hashSlot, partition := range plan.Partitions {
+		if partition.HashSlot != uint16(hashSlot) || partition.EvidenceVersion != backupartifact.PartitionEvidenceVersion ||
+			(partition.MessageCount == 0) != (partition.MaxMessageID == 0) || !partition.Installed || !partition.Verified {
+			return fmt.Errorf("internal/app: activated restore plan has unverified partition evidence")
+		}
+		if partition.MaxMessageID > maxMessageID {
+			maxMessageID = partition.MaxMessageID
+		}
+	}
+	if maxMessageID > 0 {
+		if a.messageIDs == nil {
+			return fmt.Errorf("internal/app: message ID allocator is unavailable for activated restore fence")
+		}
+		if err := a.messageIDs.SetFloor(maxMessageID); err != nil {
+			return err
+		}
 	}
 	return nil
 }

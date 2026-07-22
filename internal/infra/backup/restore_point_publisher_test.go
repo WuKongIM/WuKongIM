@@ -59,7 +59,10 @@ func TestRestorePointPublisherLoadsEveryPartitionFromBothRepositories(t *testing
 			JobID:       job.ID,
 			BackupEpoch: job.Epoch,
 			Cut:         backupartifact.PartitionCut{HashSlot: hashSlot, RaftIndex: uint64(90 + hashSlot), CommittedAtMillis: committedAt},
-			Objects:     []backupartifact.ObjectEntry{entry},
+			Evidence: backupartifact.PartitionEvidence{
+				Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: uint64(hashSlot + 1), MessageRecords: 1, MaxMessageID: uint64(100 + hashSlot),
+			},
+			Objects: []backupartifact.ObjectEntry{entry},
 		}
 		body, err := backupartifact.MarshalPartitionManifest(partition)
 		require.NoError(t, err)
@@ -99,8 +102,9 @@ func TestRestorePointPublisherLoadsEveryPartitionFromBothRepositories(t *testing
 	require.Equal(t, int64(1710000000000), restorePoint.EffectiveAtUnixMillis)
 	require.True(t, restorePoint.PrimaryVerified)
 	require.True(t, restorePoint.SecondaryVerified)
-	_, err = backupartifact.LoadRestorePoint(context.Background(), secondary, restorePoint.ID, signer)
+	loaded, err := backupartifact.LoadRestorePoint(context.Background(), secondary, restorePoint.ID, signer)
 	require.NoError(t, err)
+	require.Equal(t, uint64(100), loaded.Partitions[0].Evidence.MaxMessageID)
 }
 
 type testEd25519Signer struct {

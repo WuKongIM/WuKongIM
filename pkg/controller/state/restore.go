@@ -16,14 +16,20 @@ const (
 type RestorePartition struct {
 	// HashSlot identifies the logical partition being restored.
 	HashSlot uint16 `json:"hash_slot"`
+	// EvidenceVersion distinguishes explicit empty evidence from a legacy missing report.
+	EvidenceVersion uint32 `json:"evidence_version"`
 	// Installed reports that this partition was durably imported.
 	Installed bool `json:"installed"`
 	// Verified reports that post-import semantic verification succeeded.
 	Verified bool `json:"verified"`
 	// PlainBytes counts installed plaintext bytes for bounded progress reporting.
 	PlainBytes uint64 `json:"plain_bytes"`
+	// MetadataRecordCount counts installed semantic metadata records.
+	MetadataRecordCount uint64 `json:"metadata_record_count"`
 	// MessageCount counts installed committed messages for bounded progress reporting.
 	MessageCount uint64 `json:"message_count"`
+	// MaxMessageID is the restored message-ID allocator fence.
+	MaxMessageID uint64 `json:"max_message_id"`
 	// MetadataSHA256 authenticates the canonical restored metadata projection.
 	MetadataSHA256 string `json:"metadata_sha256,omitempty"`
 	// FailureCategory is the bounded operator-facing failure class.

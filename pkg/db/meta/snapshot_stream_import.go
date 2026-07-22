@@ -22,23 +22,31 @@ const (
 // ImportHashSlotSnapshotReader validates then installs a seekable portable
 // snapshot without retaining the complete hash-slot payload in memory.
 func (db *MetaDB) ImportHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, false, false)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, false, false, nil)
 }
 
 // ImportHashSlotSnapshotReaderPreservingMigrationMeta installs semantic data
 // while retaining target-local migration workflow rows.
 func (db *MetaDB) ImportHashSlotSnapshotReaderPreservingMigrationMeta(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, false)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, false, nil)
 }
 
 // ImportHashSlotSnapshotReaderForRestore installs semantic data while
 // retaining target-local migration rows and optionally clearing every restored
 // user and device token as the rows enter the target database.
 func (db *MetaDB) ImportHashSlotSnapshotReaderForRestore(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, invalidateTokens)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, invalidateTokens, nil)
 }
 
-func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, preserveMigrationMeta, invalidateTokens bool) error {
+// ImportHashSlotSnapshotReaderForRestoreWithStats installs semantic data and
+// returns the exact record count authenticated by the portable stream.
+func (db *MetaDB) ImportHashSlotSnapshotReaderForRestoreWithStats(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) (BackupSnapshotStats, error) {
+	var stats BackupSnapshotStats
+	err := db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, true, invalidateTokens, &stats)
+	return stats, err
+}
+
+func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, preserveMigrationMeta, invalidateTokens bool, stats *BackupSnapshotStats) error {
 	if err := checkSnapshotDB(ctx, db); err != nil {
 		return err
 	}
@@ -55,12 +63,15 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 		}
 		return nil
 	}
-	streamSlots, _, err := visitSlotSnapshotStream(ctx, reader, size, validate)
+	streamSlots, entryCount, err := visitSlotSnapshotStream(ctx, reader, size, validate)
 	if err != nil {
 		return err
 	}
 	if !equalUint16HashSlots(streamSlots, uint16HashSlots(normalized)) {
 		return fmt.Errorf("%w: snapshot hash slots do not match request", dberrors.ErrInvalidArgument)
+	}
+	if stats != nil {
+		stats.EntryCount = entryCount
 	}
 
 	unlock := db.lockHashSlots(normalized)

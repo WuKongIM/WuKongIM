@@ -64,7 +64,9 @@ func (c *LocalMessageShardCapturer) CaptureMessageShard(ctx context.Context, req
 	for index, boundary := range snapshot.Boundaries {
 		boundaries[index] = backupartifact.ChannelBoundary{ChannelID: boundary.ChannelID, ChannelType: boundary.ChannelType, Epoch: boundary.Epoch, LogStartOffset: boundary.LogStartOffset, HW: boundary.HW}
 	}
-	return runtimebackup.MessageShardCapture{Objects: entries, Boundaries: boundaries}, nil
+	return runtimebackup.MessageShardCapture{
+		Objects: entries, Boundaries: boundaries, MessageRecords: snapshot.MessageRecords, MaxMessageID: snapshot.MaxMessageID,
+	}, nil
 }
 
 // RemoteMessageShardClient captures one message shard on another node.

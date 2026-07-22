@@ -4,9 +4,9 @@
 
 Cluster-semantic backup is disabled by default. The implementation provides the
 artifact, repository, coordination, capture, restore, retention, Manager, CLI,
-and metrics seams, but it is not production-qualified until the three-node
-failure matrix and the 1 TB RTO/performance gate documented in the design spec
-have passed.
+metrics, signed record-count, and allocator-fence seams, but it is not
+production-qualified until the three-node failure matrix and the 1 TB
+RTO/performance gate documented in the design spec have passed.
 
 Do not enable it merely because a node starts successfully. A deployment must
 also prove repository immutability, key retention, restore drills, capacity,
@@ -138,15 +138,24 @@ entry pending for a later retry.
    wkcli backup restore activate PLAN_ID --old-cluster-fence-digest SHA256 --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
    ```
 
-5. Verification authenticates the repository chain, checks every restored
-   channel boundary, and compares a canonical semantic metadata digest on each
+5. Verification authenticates the repository chain; compares each partition's
+   restored metadata-record count, cumulative message-record count, and maximum
+   message ID with signed manifest evidence; checks every restored Channel
+   sequence boundary; and compares a canonical semantic metadata digest on each
    target node. Activation remains impossible before every partition is
    installed and verified.
 6. Stop the restore-mode processes. Set `backup.restore_mode = false`. If
    automatic backup will resume, set `backup.enabled = true` and set
    `backup.source_generation` to the activated target generation. Restart the
-   cluster normally. Startup refuses an unactivated plan or a generation
-   mismatch before ordinary writes are admitted.
+   cluster normally. Startup refuses an unactivated plan, incomplete verified
+   partition evidence, a generation mismatch, or a message-ID fence that the
+   natural clock-derived node-scoped Snowflake allocator has not already
+   exceeded. It fails closed rather than synthesizing future IDs that could be
+   reused after restart.
+
+Backup manifest and partition-manifest format v2 makes restore evidence
+mandatory. Format v1 restore points from the unqualified foundation are
+intentionally rejected instead of treating missing counts or fences as zero.
 
 Never reuse the source generation, restore into a non-empty target, change the
 hash-slot count during recovery, or delete the target automatically after a
@@ -166,9 +175,8 @@ The current implementation also needs explicit qualification or completion for
 permanent-erasure ledger replay; source-log pin budget enforcement and public
 pin controls; true synthetic-full chain flattening (the current scheduler emits
 a source-materialized independent fallback and rejects manual
-`synthetic_full`); signed record-count and allocator-fence evidence with
-restore comparison; topology/quorum/migration/protocol-version publication
-gates; topology-sized restore replica placement and MinISR validation; complete
+`synthetic_full`); topology/quorum/migration/protocol-version publication gates;
+topology-sized restore replica placement and MinISR validation; complete
 disk/network/replica/time restore estimates; signed drill reports; a durable
 queryable audit history; high-mutation partition-planner starvation and memory
 qualification; and automatic throttling from live foreground latency. These

@@ -69,6 +69,10 @@ type BackupMessageSnapshot struct {
 	Reader io.ReadCloser
 	// Boundaries contains the exact resolved cut for every requested Channel.
 	Boundaries []BackupChannelBoundary
+	// MessageRecords is the exact message-row count encoded by Reader.
+	MessageRecords uint64
+	// MaxMessageID is the greatest durable message ID encoded by Reader.
+	MaxMessageID uint64
 }
 
 // BackupChannelBoundary is the exact committed cut encoded for one Channel.
@@ -182,14 +186,15 @@ func (n *Node) InspectLocalRestoreTarget(ctx context.Context) (RestoreTargetLoca
 
 // InstallRestoreHashSlotMetadata installs one validated semantic metadata
 // stream only while the node is fenced in explicit restore mode.
-func (n *Node) InstallRestoreHashSlotMetadata(ctx context.Context, hashSlot uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) error {
+func (n *Node) InstallRestoreHashSlotMetadata(ctx context.Context, hashSlot uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) (uint64, error) {
 	if err := ctxErr(ctx); err != nil {
-		return err
+		return 0, err
 	}
 	if n == nil || !n.cfg.RestoreMode || n.defaultSlotMetaDB == nil || hashSlot >= n.cfg.Slots.HashSlotCount {
-		return ErrInvalidConfig
+		return 0, ErrInvalidConfig
 	}
-	return n.defaultSlotMetaDB.ImportHashSlotSnapshotReaderForRestore(ctx, []uint16{hashSlot}, reader, size, invalidateTokens)
+	stats, err := n.defaultSlotMetaDB.ImportHashSlotSnapshotReaderForRestoreWithStats(ctx, []uint16{hashSlot}, reader, size, invalidateTokens)
+	return stats.EntryCount, err
 }
 
 // InstallRestoreMessageStream installs one validated base or delta message
@@ -304,7 +309,7 @@ func (n *Node) ListBackupChannelRuntimeMetaPage(ctx context.Context, hashSlot ui
 }
 
 type backupMessageSnapshotFactory interface {
-	OpenBackupSnapshot(context.Context, channelstore.BackupSnapshotRequest) (io.ReadCloser, error)
+	OpenBackupSnapshotWithStats(context.Context, channelstore.BackupSnapshotRequest) (io.ReadCloser, channelstore.BackupSnapshotStats, error)
 }
 
 // OpenBackupMessageSnapshot resolves committed local Channel cuts and opens one
@@ -381,9 +386,13 @@ func (n *Node) OpenBackupMessageSnapshot(ctx context.Context, hashSlot uint16, f
 		cuts[index] = channelstore.BackupChannelCut{Key: channelruntime.ChannelKeyForID(id), ID: id, Epoch: fence.ChannelEpoch, LogStartOffset: logStart, HW: hw, FromExclusive: fence.FromExclusive}
 		boundaries[index] = BackupChannelBoundary{ChannelID: id.ID, ChannelType: id.Type, Epoch: fence.ChannelEpoch, LogStartOffset: logStart, HW: hw}
 	}
-	reader, err := factory.OpenBackupSnapshot(ctx, channelstore.BackupSnapshotRequest{HashSlot: hashSlot, Channels: cuts})
+	reader, stats, err := factory.OpenBackupSnapshotWithStats(ctx, channelstore.BackupSnapshotRequest{HashSlot: hashSlot, Channels: cuts})
 	if err != nil {
 		return BackupMessageSnapshot{}, err
 	}
-	return BackupMessageSnapshot{Reader: reader, Boundaries: boundaries}, nil
+	if stats.HashSlot != hashSlot || stats.ChannelCount != uint64(len(cuts)) {
+		_ = reader.Close()
+		return BackupMessageSnapshot{}, channelruntime.ErrStaleMeta
+	}
+	return BackupMessageSnapshot{Reader: reader, Boundaries: boundaries, MessageRecords: stats.MessageCount, MaxMessageID: stats.MaxMessageID}, nil
 }

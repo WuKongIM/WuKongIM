@@ -38,8 +38,9 @@ type BaseResolver struct {
 	sourceGeneration string
 	hashSlotCount    uint16
 
-	mu        sync.Mutex
-	manifests map[string]backupartifact.Manifest
+	mu                   sync.Mutex
+	cachedRestorePointID string
+	cachedRestorePoint   backupartifact.Manifest
 }
 
 // NewBaseResolver creates a signed base resolver.
@@ -53,7 +54,6 @@ func NewBaseResolver(options BaseResolverOptions) (*BaseResolver, error) {
 		repository: options.Repository, signer: options.Signer, codec: options.Codec,
 		repositoryID: options.RepositoryID, sourceClusterID: options.SourceClusterID,
 		sourceGeneration: options.SourceGeneration, hashSlotCount: options.HashSlotCount,
-		manifests: make(map[string]backupartifact.Manifest),
 	}, nil
 }
 
@@ -115,7 +115,8 @@ func (r *BaseResolver) ResolvePartitionBase(ctx context.Context, restorePointID 
 
 func (r *BaseResolver) loadManifest(ctx context.Context, restorePointID string) (backupartifact.Manifest, error) {
 	r.mu.Lock()
-	manifest, ok := r.manifests[restorePointID]
+	manifest := r.cachedRestorePoint
+	ok := r.cachedRestorePointID == restorePointID
 	r.mu.Unlock()
 	if ok {
 		return manifest, nil
@@ -125,7 +126,8 @@ func (r *BaseResolver) loadManifest(ctx context.Context, restorePointID string) 
 		return backupartifact.Manifest{}, err
 	}
 	r.mu.Lock()
-	r.manifests[restorePointID] = manifest
+	r.cachedRestorePointID = restorePointID
+	r.cachedRestorePoint = manifest
 	r.mu.Unlock()
 	return manifest, nil
 }
@@ -139,7 +141,7 @@ func (r *BaseResolver) loadPartition(ctx context.Context, reference backupartifa
 	if err != nil {
 		return backupartifact.PartitionManifest{}, err
 	}
-	if manifest.Cut.HashSlot != reference.HashSlot || uint64(len(manifest.Objects)) != reference.ObjectCount {
+	if manifest.Cut.HashSlot != reference.HashSlot || uint64(len(manifest.Objects)) != reference.ObjectCount || manifest.Evidence != reference.Evidence {
 		return backupartifact.PartitionManifest{}, fmt.Errorf("%w: base partition summary mismatch", backupartifact.ErrInvalidManifest)
 	}
 	return manifest, nil

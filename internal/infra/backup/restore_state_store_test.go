@@ -7,6 +7,7 @@ import (
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	controllerstate "github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestControllerRestoreStateStoreRoundTripsPointersAndMapsConflict(t *testing
 		SourceClusterID: "cluster-a", SourceGeneration: "generation-a", TargetClusterID: "cluster-b", TargetGeneration: "generation-b",
 		HashSlotCount: 1, EstimatedPlainBytes: &plain, EstimatedCipherBytes: &cipher,
 		Status: controllerstate.RestoreStatusInstalling, CreatedAtUnixMillis: 1, UpdatedAtUnixMillis: 2,
-		Partitions: []controller.RestorePartition{{HashSlot: 0, Installed: true, MetadataSHA256: strings.Repeat("b", 64)}},
+		Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, MetadataSHA256: strings.Repeat("b", 64)}},
 	}}}}
 	store, err := backupinfra.NewControllerRestoreStateStore(runtime)
 	require.NoError(t, err)
@@ -28,6 +29,7 @@ func TestControllerRestoreStateStoreRoundTripsPointersAndMapsConflict(t *testing
 	require.NoError(t, err)
 	require.Equal(t, uint64(8), loaded.Revision)
 	require.Equal(t, backupusecase.RestoreStatusInstalling, loaded.Plan.Status)
+	require.Equal(t, backupartifact.PartitionEvidenceVersion, loaded.Plan.Partitions[0].EvidenceVersion)
 	require.Equal(t, strings.Repeat("b", 64), loaded.Plan.Partitions[0].MetadataSHA256)
 	require.Equal(t, uint64(11), *loaded.Plan.EstimatedPlainBytes)
 	*loaded.Plan.EstimatedPlainBytes = 99

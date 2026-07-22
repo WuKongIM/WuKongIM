@@ -153,6 +153,27 @@ func (f *MessageDBFactory) OpenBackupSnapshot(ctx context.Context, request Backu
 	return reader, f.mapError(err)
 }
 
+// OpenBackupSnapshotWithStats pins and streams exact committed cuts while
+// returning record-count and message-ID evidence from the same read view.
+func (f *MessageDBFactory) OpenBackupSnapshotWithStats(ctx context.Context, request BackupSnapshotRequest) (io.ReadCloser, BackupSnapshotStats, error) {
+	if err := f.availabilityError(); err != nil {
+		return nil, BackupSnapshotStats{}, err
+	}
+	channels := make([]messagedb.BackupChannelCut, len(request.Channels))
+	for index, channelCut := range request.Channels {
+		channels[index] = messagedb.BackupChannelCut{
+			Key:           messagedb.ChannelKey(channelCut.Key),
+			ID:            messagedb.ChannelID{ID: channelCut.ID.ID, Type: channelCut.ID.Type},
+			FromExclusive: channelCut.FromExclusive,
+			Checkpoint: messagedb.Checkpoint{
+				Epoch: channelCut.Epoch, LogStartOffset: channelCut.LogStartOffset, HW: channelCut.HW,
+			},
+		}
+	}
+	reader, stats, err := f.engine.OpenBackupSnapshotWithStats(ctx, messagedb.BackupSnapshotRequest{HashSlot: request.HashSlot, Channels: channels})
+	return reader, stats, f.mapError(err)
+}
+
 // ImportBackupSnapshot verifies and installs a portable message snapshot.
 func (f *MessageDBFactory) ImportBackupSnapshot(ctx context.Context, data []byte) (BackupSnapshotStats, error) {
 	if err := f.availabilityError(); err != nil {

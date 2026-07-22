@@ -123,6 +123,7 @@ func (p *RestorePointPublisher) Publish(ctx context.Context, job backupusecase.J
 		partitions = append(partitions, backupartifact.PartitionReference{
 			HashSlot: report.HashSlot, Key: report.ManifestKey, SHA256: report.ManifestSHA256,
 			Bytes: int64(len(primaryBody)), ObjectCount: report.ObjectCount, CiphertextBytes: report.CiphertextBytes,
+			Evidence: primaryManifest.Evidence,
 		})
 	}
 	effectiveAt := cuts[0].CommittedAtMillis

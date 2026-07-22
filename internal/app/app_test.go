@@ -36,6 +36,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -6809,6 +6810,66 @@ func TestNewSeedsMessageIDsFromEffectiveClusterNodeID(t *testing.T) {
 		t.Fatalf("send reason = %v, want success", result.Reason)
 	}
 	requireSnowflakeMessageIDNode(t, int64(result.MessageID), 7)
+}
+
+func TestNodeMessageIDsRejectFutureRestoredFence(t *testing.T) {
+	ids, err := newNodeMessageIDs(7)
+	if err != nil {
+		t.Fatalf("newNodeMessageIDs(): %v", err)
+	}
+	first := ids.Next()
+	futureTimestamp := (first >> 22) + 1_000
+	restoredMax := (futureTimestamp << 22) | (uint64(1023) << 12) | 4095
+	if err := ids.SetFloor(restoredMax); err == nil {
+		t.Fatal("SetFloor(future restored fence) error = nil")
+	}
+}
+
+func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.T) {
+	ids, err := newNodeMessageIDs(7)
+	if err != nil {
+		t.Fatalf("newNodeMessageIDs(): %v", err)
+	}
+	first := ids.Next()
+	restoredMax := first
+	app := &App{messageIDs: ids}
+	missingVersion := controller.ClusterState{
+		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
+		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
+			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
+			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
+			Partitions: []controller.RestorePartition{{HashSlot: 0, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
+		}},
+	}
+	if err := app.validateRestoreActivationFence(missingVersion); err == nil {
+		t.Fatal("validateRestoreActivationFence() without evidence version error = nil")
+	}
+	err = app.validateRestoreActivationFence(controller.ClusterState{
+		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
+		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
+			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
+			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
+			Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("validateRestoreActivationFence(): %v", err)
+	}
+	if next := ids.Next(); next <= restoredMax {
+		t.Fatalf("Next() = %d, want above activated restore fence %d", next, restoredMax)
+	}
+	futureMax := (((ids.Next() >> 22) + 1_000) << 22) | (uint64(9) << 12) | 17
+	err = app.validateRestoreActivationFence(controller.ClusterState{
+		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
+		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
+			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
+			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
+			Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: futureMax}},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "natural Snowflake clock") {
+		t.Fatalf("future activated restore fence error = %v", err)
+	}
 }
 
 func requireSnowflakeMessageIDNode(t testing.TB, messageID int64, nodeID uint64) {

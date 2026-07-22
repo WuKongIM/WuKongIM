@@ -423,6 +423,15 @@ func (db *DB) ImportHashSlotSnapshotReaderForRestore(ctx context.Context, hashSl
 	return db.meta.ImportHashSlotSnapshotReaderForRestore(ctx, hashSlots, reader, size, invalidateTokens)
 }
 
+// ImportHashSlotSnapshotReaderForRestoreWithStats installs semantic metadata
+// and returns the authenticated portable record count.
+func (db *DB) ImportHashSlotSnapshotReaderForRestoreWithStats(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) (BackupSnapshotStats, error) {
+	if db == nil || db.meta == nil {
+		return BackupSnapshotStats{}, dberrors.ErrClosed
+	}
+	return db.meta.ImportHashSlotSnapshotReaderForRestoreWithStats(ctx, hashSlots, reader, size, invalidateTokens)
+}
+
 // ImportHashSlotSnapshot imports selected hash slots.
 func (db *DB) ImportHashSlotSnapshot(ctx context.Context, snap SlotSnapshot) error {
 	if db == nil || db.meta == nil {

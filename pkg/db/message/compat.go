@@ -350,6 +350,25 @@ func (e *Engine) OpenBackupSnapshot(ctx context.Context, request BackupSnapshotR
 	return reader, toChannelError(err)
 }
 
+// OpenBackupSnapshotWithStats pins and streams exact committed cuts with
+// record-count and allocator-fence evidence from the same database view.
+func (e *Engine) OpenBackupSnapshotWithStats(ctx context.Context, request BackupSnapshotRequest) (io.ReadCloser, BackupSnapshotStats, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, BackupSnapshotStats{}, err
+	}
+	if e == nil {
+		return nil, BackupSnapshotStats{}, channel.ErrClosed
+	}
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return nil, BackupSnapshotStats{}, channel.ErrClosed
+	}
+	reader, stats, err := db.OpenBackupSnapshotWithStats(ctx, request)
+	return reader, stats, toChannelError(err)
+}
+
 // ImportBackupSnapshot verifies and installs a portable message backup snapshot.
 func (e *Engine) ImportBackupSnapshot(ctx context.Context, data []byte) (BackupSnapshotStats, error) {
 	if err := ctxErr(ctx); err != nil {

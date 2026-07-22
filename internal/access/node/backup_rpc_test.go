@@ -21,7 +21,7 @@ func TestBackupMessageShardRPCUsesBoundedSourceNodePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CaptureBackupMessageShard(): %v", err)
 	}
-	if node.serviceID != BackupMessageShardRPCServiceID || len(captured.Objects) != 1 || service.shard.ID != shard.ID {
+	if node.serviceID != BackupMessageShardRPCServiceID || len(captured.Objects) != 1 || captured.MessageRecords != 3 || captured.MaxMessageID != 99 || service.shard.ID != shard.ID {
 		t.Fatalf("rpc/service = %d captured=%#v shard=%#v", node.serviceID, captured, service.shard)
 	}
 }
@@ -30,6 +30,39 @@ func TestBackupMessageShardCodecRejectsUnknownFields(t *testing.T) {
 	body := append(append([]byte(nil), backupMessageShardRequestMagic[:]...), []byte(`{"capture":{},"shard":{},"unknown":true}`)...)
 	if _, err := decodeBackupMessageShardRequest(body); err == nil {
 		t.Fatal("decodeBackupMessageShardRequest() error = nil")
+	}
+}
+
+func TestBackupEvidenceCodecsRejectV1WireShapes(t *testing.T) {
+	messageBody, err := encodeBackupMessageShardResponse(backupMessageShardRPCResponse{Status: rpcStatusOK})
+	if err != nil {
+		t.Fatalf("encodeBackupMessageShardResponse(): %v", err)
+	}
+	messageBody[4] = 1
+	if _, err := decodeBackupMessageShardResponse(messageBody); err == nil {
+		t.Fatal("decodeBackupMessageShardResponse(v1) error = nil")
+	}
+
+	plan := backupusecase.RestorePlan{
+		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: strings.Repeat("a", 64),
+		Repository: "primary", HashSlotCount: 1, Partitions: []backupusecase.RestorePartition{{HashSlot: 0}},
+	}
+	installBody, err := encodeBackupRestoreInstallRequest(backupRestoreInstallRPCRequest{Plan: plan})
+	if err != nil {
+		t.Fatalf("encodeBackupRestoreInstallRequest(): %v", err)
+	}
+	installBody[4] = 1
+	if _, err := decodeBackupRestoreInstallRequest(installBody); err == nil {
+		t.Fatal("decodeBackupRestoreInstallRequest(v1) error = nil")
+	}
+
+	responseBody, err := encodeBackupRestoreInstallResponse(backupRestoreInstallRPCResponse{Status: rpcStatusOK})
+	if err != nil {
+		t.Fatalf("encodeBackupRestoreInstallResponse(): %v", err)
+	}
+	responseBody[4] = 1
+	if _, err := decodeBackupRestoreInstallResponse(responseBody); err == nil {
+		t.Fatal("decodeBackupRestoreInstallResponse(v1) error = nil")
 	}
 }
 
@@ -86,7 +119,7 @@ type fakeBackupMessageCapturer struct {
 
 func (f *fakeBackupMessageCapturer) CaptureMessageShard(_ context.Context, _ runtimebackup.CaptureRequest, shard runtimebackup.MessageShard) (runtimebackup.MessageShardCapture, error) {
 	f.shard = shard
-	return runtimebackup.MessageShardCapture{Objects: f.objects}, nil
+	return runtimebackup.MessageShardCapture{Objects: f.objects, MessageRecords: 3, MaxMessageID: 99}, nil
 }
 
 type fakeBackupRestoreTargetInspector struct {
@@ -101,7 +134,7 @@ type fakeBackupRestoreInstaller struct{ plan backupusecase.RestorePlan }
 
 func (f *fakeBackupRestoreInstaller) InstallPartition(_ context.Context, plan backupusecase.RestorePlan, hashSlot uint16) (backupusecase.RestorePartition, error) {
 	f.plan = plan
-	return backupusecase.RestorePartition{HashSlot: hashSlot, Installed: true, MetadataSHA256: strings.Repeat("b", 64)}, nil
+	return backupusecase.RestorePartition{HashSlot: hashSlot, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, MetadataSHA256: strings.Repeat("b", 64)}, nil
 }
 
 type fakeBackupRestoreVerifier struct {

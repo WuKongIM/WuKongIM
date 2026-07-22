@@ -14,6 +14,7 @@ fenced CaptureRequest
   -> one pinned logical-partition session and committed cut
   -> metadata stream -> bounded chunk replicator -> primary and secondary
   -> committed-message stream -> bounded chunk replicator -> both repositories
+  -> cumulative record counts and message-ID fence
   -> strict partition manifest -> immutable publication in both repositories
   -> bounded PartitionReport returned to the coordinator
 ```
@@ -23,6 +24,9 @@ accumulated as a whole logical partition: only the injected replicator's
 bounded chunk, object-reference list, and a compact Channel-fence plan capped
 at `maxBackupChannelsPerHashSlot` are resident. A partition manifest is
 published only after both logical streams have replicated successfully.
+Before recapturing a missing Controller report, the worker loads the fixed
+partition-manifest key. A verified existing copy repairs its missing repository
+replica and reconstructs the same bounded report without reopening the source.
 
 The Controller Leader coordinator resumes missing partition reports from
 Controller state, runs backup doctor checks without changing message

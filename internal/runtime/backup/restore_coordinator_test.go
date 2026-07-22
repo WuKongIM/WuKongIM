@@ -8,6 +8,7 @@ import (
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 func TestRestoreCoordinatorOnlyLeaderResumesMissingPartitions(t *testing.T) {
@@ -135,7 +136,7 @@ func (f *fakeRestoreCoordinatorInstaller) InstallPartition(_ context.Context, _ 
 	f.mu.Lock()
 	f.active--
 	f.mu.Unlock()
-	return backupcontract.RestorePartition{HashSlot: hashSlot, Installed: true, PlainBytes: 1, MetadataSHA256: strings.Repeat("a", 64)}, nil
+	return backupcontract.RestorePartition{HashSlot: hashSlot, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 1, MetadataSHA256: strings.Repeat("a", 64)}, nil
 }
 
 func (f *fakeRestoreCoordinatorInstaller) calls() []uint16 {

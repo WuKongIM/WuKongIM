@@ -7,6 +7,7 @@ import (
 	"time"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
@@ -39,8 +40,13 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	if err != nil || plan.Status != backupusecase.RestoreStatusInstalling {
 		t.Fatalf("idempotent Start() plan=%+v err=%v", plan, err)
 	}
+	if _, err := app.ReportPartition(context.Background(), plan.ID, backupusecase.RestorePartition{
+		HashSlot: 0, Installed: true, MetadataSHA256: strings.Repeat("b", 64),
+	}); err == nil {
+		t.Fatal("ReportPartition() without explicit evidence version error = nil")
+	}
 	for hashSlot := uint16(0); hashSlot < 2; hashSlot++ {
-		report := backupusecase.RestorePartition{HashSlot: hashSlot, Installed: true, MetadataSHA256: strings.Repeat("b", 64)}
+		report := backupusecase.RestorePartition{HashSlot: hashSlot, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, MetadataSHA256: strings.Repeat("b", 64)}
 		plan, err = app.ReportPartition(context.Background(), plan.ID, report)
 		if err != nil {
 			t.Fatalf("ReportPartition(%d): %v", hashSlot, err)

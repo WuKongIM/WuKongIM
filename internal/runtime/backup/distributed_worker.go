@@ -43,6 +43,10 @@ type MessageShardCapture struct {
 	Objects []backupartifact.ObjectEntry
 	// Boundaries are the exact committed cuts encoded in Objects.
 	Boundaries []backupartifact.ChannelBoundary
+	// MessageRecords is the exact message-row count encoded by this shard.
+	MessageRecords uint64
+	// MaxMessageID is the greatest durable message ID encoded by this shard.
+	MaxMessageID uint64
 }
 
 // MessageShard is one bounded group captured by the same source node.
@@ -64,6 +68,8 @@ type PartitionPlan interface {
 	OpenMetadata(context.Context) (io.ReadCloser, error)
 	// MessageShards returns bounded source-node groups in stable order.
 	MessageShards() []MessageShard
+	// MetadataRecordCount returns the exact count encoded by OpenMetadata.
+	MetadataRecordCount() uint64
 	// Base returns the prior partition layer for an incremental chain.
 	Base() *backupartifact.PartitionReference
 	// Close releases the pinned metadata view.
@@ -112,6 +118,11 @@ func (w *DistributedWorker) Capture(ctx context.Context, request CaptureRequest)
 	if stringsTrimmedEmpty(request.JobID) || request.BackupEpoch == 0 || !validFingerprint(request.ConfigFingerprint) {
 		return backupcontract.PartitionReport{}, ErrInvalidCapture
 	}
+	if report, ok, err := loadExistingPartitionReport(ctx, w.manifests, request); err != nil {
+		return backupcontract.PartitionReport{}, err
+	} else if ok {
+		return report, nil
+	}
 	plan, err := w.planner.OpenPlan(ctx, request)
 	if err != nil {
 		return backupcontract.PartitionReport{}, err
@@ -138,6 +149,14 @@ func (w *DistributedWorker) Capture(ctx context.Context, request CaptureRequest)
 	}
 	objects := append([]backupartifact.ObjectEntry(nil), metadata...)
 	boundaries := make([]backupartifact.ChannelBoundary, 0)
+	evidence := backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: plan.MetadataRecordCount()}
+	if base := plan.Base(); base != nil {
+		if base.Evidence.Version != backupartifact.PartitionEvidenceVersion {
+			return backupcontract.PartitionReport{}, fmt.Errorf("%w: incremental base evidence is invalid", ErrInvalidCapture)
+		}
+		evidence.MessageRecords = base.Evidence.MessageRecords
+		evidence.MaxMessageID = base.Evidence.MaxMessageID
+	}
 	shards := plan.MessageShards()
 	if len(shards) > maxMessageShardCount {
 		return backupcontract.PartitionReport{}, fmt.Errorf("%w: message shard count exceeds limit", ErrInvalidCapture)
@@ -165,6 +184,13 @@ func (w *DistributedWorker) Capture(ctx context.Context, request CaptureRequest)
 		}
 		objects = append(objects, captured.Objects...)
 		boundaries = append(boundaries, captured.Boundaries...)
+		if math.MaxUint64-evidence.MessageRecords < captured.MessageRecords {
+			return backupcontract.PartitionReport{}, fmt.Errorf("%w: message record count overflow", ErrInvalidCapture)
+		}
+		evidence.MessageRecords += captured.MessageRecords
+		if captured.MaxMessageID > evidence.MaxMessageID {
+			evidence.MaxMessageID = captured.MaxMessageID
+		}
 	}
 	indexBody, err := backupartifact.MarshalChannelIndex(request.HashSlot, boundaries)
 	if err != nil {
@@ -175,30 +201,23 @@ func (w *DistributedWorker) Capture(ctx context.Context, request CaptureRequest)
 		return backupcontract.PartitionReport{}, err
 	}
 	objects = append(objects, indexObjects...)
-	return w.publishPartition(ctx, request, cut, plan.Base(), objects)
+	return w.publishPartition(ctx, request, cut, plan.Base(), evidence, objects)
 }
 
-func (w *DistributedWorker) publishPartition(ctx context.Context, request CaptureRequest, cut backupartifact.PartitionCut, base *backupartifact.PartitionReference, objects []backupartifact.ObjectEntry) (backupcontract.PartitionReport, error) {
+func (w *DistributedWorker) publishPartition(ctx context.Context, request CaptureRequest, cut backupartifact.PartitionCut, base *backupartifact.PartitionReference, evidence backupartifact.PartitionEvidence, objects []backupartifact.ObjectEntry) (backupcontract.PartitionReport, error) {
 	sort.Slice(objects, func(i, j int) bool { return objects[i].Key < objects[j].Key })
-	manifest := backupartifact.PartitionManifest{Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion, JobID: request.JobID, BackupEpoch: request.BackupEpoch, Cut: cut, Base: base, Objects: objects}
+	manifest := backupartifact.PartitionManifest{Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion, JobID: request.JobID, BackupEpoch: request.BackupEpoch, Cut: cut, Base: base, Evidence: evidence, Objects: objects}
 	body, err := backupartifact.MarshalPartitionManifest(manifest)
 	if err != nil {
 		return backupcontract.PartitionReport{}, err
 	}
 	hash := sha256.Sum256(body)
 	checksum := hex.EncodeToString(hash[:])
-	key := fmt.Sprintf("partition-manifests/%s/%05d.json", request.JobID, request.HashSlot)
+	key := partitionManifestKey(request)
 	if err := w.manifests.Put(ctx, key, checksum, body); err != nil {
 		return backupcontract.PartitionReport{}, err
 	}
-	var ciphertextBytes uint64
-	for _, object := range objects {
-		if object.CiphertextBytes <= 0 || uint64(object.CiphertextBytes) > math.MaxUint64-ciphertextBytes {
-			return backupcontract.PartitionReport{}, fmt.Errorf("%w: partition ciphertext size overflow", ErrInvalidCapture)
-		}
-		ciphertextBytes += uint64(object.CiphertextBytes)
-	}
-	return backupcontract.PartitionReport{JobID: request.JobID, BackupEpoch: request.BackupEpoch, HashSlot: request.HashSlot, RaftIndex: cut.RaftIndex, CommittedAtUnixMillis: cut.CommittedAtMillis, ManifestKey: key, ManifestSHA256: checksum, ObjectCount: uint64(len(objects)), CiphertextBytes: ciphertextBytes}, nil
+	return partitionReportFromManifest(key, checksum, manifest)
 }
 
 func stringsTrimmedEmpty(value string) bool {

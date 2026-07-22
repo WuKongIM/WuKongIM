@@ -39,17 +39,32 @@ func TestWorkerPublishesPartitionManifestAfterBothStreamsReplicate(t *testing.T)
 
 	manifest, err := backupartifact.LoadPartitionManifest(manifests.bodies[0])
 	require.NoError(t, err)
+	require.Equal(t, backupartifact.PartitionEvidence{
+		Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: 5, MessageRecords: 2, MaxMessageID: 19,
+	}, manifest.Evidence)
 	require.Equal(t, uint16(4), manifest.Cut.HashSlot)
 	require.Equal(t, backupartifact.ObjectKindMessages, manifest.Objects[0].Kind)
 	require.Equal(t, backupartifact.ObjectKindMetadata, manifest.Objects[1].Kind)
 	hash := sha256.Sum256(manifests.bodies[0])
 	require.Equal(t, fmt.Sprintf("%x", hash), report.ManifestSHA256)
+	retried, err := worker.Capture(context.Background(), backupruntime.CaptureRequest{
+		JobID: "backup-11", BackupEpoch: 11, HashSlot: 4, ConfigFingerprint: strings.Repeat("a", 64),
+	})
+	require.NoError(t, err)
+	require.Equal(t, report, retried)
+	require.Equal(t, 1, source.opens)
+	require.Len(t, manifests.bodies, 1)
 }
 
 func TestDistributedWorkerCombinesDirectMessageShardReferences(t *testing.T) {
 	plan := &fakeDistributedPlan{
 		cut:      backupartifact.PartitionCut{HashSlot: 9, RaftIndex: 88, CommittedAtMillis: 1710000005000},
 		metadata: "metadata-nine",
+		base: &backupartifact.PartitionReference{
+			HashSlot: 9, Key: "partition-manifests/base/00009.json", SHA256: strings.Repeat("e", 64), Bytes: 10,
+			ObjectCount: 1, CiphertextBytes: 10,
+			Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion, MessageRecords: 10, MaxMessageID: 150},
+		},
 		shards: []backupruntime.MessageShard{
 			{ID: "n1-0000", NodeID: 1, Channels: []backupruntime.ChannelFence{{ChannelID: "a", ChannelType: 2, LeaderNodeID: 1, ChannelEpoch: 1, LeaderEpoch: 1, MinISR: 1}}},
 			{ID: "n2-0000", NodeID: 2, Channels: []backupruntime.ChannelFence{{ChannelID: "b", ChannelType: 2, LeaderNodeID: 2, ChannelEpoch: 1, LeaderEpoch: 1, MinISR: 1}}},
@@ -69,14 +84,19 @@ func TestDistributedWorkerCombinesDirectMessageShardReferences(t *testing.T) {
 	manifest, err := backupartifact.LoadPartitionManifest(manifests.bodies[0])
 	require.NoError(t, err)
 	require.Len(t, manifest.Objects, 4)
+	require.Equal(t, backupartifact.PartitionEvidence{
+		Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: 13, MessageRecords: 12, MaxMessageID: 200,
+	}, manifest.Evidence)
 	require.True(t, plan.closed)
 }
 
 type fakePartitionSource struct {
 	session backupruntime.PartitionSession
+	opens   int
 }
 
 func (s *fakePartitionSource) OpenPartition(context.Context, backupruntime.CaptureRequest) (backupruntime.PartitionSession, error) {
+	s.opens++
 	return s.session, nil
 }
 
@@ -84,6 +104,10 @@ type fakePartitionSession struct {
 	cut      backupartifact.PartitionCut
 	metadata string
 	messages string
+}
+
+func (s *fakePartitionSession) Evidence() backupartifact.PartitionEvidence {
+	return backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: 5, MessageRecords: 2, MaxMessageID: 19}
 }
 
 func (s *fakePartitionSession) Cut() backupartifact.PartitionCut { return s.cut }
@@ -133,6 +157,7 @@ type fakeDistributedPlan struct {
 	cut      backupartifact.PartitionCut
 	metadata string
 	shards   []backupruntime.MessageShard
+	base     *backupartifact.PartitionReference
 	closed   bool
 }
 
@@ -141,7 +166,8 @@ func (p *fakeDistributedPlan) OpenMetadata(context.Context) (io.ReadCloser, erro
 	return io.NopCloser(strings.NewReader(p.metadata)), nil
 }
 func (p *fakeDistributedPlan) MessageShards() []backupruntime.MessageShard { return p.shards }
-func (p *fakeDistributedPlan) Base() *backupartifact.PartitionReference    { return nil }
+func (p *fakeDistributedPlan) MetadataRecordCount() uint64                 { return 13 }
+func (p *fakeDistributedPlan) Base() *backupartifact.PartitionReference    { return p.base }
 func (p *fakeDistributedPlan) Close() error                                { p.closed = true; return nil }
 
 type fakeMessageShardCapturer struct{ ids []string }
@@ -159,16 +185,29 @@ func (c *fakeMessageShardCapturer) CaptureMessageShard(_ context.Context, reques
 	for index, channel := range shard.Channels {
 		boundaries[index] = backupartifact.ChannelBoundary{ChannelID: channel.ChannelID, ChannelType: channel.ChannelType, Epoch: channel.ChannelEpoch}
 	}
-	return backupruntime.MessageShardCapture{Objects: objects, Boundaries: boundaries}, nil
+	return backupruntime.MessageShardCapture{
+		Objects: objects, Boundaries: boundaries, MessageRecords: uint64(len(shard.Channels)), MaxMessageID: uint64(len(c.ids) * 100),
+	}, nil
 }
 
 type recordingPartitionManifestStore struct {
-	keys   []string
-	bodies [][]byte
+	keys      []string
+	checksums []string
+	bodies    [][]byte
 }
 
-func (s *recordingPartitionManifestStore) Put(_ context.Context, key, _ string, body []byte) error {
+func (s *recordingPartitionManifestStore) Load(_ context.Context, key string) ([]byte, string, error) {
+	for index := len(s.keys) - 1; index >= 0; index-- {
+		if s.keys[index] == key {
+			return append([]byte(nil), s.bodies[index]...), s.checksums[index], nil
+		}
+	}
+	return nil, "", backupartifact.ErrObjectNotFound
+}
+
+func (s *recordingPartitionManifestStore) Put(_ context.Context, key, checksum string, body []byte) error {
 	s.keys = append(s.keys, key)
+	s.checksums = append(s.checksums, checksum)
 	s.bodies = append(s.bodies, append([]byte(nil), body...))
 	return nil
 }

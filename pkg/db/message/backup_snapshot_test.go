@@ -57,8 +57,8 @@ func TestOpenBackupSnapshotPinsCommittedChannelCuts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ImportBackupSnapshot(): %v", err)
 	}
-	if stats.HashSlot != 7 || stats.ChannelCount != 1 || stats.MessageCount != 1 {
-		t.Fatalf("stats = %+v, want slot=7 channels=1 messages=1", stats)
+	if stats.HashSlot != 7 || stats.ChannelCount != 1 || stats.MessageCount != 1 || stats.MaxMessageID != 101 {
+		t.Fatalf("stats = %+v, want slot=7 channels=1 messages=1 max_message_id=101", stats)
 	}
 
 	restoredAlpha := mustAcquireChannel(t, target.db, ChannelKey("1:alpha"), ChannelID{ID: "alpha", Type: 1})
@@ -84,6 +84,35 @@ func TestOpenBackupSnapshotPinsCommittedChannelCuts(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Key != ChannelKey("1:alpha") {
 		t.Fatalf("restored catalog = %+v, want alpha only", entries)
+	}
+}
+
+func TestOpenBackupSnapshotWithStatsReturnsMessageIDFence(t *testing.T) {
+	ctx := context.Background()
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	log := mustAcquireChannel(t, store.db, ChannelKey("1:alpha"), ChannelID{ID: "alpha", Type: 1})
+	defer log.Close()
+	if _, err := log.Append(ctx, []Record{{ID: 101}, {ID: 307}}, AppendOptions{Mode: AppendStrict}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+
+	reader, stats, err := store.db.OpenBackupSnapshotWithStats(ctx, BackupSnapshotRequest{
+		HashSlot: 7,
+		Channels: []BackupChannelCut{{
+			Key: ChannelKey("1:alpha"), ID: ChannelID{ID: "alpha", Type: 1},
+			Checkpoint: Checkpoint{Epoch: 3, HW: 2},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("OpenBackupSnapshotWithStats(): %v", err)
+	}
+	defer reader.Close()
+	if stats.MessageCount != 2 || stats.MaxMessageID != 307 {
+		t.Fatalf("stats = %+v, want messages=2 max_message_id=307", stats)
+	}
+	if _, err := io.Copy(io.Discard, reader); err != nil {
+		t.Fatalf("copy snapshot: %v", err)
 	}
 }
 
@@ -207,11 +236,56 @@ func TestImportBackupSnapshotReaderAppliesBaseAndDelta(t *testing.T) {
 			t.Fatalf("ImportBackupSnapshotReader(): %v", err)
 		}
 	}
+	for _, body := range [][]byte{base, delta} {
+		stats, err := target.db.ImportBackupSnapshotReader(ctx, bytes.NewReader(body), int64(len(body)))
+		if err != nil {
+			t.Fatalf("retry ImportBackupSnapshotReader(): %v", err)
+		}
+		if stats.MessageCount != 1 {
+			t.Fatalf("retry stats = %+v, want one authenticated message", stats)
+		}
+	}
 	restored := mustAcquireChannel(t, target.db, ChannelKey("stream-room-key"), id)
 	defer restored.Close()
 	messages, err := restored.Read(ctx, 1, ReadOptions{})
 	if err != nil || len(messages) != 2 {
 		t.Fatalf("ReadCommitted() messages=%#v err=%v", messages, err)
+	}
+}
+
+func TestOpenIncrementalBackupSnapshotSeeksPastHistoricalRows(t *testing.T) {
+	ctx := context.Background()
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	key := ChannelKey("1:incremental")
+	id := ChannelID{ID: "incremental", Type: 1}
+	log := mustAcquireChannel(t, store.db, key, id)
+	defer log.Close()
+	if _, err := log.Append(ctx, []Record{{ID: 1}, {ID: 2}}, AppendOptions{Mode: AppendStrict}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+	batch := store.db.engine.NewBatch()
+	if err := batch.Set(encodeMessageRowKey(key, 1, messageHeaderFamilyID), []byte("unread historical corruption")); err != nil {
+		t.Fatalf("Set(): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+	if err := batch.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+	reader, stats, err := store.db.OpenBackupSnapshotWithStats(ctx, BackupSnapshotRequest{HashSlot: 3, Channels: []BackupChannelCut{{
+		Key: key, ID: id, FromExclusive: 1, Checkpoint: Checkpoint{Epoch: 1, HW: 2},
+	}}})
+	if err != nil {
+		t.Fatalf("OpenBackupSnapshotWithStats(): %v", err)
+	}
+	defer reader.Close()
+	if stats.MessageCount != 1 || stats.MaxMessageID != 2 {
+		t.Fatalf("stats = %+v, want only the incremental row", stats)
+	}
+	if _, err := io.Copy(io.Discard, reader); err != nil {
+		t.Fatalf("copy incremental snapshot: %v", err)
 	}
 }
 

@@ -1,7 +1,10 @@
 package backup_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"hash/crc32"
 	"io"
 	"strings"
 	"testing"
@@ -17,7 +20,7 @@ import (
 func TestPartitionPlannerRequiresUnchangedAppliedIndex(t *testing.T) {
 	node := &fakePartitionPlanNode{
 		snapshots: []multiraft.CapturedHashSlotSnapshot{
-			{SlotID: 3, HashSlot: 4, AppliedIndex: 10, CommitIndex: 10, Term: 2, CapturedAtUnixMillis: 1710000000000, Reader: io.NopCloser(strings.NewReader("metadata"))},
+			{SlotID: 3, HashSlot: 4, AppliedIndex: 10, CommitIndex: 10, Term: 2, CapturedAtUnixMillis: 1710000000000, Reader: backupMetadataReader(4, 0)},
 			{SlotID: 3, HashSlot: 4, AppliedIndex: 11, CommitIndex: 11, Term: 2, CapturedAtUnixMillis: 1710000001000, Reader: io.NopCloser(strings.NewReader("newer"))},
 		},
 	}
@@ -41,7 +44,7 @@ func TestPartitionPlannerRejectsCommitApplyLagWithoutPublishingCurrentWatermark(
 func TestPartitionPlannerGroupsStableChannelLeaders(t *testing.T) {
 	node := &fakePartitionPlanNode{
 		snapshots: []multiraft.CapturedHashSlotSnapshot{
-			{SlotID: 3, HashSlot: 4, AppliedIndex: 10, CommitIndex: 10, Term: 2, CapturedAtUnixMillis: 1710000000000, Reader: io.NopCloser(strings.NewReader("metadata"))},
+			{SlotID: 3, HashSlot: 4, AppliedIndex: 10, CommitIndex: 10, Term: 2, CapturedAtUnixMillis: 1710000000000, Reader: backupMetadataReader(4, 3)},
 			{SlotID: 3, HashSlot: 4, AppliedIndex: 10, CommitIndex: 10, Term: 2, CapturedAtUnixMillis: 1710000001000, Reader: io.NopCloser(strings.NewReader("same"))},
 		},
 		metas: []metadb.ChannelRuntimeMeta{
@@ -55,12 +58,24 @@ func TestPartitionPlannerGroupsStableChannelLeaders(t *testing.T) {
 	require.NoError(t, err)
 	defer plan.Close()
 	require.Equal(t, uint64(10), plan.Cut().RaftIndex)
+	require.Equal(t, uint64(3), plan.MetadataRecordCount())
 	require.Nil(t, plan.Base())
 	shards := plan.MessageShards()
 	require.Len(t, shards, 2)
 	require.Equal(t, uint64(1), shards[0].NodeID)
 	require.Equal(t, "b", shards[0].Channels[0].ChannelID)
 	require.Equal(t, uint64(2), shards[1].NodeID)
+}
+
+func backupMetadataReader(hashSlot uint16, entryCount uint64) io.ReadCloser {
+	body := make([]byte, 0, 22)
+	body = append(body, 'W', 'K', 'D', 'B')
+	body = binary.BigEndian.AppendUint16(body, 1)
+	body = binary.BigEndian.AppendUint16(body, 1)
+	body = binary.BigEndian.AppendUint16(body, hashSlot)
+	body = binary.BigEndian.AppendUint64(body, entryCount)
+	body = binary.BigEndian.AppendUint32(body, crc32.ChecksumIEEE(body))
+	return io.NopCloser(bytes.NewReader(body))
 }
 
 type fakePartitionPlanNode struct {

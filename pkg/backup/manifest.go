@@ -170,6 +170,9 @@ func validateManifestPayload(manifest Manifest) error {
 		if err := validateSHA256(reference.SHA256); err != nil {
 			return fmt.Errorf("%w: partition reference[%d] checksum: %v", ErrInvalidManifest, index, err)
 		}
+		if err := validatePartitionEvidence(reference.Evidence); err != nil {
+			return err
+		}
 	}
 	return nil
 }

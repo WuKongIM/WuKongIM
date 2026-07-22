@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
 	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -51,6 +52,8 @@ type BackupSnapshotStats struct {
 	ChannelCount uint64
 	// MessageCount is the number of committed message rows encoded by the snapshot.
 	MessageCount uint64
+	// MaxMessageID is the greatest durable message ID encoded by the snapshot.
+	MaxMessageID uint64
 }
 
 type messageBackupStream struct {
@@ -92,13 +95,50 @@ func (db *MessageDB) OpenBackupSnapshot(ctx context.Context, request BackupSnaps
 	reader, writer := io.Pipe()
 	go func() {
 		defer view.Close()
-		if err := writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels); err != nil {
+		if err := writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, nil); err != nil {
 			_ = writer.CloseWithError(err)
 			return
 		}
 		_ = writer.Close()
 	}()
 	return &messageBackupStream{reader: reader, cancel: cancel}, nil
+}
+
+// OpenBackupSnapshotWithStats pins and streams committed message data while
+// returning exact signed-evidence inputs from the same read view.
+func (db *MessageDB) OpenBackupSnapshotWithStats(ctx context.Context, request BackupSnapshotRequest) (io.ReadCloser, BackupSnapshotStats, error) {
+	if err := db.beginUse(); err != nil {
+		return nil, BackupSnapshotStats{}, err
+	}
+	view, err := db.engine.NewSnapshot()
+	db.endUse()
+	if err != nil {
+		return nil, BackupSnapshotStats{}, err
+	}
+	channels, err := normalizeBackupChannelCuts(request.Channels)
+	if err != nil {
+		_ = view.Close()
+		return nil, BackupSnapshotStats{}, err
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	stats, messageCounts, err := inspectMessageBackupSnapshot(ctx, view, request.HashSlot, channels)
+	if err != nil {
+		_ = view.Close()
+		return nil, BackupSnapshotStats{}, err
+	}
+	streamContext, cancel := context.WithCancel(ctx)
+	reader, writer := io.Pipe()
+	go func() {
+		defer view.Close()
+		if err := writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, messageCounts); err != nil {
+			_ = writer.CloseWithError(err)
+			return
+		}
+		_ = writer.Close()
+	}()
+	return &messageBackupStream{reader: reader, cancel: cancel}, stats, nil
 }
 
 func normalizeBackupChannelCuts(channels []BackupChannelCut) ([]BackupChannelCut, error) {
@@ -121,7 +161,10 @@ func normalizeBackupChannelCuts(channels []BackupChannelCut) ([]BackupChannelCut
 	return normalized, nil
 }
 
-func writeMessageBackupSnapshot(ctx context.Context, writer io.Writer, view messageBackupReadView, hashSlot uint16, channels []BackupChannelCut) error {
+func writeMessageBackupSnapshot(ctx context.Context, writer io.Writer, view messageBackupReadView, hashSlot uint16, channels []BackupChannelCut, messageCounts []uint64) error {
+	if messageCounts != nil && len(messageCounts) != len(channels) {
+		return dberrors.ErrCorruptState
+	}
 	checksum := crc32.NewIEEE()
 	payload := io.MultiWriter(writer, checksum)
 	header := make([]byte, 0, 12)
@@ -132,8 +175,12 @@ func writeMessageBackupSnapshot(ctx context.Context, writer io.Writer, view mess
 	if _, err := payload.Write(header); err != nil {
 		return err
 	}
-	for _, channel := range channels {
-		if err := writeBackupChannel(ctx, payload, view, channel); err != nil {
+	for index, channel := range channels {
+		var messageCount *uint64
+		if messageCounts != nil {
+			messageCount = &messageCounts[index]
+		}
+		if err := writeBackupChannel(ctx, payload, view, channel, messageCount); err != nil {
 			return err
 		}
 	}
@@ -143,7 +190,7 @@ func writeMessageBackupSnapshot(ctx context.Context, writer io.Writer, view mess
 	return err
 }
 
-func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBackupReadView, channel BackupChannelCut) error {
+func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBackupReadView, channel BackupChannelCut, knownMessageCount *uint64) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -202,9 +249,14 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 			return err
 		}
 	}
-	messageCount, err := countBackupMessages(ctx, view, channel.Key, channel.FromExclusive, channel.Checkpoint.HW)
-	if err != nil {
-		return err
+	messageCount := uint64(0)
+	if knownMessageCount == nil {
+		messageCount, err = countBackupMessages(ctx, view, channel.Key, channel.FromExclusive, channel.Checkpoint.HW)
+		if err != nil {
+			return err
+		}
+	} else {
+		messageCount = *knownMessageCount
 	}
 	if err := writeBackupUvarint(writer, messageCount); err != nil {
 		return err
@@ -219,6 +271,58 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 		}
 		return writeBackupBytes(writer, payload)
 	})
+}
+
+func inspectMessageBackupSnapshot(ctx context.Context, view messageBackupReadView, hashSlot uint16, channels []BackupChannelCut) (BackupSnapshotStats, []uint64, error) {
+	stats := BackupSnapshotStats{HashSlot: hashSlot, ChannelCount: uint64(len(channels))}
+	counts := make([]uint64, len(channels))
+	for index, channel := range channels {
+		catalogValue, present, err := view.Get(encodeCatalogKey(channel.Key))
+		if err != nil {
+			return BackupSnapshotStats{}, nil, err
+		}
+		if present {
+			catalogID, err := decodeCatalogValue(catalogValue)
+			if err != nil || catalogID != channel.ID {
+				return BackupSnapshotStats{}, nil, fmt.Errorf("%w: backup channel catalog identity mismatch", dberrors.ErrCorruptState)
+			}
+		}
+		leo, err := snapshotChannelLEO(view, channel.Key)
+		if err != nil {
+			return BackupSnapshotStats{}, nil, err
+		}
+		if retention, ok, err := snapshotRetentionState(view, channel.Key); err != nil {
+			return BackupSnapshotStats{}, nil, err
+		} else if ok && retention.RetainedMaxSeq > leo {
+			leo = retention.RetainedMaxSeq
+		}
+		if channel.Checkpoint.HW > leo {
+			return BackupSnapshotStats{}, nil, fmt.Errorf("%w: backup checkpoint hw %d exceeds pinned leo %d for %q", dberrors.ErrCorruptState, channel.Checkpoint.HW, leo, channel.Key)
+		}
+		var maxMessageID uint64
+		err = visitBackupMessages(ctx, view, channel.Key, channel.FromExclusive, channel.Checkpoint.HW, func(seq uint64, header, _ []byte) error {
+			row := messageRow{MessageSeq: seq}
+			if err := decodeMessageHeader(encodeMessageRowKey(channel.Key, seq, messageHeaderFamilyID), header, &row); err != nil {
+				return err
+			}
+			counts[index]++
+			if row.MessageID > maxMessageID {
+				maxMessageID = row.MessageID
+			}
+			return nil
+		})
+		if err != nil {
+			return BackupSnapshotStats{}, nil, err
+		}
+		if math.MaxUint64-stats.MessageCount < counts[index] {
+			return BackupSnapshotStats{}, nil, dberrors.ErrCorruptState
+		}
+		stats.MessageCount += counts[index]
+		if maxMessageID > stats.MaxMessageID {
+			stats.MaxMessageID = maxMessageID
+		}
+	}
+	return stats, counts, nil
 }
 
 type backupRawEntry struct {
@@ -318,7 +422,8 @@ func visitBackupMessages(ctx context.Context, view messageBackupReadView, channe
 	}
 	prefix := encodeMessageRowPrefix(channelKey)
 	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := view.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	start := encodeMessageRowKey(channelKey, fromExclusive+1, messageHeaderFamilyID)
+	iter, err := view.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
 	if err != nil {
 		return err
 	}
@@ -334,9 +439,6 @@ func visitBackupMessages(ctx context.Context, view messageBackupReadView, channe
 		}
 		if seq > hw {
 			break
-		}
-		if seq <= fromExclusive {
-			continue
 		}
 		if family != messageHeaderFamilyID {
 			continue
@@ -449,10 +551,14 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 		if err != nil {
 			return BackupSnapshotStats{}, err
 		}
-		if err := db.importBackupChannel(ctx, reader, key, id, fromExclusive, checkpoint, systemEntries, messageCount); err != nil {
+		maxMessageID, err := db.importBackupChannel(ctx, reader, key, id, fromExclusive, checkpoint, systemEntries, messageCount)
+		if err != nil {
 			return BackupSnapshotStats{}, err
 		}
 		stats.MessageCount += messageCount
+		if maxMessageID > stats.MaxMessageID {
+			stats.MaxMessageID = maxMessageID
+		}
 	}
 	if reader.Len() != 0 {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
@@ -460,101 +566,105 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 	return stats, nil
 }
 
-func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Reader, key ChannelKey, id ChannelID, fromExclusive uint64, checkpoint Checkpoint, systemEntries []backupRawEntry, messageCount uint64) error {
+func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Reader, key ChannelKey, id ChannelID, fromExclusive uint64, checkpoint Checkpoint, systemEntries []backupRawEntry, messageCount uint64) (uint64, error) {
 	if current, ok, err := db.engine.Get(encodeCatalogKey(key)); err != nil {
-		return err
+		return 0, err
 	} else if ok {
 		currentID, err := decodeCatalogValue(current)
 		if err != nil || currentID != id {
-			return dberrors.ErrConflict
+			return 0, dberrors.ErrConflict
 		}
 	}
 	currentCheckpoint, currentCheckpointPresent, err := db.loadBackupImportCheckpoint(key)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if currentCheckpointPresent && currentCheckpoint == checkpoint {
 		// Reapplying an already installed layer is idempotent.
 	} else if fromExclusive == 0 {
 		if currentCheckpointPresent {
-			return dberrors.ErrConflict
+			return 0, dberrors.ErrConflict
 		}
 	} else if !currentCheckpointPresent || currentCheckpoint.HW != fromExclusive || currentCheckpoint.Epoch > checkpoint.Epoch {
-		return dberrors.ErrConflict
+		return 0, dberrors.ErrConflict
 	}
 	entry := &channelEntry{key: key, id: id, appendKeyCache: newAppendKeyCache(key, id)}
 	batch := db.engine.NewBatch()
 	if err := batch.Set(encodeCatalogKey(key), encodeCatalogValue(id)); err != nil {
 		batch.Close()
-		return err
+		return 0, err
 	}
 	if err := batch.Set(encodeCheckpointKey(key), encodeCheckpoint(checkpoint)); err != nil {
 		batch.Close()
-		return err
+		return 0, err
 	}
 	for _, systemEntry := range systemEntries {
 		if err := batch.Set(systemEntry.Key, systemEntry.Value); err != nil {
 			batch.Close()
-			return err
+			return 0, err
 		}
 	}
 	if err := batch.Commit(true); err != nil {
 		batch.Close()
-		return err
+		return 0, err
 	}
 	if err := batch.Close(); err != nil {
-		return err
+		return 0, err
 	}
 	var previousSeq uint64
+	var maxMessageID uint64
 	messageBatch := db.engine.NewBatch()
 	defer func() { _ = messageBatch.Close() }()
 	for index := uint64(0); index < messageCount; index++ {
 		if err := ctxErr(ctx); err != nil {
-			return err
+			return 0, err
 		}
 		seq, err := readBackupUint64(reader)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if seq == 0 || seq <= fromExclusive || seq > checkpoint.HW || (previousSeq != 0 && seq <= previousSeq) {
-			return dberrors.ErrCorruptValue
+			return 0, dberrors.ErrCorruptValue
 		}
 		previousSeq = seq
 		header, err := readBackupBytes(reader)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		payload, err := readBackupBytes(reader)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		row := messageRow{MessageSeq: seq}
 		if err := decodeMessageHeader(encodeMessageRowKey(key, seq, messageHeaderFamilyID), header, &row); err != nil {
-			return err
+			return 0, err
 		}
 		if err := decodeMessagePayload(encodeMessageRowKey(key, seq, messagePayloadFamilyID), payload, &row); err != nil {
-			return err
+			return 0, err
 		}
 		if row.ChannelID != id.ID || row.ChannelType != id.Type {
-			return dberrors.ErrCorruptState
+			return 0, dberrors.ErrCorruptState
+		}
+		if row.MessageID > maxMessageID {
+			maxMessageID = row.MessageID
 		}
 		if err := entry.stageMessageRow(messageBatch, row, entry.appendKeyCache); err != nil {
-			return err
+			return 0, err
 		}
 		flush := (index+1)%backupImportBatchMessages == 0 || index+1 == messageCount
 		if flush {
 			if err := messageBatch.Commit(true); err != nil {
-				return err
+				return 0, err
 			}
 			if index+1 < messageCount {
 				if err := messageBatch.Close(); err != nil {
-					return err
+					return 0, err
 				}
 				messageBatch = db.engine.NewBatch()
 			}
 		}
 	}
-	return nil
+	return maxMessageID, nil
 }
 
 func (db *MessageDB) loadBackupImportCheckpoint(key ChannelKey) (Checkpoint, bool, error) {

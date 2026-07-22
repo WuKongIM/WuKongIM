@@ -71,8 +71,9 @@ func restorePlanFromController(plan *controller.RestorePlan) *backupusecase.Rest
 	}
 	for index, partition := range plan.Partitions {
 		result.Partitions[index] = backupusecase.RestorePartition{
-			HashSlot: partition.HashSlot, Installed: partition.Installed, Verified: partition.Verified,
-			PlainBytes: partition.PlainBytes, MessageCount: partition.MessageCount, MetadataSHA256: partition.MetadataSHA256,
+			HashSlot: partition.HashSlot, EvidenceVersion: partition.EvidenceVersion, Installed: partition.Installed, Verified: partition.Verified,
+			PlainBytes: partition.PlainBytes, MetadataRecordCount: partition.MetadataRecordCount, MessageCount: partition.MessageCount,
+			MaxMessageID: partition.MaxMessageID, MetadataSHA256: partition.MetadataSHA256,
 			FailureCategory: partition.FailureCategory, UpdatedAtUnixMillis: partition.UpdatedAtUnixMillis,
 		}
 	}
@@ -102,8 +103,9 @@ func restorePlanToController(plan *backupusecase.RestorePlan) *controller.Restor
 	}
 	for index, partition := range plan.Partitions {
 		result.Partitions[index] = controller.RestorePartition{
-			HashSlot: partition.HashSlot, Installed: partition.Installed, Verified: partition.Verified,
-			PlainBytes: partition.PlainBytes, MessageCount: partition.MessageCount, MetadataSHA256: partition.MetadataSHA256,
+			HashSlot: partition.HashSlot, EvidenceVersion: partition.EvidenceVersion, Installed: partition.Installed, Verified: partition.Verified,
+			PlainBytes: partition.PlainBytes, MetadataRecordCount: partition.MetadataRecordCount, MessageCount: partition.MessageCount,
+			MaxMessageID: partition.MaxMessageID, MetadataSHA256: partition.MetadataSHA256,
 			FailureCategory: partition.FailureCategory, UpdatedAtUnixMillis: partition.UpdatedAtUnixMillis,
 		}
 	}

@@ -121,6 +121,52 @@ func (p *ReplicatedPublisher) PublishReferences(ctx context.Context, manifest Ma
 			return Manifest{}, fmt.Errorf("%w: %s partition %q: %v", ErrRepositoryIncomplete, p.secondary.Name(), reference.Key, err)
 		}
 	}
+	key := restorePointManifestKey(manifest.RestorePointID)
+	existingPrimaryBody, existingPrimary, primaryFound, err := loadPublishedManifest(ctx, p.primary, key, signer)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("%w: %s manifest retry: %v", ErrRepositoryIncomplete, p.primary.Name(), err)
+	}
+	existingSecondaryBody, existingSecondary, secondaryFound, err := loadPublishedManifest(ctx, p.secondary, key, signer)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("%w: %s manifest retry: %v", ErrRepositoryIncomplete, p.secondary.Name(), err)
+	}
+	if primaryFound || secondaryFound {
+		existingBody := existingPrimaryBody
+		existing := existingPrimary
+		if !primaryFound {
+			existingBody = existingSecondaryBody
+			existing = existingSecondary
+		}
+		if primaryFound && secondaryFound && !bytes.Equal(existingPrimaryBody, existingSecondaryBody) {
+			return Manifest{}, fmt.Errorf("%w: replicated manifests disagree", ErrRepositoryIncomplete)
+		}
+		candidate := manifest
+		candidate.CreatedAtUnixMillis = existing.CreatedAtUnixMillis
+		candidateCanonical, err := canonicalUnsignedManifest(candidate)
+		if err != nil {
+			return Manifest{}, err
+		}
+		existingCanonical, err := canonicalUnsignedManifest(existing)
+		if err != nil {
+			return Manifest{}, err
+		}
+		if !bytes.Equal(candidateCanonical, existingCanonical) {
+			return Manifest{}, fmt.Errorf("%w: existing restore point manifest does not match retry", ErrInvalidManifest)
+		}
+		hash := sha256.Sum256(existingBody)
+		checksum := hex.EncodeToString(hash[:])
+		if !secondaryFound {
+			if err := putAndVerify(ctx, p.secondary, key, checksum, existingBody); err != nil {
+				return Manifest{}, fmt.Errorf("%w: %s manifest repair: %v", ErrRepositoryIncomplete, p.secondary.Name(), err)
+			}
+		}
+		if !primaryFound {
+			if err := putAndVerify(ctx, p.primary, key, checksum, existingBody); err != nil {
+				return Manifest{}, fmt.Errorf("%w: %s manifest repair: %v", ErrRepositoryIncomplete, p.primary.Name(), err)
+			}
+		}
+		return existing, nil
+	}
 
 	signed, err := SignManifest(ctx, manifest, signer, signingKeyID)
 	if err != nil {
@@ -132,7 +178,6 @@ func (p *ReplicatedPublisher) PublishReferences(ctx context.Context, manifest Ma
 	}
 	hash := sha256.Sum256(body)
 	checksum := hex.EncodeToString(hash[:])
-	key := restorePointManifestKey(signed.RestorePointID)
 	if err := putAndVerify(ctx, p.secondary, key, checksum, body); err != nil {
 		return Manifest{}, fmt.Errorf("%w: %s manifest: %v", ErrRepositoryIncomplete, p.secondary.Name(), err)
 	}
@@ -140,6 +185,33 @@ func (p *ReplicatedPublisher) PublishReferences(ctx context.Context, manifest Ma
 		return Manifest{}, fmt.Errorf("%w: %s manifest: %v", ErrRepositoryIncomplete, p.primary.Name(), err)
 	}
 	return signed, nil
+}
+
+func loadPublishedManifest(ctx context.Context, repository Repository, key string, signer ManifestSigner) ([]byte, Manifest, bool, error) {
+	reader, object, err := repository.Open(ctx, key)
+	if errors.Is(err, ErrObjectNotFound) {
+		return nil, Manifest{}, false, nil
+	}
+	if err != nil {
+		return nil, Manifest{}, false, err
+	}
+	defer reader.Close()
+	body, err := io.ReadAll(io.LimitReader(reader, maxManifestBytes+1))
+	if err != nil {
+		return nil, Manifest{}, false, err
+	}
+	if len(body) > maxManifestBytes || object.Key != key || object.Size != int64(len(body)) {
+		return nil, Manifest{}, false, fmt.Errorf("manifest object metadata mismatch")
+	}
+	hash := sha256.Sum256(body)
+	if object.SHA256 != hex.EncodeToString(hash[:]) {
+		return nil, Manifest{}, false, fmt.Errorf("manifest checksum mismatch")
+	}
+	manifest, err := LoadManifest(ctx, body, signer)
+	if err != nil {
+		return nil, Manifest{}, false, err
+	}
+	return body, manifest, true, nil
 }
 
 func (p *ReplicatedPublisher) validateRepositories() error {
@@ -270,7 +342,7 @@ func loadAndVerifyPartitionChain(ctx context.Context, repository Repository, ref
 	if err != nil {
 		return err
 	}
-	if partition.Cut.HashSlot != reference.HashSlot || uint64(len(partition.Objects)) != reference.ObjectCount {
+	if partition.Cut.HashSlot != reference.HashSlot || uint64(len(partition.Objects)) != reference.ObjectCount || partition.Evidence != reference.Evidence {
 		return fmt.Errorf("%w: partition %q summary mismatch", ErrInvalidManifest, reference.Key)
 	}
 	var ciphertextBytes uint64

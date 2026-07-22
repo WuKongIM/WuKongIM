@@ -34,3 +34,9 @@ message deltas. Channel-index objects carry the latest per-channel epoch,
 retention start, and committed HW without placing channel identities in
 Controller state. Object plaintext is zstd-compressed before AES-256-GCM
 encryption; each object has a fresh envelope data key and nonce.
+
+Format v2 requires explicit versioned partition evidence. Each signed top-level
+partition reference repeats the authenticated tip's latest metadata-record
+count, cumulative base-to-tip message-record count, and cumulative maximum
+message ID. A missing evidence version is not an empty partition. Base
+references cannot regress cumulative counts or the allocator fence.

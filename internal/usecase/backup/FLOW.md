@@ -26,8 +26,9 @@ Current flow:
    expired references into a durable pending-garbage queue before deletion.
 7. The restore state machine admits exactly one immutable plan, requires empty
    target and generation evidence, records idempotent per-hash-slot install
-   reports, requires final semantic verification, and accepts activation only
-   with a lowercase SHA-256 old-cluster fence digest.
+   reports including record counts and the message-ID fence, requires final
+   semantic verification, and accepts activation only with a lowercase SHA-256
+   old-cluster fence digest.
 
 Large channel/object manifests stay in repositories. Coordination state stores
 only one bounded summary per logical hash slot.

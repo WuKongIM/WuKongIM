@@ -119,8 +119,12 @@ control-plane change before retrying.
 `RestoreCoordinationState` is a separate optional bounded section. It stores
 one immutable restore selection, one compact install/verify report per hash
 slot, target generation, and activation fencing evidence. Installed reports
-must carry a lowercase canonical metadata SHA-256. Normal startup consumes this
-state as an activation fence before ordinary writes.
+must carry a lowercase canonical metadata SHA-256 plus the recomputed metadata
+record count, cumulative message record count, and greatest restored message
+ID under an explicit evidence version. Missing-version reports cannot become
+installed state. Normal startup consumes this state as an activation fence
+before ordinary writes and advances its node-scoped message-ID allocator above
+the greatest verified restored ID.
 
 Retention removes no repository data inside Controller Raft. Expired restore
 points first move atomically from the selectable list into `PendingGarbage`;

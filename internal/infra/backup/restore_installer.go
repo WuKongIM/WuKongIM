@@ -21,7 +21,7 @@ import (
 
 // RestoreInstallNode owns restore-only local database installation methods.
 type RestoreInstallNode interface {
-	InstallRestoreHashSlotMetadata(context.Context, uint16, io.ReadSeeker, int64, bool) error
+	InstallRestoreHashSlotMetadata(context.Context, uint16, io.ReadSeeker, int64, bool) (uint64, error)
 	InstallRestoreMessageStream(context.Context, io.ReadSeeker, int64) (channelstore.BackupSnapshotStats, error)
 	RestoreHashSlotMetadataDigest(context.Context, uint16) (string, error)
 }
@@ -50,6 +50,9 @@ type LocalRestoreInstaller struct {
 
 	mu        sync.Mutex
 	manifests map[string]backupartifact.Manifest
+
+	stagingMu    sync.Mutex
+	stagingBytes uint64
 }
 
 // NewLocalRestoreInstaller creates a fail-closed local partition installer.
@@ -93,13 +96,15 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 	if err != nil {
 		return backupusecase.RestorePartition{}, err
 	}
-	result := backupusecase.RestorePartition{HashSlot: hashSlot}
+	result := backupusecase.RestorePartition{HashSlot: hashSlot, EvidenceVersion: backupartifact.PartitionEvidenceVersion}
 	metadataGroups, err := restoreObjectGroups(layers[len(layers)-1].Objects, backupartifact.ObjectKindMetadata)
 	if err != nil || len(metadataGroups) != 1 || metadataGroups[0].Name != string(backupartifact.ObjectKindMetadata) {
 		return backupusecase.RestorePartition{}, fmt.Errorf("%w: latest partition metadata stream is invalid", backupartifact.ErrInvalidManifest)
 	}
 	metadataBytes, err := i.withStagedStream(ctx, repository, metadataGroups[0].Objects, func(file *os.File, size int64) error {
-		return i.node.InstallRestoreHashSlotMetadata(ctx, hashSlot, file, size, plan.InvalidateTokens)
+		var installErr error
+		result.MetadataRecordCount, installErr = i.node.InstallRestoreHashSlotMetadata(ctx, hashSlot, file, size, plan.InvalidateTokens)
+		return installErr
 	})
 	if err != nil {
 		return backupusecase.RestorePartition{}, err
@@ -121,6 +126,9 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 						return fmt.Errorf("%w: restored message count overflow", backupartifact.ErrInvalidManifest)
 					}
 					result.MessageCount += stats.MessageCount
+					if stats.MaxMessageID > result.MaxMessageID {
+						result.MaxMessageID = stats.MaxMessageID
+					}
 				}
 				return err
 			})
@@ -208,7 +216,7 @@ func loadRestorePartitionLayers(ctx context.Context, repository backupartifact.R
 		if err != nil {
 			return nil, err
 		}
-		if layer.Cut.HashSlot != tip.HashSlot || uint64(len(layer.Objects)) != reference.ObjectCount {
+		if layer.Cut.HashSlot != tip.HashSlot || uint64(len(layer.Objects)) != reference.ObjectCount || layer.Evidence != reference.Evidence {
 			return nil, fmt.Errorf("%w: restore partition layer summary mismatch", backupartifact.ErrInvalidManifest)
 		}
 		reversed = append(reversed, layer)
@@ -297,6 +305,7 @@ func (i *LocalRestoreInstaller) withStagedStream(ctx context.Context, repository
 	defer os.Remove(name)
 	defer file.Close()
 	var total uint64
+	defer func() { i.releaseStagingBytes(total) }()
 	for _, object := range objects {
 		if err := ctx.Err(); err != nil {
 			return 0, err
@@ -309,13 +318,17 @@ func (i *LocalRestoreInstaller) withStagedStream(ctx context.Context, repository
 		if err != nil {
 			return 0, err
 		}
-		if uint64(len(plaintext)) > i.stagingMaxBytes-total {
+		plainBytes := uint64(len(plaintext))
+		if plainBytes > i.stagingMaxBytes-total {
 			return 0, fmt.Errorf("backup restore: staged stream exceeds configured limit")
 		}
+		if !i.reserveStagingBytes(plainBytes) {
+			return 0, fmt.Errorf("backup restore: node staging usage exceeds configured limit")
+		}
+		total += plainBytes
 		if _, err := file.Write(plaintext); err != nil {
 			return 0, err
 		}
-		total += uint64(len(plaintext))
 	}
 	if total > math.MaxInt64 {
 		return 0, fmt.Errorf("backup restore: staged stream size overflow")
@@ -330,4 +343,23 @@ func (i *LocalRestoreInstaller) withStagedStream(ctx context.Context, repository
 		return 0, err
 	}
 	return total, nil
+}
+
+func (i *LocalRestoreInstaller) reserveStagingBytes(size uint64) bool {
+	i.stagingMu.Lock()
+	defer i.stagingMu.Unlock()
+	if size > i.stagingMaxBytes-i.stagingBytes {
+		return false
+	}
+	i.stagingBytes += size
+	return true
+}
+
+func (i *LocalRestoreInstaller) releaseStagingBytes(size uint64) {
+	i.stagingMu.Lock()
+	defer i.stagingMu.Unlock()
+	if size > i.stagingBytes {
+		panic("backup restore: staging byte accounting underflow")
+	}
+	i.stagingBytes -= size
 }

@@ -37,7 +37,10 @@ func (a *Adapter) HandleBackupMessageShardRPC(ctx context.Context, payload []byt
 		return encodeBackupMessageShardResponse(backupMessageShardRPCResponse{Status: rpcStatusRejected})
 	}
 	captured, err := a.backupMessages.CaptureMessageShard(ctx, req.Capture, req.Shard)
-	return encodeBackupMessageShardResponse(backupMessageShardRPCResponse{Status: backupMessageStatusForError(err), Objects: captured.Objects, Boundaries: captured.Boundaries})
+	return encodeBackupMessageShardResponse(backupMessageShardRPCResponse{
+		Status: backupMessageStatusForError(err), Objects: captured.Objects, Boundaries: captured.Boundaries,
+		MessageRecords: captured.MessageRecords, MaxMessageID: captured.MaxMessageID,
+	})
 }
 
 // HandleBackupPartitionRPC captures one logical partition on the local Slot leader.
@@ -112,8 +115,10 @@ func (c *Client) CaptureBackupMessageShard(ctx context.Context, nodeID uint64, r
 		return runtimebackup.MessageShardCapture{}, err
 	}
 	return runtimebackup.MessageShardCapture{
-		Objects:    append([]backupartifact.ObjectEntry(nil), response.Objects...),
-		Boundaries: append([]backupartifact.ChannelBoundary(nil), response.Boundaries...),
+		Objects:        append([]backupartifact.ObjectEntry(nil), response.Objects...),
+		Boundaries:     append([]backupartifact.ChannelBoundary(nil), response.Boundaries...),
+		MessageRecords: response.MessageRecords,
+		MaxMessageID:   response.MaxMessageID,
 	}, nil
 }
 

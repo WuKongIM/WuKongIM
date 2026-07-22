@@ -213,12 +213,17 @@ const (
 type RestorePartition struct {
 	// HashSlot identifies the restored logical partition.
 	HashSlot uint16
+	// EvidenceVersion distinguishes explicit empty evidence from missing evidence.
+	EvidenceVersion uint32
 	// Installed and Verified record durable lifecycle progress.
 	Installed bool
 	Verified  bool
-	// PlainBytes and MessageCount are bounded progress summaries.
-	PlainBytes   uint64
-	MessageCount uint64
+	// PlainBytes, MetadataRecordCount, and MessageCount are bounded progress summaries.
+	PlainBytes          uint64
+	MetadataRecordCount uint64
+	MessageCount        uint64
+	// MaxMessageID is the restored node-independent allocator fence.
+	MaxMessageID uint64
 	// MetadataSHA256 authenticates the canonical post-transform metadata view.
 	MetadataSHA256 string
 	// FailureCategory is a bounded operator-facing error class.

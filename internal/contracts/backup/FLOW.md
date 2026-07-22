@@ -9,3 +9,11 @@ The package does not schedule jobs, mutate Controller state, read storage,
 encode repository artifacts, or call infrastructure. Business decisions remain
 in `internal/usecase/backup`; runtime receives the pure scheduling function
 through composition.
+
+Restore partition reports carry only bounded verification evidence: the
+canonical metadata digest, exact metadata and cumulative message record counts,
+the greatest restored message ID, an explicit evidence version, and
+install/verify status. Storage adapters recompute these values; this contracts
+package only transports them between restore infrastructure, usecase, and
+Controller state. A missing evidence version remains unknown and cannot be
+installed, verified, activated, or admitted by normal startup.

@@ -97,6 +97,12 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 		if partition.Verified && !partition.Installed {
 			return invalid("restore partition verified before installation")
 		}
+		if partition.Installed && partition.EvidenceVersion == 0 {
+			return invalid("installed restore partition has no evidence version")
+		}
+		if partition.Installed && (partition.MessageCount == 0) != (partition.MaxMessageID == 0) {
+			return invalid("installed restore partition message evidence is inconsistent")
+		}
 		if partition.Installed && !validSHA256(partition.MetadataSHA256) {
 			return invalid("installed restore partition metadata digest is invalid")
 		}

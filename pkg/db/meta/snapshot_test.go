@@ -91,6 +91,40 @@ func TestOpenBackupHashSlotSnapshotExcludesRuntimeOwnershipAndMigrationRows(t *t
 	}
 }
 
+func TestInspectBackupHashSlotSnapshotHeaderPreservesStreamAndCount(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(6)
+	if err := shard.CreateUser(ctx, User{UID: "u-backup", Token: "token"}); err != nil {
+		t.Fatalf("CreateUser(): %v", err)
+	}
+
+	reader, err := store.db.OpenBackupHashSlotSnapshot(ctx, []uint16{6})
+	if err != nil {
+		t.Fatalf("OpenBackupHashSlotSnapshot(): %v", err)
+	}
+	reader, stats, err := InspectBackupHashSlotSnapshotHeader(reader)
+	if err != nil {
+		t.Fatalf("InspectBackupHashSlotSnapshotHeader(): %v", err)
+	}
+	defer reader.Close()
+	if stats.EntryCount == 0 {
+		t.Fatalf("stats = %+v, want explicit nonzero entry count", stats)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("ReadAll(): %v", err)
+	}
+	decoded, err := decodeSlotSnapshotPayload(body)
+	if err != nil {
+		t.Fatalf("decodeSlotSnapshotPayload(): %v", err)
+	}
+	if uint64(decoded.Stats.EntryCount) != stats.EntryCount {
+		t.Fatalf("encoded entries = %d, stats = %d", decoded.Stats.EntryCount, stats.EntryCount)
+	}
+}
+
 func TestHasBackupBusinessDataIgnoresRuntimeRowsAndFindsSemanticRows(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

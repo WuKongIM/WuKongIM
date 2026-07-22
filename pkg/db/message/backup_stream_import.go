@@ -77,7 +77,7 @@ func verifyMessageBackupStreamChecksum(source io.ReadSeeker, size int64) error {
 	return nil
 }
 
-func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size int64, visit func(context.Context, *bufio.Reader, messageBackupChannelHeader) error) (BackupSnapshotStats, error) {
+func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size int64, visit func(context.Context, *bufio.Reader, messageBackupChannelHeader) (uint64, error)) (BackupSnapshotStats, error) {
 	if _, err := source.Seek(0, io.SeekStart); err != nil {
 		return BackupSnapshotStats{}, err
 	}
@@ -160,13 +160,17 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 			key: key, id: ChannelID{ID: idString, Type: channelType}, checkpoint: checkpoint,
 			fromExclusive: fromExclusive, systemEntries: systemEntries, messageCount: messageCount,
 		}
-		if err := visit(ctx, reader, header); err != nil {
+		maxMessageID, err := visit(ctx, reader, header)
+		if err != nil {
 			return BackupSnapshotStats{}, err
 		}
 		if math.MaxUint64-stats.MessageCount < messageCount {
 			return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 		}
 		stats.MessageCount += messageCount
+		if maxMessageID > stats.MaxMessageID {
+			stats.MaxMessageID = maxMessageID
+		}
 	}
 	if _, err := reader.ReadByte(); err != io.EOF {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
@@ -174,118 +178,161 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 	return stats, nil
 }
 
-func validateMessageBackupChannel(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) error {
+func validateMessageBackupChannel(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
 	var previousSeq uint64
+	var maxMessageID uint64
 	for index := uint64(0); index < header.messageCount; index++ {
-		seq, _, err := readMessageBackupStreamRow(ctx, reader, header, previousSeq)
+		seq, row, _, _, err := readMessageBackupStreamRow(ctx, reader, header, previousSeq)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		previousSeq = seq
+		if row.MessageID > maxMessageID {
+			maxMessageID = row.MessageID
+		}
 	}
-	return nil
+	return maxMessageID, nil
 }
 
-func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) error {
+func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
 	if current, ok, err := db.engine.Get(encodeCatalogKey(header.key)); err != nil {
-		return err
+		return 0, err
 	} else if ok {
 		currentID, err := decodeCatalogValue(current)
 		if err != nil || currentID != header.id {
-			return dberrors.ErrConflict
+			return 0, dberrors.ErrConflict
 		}
 	}
 	currentCheckpoint, currentCheckpointPresent, err := db.loadBackupImportCheckpoint(header.key)
 	if err != nil {
-		return err
+		return 0, err
+	}
+	if currentCheckpointPresent && currentCheckpoint.HW > header.checkpoint.HW && currentCheckpoint.Epoch >= header.checkpoint.Epoch {
+		return db.verifyInstalledBackupChannelStream(ctx, reader, header)
 	}
 	if currentCheckpointPresent && currentCheckpoint == header.checkpoint {
 		// Exact layer replay is idempotent.
 	} else if header.fromExclusive == 0 {
 		if currentCheckpointPresent {
-			return dberrors.ErrConflict
+			return 0, dberrors.ErrConflict
 		}
 	} else if !currentCheckpointPresent || currentCheckpoint.HW != header.fromExclusive || currentCheckpoint.Epoch > header.checkpoint.Epoch {
-		return dberrors.ErrConflict
+		return 0, dberrors.ErrConflict
 	}
 	metadataBatch := db.engine.NewBatch()
 	if err := metadataBatch.Set(encodeCatalogKey(header.key), encodeCatalogValue(header.id)); err != nil {
 		_ = metadataBatch.Close()
-		return err
+		return 0, err
 	}
 	if err := metadataBatch.Set(encodeCheckpointKey(header.key), encodeCheckpoint(header.checkpoint)); err != nil {
 		_ = metadataBatch.Close()
-		return err
+		return 0, err
 	}
 	for _, entry := range header.systemEntries {
 		if err := metadataBatch.Set(entry.Key, entry.Value); err != nil {
 			_ = metadataBatch.Close()
-			return err
+			return 0, err
 		}
 	}
 	if err := metadataBatch.Commit(true); err != nil {
 		_ = metadataBatch.Close()
-		return err
+		return 0, err
 	}
 	if err := metadataBatch.Close(); err != nil {
-		return err
+		return 0, err
 	}
 
 	entry := &channelEntry{key: header.key, id: header.id, appendKeyCache: newAppendKeyCache(header.key, header.id)}
 	messageBatch := db.engine.NewBatch()
 	defer func() { _ = messageBatch.Close() }()
 	var previousSeq uint64
+	var maxMessageID uint64
 	for index := uint64(0); index < header.messageCount; index++ {
-		seq, row, err := readMessageBackupStreamRow(ctx, reader, header, previousSeq)
+		seq, row, _, _, err := readMessageBackupStreamRow(ctx, reader, header, previousSeq)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		previousSeq = seq
+		if row.MessageID > maxMessageID {
+			maxMessageID = row.MessageID
+		}
 		if err := entry.stageMessageRow(messageBatch, row, entry.appendKeyCache); err != nil {
-			return err
+			return 0, err
 		}
 		if (index+1)%backupImportBatchMessages == 0 || index+1 == header.messageCount {
 			if err := messageBatch.Commit(true); err != nil {
-				return err
+				return 0, err
 			}
 			if index+1 < header.messageCount {
 				if err := messageBatch.Close(); err != nil {
-					return err
+					return 0, err
 				}
 				messageBatch = db.engine.NewBatch()
 			}
 		}
 	}
-	return nil
+	return maxMessageID, nil
 }
 
-func readMessageBackupStreamRow(ctx context.Context, reader *bufio.Reader, channel messageBackupChannelHeader, previousSeq uint64) (uint64, messageRow, error) {
+// verifyInstalledBackupChannelStream authenticates an already-covered layer
+// against the current database without mutating the newer installed checkpoint.
+func (db *MessageDB) verifyInstalledBackupChannelStream(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
+	var previousSeq uint64
+	var maxMessageID uint64
+	for index := uint64(0); index < header.messageCount; index++ {
+		seq, row, headerBody, payload, err := readMessageBackupStreamRow(ctx, reader, header, previousSeq)
+		if err != nil {
+			return 0, err
+		}
+		previousSeq = seq
+		if row.MessageID > maxMessageID {
+			maxMessageID = row.MessageID
+		}
+		installedHeader, ok, err := db.engine.Get(encodeMessageRowKey(header.key, seq, messageHeaderFamilyID))
+		if err != nil {
+			return 0, err
+		}
+		if !ok || !bytes.Equal(installedHeader, headerBody) {
+			return 0, dberrors.ErrConflict
+		}
+		installedPayload, ok, err := db.engine.Get(encodeMessageRowKey(header.key, seq, messagePayloadFamilyID))
+		if err != nil {
+			return 0, err
+		}
+		if !ok || !bytes.Equal(installedPayload, payload) {
+			return 0, dberrors.ErrConflict
+		}
+	}
+	return maxMessageID, nil
+}
+
+func readMessageBackupStreamRow(ctx context.Context, reader *bufio.Reader, channel messageBackupChannelHeader, previousSeq uint64) (uint64, messageRow, []byte, []byte, error) {
 	if err := ctxErr(ctx); err != nil {
-		return 0, messageRow{}, err
+		return 0, messageRow{}, nil, nil, err
 	}
 	seq, err := readMessageBackupStreamUint64(reader)
 	if err != nil || seq == 0 || seq <= channel.fromExclusive || seq > channel.checkpoint.HW || (previousSeq != 0 && seq <= previousSeq) {
-		return 0, messageRow{}, dberrors.ErrCorruptValue
+		return 0, messageRow{}, nil, nil, dberrors.ErrCorruptValue
 	}
 	headerBody, err := readMessageBackupStreamBytes(reader)
 	if err != nil {
-		return 0, messageRow{}, err
+		return 0, messageRow{}, nil, nil, err
 	}
 	payload, err := readMessageBackupStreamBytes(reader)
 	if err != nil {
-		return 0, messageRow{}, err
+		return 0, messageRow{}, nil, nil, err
 	}
 	row := messageRow{MessageSeq: seq}
 	if err := decodeMessageHeader(encodeMessageRowKey(channel.key, seq, messageHeaderFamilyID), headerBody, &row); err != nil {
-		return 0, messageRow{}, err
+		return 0, messageRow{}, nil, nil, err
 	}
 	if err := decodeMessagePayload(encodeMessageRowKey(channel.key, seq, messagePayloadFamilyID), payload, &row); err != nil {
-		return 0, messageRow{}, err
+		return 0, messageRow{}, nil, nil, err
 	}
 	if row.ChannelID != channel.id.ID || row.ChannelType != channel.id.Type {
-		return 0, messageRow{}, dberrors.ErrCorruptState
+		return 0, messageRow{}, nil, nil, dberrors.ErrCorruptState
 	}
-	return seq, row, nil
+	return seq, row, headerBody, payload, nil
 }
 
 func readMessageBackupStreamString(reader *bufio.Reader) (string, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -88,6 +89,9 @@ type App struct {
 	channelAppendRouter         *channelappend.Router
 	channelAppendDeliveryWorker *channelappend.RecipientDeliveryWorker
 	channelAppendMetadata       *clusterinfra.ChannelAppendMetadataCache
+	// messageIDs owns the node-scoped allocator so activated restore fences can
+	// be installed before ordinary traffic starts.
+	messageIDs *nodeMessageIDs
 	// pluginRuntime owns the node-local plugin process/socket runtime.
 	pluginRuntime WorkerRuntime
 	// pluginHook owns the bounded PersistAfter worker that drains durable commit side effects.
@@ -700,6 +704,8 @@ func normalizeWebsocketAddress(addr string) string {
 type nodeMessageIDs struct {
 	// node is the Snowflake generator bound to the effective cluster node id.
 	node *snowflake.Node
+	// floor is the greatest naturally generated message ID in this process.
+	floor atomic.Uint64
 }
 
 func newNodeMessageIDs(nodeID uint64) (*nodeMessageIDs, error) {
@@ -711,7 +717,42 @@ func newNodeMessageIDs(nodeID uint64) (*nodeMessageIDs, error) {
 }
 
 func (g *nodeMessageIDs) Next() uint64 {
-	return uint64(g.node.Generate())
+	for {
+		raw := uint64(g.node.Generate())
+		floor := g.floor.Load()
+		if raw <= floor {
+			continue
+		}
+		if g.floor.CompareAndSwap(floor, raw) {
+			return raw
+		}
+	}
+}
+
+// SetFloor proves the natural clock-derived allocator is already above every
+// restored durable message ID. It never synthesizes future IDs that a restart
+// could later reuse before the wall clock catches up.
+func (g *nodeMessageIDs) SetFloor(floor uint64) error {
+	if g == nil || g.node == nil {
+		return fmt.Errorf("internal/app: message ID allocator is unavailable")
+	}
+	current := g.floor.Load()
+	if floor <= current {
+		return nil
+	}
+	probe := uint64(g.node.Generate())
+	if probe <= floor {
+		return fmt.Errorf("internal/app: natural Snowflake clock has not advanced above restored message ID fence %d", floor)
+	}
+	for {
+		current = g.floor.Load()
+		if probe <= current {
+			return nil
+		}
+		if g.floor.CompareAndSwap(current, probe) {
+			return nil
+		}
+	}
 }
 
 type nodeRPCHandlerFunc func(context.Context, []byte) ([]byte, error)

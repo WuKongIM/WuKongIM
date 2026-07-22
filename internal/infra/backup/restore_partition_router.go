@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
@@ -117,7 +118,8 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 		if result.err != nil {
 			return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: node %d: %w", result.nodeID, result.err)
 		}
-		if result.report.HashSlot != hashSlot || !result.report.Installed || result.report.FailureCategory != "" {
+		if result.report.HashSlot != hashSlot || result.report.EvidenceVersion != backupartifact.PartitionEvidenceVersion ||
+			(result.report.MessageCount == 0) != (result.report.MaxMessageID == 0) || !result.report.Installed || result.report.FailureCategory != "" {
 			return backupusecase.RestorePartition{}, fmt.Errorf("backup cluster restore installer: node %d returned invalid report", result.nodeID)
 		}
 		if canonical == nil {
@@ -137,6 +139,7 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 }
 
 func sameLogicalRestoreReport(left, right backupusecase.RestorePartition) bool {
-	return left.HashSlot == right.HashSlot && left.Installed == right.Installed && left.Verified == right.Verified &&
-		left.PlainBytes == right.PlainBytes && left.MessageCount == right.MessageCount && left.MetadataSHA256 == right.MetadataSHA256 && left.FailureCategory == right.FailureCategory
+	return left.HashSlot == right.HashSlot && left.EvidenceVersion == right.EvidenceVersion && left.Installed == right.Installed && left.Verified == right.Verified &&
+		left.PlainBytes == right.PlainBytes && left.MetadataRecordCount == right.MetadataRecordCount && left.MessageCount == right.MessageCount &&
+		left.MaxMessageID == right.MaxMessageID && left.MetadataSHA256 == right.MetadataSHA256 && left.FailureCategory == right.FailureCategory
 }

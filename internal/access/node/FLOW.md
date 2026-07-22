@@ -635,12 +635,20 @@ Delivery push and fanout responses currently use:
 
 Backup RPCs carry only bounded control requests, logical cut summaries, and
 repository references. Message payload capture executes on the selected source
-node and uploads directly to both repositories. Restore target inspection,
+node and uploads directly to both repositories. Each message-shard response
+also returns the exact record count and greatest message ID computed from the
+same pinned snapshot, so the partition worker can publish cumulative signed
+evidence without rescanning the uploaded stream. Restore target inspection,
 partition installation, and verification are registered only for explicit
 restore mode. Verification carries the expected canonical metadata SHA-256 on
-the first batch and bounded Channel cut batches thereafter.
+the first batch and bounded Channel cut batches thereafter; the install report
+also carries the recomputed metadata/message counts and greatest message ID for
+fail-closed comparison with the signed restore-point evidence.
 
-The fixed request/response magic pairs are `WKVB/WKVb` for message shards,
-`WKVP/WKVp` for partitions, `WKVR/WKVr` for target inspection, `WKVI/WKVi`
-for restore install, and `WKVY/WKVy` for restore verification. Decoders reject
-unknown JSON fields, trailing bytes, invalid digests, and oversized batches.
+The message-shard request remains `WKVB1`; its evidence-bearing response is
+`WKVb2`. Restore install uses `WKVI2/WKVi2` because the plan/report wire shape
+contains record counts and the message-ID fence. The unchanged pairs are
+`WKVP1/WKVp1` for partitions, `WKVR1/WKVr1` for target inspection, and
+`WKVY1/WKVy1` for restore verification. Decoders reject unknown JSON fields,
+trailing bytes, invalid digests, oversized batches, and older evidence-free
+response/install versions.

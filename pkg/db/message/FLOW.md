@@ -107,9 +107,13 @@ Current flow:
 18. Backup snapshot readers pin one engine view and stream a portable,
     checksummed hash-slot payload containing committed messages, checkpoint,
     epoch history, retention state, and idempotency fields. Incremental reads
-    start strictly after the authenticated prior HW. Restore imports are
-    bounded and idempotent, reject conflicting existing rows, and verify final
-    Channel epoch/log-start/HW boundaries.
+    seek directly to the first row after the authenticated prior HW rather than
+    scanning historical families. Restore imports are bounded and idempotent;
+    retries of an older layer covered by a newer checkpoint verify every stored
+    message row without rolling the checkpoint back, reject conflicts, and verify final
+    Channel epoch/log-start/HW boundaries. The existing count pass also derives
+    the exact message-row count and maximum message ID from the same pinned
+    view; restore parsing independently recomputes both values.
 19. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 var (
@@ -168,7 +169,7 @@ func (a *RestoreApp) Start(ctx context.Context, planID string) (RestorePlan, err
 // ReportPartition records one exact partition installation result.
 func (a *RestoreApp) ReportPartition(ctx context.Context, planID string, report RestorePartition) (RestorePlan, error) {
 	return a.transition(ctx, planID, func(plan *RestorePlan) error {
-		if plan.Status != RestoreStatusInstalling || report.HashSlot >= plan.HashSlotCount || !report.Installed || report.FailureCategory != "" || !validRestoreDigest(report.MetadataSHA256) {
+		if plan.Status != RestoreStatusInstalling || report.HashSlot >= plan.HashSlotCount || !validRestorePartitionEvidence(report) || !report.Installed || report.FailureCategory != "" || !validRestoreDigest(report.MetadataSHA256) {
 			return ErrRestoreTransition
 		}
 		existing := plan.Partitions[report.HashSlot]
@@ -215,7 +216,8 @@ func (a *RestoreApp) Verify(ctx context.Context, planID string) (RestorePlan, er
 			return ErrRestoreTransition
 		}
 		for index, partition := range verified {
-			if partition.HashSlot != uint16(index) || !partition.Installed || !partition.Verified {
+			if partition.HashSlot != uint16(index) || !validRestorePartitionEvidence(partition) || !partition.Installed || !partition.Verified ||
+				!sameRestorePartitionInstallEvidence(plan.Partitions[index], partition) {
 				return ErrRestoreTransition
 			}
 		}
@@ -253,7 +255,8 @@ func (a *RestoreApp) Activate(ctx context.Context, planID, fenceDigest string) (
 		return RestorePlan{}, ErrRestoreTransition
 	}
 	for index, partition := range verified {
-		if partition.HashSlot != uint16(index) || !partition.Installed || !partition.Verified {
+		if partition.HashSlot != uint16(index) || !validRestorePartitionEvidence(partition) || !partition.Installed || !partition.Verified ||
+			!sameRestorePartitionInstallEvidence(state.Plan.Partitions[index], partition) {
 			return RestorePlan{}, ErrRestoreTransition
 		}
 	}
@@ -269,8 +272,18 @@ func (a *RestoreApp) Activate(ctx context.Context, planID, fenceDigest string) (
 }
 
 func sameRestorePartitionResult(left, right RestorePartition) bool {
-	return left.HashSlot == right.HashSlot && left.Installed == right.Installed && left.Verified == right.Verified &&
-		left.PlainBytes == right.PlainBytes && left.MessageCount == right.MessageCount && left.MetadataSHA256 == right.MetadataSHA256 && left.FailureCategory == right.FailureCategory
+	return left.Verified == right.Verified && sameRestorePartitionInstallEvidence(left, right)
+}
+
+func sameRestorePartitionInstallEvidence(left, right RestorePartition) bool {
+	return left.HashSlot == right.HashSlot && left.EvidenceVersion == right.EvidenceVersion && left.Installed == right.Installed &&
+		left.PlainBytes == right.PlainBytes && left.MetadataRecordCount == right.MetadataRecordCount && left.MessageCount == right.MessageCount &&
+		left.MaxMessageID == right.MaxMessageID && left.MetadataSHA256 == right.MetadataSHA256 && left.FailureCategory == right.FailureCategory
+}
+
+func validRestorePartitionEvidence(partition RestorePartition) bool {
+	return partition.EvidenceVersion == backupartifact.PartitionEvidenceVersion &&
+		(partition.MessageCount == 0) == (partition.MaxMessageID == 0)
 }
 
 func validRestoreDigest(value string) bool {

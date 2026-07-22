@@ -40,7 +40,9 @@ func TestClusterRestoreVerifierChecksEveryCurrentNodeAgainstAuthenticatedIndex(t
 	objects = append(objects, metadataObjects...)
 	partition := backupartifact.PartitionManifest{
 		Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion,
-		JobID: "verify-job", BackupEpoch: 4, Cut: backupartifact.PartitionCut{HashSlot: 0, RaftIndex: 5, CommittedAtMillis: 1710000000000}, Objects: objects,
+		JobID: "verify-job", BackupEpoch: 4, Cut: backupartifact.PartitionCut{HashSlot: 0, RaftIndex: 5, CommittedAtMillis: 1710000000000},
+		Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: 7, MessageRecords: 3, MaxMessageID: 101},
+		Objects:  objects,
 	}
 	partitionBody, err := backupartifact.MarshalPartitionManifest(partition)
 	require.NoError(t, err)
@@ -55,7 +57,7 @@ func TestClusterRestoreVerifierChecksEveryCurrentNodeAgainstAuthenticatedIndex(t
 	}
 	reference := backupartifact.PartitionReference{
 		HashSlot: 0, Key: partitionKey, SHA256: hex.EncodeToString(partitionHash[:]), Bytes: int64(len(partitionBody)),
-		ObjectCount: uint64(len(objects)), CiphertextBytes: ciphertextBytes,
+		ObjectCount: uint64(len(objects)), CiphertextBytes: ciphertextBytes, Evidence: partition.Evidence,
 	}
 	seed := sha256.Sum256([]byte("cluster-restore-verifier"))
 	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
@@ -85,7 +87,9 @@ func TestClusterRestoreVerifierChecksEveryCurrentNodeAgainstAuthenticatedIndex(t
 		ID: "plan-1", RestorePointID: signed.RestorePointID, ManifestSHA256: hex.EncodeToString(manifestHash[:]), Repository: "primary",
 		SourceClusterID: signed.SourceClusterID, SourceGeneration: signed.SourceGeneration,
 		TargetClusterID: "cluster-b", HashSlotCount: 1,
-		Partitions: []backupusecase.RestorePartition{{HashSlot: 0, Installed: true, PlainBytes: 99, MetadataSHA256: metadataDigest}},
+		Partitions: []backupusecase.RestorePartition{{
+			HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 99, MetadataRecordCount: 7, MessageCount: 3, MaxMessageID: 101, MetadataSHA256: metadataDigest,
+		}},
 	})
 	require.NoError(t, err)
 	require.True(t, reports[0].Verified)
@@ -95,6 +99,16 @@ func TestClusterRestoreVerifierChecksEveryCurrentNodeAgainstAuthenticatedIndex(t
 	require.Equal(t, []uint64{2}, remote.nodeIDs)
 	require.Equal(t, []string{metadataDigest}, remote.metadataDigests)
 	require.Equal(t, "room", remote.boundaries[0].ChannelID)
+
+	_, err = verifier.VerifyRestore(ctx, backupusecase.RestorePlan{
+		ID: "plan-2", RestorePointID: signed.RestorePointID, ManifestSHA256: hex.EncodeToString(manifestHash[:]), Repository: "primary",
+		SourceClusterID: signed.SourceClusterID, SourceGeneration: signed.SourceGeneration,
+		TargetClusterID: "cluster-b", HashSlotCount: 1,
+		Partitions: []backupusecase.RestorePartition{{
+			HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, MetadataRecordCount: 7, MessageCount: 2, MaxMessageID: 101, MetadataSHA256: metadataDigest,
+		}},
+	})
+	require.Error(t, err)
 }
 
 type fakeRestoreVerificationNode struct {

@@ -109,10 +109,13 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 		go func() {
 			defer group.Done()
 			for hashSlot := range work {
-				boundaries, err := v.loadExpectedBoundaries(ctx, repository, manifest.Partitions[hashSlot])
+				reference := manifest.Partitions[hashSlot]
+				boundaries, err := v.loadExpectedBoundaries(ctx, repository, reference)
 				if err == nil {
 					report := plan.Partitions[hashSlot]
-					if report.HashSlot != hashSlot || !report.Installed || !validLowerSHA256(report.MetadataSHA256) {
+					if report.HashSlot != hashSlot || report.EvidenceVersion != reference.Evidence.Version || !report.Installed || !validLowerSHA256(report.MetadataSHA256) ||
+						report.MetadataRecordCount != reference.Evidence.MetadataRecords || report.MessageCount != reference.Evidence.MessageRecords ||
+						report.MaxMessageID != reference.Evidence.MaxMessageID {
 						err = backupusecase.ErrStateConflict
 					} else {
 						err = v.verifyPartitionOnNodes(ctx, nodeIDs, hashSlot, report.MetadataSHA256, boundaries)

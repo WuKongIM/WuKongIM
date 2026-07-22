@@ -8,6 +8,7 @@ import (
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ func TestClusterRestorePartitionInstallerInstallsEveryCurrentNode(t *testing.T) 
 			{NodeID: 2, JoinState: control.NodeJoinStateActive},
 		},
 	}}
-	local := &fakeRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 7, Installed: true, PlainBytes: 99, MessageCount: 4, MetadataSHA256: strings.Repeat("a", 64)}}
+	local := &fakeRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 7, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 99, MessageCount: 4, MaxMessageID: 19, MetadataSHA256: strings.Repeat("a", 64)}}
 	remote := &fakeRemoteRestorePartitionInstaller{report: local.report}
 	installer, err := backupinfra.NewClusterRestorePartitionInstaller(backupinfra.ClusterRestorePartitionInstallerOptions{
 		Node: node, Local: local, Remote: remote,
@@ -42,8 +43,8 @@ func TestClusterRestorePartitionInstallerRejectsDifferentNodeResults(t *testing.
 		ClusterID: "cluster-b", HashSlots: control.HashSlotTable{Count: 1},
 		Nodes: []control.Node{{NodeID: 1, JoinState: control.NodeJoinStateActive}, {NodeID: 2, JoinState: control.NodeJoinStateActive}},
 	}}
-	local := &fakeRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 0, Installed: true, PlainBytes: 9, MetadataSHA256: strings.Repeat("a", 64)}}
-	remote := &fakeRemoteRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 0, Installed: true, PlainBytes: 10, MetadataSHA256: strings.Repeat("a", 64)}}
+	local := &fakeRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 9, MetadataSHA256: strings.Repeat("a", 64)}}
+	remote := &fakeRemoteRestorePartitionInstaller{report: backupusecase.RestorePartition{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, PlainBytes: 10, MetadataSHA256: strings.Repeat("a", 64)}}
 	installer, err := backupinfra.NewClusterRestorePartitionInstaller(backupinfra.ClusterRestorePartitionInstallerOptions{Node: node, Local: local, Remote: remote})
 	require.NoError(t, err)
 
