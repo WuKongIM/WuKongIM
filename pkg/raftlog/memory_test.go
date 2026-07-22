@@ -19,6 +19,16 @@ func mustMarshalConfChange(t *testing.T, cc raftpb.ConfChange) []byte {
 	return data
 }
 
+func mustMarshalConfChangeV2(t *testing.T, cc raftpb.ConfChangeV2) []byte {
+	t.Helper()
+
+	data, err := cc.Marshal()
+	if err != nil {
+		t.Fatalf("ConfChangeV2.Marshal() error = %v", err)
+	}
+	return data
+}
+
 func TestMemoryInitialStateIsEmpty(t *testing.T) {
 	store := NewMemory()
 

@@ -114,9 +114,12 @@ single-writer ordering for the channel key.
 `Group.Start` opens local admission and prepares isolated worker pools. Writers
 are created lazily on accepted local submissions and reclaimed opportunistically
 after they have stayed fully idle past `WriterIdleRetention`. `Group.Stop`
-closes admission, cancels the runtime context used by append and post-commit
-work, and waits for already accepted writers to drain until the caller context
-expires. A stopped group is not restarted.
+closes admission and starts one background graceful drain. The drain preserves
+accepted futures, durable append state, global post-commit handoff reservations,
+and fair retry ownership until they finish; only then does it release worker
+pools and cancel the runtime context. A caller context bounds only that caller's
+wait. A timed-out Stop does not cancel or clear work, and a later Stop continues
+waiting for the same drain. A stopped group is not restarted.
 
 ## Writer Execution
 
@@ -159,7 +162,16 @@ authority ownership by returning an older successful result. Matching prepared
 items enter the writer state's pending queue in input order only when the
 state's pending plus in-flight item count is below
 `ChannelBacklogHighWatermark`; saturated channels complete those items with
-`ErrChannelBusy` before they reach the append port.
+`ErrChannelBusy` before they reach the append port. When any post-commit port is
+configured, every durable prepared item must also reserve one slot from the
+group-wide `PostCommitHandoffCapacity` before append. An item that cannot reserve
+a slot completes with `ErrChannelBusy` and is never passed to `Appender`; append
+failure or terminal post-commit completion returns the slot. The default is the
+larger of `ChannelBacklogHighWatermark` and
+`EffectPoolSize * commitBatchMaxEvents`.
+Both worker-pool sizes are capped at the maximum positive int32 capacity used by
+ants/v2, preventing oversized configuration values from wrapping into an
+unbounded or permanently full pool.
 Prepared command-style `NoPersist` items also receive one message id and server
 timestamp, but they do not enter the durable pending queue. The writer schedules
 them as realtime effects and completes their future only after the recipient
@@ -215,8 +227,9 @@ immutable envelope by reference through the delivery worker and owner-push
 planning. Concrete owner push adapters copy or serialize at their boundary.
 Success prunes the payload-bearing envelope from the backlog. Recipient route or
 delivery enqueue failure is logged through `PostCommitFailureObserver`, counted
-through effect metrics, and then the envelope is dropped without retry so one
-bad recipient side effect cannot block later messages on the same channel.
+through effect metrics, and then the envelope reaches its terminal attempt
+without retry so one bad recipient side effect cannot block later messages on
+the same channel.
 Conversation-active projection failures are recorded independently and do not
 turn a successful delivery enqueue into a failed item completion. Failure
 observations carry a precise post-commit phase plus
@@ -224,11 +237,33 @@ sampled recipient, target, and dispatch context so route-resolution failures
 can be distinguished from conversation active admission and delivery enqueue
 failures in logs. Each channel keeps only one committed envelope in flight at a
 time, and concurrency inside that envelope is limited to recipient authority
-targets. Foreground append admission and the post-commit backlog use separate
-bounds derived from `ChannelBacklogHighWatermark`. When the best-effort bound
-is full, the newest already-durable envelope is reported as an admission-phase
-post-commit failure and dropped; it never turns a later foreground SEND into
-`ErrChannelBusy`.
+targets. The global pre-append reservation is the post-commit backlog bound, so
+every newly acknowledged durable envelope already owns capacity for its FIFO
+handoff. A full handoff rejects only the not-yet-appended item with
+`ErrChannelBusy`; an already-durable envelope is never dropped at scheduler
+admission.
+
+Post-commit pool admission remains non-blocking. If the pool is full, the writer
+cancels only transient dispatch ownership, keeps the committed envelopes in
+`channelState`, and enters a de-duplicated global FIFO retry scheduler. While
+that FIFO is contended, newer writers join behind it instead of probing the pool
+directly. A queued writer may prepare newly received inbox work, but it parks
+that append work until its older durable commit owns the retry turn. The selected
+writer's pass admits only the old commit; normal append-first ordering resumes
+on its next pass. The scheduler consumes a turn only when the pool reports free
+logical task capacity. Task completion releases that logical reservation before
+publishing the capacity wakeup, so coalesced wakeups refill every free worker
+without depending on ants' idle-worker count. If ants is still returning the
+just-completed worker to its idle queue, the logical capacity owner completes
+that short handoff rather than reporting a false overload. A real overload
+returns the writer to the FIFO tail and waits for the next capacity signal or
+bounded timer tick. Queue compaction clears truncated writer pointers from the
+backing array. This preserves fair retry without a busy scheduler spin, stale
+writer retention, or terminal scheduler drop, while each admitted effect still
+processes at most `commitBatchMaxEvents` envelopes.
+Realtime work shares the effect pool but does not overtake a contended durable
+retry FIFO; it fails fast with backpressure while an older durable writer owns
+or awaits the retry turn.
 
 When a PersistAfter enqueuer is configured, each successful durable committed
 envelope is cloned into the configured side-effect sinks from the same
@@ -350,21 +385,42 @@ by the writer as items move between queues. Append effects run on a foreground
 append pool, while post-commit and realtime recipient effects run on an
 isolated post-commit pool so best-effort side effects cannot occupy durable
 append workers. Post-commit pool admission is bounded and non-blocking: a full
-pool produces the normal scheduler failure observation and drops that committed
-envelope, so saturated best-effort work cannot pin writer-advance workers or
-delay later durable appends. The writer pressure observer reports the local
-writer group aggregate rather than a per-channel event loop. When the observer supports ants
-pool samples, the group also emits direct ants/v2 running/capacity/waiting
-observations for the advance, append_effect, and post_commit pools; benchmark
-scripts use these samples for the per-node peak `used/cap` ants pool summary.
+pool retains the committed envelope and sends its writer through the fair retry
+FIFO, so saturated side effects cannot pin writer-advance workers or lose an
+acknowledged durable handoff. Exhausting the global pre-append reservation
+returns item-local `ErrChannelBusy` and emits a post-commit backpressure effect
+observation. The writer pressure observer reports the local
+writer group aggregate rather than a per-channel event loop. It also reports
+the global post-commit handoff depth/capacity and the fair-retry FIFO depth plus
+its contended bit. Handoff depth counts durable messages holding reservations;
+retry depth counts de-duplicated writers still waiting in the FIFO and excludes
+the writer that already owns the selected retry turn. Consequently retry depth
+may be zero while contended remains true. These snapshots read only atomics and
+never acquire the retry scheduler mutex on the append hot path. Concurrent
+publication requests use a non-blocking, coalesced wakeup for one group-local
+publisher goroutine. It invokes callbacks serially, so a delayed old callback
+cannot overwrite a newer snapshot, while a slow observer never pins an append or
+commit goroutine. Group shutdown performs one final serialized publication after
+writer and retry state drain, making the terminal zero state observable without
+requiring later traffic or a hot-path global mutex. Reservation release, FIFO
+enqueue/pop, and retry-turn completion request pressure publication only after
+their state transition. None of these observations carries a channel, UID, Slot,
+or authority-target label. When the observer supports pool
+samples, the group also emits running/capacity/waiting observations for the
+advance, append_effect, and post_commit pools. The first two report direct
+ants/v2 worker state; post_commit reports logical admitted tasks so retained idle
+ants workers are not mistaken for active work. Benchmark scripts use these
+samples for the per-node peak `used/cap` pool summary.
 
 Before a post-commit effect enters the asynchronous pool, it copies the
 committed-envelope slice into effect-owned storage. The envelopes themselves
-remain immutable values, while the independent slice ownership allows shutdown
-to clear queued writer backlog without racing an already-running effect.
+remain immutable values, while the independent slice ownership lets the writer
+retain and retry its queued backing store without racing an already-running
+effect.
 
-`Stop` cancels the runtime context passed to append and post-commit effects
-before waiting for writers to drain. Once cancellation is observed, writers do
-not schedule more queued post-commit backlog, avoiding a one-by-one walk of
-canceled work during shutdown. Ports must respect their context promptly for
-Stop to complete without waiting for the caller's timeout.
+`Stop` first closes admission and waits for shard admission ownership, append
+state, handoff reservations, committed backlog, and retry FIFO ownership to
+drain. This includes accepted realtime sends, whose futures retain shard
+admission until their effect completes. The runtime context is canceled only
+after the drain and worker-pool release complete. A Stop deadline therefore
+returns only a waiting error; it does not alter the ongoing graceful drain.

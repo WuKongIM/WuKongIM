@@ -125,17 +125,6 @@ func commitPanicCompletion(effect commitEffect, recovered any) commitCompletedEv
 	return commitErrorCompletion(effect, effectPanicError(effectStagePostCommit, recovered), PostCommitFailureDetail{Phase: "panic"})
 }
 
-func commitScheduleErrorCompletion(effect commitEffect, scheduleErr error) commitCompletedEvent {
-	return commitErrorCompletion(effect, effectScheduleError(effectStagePostCommit, scheduleErr), PostCommitFailureDetail{Phase: "scheduler"})
-}
-
-// postCommitAdmissionFailure records an already-durable envelope that could
-// not enter the separately bounded best-effort backlog.
-func postCommitAdmissionFailure(event CommittedEnvelope) PostCommitFailureObservation {
-	err := fmt.Errorf("%w: post-commit backlog admission: %w", ErrCommitEffectFailed, ErrBackpressured)
-	return PostCommitFailureDetail{Phase: "admission"}.toObservation(event, 0, errorClass(err), err)
-}
-
 func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFailureDetail) commitCompletedEvent {
 	completion := commitCompletedEvent{
 		key:     effect.key,

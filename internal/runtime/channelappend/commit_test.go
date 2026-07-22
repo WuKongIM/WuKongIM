@@ -189,6 +189,8 @@ func TestAppendSuccessEnqueuesCommittedEventsAndSendackCompletesBeforeRecipientE
 	if committed[0].MessageID != 900 || committed[0].MessageSeq != 1 {
 		t.Fatalf("committed id/seq = %d/%d, want 900/1", committed[0].MessageID, committed[0].MessageSeq)
 	}
+	enqueuer.release()
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
 
 func TestNoopPostCommitPortsDoNotScheduleCommitEffect(t *testing.T) {
@@ -671,7 +673,7 @@ func TestLargeGroupSubscribersRemainPagedPerCommittedMessage(t *testing.T) {
 	}
 }
 
-func TestBlockedCommitBacklogDropsBestEffortWorkWithoutBackpressuringLaterSubmit(t *testing.T) {
+func TestBlockedCommitBacklogRetainsDurableEnvelopeUntilDeliveryAdmission(t *testing.T) {
 	enqueuer := newBlockingRecipientDeliveryEnqueuerForCommitTest()
 	t.Cleanup(enqueuer.release)
 	observer := &recordingPostCommitFailureObserverForTest{}
@@ -684,6 +686,7 @@ func TestBlockedCommitBacklogDropsBestEffortWorkWithoutBackpressuringLaterSubmit
 		RecipientDeliveryEnqueuer:   enqueuer,
 		RecipientBatchSize:          16,
 		ChannelBacklogHighWatermark: 1,
+		PostCommitHandoffCapacity:   2,
 	})
 	target := localTargetForAppendTest("room")
 	first := appendSendItemForTest("u1", "room", "one")
@@ -703,19 +706,156 @@ func TestBlockedCommitBacklogDropsBestEffortWorkWithoutBackpressuringLaterSubmit
 		t.Fatalf("second SubmitLocal() error = %v", err)
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, secondFuture), 0, 1201, 2)
-	observer.waitFailures(t, 1)
-	observer.mu.Lock()
-	failure := observer.failures[0]
-	observer.mu.Unlock()
-	if failure.MessageID != 1201 || failure.Phase != "admission" || failure.Result != channelAppendResultBackpressured {
-		t.Fatalf("post-commit failure = %#v, want bounded admission drop for message 1201", failure)
+	enqueuer.release()
+	enqueuer.waitCalls(t, 2)
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+	if got := enqueuer.messageIDs(); !reflect.DeepEqual(got, []uint64{1200, 1201}) {
+		t.Fatalf("recipient delivery message ids = %#v, want both durable commits in order", got)
 	}
-	if calls := enqueuer.callCount(); calls != 1 {
-		t.Fatalf("recipient delivery calls = %d, want only the already in-flight post-commit effect", calls)
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	for _, failure := range observer.failures {
+		if failure.MessageID == 1201 && failure.Phase == "admission" {
+			t.Fatalf("durable message 1201 was dropped at post-commit admission: %#v", failure)
+		}
 	}
 }
 
-func TestStopDoesNotWalkCanceledCommitBacklog(t *testing.T) {
+func TestPostCommitHandoffRejectsBeforeAppendAndReturnsTokenAfterDrain(t *testing.T) {
+	enqueuer := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	t.Cleanup(enqueuer.release)
+	appender := newRecordingAppenderForAppendTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1500),
+		Appender:                   appender,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  enqueuer,
+		RecipientBatchSize:         16,
+		PostCommitHandoffCapacity:  1,
+	})
+	target := localTargetForAppendTest("room")
+
+	first := appendSendItemForTest("u1", "room", "one")
+	first.Command.MessageScopedUIDs = []string{"u2"}
+	firstFuture, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{first})
+	if err != nil {
+		t.Fatalf("first SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, firstFuture), 0, 1500, 1)
+	enqueuer.waitStarted(t)
+
+	second := appendSendItemForTest("u1", "room", "two")
+	second.Command.MessageScopedUIDs = []string{"u3"}
+	secondFuture, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{second})
+	if err != nil {
+		t.Fatalf("second SubmitLocal() error = %v", err)
+	}
+	secondResults := waitFutureForTest(t, secondFuture)
+	if !errors.Is(secondResults[0].Err, ErrChannelBusy) {
+		t.Fatalf("second item error = %v, want ErrChannelBusy", secondResults[0].Err)
+	}
+	if got := appender.Calls(); got != 1 {
+		t.Fatalf("appender calls while handoff full = %d, want 1", got)
+	}
+	if depth := group.handoff.depth(); depth != 1 {
+		t.Fatalf("handoff depth while delivery blocked = %d, want 1", depth)
+	}
+
+	enqueuer.release()
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+	waitHandoffDepthForTest(t, group, 0)
+	third := appendSendItemForTest("u1", "room", "three")
+	third.Command.MessageScopedUIDs = []string{"u4"}
+	thirdFuture, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{third})
+	if err != nil {
+		t.Fatalf("third SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, thirdFuture), 0, 1502, 2)
+	enqueuer.waitCalls(t, 2)
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+	if got := enqueuer.messageIDs(); !reflect.DeepEqual(got, []uint64{1500, 1502}) {
+		t.Fatalf("recipient delivery message ids = %#v, want only appended messages", got)
+	}
+}
+
+func TestAppendPartialAndShortResultsReturnUnusedHandoffTokens(t *testing.T) {
+	tests := []struct {
+		name       string
+		configure  func(*recordingAppenderForAppendTest)
+		wantSecond error
+	}{
+		{
+			name: "partial error",
+			configure: func(appender *recordingAppenderForAppendTest) {
+				appender.itemErrs = []error{nil, ErrAppendFailed}
+			},
+		},
+		{
+			name: "short result",
+			configure: func(appender *recordingAppenderForAppendTest) {
+				appender.resultLimit = 1
+			},
+			wantSecond: ErrAppendResultMissing,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appender := newRecordingAppenderForAppendTest()
+			tt.configure(appender)
+			persistAfter := &recordingPersistAfterEnqueuerForCommitTest{}
+			group := newStartedTestGroup(t, Options{
+				LocalNodeID:               1,
+				MessageID:                 newSequenceIDsForPrepare(1600),
+				Appender:                  appender,
+				PersistAfterEnqueuer:      persistAfter,
+				PostCommitHandoffCapacity: 2,
+			})
+			target := localTargetForAppendTest("room")
+			future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+				appendSendItemForTest("u1", "room", "one"),
+				appendSendItemForTest("u1", "room", "two"),
+			})
+			if err != nil {
+				t.Fatalf("SubmitLocal() error = %v", err)
+			}
+			results := waitFutureForTest(t, future)
+			requireAppendSuccess(t, results, 0, 1600, 1)
+			if tt.wantSecond != nil && !errors.Is(results[1].Err, tt.wantSecond) {
+				t.Fatalf("second result error = %v, want %v", results[1].Err, tt.wantSecond)
+			}
+			if tt.wantSecond == nil && results[1].Result.Reason == ReasonSuccess {
+				t.Fatalf("second result = %#v, want item-local append failure", results[1])
+			}
+			requireEventuallyEqualInt(t, time.Second, persistAfter.callCount, 1, "persist-after calls")
+			waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+			waitHandoffDepthForTest(t, group, 0)
+
+			appender.mu.Lock()
+			appender.itemErrs = nil
+			appender.resultLimit = 0
+			appender.mu.Unlock()
+			next, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+				appendSendItemForTest("u1", "room", "three"),
+				appendSendItemForTest("u1", "room", "four"),
+			})
+			if err != nil {
+				t.Fatalf("second SubmitLocal() error = %v", err)
+			}
+			nextResults := waitFutureForTest(t, next)
+			requireResultReason(t, nextResults, 0, ReasonSuccess)
+			requireResultReason(t, nextResults, 1, ReasonSuccess)
+			requireEventuallyEqualInt(t, time.Second, persistAfter.callCount, 3, "persist-after calls after token reuse")
+			waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+			waitHandoffDepthForTest(t, group, 0)
+			if got := persistAfter.messageIDs(); !reflect.DeepEqual(got, []uint64{1600, 1602, 1603}) {
+				t.Fatalf("persist-after message ids = %#v, want successful durable items exactly once", got)
+			}
+		})
+	}
+}
+
+func TestStopDeadlineRetainsCommitBacklogForNextDrain(t *testing.T) {
 	enqueuer := newBlockingRecipientDeliveryEnqueuerForCommitTest()
 	t.Cleanup(enqueuer.release)
 	group := New(Options{
@@ -745,13 +885,32 @@ func TestStopDoesNotWalkCanceledCommitBacklog(t *testing.T) {
 	_ = waitFutureForTest(t, future)
 	enqueuer.waitStarted(t)
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if err := group.Stop(stopCtx); err != nil {
-		t.Fatalf("Stop() error = %v", err)
+	if err := group.Stop(stopCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop() error = %v, want context deadline exceeded", err)
 	}
 	if got := enqueuer.callCount(); got != 1 {
-		t.Fatalf("recipient delivery enqueue calls after stop = %d, want only in-flight commit", got)
+		t.Fatalf("recipient delivery enqueue calls after timed-out stop = %d, want one in-flight call", got)
+	}
+	if backlog := commitBacklogForTest(group, target.ChannelID); backlog != 3 {
+		t.Fatalf("commit backlog after timed-out stop = %d, want 3 retained envelopes", backlog)
+	}
+	if depth := group.handoff.depth(); depth != 3 {
+		t.Fatalf("handoff depth after timed-out stop = %d, want 3 retained reservations", depth)
+	}
+	enqueuer.release()
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), time.Second)
+	defer cancelDrain()
+	if err := group.Stop(drainCtx); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
+	}
+	enqueuer.waitCalls(t, 3)
+	if got := enqueuer.messageIDs(); !reflect.DeepEqual(got, []uint64{1300, 1301, 1302}) {
+		t.Fatalf("recipient delivery message ids = %#v, want all retained envelopes in order", got)
+	}
+	if depth := group.handoff.depth(); depth != 0 {
+		t.Fatalf("handoff depth after drain = %d, want 0", depth)
 	}
 }
 
@@ -856,6 +1015,117 @@ func TestNoPersistSyncOnceDispatchesRealtimeWithoutAppendOrActiveConversation(t 
 		t.Fatalf("realtime payload = %q, want cmd-payload", payload)
 	}
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+}
+
+func TestRealtimeDoesNotOvertakeContendedDurableRetryFIFO(t *testing.T) {
+	delivery := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	t.Cleanup(delivery.release)
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1700),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		EffectPoolSize:             1,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  delivery,
+		RecipientBatchSize:         16,
+	})
+
+	firstTarget := localTargetForAppendTest("durable-first")
+	firstItem := appendSendItemForTest("u1", firstTarget.ChannelID.ID, "first")
+	firstItem.Command.MessageScopedUIDs = []string{"u2"}
+	first, err := group.SubmitLocal(context.Background(), firstTarget, []SendBatchItem{firstItem})
+	if err != nil {
+		t.Fatalf("SubmitLocal(first) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, first), 0, 1700, 1)
+	delivery.waitStarted(t)
+
+	secondTarget := localTargetForAppendTest("durable-second")
+	secondItem := appendSendItemForTest("u1", secondTarget.ChannelID.ID, "second")
+	secondItem.Command.MessageScopedUIDs = []string{"u3"}
+	second, err := group.SubmitLocal(context.Background(), secondTarget, []SendBatchItem{secondItem})
+	if err != nil {
+		t.Fatalf("SubmitLocal(second) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, second), 0, 1701, 2)
+	deadline := time.Now().Add(time.Second)
+	for !group.postCommitRetries.isContended() {
+		if time.Now().After(deadline) {
+			t.Fatal("durable retry FIFO did not become contended")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	commandChannelID := runtimechannelid.ToCommandChannel("realtime")
+	realtimeTarget := localTargetForAppendTest(commandChannelID)
+	realtimeItem := appendSendItemForTest("u1", "realtime", "transient")
+	realtimeItem.Command.NoPersist = true
+	realtimeItem.Command.SyncOnce = true
+	realtimeItem.Command.MessageScopedUIDs = []string{"u4"}
+	realtime, err := group.SubmitLocal(context.Background(), realtimeTarget, []SendBatchItem{realtimeItem})
+	if err != nil {
+		t.Fatalf("SubmitLocal(realtime) error = %v", err)
+	}
+	realtimeResults := waitFutureForTest(t, realtime)
+	if !errors.Is(realtimeResults[0].Err, ErrBackpressured) {
+		t.Fatalf("realtime result error = %v, want ErrBackpressured behind durable retry", realtimeResults[0].Err)
+	}
+	if got := delivery.callCount(); got != 1 {
+		t.Fatalf("delivery calls before releasing durable effect = %d, want 1", got)
+	}
+
+	delivery.release()
+	delivery.waitCalls(t, 2)
+	waitCommitBacklogForTest(t, group, secondTarget.ChannelID, 0)
+	if got := delivery.messageIDs(); !reflect.DeepEqual(got, []uint64{1700, 1701}) {
+		t.Fatalf("delivery message ids = %#v, want only durable FIFO messages", got)
+	}
+}
+
+func TestStopWaitsForAcceptedRealtimeEffectBeforeCancel(t *testing.T) {
+	delivery := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	t.Cleanup(delivery.release)
+	group := New(Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1800),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  delivery,
+		RecipientBatchSize:         16,
+	})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	commandChannelID := runtimechannelid.ToCommandChannel("realtime-stop")
+	target := localTargetForAppendTest(commandChannelID)
+	item := appendSendItemForTest("u1", "realtime-stop", "transient")
+	item.Command.NoPersist = true
+	item.Command.SyncOnce = true
+	item.Command.MessageScopedUIDs = []string{"u2"}
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	delivery.waitStarted(t)
+
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelStop()
+	stopC := make(chan error, 1)
+	go func() { stopC <- group.Stop(stopCtx) }()
+	select {
+	case err := <-stopC:
+		t.Fatalf("Stop() returned before accepted realtime effect drained: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item}); !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitLocal() while stopping error = %v, want ErrRouteNotReady", err)
+	}
+
+	delivery.release()
+	if err := <-stopC; err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1800, 0)
 }
 
 func TestNoPersistRealtimeDoesNotEnqueuePersistAfter(t *testing.T) {
@@ -1063,7 +1333,7 @@ type blockingRecipientDeliveryEnqueuerForCommitTest struct {
 	once     sync.Once
 	releaseO sync.Once
 	mu       sync.Mutex
-	calls    int
+	batches  []RecipientBatch
 }
 
 func newBlockingRecipientDeliveryEnqueuerForCommitTest() *blockingRecipientDeliveryEnqueuerForCommitTest {
@@ -1073,12 +1343,12 @@ func newBlockingRecipientDeliveryEnqueuerForCommitTest() *blockingRecipientDeliv
 	}
 }
 
-func (r *blockingRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientBatch(ctx context.Context, _ RecipientAuthorityTarget, _ RecipientBatch) error {
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientBatch(ctx context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
 	r.once.Do(func() {
 		close(r.started)
 	})
 	r.mu.Lock()
-	r.calls++
+	r.batches = append(r.batches, batch.Clone())
 	r.mu.Unlock()
 	select {
 	case <-r.releaseC:
@@ -1106,7 +1376,45 @@ func (r *blockingRecipientDeliveryEnqueuerForCommitTest) release() {
 func (r *blockingRecipientDeliveryEnqueuerForCommitTest) callCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.calls
+	return len(r.batches)
+}
+
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) waitCalls(t *testing.T, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		if got := r.callCount(); got >= want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("recipient delivery enqueue calls = %d, want %d", r.callCount(), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) messageIDs() []uint64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]uint64, 0, len(r.batches))
+	for _, batch := range r.batches {
+		out = append(out, batch.Event.MessageID)
+	}
+	return out
+}
+
+func waitHandoffDepthForTest(t *testing.T, group *Group, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		if got := group.handoff.depth(); got == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("handoff depth = %d, want %d", group.handoff.depth(), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 type scriptedRecipientDeliveryEnqueuerForCommitTest struct {

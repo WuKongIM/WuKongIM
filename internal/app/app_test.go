@@ -6619,6 +6619,120 @@ func TestStopOrderIncludesAPIBeforeCluster(t *testing.T) {
 	}
 }
 
+func TestStopDeadlineKeepsChannelAppendDependenciesRunningUntilRetryDrain(t *testing.T) {
+	calls := make([]string, 0, 12)
+	appender := newLifecycleBlockingChannelAppender()
+	t.Cleanup(appender.release)
+	channelAppends := channelappend.New(channelappend.Options{
+		LocalNodeID: 1,
+		MessageID:   &lifecycleMessageIDAllocator{next: 100},
+		Appender:    appender,
+	})
+	app := &App{
+		cluster:                    &fakeCluster{calls: &calls},
+		conversationRouteLifecycle: &recordingWorkerRuntime{name: "conversation_route", calls: &calls},
+		conversationActiveWorker:   &recordingWorkerRuntime{name: "conversation_active", calls: &calls},
+		deliveryWorker:             &recordingWorkerRuntime{name: "delivery", calls: &calls},
+		channelAppends:             channelAppends,
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	future, err := submitLifecycleBlockedAppend(channelAppends)
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	appender.waitStarted(t)
+
+	firstStopCtx, cancelFirstStop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelFirstStop()
+	if err := app.Stop(firstStopCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("first Stop() error = %v, want context deadline exceeded", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start" {
+		t.Fatalf("calls after timed-out Stop = %s, want channel append dependencies still running", got)
+	}
+
+	appender.release()
+	secondStopCtx, cancelSecondStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelSecondStop()
+	if err := app.Stop(secondStopCtx); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
+	}
+	results, err := future.Wait(secondStopCtx)
+	if err != nil {
+		t.Fatalf("Future.Wait() error = %v", err)
+	}
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != channelappend.ReasonSuccess {
+		t.Fatalf("append results = %#v, want one success", results)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start,delivery.stop,conversation_active.stop,conversation_route.stop,cluster.stop" {
+		t.Fatalf("calls after retry drain = %s, want dependencies stopped after channel append", got)
+	}
+}
+
+func TestRollbackDeadlineKeepsChannelAppendDependenciesRunningUntilStopRetry(t *testing.T) {
+	calls := make([]string, 0, 12)
+	appender := newLifecycleBlockingChannelAppender()
+	t.Cleanup(appender.release)
+	channelAppends := channelappend.New(channelappend.Options{
+		LocalNodeID: 1,
+		MessageID:   &lifecycleMessageIDAllocator{next: 200},
+		Appender:    appender,
+	})
+	startFailure := errors.New("top start failed")
+	var future *channelappend.Future
+	var submitErr error
+	top := &recordingWorkerRuntime{
+		name:     "top",
+		calls:    &calls,
+		startErr: startFailure,
+		onStart: func() {
+			future, submitErr = submitLifecycleBlockedAppend(channelAppends)
+			if submitErr != nil {
+				t.Fatalf("SubmitLocal() error = %v", submitErr)
+			}
+			appender.waitStarted(t)
+		},
+	}
+	app := &App{
+		cluster:                    &fakeCluster{calls: &calls},
+		conversationRouteLifecycle: &recordingWorkerRuntime{name: "conversation_route", calls: &calls},
+		conversationActiveWorker:   &recordingWorkerRuntime{name: "conversation_active", calls: &calls},
+		deliveryWorker:             &recordingWorkerRuntime{name: "delivery", calls: &calls},
+		channelAppends:             channelAppends,
+		top:                        top,
+	}
+
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancelStart()
+	err := app.Start(startCtx)
+	if !errors.Is(err, startFailure) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Start() error = %v, want start failure and rollback deadline", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start,top.start" {
+		t.Fatalf("calls after timed-out rollback = %s, want channel append dependencies still running", got)
+	}
+
+	appender.release()
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelStop()
+	if err := app.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() retry error = %v", err)
+	}
+	results, err := future.Wait(stopCtx)
+	if err != nil {
+		t.Fatalf("Future.Wait() error = %v", err)
+	}
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != channelappend.ReasonSuccess {
+		t.Fatalf("append results = %#v, want one success", results)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start,top.start,delivery.stop,conversation_active.stop,conversation_route.stop,cluster.stop" {
+		t.Fatalf("calls after Stop retry = %s, want dependencies stopped after channel append", got)
+	}
+}
+
 func TestConcurrentStartStopCannotLeaveGatewayRunningAfterStopReturns(t *testing.T) {
 	cluster := newBlockingCluster()
 	gateway := newStateGateway()
@@ -6793,6 +6907,82 @@ type fakeCluster struct {
 	clusterID  string
 	listenAddr string
 	nodeCount  int
+}
+
+type lifecycleMessageIDAllocator struct {
+	mu   sync.Mutex
+	next uint64
+}
+
+func (a *lifecycleMessageIDAllocator) Next() uint64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.next++
+	return a.next
+}
+
+type lifecycleBlockingChannelAppender struct {
+	started     chan struct{}
+	releaseCh   chan struct{}
+	releaseOnce sync.Once
+}
+
+func newLifecycleBlockingChannelAppender() *lifecycleBlockingChannelAppender {
+	return &lifecycleBlockingChannelAppender{
+		started:   make(chan struct{}, 1),
+		releaseCh: make(chan struct{}),
+	}
+}
+
+func (a *lifecycleBlockingChannelAppender) AppendBatch(ctx context.Context, req channelappend.AppendBatchRequest) (channelappend.AppendBatchResult, error) {
+	select {
+	case a.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-a.releaseCh:
+	case <-ctx.Done():
+		return channelappend.AppendBatchResult{}, ctx.Err()
+	}
+	items := make([]channelappend.AppendBatchItemResult, 0, len(req.Messages))
+	for index, message := range req.Messages {
+		items = append(items, channelappend.AppendBatchItemResult{
+			MessageID:  message.MessageID,
+			MessageSeq: uint64(index + 1),
+			Message:    message,
+		})
+	}
+	return channelappend.AppendBatchResult{Items: items}, nil
+}
+
+func (a *lifecycleBlockingChannelAppender) waitStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-a.started:
+	case <-time.After(time.Second):
+		t.Fatal("channel append did not start")
+	}
+}
+
+func (a *lifecycleBlockingChannelAppender) release() {
+	a.releaseOnce.Do(func() { close(a.releaseCh) })
+}
+
+func submitLifecycleBlockedAppend(group *channelappend.Group) (*channelappend.Future, error) {
+	return group.SubmitLocal(context.Background(), channelappend.AuthorityTarget{
+		ChannelID:    channelappend.ChannelID{ID: "lifecycle-room", Type: 2},
+		ChannelKey:   "lifecycle-room",
+		LeaderNodeID: 1,
+	}, []channelappend.SendBatchItem{{
+		Command: channelappend.SendCommand{
+			FromUID:     "lifecycle-u1",
+			ClientMsgNo: "lifecycle-message-1",
+			ChannelID:   "lifecycle-room",
+			ChannelType: 2,
+			ChannelKey:  "lifecycle-room",
+			Payload:     []byte("lifecycle payload"),
+		},
+	}})
 }
 
 func (f *fakeCluster) Start(context.Context) error {

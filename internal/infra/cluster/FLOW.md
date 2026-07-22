@@ -627,6 +627,12 @@ and background Slot proposal backpressure within a small bounded fresh-route
 window. Only aligned failed groups or failed UID route items are resolved
 again; successful siblings are never issued twice. Continued failure is
 returned to the caller so the post-commit path remains bounded.
+The normal one-batch path coalesces UIDs and recipient roles once, counts each
+exact target group before allocation, and fills disjoint capacity-limited
+slices from one shared recipient backing store. This avoids per-target growth
+and intermediate retry copies for high-fanout admissions. A failed target is
+cloned before retry so retaining one failed subset cannot retain the whole
+happy-path backing allocation.
 Delete-barrier writes group rows by UID and use the same fresh-target retry
 loop as authority reads. The actual Slot write runs on the resolved authority
 leader, which reconciles its cache and revalidates the exact target before it

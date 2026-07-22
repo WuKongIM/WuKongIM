@@ -1,6 +1,10 @@
 package channelappend
 
-import "sync/atomic"
+import (
+	"context"
+	"sync"
+	"sync/atomic"
+)
 
 // groupMetrics tracks aggregate channel-writer pressure without scanning shards.
 type groupMetrics struct {
@@ -11,10 +15,20 @@ type groupMetrics struct {
 	appendPool        *workerPool
 	postCommitPool    *workerPool
 	advancePool       *workerPool
+	handoff           *postCommitHandoff
+	postCommitRetries *postCommitRetryScheduler
 
 	pendingAppendItems  atomic.Int64
 	appendInflightItems atomic.Int64
 	postCommitBacklog   atomic.Int64
+
+	pressureWake      chan struct{}
+	pressureStop      chan struct{}
+	pressureDone      chan struct{}
+	pressureStarted   atomic.Bool
+	pressureStopped   atomic.Bool
+	pressureStartOnce sync.Once
+	pressureStopOnce  sync.Once
 }
 
 func (m *groupMetrics) addPendingAppendItems(delta int) {
@@ -39,26 +53,97 @@ func (m *groupMetrics) addPostCommitBacklog(delta int) {
 }
 
 func (m *groupMetrics) observePressure() {
-	if m == nil {
+	if m == nil || m.observer == nil {
 		return
 	}
-	if m.observer == nil {
+	if !m.pressureStarted.Load() {
+		// Directly constructed metrics values used by focused tests and
+		// benchmarks retain synchronous observation. Production Groups start the
+		// coalescing publisher before opening admission.
+		m.publishPressureSnapshot()
 		return
 	}
+	if m.pressureStopped.Load() {
+		return
+	}
+	select {
+	case m.pressureWake <- struct{}{}:
+	default:
+	}
+}
+
+// startPressurePublisher serializes pressure callbacks on one coalescing
+// goroutine. Hot-path transitions only perform a non-blocking wakeup, so a slow
+// observer cannot pin append or commit execution.
+func (m *groupMetrics) startPressurePublisher() {
+	if m == nil || m.observer == nil {
+		return
+	}
+	m.pressureStartOnce.Do(func() {
+		m.pressureWake = make(chan struct{}, 1)
+		m.pressureStop = make(chan struct{})
+		m.pressureDone = make(chan struct{})
+		m.pressureStarted.Store(true)
+		go m.runPressurePublisher()
+	})
+}
+
+func (m *groupMetrics) runPressurePublisher() {
+	defer close(m.pressureDone)
+	for {
+		select {
+		case <-m.pressureWake:
+			m.publishPressureSnapshot()
+		case <-m.pressureStop:
+			// Stop is called after writer and retry state has drained. This final
+			// serialized sample makes the terminal zero state observable even if
+			// an earlier wakeup was coalesced.
+			m.publishPressureSnapshot()
+			return
+		}
+	}
+}
+
+func (m *groupMetrics) stopPressurePublisher(ctx context.Context) error {
+	if m == nil || !m.pressureStarted.Load() {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m.pressureStopOnce.Do(func() {
+		m.pressureStopped.Store(true)
+		close(m.pressureStop)
+	})
+	select {
+	case <-m.pressureDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (m *groupMetrics) publishPressureSnapshot() {
 	admissionUsed := m.admissionDepth()
 	workerUsed, workerCapacity := 0, 0
 	if m.appendPool != nil {
 		workerUsed = m.appendPool.running()
 		workerCapacity = m.appendPool.capacity()
 	}
+	handoffDepth, handoffCapacity := m.handoff.snapshot()
+	retryQueueDepth, retryContended := m.postCommitRetries.snapshot()
 	m.observer.SetChannelAppendWriterPressure(WriterPressureObservation{
-		AdmissionDepth:      admissionUsed,
-		AdmissionCapacity:   int(m.admissionCapacity),
-		WorkerRunning:       workerUsed,
-		WorkerCapacity:      workerCapacity,
-		PendingAppendItems:  int(m.pendingAppendItems.Load()),
-		AppendInflightItems: int(m.appendInflightItems.Load()),
-		PostCommitBacklog:   int(m.postCommitBacklog.Load()),
+		AdmissionDepth:            admissionUsed,
+		AdmissionCapacity:         int(m.admissionCapacity),
+		WorkerRunning:             workerUsed,
+		WorkerCapacity:            workerCapacity,
+		PendingAppendItems:        int(m.pendingAppendItems.Load()),
+		AppendInflightItems:       int(m.appendInflightItems.Load()),
+		PostCommitBacklog:         int(m.postCommitBacklog.Load()),
+		PostCommitHandoffDepth:    handoffDepth,
+		PostCommitHandoffCapacity: handoffCapacity,
+		PostCommitRetryQueueDepth: retryQueueDepth,
+		PostCommitRetryContended:  retryContended,
 	})
 	antsObserver, ok := m.observer.(AntsPoolObserver)
 	if !ok || antsObserver == nil {

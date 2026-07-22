@@ -9,14 +9,13 @@ const (
 type channelState struct {
 	target AuthorityTarget
 
-	pendingItemHighWatermark       int
-	postCommitBacklogHighWatermark int
-	appendInflightLimit            int
-	pendingItems                   []preparedSend
-	appendInflight                 int
-	appendInflightItems            int
-	nextAppendSeq                  uint64
-	nextAppendDrainSeq             uint64
+	pendingItemHighWatermark int
+	appendInflightLimit      int
+	pendingItems             []preparedSend
+	appendInflight           int
+	appendInflightItems      int
+	nextAppendSeq            uint64
+	nextAppendDrainSeq       uint64
 	// readyAppendCompletion stores the next in-order append completion without allocating the out-of-order map.
 	readyAppendCompletion appendCompletedEvent
 	// hasReadyAppendCompletion reports whether readyAppendCompletion is populated.
@@ -34,9 +33,8 @@ type channelState struct {
 }
 
 type channelStateLimits struct {
-	pendingItemHighWatermark       int
-	postCommitBacklogHighWatermark int
-	appendInflightLimit            int
+	pendingItemHighWatermark int
+	appendInflightLimit      int
 }
 
 // subscriberCache is a versioned non-large channel subscriber snapshot.
@@ -51,10 +49,9 @@ type subscriberCache struct {
 
 func newChannelState(target AuthorityTarget, limits channelStateLimits) *channelState {
 	return &channelState{
-		target:                         target,
-		pendingItemHighWatermark:       limits.pendingItemHighWatermark,
-		postCommitBacklogHighWatermark: limits.postCommitBacklogHighWatermark,
-		appendInflightLimit:            limits.appendInflightLimit,
+		target:                   target,
+		pendingItemHighWatermark: limits.pendingItemHighWatermark,
+		appendInflightLimit:      limits.appendInflightLimit,
 	}
 }
 
@@ -200,15 +197,10 @@ func (s *channelState) popNextAppendCompletion() (appendCompletedEvent, bool) {
 	return event, true
 }
 
-// enqueueCommitted admits best-effort post-commit work through a bound that is
-// independent from foreground append admission. A saturated side-effect lane
-// drops the newest envelope instead of rejecting a durable SEND.
-func (s *channelState) enqueueCommitted(event CommittedEnvelope) bool {
-	if s.postCommitBacklogHighWatermark > 0 && s.commitBacklog() >= s.postCommitBacklogHighWatermark {
-		return false
-	}
+// enqueueCommitted transfers an already-reserved durable envelope into the
+// per-channel FIFO. Global handoff admission bounds this queue before append.
+func (s *channelState) enqueueCommitted(event CommittedEnvelope) {
 	s.committed = append(s.committed, event)
-	return true
 }
 
 func (s *channelState) nextCommitEffect(key string, out *commitEffect) bool {
@@ -272,10 +264,6 @@ func (s *channelState) cancelCommitDispatch() {
 	}
 }
 
-func (s *channelState) dropCurrentCommit() {
-	s.dropCommitted(1)
-}
-
 func (s *channelState) dropCommitted(count int) {
 	if count <= 0 {
 		s.commitAttempts = 0
@@ -295,25 +283,6 @@ func (s *channelState) dropCommitted(count int) {
 	s.commitCursor = end
 	s.commitAttempts = 0
 	s.pruneCommittedPrefixIfNeeded()
-}
-
-func (s *channelState) dropCommitBacklog() int {
-	backlog := s.commitBacklog()
-	if backlog == 0 {
-		s.commitInflight = false
-		s.commitInflightEvents = 0
-		s.commitAttempts = 0
-		return 0
-	}
-	for i := s.commitCursor; i < len(s.committed); i++ {
-		s.committed[i] = CommittedEnvelope{}
-	}
-	s.committed = nil
-	s.commitCursor = 0
-	s.commitInflight = false
-	s.commitInflightEvents = 0
-	s.commitAttempts = 0
-	return backlog
 }
 
 func (s *channelState) commitBacklog() int {
