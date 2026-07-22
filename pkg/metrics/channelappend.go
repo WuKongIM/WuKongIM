@@ -10,23 +10,27 @@ var channelAppendItemBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 
 
 // ChannelAppendMetrics exposes internal channel authority writer metrics.
 type ChannelAppendMetrics struct {
-	routerTotal         *prometheus.CounterVec
-	routerDuration      *prometheus.HistogramVec
-	routerItems         *prometheus.HistogramVec
-	localAdmissionTotal *prometheus.CounterVec
-	localAdmissionItems *prometheus.HistogramVec
-	writerAdmission     *prometheus.GaugeVec
-	writerAdmissionCap  *prometheus.GaugeVec
-	writerPoolRunning   *prometheus.GaugeVec
-	writerPoolCap       *prometheus.GaugeVec
-	writerStateItems    *prometheus.GaugeVec
-	effectPoolSubmit    *prometheus.CounterVec
-	effectPoolInflight  *prometheus.GaugeVec
-	effectPoolCap       *prometheus.GaugeVec
-	effectPoolSaturated *prometheus.GaugeVec
-	effectTotal         *prometheus.CounterVec
-	effectDuration      *prometheus.HistogramVec
-	effectItems         *prometheus.HistogramVec
+	routerTotal              *prometheus.CounterVec
+	routerDuration           *prometheus.HistogramVec
+	routerItems              *prometheus.HistogramVec
+	localAdmissionTotal      *prometheus.CounterVec
+	localAdmissionItems      *prometheus.HistogramVec
+	writerAdmission          *prometheus.GaugeVec
+	writerAdmissionCap       *prometheus.GaugeVec
+	writerPoolRunning        *prometheus.GaugeVec
+	writerPoolCap            *prometheus.GaugeVec
+	writerStateItems         *prometheus.GaugeVec
+	postCommitHandoff        *prometheus.GaugeVec
+	postCommitHandoffCap     *prometheus.GaugeVec
+	postCommitRetryQueue     *prometheus.GaugeVec
+	postCommitRetryContended *prometheus.GaugeVec
+	effectPoolSubmit         *prometheus.CounterVec
+	effectPoolInflight       *prometheus.GaugeVec
+	effectPoolCap            *prometheus.GaugeVec
+	effectPoolSaturated      *prometheus.GaugeVec
+	effectTotal              *prometheus.CounterVec
+	effectDuration           *prometheus.HistogramVec
+	effectItems              *prometheus.HistogramVec
 }
 
 func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelAppendMetrics {
@@ -84,6 +88,26 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 			Help:        "Current channel append state item counts by kind.",
 			ConstLabels: labels,
 		}, []string{"kind"}),
+		postCommitHandoff: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelappend_post_commit_handoff_depth",
+			Help:        "Current durable messages owning a channel append post-commit reservation.",
+			ConstLabels: labels,
+		}, nil),
+		postCommitHandoffCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelappend_post_commit_handoff_capacity",
+			Help:        "Configured durable-message reservation capacity for channel append post-commit work.",
+			ConstLabels: labels,
+		}, nil),
+		postCommitRetryQueue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelappend_post_commit_retry_queue_depth",
+			Help:        "Current de-duplicated channel writers waiting in the post-commit retry FIFO.",
+			ConstLabels: labels,
+		}, nil),
+		postCommitRetryContended: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelappend_post_commit_retry_contended",
+			Help:        "Whether an older post-commit retry writer is waiting for or owns the retry turn.",
+			ConstLabels: labels,
+		}, nil),
 		effectPoolSubmit: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelappend_effect_pool_submit_total",
 			Help:        "Total internal channel append effect pool submit attempts by stage and result.",
@@ -126,6 +150,10 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 	for _, kind := range []string{"pending_append", "append_inflight", "post_commit_backlog"} {
 		m.writerStateItems.WithLabelValues(kind).Set(0)
 	}
+	m.postCommitHandoff.WithLabelValues().Set(0)
+	m.postCommitHandoffCap.WithLabelValues().Set(0)
+	m.postCommitRetryQueue.WithLabelValues().Set(0)
+	m.postCommitRetryContended.WithLabelValues().Set(0)
 	// Materialize the append/ok histogram without recording a synthetic observation.
 	_ = m.effectItems.WithLabelValues("append", "ok")
 
@@ -140,6 +168,10 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 		m.writerPoolRunning,
 		m.writerPoolCap,
 		m.writerStateItems,
+		m.postCommitHandoff,
+		m.postCommitHandoffCap,
+		m.postCommitRetryQueue,
+		m.postCommitRetryContended,
 		m.effectPoolSubmit,
 		m.effectPoolInflight,
 		m.effectPoolCap,
@@ -178,7 +210,7 @@ func (m *ChannelAppendMetrics) ObserveLocalAdmission(result string, items int) {
 }
 
 // SetWriterPressure sets current local writer-group pressure gauges.
-func (m *ChannelAppendMetrics) SetWriterPressure(admissionDepth int, admissionCapacity int, workerRunning int, workerCapacity int, pendingAppendItems int, appendInflightItems int, postCommitBacklog int) {
+func (m *ChannelAppendMetrics) SetWriterPressure(admissionDepth int, admissionCapacity int, workerRunning int, workerCapacity int, pendingAppendItems int, appendInflightItems int, postCommitBacklog int, postCommitHandoffDepth int, postCommitHandoffCapacity int, postCommitRetryQueueDepth int, postCommitRetryContended bool) {
 	if m == nil {
 		return
 	}
@@ -189,6 +221,14 @@ func (m *ChannelAppendMetrics) SetWriterPressure(admissionDepth int, admissionCa
 	m.writerStateItems.WithLabelValues("pending_append").Set(float64(pendingAppendItems))
 	m.writerStateItems.WithLabelValues("append_inflight").Set(float64(appendInflightItems))
 	m.writerStateItems.WithLabelValues("post_commit_backlog").Set(float64(postCommitBacklog))
+	m.postCommitHandoff.WithLabelValues().Set(float64(postCommitHandoffDepth))
+	m.postCommitHandoffCap.WithLabelValues().Set(float64(postCommitHandoffCapacity))
+	m.postCommitRetryQueue.WithLabelValues().Set(float64(postCommitRetryQueueDepth))
+	if postCommitRetryContended {
+		m.postCommitRetryContended.WithLabelValues().Set(1)
+		return
+	}
+	m.postCommitRetryContended.WithLabelValues().Set(0)
 }
 
 // ObserveEffectPool records effect pool admission and pressure.

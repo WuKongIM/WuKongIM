@@ -411,13 +411,12 @@ count with a minimum of four. `ChannelAppend.AdvancePoolSize` is the direct ants
 pool capacity used to activate channelappend writer state machines.
 `ChannelAppend.EffectPoolSize` is the direct ants pool capacity used separately
 by foreground channelappend append effects and post-append recipient effects.
-The post-append pool uses non-blocking saturated admission and drops the
-already-best-effort effect through the scheduler-failure observation instead of
-blocking a channel writer advance worker; the foreground append pool keeps its
-blocking worker admission semantics. Each channel also keeps the post-commit
-backlog separately bounded from foreground append admission; a full side-effect
-backlog records and drops the newest already-durable envelope without returning
-`ErrChannelBusy` to a later SEND.
+The post-append pool uses non-blocking saturated admission and retains an
+already-durable envelope behind a de-duplicated fair retry FIFO instead of
+blocking a channel writer advance worker. A group-wide handoff reservation is
+acquired before durable append; when that bound is full only the not-yet-appended
+item returns `ErrChannelBusy`. The foreground append pool keeps its blocking
+worker admission semantics.
 Prepare runs inline on the writer advance path; append remains the foreground
 durable path that determines SEND/SENDACK throughput.
 `ChannelAppend.RecipientAuthorityDispatchConcurrency` defaults to a bounded
@@ -430,7 +429,15 @@ target fanout and production plan execution capacities therefore remain
 independent. The lookup-shard count controls writer map sharding; effect workers run only blocking effects and never write channel
 state concurrently with another advance for the same channel. The delivery
 observer maps aggregate writer pressure and effect pool observations into
-Prometheus, and also records direct ants/v2 occupancy for the channelappend
+Prometheus. Post-commit pressure uses four fixed per-node gauges:
+`wukongim_channelappend_post_commit_handoff_depth`,
+`wukongim_channelappend_post_commit_handoff_capacity`,
+`wukongim_channelappend_post_commit_retry_queue_depth`, and
+`wukongim_channelappend_post_commit_retry_contended`. They have only the
+registry's constant node labels; no channel, UID, Slot, or authority-target
+label is added. Retry queue depth excludes a writer that already owns the retry
+turn, so a zero queue with contended equal to one is valid. The observer also
+records direct ants/v2 occupancy for the channelappend
 advance/append_effect/post_commit pools in the generic ants pool metrics. The three-node bench
 script summarizes these in `channelappend_metrics_summary.tsv` and
 `ants_pool_usage_summary.tsv`. Per-channel append ordering remains capped
@@ -710,6 +717,7 @@ gateway/API send
        access/node Channel Append RPC forwards the batch
        remote node admits it to its local channel writer
   -> authority writer prepares commands, allocates IDs, and calls cluster ChannelAppender
+     only after reserving one slot from the group-wide post-commit handoff bound
   -> Channel runtime persists messages and returns append result
   -> SENDACK returns to sender
   -> authority writer post-commit effect:
@@ -717,7 +725,10 @@ gateway/API send
        group recipients by UID authority target, including Slot leader term and config epoch, for delivery
        enqueue recipient delivery batch when delivery is enabled
        ConversationAuthorityClient.AdmitActiveBatch as an independent projection
-       drop the in-memory post-commit envelope after one enqueue attempt
+       when the nonblocking effect pool is full, retain the committed envelope
+       and enter the fair retry FIFO instead of dropping already-durable work
+       after one terminal recipient/conversation attempt, release the handoff
+       reservation and prune the in-memory committed envelope
 ```
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
@@ -767,7 +778,16 @@ Stop(ctx)
   -> prometheus.Stop(ctx)
   -> manager.Stop(ctx)
   -> api.Stop(ctx)
-  -> channel append group Stop(ctx): close admission and drain accepted appends plus post-commit effects
+  -> top.Stop(ctx)
+  -> channel append group Stop(ctx): close admission and wait for its single
+     background graceful drain of accepted appends, handoff reservations,
+     post-commit effects, and retry ownership
+     if this caller's context expires before that drain completes:
+       return the stop error immediately
+       keep delivery, webhook, plugin, conversation, presence, seed-join, cluster,
+       and controller-task-audit dependencies running
+       retain their started flags so a later Stop(newCtx) waits for the same
+       channel append drain and then resumes this dependency shutdown sequence
   -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler
   -> webhook runtime Stop(ctx): stop accepting new webhook side effects after producers drain
   -> plugin PersistAfter worker Stop(ctx): stop accepting new side effects after channel append drains
@@ -784,6 +804,10 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
+Rollback uses the same channel-append drain boundary as ordinary Stop: a rollback
+deadline at that boundary returns without closing post-commit dependencies, and
+a later Stop with a fresh context continues the existing drain before closing
+them. Entry runtimes already stopped before the boundary remain stopped.
 The startup console is presentation-only: it is disabled with `Log.Console=false`,
 does not add a configuration surface, and does not replace structured lifecycle
 events in rolling files. API, Demo (`/demo/` on the API listener), manager, metrics,

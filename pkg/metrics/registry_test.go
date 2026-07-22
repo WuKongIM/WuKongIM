@@ -1659,6 +1659,18 @@ func TestRegistryExposesIdleChannelAppendWriterState(t *testing.T) {
 			"kind":      kind,
 		}).GetGauge().GetValue())
 	}
+	for _, name := range []string{
+		"wukongim_channelappend_post_commit_handoff_depth",
+		"wukongim_channelappend_post_commit_handoff_capacity",
+		"wukongim_channelappend_post_commit_retry_queue_depth",
+		"wukongim_channelappend_post_commit_retry_contended",
+	} {
+		family := requireMetricFamily(t, families, name)
+		require.Equal(t, float64(0), findMetricByLabels(t, family, map[string]string{
+			"node_id":   "12",
+			"node_name": "node-12",
+		}).GetGauge().GetValue())
+	}
 	effectItems := requireMetricFamily(t, families, "wukongim_channelappend_effect_items")
 	require.Equal(t, float64(0), findMetricByLabels(t, effectItems, map[string]string{
 		"node_id":   "12",
@@ -1674,7 +1686,7 @@ func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 	reg.ChannelAppend.ObserveRouter("remote", "backpressured", 4, 5*time.Millisecond)
 	reg.ChannelAppend.ObserveLocalAdmission("accepted", 8)
 	reg.ChannelAppend.ObserveLocalAdmission("backpressured", 4)
-	reg.ChannelAppend.SetWriterPressure(3, 1024, 9, 1024, 7, 2, 5)
+	reg.ChannelAppend.SetWriterPressure(3, 1024, 9, 1024, 7, 2, 5, 11, 64, 3, true)
 	reg.ChannelAppend.ObserveEffectPool("append", "submitted", 8, 16, false)
 	reg.ChannelAppend.ObserveEffectPool("append", "full", 16, 16, true)
 	reg.ChannelAppend.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
@@ -1703,6 +1715,27 @@ func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 		"node_id":   "12",
 		"node_name": "node-12",
 		"kind":      "post_commit_backlog",
+	}).GetGauge().GetValue())
+
+	handoffDepth := requireMetricFamily(t, families, "wukongim_channelappend_post_commit_handoff_depth")
+	require.Equal(t, float64(11), findMetricByLabels(t, handoffDepth, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+	}).GetGauge().GetValue())
+	handoffCapacity := requireMetricFamily(t, families, "wukongim_channelappend_post_commit_handoff_capacity")
+	require.Equal(t, float64(64), findMetricByLabels(t, handoffCapacity, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+	}).GetGauge().GetValue())
+	retryQueue := requireMetricFamily(t, families, "wukongim_channelappend_post_commit_retry_queue_depth")
+	require.Equal(t, float64(3), findMetricByLabels(t, retryQueue, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+	}).GetGauge().GetValue())
+	retryContended := requireMetricFamily(t, families, "wukongim_channelappend_post_commit_retry_contended")
+	require.Equal(t, float64(1), findMetricByLabels(t, retryContended, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
 	}).GetGauge().GetValue())
 
 	effect := requireMetricFamily(t, families, "wukongim_channelappend_effect_total")
@@ -1742,7 +1775,7 @@ func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 		"stage":     "append",
 	}).GetGauge().GetValue())
 
-	for _, family := range []*dto.MetricFamily{router, admission, state, effect, poolSubmit, poolInflight, poolCapacity, poolSaturated} {
+	for _, family := range []*dto.MetricFamily{router, admission, state, handoffDepth, handoffCapacity, retryQueue, retryContended, effect, poolSubmit, poolInflight, poolCapacity, poolSaturated} {
 		for _, metric := range family.GetMetric() {
 			requireNoMetricLabel(t, metric, "uid")
 			requireNoMetricLabel(t, metric, "channel_id")

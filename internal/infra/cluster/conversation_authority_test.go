@@ -121,8 +121,8 @@ func TestConversationAuthorityClientAdmitActiveBatchKeepsSenderWithSameTargetRec
 	}
 	client := NewConversationAuthorityClient(node, local)
 	recipients := []conversationactive.ActiveEntry{
-		{UID: "sender", IsSender: true},
 		{UID: "receiver"},
+		{UID: "sender", IsSender: true},
 	}
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{

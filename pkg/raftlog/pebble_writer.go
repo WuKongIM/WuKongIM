@@ -128,6 +128,12 @@ func (db *DB) flushWriteRequests(reqs []*writeRequest) error {
 	defer batch.Close()
 
 	stateCache := make(map[Scope]*scopeWriteState, len(reqs))
+	committed := false
+	defer func() {
+		if !committed {
+			db.clearFailedWriteCacheTails(stateCache)
+		}
+	}()
 	for _, req := range reqs {
 		state, err := db.loadScopeWriteState(stateCache, req.scope)
 		if err != nil {
@@ -151,7 +157,21 @@ func (db *DB) flushWriteRequests(reqs []*writeRequest) error {
 	for scope, state := range stateCache {
 		db.stateCache[scope] = cloneScopeWriteState(*state, false)
 	}
+	committed = true
 	return nil
+}
+
+// clearFailedWriteCacheTails releases configuration-change payloads that a
+// failed pure append may have written beyond a committed cache slice's visible
+// length. Clearing hidden capacity cannot change the committed entry sequence.
+func (db *DB) clearFailedWriteCacheTails(states map[Scope]*scopeWriteState) {
+	for scope := range states {
+		cached, ok := db.stateCache[scope]
+		if !ok || len(cached.entries) == cap(cached.entries) {
+			continue
+		}
+		clear(cached.entries[len(cached.entries):cap(cached.entries)])
+	}
 }
 
 func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope) (*scopeWriteState, error) {
@@ -160,8 +180,10 @@ func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope)
 	}
 
 	if cached, ok := db.stateCache[scope]; ok {
-		// Save operations replace the entries slice copy-on-write, so cached
-		// entry payloads can be retained without deep-copying every append.
+		// Tail replacements copy the visible entries before mutation, while pure
+		// appends may reuse capacity beyond the committed slice length. This keeps
+		// failed writes from changing the committed cache without deep-copying
+		// every append.
 		state := cloneScopeWriteState(cached, false)
 		cache[scope] = &state
 		return &state, nil
@@ -183,6 +205,7 @@ func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope)
 	if err != nil {
 		return nil, err
 	}
+	compactCachedEntryPayloads(entries)
 
 	state := &scopeWriteState{
 		hardState: hardState,
@@ -260,7 +283,7 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 		}
 		state.snapshot = raftpb.Snapshot{Metadata: cloneSnapshotMetadata(*st.Snapshot)}
 		state.snapshotManifest = cloneSnapshotManifestPtr(st.SnapshotManifest)
-		state.entries = trimEntriesAfterSnapshot(state.entries, st.Snapshot.Index)
+		state.entries = trimCachedEntriesAfterSnapshot(state.entries, st.Snapshot.Index)
 		snapshotIndex = st.Snapshot.Index
 	}
 
@@ -282,7 +305,7 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 				return err
 			}
 		}
-		state.entries = replaceEntriesFromIndex(state.entries, first, entries)
+		state.entries = replaceCachedEntriesFromIndex(state.entries, first, entries)
 	}
 
 	if persistHardState {
@@ -300,6 +323,69 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 		return err
 	}
 	return store.setMeta(batch, state.meta)
+}
+
+// cloneCachedEntry keeps only the entry bytes needed to derive committed
+// membership state. Normal Raft command payloads remain durable in Pebble and
+// must not be retained by the writer's long-lived metadata cache.
+func cloneCachedEntry(entry raftpb.Entry) raftpb.Entry {
+	cached := entry
+	cached.Data = nil
+	switch entry.Type {
+	case raftpb.EntryConfChange, raftpb.EntryConfChangeV2:
+		if len(entry.Data) > 0 {
+			cached.Data = append([]byte(nil), entry.Data...)
+		}
+	default:
+		cached.Data = nil
+	}
+	return cached
+}
+
+// compactCachedEntryPayloads releases normal command payloads loaded from
+// Pebble while retaining configuration changes required by deriveConfState.
+func compactCachedEntryPayloads(entries []raftpb.Entry) {
+	for i := range entries {
+		if entries[i].Type != raftpb.EntryConfChange && entries[i].Type != raftpb.EntryConfChangeV2 {
+			entries[i].Data = nil
+		}
+	}
+}
+
+// replaceCachedEntriesFromIndex updates the writer metadata cache without
+// retaining normal command payloads. Tail replacements copy the retained
+// prefix so a failed write cannot mutate the committed cache; pure appends keep
+// the capacity-reuse fast path because they do not change its visible entries.
+func replaceCachedEntriesFromIndex(existing []raftpb.Entry, first uint64, incoming []raftpb.Entry) []raftpb.Entry {
+	cut := len(existing)
+	for i, entry := range existing {
+		if entry.Index >= first {
+			cut = i
+			break
+		}
+	}
+	result := existing
+	if cut < len(existing) {
+		result = make([]raftpb.Entry, cut, cut+len(incoming))
+		copy(result, existing[:cut])
+	}
+	for _, entry := range incoming {
+		result = append(result, cloneCachedEntry(entry))
+	}
+	return result
+}
+
+// trimCachedEntriesAfterSnapshot removes compacted metadata-cache entries and
+// preserves only configuration payloads above the snapshot index.
+func trimCachedEntriesAfterSnapshot(existing []raftpb.Entry, snapshotIndex uint64) []raftpb.Entry {
+	result := make([]raftpb.Entry, 0, len(existing))
+	for _, entry := range existing {
+		if entry.Index <= snapshotIndex {
+			continue
+		}
+		result = append(result, cloneCachedEntry(entry))
+	}
+	return result
 }
 
 func (op markAppliedOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbleStore) error {

@@ -401,6 +401,10 @@ func (a *App) Stop(ctx context.Context) error {
 		if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("channel_append", "stop", stopErr)
 			err = errors.Join(err, stopErr)
+			// Channel append keeps the same graceful drain alive after a caller
+			// deadline. Its delivery, conversation, plugin, webhook, and cluster
+			// dependencies must remain running until a later Stop finishes that drain.
+			return errors.Join(err, a.syncLogger())
 		} else {
 			a.channelAppendStarted = false
 		}
@@ -533,6 +537,10 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("channel_append", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
+			// Keep already-started post-commit dependencies available for the
+			// channel append drain. App remains retryable because started and the
+			// component flags are cleared only after a complete later Stop.
+			return err
 		} else {
 			a.channelAppendStarted = false
 		}

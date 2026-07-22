@@ -242,49 +242,69 @@
       },
       "targets": [
         {
-          "expr": "sum(wukongim_channelappend_writer_admission_depth{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer admission depth {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_admission_depth{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer admission depth",
           "refId": "A"
         },
         {
-          "expr": "sum(wukongim_channelappend_writer_admission_capacity{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer admission capacity {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_admission_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer admission capacity",
           "refId": "B"
         },
         {
-          "expr": "sum(wukongim_channelappend_writer_pool_running{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer running {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_pool_running{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer running",
           "refId": "C"
         },
         {
-          "expr": "sum(wukongim_channelappend_writer_pool_capacity{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer pool capacity {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_pool_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer pool capacity",
           "refId": "D"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_writer_state_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, state))",
-          "legendFormat": "writer state items p95 {{state}}",
+          "expr": "sum(wukongim_channelappend_writer_state_items{node_name=~\"$node_name\"}) by (node_name, kind)",
+          "legendFormat": "{{node_name}} writer state {{kind}}",
           "refId": "E"
         },
         {
-          "expr": "sum(wukongim_channelappend_effect_pool_inflight{node_name=~\"$node_name\"}) by (pool)",
-          "legendFormat": "effect inflight {{pool}}",
+          "expr": "sum(wukongim_channelappend_effect_pool_inflight{node_name=~\"$node_name\"}) by (node_name, stage)",
+          "legendFormat": "{{node_name}} effect inflight {{stage}}",
           "refId": "F"
         },
         {
-          "expr": "sum(wukongim_channelappend_effect_pool_capacity{node_name=~\"$node_name\"}) by (pool)",
-          "legendFormat": "effect capacity {{pool}}",
+          "expr": "sum(wukongim_channelappend_effect_pool_capacity{node_name=~\"$node_name\"}) by (node_name, stage)",
+          "legendFormat": "{{node_name}} effect capacity {{stage}}",
           "refId": "G"
         },
         {
-          "expr": "sum(wukongim_channelappend_effect_pool_saturated{node_name=~\"$node_name\"}) by (pool)",
-          "legendFormat": "effect saturated {{pool}}",
+          "expr": "sum(wukongim_channelappend_effect_pool_saturated{node_name=~\"$node_name\"}) by (node_name, stage)",
+          "legendFormat": "{{node_name}} effect saturated {{stage}}",
           "refId": "H"
         },
         {
-          "expr": "sum(rate(wukongim_channelappend_effect_pool_submit_total{node_name=~\"$node_name\"}[$__rate_interval])) by (pool, result)",
-          "legendFormat": "effect submit {{pool}} {{result}}",
+          "expr": "sum(rate(wukongim_channelappend_effect_pool_submit_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, stage, result)",
+          "legendFormat": "{{node_name}} effect submit {{stage}} {{result}}",
           "refId": "I"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_post_commit_handoff_depth{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit handoff depth",
+          "refId": "J"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_post_commit_handoff_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit handoff capacity",
+          "refId": "K"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_post_commit_retry_queue_depth{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit retry queue",
+          "refId": "L"
+        },
+        {
+          "expr": "max(wukongim_channelappend_post_commit_retry_contended{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit retry contended",
+          "refId": "M"
         }
       ],
       "title": "Channel Append Writer And Effect Pool",

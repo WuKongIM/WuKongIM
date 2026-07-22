@@ -158,6 +158,10 @@ func (o deliveryMessageObserver) SetChannelAppendWriterPressure(event channelapp
 		event.PendingAppendItems,
 		event.AppendInflightItems,
 		event.PostCommitBacklog,
+		event.PostCommitHandoffDepth,
+		event.PostCommitHandoffCapacity,
+		event.PostCommitRetryQueueDepth,
+		event.PostCommitRetryContended,
 	)
 }
 

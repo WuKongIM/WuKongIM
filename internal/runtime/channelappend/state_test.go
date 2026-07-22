@@ -12,9 +12,8 @@ func TestNewChannelStateCapturesAuthorityIdentityAndLimits(t *testing.T) {
 	}
 
 	state := newChannelState(target, channelStateLimits{
-		pendingItemHighWatermark:       8,
-		postCommitBacklogHighWatermark: 8,
-		appendInflightLimit:            2,
+		pendingItemHighWatermark: 8,
+		appendInflightLimit:      2,
 	})
 
 	if state.target != target {
@@ -22,9 +21,6 @@ func TestNewChannelStateCapturesAuthorityIdentityAndLimits(t *testing.T) {
 	}
 	if state.pendingItemHighWatermark != 8 {
 		t.Fatalf("pendingItemHighWatermark = %d, want 8", state.pendingItemHighWatermark)
-	}
-	if state.postCommitBacklogHighWatermark != 8 {
-		t.Fatalf("postCommitBacklogHighWatermark = %d, want 8", state.postCommitBacklogHighWatermark)
 	}
 	if state.appendInflightLimit != 2 {
 		t.Fatalf("appendInflightLimit = %d, want 2", state.appendInflightLimit)
@@ -91,28 +87,6 @@ func TestChannelStateNextAppendBatchDoesNotAllocatePendingCopy(t *testing.T) {
 	})
 	if allocs != 0 {
 		t.Fatalf("nextAppendBatch allocations = %.1f, want 0", allocs)
-	}
-}
-
-func TestChannelStateDropCurrentCommitAdvancesCursorWithoutMovingBacklog(t *testing.T) {
-	state := newChannelState(AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}}, channelStateLimits{})
-	state.enqueueCommitted(CommittedEnvelope{MessageID: 1})
-	state.enqueueCommitted(CommittedEnvelope{MessageID: 2})
-	state.enqueueCommitted(CommittedEnvelope{MessageID: 3})
-
-	state.dropCurrentCommit()
-
-	if state.commitCursor != 1 {
-		t.Fatalf("commitCursor = %d, want 1 without compacting every committed item", state.commitCursor)
-	}
-	if len(state.committed) != 3 {
-		t.Fatalf("committed len = %d, want original backing queue retained after one drop", len(state.committed))
-	}
-	if state.committed[0].MessageID != 0 || state.committed[1].MessageID != 2 || state.committed[2].MessageID != 3 {
-		t.Fatalf("committed queue = %#v, want first slot cleared and remaining slots unmoved", state.committed)
-	}
-	if backlog := state.commitBacklog(); backlog != 2 {
-		t.Fatalf("commitBacklog() = %d, want 2", backlog)
 	}
 }
 

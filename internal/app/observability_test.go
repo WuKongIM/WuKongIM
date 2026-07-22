@@ -2615,6 +2615,34 @@ func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T)
 	}
 }
 
+func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := deliveryMessageObserver{app: &App{metrics: reg}}
+
+	observer.SetChannelAppendWriterPressure(channelappend.WriterPressureObservation{
+		PostCommitHandoffDepth:    11,
+		PostCommitHandoffCapacity: 17,
+		PostCommitRetryQueueDepth: 3,
+		PostCommitRetryContended:  true,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	assertGauge := func(name string, want float64) {
+		t.Helper()
+		family := requireAppMetricFamily(t, families, name)
+		if got := findAppMetricByLabels(t, family, nil).GetGauge().GetValue(); got != want {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
+	}
+	assertGauge("wukongim_channelappend_post_commit_handoff_depth", 11)
+	assertGauge("wukongim_channelappend_post_commit_handoff_capacity", 17)
+	assertGauge("wukongim_channelappend_post_commit_retry_queue_depth", 3)
+	assertGauge("wukongim_channelappend_post_commit_retry_contended", 1)
+}
+
 func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T) {
 	logger := &recordingAppLogger{}
 	app := &App{logger: logger}

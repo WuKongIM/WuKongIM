@@ -1703,7 +1703,230 @@ func TestPebbleMarkAppliedMetadataWriteKeepsCachedEntriesBacking(t *testing.T) {
 	}
 }
 
-func TestPebbleAppendKeepsCachedRetainedEntryPayloads(t *testing.T) {
+func TestPebbleWriteStateCacheRetainsOnlyConfChangePayloads(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	normalPayload := bytes.Repeat([]byte("normal-payload-"), 4096)
+	confChange := raftpb.ConfChange{Type: raftpb.ConfChangeAddNode, NodeID: 1}
+	confChangePayload := mustMarshalConfChange(t, confChange)
+	entries := []raftpb.Entry{
+		{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: normalPayload},
+		{Index: 2, Term: 1, Type: raftpb.EntryConfChange, Data: confChangePayload},
+	}
+	hs := raftpb.HardState{Term: 1, Commit: 2}
+	store := db.ForSlot(54)
+	if err := store.Save(ctx, multiraft.PersistentState{
+		HardState: &hs,
+		Entries:   entries,
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	cached := db.stateCache[SlotScope(54)].entries
+	if len(cached) != len(entries) {
+		t.Fatalf("len(cached entries) = %d, want %d", len(cached), len(entries))
+	}
+	if cached[0].Data != nil {
+		t.Errorf("normal cached entry retained %d payload bytes, want nil", len(cached[0].Data))
+	}
+	if !bytes.Equal(cached[1].Data, confChangePayload) {
+		t.Fatalf("conf-change cached payload = %x, want %x", cached[1].Data, confChangePayload)
+	}
+	var decoded raftpb.ConfChange
+	if err := decoded.Unmarshal(cached[1].Data); err != nil {
+		t.Fatalf("ConfChange.Unmarshal(cached payload) error = %v", err)
+	}
+	if decoded.Type != confChange.Type || decoded.NodeID != confChange.NodeID {
+		t.Fatalf("decoded cached ConfChange = %#v, want %#v", decoded, confChange)
+	}
+
+	got, err := store.Entries(ctx, 1, 3, 0)
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, entries) {
+		t.Fatalf("Entries() = %#v, want %#v", got, entries)
+	}
+}
+
+func TestPebbleWriteStateCacheCompactsPayloadsLoadedAfterRestart(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open(first) error = %v", err)
+	}
+
+	confChangePayload := mustMarshalConfChange(t, raftpb.ConfChange{
+		Type:   raftpb.ConfChangeAddNode,
+		NodeID: 2,
+	})
+	store := db.ForSlot(55)
+	if err := store.Save(ctx, multiraft.PersistentState{Entries: []raftpb.Entry{
+		{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: bytes.Repeat([]byte("payload"), 8192)},
+		{Index: 2, Term: 1, Type: raftpb.EntryConfChange, Data: confChangePayload},
+	}}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	db, err = Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+	store = db.ForSlot(55)
+	if err := store.MarkApplied(ctx, 1); err != nil {
+		t.Fatalf("MarkApplied() error = %v", err)
+	}
+
+	cached := db.stateCache[SlotScope(55)].entries
+	if len(cached) != 2 {
+		t.Fatalf("len(cached entries) = %d, want 2", len(cached))
+	}
+	if cached[0].Data != nil {
+		t.Fatalf("reloaded normal entry retained %d payload bytes, want nil", len(cached[0].Data))
+	}
+	if !bytes.Equal(cached[1].Data, confChangePayload) {
+		t.Fatalf("reloaded conf-change payload = %x, want %x", cached[1].Data, confChangePayload)
+	}
+}
+
+func TestPebbleWriteStateCacheRetainsConfChangeV2AcrossRestartAndSnapshotTrim(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open(first) error = %v", err)
+	}
+
+	addNode2Payload := mustMarshalConfChangeV2(t, raftpb.ConfChangeV2{
+		Changes: []raftpb.ConfChangeSingle{{Type: raftpb.ConfChangeAddNode, NodeID: 2}},
+	})
+	addLearner3Payload := mustMarshalConfChangeV2(t, raftpb.ConfChangeV2{
+		Changes: []raftpb.ConfChangeSingle{{Type: raftpb.ConfChangeAddLearnerNode, NodeID: 3}},
+	})
+	entries := []raftpb.Entry{
+		{
+			Index: 1,
+			Term:  1,
+			Type:  raftpb.EntryConfChange,
+			Data:  mustMarshalConfChange(t, raftpb.ConfChange{Type: raftpb.ConfChangeAddNode, NodeID: 1}),
+		},
+		{Index: 2, Term: 1, Type: raftpb.EntryConfChangeV2, Data: addNode2Payload},
+		{Index: 3, Term: 1, Type: raftpb.EntryNormal, Data: bytes.Repeat([]byte("normal"), 4096)},
+		{Index: 4, Term: 1, Type: raftpb.EntryConfChangeV2, Data: addLearner3Payload},
+	}
+	hs := raftpb.HardState{Term: 1, Commit: 4}
+	store := db.ForSlot(57)
+	if err := store.Save(ctx, multiraft.PersistentState{HardState: &hs, Entries: entries}); err != nil {
+		t.Fatalf("Save(initial) error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	db, err = Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open(second) error = %v", err)
+	}
+	store = db.ForSlot(57)
+	if err := store.MarkApplied(ctx, 1); err != nil {
+		t.Fatalf("MarkApplied(after first restart) error = %v", err)
+	}
+	cached := db.stateCache[SlotScope(57)].entries
+	if len(cached) != len(entries) {
+		t.Fatalf("len(cached entries after restart) = %d, want %d", len(cached), len(entries))
+	}
+	if !bytes.Equal(cached[1].Data, addNode2Payload) || !bytes.Equal(cached[3].Data, addLearner3Payload) {
+		t.Fatalf("ConfChangeV2 payloads were not retained after restart: %#v", cached)
+	}
+	if cached[2].Data != nil {
+		t.Fatalf("normal cached entry retained %d payload bytes after restart, want nil", len(cached[2].Data))
+	}
+
+	snap := raftpb.Snapshot{
+		Data: []byte("snapshot-through-index-2"),
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     2,
+			Term:      1,
+			ConfState: raftpb.ConfState{Voters: []uint64{1, 2}},
+		},
+	}
+	if err := store.Save(ctx, multiraft.PersistentState{Snapshot: &snap}); err != nil {
+		t.Fatalf("Save(snapshot) error = %v", err)
+	}
+	cached = db.stateCache[SlotScope(57)].entries
+	if len(cached) != 2 || cached[0].Index != 3 || cached[1].Index != 4 {
+		t.Fatalf("cached entries after snapshot trim = %#v, want indexes 3 and 4", cached)
+	}
+	if cached[0].Data != nil {
+		t.Fatalf("trimmed normal cached entry retained %d payload bytes, want nil", len(cached[0].Data))
+	}
+	if !bytes.Equal(cached[1].Data, addLearner3Payload) {
+		t.Fatalf("post-snapshot ConfChangeV2 payload = %x, want %x", cached[1].Data, addLearner3Payload)
+	}
+	if got := mustEntries(t, store, 3, 5, 0); !reflect.DeepEqual(got, entries[2:]) {
+		t.Fatalf("Entries() after snapshot trim = %#v, want %#v", got, entries[2:])
+	}
+	wantConfState := raftpb.ConfState{Voters: []uint64{1, 2}, Learners: []uint64{3}}
+	state, err := store.InitialState(ctx)
+	if err != nil {
+		t.Fatalf("InitialState(after snapshot trim) error = %v", err)
+	}
+	if !reflect.DeepEqual(state.ConfState, wantConfState) {
+		t.Fatalf("ConfState after snapshot trim = %#v, want %#v", state.ConfState, wantConfState)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(second) error = %v", err)
+	}
+
+	db, err = Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open(third) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(third) error = %v", err)
+		}
+	})
+	store = db.ForSlot(57)
+	state, err = store.InitialState(ctx)
+	if err != nil {
+		t.Fatalf("InitialState(after second restart) error = %v", err)
+	}
+	if !reflect.DeepEqual(state.ConfState, wantConfState) {
+		t.Fatalf("ConfState after second restart = %#v, want %#v", state.ConfState, wantConfState)
+	}
+	if got := mustEntries(t, store, 3, 5, 0); !reflect.DeepEqual(got, entries[2:]) {
+		t.Fatalf("Entries() after second restart = %#v, want %#v", got, entries[2:])
+	}
+	if err := store.MarkApplied(ctx, 2); err != nil {
+		t.Fatalf("MarkApplied(after second restart) error = %v", err)
+	}
+	cached = db.stateCache[SlotScope(57)].entries
+	if len(cached) != 2 || cached[0].Data != nil || !bytes.Equal(cached[1].Data, addLearner3Payload) {
+		t.Fatalf("cached entries after second restart = %#v, want normal metadata plus retained ConfChangeV2", cached)
+	}
+}
+
+func TestPebbleAppendKeepsRetainedNormalEntriesMetadataOnly(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "raft")
 	db, err := Open(path, Options{})
@@ -1724,9 +1947,9 @@ func TestPebbleAppendKeepsCachedRetainedEntryPayloads(t *testing.T) {
 	}
 
 	scope := SlotScope(53)
-	before := cachedEntryDataPtr(db.stateCache[scope].entries, 0)
-	if before == 0 {
-		t.Fatal("cached entry data pointer = 0")
+	before := db.stateCache[scope].entries
+	if len(before) != 4 || before[0].Data != nil {
+		t.Fatalf("initial cached entries = %#v, want four metadata-only normal entries", before)
 	}
 
 	if err := store.Save(ctx, multiraft.PersistentState{
@@ -1735,9 +1958,109 @@ func TestPebbleAppendKeepsCachedRetainedEntryPayloads(t *testing.T) {
 		t.Fatalf("Save(append) error = %v", err)
 	}
 
-	after := cachedEntryDataPtr(db.stateCache[scope].entries, 0)
-	if after != before {
-		t.Fatalf("retained cached entry payload was cloned during append: got %x want %x", after, before)
+	after := db.stateCache[scope].entries
+	if len(after) != 5 {
+		t.Fatalf("len(cached entries) = %d, want 5", len(after))
+	}
+	for i, entry := range after {
+		if entry.Data != nil {
+			t.Fatalf("cached normal entry %d retained %d payload bytes, want nil", i, len(entry.Data))
+		}
+	}
+}
+
+func TestPebbleFailedTailReplaceDoesNotPolluteWriteStateCache(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	entries := []raftpb.Entry{
+		{
+			Index: 1,
+			Term:  1,
+			Type:  raftpb.EntryConfChange,
+			Data:  mustMarshalConfChange(t, raftpb.ConfChange{Type: raftpb.ConfChangeAddNode, NodeID: 1}),
+		},
+		{Index: 2, Term: 1, Type: raftpb.EntryNormal, Data: []byte("original-normal")},
+		{
+			Index: 3,
+			Term:  1,
+			Type:  raftpb.EntryConfChange,
+			Data:  mustMarshalConfChange(t, raftpb.ConfChange{Type: raftpb.ConfChangeAddNode, NodeID: 2}),
+		},
+	}
+	hs := raftpb.HardState{Term: 1, Commit: 3}
+	store := db.ForSlot(56)
+	if err := store.Save(ctx, multiraft.PersistentState{HardState: &hs, Entries: entries}); err != nil {
+		t.Fatalf("Save(initial) error = %v", err)
+	}
+
+	scope := SlotScope(56)
+	cachedBefore := make([]raftpb.Entry, 0, len(db.stateCache[scope].entries))
+	for _, entry := range db.stateCache[scope].entries {
+		cachedBefore = append(cachedBefore, cloneEntry(entry))
+	}
+	wantConfState := raftpb.ConfState{Voters: []uint64{1, 2}}
+
+	injected := errors.New("injected tail-replace commit failure")
+	db.writeCommitTestHook = func() error { return injected }
+	err = store.Save(ctx, multiraft.PersistentState{Entries: []raftpb.Entry{{
+		Index: 2,
+		Term:  2,
+		Type:  raftpb.EntryNormal,
+		Data:  []byte("uncommitted-replacement"),
+	}}})
+	db.writeCommitTestHook = nil
+	if !errors.Is(err, injected) {
+		t.Fatalf("Save(failed tail replace) error = %v, want %v", err, injected)
+	}
+
+	if got := db.stateCache[scope].entries; !reflect.DeepEqual(got, cachedBefore) {
+		t.Errorf("cached entries changed after failed tail replace: got %#v want %#v", got, cachedBefore)
+	}
+	if got := mustEntries(t, store, 1, 4, 0); !reflect.DeepEqual(got, entries) {
+		t.Errorf("Entries() after failed tail replace = %#v, want %#v", got, entries)
+	}
+	state, err := store.InitialState(ctx)
+	if err != nil {
+		t.Fatalf("InitialState(after failed tail replace) error = %v", err)
+	}
+	if !reflect.DeepEqual(state.ConfState, wantConfState) {
+		t.Errorf("ConfState after failed tail replace = %#v, want %#v", state.ConfState, wantConfState)
+	}
+
+	nextHardState := raftpb.HardState{Term: 2, Vote: 1, Commit: 3}
+	if err := store.Save(ctx, multiraft.PersistentState{HardState: &nextHardState}); err != nil {
+		t.Fatalf("Save(HardState-only) error = %v", err)
+	}
+	if got := mustEntries(t, store, 1, 4, 0); !reflect.DeepEqual(got, entries) {
+		t.Errorf("Entries() after HardState-only save = %#v, want %#v", got, entries)
+	}
+	state, err = store.InitialState(ctx)
+	if err != nil {
+		t.Fatalf("InitialState(after HardState-only save) error = %v", err)
+	}
+	if !reflect.DeepEqual(state.ConfState, wantConfState) {
+		t.Errorf("ConfState after HardState-only save = %#v, want %#v", state.ConfState, wantConfState)
+	}
+	first, err := store.FirstIndex(ctx)
+	if err != nil {
+		t.Fatalf("FirstIndex() error = %v", err)
+	}
+	last, err := store.LastIndex(ctx)
+	if err != nil {
+		t.Fatalf("LastIndex() error = %v", err)
+	}
+	if first != 1 || last != 3 {
+		t.Errorf("first/last index after HardState-only save = %d/%d, want 1/3", first, last)
 	}
 }
 
@@ -1777,18 +2100,68 @@ func TestPebbleMetadataTracksTailReplaceAndSnapshotTrim(t *testing.T) {
 	}
 }
 
+func TestPebbleFailedPureAppendClearsHiddenCachedConfChangePayload(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	store := db.ForSlot(58)
+	initial := raftpb.Entry{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: []byte("initial")}
+	if err := store.Save(ctx, multiraft.PersistentState{Entries: []raftpb.Entry{initial}}); err != nil {
+		t.Fatalf("Save(initial) error = %v", err)
+	}
+
+	scope := SlotScope(58)
+	cached := db.stateCache[scope]
+	withTail := make([]raftpb.Entry, len(cached.entries), len(cached.entries)+2)
+	copy(withTail, cached.entries)
+	cached.entries = withTail
+	db.stateCache[scope] = cached
+
+	payload := mustMarshalConfChangeV2(t, raftpb.ConfChangeV2{
+		Changes: []raftpb.ConfChangeSingle{{Type: raftpb.ConfChangeAddNode, NodeID: 2}},
+	})
+	injected := errors.New("injected pure-append commit failure")
+	db.writeCommitTestHook = func() error { return injected }
+	err = store.Save(ctx, multiraft.PersistentState{Entries: []raftpb.Entry{{
+		Index: 2,
+		Term:  1,
+		Type:  raftpb.EntryConfChangeV2,
+		Data:  payload,
+	}}})
+	db.writeCommitTestHook = nil
+	if !errors.Is(err, injected) {
+		t.Fatalf("Save(failed pure append) error = %v, want %v", err, injected)
+	}
+
+	visible := db.stateCache[scope].entries
+	if len(visible) != 1 || visible[0].Index != 1 {
+		t.Fatalf("visible cached entries after failure = %#v, want only index 1", visible)
+	}
+	backing := visible[:cap(visible)]
+	for index := len(visible); index < len(backing); index++ {
+		if backing[index].Data != nil {
+			t.Fatalf("hidden cached entry %d retained %d payload bytes after failed append", index, len(backing[index].Data))
+		}
+	}
+	if got := mustEntries(t, store, 1, 2, 0); !reflect.DeepEqual(got, []raftpb.Entry{initial}) {
+		t.Fatalf("Entries() after failed pure append = %#v, want initial entry", got)
+	}
+}
+
 func cachedEntriesBackingPtr(entries []raftpb.Entry) uintptr {
 	if len(entries) == 0 {
 		return 0
 	}
 	return uintptr(unsafe.Pointer(unsafe.SliceData(entries)))
-}
-
-func cachedEntryDataPtr(entries []raftpb.Entry, index int) uintptr {
-	if index < 0 || index >= len(entries) || len(entries[index].Data) == 0 {
-		return 0
-	}
-	return uintptr(unsafe.Pointer(unsafe.SliceData(entries[index].Data)))
 }
 
 func TestPebbleReturnsClonedData(t *testing.T) {

@@ -28,6 +28,10 @@ type preparedSend struct {
 	// ServerTimestampMS is the server timestamp assigned exactly once during prepare.
 	ServerTimestampMS int64
 	future            *Future
+	// postCommitReserved reports that this item owns one global handoff slot.
+	// It is transferred to committed state on append success and released on
+	// append failure or terminal post-commit completion.
+	postCommitReserved bool
 }
 
 type preparePorts struct {
