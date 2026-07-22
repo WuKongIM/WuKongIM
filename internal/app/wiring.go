@@ -11,6 +11,7 @@ import (
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
+	deliveryinfra "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
@@ -369,7 +370,7 @@ func (a *App) wirePresence() {
 		observer := presenceMetricsObserver{metrics: a.metrics}
 		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
 		a.presenceDirectory = directory
-		authority := presenceDirectoryAuthority{directory: directory}
+		authority := clusterinfra.NewPresenceDirectoryAuthority(directory)
 		ownerActions := presenceOwnerActions{local: a.online}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
@@ -657,7 +658,11 @@ func (a *App) wireUsers() {
 
 func (a *App) wireDelivery() {
 	if a.cfg.Delivery.Enabled && a.delivery == nil {
-		localPusher := &localOwnerPusher{online: a.online, pendingAckTTL: a.cfg.Delivery.PendingAckTTL, logger: a.logger.Named("delivery.owner")}
+		localPusher := deliveryinfra.NewLocalOwnerPusher(deliveryinfra.LocalOwnerPusherOptions{
+			Online:        a.online,
+			PendingAckTTL: a.cfg.Delivery.PendingAckTTL,
+			Logger:        a.logger.Named("delivery.owner"),
+		})
 		a.localOwnerPusher = localPusher
 		deliveryObserver := a.deliveryObserver()
 		var push runtimedelivery.Pusher = localPusher
@@ -729,7 +734,7 @@ func (a *App) wireDelivery() {
 				MaxPendingPerSession: a.cfg.Delivery.PendingAckMaxPerSession,
 			}),
 		})
-		localPusher.delivery = manager
+		localPusher.SetAckManager(manager)
 		a.deliveryManager = manager
 		a.deliveryRetry = retryScheduler
 		a.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
@@ -775,11 +780,11 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			} else if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
 				opts.Subscribers = channelAppendSubscriberSource{node: subscriberNode}
 			}
-			if recipientNode, ok := a.cluster.(recipientAuthorityRouteNode); ok {
-				resolver := channelAppendRecipientResolver{node: recipientNode}
-				if a.metrics != nil {
-					resolver.observer = deliveryMetricsObserver{metrics: a.metrics}
-				}
+			var recipientObserver clusterinfra.RecipientAuthorityResolveObserver
+			if a.metrics != nil {
+				recipientObserver = deliveryMetricsObserver{metrics: a.metrics}
+			}
+			if resolver := clusterinfra.NewRecipientAuthorityResolver(a.cluster, recipientObserver); resolver != nil {
 				opts.RecipientAuthorityResolver = resolver
 			}
 			if a.conversationAuthorityClient != nil {
@@ -795,7 +800,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				offlineSingle, offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
 				deliveryObserver := a.deliveryObserver()
 				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-					PresenceResolver:            channelAppendPresenceResolver{presence: a.presence},
+					PresenceResolver:            deliveryinfra.NewChannelAppendPresenceResolver(a.presence),
 					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID, deliveryObserver),
 					OwnerPushBatchSize:          a.cfg.Delivery.PushBatchSize,
 					OfflineRecipientObserver:    offlineSingle,

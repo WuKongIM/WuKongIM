@@ -1642,7 +1642,7 @@ func (o deliveryMetricsObserver) ObserveAckBatch(event runtimedelivery.AckBatchE
 	)
 }
 
-func (o deliveryMetricsObserver) ObserveRecipientAuthorityResolve(event recipientAuthorityResolveObservation) {
+func (o deliveryMetricsObserver) ObserveRecipientAuthorityResolve(event clusterinfra.RecipientAuthorityResolveObservation) {
 	if o.metrics == nil {
 		return
 	}
@@ -2783,6 +2783,6 @@ var _ runtimedelivery.RetryObserver = multiDeliveryObserver{}
 var _ runtimedelivery.AckObserver = deliveryMetricsObserver{}
 var _ runtimedelivery.AckObserver = multiDeliveryObserver{}
 var _ runtimedelivery.AckBatchObserver = deliveryMetricsObserver{}
-var _ recipientAuthorityResolveObserver = deliveryMetricsObserver{}
+var _ clusterinfra.RecipientAuthorityResolveObserver = deliveryMetricsObserver{}
 var _ clusterinfra.PresenceEndpointLookupObserver = presenceMetricsObserver{}
 var _ runtimedelivery.ManagerObserver = multiDeliveryObserver{}

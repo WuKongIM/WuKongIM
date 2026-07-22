@@ -30,7 +30,8 @@ inventory reads and lifecycle mutations to the selected node's plugin lifecycle
 usecase over peer RPC, routes
 manager Controller task audit reads to the current Controller leader's
 node-local audit store over peer RPC when needed, and adapts presence/delivery
-ports to cluster routing and node RPC.
+ports plus channelappend recipient-authority resolution to cluster routing and
+node RPC.
 
 ## Management Snapshot Flow
 
@@ -754,6 +755,35 @@ Route errors are translated at this adapter boundary:
 `internal/access/node` Channel Append RPC client; remote item results are
 returned item-aligned without interpreting successful payloads.
 
+## Recipient Authority Flow
+
+`RecipientAuthorityResolver` is the cluster adapter for channelappend's
+post-commit recipient grouping seam. `NewRecipientAuthorityResolver` accepts the
+concrete app-wired cluster runtime, verifies only the required single-key route
+capability, and returns nil when that capability is unavailable. All optional
+batch capability probing stays private to the adapter, so the app composition
+root does not import or reinterpret `pkg/cluster` route DTOs.
+
+```text
+channelappend recipient UID page
+  -> RecipientAuthorityResolver.ResolveRecipientAuthorities
+  -> prefer RouteAuthoritiesPartial for one aligned lightweight snapshot
+  -> otherwise RouteAuthorities, RouteKeysPartial, RouteKeys, or RouteKey
+  -> map cluster route errors to channelappend route errors
+  -> convert each successful route to RecipientAuthorityTarget
+  -> preserve key-specific errors and input alignment
+```
+
+The adapter preserves physical hash slot, logical Slot, actual leader, leader
+term, config epoch, route revision, and diagnostic authority epoch. A zero
+actual leader fails closed as `channelappend.ErrRouteNotReady`; preferred leader
+metadata is not substituted for the actual elected leader. Batch result
+cardinality mismatches also fail closed. When an observer is installed, exactly
+one aggregate event records a bounded outcome, requested item count, distinct
+successful physical hash-slot target count, and duration. The common 256-slot
+target count uses a fixed bitmap and does not allocate; UID, route, Slot, and
+node identities never enter observation labels.
+
 ## User Metadata Flow
 
 `UserMetadataStore` adapts `internal/usecase/user` user/device metadata ports
@@ -788,6 +818,9 @@ other errors                                         -> channelappend.ErrAppendF
 and owner-action port to `pkg/cluster` UID routing and
 `internal/access/node` RPC. The adapter does not own gateway activation
 policy, authority conflict rules, or local session mutation rules.
+`PresenceDirectoryAuthority` is the local-side adapter from the node-local
+runtime presence directory to the fenced authority RPC contract; app only
+constructs it and injects it into the client and access adapter.
 
 ```text
 presence.Route / uid

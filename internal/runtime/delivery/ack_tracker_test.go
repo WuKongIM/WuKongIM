@@ -296,6 +296,68 @@ func TestAckTrackerFailedRefreshDoesNotDelayCommittedExpiry(t *testing.T) {
 	}
 }
 
+func TestAckTrackerExpireKeepsFreshInFlightRefresh(t *testing.T) {
+	tracker := NewAckTracker(AckTrackerOptions{ShardCount: 1, Now: func() int64 { return 200 }})
+	committed := PendingRecvAck{
+		UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 1, ChannelID: "committed", DeliveredAt: 100,
+	}
+	if !tracker.Bind(committed) {
+		t.Fatal("Bind(committed) = false")
+	}
+	staleRefresh := PendingRecvAck{
+		UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 2, ChannelID: "stale-refresh", DeliveredAt: 120,
+	}
+	stale := tracker.BindResult(staleRefresh)
+	freshRefresh := PendingRecvAck{
+		UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 3, ChannelID: "fresh-refresh", DeliveredAt: 190,
+	}
+	fresh := tracker.BindResult(freshRefresh)
+	assertDistinctAckBindTokens(t, stale, fresh)
+
+	if removed := tracker.Expire(50 * time.Second); len(removed) != 0 {
+		t.Fatalf("Expire() = %#v, want fresh in-flight refresh to protect identity", removed)
+	}
+	if got := tracker.PendingCount(); got != 1 {
+		t.Fatalf("PendingCount() = %d, want 1", got)
+	}
+	if !tracker.FinishBind(freshRefresh, fresh.Token) {
+		t.Fatal("FinishBind(fresh refresh) = false, want retained attempt committed")
+	}
+	got, ok := tracker.Ack(Recvack{UID: "u1", SessionID: 10, MessageID: 1001})
+	if !ok || got != freshRefresh {
+		t.Fatalf("Ack() = %#v, %v, want fresh metadata %#v", got, ok, freshRefresh)
+	}
+}
+
+func TestAckTrackerExpireRemovesEntryWhenAllAttemptsReachCutoff(t *testing.T) {
+	tracker := NewAckTracker(AckTrackerOptions{ShardCount: 1, Now: func() int64 { return 200 }})
+	committed := PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 1, DeliveredAt: 100}
+	if !tracker.Bind(committed) {
+		t.Fatal("Bind(committed) = false")
+	}
+	attempts := []PendingRecvAck{
+		{UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 2, DeliveredAt: 120},
+		{UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 3, DeliveredAt: 150},
+	}
+	tokens := []AckBindToken{
+		tracker.BindResult(attempts[0]).Token,
+		tracker.BindResult(attempts[1]).Token,
+	}
+
+	removed := tracker.Expire(50 * time.Second)
+	if len(removed) != 1 || removed[0] != committed {
+		t.Fatalf("Expire() = %#v, want committed metadata %#v", removed, committed)
+	}
+	if got := tracker.PendingCount(); got != 0 {
+		t.Fatalf("PendingCount() = %d, want 0", got)
+	}
+	for i := range attempts {
+		if tracker.FinishBind(attempts[i], tokens[i]) {
+			t.Fatalf("FinishBind(stale attempt %d) = true, want expiry cleanup to win", i)
+		}
+	}
+}
+
 func TestAckTrackerBatchFailedRefreshPreservesCommittedMetadata(t *testing.T) {
 	tracker := NewAckTracker(AckTrackerOptions{ShardCount: 2})
 	committed := []PendingRecvAck{

@@ -1200,8 +1200,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
-          "legendFormat": "p95 {{node_name}} {{result}}",
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "p99 {{node_name}} {{result}}",
           "refId": "A"
         }
       ],
@@ -1294,8 +1294,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_presence_endpoint_lookup_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, path, outcome, stale_retry))",
-          "legendFormat": "p95 {{node_name}} {{path}} {{outcome}} retry={{stale_retry}}",
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_presence_endpoint_lookup_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, path, outcome, stale_retry))",
+          "legendFormat": "p99 {{node_name}} {{path}} {{outcome}} retry={{stale_retry}}",
           "refId": "A"
         }
       ],
@@ -1398,8 +1398,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_ack_batch_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, phase, outcome))",
-          "legendFormat": "p95 {{node_name}} {{phase}} {{outcome}}",
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_delivery_ack_batch_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, phase, outcome))",
+          "legendFormat": "p99 {{node_name}} {{phase}} {{outcome}}",
           "refId": "A"
         }
       ],

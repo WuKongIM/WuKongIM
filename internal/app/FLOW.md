@@ -18,7 +18,8 @@ conversation authority active cache/list reads, and opt-in local online
 delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
-and protocol details stay in access packages.
+entry-protocol details stay in access packages, and concrete runtime adapters
+stay in infra packages.
 
 ## Construction Flow
 
@@ -210,8 +211,10 @@ New(Config)
        channel metadata adapter as the system UID store
   -> when Delivery.Enabled=true:
        create a cluster-backed delivery partitioner
+       create infra/delivery.LocalOwnerPusher for exact owner-local session,
+       packet, and pending-RECVACK adaptation
        when route snapshots are available, an app subscriber planner, presence
-       resolver, local/cluster delivery pusher, and partition-leader fanout router
+       resolver, cluster delivery pusher, and partition-leader fanout router
        wrap the fanout runner with a bounded in-memory retry scheduler
        create runtime/delivery Manager in bounded async mode around the runner
        attach delivery observer for metrics and async error logging
@@ -258,7 +261,7 @@ New(Config)
        create channelappend.Group with hash-sharded per-channel authority writers,
        cluster ChannelAppender, node-scoped message IDs, subscriber source,
        cluster-backed idempotency lookup when the cluster exposes it,
-       recipient authority resolver, conversation active-batch admitter,
+       infra/cluster recipient authority resolver adapter, conversation active-batch admitter,
        optional recipient delivery worker enqueuer, optional plugin/webhook
        PersistAfter enqueuers, optional plugin/webhook offline-recipient
        observers, append metrics observer, and shared append/post-commit worker
@@ -468,45 +471,14 @@ is enqueued first; active projection failures surface independently as the
 `conversation_active` post-commit phase and do not stop online delivery or later
 large-channel pages.
 Runtime fanout failures are counted with normalized delivery error classes.
-Retryable fanout failures enter
-a bounded in-memory retry scheduler with a small fixed attempt cap; retry queue
-overflow is surfaced as `queue_full`. Owner-local pushes write `RecvPacket` values through
-`online.SessionHandle.WriteDelivery`. Each owner push snapshots the immutable
-envelope payload once and reuses that snapshot across recipient packets;
-valid owner-local routes bind pending recvacks through one item-aligned batch
-before writes, so the delivery Manager and each affected AckTracker shard are
-locked and observed once instead of once per route. Each aligned result carries
-one opaque bind token, with zero identifying a rejected item. Every accepted
-attempt therefore owns an independent rollback reservation even when another
-push concurrently refreshes the same UID/session/message key. Limit-rejected routes are
-dropped before write. A one-route owner push stays on the lower-allocation
-single-bind path because batching has no lock-amortization benefit: it builds the
-packet and pending metadata, binds, and then performs its one exact local-session
-lookup. Multi-route pushes revalidate each exact active local session after
-batch binding. A missing or concurrently closed route, packet-build failure, or
-write failure rolls back only that route's token. Successful writes are
-finished in one shard-grouped batch using aligned pending/token slices and a
-fixed 512-index stack, falling back to heap storage only above that bound. The
-tracker marks the identity committed and releases the finished in-flight token.
-When metrics are enabled, the batch bind and finish stages each emit one
-aggregate observation after the tracker operation, carrying only bounded
-phase/outcome labels and numeric items, touched shards, rejected items,
-rollbacks, and duration; no route or per-item metric callback runs in the hot
-loop. The metrics registry lazily caches the bounded label combinations after
-their first use, so steady-state aggregate observations do not allocate merely
-to resolve CounterVec or HistogramVec children.
-Committed pending metadata remains stable across failed refresh attempts;
-finishing a refresh promotes that attempt's metadata, and the tracker removes a
-failed key only when no committed or concurrent in-flight attempt remains. Later
-duplicate UID/session/message keys cancel their original batch
-token and rebind immediately before writing, so an earlier duplicate write
-failure or fast Recvack cannot consume the reservation for a subsequent
-duplicate delivery. The exact local-session lookup runs after that final
-duplicate rebind as well, so a synchronous bind observer or concurrent close
-cannot leave the duplicate path writing through a stale session handle. Unique
-routes stay on the one-lock batch path;
-closed-session and outbound-overflow write errors are terminal drops, while
-unknown write errors remain retryable. The same append observer records
+Retryable fanout failures enter a bounded in-memory retry scheduler with a small
+fixed attempt cap; retry queue overflow is surfaced as `queue_full`. The
+composition root supplies `infra/delivery.LocalOwnerPusher` to that runtime and
+installs the delivery Manager before workers start. Exact owner-local session
+revalidation, recipient-specific `RecvPacket` construction, item-aligned pending
+RECVACK bind/finish/rollback, duplicate reservation refresh, write-error
+classification, and activity-throttled expiry remain inside the adapter; see
+`internal/infra/delivery/FLOW.md` for that state machine. The same append observer records
 per-message append success/error latency and classifies append failures with
 low-cardinality labels for benchmark triage, including typed Channel runtime/cluster
 errors and short append results.
@@ -514,15 +486,11 @@ errors and short append results.
 The channel append commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
-subscriber source, or the cluster Slot metadata source. When cluster exposes
-lightweight authority batch routing, the app recipient resolver resolves each
-subscriber page's sender plus unique recipient UIDs through one aligned
-`RouteAuthoritiesPartial` snapshot, preserves key-specific errors in place, and
-avoids cloning placement-only Slot peers for every UID. The legacy `RouteKeys`
-batch remains a compatibility fallback. With metrics enabled, that resolver
-emits one aggregate batch observation with a bounded outcome, requested item
-count, distinct successful physical hash-slot target count, and duration; it
-does not label or observe individual UIDs. After each recipient set is formed,
+subscriber source, or the cluster Slot metadata source. The composition root
+constructs `infra/cluster.RecipientAuthorityResolver` and supplies its optional
+aggregate metrics observer; cluster capability probing, route-error mapping,
+aligned route DTO conversion, and physical hash-slot target counting remain
+inside that adapter. After each recipient set is formed,
 channelappend groups recipients by exact physical hash-slot and logical Slot
 Raft Group authority target including leader term and config epoch, then packs
 the groups into a bounded delivery plan. The worker preserves those fences

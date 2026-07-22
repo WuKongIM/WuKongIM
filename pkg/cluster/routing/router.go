@@ -92,16 +92,7 @@ func (r *Router) RouteAuthorities(keys []string) ([]AuthorityRoute, error) {
 	if table == nil {
 		return nil, ErrRouteNotReady
 	}
-	routes := make([]AuthorityRoute, len(keys))
-	for i, key := range keys {
-		hashSlot := HashSlotForKey(key, table.HashSlotCount)
-		route, err := table.routeAuthorityHashSlot(hashSlot)
-		if err != nil {
-			return nil, fmt.Errorf("route authority key index=%d key=%q hashSlot=%d: %w", i, key, hashSlot, err)
-		}
-		routes[i] = route
-	}
-	return routes, nil
+	return table.RouteAuthorities(keys)
 }
 
 // RouteAuthoritiesPartial routes every key through one current table snapshot
@@ -115,17 +106,7 @@ func (r *Router) RouteAuthoritiesPartial(keys []string) ([]AuthorityRouteResult,
 	if table == nil {
 		return nil, ErrRouteNotReady
 	}
-	results := make([]AuthorityRouteResult, len(keys))
-	for i, key := range keys {
-		hashSlot := HashSlotForKey(key, table.HashSlotCount)
-		route, err := table.routeAuthorityHashSlot(hashSlot)
-		if err != nil {
-			results[i].Err = fmt.Errorf("route authority key index=%d key=%q hashSlot=%d: %w", i, key, hashSlot, err)
-			continue
-		}
-		results[i].Authority = route
-	}
-	return results, nil
+	return table.RouteAuthoritiesPartial(keys)
 }
 
 // RouteKeysPartial routes every key through one current table snapshot and preserves aligned failures.

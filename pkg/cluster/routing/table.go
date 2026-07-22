@@ -96,6 +96,49 @@ type SlotStatus struct {
 	LeaderTerm uint64
 }
 
+// RouteAuthorities routes keys through this immutable table snapshot and
+// returns only scalar authority fences in input order.
+func (t *Table) RouteAuthorities(keys []string) ([]AuthorityRoute, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	if t == nil {
+		return nil, ErrRouteNotReady
+	}
+	routes := make([]AuthorityRoute, len(keys))
+	for i, key := range keys {
+		hashSlot := HashSlotForKey(key, t.HashSlotCount)
+		route, err := t.routeAuthorityHashSlot(hashSlot)
+		if err != nil {
+			return nil, fmt.Errorf("route authority key index=%d key=%q hashSlot=%d: %w", i, key, hashSlot, err)
+		}
+		routes[i] = route
+	}
+	return routes, nil
+}
+
+// RouteAuthoritiesPartial routes keys through this immutable table snapshot
+// and keeps key-specific failures aligned with the input order.
+func (t *Table) RouteAuthoritiesPartial(keys []string) ([]AuthorityRouteResult, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	if t == nil {
+		return nil, ErrRouteNotReady
+	}
+	results := make([]AuthorityRouteResult, len(keys))
+	for i, key := range keys {
+		hashSlot := HashSlotForKey(key, t.HashSlotCount)
+		route, err := t.routeAuthorityHashSlot(hashSlot)
+		if err != nil {
+			results[i].Err = fmt.Errorf("route authority key index=%d key=%q hashSlot=%d: %w", i, key, hashSlot, err)
+			continue
+		}
+		results[i].Authority = route
+	}
+	return results, nil
+}
+
 // BuildTable converts a control snapshot into an immutable route table.
 func BuildTable(snapshot control.Snapshot) (*Table, error) {
 	if err := snapshot.Validate(); err != nil {

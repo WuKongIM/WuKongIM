@@ -460,7 +460,10 @@ func (t *AckTracker) SessionClosed(uid string, sessionID uint64) []PendingRecvAc
 	return removed
 }
 
-// Expire removes pending recvacks whose DeliveredAt is older than the ttl cutoff.
+// Expire removes pending recvacks whose committed and in-flight delivery
+// candidates all reach the ttl cutoff. A fresher active attempt protects the
+// identity until that attempt finishes, rolls back, or a stronger identity
+// cleanup removes it.
 func (t *AckTracker) Expire(ttl time.Duration) []PendingRecvAck {
 	if t == nil || ttl <= 0 {
 		return nil
@@ -473,7 +476,7 @@ func (t *AckTracker) Expire(ttl time.Duration) []PendingRecvAck {
 		shard.mu.Lock()
 		removedInShard := 0
 		for messageKey, entry := range shard.byMessage {
-			if entry.pending.DeliveredAt > cutoff {
+			if entry.hasDeliveryAfter(cutoff) {
 				continue
 			}
 			removed = append(removed, entry.pending)
@@ -602,6 +605,22 @@ func (e *ackTrackerEntry) removeExtraAttempt(index int) {
 
 func (e ackTrackerEntry) hasAttempts() bool {
 	return e.primary.Valid() || len(e.extraAttempts) > 0
+}
+
+// hasDeliveryAfter reports whether the committed snapshot or any active bind
+// attempt is newer than cutoff. The pending field is either the committed
+// snapshot or the allocation-free primary attempt, while extra attempts retain
+// their own tentative metadata.
+func (e ackTrackerEntry) hasDeliveryAfter(cutoff int64) bool {
+	if e.pending.DeliveredAt > cutoff {
+		return true
+	}
+	for i := range e.extraAttempts {
+		if e.extraAttempts[i].pending.DeliveredAt > cutoff {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *AckTracker) deleteSessionMessageLocked(shard *ackTrackerShard, key ackSessionKey, messageID uint64) {

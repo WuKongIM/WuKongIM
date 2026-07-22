@@ -11,6 +11,7 @@ import (
 	"time"
 
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
+	deliveryinfra "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -66,10 +67,10 @@ var cloudMediumFeedbackProfiles = []struct {
 // composition seam from channelappend post-commit recipient dispatch through:
 //
 //   - the real 256-physical-hash-slot / 10-logical-Slot routing table;
-//   - channelAppendRecipientResolver and PresenceAuthorityClient exact-target
+//   - clusterinfra.RecipientAuthorityResolver and PresenceAuthorityClient exact-target
 //     adapters over the real in-memory presence directory;
 //   - the bounded recipient delivery queue with 320 workers;
-//   - localOwnerPusher and the real pending-ACK state machine, with sessions
+//   - infra/delivery LocalOwnerPusher and the real pending-ACK state machine, with sessions
 //     returning an immediate RECVACK from inside WriteDelivery.
 //
 // The durable appender, Slot/Channel Raft, Pebble, cluster transport, gateway
@@ -304,11 +305,14 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 		return nil, fmt.Errorf("feedback fixture shape messages=%d plans=%d rows=%d onlineRoutes=%d ownerWrites=%d, want %d/%d/%d/%d/%d", messageCount, planCount, recipientRows, onlineRoutes, ownerWrites, cloudMediumFeedbackMessageCount, cloudMediumFeedbackPlanCount, cloudMediumFeedbackRecipientRows, cloudMediumFeedbackOnlineRoutes, cloudMediumFeedbackOwnerWrites)
 	}
 
-	presenceClient := clusterinfra.NewPresenceAuthorityClient(node, presenceDirectoryAuthority{directory: directory})
+	presenceClient := clusterinfra.NewPresenceAuthorityClient(node, clusterinfra.NewPresenceDirectoryAuthority(directory))
 	presenceApp := presenceusecase.New(presenceusecase.Options{Authority: presenceClient})
-	localPusher := &localOwnerPusher{online: onlineRegistry, delivery: deliveryManager}
+	localPusher := deliveryinfra.NewLocalOwnerPusher(deliveryinfra.LocalOwnerPusherOptions{
+		Online:     onlineRegistry,
+		AckManager: deliveryManager,
+	})
 	processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-		PresenceResolver:   channelAppendPresenceResolver{presence: presenceApp},
+		PresenceResolver:   deliveryinfra.NewChannelAppendPresenceResolver(presenceApp),
 		OwnerPusher:        channelAppendOwnerPusher{next: localPusher},
 		OwnerPushBatchSize: cloudMediumFeedbackRecipientBatchSize,
 	})
@@ -336,7 +340,7 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 		InboxCoalesceWindow:                   -time.Nanosecond,
 		Observer:                              observer,
 		Subscribers:                           source,
-		RecipientAuthorityResolver:            channelAppendRecipientResolver{node: node},
+		RecipientAuthorityResolver:            clusterinfra.NewRecipientAuthorityResolver(node, nil),
 		RecipientDeliveryEnqueuer:             worker,
 		SubscriberScanPageSize:                cloudMediumFeedbackRecipientBatchSize,
 		RecipientBatchSize:                    cloudMediumFeedbackRecipientBatchSize,

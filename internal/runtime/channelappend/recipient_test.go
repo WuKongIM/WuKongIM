@@ -410,6 +410,60 @@ func TestRecipientBatchesAreGroupedByRecipientAuthorityTarget(t *testing.T) {
 	}
 }
 
+func TestGroupRecipientAuthoritiesBuildsExactDisjointSlices(t *testing.T) {
+	first := recipientAuthorityTargetForTest(1, 10, 100)
+	second := recipientAuthorityTargetForTest(2, 20, 200)
+	set := normalizeRecipientsForAuthorityResolution("sender", []Recipient{
+		{UID: "u1"},
+		{UID: " "},
+		{UID: "u2"},
+		{UID: "u3"},
+	}, true)
+	targets := map[string]RecipientAuthorityTarget{
+		"sender": first,
+		"u1":     first,
+		"u2":     second,
+		"u3":     first,
+	}
+	results := make([]RecipientAuthorityResult, len(set.authorityUIDs))
+	for index, uid := range set.authorityUIDs {
+		results[index].Target = targets[uid]
+	}
+
+	grouping, err := groupRecipientAuthorities(set, results, "sender")
+	if err != nil {
+		t.Fatalf("groupRecipientAuthorities() error = %v", err)
+	}
+	if len(grouping.groups) != 2 {
+		t.Fatalf("authority groups = %d, want 2", len(grouping.groups))
+	}
+
+	firstGroup := grouping.groups[0]
+	secondGroup := grouping.groups[1]
+	if got := recipientUIDs(firstGroup.recipients); !reflect.DeepEqual(got, []string{"u1", "u3"}) {
+		t.Fatalf("first delivery group = %#v, want exact non-empty u1,u3", got)
+	}
+	if got := recipientUIDs(secondGroup.recipients); !reflect.DeepEqual(got, []string{"u2"}) {
+		t.Fatalf("second delivery group = %#v, want exact non-empty u2", got)
+	}
+	if len(firstGroup.recipients) != 2 || cap(firstGroup.recipients) != 2 ||
+		len(secondGroup.recipients) != 1 || cap(secondGroup.recipients) != 1 {
+		t.Fatalf("delivery slice len/cap = first %d/%d second %d/%d, want 2/2 and 1/1",
+			len(firstGroup.recipients), cap(firstGroup.recipients), len(secondGroup.recipients), cap(secondGroup.recipients))
+	}
+	if got := activeRecipientUIDsForTarget(ConversationActiveTargetBatch{Batch: conversationactive.ActiveBatch{Recipients: firstGroup.activeRecipients}}); !reflect.DeepEqual(got, []string{"u1", "u3"}) {
+		t.Fatalf("first active group = %#v, want exact non-empty u1,u3", got)
+	}
+	if got := activeRecipientUIDsForTarget(ConversationActiveTargetBatch{Batch: conversationactive.ActiveBatch{Recipients: secondGroup.activeRecipients}}); !reflect.DeepEqual(got, []string{"u2"}) {
+		t.Fatalf("second active group = %#v, want exact non-empty u2", got)
+	}
+	if len(firstGroup.activeRecipients) != 2 || cap(firstGroup.activeRecipients) != 2 ||
+		len(secondGroup.activeRecipients) != 1 || cap(secondGroup.activeRecipients) != 1 {
+		t.Fatalf("active slice len/cap = first %d/%d second %d/%d, want 2/2 and 1/1",
+			len(firstGroup.activeRecipients), cap(firstGroup.activeRecipients), len(secondGroup.activeRecipients), cap(secondGroup.activeRecipients))
+	}
+}
+
 func TestRecipientDeliveryBatchesAreEnqueuedByRecipientAuthorityTarget(t *testing.T) {
 	enqueuer := &recordingRecipientDeliveryEnqueuerForRecipientTest{}
 	target10 := recipientAuthorityTargetForTest(1, 10, 100)

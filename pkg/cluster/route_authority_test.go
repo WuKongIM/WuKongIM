@@ -19,7 +19,7 @@ var (
 func TestWatchRouteAuthoritiesReceivesLeadershipChange(t *testing.T) {
 	node := &Node{cfg: Config{NodeID: 1}}
 	watch := node.WatchRouteAuthorities()
-	node.publishRouteAuthority(RouteAuthority{
+	node.dispatchRouteAuthority(RouteAuthority{
 		HashSlot:       7,
 		SlotID:         2,
 		LeaderNodeID:   1,
@@ -102,6 +102,112 @@ func TestNodeRouteAuthoritiesAddLocalEpochs(t *testing.T) {
 	}
 	if got := authorities[1]; got.HashSlot != 0 || got.AuthorityEpoch != 7 {
 		t.Fatalf("second authority = %#v, want physical hash slot 0 with local epoch 7", got)
+	}
+}
+
+func TestNodeRouteAuthoritiesKeepRouteAndLocalEpochFromOnePublishedSnapshot(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(10)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.publishRouteAuthorityChanges(nil)
+	node.started.Store(true)
+	key := keyForNodeHashSlot(t, 2, 0)
+
+	// Reproduce the exact publication window: the foreground Router has already
+	// observed a new Raft authority, while the Node-local observation epoch has
+	// not yet been advanced by publishRouteAuthorityChanges.
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
+
+	authorities, err := node.RouteAuthorities([]string{key})
+	if err != nil {
+		t.Fatalf("RouteAuthorities() error = %v", err)
+	}
+	if got := authorities[0]; got.LeaderNodeID != 1 || got.LeaderTerm != 9 || got.AuthorityEpoch != 1 {
+		t.Fatalf("RouteAuthorities() authority = %#v, want last complete publication leader=1 term=9 epoch=1", got)
+	}
+
+	partial, err := node.RouteAuthoritiesPartial([]string{key})
+	if err != nil {
+		t.Fatalf("RouteAuthoritiesPartial() error = %v", err)
+	}
+	if got := partial[0]; got.Err != nil || got.Authority.LeaderNodeID != 1 || got.Authority.LeaderTerm != 9 || got.Authority.AuthorityEpoch != 1 {
+		t.Fatalf("RouteAuthoritiesPartial() result = %#v, want last complete publication leader=1 term=9 epoch=1", got)
+	}
+
+	node.publishRouteAuthorityChanges(routeAuthorityTableWithIdentity(10, 9, 1))
+	authorities, err = node.RouteAuthorities([]string{key})
+	if err != nil {
+		t.Fatalf("RouteAuthorities() after publish error = %v", err)
+	}
+	if got := authorities[0]; got.LeaderNodeID != 2 || got.LeaderTerm != 10 || got.AuthorityEpoch != 2 {
+		t.Fatalf("RouteAuthorities() after publish authority = %#v, want leader=2 term=10 epoch=2", got)
+	}
+}
+
+func TestNodeRouteAuthoritiesDoNotPairOldRouteWithUnpublishedNewEpoch(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(10)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.publishRouteAuthorityChanges(nil)
+	node.started.Store(true)
+	key := keyForNodeHashSlot(t, 2, 0)
+
+	// Reproduce the other half of the former split read: an in-flight caller
+	// could retain the old Router table while a publisher advanced the mutable
+	// epoch map before that caller acquired n.mu to fill AuthorityEpoch.
+	if got := node.nextAuthorityEpoch(0, 1); got != 2 {
+		t.Fatalf("nextAuthorityEpoch() = %d, want unpublished epoch 2", got)
+	}
+	authorities, err := node.RouteAuthorities([]string{key})
+	if err != nil {
+		t.Fatalf("RouteAuthorities() error = %v", err)
+	}
+	if got := authorities[0]; got.LeaderNodeID != 1 || got.LeaderTerm != 9 || got.AuthorityEpoch != 1 {
+		t.Fatalf("RouteAuthorities() authority = %#v, want last complete publication leader=1 term=9 epoch=1", got)
+	}
+}
+
+func TestNodeRouteAuthorityPublicationUsesLastPublishedBaselineWhenPublishersOverlap(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(10)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.publishRouteAuthorityChanges(nil)
+	node.started.Store(true)
+	watch := node.WatchRouteAuthorities()
+	key := keyForNodeHashSlot(t, 2, 0)
+
+	// Publisher A observes the old route and is delayed before publication.
+	publisherABefore := node.router.Table()
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
+
+	// Publisher B starts after the new route is already installed. An identical
+	// leader observation replaces the Router table without changing its route
+	// identity, then B reaches publication before A.
+	publisherBBefore := node.router.Table()
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
+	node.publishRouteAuthorityChanges(publisherBBefore)
+
+	first := receiveRouteAuthorityEvent(t, watch)
+	assertRouteAuthorityEventIdentity(t, first, routeAuthorityWant{leaderTerm: 10, configEpoch: 1, authorityEpoch: 2})
+	authorities, err := node.RouteAuthorities([]string{key})
+	if err != nil {
+		t.Fatalf("RouteAuthorities() error = %v", err)
+	}
+	if got := authorities[0]; got.LeaderNodeID != 2 || got.LeaderTerm != 10 || got.AuthorityEpoch != 2 {
+		t.Fatalf("RouteAuthorities() authority = %#v, want complete leader=2 term=10 epoch=2 publication", got)
+	}
+
+	// Delayed publisher A must recognize that B already published the identity.
+	node.publishRouteAuthorityChanges(publisherABefore)
+	assertNoRouteAuthorityEvent(t, watch)
+	if got := node.routeAuthorityEpochs[0]; got != 2 {
+		t.Fatalf("authority epoch = %d, want overlapping duplicate to keep epoch 2", got)
 	}
 }
 
@@ -196,50 +302,63 @@ func TestRouteAuthorityEpochStaysStableForRevisionOnlyUpdate(t *testing.T) {
 		t.Fatalf("UpdateControlSnapshot() error = %v", err)
 	}
 	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
-	node.routeAuthorityEpochs[0] = 1
-	node.routeAuthorityEpochs[1] = 1
+	node.publishRouteAuthorityChanges(nil)
+	node.started.Store(true)
+	watch := node.WatchRouteAuthorities()
+	key := keyForNodeHashSlot(t, 2, 0)
 
-	changes := node.routeAuthorityChanges(node.router.Table(), routeAuthorityTable(2))
-	if len(changes) != 2 {
-		t.Fatalf("changes len = %d, want 2", len(changes))
+	before := node.router.Table()
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(2)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() revision-only error = %v", err)
 	}
-	for _, got := range changes {
-		if got.LeaderNodeID != 1 || got.LeaderTerm != 9 || got.ConfigEpoch != 1 || got.RouteRevision != 2 || got.AuthorityEpoch != 1 {
-			t.Fatalf("authority = %#v, want stable epoch 1 for revision-only update", got)
-		}
+	node.publishRouteAuthorityChanges(before)
+
+	assertNoRouteAuthorityEvent(t, watch)
+	authorities, err := node.RouteAuthorities([]string{key})
+	if err != nil {
+		t.Fatalf("RouteAuthorities() error = %v", err)
+	}
+	if got := authorities[0]; got.LeaderNodeID != 1 || got.LeaderTerm != 9 || got.ConfigEpoch != 1 || got.RouteRevision != 2 || got.AuthorityEpoch != 1 {
+		t.Fatalf("authority = %#v, want revision 2 with stable epoch 1", got)
 	}
 }
 
 func TestRouteAuthorityEpochIncrementsWhenLeaderTermChanges(t *testing.T) {
-	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{0: 1, 1: 1}}
-	before := routeAuthorityTableWithIdentity(1, 9, 1)
-	after := routeAuthorityTableWithIdentity(1, 10, 1)
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.publishRouteAuthorityChanges(nil)
+	watch := node.WatchRouteAuthorities()
 
-	changes := node.routeAuthorityChanges(before, after)
-	if len(changes) != 2 {
-		t.Fatalf("changes len = %d, want 2", len(changes))
-	}
-	for _, got := range changes {
-		if got.LeaderTerm != 10 || got.ConfigEpoch != 1 || got.AuthorityEpoch != 2 {
-			t.Fatalf("authority = %#v, want term 10 epoch 2", got)
-		}
-	}
+	before := node.router.Table()
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 10}})
+	node.publishRouteAuthorityChanges(before)
+
+	event := receiveRouteAuthorityEvent(t, watch)
+	assertRouteAuthorityEventIdentity(t, event, routeAuthorityWant{leaderTerm: 10, configEpoch: 1, authorityEpoch: 2})
 }
 
 func TestRouteAuthorityEpochIncrementsWhenConfigEpochChanges(t *testing.T) {
-	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{0: 1, 1: 1}}
-	before := routeAuthorityTableWithIdentity(1, 9, 1)
-	after := routeAuthorityTableWithIdentity(2, 9, 2)
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.publishRouteAuthorityChanges(nil)
+	watch := node.WatchRouteAuthorities()
 
-	changes := node.routeAuthorityChanges(before, after)
-	if len(changes) != 2 {
-		t.Fatalf("changes len = %d, want 2", len(changes))
+	before := node.router.Table()
+	next := routeAuthoritySnapshot(2)
+	next.Slots[0].ConfigEpoch = 2
+	if err := node.router.UpdateControlSnapshot(next); err != nil {
+		t.Fatalf("UpdateControlSnapshot() config epoch error = %v", err)
 	}
-	for _, got := range changes {
-		if got.LeaderTerm != 9 || got.ConfigEpoch != 2 || got.AuthorityEpoch != 2 {
-			t.Fatalf("authority = %#v, want config epoch 2 authority epoch 2", got)
-		}
-	}
+	node.publishRouteAuthorityChanges(before)
+
+	event := receiveRouteAuthorityEvent(t, watch)
+	assertRouteAuthorityEventIdentity(t, event, routeAuthorityWant{leaderTerm: 9, configEpoch: 2, authorityEpoch: 2})
 }
 
 func TestApplySnapshotPublishesChangedRouteAuthority(t *testing.T) {
@@ -362,12 +481,14 @@ func TestApplySnapshotSkipsDuplicatePostReconcileAuthority(t *testing.T) {
 		close(reconciler.unblock)
 		t.Fatal("slot reconciler did not enter Reconcile")
 	}
+	preReconcileEvent := receiveRouteAuthorityEvent(t, watch)
+	assertRouteAuthorityEventIdentity(t, preReconcileEvent, routeAuthorityWant{leaderTerm: 9, configEpoch: 2, authorityEpoch: 1})
 
 	beforePoll := node.router.Table()
 	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 10}})
-	node.publishRouteAuthority(node.routeAuthorityChanges(beforePoll, node.router.Table())...)
+	node.publishRouteAuthorityChanges(beforePoll)
 	pollEvent := receiveRouteAuthorityEvent(t, watch)
-	assertRouteAuthorityEventIdentity(t, pollEvent, routeAuthorityWant{leaderTerm: 10, configEpoch: 2, authorityEpoch: 1})
+	assertRouteAuthorityEventIdentity(t, pollEvent, routeAuthorityWant{leaderTerm: 10, configEpoch: 2, authorityEpoch: 2})
 
 	close(reconciler.unblock)
 	if err := <-done; err != nil {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	infracluster "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
+	infradelivery "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -271,7 +272,7 @@ func newProductionRecipientBenchmarkFixture(tb testing.TB) productionRecipientBe
 
 	presenceClient := infracluster.NewPresenceAuthorityClient(
 		presenceNode,
-		presenceDirectoryAuthority{directory: directory},
+		infracluster.NewPresenceDirectoryAuthority(directory),
 	)
 	presenceApp := presenceusecase.New(presenceusecase.Options{Authority: presenceClient})
 	deliveryManager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
@@ -280,9 +281,12 @@ func newProductionRecipientBenchmarkFixture(tb testing.TB) productionRecipientBe
 			MaxPendingPerSession: 1024,
 		}),
 	})
-	ownerPusher := &localOwnerPusher{online: registry, delivery: deliveryManager}
+	ownerPusher := infradelivery.NewLocalOwnerPusher(infradelivery.LocalOwnerPusherOptions{
+		Online:     registry,
+		AckManager: deliveryManager,
+	})
 	processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-		PresenceResolver: channelAppendPresenceResolver{presence: presenceApp},
+		PresenceResolver: infradelivery.NewChannelAppendPresenceResolver(presenceApp),
 		OwnerPusher: channelAppendOwnerPusher{
 			next: ownerPusher,
 		},

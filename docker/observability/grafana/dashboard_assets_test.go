@@ -750,13 +750,14 @@ func TestRuntimeOpsDashboardIncludesRecipientPipelinePanels(t *testing.T) {
 		byTitle[item.Title] = item
 	}
 	want := []struct {
-		title        string
-		id           int
-		x, y         int
-		unit         string
-		counterGroup string
-		latencyGroup string
-		metrics      []string
+		title         string
+		id            int
+		x, y          int
+		unit          string
+		counterGroup  string
+		latencyGroup  string
+		latencyLegend string
+		metrics       []string
 	}{
 		{
 			title: "Recipient Authority Resolution Work", id: 18, x: 0, y: 72, unit: "ops",
@@ -769,8 +770,9 @@ func TestRuntimeOpsDashboardIncludesRecipientPipelinePanels(t *testing.T) {
 		},
 		{
 			title: "Recipient Authority Resolution Latency", id: 19, x: 12, y: 72, unit: "s",
-			latencyGroup: "by (le, node_name, result)",
-			metrics:      []string{"wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket"},
+			latencyGroup:  "by (le, node_name, result)",
+			latencyLegend: "p99 {{node_name}} {{result}}",
+			metrics:       []string{"wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket"},
 		},
 		{
 			title: "Presence Endpoint Lookup Work", id: 20, x: 0, y: 80, unit: "ops",
@@ -783,8 +785,9 @@ func TestRuntimeOpsDashboardIncludesRecipientPipelinePanels(t *testing.T) {
 		},
 		{
 			title: "Presence Endpoint Lookup Latency", id: 21, x: 12, y: 80, unit: "s",
-			latencyGroup: "by (le, node_name, path, outcome, stale_retry)",
-			metrics:      []string{"wukongim_presence_endpoint_lookup_duration_seconds_bucket"},
+			latencyGroup:  "by (le, node_name, path, outcome, stale_retry)",
+			latencyLegend: "p99 {{node_name}} {{path}} {{outcome}} retry={{stale_retry}}",
+			metrics:       []string{"wukongim_presence_endpoint_lookup_duration_seconds_bucket"},
 		},
 		{
 			title: "ACK Batch Work", id: 22, x: 0, y: 88, unit: "ops",
@@ -799,8 +802,9 @@ func TestRuntimeOpsDashboardIncludesRecipientPipelinePanels(t *testing.T) {
 		},
 		{
 			title: "ACK Batch Latency", id: 23, x: 12, y: 88, unit: "s",
-			latencyGroup: "by (le, node_name, phase, outcome)",
-			metrics:      []string{"wukongim_delivery_ack_batch_duration_seconds_bucket"},
+			latencyGroup:  "by (le, node_name, phase, outcome)",
+			latencyLegend: "p99 {{node_name}} {{phase}} {{outcome}}",
+			metrics:       []string{"wukongim_delivery_ack_batch_duration_seconds_bucket"},
 		},
 	}
 	for _, expected := range want {
@@ -850,8 +854,11 @@ func TestRuntimeOpsDashboardIncludesRecipientPipelinePanels(t *testing.T) {
 					t.Errorf("panel %q query for %s is not a summed rate: %s", expected.title, metric, target.Expr)
 				}
 				if strings.Contains(metric, "duration_seconds") {
-					if !strings.Contains(target.Expr, "histogram_quantile(0.95") || !strings.Contains(target.Expr, expected.latencyGroup) {
-						t.Errorf("panel %q latency query for %s lacks p95 or bounded grouping %q: %s", expected.title, metric, expected.latencyGroup, target.Expr)
+					if !strings.Contains(target.Expr, "histogram_quantile(0.99") || !strings.Contains(target.Expr, expected.latencyGroup) {
+						t.Errorf("panel %q latency query for %s lacks p99 or bounded grouping %q: %s", expected.title, metric, expected.latencyGroup, target.Expr)
+					}
+					if target.LegendFormat != expected.latencyLegend {
+						t.Errorf("panel %q latency legend = %q, want %q", expected.title, target.LegendFormat, expected.latencyLegend)
 					}
 				} else if !strings.Contains(target.Expr, expected.counterGroup) {
 					t.Errorf("panel %q counter query for %s lacks bounded grouping %q: %s", expected.title, metric, expected.counterGroup, target.Expr)

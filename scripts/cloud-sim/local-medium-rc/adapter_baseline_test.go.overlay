@@ -1,0 +1,56 @@
+package app
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+)
+
+type localMediumRCBaselineAdapter struct {
+	resolver channelAppendRecipientResolver
+	pusher   channelappend.OwnerPusher
+	last     map[string]channelappend.RecipientAuthorityTarget
+}
+
+func newLocalMediumRCRevisionAdapter(
+	node *localMediumRCNode,
+	registry *online.Registry,
+	delivery *runtimedelivery.Manager,
+) localMediumRCRevisionAdapter {
+	// The baseline resolver selects node.RouteKeys and therefore retains the
+	// full Route/Peers clone cost that existed in the baseline production path.
+	return &localMediumRCBaselineAdapter{
+		resolver: channelAppendRecipientResolver{node: node},
+		pusher: channelAppendOwnerPusher{next: &localOwnerPusher{
+			online:   registry,
+			delivery: delivery,
+		}},
+	}
+}
+
+func (*localMediumRCBaselineAdapter) Variant() string { return "baseline" }
+
+func (a *localMediumRCBaselineAdapter) ResolveAuthorities(ctx context.Context, uids []string) error {
+	targets, err := a.resolver.ResolveRecipientAuthorities(ctx, uids)
+	if err != nil {
+		return err
+	}
+	a.last = targets
+	return nil
+}
+
+func (a *localMediumRCBaselineAdapter) ValidateAuthorities(uids []string) (localMediumRCAuthoritySummary, error) {
+	if len(a.last) != len(uids) {
+		return localMediumRCAuthoritySummary{}, fmt.Errorf("baseline native authority result count = %d, want %d", len(a.last), len(uids))
+	}
+	return summarizeLocalMediumRCAuthorities(uids, func(_ int, uid string) (channelappend.RecipientAuthorityTarget, error) {
+		return a.last[uid], nil
+	})
+}
+
+func (a *localMediumRCBaselineAdapter) OwnerPusher() channelappend.OwnerPusher {
+	return a.pusher
+}

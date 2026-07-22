@@ -113,7 +113,7 @@ type App struct {
 	deliveryManager  *runtimedelivery.Manager
 	deliveryRetry    *runtimedelivery.RetryScheduler
 	deliveryWorker   WorkerRuntime
-	localOwnerPusher *localOwnerPusher
+	localOwnerPusher runtimedelivery.Pusher
 	// seedJoinLoop retries pre-membership JoinNode RPCs and gates entry startup until admission is observed.
 	seedJoinLoop                seedJoinRuntime
 	conversationRouteLifecycle  WorkerRuntime
@@ -707,11 +707,6 @@ type nodeRPCRegistrar interface {
 	RegisterRPC(uint8, cluster.NodeRPCHandler)
 }
 
-type presenceDirectoryAuthority struct {
-	// directory stores authoritative virtual routes for locally led hash slots.
-	directory *authoritypresence.Directory
-}
-
 type presenceOwnerActions struct {
 	// local stores real sessions owned by this node.
 	local presenceOwnerLocalRegistry
@@ -748,76 +743,6 @@ func (p activationTimeoutPresence) Touch(ctx context.Context, cmd presence.Touch
 		return nil
 	}
 	return p.next.Touch(ctx, cmd)
-}
-
-func (a presenceDirectoryAuthority) RegisterRoute(ctx context.Context, target presence.RouteTarget, route presence.Route) (presence.RegisterResult, error) {
-	if err := ctx.Err(); err != nil {
-		return presence.RegisterResult{}, err
-	}
-	return a.directory.RegisterRoute(target, route)
-}
-
-func (a presenceDirectoryAuthority) CommitRoute(ctx context.Context, target presence.RouteTarget, token string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return a.directory.CommitRoute(target, presence.PendingRouteToken(token))
-}
-
-func (a presenceDirectoryAuthority) AbortRoute(ctx context.Context, target presence.RouteTarget, token string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return a.directory.AbortRoute(target, presence.PendingRouteToken(token))
-}
-
-func (a presenceDirectoryAuthority) UnregisterRoute(ctx context.Context, target presence.RouteTarget, identity presence.RouteIdentity, ownerSeq uint64) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return a.directory.UnregisterRoute(target, identity, ownerSeq)
-}
-
-func (a presenceDirectoryAuthority) EndpointsByUID(ctx context.Context, target presence.RouteTarget, uid string) ([]presence.Route, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return a.directory.EndpointsByUID(target, uid)
-}
-
-func (a presenceDirectoryAuthority) EndpointsByUIDs(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return a.directory.EndpointsByUIDs(target, uids)
-}
-
-func (a presenceDirectoryAuthority) EndpointsByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		results := make([]presence.EndpointLookupResult, len(groups))
-		for i := range results {
-			results[i].Err = err
-		}
-		return results
-	}
-	if a.directory == nil {
-		results := make([]presence.EndpointLookupResult, len(groups))
-		for i := range results {
-			results[i].Err = authoritypresence.ErrRouteNotReady
-		}
-		return results
-	}
-	return a.directory.EndpointsByTargets(groups)
-}
-
-func (a presenceDirectoryAuthority) TouchRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return a.directory.TouchRoutes(target, routes)
 }
 
 func (a presenceOwnerActions) ApplyRouteAction(ctx context.Context, action presence.RouteAction) error {

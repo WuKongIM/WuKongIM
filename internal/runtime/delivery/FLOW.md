@@ -119,7 +119,11 @@ Recvack flow:
 5. `Manager.Recvack` calls `AckTracker.Ack` and clears the owner-local pending
    state for matched entries.
 6. `Manager.SessionClosed` or `Manager.ExpirePendingAcks` cleans pending
-   entries that no longer have a live client ack path.
+   entries that no longer have a live client ack path. Expiry compares the TTL
+   cutoff with both the committed snapshot and every active bind attempt. A
+   fresh in-flight refresh therefore protects the identity until it finishes
+   or rolls back, while an identity whose committed and tentative delivery
+   timestamps all reach the cutoff is still removed together with its tokens.
 7. Each single mutation emits one bounded `AckEvent`; a batch bind emits one
    aggregate event with the batch's added count and final owner-local pending
    count. Token rollback emits one bounded event and changes the gauge only when

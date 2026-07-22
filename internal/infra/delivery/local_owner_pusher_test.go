@@ -1,9 +1,10 @@
-package app
+package delivery
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +14,63 @@ import (
 	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 )
+
+type localOwnerPusher = LocalOwnerPusher
+
+type localOwnerPusherAckObserver struct {
+	mu          sync.Mutex
+	events      []runtimedelivery.AckEvent
+	batchEvents []runtimedelivery.AckBatchEvent
+}
+
+func (o *localOwnerPusherAckObserver) ObserveAckBatch(event runtimedelivery.AckBatchEvent) {
+	o.mu.Lock()
+	o.batchEvents = append(o.batchEvents, event)
+	o.mu.Unlock()
+}
+
+func (o *localOwnerPusherAckObserver) BatchEvents() []runtimedelivery.AckBatchEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]runtimedelivery.AckBatchEvent(nil), o.batchEvents...)
+}
+
+func (o *localOwnerPusherAckObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	o.mu.Lock()
+	o.events = append(o.events, event)
+	o.mu.Unlock()
+}
+
+func (o *localOwnerPusherAckObserver) ActionCount(action string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	count := 0
+	for _, event := range o.events {
+		if event.Action == action {
+			count++
+		}
+	}
+	return count
+}
+
+type deliveryMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+func (o deliveryMetricsObserver) ObserveAckBatch(event runtimedelivery.AckBatchEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObserveAckBatch(
+		event.Phase,
+		event.Outcome,
+		event.Items,
+		event.Shards,
+		event.Rejected,
+		event.Rollback,
+		event.Duration,
+	)
+}
 
 func TestLocalOwnerPusherBatchesAckObservationAndCleansOnlyFailedWrites(t *testing.T) {
 	registry := online.NewRegistry(online.RegistryOptions{ShardCount: 4})

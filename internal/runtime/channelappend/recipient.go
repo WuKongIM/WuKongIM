@@ -497,6 +497,7 @@ func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []Re
 			continue
 		}
 		end := recipientOffset + count
+		// Reserve an empty, group-capped window so appends fill only this group's range.
 		grouping.groups[index].recipients = recipientStorage[recipientOffset:recipientOffset:end]
 		recipientOffset = end
 	}
@@ -514,6 +515,7 @@ func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []Re
 				continue
 			}
 			end := activeOffset + count
+			// Keep active groups disjoint while sharing one allocation.
 			grouping.groups[index].activeRecipients = activeStorage[activeOffset:activeOffset:end]
 			activeOffset = end
 		}

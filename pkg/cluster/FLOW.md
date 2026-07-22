@@ -126,8 +126,21 @@ failure. The lightweight authority variants preserve those all-or-error and
 aligned-partial contracts while omitting placement-only `PreferredLeader` and
 `Peers`; their Node result carries only scalar fences and therefore does not
 clone replica slices per UID. These batch APIs let upper layers resolve UID
-authorities without repeatedly loading the foreground route table. Real
-publication paths remember
+authorities without repeatedly loading the foreground route table.
+Node authority reads use one immutable publication that binds the Raft route
+table and all physical hash-slot local observation epochs. A Router update may
+therefore become visible to other routing paths before its authority event is
+published, but `RouteAuthorities` and `RouteAuthoritiesPartial` keep returning
+the previous complete `(route fences, AuthorityEpoch)` view until the new view
+is atomically published; they never combine an old route with a new local epoch
+or a new route with an old local epoch. The published epoch vector is sized by
+the configured physical hash-slot table (normally 256) and does not change the
+control-plane logical Slot count (normally 10). Every production Router mutation
+that changes control routes, observed Slot
+leaders, or route revision is serialized with authority-loss cache cleanup and
+publication. A local-to-remote-to-local transition therefore cannot be hidden
+by out-of-order publishers, and message-event stream cache entries are removed
+at the exact transition that loses local authority. Real publication paths remember
 the last distributed identity published per hash slot and suppress duplicate
 events for the same `(SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`, so a
 local `AuthorityEpoch` is not manufactured for already-published identities.
@@ -172,7 +185,7 @@ Start(ctx)
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local Channel runtime resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when Channel runtime placement candidates are stale, verifies Channel runtime has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local Channel runtime data-plane lease after the probe succeeds.
 
 Before the bounded write probes, the Node-created default Slot runtime captures
-one control/route revision and validates every physical Slot runtime involved in
+one control/route revision and validates every logical Slot Raft Group runtime involved in
 that view. All locally assigned replicas, including followers, must return a
 local status that agrees with the routed leader. Slots led remotely are queried
 in one `RPCSlotStatus` batch per expected leader, and each response must contain
@@ -186,7 +199,7 @@ with the Node-created default Slot runtime.
 
 For the Node-created default Slot runtime, `SlotsReady` is re-evaluated by the
 10ms Slot leader observation loop against the current control snapshot. Every
-physical Slot whose `DesiredPeers` contains the local node must return a
+logical Slot Raft Group whose `DesiredPeers` contains the local node must return a
 successful local runtime status; an unknown `LeaderID=0` still counts as a
 healthy opened runtime because leader availability is checked separately by
 routing and `ProbeWriteReady`. Missing unassigned runtimes are ignored, and a
