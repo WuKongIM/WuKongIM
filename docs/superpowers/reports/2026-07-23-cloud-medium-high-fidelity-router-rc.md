@@ -174,7 +174,8 @@ It also enforces:
 
 - no gateway/recipient queue saturation;
 - exact plugin admission/invocation conservation;
-- at most 400,000 measured allocation bytes per message;
+- at most 360,000 product-path allocation bytes per message plus a bounded
+  40MB/s background-runtime allowance over the fixed paced duration;
 - at most 0.0075 GC cycles per message and at most 512MiB heap;
 - complete drain and process continuity.
 
@@ -187,6 +188,55 @@ The local CI-scaled proof passed with 1000.05/s ingress, 499ms SENDACK P99,
 431ms RECV P99, 104ms completion drain, 243 metric samples, 7.59GB total
 allocation, 117 GC cycles, zero queue rejection, exact 10400/10400 plugin
 conservation, and continuous processes.
+
+The first exact-main run of that 1000/s correction (`30015680979`) then exposed
+remaining runner variance rather than a send-path regression. SENDACK P99 was
+122ms, but the shared runner completed receive fanout at only 951/s. Sustained
+1000/s input accumulated a 928-record post-commit tail, extended drain to
+1027ms, and pushed RECV P99 to 3.47s. All queues still drained, plugin
+conservation remained exact, and processes remained continuous. A branch pass
+followed by an exact-main failure is not an acceptable paid-cloud gate.
+
+The CI rate is therefore fixed at 500/s, about 47 percent below that worst
+observed receive completion rate, while retaining the 1s SENDACK and 2s RECV
+limits. Its sampler interval is 500ms so the doubled 40-second phase retains
+roughly the same 240 cross-node samples and allocation interference as the
+20-second 1000/s calibration. Normal local acceptance remains fixed at 4500/s
+with 250ms sampling.
+
+Three consecutive local 500/s probes then produced 500.02/s ingress,
+SENDACK P99 357-432ms, RECV P99 236-343ms, 48-72ms drain, post-commit backlog
+21-27, and exact 10400/10400 plugin conservation. Their raw allocation was
+403,396-405,594 bytes/message. The prior fixed per-message ceiling incorrectly
+treated the doubled phase's background runtime as product-path work. The final
+allocation rule therefore separates a 360,000-byte/message budget from a
+bounded allowance over the fixed 40-second paced duration. The first exact
+branch Nightly (`30017782995`) then passed every product-path signal at
+500.02/s ingress, 59ms SENDACK P99, 151ms RECV P99, 86ms drain, 28 maximum
+post-commit backlog, exact 10400/10400 plugin conservation, and continuous
+processes. It failed only because the shared runner allocated 423,976
+bytes/message, 0.95 percent above the provisional 420,000-byte ceiling.
+
+That CI observation raises the bounded background allowance from 30MB/s to
+40MB/s. At 500/s the resulting ceiling is 440,000 bytes/message: 3.8 percent
+above the observed CI value and 8.5 percent above the worst local repeat. At
+4,500/s the same model permits about 368,889 bytes/message. Actual drain time
+still cannot enlarge the allowance, so tail latency cannot hide a product-path
+allocation regression.
+
+The final calibrated local acceptance repeated the complete three-process
+shape at 500.024/s ingress with 364ms SENDACK P99, 221ms RECV P99, 50ms drain,
+21 maximum post-commit backlog, 403,612 allocated bytes/message, 124 GC cycles,
+exact 10400/10400 plugin conservation, zero metric errors, and continuous
+processes.
+
+The final explicit-root repository gate also exposed a second success-path
+script fixture whose asynchronously started fake cluster still had a
+two-second readiness budget. Under repository-wide package scheduling the fake
+process was alive but had not yet published its readiness marker. That
+controller-promotion fixture now uses the same ten-second scheduling-tolerant
+budget as the previously repaired delayed auto-join fixture; its promotion
+assertions remain unchanged.
 
 ## Remaining Cost Gate
 

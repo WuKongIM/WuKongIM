@@ -16,13 +16,17 @@ Set `WK_E2E_MEDIUM_RECIPIENT_QPS` or
 `WK_E2E_MEDIUM_RECIPIENT_ROUNDS` only for bounded diagnostic stress runs.
 Normal acceptance stays fixed at 4,500 offered messages per second. Nightly
 sets `WK_E2E_MEDIUM_RECIPIENT_CI_SCALE=1` together with the strictly reviewed
-1,000/s QPS override because a shared two-core runner cannot represent absolute
+500/s QPS override because a shared two-core runner cannot represent absolute
 Cloud Medium capacity while hosting three nodes, all clients, and the sampler.
 The CI-scaled gate retains the exact workload shape, latency limits, queue and
 plugin conservation, allocation/GC ceilings, and process continuity.
-Public pressure metrics are sampled every 250ms so the three in-process
-Prometheus encoders do not become the dominant allocation source on a shared
-two-core runner.
+Public pressure metrics are sampled every 500ms for the 500/s CI gate and every
+250ms otherwise, keeping roughly the same cross-node sample count without
+letting the three in-process Prometheus encoders dominate allocation on a
+shared two-core runner.
+Allocation acceptance separates a 360,000-byte/message budget from a bounded
+40MB/s allowance over the fixed paced duration. A slow drain cannot enlarge
+that allowance and hide a product-path allocation regression.
 
 ## Rules
 

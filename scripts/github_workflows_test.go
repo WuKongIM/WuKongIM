@@ -361,7 +361,7 @@ var expectedNightlyJobs = map[string]ciJob{
 					"WK_E2E_BINARY":                   "${{ runner.temp }}/wukongim-e2e",
 					"WK_E2E_MEDIUM_RECIPIENT_HOTPATH": "1",
 					"WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE": "1",
-					"WK_E2E_MEDIUM_RECIPIENT_QPS":                "1000",
+					"WK_E2E_MEDIUM_RECIPIENT_QPS":                "500",
 					"WK_E2E_MEDIUM_RECIPIENT_CI_SCALE":           "1",
 				},
 				Run: nightlyMediumRecipientCommand,

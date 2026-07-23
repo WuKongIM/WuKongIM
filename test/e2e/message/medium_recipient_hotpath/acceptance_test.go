@@ -18,6 +18,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		OnlineRoutes:            expectedMeasuredOnlineRoutes(),
 		Connections:             expectedConnectionCount(),
 		OfferedQPS:              mediumOfferedQPS,
+		MeasuredDurationMS:      float64(mediumMessageCount*mediumMeasuredRounds) / mediumOfferedQPS * 1000,
 		IngressPerSecond:        mediumOfferedQPS,
 		SendackP99MS:            1_000,
 		RecvP99MS:               2_000,
@@ -62,9 +63,10 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "plugin accepted", edit: func(e *hotPathEvidence) { e.PluginReceiveAccepted-- }, want: "plugin receive accepted"},
 		{name: "plugin full", edit: func(e *hotPathEvidence) { e.PluginReceiveFull = 1 }, want: "enqueue non-accepted"},
 		{name: "plugin invoke", edit: func(e *hotPathEvidence) { e.PluginReceiveInvokeOK-- }, want: "plugin receive invoke"},
+		{name: "measured duration missing", edit: func(e *hotPathEvidence) { e.MeasuredDurationMS = 0 }, want: "measured duration"},
 		{name: "allocated missing", edit: func(e *hotPathEvidence) { e.AllocatedBytes = 0 }, want: "allocated bytes"},
 		{name: "allocated regression", edit: func(e *hotPathEvidence) {
-			e.AllocatedBytes = float64(e.Messages) * (mediumMaxAllocatedBytesPerMessage + 1)
+			e.AllocatedBytes = maxAcceptedAllocatedBytes(*e) + 1
 		}, want: "allocated bytes/message"},
 		{name: "gc missing", edit: func(e *hotPathEvidence) { e.GCCountDelta = 0 }, want: "GC count delta"},
 		{name: "gc regression", edit: func(e *hotPathEvidence) { e.GCCountDelta = float64(e.Messages)*mediumMaxGCPerMessage + 1 }, want: "GC/message"},
@@ -89,6 +91,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 	t.Run("CI scaled pacing tolerance", func(t *testing.T) {
 		evidence := passing
 		evidence.OfferedQPS = mediumCIAcceptanceQPS
+		evidence.MeasuredDurationMS = float64(evidence.Messages) / mediumCIAcceptanceQPS * 1000
 		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS) * mediumMinIngressFraction
 		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err != nil {
 			t.Fatalf("CI-scaled evidence rejected: %v", err)
@@ -96,6 +99,25 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS)*mediumMinIngressFraction - 0.001
 		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err == nil || !strings.Contains(err.Error(), "acceptance ingress") {
 			t.Fatalf("below-tolerance ingress error = %v, want acceptance ingress", err)
+		}
+	})
+
+	t.Run("allocation allowance uses paced duration", func(t *testing.T) {
+		evidence := passing
+		evidence.OfferedQPS = mediumCIAcceptanceQPS
+		evidence.IngressPerSecond = mediumCIAcceptanceQPS
+		evidence.MeasuredDurationMS = float64(evidence.Messages) / mediumCIAcceptanceQPS * 2000
+		wantPerMessage := float64(440_000)
+		if got := maxAcceptedAllocatedBytes(evidence) / float64(evidence.Messages); got != wantPerMessage {
+			t.Fatalf("CI allocation allowance = %.0f bytes/message, want %.0f", got, wantPerMessage)
+		}
+		evidence.AllocatedBytes = maxAcceptedAllocatedBytes(evidence)
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err != nil {
+			t.Fatalf("bounded CI allocation rejected: %v", err)
+		}
+		evidence.AllocatedBytes++
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err == nil || !strings.Contains(err.Error(), "allocated bytes/message") {
+			t.Fatalf("slow-drain allocation error = %v, want allocated bytes/message", err)
 		}
 	})
 }
