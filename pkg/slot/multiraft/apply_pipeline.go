@@ -27,6 +27,9 @@ type applyQueue struct {
 	taskHead int
 	running  bool
 	closed   bool
+	// enqueueReservations pins this queue while an accepted Slot apply is
+	// crossing the Slot-lock to pipeline-lock handoff.
+	enqueueReservations int
 }
 
 type applyPipeline struct {
@@ -125,10 +128,12 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 		p.mu.Unlock()
 		return ErrSlotClosed
 	}
+	q.enqueueReservations++
 	p.mu.Unlock()
 
 	if err := task.slot.beginApply(); err != nil {
 		p.mu.Lock()
+		q.enqueueReservations--
 		p.deleteQueueIfIdleLocked(slotID, q)
 		p.mu.Unlock()
 		return err
@@ -136,16 +141,17 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 	runApplyPipelineAfterBeginApplyHook(slotID)
 
 	p.mu.Lock()
+	q.enqueueReservations--
 	if p.closed {
 		p.deleteQueueIfIdleLocked(slotID, q)
-		task.slot.finishApply()
 		p.mu.Unlock()
+		task.slot.finishApply()
 		return ErrRuntimeClosed
 	}
 	if p.queues[slotID] != q || q.closed {
 		p.deleteQueueIfIdleLocked(slotID, q)
-		task.slot.finishApply()
 		p.mu.Unlock()
+		task.slot.finishApply()
 		return ErrSlotClosed
 	}
 	task.queueDepth = q.taskLenLocked() + 1
@@ -262,7 +268,11 @@ func (q *applyQueue) taskLenLocked() int {
 }
 
 func (p *applyPipeline) deleteQueueIfIdleLocked(slotID SlotID, q *applyQueue) {
-	if q == nil || p.queues[slotID] != q || q.running || q.taskLenLocked() > 0 {
+	if q == nil ||
+		p.queues[slotID] != q ||
+		q.running ||
+		q.taskLenLocked() > 0 ||
+		q.enqueueReservations > 0 {
 		return
 	}
 	delete(p.queues, slotID)
@@ -314,7 +324,7 @@ func (p *applyPipeline) closeSlot(slotID SlotID) *applyQueue {
 		return nil
 	}
 	q.closed = true
-	if !q.running && q.taskLenLocked() == 0 {
+	if !q.running && q.taskLenLocked() == 0 && q.enqueueReservations == 0 {
 		delete(p.queues, slotID)
 		p.cond.Broadcast()
 	}

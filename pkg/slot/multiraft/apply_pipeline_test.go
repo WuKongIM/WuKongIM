@@ -1,6 +1,10 @@
 package multiraft
 
-import "testing"
+import (
+	"sync"
+	"testing"
+	"time"
+)
 
 func TestApplyPipelineReadyQueuePopsFIFOWithoutShifting(t *testing.T) {
 	p := &applyPipeline{}
@@ -65,4 +69,96 @@ func TestApplyQueuePopsTasksFIFOWithoutShifting(t *testing.T) {
 	if _, ok := q.popTaskLocked(); ok {
 		t.Fatal("pop from empty task queue succeeded")
 	}
+}
+
+func TestApplyQueueRetirementPreservesInFlightEnqueue(t *testing.T) {
+	const slotID SlotID = 3
+	g := newTestSlotForDrain()
+	g.id = slotID
+
+	q := &applyQueue{
+		slotID:  slotID,
+		running: true,
+	}
+	p := &applyPipeline{
+		queues: map[SlotID]*applyQueue{slotID: q},
+	}
+	p.cond = sync.NewCond(&p.mu)
+
+	retireStarted := make(chan struct{})
+	releaseRetire := make(chan struct{})
+	enqueueStarted := make(chan struct{})
+	releaseEnqueue := make(chan struct{})
+	var retireOnce sync.Once
+	var enqueueOnce sync.Once
+	var releaseRetireOnce sync.Once
+	var releaseEnqueueOnce sync.Once
+	restoreRetireHook := setApplyPipelineBeforeRetireQueueHook(func(id SlotID) {
+		if id != slotID {
+			return
+		}
+		retireOnce.Do(func() { close(retireStarted) })
+		<-releaseRetire
+	})
+	defer restoreRetireHook()
+	restoreEnqueueHook := setApplyPipelineAfterBeginApplyHook(func(id SlotID) {
+		if id != slotID {
+			return
+		}
+		enqueueOnce.Do(func() { close(enqueueStarted) })
+		<-releaseEnqueue
+	})
+	defer restoreEnqueueHook()
+	defer releaseRetireOnce.Do(func() { close(releaseRetire) })
+	defer releaseEnqueueOnce.Do(func() { close(releaseEnqueue) })
+
+	retireDone := make(chan struct{})
+	go func() {
+		p.runQueue(q)
+		close(retireDone)
+	}()
+	select {
+	case <-retireStarted:
+	case <-time.After(time.Second):
+		t.Fatal("apply queue retirement did not start")
+	}
+
+	enqueueDone := make(chan error, 1)
+	go func() {
+		enqueueDone <- p.enqueue(applyTask{slot: g})
+	}()
+	select {
+	case <-enqueueStarted:
+	case <-time.After(time.Second):
+		t.Fatal("apply queue enqueue handoff did not start")
+	}
+
+	releaseRetireOnce.Do(func() { close(releaseRetire) })
+	select {
+	case <-retireDone:
+	case <-time.After(time.Second):
+		t.Fatal("apply queue retirement did not finish")
+	}
+	releaseEnqueueOnce.Do(func() { close(releaseEnqueue) })
+
+	select {
+	case err := <-enqueueDone:
+		if err != nil {
+			t.Fatalf("enqueue() error = %v, want nil", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("apply queue enqueue did not finish")
+	}
+
+	p.mu.Lock()
+	gotQueue := p.queues[slotID]
+	taskCount := q.taskLenLocked()
+	p.mu.Unlock()
+	if gotQueue != q {
+		t.Fatalf("queues[%d] = %p, want original queue %p", slotID, gotQueue, q)
+	}
+	if taskCount != 1 {
+		t.Fatalf("queued tasks = %d, want 1", taskCount)
+	}
+	g.finishApply()
 }

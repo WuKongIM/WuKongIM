@@ -8,6 +8,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestManagerNodeOnboardingPlanReturnsPreview(t *testing.T) {
@@ -156,6 +157,42 @@ func TestManagerNodeOnboardingStartMapsConflict(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"error":"conflict"`) {
 		t.Fatalf("body = %s, want conflict error", rec.Body.String())
+	}
+}
+
+func TestManagerNodeOnboardingStartMapsClusterUnavailable(t *testing.T) {
+	for _, err := range []error{
+		cluster.ErrNotStarted,
+		cluster.ErrNotLeader,
+		cluster.ErrStopping,
+	} {
+		t.Run(err.Error(), func(t *testing.T) {
+			srv := New(Options{
+				Auth: testAuthConfig([]UserConfig{{
+					Username: "admin",
+					Password: "secret",
+					Permissions: []PermissionConfig{{
+						Resource: "cluster.node",
+						Actions:  []string{"w"},
+					}},
+				}}),
+				Management: managerNodesStub{nodeOnboardingStartErr: err},
+			})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/manager/nodes/4/onboarding/start", strings.NewReader(`{"max_slot_moves":1}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"service_unavailable","message":"service_unavailable"}`) {
+				t.Fatalf("body = %s, want stable service_unavailable", rec.Body.String())
+			}
+		})
 	}
 }
 

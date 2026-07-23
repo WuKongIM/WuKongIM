@@ -175,6 +175,7 @@
 - Controller Raft shares the cluster transport server, so its wire message type must stay distinct from slot Raft and observation-hint message types.
 - Inbound Controller Raft frames must be addressed to the local node and originate from a different node; drop looped or misrouted frames before calling `RawNode.Step`.
 - Controller read RPCs can see `not leader` while Raft elects or fails over; keep those retryable read failures out of ERROR logs.
+- Controller-backed writes crossing the `pkg/cluster.Node` facade must expose cluster lifecycle errors while preserving Controller causes; manager routes map transient leadership/lifecycle failures to stable HTTP 503, and bounded idempotent e2e callers may retry only that status.
 
 ### Controller Raft compaction
 - Controller Raft snapshot restore starts from the snapshot index and replays post-snapshot entries; never skip replay by using a later persisted applied index after importing snapshot data.
@@ -184,6 +185,7 @@
 - Slot Raft snapshot restore follows the same boundary as Controller Raft: restore snapshot data first, then replay committed entries after the snapshot index.
 - After Slot Raft log compaction exists, membership changes must refresh the snapshot ConfState so newly added learners can install a snapshot and catch up.
 - Large Slot Raft snapshots are chunked only in `pkg/cluster` raft transport; receivers reassemble chunks into the original `MsgSnap` before calling `multiraft.Runtime.Step`.
+- A Multi-Raft Slot apply queue must stay pinned while an accepted apply crosses from the Slot lock to the apply-pipeline lock; idle retirement cannot invalidate that in-flight enqueue.
 
 ### Local storage
 - `pkg/db` is the single local storage library: `message` owns channel logs and `meta` owns hash-slot metadata.
