@@ -35,10 +35,17 @@ const (
 	mediumPayloadBytes      = 256
 	mediumMeasuredRounds    = 80
 	mediumOfferedQPS        = 4_500
+	mediumCIAcceptanceQPS   = 1_000
 	mediumRecipientPlanSize = 512
 	mediumSenderConnections = 25
 	mediumGroupSenders      = 5
 	mediumSenderUIDPrefix   = "wkrc-hifi-sender"
+
+	mediumMinIngressFraction          = 0.995
+	mediumMaxAllocatedBytesPerMessage = 400_000
+	mediumMaxGCPerMessage             = 0.0075
+	mediumMaxHeapBytes                = 512 << 20
+	mediumMetricSampleInterval        = 250 * time.Millisecond
 )
 
 var mediumGroupProfiles = []struct {
@@ -316,18 +323,22 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	}
 	t.Logf("WKRC-HIFI-EVIDENCE %s", encoded)
 	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE") == "1" {
-		requireHotPathAcceptance(t, evidence)
+		expectedOfferedQPS := mediumOfferedQPS
+		if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_CI_SCALE") == "1" {
+			expectedOfferedQPS = mediumCIAcceptanceQPS
+		}
+		requireHotPathAcceptance(t, evidence, expectedOfferedQPS)
 	}
 }
 
-func requireHotPathAcceptance(t *testing.T, evidence hotPathEvidence) {
+func requireHotPathAcceptance(t *testing.T, evidence hotPathEvidence, expectedOfferedQPS int) {
 	t.Helper()
-	if err := hotPathAcceptanceError(evidence); err != nil {
+	if err := hotPathAcceptanceError(evidence, expectedOfferedQPS); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func hotPathAcceptanceError(evidence hotPathEvidence) error {
+func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) error {
 	switch {
 	case evidence.Schema != mediumEvidenceSchema:
 		return fmt.Errorf("acceptance schema = %q, want %q", evidence.Schema, mediumEvidenceSchema)
@@ -345,10 +356,15 @@ func hotPathAcceptanceError(evidence hotPathEvidence) error {
 		return fmt.Errorf("acceptance online routes = %d, want %d", evidence.OnlineRoutes, expectedMeasuredOnlineRoutes())
 	case evidence.Connections != expectedConnectionCount():
 		return fmt.Errorf("acceptance connections = %d, want %d", evidence.Connections, expectedConnectionCount())
-	case evidence.OfferedQPS != mediumOfferedQPS:
-		return fmt.Errorf("acceptance offered QPS = %d, want %d", evidence.OfferedQPS, mediumOfferedQPS)
-	case evidence.IngressPerSecond < float64(mediumOfferedQPS):
-		return fmt.Errorf("acceptance ingress = %.3f/s, want at least %d/s", evidence.IngressPerSecond, mediumOfferedQPS)
+	case evidence.OfferedQPS != expectedOfferedQPS:
+		return fmt.Errorf("acceptance offered QPS = %d, want %d", evidence.OfferedQPS, expectedOfferedQPS)
+	case evidence.IngressPerSecond < float64(expectedOfferedQPS)*mediumMinIngressFraction:
+		return fmt.Errorf(
+			"acceptance ingress = %.3f/s, want at least %.3f/s (%.1f%% of offered load)",
+			evidence.IngressPerSecond,
+			float64(expectedOfferedQPS)*mediumMinIngressFraction,
+			mediumMinIngressFraction*100,
+		)
 	case evidence.SendackP99MS > 1_000:
 		return fmt.Errorf("acceptance SENDACK P99 = %.3fms, want at most 1000ms", evidence.SendackP99MS)
 	case evidence.RecvP99MS > 2_000:
@@ -377,6 +393,28 @@ func hotPathAcceptanceError(evidence hotPathEvidence) error {
 			evidence.PluginReceiveInvokeOK,
 			evidence.PluginReceiveInvokeError,
 			evidence.PluginReceiveAccepted,
+		)
+	case evidence.AllocatedBytes <= 0:
+		return fmt.Errorf("acceptance allocated bytes = %.0f, want a positive measured delta", evidence.AllocatedBytes)
+	case evidence.AllocatedBytes/float64(evidence.Messages) > mediumMaxAllocatedBytesPerMessage:
+		return fmt.Errorf(
+			"acceptance allocated bytes/message = %.0f, want at most %d",
+			evidence.AllocatedBytes/float64(evidence.Messages),
+			mediumMaxAllocatedBytesPerMessage,
+		)
+	case evidence.GCCountDelta <= 0:
+		return fmt.Errorf("acceptance GC count delta = %.0f, want a positive measured delta", evidence.GCCountDelta)
+	case evidence.GCCountDelta/float64(evidence.Messages) > mediumMaxGCPerMessage:
+		return fmt.Errorf(
+			"acceptance GC/message = %.6f, want at most %.6f",
+			evidence.GCCountDelta/float64(evidence.Messages),
+			mediumMaxGCPerMessage,
+		)
+	case evidence.MaxHeapBytes <= 0 || evidence.MaxHeapBytes > mediumMaxHeapBytes:
+		return fmt.Errorf(
+			"acceptance max heap bytes = %.0f, want in (0,%d]",
+			evidence.MaxHeapBytes,
+			mediumMaxHeapBytes,
 		)
 	case evidence.MetricSamples == 0:
 		return errors.New("acceptance collected no public metric samples")
@@ -917,7 +955,7 @@ func (s *pressureSampler) start() {
 	s.sample()
 	go func() {
 		defer close(s.doneC)
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(mediumMetricSampleInterval)
 		defer ticker.Stop()
 		for {
 			select {

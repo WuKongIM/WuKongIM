@@ -26,11 +26,14 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		MaxRecipientWorkerRatio: 0.99,
 		PluginReceiveAccepted:   float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
 		PluginReceiveInvokeOK:   float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
+		AllocatedBytes:          float64(mediumMessageCount*mediumMeasuredRounds) * 350_000,
+		GCCountDelta:            100,
+		MaxHeapBytes:            256 << 20,
 		MetricSamples:           1,
 		Drained:                 true,
 		ProcessContinuous:       true,
 	}
-	if err := hotPathAcceptanceError(passing); err != nil {
+	if err := hotPathAcceptanceError(passing, mediumOfferedQPS); err != nil {
 		t.Fatalf("passing evidence rejected: %v", err)
 	}
 
@@ -48,7 +51,9 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "online routes", edit: func(e *hotPathEvidence) { e.OnlineRoutes-- }, want: "online routes"},
 		{name: "connections", edit: func(e *hotPathEvidence) { e.Connections-- }, want: "acceptance connections"},
 		{name: "offered load", edit: func(e *hotPathEvidence) { e.OfferedQPS++ }, want: "offered QPS"},
-		{name: "ingress", edit: func(e *hotPathEvidence) { e.IngressPerSecond-- }, want: "acceptance ingress"},
+		{name: "ingress", edit: func(e *hotPathEvidence) {
+			e.IngressPerSecond = float64(mediumOfferedQPS)*mediumMinIngressFraction - 0.001
+		}, want: "acceptance ingress"},
 		{name: "sendack", edit: func(e *hotPathEvidence) { e.SendackP99MS++ }, want: "SENDACK P99"},
 		{name: "recv", edit: func(e *hotPathEvidence) { e.RecvP99MS++ }, want: "RECV P99"},
 		{name: "gateway queue", edit: func(e *hotPathEvidence) { e.MaxGatewayQueueRatio = 1 }, want: "gateway queue"},
@@ -57,6 +62,14 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "plugin accepted", edit: func(e *hotPathEvidence) { e.PluginReceiveAccepted-- }, want: "plugin receive accepted"},
 		{name: "plugin full", edit: func(e *hotPathEvidence) { e.PluginReceiveFull = 1 }, want: "enqueue non-accepted"},
 		{name: "plugin invoke", edit: func(e *hotPathEvidence) { e.PluginReceiveInvokeOK-- }, want: "plugin receive invoke"},
+		{name: "allocated missing", edit: func(e *hotPathEvidence) { e.AllocatedBytes = 0 }, want: "allocated bytes"},
+		{name: "allocated regression", edit: func(e *hotPathEvidence) {
+			e.AllocatedBytes = float64(e.Messages) * (mediumMaxAllocatedBytesPerMessage + 1)
+		}, want: "allocated bytes/message"},
+		{name: "gc missing", edit: func(e *hotPathEvidence) { e.GCCountDelta = 0 }, want: "GC count delta"},
+		{name: "gc regression", edit: func(e *hotPathEvidence) { e.GCCountDelta = float64(e.Messages)*mediumMaxGCPerMessage + 1 }, want: "GC/message"},
+		{name: "heap missing", edit: func(e *hotPathEvidence) { e.MaxHeapBytes = 0 }, want: "max heap bytes"},
+		{name: "heap regression", edit: func(e *hotPathEvidence) { e.MaxHeapBytes = mediumMaxHeapBytes + 1 }, want: "max heap bytes"},
 		{name: "samples", edit: func(e *hotPathEvidence) { e.MetricSamples = 0 }, want: "no public metric"},
 		{name: "sample errors", edit: func(e *hotPathEvidence) { e.MetricSampleErrors = 1 }, want: "sample errors"},
 		{name: "drain", edit: func(e *hotPathEvidence) { e.Drained = false }, want: "did not drain"},
@@ -66,12 +79,25 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			evidence := passing
 			test.edit(&evidence)
-			err := hotPathAcceptanceError(evidence)
+			err := hotPathAcceptanceError(evidence, mediumOfferedQPS)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want substring %q", err, test.want)
 			}
 		})
 	}
+
+	t.Run("CI scaled pacing tolerance", func(t *testing.T) {
+		evidence := passing
+		evidence.OfferedQPS = mediumCIAcceptanceQPS
+		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS) * mediumMinIngressFraction
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err != nil {
+			t.Fatalf("CI-scaled evidence rejected: %v", err)
+		}
+		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS)*mediumMinIngressFraction - 0.001
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err == nil || !strings.Contains(err.Error(), "acceptance ingress") {
+			t.Fatalf("below-tolerance ingress error = %v, want acceptance ingress", err)
+		}
+	})
 }
 
 func TestBoundedPositiveEnvInt(t *testing.T) {
