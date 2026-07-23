@@ -90,6 +90,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			StoreAppendBatchMaxWait:       n.cfg.Channel.StoreAppendBatchMaxWait,
 			StoreApplyWorkers:             n.cfg.Channel.StoreApplyWorkers,
 			RPCWorkers:                    n.cfg.Channel.RPCWorkers,
+			RPCBatchMaxItems:              n.cfg.Channel.RPCBatchMaxItems,
 			MailboxSize:                   n.cfg.Channel.MailboxSize,
 			MaxChannels:                   n.cfg.Channel.MaxChannels,
 			AppendBatchMaxRecords:         n.cfg.Channel.AppendBatchMaxRecords,

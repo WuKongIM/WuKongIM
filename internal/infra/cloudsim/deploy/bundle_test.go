@@ -166,6 +166,7 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 		"channel_store_append_workers = 8",
 		"channel_store_apply_workers = 8",
 		"channel_rpc_workers = 50",
+		"channel_rpc_batch_max_items = 8",
 		"gnet_multicore = true",
 		"gnet_num_event_loop = 4",
 		"runtime_async_send_workers = 128",
@@ -288,8 +289,10 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 			if loaded.Cluster.Slots.ReplicaCount != 3 || loaded.Cluster.Channel.ReplicaCount != 3 {
 				t.Fatalf("cluster replicas = Slot %d / Channel %d, want 3 / 3", loaded.Cluster.Slots.ReplicaCount, loaded.Cluster.Channel.ReplicaCount)
 			}
-			if loaded.Cluster.Channel.ReactorCount != 4 || loaded.Cluster.Channel.StoreAppendWorkers != 8 || loaded.Cluster.Channel.StoreApplyWorkers != 8 || loaded.Cluster.Channel.RPCWorkers != 50 {
-				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC 4/8/8/50", loaded.Cluster.Channel)
+			if loaded.Cluster.Channel.ReactorCount != 4 || loaded.Cluster.Channel.StoreAppendWorkers != 8 ||
+				loaded.Cluster.Channel.StoreApplyWorkers != 8 || loaded.Cluster.Channel.RPCWorkers != 50 ||
+				loaded.Cluster.Channel.RPCBatchMaxItems != 8 {
+				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC/batch 4/8/8/50/8", loaded.Cluster.Channel)
 			}
 			if !loaded.Gateway.Transport.Gnet.Multicore || loaded.Gateway.Transport.Gnet.NumEventLoop != 4 || loaded.Gateway.Runtime.AsyncSendWorkers != 128 || loaded.Gateway.Runtime.AsyncSendQueueCapacity != 131072 {
 				t.Fatalf("gateway runtime = transport %#v runtime %#v, want multicore/loops/workers/queue true/4/128/131072", loaded.Gateway.Transport.Gnet, loaded.Gateway.Runtime)

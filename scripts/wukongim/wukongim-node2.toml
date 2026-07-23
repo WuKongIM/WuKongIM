@@ -51,6 +51,10 @@ channel_store_apply_workers = 0
 
 channel_rpc_workers = 50
 
+# Maximum same-target Pull or PullHint items coalesced into one bounded
+# replication transport call. Zero uses the runtime default.
+channel_rpc_batch_max_items = 8
+
 # Maximum loaded Channel runtimes on this node. 0 keeps unlimited behavior.
 max_channels = 0
 

@@ -268,6 +268,7 @@ func TestConfigRejectsNegativeChannelStoreWorkers(t *testing.T) {
 		{name: "append", config: ChannelConfig{StoreAppendWorkers: -1}},
 		{name: "apply", config: ChannelConfig{StoreApplyWorkers: -1}},
 		{name: "rpc", config: ChannelConfig{RPCWorkers: -1}},
+		{name: "rpc batch max items", config: ChannelConfig{RPCBatchMaxItems: -1}},
 		{name: "append batch wait", config: ChannelConfig{StoreAppendBatchMaxWait: -1}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

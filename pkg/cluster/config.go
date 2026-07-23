@@ -165,6 +165,9 @@ type ChannelConfig struct {
 	StoreApplyWorkers int
 	// RPCWorkers caps blocking Channel replication RPC workers. Zero keeps the Channel runtime default.
 	RPCWorkers int
+	// RPCBatchMaxItems caps same-target Channel Pull or PullHint items in one
+	// blocking transport call. Zero keeps the Channel runtime default.
+	RPCBatchMaxItems int
 	// MailboxSize bounds each Channel reactor mailbox.
 	MailboxSize int
 	// MaxChannels bounds loaded Channel runtimes on this node. Zero keeps unlimited behavior.
@@ -500,6 +503,9 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.RPCWorkers < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.RPCBatchMaxItems < 0 {
 		return ErrInvalidConfig
 	}
 	if c.Channel.MailboxSize < 0 {
