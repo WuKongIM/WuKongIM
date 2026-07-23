@@ -339,7 +339,7 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 		"--members", "4",
 		"--rate", "6/s",
 		"--duration", "4s",
-		"--ready-timeout", "2",
+		"--ready-timeout", "5",
 		"--poll", "1",
 	)
 	cmd.Dir = root
@@ -801,6 +801,7 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsConfiguredFaultSendErrors(t *testing.
 }
 
 func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t *testing.T) {
+	runTimingSensitiveShellScriptTestExclusively(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()

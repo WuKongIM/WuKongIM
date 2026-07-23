@@ -367,7 +367,8 @@ func TestControlPlanePreflightDistinguishesLiveAndReleased(t *testing.T) {
 	provider := &providerStub{status: Run{
 		ID: request.RunID, Provider: "fake", Region: request.Region, AccountIDHash: request.AccountIDHash,
 		Repository: request.Repository, CreatedAt: now, ExpiresAt: request.ExpiresAt,
-		Tags: map[string]string{TagSourceSHA: request.SourceSHA, TagScenarioDigest: request.ScenarioDigest},
+		Tags:      map[string]string{TagSourceSHA: request.SourceSHA, TagScenarioDigest: request.ScenarioDigest},
+		Resources: []Resource{{ID: "i-sim", Kind: "instance", Role: "sim", Tags: map[string]string{}}},
 	}}
 	control := NewControlPlane(provider, func() time.Time { return now })
 	locator := RunLocator{
@@ -376,12 +377,12 @@ func TestControlPlanePreflightDistinguishesLiveAndReleased(t *testing.T) {
 		ScenarioDigest: request.ScenarioDigest, CreatedAt: now, ExpiresAt: request.ExpiresAt, ProvisionWorkflowRunID: 1,
 	}
 	result, err := control.Preflight(context.Background(), locator)
-	if err != nil || result.State != PreflightLive || result.Run == nil {
+	if err != nil || result.State != PreflightLive || result.Run == nil || len(result.Resources) != 1 {
 		t.Fatalf("Preflight(live) = %#v, %v", result, err)
 	}
 	provider.statusErr = ErrRunNotFound
 	result, err = control.Preflight(context.Background(), locator)
-	if err != nil || result.State != PreflightReleased || result.Run != nil {
+	if err != nil || result.State != PreflightReleased || result.Run != nil || result.Resources == nil || len(result.Resources) != 0 {
 		t.Fatalf("Preflight(released) = %#v, %v", result, err)
 	}
 }

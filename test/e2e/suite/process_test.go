@@ -3,11 +3,15 @@
 package suite
 
 import (
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -307,8 +311,7 @@ func TestNodeProcessStartStripsHarnessEnvironment(t *testing.T) {
 			}
 
 			require.NoError(t, process.Start())
-			require.NoError(t, process.Cmd.Wait())
-			process.closeLogs()
+			require.NoError(t, process.Wait())
 
 			output, err := os.ReadFile(process.Spec.StdoutPath)
 			require.NoError(t, err)
@@ -328,6 +331,139 @@ func TestNodeProcessStartStripsHarnessEnvironment(t *testing.T) {
 			require.Equal(t, "42", env["WK_NODE_ID"])
 			require.Equal(t, "127.0.0.1:23456", env["GOFAIL_HTTP"])
 		})
+	}
+}
+
+func TestNodeProcessStopHandlesChildThatAlreadyExited(t *testing.T) {
+	process := newCommandNodeProcess(t, exec.Command("/bin/sh", "-c", "exit 7"))
+
+	require.NoError(t, process.Start())
+	require.Error(t, process.Wait())
+	require.False(t, process.Running())
+	require.NoError(t, process.Stop())
+	require.NoError(t, process.Stop())
+	_, writeErr := process.StdoutLog.WriteString("closed")
+	require.Error(t, writeErr)
+}
+
+func TestNodeProcessStopIsConcurrentAndIdempotent(t *testing.T) {
+	process := newCommandNodeProcess(t, exec.Command("/bin/sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"))
+	require.NoError(t, process.Start())
+
+	const callers = 16
+	results := make(chan error, callers)
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	for range callers {
+		go func() {
+			defer wg.Done()
+			results <- process.Stop()
+		}()
+	}
+	wg.Wait()
+	close(results)
+	for err := range results {
+		require.NoError(t, err)
+	}
+	require.False(t, process.Running())
+	_, writeErr := process.StderrLog.WriteString("closed")
+	require.Error(t, writeErr)
+}
+
+func TestNodeProcessStopKillsChildAfterGraceTimeout(t *testing.T) {
+	readyPath := filepath.Join(t.TempDir(), "ready")
+	cmd := exec.Command("/bin/sh", "-c", "trap '' TERM; : > \"$READY_FILE\"; while :; do sleep 1; done")
+	cmd.Env = append(os.Environ(), "READY_FILE="+readyPath)
+	process := newCommandNodeProcess(t, cmd)
+	process.StopTimeout = 50 * time.Millisecond
+	require.NoError(t, process.Start())
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(readyPath)
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
+
+	require.NoError(t, process.Stop())
+	require.False(t, process.Running())
+}
+
+func TestReapProcessTreeAcceptsConfirmedExitAfterSignalError(t *testing.T) {
+	signalErr := errors.New("transient signal error")
+	killCalled := false
+
+	err := reapProcessTreeWith(
+		nil,
+		time.Second,
+		func(*os.Process) error { return signalErr },
+		func(*os.Process) error {
+			killCalled = true
+			return nil
+		},
+		func(*os.Process, time.Duration) (bool, error) { return true, nil },
+	)
+
+	require.NoError(t, err)
+	require.False(t, killCalled)
+}
+
+func TestReapProcessTreeReportsSignalErrorWithoutConfirmedExit(t *testing.T) {
+	signalErr := errors.New("signal denied")
+	livenessErr := errors.New("liveness probe failed")
+
+	err := reapProcessTreeWith(
+		nil,
+		time.Second,
+		func(*os.Process) error { return signalErr },
+		func(*os.Process) error { return nil },
+		func(*os.Process, time.Duration) (bool, error) { return false, livenessErr },
+	)
+
+	require.ErrorIs(t, err, signalErr)
+	require.ErrorIs(t, err, livenessErr)
+}
+
+func TestNodeProcessHTTPReadinessFailsFastAfterChildExit(t *testing.T) {
+	process := newCommandNodeProcess(t, exec.Command("/bin/sh", "-c", "sleep 0.05; exit 23"))
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { _ = process.Stop() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	startedAt := time.Now()
+	_, err := process.WaitHTTPReady(ctx, "127.0.0.1:1", "/readyz")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "process exited before HTTP readiness")
+	require.Contains(t, err.Error(), "exit status 23")
+	require.Less(t, time.Since(startedAt), time.Second)
+}
+
+func TestNodeProcessWKProtoReadinessFailsFastAfterChildExit(t *testing.T) {
+	process := newCommandNodeProcess(t, exec.Command("/bin/sh", "-c", "sleep 0.05; exit 24"))
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { _ = process.Stop() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	startedAt := time.Now()
+	err := process.WaitWKProtoReady(ctx, "127.0.0.1:1")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "process exited before WKProto readiness")
+	require.Contains(t, err.Error(), "exit status 24")
+	require.Less(t, time.Since(startedAt), time.Second)
+}
+
+func newCommandNodeProcess(t *testing.T, cmd *exec.Cmd) *NodeProcess {
+	t.Helper()
+	rootDir := t.TempDir()
+	return &NodeProcess{
+		Spec: NodeSpec{
+			RootDir:    rootDir,
+			ConfigPath: filepath.Join(rootDir, "wukongim.toml"),
+			StdoutPath: filepath.Join(rootDir, "stdout.log"),
+			StderrPath: filepath.Join(rootDir, "stderr.log"),
+		},
+		command: cmd,
 	}
 }
 

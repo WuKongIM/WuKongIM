@@ -30,6 +30,16 @@ func TestCommandTOMLExampleLoads(t *testing.T) {
 	}
 }
 
+func TestScriptSingleNodeClusterUsesDefaultPhysicalHashSlotCount(t *testing.T) {
+	cfg, err := Load(Options{Args: []string{"-config", filepath.Join("..", "..", "scripts", "wukongim", "wukongim.toml")}, Environ: cleanEnv()})
+	if err != nil {
+		t.Fatalf("Load(script example) error = %v", err)
+	}
+	if cfg.Cluster.Slots.InitialSlotCount != 1 || cfg.Cluster.Slots.HashSlotCount != 256 {
+		t.Fatalf("script topology = logical Slot Groups %d / physical hash slots %d, want 1 / 256", cfg.Cluster.Slots.InitialSlotCount, cfg.Cluster.Slots.HashSlotCount)
+	}
+}
+
 func TestSingleNodeClusterPrometheusExamplesUseDedicatedDefaultPort(t *testing.T) {
 	files := []string{
 		filepath.Join("..", "..", "wukongim.toml.example"),

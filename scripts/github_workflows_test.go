@@ -266,6 +266,7 @@ var expectedNightlyJobs = map[string]ciJob{
 			FailFast: boolPointer(false),
 			Matrix: ciMatrix{Include: []ciMatrixEntry{
 				{Name: "internal-runtime", Packages: "./internal/app ./internal/runtime/..."},
+				{Name: "plugin-runtime", Packages: "./pkg/plugin/pluginhost ./pkg/wklog"},
 				{Name: "gateway-transport", Packages: "./pkg/gateway/... ./pkg/transport/..."},
 				{Name: "channel-cluster-slot", Packages: "./pkg/channel/... ./pkg/cluster/... ./pkg/slot/..."},
 			}},

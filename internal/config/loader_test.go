@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -53,6 +54,10 @@ hash_slot_count = 256
 	}
 	if cfg.ConfigPath != path {
 		t.Fatalf("ConfigPath = %q, want %q", cfg.ConfigPath, path)
+	}
+	if cfg.Cluster.Channel.StoreAppendWorkers != 0 || cfg.Cluster.Channel.StoreApplyWorkers != 0 || cfg.Cluster.Channel.RPCWorkers != 0 {
+		t.Fatalf("omitted Channel workers = %d/%d/%d, want runtime-derived zero values",
+			cfg.Cluster.Channel.StoreAppendWorkers, cfg.Cluster.Channel.StoreApplyWorkers, cfg.Cluster.Channel.RPCWorkers)
 	}
 }
 
@@ -273,10 +278,21 @@ func TestLoadRejectsRemovedWKEnvWithReplacement(t *testing.T) {
 	}
 }
 
-func TestSchemaCoversBuilderKeys(t *testing.T) {
+func TestSchemaAndBuilderKeysMatch(t *testing.T) {
+	schema := schemaByEnvKey()
+	builder := make(map[string]struct{}, len(supportedConfigKeysForBuilder()))
 	for _, key := range supportedConfigKeysForBuilder() {
-		if _, ok := schemaByEnvKey()[key]; !ok {
-			t.Fatalf("schema missing %s", key)
+		if _, duplicate := builder[key]; duplicate {
+			t.Fatalf("builder key inventory contains duplicate %s", key)
+		}
+		builder[key] = struct{}{}
+		if _, ok := schema[key]; !ok {
+			t.Fatalf("schema missing builder key %s", key)
+		}
+	}
+	for key := range schema {
+		if _, ok := builder[key]; !ok {
+			t.Fatalf("builder key inventory missing schema key %s", key)
 		}
 	}
 }
@@ -367,6 +383,66 @@ func TestLoadBuildsRedactedStartupConfigSnapshot(t *testing.T) {
 			t.Fatalf("snapshot text %q missing %q", text, want)
 		}
 	}
+}
+
+func TestLoadBuildsNormalizedEffectiveCriticalConfigSnapshot(t *testing.T) {
+	previous := runtime.GOMAXPROCS(4)
+	t.Cleanup(func() { runtime.GOMAXPROCS(previous) })
+	cfg, err := Load(Options{Args: nil, Environ: []string{
+		"PATH=" + os.Getenv("PATH"),
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=/tmp/wukongim-node",
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7001"},{"id":2,"addr":"127.0.0.1:7002"},{"id":3,"addr":"127.0.0.1:7003"}]`,
+		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=0",
+		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0",
+		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0",
+		"WK_CLUSTER_CHANNEL_RPC_WORKERS=50",
+		"WK_GATEWAY_GNET_NUM_EVENT_LOOP=0",
+	}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	wants := map[string]struct {
+		value  string
+		source string
+	}{
+		"WK_CLUSTER_INITIAL_SLOT_COUNT":                {value: "1", source: managementusecase.NodeConfigValueSourceDefault},
+		"WK_CLUSTER_HASH_SLOT_COUNT":                   {value: "256", source: managementusecase.NodeConfigValueSourceDefault},
+		"WK_CLUSTER_SLOT_REPLICA_N":                    {value: "3", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_REPLICA_N":                 {value: "3", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_REACTOR_COUNT":             {value: "4", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":      {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":       {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               {value: "50", source: managementusecase.NodeConfigValueSourceEnvironment},
+		"WK_GATEWAY_GNET_MULTICORE":                    {value: "true", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               {value: "2", source: managementusecase.NodeConfigValueSourceDerived},
+		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        {value: "128", source: managementusecase.NodeConfigValueSourceDefault},
+		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY": {value: "131072", source: managementusecase.NodeConfigValueSourceDefault},
+		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY":     {value: "100", source: managementusecase.NodeConfigValueSourceDefault},
+		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS":     {value: "100000", source: managementusecase.NodeConfigValueSourceDefault},
+	}
+	for key, want := range wants {
+		item, ok := snapshotItem(cfg.StartupConfigSnapshot, key)
+		if !ok {
+			t.Errorf("snapshot missing effective key %s", key)
+			continue
+		}
+		if item.Value != want.value || item.Source != want.source {
+			t.Errorf("snapshot %s = value %q source %q, want value %q source %q", key, item.Value, item.Source, want.value, want.source)
+		}
+	}
+}
+
+func snapshotItem(snapshot managementusecase.NodeConfigSnapshot, key string) (managementusecase.NodeConfigItem, bool) {
+	for _, group := range snapshot.Groups {
+		for _, item := range group.Items {
+			if item.Key == key {
+				return item, true
+			}
+		}
+	}
+	return managementusecase.NodeConfigItem{}, false
 }
 
 func snapshotText(snapshot managementusecase.NodeConfigSnapshot) string {

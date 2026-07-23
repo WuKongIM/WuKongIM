@@ -39,6 +39,12 @@ type BootstrapSnapshot struct {
 	WKBenchValidate bool `json:"wkbench_validate"`
 	// WKBenchDoctor reports worker and target preflight success.
 	WKBenchDoctor bool `json:"wkbench_doctor"`
+	// RuntimeScale is the exact reviewed scenario scale read from the deployed scenario.
+	RuntimeScale string `json:"runtime_scale"`
+	// ExpectedNodeRuntimeContract is the immutable contract installed from the sealed bundle.
+	ExpectedNodeRuntimeContract EffectiveNodeRuntimeContract `json:"expected_node_runtime_contract"`
+	// NodeRuntimeContracts contains each node's normalized effective runtime values and sources.
+	NodeRuntimeContracts map[string]EffectiveNodeRuntimeContract `json:"node_runtime_contracts"`
 }
 
 // GateResult reports every failed invariant instead of passing partial evidence.
@@ -49,7 +55,7 @@ type GateResult struct {
 	Failures []string `json:"failures"`
 }
 
-// EvaluateBootstrapGate checks the exact three-node, 256-slot cloud contract.
+// EvaluateBootstrapGate checks the exact three-node, 256-hash-slot cloud contract.
 func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) GateResult {
 	result := GateResult{Failures: make([]string, 0)}
 	for _, role := range []string{"node-1", "node-2", "node-3", "sim"} {
@@ -111,6 +117,29 @@ func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) Ga
 	}
 	if !snapshot.WKBenchValidate || !snapshot.WKBenchDoctor {
 		result.Failures = append(result.Failures, "wkbench validate or doctor failed")
+	}
+	expectedRuntime := snapshot.ExpectedNodeRuntimeContract
+	if expectedRuntime.Schema != EffectiveNodeRuntimeContractSchemaV1 ||
+		expectedRuntime.Scale != snapshot.RuntimeScale {
+		result.Failures = append(result.Failures, "sealed effective runtime contract is invalid")
+	} else {
+		for _, role := range []string{"node-1", "node-2", "node-3"} {
+			observed, ok := snapshot.NodeRuntimeContracts[role]
+			if !ok || !runtimeContractValuesEqual(observed, expectedRuntime) {
+				result.Failures = append(result.Failures, fmt.Sprintf("%s effective runtime contract mismatch", role))
+				continue
+			}
+			sourcesMatch := true
+			for _, key := range effectiveRuntimeContractKeys {
+				if observed.ValueSources[key] != "toml" {
+					sourcesMatch = false
+					break
+				}
+			}
+			if !sourcesMatch {
+				result.Failures = append(result.Failures, fmt.Sprintf("%s effective runtime contract source is not toml", role))
+			}
+		}
 	}
 	result.Passed = len(result.Failures) == 0
 	return result

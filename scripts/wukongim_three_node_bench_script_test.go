@@ -6,9 +6,38 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+var heavyShellScriptTestSlots = make(chan struct{}, 2)
+var parallelizedShellTests sync.Map
+var timingSensitiveShellScriptTests sync.RWMutex
+
+func runHeavyShellScriptTestInParallel(t *testing.T) {
+	t.Helper()
+	if _, alreadyParallel := parallelizedShellTests.LoadOrStore(t, struct{}{}); alreadyParallel {
+		return
+	}
+	t.Cleanup(func() { parallelizedShellTests.Delete(t) })
+	t.Parallel()
+	heavyShellScriptTestSlots <- struct{}{}
+	t.Cleanup(func() { <-heavyShellScriptTestSlots })
+	timingSensitiveShellScriptTests.RLock()
+	t.Cleanup(timingSensitiveShellScriptTests.RUnlock)
+}
+
+func runTimingSensitiveShellScriptTestExclusively(t *testing.T) {
+	t.Helper()
+	if _, alreadyParallel := parallelizedShellTests.LoadOrStore(t, struct{}{}); alreadyParallel {
+		return
+	}
+	t.Cleanup(func() { parallelizedShellTests.Delete(t) })
+	t.Parallel()
+	timingSensitiveShellScriptTests.Lock()
+	t.Cleanup(timingSensitiveShellScriptTests.Unlock)
+}
 
 func TestWukongIMThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
 	root := repoRoot(t)
@@ -342,6 +371,7 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 }
 
 func TestWukongIMThreeNodeBenchScriptUsesUniqueClientMessagePrefixesByDefaultAndAllowsOverride(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	firstOut := t.TempDir()
 	secondOut := t.TempDir()
@@ -400,6 +430,7 @@ func TestWukongIMThreeNodeBenchScriptKeepsSamplersAsChildProcesses(t *testing.T)
 }
 
 func TestWukongIMThreeNodeBenchScriptWaitsForRuntimeQueuesAndRecordsEvidence(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir, nil)
@@ -420,6 +451,7 @@ func TestWukongIMThreeNodeBenchScriptWaitsForRuntimeQueuesAndRecordsEvidence(t *
 }
 
 func TestWukongIMThreeNodeBenchScriptFailsWhenRuntimeQueuesDoNotConverge(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -446,6 +478,7 @@ func TestWukongIMThreeNodeBenchScriptFailsWhenRuntimeQueuesDoNotConverge(t *test
 }
 
 func TestWukongIMThreeNodeBenchScriptWaitsForRecipientWorkerInflight(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -463,6 +496,7 @@ func TestWukongIMThreeNodeBenchScriptWaitsForRecipientWorkerInflight(t *testing.
 }
 
 func TestWukongIMThreeNodeBenchScriptRejectsRecipientWorkerCapacityMismatch(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -481,6 +515,7 @@ func TestWukongIMThreeNodeBenchScriptRejectsRecipientWorkerCapacityMismatch(t *t
 }
 
 func TestWukongIMThreeNodeBenchScriptRejectsAppendEffectMismatchAsInvalidSample(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -501,6 +536,7 @@ func TestWukongIMThreeNodeBenchScriptRejectsAppendEffectMismatchAsInvalidSample(
 }
 
 func TestWukongIMThreeNodeBenchScriptRejectsMissingAppendEffectMetricOnOneNode(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -518,6 +554,7 @@ func TestWukongIMThreeNodeBenchScriptRejectsMissingAppendEffectMetricOnOneNode(t
 }
 
 func TestWukongIMThreeNodeBenchScriptRejectsEmptySampleAsInvalid(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -534,6 +571,7 @@ func TestWukongIMThreeNodeBenchScriptRejectsEmptySampleAsInvalid(t *testing.T) {
 }
 
 func TestWukongIMThreeNodeBenchScriptFailsWhenSoftP99ExceedsLimit(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -548,6 +586,7 @@ func TestWukongIMThreeNodeBenchScriptFailsWhenSoftP99ExceedsLimit(t *testing.T) 
 }
 
 func TestWukongIMThreeNodeBenchScriptGatesRunPprofOnActiveRunPhase(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	violationFile := filepath.Join(outDir, "pprof-phase-violation")
@@ -586,6 +625,7 @@ func TestWukongIMThreeNodeBenchScriptGatesRunPprofOnActiveRunPhase(t *testing.T)
 }
 
 func TestWukongIMThreeNodeBenchScriptRejectsRunPprofThatEndsInCooldown(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -612,6 +652,7 @@ func TestWukongIMThreeNodeBenchScriptRejectsRunPprofThatEndsInCooldown(t *testin
 }
 
 func TestWukongIMThreeNodeBenchScriptKeepsRunPprofPerQPSAttempt(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	outDir := t.TempDir()
 	output, err := runFakeThreeNode1000Bench(t, root, outDir,
@@ -1288,6 +1329,7 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 }
 
 func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1476,6 +1518,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 }
 
 func TestWukongIMThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1605,6 +1648,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 }
 
 func TestWukongIMThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1661,6 +1705,7 @@ func TestWukongIMThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *testi
 }
 
 func TestWukongIMThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1722,6 +1767,7 @@ func TestWukongIMThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 }
 
 func TestWukongIMThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2005,6 +2051,7 @@ func TestWukongIMThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 }
 
 func TestWukongIMThreeNodePresenceScriptWritesExplicitTCPSourcePoolFromCLIAndEnv(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	tests := []struct {
 		name string
@@ -2093,6 +2140,7 @@ func TestWukongIMThreeNodePresenceScriptWritesExplicitTCPSourcePoolFromCLIAndEnv
 }
 
 func TestWukongIMThreeNodePresenceScriptOmitsTCPSourcePoolByDefault(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2186,6 +2234,7 @@ func TestWukongIMThreeNodePresenceScriptRejectsInvalidTCPSourcePoolBeforeCluster
 }
 
 func TestWukongIMThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2245,6 +2294,7 @@ func TestWukongIMThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 }
 
 func TestWukongIMThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2293,6 +2343,7 @@ func TestWukongIMThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *test
 }
 
 func TestWukongIMThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2341,6 +2392,7 @@ func TestWukongIMThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T)
 }
 
 func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2493,6 +2545,7 @@ func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing
 }
 
 func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2570,6 +2623,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *
 }
 
 func TestWukongIMThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2609,6 +2663,7 @@ func TestWukongIMThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *te
 }
 
 func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInvalid(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -2652,6 +2707,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInval
 }
 
 func TestWukongIMThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()

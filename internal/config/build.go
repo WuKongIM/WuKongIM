@@ -67,18 +67,12 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		},
 		Delivery: app.DeliveryConfig{
 			Enabled:                    true,
-			RecipientWorkerConcurrency: 100,
+			RecipientWorkerConcurrency: app.DefaultDeliveryRecipientWorkerConcurrency,
 		},
 		Plugin: app.PluginConfig{
 			Enable: true,
 		},
-		Cluster: cluster.Config{
-			Channel: cluster.ChannelConfig{
-				StoreAppendWorkers: 500,
-				StoreApplyWorkers:  500,
-				RPCWorkers:         500,
-			},
-		},
+		Cluster: cluster.Config{},
 	}
 	rawNodeID, err := requiredConfigValue(values, "WK_NODE_ID")
 	if err != nil {

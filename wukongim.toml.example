@@ -7,7 +7,9 @@ listen_addr = "127.0.0.1:7001"
 id = "wukongim-single"
 nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
 join_token = "change-me"
+# Logical Slot Raft Group count created by the initial Controller snapshot.
 initial_slot_count = 1
+# Stable physical hash-slot fence count used to route keys to logical Slot Raft Groups.
 hash_slot_count = 256
 slot_replica_n = 1
 node_health_report_interval = "5s"

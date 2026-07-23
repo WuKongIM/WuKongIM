@@ -129,11 +129,11 @@ type ControlVoter struct {
 
 // SlotConfig contains Slot runtime sizing and placement defaults.
 type SlotConfig struct {
-	// InitialSlotCount is the number of physical Slots created by the initial control snapshot.
+	// InitialSlotCount is the number of logical Slot Raft Groups created by the initial control snapshot.
 	InitialSlotCount uint32
-	// HashSlotCount is the number of logical hash slots in the route table.
+	// HashSlotCount is the number of stable physical hash-slot fences in the route table.
 	HashSlotCount uint16
-	// ReplicaCount is the desired replica count for each physical Slot.
+	// ReplicaCount is the desired voter count for each logical Slot Raft Group.
 	ReplicaCount uint16
 	// TickInterval controls how often Slot Raft groups receive local ticks.
 	TickInterval time.Duration
@@ -368,6 +368,12 @@ func (c *Config) applyDefaults() {
 	c.applyHealthReportDefaults()
 }
 
+// WithDefaults returns a copy normalized with the same defaults used by New.
+func (c Config) WithDefaults() Config {
+	c.applyDefaults()
+	return c
+}
+
 func namedLogger(logger wklog.Logger, name string) wklog.Logger {
 	if logger == nil {
 		return nil
@@ -412,7 +418,7 @@ func (c *Config) applySlotDefaults() {
 		c.Slots.InitialSlotCount = 1
 	}
 	if c.Slots.HashSlotCount == 0 {
-		c.Slots.HashSlotCount = 16
+		c.Slots.HashSlotCount = 256
 	}
 	if c.Slots.ReplicaCount == 0 {
 		c.Slots.ReplicaCount = uint16(len(c.Control.Voters))

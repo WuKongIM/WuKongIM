@@ -26,6 +26,8 @@ jobs:
         include:
           - name: internal-runtime
             packages: "./internal/app ./internal/runtime/..."
+          - name: plugin-runtime
+            packages: "./pkg/plugin/pluginhost ./pkg/wklog"
           - name: gateway-transport
             packages: "./pkg/gateway/... ./pkg/transport/..."
           - name: channel-cluster-slot

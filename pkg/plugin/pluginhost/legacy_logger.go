@@ -1,10 +1,24 @@
 package pluginhost
 
 import (
+	"sync"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	legacywklog "github.com/WuKongIM/wklog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+var legacyRPCLogInitOnce sync.Once
+
+// ensureLegacyRPCLogState initializes the legacy global level read that wkrpc
+// still performs after every handled request. Debug preserves any existing
+// legacy configuration and is silent under the dependency's default level.
+func ensureLegacyRPCLogState() {
+	legacyRPCLogInitOnce.Do(func() {
+		legacywklog.Debug("initialize wkrpc compatibility logger")
+	})
+}
 
 type legacyRPCLogger struct {
 	logger *wklog.DependencyLogger

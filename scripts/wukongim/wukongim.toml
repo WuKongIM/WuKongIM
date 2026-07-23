@@ -21,11 +21,11 @@ id = "wukongim-single"
 # New dynamic data nodes must use WK_CLUSTER_SEEDS instead of WK_CLUSTER_NODES.
 nodes = [{ addr = "127.0.0.1:7001", id = 1 }]
 
-# Physical Slot count created by the initial Controller snapshot.
+# Logical Slot Raft Group count created by the initial Controller snapshot.
 initial_slot_count = 1
 
-# Logical hash-slot count used for routing channel keys to physical Slots.
-hash_slot_count = 16
+# Stable physical hash-slot fence count used to route keys to logical Slot Raft Groups.
+hash_slot_count = 256
 
 # Desired Slot replica count for this single-node cluster.
 slot_replica_n = 1

@@ -147,7 +147,10 @@ one selected node's effective startup configuration. The handler validates a
 positive path node ID, requires the same `cluster.node:r` permission as node
 inventory, delegates node-existence checks and local/remote targeting to
 `internal/usecase/management`, and serializes only the allowlisted,
-pre-redacted groups returned by that usecase. It never reads environment
+pre-redacted groups returned by that usecase. Every item carries its normalized
+effective value plus a bounded `toml`, `env`, `default`, or `derived` source so
+operators do not mistake a zero-valued auto input for its non-zero runtime
+shape. It never reads environment
 variables directly, never exposes raw manager credentials or join tokens, and
 does not mutate runtime configuration. Missing nodes return `404 not_found`;
 unwired or unreachable config readers return `503 service_unavailable`.

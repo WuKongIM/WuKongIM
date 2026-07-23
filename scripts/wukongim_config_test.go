@@ -22,7 +22,7 @@ func TestScriptWukongIMTOMLConfigsLoad(t *testing.T) {
 			name:          "single node cluster",
 			file:          "wukongim.toml",
 			nodeID:        1,
-			hashSlotCount: 16,
+			hashSlotCount: 256,
 			apiAddr:       "127.0.0.1:5001",
 			tcpAddr:       "127.0.0.1:5100",
 		},

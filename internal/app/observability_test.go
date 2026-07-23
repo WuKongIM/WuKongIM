@@ -2706,7 +2706,7 @@ func TestDeliveryMessageObserverWarnsExpectedRoutePostCommitFailure(t *testing.T
 	entry := requireAppLogEvent(t, logger, "WARN", "internal.app.channelappend.post_commit_failed")
 	requireAppLogField(t, entry, "phase", "conversation_active")
 	requireAppLogField(t, entry, "result", "stale_route")
-	for _, logged := range logger.entries {
+	for _, logged := range logger.entriesSnapshot() {
 		if logged.level == "ERROR" {
 			t.Fatalf("unexpected ERROR log for retryable post-commit route failure: %#v", logged)
 		}
@@ -2794,7 +2794,8 @@ func (s *recordingInternalSendTraceSink) snapshot() []sendtrace.Event {
 
 func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event string) recordedAppLogEntry {
 	t.Helper()
-	for _, entry := range logger.entries {
+	entries := logger.entriesSnapshot()
+	for _, entry := range entries {
 		if entry.level != level {
 			continue
 		}
@@ -2804,7 +2805,7 @@ func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event s
 			}
 		}
 	}
-	t.Fatalf("missing app log event level=%s event=%s entries=%#v", level, event, logger.entries)
+	t.Fatalf("missing app log event level=%s event=%s entries=%#v", level, event, entries)
 	return recordedAppLogEntry{}
 }
 
