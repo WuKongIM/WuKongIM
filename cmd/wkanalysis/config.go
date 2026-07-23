@@ -211,6 +211,7 @@ func defaultMetricQueries() map[string]string {
 		"append_error_rate":                                       `sum(rate(wukongim_message_append_errors_total[1m])) by (path, class)`,
 		"gateway_queue_depth":                                     `sum(wukongim_gateway_async_send_queue_depth)`,
 		"runtime_queue_pressure":                                  `max(wukongim_runtime_pool_queue_depth / (wukongim_runtime_pool_queue_capacity > 0))`,
+		"runtime_queue_pressure_by_pool":                          `max by (instance, node_id, node_name, component, pool, queue, priority) (wukongim_runtime_pool_queue_depth{job="wukongim"} / (wukongim_runtime_pool_queue_capacity{job="wukongim"} > 0))`,
 		"storage_commit_queue_depth":                              `sum by (instance, node_name, store) (wukongim_storage_commit_queue_depth{job="wukongim"})`,
 		"storage_commit_request_p99":                              `histogram_quantile(0.99, sum by (instance, node_name, store, lane, result, le) (rate(wukongim_storage_commit_request_duration_seconds_bucket{job="wukongim"}[1m])))`,
 		"storage_commit_batch_stage_p99":                          `histogram_quantile(0.99, sum by (instance, node_name, store, stage, result, le) (rate(wukongim_storage_commit_batch_duration_seconds_bucket{job="wukongim"}[1m])))`,

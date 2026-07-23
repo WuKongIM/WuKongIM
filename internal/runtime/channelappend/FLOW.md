@@ -139,6 +139,16 @@ flag guarantees that at most one goroutine advances that channel at a time. The
 group uses shards only for writer lookup and creation; shard locks are not held
 while preparing, appending, or committing messages.
 
+Writer activation first enters one group-local dispatcher queue. Only that
+dispatcher may perform a blocking submit to the bounded advance worker pool;
+`SubmitLocal`, append completions, and post-commit completions never wait for an
+advance worker. The scheduled flag de-duplicates each writer to at most one
+queued or running activation, so dispatcher memory is bounded by active writer
+state rather than SEND rate. This breaks the cross-pool cycle where every
+advance worker could wait for the append pool while every append completion
+waited to resubmit into the advance pool. The configured `AdvancePoolSize`
+still bounds concurrent writer state-machine execution.
+
 Accepted submit events enter a lightweight per-writer inbox. A scheduled writer
 may wait for the tiny runtime-only `InboxCoalesceWindow` before draining a
 small inbox, stopping earlier when the inbox reaches `InboxCoalesceMaxItems`
@@ -284,8 +294,11 @@ is not configured. This observer runs before sender echo suppression so a
 sender's other online sessions do not hide unrelated offline recipients. It is
 limited to durable ordinary commits: zero-sequence realtime envelopes, SyncOnce
 command messages, and request-scoped `MessageScopedUIDs` batches are skipped.
-Batch offline observation avoids per-recipient webhook queue admission for large
-fanout; callers should chunk large batches at the observer boundary if needed.
+Batch offline observation avoids per-recipient webhook or plugin-worker queue
+admission for large fanout. The observer receives one shared committed payload
+plus the ordered UID slice; an asynchronous adapter takes ownership once for the
+whole batch instead of cloning the payload for every UID. Callers should chunk
+large batches at the observer boundary if needed.
 The observer is a best-effort side-effect boundary and must not influence
 SENDACK, append success, conversation active admission, or owner push delivery.
 
@@ -316,6 +329,13 @@ the complete physical hash-slot fence, so the 256 hash slots remain distinct
 even when they map onto only 10 logical Slot Raft Groups. Channelappend then
 enqueues bounded recipient delivery plans and admits one independent
 `conversationactive.ActiveBatch` projection.
+The normal bounded page uses an allocation-free inline UID index to coalesce the
+sender and duplicate recipients while preserving duplicate delivery rows. It
+borrows an already-normalized recipient slice and copies only when empty or
+whitespace-normalized UIDs require compaction. Exact-target grouping uses a
+fixed 256-entry physical-hash-slot index with exact-target comparison; custom
+slot counts or transition collisions fall back to a bounded exact scan rather
+than weakening leader-term, config-epoch, or route-revision fences.
 The batch carries an explicit `metadb.ConversationKind`: normal for ordinary
 channel commits, CMD for one-shot sync commits or command-channel ids. It also
 carries `SenderUID` from the committed event, channel identity, message
@@ -340,7 +360,10 @@ map to route-not-ready before enqueueing. The production plan-capable enqueuer p
 groups into commands whose total recipient count is bounded by the existing
 recipient batch size. This preserves the complete target fence across the queue
 boundary while allowing one subscriber page to be admitted as one plan when it
-fits that bound. A legacy batch-only enqueuer remains supported; only that
+fits that bound. Each target carries a capacity-limited view into the
+grouping-owned normalized recipient storage, so asynchronous admission does not
+repeat the recipient copy and cannot overwrite a sibling target window. A
+legacy batch-only enqueuer remains supported; only that
 compatibility path dispatches different targets concurrently up to
 `RecipientAuthorityDispatchConcurrency`, while batches for the same target stay
 sequential.
@@ -351,12 +374,15 @@ per-group results, so one failed group is observed without suppressing the
 other groups. A legacy presence resolver remains supported by resolving the
 groups individually. A panic while processing one resolved group is converted
 to that group's terminal error and does not prevent later sibling groups from
-running. Successfully resolved groups observe offline recipients and skip only
-the sender's exact accepted session before their routes are coalesced by owner
-across the whole plan. Owner groups retain first-appearance order for stable
-error folding, route order follows target and resolver order, and each owner
-group is split into bounded push chunks. Different owners execute concurrently
-under a fixed bound, while chunks for the same owner remain sequential.
+running. Successfully resolved groups first contribute their deduplicated
+offline UIDs to one plan-level observer event, so plugin and webhook work scales
+with bounded delivery plans rather than 256 physical authority targets. They
+then skip only the sender's exact accepted session before routes are coalesced
+by owner across the whole plan. Owner groups retain first-appearance order for
+stable error folding, route order follows target and resolver order, and each
+owner group is split into bounded push chunks. Different owners execute
+concurrently under a fixed bound, while chunks for the same owner remain
+sequential.
 Retryable results narrow retries to only their returned routes; terminal
 push failures map back only to the exact target groups that contributed those
 routes, while unrelated owners and targets continue. Owner-local concrete
@@ -422,10 +448,12 @@ enqueue/pop, and retry-turn completion request pressure publication only after
 their state transition. None of these observations carries a channel, UID, Slot,
 or authority-target label. When the observer supports pool
 samples, the group also emits running/capacity/waiting observations for the
-advance, append_effect, and post_commit pools. The first two report direct
-ants/v2 worker state; post_commit reports logical admitted tasks so retained idle
-ants workers are not mistaken for active work. Benchmark scripts use these
-samples for the per-node peak `used/cap` pool summary.
+advance, append_effect, and post_commit pools. Advance waiting includes both
+the dispatcher queue and a dispatcher currently blocked on the underlying
+ants/v2 pool; append_effect reports direct ants state. Post_commit reports
+logical admitted tasks so retained idle ants workers are not mistaken for
+active work. Benchmark scripts use these samples for the per-node peak
+`used/cap` pool summary.
 
 Before a post-commit effect enters the asynchronous pool, it copies the
 committed-envelope slice into effect-owned storage. The envelopes themselves

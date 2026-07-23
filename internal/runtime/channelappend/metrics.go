@@ -15,6 +15,7 @@ type groupMetrics struct {
 	appendPool        *workerPool
 	postCommitPool    *workerPool
 	advancePool       *workerPool
+	advanceScheduler  *writerAdvanceScheduler
 	handoff           *postCommitHandoff
 	postCommitRetries *postCommitRetryScheduler
 
@@ -149,7 +150,7 @@ func (m *groupMetrics) publishPressureSnapshot() {
 	if !ok || antsObserver == nil {
 		return
 	}
-	observeWorkerPool(antsObserver, "advance", m.advancePool)
+	observeWorkerPoolWithWaiting(antsObserver, "advance", m.advancePool, m.advanceScheduler.waiting())
 	observeWorkerPool(antsObserver, "append_effect", m.appendPool)
 	observeWorkerPool(antsObserver, "post_commit", m.postCommitPool)
 }
@@ -169,6 +170,13 @@ func (m *groupMetrics) admissionDepth() int {
 }
 
 func observeWorkerPool(observer AntsPoolObserver, name string, pool *workerPool) {
+	if pool == nil {
+		return
+	}
+	observeWorkerPoolWithWaiting(observer, name, pool, pool.waiting())
+}
+
+func observeWorkerPoolWithWaiting(observer AntsPoolObserver, name string, pool *workerPool, waiting int) {
 	if observer == nil || pool == nil {
 		return
 	}
@@ -176,6 +184,6 @@ func observeWorkerPool(observer AntsPoolObserver, name string, pool *workerPool)
 		Pool:     name,
 		Running:  pool.running(),
 		Capacity: pool.capacity(),
-		Waiting:  pool.waiting(),
+		Waiting:  waiting,
 	})
 }

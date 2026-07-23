@@ -71,3 +71,58 @@ func (e ReceiveOffline) Clone() ReceiveOffline {
 	e.MessageScopedUIDs = append([]string(nil), e.MessageScopedUIDs...)
 	return e
 }
+
+// ReceiveOfflineBatch carries offline recipient candidates for one committed message into plugin hooks.
+type ReceiveOfflineBatch struct {
+	// MessageID is the durable server message identifier.
+	MessageID uint64
+	// MessageSeq is the committed channel sequence number.
+	MessageSeq uint64
+	// ChannelID is the target channel identifier.
+	ChannelID string
+	// ChannelType is the target channel type.
+	ChannelType uint8
+	// FromUID is the sender user identifier.
+	FromUID string
+	// UIDs contains the offline recipient user identifiers in delivery order.
+	UIDs []string
+	// ClientMsgNo is the client-provided idempotency key.
+	ClientMsgNo string
+	// ServerTimestampMS is the server commit timestamp in milliseconds.
+	ServerTimestampMS int64
+	// Payload is the committed message body shared by all recipients.
+	Payload []byte
+	// NoPersist reports whether the envelope was a transient realtime send.
+	NoPersist bool
+	// SyncOnce reports whether the message should only sync once to recipients.
+	SyncOnce bool
+	// MessageScopedUIDs marks request-scoped messages that must not trigger Receive.
+	MessageScopedUIDs []string
+}
+
+// Clone returns an independent batch copy safe for asynchronous plugin workers.
+func (e ReceiveOfflineBatch) Clone() ReceiveOfflineBatch {
+	e.UIDs = append([]string(nil), e.UIDs...)
+	e.Payload = append([]byte(nil), e.Payload...)
+	e.MessageScopedUIDs = append([]string(nil), e.MessageScopedUIDs...)
+	return e
+}
+
+// ForUID projects one recipient into the scalar compatibility event.
+// Payload and MessageScopedUIDs remain shared with the immutable owned batch.
+func (e ReceiveOfflineBatch) ForUID(uid string) ReceiveOffline {
+	return ReceiveOffline{
+		MessageID:         e.MessageID,
+		MessageSeq:        e.MessageSeq,
+		ChannelID:         e.ChannelID,
+		ChannelType:       e.ChannelType,
+		FromUID:           e.FromUID,
+		UID:               uid,
+		ClientMsgNo:       e.ClientMsgNo,
+		ServerTimestampMS: e.ServerTimestampMS,
+		Payload:           e.Payload,
+		NoPersist:         e.NoPersist,
+		SyncOnce:          e.SyncOnce,
+		MessageScopedUIDs: e.MessageScopedUIDs,
+	}
+}

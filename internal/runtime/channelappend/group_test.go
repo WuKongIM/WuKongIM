@@ -77,6 +77,72 @@ func TestAdvancePoolSizeIsIndependentFromAuthorityShards(t *testing.T) {
 	}
 }
 
+func TestGroupBurstDoesNotDeadlockAdvanceAndAppendPools(t *testing.T) {
+	const messageCount = 64
+	group := New(Options{
+		LocalNodeID:                 1,
+		AuthorityShardCount:         4,
+		AdvancePoolSize:             1,
+		EffectPoolSize:              1,
+		AdmissionCapacityPerShard:   messageCount,
+		ChannelBacklogHighWatermark: messageCount,
+		MessageID:                   newSequenceIDsForPrepare(1),
+		Appender:                    newRecordingAppenderForAppendTest(),
+		InboxCoalesceWindow:         -time.Nanosecond,
+	})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	type submitResult struct {
+		futures []*Future
+		err     error
+	}
+	submittedC := make(chan submitResult, 1)
+	go func() {
+		futures := make([]*Future, 0, messageCount)
+		for i := 0; i < messageCount; i++ {
+			channelID := "burst-" + strconv.Itoa(i)
+			target := AuthorityTarget{
+				ChannelID:    ChannelID{ID: channelID, Type: 2},
+				ChannelKey:   "2:" + channelID,
+				LeaderNodeID: 1,
+				Epoch:        1,
+				LeaderEpoch:  1,
+			}
+			future, err := group.SubmitLocal(
+				context.Background(),
+				target,
+				[]SendBatchItem{testSendItem("u"+strconv.Itoa(i), channelID)},
+			)
+			if err != nil {
+				submittedC <- submitResult{err: err}
+				return
+			}
+			futures = append(futures, future)
+		}
+		submittedC <- submitResult{futures: futures}
+	}()
+
+	var submitted submitResult
+	select {
+	case submitted = <-submittedC:
+	case <-time.After(2 * time.Second):
+		t.Fatal("burst SubmitLocal deadlocked between advance and append pools")
+	}
+	if submitted.err != nil {
+		t.Fatalf("burst SubmitLocal() error = %v", submitted.err)
+	}
+	for _, future := range submitted.futures {
+		requireAppendSuccessAnyID(t, waitFutureForTest(t, future), 0)
+	}
+	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := group.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
 func TestSubmitLocalRejectsRemoteAuthorityWithoutState(t *testing.T) {
 	group := newStartedTestGroup(t, Options{LocalNodeID: 1})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 2}

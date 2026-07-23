@@ -35,6 +35,7 @@ type composedPersistAfterEnqueuer struct {
 
 type composedOfflineRecipientsObserver struct {
 	pluginSingle channelappend.OfflineRecipientObserver
+	pluginBatch  channelappend.OfflineRecipientsObserver
 	webhookBatch channelappend.OfflineRecipientsObserver
 }
 
@@ -137,11 +138,20 @@ func composeOfflineRecipientObservers(
 	if pluginSingle == nil || webhookBatch == nil {
 		return pluginSingle, webhookBatch
 	}
-	return pluginSingle, composedOfflineRecipientsObserver{pluginSingle: pluginSingle, webhookBatch: webhookBatch}
+	pluginBatch, _ := pluginSingle.(channelappend.OfflineRecipientsObserver)
+	return pluginSingle, composedOfflineRecipientsObserver{
+		pluginSingle: pluginSingle,
+		pluginBatch:  pluginBatch,
+		webhookBatch: webhookBatch,
+	}
 }
 
 func (o composedOfflineRecipientsObserver) ObserveOfflineRecipients(ctx context.Context, event channelappend.OfflineRecipientsEvent) {
 	o.webhookBatch.ObserveOfflineRecipients(ctx, event)
+	if o.pluginBatch != nil {
+		o.pluginBatch.ObserveOfflineRecipients(ctx, event)
+		return
+	}
 	for _, uid := range event.UIDs {
 		o.pluginSingle.ObserveOfflineRecipient(ctx, channelappend.OfflineRecipientEvent{
 			Event: event.Event,

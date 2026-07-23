@@ -14,6 +14,37 @@ import (
 
 const subscriberSnapshotLoadLimit = 1 << 30
 
+const (
+	inlineRecipientAuthorityUIDLimit = 512
+	inlineRecipientAuthorityUIDSlots = 1024
+)
+
+type inlineRecipientAuthorityUIDTable struct {
+	// hashes stores the allocation-free FNV-1a hash for each occupied probe slot.
+	hashes [inlineRecipientAuthorityUIDSlots]uint64
+	// positions stores the authority UID index plus one; zero marks an empty probe slot.
+	positions [inlineRecipientAuthorityUIDSlots]uint16
+}
+
+// lookupOrInsert resolves one UID against the inline table and records nextIndex when absent.
+func (t *inlineRecipientAuthorityUIDTable) lookupOrInsert(uid string, authorityUIDs []string, nextIndex int) (int, bool) {
+	hash := hashString64(uid)
+	position := int(hash & (inlineRecipientAuthorityUIDSlots - 1))
+	for {
+		indexPlusOne := t.positions[position]
+		if indexPlusOne == 0 {
+			t.hashes[position] = hash
+			t.positions[position] = uint16(nextIndex + 1)
+			return nextIndex, false
+		}
+		index := int(indexPlusOne - 1)
+		if t.hashes[position] == hash && authorityUIDs[index] == uid {
+			return index, true
+		}
+		position = (position + 1) & (inlineRecipientAuthorityUIDSlots - 1)
+	}
+}
+
 type recipientDispatchResult struct {
 	// subscriberCache carries a successfully loaded non-large recipient snapshot.
 	subscriberCache subscriberCache
@@ -300,8 +331,11 @@ func dispatchRecipientPlans(
 				n = len(recipients)
 			}
 			plan.Targets = append(plan.Targets, RecipientTargetBatch{
-				Target:     target,
-				Recipients: append([]Recipient(nil), recipients[:n]...),
+				Target: target,
+				// Grouping already owns this normalized recipient storage. A
+				// capacity-limited view can transfer to the async plan without
+				// another copy and cannot overwrite a sibling target window.
+				Recipients: recipients[:n:n],
 			})
 			recipients = recipients[n:]
 			remaining -= n
@@ -356,46 +390,73 @@ func conversationKindForCommittedEnvelope(event CommittedEnvelope) metadb.Conver
 }
 
 func normalizeRecipientsForAuthorityResolution(senderUID string, recipients []Recipient, includeSender bool) normalizedRecipientAuthoritySet {
-	type uidState struct {
-		index     int
-		recipient bool
-	}
 	set := normalizedRecipientAuthoritySet{
-		recipients:                make([]Recipient, 0, len(recipients)),
 		authorityUIDs:             make([]string, 0, len(recipients)+1),
 		authorityRecipient:        make([]bool, 0, len(recipients)+1),
 		recipientAuthorityIndexes: make([]int, 0, len(recipients)),
 		senderAuthorityIndex:      -1,
 	}
-	seen := make(map[string]uidState, len(recipients)+1)
+	copyRecipients := false
+	var inlineUIDs inlineRecipientAuthorityUIDTable
+	var seen map[string]int
+	if len(recipients) > inlineRecipientAuthorityUIDLimit {
+		seen = make(map[string]int, len(recipients)+1)
+	}
 	if includeSender && senderUID != "" {
 		set.senderAuthorityIndex = 0
 		set.authorityUIDs = append(set.authorityUIDs, senderUID)
 		set.authorityRecipient = append(set.authorityRecipient, false)
-		seen[senderUID] = uidState{index: 0}
+		if seen != nil {
+			seen[senderUID] = 0
+		} else {
+			inlineUIDs.lookupOrInsert(senderUID, set.authorityUIDs, 0)
+		}
 	}
-	for _, recipient := range recipients {
+	for recipientIndex, recipient := range recipients {
 		uid := strings.TrimSpace(recipient.UID)
 		if uid == "" {
+			if !copyRecipients {
+				set.recipients = make([]Recipient, 0, len(recipients))
+				set.recipients = append(set.recipients, recipients[:recipientIndex]...)
+				copyRecipients = true
+			}
 			continue
 		}
-		recipient.UID = uid
-		set.recipients = append(set.recipients, recipient)
-		state, ok := seen[uid]
+		if uid != recipient.UID && !copyRecipients {
+			set.recipients = make([]Recipient, 0, len(recipients))
+			set.recipients = append(set.recipients, recipients[:recipientIndex]...)
+			copyRecipients = true
+		}
+		if copyRecipients {
+			recipient.UID = uid
+			set.recipients = append(set.recipients, recipient)
+		}
+		var (
+			authorityIndex int
+			ok             bool
+		)
+		if seen != nil {
+			authorityIndex, ok = seen[uid]
+		} else {
+			authorityIndex, ok = inlineUIDs.lookupOrInsert(uid, set.authorityUIDs, len(set.authorityUIDs))
+		}
 		if !ok {
-			state.index = len(set.authorityUIDs)
+			authorityIndex = len(set.authorityUIDs)
 			set.authorityUIDs = append(set.authorityUIDs, uid)
 			set.authorityRecipient = append(set.authorityRecipient, true)
-			state.recipient = true
 			set.uniqueRecipientCount++
-			seen[uid] = state
-		} else if !state.recipient {
-			state.recipient = true
-			set.authorityRecipient[state.index] = true
+			if seen != nil {
+				seen[uid] = authorityIndex
+			}
+		} else if !set.authorityRecipient[authorityIndex] {
+			set.authorityRecipient[authorityIndex] = true
 			set.uniqueRecipientCount++
-			seen[uid] = state
 		}
-		set.recipientAuthorityIndexes = append(set.recipientAuthorityIndexes, state.index)
+		set.recipientAuthorityIndexes = append(set.recipientAuthorityIndexes, authorityIndex)
+	}
+	if !copyRecipients {
+		// The caller retains ownership; downstream grouping only reads this normalized view.
+		set.recipients = recipients
 	}
 	return set
 }
@@ -424,22 +485,50 @@ func resolveRecipientAuthorityTargets(ctx context.Context, resolver RecipientAut
 }
 
 func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []RecipientAuthorityResult, senderUID string) (recipientAuthorityGrouping, error) {
-	grouping := recipientAuthorityGrouping{activeReady: len(results) == len(set.authorityUIDs)}
+	groupCapacity := recipientAuthorityGroupCapacity(results)
+	grouping := recipientAuthorityGrouping{
+		groups:        make([]recipientAuthorityGroup, 0, groupCapacity),
+		deliveryOrder: make([]int, 0, groupCapacity),
+		activeOrder:   make([]int, 0, groupCapacity),
+		activeReady:   len(results) == len(set.authorityUIDs),
+	}
 	if len(results) != len(set.authorityUIDs) {
 		return grouping, fmt.Errorf("channelappend: aligned recipient authority result count %d does not match UID count %d: %w", len(results), len(set.authorityUIDs), ErrRouteNotReady)
 	}
-	groupIndex := make(map[RecipientAuthorityTarget]int, min(len(results), 256))
+	// The default physical hash-slot table is 256 entries. The fixed first-group
+	// index removes a target-keyed map from the hot path while the exact-target
+	// scan preserves semantics for custom slot counts and transition collisions.
+	var firstGroupByHashSlot [256]uint32
 	authorityGroupIndexes := make([]int, len(results))
 	for index := range authorityGroupIndexes {
 		authorityGroupIndexes[index] = -1
 	}
 	ensureGroup := func(target RecipientAuthorityTarget) int {
-		if index, ok := groupIndex[target]; ok {
-			return index
+		hashSlot := int(target.HashSlot)
+		if hashSlot < len(firstGroupByHashSlot) {
+			if position := firstGroupByHashSlot[hashSlot]; position != 0 {
+				index := int(position - 1)
+				if grouping.groups[index].target == target {
+					return index
+				}
+				for index := range grouping.groups {
+					if grouping.groups[index].target == target {
+						return index
+					}
+				}
+			}
+		} else {
+			for index := range grouping.groups {
+				if grouping.groups[index].target == target {
+					return index
+				}
+			}
 		}
 		index := len(grouping.groups)
-		groupIndex[target] = index
 		grouping.groups = append(grouping.groups, recipientAuthorityGroup{target: target})
+		if hashSlot < len(firstGroupByHashSlot) && firstGroupByHashSlot[hashSlot] == 0 {
+			firstGroupByHashSlot[hashSlot] = uint32(index + 1)
+		}
 		return index
 	}
 	for index, result := range results {
@@ -528,6 +617,29 @@ func groupRecipientAuthorities(set normalizedRecipientAuthoritySet, results []Re
 		}
 	}
 	return grouping, nil
+}
+
+func recipientAuthorityGroupCapacity(results []RecipientAuthorityResult) int {
+	var occupiedPhysicalSlots [256]bool
+	capacity := 0
+	for _, result := range results {
+		if result.Err != nil || result.Target.Validate() != nil {
+			continue
+		}
+		hashSlot := int(result.Target.HashSlot)
+		if hashSlot >= len(occupiedPhysicalSlots) {
+			// Custom physical slot tables are uncommon and may contain exact
+			// duplicates. A slight overestimate is preferable to a map here.
+			capacity++
+			continue
+		}
+		if occupiedPhysicalSlots[hashSlot] {
+			continue
+		}
+		occupiedPhysicalSlots[hashSlot] = true
+		capacity++
+	}
+	return capacity
 }
 
 func withRecipientRouteResolveDetail(err error, set normalizedRecipientAuthoritySet) error {

@@ -85,6 +85,14 @@ func TestDefaultMetricQueriesExcludeZeroCapacityRuntimeQueues(t *testing.T) {
 	}
 }
 
+func TestDefaultMetricQueriesIncludePerPoolRuntimeQueuePressure(t *testing.T) {
+	got := defaultMetricQueries()["runtime_queue_pressure_by_pool"]
+	want := `max by (instance, node_id, node_name, component, pool, queue, priority) (wukongim_runtime_pool_queue_depth{job="wukongim"} / (wukongim_runtime_pool_queue_capacity{job="wukongim"} > 0))`
+	if got != want {
+		t.Fatalf("runtime_queue_pressure_by_pool = %q, want %q", got, want)
+	}
+}
+
 func TestDefaultMetricQueriesIncludeRecipientDeliveryAndPostCommitEvidence(t *testing.T) {
 	queries := defaultMetricQueries()
 	want := map[string]string{

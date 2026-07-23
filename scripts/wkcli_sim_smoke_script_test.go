@@ -895,7 +895,10 @@ func TestWkcliSimThreeNodeSmokeScriptReportsSimFailureBeforeDelayedAutoJoin(t *t
 		"--members", "4",
 		"--rate", "6/s",
 		"--duration", "4s",
-		"--ready-timeout", "2",
+		// The fake start process publishes readiness asynchronously; keep this
+		// tolerant of repository-wide parallel test scheduling while the
+		// delayed auto-join assertion remains two seconds.
+		"--ready-timeout", "10",
 		"--poll", "0",
 	)
 	cmd.Dir = root

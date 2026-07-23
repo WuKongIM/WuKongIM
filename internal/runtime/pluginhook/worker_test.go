@@ -112,6 +112,44 @@ func TestWorkerEnqueueReceiveInvokesReceiveUsecaseAndClonesPayload(t *testing.T)
 	require.Eventually(t, func() bool { return observer.receiveInvokeCount(invokeResultOK) == 1 }, time.Second, time.Millisecond)
 }
 
+func TestWorkerEnqueueReceiveBatchInvokesBatchUsecaseAndClonesMutableFieldsOnce(t *testing.T) {
+	usecase := &recordingHookUsecase{receiveBatchDone: make(chan struct{})}
+	observer := &recordingObserver{}
+	worker := NewWorker(Options{Usecase: usecase, QueueSize: 1, Workers: 1, Timeout: time.Second, Observer: observer})
+	require.NoError(t, worker.Start(context.Background()))
+	defer worker.Stop(context.Background())
+
+	uids := []string{"u2", "u3"}
+	payload := []byte("hello")
+	scopedUIDs := []string{"bot"}
+	worker.EnqueueReceiveBatch(context.Background(), pluginevents.ReceiveOfflineBatch{
+		MessageID:         1,
+		UIDs:              uids,
+		Payload:           payload,
+		MessageScopedUIDs: scopedUIDs,
+	})
+	uids[0] = "changed"
+	payload[0] = 'x'
+	scopedUIDs[0] = "changed"
+
+	select {
+	case <-usecase.receiveBatchDone:
+	case <-time.After(time.Second):
+		t.Fatal("ReceiveOfflineBatch was not invoked")
+	}
+
+	usecase.mu.Lock()
+	defer usecase.mu.Unlock()
+	require.Len(t, usecase.receiveBatchCalls, 1)
+	require.Equal(t, []string{"u2", "u3"}, usecase.receiveBatchCalls[0].UIDs)
+	require.Equal(t, []byte("hello"), usecase.receiveBatchCalls[0].Payload)
+	require.Equal(t, []string{"bot"}, usecase.receiveBatchCalls[0].MessageScopedUIDs)
+	require.Equal(t, []time.Duration{time.Second}, usecase.receiveBatchTimeouts)
+	require.Empty(t, usecase.receiveCalls)
+	require.Eventually(t, func() bool { return observer.receiveEnqueueCount(enqueueResultAccepted) == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return observer.receiveInvokeCount(invokeResultOK) == 1 }, time.Second, time.Millisecond)
+}
+
 func TestWorkerQueueFullDropsWithoutBlockingCaller(t *testing.T) {
 	usecase := newBlockingPersistAfterUsecase()
 	observer := &recordingObserver{}
@@ -292,11 +330,14 @@ func (f persistAfterUsecaseFunc) PersistAfterCommitted(ctx context.Context, even
 }
 
 type recordingHookUsecase struct {
-	receiveDone chan struct{}
+	receiveDone      chan struct{}
+	receiveBatchDone chan struct{}
 
-	mu                sync.Mutex
-	persistAfterCalls []pluginevents.PersistAfterCommitted
-	receiveCalls      []pluginevents.ReceiveOffline
+	mu                   sync.Mutex
+	persistAfterCalls    []pluginevents.PersistAfterCommitted
+	receiveCalls         []pluginevents.ReceiveOffline
+	receiveBatchCalls    []pluginevents.ReceiveOfflineBatch
+	receiveBatchTimeouts []time.Duration
 }
 
 func (r *recordingHookUsecase) PersistAfterCommitted(_ context.Context, event pluginevents.PersistAfterCommitted) error {
@@ -315,6 +356,25 @@ func (r *recordingHookUsecase) ReceiveOffline(_ context.Context, event plugineve
 		case <-r.receiveDone:
 		default:
 			close(r.receiveDone)
+		}
+	}
+	return nil
+}
+
+func (r *recordingHookUsecase) ReceiveOfflineBatchWithTimeout(
+	_ context.Context,
+	event pluginevents.ReceiveOfflineBatch,
+	timeout time.Duration,
+) error {
+	r.mu.Lock()
+	r.receiveBatchCalls = append(r.receiveBatchCalls, event)
+	r.receiveBatchTimeouts = append(r.receiveBatchTimeouts, timeout)
+	r.mu.Unlock()
+	if r.receiveBatchDone != nil {
+		select {
+		case <-r.receiveBatchDone:
+		default:
+			close(r.receiveBatchDone)
 		}
 	}
 	return nil

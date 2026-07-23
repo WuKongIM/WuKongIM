@@ -54,8 +54,8 @@ func (a *App) EndpointsByTargets(ctx context.Context, groups []EndpointLookupGro
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	results := make([]EndpointLookupResult, len(groups))
 	if a.authority == nil {
+		results := make([]EndpointLookupResult, len(groups))
 		for i := range results {
 			results[i].Err = ErrAuthorityUnavailable
 		}
@@ -64,6 +64,7 @@ func (a *App) EndpointsByTargets(ctx context.Context, groups []EndpointLookupGro
 	if batch, ok := a.authority.(TargetBatchAuthorityClient); ok {
 		return batch.EndpointsByTargets(ctx, groups)
 	}
+	results := make([]EndpointLookupResult, len(groups))
 	for i, group := range groups {
 		for _, uid := range group.UIDs {
 			if uid == "" {

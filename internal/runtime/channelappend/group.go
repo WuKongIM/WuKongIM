@@ -13,6 +13,9 @@ type Group struct {
 	shards []*shard
 	// advancePool runs non-blocking writer state-machine activation.
 	advancePool *workerPool
+	// advanceScheduler is the only blocking submitter to advancePool. It keeps
+	// callers and effect completions out of cross-pool dependency cycles.
+	advanceScheduler *writerAdvanceScheduler
 	// appendPool runs foreground blocking durable append effects.
 	appendPool *workerPool
 	// postCommitPool runs best-effort post-commit and realtime recipient effects.
@@ -39,6 +42,7 @@ func New(opts Options) *Group {
 	opts = applyDefaults(opts)
 	limits := stateLimitsFromOptions(opts)
 	advancePool := newWorkerPool(opts.AdvancePoolSize)
+	advanceScheduler := newWriterAdvanceScheduler(advancePool)
 	appendPool := newWorkerPool(opts.EffectPoolSize)
 	postCommitPool := newNonblockingWorkerPool(opts.EffectPoolSize)
 	handoff := newPostCommitHandoff(opts.PostCommitHandoffCapacity)
@@ -50,6 +54,7 @@ func New(opts Options) *Group {
 	group := &Group{
 		opts:              opts,
 		advancePool:       advancePool,
+		advanceScheduler:  advanceScheduler,
 		appendPool:        appendPool,
 		postCommitPool:    postCommitPool,
 		handoff:           handoff,
@@ -71,11 +76,13 @@ func New(opts Options) *Group {
 			appendPool:        appendPool,
 			postCommitPool:    postCommitPool,
 			advancePool:       advancePool,
+			advanceScheduler:  advanceScheduler,
 			handoff:           handoff,
 			postCommitRetries: postCommitRetries,
 		}
 		metrics = &group.metrics
 	}
+	advanceScheduler.onStateChange = group.metrics.observePressure
 	ports := writerPorts{
 		prepare:        preparePortsFromOptions(opts),
 		append:         appendPortsFromOptions(opts),
@@ -98,7 +105,7 @@ func New(opts Options) *Group {
 }
 
 func (g *Group) schedule(w *channelWriter) {
-	_ = g.advancePool.submit(func() { w.advance() })
+	g.advanceScheduler.schedule(w)
 }
 
 func (g *Group) shardForTarget(target AuthorityTarget) *shard {
@@ -120,6 +127,7 @@ func (g *Group) Start(ctx context.Context) error {
 		g.mu.Unlock()
 		return nil
 	}
+	g.advanceScheduler.start()
 	g.metrics.startPressurePublisher()
 	g.postCommitRetries.start()
 	g.started = true
@@ -157,6 +165,7 @@ func (g *Group) finishStop() {
 	background := context.Background()
 	_ = g.drainWriters(background)
 	_ = g.postCommitRetries.stopAndWait(background)
+	g.advanceScheduler.stop()
 	_ = g.metrics.stopPressurePublisher(background)
 	_ = g.advancePool.stop(background)
 	_ = g.appendPool.stop(background)

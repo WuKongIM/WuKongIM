@@ -15,7 +15,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	presenceusecase "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -72,15 +74,20 @@ var cloudMediumFeedbackProfiles = []struct {
 //   - the bounded recipient delivery queue with 320 workers;
 //   - infra/delivery LocalOwnerPusher and the real pending-ACK state machine, with sessions
 //     returning an immediate RECVACK from inside WriteDelivery.
+//   - the real offline plugin observer, bounded plugin hook worker, and plugin
+//     usecase fast exit when no running Receive plugin exists.
 //
 // The durable appender, Slot/Channel Raft, Pebble, cluster transport, gateway
 // socket, and client protocol loop are deterministic in-process substitutes.
 // Channels and recipient UIDs are unique inside the slice so every counted row
 // is independently conserved; hot-channel cache reuse and overlapping users
 // remain separate focused-test concerns.
-// The slice is not wall-clock paced. Therefore this test proves shape,
-// conservation, bounded drain, and ACK lifecycle correctness; it does not
-// prove production QPS or latency percentiles.
+// The complete slice is admitted before any future is awaited so local
+// channelappend and recipient queues see burst pressure instead of a
+// submit-and-wait serial loop. The slice is not wall-clock paced. Therefore
+// this test proves shape, conservation, bounded drain, ACK lifecycle, and
+// in-process burst handling; it does not prove production QPS or latency
+// percentiles.
 func TestCloudMediumRecipientOneTwentiethSecondFeedback(t *testing.T) {
 	if got := cloudMediumFeedbackMessageCount * int(time.Second/cloudMediumFeedbackSliceDuration); got != cloudMediumFeedbackEquivalentIngressQPS {
 		t.Fatalf("slice ingress = %d messages/s, want %d", got, cloudMediumFeedbackEquivalentIngressQPS)
@@ -139,24 +146,28 @@ func BenchmarkCloudMediumRecipientOneTwentiethSecondFeedback(b *testing.B) {
 		b.ReportMetric(float64(snapshot.maxInflight), "max-inflight/op")
 		b.ReportMetric(cloudMediumFeedbackMessageCount, "messages/op")
 		b.ReportMetric(cloudMediumFeedbackPlanCount, "plans/op")
+		b.ReportMetric(float64(snapshot.pluginReceiveAccepted), "plugin-batches/op")
 		b.ReportMetric(cloudMediumFeedbackRecipientRows, "recipient-rows/op")
 	}
 }
 
 type cloudMediumRecipientFeedbackHarness struct {
-	group        *channelappend.Group
-	worker       *channelappend.RecipientDeliveryWorker
-	observer     *cloudMediumRecipientFeedbackObserver
-	node         *cloudMediumRecipientFeedbackNode
-	source       *cloudMediumRecipientFeedbackSubscribers
-	directory    *authoritypresence.Directory
-	delivery     *runtimedelivery.Manager
-	writes       *atomic.Int64
-	targets      []channelappend.AuthorityTarget
-	items        []channelappend.SendBatchItem
-	closeMu      sync.Mutex
-	groupClosed  bool
-	workerClosed bool
+	group          *channelappend.Group
+	worker         *channelappend.RecipientDeliveryWorker
+	pluginHook     *pluginhook.Worker
+	pluginObserver *cloudMediumPluginHookObserver
+	observer       *cloudMediumRecipientFeedbackObserver
+	node           *cloudMediumRecipientFeedbackNode
+	source         *cloudMediumRecipientFeedbackSubscribers
+	directory      *authoritypresence.Directory
+	delivery       *runtimedelivery.Manager
+	writes         *atomic.Int64
+	targets        []channelappend.AuthorityTarget
+	items          []channelappend.SendBatchItem
+	closeMu        sync.Mutex
+	groupClosed    bool
+	workerClosed   bool
+	pluginClosed   bool
 }
 
 func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarness, error) {
@@ -311,10 +322,30 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 		Online:     onlineRegistry,
 		AckManager: deliveryManager,
 	})
+	plugins, err := pluginusecase.NewApp(pluginusecase.Options{
+		Runtime: &cloudMediumNoPluginRuntime{},
+		Invoker: cloudMediumNoPluginInvoker{},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create no-plugin receive usecase: %w", err)
+	}
+	pluginObserver := &cloudMediumPluginHookObserver{}
+	pluginWorker := pluginhook.NewWorker(pluginhook.Options{
+		Usecase:        plugins,
+		ReceiveUsecase: plugins,
+		QueueSize:      32_768,
+		Workers:        8,
+		Timeout:        time.Second,
+		Observer:       pluginObserver,
+	})
+	if err := pluginWorker.Start(context.Background()); err != nil {
+		return nil, fmt.Errorf("start plugin receive worker: %w", err)
+	}
 	processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-		PresenceResolver:   deliveryinfra.NewChannelAppendPresenceResolver(presenceApp),
-		OwnerPusher:        channelAppendOwnerPusher{next: localPusher},
-		OwnerPushBatchSize: cloudMediumFeedbackRecipientBatchSize,
+		PresenceResolver:          deliveryinfra.NewChannelAppendPresenceResolver(presenceApp),
+		OwnerPusher:               channelAppendOwnerPusher{next: localPusher},
+		OfflineRecipientsObserver: pluginReceiveObserver{worker: pluginWorker},
+		OwnerPushBatchSize:        cloudMediumFeedbackRecipientBatchSize,
 	})
 	observer := newCloudMediumRecipientFeedbackObserver()
 	worker := channelappend.NewRecipientDeliveryWorker(channelappend.RecipientDeliveryWorkerOptions{
@@ -325,6 +356,9 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 		Observer:    observer,
 	})
 	if err := worker.Start(context.Background()); err != nil {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = pluginWorker.Stop(stopCtx)
 		return nil, fmt.Errorf("start recipient delivery worker: %w", err)
 	}
 	group := channelappend.New(channelappend.Options{
@@ -350,19 +384,22 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = worker.Stop(stopCtx)
+		_ = pluginWorker.Stop(stopCtx)
 		return nil, fmt.Errorf("start channel append group: %w", err)
 	}
 	return &cloudMediumRecipientFeedbackHarness{
-		group:     group,
-		worker:    worker,
-		observer:  observer,
-		node:      node,
-		source:    source,
-		directory: directory,
-		delivery:  deliveryManager,
-		writes:    writes,
-		targets:   targets,
-		items:     items,
+		group:          group,
+		worker:         worker,
+		pluginHook:     pluginWorker,
+		pluginObserver: pluginObserver,
+		observer:       observer,
+		node:           node,
+		source:         source,
+		directory:      directory,
+		delivery:       deliveryManager,
+		writes:         writes,
+		targets:        targets,
+		items:          items,
 	}, nil
 }
 
@@ -370,11 +407,15 @@ func (h *cloudMediumRecipientFeedbackHarness) run(ctx context.Context) (cloudMed
 	if h == nil || h.group == nil {
 		return cloudMediumRecipientFeedbackSnapshot{}, errors.New("cloud medium feedback harness is not initialized")
 	}
+	futures := make([]*channelappend.Future, len(h.items))
 	for i := range h.items {
 		future, err := h.group.SubmitLocal(ctx, h.targets[i], []channelappend.SendBatchItem{h.items[i]})
 		if err != nil {
 			return cloudMediumRecipientFeedbackSnapshot{}, fmt.Errorf("submit message %d: %w", i, err)
 		}
+		futures[i] = future
+	}
+	for i, future := range futures {
 		results, err := future.Wait(ctx)
 		if err != nil {
 			return cloudMediumRecipientFeedbackSnapshot{}, fmt.Errorf("wait message %d: %w", i, err)
@@ -387,6 +428,9 @@ func (h *cloudMediumRecipientFeedbackHarness) run(ctx context.Context) (cloudMed
 		return cloudMediumRecipientFeedbackSnapshot{}, fmt.Errorf("drain channel append group: %w", err)
 	}
 	if err := h.observer.waitDrained(ctx, cloudMediumFeedbackPlanCount); err != nil {
+		return cloudMediumRecipientFeedbackSnapshot{}, err
+	}
+	if err := h.pluginObserver.waitDrained(ctx); err != nil {
 		return cloudMediumRecipientFeedbackSnapshot{}, err
 	}
 	snapshot := h.snapshot()
@@ -402,7 +446,8 @@ func (h *cloudMediumRecipientFeedbackHarness) close(ctx context.Context) error {
 	}
 	groupErr := h.stopGroup(ctx)
 	workerErr := h.stopWorker(ctx)
-	return errors.Join(groupErr, workerErr)
+	pluginErr := h.stopPluginHook(ctx)
+	return errors.Join(groupErr, workerErr, pluginErr)
 }
 
 func (h *cloudMediumRecipientFeedbackHarness) stopGroup(ctx context.Context) error {
@@ -431,6 +476,19 @@ func (h *cloudMediumRecipientFeedbackHarness) stopWorker(ctx context.Context) er
 	return nil
 }
 
+func (h *cloudMediumRecipientFeedbackHarness) stopPluginHook(ctx context.Context) error {
+	h.closeMu.Lock()
+	defer h.closeMu.Unlock()
+	if h.pluginClosed || h.pluginHook == nil {
+		return nil
+	}
+	if err := h.pluginHook.Stop(ctx); err != nil {
+		return err
+	}
+	h.pluginClosed = true
+	return nil
+}
+
 func (h *cloudMediumRecipientFeedbackHarness) snapshot() cloudMediumRecipientFeedbackSnapshot {
 	snapshot := h.observer.snapshot()
 	snapshot.subscriberPages = int(h.source.pageCalls.Load())
@@ -443,34 +501,40 @@ func (h *cloudMediumRecipientFeedbackHarness) snapshot() cloudMediumRecipientFee
 	snapshot.pendingACKs = h.delivery.PendingAckCount()
 	snapshot.directoryActive = h.directory.Snapshot().Active
 	snapshot.workerCapacity = h.worker.WorkerCapacity()
+	snapshot.pluginReceiveAccepted = int(h.pluginObserver.accepted.Load())
+	snapshot.pluginReceiveInvoked = int(h.pluginObserver.invoked.Load())
+	snapshot.pluginReceiveOther = int(h.pluginObserver.other.Load())
 	return snapshot
 }
 
 type cloudMediumRecipientFeedbackSnapshot struct {
-	appendFinished      int
-	appendErrors        int
-	admissionAccepted   int
-	admissionOther      int
-	processedOK         int
-	processedOther      int
-	processedRecipients int
-	postCommitFailures  int
-	queueDepth          int
-	queueCapacity       int
-	maxQueueDepth       int
-	inflight            int
-	inflightCapacity    int
-	maxInflight         int
-	subscriberPages     int
-	subscriberRows      int
-	authorityBatchCalls int
-	authorityRows       int
-	routeRefreshCalls   int
-	remoteRPCCalls      int
-	onlineWrites        int
-	pendingACKs         int
-	directoryActive     int
-	workerCapacity      int
+	appendFinished        int
+	appendErrors          int
+	admissionAccepted     int
+	admissionOther        int
+	processedOK           int
+	processedOther        int
+	processedRecipients   int
+	postCommitFailures    int
+	queueDepth            int
+	queueCapacity         int
+	maxQueueDepth         int
+	inflight              int
+	inflightCapacity      int
+	maxInflight           int
+	subscriberPages       int
+	subscriberRows        int
+	authorityBatchCalls   int
+	authorityRows         int
+	routeRefreshCalls     int
+	remoteRPCCalls        int
+	onlineWrites          int
+	pendingACKs           int
+	directoryActive       int
+	workerCapacity        int
+	pluginReceiveAccepted int
+	pluginReceiveInvoked  int
+	pluginReceiveOther    int
 }
 
 func (s cloudMediumRecipientFeedbackSnapshot) validate() error {
@@ -501,6 +565,9 @@ func (s cloudMediumRecipientFeedbackSnapshot) validate() error {
 		{name: "owner-local writes", got: s.onlineWrites, want: cloudMediumFeedbackOwnerWrites},
 		{name: "pending ACKs", got: s.pendingACKs, want: 0},
 		{name: "presence directory active routes", got: s.directoryActive, want: cloudMediumFeedbackOnlineRoutes},
+		{name: "plugin receive accepted batches", got: s.pluginReceiveAccepted, want: cloudMediumFeedbackGroupSubscriberPlans},
+		{name: "plugin receive invoked batches", got: s.pluginReceiveInvoked, want: cloudMediumFeedbackGroupSubscriberPlans},
+		{name: "plugin receive non-ok outcomes", got: s.pluginReceiveOther, want: 0},
 	}
 	for _, check := range checks {
 		if check.got != check.want {
@@ -514,6 +581,76 @@ func (s cloudMediumRecipientFeedbackSnapshot) validate() error {
 		return fmt.Errorf("max inflight = %d, want within [1,%d]", s.maxInflight, s.inflightCapacity)
 	}
 	return nil
+}
+
+type cloudMediumNoPluginRuntime struct{}
+
+func (*cloudMediumNoPluginRuntime) RegisterObserved(context.Context, pluginusecase.ObservedPlugin) error {
+	return nil
+}
+
+func (*cloudMediumNoPluginRuntime) MarkClosed(context.Context, string) error {
+	return nil
+}
+
+func (*cloudMediumNoPluginRuntime) List() []pluginusecase.ObservedPlugin {
+	return nil
+}
+
+type cloudMediumNoPluginInvoker struct{}
+
+func (cloudMediumNoPluginInvoker) RequestPlugin(context.Context, string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (cloudMediumNoPluginInvoker) SendPlugin(string, uint32, []byte) error {
+	return nil
+}
+
+type cloudMediumPluginHookObserver struct {
+	accepted atomic.Int64
+	invoked  atomic.Int64
+	other    atomic.Int64
+}
+
+func (*cloudMediumPluginHookObserver) ObservePersistAfterEnqueue(string, time.Duration) {}
+
+func (*cloudMediumPluginHookObserver) ObservePersistAfterInvoke(string, time.Duration) {}
+
+func (o *cloudMediumPluginHookObserver) ObserveReceiveEnqueue(result string, _ time.Duration) {
+	if result == "accepted" {
+		o.accepted.Add(1)
+		return
+	}
+	o.other.Add(1)
+}
+
+func (o *cloudMediumPluginHookObserver) ObserveReceiveInvoke(result string, _ time.Duration) {
+	if result == "ok" {
+		o.invoked.Add(1)
+		return
+	}
+	o.other.Add(1)
+}
+
+func (o *cloudMediumPluginHookObserver) waitDrained(ctx context.Context) error {
+	if o == nil {
+		return errors.New("cloud medium plugin hook observer is nil")
+	}
+	ticker := time.NewTicker(100 * time.Microsecond)
+	defer ticker.Stop()
+	for {
+		accepted := o.accepted.Load()
+		invoked := o.invoked.Load()
+		if accepted > 0 && invoked == accepted {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait plugin receive drain accepted=%d invoked=%d other=%d: %w", accepted, invoked, o.other.Load(), ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 type cloudMediumRecipientFeedbackObserver struct {

@@ -564,6 +564,30 @@ func TestPresenceAuthorityClientEndpointsByTargetsUsesOneLocalTargetBatchCall(t 
 	})
 }
 
+func TestPresenceAuthorityClientEndpointsByTargetsKeepsEmptyGroupAligned(t *testing.T) {
+	groups := []presence.EndpointLookupGroup{
+		{},
+		{Target: testEndpointLookupTarget(21, 1), UIDs: []string{"second"}},
+	}
+	local := &fakeTargetBatchPresenceAuthority{
+		fakePresenceAuthority: &fakePresenceAuthority{},
+		results: []presence.EndpointLookupResult{{
+			Routes: []presence.Route{testInfraPresenceRoute("second", 2)},
+		}},
+	}
+	client := NewPresenceAuthorityClient(&fakePresenceCluster{nodeID: 1}, local)
+
+	results := client.EndpointsByTargets(context.Background(), groups)
+
+	require.Len(t, local.calls, 1)
+	require.Equal(t, groups[1:], local.calls[0], "empty aligned groups must not reach the authority")
+	require.Len(t, results, 2)
+	require.Empty(t, results[0])
+	require.NoError(t, results[1].Err)
+	require.Len(t, results[1].Routes, 1)
+	require.Equal(t, "second", results[1].Routes[0].UID)
+}
+
 func TestPresenceAuthorityClientEndpointsByTargetsOverlapsRemoteLeadersAndKeepsResultsAligned(t *testing.T) {
 	started := make(chan uint64, 2)
 	releaseC := make(chan struct{})

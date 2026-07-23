@@ -56,6 +56,36 @@ func TestConversationAuthorityClientPrefersLightweightPartialRoutes(t *testing.T
 	}
 }
 
+func TestConversationAuthorityClientMultiBatchGroupingDoesNotDuplicateRecipients(t *testing.T) {
+	target := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 11, AuthorityEpoch: 7}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]cluster.Route{
+			"recipient-1": target,
+			"recipient-2": target,
+		},
+	}
+	client := NewConversationAuthorityClient(node, &fakeConversationAuthorityLocal{})
+
+	groups, failures, err := client.groupActiveBatchesByTargetPartial([]conversationactive.ActiveBatch{
+		{ChannelID: "g1", MessageSeq: 1, Recipients: []conversationactive.ActiveEntry{{UID: "recipient-1"}}},
+		{ChannelID: "g2", MessageSeq: 2, Recipients: []conversationactive.ActiveEntry{{UID: "recipient-2"}}},
+	})
+
+	if err != nil {
+		t.Fatalf("groupActiveBatchesByTargetPartial() error = %v", err)
+	}
+	if len(failures) != 0 || len(groups) != 2 {
+		t.Fatalf("groups=%#v failures=%#v, want two successful source batches", groups, failures)
+	}
+	if got := groups[0].batch.Recipients; !reflect.DeepEqual(got, []conversationactive.ActiveEntry{{UID: "recipient-1"}}) {
+		t.Fatalf("first recipients = %#v, want one exact recipient", got)
+	}
+	if got := groups[1].batch.Recipients; !reflect.DeepEqual(got, []conversationactive.ActiveEntry{{UID: "recipient-2"}}) {
+		t.Fatalf("second recipients = %#v, want one exact recipient", got)
+	}
+}
+
 func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{nodeID: 1, route: cluster.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}}

@@ -868,6 +868,9 @@ Target-aware endpoint lookup consumes those already-resolved target fences. It
 never calls `RouteKey` or `RouteKeysPartial` on the happy path. Multiple exact
 hash-slot targets for the same remote leader share one RPC envelope, so network
 work scales with leader count instead of recipient or hash-slot count.
+When every non-empty exact target belongs to one leader, the client borrows the
+caller-owned immutable group slice directly and preserves identity result
+alignment without constructing another leader map, index slice, or group copy.
 Independent leader envelopes execute concurrently under a fixed bound while
 aligned results remain in original input order. Each leader execution boundary
 also converts a local-authority or remote-client panic into a terminal error for

@@ -429,7 +429,7 @@ type Options struct {
 	SenderFence SenderFenceValidator
 	// AuthorityShardCount is the number of channel-key lookup shards. Values <= 0 use one shard.
 	AuthorityShardCount int
-	// AdvancePoolSize is the direct ants pool size used to activate writer state machines. Values <= 0 use a conservative default; larger values are capped at the ants/v2 int32 capacity limit.
+	// AdvancePoolSize bounds writer state-machine concurrency behind the dedicated non-blocking activation dispatcher. Values <= 0 use a conservative default; larger values are capped at the ants/v2 int32 capacity limit.
 	AdvancePoolSize int
 	// AdmissionCapacityPerShard bounds admitted-but-incomplete items per shard. Values <= 0 use a conservative bounded default.
 	AdmissionCapacityPerShard int
