@@ -17,7 +17,7 @@ func (p *Pool) taskGroups(items []queuedTask) [][]queuedTask {
 	first := items[0]
 	switch {
 	case p.canCollectRPCBatch(first.task):
-		return groupRPCBatchItems(items)
+		return p.rotateRPCBatchGroups(groupRPCBatchItems(items))
 	case p.canCollectStoreAppendBatch(first.task):
 		return groupStoreBatchItems(items, TaskStoreAppend)
 	case p.canCollectStoreApplyBatch(first.task):
@@ -27,6 +27,22 @@ func (p *Pool) taskGroups(items []queuedTask) [][]queuedTask {
 	default:
 		return singleTaskGroups(items)
 	}
+}
+
+// rotateRPCBatchGroups prevents the same target from repeatedly occupying the
+// tail when one actual logical Slot leader owns more work than its peers.
+func (p *Pool) rotateRPCBatchGroups(groups [][]queuedTask) [][]queuedTask {
+	if p == nil || len(groups) < 2 {
+		return groups
+	}
+	start := int((p.rpcGroupTurn.Add(1) - 1) % uint64(len(groups)))
+	if start == 0 {
+		return groups
+	}
+	rotated := make([][]queuedTask, 0, len(groups))
+	rotated = append(rotated, groups[start:]...)
+	rotated = append(rotated, groups[:start]...)
+	return rotated
 }
 
 func (p *Pool) batchMaxWait(defaultWait time.Duration) time.Duration {

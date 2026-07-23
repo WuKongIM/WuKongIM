@@ -19,10 +19,15 @@ const (
 	cloudChannelStoreAppendWorkers       = 8
 	cloudChannelStoreApplyWorkers        = 8
 	cloudChannelRPCWorkers               = 50
-	cloudGatewayGnetEventLoops           = 4
-	cloudGatewayAsyncSendWorkers         = 128
-	cloudGatewayAsyncSendQueueCapacity   = 131_072
-	cloudDefaultRecipientWorkers         = 100
+	// cloudChannelRPCBatchMaxItems is the bounded value accepted by the real
+	// three-process Medium-shaped 256/10/3 gate at 4,500/s actual ingress.
+	// The prior 61.75ms cycle and batch-four saturation corroborate the choice
+	// but are not treated as an ingress-to-RPC-item capacity equation.
+	cloudChannelRPCBatchMaxItems       = 8
+	cloudGatewayGnetEventLoops         = 4
+	cloudGatewayAsyncSendWorkers       = 128
+	cloudGatewayAsyncSendQueueCapacity = 131_072
+	cloudDefaultRecipientWorkers       = 100
 	// cloudSmallAuthorityCacheMaxRows preserves the default cache ceiling while
 	// covering the complete 30,860-row Cloud Small conversation working set.
 	cloudSmallAuthorityCacheMaxRows = 100_000
@@ -49,6 +54,7 @@ var effectiveRuntimeContractKeys = []string{
 	"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS",
 	"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS",
 	"WK_CLUSTER_CHANNEL_RPC_WORKERS",
+	"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS",
 	"WK_GATEWAY_GNET_MULTICORE",
 	"WK_GATEWAY_GNET_NUM_EVENT_LOOP",
 	"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",
@@ -79,6 +85,8 @@ type EffectiveNodeRuntimeContract struct {
 	ChannelStoreApplyWorkers int `json:"channel_store_apply_workers"`
 	// ChannelRPCWorkers is the explicit Channel replication RPC-worker bound.
 	ChannelRPCWorkers int `json:"channel_rpc_workers"`
+	// ChannelRPCBatchMaxItems is the bounded same-target replication batch cap.
+	ChannelRPCBatchMaxItems int `json:"channel_rpc_batch_max_items"`
 	// GatewayGnetMulticore enables the reviewed multi-event-loop gateway shape.
 	GatewayGnetMulticore bool `json:"gateway_gnet_multicore"`
 	// GatewayGnetEventLoops is the explicit gnet event-loop count.
@@ -110,6 +118,7 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 		ChannelStoreAppendWorkers:     cloudChannelStoreAppendWorkers,
 		ChannelStoreApplyWorkers:      cloudChannelStoreApplyWorkers,
 		ChannelRPCWorkers:             cloudChannelRPCWorkers,
+		ChannelRPCBatchMaxItems:       cloudChannelRPCBatchMaxItems,
 		GatewayGnetMulticore:          true,
 		GatewayGnetEventLoops:         cloudGatewayGnetEventLoops,
 		GatewayAsyncSendWorkers:       cloudGatewayAsyncSendWorkers,
@@ -143,6 +152,7 @@ func runtimeContractValuesEqual(left, right EffectiveNodeRuntimeContract) bool {
 		left.ChannelStoreAppendWorkers == right.ChannelStoreAppendWorkers &&
 		left.ChannelStoreApplyWorkers == right.ChannelStoreApplyWorkers &&
 		left.ChannelRPCWorkers == right.ChannelRPCWorkers &&
+		left.ChannelRPCBatchMaxItems == right.ChannelRPCBatchMaxItems &&
 		left.GatewayGnetMulticore == right.GatewayGnetMulticore &&
 		left.GatewayGnetEventLoops == right.GatewayGnetEventLoops &&
 		left.GatewayAsyncSendWorkers == right.GatewayAsyncSendWorkers &&
@@ -204,6 +214,7 @@ channel_reactor_count = %d
 channel_store_append_workers = %d
 channel_store_apply_workers = %d
 channel_rpc_workers = %d
+channel_rpc_batch_max_items = %d
 
 [[cluster.nodes]]
 id = 1
@@ -278,6 +289,7 @@ enable = true
 		contract.SlotReplicaCount, contract.ChannelReplicaCount,
 		contract.ChannelReactorCount, contract.ChannelStoreAppendWorkers,
 		contract.ChannelStoreApplyWorkers, contract.ChannelRPCWorkers,
+		contract.ChannelRPCBatchMaxItems,
 		addresses["node-1"], addresses["node-2"], addresses["node-3"],
 		addresses[fmt.Sprintf("node-%d", nodeID)], addresses[fmt.Sprintf("node-%d", nodeID)],
 		contract.GatewayGnetMulticore, contract.GatewayGnetEventLoops,

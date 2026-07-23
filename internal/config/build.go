@@ -277,6 +277,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Cluster.Channel.RPCWorkers = workers
 	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS"); raw != "" {
+		maxItems, err := parseInt("WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.RPCBatchMaxItems = maxItems
+	}
 	if raw := configValue(values, "WK_CLUSTER_MAX_CHANNELS"); raw != "" {
 		maxChannels, err := parseInt("WK_CLUSTER_MAX_CHANNELS", raw)
 		if err != nil {

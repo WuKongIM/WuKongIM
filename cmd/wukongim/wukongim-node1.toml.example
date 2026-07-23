@@ -7,13 +7,16 @@ listen_addr = "127.0.0.1:7011"
 id = "wukongim-dev-three"
 nodes = [{ id = 1, addr = "127.0.0.1:7011" }, { id = 2, addr = "127.0.0.1:7012" }, { id = 3, addr = "127.0.0.1:7013" }]
 join_token = "change-me"
-initial_slot_count = 3
+initial_slot_count = 10
 hash_slot_count = 256
 slot_replica_n = 3
 channel_reactor_count = 0
 channel_store_append_workers = 0
 channel_store_apply_workers = 0
 channel_rpc_workers = 50
+# Maximum same-target Pull or PullHint items coalesced into one bounded
+# replication transport call. Zero uses the runtime default.
+channel_rpc_batch_max_items = 8
 max_channels = 0
 channel_append_batch_max_records = 0
 channel_append_batch_max_wait = "0"

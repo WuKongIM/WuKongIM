@@ -15,7 +15,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		Replicas:                mediumReplicaCount,
 		Messages:                mediumMessageCount * mediumMeasuredRounds,
 		RecipientRows:           mediumRecipientRows * mediumMeasuredRounds,
-		OnlineRoutes:            expectedMeasuredOnlineRoutes(),
+		OnlineRoutes:            expectedMeasuredOnlineRoutes(mediumMeasuredRounds),
 		Connections:             expectedConnectionCount(),
 		OfferedQPS:              mediumOfferedQPS,
 		ClusterConvergenceMS:    2_500,
@@ -37,9 +37,25 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		Drained:                 true,
 		ProcessContinuous:       true,
 	}
-	if err := hotPathAcceptanceError(passing, mediumOfferedQPS); err != nil {
+	if err := hotPathAcceptanceError(passing, mediumOfferedQPS, mediumMeasuredRounds); err != nil {
 		t.Fatalf("passing evidence rejected: %v", err)
 	}
+
+	t.Run("bounded rounds use their own acceptance totals", func(t *testing.T) {
+		const rounds = 20
+		evidence := passing
+		evidence.Messages = mediumMessageCount * rounds
+		evidence.RecipientRows = mediumRecipientRows * rounds
+		evidence.OnlineRoutes = expectedMeasuredOnlineRoutes(rounds)
+		evidence.MeasuredDurationMS = float64(evidence.Messages) / mediumOfferedQPS * 1000
+		evidence.PluginReceiveAccepted = float64(pluginReceiveBatchCount() * rounds)
+		evidence.PluginReceiveInvokeOK = evidence.PluginReceiveAccepted
+		evidence.AllocatedBytes = float64(evidence.Messages) * 350_000
+		evidence.GCCountDelta = 25
+		if err := hotPathAcceptanceError(evidence, mediumOfferedQPS, rounds); err != nil {
+			t.Fatalf("bounded-round evidence rejected: %v", err)
+		}
+	})
 
 	tests := []struct {
 		name string
@@ -59,8 +75,11 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "cluster stability short", edit: func(e *hotPathEvidence) { e.ClusterStableWindowMS-- }, want: "cluster stable window"},
 		{name: "actual slot leader missing", edit: func(e *hotPathEvidence) { e.SlotLeaders[0] = 0 }, want: "actual Slot leaders"},
 		{name: "actual slot leader count", edit: func(e *hotPathEvidence) { e.SlotLeaders = e.SlotLeaders[:9] }, want: "actual Slot leaders"},
+		{name: "actual slot leader skew missing", edit: func(e *hotPathEvidence) {
+			e.SlotLeaders[2] = 2
+		}, want: "actual Slot leaders"},
 		{name: "ingress", edit: func(e *hotPathEvidence) {
-			e.IngressPerSecond = float64(mediumOfferedQPS)*mediumMinIngressFraction - 0.001
+			e.IngressPerSecond = mediumOfferedQPS - 0.001
 		}, want: "acceptance ingress"},
 		{name: "sendack", edit: func(e *hotPathEvidence) { e.SendackP99MS++ }, want: "SENDACK P99"},
 		{name: "recv", edit: func(e *hotPathEvidence) { e.RecvP99MS++ }, want: "RECV P99"},
@@ -89,7 +108,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 			evidence := passing
 			evidence.SlotLeaders = append([]uint64(nil), passing.SlotLeaders...)
 			test.edit(&evidence)
-			err := hotPathAcceptanceError(evidence, mediumOfferedQPS)
+			err := hotPathAcceptanceError(evidence, mediumOfferedQPS, mediumMeasuredRounds)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want substring %q", err, test.want)
 			}
@@ -100,12 +119,12 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		evidence := passing
 		evidence.OfferedQPS = mediumCIAcceptanceQPS
 		evidence.MeasuredDurationMS = float64(evidence.Messages) / mediumCIAcceptanceQPS * 1000
-		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS) * mediumMinIngressFraction
-		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err != nil {
+		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS) * mediumCIMinIngressFraction
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds); err != nil {
 			t.Fatalf("CI-scaled evidence rejected: %v", err)
 		}
-		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS)*mediumMinIngressFraction - 0.001
-		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err == nil || !strings.Contains(err.Error(), "acceptance ingress") {
+		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS)*mediumCIMinIngressFraction - 0.001
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds); err == nil || !strings.Contains(err.Error(), "acceptance ingress") {
 			t.Fatalf("below-tolerance ingress error = %v, want acceptance ingress", err)
 		}
 	})
@@ -120,11 +139,11 @@ func TestHotPathAcceptanceError(t *testing.T) {
 			t.Fatalf("CI allocation allowance = %.0f bytes/message, want %.0f", got, wantPerMessage)
 		}
 		evidence.AllocatedBytes = maxAcceptedAllocatedBytes(evidence)
-		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err != nil {
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds); err != nil {
 			t.Fatalf("bounded CI allocation rejected: %v", err)
 		}
 		evidence.AllocatedBytes++
-		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err == nil || !strings.Contains(err.Error(), "allocated bytes/message") {
+		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds); err == nil || !strings.Contains(err.Error(), "allocated bytes/message") {
 			t.Fatalf("slow-drain allocation error = %v, want allocated bytes/message", err)
 		}
 	})

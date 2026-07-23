@@ -415,6 +415,7 @@ func TestLoadBuildsNormalizedEffectiveCriticalConfigSnapshot(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":      {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":       {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               {value: "50", source: managementusecase.NodeConfigValueSourceEnvironment},
+		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":       {value: "8", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_GATEWAY_GNET_MULTICORE":                    {value: "true", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               {value: "2", source: managementusecase.NodeConfigValueSourceDerived},
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        {value: "128", source: managementusecase.NodeConfigValueSourceDefault},

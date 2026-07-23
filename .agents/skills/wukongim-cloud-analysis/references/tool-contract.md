@@ -44,6 +44,7 @@ allocations since process start. Other caller-selected sample types are rejected
 - `append_error_rate`
 - `gateway_queue_depth`
 - `runtime_queue_pressure`
+- `runtime_queue_pressure_by_pool`
 - `storage_commit_queue_depth`
 - `storage_commit_request_p99`
 - `storage_commit_batch_stage_p99`
@@ -148,6 +149,12 @@ the bounded `result` values `ok`, `partial`, `route_not_ready`, `canceled`,
 physical-target rates have different units. Their P99 is the complete aligned
 batch-resolution latency in seconds. Target rate is not a Slot count and must
 not be used to infer individual physical or logical Slot identity.
+
+`runtime_queue_pressure_by_pool` preserves the bounded labels `instance`,
+`node_id`, `node_name`, `component`, `pool`, `queue`, and `priority`. Use it
+after aggregate runtime pressure to identify the exact node and bounded runtime
+pool; do not infer individual channels, users, or physical hash-slot identities
+from this low-cardinality series.
 
 Presence endpoint lookup queries preserve `instance`, `node_name`, bounded
 `path` (`local_bulk`, `remote_bulk`, `legacy_fallback`, or `unknown` when path

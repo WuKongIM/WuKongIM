@@ -8,7 +8,7 @@ id = "wukongim-single"
 nodes = [{ id = 1, addr = "127.0.0.1:7001" }]
 join_token = "change-me"
 # Logical Slot Raft Group count created by the initial Controller snapshot.
-initial_slot_count = 1
+initial_slot_count = 10
 # Stable physical hash-slot fence count used to route keys to logical Slot Raft Groups.
 hash_slot_count = 256
 slot_replica_n = 1
@@ -18,6 +18,9 @@ channel_reactor_count = 0
 channel_store_append_workers = 0
 channel_store_apply_workers = 0
 channel_rpc_workers = 50
+# Maximum same-target Pull or PullHint items coalesced into one bounded
+# replication transport call. Zero uses the runtime default.
+channel_rpc_batch_max_items = 8
 max_channels = 0
 channel_append_batch_max_records = 0
 channel_append_batch_max_wait = "0"

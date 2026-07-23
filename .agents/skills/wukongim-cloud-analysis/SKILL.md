@@ -55,6 +55,13 @@ Call `cluster_snapshot`, then query the smallest useful metric set:
 5. append errors;
 6. gateway, runtime, storage-commit, and delivery-retry queue pressure.
 
+When aggregate `runtime_queue_pressure` is elevated, query
+`runtime_queue_pressure_by_pool` over the same bounded window before assigning
+the pressure to a product subsystem. It preserves only the bounded
+instance/node/component/pool/queue/priority dimensions, so it can distinguish
+Channel RPC pressure from Slot, delivery, or storage pools without arbitrary
+PromQL or high-cardinality runtime labels.
+
 When SENDACK, receive, or ingress pressure points at recipient delivery, query
 the dedicated worker before broad logs. Read
 `delivery_recipient_worker_queue_depth`,

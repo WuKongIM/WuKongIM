@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/app"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelreactor "github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	channelworker "github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
 
@@ -86,6 +87,12 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		rpcWorkers = channelreactor.DefaultRPCWorkerCount(reactorCount)
 		rpcDerived = true
 	}
+	rpcBatchMaxItems := cfg.Cluster.Channel.RPCBatchMaxItems
+	rpcBatchDerived := false
+	if rpcBatchMaxItems == 0 {
+		rpcBatchMaxItems = channelworker.DefaultRPCBatchMaxItems
+		rpcBatchDerived = true
+	}
 	gatewayRuntime := gateway.NormalizeRuntimeOptions(cfg.Gateway.Runtime)
 	eventLoopsDerived := !configuredPositive(values, "WK_GATEWAY_GNET_NUM_EVENT_LOOP")
 	multicoreDerived := values.sources["WK_GATEWAY_GNET_MULTICORE"] == ""
@@ -111,6 +118,7 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":      effectiveInteger(values, "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS", appendWorkers, appendDerived),
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":       effectiveInteger(values, "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", applyWorkers, applyDerived),
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":               effectiveInteger(values, "WK_CLUSTER_CHANNEL_RPC_WORKERS", rpcWorkers, rpcDerived),
+		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":       effectiveInteger(values, "WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS", rpcBatchMaxItems, rpcBatchDerived),
 		"WK_GATEWAY_GNET_MULTICORE":                    effectiveBoolean(values, "WK_GATEWAY_GNET_MULTICORE", cfg.Gateway.Transport.Gnet.Multicore, multicoreDerived),
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":               effectiveInteger(values, "WK_GATEWAY_GNET_NUM_EVENT_LOOP", cfg.Gateway.Transport.Gnet.NumEventLoop, eventLoopsDerived),
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        effectiveInteger(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", gatewayRuntime.AsyncSendWorkers, cfg.Gateway.Runtime.AsyncSendWorkers != gatewayRuntime.AsyncSendWorkers),

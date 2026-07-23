@@ -42,7 +42,7 @@ const (
 	mediumGroupSenders      = 5
 	mediumSenderUIDPrefix   = "wkrc-hifi-sender"
 
-	mediumMinIngressFraction                   = 0.995
+	mediumCIMinIngressFraction                 = 0.995
 	mediumMaxAllocatedBytesPerMessage          = 360_000
 	mediumMaxBackgroundAllocatedBytesPerSecond = 40_000_000
 	mediumMaxGCPerMessage                      = 0.0075
@@ -361,18 +361,20 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	}
 	t.Logf("WKRC-HIFI-EVIDENCE %s", encoded)
 	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE") == "1" {
-		requireHotPathAcceptance(t, evidence, expectedAcceptanceQPS)
+		requireHotPathAcceptance(t, evidence, expectedAcceptanceQPS, measuredRounds)
 	}
 }
 
-func requireHotPathAcceptance(t *testing.T, evidence hotPathEvidence, expectedOfferedQPS int) {
+func requireHotPathAcceptance(t *testing.T, evidence hotPathEvidence, expectedOfferedQPS int, expectedRounds int) {
 	t.Helper()
-	if err := hotPathAcceptanceError(evidence, expectedOfferedQPS); err != nil {
+	if err := hotPathAcceptanceError(evidence, expectedOfferedQPS, expectedRounds); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) error {
+func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, expectedRounds int) error {
+	expectedMessages := mediumMessageCount * expectedRounds
+	expectedRecipientRows := mediumRecipientRows * expectedRounds
 	switch {
 	case evidence.Schema != mediumEvidenceSchema:
 		return fmt.Errorf("acceptance schema = %q, want %q", evidence.Schema, mediumEvidenceSchema)
@@ -382,12 +384,14 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) er
 		return fmt.Errorf("acceptance logical slots = %d, want %d", evidence.LogicalSlots, mediumLogicalSlots)
 	case evidence.Replicas != mediumReplicaCount:
 		return fmt.Errorf("acceptance replicas = %d, want %d", evidence.Replicas, mediumReplicaCount)
-	case evidence.Messages != mediumMessageCount*mediumMeasuredRounds:
-		return fmt.Errorf("acceptance messages = %d, want %d", evidence.Messages, mediumMessageCount*mediumMeasuredRounds)
-	case evidence.RecipientRows != mediumRecipientRows*mediumMeasuredRounds:
-		return fmt.Errorf("acceptance recipient rows = %d, want %d", evidence.RecipientRows, mediumRecipientRows*mediumMeasuredRounds)
-	case evidence.OnlineRoutes != expectedMeasuredOnlineRoutes():
-		return fmt.Errorf("acceptance online routes = %d, want %d", evidence.OnlineRoutes, expectedMeasuredOnlineRoutes())
+	case expectedRounds <= 0:
+		return fmt.Errorf("acceptance expected rounds = %d, want positive", expectedRounds)
+	case evidence.Messages != expectedMessages:
+		return fmt.Errorf("acceptance messages = %d, want %d", evidence.Messages, expectedMessages)
+	case evidence.RecipientRows != expectedRecipientRows:
+		return fmt.Errorf("acceptance recipient rows = %d, want %d", evidence.RecipientRows, expectedRecipientRows)
+	case evidence.OnlineRoutes != expectedMeasuredOnlineRoutes(expectedRounds):
+		return fmt.Errorf("acceptance online routes = %d, want %d", evidence.OnlineRoutes, expectedMeasuredOnlineRoutes(expectedRounds))
 	case evidence.Connections != expectedConnectionCount():
 		return fmt.Errorf("acceptance connections = %d, want %d", evidence.Connections, expectedConnectionCount())
 	case evidence.OfferedQPS != expectedOfferedQPS:
@@ -402,17 +406,16 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) er
 		)
 	case !validMediumSlotLeaders(evidence.SlotLeaders):
 		return fmt.Errorf(
-			"acceptance actual Slot leaders = %v, want %d leaders in nodes [1,%d]",
+			"acceptance actual Slot leaders = %v, want %d leaders in nodes [1,%d] distributed 3/3/4",
 			evidence.SlotLeaders,
 			mediumLogicalSlots,
 			mediumReplicaCount,
 		)
-	case evidence.IngressPerSecond < float64(expectedOfferedQPS)*mediumMinIngressFraction:
+	case evidence.IngressPerSecond < minimumAcceptedIngress(expectedOfferedQPS):
 		return fmt.Errorf(
-			"acceptance ingress = %.3f/s, want at least %.3f/s (%.1f%% of offered load)",
+			"acceptance ingress = %.3f/s, want at least %.3f/s",
 			evidence.IngressPerSecond,
-			float64(expectedOfferedQPS)*mediumMinIngressFraction,
-			mediumMinIngressFraction*100,
+			minimumAcceptedIngress(expectedOfferedQPS),
 		)
 	case evidence.SendackP99MS > 1_000:
 		return fmt.Errorf("acceptance SENDACK P99 = %.3fms, want at most 1000ms", evidence.SendackP99MS)
@@ -424,11 +427,11 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) er
 		return fmt.Errorf("acceptance recipient queue ratio = %.6f, want below 1", evidence.MaxRecipientQueueRatio)
 	case evidence.MaxRecipientWorkerRatio >= 1:
 		return fmt.Errorf("acceptance recipient worker ratio = %.6f, want below 1", evidence.MaxRecipientWorkerRatio)
-	case evidence.PluginReceiveAccepted != float64(pluginReceiveBatchCount()*mediumMeasuredRounds):
+	case evidence.PluginReceiveAccepted != float64(pluginReceiveBatchCount()*expectedRounds):
 		return fmt.Errorf(
 			"acceptance plugin receive accepted = %.0f, want %d",
 			evidence.PluginReceiveAccepted,
-			pluginReceiveBatchCount()*mediumMeasuredRounds,
+			pluginReceiveBatchCount()*expectedRounds,
 		)
 	case evidence.PluginReceiveFull != 0 || evidence.PluginReceiveClosed != 0:
 		return fmt.Errorf(
@@ -489,13 +492,13 @@ func acceptedBackgroundDurationSeconds(evidence hotPathEvidence) float64 {
 	return float64(evidence.Messages) / float64(evidence.OfferedQPS)
 }
 
-func expectedMeasuredOnlineRoutes() int {
+func expectedMeasuredOnlineRoutes(rounds int) int {
 	groupMessages := 0
 	for _, profile := range mediumGroupProfiles {
 		groupMessages += profile.messages
 	}
-	return mediumOnlineRoutes*mediumMeasuredRounds +
-		groupMessages*(mediumGroupSenders-1)*mediumMeasuredRounds
+	return mediumOnlineRoutes*rounds +
+		groupMessages*(mediumGroupSenders-1)*rounds
 }
 
 func expectedConnectionCount() int {
@@ -673,6 +676,7 @@ func startMediumCluster(t *testing.T) *suite.StartedCluster {
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":                    "8",
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":                     "8",
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":                             "50",
+		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":                     "8",
 		"WK_GATEWAY_GNET_MULTICORE":                                  "true",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":                             "4",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":                      "128",
@@ -699,12 +703,22 @@ func validMediumSlotLeaders(leaders []uint64) bool {
 	if len(leaders) != mediumLogicalSlots {
 		return false
 	}
+	counts := make([]int, mediumReplicaCount)
 	for _, leaderID := range leaders {
 		if leaderID == 0 || leaderID > uint64(mediumReplicaCount) {
 			return false
 		}
+		counts[leaderID-1]++
 	}
-	return true
+	sort.Ints(counts)
+	return counts[0] == 3 && counts[1] == 3 && counts[2] == 4
+}
+
+func minimumAcceptedIngress(expectedOfferedQPS int) float64 {
+	if expectedOfferedQPS >= mediumOfferedQPS {
+		return mediumOfferedQPS
+	}
+	return float64(expectedOfferedQPS) * mediumCIMinIngressFraction
 }
 
 func prepareGroupChannels(t *testing.T, ctx context.Context, node *suite.StartedNode) ([]string, int, []string) {
