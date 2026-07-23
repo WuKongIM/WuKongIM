@@ -817,6 +817,88 @@ func TestPresenceAuthorityClientEndpointsByTargetsReroutesOnlyStaleGroupOnce(t *
 	})
 }
 
+func TestPresenceAuthorityClientEndpointsByTargetsRidesOutLeaderHandoffWithoutReplayingSuccessfulGroups(t *testing.T) {
+	local := &fakePresenceAuthority{}
+	remote := &fakePresenceAuthority{
+		endpointBatchErrs: map[uint16]error{22: authoritypresence.ErrNotLeader},
+	}
+	fresh := cluster.Route{
+		HashSlot: 22, SlotID: 3, Leader: 2, LeaderTerm: 303,
+		ConfigEpoch: 403, Revision: 503, AuthorityEpoch: 603,
+	}
+	node := &fakePresenceCluster{
+		nodeID:          1,
+		routeKeyResults: []cluster.RouteKeyResult{{Route: fresh}},
+		rpcByNode: map[uint64]cluster.NodeRPCHandler{
+			2: presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remote})},
+		},
+	}
+	client := NewPresenceAuthorityClient(node, local)
+	var retryDelays []time.Duration
+	client.routeRetrySleep = func(_ context.Context, delay time.Duration) error {
+		retryDelays = append(retryDelays, delay)
+		if len(retryDelays) == 3 {
+			delete(remote.endpointBatchErrs, 22)
+		}
+		return nil
+	}
+	groups := []presence.EndpointLookupGroup{
+		{Target: testEndpointLookupTarget(11, 1), UIDs: []string{"local"}},
+		{Target: testEndpointLookupTarget(22, 2), UIDs: []string{"handoff"}},
+		{Target: testEndpointLookupTarget(23, 2), UIDs: []string{"stable"}},
+	}
+
+	results := client.EndpointsByTargets(context.Background(), groups)
+
+	require.Len(t, results, len(groups))
+	for index, result := range results {
+		require.NoError(t, result.Err, "result index %d", index)
+		require.Len(t, result.Routes, 1, "result index %d", index)
+	}
+	require.Equal(t, []time.Duration{
+		5 * time.Millisecond,
+		10 * time.Millisecond,
+		20 * time.Millisecond,
+	}, retryDelays)
+	require.Equal(t, [][]string{{"handoff"}, {"handoff"}, {"handoff"}}, node.routeKeysCalls)
+	require.Len(t, remote.endpointBatchCalls, 5)
+	require.Equal(t, []string{"handoff"}, remote.endpointBatchCalls[0].uids)
+	require.Equal(t, []string{"stable"}, remote.endpointBatchCalls[1].uids)
+	for _, call := range remote.endpointBatchCalls[2:] {
+		require.Equal(t, []string{"handoff"}, call.uids, "successful sibling must not be replayed")
+	}
+}
+
+func TestPresenceAuthorityClientEndpointsByTargetsBoundsPersistentLeaderHandoff(t *testing.T) {
+	local := &fakePresenceAuthority{
+		endpointBatchErrs: map[uint16]error{22: authoritypresence.ErrNotLeader},
+	}
+	fresh := cluster.Route{HashSlot: 22, SlotID: 3, Leader: 1, LeaderTerm: 303, ConfigEpoch: 403}
+	node := &fakePresenceCluster{
+		nodeID:          1,
+		routeKeyResults: []cluster.RouteKeyResult{{Route: fresh}},
+	}
+	client := NewPresenceAuthorityClient(node, local)
+	sleepCalls := 0
+	client.routeRetrySleep = func(_ context.Context, delay time.Duration) error {
+		sleepCalls++
+		if sleepCalls == defaultPresenceEndpointRetryAttempts-1 && delay != defaultPresenceEndpointRetryMaxBackoff {
+			t.Fatalf("final retry delay = %s, want capped %s", delay, defaultPresenceEndpointRetryMaxBackoff)
+		}
+		return nil
+	}
+
+	results := client.EndpointsByTargets(context.Background(), []presence.EndpointLookupGroup{{
+		Target: testEndpointLookupTarget(22, 1),
+		UIDs:   []string{"handoff"},
+	}})
+
+	require.Len(t, results, 1)
+	require.ErrorIs(t, results[0].Err, authoritypresence.ErrNotLeader)
+	require.Equal(t, defaultPresenceEndpointRetryAttempts-1, sleepCalls)
+	require.Len(t, local.endpointBatchCalls, defaultPresenceEndpointRetryAttempts)
+}
+
 func assertPresenceLookupObservation(t *testing.T, observations []PresenceEndpointLookupObservation, want PresenceEndpointLookupObservation) {
 	t.Helper()
 	for _, got := range observations {

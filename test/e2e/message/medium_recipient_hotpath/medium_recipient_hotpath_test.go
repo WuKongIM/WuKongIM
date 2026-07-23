@@ -129,6 +129,7 @@ type hotPathEvidence struct {
 	PluginReceiveClosed      float64  `json:"plugin_receive_enqueue_closed"`
 	PluginReceiveInvokeOK    float64  `json:"plugin_receive_invoke_ok"`
 	PluginReceiveInvokeError float64  `json:"plugin_receive_invoke_error"`
+	RecipientProcessError    float64  `json:"recipient_worker_process_error"`
 	MetricSamples            int      `json:"metric_samples"`
 	MetricSampleErrors       int      `json:"metric_sample_errors"`
 	Drained                  bool     `json:"drained"`
@@ -350,6 +351,7 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		PluginReceiveClosed:      counterDelta.pluginReceiveClosed,
 		PluginReceiveInvokeOK:    counterDelta.pluginReceiveInvokeOK,
 		PluginReceiveInvokeError: counterDelta.pluginReceiveInvokeError,
+		RecipientProcessError:    counterDelta.recipientProcessError,
 		MetricSamples:            pressure.samples,
 		MetricSampleErrors:       pressure.sampleErrors,
 		Drained:                  true,
@@ -446,6 +448,8 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 			evidence.PluginReceiveInvokeError,
 			evidence.PluginReceiveAccepted,
 		)
+	case evidence.RecipientProcessError != 0:
+		return fmt.Errorf("acceptance recipient worker process errors = %.0f, want 0", evidence.RecipientProcessError)
 	case evidence.MeasuredDurationMS <= 0:
 		return fmt.Errorf("acceptance measured duration = %.3fms, want a positive duration", evidence.MeasuredDurationMS)
 	case evidence.AllocatedBytes <= 0:
@@ -1176,6 +1180,7 @@ type hotPathCounters struct {
 	pluginReceiveClosed      float64
 	pluginReceiveInvokeOK    float64
 	pluginReceiveInvokeError float64
+	recipientProcessError    float64
 }
 
 func (c hotPathCounters) subtract(start hotPathCounters) hotPathCounters {
@@ -1187,6 +1192,7 @@ func (c hotPathCounters) subtract(start hotPathCounters) hotPathCounters {
 		pluginReceiveClosed:      c.pluginReceiveClosed - start.pluginReceiveClosed,
 		pluginReceiveInvokeOK:    c.pluginReceiveInvokeOK - start.pluginReceiveInvokeOK,
 		pluginReceiveInvokeError: c.pluginReceiveInvokeError - start.pluginReceiveInvokeError,
+		recipientProcessError:    c.recipientProcessError - start.recipientProcessError,
 	}
 }
 
@@ -1235,6 +1241,10 @@ func captureHotPathCounters(ctx context.Context, cluster *suite.StartedCluster) 
 					counters.pluginReceiveInvokeOK += sample.Value
 				case "error", "timeout", "panic":
 					counters.pluginReceiveInvokeError += sample.Value
+				}
+			case "wukongim_delivery_recipient_worker_process_total":
+				if sample.Labels["result"] != "ok" {
+					counters.recipientProcessError += sample.Value
 				}
 			}
 		}

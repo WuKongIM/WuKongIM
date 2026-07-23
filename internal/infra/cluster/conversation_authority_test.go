@@ -572,7 +572,7 @@ func TestConversationAuthorityClientAdmitRoutedActiveBatchesPreservesTerminalAnd
 	}
 }
 
-func TestConversationAuthorityClientAdmitRoutedActiveBatchesBoundsFreshRouteToOneRetry(t *testing.T) {
+func TestConversationAuthorityClientAdmitRoutedActiveBatchesRidesOutLeaderHandoff(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{
 		activeBatchErrsByHashSlot: map[uint16][]error{
 			2: {conversationusecase.ErrStaleRoute, conversationusecase.ErrStaleRoute, nil},
@@ -599,14 +599,54 @@ func TestConversationAuthorityClientAdmitRoutedActiveBatchesBoundsFreshRouteToOn
 			Recipients: []conversationactive.ActiveEntry{{UID: "receiver"}},
 		},
 	}})
-	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("AdmitRoutedActiveBatches() error = %v, want ErrStaleRoute after one fresh retry", err)
+	if err != nil {
+		t.Fatalf("AdmitRoutedActiveBatches() error = %v", err)
 	}
-	if got := activeBatchAttemptCountsByHashSlot(local.activeBatches)[2]; got != 2 {
-		t.Fatalf("receiver attempts = %d, want supplied attempt plus one fresh-route retry", got)
+	if got := activeBatchAttemptCountsByHashSlot(local.activeBatches)[2]; got != 3 {
+		t.Fatalf("receiver attempts = %d, want supplied attempt plus two fresh-route retries", got)
 	}
-	if got := node.routeKeyCallsForUID("receiver"); got != 1 {
-		t.Fatalf("RouteKey(receiver) calls = %d, want exactly one fresh route", got)
+	if got := node.routeKeyCallsForUID("receiver"); got != 2 {
+		t.Fatalf("RouteKey(receiver) calls = %d, want one fresh route per failed attempt", got)
+	}
+}
+
+func TestConversationAuthorityClientAdmitRoutedActiveBatchesBoundsPersistentLeaderHandoff(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{activeBatchAlwaysErr: conversationusecase.ErrNotLeader}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]cluster.Route{
+			"receiver": {HashSlot: 2, SlotID: 7, Leader: 1, LeaderTerm: 12, ConfigEpoch: 22},
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	sleepCalls := 0
+	client.routeRetrySleep = func(_ context.Context, delay time.Duration) error {
+		sleepCalls++
+		if sleepCalls == conversationAdmissionRetryAttempts-1 && delay != conversationAdmissionRetryMaxBackoff {
+			t.Fatalf("final retry delay = %s, want capped %s", delay, conversationAdmissionRetryMaxBackoff)
+		}
+		return nil
+	}
+
+	err := client.AdmitRoutedActiveBatches(context.Background(), []channelappend.ConversationActiveTargetBatch{{
+		Target: channelappend.RecipientAuthorityTarget{
+			HashSlot: 2, SlotID: 7, LeaderNodeID: 1, LeaderTerm: 11, ConfigEpoch: 21,
+		},
+		Batch: conversationactive.ActiveBatch{
+			Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2,
+			MessageSeq: 9, ActiveAtMS: 100,
+			Recipients: []conversationactive.ActiveEntry{{UID: "receiver"}},
+		},
+	}})
+
+	if !errors.Is(err, conversationusecase.ErrNotLeader) {
+		t.Fatalf("AdmitRoutedActiveBatches() error = %v, want ErrNotLeader", err)
+	}
+	if got := activeBatchAttemptCountsByHashSlot(local.activeBatches)[2]; got != conversationAdmissionRetryAttempts {
+		t.Fatalf("receiver attempts = %d, want %d", got, conversationAdmissionRetryAttempts)
+	}
+	if sleepCalls != conversationAdmissionRetryAttempts-1 {
+		t.Fatalf("retry sleeps = %d, want %d", sleepCalls, conversationAdmissionRetryAttempts-1)
 	}
 }
 
@@ -737,14 +777,14 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBounded
 		ActiveAtMS:  100,
 		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
 	})
-	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("AdmitActiveBatch() error = %v, want ErrStaleRoute after 3 attempts", err)
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
-	if got := node.routeKeyCallsForUID("receiver"); got != 3 {
+	if got := node.routeKeyCallsForUID("receiver"); got != 4 {
 		t.Fatalf("RouteKey(receiver) calls = %d, want fresh route per retry", got)
 	}
-	if len(local.activeBatches) != 3 {
-		t.Fatalf("active batch attempts = %d, want 3 attempts", len(local.activeBatches))
+	if len(local.activeBatches) != 4 {
+		t.Fatalf("active batch attempts = %d, want 4 attempts", len(local.activeBatches))
 	}
 	for i, attempt := range local.activeBatches {
 		wantRevision := uint64(10 + i)

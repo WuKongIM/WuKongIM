@@ -89,6 +89,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "plugin accepted", edit: func(e *hotPathEvidence) { e.PluginReceiveAccepted-- }, want: "plugin receive accepted"},
 		{name: "plugin full", edit: func(e *hotPathEvidence) { e.PluginReceiveFull = 1 }, want: "enqueue non-accepted"},
 		{name: "plugin invoke", edit: func(e *hotPathEvidence) { e.PluginReceiveInvokeOK-- }, want: "plugin receive invoke"},
+		{name: "recipient process", edit: func(e *hotPathEvidence) { e.RecipientProcessError = 1 }, want: "recipient worker process errors"},
 		{name: "measured duration missing", edit: func(e *hotPathEvidence) { e.MeasuredDurationMS = 0 }, want: "measured duration"},
 		{name: "allocated missing", edit: func(e *hotPathEvidence) { e.AllocatedBytes = 0 }, want: "allocated bytes"},
 		{name: "allocated regression", edit: func(e *hotPathEvidence) {
