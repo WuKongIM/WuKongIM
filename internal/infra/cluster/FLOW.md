@@ -630,20 +630,20 @@ stale-route, not-leader, and background Slot proposal backpressure within a
 small bounded fresh-route window. Only aligned failed groups or failed UID
 route items are resolved again; successful siblings are never issued twice.
 Continued failure is returned to the caller so the post-commit path remains
-bounded.
+bounded. Retry delay grows exponentially from 5ms to a 100ms cap, and the
+50-attempt admission window remains inside the recipient plan's outer context.
 The routed active-batch surface is the normal channelappend fast path. Its first
 attempt consumes caller-supplied exact target groups without another route
 snapshot. If stale-route, not-leader, route-not-ready, proposal backpressure, or
 a retryable transport failure affects a group, only that group's sender and
-recipient rows are resolved again, and only once. Successfully admitted sibling
-groups are never replayed. A terminal sibling failure is retained as the
-overall result but does not suppress that one bounded retry for independent
-retryable siblings. If backoff, fresh routing, or the retry attempt also
-fails, the adapter joins that error with the retained terminal failure so
-callers can classify both causes with `errors.Is`. The legacy
-`AdmitActiveBatch` surface retains its
-three-attempt compatibility window for callers that do not already own an
-aligned route snapshot.
+recipient rows are resolved again inside the same bounded handoff window.
+Successfully admitted sibling groups are never replayed. A terminal sibling
+failure is retained as the overall result but does not suppress bounded retries
+for independent retryable siblings. If backoff, fresh routing, or the final
+retry attempt also fails, the adapter joins that error with the retained
+terminal failure so callers can classify both causes with `errors.Is`. The
+legacy `AdmitActiveBatch` surface uses the same bounded handoff window for
+callers that do not already own an aligned route snapshot.
 The normal one-batch path coalesces UIDs and recipient roles once, counts each
 exact target group before allocation, and fills disjoint capacity-limited
 slices from one shared recipient backing store. This avoids per-target growth
@@ -689,7 +689,8 @@ ConversationAuthorityClient
   -> AdmitRoutedActiveBatches([]ConversationActiveTargetBatch)
        -> admit caller-supplied exact targets without an initial route lookup
        -> preserve every physical hash-slot and logical Slot fence
-       -> fresh-route only failed groups once; never replay successful siblings
+       -> fresh-route only failed groups during a bounded handoff window
+       -> never replay successful siblings
   -> ListConversationActiveView(kind, uid)
        -> RouteKey(uid)
        -> local conversation authority active view for kind when local
@@ -708,10 +709,10 @@ ConversationAuthorityClient
 List route-not-ready, stale-route, and not-leader results are retried with a
 short bounded backoff so authority movement can settle without changing
 conversation list semantics. Legacy patch admission returns those errors
-directly, while active-batch admission makes a small bounded fresh-route retry
-window. A route snapshot outer failure retries the pending set, while an
-aligned UID failure retries only that UID subset after already-routed siblings
-have completed. Raw
+directly, while active-batch admission makes an election-sized bounded
+fresh-route retry window. A route snapshot outer failure retries the pending
+set, while an aligned UID failure retries only that UID subset after
+already-routed siblings have completed. Raw
 cluster route errors returned by remote RPC calls are mapped to the same
 conversation route sentinels before retry decisions.
 
@@ -886,9 +887,10 @@ to that leader; per-group stale/not-leader errors remain aligned and do not
 discard successful results from other groups.
 If one group returns not-leader, stale-route, or route-not-ready after waiting
 in the asynchronous delivery queue, the adapter batch-resolves current targets
-for only that group's UIDs and retries it once. Successful sibling groups are
-not issued again. The retry remains aligned to the original group and rejects
-an inconsistent refresh whose UIDs no longer share one exact target.
+for only that group's UIDs inside a bounded exponential-backoff handoff window.
+Successful sibling groups are not issued again. Every retry remains aligned to
+the original group and rejects an inconsistent refresh whose UIDs no longer
+share one exact target.
 An optional observer emits exactly once for each leader execution stage, after
 the aligned results are final. It uses only the fixed paths `local_bulk`,
 `remote_bulk`, and `legacy_fallback`, bounded outcomes, and a boolean stale

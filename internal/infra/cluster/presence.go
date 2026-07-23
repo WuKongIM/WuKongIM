@@ -48,6 +48,8 @@ const (
 	defaultPresenceUnregisterTimeout         = 3 * time.Second
 	defaultPresenceRouteRetryAttempts        = 100
 	defaultPresenceRouteRetryBackoff         = 5 * time.Millisecond
+	defaultPresenceEndpointRetryAttempts     = 50
+	defaultPresenceEndpointRetryMaxBackoff   = 100 * time.Millisecond
 	defaultPresenceEndpointLeaderConcurrency = 4
 )
 
@@ -309,8 +311,17 @@ func (c *PresenceAuthorityClient) EndpointsByUIDs(ctx context.Context, uids []st
 
 // EndpointsByTargets reads aligned endpoint groups through their exact observed targets.
 func (c *PresenceAuthorityClient) EndpointsByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	results := c.endpointsByTargetsOnce(ctx, groups, false)
-	return c.retryStaleEndpointLookupGroups(ctx, groups, results)
+	for attempt := 1; attempt < defaultPresenceEndpointRetryAttempts && hasRetryablePresenceEndpointLookup(results); attempt++ {
+		if err := c.sleepBeforeEndpointRetry(ctx, attempt); err != nil {
+			return replaceRetryablePresenceEndpointErrors(results, err)
+		}
+		results = c.retryStaleEndpointLookupGroups(ctx, groups, results)
+	}
+	return results
 }
 
 func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, groups []presence.EndpointLookupGroup, staleRetry bool) []presence.EndpointLookupResult {
@@ -578,6 +589,33 @@ func (c *PresenceAuthorityClient) retryStaleEndpointLookupGroups(
 	return results
 }
 
+func hasRetryablePresenceEndpointLookup(results []presence.EndpointLookupResult) bool {
+	for _, result := range results {
+		if shouldRetryPresenceRouteLookup(result.Err) {
+			return true
+		}
+	}
+	return false
+}
+
+func replaceRetryablePresenceEndpointErrors(results []presence.EndpointLookupResult, err error) []presence.EndpointLookupResult {
+	for i, result := range results {
+		if shouldRetryPresenceRouteLookup(result.Err) {
+			results[i] = presence.EndpointLookupResult{Err: err}
+		}
+	}
+	return results
+}
+
+func (c *PresenceAuthorityClient) sleepBeforeEndpointRetry(ctx context.Context, attempt int) error {
+	backoff := boundedAuthorityHandoffBackoff(
+		c.routeRetryBackoff,
+		defaultPresenceEndpointRetryMaxBackoff,
+		attempt,
+	)
+	return c.sleepBeforeRouteRetryFor(ctx, backoff)
+}
+
 func nonEmptyPresenceUIDs(uids []string) []string {
 	out := make([]string, 0, len(uids))
 	for _, uid := range uids {
@@ -765,13 +803,20 @@ func (c *PresenceAuthorityClient) withFreshTargetSource(ctx context.Context, uid
 }
 
 func (c *PresenceAuthorityClient) sleepBeforeRouteRetry(ctx context.Context) error {
-	if c == nil || c.routeRetryBackoff <= 0 {
+	if c == nil {
+		return nil
+	}
+	return c.sleepBeforeRouteRetryFor(ctx, c.routeRetryBackoff)
+}
+
+func (c *PresenceAuthorityClient) sleepBeforeRouteRetryFor(ctx context.Context, backoff time.Duration) error {
+	if c == nil || backoff <= 0 {
 		return nil
 	}
 	if c.routeRetrySleep != nil {
-		return c.routeRetrySleep(ctx, c.routeRetryBackoff)
+		return c.routeRetrySleep(ctx, backoff)
 	}
-	timer := time.NewTimer(c.routeRetryBackoff)
+	timer := time.NewTimer(backoff)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():

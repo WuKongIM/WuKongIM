@@ -49,8 +49,9 @@ var _ channelappend.RoutedConversationActiveAdmitter = (*ConversationAuthorityCl
 
 const (
 	defaultConversationRouteRetryAttempts = 100
-	conversationAdmissionRetryAttempts    = 3
+	conversationAdmissionRetryAttempts    = 50
 	defaultConversationRouteRetryBackoff  = 5 * time.Millisecond
+	conversationAdmissionRetryMaxBackoff  = 100 * time.Millisecond
 	// maxConversationActiveBatchEnvelopeRows matches the bounded WKVC2 wire contract.
 	maxConversationActiveBatchEnvelopeRows = 4096
 	// maxConversationAuthorityDeleteGroup matches the bounded node RPC collection contract.
@@ -112,7 +113,7 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 		groups, routeFailures, err := c.groupActiveBatchesByTargetPartial(pending)
 		if err != nil {
 			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(err) {
-				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+				if sleepErr := c.sleepBeforeConversationAdmissionRetry(ctx, attempt+1); sleepErr != nil {
 					return sleepErr
 				}
 				continue
@@ -152,7 +153,7 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 			return nil
 		}
 		if attempt+1 < conversationAdmissionRetryAttempts {
-			if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+			if sleepErr := c.sleepBeforeConversationAdmissionRetry(ctx, attempt+1); sleepErr != nil {
 				return sleepErr
 			}
 			pending = failed
@@ -163,8 +164,8 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 }
 
 // AdmitRoutedActiveBatches admits exact target groups already resolved by the
-// channelappend snapshot. A retryable failure gets one fresh route lookup for
-// only the failed group; successful siblings are never replayed.
+// channelappend snapshot. Retryable failures get bounded fresh-route attempts
+// for only failed groups; successful siblings are never replayed.
 func (c *ConversationAuthorityClient) AdmitRoutedActiveBatches(ctx context.Context, batches []channelappend.ConversationActiveTargetBatch) error {
 	if len(batches) == 0 {
 		return nil
@@ -215,22 +216,43 @@ func (c *ConversationAuthorityClient) AdmitRoutedActiveBatches(ctx context.Conte
 	if len(failed) == 0 {
 		return terminalErr
 	}
-	if err := c.sleepBeforeRouteRetry(ctx); err != nil {
-		return joinConversationActiveBatchError(terminalErr, err)
-	}
 
-	freshGroups, routeFailures, err := c.groupActiveBatchesByTargetPartial(failed)
-	if err != nil {
-		return joinConversationActiveBatchError(terminalErr, err)
-	}
-	for _, failure := range routeFailures {
-		terminalErr = joinConversationActiveBatchError(terminalErr, failure.err)
-	}
-	freshGroups = splitConversationActiveBatchGroups(freshGroups, maxConversationActiveBatchEnvelopeRows)
-	for _, result := range c.admitActiveBatchGroups(ctx, freshGroups) {
-		if result.Err != nil {
+	for attempt := 1; attempt < conversationAdmissionRetryAttempts; attempt++ {
+		if err := c.sleepBeforeConversationAdmissionRetry(ctx, attempt); err != nil {
+			return joinConversationActiveBatchError(terminalErr, err)
+		}
+
+		freshGroups, routeFailures, err := c.groupActiveBatchesByTargetPartial(failed)
+		if err != nil {
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(err) {
+				continue
+			}
+			return joinConversationActiveBatchError(terminalErr, err)
+		}
+
+		nextFailed := make([]conversationactive.ActiveBatch, 0, len(routeFailures)+len(freshGroups))
+		for _, failure := range routeFailures {
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(failure.err) {
+				nextFailed = append(nextFailed, failure.batch)
+				continue
+			}
+			terminalErr = joinConversationActiveBatchError(terminalErr, failure.err)
+		}
+		freshGroups = splitConversationActiveBatchGroups(freshGroups, maxConversationActiveBatchEnvelopeRows)
+		for index, result := range c.admitActiveBatchGroups(ctx, freshGroups) {
+			if result.Err == nil {
+				continue
+			}
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationAdmission(result.Err) {
+				nextFailed = append(nextFailed, cloneConversationActiveBatchForRetry(freshGroups[index].batch))
+				continue
+			}
 			terminalErr = joinConversationActiveBatchError(terminalErr, result.Err)
 		}
+		if len(nextFailed) == 0 {
+			return terminalErr
+		}
+		failed = nextFailed
 	}
 	return terminalErr
 }
@@ -906,13 +928,32 @@ func (c *ConversationAuthorityClient) authorityForTarget(target conversationusec
 }
 
 func (c *ConversationAuthorityClient) sleepBeforeRouteRetry(ctx context.Context) error {
-	if c == nil || c.routeRetryBackoff <= 0 {
+	if c == nil {
+		return nil
+	}
+	return c.sleepBeforeRouteRetryFor(ctx, c.routeRetryBackoff)
+}
+
+func (c *ConversationAuthorityClient) sleepBeforeConversationAdmissionRetry(ctx context.Context, attempt int) error {
+	if c == nil {
+		return nil
+	}
+	backoff := boundedAuthorityHandoffBackoff(
+		c.routeRetryBackoff,
+		conversationAdmissionRetryMaxBackoff,
+		attempt,
+	)
+	return c.sleepBeforeRouteRetryFor(ctx, backoff)
+}
+
+func (c *ConversationAuthorityClient) sleepBeforeRouteRetryFor(ctx context.Context, backoff time.Duration) error {
+	if c == nil || backoff <= 0 {
 		return nil
 	}
 	if c.routeRetrySleep != nil {
-		return c.routeRetrySleep(ctx, c.routeRetryBackoff)
+		return c.routeRetrySleep(ctx, backoff)
 	}
-	timer := time.NewTimer(c.routeRetryBackoff)
+	timer := time.NewTimer(backoff)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
