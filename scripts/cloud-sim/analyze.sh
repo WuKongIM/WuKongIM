@@ -26,6 +26,7 @@ codex_bin=""
 source_codex_home=""
 local_codex_home=""
 active_bounded_pid=""
+codex_probe_timeout_seconds="${WK_ANALYSIS_CODEX_PROBE_TIMEOUT_SECONDS:-$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS}"
 
 usage() {
   cat <<'EOF'
@@ -83,12 +84,12 @@ resolve_codex_bin() {
   for candidate in "${candidates[@]}"; do
     [[ -x "$candidate" ]] || continue
     version_status=0
-    version_output="$(wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" \
+    version_output="$(wk_run_bounded "$codex_probe_timeout_seconds" \
       "$candidate" --version 2>/dev/null)" || version_status=$?
     if ((version_status != 0)); then
       if ((version_status == 124)); then
         printf 'cloud-sim analyze: Codex version probe timed out after %s seconds: %s\n' \
-          "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" "$candidate" >&2
+          "$codex_probe_timeout_seconds" "$candidate" >&2
       fi
       continue
     fi
@@ -646,6 +647,8 @@ fi
 for command in git perl; do
 	command -v "$command" >/dev/null 2>&1 || fail "$command is required"
 done
+[[ "$codex_probe_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || \
+  fail "WK_ANALYSIS_CODEX_PROBE_TIMEOUT_SECONDS must be a positive integer"
 codex_bin="$(resolve_codex_bin)" || \
   fail "Codex 0.140.0 or newer is required; update ChatGPT/Codex or set WK_CODEX_BIN"
 source_codex_home="${CODEX_HOME:-$HOME/.codex}"
@@ -658,10 +661,10 @@ cp "$source_codex_auth" "$local_codex_home/auth.json"
 chmod 0600 "$local_codex_home/auth.json"
 login_status_code=0
 login_status="$(CODEX_HOME="$local_codex_home" \
-  wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" \
+  wk_run_bounded "$codex_probe_timeout_seconds" \
   "$codex_bin" login status 2>&1)" || login_status_code=$?
 if ((login_status_code == 124)); then
-  fail "Codex login status timed out after $WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS seconds"
+  fail "Codex login status timed out after $codex_probe_timeout_seconds seconds"
 fi
 ((login_status_code == 0)) || fail "cannot verify Codex ChatGPT authentication"
 [[ "$login_status" == *"Logged in using ChatGPT"* ]] || \

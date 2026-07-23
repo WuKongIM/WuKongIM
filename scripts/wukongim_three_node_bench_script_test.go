@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-var heavyShellScriptTestSlots = make(chan struct{}, 2)
+// Four slots keep shell-heavy tests bounded while using the cores available in
+// the dedicated scripts CI job. Timing-sensitive process-group tests still use
+// the exclusive lock below.
+var heavyShellScriptTestSlots = make(chan struct{}, 4)
 var parallelizedShellTests sync.Map
 var timingSensitiveShellScriptTests sync.RWMutex
 
@@ -1283,6 +1286,9 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// The parent already owns one bounded shell-test slot and shared
+			// timing lock. Keep these two child cases sequential so a waiting
+			// timing-sensitive writer cannot form a parent/child RWMutex cycle.
 			binDir := t.TempDir()
 			callsDir := t.TempDir()
 			outDir := t.TempDir()
@@ -1325,6 +1331,23 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 				t.Fatalf("script output should not include stale prefix %q:\n%s", tc.oldPrefix, text)
 			}
 		})
+	}
+}
+
+func TestSingleNodeBenchRuntimeSamplerRemainsParentOwned(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "bench-wukongim-single-node-1000ch.sh"))
+	if strings.Contains(script, `sampler_pid="$(start_runtime_pool_sampler "$tag")"`) {
+		t.Fatal("runtime sampler must not start in command substitution because the parent cannot wait for the orphaned child")
+	}
+	for _, want := range []string{
+		`RUNTIME_POOL_SAMPLER_PID="$!"`,
+		`start_runtime_pool_sampler "$tag"`,
+		`stop_runtime_pool_sampler`,
+		`declare -F stop_runtime_pool_sampler`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("single-node runtime sampler missing parent-owned lifecycle %q", want)
+		}
 	}
 }
 

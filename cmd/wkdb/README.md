@@ -54,7 +54,7 @@ mismatch was found.
 Common flags:
 
 - `--config ./wukongim.toml` reads the storage paths and hash-slot count from a TOML config file. `WK_` environment variables override file values.
-- `--data-dir ./node-1` derives metadata from `./node-1/data` and message logs from `./node-1/channellog`.
+- `--data-dir ./node-1` derives metadata from `./node-1/slotmeta` and message logs from `./node-1/messages`, matching the current node runtime layout.
 - `--meta-path` and `--message-path` override derived or configured paths.
 - `--format table|json|jsonl` selects the output format.
 

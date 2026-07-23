@@ -14,6 +14,7 @@ const defaultTransportQueueSize = 4096
 const defaultTransportPoolSize = 16
 const defaultTransportServiceConcurrency = 128
 const defaultTransportForegroundWriteServiceConcurrency = 512
+const orderedRaftServiceConcurrency = 1
 const defaultTransportServiceQueueSize = 4096
 const defaultTransportServiceMaxQueueBytes = 64 << 20
 
@@ -35,6 +36,7 @@ type TransportServerConfig struct {
 // TransportServiceConfig configures per-service transport worker pools.
 type TransportServiceConfig struct {
 	// Concurrency is the worker count for each registered typed RPC service. Non-positive values use the cluster default.
+	// Raft protocol services always use one worker because peer message order is part of the protocol contract.
 	Concurrency int
 	// QueueSize is the queued request count for each typed RPC service. Non-positive values use the cluster default.
 	QueueSize int
@@ -282,12 +284,26 @@ func transportServiceFailpointAlias(serviceID uint8) string {
 
 func (s *TransportServer) serviceOptions(serviceID uint8) transport.ServiceOptions {
 	cfg := s.cfg.Service
-	if isForegroundChannelMutationService(serviceID) && cfg.Concurrency <= 0 {
+	if isOrderedRaftService(serviceID) {
+		// Each Raft sender uses one stable peer connection. Serial execution on
+		// the receiver preserves that connection's Append-before-Heartbeat order;
+		// concurrent handlers could otherwise commit beyond the follower log.
+		cfg.Concurrency = orderedRaftServiceConcurrency
+	} else if isForegroundChannelMutationService(serviceID) && cfg.Concurrency <= 0 {
 		cfg.Concurrency = defaultTransportForegroundWriteServiceConcurrency
 	}
 	opts := normalizeTransportServiceOptions(cfg, s.cfg.MaxPayload)
 	opts.Alias = transportServiceAlias(serviceID)
 	return opts
+}
+
+func isOrderedRaftService(serviceID uint8) bool {
+	switch serviceID {
+	case MsgSlotRaft, MsgSlotRaftBatch, RPCControlRaft:
+		return true
+	default:
+		return false
+	}
 }
 
 func isForegroundChannelMutationService(serviceID uint8) bool {

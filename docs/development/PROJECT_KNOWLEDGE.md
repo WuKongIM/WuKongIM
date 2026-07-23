@@ -266,4 +266,6 @@
 - Promoted production roots must not import old runtime paths; `pkg/slot/proxy` has no legacy imports.
 - `pkg/cluster.Node` satisfies `pkg/slot/proxy.Cluster` plus the optional hash-slot proposer port; Slot proxy RPC handler registration goes through `pkg/cluster.Node.RegisterRPC`.
 - In local three-node real-QPS runs, message DB commit shards are an experimental default-off knob: 3000, 4000, and 16k evidence all show that multiple coordinators on one physical store fragment group commits and increase sync tail; prefer one coordinator with bounded store append/apply workers unless nodes use independently proven storage parallelism.
+- Typed Raft receive services must preserve message order from each stable peer connection; concurrent handling can apply a later Heartbeat before its earlier Append and advance commit beyond the follower log.
+- Shell scripts that must stop and wait for a background sampler must start it in the owning shell; command substitution creates a subshell-owned child that the parent cannot reliably wait or clean up.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.
