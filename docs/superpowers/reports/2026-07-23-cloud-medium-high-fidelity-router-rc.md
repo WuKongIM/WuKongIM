@@ -145,13 +145,56 @@ The higher-fidelity scenario remains opt-in E2E coverage and runs as a separate
 five-minute-bounded Nightly step. It does not lengthen ordinary unit tests.
 The user's `.gitignore` change is intentionally excluded from the candidate.
 
+## Exact-SHA Nightly Calibration
+
+PR #625 merged as `da46d3b2c6523322cb499942d72929ed444f52ca`.
+Exact-SHA Nightly run `30013189801` passed smoke, integration, all four race
+groups, and the existing full E2E suite. Its new Medium step completed all
+20,000 messages with healthy product signals but failed the original harness
+contract:
+
+- actual paced ingress was 4499.694/s, only 0.0068% below 4500/s;
+- SENDACK P99 was 429ms;
+- plugin batches were exactly 10400 accepted and 10400 invoked with zero
+  rejection/error;
+- queues drained and all processes remained continuous;
+- the shared two-core runner completed online fanout at about 1160/s, so the
+  deliberately oversubscribed three-node single-host test produced a 12.75s
+  RECV P99.
+
+The failure classified the absolute CI acceptance rule as a harness defect.
+The runner is evidence for relative behavior, conservation, and regressions;
+it is not a Cloud Medium capacity substitute.
+
+The corrected Nightly contract pins a 1000/s CI-scaled rate while retaining the
+full 20,000-message, 1,572,000-recipient-row, 256/10/3 shape and the same 1s
+SENDACK / 2s RECV limits. Pacing accepts at least 99.5% of the fixed offered
+rate so sub-millisecond scheduler jitter is not classified as product failure.
+It also enforces:
+
+- no gateway/recipient queue saturation;
+- exact plugin admission/invocation conservation;
+- at most 400,000 measured allocation bytes per message;
+- at most 0.0075 GC cycles per message and at most 512MiB heap;
+- complete drain and process continuity.
+
+Prometheus sampling changed from 100ms to 250ms. The earlier interval caused
+the three in-process metrics encoders to contribute about 1.5GB of additional
+allocation during the slower 20-second CI phase. The new interval still
+collects about 240 cross-node snapshots without dominating the workload.
+
+The local CI-scaled proof passed with 1000.05/s ingress, 499ms SENDACK P99,
+431ms RECV P99, 104ms completion drain, 243 metric samples, 7.59GB total
+allocation, 117 GC cycles, zero queue rejection, exact 10400/10400 plugin
+conservation, and continuous processes.
+
 ## Remaining Cost Gate
 
-1. Commit the cohesive Router plus high-fidelity-gate batch without the user's
-   `.gitignore` change.
-2. Open one PR, wait for every required check, and merge.
-3. Run Nightly on the exact merged main SHA and require the bounded Cloud Medium
-   evidence artifact to pass.
+1. Land the CI-scaling harness correction without the user's `.gitignore`
+   change.
+2. Require the branch Nightly to pass before merging the harness correction.
+3. Run Nightly again on the exact merged main SHA and require the bounded Cloud
+   Medium evidence artifact to pass.
 4. Recheck Monitor/Cleanup/provider inventory and prove there is no live run or
    resource.
 5. Only then change paid validation to GO and dispatch exactly one Cloud Medium
