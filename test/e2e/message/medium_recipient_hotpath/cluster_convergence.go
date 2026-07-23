@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	mediumConvergencePollInterval = 100 * time.Millisecond
 	mediumConvergenceStableWindow = 2 * time.Second
 )
 
@@ -40,84 +39,43 @@ type mediumConvergenceSnapshot struct {
 	Fingerprint string
 }
 
-// mediumConvergenceTracker rejects a changing Raft leader inventory until the
-// same validated fingerprint survives the required stability window.
-type mediumConvergenceTracker struct {
-	stableWindow time.Duration
-	fingerprint  string
-	stableSince  time.Time
-}
-
-func newMediumConvergenceTracker(stableWindow time.Duration) *mediumConvergenceTracker {
-	return &mediumConvergenceTracker{stableWindow: stableWindow}
-}
-
-func (t *mediumConvergenceTracker) Observe(now time.Time, fingerprint string) (time.Duration, bool) {
-	if strings.TrimSpace(fingerprint) == "" {
-		t.Reset()
-		return 0, false
-	}
-	if t.fingerprint != fingerprint || t.stableSince.IsZero() {
-		t.fingerprint = fingerprint
-		t.stableSince = now
-		return 0, t.stableWindow <= 0
-	}
-	stableFor := now.Sub(t.stableSince)
-	if stableFor < 0 {
-		t.stableSince = now
-		return 0, false
-	}
-	return stableFor, stableFor >= t.stableWindow
-}
-
-func (t *mediumConvergenceTracker) Reset() {
-	t.fingerprint = ""
-	t.stableSince = time.Time{}
-}
-
 func waitForMediumSlotConvergence(ctx context.Context, cluster *suite.StartedCluster) (mediumSlotConvergence, error) {
-	if cluster == nil {
-		return mediumSlotConvergence{}, fmt.Errorf("started cluster is nil")
-	}
 	startedAt := time.Now()
-	tracker := newMediumConvergenceTracker(mediumConvergenceStableWindow)
-	ticker := time.NewTicker(mediumConvergencePollInterval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
-		inventories, err := readMediumSlotInventories(ctx, cluster)
-		if err == nil {
-			var snapshot mediumConvergenceSnapshot
-			snapshot, err = validateMediumSlotConvergence(inventories)
-			if err == nil {
-				stableFor, ready := tracker.Observe(time.Now(), snapshot.Fingerprint)
-				if ready {
-					return mediumSlotConvergence{
-						Leaders:        append([]uint64(nil), snapshot.Leaders...),
-						Fingerprint:    snapshot.Fingerprint,
-						WaitDuration:   time.Since(startedAt),
-						StableDuration: stableFor,
-					}, nil
-				}
-				lastErr = fmt.Errorf(
-					"actual Raft leader inventory is valid but stable for only %s of %s",
-					stableFor,
-					mediumConvergenceStableWindow,
-				)
-			}
-		}
-		if err != nil {
-			lastErr = err
-			tracker.Reset()
-		}
-
-		select {
-		case <-ctx.Done():
-			return mediumSlotConvergence{}, fmt.Errorf("actual Raft leaders did not stabilize: %w (last observation: %v)", ctx.Err(), lastErr)
-		case <-ticker.C:
-		}
+	convergence, err := cluster.WaitSlotLeadersStable(ctx, mediumConvergenceStableWindow)
+	if err != nil {
+		return mediumSlotConvergence{}, err
 	}
+	inventories, err := readMediumSlotInventories(ctx, cluster)
+	if err != nil {
+		return mediumSlotConvergence{}, err
+	}
+	snapshot, err := validateMediumSlotConvergence(inventories)
+	if err != nil {
+		return mediumSlotConvergence{}, err
+	}
+	if err := validateMediumSlotStateMatchesStableProof(convergence, snapshot); err != nil {
+		return mediumSlotConvergence{}, err
+	}
+	return mediumSlotConvergence{
+		Leaders:        append([]uint64(nil), snapshot.Leaders...),
+		Fingerprint:    snapshot.Fingerprint,
+		WaitDuration:   time.Since(startedAt),
+		StableDuration: convergence.StableDuration,
+	}, nil
+}
+
+func validateMediumSlotStateMatchesStableProof(
+	convergence suite.SlotLeaderConvergence,
+	snapshot mediumConvergenceSnapshot,
+) error {
+	if snapshot.Fingerprint != convergence.Fingerprint {
+		return fmt.Errorf(
+			"strict Medium Slot state changed after the stability proof: stable=%q current=%q",
+			convergence.Fingerprint,
+			snapshot.Fingerprint,
+		)
+	}
+	return nil
 }
 
 func readMediumSlotInventories(ctx context.Context, cluster *suite.StartedCluster) (map[uint64]mediumSlotsResponse, error) {
@@ -195,11 +153,13 @@ func validateMediumSlotConvergence(inventories map[uint64]mediumSlotsResponse) (
 		leaders[slotIndex] = leaderID
 		fmt.Fprintf(
 			&fingerprint,
-			"%d:%d:%d:%d;",
+			"%d:%d:%d:%d:%d:%v;",
 			item.SlotID,
 			leaderID,
+			item.Assignment.PreferredLeaderID,
 			item.Assignment.ConfigEpoch,
 			item.Assignment.BalanceVersion,
+			expectedPeers,
 		)
 	}
 	return mediumConvergenceSnapshot{

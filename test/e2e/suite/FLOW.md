@@ -20,6 +20,9 @@ HTTP helpers for real `cmd/wukongim` tests.
    `Wait` call for the group leader.
 4. Test cleanup stops the current process for every registered node, including
    nodes appended after cluster startup and processes replaced by restart.
+   Static cluster nodes receive graceful termination concurrently so one node
+   does not lose Raft quorum while later nodes are still waiting to begin
+   shutdown, and so per-node stop budgets do not accumulate serially.
    Concurrent or repeated stops join the same exit result, and readiness waits
    fail immediately when their child exits instead of consuming the full poll
    timeout. Leader exit also starts group cleanup: the harness sends `TERM`,
@@ -59,3 +62,14 @@ redacted using case-insensitive, separator-independent key matching.
 HTTP helpers preserve typed non-2xx response details. Message-send recovery
 retries only the exact public `503 {"error":"retry required"}` signal while
 reusing one serialized request body and idempotency key.
+
+## Cluster convergence
+
+`WaitClusterReady` proves only public HTTP and WKProto availability. Scenarios
+whose correctness depends on stable Slot authority enable read-only Manager
+HTTP and call `WaitSlotLeadersStable`. That helper polls every node's full
+control inventory plus each node-scoped voter inventory, proves the two views
+are closed over the same Slots, validates desired/current voters and quorum,
+uses the actual Raft-elected `node_log.leader_id` rather than
+`preferred_leader_id`, requires cross-node agreement, and resets its bounded
+stability timer whenever the leader/config fingerprint changes.

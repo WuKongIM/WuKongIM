@@ -142,6 +142,7 @@ exit 89
 		"WK_ANALYZE_CALL_LOG="+callLog,
 		"WK_ANALYZE_STATE_DIR="+stateDir,
 		"WK_ANALYZE_SESSION_STATE=live",
+		"WK_CODEX_BIN=",
 		"WK_CODEX_BUNDLED_BIN="+bundledCodex,
 	)
 	output, err := command.CombinedOutput()
@@ -244,10 +245,17 @@ func TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes(t *testing.T) {
 			bin := filepath.Join(temp, "bin")
 			stateDir := filepath.Join(temp, "state")
 			callLog := filepath.Join(temp, "calls.log")
+			bundledMarker := filepath.Join(temp, "bundled-codex-called")
 			if err := os.MkdirAll(bin, 0o755); err != nil {
 				t.Fatal(err)
 			}
 			writeAnalyzeFakes(t, bin)
+			bundledCodex := filepath.Join(bin, "codex-bundled")
+			writeSetupExecutable(t, bundledCodex, `#!/usr/bin/env bash
+set -euo pipefail
+: > `+strconv.Quote(bundledMarker)+`
+printf '%s\n' 'codex-cli 999.0.0'
+`)
 
 			command := exec.Command("bash", filepath.Join(root, "scripts", "cloud-sim", "analyze.sh"),
 				"run-live", "--repository", "example/project")
@@ -257,6 +265,7 @@ func TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes(t *testing.T) {
 				"WK_ANALYZE_CALL_LOG="+callLog,
 				"WK_ANALYZE_STATE_DIR="+stateDir,
 				"WK_ANALYZE_SESSION_STATE=live",
+				"WK_CODEX_BUNDLED_BIN="+bundledCodex,
 				"WK_ANALYZE_CODEX_HANG="+testCase.hangMode,
 				// Keep ordinary fake tool startup tolerant of concurrent package
 				// load while preserving the one-second Codex probe under test.
@@ -281,6 +290,9 @@ func TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes(t *testing.T) {
 			if !strings.Contains(string(calls), "-f operation=close") ||
 				strings.Contains(string(calls), "codex exec") {
 				t.Fatalf("bounded Codex probe did not close before exit:\n%s", calls)
+			}
+			if _, statErr := os.Stat(bundledMarker); !os.IsNotExist(statErr) {
+				t.Fatalf("explicit fake Codex failure escaped to bundled installation: %v", statErr)
 			}
 		})
 	}
@@ -323,6 +335,7 @@ func TestCloudSimulationAnalyzeBoundsDiagnosisAndValidationProcessGroups(t *test
 				// Keep ordinary fake tool startup separate from the one-second
 				// diagnosis deadline under concurrent repository test load.
 				"WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS=3",
+				"WK_ANALYSIS_CODEX_PROBE_TIMEOUT_SECONDS=8",
 				"WK_ANALYSIS_DIAGNOSIS_TIMEOUT_SECONDS=1",
 			)
 			if testCase.hangTarget == "validation" {
@@ -483,6 +496,7 @@ func TestCloudSimulationAnalyzeBoundsCryptoAndWorktreeProcessGroups(t *testing.T
 				"WK_ANALYZE_SESSION_STATE=live",
 				"WK_ANALYZE_HANG_PID_FILE="+descendantPIDFile,
 				"WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS=2",
+				"WK_ANALYSIS_CODEX_PROBE_TIMEOUT_SECONDS=8",
 			)
 			command.Env = append(command.Env, extraEnvironment...)
 			started := time.Now()
@@ -1159,6 +1173,7 @@ func TestCloudSimulationAnalyzeDiscoversGoFromGOROOTOutsidePATH(t *testing.T) {
 		"GOROOT="+goRoot,
 		"WK_GH_BIN="+filepath.Join(bin, "gh"),
 		"WK_GO_BIN="+filepath.Join(goRoot, "bin", "go"),
+		"WK_CODEX_BIN="+filepath.Join(bin, "codex"),
 		"WK_ANALYZE_CALL_LOG="+callLog,
 		"WK_ANALYZE_STATE_DIR="+stateDir,
 		"WK_ANALYZE_SESSION_STATE=live",
@@ -1230,6 +1245,7 @@ exit 98
 		"PATH="+bin,
 		"WK_GH_BIN="+filepath.Join(toolBin, "selected-gh"),
 		"WK_GO_BIN="+filepath.Join(toolBin, "selected-go"),
+		"WK_CODEX_BIN="+filepath.Join(bin, "codex"),
 		"WK_ANALYZE_CALL_LOG="+callLog,
 		"WK_ANALYZE_STATE_DIR="+stateDir,
 		"WK_ANALYZE_SESSION_STATE=live",
@@ -2061,5 +2077,8 @@ func analyzeFakeEnvironment(bin string) []string {
 	return append(os.Environ(),
 		"WK_GH_BIN="+filepath.Join(bin, "gh"),
 		"WK_GO_BIN="+filepath.Join(bin, "go"),
+		// Test commands must never fall through to a developer- or runner-owned
+		// Codex installation when a deliberately bounded fake exits or times out.
+		"WK_CODEX_BIN="+filepath.Join(bin, "codex"),
 	)
 }

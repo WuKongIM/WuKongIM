@@ -238,6 +238,7 @@
 - Cloud Simulation cleanup reconstructs temporary ingress deadlines from provider security rules; sweeps preserve unexpired local Analysis Windows and close expired, malformed, or duplicate windows.
 - Cloud Simulation normal completion uses a non-diagnostic Finalization Schedule plus local `finalize.sh`: arm cleanup before bounded GitHub preflight, retry an explicit in-progress workload while the lease permits, survive terminal signals through exact cleanup, then require structured provider-confirmed empty inventory.
 - Cloud Simulation stability topology uses 256 physical hash slots mapped to 10 logical Slot Raft Groups; bootstrap gates both values separately.
+- E2E `readyz` and WKProto probes prove process liveness only; scenarios that register distributed authority must also require a bounded stable window of voter-agreed actual Slot Raft leaders before creating clients.
 - Cloud Simulation bundles carry a versioned effective-node runtime contract; Bootstrap Gate must match every node's normalized TOML-sourced critical values before starting a paid workload.
 - Bootstrap Gate must parse the rendered YAML shape rather than source-file indentation, retry only convergence failures, and destroy the exact Run on terminal contract failure or workflow cancellation.
 - Omitted Channel store/RPC worker settings stay zero in the loader so the owning Channel runtime derives them; deployment profiles that require a fixed shape must set them explicitly.
