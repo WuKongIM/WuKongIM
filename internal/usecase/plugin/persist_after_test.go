@@ -211,6 +211,7 @@ func TestPersistAfterCommittedJoinedErrorPreservesMultiplePluginFailures(t *test
 type recordingRuntime struct {
 	mu          sync.Mutex
 	plugins     []ObservedPlugin
+	listCalls   int
 	registered  []ObservedPlugin
 	closed      []string
 	restarted   []string
@@ -248,11 +249,18 @@ func (r *recordingRuntime) MarkClosed(_ context.Context, pluginNo string) error 
 func (r *recordingRuntime) List() []ObservedPlugin {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.listCalls++
 	out := make([]ObservedPlugin, 0, len(r.plugins))
 	for _, plugin := range r.plugins {
 		out = append(out, cloneObservedPlugin(plugin))
 	}
 	return out
+}
+
+func (r *recordingRuntime) listCallCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.listCalls
 }
 
 func (r *recordingRuntime) registeredPlugins() []ObservedPlugin {

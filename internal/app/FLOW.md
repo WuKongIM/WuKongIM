@@ -242,7 +242,7 @@ New(Config)
        cluster-authoritative UID plugin bindings when available; attach the
        plugin hook metrics observer
        when metrics are enabled, expose durable commit PersistAfter events to
-       channelappend, expose durable offline recipient candidates to
+       channelappend, expose each durable offline recipient batch to
        channelappend's recipient delivery worker for Receive hooks, and
        register the manager plugin RPC handler when node RPC is available so
        peer managers can inspect or mutate this node's plugin lifecycle state
@@ -833,7 +833,13 @@ When `Plugin.Enable=true` (the default unless `WK_PLUGIN_ENABLE=false` is set),
 the app wires the PDK-compatible node-local plugin
 runtime, desired-state store adapter, minimal lifecycle host RPC adapter, v2
 plugin usecase, and bounded PersistAfter worker before channelappend. The
-channelappend group receives only the PersistAfter enqueue port. Plugin runtime
+channelappend group receives the PersistAfter enqueue port and a batch-capable
+offline-recipient observer. One offline recipient batch becomes one plugin
+worker admission and one owned copy of its payload and UID slice. The plugin
+usecase snapshots eligible running Receive plugins once per batch, returns
+before binding reads when none exist, and then preserves ordered per-UID binding,
+dedupe, and invocation semantics only for bound recipients. The legacy scalar
+observer and worker interfaces remain as compatibility fallbacks. Plugin runtime
 and hook workers start before channelappend and stop after channelappend drains,
 so accepted durable commits can enqueue plugin side effects until the append
 runtime is stopped. Desired plugin config remains node-local in this phase and

@@ -114,6 +114,24 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 	}
 
 	resolved := targetResolver.EndpointsByTargets(ctx, plan.Targets)
+	observePlanOffline := shouldObserveOfflineRecipients(
+		plan.Event,
+		p.ports.offlineRecipientsObserver,
+		p.ports.offlineRecipientObserver,
+	)
+	deliveryPorts := p.ports
+	if observePlanOffline {
+		// Exact-target lookups are one physical routing concern, while plugin
+		// and webhook observers consume one committed-message recipient set.
+		// Aggregate successful target results before one observer admission.
+		deliveryPorts.offlineRecipientsObserver = nil
+		deliveryPorts.offlineRecipientObserver = nil
+	}
+	var planOfflineUIDs []string
+	var seenPlanOffline map[string]struct{}
+	if observePlanOffline {
+		seenPlanOffline = make(map[string]struct{}, plan.RecipientCount())
+	}
 	grouped := make(map[uint64]*recipientPlanOwnerRoutes)
 	ownerOrder := make([]uint64, 0)
 	for i, target := range plan.Targets {
@@ -128,7 +146,15 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 			results[i] = withPostCommitFailureDetail(resolved[i].Err, detail)
 			continue
 		}
-		routes, err := prepareRecipientBatchRoutesSafely(ctx, batch, resolved[i].Routes, p.ports)
+		if observePlanOffline {
+			planOfflineUIDs = appendOfflineRecipientUIDs(
+				planOfflineUIDs,
+				seenPlanOffline,
+				batch.Recipients,
+				resolved[i].Routes,
+			)
+		}
+		routes, err := prepareRecipientBatchRoutesSafely(ctx, batch, resolved[i].Routes, deliveryPorts)
 		if err != nil {
 			results[i] = err
 			continue
@@ -144,7 +170,18 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 			ownerRoutes.targetIndexes = append(ownerRoutes.targetIndexes, i)
 		}
 	}
+	var offlineObserverErr error
+	if len(planOfflineUIDs) > 0 {
+		offlineObserverErr = notifyOfflineRecipientsSafely(
+			ctx,
+			plan.Event,
+			planOfflineUIDs,
+			p.ports.offlineRecipientsObserver,
+			p.ports.offlineRecipientObserver,
+		)
+	}
 	if p.ports.pusher == nil {
+		recordRecipientPlanSideEffectFailure(results, offlineObserverErr)
 		return results
 	}
 	batchSize := boundedPositive(p.ports.ownerPushBatchSize, defaultRecipientBatchSize)
@@ -183,7 +220,23 @@ func (p *RecipientProcessor) ProcessRecipientDeliveryPlan(ctx context.Context, p
 			}
 		}
 	}
+	recordRecipientPlanSideEffectFailure(results, offlineObserverErr)
 	return results
+}
+
+func recordRecipientPlanSideEffectFailure(results []error, err error) {
+	if err == nil {
+		return
+	}
+	// The plan-level observer is one independent best-effort side effect.
+	// Preserve one bounded diagnostic failure without blocking owner delivery
+	// or multiplying the same failure across every exact target.
+	for i := range results {
+		if results[i] == nil {
+			results[i] = err
+			return
+		}
+	}
 }
 
 func runBoundedRecipientOwnerPushes(count, concurrency int, run func(int)) {
@@ -409,6 +462,11 @@ func observeOfflineRecipients(
 	if (batchObserver == nil && singleObserver == nil) || !offlineRecipientObserverEligible(batch.Event) {
 		return
 	}
+	offlineUIDs := offlineRecipientUIDs(uids, routes)
+	notifyOfflineRecipients(ctx, batch.Event, offlineUIDs, batchObserver, singleObserver)
+}
+
+func offlineRecipientUIDs(uids []string, routes []Route) []string {
 	online := make(map[string]struct{}, len(routes))
 	for _, route := range routes {
 		if route.UID != "" {
@@ -430,6 +488,45 @@ func observeOfflineRecipients(
 		seenOffline[uid] = struct{}{}
 		offlineUIDs = append(offlineUIDs, uid)
 	}
+	return offlineUIDs
+}
+
+func appendOfflineRecipientUIDs(
+	out []string,
+	seen map[string]struct{},
+	recipients []Recipient,
+	routes []Route,
+) []string {
+	online := make(map[string]struct{}, len(routes))
+	for _, route := range routes {
+		if route.UID != "" {
+			online[route.UID] = struct{}{}
+		}
+	}
+	for _, recipient := range recipients {
+		uid := recipient.UID
+		if uid == "" {
+			continue
+		}
+		if _, ok := online[uid]; ok {
+			continue
+		}
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		out = append(out, uid)
+	}
+	return out
+}
+
+func notifyOfflineRecipients(
+	ctx context.Context,
+	event CommittedEnvelope,
+	offlineUIDs []string,
+	batchObserver OfflineRecipientsObserver,
+	singleObserver OfflineRecipientObserver,
+) {
 	if len(offlineUIDs) == 0 {
 		return
 	}
@@ -438,7 +535,7 @@ func observeOfflineRecipients(
 	}
 	if batchObserver != nil {
 		batchObserver.ObserveOfflineRecipients(ctx, OfflineRecipientsEvent{
-			Event: batch.Event,
+			Event: event,
 			UIDs:  append([]string(nil), offlineUIDs...),
 		})
 		return
@@ -447,8 +544,32 @@ func observeOfflineRecipients(
 		return
 	}
 	for _, uid := range offlineUIDs {
-		singleObserver.ObserveOfflineRecipient(ctx, OfflineRecipientEvent{Event: batch.Event, UID: uid})
+		singleObserver.ObserveOfflineRecipient(ctx, OfflineRecipientEvent{Event: event, UID: uid})
 	}
+}
+
+func notifyOfflineRecipientsSafely(
+	ctx context.Context,
+	event CommittedEnvelope,
+	offlineUIDs []string,
+	batchObserver OfflineRecipientsObserver,
+	singleObserver OfflineRecipientObserver,
+) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = withPostCommitFailureDetail(
+				effectPanicError(effectStagePostCommit, recovered),
+				PostCommitFailureDetail{
+					Phase:          "offline_recipient_observer",
+					UID:            firstString(offlineUIDs),
+					UIDCount:       len(offlineUIDs),
+					RecipientCount: len(offlineUIDs),
+				},
+			)
+		}
+	}()
+	notifyOfflineRecipients(ctx, event, offlineUIDs, batchObserver, singleObserver)
+	return nil
 }
 
 func offlineRecipientObserverEligible(event CommittedEnvelope) bool {

@@ -22,6 +22,7 @@
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
 - Channelappend post-commit pool admission and per-channel backlog must stay bounded and independent from foreground append admission; saturation is observed and dropped so best-effort conversation/delivery work cannot pin writer-advance workers, delay durable SEND/SENDACK, or return `ErrChannelBusy` for an otherwise admissible send.
+- Channelappend writer activation must pass through the dedicated dispatcher; callers or append/effect workers must never block while submitting back into the bounded advance pool, or saturated advance/append pools can form a cross-pool deadlock.
 - Conversation-active cache churn may evict clean rows during memory-only admission; dirty persistence stays exclusively on periodic, pressure-woken, or handoff flush workers.
 - Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
 
@@ -49,6 +50,7 @@
 - Conversation active pressure uses one coalesced async worker wakeup, bounded flush attempts, and 80%/70% high/dirty-low watermarks; clean rows below the dirty watermark are the reusable eviction reserve.
 - Conversation active projection failure is observed independently and must not block recipient delivery, later large-channel pages, or subscriber snapshot caching.
 - Recipient delivery plans preserve complete UID-authority fences and batch presence RPC by actual leader; only stale/not-ready groups may batch-resolve fresh targets and retry once, without replaying successful siblings.
+- Cloud Medium recipient pages are bounded at 512 rows: authority normalization uses an inline UID index and exact 256-physical-hash-slot grouping while preserving all 10 logical Slot and leader/config fences; do not replace it with per-message UID/target maps.
 - Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
 - Duplicate/stale delete barriers must not clear an `ActiveAt` written by a newer message.
@@ -200,6 +202,7 @@
 - Plugin runtime is node-local and disabled by default; plugin-user bindings are Slot Raft metadata keyed by UID.
 - Phase 1 supports `.wkp`/go-pdk core methods and host RPCs, but stream RPCs return explicit unimplemented errors.
 - Plugin sends must go through `message.App.Send`; PersistAfter runs only on the channel owner node.
+- Offline Receive observation enters the plugin worker as one message-scoped UID batch with one owned payload copy; candidate discovery runs once per batch and skips UID binding reads when no running Receive plugin exists.
 - Plugin migration changes should rerun the microbenchmark baseline in `docs/development/PLUGIN_BENCHMARK_BASELINE.md`, especially Send hook selection, host RPC mapping, PersistAfter, HTTP forward, and NoPersist realtime delivery.
 - Plugin wire contracts live in `pkg/plugin/pluginproto`; keep protobuf field numbers compatible with `github.com/WuKongIM/go-pdk` and do not add new imports of old `internal/usecase/plugin/pluginproto`.
 - The node-local plugin process host lives in `pkg/plugin/pluginhost`; internal app wiring adapts it to `internal/usecase/plugin` without depending on old plugin runtime code.

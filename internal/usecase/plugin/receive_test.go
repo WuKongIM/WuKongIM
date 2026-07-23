@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -116,6 +117,125 @@ func TestReceiveOfflineDedupeUsesMessageIDAndUIDWithinTTL(t *testing.T) {
 	now = now.Add(time.Minute + time.Second)
 	require.NoError(t, app.ReceiveOffline(context.Background(), event))
 	require.Len(t, invoker.sentMessages(), 3)
+}
+
+func TestReceiveOfflineBatchSnapshotsPluginsOnceAndPreservesRecipientOrder(t *testing.T) {
+	runtime := &recordingRuntime{plugins: []ObservedPlugin{
+		{No: "bot", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true},
+		{No: "bot-2", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true},
+	}}
+	bindings := &countingReceiveBindingReader{bindingsByUID: map[string][]PluginBinding{
+		"bot":   {{UID: "bot", PluginNo: "bot"}},
+		"bot-2": {{UID: "bot-2", PluginNo: "bot-2"}},
+	}}
+	invoker := &recordingInvoker{}
+	app, err := NewApp(Options{
+		Runtime:          runtime,
+		Invoker:          invoker,
+		ReceiveBindings:  bindings,
+		DefaultSenderUID: "____system",
+		ReceiveDedupeTTL: time.Minute,
+	})
+	require.NoError(t, err)
+
+	event := testReceiveOfflineBatchEvent("alice", "bot", "bot-2", "bot")
+	require.NoError(t, app.ReceiveOfflineBatch(context.Background(), event))
+
+	sends := invoker.sentMessages()
+	require.Len(t, sends, 2)
+	require.Equal(t, "bot", decodeReceivePacket(t, sends[0].body).GetToUid())
+	require.Equal(t, "bot-2", decodeReceivePacket(t, sends[1].body).GetToUid())
+	require.Equal(t, 1, runtime.listCallCount())
+	require.Equal(t, []string{"bot", "bot-2"}, bindings.calledUIDs())
+}
+
+func TestReceiveOfflineBatchSkipsBindingReadsWhenNoReceivePluginIsRunning(t *testing.T) {
+	runtime := &recordingRuntime{plugins: []ObservedPlugin{
+		{No: "send-only", Methods: []Method{MethodSend}, Priority: 1, Status: StatusRunning, Enabled: true},
+	}}
+	bindings := &countingReceiveBindingReader{bindingsByUID: map[string][]PluginBinding{
+		"bot": {{UID: "bot", PluginNo: "send-only"}},
+	}}
+	invoker := &recordingInvoker{}
+	app, err := NewApp(Options{
+		Runtime:         runtime,
+		Invoker:         invoker,
+		ReceiveBindings: bindings,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, app.ReceiveOfflineBatch(context.Background(), testReceiveOfflineBatchEvent("alice", "bot")))
+
+	require.Empty(t, invoker.sentMessages())
+	require.Equal(t, 1, runtime.listCallCount())
+	require.Empty(t, bindings.calledUIDs())
+}
+
+func TestReceiveOfflineBatchIgnoresDesiredStateFailuresForUnrelatedPlugins(t *testing.T) {
+	runtime := &recordingRuntime{plugins: []ObservedPlugin{
+		{No: "send-only", Methods: []Method{MethodSend}, Priority: 1, Status: StatusRunning, Enabled: true},
+	}}
+	store := newRecordingDesiredStore()
+	store.err = errors.New("unrelated desired-state failure")
+	app, err := NewApp(Options{
+		Runtime:      runtime,
+		Invoker:      &recordingInvoker{},
+		DesiredStore: store,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, app.ReceiveOfflineBatch(context.Background(), testReceiveOfflineBatchEvent("alice", "bot")))
+}
+
+func TestReceiveOfflineBatchContinuesAfterIndependentRecipientFailure(t *testing.T) {
+	sentinel := errors.New("first recipient failed")
+	runtime := &recordingRuntime{plugins: []ObservedPlugin{
+		{No: "bad-plugin", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true},
+		{No: "good-plugin", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true},
+	}}
+	invoker := &recordingInvoker{sendErrors: map[string]error{"bad-plugin": sentinel}}
+	app, err := NewApp(Options{
+		Runtime: runtime,
+		Invoker: invoker,
+		ReceiveBindings: receiveBindingReader{bindingsByUID: map[string][]PluginBinding{
+			"bot":   {{UID: "bot", PluginNo: "bad-plugin"}},
+			"bot-2": {{UID: "bot-2", PluginNo: "good-plugin"}},
+		}},
+	})
+	require.NoError(t, err)
+
+	err = app.ReceiveOfflineBatch(context.Background(), testReceiveOfflineBatchEvent("alice", "bot", "bot-2"))
+
+	require.ErrorIs(t, err, sentinel)
+	sends := invoker.sentMessages()
+	require.Len(t, sends, 2)
+	require.Equal(t, "bot", decodeReceivePacket(t, sends[0].body).GetToUid())
+	require.Equal(t, "bot-2", decodeReceivePacket(t, sends[1].body).GetToUid())
+}
+
+func TestReceiveOfflineBatchTimeoutIsIndependentPerRecipient(t *testing.T) {
+	invoker := &timeoutFirstReceiveInvoker{}
+	app, err := NewApp(Options{
+		Runtime: &recordingRuntime{plugins: []ObservedPlugin{
+			{No: "slow-plugin", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true, ReplySync: true},
+			{No: "fast-plugin", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true, ReplySync: true},
+		}},
+		Invoker: invoker,
+		ReceiveBindings: receiveBindingReader{bindingsByUID: map[string][]PluginBinding{
+			"slow": {{UID: "slow", PluginNo: "slow-plugin"}},
+			"fast": {{UID: "fast", PluginNo: "fast-plugin"}},
+		}},
+	})
+	require.NoError(t, err)
+
+	err = app.ReceiveOfflineBatchWithTimeout(
+		context.Background(),
+		testReceiveOfflineBatchEvent("alice", "slow", "fast"),
+		20*time.Millisecond,
+	)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, []string{"slow-plugin", "fast-plugin"}, invoker.calledPluginNos())
 }
 
 func TestReceiveOfflineRetriesAfterHookFailureBeforeDedupe(t *testing.T) {
@@ -233,6 +353,24 @@ func testReceiveOfflineEvent(fromUID string) pluginevents.ReceiveOffline {
 	}
 }
 
+func testReceiveOfflineBatchEvent(fromUID string, uids ...string) pluginevents.ReceiveOfflineBatch {
+	event := testReceiveOfflineEvent(fromUID)
+	return pluginevents.ReceiveOfflineBatch{
+		MessageID:         event.MessageID,
+		MessageSeq:        event.MessageSeq,
+		ChannelID:         event.ChannelID,
+		ChannelType:       event.ChannelType,
+		FromUID:           event.FromUID,
+		UIDs:              append([]string(nil), uids...),
+		ClientMsgNo:       event.ClientMsgNo,
+		ServerTimestampMS: event.ServerTimestampMS,
+		Payload:           append([]byte(nil), event.Payload...),
+		NoPersist:         event.NoPersist,
+		SyncOnce:          event.SyncOnce,
+		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
+	}
+}
+
 func receiveOfflineWith(mutator func(*pluginevents.ReceiveOffline)) pluginevents.ReceiveOffline {
 	event := testReceiveOfflineEvent("alice")
 	mutator(&event)
@@ -242,6 +380,46 @@ func receiveOfflineWith(mutator func(*pluginevents.ReceiveOffline)) pluginevents
 type receiveBindingReader struct {
 	bindingsByUID map[string][]PluginBinding
 	err           error
+}
+
+type countingReceiveBindingReader struct {
+	bindingsByUID map[string][]PluginBinding
+	calls         []string
+}
+
+type timeoutFirstReceiveInvoker struct {
+	mu      sync.Mutex
+	plugins []string
+}
+
+func (i *timeoutFirstReceiveInvoker) RequestPlugin(ctx context.Context, pluginNo, _ string, _ []byte) ([]byte, error) {
+	i.mu.Lock()
+	i.plugins = append(i.plugins, pluginNo)
+	i.mu.Unlock()
+	if pluginNo == "slow-plugin" {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return nil, nil
+}
+
+func (i *timeoutFirstReceiveInvoker) SendPlugin(string, uint32, []byte) error {
+	return nil
+}
+
+func (i *timeoutFirstReceiveInvoker) calledPluginNos() []string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return append([]string(nil), i.plugins...)
+}
+
+func (r *countingReceiveBindingReader) ListPluginBindingsByUID(_ context.Context, uid string) ([]PluginBinding, error) {
+	r.calls = append(r.calls, uid)
+	return append([]PluginBinding(nil), r.bindingsByUID[uid]...), nil
+}
+
+func (r *countingReceiveBindingReader) calledUIDs() []string {
+	return append([]string(nil), r.calls...)
 }
 
 func (r receiveBindingReader) ListPluginBindingsByUID(_ context.Context, uid string) ([]PluginBinding, error) {

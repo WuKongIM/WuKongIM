@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,6 +17,8 @@ type capturePressureObserver struct {
 	maxPostCommitHandoffDepth   int
 	maxPostCommitRetryQueue     int
 	sawPostCommitRetryContended bool
+	maxAdvanceWaiting           int
+	lastAdvance                 AntsPoolObservation
 	antsSeen                    map[string]AntsPoolObservation
 	antsReady                   chan struct{}
 	ready                       chan struct{}
@@ -99,6 +102,12 @@ func (c *capturePressureObserver) postCommitSnapshot() (WriterPressureObservatio
 func (c *capturePressureObserver) ObserveChannelAppendAntsPool(event AntsPoolObservation) {
 	c.mu.Lock()
 	c.antsSeen[event.Pool] = event
+	if event.Pool == "advance" {
+		c.lastAdvance = event
+		if event.Waiting > c.maxAdvanceWaiting {
+			c.maxAdvanceWaiting = event.Waiting
+		}
+	}
 	if len(c.antsSeen) >= 3 {
 		select {
 		case <-c.antsReady:
@@ -107,6 +116,12 @@ func (c *capturePressureObserver) ObserveChannelAppendAntsPool(event AntsPoolObs
 		}
 	}
 	c.mu.Unlock()
+}
+
+func (c *capturePressureObserver) advanceSnapshot() (AntsPoolObservation, int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastAdvance, c.maxAdvanceWaiting
 }
 
 func TestGroupEmitsAggregatePressure(t *testing.T) {
@@ -192,6 +207,114 @@ func TestGroupEmitsAggregatePressure(t *testing.T) {
 	observer.mu.Unlock()
 	if advance.Capacity == 0 || appendEffect.Capacity != 5 || postCommit.Capacity != 5 {
 		t.Fatalf("ants pool observations = advance %#v append_effect %#v post_commit %#v, want advance, append_effect, and post_commit pools", advance, appendEffect, postCommit)
+	}
+}
+
+type blockingAdvanceAuthorizerForPressureTest struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingAdvanceAuthorizerForPressureTest() *blockingAdvanceAuthorizerForPressureTest {
+	return &blockingAdvanceAuthorizerForPressureTest{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (a *blockingAdvanceAuthorizerForPressureTest) AuthorizeSend(ctx context.Context, _ SendCommand) (Decision, error) {
+	a.once.Do(func() { close(a.started) })
+	select {
+	case <-a.release:
+		return Decision{Allowed: true, Reason: ReasonSuccess}, nil
+	case <-ctx.Done():
+		return Decision{}, ctx.Err()
+	}
+}
+
+func TestAdvanceDispatcherPublishesQueuedAndDrainedPressure(t *testing.T) {
+	observer := newCapturePressureObserver()
+	authorizer := newBlockingAdvanceAuthorizerForPressureTest()
+	group := New(Options{
+		LocalNodeID:                 1,
+		AuthorityShardCount:         1,
+		AdvancePoolSize:             1,
+		EffectPoolSize:              1,
+		AdmissionCapacityPerShard:   8,
+		ChannelBacklogHighWatermark: 8,
+		MessageID:                   newSequenceIDsForPrepare(1),
+		Authorizer:                  authorizer,
+		Appender:                    newRecordingAppenderForAppendTest(),
+		Observer:                    observer,
+		InboxCoalesceWindow:         -time.Nanosecond,
+	})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() { close(authorizer.release) })
+	}
+	t.Cleanup(func() {
+		release()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := group.Stop(ctx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+
+	futures := make([]*Future, 0, 3)
+	submit := func(index int) {
+		channelID := "advance-pressure-" + strconv.Itoa(index)
+		future, err := group.SubmitLocal(context.Background(), AuthorityTarget{
+			ChannelID:    ChannelID{ID: channelID, Type: 2},
+			ChannelKey:   "2:" + channelID,
+			LeaderNodeID: 1,
+			Epoch:        1,
+			LeaderEpoch:  1,
+		}, []SendBatchItem{testSendItem("u"+strconv.Itoa(index), channelID)})
+		if err != nil {
+			t.Fatalf("SubmitLocal(%d) error = %v", index, err)
+		}
+		futures = append(futures, future)
+	}
+	submit(0)
+	select {
+	case <-authorizer.started:
+	case <-time.After(time.Second):
+		t.Fatal("first advance worker did not enter blocking authorizer")
+	}
+	submit(1)
+	submit(2)
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		_, maxWaiting := observer.advanceSnapshot()
+		if maxWaiting >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			last, maxWaiting := observer.advanceSnapshot()
+			t.Fatalf("advance waiting max = %d, want at least 2 queued/dispatching writers; last = %#v", maxWaiting, last)
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	release()
+	for _, future := range futures {
+		requireAppendSuccessAnyID(t, waitFutureForTest(t, future), 0)
+	}
+	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if err := group.Stop(stopCtx); err != nil {
+		cancel()
+		t.Fatalf("Stop() error = %v", err)
+	}
+	cancel()
+	last, _ := observer.advanceSnapshot()
+	if last.Waiting != 0 {
+		t.Fatalf("terminal advance waiting = %d, want 0", last.Waiting)
 	}
 }
 

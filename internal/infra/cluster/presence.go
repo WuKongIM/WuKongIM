@@ -330,6 +330,92 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 		groups  []presence.EndpointLookupGroup
 		items   int
 	}
+
+	processLeader := func(leaderNodeID uint64, batch *leaderBatch) {
+		resultIndexes := batch.indexes
+		resultIndex := func(batchIndex int) int {
+			if resultIndexes == nil {
+				return batchIndex
+			}
+			return resultIndexes[batchIndex]
+		}
+		path := ""
+		observer := c.endpointObserver
+		var started time.Time
+		if observer != nil {
+			started = time.Now()
+		}
+		defer func() {
+			if recover() != nil {
+				fillPresenceEndpointLookupErrors(results, resultIndexes, errPresenceEndpointLookupPanic)
+			}
+			if observer != nil {
+				observePresenceEndpointLookupSafely(observer, PresenceEndpointLookupObservation{
+					Path:       path,
+					Outcome:    presenceEndpointLookupOutcome(results, resultIndexes),
+					StaleRetry: staleRetry,
+					Items:      batch.items,
+					Groups:     len(batch.groups),
+					Duration:   time.Since(started),
+				})
+			}
+		}()
+		localNodeID := c.node.NodeID()
+		path = PresenceEndpointLookupPathRemoteBulk
+		if leaderNodeID == localNodeID {
+			path = PresenceEndpointLookupPathLegacyFallback
+			if _, ok := c.local.(accessnode.PresenceTargetBatchAuthority); ok {
+				path = PresenceEndpointLookupPathLocalBulk
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			fillPresenceEndpointLookupErrors(results, resultIndexes, err)
+			return
+		}
+		if leaderNodeID == localNodeID {
+			if targetBatch, ok := c.local.(accessnode.PresenceTargetBatchAuthority); ok {
+				localResults := targetBatch.EndpointsByTargets(ctx, batch.groups)
+				if len(localResults) != len(batch.groups) {
+					err := fmt.Errorf("%w: aligned local endpoint result count %d does not match group count %d", authoritypresence.ErrRouteNotReady, len(localResults), len(batch.groups))
+					fillPresenceEndpointLookupErrors(results, resultIndexes, err)
+					return
+				}
+				for i, result := range localResults {
+					results[resultIndex(i)] = result
+				}
+				return
+			}
+			for i, group := range batch.groups {
+				results[resultIndex(i)] = c.endpointsByExactTarget(ctx, group)
+			}
+			return
+		}
+		if c.remote == nil {
+			fillPresenceEndpointLookupErrors(results, resultIndexes, authoritypresence.ErrRouteNotReady)
+			return
+		}
+		remoteResults, err := c.remote.EndpointsByTargets(ctx, leaderNodeID, batch.groups)
+		if err != nil {
+			fillPresenceEndpointLookupErrors(results, resultIndexes, err)
+			return
+		}
+		if len(remoteResults) != len(batch.groups) {
+			err := fmt.Errorf("%w: aligned endpoint result count %d does not match group count %d", authoritypresence.ErrRouteNotReady, len(remoteResults), len(batch.groups))
+			fillPresenceEndpointLookupErrors(results, resultIndexes, err)
+			return
+		}
+		for i, result := range remoteResults {
+			results[resultIndex(i)] = result
+		}
+	}
+	if leaderNodeID, items, ok := singlePresenceEndpointLeader(groups); ok {
+		processLeader(leaderNodeID, &leaderBatch{
+			groups: groups,
+			items:  items,
+		})
+		return results
+	}
+
 	byLeader := make(map[uint64]*leaderBatch)
 	leaderOrder := make([]uint64, 0)
 	for i, group := range groups {
@@ -350,80 +436,37 @@ func (c *PresenceAuthorityClient) endpointsByTargetsOnce(ctx context.Context, gr
 		batch.groups = append(batch.groups, group)
 		batch.items += countNonEmptyPresenceUIDs(group.UIDs)
 	}
-
-	processLeader := func(leaderNodeID uint64) {
-		batch := byLeader[leaderNodeID]
-		path := ""
-		observer := c.endpointObserver
-		var started time.Time
-		if observer != nil {
-			started = time.Now()
-		}
-		defer func() {
-			if recover() != nil {
-				fillPresenceEndpointLookupErrors(results, batch.indexes, errPresenceEndpointLookupPanic)
-			}
-			if observer != nil {
-				observePresenceEndpointLookupSafely(observer, PresenceEndpointLookupObservation{
-					Path:       path,
-					Outcome:    presenceEndpointLookupOutcome(results, batch.indexes),
-					StaleRetry: staleRetry,
-					Items:      batch.items,
-					Groups:     len(batch.groups),
-					Duration:   time.Since(started),
-				})
-			}
-		}()
-		localNodeID := c.node.NodeID()
-		path = PresenceEndpointLookupPathRemoteBulk
-		if leaderNodeID == localNodeID {
-			path = PresenceEndpointLookupPathLegacyFallback
-			if _, ok := c.local.(accessnode.PresenceTargetBatchAuthority); ok {
-				path = PresenceEndpointLookupPathLocalBulk
-			}
-		}
-		if err := ctx.Err(); err != nil {
-			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
-			return
-		}
-		if leaderNodeID == localNodeID {
-			if targetBatch, ok := c.local.(accessnode.PresenceTargetBatchAuthority); ok {
-				localResults := targetBatch.EndpointsByTargets(ctx, batch.groups)
-				if len(localResults) != len(batch.indexes) {
-					err := fmt.Errorf("%w: aligned local endpoint result count %d does not match group count %d", authoritypresence.ErrRouteNotReady, len(localResults), len(batch.indexes))
-					fillPresenceEndpointLookupErrors(results, batch.indexes, err)
-					return
-				}
-				for i, result := range localResults {
-					results[batch.indexes[i]] = result
-				}
-				return
-			}
-			for i, group := range batch.groups {
-				results[batch.indexes[i]] = c.endpointsByExactTarget(ctx, group)
-			}
-			return
-		}
-		if c.remote == nil {
-			fillPresenceEndpointLookupErrors(results, batch.indexes, authoritypresence.ErrRouteNotReady)
-			return
-		}
-		remoteResults, err := c.remote.EndpointsByTargets(ctx, leaderNodeID, batch.groups)
-		if err != nil {
-			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
-			return
-		}
-		if len(remoteResults) != len(batch.indexes) {
-			err := fmt.Errorf("%w: aligned endpoint result count %d does not match group count %d", authoritypresence.ErrRouteNotReady, len(remoteResults), len(batch.indexes))
-			fillPresenceEndpointLookupErrors(results, batch.indexes, err)
-			return
-		}
-		for i, result := range remoteResults {
-			results[batch.indexes[i]] = result
-		}
-	}
-	runBoundedPresenceLeaderBatches(leaderOrder, defaultPresenceEndpointLeaderConcurrency, processLeader)
+	runBoundedPresenceLeaderBatches(
+		leaderOrder,
+		defaultPresenceEndpointLeaderConcurrency,
+		func(leaderNodeID uint64) {
+			processLeader(leaderNodeID, byLeader[leaderNodeID])
+		},
+	)
 	return results
+}
+
+func singlePresenceEndpointLeader(groups []presence.EndpointLookupGroup) (uint64, int, bool) {
+	if len(groups) == 0 {
+		return 0, 0, false
+	}
+	var leaderNodeID uint64
+	items := 0
+	for _, group := range groups {
+		if len(group.UIDs) == 0 {
+			return 0, 0, false
+		}
+		if group.Target.LeaderNodeID == 0 {
+			return 0, 0, false
+		}
+		if leaderNodeID == 0 {
+			leaderNodeID = group.Target.LeaderNodeID
+		} else if group.Target.LeaderNodeID != leaderNodeID {
+			return 0, 0, false
+		}
+		items += countNonEmptyPresenceUIDs(group.UIDs)
+	}
+	return leaderNodeID, items, leaderNodeID != 0
 }
 
 func observePresenceEndpointLookupSafely(observer PresenceEndpointLookupObserver, event PresenceEndpointLookupObservation) {
@@ -559,15 +602,15 @@ func presenceEndpointLookupOutcome(results []presence.EndpointLookupResult, inde
 	succeeded := 0
 	failed := 0
 	commonFailure := ""
-	for _, index := range indexes {
+	record := func(index int) {
 		if index < 0 || index >= len(results) {
 			failed++
 			commonFailure = PresenceEndpointLookupOutcomeError
-			continue
+			return
 		}
 		if results[index].Err == nil {
 			succeeded++
-			continue
+			return
 		}
 		failed++
 		outcome := presenceEndpointLookupErrorOutcome(results[index].Err)
@@ -575,6 +618,15 @@ func presenceEndpointLookupOutcome(results []presence.EndpointLookupResult, inde
 			commonFailure = outcome
 		} else if commonFailure != outcome {
 			commonFailure = PresenceEndpointLookupOutcomeError
+		}
+	}
+	if indexes == nil {
+		for index := range results {
+			record(index)
+		}
+	} else {
+		for _, index := range indexes {
+			record(index)
 		}
 	}
 	if failed == 0 {

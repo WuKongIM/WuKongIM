@@ -502,6 +502,44 @@ func TestPluginReceiveObserverMapsOfflineRecipientEvent(t *testing.T) {
 	}}, worker.events)
 }
 
+func TestPluginReceiveObserverMapsOfflineRecipientBatchWithoutScalarExpansion(t *testing.T) {
+	worker := &recordingPluginReceiveBatchWorker{}
+	observer := pluginReceiveObserver{worker: worker}
+	source := channelappend.OfflineRecipientsEvent{
+		UIDs: []string{"bot", "bot-2"},
+		Event: channelappend.CommittedEnvelope{
+			MessageID:         101,
+			MessageSeq:        202,
+			ChannelID:         "room-a",
+			ChannelType:       2,
+			FromUID:           "sender-u1",
+			ClientMsgNo:       "client-1",
+			ServerTimestampMS: 123456789,
+			Payload:           []byte("payload"),
+			MessageScopedUIDs: []string{"bot"},
+		},
+	}
+
+	observer.ObserveOfflineRecipients(context.Background(), source)
+	source.UIDs[0] = "mutated"
+	source.Event.Payload[0] = 'X'
+	source.Event.MessageScopedUIDs[0] = "mutated"
+
+	require.Empty(t, worker.events)
+	require.Equal(t, []pluginevents.ReceiveOfflineBatch{{
+		MessageID:         101,
+		MessageSeq:        202,
+		ChannelID:         "room-a",
+		ChannelType:       2,
+		FromUID:           "sender-u1",
+		UIDs:              []string{"bot", "bot-2"},
+		ClientMsgNo:       "client-1",
+		ServerTimestampMS: 123456789,
+		Payload:           []byte("payload"),
+		MessageScopedUIDs: []string{"bot"},
+	}}, worker.batches)
+}
+
 func TestPluginRuntimeAdapterPreservesReceiveMethod(t *testing.T) {
 	runtime := pluginhost.NewRuntime(pluginhost.RuntimeOptions{Registry: pluginhost.NewRegistry()})
 	adapter := pluginRuntimeAdapter{runtime: runtime}
@@ -532,6 +570,15 @@ type recordingPluginReceiveWorker struct {
 
 func (w *recordingPluginReceiveWorker) EnqueueReceive(_ context.Context, event pluginevents.ReceiveOffline) {
 	w.events = append(w.events, event)
+}
+
+type recordingPluginReceiveBatchWorker struct {
+	recordingPluginReceiveWorker
+	batches []pluginevents.ReceiveOfflineBatch
+}
+
+func (w *recordingPluginReceiveBatchWorker) EnqueueReceiveBatch(_ context.Context, event pluginevents.ReceiveOfflineBatch) {
+	w.batches = append(w.batches, event.Clone())
 }
 
 type recordingAppMessageSubmitter struct {

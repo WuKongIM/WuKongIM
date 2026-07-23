@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -538,6 +539,108 @@ func TestRecipientProcessorPrefersBatchOfflineObserver(t *testing.T) {
 	}
 }
 
+func TestRecipientProcessorBatchesOfflineObservationAcrossExactTargets(t *testing.T) {
+	observer := &recordingBatchOfflineRecipientObserverForDeliveryTest{}
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{
+		results: []RecipientTargetPresenceResult{
+			{Routes: []Route{{UID: "u1", OwnerNodeID: 1, SessionID: 11}}},
+			{},
+		},
+	}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver:          resolver,
+		OfflineRecipientsObserver: observer,
+	})
+
+	errs := processor.ProcessRecipientDeliveryPlan(context.Background(), RecipientDeliveryPlan{
+		Event: CommittedEnvelope{
+			MessageID:   10,
+			MessageSeq:  4,
+			ChannelID:   "g1",
+			ChannelType: 2,
+			FromUID:     "sender",
+		},
+		Targets: []RecipientTargetBatch{
+			{
+				Target:     recipientAuthorityTargetForTest(1, 10, 100),
+				Recipients: []Recipient{{UID: "u1"}, {UID: "u2"}},
+			},
+			{
+				Target:     recipientAuthorityTargetForTest(2, 20, 200),
+				Recipients: []Recipient{{UID: "u3"}},
+			},
+		},
+	})
+
+	if got, want := errs, make([]error, 2); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want %#v", got, want)
+	}
+	if got := observer.batchCallCount(); got != 1 {
+		t.Fatalf("batch offline observer calls = %d, want one plan-level batch", got)
+	}
+	if got, want := observer.batchUIDs(), []string{"u2", "u3"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("batch offline uids = %#v, want %#v", got, want)
+	}
+}
+
+func TestRecipientProcessorPlanOfflineObserverPanicDoesNotBlockOwnerPush(t *testing.T) {
+	observer := &panicBatchOfflineRecipientObserverForDeliveryTest{}
+	resolver := &recordingTargetPresenceResolverForDeliveryWorkerTest{
+		results: []RecipientTargetPresenceResult{
+			{Routes: []Route{{UID: "u1", OwnerNodeID: 1, SessionID: 11}}},
+			{Routes: []Route{{UID: "u3", OwnerNodeID: 2, SessionID: 33}}},
+		},
+	}
+	pusher := &recordingOwnerPusherForDeliveryTest{}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver:          resolver,
+		OwnerPusher:               pusher,
+		OfflineRecipientsObserver: observer,
+	})
+
+	errs := processor.ProcessRecipientDeliveryPlan(context.Background(), RecipientDeliveryPlan{
+		Event: CommittedEnvelope{
+			MessageID:   10,
+			MessageSeq:  4,
+			ChannelID:   "g1",
+			ChannelType: 2,
+			FromUID:     "sender",
+		},
+		Targets: []RecipientTargetBatch{
+			{
+				Target:     recipientAuthorityTargetForTest(1, 10, 100),
+				Recipients: []Recipient{{UID: "u1"}, {UID: "u2"}},
+			},
+			{
+				Target:     recipientAuthorityTargetForTest(2, 20, 200),
+				Recipients: []Recipient{{UID: "u3"}, {UID: "u4"}},
+			},
+		},
+	})
+
+	if got := observer.callCount(); got != 1 {
+		t.Fatalf("batch offline observer calls = %d, want 1", got)
+	}
+	if got := pusher.callCount(); got != 2 {
+		t.Fatalf("owner push calls = %d, want both owners despite observer panic", got)
+	}
+	panicErrors := 0
+	successes := 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrEffectPanic):
+			panicErrors++
+		default:
+			t.Fatalf("ProcessRecipientDeliveryPlan() unexpected error = %v", err)
+		}
+	}
+	if panicErrors != 1 || successes != 1 {
+		t.Fatalf("ProcessRecipientDeliveryPlan() errors = %#v, want one isolated observer panic and one success", errs)
+	}
+}
+
 func TestRecipientProcessorOptionsAcceptsBatchOnlyOfflineObserver(t *testing.T) {
 	observer := &recordingBatchOnlyOfflineRecipientObserverForDeliveryTest{}
 	processor := NewRecipientProcessor(RecipientProcessorOptions{
@@ -906,6 +1009,22 @@ func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) sawUIDAlias() bo
 type recordingBatchOnlyOfflineRecipientObserverForDeliveryTest struct {
 	mu     sync.Mutex
 	events []OfflineRecipientsEvent
+}
+
+type panicBatchOfflineRecipientObserverForDeliveryTest struct {
+	calls atomic.Int64
+}
+
+func (o *panicBatchOfflineRecipientObserverForDeliveryTest) ObserveOfflineRecipients(
+	context.Context,
+	OfflineRecipientsEvent,
+) {
+	o.calls.Add(1)
+	panic("offline recipient observer panic")
+}
+
+func (o *panicBatchOfflineRecipientObserverForDeliveryTest) callCount() int {
+	return int(o.calls.Load())
 }
 
 func (o *recordingBatchOnlyOfflineRecipientObserverForDeliveryTest) ObserveOfflineRecipients(_ context.Context, event OfflineRecipientsEvent) {

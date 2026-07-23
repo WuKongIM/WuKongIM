@@ -3,6 +3,7 @@ package pluginhook
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -49,6 +50,49 @@ func BenchmarkPluginHookReceiveEnqueue(b *testing.B) {
 	})
 }
 
+func BenchmarkPluginHookReceiveBatchAdmission(b *testing.B) {
+	for _, recipients := range []int{512, 10000} {
+		b.Run(fmt.Sprintf("recipients_%d", recipients), func(b *testing.B) {
+			uids := make([]string, recipients)
+			for i := range uids {
+				uids[i] = fmt.Sprintf("u-%05d", i)
+			}
+			payload := bytes.Repeat([]byte("a"), 1024)
+			worker := NewWorker(Options{
+				Usecase:        noopPersistAfterUsecase{},
+				ReceiveUsecase: noopReceiveUsecase{},
+			})
+			b.Run("scalar", func(b *testing.B) {
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					for _, uid := range uids {
+						worker.EnqueueReceive(context.Background(), pluginevents.ReceiveOffline{
+							MessageID:  1,
+							MessageSeq: 1,
+							UID:        uid,
+							Payload:    payload,
+						})
+					}
+				}
+			})
+			b.Run("batch", func(b *testing.B) {
+				event := pluginevents.ReceiveOfflineBatch{
+					MessageID:  1,
+					MessageSeq: 1,
+					UIDs:       uids,
+					Payload:    payload,
+				}
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					worker.EnqueueReceiveBatch(context.Background(), event)
+				}
+			})
+		})
+	}
+}
+
 func BenchmarkPluginHookQueueFull(b *testing.B) {
 	worker := NewWorker(Options{Usecase: newBlockingPersistAfterUsecase(), QueueSize: 1, Workers: 1, Timeout: time.Second})
 	require.NoError(b, worker.Start(context.Background()))
@@ -88,6 +132,10 @@ func (noopPersistAfterUsecase) PersistAfterCommitted(context.Context, plugineven
 type noopReceiveUsecase struct{}
 
 func (noopReceiveUsecase) ReceiveOffline(context.Context, pluginevents.ReceiveOffline) error {
+	return nil
+}
+
+func (noopReceiveUsecase) ReceiveOfflineBatch(context.Context, pluginevents.ReceiveOfflineBatch) error {
 	return nil
 }
 
