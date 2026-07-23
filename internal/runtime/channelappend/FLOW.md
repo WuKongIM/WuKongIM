@@ -63,14 +63,17 @@ still returns real cross-batch backpressure. When no leader exceeds the bound,
 the hot path submits group indexes directly and does not allocate lane maps or
 per-group lane slices.
 
-Authority resolution remains ordered and side-effect safe. After resolution,
-different canonical-channel groups from one multi-item batch are submitted with
-a fixed per-batch concurrency bound. The caller participates as one worker, so
-the router creates at most `bound-1` helper goroutines. A single canonical
-channel still forms one ordered group, and completed group results are folded
-in original group and item order before retry selection. This removes
-cross-channel head-of-line waiting without adding an unbounded goroutine or a
-second cross-request queue.
+Authority resolution is side-effect safe and uses its own fixed per-batch
+concurrency bound for independent canonical channels. This prevents first-use
+channel runtime metadata proposals from serially multiplying Slot round trips.
+Resolved targets are folded in original channel order before submission.
+After resolution, different canonical-channel groups use the separate fixed
+submission concurrency bound. The caller participates as one worker in both
+phases, so the router creates at most `bound-1` helper goroutines per phase. A
+single canonical channel still forms one ordered group, and completed group
+results are folded in original group and item order before retry selection.
+This removes cross-channel head-of-line waiting without adding an unbounded
+goroutine or a second cross-request queue.
 
 Router submit contexts are neutral batch transport contexts. Per-item contexts
 and deadlines are checked before route lookup, before submission, and while

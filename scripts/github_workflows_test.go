@@ -242,6 +242,12 @@ timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/
 	nightlyE2ECommand = `set -o pipefail
 WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
 `
+	nightlyMediumRecipientCommand = `set -o pipefail
+timeout --signal=TERM --kill-after=30s 5m \
+  go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
+    -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout=4m -p=1 -v 2>&1 |
+  tee "$LOG_FILE"
+`
 	nightlySmokeCommand = `timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
   --out-dir "$RUNNER_TEMP/$SMOKE_OUT" \
   --ready-timeout 180
@@ -346,6 +352,28 @@ var expectedNightlyJobs = map[string]ciJob{
 				Shell: "bash",
 				Env:   map[string]string{"LOG_FILE": "${{ runner.temp }}/go-e2e.log"},
 				Run:   nightlyE2ECommand,
+			},
+			{
+				Name:  "Run bounded Cloud Medium recipient gate",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE":                        "${{ runner.temp }}/go-e2e-medium-recipient.log",
+					"WK_E2E_BINARY":                   "${{ runner.temp }}/wukongim-e2e",
+					"WK_E2E_MEDIUM_RECIPIENT_HOTPATH": "1",
+					"WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE": "1",
+				},
+				Run: nightlyMediumRecipientCommand,
+			},
+			{
+				Name: "Upload Cloud Medium recipient evidence",
+				If:   "always()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "go-e2e-medium-recipient-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/go-e2e-medium-recipient.log",
+					"if-no-files-found": "warn",
+					"retention-days":    14,
+				},
 			},
 			{
 				Name: "Upload e2e failure log",
