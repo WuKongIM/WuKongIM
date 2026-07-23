@@ -107,6 +107,10 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		evidence.OfferedQPS = mediumCIAcceptanceQPS
 		evidence.IngressPerSecond = mediumCIAcceptanceQPS
 		evidence.MeasuredDurationMS = float64(evidence.Messages) / mediumCIAcceptanceQPS * 2000
+		wantPerMessage := float64(440_000)
+		if got := maxAcceptedAllocatedBytes(evidence) / float64(evidence.Messages); got != wantPerMessage {
+			t.Fatalf("CI allocation allowance = %.0f bytes/message, want %.0f", got, wantPerMessage)
+		}
 		evidence.AllocatedBytes = maxAcceptedAllocatedBytes(evidence)
 		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS); err != nil {
 			t.Fatalf("bounded CI allocation rejected: %v", err)

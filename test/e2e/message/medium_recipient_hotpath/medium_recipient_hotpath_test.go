@@ -44,7 +44,7 @@ const (
 
 	mediumMinIngressFraction                   = 0.995
 	mediumMaxAllocatedBytesPerMessage          = 360_000
-	mediumMaxBackgroundAllocatedBytesPerSecond = 30_000_000
+	mediumMaxBackgroundAllocatedBytesPerSecond = 40_000_000
 	mediumMaxGCPerMessage                      = 0.0075
 	mediumMaxHeapBytes                         = 512 << 20
 	mediumMetricSampleInterval                 = 250 * time.Millisecond

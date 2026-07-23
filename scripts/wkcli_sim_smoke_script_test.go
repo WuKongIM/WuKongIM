@@ -443,7 +443,10 @@ func TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation(t *tes
 		"--members", "4",
 		"--rate", "6/s",
 		"--duration", "4s",
-		"--ready-timeout", "2",
+		// The fake start process publishes readiness asynchronously. Keep the
+		// success-path fixture tolerant of repository-wide package scheduling;
+		// controller-promotion assertions still provide the behavioral gate.
+		"--ready-timeout", "10",
 		"--poll", "1",
 	)
 	cmd.Dir = root

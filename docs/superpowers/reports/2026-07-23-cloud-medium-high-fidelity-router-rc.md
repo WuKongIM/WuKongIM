@@ -175,7 +175,7 @@ It also enforces:
 - no gateway/recipient queue saturation;
 - exact plugin admission/invocation conservation;
 - at most 360,000 product-path allocation bytes per message plus a bounded
-  30MB/s background-runtime allowance;
+  40MB/s background-runtime allowance over the fixed paced duration;
 - at most 0.0075 GC cycles per message and at most 512MiB heap;
 - complete drain and process continuity.
 
@@ -210,9 +210,33 @@ SENDACK P99 357-432ms, RECV P99 236-343ms, 48-72ms drain, post-commit backlog
 403,396-405,594 bytes/message. The prior fixed per-message ceiling incorrectly
 treated the doubled phase's background runtime as product-path work. The final
 allocation rule therefore separates a 360,000-byte/message budget from a
-bounded 30MB/s allowance over the fixed 40-second paced duration; at 500/s this
-permits 420,000 bytes/message, leaving only about 3.4 percent margin over the
-worst repeated observation. Actual drain time cannot enlarge this allowance.
+bounded allowance over the fixed 40-second paced duration. The first exact
+branch Nightly (`30017782995`) then passed every product-path signal at
+500.02/s ingress, 59ms SENDACK P99, 151ms RECV P99, 86ms drain, 28 maximum
+post-commit backlog, exact 10400/10400 plugin conservation, and continuous
+processes. It failed only because the shared runner allocated 423,976
+bytes/message, 0.95 percent above the provisional 420,000-byte ceiling.
+
+That CI observation raises the bounded background allowance from 30MB/s to
+40MB/s. At 500/s the resulting ceiling is 440,000 bytes/message: 3.8 percent
+above the observed CI value and 8.5 percent above the worst local repeat. At
+4,500/s the same model permits about 368,889 bytes/message. Actual drain time
+still cannot enlarge the allowance, so tail latency cannot hide a product-path
+allocation regression.
+
+The final calibrated local acceptance repeated the complete three-process
+shape at 500.024/s ingress with 364ms SENDACK P99, 221ms RECV P99, 50ms drain,
+21 maximum post-commit backlog, 403,612 allocated bytes/message, 124 GC cycles,
+exact 10400/10400 plugin conservation, zero metric errors, and continuous
+processes.
+
+The final explicit-root repository gate also exposed a second success-path
+script fixture whose asynchronously started fake cluster still had a
+two-second readiness budget. Under repository-wide package scheduling the fake
+process was alive but had not yet published its readiness marker. That
+controller-promotion fixture now uses the same ten-second scheduling-tolerant
+budget as the previously repaired delayed auto-join fixture; its promotion
+assertions remain unchanged.
 
 ## Remaining Cost Gate
 

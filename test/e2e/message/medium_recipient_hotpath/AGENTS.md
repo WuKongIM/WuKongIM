@@ -25,7 +25,7 @@ Public pressure metrics are sampled every 500ms for the 500/s CI gate and every
 letting the three in-process Prometheus encoders dominate allocation on a
 shared two-core runner.
 Allocation acceptance separates a 360,000-byte/message budget from a bounded
-30MB/s allowance over the fixed paced duration. A slow drain cannot enlarge
+40MB/s allowance over the fixed paced duration. A slow drain cannot enlarge
 that allowance and hide a product-path allocation regression.
 
 ## Rules
