@@ -35,6 +35,10 @@ that allowance and hide a product-path allocation regression.
 - Preserve 256 physical hash slots, 10 logical Slot groups, and three replicas.
 - Keep the 250-message / 19,650-recipient-row / 2,545-online-route slice exact.
 - Keep setup outside the measured SEND window.
+- Before setup and again immediately before cold prime, require all three nodes
+  to agree on every actual Raft leader for the 10 non-empty logical Slots for a
+  bounded stability window. A healthy `readyz` or a PreferredLeader assignment
+  alone is not workload readiness.
 - Emit one machine-readable `WKRC-HIFI-EVIDENCE` line for revision-neutral
   runners.
 - Do not treat absolute local throughput as cloud capacity. Compare exact

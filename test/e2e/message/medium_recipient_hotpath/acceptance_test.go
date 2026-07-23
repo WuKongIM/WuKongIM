@@ -18,6 +18,9 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		OnlineRoutes:            expectedMeasuredOnlineRoutes(),
 		Connections:             expectedConnectionCount(),
 		OfferedQPS:              mediumOfferedQPS,
+		ClusterConvergenceMS:    2_500,
+		ClusterStableWindowMS:   milliseconds(mediumConvergenceStableWindow),
+		SlotLeaders:             []uint64{1, 2, 3, 1, 2, 3, 1, 2, 3, 1},
 		MeasuredDurationMS:      float64(mediumMessageCount*mediumMeasuredRounds) / mediumOfferedQPS * 1000,
 		IngressPerSecond:        mediumOfferedQPS,
 		SendackP99MS:            1_000,
@@ -52,6 +55,10 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "online routes", edit: func(e *hotPathEvidence) { e.OnlineRoutes-- }, want: "online routes"},
 		{name: "connections", edit: func(e *hotPathEvidence) { e.Connections-- }, want: "acceptance connections"},
 		{name: "offered load", edit: func(e *hotPathEvidence) { e.OfferedQPS++ }, want: "offered QPS"},
+		{name: "cluster convergence missing", edit: func(e *hotPathEvidence) { e.ClusterConvergenceMS = 0 }, want: "cluster convergence"},
+		{name: "cluster stability short", edit: func(e *hotPathEvidence) { e.ClusterStableWindowMS-- }, want: "cluster stable window"},
+		{name: "actual slot leader missing", edit: func(e *hotPathEvidence) { e.SlotLeaders[0] = 0 }, want: "actual Slot leaders"},
+		{name: "actual slot leader count", edit: func(e *hotPathEvidence) { e.SlotLeaders = e.SlotLeaders[:9] }, want: "actual Slot leaders"},
 		{name: "ingress", edit: func(e *hotPathEvidence) {
 			e.IngressPerSecond = float64(mediumOfferedQPS)*mediumMinIngressFraction - 0.001
 		}, want: "acceptance ingress"},
@@ -80,6 +87,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			evidence := passing
+			evidence.SlotLeaders = append([]uint64(nil), passing.SlotLeaders...)
 			test.edit(&evidence)
 			err := hotPathAcceptanceError(evidence, mediumOfferedQPS)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
