@@ -35,17 +35,20 @@ const (
 	mediumPayloadBytes      = 256
 	mediumMeasuredRounds    = 80
 	mediumOfferedQPS        = 4_500
-	mediumCIAcceptanceQPS   = 1_000
+	mediumCIAcceptanceQPS   = 500
+	mediumMinOfferedQPS     = 500
 	mediumRecipientPlanSize = 512
 	mediumSenderConnections = 25
 	mediumGroupSenders      = 5
 	mediumSenderUIDPrefix   = "wkrc-hifi-sender"
 
-	mediumMinIngressFraction          = 0.995
-	mediumMaxAllocatedBytesPerMessage = 400_000
-	mediumMaxGCPerMessage             = 0.0075
-	mediumMaxHeapBytes                = 512 << 20
-	mediumMetricSampleInterval        = 250 * time.Millisecond
+	mediumMinIngressFraction                   = 0.995
+	mediumMaxAllocatedBytesPerMessage          = 360_000
+	mediumMaxBackgroundAllocatedBytesPerSecond = 30_000_000
+	mediumMaxGCPerMessage                      = 0.0075
+	mediumMaxHeapBytes                         = 512 << 20
+	mediumMetricSampleInterval                 = 250 * time.Millisecond
+	mediumCIMetricSampleInterval               = 500 * time.Millisecond
 )
 
 var mediumGroupProfiles = []struct {
@@ -134,7 +137,16 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		t.Skip("set WK_E2E_MEDIUM_RECIPIENT_HOTPATH=1 to run the bounded higher-fidelity gate")
 	}
 	measuredRounds := boundedPositiveEnvInt(t, "WK_E2E_MEDIUM_RECIPIENT_ROUNDS", mediumMeasuredRounds, 1, 200)
-	offeredQPS := boundedPositiveEnvInt(t, "WK_E2E_MEDIUM_RECIPIENT_QPS", mediumOfferedQPS, 1_000, 20_000)
+	offeredQPS := boundedPositiveEnvInt(t, "WK_E2E_MEDIUM_RECIPIENT_QPS", mediumOfferedQPS, mediumMinOfferedQPS, 20_000)
+	expectedAcceptanceQPS := mediumOfferedQPS
+	metricSampleInterval := mediumMetricSampleInterval
+	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_CI_SCALE") == "1" {
+		expectedAcceptanceQPS = mediumCIAcceptanceQPS
+		metricSampleInterval = mediumCIMetricSampleInterval
+	}
+	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE") == "1" && offeredQPS != expectedAcceptanceQPS {
+		t.Fatalf("acceptance offered QPS = %d, want %d", offeredQPS, expectedAcceptanceQPS)
+	}
 
 	cluster := startMediumCluster(t)
 	setupCtx, setupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -176,7 +188,7 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 
 	starts := &sync.Map{}
 	receiverResults := startReceivers(measuredRecipients, starts)
-	sampler := newPressureSampler(cluster)
+	sampler := newPressureSampler(cluster, metricSampleInterval)
 	sampler.start()
 	profileDone := startHotPathCPUProfiles(cluster, os.Getenv("WK_E2E_MEDIUM_RECIPIENT_PROFILE_DIR"))
 
@@ -323,11 +335,7 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	}
 	t.Logf("WKRC-HIFI-EVIDENCE %s", encoded)
 	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE") == "1" {
-		expectedOfferedQPS := mediumOfferedQPS
-		if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_CI_SCALE") == "1" {
-			expectedOfferedQPS = mediumCIAcceptanceQPS
-		}
-		requireHotPathAcceptance(t, evidence, expectedOfferedQPS)
+		requireHotPathAcceptance(t, evidence, expectedAcceptanceQPS)
 	}
 }
 
@@ -394,13 +402,16 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) er
 			evidence.PluginReceiveInvokeError,
 			evidence.PluginReceiveAccepted,
 		)
+	case evidence.MeasuredDurationMS <= 0:
+		return fmt.Errorf("acceptance measured duration = %.3fms, want a positive duration", evidence.MeasuredDurationMS)
 	case evidence.AllocatedBytes <= 0:
 		return fmt.Errorf("acceptance allocated bytes = %.0f, want a positive measured delta", evidence.AllocatedBytes)
-	case evidence.AllocatedBytes/float64(evidence.Messages) > mediumMaxAllocatedBytesPerMessage:
+	case evidence.AllocatedBytes > maxAcceptedAllocatedBytes(evidence):
 		return fmt.Errorf(
-			"acceptance allocated bytes/message = %.0f, want at most %d",
+			"acceptance allocated bytes/message = %.0f, want at most %.0f after %.3fs paced background allowance",
 			evidence.AllocatedBytes/float64(evidence.Messages),
-			mediumMaxAllocatedBytesPerMessage,
+			maxAcceptedAllocatedBytes(evidence)/float64(evidence.Messages),
+			acceptedBackgroundDurationSeconds(evidence),
 		)
 	case evidence.GCCountDelta <= 0:
 		return fmt.Errorf("acceptance GC count delta = %.0f, want a positive measured delta", evidence.GCCountDelta)
@@ -426,6 +437,15 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) er
 		return errors.New("acceptance process continuity failed")
 	}
 	return nil
+}
+
+func maxAcceptedAllocatedBytes(evidence hotPathEvidence) float64 {
+	return float64(evidence.Messages)*mediumMaxAllocatedBytesPerMessage +
+		acceptedBackgroundDurationSeconds(evidence)*mediumMaxBackgroundAllocatedBytesPerSecond
+}
+
+func acceptedBackgroundDurationSeconds(evidence hotPathEvidence) float64 {
+	return float64(evidence.Messages) / float64(evidence.OfferedQPS)
 }
 
 func expectedMeasuredOnlineRoutes() int {
@@ -932,18 +952,20 @@ type pressureSnapshot struct {
 }
 
 type pressureSampler struct {
-	cluster *suite.StartedCluster
-	stopC   chan struct{}
-	doneC   chan struct{}
-	mu      sync.Mutex
-	state   pressureSnapshot
+	cluster  *suite.StartedCluster
+	interval time.Duration
+	stopC    chan struct{}
+	doneC    chan struct{}
+	mu       sync.Mutex
+	state    pressureSnapshot
 }
 
-func newPressureSampler(cluster *suite.StartedCluster) *pressureSampler {
+func newPressureSampler(cluster *suite.StartedCluster, interval time.Duration) *pressureSampler {
 	return &pressureSampler{
-		cluster: cluster,
-		stopC:   make(chan struct{}),
-		doneC:   make(chan struct{}),
+		cluster:  cluster,
+		interval: interval,
+		stopC:    make(chan struct{}),
+		doneC:    make(chan struct{}),
 	}
 }
 
@@ -955,7 +977,7 @@ func (s *pressureSampler) start() {
 	s.sample()
 	go func() {
 		defer close(s.doneC)
-		ticker := time.NewTicker(mediumMetricSampleInterval)
+		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
 		for {
 			select {

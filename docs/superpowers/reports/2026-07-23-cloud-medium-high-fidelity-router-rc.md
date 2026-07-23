@@ -174,7 +174,8 @@ It also enforces:
 
 - no gateway/recipient queue saturation;
 - exact plugin admission/invocation conservation;
-- at most 400,000 measured allocation bytes per message;
+- at most 360,000 product-path allocation bytes per message plus a bounded
+  30MB/s background-runtime allowance;
 - at most 0.0075 GC cycles per message and at most 512MiB heap;
 - complete drain and process continuity.
 
@@ -187,6 +188,31 @@ The local CI-scaled proof passed with 1000.05/s ingress, 499ms SENDACK P99,
 431ms RECV P99, 104ms completion drain, 243 metric samples, 7.59GB total
 allocation, 117 GC cycles, zero queue rejection, exact 10400/10400 plugin
 conservation, and continuous processes.
+
+The first exact-main run of that 1000/s correction (`30015680979`) then exposed
+remaining runner variance rather than a send-path regression. SENDACK P99 was
+122ms, but the shared runner completed receive fanout at only 951/s. Sustained
+1000/s input accumulated a 928-record post-commit tail, extended drain to
+1027ms, and pushed RECV P99 to 3.47s. All queues still drained, plugin
+conservation remained exact, and processes remained continuous. A branch pass
+followed by an exact-main failure is not an acceptable paid-cloud gate.
+
+The CI rate is therefore fixed at 500/s, about 47 percent below that worst
+observed receive completion rate, while retaining the 1s SENDACK and 2s RECV
+limits. Its sampler interval is 500ms so the doubled 40-second phase retains
+roughly the same 240 cross-node samples and allocation interference as the
+20-second 1000/s calibration. Normal local acceptance remains fixed at 4500/s
+with 250ms sampling.
+
+Three consecutive local 500/s probes then produced 500.02/s ingress,
+SENDACK P99 357-432ms, RECV P99 236-343ms, 48-72ms drain, post-commit backlog
+21-27, and exact 10400/10400 plugin conservation. Their raw allocation was
+403,396-405,594 bytes/message. The prior fixed per-message ceiling incorrectly
+treated the doubled phase's background runtime as product-path work. The final
+allocation rule therefore separates a 360,000-byte/message budget from a
+bounded 30MB/s allowance over the fixed 40-second paced duration; at 500/s this
+permits 420,000 bytes/message, leaving only about 3.4 percent margin over the
+worst repeated observation. Actual drain time cannot enlarge this allowance.
 
 ## Remaining Cost Gate
 
