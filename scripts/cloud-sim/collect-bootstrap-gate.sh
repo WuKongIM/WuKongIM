@@ -95,7 +95,7 @@ manager_token="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Co
 nodes_json="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/nodes'")"
 slots_json="$(ssh_sim "curl --fail --silent --show-error --max-time 15 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/slots'")"
 tasks_json="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/controller/tasks?limit=50'")"
-runtime_scale="$(ssh_sim "sudo awk '/^objectives:/{inside=1; next} inside && /^  scale:/{print \$2; exit} inside && /^[^ ]/{exit}' /etc/wukongim/scenario.yaml")"
+runtime_scale="$(ssh_sim "sudo cat /etc/wukongim/scenario.yaml" | awk -f "$(dirname "$0")/read-scenario-scale.awk")"
 expected_node_runtime_contract="$(ssh_sim "sudo cat /etc/wukongim/effective-node-runtime-contract.json" | jq -ce .)"
 
 node_runtime_contract() {

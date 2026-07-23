@@ -545,6 +545,27 @@ func TestCloudSimulationWorkflowMapsReviewedScaleAliasesAndConfirmsWeekCost(t *t
 	}
 }
 
+func TestCloudSimulationWorkflowFailsFastOnTerminalBootstrapGateAndCleansCancellation(t *testing.T) {
+	provision := readWorkflowText(t, repositoryRoot(t), "cloud-sim-provision.yml")
+	for _, required := range []string{
+		`bundle/bin/wkcloudgate --snapshot bootstrap-gate.json --bundle-digest "$BUNDLE_DIGEST" | tee bootstrap-gate-result.json`,
+		`'.passed == false and (.retryable | type == "boolean")'`,
+		`'.retryable == true'`,
+		`Bootstrap Gate reported a non-retryable invariant`,
+		`if: (failure() || cancelled()) && steps.provider_config.outcome == 'success' && steps.prepare.outcome == 'success'`,
+		`BOOTSTRAP_GATE_OUTCOME: ${{ steps.bootstrap_gate.outcome }}`,
+		`if [[ "$BOOTSTRAP_GATE_OUTCOME" != "success" ]]`,
+		`release_failed_run`,
+	} {
+		if !strings.Contains(provision, required) {
+			t.Fatalf("provision workflow missing terminal Bootstrap Gate handling %q", required)
+		}
+	}
+	if strings.Contains(provision, `until scripts/cloud-sim/collect-bootstrap-gate.sh && bundle/bin/wkcloudgate`) {
+		t.Fatal("provision workflow still retries every Bootstrap Gate failure until the deadline")
+	}
+}
+
 func TestCloudSimulationWorkflowRequiresEmpiricalStorageCalibrationForStandardRuns(t *testing.T) {
 	provision := readWorkflowText(t, repositoryRoot(t), "cloud-sim-provision.yml")
 	for _, required := range []string{
