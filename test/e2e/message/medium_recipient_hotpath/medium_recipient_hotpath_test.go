@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	mediumEvidenceSchema    = "wukongim/local-medium-rc-hifi-evidence/v1"
+	mediumEvidenceSchema    = "wukongim/local-medium-rc-hifi-evidence/v2"
 	mediumPhysicalHashSlots = 256
 	mediumLogicalSlots      = 10
 	mediumReplicaCount      = 3
@@ -89,47 +89,50 @@ type senderResult struct {
 // hotPathEvidence is the machine-readable, revision-neutral result emitted by
 // the opt-in process-level gate.
 type hotPathEvidence struct {
-	Schema                   string  `json:"schema"`
-	PhysicalHashSlots        int     `json:"physical_hash_slots"`
-	LogicalSlots             int     `json:"logical_slots"`
-	Replicas                 int     `json:"replicas"`
-	Messages                 int     `json:"messages"`
-	RecipientRows            int     `json:"recipient_rows"`
-	OnlineRoutes             int     `json:"online_routes"`
-	Connections              int     `json:"connections"`
-	OfferedQPS               int     `json:"offered_qps"`
-	ColdPrimeDurationMS      float64 `json:"cold_prime_duration_ms"`
-	SendLoopDurationMS       float64 `json:"send_loop_duration_ms"`
-	MeasuredDurationMS       float64 `json:"measured_duration_ms"`
-	CompletionDrainMS        float64 `json:"completion_drain_ms"`
-	IngressPerSecond         float64 `json:"ingress_per_second"`
-	CompletionPerSecond      float64 `json:"completion_per_second"`
-	SendackP50MS             float64 `json:"sendack_p50_ms"`
-	SendackP99MS             float64 `json:"sendack_p99_ms"`
-	SendackMaxMS             float64 `json:"sendack_max_ms"`
-	RecvP99MS                float64 `json:"recv_p99_ms"`
-	RecvMaxMS                float64 `json:"recv_max_ms"`
-	MaxGatewayQueueRatio     float64 `json:"max_gateway_queue_ratio"`
-	MaxRecipientQueueRatio   float64 `json:"max_recipient_queue_ratio"`
-	MaxRecipientWorkerRatio  float64 `json:"max_recipient_worker_ratio"`
-	MaxAdvancePoolUtil       float64 `json:"max_advance_pool_utilization"`
-	MaxAdvancePoolWaiting    float64 `json:"max_advance_pool_waiting"`
-	MaxAppendPoolUtil        float64 `json:"max_append_pool_utilization"`
-	MaxPostCommitPoolUtil    float64 `json:"max_post_commit_pool_utilization"`
-	MaxPostCommitBacklog     float64 `json:"max_post_commit_backlog"`
-	MaxPostCommitHandoffRate float64 `json:"max_post_commit_handoff_ratio"`
-	MaxHeapBytes             float64 `json:"max_heap_bytes"`
-	AllocatedBytes           float64 `json:"allocated_bytes"`
-	GCCountDelta             float64 `json:"gc_count_delta"`
-	PluginReceiveAccepted    float64 `json:"plugin_receive_enqueue_accepted"`
-	PluginReceiveFull        float64 `json:"plugin_receive_enqueue_full"`
-	PluginReceiveClosed      float64 `json:"plugin_receive_enqueue_closed"`
-	PluginReceiveInvokeOK    float64 `json:"plugin_receive_invoke_ok"`
-	PluginReceiveInvokeError float64 `json:"plugin_receive_invoke_error"`
-	MetricSamples            int     `json:"metric_samples"`
-	MetricSampleErrors       int     `json:"metric_sample_errors"`
-	Drained                  bool    `json:"drained"`
-	ProcessContinuous        bool    `json:"process_continuous"`
+	Schema                   string   `json:"schema"`
+	PhysicalHashSlots        int      `json:"physical_hash_slots"`
+	LogicalSlots             int      `json:"logical_slots"`
+	Replicas                 int      `json:"replicas"`
+	Messages                 int      `json:"messages"`
+	RecipientRows            int      `json:"recipient_rows"`
+	OnlineRoutes             int      `json:"online_routes"`
+	Connections              int      `json:"connections"`
+	OfferedQPS               int      `json:"offered_qps"`
+	ClusterConvergenceMS     float64  `json:"cluster_convergence_ms"`
+	ClusterStableWindowMS    float64  `json:"cluster_stable_window_ms"`
+	SlotLeaders              []uint64 `json:"slot_leaders"`
+	ColdPrimeDurationMS      float64  `json:"cold_prime_duration_ms"`
+	SendLoopDurationMS       float64  `json:"send_loop_duration_ms"`
+	MeasuredDurationMS       float64  `json:"measured_duration_ms"`
+	CompletionDrainMS        float64  `json:"completion_drain_ms"`
+	IngressPerSecond         float64  `json:"ingress_per_second"`
+	CompletionPerSecond      float64  `json:"completion_per_second"`
+	SendackP50MS             float64  `json:"sendack_p50_ms"`
+	SendackP99MS             float64  `json:"sendack_p99_ms"`
+	SendackMaxMS             float64  `json:"sendack_max_ms"`
+	RecvP99MS                float64  `json:"recv_p99_ms"`
+	RecvMaxMS                float64  `json:"recv_max_ms"`
+	MaxGatewayQueueRatio     float64  `json:"max_gateway_queue_ratio"`
+	MaxRecipientQueueRatio   float64  `json:"max_recipient_queue_ratio"`
+	MaxRecipientWorkerRatio  float64  `json:"max_recipient_worker_ratio"`
+	MaxAdvancePoolUtil       float64  `json:"max_advance_pool_utilization"`
+	MaxAdvancePoolWaiting    float64  `json:"max_advance_pool_waiting"`
+	MaxAppendPoolUtil        float64  `json:"max_append_pool_utilization"`
+	MaxPostCommitPoolUtil    float64  `json:"max_post_commit_pool_utilization"`
+	MaxPostCommitBacklog     float64  `json:"max_post_commit_backlog"`
+	MaxPostCommitHandoffRate float64  `json:"max_post_commit_handoff_ratio"`
+	MaxHeapBytes             float64  `json:"max_heap_bytes"`
+	AllocatedBytes           float64  `json:"allocated_bytes"`
+	GCCountDelta             float64  `json:"gc_count_delta"`
+	PluginReceiveAccepted    float64  `json:"plugin_receive_enqueue_accepted"`
+	PluginReceiveFull        float64  `json:"plugin_receive_enqueue_full"`
+	PluginReceiveClosed      float64  `json:"plugin_receive_enqueue_closed"`
+	PluginReceiveInvokeOK    float64  `json:"plugin_receive_invoke_ok"`
+	PluginReceiveInvokeError float64  `json:"plugin_receive_invoke_error"`
+	MetricSamples            int      `json:"metric_samples"`
+	MetricSampleErrors       int      `json:"metric_sample_errors"`
+	Drained                  bool     `json:"drained"`
+	ProcessContinuous        bool     `json:"process_continuous"`
 }
 
 func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
@@ -154,6 +157,16 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	if err := cluster.WaitClusterReady(setupCtx); err != nil {
 		t.Fatalf("wait for Cloud Medium-shaped cluster: %v\n%s", err, cluster.DumpDiagnostics())
 	}
+	setupConvergence, err := waitForMediumSlotConvergence(setupCtx, cluster)
+	if err != nil {
+		t.Fatalf("wait for stable actual Slot leaders before setup: %v\n%s", err, cluster.DumpDiagnostics())
+	}
+	t.Logf(
+		"WKRC-HIFI-SLOT-CONVERGENCE phase=setup wait=%s stable=%s leaders=%v",
+		setupConvergence.WaitDuration,
+		setupConvergence.StableDuration,
+		setupConvergence.Leaders,
+	)
 	groupChannels, groupRecipients, groupOnline := prepareGroupChannels(t, setupCtx, cluster.MustNode(1))
 	personRecipients := make([]string, 125)
 	for i := range personRecipients {
@@ -177,6 +190,16 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 
 	payload := bytes.Repeat([]byte("w"), mediumPayloadBytes)
 	primeSender := mustConnect(t, cluster.MustNode(1), mediumSenderUID(0))
+	convergence, err := waitForMediumSlotConvergence(setupCtx, cluster)
+	if err != nil {
+		t.Fatalf("wait for stable actual Slot leaders before cold prime: %v\n%s", err, cluster.DumpDiagnostics())
+	}
+	t.Logf(
+		"WKRC-HIFI-SLOT-CONVERGENCE phase=cold-prime wait=%s stable=%s leaders=%v",
+		convergence.WaitDuration,
+		convergence.StableDuration,
+		convergence.Leaders,
+	)
 	proveWarmupSend(t, cluster, primeSender)
 	coldPrimeDuration := primeHotPathChannels(t, cluster, primeSender, recipients, primeMessages, payload)
 	_ = primeSender.Close()
@@ -296,6 +319,9 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		OnlineRoutes:             measuredOnlineRoutes,
 		Connections:              len(recipients) + len(senders),
 		OfferedQPS:               offeredQPS,
+		ClusterConvergenceMS:     milliseconds(convergence.WaitDuration),
+		ClusterStableWindowMS:    milliseconds(convergence.StableDuration),
+		SlotLeaders:              append([]uint64(nil), convergence.Leaders...),
 		ColdPrimeDurationMS:      milliseconds(coldPrimeDuration),
 		SendLoopDurationMS:       milliseconds(sendLoopDuration),
 		MeasuredDurationMS:       milliseconds(measuredDuration),
@@ -366,6 +392,21 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int) er
 		return fmt.Errorf("acceptance connections = %d, want %d", evidence.Connections, expectedConnectionCount())
 	case evidence.OfferedQPS != expectedOfferedQPS:
 		return fmt.Errorf("acceptance offered QPS = %d, want %d", evidence.OfferedQPS, expectedOfferedQPS)
+	case evidence.ClusterConvergenceMS <= 0:
+		return fmt.Errorf("acceptance cluster convergence = %.3fms, want a positive duration", evidence.ClusterConvergenceMS)
+	case evidence.ClusterStableWindowMS < milliseconds(mediumConvergenceStableWindow):
+		return fmt.Errorf(
+			"acceptance cluster stable window = %.3fms, want at least %.3fms",
+			evidence.ClusterStableWindowMS,
+			milliseconds(mediumConvergenceStableWindow),
+		)
+	case !validMediumSlotLeaders(evidence.SlotLeaders):
+		return fmt.Errorf(
+			"acceptance actual Slot leaders = %v, want %d leaders in nodes [1,%d]",
+			evidence.SlotLeaders,
+			mediumLogicalSlots,
+			mediumReplicaCount,
+		)
 	case evidence.IngressPerSecond < float64(expectedOfferedQPS)*mediumMinIngressFraction:
 		return fmt.Errorf(
 			"acceptance ingress = %.3f/s, want at least %.3f/s (%.1f%% of offered load)",
@@ -647,10 +688,23 @@ func startMediumCluster(t *testing.T) *suite.StartedCluster {
 	}
 	s := suite.New(t)
 	return s.StartThreeNodeCluster(
+		suite.WithManagerHTTP(),
 		suite.WithNodeConfigOverrides(1, overrides),
 		suite.WithNodeConfigOverrides(2, overrides),
 		suite.WithNodeConfigOverrides(3, overrides),
 	)
+}
+
+func validMediumSlotLeaders(leaders []uint64) bool {
+	if len(leaders) != mediumLogicalSlots {
+		return false
+	}
+	for _, leaderID := range leaders {
+		if leaderID == 0 || leaderID > uint64(mediumReplicaCount) {
+			return false
+		}
+	}
+	return true
 }
 
 func prepareGroupChannels(t *testing.T, ctx context.Context, node *suite.StartedNode) ([]string, int, []string) {
