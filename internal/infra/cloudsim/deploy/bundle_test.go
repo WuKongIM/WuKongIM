@@ -503,7 +503,7 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 			"node-3": observedRuntimeContract(t, "medium"),
 		},
 	}
-	if result := EvaluateBootstrapGate(snapshot, digest); !result.Passed {
+	if result := EvaluateBootstrapGate(snapshot, digest); !result.Passed || result.Retryable {
 		t.Fatalf("complete gate = %#v", result)
 	}
 	snapshot.SlotGroupCount = 256
@@ -532,13 +532,18 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 	driftedExpected := snapshot.ExpectedNodeRuntimeContract
 	driftedExpected.ChannelRPCWorkers = 49
 	snapshot.ExpectedNodeRuntimeContract = driftedExpected
-	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || !slices.Contains(result.Failures, "node-1 effective runtime contract mismatch") {
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || result.Retryable || !slices.Contains(result.Failures, "node-1 effective runtime contract mismatch") {
 		t.Fatalf("sealed runtime contract drift gate = %#v, want observed mismatch", result)
 	}
 	snapshot.ExpectedNodeRuntimeContract = expectedRuntimeContract(t, "medium")
+	snapshot.RuntimeScale = ""
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || result.Retryable || !slices.Contains(result.Failures, `sealed effective runtime contract scale mismatch: contract="medium" scenario=""`) {
+		t.Fatalf("missing rendered scenario scale gate = %#v, want terminal mismatch", result)
+	}
+	snapshot.RuntimeScale = "medium"
 	snapshot.PendingControllerTask = 1
-	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || len(result.Failures) == 0 {
-		t.Fatalf("incomplete gate = %#v, want fail closed", result)
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || !result.Retryable || len(result.Failures) == 0 {
+		t.Fatalf("incomplete gate = %#v, want retryable fail closed result", result)
 	}
 }
 

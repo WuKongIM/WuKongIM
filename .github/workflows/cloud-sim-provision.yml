@@ -498,7 +498,20 @@ jobs:
         run: |
           set -euo pipefail
           deadline=$(( $(date +%s) + 1200 ))
-          until scripts/cloud-sim/collect-bootstrap-gate.sh && bundle/bin/wkcloudgate --snapshot bootstrap-gate.json --bundle-digest "$BUNDLE_DIGEST"; do
+          while true; do
+            if scripts/cloud-sim/collect-bootstrap-gate.sh; then
+              if bundle/bin/wkcloudgate --snapshot bootstrap-gate.json --bundle-digest "$BUNDLE_DIGEST" | tee bootstrap-gate-result.json; then
+                break
+              fi
+              if ! jq -e '.passed == false and (.retryable | type == "boolean")' bootstrap-gate-result.json >/dev/null; then
+                echo "Bootstrap Gate returned an invalid failure result" >&2
+                exit 1
+              fi
+              if ! jq -e '.retryable == true' bootstrap-gate-result.json >/dev/null; then
+                echo "Bootstrap Gate reported a non-retryable invariant" >&2
+                exit 1
+              fi
+            fi
             test "$(date +%s)" -lt "$deadline"
             sleep 10
           done
@@ -557,9 +570,10 @@ jobs:
 
       - name: Preserve diagnostics or release unusable failed provisioning
         id: preserve_failed_provisioning
-        if: failure() && steps.create.outcome == 'success'
+        if: (failure() || cancelled()) && steps.provider_config.outcome == 'success' && steps.prepare.outcome == 'success'
         shell: bash
         env:
+          BOOTSTRAP_GATE_OUTCOME: ${{ steps.bootstrap_gate.outcome }}
           PUBLIC_OBSERVATION_GATE_OUTCOME: ${{ steps.public_observation.outcome }}
         run: |
           set -euo pipefail
@@ -572,6 +586,10 @@ jobs:
           }
           if [[ "$PUBLIC_OBSERVATION" == "true" && "$PUBLIC_OBSERVATION_GATE_OUTCOME" != "success" ]]; then
             ./wkcloudsim --provider alibaba --provider-config provider.json close-public-view "$RUN_ID" >/dev/null || true
+          fi
+          if [[ "$BOOTSTRAP_GATE_OUTCOME" != "success" ]]; then
+            release_failed_run
+            exit 0
           fi
           if ! status_json="$(./wkcloudsim --provider alibaba --provider-config provider.json status "$RUN_ID")"; then
             release_failed_run

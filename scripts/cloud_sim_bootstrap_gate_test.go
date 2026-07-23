@@ -92,8 +92,9 @@ func TestCloudSimulationBootstrapCollectorCapturesEffectiveRuntimeContract(t *te
 		`/manager/nodes/${node_id}/config`,
 		`--argjson node_id "$node_id"`,
 		`bootstrap-runtime-contract.jq`,
-		`sudo awk`,
+		`sudo cat /etc/wukongim/scenario.yaml`,
 		`sudo cat /etc/wukongim/effective-node-runtime-contract.json`,
+		`read-scenario-scale.awk`,
 		`effective-node-runtime-contract/v1`,
 		`WK_CLUSTER_HASH_SLOT_COUNT`,
 		`WK_CLUSTER_INITIAL_SLOT_COUNT`,
@@ -112,6 +113,43 @@ func TestCloudSimulationBootstrapCollectorCapturesEffectiveRuntimeContract(t *te
 	} {
 		if !strings.Contains(text, required) {
 			t.Fatalf("Bootstrap Gate collector missing effective runtime contract %q", required)
+		}
+	}
+}
+
+func TestCloudSimulationBootstrapScenarioScaleParserAcceptsRenderedIndentation(t *testing.T) {
+	program := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "read-scenario-scale.awk")
+	for _, testCase := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "source two spaces", input: "version: wkbench/v1\nobjectives:\n  scale: medium\nlimits: {}\n", want: "medium\n"},
+		{name: "yaml v3 four spaces", input: "version: wkbench/v1\nobjectives:\n    scale: medium\n    standard: true\nlimits: {}\n", want: "medium\n"},
+		{name: "quoted with comment", input: "objectives:\n    scale: 'large' # reviewed\n", want: "large\n"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			command := exec.Command("awk", "-f", program)
+			command.Stdin = strings.NewReader(testCase.input)
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("parse scale: %v\n%s", err, output)
+			}
+			if string(output) != testCase.want {
+				t.Fatalf("scale output = %q, want %q", output, testCase.want)
+			}
+		})
+	}
+
+	for _, input := range []string{
+		"objectives:\n    standard: true\n",
+		"objectives:\n    scale: unsupported\n",
+		"objectives:\nlimits: {}\n",
+	} {
+		command := exec.Command("awk", "-f", program)
+		command.Stdin = strings.NewReader(input)
+		if output, err := command.CombinedOutput(); err == nil {
+			t.Fatalf("invalid scale unexpectedly passed: output=%q input=%q", output, input)
 		}
 	}
 }

@@ -236,6 +236,7 @@
 - Cloud Simulation normal completion uses a non-diagnostic Finalization Schedule plus local `finalize.sh`: arm cleanup before bounded GitHub preflight, retry an explicit in-progress workload while the lease permits, survive terminal signals through exact cleanup, then require structured provider-confirmed empty inventory.
 - Cloud Simulation stability topology uses 256 physical hash slots mapped to 10 logical Slot Raft Groups; bootstrap gates both values separately.
 - Cloud Simulation bundles carry a versioned effective-node runtime contract; Bootstrap Gate must match every node's normalized TOML-sourced critical values before starting a paid workload.
+- Bootstrap Gate must parse the rendered YAML shape rather than source-file indentation, retry only convergence failures, and destroy the exact Run on terminal contract failure or workflow cancellation.
 - Omitted Channel store/RPC worker settings stay zero in the loader so the owning Channel runtime derives them; deployment profiles that require a fixed shape must set them explicitly.
 - Local Cloud Medium RC evidence must disable parent `go.work`, resolve the exact `go.mod` toolchain, and use portable temporary/hash commands so macOS and Linux exercise the same committed harness.
 - Cloud Simulation Bootstrap Gate accepts a non-zero actual Slot Raft leader that belongs to the current voter set when quorum and peer sync are healthy; `PreferredLeader` mismatch is placement evidence, not a health failure.
