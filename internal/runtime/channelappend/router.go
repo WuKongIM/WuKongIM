@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	defaultRouterRetryBackoff                = time.Millisecond
-	defaultRouterMaxRouteAttempts            = 3
-	defaultRouterMaxConcurrentGroupsPerBatch = 3
+	defaultRouterRetryBackoff                  = time.Millisecond
+	defaultRouterMaxRouteAttempts              = 3
+	defaultRouterMaxConcurrentResolvesPerBatch = 16
+	defaultRouterMaxConcurrentGroupsPerBatch   = 16
 )
 
 // AuthorityResolver resolves the append authority for a canonical channel.
@@ -59,6 +60,8 @@ type RouterOptions struct {
 	MaxRouteAttempts int
 	// MaxOutboundPerNode bounds concurrent remote forwards per leader node. Values <= 0 disable this limit.
 	MaxOutboundPerNode int
+	// MaxConcurrentResolvesPerBatch bounds concurrent authority lookups for independent canonical channels. Values <= 0 use the default.
+	MaxConcurrentResolvesPerBatch int
 	// MaxConcurrentGroupsPerBatch bounds concurrently submitted independent canonical-channel groups within one SendBatch. Values <= 0 use the default.
 	MaxConcurrentGroupsPerBatch int
 	// Observer receives foreground routing observations.
@@ -72,13 +75,14 @@ type Router struct {
 	local       LocalSubmitter
 	remote      RemoteForwarder
 
-	retryBackoff                time.Duration
-	maxRouteAttempts            int
-	maxConcurrentGroupsPerBatch int
-	maxOutbound                 int
-	outbound                    map[uint64]int
-	outboundMu                  sync.Mutex
-	observer                    RouterObserver
+	retryBackoff                  time.Duration
+	maxRouteAttempts              int
+	maxConcurrentResolvesPerBatch int
+	maxConcurrentGroupsPerBatch   int
+	maxOutbound                   int
+	outbound                      map[uint64]int
+	outboundMu                    sync.Mutex
+	observer                      RouterObserver
 }
 
 // NewRouter creates a channel authority router.
@@ -95,17 +99,22 @@ func NewRouter(opts RouterOptions) *Router {
 	if maxConcurrentGroupsPerBatch <= 0 {
 		maxConcurrentGroupsPerBatch = defaultRouterMaxConcurrentGroupsPerBatch
 	}
+	maxConcurrentResolvesPerBatch := opts.MaxConcurrentResolvesPerBatch
+	if maxConcurrentResolvesPerBatch <= 0 {
+		maxConcurrentResolvesPerBatch = defaultRouterMaxConcurrentResolvesPerBatch
+	}
 	return &Router{
-		localNodeID:                 opts.LocalNodeID,
-		resolver:                    opts.Resolver,
-		local:                       opts.Local,
-		remote:                      opts.Remote,
-		retryBackoff:                retryBackoff,
-		maxRouteAttempts:            maxRouteAttempts,
-		maxConcurrentGroupsPerBatch: maxConcurrentGroupsPerBatch,
-		maxOutbound:                 opts.MaxOutboundPerNode,
-		outbound:                    make(map[uint64]int),
-		observer:                    opts.Observer,
+		localNodeID:                   opts.LocalNodeID,
+		resolver:                      opts.Resolver,
+		local:                         opts.Local,
+		remote:                        opts.Remote,
+		retryBackoff:                  retryBackoff,
+		maxRouteAttempts:              maxRouteAttempts,
+		maxConcurrentResolvesPerBatch: maxConcurrentResolvesPerBatch,
+		maxConcurrentGroupsPerBatch:   maxConcurrentGroupsPerBatch,
+		maxOutbound:                   opts.MaxOutboundPerNode,
+		outbound:                      make(map[uint64]int),
+		observer:                      opts.Observer,
 	}
 }
 
@@ -215,6 +224,11 @@ type routerBatchLane struct {
 	groupIndexes []int
 }
 
+type routerResolvedChannel struct {
+	target AuthorityTarget
+	err    error
+}
+
 func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID, results []SendBatchItemResult, pending []int, attempts []int) ([]routerBatchGroup, []int) {
 	groups := make([]routerBatchGroup, 0, len(pending))
 	indexesByChannel := make(map[ChannelID][]int, len(pending))
@@ -237,13 +251,25 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 		}
 		indexesByChannel[channelID] = append(indexesByChannel[channelID], index)
 	}
-	for _, channelID := range channelOrder {
+	resolved := make([]routerResolvedChannel, len(channelOrder))
+	runRouterBatchWorkers(len(channelOrder), r.maxConcurrentResolvesPerBatch, func(channelIndex int) {
+		channelID := channelOrder[channelIndex]
+		indexes := indexesByChannel[channelID]
+		if len(indexes) == 0 {
+			return
+		}
+		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(items[indexes[0]]), channelID)
+		if err == nil {
+			target, err = normalizeRouterTarget(channelID, target)
+		}
+		resolved[channelIndex] = routerResolvedChannel{target: target, err: err}
+	})
+	for channelIndex, channelID := range channelOrder {
 		indexes := indexesByChannel[channelID]
 		if len(indexes) == 0 {
 			continue
 		}
-		firstIndex := indexes[0]
-		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(items[firstIndex]), channelID)
+		target, err := resolved[channelIndex].target, resolved[channelIndex].err
 		if err != nil {
 			for _, index := range indexes {
 				item := items[index]
@@ -251,13 +277,6 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 					nextPending = append(nextPending, index)
 					continue
 				}
-				results[index] = SendBatchItemResult{Err: err}
-			}
-			continue
-		}
-		target, err = normalizeRouterTarget(channelID, target)
-		if err != nil {
-			for _, index := range indexes {
 				results[index] = SendBatchItemResult{Err: err}
 			}
 			continue

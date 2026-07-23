@@ -13,6 +13,16 @@ import (
 	"time"
 )
 
+// MetricSample is one parsed public Prometheus text sample.
+type MetricSample struct {
+	// Name is the exact metric family name.
+	Name string
+	// Labels contains the sample's low-cardinality label set.
+	Labels map[string]string
+	// Value is the parsed counter, gauge, or histogram bucket value.
+	Value float64
+}
+
 // RequireMetricAtLeastEventually waits for one public /metrics sample to reach at least want.
 func RequireMetricAtLeastEventually(t *testing.T, node StartedNode, name string, labels map[string]string, want float64) {
 	t.Helper()
@@ -39,30 +49,49 @@ func RequireMetricAtLeastEventually(t *testing.T, node StartedNode, name string,
 
 // FetchMetricValue returns the first matching Prometheus text sample value.
 func FetchMetricValue(ctx context.Context, apiAddr, name string, labels map[string]string) (float64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+apiAddr+"/metrics", nil)
+	samples, err := FetchMetricSamples(ctx, apiAddr)
 	if err != nil {
 		return 0, err
 	}
+	for _, sample := range samples {
+		if sample.Name == name && metricLabelsMatch(sample.Labels, labels) {
+			return sample.Value, nil
+		}
+	}
+	return 0, fmt.Errorf("metric sample not found")
+}
+
+// FetchMetricSamples reads and parses one public /metrics snapshot.
+func FetchMetricSamples(ctx context.Context, apiAddr string) ([]MetricSample, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+apiAddr+"/metrics", nil)
+	if err != nil {
+		return nil, err
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
+	samples := make([]MetricSample, 0, 64)
 	for _, line := range strings.Split(string(body), "\n") {
 		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
 			continue
 		}
 		metricName, metricLabels, value, ok := parseMetricSample(line)
-		if !ok || metricName != name || !metricLabelsMatch(metricLabels, labels) {
+		if !ok {
 			continue
 		}
-		return value, nil
+		samples = append(samples, MetricSample{
+			Name:   metricName,
+			Labels: metricLabels,
+			Value:  value,
+		})
 	}
-	return 0, fmt.Errorf("metric sample not found")
+	return samples, nil
 }
 
 func parseMetricSample(line string) (string, map[string]string, float64, bool) {
