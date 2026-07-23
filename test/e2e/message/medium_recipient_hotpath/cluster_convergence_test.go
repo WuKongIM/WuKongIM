@@ -5,7 +5,6 @@ package medium_recipient_hotpath
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 )
@@ -110,30 +109,66 @@ func TestValidateMediumSlotConvergence(t *testing.T) {
 	}
 }
 
-func TestMediumConvergenceTrackerRequiresUnchangedStabilityWindow(t *testing.T) {
-	start := time.Unix(1_700_000_000, 0)
-	tracker := newMediumConvergenceTracker(2 * time.Second)
-
-	if stableFor, ready := tracker.Observe(start, "leaders-a"); ready || stableFor != 0 {
-		t.Fatalf("first observation = (%s, %v), want (0, false)", stableFor, ready)
+func TestValidateMediumSlotStateMatchesStableProofRejectsTOCTOU(t *testing.T) {
+	baseline, err := validateMediumSlotConvergence(stableMediumSlotInventories())
+	if err != nil {
+		t.Fatalf("validate baseline convergence: %v", err)
 	}
-	if stableFor, ready := tracker.Observe(start.Add(1999*time.Millisecond), "leaders-a"); ready || stableFor != 1999*time.Millisecond {
-		t.Fatalf("pre-window observation = (%s, %v), want (1.999s, false)", stableFor, ready)
-	}
-	if stableFor, ready := tracker.Observe(start.Add(2*time.Second), "leaders-a"); !ready || stableFor != 2*time.Second {
-		t.Fatalf("stable observation = (%s, %v), want (2s, true)", stableFor, ready)
+	proof := suite.SlotLeaderConvergence{Fingerprint: baseline.Fingerprint}
+	if err := validateMediumSlotStateMatchesStableProof(proof, baseline); err != nil {
+		t.Fatalf("unchanged state rejected: %v", err)
 	}
 
-	if stableFor, ready := tracker.Observe(start.Add(3*time.Second), "leaders-b"); ready || stableFor != 0 {
-		t.Fatalf("changed leaders = (%s, %v), want reset (0, false)", stableFor, ready)
+	tests := map[string]func(map[uint64]mediumSlotsResponse){
+		"actual leader": func(inventories map[uint64]mediumSlotsResponse) {
+			for nodeID, inventory := range inventories {
+				inventory.Items[0].NodeLog.LeaderID = 3
+				inventory.Items[0].NodeLog.Role = "follower"
+				if nodeID == 3 {
+					inventory.Items[0].NodeLog.Role = "leader"
+				}
+				inventories[nodeID] = inventory
+			}
+		},
+		"preferred leader": func(inventories map[uint64]mediumSlotsResponse) {
+			for nodeID, inventory := range inventories {
+				inventory.Items[0].Assignment.PreferredLeaderID = 3
+				inventories[nodeID] = inventory
+			}
+		},
+		"config epoch": func(inventories map[uint64]mediumSlotsResponse) {
+			for nodeID, inventory := range inventories {
+				inventory.Items[0].Assignment.ConfigEpoch++
+				inventories[nodeID] = inventory
+			}
+		},
+		"balance version": func(inventories map[uint64]mediumSlotsResponse) {
+			for nodeID, inventory := range inventories {
+				inventory.Items[0].Assignment.BalanceVersion++
+				inventories[nodeID] = inventory
+			}
+		},
+		"slot IDs": func(inventories map[uint64]mediumSlotsResponse) {
+			for nodeID, inventory := range inventories {
+				for index := range inventory.Items {
+					inventory.Items[index].SlotID += 100
+				}
+				inventories[nodeID] = inventory
+			}
+		},
 	}
-	if stableFor, ready := tracker.Observe(start.Add(5*time.Second), "leaders-b"); !ready || stableFor != 2*time.Second {
-		t.Fatalf("restabilized leaders = (%s, %v), want (2s, true)", stableFor, ready)
-	}
-
-	tracker.Reset()
-	if stableFor, ready := tracker.Observe(start.Add(6*time.Second), "leaders-b"); ready || stableFor != 0 {
-		t.Fatalf("observation after reset = (%s, %v), want (0, false)", stableFor, ready)
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			inventories := stableMediumSlotInventories()
+			mutate(inventories)
+			current, err := validateMediumSlotConvergence(inventories)
+			if err != nil {
+				t.Fatalf("validate current convergence: %v", err)
+			}
+			if err := validateMediumSlotStateMatchesStableProof(proof, current); err == nil {
+				t.Fatal("changed state matched the stable proof")
+			}
+		})
 	}
 }
 

@@ -97,6 +97,10 @@ already-planned intent to the control runtime. It uses the same generic
 control-write path: the cluster control runtime forwards `slot_replica_move`
 creation to the Controller leader and keeps the durable assignment unchanged
 until the later Controller commit command. The
+root Node facade normalizes Controller `not leader`, `not started`, and
+`stopped` lifecycle failures into the stable cluster error vocabulary while
+preserving the original Controller cause for lower-level diagnosis.
+The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before

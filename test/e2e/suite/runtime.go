@@ -494,9 +494,21 @@ func registerStartedNodeCleanup(t startedNodeCleanupTB, node *StartedNode) {
 func registerStartedClusterCleanup(t startedNodeCleanupTB, cluster *StartedCluster) {
 	t.Helper()
 	t.Cleanup(func() {
+		type stopResult struct {
+			nodeID uint64
+			err    error
+		}
+		results := make(chan stopResult, len(cluster.Nodes))
 		for i := len(cluster.Nodes) - 1; i >= 0; i-- {
-			if err := cluster.Nodes[i].Stop(); err != nil {
-				t.Errorf("stop started cluster node %d: %v", cluster.Nodes[i].Spec.ID, err)
+			node := &cluster.Nodes[i]
+			go func() {
+				results <- stopResult{nodeID: node.Spec.ID, err: node.Stop()}
+			}()
+		}
+		for range cluster.Nodes {
+			result := <-results
+			if result.err != nil {
+				t.Errorf("stop started cluster node %d: %v", result.nodeID, result.err)
 			}
 		}
 	})

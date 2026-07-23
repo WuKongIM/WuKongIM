@@ -200,6 +200,10 @@ The downstream flow is `SlotReplicaMoveWriter -> Controller slot_replica_move
 task -> cluster task executor -> Slot Raft learner/config-change flow -> final
 Controller assignment commit`; HTTP never treats target learners as
 `DesiredPeers` before that final commit.
+Transient cluster lifecycle and Controller leadership failures use the stable
+`503 service_unavailable` envelope rather than leaking Controller internals as
+`500 internal_error`; callers may retry these idempotent fenced writes within
+their own bounded operation deadline.
 
 `/manager/nodes/:node_id/slot-move-out/*` exposes bounded Slot replica
 migration away from an active Data-role node without entering the scale-in

@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -144,6 +145,53 @@ func TestNodeRequestSlotReplicaMoveDelegatesToControl(t *testing.T) {
 	}
 	if len(controller.SlotReplicaMoves) != 1 || controller.SlotReplicaMoves[0].TargetNode != 4 {
 		t.Fatalf("controller moves = %#v, want one target node 4 request", controller.SlotReplicaMoves)
+	}
+}
+
+func TestNodeRequestSlotReplicaMoveNormalizesControllerLeadershipError(t *testing.T) {
+	controlSource := &recordingSlotReplicaMoveController{
+		StaticController: control.NewStaticController(control.Snapshot{}),
+		err:              controller.ErrNotLeader,
+	}
+	node := &Node{control: controlSource}
+	node.started.Store(true)
+
+	_, err := node.RequestSlotReplicaMove(context.Background(), control.SlotReplicaMoveRequest{SlotID: 1, TargetNode: 4})
+	if !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("RequestSlotReplicaMove() error = %v, want cluster ErrNotLeader", err)
+	}
+	if !errors.Is(err, controller.ErrNotLeader) {
+		t.Fatalf("RequestSlotReplicaMove() error = %v, want preserved controller ErrNotLeader", err)
+	}
+}
+
+func TestNormalizeControlWriteError(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		input  error
+		facade error
+	}{
+		{name: "not leader", input: controller.ErrNotLeader, facade: ErrNotLeader},
+		{name: "not started", input: controller.ErrNotStarted, facade: ErrNotStarted},
+		{name: "stopped", input: controller.ErrStopped, facade: ErrStopping},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := normalizeControlWriteError(tc.input)
+			if !errors.Is(err, tc.facade) {
+				t.Fatalf("normalizeControlWriteError() = %v, want facade %v", err, tc.facade)
+			}
+			if !errors.Is(err, tc.input) {
+				t.Fatalf("normalizeControlWriteError() = %v, want preserved cause %v", err, tc.input)
+			}
+		})
+	}
+
+	other := errors.New("other")
+	if got := normalizeControlWriteError(other); got != other {
+		t.Fatalf("normalizeControlWriteError(other) = %v, want original error", got)
+	}
+	if got := normalizeControlWriteError(nil); got != nil {
+		t.Fatalf("normalizeControlWriteError(nil) = %v, want nil", got)
 	}
 }
 
@@ -345,6 +393,21 @@ type recordingMarkNodeLeavingController struct {
 	requests []control.MarkNodeLeavingRequest
 	result   control.MarkNodeLeavingResult
 	err      error
+}
+
+type recordingSlotReplicaMoveController struct {
+	*control.StaticController
+	requests []control.SlotReplicaMoveRequest
+	result   control.SlotReplicaMoveResult
+	err      error
+}
+
+func (c *recordingSlotReplicaMoveController) RequestSlotReplicaMove(_ context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	c.requests = append(c.requests, req)
+	if c.err != nil {
+		return control.SlotReplicaMoveResult{}, c.err
+	}
+	return c.result, nil
 }
 
 func (c *recordingMarkNodeLeavingController) MarkNodeLeaving(_ context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {

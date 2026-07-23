@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
@@ -44,7 +46,8 @@ func (n *Node) RequestSlotLeaderTransfer(ctx context.Context, req control.SlotLe
 	if !ok {
 		return control.SlotLeaderTransferResult{}, ErrNotStarted
 	}
-	return writer.RequestSlotLeaderTransfer(ctx, req)
+	result, err := writer.RequestSlotLeaderTransfer(ctx, req)
+	return result, normalizeControlWriteError(err)
 }
 
 // RequestSlotReplicaMove submits a Controller-backed staged Slot replica move intent.
@@ -64,7 +67,8 @@ func (n *Node) RequestSlotReplicaMove(ctx context.Context, req control.SlotRepli
 	if !ok {
 		return control.SlotReplicaMoveResult{}, ErrNotStarted
 	}
-	return writer.RequestSlotReplicaMove(ctx, req)
+	result, err := writer.RequestSlotReplicaMove(ctx, req)
+	return result, normalizeControlWriteError(err)
 }
 
 // JoinNode submits a Controller-backed data-node join intent.
@@ -84,7 +88,8 @@ func (n *Node) JoinNode(ctx context.Context, req control.JoinNodeRequest) (contr
 	if !ok {
 		return control.JoinNodeResult{}, ErrNotStarted
 	}
-	return writer.JoinNode(ctx, req)
+	result, err := writer.JoinNode(ctx, req)
+	return result, normalizeControlWriteError(err)
 }
 
 // ActivateNode submits a Controller-backed node activation intent.
@@ -104,7 +109,8 @@ func (n *Node) ActivateNode(ctx context.Context, req control.ActivateNodeRequest
 	if !ok {
 		return control.ActivateNodeResult{}, ErrNotStarted
 	}
-	return writer.ActivateNode(ctx, req)
+	result, err := writer.ActivateNode(ctx, req)
+	return result, normalizeControlWriteError(err)
 }
 
 // MarkNodeLeaving submits a Controller-backed node leaving intent.
@@ -124,7 +130,8 @@ func (n *Node) MarkNodeLeaving(ctx context.Context, req control.MarkNodeLeavingR
 	if !ok {
 		return control.MarkNodeLeavingResult{}, ErrNotStarted
 	}
-	return writer.MarkNodeLeaving(ctx, req)
+	result, err := writer.MarkNodeLeaving(ctx, req)
+	return result, normalizeControlWriteError(err)
 }
 
 // MarkNodeRemoved submits a Controller-backed node removed intent.
@@ -144,7 +151,8 @@ func (n *Node) MarkNodeRemoved(ctx context.Context, req control.MarkNodeRemovedR
 	if !ok {
 		return control.MarkNodeRemovedResult{}, ErrNotStarted
 	}
-	return writer.MarkNodeRemoved(ctx, req)
+	result, err := writer.MarkNodeRemoved(ctx, req)
+	return result, normalizeControlWriteError(err)
 }
 
 // PromoteControllerVoter promotes one active non-Controller node into Controller Raft voting membership.
@@ -164,7 +172,8 @@ func (n *Node) PromoteControllerVoter(ctx context.Context, req control.PromoteCo
 	if !ok {
 		return control.PromoteControllerVoterResult{}, ErrNotStarted
 	}
-	return writer.PromoteControllerVoter(ctx, req)
+	result, err := writer.PromoteControllerVoter(ctx, req)
+	return result, normalizeControlWriteError(err)
 }
 
 // PrepareControllerVoter prepares this node's local Controller runtime for voter promotion.
@@ -186,10 +195,27 @@ func (n *Node) PrepareControllerVoter(ctx context.Context, req controller.Prepar
 	}
 	result, err := writer.PrepareControllerVoter(ctx, req)
 	if err != nil {
-		return controller.PrepareControllerVoterResult{}, err
+		return controller.PrepareControllerVoterResult{}, normalizeControlWriteError(err)
 	}
 	if runtime, ok := n.control.(*control.Runtime); ok {
 		n.registerControlRuntimeRPCHandlers(runtime)
 	}
 	return result, nil
+}
+
+// normalizeControlWriteError keeps Controller lifecycle details while exposing
+// the stable cluster facade errors expected by upper access layers.
+func normalizeControlWriteError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, controller.ErrNotLeader):
+		return fmt.Errorf("%w: %w", ErrNotLeader, err)
+	case errors.Is(err, controller.ErrNotStarted):
+		return fmt.Errorf("%w: %w", ErrNotStarted, err)
+	case errors.Is(err, controller.ErrStopped):
+		return fmt.Errorf("%w: %w", ErrStopping, err)
+	default:
+		return err
+	}
 }

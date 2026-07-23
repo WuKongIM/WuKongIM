@@ -17,6 +17,7 @@ func TestThreeNodeClusterCrossNodeUsersExchangeMessages(t *testing.T) {
 	s := suite.New(t)
 	overrides := deliveryTopOverrides()
 	cluster := s.StartThreeNodeCluster(
+		suite.WithManagerHTTP(),
 		suite.WithNodeConfigOverrides(1, overrides),
 		suite.WithNodeConfigOverrides(2, overrides),
 		suite.WithNodeConfigOverrides(3, overrides),
@@ -25,6 +26,14 @@ func TestThreeNodeClusterCrossNodeUsersExchangeMessages(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	convergence, err := cluster.WaitSlotLeadersStable(ctx, 2*time.Second)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	t.Logf(
+		"actual Slot leaders stable for %s after %s: %v",
+		convergence.StableDuration,
+		convergence.WaitDuration,
+		convergence.Leaders,
+	)
 
 	userA := newConnectedClient(t, cluster.MustNode(1), "e2e-cross-a")
 	defer func() { _ = userA.Close() }()

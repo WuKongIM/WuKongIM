@@ -175,6 +175,7 @@
 - Controller Raft shares the cluster transport server, so its wire message type must stay distinct from slot Raft and observation-hint message types.
 - Inbound Controller Raft frames must be addressed to the local node and originate from a different node; drop looped or misrouted frames before calling `RawNode.Step`.
 - Controller read RPCs can see `not leader` while Raft elects or fails over; keep those retryable read failures out of ERROR logs.
+- Controller-backed writes crossing the `pkg/cluster.Node` facade must expose cluster lifecycle errors while preserving Controller causes; manager routes map transient leadership/lifecycle failures to stable HTTP 503, and bounded idempotent e2e callers may retry only that status.
 
 ### Controller Raft compaction
 - Controller Raft snapshot restore starts from the snapshot index and replays post-snapshot entries; never skip replay by using a later persisted applied index after importing snapshot data.
@@ -184,6 +185,7 @@
 - Slot Raft snapshot restore follows the same boundary as Controller Raft: restore snapshot data first, then replay committed entries after the snapshot index.
 - After Slot Raft log compaction exists, membership changes must refresh the snapshot ConfState so newly added learners can install a snapshot and catch up.
 - Large Slot Raft snapshots are chunked only in `pkg/cluster` raft transport; receivers reassemble chunks into the original `MsgSnap` before calling `multiraft.Runtime.Step`.
+- A Multi-Raft Slot apply queue must stay pinned while an accepted apply crosses from the Slot lock to the apply-pipeline lock; idle retirement cannot invalidate that in-flight enqueue.
 
 ### Local storage
 - `pkg/db` is the single local storage library: `message` owns channel logs and `meta` owns hash-slot metadata.
@@ -238,6 +240,7 @@
 - Cloud Simulation cleanup reconstructs temporary ingress deadlines from provider security rules; sweeps preserve unexpired local Analysis Windows and close expired, malformed, or duplicate windows.
 - Cloud Simulation normal completion uses a non-diagnostic Finalization Schedule plus local `finalize.sh`: arm cleanup before bounded GitHub preflight, retry an explicit in-progress workload while the lease permits, survive terminal signals through exact cleanup, then require structured provider-confirmed empty inventory.
 - Cloud Simulation stability topology uses 256 physical hash slots mapped to 10 logical Slot Raft Groups; bootstrap gates both values separately.
+- E2E `readyz` and WKProto probes prove process liveness only; scenarios that register distributed authority must also require a bounded stable window of voter-agreed actual Slot Raft leaders before creating clients.
 - Cloud Simulation bundles carry a versioned effective-node runtime contract; Bootstrap Gate must match every node's normalized TOML-sourced critical values before starting a paid workload.
 - Bootstrap Gate must parse the rendered YAML shape rather than source-file indentation, retry only convergence failures, and destroy the exact Run on terminal contract failure or workflow cancellation.
 - Omitted Channel store/RPC worker settings stay zero in the loader so the owning Channel runtime derives them; deployment profiles that require a fixed shape must set them explicitly.
