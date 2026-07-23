@@ -18,6 +18,8 @@ trusted access/CLI
 `RunLocator` is a strict, bounded, non-diagnostic JSON record. Live status and
 cleanup come from Provider inventory. A released-run decision additionally
 requires a valid matching locator; provider inventory alone is not sufficient.
+The exact preflight result carries the provider resource snapshot explicitly;
+released is valid only with a non-null empty `resources` array.
 Before Destroy, Sweep, or an empty-inventory `released` decision,
 `Provider.Authority` must bind the active credential to the adapter's provider,
 region, and account hash. A wrong account or region therefore fails closed
@@ -41,7 +43,11 @@ the resulting size into the provider config before quote and creation. Large
 The immutable node bundle configures 256 physical hash slots owned by 10
 logical Slot Raft Groups. Bootstrap evidence records and gates both counts; the
 healthy leader/replica totals remain aggregated across all 256 hash slots. A
-healthy Slot leader is the non-zero actual Raft leader contained in the current
+versioned effective-node runtime contract in the bundle also pins replicas,
+Channel worker bounds, gateway capacity, delivery concurrency, and conversation
+cache capacity. Before workload start, Bootstrap Gate compares every node's
+normalized Manager snapshot and `toml` source against that scale contract.
+A healthy Slot leader is the non-zero actual Raft leader contained in the current
 voter set while quorum is ready and runtime peers match the assignment.
 `PreferredLeader` mismatch remains observable placement drift and is not a
 Bootstrap Gate failure because Raft eligibility and the elected leader are

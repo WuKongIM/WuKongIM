@@ -384,8 +384,10 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 		t.Fatal("analysis session preparation privilege boundary is invalid")
 	}
 	for _, required := range []string{
-		"run-name: Cloud Simulation Analysis", "operation:", "request_id:", "client_ipv4:", "client_public_key:",
+		"run-name: Cloud Simulation Analysis", "operation:", "- inspect", "request_id:", "client_ipv4:", "client_public_key:",
 		`select(test("^[0-9a-f]{40}$"))`, `select(test("^sha256:[0-9a-f]{64}$"))`,
+		"wukongim/cloud-simulation-analysis-preflight/v1", `.resources == [] and (has("run") | not)`,
+		`provider="$(jq -cer '{state:.state,resources:.resources}' preflight.json)"`,
 		`open-analysis "$RUN_ID"`, `--source "${CLIENT_IPV4}/32"`, "openssl pkeyutl -encrypt",
 		"rsa_padding_mode:oaep", "rsa_oaep_md:sha256", "encrypted-token.bin",
 		"cloud-sim-analysis-session-${{ inputs.request_id }}", "retention-days: 1",
@@ -393,6 +395,13 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 		if !strings.Contains(analysis, required) {
 			t.Fatalf("analysis session workflow missing %q", required)
 		}
+	}
+	clientValidation := strings.Index(prepareSection, "- name: Validate live client material")
+	preflight := strings.Index(prepareSection, "- name: Bind locator to current provider inventory")
+	if preflight < 0 || clientValidation <= preflight ||
+		!strings.Contains(prepareSection, "if: inputs.operation == 'prepare' && steps.preflight.outputs.state == 'live'") ||
+		!strings.Contains(prepareSection, "continue-on-error: true") {
+		t.Fatal("analysis broker does not defer nullable client-material validation until provider-confirmed live state")
 	}
 	runnerClose := strings.Index(prepareSection, `close-analysis "$RUN_ID"`)
 	clientOpen := strings.Index(prepareSection, `--source "${CLIENT_IPV4}/32"`)
@@ -406,7 +415,7 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 	if !strings.Contains(prepareSection, "id: handoff\n        if: steps.ingress.outputs.opened == 'true'\n        continue-on-error: true") {
 		t.Fatal("analysis broker cannot materialize an insufficient-evidence handoff after exchange failure")
 	}
-	if !strings.Contains(prepareSection, "id: ingress\n        if: steps.preflight.outputs.state == 'live'\n        continue-on-error: true") {
+	if !strings.Contains(prepareSection, "id: ingress\n        if: inputs.operation == 'prepare' && steps.client.outputs.valid == 'true'\n        continue-on-error: true") {
 		t.Fatal("analysis broker cannot materialize an insufficient-evidence session after bounded ingress failure")
 	}
 	if !strings.Contains(prepareSection, `echo "attempted=true" >>"$GITHUB_OUTPUT"`) ||
@@ -445,6 +454,26 @@ func TestCloudSimulationWorkflowPrivilegeSeparation(t *testing.T) {
 		if !strings.Contains(oidcSubject, required) {
 			t.Fatalf("OIDC subject workflow missing %q", required)
 		}
+	}
+}
+
+func TestCloudSimulationAnalysisLiveClientValidationRejectsMissingMaterial(t *testing.T) {
+	root := repositoryRoot(t)
+	script := workflowStepRun(t, root, "cloud-sim-analyze.yml", "Validate live client material")
+	outputPath := filepath.Join(t.TempDir(), "github-output")
+	command := exec.Command("/bin/bash", "-c", script)
+	command.Env = append(os.Environ(),
+		"CLIENT_IPV4=",
+		"CLIENT_PUBLIC_KEY=",
+		"GITHUB_OUTPUT="+outputPath,
+	)
+	if output, err := command.CombinedOutput(); err == nil {
+		t.Fatalf("live client validation accepted missing material:\n%s", output)
+	}
+	if output, err := os.ReadFile(outputPath); err == nil && strings.Contains(string(output), "valid=true") {
+		t.Fatalf("live client validation published success for missing material: %s", output)
+	} else if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
 	}
 }
 

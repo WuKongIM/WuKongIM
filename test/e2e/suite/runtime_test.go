@@ -37,6 +37,7 @@ func TestStartThreeNodeClusterWritesWukongIMStaticConfigs(t *testing.T) {
 		require.Empty(t, node.Spec.ManagerAddr)
 		require.Contains(t, string(cfg), `dir = "`+node.Spec.LogDir+`"`)
 		require.Contains(t, node.Spec.Env, "WK_NODE_ID="+nodeIDString(node.Spec.ID))
+		require.Contains(t, node.Spec.Env, "WK_PLUGIN_ENABLE=false")
 	}
 }
 
@@ -297,7 +298,9 @@ func TestStartedNodeCleanupStopsCurrentProcessAfterRestart(t *testing.T) {
 	}
 
 	require.Empty(t, cleanupTB.errors)
-	require.NotNil(t, second.Cmd.ProcessState)
+	require.False(t, second.Running())
+	_, exited := second.ExitResult()
+	require.True(t, exited)
 }
 
 func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) {
@@ -309,7 +312,7 @@ func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) 
 
 	first := startFakeNodeProcess(t, binaryPath, "first-cluster-node")
 	t.Cleanup(func() {
-		if first.Cmd != nil && first.Cmd.ProcessState == nil {
+		if first.Running() {
 			_ = first.Stop()
 		}
 	})
@@ -317,7 +320,7 @@ func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) 
 
 	second := startFakeNodeProcess(t, binaryPath, "second-cluster-node")
 	t.Cleanup(func() {
-		if second.Cmd != nil && second.Cmd.ProcessState == nil {
+		if second.Running() {
 			_ = second.Stop()
 		}
 	})
@@ -326,8 +329,12 @@ func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) 
 	cleanupTB.cleanups[0]()
 
 	require.Empty(t, cleanupTB.errors)
-	require.NotNil(t, first.Cmd.ProcessState)
-	require.NotNil(t, second.Cmd.ProcessState)
+	require.False(t, first.Running())
+	require.False(t, second.Running())
+	_, firstExited := first.ExitResult()
+	_, secondExited := second.ExitResult()
+	require.True(t, firstExited)
+	require.True(t, secondExited)
 }
 
 func TestStartedClusterStartStoppedNodeStartsDetachedProcess(t *testing.T) {
@@ -355,7 +362,7 @@ func TestStartedClusterStartStoppedNodeStartsDetachedProcess(t *testing.T) {
 	require.NotNil(t, node.Process)
 	require.NotNil(t, node.Process.Cmd)
 	require.NotNil(t, node.Process.Cmd.Process)
-	require.Nil(t, node.Process.Cmd.ProcessState)
+	require.True(t, node.Process.Running())
 	require.Equal(t, spec.ConfigPath, node.Process.Spec.ConfigPath)
 }
 

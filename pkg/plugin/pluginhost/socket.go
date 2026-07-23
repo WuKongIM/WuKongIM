@@ -67,6 +67,7 @@ func NewSocketServer(socketPath string) *WKRPCSocketServer {
 
 // NewSocketServerWithLogger creates a plugin host RPC socket with structured dependency logging.
 func NewSocketServerWithLogger(socketPath string, logger wklog.Logger) *WKRPCSocketServer {
+	ensureLegacyRPCLogState()
 	backend := wkrpc.New("unix://" + socketPath)
 	server := newSocketServerWithBackend(socketPath, backend)
 	if logger != nil {

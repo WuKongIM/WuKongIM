@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
+	"sync"
 	"time"
 	"unicode"
 
@@ -58,10 +58,29 @@ type NodeProcess struct {
 	StdoutLog   *os.File
 	StderrLog   *os.File
 	command     *exec.Cmd
+
+	mu            sync.RWMutex
+	started       bool
+	done          chan struct{}
+	cleanupDone   chan struct{}
+	stopTimeout   time.Duration
+	waitErr       error
+	cleanupErr    error
+	stopMu        sync.Mutex
+	closeLogsOnce sync.Once
 }
 
 // Start launches the child process and redirects stdout and stderr to files.
 func (p *NodeProcess) Start() error {
+	if p == nil {
+		return fmt.Errorf("node process is nil")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.started {
+		return fmt.Errorf("node process already started")
+	}
+
 	rootDir := p.Spec.RootDir
 	if rootDir == "" {
 		rootDir = filepath.Dir(p.Spec.StdoutPath)
@@ -93,17 +112,41 @@ func (p *NodeProcess) Start() error {
 	cmd.Env = appendChildEnvironment(childEnv, p.Spec.Env)
 	cmd.Stdout = stdoutLog
 	cmd.Stderr = stderrLog
-
-	p.StdoutLog = stdoutLog
-	p.StderrLog = stderrLog
-	p.Cmd = cmd
+	configureProcessTree(cmd)
 
 	if err := cmd.Start(); err != nil {
 		_ = stdoutLog.Close()
 		_ = stderrLog.Close()
 		return err
 	}
+
+	done := make(chan struct{})
+	cleanupDone := make(chan struct{})
+	stopTimeout := normalizedStopTimeout(p.StopTimeout)
+	p.StdoutLog = stdoutLog
+	p.StderrLog = stderrLog
+	p.Cmd = cmd
+	p.done = done
+	p.cleanupDone = cleanupDone
+	p.stopTimeout = stopTimeout
+	p.started = true
+	go p.waitForExit(cmd, done, cleanupDone, stopTimeout)
 	return nil
+}
+
+func (p *NodeProcess) waitForExit(cmd *exec.Cmd, done, cleanupDone chan struct{}, stopTimeout time.Duration) {
+	err := cmd.Wait()
+	p.closeLogs()
+	p.mu.Lock()
+	p.waitErr = err
+	p.mu.Unlock()
+	close(done)
+
+	cleanupErr := reapProcessTree(cmd.Process, stopTimeout)
+	p.mu.Lock()
+	p.cleanupErr = cleanupErr
+	p.mu.Unlock()
+	close(cleanupDone)
 }
 
 func appendChildEnvironment(dst, src []string) []string {
@@ -118,37 +161,193 @@ func appendChildEnvironment(dst, src []string) []string {
 
 // Stop terminates the child process and waits for it to exit.
 func (p *NodeProcess) Stop() error {
-	if p == nil || p.Cmd == nil || p.Cmd.Process == nil {
+	if p == nil {
 		return nil
 	}
+	p.stopMu.Lock()
+	defer p.stopMu.Unlock()
 
-	waitCh := make(chan error, 1)
-	go func() {
-		waitCh <- p.Cmd.Wait()
-	}()
-
-	if err := p.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		return err
+	p.mu.RLock()
+	started := p.started
+	cmd := p.Cmd
+	done := p.done
+	cleanupDone := p.cleanupDone
+	timeout := p.stopTimeout
+	p.mu.RUnlock()
+	if !started || cmd == nil || cmd.Process == nil || done == nil || cleanupDone == nil {
+		return nil
 	}
-
-	timeout := p.StopTimeout
-	if timeout <= 0 {
-		timeout = defaultStopTimeout
-	}
-
 	select {
-	case err := <-waitCh:
-		p.closeLogs()
-		return normalizeStopError(err)
-	case <-time.After(timeout):
-		if err := p.Cmd.Process.Kill(); err != nil {
-			p.closeLogs()
-			return err
-		}
-		err := <-waitCh
-		p.closeLogs()
-		return normalizeStopError(err)
+	case <-cleanupDone:
+		return p.stopResult()
+	default:
 	}
+
+	signalErr := normalizeProcessSignalError(terminateProcessTree(cmd.Process))
+
+	if !waitForSignal(done, timeout) {
+		killErr := normalizeProcessSignalError(killProcessTree(cmd.Process))
+		if !waitForSignal(done, timeout) {
+			return errors.Join(signalErr, killErr, fmt.Errorf("wait for killed process exceeded %s", timeout))
+		}
+		signalErr = errors.Join(signalErr, killErr)
+	}
+
+	// The wait goroutine owns cleanup after every exit, including an exit that
+	// happened before Stop was called. Two intervals cover graceful tree exit
+	// followed by the forced-kill fallback without leaving descendants behind.
+	if !waitForSignal(cleanupDone, 2*timeout) {
+		killErr := normalizeProcessSignalError(killProcessTree(cmd.Process))
+		if !waitForSignal(cleanupDone, timeout) {
+			return errors.Join(signalErr, killErr, fmt.Errorf("process tree cleanup exceeded %s", 3*timeout))
+		}
+		signalErr = errors.Join(signalErr, killErr)
+	}
+	return errors.Join(signalErr, p.stopResult())
+}
+
+func normalizedStopTimeout(timeout time.Duration) time.Duration {
+	if timeout > 0 {
+		return timeout
+	}
+	return defaultStopTimeout
+}
+
+func (p *NodeProcess) stopResult() error {
+	p.mu.RLock()
+	waitErr := p.waitErr
+	cleanupErr := p.cleanupErr
+	p.mu.RUnlock()
+	return errors.Join(normalizeStopError(waitErr), cleanupErr)
+}
+
+func waitForSignal(done <-chan struct{}, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
+func reapProcessTree(process *os.Process, timeout time.Duration) error {
+	return reapProcessTreeWith(
+		process,
+		timeout,
+		terminateProcessTree,
+		killProcessTree,
+		waitForProcessTreeExit,
+	)
+}
+
+func reapProcessTreeWith(
+	process *os.Process,
+	timeout time.Duration,
+	terminate func(*os.Process) error,
+	kill func(*os.Process) error,
+	wait func(*os.Process, time.Duration) (bool, error),
+) error {
+	termErr := normalizeProcessSignalError(terminate(process))
+	// Darwin can report EPERM when a group signal races the final zombie/group
+	// teardown. Once the liveness probe confirms that the group is gone, the
+	// cleanup outcome is successful regardless of that transient signal error.
+	if gone, waitErr := wait(process, timeout); gone {
+		return waitErr
+	} else if waitErr != nil {
+		return errors.Join(termErr, waitErr)
+	}
+
+	killErr := normalizeProcessSignalError(kill(process))
+	if gone, waitErr := wait(process, timeout); gone {
+		return waitErr
+	} else if waitErr != nil {
+		return errors.Join(termErr, killErr, waitErr)
+	}
+	return errors.Join(termErr, killErr, fmt.Errorf("process tree remained alive after %s kill wait", timeout))
+}
+
+func waitForProcessTreeExit(process *os.Process, timeout time.Duration) (bool, error) {
+	const pollInterval = 10 * time.Millisecond
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		alive, err := processTreeAliveAfterParentExit(process)
+		if err != nil {
+			return false, err
+		}
+		if !alive {
+			return true, nil
+		}
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			return false, nil
+		}
+	}
+}
+
+// Done closes after the child has exited and its stdout/stderr files are closed.
+func (p *NodeProcess) Done() <-chan struct{} {
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.done
+}
+
+// Wait waits for the one child started by this NodeProcess and returns its raw exit result.
+func (p *NodeProcess) Wait() error {
+	done := p.Done()
+	if done == nil {
+		return nil
+	}
+	<-done
+	err, _ := p.ExitResult()
+	return err
+}
+
+// ExitResult returns the raw child exit result once the process has exited.
+func (p *NodeProcess) ExitResult() (error, bool) {
+	if p == nil {
+		return nil, false
+	}
+	p.mu.RLock()
+	done := p.done
+	started := p.started
+	p.mu.RUnlock()
+	if !started || done == nil {
+		return nil, false
+	}
+	select {
+	case <-done:
+		p.mu.RLock()
+		err := p.waitErr
+		p.mu.RUnlock()
+		return err, true
+	default:
+		return nil, false
+	}
+}
+
+// Running reports whether the started child has not exited yet.
+func (p *NodeProcess) Running() bool {
+	if p == nil {
+		return false
+	}
+	p.mu.RLock()
+	started := p.started
+	p.mu.RUnlock()
+	if !started {
+		return false
+	}
+	_, exited := p.ExitResult()
+	return !exited
 }
 
 // DumpDiagnostics returns a small human-readable snapshot of process artifacts.
@@ -176,25 +375,33 @@ func (p *NodeProcess) DumpDiagnostics() string {
 }
 
 func (p *NodeProcess) processStatus() string {
-	if p == nil || p.Cmd == nil || p.Cmd.Process == nil {
+	if p == nil {
 		return "not_started"
 	}
-	if p.Cmd.ProcessState != nil {
-		return fmt.Sprintf("pid=%d exited=%v", p.Cmd.Process.Pid, p.Cmd.ProcessState.Exited())
+	p.mu.RLock()
+	cmd := p.Cmd
+	p.mu.RUnlock()
+	if cmd == nil || cmd.Process == nil {
+		return "not_started"
 	}
-	if err := p.Cmd.Process.Signal(syscall.Signal(0)); err != nil {
-		return fmt.Sprintf("pid=%d signal_error=%v", p.Cmd.Process.Pid, err)
+	if err, exited := p.ExitResult(); exited {
+		if err != nil {
+			return fmt.Sprintf("pid=%d exited=true error=%v", cmd.Process.Pid, err)
+		}
+		return fmt.Sprintf("pid=%d exited=true", cmd.Process.Pid)
 	}
-	return fmt.Sprintf("pid=%d running", p.Cmd.Process.Pid)
+	return fmt.Sprintf("pid=%d running", cmd.Process.Pid)
 }
 
 func (p *NodeProcess) closeLogs() {
-	if p.StdoutLog != nil {
-		_ = p.StdoutLog.Close()
-	}
-	if p.StderrLog != nil {
-		_ = p.StderrLog.Close()
-	}
+	p.closeLogsOnce.Do(func() {
+		if p.StdoutLog != nil {
+			_ = p.StdoutLog.Close()
+		}
+		if p.StderrLog != nil {
+			_ = p.StderrLog.Close()
+		}
+	})
 }
 
 func appendLogTail(b *strings.Builder, name, path string) {
@@ -438,6 +645,13 @@ func normalizeStopError(err error) error {
 	}
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
+		return nil
+	}
+	return err
+}
+
+func normalizeProcessSignalError(err error) error {
+	if err == nil || errors.Is(err, os.ErrProcessDone) {
 		return nil
 	}
 	return err

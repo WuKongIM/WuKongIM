@@ -139,13 +139,13 @@ func (c *ControlPlane) Preflight(ctx context.Context, locator RunLocator) (Prefl
 	}
 	run, err := c.provider.Status(ctx, locator.RunID)
 	if errors.Is(err, ErrRunNotFound) {
-		return PreflightResult{State: PreflightReleased}, nil
+		return PreflightResult{State: PreflightReleased, Resources: make([]Resource, 0)}, nil
 	}
 	if err != nil {
 		return PreflightResult{}, err
 	}
 	if run.State == StateReleased && len(run.Resources) == 0 {
-		return PreflightResult{State: PreflightReleased}, nil
+		return PreflightResult{State: PreflightReleased, Resources: make([]Resource, 0)}, nil
 	}
 	if run.ID != locator.RunID || run.Provider != locator.Provider || run.Region != locator.Region ||
 		run.AccountIDHash != locator.AccountIDHash || run.Repository != locator.Repository ||
@@ -153,7 +153,7 @@ func (c *ControlPlane) Preflight(ctx context.Context, locator RunLocator) (Prefl
 		!run.CreatedAt.Equal(locator.CreatedAt) || !run.ExpiresAt.Equal(locator.ExpiresAt) {
 		return PreflightResult{}, ErrInvalidRequest
 	}
-	return PreflightResult{State: PreflightLive, Run: &run}, nil
+	return PreflightResult{State: PreflightLive, Resources: append([]Resource(nil), run.Resources...), Run: &run}, nil
 }
 
 // OpenDeployment validates a single-host bounded SSH ingress window before mutation.

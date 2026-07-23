@@ -202,7 +202,7 @@ type preferredLeaderIntentGeneration struct {
 
 // New validates cfg and creates a cluster node.
 func New(cfg Config, opts ...Option) (*Node, error) {
-	cfg.applyDefaults()
+	cfg = cfg.WithDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}

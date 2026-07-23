@@ -110,6 +110,14 @@ func Render(root string, spec BundleSpec) error {
 			return err
 		}
 	}
+	contractData, err := json.MarshalIndent(runtimeProfile, "", "  ")
+	if err != nil {
+		return err
+	}
+	contractData = append(contractData, '\n')
+	if err := writeBundleFile(root, filepath.Join("config", effectiveNodeRuntimeContractName), contractData, 0o640); err != nil {
+		return err
+	}
 	if err := renderScenario(root, spec); err != nil {
 		return err
 	}
@@ -137,12 +145,12 @@ func Render(root string, spec BundleSpec) error {
 	return nil
 }
 
-// nodeRuntimeProfileForScenario returns only reviewed per-scale node overrides
+// nodeRuntimeProfileForScenario returns the reviewed exact runtime contract
 // declared by the effective scenario rather than inferred from a filename.
-func nodeRuntimeProfileForScenario(path string) (nodeRuntimeProfile, error) {
+func nodeRuntimeProfileForScenario(path string) (EffectiveNodeRuntimeContract, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nodeRuntimeProfile{}, err
+		return EffectiveNodeRuntimeContract{}, err
 	}
 	var document struct {
 		Objectives struct {
@@ -150,21 +158,9 @@ func nodeRuntimeProfileForScenario(path string) (nodeRuntimeProfile, error) {
 		} `yaml:"objectives"`
 	}
 	if err := yaml.Unmarshal(data, &document); err != nil {
-		return nodeRuntimeProfile{}, fmt.Errorf("%w: scenario YAML: %v", ErrInvalidBundle, err)
+		return EffectiveNodeRuntimeContract{}, fmt.Errorf("%w: scenario YAML: %v", ErrInvalidBundle, err)
 	}
-	switch strings.ToLower(strings.TrimSpace(document.Objectives.Scale)) {
-	case "small":
-		return nodeRuntimeProfile{authorityCacheMaxRows: cloudSmallAuthorityCacheMaxRows}, nil
-	case "medium":
-		return nodeRuntimeProfile{
-			authorityCacheMaxRows:      cloudMediumAuthorityCacheMaxRows,
-			recipientWorkerConcurrency: cloudMediumRecipientWorkerConcurrency,
-		}, nil
-	case "large":
-		return nodeRuntimeProfile{authorityCacheMaxRows: cloudLargeAuthorityCacheMaxRows}, nil
-	default:
-		return nodeRuntimeProfile{}, fmt.Errorf("%w: scenario objectives.scale must be small, medium, or large", ErrInvalidBundle)
-	}
+	return effectiveNodeRuntimeContractForScale(document.Objectives.Scale)
 }
 
 // Seal inventories all bundle files and writes a self-contained manifest.

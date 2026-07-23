@@ -23,11 +23,11 @@ join_token = "change-me"
 # New dynamic data nodes must use WK_CLUSTER_SEEDS instead of WK_CLUSTER_NODES.
 nodes = [{ addr = "127.0.0.1:7011", id = 1 }, { addr = "127.0.0.1:7012", id = 2 }, { addr = "127.0.0.1:7013", id = 3 }]
 
-# Physical Slot count created by the initial Controller snapshot.
-# Three local nodes use one physical Slot per node to avoid a single metadata Raft group bottleneck.
+# Logical Slot Raft Group count created by the initial Controller snapshot.
+# Ten groups distribute metadata Raft leadership across the three local nodes.
 initial_slot_count = 10
 
-# Logical hash-slot count used for routing channel keys to physical Slots.
+# Stable physical hash-slot fence count used to route keys to logical Slot Raft Groups.
 hash_slot_count = 256
 
 # Desired Slot replica count. Three replicas require all three listed nodes.

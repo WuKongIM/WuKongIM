@@ -20,6 +20,14 @@ dispatches. Obsolete runs for the same pull request/ref are cancelled.
 | `Web` | 10m | frozen Bun install, lint baseline, Vitest, TypeScript, build, tracked-output diff |
 | `Demo` | 10m | pinned Node/Yarn, frozen install, avatar unit tests, Vue type check/build, tracked-output diff |
 
+The scripts package contains subprocess-heavy black-box and fault-injection
+tests. Isolated top-level cases share a two-slot parallel pool; scenarios whose
+wall-clock assertions are sensitive to CPU starvation run exclusively. Their
+outer Go watchdogs intentionally include scheduler and process-reaping slack.
+Production behavior is proved by the shorter timeout passed to the script plus
+exit status, evidence, and descendant-cleanup assertions, so do not tighten an
+outer watchdog merely to make the test appear faster.
+
 The local equivalent uses Go 1.25.11, Bun 1.3.11, Node 22.12.0, and Yarn 1.22.22, matching CI:
 
 ```bash

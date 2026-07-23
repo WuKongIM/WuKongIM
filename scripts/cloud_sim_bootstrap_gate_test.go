@@ -75,3 +75,117 @@ func TestCloudSimulationBootstrapCollectorDoesNotGatePreferredLeaderMatch(t *tes
 		t.Fatal("Bootstrap Gate still treats PreferredLeader match as a hard health invariant")
 	}
 }
+
+func TestCloudSimulationBootstrapCollectorCapturesEffectiveRuntimeContract(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "collect-bootstrap-gate.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	programPath := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "bootstrap-runtime-contract.jq")
+	program, err := os.ReadFile(programPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content) + "\n" + string(program)
+	for _, required := range []string{
+		`/manager/nodes/${node_id}/config`,
+		`--argjson node_id "$node_id"`,
+		`bootstrap-runtime-contract.jq`,
+		`sudo awk`,
+		`sudo cat /etc/wukongim/effective-node-runtime-contract.json`,
+		`effective-node-runtime-contract/v1`,
+		`WK_CLUSTER_HASH_SLOT_COUNT`,
+		`WK_CLUSTER_INITIAL_SLOT_COUNT`,
+		`WK_CLUSTER_CHANNEL_REACTOR_COUNT`,
+		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS`,
+		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS`,
+		`WK_CLUSTER_CHANNEL_RPC_WORKERS`,
+		`WK_GATEWAY_GNET_NUM_EVENT_LOOP`,
+		`WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS`,
+		`WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY`,
+		`WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY`,
+		`WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS`,
+		`node_runtime_contracts`,
+		`expected_node_runtime_contract`,
+		`runtime_scale`,
+	} {
+		if !strings.Contains(text, required) {
+			t.Fatalf("Bootstrap Gate collector missing effective runtime contract %q", required)
+		}
+	}
+}
+
+func TestCloudSimulationBootstrapRuntimeContractUsesNormalizedManagerValues(t *testing.T) {
+	input := `{"node_id":2,"source":"effective_startup_config","requires_restart":true,"groups":[{"items":[
+		{"key":"WK_CLUSTER_HASH_SLOT_COUNT","value":"256","source":"toml"},
+		{"key":"WK_CLUSTER_INITIAL_SLOT_COUNT","value":"10","source":"toml"},
+		{"key":"WK_CLUSTER_SLOT_REPLICA_N","value":"3","source":"toml"},
+		{"key":"WK_CLUSTER_CHANNEL_REPLICA_N","value":"3","source":"toml"},
+		{"key":"WK_CLUSTER_CHANNEL_REACTOR_COUNT","value":"4","source":"toml"},
+		{"key":"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS","value":"8","source":"toml"},
+		{"key":"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS","value":"8","source":"toml"},
+		{"key":"WK_CLUSTER_CHANNEL_RPC_WORKERS","value":"50","source":"toml"},
+		{"key":"WK_GATEWAY_GNET_MULTICORE","value":"true","source":"toml"},
+		{"key":"WK_GATEWAY_GNET_NUM_EVENT_LOOP","value":"4","source":"toml"},
+		{"key":"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS","value":"128","source":"toml"},
+		{"key":"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY","value":"131072","source":"toml"},
+		{"key":"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY","value":"320","source":"toml"},
+		{"key":"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS","value":"750000","source":"toml"}
+	]}]}`
+	program := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "bootstrap-runtime-contract.jq")
+	command := exec.Command("jq", "-c", "-e", "--arg", "scale", "medium", "--argjson", "node_id", "2", "-f", program)
+	command.Stdin = strings.NewReader(input)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("build runtime contract: %v\n%s", err, output)
+	}
+	var contract struct {
+		Schema                            string            `json:"schema"`
+		Scale                             string            `json:"scale"`
+		PhysicalHashSlotCount             int               `json:"physical_hash_slot_count"`
+		LogicalSlotGroupCount             int               `json:"logical_slot_group_count"`
+		ChannelRPCWorkers                 int               `json:"channel_rpc_workers"`
+		RecipientWorkerConcurrency        int               `json:"recipient_worker_concurrency"`
+		ConversationAuthorityCacheMaxRows int               `json:"conversation_authority_cache_max_rows"`
+		ValueSources                      map[string]string `json:"value_sources"`
+	}
+	if err := json.Unmarshal(output, &contract); err != nil {
+		t.Fatalf("decode runtime contract: %v\n%s", err, output)
+	}
+	if contract.Schema != "wukongim/cloud-effective-node-runtime-contract/v1" || contract.Scale != "medium" ||
+		contract.PhysicalHashSlotCount != 256 || contract.LogicalSlotGroupCount != 10 ||
+		contract.ChannelRPCWorkers != 50 || contract.RecipientWorkerConcurrency != 320 ||
+		contract.ConversationAuthorityCacheMaxRows != 750000 || len(contract.ValueSources) != 14 {
+		t.Fatalf("runtime contract = %#v", contract)
+	}
+	for key, source := range contract.ValueSources {
+		if source != "toml" {
+			t.Fatalf("runtime contract source %s = %q, want toml", key, source)
+		}
+	}
+
+	missing := strings.Replace(input, `{"key":"WK_CLUSTER_CHANNEL_RPC_WORKERS","value":"50","source":"toml"},`, "", 1)
+	command = exec.Command("jq", "-c", "-e", "--arg", "scale", "medium", "--argjson", "node_id", "2", "-f", program)
+	command.Stdin = strings.NewReader(missing)
+	if output, err := command.CombinedOutput(); err == nil || !strings.Contains(string(output), "missing effective config WK_CLUSTER_CHANNEL_RPC_WORKERS") {
+		t.Fatalf("missing runtime key error = %v output=%s", err, output)
+	}
+
+	for _, testCase := range []struct {
+		name  string
+		input string
+	}{
+		{name: "wrong node", input: strings.Replace(input, `"node_id":2`, `"node_id":3`, 1)},
+		{name: "wrong source", input: strings.Replace(input, `"source":"effective_startup_config"`, `"source":"live_config"`, 1)},
+		{name: "restart not required", input: strings.Replace(input, `"requires_restart":true`, `"requires_restart":false`, 1)},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			command := exec.Command("jq", "-c", "-e", "--arg", "scale", "medium", "--argjson", "node_id", "2", "-f", program)
+			command.Stdin = strings.NewReader(testCase.input)
+			if output, err := command.CombinedOutput(); err == nil || !strings.Contains(string(output), "invalid effective startup config identity") {
+				t.Fatalf("identity mismatch error = %v output=%s", err, output)
+			}
+		})
+	}
+}

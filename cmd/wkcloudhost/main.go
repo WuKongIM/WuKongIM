@@ -122,7 +122,7 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 			return deploy.Manifest{}, err
 		}
 	} else {
-		for _, config := range []string{"target.yaml", "workers.yaml", "scenario.yaml", "prometheus.yml"} {
+		for _, config := range []string{"target.yaml", "workers.yaml", "scenario.yaml", "prometheus.yml", "effective-node-runtime-contract.json"} {
 			if err := copyRegular(filepath.Join(options.bundleRoot, "config", config), rooted(options.rootPrefix, "etc/wukongim/"+config), 0o640); err != nil {
 				return deploy.Manifest{}, err
 			}

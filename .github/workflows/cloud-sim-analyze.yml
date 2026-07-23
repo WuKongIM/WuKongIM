@@ -7,9 +7,10 @@ on:
       operation:
         description: Session operation used by scripts/cloud-sim/analyze.sh
         required: true
-        default: prepare
+        default: inspect
         type: choice
         options:
+          - inspect
           - prepare
           - close
       run_id:
@@ -41,8 +42,8 @@ concurrency:
 
 jobs:
   prepare:
-    name: Prepare encrypted local Codex session
-    if: inputs.operation == 'prepare'
+    name: Inspect exact run or prepare encrypted local Codex session
+    if: inputs.operation == 'inspect' || inputs.operation == 'prepare'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: cloud-sim-analysis
@@ -67,15 +68,12 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
-      - name: Validate local session request
+      - name: Validate exact provider request
         shell: bash
         run: |
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
           [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{7,63}$ ]]
-          [[ "$CLIENT_IPV4" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]
-          test "${#CLIENT_PUBLIC_KEY}" -ge 256
-          test "${#CLIENT_PUBLIC_KEY}" -le 4096
           mkdir -p session locator
       - name: Resolve exact retained Run Locator
         id: locator
@@ -139,13 +137,42 @@ jobs:
             exit 0
           fi
           state="$(jq -er .state preflight.json)"
-          echo "state=$state" >>"$GITHUB_OUTPUT"
           if [[ "$state" == live ]]; then
+            jq -e '.resources | type == "array" and length > 0' preflight.json >/dev/null
             jq -e .run preflight.json >run.json
+          elif [[ "$state" == released ]]; then
+            jq -e '.resources == [] and (has("run") | not)' preflight.json >/dev/null
+          else
+            exit 1
           fi
+          echo "state=$state" >>"$GITHUB_OUTPUT"
+      - name: Validate live client material
+        id: client
+        if: inputs.operation == 'prepare' && steps.preflight.outputs.state == 'live'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          is_valid_ipv4() {
+            local value="$1" octet
+            local -a octets
+            [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+            IFS=. read -r -a octets <<<"$value"
+            ((${#octets[@]} == 4)) || return 1
+            for octet in "${octets[@]}"; do
+              [[ "$octet" == 0 || "$octet" != 0* ]] || return 1
+              ((10#$octet <= 255)) || return 1
+            done
+          }
+          is_valid_ipv4 "$CLIENT_IPV4"
+          test "${#CLIENT_PUBLIC_KEY}" -ge 256
+          test "${#CLIENT_PUBLIC_KEY}" -le 4096
+          printf '%s' "$CLIENT_PUBLIC_KEY" | base64 --decode >session/client-public.pem
+          openssl pkey -pubin -in session/client-public.pem -noout
+          echo "valid=true" >>"$GITHUB_OUTPUT"
       - name: Open temporary runner exchange window
         id: ingress
-        if: steps.preflight.outputs.state == 'live'
+        if: inputs.operation == 'prepare' && steps.client.outputs.valid == 'true'
         continue-on-error: true
         shell: bash
         run: |
@@ -192,8 +219,6 @@ jobs:
           expires_at="$(jq -er .expires_at <<<"$token_response")"
           echo "::add-mask::$analysis_token"
 
-          printf '%s' "$CLIENT_PUBLIC_KEY" | base64 --decode >session/client-public.pem
-          openssl pkey -pubin -in session/client-public.pem -noout
           printf '%s' "$analysis_token" | openssl pkeyutl -encrypt -pubin \
             -inkey session/client-public.pem -pkeyopt rsa_padding_mode:oaep \
             -pkeyopt rsa_oaep_md:sha256 -out session/encrypted-token.bin
@@ -218,11 +243,35 @@ jobs:
         if: always()
         shell: bash
         env:
+          OPERATION: ${{ inputs.operation }}
           LOCATOR_STATE: ${{ steps.locator.outputs.state }}
           PREFLIGHT_STATE: ${{ steps.preflight.outputs.state }}
+          CLIENT_VALID: ${{ steps.client.outputs.valid }}
         run: |
           set -euo pipefail
           rm -f session/client-public.pem
+          if [[ "$OPERATION" == inspect ]]; then
+            state=insufficient_evidence
+            message="Provider preflight could not establish an identity-matched Simulation Run."
+            provider=null
+            if [[ "$LOCATOR_STATE" == unknown_run ]]; then
+              state=unknown_run
+              message="No unique retained Run Locator exists for the exact Run Identity."
+            elif [[ "$PREFLIGHT_STATE" == released ]]; then
+              state=released
+              message="Simulation Run ${RUN_ID} 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。"
+              provider="$(jq -cer '{state:.state,resources:.resources}' preflight.json)"
+            elif [[ "$PREFLIGHT_STATE" == live ]]; then
+              state=live
+              message="Provider preflight confirmed a live identity-matched Simulation Run; client material is required to open a session."
+              provider="$(jq -cer '{state:.state,resources:.resources}' preflight.json)"
+            fi
+            jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" \
+              --arg state "$state" --arg message "$message" --argjson provider "$provider" \
+              '{schema:"wukongim/cloud-simulation-analysis-preflight/v1",state:$state,run_id:$run_id,
+                request_id:$request_id,message:$message,provider:$provider}' >session/preflight.json
+            exit 0
+          fi
           if [[ -f session/session.json ]]; then exit 0; fi
           rm -f session/encrypted-token.bin session/pinned-ca.pem
           state=insufficient_evidence
@@ -233,37 +282,53 @@ jobs:
           elif [[ "$PREFLIGHT_STATE" == released ]]; then
             state=released
             message="Simulation Run ${RUN_ID} 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。"
+          elif [[ "$PREFLIGHT_STATE" == live && "$CLIENT_VALID" != true ]]; then
+            message="Provider preflight confirmed a live run, but valid client IPv4 and RSA public-key material were not supplied."
           elif [[ "$PREFLIGHT_STATE" != live ]]; then
             message="Provider preflight could not establish a live identity-matched Simulation Run."
           fi
           jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" --arg state "$state" --arg message "$message" \
+            --arg preflight_state "$PREFLIGHT_STATE" \
             '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:$state,run_id:$run_id,
-              request_id:$request_id,message:$message}' >session/session.json
+              request_id:$request_id,message:$message,
+              provider:(if $preflight_state == "released" then
+                ($preflight_state as $state | {state:$state,resources:[]}) else null end)}' \
+            >session/session.json
       - name: Close failed temporary exchange window
         if: always() && steps.ingress.outputs.attempted == 'true' && steps.handoff.outputs.client_window != 'true'
         continue-on-error: true
         shell: bash
         run: timeout 90s ./wkcloudsim --provider alibaba --provider-config provider.json close-analysis "$RUN_ID"
       - name: Upload encrypted one-day local handoff
-        if: always() && hashFiles('session/session.json') != ''
+        if: always() && inputs.operation == 'prepare' && hashFiles('session/session.json') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cloud-sim-analysis-session-${{ inputs.request_id }}
           path: session/
           retention-days: 1
           if-no-files-found: error
+      - name: Upload exact provider preflight
+        if: always() && inputs.operation == 'inspect' && hashFiles('session/preflight.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-sim-analysis-preflight-${{ inputs.request_id }}
+          path: session/preflight.json
+          retention-days: 1
+          if-no-files-found: error
       - name: Write session summary
-        if: always() && hashFiles('session/session.json') != ''
+        if: always() && (hashFiles('session/session.json') != '' || hashFiles('session/preflight.json') != '')
         shell: bash
         run: |
+          descriptor=session/session.json
+          if [[ -f session/preflight.json ]]; then descriptor=session/preflight.json; fi
           {
             echo '## Cloud Simulation local analysis session'
             echo
             echo "- Run Identity: \`$RUN_ID\`"
-            echo "- State: \`$(jq -r .state session/session.json)\`"
+            echo "- State: \`$(jq -r .state "$descriptor")\`"
             echo "- Request: \`$REQUEST_ID\`"
-            if [[ "$(jq -r .state session/session.json)" == released ]]; then
-              echo "- $(jq -r .message session/session.json)"
+            if [[ "$(jq -r .state "$descriptor")" == released ]]; then
+              echo "- $(jq -r .message "$descriptor")"
             fi
           } >>"$GITHUB_STEP_SUMMARY"
 

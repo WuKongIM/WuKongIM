@@ -36,13 +36,15 @@ func TestManagerNodeConfigCodecRoundTrip(t *testing.T) {
 				ID:    "cluster",
 				Title: "Cluster",
 				Items: []managementusecase.NodeConfigItem{{
-					Key:   "WK_CLUSTER_HASH_SLOT_COUNT",
-					Label: "Hash slot count",
-					Value: "256",
+					Key:    "WK_CLUSTER_HASH_SLOT_COUNT",
+					Label:  "Hash slot count",
+					Value:  "256",
+					Source: managementusecase.NodeConfigValueSourceTOML,
 				}, {
 					Key:       "WK_MANAGER_JWT_SECRET",
 					Label:     "Manager JWT secret",
 					Value:     "******",
+					Source:    managementusecase.NodeConfigValueSourceEnvironment,
 					Sensitive: true,
 					Redacted:  true,
 				}},
@@ -70,9 +72,10 @@ func TestManagerNodeConfigRPCReadsLocalProvider(t *testing.T) {
 		Groups: []managementusecase.NodeConfigGroup{{
 			ID: "cluster",
 			Items: []managementusecase.NodeConfigItem{{
-				Key:   "WK_CLUSTER_HASH_SLOT_COUNT",
-				Label: "Hash slot count",
-				Value: "256",
+				Key:    "WK_CLUSTER_HASH_SLOT_COUNT",
+				Label:  "Hash slot count",
+				Value:  "256",
+				Source: managementusecase.NodeConfigValueSourceTOML,
 			}},
 		}},
 	}
@@ -93,6 +96,9 @@ func TestManagerNodeConfigRPCReadsLocalProvider(t *testing.T) {
 	}
 	if resp.Status != rpcStatusOK || resp.Snapshot.NodeID != 2 {
 		t.Fatalf("response = %#v, want ok node 2", resp)
+	}
+	if gotSource := resp.Snapshot.Groups[0].Items[0].Source; gotSource != managementusecase.NodeConfigValueSourceTOML {
+		t.Fatalf("remote item source = %q, want toml", gotSource)
 	}
 	if reader.nodeID != 2 {
 		t.Fatalf("reader nodeID = %d, want 2", reader.nodeID)

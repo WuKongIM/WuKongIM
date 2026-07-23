@@ -55,12 +55,58 @@ import (
 
 func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
 	t.Helper()
+	cfg = isolatePluginRuntimeForTest(cfg)
 	opts = append([]Option{WithLogger(wklog.NewNop())}, opts...)
 	app, err := New(cfg, opts...)
 	if app != nil {
 		t.Cleanup(app.restoreDiagnosticsSink)
 	}
 	return app, err
+}
+
+func isolatePluginRuntimeForTest(cfg Config) Config {
+	if !cfg.Plugin.Enable {
+		cfg.Plugin.SetEnableExplicit(true)
+	}
+	return cfg
+}
+
+func TestNewTestAppDisablesDefaultPluginRuntime(t *testing.T) {
+	app, err := newTestApp(t, Config{}, WithCluster(&fakeCluster{}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("newTestApp() error = %v", err)
+	}
+	if app.cfg.Plugin.Enable || app.pluginRuntime != nil {
+		t.Fatalf("test plugin runtime enabled=%v runtime=%T, want isolated", app.cfg.Plugin.Enable, app.pluginRuntime)
+	}
+}
+
+func TestRecordingAppLoggerSupportsConcurrentWritesAndSnapshots(t *testing.T) {
+	logger := &recordingAppLogger{}
+	const (
+		workers = 16
+		writes  = 64
+	)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for range writes {
+				logger.Info("concurrent")
+				_ = logger.entriesSnapshot()
+			}
+			_ = logger.Sync()
+		}()
+	}
+	wg.Wait()
+
+	if got := len(logger.entriesSnapshot()); got != workers*writes {
+		t.Fatalf("entries = %d, want %d", got, workers*writes)
+	}
+	if got := logger.syncCallCount(); got != workers {
+		t.Fatalf("Sync calls = %d, want %d", got, workers)
+	}
 }
 
 func captureStdout(t *testing.T, run func()) string {
@@ -617,7 +663,7 @@ func TestDefaultConsoleSeparatesStartupPresentationFromStructuredLifecycleLogs(t
 	logDir := t.TempDir()
 	console := captureStdout(t, func() {
 		calls := make([]string, 0, 2)
-		app, err := New(Config{
+		app, err := New(isolatePluginRuntimeForTest(Config{
 			NodeID:  1,
 			DataDir: shortAppTestDataDir(t),
 			Cluster: clusterpkg.Config{
@@ -625,7 +671,7 @@ func TestDefaultConsoleSeparatesStartupPresentationFromStructuredLifecycleLogs(t
 				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 1}}},
 			},
 			Log: LogConfig{Dir: logDir, Console: true, Format: "json"},
-		}, WithCluster(&fakeCluster{calls: &calls}))
+		}), WithCluster(&fakeCluster{calls: &calls}))
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -661,14 +707,14 @@ func TestDisabledConsoleWritesNoStartupPresentation(t *testing.T) {
 	logConfig.SetExplicitFlags(false, true)
 	console := captureStdout(t, func() {
 		calls := make([]string, 0, 1)
-		app, err := New(Config{
+		app, err := New(isolatePluginRuntimeForTest(Config{
 			NodeID: 1,
 			Cluster: clusterpkg.Config{
 				NodeID:  1,
 				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 1}}},
 			},
 			Log: logConfig,
-		}, WithCluster(&fakeCluster{calls: &calls}))
+		}), WithCluster(&fakeCluster{calls: &calls}))
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -691,7 +737,7 @@ func TestDefaultConsoleFormatsFailureWithoutStructuredDuplicate(t *testing.T) {
 	console := captureStdout(t, func() {
 		calls := make([]string, 0, 3)
 		gatewayErr := errors.New("gateway unavailable")
-		app, err := New(Config{
+		app, err := New(isolatePluginRuntimeForTest(Config{
 			NodeID:  4,
 			DataDir: shortAppTestDataDir(t),
 			Cluster: clusterpkg.Config{
@@ -699,7 +745,7 @@ func TestDefaultConsoleFormatsFailureWithoutStructuredDuplicate(t *testing.T) {
 				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 4}}},
 			},
 			Log: LogConfig{Dir: logDir, Console: true, Format: "json"},
-		},
+		}),
 			WithCluster(&fakeCluster{calls: &calls}),
 			WithGateway(&fakeGateway{calls: &calls, startErr: gatewayErr}),
 		)
@@ -2956,7 +3002,7 @@ func TestNewBuildsRootLogger(t *testing.T) {
 	cfg := Config{Log: LogConfig{Dir: t.TempDir(), Console: false, Format: "json"}}
 	cfg.Log.SetExplicitFlags(false, true)
 	app, err := New(
-		cfg,
+		isolatePluginRuntimeForTest(cfg),
 		WithCluster(&fakeCluster{calls: &calls}),
 		WithGateway(&fakeGateway{calls: &calls}),
 	)
@@ -3082,7 +3128,7 @@ func TestStopSyncsLogger(t *testing.T) {
 	calls := make([]string, 0, 4)
 	logger := &recordingAppLogger{}
 	app, err := New(
-		Config{},
+		isolatePluginRuntimeForTest(Config{}),
 		WithCluster(&fakeCluster{calls: &calls}),
 		WithGateway(&fakeGateway{calls: &calls}),
 		WithLogger(logger),
@@ -3096,8 +3142,8 @@ func TestStopSyncsLogger(t *testing.T) {
 	if err := app.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if logger.syncCalls != 1 {
-		t.Fatalf("Sync calls = %d, want 1", logger.syncCalls)
+	if got := logger.syncCallCount(); got != 1 {
+		t.Fatalf("Sync calls = %d, want 1", got)
 	}
 }
 
@@ -8395,7 +8441,7 @@ func ownerRouteSessionIDs(routes []online.OwnerRoute) []uint64 {
 
 func appLogEntriesForEvent(logger *recordingAppLogger, level, event string) []recordedAppLogEntry {
 	entries := make([]recordedAppLogEntry, 0)
-	for _, entry := range logger.entries {
+	for _, entry := range logger.entriesSnapshot() {
 		if entry.level != level {
 			continue
 		}
@@ -8567,6 +8613,7 @@ func (g *gatewayAdmissionStub) SessionSummary() gatewaycore.SessionSummary {
 }
 
 type recordingAppLogger struct {
+	mu        sync.RWMutex
 	syncCalls int
 	entries   []recordedAppLogEntry
 }
@@ -8592,6 +8639,8 @@ func (r *recordingAppLogger) With(...wklog.Field) wklog.Logger {
 }
 
 func (r *recordingAppLogger) log(level, msg string, fields ...wklog.Field) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.entries = append(r.entries, recordedAppLogEntry{
 		level:  level,
 		msg:    msg,
@@ -8600,8 +8649,30 @@ func (r *recordingAppLogger) log(level, msg string, fields ...wklog.Field) {
 }
 
 func (r *recordingAppLogger) Sync() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.syncCalls++
 	return nil
+}
+
+func (r *recordingAppLogger) entriesSnapshot() []recordedAppLogEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entries := make([]recordedAppLogEntry, len(r.entries))
+	for i, entry := range r.entries {
+		entries[i] = recordedAppLogEntry{
+			level:  entry.level,
+			msg:    entry.msg,
+			fields: append([]wklog.Field(nil), entry.fields...),
+		}
+	}
+	return entries
+}
+
+func (r *recordingAppLogger) syncCallCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.syncCalls
 }
 
 type fakeAPI struct {

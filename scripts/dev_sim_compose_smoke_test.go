@@ -229,6 +229,14 @@ func readFile(t *testing.T, path string) string {
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
+	// Nearly every shell-script test is isolated under t.TempDir. Run top-level
+	// cases through one bounded parallel pool so fault-injection sleeps and
+	// subprocess startup do not accumulate serially across the whole package.
+	// Subtests are excluded to avoid a parent holding a pool slot while waiting
+	// for its own parallel child.
+	if !strings.Contains(t.Name(), "/") {
+		runHeavyShellScriptTestInParallel(t)
+	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")

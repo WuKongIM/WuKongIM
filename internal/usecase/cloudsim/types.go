@@ -284,6 +284,8 @@ const (
 type PreflightResult struct {
 	// State is live or provider-confirmed released.
 	State PreflightState `json:"state"`
+	// Resources is the exact provider inventory snapshot. Released results always encode an empty array.
+	Resources []Resource `json:"resources"`
 	// Run is present only when the exact locator-bound inventory is live.
 	Run *Run `json:"run,omitempty"`
 }

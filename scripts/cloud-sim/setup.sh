@@ -14,18 +14,31 @@ TOOLCHAIN_FILE="$REPO_ROOT/.github/cloud-sim/toolchain.env"
 }
 # shellcheck disable=SC1090
 source "$TOOLCHAIN_FILE"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/local-runtime.sh"
 
 region=""
 repository=""
 assume_yes=false
 setup_temp=""
+setup_cache_temp=""
 
 cleanup() {
+  if [[ -n "$setup_cache_temp" && -d "$setup_cache_temp" ]]; then
+    rm -rf "$setup_cache_temp"
+  fi
   if [[ -n "$setup_temp" && -d "$setup_temp" ]]; then
     rm -rf "$setup_temp"
   fi
 }
-trap cleanup EXIT INT TERM
+on_signal() {
+  local exit_code="$1"
+  trap - INT TERM
+  exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 usage() {
   cat <<'EOF'
@@ -39,6 +52,11 @@ Options:
                         GitHub repository (default: detected from the checkout)
   --yes                 Accept the displayed non-billable bootstrap plan
   -h, --help            Show this help
+
+Environment:
+  WK_SETUP_COMMAND_TIMEOUT_SECONDS
+                        Positive per-command Alibaba/bootstrap deadline
+                        (default: local tool deadline, normally 180 seconds)
 
 This command creates only OIDC/RAM trust and GitHub configuration. It does not create billable cloud resources.
 Live diagnosis uses the local Codex CLI signed in with a ChatGPT subscription; no OpenAI API key is required.
@@ -83,7 +101,52 @@ while (($#)); do
   esac
 done
 
-for command in aliyun curl git jq tar; do
+WK_SETUP_COMMAND_TIMEOUT_SECONDS="${WK_SETUP_COMMAND_TIMEOUT_SECONDS:-$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS}"
+[[ "$WK_SETUP_COMMAND_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || \
+  fail "WK_SETUP_COMMAND_TIMEOUT_SECONDS must be a positive integer number of seconds"
+
+# wk_setup_aliyun gives every Alibaba inventory/profile request the same
+# process-group deadline. Ordinary CLI failures keep their original status;
+# only a deadline is annotated here so a hung CloudShell session is explicit.
+wk_setup_aliyun() {
+  local status=0
+  wk_run_bounded "$WK_SETUP_COMMAND_TIMEOUT_SECONDS" aliyun "$@" || status=$?
+  if ((status == 124)); then
+    printf 'cloud-sim setup: Alibaba CLI command timed out after %s seconds: aliyun' \
+      "$WK_SETUP_COMMAND_TIMEOUT_SECONDS" >&2
+    printf ' %q' "$@" >&2
+    printf '\n' >&2
+  fi
+  return "$status"
+}
+
+# wk_setup_bootstrap bounds both read-only plans and the OIDC/RAM apply with
+# the exact repository Go toolchain. An apply deadline is an indeterminate
+# transport outcome, so callers must stop before publishing GitHub state and
+# rerun setup to obtain a fresh plan.
+wk_setup_bootstrap() {
+  local operation="$1"
+  local config="$2"
+  local status=0
+  (
+    cd "$REPO_ROOT"
+    wk_run_bounded "$WK_SETUP_COMMAND_TIMEOUT_SECONDS" \
+      env GOWORK=off GOROOT="$WK_SETUP_GO_ROOT" GOTOOLCHAIN=local \
+      "$WK_SETUP_GO_BIN" run ./cmd/wkcloudbootstrap --config "$config" "$operation"
+  ) || status=$?
+  if ((status == 124)); then
+    if [[ "$operation" == apply ]]; then
+      printf 'cloud-sim setup: bootstrap apply timed out after %s seconds; Alibaba OIDC/RAM state may be uncertain; rerun setup to obtain a fresh plan before making any further changes\n' \
+        "$WK_SETUP_COMMAND_TIMEOUT_SECONDS" >&2
+    else
+      printf 'cloud-sim setup: bootstrap %s timed out after %s seconds\n' \
+        "$operation" "$WK_SETUP_COMMAND_TIMEOUT_SECONDS" >&2
+    fi
+  fi
+  return "$status"
+}
+
+for command in aliyun curl git jq perl tar; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required in Alibaba CloudShell"
 done
 
@@ -168,14 +231,34 @@ download_with_resume() {
 }
 
 ensure_go() {
-  if command -v go >/dev/null 2>&1; then
-    return
+  local current_go=""
+  local current_version=""
+  current_go="$(command -v go 2>/dev/null || true)"
+  if [[ -n "$current_go" ]]; then
+    current_version="$(wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" \
+      env -u GOROOT GOWORK=off GOTOOLCHAIN=local "$current_go" env GOVERSION 2>/dev/null || true)"
+    if [[ "$current_version" == "go$GO_VERSION" ]]; then
+      return
+    fi
+    printf 'Ignoring Go %s from PATH; repository setup requires go%s.\n' \
+      "${current_version:-unknown}" "$GO_VERSION" >&2
   fi
-  local arch archive expected cache download_cache downloaded_archive
+  local arch archive expected cache download_cache downloaded_archive extracted_go
   arch="$(machine_arch)"
   archive="go${GO_VERSION}.linux-${arch}.tar.gz"
   if [[ "$arch" == amd64 ]]; then expected="$GO_LINUX_AMD64_SHA256"; else expected="$GO_LINUX_ARM64_SHA256"; fi
   cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/go${GO_VERSION}"
+  if [[ -x "$cache/go/bin/go" && -f "$cache/go/src/runtime/proc.go" && -d "$cache/go/pkg/tool" ]]; then
+    current_version="$(wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" \
+      env -u GOROOT GOWORK=off GOTOOLCHAIN=local \
+      "$cache/go/bin/go" env GOVERSION 2>/dev/null || true)"
+    if [[ "$current_version" != "go$GO_VERSION" ]]; then
+      rm -rf "$cache/go"
+    fi
+  elif [[ -e "$cache/go" ]]; then
+    printf 'Discarding incomplete Go cache at %s.\n' "$cache/go" >&2
+    rm -rf "$cache/go"
+  fi
   if [[ ! -x "$cache/go/bin/go" ]]; then
     mkdir -p "$cache"
     download_cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/downloads"
@@ -191,21 +274,70 @@ ensure_go() {
         "https://go.dev/dl/${archive}"
       verify_sha256 "$downloaded_archive" "$expected"
     fi
-    tar -xzf "$downloaded_archive" -C "$cache"
+    setup_cache_temp="$(mktemp -d "$cache/.go-extract.XXXXXX")"
+    tar -xzf "$downloaded_archive" -C "$setup_cache_temp"
+    extracted_go="$setup_cache_temp/go"
+    [[ -x "$extracted_go/bin/go" && -f "$extracted_go/src/runtime/proc.go" && -d "$extracted_go/pkg/tool" ]] || {
+      rm -rf "$setup_cache_temp"
+      setup_cache_temp=""
+      fail "checksum-valid Go archive did not contain a complete GOROOT"
+    }
+    current_version="$(wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" \
+      env -u GOROOT GOWORK=off GOTOOLCHAIN=local \
+      "$extracted_go/bin/go" env GOVERSION 2>/dev/null || true)"
+    [[ "$current_version" == "go$GO_VERSION" ]] || {
+      rm -rf "$setup_cache_temp"
+      setup_cache_temp=""
+      fail "checksum-valid Go archive did not provide go$GO_VERSION"
+    }
+    mv "$extracted_go" "$cache/go"
+    rm -rf "$setup_cache_temp"
+    setup_cache_temp=""
   fi
   PATH="$cache/go/bin:$PATH"
   export PATH
+  current_version="$(wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" \
+    env -u GOROOT GOWORK=off GOTOOLCHAIN=local go env GOVERSION 2>/dev/null || true)"
+  [[ "$current_version" == "go$GO_VERSION" ]] || \
+    fail "checksum-pinned Go cache did not provide go$GO_VERSION"
+}
+
+activate_exact_setup_go() {
+  local launcher=""
+  local selection=""
+  launcher="$(command -v go 2>/dev/null || true)"
+  [[ -n "$launcher" && -x "$launcher" ]] || fail "go is required after toolchain setup"
+  selection="$(wk_select_exact_go "$launcher" "$GO_VERSION")" || \
+    fail "cannot activate exact go$GO_VERSION for repository commands"
+  WK_SETUP_GO_BIN="${selection%%$'\n'*}"
+  WK_SETUP_GO_ROOT="${selection#*$'\n'}"
+  [[ "$WK_SETUP_GO_BIN" == /* && -x "$WK_SETUP_GO_BIN" && "$WK_SETUP_GO_ROOT" == /* && \
+    "$WK_SETUP_GO_ROOT" != "$selection" ]] || fail "exact Go selection returned an invalid executable/root pair"
+  PATH="${WK_SETUP_GO_ROOT}/bin:$PATH"
+  GOROOT="$WK_SETUP_GO_ROOT"
+  GOTOOLCHAIN=local
+  GOWORK=off
+  export PATH GOROOT GOTOOLCHAIN GOWORK WK_SETUP_GO_BIN WK_SETUP_GO_ROOT
 }
 
 ensure_gh() {
-  if command -v gh >/dev/null 2>&1; then
+  local current_gh=""
+  current_gh="$(command -v gh 2>/dev/null || true)"
+  if [[ -n "$current_gh" ]] && wk_verify_exact_gh "$current_gh" "$GH_CLI_VERSION"; then
     return
+  fi
+  if [[ -n "$current_gh" ]]; then
+    printf 'Ignoring GitHub CLI from PATH; repository setup requires gh %s.\n' \
+      "$GH_CLI_VERSION" >&2
   fi
   local arch archive expected cache extracted download_cache downloaded_archive
   arch="$(machine_arch)"
   archive="gh_${GH_CLI_VERSION}_linux_${arch}.tar.gz"
   if [[ "$arch" == amd64 ]]; then expected="$GH_CLI_LINUX_AMD64_SHA256"; else expected="$GH_CLI_LINUX_ARM64_SHA256"; fi
   cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/gh-${GH_CLI_VERSION}"
+  if [[ -x "$cache/bin/gh" ]] && ! wk_verify_exact_gh "$cache/bin/gh" "$GH_CLI_VERSION"; then
+    rm -f "$cache/bin/gh"
+  fi
   if [[ ! -x "$cache/bin/gh" ]]; then
     mkdir -p "$cache/bin"
     download_cache="${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/downloads"
@@ -227,36 +359,39 @@ ensure_gh() {
   fi
   PATH="$cache/bin:$PATH"
   export PATH
+  wk_verify_exact_gh gh "$GH_CLI_VERSION" || \
+    fail "checksum-pinned GitHub CLI cache did not provide gh $GH_CLI_VERSION"
 }
 
 setup_temp="$(mktemp -d "${TMPDIR:-/tmp}/wukongim-cloud-setup.XXXXXX")"
 ensure_go
+activate_exact_setup_go
 ensure_gh
 
-if ! gh auth status --hostname github.com >/dev/null 2>&1; then
+if ! wk_gh auth status --hostname github.com >/dev/null 2>&1; then
   printf '%s\n' 'GitHub login is required. Follow the device/browser prompt once.'
   gh auth login --hostname github.com --git-protocol https --web --scopes repo,workflow
 fi
 
 if [[ -z "$repository" ]]; then
-  repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+  repository="$(wk_gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
 fi
 [[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "cannot determine a valid GitHub OWNER/REPO"
 
-repo_json="$(gh api "repos/$repository")"
+repo_json="$(wk_gh api "repos/$repository")"
 jq -e '.permissions.admin == true' <<<"$repo_json" >/dev/null || fail "GitHub repository admin permission is required"
-default_branch="$(gh repo view --repo "$repository" --json defaultBranchRef --jq .defaultBranchRef.name)"
+default_branch="$(wk_gh repo view --repo "$repository" --json defaultBranchRef --jq .defaultBranchRef.name)"
 [[ "$default_branch" == main ]] || fail "the current trust policy requires main to be the default branch"
 for workflow in cloud-sim-oidc-subject.yml cloud-sim-provision.yml cloud-sim-analyze.yml cloud-sim-cleanup.yml; do
-  gh api "repos/$repository/contents/.github/workflows/$workflow?ref=main" >/dev/null || \
+  wk_gh api "repos/$repository/contents/.github/workflows/$workflow?ref=main" >/dev/null || \
     fail "$workflow is not present on remote main; push the implementation first"
 done
 
-identity_json="$(aliyun sts GetCallerIdentity)"
+identity_json="$(wk_setup_aliyun sts GetCallerIdentity)"
 account_id="$(jq -er '.AccountId | select(type == "string" and test("^[0-9]{6,32}$"))' <<<"$identity_json")" || \
   fail "cannot read the current Alibaba account identity"
 
-regions_json="$(aliyun ecs DescribeRegions)"
+regions_json="$(wk_setup_aliyun ecs DescribeRegions)"
 regions=()
 while IFS= read -r candidate_region; do
   regions+=("$candidate_region")
@@ -264,9 +399,9 @@ done < <(jq -r '.Regions.Region[]?.RegionId | select(type == "string" and length
 ((${#regions[@]} > 0)) || fail "Alibaba returned no available ECS regions"
 
 if [[ -n "${ALIBABA_CLOUD_PROFILE:-}" ]]; then
-  profile_json="$(aliyun configure get --profile "$ALIBABA_CLOUD_PROFILE" 2>/dev/null || printf '%s' '{}')"
+  profile_json="$(wk_setup_aliyun configure get --profile "$ALIBABA_CLOUD_PROFILE" 2>/dev/null || printf '%s' '{}')"
 else
-  profile_json="$(aliyun configure get 2>/dev/null || printf '%s' '{}')"
+  profile_json="$(wk_setup_aliyun configure get 2>/dev/null || printf '%s' '{}')"
 fi
 recommended_region="${ALIBABA_CLOUD_REGION_ID:-}"
 if [[ -z "$recommended_region" ]]; then
@@ -295,7 +430,7 @@ fi
 [[ "$region" =~ ^[a-z0-9-]+$ ]] || fail "invalid Alibaba region"
 region_available "$region" || fail "Alibaba ECS region is not available to the current account: $region"
 
-zones_json="$(aliyun ecs DescribeZones --RegionId "$region" --InstanceChargeType PostPaid --SpotStrategy SpotAsPriceGo --Verbose true)"
+zones_json="$(wk_setup_aliyun ecs DescribeZones --RegionId "$region" --InstanceChargeType PostPaid --SpotStrategy SpotAsPriceGo --Verbose true)"
 zones=()
 while IFS= read -r candidate_zone; do
   zones+=("$candidate_zone")
@@ -307,7 +442,7 @@ done < <(jq -r '
 ' <<<"$zones_json" | sort)
 ((${#zones[@]} > 0)) || fail "no spot-capable zone with cloud_essd was found in $region"
 
-image_json="$(aliyun ecs DescribeImages \
+image_json="$(wk_setup_aliyun ecs DescribeImages \
   --RegionId "$region" \
   --ImageFamily acs:alibaba_cloud_linux_3_2104_lts_x64 \
   --ImageOwnerAlias system \
@@ -340,7 +475,7 @@ query_specs() {
     if [[ -n "$next_token" ]]; then
       arguments+=(--NextToken "$next_token")
     fi
-    page="$(aliyun "${arguments[@]}")"
+    page="$(wk_setup_aliyun "${arguments[@]}")"
     all_types="$(jq -cn --argjson current "$all_types" --argjson page "$page" \
       '$current + ($page.InstanceTypes.InstanceType // [])')"
     next_token="$(jq -r '.NextToken // empty' <<<"$page")"
@@ -359,7 +494,7 @@ available_now() {
   local zone="$1"
   local instance_type="$2"
   local result
-  result="$(aliyun ecs DescribeAvailableResource \
+  result="$(wk_setup_aliyun ecs DescribeAvailableResource \
     --RegionId "$region" --ZoneId "$zone" \
     --DestinationResource InstanceType --ResourceType instance \
     --InstanceChargeType PostPaid --SpotStrategy SpotAsPriceGo \
@@ -470,9 +605,8 @@ printf '  Standard: %s\n' "${standard_types[*]}"
 printf '  Stress: %s\n' "${stress_types[*]}"
 printf '  Billable resources created now: none\n\n'
 
-export GOWORK=off
 initial_plan="$setup_temp/initial-plan.json"
-(cd "$REPO_ROOT" && go run ./cmd/wkcloudbootstrap --config "$bootstrap_config" plan) >"$initial_plan"
+wk_setup_bootstrap plan "$bootstrap_config" >"$initial_plan"
 jq . "$initial_plan"
 
 if [[ "$assume_yes" != true ]]; then
@@ -482,8 +616,8 @@ if [[ "$assume_yes" != true ]]; then
 fi
 
 bootstrap_result="$setup_temp/bootstrap-result.json"
-(cd "$REPO_ROOT" && go run ./cmd/wkcloudbootstrap --config "$bootstrap_config" apply) >"$bootstrap_result"
-(cd "$REPO_ROOT" && go run ./cmd/wkcloudbootstrap --config "$bootstrap_config" plan) >"$setup_temp/final-plan.json"
+wk_setup_bootstrap apply "$bootstrap_config" >"$bootstrap_result"
+wk_setup_bootstrap plan "$bootstrap_config" >"$setup_temp/final-plan.json"
 jq -e '.changes | length == 0' "$setup_temp/final-plan.json" >/dev/null || fail "bootstrap is not idempotent after apply"
 
 repository_state_name="${repository//\//_}"
@@ -498,10 +632,10 @@ api_version_header='X-GitHub-Api-Version: 2026-03-10'
 environment_body='{"deployment_branch_policy":null}'
 for environment in cloud-sim-provision cloud-sim-cleanup cloud-sim-analysis; do
   environment_error="$setup_temp/environment-$environment.err"
-  if gh api "repos/$repository/environments/$environment" -H "$api_version_header" >/dev/null 2>"$environment_error"; then
+  if wk_gh api "repos/$repository/environments/$environment" -H "$api_version_header" >/dev/null 2>"$environment_error"; then
     :
   elif grep -Eq '\(HTTP 404\)' "$environment_error"; then
-    printf '%s' "$environment_body" | gh api --method PUT "repos/$repository/environments/$environment" \
+    printf '%s' "$environment_body" | wk_gh api --method PUT "repos/$repository/environments/$environment" \
       -H "$api_version_header" --input - >/dev/null
   else
     cat "$environment_error" >&2
@@ -517,25 +651,25 @@ oidc_provider_arn="$(jq -er .oidc_provider_arn "$bootstrap_result")"
 oidc_audience="$(jq -er .oidc_audience "$bootstrap_result")"
 provider_config_json="$(cat "$provider_json")"
 printf '%s' "$oidc_provider_arn" | \
-  gh variable set ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN --repo "$repository"
+  wk_gh variable set ALIBABA_CLOUD_SIM_OIDC_PROVIDER_ARN --repo "$repository"
 printf '%s' "$oidc_audience" | \
-  gh variable set ALIBABA_CLOUD_SIM_OIDC_AUDIENCE --repo "$repository"
-gh variable set ALIBABA_CLOUD_SIM_CONFIG_JSON --repo "$repository" <"$provider_json"
+  wk_gh variable set ALIBABA_CLOUD_SIM_OIDC_AUDIENCE --repo "$repository"
+wk_gh variable set ALIBABA_CLOUD_SIM_CONFIG_JSON --repo "$repository" <"$provider_json"
 
 provisioner_role="$(jq -er .provisioner_role_arn "$bootstrap_result")"
 for environment in cloud-sim-provision cloud-sim-cleanup; do
   printf '%s' "$provisioner_role" | \
-    gh variable set ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN --env "$environment" --repo "$repository"
+    wk_gh variable set ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN --env "$environment" --repo "$repository"
 done
 analyzer_role="$(jq -er .analyzer_role_arn "$bootstrap_result")"
 printf '%s' "$analyzer_role" | \
-  gh variable set ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN --env cloud-sim-analysis --repo "$repository"
+  wk_gh variable set ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN --env cloud-sim-analysis --repo "$repository"
 
 verify_repo_variable() {
   local name="$1"
   local expected="$2"
   local current
-  current="$(gh api "repos/$repository/actions/variables/$name" -H "$api_version_header")"
+  current="$(wk_gh api "repos/$repository/actions/variables/$name" -H "$api_version_header")"
   jq -e --arg name "$name" --arg expected "$expected" \
     '.name == $name and .value == $expected' <<<"$current" >/dev/null || \
     fail "GitHub variable verification failed: $name"
@@ -546,7 +680,7 @@ verify_environment_variable() {
   local name="$2"
   local expected="$3"
   local current
-  current="$(gh api "repos/$repository/environments/$environment/variables/$name" -H "$api_version_header")"
+  current="$(wk_gh api "repos/$repository/environments/$environment/variables/$name" -H "$api_version_header")"
   jq -e --arg name "$name" --arg expected "$expected" \
     '.name == $name and .value == $expected' <<<"$current" >/dev/null || \
     fail "GitHub variable verification failed: $environment/$name"
@@ -559,9 +693,9 @@ verify_environment_variable cloud-sim-provision ALIBABA_CLOUD_SIM_PROVISIONER_RO
 verify_environment_variable cloud-sim-cleanup ALIBABA_CLOUD_SIM_PROVISIONER_ROLE_ARN "$provisioner_role"
 verify_environment_variable cloud-sim-analysis ALIBABA_CLOUD_SIM_ANALYZER_ROLE_ARN "$analyzer_role"
 oidc_subject='{"use_default":false,"use_immutable_subject":false,"include_claim_keys":["repo","context","job_workflow_ref"]}'
-printf '%s' "$oidc_subject" | gh api --method PUT "repos/$repository/actions/oidc/customization/sub" \
+printf '%s' "$oidc_subject" | wk_gh api --method PUT "repos/$repository/actions/oidc/customization/sub" \
   -H "$api_version_header" --input - >/dev/null
-current_subject="$(gh api "repos/$repository/actions/oidc/customization/sub" -H "$api_version_header")"
+current_subject="$(wk_gh api "repos/$repository/actions/oidc/customization/sub" -H "$api_version_header")"
 jq -e '
   .use_default == false and (.use_immutable_subject // false) == false and
   .include_claim_keys == ["repo","context","job_workflow_ref"]
@@ -570,25 +704,12 @@ jq -e '
 verification_digest="$(sha256_text "$repository:$account_id:$(date -u +%Y%m%dT%H%M%SZ):$$:$setup_temp")"
 verification_id="setup-$repository_suffix-${verification_digest:0:16}"
 verification_title="Cloud Simulation OIDC Verification $verification_id"
-gh workflow run cloud-sim-oidc-subject.yml --repo "$repository" --ref main -f "verification_id=$verification_id"
-verification_run=""
-for ((attempt = 0; attempt < 30; attempt += 1)); do
-  verification_runs="$(gh run list --workflow cloud-sim-oidc-subject.yml --repo "$repository" \
-    --event workflow_dispatch --branch main --limit 20 --json databaseId,displayTitle)"
-  candidate_run="$(jq -r --arg title "$verification_title" \
-    '[.[] | select(.displayTitle == $title)] | sort_by(.databaseId) | reverse | .[0].databaseId // empty' \
-    <<<"$verification_runs")"
-  if [[ "$candidate_run" =~ ^[0-9]+$ && "$candidate_run" != 0 ]]; then
-    verification_run="$candidate_run"
-    break
-  fi
-  sleep 2
-done
-[[ -n "$verification_run" ]] || fail "cannot locate the dispatched Alibaba OIDC verification workflow"
-gh run watch "$verification_run" --repo "$repository" --exit-status || \
+verification_run="$(wk_dispatch_and_join_workflow \
+  "$repository" cloud-sim-oidc-subject.yml "$verification_title" "OIDC verification" \
+  -f "verification_id=$verification_id")" || \
   fail "GitHub OIDC could not assume the Alibaba analyzer role"
 
-source_sha="$(gh api "repos/$repository/commits/main" --jq .sha)"
+source_sha="$(wk_gh api "repos/$repository/commits/main" --jq .sha)"
 [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || fail "cannot resolve the trusted main source SHA"
 
 cat <<EOF
@@ -607,7 +728,7 @@ Recommended inputs:
   scenario=cloud-small
   infrastructure_preset=small
   duration=30m
-  analysis_grace=30m
+  analysis_grace=2h
   max_total_cost=70
 
 After Provision prints a Run Identity, finalize it with your ChatGPT login:

@@ -128,7 +128,8 @@ another node's config.
 The DTO carries stable group/item fields but does not own HTTP JSON tags;
 `internal/access/manager` owns the public response shape. Redaction and the
 allowlist are performed by the app-local snapshot provider before values enter
-this usecase.
+this usecase. Each item also carries a bounded source classification (`toml`,
+`env`, `default`, or `derived`) for the normalized effective value.
 
 ## Controller Voter Promotion Flow
 

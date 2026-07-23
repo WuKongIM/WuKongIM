@@ -8,7 +8,18 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-const NodeConfigSnapshotSourceEffectiveStartup = "effective_startup_config"
+const (
+	// NodeConfigSnapshotSourceEffectiveStartup identifies the normalized startup snapshot.
+	NodeConfigSnapshotSourceEffectiveStartup = "effective_startup_config"
+	// NodeConfigValueSourceDefault means the effective value came from a fixed product default.
+	NodeConfigValueSourceDefault = "default"
+	// NodeConfigValueSourceDerived means the effective value was computed from runtime shape or another setting.
+	NodeConfigValueSourceDerived = "derived"
+	// NodeConfigValueSourceTOML means the effective value came directly from the selected TOML file.
+	NodeConfigValueSourceTOML = "toml"
+	// NodeConfigValueSourceEnvironment means the effective value came directly from a WK_* environment override.
+	NodeConfigValueSourceEnvironment = "env"
+)
 
 // ErrNodeConfigUnavailable reports that selected-node config inspection is not wired.
 var ErrNodeConfigUnavailable = errors.New("internal/usecase/management: node config reader unavailable")
@@ -51,6 +62,8 @@ type NodeConfigItem struct {
 	Label string
 	// Value is the already-formatted effective value.
 	Value string
+	// Source identifies whether Value came from TOML, environment, a fixed default, or runtime derivation.
+	Source string
 	// Sensitive reports whether the underlying config is sensitive.
 	Sensitive bool
 	// Redacted reports whether Value is a fixed redaction token.

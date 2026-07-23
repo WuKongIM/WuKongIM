@@ -70,8 +70,9 @@ non-billable RAM/OIDC plan. It:
   paginated x86 non-GPU spot candidates for each `small`, `standard`, and
   `stress` capacity class after checking every compatible candidate until the
   class has three choices or the inventory is exhausted;
-- installs checksum-pinned Go and GitHub CLI binaries in the user's cache only
-  when those commands are absent; downloads are IPv4/HTTP 1.1, low-speed and
+- installs checksum-pinned Go and GitHub CLI binaries in the user's cache when
+  those commands are absent or do not exactly match the repository pins;
+  downloads are IPv4/HTTP 1.1, low-speed and
   time bounded, resumable across reruns, and retained under
   `${XDG_CACHE_HOME:-$HOME/.cache}/wukongim-cloud-sim/downloads/`; missing Go
   prefers the Alibaba Golang mirror before the official fallback, while GitHub
@@ -182,13 +183,15 @@ the Cleanup Workflow proves no remaining run inventory.
 Dispatch `Cloud Simulation - Provision` from `main`. The source SHA must be a
 40-character commit reachable from `origin/main` when explicitly supplied; an
 empty value selects the current remote `main`. Select a reviewed
-`cloud-small`, `cloud-standard`, or `cloud-stress` scenario, a compatible
-infrastructure preset, `30m`, `2h`, `24h`, or `48h` active duration, bounded
-analysis grace, and a hard CNY cost ceiling.
+`cloud-small`, `cloud-medium`, or `cloud-large` scenario, a compatible
+`small`, `medium`, or `large` infrastructure preset, `30m`, `2h`, `24h`,
+`48h`, or `168h` active duration, `2h` or `6h` analysis grace, and a hard CNY
+cost ceiling. The seven-day large profile also requires its explicit cost
+confirmation input.
 
 For a quick end-to-end validation, select `cloud-small`, `30m` active duration,
-and `30m` Analysis Grace. The active-duration default remains `2h`, and the
-formal Alibaba canary remains `small + 2h`; the short validation does not
+and `2h` Analysis Grace. The workflow active-duration default is `48h`, while
+the formal Alibaba canary remains `small + 2h`; the short validation does not
 replace that attestation.
 
 The build job has no cloud identity. The protected provision job uses the
@@ -246,7 +249,7 @@ Then run analysis from a local checkout whose remote points to this repository:
 For normal operation, prefer the single finalization command instead:
 
 ```bash
-./scripts/cloud-sim/finalize.sh <run_id> --allow-fix-pr
+./scripts/cloud-sim/finalize.sh <run_id>
 ```
 
 Keep the command running. It reads the exact Finalization Schedule, waits until
@@ -258,12 +261,26 @@ released preflight using a structured released outcome rather than matching
 console text.
 It succeeds only after the exact Run reports empty provider inventory. If
 analysis fails, cleanup still runs to stop billing and the command returns the
-analysis failure after zero-resource verification. `--allow-fix-pr` remains
-optional; omit it when automatic Draft-PR remediation is not wanted.
+analysis failure after zero-resource verification. Finalization never starts
+optional remediation, pushes a branch, or waits for CI before exact Cleanup.
+It still accepts `--allow-fix-pr` as a compatibility flag, but defers that work
+until a separate, explicitly requested post-cleanup repository operation.
+Exact Cleanup request correlation comes from the finalizer's private `mktemp`
+directory and does not depend on the OpenSSL CLI, so a missing optional crypto
+tool cannot block the billing-stop dispatch. The analysis attempt owns a
+lease-aware wall-clock deadline with cleanup reserve. Finalize arms exact
+cleanup immediately after validating the checkout identity and creating its
+private state directory. `INT`, `TERM`, or terminal disconnect (`HUP`) during
+bounded GitHub authentication, workflow checks, schedule download, the
+analysis-ready wait, or terminal analysis stops the owned process group and
+then proceeds to exact Cleanup. Once cleanup starts, repeated terminal signals
+are ignored by both Finalize and its bounded command wrappers; the workflow
+join and independent released-state proof keep their whole-operation deadlines
+as the local backstop.
 
-The local command dispatches `Cloud Simulation - Analysis Session` as a
-short-lived session broker. The workflow first resolves the unique 90-day Run
-Locator and compares it to current Alibaba inventory. Before empty inventory
+The local command first dispatches a request-correlated, read-only `inspect`
+operation to `Cloud Simulation - Analysis Session`. The workflow resolves the
+unique 90-day Run Locator and compares it to current Alibaba inventory. Before empty inventory
 can mean `released`, STS verifies the current Alibaba caller's account hash
 and the adapter verifies the exact region against the locator; stale or
 cross-account configuration fails closed.
@@ -271,10 +288,18 @@ cross-account configuration fails closed.
 - A missing or ambiguous locator reports `unknown_run`.
 - A valid locator plus empty provider inventory reports `released`, prints
   `Simulation Run <run_id> 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。`, and stops before Codex.
+  The atomic result carries `provider.state=released` and
+  `provider.resources=[]`. This terminal verification resolves only the pinned
+  GitHub CLI; it does not require a local Go toolchain, OpenSSL/Base64 tools, or
+  a reachable public-IP echo service.
 - Existing resources with an unreachable MCP report `insufficient_evidence`,
   never `released`.
 
-For a live run, the workflow briefly admits its runner `/32`, pins the
+Only after `inspect` proves the exact run is live does the local command create
+an ephemeral RSA key, resolve its direct public IPv4, and dispatch `prepare`
+with strict client material under the same request correlation. Missing or
+invalid client IPv4/key material fails closed before ingress opens. For a live
+run, the workflow briefly admits its runner `/32`, pins the
 run-specific CA fingerprint from protected resource tags, verifies the public
 IP SAN, and exchanges its exact GitHub OIDC identity for a non-renewable
 Analysis Token. It then moves the Analysis Access Window to the local client's
@@ -286,8 +311,17 @@ minutes and cannot be renewed.
 
 The local command verifies the handoff identity and certificate fingerprint,
 checks out the exact deployed source SHA in a detached temporary worktree,
-decrypts the token, and starts an ephemeral read-only Codex session. Codex tool
-subprocesses inherit no caller environment and receive only an isolated home,
+decrypts the token, and starts an ephemeral read-only Codex session. Codex CLI
+version and login probes have wall-clock bounds. Source checkout first verifies
+the commit in the local object database; only a missing commit triggers one
+bounded `GIT_TERMINAL_PROMPT=0` fetch for the detached analysis worktree.
+Codex diagnosis, schema validation, cryptographic operations, and Git worktree
+operations each run in bounded process groups, so a child process cannot
+escape a timeout. Worktree
+checkout additionally ignores system/global Git configuration, while
+the bounded missing-source fetch retains the authenticated GitHub credential
+helper and disables interactive prompts. Codex tool subprocesses inherit no caller environment and
+receive only an isolated home,
 the approved executable path, and fixed locale. A strict Codex permission
 profile exposes only the detached source worktree plus minimal runtime files and
 denies tool network access; the token and Codex auth home remain available only
@@ -296,15 +330,17 @@ execution rules are ignored, and `.codex/config.toml` or `.codex/hooks.json` in
 the deployed source terminates analysis before Codex starts. Codex invokes the deployed revision's
 `$wukongim-cloud-analysis` skill and only the allowlisted Analysis MCP tools.
 Normal completion explicitly closes ingress;
-failure and interruption request best-effort closure, while token expiry and
+failure and interruption issue at most one short, bounded close dispatch for
+each request correlation without joining a long workflow from the EXIT trap.
+An IPv4 rebind receives a new request correlation and therefore its own close.
+Token expiry and
 the scheduled sweeper remain independent backstops. Provider inventory reads
 the rule deadline, so the sweeper preserves an unexpired local session and
 revokes only expired or malformed windows. The compact Diagnosis
 Result is printed locally and removed with the temporary session directory; an
 operator-owned result path is used only by `finalize.sh` to consume the
 validated diagnosis or provider-released state. No raw logs, metrics, profiles,
-or Evidence Bundle are uploaded. Optional remediation failure is reported
-separately and does not invalidate the completed Diagnosis Result.
+or Evidence Bundle are uploaded.
 
 For a live run, `workload_inspect` reads only the bounded simulator-local
 wkbench final summary. `healthy` requires that summary to be complete and
@@ -312,22 +348,13 @@ passed. The Diagnosis Result must preserve `workload_inspect` state and status
 in its compact Observation reference; a missing, failed, or in-progress summary
 cannot pass the healthy validator.
 
-Use `--diagnostic-focus '<question>'` to narrow the investigation. Use
-`--allow-fix-pr` only when local GitHub credentials may push a branch and open a
-Draft PR. A high-confidence, testable `product_defect` first closes the live
-Analysis Access Window, then starts a separate local Codex process in an
-isolated worktree. That remediation process receives no cloud identity, MCP
-token, MCP configuration, GitHub credential, SSH, or live access; it uses an
-isolated home directory and a strict permission profile limited to the
-remediation worktree, Go toolchain/module-cache reads, and isolated cache/temp
-writes; tool network access is denied. It must add regression coverage and may
-not change repository trust or cloud-analysis control files. Project Codex
-configuration and hooks remain forbidden in this second worktree. The local
-script does not execute AI-generated tests with the operator's host privileges.
-It pushes the guarded temporary branch, dispatches the existing read-only `CI`
-Workflow for that exact commit, and creates a Draft PR only after CI passes. It
-never merges automatically, and its PR body contains only trusted static
-identity/status text rather than model-authored diagnostic content.
+Use `--diagnostic-focus '<question>'` to narrow the investigation. The legacy
+`--allow-fix-pr` option is accepted only for command-line compatibility and
+prints a deferral notice. Neither `analyze.sh` nor `finalize.sh` changes code,
+pushes a branch, waits for CI, or creates a PR while provider resources may
+still be live. After exact Cleanup and independent `released`/empty-inventory
+proof, use the normal repository review and publishing workflow as a separate
+operation if the validated diagnosis requires a product fix.
 
 ## 4. Destroy or sweep
 

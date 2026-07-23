@@ -29,8 +29,8 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	if !cfg.Control.AllowBootstrap {
 		t.Fatal("Control.AllowBootstrap = false, want true for implicit single-node cluster")
 	}
-	if cfg.Slots.InitialSlotCount == 0 || cfg.Slots.HashSlotCount == 0 || cfg.Slots.ReplicaCount == 0 {
-		t.Fatalf("Slots defaults = %#v, want non-zero", cfg.Slots)
+	if cfg.Slots.InitialSlotCount != 1 || cfg.Slots.HashSlotCount != 256 || cfg.Slots.ReplicaCount != 1 {
+		t.Fatalf("Slots defaults = %#v, want 1 logical Slot Group, 256 physical hash slots, and one replica", cfg.Slots)
 	}
 	if cfg.Slots.TickInterval != defaultSlotTickInterval || cfg.Slots.ElectionTick != defaultSlotElectionTick || cfg.Slots.HeartbeatTick != defaultSlotHeartbeatTick {
 		t.Fatalf("Slot Raft timing defaults = %s/%d/%d, want %s/%d/%d",

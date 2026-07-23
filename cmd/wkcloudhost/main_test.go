@@ -81,6 +81,27 @@ func TestInstallSimulatorEnablesCloudViewOnlyWhenRequested(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(root, "etc/systemd/system/wukongim-cgroup-metrics.service")); !os.IsNotExist(err) {
 				t.Fatalf("node-only cgroup metrics service installed on simulator: %v", err)
 			}
+			for _, name := range []string{"scenario.yaml", "effective-node-runtime-contract.json"} {
+				source, err := os.ReadFile(filepath.Join(bundle, "config", name))
+				if err != nil {
+					t.Fatalf("read bundled %s: %v", name, err)
+				}
+				destination := filepath.Join(root, "etc/wukongim", name)
+				installed, err := os.ReadFile(destination)
+				if err != nil {
+					t.Fatalf("simulator contract file %s not installed: %v", name, err)
+				}
+				if string(installed) != string(source) {
+					t.Fatalf("installed %s differs from sealed bundle", name)
+				}
+				info, err := os.Stat(destination)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if info.Mode().Perm() != 0o640 {
+					t.Fatalf("installed %s mode = %o, want 640", name, info.Mode().Perm())
+				}
+			}
 		})
 	}
 }
