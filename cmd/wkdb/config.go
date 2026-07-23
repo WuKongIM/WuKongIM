@@ -12,6 +12,11 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+const (
+	defaultMetaStoreDirName    = "slotmeta"
+	defaultMessageStoreDirName = "messages"
+)
+
 // cliFlags contains values parsed from wkdb command-line flags.
 type cliFlags struct {
 	// configPath points to a wukongim.toml file.
@@ -46,8 +51,8 @@ func resolveCLIConfig(flags cliFlags, env []string) (cliConfig, error) {
 
 	flagDataDir := strings.TrimSpace(flags.dataDir)
 	dataDir := firstNonEmpty(flagDataDir, values["WK_NODE_DATA_DIR"])
-	metaPath := resolveStoragePath(flags.metaPath, flagDataDir, values["WK_STORAGE_DB_PATH"], dataDir, "data")
-	messagePath := resolveStoragePath(flags.messagePath, flagDataDir, values["WK_STORAGE_CHANNEL_LOG_PATH"], dataDir, "channellog")
+	metaPath := resolveStoragePath(flags.metaPath, flagDataDir, values["WK_STORAGE_DB_PATH"], dataDir, defaultMetaStoreDirName)
+	messagePath := resolveStoragePath(flags.messagePath, flagDataDir, values["WK_STORAGE_CHANNEL_LOG_PATH"], dataDir, defaultMessageStoreDirName)
 	hashSlotCount := flags.hashSlotCount
 	if hashSlotCount == 0 {
 		var err error

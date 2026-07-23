@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -53,10 +54,23 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 		return ch.ErrWriteFenced
 	}
 	if event.Append.ExpectedChannelEpoch != 0 && event.Append.ExpectedChannelEpoch != rc.state.Epoch {
-		return ch.ErrStaleMeta
+		return fmt.Errorf("%w: expected channel epoch %d, actual %d (expected leader epoch %d, actual %d, actual leader %d)",
+			ch.ErrStaleMeta,
+			event.Append.ExpectedChannelEpoch,
+			rc.state.Epoch,
+			event.Append.ExpectedLeaderEpoch,
+			rc.state.LeaderEpoch,
+			rc.state.Leader,
+		)
 	}
 	if event.Append.ExpectedLeaderEpoch != 0 && event.Append.ExpectedLeaderEpoch != rc.state.LeaderEpoch {
-		return ch.ErrStaleMeta
+		return fmt.Errorf("%w: expected leader epoch %d, actual %d (channel epoch %d, actual leader %d)",
+			ch.ErrStaleMeta,
+			event.Append.ExpectedLeaderEpoch,
+			rc.state.LeaderEpoch,
+			rc.state.Epoch,
+			rc.state.Leader,
+		)
 	}
 	if r.appendAdmissionGuard != nil {
 		err := r.appendAdmissionGuard.AllowChannelAppend(ctx, ch.AppendAdmissionRequest{

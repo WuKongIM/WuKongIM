@@ -303,6 +303,20 @@ func TestStartedNodeCleanupStopsCurrentProcessAfterRestart(t *testing.T) {
 	require.True(t, exited)
 }
 
+func TestStartedNodeRestartReplacesSingleUseProcess(t *testing.T) {
+	binaryPath := writeFakeNodeBinary(t)
+	first := startFakeNodeProcess(t, binaryPath, "restart-first")
+	node := &StartedNode{Spec: first.Spec, Process: first}
+	t.Cleanup(func() {
+		require.NoError(t, node.Stop())
+	})
+
+	require.NoError(t, node.Restart(binaryPath))
+	require.NotSame(t, first, node.Process)
+	require.False(t, first.Running())
+	require.True(t, node.Process.Running())
+}
+
 func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) {
 	binaryPath := writeFakeNodeBinary(t)
 	cleanupTB := &recordedCleanupTB{}

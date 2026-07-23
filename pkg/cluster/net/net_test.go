@@ -286,6 +286,22 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 	}
 }
 
+func TestTransportServerSerializesOrderedRaftServices(t *testing.T) {
+	for _, concurrency := range []int{0, 32} {
+		server := NewTransportServer(TransportServerConfig{
+			Service: TransportServiceConfig{Concurrency: concurrency},
+		})
+		defer server.Stop()
+
+		for _, serviceID := range []uint8{MsgSlotRaft, MsgSlotRaftBatch, RPCControlRaft} {
+			opts := server.serviceOptions(serviceID)
+			if opts.Concurrency != 1 {
+				t.Fatalf("service %d concurrency = %d with configured concurrency %d, want 1", serviceID, opts.Concurrency, concurrency)
+			}
+		}
+	}
+}
+
 func TestTransportServiceAliasesCoverKnownServiceIDs(t *testing.T) {
 	for name, serviceID := range rpcServiceIDsForTest() {
 		alias := transportServiceAlias(serviceID)

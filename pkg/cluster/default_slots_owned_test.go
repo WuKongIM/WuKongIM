@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
@@ -49,6 +50,27 @@ func TestNetworkSlotTransportOwnsReadyMessagePayloads(t *testing.T) {
 	}
 }
 
+func TestNetworkSlotTransportAttemptsEveryTargetAfterSendErrors(t *testing.T) {
+	sendErr := errors.New("peer unavailable")
+	sender := &failingSlotSender{err: sendErr}
+	transport := networkSlotTransport{sender: sender}
+
+	err := transport.Send(context.Background(), []multiraft.Envelope{
+		{SlotID: 7, Message: raftpb.Message{From: 2, To: 1, Type: raftpb.MsgVote, Term: 3}},
+		{SlotID: 7, Message: raftpb.Message{From: 2, To: 3, Type: raftpb.MsgVote, Term: 3}},
+		{SlotID: 8, Message: raftpb.Message{From: 2, To: 4, Type: raftpb.MsgHeartbeat, Term: 5}},
+	})
+
+	if !errors.Is(err, sendErr) {
+		t.Fatalf("Send() error = %v, want %v", err, sendErr)
+	}
+	got := append([]uint64(nil), sender.nodeIDs...)
+	slices.Sort(got)
+	if want := []uint64{1, 3, 4}; !slices.Equal(got, want) {
+		t.Fatalf("attempted node IDs = %v, want %v", got, want)
+	}
+}
+
 func TestEncodeSlotRaftBatchUsesBinaryFraming(t *testing.T) {
 	data := bytes.Repeat([]byte("x"), 1024)
 	payload, err := encodeSlotRaftBatch([]multiraft.Envelope{
@@ -90,6 +112,16 @@ type recordingOwnedSlotSender struct {
 	payload        []byte
 	sendCount      int
 	ownedSendCount int
+}
+
+type failingSlotSender struct {
+	err     error
+	nodeIDs []uint64
+}
+
+func (s *failingSlotSender) Send(_ context.Context, nodeID uint64, _ uint8, _ []byte) error {
+	s.nodeIDs = append(s.nodeIDs, nodeID)
+	return s.err
 }
 
 func (s *recordingOwnedSlotSender) Send(context.Context, uint64, uint8, []byte) error {

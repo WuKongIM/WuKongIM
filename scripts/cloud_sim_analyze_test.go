@@ -258,7 +258,10 @@ func TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes(t *testing.T) {
 				"WK_ANALYZE_STATE_DIR="+stateDir,
 				"WK_ANALYZE_SESSION_STATE=live",
 				"WK_ANALYZE_CODEX_HANG="+testCase.hangMode,
-				"WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS=1",
+				// Keep ordinary fake tool startup tolerant of concurrent package
+				// load while preserving the one-second Codex probe under test.
+				"WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS=3",
+				"WK_ANALYSIS_CODEX_PROBE_TIMEOUT_SECONDS=1",
 			)
 			started := time.Now()
 			output, err := command.CombinedOutput()
@@ -291,7 +294,7 @@ func TestCloudSimulationAnalyzeBoundsDiagnosisAndValidationProcessGroups(t *test
 		wantOutput string
 	}{
 		{name: "diagnosis Codex", hangTarget: "diagnosis", wantOutput: "local Codex diagnosis exceeded the Analysis Token deadline"},
-		{name: "diagnosis validator", hangTarget: "validation", wantOutput: "Diagnosis Result validation timed out after 1 seconds"},
+		{name: "diagnosis validator", hangTarget: "validation", wantOutput: "Diagnosis Result validation timed out after 3 seconds"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			root := repoRoot(t)
@@ -317,7 +320,9 @@ func TestCloudSimulationAnalyzeBoundsDiagnosisAndValidationProcessGroups(t *test
 				"WK_ANALYZE_STATE_DIR="+stateDir,
 				"WK_ANALYZE_SESSION_STATE=live",
 				"WK_ANALYZE_HANG_PID_FILE="+descendantPIDFile,
-				"WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS=1",
+				// Keep ordinary fake tool startup separate from the one-second
+				// diagnosis deadline under concurrent repository test load.
+				"WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS=3",
 				"WK_ANALYSIS_DIAGNOSIS_TIMEOUT_SECONDS=1",
 			)
 			if testCase.hangTarget == "validation" {

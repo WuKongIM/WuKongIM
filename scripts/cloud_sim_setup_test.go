@@ -825,7 +825,10 @@ test -n "$output"
 cp "$WK_SETUP_FAKE_GO_ARCHIVE" "$output"
 `)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// This context is only the test-harness watchdog. The setup script keeps
+	// its own per-command deadlines; allow archive extraction and process
+	// startup enough slack when the scripts package is running in parallel.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"), "--yes")
 	command.WaitDelay = time.Second
@@ -895,7 +898,10 @@ test -n "$output"
 printf '%s\n' corrupt >"$output"
 `)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Keep the outer harness from masking the checksum assertion under
+	// concurrent process startup; the script's command deadline remains the
+	// behavior under test.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts", "cloud-sim", "setup.sh"), "--yes")
 	command.WaitDelay = time.Second

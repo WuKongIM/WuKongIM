@@ -325,6 +325,8 @@ split_csv "$METRICS_ADDRS" METRICS_VALUES
 WORKER_PID=""
 CLUSTER_PID=""
 RESOURCE_SAMPLER_PID=""
+RUNTIME_POOL_SAMPLER_PID=""
+RUNTIME_POOL_SAMPLER_STOP_FILE=""
 
 stop_worker_exact_from_status() {
   local reason="${1:-cleanup}"
@@ -368,6 +370,9 @@ stop_worker_exact_from_status() {
 }
 
 cleanup() {
+  if declare -F stop_runtime_pool_sampler >/dev/null 2>&1; then
+    stop_runtime_pool_sampler
+  fi
   stop_server_resource_sampler
   if [[ -n "$WORKER_PID" ]]; then
     log "stopping temporary worker pid=$WORKER_PID"
@@ -988,17 +993,17 @@ start_runtime_pool_sampler() {
   stop_file="$(runtime_pool_sampler_stop_file "$tag")"
   rm -f "$stop_file"
   runtime_pool_sampler_loop "$tag" "$stop_file" >/dev/null 2>&1 &
-  printf '%s\n' "$!"
+  RUNTIME_POOL_SAMPLER_PID="$!"
+  RUNTIME_POOL_SAMPLER_STOP_FILE="$stop_file"
 }
 
 stop_runtime_pool_sampler() {
-  local tag="$1"
-  local pid="$2"
-  local stop_file
-  [[ -n "$pid" ]] || return
-  stop_file="$(runtime_pool_sampler_stop_file "$tag")"
-  touch "$stop_file"
-  wait "$pid" 2>/dev/null || true
+  [[ -n "$RUNTIME_POOL_SAMPLER_PID" ]] || return 0
+  touch "$RUNTIME_POOL_SAMPLER_STOP_FILE"
+  wait "$RUNTIME_POOL_SAMPLER_PID" 2>/dev/null || true
+  rm -f "$RUNTIME_POOL_SAMPLER_STOP_FILE"
+  RUNTIME_POOL_SAMPLER_PID=""
+  RUNTIME_POOL_SAMPLER_STOP_FILE=""
 }
 
 rpc_pull_qps_summary() {
@@ -1131,7 +1136,7 @@ cluster_transport_peak_summary() {
 
 run_attempt() {
   local qps="$1"
-  local tag report_dir exit_status duration sampler_pid
+  local tag report_dir exit_status duration
   tag="$(qps_tag "$qps")"
   report_dir="$OUT_DIR/reports/${tag}-qps"
   duration="$(duration_seconds "$DURATION")"
@@ -1142,7 +1147,7 @@ run_attempt() {
 
   log "running qps=$qps tag=$tag"
   scrape_metrics "$tag" before
-  sampler_pid="$(start_runtime_pool_sampler "$tag")"
+  start_runtime_pool_sampler "$tag"
   exit_status=0
   "$WK_BENCH_BIN" run \
     --target "$OUT_DIR/target.yaml" \
@@ -1150,7 +1155,7 @@ run_attempt() {
     --workers "$OUT_DIR/workers.yaml" \
     --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
-  stop_runtime_pool_sampler "$tag" "$sampler_pid"
+  stop_runtime_pool_sampler
   scrape_metrics "$tag" after
   classify_metrics "$tag"
   rpc_pull_qps_summary "$tag" "$duration"

@@ -36,6 +36,57 @@ func TestStepUnknownSlotReturnsErrSlotNotFound(t *testing.T) {
 	}
 }
 
+func TestClassifyRawProposalError(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		status raft.BasicStatus
+		want   error
+	}{
+		{
+			name: "leadership transfer",
+			err:  raft.ErrProposalDropped,
+			status: raft.BasicStatus{
+				SoftState:      raft.SoftState{RaftState: raft.StateLeader},
+				LeadTransferee: 2,
+			},
+			want: ErrNotLeader,
+		},
+		{
+			name: "candidate",
+			err:  raft.ErrProposalDropped,
+			status: raft.BasicStatus{
+				SoftState: raft.SoftState{RaftState: raft.StateCandidate},
+			},
+			want: ErrNotLeader,
+		},
+		{
+			name: "leader uncommitted budget",
+			err:  raft.ErrProposalDropped,
+			status: raft.BasicStatus{
+				SoftState: raft.SoftState{RaftState: raft.StateLeader},
+			},
+			want: ErrProposalBackpressure,
+		},
+		{
+			name: "other error",
+			err:  ErrSlotClosed,
+			status: raft.BasicStatus{
+				SoftState: raft.SoftState{RaftState: raft.StateLeader},
+			},
+			want: ErrSlotClosed,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyRawProposalError(tt.err, tt.status)
+			if !errors.Is(got, tt.want) {
+				t.Fatalf("classifyRawProposalError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRuntimeTickLoopEnqueuesOpenSlots(t *testing.T) {
 	rt := newStartedRuntime(t)
 	if err := rt.OpenSlot(context.Background(), newInternalSlotOptions(101)); err != nil {

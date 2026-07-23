@@ -347,8 +347,7 @@ func restartSingleNodeCluster(t *testing.T, node *suite.StartedNode) {
 
 	require.NotNil(t, node)
 	require.NotNil(t, node.Process)
-	require.NoError(t, node.Process.Stop())
-	require.NoError(t, node.Process.Start())
+	require.NoError(t, node.Restart(node.Process.BinaryPath))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

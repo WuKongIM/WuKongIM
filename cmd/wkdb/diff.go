@@ -138,8 +138,8 @@ func (f diffCommandFlags) targetInspectOptions(hashSlotCount uint16) inspect.Opt
 func diffInspectOptions(dataDir, metaPath, messagePath string, hashSlotCount uint16) inspect.Options {
 	dataDir = strings.TrimSpace(dataDir)
 	return inspect.Options{
-		MetaPath:      resolveStoragePath(metaPath, dataDir, "", dataDir, "data"),
-		MessagePath:   resolveStoragePath(messagePath, dataDir, "", dataDir, "channellog"),
+		MetaPath:      resolveStoragePath(metaPath, dataDir, "", dataDir, defaultMetaStoreDirName),
+		MessagePath:   resolveStoragePath(messagePath, dataDir, "", dataDir, defaultMessageStoreDirName),
 		HashSlotCount: hashSlotCount,
 		DefaultLimit:  100,
 		MaxLimit:      10000,

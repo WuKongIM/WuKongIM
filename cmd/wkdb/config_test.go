@@ -13,10 +13,10 @@ func TestResolveConfigFromDataDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveCLIConfig(): %v", err)
 	}
-	if cfg.options.MetaPath != filepath.Join(dir, "data") {
+	if cfg.options.MetaPath != filepath.Join(dir, "slotmeta") {
 		t.Fatalf("MetaPath = %q", cfg.options.MetaPath)
 	}
-	if cfg.options.MessagePath != filepath.Join(dir, "channellog") {
+	if cfg.options.MessagePath != filepath.Join(dir, "messages") {
 		t.Fatalf("MessagePath = %q", cfg.options.MessagePath)
 	}
 }
@@ -64,7 +64,7 @@ hash_slot_count = 16
 	if err != nil {
 		t.Fatalf("resolveCLIConfig(): %v", err)
 	}
-	if cfg.options.MetaPath != filepath.Join(envDir, "data") {
+	if cfg.options.MetaPath != filepath.Join(envDir, "slotmeta") {
 		t.Fatalf("MetaPath = %q", cfg.options.MetaPath)
 	}
 	if cfg.options.HashSlotCount != 32 {
