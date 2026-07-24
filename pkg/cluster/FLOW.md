@@ -658,6 +658,12 @@ The real transport exposes that remote handler rejection as a structured
 `transport.RemoteError` with code `remote_error` and an exactly matching
 message; fallback accepts only that boundary shape or the local codec sentinel,
 never a substring match.
+Missing RPC services use the stable `service_not_found` transport error code.
+The cluster transport boundary maps that code to `clusternet.ErrServiceNotFound`;
+for mixed-version peers it also recognizes only the old server's exact
+service-specific message. Callers can therefore distinguish a capability absent
+during rolling upgrade from node or transport unavailability without broad
+string matching.
 Current handlers answer a valid v5 request with a v5 response; v6 requests keep
 v6 responses and therefore preserve `RetentionThroughSeq` and `WriteFence` in
 `Pull{NeedMeta=true}` metadata. Other transport or application errors never

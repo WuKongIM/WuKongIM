@@ -710,7 +710,7 @@ func (r *Runtime) startWatchLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	r.watchCancel = cancel
 	r.watchWG.Add(1)
-	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskClusterControlWatch, func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskClusterRuntimeControlWatch, func() {
 		defer r.watchWG.Done()
 		watch := r.backend.Watch()
 		for {

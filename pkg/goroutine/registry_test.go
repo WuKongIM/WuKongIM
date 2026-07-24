@@ -46,11 +46,33 @@ func TestRegistryManagedTaskSnapshot(t *testing.T) {
 	}
 }
 
+func TestRegistryBootIdentitySeparatesCounterAndPeakResets(t *testing.T) {
+	first := New()
+	done := make(chan struct{})
+	first.Go(TaskManagerSnapshotFanout, func() { close(done) })
+	<-done
+	waitForTaskActive(t, first, TaskManagerSnapshotFanout, 0)
+	firstSnapshot := first.Snapshot()
+	firstTask, _ := findTaskSnapshot(firstSnapshot, TaskManagerSnapshotFanout)
+	if firstTask.TotalStarted != 1 || firstTask.Peak != 1 {
+		t.Fatalf("first boot task = %+v, want started/peak 1", firstTask)
+	}
+
+	secondSnapshot := New().Snapshot()
+	secondTask, _ := findTaskSnapshot(secondSnapshot, TaskManagerSnapshotFanout)
+	if secondSnapshot.BootID == firstSnapshot.BootID {
+		t.Fatalf("second boot id = %q, want distinct from first boot", secondSnapshot.BootID)
+	}
+	if secondTask.TotalStarted != 0 || secondTask.Peak != 0 {
+		t.Fatalf("second boot task = %+v, want reset counters and peak", secondTask)
+	}
+}
+
 func TestRegistryWaitReturnsBoundedTaskEvidence(t *testing.T) {
 	r := New()
 	blocker := make(chan struct{})
-	r.Go(TaskAppLifecycle, func() { <-blocker })
-	waitForTaskActive(t, r, TaskAppLifecycle, 1)
+	r.Go(TaskAppConversationDrain, func() { <-blocker })
+	waitForTaskActive(t, r, TaskAppConversationDrain, 1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -62,7 +84,7 @@ func TestRegistryWaitReturnsBoundedTaskEvidence(t *testing.T) {
 	if waitErr.Module != ModuleApp || len(waitErr.Tasks) != 1 {
 		t.Fatalf("wait evidence = %+v, want app task", waitErr)
 	}
-	if waitErr.Tasks[0].Task != TaskAppLifecycle || waitErr.Tasks[0].Active != 1 {
+	if waitErr.Tasks[0].Task != TaskAppConversationDrain || waitErr.Tasks[0].Active != 1 {
 		t.Fatalf("task evidence = %+v, want lifecycle active=1", waitErr.Tasks[0])
 	}
 	if waitErr.Tasks[0].RunningFor <= 0 {
@@ -88,10 +110,47 @@ func TestRegistryWaitFromExcludesPreexistingProcessTasks(t *testing.T) {
 	if err := r.Group(ModuleApp).WaitFrom(ctx, baseline); err != nil {
 		t.Fatalf("WaitFrom() error = %v, want preexisting task excluded", err)
 	}
+	if r.hasLifecycleFence.Load() {
+		t.Fatal("lifecycle fence remained enabled after WaitFrom")
+	}
 	if task, _ := findTaskSnapshot(r.Snapshot(), TaskAppTopCollector); task.Active != 1 {
 		t.Fatalf("preexisting task active = %d, want 1", task.Active)
 	}
 	close(preexisting)
+}
+
+func TestRegistryEmptyBaselineKeepsLifecycleFastPath(t *testing.T) {
+	r := New()
+	r.Baseline()
+	if r.hasLifecycleFence.Load() {
+		t.Fatal("empty baseline enabled lifecycle fence accounting")
+	}
+}
+
+func TestRegistryWaitFromDoesNotLetPreexistingExitMaskOwnedTask(t *testing.T) {
+	r := New()
+	preexisting := make(chan struct{})
+	r.Go(TaskAppTopCollector, func() { <-preexisting })
+	waitForTaskActive(t, r, TaskAppTopCollector, 1)
+	baseline := r.Baseline()
+
+	owned := make(chan struct{})
+	r.Go(TaskAppTopCollector, func() { <-owned })
+	waitForTaskActive(t, r, TaskAppTopCollector, 2)
+	close(preexisting)
+	waitForTaskActive(t, r, TaskAppTopCollector, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err := r.Group(ModuleApp).WaitFrom(ctx, baseline)
+	var waitErr *WaitError
+	if !errors.As(err, &waitErr) {
+		t.Fatalf("WaitFrom() error = %v, want owned task evidence after preexisting exit", err)
+	}
+	if len(waitErr.Tasks) != 1 || waitErr.Tasks[0].Task != TaskAppTopCollector || waitErr.Tasks[0].Active != 1 {
+		t.Fatalf("WaitFrom() evidence = %+v, want top collector active=1", waitErr.Tasks)
+	}
+	close(owned)
 }
 
 func TestRegistryIsolatedTaskRecoversAndReportsPanic(t *testing.T) {
@@ -122,8 +181,8 @@ func TestRegistryIsolatedTaskRecoversAndReportsPanic(t *testing.T) {
 		t.Fatalf("Wait() error = %v", err)
 	}
 	task, ok := findTaskSnapshot(r.Snapshot(), TaskManagerSnapshotFanout)
-	if !ok || task.PanicCount != 1 {
-		t.Fatalf("task snapshot = %+v, %v; want one panic", task, ok)
+	if !ok || task.PanicCount != 1 || task.Health != HealthWarning || task.HealthReason != "panic" {
+		t.Fatalf("task snapshot = %+v, %v; want one reported warning/panic failure", task, ok)
 	}
 }
 
@@ -255,6 +314,172 @@ func TestRegistryDerivesFixedAndPoolHealth(t *testing.T) {
 	}
 }
 
+func TestRegistryMarksRequiredNeverStartedTaskMissingAfterReadiness(t *testing.T) {
+	r := New()
+	r.SetReady(true)
+
+	task, ok := findTaskSnapshot(r.Snapshot(), TaskClusterNodeControlWatch)
+	if !ok {
+		t.Fatalf("task %q missing from snapshot", TaskClusterNodeControlWatch)
+	}
+	if task.Health != HealthCritical || task.HealthReason != "missing" {
+		t.Fatalf("required never-started health = %s/%s, want critical/missing", task.Health, task.HealthReason)
+	}
+}
+
+func TestRegistryTreatsCompletedDatabaseMigrationAsHealthyBurst(t *testing.T) {
+	r := New()
+	done := make(chan struct{})
+	r.Go(TaskDatabaseLatestMigration, func() { close(done) })
+	<-done
+	waitForTaskActive(t, r, TaskDatabaseLatestMigration, 0)
+	r.SetReady(true)
+
+	task, _ := findTaskSnapshot(r.Snapshot(), TaskDatabaseLatestMigration)
+	if task.Kind != TaskKindBurst {
+		t.Fatalf("migration kind = %s, want burst", task.Kind)
+	}
+	if task.Health != HealthNormal || task.HealthReason != "" {
+		t.Fatalf("completed migration health = %s/%s, want normal", task.Health, task.HealthReason)
+	}
+}
+
+func TestRegistryDistinguishesTransientPressureAndFullQueue(t *testing.T) {
+	r := New()
+	stats := PoolStats{
+		Goroutines:    3,
+		BusyTasks:     2,
+		Capacity:      2,
+		QueueDepth:    1,
+		QueueCapacity: 4,
+	}
+	unregister, err := r.RegisterPool(TaskGatewayAsyncAuth, func() PoolStats { return stats })
+	if err != nil {
+		t.Fatalf("RegisterPool() error = %v", err)
+	}
+	defer unregister()
+
+	task, _ := findTaskSnapshot(r.Snapshot(), TaskGatewayAsyncAuth)
+	if task.Health != HealthNormal {
+		t.Fatalf("transient pressure health = %s/%s, want normal", task.Health, task.HealthReason)
+	}
+
+	now := time.Now()
+	r.poolsMu.RLock()
+	for _, registration := range r.pools {
+		if registration.task != TaskGatewayAsyncAuth {
+			continue
+		}
+		registration.pressureMu.Lock()
+		registration.pressureSince = now.Add(-poolPressureGrace - time.Second)
+		registration.pressureObserved = now
+		registration.pressureMu.Unlock()
+	}
+	r.poolsMu.RUnlock()
+	task, _ = findTaskSnapshot(r.Snapshot(), TaskGatewayAsyncAuth)
+	if task.Health != HealthWarning || task.HealthReason != "pressure" {
+		t.Fatalf("sustained pressure health = %s/%s, want warning/pressure", task.Health, task.HealthReason)
+	}
+
+	stats.BusyTasks = 1
+	stats.QueueDepth = stats.QueueCapacity
+	task, _ = findTaskSnapshot(r.Snapshot(), TaskGatewayAsyncAuth)
+	if task.Health != HealthCritical || task.HealthReason != "saturated" {
+		t.Fatalf("full queue health = %s/%s, want critical/saturated", task.Health, task.HealthReason)
+	}
+}
+
+func TestRegistryPoolHealthUsesWorstRegistrationBeforeAggregation(t *testing.T) {
+	r := New()
+	full := PoolStats{
+		Goroutines:    2,
+		BusyTasks:     2,
+		Capacity:      2,
+		QueueDepth:    4,
+		QueueCapacity: 4,
+	}
+	idle := PoolStats{
+		Goroutines:    100,
+		Capacity:      100,
+		QueueCapacity: 1000,
+	}
+	unregisterFull, err := r.RegisterPool(TaskChannelWorkerPool, func() PoolStats { return full })
+	if err != nil {
+		t.Fatalf("RegisterPool(full) error = %v", err)
+	}
+	defer unregisterFull()
+	unregisterIdle, err := r.RegisterPool(TaskChannelWorkerPool, func() PoolStats { return idle })
+	if err != nil {
+		t.Fatalf("RegisterPool(idle) error = %v", err)
+	}
+	defer unregisterIdle()
+
+	task, _ := findTaskSnapshot(r.Snapshot(), TaskChannelWorkerPool)
+	if task.QueueDepth >= task.QueueCapacity {
+		t.Fatalf("aggregate queue = %d/%d, want diluted below capacity for regression proof", task.QueueDepth, task.QueueCapacity)
+	}
+	if task.Health != HealthCritical || task.HealthReason != "saturated" {
+		t.Fatalf("multi-pool health = %s/%s, want critical/saturated", task.Health, task.HealthReason)
+	}
+
+	full.QueueDepth = 1
+	r.Snapshot()
+	now := time.Now()
+	r.poolsMu.RLock()
+	for _, registration := range r.pools {
+		if registration.task != TaskChannelWorkerPool || registration.snapshot().QueueCapacity != 4 {
+			continue
+		}
+		registration.pressureMu.Lock()
+		registration.pressureSince = now.Add(-poolPressureGrace - time.Second)
+		registration.pressureObserved = now
+		registration.pressureMu.Unlock()
+	}
+	r.poolsMu.RUnlock()
+	task, _ = findTaskSnapshot(r.Snapshot(), TaskChannelWorkerPool)
+	if task.BusyTasks*100 >= task.PoolCapacity*80 {
+		t.Fatalf("aggregate utilization = %d/%d, want diluted below pressure threshold for regression proof", task.BusyTasks, task.PoolCapacity)
+	}
+	if task.Health != HealthWarning || task.HealthReason != "pressure" {
+		t.Fatalf("multi-pool pressure = %s/%s, want warning/pressure", task.Health, task.HealthReason)
+	}
+}
+
+func TestRegistryPoolPressureRequiresRecentObservations(t *testing.T) {
+	r := New()
+	stats := PoolStats{
+		Goroutines:    2,
+		BusyTasks:     2,
+		Capacity:      2,
+		QueueDepth:    1,
+		QueueCapacity: 4,
+	}
+	unregister, err := r.RegisterPool(TaskGatewayAsyncAuth, func() PoolStats { return stats })
+	if err != nil {
+		t.Fatalf("RegisterPool() error = %v", err)
+	}
+	defer unregister()
+
+	r.Snapshot()
+	now := time.Now()
+	r.poolsMu.RLock()
+	for _, registration := range r.pools {
+		if registration.task != TaskGatewayAsyncAuth {
+			continue
+		}
+		registration.pressureMu.Lock()
+		registration.pressureSince = now.Add(-poolPressureGrace - time.Second)
+		registration.pressureObserved = now.Add(-poolPressureMaxObservationGap - time.Second)
+		registration.pressureMu.Unlock()
+	}
+	r.poolsMu.RUnlock()
+
+	task, _ := findTaskSnapshot(r.Snapshot(), TaskGatewayAsyncAuth)
+	if task.Health != HealthNormal {
+		t.Fatalf("stale pressure observation health = %s/%s, want normal", task.Health, task.HealthReason)
+	}
+}
+
 func TestRegistrySupportsConcurrentLifecycleAndSnapshots(t *testing.T) {
 	r := New()
 	release := make(chan struct{})
@@ -285,6 +510,18 @@ func TestRegistrySupportsConcurrentLifecycleAndSnapshots(t *testing.T) {
 	}
 	readers.Wait()
 	close(release)
+}
+
+func BenchmarkRegistryLifecycleAccounting(b *testing.B) {
+	r := New()
+	_, state := r.mustTask(TaskChannelAppendRouter)
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			generation := r.start(state)
+			r.done(state, generation)
+		}
+	})
 }
 
 func TestRegistrySnapshotAverageStaysBelowOneMillisecond(t *testing.T) {

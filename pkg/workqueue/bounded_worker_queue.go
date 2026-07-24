@@ -215,6 +215,7 @@ func (q *BoundedWorkerQueue[T]) poolStats() goruntimeregistry.PoolStats {
 		BusyTasks:     q.running.Load(),
 		Capacity:      int64(q.cfg.Workers),
 		QueueDepth:    int64(q.QueueDepth()),
+		QueueCapacity: int64(q.cfg.QueueSize),
 		RejectedTotal: q.rejected.Load(),
 	}
 }

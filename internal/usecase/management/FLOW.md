@@ -52,6 +52,11 @@ user management, and system UID projections/actions used by
 `/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
 `/manager/system-users*`.
 
+The package also owns the entry-independent `GoroutineSnapshot` read model used
+between app-local registry projection, node RPC, and Manager HTTP. Access
+adapters depend on this bounded DTO rather than on the concrete
+`pkg/goroutine.Registry` runtime type.
+
 `Options` remains the composition-root facade, while `App` stores its port
 inventory in node, channel, user, message, and operations dependency groups.
 These groups improve construction and navigation; they are not independent

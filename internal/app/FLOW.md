@@ -352,7 +352,8 @@ New(Config)
      category combines Prometheus node/module history with process-wide local
      snapshots and an eight-worker, per-node-timeout Manager Goroutine RPC
      fan-out, coalescing concurrent reads and caching successful peer reads for
-     two seconds; the realtime monitor
+     two seconds. Global refreshes evict removed-node entries and the cache is
+     hard-capped at the same 256-node response bound; the realtime monitor
      does not read from `topCollector`
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
@@ -819,14 +820,15 @@ Stop(ctx)
 ```
 
 The app always installs the process-wide `pkg/goroutine` registry, passes it to
-Cluster and Gateway configuration, exposes it through API debug and Manager
-node RPC readers, and registers its Prometheus collector with constant node
+Cluster and Gateway configuration, projects it into the management goroutine
+read model for Manager node RPC readers, exposes the concrete snapshot only
+through the local API debug hook, and registers its Prometheus collector with constant node
 identity labels. Metrics and Prometheus history remain configurable, but
 goroutine lifecycle accounting has no disable switch.
 After component shutdown completes, `App.Stop` waits each fixed goroutine
 module with the caller context. A deadline returns bounded live task evidence
 instead of silently reporting a clean stop. The wait is relative to the
-process-registry baseline captured before App-owned runtimes are constructed,
+process-registry launch/registration baseline captured before App-owned runtimes are constructed,
 so pre-existing process tasks are not reassigned to this App.
 
 `Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway

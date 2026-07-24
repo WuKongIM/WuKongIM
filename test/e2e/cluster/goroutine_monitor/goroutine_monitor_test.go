@@ -37,6 +37,11 @@ func TestThreeNodeManagerReportsGoroutineOwnershipByNodeAndModule(t *testing.T) 
 		require.Positive(t, node.Snapshot.ProcessTotal, "node %d process total", node.NodeID)
 		require.Positive(t, node.Snapshot.ManagedTotal, "node %d managed total", node.NodeID)
 		require.True(t, hasActiveModule(node.Snapshot.Modules, "cluster"), "node %d missing active cluster ownership", node.NodeID)
+		requireNoCriticalModules(t, node)
+		require.Equal(t, "normal", taskHealth(node.Snapshot.Modules, "cluster/node_control_watch"), "node %d node control watch health", node.NodeID)
+		require.Equal(t, "normal", taskHealth(node.Snapshot.Modules, "cluster/runtime_control_watch"), "node %d runtime control watch health", node.NodeID)
+		require.Equal(t, "normal", taskHealth(node.Snapshot.Modules, "transport/client_observer"), "node %d client observer health", node.NodeID)
+		require.Equal(t, "normal", taskHealth(node.Snapshot.Modules, "transport/server_observer"), "node %d server observer health", node.NodeID)
 	}
 
 	selectedCtx, cancelSelected := context.WithTimeout(context.Background(), 10*time.Second)
@@ -59,6 +64,24 @@ func hasActiveModule(modules []goroutineModuleDTO, name string) bool {
 		}
 	}
 	return false
+}
+
+func requireNoCriticalModules(t *testing.T, node goroutineNodeDTO) {
+	t.Helper()
+	for _, module := range node.Snapshot.Modules {
+		require.NotEqual(t, "critical", module.Health, "node %d module %s health", node.NodeID, module.Module)
+	}
+}
+
+func taskHealth(modules []goroutineModuleDTO, id string) string {
+	for _, module := range modules {
+		for _, task := range module.Tasks {
+			if task.Task == id && task.Active == 1 {
+				return task.Health
+			}
+		}
+	}
+	return ""
 }
 
 type goroutineMonitorResponse struct {
@@ -88,6 +111,14 @@ type goroutineSnapshotDTO struct {
 }
 
 type goroutineModuleDTO struct {
-	Module string `json:"module"`
+	Module string             `json:"module"`
+	Active int64              `json:"active"`
+	Health string             `json:"health"`
+	Tasks  []goroutineTaskDTO `json:"tasks"`
+}
+
+type goroutineTaskDTO struct {
+	Task   string `json:"task"`
 	Active int64  `json:"active"`
+	Health string `json:"health"`
 }

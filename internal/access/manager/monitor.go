@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/gin-gonic/gin"
 )
 
@@ -172,7 +172,7 @@ type RealtimeMonitorGoroutineNode struct {
 	// Error is a bounded non-fatal snapshot error.
 	Error string `json:"error,omitempty"`
 	// Snapshot is present when Supported is true and the read succeeded.
-	Snapshot *goruntimeregistry.Snapshot `json:"snapshot,omitempty"`
+	Snapshot *managementusecase.GoroutineSnapshot `json:"snapshot,omitempty"`
 }
 
 // RealtimeMonitorPrometheusSource reports Prometheus query availability.

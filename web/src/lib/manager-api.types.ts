@@ -391,6 +391,7 @@ export type GoroutineTaskSnapshot = {
   busy_tasks?: number
   pool_capacity?: number
   queue_depth?: number
+  queue_capacity?: number
   rejected_total?: number
   running_for?: number
   health: "normal" | "warning" | "critical"
@@ -407,6 +408,7 @@ export type GoroutineModuleSnapshot = {
   busy_tasks?: number
   pool_capacity?: number
   queue_depth?: number
+  queue_capacity?: number
   rejected_total?: number
   tasks: GoroutineTaskSnapshot[]
   health: "normal" | "warning" | "critical"

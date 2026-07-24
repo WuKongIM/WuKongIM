@@ -27,8 +27,8 @@ type ObserverDrain struct {
 	wg                sync.WaitGroup
 }
 
-// NewObserverDrain wraps target with a bounded non-blocking event drain.
-func NewObserverDrain(target Observer) *ObserverDrain {
+// NewObserverDrain wraps target with a bounded non-blocking event drain owned by taskID.
+func NewObserverDrain(target Observer, taskID goruntimeregistry.TaskID) *ObserverDrain {
 	if target == nil {
 		return nil
 	}
@@ -39,7 +39,7 @@ func NewObserverDrain(target Observer) *ObserverDrain {
 		admissionsDrained: make(chan struct{}, 1),
 	}
 	d.wg.Add(1)
-	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportObserver, d.run)
+	goruntimeregistry.SafeGo(nil, taskID, d.run)
 	return d
 }
 

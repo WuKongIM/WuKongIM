@@ -391,8 +391,12 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 	status := body[0]
 	payload := append([]byte(nil), body[1:]...)
 	if status != wire.ResponseOK {
+		code := core.RemoteErrorCodeGeneric
+		if status == wire.ResponseServiceNotFound {
+			code = core.RemoteErrorCodeServiceNotFound
+		}
 		c.pending.Complete(frame.Header.RequestID, rpc.Response{
-			Err: core.RemoteError{Code: "remote_error", Message: string(payload)},
+			Err: core.RemoteError{Code: code, Message: string(payload)},
 		})
 		c.observePendingRPC("ok")
 		return

@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // ManagerGoroutineRPCServiceID is the cluster RPC service for node-local managed goroutine snapshots.
 const ManagerGoroutineRPCServiceID uint8 = clusternet.RPCManagerGoroutines
 
 type managerGoroutineRPCResponse struct {
-	Status   string                     `json:"status"`
-	Snapshot goruntimeregistry.Snapshot `json:"snapshot"`
+	Status   string                              `json:"status"`
+	Snapshot managementusecase.GoroutineSnapshot `json:"snapshot"`
 }
 
 // HandleManagerGoroutineRPC returns one bounded node-local snapshot.
@@ -28,20 +28,20 @@ func (a *Adapter) HandleManagerGoroutineRPC(_ context.Context, _ []byte) ([]byte
 }
 
 // ManagerGoroutineSnapshot reads one node-local managed goroutine snapshot.
-func (c *Client) ManagerGoroutineSnapshot(ctx context.Context, nodeID uint64) (goruntimeregistry.Snapshot, error) {
+func (c *Client) ManagerGoroutineSnapshot(ctx context.Context, nodeID uint64) (managementusecase.GoroutineSnapshot, error) {
 	if c == nil || c.node == nil {
-		return goruntimeregistry.Snapshot{}, fmt.Errorf("internal/access/node: manager goroutine rpc client not configured")
+		return managementusecase.GoroutineSnapshot{}, fmt.Errorf("internal/access/node: manager goroutine rpc client not configured")
 	}
 	body, err := c.node.CallRPC(ctx, nodeID, ManagerGoroutineRPCServiceID, nil)
 	if err != nil {
-		return goruntimeregistry.Snapshot{}, err
+		return managementusecase.GoroutineSnapshot{}, err
 	}
 	var response managerGoroutineRPCResponse
 	if err := json.Unmarshal(body, &response); err != nil {
-		return goruntimeregistry.Snapshot{}, fmt.Errorf("internal/access/node: decode manager goroutine response: %w", err)
+		return managementusecase.GoroutineSnapshot{}, fmt.Errorf("internal/access/node: decode manager goroutine response: %w", err)
 	}
 	if response.Status != rpcStatusOK {
-		return goruntimeregistry.Snapshot{}, fmt.Errorf("internal/access/node: manager goroutine rpc status %q", response.Status)
+		return managementusecase.GoroutineSnapshot{}, fmt.Errorf("internal/access/node: manager goroutine rpc status %q", response.Status)
 	}
 	return response.Snapshot, nil
 }

@@ -18,7 +18,6 @@ import (
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -108,7 +107,7 @@ type ManagerConnectionReader interface {
 
 // ManagerGoroutineReader returns the node-local managed goroutine snapshot.
 type ManagerGoroutineReader interface {
-	Snapshot() goruntimeregistry.Snapshot
+	Snapshot() managementusecase.GoroutineSnapshot
 }
 
 // ManagerLogReader handles node-local manager distributed log page requests.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 )
 
 type managerGoroutineRPCNode struct {
@@ -19,9 +19,18 @@ func (n *managerGoroutineRPCNode) CallRPC(ctx context.Context, nodeID uint64, se
 	return n.adapter.HandleManagerGoroutineRPC(ctx, payload)
 }
 
-func TestManagerGoroutineRPCPublishesRegistrySnapshot(t *testing.T) {
-	registry := goruntimeregistry.New()
-	adapter := New(Options{ManagerGoroutines: registry})
+type managerGoroutineReaderStub struct {
+	snapshot managementusecase.GoroutineSnapshot
+}
+
+func (r managerGoroutineReaderStub) Snapshot() managementusecase.GoroutineSnapshot {
+	return r.snapshot
+}
+
+func TestManagerGoroutineRPCPublishesSnapshot(t *testing.T) {
+	adapter := New(Options{ManagerGoroutines: managerGoroutineReaderStub{
+		snapshot: managementusecase.GoroutineSnapshot{BootID: "boot-1", ProcessTotal: 8},
+	}})
 	node := &managerGoroutineRPCNode{adapter: adapter}
 
 	snapshot, err := NewClient(node).ManagerGoroutineSnapshot(context.Background(), 2)

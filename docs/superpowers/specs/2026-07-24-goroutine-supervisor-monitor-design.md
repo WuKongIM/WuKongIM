@@ -80,6 +80,7 @@ Pool pressure is reported separately:
 - `busy_tasks`
 - `pool_capacity`
 - `queue_depth`
+- `queue_capacity` when the queue is bounded
 - `rejected_total`
 
 Snapshots also return process total, managed total, and
@@ -96,25 +97,34 @@ so the Web client can recognize counter and peak resets.
 Critical permanent loops record panic evidence and re-panic, allowing the node
 to exit non-zero and cluster/process supervision to recover it. Isolated
 short-lived tasks recover at their defined task boundary, release waiters, and
-report a failed result. There is no generic goroutine auto-restart.
+report the failed result through the bounded panic counter, task health, and
+optional panic observer. There is no generic goroutine auto-restart.
 
 Module shutdown waits for its own Group with the caller's deadline. On timeout,
 the Group returns bounded `module/task`, active-count, and running-age
 evidence. `internal/app` continues safe reverse-order cleanup and returns an
 aggregate error. Packages do not call `os.Exit`.
-Each App captures an unlabeled process-registry activity baseline before
-constructing owned runtimes, so its Stop waits for the activity it added
-without treating pre-existing process tasks as its own.
+Each App captures an unlabeled process-registry launch/registration baseline
+before constructing owned runtimes. Sparse direct-task fences and pool
+registration sequences ensure its Stop waits for the activity it added without
+treating pre-existing process tasks as its own or letting their later exit mask
+new App-owned work. A direct-task fence exists only when that task is already
+active at baseline capture; normal non-overlapping launches keep lock-free
+aggregate accounting and do not allocate one registry map entry per goroutine.
 
 ## Health Rules
 
 Health is type-specific:
 
-- a fixed critical task missing after readiness is critical;
+- a catalog-required fixed critical task missing after readiness is critical,
+  including when it never started;
 - a fixed non-critical task missing is degraded;
 - a fixed worker count above its declaration is an invariant failure;
-- pool pressure sustained at or above 80 percent with queueing is warning;
-- a full queue or rejected admission is critical;
+- per-pool pressure observations spanning at least ten seconds at or above 80
+  percent with queueing are warning; observed relief or a monitoring gap over
+  twenty seconds starts a new observation window;
+- a full queue or rejected admission in any registered pool is critical before
+  module/task values are aggregated;
 - dynamic task counts and unmanaged totals are trends, not absolute alarms.
 
 No universal goroutine-count threshold is introduced.
@@ -134,6 +144,9 @@ Manager responses and node RPCs are additive and rolling-upgrade safe. The
 Manager route requires the existing `cluster.node:r` permission. It never
 returns raw stack traces, function addresses, business identifiers, or
 unbounded panic text.
+Missing services use a stable transport error code mapped to
+`clusternet.ErrServiceNotFound`; exact matching of the legacy server message is
+retained only at that transport boundary for old binaries.
 
 ## Web
 

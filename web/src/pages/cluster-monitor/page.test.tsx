@@ -1242,7 +1242,7 @@ function goroutineClusterMonitorResponse(): RealtimeMonitorResponse {
         metric_key: "",
         value: 12,
         unit: "goroutines",
-        tone: "warning",
+        tone: "normal",
         source: "direct_node_rpc",
       },
       {
@@ -1294,6 +1294,7 @@ function goroutineClusterMonitorResponse(): RealtimeMonitorResponse {
                 busy_tasks: 3,
                 pool_capacity: 16,
                 queue_depth: 2,
+                queue_capacity: 64,
                 rejected_total: 1,
                 health: "critical",
                 tasks: [
@@ -1310,6 +1311,7 @@ function goroutineClusterMonitorResponse(): RealtimeMonitorResponse {
                     busy_tasks: 3,
                     pool_capacity: 16,
                     queue_depth: 2,
+                    queue_capacity: 64,
                     rejected_total: 1,
                     health: "critical",
                     health_reason: "saturated",
@@ -1705,7 +1707,19 @@ test("filters realtime monitor by selected category", async () => {
 
 test("renders owned goroutines by node and module and refreshes that category every five seconds", async () => {
   vi.useFakeTimers()
-  vi.mocked(getRealtimeMonitor).mockResolvedValue(goroutineClusterMonitorResponse())
+  let goroutineReads = 0
+  vi.mocked(getRealtimeMonitor).mockImplementation(async (query) => {
+    if (query.category !== "goroutines") return readyClusterMonitorResponse()
+    const response = goroutineClusterMonitorResponse()
+    goroutineReads++
+    if (goroutineReads > 1) {
+      response.goroutines!.nodes[0].snapshot!.boot_id = "boot-2"
+      response.goroutines!.nodes[0].snapshot!.process_total = 9
+      response.goroutines!.nodes[0].snapshot!.managed_total = 8
+      response.goroutines!.nodes[0].snapshot!.modules[0].process_peak = 4
+    }
+    return response
+  })
   renderClusterMonitorPage()
 
   await act(async () => {
@@ -1727,6 +1741,12 @@ test("renders owned goroutines by node and module and refreshes that category ev
   fireEvent.click(screen.getByRole("button", { name: "Show tasks for gateway" }))
   expect(screen.getByText("async_dispatch")).toBeInTheDocument()
   expect(screen.getAllByText("Critical")).toHaveLength(2)
+  expect(screen.getAllByText("2/64")).toHaveLength(2)
+  const unmanagedNodeLabel = screen
+    .getAllByText("Unmanaged")
+    .find((element) => element.parentElement?.classList.contains("items-baseline"))
+  expect(unmanagedNodeLabel).toBeDefined()
+  expect(unmanagedNodeLabel!.parentElement).not.toHaveClass("text-warning")
 
   const callsBeforeTick = vi.mocked(getRealtimeMonitor).mock.calls.length
   await act(async () => {
@@ -1737,6 +1757,8 @@ test("renders owned goroutines by node and module and refreshes that category ev
     window: "15m",
     category: "goroutines",
   })
+  expect(screen.getByText(/boot-2/)).toBeInTheDocument()
+  expect(screen.getByText("9")).toBeInTheDocument()
 
   fireEvent.change(screen.getByRole("combobox", { name: "Node" }), {
     target: { value: "1" },

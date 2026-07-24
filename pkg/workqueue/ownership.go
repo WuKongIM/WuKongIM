@@ -44,3 +44,19 @@ func unregisterPoolAfterWorkersExit(
 		unregister()
 	})
 }
+
+func releaseOwnedPool(
+	registry *goruntimeregistry.Registry,
+	task goruntimeregistry.TaskID,
+	release func() error,
+	running func() int,
+	unregister func(),
+) {
+	if release() == nil {
+		if unregister != nil {
+			unregister()
+		}
+		return
+	}
+	unregisterPoolAfterWorkersExit(registry, task, running, unregister)
+}

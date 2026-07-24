@@ -587,7 +587,10 @@ func (a *App) wireManagerGoroutineRPC() {
 	if !ok || a.goroutines == nil {
 		return
 	}
-	adapter := accessnode.New(accessnode.Options{ManagerGoroutines: a.goroutines, Logger: a.logger.Named("node")})
+	adapter := accessnode.New(accessnode.Options{
+		ManagerGoroutines: managerGoroutineLocalReader{registry: a.goroutines},
+		Logger:            a.logger.Named("node"),
+	})
 	registrar.RegisterRPC(accessnode.ManagerGoroutineRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerGoroutineRPC))
 }
 

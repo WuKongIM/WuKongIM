@@ -29,7 +29,7 @@ func (n *Node) startWatchLoop() {
 	n.watchCancel = cancel
 	watch := n.control.Watch()
 	n.watchWG.Add(1)
-	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterControlWatch, func() {
+	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterNodeControlWatch, func() {
 		defer n.watchWG.Done()
 		for {
 			select {

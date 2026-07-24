@@ -337,7 +337,8 @@ per-node series for the global cluster view.
 Goroutine cards combine Prometheus history with a direct, current node RPC
 snapshot. The direct view remains available when Prometheus is disabled,
 preserves node identity, and returns fixed module/task ownership plus pool
-busy/capacity/queue/rejection values. Peer failures are partial node results,
+busy/capacity/queue-depth/queue-capacity/rejection values through the
+entry-independent management read model. Peer failures are partial node results,
 not zeroes, and never expose stack traces or dynamic function names. Fan-out is
 limited to eight concurrent reads, 256 nodes, 1.5 seconds per node, and two
 seconds overall; successful peer snapshots are coalesced and cached for two

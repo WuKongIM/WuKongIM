@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
@@ -24,7 +24,18 @@ const (
 )
 
 type managerGoroutineSnapshotReader interface {
-	ManagerGoroutineSnapshot(context.Context, uint64) (goruntimeregistry.Snapshot, error)
+	ManagerGoroutineSnapshot(context.Context, uint64) (managementusecase.GoroutineSnapshot, error)
+}
+
+type managerGoroutineLocalReader struct {
+	registry *goruntimeregistry.Registry
+}
+
+func (r managerGoroutineLocalReader) Snapshot() managementusecase.GoroutineSnapshot {
+	if r.registry == nil {
+		return managementusecase.GoroutineSnapshot{}
+	}
+	return projectGoroutineSnapshot(r.registry.Snapshot())
 }
 
 type managerGoroutineMonitor struct {
@@ -38,13 +49,13 @@ type managerGoroutineMonitor struct {
 }
 
 type managerGoroutineCacheEntry struct {
-	snapshot goruntimeregistry.Snapshot
+	snapshot managementusecase.GoroutineSnapshot
 	readAt   time.Time
 }
 
 type managerGoroutineInflight struct {
 	done     chan struct{}
-	snapshot goruntimeregistry.Snapshot
+	snapshot managementusecase.GoroutineSnapshot
 	err      error
 }
 
@@ -85,6 +96,8 @@ func (m *managerGoroutineMonitor) snapshot(ctx context.Context, nodeID uint64) (
 	nodes, listErr := m.nodes(ctx, nodeID)
 	if listErr != nil {
 		result.Status = accessmanager.RealtimeMonitorStatusPartial
+	} else if nodeID == 0 {
+		m.retainCurrentNodeCache(nodes)
 	}
 	if len(nodes) == 0 && m != nil && m.localNodeID != 0 && (nodeID == 0 || nodeID == m.localNodeID) {
 		nodes = append(nodes, managementusecase.Node{NodeID: m.localNodeID, Name: fmt.Sprintf("node-%d", m.localNodeID), Status: "local"})
@@ -179,7 +192,7 @@ func (m *managerGoroutineMonitor) readNode(ctx context.Context, node managementu
 		Status: node.Status,
 	}
 	if m != nil && node.NodeID == m.localNodeID && m.registry != nil {
-		snapshot := m.registry.Snapshot()
+		snapshot := projectGoroutineSnapshot(m.registry.Snapshot())
 		out.Supported = true
 		out.Snapshot = &snapshot
 		return out
@@ -204,7 +217,7 @@ func (m *managerGoroutineMonitor) readNode(ctx context.Context, node managementu
 	return out
 }
 
-func (m *managerGoroutineMonitor) readRemote(ctx context.Context, nodeID uint64) (snapshot goruntimeregistry.Snapshot, err error) {
+func (m *managerGoroutineMonitor) readRemote(ctx context.Context, nodeID uint64) (snapshot managementusecase.GoroutineSnapshot, err error) {
 	now := time.Now()
 	m.cacheMu.Lock()
 	if cached, ok := m.cache[nodeID]; ok && now.Sub(cached.readAt) <= managerGoroutineCacheTTL {
@@ -217,7 +230,7 @@ func (m *managerGoroutineMonitor) readRemote(ctx context.Context, nodeID uint64)
 		case <-running.done:
 			return running.snapshot, running.err
 		case <-ctx.Done():
-			return goruntimeregistry.Snapshot{}, ctx.Err()
+			return managementusecase.GoroutineSnapshot{}, ctx.Err()
 		}
 	}
 	if m.cache == nil {
@@ -232,14 +245,14 @@ func (m *managerGoroutineMonitor) readRemote(ctx context.Context, nodeID uint64)
 
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			snapshot = goruntimeregistry.Snapshot{}
+			snapshot = managementusecase.GoroutineSnapshot{}
 			err = fmt.Errorf("remote snapshot panic")
 		}
 		running.snapshot = snapshot
 		running.err = err
 		m.cacheMu.Lock()
 		if err == nil {
-			m.cache[nodeID] = managerGoroutineCacheEntry{snapshot: snapshot, readAt: time.Now()}
+			m.storeCacheLocked(nodeID, managerGoroutineCacheEntry{snapshot: snapshot, readAt: time.Now()})
 		}
 		delete(m.inflight, nodeID)
 		close(running.done)
@@ -254,9 +267,7 @@ func managerGoroutineReadError(err error) string {
 		return "timeout"
 	case errors.Is(err, context.Canceled):
 		return "canceled"
-	case strings.Contains(strings.ToLower(err.Error()), "unknown"),
-		strings.Contains(strings.ToLower(err.Error()), "unsupported"),
-		strings.Contains(strings.ToLower(err.Error()), "not found"):
+	case errors.Is(err, clusternet.ErrServiceNotFound):
 		return "unsupported"
 	default:
 		return "unavailable"
@@ -275,8 +286,9 @@ func goroutineSummary(snapshot accessmanager.RealtimeMonitorGoroutines) []access
 		panicTotal += node.Snapshot.TotalPanics
 		for _, module := range node.Snapshot.Modules {
 			for _, task := range module.Tasks {
-				if task.Kind == goruntimeregistry.TaskKindPool &&
-					(task.RejectedTotal > 0 || (task.PoolCapacity > 0 && task.BusyTasks >= task.PoolCapacity && task.QueueDepth > 0)) {
+				if task.Kind == string(goruntimeregistry.TaskKindPool) &&
+					task.Health == goruntimeregistry.HealthCritical &&
+					task.HealthReason == "saturated" {
 					saturatedPools++
 				}
 			}
@@ -285,10 +297,99 @@ func goroutineSummary(snapshot accessmanager.RealtimeMonitorGoroutines) []access
 	return []accessmanager.RealtimeMonitorSnapshotEntry{
 		{Key: "goroutineProcessTotal", Value: float64(processTotal), Unit: "goroutines", Tone: accessmanager.RealtimeMonitorToneNormal, Source: "direct_node_rpc"},
 		{Key: "goroutineManagedTotal", Value: float64(managedTotal), Unit: "goroutines", Tone: accessmanager.RealtimeMonitorToneNormal, Source: "direct_node_rpc"},
-		{Key: "goroutineUnmanagedTotal", Value: float64(unmanagedTotal), Unit: "goroutines", Tone: accessmanager.RealtimeMonitorToneWarning, Source: "direct_node_rpc"},
+		{Key: "goroutineUnmanagedTotal", Value: float64(unmanagedTotal), Unit: "goroutines", Tone: accessmanager.RealtimeMonitorToneNormal, Source: "direct_node_rpc"},
 		{Key: "goroutinePanicTotal", Value: float64(panicTotal), Unit: "panics", Tone: summaryTone(panicTotal), Source: "direct_node_rpc"},
 		{Key: "goroutineSaturatedPools", Value: float64(saturatedPools), Unit: "pools", Tone: summaryTone(saturatedPools), Source: "direct_node_rpc"},
 	}
+}
+
+func (m *managerGoroutineMonitor) retainCurrentNodeCache(nodes []managementusecase.Node) {
+	if m == nil {
+		return
+	}
+	current := make(map[uint64]struct{}, len(nodes))
+	for _, node := range nodes {
+		current[node.NodeID] = struct{}{}
+	}
+	m.cacheMu.Lock()
+	for nodeID := range m.cache {
+		if _, ok := current[nodeID]; !ok {
+			delete(m.cache, nodeID)
+		}
+	}
+	m.cacheMu.Unlock()
+}
+
+func (m *managerGoroutineMonitor) storeCacheLocked(nodeID uint64, entry managerGoroutineCacheEntry) {
+	if _, exists := m.cache[nodeID]; !exists && len(m.cache) >= managerGoroutineMaxNodes {
+		var oldestNodeID uint64
+		var oldestReadAt time.Time
+		for cachedNodeID, cached := range m.cache {
+			if oldestReadAt.IsZero() || cached.readAt.Before(oldestReadAt) {
+				oldestNodeID = cachedNodeID
+				oldestReadAt = cached.readAt
+			}
+		}
+		delete(m.cache, oldestNodeID)
+	}
+	m.cache[nodeID] = entry
+}
+
+func projectGoroutineSnapshot(snapshot goruntimeregistry.Snapshot) managementusecase.GoroutineSnapshot {
+	out := managementusecase.GoroutineSnapshot{
+		GeneratedAt:      snapshot.GeneratedAt,
+		ProcessStartedAt: snapshot.ProcessStartedAt,
+		BootID:           snapshot.BootID,
+		ProcessTotal:     snapshot.ProcessTotal,
+		ManagedTotal:     snapshot.ManagedTotal,
+		UnmanagedTotal:   snapshot.UnmanagedTotal,
+		Reconciled:       snapshot.Reconciled,
+		TotalActive:      snapshot.TotalActive,
+		TotalStarted:     snapshot.TotalStarted,
+		TotalPanics:      snapshot.TotalPanics,
+		Modules:          make([]managementusecase.GoroutineModuleSnapshot, len(snapshot.Modules)),
+	}
+	for moduleIndex, module := range snapshot.Modules {
+		projectedModule := managementusecase.GoroutineModuleSnapshot{
+			Module:        string(module.Module),
+			Active:        module.Active,
+			ProcessPeak:   module.Peak,
+			TotalStarted:  module.TotalStarted,
+			TotalStopped:  module.TotalStopped,
+			Panics:        module.PanicCount,
+			BusyTasks:     module.BusyTasks,
+			PoolCapacity:  module.PoolCapacity,
+			QueueDepth:    module.QueueDepth,
+			QueueCapacity: module.QueueCapacity,
+			RejectedTotal: module.RejectedTotal,
+			Tasks:         make([]managementusecase.GoroutineTaskSnapshot, len(module.Tasks)),
+			Health:        module.Health,
+		}
+		for taskIndex, task := range module.Tasks {
+			projectedModule.Tasks[taskIndex] = managementusecase.GoroutineTaskSnapshot{
+				Task:          string(task.Task),
+				Name:          task.Name,
+				Kind:          string(task.Kind),
+				Critical:      task.Critical,
+				Expected:      task.Expected,
+				Active:        task.Active,
+				ProcessPeak:   task.Peak,
+				TotalStarted:  task.TotalStarted,
+				TotalStopped:  task.TotalStopped,
+				Panics:        task.PanicCount,
+				BusyTasks:     task.BusyTasks,
+				PoolCapacity:  task.PoolCapacity,
+				QueueDepth:    task.QueueDepth,
+				QueueCapacity: task.QueueCapacity,
+				RejectedTotal: task.RejectedTotal,
+				RunningFor:    task.RunningFor,
+				Health:        task.Health,
+				HealthReason:  task.HealthReason,
+			}
+		}
+		out.Modules[moduleIndex] = projectedModule
+	}
+	return out
 }
 
 func summaryTone(value int64) string {

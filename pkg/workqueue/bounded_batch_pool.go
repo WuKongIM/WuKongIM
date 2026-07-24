@@ -242,14 +242,14 @@ func (p *BoundedBatchPool[T]) Close(ctx context.Context) error {
 			p.cancel()
 			p.closeErr = ctx.Err()
 		}
-		released := true
 		if p.pool != nil {
-			released = p.pool.ReleaseTimeout(p.cfg.ReleaseTimeout) == nil
-		}
-		if released && p.unregisterPool != nil {
-			p.unregisterPool()
-		} else if !released && p.pool != nil {
-			unregisterPoolAfterWorkersExit(p.cfg.Goroutines, p.cfg.Task, p.pool.Running, p.unregisterPool)
+			releaseOwnedPool(
+				p.cfg.Goroutines,
+				p.cfg.Task,
+				func() error { return p.pool.ReleaseTimeout(p.cfg.ReleaseTimeout) },
+				p.pool.Running,
+				p.unregisterPool,
+			)
 		}
 		p.cancel()
 	})
@@ -264,6 +264,7 @@ func (p *BoundedBatchPool[T]) poolStats() goruntimeregistry.PoolStats {
 		BusyTasks:     p.running.Load(),
 		Capacity:      int64(p.cfg.Workers),
 		QueueDepth:    int64(p.QueueDepth()),
+		QueueCapacity: int64(p.cfg.QueueSize),
 		RejectedTotal: p.rejected.Load(),
 	}
 	if p.pool != nil {

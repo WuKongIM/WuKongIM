@@ -62,10 +62,11 @@ type TaskSpec struct {
 	PanicPolicy PanicPolicy
 	// Expected is the normal live count for singleton or fixed tasks.
 	Expected int
+	// Required marks an expected task that must be live once the node is ready.
+	Required bool
 }
 
 const (
-	TaskAppLifecycle                       TaskID = "app/lifecycle"
 	TaskAppDetachedWorkqueue               TaskID = "app/detached_workqueue"
 	TaskAppTopCollector                    TaskID = "app/top_collector"
 	TaskAppPresenceTouch                   TaskID = "app/presence_touch"
@@ -95,10 +96,12 @@ const (
 	TaskTransportRPCService                TaskID = "transport/rpc_service"
 	TaskTransportRPCExecutor               TaskID = "transport/rpc_executor"
 	TaskTransportRPCExecutorRelease        TaskID = "transport/rpc_executor_release"
-	TaskTransportObserver                  TaskID = "transport/observer"
+	TaskTransportClientObserver            TaskID = "transport/client_observer"
+	TaskTransportServerObserver            TaskID = "transport/server_observer"
 	TaskTransportAccept                    TaskID = "transport/accept"
 	TaskTransportConnectionCleanup         TaskID = "transport/connection_cleanup"
-	TaskClusterControlWatch                TaskID = "cluster/control_watch"
+	TaskClusterNodeControlWatch            TaskID = "cluster/node_control_watch"
+	TaskClusterRuntimeControlWatch         TaskID = "cluster/runtime_control_watch"
 	TaskClusterHealthReport                TaskID = "cluster/health_report"
 	TaskClusterTaskReconcile               TaskID = "cluster/task_reconcile"
 	TaskClusterPreferredLeader             TaskID = "cluster/preferred_leader"
@@ -159,7 +162,6 @@ const (
 )
 
 var defaultTaskCatalog = []TaskSpec{
-	{ID: TaskAppLifecycle, Module: ModuleApp, Name: "lifecycle", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRecover, Expected: 1},
 	{ID: TaskAppDetachedWorkqueue, Module: ModuleApp, Name: "detached_workqueue", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskAppTopCollector, Module: ModuleApp, Name: "top_collector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskAppPresenceTouch, Module: ModuleApp, Name: "presence_touch", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRepanic, Expected: 2},
@@ -189,10 +191,12 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskTransportRPCService, Module: ModuleTransport, Name: "rpc_service", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskTransportRPCExecutor, Module: ModuleTransport, Name: "rpc_executor", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskTransportRPCExecutorRelease, Module: ModuleTransport, Name: "rpc_executor_release", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskTransportObserver, Module: ModuleTransport, Name: "observer", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskTransportAccept, Module: ModuleTransport, Name: "accept", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskTransportClientObserver, Module: ModuleTransport, Name: "client_observer", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskTransportServerObserver, Module: ModuleTransport, Name: "server_observer", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskTransportAccept, Module: ModuleTransport, Name: "accept", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1, Required: true},
 	{ID: TaskTransportConnectionCleanup, Module: ModuleTransport, Name: "connection_cleanup", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskClusterControlWatch, Module: ModuleCluster, Name: "control_watch", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskClusterNodeControlWatch, Module: ModuleCluster, Name: "node_control_watch", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1, Required: true},
+	{ID: TaskClusterRuntimeControlWatch, Module: ModuleCluster, Name: "runtime_control_watch", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1, Required: true},
 	{ID: TaskClusterHealthReport, Module: ModuleCluster, Name: "health_report", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterTaskReconcile, Module: ModuleCluster, Name: "task_reconcile", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterPreferredLeader, Module: ModuleCluster, Name: "preferred_leader", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
@@ -217,7 +221,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskChannelWorkerPool, Module: ModuleChannel, Name: "worker_pool", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskDatabaseRaftWriteWorker, Module: ModuleDatabase, Name: "raft_write_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskDatabaseRaftSnapshotGC, Module: ModuleDatabase, Name: "raft_snapshot_gc", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskDatabaseLatestMigration, Module: ModuleDatabase, Name: "latest_migration", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRecover, Expected: 1},
+	{ID: TaskDatabaseLatestMigration, Module: ModuleDatabase, Name: "latest_migration", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseBackupStream, Module: ModuleDatabase, Name: "backup_stream", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseCommitCoordinator, Module: ModuleDatabase, Name: "commit_coordinator", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
@@ -263,6 +267,9 @@ func buildCatalog(specs []TaskSpec) (map[TaskID]TaskSpec, error) {
 		}
 		if _, exists := catalog[spec.ID]; exists {
 			return nil, fmt.Errorf("goroutine: duplicate task %q", spec.ID)
+		}
+		if spec.Required && spec.Expected <= 0 {
+			return nil, fmt.Errorf("goroutine: required task %q must declare a positive expected count", spec.ID)
 		}
 		catalog[spec.ID] = spec
 	}

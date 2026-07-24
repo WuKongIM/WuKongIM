@@ -222,14 +222,14 @@ func (m *ShardedMailbox[T]) Close(ctx context.Context) error {
 			m.cancel()
 			m.closeErr = ctx.Err()
 		}
-		released := true
 		if m.pool != nil {
-			released = m.pool.ReleaseTimeout(m.cfg.ReleaseTimeout) == nil
-		}
-		if released && m.unregisterPool != nil {
-			m.unregisterPool()
-		} else if !released && m.pool != nil {
-			unregisterPoolAfterWorkersExit(m.cfg.Goroutines, m.cfg.Task, m.pool.Running, m.unregisterPool)
+			releaseOwnedPool(
+				m.cfg.Goroutines,
+				m.cfg.Task,
+				func() error { return m.pool.ReleaseTimeout(m.cfg.ReleaseTimeout) },
+				m.pool.Running,
+				m.unregisterPool,
+			)
 		}
 		m.cancel()
 	})
@@ -244,6 +244,7 @@ func (m *ShardedMailbox[T]) poolStats() goruntimeregistry.PoolStats {
 		BusyTasks:     m.running.Load(),
 		Capacity:      int64(m.cfg.Workers),
 		QueueDepth:    int64(m.QueueDepth()),
+		QueueCapacity: int64(m.cfg.Shards) * int64(m.cfg.QueueSizePerShard),
 		RejectedTotal: m.rejected.Load(),
 	}
 	if m.pool != nil {

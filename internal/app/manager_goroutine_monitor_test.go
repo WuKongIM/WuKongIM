@@ -2,13 +2,13 @@ package app
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
@@ -25,15 +25,15 @@ func (goroutineMonitorControl) ListSlots(context.Context, managementusecase.List
 }
 
 type goroutineMonitorRemote struct {
-	snapshots map[uint64]goruntimeregistry.Snapshot
+	snapshots map[uint64]managementusecase.GoroutineSnapshot
 	err       error
 }
 
-func (r goroutineMonitorRemote) ManagerGoroutineSnapshot(_ context.Context, nodeID uint64) (goruntimeregistry.Snapshot, error) {
+func (r goroutineMonitorRemote) ManagerGoroutineSnapshot(_ context.Context, nodeID uint64) (managementusecase.GoroutineSnapshot, error) {
 	if snapshot, ok := r.snapshots[nodeID]; ok {
 		return snapshot, nil
 	}
-	return goruntimeregistry.Snapshot{}, r.err
+	return managementusecase.GoroutineSnapshot{}, r.err
 }
 
 type goroutineMonitorBase struct{}
@@ -54,21 +54,21 @@ type goroutineMonitorBoundedRemote struct {
 
 type goroutineMonitorBlockingRemote struct{}
 
-func (goroutineMonitorBlockingRemote) ManagerGoroutineSnapshot(ctx context.Context, _ uint64) (goruntimeregistry.Snapshot, error) {
+func (goroutineMonitorBlockingRemote) ManagerGoroutineSnapshot(ctx context.Context, _ uint64) (managementusecase.GoroutineSnapshot, error) {
 	<-ctx.Done()
-	return goruntimeregistry.Snapshot{}, ctx.Err()
+	return managementusecase.GoroutineSnapshot{}, ctx.Err()
 }
 
 type goroutineMonitorPanicRemote struct {
 	calls atomic.Int32
 }
 
-func (r *goroutineMonitorPanicRemote) ManagerGoroutineSnapshot(context.Context, uint64) (goruntimeregistry.Snapshot, error) {
+func (r *goroutineMonitorPanicRemote) ManagerGoroutineSnapshot(context.Context, uint64) (managementusecase.GoroutineSnapshot, error) {
 	r.calls.Add(1)
 	panic("remote panic")
 }
 
-func (r *goroutineMonitorBoundedRemote) ManagerGoroutineSnapshot(ctx context.Context, _ uint64) (goruntimeregistry.Snapshot, error) {
+func (r *goroutineMonitorBoundedRemote) ManagerGoroutineSnapshot(ctx context.Context, _ uint64) (managementusecase.GoroutineSnapshot, error) {
 	r.calls.Add(1)
 	active := r.active.Add(1)
 	defer r.active.Add(-1)
@@ -82,9 +82,9 @@ func (r *goroutineMonitorBoundedRemote) ManagerGoroutineSnapshot(ctx context.Con
 	defer timer.Stop()
 	select {
 	case <-timer.C:
-		return goruntimeregistry.Snapshot{GeneratedAt: time.Now()}, nil
+		return managementusecase.GoroutineSnapshot{GeneratedAt: time.Now()}, nil
 	case <-ctx.Done():
-		return goruntimeregistry.Snapshot{}, ctx.Err()
+		return managementusecase.GoroutineSnapshot{}, ctx.Err()
 	}
 }
 
@@ -97,7 +97,7 @@ func TestManagerGoroutineMonitorPreservesNodeIdentityAndPartialSupport(t *testin
 			{NodeID: 1, Name: "n1", Status: "alive"},
 			{NodeID: 2, Name: "n2", Status: "alive"},
 		}}},
-		remote: goroutineMonitorRemote{err: errors.New("unknown service")},
+		remote: goroutineMonitorRemote{err: clusternet.ErrServiceNotFound},
 	}
 
 	snapshot, source := monitor.snapshot(context.Background(), 0)
@@ -139,6 +139,9 @@ func TestManagerRealtimeGoroutineCategoryWorksWithoutPrometheus(t *testing.T) {
 	}
 	if len(response.Snapshot) != 5 || response.Sources.Goroutines == nil || !response.Sources.Goroutines.Enabled {
 		t.Fatalf("summary/source = %+v / %+v, want direct five-value summary", response.Snapshot, response.Sources.Goroutines)
+	}
+	if tone := summaryEntryTone(response.Snapshot, "goroutineUnmanagedTotal"); tone != accessmanager.RealtimeMonitorToneNormal {
+		t.Fatalf("unmanaged summary tone = %q, want normal trend", tone)
 	}
 }
 
@@ -203,7 +206,7 @@ func TestManagerGoroutineMonitorRejectsStaleRemoteSnapshot(t *testing.T) {
 		control: goroutineMonitorControl{nodes: managementusecase.NodeList{Items: []managementusecase.Node{
 			{NodeID: 2, Name: "n2", Status: "alive"},
 		}}},
-		remote: goroutineMonitorRemote{snapshots: map[uint64]goruntimeregistry.Snapshot{
+		remote: goroutineMonitorRemote{snapshots: map[uint64]managementusecase.GoroutineSnapshot{
 			2: {GeneratedAt: time.Now().Add(-managerGoroutineStaleAfter - time.Second)},
 		}},
 	}
@@ -232,4 +235,80 @@ func TestManagerGoroutineMonitorPanicDoesNotLeaveStuckInflightRead(t *testing.T)
 	if calls := remote.calls.Load(); calls != 2 {
 		t.Fatalf("remote calls = %d, want 2 independent reads after panic cleanup", calls)
 	}
+}
+
+func TestManagerGoroutineMonitorEvictsRemovedNodeCache(t *testing.T) {
+	monitor := &managerGoroutineMonitor{
+		localNodeID: 1,
+		registry:    goruntimeregistry.New(),
+		control: goroutineMonitorControl{nodes: managementusecase.NodeList{Items: []managementusecase.Node{
+			{NodeID: 1, Name: "n1", Status: "alive"},
+			{NodeID: 2, Name: "n2", Status: "alive"},
+		}}},
+		remote: goroutineMonitorRemote{snapshots: map[uint64]managementusecase.GoroutineSnapshot{
+			2: {GeneratedAt: time.Now()},
+		}},
+		cache: map[uint64]managerGoroutineCacheEntry{
+			99: {snapshot: managementusecase.GoroutineSnapshot{BootID: "removed"}, readAt: time.Now()},
+		},
+	}
+
+	monitor.snapshot(context.Background(), 0)
+	if _, ok := monitor.cache[99]; ok {
+		t.Fatal("removed node 99 remained in manager goroutine cache")
+	}
+	if len(monitor.cache) > managerGoroutineMaxNodes {
+		t.Fatalf("cache size = %d, want <= %d", len(monitor.cache), managerGoroutineMaxNodes)
+	}
+}
+
+func TestManagerGoroutineReadErrorUsesTypedCapabilityError(t *testing.T) {
+	if got := managerGoroutineReadError(clusternet.ErrServiceNotFound); got != "unsupported" {
+		t.Fatalf("service-not-found error = %q, want unsupported", got)
+	}
+	if got := managerGoroutineReadError(clusternet.ErrNodeNotFound); got != "unavailable" {
+		t.Fatalf("node-not-found error = %q, want unavailable", got)
+	}
+}
+
+func TestProjectGoroutineSnapshotPreservesPoolAndBootFields(t *testing.T) {
+	projected := projectGoroutineSnapshot(goruntimeregistry.Snapshot{
+		BootID:         "boot-2",
+		ProcessTotal:   20,
+		ManagedTotal:   12,
+		UnmanagedTotal: 8,
+		Modules: []goruntimeregistry.ModuleSnapshot{{
+			Module:        goruntimeregistry.ModuleGateway,
+			QueueCapacity: 64,
+			Tasks: []goruntimeregistry.TaskSnapshot{{
+				Task:          goruntimeregistry.TaskGatewayAsyncAuth,
+				Kind:          goruntimeregistry.TaskKindPool,
+				QueueDepth:    4,
+				QueueCapacity: 64,
+				Health:        goruntimeregistry.HealthWarning,
+				HealthReason:  "pressure",
+			}},
+		}},
+	})
+
+	if projected.BootID != "boot-2" || projected.ProcessTotal != 20 || projected.UnmanagedTotal != 8 {
+		t.Fatalf("projected process fields = %+v", projected)
+	}
+	if len(projected.Modules) != 1 || projected.Modules[0].QueueCapacity != 64 || len(projected.Modules[0].Tasks) != 1 {
+		t.Fatalf("projected modules = %+v", projected.Modules)
+	}
+	task := projected.Modules[0].Tasks[0]
+	if task.Task != string(goruntimeregistry.TaskGatewayAsyncAuth) || task.QueueDepth != 4 || task.QueueCapacity != 64 ||
+		task.Health != goruntimeregistry.HealthWarning || task.HealthReason != "pressure" {
+		t.Fatalf("projected task = %+v", task)
+	}
+}
+
+func summaryEntryTone(entries []accessmanager.RealtimeMonitorSnapshotEntry, key string) string {
+	for _, entry := range entries {
+		if entry.Key == key {
+			return entry.Tone
+		}
+	}
+	return ""
 }

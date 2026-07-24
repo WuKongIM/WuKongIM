@@ -51,7 +51,6 @@ export function GoroutineMonitorTable({ data, showComplete }: GoroutineMonitorTa
                   value={node.snapshot.managed_total}
                 />
                 <NodeTotal
-                  className={node.snapshot.unmanaged_total > 0 ? "text-warning" : undefined}
                   label={intl.formatMessage({
                     id: "clusterMonitor.goroutines.unmanagedTotal",
                   })}
@@ -207,6 +206,7 @@ function MetricCells({
     busy_tasks?: number
     pool_capacity?: number
     queue_depth?: number
+    queue_capacity?: number
     rejected_total?: number
     panics: number
   }
@@ -216,7 +216,9 @@ function MetricCells({
       <td className={numberCell}>{item.active}</td>
       <td className={numberCell}>{item.process_peak}</td>
       <td className={numberCell}>{item.pool_capacity ? `${item.busy_tasks ?? 0}/${item.pool_capacity}` : "—"}</td>
-      <td className={numberCell}>{item.queue_depth ?? 0}</td>
+      <td className={numberCell}>
+        {item.queue_capacity ? `${item.queue_depth ?? 0}/${item.queue_capacity}` : (item.queue_depth ?? 0)}
+      </td>
       <td className={numberCell}>{item.rejected_total ?? 0}</td>
       <td className={cn(numberCell, item.panics > 0 && "text-destructive")}>{item.panics}</td>
     </>
