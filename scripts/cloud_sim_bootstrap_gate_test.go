@@ -164,7 +164,7 @@ func TestCloudSimulationBootstrapRuntimeContractUsesNormalizedManagerValues(t *t
 		{"key":"WK_CLUSTER_CHANNEL_REACTOR_COUNT","value":"4","source":"toml"},
 		{"key":"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS","value":"8","source":"toml"},
 		{"key":"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS","value":"8","source":"toml"},
-		{"key":"WK_CLUSTER_CHANNEL_RPC_WORKERS","value":"50","source":"toml"},
+		{"key":"WK_CLUSTER_CHANNEL_RPC_WORKERS","value":"96","source":"toml"},
 		{"key":"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS","value":"8","source":"toml"},
 		{"key":"WK_GATEWAY_GNET_MULTICORE","value":"true","source":"toml"},
 		{"key":"WK_GATEWAY_GNET_NUM_EVENT_LOOP","value":"4","source":"toml"},
@@ -196,7 +196,7 @@ func TestCloudSimulationBootstrapRuntimeContractUsesNormalizedManagerValues(t *t
 	}
 	if contract.Schema != "wukongim/cloud-effective-node-runtime-contract/v1" || contract.Scale != "medium" ||
 		contract.PhysicalHashSlotCount != 256 || contract.LogicalSlotGroupCount != 10 ||
-		contract.ChannelRPCWorkers != 50 || contract.ChannelRPCBatchMaxItems != 8 ||
+		contract.ChannelRPCWorkers != 96 || contract.ChannelRPCBatchMaxItems != 8 ||
 		contract.RecipientWorkerConcurrency != 320 ||
 		contract.ConversationAuthorityCacheMaxRows != 750000 || len(contract.ValueSources) != 15 {
 		t.Fatalf("runtime contract = %#v", contract)
@@ -207,7 +207,7 @@ func TestCloudSimulationBootstrapRuntimeContractUsesNormalizedManagerValues(t *t
 		}
 	}
 
-	missing := strings.Replace(input, `{"key":"WK_CLUSTER_CHANNEL_RPC_WORKERS","value":"50","source":"toml"},`, "", 1)
+	missing := strings.Replace(input, `{"key":"WK_CLUSTER_CHANNEL_RPC_WORKERS","value":"96","source":"toml"},`, "", 1)
 	command = exec.Command("jq", "-c", "-e", "--arg", "scale", "medium", "--argjson", "node_id", "2", "-f", program)
 	command.Stdin = strings.NewReader(missing)
 	if output, err := command.CombinedOutput(); err == nil || !strings.Contains(string(output), "missing effective config WK_CLUSTER_CHANNEL_RPC_WORKERS") {

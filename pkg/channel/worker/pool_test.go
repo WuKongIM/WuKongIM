@@ -661,59 +661,60 @@ func TestRPCPullBatchReducesCallsWithoutMoreWorkers(t *testing.T) {
 
 func BenchmarkRPCPullBatchCloudMediumEnvelope(b *testing.B) {
 	const (
-		workers     = 50
-		taskCount   = 800
+		taskCount   = 4000
 		serviceTime = 5 * time.Millisecond
 	)
-	for _, batchMaxItems := range []int{4, 8} {
-		b.Run(fmt.Sprintf("batch_%d", batchMaxItems), func(b *testing.B) {
-			b.ReportAllocs()
-			totalCalls := 0
-			observer := &rpcCapacityObserver{}
-			b.ResetTimer()
-			for iteration := 0; iteration < b.N; iteration++ {
-				sink := &captureSink{}
-				tr := &batchWorkerTransport{pullBatchDelay: serviceTime}
-				pool, err := NewPool(PoolConfig{
-					Name:             "rpc",
-					Workers:          workers,
-					QueueSize:        taskCount,
-					RPCBatchMaxItems: batchMaxItems,
-					BatchMaxWait:     time.Millisecond,
-				}, Deps{Transport: tr}, sink)
-				if err != nil {
-					b.Fatal(err)
-				}
-				pool.SetQueueObserver(observer)
-				for i := 0; i < taskCount; i++ {
-					channelKey := ch.ChannelKey(fmt.Sprintf("1:benchmark-%d", i))
-					if err := pool.Submit(context.Background(), Task{
-						Kind:  TaskRPCPull,
-						Fence: ch.Fence{ChannelKey: channelKey, OpID: ch.OpID(i + 1)},
-						RPCPull: &RPCPullTask{
-							Node:    2,
-							Request: transport.PullRequest{ChannelKey: channelKey, NextOffset: 1},
-						},
-					}); err != nil {
+	for _, workers := range []int{50, 80, 96} {
+		for _, batchMaxItems := range []int{4, 8} {
+			b.Run(fmt.Sprintf("workers_%d/batch_%d", workers, batchMaxItems), func(b *testing.B) {
+				b.ReportAllocs()
+				totalCalls := 0
+				observer := &rpcCapacityObserver{}
+				b.ResetTimer()
+				for iteration := 0; iteration < b.N; iteration++ {
+					sink := &captureSink{}
+					tr := &batchWorkerTransport{pullBatchDelay: serviceTime}
+					pool, err := NewPool(PoolConfig{
+						Name:             "rpc",
+						Workers:          workers,
+						QueueSize:        taskCount,
+						RPCBatchMaxItems: batchMaxItems,
+						BatchMaxWait:     time.Millisecond,
+					}, Deps{Transport: tr}, sink)
+					if err != nil {
+						b.Fatal(err)
+					}
+					pool.SetQueueObserver(observer)
+					for i := 0; i < taskCount; i++ {
+						channelKey := ch.ChannelKey(fmt.Sprintf("1:benchmark-%d", i))
+						if err := pool.Submit(context.Background(), Task{
+							Kind:  TaskRPCPull,
+							Fence: ch.Fence{ChannelKey: channelKey, OpID: ch.OpID(i + 1)},
+							RPCPull: &RPCPullTask{
+								Node:    2,
+								Request: transport.PullRequest{ChannelKey: channelKey, NextOffset: 1},
+							},
+						}); err != nil {
+							b.Fatal(err)
+						}
+					}
+					deadline := time.Now().Add(3 * time.Second)
+					for sink.Len() != taskCount && time.Now().Before(deadline) {
+						time.Sleep(100 * time.Microsecond)
+					}
+					if sink.Len() != taskCount {
+						b.Fatalf("completed %d/%d RPC Pull tasks", sink.Len(), taskCount)
+					}
+					totalCalls += tr.PullBatchCalls()
+					if err := pool.Close(); err != nil {
 						b.Fatal(err)
 					}
 				}
-				deadline := time.Now().Add(3 * time.Second)
-				for sink.Len() != taskCount && time.Now().Before(deadline) {
-					time.Sleep(100 * time.Microsecond)
-				}
-				if sink.Len() != taskCount {
-					b.Fatalf("completed %d/%d RPC Pull tasks", sink.Len(), taskCount)
-				}
-				totalCalls += tr.PullBatchCalls()
-				if err := pool.Close(); err != nil {
-					b.Fatal(err)
-				}
-			}
-			b.ReportMetric(float64(taskCount*b.N)/b.Elapsed().Seconds(), "items/s")
-			b.ReportMetric(float64(totalCalls)/float64(b.N), "rpc-calls/op")
-			b.ReportMetric(float64(observer.WaitP99())/float64(time.Microsecond), "queue-wait-p99-us")
-		})
+				b.ReportMetric(float64(taskCount*b.N)/b.Elapsed().Seconds(), "items/s")
+				b.ReportMetric(float64(totalCalls)/float64(b.N), "rpc-calls/op")
+				b.ReportMetric(float64(observer.WaitP99())/float64(time.Microsecond), "queue-wait-p99-us")
+			})
+		}
 	}
 }
 

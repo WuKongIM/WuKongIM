@@ -165,7 +165,7 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 		"channel_reactor_count = 4",
 		"channel_store_append_workers = 8",
 		"channel_store_apply_workers = 8",
-		"channel_rpc_workers = 50",
+		"channel_rpc_workers = 96",
 		"channel_rpc_batch_max_items = 8",
 		"gnet_multicore = true",
 		"gnet_num_event_loop = 4",
@@ -241,10 +241,11 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 		scale                string
 		wantCacheRows        int
 		wantRecipientWorkers int
+		wantRPCWorkers       int
 	}{
-		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows, wantRecipientWorkers: 100},
-		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency},
-		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows, wantRecipientWorkers: 100},
+		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows, wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
+		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers},
+		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows, wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -290,9 +291,9 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 				t.Fatalf("cluster replicas = Slot %d / Channel %d, want 3 / 3", loaded.Cluster.Slots.ReplicaCount, loaded.Cluster.Channel.ReplicaCount)
 			}
 			if loaded.Cluster.Channel.ReactorCount != 4 || loaded.Cluster.Channel.StoreAppendWorkers != 8 ||
-				loaded.Cluster.Channel.StoreApplyWorkers != 8 || loaded.Cluster.Channel.RPCWorkers != 50 ||
+				loaded.Cluster.Channel.StoreApplyWorkers != 8 || loaded.Cluster.Channel.RPCWorkers != test.wantRPCWorkers ||
 				loaded.Cluster.Channel.RPCBatchMaxItems != 8 {
-				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC/batch 4/8/8/50/8", loaded.Cluster.Channel)
+				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC/batch 4/8/8/%d/8", loaded.Cluster.Channel, test.wantRPCWorkers)
 			}
 			if !loaded.Gateway.Transport.Gnet.Multicore || loaded.Gateway.Transport.Gnet.NumEventLoop != 4 || loaded.Gateway.Runtime.AsyncSendWorkers != 128 || loaded.Gateway.Runtime.AsyncSendQueueCapacity != 131072 {
 				t.Fatalf("gateway runtime = transport %#v runtime %#v, want multicore/loops/workers/queue true/4/128/131072", loaded.Gateway.Transport.Gnet, loaded.Gateway.Runtime)
@@ -331,6 +332,24 @@ func TestCloudMediumRecipientWorkerCapacityCoversMeasuredPlanRate(t *testing.T) 
 	}
 	if cloudMediumRecipientWorkerConcurrency < required {
 		t.Fatalf("Cloud Medium recipient worker capacity = %d, want at least %d", cloudMediumRecipientWorkerConcurrency, required)
+	}
+}
+
+func TestCloudMediumRPCWorkerCapacityCoversMeasuredIngressWithHeadroom(t *testing.T) {
+	const (
+		measuredWorkers  = 50
+		measuredIngress  = 3846.48
+		minimumIngress   = 4500.0
+		capacityHeadroom = 1.50
+	)
+	contract, err := effectiveNodeRuntimeContractForScale("medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	required := int(math.Ceil(float64(measuredWorkers) * minimumIngress / measuredIngress * capacityHeadroom))
+	if contract.ChannelRPCWorkers < required {
+		t.Fatalf("Cloud Medium Channel RPC workers = %d, want at least %d from measured %.2f/s at %d workers with %.0f%% headroom",
+			contract.ChannelRPCWorkers, required, measuredIngress, measuredWorkers, (capacityHeadroom-1)*100)
 	}
 }
 

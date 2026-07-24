@@ -28,6 +28,9 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		MaxGatewayQueueRatio:    0.99,
 		MaxRecipientQueueRatio:  0.99,
 		MaxRecipientWorkerRatio: 0.99,
+		ChannelRPCMetricNodes:   mediumReplicaCount,
+		MinChannelRPCWorkers:    mediumChannelRPCWorkers,
+		MaxChannelRPCWorkers:    mediumChannelRPCWorkers,
 		PluginReceiveAccepted:   float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
 		PluginReceiveInvokeOK:   float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
 		AllocatedBytes:          float64(mediumMessageCount*mediumMeasuredRounds) * 350_000,
@@ -70,7 +73,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "recipient rows", edit: func(e *hotPathEvidence) { e.RecipientRows-- }, want: "recipient rows"},
 		{name: "online routes", edit: func(e *hotPathEvidence) { e.OnlineRoutes-- }, want: "online routes"},
 		{name: "connections", edit: func(e *hotPathEvidence) { e.Connections-- }, want: "acceptance connections"},
-		{name: "offered load", edit: func(e *hotPathEvidence) { e.OfferedQPS++ }, want: "offered QPS"},
+		{name: "offered load", edit: func(e *hotPathEvidence) { e.OfferedQPS-- }, want: "offered QPS"},
 		{name: "cluster convergence missing", edit: func(e *hotPathEvidence) { e.ClusterConvergenceMS = 0 }, want: "cluster convergence"},
 		{name: "cluster stability short", edit: func(e *hotPathEvidence) { e.ClusterStableWindowMS-- }, want: "cluster stable window"},
 		{name: "actual slot leader missing", edit: func(e *hotPathEvidence) { e.SlotLeaders[0] = 0 }, want: "actual Slot leaders"},
@@ -86,6 +89,10 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "gateway queue", edit: func(e *hotPathEvidence) { e.MaxGatewayQueueRatio = 1 }, want: "gateway queue"},
 		{name: "recipient queue", edit: func(e *hotPathEvidence) { e.MaxRecipientQueueRatio = 1 }, want: "recipient queue"},
 		{name: "recipient worker", edit: func(e *hotPathEvidence) { e.MaxRecipientWorkerRatio = 1 }, want: "recipient worker"},
+		{name: "Channel RPC metrics missing", edit: func(e *hotPathEvidence) { e.ChannelRPCMetricNodes-- }, want: "Channel RPC metric nodes"},
+		{name: "Channel RPC worker drift", edit: func(e *hotPathEvidence) { e.MinChannelRPCWorkers-- }, want: "Channel RPC workers"},
+		{name: "Channel RPC queue", edit: func(e *hotPathEvidence) { e.MaxChannelRPCQueueRatio = 1 }, want: "Channel RPC queue"},
+		{name: "Channel RPC worker", edit: func(e *hotPathEvidence) { e.MaxChannelRPCWorkerRatio = 1 }, want: "Channel RPC worker"},
 		{name: "plugin accepted", edit: func(e *hotPathEvidence) { e.PluginReceiveAccepted-- }, want: "plugin receive accepted"},
 		{name: "plugin full", edit: func(e *hotPathEvidence) { e.PluginReceiveFull = 1 }, want: "enqueue non-accepted"},
 		{name: "plugin invoke", edit: func(e *hotPathEvidence) { e.PluginReceiveInvokeOK-- }, want: "plugin receive invoke"},
@@ -127,6 +134,15 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		evidence.IngressPerSecond = float64(mediumCIAcceptanceQPS)*mediumCIMinIngressFraction - 0.001
 		if err := hotPathAcceptanceError(evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds); err == nil || !strings.Contains(err.Error(), "acceptance ingress") {
 			t.Fatalf("below-tolerance ingress error = %v, want acceptance ingress", err)
+		}
+	})
+
+	t.Run("overdrive proves target margin", func(t *testing.T) {
+		evidence := passing
+		evidence.OfferedQPS = mediumOfferedQPS + 500
+		evidence.IngressPerSecond = mediumOfferedQPS + 250
+		if err := hotPathAcceptanceError(evidence, mediumOfferedQPS, mediumMeasuredRounds); err != nil {
+			t.Fatalf("overdrive evidence rejected: %v", err)
 		}
 	})
 
