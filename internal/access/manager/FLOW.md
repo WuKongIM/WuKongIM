@@ -415,6 +415,26 @@ local-vs-remote node selection to `internal/usecase/management`. The stream
 route emits lightweight NDJSON events for lines, rotations, heartbeats, and
 reader errors without owning a long-running log runtime.
 
+## Embedded Operations MCP
+
+Every configured normal-mode Manager listener mounts the agent-facing `POST /mcp`
+Streamable HTTP endpoint and the SPA settings page at `/system/mcp`. The
+agent-facing route uses only its opaque MCP bearer token; it does not accept a
+Manager JWT. Non-empty browser `Origin` values are rejected and the route has
+no CORS grant.
+
+Administration is deliberately separate under `/manager/mcp*` and is disabled
+unless Manager authentication is enabled. Status, token metadata, and local
+audits require `cluster.mcp:r`; token create/revoke, owner change, start, and
+stop require `cluster.mcp:w`. The UI displays the raw token exactly once,
+generates a token-only client snippet, warns on plain HTTP, and reloads
+authoritative Controller state after each mutation.
+
+The Manager listener is the only endpoint operators configure. There is no
+separate MCP process, port, capability file, TLS requirement, or MCP-specific
+TOML switch. Any Manager node may receive a request and forwards it to the
+single Controller-selected execution owner.
+
 `/manager/diagnostics*` exposes internal diagnostics tracing. The HTTP layer
 parses trace/message/event query parameters, enforces the dedicated
 `cluster.diagnostics` permissions, and delegates local-vs-remote fan-out plus

@@ -153,6 +153,41 @@ type TaskParticipantProgress struct {
 	LastError string `json:"last_error,omitempty"`
 }
 
+const (
+	// MaxOpsMCPCredentials bounds the token rotation overlap stored in Controller state.
+	MaxOpsMCPCredentials = 2
+)
+
+// OpsMCPState stores the bounded desired state for the embedded operations MCP.
+type OpsMCPState struct {
+	// Enabled controls whether every Manager listener accepts MCP requests.
+	Enabled bool `json:"enabled"`
+	// OwnerNodeID is the single cluster node that executes MCP tools.
+	OwnerNodeID uint64 `json:"owner_node_id,omitempty"`
+	// ProfileFenceUntilUnixMillis prevents a new owner generation from
+	// overlapping an in-flight profile started before an administrative stop.
+	ProfileFenceUntilUnixMillis int64 `json:"profile_fence_until_unix_ms,omitempty"`
+	// Credentials contains only token identifiers and one-way digests.
+	Credentials []OpsMCPCredential `json:"credentials"`
+}
+
+// Clone returns a deep copy of the MCP desired state.
+func (s OpsMCPState) Clone() OpsMCPState {
+	out := s
+	out.Credentials = cloneSlice(s.Credentials)
+	return out
+}
+
+// OpsMCPCredential stores one long-lived opaque token verifier.
+type OpsMCPCredential struct {
+	// ID is the non-secret identifier encoded into the opaque bearer token.
+	ID string `json:"id"`
+	// DigestSHA256 is the lowercase SHA-256 digest of the complete bearer token.
+	DigestSHA256 string `json:"digest_sha256"`
+	// CreatedAtUnixMillis records when the credential was generated.
+	CreatedAtUnixMillis int64 `json:"created_at_unix_ms"`
+}
+
 // ClusterState is the canonical durable Controller cluster-state document.
 type ClusterState struct {
 	// SchemaVersion selects the durable JSON schema used by this file.
@@ -183,6 +218,8 @@ type ClusterState struct {
 	Backup *BackupCoordinationState `json:"backup,omitempty"`
 	// Restore stores the explicit fresh-cluster recovery plan when configured.
 	Restore *RestoreCoordinationState `json:"restore,omitempty"`
+	// OpsMCP stores bounded desired state for the embedded read-only operations MCP.
+	OpsMCP *OpsMCPState `json:"ops_mcp,omitempty"`
 	// Checksum protects the canonical JSON payload excluding this field.
 	Checksum string `json:"checksum"`
 }

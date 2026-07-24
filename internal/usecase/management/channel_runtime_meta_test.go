@@ -2,6 +2,7 @@ package management
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -99,6 +100,44 @@ func TestListChannelRuntimeMetaReturnsCursorAfterLastEmittedMatch(t *testing.T) 
 	}
 }
 
+func TestGetChannelRuntimeMetaUsesOnePointLookupWithLargePopulation(t *testing.T) {
+	snapshot := control.Snapshot{
+		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, PreferredLeader: 2}},
+		HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{
+			{From: 0, To: 3, SlotID: 1},
+		}},
+	}
+	scanner := newFakeChannelRuntimeMetaReader()
+	point := &fakeChannelRuntimeMetaPointReader{
+		metas: make(map[channelRuntimeMetaTestKey]metadb.ChannelRuntimeMeta, 100001),
+	}
+	for index := 0; index < 100000; index++ {
+		channelID := fmt.Sprintf("large-population-%06d", index)
+		point.metas[channelRuntimeMetaTestKey{channelID: channelID, channelType: 1}] = metadb.ChannelRuntimeMeta{
+			ChannelID: channelID, ChannelType: 1,
+		}
+	}
+	point.metas[channelRuntimeMetaTestKey{channelID: "room-a", channelType: 2}] = metadb.ChannelRuntimeMeta{
+		ChannelID: "room-a", ChannelType: 2, Leader: 1, Replicas: []uint64{1, 2},
+		ISR: []uint64{1, 2}, MinISR: 2, Status: uint8(channelruntime.StatusActive),
+	}
+	app := New(Options{
+		Cluster:                 fakeNodeSnapshotReader{snapshot: snapshot},
+		ChannelRuntimeMeta:      scanner,
+		ChannelRuntimeMetaPoint: point,
+	})
+	got, err := app.GetChannelRuntimeMeta(context.Background(), "room-a", 2)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if got.ChannelID != "room-a" || got.SlotID != 1 || got.Status != "active" {
+		t.Fatalf("runtime meta = %#v", got)
+	}
+	if point.calls != 1 || len(scanner.calls) != 0 {
+		t.Fatalf("point calls=%d scan calls=%v", point.calls, scanner.calls)
+	}
+}
+
 type fakeChannelRuntimeMetaReader struct {
 	slotPages map[uint32]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage
 	calls     []uint32
@@ -122,4 +161,23 @@ func (f *fakeChannelRuntimeMetaReader) ScanChannelRuntimeMetaSlotPage(_ context.
 		}
 	}
 	return nil, after, true, nil
+}
+
+type fakeChannelRuntimeMetaPointReader struct {
+	metas map[channelRuntimeMetaTestKey]metadb.ChannelRuntimeMeta
+	calls int
+}
+
+type channelRuntimeMetaTestKey struct {
+	channelID   string
+	channelType int64
+}
+
+func (f *fakeChannelRuntimeMetaPointReader) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	f.calls++
+	meta, ok := f.metas[channelRuntimeMetaTestKey{channelID: channelID, channelType: channelType}]
+	if !ok {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return meta, nil
 }

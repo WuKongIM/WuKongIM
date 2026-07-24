@@ -453,6 +453,68 @@ func TestDecodeRejectsUnknownNestedField(t *testing.T) {
 	require.NotErrorIs(t, err, ErrChecksumMismatch)
 }
 
+func TestOpsMCPStateRoundTripsAndClonesCredentials(t *testing.T) {
+	st := testState()
+	st.OpsMCP = &OpsMCPState{
+		Enabled:                     true,
+		OwnerNodeID:                 2,
+		ProfileFenceUntilUnixMillis: 1710000030000,
+		Credentials: []OpsMCPCredential{
+			{ID: "token-b", DigestSHA256: strings.Repeat("b", 64), CreatedAtUnixMillis: 1710000002000},
+			{ID: "token-a", DigestSHA256: strings.Repeat("a", 64), CreatedAtUnixMillis: 1710000001000},
+		},
+	}
+
+	data, err := Encode(st)
+	require.NoError(t, err)
+	decoded, err := Decode(data)
+	require.NoError(t, err)
+	require.Equal(t, []string{"token-a", "token-b"}, []string{
+		decoded.OpsMCP.Credentials[0].ID,
+		decoded.OpsMCP.Credentials[1].ID,
+	})
+	require.Equal(t, int64(1710000030000), decoded.OpsMCP.ProfileFenceUntilUnixMillis)
+
+	clone := decoded.Clone()
+	clone.OpsMCP.Credentials[0].ID = "changed"
+	require.Equal(t, "token-a", decoded.OpsMCP.Credentials[0].ID)
+}
+
+func TestValidateOpsMCPStateRejectsUnsafeConfiguration(t *testing.T) {
+	validCredential := OpsMCPCredential{
+		ID:                  "token-a",
+		DigestSHA256:        strings.Repeat("a", 64),
+		CreatedAtUnixMillis: 1710000001000,
+	}
+	tests := []struct {
+		name string
+		mcp  *OpsMCPState
+	}{
+		{name: "enabled without owner", mcp: &OpsMCPState{Enabled: true, Credentials: []OpsMCPCredential{validCredential}}},
+		{name: "negative profile fence", mcp: &OpsMCPState{ProfileFenceUntilUnixMillis: -1}},
+		{name: "enabled without credential", mcp: &OpsMCPState{Enabled: true, OwnerNodeID: 1}},
+		{name: "unknown owner", mcp: &OpsMCPState{OwnerNodeID: 99}},
+		{name: "removed owner", mcp: &OpsMCPState{OwnerNodeID: 3}},
+		{name: "malformed digest", mcp: &OpsMCPState{Credentials: []OpsMCPCredential{{ID: "token-a", DigestSHA256: "bad", CreatedAtUnixMillis: 1}}}},
+		{name: "duplicate credential", mcp: &OpsMCPState{Credentials: []OpsMCPCredential{validCredential, validCredential}}},
+		{name: "too many credentials", mcp: &OpsMCPState{Credentials: []OpsMCPCredential{
+			validCredential,
+			{ID: "token-b", DigestSHA256: strings.Repeat("b", 64), CreatedAtUnixMillis: 1710000002000},
+			{ID: "token-c", DigestSHA256: strings.Repeat("c", 64), CreatedAtUnixMillis: 1710000003000},
+		}}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			st := testState()
+			st.Nodes[2].JoinState = NodeJoinStateRemoved
+			st.Nodes[2].Status = NodeStatusDown
+			st.OpsMCP = test.mcp
+			require.ErrorIs(t, st.Validate(), ErrInvalidState)
+		})
+	}
+}
+
 func TestEncodeEmptyRepeatedFieldsAsArrays(t *testing.T) {
 	table, err := BuildInitialHashSlotTable(1, 1)
 	require.NoError(t, err)

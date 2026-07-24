@@ -166,7 +166,17 @@ const (
 	ControlWriteActionPromoteControllerVoter ControlWriteAction = "promote_controller_voter"
 	// ControlWriteActionReportNodeHealth submits a low-frequency runtime health report.
 	ControlWriteActionReportNodeHealth ControlWriteAction = "report_node_health"
+	// ControlWriteActionReplaceOpsMCP replaces embedded operations MCP desired state.
+	ControlWriteActionReplaceOpsMCP ControlWriteAction = "replace_ops_mcp"
 )
+
+// ReplaceOpsMCPRequest carries one revision-fenced MCP desired-state replacement.
+type ReplaceOpsMCPRequest struct {
+	// ExpectedRevision is the global Controller compare-and-set fence.
+	ExpectedRevision uint64 `json:"expected_revision"`
+	// State is the complete bounded replacement.
+	State controller.OpsMCPState `json:"state"`
+}
 
 // ControlWriteRequest carries one generic Controller write.
 type ControlWriteRequest struct {
@@ -186,6 +196,8 @@ type ControlWriteRequest struct {
 	PromoteControllerVoter PromoteControllerVoterRequest `json:"promote_controller_voter,omitempty"`
 	// ReportNodeHealth carries a low-frequency runtime health report.
 	ReportNodeHealth NodeReport `json:"report_node_health,omitempty"`
+	// ReplaceOpsMCP carries an embedded operations MCP desired-state replacement.
+	ReplaceOpsMCP ReplaceOpsMCPRequest `json:"replace_ops_mcp,omitempty"`
 }
 
 type controlWriteRequestJSON struct {
@@ -197,6 +209,7 @@ type controlWriteRequestJSON struct {
 	SlotReplicaMove        *SlotReplicaMoveRequest        `json:"slot_replica_move,omitempty"`
 	PromoteControllerVoter *PromoteControllerVoterRequest `json:"promote_controller_voter,omitempty"`
 	ReportNodeHealth       *NodeReport                    `json:"report_node_health,omitempty"`
+	ReplaceOpsMCP          *ReplaceOpsMCPRequest          `json:"replace_ops_mcp,omitempty"`
 }
 
 // MarshalJSON encodes only the payload branch selected by Action.
@@ -217,6 +230,8 @@ func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
 		wire.PromoteControllerVoter = &req.PromoteControllerVoter
 	case ControlWriteActionReportNodeHealth:
 		wire.ReportNodeHealth = &req.ReportNodeHealth
+	case ControlWriteActionReplaceOpsMCP:
+		wire.ReplaceOpsMCP = &req.ReplaceOpsMCP
 	}
 	return json.Marshal(wire)
 }

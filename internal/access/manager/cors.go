@@ -12,6 +12,10 @@ const openCORSExposeHeaders = "Content-Length, Content-Type"
 
 func openCORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request != nil && c.Request.URL != nil && c.Request.URL.Path == "/mcp" {
+			c.Next()
+			return
+		}
 		allowOrigin := "*"
 		if c.Request != nil {
 			if origin := c.Request.Header.Get("Origin"); origin != "" {

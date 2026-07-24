@@ -26,6 +26,74 @@ export type ManagerPermissionsResponse = {
   resources: ManagerPermissionResource[]
 }
 
+export type ManagerMCPCredential = {
+  id: string
+  created_at_unix_ms: number
+  old: boolean
+}
+
+export type ManagerMCPStatusResponse = {
+  cluster_id: string
+  revision: number
+  enabled: boolean
+  observed_status: "stopped" | "ready" | "unavailable"
+  owner_node_id: number
+  owner_candidates: {
+    node_id: number
+    status: string
+  }[]
+  credentials: ManagerMCPCredential[]
+  warnings: string[]
+}
+
+export type ManagerMCPTokenResponse = {
+  credential_id: string
+  token: string
+  created_at_unix_ms: number
+  revision: number
+}
+
+export type ManagerMCPMutationResponse = {
+  accepted: boolean
+}
+
+export type ManagerMCPAudit = {
+  request_id: string
+  recorder_node_id?: number
+  phase: string
+  ingress_node_id?: number
+  owner_node_id?: number
+  credential_id: string
+  tool: string
+  node_id?: number
+  slot_id?: number
+  channel_type?: number
+  result: string
+  started_at: string
+  duration_ms: number
+  response_bytes: number
+  cache_hit: boolean
+  pprof_kind?: string
+  pprof_seconds?: number
+}
+
+export type ManagerMCPAuditsResponse = {
+  items: ManagerMCPAudit[]
+}
+
+export type ManagerMCPMutationInput = {
+  expectedRevision: number
+  idempotencyKey: string
+}
+
+export type ManagerMCPOwnerMutationInput = ManagerMCPMutationInput & {
+  ownerNodeId: number
+}
+
+export type ManagerMCPTokenRevokeInput = ManagerMCPMutationInput & {
+  credentialId: string
+}
+
 export type ManagerWebhookConfigResponse = {
   enabled: boolean
   http_addr: string

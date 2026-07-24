@@ -71,6 +71,7 @@ func TestManagerPermissionsReturnsSanitizedSnapshot(t *testing.T) {
 
 	requirePermissionCatalogEntry(t, body.Resources, "cluster.permission", []string{"r"})
 	requirePermissionCatalogEntry(t, body.Resources, "cluster.db", []string{"r"})
+	requirePermissionCatalogEntry(t, body.Resources, "cluster.mcp", []string{"r", "w"})
 	requirePermissionCatalogEntry(t, body.Resources, "cluster.webhook", []string{"r"})
 	requirePermissionCatalogEntry(t, body.Resources, "*", []string{"*"})
 	if permissionCatalogContains(body.Resources, "cluster.webhook", "w") {

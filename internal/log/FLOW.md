@@ -48,3 +48,7 @@ not accept arbitrary paths, does not expose local filesystem paths, and does not
 read Controller, Slot, Channel, Raft, or other distributed logs. Initial tail
 pages and forward reads are bounded by the configured scan budget, and returned
 raw lines are capped independently from best-effort JSON or console parsing.
+Context reads use the same opaque cursor and a bounded backward tail scan to
+return exact `before` plus `after` raw lines from the selected file. They do not
+search arbitrary directories or synthesize neighboring entries on another
+node.

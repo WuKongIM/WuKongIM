@@ -157,6 +157,28 @@ const (
 // TaskParticipantProgress describes one node's local progress.
 type TaskParticipantProgress = controller.TaskParticipantProgress
 
+// OpsMCPState is the bounded desired state for the embedded operations MCP.
+type OpsMCPState struct {
+	// Enabled reports whether Manager listeners should accept MCP requests.
+	Enabled bool
+	// OwnerNodeID is the single cluster node that executes MCP tools.
+	OwnerNodeID uint64
+	// ProfileFenceUntilUnixMillis prevents profiles during an owner-generation transition.
+	ProfileFenceUntilUnixMillis int64
+	// Credentials contains token identifiers and one-way digests.
+	Credentials []OpsMCPCredential
+}
+
+// OpsMCPCredential is one opaque bearer token verifier.
+type OpsMCPCredential struct {
+	// ID is the non-secret identifier encoded in the token.
+	ID string
+	// DigestSHA256 is the lowercase digest of the complete token.
+	DigestSHA256 string
+	// CreatedAtUnixMillis records when the token was created.
+	CreatedAtUnixMillis int64
+}
+
 // Snapshot is the cluster control read model consumed by data-plane modules.
 type Snapshot struct {
 	// ClusterID is the stable Controller cluster identity carried by this snapshot.
@@ -173,6 +195,8 @@ type Snapshot struct {
 	HashSlots HashSlotTable
 	// Tasks lists active reconcile tasks.
 	Tasks []ReconcileTask
+	// OpsMCP contains desired state for the embedded operations MCP.
+	OpsMCP *OpsMCPState
 	// ChannelDataPlaneLease is this node's local append-admission visibility lease.
 	ChannelDataPlaneLease ChannelDataPlaneLease
 }

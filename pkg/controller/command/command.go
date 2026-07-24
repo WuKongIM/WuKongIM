@@ -40,6 +40,8 @@ const (
 	KindReplaceBackupCoordinationState Kind = "replace_backup_coordination_state"
 	// KindReplaceRestoreCoordinationState replaces bounded explicit recovery metadata.
 	KindReplaceRestoreCoordinationState Kind = "replace_restore_coordination_state"
+	// KindReplaceOpsMCPState replaces bounded embedded operations MCP desired state.
+	KindReplaceOpsMCPState Kind = "replace_ops_mcp_state"
 )
 
 // Command is the versioned payload replicated through Controller Raft.
@@ -78,6 +80,8 @@ type Command struct {
 	Backup *state.BackupCoordinationState `json:"backup,omitempty"`
 	// Restore contains replacement bounded explicit recovery metadata.
 	Restore *state.RestoreCoordinationState `json:"restore,omitempty"`
+	// OpsMCP contains replacement embedded operations MCP desired state.
+	OpsMCP *state.OpsMCPState `json:"ops_mcp,omitempty"`
 }
 
 // ControllerVoterPromotion records a proven promotion of one node into Controller Raft voting membership.

@@ -15,11 +15,13 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
+	accessops "github.com/WuKongIM/WuKongIM/internal/access/opsmcp"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
@@ -77,10 +79,14 @@ type Option func(*App)
 
 // App is the internal composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg                         Config
-	cluster                     ClusterRuntime
-	api                         APIRuntime
-	manager                     ManagerRuntime
+	cfg     Config
+	cluster ClusterRuntime
+	api     APIRuntime
+	manager ManagerRuntime
+	// opsMCPEndpoint serves stateless MCP on every configured Manager listener.
+	opsMCPEndpoint *accessops.Endpoint
+	// opsMCPCalls owns node-local rate budgets and rotated audit output.
+	opsMCPCalls                 *runtimeops.CallControl
 	gateway                     GatewayRuntime
 	handler                     *accessgateway.Handler
 	messages                    *message.App
