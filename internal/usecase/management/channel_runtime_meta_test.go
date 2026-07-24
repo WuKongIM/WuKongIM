@@ -99,6 +99,35 @@ func TestListChannelRuntimeMetaReturnsCursorAfterLastEmittedMatch(t *testing.T) 
 	}
 }
 
+func TestGetChannelRuntimeMetaUsesOnePointLookupWithoutScanning(t *testing.T) {
+	snapshot := control.Snapshot{
+		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, PreferredLeader: 2}},
+		HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{
+			{From: 0, To: 3, SlotID: 1},
+		}},
+	}
+	scanner := newFakeChannelRuntimeMetaReader()
+	point := &fakeChannelRuntimeMetaPointReader{meta: metadb.ChannelRuntimeMeta{
+		ChannelID: "room-a", ChannelType: 2, Leader: 1, Replicas: []uint64{1, 2},
+		ISR: []uint64{1, 2}, MinISR: 2, Status: uint8(channelruntime.StatusActive),
+	}}
+	app := New(Options{
+		Cluster:                 fakeNodeSnapshotReader{snapshot: snapshot},
+		ChannelRuntimeMeta:      scanner,
+		ChannelRuntimeMetaPoint: point,
+	})
+	got, err := app.GetChannelRuntimeMeta(context.Background(), "room-a", 2)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if got.ChannelID != "room-a" || got.SlotID != 1 || got.Status != "active" {
+		t.Fatalf("runtime meta = %#v", got)
+	}
+	if point.calls != 1 || len(scanner.calls) != 0 {
+		t.Fatalf("point calls=%d scan calls=%v", point.calls, scanner.calls)
+	}
+}
+
 type fakeChannelRuntimeMetaReader struct {
 	slotPages map[uint32]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage
 	calls     []uint32
@@ -122,4 +151,17 @@ func (f *fakeChannelRuntimeMetaReader) ScanChannelRuntimeMetaSlotPage(_ context.
 		}
 	}
 	return nil, after, true, nil
+}
+
+type fakeChannelRuntimeMetaPointReader struct {
+	meta  metadb.ChannelRuntimeMeta
+	calls int
+}
+
+func (f *fakeChannelRuntimeMetaPointReader) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	f.calls++
+	if f.meta.ChannelID != channelID || f.meta.ChannelType != channelType {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return f.meta, nil
 }

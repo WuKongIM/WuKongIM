@@ -11,6 +11,7 @@
 - `internal/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - Browser-facing manager APIs encode 64-bit `message_id` values as decimal JSON strings; web filters, keys, and display code must keep them as strings end to end.
 - The Manager Web production bundle is generated into `internal/access/manager/webui/dist`, committed in full, and embedded in `cmd/wukongim`; production must not require a separate web process or a frontend build during ordinary Go compilation.
+- The embedded Operations MCP is administered through Manager but authenticated independently with one opaque `wko_*` token. Every Manager listener serves `/mcp`; Controller state selects one execution owner, ingress nodes never forward the raw token, targets consume one-time owner-held leases before pprof, audit fanout is deadline-bounded, and a stop-time 30-second fence prevents profile overlap across owner generations.
 - Manager message payloads are raw bytes encoded as Base64 in JSON; web views decode valid printable UTF-8 (including non-ASCII text) and keep binary payloads in Base64 form.
 - `cmd/wukongim` is the promoted product entrypoint. Controller, the new
   cluster runtime, the multi-reactor channel runtime, and the new business

@@ -199,6 +199,12 @@ func (s *Store) retainedCandidateEventsLocked() []Event {
 }
 
 func matchesQuery(event Event, q Query) bool {
+	if !q.Start.IsZero() && event.At.Before(q.Start) {
+		return false
+	}
+	if !q.End.IsZero() && event.At.After(q.End) {
+		return false
+	}
 	if q.TraceID != "" && event.TraceID != q.TraceID {
 		return false
 	}

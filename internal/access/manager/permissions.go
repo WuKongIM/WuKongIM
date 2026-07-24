@@ -83,6 +83,11 @@ var builtinManagerPermissionResources = []ManagerPermissionResource{
 		Description: "Read ordinary application log sources and entries.",
 	},
 	{
+		Resource:    "cluster.mcp",
+		Actions:     []string{"r", "w"},
+		Description: "Read and administer the embedded read-only operations MCP.",
+	},
+	{
 		Resource:    "cluster.db",
 		Actions:     []string{"r"},
 		Description: "Read node-local DB Inspect table metadata and query results.",

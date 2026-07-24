@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   Archive,
+  Bot,
   Cable,
   ClipboardList,
   Database,
@@ -201,6 +202,14 @@ export const navigationSections: NavigationSection[] = [
         aliases: ["/settings/permissions"],
       },
       {
+        href: "/system/mcp",
+        titleMessageId: "nav.mcp.title",
+        descriptionMessageId: "nav.mcp.description",
+        pathLabelMessageId: "nav.path.system.mcp",
+        icon: Bot,
+        aliases: ["/settings/mcp"],
+      },
+      {
         href: "/system/db",
         titleMessageId: "nav.dbInspect.title",
         descriptionMessageId: "nav.dbInspect.description",
@@ -267,6 +276,7 @@ export const legacyRouteRedirects: Record<string, string> = {
   "/system-users": "/business/system-users",
   "/db-inspect": "/system/db",
   "/settings/permissions": "/system/permissions",
+  "/settings/mcp": "/system/mcp",
   "/settings/webhooks": "/system/webhooks",
   "/connections": "/business/connections",
 }

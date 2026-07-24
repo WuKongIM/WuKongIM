@@ -1,0 +1,4 @@
+interface:
+  display_name: "WuKongIM Operations"
+  short_description: "Diagnose WuKongIM safely with the read-only MCP"
+  default_prompt: "Use $wukongim-ops to diagnose this WuKongIM cluster issue from read-only evidence."

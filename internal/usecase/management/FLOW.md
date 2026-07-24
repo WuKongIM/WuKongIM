@@ -539,6 +539,31 @@ filesystem paths itself. It validates `node_id` and `limit` bounds, then
 delegates source discovery, cursor handling, rotation detection, filtering, and
 entry parsing to the narrow `ApplicationLogReader` port.
 
+## Operations MCP Administration Flow
+
+```text
+authenticated Manager operator
+  -> read status or revision-fenced mutation
+  -> complete Controller OpsMCP desired-state replacement
+  -> every Manager observes the same owner/enabled/credential metadata
+```
+
+The management usecase generates a 256-bit opaque `wko_*` token, returns it
+only in the successful creation response, and persists only its credential ID,
+SHA-256 digest, and creation time. Token creation, revocation, owner selection,
+start, and stop require an idempotency key and expected Controller revision.
+Creation retries can replay the one-time token from bounded process memory for
+five minutes. At most two tokens may coexist; they do not expire, but status
+marks tokens older than 90 days for rotation.
+
+MCP can start only with an active owner and at least one token. The owner can
+change only while stopped, and the last token cannot be revoked while enabled.
+An owner must also be Controller-alive; status includes a safe eligible-owner
+list so `cluster.mcp:r/w` does not require `cluster.node:r`. Stopping persists
+a 30-second profile transition fence. Status and audit results expose no token
+digest. The audit page is a bounded newest-first aggregate of available
+alive/suspect nodes' local ingress/owner records.
+
 ## Business Channel List Flow
 
 ```text

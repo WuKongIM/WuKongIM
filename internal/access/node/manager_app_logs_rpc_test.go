@@ -42,6 +42,8 @@ func TestManagerAppLogRPCEntriesRoundTrip(t *testing.T) {
 		Cursor:  "cursor-1",
 		Keyword: "slow",
 		Levels:  []string{"warn", "error"},
+		Before:  25,
+		After:   25,
 	})
 	if err != nil {
 		t.Fatalf("encodeManagerAppLogRequest() error = %v", err)
@@ -66,6 +68,8 @@ func TestManagerAppLogRPCEntriesRoundTrip(t *testing.T) {
 		Cursor:  "cursor-1",
 		Keyword: "slow",
 		Levels:  []string{"warn", "error"},
+		Before:  25,
+		After:   25,
 	}
 	if !reflect.DeepEqual(reader.entriesReq, wantReq) {
 		t.Fatalf("entries request = %#v, want %#v", reader.entriesReq, wantReq)

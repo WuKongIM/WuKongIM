@@ -202,6 +202,10 @@ type Options struct {
 	Auth AuthConfig
 	// Management provides manager read usecases.
 	Management Management
+	// OpsMCP provides embedded operations MCP administration.
+	OpsMCP OpsMCPManagement
+	// OpsMCPHandler serves the embedded agent-facing MCP endpoint at /mcp.
+	OpsMCPHandler http.Handler
 	// Backup provides optional cluster backup control operations.
 	Backup BackupManagement
 	// Restore provides explicit disaster-recovery control operations.
@@ -227,6 +231,8 @@ type Server struct {
 	listenAddr      string
 	addr            string
 	management      Management
+	opsMCP          OpsMCPManagement
+	opsMCPHandler   http.Handler
 	backup          BackupManagement
 	restore         RestoreManagement
 	restoreMode     bool
@@ -252,6 +258,8 @@ func New(opts Options) *Server {
 		engine:          engine,
 		listenAddr:      strings.TrimSpace(opts.ListenAddr),
 		management:      opts.Management,
+		opsMCP:          opts.OpsMCP,
+		opsMCPHandler:   opts.OpsMCPHandler,
 		backup:          opts.Backup,
 		restore:         opts.Restore,
 		restoreMode:     opts.RestoreMode,
@@ -349,6 +357,9 @@ func (s *Server) registerRoutes() {
 	if s == nil || s.engine == nil {
 		return
 	}
+	if !s.restoreMode && s.opsMCPHandler != nil {
+		s.engine.Any("/mcp", gin.WrapH(s.opsMCPHandler))
+	}
 	if s.auth.enabled() {
 		s.engine.POST("/manager/login", s.handleLogin)
 	}
@@ -361,6 +372,25 @@ func (s *Server) registerRoutes() {
 		s.registerRestoreRoutes()
 		return
 	}
+
+	mcpReads := s.engine.Group("/manager")
+	mcpReads.Use(s.requireMCPAdministrationReady())
+	if s.auth.enabled() {
+		mcpReads.Use(s.requirePermission("cluster.mcp", "r"))
+	}
+	mcpReads.GET("/mcp", s.handleOpsMCPStatus)
+	mcpReads.GET("/mcp/audits", s.handleOpsMCPAudits)
+
+	mcpWrites := s.engine.Group("/manager")
+	mcpWrites.Use(s.requireMCPAdministrationReady())
+	if s.auth.enabled() {
+		mcpWrites.Use(s.requirePermission("cluster.mcp", "w"))
+	}
+	mcpWrites.POST("/mcp/tokens", s.handleOpsMCPTokenCreate)
+	mcpWrites.DELETE("/mcp/tokens/:credential_id", s.handleOpsMCPTokenRevoke)
+	mcpWrites.PUT("/mcp/owner", s.handleOpsMCPOwnerUpdate)
+	mcpWrites.POST("/mcp/start", s.handleOpsMCPStart)
+	mcpWrites.POST("/mcp/stop", s.handleOpsMCPStop)
 
 	nodes := s.engine.Group("/manager")
 	if s.auth.enabled() {
