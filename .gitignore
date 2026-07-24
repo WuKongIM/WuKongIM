@@ -62,7 +62,7 @@ _bmad-output
 .superpowers/
 
 learn_project/
-wukongim.conf
+wukongim.toml
 .devdata/
 docker/dev-cluster/
 docker/dev-sim/
