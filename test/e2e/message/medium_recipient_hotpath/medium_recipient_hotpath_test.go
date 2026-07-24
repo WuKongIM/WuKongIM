@@ -20,32 +20,38 @@ import (
 	"testing"
 	"time"
 
+	benchtarget "github.com/WuKongIM/WuKongIM/internal/bench/target"
+	benchmodel "github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/pelletier/go-toml/v2"
 )
 
 const (
-	mediumEvidenceSchema    = "wukongim/local-medium-rc-hifi-evidence/v3"
-	mediumPhysicalHashSlots = 256
-	mediumLogicalSlots      = 10
-	mediumReplicaCount      = 3
-	mediumSlotTickInterval  = 50 * time.Millisecond
-	mediumSlotHeartbeatTick = 2
-	mediumSlotElectionTick  = 20
-	mediumMessageCount      = 250
-	mediumRecipientRows     = 19_650
-	mediumOnlineRoutes      = 2_545
-	mediumPayloadBytes      = 256
-	mediumMeasuredRounds    = 80
-	mediumOfferedQPS        = 4_500
-	mediumCIAcceptanceQPS   = 500
-	mediumMinOfferedQPS     = 500
-	mediumRecipientPlanSize = 512
-	mediumSenderConnections = 25
-	mediumGroupSenders      = 5
-	mediumChannelRPCWorkers = 96
-	mediumSenderUIDPrefix   = "wkrc-hifi-sender"
+	mediumEvidenceSchema          = "wukongim/local-medium-rc-hifi-evidence/v4"
+	mediumPhysicalHashSlots       = 256
+	mediumLogicalSlots            = 10
+	mediumReplicaCount            = 3
+	mediumSlotTickInterval        = 50 * time.Millisecond
+	mediumSlotHeartbeatTick       = 2
+	mediumSlotElectionTick        = 20
+	mediumMessageCount            = 250
+	mediumRecipientRows           = 19_650
+	mediumOnlineRoutes            = 2_545
+	mediumPayloadBytes            = 256
+	mediumPrimeConcurrency        = 16
+	mediumMeasuredRounds          = 80
+	mediumOfferedQPS              = 4_500
+	mediumCIAcceptanceQPS         = 500
+	mediumMinOfferedQPS           = 500
+	mediumRecipientPlanSize       = 512
+	mediumSenderConnections       = 25
+	mediumGroupSenders            = 5
+	mediumGroupChannelCount       = 4
+	mediumCloudGroupChannelCount  = 5_000
+	mediumChannelRPCWorkers       = 96
+	mediumChannelRPCBatchMaxItems = 8
+	mediumSenderUIDPrefix         = "wkrc-hifi-sender"
 
 	mediumCIMinIngressFraction                 = 0.995
 	mediumMaxAllocatedBytesPerMessage          = 360_000
@@ -60,21 +66,24 @@ const (
 )
 
 var mediumGroupProfiles = []struct {
-	messages   int
-	recipients int
-	online     int
+	messages      int
+	recipients    int
+	online        int
+	cloudChannels int
 }{
-	{messages: 60, recipients: 20, online: 5},
-	{messages: 42, recipients: 100, online: 15},
-	{messages: 18, recipients: 500, online: 55},
-	{messages: 5, recipients: 1_000, online: 100},
+	{messages: 60, recipients: 20, online: 5, cloudChannels: 3_321},
+	{messages: 42, recipients: 100, online: 15, cloudChannels: 1_186},
+	{messages: 18, recipients: 500, online: 55, cloudChannels: 237},
+	{messages: 5, recipients: 1_000, online: 100, cloudChannels: 256},
 }
 
 type hotPathMessage struct {
-	clientSeq   uint64
-	clientMsgNo string
-	channelID   string
-	channelType uint8
+	clientSeq    uint64
+	clientMsgNo  string
+	channelID    string
+	channelType  uint8
+	groupProfile int
+	groupOrdinal int
 }
 
 type hotPathRecipient struct {
@@ -108,6 +117,8 @@ type hotPathEvidence struct {
 	RecipientRows            int      `json:"recipient_rows"`
 	OnlineRoutes             int      `json:"online_routes"`
 	Connections              int      `json:"connections"`
+	GroupChannels            int      `json:"group_channels"`
+	ActiveGroupChannels      int      `json:"active_group_channels"`
 	OfferedQPS               int      `json:"offered_qps"`
 	ClusterConvergenceMS     float64  `json:"cluster_convergence_ms"`
 	ClusterStableWindowMS    float64  `json:"cluster_stable_window_ms"`
@@ -129,6 +140,12 @@ type hotPathEvidence struct {
 	ChannelRPCMetricNodes    int      `json:"channel_rpc_metric_nodes"`
 	MinChannelRPCWorkers     float64  `json:"min_channel_rpc_workers"`
 	MaxChannelRPCWorkers     float64  `json:"max_channel_rpc_workers"`
+	ChannelRPCBatchMaxItems  int      `json:"channel_rpc_batch_max_items"`
+	ChannelRPCAdmissionFull  float64  `json:"channel_rpc_admission_full"`
+	ChannelRPCPullBatches    float64  `json:"channel_rpc_pull_batches"`
+	ChannelRPCPullBatchItems float64  `json:"channel_rpc_pull_batch_items"`
+	ChannelRPCHintBatches    float64  `json:"channel_rpc_hint_batches"`
+	ChannelRPCHintBatchItems float64  `json:"channel_rpc_hint_batch_items"`
 	MaxChannelRPCQueueRatio  float64  `json:"max_channel_rpc_queue_ratio"`
 	MaxChannelRPCWorkerRatio float64  `json:"max_channel_rpc_worker_ratio"`
 	MaxAdvancePoolUtil       float64  `json:"max_advance_pool_utilization"`
@@ -158,6 +175,14 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	}
 	measuredRounds := boundedPositiveEnvInt(t, "WK_E2E_MEDIUM_RECIPIENT_ROUNDS", mediumMeasuredRounds, 1, 200)
 	offeredQPS := boundedPositiveEnvInt(t, "WK_E2E_MEDIUM_RECIPIENT_QPS", mediumOfferedQPS, mediumMinOfferedQPS, 20_000)
+	rpcBatchMaxItems := boundedPositiveEnvInt(t, "WK_E2E_MEDIUM_RECIPIENT_RPC_BATCH_MAX_ITEMS", mediumChannelRPCBatchMaxItems, 1, 64)
+	groupChannelCount := boundedPositiveEnvInt(
+		t,
+		"WK_E2E_MEDIUM_RECIPIENT_GROUP_CHANNELS",
+		mediumGroupChannelCount,
+		len(mediumGroupProfiles),
+		mediumCloudGroupChannelCount,
+	)
 	expectedAcceptanceQPS := mediumOfferedQPS
 	metricSampleInterval := mediumMetricSampleInterval
 	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_CI_SCALE") == "1" {
@@ -168,9 +193,13 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		t.Fatalf("acceptance offered QPS = %d, want at least %d", offeredQPS, expectedAcceptanceQPS)
 	}
 
-	cluster := startMediumCluster(t)
-	verifyMediumRenderedRuntime(t, cluster)
-	setupCtx, setupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	cluster := startMediumCluster(t, rpcBatchMaxItems)
+	verifyMediumRenderedRuntime(t, cluster, rpcBatchMaxItems)
+	setupTimeout := 2 * time.Minute
+	if groupChannelCount > 500 {
+		setupTimeout = 5 * time.Minute
+	}
+	setupCtx, setupCancel := context.WithTimeout(context.Background(), setupTimeout)
 	defer setupCancel()
 	if err := cluster.WaitClusterReady(setupCtx); err != nil {
 		t.Fatalf("wait for Cloud Medium-shaped cluster: %v\n%s", err, cluster.DumpDiagnostics())
@@ -185,25 +214,15 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		setupConvergence.StableDuration,
 		setupConvergence.Leaders,
 	)
-	groupChannels, groupRecipients, groupOnline := prepareGroupChannels(t, setupCtx, cluster.MustNode(1))
+	groupChannels, groupRecipients, groupOnline := prepareGroupChannels(t, setupCtx, cluster.MustNode(1), groupChannelCount)
 	personRecipients := make([]string, 125)
 	for i := range personRecipients {
 		personRecipients[i] = fmt.Sprintf("wkrc-person-%03d", i)
 	}
 
-	recipients := connectRecipients(t, cluster, groupOnline, personRecipients)
-	defer closeRecipients(recipients)
-
-	primeMessages := buildMessages(groupChannels, personRecipients)
-	if len(primeMessages) != mediumMessageCount || groupRecipients+len(personRecipients)*2 != mediumRecipientRows {
-		t.Fatalf("fixture shape messages=%d recipient_rows=%d, want %d/%d", len(primeMessages), groupRecipients+len(personRecipients)*2, mediumMessageCount, mediumRecipientRows)
-	}
-	expectedOnline := 0
-	for _, recipient := range recipients {
-		expectedOnline += recipient.expected
-	}
-	if expectedOnline != mediumOnlineRoutes {
-		t.Fatalf("fixture online routes = %d, want %d", expectedOnline, mediumOnlineRoutes)
+	baseMessages := buildMessages(groupChannels, personRecipients)
+	if len(baseMessages) != mediumMessageCount || groupRecipients+len(personRecipients)*2 != mediumRecipientRows {
+		t.Fatalf("fixture shape messages=%d recipient_rows=%d, want %d/%d", len(baseMessages), groupRecipients+len(personRecipients)*2, mediumMessageCount, mediumRecipientRows)
 	}
 
 	payload := bytes.Repeat([]byte("w"), mediumPayloadBytes)
@@ -219,12 +238,26 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		convergence.Leaders,
 	)
 	proveWarmupSend(t, cluster, primeSender)
-	coldPrimeDuration := primeHotPathChannels(t, cluster, primeSender, recipients, primeMessages, payload)
 	_ = primeSender.Close()
+	primeMessages := buildPrimeMessages(groupChannels, personRecipients)
+	coldPrimeDuration := primeHotPathChannels(t, setupCtx, cluster, primeMessages, payload)
+
+	recipients := connectRecipients(t, cluster, groupOnline, personRecipients)
+	defer closeRecipients(recipients)
+	if err := waitForRecipientPresence(setupCtx, cluster, len(recipients)); err != nil {
+		t.Fatalf("wait for recipient presence convergence: %v\n%s", err, cluster.DumpDiagnostics())
+	}
+	expectedOnline := 0
+	for _, recipient := range recipients {
+		expectedOnline += recipient.expected
+	}
+	if expectedOnline != mediumOnlineRoutes {
+		t.Fatalf("fixture online routes = %d, want %d", expectedOnline, mediumOnlineRoutes)
+	}
 
 	senders := connectSenders(t, cluster)
 	defer closeClients(senders)
-	messages := repeatMessages(primeMessages, measuredRounds)
+	messages := repeatMessages(baseMessages, measuredRounds, groupChannels)
 	measuredRecipients := multiplyRecipientExpectations(recipients, measuredRounds)
 
 	starts := &sync.Map{}
@@ -339,6 +372,8 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		RecipientRows:            mediumRecipientRows * measuredRounds,
 		OnlineRoutes:             measuredOnlineRoutes,
 		Connections:              len(recipients) + len(senders),
+		GroupChannels:            groupChannelCount,
+		ActiveGroupChannels:      countActiveGroupChannels(messages),
 		OfferedQPS:               offeredQPS,
 		ClusterConvergenceMS:     milliseconds(convergence.WaitDuration),
 		ClusterStableWindowMS:    milliseconds(convergence.StableDuration),
@@ -360,6 +395,12 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		ChannelRPCMetricNodes:    pressure.maxChannelRPCMetricNodes,
 		MinChannelRPCWorkers:     pressure.minChannelRPCWorkers,
 		MaxChannelRPCWorkers:     pressure.maxChannelRPCWorkers,
+		ChannelRPCBatchMaxItems:  rpcBatchMaxItems,
+		ChannelRPCAdmissionFull:  counterDelta.channelRPCAdmissionFull,
+		ChannelRPCPullBatches:    counterDelta.channelRPCPullBatches,
+		ChannelRPCPullBatchItems: counterDelta.channelRPCPullBatchItems,
+		ChannelRPCHintBatches:    counterDelta.channelRPCHintBatches,
+		ChannelRPCHintBatchItems: counterDelta.channelRPCHintBatchItems,
 		MaxChannelRPCQueueRatio:  pressure.maxChannelRPCQueueRatio,
 		MaxChannelRPCWorkerRatio: pressure.maxChannelRPCWorkerRatio,
 		MaxAdvancePoolUtil:       pressure.maxAdvancePoolUtil,
@@ -431,6 +472,19 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 		return fmt.Errorf("acceptance online routes = %d, want %d", evidence.OnlineRoutes, expectedMeasuredOnlineRoutes(expectedRounds))
 	case evidence.Connections != expectedConnectionCount():
 		return fmt.Errorf("acceptance connections = %d, want %d", evidence.Connections, expectedConnectionCount())
+	case evidence.GroupChannels < len(mediumGroupProfiles) || evidence.GroupChannels > mediumCloudGroupChannelCount:
+		return fmt.Errorf(
+			"acceptance group channels = %d, want in [%d,%d]",
+			evidence.GroupChannels,
+			len(mediumGroupProfiles),
+			mediumCloudGroupChannelCount,
+		)
+	case evidence.ActiveGroupChannels != expectedActiveGroupChannels(evidence.GroupChannels, expectedRounds):
+		return fmt.Errorf(
+			"acceptance active group channels = %d, want %d",
+			evidence.ActiveGroupChannels,
+			expectedActiveGroupChannels(evidence.GroupChannels, expectedRounds),
+		)
 	case evidence.OfferedQPS < expectedOfferedQPS:
 		return fmt.Errorf("acceptance offered QPS = %d, want at least %d", evidence.OfferedQPS, expectedOfferedQPS)
 	case evidence.ClusterConvergenceMS <= 0:
@@ -473,6 +527,26 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 			evidence.MaxChannelRPCWorkers,
 			mediumChannelRPCWorkers,
 			mediumChannelRPCWorkers,
+		)
+	case evidence.ChannelRPCBatchMaxItems != mediumChannelRPCBatchMaxItems:
+		return fmt.Errorf(
+			"acceptance Channel RPC batch max items = %d, want %d",
+			evidence.ChannelRPCBatchMaxItems,
+			mediumChannelRPCBatchMaxItems,
+		)
+	case evidence.ChannelRPCAdmissionFull != 0:
+		return fmt.Errorf("acceptance Channel RPC full admissions = %.0f, want 0", evidence.ChannelRPCAdmissionFull)
+	case evidence.ChannelRPCPullBatches <= 0 || evidence.ChannelRPCPullBatchItems <= 0:
+		return fmt.Errorf(
+			"acceptance Channel RPC Pull batch evidence = batches %.0f items %.0f, want positive",
+			evidence.ChannelRPCPullBatches,
+			evidence.ChannelRPCPullBatchItems,
+		)
+	case evidence.ChannelRPCHintBatches <= 0 || evidence.ChannelRPCHintBatchItems <= 0:
+		return fmt.Errorf(
+			"acceptance Channel RPC PullHint batch evidence = batches %.0f items %.0f, want positive",
+			evidence.ChannelRPCHintBatches,
+			evidence.ChannelRPCHintBatchItems,
 		)
 	case evidence.MaxChannelRPCQueueRatio >= 1:
 		return fmt.Errorf("acceptance Channel RPC queue ratio = %.6f, want below 1", evidence.MaxChannelRPCQueueRatio)
@@ -639,52 +713,76 @@ func paceMessage(start time.Time, index, perSecond int) {
 
 func primeHotPathChannels(
 	t *testing.T,
+	ctx context.Context,
 	cluster *suite.StartedCluster,
-	sender *suite.WKProtoClient,
-	recipients []hotPathRecipient,
 	messages []hotPathMessage,
 	payload []byte,
 ) time.Duration {
 	t.Helper()
 	startedAt := time.Now()
-	starts := &sync.Map{}
-	receiverResults := startReceivers(recipients, starts)
-	for index, message := range messages {
-		clientMsgNo := fmt.Sprintf("wkrc-hifi-prime-%03d", index+1)
-		starts.Store(clientMsgNo, time.Now())
-		if err := sender.SendFrame(&frame.SendPacket{
-			ChannelID:   message.channelID,
-			ChannelType: message.channelType,
-			ClientSeq:   uint64(2_000_000 + index),
-			ClientMsgNo: clientMsgNo,
-			Payload:     payload,
-		}); err != nil {
-			t.Fatalf("prime send %s: %v\n%s", clientMsgNo, err, cluster.DumpDiagnostics())
+	primeCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan hotPathMessage)
+	errs := make(chan error, mediumPrimeConcurrency)
+	var workers sync.WaitGroup
+	for range mediumPrimeConcurrency {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for message := range jobs {
+				resp, err := suite.PostMessageSendEventually(primeCtx, cluster.MustNode(1).APIAddr(), map[string]any{
+					"from_uid":      primeSenderUID(message),
+					"channel_id":    message.channelID,
+					"channel_type":  message.channelType,
+					"client_msg_no": message.clientMsgNo,
+					"payload":       payload,
+				})
+				if err != nil {
+					select {
+					case errs <- fmt.Errorf("prime send %s: %w", message.clientMsgNo, err):
+					default:
+					}
+					cancel()
+					return
+				}
+				if resp.Reason != uint8(frame.ReasonSuccess) || resp.MessageID == 0 || resp.MessageSeq == 0 {
+					select {
+					case errs <- fmt.Errorf(
+						"prime send %s returned reason=%d message_id=%d message_seq=%d",
+						message.clientMsgNo,
+						resp.Reason,
+						resp.MessageID,
+						resp.MessageSeq,
+					):
+					default:
+					}
+					cancel()
+					return
+				}
+			}
+		}()
+	}
+enqueue:
+	for _, message := range messages {
+		select {
+		case jobs <- message:
+		case <-primeCtx.Done():
+			break enqueue
 		}
 	}
-	for index := range messages {
-		sendack, err := sender.ReadSendAck()
-		if err != nil {
-			t.Fatalf(
-				"read prime SENDACK index=%d/%d after %s metrics=%s goroutines=%s: %v\n%s",
-				index,
-				len(messages),
-				time.Since(startedAt),
-				hotPathRuntimeDiagnostics(cluster),
-				hotPathGoroutineDiagnostics(cluster),
-				err,
-				cluster.DumpDiagnostics(),
-			)
-		}
-		if sendack.ReasonCode != frame.ReasonSuccess {
-			t.Fatalf("prime SENDACK %s reason=%v\n%s", sendack.ClientMsgNo, sendack.ReasonCode, cluster.DumpDiagnostics())
-		}
-	}
-	for range recipients {
-		result := <-receiverResults
-		if result.err != nil {
-			t.Fatalf("prime receive and RECVACK: %v\n%s", result.err, cluster.DumpDiagnostics())
-		}
+	close(jobs)
+	workers.Wait()
+	select {
+	case err := <-errs:
+		t.Fatalf(
+			"bounded HTTP cold prime after %s metrics=%s goroutines=%s: %v\n%s",
+			time.Since(startedAt),
+			hotPathRuntimeDiagnostics(cluster),
+			hotPathGoroutineDiagnostics(cluster),
+			err,
+			cluster.DumpDiagnostics(),
+		)
+	default:
 	}
 	drainCtx, drainCancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer drainCancel()
@@ -694,6 +792,13 @@ func primeHotPathChannels(
 	duration := time.Since(startedAt)
 	t.Logf("WKRC-HIFI-PRIME duration=%s messages=%d", duration, len(messages))
 	return duration
+}
+
+func primeSenderUID(message hotPathMessage) string {
+	if message.groupProfile >= 0 {
+		return mediumSenderUID(message.groupOrdinal % mediumGroupSenders)
+	}
+	return mediumSenderUID(int(message.clientSeq) % mediumSenderConnections)
 }
 
 func proveWarmupSend(t *testing.T, cluster *suite.StartedCluster, sender *suite.WKProtoClient) {
@@ -718,7 +823,7 @@ func proveWarmupSend(t *testing.T, cluster *suite.StartedCluster, sender *suite.
 	t.Logf("WKRC-HIFI-WARMUP duration=%s", time.Since(start))
 }
 
-func startMediumCluster(t *testing.T) *suite.StartedCluster {
+func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluster {
 	t.Helper()
 	overrides := map[string]string{
 		"WK_CLUSTER_INITIAL_SLOT_COUNT":                              "10",
@@ -732,11 +837,12 @@ func startMediumCluster(t *testing.T) *suite.StartedCluster {
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":                    "8",
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":                     "8",
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":                             strconv.Itoa(mediumChannelRPCWorkers),
-		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":                     "8",
+		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":                     strconv.Itoa(rpcBatchMaxItems),
 		"WK_GATEWAY_GNET_MULTICORE":                                  "true",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":                             "4",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":                      "128",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY":               "131072",
+		"WK_BENCH_API_ENABLE":                                        "true",
 		"WK_DEBUG_API_ENABLE":                                        "true",
 		"WK_DELIVERY_ENABLE":                                         "true",
 		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY":                   "320",
@@ -755,13 +861,14 @@ func startMediumCluster(t *testing.T) *suite.StartedCluster {
 	)
 }
 
-func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster) {
+func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster, rpcBatchMaxItems int) {
 	t.Helper()
 	type clusterRuntime struct {
 		Cluster struct {
-			SlotTickInterval  string `toml:"slot_tick_interval"`
-			SlotHeartbeatTick int    `toml:"slot_heartbeat_tick"`
-			SlotElectionTick  int    `toml:"slot_election_tick"`
+			SlotTickInterval        string `toml:"slot_tick_interval"`
+			SlotHeartbeatTick       int    `toml:"slot_heartbeat_tick"`
+			SlotElectionTick        int    `toml:"slot_election_tick"`
+			ChannelRPCBatchMaxItems int    `toml:"channel_rpc_batch_max_items"`
 		} `toml:"cluster"`
 	}
 	for _, node := range cluster.Nodes {
@@ -775,16 +882,19 @@ func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster) {
 		}
 		if runtime.Cluster.SlotTickInterval != mediumSlotTickInterval.String() ||
 			runtime.Cluster.SlotHeartbeatTick != mediumSlotHeartbeatTick ||
-			runtime.Cluster.SlotElectionTick != mediumSlotElectionTick {
+			runtime.Cluster.SlotElectionTick != mediumSlotElectionTick ||
+			runtime.Cluster.ChannelRPCBatchMaxItems != rpcBatchMaxItems {
 			t.Fatalf(
-				"node %d Slot timing = %s/%d/%d, want %s/%d/%d",
+				"node %d runtime = Slot timing %s/%d/%d Channel RPC batch %d, want %s/%d/%d/%d",
 				node.Spec.ID,
 				runtime.Cluster.SlotTickInterval,
 				runtime.Cluster.SlotHeartbeatTick,
 				runtime.Cluster.SlotElectionTick,
+				runtime.Cluster.ChannelRPCBatchMaxItems,
 				mediumSlotTickInterval,
 				mediumSlotHeartbeatTick,
 				mediumSlotElectionTick,
+				rpcBatchMaxItems,
 			)
 		}
 	}
@@ -812,17 +922,23 @@ func minimumAcceptedIngress(expectedOfferedQPS int) float64 {
 	return float64(expectedOfferedQPS) * mediumCIMinIngressFraction
 }
 
-func prepareGroupChannels(t *testing.T, ctx context.Context, node *suite.StartedNode) ([]string, int, []string) {
+func prepareGroupChannels(
+	t *testing.T,
+	ctx context.Context,
+	node *suite.StartedNode,
+	totalChannels int,
+) ([][]string, int, []string) {
 	t.Helper()
 	onlineUIDs := make([]string, 100)
 	for i := range onlineUIDs {
 		onlineUIDs[i] = fmt.Sprintf("wkrc-group-online-%03d", i)
 	}
-	channels := make([]string, len(mediumGroupProfiles))
+	profileChannelCounts := scaleGroupChannelCounts(totalChannels)
+	channels := make([][]string, len(mediumGroupProfiles))
+	channelItems := make([]benchmodel.ChannelItem, 0, totalChannels)
+	subscriberItems := make([][]benchmodel.SubscriberItem, len(mediumGroupProfiles))
 	recipientRows := 0
 	for profileIndex, profile := range mediumGroupProfiles {
-		channelID := fmt.Sprintf("wkrc-hifi-group-%d", profileIndex)
-		channels[profileIndex] = channelID
 		subscribers := make([]string, profile.recipients)
 		copy(subscribers, onlineUIDs[:profile.online])
 		for i := profile.online; i < len(subscribers); i++ {
@@ -831,16 +947,107 @@ func prepareGroupChannels(t *testing.T, ctx context.Context, node *suite.Started
 		for senderIndex := 0; senderIndex < mediumGroupSenders; senderIndex++ {
 			subscribers[len(subscribers)-1-senderIndex] = mediumSenderUID(senderIndex)
 		}
-		if err := suite.PostChannel(ctx, node.APIAddr(), map[string]any{
-			"channel_id":   channelID,
-			"channel_type": frame.ChannelTypeGroup,
-			"subscribers":  subscribers,
-		}); err != nil {
-			t.Fatalf("prepare group channel %s: %v\n%s", channelID, err, node.DumpDiagnostics())
+		channels[profileIndex] = make([]string, profileChannelCounts[profileIndex])
+		for channelIndex := range channels[profileIndex] {
+			channelID := fmt.Sprintf("wkrc-hifi-group-%d-%04d", profileIndex, channelIndex)
+			channels[profileIndex][channelIndex] = channelID
+			channelItems = append(channelItems, benchmodel.ChannelItem{
+				ChannelID:   channelID,
+				ChannelType: frame.ChannelTypeGroup,
+			})
+			subscriberItems[profileIndex] = append(subscriberItems[profileIndex], benchmodel.SubscriberItem{
+				ChannelID:   channelID,
+				ChannelType: frame.ChannelTypeGroup,
+				Subscribers: subscribers,
+			})
 		}
 		recipientRows += profile.messages * profile.recipients
 	}
+	client := benchtarget.NewClient(benchtarget.Config{APIAddrs: []string{"http://" + node.APIAddr()}})
+	if err := client.UpsertChannels(ctx, benchmodel.BatchChannelsRequest{
+		RunID:    "wkrc-hifi",
+		BatchID:  "group-channels",
+		Upsert:   true,
+		Channels: channelItems,
+	}); err != nil {
+		t.Fatalf("batch prepare %d group channels: %v\n%s", totalChannels, err, node.DumpDiagnostics())
+	}
+	for profileIndex, items := range subscriberItems {
+		batchSize := groupSubscriberPrepareBatchSize(mediumGroupProfiles[profileIndex].recipients)
+		for start := 0; start < len(items); start += batchSize {
+			end := min(start+batchSize, len(items))
+			if err := client.AddSubscribers(ctx, benchmodel.BatchSubscribersRequest{
+				RunID:   "wkrc-hifi",
+				BatchID: fmt.Sprintf("group-subscribers-%d-%04d", profileIndex, start/batchSize),
+				Items:   items[start:end],
+			}); err != nil {
+				t.Fatalf(
+					"batch prepare group subscribers profile=%d range=[%d,%d): %v\n%s",
+					profileIndex,
+					start,
+					end,
+					err,
+					node.DumpDiagnostics(),
+				)
+			}
+		}
+	}
 	return channels, recipientRows, onlineUIDs
+}
+
+func groupSubscriberPrepareBatchSize(recipients int) int {
+	switch {
+	case recipients >= 1_000:
+		return 50
+	case recipients >= 500:
+		return 100
+	default:
+		return 200
+	}
+}
+
+func scaleGroupChannelCounts(totalChannels int) []int {
+	counts := make([]int, len(mediumGroupProfiles))
+	if totalChannels < len(counts) {
+		return counts
+	}
+	assigned := 0
+	for index, profile := range mediumGroupProfiles {
+		count := totalChannels * profile.cloudChannels / mediumCloudGroupChannelCount
+		if count < 1 {
+			count = 1
+		}
+		counts[index] = count
+		assigned += count
+	}
+	for assigned < totalChannels {
+		for index := range counts {
+			if assigned >= totalChannels {
+				break
+			}
+			counts[index]++
+			assigned++
+		}
+	}
+	for assigned > totalChannels {
+		for index := len(counts) - 1; index >= 0 && assigned > totalChannels; index-- {
+			if counts[index] <= 1 {
+				continue
+			}
+			counts[index]--
+			assigned--
+		}
+	}
+	return counts
+}
+
+func expectedActiveGroupChannels(totalChannels, rounds int) int {
+	counts := scaleGroupChannelCounts(totalChannels)
+	active := 0
+	for index, count := range counts {
+		active += min(count, mediumGroupProfiles[index].messages*rounds)
+	}
+	return active
 }
 
 func connectRecipients(t *testing.T, cluster *suite.StartedCluster, groupOnline, personUIDs []string) []hotPathRecipient {
@@ -867,6 +1074,42 @@ func connectRecipients(t *testing.T, cluster *suite.StartedCluster, groupOnline,
 		})
 	}
 	return recipients
+}
+
+func waitForRecipientPresence(ctx context.Context, cluster *suite.StartedCluster, expected int) error {
+	apiAddrs := make([]string, 0, len(cluster.Nodes))
+	for _, node := range cluster.Nodes {
+		apiAddrs = append(apiAddrs, "http://"+node.APIAddr())
+	}
+	client := benchtarget.NewClient(benchtarget.Config{APIAddrs: apiAddrs})
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	var last []benchmodel.PresenceSnapshot
+	for {
+		snapshots, err := client.PresenceSnapshots(ctx)
+		if err == nil {
+			last = snapshots
+			ownerActive := 0
+			ownerPending := 0
+			authorityActive := 0
+			for _, snapshot := range snapshots {
+				ownerActive += snapshot.OwnerRoutesActive
+				ownerPending += snapshot.OwnerRoutesPending
+				authorityActive += snapshot.AuthorityRoutesActive
+			}
+			if len(snapshots) == len(cluster.Nodes) &&
+				ownerActive == expected &&
+				ownerPending == 0 &&
+				authorityActive == expected {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("presence convergence: %w; last=%+v", ctx.Err(), last)
+		case <-ticker.C:
+		}
+	}
 }
 
 func mustConnect(t *testing.T, node *suite.StartedNode, uid string) *suite.WKProtoClient {
@@ -926,25 +1169,28 @@ func closeRecipients(recipients []hotPathRecipient) {
 	}
 }
 
-func buildMessages(groupChannels, personUIDs []string) []hotPathMessage {
+func buildMessages(groupChannels [][]string, personUIDs []string) []hotPathMessage {
 	messages := make([]hotPathMessage, 0, mediumMessageCount)
 	nextSeq := uint64(1)
 	for _, uid := range personUIDs {
 		messages = append(messages, hotPathMessage{
-			clientSeq:   nextSeq,
-			clientMsgNo: fmt.Sprintf("wkrc-hifi-%03d", nextSeq),
-			channelID:   uid,
-			channelType: frame.ChannelTypePerson,
+			clientSeq:    nextSeq,
+			clientMsgNo:  fmt.Sprintf("wkrc-hifi-%03d", nextSeq),
+			channelID:    uid,
+			channelType:  frame.ChannelTypePerson,
+			groupProfile: -1,
 		})
 		nextSeq++
 	}
 	for profileIndex, profile := range mediumGroupProfiles {
-		for range profile.messages {
+		for ordinal := range profile.messages {
 			messages = append(messages, hotPathMessage{
-				clientSeq:   nextSeq,
-				clientMsgNo: fmt.Sprintf("wkrc-hifi-%03d", nextSeq),
-				channelID:   groupChannels[profileIndex],
-				channelType: frame.ChannelTypeGroup,
+				clientSeq:    nextSeq,
+				clientMsgNo:  fmt.Sprintf("wkrc-hifi-%03d", nextSeq),
+				channelID:    groupChannels[profileIndex][ordinal%len(groupChannels[profileIndex])],
+				channelType:  frame.ChannelTypeGroup,
+				groupProfile: profileIndex,
+				groupOrdinal: ordinal,
 			})
 			nextSeq++
 		}
@@ -952,18 +1198,80 @@ func buildMessages(groupChannels, personUIDs []string) []hotPathMessage {
 	return messages
 }
 
-func repeatMessages(base []hotPathMessage, rounds int) []hotPathMessage {
+func buildPrimeMessages(groupChannels [][]string, personUIDs []string) []hotPathMessage {
+	buckets := make([][]hotPathMessage, 1+len(groupChannels))
+	buckets[0] = make([]hotPathMessage, 0, len(personUIDs))
+	for _, uid := range personUIDs {
+		buckets[0] = append(buckets[0], hotPathMessage{
+			channelID:    uid,
+			channelType:  frame.ChannelTypePerson,
+			groupProfile: -1,
+		})
+	}
+	for profileIndex, channels := range groupChannels {
+		bucket := make([]hotPathMessage, 0, len(channels))
+		for channelIndex, channelID := range channels {
+			bucket = append(bucket, hotPathMessage{
+				channelID:    channelID,
+				channelType:  frame.ChannelTypeGroup,
+				groupProfile: profileIndex,
+				groupOrdinal: channelIndex,
+			})
+		}
+		buckets[profileIndex+1] = bucket
+	}
+	messages := make([]hotPathMessage, 0, len(personUIDs)+countGroupChannels(groupChannels))
+	for ordinal := 0; len(messages) < cap(messages); ordinal++ {
+		for _, bucket := range buckets {
+			if ordinal < len(bucket) {
+				messages = append(messages, bucket[ordinal])
+			}
+		}
+	}
+	for index := range messages {
+		nextSeq := uint64(index + 1)
+		messages[index].clientSeq = nextSeq
+		messages[index].clientMsgNo = fmt.Sprintf("wkrc-hifi-prime-%04d", nextSeq)
+	}
+	return messages
+}
+
+func countGroupChannels(groupChannels [][]string) int {
+	total := 0
+	for _, channels := range groupChannels {
+		total += len(channels)
+	}
+	return total
+}
+
+func repeatMessages(base []hotPathMessage, rounds int, groupChannels [][]string) []hotPathMessage {
 	messages := make([]hotPathMessage, 0, len(base)*rounds)
 	nextSeq := uint64(1)
 	for round := range rounds {
 		for _, message := range base {
 			message.clientSeq = nextSeq
 			message.clientMsgNo = fmt.Sprintf("wkrc-hifi-round-%02d-%04d", round+1, nextSeq)
+			if message.groupProfile >= 0 {
+				profileChannels := groupChannels[message.groupProfile]
+				profileMessages := mediumGroupProfiles[message.groupProfile].messages
+				channelIndex := (round*profileMessages + message.groupOrdinal) % len(profileChannels)
+				message.channelID = profileChannels[channelIndex]
+			}
 			messages = append(messages, message)
 			nextSeq++
 		}
 	}
 	return messages
+}
+
+func countActiveGroupChannels(messages []hotPathMessage) int {
+	active := make(map[string]struct{})
+	for _, message := range messages {
+		if message.channelType == frame.ChannelTypeGroup {
+			active[message.channelID] = struct{}{}
+		}
+	}
+	return len(active)
 }
 
 func messageSenderIndex(index int, message hotPathMessage) int {
@@ -1318,6 +1626,11 @@ func isChannelRPCQueueSample(sample suite.MetricSample) bool {
 type hotPathCounters struct {
 	allocatedBytes           float64
 	gcCount                  float64
+	channelRPCAdmissionFull  float64
+	channelRPCPullBatches    float64
+	channelRPCPullBatchItems float64
+	channelRPCHintBatches    float64
+	channelRPCHintBatchItems float64
 	pluginReceiveAccepted    float64
 	pluginReceiveFull        float64
 	pluginReceiveClosed      float64
@@ -1330,6 +1643,11 @@ func (c hotPathCounters) subtract(start hotPathCounters) hotPathCounters {
 	return hotPathCounters{
 		allocatedBytes:           c.allocatedBytes - start.allocatedBytes,
 		gcCount:                  c.gcCount - start.gcCount,
+		channelRPCAdmissionFull:  c.channelRPCAdmissionFull - start.channelRPCAdmissionFull,
+		channelRPCPullBatches:    c.channelRPCPullBatches - start.channelRPCPullBatches,
+		channelRPCPullBatchItems: c.channelRPCPullBatchItems - start.channelRPCPullBatchItems,
+		channelRPCHintBatches:    c.channelRPCHintBatches - start.channelRPCHintBatches,
+		channelRPCHintBatchItems: c.channelRPCHintBatchItems - start.channelRPCHintBatchItems,
 		pluginReceiveAccepted:    c.pluginReceiveAccepted - start.pluginReceiveAccepted,
 		pluginReceiveFull:        c.pluginReceiveFull - start.pluginReceiveFull,
 		pluginReceiveClosed:      c.pluginReceiveClosed - start.pluginReceiveClosed,
@@ -1363,6 +1681,24 @@ func captureHotPathCounters(ctx context.Context, cluster *suite.StartedCluster) 
 				counters.allocatedBytes += sample.Value
 			case "go_gc_duration_seconds_count":
 				counters.gcCount += sample.Value
+			case "wukongim_runtime_pool_admission_total":
+				if isChannelRPCQueueSample(sample) && sample.Labels["result"] == "full" {
+					counters.channelRPCAdmissionFull += sample.Value
+				}
+			case "wukongim_channelv2_worker_batch_items_count":
+				switch sample.Labels["kind"] {
+				case "rpc_pull":
+					counters.channelRPCPullBatches += sample.Value
+				case "rpc_pull_hint":
+					counters.channelRPCHintBatches += sample.Value
+				}
+			case "wukongim_channelv2_worker_batch_items_sum":
+				switch sample.Labels["kind"] {
+				case "rpc_pull":
+					counters.channelRPCPullBatchItems += sample.Value
+				case "rpc_pull_hint":
+					counters.channelRPCHintBatchItems += sample.Value
+				}
 			case "wukongim_plugin_hook_enqueue_total":
 				if sample.Labels["method"] != "receive" {
 					continue

@@ -9,39 +9,46 @@ import (
 
 func TestHotPathAcceptanceError(t *testing.T) {
 	passing := hotPathEvidence{
-		Schema:                  mediumEvidenceSchema,
-		PhysicalHashSlots:       mediumPhysicalHashSlots,
-		LogicalSlots:            mediumLogicalSlots,
-		Replicas:                mediumReplicaCount,
-		SlotTickIntervalMS:      milliseconds(mediumSlotTickInterval),
-		SlotHeartbeatTick:       mediumSlotHeartbeatTick,
-		SlotElectionTick:        mediumSlotElectionTick,
-		Messages:                mediumMessageCount * mediumMeasuredRounds,
-		RecipientRows:           mediumRecipientRows * mediumMeasuredRounds,
-		OnlineRoutes:            expectedMeasuredOnlineRoutes(mediumMeasuredRounds),
-		Connections:             expectedConnectionCount(),
-		OfferedQPS:              mediumOfferedQPS,
-		ClusterConvergenceMS:    2_500,
-		ClusterStableWindowMS:   milliseconds(mediumConvergenceStableWindow),
-		SlotLeaders:             []uint64{1, 2, 3, 1, 2, 3, 1, 2, 3, 1},
-		MeasuredDurationMS:      float64(mediumMessageCount*mediumMeasuredRounds) / mediumOfferedQPS * 1000,
-		IngressPerSecond:        mediumOfferedQPS,
-		SendackP99MS:            1_000,
-		RecvP99MS:               2_000,
-		MaxGatewayQueueRatio:    0.99,
-		MaxRecipientQueueRatio:  0.99,
-		MaxRecipientWorkerRatio: 0.99,
-		ChannelRPCMetricNodes:   mediumReplicaCount,
-		MinChannelRPCWorkers:    mediumChannelRPCWorkers,
-		MaxChannelRPCWorkers:    mediumChannelRPCWorkers,
-		PluginReceiveAccepted:   float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
-		PluginReceiveInvokeOK:   float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
-		AllocatedBytes:          float64(mediumMessageCount*mediumMeasuredRounds) * 350_000,
-		GCCountDelta:            100,
-		MaxHeapBytes:            256 << 20,
-		MetricSamples:           1,
-		Drained:                 true,
-		ProcessContinuous:       true,
+		Schema:                   mediumEvidenceSchema,
+		PhysicalHashSlots:        mediumPhysicalHashSlots,
+		LogicalSlots:             mediumLogicalSlots,
+		Replicas:                 mediumReplicaCount,
+		SlotTickIntervalMS:       milliseconds(mediumSlotTickInterval),
+		SlotHeartbeatTick:        mediumSlotHeartbeatTick,
+		SlotElectionTick:         mediumSlotElectionTick,
+		Messages:                 mediumMessageCount * mediumMeasuredRounds,
+		RecipientRows:            mediumRecipientRows * mediumMeasuredRounds,
+		OnlineRoutes:             expectedMeasuredOnlineRoutes(mediumMeasuredRounds),
+		Connections:              expectedConnectionCount(),
+		GroupChannels:            mediumGroupChannelCount,
+		ActiveGroupChannels:      expectedActiveGroupChannels(mediumGroupChannelCount, mediumMeasuredRounds),
+		OfferedQPS:               mediumOfferedQPS,
+		ClusterConvergenceMS:     2_500,
+		ClusterStableWindowMS:    milliseconds(mediumConvergenceStableWindow),
+		SlotLeaders:              []uint64{1, 2, 3, 1, 2, 3, 1, 2, 3, 1},
+		MeasuredDurationMS:       float64(mediumMessageCount*mediumMeasuredRounds) / mediumOfferedQPS * 1000,
+		IngressPerSecond:         mediumOfferedQPS,
+		SendackP99MS:             1_000,
+		RecvP99MS:                2_000,
+		MaxGatewayQueueRatio:     0.99,
+		MaxRecipientQueueRatio:   0.99,
+		MaxRecipientWorkerRatio:  0.99,
+		ChannelRPCMetricNodes:    mediumReplicaCount,
+		MinChannelRPCWorkers:     mediumChannelRPCWorkers,
+		MaxChannelRPCWorkers:     mediumChannelRPCWorkers,
+		ChannelRPCBatchMaxItems:  mediumChannelRPCBatchMaxItems,
+		ChannelRPCPullBatches:    1,
+		ChannelRPCPullBatchItems: 2,
+		ChannelRPCHintBatches:    1,
+		ChannelRPCHintBatchItems: 2,
+		PluginReceiveAccepted:    float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
+		PluginReceiveInvokeOK:    float64(pluginReceiveBatchCount() * mediumMeasuredRounds),
+		AllocatedBytes:           float64(mediumMessageCount*mediumMeasuredRounds) * 350_000,
+		GCCountDelta:             100,
+		MaxHeapBytes:             256 << 20,
+		MetricSamples:            1,
+		Drained:                  true,
+		ProcessContinuous:        true,
 	}
 	if err := hotPathAcceptanceError(passing, mediumOfferedQPS, mediumMeasuredRounds); err != nil {
 		t.Fatalf("passing evidence rejected: %v", err)
@@ -53,6 +60,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		evidence.Messages = mediumMessageCount * rounds
 		evidence.RecipientRows = mediumRecipientRows * rounds
 		evidence.OnlineRoutes = expectedMeasuredOnlineRoutes(rounds)
+		evidence.ActiveGroupChannels = expectedActiveGroupChannels(evidence.GroupChannels, rounds)
 		evidence.MeasuredDurationMS = float64(evidence.Messages) / mediumOfferedQPS * 1000
 		evidence.PluginReceiveAccepted = float64(pluginReceiveBatchCount() * rounds)
 		evidence.PluginReceiveInvokeOK = evidence.PluginReceiveAccepted
@@ -79,6 +87,8 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "recipient rows", edit: func(e *hotPathEvidence) { e.RecipientRows-- }, want: "recipient rows"},
 		{name: "online routes", edit: func(e *hotPathEvidence) { e.OnlineRoutes-- }, want: "online routes"},
 		{name: "connections", edit: func(e *hotPathEvidence) { e.Connections-- }, want: "acceptance connections"},
+		{name: "group channels", edit: func(e *hotPathEvidence) { e.GroupChannels = 0 }, want: "acceptance group channels"},
+		{name: "active group channels", edit: func(e *hotPathEvidence) { e.ActiveGroupChannels-- }, want: "acceptance active group channels"},
 		{name: "offered load", edit: func(e *hotPathEvidence) { e.OfferedQPS-- }, want: "offered QPS"},
 		{name: "cluster convergence missing", edit: func(e *hotPathEvidence) { e.ClusterConvergenceMS = 0 }, want: "cluster convergence"},
 		{name: "cluster stability short", edit: func(e *hotPathEvidence) { e.ClusterStableWindowMS-- }, want: "cluster stable window"},
@@ -97,6 +107,10 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "recipient worker", edit: func(e *hotPathEvidence) { e.MaxRecipientWorkerRatio = 1 }, want: "recipient worker"},
 		{name: "Channel RPC metrics missing", edit: func(e *hotPathEvidence) { e.ChannelRPCMetricNodes-- }, want: "Channel RPC metric nodes"},
 		{name: "Channel RPC worker drift", edit: func(e *hotPathEvidence) { e.MinChannelRPCWorkers-- }, want: "Channel RPC workers"},
+		{name: "Channel RPC batch drift", edit: func(e *hotPathEvidence) { e.ChannelRPCBatchMaxItems-- }, want: "Channel RPC batch max items"},
+		{name: "Channel RPC admission full", edit: func(e *hotPathEvidence) { e.ChannelRPCAdmissionFull = 1 }, want: "Channel RPC full admissions"},
+		{name: "Channel RPC Pull batch missing", edit: func(e *hotPathEvidence) { e.ChannelRPCPullBatches = 0 }, want: "Channel RPC Pull batch evidence"},
+		{name: "Channel RPC PullHint batch missing", edit: func(e *hotPathEvidence) { e.ChannelRPCHintBatches = 0 }, want: "Channel RPC PullHint batch evidence"},
 		{name: "Channel RPC queue", edit: func(e *hotPathEvidence) { e.MaxChannelRPCQueueRatio = 1 }, want: "Channel RPC queue"},
 		{name: "Channel RPC worker", edit: func(e *hotPathEvidence) { e.MaxChannelRPCWorkerRatio = 1 }, want: "Channel RPC worker"},
 		{name: "plugin accepted", edit: func(e *hotPathEvidence) { e.PluginReceiveAccepted-- }, want: "plugin receive accepted"},
@@ -170,6 +184,32 @@ func TestHotPathAcceptanceError(t *testing.T) {
 			t.Fatalf("slow-drain allocation error = %v, want allocated bytes/message", err)
 		}
 	})
+}
+
+func TestScaleGroupChannelCounts(t *testing.T) {
+	tests := []struct {
+		total int
+		want  []int
+	}{
+		{total: mediumGroupChannelCount, want: []int{1, 1, 1, 1}},
+		{total: mediumCloudGroupChannelCount, want: []int{3_321, 1_186, 237, 256}},
+	}
+	for _, test := range tests {
+		got := scaleGroupChannelCounts(test.total)
+		if len(got) != len(test.want) {
+			t.Fatalf("total %d counts = %v, want %v", test.total, got, test.want)
+		}
+		sum := 0
+		for index := range got {
+			sum += got[index]
+			if got[index] != test.want[index] {
+				t.Fatalf("total %d counts = %v, want %v", test.total, got, test.want)
+			}
+		}
+		if sum != test.total {
+			t.Fatalf("total %d counts sum = %d, want %d", test.total, sum, test.total)
+		}
+	}
 }
 
 func TestBoundedPositiveEnvInt(t *testing.T) {

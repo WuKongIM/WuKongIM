@@ -14,6 +14,13 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
 
 Set `WK_E2E_MEDIUM_RECIPIENT_QPS` or
 `WK_E2E_MEDIUM_RECIPIENT_ROUNDS` only for bounded diagnostic stress runs.
+`WK_E2E_MEDIUM_RECIPIENT_RPC_BATCH_MAX_ITEMS` is likewise diagnostic-only for
+same-binary A/B evidence; normal acceptance remains fixed at 8.
+`WK_E2E_MEDIUM_RECIPIENT_GROUP_CHANNELS` may raise the four profile fixtures
+up to the Cloud Medium mix of 5,000 group channels. It preserves the measured
+message and recipient totals while rotating measured messages across the
+configured channel set, so high-cardinality Channel RPC scheduling can be
+reproduced without changing the accepted traffic volume.
 Normal acceptance stays fixed at 4,500 offered messages per second. Nightly
 sets `WK_E2E_MEDIUM_RECIPIENT_CI_SCALE=1` together with the strictly reviewed
 500/s QPS override because a shared two-core runner cannot represent absolute
@@ -33,7 +40,9 @@ that allowance and hide a product-path allocation regression.
 - Keep the scenario black-box through real `cmd/wukongim` processes, public
   WKProto sockets, public channel APIs, and public Prometheus metrics.
 - Preserve 256 physical hash slots, 10 logical Slot groups, and three replicas.
-- Keep the 250-message / 19,650-recipient-row / 2,545-online-route slice exact.
+- Preserve the reviewed 96-worker, 8-item Channel replication RPC envelope.
+- Keep the 250-message / 19,650-recipient-row / 2,545-online-route slice exact;
+  diagnostic group-channel cardinality may change only channel reuse.
 - Keep setup outside the measured SEND window.
 - Before setup and again immediately before cold prime, require all three nodes
   to agree on every actual Raft leader for the 10 non-empty logical Slots for a

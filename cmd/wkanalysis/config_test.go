@@ -93,6 +93,28 @@ func TestDefaultMetricQueriesIncludePerPoolRuntimeQueuePressure(t *testing.T) {
 	}
 }
 
+func TestDefaultMetricQueriesIncludeBoundedChannelRPCStageEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	want := map[string]string{
+		"channel_rpc_worker_admission_cumulative": `sum by (instance, node_id, node_name, pool, result) (wukongim_runtime_pool_admission_total{job="wukongim",component="channel",pool="channelv2-rpc",queue="worker"})`,
+		"channel_rpc_worker_wait_p99":             `histogram_quantile(0.99, sum by (instance, node_id, node_name, pool, result, le) (rate(wukongim_runtime_pool_wait_duration_seconds_bucket{job="wukongim",component="channel",pool="channelv2-rpc",queue="worker"}[1m])))`,
+		"channel_rpc_worker_task_p99":             `histogram_quantile(0.99, sum by (instance, node_id, node_name, pool, task, result, le) (rate(wukongim_runtime_pool_task_duration_seconds_bucket{job="wukongim",component="channel",pool="channelv2-rpc"}[1m])))`,
+		"channel_rpc_worker_batch_items_p99":      `histogram_quantile(0.99, sum by (instance, node_id, node_name, kind, result, le) (rate(wukongim_channelv2_worker_batch_items_bucket{job="wukongim",kind=~"rpc_pull|rpc_pull_hint"}[1m])))`,
+		"channel_rpc_follower_stage_p99":          `histogram_quantile(0.99, sum by (instance, node_id, node_name, stage, result, le) (rate(wukongim_channelv2_replication_stage_duration_seconds_bucket{job="wukongim",stage=~"follower_pull_hint_to_submit|follower_pull_rpc"}[1m])))`,
+		"channel_rpc_pull_batch_items_p99":        `histogram_quantile(0.99, sum by (instance, node_id, node_name, result, le) (rate(wukongim_channelv2_pull_batch_items_bucket{job="wukongim"}[1m])))`,
+		"channel_rpc_pull_batch_stage_p99":        `histogram_quantile(0.99, sum by (instance, node_id, node_name, stage, result, le) (rate(wukongim_channelv2_pull_batch_duration_seconds_bucket{job="wukongim"}[1m])))`,
+		"channel_rpc_pull_hint_receive_rate":      `sum by (instance, node_id, node_name, reason, stage, result, error) (rate(wukongim_channelv2_pull_hint_receive_total{job="wukongim"}[1m]))`,
+	}
+	for id, query := range want {
+		if queries[id] != query {
+			t.Fatalf("metric query %q = %q, want %q", id, queries[id], query)
+		}
+		if strings.Contains(query, "channel_key") || strings.Contains(query, "slot_id") || strings.Contains(query, "uid") {
+			t.Fatalf("metric query %q exposes a high-cardinality dimension: %s", id, query)
+		}
+	}
+}
+
 func TestDefaultMetricQueriesIncludeRecipientDeliveryAndPostCommitEvidence(t *testing.T) {
 	queries := defaultMetricQueries()
 	want := map[string]string{
