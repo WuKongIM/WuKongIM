@@ -261,9 +261,45 @@ ${{ runner.temp }}/${{ env.SMOKE_OUT }}/node-logs/*.log
 WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 10m \
   go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=8m -p=1 2>&1 | tee "$LOG_FILE"
 `
-	backupQualificationEvidenceCommand = `if [[ -f "$LOG_FILE" ]]; then
-  tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
-else
+	backupQualificationUnitCommand = `set -o pipefail
+timeout --signal=TERM --kill-after=30s 12m \
+  bash -c '
+    go test ./scripts -run "^TestBackupQualification" -count=1 -timeout=2m &&
+    go test ./pkg/backup ./internal/usecase/backup ./internal/infra/backup \
+      ./internal/runtime/backup ./internal/access/manager ./internal/access/node \
+      ./internal/app ./internal/config ./pkg/channel/store ./pkg/db/message ./pkg/db/meta \
+      ./pkg/controller/state ./pkg/controller/fsm \
+      -count=1 -timeout=10m -p=1
+  ' 2>&1 | tee "$LOG_FILE"
+`
+	backupQualificationRaceCommand = `set -o pipefail
+timeout --signal=TERM --kill-after=30s 12m \
+  go test -race ./pkg/backup ./internal/usecase/backup ./internal/infra/backup \
+    ./internal/runtime/backup ./pkg/channel/store ./pkg/db/message \
+    -count=1 -timeout=10m -p=1 2>&1 | tee "$LOG_FILE"
+`
+	backupQualificationReceiptCommand = `{
+  printf '%s\n' '## Backup qualification passed'
+  printf '%s\n' "- Commit: $GITHUB_SHA"
+  printf '%s\n' "- Run: $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT"
+  printf '%s\n' '- Backup artifact, signature, encryption, corruption, retention, restore, and Controller invariants passed.'
+  printf '%s\n' '- Targeted race detection passed.'
+  printf '%s\n' '- Three-node backup/restore and sustained failure scenarios passed.'
+  printf '%s\n' ''
+  printf '%s\n' 'This is repository qualification evidence, not a proof of external S3/KMS/Object Lock/IAM behavior or an absolute guarantee against every possible defect.'
+} | tee "$RECEIPT_FILE" >> "$GITHUB_STEP_SUMMARY"
+`
+	backupQualificationEvidenceCommand = `: > "$EVIDENCE_FILE"
+found=0
+for log_file in "$UNIT_LOG_FILE" "$RACE_LOG_FILE" "$E2E_LOG_FILE"; do
+  if [[ -f "$log_file" ]]; then
+    found=1
+    printf '===== %s =====\n' "$(basename "$log_file")" >> "$EVIDENCE_FILE"
+    tail -c 340000 "$log_file" >> "$EVIDENCE_FILE"
+    printf '\n' >> "$EVIDENCE_FILE"
+  fi
+done
+if [[ "$found" -eq 0 ]]; then
   printf '%s\n' 'backup qualification log was not created' > "$EVIDENCE_FILE"
 fi
 `
@@ -438,14 +474,29 @@ var expectedNightlyJobs = map[string]ciJob{
 
 var expectedBackupQualificationJobs = map[string]ciJob{
 	"three-node-backup": {
-		Name:           "Three-node backup and restore",
+		Name:           "Backup release gate",
 		RunsOn:         "ubuntu-24.04",
-		TimeoutMinutes: 15,
-		Env:            map[string]string{"GOWORK": "off"},
+		TimeoutMinutes: 40,
+		Env: map[string]string{
+			"GOWORK":      "off",
+			"CGO_ENABLED": "1",
+		},
 		Steps: []ciStep{
 			checkoutStep(),
 			setupGoStep(),
 			verifyGoToolchainStep(),
+			{
+				Name:  "Verify backup and restore contracts",
+				Shell: "bash",
+				Env:   map[string]string{"LOG_FILE": "${{ runner.temp }}/backup-contracts.log"},
+				Run:   backupQualificationUnitCommand,
+			},
+			{
+				Name:  "Detect backup data races",
+				Shell: "bash",
+				Env:   map[string]string{"LOG_FILE": "${{ runner.temp }}/backup-race.log"},
+				Run:   backupQualificationRaceCommand,
+			},
 			{
 				Name:  "Build e2e-tagged product binary",
 				Shell: "bash",
@@ -458,11 +509,31 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 				Run:   backupQualificationCommand,
 			},
 			{
+				Name:  "Write qualification receipt",
+				If:    "success()",
+				Shell: "bash",
+				Env:   map[string]string{"RECEIPT_FILE": "${{ runner.temp }}/backup-qualification-receipt.md"},
+				Run:   backupQualificationReceiptCommand,
+			},
+			{
+				Name: "Upload qualification receipt",
+				If:   "success()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "backup-qualification-receipt-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/backup-qualification-receipt.md",
+					"if-no-files-found": "error",
+					"retention-days":    30,
+				},
+			},
+			{
 				Name:  "Prepare bounded failure evidence",
 				If:    "failure()",
 				Shell: "bash",
 				Env: map[string]string{
-					"LOG_FILE":      "${{ runner.temp }}/backup-qualification.log",
+					"UNIT_LOG_FILE": "${{ runner.temp }}/backup-contracts.log",
+					"RACE_LOG_FILE": "${{ runner.temp }}/backup-race.log",
+					"E2E_LOG_FILE":  "${{ runner.temp }}/backup-qualification.log",
 					"EVIDENCE_FILE": "${{ runner.temp }}/backup-qualification-failure.log",
 				},
 				Run: backupQualificationEvidenceCommand,
@@ -533,6 +604,25 @@ func TestBackupQualificationWorkflowRejectsUntaggedBinary(t *testing.T) {
 	)
 	if err := validateBackupQualificationWorkflow([]byte(mutated)); err == nil {
 		t.Fatal("validator accepted an untagged backup qualification binary")
+	}
+}
+
+func TestBackupQualificationWorkflowRejectsMissingPRGate(t *testing.T) {
+	raw := string(readWorkflow(t, "backup-qualification.yml"))
+	mutated := replaceWorkflowFirst(t, raw, "  pull_request:\n", "")
+	if err := validateBackupQualificationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a backup workflow that does not gate pull requests")
+	}
+}
+
+func TestBackupQualificationWorkflowRejectsDroppedRaceGate(t *testing.T) {
+	raw := string(readWorkflow(t, "backup-qualification.yml"))
+	mutated := replaceWorkflowFirst(t, raw,
+		"      - name: Detect backup data races\n",
+		"      - name: Skip backup data races\n",
+	)
+	if err := validateBackupQualificationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a backup workflow without the required race gate")
 	}
 }
 
@@ -969,13 +1059,50 @@ func validateNightlyWorkflow(raw []byte) error {
 }
 
 func validateBackupQualificationWorkflow(raw []byte) error {
-	return validateScheduledWorkflow(
-		raw,
-		"Backup qualification",
-		"30 19 * * *",
+	document, workflow, err := decodeWorkflow(raw)
+	if err != nil {
+		return err
+	}
+	if err := validateAllUses(document, raw); err != nil {
+		return err
+	}
+	if err := validateWorkflowStructure(
+		document,
 		[]string{"three-node-backup"},
 		expectedBackupQualificationJobs,
-	)
+	); err != nil {
+		return err
+	}
+	if workflow.Name != "Backup qualification" {
+		return fmt.Errorf("workflow name = %q, want Backup qualification", workflow.Name)
+	}
+	if err := validateBackupQualificationTriggers(workflow.On); err != nil {
+		return err
+	}
+	wantPermissions := map[string]string{"contents": "read"}
+	if !reflect.DeepEqual(workflow.Permissions, wantPermissions) {
+		return fmt.Errorf("permissions = %#v, want exactly %#v", workflow.Permissions, wantPermissions)
+	}
+	wantConcurrency := ciConcurrency{
+		Group:            "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
+		CancelInProgress: boolPointer(true),
+	}
+	if !reflect.DeepEqual(workflow.Concurrency, wantConcurrency) {
+		return fmt.Errorf("concurrency = %#v, want %#v", workflow.Concurrency, wantConcurrency)
+	}
+	if len(workflow.Jobs) != len(expectedBackupQualificationJobs) {
+		return fmt.Errorf("workflow jobs = %d, want exactly %d", len(workflow.Jobs), len(expectedBackupQualificationJobs))
+	}
+	for name, want := range expectedBackupQualificationJobs {
+		got, ok := workflow.Jobs[name]
+		if !ok {
+			return fmt.Errorf("workflow missing required job %q", name)
+		}
+		if !reflect.DeepEqual(got, want) {
+			return fmt.Errorf("job %q does not match the required fail-closed contract", name)
+		}
+	}
+	return nil
 }
 
 func validateScheduledWorkflow(
@@ -1261,6 +1388,48 @@ func validateScheduledTriggers(triggers map[string]yaml.Node, workflowName, want
 	cron, ok := mappingValue(entry, "cron")
 	if !ok || cron.Kind != yaml.ScalarNode || cron.Value != wantCron {
 		return fmt.Errorf("%s cron = %q, want exactly %q", strings.ToLower(workflowName), cronValue(cron), wantCron)
+	}
+	return nil
+}
+
+func validateBackupQualificationTriggers(triggers map[string]yaml.Node) error {
+	if len(triggers) != 4 {
+		return fmt.Errorf("backup qualification trigger keys = %d, want exactly pull_request, push, schedule, and workflow_dispatch", len(triggers))
+	}
+	for _, name := range []string{"pull_request", "workflow_dispatch"} {
+		trigger, ok := triggers[name]
+		if !ok {
+			return fmt.Errorf("workflow trigger %q is missing", name)
+		}
+		if !isEmptyTrigger(trigger) {
+			return fmt.Errorf("workflow trigger %q must not contain filters or options", name)
+		}
+	}
+	push, ok := triggers["push"]
+	if !ok {
+		return fmt.Errorf("workflow trigger %q is missing", "push")
+	}
+	if push.Kind != yaml.MappingNode || len(push.Content) != 2 {
+		return fmt.Errorf("push trigger must contain only branches: [main]")
+	}
+	if key := push.Content[0]; key.Kind != yaml.ScalarNode || key.Value != "branches" {
+		return fmt.Errorf("push trigger must contain only branches: [main]")
+	}
+	branches := push.Content[1]
+	if branches.Kind != yaml.SequenceNode || len(branches.Content) != 1 || branches.Content[0].Value != "main" {
+		return fmt.Errorf("push branches must be exactly [main]")
+	}
+	schedule, ok := triggers["schedule"]
+	if !ok || schedule.Kind != yaml.SequenceNode || len(schedule.Content) != 1 {
+		return fmt.Errorf("schedule trigger must contain exactly one cron entry")
+	}
+	entry := schedule.Content[0]
+	if err := validateMappingKeys(entry, []string{"cron"}, "backup qualification schedule entry"); err != nil {
+		return err
+	}
+	cron, ok := mappingValue(entry, "cron")
+	if !ok || cron.Kind != yaml.ScalarNode || cron.Value != "30 19 * * *" {
+		return fmt.Errorf("backup qualification cron = %q, want exactly %q", cronValue(cron), "30 19 * * *")
 	}
 	return nil
 }
