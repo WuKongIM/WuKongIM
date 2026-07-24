@@ -15,6 +15,7 @@ import (
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	management "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	observe "github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // OpsInventoryReader provides cluster, node, Slot, and exact-channel reads.
@@ -635,10 +636,10 @@ func (s *OpsObservationSource) clusterHealthMetrics(ctx context.Context) metricH
 	var wait sync.WaitGroup
 	for index := range requests {
 		wait.Add(1)
-		go func(index int) {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskObservabilityOpsMCPMetricsFanout, func() {
 			defer wait.Done()
 			results[index], errs[index] = s.config.Metrics.QueryOpsMetrics(ctx, requests[index])
-		}(index)
+		})
 	}
 	wait.Wait()
 	if errs[0] != nil || errs[1] != nil {

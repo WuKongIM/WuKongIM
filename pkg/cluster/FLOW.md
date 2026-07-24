@@ -40,6 +40,12 @@ peer nodes without adding manager-specific logic to cluster. Internal
 manager distributed log pages use the same surface to ask a selected peer to
 read its own local Controller or Slot Raft log page, and manager channel list
 pages use it to ask a selected peer to scan its local Slot metadata pages.
+
+`Config.Goroutines` carries the process supervisor into the default cluster
+composition. Controller, Slot, Channel, Transport, database, control-watch,
+health, reconciliation, retention, migration, and observation loops launch
+with fixed module/task identities; this changes ownership accounting only and
+does not put Raft or reactor loops into a shared worker pool.
 Internal manager Controller Raft status and manual compaction use the same
 surface for node-scoped operations; cluster exposes only the selected node's
 local operation and does not fan out or interpret manager policy. Internal
@@ -652,6 +658,12 @@ The real transport exposes that remote handler rejection as a structured
 `transport.RemoteError` with code `remote_error` and an exactly matching
 message; fallback accepts only that boundary shape or the local codec sentinel,
 never a substring match.
+Missing RPC services use the stable `service_not_found` transport error code.
+The cluster transport boundary maps that code to `clusternet.ErrServiceNotFound`;
+for mixed-version peers it also recognizes only the old server's exact
+service-specific message. Callers can therefore distinguish a capability absent
+during rolling upgrade from node or transport unavailability without broad
+string matching.
 Current handlers answer a valid v5 request with a v5 response; v6 requests keep
 v6 responses and therefore preserve `RetentionThroughSeq` and `WriteFence` in
 `Pull{NeedMeta=true}` metadata. Other transport or application errors never

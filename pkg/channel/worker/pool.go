@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
@@ -90,7 +91,11 @@ func (noopQueueObserver) SetWorkerQueueDepth(pool string, depth int) {}
 
 // PoolConfig defines worker and queue limits for one bounded pool.
 type PoolConfig struct {
-	Name    string
+	Name string
+	// Goroutines receives lifecycle and pool ownership observations.
+	Goroutines *goruntimeregistry.Registry
+	// Task is the fixed owner shared by this pool's worker and dispatcher goroutines.
+	Task    goruntimeregistry.TaskID
 	Workers int
 	// QueueSize bounds accepted tasks waiting for this worker pool.
 	QueueSize int
@@ -128,8 +133,14 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 		sink: sink,
 		obs:  noopQueueObserver{},
 	}
+	if cfg.Task == "" {
+		cfg.Task = goruntimeregistry.TaskChannelWorkerPool
+		p.cfg.Task = cfg.Task
+	}
 	runtime, err := workqueue.NewBoundedBatchPool[queuedTask](workqueue.BoundedBatchPoolConfig[queuedTask]{
 		Name:                  cfg.Name,
+		Goroutines:            cfg.Goroutines,
+		Task:                  cfg.Task,
 		Workers:               cfg.Workers,
 		QueueSize:             cfg.QueueSize,
 		ReleaseTimeout:        workerExecutorStopGrace,

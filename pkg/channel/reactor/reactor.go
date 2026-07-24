@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -282,7 +283,7 @@ func NewReactor(cfg ReactorConfig) *Reactor {
 
 func (r *Reactor) start() {
 	r.asyncEffects.Store(true)
-	go r.loop()
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelReactor, r.loop)
 }
 
 // Submit enqueues an event.

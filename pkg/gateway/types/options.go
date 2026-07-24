@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -63,6 +64,8 @@ type SessionOptions struct {
 
 // RuntimeOptions controls async gateway runtime capacity and pool tuning.
 type RuntimeOptions struct {
+	// Goroutines receives lifecycle and pool ownership observations.
+	Goroutines *goruntimeregistry.Registry
 	// AsyncSendWorkers sets the worker count used to dispatch SEND frames asynchronously.
 	AsyncSendWorkers int
 	// AsyncSendQueueCapacity sets the maximum queued SEND frame count before admission fails.

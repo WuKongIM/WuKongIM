@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -731,7 +732,7 @@ func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnve
 	}
 	wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
-		go worker()
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendRecipientResolve, worker)
 	}
 	for _, groupIndex := range order {
 		select {

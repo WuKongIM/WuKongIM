@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -98,10 +99,10 @@ func (db *MessageDB) initializeLatestMessageIndex() {
 		db.latestIndex.finish(dberrors.ErrClosed)
 		return
 	}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseLatestMigration, func() {
 		defer db.registry.endOperation()
 		db.latestIndex.finish(db.backfillLatestMessageIndex(db.latestIndexCtx))
-	}()
+	})
 }
 
 func (db *MessageDB) messageCatalogEmpty() (bool, error) {

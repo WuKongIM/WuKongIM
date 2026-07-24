@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 func TestObserverDrainDoesNotBlockWhenSinkIsSlow(t *testing.T) {
@@ -12,7 +14,7 @@ func TestObserverDrainDoesNotBlockWhenSinkIsSlow(t *testing.T) {
 		entered: make(chan struct{}),
 		release: make(chan struct{}),
 	}
-	drain := NewObserverDrain(sink)
+	drain := newTestObserverDrain(sink)
 	defer func() {
 		close(sink.release)
 		drain.Stop()
@@ -36,7 +38,7 @@ func TestObserverDrainPreservesTerminalCleanupEvents(t *testing.T) {
 		entered: make(chan struct{}),
 		release: make(chan struct{}),
 	}
-	drain := NewObserverDrain(sink)
+	drain := newTestObserverDrain(sink)
 	defer drain.Stop()
 
 	drain.ObserveTransport(Event{Name: "first"})
@@ -64,7 +66,7 @@ func TestObserverDrainPreservesTerminalCleanupEvents(t *testing.T) {
 
 func TestObserverDrainIgnoresEventsAfterStop(t *testing.T) {
 	sink := &countingObserver{}
-	drain := NewObserverDrain(sink)
+	drain := newTestObserverDrain(sink)
 	drain.Stop()
 
 	for i := 0; i < 100; i++ {
@@ -80,7 +82,7 @@ func TestObserverDrainStopWaitsForAdmittedTerminalEvent(t *testing.T) {
 		entered: make(chan struct{}),
 		release: make(chan struct{}),
 	}
-	drain := NewObserverDrain(sink)
+	drain := newTestObserverDrain(sink)
 
 	drain.ObserveTransport(Event{Name: "first"})
 	waitCoreClosed(t, sink.entered)
@@ -119,7 +121,7 @@ func TestObserverDrainStopWaitsForAdmittedTerminalEvent(t *testing.T) {
 }
 
 func BenchmarkObserverDrainObserveNonTerminal(b *testing.B) {
-	drain := NewObserverDrain(&countingObserver{})
+	drain := newTestObserverDrain(&countingObserver{})
 	event := Event{Name: "rpc", Result: "ok", Items: 1}
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -128,6 +130,10 @@ func BenchmarkObserverDrainObserveNonTerminal(b *testing.B) {
 	}
 	b.StopTimer()
 	drain.Stop()
+}
+
+func newTestObserverDrain(target Observer) *ObserverDrain {
+	return NewObserverDrain(target, goruntimeregistry.TaskTransportClientObserver)
 }
 
 type blockingObserver struct {

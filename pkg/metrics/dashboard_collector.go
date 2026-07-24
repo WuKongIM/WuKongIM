@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -91,7 +92,7 @@ func NewDashboardCollector(registry *Registry) *DashboardCollector {
 
 // Start launches the background sampling goroutine.
 func (c *DashboardCollector) Start() {
-	go c.run()
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskObservabilityDashboard, c.run)
 }
 
 // Stop signals the sampling goroutine to exit and waits for it.

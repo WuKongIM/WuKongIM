@@ -2,7 +2,7 @@ import { RefreshCw } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-export type MonitorRefreshInterval = "off" | "30s" | "5m" | "30m" | "1h"
+export type MonitorRefreshInterval = "off" | "5s" | "30s" | "5m" | "30m" | "1h"
 
 type MonitorRefreshControlsProps = {
   interval: MonitorRefreshInterval
@@ -10,6 +10,7 @@ type MonitorRefreshControlsProps = {
     refresh: string
     autoRefresh: string
     off: string
+    fiveSeconds: string
     thirtySeconds: string
     fiveMinutes: string
     thirtyMinutes: string
@@ -17,9 +18,11 @@ type MonitorRefreshControlsProps = {
   }
   onIntervalChange: (interval: MonitorRefreshInterval) => void
   onRefresh: () => void
+  showFiveSeconds?: boolean
 }
 
 const refreshIntervalMs: Record<Exclude<MonitorRefreshInterval, "off">, number> = {
+  "5s": 5_000,
   "30s": 30_000,
   "5m": 5 * 60_000,
   "30m": 30 * 60_000,
@@ -30,7 +33,7 @@ export function monitorRefreshIntervalMs(interval: MonitorRefreshInterval) {
   return interval === "off" ? null : refreshIntervalMs[interval]
 }
 
-export function MonitorRefreshControls({ interval, labels, onIntervalChange, onRefresh }: MonitorRefreshControlsProps) {
+export function MonitorRefreshControls({ interval, labels, onIntervalChange, onRefresh, showFiveSeconds = false }: MonitorRefreshControlsProps) {
   return (
     <div className="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-border bg-background">
       <button
@@ -51,6 +54,7 @@ export function MonitorRefreshControls({ interval, labels, onIntervalChange, onR
         value={interval}
       >
         <option value="off">{labels.off}</option>
+        {showFiveSeconds ? <option value="5s">{labels.fiveSeconds}</option> : null}
         <option value="30s">{labels.thirtySeconds}</option>
         <option value="5m">{labels.fiveMinutes}</option>
         <option value="30m">{labels.thirtyMinutes}</option>

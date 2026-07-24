@@ -87,7 +87,7 @@ func (s *applyScheduler) start(ctx context.Context) {
 		ctx = context.Background()
 	}
 	s.ctx, s.cancel = context.WithCancel(ctx)
-	goroutine.SafeGo(s.goroutines, "controller", "raft_apply_scheduler", s.run)
+	goroutine.SafeGo(s.goroutines, goroutine.TaskControllerRaftApply, s.run)
 }
 
 func (s *applyScheduler) stop() error {

@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // Group owns a set of hash-sharded local authority channel writers.
@@ -144,13 +146,15 @@ func (g *Group) Stop(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	g.mu.Lock()
-	if !g.started || g.stopped {
+	if g.stopped {
 		g.mu.Unlock()
 		return nil
 	}
 	g.stopping = true
 	g.mu.Unlock()
-	g.stopOnce.Do(func() { go g.finishStop() })
+	g.stopOnce.Do(func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendStopDrain, g.finishStop)
+	})
 	select {
 	case <-g.stopDone:
 		return nil

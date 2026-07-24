@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // ManagerOptions configures the delivery runtime facade.
@@ -22,6 +23,8 @@ type ManagerOptions struct {
 	AsyncWorkers int
 	// ManagerObserver receives async manager admission and terminal observations.
 	ManagerObserver ManagerObserver
+	// Goroutines receives lifecycle and pool ownership observations.
+	Goroutines *goruntimeregistry.Registry
 	// AckObserver receives owner-local pending recvack state changes.
 	AckObserver AckObserver
 	// AckBatchObserver receives optional aggregate bind and finish stage observations.
@@ -59,7 +62,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		ackBatchObserver: opts.AckBatchObserver,
 	}
 	if opts.Planner != nil && runner != nil {
-		manager.async = newManagerAsync(manager, opts.AsyncQueueSize, asyncWorkers, opts.ManagerObserver)
+		manager.async = newManagerAsync(manager, opts.AsyncQueueSize, asyncWorkers, opts.ManagerObserver, opts.Goroutines)
 	}
 	return manager
 }

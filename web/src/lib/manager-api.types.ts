@@ -379,7 +379,7 @@ export type RealtimeMonitorStatus = "ready" | "partial" | "prometheus_disabled" 
 
 export type RealtimeMonitorTone = "normal" | "warning" | "critical"
 
-export type RealtimeMonitorSource = "prometheus" | "control_snapshot"
+export type RealtimeMonitorSource = "prometheus" | "control_snapshot" | "direct_node_rpc"
 
 export type RealtimeMonitorCategory =
   | "common"
@@ -392,6 +392,7 @@ export type RealtimeMonitorCategory =
   | "control"
   | "slot"
   | "node"
+  | "goroutines"
 
 export type RealtimeMonitorPoint = {
   timestamp: number
@@ -444,6 +445,70 @@ export type RealtimeMonitorCategoryEntry = {
   count: number
 }
 
+export type GoroutineTaskSnapshot = {
+  task: string
+  name: string
+  kind: "singleton" | "fixed" | "dynamic" | "pool" | "burst"
+  critical: boolean
+  expected?: number
+  active: number
+  process_peak: number
+  total_started: number
+  total_stopped: number
+  panics: number
+  busy_tasks?: number
+  pool_capacity?: number
+  queue_depth?: number
+  queue_capacity?: number
+  rejected_total?: number
+  running_for?: number
+  health: "normal" | "warning" | "critical"
+  health_reason?: string
+}
+
+export type GoroutineModuleSnapshot = {
+  module: string
+  active: number
+  process_peak: number
+  total_started: number
+  total_stopped: number
+  panics: number
+  busy_tasks?: number
+  pool_capacity?: number
+  queue_depth?: number
+  queue_capacity?: number
+  rejected_total?: number
+  tasks: GoroutineTaskSnapshot[]
+  health: "normal" | "warning" | "critical"
+}
+
+export type GoroutineRegistrySnapshot = {
+  generated_at: string
+  process_started_at: string
+  boot_id: string
+  process_total: number
+  managed_total: number
+  unmanaged_total: number
+  reconciled: boolean
+  total_active: number
+  total_started: number
+  total_panics: number
+  modules: GoroutineModuleSnapshot[]
+}
+
+export type RealtimeMonitorGoroutines = {
+  status: "ready" | "partial"
+  generated_at: string
+  nodes: Array<{
+    node_id: number
+    name: string
+    status: string
+    supported: boolean
+    error?: string
+    snapshot?: GoroutineRegistrySnapshot
+  }>
+}
+
 export type RealtimeMonitorResponse = {
   status: RealtimeMonitorStatus
   generated_at: string
@@ -456,10 +521,12 @@ export type RealtimeMonitorResponse = {
   sources: {
     prometheus: RealtimeMonitorSourceStatus
     control_snapshot: RealtimeMonitorSourceStatus
+    goroutines?: RealtimeMonitorSourceStatus
   }
   categories: RealtimeMonitorCategoryEntry[]
   snapshot: RealtimeMonitorSnapshotEntry[]
   cards: RealtimeMonitorCard[]
+  goroutines?: RealtimeMonitorGoroutines
 }
 
 export type ManagerNode = {

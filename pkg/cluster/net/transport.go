@@ -164,14 +164,16 @@ func (c *TransportClient) CallOwned(ctx context.Context, nodeID uint64, serviceI
 func (c *TransportClient) CallShard(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
 	// gofail: var wkClusterNetCallShardFault string
 	// if err := gofailClusterNetServiceFault(wkClusterNetCallShardFault, serviceID); err != nil { return nil, err }
-	return c.client.Call(ctx, transport.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
+	response, err := c.client.Call(ctx, transport.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
+	return response, translateTransportCallError(nodeID, serviceID, err)
 }
 
 // CallShardOwned invokes serviceID on nodeID using shardKey and transfers payload ownership.
 func (c *TransportClient) CallShardOwned(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload transport.OwnedBuffer) ([]byte, error) {
 	// gofail: var wkClusterNetCallShardOwnedFault string
 	// if err := gofailClusterNetServiceFault(wkClusterNetCallShardOwnedFault, serviceID); err != nil { return nil, err }
-	return c.client.CallOwned(ctx, transport.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
+	response, err := c.client.CallOwned(ctx, transport.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
+	return response, translateTransportCallError(nodeID, serviceID, err)
 }
 
 // Send sends serviceID to nodeID without waiting for a response.
@@ -217,6 +219,22 @@ func (c *TransportClient) Stop() {
 	if c != nil && c.client != nil {
 		c.client.Stop()
 	}
+}
+
+func translateTransportCallError(nodeID uint64, serviceID uint8, err error) error {
+	if err == nil {
+		return nil
+	}
+	var remoteErr transport.RemoteError
+	if !errors.As(err, &remoteErr) {
+		return err
+	}
+	if remoteErr.Code == transport.RemoteErrorCodeServiceNotFound ||
+		(remoteErr.Code == transport.RemoteErrorCodeGeneric &&
+			remoteErr.Message == fmt.Sprintf("transport: service %d not found", serviceID)) {
+		return fmt.Errorf("%w: node %d service %d", ErrServiceNotFound, nodeID, serviceID)
+	}
+	return err
 }
 
 func serviceShardKey(serviceID uint8) uint64 {

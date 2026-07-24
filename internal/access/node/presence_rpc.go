@@ -105,6 +105,11 @@ type ManagerConnectionReader interface {
 	SetNodeDrainMode(context.Context, managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error)
 }
 
+// ManagerGoroutineReader returns the node-local managed goroutine snapshot.
+type ManagerGoroutineReader interface {
+	Snapshot() managementusecase.GoroutineSnapshot
+}
+
 // ManagerLogReader handles node-local manager distributed log page requests.
 type ManagerLogReader interface {
 	ControllerLogEntries(context.Context, managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error)
@@ -271,6 +276,8 @@ type Options struct {
 	ManagerDiagnostics ManagerDiagnostics
 	// ManagerTaskAudit handles node-local Controller task audit reads.
 	ManagerTaskAudit ManagerTaskAuditReader
+	// ManagerGoroutines handles node-local managed goroutine snapshot reads.
+	ManagerGoroutines ManagerGoroutineReader
 	// ManagerPlugins handles node-local plugin inventory requests.
 	ManagerPlugins ManagerPluginReader
 	// NodeLifecycle handles validated seed-join lifecycle requests.
@@ -337,6 +344,8 @@ type Adapter struct {
 	managerDiagnostics ManagerDiagnostics
 	// managerTaskAudit reads retained Controller task audit history.
 	managerTaskAudit ManagerTaskAuditReader
+	// managerGoroutines reads the node-local managed goroutine snapshot.
+	managerGoroutines ManagerGoroutineReader
 	// managerPlugins reads node-local plugin inventory for manager pages.
 	managerPlugins ManagerPluginReader
 	// nodeLifecycle submits validated seed joins through the management usecase.
@@ -390,6 +399,7 @@ func New(opts Options) *Adapter {
 		managerNodeConfig:        opts.ManagerNodeConfig,
 		managerDiagnostics:       opts.ManagerDiagnostics,
 		managerTaskAudit:         opts.ManagerTaskAudit,
+		managerGoroutines:        opts.ManagerGoroutines,
 		managerPlugins:           opts.ManagerPlugins,
 		nodeLifecycle:            opts.NodeLifecycle,
 		nodeReadiness:            opts.NodeReadiness,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -90,7 +91,7 @@ func (w *conversationActiveFlushWorker) Start(ctx context.Context) error {
 	w.wg.Add(1)
 	w.mu.Unlock()
 
-	go w.tick(runCtx)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppConversationFlush, func() { w.tick(runCtx) })
 	return nil
 }
 
@@ -110,10 +111,10 @@ func (w *conversationActiveFlushWorker) Stop(ctx context.Context) error {
 		cancel()
 	}
 	done := make(chan struct{})
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppConversationFlush, func() {
 		w.wg.Wait()
 		close(done)
-	}()
+	})
 	select {
 	case <-done:
 	case <-ctx.Done():

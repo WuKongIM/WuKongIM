@@ -48,6 +48,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	gatewaycore "github.com/WuKongIM/WuKongIM/pkg/gateway/core"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -79,6 +80,116 @@ func TestNewTestAppDisablesDefaultPluginRuntime(t *testing.T) {
 	}
 	if app.cfg.Plugin.Enable || app.pluginRuntime != nil {
 		t.Fatalf("test plugin runtime enabled=%v runtime=%T, want isolated", app.cfg.Plugin.Enable, app.pluginRuntime)
+	}
+}
+
+func TestAppAlwaysWiresGoroutineRegistryAndDebugSummary(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		API: APIConfig{ListenAddr: "127.0.0.1:0"},
+		Observability: ObservabilityConfig{
+			DebugAPIEnabled: true,
+		},
+	}, WithCluster(&fakeCluster{}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("newTestApp() error = %v", err)
+	}
+	if app.goroutines == nil {
+		t.Fatal("goroutine registry is nil")
+	}
+	api, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api = %T, want *api.Server", app.api)
+	}
+	rec := httptest.NewRecorder()
+	api.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/debug/goroutines/summary", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("summary status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var snapshot goruntimeregistry.Snapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode summary: %v", err)
+	}
+	if snapshot.BootID == "" || snapshot.ProcessTotal == 0 {
+		t.Fatalf("summary = %+v, want process identity and total", snapshot)
+	}
+}
+
+func TestAppStopReturnsManagedGoroutineWaitEvidence(t *testing.T) {
+	registry := goruntimeregistry.New()
+	release := make(chan struct{})
+	registry.Go(goruntimeregistry.TaskManagerSnapshotFanout, func() { <-release })
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if registry.Snapshot().ManagedTotal == 1 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	app := &App{started: true, goroutines: registry, logger: wklog.NewNop()}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err := app.Stop(ctx)
+	var waitErr *goruntimeregistry.WaitError
+	if !errors.As(err, &waitErr) {
+		t.Fatalf("Stop() error = %v, want managed goroutine WaitError", err)
+	}
+	if waitErr.Module != goruntimeregistry.ModuleManager || len(waitErr.Tasks) != 1 ||
+		waitErr.Tasks[0].Task != goruntimeregistry.TaskManagerSnapshotFanout {
+		t.Fatalf("wait evidence = %+v, want manager snapshot fanout", waitErr)
+	}
+	close(release)
+}
+
+func TestAppStopBeforeStartReleasesChannelAppendPools(t *testing.T) {
+	registry := goruntimeregistry.Default()
+	baseline := registry.Baseline()
+	group := channelappend.New(channelappend.Options{LocalNodeID: 1})
+	app := &App{
+		channelAppends:    group,
+		goroutines:        registry,
+		goroutineBaseline: baseline,
+		logger:            wklog.NewNop(),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := app.Stop(ctx); err != nil {
+		t.Fatalf("Stop() before Start error = %v", err)
+	}
+	if err := registry.Group(goruntimeregistry.ModuleChannelAppend).WaitFrom(ctx, baseline); err != nil {
+		t.Fatalf("channelappend managed activity after App.Stop() = %v", err)
+	}
+}
+
+func TestNewConstructionFailureReleasesChannelAppendPools(t *testing.T) {
+	registry := goruntimeregistry.Default()
+	baseline := registry.Baseline()
+	cfg := isolatePluginRuntimeForTest(Config{
+		Gateway: GatewayConfig{
+			Listeners: []gateway.ListenerOptions{{
+				Network:   "tcp",
+				Address:   "127.0.0.1:0",
+				Transport: "gnet",
+				Protocol:  "wkproto",
+			}},
+		},
+	})
+
+	app, err := New(cfg, WithLogger(wklog.NewNop()))
+	if err == nil {
+		if app != nil {
+			_ = app.Stop(context.Background())
+		}
+		t.Fatal("New() error = nil, want invalid gateway listener error")
+	}
+	if app != nil {
+		t.Fatalf("New() app = %#v, want nil on construction error", app)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := registry.Group(goruntimeregistry.ModuleChannelAppend).WaitFrom(ctx, baseline); err != nil {
+		t.Fatalf("channelappend managed activity after failed New() = %v", err)
 	}
 }
 

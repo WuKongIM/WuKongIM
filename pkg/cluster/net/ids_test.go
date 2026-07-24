@@ -58,6 +58,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"slot_status":               RPCSlotStatus,
 		"control_write":             RPCControlWrite,
 		"manager_task_audit":        RPCManagerTaskAudit,
+		"manager_goroutines":        RPCManagerGoroutines,
 		"channel_migration_meta":    RPCChannelMigrationMeta,
 		"message_event_append":      RPCMessageEventAppend,
 		"manager_backup":            RPCManagerBackup,

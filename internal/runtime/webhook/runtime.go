@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
@@ -39,6 +40,8 @@ const (
 
 // RuntimeOptions configures the bounded webhook runtime.
 type RuntimeOptions struct {
+	// Goroutines receives lifecycle and pool ownership observations.
+	Goroutines *goruntimeregistry.Registry
 	// Sender delivers encoded webhook requests.
 	Sender Sender
 	// Observer receives low-cardinality runtime observations.
@@ -135,9 +138,11 @@ func (r *Runtime) Start(ctx context.Context) error {
 	r.ensureStopChLocked()
 
 	notify, err := workqueue.NewBoundedBatchPool[Message](workqueue.BoundedBatchPoolConfig[Message]{
-		Name:      webhookNotifyQueue,
-		Workers:   r.opts.Workers,
-		QueueSize: r.opts.QueueSize,
+		Name:       webhookNotifyQueue,
+		Goroutines: r.opts.Goroutines,
+		Task:       goruntimeregistry.TaskWebhookNotify,
+		Workers:    r.opts.Workers,
+		QueueSize:  r.opts.QueueSize,
 		Policy: func(Message) workqueue.BatchOptions {
 			return workqueue.BatchOptions{MaxItems: r.opts.NotifyBatchMaxItems, MaxWait: r.opts.NotifyBatchMaxWait}
 		},
@@ -147,9 +152,11 @@ func (r *Runtime) Start(ctx context.Context) error {
 	}
 
 	online, err := workqueue.NewBoundedBatchPool[OnlineStatus](workqueue.BoundedBatchPoolConfig[OnlineStatus]{
-		Name:      webhookOnlineQueue,
-		Workers:   r.opts.Workers,
-		QueueSize: r.opts.QueueSize,
+		Name:       webhookOnlineQueue,
+		Goroutines: r.opts.Goroutines,
+		Task:       goruntimeregistry.TaskWebhookOnline,
+		Workers:    r.opts.Workers,
+		QueueSize:  r.opts.QueueSize,
 		Policy: func(OnlineStatus) workqueue.BatchOptions {
 			return workqueue.BatchOptions{MaxItems: r.opts.OnlineBatchMaxItems, MaxWait: r.opts.OnlineBatchMaxWait}
 		},
@@ -162,6 +169,8 @@ func (r *Runtime) Start(ctx context.Context) error {
 	shards, queueSizePerShard := offlineMailboxSizing(r.opts.QueueSize)
 	offline, err := workqueue.NewShardedMailbox[OfflineMessage](workqueue.ShardedMailboxConfig{
 		Name:              webhookOfflineQueue,
+		Goroutines:        r.opts.Goroutines,
+		Task:              goruntimeregistry.TaskWebhookOffline,
 		Shards:            shards,
 		Workers:           r.opts.Workers,
 		QueueSizePerShard: queueSizePerShard,

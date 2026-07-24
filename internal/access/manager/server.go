@@ -13,6 +13,7 @@ import (
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	"github.com/WuKongIM/WuKongIM/internal/access/manager/webui"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
 )
@@ -324,7 +325,7 @@ func (s *Server) Start() error {
 	s.addr = ln.Addr().String()
 	s.started = true
 	s.mu.Unlock()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskManagerHTTPServe, func() {
 		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			s.httpLogger().Error("manager http serve failed",
 				wklog.Event("internal.access.manager.serve_failed"),
@@ -332,7 +333,7 @@ func (s *Server) Start() error {
 				wklog.Error(serveErr),
 			)
 		}
-	}()
+	})
 	return nil
 }
 

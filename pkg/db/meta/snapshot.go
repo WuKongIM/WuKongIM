@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 type snapshotReadView interface {
@@ -238,14 +239,14 @@ func (db *MetaDB) openHashSlotSnapshot(ctx context.Context, hashSlots []uint16, 
 	}
 	streamContext, cancel := context.WithCancel(ctx)
 	reader, writer := io.Pipe()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseBackupStream, func() {
 		defer view.Close()
 		if err := writeHashSlotSnapshotStream(streamContext, writer, view, normalized, backupOnly); err != nil {
 			_ = writer.CloseWithError(err)
 			return
 		}
 		_ = writer.Close()
-	}()
+	})
 	return &slotSnapshotStream{reader: reader, cancel: cancel}, nil
 }
 

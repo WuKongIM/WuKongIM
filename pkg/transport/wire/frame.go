@@ -22,6 +22,9 @@ const (
 
 	// ResponseErr marks an errored RPC response payload.
 	ResponseErr uint8 = 1
+
+	// ResponseServiceNotFound marks an RPC service absent on the remote node.
+	ResponseServiceNotFound uint8 = 2
 )
 
 const (

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -22,6 +23,10 @@ type BoundedPoolHandler[T any] func(context.Context, T) error
 type BoundedPoolConfig struct {
 	// Name is a stable low-cardinality name used in observations.
 	Name string
+	// Goroutines receives lifecycle and pool ownership observations.
+	Goroutines *goruntimeregistry.Registry
+	// Task is the fixed module/task owner of this pool and its auxiliary goroutines.
+	Task goruntimeregistry.TaskID
 	// Workers is the maximum number of concurrently executing handler calls.
 	Workers int
 	// QueueSize bounds accepted work that has not yet entered the executor.
@@ -45,13 +50,15 @@ type BoundedPool[T any] struct {
 	cancel context.CancelFunc
 	pool   *ants.PoolWithFuncGeneric[boundedPoolTask[T]]
 
-	closed  atomic.Bool
-	running atomic.Int64
+	closed   atomic.Bool
+	running  atomic.Int64
+	rejected atomic.Int64
 
-	closeOnce  sync.Once
-	closeErr   error
-	dispatchWG sync.WaitGroup
-	taskWG     sync.WaitGroup
+	closeOnce      sync.Once
+	closeErr       error
+	dispatchWG     sync.WaitGroup
+	taskWG         sync.WaitGroup
+	unregisterPool func()
 }
 
 type boundedPoolTask[T any] struct {
@@ -67,6 +74,7 @@ func NewBoundedPool[T any](cfg BoundedPoolConfig, handler BoundedPoolHandler[T])
 	if cfg.ReleaseTimeout <= 0 {
 		cfg.ReleaseTimeout = defaultReleaseTimeout
 	}
+	cfg.Goroutines, cfg.Task = normalizeOwnership(cfg.Goroutines, cfg.Task)
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &BoundedPool[T]{
 		cfg:     cfg,
@@ -82,16 +90,24 @@ func NewBoundedPool[T any](cfg BoundedPoolConfig, handler BoundedPoolHandler[T])
 		p.runTask,
 		ants.WithNonblocking(true),
 		ants.WithDisablePurge(true),
+		ants.WithPanicHandler(poolPanicHandler(cfg.Goroutines, cfg.Task)),
 	)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	p.pool = pool
+	unregister, err := cfg.Goroutines.RegisterPool(cfg.Task, p.poolStats)
+	if err != nil {
+		pool.Release()
+		cancel()
+		return nil, err
+	}
+	p.unregisterPool = unregister
 	p.observeCapacity()
 	p.observeDepth()
 	p.dispatchWG.Add(1)
-	go p.dispatch()
+	goruntimeregistry.SafeGo(cfg.Goroutines, cfg.Task, p.dispatch)
 	return p, nil
 }
 
@@ -121,6 +137,9 @@ func (p *BoundedPool[T]) submit(ctx context.Context, item T, wait bool) error {
 		return err
 	}
 	if err := p.acquireSlot(ctx, wait); err != nil {
+		if errors.Is(err, ErrFull) {
+			p.rejected.Add(1)
+		}
 		p.observeAdmission(errorResult(err))
 		return err
 	}
@@ -142,6 +161,7 @@ func (p *BoundedPool[T]) submit(ctx context.Context, item T, wait bool) error {
 		return ctx.Err()
 	default:
 		p.releaseSlots(1)
+		p.rejected.Add(1)
 		p.observeAdmission(resultFull)
 		p.observeDepth()
 		return ErrFull
@@ -183,11 +203,11 @@ func (p *BoundedPool[T]) Close(ctx context.Context) error {
 		p.closed.Store(true)
 		close(p.stop)
 		done := make(chan struct{})
-		go func() {
+		goruntimeregistry.SafeGo(p.cfg.Goroutines, p.cfg.Task, func() {
 			p.dispatchWG.Wait()
 			p.taskWG.Wait()
 			close(done)
-		}()
+		})
 		select {
 		case <-done:
 			p.closeErr = nil
@@ -196,11 +216,34 @@ func (p *BoundedPool[T]) Close(ctx context.Context) error {
 			p.closeErr = ctx.Err()
 		}
 		if p.pool != nil {
-			_ = p.pool.ReleaseTimeout(p.cfg.ReleaseTimeout)
+			releaseOwnedPool(
+				p.cfg.Goroutines,
+				p.cfg.Task,
+				func() error { return p.pool.ReleaseTimeout(p.cfg.ReleaseTimeout) },
+				p.pool.Running,
+				p.unregisterPool,
+			)
 		}
 		p.cancel()
 	})
 	return p.closeErr
+}
+
+func (p *BoundedPool[T]) poolStats() goruntimeregistry.PoolStats {
+	if p == nil {
+		return goruntimeregistry.PoolStats{}
+	}
+	stats := goruntimeregistry.PoolStats{
+		BusyTasks:     p.running.Load(),
+		Capacity:      int64(p.cfg.Workers),
+		QueueDepth:    int64(p.QueueDepth()),
+		QueueCapacity: int64(p.cfg.QueueSize),
+		RejectedTotal: p.rejected.Load(),
+	}
+	if p.pool != nil {
+		stats.Goroutines = poolGoroutines(p.pool.Running(), p.pool.IsClosed())
+	}
+	return stats
 }
 
 // QueueDepth returns the accepted-but-not-yet-executing item count.

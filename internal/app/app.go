@@ -34,6 +34,7 @@ import (
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/bwmarrin/snowflake"
@@ -140,6 +141,10 @@ type App struct {
 	presenceDirectory       *authoritypresence.Directory
 	presenceWorker          WorkerRuntime
 	metrics                 *obsmetrics.Registry
+	// goroutines is the always-on process supervisor shared by first-party runtimes.
+	goroutines *goruntimeregistry.Registry
+	// goroutineBaseline excludes tasks that predate this App from its shutdown wait.
+	goroutineBaseline goruntimeregistry.Baseline
 	// channelRuntimeSummary aggregates active Channel runtime counts for manager node reads.
 	channelRuntimeSummary *channelRuntimeSummaryCollector
 	// top is the optional node-local collector used by /top/v1/snapshot.
@@ -202,7 +207,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	constructionOK := false
 	defer func() {
 		if !constructionOK {
-			app.restoreDiagnosticsSink()
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = app.Stop(cleanupCtx)
 		}
 	}()
 
@@ -219,6 +226,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	clusterCfg.Logger = app.logger.Named("cluster")
 	app.wireControllerTaskAudit(&clusterCfg)
 	app.configureObservability(&clusterCfg)
+	app.goroutineBaseline = app.goroutines.Baseline()
 	if err := app.ensureCluster(clusterCfg); err != nil {
 		return nil, err
 	}
@@ -246,6 +254,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerDBInspectRPC()
 	app.wireManagerDiagnosticsRPC()
 	app.wireManagerTaskAuditRPC()
+	app.wireManagerGoroutineRPC()
 	app.wireNodeLifecycleRPC()
 	app.wireSeedJoinLoop()
 	app.wireUsers()
@@ -297,6 +306,11 @@ func WithManager(manager ManagerRuntime) Option {
 // WithGateway overrides the gateway runtime.
 func WithGateway(gateway GatewayRuntime) Option {
 	return func(a *App) { a.gateway = gateway }
+}
+
+// WithGoroutineRegistry overrides the process goroutine supervisor.
+func WithGoroutineRegistry(registry *goruntimeregistry.Registry) Option {
+	return func(a *App) { a.goroutines = registry }
 }
 
 // WithMessages overrides the message usecase app.

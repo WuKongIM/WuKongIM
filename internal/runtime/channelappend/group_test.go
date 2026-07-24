@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 func TestSubmitLocalCreatesStateOnlyForLocalAuthority(t *testing.T) {
@@ -74,6 +76,25 @@ func TestAdvancePoolSizeIsIndependentFromAuthorityShards(t *testing.T) {
 	}
 	if got := len(group.shards); got != 8 {
 		t.Fatalf("shard count = %d, want 8", got)
+	}
+}
+
+func TestGroupStopBeforeStartReleasesManagedPools(t *testing.T) {
+	registry := goruntimeregistry.Default()
+	baseline := registry.Baseline()
+	group := New(Options{
+		LocalNodeID:     1,
+		AdvancePoolSize: 2,
+		EffectPoolSize:  3,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := group.Stop(ctx); err != nil {
+		t.Fatalf("Stop() before Start error = %v", err)
+	}
+	if err := registry.Group(goruntimeregistry.ModuleChannelAppend).WaitFrom(ctx, baseline); err != nil {
+		t.Fatalf("channelappend managed activity after Stop() = %v", err)
 	}
 }
 

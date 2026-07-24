@@ -9,6 +9,7 @@ import (
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -81,7 +82,8 @@ func NewRaftTransportWithOptions(sender clusternet.Sender, opts RaftTransportOpt
 	for i := range t.queues {
 		t.queues[i] = make(chan raftTransportBatch, opts.QueueSizePerWorker)
 		t.wg.Add(1)
-		go t.run(t.queues[i])
+		queue := t.queues[i]
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskClusterRaftTransport, func() { t.run(queue) })
 	}
 	return t
 }

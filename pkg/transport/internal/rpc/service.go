@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 )
 
@@ -118,12 +119,12 @@ func newService(id uint16, handler core.Handler, opts core.ServiceOptions, obser
 		done:        make(chan struct{}),
 	}
 	s.pumpWG.Add(1)
-	go s.pump()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportRPCService, s.pump)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportRPCService, func() {
 		s.pumpWG.Wait()
 		s.taskWG.Wait()
 		close(s.done)
-	}()
+	})
 	return s
 }
 

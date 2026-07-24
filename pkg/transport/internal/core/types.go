@@ -209,6 +209,13 @@ func (e RemoteError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
+const (
+	// RemoteErrorCodeGeneric identifies an unclassified remote handler error.
+	RemoteErrorCodeGeneric = "remote_error"
+	// RemoteErrorCodeServiceNotFound identifies an RPC service absent on the remote node.
+	RemoteErrorCodeServiceNotFound = "service_not_found"
+)
+
 var (
 	ErrStopped         = errors.New("transport: stopped")
 	ErrTimeout         = errors.New("transport: timeout")

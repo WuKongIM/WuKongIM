@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -199,15 +200,15 @@ func (w *Worker) Start(ctx context.Context) error {
 	var runWG sync.WaitGroup
 	runWG.Add(w.workers)
 	for i := 0; i < w.workers; i++ {
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginHookWorker, func() {
 			defer runWG.Done()
 			w.runWorker(run)
-		}()
+		})
 	}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginHookFinalize, func() {
 		runWG.Wait()
 		close(run.done)
-	}()
+	})
 	return nil
 }
 
@@ -328,7 +329,7 @@ func (w *Worker) beginStop() (*workerRun, error) {
 		if run != nil {
 			run.cancel()
 			close(run.acceptDone)
-			go w.finalizeRun(run)
+			goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginHookFinalize, func() { w.finalizeRun(run) })
 		}
 		return run, nil
 	case workerStateClosing:

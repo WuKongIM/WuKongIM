@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
@@ -937,13 +938,13 @@ func (n *Node) touchConversationSlotBatches(ctx context.Context, groups map[uint
 	var wg sync.WaitGroup
 	wg.Add(workerCount)
 	for worker := 0; worker < workerCount; worker++ {
-		go func() {
+		goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterConversationTouch, func() {
 			defer wg.Done()
 			for index := range jobs {
 				slotID := slotIDs[index]
 				errs[index] = n.touchConversationSlotBatch(ctx, slotID, groups[slotID])
 			}
-		}()
+		})
 	}
 	for index := range slotIDs {
 		jobs <- index

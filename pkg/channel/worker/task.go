@@ -8,6 +8,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // TaskKind identifies one blocking work category.
@@ -239,13 +240,13 @@ func taskContext(parent context.Context, task context.Context) (context.Context,
 		cancelTask()
 		return ctx, func() { cancel(context.Canceled) }
 	}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelTaskCancellation, func() {
 		select {
 		case <-task.Done():
 			cancelTask()
 		case <-ctx.Done():
 		}
-	}()
+	})
 	return ctx, func() { cancel(context.Canceled) }
 }
 

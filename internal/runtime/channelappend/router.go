@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -339,10 +340,10 @@ func runRouterBatchWorkers(workItems int, maxWorkers int, submit func(int)) {
 	var wg sync.WaitGroup
 	wg.Add(workers - 1)
 	for worker := 1; worker < workers; worker++ {
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendRouter, func() {
 			defer wg.Done()
 			run()
-		}()
+		})
 	}
 	run()
 	wg.Wait()

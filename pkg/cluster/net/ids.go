@@ -105,6 +105,8 @@ const (
 	RPCManagerBackup
 	// RPCOpsMCP serves token-free Manager-to-owner MCP forwarding and bounded pprof.
 	RPCOpsMCP
+	// RPCManagerGoroutines serves node-local managed goroutine snapshots.
+	RPCManagerGoroutines
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -203,6 +205,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot status"
 	case RPCManagerTaskAudit:
 		return "manager task audit"
+	case RPCManagerGoroutines:
+		return "manager goroutines"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
 	case RPCMessageEventAppend:

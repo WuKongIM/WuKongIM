@@ -78,6 +78,9 @@ func TestClientCallMissingServiceReturnsRemoteError(t *testing.T) {
 	if !errors.As(err, &remoteErr) {
 		t.Fatalf("Call() error = %v, want RemoteError", err)
 	}
+	if remoteErr.Code != RemoteErrorCodeServiceNotFound {
+		t.Fatalf("RemoteError.Code = %q, want %q", remoteErr.Code, RemoteErrorCodeServiceNotFound)
+	}
 	if remoteErr.Message == "" {
 		t.Fatal("RemoteError.Message is empty")
 	}

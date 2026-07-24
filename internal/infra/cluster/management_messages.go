@@ -14,7 +14,7 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"golang.org/x/sync/errgroup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // ManagementMessageReader adapts cluster committed message reads to manager message pages.
@@ -70,11 +70,34 @@ func (r *ManagementMessageReader) QueryLatestMessages(ctx context.Context, req m
 	nodeIDs := latestMessageDataNodeIDs(snapshot, r.latest.NodeID())
 	pages := make([]latestMessageNodePage, 0, len(nodeIDs))
 	var pagesMu sync.Mutex
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.SetLimit(8)
+	groupCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	limit := make(chan struct{}, 8)
+	var groupWG sync.WaitGroup
+	var groupErr error
+	var groupErrOnce sync.Once
+	setGroupError := func(err error) {
+		if err == nil {
+			return
+		}
+		groupErrOnce.Do(func() {
+			groupErr = err
+			cancel()
+		})
+	}
+launch:
 	for _, nodeID := range nodeIDs {
 		nodeID := nodeID
-		group.Go(func() error {
+		select {
+		case limit <- struct{}{}:
+		case <-groupCtx.Done():
+			setGroupError(groupCtx.Err())
+			break launch
+		}
+		groupWG.Add(1)
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskManagerLatestMessagesFanout, func() {
+			defer groupWG.Done()
+			defer func() { <-limit }()
 			var page managementusecase.ListMessagesResponse
 			var err error
 			if nodeID == r.latest.NodeID() {
@@ -83,16 +106,17 @@ func (r *ManagementMessageReader) QueryLatestMessages(ctx context.Context, req m
 				page, err = r.remote.ListManagerLatestMessages(groupCtx, nodeID, req.BeforeMessageID, req.Limit+1)
 			}
 			if err != nil {
-				return err
+				setGroupError(err)
+				return
 			}
 			pagesMu.Lock()
 			pages = append(pages, latestMessageNodePage{nodeID: nodeID, items: page.Items})
 			pagesMu.Unlock()
-			return nil
 		})
 	}
-	if err := group.Wait(); err != nil {
-		return managementusecase.LatestMessageQueryPage{}, latestMessagesUnavailable(err)
+	groupWG.Wait()
+	if groupErr != nil {
+		return managementusecase.LatestMessageQueryPage{}, latestMessagesUnavailable(groupErr)
 	}
 	return mergeLatestMessagePages(pages, req.Limit)
 }

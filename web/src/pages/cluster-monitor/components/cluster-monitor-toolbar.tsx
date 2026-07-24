@@ -35,6 +35,7 @@ const categories: RealtimeMonitorCategory[] = [
   "control",
   "slot",
   "node",
+  "goroutines",
 ]
 
 export function ClusterMonitorToolbar({
@@ -123,6 +124,7 @@ export function ClusterMonitorToolbar({
             refresh: intl.formatMessage({ id: "clusterMonitor.controls.refreshNow" }),
             autoRefresh: intl.formatMessage({ id: "clusterMonitor.controls.autoRefresh" }),
             off: intl.formatMessage({ id: "clusterMonitor.controls.autoRefreshOff" }),
+            fiveSeconds: intl.formatMessage({ id: "clusterMonitor.controls.autoRefresh5s" }),
             thirtySeconds: intl.formatMessage({ id: "clusterMonitor.controls.autoRefresh30s" }),
             fiveMinutes: intl.formatMessage({ id: "clusterMonitor.controls.autoRefresh5m" }),
             thirtyMinutes: intl.formatMessage({ id: "clusterMonitor.controls.autoRefresh30m" }),
@@ -130,6 +132,7 @@ export function ClusterMonitorToolbar({
           }}
           onIntervalChange={onRefreshIntervalChange}
           onRefresh={onRefresh}
+          showFiveSeconds={selectedCategory === "goroutines"}
         />
       </div>
     </section>

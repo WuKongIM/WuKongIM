@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/wkrpc"
 )
@@ -98,10 +99,10 @@ func (s *Server) handleClose(c rpcContext) {
 	callerUID := pluginNo
 	ctx, cancel := s.usecaseContext(c)
 	if isCloseEvent(c) {
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginLifecycleClose, func() {
 			defer cancel()
 			_ = s.usecase.ClosePlugin(ctx, pluginNo, callerUID)
-		}()
+		})
 		return
 	}
 	defer cancel()

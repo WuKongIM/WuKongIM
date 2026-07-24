@@ -146,6 +146,7 @@ pkg/
   channel/               多 Reactor channel log runtime，用于 v0 append/fetch/replication、runtime 观测、worker 池与 message DB 适配
   controller/            新版控制面：Raft apply 维护最终 cluster-state.json，含 state/statefile/command/fsm/planner/sync/raft/server
     docs/                controller 库用法文档
+  goroutine/             进程级 Goroutine 监督、固定模块/任务目录、池观测与有界关闭证据
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink
   plugin/

@@ -8,6 +8,7 @@ import (
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // RestoreInstallClusterNode exposes current membership for restore dispatch.
@@ -85,7 +86,7 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 	}
 	for worker := 0; worker < workers; worker++ {
 		wait.Add(1)
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreWorker, func() {
 			defer wait.Done()
 			for nodeID := range work {
 				var report backupusecase.RestorePartition
@@ -97,9 +98,9 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 				}
 				results <- installResult{nodeID: nodeID, report: report, err: installErr}
 			}
-		}()
+		})
 	}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreProducer, func() {
 		defer close(work)
 		for _, nodeID := range nodeIDs {
 			select {
@@ -108,7 +109,7 @@ func (i *ClusterRestorePartitionInstaller) InstallPartition(ctx context.Context,
 				return
 			}
 		}
-	}()
+	})
 	wait.Wait()
 	close(results)
 	var canonical *backupusecase.RestorePartition
