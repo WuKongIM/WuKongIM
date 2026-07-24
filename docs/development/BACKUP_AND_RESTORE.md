@@ -240,15 +240,15 @@ Run the sustained Controller-Leader/data-node outage scenario alone with:
 GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_outage -count=1 -timeout 8m -p=1
 ```
 
-`.github/workflows/backup-qualification.yml` is a fail-closed repository gate
-for pull requests, pushes to `main`, the nightly schedule, and manual dispatch.
-It verifies backup and restore contracts, runs targeted race detection, then
-runs the complete process-level backup package with one E2E-tagged product
-binary. A successful run publishes a receipt bound to the tested commit and
-run attempt. A failed run publishes only bounded tails from the unit, race, and
-E2E logs. Configure the GitHub branch protection rule to require
-`Backup qualification / Backup release gate`; merely committing the workflow
-does not make the check mandatory.
+`.github/workflows/backup-qualification.yml` is a fail-closed manual
+qualification workflow. It supports only `workflow_dispatch`; pull requests,
+pushes, and schedules never start it. The workflow verifies backup and restore
+contracts, runs targeted race detection, then runs the complete process-level
+backup package with one E2E-tagged product binary. A successful run publishes a
+receipt bound to the tested commit and run attempt. A failed run publishes only
+bounded tails from the unit, race, and E2E logs. Because it is not attached to
+pull requests, it is qualification evidence rather than a branch-protection
+merge check.
 
 The ordinary Nightly E2E job also builds its shared binary with the `e2e` tag so
 the same explicit harness substitutes are available when the full package
@@ -262,12 +262,13 @@ failure behavior.
 
 ## Qualification Gates
 
-Green `Backup qualification / Backup release gate` evidence means that the
-exact commit passed the repository's signed-artifact, encryption, corruption,
-retention, restore, Controller-invariant, race, and real three-process failure
-matrix. It is strong regression evidence, not an absolute proof that all backup
-data is correct in every deployment. In particular, it does not exercise the
-external services listed below.
+A manually dispatched green `Backup qualification / Backup release gate`
+receipt means that the exact tested commit passed the repository's
+signed-artifact, encryption, corruption, retention, restore,
+Controller-invariant, race, and real three-process failure matrix. It is strong
+regression evidence, not an absolute proof that all backup data is correct in
+every deployment. In particular, it does not exercise the external services
+listed below.
 
 Production enablement remains blocked until a real three-node environment
 proves online baseline and incremental capture, sustained combined

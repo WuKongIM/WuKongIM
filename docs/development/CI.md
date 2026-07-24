@@ -1,9 +1,10 @@
 # Continuous Integration
 
-WuKongIM uses three fail-closed GitHub Actions workflows. All Go commands use
-explicit repository roots and `GOWORK=off`; repository-root `./...` is not a
-valid gate because Go package discovery ignores `.gitignore` and can include
-local packages below `tmp/` or `web/node_modules/`.
+WuKongIM uses two automatically triggered fail-closed GitHub Actions workflows
+and one manual backup qualification workflow. All Go commands use explicit
+repository roots and `GOWORK=off`; repository-root `./...` is not a valid gate
+because Go package discovery ignores `.gitignore` and can include local
+packages below `tmp/` or `web/node_modules/`.
 
 ## Fast CI
 
@@ -93,9 +94,9 @@ explicit opt-in stress paths rather than part of the daily workflow.
 
 ## Backup Qualification
 
-`.github/workflows/backup-qualification.yml` runs for pull requests, pushes to
-`main`, the nightly `19:30 UTC` schedule, and manual dispatch. Obsolete runs for
-the same pull request/ref are cancelled.
+`.github/workflows/backup-qualification.yml` supports only manual dispatch.
+Pull requests, pushes, and schedules never start it. Starting a newer manual
+run for the same ref cancels the older run.
 
 | Check | Timeout | Contract |
 | --- | ---: | --- |
@@ -103,11 +104,10 @@ the same pull request/ref are cancelled.
 
 Success publishes a commit- and run-bound qualification receipt retained for
 30 days. Failure publishes bounded tails from the unit, race, and E2E logs,
-retained for 7 days. Repository administrators must require
-`Backup qualification / Backup release gate` on `main` after a successful
-remote run. This repository gate does not replace the real S3/KMS/Object
-Lock/IAM and 1 TB production qualification described in
-`BACKUP_AND_RESTORE.md`.
+retained for 7 days. The manual workflow is not a pull-request status check and
+must not be configured as a required branch-protection check. Its result does
+not replace the real S3/KMS/Object Lock/IAM and 1 TB production qualification
+described in `BACKUP_AND_RESTORE.md`.
 
 ## Failure Evidence
 

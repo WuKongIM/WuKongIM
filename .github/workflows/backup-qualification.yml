@@ -1,18 +1,13 @@
 name: Backup qualification
 
 on:
-  pull_request:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "30 19 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

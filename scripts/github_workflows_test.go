@@ -607,11 +607,11 @@ func TestBackupQualificationWorkflowRejectsUntaggedBinary(t *testing.T) {
 	}
 }
 
-func TestBackupQualificationWorkflowRejectsMissingPRGate(t *testing.T) {
+func TestBackupQualificationWorkflowRejectsAutomaticTrigger(t *testing.T) {
 	raw := string(readWorkflow(t, "backup-qualification.yml"))
-	mutated := replaceWorkflowFirst(t, raw, "  pull_request:\n", "")
+	mutated := replaceWorkflowFirst(t, raw, "  workflow_dispatch:\n", "  pull_request:\n  workflow_dispatch:\n")
 	if err := validateBackupQualificationWorkflow([]byte(mutated)); err == nil {
-		t.Fatal("validator accepted a backup workflow that does not gate pull requests")
+		t.Fatal("validator accepted an automatic backup qualification trigger")
 	}
 }
 
@@ -1084,7 +1084,7 @@ func validateBackupQualificationWorkflow(raw []byte) error {
 		return fmt.Errorf("permissions = %#v, want exactly %#v", workflow.Permissions, wantPermissions)
 	}
 	wantConcurrency := ciConcurrency{
-		Group:            "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
+		Group:            "${{ github.workflow }}-${{ github.ref }}",
 		CancelInProgress: boolPointer(true),
 	}
 	if !reflect.DeepEqual(workflow.Concurrency, wantConcurrency) {
@@ -1393,43 +1393,15 @@ func validateScheduledTriggers(triggers map[string]yaml.Node, workflowName, want
 }
 
 func validateBackupQualificationTriggers(triggers map[string]yaml.Node) error {
-	if len(triggers) != 4 {
-		return fmt.Errorf("backup qualification trigger keys = %d, want exactly pull_request, push, schedule, and workflow_dispatch", len(triggers))
+	if len(triggers) != 1 {
+		return fmt.Errorf("backup qualification trigger keys = %d, want exactly workflow_dispatch", len(triggers))
 	}
-	for _, name := range []string{"pull_request", "workflow_dispatch"} {
-		trigger, ok := triggers[name]
-		if !ok {
-			return fmt.Errorf("workflow trigger %q is missing", name)
-		}
-		if !isEmptyTrigger(trigger) {
-			return fmt.Errorf("workflow trigger %q must not contain filters or options", name)
-		}
-	}
-	push, ok := triggers["push"]
+	trigger, ok := triggers["workflow_dispatch"]
 	if !ok {
-		return fmt.Errorf("workflow trigger %q is missing", "push")
+		return fmt.Errorf("workflow trigger %q is missing", "workflow_dispatch")
 	}
-	if push.Kind != yaml.MappingNode || len(push.Content) != 2 {
-		return fmt.Errorf("push trigger must contain only branches: [main]")
-	}
-	if key := push.Content[0]; key.Kind != yaml.ScalarNode || key.Value != "branches" {
-		return fmt.Errorf("push trigger must contain only branches: [main]")
-	}
-	branches := push.Content[1]
-	if branches.Kind != yaml.SequenceNode || len(branches.Content) != 1 || branches.Content[0].Value != "main" {
-		return fmt.Errorf("push branches must be exactly [main]")
-	}
-	schedule, ok := triggers["schedule"]
-	if !ok || schedule.Kind != yaml.SequenceNode || len(schedule.Content) != 1 {
-		return fmt.Errorf("schedule trigger must contain exactly one cron entry")
-	}
-	entry := schedule.Content[0]
-	if err := validateMappingKeys(entry, []string{"cron"}, "backup qualification schedule entry"); err != nil {
-		return err
-	}
-	cron, ok := mappingValue(entry, "cron")
-	if !ok || cron.Kind != yaml.ScalarNode || cron.Value != "30 19 * * *" {
-		return fmt.Errorf("backup qualification cron = %q, want exactly %q", cronValue(cron), "30 19 * * *")
+	if !isEmptyTrigger(trigger) {
+		return fmt.Errorf("workflow trigger %q must not contain inputs or options", "workflow_dispatch")
 	}
 	return nil
 }
