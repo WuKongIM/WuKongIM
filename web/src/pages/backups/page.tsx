@@ -132,6 +132,9 @@ export function BackupsPage() {
     : status?.auth_enabled === false
       ? intl.formatMessage({ id: "backups.write.authDisabled" })
       : ""
+  const triggerDisabledReason = writeDisabledReason || (
+    status?.enabled === false ? intl.formatMessage({ id: "backups.error.disabled" }) : ""
+  )
 
   const loadPoints = useCallback(async (append = false, cursor = "") => {
     if (!canRead || listInFlight.current) return false
@@ -265,10 +268,10 @@ export function BackupsPage() {
             </Button>
             <Button
               aria-label={intl.formatMessage({ id: "backups.trigger" })}
-              disabled={!canWrite || Boolean(status?.active) || isActiveStatus(status)}
+              disabled={!canWrite || status?.enabled !== true || Boolean(status.active) || isActiveStatus(status)}
               onClick={() => setConfirm({ kind: "trigger" })}
               size="sm"
-              title={writeDisabledReason}
+              title={triggerDisabledReason}
             >
               {intl.formatMessage({ id: "backups.trigger" })}
             </Button>

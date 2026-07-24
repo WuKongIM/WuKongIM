@@ -541,6 +541,8 @@ returns `202`; it does not hold the HTTP request open for the repository audit.
 A disabled backup still returns an explicit disabled status through the app
 facade. Backup handlers preserve stable machine error codes and use retryable
 `controller_leader_unavailable` during Controller leadership transitions.
+The Web trigger remains disabled until that status reports `enabled=true`, so
+startup configuration cannot present an action that the server will reject.
 
 The embedded Web UI exposes `/cluster/backups` with Overview, Restore points,
 and Recovery guide tabs. It never exposes a restore mutation. Web writes are

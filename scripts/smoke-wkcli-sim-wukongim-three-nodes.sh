@@ -22,6 +22,11 @@ MAX_HANDOFF_ERROR_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL:-0}"
 MAX_HANDOFF_TIMEOUT_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL:-0}"
 MAX_GOROUTINES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES:-2000}"
 MAX_HEAP_ALLOC_BYTES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES:-4294967296}"
+BACKUP_ENABLE="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_ENABLE:-false}"
+BACKUP_BUILD_TAGS="e2e"
+BACKUP_MANAGER_API="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_MANAGER_API:-http://127.0.0.1:5311}"
+BACKUP_RESTORE_POINT_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_RESTORE_POINT_INTERVAL:-30s}"
+BACKUP_WAIT_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_WAIT_TIMEOUT:-120}"
 AUTO_JOIN_NODE="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE:-false}"
 AUTO_JOIN_AFTER="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_AFTER:-2}"
 AUTO_JOIN_NODE_ID="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE_ID:-4}"
@@ -77,6 +82,8 @@ AUTO_JOIN_PID=""
 AUTO_JOIN_TIMER_PID=""
 FAULT_TIMER_PID=""
 AUTO_JOIN_STARTED=0
+BACKUP_MANAGER_TOKEN=""
+BACKUP_PREVIOUS_RESTORE_POINT_ID=""
 API_VALUES=()
 GATEWAY_VALUES=()
 AUTO_JOIN_SEED_VALUES=()
@@ -112,6 +119,11 @@ Options:
   --payload-size SIZE       Sim payload size. Default: 128B.
   --ready-timeout SECS      Cluster ready wait timeout. Default: 90.
   --poll SECS               Ready polling interval. Default: 1.
+  --backup                 Enable isolated local file-backed automatic backup validation.
+                           This builds the product with -tags=e2e, uses two repositories
+                           below OUT_DIR, requires jq, and does not use production object storage.
+  --backup-manager-api URL Manager API used to verify local backup. Default: http://127.0.0.1:5311.
+  --backup-wait-timeout N  Seconds to wait for a verified restore point. Default: 120.
   --auto-join-node          Start one seed-join data node while wkcli sim is sending.
   --auto-join-after SECS    Seconds after the send phase starts before starting the new node. Default: 2.
   --auto-join-node-id N     Joining node ID. Default: 4.
@@ -275,6 +287,26 @@ metrics_dir() {
   printf '%s/metrics' "$OUT_DIR"
 }
 
+backup_repository_root() {
+  printf '%s/backup-repositories' "$OUT_DIR"
+}
+
+backup_staging_root() {
+  printf '%s/backup-staging' "$OUT_DIR"
+}
+
+backup_status_file() {
+  printf '%s/backup-status.json' "$OUT_DIR"
+}
+
+backup_restore_points_before_file() {
+  printf '%s/backup-restore-points-before.json' "$OUT_DIR"
+}
+
+backup_restore_points_file() {
+  printf '%s/backup-restore-points.json' "$OUT_DIR"
+}
+
 summary_output() {
   printf '%s/summary.md' "$OUT_DIR"
 }
@@ -365,6 +397,29 @@ prepare_auto_join_state() {
   rm -f "$AUTO_JOIN_CONFIG_PATH" "$(auto_join_log)"
 }
 
+prepare_backup_state() {
+  if [[ "$BACKUP_ENABLE" != "true" ]]; then
+    return
+  fi
+  local repository_root
+  local staging_root
+  repository_root="$(backup_repository_root)"
+  staging_root="$(backup_staging_root)"
+  case "$repository_root" in
+    "$OUT_DIR"/*) ;;
+    *) die "backup repository root must stay below out dir: $repository_root" ;;
+  esac
+  case "$staging_root" in
+    "$OUT_DIR"/*) ;;
+    *) die "backup staging root must stay below out dir: $staging_root" ;;
+  esac
+  if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
+    rm -rf "$repository_root" "$staging_root"
+  fi
+  mkdir -p "$repository_root" "$staging_root"
+  rm -f "$(backup_status_file)" "$(backup_restore_points_before_file)" "$(backup_restore_points_file)"
+}
+
 auto_join_api_listen_addr() {
   local raw="$AUTO_JOIN_API_ADDR"
   raw="${raw#http://}"
@@ -402,6 +457,33 @@ cluster_profile_env() {
     "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=$CHANNEL_STORE_APPLY_WORKERS" \
     "WK_CLUSTER_CHANNEL_RPC_WORKERS=$CHANNEL_RPC_WORKERS" \
     "WK_GATEWAY_SEND_TIMEOUT=$(effective_gateway_send_timeout)"
+  if [[ "$BACKUP_ENABLE" == "true" ]]; then
+    printf '%s\n' \
+      "WUKONGIM_BACKUP_E2E_FILE_ROOT=$(backup_repository_root)" \
+      "WK_BACKUP_ENABLED=true" \
+      "WK_BACKUP_REPOSITORY_ID=wkcli-sim-three-node-smoke" \
+      "WK_BACKUP_SOURCE_GENERATION=local-smoke-generation" \
+      "WK_BACKUP_KMS_KEY_ID=local-e2e-encryption-key" \
+      "WK_BACKUP_SIGNING_KEY_ID=local-e2e-signing-key" \
+      "WK_BACKUP_GARBAGE_COLLECTOR_ROLE_ARN=arn:aws:iam::000000000000:role/local-e2e-backup-gc" \
+      "WK_BACKUP_KMS_REGION=local-kms" \
+      "WK_BACKUP_KMS_ENDPOINT=https://kms.local.invalid" \
+      "WK_BACKUP_INCREMENTAL_INTERVAL=5s" \
+      "WK_BACKUP_RESTORE_POINT_INTERVAL=$BACKUP_RESTORE_POINT_INTERVAL" \
+      "WK_BACKUP_SYNTHETIC_FULL_INTERVAL=24h" \
+      "WK_BACKUP_CHUNK_SIZE_BYTES=8388608" \
+      "WK_BACKUP_STAGING_MAX_BYTES=1073741824" \
+      "WK_BACKUP_MAX_PARALLEL_PARTITIONS=2" \
+      "WK_BACKUP_OBJECT_LOCK_DAYS=7" \
+      "WK_BACKUP_PRIMARY_ENDPOINT=https://primary.local.invalid" \
+      "WK_BACKUP_PRIMARY_REGION=local-primary" \
+      "WK_BACKUP_PRIMARY_BUCKET=primary" \
+      "WK_BACKUP_PRIMARY_PREFIX=cluster" \
+      "WK_BACKUP_SECONDARY_ENDPOINT=https://secondary.local.invalid" \
+      "WK_BACKUP_SECONDARY_REGION=local-secondary" \
+      "WK_BACKUP_SECONDARY_BUCKET=secondary" \
+      "WK_BACKUP_SECONDARY_PREFIX=cluster"
+  fi
 }
 
 cluster_start_env_preview() {
@@ -432,6 +514,9 @@ print_start_cmd() {
     printf ' --clean'
   fi
   printf ' --ready-timeout %s --bin %s --log-dir %s' "$READY_TIMEOUT" "$(cluster_bin)" "$(node_log_dir)"
+  if [[ "$BACKUP_ENABLE" == "true" ]]; then
+    printf ' --build-tags %s --backup-staging-root %s' "$BACKUP_BUILD_TAGS" "$(backup_staging_root)"
+  fi
   if [[ "$BUILD_CLUSTER" -eq 0 ]]; then
     printf ' --no-build'
   fi
@@ -492,6 +577,14 @@ print_fault_cmd() {
   printf 'fault_cmd=kill -s %s $(cat %s)\n' "$FAULT_SIGNAL" "$(fault_pid_file)"
 }
 
+print_backup_status_cmd() {
+  if [[ "$BACKUP_ENABLE" != "true" ]]; then
+    printf 'backup_status_cmd=<disabled>\n'
+    return
+  fi
+  printf 'backup_status_cmd=curl -fsS -H Authorization: Bearer <token> %s/manager/backups/status\n' "$BACKUP_MANAGER_API"
+}
+
 print_plan() {
   printf 'repo_root=%s\n' "$ROOT_DIR"
   printf 'out_dir=%s\n' "$OUT_DIR"
@@ -516,6 +609,13 @@ print_plan() {
   printf 'max_handoff_timeout_total=%s\n' "$MAX_HANDOFF_TIMEOUT_TOTAL"
   printf 'max_goroutines=%s\n' "$MAX_GOROUTINES"
   printf 'max_heap_alloc_bytes=%s\n' "$MAX_HEAP_ALLOC_BYTES"
+  printf 'backup_enable=%s\n' "$BACKUP_ENABLE"
+  printf 'backup_repository_root=%s\n' "$(backup_repository_root)"
+  printf 'backup_staging_root=%s\n' "$(backup_staging_root)"
+  printf 'backup_build_tags=%s\n' "$BACKUP_BUILD_TAGS"
+  printf 'backup_manager_api=%s\n' "$BACKUP_MANAGER_API"
+  printf 'backup_restore_point_interval=%s\n' "$BACKUP_RESTORE_POINT_INTERVAL"
+  printf 'backup_wait_timeout_secs=%s\n' "$BACKUP_WAIT_TIMEOUT"
   printf 'auto_join_node=%s\n' "$AUTO_JOIN_NODE"
   printf 'auto_join_after_secs=%s\n' "$AUTO_JOIN_AFTER"
   printf 'auto_join_node_id=%s\n' "$AUTO_JOIN_NODE_ID"
@@ -556,6 +656,7 @@ print_plan() {
   print_auto_join_cmd
   print_auto_promote_cmd
   print_fault_cmd
+  print_backup_status_cmd
 }
 
 tail_evidence() {
@@ -714,6 +815,24 @@ while [[ $# -gt 0 ]]; do
     --poll)
       [[ $# -ge 2 ]] || die '--poll requires a value'
       POLL_INTERVAL="$2"
+      shift 2
+      ;;
+    --backup)
+      BACKUP_ENABLE=true
+      shift
+      ;;
+    --no-backup)
+      BACKUP_ENABLE=false
+      shift
+      ;;
+    --backup-manager-api)
+      [[ $# -ge 2 ]] || die '--backup-manager-api requires a value'
+      BACKUP_MANAGER_API="$2"
+      shift 2
+      ;;
+    --backup-wait-timeout)
+      [[ $# -ge 2 ]] || die '--backup-wait-timeout requires a value'
+      BACKUP_WAIT_TIMEOUT="$2"
       shift 2
       ;;
     --auto-join-node)
@@ -905,6 +1024,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$OUT_DIR" in
+  /*) ;;
+  *) OUT_DIR="$ROOT_DIR/${OUT_DIR#./}" ;;
+esac
 if [[ "$AUTO_JOIN_CONFIG_PATH_SET" -eq 0 ]]; then
   AUTO_JOIN_CONFIG_PATH="$OUT_DIR/wukongim-node${AUTO_JOIN_NODE_ID}.toml"
 fi
@@ -930,6 +1053,8 @@ require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_RPC_WORKERS' "$CHANNEL_R
 require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_CONCURRENCY' "$SIM_CONCURRENCY"
 require_nonempty 'WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_SEND_TIMEOUT' "$GATEWAY_SEND_TIMEOUT"
 require_nonempty 'WK_WKCLI_SIM_THREE_SMOKE_ACK_TIMEOUT' "$SIM_ACK_TIMEOUT"
+require_bool 'WK_WKCLI_SIM_THREE_SMOKE_BACKUP_ENABLE' "$BACKUP_ENABLE"
+require_positive_uint '--backup-wait-timeout' "$BACKUP_WAIT_TIMEOUT"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE' "$AUTO_JOIN_NODE"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER' "$AUTO_PROMOTE_CONTROLLER_VOTER"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_AUTH' "$AUTO_PROMOTE_MANAGER_AUTH"
@@ -958,6 +1083,11 @@ if [[ "${#GATEWAY_VALUES[@]}" -gt "${#API_VALUES[@]}" ]]; then
   die "--gateway must not contain more items than --api: ${#GATEWAY_VALUES[@]} > ${#API_VALUES[@]}"
 fi
 AUTO_PROMOTE_MANAGER_API="${AUTO_PROMOTE_MANAGER_API%/}"
+BACKUP_MANAGER_API="${BACKUP_MANAGER_API%/}"
+if [[ "$BACKUP_ENABLE" == "true" ]]; then
+  require_nonempty '--backup-manager-api' "$BACKUP_MANAGER_API"
+  [[ "$START_CLUSTER" -eq 1 ]] || die '--backup requires the script to start its isolated cluster'
+fi
 if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
   require_nonempty '--auto-join-api' "$AUTO_JOIN_API_ADDR"
   require_nonempty '--auto-join-gateway' "$AUTO_JOIN_GATEWAY_ADDR"
@@ -993,12 +1123,16 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   print_plan
   exit 0
 fi
+if [[ "$BACKUP_ENABLE" == "true" ]] && ! command -v jq >/dev/null 2>&1; then
+  die '--backup requires jq for structural Manager evidence validation'
+fi
 
 mkdir -p "$OUT_DIR" "$(node_log_dir)" "$(capabilities_dir)" "$(capacity_dir)" "$(snapshot_dir)" "$(metrics_dir)"
 : >"$(cluster_log)"
 : >"$(sim_output)"
 prepare_auto_join_state
 prepare_fault_state
+prepare_backup_state
 
 check_cluster_process() {
   if [[ "$START_CLUSTER" -eq 0 || -z "$CLUSTER_PID" ]]; then
@@ -1049,6 +1183,9 @@ start_cluster() {
     args+=(--clean)
   fi
   args+=(--ready-timeout "$READY_TIMEOUT" --bin "$(cluster_bin)" --log-dir "$(node_log_dir)")
+  if [[ "$BACKUP_ENABLE" == "true" ]]; then
+    args+=(--build-tags "$BACKUP_BUILD_TAGS" --backup-staging-root "$(backup_staging_root)")
+  fi
   if [[ "$BUILD_CLUSTER" -eq 0 ]]; then
     args+=(--no-build)
   fi
@@ -1145,6 +1282,9 @@ start_auto_join_node() {
   while IFS= read -r assignment; do
     env_args+=("$assignment")
   done < <(cluster_profile_env)
+  if [[ "$BACKUP_ENABLE" == "true" ]]; then
+    env_args+=("WK_BACKUP_STAGING_DIR=$AUTO_JOIN_DATA_DIR/backup-staging")
+  fi
   bin="$(cluster_bin)"
   [[ -x "$bin" ]] || die "auto-join requires executable cluster binary: $bin"
   render_auto_join_config
@@ -1520,6 +1660,142 @@ wait_ready() {
   die "cluster did not become ready within ${READY_TIMEOUT}s"
 }
 
+backup_poll_sleep() {
+  if [[ "$POLL_INTERVAL" == "0" ]]; then
+    sleep 0.1
+    return
+  fi
+  sleep "$POLL_INTERVAL"
+}
+
+backup_manager_login() {
+  if [[ "$BACKUP_ENABLE" != "true" ]]; then
+    return
+  fi
+  local deadline=$((SECONDS + BACKUP_WAIT_TIMEOUT))
+  local response
+  local token
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    if response="$(curl -fsS --max-time 2 -H 'Content-Type: application/json' \
+      -d '{"username":"admin","password":"a1234567"}' "$BACKUP_MANAGER_API/manager/login" 2>/dev/null)"; then
+      if token="$(printf '%s\n' "$response" | jq -er '.access_token | select(type == "string" and length > 0)' 2>/dev/null)"; then
+        BACKUP_MANAGER_TOKEN="$token"
+        return
+      fi
+    fi
+    backup_poll_sleep
+  done
+  die "local backup manager login did not succeed within ${BACKUP_WAIT_TIMEOUT}s"
+}
+
+backup_manager_get() {
+  local path="$1"
+  local output="$2"
+  [[ -n "$BACKUP_MANAGER_TOKEN" ]] || return 1
+  curl -fsS --max-time 2 -H "Authorization: Bearer ${BACKUP_MANAGER_TOKEN}" \
+    "$BACKUP_MANAGER_API$path" >"$output"
+}
+
+backup_dependencies_healthy() {
+  local input="$1"
+  jq -e '
+    (.enabled == true) and
+    (.dependencies.primary.health == "healthy") and
+    (.dependencies.secondary.health == "healthy") and
+    (.dependencies.kms.health == "healthy") and
+    (.dependencies.staging.health == "healthy") and
+    (.dependencies.utc.health == "healthy")
+  ' "$input" >/dev/null 2>&1
+}
+
+backup_first_restore_point_id() {
+  local input="$1"
+  jq -r '
+    (.items // [])
+    | if (type == "array") and (length > 0) and ((.[0].id | type) == "string")
+      then .[0].id
+      else ""
+      end
+  ' "$input"
+}
+
+backup_verified_restore_point_id() {
+  local input="$1"
+  jq -er '
+    (.items // [])
+    | if (type == "array") and (length > 0) then .[0] else empty end
+    | select(
+        ((.id | type) == "string") and
+        ((.id | length) > 0) and
+        (.primary_verified == true) and
+        (.secondary_verified == true)
+      )
+    | .id
+  ' "$input" 2>/dev/null
+}
+
+capture_backup_baseline() {
+  local output
+  output="$(backup_restore_points_before_file)"
+  if ! backup_manager_get '/manager/backups/restore-points?limit=1' "$output"; then
+    die 'local backup restore-point baseline is unavailable'
+  fi
+  if ! BACKUP_PREVIOUS_RESTORE_POINT_ID="$(backup_first_restore_point_id "$output")"; then
+    die 'local backup restore-point baseline is invalid JSON'
+  fi
+}
+
+wait_backup_dependencies() {
+  if [[ "$BACKUP_ENABLE" != "true" ]]; then
+    return
+  fi
+  backup_manager_login
+  local deadline=$((SECONDS + BACKUP_WAIT_TIMEOUT))
+  local output
+  output="$(backup_status_file)"
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    if backup_manager_get '/manager/backups/status' "$output"; then
+      if jq -e '.enabled == false' "$output" >/dev/null 2>&1; then
+        die 'local backup remained disabled after backup-enabled startup'
+      fi
+      if backup_dependencies_healthy "$output"; then
+        capture_backup_baseline
+        log 'local backup dependencies ready'
+        return
+      fi
+    fi
+    backup_poll_sleep
+  done
+  die "local backup dependencies did not become healthy within ${BACKUP_WAIT_TIMEOUT}s"
+}
+
+wait_backup_restore_point() {
+  if [[ "$BACKUP_ENABLE" != "true" ]]; then
+    return
+  fi
+  local deadline=$((SECONDS + BACKUP_WAIT_TIMEOUT))
+  local output
+  local restore_point_id
+  output="$(backup_restore_points_file)"
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    if backup_manager_get '/manager/backups/restore-points?limit=1' "$output"; then
+      restore_point_id="$(backup_verified_restore_point_id "$output" || true)"
+      if [[ -n "$restore_point_id" && "$restore_point_id" != "$BACKUP_PREVIOUS_RESTORE_POINT_ID" ]]; then
+        if ! backup_manager_get '/manager/backups/status' "$(backup_status_file)"; then
+          die 'local backup final status evidence is unavailable'
+        fi
+        log "local backup restore point verified: $restore_point_id"
+        return
+      fi
+    fi
+    backup_poll_sleep
+  done
+  die "local backup did not publish a new dual-repository-verified restore point within ${BACKUP_WAIT_TIMEOUT}s"
+}
+
 capture_one_target_evidence() {
   local node="$1"
   local api="$2"
@@ -1843,6 +2119,12 @@ write_summary() {
     printf '%s\n' "- max_handoff_timeout_total: ${MAX_HANDOFF_TIMEOUT_TOTAL}"
     printf '%s\n' "- max_goroutines: ${MAX_GOROUTINES}"
     printf '%s\n' "- max_heap_alloc_bytes: ${MAX_HEAP_ALLOC_BYTES}"
+    printf '%s\n' "- backup_enable: ${BACKUP_ENABLE}"
+    if [[ "$BACKUP_ENABLE" == "true" ]]; then
+      printf '%s\n' "- backup_restore_point_id: $(backup_first_restore_point_id "$(backup_restore_points_file)")"
+      printf '%s\n' "- backup_status: $(basename "$(backup_status_file)")"
+      printf '%s\n' "- backup_restore_points: $(basename "$(backup_restore_points_file)")"
+    fi
     printf '%s\n' "- auto_join_node: ${AUTO_JOIN_NODE}"
     printf '%s\n' "- auto_join_after_secs: ${AUTO_JOIN_AFTER}"
     if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
@@ -1887,12 +2169,14 @@ write_summary() {
 
 start_cluster
 wait_ready
+wait_backup_dependencies
 capture_target_evidence
 capture_metrics before
 run_sim
 verify_sim_output
 capture_metrics after
 verify_metrics_health
+wait_backup_restore_point
 capture_snapshots
 capture_auto_join_evidence
 write_summary

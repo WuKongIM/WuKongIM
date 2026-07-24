@@ -122,6 +122,32 @@ replay a write.
 For headless inventory, `wkcli backup list` follows every Manager cursor
 internally and preserves the existing combined output.
 
+### Local Three-Node Smoke
+
+The ordinary `wkcli sim` three-node smoke keeps backup disabled so its traffic
+and resource measurements remain comparable with earlier runs. Add `--backup`
+when the run must also qualify the local automatic-backup path:
+
+```bash
+./scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
+  --backup \
+  --duration 1h \
+  --users 2000 \
+  --groups 2000 \
+  --members 10 \
+  --rate 4/s
+```
+
+This mode builds the local process cluster with the `e2e` file-repository
+adapter, gives every node an isolated staging directory, waits for backup
+dependencies to become healthy, and fails unless a new restore point is
+verified in both local repositories. Evidence is written beneath the smoke
+output directory as `backup-status.json`,
+`backup-restore-points-before.json`, and `backup-restore-points.json`.
+The structural Manager evidence checks require `jq`.
+This validates the local backup integration only; it does not qualify external
+object storage, KMS, Object Lock, capacity, or recovery-time objectives.
+
 ## Metrics And Alerts
 
 The following metrics use only bounded labels:

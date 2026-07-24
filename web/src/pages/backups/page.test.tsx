@@ -125,6 +125,22 @@ test("forces write actions read-only when manager authentication is disabled", a
   await waitFor(() => expect(trigger).toHaveAttribute("title", expect.stringMatching(/authentication/i)))
 })
 
+test("disables backup creation when startup configuration has backup disabled", async () => {
+  getBackupStatusMock.mockResolvedValue({
+    ...status(),
+    enabled: false,
+    health: "disabled",
+    running: false,
+  })
+  renderPage()
+
+  const trigger = await screen.findByRole("button", { name: "Create backup now" })
+  expect(trigger).toBeDisabled()
+  await waitFor(() => {
+    expect(trigger).toHaveAttribute("title", "Cluster backup is disabled in startup configuration.")
+  })
+})
+
 test("shows one forbidden state without calling backup APIs when read permission is missing", async () => {
   useAuthStore.setState({
     ...createAnonymousAuthState(),

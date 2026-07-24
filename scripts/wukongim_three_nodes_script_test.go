@@ -235,6 +235,38 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 }
 
+func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuildAndIsolatedBackupStaging(t *testing.T) {
+	root := repoRoot(t)
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
+	stagingRoot := filepath.Join(t.TempDir(), "backup-staging")
+
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
+		"--dry-run",
+		"--build-tags", "e2e",
+		"--backup-staging-root", stagingRoot,
+		"--bin", outputBin,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"build_cmd=go build -tags=e2e -o " + outputBin + " ./cmd/wukongim",
+		"node1_backup_staging=" + filepath.Join(stagingRoot, "node-1"),
+		"node2_backup_staging=" + filepath.Join(stagingRoot, "node-2"),
+		"node3_backup_staging=" + filepath.Join(stagingRoot, "node-3"),
+		"node1_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=true",
+		"WK_BACKUP_STAGING_DIR=" + filepath.Join(stagingRoot, "node-1"),
+		"node3_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=false WK_BACKUP_STAGING_DIR=" + filepath.Join(stagingRoot, "node-3"),
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestWukongIMThreeNodeScriptRejectsEmptyDataRoot(t *testing.T) {
 	root := repoRoot(t)
 	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh", "--dry-run", "--data-root", "")

@@ -18,6 +18,8 @@ PROMETHEUS_SCRAPE_INTERVAL="${WK_WUKONGIM_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL
 PROMETHEUS_SOURCE_REF="${WK_PROMETHEUS_SOURCE_REF:-${WK_PROMETHEUS_EMBED_VERSION:-v3.12.0}}"
 PROMETHEUS_REPO="${WK_PROMETHEUS_REPO:-https://github.com/prometheus/prometheus.git}"
 PROMETHEUS_EMBED_DIR="${WK_PROMETHEUS_EMBED_DIR:-$ROOT_DIR/internal/app/prometheus_embedded}"
+BUILD_TAGS="${WK_WUKONGIM_THREE_NODES_BUILD_TAGS:-}"
+BACKUP_STAGING_ROOT="${WK_WUKONGIM_THREE_NODES_BACKUP_STAGING_ROOT:-}"
 PID_DIR="${WK_WUKONGIM_THREE_NODES_PID_DIR:-}"
 ALLOW_NODE_EXIT="${WK_WUKONGIM_THREE_NODES_ALLOW_NODE_EXIT:-}"
 BUILD=1
@@ -53,9 +55,12 @@ to keep only the node metrics endpoints.
 Options:
   --clean                Remove the node data directories and log dir before start.
   --no-build             Reuse --bin instead of running go build.
+  --build-tags TAGS      Optional comma-separated Go build tags.
   --bin PATH             Binary path. Default: WK_WUKONGIM_THREE_NODES_BIN or data/wukongim-three-nodes/wukongim.
   --log-dir DIR          Per-node log directory. Default: WK_WUKONGIM_THREE_NODES_LOG_DIR or data/wukongim-three-node-logs.
   --data-root DIR        Parent for isolated node data directories. Default: WK_WUKONGIM_THREE_NODES_DATA_ROOT or data/.
+  --backup-staging-root DIR
+                         Inject DIR/node-N as WK_BACKUP_STAGING_DIR for each node.
   --ready-timeout SECS   Ready wait timeout. Default: WK_WUKONGIM_THREE_NODES_READY_TIMEOUT or 60.
   --poll SECS            Ready polling interval. Default: WK_WUKONGIM_THREE_NODES_POLL_INTERVAL or 1.
   --no-prometheus        Do not start the node1 app-managed Prometheus process.
@@ -184,10 +189,27 @@ prometheus_node_env_preview() {
   printf 'WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=false'
 }
 
+backup_staging_path() {
+  local node="$1"
+  printf '%s/node-%s' "$BACKUP_STAGING_ROOT" "$node"
+}
+
+node_env_preview() {
+  local node="$1"
+  printf '%s' "$(prometheus_node_env_preview "$node")"
+  if [[ -n "$BACKUP_STAGING_ROOT" ]]; then
+    printf ' WK_BACKUP_STAGING_DIR=%s' "$(backup_staging_path "$node")"
+  fi
+}
+
 print_plan() {
   printf 'repo_root=%s\n' "$ROOT_DIR"
   if [[ "$BUILD" -eq 1 ]]; then
-    printf 'build_cmd=go build -o %s ./cmd/wukongim\n' "$BIN_PATH"
+    if [[ -n "$BUILD_TAGS" ]]; then
+      printf 'build_cmd=go build -tags=%s -o %s ./cmd/wukongim\n' "$BUILD_TAGS" "$BIN_PATH"
+    else
+      printf 'build_cmd=go build -o %s ./cmd/wukongim\n' "$BIN_PATH"
+    fi
   else
     printf 'build_cmd=<disabled>\n'
   fi
@@ -214,11 +236,14 @@ print_plan() {
     printf 'node%s_config=%s\n' "$node" "$(config_path "$node")"
     printf 'node%s_log=%s\n' "$node" "$(log_path "$node")"
     printf 'node%s_data=%s\n' "$node" "$(data_path "$node")"
+    if [[ -n "$BACKUP_STAGING_ROOT" ]]; then
+      printf 'node%s_backup_staging=%s\n' "$node" "$(backup_staging_path "$node")"
+    fi
     if [[ -n "$PID_DIR" ]]; then
       printf 'node%s_pid_file=%s\n' "$node" "$(pid_file "$node")"
     fi
     printf 'node%s_ready=%s\n' "$node" "${READY_URLS[$i]}"
-    printf 'node%s_env=%s\n' "$node" "$(prometheus_node_env_preview "$node")"
+    printf 'node%s_env=%s\n' "$node" "$(node_env_preview "$node")"
     printf 'node%s_cmd=%s -config %s\n' "$node" "$BIN_PATH" "$(config_path "$node")"
   done
 }
@@ -270,6 +295,11 @@ while [[ $# -gt 0 ]]; do
       BUILD=0
       shift
       ;;
+    --build-tags)
+      [[ $# -ge 2 ]] || die '--build-tags requires a value'
+      BUILD_TAGS="$2"
+      shift 2
+      ;;
     --bin)
       [[ $# -ge 2 ]] || die '--bin requires a value'
       BIN_PATH="$2"
@@ -283,6 +313,11 @@ while [[ $# -gt 0 ]]; do
     --data-root)
       [[ $# -ge 2 ]] || die '--data-root requires a value'
       DATA_ROOT="$2"
+      shift 2
+      ;;
+    --backup-staging-root)
+      [[ $# -ge 2 ]] || die '--backup-staging-root requires a value'
+      BACKUP_STAGING_ROOT="$2"
       shift 2
       ;;
     --ready-timeout)
@@ -346,6 +381,9 @@ require_positive_uint '--ready-timeout' "$READY_TIMEOUT"
 require_uint '--poll' "$POLL_INTERVAL"
 require_bool 'prometheus enable' "$PROMETHEUS_ENABLE"
 [[ -n "$DATA_ROOT" ]] || die '--data-root must not be empty'
+if [[ -n "$BACKUP_STAGING_ROOT" && "$BACKUP_STAGING_ROOT" != /* ]]; then
+  die '--backup-staging-root must be an absolute path'
+fi
 parse_allow_node_exit
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -409,7 +447,11 @@ if [[ "$BUILD" -eq 1 ]]; then
   log "building $BIN_PATH"
   (
     cd "$ROOT_DIR"
-    go build -o "$BIN_PATH" ./cmd/wukongim
+    if [[ -n "$BUILD_TAGS" ]]; then
+      go build -tags="$BUILD_TAGS" -o "$BIN_PATH" ./cmd/wukongim
+    else
+      go build -o "$BIN_PATH" ./cmd/wukongim
+    fi
   )
 elif [[ ! -x "$BIN_PATH" ]]; then
   die "--no-build requested but binary is not executable: $BIN_PATH"
@@ -477,6 +519,9 @@ start_node() {
     env_args+=("WK_PROMETHEUS_ENABLE=false")
   fi
   env_args+=("WK_NODE_DATA_DIR=$(data_path "$node")")
+  if [[ -n "$BACKUP_STAGING_ROOT" ]]; then
+    env_args+=("WK_BACKUP_STAGING_DIR=$(backup_staging_path "$node")")
+  fi
   env "${env_args[@]}" "$BIN_PATH" -config "$config" >"$log_file" 2>&1 &
   local pid="$!"
   PIDS+=("$pid")
