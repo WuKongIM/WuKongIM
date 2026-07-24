@@ -8,11 +8,13 @@ Failed cloud run: `gh-30047907477-1`
 
 ## Decision
 
-**LOCAL GO for one cohesive PR.**
+**LOCAL GO for the Channel RPC candidate and its CI-environment correction.**
 
-**NO-GO for paid Alibaba Cloud Provision until the PR is merged, exact-main
-CI and Nightly are green, and a fresh inventory check proves that no live
-resources exist.**
+PR #632 merged as `0cdc2a4698b2c75c44df25169574e929a5293fad` and exact-main
+CI `30055294335` passed. Exact-main Nightly `30055430317` exposed a
+Cloud-Medium-shaped test configuration drift, so the paid decision remains
+**NO-GO** until the correction is merged, the new exact-main Nightly is green,
+and a fresh inventory check proves that no live resources exist.
 
 The candidate directly changes the bounded capacity that saturated in the
 failed cloud run. It does not add unbounded goroutines. Local evidence proves
@@ -134,6 +136,39 @@ nodes, min/max workers 96/96, 500.02/s ingress, 505.50ms SENDACK P99, 399.16ms
 RECV P99, 0.20% maximum RPC queue pressure, 1.04% maximum RPC worker pressure,
 zero metric errors, continuous processes, and fully drained queues.
 
+## Exact-Main Nightly Environment Correction
+
+Nightly `30055430317` failed only the bounded Cloud Medium recipient gate. Its
+runtime evidence proved that the capacity change was active and unsaturated:
+all three nodes reported 96 Channel RPC workers, maximum RPC queue pressure was
+0.10%, and maximum RPC worker pressure was 4.17%. The sender timed out after
+multiple logical Slot leaders stepped down with `quorum is not active` and
+re-elected during the measured window.
+
+The gate claimed Cloud Medium runtime equivalence but omitted the sealed cloud
+Slot Raft timing:
+
+- sealed Cloud Medium: 50ms tick, heartbeat tick 2, election tick 20;
+- unintended local fallback: 10ms tick, heartbeat tick 1, election tick 50.
+
+The fallback reduced the election window from one second to 500ms on a shared
+single-host runner. The correction explicitly applies the sealed 50ms/2/20
+contract, verifies every rendered node config before the measured workload,
+upgrades the machine-readable evidence schema to v3, and fails acceptance on
+timing drift. It does not change product defaults or any cloud runtime value.
+
+Three consecutive corrected CI-scale process runs passed:
+
+| Run | Actual ingress | SENDACK P99 | RECV P99 | RPC queue max |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 500.024/s | 357.445ms | 257.605ms | 0.10% |
+| 2 | 500.023/s | 386.343ms | 248.830ms | 0.20% |
+| 3 | 500.023/s | 437.892ms | 308.785ms | 0.10% |
+
+All three retained stable 3/4/3 actual Slot leadership, reported the exact
+50ms/2/20 timing and 96/96 workers from 3/3 nodes, had zero metric and recipient
+processing errors, kept all processes continuous, and fully drained.
+
 ## Verification
 
 - Focused worker batching and target-skew tests: passed three repetitions.
@@ -142,8 +177,10 @@ zero metric errors, continuous processes, and fully drained queues.
 - Deterministic benchmark: passed three samples per worker count.
 - Missing Channel RPC metrics and worker-count drift negative tests: passed.
 - CI-scale three-process sealed-metric acceptance: passed.
+- Corrected sealed Slot-timing acceptance: passed three consecutive
+  three-process repetitions.
 - User `.gitignore` change remains outside this candidate.
 
-The explicit-root repository Go gate, independent review, PR delivery,
-exact-main CI/Nightly, and final no-live-resource proof remain mandatory
-before changing the paid-cloud decision to GO.
+The correction's focused tests, explicit-root repository Go gate, independent
+review, PR delivery, new exact-main CI/Nightly, and final no-live-resource proof
+remain mandatory before changing the paid-cloud decision to GO.
