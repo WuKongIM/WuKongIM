@@ -9,6 +9,7 @@ import (
 	opscontract "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -53,7 +54,7 @@ func (r *ManagementOpsMCPAuditReader) RecentAudits(ctx context.Context, limit in
 	workerCount := opsMCPAuditWorkerCount(len(nodeIDs))
 	jobs := make(chan uint64, workerCount)
 	results := make(chan opsMCPAuditFanoutResult, workerCount)
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskManagerOpsMCPAuditFanout, func() {
 		defer close(jobs)
 		for _, nodeID := range nodeIDs {
 			select {
@@ -62,9 +63,9 @@ func (r *ManagementOpsMCPAuditReader) RecentAudits(ctx context.Context, limit in
 				return
 			}
 		}
-	}()
+	})
 	for range workerCount {
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskManagerOpsMCPAuditFanout, func() {
 			defer func() {
 				select {
 				case results <- opsMCPAuditFanoutResult{workerDone: true}:
@@ -97,7 +98,7 @@ func (r *ManagementOpsMCPAuditReader) RecentAudits(ctx context.Context, limit in
 					return
 				}
 			}
-		}()
+		})
 	}
 
 	merged := make([]opscontract.AuditEntry, 0, limit)

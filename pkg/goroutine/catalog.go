@@ -82,6 +82,7 @@ const (
 	TaskManagerSnapshotFanout              TaskID = "manager/goroutine_snapshot_fanout"
 	TaskManagerDiagnosticsFanout           TaskID = "manager/diagnostics_fanout"
 	TaskManagerLatestMessagesFanout        TaskID = "manager/latest_messages_fanout"
+	TaskManagerOpsMCPAuditFanout           TaskID = "manager/ops_mcp_audit_fanout"
 	TaskGatewayAsyncDispatch               TaskID = "gateway/async_dispatch"
 	TaskGatewayAsyncAuth                   TaskID = "gateway/async_auth"
 	TaskGatewayIdleMonitor                 TaskID = "gateway/idle_monitor"
@@ -159,6 +160,7 @@ const (
 	TaskBackupRestoreWorker                TaskID = "backup/restore_worker"
 	TaskBackupRestoreProducer              TaskID = "backup/restore_producer"
 	TaskObservabilityDashboard             TaskID = "observability/dashboard"
+	TaskObservabilityOpsMCPMetricsFanout   TaskID = "observability/ops_mcp_metrics_fanout"
 )
 
 var defaultTaskCatalog = []TaskSpec{
@@ -177,6 +179,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskManagerSnapshotFanout, Module: ModuleManager, Name: "goroutine_snapshot_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerDiagnosticsFanout, Module: ModuleManager, Name: "diagnostics_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerLatestMessagesFanout, Module: ModuleManager, Name: "latest_messages_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskManagerOpsMCPAuditFanout, Module: ModuleManager, Name: "ops_mcp_audit_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskGatewayAsyncDispatch, Module: ModuleGateway, Name: "async_dispatch", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskGatewayAsyncAuth, Module: ModuleGateway, Name: "async_auth", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskGatewayIdleMonitor, Module: ModuleGateway, Name: "idle_monitor", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
@@ -254,6 +257,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskBackupRestoreWorker, Module: ModuleBackup, Name: "restore_worker", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskBackupRestoreProducer, Module: ModuleBackup, Name: "restore_producer", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskObservabilityDashboard, Module: ModuleObservability, Name: "dashboard", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskObservabilityOpsMCPMetricsFanout, Module: ModuleObservability, Name: "ops_mcp_metrics_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 }
 
 func buildCatalog(specs []TaskSpec) (map[TaskID]TaskSpec, error) {

@@ -31,6 +31,9 @@ module Start / bounded async operation
 goroutines launched by lower-level packages before or without an explicit
 registry remain in the same node snapshot. Dynamic node, Slot, channel, UID,
 connection, plugin, error, and function values are never task labels.
+Operations MCP audit and metric fanouts use fixed Manager and Observability
+burst task IDs; request, node, and metric identifiers remain ordinary data
+rather than registry labels.
 
 ## Pool Accounting
 
