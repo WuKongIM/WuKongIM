@@ -492,7 +492,7 @@ func (a *App) Stop(ctx context.Context) error {
 		if err != nil {
 			a.logLifecycleWarn("controller_task_audit", "stop", err)
 		}
-		return errors.Join(err, a.syncLogger())
+		return errors.Join(err, a.closeOpsMCPCalls(), a.syncLogger())
 	}
 	var err error
 	if a.gatewayStarted && a.gateway != nil {
@@ -639,6 +639,10 @@ func (a *App) Stop(ctx context.Context) error {
 		a.logLifecycleWarn("controller_task_audit", "stop", stopErr)
 		err = errors.Join(err, stopErr)
 	}
+	if stopErr := a.closeOpsMCPCalls(); stopErr != nil {
+		a.logLifecycleWarn("ops_mcp_audit", "stop", stopErr)
+		err = errors.Join(err, stopErr)
+	}
 	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.backupRuntimeStarted && !a.restoreRuntimeStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.seedJoinStarted && !a.clusterStarted {
 		a.started = false
 		err = errors.Join(err, a.waitManagedGoroutines(ctx))
@@ -678,6 +682,15 @@ func (a *App) waitManagedGoroutines(ctx context.Context) error {
 			err = errors.Join(err, waitErr)
 		}
 	}
+	return err
+}
+
+func (a *App) closeOpsMCPCalls() error {
+	if a == nil || a.opsMCPCalls == nil {
+		return nil
+	}
+	err := a.opsMCPCalls.Close()
+	a.opsMCPCalls = nil
 	return err
 }
 

@@ -112,6 +112,15 @@ func isNonBootstrapIdempotent(current state.ClusterState, cmd command.Command) b
 		wrapped.Restore = &candidate
 		wrapped.Normalize()
 		return reflect.DeepEqual(current.Restore, wrapped.Restore)
+	case command.KindReplaceOpsMCPState:
+		if cmd.OpsMCP == nil {
+			return false
+		}
+		candidate := cmd.OpsMCP.Clone()
+		wrapped := current.Clone()
+		wrapped.OpsMCP = &candidate
+		wrapped.Normalize()
+		return reflect.DeepEqual(current.OpsMCP, wrapped.OpsMCP)
 	case command.KindCompleteTask:
 		return cmd.TaskResult != nil && cmd.TaskResult.TaskID != "" && findTaskByID(current.Tasks, cmd.TaskResult.TaskID) < 0
 	default:

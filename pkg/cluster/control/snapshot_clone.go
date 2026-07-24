@@ -19,5 +19,10 @@ func (s Snapshot) Clone() Snapshot {
 		out.Tasks[i].ObservedVoters = append([]uint64(nil), s.Tasks[i].ObservedVoters...)
 		out.Tasks[i].ObservedLearners = append([]uint64(nil), s.Tasks[i].ObservedLearners...)
 	}
+	if s.OpsMCP != nil {
+		opsMCP := *s.OpsMCP
+		opsMCP.Credentials = append([]OpsMCPCredential(nil), s.OpsMCP.Credentials...)
+		out.OpsMCP = &opsMCP
+	}
 	return out
 }

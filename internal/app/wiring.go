@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	accessops "github.com/WuKongIM/WuKongIM/internal/access/opsmcp"
+	opscontract "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	deliveryinfra "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
@@ -18,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
@@ -25,6 +29,7 @@ import (
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	observe "github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -1001,7 +1006,13 @@ func (a *App) wireAPI() {
 
 func (a *App) wireManager() {
 	if a.manager == nil && strings.TrimSpace(a.cfg.Manager.ListenAddr) != "" {
+		a.ensureOpsMCPCallControl()
 		management := a.newManagerManagement()
+		var opsMCPManagement accessmanager.OpsMCPManagement
+		if candidate, ok := management.(accessmanager.OpsMCPManagement); ok {
+			opsMCPManagement = candidate
+		}
+		a.wireOpsMCP(management)
 		a.manager = accessmanager.New(accessmanager.Options{
 			ListenAddr: a.cfg.Manager.ListenAddr,
 			Auth: accessmanager.AuthConfig{
@@ -1012,6 +1023,8 @@ func (a *App) wireManager() {
 				Users:     managerUserConfigs(a.cfg.Manager.Users),
 			},
 			Management:      management,
+			OpsMCP:          opsMCPManagement,
+			OpsMCPHandler:   a.opsMCPEndpoint,
 			RealtimeMonitor: a.newManagerMonitorProvider(management),
 			Top:             a.topProvider,
 			WebhookConfig:   a,
@@ -1021,6 +1034,93 @@ func (a *App) wireManager() {
 			Logger:          a.logger.Named("access.manager"),
 		})
 	}
+}
+
+type opsMCPRPCNode interface {
+	clusterinfra.ManagementNode
+	accessnode.PresenceRPCNode
+}
+
+type opsMCPProfileLeaseRouter struct {
+	localNodeID uint64
+	local       *runtimeops.ProfileAnalyzer
+	remote      *accessnode.Client
+}
+
+func (r opsMCPProfileLeaseRouter) VerifyOpsMCPProfileLease(
+	ctx context.Context,
+	ownerNodeID uint64,
+	request opscontract.ProfileLeaseRequest,
+) error {
+	if ownerNodeID == r.localNodeID {
+		return r.local.AuthorizeProfileLease(ctx, request)
+	}
+	return r.remote.VerifyOpsMCPProfileLease(ctx, ownerNodeID, request)
+}
+
+func (a *App) ensureOpsMCPCallControl() {
+	if a == nil || a.opsMCPCalls != nil {
+		return
+	}
+	a.opsMCPCalls = runtimeops.NewCallControl(runtimeops.CallControlConfig{
+		AuditPath: filepath.Join(a.cfg.Log.Dir, "mcp-audit.jsonl"),
+		Observer:  opsMCPMetrics(a.metrics),
+	})
+}
+
+func opsMCPMetrics(registry *obsmetrics.Registry) runtimeops.CallObserver {
+	if registry == nil {
+		return nil
+	}
+	return registry.OpsMCP
+}
+
+func (a *App) wireOpsMCP(management accessmanager.Management) {
+	if a == nil || a.cfg.Backup.RestoreMode || a.opsMCPEndpoint != nil || management == nil {
+		return
+	}
+	node, hasNode := a.cluster.(opsMCPRPCNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasNode || !hasRegistrar {
+		return
+	}
+	clusterID := strings.TrimSpace(a.cfg.Cluster.Control.ClusterID)
+	if runtime, ok := a.cluster.(startupClusterRuntime); ok {
+		clusterID = strings.TrimSpace(runtime.ClusterID())
+	}
+	state := clusterinfra.NewOpsMCPStateReader(node)
+	client := accessnode.NewClient(node)
+	analyzer := runtimeops.NewProfileAnalyzer(state, client, node.NodeID())
+	profiler := runtimeops.NewProfiler(state, opsMCPProfileLeaseRouter{
+		localNodeID: node.NodeID(), local: analyzer, remote: client,
+	}, node.NodeID())
+	metrics, err := clusterinfra.NewOpsPrometheusReader(managerPrometheusBaseURL(a.cfg.Observability.Prometheus), nil)
+	if err != nil {
+		metrics = nil
+	}
+	inventory, _ := management.(clusterinfra.OpsInventoryReader)
+	tasks, _ := management.(clusterinfra.OpsTaskReader)
+	logs, _ := management.(clusterinfra.OpsLogReader)
+	diagnosticsReader, _ := management.(clusterinfra.OpsDiagnosticsReader)
+	configReader, _ := management.(clusterinfra.OpsConfigReader)
+	source := clusterinfra.NewOpsObservationSource(clusterinfra.OpsObservationSourceConfig{
+		Inventory: inventory, Tasks: tasks, Logs: logs, Diagnostics: diagnosticsReader,
+		Config: configReader, Metrics: metrics, Backup: a.newBackupManagement(), Profiles: analyzer,
+	})
+	service, err := observe.New(observe.Config{ClusterID: clusterID, Source: source})
+	if err != nil {
+		return
+	}
+	endpoint, err := accessops.NewEndpoint(accessops.Config{
+		Verifier: runtimeops.NewNodeVerifier(state, node.NodeID()), Service: service,
+		LocalNodeID: node.NodeID(), Forwarder: client, Calls: a.opsMCPCalls,
+	})
+	if err != nil {
+		return
+	}
+	a.opsMCPEndpoint = endpoint
+	adapter := accessnode.NewOpsMCPRPCAdapterWithServices(endpoint, profiler, a.opsMCPCalls, analyzer)
+	registrar.RegisterRPC(accessnode.OpsMCPRPCServiceID, nodeRPCHandlerFunc(adapter.HandleRPC))
 }
 
 func (a *App) newManagerMonitorProvider(control managerClusterControlReader) accessmanager.RealtimeMonitorProvider {
@@ -1099,6 +1199,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaScanNode); ok {
 			opts.ChannelRuntimeMeta = clusterinfra.NewChannelRuntimeMetaReader(runtimeNode)
+		}
+		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaPointNode); ok {
+			opts.ChannelRuntimeMetaPoint = clusterinfra.NewChannelRuntimeMetaPointReader(runtimeNode)
 		}
 		if migrationNode, ok := a.cluster.(clusterinfra.ChannelMigrationStoreNode); ok {
 			opts.ChannelMigration = clusterinfra.NewChannelMigrationStore(migrationNode)
@@ -1187,6 +1290,14 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.NodeReadiness = lifecycleClient
 			opts.ControllerVoterReadiness = lifecycleClient
 			opts.ControllerVoterPreparer = lifecycleClient
+		}
+		if opsMCPNode, ok := a.cluster.(clusterinfra.ManagementOpsMCPNode); ok {
+			opts.OpsMCP = clusterinfra.NewManagementOpsMCPWriter(opsMCPNode)
+		}
+		if auditNode, ok := a.cluster.(clusterinfra.ManagementOpsMCPAuditNode); ok {
+			opts.OpsMCPAudit = clusterinfra.NewManagementOpsMCPAuditReader(auditNode, a.opsMCPCalls)
+		} else {
+			opts.OpsMCPAudit = a.opsMCPCalls
 		}
 		return managementusecase.New(opts)
 	}

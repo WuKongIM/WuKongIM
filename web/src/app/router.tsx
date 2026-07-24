@@ -18,6 +18,7 @@ import { MessagesPage } from "@/pages/messages/page"
 import { NodeConfigPage } from "@/pages/node-config/page"
 import { NodesPage } from "@/pages/nodes/page"
 import { PermissionsPage } from "@/pages/settings/permissions/page"
+import { MCPSettingsPage } from "@/pages/settings/mcp/page"
 import { PluginsPage } from "@/pages/plugins/page"
 import { SlotsPage } from "@/pages/slots/page"
 import { SystemUsersPage } from "@/pages/system-users/page"
@@ -78,6 +79,7 @@ export const routes: RouteObject[] = [
       { path: "business/connections", element: <ConnectionsPage /> },
       // System
       { path: "system/permissions", element: <PermissionsPage /> },
+      { path: "system/mcp", element: <MCPSettingsPage /> },
       { path: "system/db", element: <DBInspectPage /> },
       { path: "system/webhooks", element: <WebhooksPage /> },
       { path: "system/connections", element: <RedirectWithSearch to="/business/connections" /> },
@@ -104,6 +106,7 @@ export const routes: RouteObject[] = [
       { path: "system-users", element: <Navigate replace to="/business/system-users" /> },
       { path: "db-inspect", element: <Navigate replace to="/system/db" /> },
       { path: "settings/permissions", element: <Navigate replace to="/system/permissions" /> },
+      { path: "settings/mcp", element: <Navigate replace to="/system/mcp" /> },
       { path: "settings/webhooks", element: <Navigate replace to="/system/webhooks" /> },
       { path: "connections", element: <RedirectWithSearch to="/business/connections" /> },
     ],

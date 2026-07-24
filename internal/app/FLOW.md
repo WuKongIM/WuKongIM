@@ -355,8 +355,23 @@ New(Config)
      two seconds. Global refreshes evict removed-node entries and the cache is
      hard-capped at the same 256-node response bound; the realtime monitor
      does not read from `topCollector`
+  -> when normal-mode Manager is configured, compose one Operations MCP endpoint on the
+     same listener: Controller desired-state reader/writer, token verifier,
+     fixed observation service, per-node call control/audit, owner forwarding,
+     aggregate audit reader, and target pprof RPC share one registered typed
+     node RPC; every Manager mounts `/mcp`, while only the Controller-selected
+     owner executes tools
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
+
+Operations MCP has no independent process, listener, port, or config enable
+switch. `internal/app` creates and closes its local call-control audit writer,
+passes low-cardinality metrics when metrics are enabled, and registers the same
+forward/profile/profile-lease/audit RPC handler on every cluster node. The
+owner composes existing management readers, server-owned Prometheus queries,
+backup reads, and bounded profile analysis into the closed-world `opsobserve`
+service. Target profilers route one-time lease verification back to the
+configured owner before starting active observation.
 
 The DB Inspect reader is app-owned because only the composition root derives
 the node-local storage locations for `pkg/db/inspect`. It is exposed to manager

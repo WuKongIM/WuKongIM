@@ -48,6 +48,13 @@ import type {
   ManagerJoinNodeResponse,
   ManagerActivateNodeResponse,
   ManagerLoginResponse,
+  ManagerMCPAuditsResponse,
+  ManagerMCPMutationInput,
+  ManagerMCPMutationResponse,
+  ManagerMCPOwnerMutationInput,
+  ManagerMCPStatusResponse,
+  ManagerMCPTokenResponse,
+  ManagerMCPTokenRevokeInput,
   ManagerMessagesResponse,
   ManagerRecentConversationsResponse,
   ManagerRuntimeWorkqueuesResponse,
@@ -539,6 +546,57 @@ export function getOverview() {
 
 export function getPermissions() {
   return jsonManagerFetch<ManagerPermissionsResponse>("/manager/permissions")
+}
+
+export function getMCPStatus() {
+  return jsonManagerFetch<ManagerMCPStatusResponse>("/manager/mcp")
+}
+
+export function getMCPAudits(limit = 200) {
+  return jsonManagerFetch<ManagerMCPAuditsResponse>(`/manager/mcp/audits?limit=${limit}`)
+}
+
+function mcpMutationInit(input: ManagerMCPMutationInput, method: string, body: Record<string, unknown>) {
+  return {
+    method,
+    headers: { "Idempotency-Key": input.idempotencyKey },
+    body: JSON.stringify({ expected_revision: input.expectedRevision, ...body }),
+  }
+}
+
+export function createMCPToken(input: ManagerMCPMutationInput) {
+  return jsonManagerFetch<ManagerMCPTokenResponse>(
+    "/manager/mcp/tokens",
+    mcpMutationInit(input, "POST", {}),
+  )
+}
+
+export function revokeMCPToken(input: ManagerMCPTokenRevokeInput) {
+  return jsonManagerFetch<ManagerMCPMutationResponse>(
+    `/manager/mcp/tokens/${encodeURIComponent(input.credentialId)}`,
+    mcpMutationInit(input, "DELETE", {}),
+  )
+}
+
+export function setMCPOwner(input: ManagerMCPOwnerMutationInput) {
+  return jsonManagerFetch<ManagerMCPMutationResponse>(
+    "/manager/mcp/owner",
+    mcpMutationInit(input, "PUT", { owner_node_id: input.ownerNodeId }),
+  )
+}
+
+export function startMCP(input: ManagerMCPMutationInput) {
+  return jsonManagerFetch<ManagerMCPMutationResponse>(
+    "/manager/mcp/start",
+    mcpMutationInit(input, "POST", {}),
+  )
+}
+
+export function stopMCP(input: ManagerMCPMutationInput) {
+  return jsonManagerFetch<ManagerMCPMutationResponse>(
+    "/manager/mcp/stop",
+    mcpMutationInit(input, "POST", {}),
+  )
 }
 
 export function getWebhookConfig() {

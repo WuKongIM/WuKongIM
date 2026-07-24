@@ -1405,6 +1405,105 @@
       ],
       "title": "ACK Batch Latency",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 96
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name, tool, result) (rate(wukongim_ops_mcp_requests_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "req/s {{node_name}} {{tool}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (node_name, tool) (wukongim_ops_mcp_requests_active{node_name=~\"$node_name\"})",
+          "legendFormat": "active {{node_name}} {{tool}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (node_name) (rate(wukongim_ops_mcp_auth_failures_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "auth failures/s {{node_name}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Operations MCP Traffic",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 96
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_ops_mcp_request_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, tool, result))",
+          "legendFormat": "p95 {{node_name}} {{tool}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_ops_mcp_request_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, tool, result))",
+          "legendFormat": "p99 {{node_name}} {{tool}} {{result}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Operations MCP Latency",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

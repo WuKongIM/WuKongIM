@@ -29,6 +29,7 @@ require (
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang/protobuf v1.5.4
+	github.com/google/jsonschema-go v0.4.3
 	github.com/google/pprof v0.0.0-20260709232956-b9395ee17fa0
 	github.com/gorilla/websocket v1.5.3
 	github.com/klauspost/compress v1.17.11
@@ -101,7 +102,6 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.5-0.20231225225746-43d5d4cd4e0e // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
@@ -237,6 +238,35 @@ func TestControlWriteRequestCodecRoundTripPromoteControllerVoter(t *testing.T) {
 		if _, ok := promoteResp[forbidden]; ok {
 			t.Fatalf("promote_controller_voter response keys = %#v, contains Go field name %s", promoteResp, forbidden)
 		}
+	}
+}
+
+func TestControlWriteRequestCodecRoundTripReplaceOpsMCP(t *testing.T) {
+	req := ControlWriteRequest{
+		Action: ControlWriteActionReplaceOpsMCP,
+		ReplaceOpsMCP: ReplaceOpsMCPRequest{
+			ExpectedRevision: 7,
+			State: controller.OpsMCPState{
+				OwnerNodeID: 2,
+				Credentials: []controller.OpsMCPCredential{{
+					ID:                  "token-a",
+					DigestSHA256:        strings.Repeat("a", 64),
+					CreatedAtUnixMillis: 1710000001000,
+				}},
+			},
+		},
+	}
+
+	payload, err := EncodeControlWriteRequest(req)
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	got, err := DecodeControlWriteRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeControlWriteRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
 	}
 }
 

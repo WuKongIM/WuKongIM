@@ -123,6 +123,10 @@ type AppLogEntriesRequest struct {
 	Keyword string
 	// Levels filters returned entries by parsed level after reading.
 	Levels []string
+	// Before requests lines immediately before Cursor when context mode is used.
+	Before int
+	// After requests lines immediately after Cursor when context mode is used.
+	After int
 }
 
 // AppLogEntry is one parsed application log line.
@@ -221,6 +225,10 @@ func (r *AppLogReader) Sources(ctx context.Context, req AppLogSourcesRequest) (A
 
 // Entries returns a bounded page of parsed entries from one fixed application log source.
 func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (AppLogEntriesResponse, error) {
+	if req.Before < 0 || req.After < 0 || req.Before+req.After > maxAppLogLimit ||
+		req.Before+req.After > 0 && strings.TrimSpace(req.Cursor) == "" {
+		return AppLogEntriesResponse{}, ErrAppLogInvalidCursor
+	}
 	source, err := normalizeAppLogSource(req.Source)
 	if err != nil {
 		return AppLogEntriesResponse{}, err
@@ -264,9 +272,18 @@ func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (A
 		}
 		if matches {
 			startOffset = cursor.Offset
+			if req.Before > 0 {
+				startOffset, err = tailStartOffset(file, cursor.Offset, r.maxTailScanBytes, req.Before)
+				if err != nil {
+					return AppLogEntriesResponse{}, err
+				}
+			}
 		} else {
 			rotated = true
 		}
+	}
+	if req.Before+req.After > 0 {
+		limit = req.Before + req.After
 	}
 	if _, err := file.Seek(startOffset, io.SeekStart); err != nil {
 		return AppLogEntriesResponse{}, err

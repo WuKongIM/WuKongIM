@@ -158,6 +158,56 @@ func TestFSMReplacesRestoreCoordinationStateWithRevisionFence(t *testing.T) {
 	require.Equal(t, &restoreState, sm.Snapshot(ctx).Restore)
 }
 
+func TestFSMReplacesOpsMCPStateWithRevisionFenceAndOwnerGate(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	expected := uint64(1)
+	opsState := state.OpsMCPState{
+		Enabled:     true,
+		OwnerNodeID: 1,
+		Credentials: []state.OpsMCPCredential{{
+			ID:                  "token-a",
+			DigestSHA256:        strings.Repeat("a", 64),
+			CreatedAtUnixMillis: 1710000001000,
+		}},
+	}
+
+	result, err := sm.Apply(ctx, 2, command.Command{
+		Kind:             command.KindReplaceOpsMCPState,
+		ExpectedRevision: &expected,
+		OpsMCP:           &opsState,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 2, AppliedRaftIndex: 2}, result)
+	require.Equal(t, &opsState, sm.Snapshot(ctx).OpsMCP)
+
+	revision := uint64(2)
+	changedOwner := opsState.Clone()
+	changedOwner.OwnerNodeID = 2
+	result, err = sm.Apply(ctx, 3, command.Command{
+		Kind:             command.KindReplaceOpsMCPState,
+		ExpectedRevision: &revision,
+		OpsMCP:           &changedOwner,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonOpsMCPOwnerChangeWhileEnabled, Revision: 2, AppliedRaftIndex: 3}, result)
+
+	stale := uint64(1)
+	rotated := opsState.Clone()
+	rotated.Credentials = append(rotated.Credentials, state.OpsMCPCredential{
+		ID:                  "token-b",
+		DigestSHA256:        strings.Repeat("b", 64),
+		CreatedAtUnixMillis: 1710000002000,
+	})
+	result, err = sm.Apply(ctx, 4, command.Command{
+		Kind:             command.KindReplaceOpsMCPState,
+		ExpectedRevision: &stale,
+		OpsMCP:           &rotated,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonExpectedRevisionMismatch, Revision: 2, AppliedRaftIndex: 4}, result)
+}
+
 func TestApplyReportNodeHealthPersistsWithoutLogicalRevisionBump(t *testing.T) {
 	sm := newLoadedStateMachine(t)
 	before := sm.Snapshot(context.Background())

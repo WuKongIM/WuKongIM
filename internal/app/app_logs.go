@@ -59,6 +59,8 @@ func (r *applicationLogReader) ApplicationLogEntries(ctx context.Context, req ma
 		Cursor:  req.Cursor,
 		Keyword: req.Keyword,
 		Levels:  req.Levels,
+		Before:  req.Before,
+		After:   req.After,
 	})
 	if err != nil {
 		return managementusecase.ApplicationLogEntriesResponse{}, err

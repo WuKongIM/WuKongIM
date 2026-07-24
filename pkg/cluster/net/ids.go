@@ -103,6 +103,8 @@ const (
 	RPCBackupRestoreVerify
 	// RPCManagerBackup routes bounded Manager backup operations to the current Controller leader.
 	RPCManagerBackup
+	// RPCOpsMCP serves token-free Manager-to-owner MCP forwarding and bounded pprof.
+	RPCOpsMCP
 	// RPCManagerGoroutines serves node-local managed goroutine snapshots.
 	RPCManagerGoroutines
 )
@@ -189,6 +191,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "backup restore verify"
 	case RPCManagerBackup:
 		return "manager backup"
+	case RPCOpsMCP:
+		return "operations MCP"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
 	case RPCNodeLifecycle:

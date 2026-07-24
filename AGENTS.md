@@ -46,6 +46,10 @@
 ## 目录结构
 
 ```text
+.agents/
+  skills/
+    wukongim-ops/          内嵌只读 Operations MCP 的 Agent 诊断流程与安全约束
+
 .github/
   cloud-sim/              云模拟 bootstrap 示例、工具链版本与 Diagnosis JSON Schema
   workflows/              PR/main 快速门禁与 nightly/manual 重型验证
@@ -75,6 +79,7 @@ internal/
     manager/             后台管理 HTTP API 入口、JWT 登录、权限适配与内嵌 Web UI
       webui/             Manager SPA 静态资源 handler 与受 CI 校验的内嵌生产构建产物
     node/                节点间 presence authority/owner-action RPC codec、handler、client
+    opsmcp/              内嵌只读 Operations MCP 的鉴权、跨节点路由与 Streamable HTTP 入口
     plugin/              PDK host RPC 入口适配
   bench/                 wkbench 黑盒客户端配置、规划、执行与协调预检，保持中立且不依赖服务端内部包
     config/              wkbench YAML 加载与严格解码
@@ -88,6 +93,7 @@ internal/
     channelappend/       channel append command/result 合约
     channelmembers/      legacy 兼容 member-list channel id 命名合约
     messageevents/       消息提交事件合约
+    opsmcp/              Operations MCP 跨入口、Owner 与 pprof 节点 RPC 的有界 DTO
     pluginevents/        插件生命周期与 hook 事件合约
     protocolmeta/        入口无关的协议枚举值合约
   infra/                 新架构外部运行时适配器
@@ -112,6 +118,7 @@ internal/
     message/             SEND/SendBatch 编排、消息 ID 分配、append port 与 committed event 提交
     plugin/              插件生命周期、绑定、host RPC 和 hook 编排
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度
+    opsobserve/           Operations MCP 的 12 个固定观测工具、输入边界与统一响应信封
     user/                用户 token、device quit、在线状态与 system UID legacy 兼容用例
   runtime/               新架构节点内运行时原语
     backup/              Controller Leader 协调的分区备份与恢复 worker
@@ -120,6 +127,7 @@ internal/
     conversationactive/  节点内最近会话活跃缓存 admission runtime
     delivery/            节点内在线 fanout、owner push 与 retry runtime
     online/              节点内真实 gateway session 注册、状态、dirty touch 批量标记
+    opsmcp/              Operations MCP token 校验、限流、审计与受限 pprof 运行时
     pluginhook/          插件 hook 有界 worker runtime
     presence/            Slot leader 内存权威连接目录、authority epoch、OwnerSeq fencing
     webhook/             节点内 webhook 有界队列、重试和发送 runtime
@@ -178,6 +186,7 @@ test/
     cluster/             动态节点、控制面任务、故障注入等黑盒场景
     message/             internal 消息、会话与 recipient authority 黑盒场景
     control/             控制面 bootstrap、Slot leader transfer 等黑盒场景
+    opsmcp/              三节点 Manager ingress、pprof 与 owner 恢复黑盒场景
     plugin/              插件生命周期、HTTP forward 等黑盒场景
     suite/               e2e 共享黑盒 harness、配置、API 与 metrics 辅助
 

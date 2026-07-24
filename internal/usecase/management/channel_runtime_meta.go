@@ -6,6 +6,7 @@ import (
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	clusterrouting "github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -15,6 +16,12 @@ const channelRuntimeMetaFilteredMinScanLimit = 64
 type ChannelRuntimeMetaReader interface {
 	// ScanChannelRuntimeMetaSlotPage returns one runtime metadata page for a physical Slot.
 	ScanChannelRuntimeMetaSlotPage(ctx context.Context, slotID uint32, after metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error)
+}
+
+// ChannelRuntimeMetaPointReader exposes one routed runtime metadata lookup.
+type ChannelRuntimeMetaPointReader interface {
+	// GetChannelRuntimeMeta returns one exact channel runtime row.
+	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
 }
 
 // MessageMetaMaxSeqReader reads max sequence from an already-loaded runtime meta row.
@@ -113,6 +120,63 @@ type ListChannelRuntimeMetaResponse struct {
 	HasMore bool
 	// NextCursor identifies the next page position when HasMore is true.
 	NextCursor ChannelRuntimeMetaListCursor
+}
+
+// GetChannelRuntimeMeta returns one exact manager-facing runtime row without a scan.
+func (a *App) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (ChannelRuntimeMeta, error) {
+	channelID = strings.TrimSpace(channelID)
+	if err := ctxErr(ctx); err != nil {
+		return ChannelRuntimeMeta{}, err
+	}
+	if channelID == "" || channelType <= 0 || channelType > int64(^uint8(0)) {
+		return ChannelRuntimeMeta{}, metadb.ErrInvalidArgument
+	}
+	if a == nil || a.cluster == nil || a.channelRuntimeMetaPoint == nil {
+		return ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return ChannelRuntimeMeta{}, err
+	}
+	slotID, assignment, ok := exactChannelSlot(snapshot, channelID)
+	if !ok {
+		return ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	meta, err := a.channelRuntimeMetaPoint.GetChannelRuntimeMeta(ctx, channelID, channelType)
+	if err != nil {
+		return ChannelRuntimeMeta{}, err
+	}
+	rows, err := a.managerChannelRuntimeMetaItems(ctx, slotID, assignment, []metadb.ChannelRuntimeMeta{meta}, true)
+	if err != nil {
+		return ChannelRuntimeMeta{}, err
+	}
+	if len(rows) != 1 {
+		return ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return rows[0], nil
+}
+
+func exactChannelSlot(snapshot control.Snapshot, channelID string) (uint32, control.SlotAssignment, bool) {
+	if snapshot.HashSlots.Count == 0 {
+		return 0, control.SlotAssignment{}, false
+	}
+	hashSlot := clusterrouting.HashSlotForKey(channelID, snapshot.HashSlots.Count)
+	var slotID uint32
+	for _, item := range snapshot.HashSlots.Ranges {
+		if hashSlot >= item.From && hashSlot <= item.To {
+			slotID = item.SlotID
+			break
+		}
+	}
+	if slotID == 0 {
+		return 0, control.SlotAssignment{}, false
+	}
+	for _, assignment := range snapshot.Slots {
+		if assignment.SlotID == slotID {
+			return slotID, assignment, true
+		}
+	}
+	return 0, control.SlotAssignment{}, false
 }
 
 // ListChannelRuntimeMeta returns a manager-facing page ordered by Slot and channel key.
