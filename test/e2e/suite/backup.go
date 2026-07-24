@@ -25,6 +25,7 @@ type BackupStatusDTO struct {
 	FailureCategory string                 `json:"failure_category"`
 	Active          *BackupJobDTO          `json:"active"`
 	Latest          *BackupRestorePointDTO `json:"latest"`
+	Verification    *BackupVerificationDTO `json:"verification"`
 }
 
 // BackupJobDTO is the public Manager backup job subset used by e2e scenarios.
@@ -48,10 +49,13 @@ type BackupRestorePointDTO struct {
 
 // BackupVerificationDTO is the public Manager verification subset used by e2e scenarios.
 type BackupVerificationDTO struct {
+	ID                string `json:"id"`
 	RestorePointID    string `json:"restore_point_id"`
+	Status            string `json:"status"`
 	PrimaryVerified   bool   `json:"primary_verified"`
 	SecondaryVerified bool   `json:"secondary_verified"`
 	ManifestSHA256    string `json:"manifest_sha256"`
+	FailureCategory   string `json:"failure_category"`
 }
 
 // BackupSourceConfig describes one tagged e2e source repository policy.
@@ -242,6 +246,35 @@ func (m *ManagerClient) VerifyBackupRestorePoint(ctx context.Context, restorePoi
 	path := "/manager/backups/restore-points/" + url.PathEscape(restorePointID) + "/verify"
 	_, err := PostJSON(ctx, m.baseURL+path, map[string]any{}, &verification)
 	return verification, err
+}
+
+// WaitBackupVerificationSucceeded waits for one exact durable verification task.
+func (m *ManagerClient) WaitBackupVerificationSucceeded(t testing.TB, taskID string, timeout time.Duration) BackupVerificationDTO {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last BackupStatusDTO
+	var lastErr error
+	for time.Now().Before(deadline) {
+		var current BackupStatusDTO
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, err := GetJSON(ctx, m.baseURL+"/manager/backups/status", &current)
+		cancel()
+		last = current
+		if err == nil && current.Verification != nil && current.Verification.ID == taskID {
+			switch current.Verification.Status {
+			case "succeeded":
+				return *current.Verification
+			case "failed":
+				t.Fatalf("backup verification failed: task_id=%s restore_point_id=%s failure=%s\n%s",
+					taskID, current.Verification.RestorePointID, current.Verification.FailureCategory, m.cluster.DumpDiagnostics())
+			}
+		}
+		lastErr = err
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("backup verification did not succeed: task_id=%s verification=%+v err=%v\n%s",
+		taskID, last.Verification, lastErr, m.cluster.DumpDiagnostics())
+	return BackupVerificationDTO{}
 }
 
 // WaitControllerLeader waits for an observed Controller Leader outside excludedNodeID.
