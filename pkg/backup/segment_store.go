@@ -9,7 +9,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"golang.org/x/sync/semaphore"
 )
+
+const segmentStoreMemoryBudgetBytes int64 = maxObjectPlaintextBytes
 
 // SegmentReference binds a Slot frontier to one exact signed commit record.
 type SegmentReference struct {
@@ -23,11 +27,18 @@ type SegmentReference struct {
 
 // ReplicatedSegmentStore makes segments visible only after both copies commit.
 type ReplicatedSegmentStore struct {
-	primary      Repository
-	secondary    Repository
-	codec        *SegmentCodec
-	signer       ManifestSigner
+	// primary is the first explicit repository failure domain.
+	primary Repository
+	// secondary is the second explicit repository failure domain.
+	secondary Repository
+	// codec owns compression and envelope encryption for payloads.
+	codec *SegmentCodec
+	// signer authenticates identical commit bytes stored in both repositories.
+	signer ManifestSigner
+	// signingKeyID is the configured key used for new commit proofs.
 	signingKeyID string
+	// memoryBudget bounds concurrent seal and open working sets per store.
+	memoryBudget *semaphore.Weighted
 }
 
 // NewReplicatedSegmentStore creates one deep segment commit and load boundary.
@@ -35,6 +46,7 @@ func NewReplicatedSegmentStore(primary, secondary Repository, codec *SegmentCode
 	store := &ReplicatedSegmentStore{
 		primary: primary, secondary: secondary, codec: codec,
 		signer: signer, signingKeyID: strings.TrimSpace(signingKeyID),
+		memoryBudget: semaphore.NewWeighted(segmentStoreMemoryBudgetBytes),
 	}
 	if err := store.validate(); err != nil {
 		return nil, err
@@ -63,6 +75,10 @@ func (s *ReplicatedSegmentStore) Commit(ctx context.Context, descriptor SegmentD
 		return s.reuseCommitted(ctx, header, segmentID, primaryCopy, secondaryCopy)
 	}
 
+	if err := s.memoryBudget.Acquire(ctx, header.PlaintextBytes); err != nil {
+		return SegmentReference{}, fmt.Errorf("acquire segment seal memory budget: %w", err)
+	}
+	defer s.memoryBudget.Release(header.PlaintextBytes)
 	sealed, err := s.codec.Seal(ctx, descriptor, plaintext)
 	if err != nil {
 		return SegmentReference{}, err
@@ -128,6 +144,10 @@ func (s *ReplicatedSegmentStore) Load(ctx context.Context, reference SegmentRefe
 	if err := s.validateCommitRepositories(commit); err != nil {
 		return nil, err
 	}
+	if err := s.memoryBudget.Acquire(ctx, commit.Header.PlaintextBytes); err != nil {
+		return nil, fmt.Errorf("acquire segment load memory budget: %w", err)
+	}
+	defer s.memoryBudget.Release(commit.Header.PlaintextBytes)
 	if err := verifySegmentPayloadObject(ctx, s.primary, commit.Payload); err != nil {
 		return nil, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
 	}
@@ -180,6 +200,8 @@ func (s *ReplicatedSegmentStore) loadCommitCopy(ctx context.Context, repository 
 	return loadedSegmentCommit{body: body, checksum: checksum, commit: commit, found: true}, nil
 }
 
+// reuseCommitted repairs missing copies from an authenticated healthy payload
+// without resealing the caller's matching logical plaintext.
 func (s *ReplicatedSegmentStore) reuseCommitted(ctx context.Context, expectedHeader SegmentHeader, segmentID string, primaryCopy, secondaryCopy loadedSegmentCommit) (SegmentReference, error) {
 	existing := primaryCopy
 	if !existing.found {
@@ -194,28 +216,28 @@ func (s *ReplicatedSegmentStore) reuseCommitted(ctx context.Context, expectedHea
 	if err := s.validateCommitRepositories(existing.commit); err != nil {
 		return SegmentReference{}, err
 	}
-	source, err := s.findHealthyPayload(ctx, existing.commit.Payload)
-	if err != nil {
-		return SegmentReference{}, err
-	}
-	if err := copySegmentPayloadIfMissing(ctx, source, s.primary, existing.commit.Payload); err != nil {
-		return SegmentReference{}, fmt.Errorf("%w: repair %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
-	}
-	if err := copySegmentPayloadIfMissing(ctx, source, s.secondary, existing.commit.Payload); err != nil {
-		return SegmentReference{}, fmt.Errorf("%w: repair %s segment payload: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
-	}
 	reference := SegmentReference{
 		SegmentID: segmentID, CommitKey: segmentCommitKey(segmentID),
 		CommitSHA256: existing.checksum,
 	}
+	source, err := s.findHealthyPayload(ctx, existing.commit.Payload)
+	if err != nil {
+		return reference, err
+	}
+	if err := copySegmentPayloadIfMissing(ctx, source, s.primary, existing.commit.Payload); err != nil {
+		return reference, fmt.Errorf("%w: repair %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	if err := copySegmentPayloadIfMissing(ctx, source, s.secondary, existing.commit.Payload); err != nil {
+		return reference, fmt.Errorf("%w: repair %s segment payload: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+	}
 	if !secondaryCopy.found {
 		if err := putAndVerify(ctx, s.secondary, reference.CommitKey, reference.CommitSHA256, existing.body); err != nil {
-			return SegmentReference{}, fmt.Errorf("%w: repair %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+			return reference, fmt.Errorf("%w: repair %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
 		}
 	}
 	if !primaryCopy.found {
 		if err := putAndVerify(ctx, s.primary, reference.CommitKey, reference.CommitSHA256, existing.body); err != nil {
-			return SegmentReference{}, fmt.Errorf("%w: repair %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+			return reference, fmt.Errorf("%w: repair %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
 		}
 	}
 	return reference, nil
@@ -239,7 +261,7 @@ func (s *ReplicatedSegmentStore) validateCommitRepositories(commit SegmentCommit
 }
 
 func (s *ReplicatedSegmentStore) validate() error {
-	if s == nil || s.primary == nil || s.secondary == nil || s.codec == nil || s.codec.keys == nil || s.signer == nil || s.signingKeyID == "" {
+	if s == nil || s.primary == nil || s.secondary == nil || s.codec == nil || s.codec.keys == nil || s.signer == nil || s.signingKeyID == "" || s.memoryBudget == nil {
 		return fmt.Errorf("%w: replicated segment store dependencies are required", ErrRepositoryIncomplete)
 	}
 	if s.primary.Name() == "" || s.secondary.Name() == "" || s.primary.Name() == s.secondary.Name() {

@@ -35,24 +35,30 @@ const (
 	SegmentStreamErasure SegmentStream = "erasure"
 )
 
-// SegmentDescriptor identifies one logical segment before content hashing.
-type SegmentDescriptor struct {
+// SegmentLogicalDescriptor identifies one ordered position in a Slot stream.
+type SegmentLogicalDescriptor struct {
 	// RepositoryID is the stable logical identity shared by both repositories.
-	RepositoryID string
+	RepositoryID string `json:"repository_id"`
 	// SourceClusterID identifies the cluster that committed the source data.
-	SourceClusterID string
+	SourceClusterID string `json:"source_cluster_id"`
 	// SourceGeneration fences the source cluster disaster-recovery generation.
-	SourceGeneration string
+	SourceGeneration string `json:"source_generation"`
 	// Generation identifies the independently compacted Slot generation.
-	Generation string
+	Generation string `json:"generation"`
 	// HashSlot identifies the logical Hash Slot carried by the segment.
-	HashSlot uint16
+	HashSlot uint16 `json:"hash_slot"`
 	// Stream identifies metadata, messages, or permanent erasure.
-	Stream SegmentStream
+	Stream SegmentStream `json:"stream"`
 	// Sequence orders segments within one Slot generation and stream.
-	Sequence uint64
+	Sequence uint64 `json:"sequence"`
 	// RecordCount is the number of logical records encoded in the plaintext.
-	RecordCount uint64
+	RecordCount uint64 `json:"record_count"`
+}
+
+// SegmentDescriptor combines stable logical identity with one sealing key.
+type SegmentDescriptor struct {
+	// Logical contains every field that contributes to the Segment ID.
+	Logical SegmentLogicalDescriptor
 	// KMSKeyID identifies the key-encryption key used for this sealing attempt.
 	KMSKeyID string
 }
@@ -63,22 +69,8 @@ type SegmentHeader struct {
 	Format string `json:"format"`
 	// Version selects the segment schema.
 	Version uint32 `json:"version"`
-	// RepositoryID is the stable logical repository identity.
-	RepositoryID string `json:"repository_id"`
-	// SourceClusterID identifies the source cluster.
-	SourceClusterID string `json:"source_cluster_id"`
-	// SourceGeneration fences the source cluster generation.
-	SourceGeneration string `json:"source_generation"`
-	// Generation identifies the independently compacted Slot generation.
-	Generation string `json:"generation"`
-	// HashSlot identifies the logical Hash Slot.
-	HashSlot uint16 `json:"hash_slot"`
-	// Stream identifies the logical stream.
-	Stream SegmentStream `json:"stream"`
-	// Sequence orders segments within one Slot generation and stream.
-	Sequence uint64 `json:"sequence"`
-	// RecordCount is the number of logical records in the segment.
-	RecordCount uint64 `json:"record_count"`
+	// Logical contains the stable ordered Slot-stream position.
+	Logical SegmentLogicalDescriptor `json:"logical"`
 	// PlaintextSHA256 authenticates the decompressed logical payload.
 	PlaintextSHA256 string `json:"plaintext_sha256"`
 	// PlaintextBytes is the decompressed payload size.
@@ -119,7 +111,9 @@ type SealedSegment struct {
 
 // SegmentCodec seals and opens bounded content-addressed backup segments.
 type SegmentCodec struct {
+	// keys creates and unwraps the one envelope key used by each segment.
 	keys DataKeyManager
+	// rand supplies a fresh AES-GCM nonce for each sealing attempt.
 	rand io.Reader
 }
 
@@ -165,7 +159,7 @@ func (c *SegmentCodec) Seal(ctx context.Context, descriptor SegmentDescriptor, p
 	if _, err := io.ReadFull(c.rand, nonce); err != nil {
 		return SealedSegment{}, fmt.Errorf("generate segment nonce: %w", err)
 	}
-	ciphertext := aead.Seal(nil, nonce, compressed, canonical)
+	ciphertext := aead.Seal(compressed[:0], nonce, compressed, canonical)
 	ciphertextHash := sha256.Sum256(ciphertext)
 	ciphertextSHA256 := hex.EncodeToString(ciphertextHash[:])
 	payload := SegmentPayload{
@@ -182,6 +176,7 @@ func (c *SegmentCodec) Seal(ctx context.Context, descriptor SegmentDescriptor, p
 }
 
 // Open authenticates, decrypts, decompresses, and verifies one sealed segment.
+// It may reuse ciphertext storage to keep the bounded segment memory peak low.
 func (c *SegmentCodec) Open(ctx context.Context, header SegmentHeader, payload SegmentPayload, ciphertext []byte) ([]byte, error) {
 	if c == nil || c.keys == nil {
 		return nil, fmt.Errorf("%w: segment codec dependencies are required", ErrInvalidObject)
@@ -229,7 +224,7 @@ func (c *SegmentCodec) Open(ctx context.Context, header SegmentHeader, payload S
 	if len(nonce) != aead.NonceSize() {
 		return nil, fmt.Errorf("%w: segment nonce size %d", ErrInvalidObject, len(nonce))
 	}
-	compressed, err := aead.Open(nil, nonce, ciphertext, canonical)
+	compressed, err := aead.Open(ciphertext[:0], nonce, ciphertext, canonical)
 	if err != nil {
 		return nil, fmt.Errorf("%w: segment AEAD authentication failed", ErrObjectCorrupt)
 	}
@@ -256,6 +251,16 @@ func canonicalSegmentHeader(header SegmentHeader) ([]byte, error) {
 }
 
 func validateSegmentDescriptor(descriptor SegmentDescriptor) error {
+	if err := validateSegmentLogicalDescriptor(descriptor.Logical); err != nil {
+		return err
+	}
+	if strings.TrimSpace(descriptor.KMSKeyID) == "" || len(descriptor.KMSKeyID) > 512 {
+		return fmt.Errorf("%w: segment KMS key id is invalid", ErrInvalidObject)
+	}
+	return nil
+}
+
+func validateSegmentLogicalDescriptor(descriptor SegmentLogicalDescriptor) error {
 	if err := validateSegmentIdentity(descriptor.RepositoryID, "repository id"); err != nil {
 		return err
 	}
@@ -276,9 +281,6 @@ func validateSegmentDescriptor(descriptor SegmentDescriptor) error {
 	if descriptor.Sequence == 0 || descriptor.RecordCount == 0 {
 		return fmt.Errorf("%w: segment sequence and record count must be positive", ErrInvalidObject)
 	}
-	if strings.TrimSpace(descriptor.KMSKeyID) == "" || len(descriptor.KMSKeyID) > 512 {
-		return fmt.Errorf("%w: segment KMS key id is invalid", ErrInvalidObject)
-	}
 	return nil
 }
 
@@ -286,18 +288,7 @@ func validateSegmentHeader(header SegmentHeader) error {
 	if header.Format != SegmentFormat || header.Version != SegmentVersion {
 		return fmt.Errorf("%w: segment format or version is unsupported", ErrInvalidObject)
 	}
-	descriptor := SegmentDescriptor{
-		RepositoryID:     header.RepositoryID,
-		SourceClusterID:  header.SourceClusterID,
-		SourceGeneration: header.SourceGeneration,
-		Generation:       header.Generation,
-		HashSlot:         header.HashSlot,
-		Stream:           header.Stream,
-		Sequence:         header.Sequence,
-		RecordCount:      header.RecordCount,
-		KMSKeyID:         "header-validation",
-	}
-	if err := validateSegmentDescriptor(descriptor); err != nil {
+	if err := validateSegmentLogicalDescriptor(header.Logical); err != nil {
 		return err
 	}
 	if err := validateSHA256(header.PlaintextSHA256); err != nil {
@@ -357,18 +348,11 @@ func buildSegmentIdentity(descriptor SegmentDescriptor, plaintext []byte) (Segme
 	}
 	plaintextHash := sha256.Sum256(plaintext)
 	header := SegmentHeader{
-		Format:           SegmentFormat,
-		Version:          SegmentVersion,
-		RepositoryID:     descriptor.RepositoryID,
-		SourceClusterID:  descriptor.SourceClusterID,
-		SourceGeneration: descriptor.SourceGeneration,
-		Generation:       descriptor.Generation,
-		HashSlot:         descriptor.HashSlot,
-		Stream:           descriptor.Stream,
-		Sequence:         descriptor.Sequence,
-		RecordCount:      descriptor.RecordCount,
-		PlaintextSHA256:  hex.EncodeToString(plaintextHash[:]),
-		PlaintextBytes:   int64(len(plaintext)),
+		Format:          SegmentFormat,
+		Version:         SegmentVersion,
+		Logical:         descriptor.Logical,
+		PlaintextSHA256: hex.EncodeToString(plaintextHash[:]),
+		PlaintextBytes:  int64(len(plaintext)),
 	}
 	canonical, err := canonicalSegmentHeader(header)
 	if err != nil {

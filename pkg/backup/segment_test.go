@@ -15,15 +15,17 @@ func TestSegmentCodecKeepsLogicalIdentityAcrossFreshEncryption(t *testing.T) {
 	t.Parallel()
 
 	descriptor := backup.SegmentDescriptor{
-		RepositoryID:     "repo-prod",
-		SourceClusterID:  "cluster-source",
-		SourceGeneration: "source-generation-7",
-		Generation:       "slot-17-generation-3",
-		HashSlot:         17,
-		Stream:           backup.SegmentStreamMessages,
-		Sequence:         9,
-		RecordCount:      2,
-		KMSKeyID:         "kms-prod",
+		Logical: backup.SegmentLogicalDescriptor{
+			RepositoryID:     "repo-prod",
+			SourceClusterID:  "cluster-source",
+			SourceGeneration: "source-generation-7",
+			Generation:       "slot-17-generation-3",
+			HashSlot:         17,
+			Stream:           backup.SegmentStreamMessages,
+			Sequence:         9,
+			RecordCount:      2,
+		},
+		KMSKeyID: "kms-prod",
 	}
 	plaintext := []byte("channel-a:41\nchannel-a:42\n")
 	firstCodec := backup.NewSegmentCodec(wrappingKeyManager{wrappingByte: 0xa5}, bytes.NewReader(bytes.Repeat([]byte{0x11}, 64)))
@@ -45,7 +47,7 @@ func TestSegmentCodecKeepsLogicalIdentityAcrossFreshEncryption(t *testing.T) {
 	}
 
 	changed := descriptor
-	changed.Sequence++
+	changed.Logical.Sequence++
 	third, err := firstCodec.Seal(context.Background(), changed, plaintext)
 	if err != nil {
 		t.Fatalf("changed Seal() error = %v", err)
@@ -68,15 +70,17 @@ func TestSegmentCommitStrictlyAuthenticatesCanonicalRecord(t *testing.T) {
 
 	codec := backup.NewSegmentCodec(wrappingKeyManager{wrappingByte: 0xa5}, bytes.NewReader(bytes.Repeat([]byte{0x31}, 64)))
 	sealed, err := codec.Seal(context.Background(), backup.SegmentDescriptor{
-		RepositoryID:     "repo-prod",
-		SourceClusterID:  "cluster-source",
-		SourceGeneration: "source-generation-7",
-		Generation:       "slot-17-generation-3",
-		HashSlot:         17,
-		Stream:           backup.SegmentStreamMessages,
-		Sequence:         9,
-		RecordCount:      2,
-		KMSKeyID:         "kms-prod",
+		Logical: backup.SegmentLogicalDescriptor{
+			RepositoryID:     "repo-prod",
+			SourceClusterID:  "cluster-source",
+			SourceGeneration: "source-generation-7",
+			Generation:       "slot-17-generation-3",
+			HashSlot:         17,
+			Stream:           backup.SegmentStreamMessages,
+			Sequence:         9,
+			RecordCount:      2,
+		},
+		KMSKeyID: "kms-prod",
 	}, []byte("channel-a:41\nchannel-a:42\n"))
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
@@ -126,15 +130,17 @@ func TestSegmentCodecRejectsTamperedAndUnboundedInput(t *testing.T) {
 
 	codec := backup.NewSegmentCodec(wrappingKeyManager{wrappingByte: 0xa5}, bytes.NewReader(bytes.Repeat([]byte{0x71}, 64)))
 	sealed, err := codec.Seal(context.Background(), backup.SegmentDescriptor{
-		RepositoryID:     "repo-prod",
-		SourceClusterID:  "cluster-source",
-		SourceGeneration: "source-generation-7",
-		Generation:       "slot-17-generation-3",
-		HashSlot:         17,
-		Stream:           backup.SegmentStreamMessages,
-		Sequence:         9,
-		RecordCount:      2,
-		KMSKeyID:         "kms-prod",
+		Logical: backup.SegmentLogicalDescriptor{
+			RepositoryID:     "repo-prod",
+			SourceClusterID:  "cluster-source",
+			SourceGeneration: "source-generation-7",
+			Generation:       "slot-17-generation-3",
+			HashSlot:         17,
+			Stream:           backup.SegmentStreamMessages,
+			Sequence:         9,
+			RecordCount:      2,
+		},
+		KMSKeyID: "kms-prod",
 	}, []byte("channel-a:41\nchannel-a:42\n"))
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
@@ -146,7 +152,7 @@ func TestSegmentCodecRejectsTamperedAndUnboundedInput(t *testing.T) {
 		t.Fatalf("Open(corrupt ciphertext) error = %v, want %v", err, backup.ErrObjectCorrupt)
 	}
 	tamperedHeader := sealed.Header
-	tamperedHeader.RecordCount++
+	tamperedHeader.Logical.RecordCount++
 	if _, err := codec.Open(context.Background(), tamperedHeader, sealed.Payload, sealed.Ciphertext); !errors.Is(err, backup.ErrInvalidObject) {
 		t.Fatalf("Open(tampered header) error = %v, want %v", err, backup.ErrInvalidObject)
 	}

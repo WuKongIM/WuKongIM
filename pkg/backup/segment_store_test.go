@@ -77,6 +77,43 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	}
 }
 
+func TestReplicatedSegmentStoreReturnsStableReferenceWhenRepairFails(t *testing.T) {
+	primary := newMemoryRepository("primary")
+	secondary := newMemoryRepository("secondary")
+	keys := &countingSegmentKeyManager{mask: 0xa5}
+	codec := backup.NewSegmentCodec(keys, bytes.NewReader(bytes.Repeat([]byte{0x43}, 128)))
+	seed := sha256.Sum256([]byte("replicated-segment-repair-failure-key"))
+	signer := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+	store, err := backup.NewReplicatedSegmentStore(primary, secondary, codec, signer, "signing-key")
+	if err != nil {
+		t.Fatalf("NewReplicatedSegmentStore() error = %v", err)
+	}
+	plaintext := []byte("channel-a:41\nchannel-a:42\n")
+	committed, err := store.Commit(context.Background(), testSegmentDescriptor(), plaintext)
+	if err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+	commit, err := backup.LoadSegmentCommit(context.Background(), primary.body(committed.CommitKey), signer)
+	if err != nil {
+		t.Fatalf("LoadSegmentCommit() error = %v", err)
+	}
+	secondary.remove(commit.Payload.Key)
+	secondary.remove(committed.CommitKey)
+
+	failingSecondary := &failPutRepository{Repository: secondary, failCall: 1}
+	failingStore, err := backup.NewReplicatedSegmentStore(primary, failingSecondary, codec, signer, "signing-key")
+	if err != nil {
+		t.Fatalf("NewReplicatedSegmentStore(failing) error = %v", err)
+	}
+	reference, err := failingStore.Commit(context.Background(), testSegmentDescriptor(), plaintext)
+	if !errors.Is(err, backup.ErrRepositoryIncomplete) {
+		t.Fatalf("repair Commit() error = %v, want %v", err, backup.ErrRepositoryIncomplete)
+	}
+	if reference != committed {
+		t.Fatalf("repair failure reference = %#v, want %#v", reference, committed)
+	}
+}
+
 func TestReplicatedSegmentStoreFailureMatrixNeverLoadsPartialCommit(t *testing.T) {
 	testCases := []struct {
 		name                string
@@ -158,15 +195,17 @@ func TestReplicatedSegmentStoreFailureMatrixNeverLoadsPartialCommit(t *testing.T
 
 func testSegmentDescriptor() backup.SegmentDescriptor {
 	return backup.SegmentDescriptor{
-		RepositoryID:     "repo-prod",
-		SourceClusterID:  "cluster-source",
-		SourceGeneration: "source-generation-7",
-		Generation:       "slot-17-generation-3",
-		HashSlot:         17,
-		Stream:           backup.SegmentStreamMessages,
-		Sequence:         9,
-		RecordCount:      2,
-		KMSKeyID:         "kms-prod",
+		Logical: backup.SegmentLogicalDescriptor{
+			RepositoryID:     "repo-prod",
+			SourceClusterID:  "cluster-source",
+			SourceGeneration: "source-generation-7",
+			Generation:       "slot-17-generation-3",
+			HashSlot:         17,
+			Stream:           backup.SegmentStreamMessages,
+			Sequence:         9,
+			RecordCount:      2,
+		},
+		KMSKeyID: "kms-prod",
 	}
 }
 
