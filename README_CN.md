@@ -5,13 +5,13 @@
 <h1 align="center">WuKongIM v3 Beta</h1>
 
 <p align="center">
-  面向即时通讯、消息通知、物联网、直播互动、客服系统和 AI 消息的高性能分布式通讯基础设施。
+  面向即时通讯与实时交互场景的高性能分布式通信基础设施。
 </p>
 
 <p align="center">
   <a href="./README.md">English</a> ·
   <a href="https://githubim.com">官网</a> ·
-  <a href="https://docs.githubim.com">文档</a> ·
+  <a href="https://docs.githubim.com/zh">文档</a> ·
   <a href="https://github.com/WuKongIM/WuKongIM/releases">版本发布</a> ·
   <a href="https://github.com/WuKongIM/WuKongIM/issues">问题反馈</a>
 </p>
@@ -20,239 +20,38 @@
   <a href="https://github.com/WuKongIM/WuKongIM/actions/workflows/ci.yml"><img src="https://github.com/WuKongIM/WuKongIM/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/status-v3%20beta-orange?style=flat-square" alt="v3 beta">
   <img src="https://img.shields.io/badge/Go-1.25.11-00ADD8?style=flat-square&logo=go" alt="Go 1.25.11">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
+  <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
 </p>
 
-> [!WARNING]
-> `main` 分支当前是 WuKongIM v3 Beta。API、配置和持久化格式仍可能调整，请在使用真实业务负载验证后再用于新部署。不要默认复用 v2 的生产数据目录：本仓库目前还没有提供完整、经过验证的 v2 → v3 迁移流程。
+> [!NOTE]
+> WuKongIM v3 当前处于 Beta 阶段，API、配置和持久化格式在正式版前仍可能调整，生产使用前请按实际负载完成验证。
 
-## WuKongIM 是什么？
+## 为什么选择 WuKongIM？
 
-WuKongIM 是一套以频道为核心的通讯服务。客户端向个人、群组、客服、社区或自定义频道发布有序消息，服务端负责持久化、复制、同步、在线状态和实时投递。
+WuKongIM 是基于频道模型的通信服务，适用于聊天、通知、客服、IoT、音视频信令、直播互动、即时社区和 AI 消息等场景。客户端向个人、群组或自定义频道发布有序消息，WuKongIM 负责持久化、复制、同步、在线状态和在线投递。
 
-核心服务内置存储，不强制依赖外部数据库、缓存或消息队列。单节点和多节点使用完全相同的集群路径：一个节点也是**单节点集群**，不存在绕过集群语义的独立单机模式。
+| 设计目标 | WuKongIM 的实现 |
+| --- | --- |
+| 统一部署模型 | 单节点与多节点部署共用 Controller、Slot、Channel、路由和存储路径。单节点部署是**单节点集群**，不是独立的单机模式。 |
+| 内置核心存储 | 内置基于 Pebble 的消息、元数据和 Raft 存储，核心服务不要求外部数据库、缓存或消息队列。 |
+| 可预期的消息语义 | 支持频道内有序、幂等查询、明确的提交边界、离线同步、多设备会话和有界在线投递。 |
+| 面向高基数场景 | Hash Slot 路由、多 Reactor Channel 运行时、批处理、有界 Worker 和背压，使大量用户与频道下的资源使用保持明确。 |
+| 可运维性 | 内置健康与就绪检查、Prometheus 指标、诊断、追踪、运行时压力视图、Manager UI 和专用运维工具。 |
 
-典型场景包括：
+## 常见场景
 
-- 即时通讯和实时社区
+- 即时通讯、群聊和实时社区
 - 应用内通知和消息中间件
-- 客服系统和 Agent 通讯
-- 物联网通讯和音视频信令
-- 直播互动、流式消息和 AI 生成内容
-
-## 为什么是 v3？
-
-| 设计目标 | v3 的实现方式 |
-| --- | --- |
-| 一套部署模型 | 单节点和多节点共享 Controller、Slot、Channel、路由和存储语义。 |
-| 可预期的消息持久性 | `SENDACK` 位于 Channel 提交边界之后；配置要求的本地提交或多数派提交完成前不会返回成功确认。 |
-| 高基数负载 | Hash Slot 路由、多 Reactor Channel 运行时、频道内有序、有限工作池、批处理和背压，让大量用户与频道下的资源消耗保持显式。 |
-| 大群投递 | 订阅者分页读取，大群状态显式维护，收件人路由和投递使用有限批次，避免一次请求产生无限扇出。 |
-| 清晰的职责归属 | 入口适配、业务用例、节点内运行时、基础设施适配、分布式运行时和存储分别拥有独立边界。 |
-| 可运维性 | 内置健康检查、就绪检查、Prometheus 指标、运行时压力、诊断、发送链路追踪、Raft 检查、迁移任务和管理后台。 |
-
-## 核心能力
-
-| 领域 | 能力 |
-| --- | --- |
-| 客户端接入 | WKProto TCP、支持 WKProto/JSON-RPC 的 WebSocket 多协议复用、可配置 Gateway Listener，以及有限异步帧调度。 |
-| 消息 | 自定义消息、个人/群组/自定义频道、频道内有序追加、幂等查询、命令消息、流式消息事件和已提交消息同步。 |
-| 频道策略 | 订阅者、黑名单、白名单、封禁/解散状态、陌生人策略、系统用户和面向大群的订阅者处理。 |
-| 用户状态 | 多设备连接、分布式在线路由权威、在线状态、路由过期、连接检查和设备退出。 |
-| 最近会话 | UID 所属的最近会话投影、普通/CMD 隔离、已读游标、未读状态、删除屏障和已提交末条消息填充。 |
-| 在线投递 | Owner 节点投递、`RECVACK` 跟踪、有限重试、收件人权威分区和尽力而为的提交后扇出。 |
-| 扩展能力 | HTTP Webhook，以及兼容 PDK 的节点内插件生命周期、发送、接收、PersistAfter 和 Host RPC Hook。 |
-| 运维 | Manager API 与 Web UI、动态节点生命周期、Slot/Channel 迁移任务、Raft 日志与状态检查、`wkcli`、`wkdb` 和 `wkbench`。 |
-
-## 架构
-
-### 1. 系统全景
-
-```mermaid
-flowchart TB
-    Client["客户端 SDK 和业务服务"]
-    Operator["运维人员"]
-    Plugin["PDK 插件"]
-    Peer["其他 WuKongIM 节点"]
-
-    subgraph Access["入口适配 · internal/access"]
-        Gateway["Gateway<br/>TCP 和 WebSocket"]
-        API["HTTP API<br/>健康 · 业务 · Bench"]
-        Manager["Manager API 和 Web UI"]
-        NodeRPC["节点间 RPC"]
-        PluginHost["PDK 插件 Host"]
-    end
-
-    subgraph Core["应用核心 · internal"]
-        Usecase["业务用例<br/>消息 · 频道 · 用户 · 会话<br/>在线状态 · 投递 · 管理 · 插件"]
-        Runtime["节点内运行时<br/>频道写入 · 在线连接 · Presence<br/>投递 · 活跃会话 · Webhook"]
-        Infra["基础设施适配<br/>internal/infra"]
-    end
-
-    Cluster["集群组合<br/>pkg/cluster"]
-    Storage["节点本地持久化<br/>消息 · 元数据 · Raft 日志"]
-    Observe["可观测性<br/>指标 · Top · 诊断 · Send Trace"]
-    App["internal/app<br/>组合根和生命周期"]
-
-    Client --> Gateway
-    Client --> API
-    Operator --> Manager
-    Plugin --> PluginHost
-    Peer --> NodeRPC
-    Gateway --> Usecase
-    API --> Usecase
-    Manager --> Usecase
-    NodeRPC --> Usecase
-    PluginHost --> Usecase
-    Usecase --> Runtime
-    Usecase --> Infra
-    Runtime --> Infra
-    Infra --> Cluster
-    Cluster --> Storage
-    Usecase -.-> Observe
-    Runtime -.-> Observe
-    Cluster -.-> Observe
-    App -.->|装配| Gateway
-    App -.->|装配| Usecase
-    App -.->|装配| Runtime
-    App -.->|装配| Cluster
-    App -.->|装配| Observe
-```
-
-`internal/app` 是唯一组合根。协议适配放在 `internal/access`，可复用业务编排放在 `internal/usecase`，节点内状态放在 `internal/runtime`，到具体集群与运行时的适配放在 `internal/infra`。
-
-### 2. 分布式架构
-
-```mermaid
-flowchart TB
-    Controller["Controller 控制面<br/>Raft 多数派<br/>节点 · 分配 · 健康 · 任务"]
-    HashTable["Hash Slot 路由表<br/>默认 256 个逻辑 Hash Slot"]
-    Slot["Slot 元数据面<br/>Multi-Raft 物理 Slot<br/>用户 · 频道 · 成员 · 会话"]
-    Channel["Channel 数据面<br/>每频道 Leader 和副本<br/>有序日志 · LEO/HW · 多数派提交"]
-    Transport["统一节点 Transport<br/>连接池 TCP · Typed RPC · 有界队列"]
-
-    subgraph Durable["每节点持久化状态"]
-        ControlStore["cluster-state.json<br/>Controller Raft WAL"]
-        MetaStore["元数据 DB<br/>Slot Raft WAL"]
-        MessageStore["消息 DB<br/>Channel Checkpoint"]
-    end
-
-    Controller -->|维护| HashTable
-    Controller -->|分配和协调| Slot
-    HashTable -->|将 Key 映射到物理 Slot| Slot
-    Slot -->|权威 ChannelRuntimeMeta| Channel
-    Controller <-->|Raft 和状态同步| Transport
-    Slot <-->|Raft 和元数据 RPC| Transport
-    Channel <-->|写入和复制 RPC| Transport
-    Controller --> ControlStore
-    Slot --> MetaStore
-    Channel --> MessageStore
-```
-
-| 层级 | 负责内容 | 一致性与性能模型 |
-| --- | --- | --- |
-| Controller | 集群成员、节点健康、Hash Slot 表、物理 Slot 分配和运维任务 | 小规模 Raft 多数派持久化控制状态；规划并协调拓扑，但不进入普通消息热路径。 |
-| Slot | 用户、频道、订阅者、最近会话投影、插件绑定和 Channel 运行时元数据 | 元数据分片到多个物理 Multi-Raft Group，通过逻辑 Hash Slot 路由。 |
-| Channel | 有序消息日志、每频道领导权、副本、LEO/HW、保留边界和运行时生命周期 | 多 Reactor 状态机保持频道内有序；阻塞存储与 RPC 运行在有限工作池；多数派提交推进 HW。 |
-| Transport | Controller Raft、Slot Raft、Channel 复制、写入转发和 Typed Node RPC | 共享 TCP 连接池、固定帧、服务隔离、优先级、批处理和有界队列。 |
-
-### 3. 消息链路
-
-```mermaid
-sequenceDiagram
-    actor Client as 客户端
-    participant Entry as Gateway / HTTP API
-    participant Message as Message Usecase
-    participant Router as Channel 权威路由
-    participant Writer as 权威写入器
-    participant Leader as Channel Runtime Leader
-    participant DB as Message DB
-    participant Followers as Channel Followers
-    participant Effects as 提交后 Worker
-
-    Client->>Entry: SEND
-    Entry->>Message: 标准化 SendBatch
-    Message->>Message: 权限检查和可选 BeforeSend Hook
-    Message->>Router: 允许写入的消息
-    Router->>Writer: 本地提交或 Typed Node RPC
-    Writer->>Leader: 带 Fence 的 AppendBatch
-    Leader->>DB: 本地持久化写入
-    Leader->>Followers: PullHint / Pull 复制
-    Followers-->>Leader: 通过 AckOffset 上报持久化进度
-    Leader->>Leader: 多数派完成后推进 HW
-    Leader-->>Writer: 已提交 MessageID 和 MessageSeq
-    Writer-->>Router: 写入结果
-    Router-->>Message: 与请求项对齐的结果
-    Message-->>Entry: 入口无关结果
-    Entry-->>Client: SENDACK
-    Writer-->>Effects: 已提交 Envelope
-    Effects->>Effects: 最近会话、在线投递、插件和 Webhook
-    Note over Client,Effects: SENDACK 不等待尽力而为的提交后副作用
-```
-
-前台路径刻意保持精简：校验、路由、追加、复制、提交、确认。会话活跃、在线投递、插件 `PersistAfter` 和 Webhook 通知发生在持久化决策之后，不能把一次已成功提交改写成失败的 `SENDACK`。
-
-## 代码地图
-
-| 领域 | 位置 | 职责 |
-| --- | --- | --- |
-| 产品入口 | `cmd/wukongim` | 加载 TOML 和 `WK_*` 覆盖，构建 App，处理进程信号。 |
-| 组合根 | `internal/app` | 装配依赖并约束启动/停止顺序。 |
-| 入口适配 | `internal/access` | Gateway、HTTP API、Manager API、节点 RPC 和插件协议适配。 |
-| 业务编排 | `internal/usecase` | 入口无关的消息、频道、用户、会话、Presence、投递、管理和插件规则。 |
-| 节点内运行时 | `internal/runtime` | 频道写入、Presence、在线连接、投递、会话、Hook 和 Webhook 的有限内存状态与 Worker。 |
-| 运行时适配 | `internal/infra` | 将 internal Port 适配到分布式和存储运行时。 |
-| Gateway 基础设施 | `pkg/gateway` | Listener、Transport、协议、Session、认证和调度。 |
-| 集群组合 | `pkg/cluster` | Controller、路由、Slot Runtime、Channel Runtime、发现、Typed Node RPC、就绪和迁移。 |
-| 控制面 | `pkg/controller` | Controller Raft、权威集群状态、规划、任务状态、快照和镜像同步。 |
-| 元数据面 | `pkg/slot`、`pkg/hashslot` | Multi-Raft 元数据状态机、分布式代理和 Hash Slot 路由。 |
-| 消息数据面 | `pkg/channel` | 多 Reactor Channel 日志、复制、写入、生命周期、保留和工作池。 |
-| 存储 | `pkg/db`、`pkg/raftlog` | 基于 Pebble 的消息/元数据存储和持久化 Raft 日志/快照。 |
-| 协议 | `pkg/protocol` | WKProto Frame/Codec、Channel ID 和 JSON-RPC Bridge。 |
-| 工具 | `cmd/wkcli`、`cmd/wkbench`、`cmd/wkdb` | 运维、黑盒压测和节点本地只读存储检查。 |
+- 客服与坐席通信
+- IoT 通信和音视频信令
+- 直播互动和流式消息
+- AI 助手和生成式消息工作流
 
 ## 快速开始
 
-### Docker Compose：完整三节点开发环境
+### 从源码启动单节点集群
 
-要求：安装 Docker 和 Compose Plugin。
-
-```bash
-git clone https://github.com/WuKongIM/WuKongIM.git
-cd WuKongIM
-
-docker compose up -d --build
-docker compose ps
-curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
-  http://127.0.0.1:15001/readyz
-```
-
-默认 Compose 会启动三个 WuKongIM 节点、Prometheus 和 Grafana。Manager Web UI 和聊天 Demo 均已内嵌在节点 1 的 `wukongim` 二进制中；可选的 `wk-sim` 压测模拟器位于 `dev-sim` Profile 中。
-
-| 服务 | 地址 | 开发凭据 / 说明 |
-| --- | --- | --- |
-| Manager Web UI | <http://127.0.0.1:18080> | `admin` / `a1234567` |
-| 节点 1 API 与就绪检查 | <http://127.0.0.1:15001/readyz> | Metrics：<http://127.0.0.1:15001/metrics> |
-| 聊天 Demo | <http://127.0.0.1:15001/demo/> | 默认使用同源节点 API；输入任意唯一测试 UID 即可 |
-| 节点 1 WKProto TCP | `127.0.0.1:15100` | 客户端连接地址 |
-| 节点 1 WebSocket | `ws://127.0.0.1:15200` | WKProto / JSON-RPC 多协议复用 |
-| Prometheus | <http://127.0.0.1:9091> | Compose 使用的外部 Prometheus |
-| Grafana | <http://127.0.0.1:3000> | `admin` / `Aa12345678` |
-
-启动可选模拟器：
-
-```bash
-docker compose --profile dev-sim up -d wk-sim
-curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
-  http://127.0.0.1:19091/healthz
-```
-
-> [!CAUTION]
-> `docker-compose.yml` 是开发环境。它启用了 Debug/Bench 接口，包含开发凭据，并使用本地目录挂载数据。生产使用前必须替换密钥、检查暴露端口、使用独立持久化存储，并明确备份、TLS、容量和可观测性策略。
-
-### 源码运行：单节点集群
-
-要求：Go `1.25.11`。
+环境要求：Git、Go `1.25.11`。
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongIM.git
@@ -262,81 +61,107 @@ cp wukongim.toml.example wukongim.toml
 GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
 ```
 
-在另一个终端验证：
+在另一个终端检查就绪状态：
 
 ```bash
 curl --fail http://127.0.0.1:5001/readyz
 ```
 
-示例会启动一个 Controller Voter、一个物理 Slot、256 个逻辑 Hash Slot 和一个 Channel 副本，监听以下地址：
+该示例在一个节点上启动完整集群路径，并内嵌两个浏览器应用：
 
 | 用途 | 地址 |
 | --- | --- |
-| HTTP API / Health / Metrics | `127.0.0.1:5001` |
-| 聊天 Demo | <http://127.0.0.1:5001/demo/> |
-| Manager Web UI / API | <http://127.0.0.1:5301> |
+| Chat Demo | <http://127.0.0.1:5001/demo/> |
+| Manager Web UI | <http://127.0.0.1:5301>（`admin` / `a1234567`） |
+| HTTP API、健康检查与指标 | `http://127.0.0.1:5001` |
 | WKProto TCP | `127.0.0.1:5100` |
-| WebSocket 多协议入口 | `ws://127.0.0.1:5200` |
-| 节点 Transport | `127.0.0.1:7001` |
+| WebSocket 多路复用入口 | `ws://127.0.0.1:5200` |
+| 节点间 Transport | `127.0.0.1:7001` |
 
-这条命令启动的 `wukongim` 二进制已包含两个浏览器应用：访问 <http://127.0.0.1:5301> 使用 Manager Web UI，访问 <http://127.0.0.1:5001/demo/> 使用聊天 Demo。Demo 默认使用同源 HTTP API，并通过 `/route` 获取已配置的客户端 WebSocket 地址，不需要另起前端进程。该命令不会启动外部 Prometheus 或 Grafana。
+打开 Chat Demo，输入一个唯一测试 UID 即可开始发送消息，无需单独启动前端进程。
 
-## 配置
+### 启动三节点开发环境
 
-产品配置以 TOML 为主。通过 `-config` 显式指定文件：
-
-```bash
-GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
-```
-
-不传 `-config` 时，按顺序查找：
-
-1. `./wukongim.toml`
-2. `./conf/wukongim.toml`
-3. `/etc/wukongim/wukongim.toml`
-
-环境变量统一使用 `WK_` 前缀，并覆盖 TOML。列表和对象列表使用一个 JSON 字符串进行整体覆盖：
+环境要求：安装带 Compose 插件的 Docker。
 
 ```bash
-WK_CLUSTER_NODES='[{"id":1,"addr":"node1:7000"},{"id":2,"addr":"node2:7000"}]' \
-  GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+docker compose up -d --build
+docker compose ps
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:15001/readyz
 ```
 
-请从 [`wukongim.toml.example`](./wukongim.toml.example) 开始。示例覆盖节点、集群、API、Manager、Gateway、消息、Presence、会话、投递、可观测性、诊断、Webhook 和插件配置。
+默认环境包含三个 WuKongIM 节点、Prometheus 和 Grafana：
 
-## 运维与工具
+| 服务 | 地址 |
+| --- | --- |
+| Manager Web UI | <http://127.0.0.1:18080>（`admin` / `a1234567`） |
+| Chat Demo | <http://127.0.0.1:15001/demo/> |
+| 节点 1 API / 指标 | `http://127.0.0.1:15001` |
+| 节点 1 WKProto / WebSocket | `127.0.0.1:15100` / `ws://127.0.0.1:15200` |
+| Prometheus | <http://127.0.0.1:9091> |
+| Grafana | <http://127.0.0.1:3000>（`admin` / `Aa12345678`） |
 
-- **Manager Web UI 和 API**：节点/Slot/Channel 清单、生命周期操作、迁移任务、连接、消息、插件、日志、数据库检查、诊断和实时指标。
-- **`wkcli`**：可扩展运维 CLI，包括节点内/多节点 `top` 运行时视图。
-- **`wkbench`**：黑盒负载校验、Doctor、Coordinator/Worker 执行、Docker `dev-sim` 和报告生成，不依赖服务端内部包。
-- **`wkdb`**：节点本地只读消息/元数据检查，提供 Query 和 REPL 模式。
-- **Prometheus 和 Grafana**：覆盖 Gateway、Controller、Slot、Channel、存储、投递、会话、Transport 和进程压力的低基数指标。
+> [!CAUTION]
+> `docker-compose.yml` 仅用于开发。它暴露开发凭据和 Benchmark 接口，并使用本地目录挂载数据；不要将这些默认设置用于生产环境。
 
-## 开发
-
-Go CI 工具链为 `go1.25.11`，Manager Web UI 使用 Bun `1.3.11`。
-
-编译检查主要命令包：
+使用以下命令停止开发环境：
 
 ```bash
-GOWORK=off go build ./cmd/wukongim ./cmd/wkcli ./cmd/wkbench ./cmd/wkdb
+docker compose down
 ```
 
-运行仓库单元测试门禁：
+## 核心能力
 
-```bash
-GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1
+| 领域 | 能力 |
+| --- | --- |
+| 客户端接入 | TCP 上的 WKProto、WKProto/JSON-RPC WebSocket 多路复用、可插拔 Listener 和有界异步分发。 |
+| 消息 | 个人/群组/自定义频道、有序追加、自定义 Payload、幂等、命令消息、流式事件和已提交消息同步。 |
+| 频道策略 | 订阅者、黑名单、白名单、封禁/解散、陌生人策略、系统用户和大群感知的订阅者访问。 |
+| 用户与会话状态 | 多设备会话、分布式 Presence、在线状态、设备退出、最近会话、已读游标和未读状态。 |
+| 投递 | Owner 节点在线投递、`RECVACK` 跟踪、有界重试、接收者路由和提交后尽力 Fan-out。 |
+| 扩展能力 | HTTP Webhook，以及支持生命周期、消息 Hook 和 Host RPC 的节点内 PDK 兼容插件。 |
+
+## 架构
+
+```mermaid
+flowchart TB
+    Client["客户端 SDK 与业务服务"]
+    Operator["运维人员"]
+    Access["入口适配<br/>Gateway · HTTP API · Manager · 节点 RPC"]
+    Core["应用核心<br/>用例 · 节点内运行时 · 基础设施适配"]
+    Cluster["分布式运行时<br/>Controller · Slot · Channel"]
+    Storage["节点本地持久化<br/>元数据 · 消息 · Raft 日志"]
+    Observe["运维与可观测性<br/>指标 · 诊断 · 追踪 · 工具"]
+
+    Client --> Access
+    Operator --> Access
+    Access --> Core
+    Core --> Cluster
+    Cluster --> Storage
+    Access -.-> Observe
+    Core -.-> Observe
+    Cluster -.-> Observe
 ```
 
-其他门禁：
+| 分层 | 职责 | 模型 |
+| --- | --- | --- |
+| Controller | 集群成员、节点健康、Hash Slot 表、物理 Slot 分配和运维任务。 | 小规模 Raft Quorum 维护权威控制面状态，不进入普通消息热路径。 |
+| Slot | 用户、频道、成员关系、会话、插件绑定和 Channel 运行时元数据。 | 元数据分片到物理 Multi-Raft Group，默认通过 256 个逻辑 Hash Slot 路由。 |
+| Channel | 有序消息日志、Leader/Replica、提交进度、保留边界和运行时生命周期。 | 每频道状态机保持顺序，有界存储与 RPC Worker 执行持久化追加和复制。 |
 
-```bash
-GOWORK=off go vet ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/...
-GOWORK=off go test -tags=integration ./internal/... ./pkg/... -count=1
-GOWORK=off go test -tags=e2e ./test/e2e/... -count=1
-```
+`internal/app` 是唯一组合根。入口适配位于 `internal/access`，可复用业务编排位于 `internal/usecase`，节点内状态位于 `internal/runtime`，具体适配位于 `internal/infra`。所有节点使用同一套 Transport 和集群语义，单节点集群也不例外。
 
-集成测试和端到端测试较重，不要求每次本地改动都运行。不要在仓库根目录使用 `go test ./...`：Go 会扫描 `tmp/`、`web/node_modules/` 等被忽略的本地目录，请使用上面的显式根目录。
+深入设计请阅读[分布式架构索引](./docs/wiki/architecture/README.md)。
+
+## 生产使用前
+
+- 替换所有示例账号、JWT Secret、Join Token 和内部 Capability。
+- 为客户端与管理流量配置合适的 TLS 和网络访问策略。
+- 将节点数据放在独立持久化存储上，并定义容量和数据保留边界。
+- 配置、演练并监控备份恢复流程，参见[备份与恢复](./docs/development/BACKUP_AND_RESTORE.md)。
+- 使用实际负载验证预期流量、大群、故障恢复和尾延迟，参见[性能排查](./docs/development/PERF_TRIAGE.md)。
+- 仅向可信网络开放 Debug、Benchmark、诊断、Manager 和指标接口。
 
 ## SDK
 
@@ -349,16 +174,49 @@ GOWORK=off go test -tags=e2e ./test/e2e/... -count=1
 | UniApp | [WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK) |
 | HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) |
 
-集成方式请参考 [SDK 概览](https://docs.githubim.com/zh/sdk/overview)。
+请通过 [SDK 概览](https://docs.githubim.com/zh/sdk/overview) 选择合适的集成方式。
+
+## 运维与工具
+
+| 工具 | 用途 |
+| --- | --- |
+| Manager | 用于集群状态、连接、消息、插件、迁移、诊断和指标的浏览器 UI 与 HTTP API。 |
+| [`wkcli`](./cmd/wkcli/README.md) | 提供命令行 Context、节点操作、运行时 `top`、模拟和轻量发送检查。 |
+| [`wkbench`](./cmd/wkbench/README.md) | 提供黑盒校验、负载执行、开发模拟、容量搜索和报告。 |
+| [`wkdb`](./cmd/wkdb/README.md) | 提供节点本地离线检查，以及显式导出、导入和 Diff 流程。 |
+| Prometheus 与 Grafana | 采集并展示 Gateway、集群、存储、投递、Transport 和进程压力指标。 |
+
+## 配置
+
+主配置格式为 TOML。环境变量统一使用 `WK_` 前缀并覆盖配置文件；列表字段通过一个 JSON 字符串整体覆盖。
+
+未传入 `-config` 时，WuKongIM 按以下顺序查找：
+
+1. `./wukongim.toml`
+2. `./conf/wukongim.toml`
+3. `/etc/wukongim/wukongim.toml`
+
+请从 [`wukongim.toml.example`](./wukongim.toml.example) 开始，其中记录了可用的配置领域和字段。
+
+## 开发
+
+仓库使用 Go `1.25.11`，Manager Web UI 使用 Bun `1.3.11`。
+
+```bash
+GOWORK=off go build ./cmd/wukongim ./cmd/wkcli ./cmd/wkbench ./cmd/wkdb
+GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1
+```
+
+仓库约定请阅读 [`AGENTS.md`](./AGENTS.md)，完整验证矩阵请阅读 [CI](./docs/development/CI.md)。
 
 ## 社区
 
 - 官网：<https://githubim.com>
-- 文档：<https://docs.githubim.com>
+- 文档：<https://docs.githubim.com/zh>
 - 问题反馈：<https://github.com/WuKongIM/WuKongIM/issues>
 - 版本发布：<https://github.com/WuKongIM/WuKongIM/releases>
 - 微信：`wukongimgo`，备注加入 WuKongIM 技术交流群。
 
 ## License
 
-WuKongIM 使用 [Apache License 2.0](./LICENSE)。
+WuKongIM 使用 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)。
