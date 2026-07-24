@@ -150,6 +150,10 @@ func (s *Server) requirePermission(resource, action string) gin.HandlerFunc {
 			return
 		}
 		if !s.auth.hasPermission(username, resource, action) {
+			if resource == "cluster.backup" {
+				jsonError(c, http.StatusForbidden, "permission_denied", "backup permission denied")
+				return
+			}
 			jsonError(c, http.StatusForbidden, "forbidden", "forbidden")
 			return
 		}

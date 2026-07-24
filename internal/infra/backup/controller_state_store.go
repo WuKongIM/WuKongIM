@@ -45,6 +45,7 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	result.PendingErasureLedger = erasureLedgerReferenceFromController(clusterState.Backup.PendingErasureLedger)
 	result.LastCommittedErasureLedger = erasureLedgerReferenceFromController(clusterState.Backup.LastCommittedErasureLedger)
 	result.Active = jobFromController(clusterState.Backup.Active)
+	result.Verification = verificationTaskFromController(clusterState.Backup.Verification)
 	result.RestorePoints = make([]backupusecase.RestorePoint, len(clusterState.Backup.RestorePoints))
 	for index, restorePoint := range clusterState.Backup.RestorePoints {
 		result.RestorePoints[index] = restorePointFromController(restorePoint)
@@ -61,6 +62,7 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 	replacement := controller.BackupCoordinationState{
 		LastEpoch:                  next.LastEpoch,
 		Active:                     jobToController(next.Active),
+		Verification:               verificationTaskToController(next.Verification),
 		RestorePoints:              make([]controller.BackupRestorePoint, len(next.RestorePoints)),
 		PendingGarbage:             make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
 		ErasureLedgerBoundary:      next.ErasureLedgerBoundary,
@@ -180,6 +182,7 @@ func restorePointFromController(restorePoint controller.BackupRestorePoint) back
 		PrimaryVerified:       restorePoint.PrimaryVerified,
 		SecondaryVerified:     restorePoint.SecondaryVerified,
 		Held:                  restorePoint.Held,
+		LastVerification:      verificationEvidenceFromController(restorePoint.LastVerification),
 	}
 }
 
@@ -195,6 +198,51 @@ func restorePointToController(restorePoint backupusecase.RestorePoint) controlle
 		PrimaryVerified:       restorePoint.PrimaryVerified,
 		SecondaryVerified:     restorePoint.SecondaryVerified,
 		Held:                  restorePoint.Held,
+		LastVerification:      verificationEvidenceToController(restorePoint.LastVerification),
+	}
+}
+
+func verificationTaskFromController(task *controller.BackupVerificationTask) *backupusecase.VerificationTask {
+	if task == nil {
+		return nil
+	}
+	return &backupusecase.VerificationTask{
+		ID: task.ID, RestorePointID: task.RestorePointID,
+		VerificationEvidence: *verificationEvidenceFromController(&task.BackupVerificationEvidence),
+	}
+}
+
+func verificationTaskToController(task *backupusecase.VerificationTask) *controller.BackupVerificationTask {
+	if task == nil {
+		return nil
+	}
+	return &controller.BackupVerificationTask{
+		ID: task.ID, RestorePointID: task.RestorePointID,
+		BackupVerificationEvidence: *verificationEvidenceToController(&task.VerificationEvidence),
+	}
+}
+
+func verificationEvidenceFromController(evidence *controller.BackupVerificationEvidence) *backupusecase.VerificationEvidence {
+	if evidence == nil {
+		return nil
+	}
+	return &backupusecase.VerificationEvidence{
+		Status:              backupusecase.VerificationTaskStatus(evidence.Status),
+		StartedAtUnixMillis: evidence.StartedAtUnixMillis, CompletedAtUnixMillis: evidence.CompletedAtUnixMillis,
+		PrimaryVerified: evidence.PrimaryVerified, SecondaryVerified: evidence.SecondaryVerified,
+		ManifestSHA256: evidence.ManifestSHA256, FailureCategory: evidence.FailureCategory,
+	}
+}
+
+func verificationEvidenceToController(evidence *backupusecase.VerificationEvidence) *controller.BackupVerificationEvidence {
+	if evidence == nil {
+		return nil
+	}
+	return &controller.BackupVerificationEvidence{
+		Status:              controller.BackupVerificationTaskStatus(evidence.Status),
+		StartedAtUnixMillis: evidence.StartedAtUnixMillis, CompletedAtUnixMillis: evidence.CompletedAtUnixMillis,
+		PrimaryVerified: evidence.PrimaryVerified, SecondaryVerified: evidence.SecondaryVerified,
+		ManifestSHA256: evidence.ManifestSHA256, FailureCategory: evidence.FailureCategory,
 	}
 }
 

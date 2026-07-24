@@ -969,16 +969,26 @@ func validateNightlyWorkflow(raw []byte) error {
 }
 
 func validateBackupQualificationWorkflow(raw []byte) error {
-	return validateScheduledWorkflow(
+	return validateExpectedWorkflow(
 		raw,
 		"Backup qualification",
-		"30 19 * * *",
+		"",
 		[]string{"three-node-backup"},
 		expectedBackupQualificationJobs,
 	)
 }
 
 func validateScheduledWorkflow(
+	raw []byte,
+	wantName string,
+	wantCron string,
+	jobNames []string,
+	expectedJobs map[string]ciJob,
+) error {
+	return validateExpectedWorkflow(raw, wantName, wantCron, jobNames, expectedJobs)
+}
+
+func validateExpectedWorkflow(
 	raw []byte,
 	wantName string,
 	wantCron string,
@@ -1002,8 +1012,14 @@ func validateScheduledWorkflow(
 	if workflow.Name != wantName {
 		return fmt.Errorf("workflow name = %q, want %s", workflow.Name, wantName)
 	}
-	if err := validateScheduledTriggers(workflow.On, wantName, wantCron); err != nil {
-		return err
+	if wantCron == "" {
+		if err := validateManualOnlyTriggers(workflow.On); err != nil {
+			return err
+		}
+	} else {
+		if err := validateScheduledTriggers(workflow.On, wantName, wantCron); err != nil {
+			return err
+		}
 	}
 	wantPermissions := map[string]string{"contents": "read"}
 	if !reflect.DeepEqual(workflow.Permissions, wantPermissions) {
@@ -1261,6 +1277,20 @@ func validateScheduledTriggers(triggers map[string]yaml.Node, workflowName, want
 	cron, ok := mappingValue(entry, "cron")
 	if !ok || cron.Kind != yaml.ScalarNode || cron.Value != wantCron {
 		return fmt.Errorf("%s cron = %q, want exactly %q", strings.ToLower(workflowName), cronValue(cron), wantCron)
+	}
+	return nil
+}
+
+func validateManualOnlyTriggers(triggers map[string]yaml.Node) error {
+	if len(triggers) != 1 {
+		return fmt.Errorf("workflow trigger keys = %d, want exactly workflow_dispatch", len(triggers))
+	}
+	workflowDispatch, ok := triggers["workflow_dispatch"]
+	if !ok {
+		return fmt.Errorf("workflow trigger %q is missing", "workflow_dispatch")
+	}
+	if !isEmptyTrigger(workflowDispatch) {
+		return fmt.Errorf("workflow trigger %q must not contain inputs or options", "workflow_dispatch")
 	}
 	return nil
 }

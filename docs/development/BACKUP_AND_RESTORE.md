@@ -92,6 +92,36 @@ Manual mutations emit structured `internal.app.backup_audit` log events. Do
 not include config fingerprints, object keys, credentials, plaintext, or old
 cluster fencing evidence in audit fields.
 
+### Manager Web
+
+The embedded Manager UI exposes `/cluster/backups` on every ordinary Manager
+node. Requests are routed once to the current Controller Leader; a leadership
+transition returns a retryable unavailable response and does not blindly
+replay a write.
+
+- Overview shows cluster backup health, RPO and later-audit age against their
+  thresholds, coordinator observation time, active backup or verification
+  work, individual dependency readiness, effective non-secret policy, and
+  retained-reference capacity.
+- Restore points are newest-first and server-paged (50 by default, 200
+  maximum), with exact submitted ID text and held-only filters. Publication
+  verification and later audit are distinct evidence.
+- Web mutations are limited to materialized-full trigger, exact job/epoch
+  cancel, asynchronous re-verification, and hold/release. They require
+  `cluster.backup:w`. When Manager authentication is disabled, the Web surface
+  is forcibly read-only.
+- Recovery guide generates and exports `wkcli` commands bound to one exact
+  restore point. It has no restore button and calls no `/manager/restore/*`
+  mutation. A failed later audit suppresses copyable commands.
+- The target restore Manager URL is kept only in page memory, must use HTTPS
+  except for localhost HTTP, and is replaced by `$RESTORE_MANAGER_URL` in the
+  Markdown export. Tokens and old-cluster fencing evidence are never entered
+  into or retained by the page; commands reference `$WK_MANAGER_TOKEN` and
+  `$OLD_CLUSTER_FENCE_SHA256`.
+
+For headless inventory, `wkcli backup list` follows every Manager cursor
+internally and preserves the existing combined output.
+
 ## Metrics And Alerts
 
 The following metrics use only bounded labels:
@@ -150,9 +180,12 @@ leaves the queue entry pending for a later retry.
    wkcli backup restore start PLAN_ID --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
    wkcli backup restore status --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
    wkcli backup restore verify PLAN_ID --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
-   wkcli backup restore activate PLAN_ID --old-cluster-fence-digest SHA256 --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
+   wkcli backup restore activate PLAN_ID --old-cluster-fence-digest "$OLD_CLUSTER_FENCE_SHA256" --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
    ```
 
+   Token handling has no implicit operational choice: omit
+   `--invalidate-tokens` only after explicitly deciding to preserve restored
+   client tokens, or add it after explicitly deciding to invalidate them.
    Plan creation also authenticates the current permanent-erasure ledger in
    both repositories and pins its version, boundary, and SHA-256. This pin is
    intentionally independent of restore-point time: selecting an old restore
@@ -240,12 +273,11 @@ Run the sustained Controller-Leader/data-node outage scenario alone with:
 GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_outage -count=1 -timeout 8m -p=1
 ```
 
-`.github/workflows/backup-qualification.yml` runs these backup scenarios every
-night and on manual dispatch with one E2E-tagged product binary. The ordinary
-Nightly E2E job also builds its shared binary with the `e2e` tag so the same
-explicit harness substitutes are available when the full package wildcard
-reaches the backup scenarios. Failure artifacts contain only the final 1 MiB of
-the bounded test log and its allowlisted process diagnostics.
+`.github/workflows/backup-qualification.yml` runs only through manual
+`workflow_dispatch`, with one E2E-tagged product binary. It is an explicit
+operator qualification gate rather than a scheduled job. Failure artifacts
+contain only the final 1 MiB of the bounded test log and its allowlisted
+process diagnostics.
 
 The tagged harness uses local immutable file repositories and a deterministic
 local key authority selected by an explicit E2E-only environment variable. It

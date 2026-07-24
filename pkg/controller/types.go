@@ -59,6 +59,12 @@ type (
 	BackupPartitionReport = state.BackupPartitionReport
 	// BackupRestorePoint is one bounded published restore-point reference.
 	BackupRestorePoint = state.BackupRestorePoint
+	// BackupVerificationTaskStatus identifies one durable manual verification phase.
+	BackupVerificationTaskStatus = state.BackupVerificationTaskStatus
+	// BackupVerificationEvidence is bounded later audit evidence.
+	BackupVerificationEvidence = state.BackupVerificationEvidence
+	// BackupVerificationTask is the latest cluster-wide manual audit task.
+	BackupVerificationTask = state.BackupVerificationTask
 	// BackupErasureLedgerReference is the bounded pending permanent-erasure record reference.
 	BackupErasureLedgerReference = state.BackupErasureLedgerReference
 	// RestoreCoordinationState stores bounded explicit recovery metadata.

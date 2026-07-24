@@ -117,6 +117,12 @@ import type {
   BusinessChannelMemberListKind,
   BusinessChannelMembersParams,
   BusinessChannelMembersResponse,
+  BackupRestorePointListParams,
+  ManagerBackupJob,
+  ManagerBackupRestorePoint,
+  ManagerBackupRestorePointPage,
+  ManagerBackupStatusResponse,
+  ManagerBackupVerificationTask,
   ManagerApplicationLogEntriesResponse,
   ManagerApplicationLogSourcesResponse,
   ManagerBusinessChannelDetailResponse,
@@ -1257,4 +1263,48 @@ export function getDashboardMetrics(params?: { window?: string; step?: string })
   if (params?.step) search.set("step", params.step)
   const query = search.toString()
   return jsonManagerFetch<DashboardMetricsResponse>(`/manager/dashboard/metrics${query ? `?${query}` : ""}`)
+}
+
+export function getBackupStatus() {
+  return jsonManagerFetch<ManagerBackupStatusResponse>("/manager/backups/status")
+}
+
+export function getBackupRestorePoints(params?: BackupRestorePointListParams) {
+  const search = new URLSearchParams()
+  if (params?.limit) search.set("limit", String(params.limit))
+  if (params?.cursor) search.set("cursor", params.cursor)
+  if (params?.id) search.set("id", params.id)
+  if (params?.held) search.set("held", "true")
+  const query = search.toString()
+  return jsonManagerFetch<ManagerBackupRestorePointPage>(
+    `/manager/backups/restore-points${query ? `?${query}` : ""}`,
+  )
+}
+
+export function triggerMaterializedBackup() {
+  return jsonManagerFetch<ManagerBackupJob>("/manager/backups/trigger", {
+    method: "POST",
+    body: JSON.stringify({ kind: "materialized_full" }),
+  })
+}
+
+export function cancelBackupJob(jobId: string, epoch: number) {
+  return jsonManagerFetch<ManagerBackupJob>(
+    `/manager/backups/jobs/${encodeURIComponent(jobId)}/cancel`,
+    { method: "POST", body: JSON.stringify({ epoch }) },
+  )
+}
+
+export function verifyBackupRestorePoint(restorePointId: string) {
+  return jsonManagerFetch<ManagerBackupVerificationTask>(
+    `/manager/backups/restore-points/${encodeURIComponent(restorePointId)}/verify`,
+    { method: "POST", body: JSON.stringify({}) },
+  )
+}
+
+export function setBackupRestorePointHold(restorePointId: string, held: boolean) {
+  return jsonManagerFetch<ManagerBackupRestorePoint>(
+    `/manager/backups/restore-points/${encodeURIComponent(restorePointId)}/${held ? "hold" : "release"}`,
+    { method: "POST", body: JSON.stringify({}) },
+  )
 }

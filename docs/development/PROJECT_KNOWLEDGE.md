@@ -7,6 +7,7 @@
 - Cluster backup is a signed logical hash-slot/channel cut stored in two immutable repositories; it never copies old node directories or Raft/runtime state, and restore always targets a fresh generation with the same `hash_slot_count`.
 - Restore rebuilds `ChannelRuntimeMeta` from the signed Channel index: preserve Channel epoch and retention floor, but derive leader, replicas, ISR, and MinISR from the successor topology before activation.
 - With automatic backup enabled, permanent message retention must commit its encrypted dual-repository erasure-ledger entry before advancing Slot metadata; deterministic signed event receipts preserve idempotency, GC protects the Controller-pending entry, and restore always replays then physically verifies the plan-pinned current ledger even when restoring an older point.
+- Manager backup operations are Controller-Leader-fenced and available from every Manager node; the Web UI never executes restore, and is forcibly read-only when Manager authentication is disabled.
 - `internal/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - Browser-facing manager APIs encode 64-bit `message_id` values as decimal JSON strings; web filters, keys, and display code must keep them as strings end to end.
 - The Manager Web production bundle is generated into `internal/access/manager/webui/dist`, committed in full, and embedded in `cmd/wukongim`; production must not require a separate web process or a frontend build during ordinary Go compilation.

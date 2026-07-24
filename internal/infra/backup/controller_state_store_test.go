@@ -87,6 +87,38 @@ func TestControllerStateStorePersistsErasureLedgerCoordination(t *testing.T) {
 	require.Equal(t, strings.Repeat("a", 64), runtime.replacement.PendingErasureLedger.EventID)
 }
 
+func TestControllerStateStoreRoundTripsVerificationEvidence(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{Revision: 9}}
+	store, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	evidence := &backupusecase.VerificationEvidence{
+		Status: backupusecase.VerificationTaskSucceeded, StartedAtUnixMillis: 100,
+		CompletedAtUnixMillis: 200, PrimaryVerified: true, SecondaryVerified: true,
+		ManifestSHA256: strings.Repeat("a", 64),
+	}
+	task := &backupusecase.VerificationTask{
+		ID: "verification-1", RestorePointID: "restore-1", VerificationEvidence: *evidence,
+	}
+
+	err = store.CompareAndSwap(context.Background(), 9, backupusecase.State{
+		Verification: task,
+		RestorePoints: []backupusecase.RestorePoint{{
+			ID: "restore-1", JobID: "backup-1", BackupEpoch: 1, Kind: "materialized_full",
+			EffectiveAtUnixMillis: 50, CreatedAtUnixMillis: 60, ManifestSHA256: strings.Repeat("a", 64),
+			PrimaryVerified: true, SecondaryVerified: true, LastVerification: evidence,
+		}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, controller.BackupVerificationTaskStatus("succeeded"), runtime.replacement.Verification.Status)
+	require.Equal(t, strings.Repeat("a", 64), runtime.replacement.RestorePoints[0].LastVerification.ManifestSHA256)
+
+	runtime.state.Backup = &runtime.replacement
+	loaded, err := store.Load(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, backupusecase.VerificationTaskSucceeded, loaded.Verification.Status)
+	require.Equal(t, int64(200), loaded.RestorePoints[0].LastVerification.CompletedAtUnixMillis)
+}
+
 func TestControllerStateStoreMapsRevisionConflict(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{Revision: 8}, replaceErr: controller.ErrExpectedRevisionMismatch}
 	store, err := backupinfra.NewControllerStateStore(runtime)

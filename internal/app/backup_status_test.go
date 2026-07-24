@@ -35,17 +35,43 @@ func TestBackupManagerStatusKeepsMissingAuditEvidenceUnknown(t *testing.T) {
 	}
 }
 
+func TestBackupManagerStatusPrefersDurableAuditAgeAfterLeaderChange(t *testing.T) {
+	now := time.Unix(1_753_000_000, 0).UTC()
+	state := backupusecase.State{RestorePoints: []backupusecase.RestorePoint{{
+		ID: "restore-current", CreatedAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
+		EffectiveAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
+		LastVerification: &backupusecase.VerificationEvidence{
+			Status: backupusecase.VerificationTaskSucceeded, StartedAtUnixMillis: now.Add(-3 * time.Minute).UnixMilli(),
+			CompletedAtUnixMillis: now.Add(-2 * time.Minute).UnixMilli(), PrimaryVerified: true, SecondaryVerified: true,
+		},
+	}}}
+	facade := newBackupStatusTestFacadeWithState(t, now, state, runtimebackup.CoordinatorStatus{
+		DoctorHealth: backupusecase.HealthHealthy, LastAuditSuccessUnixMillis: now.Add(-12 * time.Hour).UnixMilli(),
+	})
+
+	status, err := facade.Status(context.Background())
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if status.VerificationAgeSeconds == nil || *status.VerificationAgeSeconds != 120 {
+		t.Fatalf("Status() verification age = %v, want durable 120 seconds", status.VerificationAgeSeconds)
+	}
+}
+
 func newBackupStatusTestFacade(t *testing.T, now time.Time, operational runtimebackup.CoordinatorStatus) backupManagerFacade {
+	t.Helper()
+	return newBackupStatusTestFacadeWithState(t, now, backupusecase.State{
+		RestorePoints: []backupusecase.RestorePoint{{
+			ID: "restore-current", CreatedAtUnixMillis: now.Add(-time.Minute).UnixMilli(), EffectiveAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
+		}},
+	}, operational)
+}
+
+func newBackupStatusTestFacadeWithState(t *testing.T, now time.Time, state backupusecase.State, operational runtimebackup.CoordinatorStatus) backupManagerFacade {
 	t.Helper()
 	backupApp, err := backupusecase.NewApp(backupusecase.Options{
 		Enabled: true, HashSlotCount: 1,
-		Store: &backupStatusStateStore{
-			state: backupusecase.State{
-				RestorePoints: []backupusecase.RestorePoint{{
-					ID: "restore-current", CreatedAtUnixMillis: now.Add(-time.Minute).UnixMilli(), EffectiveAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
-				}},
-			},
-		},
+		Store:     &backupStatusStateStore{state: state},
 		Publisher: backupStatusPublisher{}, Now: func() time.Time { return now }, NewJobID: func() string { return "job" },
 	})
 	if err != nil {

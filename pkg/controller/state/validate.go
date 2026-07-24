@@ -176,7 +176,19 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 			}
 		}
 	}
+	if backup.Verification != nil {
+		task := backup.Verification
+		if !validBackupIdentity(task.ID) || !validBackupIdentity(task.RestorePointID) || !validBackupVerificationEvidence(task.BackupVerificationEvidence) {
+			return invalid("backup verification task is invalid")
+		}
+	}
+	if backup.Active != nil && backup.Verification != nil &&
+		(backup.Verification.Status == BackupVerificationTaskStatusPending ||
+			backup.Verification.Status == BackupVerificationTaskStatusRunning) {
+		return invalid("backup and verification tasks cannot both be active")
+	}
 	seenIDs := make(map[string]struct{}, len(backup.RestorePoints)+len(backup.PendingGarbage))
+	verificationTargetFound := backup.Verification == nil
 	for _, restorePoint := range append(cloneSlice(backup.RestorePoints), backup.PendingGarbage...) {
 		if restorePoint.ID == "" || restorePoint.JobID == "" || restorePoint.BackupEpoch == 0 || restorePoint.BackupEpoch > backup.LastEpoch {
 			return invalid("backup restore-point identity or epoch is invalid")
@@ -191,8 +203,40 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		if !validSHA256(restorePoint.ManifestSHA256) || !restorePoint.PrimaryVerified || !restorePoint.SecondaryVerified {
 			return invalid("backup restore-point is not verified in both repositories")
 		}
+		if restorePoint.LastVerification != nil && !validBackupVerificationEvidence(*restorePoint.LastVerification) {
+			return invalid("backup restore-point verification evidence is invalid")
+		}
+		if backup.Verification != nil && restorePoint.ID == backup.Verification.RestorePointID {
+			verificationTargetFound = true
+			if restorePoint.LastVerification == nil || *restorePoint.LastVerification != backup.Verification.BackupVerificationEvidence {
+				return invalid("backup verification task evidence does not match restore point")
+			}
+		}
+	}
+	if !verificationTargetFound {
+		return invalid("backup verification target is missing")
 	}
 	return nil
+}
+
+func validBackupVerificationEvidence(evidence BackupVerificationEvidence) bool {
+	if evidence.StartedAtUnixMillis <= 0 || len(evidence.FailureCategory) > 128 {
+		return false
+	}
+	switch evidence.Status {
+	case BackupVerificationTaskStatusPending, BackupVerificationTaskStatusRunning:
+		return evidence.CompletedAtUnixMillis == 0 && evidence.ManifestSHA256 == "" && evidence.FailureCategory == ""
+	case BackupVerificationTaskStatusSucceeded:
+		return evidence.CompletedAtUnixMillis >= evidence.StartedAtUnixMillis &&
+			evidence.PrimaryVerified && evidence.SecondaryVerified &&
+			validSHA256(evidence.ManifestSHA256) && evidence.FailureCategory == ""
+	case BackupVerificationTaskStatusFailed:
+		return evidence.CompletedAtUnixMillis >= evidence.StartedAtUnixMillis &&
+			(evidence.ManifestSHA256 == "" || validSHA256(evidence.ManifestSHA256)) &&
+			evidence.FailureCategory != ""
+	default:
+		return false
+	}
 }
 
 func validBackupIdentity(value string) bool {

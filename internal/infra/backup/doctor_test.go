@@ -7,6 +7,7 @@ import (
 	"time"
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
+	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +22,13 @@ func TestBackupDoctorChecksBothRepositoriesKMSStagingAndUTC(t *testing.T) {
 		ClockProbes: []backupinfra.ClockProbe{fakeClockProbe{value: now.Add(30 * time.Second)}}, Now: func() time.Time { return now }, MaxClockSkew: time.Minute,
 	})
 	require.NoError(t, err)
-	require.NoError(t, doctor.Check(context.Background()))
+	report, err := doctor.Check(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, backupusecase.HealthHealthy, report.Primary)
+	require.Equal(t, backupusecase.HealthHealthy, report.Secondary)
+	require.Equal(t, backupusecase.HealthHealthy, report.KMS)
+	require.Equal(t, backupusecase.HealthHealthy, report.Staging)
+	require.Equal(t, backupusecase.HealthHealthy, report.UTC)
 	require.Equal(t, 1, primary.calls)
 	require.Equal(t, 1, secondary.calls)
 	require.Equal(t, "enc", kms.encryptionKey)
@@ -36,7 +43,8 @@ func TestBackupDoctorRejectsOverlappingStagingAndClockSkew(t *testing.T) {
 		ClockProbes: []backupinfra.ClockProbe{fakeClockProbe{value: time.Now()}},
 	})
 	require.NoError(t, err)
-	require.ErrorContains(t, doctor.Check(context.Background()), "must not overlap")
+	_, checkErr := doctor.Check(context.Background())
+	require.ErrorContains(t, checkErr, "must not overlap")
 
 	separate, err := backupinfra.NewDoctor(backupinfra.DoctorOptions{
 		Primary: &fakeDoctorCheck{}, Secondary: &fakeDoctorCheck{}, KMS: &fakeKMSDoctor{}, EncryptionKey: "enc", SigningKey: "sign",
@@ -44,7 +52,8 @@ func TestBackupDoctorRejectsOverlappingStagingAndClockSkew(t *testing.T) {
 		ClockProbes: []backupinfra.ClockProbe{fakeClockProbe{value: time.Unix(1, 0)}}, Now: func() time.Time { return time.Unix(1000, 0) }, MaxClockSkew: time.Second,
 	})
 	require.NoError(t, err)
-	require.ErrorContains(t, separate.Check(context.Background()), "UTC skew")
+	_, checkErr = separate.Check(context.Background())
+	require.ErrorContains(t, checkErr, "UTC skew")
 }
 
 type fakeDoctorCheck struct {

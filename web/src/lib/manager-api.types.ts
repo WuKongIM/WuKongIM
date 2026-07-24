@@ -2125,3 +2125,106 @@ export type ManagerDBInspectQueryInput = {
   node_id?: number
   query: string
 }
+
+export type BackupHealth = "disabled" | "unknown" | "healthy" | "degraded" | "failed"
+export type BackupVerificationStatus = "pending" | "running" | "succeeded" | "failed"
+
+export type ManagerBackupVerificationEvidence = {
+  status: BackupVerificationStatus
+  started_at_unix_millis: number
+  completed_at_unix_millis?: number
+  primary_verified: boolean
+  secondary_verified: boolean
+  manifest_sha256?: string
+  failure_category?: string
+}
+
+export type ManagerBackupVerificationTask = ManagerBackupVerificationEvidence & {
+  id: string
+  restore_point_id: string
+}
+
+export type ManagerBackupRestorePoint = {
+  id: string
+  kind: "incremental" | "synthetic_full" | "materialized_full"
+  effective_at_unix_millis: number
+  created_at_unix_millis: number
+  primary_verified: boolean
+  secondary_verified: boolean
+  held: boolean
+  last_verification?: ManagerBackupVerificationEvidence
+}
+
+export type ManagerBackupJob = {
+  id: string
+  epoch: number
+  kind: string
+  status: string
+  hash_slot_count: number
+  restore_point_id: string
+  completed_partitions: number
+  started_at_unix_millis: number
+  updated_at_unix_millis: number
+  failure_category?: string
+}
+
+export type ManagerBackupStatusResponse = {
+  enabled: boolean
+  health: BackupHealth
+  recovery_point_age_seconds: number | null
+  verification_age_seconds: number | null
+  pending_garbage_count: number
+  failure_category?: string
+  active?: ManagerBackupJob
+  latest?: ManagerBackupRestorePoint
+  verification?: ManagerBackupVerificationTask
+  coordinator_node_id: number
+  observed_at_unix_millis: number
+  auth_enabled: boolean
+  running: boolean
+  max_recovery_point_age_seconds: number
+  max_verification_age_seconds: number
+  policy: {
+    incremental_interval_seconds: number
+    restore_point_interval_seconds: number
+    independent_full_interval_seconds: number
+    materialized_full_interval_seconds: number
+    monthly_retention_months: number
+    object_lock_days: number
+    max_parallel_partitions: number
+    staging_max_bytes: number
+    primary_region: string
+    secondary_region: string
+    kms_region: string
+  }
+  dependencies: {
+    primary: { health: BackupHealth; region?: string }
+    secondary: { health: BackupHealth; region?: string }
+    kms: { health: BackupHealth; region?: string }
+    staging: { health: BackupHealth }
+    utc: { health: BackupHealth }
+    checked_at_unix_millis?: number
+  }
+  capacity: {
+    total: number
+    held: number
+    pending: number
+    max: number
+    warning_at: number
+    critical_at: number
+    level: "normal" | "warning" | "critical"
+  }
+}
+
+export type ManagerBackupRestorePointPage = {
+  items: ManagerBackupRestorePoint[]
+  next_cursor?: string
+  total: number
+}
+
+export type BackupRestorePointListParams = {
+  limit?: number
+  cursor?: string
+  id?: string
+  held?: boolean
+}

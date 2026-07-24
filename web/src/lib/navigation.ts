@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import {
   Activity,
+  Archive,
   Cable,
   ClipboardList,
   Database,
@@ -121,6 +122,13 @@ export const navigationSections: NavigationSection[] = [
         pathLabelMessageId: "nav.path.cluster.diagnostics",
         icon: Radar,
         aliases: ["/diagnostics", "/network", "/controller", "/slot-logs"],
+      },
+      {
+        href: "/cluster/backups",
+        titleMessageId: "nav.backups.title",
+        descriptionMessageId: "nav.backups.description",
+        pathLabelMessageId: "nav.path.cluster.backups",
+        icon: Archive,
       },
     ],
   },

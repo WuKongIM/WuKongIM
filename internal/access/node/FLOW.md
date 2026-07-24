@@ -575,6 +575,11 @@ Manager Node Config RPC uses fixed magic headers:
 - Request: `W K V C 1`
 - Response: `W K V c 1`
 
+Manager Backup RPC uses fixed magic headers:
+
+- Request: `W K B M Q 1`
+- Response: `W K B M R 1`
+
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
 unknown operations, malformed varints, oversized collections, truncated
@@ -636,6 +641,16 @@ Delivery push and fanout responses currently use:
   adapter interfaces.
 
 ## Backup RPC
+
+Manager backup control uses the separate bounded `manager backup` RPC. Any
+Manager node resolves the current Controller Leader and sends exactly one
+status, page, trigger, cancel, hold, release, or verification-start request to
+that node. The receiver rechecks that it is still Leader before entering the
+usecase. Leadership transitions return a retryable unavailable error; writes
+are never blindly replayed because their outcome may already be durable.
+The versioned `WKBMQ1` request and `WKBMR1` response prefixes fence the
+strict, bounded JSON control envelope; unversioned or unknown-version payloads
+are rejected before operation dispatch.
 
 Backup RPCs carry only bounded control requests, logical cut summaries, and
 repository references. Message payload capture executes on the selected source

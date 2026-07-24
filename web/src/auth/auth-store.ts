@@ -6,7 +6,7 @@ import {
   type ManagerSession,
 } from "@/lib/manager-api"
 
-export type AuthStatus = "anonymous" | "authenticated"
+export type AuthStatus = "anonymous" | "authenticated" | "readonly"
 
 export type AuthPermission = {
   resource: string
@@ -31,6 +31,7 @@ type AuthState = {
   permissions: AuthPermission[]
   login: (credentials: ManagerLoginCredentials) => Promise<void>
   restoreSession: () => void
+  enterAuthDisabledReadonly: () => void
   logout: () => void
   handleUnauthorized: () => void
 }
@@ -141,6 +142,18 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     persistSession(session)
     set(applyAuthenticatedSession(session))
+  },
+  enterAuthDisabledReadonly: () => {
+    clearPersistedSession()
+    set({
+      status: "readonly",
+      isHydrated: true,
+      username: "read-only",
+      tokenType: "",
+      accessToken: "",
+      expiresAt: "",
+      permissions: [{ resource: "cluster.backup", actions: ["r"] }],
+    })
   },
   logout: () => {
     clearPersistedSession()

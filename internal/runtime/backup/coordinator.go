@@ -26,12 +26,13 @@ type CoordinatorApp interface {
 	Degrade(context.Context, string, uint64, string) error
 	ApplyRetention(context.Context, backupcontract.RetentionPolicy) (backupcontract.RetentionDecision, error)
 	CompleteGarbage(context.Context, string) error
-	Verify(context.Context, string) (backupcontract.Verification, error)
+	StartVerification(context.Context, string) (backupcontract.VerificationTask, error)
+	RunVerification(context.Context, string) (backupcontract.VerificationTask, error)
 }
 
 // CoordinatorDoctor gates scheduling but never message readiness.
 type CoordinatorDoctor interface {
-	Check(context.Context) error
+	Check(context.Context) (backupcontract.DoctorReport, error)
 }
 
 // CoordinatorLeadership identifies the local node and current Controller leader.
@@ -96,6 +97,8 @@ type CoordinatorStatus struct {
 	LastAuditAtUnixMillis      int64
 	LastAuditSuccessUnixMillis int64
 	LastFailureCategory        string
+	// Doctor preserves individual dependency readiness without exposing secrets.
+	Doctor backupcontract.DoctorReport
 }
 
 // Coordinator resumes Controller-persisted jobs and dispatches missing logical partitions.
@@ -136,7 +139,13 @@ func NewCoordinator(options CoordinatorOptions) (*Coordinator, error) {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
-	return &Coordinator{options: options, status: CoordinatorStatus{DoctorHealth: backupcontract.HealthUnknown}}, nil
+	return &Coordinator{options: options, status: CoordinatorStatus{
+		DoctorHealth: backupcontract.HealthUnknown,
+		Doctor: backupcontract.DoctorReport{
+			Primary: backupcontract.HealthUnknown, Secondary: backupcontract.HealthUnknown,
+			KMS: backupcontract.HealthUnknown, Staging: backupcontract.HealthUnknown, UTC: backupcontract.HealthUnknown,
+		},
+	}}, nil
 }
 
 // Start starts the backup-only loop. Doctor failure is recorded and retried,
@@ -232,6 +241,23 @@ func (c *Coordinator) runOnce(ctx context.Context) error {
 		c.recordFailure("coordination_state")
 		return err
 	}
+	if verificationTaskActive(state.Verification) {
+		task, runErr := c.options.App.RunVerification(ctx, state.Verification.ID)
+		if runErr != nil {
+			c.recordFailure("verification")
+			return runErr
+		}
+		if task.Status == backupcontract.VerificationTaskSucceeded {
+			c.mu.Lock()
+			c.status.LastAuditSuccessUnixMillis = task.CompletedAtUnixMillis
+			c.mu.Unlock()
+			if c.options.Observer != nil {
+				zero := int64(0)
+				c.options.Observer.SetBackupVerificationAgeSeconds(&zero)
+			}
+		}
+		return nil
+	}
 	if c.options.GarbageCollector != nil {
 		updated, retentionErr := c.reconcileRetention(ctx, state)
 		if retentionErr != nil {
@@ -304,17 +330,14 @@ func (c *Coordinator) auditLatestRestorePoint(ctx context.Context, state backupc
 			latest = point
 		}
 	}
-	if _, err := c.options.App.Verify(ctx, latest.ID); err != nil {
+	if _, err := c.options.App.StartVerification(ctx, latest.ID); err != nil {
 		return err
 	}
-	c.mu.Lock()
-	c.status.LastAuditSuccessUnixMillis = now.UnixMilli()
-	c.mu.Unlock()
-	if c.options.Observer != nil {
-		zero := int64(0)
-		c.options.Observer.SetBackupVerificationAgeSeconds(&zero)
-	}
 	return nil
+}
+
+func verificationTaskActive(task *backupcontract.VerificationTask) bool {
+	return task != nil && (task.Status == backupcontract.VerificationTaskPending || task.Status == backupcontract.VerificationTaskRunning)
 }
 
 func (c *Coordinator) verificationAgeSeconds() *int64 {
@@ -393,8 +416,9 @@ func (c *Coordinator) ensureDoctor(ctx context.Context) error {
 	if !lastAttempt.IsZero() && now.Sub(lastAttempt) < c.options.DoctorRetry {
 		return fmt.Errorf("backup doctor retry pending")
 	}
-	err := c.options.Doctor.Check(ctx)
+	report, err := c.options.Doctor.Check(ctx)
 	c.mu.Lock()
+	c.status.Doctor = report
 	c.status.LastDoctorAtUnixMillis = now.UnixMilli()
 	if err != nil {
 		c.status.DoctorHealth = backupcontract.HealthFailed

@@ -91,7 +91,7 @@ export function AppLogsPanel() {
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [sources, setSources] = useState<ManagerApplicationLogSource[]>([])
   const [source, setSource] = useState("app")
-  const [keyword, setKeyword] = useState("")
+  const [keyword, setKeyword] = useState(() => new URLSearchParams(window.location.search).get("keyword")?.trim() ?? "")
   const [severity, setSeverity] = useState<AppLogSeverityFilter>("")
   const [followTail, setFollowTail] = useState(false)
   const [liveMessage, setLiveMessage] = useState("")

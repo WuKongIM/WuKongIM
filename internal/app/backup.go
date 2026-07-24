@@ -266,6 +266,10 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	adapter := accessnode.New(accessnode.Options{BackupMessages: localMessages, BackupPartitions: partitionRouter, Logger: a.logger.Named("node")})
 	node.RegisterRPC(accessnode.BackupMessageShardRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupMessageShardRPC))
 	node.RegisterRPC(accessnode.BackupPartitionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupPartitionRPC))
+	managerBackupAdapter := accessnode.NewManagerBackupAdapter(accessnode.ManagerBackupOptions{
+		Local: backupManagerFacade{app: a}, Leadership: node,
+	})
+	node.RegisterRPC(accessnode.ManagerBackupRPCServiceID, nodeRPCHandlerFunc(managerBackupAdapter.HandleRPC))
 }
 
 type unavailablePermanentErasureRecorder struct {
@@ -405,12 +409,23 @@ func newBackupID(prefix string) string {
 
 type backupManagerFacade struct{ app *App }
 
+type backupManagerRouter struct {
+	local      backupManagerFacade
+	leadership runtimebackup.CoordinatorLeadership
+	client     *accessnode.Client
+}
+
 type backupRuntimeStatusProvider interface {
 	Status() runtimebackup.CoordinatorStatus
 }
 
 func (a *App) newBackupManagement() accessmanager.BackupManagement {
-	return backupManagerFacade{app: a}
+	local := backupManagerFacade{app: a}
+	node, ok := a.cluster.(appBackupNode)
+	if !ok || a.backup == nil {
+		return local
+	}
+	return backupManagerRouter{local: local, leadership: node, client: accessnode.NewClient(node)}
 }
 
 func (a *App) newRestoreManagement() accessmanager.RestoreManagement {
@@ -473,12 +488,100 @@ func restoreFacadeUnavailable(app *App) error {
 	return fmt.Errorf("backup restore runtime is unavailable")
 }
 
+func (r backupManagerRouter) leader() (uint64, bool, error) {
+	if r.leadership == nil {
+		return 0, false, backupusecase.ErrControllerLeaderUnavailable
+	}
+	leaderID := r.leadership.BackupControllerLeaderID()
+	if leaderID == 0 {
+		return 0, false, backupusecase.ErrControllerLeaderUnavailable
+	}
+	return leaderID, leaderID == r.leadership.NodeID(), nil
+}
+
+func (r backupManagerRouter) Status(ctx context.Context) (backupusecase.StatusSnapshot, error) {
+	leaderID, local, err := r.leader()
+	if err != nil {
+		return backupusecase.StatusSnapshot{}, err
+	}
+	if local {
+		return r.local.Status(ctx)
+	}
+	return r.client.ManagerBackupStatus(ctx, leaderID)
+}
+
+func (r backupManagerRouter) ListRestorePointsPage(ctx context.Context, request backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error) {
+	leaderID, local, err := r.leader()
+	if err != nil {
+		return backupusecase.RestorePointPage{}, err
+	}
+	if local {
+		return r.local.ListRestorePointsPage(ctx, request)
+	}
+	return r.client.ManagerBackupListRestorePoints(ctx, leaderID, request)
+}
+
+func (r backupManagerRouter) Trigger(ctx context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
+	leaderID, local, err := r.leader()
+	if err != nil {
+		return backupusecase.Job{}, err
+	}
+	if local {
+		return r.local.Trigger(ctx, kind)
+	}
+	return r.client.ManagerBackupTrigger(ctx, leaderID, kind)
+}
+
+func (r backupManagerRouter) Cancel(ctx context.Context, id string, epoch uint64) (backupusecase.Job, error) {
+	leaderID, local, err := r.leader()
+	if err != nil {
+		return backupusecase.Job{}, err
+	}
+	if local {
+		return r.local.Cancel(ctx, id, epoch)
+	}
+	return r.client.ManagerBackupCancel(ctx, leaderID, id, epoch)
+}
+
+func (r backupManagerRouter) Hold(ctx context.Context, id string) (backupusecase.RestorePoint, error) {
+	leaderID, local, err := r.leader()
+	if err != nil {
+		return backupusecase.RestorePoint{}, err
+	}
+	if local {
+		return r.local.Hold(ctx, id)
+	}
+	return r.client.ManagerBackupHold(ctx, leaderID, id, true)
+}
+
+func (r backupManagerRouter) Release(ctx context.Context, id string) (backupusecase.RestorePoint, error) {
+	leaderID, local, err := r.leader()
+	if err != nil {
+		return backupusecase.RestorePoint{}, err
+	}
+	if local {
+		return r.local.Release(ctx, id)
+	}
+	return r.client.ManagerBackupHold(ctx, leaderID, id, false)
+}
+
+func (r backupManagerRouter) StartVerification(ctx context.Context, id string) (backupusecase.VerificationTask, error) {
+	leaderID, local, err := r.leader()
+	if err != nil {
+		return backupusecase.VerificationTask{}, err
+	}
+	if local {
+		return r.local.StartVerification(ctx, id)
+	}
+	return r.client.ManagerBackupStartVerification(ctx, leaderID, id)
+}
+
 func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSnapshot, error) {
 	if f.app == nil || !f.app.cfg.Backup.Enabled {
-		return backupusecase.StatusSnapshot{Enabled: false, Health: backupusecase.HealthDisabled}, nil
+		return f.observeBackupStatus(backupusecase.StatusSnapshot{Enabled: false, Health: backupusecase.HealthDisabled}), nil
 	}
 	if f.app.backupInitErr != nil || f.app.backup == nil {
-		return backupusecase.StatusSnapshot{Enabled: true, Health: backupusecase.HealthFailed}, nil
+		return f.observeBackupStatus(backupusecase.StatusSnapshot{Enabled: true, Health: backupusecase.HealthFailed}), nil
 	}
 	status, err := f.app.backup.Status(ctx)
 	if err != nil {
@@ -493,27 +596,81 @@ func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSn
 		} else if operational.DoctorHealth != backupusecase.HealthHealthy && status.Health == backupusecase.HealthHealthy {
 			status.Health = backupusecase.HealthUnknown
 		}
-		status.FailureCategory = operational.LastFailureCategory
-		if operational.LastAuditSuccessUnixMillis > 0 {
+		if operational.LastFailureCategory != "" {
+			status.FailureCategory = operational.LastFailureCategory
+		}
+		status.Running = operational.Running
+		status.Dependencies = backupusecase.DependenciesSnapshot{
+			Primary: backupusecase.DependencySnapshot{
+				Health: backupHealthOrUnknown(operational.Doctor.Primary), Region: f.app.cfg.Backup.Primary.Region,
+			},
+			Secondary: backupusecase.DependencySnapshot{
+				Health: backupHealthOrUnknown(operational.Doctor.Secondary), Region: f.app.cfg.Backup.Secondary.Region,
+			},
+			KMS: backupusecase.DependencySnapshot{
+				Health: backupHealthOrUnknown(operational.Doctor.KMS), Region: f.app.cfg.Backup.KMSRegion,
+			},
+			Staging:             backupusecase.DependencySnapshot{Health: backupHealthOrUnknown(operational.Doctor.Staging)},
+			UTC:                 backupusecase.DependencySnapshot{Health: backupHealthOrUnknown(operational.Doctor.UTC)},
+			CheckedAtUnixMillis: operational.Doctor.CheckedAtUnixMillis,
+		}
+		if status.VerificationAgeSeconds == nil && operational.LastAuditSuccessUnixMillis > 0 {
 			age := time.Now().UTC().Unix() - time.UnixMilli(operational.LastAuditSuccessUnixMillis).UTC().Unix()
 			if age < 0 {
 				age = 0
 			}
 			status.VerificationAgeSeconds = &age
-		} else if status.Health == backupusecase.HealthHealthy {
+		}
+		if status.VerificationAgeSeconds == nil && status.Health == backupusecase.HealthHealthy {
 			status.Health = backupusecase.HealthUnknown
 		}
 	} else if status.Health == backupusecase.HealthHealthy {
 		status.Health = backupusecase.HealthUnknown
 	}
-	return status, nil
+	return f.observeBackupStatus(status), nil
 }
 
-func (f backupManagerFacade) ListRestorePoints(ctx context.Context) ([]backupusecase.RestorePoint, error) {
-	if f.app == nil || f.app.backup == nil {
-		return nil, backupFacadeUnavailable(f.app)
+func (f backupManagerFacade) observeBackupStatus(status backupusecase.StatusSnapshot) backupusecase.StatusSnapshot {
+	status.ObservedAtUnixMillis = time.Now().UTC().UnixMilli()
+	if f.app != nil {
+		cfg := f.app.cfg.Backup
+		status.Policy = backupusecase.PolicySnapshot{
+			IncrementalIntervalSeconds:      int64(cfg.IncrementalInterval / time.Second),
+			RestorePointIntervalSeconds:     int64(cfg.RestorePointInterval / time.Second),
+			IndependentFullIntervalSeconds:  int64(cfg.SyntheticFullInterval / time.Second),
+			MaterializedFullIntervalSeconds: int64(defaultMaterializedFullInterval / time.Second),
+			MonthlyRetentionMonths:          cfg.MonthlyRetentionMonths,
+			ObjectLockDays:                  cfg.ObjectLockDays,
+			MaxParallelPartitions:           cfg.MaxParallelPartitions,
+			StagingMaxBytes:                 cfg.StagingMaxBytes,
+			PrimaryRegion:                   cfg.Primary.Region,
+			SecondaryRegion:                 cfg.Secondary.Region,
+			KMSRegion:                       cfg.KMSRegion,
+		}
+		status.Dependencies.Primary.Health = backupHealthOrUnknown(status.Dependencies.Primary.Health)
+		status.Dependencies.Secondary.Health = backupHealthOrUnknown(status.Dependencies.Secondary.Health)
+		status.Dependencies.KMS.Health = backupHealthOrUnknown(status.Dependencies.KMS.Health)
+		status.Dependencies.Staging.Health = backupHealthOrUnknown(status.Dependencies.Staging.Health)
+		status.Dependencies.UTC.Health = backupHealthOrUnknown(status.Dependencies.UTC.Health)
+		if leadership, ok := f.app.cluster.(runtimebackup.CoordinatorLeadership); ok {
+			status.CoordinatorNodeID = leadership.BackupControllerLeaderID()
+		}
 	}
-	return f.app.backup.ListRestorePoints(ctx)
+	return status
+}
+
+func backupHealthOrUnknown(health backupusecase.Health) backupusecase.Health {
+	if health == "" {
+		return backupusecase.HealthUnknown
+	}
+	return health
+}
+
+func (f backupManagerFacade) ListRestorePointsPage(ctx context.Context, request backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error) {
+	if f.app == nil || f.app.backup == nil {
+		return backupusecase.RestorePointPage{}, backupFacadeUnavailable(f.app)
+	}
+	return f.app.backup.ListRestorePointsPage(ctx, request)
 }
 
 func (f backupManagerFacade) Trigger(ctx context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
@@ -521,7 +678,7 @@ func (f backupManagerFacade) Trigger(ctx context.Context, kind backupartifact.Re
 		return backupusecase.Job{}, backupFacadeUnavailable(f.app)
 	}
 	if coordinator, ok := f.app.backupRuntime.(backupRuntimeStatusProvider); ok && coordinator.Status().DoctorHealth != backupusecase.HealthHealthy {
-		return backupusecase.Job{}, fmt.Errorf("backup doctor is not healthy")
+		return backupusecase.Job{}, backupusecase.ErrDoctorUnhealthy
 	}
 	job, err := f.app.backup.Trigger(ctx, backupusecase.TriggerRequest{Kind: kind, ConfigFingerprint: f.app.backupFingerprint})
 	f.app.logBackupAudit("backup_trigger", job.ID, err, wklog.String("kind", string(kind)), wklog.Uint64("backupEpoch", job.Epoch))
@@ -555,13 +712,13 @@ func (f backupManagerFacade) Release(ctx context.Context, id string) (backupusec
 	return point, err
 }
 
-func (f backupManagerFacade) Verify(ctx context.Context, id string) (backupusecase.Verification, error) {
+func (f backupManagerFacade) StartVerification(ctx context.Context, id string) (backupusecase.VerificationTask, error) {
 	if f.app == nil || f.app.backup == nil {
-		return backupusecase.Verification{}, backupFacadeUnavailable(f.app)
+		return backupusecase.VerificationTask{}, backupFacadeUnavailable(f.app)
 	}
-	verification, err := f.app.backup.Verify(ctx, id)
-	f.app.logBackupAudit("backup_verify", id, err)
-	return verification, err
+	task, err := f.app.backup.StartVerification(ctx, id)
+	f.app.logBackupAudit("backup_verify_start", id, err, wklog.String("verificationTaskID", task.ID))
+	return task, err
 }
 
 func (a *App) logBackupAudit(action, entityID string, err error, fields ...wklog.Field) {

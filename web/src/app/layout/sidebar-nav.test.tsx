@@ -114,7 +114,7 @@ test("omits the cluster dashboard menu item from the cluster section", async () 
   expect(links.slice(0, 2)).toEqual(["Live Monitor", "Nodes"])
 })
 
-test("places node logs between config and diagnostics", async () => {
+test("places backups after node logs and diagnostics", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/diagnostics"] })
 
   render(
@@ -127,7 +127,7 @@ test("places node logs between config and diagnostics", async () => {
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("Node Config")
   expect(links).not.toContain("Topology")
-  expect(links.slice(-3)).toEqual(["Config", "Node Logs", "Diagnostics"])
+  expect(links.slice(-4)).toEqual(["Config", "Node Logs", "Diagnostics", "Backups"])
 })
 
 test("uses the shortened Chinese config label and node logs menu label", async () => {
@@ -144,7 +144,7 @@ test("uses the shortened Chinese config label and node logs menu label", async (
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("节点配置")
   expect(links).not.toContain("拓扑")
-  expect(links.slice(-3)).toEqual(["配置", "节点日志", "诊断"])
+  expect(links.slice(-4)).toEqual(["配置", "节点日志", "诊断", "备份"])
 })
 
 test("shows node logs as the active cluster operations item", async () => {

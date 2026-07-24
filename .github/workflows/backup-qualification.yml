@@ -1,8 +1,6 @@
 name: Backup qualification
 
 on:
-  schedule:
-    - cron: "30 19 * * *"
   workflow_dispatch:
 
 permissions:

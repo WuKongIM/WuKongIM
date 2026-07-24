@@ -43,6 +43,37 @@ func TestBackupTriggerRejectsUnknownKindBeforeManagerCall(t *testing.T) {
 	_ = exit
 }
 
+func TestBackupListFollowsManagerCursors(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		switch requests {
+		case 1:
+			if r.URL.Query().Get("cursor") != "" || r.URL.Query().Get("limit") != "200" {
+				t.Fatalf("first query = %q", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"items":[{"id":"rp-2"}],"next_cursor":"next","total":2}`))
+		case 2:
+			if r.URL.Query().Get("cursor") != "next" || r.URL.Query().Get("limit") != "200" {
+				t.Fatalf("second query = %q", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"items":[{"id":"rp-1"}],"total":2}`))
+		default:
+			t.Fatalf("unexpected request %d", requests)
+		}
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"list", "--server", server.URL, "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute(): %v", err)
+	}
+	if requests != 2 || !strings.Contains(stdout.String(), `"id":"rp-2"`) || !strings.Contains(stdout.String(), `"id":"rp-1"`) {
+		t.Fatalf("requests=%d stdout=%q", requests, stdout.String())
+	}
+}
+
 func TestBackupRestorePlanUsesExplicitRecoveryEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/manager/restore/plan" {

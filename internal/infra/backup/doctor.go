@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"golang.org/x/sys/unix"
 )
 
@@ -72,13 +73,14 @@ func NewDoctor(options DoctorOptions) (*Doctor, error) {
 }
 
 // Check proves repositories, keys, staging capacity, and UTC evidence.
-func (d *Doctor) Check(ctx context.Context) error {
+func (d *Doctor) Check(ctx context.Context) (backupcontract.DoctorReport, error) {
 	if d == nil {
-		return fmt.Errorf("backup doctor: unavailable")
+		return backupcontract.DoctorReport{}, fmt.Errorf("backup doctor: unavailable")
 	}
 	checks := []struct {
-		name string
-		fn   func() error
+		name   string
+		fn     func() error
+		assign func(backupcontract.Health)
 	}{
 		{name: "primary_repository", fn: func() error { return d.options.Primary.Check(ctx) }},
 		{name: "secondary_repository", fn: func() error { return d.options.Secondary.Check(ctx) }},
@@ -88,12 +90,25 @@ func (d *Doctor) Check(ctx context.Context) error {
 		}},
 		{name: "utc", fn: func() error { return d.checkUTC(ctx) }},
 	}
+	report := backupcontract.DoctorReport{CheckedAtUnixMillis: d.options.Now().UTC().UnixMilli()}
+	checks[0].assign = func(health backupcontract.Health) { report.Primary = health }
+	checks[1].assign = func(health backupcontract.Health) { report.Secondary = health }
+	checks[2].assign = func(health backupcontract.Health) { report.KMS = health }
+	checks[3].assign = func(health backupcontract.Health) { report.Staging = health }
+	checks[4].assign = func(health backupcontract.Health) { report.UTC = health }
+	var firstErr error
 	for _, check := range checks {
 		if err := check.fn(); err != nil {
-			return fmt.Errorf("backup doctor %s: %w", check.name, err)
+			check.assign(backupcontract.HealthFailed)
+			if firstErr == nil {
+				report.FailureCategory = check.name
+				firstErr = fmt.Errorf("backup doctor %s: %w", check.name, err)
+			}
+			continue
 		}
+		check.assign(backupcontract.HealthHealthy)
 	}
-	return nil
+	return report, firstErr
 }
 
 func (d *Doctor) checkUTC(ctx context.Context) error {

@@ -24,6 +24,14 @@ backup usecase CompareAndSwap
 Large manifests, encrypted chunks, KMS data keys, and repository credentials
 must never be stored in Controller state. A Controller revision mismatch maps to
 `backup.ErrStateConflict` so the use case can reload and retry.
+The bounded mapping includes one verification task and each retained restore
+point's latest audit evidence, allowing a new Controller Leader to resume the
+task without treating node-local metrics as authority.
+
+`Doctor.Check` reports primary repository, secondary repository, KMS, staging,
+and UTC-clock readiness individually with a bounded first-failure category.
+Manager status may expose those health buckets and configured regions, but
+never endpoint, bucket, prefix, role ARN, key ID, or fingerprint values.
 
 ## File Repository
 

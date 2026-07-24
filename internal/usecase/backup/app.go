@@ -2,7 +2,9 @@ package backup
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -11,9 +13,13 @@ import (
 	"time"
 
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+	controllerstate "github.com/WuKongIM/WuKongIM/pkg/controller/state"
 )
 
 const maxStateRetries = 8
+
+const defaultMaxVerificationAge = 24 * time.Hour
+const defaultVerificationTimeout = 30 * time.Minute
 
 // Options configures the entry-independent backup coordinator.
 type Options struct {
@@ -33,6 +39,10 @@ type Options struct {
 	NewJobID func() string
 	// MaxRecoveryPointAge is the RPO health threshold. Zero defaults to five minutes.
 	MaxRecoveryPointAge time.Duration
+	// MaxVerificationAge is the repository audit health threshold. Zero defaults to 24 hours.
+	MaxVerificationAge time.Duration
+	// VerificationTimeout bounds one full dual-repository graph audit.
+	VerificationTimeout time.Duration
 }
 
 // App coordinates one cluster backup job without depending on entry or infrastructure packages.
@@ -45,6 +55,8 @@ type App struct {
 	now                 func() time.Time
 	newJobID            func() string
 	maxRecoveryPointAge time.Duration
+	maxVerificationAge  time.Duration
+	verificationTimeout time.Duration
 }
 
 // NewApp creates a backup coordinator.
@@ -59,6 +71,20 @@ func NewApp(options Options) (*App, error) {
 	if maxRecoveryPointAge < 0 {
 		return nil, fmt.Errorf("%w: max recovery point age must be positive", ErrInvalidRequest)
 	}
+	maxVerificationAge := options.MaxVerificationAge
+	if maxVerificationAge == 0 {
+		maxVerificationAge = defaultMaxVerificationAge
+	}
+	if maxVerificationAge < 0 {
+		return nil, fmt.Errorf("%w: max verification age must be positive", ErrInvalidRequest)
+	}
+	verificationTimeout := options.VerificationTimeout
+	if verificationTimeout == 0 {
+		verificationTimeout = defaultVerificationTimeout
+	}
+	if verificationTimeout < 0 {
+		return nil, fmt.Errorf("%w: verification timeout must be positive", ErrInvalidRequest)
+	}
 	return &App{
 		enabled:             options.Enabled,
 		hashSlotCount:       options.HashSlotCount,
@@ -68,6 +94,8 @@ func NewApp(options Options) (*App, error) {
 		now:                 options.Now,
 		newJobID:            options.NewJobID,
 		maxRecoveryPointAge: maxRecoveryPointAge,
+		maxVerificationAge:  maxVerificationAge,
+		verificationTimeout: verificationTimeout,
 	}, nil
 }
 
@@ -103,6 +131,140 @@ func (a *App) Verify(ctx context.Context, restorePointID string) (Verification, 
 	return result, nil
 }
 
+// StartVerification creates the one cluster-wide durable manual audit task.
+func (a *App) StartVerification(ctx context.Context, restorePointID string) (VerificationTask, error) {
+	if !a.enabled {
+		return VerificationTask{}, ErrDisabled
+	}
+	if a.verifier == nil {
+		return VerificationTask{}, ErrInvalidRequest
+	}
+	restorePointID = strings.TrimSpace(restorePointID)
+	taskID := strings.TrimSpace(a.newJobID())
+	if restorePointID == "" || taskID == "" {
+		return VerificationTask{}, ErrInvalidRequest
+	}
+	var task VerificationTask
+	err := a.mutate(ctx, func(state *State) error {
+		if state.Active != nil {
+			return ErrJobActive
+		}
+		if verificationTaskActive(state.Verification) {
+			return ErrVerificationJobActive
+		}
+		point := findRestorePoint(state.RestorePoints, restorePointID)
+		if point == nil {
+			return ErrRestorePointNotFound
+		}
+		evidence := VerificationEvidence{
+			Status:              VerificationTaskPending,
+			StartedAtUnixMillis: a.now().UTC().UnixMilli(),
+		}
+		task = VerificationTask{ID: taskID, RestorePointID: restorePointID, VerificationEvidence: evidence}
+		state.Verification = &task
+		point.LastVerification = &evidence
+		return nil
+	})
+	return task, err
+}
+
+// RunVerification executes or resumes one durable manual audit task.
+func (a *App) RunVerification(ctx context.Context, taskID string) (VerificationTask, error) {
+	if !a.enabled {
+		return VerificationTask{}, ErrDisabled
+	}
+	if a.verifier == nil || strings.TrimSpace(taskID) == "" {
+		return VerificationTask{}, ErrInvalidRequest
+	}
+	var task VerificationTask
+	err := a.mutate(ctx, func(state *State) error {
+		if state.Verification == nil || state.Verification.ID != taskID {
+			return ErrRestorePointNotFound
+		}
+		task = *state.Verification
+		if task.Status == VerificationTaskSucceeded || task.Status == VerificationTaskFailed {
+			return nil
+		}
+		task.Status = VerificationTaskRunning
+		task.CompletedAtUnixMillis = 0
+		task.FailureCategory = ""
+		state.Verification = &task
+		if point := findRestorePoint(state.RestorePoints, task.RestorePointID); point != nil {
+			evidence := task.VerificationEvidence
+			point.LastVerification = &evidence
+		}
+		return nil
+	})
+	if err != nil || task.Status == VerificationTaskSucceeded || task.Status == VerificationTaskFailed {
+		return task, err
+	}
+	verifyCtx, cancel := context.WithTimeout(ctx, a.verificationTimeout)
+	result, verifyErr := a.verifier.Verify(verifyCtx, task.RestorePointID)
+	cancel()
+	if verifyErr == nil && (result.RestorePointID != task.RestorePointID || result.VerifiedAtUnixMillis <= 0 ||
+		!result.PrimaryVerified || !result.SecondaryVerified || len(result.ManifestSHA256) != 64) {
+		verifyErr = fmt.Errorf("%w: verifier returned incomplete evidence", ErrInvalidRequest)
+	}
+	if (errors.Is(verifyErr, context.Canceled) || errors.Is(verifyErr, context.DeadlineExceeded)) && ctx.Err() != nil {
+		_ = a.mutate(context.WithoutCancel(ctx), func(state *State) error {
+			if state.Verification == nil || state.Verification.ID != taskID || state.Verification.Status != VerificationTaskRunning {
+				return nil
+			}
+			state.Verification.Status = VerificationTaskPending
+			if point := findRestorePoint(state.RestorePoints, task.RestorePointID); point != nil && point.LastVerification != nil {
+				point.LastVerification.Status = VerificationTaskPending
+			}
+			return nil
+		})
+		return task, verifyErr
+	}
+	err = a.mutate(ctx, func(state *State) error {
+		if state.Verification == nil || state.Verification.ID != taskID {
+			return ErrStateConflict
+		}
+		completed := *state.Verification
+		if verifyErr != nil {
+			completed.Status = VerificationTaskFailed
+			completed.CompletedAtUnixMillis = a.now().UTC().UnixMilli()
+			completed.FailureCategory = "verification_failed"
+			if errors.Is(verifyErr, context.DeadlineExceeded) {
+				completed.FailureCategory = "verification_timeout"
+			}
+		} else {
+			completed.Status = VerificationTaskSucceeded
+			completed.CompletedAtUnixMillis = result.VerifiedAtUnixMillis
+			completed.PrimaryVerified = result.PrimaryVerified
+			completed.SecondaryVerified = result.SecondaryVerified
+			completed.ManifestSHA256 = result.ManifestSHA256
+			completed.FailureCategory = ""
+		}
+		state.Verification = &completed
+		if point := findRestorePoint(state.RestorePoints, completed.RestorePointID); point != nil {
+			evidence := completed.VerificationEvidence
+			point.LastVerification = &evidence
+		}
+		task = completed
+		return nil
+	})
+	if err != nil {
+		return VerificationTask{}, err
+	}
+	return task, verifyErr
+}
+
+func verificationTaskActive(task *VerificationTask) bool {
+	return task != nil && (task.Status == VerificationTaskPending || task.Status == VerificationTaskRunning)
+}
+
+func findRestorePoint(points []RestorePoint, restorePointID string) *RestorePoint {
+	for index := range points {
+		if points[index].ID == restorePointID {
+			return &points[index]
+		}
+	}
+	return nil
+}
+
 // Status returns a detached snapshot while preserving unknown recovery-point evidence.
 func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 	if !a.enabled {
@@ -112,7 +274,13 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 	if err != nil {
 		return StatusSnapshot{}, err
 	}
-	snapshot := StatusSnapshot{Enabled: true, Health: HealthUnknown, Active: cloneJob(state.Active), PendingGarbageCount: len(state.PendingGarbage)}
+	snapshot := StatusSnapshot{
+		Enabled: true, Health: HealthUnknown, Active: cloneJob(state.Active),
+		Verification: cloneVerificationTask(state.Verification), PendingGarbageCount: len(state.PendingGarbage),
+		MaxRecoveryPointAgeSeconds: int64(a.maxRecoveryPointAge / time.Second),
+		MaxVerificationAgeSeconds:  int64(a.maxVerificationAge / time.Second),
+	}
+	snapshot.Capacity = backupCapacitySnapshot(state)
 	if len(state.RestorePoints) > 0 {
 		latest := state.RestorePoints[0]
 		for _, candidate := range state.RestorePoints[1:] {
@@ -121,6 +289,7 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 				latest = candidate
 			}
 		}
+		latest = cloneRestorePoints([]RestorePoint{latest})[0]
 		snapshot.Latest = &latest
 		age := a.now().UTC().Unix() - time.UnixMilli(latest.EffectiveAtUnixMillis).UTC().Unix()
 		if age < 0 {
@@ -141,7 +310,67 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 			snapshot.Health = HealthFailed
 		}
 	}
+	var latestVerification *VerificationEvidence
+	if state.Verification != nil && state.Verification.CompletedAtUnixMillis > 0 {
+		evidence := state.Verification.VerificationEvidence
+		latestVerification = &evidence
+	}
+	for _, point := range state.RestorePoints {
+		if point.LastVerification != nil &&
+			point.LastVerification.CompletedAtUnixMillis > 0 &&
+			(latestVerification == nil || point.LastVerification.CompletedAtUnixMillis > latestVerification.CompletedAtUnixMillis) {
+			evidence := *point.LastVerification
+			latestVerification = &evidence
+		}
+	}
+	if latestVerification != nil && latestVerification.Status == VerificationTaskFailed {
+		snapshot.Health = HealthFailed
+		snapshot.FailureCategory = latestVerification.FailureCategory
+	}
+	if latestVerification != nil && latestVerification.Status == VerificationTaskSucceeded {
+		age := a.now().UTC().Unix() - time.UnixMilli(latestVerification.CompletedAtUnixMillis).UTC().Unix()
+		if age < 0 {
+			age = 0
+		}
+		snapshot.VerificationAgeSeconds = &age
+		if time.Duration(age)*time.Second > a.maxVerificationAge && snapshot.Health == HealthHealthy {
+			snapshot.Health = HealthDegraded
+		}
+	}
 	return snapshot, nil
+}
+
+func backupCapacitySnapshot(state State) CapacitySnapshot {
+	const warningPercent = 80
+	const criticalPercent = 95
+	maximum := controllerstate.MaxBackupRestorePoints
+	warningAt := maximum * warningPercent / 100
+	criticalAt := maximum * criticalPercent / 100
+	held := 0
+	for _, point := range state.RestorePoints {
+		if point.Held {
+			held++
+		}
+	}
+	total := len(state.RestorePoints) + len(state.PendingGarbage)
+	level := "normal"
+	if total >= criticalAt {
+		level = "critical"
+	} else if total >= warningAt {
+		level = "warning"
+	}
+	return CapacitySnapshot{
+		Total: total, Held: held, Pending: len(state.PendingGarbage), Max: maximum,
+		WarningAt: warningAt, CriticalAt: criticalAt, Level: level,
+	}
+}
+
+func cloneVerificationTask(task *VerificationTask) *VerificationTask {
+	if task == nil {
+		return nil
+	}
+	copy := *task
+	return &copy
 }
 
 // Trigger creates the only active backup job.
@@ -163,6 +392,9 @@ func (a *App) Trigger(ctx context.Context, request TriggerRequest) (Job, error) 
 	err := a.mutate(ctx, func(state *State) error {
 		if state.Active != nil {
 			return ErrJobActive
+		}
+		if verificationTaskActive(state.Verification) {
+			return ErrVerificationJobActive
 		}
 		now := a.now().UTC().UnixMilli()
 		created = Job{
@@ -332,14 +564,112 @@ func (a *App) ListRestorePoints(ctx context.Context) ([]RestorePoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	points := append([]RestorePoint(nil), state.RestorePoints...)
+	points := cloneRestorePoints(state.RestorePoints)
+	sortRestorePoints(points)
+	return points, nil
+}
+
+type restorePointCursor struct {
+	EffectiveAtUnixMillis int64  `json:"effective_at_unix_millis"`
+	CreatedAtUnixMillis   int64  `json:"created_at_unix_millis"`
+	ID                    string `json:"id"`
+}
+
+// ListRestorePointsPage returns one bounded, stable keyset page newest first.
+func (a *App) ListRestorePointsPage(ctx context.Context, request RestorePointListRequest) (RestorePointPage, error) {
+	if !a.enabled {
+		return RestorePointPage{}, ErrDisabled
+	}
+	limit := request.Limit
+	if limit == 0 {
+		limit = DefaultRestorePointPageSize
+	}
+	if limit < 0 {
+		return RestorePointPage{}, fmt.Errorf("%w: restore-point page limit must not be negative", ErrInvalidRequest)
+	}
+	if limit > MaxRestorePointPageSize {
+		limit = MaxRestorePointPageSize
+	}
+	var cursor *restorePointCursor
+	if strings.TrimSpace(request.Cursor) != "" {
+		decoded, err := decodeRestorePointCursor(request.Cursor)
+		if err != nil {
+			return RestorePointPage{}, fmt.Errorf("%w: invalid restore-point cursor", ErrInvalidRequest)
+		}
+		cursor = &decoded
+	}
+	state, err := a.store.Load(ctx)
+	if err != nil {
+		return RestorePointPage{}, err
+	}
+	query := strings.ToLower(strings.TrimSpace(request.IDQuery))
+	points := make([]RestorePoint, 0, len(state.RestorePoints))
+	for _, point := range state.RestorePoints {
+		if request.HeldOnly && !point.Held {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(point.ID), query) {
+			continue
+		}
+		points = append(points, point)
+	}
+	points = cloneRestorePoints(points)
+	sortRestorePoints(points)
+	page := RestorePointPage{Items: []RestorePoint{}, Total: len(points)}
+	for _, point := range points {
+		if cursor != nil && !restorePointAfterCursor(point, *cursor) {
+			continue
+		}
+		if len(page.Items) == limit {
+			page.NextCursor = encodeRestorePointCursor(page.Items[len(page.Items)-1])
+			break
+		}
+		page.Items = append(page.Items, point)
+	}
+	return page, nil
+}
+
+func sortRestorePoints(points []RestorePoint) {
 	sort.Slice(points, func(i, j int) bool {
 		if points[i].EffectiveAtUnixMillis != points[j].EffectiveAtUnixMillis {
 			return points[i].EffectiveAtUnixMillis > points[j].EffectiveAtUnixMillis
 		}
-		return points[i].CreatedAtUnixMillis > points[j].CreatedAtUnixMillis
+		if points[i].CreatedAtUnixMillis != points[j].CreatedAtUnixMillis {
+			return points[i].CreatedAtUnixMillis > points[j].CreatedAtUnixMillis
+		}
+		return points[i].ID > points[j].ID
 	})
-	return points, nil
+}
+
+func restorePointAfterCursor(point RestorePoint, cursor restorePointCursor) bool {
+	if point.EffectiveAtUnixMillis != cursor.EffectiveAtUnixMillis {
+		return point.EffectiveAtUnixMillis < cursor.EffectiveAtUnixMillis
+	}
+	if point.CreatedAtUnixMillis != cursor.CreatedAtUnixMillis {
+		return point.CreatedAtUnixMillis < cursor.CreatedAtUnixMillis
+	}
+	return point.ID < cursor.ID
+}
+
+func encodeRestorePointCursor(point RestorePoint) string {
+	payload, _ := json.Marshal(restorePointCursor{
+		EffectiveAtUnixMillis: point.EffectiveAtUnixMillis,
+		CreatedAtUnixMillis:   point.CreatedAtUnixMillis,
+		ID:                    point.ID,
+	})
+	return base64.RawURLEncoding.EncodeToString(payload)
+}
+
+func decodeRestorePointCursor(value string) (restorePointCursor, error) {
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(value))
+	if err != nil {
+		return restorePointCursor{}, err
+	}
+	var cursor restorePointCursor
+	if err := json.Unmarshal(payload, &cursor); err != nil || strings.TrimSpace(cursor.ID) == "" {
+		return restorePointCursor{}, ErrInvalidRequest
+	}
+	return cursor, nil
 }
 
 // Hold prevents retention collection for one published restore point.
@@ -382,6 +712,9 @@ func DecideSchedule(now time.Time, state State, policy SchedulePolicy) (Schedule
 	}
 	if state.Active != nil {
 		return ScheduleDecision{Reason: "job_active"}, nil
+	}
+	if verificationTaskActive(state.Verification) {
+		return ScheduleDecision{Reason: "verification_active"}, nil
 	}
 	nowMillis := now.UTC().UnixMilli()
 	if len(state.RestorePoints) == 0 {

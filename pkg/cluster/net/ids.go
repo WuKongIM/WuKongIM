@@ -101,6 +101,8 @@ const (
 	RPCBackupRestoreInstall
 	// RPCBackupRestoreVerify validates restored durable Channel cuts on one node.
 	RPCBackupRestoreVerify
+	// RPCManagerBackup routes bounded Manager backup operations to the current Controller leader.
+	RPCManagerBackup
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -181,6 +183,10 @@ func transportServiceAlias(serviceID uint8) string {
 		return "backup restore target"
 	case RPCBackupRestoreInstall:
 		return "backup restore install"
+	case RPCBackupRestoreVerify:
+		return "backup restore verify"
+	case RPCManagerBackup:
+		return "manager backup"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
 	case RPCNodeLifecycle:

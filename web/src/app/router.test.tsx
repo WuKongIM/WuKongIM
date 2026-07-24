@@ -9,6 +9,9 @@ import { routes } from "@/app/router"
 const getNodesMock = vi.fn()
 const getApplicationLogSourcesMock = vi.fn()
 const getApplicationLogEntriesMock = vi.fn()
+const getPermissionsMock = vi.fn()
+const getBackupStatusMock = vi.fn()
+const getBackupRestorePointsMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -17,6 +20,9 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getApplicationLogSources: (...args: unknown[]) => getApplicationLogSourcesMock(...args),
     getApplicationLogEntries: (...args: unknown[]) => getApplicationLogEntriesMock(...args),
+    getPermissions: (...args: unknown[]) => getPermissionsMock(...args),
+    getBackupStatus: (...args: unknown[]) => getBackupStatusMock(...args),
+    getBackupRestorePoints: (...args: unknown[]) => getBackupRestorePointsMock(...args),
   }
 })
 
@@ -37,6 +43,53 @@ beforeEach(() => {
   getNodesMock.mockReset()
   getApplicationLogSourcesMock.mockReset()
   getApplicationLogEntriesMock.mockReset()
+  getPermissionsMock.mockReset()
+  getBackupStatusMock.mockReset()
+  getBackupRestorePointsMock.mockReset()
+  getPermissionsMock.mockRejectedValue(new Error("authentication required"))
+  getBackupStatusMock.mockResolvedValue({
+    enabled: true,
+    health: "healthy",
+    recovery_point_age_seconds: 30,
+    verification_age_seconds: 60,
+    pending_garbage_count: 0,
+    coordinator_node_id: 1,
+    observed_at_unix_millis: 1_753_056_360_000,
+    auth_enabled: false,
+    running: true,
+    max_recovery_point_age_seconds: 300,
+    max_verification_age_seconds: 86_400,
+    policy: {
+      incremental_interval_seconds: 5,
+      restore_point_interval_seconds: 300,
+      independent_full_interval_seconds: 86_400,
+      materialized_full_interval_seconds: 2_592_000,
+      monthly_retention_months: 12,
+      object_lock_days: 30,
+      max_parallel_partitions: 4,
+      staging_max_bytes: 1024,
+      primary_region: "cn-a",
+      secondary_region: "cn-b",
+      kms_region: "cn-a",
+    },
+    dependencies: {
+      primary: { health: "healthy", region: "cn-a" },
+      secondary: { health: "healthy", region: "cn-b" },
+      kms: { health: "healthy", region: "cn-a" },
+      staging: { health: "healthy" },
+      utc: { health: "healthy" },
+    },
+    capacity: {
+      total: 1,
+      held: 0,
+      pending: 0,
+      max: 4096,
+      warning_at: 3276,
+      critical_at: 3891,
+      level: "normal",
+    },
+  })
+  getBackupRestorePointsMock.mockResolvedValue({ items: [], total: 0 })
   getNodesMock.mockResolvedValue({
     total: 1,
     items: [{
@@ -75,6 +128,49 @@ test("redirects anonymous /dashboard visits to /login", async () => {
   )
 
   expect(await screen.findByRole("heading", { name: /sign in/i })).toBeInTheDocument()
+})
+
+test("opens backup management read-only for a fresh auth-disabled browser", async () => {
+  getPermissionsMock.mockResolvedValue({
+    auth_enabled: false,
+    current_user: "",
+    users: [],
+    resources: [],
+  })
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/backups"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("heading", { name: "Backup Management" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Create backup now" })).toBeDisabled()
+  expect(useAuthStore.getState()).toMatchObject({
+    status: "readonly",
+    permissions: [{ resource: "cluster.backup", actions: ["r"] }],
+  })
+})
+
+test("confines the auth-disabled readonly session to backup management", async () => {
+  getPermissionsMock.mockResolvedValue({
+    auth_enabled: false,
+    current_user: "",
+    users: [],
+    resources: [],
+  })
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("heading", { name: "Backup Management" })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe("/cluster/backups")
+  expect(getNodesMock).not.toHaveBeenCalled()
 })
 
 test("redirects authenticated /login visits to the cluster live monitor", async () => {

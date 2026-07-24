@@ -19,6 +19,7 @@ export function Topbar() {
   const activeSection = getActiveNavigationSection(location.pathname)
   const page = getActiveNavigationItem(location.pathname)
   const username = useAuthStore((state) => state.username)
+  const authStatus = useAuthStore((state) => state.status)
   const logout = useAuthStore((state) => state.logout)
 
   return (
@@ -81,11 +82,15 @@ export function Topbar() {
           <ThemeSwitcher />
           <LocaleSwitcher />
           <div className="flex items-center gap-2 border-l border-border pl-2 sm:pl-3">
-            <span className="hidden text-xs text-muted-foreground sm:inline">{username}</span>
-            <Button onClick={logout} size="sm" variant="outline">
-              <Activity className="size-3.5" />
-              {intl.formatMessage({ id: "common.logout" })}
-            </Button>
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              {authStatus === "readonly" ? intl.formatMessage({ id: "tasks.readOnly" }) : username}
+            </span>
+            {authStatus === "authenticated" ? (
+              <Button onClick={logout} size="sm" variant="outline">
+                <Activity className="size-3.5" />
+                {intl.formatMessage({ id: "common.logout" })}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

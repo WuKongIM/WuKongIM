@@ -87,4 +87,17 @@ describe("auth store session lifecycle", () => {
     expect(useAuthStore.getState().isHydrated).toBe(true)
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
   })
+
+  it("enters a non-persisted backup-only readonly session when manager authentication is disabled", () => {
+    useAuthStore.getState().enterAuthDisabledReadonly()
+
+    expect(useAuthStore.getState()).toMatchObject({
+      status: "readonly",
+      isHydrated: true,
+      username: "read-only",
+      accessToken: "",
+      permissions: [{ resource: "cluster.backup", actions: ["r"] }],
+    })
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
 })

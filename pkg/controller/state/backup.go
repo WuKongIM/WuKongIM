@@ -104,6 +104,44 @@ type BackupRestorePoint struct {
 	SecondaryVerified bool `json:"secondary_verified"`
 	// Held prevents retention collection while true.
 	Held bool `json:"held,omitempty"`
+	// LastVerification is later audit evidence, separate from publication verification.
+	LastVerification *BackupVerificationEvidence `json:"last_verification,omitempty"`
+}
+
+// BackupVerificationTaskStatus identifies one durable manual verification lifecycle state.
+type BackupVerificationTaskStatus string
+
+const (
+	BackupVerificationTaskStatusPending   BackupVerificationTaskStatus = "pending"
+	BackupVerificationTaskStatusRunning   BackupVerificationTaskStatus = "running"
+	BackupVerificationTaskStatusSucceeded BackupVerificationTaskStatus = "succeeded"
+	BackupVerificationTaskStatusFailed    BackupVerificationTaskStatus = "failed"
+)
+
+// BackupVerificationEvidence is bounded evidence from one later repository audit.
+type BackupVerificationEvidence struct {
+	// Status identifies the current or terminal audit phase.
+	Status BackupVerificationTaskStatus `json:"status"`
+	// StartedAtUnixMillis and CompletedAtUnixMillis are UTC lifecycle timestamps.
+	StartedAtUnixMillis   int64 `json:"started_at_unix_millis"`
+	CompletedAtUnixMillis int64 `json:"completed_at_unix_millis,omitempty"`
+	// PrimaryVerified and SecondaryVerified report independent repository results.
+	PrimaryVerified   bool `json:"primary_verified"`
+	SecondaryVerified bool `json:"secondary_verified"`
+	// ManifestSHA256 authenticates the audited top-level bytes on success.
+	ManifestSHA256 string `json:"manifest_sha256,omitempty"`
+	// FailureCategory is a bounded non-sensitive failure class.
+	FailureCategory string `json:"failure_category,omitempty"`
+}
+
+// BackupVerificationTask is the one cluster-wide durable manual audit task.
+type BackupVerificationTask struct {
+	// ID uniquely identifies this resumable task.
+	ID string `json:"id"`
+	// RestorePointID identifies the exact audited recovery point.
+	RestorePointID string `json:"restore_point_id"`
+	// BackupVerificationEvidence contains the current bounded task result.
+	BackupVerificationEvidence
 }
 
 // BackupErasureLedgerReference is the only bounded pending permanent-erasure
@@ -125,6 +163,8 @@ type BackupCoordinationState struct {
 	LastEpoch uint64 `json:"last_epoch"`
 	// Active contains the only active job, when present.
 	Active *BackupJob `json:"active,omitempty"`
+	// Verification contains the latest cluster-wide manual verification task.
+	Verification *BackupVerificationTask `json:"verification,omitempty"`
 	// RestorePoints contains bounded published restore-point references.
 	RestorePoints []BackupRestorePoint `json:"restore_points"`
 	// PendingGarbage contains expired restore-point graphs awaiting reference-safe repository collection.
@@ -145,8 +185,12 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 		job.Partitions = cloneSlice(s.Active.Partitions)
 		out.Active = &job
 	}
-	out.RestorePoints = cloneSlice(s.RestorePoints)
-	out.PendingGarbage = cloneSlice(s.PendingGarbage)
+	if s.Verification != nil {
+		verification := *s.Verification
+		out.Verification = &verification
+	}
+	out.RestorePoints = cloneBackupRestorePoints(s.RestorePoints)
+	out.PendingGarbage = cloneBackupRestorePoints(s.PendingGarbage)
 	if s.PendingErasureLedger != nil {
 		pending := *s.PendingErasureLedger
 		out.PendingErasureLedger = &pending
@@ -154,6 +198,17 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 	if s.LastCommittedErasureLedger != nil {
 		committed := *s.LastCommittedErasureLedger
 		out.LastCommittedErasureLedger = &committed
+	}
+	return out
+}
+
+func cloneBackupRestorePoints(points []BackupRestorePoint) []BackupRestorePoint {
+	out := cloneSlice(points)
+	for index := range out {
+		if points[index].LastVerification != nil {
+			evidence := *points[index].LastVerification
+			out[index].LastVerification = &evidence
+		}
 	}
 	return out
 }

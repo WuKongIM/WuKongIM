@@ -77,10 +77,11 @@ describe("navigationSections", () => {
     const hrefs = clusterSection?.items.map((item) => item.href)
 
     expect(hrefs).toContain("/cluster/system-logs")
-    expect(hrefs?.slice(-3)).toEqual([
+    expect(hrefs?.slice(-4)).toEqual([
       "/cluster/node-config",
       "/cluster/system-logs",
       "/cluster/diagnostics",
+      "/cluster/backups",
     ])
     expect(getActiveNavigationItem("/app-logs")?.titleMessageId).toBe("nav.systemLogs.title")
   })

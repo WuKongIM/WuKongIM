@@ -3,6 +3,7 @@ import { Navigate, createBrowserRouter, useLocation, type RouteObject } from "re
 import { AppShell } from "@/app/layout/app-shell"
 import { ProtectedRoute, PublicOnlyRoute } from "@/auth/protected-route"
 import { AppLogsPage } from "@/pages/app-logs/page"
+import { BackupsPage } from "@/pages/backups/page"
 import { BusinessDashboardPage } from "@/pages/business-dashboard/page"
 import { ChannelsBizPage } from "@/pages/channels-biz/page"
 import { ClusterChannelsPage } from "@/pages/cluster/channels/page"
@@ -66,6 +67,7 @@ export const routes: RouteObject[] = [
       { path: "cluster/workqueues", element: <WorkqueuesPage /> },
       { path: "cluster/system-logs", element: <AppLogsPage /> },
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
+      { path: "cluster/backups", element: <BackupsPage /> },
       // Business management
       { path: "business/dashboard", element: <BusinessDashboardPage /> },
       { path: "business/users", element: <UsersPage /> },

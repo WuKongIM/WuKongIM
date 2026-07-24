@@ -12,6 +12,8 @@ import (
 var (
 	// ErrJobActive reports a trigger attempted while another backup job is active.
 	ErrJobActive = errors.New("backup usecase: job already active")
+	// ErrVerificationJobActive reports an operation blocked by the cluster verification task.
+	ErrVerificationJobActive = errors.New("backup usecase: verification job already active")
 	// ErrStateConflict reports an optimistic coordination-state conflict.
 	ErrStateConflict = errors.New("backup usecase: state conflict")
 )
@@ -39,6 +41,20 @@ const (
 	HealthDegraded Health = "degraded"
 	HealthFailed   Health = "failed"
 )
+
+// DoctorReport is one bounded dependency readiness observation.
+type DoctorReport struct {
+	// Primary, Secondary, KMS, Staging, and UTC preserve individual readiness.
+	Primary   Health
+	Secondary Health
+	KMS       Health
+	Staging   Health
+	UTC       Health
+	// CheckedAtUnixMillis is the UTC server observation time.
+	CheckedAtUnixMillis int64
+	// FailureCategory identifies the first failed dependency without raw details.
+	FailureCategory string
+}
 
 // PartitionReport is the bounded completion summary for one logical hash slot.
 type PartitionReport struct {
@@ -103,6 +119,8 @@ type RestorePoint struct {
 	SecondaryVerified bool
 	// Held prevents retention collection while true.
 	Held bool
+	// LastVerification is later audit evidence, separate from publication verification.
+	LastVerification *VerificationEvidence
 }
 
 // Verification is bounded evidence from an explicit dual-repository audit.
@@ -116,6 +134,42 @@ type Verification struct {
 	SecondaryVerified bool
 	// ManifestSHA256 authenticates the audited top-level bytes.
 	ManifestSHA256 string
+}
+
+// VerificationTaskStatus identifies one durable manual verification lifecycle state.
+type VerificationTaskStatus string
+
+const (
+	VerificationTaskPending   VerificationTaskStatus = "pending"
+	VerificationTaskRunning   VerificationTaskStatus = "running"
+	VerificationTaskSucceeded VerificationTaskStatus = "succeeded"
+	VerificationTaskFailed    VerificationTaskStatus = "failed"
+)
+
+// VerificationEvidence is bounded per-restore-point evidence from the latest later audit.
+type VerificationEvidence struct {
+	// Status is pending, running, succeeded, or failed.
+	Status VerificationTaskStatus
+	// StartedAtUnixMillis and CompletedAtUnixMillis are UTC lifecycle timestamps.
+	StartedAtUnixMillis   int64
+	CompletedAtUnixMillis int64
+	// PrimaryVerified and SecondaryVerified report independent repository results.
+	PrimaryVerified   bool
+	SecondaryVerified bool
+	// ManifestSHA256 authenticates the audited top-level bytes on success.
+	ManifestSHA256 string
+	// FailureCategory is a bounded non-sensitive error class.
+	FailureCategory string
+}
+
+// VerificationTask is the one cluster-wide durable manual verification task.
+type VerificationTask struct {
+	// ID uniquely identifies the task for polling and failover resume.
+	ID string
+	// RestorePointID identifies the exact audited recovery point.
+	RestorePointID string
+	// VerificationEvidence contains the current bounded task result.
+	VerificationEvidence
 }
 
 // ErasureLedgerRecordReference is the bounded Controller coordination fence for
@@ -159,6 +213,8 @@ type State struct {
 	LastEpoch uint64
 	// Active contains the only in-progress job.
 	Active *Job
+	// Verification contains the latest manual verification task.
+	Verification *VerificationTask
 	// RestorePoints contains selectable bounded recovery references.
 	RestorePoints []RestorePoint
 	// PendingGarbage contains expired references awaiting external collection.
@@ -179,8 +235,12 @@ func (s State) Clone() State {
 		job.Partitions = append([]PartitionReport(nil), s.Active.Partitions...)
 		out.Active = &job
 	}
-	out.RestorePoints = append([]RestorePoint(nil), s.RestorePoints...)
-	out.PendingGarbage = append([]RestorePoint(nil), s.PendingGarbage...)
+	if s.Verification != nil {
+		verification := *s.Verification
+		out.Verification = &verification
+	}
+	out.RestorePoints = CloneRestorePoints(s.RestorePoints)
+	out.PendingGarbage = CloneRestorePoints(s.PendingGarbage)
 	if s.PendingErasureLedger != nil {
 		pending := *s.PendingErasureLedger
 		out.PendingErasureLedger = &pending
@@ -188,6 +248,18 @@ func (s State) Clone() State {
 	if s.LastCommittedErasureLedger != nil {
 		committed := *s.LastCommittedErasureLedger
 		out.LastCommittedErasureLedger = &committed
+	}
+	return out
+}
+
+// CloneRestorePoints returns a deep copy safe for mutation by a caller.
+func CloneRestorePoints(points []RestorePoint) []RestorePoint {
+	out := append([]RestorePoint(nil), points...)
+	for index := range out {
+		if points[index].LastVerification != nil {
+			evidence := *points[index].LastVerification
+			out[index].LastVerification = &evidence
+		}
 	}
 	return out
 }

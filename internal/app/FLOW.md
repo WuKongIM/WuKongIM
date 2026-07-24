@@ -1047,6 +1047,12 @@ node RPC, and low-cardinality metrics. Backup doctor or runtime failure is
 reported independently and never changes ordinary message readiness.
 Manager backup health remains `unknown` when node-local doctor or successful
 dual-repository audit evidence is missing, even if the latest RPO is fresh.
+Every ordinary Manager node exposes the same backup surface: the app facade
+routes each operation once to the currently observed Controller Leader through
+the leader-fenced Manager backup RPC and does not automatically replay writes
+after a leadership transition. Status combines durable coordination state with
+the coordinator node/observation time, configured non-secret policy, individual
+doctor dependency readiness, and bounded retained-reference capacity.
 The cluster-wide config fingerprint excludes the node-local staging directory;
 repository, identity, schedule, retention, and cryptographic policy remain in
 the agreement fence.

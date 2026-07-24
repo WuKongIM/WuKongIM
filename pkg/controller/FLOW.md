@@ -110,7 +110,10 @@ the configured TTL instead of interpreting membership `JoinState` as liveness.
 
 `BackupCoordinationState` is an optional bounded section of `cluster-state.json`.
 It stores one active backup job, at most one compact completion report per logical
-hash slot, and bounded published restore-point references. Large partition
+hash slot, one durable verification task, bounded published restore-point
+references, and at most one latest later-audit evidence record per retained
+restore point. Active backup and pending/running verification are mutually
+exclusive. Large partition
 manifests, encrypted objects, KMS material, and repository credentials remain
 outside Controller Raft. `ReplaceBackupCoordinationState` uses the normal global
 Controller `Revision` fence, so a stale coordinator reloads after any concurrent

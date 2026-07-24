@@ -96,17 +96,101 @@ func TestManagerBackupRoutesEnforceReadWritePermissions(t *testing.T) {
 	}
 }
 
+func TestManagerBackupRestorePointsUsesBoundedCursorPagination(t *testing.T) {
+	provider := &fakeBackupManagement{page: backupusecase.RestorePointPage{
+		Items:      []backupusecase.RestorePoint{{ID: "rp-2", Held: true}},
+		NextCursor: "next-page",
+		Total:      7,
+	}}
+	srv := New(Options{Backup: provider})
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/backups/restore-points?limit=999&cursor=opaque&id=RP&held=true", nil)
+	srv.Engine().ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if provider.listRequest.Limit != backupusecase.MaxRestorePointPageSize ||
+		provider.listRequest.Cursor != "opaque" ||
+		provider.listRequest.IDQuery != "RP" ||
+		!provider.listRequest.HeldOnly {
+		t.Fatalf("list request = %#v", provider.listRequest)
+	}
+	var decoded struct {
+		Items      []backupRestorePointDTO `json:"items"`
+		NextCursor string                  `json:"next_cursor"`
+		Total      int                     `json:"total"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("Unmarshal(): %v", err)
+	}
+	if len(decoded.Items) != 1 || decoded.Items[0].ID != "rp-2" || decoded.NextCursor != "next-page" || decoded.Total != 7 {
+		t.Fatalf("response = %#v", decoded)
+	}
+}
+
+func TestManagerBackupVerificationStartsDurableAsyncTask(t *testing.T) {
+	provider := &fakeBackupManagement{verificationTask: backupusecase.VerificationTask{
+		ID: "verification-1", RestorePointID: "rp-1",
+		VerificationEvidence: backupusecase.VerificationEvidence{
+			Status: backupusecase.VerificationTaskPending, StartedAtUnixMillis: 123,
+		},
+	}}
+	srv := New(Options{Backup: provider})
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/backups/restore-points/rp-1/verify", nil)
+	srv.Engine().ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var decoded backupVerificationTaskDTO
+	if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("Unmarshal(): %v", err)
+	}
+	if decoded.ID != "verification-1" || decoded.RestorePointID != "rp-1" || decoded.Status != backupusecase.VerificationTaskPending {
+		t.Fatalf("task = %#v", decoded)
+	}
+}
+
+func TestManagerBackupUsesStableMachineErrors(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		err        error
+		status     int
+		code       string
+		retryAfter string
+	}{
+		{name: "leader unavailable", err: backupusecase.ErrControllerLeaderUnavailable, status: http.StatusServiceUnavailable, code: "controller_leader_unavailable", retryAfter: "1"},
+		{name: "backup active", err: backupusecase.ErrJobActive, status: http.StatusConflict, code: "backup_job_active"},
+		{name: "verification active", err: backupusecase.ErrVerificationJobActive, status: http.StatusConflict, code: "verification_job_active"},
+		{name: "restore point missing", err: backupusecase.ErrRestorePointNotFound, status: http.StatusNotFound, code: "restore_point_not_found"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			srv := New(Options{Backup: &fakeBackupManagement{statusErr: testCase.err}})
+			recorder := httptest.NewRecorder()
+			srv.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/manager/backups/status", nil))
+			if recorder.Code != testCase.status || !bytes.Contains(recorder.Body.Bytes(), []byte(`"error":"`+testCase.code+`"`)) || recorder.Header().Get("Retry-After") != testCase.retryAfter {
+				t.Fatalf("status=%d headers=%v body=%s", recorder.Code, recorder.Header(), recorder.Body.String())
+			}
+		})
+	}
+}
+
 type fakeBackupManagement struct {
-	status    backupusecase.StatusSnapshot
-	triggered bool
+	status           backupusecase.StatusSnapshot
+	page             backupusecase.RestorePointPage
+	listRequest      backupusecase.RestorePointListRequest
+	verificationTask backupusecase.VerificationTask
+	triggered        bool
+	statusErr        error
 }
 
 func (f *fakeBackupManagement) Status(context.Context) (backupusecase.StatusSnapshot, error) {
-	return f.status, nil
+	return f.status, f.statusErr
 }
 
-func (f *fakeBackupManagement) ListRestorePoints(context.Context) ([]backupusecase.RestorePoint, error) {
-	return nil, nil
+func (f *fakeBackupManagement) ListRestorePointsPage(_ context.Context, request backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error) {
+	f.listRequest = request
+	return f.page, nil
 }
 
 func (f *fakeBackupManagement) Trigger(_ context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
@@ -126,6 +210,6 @@ func (f *fakeBackupManagement) Release(context.Context, string) (backupusecase.R
 	return backupusecase.RestorePoint{}, nil
 }
 
-func (f *fakeBackupManagement) Verify(context.Context, string) (backupusecase.Verification, error) {
-	return backupusecase.Verification{}, nil
+func (f *fakeBackupManagement) StartVerification(context.Context, string) (backupusecase.VerificationTask, error) {
+	return f.verificationTask, nil
 }

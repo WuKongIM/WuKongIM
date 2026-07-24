@@ -131,6 +131,118 @@ func TestStatusKeepsRecoveryPointAgeUnknownBeforeFirstPublish(t *testing.T) {
 	}
 }
 
+func TestListRestorePointsPageUsesStableNewestFirstCursor(t *testing.T) {
+	t.Parallel()
+
+	store := &memoryStateStore{state: backupusecase.State{RestorePoints: []backupusecase.RestorePoint{
+		{ID: "rp-oldest", EffectiveAtUnixMillis: 100, CreatedAtUnixMillis: 200},
+		{ID: "rp-newest-b", EffectiveAtUnixMillis: 300, CreatedAtUnixMillis: 500},
+		{ID: "rp-newest-a", EffectiveAtUnixMillis: 300, CreatedAtUnixMillis: 400},
+	}}}
+	app, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled:       true,
+		HashSlotCount: 2,
+		Store:         store,
+		Publisher:     &recordingPublisher{},
+		Now:           time.Now,
+		NewJobID:      func() string { return "backup-job-list" },
+	})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	first, err := app.ListRestorePointsPage(context.Background(), backupusecase.RestorePointListRequest{Limit: 2})
+	if err != nil {
+		t.Fatalf("ListRestorePointsPage(first) error = %v", err)
+	}
+	if first.Total != 3 || len(first.Items) != 2 || first.Items[0].ID != "rp-newest-b" || first.Items[1].ID != "rp-newest-a" || first.NextCursor == "" {
+		t.Fatalf("ListRestorePointsPage(first) = %#v", first)
+	}
+
+	second, err := app.ListRestorePointsPage(context.Background(), backupusecase.RestorePointListRequest{
+		Limit:  2,
+		Cursor: first.NextCursor,
+	})
+	if err != nil {
+		t.Fatalf("ListRestorePointsPage(second) error = %v", err)
+	}
+	if second.Total != 3 || len(second.Items) != 1 || second.Items[0].ID != "rp-oldest" || second.NextCursor != "" {
+		t.Fatalf("ListRestorePointsPage(second) = %#v", second)
+	}
+}
+
+func TestManualVerificationIsDurableAndMutuallyExclusiveWithBackup(t *testing.T) {
+	t.Parallel()
+
+	now := time.UnixMilli(1_753_056_360_000).UTC()
+	store := &memoryStateStore{state: backupusecase.State{
+		LastEpoch: 1,
+		RestorePoints: []backupusecase.RestorePoint{{
+			ID: "rp-audit", JobID: "backup-job-1", BackupEpoch: 1,
+			Kind:                  backupartifact.RestorePointMaterializedFull,
+			EffectiveAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
+			CreatedAtUnixMillis:   now.Add(-30 * time.Second).UnixMilli(),
+			ManifestSHA256:        strings.Repeat("a", 64),
+			PrimaryVerified:       true,
+			SecondaryVerified:     true,
+		}},
+	}}
+	app, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled:       true,
+		HashSlotCount: 2,
+		Store:         store,
+		Publisher:     &recordingPublisher{},
+		Verifier: &fixedVerifier{result: backupusecase.Verification{
+			RestorePointID:       "rp-audit",
+			VerifiedAtUnixMillis: now.Add(time.Second).UnixMilli(),
+			PrimaryVerified:      true,
+			SecondaryVerified:    true,
+			ManifestSHA256:       strings.Repeat("a", 64),
+		}},
+		Now:      func() time.Time { return now },
+		NewJobID: func() string { return "verification-1" },
+	})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	task, err := app.StartVerification(context.Background(), "rp-audit")
+	if err != nil {
+		t.Fatalf("StartVerification() error = %v", err)
+	}
+	if task.ID != "verification-1" || task.Status != backupusecase.VerificationTaskPending {
+		t.Fatalf("StartVerification() = %#v", task)
+	}
+	if _, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{
+		Kind: backupartifact.RestorePointMaterializedFull, ConfigFingerprint: "config",
+	}); !errors.Is(err, backupusecase.ErrVerificationJobActive) {
+		t.Fatalf("Trigger() during verification error = %v, want %v", err, backupusecase.ErrVerificationJobActive)
+	}
+
+	completed, err := app.RunVerification(context.Background(), task.ID)
+	if err != nil {
+		t.Fatalf("RunVerification() error = %v", err)
+	}
+	if completed.Status != backupusecase.VerificationTaskSucceeded || completed.CompletedAtUnixMillis != now.Add(time.Second).UnixMilli() {
+		t.Fatalf("RunVerification() = %#v", completed)
+	}
+	state, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if state.Verification == nil || state.Verification.Status != backupusecase.VerificationTaskSucceeded ||
+		state.RestorePoints[0].LastVerification == nil ||
+		state.RestorePoints[0].LastVerification.Status != backupusecase.VerificationTaskSucceeded ||
+		state.RestorePoints[0].LastVerification.ManifestSHA256 != strings.Repeat("a", 64) {
+		t.Fatalf("durable verification state = %#v", state)
+	}
+	if _, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{
+		Kind: backupartifact.RestorePointMaterializedFull, ConfigFingerprint: "config",
+	}); err != nil {
+		t.Fatalf("Trigger() after verification error = %v", err)
+	}
+}
+
 func TestErasureLedgerCommitReservationIsBoundedIdempotentAndContiguous(t *testing.T) {
 	t.Parallel()
 
@@ -432,6 +544,15 @@ type publishResult struct {
 type sequencedPublisher struct {
 	mu      sync.Mutex
 	results []publishResult
+}
+
+type fixedVerifier struct {
+	result backupusecase.Verification
+	err    error
+}
+
+func (v *fixedVerifier) Verify(context.Context, string) (backupusecase.Verification, error) {
+	return v.result, v.err
 }
 
 func (p *sequencedPublisher) Publish(_ context.Context, _ backupusecase.Job) (backupusecase.RestorePoint, error) {

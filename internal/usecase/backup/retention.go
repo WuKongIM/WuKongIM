@@ -99,9 +99,12 @@ func (a *App) ApplyRetention(ctx context.Context, policy RetentionPolicy) (Reten
 		if err != nil {
 			return RetentionDecision{}, err
 		}
-		protected := make([]string, 0, 1)
+		protected := make([]string, 0, 2)
 		if state.Active != nil && state.Active.BaseRestorePointID != "" {
 			protected = append(protected, state.Active.BaseRestorePointID)
+		}
+		if verificationTaskActive(state.Verification) {
+			protected = append(protected, state.Verification.RestorePointID)
 		}
 		decision, err := DecideRetention(a.now(), state.RestorePoints, policy, protected)
 		if err != nil {

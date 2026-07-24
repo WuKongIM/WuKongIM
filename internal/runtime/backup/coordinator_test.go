@@ -91,6 +91,32 @@ func TestCoordinatorAuditsNewestRestorePointAtBoundedDailyCadence(t *testing.T) 
 	if len(app.verifiedRestorePoints) != 1 || app.verifiedRestorePoints[0] != "newer" {
 		t.Fatalf("verified restore points = %v, want [newer]", app.verifiedRestorePoints)
 	}
+	if age := coordinator.verificationAgeSeconds(); age != nil {
+		t.Fatalf("verification age = %v, want unknown before durable task completion", age)
+	}
+}
+
+func TestCoordinatorResumesDurableVerificationBeforeOtherBackupWork(t *testing.T) {
+	now := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
+	app := &fakeCoordinatorApp{state: backupcontract.State{
+		Verification: &backupcontract.VerificationTask{
+			ID: "verification-1", RestorePointID: "restore-1",
+			VerificationEvidence: backupcontract.VerificationEvidence{
+				Status: backupcontract.VerificationTaskPending, StartedAtUnixMillis: now.Add(-time.Second).UnixMilli(),
+			},
+		},
+		RestorePoints: []backupcontract.RestorePoint{{ID: "restore-1"}},
+	}}
+	dispatcher := &fakePartitionDispatcher{}
+	coordinator := newTestCoordinator(t, app, fakeCoordinatorDoctor{}, dispatcher)
+	coordinator.options.Now = func() time.Time { return now }
+
+	if err := coordinator.runOnce(context.Background()); err != nil {
+		t.Fatalf("runOnce() error = %v", err)
+	}
+	if app.runVerificationCalls != 1 || dispatcher.callCount() != 0 || app.retentionCalls != 0 {
+		t.Fatalf("verification calls=%d dispatch=%d retention=%d", app.runVerificationCalls, dispatcher.callCount(), app.retentionCalls)
+	}
 	if age := coordinator.verificationAgeSeconds(); age == nil || *age != 0 {
 		t.Fatalf("verification age = %v, want 0", age)
 	}
@@ -136,7 +162,16 @@ func waitCoordinator(t *testing.T, condition func() bool) {
 
 type fakeCoordinatorDoctor struct{ err error }
 
-func (f fakeCoordinatorDoctor) Check(context.Context) error { return f.err }
+func (f fakeCoordinatorDoctor) Check(context.Context) (backupcontract.DoctorReport, error) {
+	health := backupcontract.HealthHealthy
+	if f.err != nil {
+		health = backupcontract.HealthFailed
+	}
+	return backupcontract.DoctorReport{
+		Primary: health, Secondary: health, KMS: health, Staging: health, UTC: health,
+		CheckedAtUnixMillis: time.Now().UnixMilli(),
+	}, f.err
+}
 
 type fakeCoordinatorLeadership struct{ local, leader uint64 }
 
@@ -163,6 +198,7 @@ type fakeCoordinatorApp struct {
 	retentionCalls        int
 	completedGarbage      []string
 	verifiedRestorePoints []string
+	runVerificationCalls  int
 }
 
 func (f *fakeCoordinatorApp) CoordinationState(context.Context) (backupcontract.State, error) {
@@ -208,11 +244,34 @@ func (f *fakeCoordinatorApp) CompleteGarbage(_ context.Context, restorePointID s
 	}
 	return nil
 }
-func (f *fakeCoordinatorApp) Verify(_ context.Context, restorePointID string) (backupcontract.Verification, error) {
+func (f *fakeCoordinatorApp) StartVerification(_ context.Context, restorePointID string) (backupcontract.VerificationTask, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.verifiedRestorePoints = append(f.verifiedRestorePoints, restorePointID)
-	return backupcontract.Verification{RestorePointID: restorePointID, VerifiedAtUnixMillis: time.Now().UnixMilli(), PrimaryVerified: true, SecondaryVerified: true, ManifestSHA256: fmt.Sprintf("%064x", 1)}, nil
+	task := backupcontract.VerificationTask{
+		ID: "verification-scheduled", RestorePointID: restorePointID,
+		VerificationEvidence: backupcontract.VerificationEvidence{
+			Status: backupcontract.VerificationTaskPending, StartedAtUnixMillis: time.Now().UnixMilli(),
+		},
+	}
+	f.state.Verification = &task
+	return task, nil
+}
+func (f *fakeCoordinatorApp) RunVerification(_ context.Context, taskID string) (backupcontract.VerificationTask, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.runVerificationCalls++
+	if f.state.Verification == nil || f.state.Verification.ID != taskID {
+		return backupcontract.VerificationTask{}, errors.New("verification task missing")
+	}
+	task := *f.state.Verification
+	task.Status = backupcontract.VerificationTaskSucceeded
+	task.CompletedAtUnixMillis = time.Now().UnixMilli()
+	task.PrimaryVerified = true
+	task.SecondaryVerified = true
+	task.ManifestSHA256 = fmt.Sprintf("%064x", 1)
+	f.state.Verification = &task
+	return task, nil
 }
 
 type fakeRetentionGarbageCollector struct {

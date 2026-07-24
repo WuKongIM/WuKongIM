@@ -41,7 +41,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&cfg.rawJSON, "json", false, "Render raw JSON output")
 	cmd.AddCommand(
 		newReadCommand(deps, &cfg, "status", "Show backup health and RPO", "/manager/backups/status", false),
-		newReadCommand(deps, &cfg, "list", "List published restore points", "/manager/backups/restore-points", true),
+		newListCommand(deps, &cfg),
 		newTriggerCommand(deps, &cfg), newCancelCommand(deps, &cfg),
 		newPointMutationCommand(deps, &cfg, "hold", "Place a retention hold on a restore point"),
 		newPointMutationCommand(deps, &cfg, "release", "Release a restore-point retention hold"),
@@ -49,6 +49,15 @@ func NewCommand(deps command.Deps) *cobra.Command {
 		newRestoreCommand(deps, &cfg),
 	)
 	return cmd
+}
+
+func newListCommand(deps command.Deps, cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use: "list", Aliases: []string{"ls"}, Short: "List published restore points", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return executeRestorePointList(deps, *cfg, cmd.Context())
+		},
+	}
 }
 
 func newRestoreCommand(deps command.Deps, cfg *config) *cobra.Command {
@@ -174,7 +183,61 @@ func execute(deps command.Deps, cfg config, ctx context.Context, method, path st
 		}
 		return command.Exit{Code: command.ExitUnavailable, Message: err.Error()}
 	}
-	if cfg.rawJSON {
+	return renderResponse(deps, cfg.rawJSON, body)
+}
+
+func executeRestorePointList(deps command.Deps, cfg config, ctx context.Context) error {
+	server, err := resolveServer(deps, cfg)
+	if err != nil {
+		return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+	}
+	const maxPages = 32
+	type page struct {
+		Items      []json.RawMessage `json:"items"`
+		NextCursor string            `json:"next_cursor"`
+		Total      int               `json:"total"`
+	}
+	result := page{Items: []json.RawMessage{}}
+	seen := make(map[string]struct{})
+	cursor := ""
+	for pageIndex := 0; pageIndex < maxPages; pageIndex++ {
+		path := "/manager/backups/restore-points?limit=200"
+		if cursor != "" {
+			path += "&cursor=" + url.QueryEscape(cursor)
+		}
+		body, callErr := call(ctx, server, cfg.token, cfg.timeout, http.MethodGet, path, nil)
+		if callErr != nil {
+			var statusErr *statusError
+			if errors.As(callErr, &statusErr) && statusErr.code >= 400 && statusErr.code < 500 {
+				return command.Exit{Code: command.ExitConfig, Message: callErr.Error()}
+			}
+			return command.Exit{Code: command.ExitUnavailable, Message: callErr.Error()}
+		}
+		var current page
+		if err := json.Unmarshal(body, &current); err != nil {
+			return command.Exit{Code: command.ExitInternal, Message: fmt.Sprintf("decode Manager response: %v", err)}
+		}
+		result.Items = append(result.Items, current.Items...)
+		result.Total = current.Total
+		cursor = strings.TrimSpace(current.NextCursor)
+		if cursor == "" {
+			result.NextCursor = ""
+			combined, err := json.Marshal(result)
+			if err != nil {
+				return command.Exit{Code: command.ExitInternal, Message: err.Error()}
+			}
+			return renderResponse(deps, cfg.rawJSON, combined)
+		}
+		if _, exists := seen[cursor]; exists {
+			return command.Exit{Code: command.ExitInternal, Message: "Manager returned a repeated restore-point cursor"}
+		}
+		seen[cursor] = struct{}{}
+	}
+	return command.Exit{Code: command.ExitInternal, Message: "restore-point pagination exceeded bounded page limit"}
+}
+
+func renderResponse(deps command.Deps, rawJSON bool, body []byte) error {
+	if rawJSON {
 		fmt.Fprintln(deps.Stdout, string(body))
 		return nil
 	}

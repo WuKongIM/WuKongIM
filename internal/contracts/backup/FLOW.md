@@ -10,6 +10,13 @@ encode repository artifacts, or call infrastructure. Business decisions remain
 in `internal/usecase/backup`; runtime receives the pure scheduling function
 through composition.
 
+Backup coordination state includes at most one durable verification task and
+bounded per-restore-point later-audit evidence. Publication-time primary and
+secondary verification flags remain separate from this later evidence so a
+new audit cannot rewrite the original publication result. Pending or running
+verification excludes a backup job, and the active verification target remains
+retention-protected.
+
 Restore partition reports carry only bounded verification evidence: the
 canonical metadata digest, exact metadata and cumulative message record counts,
 the greatest restored message ID, an explicit evidence version, and

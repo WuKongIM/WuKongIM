@@ -18,6 +18,12 @@ routing; missing file-like paths and unmatched `/manager/*` routes remain 404.
 Content-hashed `/assets/*` responses are immutable-cacheable while `index.html`
 and public root assets require revalidation.
 
+When Manager authentication is disabled, a fresh Web client probes the
+read-only permissions snapshot and may enter only `/cluster/backups` with
+`cluster.backup:r`. The client does not persist this synthetic session and
+does not expose backup writes or the login/logout flow. Server-reported
+`auth_enabled=false` remains a second fail-closed write guard on the page.
+
 ```text
 POST /manager/login   (only when Auth.On=true)
 GET  /manager/permissions (read-only manager auth/user/catalog snapshot; requires cluster.permission:r when Auth.On=true)
@@ -58,6 +64,13 @@ GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.s
 GET  /manager/app-logs/sources (ordinary app log fixed source list; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
+GET  /manager/backups/status (cluster backup health and non-secret effective policy; requires cluster.backup:r when Auth.On=true)
+GET  /manager/backups/restore-points (cursor-paged restore-point inventory; requires cluster.backup:r when Auth.On=true)
+POST /manager/backups/trigger (materialized-full operator backup; requires cluster.backup:w when Auth.On=true)
+POST /manager/backups/jobs/:job_id/cancel (exact job/epoch cancel; requires cluster.backup:w when Auth.On=true)
+POST /manager/backups/restore-points/:restore_point_id/verify (durable asynchronous audit; requires cluster.backup:w when Auth.On=true)
+POST /manager/backups/restore-points/:restore_point_id/hold (retention hold; requires cluster.backup:w when Auth.On=true)
+POST /manager/backups/restore-points/:restore_point_id/release (retention hold release; requires cluster.backup:w when Auth.On=true)
 GET  /manager/diagnostics/trace/:trace_id (diagnostics trace aggregation; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/message (diagnostics message lookup; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/events (diagnostics event query, including optional exact physical slot_id; requires cluster.diagnostics:r when Auth.On=true)
@@ -521,8 +534,23 @@ Normal mode exposes backup status and restore-point inventory through
 `cluster.backup:w`. DTOs deliberately omit object keys, config fingerprints,
 credentials, Channel IDs, and plaintext. Job DTOs expose the preallocated
 `restore_point_id` so operators and black-box qualification can correlate one
-persisted job with its eventual immutable publication. A disabled backup still returns an
-explicit disabled status through the app facade.
+persisted job with its eventual immutable publication. Restore-point inventory
+uses an opaque newest-first keyset cursor with a default page size of 50 and a
+hard maximum of 200. Verification starts a durable asynchronous task and
+returns `202`; it does not hold the HTTP request open for the repository audit.
+A disabled backup still returns an explicit disabled status through the app
+facade. Backup handlers preserve stable machine error codes and use retryable
+`controller_leader_unavailable` during Controller leadership transitions.
+
+The embedded Web UI exposes `/cluster/backups` with Overview, Restore points,
+and Recovery guide tabs. It never exposes a restore mutation. Web writes are
+forced read-only when Manager authentication is disabled, even though the
+ordinary auth-disabled HTTP compatibility behavior remains unchanged. The
+recovery guide produces exact `wkcli` commands only after the operator selects
+one restore point, a valid target URL, repository, and explicit token policy;
+failed later-audit evidence suppresses copyable commands. Browser-entered
+target URLs are memory-only and exported Markdown replaces them with an
+environment-variable placeholder.
 
 Restore mode registers only permission discovery plus the restricted
 `/manager/restore/*` plan, start, status, verify, and activate routes; it does
