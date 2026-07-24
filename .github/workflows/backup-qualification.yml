@@ -1,8 +1,6 @@
 name: Backup qualification
 
 on:
-  schedule:
-    - cron: "30 19 * * *"
   workflow_dispatch:
 
 permissions:
@@ -10,15 +8,16 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   three-node-backup:
-    name: Three-node backup and restore
+    name: Backup release gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 40
     env:
       GOWORK: "off"
+      CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -30,6 +29,31 @@ jobs:
           cache-dependency-path: go.sum
       - name: Verify Go toolchain
         run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Verify backup and restore contracts
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-contracts.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 12m \
+            bash -c '
+              go test ./scripts -run "^TestBackupQualification" -count=1 -timeout=2m &&
+              go test ./pkg/backup ./internal/usecase/backup ./internal/infra/backup \
+                ./internal/runtime/backup ./internal/access/manager ./internal/access/node \
+                ./internal/app ./internal/config ./pkg/channel/store ./pkg/db/message ./pkg/db/meta \
+                ./pkg/controller/state ./pkg/controller/fsm \
+                -count=1 -timeout=10m -p=1
+            ' 2>&1 | tee "$LOG_FILE"
+      - name: Detect backup data races
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-race.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 12m \
+            go test -race ./pkg/backup ./internal/usecase/backup ./internal/infra/backup \
+              ./internal/runtime/backup ./pkg/channel/store ./pkg/db/message \
+              -count=1 -timeout=10m -p=1 2>&1 | tee "$LOG_FILE"
       - name: Build e2e-tagged product binary
         shell: bash
         run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim
@@ -41,16 +65,50 @@ jobs:
           set -o pipefail
           WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 10m \
             go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=8m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Write qualification receipt
+        if: success()
+        shell: bash
+        env:
+          RECEIPT_FILE: ${{ runner.temp }}/backup-qualification-receipt.md
+        run: |
+          {
+            printf '%s\n' '## Backup qualification passed'
+            printf '%s\n' "- Commit: $GITHUB_SHA"
+            printf '%s\n' "- Run: $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT"
+            printf '%s\n' '- Backup artifact, signature, encryption, corruption, retention, restore, and Controller invariants passed.'
+            printf '%s\n' '- Targeted race detection passed.'
+            printf '%s\n' '- Three-node backup/restore and sustained failure scenarios passed.'
+            printf '%s\n' ''
+            printf '%s\n' 'This is repository qualification evidence, not a proof of external S3/KMS/Object Lock/IAM behavior or an absolute guarantee against every possible defect.'
+          } | tee "$RECEIPT_FILE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload qualification receipt
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backup-qualification-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backup-qualification-receipt.md
+          if-no-files-found: error
+          retention-days: 30
       - name: Prepare bounded failure evidence
         if: failure()
         shell: bash
         env:
-          LOG_FILE: ${{ runner.temp }}/backup-qualification.log
+          UNIT_LOG_FILE: ${{ runner.temp }}/backup-contracts.log
+          RACE_LOG_FILE: ${{ runner.temp }}/backup-race.log
+          E2E_LOG_FILE: ${{ runner.temp }}/backup-qualification.log
           EVIDENCE_FILE: ${{ runner.temp }}/backup-qualification-failure.log
         run: |
-          if [[ -f "$LOG_FILE" ]]; then
-            tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
-          else
+          : > "$EVIDENCE_FILE"
+          found=0
+          for log_file in "$UNIT_LOG_FILE" "$RACE_LOG_FILE" "$E2E_LOG_FILE"; do
+            if [[ -f "$log_file" ]]; then
+              found=1
+              printf '===== %s =====\n' "$(basename "$log_file")" >> "$EVIDENCE_FILE"
+              tail -c 340000 "$log_file" >> "$EVIDENCE_FILE"
+              printf '\n' >> "$EVIDENCE_FILE"
+            fi
+          done
+          if [[ "$found" -eq 0 ]]; then
             printf '%s\n' 'backup qualification log was not created' > "$EVIDENCE_FILE"
           fi
       - name: Upload bounded failure evidence

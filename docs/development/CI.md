@@ -1,9 +1,10 @@
 # Continuous Integration
 
-WuKongIM uses two fail-closed GitHub Actions workflows. All Go commands use
-explicit repository roots and `GOWORK=off`; repository-root `./...` is not a
-valid gate because Go package discovery ignores `.gitignore` and can include
-local packages below `tmp/` or `web/node_modules/`.
+WuKongIM uses two automatically triggered fail-closed GitHub Actions workflows
+and one manual backup qualification workflow. All Go commands use explicit
+repository roots and `GOWORK=off`; repository-root `./...` is not a valid gate
+because Go package discovery ignores `.gitignore` and can include local
+packages below `tmp/` or `web/node_modules/`.
 
 ## Fast CI
 
@@ -91,6 +92,23 @@ Nightly failures remain failures; they do not retroactively block a merged pull
 request. Gofail dynamic-node faults and the 100K-subscriber scenario remain
 explicit opt-in stress paths rather than part of the daily workflow.
 
+## Backup Qualification
+
+`.github/workflows/backup-qualification.yml` supports only manual dispatch.
+Pull requests, pushes, and schedules never start it. Starting a newer manual
+run for the same ref cancels the older run.
+
+| Check | Timeout | Contract |
+| --- | ---: | --- |
+| `Backup release gate` | 40m | backup/config/storage/Controller contracts, targeted race detection, then the full real-process three-node backup, restore, and sustained-failure matrix |
+
+Success publishes a commit- and run-bound qualification receipt retained for
+30 days. Failure publishes bounded tails from the unit, race, and E2E logs,
+retained for 7 days. The manual workflow is not a pull-request status check and
+must not be configured as a required branch-protection check. Its result does
+not replace the real S3/KMS/Object Lock/IAM and 1 TB production qualification
+described in `BACKUP_AND_RESTORE.md`.
+
 ## Failure Evidence
 
 Nightly uploads evidence only on failure and retains it for 7 days. Race,
@@ -108,12 +126,13 @@ authentication response and manager token.
 - Pin actions by full commit SHA and keep the reviewed release in the comment.
 - Update `scripts/github_workflows_test.go` when intentionally changing action
   pins, package groups, timeouts, or artifact paths.
-- Parse both files and run the contract tests before pushing:
+- Parse all workflow files and run the three CI workflow contract tests before
+  pushing:
 
 ```bash
 ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f) }' .github/workflows/*.yml
 GOWORK=off go test ./scripts \
-  -run '^(TestCIWorkflowContract|TestNightlyWorkflowContract)$' -count=1
+  -run '^(TestCIWorkflowContract|TestNightlyWorkflowContract|TestBackupQualificationWorkflowContract)$' -count=1
 ```
 
 Repository administrators may mark the fast CI checks as required on `main`

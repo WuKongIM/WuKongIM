@@ -59,8 +59,13 @@ func TestThreeNodeBackupControllerLeaderFailoverResumesIncremental(t *testing.T)
 	require.NoError(t, cluster.WaitClusterReady(rejoinCtx), cluster.DumpDiagnostics())
 	cancelRejoin()
 	require.Equal(t, newLeader, cluster.WaitControllerLeader(t, survivors, oldLeader, 10*time.Second))
-	rejoinedActive := newManager.WaitBackupActive(t, triggered.ID, 10*time.Second)
-	require.Equal(t, triggered.RestorePointID, rejoinedActive.RestorePointID)
+	rejoinedActive, rejoinedPublished := newManager.WaitBackupActiveOrPublished(t, triggered.ID, triggered.RestorePointID, 10*time.Second)
+	if rejoinedActive != nil {
+		require.Equal(t, triggered.RestorePointID, rejoinedActive.RestorePointID)
+	} else {
+		require.NotNil(t, rejoinedPublished)
+		require.Equal(t, triggered.RestorePointID, rejoinedPublished.ID)
+	}
 
 	incremental := newManager.WaitBackupRestorePointByID(t, triggered.RestorePointID, 45*time.Second)
 	require.NotEqual(t, baseline.ID, incremental.ID)

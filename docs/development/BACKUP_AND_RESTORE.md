@@ -240,12 +240,19 @@ Run the sustained Controller-Leader/data-node outage scenario alone with:
 GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_outage -count=1 -timeout 8m -p=1
 ```
 
-`.github/workflows/backup-qualification.yml` runs these backup scenarios every
-night and on manual dispatch with one E2E-tagged product binary. The ordinary
-Nightly E2E job also builds its shared binary with the `e2e` tag so the same
-explicit harness substitutes are available when the full package wildcard
-reaches the backup scenarios. Failure artifacts contain only the final 1 MiB of
-the bounded test log and its allowlisted process diagnostics.
+`.github/workflows/backup-qualification.yml` is a fail-closed manual
+qualification workflow. It supports only `workflow_dispatch`; pull requests,
+pushes, and schedules never start it. The workflow verifies backup and restore
+contracts, runs targeted race detection, then runs the complete process-level
+backup package with one E2E-tagged product binary. A successful run publishes a
+receipt bound to the tested commit and run attempt. A failed run publishes only
+bounded tails from the unit, race, and E2E logs. Because it is not attached to
+pull requests, it is qualification evidence rather than a branch-protection
+merge check.
+
+The ordinary Nightly E2E job also builds its shared binary with the `e2e` tag so
+the same explicit harness substitutes are available when the full package
+wildcard reaches the backup scenarios.
 
 The tagged harness uses local immutable file repositories and a deterministic
 local key authority selected by an explicit E2E-only environment variable. It
@@ -254,6 +261,14 @@ Object Lock/WORM, garbage-collector IAM, external clock skew, or production
 failure behavior.
 
 ## Qualification Gates
+
+A manually dispatched green `Backup qualification / Backup release gate`
+receipt means that the exact tested commit passed the repository's
+signed-artifact, encryption, corruption, retention, restore,
+Controller-invariant, race, and real three-process failure matrix. It is strong
+regression evidence, not an absolute proof that all backup data is correct in
+every deployment. In particular, it does not exercise the external services
+listed below.
 
 Production enablement remains blocked until a real three-node environment
 proves online baseline and incremental capture, sustained combined
