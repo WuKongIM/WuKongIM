@@ -458,6 +458,22 @@ generic peer or error fields. Event count is not a reconcile-rate signal:
 node-local retention keeps state changes immediately and resamples an unchanged
 signature at most once every 30 seconds, while Prometheus keeps aggregate rates.
 
+## Manager Goroutine RPC
+
+```text
+manager realtime monitor
+  -> cluster RPCManagerGoroutines
+  -> Adapter.HandleManagerGoroutineRPC
+  -> process-wide pkg/goroutine Registry.Snapshot
+  -> bounded JSON snapshot response
+```
+
+Manager Goroutine RPC is read-only and node-local. It returns process identity,
+process/managed/unmanaged totals, and fixed module/task counters. Cluster-wide
+selection, fan-out concurrency, per-node deadlines, short-lived caching, and
+partial support are owned by `internal/app`; this adapter does not inspect
+stacks or derive task names from function addresses.
+
 ## Manager Application Log RPC
 
 ```text

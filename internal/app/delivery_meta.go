@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const deliveryMetaMutationConcurrency = 32
@@ -149,7 +150,7 @@ func runDeliveryMetaTasks(ctx context.Context, tasks []func(context.Context) (in
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppDeliveryMetadata, func() {
 			defer wg.Done()
 			for task := range jobs {
 				n, err := task(workCtx)
@@ -160,7 +161,7 @@ func runDeliveryMetaTasks(ctx context.Context, tasks []func(context.Context) (in
 					setErr(err)
 				}
 			}
-		}()
+		})
 	}
 send:
 	for _, task := range tasks {

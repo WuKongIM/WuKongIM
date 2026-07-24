@@ -7,7 +7,51 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
+
+func TestShardedMailboxPublishesOwnedPoolState(t *testing.T) {
+	registry := goruntimeregistry.New()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	mailbox, err := NewShardedMailbox[int](ShardedMailboxConfig{
+		Name:              "gateway",
+		Goroutines:        registry,
+		Task:              goruntimeregistry.TaskGatewayAsyncDispatch,
+		Shards:            1,
+		Workers:           1,
+		QueueSizePerShard: 1,
+		BatchMaxItems:     1,
+	}, func(context.Context, MailboxBatch[int]) error {
+		close(started)
+		<-release
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("NewShardedMailbox() error = %v", err)
+	}
+	if err := mailbox.Submit(context.Background(), "owned", 1); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	waitForBatchPoolSignal(t, started, "owned mailbox start")
+
+	task := waitForOwnedPoolSnapshot(t, registry, goruntimeregistry.TaskGatewayAsyncDispatch)
+	if task.Active != 2 {
+		t.Fatalf("Active = %d, want ants worker + ants maintenance = 2", task.Active)
+	}
+	if task.PoolCapacity != 1 {
+		t.Fatalf("PoolCapacity = %d, want 1", task.PoolCapacity)
+	}
+
+	close(release)
+	if err := mailbox.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if err := registry.Group(goruntimeregistry.ModuleGateway).Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+}
 
 func TestShardedMailboxBatchesAdjacentItems(t *testing.T) {
 	batches := make(chan []int, 1)

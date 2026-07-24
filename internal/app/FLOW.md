@@ -348,7 +348,11 @@ New(Config)
      cluster-operations card series, including Slot proposal admission,
      leader-change, replica-lag, and scheduler pressure cards, category counts, explicit
      disabled/unavailable source states, and bounded `ListNodes`/`ListSlots`
-     control snapshots through the management usecase; the realtime monitor
+     control snapshots through the management usecase; the `goroutines`
+     category combines Prometheus node/module history with process-wide local
+     snapshots and an eight-worker, per-node-timeout Manager Goroutine RPC
+     fan-out, coalescing concurrent reads and caching successful peer reads for
+     two seconds; the realtime monitor
      does not read from `topCollector`
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
@@ -813,6 +817,17 @@ Stop(ctx)
   -> controller task audit Stop(ctx): drain queued audit events and close the
      JSONL file after the Controller runtime can no longer emit observer calls
 ```
+
+The app always installs the process-wide `pkg/goroutine` registry, passes it to
+Cluster and Gateway configuration, exposes it through API debug and Manager
+node RPC readers, and registers its Prometheus collector with constant node
+identity labels. Metrics and Prometheus history remain configurable, but
+goroutine lifecycle accounting has no disable switch.
+After component shutdown completes, `App.Stop` waits each fixed goroutine
+module with the caller context. A deadline returns bounded live task evidence
+instead of silently reporting a clean stop. The wait is relative to the
+process-registry baseline captured before App-owned runtimes are constructed,
+so pre-existing process tasks are not reassigned to this App.
 
 `Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -168,7 +169,9 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	c.status.Running = true
 	done := c.done
 	c.mu.Unlock()
-	go c.loop(runContext, done)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupCoordinator, func() {
+		c.loop(runContext, done)
+	})
 	return nil
 }
 
@@ -483,7 +486,7 @@ func (c *Coordinator) captureMissing(ctx context.Context, job backupcontract.Job
 	var group sync.WaitGroup
 	for index := 0; index < workers; index++ {
 		group.Add(1)
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupPartitionWorker, func() {
 			defer group.Done()
 			for hashSlot := range work {
 				report, err := c.options.Partitions.Dispatch(ctx, CaptureRequest{
@@ -493,9 +496,9 @@ func (c *Coordinator) captureMissing(ctx context.Context, job backupcontract.Job
 				})
 				results <- result{report: report, err: err}
 			}
-		}()
+		})
 	}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupPartitionProducer, func() {
 		defer close(work)
 		for _, hashSlot := range missing {
 			select {
@@ -504,7 +507,7 @@ func (c *Coordinator) captureMissing(ctx context.Context, job backupcontract.Job
 				return
 			}
 		}
-	}()
+	})
 	group.Wait()
 	close(results)
 	var firstErr error

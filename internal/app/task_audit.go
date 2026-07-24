@@ -16,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -197,7 +198,7 @@ func (r *controllerTaskAuditRuntime) startWorkerLocked() {
 	}
 	r.queue = make(chan []taskaudit.Event, controllerTaskAuditQueueSize)
 	r.done = make(chan struct{})
-	go r.run()
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppTaskAudit, r.run)
 }
 
 func (r *controllerTaskAuditRuntime) run() {

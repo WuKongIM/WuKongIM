@@ -100,7 +100,7 @@ func newApplyPipeline(workers int, goroutines *goroutine.Registry, observer Sche
 	p.cond = sync.NewCond(&p.mu)
 	for i := 0; i < workers; i++ {
 		p.wg.Add(1)
-		goroutine.SafeGo(goroutines, "slot", "raft_apply_worker", func() {
+		goroutine.SafeGo(goroutines, goroutine.TaskSlotRaftApplyWorker, func() {
 			defer p.wg.Done()
 			p.runWorker()
 		})

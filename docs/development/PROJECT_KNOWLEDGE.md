@@ -226,6 +226,7 @@
 - The chat Demo is embedded under the product API listener at `/demo/`; it defaults to the page origin for HTTP APIs and discovers WebSocket addresses through `/route`.
 - When using project-local `.worktrees/*`, run Go tests with `GOWORK=off`; the parent `go.work` points at the main checkout and otherwise makes packages resolve under `.worktrees` incorrectly.
 - Repository-wide Go gates must use `GOWORK=off` plus explicit roots (`cmd`, `internal`, `pkg`, `scripts`, `docker`, or `test/e2e`); root `./...` ignores `.gitignore` and can include local `tmp` or `web/node_modules` packages.
+- Official `cmd/wukongim` goroutines must launch through a fixed `pkg/goroutine` task or an audited registered pool; `scripts/managed_goroutines_test.go` rejects raw `go`, `.Go`, and unregistered ants pools in production roots.
 - `internal/gateway` now ships only the `gnet` transport; connection callbacks are serialized by actor shards and there is no `stdnet` fallback or per-connection writer goroutine.
 - wk-sim performance investigations must follow the `docs/development/PERF_TRIAGE.md` runbook: collect evidence, classify, hypothesize, then run one-variable experiments.
 - Node log output is split by `internal/log`: `app.log` contains info and above, `warn.log` contains warnings, `error.log` contains errors, and `debug.log` exists when debug logging is enabled.

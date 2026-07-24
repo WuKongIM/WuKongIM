@@ -13,6 +13,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -102,7 +103,7 @@ func (l *seedJoinLoop) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	l.cancel = cancel
 	l.wg.Add(1)
-	go l.run(runCtx)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppSeedJoin, func() { l.run(runCtx) })
 	l.mu.Unlock()
 	return nil
 }

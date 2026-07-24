@@ -8,6 +8,7 @@ import (
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const defaultRestoreCoordinatorTickInterval = 5 * time.Second
@@ -85,7 +86,9 @@ func (c *RestoreCoordinator) Start(ctx context.Context) error {
 	c.status.Running = true
 	done := c.done
 	c.mu.Unlock()
-	go c.loop(runContext, done)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreCoordinator, func() {
+		c.loop(runContext, done)
+	})
 	return nil
 }
 
@@ -212,15 +215,15 @@ func (c *RestoreCoordinator) installMissing(ctx context.Context, plan backupcont
 	var group sync.WaitGroup
 	for index := 0; index < workers; index++ {
 		group.Add(1)
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreWorker, func() {
 			defer group.Done()
 			for hashSlot := range work {
 				report, err := c.options.Partitions.InstallPartition(ctx, plan, hashSlot)
 				results <- result{report: report, err: err}
 			}
-		}()
+		})
 	}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreProducer, func() {
 		defer close(work)
 		for _, hashSlot := range missing {
 			select {
@@ -229,7 +232,7 @@ func (c *RestoreCoordinator) installMissing(ctx context.Context, plan backupcont
 				return
 			}
 		}
-	}()
+	})
 	group.Wait()
 	close(results)
 	var firstErr error

@@ -12,6 +12,7 @@ import (
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const maxRestoreVerifyBoundariesPerRequest = 4096
@@ -116,7 +117,7 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 	var group sync.WaitGroup
 	for index := 0; index < workers; index++ {
 		group.Add(1)
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreWorker, func() {
 			defer group.Done()
 			for hashSlot := range work {
 				reference := manifest.Partitions[hashSlot]
@@ -140,9 +141,9 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 				}
 				results <- result{hashSlot: hashSlot, err: err}
 			}
-		}()
+		})
 	}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreProducer, func() {
 		defer close(work)
 		for hashSlot := uint16(0); hashSlot < plan.HashSlotCount; hashSlot++ {
 			select {
@@ -151,7 +152,7 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 				return
 			}
 		}
-	}()
+	})
 	group.Wait()
 	close(results)
 	for item := range results {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/gin-gonic/gin"
 )
 
@@ -53,6 +54,8 @@ const (
 	RealtimeMonitorCategorySlot = "slot"
 	// RealtimeMonitorCategoryNode groups node runtime, workqueue, and Go GC cards.
 	RealtimeMonitorCategoryNode = "node"
+	// RealtimeMonitorCategoryGoroutines groups direct node/module/task goroutine ownership snapshots.
+	RealtimeMonitorCategoryGoroutines = "goroutines"
 
 	// RealtimeMonitorToneNormal is the normal card status tone.
 	RealtimeMonitorToneNormal = "normal"
@@ -124,6 +127,8 @@ type RealtimeMonitorResponse struct {
 	Snapshot []RealtimeMonitorSnapshotEntry `json:"snapshot"`
 	// Cards contains graphable monitor card data.
 	Cards []RealtimeMonitorCard `json:"cards"`
+	// Goroutines contains direct node/module/task snapshots when the goroutines category is active.
+	Goroutines *RealtimeMonitorGoroutines `json:"goroutines,omitempty"`
 }
 
 // RealtimeMonitorScope identifies the monitor source and local node.
@@ -140,6 +145,34 @@ type RealtimeMonitorSources struct {
 	Prometheus RealtimeMonitorPrometheusSource `json:"prometheus"`
 	// ControlSnapshot reports bounded control snapshot availability.
 	ControlSnapshot RealtimeMonitorSource `json:"control_snapshot"`
+	// Goroutines reports direct node RPC snapshot availability.
+	Goroutines *RealtimeMonitorSource `json:"goroutines,omitempty"`
+}
+
+// RealtimeMonitorGoroutines is the direct cluster goroutine ownership snapshot.
+type RealtimeMonitorGoroutines struct {
+	// Status is ready or partial.
+	Status string `json:"status"`
+	// GeneratedAt is the UTC snapshot time.
+	GeneratedAt time.Time `json:"generated_at"`
+	// Nodes preserves node identity for every direct snapshot.
+	Nodes []RealtimeMonitorGoroutineNode `json:"nodes"`
+}
+
+// RealtimeMonitorGoroutineNode is one node's direct goroutine ownership state.
+type RealtimeMonitorGoroutineNode struct {
+	// NodeID is the stable cluster node identifier.
+	NodeID uint64 `json:"node_id"`
+	// Name is the operator-facing node name.
+	Name string `json:"name"`
+	// Status is the node status from the control snapshot.
+	Status string `json:"status"`
+	// Supported reports whether the node implements direct goroutine snapshots.
+	Supported bool `json:"supported"`
+	// Error is a bounded non-fatal snapshot error.
+	Error string `json:"error,omitempty"`
+	// Snapshot is present when Supported is true and the read succeeded.
+	Snapshot *goruntimeregistry.Snapshot `json:"snapshot,omitempty"`
 }
 
 // RealtimeMonitorPrometheusSource reports Prometheus query availability.
@@ -304,7 +337,8 @@ func isValidRealtimeMonitorCategory(category string) bool {
 		RealtimeMonitorCategoryDatabase,
 		RealtimeMonitorCategoryControl,
 		RealtimeMonitorCategorySlot,
-		RealtimeMonitorCategoryNode:
+		RealtimeMonitorCategoryNode,
+		RealtimeMonitorCategoryGoroutines:
 		return true
 	default:
 		return false

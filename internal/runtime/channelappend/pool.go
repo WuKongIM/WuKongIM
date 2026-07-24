@@ -4,7 +4,9 @@ import (
 	"context"
 	"runtime"
 	"sync/atomic"
+	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -16,6 +18,9 @@ type workerPool struct {
 	// has returned. It excludes idle ants workers, whose Running count is not a
 	// usable admission signal when worker purging is disabled.
 	logicalInflight atomic.Int64
+	busy            atomic.Int64
+	rejected        atomic.Int64
+	unregisterPool  func()
 }
 
 func newWorkerPool(size int) *workerPool {
@@ -34,11 +39,25 @@ func newWorkerPoolWithAdmission(size int, nonblocking bool) *workerPool {
 	} else if size > maxWorkerPoolSize {
 		size = maxWorkerPoolSize
 	}
-	pool, err := ants.NewPool(size, ants.WithNonblocking(nonblocking), ants.WithDisablePurge(true))
+	pool, err := ants.NewPool(
+		size,
+		ants.WithNonblocking(nonblocking),
+		ants.WithDisablePurge(true),
+		ants.WithPanicHandler(func(recovered any) {
+			goruntimeregistry.Default().ReportPoolPanic(goruntimeregistry.TaskChannelAppendWorkerPool, recovered)
+		}),
+	)
 	if err != nil {
 		panic("channelappend: create worker pool: " + err.Error())
 	}
-	return &workerPool{pool: pool, nonblocking: nonblocking}
+	p := &workerPool{pool: pool, nonblocking: nonblocking}
+	unregister, err := goruntimeregistry.Default().RegisterPool(goruntimeregistry.TaskChannelAppendWorkerPool, p.poolStats)
+	if err != nil {
+		pool.Release()
+		panic("channelappend: register worker pool: " + err.Error())
+	}
+	p.unregisterPool = unregister
+	return p
 }
 
 // submit runs fn on a pooled goroutine. It blocks briefly if all workers are busy.
@@ -52,19 +71,23 @@ func (p *workerPool) submit(fn func()) error {
 // reporting a false overload to the durable retry scheduler.
 func (p *workerPool) submitWithCompletion(fn func(), onDone func()) error {
 	if !p.nonblocking {
-		if onDone == nil {
-			return p.pool.Submit(fn)
-		}
 		return p.pool.Submit(func() {
-			defer onDone()
+			p.busy.Add(1)
+			defer p.busy.Add(-1)
+			if onDone != nil {
+				defer onDone()
+			}
 			fn()
 		})
 	}
 	if !p.tryAcquireLogicalCapacity() {
+		p.rejected.Add(1)
 		return ants.ErrPoolOverload
 	}
 	wrapped := func() {
+		p.busy.Add(1)
 		defer func() {
+			p.busy.Add(-1)
 			remaining := p.logicalInflight.Add(-1)
 			if remaining < 0 {
 				panic("channelappend: worker pool logical inflight underflow")
@@ -87,6 +110,9 @@ func (p *workerPool) submitWithCompletion(fn func(), onDone func()) error {
 			continue
 		}
 		p.logicalInflight.Add(-1)
+		if err == ants.ErrPoolOverload {
+			p.rejected.Add(1)
+		}
 		return err
 	}
 }
@@ -107,10 +133,7 @@ func (p *workerPool) tryAcquireLogicalCapacity() bool {
 // running reports logical admitted tasks for a non-blocking pool and currently
 // executing ants workers for a blocking pool.
 func (p *workerPool) running() int {
-	if p.nonblocking {
-		return int(p.logicalInflight.Load())
-	}
-	return p.pool.Running()
+	return int(p.busy.Load())
 }
 
 // capacity reports the configured worker capacity.
@@ -125,14 +148,39 @@ func (p *workerPool) waiting() int {
 
 func (p *workerPool) stop(ctx context.Context) error {
 	done := make(chan struct{})
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendPoolRelease, func() {
 		p.pool.Release()
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		for p.pool.Running() > 0 {
+			<-ticker.C
+		}
+		if p.unregisterPool != nil {
+			p.unregisterPool()
+		}
 		close(done)
-	}()
+	})
 	select {
 	case <-done:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (p *workerPool) poolStats() goruntimeregistry.PoolStats {
+	if p == nil || p.pool == nil {
+		return goruntimeregistry.PoolStats{}
+	}
+	goroutines := p.pool.Running()
+	if !p.pool.IsClosed() {
+		goroutines++
+	}
+	return goruntimeregistry.PoolStats{
+		Goroutines:    int64(goroutines),
+		BusyTasks:     int64(p.running()),
+		Capacity:      int64(p.capacity()),
+		QueueDepth:    int64(p.waiting()),
+		RejectedTotal: p.rejected.Load(),
 	}
 }

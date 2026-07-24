@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -1019,7 +1020,7 @@ func (s *Server) startIdleMonitor() {
 	s.workerWG.Add(1)
 	s.mu.Unlock()
 
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskGatewayIdleMonitor, func() {
 		defer s.workerWG.Done()
 
 		timer := time.NewTimer(tracker.nextWait(time.Now()))
@@ -1034,7 +1035,7 @@ func (s *Server) startIdleMonitor() {
 				timer.Reset(tracker.nextWait(time.Now()))
 			}
 		}
-	}()
+	})
 }
 
 func (s *Server) closeIdleSessions(now time.Time) {

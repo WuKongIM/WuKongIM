@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc"
@@ -131,7 +132,7 @@ func (s *Server) ListenAndServe(addr string) error {
 	s.listener = listener
 	s.mu.Unlock()
 
-	go s.acceptLoop(listener)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportAccept, func() { s.acceptLoop(listener) })
 	return nil
 }
 
@@ -203,7 +204,7 @@ func (s *Server) acceptLoop(listener net.Listener) {
 			continue
 		}
 		c.Start()
-		go s.untrackConnWhenDone(c)
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportConnectionCleanup, func() { s.untrackConnWhenDone(c) })
 	}
 }
 

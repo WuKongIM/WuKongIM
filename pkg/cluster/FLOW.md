@@ -40,6 +40,12 @@ peer nodes without adding manager-specific logic to cluster. Internal
 manager distributed log pages use the same surface to ask a selected peer to
 read its own local Controller or Slot Raft log page, and manager channel list
 pages use it to ask a selected peer to scan its local Slot metadata pages.
+
+`Config.Goroutines` carries the process supervisor into the default cluster
+composition. Controller, Slot, Channel, Transport, database, control-watch,
+health, reconciliation, retention, migration, and observation loops launch
+with fixed module/task identities; this changes ownership accounting only and
+does not put Raft or reactor loops into a shared worker pool.
 Internal manager Controller Raft status and manual compaction use the same
 surface for node-scoped operations; cluster exposes only the selected node's
 local operation and does not fan out or interpret manager policy. Internal

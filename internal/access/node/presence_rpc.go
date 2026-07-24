@@ -18,6 +18,7 @@ import (
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -103,6 +104,11 @@ type ManagerConnectionReader interface {
 	GetConnection(context.Context, managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
 	NodeRuntimeSummary(context.Context, uint64) (managementusecase.NodeRuntimeSummary, error)
 	SetNodeDrainMode(context.Context, managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error)
+}
+
+// ManagerGoroutineReader returns the node-local managed goroutine snapshot.
+type ManagerGoroutineReader interface {
+	Snapshot() goruntimeregistry.Snapshot
 }
 
 // ManagerLogReader handles node-local manager distributed log page requests.
@@ -271,6 +277,8 @@ type Options struct {
 	ManagerDiagnostics ManagerDiagnostics
 	// ManagerTaskAudit handles node-local Controller task audit reads.
 	ManagerTaskAudit ManagerTaskAuditReader
+	// ManagerGoroutines handles node-local managed goroutine snapshot reads.
+	ManagerGoroutines ManagerGoroutineReader
 	// ManagerPlugins handles node-local plugin inventory requests.
 	ManagerPlugins ManagerPluginReader
 	// NodeLifecycle handles validated seed-join lifecycle requests.
@@ -337,6 +345,8 @@ type Adapter struct {
 	managerDiagnostics ManagerDiagnostics
 	// managerTaskAudit reads retained Controller task audit history.
 	managerTaskAudit ManagerTaskAuditReader
+	// managerGoroutines reads the node-local managed goroutine snapshot.
+	managerGoroutines ManagerGoroutineReader
 	// managerPlugins reads node-local plugin inventory for manager pages.
 	managerPlugins ManagerPluginReader
 	// nodeLifecycle submits validated seed joins through the management usecase.
@@ -390,6 +400,7 @@ func New(opts Options) *Adapter {
 		managerNodeConfig:        opts.ManagerNodeConfig,
 		managerDiagnostics:       opts.ManagerDiagnostics,
 		managerTaskAudit:         opts.ManagerTaskAudit,
+		managerGoroutines:        opts.ManagerGoroutines,
 		managerPlugins:           opts.ManagerPlugins,
 		nodeLifecycle:            opts.NodeLifecycle,
 		nodeReadiness:            opts.NodeReadiness,

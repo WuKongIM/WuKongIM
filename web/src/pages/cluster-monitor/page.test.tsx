@@ -58,7 +58,12 @@ function managerNodesResponse(): ManagerNodesResponse {
         last_heartbeat_at: "2026-06-18T10:00:00Z",
         is_local: true,
         capacity_weight: 1,
-        controller: { role: "leader", voter: true, leader_id: 1, raft_health: "healthy" },
+        controller: {
+          role: "leader",
+          voter: true,
+          leader_id: 1,
+          raft_health: "healthy",
+        },
         slot_stats: { count: 8, leader_count: 4 },
       },
       {
@@ -69,7 +74,12 @@ function managerNodesResponse(): ManagerNodesResponse {
         last_heartbeat_at: "2026-06-18T10:00:00Z",
         is_local: false,
         capacity_weight: 1,
-        controller: { role: "follower", voter: true, leader_id: 1, raft_health: "healthy" },
+        controller: {
+          role: "follower",
+          voter: true,
+          leader_id: 1,
+          raft_health: "healthy",
+        },
         slot_stats: { count: 8, leader_count: 4 },
       },
     ],
@@ -84,7 +94,12 @@ function readyClusterMonitorResponse(): RealtimeMonitorResponse {
     step_seconds: 20,
     scope: { view: "realtime_monitor" },
     sources: {
-      prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 12, error: "" },
+      prometheus: {
+        enabled: true,
+        base_url: "http://127.0.0.1:9090",
+        query_ms: 12,
+        error: "",
+      },
       control_snapshot: { enabled: true, query_ms: 2, error: "" },
     },
     categories: [
@@ -93,8 +108,21 @@ function readyClusterMonitorResponse(): RealtimeMonitorResponse {
       { key: "internal", count: 1 },
     ],
     snapshot: [
-      { key: "nodesAlive", metric_key: "controllerApplyGap", source: "control_snapshot" as const, value: 3, tone: "normal" as const },
-      { key: "rpcErrorRate", metric_key: "rpcSuccessRate", source: "prometheus" as const, value: 0.14, unit: "%", tone: "normal" as const },
+      {
+        key: "nodesAlive",
+        metric_key: "controllerApplyGap",
+        source: "control_snapshot" as const,
+        value: 3,
+        tone: "normal" as const,
+      },
+      {
+        key: "rpcErrorRate",
+        metric_key: "rpcSuccessRate",
+        source: "prometheus" as const,
+        value: 0.14,
+        unit: "%",
+        tone: "normal" as const,
+      },
     ],
     cards: [
       {
@@ -285,8 +313,18 @@ function gatewayOperatorMonitorResponse(): RealtimeMonitorResponse {
         available: true,
         error: "",
         series: [
-          { timestamp: 1781767200000, value: 3.1, label: "idle", series_key: "reason=idle" },
-          { timestamp: 1781767220000, value: 4.8, label: "idle", series_key: "reason=idle" },
+          {
+            timestamp: 1781767200000,
+            value: 3.1,
+            label: "idle",
+            series_key: "reason=idle",
+          },
+          {
+            timestamp: 1781767220000,
+            value: 4.8,
+            label: "idle",
+            series_key: "reason=idle",
+          },
         ],
         stats: [],
       },
@@ -381,8 +419,18 @@ function gatewayOperatorMonitorResponse(): RealtimeMonitorResponse {
         available: true,
         error: "",
         series: [
-          { timestamp: 1781767200000, value: 18.2, label: "SEND", series_key: "frame_type=SEND" },
-          { timestamp: 1781767220000, value: 21.4, label: "SEND", series_key: "frame_type=SEND" },
+          {
+            timestamp: 1781767200000,
+            value: 18.2,
+            label: "SEND",
+            series_key: "frame_type=SEND",
+          },
+          {
+            timestamp: 1781767220000,
+            value: 21.4,
+            label: "SEND",
+            series_key: "frame_type=SEND",
+          },
         ],
         stats: [],
       },
@@ -491,7 +539,12 @@ function partialClusterMonitorResponse(): RealtimeMonitorResponse {
     ...readyClusterMonitorResponse(),
     status: "partial" as const,
     sources: {
-      prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 12, error: "query timed out for apply gap" },
+      prometheus: {
+        enabled: true,
+        base_url: "http://127.0.0.1:9090",
+        query_ms: 12,
+        error: "query timed out for apply gap",
+      },
       control_snapshot: { enabled: true, query_ms: 2, error: "" },
     },
     cards: [
@@ -999,10 +1052,30 @@ function allNodeCpuClusterMonitorResponse(): RealtimeMonitorResponse {
         available: true,
         error: "",
         series: [
-          { timestamp: 1781767200000, value: 12.5, label: "node-1", series_key: "node-1" },
-          { timestamp: 1781767200000, value: 32.5, label: "node-2", series_key: "node-2" },
-          { timestamp: 1781767220000, value: 15, label: "node-1", series_key: "node-1" },
-          { timestamp: 1781767220000, value: 40, label: "node-2", series_key: "node-2" },
+          {
+            timestamp: 1781767200000,
+            value: 12.5,
+            label: "node-1",
+            series_key: "node-1",
+          },
+          {
+            timestamp: 1781767200000,
+            value: 32.5,
+            label: "node-2",
+            series_key: "node-2",
+          },
+          {
+            timestamp: 1781767220000,
+            value: 15,
+            label: "node-1",
+            series_key: "node-1",
+          },
+          {
+            timestamp: 1781767220000,
+            value: 40,
+            label: "node-2",
+            series_key: "node-2",
+          },
         ],
         stats: [
           { key: "node", label: "node-1", value: 15, unit: "%" },
@@ -1029,8 +1102,18 @@ function nodeGCClusterMonitorResponse(): RealtimeMonitorResponse {
         available: true,
         error: "",
         series: [
-          { timestamp: 1781767200000, value: 0.25, label: "node-1", series_key: "node-1" },
-          { timestamp: 1781767220000, value: 0.75, label: "node-2", series_key: "node-2" },
+          {
+            timestamp: 1781767200000,
+            value: 0.25,
+            label: "node-1",
+            series_key: "node-1",
+          },
+          {
+            timestamp: 1781767220000,
+            value: 0.75,
+            label: "node-2",
+            series_key: "node-2",
+          },
         ],
         stats: [
           { key: "node", label: "node-1", value: 0.5, unit: "ms/s" },
@@ -1092,8 +1175,7 @@ function disabledClusterMonitorResponse(): RealtimeMonitorResponse {
         enabled: false,
         base_url: "",
         query_ms: 0,
-        error:
-          "prometheus is disabled; set WK_METRICS_ENABLE=true and either WK_PROMETHEUS_QUERY_BASE_URL or WK_PROMETHEUS_ENABLE=true",
+        error: "prometheus is disabled; set WK_METRICS_ENABLE=true and either WK_PROMETHEUS_QUERY_BASE_URL or WK_PROMETHEUS_ENABLE=true",
       },
       control_snapshot: { enabled: true, query_ms: 1, error: "" },
     },
@@ -1122,6 +1204,147 @@ function unavailableClusterMonitorResponse(): RealtimeMonitorResponse {
     categories: [],
     snapshot: [],
     cards: [],
+  }
+}
+
+function goroutineClusterMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    status: "ready",
+    generated_at: "2026-07-24T10:00:00Z",
+    window_seconds: 900,
+    step_seconds: 20,
+    scope: { view: "realtime_monitor" },
+    sources: {
+      prometheus: { enabled: false, query_ms: 0, error: "" },
+      control_snapshot: { enabled: false, query_ms: 0, error: "" },
+      goroutines: { enabled: true, query_ms: 1, error: "" },
+    },
+    categories: [{ key: "goroutines", count: 1 }],
+    snapshot: [
+      {
+        key: "goroutineProcessTotal",
+        metric_key: "",
+        value: 40,
+        unit: "goroutines",
+        tone: "normal",
+        source: "direct_node_rpc",
+      },
+      {
+        key: "goroutineManagedTotal",
+        metric_key: "",
+        value: 28,
+        unit: "goroutines",
+        tone: "normal",
+        source: "direct_node_rpc",
+      },
+      {
+        key: "goroutineUnmanagedTotal",
+        metric_key: "",
+        value: 12,
+        unit: "goroutines",
+        tone: "warning",
+        source: "direct_node_rpc",
+      },
+      {
+        key: "goroutinePanicTotal",
+        metric_key: "",
+        value: 0,
+        unit: "panics",
+        tone: "normal",
+        source: "direct_node_rpc",
+      },
+      {
+        key: "goroutineSaturatedPools",
+        metric_key: "",
+        value: 1,
+        unit: "pools",
+        tone: "critical",
+        source: "direct_node_rpc",
+      },
+    ],
+    cards: [],
+    goroutines: {
+      status: "ready",
+      generated_at: "2026-07-24T10:00:00Z",
+      nodes: [
+        {
+          node_id: 1,
+          name: "node-1",
+          status: "alive",
+          supported: true,
+          snapshot: {
+            generated_at: "2026-07-24T10:00:00Z",
+            process_started_at: "2026-07-24T09:00:00Z",
+            boot_id: "boot-1",
+            process_total: 40,
+            managed_total: 28,
+            unmanaged_total: 12,
+            reconciled: true,
+            total_active: 28,
+            total_started: 100,
+            total_panics: 0,
+            modules: [
+              {
+                module: "gateway",
+                active: 8,
+                process_peak: 12,
+                total_started: 20,
+                total_stopped: 12,
+                panics: 0,
+                busy_tasks: 3,
+                pool_capacity: 16,
+                queue_depth: 2,
+                rejected_total: 1,
+                health: "critical",
+                tasks: [
+                  {
+                    task: "gateway/async_dispatch",
+                    name: "async_dispatch",
+                    kind: "pool",
+                    critical: false,
+                    active: 8,
+                    process_peak: 12,
+                    total_started: 20,
+                    total_stopped: 12,
+                    panics: 0,
+                    busy_tasks: 3,
+                    pool_capacity: 16,
+                    queue_depth: 2,
+                    rejected_total: 1,
+                    health: "critical",
+                    health_reason: "saturated",
+                  },
+                ],
+              },
+              {
+                module: "backup",
+                active: 0,
+                process_peak: 0,
+                total_started: 0,
+                total_stopped: 0,
+                panics: 0,
+                health: "normal",
+                tasks: [
+                  {
+                    task: "backup/coordinator",
+                    name: "coordinator",
+                    kind: "singleton",
+                    critical: true,
+                    expected: 1,
+                    active: 0,
+                    process_peak: 0,
+                    total_started: 0,
+                    total_stopped: 0,
+                    panics: 0,
+                    health: "normal",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
   }
 }
 
@@ -1156,7 +1379,10 @@ test("renders cluster monitor cards from realtime API data", async () => {
   expect(screen.getByText("RPC Errors")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh now" })).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("30s")
-  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m", category: "common" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({
+    window: "15m",
+    category: "common",
+  })
 })
 
 test("renders former business realtime monitor cards in cluster monitor page", async () => {
@@ -1442,7 +1668,10 @@ test("updates selected time range and auto refresh interval from the toolbar", a
 
   await user.click(await screen.findByRole("button", { name: "30m time range" }))
   expect(screen.getByRole("button", { name: "30m time range" })).toHaveAttribute("aria-pressed", "true")
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "30m", category: "common" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({
+    window: "30m",
+    category: "common",
+  })
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Auto refresh" }), "off")
   expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("off")
@@ -1453,17 +1682,97 @@ test("filters realtime monitor by selected category", async () => {
   vi.mocked(getRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
   renderClusterMonitorPage()
 
-  const categorySelect = await screen.findByRole("combobox", { name: "Category" })
+  const categorySelect = await screen.findByRole("combobox", {
+    name: "Category",
+  })
   expect(categorySelect).toHaveValue("common")
   expect(within(categorySelect).getByRole("option", { name: "Common" })).toBeInTheDocument()
   expect(within(categorySelect).getByRole("option", { name: "Database" })).toBeInTheDocument()
   expect(within(categorySelect).queryByRole("option", { name: "All" })).not.toBeInTheDocument()
-  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m", category: "common" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({
+    window: "15m",
+    category: "common",
+  })
 
   await user.selectOptions(categorySelect, "database")
 
   expect(categorySelect).toHaveValue("database")
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "database" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({
+    window: "15m",
+    category: "database",
+  })
+})
+
+test("renders owned goroutines by node and module and refreshes that category every five seconds", async () => {
+  vi.useFakeTimers()
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(goroutineClusterMonitorResponse())
+  renderClusterMonitorPage()
+
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  fireEvent.change(screen.getByRole("combobox", { name: "Category" }), {
+    target: { value: "goroutines" },
+  })
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+
+  expect(screen.getByRole("heading", { name: "Goroutines" })).toBeInTheDocument()
+  expect(screen.getByText("node-1")).toBeInTheDocument()
+  expect(screen.getByText("gateway")).toBeInTheDocument()
+  expect(screen.queryByText("backup")).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Show tasks for gateway" }))
+  expect(screen.getByText("async_dispatch")).toBeInTheDocument()
+  expect(screen.getAllByText("Critical")).toHaveLength(2)
+
+  const callsBeforeTick = vi.mocked(getRealtimeMonitor).mock.calls.length
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000)
+  })
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(callsBeforeTick + 1)
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({
+    window: "15m",
+    category: "goroutines",
+  })
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Node" }), {
+    target: { value: "1" },
+  })
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  expect(screen.getByText("backup")).toBeInTheDocument()
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({
+    window: "15m",
+    category: "goroutines",
+    nodeId: 1,
+  })
+})
+
+test("keeps unsupported goroutine nodes visible in a partial cluster snapshot", async () => {
+  const response = goroutineClusterMonitorResponse()
+  response.status = "partial"
+  response.goroutines!.status = "partial"
+  response.goroutines!.nodes.push({
+    node_id: 2,
+    name: "node-2",
+    status: "alive",
+    supported: false,
+    error: "unsupported",
+  })
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(response)
+  renderClusterMonitorPage()
+
+  fireEvent.change(await screen.findByRole("combobox", { name: "Category" }), {
+    target: { value: "goroutines" },
+  })
+
+  expect(await screen.findByText("node-2")).toBeInTheDocument()
+  expect(screen.getByText("unsupported")).toBeInTheDocument()
 })
 
 test("manually and automatically refreshes realtime monitor data", async () => {
@@ -1481,15 +1790,23 @@ test("manually and automatically refreshes realtime monitor data", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Refresh now" }))
   await act(async () => {})
   expect(getRealtimeMonitor).toHaveBeenCalledTimes(2)
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "common" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({
+    window: "15m",
+    category: "common",
+  })
 
   await act(async () => {
     await vi.advanceTimersByTimeAsync(30_000)
   })
   expect(getRealtimeMonitor).toHaveBeenCalledTimes(3)
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "common" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({
+    window: "15m",
+    category: "common",
+  })
 
-  fireEvent.change(screen.getByRole("combobox", { name: "Auto refresh" }), { target: { value: "off" } })
+  fireEvent.change(screen.getByRole("combobox", { name: "Auto refresh" }), {
+    target: { value: "off" },
+  })
   await act(async () => {})
   await act(async () => {
     await vi.advanceTimersByTimeAsync(30_000)
@@ -1503,12 +1820,19 @@ test("filters realtime monitor by selected node", async () => {
   renderClusterMonitorPage()
 
   const nodeSelect = await screen.findByRole("combobox", { name: "Node" })
-  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m", category: "common" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({
+    window: "15m",
+    category: "common",
+  })
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Category" }), "control")
   await user.selectOptions(nodeSelect, "2")
 
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "control", nodeId: 2 })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({
+    window: "15m",
+    category: "control",
+    nodeId: 2,
+  })
 })
 
 test("does not silently render preview fixture before the realtime API responds", () => {

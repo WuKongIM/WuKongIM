@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -178,7 +179,7 @@ func NewCoordinator(db *engine.DB, cfg Config) *Coordinator {
 		doneCh:   make(chan struct{}),
 	}
 	c.commitFunc = func(batch *engine.Batch) error { return batch.Commit(true) }
-	go c.run()
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseCommitCoordinator, c.run)
 	return c
 }
 

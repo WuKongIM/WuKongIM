@@ -12,6 +12,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -191,7 +192,9 @@ func (c *topCollector) Start(ctx context.Context) error {
 	interval := c.options.CollectInterval
 	c.mu.Unlock()
 
-	go c.run(runCtx, interval, done)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppTopCollector, func() {
+		c.run(runCtx, interval, done)
+	})
 	return nil
 }
 

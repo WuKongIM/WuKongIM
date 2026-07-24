@@ -8,6 +8,14 @@ waiting, and low-cardinality observations. It does not own business retries,
 fencing, message ordering rules, protocol/session handling, or runtime-specific
 metrics names.
 
+Every primitive accepts a `pkg/goroutine` registry and fixed pool task. The
+business module owns the resulting worker and maintenance goroutines; queue
+pressure is reported separately as busy, capacity, depth, and rejected count.
+Callers that omit ownership use the explicit `app/detached_workqueue` fallback,
+so no worker pool is invisible to the process snapshot.
+Ants worker panics are routed through the owning catalog task before its
+recover-or-repanic policy is applied.
+
 ## Primitives
 
 | Type | Responsibility |

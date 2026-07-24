@@ -5,6 +5,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const postCommitRetryInterval = time.Millisecond
@@ -131,7 +133,9 @@ func (s *postCommitRetryScheduler) start() {
 	if s == nil {
 		return
 	}
-	s.startOnce.Do(func() { go s.run() })
+	s.startOnce.Do(func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendPostCommitRetry, s.run)
+	})
 }
 
 func (s *postCommitRetryScheduler) enqueue(writer *channelWriter) {

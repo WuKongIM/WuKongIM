@@ -75,6 +75,8 @@ type RetrySchedulerOptions struct {
 	Workers int
 	// Observer receives bounded retry scheduler observations.
 	Observer RetryObserver
+	// Goroutines receives lifecycle ownership observations.
+	Goroutines *goroutine.Registry
 }
 
 // NewRetryScheduler creates a bounded in-memory retry scheduler.
@@ -98,6 +100,7 @@ func NewRetryScheduler(opts RetrySchedulerOptions) *RetryScheduler {
 		backoff:     opts.Backoff,
 		workers:     workers,
 		observer:    opts.Observer,
+		goroutines:  opts.Goroutines,
 	}
 }
 
@@ -132,12 +135,12 @@ func (s *RetryScheduler) Start(context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(s.workers)
 	for i := 0; i < s.workers; i++ {
-		goroutine.SafeGo(s.goroutines, "delivery", "retry_worker", func() {
+		goroutine.SafeGo(s.goroutines, goroutine.TaskDeliveryRetryWorker, func() {
 			defer wg.Done()
 			s.runWorker(ctx)
 		})
 	}
-	goroutine.SafeGo(s.goroutines, "delivery", "retry_done_wait", func() {
+	goroutine.SafeGo(s.goroutines, goroutine.TaskDeliveryRetryDoneWait, func() {
 		wg.Wait()
 		close(done)
 	})

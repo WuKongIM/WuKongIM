@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc"
@@ -132,8 +133,8 @@ func New(raw net.Conn, cfg Config, dispatch Dispatch) *Conn {
 func (c *Conn) Start() {
 	c.startOnce.Do(func() {
 		c.started.Store(true)
-		go c.readLoop()
-		go c.writeLoop()
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportConnRead, c.readLoop)
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportConnWrite, c.writeLoop)
 	})
 }
 

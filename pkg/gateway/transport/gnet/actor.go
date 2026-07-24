@@ -3,6 +3,8 @@ package gnet
 import (
 	"runtime"
 	"sync"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const actorReadyQueueSize = 1024
@@ -53,10 +55,10 @@ func (p *actorPool) start() {
 		for _, shard := range p.shards {
 			shard := shard
 			p.wg.Add(1)
-			go func() {
+			goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskGatewayTransportActor, func() {
 				defer p.wg.Done()
 				shard.run()
-			}()
+			})
 		}
 	})
 }

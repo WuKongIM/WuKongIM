@@ -199,6 +199,12 @@ Gateway.Start:
   ⑧ 启动共享 idle monitor
 ```
 
+App wiring passes the process `pkg/goroutine` registry through
+`RuntimeOptions`. Async auth/SEND workqueues are attributed to gateway pool
+tasks, while transport actors, listener serving, and the idle monitor use fixed
+gateway task IDs. Pool worker counts include idle ants workers; queue and busy
+pressure remain separate.
+
 默认配置来自 `cmd/wukongim/config.go`:
 
 ```text

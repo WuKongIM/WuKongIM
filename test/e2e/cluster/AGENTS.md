@@ -30,6 +30,8 @@ This domain owns black-box multi-node cluster lifecycle coverage for
 - `dynamic_node_faults`: opt-in gofail-backed dynamic-node join, onboarding,
   scale-in, and remove fault recovery through public manager and WKProto
   entrypoints.
+- `goroutine_monitor`: real three-node Manager fan-out of current process,
+  module, and task goroutine ownership with selected-node filtering.
 
   ```bash
   scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internal/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out /tmp/wukongim-gofail

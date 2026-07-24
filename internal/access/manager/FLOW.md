@@ -299,7 +299,8 @@ and scale-in status because it only reads cluster-node lifecycle evidence.
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional
 positive `node_id`, and `category` (`common`, `gateway`, `internal`, `message`,
-`conversation`, `channel`, `database`, `control`, `slot`, or `node`), requires
+`conversation`, `channel`, `database`, `control`, `slot`, `node`, or
+`goroutines`), requires
 `cluster.node:r` when manager auth is enabled, and delegates Prometheus plus
 bounded `control_snapshot` reads to the app-wired realtime monitor provider.
 When Prometheus is disabled or unavailable the route still returns HTTP 200
@@ -333,6 +334,16 @@ queue/inflight/task-latency pressure.
 Node cards cover runtime workqueue pressure, process CPU, RSS memory,
 goroutine count, and Go GC pause/rate/CPU/heap-goal pressure while preserving
 per-node series for the global cluster view.
+Goroutine cards combine Prometheus history with a direct, current node RPC
+snapshot. The direct view remains available when Prometheus is disabled,
+preserves node identity, and returns fixed module/task ownership plus pool
+busy/capacity/queue/rejection values. Peer failures are partial node results,
+not zeroes, and never expose stack traces or dynamic function names. Fan-out is
+limited to eight concurrent reads, 256 nodes, 1.5 seconds per node, and two
+seconds overall; successful peer snapshots are coalesced and cached for two
+seconds, while stale, unsupported, timed-out, and unavailable nodes remain
+explicit. Module/task health derives from fixed-count drift, panic evidence,
+and pool pressure.
 
 `/manager/runtime/workqueues` is backed by the `internal/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer

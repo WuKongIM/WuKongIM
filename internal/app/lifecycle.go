@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -340,6 +341,9 @@ func (a *App) validateRestoreActivationFence(state controller.ClusterState) erro
 }
 
 func (a *App) logStarted(startedAt time.Time) {
+	if a.goroutines != nil {
+		a.goroutines.SetReady(true)
+	}
 	readySnapshot := a.startupSnapshot()
 	startupDuration := time.Since(startedAt)
 	a.lifecycleLogger().Info("WuKongIM started", append(
@@ -479,6 +483,9 @@ func (a *App) Stop(ctx context.Context) error {
 	defer a.lifecycleMu.Unlock()
 
 	a.stopped = true
+	if a.goroutines != nil {
+		a.goroutines.SetReady(false)
+	}
 	a.restoreDiagnosticsSink()
 	if !a.started {
 		err := a.closeControllerTaskAudit()
@@ -634,8 +641,43 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.backupRuntimeStarted && !a.restoreRuntimeStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.seedJoinStarted && !a.clusterStarted {
 		a.started = false
+		err = errors.Join(err, a.waitManagedGoroutines(ctx))
 	}
 	err = errors.Join(err, a.syncLogger())
+	return err
+}
+
+func (a *App) waitManagedGoroutines(ctx context.Context) error {
+	if a == nil || a.goroutines == nil {
+		return nil
+	}
+	modules := []goruntimeregistry.Module{
+		goruntimeregistry.ModuleAPI,
+		goruntimeregistry.ModuleManager,
+		goruntimeregistry.ModuleGateway,
+		goruntimeregistry.ModuleTransport,
+		goruntimeregistry.ModuleCluster,
+		goruntimeregistry.ModuleController,
+		goruntimeregistry.ModuleSlot,
+		goruntimeregistry.ModuleChannel,
+		goruntimeregistry.ModuleDatabase,
+		goruntimeregistry.ModulePresence,
+		goruntimeregistry.ModuleChannelAppend,
+		goruntimeregistry.ModuleDelivery,
+		goruntimeregistry.ModuleConversation,
+		goruntimeregistry.ModuleWebhook,
+		goruntimeregistry.ModulePlugin,
+		goruntimeregistry.ModuleBackup,
+		goruntimeregistry.ModuleObservability,
+		goruntimeregistry.ModuleApp,
+	}
+	var err error
+	for _, module := range modules {
+		if waitErr := a.goroutines.Group(module).WaitFrom(ctx, a.goroutineBaseline); waitErr != nil {
+			a.logLifecycleWarn(string(module), "stop", waitErr)
+			err = errors.Join(err, waitErr)
+		}
+	}
 	return err
 }
 

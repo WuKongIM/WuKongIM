@@ -8,6 +8,7 @@ import (
 	"time"
 
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -709,7 +710,7 @@ func (r *Runtime) startWatchLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	r.watchCancel = cancel
 	r.watchWG.Add(1)
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskClusterControlWatch, func() {
 		defer r.watchWG.Done()
 		watch := r.backend.Watch()
 		for {
@@ -723,7 +724,7 @@ func (r *Runtime) startWatchLoop() {
 				_ = r.publishState(event.State)
 			}
 		}
-	}()
+	})
 }
 
 func (r *Runtime) publishState(st controller.ClusterState) error {

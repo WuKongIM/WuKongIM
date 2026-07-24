@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -1733,7 +1734,7 @@ func (g *slot) waitApplyIdle(ctx context.Context) error {
 	var stop chan struct{}
 	if done := ctx.Done(); done != nil {
 		stop = make(chan struct{})
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskSlotConditionWaiter, func() {
 			select {
 			case <-done:
 				g.mu.Lock()
@@ -1743,7 +1744,7 @@ func (g *slot) waitApplyIdle(ctx context.Context) error {
 				g.mu.Unlock()
 			case <-stop:
 			}
-		}()
+		})
 		defer close(stop)
 	}
 	g.mu.Lock()

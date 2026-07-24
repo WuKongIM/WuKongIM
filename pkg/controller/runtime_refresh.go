@@ -18,7 +18,7 @@ func (r *Runtime) startRefreshLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	r.refreshCancel = cancel
 	r.refreshWG.Add(1)
-	goroutine.SafeGo(r.cfg.Goroutines, "controller", "refresh_loop", func() {
+	goroutine.SafeGo(r.cfg.Goroutines, goroutine.TaskControllerRefresh, func() {
 		defer r.refreshWG.Done()
 		interval := r.cfg.TickInterval * 5
 		if interval <= 0 {

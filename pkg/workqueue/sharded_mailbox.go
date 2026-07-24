@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -27,6 +28,10 @@ type ShardedMailboxHandler[T any] func(context.Context, MailboxBatch[T]) error
 type ShardedMailboxConfig struct {
 	// Name is a stable low-cardinality name used in observations.
 	Name string
+	// Goroutines receives lifecycle and pool ownership observations.
+	Goroutines *goruntimeregistry.Registry
+	// Task is the fixed module/task owner of this mailbox and its auxiliary goroutines.
+	Task goruntimeregistry.TaskID
 	// Shards is the number of hash partitions.
 	Shards int
 	// Workers is the maximum number of concurrently draining shards.
@@ -54,12 +59,14 @@ type ShardedMailbox[T any] struct {
 	closedCh chan struct{}
 	pool     *ants.PoolWithFuncGeneric[*mailboxShard[T]]
 
-	closed  atomic.Bool
-	running atomic.Int64
+	closed   atomic.Bool
+	running  atomic.Int64
+	rejected atomic.Int64
 
-	closeOnce sync.Once
-	closeErr  error
-	wg        sync.WaitGroup
+	closeOnce      sync.Once
+	closeErr       error
+	wg             sync.WaitGroup
+	unregisterPool func()
 }
 
 type mailboxShard[T any] struct {
@@ -89,6 +96,7 @@ func NewShardedMailbox[T any](cfg ShardedMailboxConfig, handler ShardedMailboxHa
 	if cfg.ReleaseTimeout <= 0 {
 		cfg.ReleaseTimeout = defaultReleaseTimeout
 	}
+	cfg.Goroutines, cfg.Task = normalizeOwnership(cfg.Goroutines, cfg.Task)
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &ShardedMailbox[T]{
 		cfg:      cfg,
@@ -110,12 +118,20 @@ func NewShardedMailbox[T any](cfg ShardedMailboxConfig, handler ShardedMailboxHa
 		m.drainScheduledShard,
 		ants.WithNonblocking(true),
 		ants.WithDisablePurge(true),
+		ants.WithPanicHandler(poolPanicHandler(cfg.Goroutines, cfg.Task)),
 	)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	m.pool = pool
+	unregister, err := cfg.Goroutines.RegisterPool(cfg.Task, m.poolStats)
+	if err != nil {
+		pool.Release()
+		cancel()
+		return nil, err
+	}
+	m.unregisterPool = unregister
 	m.observeCapacity()
 	return m, nil
 }
@@ -157,6 +173,7 @@ func (m *ShardedMailbox[T]) SubmitHash(ctx context.Context, hash uint64, item T)
 	}
 	if len(shard.queue) >= cap(shard.queue) {
 		shard.mu.Unlock()
+		m.rejected.Add(1)
 		m.observeAdmission(shard.id, resultFull)
 		return ErrFull
 	}
@@ -194,10 +211,10 @@ func (m *ShardedMailbox[T]) Close(ctx context.Context) error {
 			shard.mu.Unlock()
 		}
 		done := make(chan struct{})
-		go func() {
+		goruntimeregistry.SafeGo(m.cfg.Goroutines, m.cfg.Task, func() {
 			m.wg.Wait()
 			close(done)
-		}()
+		})
 		select {
 		case <-done:
 			m.closeErr = nil
@@ -205,12 +222,34 @@ func (m *ShardedMailbox[T]) Close(ctx context.Context) error {
 			m.cancel()
 			m.closeErr = ctx.Err()
 		}
+		released := true
 		if m.pool != nil {
-			_ = m.pool.ReleaseTimeout(m.cfg.ReleaseTimeout)
+			released = m.pool.ReleaseTimeout(m.cfg.ReleaseTimeout) == nil
+		}
+		if released && m.unregisterPool != nil {
+			m.unregisterPool()
+		} else if !released && m.pool != nil {
+			unregisterPoolAfterWorkersExit(m.cfg.Goroutines, m.cfg.Task, m.pool.Running, m.unregisterPool)
 		}
 		m.cancel()
 	})
 	return m.closeErr
+}
+
+func (m *ShardedMailbox[T]) poolStats() goruntimeregistry.PoolStats {
+	if m == nil {
+		return goruntimeregistry.PoolStats{}
+	}
+	stats := goruntimeregistry.PoolStats{
+		BusyTasks:     m.running.Load(),
+		Capacity:      int64(m.cfg.Workers),
+		QueueDepth:    int64(m.QueueDepth()),
+		RejectedTotal: m.rejected.Load(),
+	}
+	if m.pool != nil {
+		stats.Goroutines = poolGoroutines(m.pool.Running(), m.pool.IsClosed())
+	}
+	return stats
 }
 
 // QueueDepth returns the current queued item count across all shards.
@@ -237,7 +276,7 @@ func (m *ShardedMailbox[T]) invokeShard(shard *mailboxShard[T]) {
 		return
 	case errors.Is(err, ants.ErrPoolOverload):
 		timer := time.NewTimer(executorRetryDelay)
-		go func() {
+		goruntimeregistry.SafeGo(m.cfg.Goroutines, m.cfg.Task, func() {
 			defer timer.Stop()
 			select {
 			case <-timer.C:
@@ -245,7 +284,7 @@ func (m *ShardedMailbox[T]) invokeShard(shard *mailboxShard[T]) {
 			case <-m.ctx.Done():
 				m.finishShardDrain(shard)
 			}
-		}()
+		})
 	case errors.Is(err, ants.ErrPoolClosed):
 		m.finishShardDrain(shard)
 	default:

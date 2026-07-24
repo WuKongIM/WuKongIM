@@ -10,6 +10,7 @@ import (
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -182,7 +183,7 @@ func (s *ConversationStore) getLastVisibleMessagesConcurrent(ctx context.Context
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskConversationBatchRead, func() {
 			defer wg.Done()
 			for req := range jobs {
 				key, msg, ok, err := s.readLastVisibleMessage(workCtx, req)
@@ -196,7 +197,7 @@ func (s *ConversationStore) getLastVisibleMessagesConcurrent(ctx context.Context
 					outMu.Unlock()
 				}
 			}
-		}()
+		})
 	}
 send:
 	for _, req := range requests {

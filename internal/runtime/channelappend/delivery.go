@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const defaultRecipientOwnerPushConcurrency = 4
@@ -265,10 +267,10 @@ func runBoundedRecipientOwnerPushes(count, concurrency int, run func(int)) {
 	}
 	wg.Add(concurrency - 1)
 	for i := 1; i < concurrency; i++ {
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendDeliveryFanout, func() {
 			defer wg.Done()
 			worker()
-		}()
+		})
 	}
 	worker()
 	wg.Wait()

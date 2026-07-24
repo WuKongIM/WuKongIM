@@ -3,6 +3,8 @@ package core
 import (
 	"sync"
 	"sync/atomic"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -37,7 +39,7 @@ func NewObserverDrain(target Observer) *ObserverDrain {
 		admissionsDrained: make(chan struct{}, 1),
 	}
 	d.wg.Add(1)
-	go d.run()
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportObserver, d.run)
 	return d
 }
 

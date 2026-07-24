@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // BoundedWorkerQueueHandler processes one item admitted by a BoundedWorkerQueue.
@@ -13,6 +16,10 @@ type BoundedWorkerQueueHandler[T any] func(context.Context, T) error
 type BoundedWorkerQueueConfig struct {
 	// Name is a stable low-cardinality name for diagnostics.
 	Name string
+	// Goroutines receives lifecycle and pool ownership observations.
+	Goroutines *goruntimeregistry.Registry
+	// Task is the fixed module/task owner of this queue and its workers.
+	Task goruntimeregistry.TaskID
 	// Workers is the number of direct worker goroutines.
 	Workers int
 	// QueueSize bounds accepted work that has not entered a worker.
@@ -38,6 +45,10 @@ type BoundedWorkerQueue[T any] struct {
 	closeOnce sync.Once
 	closeErr  error
 	workerWG  sync.WaitGroup
+
+	running        atomic.Int64
+	rejected       atomic.Int64
+	unregisterPool func()
 }
 
 // NewBoundedWorkerQueue starts a bounded direct worker queue.
@@ -45,6 +56,7 @@ func NewBoundedWorkerQueue[T any](cfg BoundedWorkerQueueConfig, handler BoundedW
 	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || handler == nil {
 		return nil, ErrInvalidConfig
 	}
+	cfg.Goroutines, cfg.Task = normalizeOwnership(cfg.Goroutines, cfg.Task)
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &BoundedWorkerQueue[T]{
 		cfg:     cfg,
@@ -58,10 +70,16 @@ func NewBoundedWorkerQueue[T any](cfg BoundedWorkerQueueConfig, handler BoundedW
 	for i := 0; i < cfg.QueueSize; i++ {
 		q.slots <- struct{}{}
 	}
-	q.workerWG.Add(cfg.Workers)
-	for i := 0; i < cfg.Workers; i++ {
-		go q.runWorker()
+	unregister, err := cfg.Goroutines.RegisterPool(cfg.Task, q.poolStats)
+	if err != nil {
+		cancel()
+		return nil, err
 	}
+	q.unregisterPool = unregister
+	q.workerWG.Add(cfg.Workers)
+	goruntimeregistry.SafeGoN(cfg.Goroutines, cfg.Task, cfg.Workers, func(int) {
+		q.runWorker()
+	})
 	return q, nil
 }
 
@@ -108,6 +126,7 @@ func (q *BoundedWorkerQueue[T]) submit(ctx context.Context, item T, wait bool) e
 		}
 		if !wait {
 			q.mu.Unlock()
+			q.rejected.Add(1)
 			return ErrFull
 		}
 		slots := q.slots
@@ -169,10 +188,13 @@ func (q *BoundedWorkerQueue[T]) Close(ctx context.Context) error {
 		q.mu.Unlock()
 
 		done := make(chan struct{})
-		go func() {
+		goruntimeregistry.SafeGo(q.cfg.Goroutines, q.cfg.Task, func() {
 			q.workerWG.Wait()
+			if q.unregisterPool != nil {
+				q.unregisterPool()
+			}
 			close(done)
-		}()
+		})
 		select {
 		case <-done:
 			q.closeErr = nil
@@ -183,6 +205,18 @@ func (q *BoundedWorkerQueue[T]) Close(ctx context.Context) error {
 		q.cancel()
 	})
 	return q.closeErr
+}
+
+func (q *BoundedWorkerQueue[T]) poolStats() goruntimeregistry.PoolStats {
+	if q == nil {
+		return goruntimeregistry.PoolStats{}
+	}
+	return goruntimeregistry.PoolStats{
+		BusyTasks:     q.running.Load(),
+		Capacity:      int64(q.cfg.Workers),
+		QueueDepth:    int64(q.QueueDepth()),
+		RejectedTotal: q.rejected.Load(),
+	}
 }
 
 // QueueDepth returns the accepted-but-not-yet-executing item count.
@@ -226,7 +260,7 @@ func (q *BoundedWorkerQueue[T]) runWorker() {
 		select {
 		case item := <-q.queue:
 			q.releaseSlot()
-			_ = q.handler(q.ctx, item)
+			q.runItem(item)
 		case <-q.stop:
 			q.drain()
 			return
@@ -239,11 +273,17 @@ func (q *BoundedWorkerQueue[T]) drain() {
 		select {
 		case item := <-q.queue:
 			q.releaseSlot()
-			_ = q.handler(q.ctx, item)
+			q.runItem(item)
 		default:
 			return
 		}
 	}
+}
+
+func (q *BoundedWorkerQueue[T]) runItem(item T) {
+	q.running.Add(1)
+	defer q.running.Add(-1)
+	_ = q.handler(q.ctx, item)
 }
 
 func (q *BoundedWorkerQueue[T]) releaseSlot() {

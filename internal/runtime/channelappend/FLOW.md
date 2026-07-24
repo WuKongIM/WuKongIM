@@ -124,6 +124,14 @@ pools and cancel the runtime context. A caller context bounds only that caller's
 wait. A timed-out Stop does not cancel or clear work, and a later Stop continues
 waiting for the same drain. A stopped group is not restarted.
 
+The advance, append, and post-commit ants pools register actual created worker
+and maintenance goroutines under `channelappend/worker_pool`. The scheduler,
+retry loop, delivery workers, short fan-out helpers, pool release, and
+background stop drain use fixed `pkg/goroutine` task IDs, without changing the
+single-writer or shutdown ordering described below.
+Pool panic policy is applied through that owner, and pool ownership remains
+registered after release until every executing worker has returned.
+
 ## Writer Execution
 
 The runtime implements local authority validation, hash-sharded writer lookup,
