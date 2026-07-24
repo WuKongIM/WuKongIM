@@ -22,13 +22,17 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
+	"github.com/pelletier/go-toml/v2"
 )
 
 const (
-	mediumEvidenceSchema    = "wukongim/local-medium-rc-hifi-evidence/v2"
+	mediumEvidenceSchema    = "wukongim/local-medium-rc-hifi-evidence/v3"
 	mediumPhysicalHashSlots = 256
 	mediumLogicalSlots      = 10
 	mediumReplicaCount      = 3
+	mediumSlotTickInterval  = 50 * time.Millisecond
+	mediumSlotHeartbeatTick = 2
+	mediumSlotElectionTick  = 20
 	mediumMessageCount      = 250
 	mediumRecipientRows     = 19_650
 	mediumOnlineRoutes      = 2_545
@@ -97,6 +101,9 @@ type hotPathEvidence struct {
 	PhysicalHashSlots        int      `json:"physical_hash_slots"`
 	LogicalSlots             int      `json:"logical_slots"`
 	Replicas                 int      `json:"replicas"`
+	SlotTickIntervalMS       float64  `json:"slot_tick_interval_ms"`
+	SlotHeartbeatTick        int      `json:"slot_heartbeat_tick"`
+	SlotElectionTick         int      `json:"slot_election_tick"`
 	Messages                 int      `json:"messages"`
 	RecipientRows            int      `json:"recipient_rows"`
 	OnlineRoutes             int      `json:"online_routes"`
@@ -162,6 +169,7 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	}
 
 	cluster := startMediumCluster(t)
+	verifyMediumRenderedRuntime(t, cluster)
 	setupCtx, setupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer setupCancel()
 	if err := cluster.WaitClusterReady(setupCtx); err != nil {
@@ -324,6 +332,9 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		PhysicalHashSlots:        mediumPhysicalHashSlots,
 		LogicalSlots:             mediumLogicalSlots,
 		Replicas:                 mediumReplicaCount,
+		SlotTickIntervalMS:       milliseconds(mediumSlotTickInterval),
+		SlotHeartbeatTick:        mediumSlotHeartbeatTick,
+		SlotElectionTick:         mediumSlotElectionTick,
 		Messages:                 len(messages),
 		RecipientRows:            mediumRecipientRows * measuredRounds,
 		OnlineRoutes:             measuredOnlineRoutes,
@@ -400,6 +411,16 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 		return fmt.Errorf("acceptance logical slots = %d, want %d", evidence.LogicalSlots, mediumLogicalSlots)
 	case evidence.Replicas != mediumReplicaCount:
 		return fmt.Errorf("acceptance replicas = %d, want %d", evidence.Replicas, mediumReplicaCount)
+	case evidence.SlotTickIntervalMS != milliseconds(mediumSlotTickInterval):
+		return fmt.Errorf(
+			"acceptance Slot tick interval = %.3fms, want %.3fms",
+			evidence.SlotTickIntervalMS,
+			milliseconds(mediumSlotTickInterval),
+		)
+	case evidence.SlotHeartbeatTick != mediumSlotHeartbeatTick:
+		return fmt.Errorf("acceptance Slot heartbeat tick = %d, want %d", evidence.SlotHeartbeatTick, mediumSlotHeartbeatTick)
+	case evidence.SlotElectionTick != mediumSlotElectionTick:
+		return fmt.Errorf("acceptance Slot election tick = %d, want %d", evidence.SlotElectionTick, mediumSlotElectionTick)
 	case expectedRounds <= 0:
 		return fmt.Errorf("acceptance expected rounds = %d, want positive", expectedRounds)
 	case evidence.Messages != expectedMessages:
@@ -703,6 +724,9 @@ func startMediumCluster(t *testing.T) *suite.StartedCluster {
 		"WK_CLUSTER_INITIAL_SLOT_COUNT":                              "10",
 		"WK_CLUSTER_HASH_SLOT_COUNT":                                 "256",
 		"WK_CLUSTER_SLOT_REPLICA_N":                                  "3",
+		"WK_CLUSTER_SLOT_TICK_INTERVAL":                              mediumSlotTickInterval.String(),
+		"WK_CLUSTER_SLOT_HEARTBEAT_TICK":                             strconv.Itoa(mediumSlotHeartbeatTick),
+		"WK_CLUSTER_SLOT_ELECTION_TICK":                              strconv.Itoa(mediumSlotElectionTick),
 		"WK_CLUSTER_CHANNEL_REPLICA_N":                               "3",
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT":                           "4",
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":                    "8",
@@ -729,6 +753,41 @@ func startMediumCluster(t *testing.T) *suite.StartedCluster {
 		suite.WithNodeConfigOverrides(2, overrides),
 		suite.WithNodeConfigOverrides(3, overrides),
 	)
+}
+
+func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster) {
+	t.Helper()
+	type clusterRuntime struct {
+		Cluster struct {
+			SlotTickInterval  string `toml:"slot_tick_interval"`
+			SlotHeartbeatTick int    `toml:"slot_heartbeat_tick"`
+			SlotElectionTick  int    `toml:"slot_election_tick"`
+		} `toml:"cluster"`
+	}
+	for _, node := range cluster.Nodes {
+		data, err := os.ReadFile(node.Spec.ConfigPath)
+		if err != nil {
+			t.Fatalf("read node %d rendered config: %v", node.Spec.ID, err)
+		}
+		var runtime clusterRuntime
+		if err := toml.Unmarshal(data, &runtime); err != nil {
+			t.Fatalf("decode node %d rendered config: %v", node.Spec.ID, err)
+		}
+		if runtime.Cluster.SlotTickInterval != mediumSlotTickInterval.String() ||
+			runtime.Cluster.SlotHeartbeatTick != mediumSlotHeartbeatTick ||
+			runtime.Cluster.SlotElectionTick != mediumSlotElectionTick {
+			t.Fatalf(
+				"node %d Slot timing = %s/%d/%d, want %s/%d/%d",
+				node.Spec.ID,
+				runtime.Cluster.SlotTickInterval,
+				runtime.Cluster.SlotHeartbeatTick,
+				runtime.Cluster.SlotElectionTick,
+				mediumSlotTickInterval,
+				mediumSlotHeartbeatTick,
+				mediumSlotElectionTick,
+			)
+		}
+	}
 }
 
 func validMediumSlotLeaders(leaders []uint64) bool {
