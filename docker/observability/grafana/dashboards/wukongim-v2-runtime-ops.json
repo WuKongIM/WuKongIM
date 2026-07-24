@@ -242,49 +242,69 @@
       },
       "targets": [
         {
-          "expr": "sum(wukongim_channelappend_writer_admission_depth{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer admission depth {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_admission_depth{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer admission depth",
           "refId": "A"
         },
         {
-          "expr": "sum(wukongim_channelappend_writer_admission_capacity{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer admission capacity {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_admission_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer admission capacity",
           "refId": "B"
         },
         {
-          "expr": "sum(wukongim_channelappend_writer_pool_running{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer running {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_pool_running{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer running",
           "refId": "C"
         },
         {
-          "expr": "sum(wukongim_channelappend_writer_pool_capacity{node_name=~\"$node_name\"}) by (writer)",
-          "legendFormat": "writer pool capacity {{writer}}",
+          "expr": "sum(wukongim_channelappend_writer_pool_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} writer pool capacity",
           "refId": "D"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_writer_state_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, state))",
-          "legendFormat": "writer state items p95 {{state}}",
+          "expr": "sum(wukongim_channelappend_writer_state_items{node_name=~\"$node_name\"}) by (node_name, kind)",
+          "legendFormat": "{{node_name}} writer state {{kind}}",
           "refId": "E"
         },
         {
-          "expr": "sum(wukongim_channelappend_effect_pool_inflight{node_name=~\"$node_name\"}) by (pool)",
-          "legendFormat": "effect inflight {{pool}}",
+          "expr": "sum(wukongim_channelappend_effect_pool_inflight{node_name=~\"$node_name\"}) by (node_name, stage)",
+          "legendFormat": "{{node_name}} effect inflight {{stage}}",
           "refId": "F"
         },
         {
-          "expr": "sum(wukongim_channelappend_effect_pool_capacity{node_name=~\"$node_name\"}) by (pool)",
-          "legendFormat": "effect capacity {{pool}}",
+          "expr": "sum(wukongim_channelappend_effect_pool_capacity{node_name=~\"$node_name\"}) by (node_name, stage)",
+          "legendFormat": "{{node_name}} effect capacity {{stage}}",
           "refId": "G"
         },
         {
-          "expr": "sum(wukongim_channelappend_effect_pool_saturated{node_name=~\"$node_name\"}) by (pool)",
-          "legendFormat": "effect saturated {{pool}}",
+          "expr": "sum(wukongim_channelappend_effect_pool_saturated{node_name=~\"$node_name\"}) by (node_name, stage)",
+          "legendFormat": "{{node_name}} effect saturated {{stage}}",
           "refId": "H"
         },
         {
-          "expr": "sum(rate(wukongim_channelappend_effect_pool_submit_total{node_name=~\"$node_name\"}[$__rate_interval])) by (pool, result)",
-          "legendFormat": "effect submit {{pool}} {{result}}",
+          "expr": "sum(rate(wukongim_channelappend_effect_pool_submit_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, stage, result)",
+          "legendFormat": "{{node_name}} effect submit {{stage}} {{result}}",
           "refId": "I"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_post_commit_handoff_depth{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit handoff depth",
+          "refId": "J"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_post_commit_handoff_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit handoff capacity",
+          "refId": "K"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_post_commit_retry_queue_depth{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit retry queue",
+          "refId": "L"
+        },
+        {
+          "expr": "max(wukongim_channelappend_post_commit_retry_contended{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} post-commit retry contended",
+          "refId": "M"
         }
       ],
       "title": "Channel Append Writer And Effect Pool",
@@ -1092,6 +1112,298 @@
         }
       ],
       "title": "Conversation Active Pressure Event Age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_delivery_recipient_authority_resolve_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result)",
+          "legendFormat": "calls/s {{node_name}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_recipient_authority_resolve_items_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result)",
+          "legendFormat": "items/s {{node_name}} {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_recipient_authority_resolve_targets_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result)",
+          "legendFormat": "targets/s {{node_name}} {{result}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Recipient Authority Resolution Work",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "p99 {{node_name}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Recipient Authority Resolution Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 80
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_presence_endpoint_lookup_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, path, outcome, stale_retry)",
+          "legendFormat": "calls/s {{node_name}} {{path}} {{outcome}} retry={{stale_retry}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_presence_endpoint_lookup_items_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, path, outcome, stale_retry)",
+          "legendFormat": "items/s {{node_name}} {{path}} {{outcome}} retry={{stale_retry}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_presence_endpoint_lookup_groups_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, path, outcome, stale_retry)",
+          "legendFormat": "groups/s {{node_name}} {{path}} {{outcome}} retry={{stale_retry}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Presence Endpoint Lookup Work",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 80
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_presence_endpoint_lookup_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, path, outcome, stale_retry))",
+          "legendFormat": "p99 {{node_name}} {{path}} {{outcome}} retry={{stale_retry}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Presence Endpoint Lookup Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 88
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_delivery_ack_batch_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, phase, outcome)",
+          "legendFormat": "stages/s {{node_name}} {{phase}} {{outcome}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_ack_batch_items_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, phase, outcome)",
+          "legendFormat": "items/s {{node_name}} {{phase}} {{outcome}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_ack_batch_shards_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, phase, outcome)",
+          "legendFormat": "shards/s {{node_name}} {{phase}} {{outcome}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_ack_batch_rejected_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, phase, outcome)",
+          "legendFormat": "rejected/s {{node_name}} {{phase}} {{outcome}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_ack_batch_rollback_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, phase, outcome)",
+          "legendFormat": "rollback/s {{node_name}} {{phase}} {{outcome}}",
+          "refId": "E"
+        }
+      ],
+      "title": "ACK Batch Work",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 88
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(wukongim_delivery_ack_batch_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, phase, outcome))",
+          "legendFormat": "p99 {{node_name}} {{phase}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "ACK Batch Latency",
       "type": "timeseries"
     }
   ],

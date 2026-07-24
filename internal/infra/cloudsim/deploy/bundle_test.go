@@ -1,8 +1,10 @@
 package deploy
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	productconfig "github.com/WuKongIM/WuKongIM/internal/config"
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"gopkg.in/yaml.v3"
 )
@@ -42,6 +46,21 @@ func TestRenderSealVerifyAndTamperDetection(t *testing.T) {
 	}
 	if _, err := Verify(root); err != nil {
 		t.Fatalf("Verify() error = %v", err)
+	}
+	contractData, err := os.ReadFile(filepath.Join(root, "config", effectiveNodeRuntimeContractName))
+	if err != nil {
+		t.Fatalf("read effective runtime contract: %v", err)
+	}
+	var contract EffectiveNodeRuntimeContract
+	if err := json.Unmarshal(contractData, &contract); err != nil {
+		t.Fatalf("decode effective runtime contract: %v", err)
+	}
+	expectedContract, err := effectiveNodeRuntimeContractForScale("small")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !runtimeContractValuesEqual(contract, expectedContract) {
+		t.Fatalf("rendered runtime contract = %#v, want %#v", contract, expectedContract)
 	}
 	renderedScenario, err := os.ReadFile(filepath.Join(root, "config", "scenario.yaml"))
 	if err != nil {
@@ -128,12 +147,34 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 			t.Fatalf("Cloud View config lacks %s:\n%s", required, cloudView)
 		}
 	}
-	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, cloudMediumAuthorityCacheMaxRows)
+	mediumContract, err := effectiveNodeRuntimeContractForScale("medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, mediumContract)
 	if !strings.Contains(config, "hash_slot_count = 256") || !strings.Contains(config, "initial_slot_count = 10") || !strings.Contains(config, "channel_replica_n = 3") || strings.Count(config, "[[cluster.nodes]]") != 3 {
 		t.Fatalf("node config does not preserve the three-node 256 hash-slot and 10 Slot Group contract:\n%s", config)
 	}
 	if !strings.Contains(config, "[conversation]") || !strings.Contains(config, "authority_cache_max_rows = 750000") {
 		t.Fatalf("cloud node config does not retain the bounded Medium conversation working set:\n%s", config)
+	}
+	if !strings.Contains(config, "[delivery]") || !strings.Contains(config, fmt.Sprintf("recipient_worker_concurrency = %d", cloudMediumRecipientWorkerConcurrency)) {
+		t.Fatalf("cloud Medium node config does not retain the measured recipient worker capacity:\n%s", config)
+	}
+	for _, required := range []string{
+		"channel_reactor_count = 4",
+		"channel_store_append_workers = 8",
+		"channel_store_apply_workers = 8",
+		"channel_rpc_workers = 96",
+		"channel_rpc_batch_max_items = 8",
+		"gnet_multicore = true",
+		"gnet_num_event_loop = 4",
+		"runtime_async_send_workers = 128",
+		"runtime_async_send_queue_capacity = 131072",
+	} {
+		if !strings.Contains(config, required) {
+			t.Fatalf("cloud node config lacks explicit runtime contract %q:\n%s", required, config)
+		}
 	}
 	prometheus := prometheusConfig(testBundleSpec("unused").PrivateIPv4)
 	if !strings.Contains(prometheus, "scrape_interval: 15s") ||
@@ -156,14 +197,15 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	}
 }
 
-func TestAuthorityCacheMaxRowsUsesReviewedCloudScale(t *testing.T) {
+func TestNodeRuntimeProfileUsesReviewedCloudScale(t *testing.T) {
 	tests := []struct {
-		scale string
-		want  int
+		scale                string
+		wantCacheRows        int
+		wantRecipientWorkers int
 	}{
-		{scale: "small", want: cloudSmallAuthorityCacheMaxRows},
-		{scale: "medium", want: cloudMediumAuthorityCacheMaxRows},
-		{scale: "large", want: cloudLargeAuthorityCacheMaxRows},
+		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows, wantRecipientWorkers: cloudDefaultRecipientWorkers},
+		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency},
+		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows, wantRecipientWorkers: cloudDefaultRecipientWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -172,18 +214,142 @@ func TestAuthorityCacheMaxRowsUsesReviewedCloudScale(t *testing.T) {
 			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			got, err := authorityCacheMaxRowsForScenario(path)
+			profile, err := nodeRuntimeProfileForScenario(path)
 			if err != nil {
-				t.Fatalf("authorityCacheMaxRowsForScenario() error = %v", err)
+				t.Fatalf("nodeRuntimeProfileForScenario() error = %v", err)
 			}
-			if got != test.want {
-				t.Fatalf("authority cache max rows = %d, want %d", got, test.want)
+			if profile.ConversationAuthorityCacheMaxRows != test.wantCacheRows {
+				t.Fatalf("authority cache max rows = %d, want %d", profile.ConversationAuthorityCacheMaxRows, test.wantCacheRows)
 			}
-			config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, got)
-			if !strings.Contains(config, fmt.Sprintf("authority_cache_max_rows = %d", test.want)) {
-				t.Fatalf("node config does not use %s ceiling %d:\n%s", test.scale, test.want, config)
+			if profile.RecipientWorkerConcurrency != test.wantRecipientWorkers {
+				t.Fatalf("recipient worker concurrency = %d, want %d", profile.RecipientWorkerConcurrency, test.wantRecipientWorkers)
+			}
+			config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, profile)
+			if !strings.Contains(config, fmt.Sprintf("authority_cache_max_rows = %d", test.wantCacheRows)) {
+				t.Fatalf("node config does not use %s ceiling %d:\n%s", test.scale, test.wantCacheRows, config)
+			}
+			workerConfigLine := fmt.Sprintf("recipient_worker_concurrency = %d", test.wantRecipientWorkers)
+			if !strings.Contains(config, workerConfigLine) {
+				t.Fatalf("node config does not use %s recipient worker capacity %d:\n%s", test.scale, test.wantRecipientWorkers, config)
 			}
 		})
+	}
+}
+
+func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
+	tests := []struct {
+		scale                string
+		wantCacheRows        int
+		wantRecipientWorkers int
+		wantRPCWorkers       int
+	}{
+		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows, wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
+		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers},
+		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows, wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
+	}
+	for _, test := range tests {
+		t.Run(test.scale, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
+				if err := os.WriteFile(filepath.Join(root, "bin", name), []byte(name), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			scenario := filepath.Join("..", "..", "..", "..", "docker", "sim", "cloud-"+test.scale+".yaml")
+			if err := Render(root, testBundleSpec(scenario)); err != nil {
+				t.Fatalf("Render() error = %v", err)
+			}
+			path := filepath.Join(root, "config", "node-1.toml")
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hasRecipientOverride := strings.Contains(string(raw), "recipient_worker_concurrency")
+			if !hasRecipientOverride {
+				t.Fatalf("rendered %s config omits the explicit recipient worker contract:\n%s", test.scale, raw)
+			}
+			loaded, err := productconfig.Load(productconfig.Options{
+				Args:    []string{"-config", path},
+				Environ: []string{"PATH=/usr/bin"},
+			})
+			if err != nil {
+				t.Fatalf("config.Load() error = %v", err)
+			}
+			if loaded.Delivery.RecipientWorkerConcurrency != test.wantRecipientWorkers {
+				t.Fatalf("recipient worker concurrency = %d, want %d", loaded.Delivery.RecipientWorkerConcurrency, test.wantRecipientWorkers)
+			}
+			if loaded.Conversation.AuthorityCacheMaxRows != test.wantCacheRows {
+				t.Fatalf("authority cache max rows = %d, want %d", loaded.Conversation.AuthorityCacheMaxRows, test.wantCacheRows)
+			}
+			if loaded.Cluster.Slots.HashSlotCount != 256 || loaded.Cluster.Slots.InitialSlotCount != 10 {
+				t.Fatalf("cluster slots = hash %d / initial %d, want 256 / 10", loaded.Cluster.Slots.HashSlotCount, loaded.Cluster.Slots.InitialSlotCount)
+			}
+			if loaded.Cluster.Slots.ReplicaCount != 3 || loaded.Cluster.Channel.ReplicaCount != 3 {
+				t.Fatalf("cluster replicas = Slot %d / Channel %d, want 3 / 3", loaded.Cluster.Slots.ReplicaCount, loaded.Cluster.Channel.ReplicaCount)
+			}
+			if loaded.Cluster.Channel.ReactorCount != 4 || loaded.Cluster.Channel.StoreAppendWorkers != 8 ||
+				loaded.Cluster.Channel.StoreApplyWorkers != 8 || loaded.Cluster.Channel.RPCWorkers != test.wantRPCWorkers ||
+				loaded.Cluster.Channel.RPCBatchMaxItems != 8 {
+				t.Fatalf("channel runtime = %#v, want reactor/append/apply/RPC/batch 4/8/8/%d/8", loaded.Cluster.Channel, test.wantRPCWorkers)
+			}
+			if !loaded.Gateway.Transport.Gnet.Multicore || loaded.Gateway.Transport.Gnet.NumEventLoop != 4 || loaded.Gateway.Runtime.AsyncSendWorkers != 128 || loaded.Gateway.Runtime.AsyncSendQueueCapacity != 131072 {
+				t.Fatalf("gateway runtime = transport %#v runtime %#v, want multicore/loops/workers/queue true/4/128/131072", loaded.Gateway.Transport.Gnet, loaded.Gateway.Runtime)
+			}
+			sources := startupConfigSources(loaded.StartupConfigSnapshot)
+			for _, key := range effectiveRuntimeContractKeys {
+				if got := sources[key]; got != managementusecase.NodeConfigValueSourceTOML {
+					t.Fatalf("effective startup source for %s = %q, want toml", key, got)
+				}
+			}
+		})
+	}
+}
+
+func startupConfigSources(snapshot managementusecase.NodeConfigSnapshot) map[string]string {
+	sources := make(map[string]string)
+	for _, group := range snapshot.Groups {
+		for _, item := range group.Items {
+			sources[item.Key] = item.Source
+		}
+	}
+	return sources
+}
+
+func TestCloudMediumRecipientWorkerCapacityCoversMeasuredPlanRate(t *testing.T) {
+	const (
+		clusterPlansPerSecond        = 5100
+		worstNodePlanShare           = 0.40
+		worstMeanPlanSeconds         = 0.113
+		capacityHeadroom             = 1.25
+		productDefaultWorkerCapacity = 100
+	)
+	required := int(math.Ceil(float64(clusterPlansPerSecond) * worstNodePlanShare * worstMeanPlanSeconds * capacityHeadroom))
+	if productDefaultWorkerCapacity >= required {
+		t.Fatalf("test invariant invalid: product default %d unexpectedly covers required capacity %d", productDefaultWorkerCapacity, required)
+	}
+	if cloudMediumRecipientWorkerConcurrency < required {
+		t.Fatalf("Cloud Medium recipient worker capacity = %d, want at least %d", cloudMediumRecipientWorkerConcurrency, required)
+	}
+}
+
+func TestCloudMediumRPCWorkerCapacityCoversMeasuredIngressWithHeadroom(t *testing.T) {
+	const (
+		measuredWorkers  = 50
+		measuredIngress  = 3846.48
+		minimumIngress   = 4500.0
+		capacityHeadroom = 1.50
+	)
+	contract, err := effectiveNodeRuntimeContractForScale("medium")
+	if err != nil {
+		t.Fatal(err)
+	}
+	required := int(math.Ceil(float64(measuredWorkers) * minimumIngress / measuredIngress * capacityHeadroom))
+	if contract.ChannelRPCWorkers < required {
+		t.Fatalf("Cloud Medium Channel RPC workers = %d, want at least %d from measured %.2f/s at %d workers with %.0f%% headroom",
+			contract.ChannelRPCWorkers, required, measuredIngress, measuredWorkers, (capacityHeadroom-1)*100)
 	}
 }
 
@@ -351,8 +517,15 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 		HealthySlotLeaders: 256, HealthySlotReplicas: 256, PrometheusTargetsUp: 7, PrometheusTargetsWant: 7,
 		AnalysisMCPSelfCheck: true, PublicViewEnabled: true, CloudViewSelfCheck: true,
 		WKBenchValidate: true, WKBenchDoctor: true,
+		RuntimeScale:                "medium",
+		ExpectedNodeRuntimeContract: expectedRuntimeContract(t, "medium"),
+		NodeRuntimeContracts: map[string]EffectiveNodeRuntimeContract{
+			"node-1": observedRuntimeContract(t, "medium"),
+			"node-2": observedRuntimeContract(t, "medium"),
+			"node-3": observedRuntimeContract(t, "medium"),
+		},
 	}
-	if result := EvaluateBootstrapGate(snapshot, digest); !result.Passed {
+	if result := EvaluateBootstrapGate(snapshot, digest); !result.Passed || result.Retryable {
 		t.Fatalf("complete gate = %#v", result)
 	}
 	snapshot.SlotGroupCount = 256
@@ -365,10 +538,57 @@ func TestBootstrapGateFailsClosedAndPassesOnlyCompleteSnapshot(t *testing.T) {
 		t.Fatalf("missing cgroup metric gate = %#v, want explicit failure", result)
 	}
 	snapshot.CgroupMetricsAvailableNodeIDs = []uint64{1, 2, 3}
-	snapshot.PendingControllerTask = 1
-	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || len(result.Failures) == 0 {
-		t.Fatalf("incomplete gate = %#v, want fail closed", result)
+	snapshot.NodeRuntimeContracts["node-2"] = observedRuntimeContract(t, "medium")
+	driftedRuntime := snapshot.NodeRuntimeContracts["node-2"]
+	driftedRuntime.ChannelRPCWorkers = 500
+	snapshot.NodeRuntimeContracts["node-2"] = driftedRuntime
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || !slices.Contains(result.Failures, "node-2 effective runtime contract mismatch") {
+		t.Fatalf("runtime config drift gate = %#v, want explicit failure", result)
 	}
+	snapshot.NodeRuntimeContracts["node-2"] = observedRuntimeContract(t, "medium")
+	snapshot.NodeRuntimeContracts["node-2"].ValueSources["WK_CLUSTER_CHANNEL_RPC_WORKERS"] = "default"
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || !slices.Contains(result.Failures, "node-2 effective runtime contract source is not toml") {
+		t.Fatalf("runtime config source drift gate = %#v, want explicit failure", result)
+	}
+	snapshot.NodeRuntimeContracts["node-2"] = observedRuntimeContract(t, "medium")
+	driftedExpected := snapshot.ExpectedNodeRuntimeContract
+	driftedExpected.ChannelRPCWorkers = 49
+	snapshot.ExpectedNodeRuntimeContract = driftedExpected
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || result.Retryable || !slices.Contains(result.Failures, "node-1 effective runtime contract mismatch") {
+		t.Fatalf("sealed runtime contract drift gate = %#v, want observed mismatch", result)
+	}
+	snapshot.ExpectedNodeRuntimeContract = expectedRuntimeContract(t, "medium")
+	snapshot.RuntimeScale = ""
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || result.Retryable || !slices.Contains(result.Failures, `sealed effective runtime contract scale mismatch: contract="medium" scenario=""`) {
+		t.Fatalf("missing rendered scenario scale gate = %#v, want terminal mismatch", result)
+	}
+	snapshot.RuntimeScale = "medium"
+	snapshot.PendingControllerTask = 1
+	if result := EvaluateBootstrapGate(snapshot, digest); result.Passed || !result.Retryable || len(result.Failures) == 0 {
+		t.Fatalf("incomplete gate = %#v, want retryable fail closed result", result)
+	}
+}
+
+func observedRuntimeContract(t *testing.T, scale string) EffectiveNodeRuntimeContract {
+	t.Helper()
+	contract, err := effectiveNodeRuntimeContractForScale(scale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract.ValueSources = make(map[string]string, len(effectiveRuntimeContractKeys))
+	for _, key := range effectiveRuntimeContractKeys {
+		contract.ValueSources[key] = "toml"
+	}
+	return contract
+}
+
+func expectedRuntimeContract(t *testing.T, scale string) EffectiveNodeRuntimeContract {
+	t.Helper()
+	contract, err := effectiveNodeRuntimeContractForScale(scale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return contract
 }
 
 func testBundleSpec(scenario string) BundleSpec {

@@ -13,7 +13,10 @@ configured. Runtime `Observer`, `ManagerObserver`, and `AckObserver` events
 describe fanout routing, UID route resolution, owner push attempts, manager
 admission, terminal async outcomes, and owner-local ack state changes with
 bounded result and error-class labels; concrete metrics and logging remain app
-concerns.
+concerns. The separately configured optional `AckBatchObserver` adds one
+aggregate callback per batch bind or finish stage with numeric
+shape/rejection/rollback fields; it does not add callbacks inside tracker item
+or shard loops, and an ordinary `AckObserver` never enables that extra work.
 `RetryScheduler` can wrap any `FanoutTaskRunner` with a bounded in-memory
 retry queue. It executes the first attempt inline; retryable failures are
 queued for background workers, while non-retryable failures and queue overflow
@@ -77,18 +80,66 @@ Retry scheduler lifecycle:
 Recvack flow:
 
 1. Push accepted by recipient owner.
-2. `Manager.BindPendingAck` calls `AckTracker.BindResult` and records the
-   pending recvack when the per-session limit allows it.
-3. Client sends Recvack.
-4. `Manager.Recvack` calls `AckTracker.Ack` and clears the owner-local pending
+2. Owner-local multi-route delivery validates exact active sessions first, then
+   `Manager.BindPendingAcks` calls `AckTracker.BindBatch`. The tracker preserves
+   item alignment and per-session limits while grouping entries by internal
+   shard, so each affected shard and the Manager mutation/observation lock are
+   acquired once per push batch. The result is one item-aligned opaque token
+   slice: a zero token means rejection, while every accepted attempt receives a
+   distinct in-flight reservation even when it refreshes an existing key. The
+   single-result surface retains `Bound` and `Added` for compatibility. Its
+   `BindPendingAck` compatibility wrapper immediately finishes the reservation;
+   direct result and batch callers must finish or roll back every accepted token
+   unless identity cleanup wins first.
+3. The owner writes only routes whose aligned bind result succeeded, after one
+   final exact-session revalidation closes the wider batch-bind/write race. A
+   route write, packet-build, or revalidation failure rolls back only that
+   attempt's token. A successful write finishes its token and marks the key
+   committed. The internal entry keeps the committed `PendingRecvAck` snapshot
+   separate from in-flight refresh metadata. A first uncommitted bind uses one
+   inline primary token and the entry snapshot without another allocation;
+   overlapping or committed refreshes use a lazily allocated attempt slice that
+   carries both token and candidate snapshot. Finishing a refresh promotes only
+   that attempt's snapshot, while rolling it back preserves the previous
+   committed snapshot. When an overlapping fresh attempt finishes before the
+   inline primary attempt, the finishing attempt's existing slice slot retains
+   the primary candidate so a later successful primary finish can still promote
+   its own metadata without another allocation. Finish and rollback nil the
+   extra-attempt storage when it drains. Consequently the typical unique bind uses no extra-attempt
+   allocation, while each simultaneously retained committed-key refresh pays
+   for its own tentative metadata until finish or rollback. Rollback removes
+   the key only when it has neither a committed write nor another in-flight
+   attempt. Multi-route success finishes are
+   grouped by tracker shard without another per-item result allocation. A later
+   duplicate item first cancels its original batch token, then rebinds immediately
+   before writing so a fast earlier Recvack cannot consume the reservation it is
+   about to use. Mixed limit rejections remain item-aligned and are classified by
+   the owner pusher.
+4. Client sends Recvack.
+5. `Manager.Recvack` calls `AckTracker.Ack` and clears the owner-local pending
    state for matched entries.
-5. `Manager.SessionClosed` or `Manager.ExpirePendingAcks` cleans pending
-   entries that no longer have a live client ack path.
-6. Each bind, ack, session-close, and expire mutation emits a bounded
-   `AckEvent` from `Manager` with action, result, changed count, and the
-   owner-local pending count after the mutation.
-7. `Manager` serializes each ack mutation with its `AckEvent` emission, so
+6. `Manager.SessionClosed` or `Manager.ExpirePendingAcks` cleans pending
+   entries that no longer have a live client ack path. Expiry compares the TTL
+   cutoff with both the committed snapshot and every active bind attempt. A
+   fresh in-flight refresh therefore protects the identity until it finishes
+   or rolls back, while an identity whose committed and tentative delivery
+   timestamps all reach the cutoff is still removed together with its tokens.
+7. Each single mutation emits one bounded `AckEvent`; a batch bind emits one
+   aggregate event with the batch's added count and final owner-local pending
+   count. Token rollback emits one bounded event and changes the gauge only when
+   it removes the last uncommitted reservation. Finish emits no event because it
+   cannot change the pending identity count. The event remains a gauge
+   projection, while per-route mixed bind rejections stay visible in owner-push
+   classification and bounded logs.
+   Separately, an optional `AckBatchObserver` emits one post-operation stage for
+   each multi-item bind and finish. The event reports bounded phase/outcome plus
+   item, touched-shard, rejection, rollback, and duration values. The
+   owner-push caller passes the number of bind reservations it actually
+   canceled; omitted indexes remain in-flight and are not inferred to be
+   rollbacks. The observer does not scan tracker state or time individual shard
+   locks.
+8. `Manager` serializes each ack mutation with its `AckEvent` emission, so
    observers do not apply an older pending count after a newer state change.
-8. App top and Prometheus observers consume the same ack event path, so
+9. App top and Prometheus observers consume the same ack event path, so
    `ack_bindings` and `wukongim_delivery_ack_bindings` reflect `AckTracker`
    transitions instead of adapter-local estimates.

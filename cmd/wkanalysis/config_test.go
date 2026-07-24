@@ -3,10 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	benchconfig "github.com/WuKongIM/WuKongIM/internal/bench/config"
+	cloudanalysis "github.com/WuKongIM/WuKongIM/internal/usecase/cloudanalysis"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
@@ -80,6 +82,91 @@ func TestDefaultMetricQueriesExcludeZeroCapacityRuntimeQueues(t *testing.T) {
 	want := `max(wukongim_runtime_pool_queue_depth / (wukongim_runtime_pool_queue_capacity > 0))`
 	if got != want {
 		t.Fatalf("runtime_queue_pressure = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultMetricQueriesIncludePerPoolRuntimeQueuePressure(t *testing.T) {
+	got := defaultMetricQueries()["runtime_queue_pressure_by_pool"]
+	want := `max by (instance, node_id, node_name, component, pool, queue, priority) (wukongim_runtime_pool_queue_depth{job="wukongim"} / (wukongim_runtime_pool_queue_capacity{job="wukongim"} > 0))`
+	if got != want {
+		t.Fatalf("runtime_queue_pressure_by_pool = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultMetricQueriesIncludeBoundedChannelRPCStageEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	want := map[string]string{
+		"channel_rpc_worker_admission_cumulative": `sum by (instance, node_id, node_name, pool, result) (wukongim_runtime_pool_admission_total{job="wukongim",component="channel",pool="channelv2-rpc",queue="worker"})`,
+		"channel_rpc_worker_wait_p99":             `histogram_quantile(0.99, sum by (instance, node_id, node_name, pool, result, le) (rate(wukongim_runtime_pool_wait_duration_seconds_bucket{job="wukongim",component="channel",pool="channelv2-rpc",queue="worker"}[1m])))`,
+		"channel_rpc_worker_task_p99":             `histogram_quantile(0.99, sum by (instance, node_id, node_name, pool, task, result, le) (rate(wukongim_runtime_pool_task_duration_seconds_bucket{job="wukongim",component="channel",pool="channelv2-rpc"}[1m])))`,
+		"channel_rpc_worker_batch_items_p99":      `histogram_quantile(0.99, sum by (instance, node_id, node_name, kind, result, le) (rate(wukongim_channelv2_worker_batch_items_bucket{job="wukongim",kind=~"rpc_pull|rpc_pull_hint"}[1m])))`,
+		"channel_rpc_follower_stage_p99":          `histogram_quantile(0.99, sum by (instance, node_id, node_name, stage, result, le) (rate(wukongim_channelv2_replication_stage_duration_seconds_bucket{job="wukongim",stage=~"follower_pull_hint_to_submit|follower_pull_rpc"}[1m])))`,
+		"channel_rpc_pull_batch_items_p99":        `histogram_quantile(0.99, sum by (instance, node_id, node_name, result, le) (rate(wukongim_channelv2_pull_batch_items_bucket{job="wukongim"}[1m])))`,
+		"channel_rpc_pull_batch_stage_p99":        `histogram_quantile(0.99, sum by (instance, node_id, node_name, stage, result, le) (rate(wukongim_channelv2_pull_batch_duration_seconds_bucket{job="wukongim"}[1m])))`,
+		"channel_rpc_pull_hint_receive_rate":      `sum by (instance, node_id, node_name, reason, stage, result, error) (rate(wukongim_channelv2_pull_hint_receive_total{job="wukongim"}[1m]))`,
+	}
+	for id, query := range want {
+		if queries[id] != query {
+			t.Fatalf("metric query %q = %q, want %q", id, queries[id], query)
+		}
+		if strings.Contains(query, "channel_key") || strings.Contains(query, "slot_id") || strings.Contains(query, "uid") {
+			t.Fatalf("metric query %q exposes a high-cardinality dimension: %s", id, query)
+		}
+	}
+}
+
+func TestDefaultMetricQueriesIncludeRecipientDeliveryAndPostCommitEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	want := map[string]string{
+		"delivery_recipient_worker_queue_depth":                   `max by (instance, node_name) (wukongim_delivery_recipient_worker_queue_depth{job="wukongim"})`,
+		"delivery_recipient_worker_queue_capacity":                `max by (instance, node_name) (wukongim_delivery_recipient_worker_queue_capacity{job="wukongim"})`,
+		"delivery_recipient_worker_inflight":                      `max by (instance, node_name) (wukongim_delivery_recipient_worker_inflight{job="wukongim"})`,
+		"delivery_recipient_worker_capacity":                      `max by (instance, node_name) (wukongim_delivery_recipient_worker_capacity{job="wukongim"})`,
+		"delivery_recipient_worker_admission_cumulative":          `sum by (instance, node_name, result) (wukongim_delivery_recipient_worker_admission_total{job="wukongim"})`,
+		"delivery_recipient_worker_admission_wait_p99":            `histogram_quantile(0.99, sum by (instance, node_name, result, le) (rate(wukongim_delivery_recipient_worker_admission_wait_seconds_bucket{job="wukongim"}[1m])))`,
+		"delivery_recipient_worker_process_cumulative":            `sum by (instance, node_name, result) (wukongim_delivery_recipient_worker_process_total{job="wukongim"})`,
+		"delivery_recipient_worker_process_p99":                   `histogram_quantile(0.99, sum by (instance, node_name, result, le) (rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{job="wukongim"}[1m])))`,
+		"delivery_recipient_worker_process_recipients_cumulative": `sum by (instance, node_name, result) (wukongim_delivery_recipient_worker_process_recipients_sum{job="wukongim"})`,
+		"channelappend_post_commit_handoff_depth":                 `max by (instance, node_name) (wukongim_channelappend_post_commit_handoff_depth{job="wukongim"})`,
+		"channelappend_post_commit_handoff_capacity":              `max by (instance, node_name) (wukongim_channelappend_post_commit_handoff_capacity{job="wukongim"})`,
+		"channelappend_post_commit_retry_queue_depth":             `max by (instance, node_name) (wukongim_channelappend_post_commit_retry_queue_depth{job="wukongim"})`,
+		"channelappend_post_commit_retry_contended":               `max by (instance, node_name) (wukongim_channelappend_post_commit_retry_contended{job="wukongim"})`,
+	}
+	for id, query := range want {
+		if queries[id] != query {
+			t.Fatalf("metric query %q = %q, want %q", id, queries[id], query)
+		}
+	}
+}
+
+func TestDefaultMetricQueriesIncludeRecipientPipelineStageEvidence(t *testing.T) {
+	queries := defaultMetricQueries()
+	want := map[string]string{
+		cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveRate:        `sum by (instance, node_name, result) (rate(wukongim_delivery_recipient_authority_resolve_total{job="wukongim"}[1m]))`,
+		cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveItemsRate:   `sum by (instance, node_name, result) (rate(wukongim_delivery_recipient_authority_resolve_items_total{job="wukongim"}[1m]))`,
+		cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveTargetsRate: `sum by (instance, node_name, result) (rate(wukongim_delivery_recipient_authority_resolve_targets_total{job="wukongim"}[1m]))`,
+		cloudanalysis.MetricQueryDeliveryRecipientAuthorityResolveP99:         `histogram_quantile(0.99, sum by (instance, node_name, result, le) (rate(wukongim_delivery_recipient_authority_resolve_duration_seconds_bucket{job="wukongim"}[1m])))`,
+		cloudanalysis.MetricQueryPresenceEndpointLookupRate:                   `sum by (instance, node_name, path, outcome, stale_retry) (rate(wukongim_presence_endpoint_lookup_total{job="wukongim"}[1m]))`,
+		cloudanalysis.MetricQueryPresenceEndpointLookupItemsRate:              `sum by (instance, node_name, path, outcome, stale_retry) (rate(wukongim_presence_endpoint_lookup_items_total{job="wukongim"}[1m]))`,
+		cloudanalysis.MetricQueryPresenceEndpointLookupGroupsRate:             `sum by (instance, node_name, path, outcome, stale_retry) (rate(wukongim_presence_endpoint_lookup_groups_total{job="wukongim"}[1m]))`,
+		cloudanalysis.MetricQueryPresenceEndpointLookupP99:                    `histogram_quantile(0.99, sum by (instance, node_name, path, outcome, stale_retry, le) (rate(wukongim_presence_endpoint_lookup_duration_seconds_bucket{job="wukongim"}[1m])))`,
+		cloudanalysis.MetricQueryDeliveryAckBatchCumulative:                   `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_total{job="wukongim"})`,
+		cloudanalysis.MetricQueryDeliveryAckBatchItemsCumulative:              `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_items_total{job="wukongim"})`,
+		cloudanalysis.MetricQueryDeliveryAckBatchShardsCumulative:             `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_shards_total{job="wukongim"})`,
+		cloudanalysis.MetricQueryDeliveryAckBatchRejectedCumulative:           `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_rejected_total{job="wukongim"})`,
+		cloudanalysis.MetricQueryDeliveryAckBatchRollbackCumulative:           `sum by (instance, node_name, phase, outcome) (wukongim_delivery_ack_batch_rollback_total{job="wukongim"})`,
+		cloudanalysis.MetricQueryDeliveryAckBatchP99:                          `histogram_quantile(0.99, sum by (instance, node_name, phase, outcome, le) (rate(wukongim_delivery_ack_batch_duration_seconds_bucket{job="wukongim"}[1m])))`,
+	}
+	for id, query := range want {
+		if queries[id] != query {
+			t.Fatalf("metric query %q = %q, want %q", id, queries[id], query)
+		}
+	}
+
+	for id, query := range want {
+		if strings.Contains(query, "uid") || strings.Contains(query, "node_id") || strings.Contains(query, "route") || strings.Contains(query, "slot") {
+			t.Fatalf("metric query %q exposes a high-cardinality dimension: %s", id, query)
+		}
 	}
 }
 

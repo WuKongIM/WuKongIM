@@ -84,7 +84,7 @@ func TestRunImportRequiresExplicitEmptyTarget(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--require-empty") {
 		t.Fatalf("stderr = %q, want --require-empty error", stderr.String())
 	}
-	for _, rel := range []string{"data", "channellog"} {
+	for _, rel := range []string{defaultMetaStoreDirName, defaultMessageStoreDirName} {
 		if _, err := os.Stat(filepath.Join(dataDir, rel)); !os.IsNotExist(err) {
 			t.Fatalf("%s stat err = %v, want not exist", rel, err)
 		}
@@ -117,8 +117,8 @@ func TestRunImportWritesTempNodeStore(t *testing.T) {
 	}
 
 	store, err := db.OpenNodeStore(db.NodeStoreOptions{
-		MetaPath:    filepath.Join(dataDir, "data"),
-		MessagePath: filepath.Join(dataDir, "channellog"),
+		MetaPath:    filepath.Join(dataDir, defaultMetaStoreDirName),
+		MessagePath: filepath.Join(dataDir, defaultMessageStoreDirName),
 	})
 	if err != nil {
 		t.Fatalf("OpenNodeStore(): %v", err)

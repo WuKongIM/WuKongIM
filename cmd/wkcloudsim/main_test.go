@@ -75,6 +75,48 @@ func TestCLICloudSimulationLifecycleAndRunLocator(t *testing.T) {
 	}
 }
 
+func TestCLIInventoryOutputsAuthorityBoundSnapshot(t *testing.T) {
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "inventory.json")
+	requestPath := filepath.Join(dir, "request.json")
+	request := cloudsim.CreateRequest{
+		RunID: "run-inventory", Provider: "fake", Region: "local", AccountIDHash: "sha256:account",
+		Repository: "WuKongIM/WuKongIM", SourceSHA: "0123456789012345678901234567890123456789",
+		ScenarioDigest: "sha256:scenario", DeploymentBundleDigest: "sha256:bundle",
+		MCPCertificateFingerprint: "sha256:certificate", Preset: cloudsim.PresetSmall,
+		ExpiresAt: now.Add(2 * time.Hour), MaxTotalCostMicros: 20_000_000, Currency: "CNY",
+	}
+	data, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(requestPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"--state", statePath, "create", "--request", requestPath}, &stdout, &stderr, func() time.Time { return now }); code != 0 {
+		t.Fatalf("create code=%d stderr=%s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := execute([]string{"--state", statePath, "inventory"}, &stdout, &stderr, func() time.Time { return now }); code != 0 {
+		t.Fatalf("inventory code=%d stderr=%s", code, stderr.String())
+	}
+	var snapshot cloudsim.InventorySnapshot
+	if err := json.Unmarshal(stdout.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode inventory snapshot: %v\n%s", err, stdout.String())
+	}
+	if snapshot.Authority.Provider != "fake" || snapshot.Authority.Region != "local" ||
+		snapshot.Authority.AccountIDHash != "sha256:account" {
+		t.Fatalf("inventory authority = %#v", snapshot.Authority)
+	}
+	if len(snapshot.Runs) != 1 || snapshot.Runs[0].ID != "run-inventory" {
+		t.Fatalf("inventory runs = %#v", snapshot.Runs)
+	}
+}
+
 func TestCLIOpenAnalysisRejectsNonHostPrefix(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := execute([]string{

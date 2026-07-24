@@ -64,14 +64,14 @@ wkdb --data-dir ./data/node-1 query "show tables"
 
 它会派生：
 
-- metadata 存储：`./data/node-1/data`
-- message 存储：`./data/node-1/channellog`
+- metadata 存储：`./data/node-1/slotmeta`
+- message 存储：`./data/node-1/messages`
 
 也可以显式传存储路径：
 
 ```bash
-wkdb --meta-path ./data/node-1/data query "describe meta.user"
-wkdb --message-path ./data/node-1/channellog query "select * from message.channels limit 20"
+wkdb --meta-path ./data/node-1/slotmeta query "describe meta.user"
+wkdb --message-path ./data/node-1/messages query "select * from message.channels limit 20"
 ```
 
 或者从 `wukongim.toml` 读取：
@@ -243,8 +243,8 @@ wkdb --hash-slot-count 256 diff --source-data-dir ./node-old --target-data-dir .
 
 路径 flags：
 
-- `--source-data-dir`：源节点数据目录，派生 `data` 和 `channellog`。
-- `--target-data-dir`：目标节点数据目录，派生 `data` 和 `channellog`。
+- `--source-data-dir`：源节点数据目录，派生 `slotmeta` 和 `messages`。
+- `--target-data-dir`：目标节点数据目录，派生 `slotmeta` 和 `messages`。
 - `--source-meta-path` / `--source-message-path`：显式指定源 metadata/message 存储路径。
 - `--target-meta-path` / `--target-message-path`：显式指定目标 metadata/message 存储路径。
 

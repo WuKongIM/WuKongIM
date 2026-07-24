@@ -43,6 +43,8 @@ type NodeConfigItemResponse struct {
 	Label string `json:"label"`
 	// Value is the already-formatted effective value.
 	Value string `json:"value"`
+	// Source identifies whether Value came from TOML, environment, a fixed default, or runtime derivation.
+	Source string `json:"source"`
 	// Sensitive reports whether the underlying setting is sensitive.
 	Sensitive bool `json:"sensitive"`
 	// Redacted reports whether Value is a fixed redaction token.
@@ -97,6 +99,7 @@ func nodeConfigResponseFromUsecase(snapshot managementusecase.NodeConfigSnapshot
 				Key:       item.Key,
 				Label:     item.Label,
 				Value:     item.Value,
+				Source:    item.Source,
 				Sensitive: item.Sensitive,
 				Redacted:  item.Redacted,
 			})

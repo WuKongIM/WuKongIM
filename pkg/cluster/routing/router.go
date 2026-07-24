@@ -24,12 +24,20 @@ type RouteKeyResult struct {
 // NewRouter creates an empty Router.
 func NewRouter() *Router { return &Router{} }
 
-// HashSlotForKey maps key to a logical hash slot using CRC32.
+// HashSlotForKey maps key to a physical hash slot using CRC32.
 func HashSlotForKey(key string, count uint16) uint16 {
 	if count == 0 {
 		return 0
 	}
-	return uint16(crc32.ChecksumIEEE([]byte(key)) % uint32(count))
+	return uint16(checksumIEEEString(key) % uint32(count))
+}
+
+func checksumIEEEString(value string) uint32 {
+	crc := ^uint32(0)
+	for i := 0; i < len(value); i++ {
+		crc = crc32.IEEETable[byte(crc)^value[i]] ^ (crc >> 8)
+	}
+	return ^crc
 }
 
 // Table returns the current immutable route table pointer.
@@ -71,6 +79,34 @@ func (r *Router) RouteKeys(keys []string) ([]Route, error) {
 		routes[i] = route
 	}
 	return routes, nil
+}
+
+// RouteAuthorities routes keys through one current table snapshot and returns
+// only authority fence fields in input order. Unlike RouteKeys, it does not
+// clone Slot peer slices for each key.
+func (r *Router) RouteAuthorities(keys []string) ([]AuthorityRoute, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	table := r.Table()
+	if table == nil {
+		return nil, ErrRouteNotReady
+	}
+	return table.RouteAuthorities(keys)
+}
+
+// RouteAuthoritiesPartial routes every key through one current table snapshot
+// and returns aligned lightweight authority results. The outer error reports
+// only a missing route table; key-specific failures stay in their result.
+func (r *Router) RouteAuthoritiesPartial(keys []string) ([]AuthorityRouteResult, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	table := r.Table()
+	if table == nil {
+		return nil, ErrRouteNotReady
+	}
+	return table.RouteAuthoritiesPartial(keys)
 }
 
 // RouteKeysPartial routes every key through one current table snapshot and preserves aligned failures.

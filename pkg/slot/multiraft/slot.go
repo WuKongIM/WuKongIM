@@ -432,7 +432,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 		case controlPropose:
 			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
 			if err := g.rawNode.Propose(action.data); err != nil {
-				action.future.resolve(Result{}, err)
+				action.future.resolve(Result{}, classifyRawProposalError(err, g.rawNode.BasicStatus()))
 				continue
 			}
 			g.mu.Lock()
@@ -567,6 +567,19 @@ func (g *slot) processControls(ctx context.Context) bool {
 		}
 	}
 	return len(controls) > 0
+}
+
+func classifyRawProposalError(err error, status raft.BasicStatus) error {
+	if !errors.Is(err, raft.ErrProposalDropped) {
+		return err
+	}
+	// etcd/raft uses one dropped-proposal error for both leadership changes and
+	// the leader's uncommitted-entry budget. Preserve that distinction so the
+	// cluster proposer retries elections/transfers without hiding backpressure.
+	if status.RaftState != raft.StateLeader || status.LeadTransferee != 0 {
+		return ErrNotLeader
+	}
+	return ErrProposalBackpressure
 }
 
 func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest, target NodeID, result PreferredLeaderTransferResult) {

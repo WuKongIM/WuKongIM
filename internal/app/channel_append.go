@@ -2,14 +2,11 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	presenceusecase "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 // channelAppendAuthorityLocal admits RPC-forwarded sends to the local authority reactor.
@@ -33,107 +30,6 @@ func (l channelAppendAuthorityLocal) SubmitForAuthority(ctx context.Context, tar
 		return channelAppendErrorResults(len(items), channelappend.ErrAppendResultMissing)
 	}
 	return results
-}
-
-// channelAppendRecipientResolver resolves UID authority targets from cluster hash-slot routes.
-type channelAppendRecipientResolver struct {
-	node recipientAuthorityRouteNode
-}
-
-type recipientAuthorityRouteNode interface {
-	RouteKey(string) (cluster.Route, error)
-}
-
-type recipientAuthorityBatchRouteNode interface {
-	RouteKeys([]string) ([]cluster.Route, error)
-}
-
-func (r channelAppendRecipientResolver) ResolveRecipientAuthority(ctx context.Context, uid string) (channelappend.RecipientAuthorityTarget, error) {
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return channelappend.RecipientAuthorityTarget{}, err
-		}
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return channelappend.RecipientAuthorityTarget{}, err
-	}
-	if r.node == nil {
-		return channelappend.RecipientAuthorityTarget{}, channelappend.ErrRouteNotReady
-	}
-	route, err := r.node.RouteKey(uid)
-	if err != nil {
-		return channelappend.RecipientAuthorityTarget{}, fmt.Errorf("recipient route key uid=%q: %w", uid, channelAppendRouteError(err))
-	}
-	return channelAppendRecipientTargetFromRoute(route)
-}
-
-func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.Context, uids []string) (map[string]channelappend.RecipientAuthorityTarget, error) {
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if r.node == nil {
-		return nil, channelappend.ErrRouteNotReady
-	}
-	if batchNode, ok := r.node.(recipientAuthorityBatchRouteNode); ok {
-		routes, err := batchNode.RouteKeys(uids)
-		if err != nil {
-			return nil, fmt.Errorf("recipient route keys uidCount=%d sampleUID=%q: %w", len(uids), firstUIDForRouteLog(uids), channelAppendRouteError(err))
-		}
-		if len(routes) != len(uids) {
-			return nil, fmt.Errorf("recipient route keys returned %d routes for %d uids sampleUID=%q: %w", len(routes), len(uids), firstUIDForRouteLog(uids), channelappend.ErrRouteNotReady)
-		}
-		targets := make(map[string]channelappend.RecipientAuthorityTarget, len(uids))
-		for i, uid := range uids {
-			target, err := channelAppendRecipientTargetFromRoute(routes[i])
-			if err != nil {
-				return nil, fmt.Errorf("recipient route key uid=%q index=%d: %w", uid, i, err)
-			}
-			targets[uid] = target
-		}
-		return targets, nil
-	}
-	targets := make(map[string]channelappend.RecipientAuthorityTarget, len(uids))
-	for _, uid := range uids {
-		target, err := r.ResolveRecipientAuthority(ctx, uid)
-		if err != nil {
-			return nil, err
-		}
-		targets[uid] = target
-	}
-	return targets, nil
-}
-
-func channelAppendRecipientTargetFromRoute(route cluster.Route) (channelappend.RecipientAuthorityTarget, error) {
-	if route.Leader == 0 {
-		return channelappend.RecipientAuthorityTarget{}, fmt.Errorf("recipient route has no leader hashSlot=%d slotID=%d revision=%d authorityEpoch=%d: %w", route.HashSlot, route.SlotID, route.Revision, route.AuthorityEpoch, channelappend.ErrRouteNotReady)
-	}
-	return channelappend.RecipientAuthorityTarget{
-		HashSlot:       route.HashSlot,
-		SlotID:         route.SlotID,
-		LeaderNodeID:   route.Leader,
-		LeaderTerm:     route.LeaderTerm,
-		ConfigEpoch:    route.ConfigEpoch,
-		RouteRevision:  route.Revision,
-		AuthorityEpoch: route.AuthorityEpoch,
-	}, nil
-}
-
-func firstUIDForRouteLog(uids []string) string {
-	if len(uids) == 0 {
-		return ""
-	}
-	return uids[0]
 }
 
 // channelAppendSubscriberSource pages durable channel subscribers for channelappend.
@@ -191,95 +87,6 @@ func (s channelAppendDeliverySubscriberSource) NextSubscriberPage(ctx context.Co
 		}
 	}
 	return channelappend.SubscriberPage{Recipients: recipients, Cursor: page.NextCursor, Done: page.Done}, nil
-}
-
-// channelAppendPresenceResolver adapts presence lookups to channelappend flat routes.
-type channelAppendPresenceResolver struct {
-	presence *presenceusecase.App
-}
-
-func (r channelAppendPresenceResolver) EndpointsByUIDs(ctx context.Context, uids []string) ([]channelappend.Route, error) {
-	if r.presence == nil || len(uids) == 0 {
-		return nil, nil
-	}
-	routesByUID, err := r.presence.EndpointsByUIDs(ctx, uids)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]channelappend.Route, 0)
-	for _, routes := range routesByUID {
-		out = appendChannelAppendRoutes(out, routes)
-	}
-	return out, nil
-}
-
-func (r channelAppendPresenceResolver) EndpointsByTargets(ctx context.Context, batches []channelappend.RecipientTargetBatch) []channelappend.RecipientTargetPresenceResult {
-	results := make([]channelappend.RecipientTargetPresenceResult, len(batches))
-	if len(batches) == 0 {
-		return results
-	}
-	if r.presence == nil {
-		for i := range results {
-			results[i].Err = presenceusecase.ErrAuthorityUnavailable
-		}
-		return results
-	}
-	groups := make([]presenceusecase.EndpointLookupGroup, len(batches))
-	for i, batch := range batches {
-		uids := make([]string, 0, len(batch.Recipients))
-		for _, recipient := range batch.Recipients {
-			if recipient.UID != "" {
-				uids = append(uids, recipient.UID)
-			}
-		}
-		groups[i] = presenceusecase.EndpointLookupGroup{
-			Target: presenceTargetFromRecipientTarget(batch.Target),
-			UIDs:   uids,
-		}
-	}
-	resolved := r.presence.EndpointsByTargets(ctx, groups)
-	for i := range results {
-		if i >= len(resolved) {
-			results[i].Err = channelappend.ErrRecipientPresenceResultMissing
-			continue
-		}
-		results[i].Err = resolved[i].Err
-		results[i].Routes = channelAppendRoutesFromPresence(resolved[i].Routes)
-	}
-	return results
-}
-
-func presenceTargetFromRecipientTarget(target channelappend.RecipientAuthorityTarget) presenceusecase.RouteTarget {
-	return presenceusecase.RouteTarget{
-		HashSlot:       target.HashSlot,
-		SlotID:         target.SlotID,
-		LeaderNodeID:   target.LeaderNodeID,
-		LeaderTerm:     target.LeaderTerm,
-		ConfigEpoch:    target.ConfigEpoch,
-		RouteRevision:  target.RouteRevision,
-		AuthorityEpoch: target.AuthorityEpoch,
-	}
-}
-
-func channelAppendRoutesFromPresence(routes []presenceusecase.Route) []channelappend.Route {
-	out := make([]channelappend.Route, 0, len(routes))
-	return appendChannelAppendRoutes(out, routes)
-}
-
-func appendChannelAppendRoutes(out []channelappend.Route, routes []presenceusecase.Route) []channelappend.Route {
-	for _, route := range routes {
-		out = append(out, channelappend.Route{
-			UID:         route.UID,
-			OwnerNodeID: route.OwnerNodeID,
-			OwnerBootID: route.OwnerBootID,
-			OwnerSeq:    route.OwnerSeq,
-			SessionID:   route.SessionID,
-			DeviceID:    route.DeviceID,
-			DeviceFlag:  route.DeviceFlag,
-			DeviceLevel: route.DeviceLevel,
-		})
-	}
-	return out
 }
 
 // channelAppendOwnerPusher adapts owner-node delivery pushes to channelappend.
@@ -354,21 +161,6 @@ func channelAppendErrorResults(n int, err error) []channelappend.SendBatchItemRe
 		results[i].Err = err
 	}
 	return results
-}
-
-func channelAppendRouteError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return err
-	case errors.Is(err, cluster.ErrNotLeader):
-		return fmt.Errorf("%w: %w", channelappend.ErrNotLeader, err)
-	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader):
-		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
-	default:
-		return err
-	}
 }
 
 func deliveryEnvelopeFromChannelAppend(in channelappend.CommittedEnvelope) runtimedelivery.Envelope {

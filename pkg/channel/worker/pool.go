@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	rpcPullLedBatchMaxItems      = 4
-	rpcPullHintLedBatchMaxItems  = 2
+	// DefaultRPCBatchMaxItems amortizes one blocking replication transport call
+	// across a bounded number of Pull or PullHint items.
+	DefaultRPCBatchMaxItems      = 8
 	rpcBatchMaxWait              = 250 * time.Microsecond
 	storeAppendBatchMaxItems     = 64
 	storeAppendBatchMaxWait      = 250 * time.Microsecond
@@ -93,6 +94,9 @@ type PoolConfig struct {
 	Workers int
 	// QueueSize bounds accepted tasks waiting for this worker pool.
 	QueueSize int
+	// RPCBatchMaxItems caps same-kind, same-target Pull or PullHint items in one
+	// blocking transport call. Zero uses DefaultRPCBatchMaxItems.
+	RPCBatchMaxItems int
 	// BatchMaxWait overrides the pool's default batch coalescing wait. Zero keeps the task-class default.
 	BatchMaxWait time.Duration
 }
@@ -109,11 +113,13 @@ type Pool struct {
 
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
+	// rpcGroupTurn rotates same-kind RPC target groups between bounded batches.
+	rpcGroupTurn atomic.Uint64
 }
 
 // NewPool starts a bounded worker pool.
 func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
-	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || sink == nil {
+	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || cfg.RPCBatchMaxItems < 0 || sink == nil {
 		return nil, ch.ErrInvalidConfig
 	}
 	p := &Pool{
@@ -339,9 +345,9 @@ func (p *Pool) batchPolicy(first queuedTask) workqueue.BatchOptions {
 	}
 	switch {
 	case first.task.Kind == TaskRPCPull && p.canCollectRPCBatch(first.task):
-		return workqueue.BatchOptions{MaxItems: rpcPullLedBatchMaxItems, MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
+		return workqueue.BatchOptions{MaxItems: p.rpcBatchMaxItems(), MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
 	case first.task.Kind == TaskRPCPullHint && p.canCollectRPCBatch(first.task):
-		return workqueue.BatchOptions{MaxItems: rpcPullHintLedBatchMaxItems, MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
+		return workqueue.BatchOptions{MaxItems: p.rpcBatchMaxItems(), MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
 	case p.canCollectStoreAppendBatch(first.task):
 		return workqueue.BatchOptions{MaxItems: storeAppendBatchMaxItems, MaxWait: p.batchMaxWait(storeAppendBatchMaxWait)}
 	case p.canCollectStoreApplyBatch(first.task):
@@ -351,6 +357,13 @@ func (p *Pool) batchPolicy(first queuedTask) workqueue.BatchOptions {
 	default:
 		return workqueue.BatchOptions{MaxItems: 1}
 	}
+}
+
+func (p *Pool) rpcBatchMaxItems() int {
+	if p != nil && p.cfg.RPCBatchMaxItems > 0 {
+		return p.cfg.RPCBatchMaxItems
+	}
+	return DefaultRPCBatchMaxItems
 }
 
 func (p *Pool) completeQueuedClosed(queued queuedTask, err error) {

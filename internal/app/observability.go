@@ -12,6 +12,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internal/access/gateway"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -1626,6 +1627,35 @@ func (o deliveryMetricsObserver) ObserveAck(event runtimedelivery.AckEvent) {
 	o.metrics.Delivery.SetAckBindings(event.PendingCount)
 }
 
+func (o deliveryMetricsObserver) ObserveAckBatch(event runtimedelivery.AckBatchEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObserveAckBatch(
+		event.Phase,
+		event.Outcome,
+		event.Items,
+		event.Shards,
+		event.Rejected,
+		event.Rollback,
+		event.Duration,
+	)
+}
+
+func (o deliveryMetricsObserver) ObserveRecipientAuthorityResolve(event clusterinfra.RecipientAuthorityResolveObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObserveRecipientAuthorityResolve(event.Result, event.Items, event.Targets, event.Duration)
+}
+
+func (o presenceMetricsObserver) ObservePresenceEndpointLookup(event clusterinfra.PresenceEndpointLookupObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Presence.ObserveEndpointLookup(event.Path, event.Outcome, event.StaleRetry, event.Duration, event.Items, event.Groups)
+}
+
 func (o deliveryMetricsObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
 	if o.metrics != nil {
 		o.metrics.Delivery.ObserveEventQueue(event.Result)
@@ -2752,4 +2782,7 @@ var _ runtimedelivery.Observer = multiDeliveryObserver{}
 var _ runtimedelivery.RetryObserver = multiDeliveryObserver{}
 var _ runtimedelivery.AckObserver = deliveryMetricsObserver{}
 var _ runtimedelivery.AckObserver = multiDeliveryObserver{}
+var _ runtimedelivery.AckBatchObserver = deliveryMetricsObserver{}
+var _ clusterinfra.RecipientAuthorityResolveObserver = deliveryMetricsObserver{}
+var _ clusterinfra.PresenceEndpointLookupObserver = presenceMetricsObserver{}
 var _ runtimedelivery.ManagerObserver = multiDeliveryObserver{}

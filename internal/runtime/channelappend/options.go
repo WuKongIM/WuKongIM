@@ -9,6 +9,9 @@ import (
 )
 
 const (
+	// maxWorkerPoolSize is the largest capacity ants/v2 can represent. Its
+	// internal pool capacity is int32 even on 64-bit hosts.
+	maxWorkerPoolSize                  = int(^uint32(0) >> 1)
 	defaultAuthorityShardCount         = 1
 	defaultAdvancePoolSize             = 1
 	defaultAdmissionCapacityPerShard   = 1024
@@ -122,6 +125,14 @@ type WriterPressureObservation struct {
 	AppendInflightItems int
 	// PostCommitBacklog is the total committed post-commit backlog count.
 	PostCommitBacklog int
+	// PostCommitHandoffDepth is the number of messages owning a reservation across pending append, append execution, and durable post-commit work.
+	PostCommitHandoffDepth int
+	// PostCommitHandoffCapacity is the configured append-bound message reservation capacity.
+	PostCommitHandoffCapacity int
+	// PostCommitRetryQueueDepth is the number of de-duplicated channel writers waiting in the retry FIFO.
+	PostCommitRetryQueueDepth int
+	// PostCommitRetryContended reports whether an older retry writer is waiting for or owns the retry turn.
+	PostCommitRetryContended bool
 }
 
 // WriterPressureObserver receives local writer-group pressure gauges.
@@ -150,11 +161,13 @@ type EffectPoolObserver interface {
 	ObserveChannelAppendEffectPool(EffectPoolObservation)
 }
 
-// AntsPoolObservation describes one direct ants/v2 pool occupancy sample.
+// AntsPoolObservation describes one bounded worker-pool occupancy sample.
 type AntsPoolObservation struct {
 	// Pool is the stable pool name within channelappend.
 	Pool string
-	// Running is the current number of executing workers.
+	// Running is the current executing-worker count. For the non-blocking
+	// post_commit pool it is the logical admitted-task count, which excludes
+	// idle ants workers that have not been purged.
 	Running int
 	// Capacity is the configured worker capacity.
 	Capacity int
@@ -162,9 +175,9 @@ type AntsPoolObservation struct {
 	Waiting int
 }
 
-// AntsPoolObserver receives direct ants/v2 pool occupancy samples.
+// AntsPoolObserver receives bounded worker-pool occupancy samples.
 type AntsPoolObserver interface {
-	// ObserveChannelAppendAntsPool records one direct ants/v2 pool occupancy sample.
+	// ObserveChannelAppendAntsPool records one worker-pool occupancy sample.
 	ObserveChannelAppendAntsPool(AntsPoolObservation)
 }
 
@@ -192,7 +205,7 @@ type PostCommitFailureObservation struct {
 	RecipientCount int
 	// TargetHashSlot is the recipient authority hash slot when known.
 	TargetHashSlot uint16
-	// TargetSlotID is the physical Slot that owns TargetHashSlot when known.
+	// TargetSlotID is the logical Slot Raft Group that owns TargetHashSlot when known.
 	TargetSlotID uint32
 	// TargetLeaderNodeID is the recipient authority leader node when known.
 	TargetLeaderNodeID uint64
@@ -313,10 +326,21 @@ type RecipientAuthorityResolver interface {
 	ResolveRecipientAuthority(context.Context, string) (RecipientAuthorityTarget, error)
 }
 
+// RecipientAuthorityResult is one UID authority lookup result aligned to the
+// corresponding batch input UID.
+type RecipientAuthorityResult struct {
+	// Target is the exact UID authority fence when Err is nil.
+	Target RecipientAuthorityTarget
+	// Err reports a key-specific route failure without discarding aligned siblings.
+	Err error
+}
+
 // BatchRecipientAuthorityResolver resolves authority targets for multiple recipient UIDs.
 type BatchRecipientAuthorityResolver interface {
-	// ResolveRecipientAuthorities returns authority targets keyed by UID.
-	ResolveRecipientAuthorities(context.Context, []string) (map[string]RecipientAuthorityTarget, error)
+	// ResolveRecipientAuthorities returns one result per UID in input order. The
+	// outer error is reserved for snapshot-wide or lifecycle failures. The
+	// implementation must not retain the borrowed UID slice after return.
+	ResolveRecipientAuthorities(context.Context, []string) ([]RecipientAuthorityResult, error)
 }
 
 // RecipientDeliveryEnqueuer accepts post-commit recipient batches for asynchronous delivery processing.
@@ -342,6 +366,23 @@ type PersistAfterEnqueuer interface {
 type ConversationActiveAdmitter interface {
 	// AdmitActiveBatch hands one committed recipient set to the conversation active worker.
 	AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error
+}
+
+// ConversationActiveTargetBatch binds one active projection batch to the
+// complete exact UID authority fence resolved by channelappend.
+type ConversationActiveTargetBatch struct {
+	// Target is the complete physical hash-slot authority fence.
+	Target RecipientAuthorityTarget
+	// Batch contains only sender and recipient rows owned by Target.
+	Batch conversationactive.ActiveBatch
+}
+
+// RoutedConversationActiveAdmitter accepts active groups whose first-attempt
+// authority targets were already resolved by channelappend.
+type RoutedConversationActiveAdmitter interface {
+	// AdmitRoutedActiveBatches preserves aligned exact targets and may fresh-route
+	// only failed groups under its bounded retry policy.
+	AdmitRoutedActiveBatches(context.Context, []ConversationActiveTargetBatch) error
 }
 
 // PresenceResolver resolves online endpoints for recipient UIDs.
@@ -388,12 +429,14 @@ type Options struct {
 	SenderFence SenderFenceValidator
 	// AuthorityShardCount is the number of channel-key lookup shards. Values <= 0 use one shard.
 	AuthorityShardCount int
-	// AdvancePoolSize is the direct ants pool size used to activate writer state machines. Values <= 0 use a conservative default.
+	// AdvancePoolSize bounds writer state-machine concurrency behind the dedicated non-blocking activation dispatcher. Values <= 0 use a conservative default; larger values are capped at the ants/v2 int32 capacity limit.
 	AdvancePoolSize int
 	// AdmissionCapacityPerShard bounds admitted-but-incomplete items per shard. Values <= 0 use a conservative bounded default.
 	AdmissionCapacityPerShard int
-	// ChannelBacklogHighWatermark independently bounds per-channel foreground append admission and best-effort post-commit backlog. Values <= 0 use a bounded default.
+	// ChannelBacklogHighWatermark bounds per-channel foreground append admission. Values <= 0 use a bounded default.
 	ChannelBacklogHighWatermark int
+	// PostCommitHandoffCapacity globally bounds append-bound messages across pending append, append execution, and required durable post-commit work. Admission reserves one slot before append so an acknowledged durable message is never dropped between append and post-commit scheduling. Values <= 0 derive a capacity from the foreground backlog and effect-pool batch throughput.
+	PostCommitHandoffCapacity int
 	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use the runtime default.
 	AppendInflightBatchesPerChannel int
 	// InboxCoalesceWindow is the bounded delay a scheduled writer may wait to merge near-simultaneous same-channel submissions. A negative value disables coalescing; zero uses the runtime default.
@@ -402,7 +445,7 @@ type Options struct {
 	InboxCoalesceMaxItems int
 	// WriterIdleRetention keeps drained channel writers available for reuse before shard cleanup may reclaim them. Values <= 0 use a conservative default.
 	WriterIdleRetention time.Duration
-	// EffectPoolSize is the direct ants pool size used separately for blocking append calls and post-append recipient effects. Values <= 0 use a conservative default.
+	// EffectPoolSize is the direct ants pool size used separately for blocking append calls and post-append recipient effects. Values <= 0 use a conservative default; larger values are capped at the ants/v2 int32 capacity limit.
 	EffectPoolSize int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver
@@ -438,6 +481,8 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.AdvancePoolSize <= 0 {
 		opts.AdvancePoolSize = defaultAdvancePoolSize
+	} else if opts.AdvancePoolSize > maxWorkerPoolSize {
+		opts.AdvancePoolSize = maxWorkerPoolSize
 	}
 	if opts.AdmissionCapacityPerShard <= 0 {
 		opts.AdmissionCapacityPerShard = defaultAdmissionCapacityPerShard
@@ -464,6 +509,19 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.EffectPoolSize <= 0 {
 		opts.EffectPoolSize = defaultEffectPoolSize
+	} else if opts.EffectPoolSize > maxWorkerPoolSize {
+		opts.EffectPoolSize = maxWorkerPoolSize
+	}
+	if opts.PostCommitHandoffCapacity <= 0 {
+		maxInt := int(^uint(0) >> 1)
+		if opts.EffectPoolSize > maxInt/commitBatchMaxEvents {
+			opts.PostCommitHandoffCapacity = maxInt
+		} else {
+			opts.PostCommitHandoffCapacity = opts.EffectPoolSize * commitBatchMaxEvents
+		}
+		if opts.PostCommitHandoffCapacity < opts.ChannelBacklogHighWatermark {
+			opts.PostCommitHandoffCapacity = opts.ChannelBacklogHighWatermark
+		}
 	}
 	if opts.SubscriberScanPageSize <= 0 {
 		opts.SubscriberScanPageSize = defaultSubscriberScanPageSize
@@ -517,8 +575,7 @@ func commitPortsFromOptions(opts Options) commitPorts {
 
 func stateLimitsFromOptions(opts Options) channelStateLimits {
 	return channelStateLimits{
-		pendingItemHighWatermark:       opts.ChannelBacklogHighWatermark,
-		postCommitBacklogHighWatermark: opts.ChannelBacklogHighWatermark,
-		appendInflightLimit:            opts.AppendInflightBatchesPerChannel,
+		pendingItemHighWatermark: opts.ChannelBacklogHighWatermark,
+		appendInflightLimit:      opts.AppendInflightBatchesPerChannel,
 	}
 }

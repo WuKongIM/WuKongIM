@@ -64,7 +64,8 @@ Current flow:
    stores the active `task_id`; slot-scoped active-task reads page through that
    active index instead of scanning the primary table. Guarded
    task/runtime-meta mutations keep read-your-writes overlays before committing
-   both records atomically, and task owner claims are fenced so only the same
+   both records atomically and advance `RouteGeneration` whenever the projected
+   runtime route changes; task owner claims are fenced so only the same
    owner, an unowned task, or a task whose previous owner lease has expired at
    the claim request's `now_ms` can take ownership.
 16. Hash-slot migration state uses the table runtime with a legacy primary key

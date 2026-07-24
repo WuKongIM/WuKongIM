@@ -96,6 +96,69 @@ func TestControlPlaneCreateAddsMandatoryTags(t *testing.T) {
 	}
 }
 
+func TestControlPlaneInventorySnapshotBindsAuthorityBeforeInventory(t *testing.T) {
+	authority := ProviderAuthority{Provider: "fake", Region: "local", AccountIDHash: "sha256:account"}
+	provider := &providerStub{
+		authority: authority,
+		inventory: []Run{{
+			ID: "run-1", Provider: authority.Provider, Region: authority.Region, AccountIDHash: authority.AccountIDHash,
+		}},
+	}
+	control := NewControlPlane(provider, time.Now)
+
+	snapshot, err := control.InventorySnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("InventorySnapshot() error = %v", err)
+	}
+	if snapshot.Authority != authority || len(snapshot.Runs) != 1 || snapshot.Runs[0].ID != "run-1" {
+		t.Fatalf("InventorySnapshot() = %#v", snapshot)
+	}
+	if want := []string{"authority", "inventory"}; !slices.Equal(provider.discoveryCalls, want) {
+		t.Fatalf("provider discovery calls = %v, want %v", provider.discoveryCalls, want)
+	}
+}
+
+func TestControlPlaneInventorySnapshotRejectsDuplicateAndMismatchedRuns(t *testing.T) {
+	authority := ProviderAuthority{Provider: "fake", Region: "local", AccountIDHash: "sha256:account"}
+	valid := Run{ID: "run-1", Provider: authority.Provider, Region: authority.Region, AccountIDHash: authority.AccountIDHash}
+	tests := []struct {
+		name string
+		runs []Run
+	}{
+		{name: "empty run id", runs: []Run{{Provider: authority.Provider, Region: authority.Region, AccountIDHash: authority.AccountIDHash}}},
+		{name: "duplicate run id", runs: []Run{valid, valid}},
+		{name: "provider mismatch", runs: []Run{{ID: "run-1", Provider: "other", Region: authority.Region, AccountIDHash: authority.AccountIDHash}}},
+		{name: "region mismatch", runs: []Run{{ID: "run-1", Provider: authority.Provider, Region: "other", AccountIDHash: authority.AccountIDHash}}},
+		{name: "account mismatch", runs: []Run{{ID: "run-1", Provider: authority.Provider, Region: authority.Region, AccountIDHash: "sha256:other"}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			provider := &providerStub{authority: authority, inventory: test.runs}
+			control := NewControlPlane(provider, time.Now)
+
+			if _, err := control.InventorySnapshot(context.Background()); !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf("InventorySnapshot() error = %v, want ErrInvalidRequest", err)
+			}
+			if want := []string{"authority", "inventory"}; !slices.Equal(provider.discoveryCalls, want) {
+				t.Fatalf("provider discovery calls = %v, want %v", provider.discoveryCalls, want)
+			}
+		})
+	}
+}
+
+func TestControlPlaneInventorySnapshotStopsAfterAuthorityFailure(t *testing.T) {
+	authorityErr := errors.New("authority unavailable")
+	provider := &providerStub{authorityErr: authorityErr}
+	control := NewControlPlane(provider, time.Now)
+
+	if _, err := control.InventorySnapshot(context.Background()); !errors.Is(err, authorityErr) {
+		t.Fatalf("InventorySnapshot() error = %v, want authority error", err)
+	}
+	if want := []string{"authority"}; !slices.Equal(provider.discoveryCalls, want) {
+		t.Fatalf("provider discovery calls = %v, want %v", provider.discoveryCalls, want)
+	}
+}
+
 func TestControlPlaneCleanupRejectsMismatchedProviderAuthority(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	authorityErr := errors.New("provider account does not match retained config")
@@ -304,7 +367,8 @@ func TestControlPlanePreflightDistinguishesLiveAndReleased(t *testing.T) {
 	provider := &providerStub{status: Run{
 		ID: request.RunID, Provider: "fake", Region: request.Region, AccountIDHash: request.AccountIDHash,
 		Repository: request.Repository, CreatedAt: now, ExpiresAt: request.ExpiresAt,
-		Tags: map[string]string{TagSourceSHA: request.SourceSHA, TagScenarioDigest: request.ScenarioDigest},
+		Tags:      map[string]string{TagSourceSHA: request.SourceSHA, TagScenarioDigest: request.ScenarioDigest},
+		Resources: []Resource{{ID: "i-sim", Kind: "instance", Role: "sim", Tags: map[string]string{}}},
 	}}
 	control := NewControlPlane(provider, func() time.Time { return now })
 	locator := RunLocator{
@@ -313,12 +377,12 @@ func TestControlPlanePreflightDistinguishesLiveAndReleased(t *testing.T) {
 		ScenarioDigest: request.ScenarioDigest, CreatedAt: now, ExpiresAt: request.ExpiresAt, ProvisionWorkflowRunID: 1,
 	}
 	result, err := control.Preflight(context.Background(), locator)
-	if err != nil || result.State != PreflightLive || result.Run == nil {
+	if err != nil || result.State != PreflightLive || result.Run == nil || len(result.Resources) != 1 {
 		t.Fatalf("Preflight(live) = %#v, %v", result, err)
 	}
 	provider.statusErr = ErrRunNotFound
 	result, err = control.Preflight(context.Background(), locator)
-	if err != nil || result.State != PreflightReleased || result.Run != nil {
+	if err != nil || result.State != PreflightReleased || result.Run != nil || result.Resources == nil || len(result.Resources) != 0 {
 		t.Fatalf("Preflight(released) = %#v, %v", result, err)
 	}
 }
@@ -392,11 +456,13 @@ type providerStub struct {
 	closeAnalysisCalls    []string
 	closeObservationCalls []string
 	destroyed             []string
+	discoveryCalls        []string
 }
 
 func (p *providerStub) Name() string { return "fake" }
 
 func (p *providerStub) Authority(context.Context) (ProviderAuthority, error) {
+	p.discoveryCalls = append(p.discoveryCalls, "authority")
 	if p.authority.Provider == "" {
 		p.authority = ProviderAuthority{Provider: "fake", Region: "local", AccountIDHash: "sha256:account"}
 	}
@@ -404,6 +470,7 @@ func (p *providerStub) Authority(context.Context) (ProviderAuthority, error) {
 }
 
 func (p *providerStub) Inventory(context.Context) ([]Run, error) {
+	p.discoveryCalls = append(p.discoveryCalls, "inventory")
 	return append([]Run(nil), p.inventory...), nil
 }
 

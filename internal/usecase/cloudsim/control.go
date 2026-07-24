@@ -72,6 +72,34 @@ func (c *ControlPlane) Status(ctx context.Context, runID string) (Run, error) {
 	return c.provider.Status(ctx, runID)
 }
 
+// InventorySnapshot returns authority-bound run candidates for read-only
+// discovery. Absence from this snapshot does not prove that a run was released.
+func (c *ControlPlane) InventorySnapshot(ctx context.Context) (InventorySnapshot, error) {
+	authority, err := c.providerAuthority(ctx)
+	if err != nil {
+		return InventorySnapshot{}, err
+	}
+	runs, err := c.provider.Inventory(ctx)
+	if err != nil {
+		return InventorySnapshot{}, fmt.Errorf("%w: inventory: %v", ErrInvalidRequest, err)
+	}
+	seen := make(map[string]struct{}, len(runs))
+	for _, run := range runs {
+		if strings.TrimSpace(run.ID) == "" || run.Provider != authority.Provider || run.Region != authority.Region ||
+			run.AccountIDHash != authority.AccountIDHash {
+			return InventorySnapshot{}, ErrInvalidRequest
+		}
+		if _, exists := seen[run.ID]; exists {
+			return InventorySnapshot{}, ErrInvalidRequest
+		}
+		seen[run.ID] = struct{}{}
+	}
+	if runs == nil {
+		runs = make([]Run, 0)
+	}
+	return InventorySnapshot{Authority: authority, Runs: runs}, nil
+}
+
 // Transition validates and persists one forward lifecycle state change.
 func (c *ControlPlane) Transition(ctx context.Context, req TransitionRequest) (Run, error) {
 	if c == nil || c.provider == nil || strings.TrimSpace(req.RunID) == "" {
@@ -111,13 +139,13 @@ func (c *ControlPlane) Preflight(ctx context.Context, locator RunLocator) (Prefl
 	}
 	run, err := c.provider.Status(ctx, locator.RunID)
 	if errors.Is(err, ErrRunNotFound) {
-		return PreflightResult{State: PreflightReleased}, nil
+		return PreflightResult{State: PreflightReleased, Resources: make([]Resource, 0)}, nil
 	}
 	if err != nil {
 		return PreflightResult{}, err
 	}
 	if run.State == StateReleased && len(run.Resources) == 0 {
-		return PreflightResult{State: PreflightReleased}, nil
+		return PreflightResult{State: PreflightReleased, Resources: make([]Resource, 0)}, nil
 	}
 	if run.ID != locator.RunID || run.Provider != locator.Provider || run.Region != locator.Region ||
 		run.AccountIDHash != locator.AccountIDHash || run.Repository != locator.Repository ||
@@ -125,7 +153,7 @@ func (c *ControlPlane) Preflight(ctx context.Context, locator RunLocator) (Prefl
 		!run.CreatedAt.Equal(locator.CreatedAt) || !run.ExpiresAt.Equal(locator.ExpiresAt) {
 		return PreflightResult{}, ErrInvalidRequest
 	}
-	return PreflightResult{State: PreflightLive, Run: &run}, nil
+	return PreflightResult{State: PreflightLive, Resources: append([]Resource(nil), run.Resources...), Run: &run}, nil
 }
 
 // OpenDeployment validates a single-host bounded SSH ingress window before mutation.

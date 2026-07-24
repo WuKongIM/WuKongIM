@@ -2615,6 +2615,34 @@ func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T)
 	}
 }
 
+func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := deliveryMessageObserver{app: &App{metrics: reg}}
+
+	observer.SetChannelAppendWriterPressure(channelappend.WriterPressureObservation{
+		PostCommitHandoffDepth:    11,
+		PostCommitHandoffCapacity: 17,
+		PostCommitRetryQueueDepth: 3,
+		PostCommitRetryContended:  true,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	assertGauge := func(name string, want float64) {
+		t.Helper()
+		family := requireAppMetricFamily(t, families, name)
+		if got := findAppMetricByLabels(t, family, nil).GetGauge().GetValue(); got != want {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
+	}
+	assertGauge("wukongim_channelappend_post_commit_handoff_depth", 11)
+	assertGauge("wukongim_channelappend_post_commit_handoff_capacity", 17)
+	assertGauge("wukongim_channelappend_post_commit_retry_queue_depth", 3)
+	assertGauge("wukongim_channelappend_post_commit_retry_contended", 1)
+}
+
 func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T) {
 	logger := &recordingAppLogger{}
 	app := &App{logger: logger}
@@ -2678,7 +2706,7 @@ func TestDeliveryMessageObserverWarnsExpectedRoutePostCommitFailure(t *testing.T
 	entry := requireAppLogEvent(t, logger, "WARN", "internal.app.channelappend.post_commit_failed")
 	requireAppLogField(t, entry, "phase", "conversation_active")
 	requireAppLogField(t, entry, "result", "stale_route")
-	for _, logged := range logger.entries {
+	for _, logged := range logger.entriesSnapshot() {
 		if logged.level == "ERROR" {
 			t.Fatalf("unexpected ERROR log for retryable post-commit route failure: %#v", logged)
 		}
@@ -2716,9 +2744,16 @@ func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
 	if !ok {
 		t.Fatalf("combined observer does not implement AckObserver")
 	}
+	if _, ok := observer.(runtimedelivery.AckBatchObserver); ok {
+		t.Fatalf("combined observer unexpectedly implements AckBatchObserver; batch metrics must be enabled explicitly")
+	}
 
 	collector.recordSampleAt(time.Unix(100, 0))
 	ackObserver.ObserveAck(runtimedelivery.AckEvent{PendingCount: 9})
+	deliveryMetricsObserver{metrics: reg}.ObserveAckBatch(runtimedelivery.AckBatchEvent{
+		Phase: runtimedelivery.DeliveryAckBatchPhaseBind, Outcome: runtimedelivery.DeliveryAckBatchOutcomePartial,
+		Items: 3, Shards: 2, Rejected: 1, Duration: time.Millisecond,
+	})
 	collector.recordSampleAt(time.Unix(110, 0))
 
 	families, err := reg.Gather()
@@ -2728,6 +2763,10 @@ func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
 	ackBindings := requireAppMetricFamily(t, families, "wukongim_delivery_ack_bindings")
 	if got := findAppMetricByLabels(t, ackBindings, nil).GetGauge().GetValue(); got != 9 {
 		t.Fatalf("metrics ack bindings = %v, want 9", got)
+	}
+	ackBatch := requireAppMetricFamily(t, families, "wukongim_delivery_ack_batch_total")
+	if got := findAppMetricByLabels(t, ackBatch, map[string]string{"phase": "bind", "outcome": "partial"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("metrics ack bind batch = %v, want 1", got)
 	}
 	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
 		Window: 10 * time.Second,
@@ -2755,7 +2794,8 @@ func (s *recordingInternalSendTraceSink) snapshot() []sendtrace.Event {
 
 func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event string) recordedAppLogEntry {
 	t.Helper()
-	for _, entry := range logger.entries {
+	entries := logger.entriesSnapshot()
+	for _, entry := range entries {
 		if entry.level != level {
 			continue
 		}
@@ -2765,7 +2805,7 @@ func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event s
 			}
 		}
 	}
-	t.Fatalf("missing app log event level=%s event=%s entries=%#v", level, event, logger.entries)
+	t.Fatalf("missing app log event level=%s event=%s entries=%#v", level, event, entries)
 	return recordedAppLogEntry{}
 }
 

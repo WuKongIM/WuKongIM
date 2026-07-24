@@ -63,14 +63,17 @@ still returns real cross-batch backpressure. When no leader exceeds the bound,
 the hot path submits group indexes directly and does not allocate lane maps or
 per-group lane slices.
 
-Authority resolution remains ordered and side-effect safe. After resolution,
-different canonical-channel groups from one multi-item batch are submitted with
-a fixed per-batch concurrency bound. The caller participates as one worker, so
-the router creates at most `bound-1` helper goroutines. A single canonical
-channel still forms one ordered group, and completed group results are folded
-in original group and item order before retry selection. This removes
-cross-channel head-of-line waiting without adding an unbounded goroutine or a
-second cross-request queue.
+Authority resolution is side-effect safe and uses its own fixed per-batch
+concurrency bound for independent canonical channels. This prevents first-use
+channel runtime metadata proposals from serially multiplying Slot round trips.
+Resolved targets are folded in original channel order before submission.
+After resolution, different canonical-channel groups use the separate fixed
+submission concurrency bound. The caller participates as one worker in both
+phases, so the router creates at most `bound-1` helper goroutines per phase. A
+single canonical channel still forms one ordered group, and completed group
+results are folded in original group and item order before retry selection.
+This removes cross-channel head-of-line waiting without adding an unbounded
+goroutine or a second cross-request queue.
 
 Router submit contexts are neutral batch transport contexts. Per-item contexts
 and deadlines are checked before route lookup, before submission, and while
@@ -114,9 +117,12 @@ single-writer ordering for the channel key.
 `Group.Start` opens local admission and prepares isolated worker pools. Writers
 are created lazily on accepted local submissions and reclaimed opportunistically
 after they have stayed fully idle past `WriterIdleRetention`. `Group.Stop`
-closes admission, cancels the runtime context used by append and post-commit
-work, and waits for already accepted writers to drain until the caller context
-expires. A stopped group is not restarted.
+closes admission and starts one background graceful drain. The drain preserves
+accepted futures, durable append state, global post-commit handoff reservations,
+and fair retry ownership until they finish; only then does it release worker
+pools and cancel the runtime context. A caller context bounds only that caller's
+wait. A timed-out Stop does not cancel or clear work, and a later Stop continues
+waiting for the same drain. A stopped group is not restarted.
 
 ## Writer Execution
 
@@ -135,6 +141,16 @@ Each active channel has one `channelWriter`. The writer owns one
 flag guarantees that at most one goroutine advances that channel at a time. The
 group uses shards only for writer lookup and creation; shard locks are not held
 while preparing, appending, or committing messages.
+
+Writer activation first enters one group-local dispatcher queue. Only that
+dispatcher may perform a blocking submit to the bounded advance worker pool;
+`SubmitLocal`, append completions, and post-commit completions never wait for an
+advance worker. The scheduled flag de-duplicates each writer to at most one
+queued or running activation, so dispatcher memory is bounded by active writer
+state rather than SEND rate. This breaks the cross-pool cycle where every
+advance worker could wait for the append pool while every append completion
+waited to resubmit into the advance pool. The configured `AdvancePoolSize`
+still bounds concurrent writer state-machine execution.
 
 Accepted submit events enter a lightweight per-writer inbox. A scheduled writer
 may wait for the tiny runtime-only `InboxCoalesceWindow` before draining a
@@ -159,7 +175,18 @@ authority ownership by returning an older successful result. Matching prepared
 items enter the writer state's pending queue in input order only when the
 state's pending plus in-flight item count is below
 `ChannelBacklogHighWatermark`; saturated channels complete those items with
-`ErrChannelBusy` before they reach the append port.
+`ErrChannelBusy` before they reach the append port. When any post-commit port is
+configured, every append-bound prepared item must also reserve one slot from
+the group-wide `PostCommitHandoffCapacity` before append. The reservation spans
+pending append, append execution, and durable post-commit work. An item that
+cannot reserve a slot completes with `ErrChannelBusy` and is never passed to
+`Appender`; append failure or terminal post-commit completion returns the slot.
+The default is the
+larger of `ChannelBacklogHighWatermark` and
+`EffectPoolSize * commitBatchMaxEvents`.
+Both worker-pool sizes are capped at the maximum positive int32 capacity used by
+ants/v2, preventing oversized configuration values from wrapping into an
+unbounded or permanently full pool.
 Prepared command-style `NoPersist` items also receive one message id and server
 timestamp, but they do not enter the durable pending queue. The writer schedules
 them as realtime effects and completes their future only after the recipient
@@ -215,8 +242,9 @@ immutable envelope by reference through the delivery worker and owner-push
 planning. Concrete owner push adapters copy or serialize at their boundary.
 Success prunes the payload-bearing envelope from the backlog. Recipient route or
 delivery enqueue failure is logged through `PostCommitFailureObserver`, counted
-through effect metrics, and then the envelope is dropped without retry so one
-bad recipient side effect cannot block later messages on the same channel.
+through effect metrics, and then the envelope reaches its terminal attempt
+without retry so one bad recipient side effect cannot block later messages on
+the same channel.
 Conversation-active projection failures are recorded independently and do not
 turn a successful delivery enqueue into a failed item completion. Failure
 observations carry a precise post-commit phase plus
@@ -224,11 +252,33 @@ sampled recipient, target, and dispatch context so route-resolution failures
 can be distinguished from conversation active admission and delivery enqueue
 failures in logs. Each channel keeps only one committed envelope in flight at a
 time, and concurrency inside that envelope is limited to recipient authority
-targets. Foreground append admission and the post-commit backlog use separate
-bounds derived from `ChannelBacklogHighWatermark`. When the best-effort bound
-is full, the newest already-durable envelope is reported as an admission-phase
-post-commit failure and dropped; it never turns a later foreground SEND into
-`ErrChannelBusy`.
+targets. The global pre-append reservation is the post-commit backlog bound, so
+every newly acknowledged durable envelope already owns capacity for its FIFO
+handoff. A full handoff rejects only the not-yet-appended item with
+`ErrChannelBusy`; an already-durable envelope is never dropped at scheduler
+admission.
+
+Post-commit pool admission remains non-blocking. If the pool is full, the writer
+cancels only transient dispatch ownership, keeps the committed envelopes in
+`channelState`, and enters a de-duplicated global FIFO retry scheduler. While
+that FIFO is contended, newer writers join behind it instead of probing the pool
+directly. A queued writer may prepare newly received inbox work, but it parks
+that append work until its older durable commit owns the retry turn. The selected
+writer's pass admits only the old commit; normal append-first ordering resumes
+on its next pass. The scheduler consumes a turn only when the pool reports free
+logical task capacity. Task completion releases that logical reservation before
+publishing the capacity wakeup, so coalesced wakeups refill every free worker
+without depending on ants' idle-worker count. If ants is still returning the
+just-completed worker to its idle queue, the logical capacity owner completes
+that short handoff rather than reporting a false overload. A real overload
+returns the writer to the FIFO tail and waits for the next capacity signal or
+bounded timer tick. Queue compaction clears truncated writer pointers from the
+backing array. This preserves fair retry without a busy scheduler spin, stale
+writer retention, or terminal scheduler drop, while each admitted effect still
+processes at most `commitBatchMaxEvents` envelopes.
+Realtime work shares the effect pool but does not overtake a contended durable
+retry FIFO; it fails fast with backpressure while an older durable writer owns
+or awaits the retry turn.
 
 When a PersistAfter enqueuer is configured, each successful durable committed
 envelope is cloned into the configured side-effect sinks from the same
@@ -247,8 +297,11 @@ is not configured. This observer runs before sender echo suppression so a
 sender's other online sessions do not hide unrelated offline recipients. It is
 limited to durable ordinary commits: zero-sequence realtime envelopes, SyncOnce
 command messages, and request-scoped `MessageScopedUIDs` batches are skipped.
-Batch offline observation avoids per-recipient webhook queue admission for large
-fanout; callers should chunk large batches at the observer boundary if needed.
+Batch offline observation avoids per-recipient webhook or plugin-worker queue
+admission for large fanout. The observer receives one shared committed payload
+plus the ordered UID slice; an asynchronous adapter takes ownership once for the
+whole batch instead of cloning the payload for every UID. Callers should chunk
+large batches at the observer boundary if needed.
 The observer is a best-effort side-effect boundary and must not influence
 SENDACK, append success, conversation active admission, or owner push delivery.
 
@@ -270,9 +323,22 @@ cursor different from the previous cursor; otherwise dispatch fails before that
 page's recipients are admitted or dispatched, avoiding partial side effects for
 the invalid page before the envelope is dropped.
 
-After each recipient set is formed, channelappend first resolves the fenced
-recipient authority targets and enqueues bounded recipient delivery plans, then
-admits one independent `conversationactive.ActiveBatch` projection.
+After each recipient set is formed, channelappend resolves one item-aligned
+authority snapshot for the sender plus every unique trimmed recipient. Delivery
+rows retain integer indexes into that snapshot, while the conversation-active
+first attempt reuses the same exact-target groups; neither path rebuilds a
+`map[string]Target` or performs a second route lookup. Group identity includes
+the complete physical hash-slot fence, so the 256 hash slots remain distinct
+even when they map onto only 10 logical Slot Raft Groups. Channelappend then
+enqueues bounded recipient delivery plans and admits one independent
+`conversationactive.ActiveBatch` projection.
+The normal bounded page uses an allocation-free inline UID index to coalesce the
+sender and duplicate recipients while preserving duplicate delivery rows. It
+borrows an already-normalized recipient slice and copies only when empty or
+whitespace-normalized UIDs require compaction. Exact-target grouping uses a
+fixed 256-entry physical-hash-slot index with exact-target comparison; custom
+slot counts or transition collisions fall back to a bounded exact scan rather
+than weakening leader-term, config-epoch, or route-revision fences.
 The batch carries an explicit `metadb.ConversationKind`: normal for ordinary
 channel commits, CMD for one-shot sync commits or command-channel ids. It also
 carries `SenderUID` from the committed event, channel identity, message
@@ -282,18 +348,25 @@ from `SenderUID` semantics. Active admission still runs when online
 delivery enqueueing is disabled or no `RecipientDeliveryEnqueuer` is
 configured. If active admission fails, the post-commit failure phase is
 `conversation_active`, while accepted delivery, later large-channel pages, and
-a successfully loaded non-large subscriber snapshot continue independently.
+a successfully loaded non-large subscriber snapshot continue independently. A
+sender-only aligned route failure does not suppress valid recipient delivery;
+active projection falls back to the legacy admission surface so it can obtain a
+fresh compatible route. A recipient item failure keeps delivery all-or-nothing
+for that set and uses the same active compatibility fallback.
 
 Recipient delivery is an enqueue contract. When delivery enqueueing is
 configured, recipients are grouped by the full fenced recipient authority
 target, including Slot leader term and Slot config epoch. UID authority
-resolution is performed once per unique trimmed UID and uses the optional batch
-resolver when available; invalid or missing targets map to route-not-ready
-before enqueueing. The production plan-capable enqueuer packs those exact-target
+resolution is performed once per aligned sender-and-recipient snapshot and uses
+the optional batch resolver when available; invalid or missing recipient targets
+map to route-not-ready before enqueueing. The production plan-capable enqueuer packs those exact-target
 groups into commands whose total recipient count is bounded by the existing
 recipient batch size. This preserves the complete target fence across the queue
 boundary while allowing one subscriber page to be admitted as one plan when it
-fits that bound. A legacy batch-only enqueuer remains supported; only that
+fits that bound. Each target carries a capacity-limited view into the
+grouping-owned normalized recipient storage, so asynchronous admission does not
+repeat the recipient copy and cannot overwrite a sibling target window. A
+legacy batch-only enqueuer remains supported; only that
 compatibility path dispatches different targets concurrently up to
 `RecipientAuthorityDispatchConcurrency`, while batches for the same target stay
 sequential.
@@ -304,12 +377,15 @@ per-group results, so one failed group is observed without suppressing the
 other groups. A legacy presence resolver remains supported by resolving the
 groups individually. A panic while processing one resolved group is converted
 to that group's terminal error and does not prevent later sibling groups from
-running. Successfully resolved groups observe offline recipients and skip only
-the sender's exact accepted session before their routes are coalesced by owner
-across the whole plan. Owner groups retain first-appearance order for stable
-error folding, route order follows target and resolver order, and each owner
-group is split into bounded push chunks. Different owners execute concurrently
-under a fixed bound, while chunks for the same owner remain sequential.
+running. Successfully resolved groups first contribute their deduplicated
+offline UIDs to one plan-level observer event, so plugin and webhook work scales
+with bounded delivery plans rather than 256 physical authority targets. They
+then skip only the sender's exact accepted session before routes are coalesced
+by owner across the whole plan. Owner groups retain first-appearance order for
+stable error folding, route order follows target and resolver order, and each
+owner group is split into bounded push chunks. Different owners execute
+concurrently under a fixed bound, while chunks for the same owner remain
+sequential.
 Retryable results narrow retries to only their returned routes; terminal
 push failures map back only to the exact target groups that contributed those
 routes, while unrelated owners and targets continue. Owner-local concrete
@@ -333,7 +409,9 @@ authority target attached, and they are not returned to channelappend after the
 plan has been accepted. The worker also emits low-cardinality queue, admission,
 process, and execution-pressure observations: queue depth/capacity, configured
 worker capacity/current in-flight commands, enqueue result/wait time,
-processing result/duration, and total recipients per plan. Queue and worker gauge
+processing result/duration, and attempted recipients per plan. Recipient totals
+describe planned processing work rather than proven successful online delivery.
+Queue and worker gauge
 samples are serialized and read from current state so concurrent worker starts,
 finishes, and queue changes cannot leave a stale terminal gauge; every accepted
 command increments in-flight for the complete `runCommand` execution and the
@@ -350,21 +428,45 @@ by the writer as items move between queues. Append effects run on a foreground
 append pool, while post-commit and realtime recipient effects run on an
 isolated post-commit pool so best-effort side effects cannot occupy durable
 append workers. Post-commit pool admission is bounded and non-blocking: a full
-pool produces the normal scheduler failure observation and drops that committed
-envelope, so saturated best-effort work cannot pin writer-advance workers or
-delay later durable appends. The writer pressure observer reports the local
-writer group aggregate rather than a per-channel event loop. When the observer supports ants
-pool samples, the group also emits direct ants/v2 running/capacity/waiting
-observations for the advance, append_effect, and post_commit pools; benchmark
-scripts use these samples for the per-node peak `used/cap` ants pool summary.
+pool retains the committed envelope and sends its writer through the fair retry
+FIFO, so saturated side effects cannot pin writer-advance workers or lose an
+acknowledged durable handoff. Exhausting the global pre-append reservation
+returns item-local `ErrChannelBusy` and emits a post-commit backpressure effect
+observation. The writer pressure observer reports the local
+writer group aggregate rather than a per-channel event loop. It also reports
+the global post-commit handoff depth/capacity and the fair-retry FIFO depth plus
+its contended bit. Handoff depth counts reservations spanning pending append,
+append execution, and durable post-commit work; retry depth counts de-duplicated
+writers still waiting in the FIFO and excludes the writer that already owns the
+selected retry turn. Consequently retry depth
+may be zero while contended remains true. These snapshots read only atomics and
+never acquire the retry scheduler mutex on the append hot path. Concurrent
+publication requests use a non-blocking, coalesced wakeup for one group-local
+publisher goroutine. It invokes callbacks serially, so a delayed old callback
+cannot overwrite a newer snapshot, while a slow observer never pins an append or
+commit goroutine. Group shutdown performs one final serialized publication after
+writer and retry state drain, making the terminal zero state observable without
+requiring later traffic or a hot-path global mutex. Reservation release, FIFO
+enqueue/pop, and retry-turn completion request pressure publication only after
+their state transition. None of these observations carries a channel, UID, Slot,
+or authority-target label. When the observer supports pool
+samples, the group also emits running/capacity/waiting observations for the
+advance, append_effect, and post_commit pools. Advance waiting includes both
+the dispatcher queue and a dispatcher currently blocked on the underlying
+ants/v2 pool; append_effect reports direct ants state. Post_commit reports
+logical admitted tasks so retained idle ants workers are not mistaken for
+active work. Benchmark scripts use these samples for the per-node peak
+`used/cap` pool summary.
 
 Before a post-commit effect enters the asynchronous pool, it copies the
 committed-envelope slice into effect-owned storage. The envelopes themselves
-remain immutable values, while the independent slice ownership allows shutdown
-to clear queued writer backlog without racing an already-running effect.
+remain immutable values, while the independent slice ownership lets the writer
+retain and retry its queued backing store without racing an already-running
+effect.
 
-`Stop` cancels the runtime context passed to append and post-commit effects
-before waiting for writers to drain. Once cancellation is observed, writers do
-not schedule more queued post-commit backlog, avoiding a one-by-one walk of
-canceled work during shutdown. Ports must respect their context promptly for
-Stop to complete without waiting for the caller's timeout.
+`Stop` first closes admission and waits for shard admission ownership, append
+state, handoff reservations, committed backlog, and retry FIFO ownership to
+drain. This includes accepted realtime sends, whose futures retain shard
+admission until their effect completes. The runtime context is canceled only
+after the drain and worker-pool release complete. A Stop deadline therefore
+returns only a waiting error; it does not alter the ongoing graceful drain.

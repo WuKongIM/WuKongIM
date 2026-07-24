@@ -13,9 +13,9 @@ var ErrRouteNotReady = errors.New("internal/runtime/presence: route not ready")
 
 // RouteTarget fences an authority operation to one observed hash-slot route.
 type RouteTarget struct {
-	// HashSlot is the logical user hash slot owned by this authority.
+	// HashSlot is the physical user hash slot owned by this authority.
 	HashSlot uint16
-	// SlotID is the cluster slot currently hosting the hash slot authority.
+	// SlotID is the logical Slot Raft Group currently hosting the hash-slot authority.
 	SlotID uint32
 	// LeaderNodeID is the node that the caller observed as the slot leader.
 	LeaderNodeID uint64
@@ -27,6 +27,24 @@ type RouteTarget struct {
 	RouteRevision uint64
 	// AuthorityEpoch is a local observation sequence kept for diagnostics only.
 	AuthorityEpoch uint64
+}
+
+// EndpointLookupGroup binds one ordered UID collection to an exact authority target.
+type EndpointLookupGroup struct {
+	// Target is the complete authority fence observed for every UID in this group.
+	Target RouteTarget
+	// UIDs preserves the caller's lookup order within this authority target.
+	UIDs []string
+}
+
+// EndpointLookupResult preserves one group-aligned authority lookup outcome.
+type EndpointLookupResult struct {
+	// Routes contains an immutable call-owned snapshot in group UID order and deterministic
+	// route order per UID. Sibling groups may share one backing allocation, but every result
+	// is capacity-limited so appending cannot overwrite another group's routes.
+	Routes []Route
+	// Err records the group-scoped fence failure without rejecting sibling groups.
+	Err error
 }
 
 // Route identifies a virtual client connection known by the UID authority.

@@ -585,8 +585,8 @@ func TestAppendRecordsObserverAndSendtraceFromCompletion(t *testing.T) {
 	}
 }
 
-func TestStopCancelsBlockedAppendWorkerAndFuture(t *testing.T) {
-	appender := newContextBlockingAppenderForAppendTest()
+func TestStopDeadlineDoesNotCancelBlockedAppendWorkerOrFuture(t *testing.T) {
+	appender := newBlockingAppenderForAppendTest()
 	group := New(Options{
 		LocalNodeID: 1,
 		MessageID:   newSequenceIDsForPrepare(800),
@@ -598,23 +598,23 @@ func TestStopCancelsBlockedAppendWorkerAndFuture(t *testing.T) {
 	target := localTargetForAppendTest("room")
 
 	submitC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "payload"))
-	appender.waitStarted(t)
+	started := appender.waitStarted(t)
 	submit := receiveSubmitResult(t, submitC)
 	if submit.err != nil {
 		t.Fatalf("SubmitLocal() error = %v", submit.err)
 	}
 
-	stopCtx, cancelStop := context.WithTimeout(context.Background(), time.Second)
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancelStop()
-	if err := group.Stop(stopCtx); err != nil {
-		t.Fatalf("Stop() error = %v", err)
+	if err := group.Stop(stopCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop() error = %v, want context deadline exceeded", err)
 	}
-	if !appender.wasCanceled() {
-		t.Fatalf("appender did not observe context cancellation")
-	}
-	results := waitFutureForTest(t, submit.future)
-	if !errors.Is(results[0].Err, context.Canceled) {
-		t.Fatalf("future error = %v, want context.Canceled", results[0].Err)
+	started.Release()
+	requireAppendSuccess(t, waitFutureForTest(t, submit.future), 0, 800, 1)
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), time.Second)
+	defer cancelDrain()
+	if err := group.Stop(drainCtx); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
 	}
 }
 

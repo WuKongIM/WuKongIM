@@ -82,30 +82,39 @@ metrics when plugins are enabled.
 
 ```text
 channelappend recipient delivery after presence resolution
-  -> runtime/pluginhook bounded worker
-  -> App.ReceiveOffline
-  -> reject ineligible candidates:
+  -> pluginReceiveObserver maps one offline UID batch
+  -> runtime/pluginhook bounded worker owns one copy of the UID slice and payload
+  -> App.ReceiveOfflineBatch
+  -> reject an ineligible message batch:
        NoPersist, SyncOnce, request-scoped, temp-channel, missing durable ids,
-       missing sender, sender == recipient, or system sender
-  -> read UID-owned plugin bindings from the cluster-authoritative metadata port
-  -> intersect bindings with node-local plugins after cached desired enable state
-  -> select running plugins advertising MethodReceive
-  -> select the highest-priority plugin, then plugin number asc
-  -> suppress duplicate messageID+UID candidates for a bounded TTL
-  -> map the recipient view to pluginproto.RecvPacket
-       strip command-channel suffixes
-       for person channels, expose the recipient's counterpart channel id
-       clone payload before crossing the plugin boundary
-  -> invoke /plugin/receive synchronously when ReplySync=true,
-     otherwise send the legacy async Receive msgType
-  -> observe low-cardinality invoke result when Observer is configured
+       missing sender, or system sender
+  -> snapshot node-local plugins advertising MethodReceive once
+  -> apply cached desired enable state and order running candidates by
+       priority desc, plugin number asc
+  -> if no candidate remains, return without UID binding reads
+  -> for each distinct non-empty UID other than the sender, in order:
+       read UID-owned plugin bindings from cluster-authoritative metadata
+       select the highest-priority bound candidate
+       suppress duplicate messageID+UID candidates for a bounded TTL
+       project the shared batch into the recipient view
+       map to pluginproto.RecvPacket
+         strip command-channel suffixes
+         for person channels, expose the recipient's counterpart channel id
+         let synchronous wire marshal own the per-bound-recipient payload copy
+       invoke /plugin/receive synchronously when ReplySync=true,
+         otherwise send the legacy async Receive msgType
+       apply the plugin-worker timeout independently to this UID
+       continue after independent recipient failures or timeouts, unless the
+         batch parent context is canceled
+       observe low-cardinality invoke result when Observer is configured
 ```
 
 Receive hooks are post-commit side effects. Their failures are logged and
 reported through hook metrics but do not change SENDACK, durable append,
 conversation projection, or ordinary online delivery outcomes. The usecase does
-not scan subscribers; channelappend provides one already-expanded offline UID
-candidate at a time.
+not scan subscribers; channelappend provides already-expanded offline UID
+batches. Scalar `ReceiveOffline` and worker fallback remain compatibility paths
+and reuse the same candidate selection and batch-to-recipient projection rules.
 
 ## Host RPC Message Send Flow
 

@@ -3,6 +3,8 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -643,6 +645,124 @@ func TestPoolBatchesRPCPullTasksByNode(t *testing.T) {
 	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
 
+func TestRPCPullBatchReducesCallsWithoutMoreWorkers(t *testing.T) {
+	const (
+		workers   = 1
+		taskCount = 801
+	)
+
+	batchFourCalls := runQueuedRPCPullCallCountScenario(t, workers, 4, taskCount)
+	batchEightCalls := runQueuedRPCPullCallCountScenario(t, workers, 8, taskCount)
+
+	require.Equal(t, 1+(taskCount-1)/4, batchFourCalls)
+	require.Equal(t, 1+(taskCount-1)/8, batchEightCalls)
+	require.LessOrEqual(t, batchEightCalls, batchFourCalls*3/5)
+}
+
+func BenchmarkRPCPullBatchCloudMediumEnvelope(b *testing.B) {
+	const (
+		taskCount   = 4000
+		serviceTime = 5 * time.Millisecond
+	)
+	for _, workers := range []int{50, 80, 96} {
+		for _, batchMaxItems := range []int{4, 8} {
+			b.Run(fmt.Sprintf("workers_%d/batch_%d", workers, batchMaxItems), func(b *testing.B) {
+				b.ReportAllocs()
+				totalCalls := 0
+				observer := &rpcCapacityObserver{}
+				b.ResetTimer()
+				for iteration := 0; iteration < b.N; iteration++ {
+					sink := &captureSink{}
+					tr := &batchWorkerTransport{pullBatchDelay: serviceTime}
+					pool, err := NewPool(PoolConfig{
+						Name:             "rpc",
+						Workers:          workers,
+						QueueSize:        taskCount,
+						RPCBatchMaxItems: batchMaxItems,
+						BatchMaxWait:     time.Millisecond,
+					}, Deps{Transport: tr}, sink)
+					if err != nil {
+						b.Fatal(err)
+					}
+					pool.SetQueueObserver(observer)
+					for i := 0; i < taskCount; i++ {
+						channelKey := ch.ChannelKey(fmt.Sprintf("1:benchmark-%d", i))
+						if err := pool.Submit(context.Background(), Task{
+							Kind:  TaskRPCPull,
+							Fence: ch.Fence{ChannelKey: channelKey, OpID: ch.OpID(i + 1)},
+							RPCPull: &RPCPullTask{
+								Node:    2,
+								Request: transport.PullRequest{ChannelKey: channelKey, NextOffset: 1},
+							},
+						}); err != nil {
+							b.Fatal(err)
+						}
+					}
+					deadline := time.Now().Add(3 * time.Second)
+					for sink.Len() != taskCount && time.Now().Before(deadline) {
+						time.Sleep(100 * time.Microsecond)
+					}
+					if sink.Len() != taskCount {
+						b.Fatalf("completed %d/%d RPC Pull tasks", sink.Len(), taskCount)
+					}
+					totalCalls += tr.PullBatchCalls()
+					if err := pool.Close(); err != nil {
+						b.Fatal(err)
+					}
+				}
+				b.ReportMetric(float64(taskCount*b.N)/b.Elapsed().Seconds(), "items/s")
+				b.ReportMetric(float64(totalCalls)/float64(b.N), "rpc-calls/op")
+				b.ReportMetric(float64(observer.WaitP99())/float64(time.Microsecond), "queue-wait-p99-us")
+			})
+		}
+	}
+}
+
+func runQueuedRPCPullCallCountScenario(t *testing.T, workers int, batchMaxItems int, taskCount int) int {
+	t.Helper()
+	sink := &captureSink{}
+	tr := newGatedBatchWorkerTransport()
+	pool, err := NewPool(PoolConfig{
+		Name:             "rpc",
+		Workers:          workers,
+		QueueSize:        taskCount,
+		RPCBatchMaxItems: batchMaxItems,
+		BatchMaxWait:     time.Millisecond,
+	}, Deps{Transport: tr}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: "1:throughput-0", OpID: 1},
+		RPCPull: &RPCPullTask{
+			Node:    2,
+			Request: transport.PullRequest{ChannelKey: "1:throughput-0", NextOffset: 1},
+		},
+	}))
+	select {
+	case <-tr.started:
+	case <-time.After(time.Second):
+		t.Fatal("first RPC task did not start")
+	}
+
+	for i := 1; i < taskCount; i++ {
+		channelKey := ch.ChannelKey(fmt.Sprintf("1:throughput-%d", i))
+		require.NoError(t, pool.Submit(context.Background(), Task{
+			Kind:  TaskRPCPull,
+			Fence: ch.Fence{ChannelKey: channelKey, OpID: ch.OpID(i + 1)},
+			RPCPull: &RPCPullTask{
+				Node:    2,
+				Request: transport.PullRequest{ChannelKey: channelKey, NextOffset: 1},
+			},
+		}))
+	}
+	close(tr.release)
+	require.Eventually(t, func() bool { return sink.Len() == taskCount }, 3*time.Second, time.Millisecond)
+	require.Equal(t, batchMaxItems, tr.PullBatchMaxItems())
+	return tr.PullCalls() + tr.PullBatchCalls()
+}
+
 func TestPoolRPCPullTimeoutStartsWhenWorkerExecutes(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := &batchWorkerTransport{}
@@ -817,6 +937,35 @@ func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	require.Equal(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
 
+func TestPoolRotatesRPCSubgroupPriorityUnderTargetSkew(t *testing.T) {
+	pool := &Pool{
+		cfg:  PoolConfig{Name: "rpc"},
+		deps: Deps{Transport: &batchWorkerTransport{}},
+	}
+	// Ten logical Slots with three replicas and leaders distributed 3/4/3.
+	// Node 1 follows the four Slots led by node 2 and the three led by node 3.
+	slotLeaders := []ch.NodeID{1, 2, 3, 1, 2, 3, 1, 2, 3, 2}
+	items := make([]queuedTask, 0, 7)
+	for slot, leader := range slotLeaders {
+		if leader == 1 {
+			continue
+		}
+		items = append(items, queuedRPCPullTask(leader, ch.OpID(slot+1)))
+	}
+
+	first := pool.taskGroups(items)
+	second := pool.taskGroups(items)
+
+	require.Len(t, first, 2)
+	require.Len(t, second, 2)
+	require.Equal(t, ch.NodeID(2), first[0][0].task.RPCPull.Node)
+	require.Equal(t, ch.NodeID(3), second[0][0].task.RPCPull.Node)
+	require.Len(t, first[0], 4)
+	require.Len(t, first[1], 3)
+	require.Len(t, second[0], 3)
+	require.Len(t, second[1], 4)
+}
+
 func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := &batchWorkerTransport{}
@@ -849,7 +998,7 @@ func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
 
 func TestPoolUsesFirstRPCTaskBatchLimit(t *testing.T) {
 	pool := &Pool{
-		cfg:  PoolConfig{Name: "rpc"},
+		cfg:  PoolConfig{Name: "rpc", RPCBatchMaxItems: 12},
 		deps: Deps{Transport: &batchWorkerTransport{}},
 	}
 
@@ -862,8 +1011,8 @@ func TestPoolUsesFirstRPCTaskBatchLimit(t *testing.T) {
 		RPCPullHint: &RPCPullHintTask{Node: 2},
 	}})
 
-	require.Equal(t, 4, pullLed.MaxItems)
-	require.Equal(t, 2, pullHintLed.MaxItems)
+	require.Equal(t, 12, pullLed.MaxItems)
+	require.Equal(t, 12, pullHintLed.MaxItems)
 	require.Equal(t, rpcBatchMaxWait, pullLed.MaxWait)
 	require.Equal(t, rpcBatchMaxWait, pullHintLed.MaxWait)
 }
@@ -1315,6 +1464,15 @@ func queuedStoreAppendTask(channel string, opID ch.OpID) queuedTask {
 	}}
 }
 
+func queuedRPCPullTask(node ch.NodeID, opID ch.OpID) queuedTask {
+	channelKey := ch.ChannelKey(fmt.Sprintf("1:rpc-%d", opID))
+	return queuedTask{enqueuedAt: time.Now(), task: Task{
+		Kind:    TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: channelKey, OpID: opID},
+		RPCPull: &RPCPullTask{Node: node, Request: transport.PullRequest{ChannelKey: channelKey}},
+	}}
+}
+
 type captureSink struct {
 	mu      sync.Mutex
 	results []Result
@@ -1436,8 +1594,41 @@ type batchWorkerTransport struct {
 	mu                 sync.Mutex
 	pullCalls          int
 	pullBatchCalls     int
+	pullBatchMaxItems  int
+	pullBatchDelay     time.Duration
 	pullHintCalls      int
 	pullHintBatchCalls int
+}
+
+type gatedBatchWorkerTransport struct {
+	batchWorkerTransport
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newGatedBatchWorkerTransport() *gatedBatchWorkerTransport {
+	return &gatedBatchWorkerTransport{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (t *gatedBatchWorkerTransport) waitFirst() {
+	t.once.Do(func() {
+		close(t.started)
+		<-t.release
+	})
+}
+
+func (t *gatedBatchWorkerTransport) Pull(ctx context.Context, node ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
+	t.waitFirst()
+	return t.batchWorkerTransport.Pull(ctx, node, req)
+}
+
+func (t *gatedBatchWorkerTransport) PullBatch(ctx context.Context, node ch.NodeID, req transport.PullBatchRequest) (transport.PullBatchResponse, error) {
+	t.waitFirst()
+	return t.batchWorkerTransport.PullBatch(ctx, node, req)
 }
 
 func (t *batchWorkerTransport) Pull(_ context.Context, _ ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
@@ -1450,7 +1641,14 @@ func (t *batchWorkerTransport) Pull(_ context.Context, _ ch.NodeID, req transpor
 func (t *batchWorkerTransport) PullBatch(_ context.Context, _ ch.NodeID, req transport.PullBatchRequest) (transport.PullBatchResponse, error) {
 	t.mu.Lock()
 	t.pullBatchCalls++
+	if len(req.Items) > t.pullBatchMaxItems {
+		t.pullBatchMaxItems = len(req.Items)
+	}
+	delay := t.pullBatchDelay
 	t.mu.Unlock()
+	if delay > 0 {
+		time.Sleep(delay)
+	}
 	resp := transport.PullBatchResponse{Items: make([]transport.PullBatchItemResult, len(req.Items))}
 	for i, item := range req.Items {
 		resp.Items[i].Response = transport.PullResponse{ChannelKey: item.ChannelKey, LeaderHW: item.NextOffset, LeaderLEO: item.NextOffset}
@@ -1490,6 +1688,12 @@ func (t *batchWorkerTransport) PullBatchCalls() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.pullBatchCalls
+}
+
+func (t *batchWorkerTransport) PullBatchMaxItems() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.pullBatchMaxItems
 }
 
 func (t *batchWorkerTransport) PullHintCalls() int {
@@ -1788,6 +1992,37 @@ type recordedAntsUsage struct {
 	running  int
 	capacity int
 	waiting  int
+}
+
+type rpcCapacityObserver struct {
+	mu    sync.Mutex
+	waits []time.Duration
+}
+
+func (o *rpcCapacityObserver) SetWorkerQueueDepth(string, int) {}
+
+func (o *rpcCapacityObserver) ObserveWorkerWait(_ string, kind TaskKind, wait time.Duration) {
+	if kind != TaskRPCPull {
+		return
+	}
+	o.mu.Lock()
+	o.waits = append(o.waits, wait)
+	o.mu.Unlock()
+}
+
+func (o *rpcCapacityObserver) WaitP99() time.Duration {
+	o.mu.Lock()
+	waits := append([]time.Duration(nil), o.waits...)
+	o.mu.Unlock()
+	if len(waits) == 0 {
+		return 0
+	}
+	sort.Slice(waits, func(i, j int) bool { return waits[i] < waits[j] })
+	index := (len(waits)*99 + 99) / 100
+	if index > 0 {
+		index--
+	}
+	return waits[index]
 }
 
 func (o *recordingPoolPressureObserver) ensure() {

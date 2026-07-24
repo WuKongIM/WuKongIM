@@ -81,6 +81,93 @@ func TestCloudAnalysisSkillDocumentsObservationNodeContract(t *testing.T) {
 	}
 }
 
+func TestCloudAnalysisSkillDocumentsRecipientDeliveryAndPostCommitEvidence(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, queryID := range []string{
+		"delivery_recipient_worker_queue_depth",
+		"delivery_recipient_worker_queue_capacity",
+		"delivery_recipient_worker_inflight",
+		"delivery_recipient_worker_capacity",
+		"delivery_recipient_worker_admission_cumulative",
+		"delivery_recipient_worker_admission_wait_p99",
+		"delivery_recipient_worker_process_cumulative",
+		"delivery_recipient_worker_process_p99",
+		"delivery_recipient_worker_process_recipients_cumulative",
+		"channelappend_post_commit_handoff_depth",
+		"channelappend_post_commit_handoff_capacity",
+		"channelappend_post_commit_retry_queue_depth",
+		"channelappend_post_commit_retry_contended",
+	} {
+		if !strings.Contains(skill, "`"+queryID+"`") {
+			t.Fatalf("SKILL.md must route recipient delivery analysis through %q", queryID)
+		}
+		if !strings.Contains(contract, "`"+queryID+"`") {
+			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
+		}
+	}
+	for _, required := range []string{
+		"accepted_delta - processed_delta = backlog_end - backlog_start",
+		"quiescent bracketing endpoint samples",
+		"planned or attempted recipients",
+		"pending append, append in-flight",
+		"`ErrChannelBusy`",
+		"retry depth can be zero while contended remains one",
+		"must remain approximate or unknown",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document recipient delivery evidence rule %q", required)
+		}
+		if !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document recipient delivery evidence rule %q", required)
+		}
+	}
+}
+
+func TestCloudAnalysisSkillDocumentsRecipientPipelineStageEvidence(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
+	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
+	for _, queryID := range []string{
+		"delivery_recipient_authority_resolve_rate",
+		"delivery_recipient_authority_resolve_items_rate",
+		"delivery_recipient_authority_resolve_targets_rate",
+		"delivery_recipient_authority_resolve_p99",
+		"presence_endpoint_lookup_rate",
+		"presence_endpoint_lookup_items_rate",
+		"presence_endpoint_lookup_groups_rate",
+		"presence_endpoint_lookup_p99",
+		"delivery_ack_batch_cumulative",
+		"delivery_ack_batch_items_cumulative",
+		"delivery_ack_batch_shards_cumulative",
+		"delivery_ack_batch_rejected_cumulative",
+		"delivery_ack_batch_rollback_cumulative",
+		"delivery_ack_batch_p99",
+	} {
+		if !strings.Contains(skill, "`"+queryID+"`") {
+			t.Fatalf("SKILL.md must route recipient pipeline analysis through %q", queryID)
+		}
+		if !strings.Contains(contract, "`"+queryID+"`") {
+			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
+		}
+	}
+	for _, required := range []string{
+		"one recipient batch can",
+		"`stale_retry`",
+		"observed in both phases",
+		"quiescent bracketing",
+		"unknown rather than zero",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("SKILL.md must document recipient pipeline evidence rule %q", required)
+		}
+		if !strings.Contains(contract, required) {
+			t.Fatalf("tool-contract.md must document recipient pipeline evidence rule %q", required)
+		}
+	}
+}
+
 func TestCloudAnalysisSkillDocumentsConversationActiveConservation(t *testing.T) {
 	root := repoRoot(t)
 	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))

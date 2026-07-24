@@ -90,8 +90,10 @@ Target-aware lookup returns one aligned `EndpointLookupResult` per input group.
 A group-scoped lookup error is recorded on that result and does not abort later
 groups. Production cluster adapters preserve the supplied complete target
 fence; the legacy fallback deliberately cannot do so and exists only for
-compatibility with older or limited authority implementations. Lookup stays
-authority-routed behind the `AuthorityClient` port.
+compatibility with older or limited authority implementations. When the
+production batch surface is present, the usecase returns its aligned result
+directly and does not allocate a discarded compatibility result slice. Lookup
+stays authority-routed behind the `AuthorityClient` port.
 
 ## Import Boundary
 

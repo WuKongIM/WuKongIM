@@ -10,13 +10,30 @@ HTTP helpers for real `cmd/wukongim` tests.
    its process-lifetime port block, so concurrently running E2E packages cannot
    return overlapping listener addresses; individual addresses are still
    probed before use to avoid unrelated host listeners.
-2. Config renderers write node TOML and derive the product environment.
+2. Config renderers write node TOML and derive the product environment. The
+   shared E2E baseline explicitly disables the optional plugin runtime; plugin
+   scenarios opt in per node through a config override.
 3. The default binary cache builds `cmd/wukongim` with the `e2e` build tag;
    tagged product substitutes remain dormant unless their separate explicit
    harness environment is present. `NodeProcess.Start` removes the
-   harness-only `WK_E2E_*` namespace before starting the child process.
+   harness-only `WK_E2E_*` namespace before starting the child process. On
+   Unix, every product process starts as the leader of an independent process
+   group so plugin and other descendants stay inside the harness-owned
+   lifecycle boundary. `NodeProcess` owns the only `Wait` call for the group
+   leader.
 4. Test cleanup stops the current process for every registered node, including
    nodes appended after cluster startup and processes replaced by restart.
+   Static cluster nodes receive graceful termination concurrently so one node
+   does not lose Raft quorum while later nodes are still waiting to begin
+   shutdown, and so per-node stop budgets do not accumulate serially.
+   Concurrent or repeated stops join the same exit result, and readiness waits
+   fail immediately when their child exits instead of consuming the full poll
+   timeout. Leader exit also starts group cleanup: the harness sends `TERM`,
+   waits for a bounded grace interval, then sends `KILL` to the whole process
+   group when any descendant remains. `Stop` does not return until that cleanup
+   has completed, including when the leader exited before `Stop` was called.
+   Detached-node start and restart paths join this cleanup before reusing the
+   node's ports or data directory.
 
 `ReconfigureStoppedNodes` rewrites a static cluster generation only after all
 nodes are stopped. It preserves data directories and non-product external
@@ -65,3 +82,14 @@ metrics, active-or-already-published backup continuation, and public readiness
 without exposing runtime internals to scenarios. Shared cluster-readiness and
 64-partition publication timeouts absorb package-parallel CI load only; they
 are not product RPO, RTO, or performance qualification thresholds.
+
+## Cluster convergence
+
+`WaitClusterReady` proves only public HTTP and WKProto availability. Scenarios
+whose correctness depends on stable Slot authority enable read-only Manager
+HTTP and call `WaitSlotLeadersStable`. That helper polls every node's full
+control inventory plus each node-scoped voter inventory, proves the two views
+are closed over the same Slots, validates desired/current voters and quorum,
+uses the actual Raft-elected `node_log.leader_id` rather than
+`preferred_leader_id`, requires cross-node agreement, and resets its bounded
+stability timer whenever the leader/config fingerprint changes.

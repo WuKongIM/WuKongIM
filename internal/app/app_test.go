@@ -48,7 +48,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	gatewaycore "github.com/WuKongIM/WuKongIM/pkg/gateway/core"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
-	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -57,12 +56,58 @@ import (
 
 func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
 	t.Helper()
+	cfg = isolatePluginRuntimeForTest(cfg)
 	opts = append([]Option{WithLogger(wklog.NewNop())}, opts...)
 	app, err := New(cfg, opts...)
 	if app != nil {
 		t.Cleanup(app.restoreDiagnosticsSink)
 	}
 	return app, err
+}
+
+func isolatePluginRuntimeForTest(cfg Config) Config {
+	if !cfg.Plugin.Enable {
+		cfg.Plugin.SetEnableExplicit(true)
+	}
+	return cfg
+}
+
+func TestNewTestAppDisablesDefaultPluginRuntime(t *testing.T) {
+	app, err := newTestApp(t, Config{}, WithCluster(&fakeCluster{}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("newTestApp() error = %v", err)
+	}
+	if app.cfg.Plugin.Enable || app.pluginRuntime != nil {
+		t.Fatalf("test plugin runtime enabled=%v runtime=%T, want isolated", app.cfg.Plugin.Enable, app.pluginRuntime)
+	}
+}
+
+func TestRecordingAppLoggerSupportsConcurrentWritesAndSnapshots(t *testing.T) {
+	logger := &recordingAppLogger{}
+	const (
+		workers = 16
+		writes  = 64
+	)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for range writes {
+				logger.Info("concurrent")
+				_ = logger.entriesSnapshot()
+			}
+			_ = logger.Sync()
+		}()
+	}
+	wg.Wait()
+
+	if got := len(logger.entriesSnapshot()); got != workers*writes {
+		t.Fatalf("entries = %d, want %d", got, workers*writes)
+	}
+	if got := logger.syncCallCount(); got != workers {
+		t.Fatalf("Sync calls = %d, want %d", got, workers)
+	}
 }
 
 func captureStdout(t *testing.T, run func()) string {
@@ -729,7 +774,7 @@ func TestDefaultConsoleSeparatesStartupPresentationFromStructuredLifecycleLogs(t
 	logDir := t.TempDir()
 	console := captureStdout(t, func() {
 		calls := make([]string, 0, 2)
-		app, err := New(Config{
+		app, err := New(isolatePluginRuntimeForTest(Config{
 			NodeID:  1,
 			DataDir: shortAppTestDataDir(t),
 			Cluster: clusterpkg.Config{
@@ -737,7 +782,7 @@ func TestDefaultConsoleSeparatesStartupPresentationFromStructuredLifecycleLogs(t
 				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 1}}},
 			},
 			Log: LogConfig{Dir: logDir, Console: true, Format: "json"},
-		}, WithCluster(&fakeCluster{calls: &calls}))
+		}), WithCluster(&fakeCluster{calls: &calls}))
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -773,14 +818,14 @@ func TestDisabledConsoleWritesNoStartupPresentation(t *testing.T) {
 	logConfig.SetExplicitFlags(false, true)
 	console := captureStdout(t, func() {
 		calls := make([]string, 0, 1)
-		app, err := New(Config{
+		app, err := New(isolatePluginRuntimeForTest(Config{
 			NodeID: 1,
 			Cluster: clusterpkg.Config{
 				NodeID:  1,
 				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 1}}},
 			},
 			Log: logConfig,
-		}, WithCluster(&fakeCluster{calls: &calls}))
+		}), WithCluster(&fakeCluster{calls: &calls}))
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -803,7 +848,7 @@ func TestDefaultConsoleFormatsFailureWithoutStructuredDuplicate(t *testing.T) {
 	console := captureStdout(t, func() {
 		calls := make([]string, 0, 3)
 		gatewayErr := errors.New("gateway unavailable")
-		app, err := New(Config{
+		app, err := New(isolatePluginRuntimeForTest(Config{
 			NodeID:  4,
 			DataDir: shortAppTestDataDir(t),
 			Cluster: clusterpkg.Config{
@@ -811,7 +856,7 @@ func TestDefaultConsoleFormatsFailureWithoutStructuredDuplicate(t *testing.T) {
 				Control: clusterpkg.ControlConfig{Voters: []clusterpkg.ControlVoter{{NodeID: 4}}},
 			},
 			Log: LogConfig{Dir: logDir, Console: true, Format: "json"},
-		},
+		}),
 			WithCluster(&fakeCluster{calls: &calls}),
 			WithGateway(&fakeGateway{calls: &calls, startErr: gatewayErr}),
 		)
@@ -3068,7 +3113,7 @@ func TestNewBuildsRootLogger(t *testing.T) {
 	cfg := Config{Log: LogConfig{Dir: t.TempDir(), Console: false, Format: "json"}}
 	cfg.Log.SetExplicitFlags(false, true)
 	app, err := New(
-		cfg,
+		isolatePluginRuntimeForTest(cfg),
 		WithCluster(&fakeCluster{calls: &calls}),
 		WithGateway(&fakeGateway{calls: &calls}),
 	)
@@ -3194,7 +3239,7 @@ func TestStopSyncsLogger(t *testing.T) {
 	calls := make([]string, 0, 4)
 	logger := &recordingAppLogger{}
 	app, err := New(
-		Config{},
+		isolatePluginRuntimeForTest(Config{}),
 		WithCluster(&fakeCluster{calls: &calls}),
 		WithGateway(&fakeGateway{calls: &calls}),
 		WithLogger(logger),
@@ -3208,8 +3253,8 @@ func TestStopSyncsLogger(t *testing.T) {
 	if err := app.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if logger.syncCalls != 1 {
-		t.Fatalf("Sync calls = %d, want 1", logger.syncCalls)
+	if got := logger.syncCallCount(); got != 1 {
+		t.Fatalf("Sync calls = %d, want 1", got)
 	}
 }
 
@@ -4912,419 +4957,6 @@ func TestNewWiresPresenceWhenGatewayEnabled(t *testing.T) {
 	}
 }
 
-func TestLocalOwnerPusherWritesRecvPacketAndBindsPendingAck(t *testing.T) {
-	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	session := &recordingSessionHandle{}
-	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
-		t.Fatalf("RegisterPending() error = %v", err)
-	}
-	if err := reg.MarkActive(route.SessionID); err != nil {
-		t.Fatalf("MarkActive() error = %v", err)
-	}
-	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})
-	pusher := localOwnerPusher{online: reg, delivery: manager}
-	env := runtimedelivery.Envelope{
-		MessageID:   9001,
-		MessageSeq:  42,
-		ChannelID:   "ch1",
-		ChannelType: 2,
-		FromUID:     "sender",
-		ClientMsgNo: "client-1",
-		RedDot:      true,
-		Payload:     []byte("hello"),
-	}
-
-	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-		OwnerNodeID: 1,
-		Envelope:    env,
-		Routes: []runtimedelivery.Route{{
-			UID:         "u1",
-			OwnerNodeID: 1,
-			OwnerBootID: 7,
-			OwnerSeq:    11,
-			SessionID:   101,
-		}},
-	})
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-	if len(result.Accepted) != 1 || len(result.Retryable) != 0 || len(result.Dropped) != 0 {
-		t.Fatalf("push result = %#v, want one accepted", result)
-	}
-	if len(session.writes) != 1 {
-		t.Fatalf("delivery writes = %d, want 1", len(session.writes))
-	}
-	recv, ok := session.writes[0].(*frame.RecvPacket)
-	if !ok {
-		t.Fatalf("delivery write = %T, want *frame.RecvPacket", session.writes[0])
-	}
-	if recv.MessageID != int64(env.MessageID) || recv.MessageSeq != env.MessageSeq || recv.ChannelID != env.ChannelID ||
-		recv.ChannelType != env.ChannelType || recv.FromUID != env.FromUID || recv.ClientMsgNo != env.ClientMsgNo ||
-		string(recv.Payload) != "hello" || !recv.RedDot {
-		t.Fatalf("recv packet = %#v", recv)
-	}
-	env.Payload[0] = 'H'
-	if string(recv.Payload) != "hello" {
-		t.Fatalf("recv payload = %q, want cloned hello", string(recv.Payload))
-	}
-	if manager.PendingAckCount() != 1 {
-		t.Fatalf("pending ack count = %d, want 1", manager.PendingAckCount())
-	}
-}
-
-func TestLocalOwnerPusherDropsMissingOrInactiveSession(t *testing.T) {
-	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	inactiveRoute := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(online.LocalSession{Route: inactiveRoute, Session: &recordingSessionHandle{}}); err != nil {
-		t.Fatalf("RegisterPending() error = %v", err)
-	}
-	pusher := localOwnerPusher{online: reg, delivery: runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})}
-
-	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-		OwnerNodeID: 1,
-		Envelope:    runtimedelivery.Envelope{MessageID: 1, MessageSeq: 1},
-		Routes: []runtimedelivery.Route{
-			{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101},
-			{UID: "missing", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 102},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-	if len(result.Dropped) != 2 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
-		t.Fatalf("push result = %#v, want two dropped", result)
-	}
-}
-
-func TestLocalOwnerPusherDropsWhenPendingAckLimitReached(t *testing.T) {
-	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	session := &recordingSessionHandle{}
-	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
-		t.Fatalf("RegisterPending() error = %v", err)
-	}
-	if err := reg.MarkActive(route.SessionID); err != nil {
-		t.Fatalf("MarkActive() error = %v", err)
-	}
-	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-		Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{ShardCount: 1, MaxPendingPerSession: 1}),
-	})
-	if !manager.BindPendingAck(runtimedelivery.PendingRecvAck{UID: "u1", SessionID: 101, MessageID: 1}) {
-		t.Fatalf("preload pending ack failed")
-	}
-	pusher := localOwnerPusher{online: reg, delivery: manager}
-
-	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-		OwnerNodeID: 1,
-		Envelope:    runtimedelivery.Envelope{MessageID: 2, MessageSeq: 2},
-		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
-	})
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-	if len(result.Dropped) != 1 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
-		t.Fatalf("push result = %#v, want one dropped", result)
-	}
-	if len(session.writes) != 0 {
-		t.Fatalf("delivery writes = %d, want 0", len(session.writes))
-	}
-	if manager.PendingAckCount() != 1 {
-		t.Fatalf("pending ack count = %d, want preload only", manager.PendingAckCount())
-	}
-}
-
-func TestLocalOwnerPusherMarksWriteErrorRetryable(t *testing.T) {
-	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	session := &recordingSessionHandle{writeErr: errors.New("write failed")}
-	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
-		t.Fatalf("RegisterPending() error = %v", err)
-	}
-	if err := reg.MarkActive(route.SessionID); err != nil {
-		t.Fatalf("MarkActive() error = %v", err)
-	}
-	pusher := localOwnerPusher{online: reg, delivery: runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})}
-
-	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-		OwnerNodeID: 1,
-		Envelope:    runtimedelivery.Envelope{MessageID: 1, MessageSeq: 1},
-		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
-	})
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-	if len(result.Retryable) != 1 || len(result.Accepted) != 0 || len(result.Dropped) != 0 {
-		t.Fatalf("push result = %#v, want one retryable", result)
-	}
-	if pusher.delivery.PendingAckCount() != 0 {
-		t.Fatalf("pending ack count = %d, want 0 after write error", pusher.delivery.PendingAckCount())
-	}
-}
-
-func TestLocalOwnerPusherDropsTerminalWriteErrors(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-	}{
-		{name: "session closed", err: session.ErrSessionClosed},
-		{name: "outbound overflow", err: gatewaytransport.ErrOutboundBytesExceeded},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-			sessionHandle := &recordingSessionHandle{writeErr: tt.err}
-			route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-			if err := reg.RegisterPending(online.LocalSession{Route: route, Session: sessionHandle}); err != nil {
-				t.Fatalf("RegisterPending() error = %v", err)
-			}
-			if err := reg.MarkActive(route.SessionID); err != nil {
-				t.Fatalf("MarkActive() error = %v", err)
-			}
-			manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})
-			pusher := localOwnerPusher{online: reg, delivery: manager}
-
-			result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-				OwnerNodeID: 1,
-				Envelope:    runtimedelivery.Envelope{MessageID: 1, MessageSeq: 1},
-				Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
-			})
-			if err != nil {
-				t.Fatalf("Push() error = %v", err)
-			}
-			if len(result.Dropped) != 1 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
-				t.Fatalf("push result = %#v, want one dropped", result)
-			}
-			if manager.PendingAckCount() != 0 {
-				t.Fatalf("pending ack count = %d, want 0 after terminal write error", manager.PendingAckCount())
-			}
-		})
-	}
-}
-
-func TestLocalOwnerPusherExpiresPendingAcksDuringPushActivity(t *testing.T) {
-	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	session := &recordingSessionHandle{}
-	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
-		t.Fatalf("RegisterPending() error = %v", err)
-	}
-	if err := reg.MarkActive(route.SessionID); err != nil {
-		t.Fatalf("MarkActive() error = %v", err)
-	}
-	now := int64(200)
-	tracker := runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
-		ShardCount: 1,
-		Now: func() int64 {
-			return now
-		},
-	})
-	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{Acks: tracker})
-	manager.BindPendingAck(runtimedelivery.PendingRecvAck{UID: "u1", SessionID: 101, MessageID: 1, MessageSeq: 1, DeliveredAt: 100})
-	pusher := localOwnerPusher{online: reg, delivery: manager, pendingAckTTL: 50 * time.Second}
-
-	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-		OwnerNodeID: 1,
-		Envelope:    runtimedelivery.Envelope{MessageID: 2, MessageSeq: 2},
-		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
-	})
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-	if len(result.Accepted) != 1 {
-		t.Fatalf("accepted routes = %d, want 1", len(result.Accepted))
-	}
-	if _, ok := tracker.Ack(runtimedelivery.Recvack{UID: "u1", SessionID: 101, MessageID: 1}); ok {
-		t.Fatalf("old pending ack still exists after delivery activity expiration")
-	}
-	if pending, ok := tracker.Ack(runtimedelivery.Recvack{UID: "u1", SessionID: 101, MessageID: 2}); !ok || pending.MessageID != 2 {
-		t.Fatalf("new pending ack = %#v, %v, want message 2 true", pending, ok)
-	}
-}
-
-func TestLocalOwnerPusherThrottlesPendingAckExpiryPerWindow(t *testing.T) {
-	clock := &localOwnerPusherTestClock{now: time.Unix(200, 0)}
-	observer := &localOwnerPusherAckObserver{}
-	tracker := runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
-		ShardCount: 4,
-		Now: func() int64 {
-			return clock.Now().Unix()
-		},
-	})
-	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-		Acks:        tracker,
-		AckObserver: observer,
-	})
-	manager.BindPendingAck(runtimedelivery.PendingRecvAck{
-		UID:         "expired-first",
-		SessionID:   101,
-		MessageID:   1,
-		DeliveredAt: 100,
-	})
-	pusher := &localOwnerPusher{
-		delivery:      manager,
-		pendingAckTTL: 50 * time.Second,
-		now:           clock.Now,
-	}
-
-	const concurrentPushes = 64
-	start := make(chan struct{})
-	errC := make(chan error, concurrentPushes)
-	var wg sync.WaitGroup
-	for i := 0; i < concurrentPushes; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			_, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{})
-			errC <- err
-		}()
-	}
-	close(start)
-	wg.Wait()
-	close(errC)
-	for err := range errC {
-		if err != nil {
-			t.Fatalf("Push() error = %v", err)
-		}
-	}
-
-	if got := observer.ActionCount(runtimedelivery.DeliveryAckActionExpire); got != 1 {
-		t.Fatalf("expire ack events in one window = %d, want 1", got)
-	}
-	if got := manager.PendingAckCount(); got != 0 {
-		t.Fatalf("pending ack count after first expiry = %d, want 0", got)
-	}
-
-	manager.BindPendingAck(runtimedelivery.PendingRecvAck{
-		UID:         "expired-second",
-		SessionID:   102,
-		MessageID:   2,
-		DeliveredAt: 100,
-	})
-	if _, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{}); err != nil {
-		t.Fatalf("Push(same window) error = %v", err)
-	}
-	if got := observer.ActionCount(runtimedelivery.DeliveryAckActionExpire); got != 1 {
-		t.Fatalf("expire ack events before next window = %d, want 1", got)
-	}
-	if got := manager.PendingAckCount(); got != 1 {
-		t.Fatalf("pending ack count before next window = %d, want 1", got)
-	}
-
-	clock.Advance(time.Second)
-	if _, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{}); err != nil {
-		t.Fatalf("Push(next window) error = %v", err)
-	}
-	if got := observer.ActionCount(runtimedelivery.DeliveryAckActionExpire); got != 2 {
-		t.Fatalf("expire ack events after next window = %d, want 2", got)
-	}
-	if got := manager.PendingAckCount(); got != 0 {
-		t.Fatalf("pending ack count after next-window expiry = %d, want 0", got)
-	}
-}
-
-type localOwnerPusherTestClock struct {
-	mu  sync.RWMutex
-	now time.Time
-}
-
-func (c *localOwnerPusherTestClock) Now() time.Time {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.now
-}
-
-func (c *localOwnerPusherTestClock) Advance(delta time.Duration) {
-	c.mu.Lock()
-	c.now = c.now.Add(delta)
-	c.mu.Unlock()
-}
-
-type localOwnerPusherAckObserver struct {
-	mu     sync.Mutex
-	events []runtimedelivery.AckEvent
-}
-
-func (o *localOwnerPusherAckObserver) ObserveAck(event runtimedelivery.AckEvent) {
-	o.mu.Lock()
-	o.events = append(o.events, event)
-	o.mu.Unlock()
-}
-
-func (o *localOwnerPusherAckObserver) ActionCount(action string) int {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	count := 0
-	for _, event := range o.events {
-		if event.Action == action {
-			count++
-		}
-	}
-	return count
-}
-
-func TestLocalOwnerPusherDropsOverflowMessageID(t *testing.T) {
-	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	session := &recordingSessionHandle{}
-	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
-		t.Fatalf("RegisterPending() error = %v", err)
-	}
-	if err := reg.MarkActive(route.SessionID); err != nil {
-		t.Fatalf("MarkActive() error = %v", err)
-	}
-	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})
-	pusher := localOwnerPusher{online: reg, delivery: manager}
-
-	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-		OwnerNodeID: 1,
-		Envelope:    runtimedelivery.Envelope{MessageID: uint64(1 << 63), MessageSeq: 1},
-		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
-	})
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-	if len(result.Dropped) != 1 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
-		t.Fatalf("push result = %#v, want one dropped", result)
-	}
-	if len(session.writes) != 0 {
-		t.Fatalf("delivery writes = %d, want 0", len(session.writes))
-	}
-	if manager.PendingAckCount() != 0 {
-		t.Fatalf("pending ack count = %d, want 0", manager.PendingAckCount())
-	}
-}
-
-func TestLocalOwnerPusherDropsIncompleteRouteIdentity(t *testing.T) {
-	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	session := &recordingSessionHandle{}
-	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
-		t.Fatalf("RegisterPending() error = %v", err)
-	}
-	if err := reg.MarkActive(route.SessionID); err != nil {
-		t.Fatalf("MarkActive() error = %v", err)
-	}
-	pusher := localOwnerPusher{online: reg, delivery: runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})}
-
-	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
-		OwnerNodeID: 1,
-		Envelope:    runtimedelivery.Envelope{MessageID: 1, MessageSeq: 1},
-		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerSeq: 11, SessionID: 101}},
-	})
-	if err != nil {
-		t.Fatalf("Push() error = %v", err)
-	}
-	if len(result.Dropped) != 1 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
-		t.Fatalf("push result = %#v, want incomplete identity dropped", result)
-	}
-	if len(session.writes) != 0 {
-		t.Fatalf("delivery writes = %d, want 0", len(session.writes))
-	}
-}
-
 func TestPresenceBenchSnapshotAggregatesOwnerAndAuthorityState(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	app, err := newTestApp(t, Config{Cluster: clusterpkg.Config{NodeID: 1}}, WithCluster(cluster))
@@ -6730,6 +6362,120 @@ func TestStopOrderIncludesAPIBeforeCluster(t *testing.T) {
 	}
 }
 
+func TestStopDeadlineKeepsChannelAppendDependenciesRunningUntilRetryDrain(t *testing.T) {
+	calls := make([]string, 0, 12)
+	appender := newLifecycleBlockingChannelAppender()
+	t.Cleanup(appender.release)
+	channelAppends := channelappend.New(channelappend.Options{
+		LocalNodeID: 1,
+		MessageID:   &lifecycleMessageIDAllocator{next: 100},
+		Appender:    appender,
+	})
+	app := &App{
+		cluster:                    &fakeCluster{calls: &calls},
+		conversationRouteLifecycle: &recordingWorkerRuntime{name: "conversation_route", calls: &calls},
+		conversationActiveWorker:   &recordingWorkerRuntime{name: "conversation_active", calls: &calls},
+		deliveryWorker:             &recordingWorkerRuntime{name: "delivery", calls: &calls},
+		channelAppends:             channelAppends,
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	future, err := submitLifecycleBlockedAppend(channelAppends)
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	appender.waitStarted(t)
+
+	firstStopCtx, cancelFirstStop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelFirstStop()
+	if err := app.Stop(firstStopCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("first Stop() error = %v, want context deadline exceeded", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start" {
+		t.Fatalf("calls after timed-out Stop = %s, want channel append dependencies still running", got)
+	}
+
+	appender.release()
+	secondStopCtx, cancelSecondStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelSecondStop()
+	if err := app.Stop(secondStopCtx); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
+	}
+	results, err := future.Wait(secondStopCtx)
+	if err != nil {
+		t.Fatalf("Future.Wait() error = %v", err)
+	}
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != channelappend.ReasonSuccess {
+		t.Fatalf("append results = %#v, want one success", results)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start,delivery.stop,conversation_active.stop,conversation_route.stop,cluster.stop" {
+		t.Fatalf("calls after retry drain = %s, want dependencies stopped after channel append", got)
+	}
+}
+
+func TestRollbackDeadlineKeepsChannelAppendDependenciesRunningUntilStopRetry(t *testing.T) {
+	calls := make([]string, 0, 12)
+	appender := newLifecycleBlockingChannelAppender()
+	t.Cleanup(appender.release)
+	channelAppends := channelappend.New(channelappend.Options{
+		LocalNodeID: 1,
+		MessageID:   &lifecycleMessageIDAllocator{next: 200},
+		Appender:    appender,
+	})
+	startFailure := errors.New("top start failed")
+	var future *channelappend.Future
+	var submitErr error
+	top := &recordingWorkerRuntime{
+		name:     "top",
+		calls:    &calls,
+		startErr: startFailure,
+		onStart: func() {
+			future, submitErr = submitLifecycleBlockedAppend(channelAppends)
+			if submitErr != nil {
+				t.Fatalf("SubmitLocal() error = %v", submitErr)
+			}
+			appender.waitStarted(t)
+		},
+	}
+	app := &App{
+		cluster:                    &fakeCluster{calls: &calls},
+		conversationRouteLifecycle: &recordingWorkerRuntime{name: "conversation_route", calls: &calls},
+		conversationActiveWorker:   &recordingWorkerRuntime{name: "conversation_active", calls: &calls},
+		deliveryWorker:             &recordingWorkerRuntime{name: "delivery", calls: &calls},
+		channelAppends:             channelAppends,
+		top:                        top,
+	}
+
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancelStart()
+	err := app.Start(startCtx)
+	if !errors.Is(err, startFailure) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Start() error = %v, want start failure and rollback deadline", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start,top.start" {
+		t.Fatalf("calls after timed-out rollback = %s, want channel append dependencies still running", got)
+	}
+
+	appender.release()
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelStop()
+	if err := app.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() retry error = %v", err)
+	}
+	results, err := future.Wait(stopCtx)
+	if err != nil {
+		t.Fatalf("Future.Wait() error = %v", err)
+	}
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != channelappend.ReasonSuccess {
+		t.Fatalf("append results = %#v, want one success", results)
+	}
+	if got := joinCalls(calls); got != "cluster.start,conversation_route.start,conversation_active.start,delivery.start,top.start,delivery.stop,conversation_active.stop,conversation_route.stop,cluster.stop" {
+		t.Fatalf("calls after Stop retry = %s, want dependencies stopped after channel append", got)
+	}
+}
+
 func TestConcurrentStartStopCannotLeaveGatewayRunningAfterStopReturns(t *testing.T) {
 	cluster := newBlockingCluster()
 	gateway := newStateGateway()
@@ -6983,6 +6729,82 @@ func (f *fakeWorkerRuntime) Stop(context.Context) error {
 		*f.calls = append(*f.calls, f.name+".stop")
 	}
 	return nil
+}
+
+type lifecycleMessageIDAllocator struct {
+	mu   sync.Mutex
+	next uint64
+}
+
+func (a *lifecycleMessageIDAllocator) Next() uint64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.next++
+	return a.next
+}
+
+type lifecycleBlockingChannelAppender struct {
+	started     chan struct{}
+	releaseCh   chan struct{}
+	releaseOnce sync.Once
+}
+
+func newLifecycleBlockingChannelAppender() *lifecycleBlockingChannelAppender {
+	return &lifecycleBlockingChannelAppender{
+		started:   make(chan struct{}, 1),
+		releaseCh: make(chan struct{}),
+	}
+}
+
+func (a *lifecycleBlockingChannelAppender) AppendBatch(ctx context.Context, req channelappend.AppendBatchRequest) (channelappend.AppendBatchResult, error) {
+	select {
+	case a.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-a.releaseCh:
+	case <-ctx.Done():
+		return channelappend.AppendBatchResult{}, ctx.Err()
+	}
+	items := make([]channelappend.AppendBatchItemResult, 0, len(req.Messages))
+	for index, message := range req.Messages {
+		items = append(items, channelappend.AppendBatchItemResult{
+			MessageID:  message.MessageID,
+			MessageSeq: uint64(index + 1),
+			Message:    message,
+		})
+	}
+	return channelappend.AppendBatchResult{Items: items}, nil
+}
+
+func (a *lifecycleBlockingChannelAppender) waitStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-a.started:
+	case <-time.After(time.Second):
+		t.Fatal("channel append did not start")
+	}
+}
+
+func (a *lifecycleBlockingChannelAppender) release() {
+	a.releaseOnce.Do(func() { close(a.releaseCh) })
+}
+
+func submitLifecycleBlockedAppend(group *channelappend.Group) (*channelappend.Future, error) {
+	return group.SubmitLocal(context.Background(), channelappend.AuthorityTarget{
+		ChannelID:    channelappend.ChannelID{ID: "lifecycle-room", Type: 2},
+		ChannelKey:   "lifecycle-room",
+		LeaderNodeID: 1,
+	}, []channelappend.SendBatchItem{{
+		Command: channelappend.SendCommand{
+			FromUID:     "lifecycle-u1",
+			ClientMsgNo: "lifecycle-message-1",
+			ChannelID:   "lifecycle-room",
+			ChannelType: 2,
+			ChannelKey:  "lifecycle-room",
+			Payload:     []byte("lifecycle payload"),
+		},
+	}})
 }
 
 func (f *fakeCluster) Start(context.Context) error {
@@ -8819,7 +8641,7 @@ func ownerRouteSessionIDs(routes []online.OwnerRoute) []uint64 {
 
 func appLogEntriesForEvent(logger *recordingAppLogger, level, event string) []recordedAppLogEntry {
 	entries := make([]recordedAppLogEntry, 0)
-	for _, entry := range logger.entries {
+	for _, entry := range logger.entriesSnapshot() {
 		if entry.level != level {
 			continue
 		}
@@ -8991,6 +8813,7 @@ func (g *gatewayAdmissionStub) SessionSummary() gatewaycore.SessionSummary {
 }
 
 type recordingAppLogger struct {
+	mu        sync.RWMutex
 	syncCalls int
 	entries   []recordedAppLogEntry
 }
@@ -9016,6 +8839,8 @@ func (r *recordingAppLogger) With(...wklog.Field) wklog.Logger {
 }
 
 func (r *recordingAppLogger) log(level, msg string, fields ...wklog.Field) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.entries = append(r.entries, recordedAppLogEntry{
 		level:  level,
 		msg:    msg,
@@ -9024,8 +8849,30 @@ func (r *recordingAppLogger) log(level, msg string, fields ...wklog.Field) {
 }
 
 func (r *recordingAppLogger) Sync() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.syncCalls++
 	return nil
+}
+
+func (r *recordingAppLogger) entriesSnapshot() []recordedAppLogEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entries := make([]recordedAppLogEntry, len(r.entries))
+	for i, entry := range r.entries {
+		entries[i] = recordedAppLogEntry{
+			level:  entry.level,
+			msg:    entry.msg,
+			fields: append([]wklog.Field(nil), entry.fields...),
+		}
+	}
+	return entries
+}
+
+func (r *recordingAppLogger) syncCallCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.syncCalls
 }
 
 type fakeAPI struct {

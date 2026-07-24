@@ -13,6 +13,18 @@ func TestDefaultAppendInflightBatchesPerChannelIsTen(t *testing.T) {
 	}
 }
 
+func TestDefaultPostCommitHandoffCapacityUsesLargerSafetyBound(t *testing.T) {
+	fromPool := applyDefaults(Options{EffectPoolSize: 2000, ChannelBacklogHighWatermark: 1024})
+	if fromPool.PostCommitHandoffCapacity != 2000*commitBatchMaxEvents {
+		t.Fatalf("pool-derived PostCommitHandoffCapacity = %d, want %d", fromPool.PostCommitHandoffCapacity, 2000*commitBatchMaxEvents)
+	}
+
+	fromBacklog := applyDefaults(Options{EffectPoolSize: 1, ChannelBacklogHighWatermark: 4096})
+	if fromBacklog.PostCommitHandoffCapacity != 4096 {
+		t.Fatalf("backlog-derived PostCommitHandoffCapacity = %d, want 4096", fromBacklog.PostCommitHandoffCapacity)
+	}
+}
+
 func TestDefaultInboxCoalesceOptionsAreConservative(t *testing.T) {
 	opts := applyDefaults(Options{})
 

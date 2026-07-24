@@ -66,6 +66,15 @@ type localLatestVisibility struct {
 	retentionThrough uint64
 }
 
+// routeAuthorityReadView binds one immutable Raft route table to the
+// Node-local observation epochs published for exactly that table boundary.
+type routeAuthorityReadView struct {
+	// table is the immutable Router snapshot covered by this publication.
+	table *routing.Table
+	// epochs stores the Node-local authority epoch aligned by physical hash slot.
+	epochs []uint64
+}
+
 // Node is the cluster lifecycle root and public runtime facade.
 type Node struct {
 	cfg              Config
@@ -123,11 +132,13 @@ type Node struct {
 	registeredRPCHandlers map[uint8]struct{}
 	// routeAuthorityWatchers receive best-effort route authority change events.
 	routeAuthorityWatchers []chan RouteAuthorityEvent
-	// routeAuthorityEpochs tracks observed authority epochs by logical hash slot.
+	// routeAuthorityEpochs tracks observed authority epochs by physical hash slot.
 	routeAuthorityEpochs map[uint16]uint64
-	// routeAuthorityPublished tracks the last authority identity published per logical hash slot.
+	// routeAuthorityPublished tracks the last authority identity published per physical hash slot.
 	routeAuthorityPublished map[uint16]routeAuthorityKey
-	proposer                interface {
+	// routeAuthorityRead stores the last complete route plus local-epoch publication.
+	routeAuthorityRead atomic.Pointer[routeAuthorityReadView]
+	proposer           interface {
 		Propose(context.Context, propose.Request) error
 	}
 	group lifecycle.Group
@@ -136,12 +147,16 @@ type Node struct {
 	snapshot        Snapshot
 	controlSnapshot control.Snapshot
 	// controlApplyMu serializes control snapshot application from startup, watches, and probes.
-	controlApplyMu        sync.Mutex
-	taskReconcileMu       sync.Mutex
-	taskReconcileCancel   context.CancelFunc
-	taskReconcileWG       sync.WaitGroup
-	preferredLeaderCancel context.CancelFunc
-	preferredLeaderWG     sync.WaitGroup
+	controlApplyMu sync.Mutex
+	// routeAuthorityPublishMu serializes low-frequency Router mutations with
+	// their publication so authority-loss cleanup observes every transition and
+	// a delayed publisher cannot replace a newer complete authority read view.
+	routeAuthorityPublishMu sync.Mutex
+	taskReconcileMu         sync.Mutex
+	taskReconcileCancel     context.CancelFunc
+	taskReconcileWG         sync.WaitGroup
+	preferredLeaderCancel   context.CancelFunc
+	preferredLeaderWG       sync.WaitGroup
 	// preferredLeaderInterval is a test override for the idle background interval.
 	preferredLeaderInterval time.Duration
 	// preferredLeaderIntentMu protects the currently published Controller-intent
@@ -187,7 +202,7 @@ type preferredLeaderIntentGeneration struct {
 
 // New validates cfg and creates a cluster node.
 func New(cfg Config, opts ...Option) (*Node, error) {
-	cfg.applyDefaults()
+	cfg = cfg.WithDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -327,6 +342,31 @@ func (n *Node) RouteKeys(keys []string) ([]Route, error) {
 	return out, nil
 }
 
+// RouteAuthorities routes keys using one installed route snapshot and returns
+// only distributed authority fence fields plus the local observation epoch.
+func (n *Node) RouteAuthorities(keys []string) ([]RouteAuthority, error) {
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	view := n.loadRouteAuthorityReadView()
+	if view == nil || view.table == nil {
+		return nil, mapRouteError(routing.ErrRouteNotReady)
+	}
+	authorities, err := view.table.RouteAuthorities(keys)
+	if err != nil {
+		return nil, mapRouteError(err)
+	}
+	for i := range authorities {
+		if hashSlot := int(authorities[i].HashSlot); hashSlot < len(view.epochs) {
+			authorities[i].AuthorityEpoch = view.epochs[hashSlot]
+		}
+	}
+	return authorities, nil
+}
+
 // RouteKeysPartial routes keys using one installed route snapshot and preserves aligned key-specific failures.
 // The outer error reports Node lifecycle or missing-table failures; key-specific failures stay in the result.
 func (n *Node) RouteKeysPartial(keys []string) ([]RouteKeyResult, error) {
@@ -354,6 +394,35 @@ func (n *Node) RouteKeysPartial(keys []string) ([]RouteKeyResult, error) {
 	}
 	n.mu.RUnlock()
 	return out, nil
+}
+
+// RouteAuthoritiesPartial routes keys using one installed route snapshot and
+// preserves aligned key-specific failures without cloning placement fields.
+func (n *Node) RouteAuthoritiesPartial(keys []string) ([]RouteAuthorityResult, error) {
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	view := n.loadRouteAuthorityReadView()
+	if view == nil || view.table == nil {
+		return nil, mapRouteError(routing.ErrRouteNotReady)
+	}
+	results, err := view.table.RouteAuthoritiesPartial(keys)
+	if err != nil {
+		return nil, mapRouteError(err)
+	}
+	for i := range results {
+		if results[i].Err != nil {
+			results[i].Err = mapRouteError(results[i].Err)
+			continue
+		}
+		if hashSlot := int(results[i].Authority.HashSlot); hashSlot < len(view.epochs) {
+			results[i].Authority.AuthorityEpoch = view.epochs[hashSlot]
+		}
+	}
+	return results, nil
 }
 
 // RouteHashSlot routes hashSlot using the currently installed route snapshot.
@@ -467,20 +536,34 @@ func (n *Node) WatchRouteAuthorities() <-chan RouteAuthorityEvent {
 	return ch
 }
 
-func (n *Node) publishRouteAuthority(authorities ...RouteAuthority) {
-	if n == nil || len(authorities) == 0 {
+func (n *Node) publishRouteAuthorityChanges(before *routing.Table) {
+	if n == nil || n.router == nil {
 		return
 	}
-	n.recordPublishedRouteAuthority(authorities)
-	n.dispatchRouteAuthority(authorities...)
+	n.routeAuthorityPublishMu.Lock()
+	defer n.routeAuthorityPublishMu.Unlock()
+	after := n.router.Table()
+	n.publishRouteAuthorityTransitionLocked(before, after)
 }
 
-func (n *Node) publishRouteAuthorityChanges(before, after *routing.Table) {
-	if n == nil {
-		return
+func (n *Node) updateRouteAuthorityTable(update func() error) error {
+	if n == nil || n.router == nil || update == nil {
+		return nil
 	}
+	n.routeAuthorityPublishMu.Lock()
+	defer n.routeAuthorityPublishMu.Unlock()
+	before := n.router.Table()
+	if err := update(); err != nil {
+		return err
+	}
+	after := n.router.Table()
+	n.publishRouteAuthorityTransitionLocked(before, after)
+	return nil
+}
+
+func (n *Node) publishRouteAuthorityTransitionLocked(before, after *routing.Table) {
 	n.clearMessageEventStreamCacheForLostLocalAuthority(before, after)
-	n.dispatchRouteAuthority(n.routeAuthorityChangesForPublish(before, after)...)
+	n.dispatchRouteAuthority(n.routeAuthorityChangesForPublish(after)...)
 }
 
 func (n *Node) dispatchRouteAuthority(authorities ...RouteAuthority) {
@@ -498,7 +581,7 @@ func (n *Node) dispatchRouteAuthority(authorities ...RouteAuthority) {
 	}
 }
 
-func (n *Node) routeAuthorityChangesForPublish(before, after *routing.Table) []RouteAuthority {
+func (n *Node) routeAuthorityChangesForPublish(after *routing.Table) []RouteAuthority {
 	if n == nil || after == nil {
 		return nil
 	}
@@ -514,11 +597,11 @@ func (n *Node) routeAuthorityChangesForPublish(before, after *routing.Table) []R
 		}
 		hashSlotID := uint16(hashSlot)
 		current := routeAuthorityKey{slotID: slotID, leaderNodeID: after.SlotLeaders[slotID], leaderTerm: after.SlotLeaderTerms[slotID], configEpoch: after.SlotConfigEpochs[slotID], revision: after.Revision}
-		previous, ok := routeAuthorityFromTable(before, hashSlotID)
-		if ok && previous == current {
-			continue
-		}
-		if published, ok := n.routeAuthorityPublished[hashSlotID]; ok && sameRouteAuthorityIdentity(published, current) {
+		published, publishedOK := n.routeAuthorityPublished[hashSlotID]
+		if publishedOK && sameRouteAuthorityIdentity(published, current) {
+			// Keep the remembered revision aligned with the complete read view even
+			// though revision-only changes do not create a new authority identity.
+			n.routeAuthorityPublished[hashSlotID] = current
 			continue
 		}
 		n.routeAuthorityPublished[hashSlotID] = current
@@ -529,30 +612,75 @@ func (n *Node) routeAuthorityChangesForPublish(before, after *routing.Table) []R
 			LeaderTerm:     current.leaderTerm,
 			ConfigEpoch:    current.configEpoch,
 			RouteRevision:  current.revision,
-			AuthorityEpoch: n.authorityEpochForChangeLocked(hashSlotID, previous, ok, current),
+			AuthorityEpoch: n.authorityEpochForChangeLocked(hashSlotID, published, publishedOK, current),
 		})
 	}
+	n.storeRouteAuthorityReadViewLocked(after, len(out) != 0)
 	return out
 }
 
-func (n *Node) recordPublishedRouteAuthority(authorities []RouteAuthority) {
-	if n == nil || len(authorities) == 0 {
+func (n *Node) loadRouteAuthorityReadView() *routeAuthorityReadView {
+	if n == nil {
+		return nil
+	}
+	if view := n.routeAuthorityRead.Load(); view != nil {
+		return view
+	}
+	// Production startup installs the complete view before started becomes true.
+	// This fallback preserves direct Node construction used by focused package
+	// tests without introducing a second allocation on steady-state reads.
+	n.mu.RLock()
+	table := n.router.Table()
+	view := newRouteAuthorityReadView(table, n.routeAuthorityEpochs)
+	n.mu.RUnlock()
+	if view == nil {
+		return nil
+	}
+	if n.routeAuthorityRead.CompareAndSwap(nil, view) {
+		return view
+	}
+	return n.routeAuthorityRead.Load()
+}
+
+func (n *Node) storeRouteAuthorityReadViewLocked(table *routing.Table, authorityChanged bool) {
+	if table == nil {
 		return
 	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.routeAuthorityPublished == nil {
-		n.routeAuthorityPublished = make(map[uint16]routeAuthorityKey)
+	current := n.routeAuthorityRead.Load()
+	if !authorityChanged && current != nil && sameRouteAuthorityTable(current.table, table) {
+		return
 	}
-	for _, authority := range authorities {
-		n.routeAuthorityPublished[authority.HashSlot] = routeAuthorityKey{
-			slotID:       authority.SlotID,
-			leaderNodeID: authority.LeaderNodeID,
-			leaderTerm:   authority.LeaderTerm,
-			configEpoch:  authority.ConfigEpoch,
-			revision:     authority.RouteRevision,
+	n.routeAuthorityRead.Store(newRouteAuthorityReadView(table, n.routeAuthorityEpochs))
+}
+
+func sameRouteAuthorityTable(left, right *routing.Table) bool {
+	if left == right {
+		return true
+	}
+	if left == nil || right == nil || left.Revision != right.Revision || len(left.HashToSlot) != len(right.HashToSlot) {
+		return false
+	}
+	for hashSlot, leftSlotID := range left.HashToSlot {
+		rightSlotID := right.HashToSlot[hashSlot]
+		if leftSlotID != rightSlotID ||
+			left.SlotLeaders[leftSlotID] != right.SlotLeaders[rightSlotID] ||
+			left.SlotLeaderTerms[leftSlotID] != right.SlotLeaderTerms[rightSlotID] ||
+			left.SlotConfigEpochs[leftSlotID] != right.SlotConfigEpochs[rightSlotID] {
+			return false
 		}
 	}
+	return true
+}
+
+func newRouteAuthorityReadView(table *routing.Table, epochs map[uint16]uint64) *routeAuthorityReadView {
+	if table == nil {
+		return nil
+	}
+	view := &routeAuthorityReadView{table: table, epochs: make([]uint64, len(table.HashToSlot))}
+	for hashSlot := range view.epochs {
+		view.epochs[hashSlot] = epochs[uint16(hashSlot)]
+	}
+	return view
 }
 
 func (n *Node) closeRouteAuthorityWatchers() {

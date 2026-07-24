@@ -39,22 +39,31 @@ type BootstrapSnapshot struct {
 	WKBenchValidate bool `json:"wkbench_validate"`
 	// WKBenchDoctor reports worker and target preflight success.
 	WKBenchDoctor bool `json:"wkbench_doctor"`
+	// RuntimeScale is the exact reviewed scenario scale read from the deployed scenario.
+	RuntimeScale string `json:"runtime_scale"`
+	// ExpectedNodeRuntimeContract is the immutable contract installed from the sealed bundle.
+	ExpectedNodeRuntimeContract EffectiveNodeRuntimeContract `json:"expected_node_runtime_contract"`
+	// NodeRuntimeContracts contains each node's normalized effective runtime values and sources.
+	NodeRuntimeContracts map[string]EffectiveNodeRuntimeContract `json:"node_runtime_contracts"`
 }
 
 // GateResult reports every failed invariant instead of passing partial evidence.
 type GateResult struct {
 	// Passed is true only when every bootstrap invariant holds.
 	Passed bool `json:"passed"`
+	// Retryable is true only when every failed invariant can still converge without changing the sealed bundle or node configuration.
+	Retryable bool `json:"retryable"`
 	// Failures contains every bounded failed invariant.
 	Failures []string `json:"failures"`
 }
 
-// EvaluateBootstrapGate checks the exact three-node, 256-slot cloud contract.
+// EvaluateBootstrapGate checks the exact three-node, 256-hash-slot cloud contract.
 func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) GateResult {
-	result := GateResult{Failures: make([]string, 0)}
+	result := GateResult{Retryable: true, Failures: make([]string, 0)}
 	for _, role := range []string{"node-1", "node-2", "node-3", "sim"} {
 		if snapshot.BundleDigests[role] != expectedDigest {
 			result.Failures = append(result.Failures, fmt.Sprintf("%s bundle digest mismatch", role))
+			result.Retryable = false
 		}
 	}
 	required := map[string][]string{
@@ -109,9 +118,47 @@ func EvaluateBootstrapGate(snapshot BootstrapSnapshot, expectedDigest string) Ga
 	if snapshot.PublicViewEnabled && !snapshot.CloudViewSelfCheck {
 		result.Failures = append(result.Failures, "Cloud View self-check failed")
 	}
-	if !snapshot.WKBenchValidate || !snapshot.WKBenchDoctor {
-		result.Failures = append(result.Failures, "wkbench validate or doctor failed")
+	if !snapshot.WKBenchValidate {
+		result.Failures = append(result.Failures, "wkbench validate failed")
+		result.Retryable = false
+	}
+	if !snapshot.WKBenchDoctor {
+		result.Failures = append(result.Failures, "wkbench doctor failed")
+	}
+	expectedRuntime := snapshot.ExpectedNodeRuntimeContract
+	if expectedRuntime.Schema != EffectiveNodeRuntimeContractSchemaV1 {
+		result.Failures = append(result.Failures, "sealed effective runtime contract schema is invalid")
+		result.Retryable = false
+	} else if expectedRuntime.Scale != snapshot.RuntimeScale {
+		result.Failures = append(result.Failures, fmt.Sprintf(
+			"sealed effective runtime contract scale mismatch: contract=%q scenario=%q",
+			expectedRuntime.Scale, snapshot.RuntimeScale,
+		))
+		result.Retryable = false
+	} else {
+		for _, role := range []string{"node-1", "node-2", "node-3"} {
+			observed, ok := snapshot.NodeRuntimeContracts[role]
+			if !ok || !runtimeContractValuesEqual(observed, expectedRuntime) {
+				result.Failures = append(result.Failures, fmt.Sprintf("%s effective runtime contract mismatch", role))
+				result.Retryable = false
+				continue
+			}
+			sourcesMatch := true
+			for _, key := range effectiveRuntimeContractKeys {
+				if observed.ValueSources[key] != "toml" {
+					sourcesMatch = false
+					break
+				}
+			}
+			if !sourcesMatch {
+				result.Failures = append(result.Failures, fmt.Sprintf("%s effective runtime contract source is not toml", role))
+				result.Retryable = false
+			}
+		}
 	}
 	result.Passed = len(result.Failures) == 0
+	if result.Passed {
+		result.Retryable = false
+	}
 	return result
 }

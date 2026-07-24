@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -37,6 +40,7 @@ func TestStartThreeNodeClusterWritesWukongIMStaticConfigs(t *testing.T) {
 		require.Empty(t, node.Spec.ManagerAddr)
 		require.Contains(t, string(cfg), `dir = "`+node.Spec.LogDir+`"`)
 		require.Contains(t, node.Spec.Env, "WK_NODE_ID="+nodeIDString(node.Spec.ID))
+		require.Contains(t, node.Spec.Env, "WK_PLUGIN_ENABLE=false")
 	}
 }
 
@@ -297,7 +301,23 @@ func TestStartedNodeCleanupStopsCurrentProcessAfterRestart(t *testing.T) {
 	}
 
 	require.Empty(t, cleanupTB.errors)
-	require.NotNil(t, second.Cmd.ProcessState)
+	require.False(t, second.Running())
+	_, exited := second.ExitResult()
+	require.True(t, exited)
+}
+
+func TestStartedNodeRestartReplacesSingleUseProcess(t *testing.T) {
+	binaryPath := writeFakeNodeBinary(t)
+	first := startFakeNodeProcess(t, binaryPath, "restart-first")
+	node := &StartedNode{Spec: first.Spec, Process: first}
+	t.Cleanup(func() {
+		require.NoError(t, node.Stop())
+	})
+
+	require.NoError(t, node.Restart(binaryPath))
+	require.NotSame(t, first, node.Process)
+	require.False(t, first.Running())
+	require.True(t, node.Process.Running())
 }
 
 func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) {
@@ -309,7 +329,7 @@ func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) 
 
 	first := startFakeNodeProcess(t, binaryPath, "first-cluster-node")
 	t.Cleanup(func() {
-		if first.Cmd != nil && first.Cmd.ProcessState == nil {
+		if first.Running() {
 			_ = first.Stop()
 		}
 	})
@@ -317,7 +337,7 @@ func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) 
 
 	second := startFakeNodeProcess(t, binaryPath, "second-cluster-node")
 	t.Cleanup(func() {
-		if second.Cmd != nil && second.Cmd.ProcessState == nil {
+		if second.Running() {
 			_ = second.Stop()
 		}
 	})
@@ -326,8 +346,101 @@ func TestStartedClusterCleanupStopsNodesAppendedAfterRegistration(t *testing.T) 
 	cleanupTB.cleanups[0]()
 
 	require.Empty(t, cleanupTB.errors)
-	require.NotNil(t, first.Cmd.ProcessState)
-	require.NotNil(t, second.Cmd.ProcessState)
+	require.False(t, first.Running())
+	require.False(t, second.Running())
+	_, firstExited := first.ExitResult()
+	_, secondExited := second.ExitResult()
+	require.True(t, firstExited)
+	require.True(t, secondExited)
+}
+
+func TestStartedClusterCleanupStopsNodesConcurrently(t *testing.T) {
+	cleanupTB := &recordedCleanupTB{}
+	cluster := &StartedCluster{}
+	registerStartedClusterCleanup(cleanupTB, cluster)
+	releasePath := filepath.Join(t.TempDir(), "release")
+	termPaths := make([]string, 0, 3)
+
+	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+		readyPath := filepath.Join(t.TempDir(), "ready")
+		termPath := filepath.Join(t.TempDir(), "term")
+		termPaths = append(termPaths, termPath)
+		command := exec.Command(os.Args[0], "-test.run=TestStartedClusterCleanupSignalHelper")
+		command.Env = append(
+			os.Environ(),
+			"GO_WANT_CLUSTER_CLEANUP_SIGNAL_HELPER=1",
+			"READY_FILE="+readyPath,
+			"TERM_FILE="+termPath,
+			"RELEASE_FILE="+releasePath,
+		)
+		process := newCommandNodeProcess(t, command)
+		process.Spec.ID = nodeID
+		process.StopTimeout = 5 * time.Second
+		require.NoError(t, process.Start())
+		require.Eventually(t, func() bool {
+			_, err := os.Stat(readyPath)
+			return err == nil
+		}, time.Second, 10*time.Millisecond)
+		t.Cleanup(func() {
+			if process.Running() {
+				_ = process.Stop()
+			}
+		})
+		cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: process.Spec, Process: process})
+	}
+
+	cleanupDone := make(chan struct{})
+	go func() {
+		cleanupTB.cleanups[0]()
+		close(cleanupDone)
+	}()
+	allTerminated := waitForPaths(termPaths, 3*time.Second)
+	require.NoError(t, os.WriteFile(releasePath, []byte("release"), 0o600))
+	select {
+	case <-cleanupDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("cluster cleanup did not finish after release")
+	}
+
+	require.Empty(t, cleanupTB.errors)
+	require.True(t, allTerminated, "cluster cleanup did not signal every node before release")
+}
+
+func TestStartedClusterCleanupSignalHelper(t *testing.T) {
+	if os.Getenv("GO_WANT_CLUSTER_CLEANUP_SIGNAL_HELPER") != "1" {
+		return
+	}
+
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, syscall.SIGTERM)
+	defer signal.Stop(term)
+	require.NoError(t, os.WriteFile(os.Getenv("READY_FILE"), nil, 0o600))
+	<-term
+	require.NoError(t, os.WriteFile(os.Getenv("TERM_FILE"), nil, 0o600))
+	for {
+		if _, err := os.Stat(os.Getenv("RELEASE_FILE")); err == nil {
+			os.Exit(0)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func waitForPaths(paths []string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		allExist := true
+		for _, path := range paths {
+			if _, err := os.Stat(path); err != nil {
+				allExist = false
+				break
+			}
+		}
+		if allExist {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
 }
 
 func TestStartedClusterStartStoppedNodeStartsDetachedProcess(t *testing.T) {
@@ -355,7 +468,7 @@ func TestStartedClusterStartStoppedNodeStartsDetachedProcess(t *testing.T) {
 	require.NotNil(t, node.Process)
 	require.NotNil(t, node.Process.Cmd)
 	require.NotNil(t, node.Process.Cmd.Process)
-	require.Nil(t, node.Process.Cmd.ProcessState)
+	require.True(t, node.Process.Running())
 	require.Equal(t, spec.ConfigPath, node.Process.Spec.ConfigPath)
 }
 

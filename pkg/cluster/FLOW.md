@@ -97,6 +97,10 @@ already-planned intent to the control runtime. It uses the same generic
 control-write path: the cluster control runtime forwards `slot_replica_move`
 creation to the Controller leader and keeps the durable assignment unchanged
 until the later Controller commit command. The
+root Node facade normalizes Controller `not leader`, `not started`, and
+`stopped` lifecycle failures into the stable cluster error vocabulary while
+preserving the original Controller cause for lower-level diagnosis.
+The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before
@@ -105,23 +109,42 @@ outbound connections per peer and shards typed RPCs by service class, keeping
 foreground Channel runtime append forwarding off the same connection used by follower
 pull and pull-hint traffic.
 
-`WatchRouteAuthorities` publishes hash-slot authority changes derived from the
-installed routing table. Each `RouteAuthority` carries
+`WatchRouteAuthorities` publishes physical hash-slot authority changes derived
+from the installed routing table. Each `RouteAuthority` carries
 `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch, RouteRevision,
 AuthorityEpoch)`. `LeaderTerm` comes from the observed Slot Raft leader and
-`ConfigEpoch` comes from the control-plane Slot assignment, so upper layers can
+`ConfigEpoch` comes from the control-plane logical Slot Raft Group assignment,
+so upper layers can
 use `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)` as the
 distributed authority identity. `AuthorityEpoch` is only a node-local
 observation sequence retained for diagnostics and compatibility; it must not be
-used as a distributed fence. `RouteKey`, `RouteKeys`, `RouteKeysPartial`, and
-`RouteHashSlot` include the distributed identity fields plus the local epoch.
+used as a distributed fence. `RouteKey`, `RouteKeys`, `RouteKeysPartial`,
+`RouteAuthorities`, `RouteAuthoritiesPartial`, and `RouteHashSlot` include the
+distributed identity fields plus the local epoch.
 `RouteKeys` preserves its all-or-error contract while resolving all keys against
 one installed routing snapshot and returning results in input order.
 `RouteKeysPartial` uses the same one-snapshot rule but returns one aligned result
 per input key: missing-leader or invalid-route failures stay on that result,
 while the outer error is reserved for a missing routing table or Node lifecycle
-failure. These batch APIs let upper layers resolve UID authorities without
-repeatedly loading the foreground route table. Real publication paths remember
+failure. The lightweight authority variants preserve those all-or-error and
+aligned-partial contracts while omitting placement-only `PreferredLeader` and
+`Peers`; their Node result carries only scalar fences and therefore does not
+clone replica slices per UID. These batch APIs let upper layers resolve UID
+authorities without repeatedly loading the foreground route table.
+Node authority reads use one immutable publication that binds the Raft route
+table and all physical hash-slot local observation epochs. A Router update may
+therefore become visible to other routing paths before its authority event is
+published, but `RouteAuthorities` and `RouteAuthoritiesPartial` keep returning
+the previous complete `(route fences, AuthorityEpoch)` view until the new view
+is atomically published; they never combine an old route with a new local epoch
+or a new route with an old local epoch. The published epoch vector is sized by
+the configured physical hash-slot table (normally 256) and does not change the
+control-plane logical Slot count (normally 10). Every production Router mutation
+that changes control routes, observed Slot
+leaders, or route revision is serialized with authority-loss cache cleanup and
+publication. A local-to-remote-to-local transition therefore cannot be hidden
+by out-of-order publishers, and message-event stream cache entries are removed
+at the exact transition that loses local authority. Real publication paths remember
 the last distributed identity published per hash slot and suppress duplicate
 events for the same `(SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`, so a
 local `AuthorityEpoch` is not manufactured for already-published identities.
@@ -161,12 +184,12 @@ Start(ctx)
   -> start the bounded Channel runtime migration executor/repair scanner loop when enabled
 ```
 
-`Start` requires cluster semantics even for one node. A single-node cluster uses a Controller-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for Controller Raft traffic and RPC responses only for state-sync requests. Outbound Controller Raft traffic uses fixed sharded workers and bounded per-worker queues, preserving per-peer order while dropping admission when a shard is full; Raft retransmission is relied on instead of accumulating per-batch goroutines. Sends use a bounded timeout, emit low-cardinality `controller_raft_queue`, `controller_raft_admission`, and `controller_raft_task` transport observations, and stop with the owning Node. The Controller Raft receive handler also bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated.
+`Start` requires cluster semantics even for one node. A single-node cluster uses a Controller-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for Controller Raft traffic and RPC responses only for state-sync requests. Outbound Controller Raft traffic uses fixed sharded workers and bounded per-worker queues, preserving per-peer order while dropping admission when a shard is full; Raft retransmission is relied on instead of accumulating per-batch goroutines. Slot and Controller Raft receive services use one ordered handler worker even when generic service concurrency is configured higher, preserving each stable peer connection's Append-before-Heartbeat protocol order before messages enter the Raft step queue. Sends use a bounded timeout, emit low-cardinality `controller_raft_queue`, `controller_raft_admission`, and `controller_raft_task` transport observations, and stop with the owning Node. The Controller Raft receive handler also bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated.
 
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local Channel runtime resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when Channel runtime placement candidates are stale, verifies Channel runtime has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local Channel runtime data-plane lease after the probe succeeds.
 
 Before the bounded write probes, the Node-created default Slot runtime captures
-one control/route revision and validates every physical Slot runtime involved in
+one control/route revision and validates every logical Slot Raft Group runtime involved in
 that view. All locally assigned replicas, including followers, must return a
 local status that agrees with the routed leader. Slots led remotely are queried
 in one `RPCSlotStatus` batch per expected leader, and each response must contain
@@ -180,7 +203,7 @@ with the Node-created default Slot runtime.
 
 For the Node-created default Slot runtime, `SlotsReady` is re-evaluated by the
 10ms Slot leader observation loop against the current control snapshot. Every
-physical Slot whose `DesiredPeers` contains the local node must return a
+logical Slot Raft Group whose `DesiredPeers` contains the local node must return a
 successful local runtime status; an unknown `LeaderID=0` still counts as a
 healthy opened runtime because leader availability is checked separately by
 routing and `ProbeWriteReady`. Missing unassigned runtimes are ignored, and a
@@ -729,7 +752,7 @@ for first-write creation.
 
 Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware Channel runtime reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers`, `Config.Channel.StoreApplyWorkers`, and `Config.Channel.RPCWorkers` cap the blocking leader-append, follower-apply, and replication RPC worker pools independently; zero keeps Channel runtime's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator, and never changes durable commit or quorum ACK rules. `Config.Channel.StoreAppendBatchMaxWait` can shorten the store-append worker's cross-channel coalescing wait; zero keeps the Channel runtime worker default. `Config.Storage.CommitShards` can route message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero keeps the single-coordinator default. `Config.Channel.AppendBatchMaxRecords`, `Config.Channel.AppendBatchMaxWait`, `Config.Channel.AppendBatchAdaptiveFlush`, and `Config.Channel.AppendBatchColdMaxWait` pass through to the hosted Channel runtime runtime; zero values and the default disabled adaptive flag keep the Channel runtime defaults. `Config.Channel.Observer` is passed to the default Channel runtime service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
+When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware Channel runtime reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers`, `Config.Channel.StoreApplyWorkers`, and `Config.Channel.RPCWorkers` cap the blocking leader-append, follower-apply, and replication RPC worker pools independently; zero keeps Channel runtime's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator, and never changes durable commit or quorum ACK rules. `Config.Channel.RPCBatchMaxItems` independently bounds same-target Pull/PullHint items per blocking transport call; zero uses the Channel worker default and does not increase worker or remote-call concurrency. `Config.Channel.StoreAppendBatchMaxWait` can shorten the store-append worker's cross-channel coalescing wait; zero keeps the Channel runtime worker default. `Config.Storage.CommitShards` can route message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero keeps the single-coordinator default. `Config.Channel.AppendBatchMaxRecords`, `Config.Channel.AppendBatchMaxWait`, `Config.Channel.AppendBatchAdaptiveFlush`, and `Config.Channel.AppendBatchColdMaxWait` pass through to the hosted Channel runtime runtime; zero values and the default disabled adaptive flag keep the Channel runtime defaults. `Config.Channel.Observer` is passed to the default Channel runtime service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
 
 ## Non-Goals
 

@@ -63,12 +63,13 @@ func (n *Node) refreshDefaultSlotLeaders() {
 	if len(slotIDs) == 0 {
 		return
 	}
-	before := n.router.Table()
-	n.router.UpdateSlotLeaders(routingSlotStatuses(statuses))
-	n.publishRouteAuthorityChanges(before, n.router.Table())
+	_ = n.updateRouteAuthorityTable(func() error {
+		n.router.UpdateSlotLeaders(routingSlotStatuses(statuses))
+		return nil
+	})
 }
 
-// defaultSlotReadinessInputs copies only the physical Slot IDs needed by the 10ms readiness loop.
+// defaultSlotReadinessInputs copies only the logical Slot Raft Group IDs needed by the 10ms readiness loop.
 func defaultSlotReadinessInputs(assignments []control.SlotAssignment, localNodeID uint64) ([]uint32, []uint32) {
 	slotIDs := make([]uint32, 0, len(assignments))
 	localAssignedSlotIDs := make([]uint32, 0, len(assignments))
@@ -87,7 +88,7 @@ func defaultSlotReadinessInputs(assignments []control.SlotAssignment, localNodeI
 	return slotIDs, localAssignedSlotIDs
 }
 
-// defaultSlotStatuses returns the exact physical Slots whose local status read succeeded.
+// defaultSlotStatuses returns the exact logical Slot Raft Groups whose local status read succeeded.
 func defaultSlotStatuses(reader slots.StatusReader, slotIDs []uint32) []slots.Status {
 	statuses := make([]slots.Status, 0, len(slotIDs))
 	if reader == nil {
@@ -107,7 +108,7 @@ func defaultSlotStatuses(reader slots.StatusReader, slotIDs []uint32) []slots.St
 	return statuses
 }
 
-// localAssignedSlotsReady requires a successful runtime status for every locally assigned physical Slot.
+// localAssignedSlotsReady requires a successful runtime status for every locally assigned logical Slot Raft Group.
 func localAssignedSlotsReady(localAssignedSlotIDs []uint32, statuses []slots.Status) bool {
 	for _, slotID := range localAssignedSlotIDs {
 		found := false
@@ -165,11 +166,9 @@ func (n *Node) refreshSeedJoinRemoteSlotLeaders(ctx context.Context) bool {
 	n.mu.RLock()
 	snapshot := n.controlSnapshot.Clone()
 	n.mu.RUnlock()
-	before := n.router.Table()
 	if !n.installSeedJoinActiveRemoteSlotLeaders(ctx, snapshot) {
 		return false
 	}
-	n.publishRouteAuthorityChanges(before, n.router.Table())
 	return true
 }
 
@@ -185,7 +184,10 @@ func (n *Node) installSeedJoinActiveRemoteSlotLeaders(ctx context.Context, snaps
 	if len(statuses) == 0 {
 		return false
 	}
-	n.router.UpdateSlotLeaders(statuses)
+	_ = n.updateRouteAuthorityTable(func() error {
+		n.router.UpdateSlotLeaders(statuses)
+		return nil
+	})
 	return true
 }
 

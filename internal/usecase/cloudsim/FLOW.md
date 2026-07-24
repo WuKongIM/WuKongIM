@@ -18,6 +18,8 @@ trusted access/CLI
 `RunLocator` is a strict, bounded, non-diagnostic JSON record. Live status and
 cleanup come from Provider inventory. A released-run decision additionally
 requires a valid matching locator; provider inventory alone is not sufficient.
+The exact preflight result carries the provider resource snapshot explicitly;
+released is valid only with a non-null empty `resources` array.
 Before Destroy, Sweep, or an empty-inventory `released` decision,
 `Provider.Authority` must bind the active credential to the adapter's provider,
 region, and account hash. A wrong account or region therefore fails closed
@@ -41,7 +43,11 @@ the resulting size into the provider config before quote and creation. Large
 The immutable node bundle configures 256 physical hash slots owned by 10
 logical Slot Raft Groups. Bootstrap evidence records and gates both counts; the
 healthy leader/replica totals remain aggregated across all 256 hash slots. A
-healthy Slot leader is the non-zero actual Raft leader contained in the current
+versioned effective-node runtime contract in the bundle also pins replicas,
+Channel worker bounds, gateway capacity, delivery concurrency, and conversation
+cache capacity. Before workload start, Bootstrap Gate compares every node's
+normalized Manager snapshot and `toml` source against that scale contract.
+A healthy Slot leader is the non-zero actual Raft leader contained in the current
 voter set while quorum is ready and runtime peers match the assignment.
 `PreferredLeader` mismatch remains observable placement drift and is not a
 Bootstrap Gate failure because Raft eligibility and the elected leader are
@@ -76,11 +82,20 @@ expired or malformed public window, while `Destroy` closes it before deleting
 run-owned resources. This capability does not change Analysis MCP semantics.
 
 `cloud-sim-monitor.yml` is an observer-only workflow. It runs every 30 minutes
-or for an explicitly dispatched Run Identity, discovers existing running runs,
-and reads public Cloud View and Prometheus evidence. It never calls Create or
-starts wkbench. Patrol evidence includes target liveness, 30-minute sustained
+or for an explicitly dispatched Run Identity. Scheduled discovery resolves one
+retained provider config per account/region binding, takes one read-only
+authority-validated Inventory Snapshot per binding, and selects only `running`
+runs owned by this repository. Provider-config, binding, and running-candidate
+budgets fail with structured evidence instead of truncating discovery. A
+retained Run Locator remains only an identity candidate: each selected run must
+still pass exact `Preflight` before public access. Provider-confirmed `released`
+or no-longer-running candidates are skipped normally, and only a locator-bound
+live run in `running` state can reach Cloud View and Prometheus. Missing,
+ambiguous, mismatched, or timed-out inventory and Preflight evidence fails
+closed. The workflow never calls Create
+or starts wkbench. Patrol evidence includes target liveness, 30-minute sustained
 target loss, CPU, RSS, disk use, and bounded queue saturation; missing evidence
-fails closed and remains distinct from the cleanup lease backstop.
+remains distinct from the cleanup lease backstop.
 
 `ValidateTencentAdmission` is a delivery-order gate, not a Tencent adapter. It
 requires repository-owner-reviewed real Alibaba workflow references and

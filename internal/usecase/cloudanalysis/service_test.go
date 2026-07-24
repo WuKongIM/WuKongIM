@@ -60,6 +60,55 @@ func TestServiceMetricsQueryUsesAllowlistedIDAndBoundedRange(t *testing.T) {
 	}
 }
 
+func TestRecipientPipelineMetricQueryContractUsesStableAllowlistedIDs(t *testing.T) {
+	now := time.Date(2026, 7, 22, 10, 0, 0, 0, time.UTC)
+	ids := []string{
+		MetricQueryDeliveryRecipientAuthorityResolveRate,
+		MetricQueryDeliveryRecipientAuthorityResolveItemsRate,
+		MetricQueryDeliveryRecipientAuthorityResolveTargetsRate,
+		MetricQueryDeliveryRecipientAuthorityResolveP99,
+		MetricQueryPresenceEndpointLookupRate,
+		MetricQueryPresenceEndpointLookupItemsRate,
+		MetricQueryPresenceEndpointLookupGroupsRate,
+		MetricQueryPresenceEndpointLookupP99,
+		MetricQueryDeliveryAckBatchCumulative,
+		MetricQueryDeliveryAckBatchItemsCumulative,
+		MetricQueryDeliveryAckBatchShardsCumulative,
+		MetricQueryDeliveryAckBatchRejectedCumulative,
+		MetricQueryDeliveryAckBatchRollbackCumulative,
+		MetricQueryDeliveryAckBatchP99,
+	}
+	queries := make(map[string]string, len(ids))
+	for _, id := range ids {
+		if !opaqueIDPattern.MatchString(id) {
+			t.Fatalf("metric query ID %q is not a stable opaque identifier", id)
+		}
+		if _, exists := queries[id]; exists {
+			t.Fatalf("duplicate metric query ID %q", id)
+		}
+		queries[id] = "up"
+	}
+
+	sources := &sourceStub{inspection: RunInspection{RunID: "run-1", State: "running", InventoryCount: 12}}
+	service, err := New(Config{
+		RunID: "run-1", Nodes: []uint64{1, 2, 3}, MetricQueries: queries, Now: func() time.Time { return now },
+	}, sources)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	for _, id := range ids {
+		_, err := service.MetricsQueryRange(context.Background(), MetricsQueryRangeRequest{
+			RunID: "run-1", QueryID: id, Start: now.Add(-5 * time.Minute), End: now, Step: 15 * time.Second,
+		})
+		if err != nil {
+			t.Fatalf("MetricsQueryRange(%q) error = %v", id, err)
+		}
+		if sources.metricsRequest.QueryID != id {
+			t.Fatalf("source query ID = %q, want %q", sources.metricsRequest.QueryID, id)
+		}
+	}
+}
+
 func TestServiceBoundsLogsAndDiagnostics(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
 	service := mustService(t, now, &sourceStub{inspection: RunInspection{RunID: "run-1", State: "running", InventoryCount: 12}})

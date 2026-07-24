@@ -154,7 +154,7 @@ func runConcurrentOnboardingStarts(t testing.TB, manager *suite.ManagerClient, n
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			response, status, body, err := manager.StartOnboarding(ctx, nodeID, maxSlotMoves)
+			response, status, body, err := retryConcurrentOnboardingStart(ctx, manager, nodeID, maxSlotMoves)
 			results <- onboardingStartResult{response: response, status: status, body: body, err: err}
 		}()
 	}
@@ -169,11 +169,46 @@ func runConcurrentScaleInAdvances(t testing.TB, manager *suite.ManagerClient, no
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			response, status, body, err := manager.AdvanceScaleIn(ctx, nodeID, maxSlotMoves)
+			response, status, body, err := retryConcurrentScaleInAdvance(ctx, manager, nodeID, maxSlotMoves)
 			results <- scaleInAdvanceResult{response: response, status: status, body: body, err: err}
 		}()
 	}
 	return collectScaleInAdvanceResults(results, count)
+}
+
+func retryConcurrentOnboardingStart(ctx context.Context, manager *suite.ManagerClient, nodeID uint64, maxSlotMoves uint32) (suite.NodeOnboardingStartDTO, int, []byte, error) {
+	for {
+		response, status, body, err := manager.StartOnboarding(ctx, nodeID, maxSlotMoves)
+		if err != nil || status != http.StatusServiceUnavailable {
+			return response, status, body, err
+		}
+		if err := waitForConcurrentControlWriteRetry(ctx); err != nil {
+			return response, status, body, nil
+		}
+	}
+}
+
+func retryConcurrentScaleInAdvance(ctx context.Context, manager *suite.ManagerClient, nodeID uint64, maxSlotMoves uint32) (suite.NodeScaleInAdvanceDTO, int, []byte, error) {
+	for {
+		response, status, body, err := manager.AdvanceScaleIn(ctx, nodeID, maxSlotMoves)
+		if err != nil || status != http.StatusServiceUnavailable {
+			return response, status, body, err
+		}
+		if err := waitForConcurrentControlWriteRetry(ctx); err != nil {
+			return response, status, body, nil
+		}
+	}
+}
+
+func waitForConcurrentControlWriteRetry(ctx context.Context) error {
+	timer := time.NewTimer(50 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func collectOnboardingStartResults(results <-chan onboardingStartResult, count int) []onboardingStartResult {

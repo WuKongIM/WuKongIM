@@ -25,6 +25,12 @@ type channelWriter struct {
 	state *channelState
 	// inbox holds submitted batches not yet drained into the channelState pending queue.
 	inbox []submittedBatch
+	// commitRetryQueued is guarded by mu and de-duplicates this writer in the
+	// global post-commit retry FIFO.
+	commitRetryQueued bool
+	// commitRetryTurn lets the FIFO-selected writer attempt pool admission while
+	// all newer durable commits remain queued behind the contended gate.
+	commitRetryTurn bool
 }
 
 // submittedBatch is one admitted SubmitLocal call awaiting prepare+append.
@@ -52,9 +58,10 @@ type writerPorts struct {
 	commit         commitPorts
 	appendPool     *workerPool
 	postCommitPool *workerPool
+	handoff        *postCommitHandoff
+	commitRetries  *postCommitRetryScheduler
 	schedule       func(*channelWriter)
 	runtimeCtx     context.Context
-	stopped        *atomic.Bool
 	metrics        *groupMetrics
 
 	inboxCoalesceWindow   time.Duration
@@ -104,7 +111,14 @@ func (w *channelWriter) deactivateLocked() bool {
 }
 
 func (w *channelWriter) hasRunnableWorkLocked() bool {
-	return len(w.inbox) > 0 || w.state.hasRunnableWork(w.ports.commit.hasPostCommitWork())
+	if w.commitRetryQueued {
+		// A queued durable commit owns the channel's next retry turn. New append
+		// work may be prepared, but it parks until that turn is selected instead
+		// of pinning a blocking appendPool submit ahead of the old commit.
+		return false
+	}
+	includeCommit := w.ports.commit.hasPostCommitWork() && !w.commitRetryQueued
+	return len(w.inbox) > 0 || w.state.hasRunnableWork(includeCommit)
 }
 
 func (w *channelWriter) inboxItemCountLocked() int {
@@ -207,13 +221,26 @@ func (w *channelWriter) advance() {
 			w.mu.Unlock()
 			prepared := w.prepareInbox(inbox)
 			w.mu.Lock()
-			realtime := w.admitPreparedInboxLocked(prepared)
+			realtime, handoffRejected := w.admitPreparedInboxLocked(prepared)
 			w.mu.Unlock()
+			w.observeHandoffRejection(handoffRejected)
 			w.runRealtimeDispatches(realtime)
 			w.mu.Lock()
 		}
-		hasAppend := w.nextAppendLocked(&appendEff)
-		hasCommit := w.nextCommitLocked(&commitEff)
+		retryTurn := w.commitRetryTurn
+		hasAppend := false
+		hasCommit := false
+		if retryTurn {
+			// The FIFO-selected writer admits only its old durable commit in this
+			// pass. A later ordinary pass resumes append-first processing.
+			hasCommit = w.nextCommitLocked(&commitEff)
+			if !hasCommit {
+				hasAppend = w.nextAppendLocked(&appendEff)
+			}
+		} else if !w.commitRetryQueued {
+			hasAppend = w.nextAppendLocked(&appendEff)
+			hasCommit = w.nextCommitLocked(&commitEff)
+		}
 		if !hasAppend && !hasCommit {
 			more := w.deactivateLocked()
 			w.mu.Unlock()
@@ -243,8 +270,9 @@ func (w *channelWriter) advanceAppendOnly() {
 			w.mu.Unlock()
 			prepared := w.prepareInbox(inbox)
 			w.mu.Lock()
-			realtime := w.admitPreparedInboxLocked(prepared)
+			realtime, handoffRejected := w.admitPreparedInboxLocked(prepared)
 			w.mu.Unlock()
+			w.observeHandoffRejection(handoffRejected)
 			w.runRealtimeDispatches(realtime)
 			w.mu.Lock()
 		}
@@ -289,17 +317,21 @@ func (w *channelWriter) prepareInbox(inbox []submittedBatch) []preparedInboxBatc
 }
 
 // admitPreparedInboxLocked moves prepared work into channelState while w.mu is held.
-func (w *channelWriter) admitPreparedInboxLocked(prepared []preparedInboxBatch) []realtimeDispatch {
+func (w *channelWriter) admitPreparedInboxLocked(prepared []preparedInboxBatch) ([]realtimeDispatch, int) {
 	var realtime []realtimeDispatch
+	handoffRejected := 0
 	for _, item := range prepared {
-		realtime = append(realtime, w.admitPreparedLocked(item.batch, item.outcome)...)
+		dispatches, rejected := w.admitPreparedLocked(item.batch, item.outcome)
+		realtime = append(realtime, dispatches...)
+		handoffRejected += rejected
 	}
-	return realtime
+	return realtime, handoffRejected
 }
 
 // admitPreparedLocked applies prepare results: completes terminal items on the
 // future immediately and enqueues append-bound items, honoring canAdmit backpressure.
-func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepareOutcome) []realtimeDispatch {
+func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepareOutcome) ([]realtimeDispatch, int) {
+	handoffRejected := 0
 	for _, item := range outcome.canonicalResults {
 		if !preparedCommandMatchesTarget(batch.target, item.command) {
 			outcome.results[item.index] = SendBatchItemResult{Err: ErrStaleRoute}
@@ -330,8 +362,21 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 	if len(matching) > 0 {
 		w.state.refreshTargetMetadata(batch.target)
 		if w.state.canAdmit(len(matching)) {
-			w.state.enqueuePrepared(matching)
-			w.ports.metrics.addPendingAppendItems(len(matching))
+			admitted := matching[:0]
+			for _, item := range matching {
+				if w.ports.commit.hasPostCommitWork() {
+					if !w.ports.handoff.tryAcquire() {
+						delete(pendingIndex, item.Index)
+						outcome.results[item.Index] = SendBatchItemResult{Err: ErrChannelBusy}
+						handoffRejected++
+						continue
+					}
+					item.postCommitReserved = true
+				}
+				admitted = append(admitted, item)
+			}
+			w.state.enqueuePrepared(admitted)
+			w.ports.metrics.addPendingAppendItems(len(admitted))
 			w.ports.metrics.observePressure()
 		} else {
 			for _, item := range matching {
@@ -345,9 +390,20 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 		return !pending
 	})
 	if len(realtimeItems) == 0 {
-		return nil
+		return nil, handoffRejected
 	}
-	return []realtimeDispatch{{target: batch.target, items: realtimeItems}}
+	return []realtimeDispatch{{target: batch.target, items: realtimeItems}}, handoffRejected
+}
+
+func (w *channelWriter) observeHandoffRejection(items int) {
+	if items <= 0 {
+		return
+	}
+	observeEffect(w.ports.append.observer, EffectObservation{
+		Stage:  effectStagePostCommit,
+		Result: channelAppendResultBackpressured,
+		Items:  items,
+	})
 }
 
 func (w *channelWriter) nextAppendLocked(out *appendEffect) bool {
@@ -367,11 +423,22 @@ func (w *channelWriter) nextAppendLocked(out *appendEffect) bool {
 
 func (w *channelWriter) runAppend(effect *appendEffect) {
 	snapshot := *effect
-	_ = w.ports.appendPool.submit(func() {
-		completion := snapshot.run(w.ports.runtimeCtx, w.ports.append)
+	err := w.ports.appendPool.submit(func() {
+		completion := func() (completion appendCompletedEvent) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					completion = appendPanicCompletion(snapshot, recovered)
+				}
+			}()
+			return snapshot.run(w.ports.runtimeCtx, w.ports.append)
+		}()
 		w.applyAppendCompletion(completion)
 		w.rescheduleIfNeeded()
 	})
+	if err != nil {
+		w.applyAppendCompletion(appendScheduleErrorCompletion(snapshot, err))
+		w.rescheduleIfNeeded()
+	}
 }
 
 func (w *channelWriter) runRealtimeDispatches(dispatches []realtimeDispatch) {
@@ -385,21 +452,45 @@ func (w *channelWriter) runRealtimeDispatch(dispatch realtimeDispatch) {
 		return
 	}
 	effect := realtimeEffect{target: dispatch.target, items: dispatch.items}
-	if err := w.ports.postCommitPool.submit(func() {
-		for _, completion := range effect.run(w.ports.runtimeCtx, w.ports.commit) {
+	w.ports.commitRetries.lockAdmission()
+	if w.ports.commitRetries.isContended() {
+		w.ports.commitRetries.unlockAdmission()
+		w.completeRealtimeScheduleError(dispatch.items, ErrBackpressured)
+		return
+	}
+	err := w.ports.postCommitPool.submitWithCompletion(func() {
+		completions := func() (completions []realtimeItemCompletion) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					err := effectPanicError(effectStageRealtime, recovered)
+					completions = make([]realtimeItemCompletion, 0, len(effect.items))
+					for _, item := range effect.items {
+						completions = append(completions, realtimeItemCompletion{item: item, result: SendBatchItemResult{Err: err}})
+					}
+				}
+			}()
+			return effect.run(w.ports.runtimeCtx, w.ports.commit)
+		}()
+		for _, completion := range completions {
 			completion.item.future.completeItem(completion.item.Index, completion.result)
 		}
-	}); err != nil {
-		result := SendBatchItemResult{Err: effectScheduleError(effectStageRealtime, err)}
-		for _, item := range dispatch.items {
-			item.future.completeItem(item.Index, result)
-		}
+	}, w.ports.commitRetries.notifyCapacity)
+	w.ports.commitRetries.unlockAdmission()
+	if err != nil {
+		w.completeRealtimeScheduleError(dispatch.items, err)
+	}
+}
+
+func (w *channelWriter) completeRealtimeScheduleError(items []preparedSend, err error) {
+	result := SendBatchItemResult{Err: effectScheduleError(effectStageRealtime, err)}
+	for _, item := range items {
+		item.future.completeItem(item.Index, result)
 	}
 }
 
 func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 	var dispatch []appendCompletionDispatchItem
-	var postCommitFailures []PostCommitFailureObservation
+	releaseReservations := 0
 	w.mu.Lock()
 	w.state.recordAppendCompletion(event)
 	for {
@@ -410,31 +501,26 @@ func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 		w.state.finishAppend(len(next.items))
 		w.ports.metrics.addAppendInflightItems(-len(next.items))
 		for _, completion := range next.items {
+			handedOff := false
 			if w.ports.commit.hasPostCommitWork() &&
 				completion.committed &&
 				completion.traceErr == nil &&
 				completion.result.Err == nil &&
 				completion.result.Result.Reason == ReasonSuccess {
 				envelope := committedEnvelopeForAppend(completion.item, completion.appended)
-				if w.state.enqueueCommitted(envelope) {
-					w.ports.metrics.addPostCommitBacklog(1)
-				} else {
-					postCommitFailures = append(postCommitFailures, postCommitAdmissionFailure(envelope))
-				}
+				w.state.enqueueCommitted(envelope)
+				w.ports.metrics.addPostCommitBacklog(1)
+				handedOff = true
+			}
+			if completion.item.postCommitReserved && !handedOff {
+				releaseReservations++
 			}
 			dispatch = append(dispatch, appendCompletionDispatchItem{completion: completion, duration: next.duration})
 		}
 	}
-	w.ports.metrics.observePressure()
 	w.mu.Unlock()
-	for _, failure := range postCommitFailures {
-		observeEffect(w.ports.append.observer, EffectObservation{
-			Stage:  effectStagePostCommit,
-			Result: failure.Result,
-			Items:  1,
-		})
-		observePostCommitFailure(w.ports.append.observer, failure)
-	}
+	w.ports.handoff.release(releaseReservations)
+	w.ports.metrics.observePressure()
 	for _, item := range dispatch {
 		w.dispatchAppendItemCompletion(item.completion, item.duration)
 	}
@@ -452,10 +538,7 @@ func (w *channelWriter) dispatchAppendItemCompletion(completion appendItemComple
 }
 
 func (w *channelWriter) nextCommitLocked(out *commitEffect) bool {
-	if w.runtimeStopped() {
-		dropped := w.state.dropCommitBacklog()
-		w.ports.metrics.addPostCommitBacklog(-dropped)
-		w.ports.metrics.observePressure()
+	if w.commitRetryQueued {
 		return false
 	}
 	return w.state.nextCommitEffect(w.key, out)
@@ -463,32 +546,116 @@ func (w *channelWriter) nextCommitLocked(out *commitEffect) bool {
 
 func (w *channelWriter) runCommit(effect *commitEffect) {
 	snapshot := *effect
-	if err := w.ports.postCommitPool.submit(func() {
-		completion := snapshot.run(w.ports.runtimeCtx, w.ports.commit)
+	w.ports.commitRetries.lockAdmission()
+	w.mu.Lock()
+	retryTurn := w.commitRetryTurn
+	contended := w.ports.commitRetries.isContended()
+	w.mu.Unlock()
+	if contended && !retryTurn {
+		w.deferPostCommitRetry()
+		w.ports.commitRetries.unlockAdmission()
+		return
+	}
+	err := w.ports.postCommitPool.submitWithCompletion(func() {
+		completion := func() (completion commitCompletedEvent) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					completion = commitPanicCompletion(snapshot, recovered)
+				}
+			}()
+			return snapshot.run(w.ports.runtimeCtx, w.ports.commit)
+		}()
 		w.applyCommitCompletion(completion)
 		w.rescheduleIfNeeded()
-	}); err != nil {
-		w.applyCommitCompletion(commitScheduleErrorCompletion(snapshot, err))
-		w.rescheduleIfNeeded()
+	}, w.ports.commitRetries.notifyCapacity)
+	if err != nil {
+		w.deferPostCommitRetry()
+	} else if retryTurn {
+		w.mu.Lock()
+		w.commitRetryTurn = false
+		w.mu.Unlock()
+		w.ports.commitRetries.finishRetryTurn(postCommitRetryTurnProgress)
+		w.ports.metrics.observePressure()
 	}
+	w.ports.commitRetries.unlockAdmission()
+}
+
+// deferPostCommitRetry restores the current commit to queued state and adds
+// this writer to the de-duplicated global FIFO after transient pool overload.
+func (w *channelWriter) deferPostCommitRetry() {
+	defer w.ports.metrics.observePressure()
+	w.mu.Lock()
+	w.state.cancelCommitDispatch()
+	retryTurn := w.commitRetryTurn
+	w.commitRetryTurn = false
+	enqueue := !w.commitRetryQueued
+	w.commitRetryQueued = true
+	w.mu.Unlock()
+	if !enqueue {
+		if retryTurn {
+			w.ports.commitRetries.finishRetryTurn(postCommitRetryTurnOverloaded)
+		}
+		return
+	}
+	if w.ports.commitRetries != nil {
+		w.ports.commitRetries.enqueue(w)
+		if retryTurn {
+			w.ports.commitRetries.finishRetryTurn(postCommitRetryTurnOverloaded)
+		}
+		return
+	}
+	time.AfterFunc(postCommitRetryInterval, w.retryPostCommit)
+}
+
+// retryPostCommit returns FIFO ownership to the writer state machine. If the
+// writer is already active, its current advance loop observes the cleared flag.
+func (w *channelWriter) retryPostCommit() {
+	defer w.ports.metrics.observePressure()
+	w.mu.Lock()
+	if !w.commitRetryQueued {
+		w.mu.Unlock()
+		return
+	}
+	w.commitRetryQueued = false
+	hasRetryCommit := !w.state.commitInflight && w.state.commitBacklog() > 0
+	w.commitRetryTurn = hasRetryCommit
+	more := w.hasRunnableWorkLocked()
+	if !hasRetryCommit {
+		w.commitRetryTurn = false
+	}
+	w.mu.Unlock()
+	if !hasRetryCommit {
+		w.ports.commitRetries.finishRetryTurn(postCommitRetryTurnProgress)
+	}
+	if !more {
+		return
+	}
+	if !w.tryActivate() {
+		return
+	}
+	if w.ports.schedule != nil {
+		w.ports.schedule(w)
+		return
+	}
+	go w.advance()
 }
 
 func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
 	failures := append([]commitCompletedItem(nil), event.failures...)
+	releaseReservations := 0
 	w.mu.Lock()
 	backlogBefore := w.state.commitBacklog()
 	if len(event.items) > 0 {
 		w.state.recordSubscriberCache(event.subscriberCache)
 		w.state.finishCommit(len(event.items))
+		releaseReservations = len(event.items)
 	} else {
 		w.state.finishCommitFailure()
 	}
-	if w.runtimeStopped() {
-		w.state.dropCommitBacklog()
-	}
 	w.ports.metrics.addPostCommitBacklog(w.state.commitBacklog() - backlogBefore)
-	w.ports.metrics.observePressure()
 	w.mu.Unlock()
+	w.ports.handoff.release(releaseReservations)
+	w.ports.metrics.observePressure()
 	for _, item := range event.items {
 		if item.err != nil {
 			failures = append(failures, item)
@@ -497,10 +664,6 @@ func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
 	for _, item := range failures {
 		observePostCommitFailure(w.ports.append.observer, postCommitFailureFromItem(event, item))
 	}
-}
-
-func (w *channelWriter) runtimeStopped() bool {
-	return w != nil && w.ports.stopped != nil && w.ports.stopped.Load()
 }
 
 // rescheduleIfNeeded re-activates the writer only when completion handling made

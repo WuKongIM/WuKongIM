@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,6 +22,19 @@ type PresenceMetrics struct {
 	touchFlushRoutes       *prometheus.CounterVec
 	touchFlushChunks       prometheus.Counter
 	touchFlushTargetGroups prometheus.Counter
+	endpointLookupTotal    *prometheus.CounterVec
+	endpointLookupItems    *prometheus.CounterVec
+	endpointLookupGroups   *prometheus.CounterVec
+	endpointLookupDuration *prometheus.HistogramVec
+	endpointLookupSeries   [4][10][2]presenceEndpointLookupSeries
+}
+
+type presenceEndpointLookupSeries struct {
+	once     sync.Once
+	total    prometheus.Counter
+	items    prometheus.Counter
+	groups   prometheus.Counter
+	duration prometheus.Observer
 }
 
 func newPresenceMetrics(registry prometheus.Registerer, labels prometheus.Labels) *PresenceMetrics {
@@ -87,6 +101,27 @@ func newPresenceMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			Help:        "Total authority target groups processed by bounded presence touch flushes.",
 			ConstLabels: labels,
 		}),
+		endpointLookupTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_presence_endpoint_lookup_total",
+			Help:        "Total exact-target presence endpoint batch lookups by bounded path, outcome, and retry state.",
+			ConstLabels: labels,
+		}, []string{"path", "outcome", "stale_retry"}),
+		endpointLookupItems: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_presence_endpoint_lookup_items_total",
+			Help:        "Total UID items handled by exact-target presence endpoint batch lookups.",
+			ConstLabels: labels,
+		}, []string{"path", "outcome", "stale_retry"}),
+		endpointLookupGroups: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_presence_endpoint_lookup_groups_total",
+			Help:        "Total exact target groups handled by presence endpoint batch lookups.",
+			ConstLabels: labels,
+		}, []string{"path", "outcome", "stale_retry"}),
+		endpointLookupDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_presence_endpoint_lookup_duration_seconds",
+			Help:        "Exact-target presence endpoint batch lookup latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     runtimePressureDurationBuckets,
+		}, []string{"path", "outcome", "stale_retry"}),
 	}
 
 	registry.MustRegister(
@@ -102,6 +137,10 @@ func newPresenceMetrics(registry prometheus.Registerer, labels prometheus.Labels
 		m.touchFlushRoutes,
 		m.touchFlushChunks,
 		m.touchFlushTargetGroups,
+		m.endpointLookupTotal,
+		m.endpointLookupItems,
+		m.endpointLookupGroups,
+		m.endpointLookupDuration,
 	)
 
 	return m
@@ -135,4 +174,88 @@ func (m *PresenceMetrics) ObserveTouchFlush(result string, dur time.Duration, dr
 	m.touchFlushRoutes.WithLabelValues("requeued").Add(float64(requeued))
 	m.touchFlushChunks.Add(float64(chunks))
 	m.touchFlushTargetGroups.Add(float64(targetGroups))
+}
+
+// ObserveEndpointLookup records one local, remote, or legacy exact-target lookup batch.
+func (m *PresenceMetrics) ObserveEndpointLookup(path, outcome string, staleRetry bool, dur time.Duration, items, groups int) {
+	if m == nil {
+		return
+	}
+	path = normalizePresenceEndpointLookupPath(path)
+	outcome = normalizePresenceEndpointLookupOutcome(outcome)
+	retryIndex := 0
+	if staleRetry {
+		retryIndex = 1
+	}
+	series := &m.endpointLookupSeries[presenceEndpointLookupPathIndex(path)][presenceEndpointLookupOutcomeIndex(outcome)][retryIndex]
+	series.once.Do(func() {
+		retryLabel := strconv.FormatBool(staleRetry)
+		series.total = m.endpointLookupTotal.WithLabelValues(path, outcome, retryLabel)
+		series.items = m.endpointLookupItems.WithLabelValues(path, outcome, retryLabel)
+		series.groups = m.endpointLookupGroups.WithLabelValues(path, outcome, retryLabel)
+		series.duration = m.endpointLookupDuration.WithLabelValues(path, outcome, retryLabel)
+	})
+	if dur < 0 {
+		dur = 0
+	}
+	series.total.Inc()
+	series.items.Add(float64(nonNegative(items)))
+	series.groups.Add(float64(nonNegative(groups)))
+	series.duration.Observe(dur.Seconds())
+}
+
+func normalizePresenceEndpointLookupPath(path string) string {
+	switch path {
+	case "local_bulk", "remote_bulk", "legacy_fallback":
+		return path
+	default:
+		return "unknown"
+	}
+}
+
+func normalizePresenceEndpointLookupOutcome(outcome string) string {
+	switch outcome {
+	case "ok", "partial", "route_not_ready", "stale_route", "not_leader", "canceled", "deadline", "panic", "error":
+		return outcome
+	default:
+		return "unknown"
+	}
+}
+
+func presenceEndpointLookupPathIndex(path string) int {
+	switch path {
+	case "local_bulk":
+		return 0
+	case "remote_bulk":
+		return 1
+	case "legacy_fallback":
+		return 2
+	default:
+		return 3
+	}
+}
+
+func presenceEndpointLookupOutcomeIndex(outcome string) int {
+	switch outcome {
+	case "ok":
+		return 0
+	case "partial":
+		return 1
+	case "route_not_ready":
+		return 2
+	case "stale_route":
+		return 3
+	case "not_leader":
+		return 4
+	case "canceled":
+		return 5
+	case "deadline":
+		return 6
+	case "panic":
+		return 7
+	case "error":
+		return 8
+	default:
+		return 9
+	}
 }

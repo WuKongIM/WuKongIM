@@ -136,9 +136,9 @@ func (s conversationActiveStoreAdapter) store() conversationAuthorityStore {
 }
 
 type conversationAuthorityTargetKey struct {
-	// hashSlot is the logical UID hash slot.
+	// hashSlot is the physical UID hash slot.
 	hashSlot uint16
-	// slotID is the physical Slot that owns hashSlot.
+	// slotID is the logical Slot Raft Group that owns hashSlot.
 	slotID uint32
 	// leaderNodeID is the authority leader for this target.
 	leaderNodeID uint64

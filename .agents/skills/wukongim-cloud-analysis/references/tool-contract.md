@@ -44,10 +44,38 @@ allocations since process start. Other caller-selected sample types are rejected
 - `append_error_rate`
 - `gateway_queue_depth`
 - `runtime_queue_pressure`
+- `runtime_queue_pressure_by_pool`
 - `storage_commit_queue_depth`
 - `storage_commit_request_p99`
 - `storage_commit_batch_stage_p99`
 - `delivery_retry_queue_depth`
+- `delivery_recipient_worker_queue_depth`
+- `delivery_recipient_worker_queue_capacity`
+- `delivery_recipient_worker_inflight`
+- `delivery_recipient_worker_capacity`
+- `delivery_recipient_worker_admission_cumulative`
+- `delivery_recipient_worker_admission_wait_p99`
+- `delivery_recipient_worker_process_cumulative`
+- `delivery_recipient_worker_process_p99`
+- `delivery_recipient_worker_process_recipients_cumulative`
+- `delivery_recipient_authority_resolve_rate`
+- `delivery_recipient_authority_resolve_items_rate`
+- `delivery_recipient_authority_resolve_targets_rate`
+- `delivery_recipient_authority_resolve_p99`
+- `presence_endpoint_lookup_rate`
+- `presence_endpoint_lookup_items_rate`
+- `presence_endpoint_lookup_groups_rate`
+- `presence_endpoint_lookup_p99`
+- `delivery_ack_batch_cumulative`
+- `delivery_ack_batch_items_cumulative`
+- `delivery_ack_batch_shards_cumulative`
+- `delivery_ack_batch_rejected_cumulative`
+- `delivery_ack_batch_rollback_cumulative`
+- `delivery_ack_batch_p99`
+- `channelappend_post_commit_handoff_depth`
+- `channelappend_post_commit_handoff_capacity`
+- `channelappend_post_commit_retry_queue_depth`
+- `channelappend_post_commit_retry_contended`
 - `process_cpu_rate`
 - `process_resident_memory`
 - `go_goroutines`
@@ -94,6 +122,63 @@ allocations since process start. Other caller-selected sample types are rejected
 - `slot_runtime_queue_pressure`
 - `slot_preferred_leader_reconcile_rate`
 - `slot_preferred_leader_strict_wait_p99`
+
+Recipient-worker and post-commit queries preserve `instance` and `node_name`.
+Admission/process cumulative and P99 queries additionally preserve the bounded
+`result` label; latency P99 values are seconds. Read accepted admission-wait P99
+for saturation and `ok` process P99 for normal command latency. With unchanged
+process start time and quiescent bracketing endpoint samples at a coarse step,
+define backlog as queue depth plus in-flight commands and check
+`accepted_delta - processed_delta = backlog_end - backlog_start`; admission
+uses only `result="accepted"` while process sums every terminal result. Exact
+conservation additionally requires queue/in-flight gauges and accepted/process
+counters to remain unchanged across adjacent scrapes around each endpoint.
+Counter and gauge updates are not one atomic scrape, so active, incomplete, or
+unbracketed endpoints must remain approximate or unknown. The recipient cumulative query counts planned or attempted recipients,
+not commands or proven successful online deliveries.
+Missing result series and counter resets also remain unknown rather than zero.
+Handoff depth counts reservations spanning pending append, append in-flight,
+and durable post-commit items; depth alone cannot identify which phase is
+pressured. Saturation can reject a not-yet-appended item with `ErrChannelBusy`.
+Retry depth counts waiting channel writers and excludes the selected retry-turn
+owner; retry depth can be zero while contended remains one.
+
+Recipient-authority resolution queries preserve `instance`, `node_name`, and
+the bounded `result` values `ok`, `partial`, `route_not_ready`, `canceled`,
+`deadline`, `error`, or `unknown`. Call, UID-item, and distinct successful
+physical-target rates have different units. Their P99 is the complete aligned
+batch-resolution latency in seconds. Target rate is not a Slot count and must
+not be used to infer individual physical or logical Slot identity.
+
+`runtime_queue_pressure_by_pool` preserves the bounded labels `instance`,
+`node_id`, `node_name`, `component`, `pool`, `queue`, and `priority`. Use it
+after aggregate runtime pressure to identify the exact node and bounded runtime
+pool; do not infer individual channels, users, or physical hash-slot identities
+from this low-cardinality series.
+
+Presence endpoint lookup queries preserve `instance`, `node_name`, bounded
+`path` (`local_bulk`, `remote_bulk`, `legacy_fallback`, or `unknown` when path
+selection itself panics), bounded `outcome`,
+and boolean `stale_retry`. One observation is one leader execution stage, so
+one recipient batch can create multiple path calls and stale retries repeat
+the retried items/groups. Items and groups are therefore attempted work, not
+unique recipients or successful deliveries. Compare the per-path rates and
+P99 over the exact phase before attributing recipient pressure to local lookup,
+remote RPC, or compatibility fallback.
+
+ACK batch cumulative queries preserve `instance`, `node_name`, bounded `phase`
+(`bind` or `finish`), and bounded `outcome` (`ok`, `partial`, `rejected`,
+`rolled_back`, `miss`, or `unknown`). Compute first/last counter deltas over the
+same bounded phase. `items` is observed in both phases and is the aligned input
+batch size, so do not sum bind and finish item deltas as unique deliveries.
+`shards` counts tracker shards touched by that stage; `rejected` is repeated on
+the corresponding finish observation. `rollback` applies to finish and counts
+actual canceled reservations, so duplicate delivery attempts can produce more
+rollbacks than aligned input items. The
+histogram P99 is stage latency in seconds. These metric families are updated
+separately, so exact cross-series equations require quiescent bracketing
+samples; absent series, resets, or active endpoints remain unknown rather than
+zero.
 
 Storage and Slot drilldown queries preserve `instance` and `node_name` while
 aggregating away individual Slot IDs. Preferred-leader queries additionally

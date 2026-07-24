@@ -5,15 +5,46 @@ import (
 	"errors"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	appwklog "github.com/WuKongIM/WuKongIM/pkg/wklog"
+	legacywklog "github.com/WuKongIM/wklog"
 	"github.com/WuKongIM/wkrpc"
 	wkrpcproto "github.com/WuKongIM/wkrpc/proto"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 )
+
+const legacyRPCLevelHelperEnv = "WK_TEST_LEGACY_RPC_LEVEL_HELPER"
+
+func TestSocketConstructorInitializesLegacyRPCLevel(t *testing.T) {
+	if os.Getenv(legacyRPCLevelHelperEnv) == "1" {
+		_ = NewSocketServerWithLogger(filepath.Join(t.TempDir(), "plugin.sock"), appwklog.NewNop())
+		_ = legacywklog.Level()
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSocketConstructorInitializesLegacyRPCLevel$")
+	cmd.Env = append(os.Environ(), legacyRPCLevelHelperEnv+"=1")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "constructor must initialize the legacy level read used by wkrpc: %s", output)
+}
+
+func TestSocketConstructorPreservesExistingLegacyRPCLevel(t *testing.T) {
+	legacywklog.Configure(&legacywklog.Options{
+		Level:    zapcore.DebugLevel,
+		LogDir:   t.TempDir(),
+		NoStdout: true,
+	})
+
+	_ = NewSocketServerWithLogger(filepath.Join(t.TempDir(), "plugin.sock"), appwklog.NewNop())
+
+	require.Equal(t, zapcore.DebugLevel, legacywklog.Level())
+}
 
 func TestSocketStartRejectsNonSocketAtPath(t *testing.T) {
 	dir := shortSocketTempDir(t)

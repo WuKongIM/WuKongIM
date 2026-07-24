@@ -26,6 +26,8 @@ jobs:
         include:
           - name: internal-runtime
             packages: "./internal/app ./internal/runtime/..."
+          - name: plugin-runtime
+            packages: "./pkg/plugin/pluginhost ./pkg/wklog"
           - name: gateway-transport
             packages: "./pkg/gateway/... ./pkg/transport/..."
           - name: channel-cluster-slot
@@ -118,6 +120,29 @@ jobs:
         run: |
           set -o pipefail
           WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Run bounded Cloud Medium recipient gate
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/go-e2e-medium-recipient.log
+          WK_E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
+          WK_E2E_MEDIUM_RECIPIENT_HOTPATH: "1"
+          WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE: "1"
+          WK_E2E_MEDIUM_RECIPIENT_QPS: "500"
+          WK_E2E_MEDIUM_RECIPIENT_CI_SCALE: "1"
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 5m \
+            go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
+              -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout=4m -p=1 -v 2>&1 |
+            tee "$LOG_FILE"
+      - name: Upload Cloud Medium recipient evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-e2e-medium-recipient-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-e2e-medium-recipient.log
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload e2e failure log
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

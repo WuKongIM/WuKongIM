@@ -408,3 +408,34 @@ func TestParseMetricSampleMatchesLabels(t *testing.T) {
 	require.True(t, metricLabelsMatch(labels, map[string]string{"result": "ok"}))
 	require.False(t, metricLabelsMatch(labels, map[string]string{"result": "error"}))
 }
+
+func TestFetchMetricSamplesReturnsOnePublicSnapshot(t *testing.T) {
+	var requests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/metrics", r.URL.Path)
+		_, _ = w.Write([]byte(`# HELP ignored comment
+wukongim_ants_pool_waiting{component="channelappend",pool="advance"} 3
+wukongim_delivery_recipient_worker_queue_depth 7
+malformed
+`))
+	}))
+	defer server.Close()
+
+	samples, err := FetchMetricSamples(context.Background(), strings.TrimPrefix(server.URL, "http://"))
+	require.NoError(t, err)
+	require.Equal(t, 1, requests)
+	require.Equal(t, []MetricSample{
+		{
+			Name:   "wukongim_ants_pool_waiting",
+			Labels: map[string]string{"component": "channelappend", "pool": "advance"},
+			Value:  3,
+		},
+		{
+			Name:   "wukongim_delivery_recipient_worker_queue_depth",
+			Labels: map[string]string{},
+			Value:  7,
+		},
+	}, samples)
+}

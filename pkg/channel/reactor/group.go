@@ -446,8 +446,8 @@ func eventPriority(kind EventKind) Priority {
 
 func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	workers := max(1, cfg.ReactorCount)
-	storeAppendWorkers := min(workers*defaultStoreAppendWorkerMultiplier, defaultStoreWorkerCap)
-	storeApplyWorkers := min(workers*defaultStoreApplyWorkerMultiplier, defaultStoreWorkerCap)
+	storeAppendWorkers := DefaultStoreAppendWorkerCount(workers)
+	storeApplyWorkers := DefaultStoreApplyWorkerCount(workers)
 	queueSize := max(64, cfg.MailboxSize)
 	pools := cfg.WorkerPools
 	effectiveStoreApplyWorkers := storeApplyWorkers
@@ -462,7 +462,7 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	pools.StoreRead = defaultPoolConfig(pools.StoreRead, defaultStoreReadPoolName, workers, queueSize)
 	pools.StoreApply = defaultPoolConfig(pools.StoreApply, defaultStoreApplyPoolName, storeApplyWorkers, queueSize)
 	pools.StoreCheckpoint = defaultPoolConfig(pools.StoreCheckpoint, "channelv2-store-checkpoint", storeCheckpointWorkers, queueSize)
-	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, workers, queueSize)
+	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, DefaultRPCWorkerCount(workers), queueSize)
 	if cfg.MetaResolver != nil {
 		pools.MetaResolve = defaultPoolConfig(pools.MetaResolve, defaultMetaResolvePoolName, defaultMetaResolveWorkers, defaultMetaResolveQueueSize)
 		coldWorkers := min(max(defaultColdActivationMinWorkers, workers), defaultColdActivationWorkerCap)
@@ -470,6 +470,21 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 		pools.ColdActivation = defaultPoolConfig(pools.ColdActivation, defaultColdActivationPoolName, coldWorkers, coldQueueSize)
 	}
 	return pools
+}
+
+// DefaultStoreAppendWorkerCount returns the runtime-derived leader append pool size.
+func DefaultStoreAppendWorkerCount(reactorCount int) int {
+	return min(max(1, reactorCount)*defaultStoreAppendWorkerMultiplier, defaultStoreWorkerCap)
+}
+
+// DefaultStoreApplyWorkerCount returns the runtime-derived follower apply pool size.
+func DefaultStoreApplyWorkerCount(reactorCount int) int {
+	return min(max(1, reactorCount)*defaultStoreApplyWorkerMultiplier, defaultStoreWorkerCap)
+}
+
+// DefaultRPCWorkerCount returns the runtime-derived replication RPC pool size.
+func DefaultRPCWorkerCount(reactorCount int) int {
+	return max(1, reactorCount)
 }
 
 func defaultPoolConfig(cfg worker.PoolConfig, name string, workers int, queueSize int) worker.PoolConfig {

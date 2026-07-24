@@ -51,11 +51,11 @@ values remain available to package integrators.
 
 RPC pull and pull-hint tasks can batch when they have the same task kind and
 target node. Workqueue chooses the collection policy from the first accepted
-task: a Pull-led window collects at most four adjacent tasks, while a
-PullHint-led window collects at most two. This is not strict queue isolation;
+task. Both use the configured `RPCBatchMaxItems`, defaulting to eight, and the
+built-in 250-microsecond collection window. This is not strict queue isolation;
 later tasks of another RPC kind or target can enter the same window and are
-partitioned into serial subgroups. Both policies retain the built-in
-250-microsecond collection window. Store append, store apply, and checkpoint
+partitioned into serial subgroups whose first-run priority rotates across
+windows. Store append, store apply, and checkpoint
 tasks can batch across different channel keys when the store factory exposes
 the corresponding optional batch interface. The message DB checkpoint batch
 path commits monotonic HW updates through one grouped commit without taking
@@ -74,11 +74,19 @@ pool; zero keeps the built-in default. This lets low-latency store-append
 deployments shorten the extra worker-side wait without removing batching from
 throughput-oriented configurations.
 
+`PoolConfig.RPCBatchMaxItems` bounds same-target Pull and PullHint transport
+batches; zero uses the default of eight. The default is deliberately a batch
+capacity change rather than a worker-count increase, so the RPC runtime keeps
+its configured goroutine and remote-call concurrency bound while amortizing a
+blocking transport cycle across more channels.
+
 Batching changes only the blocking dependency call. Workqueue chooses the
 collection window from the first accepted task. The worker then splits that
 window into compatible typed groups; incompatible or non-batchable items become
 single-task groups. Groups still run serially inside one workqueue handler call,
-so reactors observe one fenced completion per original task.
+but their first-run priority rotates across collected batches so a less common
+target or task kind is not always last under actual Slot-leader skew. Reactors
+still observe one fenced completion per original task.
 
 ## Shutdown
 

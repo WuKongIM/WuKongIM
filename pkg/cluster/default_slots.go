@@ -153,19 +153,20 @@ func (t networkSlotTransport) Send(ctx context.Context, batch []multiraft.Envelo
 	if t.sender == nil {
 		return nil
 	}
-	var firstErr error
+	var sendErrs []error
 	for nodeID, envelopes := range groupSlotRaftEnvelopes(batch) {
 		payload, err := encodeSlotRaftBatch(envelopes)
 		if err != nil {
-			return err
+			sendErrs = append(sendErrs, fmt.Errorf("encode Slot Raft batch for node %d: %w", nodeID, err))
+			continue
 		}
 		if err := clusternet.SendOwnedPayload(ctx, t.sender, nodeID, clusternet.MsgSlotRaftBatch, payload); err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
+			// One unavailable voter must not suppress election or replication
+			// messages for the remaining live voters in the same Ready batch.
+			sendErrs = append(sendErrs, fmt.Errorf("send Slot Raft batch to node %d: %w", nodeID, err))
 		}
 	}
-	return firstErr
+	return errors.Join(sendErrs...)
 }
 
 func groupSlotRaftEnvelopes(batch []multiraft.Envelope) map[uint64][]multiraft.Envelope {

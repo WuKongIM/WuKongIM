@@ -418,6 +418,123 @@ func BenchmarkReceiveOffline(b *testing.B) {
 	}
 }
 
+func BenchmarkReceiveOfflineBatchCloudMediumFanout(b *testing.B) {
+	const recipients = 512
+	uids := make([]string, recipients)
+	for i := range uids {
+		uids[i] = fmt.Sprintf("bench-bot-%04d", i)
+	}
+	plugins := benchmarkReceivePlugins(1)
+	bindings := benchmarkReceiveBindingReader{bindings: benchmarkReceiveBindings(1)}
+	newApp := func(b *testing.B) *App {
+		b.Helper()
+		app, err := NewApp(Options{
+			Runtime:          &recordingRuntime{plugins: plugins},
+			Invoker:          benchmarkReceiveInvoker{},
+			ReceiveBindings:  bindings,
+			DefaultSenderUID: "____system",
+			ReceiveDedupeTTL: time.Nanosecond,
+		})
+		require.NoError(b, err)
+		return app
+	}
+	payload := make([]byte, 1024)
+
+	b.Run("scalar", func(b *testing.B) {
+		app := newApp(b)
+		event := benchmarkReceiveOfflineEvent(len(payload))
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			for index, uid := range uids {
+				event.MessageID = uint64(i*recipients + index + 1)
+				event.MessageSeq = event.MessageID
+				event.UID = uid
+				if err := app.ReceiveOffline(context.Background(), event); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+	})
+	b.Run("batch", func(b *testing.B) {
+		app := newApp(b)
+		event := pluginevents.ReceiveOfflineBatch{
+			MessageID:   1,
+			MessageSeq:  1,
+			ChannelID:   "room",
+			ChannelType: 2,
+			FromUID:     "sender",
+			UIDs:        uids,
+			Payload:     payload,
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			event.MessageID = uint64(i + 1)
+			event.MessageSeq = event.MessageID
+			if err := app.ReceiveOfflineBatch(context.Background(), event); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkReceiveOfflineBatchNoPluginCloudMediumFanout(b *testing.B) {
+	const recipients = 512
+	uids := make([]string, recipients)
+	for i := range uids {
+		uids[i] = fmt.Sprintf("bench-offline-%04d", i)
+	}
+	newApp := func(b *testing.B) *App {
+		b.Helper()
+		app, err := NewApp(Options{
+			Runtime:         &recordingRuntime{},
+			Invoker:         benchmarkReceiveInvoker{},
+			ReceiveBindings: benchmarkReceiveBindingReader{bindings: benchmarkReceiveBindings(1)},
+		})
+		require.NoError(b, err)
+		return app
+	}
+
+	b.Run("scalar", func(b *testing.B) {
+		app := newApp(b)
+		event := benchmarkReceiveOfflineEvent(1024)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			for index, uid := range uids {
+				event.MessageID = uint64(i*recipients + index + 1)
+				event.MessageSeq = event.MessageID
+				event.UID = uid
+				if err := app.ReceiveOffline(context.Background(), event); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+	})
+	b.Run("batch", func(b *testing.B) {
+		app := newApp(b)
+		event := pluginevents.ReceiveOfflineBatch{
+			MessageID:   1,
+			MessageSeq:  1,
+			ChannelID:   "room",
+			ChannelType: 2,
+			FromUID:     "sender",
+			UIDs:        uids,
+			Payload:     make([]byte, 1024),
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			event.MessageID = uint64(i + 1)
+			event.MessageSeq = event.MessageID
+			if err := app.ReceiveOfflineBatch(context.Background(), event); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
 func messageResultForBenchmark() message.SendResult {
 	return message.SendResult{MessageID: 1, Reason: message.ReasonSuccess}
 }

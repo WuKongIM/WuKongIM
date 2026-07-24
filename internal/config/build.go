@@ -67,18 +67,12 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		},
 		Delivery: app.DeliveryConfig{
 			Enabled:                    true,
-			RecipientWorkerConcurrency: 100,
+			RecipientWorkerConcurrency: app.DefaultDeliveryRecipientWorkerConcurrency,
 		},
 		Plugin: app.PluginConfig{
 			Enable: true,
 		},
-		Cluster: cluster.Config{
-			Channel: cluster.ChannelConfig{
-				StoreAppendWorkers: 500,
-				StoreApplyWorkers:  500,
-				RPCWorkers:         500,
-			},
-		},
+		Cluster: cluster.Config{},
 	}
 	rawNodeID, err := requiredConfigValue(values, "WK_NODE_ID")
 	if err != nil {
@@ -282,6 +276,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_RPC_WORKERS: value must be >= 0")
 		}
 		cfg.Cluster.Channel.RPCWorkers = workers
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS"); raw != "" {
+		maxItems, err := parseInt("WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.RPCBatchMaxItems = maxItems
 	}
 	if raw := configValue(values, "WK_CLUSTER_MAX_CHANNELS"); raw != "" {
 		maxChannels, err := parseInt("WK_CLUSTER_MAX_CHANNELS", raw)

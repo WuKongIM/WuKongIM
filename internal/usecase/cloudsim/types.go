@@ -284,6 +284,8 @@ const (
 type PreflightResult struct {
 	// State is live or provider-confirmed released.
 	State PreflightState `json:"state"`
+	// Resources is the exact provider inventory snapshot. Released results always encode an empty array.
+	Resources []Resource `json:"resources"`
 	// Run is present only when the exact locator-bound inventory is live.
 	Run *Run `json:"run,omitempty"`
 }
@@ -296,6 +298,17 @@ type ProviderAuthority struct {
 	Region string `json:"region"`
 	// AccountIDHash is the non-secret account binding queried by the adapter.
 	AccountIDHash string `json:"account_id_hash"`
+}
+
+// InventorySnapshot is a read-only, authority-bound candidate-discovery view.
+// An absent run is not proof that it was released; callers must use Preflight
+// with an exact Run Locator before making a released-state decision.
+type InventorySnapshot struct {
+	// Authority identifies the provider account and region queried for Runs.
+	Authority ProviderAuthority `json:"authority"`
+	// Runs contains only discovery candidates bound to Authority.
+	// An empty slice cannot prove that any previously known run was released.
+	Runs []Run `json:"runs"`
 }
 
 // TransitionRequest asks the provider to persist one allowed lifecycle step.

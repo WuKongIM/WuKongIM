@@ -65,6 +65,12 @@ type PresenceBatchAuthority interface {
 	EndpointsByUIDs(context.Context, presence.RouteTarget, []string) ([]presence.Route, error)
 }
 
+// PresenceTargetBatchAuthority optionally resolves multiple exact target groups in one call.
+// Implementations must preserve input cardinality and result order.
+type PresenceTargetBatchAuthority interface {
+	EndpointsByTargets(context.Context, []presence.EndpointLookupGroup) []presence.EndpointLookupResult
+}
+
 // PresenceOwner applies authority-requested actions to owner-local sessions.
 type PresenceOwner interface {
 	ApplyRouteAction(context.Context, presence.RouteAction) error
@@ -475,6 +481,35 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 
 func (a *Adapter) handlePresenceEndpointsByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) ([]byte, error) {
 	results := make([]presenceRPCEndpointLookupResult, len(groups))
+	if targetBatchAuthority, ok := a.authority.(PresenceTargetBatchAuthority); ok {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			for i := range results {
+				results[i].Status = presenceRPCStatusForError(ctxErr)
+			}
+			return encodePresenceEndpointsByTargetsResponseBinary(results)
+		}
+		batchResults := targetBatchAuthority.EndpointsByTargets(ctx, groups)
+		if len(batchResults) != len(groups) {
+			err := fmt.Errorf("internal/access/node: presence target-batch result count %d does not match group count %d", len(batchResults), len(groups))
+			for i := range results {
+				results[i].Status = presenceRPCStatusForError(authoritypresence.ErrRouteNotReady)
+			}
+			a.rpcLogger().Warn("presence authority target batch result is not aligned",
+				wklog.Event("internal.access.node.presence_authority_target_batch_misaligned"),
+				wklog.Int("groupCount", len(groups)),
+				wklog.Int("resultCount", len(batchResults)),
+				wklog.Error(err),
+			)
+			return encodePresenceEndpointsByTargetsResponseBinary(results)
+		}
+		for i, result := range batchResults {
+			results[i].Status = presenceRPCStatusForError(result.Err)
+			if result.Err == nil {
+				results[i].Routes = result.Routes
+			}
+		}
+		return encodePresenceEndpointsByTargetsResponseBinary(results)
+	}
 	batchAuthority, hasBatchAuthority := a.authority.(PresenceBatchAuthority)
 	for i, group := range groups {
 		var routes []presence.Route

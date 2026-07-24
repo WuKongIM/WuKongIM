@@ -133,6 +133,8 @@ func TestExactProviderConfigResolverBindsArtifactAndOptionalLocator(t *testing.T
 		`test "$(jq -er .region "$destination")" = "$artifact_region"`,
 		`test "$(jq -er .account_id_hash "$destination")" = "$artifact_account_id_hash"`,
 		`locator_name="cloud-sim-locator-${run_id}"`,
+		`gh api --paginate --slurp`,
+		`[.[] | .artifacts[]? | select(.expired == false)] | length`,
 		`test "$(jq -er .run_id "$temporary/locator/run-locator.json")" = "$run_id"`,
 		`case "$locator_count" in`,
 		`0)`,

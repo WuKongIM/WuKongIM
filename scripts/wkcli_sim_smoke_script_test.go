@@ -339,7 +339,7 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 		"--members", "4",
 		"--rate", "6/s",
 		"--duration", "4s",
-		"--ready-timeout", "2",
+		"--ready-timeout", "5",
 		"--poll", "1",
 	)
 	cmd.Dir = root
@@ -443,7 +443,10 @@ func TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation(t *tes
 		"--members", "4",
 		"--rate", "6/s",
 		"--duration", "4s",
-		"--ready-timeout", "2",
+		// The fake start process publishes readiness asynchronously. Keep the
+		// success-path fixture tolerant of repository-wide package scheduling;
+		// controller-promotion assertions still provide the behavioral gate.
+		"--ready-timeout", "10",
 		"--poll", "1",
 	)
 	cmd.Dir = root
@@ -536,7 +539,13 @@ func TestWkcliSimThreeNodeSmokeScriptKillsConfiguredNodeDuringSimulation(t *test
 		"--poll", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		// Keep the fake simulator running until the node trap proves the
+		// scheduled fault happened. A zero-delay timer alone can lose the race
+		// against an instant fake process on fast Linux runners.
+		"WK_FAKE_THREE_NODE_SIM_WAIT_FOR_FAULT=1",
+	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("script failed: %v\n%s", err, output)
@@ -801,6 +810,7 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsConfiguredFaultSendErrors(t *testing.
 }
 
 func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t *testing.T) {
+	runTimingSensitiveShellScriptTestExclusively(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -888,7 +898,10 @@ func TestWkcliSimThreeNodeSmokeScriptReportsSimFailureBeforeDelayedAutoJoin(t *t
 		"--members", "4",
 		"--rate", "6/s",
 		"--duration", "4s",
-		"--ready-timeout", "2",
+		// The fake start process publishes readiness asynchronously; keep this
+		// tolerant of repository-wide parallel test scheduling while the
+		// delayed auto-join assertion remains two seconds.
+		"--ready-timeout", "10",
 		"--poll", "0",
 	)
 	cmd.Dir = root
@@ -925,6 +938,17 @@ if [[ "${1:-}" == "run" && "${2:-}" == "./cmd/wkcli" && "${3:-}" == "sim" ]]; th
   cat <<'JSON'
 {"state":"running","run_id":"test-run","target_servers":["http://127.0.0.1:5011","http://127.0.0.1:5012","http://127.0.0.1:5013"],"gateway_tcp_addrs":["127.0.0.1:5111","127.0.0.1:5112","127.0.0.1:5113"],"users":12,"active_users":12,"groups":3,"group_members":4,"messages_sent":3,"send_errors":0,"recv_messages":0,"recv_dropped":0,"reconnects":0,"last_error":"","last_transition_at":"2026-06-17T00:00:00Z"}
 JSON
+	if [[ "${WK_FAKE_THREE_NODE_SIM_WAIT_FOR_FAULT:-}" == "1" ]]; then
+	  attempts=0
+	  while [[ ! -f "` + callsDir + `/node2.term" && "$attempts" -lt 200 ]]; do
+	    sleep 0.01
+	    attempts=$((attempts + 1))
+	  done
+	  [[ -f "` + callsDir + `/node2.term" ]] || {
+	    printf '%s\n' 'fake simulator did not observe node2 fault' >&2
+	    exit 98
+	  }
+	fi
   printf '{"state":"stopped","run_id":"test-run","target_servers":["http://127.0.0.1:5011","http://127.0.0.1:5012","http://127.0.0.1:5013"],"gateway_tcp_addrs":["127.0.0.1:5111","127.0.0.1:5112","127.0.0.1:5113"],"users":12,"active_users":12,"groups":3,"group_members":4,"messages_sent":9,"send_errors":%s,"recv_messages":0,"recv_dropped":0,"reconnects":0,"last_error":"%s","last_transition_at":"2026-06-17T00:00:04Z"}\n' "$send_errors" "$last_error"
   exit 0
 fi

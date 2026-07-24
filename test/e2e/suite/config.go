@@ -63,6 +63,7 @@ func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 		{key: "WK_METRICS_ENABLE", value: "true"},
 		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr)},
 		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
+		{key: "WK_PLUGIN_ENABLE", value: "false"},
 	}
 	if local.ManagerAddr != "" {
 		lines = append(lines, configLine{key: "WK_MANAGER_LISTEN_ADDR", value: local.ManagerAddr})
@@ -107,6 +108,7 @@ func RenderSeedJoinNodeConfig(local NodeSpec, cfg SeedJoinNodeConfig) string {
 		{key: "WK_METRICS_ENABLE", value: "true"},
 		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr)},
 		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
+		{key: "WK_PLUGIN_ENABLE", value: "false"},
 	}
 	if local.ManagerAddr != "" {
 		lines = append(lines, configLine{key: "WK_MANAGER_LISTEN_ADDR", value: local.ManagerAddr})

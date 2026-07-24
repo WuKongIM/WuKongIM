@@ -188,8 +188,9 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	require.NoError(s.t, WaitHTTPReady(ctx, spec.APIAddr, "/readyz"), process.DumpDiagnostics())
-	require.NoError(s.t, WaitWKProtoReady(ctx, spec.GatewayAddr), process.DumpDiagnostics())
+	_, readyErr := process.WaitHTTPReady(ctx, spec.APIAddr, "/readyz")
+	require.NoError(s.t, readyErr, process.DumpDiagnostics())
+	require.NoError(s.t, process.WaitWKProtoReady(ctx, spec.GatewayAddr), process.DumpDiagnostics())
 
 	return node
 }
@@ -284,7 +285,7 @@ func (c *StartedCluster) StartSeedJoinNode(t testing.TB, cfg SeedJoinNodeConfig)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	observation, err := waitHTTPReadyDetailed(ctx, started.Spec.APIAddr, "/readyz")
+	observation, err := started.Process.WaitHTTPReady(ctx, started.Spec.APIAddr, "/readyz")
 	c.lastReadyz[started.Spec.ID] = observation
 	require.NoError(t, err, c.DumpDiagnostics())
 
@@ -339,7 +340,7 @@ func (c *StartedCluster) WaitHTTPReady(ctx context.Context) error {
 		c.lastReadyz = make(map[uint64]HTTPObservation, len(c.Nodes))
 	}
 	for _, node := range c.Nodes {
-		observation, err := waitHTTPReadyDetailed(ctx, node.Spec.APIAddr, "/readyz")
+		observation, err := node.Process.WaitHTTPReady(ctx, node.Spec.APIAddr, "/readyz")
 		c.lastReadyz[node.Spec.ID] = observation
 		if err != nil {
 			return fmt.Errorf("node %d http not ready: %w", node.Spec.ID, err)
@@ -354,7 +355,7 @@ func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
 		return err
 	}
 	for _, node := range c.Nodes {
-		if err := WaitWKProtoReady(ctx, node.Spec.GatewayAddr); err != nil {
+		if err := node.Process.WaitWKProtoReady(ctx, node.Spec.GatewayAddr); err != nil {
 			return fmt.Errorf("node %d wkproto not ready: %w", node.Spec.ID, err)
 		}
 	}
@@ -424,9 +425,16 @@ func (c *StartedCluster) StartStoppedNode(nodeID uint64) error {
 	if !ok {
 		return fmt.Errorf("node %d not found in started cluster", nodeID)
 	}
-	if node.Process != nil && node.Process.Cmd != nil && node.Process.Cmd.Process != nil &&
-		(node.Process.Cmd.ProcessState == nil || !node.Process.Cmd.ProcessState.Exited()) {
-		return fmt.Errorf("node %d is already running", nodeID)
+	if node.Process != nil {
+		if node.Process.Running() {
+			return fmt.Errorf("node %d is already running", nodeID)
+		}
+		// Running becomes false as soon as the direct child exits, while its
+		// process-group reaper may still own plugin descendants and the node's
+		// ports/data directory. Join that cleanup before reusing the spec.
+		if err := node.Process.Stop(); err != nil {
+			return fmt.Errorf("finish stopped node %d cleanup: %w", nodeID, err)
+		}
 	}
 	process := &NodeProcess{Spec: node.Spec, BinaryPath: c.binaryPath}
 	if err := process.Start(); err != nil {
@@ -554,9 +562,21 @@ func registerStartedNodeCleanup(t startedNodeCleanupTB, node *StartedNode) {
 func registerStartedClusterCleanup(t startedNodeCleanupTB, cluster *StartedCluster) {
 	t.Helper()
 	t.Cleanup(func() {
+		type stopResult struct {
+			nodeID uint64
+			err    error
+		}
+		results := make(chan stopResult, len(cluster.Nodes))
 		for i := len(cluster.Nodes) - 1; i >= 0; i-- {
-			if err := cluster.Nodes[i].Stop(); err != nil {
-				t.Errorf("stop started cluster node %d: %v", cluster.Nodes[i].Spec.ID, err)
+			node := &cluster.Nodes[i]
+			go func() {
+				results <- stopResult{nodeID: node.Spec.ID, err: node.Stop()}
+			}()
+		}
+		for range cluster.Nodes {
+			result := <-results
+			if result.err != nil {
+				t.Errorf("stop started cluster node %d: %v", result.nodeID, result.err)
 			}
 		}
 	})
@@ -570,10 +590,7 @@ func (n *StartedNode) Restart(binaryPath string) error {
 	if strings.TrimSpace(binaryPath) == "" {
 		return fmt.Errorf("node %d restart binary path is empty", n.Spec.ID)
 	}
-	if n.Process == nil || n.Process.Cmd == nil || n.Process.Cmd.Process == nil {
-		return fmt.Errorf("node %d is not running", n.Spec.ID)
-	}
-	if n.Process.Cmd.ProcessState != nil && n.Process.Cmd.ProcessState.Exited() {
+	if n.Process == nil || !n.Process.Running() {
 		return fmt.Errorf("node %d is not running", n.Spec.ID)
 	}
 

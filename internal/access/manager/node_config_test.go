@@ -36,14 +36,16 @@ func TestManagerNodeConfigReturnsSelectedNodeSnapshot(t *testing.T) {
 					Title: "Cluster",
 					Items: []managementusecase.NodeConfigItem{
 						{
-							Key:   "WK_CLUSTER_HASH_SLOT_COUNT",
-							Label: "Hash slot count",
-							Value: "256",
+							Key:    "WK_CLUSTER_HASH_SLOT_COUNT",
+							Label:  "Hash slot count",
+							Value:  "256",
+							Source: managementusecase.NodeConfigValueSourceTOML,
 						},
 						{
 							Key:       "WK_TOKEN_AUTH_SECRET",
 							Label:     "Token auth secret",
 							Value:     "******",
+							Source:    managementusecase.NodeConfigValueSourceEnvironment,
 							Sensitive: true,
 							Redacted:  true,
 						},
@@ -86,12 +88,14 @@ func TestManagerNodeConfigReturnsSelectedNodeSnapshot(t *testing.T) {
 				"key":"WK_CLUSTER_HASH_SLOT_COUNT",
 				"label":"Hash slot count",
 				"value":"256",
+				"source":"toml",
 				"sensitive":false,
 				"redacted":false
 			},{
 				"key":"WK_TOKEN_AUTH_SECRET",
 				"label":"Token auth secret",
 				"value":"******",
+				"source":"env",
 				"sensitive":true,
 				"redacted":true
 			}]

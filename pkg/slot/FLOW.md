@@ -89,6 +89,7 @@ multiraft/slot.go:
   ⑤ enqueueControl(controlPropose, data, future) → scheduler.enqueue(slotID)
   ⑥ Worker 拾取 → processControls → rawNode.Propose(data)
      - `meta_create_slot_control_wait` 记录 Future 从 Runtime.Propose 到 Slot control 被处理的等待
+     - Raft 在选举或 leader transfer 窗口丢弃 proposal 时返回 `ErrNotLeader` 让上层按新 leader 重试；仅当前节点仍是无 transfer 的 leader 时，dropped proposal 才归类为未提交日志预算 backpressure
   ⑦ applyCommittedEntries 先从 entry.Data 头部解出 HashSlot，再把 TLV Data 传给状态机
      - `meta_create_slot_raft_commit_wait` 记录 proposal entry 被本地持久化/跟踪后到 committed apply 的等待
      - `meta_create_slot_fsm_apply` 记录状态机 Apply/ApplyBatch 总耗时

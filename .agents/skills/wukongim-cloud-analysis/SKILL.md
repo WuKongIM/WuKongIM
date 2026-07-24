@@ -55,6 +55,87 @@ Call `cluster_snapshot`, then query the smallest useful metric set:
 5. append errors;
 6. gateway, runtime, storage-commit, and delivery-retry queue pressure.
 
+When aggregate `runtime_queue_pressure` is elevated, query
+`runtime_queue_pressure_by_pool` over the same bounded window before assigning
+the pressure to a product subsystem. It preserves only the bounded
+instance/node/component/pool/queue/priority dimensions, so it can distinguish
+Channel RPC pressure from Slot, delivery, or storage pools without arbitrary
+PromQL or high-cardinality runtime labels.
+
+When SENDACK, receive, or ingress pressure points at recipient delivery, query
+the dedicated worker before broad logs. Read
+`delivery_recipient_worker_queue_depth`,
+`delivery_recipient_worker_queue_capacity`,
+`delivery_recipient_worker_inflight`, and
+`delivery_recipient_worker_capacity` over the same exact window. Sustained
+queue depth at queue capacity together with in-flight work at worker capacity
+and an elevated `delivery_recipient_worker_admission_wait_p99` supports worker
+saturation; one mixed scrape does not. Use
+`delivery_recipient_worker_admission_cumulative` and
+`delivery_recipient_worker_process_cumulative` at coarse complete window
+endpoints rather than a long one-second range. With unchanged process start
+time, define backlog as queue depth plus in-flight commands. Admission delta
+must use only `result="accepted"`, while process delta sums every terminal
+result. The per-node conservation equation
+`accepted_delta - processed_delta = backlog_end - backlog_start` is exact only
+with quiescent bracketing endpoint samples: queue/in-flight gauges and the
+accepted/processed counters must all remain unchanged across adjacent scrapes
+around each endpoint because their updates are not one atomic Prometheus
+snapshot. Otherwise the equality must remain approximate or unknown. Read accepted
+admission-wait P99 for saturation and `ok`
+`delivery_recipient_worker_process_p99` for normal command latency;
+timeout/error result series remain separate. Independently use
+`delivery_recipient_worker_process_recipients_cumulative` for planned or attempted recipients
+processed by each command. It does not prove successful online delivery; use
+delivery/push evidence for that. Recipient totals and command counts have
+different units and must not be compared directly. Counter resets,
+missing result series, incomplete endpoints, and one-scrape gauge skew must
+remain unknown rather than zero.
+
+When the recipient worker itself has headroom but ingress, SENDACK, or receive
+latency is still elevated, inspect the surrounding batch stages before broad
+logs. Query `delivery_recipient_authority_resolve_rate`,
+`delivery_recipient_authority_resolve_items_rate`,
+`delivery_recipient_authority_resolve_targets_rate`, and
+`delivery_recipient_authority_resolve_p99` to separate resolution failures from
+large or fragmented recipient batches. Then query
+`presence_endpoint_lookup_rate`, `presence_endpoint_lookup_items_rate`,
+`presence_endpoint_lookup_groups_rate`, and
+`presence_endpoint_lookup_p99`. Preserve the bounded `path`, `outcome`, and
+`stale_retry` dimensions: one recipient batch can fan out to multiple leader
+stages, and a stale retry repeats its attempted items and groups, so those
+counters do not represent unique recipients or confirmed delivery.
+
+For owner-local pending receive acknowledgements, read
+`delivery_ack_batch_cumulative`, `delivery_ack_batch_items_cumulative`,
+`delivery_ack_batch_shards_cumulative`,
+`delivery_ack_batch_rejected_cumulative`,
+`delivery_ack_batch_rollback_cumulative`, and `delivery_ack_batch_p99` over the
+same exact phase. Compute cumulative deltas separately for `phase="bind"` and
+`phase="finish"`; items are observed in both phases and must not be added as
+unique deliveries. Rejected items are also carried into the finish observation.
+Rollback applies to finish and counts actual canceled reservations, so duplicate
+delivery attempts can produce more rollbacks than aligned input items. Shard
+totals count tracker shards touched rather than messages. Require quiescent
+bracketing samples before treating cross-series
+delta equations as exact because these metric families are not updated in one
+atomic Prometheus snapshot. Missing phase/outcome series and counter resets
+remain unknown rather than zero. The P99 values are seconds.
+
+Then query `channelappend_post_commit_handoff_depth`,
+`channelappend_post_commit_handoff_capacity`,
+`channelappend_post_commit_retry_queue_depth`, and
+`channelappend_post_commit_retry_contended`. Handoff depth is the group-wide
+reservation count across the append and post-commit lifecycle: it includes
+pending append, append in-flight, and durable post-commit items. A full
+reservation can reject a not-yet-appended item with `ErrChannelBusy`; depth
+alone cannot distinguish append/storage pressure from post-commit pressure and
+does not prove that an already durable envelope was lost. Retry depth counts
+waiting channel writers and excludes the writer that owns the selected retry
+turn, so retry depth can be zero while contended remains one. Correlate handoff
+pressure with append/storage signals, retry contention, and recipient worker
+saturation before attributing SENDACK failures.
+
 When conversation-active pressure is present, use the allowlisted conservation
 queries before reading broad logs. Establish cache size, dirty backlog, oldest
 dirty age, and attempt cadence with `conversation_active_cache_rows`,

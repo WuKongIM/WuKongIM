@@ -9,9 +9,9 @@ var (
 
 // Target fences work to one observed UID hash-slot authority.
 type Target struct {
-	// HashSlot is the logical UID hash slot selected for the request.
+	// HashSlot is the physical UID hash slot selected for the request.
 	HashSlot uint16
-	// SlotID is the physical Slot that owns HashSlot.
+	// SlotID is the logical Slot Raft Group that owns HashSlot.
 	SlotID uint32
 	// LeaderNodeID is the node that was authority leader when this target was resolved.
 	LeaderNodeID uint64

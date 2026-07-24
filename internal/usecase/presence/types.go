@@ -88,20 +88,10 @@ type RouteTargetResult struct {
 }
 
 // EndpointLookupGroup binds a bounded UID set to one exact authority target.
-type EndpointLookupGroup struct {
-	// Target is the complete authority fence observed for every UID in this group.
-	Target RouteTarget
-	// UIDs preserves the caller's lookup order within this authority target.
-	UIDs []string
-}
+type EndpointLookupGroup = authority.EndpointLookupGroup
 
 // EndpointLookupResult preserves the aligned outcome for one endpoint lookup group.
-type EndpointLookupResult struct {
-	// Routes contains all active routes returned for the corresponding group.
-	Routes []Route
-	// Err records the group-scoped lookup failure without aborting other groups.
-	Err error
-}
+type EndpointLookupResult = authority.EndpointLookupResult
 
 // Route identifies a virtual client connection known by the UID authority.
 type Route = authority.Route

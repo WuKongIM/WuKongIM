@@ -11,6 +11,7 @@ import (
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
+	deliveryinfra "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
@@ -376,10 +377,13 @@ func (a *App) wirePresence() {
 		observer := presenceMetricsObserver{metrics: a.metrics}
 		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
 		a.presenceDirectory = directory
-		authority := presenceDirectoryAuthority{directory: directory}
+		authority := clusterinfra.NewPresenceDirectoryAuthority(directory)
 		ownerActions := presenceOwnerActions{local: a.online}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
+		if a.metrics != nil {
+			client.SetEndpointLookupObserver(observer)
+		}
 		a.presenceAuthorityClient = client
 		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, Logger: a.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
@@ -661,7 +665,11 @@ func (a *App) wireUsers() {
 
 func (a *App) wireDelivery() {
 	if a.cfg.Delivery.Enabled && a.delivery == nil {
-		localPusher := &localOwnerPusher{online: a.online, pendingAckTTL: a.cfg.Delivery.PendingAckTTL, logger: a.logger.Named("delivery.owner")}
+		localPusher := deliveryinfra.NewLocalOwnerPusher(deliveryinfra.LocalOwnerPusherOptions{
+			Online:        a.online,
+			PendingAckTTL: a.cfg.Delivery.PendingAckTTL,
+			Logger:        a.logger.Named("delivery.owner"),
+		})
 		a.localOwnerPusher = localPusher
 		deliveryObserver := a.deliveryObserver()
 		var push runtimedelivery.Pusher = localPusher
@@ -717,18 +725,23 @@ func (a *App) wireDelivery() {
 		if observer, ok := deliveryObserver.(runtimedelivery.AckObserver); ok {
 			ackObserver = observer
 		}
+		var ackBatchObserver runtimedelivery.AckBatchObserver
+		if a.metrics != nil {
+			ackBatchObserver = deliveryMetricsObserver{metrics: a.metrics}
+		}
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-			Planner:         runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
-			Runner:          retryScheduler,
-			AsyncQueueSize:  a.cfg.Delivery.EventQueueSize,
-			AsyncWorkers:    1,
-			ManagerObserver: managerObserver,
-			AckObserver:     ackObserver,
+			Planner:          runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
+			Runner:           retryScheduler,
+			AsyncQueueSize:   a.cfg.Delivery.EventQueueSize,
+			AsyncWorkers:     1,
+			ManagerObserver:  managerObserver,
+			AckObserver:      ackObserver,
+			AckBatchObserver: ackBatchObserver,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 				MaxPendingPerSession: a.cfg.Delivery.PendingAckMaxPerSession,
 			}),
 		})
-		localPusher.delivery = manager
+		localPusher.SetAckManager(manager)
 		a.deliveryManager = manager
 		a.deliveryRetry = retryScheduler
 		a.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
@@ -775,8 +788,12 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			} else if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
 				opts.Subscribers = channelAppendSubscriberSource{node: subscriberNode}
 			}
-			if recipientNode, ok := a.cluster.(recipientAuthorityRouteNode); ok {
-				opts.RecipientAuthorityResolver = channelAppendRecipientResolver{node: recipientNode}
+			var recipientObserver clusterinfra.RecipientAuthorityResolveObserver
+			if a.metrics != nil {
+				recipientObserver = deliveryMetricsObserver{metrics: a.metrics}
+			}
+			if resolver := clusterinfra.NewRecipientAuthorityResolver(a.cluster, recipientObserver); resolver != nil {
+				opts.RecipientAuthorityResolver = resolver
 			}
 			if a.conversationAuthorityClient != nil {
 				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
@@ -791,7 +808,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				offlineSingle, offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
 				deliveryObserver := a.deliveryObserver()
 				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-					PresenceResolver:            channelAppendPresenceResolver{presence: a.presence},
+					PresenceResolver:            deliveryinfra.NewChannelAppendPresenceResolver(a.presence),
 					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID, deliveryObserver),
 					OwnerPushBatchSize:          a.cfg.Delivery.PushBatchSize,
 					OfflineRecipientObserver:    offlineSingle,

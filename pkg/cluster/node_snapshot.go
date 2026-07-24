@@ -66,14 +66,12 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	firstSnapshot := emptyControlSnapshot(previous)
 	n.mu.RUnlock()
 	changes := snapshotChanges(previous, snapshot)
-	var routeAuthorityBefore *routing.Table
-	routeAuthorityChanged := false
 	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
-		routeAuthorityBefore = n.router.Table()
-		if err := n.router.UpdateControlSnapshot(snapshot); err != nil {
+		if err := n.updateRouteAuthorityTable(func() error {
+			return n.router.UpdateControlSnapshot(snapshot)
+		}); err != nil {
 			return err
 		}
-		routeAuthorityChanged = true
 	}
 	if n.discovery != nil && (firstSnapshot || changes.nodes) {
 		n.discovery.Update(n.discoveryNodesForSnapshot(snapshot.Nodes))
@@ -84,15 +82,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		}
 	}
 	if n.router != nil && (firstSnapshot || changes.nodes || changes.slots || changes.hashSlots) {
-		if routeAuthorityBefore == nil {
-			routeAuthorityBefore = n.router.Table()
-		}
-		if n.installSeedJoinActiveRemoteSlotLeaders(ctx, snapshot) {
-			routeAuthorityChanged = true
-		}
-	}
-	if n.router != nil && routeAuthorityChanged {
-		n.publishRouteAuthorityChanges(routeAuthorityBefore, n.router.Table())
+		n.installSeedJoinActiveRemoteSlotLeaders(ctx, snapshot)
 	}
 	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {
 		if err := n.reconcileTasks(ctx, snapshot); err != nil {
@@ -103,7 +93,10 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		n.channelDataNodes.Update(activeDataNodeIDs(snapshot.Nodes))
 	}
 	if n.router != nil {
-		n.router.AdvanceRevision(snapshot.Revision)
+		_ = n.updateRouteAuthorityTable(func() error {
+			n.router.AdvanceRevision(snapshot.Revision)
+			return nil
+		})
 	}
 	slotsReady := true
 	if n.defaultSlots && n.defaultSlotRuntime != nil {
@@ -191,34 +184,6 @@ type routeAuthorityKey struct {
 	leaderTerm   uint64
 	configEpoch  uint64
 	revision     uint64
-}
-
-func (n *Node) routeAuthorityChanges(before, after *routing.Table) []RouteAuthority {
-	if after == nil {
-		return nil
-	}
-	out := make([]RouteAuthority, 0)
-	for hashSlot, slotID := range after.HashToSlot {
-		if slotID == 0 {
-			continue
-		}
-		current := routeAuthorityKey{slotID: slotID, leaderNodeID: after.SlotLeaders[slotID], leaderTerm: after.SlotLeaderTerms[slotID], configEpoch: after.SlotConfigEpochs[slotID], revision: after.Revision}
-		previous, ok := routeAuthorityFromTable(before, uint16(hashSlot))
-		if ok && previous == current {
-			continue
-		}
-		hashSlotID := uint16(hashSlot)
-		out = append(out, RouteAuthority{
-			HashSlot:       hashSlotID,
-			SlotID:         current.slotID,
-			LeaderNodeID:   current.leaderNodeID,
-			LeaderTerm:     current.leaderTerm,
-			ConfigEpoch:    current.configEpoch,
-			RouteRevision:  current.revision,
-			AuthorityEpoch: n.authorityEpochForChange(hashSlotID, previous, ok, current),
-		})
-	}
-	return out
 }
 
 func routeAuthorityFromTable(table *routing.Table, hashSlot uint16) (routeAuthorityKey, bool) {

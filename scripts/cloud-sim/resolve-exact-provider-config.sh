@@ -42,8 +42,8 @@ expected_region="${EXPECTED_REGION:-}"
 expected_account_id_hash="${EXPECTED_ACCOUNT_ID_HASH:-}"
 if [[ -z "$expected_region" && -z "$expected_account_id_hash" ]]; then
   locator_name="cloud-sim-locator-${run_id}"
-  locators="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$locator_name" -f per_page=2)"
-  locator_count="$(jq -er '[.artifacts[] | select(.expired == false)] | length' <<<"$locators")"
+  locators="$(gh api --paginate --slurp -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$locator_name" -f per_page=100)"
+  locator_count="$(jq -er '[.[] | .artifacts[]? | select(.expired == false)] | length' <<<"$locators")"
   case "$locator_count" in
     0)
       if [[ -z "$artifact_region" || -z "$artifact_account_id_hash" ]]; then
@@ -54,7 +54,7 @@ if [[ -z "$expected_region" && -z "$expected_account_id_hash" ]]; then
       expected_account_id_hash="$artifact_account_id_hash"
       ;;
     1)
-      locator_id="$(jq -er '[.artifacts[] | select(.expired == false)][0].id' <<<"$locators")"
+      locator_id="$(jq -er '[.[] | .artifacts[]? | select(.expired == false)][0].id' <<<"$locators")"
       gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${locator_id}/zip" >"$temporary/locator.zip"
       mkdir "$temporary/locator"
       unzip -q "$temporary/locator.zip" -d "$temporary/locator"

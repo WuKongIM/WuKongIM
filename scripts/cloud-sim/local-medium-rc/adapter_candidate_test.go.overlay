@@ -1,0 +1,86 @@
+package app
+
+import (
+	"context"
+	"fmt"
+
+	infracluster "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
+	infradelivery "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	pkgcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+)
+
+type localMediumRCCandidateAuthorityNode struct {
+	*localMediumRCNode
+}
+
+func (n localMediumRCCandidateAuthorityNode) RouteAuthoritiesPartial(uids []string) ([]pkgcluster.RouteAuthorityResult, error) {
+	n.authorityCalls.Add(1)
+	results := make([]pkgcluster.RouteAuthorityResult, len(uids))
+	for index, uid := range uids {
+		route, ok := n.routes[uid]
+		if !ok {
+			results[index].Err = channelappend.ErrRouteNotReady
+			continue
+		}
+		results[index].Authority = pkgcluster.RouteAuthority{
+			HashSlot:       route.HashSlot,
+			SlotID:         route.SlotID,
+			LeaderNodeID:   route.Leader,
+			LeaderTerm:     route.LeaderTerm,
+			ConfigEpoch:    route.ConfigEpoch,
+			RouteRevision:  route.Revision,
+			AuthorityEpoch: route.AuthorityEpoch,
+		}
+	}
+	return results, nil
+}
+
+type localMediumRCCandidateAdapter struct {
+	resolver *infracluster.RecipientAuthorityResolver
+	pusher   channelappend.OwnerPusher
+	last     []channelappend.RecipientAuthorityResult
+}
+
+func newLocalMediumRCRevisionAdapter(
+	node *localMediumRCNode,
+	registry *online.Registry,
+	delivery *runtimedelivery.Manager,
+) localMediumRCRevisionAdapter {
+	return &localMediumRCCandidateAdapter{
+		resolver: infracluster.NewRecipientAuthorityResolver(localMediumRCCandidateAuthorityNode{node}, nil),
+		pusher: channelAppendOwnerPusher{next: infradelivery.NewLocalOwnerPusher(infradelivery.LocalOwnerPusherOptions{
+			Online:     registry,
+			AckManager: delivery,
+		})},
+	}
+}
+
+func (*localMediumRCCandidateAdapter) Variant() string { return "candidate" }
+
+func (a *localMediumRCCandidateAdapter) ResolveAuthorities(ctx context.Context, uids []string) error {
+	results, err := a.resolver.ResolveRecipientAuthorities(ctx, uids)
+	if err != nil {
+		return err
+	}
+	a.last = results
+	return nil
+}
+
+func (a *localMediumRCCandidateAdapter) ValidateAuthorities(uids []string) (localMediumRCAuthoritySummary, error) {
+	if len(a.last) != len(uids) {
+		return localMediumRCAuthoritySummary{}, fmt.Errorf("candidate native authority result count = %d, want %d", len(a.last), len(uids))
+	}
+	return summarizeLocalMediumRCAuthorities(uids, func(index int, _ string) (channelappend.RecipientAuthorityTarget, error) {
+		if a.last[index].Err != nil {
+			return channelappend.RecipientAuthorityTarget{}, a.last[index].Err
+		}
+		return a.last[index].Target, nil
+	})
+}
+
+func (a *localMediumRCCandidateAdapter) OwnerPusher() channelappend.OwnerPusher {
+	return a.pusher
+}

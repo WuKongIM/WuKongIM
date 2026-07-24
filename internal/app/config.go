@@ -26,7 +26,13 @@ var (
 	ErrStopped = errors.New("internal/app: stopped")
 )
 
-const defaultConversationAuthorityFlushBatchRows = 512
+const (
+	defaultConversationAuthorityFlushBatchRows = 512
+	// DefaultConversationAuthorityCacheMaxRows is the node-wide authority cache ceiling used when configuration omits it.
+	DefaultConversationAuthorityCacheMaxRows = 100_000
+	// DefaultDeliveryRecipientWorkerConcurrency is the bounded recipient-plan worker count used when configuration omits it.
+	DefaultDeliveryRecipientWorkerConcurrency = 100
+)
 
 // Config contains phase-1 internal app configuration.
 type Config struct {
@@ -820,7 +826,7 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 		cfg.EventQueueSize = 1024
 	}
 	if cfg.RecipientWorkerConcurrency == 0 {
-		cfg.RecipientWorkerConcurrency = 100
+		cfg.RecipientWorkerConcurrency = DefaultDeliveryRecipientWorkerConcurrency
 	}
 	return cfg
 }
@@ -906,7 +912,7 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 		cfg.AuthorityCacheMaxRowsPerUID = 4096
 	}
 	if cfg.AuthorityCacheMaxRows == 0 {
-		cfg.AuthorityCacheMaxRows = 100000
+		cfg.AuthorityCacheMaxRows = DefaultConversationAuthorityCacheMaxRows
 	}
 	if cfg.AuthorityListDBWindowMax == 0 {
 		cfg.AuthorityListDBWindowMax = 1000

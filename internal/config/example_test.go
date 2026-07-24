@@ -18,6 +18,12 @@ func TestRootTOMLExampleLoads(t *testing.T) {
 	if cfg.Cluster.Slots.HashSlotCount != 256 {
 		t.Fatalf("HashSlotCount = %d, want 256", cfg.Cluster.Slots.HashSlotCount)
 	}
+	if cfg.Cluster.Slots.InitialSlotCount != 10 {
+		t.Fatalf("InitialSlotCount = %d, want 10", cfg.Cluster.Slots.InitialSlotCount)
+	}
+	if cfg.Cluster.Channel.RPCBatchMaxItems != 8 {
+		t.Fatalf("RPCBatchMaxItems = %d, want 8", cfg.Cluster.Channel.RPCBatchMaxItems)
+	}
 }
 
 func TestCommandTOMLExampleLoads(t *testing.T) {
@@ -27,6 +33,25 @@ func TestCommandTOMLExampleLoads(t *testing.T) {
 	}
 	if cfg.Cluster.Control.ClusterID != "wukongim-single" {
 		t.Fatalf("ClusterID = %q, want wukongim-single", cfg.Cluster.Control.ClusterID)
+	}
+	if cfg.Cluster.Slots.InitialSlotCount != 10 || cfg.Cluster.Slots.HashSlotCount != 256 {
+		t.Fatalf("cmd topology = logical Slot Groups %d / physical hash slots %d, want 10 / 256", cfg.Cluster.Slots.InitialSlotCount, cfg.Cluster.Slots.HashSlotCount)
+	}
+	if cfg.Cluster.Channel.RPCBatchMaxItems != 8 {
+		t.Fatalf("RPCBatchMaxItems = %d, want 8", cfg.Cluster.Channel.RPCBatchMaxItems)
+	}
+}
+
+func TestScriptSingleNodeClusterUsesTenLogicalAndDefaultPhysicalSlots(t *testing.T) {
+	cfg, err := Load(Options{Args: []string{"-config", filepath.Join("..", "..", "scripts", "wukongim", "wukongim.toml")}, Environ: cleanEnv()})
+	if err != nil {
+		t.Fatalf("Load(script example) error = %v", err)
+	}
+	if cfg.Cluster.Slots.InitialSlotCount != 10 || cfg.Cluster.Slots.HashSlotCount != 256 {
+		t.Fatalf("script topology = logical Slot Groups %d / physical hash slots %d, want 10 / 256", cfg.Cluster.Slots.InitialSlotCount, cfg.Cluster.Slots.HashSlotCount)
+	}
+	if cfg.Cluster.Channel.RPCBatchMaxItems != 8 {
+		t.Fatalf("RPCBatchMaxItems = %d, want 8", cfg.Cluster.Channel.RPCBatchMaxItems)
 	}
 }
 

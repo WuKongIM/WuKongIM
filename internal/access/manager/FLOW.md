@@ -147,7 +147,10 @@ one selected node's effective startup configuration. The handler validates a
 positive path node ID, requires the same `cluster.node:r` permission as node
 inventory, delegates node-existence checks and local/remote targeting to
 `internal/usecase/management`, and serializes only the allowlisted,
-pre-redacted groups returned by that usecase. It never reads environment
+pre-redacted groups returned by that usecase. Every item carries its normalized
+effective value plus a bounded `toml`, `env`, `default`, or `derived` source so
+operators do not mistake a zero-valued auto input for its non-zero runtime
+shape. It never reads environment
 variables directly, never exposes raw manager credentials or join tokens, and
 does not mutate runtime configuration. Missing nodes return `404 not_found`;
 unwired or unreachable config readers return `503 service_unavailable`.
@@ -197,6 +200,10 @@ The downstream flow is `SlotReplicaMoveWriter -> Controller slot_replica_move
 task -> cluster task executor -> Slot Raft learner/config-change flow -> final
 Controller assignment commit`; HTTP never treats target learners as
 `DesiredPeers` before that final commit.
+Transient cluster lifecycle and Controller leadership failures use the stable
+`503 service_unavailable` envelope rather than leaking Controller internals as
+`500 internal_error`; callers may retry these idempotent fenced writes within
+their own bounded operation deadline.
 
 `/manager/nodes/:node_id/slot-move-out/*` exposes bounded Slot replica
 migration away from an active Data-role node without entering the scale-in

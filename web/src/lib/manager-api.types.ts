@@ -522,6 +522,7 @@ export type ManagerNodeConfigItem = {
   key: string
   label: string
   value: string
+  source: "toml" | "env" | "default" | "derived"
   sensitive: boolean
   redacted: boolean
 }

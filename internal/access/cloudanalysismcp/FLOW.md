@@ -27,6 +27,9 @@ world.
 The inferred `diagnostics_query` input schema exposes an optional physical
 `slot_id`; the adapter forwards it unchanged to the usecase so agents can pair
 it with `stage=slot.preferred_leader_reconcile`.
+The inferred `metrics_query_range` schema advertises the recipient-authority,
+exact-target presence, and ACK-batch query families while still accepting only
+a server-configured `query_id`; it never accepts caller-supplied PromQL.
 
 `profile_top` keeps raw profiles private and exposes only bounded symbol rows.
 Heap callers may explicitly choose the closed `inuse_space` or `alloc_space`

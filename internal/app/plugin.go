@@ -33,6 +33,11 @@ type pluginReceiveWorker interface {
 	EnqueueReceive(context.Context, pluginevents.ReceiveOffline)
 }
 
+// pluginReceiveBatchWorker accepts one mapped Receive batch for asynchronous processing.
+type pluginReceiveBatchWorker interface {
+	EnqueueReceiveBatch(context.Context, pluginevents.ReceiveOfflineBatch)
+}
+
 // pluginPersistAfterEnqueuer adapts durable channelappend envelopes to plugin PersistAfter events.
 type pluginPersistAfterEnqueuer struct {
 	worker pluginPersistAfterWorker
@@ -354,5 +359,34 @@ func (o pluginReceiveObserver) ObserveOfflineRecipient(ctx context.Context, even
 		SyncOnce:          source.SyncOnce,
 		NoPersist:         source.MessageSeq == 0,
 		MessageScopedUIDs: append([]string(nil), source.MessageScopedUIDs...),
+	})
+}
+
+// ObserveOfflineRecipients converts one committed message recipient batch into one plugin task.
+func (o pluginReceiveObserver) ObserveOfflineRecipients(ctx context.Context, event channelappend.OfflineRecipientsEvent) {
+	if o.worker == nil || len(event.UIDs) == 0 {
+		return
+	}
+	worker, ok := o.worker.(pluginReceiveBatchWorker)
+	if !ok {
+		for _, uid := range event.UIDs {
+			o.ObserveOfflineRecipient(ctx, channelappend.OfflineRecipientEvent{Event: event.Event, UID: uid})
+		}
+		return
+	}
+	source := event.Event
+	worker.EnqueueReceiveBatch(ctx, pluginevents.ReceiveOfflineBatch{
+		MessageID:         source.MessageID,
+		MessageSeq:        source.MessageSeq,
+		ChannelID:         source.ChannelID,
+		ChannelType:       source.ChannelType,
+		FromUID:           source.FromUID,
+		UIDs:              event.UIDs,
+		ClientMsgNo:       source.ClientMsgNo,
+		ServerTimestampMS: source.ServerTimestampMS,
+		Payload:           source.Payload,
+		SyncOnce:          source.SyncOnce,
+		NoPersist:         source.MessageSeq == 0,
+		MessageScopedUIDs: source.MessageScopedUIDs,
 	})
 }

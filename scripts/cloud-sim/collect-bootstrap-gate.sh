@@ -95,6 +95,25 @@ manager_token="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Co
 nodes_json="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/nodes'")"
 slots_json="$(ssh_sim "curl --fail --silent --show-error --max-time 15 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/slots'")"
 tasks_json="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/controller/tasks?limit=50'")"
+runtime_scale="$(ssh_sim "sudo cat /etc/wukongim/scenario.yaml" | awk -f "$(dirname "$0")/read-scenario-scale.awk")"
+expected_node_runtime_contract="$(ssh_sim "sudo cat /etc/wukongim/effective-node-runtime-contract.json" | jq -ce .)"
+
+node_runtime_contract() {
+  local node_id="$1"
+  local config_json
+  config_json="$(ssh_sim "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/nodes/${node_id}/config'")"
+  jq -cer --arg scale "$runtime_scale" --argjson node_id "$node_id" \
+    -f "$(dirname "$0")/bootstrap-runtime-contract.jq" <<<"$config_json"
+}
+
+node1_runtime_contract="$(node_runtime_contract 1)"
+node2_runtime_contract="$(node_runtime_contract 2)"
+node3_runtime_contract="$(node_runtime_contract 3)"
+node_runtime_contracts="$(jq -cn \
+  --argjson node1 "$node1_runtime_contract" \
+  --argjson node2 "$node2_runtime_contract" \
+  --argjson node3 "$node3_runtime_contract" \
+  '{"node-1":$node1,"node-2":$node2,"node-3":$node3}')"
 
 member_count="$(jq -er '[.items[] | select(.membership.join_state == "active" and .health.runtime_ready == true)] | length' <<<"$nodes_json")"
 slot_group_count="$(jq -er '.items | length' <<<"$slots_json")"
@@ -130,6 +149,7 @@ jq -n \
   --argjson pending_tasks "$pending_tasks" --argjson targets_up "$targets_up" --argjson targets_want "$targets_want" \
   --argjson analysis_self_check "$analysis_self_check" --argjson public_view_enabled "$WK_CLOUD_PUBLIC_OBSERVATION" \
   --argjson cloud_view_self_check "$cloud_view_self_check" --argjson wkbench_validate "$wkbench_validate" --argjson wkbench_doctor "$wkbench_doctor" \
+  --arg runtime_scale "$runtime_scale" --argjson expected_node_runtime_contract "$expected_node_runtime_contract" --argjson node_runtime_contracts "$node_runtime_contracts" \
   '{
     bundle_digests:{"node-1":$node1_digest,"node-2":$node2_digest,"node-3":$node3_digest,sim:$sim_digest},
     active_services:{"node-1":$node1_services,"node-2":$node2_services,"node-3":$node3_services,sim:$sim_services},
@@ -138,5 +158,6 @@ jq -n \
     healthy_slot_leaders:$healthy_slot_leaders,healthy_slot_replicas:$healthy_slot_replicas,
     pending_controller_tasks:$pending_tasks,prometheus_targets_up:$targets_up,prometheus_targets_want:$targets_want,
     analysis_mcp_self_check:$analysis_self_check,public_view_enabled:$public_view_enabled,
-    cloud_view_self_check:$cloud_view_self_check,wkbench_validate:$wkbench_validate,wkbench_doctor:$wkbench_doctor
+    cloud_view_self_check:$cloud_view_self_check,wkbench_validate:$wkbench_validate,wkbench_doctor:$wkbench_doctor,
+    runtime_scale:$runtime_scale,expected_node_runtime_contract:$expected_node_runtime_contract,node_runtime_contracts:$node_runtime_contracts
   }' >"$WK_CLOUD_GATE_OUTPUT"

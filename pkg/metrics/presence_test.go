@@ -17,6 +17,8 @@ func TestPresenceMetricsExposeExpiryAndTouchFlush(t *testing.T) {
 	reg.Presence.ObserveExpiry("ok", 500*time.Millisecond, 2, 7, 3, 14, 2)
 	reg.Presence.ObserveTouchFlush("ok", 40*time.Millisecond, 10, 9, 8, 2, 3, 4, true)
 	reg.Presence.ObserveTouchFlush("ok", 20*time.Millisecond, 4, 4, 3, 1, 1, 2, true)
+	reg.Presence.ObserveEndpointLookup("remote_bulk", "partial", true, 30*time.Millisecond, 7, 3)
+	reg.Presence.ObserveEndpointLookup("uid-derived path", "raw error", false, -time.Second, -1, -1)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -82,6 +84,40 @@ func TestPresenceMetricsExposeExpiryAndTouchFlush(t *testing.T) {
 	require.Equal(t, float64(6), presenceMetricByLabels(t, touchTargetGroups, map[string]string{
 		"node_id": "7", "node_name": "node-7",
 	}).GetCounter().GetValue())
+
+	lookupTotal := requirePresenceMetricFamily(t, families, "wukongim_presence_endpoint_lookup_total", "node_id", "node_name", "outcome", "path", "stale_retry")
+	require.Equal(t, float64(1), presenceMetricByLabels(t, lookupTotal, map[string]string{
+		"node_id": "7", "node_name": "node-7", "path": "remote_bulk", "outcome": "partial", "stale_retry": "true",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), presenceMetricByLabels(t, lookupTotal, map[string]string{
+		"node_id": "7", "node_name": "node-7", "path": "unknown", "outcome": "unknown", "stale_retry": "false",
+	}).GetCounter().GetValue())
+	lookupItems := requirePresenceMetricFamily(t, families, "wukongim_presence_endpoint_lookup_items_total", "node_id", "node_name", "outcome", "path", "stale_retry")
+	require.Equal(t, float64(7), presenceMetricByLabels(t, lookupItems, map[string]string{
+		"node_id": "7", "node_name": "node-7", "path": "remote_bulk", "outcome": "partial", "stale_retry": "true",
+	}).GetCounter().GetValue())
+	lookupGroups := requirePresenceMetricFamily(t, families, "wukongim_presence_endpoint_lookup_groups_total", "node_id", "node_name", "outcome", "path", "stale_retry")
+	require.Equal(t, float64(3), presenceMetricByLabels(t, lookupGroups, map[string]string{
+		"node_id": "7", "node_name": "node-7", "path": "remote_bulk", "outcome": "partial", "stale_retry": "true",
+	}).GetCounter().GetValue())
+	lookupDuration := requirePresenceMetricFamily(t, families, "wukongim_presence_endpoint_lookup_duration_seconds", "node_id", "node_name", "outcome", "path", "stale_retry")
+	unknownDuration := presenceMetricByLabels(t, lookupDuration, map[string]string{
+		"node_id": "7", "node_name": "node-7", "path": "unknown", "outcome": "unknown", "stale_retry": "false",
+	}).GetHistogram()
+	require.Equal(t, uint64(1), unknownDuration.GetSampleCount())
+	require.Zero(t, unknownDuration.GetSampleSum())
+}
+
+func TestPresenceEndpointLookupSteadyStateAllocationBudget(t *testing.T) {
+	reg := New(1, "n1")
+	reg.Presence.ObserveEndpointLookup("local_bulk", "ok", false, time.Millisecond, 512, 221)
+	reg.Presence.ObserveEndpointLookup("remote_bulk", "partial", true, time.Millisecond, 512, 221)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		reg.Presence.ObserveEndpointLookup("local_bulk", "ok", false, time.Millisecond, 512, 221)
+		reg.Presence.ObserveEndpointLookup("remote_bulk", "partial", true, time.Millisecond, 512, 221)
+	})
+	require.Zero(t, allocs, "steady-state bounded presence endpoint metrics must not allocate")
 }
 
 func requirePresenceMetricFamily(t *testing.T, families []*dto.MetricFamily, name string, labelNames ...string) *dto.MetricFamily {

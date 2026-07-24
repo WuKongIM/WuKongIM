@@ -308,6 +308,9 @@ func TestStateMachineChannelSetFenceRenewalClearsDrainProof(t *testing.T) {
 	if gotMeta.WriteFenceVersion != 8 || gotMeta.WriteFenceToken != task.TaskID {
 		t.Fatalf("meta after fence renewal = %#v", gotMeta)
 	}
+	if gotMeta.RouteGeneration <= meta.RouteGeneration {
+		t.Fatalf("route generation after fence renewal = %d, want greater than %d", gotMeta.RouteGeneration, meta.RouteGeneration)
+	}
 }
 
 func TestStateMachineAddChannelLearnerUpdatesTaskAndMetaAtomically(t *testing.T) {
@@ -724,6 +727,9 @@ func TestStateMachineChannelClearEmbeddedLeaderTransferAdvancesToAddLearner(t *t
 	if gotMeta.WriteFenceToken != "" || gotMeta.WriteFenceVersion != 8 {
 		t.Fatalf("meta after embedded clear = %#v", gotMeta)
 	}
+	if gotMeta.RouteGeneration <= meta.RouteGeneration {
+		t.Fatalf("route generation after embedded clear = %d, want greater than %d", gotMeta.RouteGeneration, meta.RouteGeneration)
+	}
 }
 
 func TestStateMachineChannelPromoteRejectsExpiredFence(t *testing.T) {
@@ -896,6 +902,7 @@ func TestStateMachineChannelSetAndClearFenceSameBatch(t *testing.T) {
 
 	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
 	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	baselineRouteGeneration := metadb.NormalizeChannelRuntimeMeta(meta).RouteGeneration
 
 	setReq := fsmTestSetFenceRequest(task, meta, 1750000009000, 1750000002000)
 	setReq.Phase = task.Phase
@@ -918,6 +925,7 @@ func TestStateMachineChannelSetAndClearFenceSameBatch(t *testing.T) {
 	fencedMeta.WriteFenceVersion = 8
 	fencedMeta.WriteFenceReason = setReq.FenceReason
 	fencedMeta.WriteFenceUntilMS = setReq.FenceUntilMS
+	fencedMeta.RouteGeneration = baselineRouteGeneration + 1
 	clearReq := fsmTestClearFenceRequest(fencedTask, fencedMeta, 1750000003000)
 
 	batchSM := sm.(multiraft.BatchStateMachine)
@@ -945,6 +953,9 @@ func TestStateMachineChannelSetAndClearFenceSameBatch(t *testing.T) {
 	}
 	if gotMeta.WriteFenceToken != "" || gotMeta.WriteFenceVersion != 9 {
 		t.Fatalf("meta after set+clear = %#v", gotMeta)
+	}
+	if gotMeta.RouteGeneration != baselineRouteGeneration+2 {
+		t.Fatalf("route generation after set+clear = %d, want %d", gotMeta.RouteGeneration, baselineRouteGeneration+2)
 	}
 }
 

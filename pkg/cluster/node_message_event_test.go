@@ -435,10 +435,85 @@ func TestClusterMessageEventCacheClearsWhenLocalSlotLeadershipIsLost(t *testing.
 
 	before := node.router.Table()
 	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
-	node.publishRouteAuthorityChanges(before, node.router.Table())
+	node.publishRouteAuthorityChanges(before)
 
 	if cache := observer.lastCache(); cache.Sessions != 0 || cache.OpenLanes != 0 || cache.PayloadBytes != 0 {
 		t.Fatalf("cache after local leadership loss = %#v, want empty cache", cache)
+	}
+}
+
+func TestClusterMessageEventCacheClearsAcrossSerializedLocalRemoteLocalAuthorityUpdates(t *testing.T) {
+	node := &Node{
+		cfg:                     Config{NodeID: 1},
+		router:                  routing.NewRouter(),
+		messageEventStreamCache: newMessageEventStreamCache(0),
+		routeAuthorityEpochs:    make(map[uint16]uint64),
+	}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.publishRouteAuthorityChanges(nil)
+	node.started.Store(true)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := node.AppendMessageEvent(ctx, metadb.MessageEventAppend{
+		ChannelID:   "message-event-serialized-leader-loss",
+		ChannelType: 2,
+		ClientMsgNo: "cmn-serialized-leader-loss",
+		EventID:     "evt-delta",
+		EventKey:    "main",
+		EventType:   metadb.EventTypeStreamDelta,
+		Visibility:  metadb.VisibilityPublic,
+		OccurredAt:  1000,
+		Payload:     []byte(`{"kind":"text","delta":"stale"}`),
+		UpdatedAt:   1001,
+	}); err != nil {
+		t.Fatalf("AppendMessageEvent(delta) error = %v", err)
+	}
+	if got := node.messageEventStreamCache.observation(); got.Sessions != 1 {
+		t.Fatalf("cache before authority changes = %#v, want one session", got)
+	}
+
+	remoteMutated := make(chan struct{})
+	releaseRemote := make(chan struct{})
+	remoteDone := make(chan struct{})
+	go func() {
+		defer close(remoteDone)
+		_ = node.updateRouteAuthorityTable(func() error {
+			node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
+			close(remoteMutated)
+			<-releaseRemote
+			return nil
+		})
+	}()
+	<-remoteMutated
+
+	localMutated := make(chan struct{})
+	localDone := make(chan struct{})
+	go func() {
+		defer close(localDone)
+		_ = node.updateRouteAuthorityTable(func() error {
+			node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 11}})
+			close(localMutated)
+			return nil
+		})
+	}()
+	select {
+	case <-localMutated:
+		t.Fatal("local reacquire mutated Router before remote authority loss was published")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(releaseRemote)
+	<-remoteDone
+	<-localDone
+
+	if got := node.messageEventStreamCache.observation(); got.Sessions != 0 || got.OpenLanes != 0 || got.PayloadBytes != 0 {
+		t.Fatalf("cache after local-remote-local authority changes = %#v, want empty cache", got)
+	}
+	if route := node.router.Table(); route == nil || route.SlotLeaders[1] != 1 || route.SlotLeaderTerms[1] != 11 {
+		t.Fatalf("final route = %#v, want local leader term 11", route)
 	}
 }
 
