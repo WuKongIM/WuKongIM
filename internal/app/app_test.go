@@ -140,6 +140,59 @@ func TestAppStopReturnsManagedGoroutineWaitEvidence(t *testing.T) {
 	close(release)
 }
 
+func TestAppStopBeforeStartReleasesChannelAppendPools(t *testing.T) {
+	registry := goruntimeregistry.Default()
+	baseline := registry.Baseline()
+	group := channelappend.New(channelappend.Options{LocalNodeID: 1})
+	app := &App{
+		channelAppends:    group,
+		goroutines:        registry,
+		goroutineBaseline: baseline,
+		logger:            wklog.NewNop(),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := app.Stop(ctx); err != nil {
+		t.Fatalf("Stop() before Start error = %v", err)
+	}
+	if err := registry.Group(goruntimeregistry.ModuleChannelAppend).WaitFrom(ctx, baseline); err != nil {
+		t.Fatalf("channelappend managed activity after App.Stop() = %v", err)
+	}
+}
+
+func TestNewConstructionFailureReleasesChannelAppendPools(t *testing.T) {
+	registry := goruntimeregistry.Default()
+	baseline := registry.Baseline()
+	cfg := isolatePluginRuntimeForTest(Config{
+		Gateway: GatewayConfig{
+			Listeners: []gateway.ListenerOptions{{
+				Network:   "tcp",
+				Address:   "127.0.0.1:0",
+				Transport: "gnet",
+				Protocol:  "wkproto",
+			}},
+		},
+	})
+
+	app, err := New(cfg, WithLogger(wklog.NewNop()))
+	if err == nil {
+		if app != nil {
+			_ = app.Stop(context.Background())
+		}
+		t.Fatal("New() error = nil, want invalid gateway listener error")
+	}
+	if app != nil {
+		t.Fatalf("New() app = %#v, want nil on construction error", app)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := registry.Group(goruntimeregistry.ModuleChannelAppend).WaitFrom(ctx, baseline); err != nil {
+		t.Fatalf("channelappend managed activity after failed New() = %v", err)
+	}
+}
+
 func TestRecordingAppLoggerSupportsConcurrentWritesAndSnapshots(t *testing.T) {
 	logger := &recordingAppLogger{}
 	const (

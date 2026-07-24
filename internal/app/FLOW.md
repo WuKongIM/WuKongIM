@@ -805,8 +805,14 @@ Any component start failure
   -> retain the full structured internal.app.lifecycle_start_failed event in error.log
   -> rollback already-started components in reverse order
 
+Any App construction failure
+  -> stop and unregister constructor-owned ChannelAppend pools
+  -> restore the diagnostics sink and close construction-time audit resources
+
 Stop(ctx)
   -> restore diagnostics sendtrace sink
+  -> when Start never completed, stop constructor-owned ChannelAppend pools
+     and wait only for post-baseline managed activity before returning
   -> gateway.Stop()
   -> prometheus.Stop(ctx)
   -> manager.Stop(ctx)

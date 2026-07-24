@@ -488,11 +488,19 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	a.restoreDiagnosticsSink()
 	if !a.started {
-		err := a.closeControllerTaskAudit()
-		if err != nil {
-			a.logLifecycleWarn("controller_task_audit", "stop", err)
+		var err error
+		if a.channelAppends != nil {
+			if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
+				a.logLifecycleWarn("channel_append", "stop_before_start", stopErr)
+				err = errors.Join(err, stopErr)
+			}
 		}
-		return errors.Join(err, a.closeOpsMCPCalls(), a.syncLogger())
+		if stopErr := a.closeControllerTaskAudit(); stopErr != nil {
+			a.logLifecycleWarn("controller_task_audit", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		}
+		err = errors.Join(err, a.closeOpsMCPCalls(), a.waitManagedGoroutines(ctx), a.syncLogger())
+		return err
 	}
 	var err error
 	if a.gatewayStarted && a.gateway != nil {

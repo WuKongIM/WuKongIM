@@ -146,7 +146,7 @@ func (g *Group) Stop(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	g.mu.Lock()
-	if !g.started || g.stopped {
+	if g.stopped {
 		g.mu.Unlock()
 		return nil
 	}

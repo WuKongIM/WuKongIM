@@ -78,3 +78,7 @@ declared count even if they never started. Optional fixed tasks become
 unhealthy only after they have started once. Over-declared fixed counts and
 critical panics are critical. Pool rejection or a full bounded queue is
 critical, while sustained queue pressure is warning.
+Only tasks with a compile-time expected count use the `fixed` kind.
+Configuration-sized worker cohorts and per-runtime instances use `dynamic`;
+the catalog rejects an undeclared `fixed` task instead of silently skipping
+its over-declaration invariant.

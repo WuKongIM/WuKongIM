@@ -117,7 +117,10 @@ single-writer ordering for the channel key.
 `Group.Start` opens local admission and prepares isolated worker pools. Writers
 are created lazily on accepted local submissions and reclaimed opportunistically
 after they have stayed fully idle past `WriterIdleRetention`. `Group.Stop`
-closes admission and starts one background graceful drain. The drain preserves
+also releases constructor-owned ants pools when Start was never called, so App
+construction rollback cannot retain their maintenance goroutines or registry
+entries. After Start, Stop closes admission and starts one background graceful
+drain. The drain preserves
 accepted futures, durable append state, global post-commit handoff reservations,
 and fair retry ownership until they finish; only then does it release worker
 pools and cancel the runtime context. A caller context bounds only that caller's

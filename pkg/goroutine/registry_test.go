@@ -314,6 +314,19 @@ func TestRegistryDerivesFixedAndPoolHealth(t *testing.T) {
 	}
 }
 
+func TestCatalogRejectsFixedTaskWithoutDeclaredCount(t *testing.T) {
+	_, err := buildCatalog([]TaskSpec{{
+		ID:          TaskID("app/undeclared"),
+		Module:      ModuleApp,
+		Name:        "undeclared",
+		Kind:        TaskKindFixed,
+		PanicPolicy: PanicPolicyRepanic,
+	}})
+	if err == nil {
+		t.Fatal("buildCatalog() error = nil, want undeclared fixed task rejected")
+	}
+}
+
 func TestRegistryMarksRequiredNeverStartedTaskMissingAfterReadiness(t *testing.T) {
 	r := New()
 	r.SetReady(true)

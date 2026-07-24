@@ -207,7 +207,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	constructionOK := false
 	defer func() {
 		if !constructionOK {
-			app.restoreDiagnosticsSink()
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = app.Stop(cleanupCtx)
 		}
 	}()
 

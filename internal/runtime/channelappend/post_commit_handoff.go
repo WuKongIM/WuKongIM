@@ -299,6 +299,9 @@ func (s *postCommitRetryScheduler) stopAndWait(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// Stop-before-Start is a valid construction rollback. Starting the loop
+	// here gives the one-way stop signal an owner that can close done.
+	s.start()
 	s.stopOnce.Do(func() { close(s.stop) })
 	select {
 	case <-s.done:
