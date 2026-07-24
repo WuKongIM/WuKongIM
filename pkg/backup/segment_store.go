@@ -1,0 +1,317 @@
+package backup
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+)
+
+// SegmentReference binds a Slot frontier to one exact signed commit record.
+type SegmentReference struct {
+	// SegmentID is the lowercase SHA-256 of the canonical SegmentHeader.
+	SegmentID string `json:"segment_id"`
+	// CommitKey is the deterministic immutable commit-record key.
+	CommitKey string `json:"commit_key"`
+	// CommitSHA256 authenticates the exact signed commit bytes.
+	CommitSHA256 string `json:"commit_sha256"`
+}
+
+// ReplicatedSegmentStore makes segments visible only after both copies commit.
+type ReplicatedSegmentStore struct {
+	primary      Repository
+	secondary    Repository
+	codec        *SegmentCodec
+	signer       ManifestSigner
+	signingKeyID string
+}
+
+// NewReplicatedSegmentStore creates one deep segment commit and load boundary.
+func NewReplicatedSegmentStore(primary, secondary Repository, codec *SegmentCodec, signer ManifestSigner, signingKeyID string) (*ReplicatedSegmentStore, error) {
+	store := &ReplicatedSegmentStore{
+		primary: primary, secondary: secondary, codec: codec,
+		signer: signer, signingKeyID: strings.TrimSpace(signingKeyID),
+	}
+	if err := store.validate(); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+// Commit seals one new segment or repairs and reuses an existing committed copy.
+func (s *ReplicatedSegmentStore) Commit(ctx context.Context, descriptor SegmentDescriptor, plaintext []byte) (SegmentReference, error) {
+	if err := s.validate(); err != nil {
+		return SegmentReference{}, err
+	}
+	header, segmentID, _, err := buildSegmentIdentity(descriptor, plaintext)
+	if err != nil {
+		return SegmentReference{}, err
+	}
+	primaryCopy, err := s.loadCommitCopy(ctx, s.primary, segmentID)
+	if err != nil {
+		return SegmentReference{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	secondaryCopy, err := s.loadCommitCopy(ctx, s.secondary, segmentID)
+	if err != nil {
+		return SegmentReference{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+	}
+	if primaryCopy.found || secondaryCopy.found {
+		return s.reuseCommitted(ctx, header, segmentID, primaryCopy, secondaryCopy)
+	}
+
+	sealed, err := s.codec.Seal(ctx, descriptor, plaintext)
+	if err != nil {
+		return SegmentReference{}, err
+	}
+	if sealed.ID != segmentID || sealed.Header != header {
+		return SegmentReference{}, fmt.Errorf("%w: segment codec identity mismatch", ErrInvalidObject)
+	}
+	commit, err := SignSegmentCommit(ctx, SegmentCommit{
+		Format: SegmentCommitFormat, Version: SegmentCommitVersion,
+		SegmentID: segmentID, Header: header, Payload: sealed.Payload,
+		PrimaryRepository: s.primary.Name(), SecondaryRepository: s.secondary.Name(),
+	}, s.signer, s.signingKeyID)
+	if err != nil {
+		return SegmentReference{}, err
+	}
+	body, err := MarshalSegmentCommit(commit)
+	if err != nil {
+		return SegmentReference{}, err
+	}
+	bodyHash := sha256.Sum256(body)
+	reference := SegmentReference{
+		SegmentID: segmentID, CommitKey: segmentCommitKey(segmentID),
+		CommitSHA256: hex.EncodeToString(bodyHash[:]),
+	}
+	if err := putAndVerify(ctx, s.primary, commit.Payload.Key, commit.Payload.CiphertextSHA256, sealed.Ciphertext); err != nil {
+		return reference, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	if err := putAndVerify(ctx, s.secondary, commit.Payload.Key, commit.Payload.CiphertextSHA256, sealed.Ciphertext); err != nil {
+		return reference, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+	}
+	if err := putAndVerify(ctx, s.secondary, reference.CommitKey, reference.CommitSHA256, body); err != nil {
+		return reference, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+	}
+	if err := putAndVerify(ctx, s.primary, reference.CommitKey, reference.CommitSHA256, body); err != nil {
+		return reference, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	return reference, nil
+}
+
+// Load requires matching commit and payload copies, then opens the primary copy.
+func (s *ReplicatedSegmentStore) Load(ctx context.Context, reference SegmentReference) ([]byte, error) {
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+	if err := validateSegmentReference(reference); err != nil {
+		return nil, err
+	}
+	primaryCopy, err := s.loadCommitCopy(ctx, s.primary, reference.SegmentID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	secondaryCopy, err := s.loadCommitCopy(ctx, s.secondary, reference.SegmentID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+	}
+	if !primaryCopy.found || !secondaryCopy.found {
+		return nil, fmt.Errorf("%w: segment commit is not present in both repositories", ErrRepositoryIncomplete)
+	}
+	if !bytes.Equal(primaryCopy.body, secondaryCopy.body) || primaryCopy.checksum != reference.CommitSHA256 {
+		return nil, fmt.Errorf("%w: replicated segment commits disagree", ErrRepositoryIncomplete)
+	}
+	commit := primaryCopy.commit
+	if err := s.validateCommitRepositories(commit); err != nil {
+		return nil, err
+	}
+	if err := verifySegmentPayloadObject(ctx, s.primary, commit.Payload); err != nil {
+		return nil, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	if err := verifySegmentPayloadObject(ctx, s.secondary, commit.Payload); err != nil {
+		return nil, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+	}
+	ciphertext, err := readSegmentPayload(ctx, s.primary, commit.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	return s.codec.Open(ctx, commit.Header, commit.Payload, ciphertext)
+}
+
+type loadedSegmentCommit struct {
+	body     []byte
+	checksum string
+	commit   SegmentCommit
+	found    bool
+}
+
+func (s *ReplicatedSegmentStore) loadCommitCopy(ctx context.Context, repository Repository, segmentID string) (loadedSegmentCommit, error) {
+	key := segmentCommitKey(segmentID)
+	reader, object, err := repository.Open(ctx, key)
+	if errors.Is(err, ErrObjectNotFound) {
+		return loadedSegmentCommit{}, nil
+	}
+	if err != nil {
+		return loadedSegmentCommit{}, err
+	}
+	body, readErr := io.ReadAll(io.LimitReader(reader, maxSegmentCommitBytes+1))
+	closeErr := reader.Close()
+	if readErr != nil {
+		return loadedSegmentCommit{}, readErr
+	}
+	if closeErr != nil {
+		return loadedSegmentCommit{}, closeErr
+	}
+	bodyHash := sha256.Sum256(body)
+	checksum := hex.EncodeToString(bodyHash[:])
+	if len(body) == 0 || len(body) > maxSegmentCommitBytes || object.Key != key || object.Size != int64(len(body)) || object.SHA256 != checksum {
+		return loadedSegmentCommit{}, fmt.Errorf("%w: segment commit object metadata mismatch", ErrObjectCorrupt)
+	}
+	commit, err := LoadSegmentCommit(ctx, body, s.signer)
+	if err != nil {
+		return loadedSegmentCommit{}, err
+	}
+	if commit.SegmentID != segmentID {
+		return loadedSegmentCommit{}, fmt.Errorf("%w: segment commit identity mismatch", ErrInvalidObject)
+	}
+	return loadedSegmentCommit{body: body, checksum: checksum, commit: commit, found: true}, nil
+}
+
+func (s *ReplicatedSegmentStore) reuseCommitted(ctx context.Context, expectedHeader SegmentHeader, segmentID string, primaryCopy, secondaryCopy loadedSegmentCommit) (SegmentReference, error) {
+	existing := primaryCopy
+	if !existing.found {
+		existing = secondaryCopy
+	}
+	if primaryCopy.found && secondaryCopy.found && !bytes.Equal(primaryCopy.body, secondaryCopy.body) {
+		return SegmentReference{}, fmt.Errorf("%w: replicated segment commits disagree", ErrRepositoryIncomplete)
+	}
+	if existing.commit.Header != expectedHeader || existing.commit.SegmentID != segmentID {
+		return SegmentReference{}, fmt.Errorf("%w: committed segment does not match retry", ErrInvalidObject)
+	}
+	if err := s.validateCommitRepositories(existing.commit); err != nil {
+		return SegmentReference{}, err
+	}
+	source, err := s.findHealthyPayload(ctx, existing.commit.Payload)
+	if err != nil {
+		return SegmentReference{}, err
+	}
+	if err := copySegmentPayloadIfMissing(ctx, source, s.primary, existing.commit.Payload); err != nil {
+		return SegmentReference{}, fmt.Errorf("%w: repair %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+	}
+	if err := copySegmentPayloadIfMissing(ctx, source, s.secondary, existing.commit.Payload); err != nil {
+		return SegmentReference{}, fmt.Errorf("%w: repair %s segment payload: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+	}
+	reference := SegmentReference{
+		SegmentID: segmentID, CommitKey: segmentCommitKey(segmentID),
+		CommitSHA256: existing.checksum,
+	}
+	if !secondaryCopy.found {
+		if err := putAndVerify(ctx, s.secondary, reference.CommitKey, reference.CommitSHA256, existing.body); err != nil {
+			return SegmentReference{}, fmt.Errorf("%w: repair %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+		}
+	}
+	if !primaryCopy.found {
+		if err := putAndVerify(ctx, s.primary, reference.CommitKey, reference.CommitSHA256, existing.body); err != nil {
+			return SegmentReference{}, fmt.Errorf("%w: repair %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+		}
+	}
+	return reference, nil
+}
+
+func (s *ReplicatedSegmentStore) findHealthyPayload(ctx context.Context, payload SegmentPayload) (Repository, error) {
+	if err := verifySegmentPayloadObject(ctx, s.primary, payload); err == nil {
+		return s.primary, nil
+	}
+	if err := verifySegmentPayloadObject(ctx, s.secondary, payload); err == nil {
+		return s.secondary, nil
+	}
+	return nil, fmt.Errorf("%w: no healthy committed segment payload copy", ErrRepositoryIncomplete)
+}
+
+func (s *ReplicatedSegmentStore) validateCommitRepositories(commit SegmentCommit) error {
+	if commit.PrimaryRepository != s.primary.Name() || commit.SecondaryRepository != s.secondary.Name() {
+		return fmt.Errorf("%w: segment commit repository identity mismatch", ErrInvalidObject)
+	}
+	return nil
+}
+
+func (s *ReplicatedSegmentStore) validate() error {
+	if s == nil || s.primary == nil || s.secondary == nil || s.codec == nil || s.codec.keys == nil || s.signer == nil || s.signingKeyID == "" {
+		return fmt.Errorf("%w: replicated segment store dependencies are required", ErrRepositoryIncomplete)
+	}
+	if s.primary.Name() == "" || s.secondary.Name() == "" || s.primary.Name() == s.secondary.Name() {
+		return fmt.Errorf("%w: segment repositories must have distinct names", ErrRepositoryIncomplete)
+	}
+	return nil
+}
+
+func validateSegmentReference(reference SegmentReference) error {
+	if err := validateSHA256(reference.SegmentID); err != nil {
+		return fmt.Errorf("%w: segment reference id: %v", ErrInvalidObject, err)
+	}
+	if reference.CommitKey != segmentCommitKey(reference.SegmentID) {
+		return fmt.Errorf("%w: segment reference commit key mismatch", ErrInvalidObject)
+	}
+	if err := validateSHA256(reference.CommitSHA256); err != nil {
+		return fmt.Errorf("%w: segment reference commit checksum: %v", ErrInvalidObject, err)
+	}
+	return nil
+}
+
+func verifySegmentPayloadObject(ctx context.Context, repository Repository, payload SegmentPayload) error {
+	object, err := repository.Stat(ctx, payload.Key)
+	if err != nil {
+		return err
+	}
+	if object.Key != payload.Key || object.Size != payload.CiphertextBytes || object.SHA256 != payload.CiphertextSHA256 {
+		return fmt.Errorf("%w: segment payload object metadata mismatch", ErrObjectCorrupt)
+	}
+	return nil
+}
+
+func copySegmentPayloadIfMissing(ctx context.Context, source, target Repository, payload SegmentPayload) error {
+	if err := verifySegmentPayloadObject(ctx, target, payload); err == nil {
+		return nil
+	} else if !errors.Is(err, ErrObjectNotFound) {
+		return err
+	}
+	reader, object, err := source.Open(ctx, payload.Key)
+	if err != nil {
+		return err
+	}
+	if object.Key != payload.Key || object.Size != payload.CiphertextBytes || object.SHA256 != payload.CiphertextSHA256 {
+		_ = reader.Close()
+		return fmt.Errorf("%w: source segment payload object metadata mismatch", ErrObjectCorrupt)
+	}
+	putErr := target.PutImmutable(ctx, payload.Key, payload.CiphertextBytes, payload.CiphertextSHA256, reader)
+	closeErr := reader.Close()
+	if putErr != nil && !errors.Is(putErr, ErrObjectExists) {
+		return putErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return verifySegmentPayloadObject(ctx, target, payload)
+}
+
+func readSegmentPayload(ctx context.Context, repository Repository, payload SegmentPayload) ([]byte, error) {
+	reader, object, err := repository.Open(ctx, payload.Key)
+	if err != nil {
+		return nil, err
+	}
+	body, readErr := io.ReadAll(io.LimitReader(reader, payload.CiphertextBytes+1))
+	closeErr := reader.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	if int64(len(body)) != payload.CiphertextBytes || object.Key != payload.Key || object.Size != payload.CiphertextBytes || object.SHA256 != payload.CiphertextSHA256 {
+		return nil, fmt.Errorf("%w: segment payload object metadata mismatch", ErrObjectCorrupt)
+	}
+	return body, nil
+}

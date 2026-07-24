@@ -59,3 +59,30 @@ contiguous sequence without growing Controller state.
 Restore plans pin an exact versioned ledger prefix by boundary and SHA-256;
 boundary zero is represented by the explicit digest of the empty prefix, never
 by missing evidence.
+
+## Continuous Segment Foundation
+
+The replacement continuous-capture path starts with a content-addressed
+segment contract. It is not wired into capture or restore scheduling yet.
+
+1. `SegmentCodec` hashes a canonical logical header containing repository,
+   source-generation, Slot-generation, stream, sequence, record-count, and
+   plaintext evidence. That digest is the stable Segment ID.
+2. Compression, a fresh envelope data key, AES-256-GCM nonce, and ciphertext
+   checksum are intentionally outside the logical identity. A retry may create
+   a different encrypted representation without changing the Segment ID.
+3. Ciphertext is stored below
+   `segments/<segment-id>/payloads/<ciphertext-sha256>.bin`. A signed
+   `segments/<segment-id>/commit.json` binds one representation to the two
+   explicit repository identities.
+4. `ReplicatedSegmentStore.Commit` writes and verifies both payload copies,
+   then the secondary and primary commit proofs. A failed call returns the
+   stable attempt reference, but `Load` rejects it until identical commit and
+   payload copies exist in both repositories.
+5. If either repository already has a valid signed commit, a retry verifies
+   that its logical header matches the requested plaintext, repairs the missing
+   payload and commit copy from the healthy repository, and does not request a
+   new KMS data key.
+6. Segment commit decoding is strict and bounded. Unknown fields, trailing
+   data, unsupported format/version values, unsafe identities, invalid sizes,
+   checksum mismatches, and invalid signatures fail closed.
