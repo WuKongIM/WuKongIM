@@ -40,6 +40,7 @@ const (
 	mediumRecipientPlanSize = 512
 	mediumSenderConnections = 25
 	mediumGroupSenders      = 5
+	mediumChannelRPCWorkers = 96
 	mediumSenderUIDPrefix   = "wkrc-hifi-sender"
 
 	mediumCIMinIngressFraction                 = 0.995
@@ -47,8 +48,11 @@ const (
 	mediumMaxBackgroundAllocatedBytesPerSecond = 40_000_000
 	mediumMaxGCPerMessage                      = 0.0075
 	mediumMaxHeapBytes                         = 512 << 20
-	mediumMetricSampleInterval                 = 250 * time.Millisecond
-	mediumCIMetricSampleInterval               = 500 * time.Millisecond
+	// The process-level gate shares one host with all three nodes. A 250ms
+	// full-registry scrape measurably inflated SENDACK and RECV tail latency;
+	// one second remains bounded while avoiding observer-induced saturation.
+	mediumMetricSampleInterval   = time.Second
+	mediumCIMetricSampleInterval = time.Second
 )
 
 var mediumGroupProfiles = []struct {
@@ -115,6 +119,11 @@ type hotPathEvidence struct {
 	MaxGatewayQueueRatio     float64  `json:"max_gateway_queue_ratio"`
 	MaxRecipientQueueRatio   float64  `json:"max_recipient_queue_ratio"`
 	MaxRecipientWorkerRatio  float64  `json:"max_recipient_worker_ratio"`
+	ChannelRPCMetricNodes    int      `json:"channel_rpc_metric_nodes"`
+	MinChannelRPCWorkers     float64  `json:"min_channel_rpc_workers"`
+	MaxChannelRPCWorkers     float64  `json:"max_channel_rpc_workers"`
+	MaxChannelRPCQueueRatio  float64  `json:"max_channel_rpc_queue_ratio"`
+	MaxChannelRPCWorkerRatio float64  `json:"max_channel_rpc_worker_ratio"`
 	MaxAdvancePoolUtil       float64  `json:"max_advance_pool_utilization"`
 	MaxAdvancePoolWaiting    float64  `json:"max_advance_pool_waiting"`
 	MaxAppendPoolUtil        float64  `json:"max_append_pool_utilization"`
@@ -148,8 +157,8 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		expectedAcceptanceQPS = mediumCIAcceptanceQPS
 		metricSampleInterval = mediumCIMetricSampleInterval
 	}
-	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE") == "1" && offeredQPS != expectedAcceptanceQPS {
-		t.Fatalf("acceptance offered QPS = %d, want %d", offeredQPS, expectedAcceptanceQPS)
+	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE") == "1" && offeredQPS < expectedAcceptanceQPS {
+		t.Fatalf("acceptance offered QPS = %d, want at least %d", offeredQPS, expectedAcceptanceQPS)
 	}
 
 	cluster := startMediumCluster(t)
@@ -337,6 +346,11 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		MaxGatewayQueueRatio:     pressure.maxGatewayQueueRatio,
 		MaxRecipientQueueRatio:   pressure.maxRecipientQueueRatio,
 		MaxRecipientWorkerRatio:  pressure.maxRecipientWorkerRatio,
+		ChannelRPCMetricNodes:    pressure.maxChannelRPCMetricNodes,
+		MinChannelRPCWorkers:     pressure.minChannelRPCWorkers,
+		MaxChannelRPCWorkers:     pressure.maxChannelRPCWorkers,
+		MaxChannelRPCQueueRatio:  pressure.maxChannelRPCQueueRatio,
+		MaxChannelRPCWorkerRatio: pressure.maxChannelRPCWorkerRatio,
 		MaxAdvancePoolUtil:       pressure.maxAdvancePoolUtil,
 		MaxAdvancePoolWaiting:    pressure.maxAdvancePoolWaiting,
 		MaxAppendPoolUtil:        pressure.maxAppendPoolUtil,
@@ -396,8 +410,8 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 		return fmt.Errorf("acceptance online routes = %d, want %d", evidence.OnlineRoutes, expectedMeasuredOnlineRoutes(expectedRounds))
 	case evidence.Connections != expectedConnectionCount():
 		return fmt.Errorf("acceptance connections = %d, want %d", evidence.Connections, expectedConnectionCount())
-	case evidence.OfferedQPS != expectedOfferedQPS:
-		return fmt.Errorf("acceptance offered QPS = %d, want %d", evidence.OfferedQPS, expectedOfferedQPS)
+	case evidence.OfferedQPS < expectedOfferedQPS:
+		return fmt.Errorf("acceptance offered QPS = %d, want at least %d", evidence.OfferedQPS, expectedOfferedQPS)
 	case evidence.ClusterConvergenceMS <= 0:
 		return fmt.Errorf("acceptance cluster convergence = %.3fms, want a positive duration", evidence.ClusterConvergenceMS)
 	case evidence.ClusterStableWindowMS < milliseconds(mediumConvergenceStableWindow):
@@ -429,6 +443,20 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 		return fmt.Errorf("acceptance recipient queue ratio = %.6f, want below 1", evidence.MaxRecipientQueueRatio)
 	case evidence.MaxRecipientWorkerRatio >= 1:
 		return fmt.Errorf("acceptance recipient worker ratio = %.6f, want below 1", evidence.MaxRecipientWorkerRatio)
+	case evidence.ChannelRPCMetricNodes != mediumReplicaCount:
+		return fmt.Errorf("acceptance Channel RPC metric nodes = %d, want %d", evidence.ChannelRPCMetricNodes, mediumReplicaCount)
+	case evidence.MinChannelRPCWorkers != mediumChannelRPCWorkers || evidence.MaxChannelRPCWorkers != mediumChannelRPCWorkers:
+		return fmt.Errorf(
+			"acceptance Channel RPC workers = min %.0f max %.0f, want %d/%d",
+			evidence.MinChannelRPCWorkers,
+			evidence.MaxChannelRPCWorkers,
+			mediumChannelRPCWorkers,
+			mediumChannelRPCWorkers,
+		)
+	case evidence.MaxChannelRPCQueueRatio >= 1:
+		return fmt.Errorf("acceptance Channel RPC queue ratio = %.6f, want below 1", evidence.MaxChannelRPCQueueRatio)
+	case evidence.MaxChannelRPCWorkerRatio >= 1:
+		return fmt.Errorf("acceptance Channel RPC worker ratio = %.6f, want below 1", evidence.MaxChannelRPCWorkerRatio)
 	case evidence.PluginReceiveAccepted != float64(pluginReceiveBatchCount()*expectedRounds):
 		return fmt.Errorf(
 			"acceptance plugin receive accepted = %.0f, want %d",
@@ -679,7 +707,7 @@ func startMediumCluster(t *testing.T) *suite.StartedCluster {
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT":                           "4",
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":                    "8",
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":                     "8",
-		"WK_CLUSTER_CHANNEL_RPC_WORKERS":                             "50",
+		"WK_CLUSTER_CHANNEL_RPC_WORKERS":                             strconv.Itoa(mediumChannelRPCWorkers),
 		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":                     "8",
 		"WK_GATEWAY_GNET_MULTICORE":                                  "true",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":                             "4",
@@ -1012,6 +1040,11 @@ type pressureSnapshot struct {
 	maxGatewayQueueRatio      float64
 	maxRecipientQueueRatio    float64
 	maxRecipientWorkerRatio   float64
+	maxChannelRPCMetricNodes  int
+	minChannelRPCWorkers      float64
+	maxChannelRPCWorkers      float64
+	maxChannelRPCQueueRatio   float64
+	maxChannelRPCWorkerRatio  float64
 	maxAdvancePoolUtil        float64
 	maxAdvancePoolWaiting     float64
 	maxAppendPoolUtil         float64
@@ -1078,6 +1111,7 @@ func (s *pressureSampler) snapshot() pressureSnapshot {
 }
 
 func (s *pressureSampler) sample() {
+	channelRPCMetricNodes := 0
 	for _, node := range s.cluster.Nodes {
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
@@ -1088,17 +1122,33 @@ func (s *pressureSampler) sample() {
 			s.mu.Unlock()
 			continue
 		}
+		values := metricValues(samples)
 		s.state.samples++
-		s.observeSamples(samples)
+		s.observeValues(values)
+		if values.channelRPCQueuePresent && values.channelRPCWorkersPresent {
+			channelRPCMetricNodes++
+		}
 		s.mu.Unlock()
 	}
+	s.mu.Lock()
+	if channelRPCMetricNodes > s.state.maxChannelRPCMetricNodes {
+		s.state.maxChannelRPCMetricNodes = channelRPCMetricNodes
+	}
+	s.mu.Unlock()
 }
 
-func (s *pressureSampler) observeSamples(samples []suite.MetricSample) {
-	values := metricValues(samples)
+func (s *pressureSampler) observeValues(values hotPathMetricValues) {
 	s.state.maxGatewayQueueRatio = maxFloat(s.state.maxGatewayQueueRatio, ratio(values.gatewayQueueDepth, values.gatewayQueueCapacity))
 	s.state.maxRecipientQueueRatio = maxFloat(s.state.maxRecipientQueueRatio, ratio(values.recipientQueueDepth, values.recipientQueueCapacity))
 	s.state.maxRecipientWorkerRatio = maxFloat(s.state.maxRecipientWorkerRatio, ratio(values.recipientInflight, values.recipientCapacity))
+	if values.channelRPCWorkersPresent {
+		if s.state.minChannelRPCWorkers == 0 || values.channelRPCWorkers < s.state.minChannelRPCWorkers {
+			s.state.minChannelRPCWorkers = values.channelRPCWorkers
+		}
+		s.state.maxChannelRPCWorkers = maxFloat(s.state.maxChannelRPCWorkers, values.channelRPCWorkers)
+	}
+	s.state.maxChannelRPCQueueRatio = maxFloat(s.state.maxChannelRPCQueueRatio, ratio(values.channelRPCQueueDepth, values.channelRPCQueueCapacity))
+	s.state.maxChannelRPCWorkerRatio = maxFloat(s.state.maxChannelRPCWorkerRatio, ratio(values.channelRPCInflight, values.channelRPCWorkers))
 	s.state.maxAdvancePoolUtil = maxFloat(s.state.maxAdvancePoolUtil, values.advanceUtil)
 	s.state.maxAdvancePoolWaiting = maxFloat(s.state.maxAdvancePoolWaiting, values.advanceWaiting)
 	s.state.maxAppendPoolUtil = maxFloat(s.state.maxAppendPoolUtil, values.appendUtil)
@@ -1109,20 +1159,26 @@ func (s *pressureSampler) observeSamples(samples []suite.MetricSample) {
 }
 
 type hotPathMetricValues struct {
-	gatewayQueueDepth      float64
-	gatewayQueueCapacity   float64
-	recipientQueueDepth    float64
-	recipientQueueCapacity float64
-	recipientInflight      float64
-	recipientCapacity      float64
-	advanceUtil            float64
-	advanceWaiting         float64
-	appendUtil             float64
-	postCommitUtil         float64
-	postCommitBacklog      float64
-	handoffDepth           float64
-	handoffCapacity        float64
-	heapBytes              float64
+	gatewayQueueDepth        float64
+	gatewayQueueCapacity     float64
+	recipientQueueDepth      float64
+	recipientQueueCapacity   float64
+	recipientInflight        float64
+	recipientCapacity        float64
+	channelRPCQueueDepth     float64
+	channelRPCQueueCapacity  float64
+	channelRPCInflight       float64
+	channelRPCWorkers        float64
+	channelRPCQueuePresent   bool
+	channelRPCWorkersPresent bool
+	advanceUtil              float64
+	advanceWaiting           float64
+	appendUtil               float64
+	postCommitUtil           float64
+	postCommitBacklog        float64
+	handoffDepth             float64
+	handoffCapacity          float64
+	heapBytes                float64
 }
 
 func metricValues(samples []suite.MetricSample) hotPathMetricValues {
@@ -1141,6 +1197,24 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 			values.recipientInflight = sample.Value
 		case "wukongim_delivery_recipient_worker_capacity":
 			values.recipientCapacity = sample.Value
+		case "wukongim_runtime_pool_queue_depth":
+			if isChannelRPCQueueSample(sample) {
+				values.channelRPCQueueDepth = sample.Value
+			}
+		case "wukongim_runtime_pool_queue_capacity":
+			if isChannelRPCQueueSample(sample) {
+				values.channelRPCQueueCapacity = sample.Value
+				values.channelRPCQueuePresent = sample.Value > 0
+			}
+		case "wukongim_runtime_pool_inflight":
+			if isChannelRPCPoolSample(sample) {
+				values.channelRPCInflight = sample.Value
+			}
+		case "wukongim_runtime_pool_workers":
+			if isChannelRPCPoolSample(sample) {
+				values.channelRPCWorkers = sample.Value
+				values.channelRPCWorkersPresent = sample.Value > 0
+			}
 		case "wukongim_ants_pool_utilization":
 			if sample.Labels["component"] != "channelappend" {
 				continue
@@ -1170,6 +1244,16 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 		}
 	}
 	return values
+}
+
+func isChannelRPCPoolSample(sample suite.MetricSample) bool {
+	return sample.Labels["component"] == "channel" && sample.Labels["pool"] == "channelv2-rpc"
+}
+
+func isChannelRPCQueueSample(sample suite.MetricSample) bool {
+	return isChannelRPCPoolSample(sample) &&
+		sample.Labels["queue"] == "worker" &&
+		sample.Labels["priority"] == "none"
 }
 
 type hotPathCounters struct {

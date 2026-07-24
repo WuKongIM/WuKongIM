@@ -18,7 +18,14 @@ const (
 	cloudChannelReactorCount             = 4
 	cloudChannelStoreAppendWorkers       = 8
 	cloudChannelStoreApplyWorkers        = 8
-	cloudChannelRPCWorkers               = 50
+	cloudDefaultChannelRPCWorkers        = 50
+	// cloudMediumChannelRPCWorkers is acceptance-driven by the completed
+	// gh-30047907477-1 run. Fifty workers sustained 3,846.48 messages/s while
+	// every Channel RPC queue reached saturation and SENDACK P99 reached
+	// 4.369s. Scaling the observed bound to 4,500/s with 50 percent headroom
+	// requires 88 workers; 96 preserves a fixed bounded pool while leaving
+	// rounding and valid 3/4/3 Slot-leader skew margin.
+	cloudMediumChannelRPCWorkers = 96
 	// cloudChannelRPCBatchMaxItems is the bounded value accepted by the real
 	// three-process Medium-shaped 256/10/3 gate at 4,500/s actual ingress.
 	// The prior 61.75ms cycle and batch-four saturation corroborate the choice
@@ -117,7 +124,7 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 		ChannelReactorCount:           cloudChannelReactorCount,
 		ChannelStoreAppendWorkers:     cloudChannelStoreAppendWorkers,
 		ChannelStoreApplyWorkers:      cloudChannelStoreApplyWorkers,
-		ChannelRPCWorkers:             cloudChannelRPCWorkers,
+		ChannelRPCWorkers:             cloudDefaultChannelRPCWorkers,
 		ChannelRPCBatchMaxItems:       cloudChannelRPCBatchMaxItems,
 		GatewayGnetMulticore:          true,
 		GatewayGnetEventLoops:         cloudGatewayGnetEventLoops,
@@ -131,6 +138,7 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 	case "medium":
 		contract.ConversationAuthorityCacheMaxRows = cloudMediumAuthorityCacheMaxRows
 		contract.RecipientWorkerConcurrency = cloudMediumRecipientWorkerConcurrency
+		contract.ChannelRPCWorkers = cloudMediumChannelRPCWorkers
 	case "large":
 		contract.ConversationAuthorityCacheMaxRows = cloudLargeAuthorityCacheMaxRows
 	default:
