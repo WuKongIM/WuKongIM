@@ -86,7 +86,11 @@ segment contract. It is not wired into capture or restore scheduling yet.
 6. Segment commit decoding is strict and bounded. Unknown fields, trailing
    data, unsupported format/version values, unsafe identities, invalid sizes,
    checksum mismatches, and invalid signatures fail closed.
-7. Seal and open reuse compressed/ciphertext backing storage where safe, and
-   one replicated store admits at most 256 MiB of aggregate logical segment
-   work. The later capture runtime must apply its smaller rolling target and
-   node-level concurrency budget before calling this boundary.
+7. Seal and open reuse compressed/ciphertext backing storage where safe. Each
+   operation reserves three times its logical payload size plus 16 MiB for
+   codec overhead before hashing or transforming data. One replicated store
+   therefore admits at most 784 MiB of estimated segment working set, which is
+   equivalent to one maximum 256 MiB logical segment or several smaller
+   segments. The later capture runtime must apply its smaller rolling target
+   and node-level concurrency budget before materializing plaintext and calling
+   this boundary.

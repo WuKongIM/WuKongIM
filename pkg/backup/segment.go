@@ -134,8 +134,16 @@ func (c *SegmentCodec) Seal(ctx context.Context, descriptor SegmentDescriptor, p
 	if err != nil {
 		return SealedSegment{}, err
 	}
+	return c.sealPrepared(ctx, descriptor.KMSKeyID, header, segmentID, canonical, plaintext)
+}
 
-	dataKey, err := c.keys.GenerateDataKey(ctx, descriptor.KMSKeyID)
+// sealPrepared applies compression and encryption to an already-derived identity.
+// It is kept private so callers cannot pair plaintext with forged identity data.
+func (c *SegmentCodec) sealPrepared(ctx context.Context, kmsKeyID string, header SegmentHeader, segmentID string, canonical, plaintext []byte) (SealedSegment, error) {
+	if c == nil || c.keys == nil || c.rand == nil {
+		return SealedSegment{}, fmt.Errorf("%w: segment codec dependencies are required", ErrInvalidObject)
+	}
+	dataKey, err := c.keys.GenerateDataKey(ctx, kmsKeyID)
 	if err != nil {
 		return SealedSegment{}, fmt.Errorf("generate segment data key: %w", err)
 	}
@@ -168,7 +176,7 @@ func (c *SegmentCodec) Seal(ctx context.Context, descriptor SegmentDescriptor, p
 		CiphertextBytes:  int64(len(ciphertext)),
 		Compression:      CompressionZstd,
 		Encryption:       EncryptionAES256GCM,
-		KMSKeyID:         descriptor.KMSKeyID,
+		KMSKeyID:         kmsKeyID,
 		WrappedKey:       base64.StdEncoding.EncodeToString(dataKey.Wrapped),
 		Nonce:            base64.StdEncoding.EncodeToString(nonce),
 	}
@@ -339,12 +347,10 @@ func segmentPayloadKey(segmentID, ciphertextSHA256 string) string {
 	return "segments/" + segmentID + "/payloads/" + ciphertextSHA256 + ".bin"
 }
 
+// buildSegmentIdentity validates and hashes the complete logical segment input.
 func buildSegmentIdentity(descriptor SegmentDescriptor, plaintext []byte) (SegmentHeader, string, []byte, error) {
-	if err := validateSegmentDescriptor(descriptor); err != nil {
+	if err := validateSegmentInput(descriptor, plaintext); err != nil {
 		return SegmentHeader{}, "", nil, err
-	}
-	if len(plaintext) == 0 || len(plaintext) > maxObjectPlaintextBytes {
-		return SegmentHeader{}, "", nil, fmt.Errorf("%w: segment plaintext size %d is outside bounds", ErrInvalidObject, len(plaintext))
 	}
 	plaintextHash := sha256.Sum256(plaintext)
 	header := SegmentHeader{
@@ -360,4 +366,14 @@ func buildSegmentIdentity(descriptor SegmentDescriptor, plaintext []byte) (Segme
 	}
 	identityHash := sha256.Sum256(canonical)
 	return header, hex.EncodeToString(identityHash[:]), canonical, nil
+}
+
+func validateSegmentInput(descriptor SegmentDescriptor, plaintext []byte) error {
+	if err := validateSegmentDescriptor(descriptor); err != nil {
+		return err
+	}
+	if len(plaintext) == 0 || len(plaintext) > maxObjectPlaintextBytes {
+		return fmt.Errorf("%w: segment plaintext size %d is outside bounds", ErrInvalidObject, len(plaintext))
+	}
+	return nil
 }

@@ -13,7 +13,11 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-const segmentStoreMemoryBudgetBytes int64 = maxObjectPlaintextBytes
+const (
+	segmentWorkingSetMultiplier    int64 = 3
+	segmentWorkingSetOverheadBytes       = 16 << 20
+	segmentStoreMemoryBudgetBytes        = segmentWorkingSetMultiplier*maxObjectPlaintextBytes + segmentWorkingSetOverheadBytes
+)
 
 // SegmentReference binds a Slot frontier to one exact signed commit record.
 type SegmentReference struct {
@@ -59,7 +63,16 @@ func (s *ReplicatedSegmentStore) Commit(ctx context.Context, descriptor SegmentD
 	if err := s.validate(); err != nil {
 		return SegmentReference{}, err
 	}
-	header, segmentID, _, err := buildSegmentIdentity(descriptor, plaintext)
+	if err := validateSegmentInput(descriptor, plaintext); err != nil {
+		return SegmentReference{}, err
+	}
+	workingSetBytes := estimateSegmentWorkingSet(int64(len(plaintext)))
+	if err := s.memoryBudget.Acquire(ctx, workingSetBytes); err != nil {
+		return SegmentReference{}, fmt.Errorf("acquire segment commit memory budget: %w", err)
+	}
+	defer s.memoryBudget.Release(workingSetBytes)
+
+	header, segmentID, canonical, err := buildSegmentIdentity(descriptor, plaintext)
 	if err != nil {
 		return SegmentReference{}, err
 	}
@@ -75,11 +88,7 @@ func (s *ReplicatedSegmentStore) Commit(ctx context.Context, descriptor SegmentD
 		return s.reuseCommitted(ctx, header, segmentID, primaryCopy, secondaryCopy)
 	}
 
-	if err := s.memoryBudget.Acquire(ctx, header.PlaintextBytes); err != nil {
-		return SegmentReference{}, fmt.Errorf("acquire segment seal memory budget: %w", err)
-	}
-	defer s.memoryBudget.Release(header.PlaintextBytes)
-	sealed, err := s.codec.Seal(ctx, descriptor, plaintext)
+	sealed, err := s.codec.sealPrepared(ctx, descriptor.KMSKeyID, header, segmentID, canonical, plaintext)
 	if err != nil {
 		return SegmentReference{}, err
 	}
@@ -144,10 +153,11 @@ func (s *ReplicatedSegmentStore) Load(ctx context.Context, reference SegmentRefe
 	if err := s.validateCommitRepositories(commit); err != nil {
 		return nil, err
 	}
-	if err := s.memoryBudget.Acquire(ctx, commit.Header.PlaintextBytes); err != nil {
+	workingSetBytes := estimateSegmentWorkingSet(commit.Header.PlaintextBytes)
+	if err := s.memoryBudget.Acquire(ctx, workingSetBytes); err != nil {
 		return nil, fmt.Errorf("acquire segment load memory budget: %w", err)
 	}
-	defer s.memoryBudget.Release(commit.Header.PlaintextBytes)
+	defer s.memoryBudget.Release(workingSetBytes)
 	if err := verifySegmentPayloadObject(ctx, s.primary, commit.Payload); err != nil {
 		return nil, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
 	}
@@ -168,6 +178,7 @@ type loadedSegmentCommit struct {
 	found    bool
 }
 
+// loadCommitCopy reads, bounds, authenticates, and binds one repository commit.
 func (s *ReplicatedSegmentStore) loadCommitCopy(ctx context.Context, repository Repository, segmentID string) (loadedSegmentCommit, error) {
 	key := segmentCommitKey(segmentID)
 	reader, object, err := repository.Open(ctx, key)
@@ -243,6 +254,7 @@ func (s *ReplicatedSegmentStore) reuseCommitted(ctx context.Context, expectedHea
 	return reference, nil
 }
 
+// findHealthyPayload returns a repository whose committed payload metadata verifies.
 func (s *ReplicatedSegmentStore) findHealthyPayload(ctx context.Context, payload SegmentPayload) (Repository, error) {
 	if err := verifySegmentPayloadObject(ctx, s.primary, payload); err == nil {
 		return s.primary, nil
@@ -251,6 +263,12 @@ func (s *ReplicatedSegmentStore) findHealthyPayload(ctx context.Context, payload
 		return s.secondary, nil
 	}
 	return nil, fmt.Errorf("%w: no healthy committed segment payload copy", ErrRepositoryIncomplete)
+}
+
+// estimateSegmentWorkingSet conservatively accounts for caller/plaintext,
+// codec output, and codec workspace while one segment is hashed or transformed.
+func estimateSegmentWorkingSet(plaintextBytes int64) int64 {
+	return segmentWorkingSetMultiplier*plaintextBytes + segmentWorkingSetOverheadBytes
 }
 
 func (s *ReplicatedSegmentStore) validateCommitRepositories(commit SegmentCommit) error {
