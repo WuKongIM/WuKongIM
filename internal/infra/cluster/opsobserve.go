@@ -19,46 +19,59 @@ import (
 
 // OpsInventoryReader provides cluster, node, Slot, and exact-channel reads.
 type OpsInventoryReader interface {
+	// ListNodes returns the bounded cluster node inventory.
 	ListNodes(context.Context) (management.NodeList, error)
+	// ListSlots returns physical Slot state selected by the supplied options.
 	ListSlots(context.Context, management.ListSlotsOptions) ([]management.Slot, error)
+	// DynamicNodeDiagnostics returns bounded evidence for one exact node.
 	DynamicNodeDiagnostics(context.Context, management.DynamicNodeDiagnosticsRequest) (management.DynamicNodeDiagnosticsResponse, error)
+	// GetChannelRuntimeMeta performs one exact channel runtime point lookup.
 	GetChannelRuntimeMeta(context.Context, string, int64) (management.ChannelRuntimeMeta, error)
 }
 
 // OpsTaskReader provides active and retained Controller task evidence.
 type OpsTaskReader interface {
+	// ListControllerTasks returns bounded active Controller task evidence.
 	ListControllerTasks(context.Context, management.ListControllerTasksRequest) (management.ListControllerTasksResponse, error)
+	// ListControllerTaskAudits returns bounded retained Controller task evidence.
 	ListControllerTaskAudits(context.Context, management.ControllerTaskAuditListRequest) (management.ControllerTaskAuditListResponse, error)
 }
 
 // OpsLogReader provides ordinary application log pages.
 type OpsLogReader interface {
+	// ApplicationLogEntries returns one bounded fixed-source application log page.
 	ApplicationLogEntries(context.Context, management.ApplicationLogEntriesRequest) (management.ApplicationLogEntriesResponse, error)
 }
 
 // OpsDiagnosticsReader provides retained diagnostic events.
 type OpsDiagnosticsReader interface {
+	// QueryDiagnostics returns bounded retained events matching safe selectors.
 	QueryDiagnostics(context.Context, management.DiagnosticsQueryRequest) (management.DiagnosticsQueryResponse, error)
 }
 
 // OpsConfigReader provides allowlisted redacted effective configuration.
 type OpsConfigReader interface {
+	// NodeConfigSnapshot returns one exact node's allowlisted redacted config.
 	NodeConfigSnapshot(context.Context, uint64) (management.NodeConfigSnapshot, error)
 }
 
 // OpsMetricsReader executes a server-owned metric query identifier.
 type OpsMetricsReader interface {
+	// QueryOpsMetrics evaluates one allowlisted server-owned metric query.
 	QueryOpsMetrics(context.Context, observe.MetricsQueryRangeRequest) (observe.MetricRangeData, error)
 }
 
 // OpsBackupReader exposes backup status and restore-point metadata only.
 type OpsBackupReader interface {
+	// Status returns non-secret backup health and active-job evidence.
 	Status(context.Context) (backupusecase.StatusSnapshot, error)
+	// ListRestorePointsPage returns one bounded restore-point metadata page.
 	ListRestorePointsPage(context.Context, backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error)
 }
 
 // OpsProfileAnalyzer returns parsed pprof rows and never raw profile bytes.
 type OpsProfileAnalyzer interface {
+	// AnalyzeOpsProfile captures and parses one bounded owner-authorized profile.
 	AnalyzeOpsProfile(context.Context, runtimeops.ProfileAnalysisRequest) (any, *runtimeops.ProfileAnalysisWindow, error)
 }
 
@@ -117,10 +130,27 @@ func (s *OpsObservationSource) ClusterHealth(ctx context.Context, _ observe.Clus
 	warnings := make([]string, 0)
 	for _, node := range nodes.Items {
 		data.Nodes = append(data.Nodes, safeNodeHealth(node))
-		if node.Health.Freshness != "fresh" || !node.Health.RuntimeReady || node.Status != "alive" {
+		healthMissing := node.Health.Freshness == "missing" &&
+			(node.Status == "" || node.Status == "alive")
+		if healthMissing {
+			if status == observe.StatusHealthy {
+				status = observe.StatusUnknown
+			}
+			freshness = observe.FreshnessMissing
+			completeness = observe.CompletenessPartial
+			reasons = append(reasons, observe.ReasonCode{
+				Code: "node_health_missing",
+				Actual: map[string]any{
+					"node_id": node.NodeID, "status": node.Status,
+					"freshness": node.Health.Freshness, "runtime_ready": node.Health.RuntimeReady,
+				},
+				Threshold: "alive,fresh,runtime_ready",
+			})
+		} else if node.Health.Freshness != "fresh" || !node.Health.RuntimeReady || node.Status != "alive" {
 			status = observe.StatusDegraded
 			if node.Health.Freshness == "missing" {
 				freshness = observe.FreshnessMissing
+				completeness = observe.CompletenessPartial
 			} else if node.Health.Freshness != "fresh" && freshness == observe.FreshnessFresh {
 				freshness = observe.FreshnessStale
 			}
@@ -156,7 +186,11 @@ func (s *OpsObservationSource) ClusterHealth(ctx context.Context, _ observe.Clus
 		}
 	}
 	if len(nodes.Items) == 0 || nodes.ControllerLeaderID == 0 {
-		status = observe.StatusUnknown
+		if status == observe.StatusHealthy {
+			status = observe.StatusUnknown
+		}
+		freshness = observe.FreshnessMissing
+		completeness = observe.CompletenessPartial
 		reasons = append(reasons, observe.ReasonCode{Code: "controller_leader_missing", Actual: nodes.ControllerLeaderID, Threshold: "non-zero leader"})
 	}
 	data.Metrics = s.clusterHealthMetrics(ctx)
@@ -201,7 +235,19 @@ func (s *OpsObservationSource) NodeInspect(ctx context.Context, request observe.
 	}
 	status := observe.StatusHealthy
 	reasons := make([]observe.ReasonCode, 0)
-	if result.Node.Status != "alive" || !result.Node.Health.RuntimeReady || result.Node.Health.Freshness != "fresh" {
+	healthMissing := result.Node.Health.Freshness == "missing" &&
+		(result.Node.Status == "" || result.Node.Status == "alive")
+	if healthMissing {
+		status = observe.StatusUnknown
+		reasons = append(reasons, observe.ReasonCode{
+			Code: "node_health_missing",
+			Actual: map[string]any{
+				"status": result.Node.Status, "freshness": result.Node.Health.Freshness,
+				"runtime_ready": result.Node.Health.RuntimeReady,
+			},
+			Threshold: "alive,fresh,runtime_ready",
+		})
+	} else if result.Node.Status != "alive" || !result.Node.Health.RuntimeReady || result.Node.Health.Freshness != "fresh" {
 		status = observe.StatusDegraded
 		reasons = append(reasons, observe.ReasonCode{
 			Code: "node_health_not_ready",
@@ -220,7 +266,7 @@ func (s *OpsObservationSource) NodeInspect(ctx context.Context, request observe.
 	}
 	completeness := observe.CompletenessComplete
 	warnings := safeSourceWarnings(result.Sources)
-	if !result.Sources.ControlSnapshot.Available || !result.Sources.TaskAudit.Available || !result.Sources.SlotRuntime.Available {
+	if healthMissing || !result.Sources.ControlSnapshot.Available || !result.Sources.TaskAudit.Available || !result.Sources.SlotRuntime.Available {
 		completeness = observe.CompletenessPartial
 	}
 	if s.config.Diagnostics != nil {

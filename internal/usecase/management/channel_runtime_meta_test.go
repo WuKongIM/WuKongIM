@@ -2,6 +2,7 @@ package management
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -99,7 +100,7 @@ func TestListChannelRuntimeMetaReturnsCursorAfterLastEmittedMatch(t *testing.T) 
 	}
 }
 
-func TestGetChannelRuntimeMetaUsesOnePointLookupWithoutScanning(t *testing.T) {
+func TestGetChannelRuntimeMetaUsesOnePointLookupWithLargePopulation(t *testing.T) {
 	snapshot := control.Snapshot{
 		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, PreferredLeader: 2}},
 		HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{
@@ -107,10 +108,19 @@ func TestGetChannelRuntimeMetaUsesOnePointLookupWithoutScanning(t *testing.T) {
 		}},
 	}
 	scanner := newFakeChannelRuntimeMetaReader()
-	point := &fakeChannelRuntimeMetaPointReader{meta: metadb.ChannelRuntimeMeta{
+	point := &fakeChannelRuntimeMetaPointReader{
+		metas: make(map[channelRuntimeMetaTestKey]metadb.ChannelRuntimeMeta, 100001),
+	}
+	for index := 0; index < 100000; index++ {
+		channelID := fmt.Sprintf("large-population-%06d", index)
+		point.metas[channelRuntimeMetaTestKey{channelID: channelID, channelType: 1}] = metadb.ChannelRuntimeMeta{
+			ChannelID: channelID, ChannelType: 1,
+		}
+	}
+	point.metas[channelRuntimeMetaTestKey{channelID: "room-a", channelType: 2}] = metadb.ChannelRuntimeMeta{
 		ChannelID: "room-a", ChannelType: 2, Leader: 1, Replicas: []uint64{1, 2},
 		ISR: []uint64{1, 2}, MinISR: 2, Status: uint8(channelruntime.StatusActive),
-	}}
+	}
 	app := New(Options{
 		Cluster:                 fakeNodeSnapshotReader{snapshot: snapshot},
 		ChannelRuntimeMeta:      scanner,
@@ -154,14 +164,20 @@ func (f *fakeChannelRuntimeMetaReader) ScanChannelRuntimeMetaSlotPage(_ context.
 }
 
 type fakeChannelRuntimeMetaPointReader struct {
-	meta  metadb.ChannelRuntimeMeta
+	metas map[channelRuntimeMetaTestKey]metadb.ChannelRuntimeMeta
 	calls int
+}
+
+type channelRuntimeMetaTestKey struct {
+	channelID   string
+	channelType int64
 }
 
 func (f *fakeChannelRuntimeMetaPointReader) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
 	f.calls++
-	if f.meta.ChannelID != channelID || f.meta.ChannelType != channelType {
+	meta, ok := f.metas[channelRuntimeMetaTestKey{channelID: channelID, channelType: channelType}]
+	if !ok {
 		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
 	}
-	return f.meta, nil
+	return meta, nil
 }

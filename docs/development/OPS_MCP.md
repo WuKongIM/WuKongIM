@@ -89,7 +89,7 @@ The first eleven are read-only. `pprof_analyze` is an active but bounded
 observation: it supports CPU, heap, and goroutine profiles, returns parsed top
 rows only, and never exposes raw profile bytes. CPU sampling defaults to 10
 seconds and is capped at 30 seconds; profiles are serialized cluster-wide and
-have a per-node 60-second cooldown. Before a target starts capture, it must
+have a per-node 60-second cooldown after capture completion. Before a target starts capture, it must
 consume an unpredictable, one-time, short-lived lease held only in the current
 owner's memory. A peer cannot authorize profiling by spoofing a node ID in an
 internal request.

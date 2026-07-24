@@ -26,19 +26,27 @@ var (
 
 // Profiler captures bounded runtime profiles after desired-state fencing.
 type Profiler struct {
-	state       StateReader
-	leases      ProfileLeaseVerifier
+	// state supplies the latest Controller-derived owner and revision fence.
+	state StateReader
+	// leases verifies a single-use authorization with the configured owner.
+	leases ProfileLeaseVerifier
+	// localNodeID binds capture requests to this exact target node.
 	localNodeID uint64
-	now         func() time.Time
+	// now provides deterministic cooldown timestamps.
+	now func() time.Time
 
-	mu          sync.Mutex
-	active      bool
-	lastStarted time.Time
+	// mu protects active and lastCompleted across the full target capture lifecycle.
+	mu sync.Mutex
+	// active prevents overlapping target-local runtime profile captures.
+	active bool
+	// lastCompleted enforces a full target-local cooldown after capture completion.
+	lastCompleted time.Time
 }
 
 // ProfileLeaseVerifier proves that the configured owner issued one exact,
 // unconsumed profile authorization for this target.
 type ProfileLeaseVerifier interface {
+	// VerifyOpsMCPProfileLease consumes one exact owner-held target authorization.
 	VerifyOpsMCPProfileLease(context.Context, uint64, opscontract.ProfileLeaseRequest) error
 }
 
@@ -79,16 +87,16 @@ func (p *Profiler) CaptureProfile(ctx context.Context, request opscontract.Profi
 		p.mu.Unlock()
 		return opscontract.ProfileResponse{}, ErrProfileBusy
 	}
-	if !p.lastStarted.IsZero() && now.Sub(p.lastStarted) < profileCooldown {
+	if !p.lastCompleted.IsZero() && now.Sub(p.lastCompleted) < profileCooldown {
 		p.mu.Unlock()
 		return opscontract.ProfileResponse{}, ErrProfileCooldown
 	}
 	p.active = true
-	p.lastStarted = now
 	p.mu.Unlock()
 	defer func() {
 		p.mu.Lock()
 		p.active = false
+		p.lastCompleted = p.now().UTC()
 		p.mu.Unlock()
 	}()
 

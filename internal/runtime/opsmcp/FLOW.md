@@ -33,8 +33,8 @@ response size, cache hit, and bounded pprof kind/duration.
 
 `Profiler` is the only active observation runtime. It accepts only CPU, heap,
 and goroutine profiles; CPU duration is at most 30 seconds. One profile may run
-cluster-wide, each node has a 60-second cooldown, raw profiles are capped in
-memory, and only parsed top rows leave the execution owner. Heap/goroutine
+cluster-wide, each node has a full 60-second cooldown after capture completion,
+raw profiles are capped in memory, and only parsed top rows leave the execution owner. Heap/goroutine
 collection requires a zero duration. The target node rechecks the Controller
 MCP owner and revision before capture, then calls that owner to consume an
 exact random, one-time, 35-second in-memory profile lease. A node cannot start

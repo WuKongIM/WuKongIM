@@ -62,9 +62,13 @@ type CallFinish struct {
 
 // CallController is the access-layer seam for limits and local audits.
 type CallController interface {
+	// BeginCall admits one owner-local tool call and returns its completion hook.
 	BeginCall(context.Context, CallMetadata) (context.Context, func(CallFinish), error)
+	// BeginIngress admits one request forwarded from an ingress to a remote owner.
 	BeginIngress(Principal, string, uint64, uint64) (func(string), error)
+	// AllowAuthentication checks the bounded failed-auth budget for one TCP source.
 	AllowAuthentication(remoteAddr string) bool
+	// RecordAuthFailure records one rejected bearer without retaining its value.
 	RecordAuthFailure(remoteAddr, requestID string)
 }
 
@@ -92,27 +96,43 @@ type CallControlConfig struct {
 
 // CallControl enforces local budgets and stores bounded audit summaries.
 type CallControl struct {
-	now      func() time.Time
+	// now provides deterministic rate windows, durations, and audit timestamps.
+	now func() time.Time
+	// observer receives low-cardinality lifecycle metrics.
 	observer CallObserver
 
-	mu           sync.Mutex
-	credential   map[string]*credentialBudget
-	totalActive  int
-	authWindow   time.Time
+	// mu protects every budget, active counter, and in-memory audit entry.
+	mu sync.Mutex
+	// credential stores minute budgets keyed only by non-secret credential IDs.
+	credential map[string]*credentialBudget
+	// totalActive enforces the node-wide concurrent execution ceiling.
+	totalActive int
+	// authWindow is the current failed-authentication minute window.
+	authWindow time.Time
+	// authBySource counts failures by raw TCP source inside authWindow.
 	authBySource map[string]int
-	authTotal    int
-	recent       []opscontract.AuditEntry
+	// authTotal counts all node-local authentication failures in authWindow.
+	authTotal int
+	// recent retains the newest bounded non-secret audit summaries.
+	recent []opscontract.AuditEntry
 
+	// writerMu serializes rotated JSON-lines audit output.
 	writerMu sync.Mutex
-	writer   io.WriteCloser
+	// writer is the optional local rotated audit sink.
+	writer io.WriteCloser
 }
 
 type credentialBudget struct {
+	// windowStart identifies the active per-minute budget window.
 	windowStart time.Time
-	ordinary    int
-	logs        int
-	ingress     int
-	active      int
+	// ordinary counts admitted non-log calls in the active window.
+	ordinary int
+	// logs counts admitted raw-log calls in the active window.
+	logs int
+	// ingress counts admitted remote-owner forwards in the active window.
+	ingress int
+	// active counts currently executing owner-local calls for this credential.
+	active int
 }
 
 // NewCallControl creates local MCP limits and optional rotated audit output.

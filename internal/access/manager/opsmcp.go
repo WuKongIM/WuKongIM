@@ -18,12 +18,19 @@ const maxOpsMCPManagerBodyBytes = 64 << 10
 
 // OpsMCPManagement exposes embedded operations MCP administration.
 type OpsMCPManagement interface {
+	// OpsMCPStatus returns the authoritative desired state and local observation.
 	OpsMCPStatus(context.Context) (managementusecase.OpsMCPStatus, error)
+	// CreateOpsMCPToken creates or replays one bounded one-time token response.
 	CreateOpsMCPToken(context.Context, managementusecase.OpsMCPTokenCreateRequest) (managementusecase.OpsMCPTokenCreateResponse, error)
+	// RevokeOpsMCPToken revokes one exact credential through Controller state.
 	RevokeOpsMCPToken(context.Context, managementusecase.OpsMCPTokenRevokeRequest) error
+	// SetOpsMCPOwner selects the execution owner while MCP is stopped.
 	SetOpsMCPOwner(context.Context, managementusecase.OpsMCPOwnerUpdateRequest) error
+	// StartOpsMCP enables the configured owner and credential set.
 	StartOpsMCP(context.Context, managementusecase.OpsMCPStateMutationRequest) error
+	// StopOpsMCP disables execution and advances the profile generation fence.
 	StopOpsMCP(context.Context, managementusecase.OpsMCPStateMutationRequest) error
+	// OpsMCPAudits returns a bounded newest-first aggregate audit view.
 	OpsMCPAudits(context.Context, int) ([]managementusecase.OpsMCPAuditEntry, error)
 }
 

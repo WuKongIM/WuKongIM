@@ -135,6 +135,38 @@ func TestOpsObservationClusterHealthAcceptsReadyMatchedSlotAndChecksMetrics(t *t
 	}
 }
 
+func TestOpsObservationMissingNodeHealthProducesUnknownEvidence(t *testing.T) {
+	source := NewOpsObservationSource(OpsObservationSourceConfig{
+		Inventory: missingHealthOpsInventory{},
+	})
+
+	clusterResult, err := source.ClusterHealth(context.Background(), observe.ClusterHealthRequest{})
+	if err != nil {
+		t.Fatalf("ClusterHealth() error = %v", err)
+	}
+	if clusterResult.Status != observe.StatusUnknown ||
+		clusterResult.Freshness != observe.FreshnessMissing ||
+		clusterResult.Completeness != observe.CompletenessPartial {
+		t.Fatalf("cluster result = %#v", clusterResult)
+	}
+	if len(clusterResult.ReasonCodes) != 1 || clusterResult.ReasonCodes[0].Code != "node_health_missing" {
+		t.Fatalf("cluster reason codes = %#v", clusterResult.ReasonCodes)
+	}
+
+	nodeResult, err := source.NodeInspect(context.Background(), observe.NodeInspectRequest{NodeID: 1})
+	if err != nil {
+		t.Fatalf("NodeInspect() error = %v", err)
+	}
+	if nodeResult.Status != observe.StatusUnknown ||
+		nodeResult.Freshness != observe.FreshnessMissing ||
+		nodeResult.Completeness != observe.CompletenessPartial {
+		t.Fatalf("node result = %#v", nodeResult)
+	}
+	if len(nodeResult.ReasonCodes) != 1 || nodeResult.ReasonCodes[0].Code != "node_health_missing" {
+		t.Fatalf("node reason codes = %#v", nodeResult.ReasonCodes)
+	}
+}
+
 func TestLatestMetricValueRejectsNonFiniteAndMalformedValues(t *testing.T) {
 	for _, value := range []string{"NaN", "+Inf", "not-a-number"} {
 		if _, ok := latestMetricValue(observe.MetricSeries{Values: metricValues(value)}); ok {
@@ -208,6 +240,31 @@ func (healthyOpsInventory) DynamicNodeDiagnostics(context.Context, management.Dy
 
 func (healthyOpsInventory) GetChannelRuntimeMeta(context.Context, string, int64) (management.ChannelRuntimeMeta, error) {
 	return management.ChannelRuntimeMeta{}, nil
+}
+
+type missingHealthOpsInventory struct {
+	healthyOpsInventory
+}
+
+func (missingHealthOpsInventory) ListNodes(context.Context) (management.NodeList, error) {
+	return management.NodeList{
+		ControllerLeaderID: 1,
+		Items: []management.Node{{
+			NodeID: 1,
+			Status: "alive",
+			Health: management.NodeHealth{Freshness: "missing"},
+		}},
+	}, nil
+}
+
+func (missingHealthOpsInventory) DynamicNodeDiagnostics(context.Context, management.DynamicNodeDiagnosticsRequest) (management.DynamicNodeDiagnosticsResponse, error) {
+	return management.DynamicNodeDiagnosticsResponse{
+		Node: management.Node{
+			NodeID: 1,
+			Status: "alive",
+			Health: management.NodeHealth{Freshness: "missing"},
+		},
+	}, nil
 }
 
 type opsMetricsStub struct {

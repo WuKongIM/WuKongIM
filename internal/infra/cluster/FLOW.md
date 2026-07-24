@@ -488,7 +488,8 @@ opsobserve.Source
 DTOs instead of serializing Manager or runtime structs directly. Cluster
 health combines Controller/Slot evidence with optional target-up and runtime
 queue-pressure metrics; absent optional metrics make the result partial rather
-than healthy. Node inspection includes bounded node diagnostics and
+than healthy. Missing required node-health evidence yields an `unknown`,
+partial observation rather than a definite degraded verdict. Node inspection includes bounded node diagnostics and
 node-filtered runtime queue evidence.
 
 Channel runtime inspection uses the exact `(channel_id, channel_type)` point

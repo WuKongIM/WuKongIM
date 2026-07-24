@@ -35,8 +35,9 @@ type mcpStatus struct {
 }
 
 type tokenCreate struct {
-	Token    string `json:"token"`
-	Revision uint64 `json:"revision"`
+	CredentialID string `json:"credential_id"`
+	Token        string `json:"token"`
+	Revision     uint64 `json:"revision"`
 }
 
 func TestThreeNodeOperationsMCPIngressProfileAndOwnerRestart(t *testing.T) {
@@ -61,6 +62,7 @@ func TestThreeNodeOperationsMCPIngressProfileAndOwnerRestart(t *testing.T) {
 	managerRequest(t, cluster.MustNode(1), managerJWT, http.MethodPost, "/manager/mcp/tokens", map[string]any{
 		"expected_revision": status.Revision,
 	}, http.StatusCreated, &created)
+	require.NotEmpty(t, created.CredentialID)
 	require.NotEmpty(t, created.Token)
 	managerRequest(t, cluster.MustNode(1), managerJWT, http.MethodPost, "/manager/mcp/start", map[string]any{
 		"expected_revision": created.Revision,
@@ -96,6 +98,49 @@ func TestThreeNodeOperationsMCPIngressProfileAndOwnerRestart(t *testing.T) {
 	sessionAfterRestart := connectMCP(t, cluster.MustNode(3), created.Token)
 	defer sessionAfterRestart.Close()
 	callTool(t, sessionAfterRestart, "cluster_health", map[string]any{})
+	logResult := callTool(t, sessionAfterRestart, "logs_search", map[string]any{
+		"node_id": 2,
+		"source":  "app",
+		"limit":   10,
+	})
+	logPayload, err := json.Marshal(logResult.StructuredContent)
+	require.NoError(t, err)
+	require.Contains(t, string(logPayload), `"content_trust":"untrusted"`)
+
+	status = readMCPStatus(t, cluster.MustNode(2), managerJWT)
+	var rotated tokenCreate
+	managerRequest(t, cluster.MustNode(2), managerJWT, http.MethodPost, "/manager/mcp/tokens", map[string]any{
+		"expected_revision": status.Revision,
+	}, http.StatusCreated, &rotated)
+	require.NotEmpty(t, rotated.CredentialID)
+	require.NotEmpty(t, rotated.Token)
+	require.NotEqual(t, created.Token, rotated.Token)
+	eventuallyMCPRevision(t, cluster, managerJWT, rotated.Revision)
+
+	rotatedSession := connectMCP(t, cluster.MustNode(3), rotated.Token)
+	defer rotatedSession.Close()
+	callTool(t, rotatedSession, "cluster_health", map[string]any{})
+
+	managerRequest(
+		t,
+		cluster.MustNode(3),
+		managerJWT,
+		http.MethodDelete,
+		"/manager/mcp/tokens/"+created.CredentialID,
+		map[string]any{"expected_revision": rotated.Revision},
+		http.StatusAccepted,
+		nil,
+	)
+	eventuallyMCPRevision(t, cluster, managerJWT, rotated.Revision+1)
+	requireMCPConnectFails(t, cluster.MustNode(2), created.Token)
+	callTool(t, rotatedSession, "cluster_health", map[string]any{})
+
+	status = readMCPStatus(t, cluster.MustNode(2), managerJWT)
+	managerRequest(t, cluster.MustNode(2), managerJWT, http.MethodPost, "/manager/mcp/stop", map[string]any{
+		"expected_revision": status.Revision,
+	}, http.StatusAccepted, nil)
+	eventuallyMCPStopped(t, cluster, managerJWT)
+	requireMCPUnavailableCode(t, cluster.MustNode(3), rotated.Token, "mcp_disabled")
 }
 
 func opsMCPOptions() []suite.Option {
@@ -152,6 +197,48 @@ func eventuallyMCPReady(t *testing.T, cluster *suite.StartedCluster, token strin
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf("MCP did not become ready: %#v\n%s", last, cluster.DumpDiagnostics())
+}
+
+func eventuallyMCPRevision(t *testing.T, cluster *suite.StartedCluster, token string, minimumRevision uint64) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	last := make(map[uint64]mcpStatus, 3)
+	for time.Now().Before(deadline) {
+		converged := true
+		for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+			status := readMCPStatus(t, cluster.MustNode(nodeID), token)
+			last[nodeID] = status
+			if status.Revision < minimumRevision {
+				converged = false
+			}
+		}
+		if converged {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("MCP revision did not converge to %d: %#v\n%s", minimumRevision, last, cluster.DumpDiagnostics())
+}
+
+func eventuallyMCPStopped(t *testing.T, cluster *suite.StartedCluster, token string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	last := make(map[uint64]mcpStatus, 3)
+	for time.Now().Before(deadline) {
+		stopped := true
+		for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+			status := readMCPStatus(t, cluster.MustNode(nodeID), token)
+			last[nodeID] = status
+			if status.Enabled || status.ObservedStatus != "stopped" {
+				stopped = false
+			}
+		}
+		if stopped {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("MCP did not stop: %#v\n%s", last, cluster.DumpDiagnostics())
 }
 
 func managerRequest(
@@ -231,6 +318,11 @@ func requireMCPConnectFails(t *testing.T, node *suite.StartedNode, token string)
 
 func requireMCPOwnerUnavailable(t *testing.T, node *suite.StartedNode, token string) {
 	t.Helper()
+	requireMCPUnavailableCode(t, node, token, "mcp_owner_unavailable")
+}
+
+func requireMCPUnavailableCode(t *testing.T, node *suite.StartedNode, token, wantCode string) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(
@@ -253,10 +345,10 @@ func requireMCPOwnerUnavailable(t *testing.T, node *suite.StartedNode, token str
 		Code string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(payload, &unavailable), "body=%s", payload)
-	require.Equal(t, "mcp_owner_unavailable", unavailable.Code, "body=%s", payload)
+	require.Equal(t, wantCode, unavailable.Code, "body=%s", payload)
 }
 
-func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments map[string]any) {
+func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments map[string]any) *mcp.CallToolResult {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -264,6 +356,7 @@ func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments m
 	require.NoError(t, err)
 	require.False(t, result.IsError, "tool=%s content=%#v", name, result.Content)
 	require.NotNil(t, result.StructuredContent)
+	return result
 }
 
 func listedToolNames(result *mcp.ListToolsResult) []string {

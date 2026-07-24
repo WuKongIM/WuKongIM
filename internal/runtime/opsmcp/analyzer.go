@@ -44,28 +44,41 @@ type ProfileAnalysisWindow struct {
 
 // ProfileRPCClient invokes one target node's typed in-memory profile capture.
 type ProfileRPCClient interface {
+	// CaptureOpsMCPProfile requests one bounded capture from an exact target node.
 	CaptureOpsMCPProfile(context.Context, uint64, opscontract.ProfileRequest) (opscontract.ProfileResponse, error)
 }
 
 // ProfileAnalyzer enforces the cluster-wide one-at-a-time gate and parses raw
 // target RPC bytes into bounded symbolic rows.
 type ProfileAnalyzer struct {
-	state       StateReader
-	client      ProfileRPCClient
+	// state supplies the latest Controller-derived owner, revision, and fence.
+	state StateReader
+	// client invokes the exact target node after the owner creates a lease.
+	client ProfileRPCClient
+	// localNodeID identifies the only node allowed to authorize owner leases.
 	localNodeID uint64
-	now         func() time.Time
+	// now provides deterministic lease and profile-window timestamps.
+	now func() time.Time
 
-	mu     sync.Mutex
+	// mu protects active and lease for the complete owner-local capture lifecycle.
+	mu sync.Mutex
+	// active enforces one cluster-wide capture for this owner generation.
 	active bool
-	lease  profileLease
+	// lease is the current unpredictable, single-use target authorization.
+	lease profileLease
 }
 
 type profileLease struct {
-	id           string
+	// id is an unpredictable owner-held authorization identifier.
+	id string
+	// targetNodeID binds the lease to one exact profiling target.
 	targetNodeID uint64
-	revision     uint64
-	expiresAt    time.Time
-	used         bool
+	// revision binds the lease to one Controller MCP generation.
+	revision uint64
+	// expiresAt bounds how long the target may consume the lease.
+	expiresAt time.Time
+	// used prevents replay after one successful authorization.
+	used bool
 }
 
 // NewProfileAnalyzer creates the owner-local cluster profile analyzer.

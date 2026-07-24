@@ -62,8 +62,41 @@ func TestProfilerRejectsForgedOwnerWithoutValidLease(t *testing.T) {
 	if _, err := profiler.CaptureProfile(context.Background(), request); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("forged lease error = %v, want unauthorized", err)
 	}
-	if !profiler.lastStarted.IsZero() {
+	if !profiler.lastCompleted.IsZero() {
 		t.Fatal("forged lease reached profile admission")
+	}
+}
+
+func TestProfilerCooldownStartsAfterCaptureCompletion(t *testing.T) {
+	state := stateReaderStub{state: DesiredState{Revision: 9, Enabled: true, OwnerNodeID: 1}}
+	profiler := NewProfiler(state, &profileLeaseVerifierStub{}, 3)
+	start := time.Date(2026, 7, 24, 1, 0, 0, 0, time.UTC)
+	timestamps := []time.Time{start, start.Add(30 * time.Second)}
+	profiler.now = func() time.Time {
+		if len(timestamps) == 0 {
+			return start.Add(89 * time.Second)
+		}
+		value := timestamps[0]
+		timestamps = timestamps[1:]
+		return value
+	}
+	request := opscontract.ProfileRequest{
+		Version: opscontract.RPCVersion, OwnerNodeID: 1, ExpectedRevision: 9,
+		NodeID: 3, Kind: "goroutine", LeaseID: "0123456789abcdef0123456789abcdef",
+	}
+
+	if _, err := profiler.CaptureProfile(context.Background(), request); err != nil {
+		t.Fatalf("first CaptureProfile() error = %v", err)
+	}
+	if want := start.Add(30 * time.Second); !profiler.lastCompleted.Equal(want) {
+		t.Fatalf("lastCompleted = %v, want %v", profiler.lastCompleted, want)
+	}
+	if _, err := profiler.CaptureProfile(context.Background(), request); !errors.Is(err, ErrProfileCooldown) {
+		t.Fatalf("capture 59 seconds after completion error = %v, want cooldown", err)
+	}
+	profiler.now = func() time.Time { return start.Add(90 * time.Second) }
+	if _, err := profiler.CaptureProfile(context.Background(), request); err != nil {
+		t.Fatalf("capture 60 seconds after completion error = %v", err)
 	}
 }
 
