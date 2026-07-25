@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -190,6 +191,20 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
+	checkpointCatalog, err := backupinfra.NewReplicatedCheckpointCatalog(
+		primary, secondary, manifestSigner, a.cfg.Backup.SigningKeyID,
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	checkpointIndex, err := backupinfra.NewCheckpointCatalogIndex(
+		checkpointCatalog, filepath.Join(a.cfg.Backup.StagingDir, "checkpoint-catalog-index.json"),
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
 	primaryGarbage, err := loadAppBackupGarbageRepository(context.Background(), "primary", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays, a.cfg.Backup.GarbageCollectorRoleARN)
 	if err != nil {
 		a.backupInitErr = err
@@ -212,7 +227,8 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	}
 	a.backup, err = backupusecase.NewApp(backupusecase.Options{
 		Enabled: true, HashSlotCount: clusterCfg.Slots.HashSlotCount, Store: stateStore, Publisher: publisher, Verifier: verifier,
-		Now: time.Now, NewJobID: func() string { return newBackupID("job") }, MaxRecoveryPointAge: a.cfg.Backup.RestorePointInterval,
+		CatalogBrowser: checkpointIndex,
+		Now:            time.Now, NewJobID: func() string { return newBackupID("job") }, MaxRecoveryPointAge: a.cfg.Backup.RestorePointInterval,
 	})
 	if err != nil {
 		a.backupInitErr = err
@@ -521,6 +537,14 @@ func (r backupManagerRouter) ListRestorePointsPage(ctx context.Context, request 
 	return r.client.ManagerBackupListRestorePoints(ctx, leaderID, request)
 }
 
+func (r backupManagerRouter) ListCheckpointsPage(ctx context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {
+	return r.local.ListCheckpointsPage(ctx, request)
+}
+
+func (r backupManagerRouter) CheckpointByID(ctx context.Context, checkpointID string) (backupusecase.CheckpointDetail, error) {
+	return r.local.CheckpointByID(ctx, checkpointID)
+}
+
 func (r backupManagerRouter) Trigger(ctx context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
 	leaderID, local, err := r.leader()
 	if err != nil {
@@ -671,6 +695,20 @@ func (f backupManagerFacade) ListRestorePointsPage(ctx context.Context, request 
 		return backupusecase.RestorePointPage{}, backupFacadeUnavailable(f.app)
 	}
 	return f.app.backup.ListRestorePointsPage(ctx, request)
+}
+
+func (f backupManagerFacade) ListCheckpointsPage(ctx context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {
+	if f.app == nil || f.app.backup == nil {
+		return backupusecase.CheckpointPage{}, backupFacadeUnavailable(f.app)
+	}
+	return f.app.backup.ListCheckpointsPage(ctx, request)
+}
+
+func (f backupManagerFacade) CheckpointByID(ctx context.Context, checkpointID string) (backupusecase.CheckpointDetail, error) {
+	if f.app == nil || f.app.backup == nil {
+		return backupusecase.CheckpointDetail{}, backupFacadeUnavailable(f.app)
+	}
+	return f.app.backup.CheckpointByID(ctx, checkpointID)
 }
 
 func (f backupManagerFacade) Trigger(ctx context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {

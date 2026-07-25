@@ -1,6 +1,11 @@
 package backup
 
-import "context"
+import (
+	"context"
+
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+)
 
 // StateStore persists bounded cluster coordination state through optimistic concurrency.
 type StateStore interface {
@@ -19,4 +24,26 @@ type RestorePointPublisher interface {
 // RestorePointVerifier performs an explicit repository and cryptographic audit.
 type RestorePointVerifier interface {
 	Verify(ctx context.Context, restorePointID string) (Verification, error)
+}
+
+// CheckpointCatalogPublisher dual-commits one vector cut and immutable catalog append.
+type CheckpointCatalogPublisher interface {
+	Publish(ctx context.Context, checkpoint backupartifact.Checkpoint, previous *backupartifact.CatalogPageReference) (backupartifact.CheckpointCatalogCommit, error)
+}
+
+// SegmentCommitVerifier authenticates one exact dual-repository frontier proof
+// and returns its signed logical header for checkpoint identity binding.
+type SegmentCommitVerifier interface {
+	VerifyCommit(ctx context.Context, reference backupartifact.SegmentReference) (backupartifact.SegmentHeader, error)
+}
+
+// SlotCaptureStatusSource reports bounded current health for every capture worker.
+type SlotCaptureStatusSource interface {
+	Status() []backupcontract.SlotCaptureStatus
+}
+
+// CheckpointCatalogBrowser reads checkpoint history through a rebuildable derived index.
+type CheckpointCatalogBrowser interface {
+	List(ctx context.Context, head backupartifact.CatalogPageReference, request CheckpointListRequest) (CheckpointPage, error)
+	Get(ctx context.Context, head backupartifact.CatalogPageReference, checkpointID string) (CheckpointDetail, error)
 }

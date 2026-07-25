@@ -59,6 +59,7 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	for index, frontier := range clusterState.Backup.SlotFrontiers {
 		result.SlotFrontiers[index] = slotFrontierFromController(frontier)
 	}
+	result.CatalogHead = catalogPageReferenceFromController(clusterState.Backup.CatalogHead)
 	return result, nil
 }
 
@@ -71,6 +72,7 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		RestorePoints:              make([]controller.BackupRestorePoint, len(next.RestorePoints)),
 		PendingGarbage:             make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
 		SlotFrontiers:              make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
+		CatalogHead:                catalogPageReferenceToController(next.CatalogHead),
 		ErasureLedgerBoundary:      next.ErasureLedgerBoundary,
 		PendingErasureLedger:       erasureLedgerReferenceToController(next.PendingErasureLedger),
 		LastCommittedErasureLedger: erasureLedgerReferenceToController(next.LastCommittedErasureLedger),
@@ -91,6 +93,26 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		return err
 	}
 	return nil
+}
+
+func catalogPageReferenceFromController(reference *controller.BackupCatalogPageReference) *backupartifact.CatalogPageReference {
+	if reference == nil {
+		return nil
+	}
+	return &backupartifact.CatalogPageReference{
+		Sequence: reference.Sequence, Key: reference.Key, SHA256: reference.SHA256,
+		Bytes: reference.Bytes, LatestCheckpointID: reference.LatestCheckpointID,
+	}
+}
+
+func catalogPageReferenceToController(reference *backupartifact.CatalogPageReference) *controller.BackupCatalogPageReference {
+	if reference == nil {
+		return nil
+	}
+	return &controller.BackupCatalogPageReference{
+		Sequence: reference.Sequence, Key: reference.Key, SHA256: reference.SHA256,
+		Bytes: reference.Bytes, LatestCheckpointID: reference.LatestCheckpointID,
+	}
 }
 
 func slotFrontierFromController(frontier controller.BackupSlotFrontier) backupcontract.SlotFrontier {

@@ -81,6 +81,8 @@ segment contract. It is not wired into capture or restore scheduling yet.
    payload copies exist in both repositories. The reference repeats the
    authenticated plaintext size, allowing callers to reserve memory before
    opening it; `Load` verifies that size against the signed commit header.
+   `VerifyCommit` authenticates the exact current proof in both repositories
+   without opening payload bytes or following predecessor links.
 5. If either repository already has a valid signed commit, a retry verifies
    that its logical header matches the requested plaintext, repairs the missing
    payload and commit copy from the healthy repository, and does not request a
@@ -118,3 +120,13 @@ segment contract. It is not wired into capture or restore scheduling yet.
     link only to the previous cursor sidecar, never to payload segments. A full
     checkpoint has no predecessor and bounds chain reconstruction to 1024
     sidecars.
+12. `Checkpoint` freezes exactly one sorted frontier for every configured Hash
+    Slot. Empty but fully reconciled streams are explicit zero-sequence heads,
+    and the checkpoint effective time is the oldest Slot watermark. Repository,
+    source cluster, source generation, Slot generation, stream, and sequence
+    bind its current references to the authenticated segment commit headers.
+13. Each signed `CatalogPage` authenticates its checkpoint references and the
+    exact previous page reference. Checkpoints use deterministic immutable keys;
+    catalog pages use sequence-plus-checkpoint keys so an unpublished orphan
+    cannot collide with a later retry. The Controller stores only the newest
+    page reference and never stores catalog history.

@@ -69,6 +69,8 @@ type (
 	BackupErasureLedgerReference = state.BackupErasureLedgerReference
 	// BackupSegmentReference binds a frontier to an immutable segment commit.
 	BackupSegmentReference = state.BackupSegmentReference
+	// BackupCatalogPageReference is the bounded immutable checkpoint catalog head.
+	BackupCatalogPageReference = state.BackupCatalogPageReference
 	// BackupStreamFrontier is one compact continuous stream head.
 	BackupStreamFrontier = state.BackupStreamFrontier
 	// BackupSlotFrontier atomically binds continuous metadata and message heads.

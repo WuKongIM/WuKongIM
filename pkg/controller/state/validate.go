@@ -144,6 +144,14 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 			return invalid("backup Slot frontier is invalid")
 		}
 	}
+	if backup.CatalogHead != nil {
+		head := backup.CatalogHead
+		if head.Sequence == 0 || !validBackupIdentity(head.LatestCheckpointID) ||
+			head.Key != backupartifact.CatalogPageObjectKey(head.Sequence, head.LatestCheckpointID) ||
+			!validSHA256(head.SHA256) || head.Bytes <= 0 || head.Bytes > 1<<20 {
+			return invalid("backup checkpoint catalog head is invalid")
+		}
+	}
 	if backup.PendingErasureLedger != nil {
 		pending := backup.PendingErasureLedger
 		if backup.ErasureLedgerBoundary == math.MaxUint64 || pending.Sequence != backup.ErasureLedgerBoundary+1 || !validSHA256(pending.EventID) || !validSHA256(pending.RecordSHA256) || backupartifact.ValidateErasureLedgerRecordKey(pending.RecordKey, pending.EventID) != nil {

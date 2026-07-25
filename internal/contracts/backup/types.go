@@ -221,6 +221,8 @@ type State struct {
 	PendingGarbage []RestorePoint
 	// SlotFrontiers contains at most one sorted compact continuous-capture record per Hash Slot.
 	SlotFrontiers []SlotFrontier
+	// CatalogHead is the only Controller-resident pointer into immutable checkpoint history.
+	CatalogHead *backupartifact.CatalogPageReference
 	// ErasureLedgerBoundary is the highest durably committed contiguous ledger sequence.
 	ErasureLedgerBoundary uint64
 	// PendingErasureLedger contains at most one record awaiting commit-marker publication.
@@ -246,6 +248,10 @@ func (s State) Clone() State {
 	out.SlotFrontiers = make([]SlotFrontier, len(s.SlotFrontiers))
 	for index := range s.SlotFrontiers {
 		out.SlotFrontiers[index] = CloneSlotFrontier(s.SlotFrontiers[index])
+	}
+	if s.CatalogHead != nil {
+		head := *s.CatalogHead
+		out.CatalogHead = &head
 	}
 	if s.PendingErasureLedger != nil {
 		pending := *s.PendingErasureLedger

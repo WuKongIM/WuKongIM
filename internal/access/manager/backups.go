@@ -16,6 +16,8 @@ import (
 type BackupManagement interface {
 	Status(context.Context) (backupusecase.StatusSnapshot, error)
 	ListRestorePointsPage(context.Context, backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error)
+	ListCheckpointsPage(context.Context, backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error)
+	CheckpointByID(context.Context, string) (backupusecase.CheckpointDetail, error)
 	Trigger(context.Context, backupartifact.RestorePointKind) (backupusecase.Job, error)
 	Cancel(context.Context, string, uint64) (backupusecase.Job, error)
 	Hold(context.Context, string) (backupusecase.RestorePoint, error)
@@ -113,6 +115,25 @@ type backupRestorePointListDTO struct {
 	Total      int                     `json:"total"`
 }
 
+type backupCheckpointDTO struct {
+	ID                    string `json:"id"`
+	CreatedAtUnixMillis   int64  `json:"created_at_unix_millis"`
+	EffectiveAtUnixMillis int64  `json:"effective_at_unix_millis"`
+}
+
+type backupCheckpointDetailDTO struct {
+	backupCheckpointDTO
+	SourceClusterID  string `json:"source_cluster_id"`
+	SourceGeneration string `json:"source_generation"`
+	HashSlotCount    uint16 `json:"hash_slot_count"`
+}
+
+type backupCheckpointListDTO struct {
+	Items      []backupCheckpointDTO `json:"items"`
+	NextCursor string                `json:"next_cursor,omitempty"`
+	Total      int                   `json:"total"`
+}
+
 type backupTriggerRequestDTO struct {
 	Kind backupartifact.RestorePointKind `json:"kind"`
 }
@@ -190,6 +211,54 @@ func (s *Server) handleBackupRestorePoints(c *gin.Context) {
 		items[index] = backupRestorePointResponse(page.Items[index])
 	}
 	c.JSON(http.StatusOK, backupRestorePointListDTO{Items: items, NextCursor: page.NextCursor, Total: page.Total})
+}
+
+func (s *Server) handleBackupCheckpoints(c *gin.Context) {
+	if s == nil || s.backup == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
+		return
+	}
+	request := backupusecase.CheckpointListRequest{
+		Cursor: strings.TrimSpace(c.Query("cursor")), IDQuery: strings.TrimSpace(c.Query("id")),
+	}
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil || limit <= 0 {
+			jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint page limit")
+			return
+		}
+		if limit > backupusecase.MaxCheckpointPageSize {
+			limit = backupusecase.MaxCheckpointPageSize
+		}
+		request.Limit = limit
+	}
+	page, err := s.backup.ListCheckpointsPage(c.Request.Context(), request)
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	items := make([]backupCheckpointDTO, len(page.Items))
+	for index := range page.Items {
+		items[index] = backupCheckpointResponse(page.Items[index])
+	}
+	c.JSON(http.StatusOK, backupCheckpointListDTO{Items: items, NextCursor: page.NextCursor, Total: page.Total})
+}
+
+func (s *Server) handleBackupCheckpoint(c *gin.Context) {
+	if s == nil || s.backup == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
+		return
+	}
+	detail, err := s.backup.CheckpointByID(c.Request.Context(), strings.TrimSpace(c.Param("checkpoint_id")))
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, backupCheckpointDetailDTO{
+		backupCheckpointDTO: backupCheckpointResponse(detail.CheckpointSummary),
+		SourceClusterID:     detail.SourceClusterID, SourceGeneration: detail.SourceGeneration,
+		HashSlotCount: detail.HashSlotCount,
+	})
 }
 
 func (s *Server) handleBackupTrigger(c *gin.Context) {
@@ -340,6 +409,13 @@ func backupRestorePointResponse(point backupusecase.RestorePoint) backupRestoreP
 	}
 }
 
+func backupCheckpointResponse(checkpoint backupusecase.CheckpointSummary) backupCheckpointDTO {
+	return backupCheckpointDTO{
+		ID: checkpoint.ID, CreatedAtUnixMillis: checkpoint.CreatedAtUnixMillis,
+		EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis,
+	}
+}
+
 func backupVerificationTaskResponse(task backupusecase.VerificationTask) backupVerificationTaskDTO {
 	return backupVerificationTaskDTO{
 		ID: task.ID, RestorePointID: task.RestorePointID,
@@ -378,6 +454,8 @@ func writeBackupError(c *gin.Context, err error) {
 		jsonError(c, http.StatusConflict, "state_conflict", "backup state changed")
 	case errors.Is(err, backupusecase.ErrRestorePointNotFound):
 		jsonError(c, http.StatusNotFound, "restore_point_not_found", "restore point not found")
+	case errors.Is(err, backupusecase.ErrCheckpointNotFound):
+		jsonError(c, http.StatusNotFound, "checkpoint_not_found", "checkpoint not found")
 	default:
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control unavailable")
 	}

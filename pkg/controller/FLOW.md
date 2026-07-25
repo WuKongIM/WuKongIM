@@ -115,7 +115,10 @@ references, and at most one latest later-audit evidence record per retained
 restore point. It also stores at most one sorted continuous `SlotFrontier` per
 configured Hash Slot. Each frontier contains only two stream heads, bounded
 source cursors/watermarks, Generation, and revision; per-Channel cursor data
-remains in immutable repository segments. Active backup and pending/running
+remains in immutable repository segments. The same section stores only one
+authenticated checkpoint `CatalogHead`; immutable checkpoint history remains
+in dual repositories, so the new catalog does not grow Controller state.
+Active backup and pending/running
 verification are mutually exclusive. Large partition
 manifests, encrypted objects, KMS material, and repository credentials remain
 outside Controller Raft. `ReplaceBackupCoordinationState` uses the normal global

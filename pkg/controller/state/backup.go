@@ -169,6 +169,21 @@ type BackupSegmentReference struct {
 	PlaintextBytes int64 `json:"plaintext_bytes"`
 }
 
+// BackupCatalogPageReference is the bounded Controller-visible head of the
+// immutable checkpoint catalog.
+type BackupCatalogPageReference struct {
+	// Sequence is the monotonically increasing catalog page position.
+	Sequence uint64 `json:"sequence"`
+	// Key locates the immutable signed catalog page.
+	Key string `json:"key"`
+	// SHA256 authenticates the exact signed page bytes.
+	SHA256 string `json:"sha256"`
+	// Bytes is the exact signed page size.
+	Bytes int64 `json:"bytes"`
+	// LatestCheckpointID identifies the newest checkpoint on this page.
+	LatestCheckpointID string `json:"latest_checkpoint_id"`
+}
+
 // BackupStreamFrontier is the compact durable head of one continuous Slot stream.
 type BackupStreamFrontier struct {
 	// Sequence is the latest committed segment sequence in the current Generation.
@@ -216,6 +231,8 @@ type BackupCoordinationState struct {
 	PendingGarbage []BackupRestorePoint `json:"pending_garbage,omitempty"`
 	// SlotFrontiers contains at most one compact sorted record per configured Hash Slot.
 	SlotFrontiers []BackupSlotFrontier `json:"slot_frontiers,omitempty"`
+	// CatalogHead is the only Controller-resident pointer into immutable checkpoint history.
+	CatalogHead *BackupCatalogPageReference `json:"catalog_head,omitempty"`
 	// ErasureLedgerBoundary is the highest durably committed contiguous ledger sequence.
 	ErasureLedgerBoundary uint64 `json:"erasure_ledger_boundary,omitempty"`
 	// PendingErasureLedger contains at most one record awaiting commit-marker publication.
@@ -239,6 +256,10 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 	out.RestorePoints = cloneBackupRestorePoints(s.RestorePoints)
 	out.PendingGarbage = cloneBackupRestorePoints(s.PendingGarbage)
 	out.SlotFrontiers = cloneBackupSlotFrontiers(s.SlotFrontiers)
+	if s.CatalogHead != nil {
+		head := *s.CatalogHead
+		out.CatalogHead = &head
+	}
 	if s.PendingErasureLedger != nil {
 		pending := *s.PendingErasureLedger
 		out.PendingErasureLedger = &pending

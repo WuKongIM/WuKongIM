@@ -9,6 +9,7 @@ import (
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	backupruntime "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/stretchr/testify/require"
 )
@@ -19,6 +20,10 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 		Backup: &controller.BackupCoordinationState{
 			LastEpoch:             3,
 			ErasureLedgerBoundary: 4,
+			CatalogHead: &controller.BackupCatalogPageReference{
+				Sequence: 4, Key: "catalog/pages/00000000000000000004-checkpoint-4.json",
+				SHA256: strings.Repeat("f", 64), Bytes: 456, LatestCheckpointID: "checkpoint-4",
+			},
 			PendingErasureLedger: &controller.BackupErasureLedgerReference{
 				Sequence: 5, EventID: strings.Repeat("d", 64), RecordKey: "erasure-ledger/events/0002/" + strings.Repeat("d", 64) + ".json", RecordSHA256: strings.Repeat("e", 64),
 			},
@@ -67,9 +72,25 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	require.Equal(t, "restore-expired", state.PendingGarbage[0].ID)
 	require.Equal(t, uint64(4), state.ErasureLedgerBoundary)
 	require.Equal(t, uint64(5), state.PendingErasureLedger.Sequence)
+	require.Equal(t, uint64(4), state.CatalogHead.Sequence)
 
 	state.Active.Partitions[0].ManifestKey = "mutated"
 	require.Equal(t, "jobs/backup-3/partitions/2.json", runtime.state.Backup.Active.Partitions[0].ManifestKey)
+}
+
+func TestControllerStateStorePersistsCheckpointCatalogHead(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{Revision: 9}}
+	store, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	head := &backupartifact.CatalogPageReference{
+		Sequence: 7, Key: "catalog/pages/00000000000000000007-checkpoint-7.json",
+		SHA256: strings.Repeat("a", 64), Bytes: 700, LatestCheckpointID: "checkpoint-7",
+	}
+
+	require.NoError(t, store.CompareAndSwap(context.Background(), 9, backupusecase.State{CatalogHead: head}))
+	require.Equal(t, uint64(7), runtime.replacement.CatalogHead.Sequence)
+	head.Sequence = 8
+	require.Equal(t, uint64(7), runtime.replacement.CatalogHead.Sequence)
 }
 
 func TestControllerStateStorePersistsErasureLedgerCoordination(t *testing.T) {

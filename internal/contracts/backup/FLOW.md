@@ -19,6 +19,8 @@ immutable cursor-only evidence in the repository.
 `SlotCaptureStatus` is a detached public projection of that frontier plus the
 latest observed source watermarks, per-stream lag, capture state, and a bounded
 failure category.
+The coordination state adds one `CatalogPageReference` head beside those Slot
+frontiers. It never transports checkpoint history or repository payloads.
 
 Backup coordination state includes at most one durable verification task and
 bounded per-restore-point later-audit evidence. Publication-time primary and

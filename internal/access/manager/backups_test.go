@@ -10,6 +10,7 @@ import (
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+	"github.com/stretchr/testify/require"
 )
 
 func TestManagerBackupStatusSanitizesControllerAndRepositoryDetails(t *testing.T) {
@@ -128,6 +129,39 @@ func TestManagerBackupRestorePointsUsesBoundedCursorPagination(t *testing.T) {
 	}
 }
 
+func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
+	provider := &fakeBackupManagement{
+		checkpointPage: backupusecase.CheckpointPage{
+			Items: []backupusecase.CheckpointSummary{{
+				ID: "checkpoint-2", CreatedAtUnixMillis: 200, EffectiveAtUnixMillis: 190,
+			}},
+			NextCursor: "opaque-next", Total: 2,
+		},
+		checkpointDetail: backupusecase.CheckpointDetail{
+			CheckpointSummary: backupusecase.CheckpointSummary{
+				ID: "checkpoint-2", CreatedAtUnixMillis: 200, EffectiveAtUnixMillis: 190,
+			},
+			SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 256,
+		},
+	}
+	srv := New(Options{Backup: provider})
+
+	recorder := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/manager/backups/checkpoints?limit=999&cursor=opaque&id=POINT", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, backupusecase.MaxCheckpointPageSize, provider.checkpointListRequest.Limit)
+	require.Equal(t, "opaque", provider.checkpointListRequest.Cursor)
+	require.Equal(t, "POINT", provider.checkpointListRequest.IDQuery)
+	require.Contains(t, recorder.Body.String(), `"next_cursor":"opaque-next"`)
+
+	recorder = httptest.NewRecorder()
+	srv.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/manager/backups/checkpoints/checkpoint-2", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "checkpoint-2", provider.checkpointID)
+	require.Contains(t, recorder.Body.String(), `"hash_slot_count":256`)
+	require.NotContains(t, recorder.Body.String(), "segments/")
+}
+
 func TestManagerBackupVerificationStartsDurableAsyncTask(t *testing.T) {
 	provider := &fakeBackupManagement{verificationTask: backupusecase.VerificationTask{
 		ID: "verification-1", RestorePointID: "rp-1",
@@ -176,12 +210,16 @@ func TestManagerBackupUsesStableMachineErrors(t *testing.T) {
 }
 
 type fakeBackupManagement struct {
-	status           backupusecase.StatusSnapshot
-	page             backupusecase.RestorePointPage
-	listRequest      backupusecase.RestorePointListRequest
-	verificationTask backupusecase.VerificationTask
-	triggered        bool
-	statusErr        error
+	status                backupusecase.StatusSnapshot
+	page                  backupusecase.RestorePointPage
+	listRequest           backupusecase.RestorePointListRequest
+	checkpointPage        backupusecase.CheckpointPage
+	checkpointDetail      backupusecase.CheckpointDetail
+	checkpointListRequest backupusecase.CheckpointListRequest
+	checkpointID          string
+	verificationTask      backupusecase.VerificationTask
+	triggered             bool
+	statusErr             error
 }
 
 func (f *fakeBackupManagement) Status(context.Context) (backupusecase.StatusSnapshot, error) {
@@ -191,6 +229,16 @@ func (f *fakeBackupManagement) Status(context.Context) (backupusecase.StatusSnap
 func (f *fakeBackupManagement) ListRestorePointsPage(_ context.Context, request backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error) {
 	f.listRequest = request
 	return f.page, nil
+}
+
+func (f *fakeBackupManagement) ListCheckpointsPage(_ context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {
+	f.checkpointListRequest = request
+	return f.checkpointPage, nil
+}
+
+func (f *fakeBackupManagement) CheckpointByID(_ context.Context, checkpointID string) (backupusecase.CheckpointDetail, error) {
+	f.checkpointID = checkpointID
+	return f.checkpointDetail, nil
 }
 
 func (f *fakeBackupManagement) Trigger(_ context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {

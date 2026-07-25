@@ -21,8 +21,12 @@ var (
 	ErrStateConflict = backupcontract.ErrStateConflict
 	// ErrPartitionsIncomplete reports a publish attempt missing logical partitions.
 	ErrPartitionsIncomplete = errors.New("backup usecase: logical partitions incomplete")
+	// ErrCheckpointUnhealthy reports a Slot capture that cannot enter a recovery cut.
+	ErrCheckpointUnhealthy = errors.New("backup usecase: checkpoint Slot unhealthy")
 	// ErrRestorePointNotFound reports an unknown published restore-point identity.
 	ErrRestorePointNotFound = errors.New("backup usecase: restore point not found")
+	// ErrCheckpointNotFound reports an unknown immutable catalog checkpoint.
+	ErrCheckpointNotFound = errors.New("backup usecase: checkpoint not found")
 	// ErrErasureLedgerPending reports a different record already reserved the next commit sequence.
 	ErrErasureLedgerPending = errors.New("backup usecase: erasure ledger commit pending")
 	// ErrDoctorUnhealthy reports that dependency preflight evidence is not healthy.

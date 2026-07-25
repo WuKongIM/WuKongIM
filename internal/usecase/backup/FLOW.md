@@ -44,6 +44,14 @@ Current flow:
    idempotency for older committed events without an unbounded Controller map. A restore plan
    immutably pins the authenticated current ledger prefix independently of the
    selected restore point.
+10. `CheckpointCoordinator.Publish` requires exactly one healthy durable
+    frontier from each Slot's public capture status, builds a nonblocking vector cut,
+    authenticates only its current segment and cursor commit proofs,
+    dual-commits the new checkpoint and hash-linked catalog page, then advances
+    only the Controller catalog head while preserving concurrent frontier
+    updates. `ListCheckpointsPage` and `CheckpointByID` read immutable history
+    through an injected rebuildable catalog browser instead of Controller
+    arrays.
 
 Large channel/object manifests stay in repositories. Coordination state stores
 only one bounded summary per logical hash slot.

@@ -450,6 +450,10 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	st.Backup = &BackupCoordinationState{
 		RestorePoints:  []BackupRestorePoint{},
 		PendingGarbage: []BackupRestorePoint{},
+		CatalogHead: &BackupCatalogPageReference{
+			Sequence: 3, Key: "catalog/pages/00000000000000000003-checkpoint-3.json",
+			SHA256: strings.Repeat("e", 64), Bytes: 512, LatestCheckpointID: "checkpoint-3",
+		},
 		SlotFrontiers: []BackupSlotFrontier{{
 			Revision: 1, HashSlot: 1, Generation: "slot-generation-1",
 			Metadata: BackupStreamFrontier{
@@ -481,6 +485,21 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	require.Equal(t, uint64(5), decoded.Backup.SlotFrontiers[0].Messages.SourceHighWatermark)
 	require.Equal(t, segmentID, decoded.Backup.SlotFrontiers[0].Messages.Head.SegmentID)
 	require.Equal(t, cursorID, decoded.Backup.SlotFrontiers[0].Messages.CursorHead.SegmentID)
+	require.Equal(t, uint64(3), decoded.Backup.CatalogHead.Sequence)
+	require.Equal(t, "checkpoint-3", decoded.Backup.CatalogHead.LatestCheckpointID)
+}
+
+func TestValidateRejectsMalformedCheckpointCatalogHead(t *testing.T) {
+	st := testState()
+	st.Backup = &BackupCoordinationState{
+		RestorePoints: []BackupRestorePoint{},
+		CatalogHead: &BackupCatalogPageReference{
+			Sequence: 2, Key: "catalog/pages/00000000000000000001-checkpoint-2.json",
+			SHA256: strings.Repeat("a", 64), Bytes: 512, LatestCheckpointID: "checkpoint-2",
+		},
+	}
+
+	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
 func TestDecodeRejectsUnknownNestedField(t *testing.T) {

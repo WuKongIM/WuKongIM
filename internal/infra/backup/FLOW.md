@@ -34,6 +34,17 @@ unrelated global Controller revision conflicts from a fresh snapshot, and
 therefore never overwrites concurrent checkpoint, verification, retention, or
 erasure coordination.
 
+`ReplicatedCheckpointCatalog` signs and verifies only the newly published
+checkpoint and catalog page. It writes the checkpoint to both repositories,
+then the catalog page secondary-first and primary-last, and returns a head only
+after all four immutable objects have matching provider metadata. Publication
+never opens earlier pages. `CheckpointCatalogIndex` is a node-local derived
+index used by Manager pagination and exact-ID lookup. Its checksummed atomic
+file is not authority: every process cold start walks and authenticates the
+signed dual-repository hash chain, replacing missing, malformed, injected, or
+head-inconsistent data. While the process remains live, a new head normally
+extends the authenticated index by reading only newly linked pages.
+
 ## Continuous Sources
 
 `MetadataLogSource` maps the routed Slot Leader's last applied Raft index that

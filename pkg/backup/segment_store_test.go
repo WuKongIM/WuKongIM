@@ -37,6 +37,9 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	if first.PlaintextBytes != int64(len(plaintext)) {
 		t.Fatalf("reference plaintext bytes = %d, want %d", first.PlaintextBytes, len(plaintext))
 	}
+	if _, err := store.VerifyCommit(context.Background(), first); err != nil {
+		t.Fatalf("VerifyCommit() error = %v", err)
+	}
 	second, err := store.Commit(context.Background(), descriptor, plaintext)
 	if err != nil {
 		t.Fatalf("retry Commit() error = %v", err)
@@ -66,6 +69,9 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	}
 	secondary.remove(commit.Payload.Key)
 	secondary.remove(first.CommitKey)
+	if _, err := store.VerifyCommit(context.Background(), first); !errors.Is(err, backup.ErrRepositoryIncomplete) {
+		t.Fatalf("VerifyCommit(missing secondary) error = %v, want %v", err, backup.ErrRepositoryIncomplete)
+	}
 
 	repaired, err := store.Commit(context.Background(), descriptor, plaintext)
 	if err != nil {

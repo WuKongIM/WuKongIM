@@ -33,6 +33,8 @@ type Options struct {
 	Publisher RestorePointPublisher
 	// Verifier performs explicit dual-repository audits.
 	Verifier RestorePointVerifier
+	// CatalogBrowser reads immutable checkpoint history through a derived index.
+	CatalogBrowser CheckpointCatalogBrowser
 	// Now returns the current UTC time.
 	Now func() time.Time
 	// NewJobID returns a globally unique backup job identity.
@@ -52,6 +54,7 @@ type App struct {
 	store               StateStore
 	publisher           RestorePointPublisher
 	verifier            RestorePointVerifier
+	catalogBrowser      CheckpointCatalogBrowser
 	now                 func() time.Time
 	newJobID            func() string
 	maxRecoveryPointAge time.Duration
@@ -91,6 +94,7 @@ func NewApp(options Options) (*App, error) {
 		store:               options.Store,
 		publisher:           options.Publisher,
 		verifier:            options.Verifier,
+		catalogBrowser:      options.CatalogBrowser,
 		now:                 options.Now,
 		newJobID:            options.NewJobID,
 		maxRecoveryPointAge: maxRecoveryPointAge,

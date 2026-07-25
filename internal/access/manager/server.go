@@ -432,6 +432,8 @@ func (s *Server) registerRoutes() {
 	}
 	backupReads.GET("/backups/status", s.handleBackupStatus)
 	backupReads.GET("/backups/restore-points", s.handleBackupRestorePoints)
+	backupReads.GET("/backups/checkpoints", s.handleBackupCheckpoints)
+	backupReads.GET("/backups/checkpoints/:checkpoint_id", s.handleBackupCheckpoint)
 
 	backupWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {

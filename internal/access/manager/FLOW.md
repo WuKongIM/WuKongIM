@@ -66,6 +66,8 @@ GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.
 GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
 GET  /manager/backups/status (cluster backup health and non-secret effective policy; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/restore-points (cursor-paged restore-point inventory; requires cluster.backup:r when Auth.On=true)
+GET  /manager/backups/checkpoints (stable cursor-paged immutable checkpoint catalog; requires cluster.backup:r when Auth.On=true)
+GET  /manager/backups/checkpoints/:checkpoint_id (exact immutable checkpoint summary; requires cluster.backup:r when Auth.On=true)
 POST /manager/backups/trigger (materialized-full operator backup; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/jobs/:job_id/cancel (exact job/epoch cancel; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/restore-points/:restore_point_id/verify (durable asynchronous audit; requires cluster.backup:w when Auth.On=true)
@@ -538,6 +540,10 @@ persisted job with its eventual immutable publication. Restore-point inventory
 uses an opaque newest-first keyset cursor with a default page size of 50 and a
 hard maximum of 200. Verification starts a durable asynchronous task and
 returns `202`; it does not hold the HTTP request open for the repository audit.
+The vNext checkpoint routes page and query the immutable catalog through a
+rebuildable local derived index. Responses expose bounded identities,
+timestamps, source generation, and Hash Slot count but omit segment and object
+keys.
 A disabled backup still returns an explicit disabled status through the app
 facade. Backup handlers preserve stable machine error codes and use retryable
 `controller_leader_unavailable` during Controller leadership transitions.
