@@ -667,6 +667,8 @@ func (f backupManagerFacade) observeBackupStatus(status backupusecase.StatusSnap
 			ObjectLockDays:                  cfg.ObjectLockDays,
 			MaxParallelPartitions:           cfg.MaxParallelPartitions,
 			StagingMaxBytes:                 cfg.StagingMaxBytes,
+			SourcePinMaxAgeSeconds:          int64(cfg.SourcePinMaxAge / time.Second),
+			MaxSourcePinnedBytes:            cfg.MaxSourcePinnedBytes,
 			PrimaryRegion:                   cfg.Primary.Region,
 			SecondaryRegion:                 cfg.Secondary.Region,
 			KMSRegion:                       cfg.KMSRegion,

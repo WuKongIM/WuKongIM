@@ -74,6 +74,19 @@ func TestCheckpointCoordinatorRejectsMissingDuplicateAndUnhealthySlots(t *testin
 			}(),
 			wantErr: backupusecase.ErrCheckpointUnhealthy,
 		},
+		{
+			name: "durably rebasing", frontier: checkpointTestFrontiers(2),
+			statuses: func() []backupcontract.SlotCaptureStatus {
+				statuses := checkpointTestStatuses(2)
+				statuses[1].Frontier.Rebase = &backupcontract.SlotRebase{
+					TargetGeneration: "rebase-00001-00000000000000000002",
+					Epoch:            2,
+					Reason:           backupcontract.RebaseReasonPinAge, StartedAtUnixMillis: 1_753_400_200_000,
+				}
+				return statuses
+			}(),
+			wantErr: backupusecase.ErrCheckpointUnhealthy,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

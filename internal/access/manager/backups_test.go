@@ -24,11 +24,12 @@ func TestManagerBackupStatusSanitizesControllerAndRepositoryDetails(t *testing.T
 		PendingGarbageCount:     7,
 		FailureCategory:         "retention",
 		CaptureLeases: []backupusecase.CaptureLeaseSnapshot{{
-			HashSlot: 17, SlotID: 3, HolderNodeID: 2, LeaderTerm: 11,
+			HashSlot: 17, SlotID: 3, SourceSlotID: 2, HolderNodeID: 2, LeaderTerm: 11,
 			ConfigEpoch: 5, Generation: "slot-generation-1", LeaseSequence: 4,
 			FrontierRevision: 7, MetadataSourceWatermark: 91,
 			MessageSourceWatermark: 89, AcquiredAtUnixMillis: 1_753_056_300_000,
-			FrontierUpdatedUnixMillis: 1_753_056_310_000,
+			SourcePinStartedAtUnixMillis: 1_753_056_290_000,
+			FrontierUpdatedUnixMillis:    1_753_056_310_000,
 		}},
 		Active: &backupusecase.Job{
 			ID: "job-1", Epoch: 3, Kind: backupartifact.RestorePointIncremental,
@@ -69,7 +70,9 @@ func TestManagerBackupStatusSanitizesControllerAndRepositoryDetails(t *testing.T
 	lease := leases[0].(map[string]any)
 	if lease["hash_slot"].(float64) != 17 || lease["holder_node_id"].(float64) != 2 ||
 		lease["leader_term"].(float64) != 11 || lease["lease_sequence"].(float64) != 4 ||
-		lease["metadata_source_watermark"].(float64) != 91 {
+		lease["metadata_source_watermark"].(float64) != 91 ||
+		lease["source_slot_id"].(float64) != 2 ||
+		lease["source_pin_started_at_unix_millis"].(float64) != 1_753_056_290_000 {
 		t.Fatalf("capture lease = %#v", lease)
 	}
 }

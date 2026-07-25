@@ -381,9 +381,10 @@ func (g *slot) runApplyTask(ctx context.Context, task applyTask) {
 	g.refreshDurableAppliedStatus()
 	g.completeResolutions(resolutions)
 	if g.compactor.shouldCompact(lastApplied) {
-		if err := g.compactLog(ctx, lastApplied); err != nil {
+		compacted, err := g.compactLog(ctx, lastApplied)
+		if err != nil {
 			g.logCompactionWarning(err, lastApplied)
-		} else {
+		} else if compacted {
 			g.compactor.recordSnapshot(lastApplied)
 		}
 	}

@@ -29,6 +29,12 @@ func (s *storageAdapter) load(ctx context.Context) (BootstrapState, raftpb.Snaps
 	if err != nil {
 		return BootstrapState{}, raftpb.Snapshot{}, nil, err
 	}
+	// FirstIndex may expose an older backup-readable archive. Raft recovery
+	// starts strictly after the authoritative snapshot and must neither load
+	// nor replay that retained prefix.
+	if !raft.IsEmptySnap(snap) && first <= snap.Metadata.Index {
+		first = snap.Metadata.Index + 1
+	}
 	last, err := s.storage.LastIndex(ctx)
 	if err != nil {
 		return BootstrapState{}, raftpb.Snapshot{}, nil, err

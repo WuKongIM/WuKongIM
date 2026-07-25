@@ -68,7 +68,8 @@ func (e *CaptureEngine) captureStream(ctx context.Context, hashSlot uint16, leas
 			CursorSequence:     current.Sequence,
 			CursorSourceCursor: current.SourceCursor,
 			CursorHead:         streamCursorHead(stream, current), AfterCursor: cursor,
-			ThroughPosition: scanTarget.Position, ThroughCursor: scanTarget.CutCursor,
+			BaselineCursorHead: streamBaselineCursorHead(stream, current),
+			ThroughPosition:    scanTarget.Position, ThroughCursor: scanTarget.CutCursor,
 			MaxBytes:       requestBytes,
 			MaxRecordBytes: e.options.Policy.MaxSegmentBytes,
 			MaxRecords:     e.options.Policy.PageRecords,
@@ -266,6 +267,13 @@ func streamCursorHead(stream backupartifact.SegmentStream, current backupcontrac
 		return nil
 	}
 	return cloneRuntimeSegmentReference(current.CursorHead)
+}
+
+func streamBaselineCursorHead(stream backupartifact.SegmentStream, current backupcontract.StreamFrontier) *backupartifact.SegmentReference {
+	if stream != backupartifact.SegmentStreamMessages {
+		return nil
+	}
+	return cloneRuntimeSegmentReference(current.BaselineCursorHead)
 }
 
 func capturePageReservation(accounting sourcePageAccounting) (int64, error) {

@@ -90,7 +90,8 @@ func (s *ControllerSlotFrontierStore) AcquireLease(ctx context.Context, hashSlot
 		}
 
 		next := backupcontract.SlotFrontier{
-			HashSlot: hashSlot, Generation: initialGeneration,
+			HashSlot: hashSlot, Generation: initialGeneration, SourceSlotID: authority.SlotID,
+			SourcePinStartedAtUnixMillis: acquiredAtUnixMillis,
 		}
 		var leaseSequence uint64 = 1
 		if found {
@@ -188,6 +189,75 @@ func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expect
 	return fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
 }
 
+// PromoteGeneration atomically swaps only a completed pending rebase while
+// preserving the exact Raft authority and lease sequence.
+func (s *ControllerSlotFrontierStore) PromoteGeneration(
+	ctx context.Context,
+	expectedRevision uint64,
+	expectedLease backupcontract.SlotCaptureLease,
+	next backupcontract.SlotFrontier,
+) error {
+	if s == nil || s.state == nil || s.authority == nil ||
+		next.Generation == expectedLease.Generation ||
+		next.Lease.Generation != next.Generation ||
+		next.Lease.SlotID != expectedLease.SlotID ||
+		next.Lease.LeaderTerm != expectedLease.LeaderTerm ||
+		next.Lease.ConfigEpoch != expectedLease.ConfigEpoch ||
+		next.Lease.HolderNodeID != expectedLease.HolderNodeID ||
+		next.Lease.Sequence != expectedLease.Sequence ||
+		next.SourceSlotID != expectedLease.SlotID ||
+		next.SourcePinStartedAtUnixMillis != next.Lease.AcquiredAtUnixMillis ||
+		next.Lease.AcquiredAtUnixMillis < expectedLease.AcquiredAtUnixMillis ||
+		next.Lease.AcquiredAtUnixMillis != next.UpdatedAtUnixMillis ||
+		next.Rebase != nil || next.Baseline == nil {
+		return runtimebackup.ErrInvalidCapture
+	}
+	authority, err := s.currentAuthority(ctx, next.HashSlot)
+	if err != nil {
+		return err
+	}
+	if !captureLeaseMatchesAuthority(expectedLease, authority) {
+		return runtimebackup.ErrCaptureLeaseFenced
+	}
+	for attempt := 0; attempt < maxControllerFrontierCASAttempts; attempt++ {
+		state, err := s.state.Load(ctx)
+		if err != nil {
+			return err
+		}
+		index, found := findSlotFrontier(state.SlotFrontiers, next.HashSlot)
+		if !found {
+			return runtimebackup.ErrCaptureLeaseFenced
+		}
+		current := state.SlotFrontiers[index]
+		if current.Revision != expectedRevision {
+			return runtimebackup.ErrFrontierConflict
+		}
+		if !backupcontract.SlotCaptureLeasesEqual(current.Lease, expectedLease) {
+			return runtimebackup.ErrCaptureLeaseFenced
+		}
+		if current.Rebase == nil ||
+			current.Rebase.TargetGeneration != next.Generation ||
+			current.Generation != expectedLease.Generation {
+			return runtimebackup.ErrInvalidCapture
+		}
+		state.SlotFrontiers[index] = backupcontract.CloneSlotFrontier(next)
+		if _, err := s.requireAuthority(ctx, next.HashSlot, authority); err != nil {
+			return err
+		}
+		err = s.state.CompareAndSwap(ctx, state.Revision, state)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, backupusecase.ErrStateConflict) {
+			return err
+		}
+		if _, err := s.requireAuthority(ctx, next.HashSlot, authority); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
+}
+
 func (s *ControllerSlotFrontierStore) currentAuthority(ctx context.Context, hashSlot uint16) (runtimebackup.SlotCaptureAuthority, error) {
 	authority, err := s.authority.CurrentCaptureAuthority(ctx, hashSlot)
 	if err != nil {
@@ -241,3 +311,4 @@ func findSlotFrontier(frontiers []backupcontract.SlotFrontier, hashSlot uint16) 
 }
 
 var _ runtimebackup.SlotFrontierStore = (*ControllerSlotFrontierStore)(nil)
+var _ runtimebackup.SlotGenerationPromoter = (*ControllerSlotFrontierStore)(nil)

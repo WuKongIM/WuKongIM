@@ -244,6 +244,85 @@ func TestPebbleControllerSnapshotTrimsCoveredEntries(t *testing.T) {
 	}
 }
 
+func TestPebbleSnapshotPreservesAndIndependentlyTrimsBackupLogArchive(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+	store := db.ForSlot(9)
+	entries := benchEntries(1, 5, 2, 8)
+	hs := raftpb.HardState{Term: 2, Vote: 1, Commit: 5}
+	if err := store.Save(ctx, multiraft.PersistentState{
+		HardState: &hs, Entries: entries,
+	}); err != nil {
+		t.Fatalf("Save(entries) error = %v", err)
+	}
+	snapshot := raftpb.Snapshot{
+		Data: []byte("state-through-five"),
+		Metadata: raftpb.SnapshotMetadata{
+			Index: 5, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}},
+		},
+	}
+	retainAfter := uint64(2)
+	if err := store.Save(ctx, multiraft.PersistentState{
+		Snapshot: &snapshot, RetainLogAfter: &retainAfter,
+	}); err != nil {
+		t.Fatalf("Save(retained snapshot) error = %v", err)
+	}
+	if first, err := store.FirstIndex(ctx); err != nil || first != 3 {
+		t.Fatalf("FirstIndex() = %d, %v, want retained index 3", first, err)
+	}
+	if cached := db.stateCache[SlotScope(9)].entries; len(cached) != 0 {
+		t.Fatalf("writer cached retained archive = %#v, want no entries at or before recovery snapshot", cached)
+	}
+	if err := store.Save(ctx, multiraft.PersistentState{
+		Entries: []raftpb.Entry{{Index: 6, Term: 2}},
+	}); err != nil {
+		t.Fatalf("Save(post-snapshot append) error = %v", err)
+	}
+	if cached := db.stateCache[SlotScope(9)].entries; len(cached) != 1 || cached[0].Index != 6 {
+		t.Fatalf("writer active cache = %#v, want only post-snapshot index 6", cached)
+	}
+	if first, err := store.FirstIndex(ctx); err != nil || first != 3 {
+		t.Fatalf("FirstIndex(after append) = %d, %v, want retained index 3", first, err)
+	}
+	gotSnapshot, err := store.Snapshot(ctx)
+	if err != nil || gotSnapshot.Metadata.Index != 5 {
+		t.Fatalf("Snapshot() = %#v, %v, want recovery index 5", gotSnapshot, err)
+	}
+	trimmer := store.(multiraft.RetainedLogStorage)
+	trimWrites := 0
+	db.writeCommitTestHook = func() error {
+		trimWrites++
+		return nil
+	}
+	if err := trimmer.TrimRetainedLog(ctx, 1); err != nil {
+		t.Fatalf("TrimRetainedLog(already trimmed) error = %v", err)
+	}
+	if trimWrites != 0 {
+		t.Fatalf("already-satisfied trim issued %d Sync writes, want 0", trimWrites)
+	}
+	if err := trimmer.TrimRetainedLog(ctx, 4); err != nil {
+		t.Fatalf("TrimRetainedLog(4) error = %v", err)
+	}
+	db.writeCommitTestHook = nil
+	if first, err := store.FirstIndex(ctx); err != nil || first != 5 {
+		t.Fatalf("FirstIndex(after trim) = %d, %v, want 5", first, err)
+	}
+	if err := trimmer.TrimRetainedLog(ctx, 9); err != nil {
+		t.Fatalf("TrimRetainedLog(past snapshot) error = %v", err)
+	}
+	if first, err := store.FirstIndex(ctx); err != nil || first != 6 {
+		t.Fatalf("FirstIndex(final) = %d, %v, want snapshot+1", first, err)
+	}
+}
+
 func TestScopeString(t *testing.T) {
 	if got := SlotScope(7).String(); got != "slot/7" {
 		t.Fatalf("SlotScope(7).String() = %q, want slot/7", got)

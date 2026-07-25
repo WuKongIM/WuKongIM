@@ -1834,9 +1834,13 @@ func (f *internalFakeStorage) Save(ctx context.Context, st PersistentState) erro
 	}
 	if st.Snapshot != nil {
 		f.snapshot = *st.Snapshot
+		retainAfter := st.Snapshot.Metadata.Index
+		if st.RetainLogAfter != nil && *st.RetainLogAfter <= retainAfter {
+			retainAfter = *st.RetainLogAfter
+		}
 		kept := f.entries[:0]
 		for _, entry := range f.entries {
-			if entry.Index > st.Snapshot.Metadata.Index {
+			if entry.Index > retainAfter {
 				kept = append(kept, entry)
 			}
 		}
@@ -1863,6 +1867,22 @@ func (f *internalFakeStorage) MarkConfigApplied(ctx context.Context, index uint6
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.state.ConfigAppliedIndex = index
+	return nil
+}
+
+func (f *internalFakeStorage) TrimRetainedLog(_ context.Context, through uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if through > f.snapshot.Metadata.Index {
+		through = f.snapshot.Metadata.Index
+	}
+	kept := f.entries[:0]
+	for _, entry := range f.entries {
+		if entry.Index > through {
+			kept = append(kept, entry)
+		}
+	}
+	f.entries = append([]raftpb.Entry(nil), kept...)
 	return nil
 }
 

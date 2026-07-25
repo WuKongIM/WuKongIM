@@ -120,6 +120,12 @@ type BackupConfig struct {
 	StagingMaxBytes uint64
 	// MaxParallelPartitions bounds backup partition work admitted on one node.
 	MaxParallelPartitions int
+	// SourcePinMaxAge is the hard lifetime of one Hash Slot Raft-log
+	// compaction hold before that Slot must build a replacement baseline.
+	SourcePinMaxAge time.Duration
+	// MaxSourcePinnedBytes is the hard aggregate estimate of Slot Raft-log
+	// bytes that backup may retain on one node before rebasing one victim Slot.
+	MaxSourcePinnedBytes uint64
 	// MonthlyRetentionMonths controls optional monthly materialized-full retention; zero disables it.
 	MonthlyRetentionMonths int
 	// ObjectLockDays is the minimum per-object compliance retention applied to every repository write.
@@ -146,6 +152,8 @@ const (
 	defaultBackupChunkSizeBytes  = 8 * 1024 * 1024
 	maximumBackupChunkSizeBytes  = 256 * 1024 * 1024
 	defaultBackupStagingMaxBytes = 10 * 1024 * 1024 * 1024
+	defaultBackupSourcePinMaxAge = time.Hour
+	defaultBackupMaxPinnedBytes  = 8 * 1024 * 1024 * 1024
 	maximumBackupParallelWorkers = 256
 )
 
@@ -174,6 +182,12 @@ func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
 	}
 	if cfg.MaxParallelPartitions == 0 {
 		cfg.MaxParallelPartitions = 4
+	}
+	if cfg.SourcePinMaxAge == 0 {
+		cfg.SourcePinMaxAge = defaultBackupSourcePinMaxAge
+	}
+	if cfg.MaxSourcePinnedBytes == 0 {
+		cfg.MaxSourcePinnedBytes = defaultBackupMaxPinnedBytes
 	}
 	if err := validateBackupConfig(cfg); err != nil {
 		return BackupConfig{}, err
@@ -223,6 +237,12 @@ func validateBackupConfig(cfg BackupConfig) error {
 	}
 	if cfg.MaxParallelPartitions <= 0 || cfg.MaxParallelPartitions > maximumBackupParallelWorkers {
 		return fmt.Errorf("%w: backup parallel partitions must be between 1 and %d", ErrInvalidConfig, maximumBackupParallelWorkers)
+	}
+	if cfg.SourcePinMaxAge <= 0 {
+		return fmt.Errorf("%w: backup source pin max age must be positive", ErrInvalidConfig)
+	}
+	if cfg.MaxSourcePinnedBytes < 1024*1024 {
+		return fmt.Errorf("%w: backup max source pinned bytes must be at least 1 MiB", ErrInvalidConfig)
 	}
 	if cfg.MonthlyRetentionMonths < 0 || cfg.MonthlyRetentionMonths > 120 {
 		return fmt.Errorf("%w: backup monthly retention months must be between 0 and 120", ErrInvalidConfig)

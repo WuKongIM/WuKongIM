@@ -50,6 +50,7 @@ in-memory Channel commit hint -> CaptureEngine.Wake (bounded, non-blocking)
 periodic poll / process start  -> enqueue every configured Hash Slot
 bounded Slot workers
   -> acquire/reuse durable Slot capture lease for exact local Raft authority
+  -> acquire/refresh its node-local source-log compaction pin
   -> load durable SlotFrontier
   -> observe metadata and message source high watermarks
   -> page committed source logs through the pinned positions
@@ -109,9 +110,11 @@ node-level capture budget. After the exact page shape is known, its owned
 records, framing, cursor map, and encoding copies are charged until the segment
 commits or the accumulator is invalidated. The separate replicated-store codec
 budget is entered only afterward. Immutable references carry their authenticated
-plaintext size; full cursor-checkpoint load/decode, merged map, sorted output,
-and encoding copies are reserved before allocation and remain charged through
-sidecar commit. Slot wakeups are coalesced, and budget
+plaintext size; full cursor-checkpoint load/decode, sorted output, and encoding
+copies are reserved before allocation and remain charged through sidecar
+commit. Repository-backed baseline and delta indexes stay immutable and use
+binary lookup per Channel instead of rebuilding a full map for every cut. Slot
+wakeups are coalesced, and budget
 pressure never blocks a worker: the Slot is reported degraded and retried,
 while an expired pending accumulator is sealed before another page is admitted.
 Per-Slot reconciliation is serialized inside the process, and scheduler,
@@ -126,10 +129,41 @@ The durable lease binds `(SlotID, leader term, config epoch, holder node,
 Generation, lease sequence)` to the same Controller record as the frontier.
 Reacquiring unchanged Slot authority is read-only, so Controller Leader failover
 does not change task identity. Slot Leader or placement changes increment the
-lease sequence while preserving committed stream heads. Pending accumulators
+lease sequence while preserving committed stream heads and the durable
+source-pin age origin. A separate durable
+`SourceSlotID` binds the metadata cursor to its physical Raft index space;
+physical Slot remapping forces rebase before any old cursor can be read.
+Pending accumulators
 also carry the exact lease; takeover releases them and invalidates disposable
 source scans before observing watermarks, forcing both layers to reread from
 the durable frontier. The final frontier CAS revalidates current local Slot leadership and
 the complete durable lease after uploads, leaving stale worker objects
 unreachable for later Generation GC. Status exposes the lease and a fenced
 state; metrics expose owned-Slot gauge plus takeover and fenced counters.
+
+Each Hash Slot floor has a hard age and all floors on one node share a hard
+physical retained-byte budget. Shared physical logs are counted once at their
+minimum floor. Exceeding either boundary durably records a pending rebase for
+only the selected oldest-floor Hash Slot, discards only that Slot's uncommitted
+accumulators, releases its local floor, and builds an independent materialized
+baseline.
+Other Slot workers continue, and foreground SEND never enters this runtime.
+While pending, the old Generation remains the public frontier and every retry
+within one unchanged lease uses the same target Generation and epoch. Lease
+takeover or an immutable cut that is already compacted durably rotates only
+the disposable target, preventing endless retry of an unreadable baseline
+while the old healthy Generation remains authoritative. Promotion happens
+only after the partition and complete message cursor are committed in both
+repositories. The new cut installs its replacement floor immediately after
+snapshot creation, before repository upload, and promotion atomically installs
+the references and resets the pin-age timestamp. Normal metadata advancement
+also resets the age origin to the newly retained floor. Failure
+keeps the pending record and last healthy frontier intact. Lost authority
+fences promotion and releases the former Leader's local hold.
+
+Before resolving repository-backed watermarks, reconciliation first seals any
+same-Slot accumulator whose open-duration deadline has elapsed and durably
+commits that frontier in a separate CAS. This returns its shared-memory
+reservation before a maximum materialized baseline asks for admission, so a
+sparse pending segment cannot permanently prevent its own Slot from making
+progress.

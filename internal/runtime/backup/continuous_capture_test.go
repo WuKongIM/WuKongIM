@@ -66,6 +66,12 @@ func TestCaptureEngineAtomicallyAdvancesMetadataAndMessageStreams(t *testing.T) 
 	if frontier.WatermarkAtUnixMillis != 1_753_400_090_000 {
 		t.Fatalf("frontier watermark = %d, want oldest stream watermark", frontier.WatermarkAtUnixMillis)
 	}
+	if frontier.SourcePinStartedAtUnixMillis != frontier.UpdatedAtUnixMillis {
+		t.Fatalf(
+			"advanced metadata floor age origin = %d, want commit time %d",
+			frontier.SourcePinStartedAtUnixMillis, frontier.UpdatedAtUnixMillis,
+		)
+	}
 	if len(segments.batches) != 2 {
 		t.Fatalf("committed batches = %d, want 2", len(segments.batches))
 	}
@@ -753,9 +759,16 @@ func TestCaptureEngineUsesDefaultRollingPolicyWithoutEmittingEmptySegments(t *te
 	policy := backupruntime.DefaultRollingPolicy()
 	if policy.TargetSegmentBytes != 64<<20 || policy.MaxSegmentBytes != 256<<20 ||
 		policy.MaxOpenDuration != 30*time.Second ||
-		backupruntime.DefaultCaptureMemoryBudgetBytes != 784<<20 {
+		backupruntime.DefaultCaptureMemoryBudgetBytes != 1552<<20 {
 		t.Fatalf("DefaultRollingPolicy() = %#v", policy)
 	}
+	budget, err := backupruntime.NewCaptureMemoryBudget(
+		backupruntime.DefaultCaptureMemoryBudgetBytes,
+	)
+	if err != nil || !budget.TryAcquire(5*backupruntime.MaxCaptureSegmentBytes) {
+		t.Fatalf("default budget cannot admit one maximum baseline working set: %v", err)
+	}
+	budget.Release(5 * backupruntime.MaxCaptureSegmentBytes)
 	source := &fakeContinuousSource{
 		watermarks: backupruntime.SourceWatermarks{
 			Metadata: backupruntime.SourceWatermark{CommittedAtUnixMillis: 1_753_400_100_000},
@@ -829,8 +842,15 @@ func TestCaptureEngineDoesNotAdvanceFrontierWhenMessageSegmentFails(t *testing.T
 	if err != nil {
 		t.Fatalf("retry ReconcileSlot() error = %v", err)
 	}
-	if frontier.Metadata.Sequence != 1 || frontier.Messages.Sequence != 1 || frontiers.commits != 1 {
-		t.Fatalf("retry frontier = %#v commits=%d", frontier, frontiers.commits)
+	if frontier.Metadata.Sequence != 0 || frontier.Messages.Sequence != 1 || frontiers.commits != 1 {
+		t.Fatalf("retry flush frontier = %#v commits=%d", frontier, frontiers.commits)
+	}
+	frontier, err = engine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("post-flush ReconcileSlot() error = %v", err)
+	}
+	if frontier.Metadata.Sequence != 1 || frontier.Messages.Sequence != 1 || frontiers.commits != 2 {
+		t.Fatalf("post-flush frontier = %#v commits=%d", frontier, frontiers.commits)
 	}
 }
 
@@ -1098,12 +1118,21 @@ func TestCaptureEngineMemoryPressureDoesNotBlockWorkerAndExpiredPendingReleasesB
 	}
 
 	clock.now = clock.now.Add(31 * time.Second)
+	watermarkCalls := source.watermarkCalls
 	frontier, err := engine.ReconcileSlot(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("ReconcileSlot(after expiry) error = %v", err)
 	}
+	if frontier.Metadata.Sequence != 1 || budget.held != 0 ||
+		source.watermarkCalls != watermarkCalls {
+		t.Fatalf("flush frontier=%#v budget held=%d watermark calls=%d, want durable release before source resolution", frontier, budget.held, source.watermarkCalls)
+	}
+	frontier, err = engine.ReconcileSlot(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("ReconcileSlot(after durable flush) error = %v", err)
+	}
 	if frontier.Metadata.Sequence != 1 || budget.held == 0 {
-		t.Fatalf("frontier=%#v budget held=%d, want first segment sealed and second sparse page retained", frontier, budget.held)
+		t.Fatalf("frontier=%#v budget held=%d, want second sparse page retained after flush", frontier, budget.held)
 	}
 }
 
@@ -1232,6 +1261,7 @@ type fakeSlotFrontierStore struct {
 	committed    chan struct{}
 	authority    backupruntime.SlotCaptureAuthority
 	beforeCommit func()
+	acquireErr   error
 }
 
 func (s *fakeSlotFrontierStore) Load(context.Context, uint16) (backupruntime.FrontierSnapshot, error) {
@@ -1241,6 +1271,9 @@ func (s *fakeSlotFrontierStore) Load(context.Context, uint16) (backupruntime.Fro
 
 func (s *fakeSlotFrontierStore) AcquireLease(_ context.Context, hashSlot uint16, initialGeneration string, acquiredAtUnixMillis int64) (backupruntime.FrontierSnapshot, error) {
 	s.loads++
+	if s.acquireErr != nil {
+		return backupruntime.FrontierSnapshot{}, s.acquireErr
+	}
 	authority := s.authority
 	if authority == (backupruntime.SlotCaptureAuthority{}) {
 		authority = testCaptureAuthority()
@@ -1250,11 +1283,22 @@ func (s *fakeSlotFrontierStore) AcquireLease(_ context.Context, hashSlot uint16,
 	if !s.found {
 		s.frontier = backupcontract.SlotFrontier{
 			Revision: 1, HashSlot: hashSlot, Generation: initialGeneration,
-			UpdatedAtUnixMillis: acquiredAtUnixMillis,
+			SourceSlotID:                 authority.SlotID,
+			SourcePinStartedAtUnixMillis: acquiredAtUnixMillis,
+			UpdatedAtUnixMillis:          acquiredAtUnixMillis,
 		}
 		s.found = true
 	} else if s.frontier.Generation == "" {
 		s.frontier.Generation = initialGeneration
+	}
+	if s.frontier.SourceSlotID == 0 {
+		s.frontier.SourceSlotID = s.frontier.Lease.SlotID
+		if s.frontier.SourceSlotID == 0 {
+			s.frontier.SourceSlotID = authority.SlotID
+		}
+	}
+	if s.frontier.SourcePinStartedAtUnixMillis == 0 {
+		s.frontier.SourcePinStartedAtUnixMillis = acquiredAtUnixMillis
 	}
 	lease := s.frontier.Lease
 	if lease.Sequence == 0 ||
@@ -1309,6 +1353,32 @@ func (s *fakeSlotFrontierStore) CompareAndSwap(_ context.Context, expectedRevisi
 		close(s.committed)
 		s.committed = nil
 	}
+	return nil
+}
+
+func (s *fakeSlotFrontierStore) PromoteGeneration(_ context.Context, expectedRevision uint64, expectedLease backupcontract.SlotCaptureLease, frontier backupcontract.SlotFrontier) error {
+	if s.beforeCommit != nil {
+		beforeCommit := s.beforeCommit
+		s.beforeCommit = nil
+		beforeCommit()
+	}
+	if s.frontier.Revision != expectedRevision {
+		return backupruntime.ErrFrontierConflict
+	}
+	authority := s.authority
+	if !backupcontract.SlotCaptureLeasesEqual(s.frontier.Lease, expectedLease) ||
+		expectedLease.SlotID != authority.SlotID ||
+		expectedLease.LeaderTerm != authority.LeaderTerm ||
+		expectedLease.ConfigEpoch != authority.ConfigEpoch ||
+		expectedLease.HolderNodeID != authority.HolderNodeID {
+		return backupruntime.ErrCaptureLeaseFenced
+	}
+	if s.frontier.Rebase == nil || s.frontier.Rebase.TargetGeneration != frontier.Generation {
+		return backupruntime.ErrInvalidCapture
+	}
+	s.frontier = backupcontract.CloneSlotFrontier(frontier)
+	s.found = true
+	s.commits++
 	return nil
 }
 

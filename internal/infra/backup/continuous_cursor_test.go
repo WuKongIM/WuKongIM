@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
+	backupruntime "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,7 @@ func TestMessageCursorResolverRebuildsLatestBoundariesFromCursorSidecarChain(t *
 	loader := &recordingSegmentLoader{bodies: map[string][]byte{
 		firstReference.SegmentID: firstBody, secondReference.SegmentID: secondBody,
 	}}
-	resolver, err := backupinfra.NewMessageCursorResolver(loader)
+	resolver, err := backupinfra.NewMessageCursorResolver(loader, testCursorMemoryBudget(t))
 	require.NoError(t, err)
 
 	resolved, err := resolver.Resolve(context.Background(), backupinfra.MessageCursorResolveRequest{
@@ -99,7 +100,7 @@ func TestMessageCursorResolverLoadsOnlyNewSidecarAfterCachedTip(t *testing.T) {
 		secondReference.SegmentID: secondBody,
 		thirdReference.SegmentID:  thirdBody,
 	}}
-	resolver, err := backupinfra.NewMessageCursorResolver(loader)
+	resolver, err := backupinfra.NewMessageCursorResolver(loader, testCursorMemoryBudget(t))
 	require.NoError(t, err)
 
 	_, err = resolver.Resolve(context.Background(), backupinfra.MessageCursorResolveRequest{
@@ -137,7 +138,7 @@ func TestMessageCursorResolverRejectsBrokenSequenceAndCursorChain(t *testing.T) 
 	require.NoError(t, err)
 	resolver, err := backupinfra.NewMessageCursorResolver(&recordingSegmentLoader{
 		bodies: map[string][]byte{secondReference.SegmentID: body},
-	})
+	}, testCursorMemoryBudget(t))
 	require.NoError(t, err)
 
 	_, err = resolver.Resolve(context.Background(), backupinfra.MessageCursorResolveRequest{
@@ -159,7 +160,7 @@ func TestMessageCursorResolverStopsAtFullCheckpoint(t *testing.T) {
 	})
 	require.NoError(t, err)
 	loader := &recordingSegmentLoader{bodies: map[string][]byte{reference.SegmentID: body}}
-	resolver, err := backupinfra.NewMessageCursorResolver(loader)
+	resolver, err := backupinfra.NewMessageCursorResolver(loader, testCursorMemoryBudget(t))
 	require.NoError(t, err)
 
 	resolved, err := resolver.Resolve(context.Background(), backupinfra.MessageCursorResolveRequest{
@@ -171,6 +172,40 @@ func TestMessageCursorResolverStopsAtFullCheckpoint(t *testing.T) {
 		{ChannelID: "channel-a", ChannelType: 2, Epoch: 3, HW: 2048},
 	}, resolved)
 	require.Equal(t, []string{reference.SegmentID}, loader.loads)
+}
+
+func TestMessageCursorResolverBoundsBaselineDecodeAndMergeWorkingSet(t *testing.T) {
+	body, err := backupartifact.MarshalChannelIndex(17, []backupartifact.ChannelBoundary{{
+		ChannelID: "room-a", ChannelType: 2, Epoch: 1, HW: 7,
+	}})
+	require.NoError(t, err)
+	reference := testContinuousSegmentReference("f")
+	reference.PlaintextBytes = int64(len(body))
+	loader := &recordingSegmentLoader{
+		bodies: map[string][]byte{reference.SegmentID: body},
+	}
+	rejectedBudget := &boundedCursorBudget{limit: int64(len(body))*3 - 1}
+	rejected, err := backupinfra.NewMessageCursorResolver(loader, rejectedBudget)
+	require.NoError(t, err)
+	_, err = rejected.ResolveBaseline(context.Background(), 17, reference)
+	require.ErrorIs(t, err, backupruntime.ErrCaptureMemoryPressure)
+	require.Empty(t, loader.loads, "loader must not allocate before the shared reservation")
+
+	budget := &boundedCursorBudget{limit: 1 << 20}
+	resolver, err := backupinfra.NewMessageCursorResolver(loader, budget)
+	require.NoError(t, err)
+	baseline, err := resolver.ResolveBaseline(context.Background(), 17, reference)
+	require.NoError(t, err)
+	require.NotZero(t, budget.held)
+	require.GreaterOrEqual(t, budget.maxHeld, int64(len(body))*3)
+	baseline.Release()
+	cachedBytes := budget.held
+	require.Positive(t, cachedBytes)
+	again, err := resolver.ResolveBaseline(context.Background(), 17, reference)
+	require.NoError(t, err)
+	require.Equal(t, []string{reference.SegmentID}, loader.loads)
+	again.Release()
+	require.Equal(t, cachedBytes, budget.held)
 }
 
 func TestMessageCursorResolverCacheEvictsLeastRecentlyUsedSlot(t *testing.T) {
@@ -199,7 +234,7 @@ func TestMessageCursorResolverCacheEvictsLeastRecentlyUsedSlot(t *testing.T) {
 			Sequence: 1, SourceCursor: cursor, SourceHighWatermark: 1,
 		})
 	}
-	resolver, err := backupinfra.NewMessageCursorResolver(loader)
+	resolver, err := backupinfra.NewMessageCursorResolver(loader, testCursorMemoryBudget(t))
 	require.NoError(t, err)
 	for _, request := range requests {
 		_, err := resolver.Resolve(context.Background(), request)
@@ -254,7 +289,7 @@ func TestMessageCursorResolverRestartsFromReplicatedRepositoryStore(t *testing.T
 	secondReference, err := store.Commit(context.Background(), continuousCursorDescriptor(2), secondBody)
 	require.NoError(t, err)
 
-	restarted, err := backupinfra.NewMessageCursorResolver(store)
+	restarted, err := backupinfra.NewMessageCursorResolver(store, testCursorMemoryBudget(t))
 	require.NoError(t, err)
 	resolved, err := restarted.Resolve(context.Background(), backupinfra.MessageCursorResolveRequest{
 		Head: secondReference, HashSlot: 17, Generation: "slot-generation-1",
@@ -284,6 +319,27 @@ type recordingSegmentLoader struct {
 	loads  []string
 }
 
+type boundedCursorBudget struct {
+	limit   int64
+	held    int64
+	maxHeld int64
+}
+
+func (b *boundedCursorBudget) TryAcquire(bytes int64) bool {
+	if bytes < 0 || b.held > b.limit-bytes {
+		return false
+	}
+	b.held += bytes
+	if b.held > b.maxHeld {
+		b.maxHeld = b.held
+	}
+	return true
+}
+
+func (b *boundedCursorBudget) Release(bytes int64) {
+	b.held -= bytes
+}
+
 func (l *recordingSegmentLoader) Load(_ context.Context, reference backupartifact.SegmentReference) ([]byte, error) {
 	l.loads = append(l.loads, reference.SegmentID)
 	body, ok := l.bodies[reference.SegmentID]
@@ -299,4 +355,13 @@ func testContinuousSegmentReference(letter string) backupartifact.SegmentReferen
 		SegmentID: id, CommitKey: "segments/" + id + "/commit.json",
 		CommitSHA256: strings.Repeat("c", 64), PlaintextBytes: 1,
 	}
+}
+
+func testCursorMemoryBudget(t *testing.T) backupruntime.CaptureMemoryBudget {
+	t.Helper()
+	budget, err := backupruntime.NewCaptureMemoryBudget(
+		backupruntime.DefaultCaptureMemoryBudgetBytes,
+	)
+	require.NoError(t, err)
+	return budget
 }

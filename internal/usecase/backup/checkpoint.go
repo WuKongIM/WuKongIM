@@ -21,7 +21,7 @@ type CheckpointOptions struct {
 	// HashSlotCount is the exact configured logical partition count.
 	HashSlotCount uint16
 	// RepositoryID identifies the logical dual repository.
-	RepositoryID     string
+	RepositoryID string
 	// SourceClusterID and SourceGeneration fence the captured source.
 	SourceClusterID  string
 	SourceGeneration string
@@ -116,6 +116,18 @@ func (c *CheckpointCoordinator) verifyCurrentProofs(ctx context.Context, checkpo
 	}
 	proofs := make([]proof, 0, len(checkpoint.Slots)*3)
 	for _, slot := range checkpoint.Slots {
+		if slot.Baseline != nil {
+			reference := slot.Baseline.MessageCursor
+			if _, exists := seen[reference.CommitKey]; exists {
+				return fmt.Errorf("%w: duplicate checkpoint commit proof %q", ErrInvalidRequest, reference.CommitKey)
+			}
+			seen[reference.CommitKey] = struct{}{}
+			proofs = append(proofs, proof{
+				hashSlot: slot.HashSlot, generation: slot.Generation,
+				stream:   backupartifact.SegmentStreamMessageBaselineCursor,
+				sequence: 1, reference: reference,
+			})
+		}
 		for _, candidate := range []struct {
 			stream    backupartifact.SegmentStream
 			sequence  uint64
@@ -182,6 +194,7 @@ func (c *CheckpointCoordinator) buildCheckpoint(frontiers []backupcontract.SlotF
 		}
 		slot := backupartifact.CheckpointSlot{
 			HashSlot: frontier.HashSlot, Generation: frontier.Generation,
+			Baseline:              checkpointBaseline(frontier.Baseline, frontier.Messages.BaselineCursorHead),
 			Metadata:              checkpointStream(frontier.Metadata),
 			Messages:              checkpointStream(frontier.Messages),
 			WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
@@ -193,6 +206,15 @@ func (c *CheckpointCoordinator) buildCheckpoint(frontiers []backupcontract.SlotF
 		}
 	}
 	return checkpoint, nil
+}
+
+func checkpointBaseline(reference *backupcontract.SlotBaselineReference, cursor *backupartifact.SegmentReference) *backupartifact.CheckpointBaseline {
+	if reference == nil || cursor == nil {
+		return nil
+	}
+	return &backupartifact.CheckpointBaseline{
+		Partition: reference.Partition, MessageCursor: *cursor,
+	}
 }
 
 func checkpointStream(frontier backupcontract.StreamFrontier) backupartifact.CheckpointStream {
@@ -224,6 +246,9 @@ func checkpointFrontiersFromHealthyStatuses(
 		if status.HashSlot != uint16(index) || status.ObservedAtUnixMillis <= 0 ||
 			status.Frontier.HashSlot != status.HashSlot || status.Frontier.Revision == 0 {
 			return nil, ErrPartitionsIncomplete
+		}
+		if status.Frontier.Rebase != nil {
+			return nil, fmt.Errorf("%w: Slot %d capture is rebasing", ErrCheckpointUnhealthy, status.HashSlot)
 		}
 		switch status.State {
 		case backupcontract.CaptureStateIdle, backupcontract.CaptureStateReconciling, backupcontract.CaptureStateCapturing:

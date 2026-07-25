@@ -21,6 +21,9 @@ func (r *Runtime) Close() error {
 		slots = append(slots, g)
 		g.mu.Lock()
 		g.closed = true
+		if g.pinCleanupCancel != nil {
+			g.pinCleanupCancel()
+		}
 		g.failPendingLocked(ErrRuntimeClosed)
 		g.mu.Unlock()
 	}
@@ -139,6 +142,9 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	}
 	g.mu.Lock()
 	g.closed = true
+	if g.pinCleanupCancel != nil {
+		g.pinCleanupCancel()
+	}
 	g.failPendingLocked(ErrSlotClosed)
 	delete(r.slots, slotID)
 	r.mu.Unlock()
@@ -402,6 +408,70 @@ func (r *Runtime) CompactLog(ctx context.Context, slotID SlotID) (LogCompactionR
 	case <-ctx.Done():
 		return LogCompactionResult{}, ctx.Err()
 	}
+}
+
+// SetLogCompactionPin acquires, advances, or releases one idempotent node-local
+// source-log floor. Compaction may proceed through retainAfter but not beyond
+// the minimum active floor. Pins never enter Raft state and must be reacquired
+// after process restart. Cancellation may abort the operation-gate wait; once
+// mutated, any archive-trim failure is logged and marked for one bounded
+// per-Slot background retry loop without reversing the authoritative result.
+func (r *Runtime) SetLogCompactionPin(
+	ctx context.Context,
+	slotID SlotID,
+	pinID string,
+	retainAfter uint64,
+	held bool,
+) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if pinID == "" || len(pinID) > 128 {
+		return ErrInvalidOptions
+	}
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		return ErrRuntimeClosed
+	}
+	g, ok := r.slots[slotID]
+	r.mu.RUnlock()
+	if !ok {
+		return ErrSlotNotFound
+	}
+	if err := g.beginPinOperation(); err != nil {
+		return err
+	}
+	defer g.finishPinOperation()
+	if err := g.compactor.lockPinOperation(ctx); err != nil {
+		return err
+	}
+	defer g.compactor.unlockPinOperation()
+	if err := g.currentErr(); err != nil {
+		return err
+	}
+	applied := g.appliedIndex()
+	before := g.compactor.retentionFloor(applied)
+	g.compactor.setPin(pinID, retainAfter, held)
+	after := g.compactor.retentionFloor(applied)
+	if after > before || g.compactor.trimDirty() {
+		if trimmer, ok := g.storage.(RetainedLogStorage); ok {
+			if err := trimmer.TrimRetainedLog(ctx, after); err != nil {
+				// The pin mutation is already authoritative. Archive deletion
+				// is best-effort cleanup; reporting failure here would make
+				// callers track the opposite of the real safety state.
+				g.compactor.setTrimDirty(true)
+				g.logCompactionWarning(err, after)
+				g.startArchiveTrimRetry()
+			} else {
+				g.compactor.setTrimDirty(false)
+			}
+		}
+	}
+	return nil
 }
 
 // CaptureHashSlotSnapshot opens a pinned logical snapshot at the owning Slot worker's durable applied boundary.

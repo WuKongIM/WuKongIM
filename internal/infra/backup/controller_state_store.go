@@ -118,22 +118,80 @@ func catalogPageReferenceToController(reference *backupartifact.CatalogPageRefer
 func slotFrontierFromController(frontier controller.BackupSlotFrontier) backupcontract.SlotFrontier {
 	return backupcontract.SlotFrontier{
 		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
-		Lease:                 slotCaptureLeaseFromController(frontier.Lease),
-		Metadata:              streamFrontierFromController(frontier.Metadata),
-		Messages:              streamFrontierFromController(frontier.Messages),
-		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
-		UpdatedAtUnixMillis:   frontier.UpdatedAtUnixMillis,
+		Lease:                        slotCaptureLeaseFromController(frontier.Lease),
+		SourceSlotID:                 frontier.SourceSlotID,
+		SourcePinStartedAtUnixMillis: frontier.SourcePinStartedAtUnixMillis,
+		Baseline:                     slotBaselineFromController(frontier.Baseline),
+		Rebase:                       slotRebaseFromController(frontier.Rebase),
+		Metadata:                     streamFrontierFromController(frontier.Metadata),
+		Messages:                     streamFrontierFromController(frontier.Messages),
+		WatermarkAtUnixMillis:        frontier.WatermarkAtUnixMillis,
+		UpdatedAtUnixMillis:          frontier.UpdatedAtUnixMillis,
 	}
 }
 
 func slotFrontierToController(frontier backupcontract.SlotFrontier) controller.BackupSlotFrontier {
 	return controller.BackupSlotFrontier{
 		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
-		Lease:                 slotCaptureLeaseToController(frontier.Lease),
-		Metadata:              streamFrontierToController(frontier.Metadata),
-		Messages:              streamFrontierToController(frontier.Messages),
-		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
-		UpdatedAtUnixMillis:   frontier.UpdatedAtUnixMillis,
+		Lease:                        slotCaptureLeaseToController(frontier.Lease),
+		SourceSlotID:                 frontier.SourceSlotID,
+		SourcePinStartedAtUnixMillis: frontier.SourcePinStartedAtUnixMillis,
+		Baseline:                     slotBaselineToController(frontier.Baseline),
+		Rebase:                       slotRebaseToController(frontier.Rebase),
+		Metadata:                     streamFrontierToController(frontier.Metadata),
+		Messages:                     streamFrontierToController(frontier.Messages),
+		WatermarkAtUnixMillis:        frontier.WatermarkAtUnixMillis,
+		UpdatedAtUnixMillis:          frontier.UpdatedAtUnixMillis,
+	}
+}
+
+func slotBaselineFromController(reference *controller.BackupSlotBaselineReference) *backupcontract.SlotBaselineReference {
+	if reference == nil {
+		return nil
+	}
+	return &backupcontract.SlotBaselineReference{
+		Partition: backupartifact.PartitionReference{
+			HashSlot: reference.Partition.HashSlot, Key: reference.Partition.Key,
+			SHA256: reference.Partition.SHA256, Bytes: reference.Partition.Bytes,
+			ObjectCount: reference.Partition.ObjectCount, CiphertextBytes: reference.Partition.CiphertextBytes,
+			Evidence: reference.Partition.Evidence,
+		},
+	}
+}
+
+func slotBaselineToController(reference *backupcontract.SlotBaselineReference) *controller.BackupSlotBaselineReference {
+	if reference == nil {
+		return nil
+	}
+	return &controller.BackupSlotBaselineReference{
+		Partition: controller.BackupPartitionReference{
+			HashSlot: reference.Partition.HashSlot, Key: reference.Partition.Key,
+			SHA256: reference.Partition.SHA256, Bytes: reference.Partition.Bytes,
+			ObjectCount: reference.Partition.ObjectCount, CiphertextBytes: reference.Partition.CiphertextBytes,
+			Evidence: reference.Partition.Evidence,
+		},
+	}
+}
+
+func slotRebaseFromController(rebase *controller.BackupSlotRebase) *backupcontract.SlotRebase {
+	if rebase == nil {
+		return nil
+	}
+	return &backupcontract.SlotRebase{
+		TargetGeneration: rebase.TargetGeneration,
+		Epoch:            rebase.Epoch,
+		Reason:           rebase.Reason, StartedAtUnixMillis: rebase.StartedAtUnixMillis,
+	}
+}
+
+func slotRebaseToController(rebase *backupcontract.SlotRebase) *controller.BackupSlotRebase {
+	if rebase == nil {
+		return nil
+	}
+	return &controller.BackupSlotRebase{
+		TargetGeneration: rebase.TargetGeneration,
+		Epoch:            rebase.Epoch,
+		Reason:           rebase.Reason, StartedAtUnixMillis: rebase.StartedAtUnixMillis,
 	}
 }
 
@@ -156,8 +214,9 @@ func slotCaptureLeaseToController(lease backupcontract.SlotCaptureLease) control
 func streamFrontierFromController(frontier controller.BackupStreamFrontier) backupcontract.StreamFrontier {
 	return backupcontract.StreamFrontier{
 		Sequence: frontier.Sequence, Head: segmentReferenceFromController(frontier.Head),
-		CursorHead:   segmentReferenceFromController(frontier.CursorHead),
-		SourceCursor: frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
+		CursorHead:         segmentReferenceFromController(frontier.CursorHead),
+		BaselineCursorHead: segmentReferenceFromController(frontier.BaselineCursorHead),
+		SourceCursor:       frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
 		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
 	}
 }
@@ -165,8 +224,9 @@ func streamFrontierFromController(frontier controller.BackupStreamFrontier) back
 func streamFrontierToController(frontier backupcontract.StreamFrontier) controller.BackupStreamFrontier {
 	return controller.BackupStreamFrontier{
 		Sequence: frontier.Sequence, Head: segmentReferenceToController(frontier.Head),
-		CursorHead:   segmentReferenceToController(frontier.CursorHead),
-		SourceCursor: frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
+		CursorHead:         segmentReferenceToController(frontier.CursorHead),
+		BaselineCursorHead: segmentReferenceToController(frontier.BaselineCursorHead),
+		SourceCursor:       frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
 		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
 	}
 }

@@ -288,13 +288,15 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 	for index, frontier := range state.SlotFrontiers {
 		snapshot.CaptureLeases[index] = CaptureLeaseSnapshot{
 			HashSlot: frontier.HashSlot, SlotID: frontier.Lease.SlotID,
+			SourceSlotID: frontier.SourceSlotID,
 			HolderNodeID: frontier.Lease.HolderNodeID, LeaderTerm: frontier.Lease.LeaderTerm,
 			ConfigEpoch: frontier.Lease.ConfigEpoch, Generation: frontier.Generation,
 			LeaseSequence: frontier.Lease.Sequence, FrontierRevision: frontier.Revision,
-			MetadataSourceWatermark:   frontier.Metadata.SourceHighWatermark,
-			MessageSourceWatermark:    frontier.Messages.SourceHighWatermark,
-			AcquiredAtUnixMillis:      frontier.Lease.AcquiredAtUnixMillis,
-			FrontierUpdatedUnixMillis: frontier.UpdatedAtUnixMillis,
+			MetadataSourceWatermark:      frontier.Metadata.SourceHighWatermark,
+			MessageSourceWatermark:       frontier.Messages.SourceHighWatermark,
+			AcquiredAtUnixMillis:         frontier.Lease.AcquiredAtUnixMillis,
+			SourcePinStartedAtUnixMillis: frontier.SourcePinStartedAtUnixMillis,
+			FrontierUpdatedUnixMillis:    frontier.UpdatedAtUnixMillis,
 		}
 	}
 	snapshot.Capacity = backupCapacitySnapshot(state)

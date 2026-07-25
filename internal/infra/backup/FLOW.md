@@ -40,6 +40,16 @@ unrelated global Controller revision conflicts from a fresh snapshot, and
 therefore never overwrites concurrent checkpoint, verification, retention, or
 erasure coordination.
 
+Generation promotion is a separate lease-fenced CAS. It accepts only the
+durably recorded pending target, keeps Slot authority and lease sequence
+unchanged, installs the new materialized partition plus baseline cursor, and
+resets the pin-age timestamp atomically with the Generation. A stale leader
+cannot promote repository objects uploaded after losing authority.
+Because a full metadata snapshot is cut at a physical Slot applied index that
+may be later than this Hash Slot's last mutation, `ContinuousSource` preserves
+that cut as the materialized Generation's resume floor until a later matching
+logical command appears.
+
 `ReplicatedCheckpointCatalog` signs and verifies only the newly published
 checkpoint and catalog page. It writes the checkpoint to both repositories,
 then the catalog page secondary-first and primary-last, and returns a head only
@@ -102,7 +112,44 @@ checkpoint terminates the delta chain. The resolver caches only the latest
 complete index per Hash Slot, capped globally by 256 entries and 64 MiB with
 LRU eviction, so normal advancement loads the new sidecar while restart work
 and resident cache memory remain bounded. Controller state never contains
-Channel identities or the cache.
+Channel identities or the cache. Materialized baseline cursor load and decode
+hold a shared capture-memory reservation for their complete working-set
+lifetime; the default budget admits one maximum legal baseline through decode
+and immutable output construction, and admission fails
+before repository loading when the node budget is unavailable. The pinned
+message cut carries the compact previous boundary needed by each page, so a
+page read never reloads the full prior baseline while its outer page
+reservation is held. Decoded immutable baselines are keyed by the complete
+authenticated Segment reference and retained in a shared-budget-charged LRU;
+multiple Channel cuts reuse the same sorted index. Baseline and cursor-delta
+views remain separate and resolve each Channel with allocation-free binary
+search, avoiding a full Hash-Slot merge or map per cut. Reference changes and
+memory pressure select or evict bounded entries without weakening correctness.
+
+`ClusterSourcePinManager` converts each healthy capture lease into an
+idempotent local Multi-Raft compaction floor. It measures retained Raft-log
+bytes after the metadata frontier, deduplicates node accounting by physical
+Slot at the minimum floor, and serializes records that share that physical
+Slot. After a member changes, it remeasures the exact current minimum floor
+before aggregate accounting, then selects the largest physical interval's
+oldest floor as the deterministic victim when the node budget is exceeded.
+The age origin is durable across lease takeover, so failover cannot renew an
+already-old pin and deterministic victim ties use that same durable origin.
+Release addresses the recorded physical Slot directly, remeasures the new
+physical minimum before returning aggregate bytes, and
+lease replacement first removes the old exact record, so route movement and
+Leader transfer cannot strand a floor.
+
+A materialized rebase reuses `DistributedWorker` with an independent-full
+request. It commits the complete `message_baseline_cursor` Channel index before
+the immutable partition manifest. The manifest binds that cursor only when it
+has no incremental base. Retry loads the same dual-repository immutable
+manifest instead of recapturing or changing the pending Generation.
+A cut hook installs the replacement source floor immediately after the stable
+physical cut is opened, preventing compaction from overtaking repository
+upload. A published target whose source cut becomes unreadable is rotated by a
+durable frontier CAS before retry, rather than loading the same stale immutable
+manifest forever.
 
 The runtime owns the pure pending-work and first-sequence rules. This package
 only converts cluster routing/boundary DTOs and performs repository adaptation.

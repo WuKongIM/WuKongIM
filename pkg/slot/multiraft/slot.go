@@ -32,7 +32,12 @@ type slot struct {
 	cond         *sync.Cond
 	processing   bool
 	// applying counts async apply tasks that have been accepted for this Slot.
-	applying                    int
+	applying int
+	// pinOperations counts external mutations and autonomous cleanup through I/O.
+	pinOperations int
+	// pinCleanupCtx is canceled when this Slot closes so dirty trim retries exit.
+	pinCleanupCtx               context.Context
+	pinCleanupCancel            context.CancelFunc
 	rawNode                     *raft.RawNode
 	requests                    []raftpb.Message
 	requestWorkBuf              []raftpb.Message
@@ -308,6 +313,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		return nil, err
 	}
 
+	pinCleanupCtx, pinCleanupCancel := context.WithCancel(context.Background())
 	g := &slot{
 		id:           opts.ID,
 		storage:      opts.Storage,
@@ -329,6 +335,8 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		durableAppliedIndex:         appliedIndex,
 		durableConfigAppliedIndex:   configAppliedIndex,
 		compactor:                   newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
+		pinCleanupCtx:               pinCleanupCtx,
+		pinCleanupCancel:            pinCleanupCancel,
 		maxQueuedRequests:           raftOpts.MaxQueuedRequests,
 		maxQueuedControls:           raftOpts.MaxQueuedControls,
 		maxQueuedBackgroundControls: raftOpts.MaxQueuedBackgroundControls,
@@ -342,6 +350,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			Term:  snapshot.Metadata.Term,
 			Data:  snapshotData,
 		}); err != nil {
+			pinCleanupCancel()
 			return nil, err
 		}
 	}
@@ -815,10 +824,12 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 	}
 	// Refresh snapshots after membership changes so future learners can restore
 	// a snapshot whose ConfState includes the latest peer set.
-	if g.compactor.shouldCompact(lastApplied) || (configChanged && g.compactor.shouldRefreshAfterConfigChange(lastApplied)) {
-		if err := g.compactLog(ctx, lastApplied); err != nil {
+	if g.compactor.shouldCompact(lastApplied) ||
+		(configChanged && g.compactor.shouldRefreshAfterConfigChange(lastApplied)) {
+		compacted, err := g.compactLog(ctx, lastApplied)
+		if err != nil {
 			g.logCompactionWarning(err, lastApplied)
-		} else {
+		} else if compacted {
 			g.compactor.recordSnapshot(lastApplied)
 		}
 	}
@@ -1721,9 +1732,30 @@ func (g *slot) finishApply() {
 }
 
 func (g *slot) waitIdleLocked() {
-	for g.processing || g.applying > 0 {
+	for g.processing || g.applying > 0 || g.pinOperations > 0 {
 		g.cond.Wait()
 	}
+}
+
+func (g *slot) beginPinOperation() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if err := g.admissionErrLocked(); err != nil {
+		return err
+	}
+	g.pinOperations++
+	return nil
+}
+
+func (g *slot) finishPinOperation() {
+	g.mu.Lock()
+	if g.pinOperations > 0 {
+		g.pinOperations--
+	}
+	if g.cond != nil {
+		g.cond.Broadcast()
+	}
+	g.mu.Unlock()
 }
 
 func (g *slot) waitApplyIdle(ctx context.Context) error {

@@ -87,6 +87,37 @@ func TestPartitionManifestRejectsMessageEvidenceWithoutAllocatorFence(t *testing
 	require.ErrorIs(t, err, backup.ErrInvalidManifest)
 }
 
+func TestPartitionManifestAcceptsBaselineCursorOnlyOnIndependentFullRoot(t *testing.T) {
+	manifest := backup.PartitionManifest{
+		Format:      backup.PartitionManifestFormat,
+		Version:     backup.PartitionManifestVersion,
+		JobID:       "rebase-00003-00000000000000000002",
+		BackupEpoch: 2,
+		Cut: backup.PartitionCut{
+			HashSlot: 3, PhysicalSlotID: 10,
+			RaftIndex: 91, CommittedAtMillis: 1710000000000,
+		},
+		BaselineCursor: checkpointSegmentReference("e"),
+		Evidence:       backup.PartitionEvidence{Version: backup.PartitionEvidenceVersion},
+		Objects: []backup.ObjectEntry{
+			validPartitionObject("objects/rebase/00003/metadata-000000.bin", backup.ObjectKindMetadata),
+		},
+	}
+	body, err := backup.MarshalPartitionManifest(manifest)
+	require.NoError(t, err)
+	loaded, err := backup.LoadPartitionManifest(body)
+	require.NoError(t, err)
+	require.Equal(t, manifest.BaselineCursor, loaded.BaselineCursor)
+
+	manifest.Base = &backup.PartitionReference{
+		HashSlot: 3, Key: "partition-manifests/base/00003.json",
+		SHA256: strings.Repeat("f", 64), Bytes: 128, ObjectCount: 1, CiphertextBytes: 64,
+		Evidence: backup.PartitionEvidence{Version: backup.PartitionEvidenceVersion},
+	}
+	_, err = backup.MarshalPartitionManifest(manifest)
+	require.ErrorIs(t, err, backup.ErrInvalidManifest)
+}
+
 func validPartitionObject(key string, kind backup.ObjectKind) backup.ObjectEntry {
 	return backup.ObjectEntry{
 		Key:              key,

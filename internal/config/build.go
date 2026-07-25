@@ -1505,6 +1505,18 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 			return app.BackupConfig{}, err
 		}
 	}
+	if configKeyPresent(values, "WK_BACKUP_SOURCE_PIN_MAX_AGE") {
+		cfg.SourcePinMaxAge, err = parseDuration("WK_BACKUP_SOURCE_PIN_MAX_AGE", configValue(values, "WK_BACKUP_SOURCE_PIN_MAX_AGE"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_MAX_SOURCE_PINNED_BYTES") {
+		cfg.MaxSourcePinnedBytes, err = parseUint64("WK_BACKUP_MAX_SOURCE_PINNED_BYTES", configValue(values, "WK_BACKUP_MAX_SOURCE_PINNED_BYTES"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
 	if configKeyPresent(values, "WK_BACKUP_MONTHLY_RETENTION_MONTHS") {
 		cfg.MonthlyRetentionMonths, err = parseInt("WK_BACKUP_MONTHLY_RETENTION_MONTHS", configValue(values, "WK_BACKUP_MONTHLY_RETENTION_MONTHS"))
 		if err != nil {

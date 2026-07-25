@@ -52,6 +52,10 @@ Current flow:
     updates. `ListCheckpointsPage` and `CheckpointByID` read immutable history
     through an injected rebuildable catalog browser instead of Controller
     arrays.
+    A Slot with a durable pending rebase blocks cluster-complete publication
+    even though its old Generation remains restorable and other Slot frontiers
+    may keep advancing. After promotion, the checkpoint includes the
+    materialized partition reference and complete baseline cursor proof.
 
 Large channel/object manifests stay in repositories. Coordination state stores
 only one bounded summary per logical hash slot.

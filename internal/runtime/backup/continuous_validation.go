@@ -22,12 +22,53 @@ func (e *CaptureEngine) normalizeFrontier(hashSlot uint16, snapshot FrontierSnap
 	frontier := backupcontract.CloneSlotFrontier(snapshot.Frontier)
 	if frontier.HashSlot != hashSlot || !validContinuousIdentity(frontier.Generation, 128) || frontier.Revision == 0 ||
 		!validSlotCaptureLease(frontier.Lease, frontier.Generation) ||
+		frontier.SourceSlotID == 0 ||
+		frontier.SourcePinStartedAtUnixMillis <= 0 ||
+		frontier.SourcePinStartedAtUnixMillis > frontier.UpdatedAtUnixMillis ||
+		validateSlotBaseline(frontier.Baseline, hashSlot) != nil ||
+		validateSlotRebase(frontier.Rebase, frontier.Generation) != nil ||
 		validateStreamFrontier(backupartifact.SegmentStreamMetadata, frontier.Metadata) != nil ||
 		validateStreamFrontier(backupartifact.SegmentStreamMessages, frontier.Messages) != nil ||
+		(frontier.Baseline == nil) != (frontier.Messages.BaselineCursorHead == nil) ||
 		frontier.WatermarkAtUnixMillis != olderPositiveTime(frontier.Metadata.WatermarkAtUnixMillis, frontier.Messages.WatermarkAtUnixMillis) {
 		return backupcontract.SlotFrontier{}, fmt.Errorf("%w: durable frontier is invalid", ErrInvalidCapture)
 	}
 	return frontier, nil
+}
+
+func validateSlotBaseline(reference *backupcontract.SlotBaselineReference, hashSlot uint16) error {
+	if reference == nil {
+		return nil
+	}
+	partition := reference.Partition
+	if partition.HashSlot != hashSlot || partition.Key == "" ||
+		!validLowerSHA256(partition.SHA256) || partition.Bytes <= 0 ||
+		partition.ObjectCount == 0 || partition.CiphertextBytes == 0 ||
+		partition.Evidence.Version != backupartifact.PartitionEvidenceVersion ||
+		(partition.Evidence.MessageRecords == 0) != (partition.Evidence.MaxMessageID == 0) {
+		return ErrInvalidCapture
+	}
+	return nil
+}
+
+func validateSlotRebase(rebase *backupcontract.SlotRebase, generation string) error {
+	if rebase == nil {
+		return nil
+	}
+	if !validContinuousIdentity(rebase.TargetGeneration, 128) ||
+		rebase.TargetGeneration == generation || rebase.Epoch == 0 ||
+		rebase.StartedAtUnixMillis <= 0 {
+		return ErrInvalidCapture
+	}
+	switch rebase.Reason {
+	case backupcontract.RebaseReasonPinAge,
+		backupcontract.RebaseReasonNodeByteBudget,
+		backupcontract.RebaseReasonSourceCompacted,
+		backupcontract.RebaseReasonSourceRemapped:
+		return nil
+	default:
+		return ErrInvalidCapture
+	}
 }
 
 func validSlotCaptureLease(lease backupcontract.SlotCaptureLease, generation string) bool {
@@ -139,11 +180,29 @@ func olderPositiveTime(left, right int64) int64 {
 func slotFrontiersEqual(left, right backupcontract.SlotFrontier) bool {
 	return left.Revision == right.Revision && left.HashSlot == right.HashSlot &&
 		left.Generation == right.Generation &&
+		left.SourceSlotID == right.SourceSlotID &&
+		left.SourcePinStartedAtUnixMillis == right.SourcePinStartedAtUnixMillis &&
 		backupcontract.SlotCaptureLeasesEqual(left.Lease, right.Lease) &&
+		slotBaselinesEqual(left.Baseline, right.Baseline) &&
+		slotRebasesEqual(left.Rebase, right.Rebase) &&
 		streamFrontiersEqual(left.Metadata, right.Metadata) &&
 		streamFrontiersEqual(left.Messages, right.Messages) &&
 		left.WatermarkAtUnixMillis == right.WatermarkAtUnixMillis &&
 		left.UpdatedAtUnixMillis == right.UpdatedAtUnixMillis
+}
+
+func slotBaselinesEqual(left, right *backupcontract.SlotBaselineReference) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+
+func slotRebasesEqual(left, right *backupcontract.SlotRebase) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func streamFrontiersEqual(left, right backupcontract.StreamFrontier) bool {
@@ -160,9 +219,16 @@ func streamFrontiersEqual(left, right backupcontract.StreamFrontier) bool {
 		return false
 	}
 	if left.CursorHead == nil || right.CursorHead == nil {
-		return left.CursorHead == nil && right.CursorHead == nil
+		if left.CursorHead != nil || right.CursorHead != nil {
+			return false
+		}
+	} else if *left.CursorHead != *right.CursorHead {
+		return false
 	}
-	return *left.CursorHead == *right.CursorHead
+	if left.BaselineCursorHead == nil || right.BaselineCursorHead == nil {
+		return left.BaselineCursorHead == nil && right.BaselineCursorHead == nil
+	}
+	return *left.BaselineCursorHead == *right.BaselineCursorHead
 }
 
 func cloneRuntimeSegmentReference(reference *backupartifact.SegmentReference) *backupartifact.SegmentReference {
@@ -197,6 +263,14 @@ func validateStreamFrontier(stream backupartifact.SegmentStream, frontier backup
 			}
 		} else if frontier.CursorHead != nil {
 			return ErrInvalidCapture
+		}
+	}
+	if stream == backupartifact.SegmentStreamMetadata && frontier.BaselineCursorHead != nil {
+		return ErrInvalidCapture
+	}
+	if frontier.BaselineCursorHead != nil {
+		if err := validateCommittedSegmentReference(*frontier.BaselineCursorHead); err != nil {
+			return err
 		}
 	}
 	if frontier.WatermarkAtUnixMillis < 0 {

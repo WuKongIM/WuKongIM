@@ -18,6 +18,21 @@ const (
 	CaptureStateFailed CaptureState = "failed"
 	// CaptureStateFenced means this node is not the current leased Slot Leader.
 	CaptureStateFenced CaptureState = "fenced"
+	// CaptureStateRebasing means the Slot pin was released while a new materialized
+	// baseline is being committed. The prior Generation remains recoverable.
+	CaptureStateRebasing CaptureState = "rebasing"
+)
+
+const (
+	// RebaseReasonPinAge releases a Slot whose source pin exceeded its age limit.
+	RebaseReasonPinAge = "pin_age"
+	// RebaseReasonNodeByteBudget releases the selected Slot when aggregate
+	// node-local pinned bytes exceed their configured budget.
+	RebaseReasonNodeByteBudget = "node_byte_budget"
+	// RebaseReasonSourceCompacted repairs a source interval already removed at restart.
+	RebaseReasonSourceCompacted = "source_compacted"
+	// RebaseReasonSourceRemapped replaces a cursor whose physical Slot changed.
+	RebaseReasonSourceRemapped = "source_remapped"
 )
 
 // StreamFrontier is the bounded durable head of one Slot capture stream.
@@ -28,6 +43,9 @@ type StreamFrontier struct {
 	Head *backupartifact.SegmentReference
 	// CursorHead authenticates the latest cursor-only sidecar for the message stream.
 	CursorHead *backupartifact.SegmentReference
+	// BaselineCursorHead authenticates the complete Channel boundary index at
+	// the materialized root of this generation.
+	BaselineCursorHead *backupartifact.SegmentReference
 	// SourceCursor is the bounded opaque cursor for authoritative paged reconciliation.
 	SourceCursor string
 	// SourceHighWatermark is the greatest authoritative position fully reconciled.
@@ -54,6 +72,25 @@ type SlotCaptureLease struct {
 	AcquiredAtUnixMillis int64
 }
 
+// SlotBaselineReference authenticates the materialized root of one Slot generation.
+type SlotBaselineReference struct {
+	// Partition is the dual-repository materialized metadata/message snapshot.
+	Partition backupartifact.PartitionReference
+}
+
+// SlotRebase records one retryable generation replacement without displacing
+// the last healthy generation.
+type SlotRebase struct {
+	// TargetGeneration identifies the generation being materialized.
+	TargetGeneration string
+	// Epoch fences immutable baseline retries for this exact capture lease.
+	Epoch uint64
+	// Reason is a bounded stable trigger category.
+	Reason string
+	// StartedAtUnixMillis is preserved across same-lease process restart.
+	StartedAtUnixMillis int64
+}
+
 // SlotFrontier atomically binds the metadata and message stream heads for one Hash Slot.
 type SlotFrontier struct {
 	// Revision fences compare-and-swap updates to this compact record.
@@ -64,6 +101,18 @@ type SlotFrontier struct {
 	Generation string
 	// Lease fences every frontier commit to one exact current Slot authority.
 	Lease SlotCaptureLease
+	// SourceSlotID identifies the physical Slot whose Raft index space is used
+	// by Metadata.SourceCursor. A mismatch with Lease.SlotID requires rebase.
+	SourceSlotID uint32
+	// SourcePinStartedAtUnixMillis is the UTC time at which the currently
+	// retained metadata source floor became authoritative. Lease takeover does
+	// not reset it; advancing the floor or promoting a baseline does.
+	SourcePinStartedAtUnixMillis int64
+	// Baseline is the materialized root of Generation. Nil means Generation
+	// starts at the beginning of the retained source logs.
+	Baseline *SlotBaselineReference
+	// Rebase keeps Generation active until TargetGeneration is fully committed.
+	Rebase *SlotRebase
 	// Metadata and Messages are independently ordered streams committed together.
 	Metadata StreamFrontier
 	Messages StreamFrontier
@@ -98,6 +147,14 @@ type SlotCaptureStatus struct {
 // CloneSlotFrontier returns a detached frontier safe for mutation.
 func CloneSlotFrontier(frontier SlotFrontier) SlotFrontier {
 	out := frontier
+	if frontier.Baseline != nil {
+		baseline := *frontier.Baseline
+		out.Baseline = &baseline
+	}
+	if frontier.Rebase != nil {
+		rebase := *frontier.Rebase
+		out.Rebase = &rebase
+	}
 	out.Metadata = cloneStreamFrontier(frontier.Metadata)
 	out.Messages = cloneStreamFrontier(frontier.Messages)
 	return out
@@ -124,6 +181,10 @@ func cloneStreamFrontier(frontier StreamFrontier) StreamFrontier {
 	if frontier.CursorHead != nil {
 		head := *frontier.CursorHead
 		out.CursorHead = &head
+	}
+	if frontier.BaselineCursorHead != nil {
+		head := *frontier.BaselineCursorHead
+		out.BaselineCursorHead = &head
 	}
 	return out
 }

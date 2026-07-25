@@ -138,6 +138,7 @@ func TestStatusPublishesSanitizedDurableCaptureLeaseTakeover(t *testing.T) {
 	store := &memoryStateStore{state: backupusecase.State{
 		SlotFrontiers: []backupcontract.SlotFrontier{{
 			Revision: 7, HashSlot: 17, Generation: "slot-generation-1",
+			SourceSlotID: 3, SourcePinStartedAtUnixMillis: 1_753_056_290_000,
 			Lease: backupcontract.SlotCaptureLease{
 				SlotID: 3, LeaderTerm: 11, ConfigEpoch: 5, HolderNodeID: 2,
 				Generation: "slot-generation-1", Sequence: 4,

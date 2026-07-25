@@ -14,7 +14,7 @@ const (
 	// CheckpointFormat identifies one immutable continuous-backup vector cut.
 	CheckpointFormat = "wukongim-backup-checkpoint"
 	// CheckpointVersion is the current vector-cut schema.
-	CheckpointVersion uint16 = 1
+	CheckpointVersion uint16 = 2
 	// CatalogPageFormat identifies one signed hash-linked catalog page.
 	CatalogPageFormat = "wukongim-backup-catalog-page"
 	// CatalogPageVersion is the current catalog schema.
@@ -39,12 +39,22 @@ type CheckpointStream struct {
 	WatermarkAtUnixMillis int64 `json:"watermark_at_unix_millis"`
 }
 
+// CheckpointBaseline authenticates the materialized root of one Slot generation.
+type CheckpointBaseline struct {
+	// Partition is the materialized metadata/message snapshot manifest.
+	Partition PartitionReference `json:"partition"`
+	// MessageCursor is the complete Channel boundary index at the same cut.
+	MessageCursor SegmentReference `json:"message_cursor"`
+}
+
 // CheckpointSlot is one complete Slot generation cut.
 type CheckpointSlot struct {
 	// HashSlot identifies the logical partition.
 	HashSlot uint16 `json:"hash_slot"`
 	// Generation identifies the independently replaceable segment graph.
 	Generation string `json:"generation"`
+	// Baseline is present when this generation starts from materialized state.
+	Baseline *CheckpointBaseline `json:"baseline,omitempty"`
 	// Metadata and Messages are the independently ordered stream cuts.
 	Metadata CheckpointStream `json:"metadata"`
 	Messages CheckpointStream `json:"messages"`
@@ -257,6 +267,7 @@ func validateCheckpoint(checkpoint Checkpoint, requireSignature bool) error {
 	var effective int64
 	for index, slot := range checkpoint.Slots {
 		if slot.HashSlot != uint16(index) || validateRestorePointID(slot.Generation) != nil ||
+			validateCheckpointBaseline(slot.Baseline, slot.HashSlot) != nil ||
 			slot.WatermarkAtUnixMillis <= 0 ||
 			slot.WatermarkAtUnixMillis != olderCheckpointTime(
 				slot.Metadata.WatermarkAtUnixMillis,
@@ -272,6 +283,22 @@ func validateCheckpoint(checkpoint Checkpoint, requireSignature bool) error {
 		return fmt.Errorf("%w: checkpoint effective time is invalid", ErrInvalidObject)
 	}
 	return validateCheckpointSignature(checkpoint.Signature, requireSignature)
+}
+
+func validateCheckpointBaseline(baseline *CheckpointBaseline, hashSlot uint16) error {
+	if baseline == nil {
+		return nil
+	}
+	partition := baseline.Partition
+	if partition.HashSlot != hashSlot || partition.Bytes <= 0 ||
+		partition.ObjectCount == 0 || partition.CiphertextBytes == 0 ||
+		validatePartitionManifestKey(partition.Key) != nil ||
+		validateSHA256(partition.SHA256) != nil ||
+		validatePartitionEvidence(partition.Evidence) != nil ||
+		validateSegmentReference(baseline.MessageCursor) != nil {
+		return ErrInvalidObject
+	}
+	return nil
 }
 
 func validateCheckpointStream(stream CheckpointStream, message bool) error {

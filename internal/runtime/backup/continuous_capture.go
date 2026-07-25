@@ -29,8 +29,10 @@ const (
 	DefaultCaptureReconcileInterval = 30 * time.Second
 	// DefaultCaptureWorkerCount bounds independent Slot reconciliation concurrency.
 	DefaultCaptureWorkerCount = 4
-	// DefaultCaptureMemoryBudgetBytes bounds pre-store page, accumulator, and encoding memory.
-	DefaultCaptureMemoryBudgetBytes int64 = 3*MaxCaptureSegmentBytes + 16<<20
+	// DefaultCaptureMemoryBudgetBytes admits one maximum materialized Channel
+	// index decode plus its merge/index working set, while keeping concurrent
+	// large Slot work serialized by the shared node budget.
+	DefaultCaptureMemoryBudgetBytes int64 = 6*MaxCaptureSegmentBytes + 16<<20
 
 	maxCaptureWorkerCount = 64
 
@@ -51,6 +53,8 @@ var (
 	ErrCaptureLeaseFenced = errors.New("backup runtime: capture lease fenced")
 	// ErrCaptureNotLeader reports that the local worker is not the current Slot Leader.
 	ErrCaptureNotLeader = errors.New("backup runtime: capture worker is not Slot leader")
+	// ErrCaptureSourceCompacted reports that an uncommitted source interval was removed.
+	ErrCaptureSourceCompacted = errors.New("backup runtime: capture source compacted")
 )
 
 // RollingPolicy bounds one continuous-capture segment and source page.
@@ -114,6 +118,8 @@ type SourcePageRequest struct {
 	CursorSourceCursor string
 	// CursorHead is the message cursor sidecar tip; metadata requests leave it nil.
 	CursorHead *backupartifact.SegmentReference
+	// BaselineCursorHead is the complete materialized Channel boundary index.
+	BaselineCursorHead *backupartifact.SegmentReference
 	// AfterCursor is the last durably reconciled opaque source cursor.
 	AfterCursor string
 	// ThroughPosition pins this reconciliation to one observed high watermark.
@@ -214,6 +220,88 @@ type SlotFrontierStore interface {
 	CompareAndSwap(context.Context, uint64, backupcontract.SlotCaptureLease, backupcontract.SlotFrontier) error
 }
 
+// SlotGenerationPromoter atomically replaces one healthy generation after its
+// materialized baseline is durable in both repositories.
+type SlotGenerationPromoter interface {
+	PromoteGeneration(context.Context, uint64, backupcontract.SlotCaptureLease, backupcontract.SlotFrontier) error
+}
+
+// SourcePinPolicy bounds how long and how much retained source data backup may hold.
+type SourcePinPolicy struct {
+	// MaxAge is the hard lifetime of one Slot pin.
+	MaxAge time.Duration
+	// MaxNodeBytes is the aggregate node-local byte budget across Slot pins.
+	MaxNodeBytes uint64
+}
+
+// SourcePinObservation is one bounded node-local pin accounting snapshot.
+type SourcePinObservation struct {
+	// Age is measured from the durable retained-floor start time.
+	Age time.Duration
+	// PinnedBytes is the source-log estimate retained for this Slot.
+	PinnedBytes uint64
+	// NodePinnedBytes is the aggregate estimate across locally held pins.
+	NodePinnedBytes uint64
+	// NodeBudgetVictim selects this Slot deterministically when the node budget is exceeded.
+	NodeBudgetVictim bool
+}
+
+// SourcePinManager owns node-local source compaction holds.
+type SourcePinManager interface {
+	// Observe acquires or refreshes the exact leased Slot pin and returns accounting.
+	Observe(context.Context, uint16, backupcontract.SlotCaptureLease, backupcontract.SlotFrontier) (SourcePinObservation, error)
+	// Release removes only the exact Slot pin and returns the remaining node
+	// aggregate. It must be idempotent across restart.
+	Release(context.Context, uint16, backupcontract.SlotCaptureLease) (SourcePinObservation, error)
+	// AdoptLease transfers one same-physical-Slot record to a new durable
+	// authority without opening a compaction gap; a remap releases the old Slot.
+	AdoptLease(context.Context, uint16, backupcontract.SlotCaptureLease) (SourcePinObservation, error)
+	// ReleaseObsolete removes any node-local hold after this process learns it
+	// is no longer capture authority for the Hash Slot.
+	ReleaseObsolete(context.Context, uint16) (SourcePinObservation, error)
+}
+
+// MaterializedBaseline is a complete dual-repository root and its resume cut.
+type MaterializedBaseline struct {
+	// Generation must equal the durable pending rebase target.
+	Generation string
+	// Reference authenticates the materialized partition and complete message cursor.
+	Reference backupcontract.SlotBaselineReference
+	// Metadata and Messages are empty-stream resume positions after the baseline.
+	Metadata backupcontract.StreamFrontier
+	Messages backupcontract.StreamFrontier
+	// WatermarkAtUnixMillis is the older represented source time.
+	WatermarkAtUnixMillis int64
+}
+
+// MaterializedBaselineCapturer creates a retryable full Slot root without
+// publishing it into the active frontier.
+type MaterializedBaselineCapturer interface {
+	CaptureBaseline(
+		context.Context,
+		uint16,
+		string,
+		uint64,
+		backupcontract.SlotCaptureLease,
+		func(context.Context, uint64) error,
+	) (MaterializedBaseline, error)
+}
+
+// RebaseObserver receives low-cardinality pin and rebase evidence.
+type RebaseObserver interface {
+	SetBackupSourcePin(hashSlot uint16, age time.Duration, slotBytes, nodeBytes uint64)
+	ObserveBackupSlotRebase(hashSlot uint16, reason string, duration time.Duration, failureCategory string)
+}
+
+// RebaseOptions configures per-Slot pin release and materialized replacement.
+type RebaseOptions struct {
+	// Policy contains explicit hard limits.
+	Policy SourcePinPolicy
+	// Pins owns source-log holds; Baselines creates dual-repository roots.
+	Pins      SourcePinManager
+	Baselines MaterializedBaselineCapturer
+}
+
 // CaptureObserver receives low-cardinality lease ownership evidence.
 type CaptureObserver interface {
 	// ObserveBackupCaptureLeaseTakeover increments after a durable takeover.
@@ -243,6 +331,14 @@ func (wallCaptureClock) Now() time.Time { return time.Now() }
 
 type weightedCaptureMemoryBudget struct {
 	semaphore *semaphore.Weighted
+}
+
+// NewCaptureMemoryBudget creates one shared non-blocking capture-memory gate.
+func NewCaptureMemoryBudget(maxBytes int64) (CaptureMemoryBudget, error) {
+	if maxBytes <= 0 {
+		return nil, fmt.Errorf("%w: capture memory budget must be positive", ErrInvalidCapture)
+	}
+	return &weightedCaptureMemoryBudget{semaphore: semaphore.NewWeighted(maxBytes)}, nil
 }
 
 func (b *weightedCaptureMemoryBudget) TryAcquire(bytes int64) bool {
@@ -285,6 +381,8 @@ type CaptureEngineOptions struct {
 	MemoryBudget CaptureMemoryBudget
 	// Observer receives optional low-cardinality lease ownership metrics.
 	Observer CaptureObserver
+	// Rebase enables bounded source pins and independent Slot generation replacement.
+	Rebase *RebaseOptions
 }
 
 // CaptureEngine continuously reconciles committed Slot logs into immutable segments.
@@ -357,6 +455,15 @@ func NewCaptureEngine(options CaptureEngineOptions) (*CaptureEngine, error) {
 	if options.CursorLoader == nil {
 		return nil, fmt.Errorf("%w: continuous cursor loader is required", ErrInvalidCapture)
 	}
+	if options.Rebase != nil {
+		if options.Rebase.Pins == nil || options.Rebase.Baselines == nil ||
+			options.Rebase.Policy.MaxAge <= 0 || options.Rebase.Policy.MaxNodeBytes == 0 {
+			return nil, fmt.Errorf("%w: rebase dependencies or pin limits are invalid", ErrInvalidCapture)
+		}
+		if _, ok := options.Frontiers.(SlotGenerationPromoter); !ok {
+			return nil, fmt.Errorf("%w: generation promoter is required", ErrInvalidCapture)
+		}
+	}
 	return &CaptureEngine{
 		options:        options,
 		status:         make(map[uint16]backupcontract.SlotCaptureStatus),
@@ -386,6 +493,14 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 		if errors.Is(err, ErrCaptureLeaseFenced) || errors.Is(err, ErrCaptureNotLeader) {
 			state = backupcontract.CaptureStateFenced
 			category = "capture_fenced"
+			if e.options.Rebase != nil {
+				released, releaseErr := e.options.Rebase.Pins.ReleaseObsolete(ctx, hashSlot)
+				if releaseErr != nil {
+					err = errors.Join(err, releaseErr)
+				} else if observer, ok := e.options.Observer.(RebaseObserver); ok {
+					observer.SetBackupSourcePin(hashSlot, 0, 0, released.NodePinnedBytes)
+				}
+			}
 			if e.options.Observer != nil {
 				e.options.Observer.ObserveBackupCaptureLeaseFenced()
 			}
@@ -394,6 +509,18 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 		return backupcontract.SlotFrontier{}, err
 	}
 	if snapshot.LeaseTakenOver {
+		if e.options.Rebase != nil {
+			adopted, adoptErr := e.options.Rebase.Pins.AdoptLease(
+				ctx, hashSlot, snapshot.Frontier.Lease,
+			)
+			if adoptErr != nil {
+				e.recordStatus(hashSlot, backupcontract.CaptureStateFailed, snapshot.Frontier, SourceWatermarks{}, "pin_release")
+				return backupcontract.SlotFrontier{}, adoptErr
+			}
+			if observer, ok := e.options.Observer.(RebaseObserver); ok {
+				observer.SetBackupSourcePin(hashSlot, 0, adopted.PinnedBytes, adopted.NodePinnedBytes)
+			}
+		}
 		if invalidator, ok := e.options.Source.(SourceStateInvalidator); ok {
 			invalidator.InvalidateSourceState(hashSlot)
 		}
@@ -406,9 +533,67 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 		e.recordStatus(hashSlot, backupcontract.CaptureStateFailed, backupcontract.SlotFrontier{}, SourceWatermarks{}, "frontier_invalid")
 		return backupcontract.SlotFrontier{}, err
 	}
+	if snapshot.LeaseTakenOver && current.Rebase != nil {
+		reason := current.Rebase.Reason
+		if current.SourceSlotID != current.Lease.SlotID {
+			reason = backupcontract.RebaseReasonSourceRemapped
+		}
+		current, err = e.rotatePendingRebase(ctx, current, reason)
+		if err != nil {
+			return backupcontract.SlotFrontier{}, err
+		}
+	}
+	if next, handled, err := e.reconcileRebase(ctx, current); handled {
+		return next, err
+	}
+	flushed := backupcontract.CloneSlotFrontier(current)
+	metadataFlushed := false
+	messageFlushed := false
+	flushed.Metadata, metadataFlushed, err = e.flushDueAccumulator(
+		ctx, hashSlot, current.Lease, backupartifact.SegmentStreamMetadata, current.Metadata,
+	)
+	if err == nil {
+		flushed.Messages, messageFlushed, err = e.flushDueAccumulator(
+			ctx, hashSlot, current.Lease, backupartifact.SegmentStreamMessages, current.Messages,
+		)
+	}
+	if err != nil {
+		e.recordStreamCaptureError(
+			hashSlot, current, SourceWatermarks{}, "pending_flush", err,
+		)
+		return backupcontract.SlotFrontier{}, err
+	}
+	if metadataFlushed || messageFlushed {
+		flushed.WatermarkAtUnixMillis = olderPositiveTime(
+			flushed.Metadata.WatermarkAtUnixMillis,
+			flushed.Messages.WatermarkAtUnixMillis,
+		)
+		watermarks := SourceWatermarks{
+			Metadata: SourceWatermark{
+				Position:              flushed.Metadata.SourceHighWatermark,
+				CommittedAtUnixMillis: flushed.Metadata.WatermarkAtUnixMillis,
+				ReconcilePending:      true,
+				DiscoveryPending:      true,
+			},
+			Messages: SourceWatermark{
+				Position:              flushed.Messages.SourceHighWatermark,
+				CommittedAtUnixMillis: flushed.Messages.WatermarkAtUnixMillis,
+				ReconcilePending:      true,
+				DiscoveryPending:      true,
+			},
+		}
+		return e.commitPreparedFrontier(ctx, current, flushed, watermarks)
+	}
 	e.recordStatus(hashSlot, backupcontract.CaptureStateReconciling, current, SourceWatermarks{}, "")
 	watermarks, err := e.options.Source.HighWatermarks(ctx, hashSlot, current)
 	if err != nil {
+		if errors.Is(err, ErrCaptureSourceCompacted) && e.options.Rebase != nil {
+			next, beginErr := e.beginRebase(ctx, current, backupcontract.RebaseReasonSourceCompacted)
+			if beginErr != nil {
+				return backupcontract.SlotFrontier{}, beginErr
+			}
+			return e.runRebase(ctx, next)
+		}
 		e.recordStatus(hashSlot, backupcontract.CaptureStateFailed, current, SourceWatermarks{}, "source_watermark")
 		return backupcontract.SlotFrontier{}, err
 	}
@@ -421,15 +606,39 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 	next := backupcontract.CloneSlotFrontier(current)
 	next.Metadata, err = e.captureStream(ctx, hashSlot, next.Lease, backupartifact.SegmentStreamMetadata, next.Metadata, watermarks.Metadata)
 	if err != nil {
+		if errors.Is(err, ErrCaptureSourceCompacted) && e.options.Rebase != nil {
+			rebasing, beginErr := e.beginRebase(ctx, current, backupcontract.RebaseReasonSourceCompacted)
+			if beginErr != nil {
+				return backupcontract.SlotFrontier{}, beginErr
+			}
+			return e.runRebase(ctx, rebasing)
+		}
 		e.recordStreamCaptureError(hashSlot, current, watermarks, "metadata_capture", err)
 		return backupcontract.SlotFrontier{}, err
 	}
 	next.Messages, err = e.captureStream(ctx, hashSlot, next.Lease, backupartifact.SegmentStreamMessages, next.Messages, watermarks.Messages)
 	if err != nil {
+		if errors.Is(err, ErrCaptureSourceCompacted) && e.options.Rebase != nil {
+			rebasing, beginErr := e.beginRebase(ctx, current, backupcontract.RebaseReasonSourceCompacted)
+			if beginErr != nil {
+				return backupcontract.SlotFrontier{}, beginErr
+			}
+			return e.runRebase(ctx, rebasing)
+		}
 		e.recordStreamCaptureError(hashSlot, current, watermarks, "message_capture", err)
 		return backupcontract.SlotFrontier{}, err
 	}
 	next.WatermarkAtUnixMillis = olderPositiveTime(next.Metadata.WatermarkAtUnixMillis, next.Messages.WatermarkAtUnixMillis)
+	return e.commitPreparedFrontier(ctx, current, next, watermarks)
+}
+
+func (e *CaptureEngine) commitPreparedFrontier(
+	ctx context.Context,
+	current backupcontract.SlotFrontier,
+	next backupcontract.SlotFrontier,
+	watermarks SourceWatermarks,
+) (backupcontract.SlotFrontier, error) {
+	hashSlot := current.HashSlot
 	if slotFrontiersEqual(next, current) {
 		e.recordStatus(hashSlot, captureStateForFrontier(next, watermarks), next, watermarks, "")
 		e.continueDiscovery(hashSlot, watermarks)
@@ -441,6 +650,9 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 	}
 	next.Revision = current.Revision + 1
 	next.UpdatedAtUnixMillis = e.options.Clock.Now().UnixMilli()
+	if next.Metadata.SourceHighWatermark > current.Metadata.SourceHighWatermark {
+		next.SourcePinStartedAtUnixMillis = next.UpdatedAtUnixMillis
+	}
 	if err := e.options.Frontiers.CompareAndSwap(ctx, current.Revision, current.Lease, next); err != nil {
 		if invalidator, ok := e.options.Source.(SourceStateInvalidator); ok {
 			invalidator.InvalidateSourceState(hashSlot)

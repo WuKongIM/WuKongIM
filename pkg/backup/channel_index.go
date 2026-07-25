@@ -128,6 +128,33 @@ func LoadChannelIndex(body []byte) (uint16, []ChannelBoundary, error) {
 	return hashSlot, items, nil
 }
 
+// InspectChannelIndex returns the authenticated Hash Slot and entry count
+// without allocating the decoded boundary slice.
+func InspectChannelIndex(body []byte) (uint16, uint32, error) {
+	if len(body) < 16 || len(body) > maxChannelIndexBytes {
+		return 0, 0, fmt.Errorf("%w: channel index size is invalid", ErrInvalidManifest)
+	}
+	payload := body[:len(body)-4]
+	if crc32.ChecksumIEEE(payload) != binary.BigEndian.Uint32(body[len(body)-4:]) {
+		return 0, 0, fmt.Errorf("%w: channel index checksum mismatch", ErrObjectCorrupt)
+	}
+	reader := bytes.NewReader(payload)
+	var magic [4]byte
+	if _, err := io.ReadFull(reader, magic[:]); err != nil || magic != channelIndexMagic {
+		return 0, 0, fmt.Errorf("%w: channel index magic is invalid", ErrInvalidManifest)
+	}
+	var version, hashSlot uint16
+	var count uint32
+	if binary.Read(reader, binary.BigEndian, &version) != nil ||
+		version != channelIndexVersion ||
+		binary.Read(reader, binary.BigEndian, &hashSlot) != nil ||
+		binary.Read(reader, binary.BigEndian, &count) != nil ||
+		count > maxChannelIndexEntries {
+		return 0, 0, fmt.Errorf("%w: channel index header is invalid", ErrInvalidManifest)
+	}
+	return hashSlot, count, nil
+}
+
 func validateChannelBoundary(boundary ChannelBoundary) error {
 	if boundary.ChannelID == "" || len(boundary.ChannelID) > maxChannelIndexIDBytes || boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW {
 		return fmt.Errorf("invalid channel boundary")

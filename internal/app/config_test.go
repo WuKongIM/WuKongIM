@@ -15,6 +15,8 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 	require.Equal(t, time.Minute, app.cfg.Backup.IncrementalInterval)
 	require.Equal(t, 5*time.Minute, app.cfg.Backup.RestorePointInterval)
 	require.Equal(t, uint64(8*1024*1024), app.cfg.Backup.ChunkSizeBytes)
+	require.Equal(t, time.Hour, app.cfg.Backup.SourcePinMaxAge)
+	require.Equal(t, uint64(8*1024*1024*1024), app.cfg.Backup.MaxSourcePinnedBytes)
 }
 
 func TestBackupConfigNormalizesPreviousTrustedSigningKeys(t *testing.T) {

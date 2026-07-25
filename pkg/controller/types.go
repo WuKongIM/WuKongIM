@@ -75,6 +75,12 @@ type (
 	BackupStreamFrontier = state.BackupStreamFrontier
 	// BackupSlotFrontier atomically binds continuous metadata and message heads.
 	BackupSlotFrontier = state.BackupSlotFrontier
+	// BackupSlotBaselineReference authenticates one materialized generation root.
+	BackupSlotBaselineReference = state.BackupSlotBaselineReference
+	// BackupPartitionReference authenticates one materialized partition manifest.
+	BackupPartitionReference = state.BackupPartitionReference
+	// BackupSlotRebase records one pending retryable generation replacement.
+	BackupSlotRebase = state.BackupSlotRebase
 	// BackupSlotCaptureLease fences one continuous capture worker to Slot authority.
 	BackupSlotCaptureLease = state.BackupSlotCaptureLease
 	// RestoreCoordinationState stores bounded explicit recovery metadata.

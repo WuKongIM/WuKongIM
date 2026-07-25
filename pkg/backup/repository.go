@@ -115,10 +115,10 @@ func (p *ReplicatedPublisher) PublishReferences(ctx context.Context, manifest Ma
 		}
 	}
 	for _, reference := range manifest.Partitions {
-		if err := verifyPartitionReferenceGraph(ctx, p.primary, reference); err != nil {
+		if err := verifyPartitionReferenceGraph(ctx, p.primary, reference, signer); err != nil {
 			return Manifest{}, fmt.Errorf("%w: %s partition %q: %v", ErrRepositoryIncomplete, p.primary.Name(), reference.Key, err)
 		}
-		if err := verifyPartitionReferenceGraph(ctx, p.secondary, reference); err != nil {
+		if err := verifyPartitionReferenceGraph(ctx, p.secondary, reference, signer); err != nil {
 			return Manifest{}, fmt.Errorf("%w: %s partition %q: %v", ErrRepositoryIncomplete, p.secondary.Name(), reference.Key, err)
 		}
 	}
@@ -305,8 +305,11 @@ func verifyRepositoryObject(ctx context.Context, repository Repository, entry Ob
 	return nil
 }
 
-func verifyPartitionReferenceGraph(ctx context.Context, repository Repository, reference PartitionReference) error {
-	return loadAndVerifyPartitionChain(ctx, repository, reference, make(map[string]struct{}), make(map[string]struct{}), 0)
+func verifyPartitionReferenceGraph(ctx context.Context, repository Repository, reference PartitionReference, signer ManifestSigner) error {
+	return loadAndVerifyPartitionChain(
+		ctx, repository, reference, signer,
+		make(map[string]struct{}), make(map[string]struct{}), 0,
+	)
 }
 
 // LoadRestorePoint loads and verifies a signed manifest and every referenced object in repository.
@@ -366,7 +369,7 @@ func LoadRestorePointGraph(ctx context.Context, repository Repository, restorePo
 	}
 	visited := make(map[string]struct{})
 	for _, reference := range manifest.Partitions {
-		if err := loadAndVerifyPartitionChain(ctx, repository, reference, visited, references, 0); err != nil {
+		if err := loadAndVerifyPartitionChain(ctx, repository, reference, signer, visited, references, 0); err != nil {
 			return RestorePointGraph{}, err
 		}
 	}
@@ -380,7 +383,7 @@ func LoadRestorePointGraph(ctx context.Context, repository Repository, restorePo
 
 const maxPartitionChainDepth = 10_000
 
-func loadAndVerifyPartitionChain(ctx context.Context, repository Repository, reference PartitionReference, visited, references map[string]struct{}, depth int) error {
+func loadAndVerifyPartitionChain(ctx context.Context, repository Repository, reference PartitionReference, signer ManifestSigner, visited, references map[string]struct{}, depth int) error {
 	if depth >= maxPartitionChainDepth {
 		return fmt.Errorf("%w: partition chain exceeds limit", ErrInvalidManifest)
 	}
@@ -424,10 +427,66 @@ func loadAndVerifyPartitionChain(ctx context.Context, repository Repository, ref
 	if ciphertextBytes != reference.CiphertextBytes {
 		return fmt.Errorf("%w: partition %q byte summary mismatch", ErrInvalidManifest, reference.Key)
 	}
+	if partition.BaselineCursor != nil {
+		commit, err := loadAndVerifyReferencedSegment(
+			ctx, repository, signer, *partition.BaselineCursor,
+		)
+		if err != nil {
+			return fmt.Errorf("%w: %s baseline cursor %q: %v", ErrRepositoryIncomplete, repository.Name(), partition.BaselineCursor.CommitKey, err)
+		}
+		if commit.Header.Logical.Generation != partition.JobID ||
+			commit.Header.Logical.HashSlot != partition.Cut.HashSlot ||
+			commit.Header.Logical.Stream != SegmentStreamMessageBaselineCursor ||
+			commit.Header.Logical.Sequence != 1 {
+			return fmt.Errorf("%w: baseline cursor %q identity mismatch", ErrInvalidManifest, partition.BaselineCursor.CommitKey)
+		}
+		references[partition.BaselineCursor.CommitKey] = struct{}{}
+		references[commit.Payload.Key] = struct{}{}
+	}
 	if partition.Base != nil {
-		return loadAndVerifyPartitionChain(ctx, repository, *partition.Base, visited, references, depth+1)
+		return loadAndVerifyPartitionChain(ctx, repository, *partition.Base, signer, visited, references, depth+1)
 	}
 	return nil
+}
+
+func loadAndVerifyReferencedSegment(
+	ctx context.Context,
+	repository Repository,
+	signer ManifestSigner,
+	reference SegmentReference,
+) (SegmentCommit, error) {
+	reader, object, err := repository.Open(ctx, reference.CommitKey)
+	if err != nil {
+		return SegmentCommit{}, err
+	}
+	body, readErr := io.ReadAll(io.LimitReader(reader, maxSegmentCommitBytes+1))
+	closeErr := reader.Close()
+	if readErr != nil {
+		return SegmentCommit{}, readErr
+	}
+	if closeErr != nil {
+		return SegmentCommit{}, closeErr
+	}
+	hash := sha256.Sum256(body)
+	if len(body) > maxSegmentCommitBytes ||
+		object.Key != reference.CommitKey ||
+		object.Size != int64(len(body)) ||
+		object.SHA256 != reference.CommitSHA256 ||
+		hex.EncodeToString(hash[:]) != reference.CommitSHA256 {
+		return SegmentCommit{}, fmt.Errorf("%w: segment commit metadata mismatch", ErrObjectCorrupt)
+	}
+	commit, err := LoadSegmentCommit(ctx, body, signer)
+	if err != nil {
+		return SegmentCommit{}, err
+	}
+	if commit.SegmentID != reference.SegmentID ||
+		commit.Header.PlaintextBytes != reference.PlaintextBytes {
+		return SegmentCommit{}, fmt.Errorf("%w: segment reference identity mismatch", ErrObjectCorrupt)
+	}
+	if err := verifySegmentPayloadObject(ctx, repository, commit.Payload); err != nil {
+		return SegmentCommit{}, err
+	}
+	return commit, nil
 }
 
 func validateSealedObject(object SealedObject) error {

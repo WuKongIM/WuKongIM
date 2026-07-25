@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/stretchr/testify/require"
 )
 
@@ -447,6 +448,7 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	st := testState()
 	segmentID := strings.Repeat("a", 64)
 	cursorID := strings.Repeat("c", 64)
+	baselineCursorID := strings.Repeat("f", 64)
 	st.Backup = &BackupCoordinationState{
 		RestorePoints:  []BackupRestorePoint{},
 		PendingGarbage: []BackupRestorePoint{},
@@ -455,11 +457,22 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 			SHA256: strings.Repeat("e", 64), Bytes: 512, LatestCheckpointID: "checkpoint-3",
 		},
 		SlotFrontiers: []BackupSlotFrontier{{
-			Revision: 1, HashSlot: 1, Generation: "slot-generation-1",
+			Revision: 1, HashSlot: 1, Generation: "slot-generation-1", SourceSlotID: 2,
+			SourcePinStartedAtUnixMillis: 1_753_400_100_000,
 			Lease: BackupSlotCaptureLease{
 				SlotID: 2, LeaderTerm: 7, ConfigEpoch: 3, HolderNodeID: 1,
 				Generation: "slot-generation-1", Sequence: 1,
 				AcquiredAtUnixMillis: 1_753_400_100_000,
+			},
+			Baseline: &BackupSlotBaselineReference{Partition: BackupPartitionReference{
+				HashSlot: 1, Key: "partition-manifests/rebase-1/00001.json",
+				SHA256: strings.Repeat("9", 64), Bytes: 1024,
+				ObjectCount: 3, CiphertextBytes: 2048,
+				Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion},
+			}},
+			Rebase: &BackupSlotRebase{
+				TargetGeneration: "rebase-00001-00000000000000000002",
+				Epoch:            2, Reason: "pin_age", StartedAtUnixMillis: 1_753_400_105_000,
 			},
 			Metadata: BackupStreamFrontier{
 				SourceHighWatermark: 3, SourceCursor: "metadata/3",
@@ -476,6 +489,10 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 					SegmentID: cursorID, CommitKey: "segments/" + cursorID + "/commit.json",
 					CommitSHA256: strings.Repeat("d", 64), PlaintextBytes: 1,
 				},
+				BaselineCursorHead: &BackupSegmentReference{
+					SegmentID: baselineCursorID, CommitKey: "segments/" + baselineCursorID + "/commit.json",
+					CommitSHA256: strings.Repeat("8", 64), PlaintextBytes: 1,
+				},
 			},
 			WatermarkAtUnixMillis: 1_753_400_090_000,
 			UpdatedAtUnixMillis:   1_753_400_110_000,
@@ -490,6 +507,9 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	require.Equal(t, uint64(5), decoded.Backup.SlotFrontiers[0].Messages.SourceHighWatermark)
 	require.Equal(t, segmentID, decoded.Backup.SlotFrontiers[0].Messages.Head.SegmentID)
 	require.Equal(t, cursorID, decoded.Backup.SlotFrontiers[0].Messages.CursorHead.SegmentID)
+	require.Equal(t, baselineCursorID, decoded.Backup.SlotFrontiers[0].Messages.BaselineCursorHead.SegmentID)
+	require.Equal(t, uint64(2), decoded.Backup.SlotFrontiers[0].Rebase.Epoch)
+	require.Equal(t, "partition-manifests/rebase-1/00001.json", decoded.Backup.SlotFrontiers[0].Baseline.Partition.Key)
 	require.Equal(t, uint64(3), decoded.Backup.CatalogHead.Sequence)
 	require.Equal(t, "checkpoint-3", decoded.Backup.CatalogHead.LatestCheckpointID)
 }

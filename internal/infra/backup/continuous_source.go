@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -38,6 +39,14 @@ func (s *ContinuousSource) HighWatermarks(ctx context.Context, hashSlot uint16, 
 	metadata, err := s.metadata.HighWatermark(ctx, hashSlot, frontier.Generation, frontier.Metadata)
 	if err != nil {
 		return runtimebackup.SourceWatermarks{}, err
+	}
+	// A materialized baseline may end at a physical Slot index later than the
+	// latest command affecting this logical Hash Slot. That complete snapshot
+	// makes the physical cut a safe resume floor; only a later logical command
+	// may advance it.
+	if frontier.Baseline != nil && metadata.Position < frontier.Metadata.SourceHighWatermark {
+		metadata.Position = frontier.Metadata.SourceHighWatermark
+		metadata.CommittedAtUnixMillis = frontier.Metadata.WatermarkAtUnixMillis
 	}
 	messages, err := s.messages.HighWatermark(ctx, hashSlot, frontier.Generation, frontier.Messages)
 	if err != nil {
@@ -110,6 +119,9 @@ func NewMetadataLogSource(node MetadataLogNode) (*MetadataLogSource, error) {
 func (s *MetadataLogSource) HighWatermark(ctx context.Context, hashSlot uint16, _ string, _ backupcontract.StreamFrontier) (runtimebackup.SourceWatermark, error) {
 	watermark, err := s.node.ObserveBackupMetadataHighWatermark(ctx, hashSlot)
 	if err != nil {
+		if errors.Is(err, clusterpkg.ErrBackupSourceCompacted) {
+			return runtimebackup.SourceWatermark{}, runtimebackup.ErrCaptureSourceCompacted
+		}
 		return runtimebackup.SourceWatermark{}, err
 	}
 	if watermark.HashSlot != hashSlot || watermark.ObservedAtUnixMillis <= 0 {
@@ -137,6 +149,9 @@ func (s *MetadataLogSource) ReadPage(ctx context.Context, request runtimebackup.
 		MaxRecords:   request.MaxRecords,
 	})
 	if err != nil {
+		if errors.Is(err, clusterpkg.ErrBackupSourceCompacted) {
+			return runtimebackup.SourcePage{}, runtimebackup.ErrCaptureSourceCompacted
+		}
 		return runtimebackup.SourcePage{}, err
 	}
 	if page.NextIndex <= afterIndex || len(page.Records) > request.MaxRecords {

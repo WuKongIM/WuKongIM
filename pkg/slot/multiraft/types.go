@@ -213,6 +213,19 @@ type Storage interface {
 	MarkApplied(ctx context.Context, index uint64) error
 }
 
+// LogRangeSizer estimates retained bytes for a half-open Raft entry interval.
+// Implementations may conservatively include overlapping storage blocks.
+type LogRangeSizer interface {
+	LogRangeBytes(context.Context, uint64, uint64) (uint64, error)
+}
+
+// RetainedLogStorage prunes backup-readable entries independently from the
+// recovery snapshot. Implementations must never delete beyond the durable
+// snapshot index even when through is newer.
+type RetainedLogStorage interface {
+	TrimRetainedLog(context.Context, uint64) error
+}
+
 // ConfigAppliedIndexStorage persists the latest applied Raft membership entry index.
 // Storage implementations that compact applied log entries should implement this
 // so Status.ConfigAppliedIndex can be restored after the original entry is gone.
@@ -233,6 +246,11 @@ type PersistentState struct {
 	HardState *raftpb.HardState
 	Entries   []raftpb.Entry
 	Snapshot  *raftpb.Snapshot
+	// RetainLogAfter optionally preserves persisted entries strictly after this
+	// index when Snapshot is saved. The recovery snapshot still represents its
+	// own Metadata.Index; the older entries are a backup-read archive and are
+	// never replayed into the restored state machine.
+	RetainLogAfter *uint64
 }
 
 type StateMachine interface {

@@ -20,14 +20,6 @@ type messageSourceIdentity struct {
 	channelType uint8
 }
 
-func indexMessageBoundaries(boundaries []backupartifact.ChannelBoundary) map[messageSourceIdentity]backupartifact.ChannelBoundary {
-	index := make(map[messageSourceIdentity]backupartifact.ChannelBoundary, len(boundaries))
-	for _, boundary := range boundaries {
-		index[messageSourceIdentity{channelID: boundary.ChannelID, channelType: boundary.ChannelType}] = boundary
-	}
-	return index
-}
-
 func messageChannelRequest(hashSlot uint16, meta metadb.ChannelRuntimeMeta) (clusterpkg.BackupMessageChannelRequest, error) {
 	if meta.ChannelID == "" || len(meta.ChannelID) > 4<<10 || !utf8.ValidString(meta.ChannelID) ||
 		meta.ChannelType < 0 || meta.ChannelType > math.MaxUint8 ||
@@ -82,6 +74,9 @@ type messageSourceCursor struct {
 	Consumed       uint64                                   `json:"consumed,omitempty"`
 	After          metadb.ChannelRuntimeMetaCursor          `json:"after,omitempty"`
 	Boundary       *clusterpkg.BackupMessageChannelBoundary `json:"boundary,omitempty"`
+	PreviousEpoch  uint64                                   `json:"previous_epoch,omitempty"`
+	PreviousStart  uint64                                   `json:"previous_start,omitempty"`
+	PreviousHW     uint64                                   `json:"previous_hw,omitempty"`
 	NextSeq        uint64                                   `json:"next_seq,omitempty"`
 }
 
@@ -140,11 +135,16 @@ func decodeMessageSourceCursor(encoded string) (messageSourceCursor, error) {
 			cursor.Boundary.HW == math.MaxUint64 ||
 			cursor.Boundary.LogStartOffset > cursor.Boundary.HW ||
 			cursor.Boundary.ObservedAtUnixMillis <= 0 ||
+			(cursor.PreviousEpoch == 0 &&
+				(cursor.PreviousStart != 0 || cursor.PreviousHW != 0)) ||
+			(cursor.PreviousEpoch > 0 &&
+				cursor.PreviousStart > cursor.PreviousHW) ||
 			cursor.After != (metadb.ChannelRuntimeMetaCursor{}) ||
 			(cursor.NextSeq > 0 && cursor.NextSeq > cursor.Boundary.HW+1) {
 			return messageSourceCursor{}, runtimebackup.ErrInvalidCapture
 		}
 	} else if cursor.Boundary != nil || cursor.NextSeq != 0 ||
+		cursor.PreviousEpoch != 0 || cursor.PreviousStart != 0 || cursor.PreviousHW != 0 ||
 		cursor.BasePosition != cursor.TargetPosition || cursor.Consumed != 0 {
 		return messageSourceCursor{}, runtimebackup.ErrInvalidCapture
 	}

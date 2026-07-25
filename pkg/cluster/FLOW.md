@@ -45,7 +45,11 @@ surface for node-scoped operations; cluster exposes only the selected node's
 local operation and does not fan out or interpret manager policy. Internal
 manager Slot Raft manual compaction uses the same node-scoped surface through
 `Node.LocalCompactSlotRaftLog`, which delegates only to the selected node's
-local Slot Multi-Raft runtime. Internal manager message retention forwarding
+local Slot Multi-Raft runtime. Backup pin mutations and any resulting retained
+log trim share a per-Slot operation gate with the complete destructive
+compaction interval. The Slot worker never waits for that gate, floor reads
+take only a short read lock, and unchanged holds perform no storage write.
+Internal manager message retention forwarding
 uses the same surface to carry one logical Channel runtime compaction-boundary
 request to the channel leader; cluster transports the payload only, while the
 receiving leader revalidates runtime metadata and Slot metadata fences.
@@ -729,6 +733,31 @@ command. The index is read-path-only, prunes with
 Raft compaction, and is rebuilt after restart. Unrelated physical entries do
 not advance a logical watermark or Controller frontier. A cursor older than
 the first retained entry returns `ErrBackupSourceCompacted`.
+
+`HoldBackupSourcePin` first proves current local Slot leadership, installs an
+idempotent per-Hash-Slot compaction floor in that physical Multi-Raft Slot,
+then reports the retained range and its storage byte estimate after the
+continuous metadata cursor. The normal recovery snapshot still advances to the
+current applied state; the minimum active floor controls only the older
+retained RaftDB archive, so one Hash Slot does not force replay of or relabel
+the current FSM state at an older index. Pin operation cancellation is
+linearized while waiting for the per-Slot operation gate: a cancelled waiter
+performs no later mutation. An unchanged hold performs no Pebble write; when an
+effective floor advances, archive trimming remains behind the same operation
+gate and outside the Slot worker, so lower replacement pins cannot race an old
+trim and proposal processing never waits on the storage I/O. Once a pin
+mutation is applied, a trim fault is logged as retryable cleanup rather than
+reported as the opposite pin state. The next idempotent pin call retries the
+dirty trim immediately; independently, at most one node-local background
+retry per Slot uses bounded backoff and recomputes the then-current safe floor.
+A successful trim or compaction clears it. Slot shutdown cancels and waits for
+the active cleanup before returning.
+`ReleaseBackupSourcePin` addresses the exact recorded physical Slot and does
+not require leadership, allowing a former Leader to remove its local floor
+after route movement. Set, advance, and release immediately trim only archive
+entries covered by the durable recovery snapshot. The floor changes only
+background log retention; it never changes proposal, apply, or foreground
+readiness.
 
 `ObserveBackupMessageChannel`, its 256-entry leader-batched form, and
 `ReadBackupMessageLogPage` validate Channel leader, channel/leader epochs,

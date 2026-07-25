@@ -82,6 +82,9 @@ const (
 type PartitionCut struct {
 	// HashSlot is the logical hash slot covered by this cut.
 	HashSlot uint16 `json:"hash_slot"`
+	// PhysicalSlotID identifies the Raft index space used by RaftIndex. It is
+	// required for materialized continuous-capture baselines.
+	PhysicalSlotID uint32 `json:"physical_slot_id,omitempty"`
 	// RaftIndex is the committed Slot Raft index included by the backup.
 	RaftIndex uint64 `json:"raft_index"`
 	// CommittedAtMillis is the UTC commit watermark represented by this cut.

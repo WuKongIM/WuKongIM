@@ -747,6 +747,31 @@
           "expr": "sum by (node_name) (rate(wukongim_backup_capture_lease_fenced_total{node_name=~\"$node_name\"}[$__rate_interval]))",
           "legendFormat": "capture fenced {{node_name}}",
           "refId": "E"
+        },
+        {
+          "expr": "max by (node_name, hash_slot) (wukongim_backup_source_pin_age_seconds{node_name=~\"$node_name\"})",
+          "legendFormat": "pin age {{node_name}} slot {{hash_slot}}",
+          "refId": "F"
+        },
+        {
+          "expr": "max by (node_name, hash_slot) (wukongim_backup_source_pinned_bytes{node_name=~\"$node_name\"})",
+          "legendFormat": "pin bytes {{node_name}} slot {{hash_slot}}",
+          "refId": "G"
+        },
+        {
+          "expr": "max by (node_name) (wukongim_backup_source_node_pinned_bytes{node_name=~\"$node_name\"})",
+          "legendFormat": "node pinned bytes {{node_name}}",
+          "refId": "H"
+        },
+        {
+          "expr": "sum by (reason, outcome, failure_category) (rate(wukongim_backup_slot_rebases_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "rebase {{reason}} {{outcome}} {{failure_category}}",
+          "refId": "I"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, reason, outcome) (rate(wukongim_backup_slot_rebase_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])))",
+          "legendFormat": "rebase p95 {{reason}} {{outcome}}",
+          "refId": "J"
         }
       ],
       "title": "Backup Operations And Capture",

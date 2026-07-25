@@ -15,10 +15,24 @@ Hash Slot. A frontier atomically binds independent metadata and message stream
 heads, their opaque bounded source cursors, reconciled source positions, and
 the older stream watermark. The same record carries a `SlotCaptureLease`
 containing the physical Slot ID, Raft leader term, configuration epoch, holder
-node, Generation, monotonic lease sequence, and takeover time. Channel
+node, Generation, monotonic lease sequence, and takeover time. `SourceSlotID`
+separately identifies the physical Raft index space used by the durable
+metadata cursor; a mismatch after routing remap survives restart and forces a
+materialized rebase instead of comparing unrelated indices. Channel
 identities never enter this record; the
 message stream has a payload head plus a separate `CursorHead` pointing to
-immutable cursor-only evidence in the repository.
+immutable cursor-only evidence in the repository. After a single-Slot rebase,
+`Baseline` authenticates the independent materialized partition root and
+`BaselineCursorHead` authenticates its complete Channel boundary index.
+`Rebase` is a bounded durable pending record containing only target Generation,
+lease-bound rebase epoch, bounded reason, and start time. The old Generation
+and all of its restore references stay active until that pending replacement
+is atomically promoted. Authority takeover or a compacted immutable source cut
+rotates only the pending target so retries cannot loop forever on an
+unreadable target.
+`SourcePinStartedAtUnixMillis` is the durable age origin for the retained
+source floor. It survives lease takeover and resets only when metadata capture
+advances the floor or rebase promotion installs a new baseline.
 `SlotCaptureStatus` is a detached public projection of that frontier plus the
 latest observed source watermarks, per-stream lag, capture state, and a bounded
 failure category. Its `LeaseCurrent` bit distinguishes a current owner from a

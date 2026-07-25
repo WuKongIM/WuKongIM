@@ -73,18 +73,20 @@ type backupStatusDTO struct {
 }
 
 type backupCaptureLeaseDTO struct {
-	HashSlot                  uint16 `json:"hash_slot"`
-	SlotID                    uint32 `json:"slot_id"`
-	HolderNodeID              uint64 `json:"holder_node_id"`
-	LeaderTerm                uint64 `json:"leader_term"`
-	ConfigEpoch               uint64 `json:"config_epoch"`
-	Generation                string `json:"generation"`
-	LeaseSequence             uint64 `json:"lease_sequence"`
-	FrontierRevision          uint64 `json:"frontier_revision"`
-	MetadataSourceWatermark   uint64 `json:"metadata_source_watermark"`
-	MessageSourceWatermark    uint64 `json:"message_source_watermark"`
-	AcquiredAtUnixMillis      int64  `json:"acquired_at_unix_millis"`
-	FrontierUpdatedUnixMillis int64  `json:"frontier_updated_unix_millis"`
+	HashSlot                     uint16 `json:"hash_slot"`
+	SlotID                       uint32 `json:"slot_id"`
+	SourceSlotID                 uint32 `json:"source_slot_id"`
+	HolderNodeID                 uint64 `json:"holder_node_id"`
+	LeaderTerm                   uint64 `json:"leader_term"`
+	ConfigEpoch                  uint64 `json:"config_epoch"`
+	Generation                   string `json:"generation"`
+	LeaseSequence                uint64 `json:"lease_sequence"`
+	FrontierRevision             uint64 `json:"frontier_revision"`
+	MetadataSourceWatermark      uint64 `json:"metadata_source_watermark"`
+	MessageSourceWatermark       uint64 `json:"message_source_watermark"`
+	AcquiredAtUnixMillis         int64  `json:"acquired_at_unix_millis"`
+	SourcePinStartedAtUnixMillis int64  `json:"source_pin_started_at_unix_millis"`
+	FrontierUpdatedUnixMillis    int64  `json:"frontier_updated_unix_millis"`
 }
 
 type backupPolicyDTO struct {
@@ -96,6 +98,8 @@ type backupPolicyDTO struct {
 	ObjectLockDays                  int    `json:"object_lock_days"`
 	MaxParallelPartitions           int    `json:"max_parallel_partitions"`
 	StagingMaxBytes                 uint64 `json:"staging_max_bytes"`
+	SourcePinMaxAgeSeconds          int64  `json:"source_pin_max_age_seconds"`
+	MaxSourcePinnedBytes            uint64 `json:"max_source_pinned_bytes"`
 	PrimaryRegion                   string `json:"primary_region"`
 	SecondaryRegion                 string `json:"secondary_region"`
 	KMSRegion                       string `json:"kms_region"`
@@ -383,13 +387,15 @@ func backupCaptureLeaseResponses(leases []backupusecase.CaptureLeaseSnapshot) []
 	for index, lease := range leases {
 		result[index] = backupCaptureLeaseDTO{
 			HashSlot: lease.HashSlot, SlotID: lease.SlotID,
+			SourceSlotID: lease.SourceSlotID,
 			HolderNodeID: lease.HolderNodeID, LeaderTerm: lease.LeaderTerm,
 			ConfigEpoch: lease.ConfigEpoch, Generation: lease.Generation,
 			LeaseSequence: lease.LeaseSequence, FrontierRevision: lease.FrontierRevision,
-			MetadataSourceWatermark:   lease.MetadataSourceWatermark,
-			MessageSourceWatermark:    lease.MessageSourceWatermark,
-			AcquiredAtUnixMillis:      lease.AcquiredAtUnixMillis,
-			FrontierUpdatedUnixMillis: lease.FrontierUpdatedUnixMillis,
+			MetadataSourceWatermark:      lease.MetadataSourceWatermark,
+			MessageSourceWatermark:       lease.MessageSourceWatermark,
+			AcquiredAtUnixMillis:         lease.AcquiredAtUnixMillis,
+			SourcePinStartedAtUnixMillis: lease.SourcePinStartedAtUnixMillis,
+			FrontierUpdatedUnixMillis:    lease.FrontierUpdatedUnixMillis,
 		}
 	}
 	return result
@@ -403,6 +409,7 @@ func backupPolicyResponse(policy backupusecase.PolicySnapshot) backupPolicyDTO {
 		MaterializedFullIntervalSeconds: policy.MaterializedFullIntervalSeconds,
 		MonthlyRetentionMonths:          policy.MonthlyRetentionMonths, ObjectLockDays: policy.ObjectLockDays,
 		MaxParallelPartitions: policy.MaxParallelPartitions, StagingMaxBytes: policy.StagingMaxBytes,
+		SourcePinMaxAgeSeconds: policy.SourcePinMaxAgeSeconds, MaxSourcePinnedBytes: policy.MaxSourcePinnedBytes,
 		PrimaryRegion: policy.PrimaryRegion, SecondaryRegion: policy.SecondaryRegion, KMSRegion: policy.KMSRegion,
 	}
 }

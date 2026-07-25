@@ -112,6 +112,10 @@ POST /manager/system-users/add (add system UIDs; requires cluster.user:w when Au
 POST /manager/system-users/remove (remove system UIDs; requires cluster.user:w when Auth.On=true)
 ```
 
+Backup status policy includes the bounded source-pin maximum age and node
+retained-log byte budget, but never exposes repository paths, key identifiers,
+Channel identities, or rebase payload data.
+
 `/manager/login` preserves the legacy manager response shape migrated from
 `internal/access/manager`: successful responses include `username`,
 `token_type`, `access_token`, `expires_in`, `expires_at`, and `permissions`;
@@ -546,7 +550,8 @@ timestamps, source generation, and Hash Slot count but omit segment and object
 keys.
 Backup status also exposes at most one sanitized durable capture lease per Hash
 Slot: Slot/holder identity, leader and config epochs, Generation, monotonic
-lease/frontier revisions, watermarks, and takeover/update times. It never
+lease/frontier revisions, watermarks, takeover/update times, and the durable
+source-pin age origin used by the hard policy. It never
 exposes segment references or source cursors, so a three-node black-box test can
 observe takeover without reading node databases.
 A disabled backup still returns an explicit disabled status through the app

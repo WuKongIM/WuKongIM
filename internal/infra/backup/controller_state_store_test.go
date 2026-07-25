@@ -211,6 +211,8 @@ func TestControllerSlotFrontierStoreTakeoverPreservesFrontierAndFencesOldLease(t
 	first, err := frontiers.AcquireLease(context.Background(), 17, "slot-generation-1", 1_753_400_100_000)
 	require.NoError(t, err)
 	require.False(t, first.LeaseTakenOver)
+	require.Equal(t, uint32(2), first.Frontier.SourceSlotID)
+	require.Equal(t, int64(1_753_400_100_000), first.Frontier.SourcePinStartedAtUnixMillis)
 	next := backupcontract.CloneSlotFrontier(first.Frontier)
 	next.Revision++
 	next.Metadata.SourceCursor = "metadata/3"
@@ -230,11 +232,41 @@ func TestControllerSlotFrontierStoreTakeoverPreservesFrontierAndFencesOldLease(t
 	require.Equal(t, uint64(2), takeover.Frontier.Lease.HolderNodeID)
 	require.Equal(t, "slot-generation-1", takeover.Frontier.Generation)
 	require.Equal(t, uint64(3), takeover.Frontier.Metadata.SourceHighWatermark)
+	require.Equal(t, uint32(2), takeover.Frontier.SourceSlotID)
+	require.Equal(t, first.Frontier.SourcePinStartedAtUnixMillis, takeover.Frontier.SourcePinStartedAtUnixMillis)
 
 	stale := backupcontract.CloneSlotFrontier(next)
 	stale.Revision++
 	err = frontiers.CompareAndSwap(context.Background(), next.Revision, next.Lease, stale)
 	require.ErrorIs(t, err, backupruntime.ErrCaptureLeaseFenced)
+}
+
+func TestControllerSlotFrontierStorePhysicalRemapPreservesSourceIndexSpace(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{
+		Revision: 5,
+		Backup: &controller.BackupCoordinationState{
+			RestorePoints: []controller.BackupRestorePoint{},
+		},
+	}}
+	coordination, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	authority := &mutableCaptureAuthority{authority: backupruntime.SlotCaptureAuthority{
+		SlotID: 2, LeaderTerm: 7, ConfigEpoch: 4, HolderNodeID: 1,
+	}}
+	frontiers, err := backupinfra.NewControllerSlotFrontierStore(coordination, authority)
+	require.NoError(t, err)
+	first, err := frontiers.AcquireLease(context.Background(), 17, "slot-generation-1", 1_753_400_100_000)
+	require.NoError(t, err)
+
+	authority.authority = backupruntime.SlotCaptureAuthority{
+		SlotID: 3, LeaderTerm: 8, ConfigEpoch: 5, HolderNodeID: 2,
+	}
+	remapped, err := frontiers.AcquireLease(context.Background(), 17, "ignored-new-generation", 1_753_400_120_000)
+	require.NoError(t, err)
+	require.True(t, remapped.LeaseTakenOver)
+	require.Equal(t, uint32(3), remapped.Frontier.Lease.SlotID)
+	require.Equal(t, uint32(2), remapped.Frontier.SourceSlotID)
+	require.Equal(t, first.Frontier.Generation, remapped.Frontier.Generation)
 }
 
 func TestControllerSlotFrontierStoreControllerLeaderRestartReusesLease(t *testing.T) {

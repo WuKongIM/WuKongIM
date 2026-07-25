@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -34,6 +35,7 @@ type MessageLogNode interface {
 
 // MessageBoundaryResolver reconstructs the exact durable per-Channel cursor cut.
 type MessageBoundaryResolver interface {
+	// Resolve returns an immutable sorted boundary view.
 	Resolve(context.Context, MessageCursorResolveRequest) ([]backupartifact.ChannelBoundary, error)
 }
 
@@ -113,11 +115,11 @@ func (s *MessageLogSource) HighWatermark(ctx context.Context, hashSlot uint16, g
 			CutCursor:             frontier.SourceCursor,
 		}, nil
 	}
-	base, err := s.resolveBoundaries(ctx, hashSlot, generation, frontier)
+	base, releaseBoundaries, err := s.resolveBoundaries(ctx, hashSlot, generation, frontier)
 	if err != nil {
 		return runtimebackup.SourceWatermark{}, err
 	}
-	byChannel := indexMessageBoundaries(base)
+	defer releaseBoundaries()
 	scan := s.scan(hashSlot)
 	scan.mu.Lock()
 	defer scan.mu.Unlock()
@@ -174,8 +176,9 @@ func (s *MessageLogSource) HighWatermark(ctx context.Context, hashSlot uint16, g
 		if err != nil {
 			return runtimebackup.SourceWatermark{}, err
 		}
+		previous := base.lookup(identity)
 		watermark, found, err := pinMessageSourceTarget(
-			scan, byChannel[identity], channel, boundary, false,
+			scan, previous, channel, boundary, false,
 		)
 		if err != nil {
 			return runtimebackup.SourceWatermark{}, err
@@ -243,8 +246,9 @@ func (s *MessageLogSource) HighWatermark(ctx context.Context, hashSlot uint16, g
 			continue
 		}
 		boundary := boundaries[index]
+		previous := base.lookup(identity)
 		watermark, found, err := pinMessageSourceTarget(
-			scan, byChannel[identity], request, boundary, true,
+			scan, previous, request, boundary, true,
 		)
 		if err != nil {
 			return runtimebackup.SourceWatermark{}, err
@@ -311,6 +315,8 @@ func pinMessageSourceTarget(
 	cursor := messageSourceCursor{
 		Version: messageSourceCursorVersion, BasePosition: basePosition,
 		TargetPosition: scan.position, Boundary: &boundary,
+		PreviousEpoch: previous.Epoch, PreviousStart: previous.LogStartOffset,
+		PreviousHW: previous.HW,
 	}
 	if firstSeq <= boundary.HW {
 		cursor.NextSeq = firstSeq
@@ -335,20 +341,6 @@ func (s *MessageLogSource) ReadPage(ctx context.Context, request runtimebackup.S
 		request.MaxRecords <= 0 {
 		return runtimebackup.SourcePage{}, runtimebackup.ErrInvalidCapture
 	}
-	durableCursor, err := decodeMessageSourceCursor(request.CursorSourceCursor)
-	if err != nil {
-		return runtimebackup.SourcePage{}, err
-	}
-	frontier := backupcontract.StreamFrontier{
-		Sequence: request.CursorSequence, CursorHead: request.CursorHead,
-		SourceCursor:        request.CursorSourceCursor,
-		SourceHighWatermark: durableCursor.position(),
-	}
-	base, err := s.resolveBoundaries(ctx, request.HashSlot, request.Generation, frontier)
-	if err != nil {
-		return runtimebackup.SourcePage{}, err
-	}
-	byChannel := indexMessageBoundaries(base)
 	cursor, err := parseMessageSourceCursor(
 		request.AfterCursor, request.ThroughCursor, request.ThroughPosition,
 	)
@@ -359,10 +351,13 @@ func (s *MessageLogSource) ReadPage(ctx context.Context, request runtimebackup.S
 		cursor.TargetPosition != request.ThroughPosition {
 		return runtimebackup.SourcePage{}, runtimebackup.ErrInvalidCapture
 	}
-	identity := messageSourceIdentity{
-		channelID: cursor.Boundary.ChannelID, channelType: cursor.Boundary.ChannelType,
+	previous := backupartifact.ChannelBoundary{
+		ChannelID: cursor.Boundary.ChannelID, ChannelType: cursor.Boundary.ChannelType,
+		Epoch: cursor.PreviousEpoch, LogStartOffset: cursor.PreviousStart, HW: cursor.PreviousHW,
 	}
-	previous := byChannel[identity]
+	if cursor.PreviousEpoch == 0 {
+		previous = backupartifact.ChannelBoundary{}
+	}
 	target := *cursor.Boundary
 	required, err := runtimebackup.PendingMessageWork(
 		previous, observedMessageBoundary(target),
@@ -433,6 +428,12 @@ func (s *MessageLogSource) ReadPage(ctx context.Context, request runtimebackup.S
 	}
 	page.Done = cursor.position() == cursor.TargetPosition
 	page.NextPosition = cursor.position()
+	if len(page.MessageCursors) > 0 {
+		committed := page.MessageCursors[len(page.MessageCursors)-1]
+		cursor.PreviousEpoch = committed.Epoch
+		cursor.PreviousStart = committed.LogStartOffset
+		cursor.PreviousHW = committed.HW
+	}
 	if page.Done {
 		rotation := metadb.ChannelRuntimeMetaCursor{
 			ChannelID: target.ChannelID, ChannelType: int64(target.ChannelType),
@@ -507,21 +508,77 @@ func messageMetaCursorLess(left, right metadb.ChannelRuntimeMetaCursor) bool {
 		(left.ChannelID == right.ChannelID && left.ChannelType < right.ChannelType)
 }
 
-func (s *MessageLogSource) resolveBoundaries(ctx context.Context, hashSlot uint16, generation string, frontier backupcontract.StreamFrontier) ([]backupartifact.ChannelBoundary, error) {
+type messageBoundaryView struct {
+	baseline []backupartifact.ChannelBoundary
+	updates  []backupartifact.ChannelBoundary
+}
+
+func (v messageBoundaryView) lookup(identity messageSourceIdentity) backupartifact.ChannelBoundary {
+	if boundary, found := findMessageBoundary(v.updates, identity); found {
+		return boundary
+	}
+	boundary, _ := findMessageBoundary(v.baseline, identity)
+	return boundary
+}
+
+func findMessageBoundary(
+	boundaries []backupartifact.ChannelBoundary,
+	identity messageSourceIdentity,
+) (backupartifact.ChannelBoundary, bool) {
+	index := sort.Search(len(boundaries), func(index int) bool {
+		candidate := boundaries[index]
+		return candidate.ChannelType > identity.channelType ||
+			(candidate.ChannelType == identity.channelType &&
+				candidate.ChannelID >= identity.channelID)
+	})
+	if index >= len(boundaries) ||
+		boundaries[index].ChannelType != identity.channelType ||
+		boundaries[index].ChannelID != identity.channelID {
+		return backupartifact.ChannelBoundary{}, false
+	}
+	return boundaries[index], true
+}
+
+func (s *MessageLogSource) resolveBoundaries(ctx context.Context, hashSlot uint16, generation string, frontier backupcontract.StreamFrontier) (messageBoundaryView, func(), error) {
+	var baseline []backupartifact.ChannelBoundary
+	release := func() {}
+	var resolvedBaseline *ResolvedBaseline
+	var err error
+	if frontier.BaselineCursorHead != nil {
+		resolver, ok := s.cursors.(interface {
+			ResolveBaseline(context.Context, uint16, backupartifact.SegmentReference) (*ResolvedBaseline, error)
+		})
+		if !ok {
+			return messageBoundaryView{}, release, runtimebackup.ErrInvalidCapture
+		}
+		resolvedBaseline, err = resolver.ResolveBaseline(ctx, hashSlot, *frontier.BaselineCursorHead)
+		if err != nil {
+			return messageBoundaryView{}, release, err
+		}
+		release = resolvedBaseline.Release
+		baseline = resolvedBaseline.Boundaries
+	}
 	if frontier.Sequence == 0 {
 		if frontier.CursorHead != nil {
-			return nil, runtimebackup.ErrInvalidCapture
+			release()
+			return messageBoundaryView{}, func() {}, runtimebackup.ErrInvalidCapture
 		}
-		return nil, nil
+		return messageBoundaryView{baseline: baseline}, release, nil
 	}
 	if frontier.CursorHead == nil {
-		return nil, runtimebackup.ErrInvalidCapture
+		release()
+		return messageBoundaryView{}, func() {}, runtimebackup.ErrInvalidCapture
 	}
-	return s.cursors.Resolve(ctx, MessageCursorResolveRequest{
+	updates, err := s.cursors.Resolve(ctx, MessageCursorResolveRequest{
 		Head: *frontier.CursorHead, HashSlot: hashSlot,
 		Generation: generation, Sequence: frontier.Sequence, SourceCursor: frontier.SourceCursor,
 		SourceHighWatermark: frontier.SourceHighWatermark,
 	})
+	if err != nil {
+		release()
+		return messageBoundaryView{}, func() {}, err
+	}
+	return messageBoundaryView{baseline: baseline, updates: updates}, release, nil
 }
 
 var (

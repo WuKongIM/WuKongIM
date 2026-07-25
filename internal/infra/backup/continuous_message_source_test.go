@@ -70,6 +70,44 @@ func TestMessageLogSourceRestartReconcilesCommittedRowsWithoutWakeHint(t *testin
 	}, resolver.last)
 }
 
+func TestMessageLogSourceResumesAfterMaterializedBaselineWithoutReplay(t *testing.T) {
+	node := &fakeContinuousMessageNode{
+		meta: validMessageRuntimeMeta("room-a"),
+		hw:   4,
+	}
+	resolver := &fakeMessageBoundaryResolver{
+		baseline: []backupartifact.ChannelBoundary{{
+			ChannelID: "room-a", ChannelType: 2, Epoch: 7, HW: 3,
+		}},
+	}
+	source, err := backupinfra.NewMessageLogSource(node, resolver)
+	require.NoError(t, err)
+	baselineHead := validContinuousTestReference("e")
+	frontier := backupcontract.StreamFrontier{
+		BaselineCursorHead: &baselineHead, WatermarkAtUnixMillis: 1_753_400_000_000,
+	}
+
+	watermark, err := source.HighWatermark(
+		context.Background(), 17, "rebase-00017-00000000000000000002", frontier,
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), watermark.Position, "source position advances by one newly committed message")
+	page, err := source.ReadPage(context.Background(), runtimebackup.SourcePageRequest{
+		HashSlot: 17, Stream: backupartifact.SegmentStreamMessages,
+		Generation:         "rebase-00017-00000000000000000002",
+		BaselineCursorHead: &baselineHead,
+		ThroughPosition:    watermark.Position, ThroughCursor: watermark.CutCursor,
+		MaxBytes: 64 << 10, MaxRecordBytes: 1 << 20, MaxRecords: 16,
+	})
+	require.NoError(t, err)
+	require.True(t, page.Done)
+	require.Len(t, page.Records, 1)
+	record, err := backupartifact.LoadMessageLogRecord(page.Records[0])
+	require.NoError(t, err)
+	require.Equal(t, uint64(4), record.MessageSeq)
+	require.Equal(t, 1, resolver.baselineCalls, "the exact previous boundary travels in the pinned cut cursor")
+}
+
 func TestMessageLogSourcePinsOneExactChannelFromMetadataPage(t *testing.T) {
 	node := &fakeContinuousMessageNode{
 		metas: []metadb.ChannelRuntimeMeta{
@@ -456,13 +494,26 @@ func observeNextMessageCut(
 }
 
 type fakeMessageBoundaryResolver struct {
-	boundaries []backupartifact.ChannelBoundary
-	last       backupinfra.MessageCursorResolveRequest
+	boundaries    []backupartifact.ChannelBoundary
+	baseline      []backupartifact.ChannelBoundary
+	last          backupinfra.MessageCursorResolveRequest
+	baselineCalls int
 }
 
 func (r *fakeMessageBoundaryResolver) Resolve(_ context.Context, request backupinfra.MessageCursorResolveRequest) ([]backupartifact.ChannelBoundary, error) {
 	r.last = request
 	return append([]backupartifact.ChannelBoundary(nil), r.boundaries...), nil
+}
+
+func (r *fakeMessageBoundaryResolver) ResolveBaseline(
+	_ context.Context,
+	_ uint16,
+	_ backupartifact.SegmentReference,
+) (*backupinfra.ResolvedBaseline, error) {
+	r.baselineCalls++
+	return &backupinfra.ResolvedBaseline{
+		Boundaries: append([]backupartifact.ChannelBoundary(nil), r.baseline...),
+	}, nil
 }
 
 type fakeContinuousMessageNode struct {

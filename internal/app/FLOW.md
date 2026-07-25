@@ -1058,7 +1058,11 @@ the coordinator node/observation time, configured non-secret policy, individual
 doctor dependency readiness, and bounded retained-reference capacity.
 The cluster-wide config fingerprint excludes the node-local staging directory;
 repository, identity, schedule, retention, and cryptographic policy remain in
-the agreement fence.
+the agreement fence. The non-secret policy also exposes a per-Slot source-pin
+maximum age and a per-node retained-log byte budget; both participate in the
+fingerprint and are available through Manager status. Production composition
+of the replacement continuous runtime is completed by its dedicated switch
+task rather than partially mixing capture engines here.
 
 When automatic backup is enabled, the same composition root injects the
 dual-repository permanent-erasure ledger into local and forwarded Manager

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"testing"
 
@@ -96,6 +97,114 @@ func TestReplicatedPublisherPublishesPreviouslyUploadedReferences(t *testing.T) 
 	wantKeys := []string{"objects/00/meta.wkb", "objects/01/meta.wkb", "restore-points/rp-publish/manifest.json", "restore-points/rp-publish/published.json"}
 	if !equalStrings(graph.Keys, wantKeys) || graph.Manifest.RestorePointID != "rp-publish" {
 		t.Fatalf("LoadRestorePointGraph() = %#v, want keys %v", graph, wantKeys)
+	}
+}
+
+func TestLoadRestorePointGraphMarksMaterializedBaselineCursorPayload(t *testing.T) {
+	primary := newMemoryRepository("primary")
+	secondary := newMemoryRepository("secondary")
+	seed := sha256.Sum256([]byte("baseline-graph-signing-key"))
+	signer := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+	segmentStore, err := backup.NewReplicatedSegmentStore(
+		primary,
+		secondary,
+		backup.NewSegmentCodec(
+			&countingSegmentKeyManager{mask: 0xa5},
+			bytes.NewReader(bytes.Repeat([]byte{0x41}, 128)),
+		),
+		signer,
+		"signing-key",
+	)
+	if err != nil {
+		t.Fatalf("NewReplicatedSegmentStore() error = %v", err)
+	}
+	cursorBody, err := backup.MarshalChannelIndex(0, []backup.ChannelBoundary{{
+		ChannelID: "room-a", ChannelType: 2, Epoch: 1, HW: 7,
+	}})
+	if err != nil {
+		t.Fatalf("MarshalChannelIndex() error = %v", err)
+	}
+	cursor, err := segmentStore.Commit(context.Background(), backup.SegmentDescriptor{
+		Logical: backup.SegmentLogicalDescriptor{
+			RepositoryID: "repo-prod", SourceClusterID: "cluster-source",
+			SourceGeneration: "generation-7", Generation: "baseline-job",
+			HashSlot: 0, Stream: backup.SegmentStreamMessageBaselineCursor,
+			Sequence: 1, RecordCount: 1,
+		},
+		KMSKeyID: "kms-prod",
+	}, cursorBody)
+	if err != nil {
+		t.Fatalf("Commit(cursor) error = %v", err)
+	}
+	commit, err := backup.LoadSegmentCommit(
+		context.Background(), primary.body(cursor.CommitKey), signer,
+	)
+	if err != nil {
+		t.Fatalf("LoadSegmentCommit() error = %v", err)
+	}
+	metadata := testSealedObject("objects/baseline-job/00000/meta.wkb", 0, []byte("metadata"))
+	publisher := backup.NewReplicatedPublisher(primary, secondary)
+	if err := publisher.ReplicateObject(context.Background(), metadata); err != nil {
+		t.Fatalf("ReplicateObject(metadata) error = %v", err)
+	}
+	partition := backup.PartitionManifest{
+		Format: backup.PartitionManifestFormat, Version: backup.PartitionManifestVersion,
+		JobID: "baseline-job", BackupEpoch: 3,
+		Cut: backup.PartitionCut{
+			HashSlot: 0, PhysicalSlotID: 10,
+			RaftIndex: 11, CommittedAtMillis: 1_753_056_300_000,
+		},
+		BaselineCursor: &cursor,
+		Evidence:       backup.PartitionEvidence{Version: backup.PartitionEvidenceVersion},
+		Objects:        []backup.ObjectEntry{metadata.Entry},
+	}
+	partitionBody, err := backup.MarshalPartitionManifest(partition)
+	if err != nil {
+		t.Fatalf("MarshalPartitionManifest() error = %v", err)
+	}
+	partitionHash := sha256.Sum256(partitionBody)
+	partitionSHA := fmt.Sprintf("%x", partitionHash)
+	partitionKey := "partition-manifests/baseline-job/00000.json"
+	for _, repository := range []*memoryRepository{primary, secondary} {
+		if err := repository.PutImmutable(
+			context.Background(), partitionKey, int64(len(partitionBody)),
+			partitionSHA, bytes.NewReader(partitionBody),
+		); err != nil {
+			t.Fatalf("%s PutImmutable(partition) error = %v", repository.Name(), err)
+		}
+	}
+	manifest := backup.Manifest{
+		Format: backup.ManifestFormat, Version: backup.ManifestVersion,
+		ApplicationVersion: "3.0.0", RepositoryID: "repo-prod",
+		SourceClusterID: "cluster-source", SourceGeneration: "generation-7",
+		RestorePointID: "rp-baseline", BackupEpoch: 3,
+		Kind: backup.RestorePointMaterializedFull, HashSlotCount: 1,
+		CreatedAtUnixMillis: 1_753_056_360_000,
+		EffectiveAtMillis:   1_753_056_300_000,
+		Cuts: []backup.PartitionCut{{
+			HashSlot: 0, RaftIndex: 11, CommittedAtMillis: 1_753_056_300_000,
+		}},
+		Partitions: []backup.PartitionReference{{
+			HashSlot: 0, Key: partitionKey, SHA256: partitionSHA,
+			Bytes: int64(len(partitionBody)), ObjectCount: 1,
+			CiphertextBytes: uint64(metadata.Entry.CiphertextBytes),
+			Evidence:        partition.Evidence,
+		}},
+	}
+	if _, err := publisher.PublishReferences(
+		context.Background(), manifest, signer, "signing-key",
+	); err != nil {
+		t.Fatalf("PublishReferences() error = %v", err)
+	}
+	graph, err := backup.LoadRestorePointGraph(
+		context.Background(), primary, manifest.RestorePointID, signer,
+	)
+	if err != nil {
+		t.Fatalf("LoadRestorePointGraph() error = %v", err)
+	}
+	if !slices.Contains(graph.Keys, cursor.CommitKey) ||
+		!slices.Contains(graph.Keys, commit.Payload.Key) {
+		t.Fatalf("baseline graph keys = %v, want commit %q and payload %q", graph.Keys, cursor.CommitKey, commit.Payload.Key)
 	}
 }
 

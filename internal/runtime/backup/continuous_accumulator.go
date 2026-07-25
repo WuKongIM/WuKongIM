@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -8,6 +9,29 @@ import (
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
+
+func (e *CaptureEngine) flushDueAccumulator(
+	ctx context.Context,
+	hashSlot uint16,
+	lease backupcontract.SlotCaptureLease,
+	stream backupartifact.SegmentStream,
+	current backupcontract.StreamFrontier,
+) (backupcontract.StreamFrontier, bool, error) {
+	key := captureStreamKey{hashSlot: hashSlot, stream: stream}
+	accumulator := e.pendingAccumulator(key, lease, current)
+	if accumulator == nil || !accumulator.hasRecords() ||
+		e.options.Clock.Now().Sub(accumulator.openedAt) < e.options.Policy.MaxOpenDuration {
+		return current, false, nil
+	}
+	next, err := e.commitAccumulator(
+		ctx, hashSlot, lease.Generation, stream, current, accumulator,
+	)
+	if err != nil {
+		return backupcontract.StreamFrontier{}, false, err
+	}
+	e.removePendingAccumulator(key, accumulator)
+	return next, true, nil
+}
 
 func (e *CaptureEngine) pendingAccumulator(key captureStreamKey, lease backupcontract.SlotCaptureLease, frontier backupcontract.StreamFrontier) *segmentAccumulator {
 	e.pendingMu.Lock()
@@ -65,15 +89,32 @@ func (e *CaptureEngine) notifyPendingChanged() {
 
 func (e *CaptureEngine) pendingSchedule(now time.Time) ([]uint16, time.Duration, bool) {
 	e.pendingMu.Lock()
-	defer e.pendingMu.Unlock()
+	snapshot := make(map[captureStreamKey]*segmentAccumulator, len(e.pending))
+	for key, accumulator := range e.pending {
+		snapshot[key] = accumulator
+	}
+	e.pendingMu.Unlock()
 	dueSet := make(map[uint16]struct{})
 	var next time.Duration
 	hasNext := false
-	for key, accumulator := range e.pending {
-		if accumulator == nil || !accumulator.hasRecords() {
+	for key, accumulator := range snapshot {
+		// ReconcileSlot owns all mutable accumulator fields under the per-Slot
+		// lock. A busy Slot will notify the scheduler again when it yields, so
+		// deadline inspection must not block healthy Slots behind long capture
+		// or rebase I/O.
+		if !e.slotLocks[key.hashSlot].TryLock() {
+			continue
+		}
+		e.pendingMu.Lock()
+		current := e.pending[key]
+		if current != accumulator || accumulator == nil || !accumulator.hasRecords() {
+			e.pendingMu.Unlock()
+			e.slotLocks[key.hashSlot].Unlock()
 			continue
 		}
 		wait := accumulator.openedAt.Add(e.options.Policy.MaxOpenDuration).Sub(now)
+		e.pendingMu.Unlock()
+		e.slotLocks[key.hashSlot].Unlock()
 		if wait <= 0 {
 			dueSet[key.hashSlot] = struct{}{}
 			continue
@@ -99,11 +140,12 @@ type captureStreamKey struct {
 // segmentAccumulator is bounded non-durable rolling state for one Slot stream.
 type segmentAccumulator struct {
 	// lease and base fence reuse to the exact durable frontier that opened this accumulator.
-	lease          backupcontract.SlotCaptureLease
-	generation     string
-	baseSequence   uint64
-	baseHead       *backupartifact.SegmentReference
-	baseCursorHead *backupartifact.SegmentReference
+	lease                  backupcontract.SlotCaptureLease
+	generation             string
+	baseSequence           uint64
+	baseHead               *backupartifact.SegmentReference
+	baseCursorHead         *backupartifact.SegmentReference
+	baseBaselineCursorHead *backupartifact.SegmentReference
 	// fromCursor and nextCursor delimit the source pages currently retained.
 	fromCursor string
 	nextCursor string
@@ -131,9 +173,10 @@ type channelCursorIdentity struct {
 func newSegmentAccumulator(lease backupcontract.SlotCaptureLease, frontier backupcontract.StreamFrontier, openedAt time.Time) *segmentAccumulator {
 	return &segmentAccumulator{
 		lease: lease, generation: lease.Generation, baseSequence: frontier.Sequence,
-		baseHead:       cloneRuntimeSegmentReference(frontier.Head),
-		baseCursorHead: cloneRuntimeSegmentReference(frontier.CursorHead),
-		fromCursor:     frontier.SourceCursor, nextCursor: frontier.SourceCursor, openedAt: openedAt,
+		baseHead:               cloneRuntimeSegmentReference(frontier.Head),
+		baseCursorHead:         cloneRuntimeSegmentReference(frontier.CursorHead),
+		baseBaselineCursorHead: cloneRuntimeSegmentReference(frontier.BaselineCursorHead),
+		fromCursor:             frontier.SourceCursor, nextCursor: frontier.SourceCursor, openedAt: openedAt,
 		messageCursor: make(map[channelCursorIdentity]backupartifact.ChannelBoundary),
 	}
 }
@@ -182,7 +225,8 @@ func (a *segmentAccumulator) matches(lease backupcontract.SlotCaptureLease, fron
 	if !sameSegmentReference(a.baseHead, frontier.Head) {
 		return false
 	}
-	return sameSegmentReference(a.baseCursorHead, frontier.CursorHead)
+	return sameSegmentReference(a.baseCursorHead, frontier.CursorHead) &&
+		sameSegmentReference(a.baseBaselineCursorHead, frontier.BaselineCursorHead)
 }
 
 func sameSegmentReference(left, right *backupartifact.SegmentReference) bool {

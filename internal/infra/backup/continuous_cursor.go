@@ -3,21 +3,28 @@ package backup
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
 
+	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 const (
-	maxMessageCursorChainSegments   = 1024
-	maxMessageCursorChainChannels   = 1 << 20
-	maxMessageCursorGenerationSize  = 128
-	maxMessageCursorCacheEntries    = 256
-	maxMessageCursorCacheBytes      = 64 << 20
-	messageCursorCacheEntryBytes    = 512
-	messageCursorCacheBoundaryBytes = 64
+	maxMessageCursorChainSegments         = 1024
+	maxMessageCursorChainChannels         = 1 << 20
+	maxMessageCursorGenerationSize        = 128
+	maxMessageCursorCacheEntries          = 256
+	maxMessageCursorCacheBytes            = 64 << 20
+	messageCursorCacheEntryBytes          = 512
+	messageCursorCacheBoundaryBytes       = 64
+	maxBaselineCacheEntries               = 16
+	maxBaselineCacheBytes           int64 = 512 << 20
+	baselineBoundaryBytes           int64 = 128
+	minChannelIndexEntryBytes       int64 = 28
+	channelIndexEnvelopeBytes       int64 = 16
 )
 
 // ContinuousSegmentLoader authenticates and opens one dual-repository segment.
@@ -45,11 +52,17 @@ type MessageCursorResolveRequest struct {
 // immutable cursor sidecars, never from Controller state or message payload.
 type MessageCursorResolver struct {
 	loader ContinuousSegmentLoader
+	budget runtimebackup.CaptureMemoryBudget
 	mu     sync.Mutex
 	cache  map[uint16]messageCursorCacheEntry
 	// cacheBytes and cacheUse bound and order the rebuild acceleration cache.
 	cacheBytes int64
 	cacheUse   uint64
+	// baselineCache retains immutable decoded materialized roots by their full
+	// authenticated reference. Its memory remains charged to the shared budget.
+	baselineCache      map[baselineCacheKey]*baselineCacheEntry
+	baselineCacheBytes int64
+	baselineCacheUse   uint64
 }
 
 type messageCursorCacheEntry struct {
@@ -63,12 +76,31 @@ type messageCursorCacheEntry struct {
 	lastUsed      uint64
 }
 
+type baselineCacheKey struct {
+	hashSlot  uint16
+	reference backupartifact.SegmentReference
+}
+
+type baselineCacheEntry struct {
+	boundaries []backupartifact.ChannelBoundary
+	bytes      int64
+	lastUsed   uint64
+	refs       int
+}
+
 // NewMessageCursorResolver creates a repository-backed cursor resolver.
-func NewMessageCursorResolver(loader ContinuousSegmentLoader) (*MessageCursorResolver, error) {
-	if loader == nil {
-		return nil, fmt.Errorf("backup cursor resolver: segment loader is required")
+func NewMessageCursorResolver(
+	loader ContinuousSegmentLoader,
+	budget runtimebackup.CaptureMemoryBudget,
+) (*MessageCursorResolver, error) {
+	if loader == nil || budget == nil {
+		return nil, fmt.Errorf("backup cursor resolver: segment loader and shared memory budget are required")
 	}
-	return &MessageCursorResolver{loader: loader, cache: make(map[uint16]messageCursorCacheEntry)}, nil
+	return &MessageCursorResolver{
+		loader: loader, budget: budget,
+		cache:         make(map[uint16]messageCursorCacheEntry),
+		baselineCache: make(map[baselineCacheKey]*baselineCacheEntry),
+	}, nil
 }
 
 // Resolve authenticates the complete newest-to-oldest chain and returns one
@@ -87,7 +119,10 @@ func (r *MessageCursorResolver) Resolve(ctx context.Context, request MessageCurs
 	if cachedOK && cached.reference == request.Head && cached.generation == request.Generation &&
 		cached.sequence == request.Sequence && cached.sourceCursor == request.SourceCursor &&
 		cached.highWatermark == request.SourceHighWatermark {
-		return append([]backupartifact.ChannelBoundary(nil), cached.boundaries...), nil
+		// Cache entries are immutable after publication. Callers receive a
+		// shared read-only view so repeated Channel cuts do not copy the full
+		// Hash-Slot index.
+		return cached.boundaries, nil
 	}
 	latest := make(map[channelIdentity]backupartifact.ChannelBoundary)
 	reference := request.Head
@@ -173,6 +208,226 @@ func (r *MessageCursorResolver) Resolve(ctx context.Context, request MessageCurs
 	})
 	r.storeCached(request, tipHighWatermark, out)
 	return out, nil
+}
+
+// ResolvedBaseline owns a shared-budget reservation until its caller finishes
+// indexing and merging the complete materialized Channel boundary set.
+type ResolvedBaseline struct {
+	Boundaries []backupartifact.ChannelBoundary
+	budget     runtimebackup.CaptureMemoryBudget
+	held       int64
+	release    func()
+	once       sync.Once
+}
+
+// Release returns the complete baseline working-set reservation once.
+func (r *ResolvedBaseline) Release() {
+	if r == nil {
+		return
+	}
+	r.once.Do(func() {
+		if r.budget != nil && r.held > 0 {
+			r.budget.Release(r.held)
+		}
+		r.held = 0
+		if r.release != nil {
+			r.release()
+		}
+		r.Boundaries = nil
+	})
+}
+
+// ResolveBaseline loads one complete materialized Channel index while holding
+// its decode/output memory against the shared node capture budget.
+func (r *MessageCursorResolver) ResolveBaseline(
+	ctx context.Context,
+	hashSlot uint16,
+	reference backupartifact.SegmentReference,
+) (*ResolvedBaseline, error) {
+	if r == nil || r.loader == nil || r.budget == nil ||
+		reference.PlaintextBytes <= 0 ||
+		reference.PlaintextBytes > runtimebackup.MaxCaptureSegmentBytes {
+		return nil, fmt.Errorf("backup cursor resolver: invalid baseline request")
+	}
+	key := baselineCacheKey{hashSlot: hashSlot, reference: reference}
+	if cached := r.acquireBaselineCache(key); cached != nil {
+		return &ResolvedBaseline{
+			Boundaries: cached.boundaries,
+			budget:     r.budget,
+			release:    func() { r.releaseBaselineCache(key, cached) },
+		}, nil
+	}
+	if reference.PlaintextBytes > math.MaxInt64/2 ||
+		reference.PlaintextBytes < channelIndexEnvelopeBytes {
+		return nil, runtimebackup.ErrInvalidCapture
+	}
+	maxCount := (reference.PlaintextBytes - channelIndexEnvelopeBytes) /
+		minChannelIndexEntryBytes
+	if maxCount > maxMessageCursorChainChannels {
+		maxCount = maxMessageCursorChainChannels
+	}
+	if maxCount > math.MaxInt64/baselineBoundaryBytes {
+		return nil, runtimebackup.ErrInvalidCapture
+	}
+	maxBoundaryBytes := maxCount * baselineBoundaryBytes
+	if reference.PlaintextBytes*2 > math.MaxInt64-maxBoundaryBytes {
+		return nil, runtimebackup.ErrInvalidCapture
+	}
+	held := reference.PlaintextBytes*2 + maxBoundaryBytes
+	if !r.budget.TryAcquire(held) {
+		r.evictIdleBaselineCache()
+		if !r.budget.TryAcquire(held) {
+			return nil, runtimebackup.ErrCaptureMemoryPressure
+		}
+	}
+	releaseOnError := func(err error) (*ResolvedBaseline, error) {
+		r.budget.Release(held)
+		return nil, err
+	}
+	body, err := r.loader.Load(ctx, reference)
+	if err != nil {
+		return releaseOnError(err)
+	}
+	if int64(len(body)) != reference.PlaintextBytes {
+		return releaseOnError(fmt.Errorf("backup cursor resolver: baseline size evidence mismatch"))
+	}
+	indexSlot, count, err := backupartifact.InspectChannelIndex(body)
+	if err != nil {
+		return releaseOnError(err)
+	}
+	if indexSlot != hashSlot || int64(count) > math.MaxInt64/baselineBoundaryBytes {
+		return releaseOnError(fmt.Errorf("backup cursor resolver: baseline Hash Slot mismatch"))
+	}
+	boundaryBytes := int64(count) * baselineBoundaryBytes
+	actualHeld := reference.PlaintextBytes*2 + boundaryBytes
+	if actualHeld < held {
+		r.budget.Release(held - actualHeld)
+		held = actualHeld
+	}
+	slot, boundaries, err := backupartifact.LoadChannelIndex(body)
+	if err != nil {
+		return releaseOnError(err)
+	}
+	if slot != hashSlot {
+		return releaseOnError(fmt.Errorf("backup cursor resolver: baseline Hash Slot mismatch"))
+	}
+	cacheBytes := reference.PlaintextBytes + boundaryBytes
+	entry, inserted, cached := r.storeBaselineCache(key, boundaries, cacheBytes)
+	if cached {
+		if inserted {
+			r.budget.Release(held - cacheBytes)
+		} else {
+			r.budget.Release(held)
+		}
+		return &ResolvedBaseline{
+			Boundaries: entry.boundaries,
+			budget:     r.budget,
+			release:    func() { r.releaseBaselineCache(key, entry) },
+		}, nil
+	}
+	r.budget.Release(held - cacheBytes)
+	return &ResolvedBaseline{
+		Boundaries: boundaries,
+		budget:     r.budget,
+		held:       cacheBytes,
+	}, nil
+}
+
+func (r *MessageCursorResolver) evictIdleBaselineCache() {
+	var released int64
+	r.mu.Lock()
+	for key, entry := range r.baselineCache {
+		if entry.refs != 0 {
+			continue
+		}
+		delete(r.baselineCache, key)
+		r.baselineCacheBytes -= entry.bytes
+		released += entry.bytes
+	}
+	r.mu.Unlock()
+	if released > 0 {
+		r.budget.Release(released)
+	}
+}
+
+func (r *MessageCursorResolver) acquireBaselineCache(
+	key baselineCacheKey,
+) *baselineCacheEntry {
+	r.mu.Lock()
+	entry := r.baselineCache[key]
+	if entry != nil {
+		r.baselineCacheUse++
+		entry.lastUsed = r.baselineCacheUse
+		entry.refs++
+	}
+	r.mu.Unlock()
+	return entry
+}
+
+func (r *MessageCursorResolver) releaseBaselineCache(
+	key baselineCacheKey,
+	entry *baselineCacheEntry,
+) {
+	r.mu.Lock()
+	if current := r.baselineCache[key]; current == entry && entry.refs > 0 {
+		entry.refs--
+	}
+	r.mu.Unlock()
+}
+
+func (r *MessageCursorResolver) storeBaselineCache(
+	key baselineCacheKey,
+	boundaries []backupartifact.ChannelBoundary,
+	bytes int64,
+) (*baselineCacheEntry, bool, bool) {
+	if bytes <= 0 || bytes > maxBaselineCacheBytes {
+		return nil, false, false
+	}
+	var released int64
+	r.mu.Lock()
+	if current := r.baselineCache[key]; current != nil {
+		r.baselineCacheUse++
+		current.lastUsed = r.baselineCacheUse
+		current.refs++
+		r.mu.Unlock()
+		return current, false, true
+	}
+	for len(r.baselineCache) >= maxBaselineCacheEntries ||
+		r.baselineCacheBytes > maxBaselineCacheBytes-bytes {
+		var oldestKey baselineCacheKey
+		var oldest *baselineCacheEntry
+		for candidateKey, candidate := range r.baselineCache {
+			if candidate.refs == 0 &&
+				(oldest == nil || candidate.lastUsed < oldest.lastUsed) {
+				oldestKey = candidateKey
+				oldest = candidate
+			}
+		}
+		if oldest == nil {
+			r.mu.Unlock()
+			if released > 0 {
+				r.budget.Release(released)
+			}
+			return nil, false, false
+		}
+		delete(r.baselineCache, oldestKey)
+		r.baselineCacheBytes -= oldest.bytes
+		released += oldest.bytes
+	}
+	r.baselineCacheUse++
+	entry := &baselineCacheEntry{
+		boundaries: boundaries,
+		bytes:      bytes,
+		lastUsed:   r.baselineCacheUse,
+		refs:       1,
+	}
+	r.baselineCache[key] = entry
+	r.baselineCacheBytes += bytes
+	r.mu.Unlock()
+	if released > 0 {
+		r.budget.Release(released)
+	}
+	return entry, true, true
 }
 
 func (r *MessageCursorResolver) cached(hashSlot uint16) (messageCursorCacheEntry, bool) {

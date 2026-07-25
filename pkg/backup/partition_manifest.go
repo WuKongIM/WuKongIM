@@ -12,7 +12,7 @@ const (
 	// PartitionManifestFormat identifies one logical hash-slot backup manifest.
 	PartitionManifestFormat = "wukongim-cluster-backup-partition"
 	// PartitionManifestVersion is the current partition manifest schema version.
-	PartitionManifestVersion  uint32 = 2
+	PartitionManifestVersion  uint32 = 3
 	maxPartitionManifestBytes        = 16 << 20
 )
 
@@ -31,6 +31,9 @@ type PartitionManifest struct {
 	// Base is the previous partition layer for an incremental chain. Nil marks
 	// a source-materialized base layer.
 	Base *PartitionReference `json:"base,omitempty"`
+	// BaselineCursor authenticates the complete continuous message cursor
+	// captured with a materialized rebase. Ordinary restore points omit it.
+	BaselineCursor *SegmentReference `json:"baseline_cursor,omitempty"`
 	// Evidence carries cumulative signed counts and the message-ID fence.
 	Evidence PartitionEvidence `json:"evidence"`
 	// Objects contains encrypted immutable chunks in repository-key order.
@@ -103,6 +106,12 @@ func validatePartitionManifest(manifest PartitionManifest) error {
 		}
 		if manifest.Evidence.MessageRecords < manifest.Base.Evidence.MessageRecords || manifest.Evidence.MaxMessageID < manifest.Base.Evidence.MaxMessageID {
 			return fmt.Errorf("%w: cumulative partition evidence regresses its base", ErrInvalidManifest)
+		}
+	}
+	if manifest.BaselineCursor != nil {
+		if manifest.Base != nil || manifest.Cut.PhysicalSlotID == 0 ||
+			validateSegmentReference(*manifest.BaselineCursor) != nil {
+			return fmt.Errorf("%w: partition baseline cursor is invalid", ErrInvalidManifest)
 		}
 	}
 	if len(manifest.Objects) == 0 {

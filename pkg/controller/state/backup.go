@@ -1,5 +1,7 @@
 package state
 
+import backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+
 // MaxBackupRestorePoints bounds restore-point references stored in Controller Raft.
 const MaxBackupRestorePoints = 4096
 
@@ -192,6 +194,8 @@ type BackupStreamFrontier struct {
 	Head *BackupSegmentReference `json:"head,omitempty"`
 	// CursorHead authenticates the latest cursor-only message sidecar.
 	CursorHead *BackupSegmentReference `json:"cursor_head,omitempty"`
+	// BaselineCursorHead authenticates the complete materialized Channel index.
+	BaselineCursorHead *BackupSegmentReference `json:"baseline_cursor_head,omitempty"`
 	// SourceCursor is the bounded opaque reconciliation cursor.
 	SourceCursor string `json:"source_cursor,omitempty"`
 	// SourceHighWatermark is the greatest fully reconciled committed source position.
@@ -218,6 +222,31 @@ type BackupSlotCaptureLease struct {
 	AcquiredAtUnixMillis int64 `json:"acquired_at_unix_millis"`
 }
 
+// BackupPartitionReference authenticates one immutable materialized Slot manifest.
+type BackupPartitionReference struct {
+	HashSlot        uint16                           `json:"hash_slot"`
+	Key             string                           `json:"key"`
+	SHA256          string                           `json:"sha256"`
+	Bytes           int64                            `json:"bytes"`
+	ObjectCount     uint64                           `json:"object_count"`
+	CiphertextBytes uint64                           `json:"ciphertext_bytes"`
+	Evidence        backupartifact.PartitionEvidence `json:"evidence"`
+}
+
+// BackupSlotBaselineReference authenticates the materialized root and cursor index.
+type BackupSlotBaselineReference struct {
+	Partition BackupPartitionReference `json:"partition"`
+}
+
+// BackupSlotRebase preserves a pending replacement while the current generation
+// remains the published restore source.
+type BackupSlotRebase struct {
+	TargetGeneration    string `json:"target_generation"`
+	Epoch               uint64 `json:"epoch"`
+	Reason              string `json:"reason"`
+	StartedAtUnixMillis int64  `json:"started_at_unix_millis"`
+}
+
 // BackupSlotFrontier atomically binds metadata and message stream heads for one Hash Slot.
 type BackupSlotFrontier struct {
 	// Revision fences compare-and-swap updates to this Slot record.
@@ -228,6 +257,16 @@ type BackupSlotFrontier struct {
 	Generation string `json:"generation"`
 	// Lease fences frontier commits to one exact current Slot authority.
 	Lease BackupSlotCaptureLease `json:"lease"`
+	// SourceSlotID identifies the physical Slot index space used by the
+	// metadata source cursor. It may differ from Lease only while rebasing.
+	SourceSlotID uint32 `json:"source_slot_id"`
+	// SourcePinStartedAtUnixMillis is the durable age origin of the retained
+	// metadata log floor and survives lease takeover.
+	SourcePinStartedAtUnixMillis int64 `json:"source_pin_started_at_unix_millis"`
+	// Baseline is the optional materialized root of Generation.
+	Baseline *BackupSlotBaselineReference `json:"baseline,omitempty"`
+	// Rebase records a retryable pending generation replacement.
+	Rebase *BackupSlotRebase `json:"rebase,omitempty"`
 	// Metadata and Messages are separate streams advanced through this one record.
 	Metadata BackupStreamFrontier `json:"metadata"`
 	Messages BackupStreamFrontier `json:"messages"`
@@ -294,6 +333,14 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 func cloneBackupSlotFrontiers(frontiers []BackupSlotFrontier) []BackupSlotFrontier {
 	out := cloneSlice(frontiers)
 	for index := range out {
+		if frontiers[index].Baseline != nil {
+			baseline := *frontiers[index].Baseline
+			out[index].Baseline = &baseline
+		}
+		if frontiers[index].Rebase != nil {
+			rebase := *frontiers[index].Rebase
+			out[index].Rebase = &rebase
+		}
 		if frontiers[index].Metadata.Head != nil {
 			head := *frontiers[index].Metadata.Head
 			out[index].Metadata.Head = &head
@@ -302,6 +349,10 @@ func cloneBackupSlotFrontiers(frontiers []BackupSlotFrontier) []BackupSlotFronti
 			head := *frontiers[index].Metadata.CursorHead
 			out[index].Metadata.CursorHead = &head
 		}
+		if frontiers[index].Metadata.BaselineCursorHead != nil {
+			head := *frontiers[index].Metadata.BaselineCursorHead
+			out[index].Metadata.BaselineCursorHead = &head
+		}
 		if frontiers[index].Messages.Head != nil {
 			head := *frontiers[index].Messages.Head
 			out[index].Messages.Head = &head
@@ -309,6 +360,10 @@ func cloneBackupSlotFrontiers(frontiers []BackupSlotFrontier) []BackupSlotFronti
 		if frontiers[index].Messages.CursorHead != nil {
 			head := *frontiers[index].Messages.CursorHead
 			out[index].Messages.CursorHead = &head
+		}
+		if frontiers[index].Messages.BaselineCursorHead != nil {
+			head := *frontiers[index].Messages.BaselineCursorHead
+			out[index].Messages.BaselineCursorHead = &head
 		}
 	}
 	return out

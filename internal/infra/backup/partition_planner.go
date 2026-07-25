@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"sync"
 
@@ -72,7 +73,9 @@ func (p *PartitionPlanner) OpenPlan(ctx context.Context, request runtimebackup.C
 	if err != nil {
 		return nil, err
 	}
-	if first.Reader == nil || first.AppliedIndex == 0 || first.CommitIndex != first.AppliedIndex || first.CapturedAtUnixMillis <= 0 || first.HashSlot != request.HashSlot {
+	if first.Reader == nil || first.AppliedIndex == 0 || first.CommitIndex != first.AppliedIndex ||
+		first.CapturedAtUnixMillis <= 0 || first.HashSlot != request.HashSlot ||
+		first.SlotID == 0 || uint64(first.SlotID) > math.MaxUint32 {
 		if first.Reader != nil {
 			_ = first.Reader.Close()
 		}
@@ -105,7 +108,10 @@ func (p *PartitionPlanner) OpenPlan(ctx context.Context, request runtimebackup.C
 	}
 	closeFirst = false
 	return &partitionPlan{
-		cut:             backupartifact.PartitionCut{HashSlot: request.HashSlot, RaftIndex: first.AppliedIndex, CommittedAtMillis: first.CapturedAtUnixMillis},
+		cut: backupartifact.PartitionCut{
+			HashSlot: request.HashSlot, PhysicalSlotID: uint32(first.SlotID),
+			RaftIndex: first.AppliedIndex, CommittedAtMillis: first.CapturedAtUnixMillis,
+		},
 		metadata:        first.Reader,
 		metadataRecords: metadataStats.EntryCount,
 		shards:          shards,

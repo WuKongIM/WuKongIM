@@ -3,6 +3,7 @@ package metrics
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,9 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 	metrics.SetBackupCaptureOwnedSlots(19)
 	metrics.ObserveBackupCaptureLeaseTakeover()
 	metrics.ObserveBackupCaptureLeaseFenced()
+	metrics.SetBackupSourcePin(17, 90*time.Second, 32<<20, 64<<20)
+	metrics.ObserveBackupSlotRebase(17, "pin_age", 12*time.Second, "")
+	metrics.ObserveBackupSlotRebase(17, "unbounded", -time.Second, "secret backend error")
 
 	families, err = registry.Gather()
 	require.NoError(t, err)
@@ -62,4 +66,27 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 	require.Equal(t, float64(19), requireMetricFamily(t, families, "wukongim_backup_capture_owned_slots").GetMetric()[0].GetGauge().GetValue())
 	require.Equal(t, float64(1), requireMetricFamily(t, families, "wukongim_backup_capture_lease_takeovers_total").GetMetric()[0].GetCounter().GetValue())
 	require.Equal(t, float64(1), requireMetricFamily(t, families, "wukongim_backup_capture_lease_fenced_total").GetMetric()[0].GetCounter().GetValue())
+	require.Equal(t, float64(90), findMetricByLabels(t,
+		requireMetricFamily(t, families, "wukongim_backup_source_pin_age_seconds"),
+		map[string]string{"node_id": "7", "node_name": "node-7", "hash_slot": "17"},
+	).GetGauge().GetValue())
+	require.Equal(t, float64(32<<20), findMetricByLabels(t,
+		requireMetricFamily(t, families, "wukongim_backup_source_pinned_bytes"),
+		map[string]string{"node_id": "7", "node_name": "node-7", "hash_slot": "17"},
+	).GetGauge().GetValue())
+	require.Equal(t, float64(64<<20), requireMetricFamily(t, families, "wukongim_backup_source_node_pinned_bytes").GetMetric()[0].GetGauge().GetValue())
+	rebases := requireMetricFamily(t, families, "wukongim_backup_slot_rebases_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, rebases, map[string]string{
+		"node_id": "7", "node_name": "node-7", "hash_slot": "17",
+		"reason": "pin_age", "outcome": "success", "failure_category": "none",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, rebases, map[string]string{
+		"node_id": "7", "node_name": "node-7", "hash_slot": "17",
+		"reason": "unknown", "outcome": "failure", "failure_category": "unknown",
+	}).GetCounter().GetValue())
+	durations := requireMetricFamily(t, families, "wukongim_backup_slot_rebase_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, durations, map[string]string{
+		"node_id": "7", "node_name": "node-7", "hash_slot": "17",
+		"reason": "pin_age", "outcome": "success", "failure_category": "none",
+	}).GetHistogram().GetSampleCount())
 }

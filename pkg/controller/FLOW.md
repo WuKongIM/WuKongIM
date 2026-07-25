@@ -116,10 +116,19 @@ restore point. It also stores at most one sorted continuous `SlotFrontier` per
 configured Hash Slot. Each frontier contains only two stream heads, bounded
 source cursors/watermarks, Generation, revision, and the exact current capture
 lease `(Slot ID, leader term, config epoch, holder, Generation, sequence)`;
-per-Channel cursor data
+`SourceSlotID` binds the metadata cursor to its physical Raft index space, so a
+durable remap is detectable until rebase promotion; per-Channel cursor data
 remains in immutable repository segments. The same section stores only one
 authenticated checkpoint `CatalogHead`; immutable checkpoint history remains
 in dual repositories, so the new catalog does not grow Controller state.
+Each frontier may also carry one authenticated materialized baseline and one
+bounded pending rebase `(target Generation, lease-bound epoch, reason, start
+time)`. The pending record preserves the active Generation until a
+lease-fenced atomic promotion installs the complete replacement. A takeover or
+an immutable source cut that has compacted rotates the disposable target
+Generation and epoch while leaving the active Generation untouched. The
+durable source-pin start survives ordinary lease takeover and resets only when
+the metadata source floor advances or a replacement baseline is promoted.
 Active backup and pending/running
 verification are mutually exclusive. Large partition
 manifests, encrypted objects, KMS material, and repository credentials remain

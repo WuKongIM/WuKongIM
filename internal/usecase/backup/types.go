@@ -125,6 +125,8 @@ type PolicySnapshot struct {
 	ObjectLockDays                  int
 	MaxParallelPartitions           int
 	StagingMaxBytes                 uint64
+	SourcePinMaxAgeSeconds          int64
+	MaxSourcePinnedBytes            uint64
 	PrimaryRegion                   string
 	SecondaryRegion                 string
 	KMSRegion                       string
@@ -162,6 +164,9 @@ type CaptureLeaseSnapshot struct {
 	// HashSlot and SlotID identify the logical capture partition and its Raft Group.
 	HashSlot uint16
 	SlotID   uint32
+	// SourceSlotID identifies the physical Raft index space used by the durable
+	// metadata frontier. It differs from SlotID while a remapped Slot rebases.
+	SourceSlotID uint32
 	// HolderNodeID, LeaderTerm, and ConfigEpoch identify exact Slot authority.
 	HolderNodeID uint64
 	LeaderTerm   uint64
@@ -177,6 +182,9 @@ type CaptureLeaseSnapshot struct {
 	MessageSourceWatermark  uint64
 	// AcquiredAtUnixMillis is the latest durable takeover time.
 	AcquiredAtUnixMillis int64
+	// SourcePinStartedAtUnixMillis is the durable age origin of the retained
+	// metadata source floor and is not reset by lease takeover.
+	SourcePinStartedAtUnixMillis int64
 	// FrontierUpdatedUnixMillis is the latest lease or stream-head commit time.
 	FrontierUpdatedUnixMillis int64
 }

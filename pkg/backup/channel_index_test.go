@@ -13,6 +13,10 @@ func TestChannelIndexStrictRoundTrip(t *testing.T) {
 		{ChannelID: "alpha", ChannelType: 1, Epoch: 2, HW: 4},
 	})
 	require.NoError(t, err)
+	slot, count, err := backup.InspectChannelIndex(body)
+	require.NoError(t, err)
+	require.Equal(t, uint16(7), slot)
+	require.Equal(t, uint32(2), count)
 	hashSlot, boundaries, err := backup.LoadChannelIndex(body)
 	require.NoError(t, err)
 	require.Equal(t, uint16(7), hashSlot)

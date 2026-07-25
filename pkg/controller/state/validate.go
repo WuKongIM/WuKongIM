@@ -134,9 +134,16 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		if frontier.HashSlot >= hashSlotCount || frontier.Revision == 0 ||
 			!validBackupIdentity(frontier.Generation) || frontier.UpdatedAtUnixMillis <= 0 ||
 			!validBackupSlotCaptureLease(frontier.Lease, frontier.Generation) ||
+			frontier.SourceSlotID == 0 ||
+			frontier.SourcePinStartedAtUnixMillis <= 0 ||
+			frontier.SourcePinStartedAtUnixMillis > frontier.UpdatedAtUnixMillis ||
+			!validBackupSlotBaseline(frontier.Baseline, frontier.HashSlot) ||
+			!validBackupSlotRebase(frontier.Rebase, frontier.Generation) ||
 			!validBackupStreamFrontier(frontier.Metadata) ||
 			!validBackupStreamFrontier(frontier.Messages) ||
 			frontier.Metadata.CursorHead != nil ||
+			frontier.Metadata.BaselineCursorHead != nil ||
+			(frontier.Baseline == nil) != (frontier.Messages.BaselineCursorHead == nil) ||
 			(frontier.Messages.Sequence > 0 && frontier.Messages.CursorHead == nil) ||
 			frontier.WatermarkAtUnixMillis != olderBackupWatermark(
 				frontier.Metadata.WatermarkAtUnixMillis,
@@ -249,6 +256,49 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 	return nil
 }
 
+func validBackupSlotBaseline(reference *BackupSlotBaselineReference, hashSlot uint16) bool {
+	if reference == nil {
+		return true
+	}
+	partition := reference.Partition
+	evidence := partition.Evidence
+	if partition.HashSlot != hashSlot || partition.Bytes <= 0 ||
+		partition.ObjectCount == 0 || partition.CiphertextBytes == 0 ||
+		!strings.HasPrefix(partition.Key, "partition-manifests/") ||
+		!strings.HasSuffix(partition.Key, fmt.Sprintf("/%05d.json", hashSlot)) ||
+		!validSHA256(partition.SHA256) ||
+		evidence.Version != backupartifact.PartitionEvidenceVersion ||
+		(evidence.MessageRecords == 0) != (evidence.MaxMessageID == 0) {
+		return false
+	}
+	return true
+}
+
+func validBackupSlotRebase(rebase *BackupSlotRebase, currentGeneration string) bool {
+	if rebase == nil {
+		return true
+	}
+	if !validBackupIdentity(rebase.TargetGeneration) ||
+		rebase.TargetGeneration == currentGeneration ||
+		rebase.Epoch == 0 ||
+		rebase.StartedAtUnixMillis <= 0 {
+		return false
+	}
+	switch rebase.Reason {
+	case "pin_age", "node_byte_budget", "source_compacted", "source_remapped":
+		return true
+	default:
+		return false
+	}
+}
+
+func validBackupSegmentReference(reference BackupSegmentReference) bool {
+	return validSHA256(reference.SegmentID) &&
+		validSHA256(reference.CommitSHA256) &&
+		reference.PlaintextBytes > 0 && reference.PlaintextBytes <= 256<<20 &&
+		reference.CommitKey == "segments/"+reference.SegmentID+"/commit.json"
+}
+
 func validBackupSlotCaptureLease(lease BackupSlotCaptureLease, generation string) bool {
 	return lease.SlotID > 0 && lease.LeaderTerm > 0 && lease.ConfigEpoch > 0 &&
 		lease.HolderNodeID > 0 && lease.Sequence > 0 &&
@@ -265,21 +315,14 @@ func validBackupStreamFrontier(frontier BackupStreamFrontier) bool {
 		return false
 	}
 	if frontier.Sequence == 0 {
-		return frontier.Head == nil && frontier.CursorHead == nil
+		return frontier.Head == nil && frontier.CursorHead == nil &&
+			(frontier.BaselineCursorHead == nil || validBackupSegmentReference(*frontier.BaselineCursorHead))
 	}
-	if frontier.Head == nil ||
-		!validSHA256(frontier.Head.SegmentID) ||
-		!validSHA256(frontier.Head.CommitSHA256) ||
-		frontier.Head.PlaintextBytes <= 0 || frontier.Head.PlaintextBytes > 256<<20 ||
-		frontier.Head.CommitKey != "segments/"+frontier.Head.SegmentID+"/commit.json" {
+	if frontier.Head == nil || !validBackupSegmentReference(*frontier.Head) {
 		return false
 	}
-	return frontier.CursorHead == nil ||
-		(validSHA256(frontier.CursorHead.SegmentID) &&
-			validSHA256(frontier.CursorHead.CommitSHA256) &&
-			frontier.CursorHead.PlaintextBytes > 0 &&
-			frontier.CursorHead.PlaintextBytes <= 256<<20 &&
-			frontier.CursorHead.CommitKey == "segments/"+frontier.CursorHead.SegmentID+"/commit.json")
+	return (frontier.CursorHead == nil || validBackupSegmentReference(*frontier.CursorHead)) &&
+		(frontier.BaselineCursorHead == nil || validBackupSegmentReference(*frontier.BaselineCursorHead))
 }
 
 func olderBackupWatermark(left, right int64) int64 {

@@ -137,6 +137,43 @@ func (s *pebbleStore) LastIndex(ctx context.Context) (uint64, error) {
 	return meta.LastIndex, nil
 }
 
+// LogRangeBytes returns Pebble's conservative disk estimate for Raft entries
+// in the half-open [lo, hi) interval.
+func (s *pebbleStore) LogRangeBytes(ctx context.Context, lo, hi uint64) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if hi <= lo {
+		return 0, nil
+	}
+	return s.db.db.EstimateDiskUsage(encodeEntryKey(s.scope, lo), encodeEntryKey(s.scope, hi))
+}
+
+// TrimRetainedLog deletes backup-readable entries only through the current
+// recovery snapshot boundary.
+func (s *pebbleStore) TrimRetainedLog(ctx context.Context, through uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	unlock := s.db.lockScopeMutation(s.scope)
+	defer unlock()
+	meta, _, err := s.ensureMeta()
+	if err != nil {
+		return err
+	}
+	if through > meta.SnapshotIndex {
+		through = meta.SnapshotIndex
+	}
+	if through == 0 || meta.FirstIndex > through {
+		return nil
+	}
+	return s.db.submitWrite(&writeRequest{
+		scope: s.scope,
+		op:    trimRetainedLogOp{through: through},
+		done:  make(chan error, 1),
+	})
+}
+
 func (s *pebbleStore) Snapshot(ctx context.Context) (raftpb.Snapshot, error) {
 	_ = ctx
 	return s.loadSnapshot(ctx)

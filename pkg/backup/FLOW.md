@@ -130,3 +130,14 @@ segment contract. It is not wired into capture or restore scheduling yet.
     catalog pages use sequence-plus-checkpoint keys so an unpublished orphan
     cannot collide with a later retry. The Controller stores only the newest
     page reference and never stores catalog history.
+14. A materialized Slot rebase uses partition-manifest version 3. An
+    independent root may bind one committed `message_baseline_cursor`
+    `SegmentReference`, containing the complete Channel index used to resume
+    continuous message capture without replay. Incremental manifests reject
+    that field. Its cut also records the physical Slot ID that owns the Raft
+    index space, so a retry after routing remap cannot reuse an old baseline.
+    Checkpoint version 2 optionally binds the materialized
+    partition and cursor proof beside the current stream heads.
+15. Retained-graph traversal authenticates a baseline cursor's signed segment
+    commit and marks both the commit and encrypted payload key, so generation
+    or restore-point GC cannot delete a live cursor representation.

@@ -183,6 +183,9 @@ chunk_size_bytes = 8388608
 # Hard node-local staging quota and bounded partition concurrency.
 staging_max_bytes = 10737418240
 max_parallel_partitions = 4
+# Rebase only the affected Hash Slot after one hour or when node-local retained Slot logs exceed 8 GiB.
+source_pin_max_age = "1h"
+max_source_pinned_bytes = 8589934592
 # Optional monthly materialized-full retention; zero disables this tier.
 monthly_retention_months = 0
 # Minimum compliance-mode Object Lock retention applied to every object.

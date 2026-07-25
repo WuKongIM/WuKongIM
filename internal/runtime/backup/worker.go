@@ -164,27 +164,39 @@ func partitionManifestKey(request CaptureRequest) string {
 }
 
 func loadExistingPartitionReport(ctx context.Context, store PartitionManifestStore, request CaptureRequest) (backupcontract.PartitionReport, bool, error) {
+	_, checksum, manifest, ok, err := loadExistingPartitionManifest(ctx, store, request)
+	if err != nil || !ok {
+		return backupcontract.PartitionReport{}, ok, err
+	}
+	report, err := partitionReportFromManifest(partitionManifestKey(request), checksum, manifest)
+	return report, err == nil, err
+}
+
+func loadExistingPartitionManifest(
+	ctx context.Context,
+	store PartitionManifestStore,
+	request CaptureRequest,
+) ([]byte, string, backupartifact.PartitionManifest, bool, error) {
 	key := partitionManifestKey(request)
 	body, checksum, err := store.Load(ctx, key)
 	if errors.Is(err, backupartifact.ErrObjectNotFound) {
-		return backupcontract.PartitionReport{}, false, nil
+		return nil, "", backupartifact.PartitionManifest{}, false, nil
 	}
 	if err != nil {
-		return backupcontract.PartitionReport{}, false, err
+		return nil, "", backupartifact.PartitionManifest{}, false, err
 	}
 	hash := sha256.Sum256(body)
 	if checksum != hex.EncodeToString(hash[:]) {
-		return backupcontract.PartitionReport{}, false, fmt.Errorf("%w: existing partition manifest checksum mismatch", ErrInvalidCapture)
+		return nil, "", backupartifact.PartitionManifest{}, false, fmt.Errorf("%w: existing partition manifest checksum mismatch", ErrInvalidCapture)
 	}
 	manifest, err := backupartifact.LoadPartitionManifest(body)
 	if err != nil {
-		return backupcontract.PartitionReport{}, false, err
+		return nil, "", backupartifact.PartitionManifest{}, false, err
 	}
 	if manifest.JobID != request.JobID || manifest.BackupEpoch != request.BackupEpoch || manifest.Cut.HashSlot != request.HashSlot {
-		return backupcontract.PartitionReport{}, false, fmt.Errorf("%w: existing partition manifest fence mismatch", ErrStaleCapture)
+		return nil, "", backupartifact.PartitionManifest{}, false, fmt.Errorf("%w: existing partition manifest fence mismatch", ErrStaleCapture)
 	}
-	report, err := partitionReportFromManifest(key, checksum, manifest)
-	return report, err == nil, err
+	return body, checksum, manifest, true, nil
 }
 
 func partitionReportFromManifest(key, checksum string, manifest backupartifact.PartitionManifest) (backupcontract.PartitionReport, error) {

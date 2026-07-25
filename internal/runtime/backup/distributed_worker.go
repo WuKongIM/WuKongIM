@@ -115,77 +115,115 @@ func NewDistributedWorker(options DistributedWorkerOptions) (*DistributedWorker,
 
 // Capture captures one logical hash slot and publishes its immutable manifest.
 func (w *DistributedWorker) Capture(ctx context.Context, request CaptureRequest) (backupcontract.PartitionReport, error) {
+	result, err := w.capturePartition(ctx, request, nil, nil)
+	return result.report, err
+}
+
+type materializedCursorCommitter func(
+	context.Context,
+	CaptureRequest,
+	backupartifact.PartitionCut,
+	[]backupartifact.ChannelBoundary,
+) (backupartifact.SegmentReference, error)
+
+type materializedCutObserver func(context.Context, backupartifact.PartitionCut) error
+
+type partitionCaptureResult struct {
+	report   backupcontract.PartitionReport
+	manifest backupartifact.PartitionManifest
+}
+
+func (w *DistributedWorker) capturePartition(
+	ctx context.Context,
+	request CaptureRequest,
+	cursorCommitter materializedCursorCommitter,
+	cutObserver materializedCutObserver,
+) (partitionCaptureResult, error) {
 	if stringsTrimmedEmpty(request.JobID) || request.BackupEpoch == 0 || !validFingerprint(request.ConfigFingerprint) {
-		return backupcontract.PartitionReport{}, ErrInvalidCapture
+		return partitionCaptureResult{}, ErrInvalidCapture
 	}
-	if report, ok, err := loadExistingPartitionReport(ctx, w.manifests, request); err != nil {
-		return backupcontract.PartitionReport{}, err
+	if _, checksum, manifest, ok, err := loadExistingPartitionManifest(ctx, w.manifests, request); err != nil {
+		return partitionCaptureResult{}, err
 	} else if ok {
-		return report, nil
+		if cursorCommitter != nil && manifest.BaselineCursor == nil {
+			return partitionCaptureResult{}, fmt.Errorf("%w: materialized manifest has no baseline cursor", ErrInvalidCapture)
+		}
+		if cutObserver != nil {
+			if err := cutObserver(ctx, manifest.Cut); err != nil {
+				return partitionCaptureResult{}, err
+			}
+		}
+		report, err := partitionReportFromManifest(partitionManifestKey(request), checksum, manifest)
+		return partitionCaptureResult{report: report, manifest: manifest}, err
 	}
 	plan, err := w.planner.OpenPlan(ctx, request)
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return partitionCaptureResult{}, err
 	}
 	if plan == nil {
-		return backupcontract.PartitionReport{}, fmt.Errorf("%w: planner returned no plan", ErrInvalidCapture)
+		return partitionCaptureResult{}, fmt.Errorf("%w: planner returned no plan", ErrInvalidCapture)
 	}
 	defer plan.Close()
 	cut := plan.Cut()
 	if cut.HashSlot != request.HashSlot || cut.RaftIndex == 0 || cut.CommittedAtMillis <= 0 {
-		return backupcontract.PartitionReport{}, ErrStaleCapture
+		return partitionCaptureResult{}, ErrStaleCapture
+	}
+	if cutObserver != nil {
+		if err := cutObserver(ctx, cut); err != nil {
+			return partitionCaptureResult{}, err
+		}
 	}
 	metadataReader, err := plan.OpenMetadata(ctx)
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return partitionCaptureResult{}, err
 	}
 	metadata, replicateErr := w.replicator.Replicate(ctx, StreamDescriptor{JobID: request.JobID, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindMetadata}, metadataReader)
 	closeErr := metadataReader.Close()
 	if replicateErr != nil {
-		return backupcontract.PartitionReport{}, replicateErr
+		return partitionCaptureResult{}, replicateErr
 	}
 	if closeErr != nil {
-		return backupcontract.PartitionReport{}, closeErr
+		return partitionCaptureResult{}, closeErr
 	}
 	objects := append([]backupartifact.ObjectEntry(nil), metadata...)
 	boundaries := make([]backupartifact.ChannelBoundary, 0)
 	evidence := backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: plan.MetadataRecordCount()}
 	if base := plan.Base(); base != nil {
 		if base.Evidence.Version != backupartifact.PartitionEvidenceVersion {
-			return backupcontract.PartitionReport{}, fmt.Errorf("%w: incremental base evidence is invalid", ErrInvalidCapture)
+			return partitionCaptureResult{}, fmt.Errorf("%w: incremental base evidence is invalid", ErrInvalidCapture)
 		}
 		evidence.MessageRecords = base.Evidence.MessageRecords
 		evidence.MaxMessageID = base.Evidence.MaxMessageID
 	}
 	shards := plan.MessageShards()
 	if len(shards) > maxMessageShardCount {
-		return backupcontract.PartitionReport{}, fmt.Errorf("%w: message shard count exceeds limit", ErrInvalidCapture)
+		return partitionCaptureResult{}, fmt.Errorf("%w: message shard count exceeds limit", ErrInvalidCapture)
 	}
 	seenShardIDs := make(map[string]struct{}, len(shards))
 	for _, shard := range shards {
 		if shard.ID == "" || shard.NodeID == 0 || len(shard.Channels) == 0 {
-			return backupcontract.PartitionReport{}, fmt.Errorf("%w: message shard identity is incomplete", ErrInvalidCapture)
+			return partitionCaptureResult{}, fmt.Errorf("%w: message shard identity is incomplete", ErrInvalidCapture)
 		}
 		if _, exists := seenShardIDs[shard.ID]; exists {
-			return backupcontract.PartitionReport{}, fmt.Errorf("%w: duplicate message shard id", ErrInvalidCapture)
+			return partitionCaptureResult{}, fmt.Errorf("%w: duplicate message shard id", ErrInvalidCapture)
 		}
 		seenShardIDs[shard.ID] = struct{}{}
 		captured, err := w.messages.CaptureMessageShard(ctx, request, shard)
 		if err != nil {
-			return backupcontract.PartitionReport{}, err
+			return partitionCaptureResult{}, err
 		}
 		for _, entry := range captured.Objects {
 			if entry.HashSlot != request.HashSlot || entry.Kind != backupartifact.ObjectKindMessages {
-				return backupcontract.PartitionReport{}, fmt.Errorf("%w: message shard returned mismatched object", ErrStaleCapture)
+				return partitionCaptureResult{}, fmt.Errorf("%w: message shard returned mismatched object", ErrStaleCapture)
 			}
 		}
 		if len(captured.Boundaries) != len(shard.Channels) {
-			return backupcontract.PartitionReport{}, fmt.Errorf("%w: message shard boundary count mismatch", ErrStaleCapture)
+			return partitionCaptureResult{}, fmt.Errorf("%w: message shard boundary count mismatch", ErrStaleCapture)
 		}
 		objects = append(objects, captured.Objects...)
 		boundaries = append(boundaries, captured.Boundaries...)
 		if math.MaxUint64-evidence.MessageRecords < captured.MessageRecords {
-			return backupcontract.PartitionReport{}, fmt.Errorf("%w: message record count overflow", ErrInvalidCapture)
+			return partitionCaptureResult{}, fmt.Errorf("%w: message record count overflow", ErrInvalidCapture)
 		}
 		evidence.MessageRecords += captured.MessageRecords
 		if captured.MaxMessageID > evidence.MaxMessageID {
@@ -194,30 +232,39 @@ func (w *DistributedWorker) Capture(ctx context.Context, request CaptureRequest)
 	}
 	indexBody, err := backupartifact.MarshalChannelIndex(request.HashSlot, boundaries)
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return partitionCaptureResult{}, err
 	}
 	indexObjects, err := w.replicator.Replicate(ctx, StreamDescriptor{JobID: request.JobID, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindChannelIndex}, bytes.NewReader(indexBody))
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return partitionCaptureResult{}, err
 	}
 	objects = append(objects, indexObjects...)
-	return w.publishPartition(ctx, request, cut, plan.Base(), evidence, objects)
+	var baselineCursor *backupartifact.SegmentReference
+	if cursorCommitter != nil {
+		reference, err := cursorCommitter(ctx, request, cut, boundaries)
+		if err != nil {
+			return partitionCaptureResult{}, err
+		}
+		baselineCursor = &reference
+	}
+	return w.publishPartition(ctx, request, cut, plan.Base(), baselineCursor, evidence, objects)
 }
 
-func (w *DistributedWorker) publishPartition(ctx context.Context, request CaptureRequest, cut backupartifact.PartitionCut, base *backupartifact.PartitionReference, evidence backupartifact.PartitionEvidence, objects []backupartifact.ObjectEntry) (backupcontract.PartitionReport, error) {
+func (w *DistributedWorker) publishPartition(ctx context.Context, request CaptureRequest, cut backupartifact.PartitionCut, base *backupartifact.PartitionReference, baselineCursor *backupartifact.SegmentReference, evidence backupartifact.PartitionEvidence, objects []backupartifact.ObjectEntry) (partitionCaptureResult, error) {
 	sort.Slice(objects, func(i, j int) bool { return objects[i].Key < objects[j].Key })
-	manifest := backupartifact.PartitionManifest{Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion, JobID: request.JobID, BackupEpoch: request.BackupEpoch, Cut: cut, Base: base, Evidence: evidence, Objects: objects}
+	manifest := backupartifact.PartitionManifest{Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion, JobID: request.JobID, BackupEpoch: request.BackupEpoch, Cut: cut, Base: base, BaselineCursor: baselineCursor, Evidence: evidence, Objects: objects}
 	body, err := backupartifact.MarshalPartitionManifest(manifest)
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return partitionCaptureResult{}, err
 	}
 	hash := sha256.Sum256(body)
 	checksum := hex.EncodeToString(hash[:])
 	key := partitionManifestKey(request)
 	if err := w.manifests.Put(ctx, key, checksum, body); err != nil {
-		return backupcontract.PartitionReport{}, err
+		return partitionCaptureResult{}, err
 	}
-	return partitionReportFromManifest(key, checksum, manifest)
+	report, err := partitionReportFromManifest(key, checksum, manifest)
+	return partitionCaptureResult{report: report, manifest: manifest}, err
 }
 
 func stringsTrimmedEmpty(value string) bool {

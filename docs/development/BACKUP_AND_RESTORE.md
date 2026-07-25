@@ -61,6 +61,12 @@ Before setting `backup.enabled = true`, provide:
    `node.data_dir` and has at least `backup.staging_max_bytes` free.
 6. A stable `backup.repository_id` and a unique `backup.source_generation` for
    the live cluster incarnation.
+7. Capacity-based values for `backup.source_pin_max_age` and
+   `backup.max_source_pinned_bytes`. Exceeding either limit rebases only the
+   selected Hash Slot; it must not be used as a foreground traffic throttle.
+   Pin age is durable across leader takeover and resets only when the retained
+   metadata floor advances or a replacement baseline is promoted. Shared
+   physical Slot bytes are counted once at their remeasured minimum floor.
 
 Credentials are supplied through the AWS-compatible default credential chain;
 they must not be written into TOML. Keep the three shipped example configs
@@ -163,6 +169,14 @@ The following metrics use only bounded labels:
 - `wukongim_backup_failures_total{category}`: bounded failure categories.
 - `wukongim_backup_restore_partitions{phase}`: total, installed, and verified
   restore partitions.
+- `wukongim_backup_source_pin_age_seconds{hash_slot}` and
+  `wukongim_backup_source_pinned_bytes{hash_slot}`: age and retained-log byte
+  estimate for each locally held Slot source pin.
+- `wukongim_backup_source_node_pinned_bytes`: aggregate retained-log estimate
+  across backup floors on one node, deduplicated by physical Slot.
+- `wukongim_backup_slot_rebases_total{hash_slot,reason,outcome,failure_category}`
+  and `wukongim_backup_slot_rebase_duration_seconds`: bounded per-Slot
+  replacement-baseline outcomes and latency.
 
 At minimum, alert when recovery-point age is absent or greater than 300
 seconds, doctor health is not healthy, verification evidence is absent or more
