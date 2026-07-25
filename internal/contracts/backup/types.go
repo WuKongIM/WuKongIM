@@ -175,7 +175,9 @@ type VerificationTask struct {
 // ErasureLedgerRecordReference is the bounded Controller coordination fence for
 // one dual-repository permanent-erasure ledger record.
 type ErasureLedgerRecordReference struct {
-	// Sequence is the next contiguous committed-ledger sequence.
+	// HashSlot identifies the independently sequenced erasure stream.
+	HashSlot uint16
+	// Sequence is the next contiguous position within HashSlot.
 	Sequence uint64
 	// EventID is the deterministic permanent-erasure event identity.
 	EventID string
@@ -183,6 +185,19 @@ type ErasureLedgerRecordReference struct {
 	RecordKey string
 	// RecordSHA256 authenticates the exact signed record bytes.
 	RecordSHA256 string
+}
+
+// ErasureStreamState is the bounded Controller coordination state for one
+// Hash Slot permanent-erasure stream.
+type ErasureStreamState struct {
+	// HashSlot identifies the independently sequenced stream.
+	HashSlot uint16
+	// Head authenticates the latest dual-repository commit, or is nil before the first commit.
+	Head *backupartifact.ErasureStreamHead
+	// Pending is the one reserved record whose commit marker may need repair.
+	Pending *ErasureLedgerRecordReference
+	// LastCommitted preserves constant-space retry recognition for the latest event.
+	LastCommitted *ErasureLedgerRecordReference
 }
 
 // PermanentMessageErasure identifies one accepted permanent Channel message-prefix deletion.
@@ -199,7 +214,9 @@ type PermanentMessageErasure struct {
 
 // ErasureLedgerReceipt identifies one durable dual-repository ledger commit.
 type ErasureLedgerReceipt struct {
-	// Sequence is the contiguous committed ledger position.
+	// HashSlot identifies the independently sequenced erasure stream.
+	HashSlot uint16
+	// Sequence is the contiguous committed position within HashSlot.
 	Sequence uint64
 	// EventID is the deterministic permanent-erasure identity.
 	EventID string
@@ -223,12 +240,8 @@ type State struct {
 	SlotFrontiers []SlotFrontier
 	// CatalogHead is the only Controller-resident pointer into immutable checkpoint history.
 	CatalogHead *backupartifact.CatalogPageReference
-	// ErasureLedgerBoundary is the highest durably committed contiguous ledger sequence.
-	ErasureLedgerBoundary uint64
-	// PendingErasureLedger contains at most one record awaiting commit-marker publication.
-	PendingErasureLedger *ErasureLedgerRecordReference
-	// LastCommittedErasureLedger preserves bounded idempotency for the latest accepted request.
-	LastCommittedErasureLedger *ErasureLedgerRecordReference
+	// ErasureStreams contains at most one sorted bounded state per Hash Slot.
+	ErasureStreams []ErasureStreamState
 }
 
 // Clone returns a deep copy safe for mutation by a caller.
@@ -253,13 +266,21 @@ func (s State) Clone() State {
 		head := *s.CatalogHead
 		out.CatalogHead = &head
 	}
-	if s.PendingErasureLedger != nil {
-		pending := *s.PendingErasureLedger
-		out.PendingErasureLedger = &pending
-	}
-	if s.LastCommittedErasureLedger != nil {
-		committed := *s.LastCommittedErasureLedger
-		out.LastCommittedErasureLedger = &committed
+	out.ErasureStreams = make([]ErasureStreamState, len(s.ErasureStreams))
+	for index, stream := range s.ErasureStreams {
+		out.ErasureStreams[index] = stream
+		if stream.Head != nil {
+			head := *stream.Head
+			out.ErasureStreams[index].Head = &head
+		}
+		if stream.Pending != nil {
+			pending := *stream.Pending
+			out.ErasureStreams[index].Pending = &pending
+		}
+		if stream.LastCommitted != nil {
+			committed := *stream.LastCommitted
+			out.ErasureStreams[index].LastCommitted = &committed
+		}
 	}
 	return out
 }
@@ -382,8 +403,10 @@ type RestorePlan struct {
 	HashSlotCount uint16
 	// ErasureLedgerVersion identifies the authenticated restore ledger snapshot schema.
 	ErasureLedgerVersion uint32
-	// ErasureLedgerBoundary is the exact contiguous permanent-erasure prefix to replay.
-	ErasureLedgerBoundary uint64
+	// ErasureEventCount is the total number of events selected by ErasureHeads.
+	ErasureEventCount uint64
+	// ErasureHeads authenticate the exact selected prefix of each Hash Slot stream.
+	ErasureHeads []backupartifact.ErasureStreamHead
 	// ErasureLedgerSHA256 authenticates that exact ledger prefix, including encrypted event objects.
 	ErasureLedgerSHA256 string
 	// InvalidateTokens applies the explicit restore-time credential transform.

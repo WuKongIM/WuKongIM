@@ -17,11 +17,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 )
 
-const maxErasureLedgerCommits = 1_000_000
-
 // ErasureLedgerCommitLister lists only immutable signed commit-marker keys.
 type ErasureLedgerCommitLister interface {
-	ListErasureLedgerCommitKeys(context.Context) ([]string, error)
+	ListErasureLedgerCommitKeys(context.Context, string) ([]string, error)
 }
 
 // PermanentErasureBoundary is the maximum unavailable message prefix for one Channel.
@@ -38,19 +36,35 @@ type PermanentErasureBoundary struct {
 type ErasureLedgerSnapshot struct {
 	// Version identifies the authenticated snapshot schema.
 	Version uint32
-	// Boundary is the highest contiguous commit included in the snapshot.
-	Boundary uint64
+	// EventCount is the total number of commits across all included streams.
+	EventCount uint64
+	// Heads authenticates the exact contiguous prefix selected for each Hash Slot.
+	Heads []backupartifact.ErasureStreamHead
 	// SHA256 authenticates the exact length-delimited artifact prefix.
 	SHA256 string
 	// Keys contains every immutable object reachable from the snapshot.
 	Keys []string
 	// events stores collapsed boundaries partitioned by live hash slot.
 	events map[uint16][]PermanentErasureBoundary
+	// commitSHAByKey authenticates intermediate heads required by older checkpoints.
+	commitSHAByKey map[string]string
 }
 
 // Boundaries returns detached sorted permanent-erasure boundaries for one hash slot.
 func (s ErasureLedgerSnapshot) Boundaries(hashSlot uint16) []PermanentErasureBoundary {
 	return append([]PermanentErasureBoundary(nil), s.events[hashSlot]...)
+}
+
+// ContainsHeads reports whether every required head is the exact signed commit
+// contained at that position in this snapshot, not merely an equal sequence.
+func (s ErasureLedgerSnapshot) ContainsHeads(required []backupartifact.ErasureStreamHead) bool {
+	for _, head := range required {
+		if backupartifact.ValidateErasureStreamHead(head) != nil ||
+			s.commitSHAByKey[head.CommitKey] != head.CommitSHA256 {
+			return false
+		}
+	}
+	return true
 }
 
 // ErasureLedgerLoaderOptions configures authenticated ledger replay.
@@ -84,6 +98,7 @@ type ErasureLedgerLoader struct {
 	repositoryID        string
 	sourceClusterID     string
 	sourceGeneration    string
+	streamNamespace     string
 	hashSlotCount       uint16
 }
 
@@ -112,27 +127,29 @@ func NewErasureLedgerLoader(options ErasureLedgerLoaderOptions) (*ErasureLedgerL
 	}
 	return &ErasureLedgerLoader{primary: options.Primary, secondary: options.Secondary, signer: options.Signer, codec: options.Codec,
 		primaryRepository: options.PrimaryRepository, secondaryRepository: options.SecondaryRepository,
-		repositoryID: strings.TrimSpace(options.RepositoryID), sourceClusterID: strings.TrimSpace(options.SourceClusterID), sourceGeneration: strings.TrimSpace(options.SourceGeneration), hashSlotCount: options.HashSlotCount}, nil
+		repositoryID: strings.TrimSpace(options.RepositoryID), sourceClusterID: strings.TrimSpace(options.SourceClusterID), sourceGeneration: strings.TrimSpace(options.SourceGeneration),
+		streamNamespace: backupartifact.ComputeErasureLedgerStreamNamespace(options.RepositoryID, options.SourceClusterID, options.SourceGeneration),
+		hashSlotCount:   options.HashSlotCount}, nil
 }
 
 // LoadDualSnapshot requires identical complete commit-marker sets and artifact bytes in both repositories.
 func (l *ErasureLedgerLoader) LoadDualSnapshot(ctx context.Context) (ErasureLedgerSnapshot, error) {
-	primaryKeys, err := l.primary.(ErasureLedgerCommitLister).ListErasureLedgerCommitKeys(ctx)
+	primaryKeys, err := l.primary.(ErasureLedgerCommitLister).ListErasureLedgerCommitKeys(ctx, l.streamNamespace)
 	if err != nil {
 		return ErasureLedgerSnapshot{}, err
 	}
-	secondaryKeys, err := l.secondary.(ErasureLedgerCommitLister).ListErasureLedgerCommitKeys(ctx)
+	secondaryKeys, err := l.secondary.(ErasureLedgerCommitLister).ListErasureLedgerCommitKeys(ctx, l.streamNamespace)
 	if err != nil {
 		return ErasureLedgerSnapshot{}, err
 	}
 	if !reflect.DeepEqual(primaryKeys, secondaryKeys) {
 		return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger commit sets disagree", backupartifact.ErrRepositoryIncomplete)
 	}
-	return l.loadSnapshot(ctx, l.primary, l.secondary, primaryKeys, uint64(len(primaryKeys)))
+	return l.loadSnapshot(ctx, l.primary, l.secondary, primaryKeys, nil)
 }
 
-// LoadPinnedSnapshot loads exactly the plan-pinned prefix from one selected repository.
-func (l *ErasureLedgerLoader) LoadPinnedSnapshot(ctx context.Context, repositoryName string, version uint32, boundary uint64, checksum string) (ErasureLedgerSnapshot, error) {
+// LoadPinnedSnapshot loads exactly the plan-pinned per-Slot prefixes from one selected repository.
+func (l *ErasureLedgerLoader) LoadPinnedSnapshot(ctx context.Context, repositoryName string, version uint32, eventCount uint64, checksum string, heads []backupartifact.ErasureStreamHead) (ErasureLedgerSnapshot, error) {
 	if version != backupartifact.ErasureLedgerSnapshotVersion || !validLowerSHA256(checksum) {
 		return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger snapshot fence is invalid", backupartifact.ErrInvalidManifest)
 	}
@@ -142,14 +159,11 @@ func (l *ErasureLedgerLoader) LoadPinnedSnapshot(ctx context.Context, repository
 	} else if repositoryName != "primary" {
 		return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger repository selector is invalid", backupartifact.ErrInvalidManifest)
 	}
-	keys, err := repository.(ErasureLedgerCommitLister).ListErasureLedgerCommitKeys(ctx)
-	if err != nil {
-		return ErasureLedgerSnapshot{}, err
+	keys, normalizedHeads, err := erasureCommitKeysForHeads(heads, l.streamNamespace, l.hashSlotCount)
+	if err != nil || uint64(len(keys)) != eventCount {
+		return ErasureLedgerSnapshot{}, fmt.Errorf("%w: pinned erasure-ledger heads are invalid", backupartifact.ErrInvalidManifest)
 	}
-	if boundary > uint64(len(keys)) {
-		return ErasureLedgerSnapshot{}, fmt.Errorf("%w: pinned erasure-ledger prefix is incomplete", backupartifact.ErrRepositoryIncomplete)
-	}
-	snapshot, err := l.loadSnapshot(ctx, repository, nil, keys[:int(boundary)], boundary)
+	snapshot, err := l.loadSnapshot(ctx, repository, nil, keys, normalizedHeads)
 	if err != nil {
 		return ErasureLedgerSnapshot{}, err
 	}
@@ -164,7 +178,8 @@ func (l *ErasureLedgerLoader) LoadPinnedSnapshot(ctx context.Context, repository
 // publication is being resumed after a failure or leader change.
 func (l *ErasureLedgerLoader) LoadPendingReferenceKeys(ctx context.Context, reference backupusecase.ErasureLedgerRecordReference) ([]string, error) {
 	if reference.Sequence == 0 || !validLowerSHA256(reference.EventID) || !validLowerSHA256(reference.RecordSHA256) ||
-		backupartifact.ValidateErasureLedgerRecordKey(reference.RecordKey, reference.EventID) != nil {
+		backupartifact.ValidateErasureLedgerRecordKey(reference.RecordKey, reference.EventID) != nil ||
+		!strings.HasPrefix(reference.RecordKey, fmt.Sprintf("erasure-ledger/events/%04x/", reference.HashSlot)) {
 		return nil, fmt.Errorf("%w: pending erasure-ledger reference is invalid", backupartifact.ErrInvalidManifest)
 	}
 	recordBody, err := l.loadAvailableArtifact(ctx, reference.RecordKey)
@@ -190,7 +205,7 @@ func (l *ErasureLedgerLoader) LoadPendingReferenceKeys(ctx context.Context, refe
 		return nil, fmt.Errorf("%w: pending erasure-ledger event identity mismatch", backupartifact.ErrInvalidManifest)
 	}
 	return []string{
-		backupartifact.ErasureLedgerCommitKey(reference.Sequence),
+		backupartifact.ErasureLedgerCommitKey(l.streamNamespace, reference.HashSlot, reference.Sequence),
 		backupartifact.ErasureLedgerReceiptKey(reference.EventID),
 		reference.RecordKey,
 		record.Object.Key,
@@ -218,19 +233,41 @@ func (l *ErasureLedgerLoader) loadAvailableArtifact(ctx context.Context, key str
 	return secondaryBody, nil
 }
 
-func (l *ErasureLedgerLoader) loadSnapshot(ctx context.Context, first, second backupartifact.Repository, keys []string, boundary uint64) (ErasureLedgerSnapshot, error) {
-	if len(keys) > maxErasureLedgerCommits || boundary != uint64(len(keys)) {
+func (l *ErasureLedgerLoader) loadSnapshot(ctx context.Context, first, second backupartifact.Repository, keys []string, expectedHeads []backupartifact.ErasureStreamHead) (ErasureLedgerSnapshot, error) {
+	if len(keys) > backupartifact.MaxErasureLedgerEvents {
 		return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger commit count is invalid", backupartifact.ErrInvalidManifest)
 	}
 	digest := sha256.New()
 	marked := make([]string, 0, len(keys)*3)
 	bySlot := make(map[uint16]map[string]PermanentErasureBoundary)
-	for index, key := range keys {
-		sequence := uint64(index + 1)
+	commitSHAByKey := make(map[string]string, len(keys))
+	heads := make([]backupartifact.ErasureStreamHead, 0, l.hashSlotCount)
+	var currentSlot uint16
+	var currentSequence uint64
+	var previousCommitSHA string
+	haveStream := false
+	for _, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return ErasureLedgerSnapshot{}, err
 		}
-		if key != backupartifact.ErasureLedgerCommitKey(sequence) {
+		namespace, hashSlot, sequence, parseErr := backupartifact.ParseErasureLedgerCommitKey(key)
+		if parseErr != nil || namespace != l.streamNamespace || hashSlot >= l.hashSlotCount {
+			return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger commit key is invalid", backupartifact.ErrInvalidManifest)
+		}
+		if !haveStream || hashSlot != currentSlot {
+			if haveStream {
+				heads = append(heads, backupartifact.ErasureStreamHead{
+					HashSlot: currentSlot, Sequence: currentSequence,
+					CommitKey:    backupartifact.ErasureLedgerCommitKey(l.streamNamespace, currentSlot, currentSequence),
+					CommitSHA256: previousCommitSHA,
+				})
+			}
+			if haveStream && hashSlot <= currentSlot {
+				return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger streams are not sorted", backupartifact.ErrInvalidManifest)
+			}
+			currentSlot, currentSequence, previousCommitSHA, haveStream = hashSlot, 0, "", true
+		}
+		if sequence != currentSequence+1 {
 			return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger commits are not contiguous", backupartifact.ErrInvalidManifest)
 		}
 		commitBody, err := loadLedgerArtifactBytes(ctx, first, second, key, maxErasureLedgerRepositoryBytes)
@@ -238,7 +275,10 @@ func (l *ErasureLedgerLoader) loadSnapshot(ctx context.Context, first, second ba
 			return ErasureLedgerSnapshot{}, err
 		}
 		commit, err := backupartifact.LoadErasureLedgerCommit(ctx, commitBody, l.signer)
-		if err != nil || commit.Sequence != sequence || commit.RepositoryID != l.repositoryID || commit.SourceClusterID != l.sourceClusterID || commit.SourceGeneration != l.sourceGeneration ||
+		commitSHA := sha256Hex(commitBody)
+		if err != nil || commit.HashSlot != hashSlot || commit.Sequence != sequence ||
+			commit.PreviousCommitSHA256 != previousCommitSHA ||
+			commit.RepositoryID != l.repositoryID || commit.SourceClusterID != l.sourceClusterID || commit.SourceGeneration != l.sourceGeneration ||
 			commit.PrimaryRepository != l.primaryRepository || commit.SecondaryRepository != l.secondaryRepository {
 			return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger commit identity mismatch", backupartifact.ErrInvalidManifest)
 		}
@@ -252,7 +292,7 @@ func (l *ErasureLedgerLoader) loadSnapshot(ctx context.Context, first, second ba
 			return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger record digest mismatch", backupartifact.ErrInvalidManifest)
 		}
 		record, err := backupartifact.LoadErasureLedgerRecord(ctx, recordBody, l.signer)
-		if err != nil || record.EventID != commit.EventID || record.RepositoryID != l.repositoryID || record.SourceClusterID != l.sourceClusterID || record.SourceGeneration != l.sourceGeneration ||
+		if err != nil || record.HashSlot != hashSlot || record.EventID != commit.EventID || record.RepositoryID != l.repositoryID || record.SourceClusterID != l.sourceClusterID || record.SourceGeneration != l.sourceGeneration ||
 			commit.RecordKey != backupartifact.ErasureLedgerRecordKey(record.HashSlot, record.EventID) || record.HashSlot >= l.hashSlotCount {
 			return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger record identity mismatch", backupartifact.ErrInvalidManifest)
 		}
@@ -279,6 +319,19 @@ func (l *ErasureLedgerLoader) loadSnapshot(ctx context.Context, first, second ba
 		if event.ThroughSeq > current.ThroughSeq {
 			bySlot[event.HashSlot][identity] = PermanentErasureBoundary{ChannelID: event.ChannelID, ChannelType: event.ChannelType, ThroughSeq: event.ThroughSeq}
 		}
+		currentSequence = sequence
+		previousCommitSHA = commitSHA
+		commitSHAByKey[key] = commitSHA
+	}
+	if haveStream {
+		heads = append(heads, backupartifact.ErasureStreamHead{
+			HashSlot: currentSlot, Sequence: currentSequence,
+			CommitKey:    backupartifact.ErasureLedgerCommitKey(l.streamNamespace, currentSlot, currentSequence),
+			CommitSHA256: previousCommitSHA,
+		})
+	}
+	if expectedHeads != nil && !reflect.DeepEqual(heads, expectedHeads) {
+		return ErasureLedgerSnapshot{}, fmt.Errorf("%w: erasure-ledger stream heads mismatch", backupartifact.ErrInvalidManifest)
 	}
 	events := make(map[uint16][]PermanentErasureBoundary, len(bySlot))
 	for hashSlot, boundaries := range bySlot {
@@ -294,7 +347,11 @@ func (l *ErasureLedgerLoader) loadSnapshot(ctx context.Context, first, second ba
 		})
 		events[hashSlot] = items
 	}
-	return ErasureLedgerSnapshot{Version: backupartifact.ErasureLedgerSnapshotVersion, Boundary: boundary, SHA256: hex.EncodeToString(digest.Sum(nil)), Keys: marked, events: events}, nil
+	return ErasureLedgerSnapshot{
+		Version: backupartifact.ErasureLedgerSnapshotVersion, EventCount: uint64(len(keys)),
+		Heads: heads, SHA256: hex.EncodeToString(digest.Sum(nil)), Keys: marked,
+		events: events, commitSHAByKey: commitSHAByKey,
+	}, nil
 }
 
 func loadLedgerArtifactBytes(ctx context.Context, first, second backupartifact.Repository, key string, limit int64) ([]byte, error) {
@@ -321,15 +378,29 @@ func appendLedgerDigest(digest hash.Hash, bodies ...[]byte) {
 	}
 }
 
-func validErasureLedgerCommitKey(key string) bool {
-	if len(key) != len("erasure-ledger/commits/")+20+len(".json") || !strings.HasPrefix(key, "erasure-ledger/commits/") || !strings.HasSuffix(key, ".json") {
-		return false
+func validErasureLedgerCommitKey(key, namespace string) bool {
+	parsedNamespace, _, _, err := backupartifact.ParseErasureLedgerCommitKey(key)
+	return err == nil && parsedNamespace == namespace
+}
+
+func erasureCommitKeysForHeads(heads []backupartifact.ErasureStreamHead, namespace string, hashSlotCount uint16) ([]string, []backupartifact.ErasureStreamHead, error) {
+	normalized := append([]backupartifact.ErasureStreamHead(nil), heads...)
+	keys := make([]string, 0)
+	var total uint64
+	for index, head := range normalized {
+		headNamespace, _, _, err := backupartifact.ParseErasureLedgerCommitKey(head.CommitKey)
+		if err != nil || headNamespace != namespace || head.HashSlot >= hashSlotCount || backupartifact.ValidateErasureStreamHead(head) != nil ||
+			(index > 0 && normalized[index-1].HashSlot >= head.HashSlot) ||
+			head.Sequence > uint64(backupartifact.MaxErasureLedgerEvents)-total {
+			return nil, nil, backupartifact.ErrInvalidManifest
+		}
+		total += head.Sequence
 	}
-	digits := strings.TrimSuffix(strings.TrimPrefix(key, "erasure-ledger/commits/"), ".json")
-	for _, digit := range digits {
-		if digit < '0' || digit > '9' {
-			return false
+	keys = make([]string, 0, int(total))
+	for _, head := range normalized {
+		for sequence := uint64(1); sequence <= head.Sequence; sequence++ {
+			keys = append(keys, backupartifact.ErasureLedgerCommitKey(namespace, head.HashSlot, sequence))
 		}
 	}
-	return key != backupartifact.ErasureLedgerCommitKey(0)
+	return keys, normalized, nil
 }

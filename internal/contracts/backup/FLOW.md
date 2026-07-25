@@ -39,6 +39,12 @@ failure category. Its `LeaseCurrent` bit distinguishes a current owner from a
 fenced stale worker.
 The coordination state adds one `CatalogPageReference` head beside those Slot
 frontiers. It never transports checkpoint history or repository payloads.
+Permanent erasure coordination is also partitioned by Hash Slot: each bounded
+stream exposes only its authenticated head plus at most one pending and one
+last-committed reference. Restore contracts carry sorted stream heads, their
+aggregate event count, and the snapshot digest; public projections reduce each
+stream to Slot, sequence, and pending state without Channel identity or
+repository keys.
 
 Backup coordination state includes at most one durable verification task and
 bounded per-restore-point later-audit evidence. Publication-time primary and

@@ -53,8 +53,10 @@ type RestoreInspection struct {
 	HashSlotCount    uint16
 	// ErasureLedgerVersion identifies the authenticated permanent-erasure snapshot schema.
 	ErasureLedgerVersion uint32
-	// ErasureLedgerBoundary pins the exact contiguous commit prefix to replay.
-	ErasureLedgerBoundary uint64
+	// ErasureEventCount is the total number of events selected by ErasureHeads.
+	ErasureEventCount uint64
+	// ErasureHeads authenticate the exact selected prefix of each Hash Slot stream.
+	ErasureHeads []backupartifact.ErasureStreamHead
 	// ErasureLedgerSHA256 authenticates the exact pinned ledger prefix.
 	ErasureLedgerSHA256  string
 	EstimatedPlainBytes  *uint64
@@ -128,7 +130,8 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 		return RestorePlan{}, err
 	}
 	if !inspection.TargetEmpty || inspection.RestorePointID == "" || !validRestoreDigest(inspection.ManifestSHA256) || inspection.HashSlotCount == 0 || inspection.TargetClusterID == inspection.SourceClusterID || inspection.TargetGeneration == inspection.SourceGeneration ||
-		inspection.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validRestoreDigest(inspection.ErasureLedgerSHA256) {
+		inspection.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validRestoreDigest(inspection.ErasureLedgerSHA256) ||
+		!validRestoreErasureHeads(inspection.ErasureHeads, inspection.HashSlotCount, inspection.ErasureEventCount) {
 		return RestorePlan{}, fmt.Errorf("%w: restore inspection is unsafe", ErrInvalidRequest)
 	}
 	now := a.now().UTC().UnixMilli()
@@ -138,7 +141,8 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 		SourceClusterID: inspection.SourceClusterID, SourceGeneration: inspection.SourceGeneration,
 		TargetClusterID: inspection.TargetClusterID, TargetGeneration: inspection.TargetGeneration,
 		HashSlotCount: inspection.HashSlotCount, InvalidateTokens: request.InvalidateTokens,
-		ErasureLedgerVersion: inspection.ErasureLedgerVersion, ErasureLedgerBoundary: inspection.ErasureLedgerBoundary, ErasureLedgerSHA256: inspection.ErasureLedgerSHA256,
+		ErasureLedgerVersion: inspection.ErasureLedgerVersion, ErasureEventCount: inspection.ErasureEventCount,
+		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), inspection.ErasureHeads...), ErasureLedgerSHA256: inspection.ErasureLedgerSHA256,
 		EstimatedPlainBytes: inspection.EstimatedPlainBytes, EstimatedCipherBytes: inspection.EstimatedCipherBytes,
 		Status: RestoreStatusPlanned, CreatedAtUnixMillis: now, UpdatedAtUnixMillis: now,
 		Partitions: make([]RestorePartition, inspection.HashSlotCount),
@@ -364,6 +368,7 @@ func cloneRestorePlan(plan *RestorePlan) *RestorePlan {
 		return nil
 	}
 	copy := *plan
+	copy.ErasureHeads = append([]backupartifact.ErasureStreamHead(nil), plan.ErasureHeads...)
 	if plan.EstimatedPlainBytes != nil {
 		value := *plan.EstimatedPlainBytes
 		copy.EstimatedPlainBytes = &value
@@ -374,4 +379,17 @@ func cloneRestorePlan(plan *RestorePlan) *RestorePlan {
 	}
 	copy.Partitions = append([]RestorePartition(nil), plan.Partitions...)
 	return &copy
+}
+
+func validRestoreErasureHeads(heads []backupartifact.ErasureStreamHead, hashSlotCount uint16, eventCount uint64) bool {
+	var total uint64
+	for index, head := range heads {
+		if head.HashSlot >= hashSlotCount || backupartifact.ValidateErasureStreamHead(head) != nil ||
+			(index > 0 && heads[index-1].HashSlot >= head.HashSlot) ||
+			head.Sequence > uint64(backupartifact.MaxErasureLedgerEvents)-total {
+			return false
+		}
+		total += head.Sequence
+	}
+	return total == eventCount
 }

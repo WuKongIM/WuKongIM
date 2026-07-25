@@ -149,7 +149,9 @@ type BackupVerificationTask struct {
 // BackupErasureLedgerReference is the only bounded pending permanent-erasure
 // ledger record stored in Controller state.
 type BackupErasureLedgerReference struct {
-	// Sequence is the next contiguous ledger commit sequence.
+	// HashSlot identifies the independently sequenced erasure stream.
+	HashSlot uint16 `json:"hash_slot"`
+	// Sequence is the next contiguous position within HashSlot.
 	Sequence uint64 `json:"sequence"`
 	// EventID is the deterministic permanent-erasure event identity.
 	EventID string `json:"event_id"`
@@ -157,6 +159,19 @@ type BackupErasureLedgerReference struct {
 	RecordKey string `json:"record_key"`
 	// RecordSHA256 authenticates the exact signed record bytes.
 	RecordSHA256 string `json:"record_sha256"`
+}
+
+// BackupErasureStreamState is the bounded coordination state for one Hash Slot
+// permanent-erasure stream.
+type BackupErasureStreamState struct {
+	// HashSlot identifies the independently sequenced stream.
+	HashSlot uint16 `json:"hash_slot"`
+	// Head authenticates the latest dual-repository commit.
+	Head *backupartifact.ErasureStreamHead `json:"head,omitempty"`
+	// Pending is the one reserved record whose commit marker may need repair.
+	Pending *BackupErasureLedgerReference `json:"pending,omitempty"`
+	// LastCommitted preserves constant-space retry recognition.
+	LastCommitted *BackupErasureLedgerReference `json:"last_committed,omitempty"`
 }
 
 // BackupSegmentReference binds a Controller frontier to one immutable dual-repository commit.
@@ -292,12 +307,8 @@ type BackupCoordinationState struct {
 	SlotFrontiers []BackupSlotFrontier `json:"slot_frontiers,omitempty"`
 	// CatalogHead is the only Controller-resident pointer into immutable checkpoint history.
 	CatalogHead *BackupCatalogPageReference `json:"catalog_head,omitempty"`
-	// ErasureLedgerBoundary is the highest durably committed contiguous ledger sequence.
-	ErasureLedgerBoundary uint64 `json:"erasure_ledger_boundary,omitempty"`
-	// PendingErasureLedger contains at most one record awaiting commit-marker publication.
-	PendingErasureLedger *BackupErasureLedgerReference `json:"pending_erasure_ledger,omitempty"`
-	// LastCommittedErasureLedger preserves bounded idempotency for the latest accepted request.
-	LastCommittedErasureLedger *BackupErasureLedgerReference `json:"last_committed_erasure_ledger,omitempty"`
+	// ErasureStreams contains at most one sorted bounded state per Hash Slot.
+	ErasureStreams []BackupErasureStreamState `json:"erasure_streams,omitempty"`
 }
 
 // Clone returns a deep copy safe for normalization and mutation.
@@ -319,13 +330,25 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 		head := *s.CatalogHead
 		out.CatalogHead = &head
 	}
-	if s.PendingErasureLedger != nil {
-		pending := *s.PendingErasureLedger
-		out.PendingErasureLedger = &pending
-	}
-	if s.LastCommittedErasureLedger != nil {
-		committed := *s.LastCommittedErasureLedger
-		out.LastCommittedErasureLedger = &committed
+	out.ErasureStreams = cloneBackupErasureStreams(s.ErasureStreams)
+	return out
+}
+
+func cloneBackupErasureStreams(streams []BackupErasureStreamState) []BackupErasureStreamState {
+	out := cloneSlice(streams)
+	for index, stream := range streams {
+		if stream.Head != nil {
+			head := *stream.Head
+			out[index].Head = &head
+		}
+		if stream.Pending != nil {
+			pending := *stream.Pending
+			out[index].Pending = &pending
+		}
+		if stream.LastCommitted != nil {
+			committed := *stream.LastCommitted
+			out[index].LastCommitted = &committed
+		}
 	}
 	return out
 }

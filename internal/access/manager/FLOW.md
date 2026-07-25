@@ -547,7 +547,9 @@ returns `202`; it does not hold the HTTP request open for the repository audit.
 The vNext checkpoint routes page and query the immutable catalog through a
 rebuildable local derived index. Responses expose bounded identities,
 timestamps, source generation, and Hash Slot count but omit segment and object
-keys.
+keys. Backup status and checkpoint detail expose permanent-erasure progress only
+as Hash Slot, committed sequence, and pending state; they never expose Channel
+identity, event identity, repository keys, or digests.
 Backup status also exposes at most one sanitized durable capture lease per Hash
 Slot: Slot/holder identity, leader and config epochs, Generation, monotonic
 lease/frontier revisions, watermarks, takeover/update times, and the durable

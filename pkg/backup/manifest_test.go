@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -63,7 +64,9 @@ func TestSignedManifestRoundTripPreservesLogicalClusterCut(t *testing.T) {
 				Nonce:            "bm9uY2Utbm9uY2U=",
 			},
 		},
-		ErasureLedgerBoundary: 4,
+		ErasureHeads: []backup.ErasureStreamHead{{
+			HashSlot: 0, Sequence: 4, CommitKey: backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 0, 4), CommitSHA256: strings.Repeat("f", 64),
+		}},
 	}
 
 	signed, err := backup.SignManifest(context.Background(), manifest, signer, "manifest-signing-key")

@@ -3,6 +3,8 @@ package backup
 import (
 	"context"
 	"strings"
+
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 const (
@@ -30,6 +32,8 @@ type CheckpointDetail struct {
 	SourceGeneration string
 	// HashSlotCount is the exact vector width.
 	HashSlotCount uint16
+	// ErasureHeads are the authenticated per-Slot deletion prefixes observed at publication.
+	ErasureHeads []backupartifact.ErasureStreamHead
 }
 
 // CheckpointListRequest selects one stable newest-first catalog page.

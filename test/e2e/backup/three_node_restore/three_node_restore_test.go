@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
@@ -46,19 +47,19 @@ type restorePoint struct {
 }
 
 type restorePlan struct {
-	ID                    string             `json:"id"`
-	RestorePointID        string             `json:"restore_point_id"`
-	ManifestSHA256        string             `json:"manifest_sha256"`
-	ErasureLedgerVersion  uint32             `json:"erasure_ledger_version"`
-	ErasureLedgerBoundary uint64             `json:"erasure_ledger_boundary"`
-	ErasureLedgerSHA256   string             `json:"erasure_ledger_sha256"`
-	SourceClusterID       string             `json:"source_cluster_id"`
-	SourceGeneration      string             `json:"source_generation"`
-	TargetClusterID       string             `json:"target_cluster_id"`
-	TargetGeneration      string             `json:"target_generation"`
-	HashSlotCount         uint16             `json:"hash_slot_count"`
-	Status                string             `json:"status"`
-	Partitions            []restorePartition `json:"partitions"`
+	ID                   string             `json:"id"`
+	RestorePointID       string             `json:"restore_point_id"`
+	ManifestSHA256       string             `json:"manifest_sha256"`
+	ErasureLedgerVersion uint32             `json:"erasure_ledger_version"`
+	ErasureEventCount    uint64             `json:"erasure_event_count"`
+	ErasureLedgerSHA256  string             `json:"erasure_ledger_sha256"`
+	SourceClusterID      string             `json:"source_cluster_id"`
+	SourceGeneration     string             `json:"source_generation"`
+	TargetClusterID      string             `json:"target_cluster_id"`
+	TargetGeneration     string             `json:"target_generation"`
+	HashSlotCount        uint16             `json:"hash_slot_count"`
+	Status               string             `json:"status"`
+	Partitions           []restorePartition `json:"partitions"`
 }
 
 type restorePartition struct {
@@ -156,8 +157,8 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 	token := loginRestoreManager(t, target)
 	plan := createRestorePlan(t, target, token, incremental.ID)
 	require.Equal(t, incremental.ID, plan.RestorePointID)
-	require.Equal(t, uint32(1), plan.ErasureLedgerVersion)
-	require.Equal(t, uint64(1), plan.ErasureLedgerBoundary)
+	require.Equal(t, backupartifact.ErasureLedgerSnapshotVersion, plan.ErasureLedgerVersion)
+	require.Equal(t, uint64(1), plan.ErasureEventCount)
 	require.Len(t, plan.ErasureLedgerSHA256, 64)
 	require.Equal(t, "wukongim-e2e-three", plan.SourceClusterID)
 	require.Equal(t, "source-generation", plan.SourceGeneration)

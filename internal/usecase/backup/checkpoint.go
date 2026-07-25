@@ -79,16 +79,16 @@ func (c *CheckpointCoordinator) Publish(ctx context.Context) (backupartifact.Che
 	if !c.enabled {
 		return backupartifact.CheckpointCatalogCommit{}, ErrDisabled
 	}
+	state, err := c.store.Load(ctx)
+	if err != nil {
+		return backupartifact.CheckpointCatalogCommit{}, err
+	}
 	statuses := c.captureStatus.Status()
 	frontiers, err := checkpointFrontiersFromHealthyStatuses(statuses, c.hashSlotCount)
 	if err != nil {
 		return backupartifact.CheckpointCatalogCommit{}, err
 	}
-	checkpoint, err := c.buildCheckpoint(frontiers)
-	if err != nil {
-		return backupartifact.CheckpointCatalogCommit{}, err
-	}
-	state, err := c.store.Load(ctx)
+	checkpoint, err := c.buildCheckpoint(frontiers, erasureHeadsFromStreams(state.ErasureStreams))
 	if err != nil {
 		return backupartifact.CheckpointCatalogCommit{}, err
 	}
@@ -176,7 +176,7 @@ func (c *CheckpointCoordinator) verifyCurrentProofs(ctx context.Context, checkpo
 	return group.Wait()
 }
 
-func (c *CheckpointCoordinator) buildCheckpoint(frontiers []backupcontract.SlotFrontier) (backupartifact.Checkpoint, error) {
+func (c *CheckpointCoordinator) buildCheckpoint(frontiers []backupcontract.SlotFrontier, erasureHeads []backupartifact.ErasureStreamHead) (backupartifact.Checkpoint, error) {
 	if len(frontiers) != int(c.hashSlotCount) {
 		return backupartifact.Checkpoint{}, ErrPartitionsIncomplete
 	}
@@ -187,6 +187,7 @@ func (c *CheckpointCoordinator) buildCheckpoint(frontiers []backupcontract.SlotF
 		SourceClusterID:  c.sourceClusterID,
 		SourceGeneration: c.sourceGeneration, HashSlotCount: c.hashSlotCount,
 		CreatedAtUnixMillis: createdAt, Slots: make([]backupartifact.CheckpointSlot, c.hashSlotCount),
+		ErasureHeads: erasureHeads,
 	}
 	for index, frontier := range frontiers {
 		if frontier.HashSlot != uint16(index) || frontier.Revision == 0 {
@@ -206,6 +207,16 @@ func (c *CheckpointCoordinator) buildCheckpoint(frontiers []backupcontract.SlotF
 		}
 	}
 	return checkpoint, nil
+}
+
+func erasureHeadsFromStreams(streams []backupcontract.ErasureStreamState) []backupartifact.ErasureStreamHead {
+	heads := make([]backupartifact.ErasureStreamHead, 0, len(streams))
+	for _, stream := range streams {
+		if stream.Head != nil {
+			heads = append(heads, *stream.Head)
+		}
+	}
+	return heads
 }
 
 func checkpointBaseline(reference *backupcontract.SlotBaselineReference, cursor *backupartifact.SegmentReference) *backupartifact.CheckpointBaseline {

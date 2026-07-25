@@ -375,12 +375,16 @@ func (r *S3Repository) ListRestorePointIDs(ctx context.Context) ([]string, error
 	return result, nil
 }
 
-// ListErasureLedgerCommitKeys returns bounded lexically ordered commit-marker keys.
-func (r *S3Repository) ListErasureLedgerCommitKeys(ctx context.Context) ([]string, error) {
+// ListErasureLedgerCommitKeys returns bounded lexically ordered commit-marker
+// keys for one source-generation namespace.
+func (r *S3Repository) ListErasureLedgerCommitKeys(ctx context.Context, namespace string) ([]string, error) {
 	if r == nil || r.client == nil {
 		return nil, fmt.Errorf("backup s3 repository: repository is required")
 	}
-	prefix := r.prefix + "/erasure-ledger/commits/"
+	if _, _, _, err := backupartifact.ParseErasureLedgerCommitKey(backupartifact.ErasureLedgerCommitKey(namespace, 0, 1)); err != nil {
+		return nil, fmt.Errorf("backup s3 repository: erasure-ledger namespace is invalid")
+	}
+	prefix := r.prefix + "/erasure-ledger/streams/" + namespace + "/"
 	keys := make([]string, 0)
 	var continuationToken *string
 	for {
@@ -396,11 +400,11 @@ func (r *S3Repository) ListErasureLedgerCommitKeys(ctx context.Context) ([]strin
 		for _, object := range output.Contents {
 			fullKey := aws.ToString(object.Key)
 			relative := strings.TrimPrefix(fullKey, r.prefix+"/")
-			if relative == fullKey || !validErasureLedgerCommitKey(relative) {
+			if relative == fullKey || !validErasureLedgerCommitKey(relative, namespace) {
 				return nil, fmt.Errorf("%w: invalid listed erasure-ledger commit key", backupartifact.ErrObjectCorrupt)
 			}
 			keys = append(keys, relative)
-			if len(keys) > maxErasureLedgerCommits {
+			if len(keys) > backupartifact.MaxErasureLedgerEvents {
 				return nil, fmt.Errorf("backup s3 repository: erasure-ledger commit listing exceeds limit")
 			}
 		}

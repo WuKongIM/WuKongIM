@@ -17,8 +17,13 @@ import (
 )
 
 func TestCheckpointCoordinatorPublishesCompleteHealthyVectorBeforeAdvancingHead(t *testing.T) {
+	erasureHead := backupartifact.ErasureStreamHead{
+		HashSlot: 7, Sequence: 3, CommitKey: backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 7, 3),
+		CommitSHA256: strings.Repeat("f", 64),
+	}
 	store := &memoryStateStore{state: backupusecase.State{
 		Revision: 5, SlotFrontiers: checkpointTestFrontiers(256),
+		ErasureStreams: []backupusecase.ErasureStreamState{{HashSlot: 7, Head: &erasureHead}},
 	}}
 	statuses := checkpointTestStatuses(256)
 	catalog := &recordingCheckpointCatalog{store: store}
@@ -39,6 +44,7 @@ func TestCheckpointCoordinatorPublishesCompleteHealthyVectorBeforeAdvancingHead(
 	require.Len(t, catalog.checkpoint.Slots, 256)
 	require.Equal(t, int64(1_753_400_100_000), catalog.checkpoint.EffectiveAtUnixMillis)
 	require.Equal(t, uint16(255), catalog.checkpoint.Slots[255].HashSlot)
+	require.Equal(t, []backupartifact.ErasureStreamHead{erasureHead}, catalog.checkpoint.ErasureHeads)
 	require.Equal(t, commit.Head, *store.state.CatalogHead)
 	require.True(t, catalog.controllerHeadWasNil, "catalog must commit before Controller visibility")
 	require.Equal(t, int64(256*3), proofs.calls.Load())

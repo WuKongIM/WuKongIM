@@ -145,6 +145,12 @@ func (p *ReplicatedPublisher) PublishReferences(ctx context.Context, manifest Ma
 		}
 		candidate := manifest
 		candidate.CreatedAtUnixMillis = signed.CreatedAtUnixMillis
+		// The first authenticated manifest persisted under a restore-point key
+		// freezes that restore point's permanent-erasure prefix. A retry may
+		// observe newer stream heads while repairing the other repository or
+		// the publication marker, but it must adopt the already-frozen heads
+		// instead of trying to redefine the immutable restore point.
+		candidate.ErasureHeads = append([]ErasureStreamHead(nil), signed.ErasureHeads...)
 		candidateCanonical, err := canonicalUnsignedManifest(candidate)
 		if err != nil {
 			return Manifest{}, err

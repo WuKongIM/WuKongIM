@@ -16,6 +16,9 @@ func TestCheckpointRoundTripRequiresCompleteSortedVectorCut(t *testing.T) {
 	}
 	signer := ed25519ManifestSigner{privateKey: privateKey}
 	checkpoint := validCheckpointArtifact(2)
+	checkpoint.ErasureHeads = []backup.ErasureStreamHead{{
+		HashSlot: 1, Sequence: 4, CommitKey: backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, 4), CommitSHA256: strings.Repeat("d", 64),
+	}}
 	signed, err := backup.SignCheckpoint(context.Background(), checkpoint, signer, "signing-key")
 	if err != nil {
 		t.Fatalf("SignCheckpoint() error = %v", err)
@@ -28,7 +31,7 @@ func TestCheckpointRoundTripRequiresCompleteSortedVectorCut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadCheckpoint() error = %v", err)
 	}
-	if loaded.ID != checkpoint.ID || len(loaded.Slots) != 2 ||
+	if loaded.ID != checkpoint.ID || len(loaded.Slots) != 2 || len(loaded.ErasureHeads) != 1 ||
 		loaded.EffectiveAtUnixMillis != checkpoint.EffectiveAtUnixMillis {
 		t.Fatalf("checkpoint round trip = %#v", loaded)
 	}
@@ -42,6 +45,11 @@ func TestCheckpointRoundTripRequiresCompleteSortedVectorCut(t *testing.T) {
 	duplicate.Slots[1].HashSlot = 0
 	if _, err := backup.SignCheckpoint(context.Background(), duplicate, signer, "signing-key"); err == nil {
 		t.Fatal("SignCheckpoint(duplicate Slot) error = nil")
+	}
+	invalidHead := checkpoint
+	invalidHead.ErasureHeads[0].CommitKey = backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 0, 4)
+	if _, err := backup.SignCheckpoint(context.Background(), invalidHead, signer, "signing-key"); err == nil {
+		t.Fatal("SignCheckpoint(mismatched erasure head) error = nil")
 	}
 }
 

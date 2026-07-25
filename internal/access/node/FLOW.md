@@ -672,8 +672,9 @@ contains record counts and the message-ID fence. The unchanged pairs are
 trailing bytes, invalid digests, oversized batches, and older evidence-free
 response/install versions.
 
-The restore install request also carries the immutable permanent-erasure
-ledger version, boundary, and SHA-256 from the Controller plan. Every node
-rejects missing or malformed ledger evidence before entering the restore-only
-installer. Restore verification batches carry each Channel's independently
-verified physical-erasure prefix in addition to checkpoint/LEO boundaries.
+The restore install request also carries the immutable permanent-erasure ledger
+version, sorted per-Hash-Slot heads, aggregate event count, and SHA-256 from the
+Controller plan. Every node rejects missing, malformed, duplicate, or
+non-contiguous ledger evidence before entering the restore-only installer.
+Restore verification batches carry each Channel's independently verified
+physical-erasure prefix in addition to checkpoint/LEO boundaries.

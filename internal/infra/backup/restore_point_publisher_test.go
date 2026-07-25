@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -83,21 +84,43 @@ func TestRestorePointPublisherLoadsEveryPartitionFromBothRepositories(t *testing
 	}
 	seed := sha256.Sum256([]byte("restore-point-publisher-test"))
 	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
+	primaryPublisherRepository := &publisherFailPutRepository{
+		Repository: primary,
+		failKey:    "restore-points/restore-point-12/published.json",
+	}
+	erasureSequence := uint64(4)
 	publisher, err := backupinfra.NewRestorePointPublisher(backupinfra.RestorePointPublisherOptions{
-		Primary:               primary,
-		Secondary:             secondary,
-		Signer:                signer,
-		SigningKeyID:          "signing-key",
-		ApplicationVersion:    "3.0.0-beta.1",
-		RepositoryID:          "repo-prod",
-		SourceClusterID:       "cluster-a",
-		SourceGeneration:      "generation-1",
-		Now:                   func() time.Time { return time.UnixMilli(1710000010000).UTC() },
-		NewRestorePointID:     func() string { return "restore-point-12" },
-		ErasureLedgerBoundary: func(context.Context) (uint64, error) { return 4, nil },
+		Primary:            primaryPublisherRepository,
+		Secondary:          secondary,
+		Signer:             signer,
+		SigningKeyID:       "signing-key",
+		ApplicationVersion: "3.0.0-beta.1",
+		RepositoryID:       "repo-prod",
+		SourceClusterID:    "cluster-a",
+		SourceGeneration:   "generation-1",
+		Now:                func() time.Time { return time.UnixMilli(1710000010000).UTC() },
+		NewRestorePointID:  func() string { return "restore-point-12" },
+		ErasureHeads: func(context.Context) ([]backupartifact.ErasureStreamHead, error) {
+			return []backupartifact.ErasureStreamHead{{
+				HashSlot: 1,
+				Sequence: erasureSequence,
+				CommitKey: backupartifact.ErasureLedgerCommitKey(
+					strings.Repeat("e", 64), 1, erasureSequence,
+				),
+				CommitSHA256: strings.Repeat("f", 64),
+			}}, nil
+		},
 	})
 	require.NoError(t, err)
 
+	_, err = publisher.Publish(context.Background(), job)
+	require.Error(t, err)
+	staged, err := backupartifact.LoadRestorePoint(context.Background(), secondary, "restore-point-12", signer)
+	require.NoError(t, err)
+	require.Equal(t, uint64(4), staged.ErasureHeads[0].Sequence)
+
+	primaryPublisherRepository.failKey = ""
+	erasureSequence = 5
 	restorePoint, err := publisher.Publish(context.Background(), job)
 	require.NoError(t, err)
 	require.Equal(t, int64(1710000000000), restorePoint.EffectiveAtUnixMillis)
@@ -106,7 +129,7 @@ func TestRestorePointPublisherLoadsEveryPartitionFromBothRepositories(t *testing
 	loaded, err := backupartifact.LoadRestorePoint(context.Background(), secondary, restorePoint.ID, signer)
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), loaded.Partitions[0].Evidence.MaxMessageID)
-	require.Equal(t, uint64(4), loaded.ErasureLedgerBoundary)
+	require.Equal(t, uint64(4), loaded.ErasureHeads[0].Sequence)
 }
 
 func TestRestorePointPublisherRejectsIncrementalWhenSecondaryBaseObjectIsMissing(t *testing.T) {
@@ -191,6 +214,18 @@ func publisherTestObject(key string, body []byte) backupartifact.ObjectEntry {
 func putPublisherTestObject(t *testing.T, repository backupartifact.Repository, entry backupartifact.ObjectEntry, body []byte) {
 	t.Helper()
 	require.NoError(t, repository.PutImmutable(context.Background(), entry.Key, int64(len(body)), entry.CiphertextSHA256, bytes.NewReader(body)))
+}
+
+type publisherFailPutRepository struct {
+	backupartifact.Repository
+	failKey string
+}
+
+func (r *publisherFailPutRepository) PutImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error {
+	if key == r.failKey {
+		return fmt.Errorf("injected put failure for %q", key)
+	}
+	return r.Repository.PutImmutable(ctx, key, size, checksum, body)
 }
 
 type testEd25519Signer struct {

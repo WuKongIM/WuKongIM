@@ -18,15 +18,20 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 7,
 		Backup: &controller.BackupCoordinationState{
-			LastEpoch:             3,
-			ErasureLedgerBoundary: 4,
+			LastEpoch: 3,
 			CatalogHead: &controller.BackupCatalogPageReference{
 				Sequence: 4, Key: "catalog/pages/00000000000000000004-checkpoint-4.json",
 				SHA256: strings.Repeat("f", 64), Bytes: 456, LatestCheckpointID: "checkpoint-4",
 			},
-			PendingErasureLedger: &controller.BackupErasureLedgerReference{
-				Sequence: 5, EventID: strings.Repeat("d", 64), RecordKey: "erasure-ledger/events/0002/" + strings.Repeat("d", 64) + ".json", RecordSHA256: strings.Repeat("e", 64),
-			},
+			ErasureStreams: []controller.BackupErasureStreamState{{
+				HashSlot: 2,
+				Head: &backupartifact.ErasureStreamHead{
+					HashSlot: 2, Sequence: 4, CommitKey: backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 2, 4), CommitSHA256: strings.Repeat("a", 64),
+				},
+				Pending: &controller.BackupErasureLedgerReference{
+					HashSlot: 2, Sequence: 5, EventID: strings.Repeat("d", 64), RecordKey: "erasure-ledger/events/0002/" + strings.Repeat("d", 64) + ".json", RecordSHA256: strings.Repeat("e", 64),
+				},
+			}},
 			Active: &controller.BackupJob{
 				ID:                  "backup-3",
 				Epoch:               3,
@@ -70,8 +75,8 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	require.Equal(t, backupusecase.JobStatusCapturing, state.Active.Status)
 	require.Equal(t, uint16(2), state.Active.Partitions[0].HashSlot)
 	require.Equal(t, "restore-expired", state.PendingGarbage[0].ID)
-	require.Equal(t, uint64(4), state.ErasureLedgerBoundary)
-	require.Equal(t, uint64(5), state.PendingErasureLedger.Sequence)
+	require.Equal(t, uint64(4), state.ErasureStreams[0].Head.Sequence)
+	require.Equal(t, uint64(5), state.ErasureStreams[0].Pending.Sequence)
 	require.Equal(t, uint64(4), state.CatalogHead.Sequence)
 
 	state.Active.Partitions[0].ManifestKey = "mutated"
@@ -98,16 +103,23 @@ func TestControllerStateStorePersistsErasureLedgerCoordination(t *testing.T) {
 	store, err := backupinfra.NewControllerStateStore(runtime)
 	require.NoError(t, err)
 	pending := &backupusecase.ErasureLedgerRecordReference{
-		Sequence: 3, EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json", RecordSHA256: strings.Repeat("b", 64),
+		HashSlot: 1, Sequence: 3, EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json", RecordSHA256: strings.Repeat("b", 64),
+	}
+	head := &backupartifact.ErasureStreamHead{
+		HashSlot: 1, Sequence: 2, CommitKey: backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, 2), CommitSHA256: strings.Repeat("c", 64),
 	}
 
-	err = store.CompareAndSwap(context.Background(), 9, backupusecase.State{ErasureLedgerBoundary: 2, PendingErasureLedger: pending})
+	err = store.CompareAndSwap(context.Background(), 9, backupusecase.State{ErasureStreams: []backupusecase.ErasureStreamState{{
+		HashSlot: 1, Head: head, Pending: pending,
+	}}})
 	require.NoError(t, err)
-	require.Equal(t, uint64(2), runtime.replacement.ErasureLedgerBoundary)
-	require.Equal(t, uint64(3), runtime.replacement.PendingErasureLedger.Sequence)
+	require.Equal(t, uint64(2), runtime.replacement.ErasureStreams[0].Head.Sequence)
+	require.Equal(t, uint64(3), runtime.replacement.ErasureStreams[0].Pending.Sequence)
 
 	pending.EventID = "mutated"
-	require.Equal(t, strings.Repeat("a", 64), runtime.replacement.PendingErasureLedger.EventID)
+	head.Sequence = 9
+	require.Equal(t, strings.Repeat("a", 64), runtime.replacement.ErasureStreams[0].Pending.EventID)
+	require.Equal(t, uint64(2), runtime.replacement.ErasureStreams[0].Head.Sequence)
 }
 
 func TestControllerStateStoreRoundTripsVerificationEvidence(t *testing.T) {

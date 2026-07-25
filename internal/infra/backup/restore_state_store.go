@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
@@ -56,7 +57,8 @@ func restorePlanFromController(plan *controller.RestorePlan) *backupusecase.Rest
 		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256,
 		Repository: plan.Repository, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
 		TargetClusterID: plan.TargetClusterID, TargetGeneration: plan.TargetGeneration, HashSlotCount: plan.HashSlotCount,
-		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureLedgerBoundary: plan.ErasureLedgerBoundary, ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
+		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureEventCount: plan.ErasureEventCount,
+		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), plan.ErasureHeads...), ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
 		InvalidateTokens: plan.InvalidateTokens, EstimatedPlainBytes: plan.EstimatedPlainBytes, EstimatedCipherBytes: plan.EstimatedCipherBytes,
 		Status: backupusecase.RestoreStatus(plan.Status), CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
 		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis, ActivationFenceDigest: plan.ActivationFenceDigest,
@@ -89,7 +91,8 @@ func restorePlanToController(plan *backupusecase.RestorePlan) *controller.Restor
 		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256,
 		Repository: plan.Repository, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
 		TargetClusterID: plan.TargetClusterID, TargetGeneration: plan.TargetGeneration, HashSlotCount: plan.HashSlotCount,
-		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureLedgerBoundary: plan.ErasureLedgerBoundary, ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
+		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureEventCount: plan.ErasureEventCount,
+		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), plan.ErasureHeads...), ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
 		InvalidateTokens: plan.InvalidateTokens, EstimatedPlainBytes: plan.EstimatedPlainBytes, EstimatedCipherBytes: plan.EstimatedCipherBytes,
 		Status: controller.RestoreStatus(plan.Status), CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
 		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis, ActivationFenceDigest: plan.ActivationFenceDigest,

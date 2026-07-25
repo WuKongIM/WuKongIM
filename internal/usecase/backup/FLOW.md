@@ -38,12 +38,16 @@ Current flow:
    semantic verification, and accepts activation only with a lowercase SHA-256
    old-cluster fence digest.
 9. Permanent-erasure publication reserves one contiguous Controller sequence
-   at a time. The bounded state keeps the committed boundary, one pending
-   record reference, and the latest committed reference so immediate retries
-   can repair either repository. Deterministic signed repository receipts retain
-   idempotency for older committed events without an unbounded Controller map. A restore plan
-   immutably pins the authenticated current ledger prefix independently of the
-   selected restore point.
+   per Hash Slot. Each bounded stream state keeps its authenticated head, one
+   pending record reference, and the latest committed reference so immediate
+   retries can repair either repository without blocking unrelated Slots.
+   Deterministic signed repository receipts retain idempotency for older
+   committed events without an unbounded Controller map. Checkpoint publication
+   freezes the sorted committed Slot heads. A restore plan immutably pins the
+   authenticated current heads independently of the selected restore point.
+   Admission counts both committed heads and every per-Slot pending reservation
+   against the portable snapshot limit, so live retention is rejected before a
+   deletion could make restore or garbage collection unreadable.
 10. `CheckpointCoordinator.Publish` requires exactly one healthy durable
     frontier from each Slot's public capture status, builds a nonblocking vector cut,
     authenticates only its current segment and cursor commit proofs,

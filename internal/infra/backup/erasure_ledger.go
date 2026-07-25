@@ -25,7 +25,7 @@ type ErasureLedgerReceipt = backupcontract.ErasureLedgerReceipt
 // ErasureLedgerCoordinator is the bounded Controller seam used to serialize commits.
 type ErasureLedgerCoordinator interface {
 	ReserveErasureLedgerCommit(context.Context, backupusecase.ErasureLedgerRecordReference) (backupusecase.ErasureLedgerRecordReference, error)
-	CommitErasureLedgerCommit(context.Context, uint64, string) error
+	CommitErasureLedgerCommit(context.Context, backupartifact.ErasureStreamHead, string) error
 	CoordinationState(context.Context) (backupusecase.State, error)
 }
 
@@ -36,7 +36,7 @@ type PermanentErasureLedgerOptions struct {
 	Secondary backupartifact.Repository
 	// Codec envelope-encrypts Channel identity before repository publication.
 	Codec *backupartifact.ObjectCodec
-	// Coordinator serializes the one-based contiguous commit boundary.
+	// Coordinator serializes each Hash Slot's one-based contiguous commit head.
 	Coordinator ErasureLedgerCoordinator
 	// Signer and SigningKeyID authenticate record and commit metadata.
 	Signer       backupartifact.ManifestSigner
@@ -55,7 +55,7 @@ type PermanentErasureLedgerOptions struct {
 	NewAttemptID func() string
 }
 
-// PermanentErasureLedger publishes and repairs one monotonic encrypted erasure ledger.
+// PermanentErasureLedger publishes and repairs per-Slot monotonic encrypted erasure streams.
 type PermanentErasureLedger struct {
 	primary          backupartifact.Repository
 	secondary        backupartifact.Repository
@@ -68,6 +68,7 @@ type PermanentErasureLedger struct {
 	repositoryID     string
 	sourceClusterID  string
 	sourceGeneration string
+	streamNamespace  string
 	hashSlotCount    uint16
 	now              func() time.Time
 	newAttemptID     func() string
@@ -90,7 +91,8 @@ func NewPermanentErasureLedger(options PermanentErasureLedgerOptions) (*Permanen
 		publisher: backupartifact.NewReplicatedPublisher(options.Primary, options.Secondary), coordinator: options.Coordinator,
 		signer: options.Signer, signingKeyID: options.SigningKeyID, kmsKeyID: options.KMSKeyID,
 		repositoryID: options.RepositoryID, sourceClusterID: options.SourceClusterID, sourceGeneration: options.SourceGeneration,
-		hashSlotCount: options.HashSlotCount, now: options.Now, newAttemptID: options.NewAttemptID,
+		streamNamespace: backupartifact.ComputeErasureLedgerStreamNamespace(options.RepositoryID, options.SourceClusterID, options.SourceGeneration),
+		hashSlotCount:   options.HashSlotCount, now: options.Now, newAttemptID: options.NewAttemptID,
 	}, nil
 }
 
@@ -102,34 +104,40 @@ func (l *PermanentErasureLedger) RecordPermanentMessageErasure(ctx context.Conte
 		return ErasureLedgerReceipt{}, fmt.Errorf("backup erasure ledger: invalid permanent erasure request")
 	}
 	eventID := backupartifact.ComputeErasureEventID(l.repositoryID, l.sourceClusterID, l.sourceGeneration, request.ChannelID, request.ChannelType, request.ThroughSeq)
+	hashSlot := routing.HashSlotForKey(request.ChannelID, l.hashSlotCount)
 	state, err := l.coordinator.CoordinationState(ctx)
 	if err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
-	if state.PendingErasureLedger != nil {
-		if _, err := l.finalizeReference(ctx, *state.PendingErasureLedger); err != nil {
+	stream := erasureStreamState(state.ErasureStreams, hashSlot)
+	if stream != nil && stream.Pending != nil {
+		if _, err := l.finalizeReference(ctx, *stream.Pending); err != nil {
 			return ErasureLedgerReceipt{}, err
 		}
 		state, err = l.coordinator.CoordinationState(ctx)
 		if err != nil {
 			return ErasureLedgerReceipt{}, err
 		}
+		stream = erasureStreamState(state.ErasureStreams, hashSlot)
 	}
-	if state.LastCommittedErasureLedger != nil && state.LastCommittedErasureLedger.EventID == eventID {
-		return l.finalizeReference(ctx, *state.LastCommittedErasureLedger)
+	if stream != nil && stream.LastCommitted != nil && stream.LastCommitted.EventID == eventID {
+		return l.finalizeReference(ctx, *stream.LastCommitted)
 	}
-	if receipt, found, err := l.loadCommittedReceipt(ctx, eventID, state.ErasureLedgerBoundary); err != nil {
+	var head *backupartifact.ErasureStreamHead
+	if stream != nil {
+		head = stream.Head
+	}
+	if receipt, found, err := l.loadCommittedReceipt(ctx, eventID, hashSlot, head); err != nil {
 		return ErasureLedgerReceipt{}, err
 	} else if found {
 		return receipt, nil
 	}
 
-	hashSlot := routing.HashSlotForKey(request.ChannelID, l.hashSlotCount)
 	recordKey := backupartifact.ErasureLedgerRecordKey(hashSlot, eventID)
 	if reference, found, err := l.loadRecordReference(ctx, recordKey, eventID); err != nil {
 		return ErasureLedgerReceipt{}, err
 	} else if found {
-		reserved, err := l.coordinator.ReserveErasureLedgerCommit(ctx, reference)
+		reserved, err := l.reserveReference(ctx, reference)
 		if err != nil {
 			return ErasureLedgerReceipt{}, err
 		}
@@ -171,16 +179,68 @@ func (l *PermanentErasureLedger) RecordPermanentMessageErasure(ctx context.Conte
 	if err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
-	recordSHA := sha256Hex(recordBody)
-	if err := l.putReplicatedExact(ctx, recordKey, recordSHA, recordBody); err != nil {
+	recordBody, record, err = l.replicateOrAdoptRecord(ctx, recordKey, recordBody, eventID, hashSlot)
+	if err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
-	reference := backupusecase.ErasureLedgerRecordReference{EventID: eventID, RecordKey: recordKey, RecordSHA256: recordSHA}
-	reserved, err := l.coordinator.ReserveErasureLedgerCommit(ctx, reference)
+	recordSHA := sha256Hex(recordBody)
+	reference := backupusecase.ErasureLedgerRecordReference{HashSlot: hashSlot, EventID: eventID, RecordKey: recordKey, RecordSHA256: recordSHA}
+	reserved, err := l.reserveReference(ctx, reference)
 	if err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
 	return l.finalizeReference(ctx, reserved)
+}
+
+func (l *PermanentErasureLedger) replicateOrAdoptRecord(
+	ctx context.Context,
+	key string,
+	body []byte,
+	eventID string,
+	hashSlot uint16,
+) ([]byte, backupartifact.ErasureLedgerRecord, error) {
+	if err := l.putReplicatedExact(ctx, key, sha256Hex(body), body); err == nil {
+		record, loadErr := backupartifact.LoadErasureLedgerRecord(ctx, body, l.signer)
+		return body, record, loadErr
+	}
+	existingBody, existing, found, err := l.loadReplicatedRecordByKey(ctx, key)
+	if err != nil || !found || existing.EventID != eventID || existing.HashSlot != hashSlot {
+		if err != nil {
+			return nil, backupartifact.ErasureLedgerRecord{}, err
+		}
+		return nil, backupartifact.ErasureLedgerRecord{}, fmt.Errorf("%w: erasure ledger record race is inconsistent", backupartifact.ErrRepositoryIncomplete)
+	}
+	if err := l.putReplicatedExact(ctx, key, sha256Hex(existingBody), existingBody); err != nil {
+		return nil, backupartifact.ErasureLedgerRecord{}, err
+	}
+	if err := l.repairReplicatedObject(ctx, existing.Object); err != nil {
+		return nil, backupartifact.ErasureLedgerRecord{}, err
+	}
+	return existingBody, existing, nil
+}
+
+func (l *PermanentErasureLedger) reserveReference(ctx context.Context, reference backupusecase.ErasureLedgerRecordReference) (backupusecase.ErasureLedgerRecordReference, error) {
+	for attempt := 0; attempt < 8; attempt++ {
+		reserved, err := l.coordinator.ReserveErasureLedgerCommit(ctx, reference)
+		if err == nil {
+			return reserved, nil
+		}
+		if !errors.Is(err, backupusecase.ErrErasureLedgerPending) {
+			return backupusecase.ErasureLedgerRecordReference{}, err
+		}
+		state, loadErr := l.coordinator.CoordinationState(ctx)
+		if loadErr != nil {
+			return backupusecase.ErasureLedgerRecordReference{}, loadErr
+		}
+		stream := erasureStreamState(state.ErasureStreams, reference.HashSlot)
+		if stream == nil || stream.Pending == nil {
+			continue
+		}
+		if _, finalizeErr := l.finalizeReference(ctx, *stream.Pending); finalizeErr != nil {
+			return backupusecase.ErasureLedgerRecordReference{}, finalizeErr
+		}
+	}
+	return backupusecase.ErasureLedgerRecordReference{}, backupusecase.ErrStateConflict
 }
 
 func (l *PermanentErasureLedger) finalizeReference(ctx context.Context, reference backupusecase.ErasureLedgerRecordReference) (ErasureLedgerReceipt, error) {
@@ -194,7 +254,7 @@ func (l *PermanentErasureLedger) finalizeReference(ctx context.Context, referenc
 	if err := l.repairReplicatedObject(ctx, record.Object); err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
-	commitKey := backupartifact.ErasureLedgerCommitKey(reference.Sequence)
+	commitKey := backupartifact.ErasureLedgerCommitKey(l.streamNamespace, reference.HashSlot, reference.Sequence)
 	commitBody, commit, found, err := l.loadReplicatedCommit(ctx, commitKey)
 	if err != nil {
 		return ErasureLedgerReceipt{}, err
@@ -204,11 +264,16 @@ func (l *PermanentErasureLedger) finalizeReference(ctx context.Context, referenc
 			return ErasureLedgerReceipt{}, fmt.Errorf("%w: erasure ledger commit does not match Controller reference", backupartifact.ErrRepositoryIncomplete)
 		}
 	} else {
+		previousCommitSHA, err := l.previousCommitSHA(ctx, reference)
+		if err != nil {
+			return ErasureLedgerReceipt{}, err
+		}
 		commit, err = backupartifact.SignErasureLedgerCommit(ctx, backupartifact.ErasureLedgerCommit{
 			Format: backupartifact.ErasureLedgerCommitFormat, Version: backupartifact.ErasureLedgerCommitVersion,
 			RepositoryID: l.repositoryID, SourceClusterID: l.sourceClusterID, SourceGeneration: l.sourceGeneration,
-			Sequence: reference.Sequence, EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
-			CreatedAtUnixMillis: l.now().UTC().UnixMilli(), PrimaryRepository: l.primary.Name(), SecondaryRepository: l.secondary.Name(),
+			HashSlot: reference.HashSlot, Sequence: reference.Sequence, PreviousCommitSHA256: previousCommitSHA,
+			EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
+			CreatedAtUnixMillis: record.CreatedAtUnixMillis, PrimaryRepository: l.primary.Name(), SecondaryRepository: l.secondary.Name(),
 		}, l.signer, l.signingKeyID)
 		if err != nil {
 			return ErasureLedgerReceipt{}, err
@@ -218,31 +283,69 @@ func (l *PermanentErasureLedger) finalizeReference(ctx context.Context, referenc
 			return ErasureLedgerReceipt{}, err
 		}
 	}
-	if err := l.putReplicatedExact(ctx, commitKey, sha256Hex(commitBody), commitBody); err != nil {
+	if err := l.validateCommitPredecessor(ctx, commit); err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
-	if err := l.putReplicatedExact(ctx, backupartifact.ErasureLedgerReceiptKey(reference.EventID), sha256Hex(commitBody), commitBody); err != nil {
+	commitBody, commit, err = l.replicateOrAdoptCommit(ctx, commitKey, commitBody, reference)
+	if err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
-	if err := l.coordinator.CommitErasureLedgerCommit(ctx, reference.Sequence, reference.EventID); err != nil {
+	commitSHA := sha256Hex(commitBody)
+	if err := l.putReplicatedExact(ctx, backupartifact.ErasureLedgerReceiptKey(reference.EventID), commitSHA, commitBody); err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
-	return ErasureLedgerReceipt{Sequence: reference.Sequence, EventID: reference.EventID}, nil
+	head := backupartifact.ErasureStreamHead{
+		HashSlot: reference.HashSlot, Sequence: reference.Sequence,
+		CommitKey: commitKey, CommitSHA256: commitSHA,
+	}
+	if err := l.coordinator.CommitErasureLedgerCommit(ctx, head, reference.EventID); err != nil {
+		return ErasureLedgerReceipt{}, err
+	}
+	return ErasureLedgerReceipt{HashSlot: reference.HashSlot, Sequence: reference.Sequence, EventID: reference.EventID}, nil
 }
 
-func (l *PermanentErasureLedger) loadCommittedReceipt(ctx context.Context, eventID string, boundary uint64) (ErasureLedgerReceipt, bool, error) {
+func (l *PermanentErasureLedger) replicateOrAdoptCommit(
+	ctx context.Context,
+	key string,
+	body []byte,
+	reference backupusecase.ErasureLedgerRecordReference,
+) ([]byte, backupartifact.ErasureLedgerCommit, error) {
+	checksum := sha256Hex(body)
+	if err := l.putReplicatedExact(ctx, key, checksum, body); err == nil {
+		commit, loadErr := backupartifact.LoadErasureLedgerCommit(ctx, body, l.signer)
+		return body, commit, loadErr
+	}
+	existingBody, existing, found, err := l.loadReplicatedCommit(ctx, key)
+	if err != nil || !found || !l.commitMatchesReference(existing, reference) {
+		if err != nil {
+			return nil, backupartifact.ErasureLedgerCommit{}, err
+		}
+		return nil, backupartifact.ErasureLedgerCommit{}, fmt.Errorf("%w: erasure ledger commit race is inconsistent", backupartifact.ErrRepositoryIncomplete)
+	}
+	if err := l.validateCommitPredecessor(ctx, existing); err != nil {
+		return nil, backupartifact.ErasureLedgerCommit{}, err
+	}
+	if err := l.putReplicatedExact(ctx, key, sha256Hex(existingBody), existingBody); err != nil {
+		return nil, backupartifact.ErasureLedgerCommit{}, err
+	}
+	return existingBody, existing, nil
+}
+
+func (l *PermanentErasureLedger) loadCommittedReceipt(ctx context.Context, eventID string, hashSlot uint16, head *backupartifact.ErasureStreamHead) (ErasureLedgerReceipt, bool, error) {
 	receiptKey := backupartifact.ErasureLedgerReceiptKey(eventID)
 	receiptBody, commit, found, err := l.loadReplicatedCommit(ctx, receiptKey)
 	if err != nil || !found {
 		return ErasureLedgerReceipt{}, found, err
 	}
 	reference := backupusecase.ErasureLedgerRecordReference{
-		Sequence: commit.Sequence, EventID: commit.EventID, RecordKey: commit.RecordKey, RecordSHA256: commit.RecordSHA256,
+		HashSlot: commit.HashSlot, Sequence: commit.Sequence, EventID: commit.EventID, RecordKey: commit.RecordKey, RecordSHA256: commit.RecordSHA256,
 	}
-	if commit.EventID != eventID || commit.Sequence == 0 || commit.Sequence > boundary || !l.commitMatchesReference(commit, reference) {
+	if head == nil || head.HashSlot != hashSlot || commit.HashSlot != hashSlot ||
+		commit.EventID != eventID || commit.Sequence == 0 || commit.Sequence > head.Sequence ||
+		!l.commitMatchesReference(commit, reference) {
 		return ErasureLedgerReceipt{}, false, fmt.Errorf("%w: erasure ledger committed-event receipt mismatch", backupartifact.ErrRepositoryIncomplete)
 	}
-	commitKey := backupartifact.ErasureLedgerCommitKey(commit.Sequence)
+	commitKey := backupartifact.ErasureLedgerCommitKey(l.streamNamespace, commit.HashSlot, commit.Sequence)
 	commitBody, sequenceCommit, found, err := l.loadReplicatedCommit(ctx, commitKey)
 	if err != nil || !found || !bytes.Equal(receiptBody, commitBody) || !l.commitMatchesReference(sequenceCommit, reference) {
 		return ErasureLedgerReceipt{}, false, fmt.Errorf("%w: erasure ledger committed-event sequence mismatch", backupartifact.ErrRepositoryIncomplete)
@@ -264,7 +367,7 @@ func (l *PermanentErasureLedger) loadCommittedReceipt(ctx context.Context, event
 	if err := l.putReplicatedExact(ctx, receiptKey, checksum, receiptBody); err != nil {
 		return ErasureLedgerReceipt{}, false, err
 	}
-	return ErasureLedgerReceipt{Sequence: commit.Sequence, EventID: eventID}, true, nil
+	return ErasureLedgerReceipt{HashSlot: commit.HashSlot, Sequence: commit.Sequence, EventID: eventID}, true, nil
 }
 
 func (l *PermanentErasureLedger) loadRecordReference(ctx context.Context, key, eventID string) (backupusecase.ErasureLedgerRecordReference, bool, error) {
@@ -282,7 +385,7 @@ func (l *PermanentErasureLedger) loadRecordReference(ctx context.Context, key, e
 	if err := l.repairReplicatedObject(ctx, record.Object); err != nil {
 		return backupusecase.ErasureLedgerRecordReference{}, false, err
 	}
-	return backupusecase.ErasureLedgerRecordReference{EventID: eventID, RecordKey: key, RecordSHA256: checksum}, true, nil
+	return backupusecase.ErasureLedgerRecordReference{HashSlot: record.HashSlot, EventID: eventID, RecordKey: key, RecordSHA256: checksum}, true, nil
 }
 
 func (l *PermanentErasureLedger) loadReplicatedRecord(ctx context.Context, reference backupusecase.ErasureLedgerRecordReference) ([]byte, backupartifact.ErasureLedgerRecord, error) {
@@ -380,8 +483,55 @@ func (l *PermanentErasureLedger) putReplicatedExact(ctx context.Context, key, ch
 
 func (l *PermanentErasureLedger) commitMatchesReference(commit backupartifact.ErasureLedgerCommit, reference backupusecase.ErasureLedgerRecordReference) bool {
 	return commit.RepositoryID == l.repositoryID && commit.SourceClusterID == l.sourceClusterID && commit.SourceGeneration == l.sourceGeneration &&
-		commit.Sequence == reference.Sequence && commit.EventID == reference.EventID && commit.RecordKey == reference.RecordKey && commit.RecordSHA256 == reference.RecordSHA256 &&
+		commit.HashSlot == reference.HashSlot && commit.Sequence == reference.Sequence && commit.EventID == reference.EventID &&
+		commit.RecordKey == reference.RecordKey && commit.RecordSHA256 == reference.RecordSHA256 &&
 		commit.PrimaryRepository == l.primary.Name() && commit.SecondaryRepository == l.secondary.Name()
+}
+
+func (l *PermanentErasureLedger) previousCommitSHA(ctx context.Context, reference backupusecase.ErasureLedgerRecordReference) (string, error) {
+	if reference.Sequence == 1 {
+		return "", nil
+	}
+	state, err := l.coordinator.CoordinationState(ctx)
+	if err != nil {
+		return "", err
+	}
+	stream := erasureStreamState(state.ErasureStreams, reference.HashSlot)
+	if stream == nil || stream.Head == nil || stream.Head.Sequence+1 != reference.Sequence {
+		return "", fmt.Errorf("%w: erasure stream predecessor is unavailable", backupartifact.ErrRepositoryIncomplete)
+	}
+	return stream.Head.CommitSHA256, nil
+}
+
+func (l *PermanentErasureLedger) validateCommitPredecessor(ctx context.Context, commit backupartifact.ErasureLedgerCommit) error {
+	if commit.Sequence == 1 {
+		if commit.PreviousCommitSHA256 != "" {
+			return fmt.Errorf("%w: first erasure stream commit has a predecessor", backupartifact.ErrRepositoryIncomplete)
+		}
+		return nil
+	}
+	key := backupartifact.ErasureLedgerCommitKey(l.streamNamespace, commit.HashSlot, commit.Sequence-1)
+	body, previous, found, err := l.loadReplicatedCommit(ctx, key)
+	if err != nil || !found {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%w: erasure stream predecessor is missing", backupartifact.ErrRepositoryIncomplete)
+	}
+	if previous.HashSlot != commit.HashSlot || previous.Sequence+1 != commit.Sequence ||
+		sha256Hex(body) != commit.PreviousCommitSHA256 {
+		return fmt.Errorf("%w: erasure stream predecessor mismatch", backupartifact.ErrRepositoryIncomplete)
+	}
+	return nil
+}
+
+func erasureStreamState(streams []backupusecase.ErasureStreamState, hashSlot uint16) *backupusecase.ErasureStreamState {
+	for index := range streams {
+		if streams[index].HashSlot == hashSlot {
+			return &streams[index]
+		}
+	}
+	return nil
 }
 
 func readOptionalRepositoryObject(ctx context.Context, repository backupartifact.Repository, key string, limit int64) ([]byte, bool, error) {

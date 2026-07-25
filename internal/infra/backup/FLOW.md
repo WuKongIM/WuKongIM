@@ -181,6 +181,9 @@ a separately signed publication marker makes it discoverable. If only one
 repository accepted an immutable manifest or marker, the retry authenticates
 the existing exact bytes, repairs the missing copy, and reuses the original
 signature/report instead of generating a conflicting object for the fixed key.
+The first persisted signed manifest freezes the restore point's erasure heads;
+a retry that observes newer heads adopts the frozen values while requiring all
+other job, cut, and partition fields to match before repairing missing copies.
 
 The Controller-side `RestorePointPublisher` reloads every partition manifest
 from both repositories, compares the exact bytes and job/cut summaries, stats
@@ -199,9 +202,11 @@ and message payload bytes remain streaming.
 ## Restore And Retention
 
 Restore inspection authenticates both repository copies, requires matching
-manifest bytes and identities, authenticates the current contiguous permanent-
-erasure ledger in both repositories, pins its version, boundary, and SHA-256,
-and asks every current target node for semantic storage emptiness before
+manifest bytes and identities, authenticates every current per-Hash-Slot
+permanent-erasure stream in both repositories, and pins its version, sorted
+heads, total event count, and SHA-256. Current heads must dominate the heads
+frozen by the selected manifest. Inspection then asks every current target node
+for semantic storage emptiness before
 persisting a plan. The ledger pin is current even when the operator deliberately
 selects an older restore point, so deletion cannot be undone through rollback.
 Installation resolves each hash
@@ -222,14 +227,20 @@ partition streams on one node, not multiplied per stream.
 
 Before ordinary retention metadata advances, `PermanentErasureLedger` encrypts
 the Channel identity and boundary, publishes identical immutable ciphertext and
-signed record bytes to both repositories, reserves the next Controller sequence,
-publishes the identical signed commit marker and deterministic per-event receipt
-to both repositories, and commits the Controller boundary. One partially
-published sequence is repaired before a new sequence is admitted. The receipt
-lets any older committed event retry return its original sequence in constant
-time. If any ledger step fails, live retention fails closed
+signed record bytes to both repositories, reserves the next sequence for the
+event's Hash Slot, and publishes a predecessor-linked signed commit marker plus
+deterministic per-event receipt to both repositories. The first immutable
+primary commit serializes concurrent same-Slot finalizers; a contender adopts
+that authenticated commit and repairs the secondary copy. Each lineage uses a
+repository/source-cluster/source-generation digest namespace, so successor
+generations reuse physical repositories without commit-key collisions or mixed
+listings. One partially
+published sequence is repaired before a new event is admitted to the same Slot,
+while unrelated Slots continue independently. The receipt lets any older
+committed event retry return its original sequence in constant time. If any
+ledger step fails, live retention fails closed
 without advancing the deletion boundary. Restore decrypts the plan-pinned
-prefix, collapses repeated events to the greatest per-Channel boundary, applies
+Slot prefixes, collapses repeated events to the greatest per-Channel boundary, applies
 bounded physical prefix deletion plus checkpoint/LEO fences on every successor
 Slot replica, and only then installs reconstructed runtime metadata. Channels
 present only in the ledger still receive a sequence fence so erased sequence
@@ -238,9 +249,12 @@ numbers cannot be reused.
 Retention first moves expired Controller references into `PendingGarbage`.
 The garbage collector authenticates every retained graph in both repositories,
 authenticates and marks every committed ledger event/record/commit/receipt
-object, and also authenticates and marks the one Controller-referenced pending
-event so failover can resume after the grace period. It protects active job
+object, and also authenticates and marks every Controller-referenced pending
+Slot event so failover can resume after the grace period. It protects active job
 prefixes and deletes only exact old unreachable versions through separate
 garbage-collector credentials that retain the signed logical repository names.
+For every retained restore point from another source generation, collection
+loads that manifest's lineage-specific ledger, verifies the frozen heads are
+exact commits in its current prefix, and marks the whole lineage before sweep.
 Unreferenced uncommitted ledger orphans remain eligible for age-gated
 collection; no broad prefix is permanently exempted.

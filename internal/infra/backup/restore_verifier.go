@@ -94,7 +94,7 @@ func (v *ClusterRestoreVerifier) VerifyRestore(ctx context.Context, plan backupu
 	if err != nil {
 		return nil, err
 	}
-	ledger, err := ledgerLoader.LoadPinnedSnapshot(ctx, plan.Repository, plan.ErasureLedgerVersion, plan.ErasureLedgerBoundary, plan.ErasureLedgerSHA256)
+	ledger, err := ledgerLoader.LoadPinnedSnapshot(ctx, plan.Repository, plan.ErasureLedgerVersion, plan.ErasureEventCount, plan.ErasureLedgerSHA256, plan.ErasureHeads)
 	if err != nil {
 		return nil, err
 	}

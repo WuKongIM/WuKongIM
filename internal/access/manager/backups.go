@@ -70,6 +70,13 @@ type backupStatusDTO struct {
 	Dependencies               backupDependenciesDTO      `json:"dependencies"`
 	Capacity                   backupCapacityDTO          `json:"capacity"`
 	CaptureLeases              []backupCaptureLeaseDTO    `json:"capture_leases"`
+	ErasureStreams             []backupErasureStreamDTO   `json:"erasure_streams"`
+}
+
+type backupErasureStreamDTO struct {
+	HashSlot uint16 `json:"hash_slot"`
+	Sequence uint64 `json:"sequence"`
+	Pending  bool   `json:"pending"`
 }
 
 type backupCaptureLeaseDTO struct {
@@ -143,9 +150,10 @@ type backupCheckpointDTO struct {
 
 type backupCheckpointDetailDTO struct {
 	backupCheckpointDTO
-	SourceClusterID  string `json:"source_cluster_id"`
-	SourceGeneration string `json:"source_generation"`
-	HashSlotCount    uint16 `json:"hash_slot_count"`
+	SourceClusterID  string                   `json:"source_cluster_id"`
+	SourceGeneration string                   `json:"source_generation"`
+	HashSlotCount    uint16                   `json:"hash_slot_count"`
+	ErasureStreams   []backupErasureStreamDTO `json:"erasure_streams"`
 }
 
 type backupCheckpointListDTO struct {
@@ -274,10 +282,14 @@ func (s *Server) handleBackupCheckpoint(c *gin.Context) {
 		writeBackupError(c, err)
 		return
 	}
+	erasureStreams := make([]backupErasureStreamDTO, len(detail.ErasureHeads))
+	for index, head := range detail.ErasureHeads {
+		erasureStreams[index] = backupErasureStreamDTO{HashSlot: head.HashSlot, Sequence: head.Sequence}
+	}
 	c.JSON(http.StatusOK, backupCheckpointDetailDTO{
 		backupCheckpointDTO: backupCheckpointResponse(detail.CheckpointSummary),
 		SourceClusterID:     detail.SourceClusterID, SourceGeneration: detail.SourceGeneration,
-		HashSlotCount: detail.HashSlotCount,
+		HashSlotCount: detail.HashSlotCount, ErasureStreams: erasureStreams,
 	})
 }
 
@@ -364,8 +376,9 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 		MaxRecoveryPointAgeSeconds: status.MaxRecoveryPointAgeSeconds,
 		MaxVerificationAgeSeconds:  status.MaxVerificationAgeSeconds,
 		Policy:                     backupPolicyResponse(status.Policy), Dependencies: backupDependenciesResponse(status.Dependencies),
-		Capacity:      backupCapacityResponse(status.Capacity),
-		CaptureLeases: backupCaptureLeaseResponses(status.CaptureLeases),
+		Capacity:       backupCapacityResponse(status.Capacity),
+		CaptureLeases:  backupCaptureLeaseResponses(status.CaptureLeases),
+		ErasureStreams: backupErasureStreamResponses(status.ErasureStreams),
 	}
 	if status.Active != nil {
 		active := backupJobResponse(*status.Active)
@@ -378,6 +391,16 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 	if status.Verification != nil {
 		verification := backupVerificationTaskResponse(*status.Verification)
 		result.Verification = &verification
+	}
+	return result
+}
+
+func backupErasureStreamResponses(streams []backupusecase.ErasureStreamProgress) []backupErasureStreamDTO {
+	result := make([]backupErasureStreamDTO, len(streams))
+	for index, stream := range streams {
+		result[index] = backupErasureStreamDTO{
+			HashSlot: stream.HashSlot, Sequence: stream.Sequence, Pending: stream.Pending,
+		}
 	}
 	return result
 }

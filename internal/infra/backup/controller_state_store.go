@@ -42,9 +42,7 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 		return result, nil
 	}
 	result.LastEpoch = clusterState.Backup.LastEpoch
-	result.ErasureLedgerBoundary = clusterState.Backup.ErasureLedgerBoundary
-	result.PendingErasureLedger = erasureLedgerReferenceFromController(clusterState.Backup.PendingErasureLedger)
-	result.LastCommittedErasureLedger = erasureLedgerReferenceFromController(clusterState.Backup.LastCommittedErasureLedger)
+	result.ErasureStreams = erasureStreamsFromController(clusterState.Backup.ErasureStreams)
 	result.Active = jobFromController(clusterState.Backup.Active)
 	result.Verification = verificationTaskFromController(clusterState.Backup.Verification)
 	result.RestorePoints = make([]backupusecase.RestorePoint, len(clusterState.Backup.RestorePoints))
@@ -66,16 +64,14 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 // CompareAndSwap stores next only when the Controller cluster revision still matches revision.
 func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint64, next backupusecase.State) error {
 	replacement := controller.BackupCoordinationState{
-		LastEpoch:                  next.LastEpoch,
-		Active:                     jobToController(next.Active),
-		Verification:               verificationTaskToController(next.Verification),
-		RestorePoints:              make([]controller.BackupRestorePoint, len(next.RestorePoints)),
-		PendingGarbage:             make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
-		SlotFrontiers:              make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
-		CatalogHead:                catalogPageReferenceToController(next.CatalogHead),
-		ErasureLedgerBoundary:      next.ErasureLedgerBoundary,
-		PendingErasureLedger:       erasureLedgerReferenceToController(next.PendingErasureLedger),
-		LastCommittedErasureLedger: erasureLedgerReferenceToController(next.LastCommittedErasureLedger),
+		LastEpoch:      next.LastEpoch,
+		Active:         jobToController(next.Active),
+		Verification:   verificationTaskToController(next.Verification),
+		RestorePoints:  make([]controller.BackupRestorePoint, len(next.RestorePoints)),
+		PendingGarbage: make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
+		SlotFrontiers:  make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
+		CatalogHead:    catalogPageReferenceToController(next.CatalogHead),
+		ErasureStreams: erasureStreamsToController(next.ErasureStreams),
 	}
 	for index, restorePoint := range next.RestorePoints {
 		replacement.RestorePoints[index] = restorePointToController(restorePoint)
@@ -256,7 +252,7 @@ func erasureLedgerReferenceFromController(reference *controller.BackupErasureLed
 		return nil
 	}
 	return &backupusecase.ErasureLedgerRecordReference{
-		Sequence: reference.Sequence, EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
+		HashSlot: reference.HashSlot, Sequence: reference.Sequence, EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
 	}
 }
 
@@ -265,8 +261,40 @@ func erasureLedgerReferenceToController(reference *backupusecase.ErasureLedgerRe
 		return nil
 	}
 	return &controller.BackupErasureLedgerReference{
-		Sequence: reference.Sequence, EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
+		HashSlot: reference.HashSlot, Sequence: reference.Sequence, EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
 	}
+}
+
+func erasureStreamsFromController(streams []controller.BackupErasureStreamState) []backupusecase.ErasureStreamState {
+	result := make([]backupusecase.ErasureStreamState, len(streams))
+	for index, stream := range streams {
+		result[index] = backupusecase.ErasureStreamState{
+			HashSlot: stream.HashSlot, Head: cloneErasureStreamHead(stream.Head),
+			Pending:       erasureLedgerReferenceFromController(stream.Pending),
+			LastCommitted: erasureLedgerReferenceFromController(stream.LastCommitted),
+		}
+	}
+	return result
+}
+
+func erasureStreamsToController(streams []backupusecase.ErasureStreamState) []controller.BackupErasureStreamState {
+	result := make([]controller.BackupErasureStreamState, len(streams))
+	for index, stream := range streams {
+		result[index] = controller.BackupErasureStreamState{
+			HashSlot: stream.HashSlot, Head: cloneErasureStreamHead(stream.Head),
+			Pending:       erasureLedgerReferenceToController(stream.Pending),
+			LastCommitted: erasureLedgerReferenceToController(stream.LastCommitted),
+		}
+	}
+	return result
+}
+
+func cloneErasureStreamHead(head *backupartifact.ErasureStreamHead) *backupartifact.ErasureStreamHead {
+	if head == nil {
+		return nil
+	}
+	cloned := *head
+	return &cloned
 }
 
 func jobFromController(job *controller.BackupJob) *backupusecase.Job {

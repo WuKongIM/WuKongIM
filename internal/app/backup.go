@@ -177,9 +177,15 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		ApplicationVersion: backupApplicationVersion(), RepositoryID: a.cfg.Backup.RepositoryID,
 		SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
 		Now: time.Now, NewRestorePointID: func() string { return newBackupID("restore") },
-		ErasureLedgerBoundary: func(ctx context.Context) (uint64, error) {
+		ErasureHeads: func(ctx context.Context) ([]backupartifact.ErasureStreamHead, error) {
 			state, err := stateStore.Load(ctx)
-			return state.ErasureLedgerBoundary, err
+			heads := make([]backupartifact.ErasureStreamHead, 0, len(state.ErasureStreams))
+			for _, stream := range state.ErasureStreams {
+				if stream.Head != nil {
+					heads = append(heads, *stream.Head)
+				}
+			}
+			return heads, err
 		},
 	})
 	if err != nil {

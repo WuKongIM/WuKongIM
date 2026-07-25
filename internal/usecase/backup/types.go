@@ -73,6 +73,7 @@ const (
 type VerificationEvidence = backupcontract.VerificationEvidence
 type VerificationTask = backupcontract.VerificationTask
 type ErasureLedgerRecordReference = backupcontract.ErasureLedgerRecordReference
+type ErasureStreamState = backupcontract.ErasureStreamState
 type State = backupcontract.State
 type TriggerRequest = backupcontract.TriggerRequest
 type SchedulePolicy = backupcontract.SchedulePolicy
@@ -189,6 +190,16 @@ type CaptureLeaseSnapshot struct {
 	FrontierUpdatedUnixMillis int64
 }
 
+// ErasureStreamProgress is a sanitized permanent-erasure stream observation.
+type ErasureStreamProgress struct {
+	// HashSlot identifies the independently sequenced stream.
+	HashSlot uint16
+	// Sequence is the latest durably committed position.
+	Sequence uint64
+	// Pending reports whether one later record is reserved for repair.
+	Pending bool
+}
+
 // StatusSnapshot is the read-only backup status exposed to access adapters.
 type StatusSnapshot struct {
 	// Enabled reports whether backup coordination is configured.
@@ -227,4 +238,6 @@ type StatusSnapshot struct {
 	Capacity CapacitySnapshot
 	// CaptureLeases is the bounded sanitized durable lease view for every initialized Hash Slot.
 	CaptureLeases []CaptureLeaseSnapshot
+	// ErasureStreams exposes only per-Slot sequence and pending progress.
+	ErasureStreams []ErasureStreamProgress
 }

@@ -227,9 +227,11 @@ leaves the queue entry pending for a later retry.
    `--invalidate-tokens` only after explicitly deciding to preserve restored
    client tokens, or add it after explicitly deciding to invalidate them.
    Plan creation also authenticates the current permanent-erasure ledger in
-   both repositories and pins its version, boundary, and SHA-256. This pin is
-   intentionally independent of restore-point time: selecting an old restore
-   point cannot resurrect messages erased after that point.
+   both repositories and pins its version, sorted per-Hash-Slot heads, total
+   event count, and SHA-256. The source-generation namespace of every head is
+   authenticated too. This pin is intentionally independent of restore-point
+   time: selecting an old restore point cannot resurrect messages erased after
+   that point.
 
 5. Verification authenticates the repository chain; compares each partition's
    restored metadata-record count, cumulative message-record count, and maximum

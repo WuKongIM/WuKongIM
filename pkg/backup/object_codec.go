@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -20,8 +21,12 @@ const maxObjectPlaintextBytes = 256 << 20
 
 // ObjectCodec compresses and encrypts bounded immutable backup objects.
 type ObjectCodec struct {
+	// keys generates and unwraps per-object data keys.
 	keys DataKeyManager
+	// rand provides fresh object nonces.
 	rand io.Reader
+	// randMu makes an injected reader safe for concurrent Seal calls.
+	randMu sync.Mutex
 }
 
 // NewObjectCodec creates an object codec backed by keys. random may be nil to use crypto/rand.
@@ -65,7 +70,7 @@ func (c *ObjectCodec) Seal(ctx context.Context, descriptor ObjectDescriptor, pla
 		return SealedObject{}, fmt.Errorf("create object AEAD: %w", err)
 	}
 	nonce := make([]byte, aead.NonceSize())
-	if _, err := io.ReadFull(c.rand, nonce); err != nil {
+	if err := c.readRandom(nonce); err != nil {
 		return SealedObject{}, fmt.Errorf("generate object nonce: %w", err)
 	}
 	plainHash := sha256.Sum256(plaintext)
@@ -90,6 +95,13 @@ func (c *ObjectCodec) Seal(ctx context.Context, descriptor ObjectDescriptor, pla
 	entry.CiphertextSHA256 = hex.EncodeToString(cipherHash[:])
 	entry.CiphertextBytes = int64(len(ciphertext))
 	return SealedObject{Entry: entry, Ciphertext: ciphertext}, nil
+}
+
+func (c *ObjectCodec) readRandom(target []byte) error {
+	c.randMu.Lock()
+	defer c.randMu.Unlock()
+	_, err := io.ReadFull(c.rand, target)
+	return err
 }
 
 // Open verifies, decrypts, decompresses, and verifies one immutable object.

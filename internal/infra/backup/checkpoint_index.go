@@ -143,6 +143,7 @@ func (i *CheckpointCatalogIndex) Get(
 		},
 		SourceClusterID: checkpoint.SourceClusterID, SourceGeneration: checkpoint.SourceGeneration,
 		HashSlotCount: checkpoint.HashSlotCount,
+		ErasureHeads:  append([]backupartifact.ErasureStreamHead(nil), checkpoint.ErasureHeads...),
 	}, nil
 }
 

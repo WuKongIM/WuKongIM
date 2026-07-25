@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -234,8 +235,15 @@ func TestReplicatedPublisherRepairsPartialManifestPublishOnRetry(t *testing.T) {
 	primary.failPut = false
 	retry := testPublishManifest(objects)
 	retry.CreatedAtUnixMillis++
-	if _, err := publisher.PublishReferences(context.Background(), retry, signer, "signing-key"); err != nil {
+	retry.ErasureHeads = []backup.ErasureStreamHead{{
+		HashSlot: 1, Sequence: 3, CommitKey: backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, 3), CommitSHA256: strings.Repeat("a", 64),
+	}}
+	signed, err := publisher.PublishReferences(context.Background(), retry, signer, "signing-key")
+	if err != nil {
 		t.Fatalf("retry PublishReferences(): %v", err)
+	}
+	if len(signed.ErasureHeads) != 1 || signed.ErasureHeads[0].Sequence != 2 {
+		t.Fatalf("retry erasure heads = %+v, want first persisted sequence 2", signed.ErasureHeads)
 	}
 	if !bytes.Equal(primary.body(key), secondary.body(key)) {
 		t.Fatal("repaired manifest copies differ")
@@ -270,8 +278,16 @@ func TestReplicatedPublisherRepairsPartialPublicationMarkerOnRetry(t *testing.T)
 	}
 
 	primary.failPutKey = ""
-	if _, err := publisher.PublishReferences(context.Background(), testPublishManifest(objects), signer, "signing-key"); err != nil {
+	retry := testPublishManifest(objects)
+	retry.ErasureHeads = []backup.ErasureStreamHead{{
+		HashSlot: 1, Sequence: 3, CommitKey: backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, 3), CommitSHA256: strings.Repeat("a", 64),
+	}}
+	signed, err := publisher.PublishReferences(context.Background(), retry, signer, "signing-key")
+	if err != nil {
 		t.Fatalf("retry PublishReferences(): %v", err)
+	}
+	if len(signed.ErasureHeads) != 1 || signed.ErasureHeads[0].Sequence != 2 {
+		t.Fatalf("retry erasure heads = %+v, want first persisted sequence 2", signed.ErasureHeads)
 	}
 	if !bytes.Equal(primary.body(publicationKey), secondary.body(publicationKey)) {
 		t.Fatal("repaired publication marker copies differ")
@@ -318,21 +334,23 @@ func testPublishManifest(objects []backup.SealedObject) backup.Manifest {
 		entries[index] = objects[index].Entry
 	}
 	return backup.Manifest{
-		Format:                backup.ManifestFormat,
-		Version:               backup.ManifestVersion,
-		ApplicationVersion:    "3.0.0-beta.1",
-		RepositoryID:          "repo-prod",
-		SourceClusterID:       "cluster-source",
-		SourceGeneration:      "generation-7",
-		RestorePointID:        "rp-publish",
-		BackupEpoch:           19,
-		Kind:                  backup.RestorePointIncremental,
-		HashSlotCount:         2,
-		CreatedAtUnixMillis:   1_753_056_360_000,
-		EffectiveAtMillis:     1_753_056_300_000,
-		Cuts:                  []backup.PartitionCut{{HashSlot: 0, RaftIndex: 4, CommittedAtMillis: 1_753_056_300_000}, {HashSlot: 1, RaftIndex: 5, CommittedAtMillis: 1_753_056_310_000}},
-		Objects:               entries,
-		ErasureLedgerBoundary: 2,
+		Format:              backup.ManifestFormat,
+		Version:             backup.ManifestVersion,
+		ApplicationVersion:  "3.0.0-beta.1",
+		RepositoryID:        "repo-prod",
+		SourceClusterID:     "cluster-source",
+		SourceGeneration:    "generation-7",
+		RestorePointID:      "rp-publish",
+		BackupEpoch:         19,
+		Kind:                backup.RestorePointIncremental,
+		HashSlotCount:       2,
+		CreatedAtUnixMillis: 1_753_056_360_000,
+		EffectiveAtMillis:   1_753_056_300_000,
+		Cuts:                []backup.PartitionCut{{HashSlot: 0, RaftIndex: 4, CommittedAtMillis: 1_753_056_300_000}, {HashSlot: 1, RaftIndex: 5, CommittedAtMillis: 1_753_056_310_000}},
+		Objects:             entries,
+		ErasureHeads: []backup.ErasureStreamHead{{
+			HashSlot: 1, Sequence: 2, CommitKey: backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, 2), CommitSHA256: strings.Repeat("f", 64),
+		}},
 	}
 }
 

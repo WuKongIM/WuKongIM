@@ -434,12 +434,36 @@ func TestDecodeRejectsUnknownTopLevelField(t *testing.T) {
 func TestValidateRejectsNonContiguousPendingErasureLedgerCommit(t *testing.T) {
 	st := testState()
 	st.Backup = &BackupCoordinationState{
-		RestorePoints:         []BackupRestorePoint{},
-		ErasureLedgerBoundary: 7,
-		PendingErasureLedger: &BackupErasureLedgerReference{
-			Sequence: 9, EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json", RecordSHA256: strings.Repeat("b", 64),
-		},
+		RestorePoints: []BackupRestorePoint{},
+		ErasureStreams: []BackupErasureStreamState{{
+			HashSlot: 1,
+			Head: &backupartifact.ErasureStreamHead{
+				HashSlot: 1, Sequence: 7, CommitKey: backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, 7), CommitSHA256: strings.Repeat("c", 64),
+			},
+			Pending: &BackupErasureLedgerReference{
+				HashSlot: 1, Sequence: 9, EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json", RecordSHA256: strings.Repeat("b", 64),
+			},
+		}},
 	}
+
+	require.ErrorIs(t, st.Validate(), ErrInvalidState)
+}
+
+func TestValidateRejectsMissingErasureLedgerFence(t *testing.T) {
+	st := testState()
+	partitions := make([]RestorePartition, st.Config.HashSlotCount)
+	for hashSlot := range partitions {
+		partitions[hashSlot].HashSlot = uint16(hashSlot)
+	}
+	st.Restore = &RestoreCoordinationState{Plan: &RestorePlan{
+		ID: "plan-missing-erasure-fence", RestorePointID: "restore-1",
+		ManifestSHA256: strings.Repeat("c", 64), Repository: "primary",
+		SourceClusterID: "cluster-a", SourceGeneration: "generation-a",
+		TargetClusterID: st.ClusterID, TargetGeneration: "generation-b",
+		HashSlotCount: st.Config.HashSlotCount, Status: RestoreStatusPlanned,
+		CreatedAtUnixMillis: 1710000000000, UpdatedAtUnixMillis: 1710000000000,
+		Partitions: partitions,
+	}}
 
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }

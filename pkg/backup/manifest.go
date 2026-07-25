@@ -132,6 +132,16 @@ func validateManifest(manifest Manifest, requireSignature bool) error {
 	if err := validateCuts(manifest); err != nil {
 		return err
 	}
+	var erasureEventCount uint64
+	for index, head := range manifest.ErasureHeads {
+		if head.HashSlot >= manifest.HashSlotCount ||
+			(index > 0 && manifest.ErasureHeads[index-1].HashSlot >= head.HashSlot) ||
+			ValidateErasureStreamHead(head) != nil ||
+			head.Sequence > uint64(MaxErasureLedgerEvents)-erasureEventCount {
+			return fmt.Errorf("%w: erasure stream heads are invalid", ErrInvalidManifest)
+		}
+		erasureEventCount += head.Sequence
+	}
 	if err := validateManifestPayload(manifest); err != nil {
 		return err
 	}

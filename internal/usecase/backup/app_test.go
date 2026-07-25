@@ -302,7 +302,8 @@ func TestErasureLedgerCommitReservationIsBoundedIdempotentAndContiguous(t *testi
 		t.Fatalf("NewApp() error = %v", err)
 	}
 	first := backupusecase.ErasureLedgerRecordReference{
-		EventID: strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json",
+		HashSlot: 1,
+		EventID:  strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json",
 		RecordSHA256: strings.Repeat("b", 64),
 	}
 	reserved, err := app.ReserveErasureLedgerCommit(context.Background(), first)
@@ -317,19 +318,41 @@ func TestErasureLedgerCommitReservationIsBoundedIdempotentAndContiguous(t *testi
 		t.Fatalf("ReserveErasureLedgerCommit(retry) = %#v err=%v, want idempotent %#v", retry, err, reserved)
 	}
 	second := backupusecase.ErasureLedgerRecordReference{
-		EventID: strings.Repeat("c", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("c", 64) + ".json",
+		HashSlot: 1,
+		EventID:  strings.Repeat("c", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("c", 64) + ".json",
 		RecordSHA256: strings.Repeat("d", 64),
 	}
 	if _, err := app.ReserveErasureLedgerCommit(context.Background(), second); !errors.Is(err, backupusecase.ErrErasureLedgerPending) {
 		t.Fatalf("ReserveErasureLedgerCommit(concurrent) error = %v, want %v", err, backupusecase.ErrErasureLedgerPending)
 	}
-	if err := app.CommitErasureLedgerCommit(context.Background(), reserved.Sequence, second.EventID); !errors.Is(err, backupusecase.ErrStateConflict) {
+	otherSlot := backupusecase.ErasureLedgerRecordReference{
+		HashSlot: 0, EventID: strings.Repeat("8", 64),
+		RecordKey:    "erasure-ledger/events/0000/" + strings.Repeat("8", 64) + ".json",
+		RecordSHA256: strings.Repeat("9", 64),
+	}
+	otherReserved, err := app.ReserveErasureLedgerCommit(context.Background(), otherSlot)
+	if err != nil || otherReserved.Sequence != 1 {
+		t.Fatalf("ReserveErasureLedgerCommit(other Slot) = %#v err=%v, want independent sequence 1", otherReserved, err)
+	}
+	otherHead := backupartifact.ErasureStreamHead{
+		HashSlot: 0, Sequence: 1, CommitKey: backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 0, 1),
+		CommitSHA256: strings.Repeat("7", 64),
+	}
+	if err := app.CommitErasureLedgerCommit(context.Background(), otherHead, otherReserved.EventID); err != nil {
+		t.Fatalf("CommitErasureLedgerCommit(other Slot) error = %v", err)
+	}
+	head := backupartifact.ErasureStreamHead{
+		HashSlot: 1, Sequence: reserved.Sequence,
+		CommitKey:    backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, reserved.Sequence),
+		CommitSHA256: strings.Repeat("e", 64),
+	}
+	if err := app.CommitErasureLedgerCommit(context.Background(), head, second.EventID); !errors.Is(err, backupusecase.ErrStateConflict) {
 		t.Fatalf("CommitErasureLedgerCommit(mismatch) error = %v, want %v", err, backupusecase.ErrStateConflict)
 	}
-	if err := app.CommitErasureLedgerCommit(context.Background(), reserved.Sequence, reserved.EventID); err != nil {
+	if err := app.CommitErasureLedgerCommit(context.Background(), head, reserved.EventID); err != nil {
 		t.Fatalf("CommitErasureLedgerCommit() error = %v", err)
 	}
-	if err := app.CommitErasureLedgerCommit(context.Background(), reserved.Sequence, reserved.EventID); err != nil {
+	if err := app.CommitErasureLedgerCommit(context.Background(), head, reserved.EventID); err != nil {
 		t.Fatalf("CommitErasureLedgerCommit(retry) error = %v", err)
 	}
 	committedRetry, err := app.ReserveErasureLedgerCommit(context.Background(), first)
@@ -341,8 +364,38 @@ func TestErasureLedgerCommitReservationIsBoundedIdempotentAndContiguous(t *testi
 		t.Fatalf("ReserveErasureLedgerCommit(next) = %#v err=%v, want sequence 2", next, err)
 	}
 	state, err := store.Load(context.Background())
-	if err != nil || state.ErasureLedgerBoundary != 1 || state.PendingErasureLedger == nil || state.PendingErasureLedger.Sequence != 2 {
+	if err != nil || len(state.ErasureStreams) != 2 || state.ErasureStreams[1].Head == nil ||
+		state.ErasureStreams[1].Head.Sequence != 1 || state.ErasureStreams[1].Pending == nil ||
+		state.ErasureStreams[1].Pending.Sequence != 2 {
 		t.Fatalf("state = %#v err=%v, want committed boundary 1 and pending sequence 2", state, err)
+	}
+}
+
+func TestErasureLedgerReservationRejectsBeyondRecoverableCapacity(t *testing.T) {
+	head := backupartifact.ErasureStreamHead{
+		HashSlot: 0, Sequence: backupartifact.MaxErasureLedgerEvents,
+		CommitKey:    backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 0, backupartifact.MaxErasureLedgerEvents),
+		CommitSHA256: strings.Repeat("f", 64),
+	}
+	store := &memoryStateStore{state: backupusecase.State{
+		ErasureStreams: []backupusecase.ErasureStreamState{{HashSlot: 0, Head: &head}},
+	}}
+	app, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled: true, HashSlotCount: 2, Store: store, Publisher: &recordingPublisher{},
+		Now: time.Now, NewJobID: func() string { return "unused" },
+	})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	reference := backupusecase.ErasureLedgerRecordReference{
+		HashSlot: 1, EventID: strings.Repeat("a", 64),
+		RecordKey:    "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json",
+		RecordSHA256: strings.Repeat("b", 64),
+	}
+
+	_, err = app.ReserveErasureLedgerCommit(context.Background(), reference)
+	if !errors.Is(err, backupusecase.ErrStateConflict) {
+		t.Fatalf("ReserveErasureLedgerCommit() error = %v, want %v", err, backupusecase.ErrStateConflict)
 	}
 }
 

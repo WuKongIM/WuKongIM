@@ -14,7 +14,7 @@ const (
 	// CheckpointFormat identifies one immutable continuous-backup vector cut.
 	CheckpointFormat = "wukongim-backup-checkpoint"
 	// CheckpointVersion is the current vector-cut schema.
-	CheckpointVersion uint16 = 2
+	CheckpointVersion uint16 = 3
 	// CatalogPageFormat identifies one signed hash-linked catalog page.
 	CatalogPageFormat = "wukongim-backup-catalog-page"
 	// CatalogPageVersion is the current catalog schema.
@@ -82,6 +82,9 @@ type Checkpoint struct {
 	EffectiveAtUnixMillis int64 `json:"effective_at_unix_millis"`
 	// Slots contains exactly one entry per configured Hash Slot in ascending order.
 	Slots []CheckpointSlot `json:"slots"`
+	// ErasureHeads freezes the authenticated permanent-erasure prefix visible
+	// when this checkpoint was published. Entries are unique and sorted by Hash Slot.
+	ErasureHeads []ErasureStreamHead `json:"erasure_heads,omitempty"`
 	// Signature authenticates the canonical unsigned checkpoint.
 	Signature *ManifestSignature `json:"signature,omitempty"`
 }
@@ -263,6 +266,16 @@ func validateCheckpoint(checkpoint Checkpoint, requireSignature bool) error {
 		checkpoint.EffectiveAtUnixMillis <= 0 ||
 		len(checkpoint.Slots) != int(checkpoint.HashSlotCount) {
 		return fmt.Errorf("%w: checkpoint identity or coverage is invalid", ErrInvalidObject)
+	}
+	var erasureEventCount uint64
+	for index, head := range checkpoint.ErasureHeads {
+		if head.HashSlot >= checkpoint.HashSlotCount ||
+			(index > 0 && checkpoint.ErasureHeads[index-1].HashSlot >= head.HashSlot) ||
+			ValidateErasureStreamHead(head) != nil ||
+			head.Sequence > uint64(MaxErasureLedgerEvents)-erasureEventCount {
+			return fmt.Errorf("%w: checkpoint erasure stream head is invalid", ErrInvalidObject)
+		}
+		erasureEventCount += head.Sequence
 	}
 	var effective int64
 	for index, slot := range checkpoint.Slots {

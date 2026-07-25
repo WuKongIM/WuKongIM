@@ -34,8 +34,8 @@ type RestorePointPublisherOptions struct {
 	SourceClusterID string
 	// SourceGeneration fences the source disaster-recovery generation.
 	SourceGeneration string
-	// ErasureLedgerBoundary returns the committed permanent-erasure sequence included by publication.
-	ErasureLedgerBoundary func(context.Context) (uint64, error)
+	// ErasureHeads returns the committed per-Slot permanent-erasure prefixes observed by publication.
+	ErasureHeads func(context.Context) ([]backupartifact.ErasureStreamHead, error)
 	// Now returns the UTC publication time.
 	Now func() time.Time
 	// NewRestorePointID returns a globally unique restore-point identity.
@@ -44,18 +44,18 @@ type RestorePointPublisherOptions struct {
 
 // RestorePointPublisher verifies partition manifests and publishes one signed complete point.
 type RestorePointPublisher struct {
-	primary               backupartifact.Repository
-	secondary             backupartifact.Repository
-	publisher             *backupartifact.ReplicatedPublisher
-	signer                backupartifact.ManifestSigner
-	signingKeyID          string
-	applicationVersion    string
-	repositoryID          string
-	sourceClusterID       string
-	sourceGeneration      string
-	erasureLedgerBoundary func(context.Context) (uint64, error)
-	now                   func() time.Time
-	newRestorePointID     func() string
+	primary            backupartifact.Repository
+	secondary          backupartifact.Repository
+	publisher          *backupartifact.ReplicatedPublisher
+	signer             backupartifact.ManifestSigner
+	signingKeyID       string
+	applicationVersion string
+	repositoryID       string
+	sourceClusterID    string
+	sourceGeneration   string
+	erasureHeads       func(context.Context) ([]backupartifact.ErasureStreamHead, error)
+	now                func() time.Time
+	newRestorePointID  func() string
 }
 
 // NewRestorePointPublisher creates a partition-reference publisher.
@@ -70,18 +70,18 @@ func NewRestorePointPublisher(options RestorePointPublisherOptions) (*RestorePoi
 		return nil, fmt.Errorf("%w: repositories must be distinct", backupartifact.ErrRepositoryIncomplete)
 	}
 	return &RestorePointPublisher{
-		primary:               options.Primary,
-		secondary:             options.Secondary,
-		publisher:             backupartifact.NewReplicatedPublisher(options.Primary, options.Secondary),
-		signer:                options.Signer,
-		signingKeyID:          options.SigningKeyID,
-		applicationVersion:    options.ApplicationVersion,
-		repositoryID:          options.RepositoryID,
-		sourceClusterID:       options.SourceClusterID,
-		sourceGeneration:      options.SourceGeneration,
-		erasureLedgerBoundary: options.ErasureLedgerBoundary,
-		now:                   options.Now,
-		newRestorePointID:     options.NewRestorePointID,
+		primary:            options.Primary,
+		secondary:          options.Secondary,
+		publisher:          backupartifact.NewReplicatedPublisher(options.Primary, options.Secondary),
+		signer:             options.Signer,
+		signingKeyID:       options.SigningKeyID,
+		applicationVersion: options.ApplicationVersion,
+		repositoryID:       options.RepositoryID,
+		sourceClusterID:    options.SourceClusterID,
+		sourceGeneration:   options.SourceGeneration,
+		erasureHeads:       options.ErasureHeads,
+		now:                options.Now,
+		newRestorePointID:  options.NewRestorePointID,
 	}, nil
 }
 
@@ -137,30 +137,30 @@ func (p *RestorePointPublisher) Publish(ctx context.Context, job backupusecase.J
 		restorePointID = strings.TrimSpace(p.newRestorePointID())
 	}
 	createdAt := p.now().UTC().UnixMilli()
-	erasureLedgerBoundary := uint64(0)
-	if p.erasureLedgerBoundary != nil {
-		boundary, boundaryErr := p.erasureLedgerBoundary(ctx)
-		if boundaryErr != nil {
-			return backupusecase.RestorePoint{}, fmt.Errorf("backup restore-point publisher: read erasure-ledger boundary: %w", boundaryErr)
+	var erasureHeads []backupartifact.ErasureStreamHead
+	if p.erasureHeads != nil {
+		heads, headsErr := p.erasureHeads(ctx)
+		if headsErr != nil {
+			return backupusecase.RestorePoint{}, fmt.Errorf("backup restore-point publisher: read erasure stream heads: %w", headsErr)
 		}
-		erasureLedgerBoundary = boundary
+		erasureHeads = append([]backupartifact.ErasureStreamHead(nil), heads...)
 	}
 	manifest := backupartifact.Manifest{
-		Format:                backupartifact.ManifestFormat,
-		Version:               backupartifact.ManifestVersion,
-		ApplicationVersion:    p.applicationVersion,
-		RepositoryID:          p.repositoryID,
-		SourceClusterID:       p.sourceClusterID,
-		SourceGeneration:      p.sourceGeneration,
-		RestorePointID:        restorePointID,
-		BackupEpoch:           job.Epoch,
-		Kind:                  job.Kind,
-		HashSlotCount:         job.HashSlotCount,
-		CreatedAtUnixMillis:   createdAt,
-		EffectiveAtMillis:     effectiveAt,
-		Cuts:                  cuts,
-		Partitions:            partitions,
-		ErasureLedgerBoundary: erasureLedgerBoundary,
+		Format:              backupartifact.ManifestFormat,
+		Version:             backupartifact.ManifestVersion,
+		ApplicationVersion:  p.applicationVersion,
+		RepositoryID:        p.repositoryID,
+		SourceClusterID:     p.sourceClusterID,
+		SourceGeneration:    p.sourceGeneration,
+		RestorePointID:      restorePointID,
+		BackupEpoch:         job.Epoch,
+		Kind:                job.Kind,
+		HashSlotCount:       job.HashSlotCount,
+		CreatedAtUnixMillis: createdAt,
+		EffectiveAtMillis:   effectiveAt,
+		Cuts:                cuts,
+		Partitions:          partitions,
+		ErasureHeads:        erasureHeads,
 	}
 	signed, err := p.publisher.PublishReferences(ctx, manifest, p.signer, p.signingKeyID)
 	if err != nil {

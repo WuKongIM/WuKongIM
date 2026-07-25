@@ -147,6 +147,18 @@ func validateBackupRestoreInstallRequest(request backupRestoreInstallRPCRequest)
 		plan.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validBackupSHA256(plan.ErasureLedgerSHA256) {
 		return fmt.Errorf("internal/access/node: invalid restore install request")
 	}
+	var boundary uint64
+	for index, head := range plan.ErasureHeads {
+		if head.HashSlot >= plan.HashSlotCount || backupartifact.ValidateErasureStreamHead(head) != nil ||
+			(index > 0 && plan.ErasureHeads[index-1].HashSlot >= head.HashSlot) ||
+			head.Sequence > uint64(backupartifact.MaxErasureLedgerEvents)-boundary {
+			return fmt.Errorf("internal/access/node: invalid restore erasure stream heads")
+		}
+		boundary += head.Sequence
+	}
+	if boundary != plan.ErasureEventCount {
+		return fmt.Errorf("internal/access/node: invalid restore erasure stream boundary")
+	}
 	return nil
 }
 

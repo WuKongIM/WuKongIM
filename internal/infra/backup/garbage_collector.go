@@ -94,7 +94,7 @@ func NewRestorePointGarbageCollector(options RestorePointGarbageCollectorOptions
 
 // Collect performs one bounded sweep and reports pending restore points whose
 // discoverable manifests are absent from both repositories.
-func (c *RestorePointGarbageCollector) Collect(ctx context.Context, retained, pending []backupusecase.RestorePoint, active *backupusecase.Job, pendingLedger *backupusecase.ErasureLedgerRecordReference) (GarbageCollectionResult, error) {
+func (c *RestorePointGarbageCollector) Collect(ctx context.Context, retained, pending []backupusecase.RestorePoint, active *backupusecase.Job, pendingLedgers []backupusecase.ErasureLedgerRecordReference) (GarbageCollectionResult, error) {
 	if c == nil {
 		return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: collector is required")
 	}
@@ -103,11 +103,12 @@ func (c *RestorePointGarbageCollector) Collect(ctx context.Context, retained, pe
 	if err != nil {
 		return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: authenticate erasure ledger: %w", err)
 	}
+	ledgerSnapshots := map[string]ErasureLedgerSnapshot{c.ledger.streamNamespace: ledger}
 	for _, key := range ledger.Keys {
 		marked[key] = struct{}{}
 	}
-	if pendingLedger != nil {
-		keys, err := c.ledger.LoadPendingReferenceKeys(ctx, *pendingLedger)
+	for _, pendingLedger := range pendingLedgers {
+		keys, err := c.ledger.LoadPendingReferenceKeys(ctx, pendingLedger)
 		if err != nil {
 			return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: authenticate pending erasure ledger: %w", err)
 		}
@@ -128,6 +129,38 @@ func (c *RestorePointGarbageCollector) Collect(ctx context.Context, retained, pe
 			return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: retained graph %s differs across repositories", point.ID)
 		}
 		for _, key := range primaryGraph.Keys {
+			marked[key] = struct{}{}
+		}
+		manifest := primaryGraph.Manifest
+		if manifest.RepositoryID != c.ledger.repositoryID {
+			return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: retained point %s repository identity differs", point.ID)
+		}
+		namespace := backupartifact.ComputeErasureLedgerStreamNamespace(
+			manifest.RepositoryID,
+			manifest.SourceClusterID,
+			manifest.SourceGeneration,
+		)
+		lineageLedger, found := ledgerSnapshots[namespace]
+		if !found {
+			loader, err := NewErasureLedgerLoader(ErasureLedgerLoaderOptions{
+				Primary: c.primary, Secondary: c.secondary, Signer: c.signer, Codec: c.ledger.codec,
+				PrimaryRepository: c.ledger.primaryRepository, SecondaryRepository: c.ledger.secondaryRepository,
+				RepositoryID: manifest.RepositoryID, SourceClusterID: manifest.SourceClusterID,
+				SourceGeneration: manifest.SourceGeneration, HashSlotCount: manifest.HashSlotCount,
+			})
+			if err != nil {
+				return GarbageCollectionResult{}, err
+			}
+			lineageLedger, err = loader.LoadDualSnapshot(ctx)
+			if err != nil {
+				return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: authenticate retained point %s erasure ledger: %w", point.ID, err)
+			}
+			ledgerSnapshots[namespace] = lineageLedger
+		}
+		if !lineageLedger.ContainsHeads(manifest.ErasureHeads) {
+			return GarbageCollectionResult{}, fmt.Errorf("backup garbage collector: retained point %s erasure heads differ", point.ID)
+		}
+		for _, key := range lineageLedger.Keys {
 			marked[key] = struct{}{}
 		}
 	}
@@ -230,5 +263,5 @@ func restorePointGarbagePublicationKey(restorePointID string) string {
 }
 
 var _ interface {
-	Collect(context.Context, []backupusecase.RestorePoint, []backupusecase.RestorePoint, *backupusecase.Job, *backupusecase.ErasureLedgerRecordReference) (GarbageCollectionResult, error)
+	Collect(context.Context, []backupusecase.RestorePoint, []backupusecase.RestorePoint, *backupusecase.Job, []backupusecase.ErasureLedgerRecordReference) (GarbageCollectionResult, error)
 } = (*RestorePointGarbageCollector)(nil)

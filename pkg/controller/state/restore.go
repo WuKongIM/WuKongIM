@@ -1,5 +1,7 @@
 package state
 
+import backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+
 // RestoreStatus identifies one explicit fresh-cluster recovery phase.
 type RestoreStatus string
 
@@ -60,8 +62,10 @@ type RestorePlan struct {
 	HashSlotCount uint16 `json:"hash_slot_count"`
 	// ErasureLedgerVersion identifies the authenticated restore ledger snapshot schema.
 	ErasureLedgerVersion uint32 `json:"erasure_ledger_version"`
-	// ErasureLedgerBoundary is the exact contiguous permanent-erasure prefix to replay.
-	ErasureLedgerBoundary uint64 `json:"erasure_ledger_boundary"`
+	// ErasureEventCount is the total number of events selected by ErasureHeads.
+	ErasureEventCount uint64 `json:"erasure_event_count"`
+	// ErasureHeads authenticate the exact selected prefix of each Hash Slot stream.
+	ErasureHeads []backupartifact.ErasureStreamHead `json:"erasure_heads,omitempty"`
 	// ErasureLedgerSHA256 authenticates that exact ledger prefix.
 	ErasureLedgerSHA256 string `json:"erasure_ledger_sha256"`
 	// InvalidateTokens records the explicit restore-time credential transform.
@@ -97,6 +101,7 @@ func (s RestoreCoordinationState) Clone() RestoreCoordinationState {
 	out := s
 	if s.Plan != nil {
 		plan := *s.Plan
+		plan.ErasureHeads = cloneSlice(s.Plan.ErasureHeads)
 		if s.Plan.EstimatedPlainBytes != nil {
 			value := *s.Plan.EstimatedPlainBytes
 			plan.EstimatedPlainBytes = &value

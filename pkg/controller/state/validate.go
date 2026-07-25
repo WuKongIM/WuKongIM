@@ -3,7 +3,6 @@ package state
 import (
 	"encoding/hex"
 	"fmt"
-	"math"
 	"path"
 	"reflect"
 	"sort"
@@ -83,6 +82,18 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 	if plan.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validSHA256(plan.ErasureLedgerSHA256) {
 		return invalid("restore erasure-ledger snapshot fence is invalid")
 	}
+	var erasureBoundary uint64
+	for index, head := range plan.ErasureHeads {
+		if head.HashSlot >= hashSlotCount || backupartifact.ValidateErasureStreamHead(head) != nil ||
+			(index > 0 && plan.ErasureHeads[index-1].HashSlot >= head.HashSlot) ||
+			head.Sequence > uint64(backupartifact.MaxErasureLedgerEvents)-erasureBoundary {
+			return invalid("restore erasure stream heads are invalid")
+		}
+		erasureBoundary += head.Sequence
+	}
+	if erasureBoundary != plan.ErasureEventCount {
+		return invalid("restore erasure stream boundary is invalid")
+	}
 	switch plan.Status {
 	case RestoreStatusPlanned, RestoreStatusInstalling, RestoreStatusInstalled, RestoreStatusVerified, RestoreStatusActivated, RestoreStatusAbandoned:
 	default:
@@ -160,16 +171,41 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 			return invalid("backup checkpoint catalog head is invalid")
 		}
 	}
-	if backup.PendingErasureLedger != nil {
-		pending := backup.PendingErasureLedger
-		if backup.ErasureLedgerBoundary == math.MaxUint64 || pending.Sequence != backup.ErasureLedgerBoundary+1 || !validSHA256(pending.EventID) || !validSHA256(pending.RecordSHA256) || backupartifact.ValidateErasureLedgerRecordKey(pending.RecordKey, pending.EventID) != nil {
-			return invalid("backup pending erasure-ledger reference is invalid")
+	var erasureReservations uint64
+	for index, stream := range backup.ErasureStreams {
+		if stream.HashSlot >= hashSlotCount ||
+			(index > 0 && backup.ErasureStreams[index-1].HashSlot >= stream.HashSlot) ||
+			(stream.Head == nil && stream.Pending == nil) {
+			return invalid("backup erasure streams must be non-empty, unique, and sorted")
 		}
-	}
-	if backup.LastCommittedErasureLedger != nil {
-		committed := backup.LastCommittedErasureLedger
-		if committed.Sequence == 0 || committed.Sequence != backup.ErasureLedgerBoundary || !validSHA256(committed.EventID) || !validSHA256(committed.RecordSHA256) || backupartifact.ValidateErasureLedgerRecordKey(committed.RecordKey, committed.EventID) != nil {
-			return invalid("backup last committed erasure-ledger reference is invalid")
+		var boundary uint64
+		if stream.Head != nil {
+			if stream.Head.HashSlot != stream.HashSlot || backupartifact.ValidateErasureStreamHead(*stream.Head) != nil {
+				return invalid("backup erasure stream head is invalid")
+			}
+			boundary = stream.Head.Sequence
+			if boundary > uint64(backupartifact.MaxErasureLedgerEvents)-erasureReservations {
+				return invalid("backup erasure stream event capacity is exceeded")
+			}
+			erasureReservations += boundary
+		}
+		if stream.Pending != nil {
+			pending := stream.Pending
+			if boundary == ^uint64(0) || pending.HashSlot != stream.HashSlot || pending.Sequence != boundary+1 ||
+				!validBackupErasureReference(*pending) {
+				return invalid("backup pending erasure stream reference is invalid")
+			}
+			if erasureReservations >= backupartifact.MaxErasureLedgerEvents {
+				return invalid("backup erasure stream event capacity is exceeded")
+			}
+			erasureReservations++
+		}
+		if stream.LastCommitted != nil {
+			committed := stream.LastCommitted
+			if stream.Head == nil || committed.HashSlot != stream.HashSlot ||
+				committed.Sequence != boundary || !validBackupErasureReference(*committed) {
+				return invalid("backup last committed erasure stream reference is invalid")
+			}
 		}
 	}
 	if backup.Active != nil {
@@ -254,6 +290,13 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		return invalid("backup verification target is missing")
 	}
 	return nil
+}
+
+func validBackupErasureReference(reference BackupErasureLedgerReference) bool {
+	return reference.Sequence > 0 && validSHA256(reference.EventID) &&
+		validSHA256(reference.RecordSHA256) &&
+		backupartifact.ValidateErasureLedgerRecordKey(reference.RecordKey, reference.EventID) == nil &&
+		strings.HasPrefix(reference.RecordKey, fmt.Sprintf("erasure-ledger/events/%04x/", reference.HashSlot))
 }
 
 func validBackupSlotBaseline(reference *BackupSlotBaselineReference, hashSlot uint16) bool {

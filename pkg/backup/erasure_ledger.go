@@ -25,11 +25,14 @@ const (
 	// ErasureLedgerCommitFormat identifies signed monotonic ledger commits.
 	ErasureLedgerCommitFormat = "wukongim-erasure-ledger-commit"
 	// ErasureLedgerCommitVersion is the current signed commit version.
-	ErasureLedgerCommitVersion uint32 = 1
-	// ErasureLedgerSnapshotVersion identifies a restore plan's exact ledger prefix digest.
-	ErasureLedgerSnapshotVersion uint32 = 1
+	ErasureLedgerCommitVersion uint32 = 2
+	// ErasureLedgerSnapshotVersion identifies a restore plan's exact set of per-Slot stream heads.
+	ErasureLedgerSnapshotVersion uint32 = 2
 	// EmptyErasureLedgerSnapshotSHA256 is the SHA-256 digest of the empty ledger prefix.
 	EmptyErasureLedgerSnapshotSHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	// MaxErasureLedgerEvents is the maximum event count admitted into one
+	// source-generation ledger snapshot.
+	MaxErasureLedgerEvents = 1_000_000
 
 	maxErasureLedgerArtifactBytes = 64 << 10
 )
@@ -99,8 +102,13 @@ type ErasureLedgerCommit struct {
 	SourceClusterID string `json:"source_cluster_id"`
 	// SourceGeneration fences the source-cluster incarnation.
 	SourceGeneration string `json:"source_generation"`
-	// Sequence is the contiguous one-based ledger commit position.
+	// HashSlot identifies the independently sequenced permanent-erasure stream.
+	HashSlot uint16 `json:"hash_slot"`
+	// Sequence is the contiguous one-based position within HashSlot.
 	Sequence uint64 `json:"sequence"`
+	// PreviousCommitSHA256 links this commit to the preceding signed commit bytes.
+	// It is empty only for the first commit in a Hash Slot stream.
+	PreviousCommitSHA256 string `json:"previous_commit_sha256,omitempty"`
 	// EventID identifies the committed encrypted erasure event.
 	EventID string `json:"event_id"`
 	// RecordKey is the immutable signed event-reference key.
@@ -115,6 +123,19 @@ type ErasureLedgerCommit struct {
 	SecondaryRepository string `json:"secondary_repository"`
 	// Signature authenticates every preceding commit field.
 	Signature *ManifestSignature `json:"signature,omitempty"`
+}
+
+// ErasureStreamHead authenticates the exact committed prefix of one Hash Slot
+// permanent-erasure stream without exposing erased Channel identity.
+type ErasureStreamHead struct {
+	// HashSlot identifies the independently sequenced stream.
+	HashSlot uint16 `json:"hash_slot"`
+	// Sequence is the highest contiguous committed position.
+	Sequence uint64 `json:"sequence"`
+	// CommitKey locates the signed commit at Sequence.
+	CommitKey string `json:"commit_key"`
+	// CommitSHA256 authenticates the exact signed commit bytes.
+	CommitSHA256 string `json:"commit_sha256"`
 }
 
 // ComputeErasureEventID returns the deterministic idempotency identity for one
@@ -137,6 +158,23 @@ func ComputeErasureEventID(repositoryID, sourceClusterID, sourceGeneration, chan
 	return hex.EncodeToString(hash[:])
 }
 
+// ComputeErasureLedgerStreamNamespace returns the stable repository path
+// namespace for one source-cluster generation.
+func ComputeErasureLedgerStreamNamespace(repositoryID, sourceClusterID, sourceGeneration string) string {
+	identity := struct {
+		RepositoryID     string `json:"repository_id"`
+		SourceClusterID  string `json:"source_cluster_id"`
+		SourceGeneration string `json:"source_generation"`
+	}{
+		RepositoryID:     strings.TrimSpace(repositoryID),
+		SourceClusterID:  strings.TrimSpace(sourceClusterID),
+		SourceGeneration: strings.TrimSpace(sourceGeneration),
+	}
+	body, _ := json.Marshal(identity)
+	hash := sha256.Sum256(body)
+	return hex.EncodeToString(hash[:])
+}
+
 // ErasureLedgerRecordKey returns the immutable repository key for one event record.
 func ErasureLedgerRecordKey(hashSlot uint16, eventID string) string {
 	return fmt.Sprintf("erasure-ledger/events/%04x/%s.json", hashSlot, eventID)
@@ -149,9 +187,44 @@ func ErasureLedgerReceiptKey(eventID string) string {
 	return "erasure-ledger/receipts/" + eventID + ".json"
 }
 
-// ErasureLedgerCommitKey returns the lexicographically ordered immutable key for one commit.
-func ErasureLedgerCommitKey(sequence uint64) string {
-	return fmt.Sprintf("erasure-ledger/commits/%020d.json", sequence)
+// ErasureLedgerCommitKey returns the lexicographically ordered immutable key
+// for one commit within a source-generation Hash Slot stream.
+func ErasureLedgerCommitKey(namespace string, hashSlot uint16, sequence uint64) string {
+	return fmt.Sprintf("erasure-ledger/streams/%s/%04x/commits/%020d.json", namespace, hashSlot, sequence)
+}
+
+// ParseErasureLedgerCommitKey strictly parses one namespaced stream commit key.
+func ParseErasureLedgerCommitKey(key string) (string, uint16, uint64, error) {
+	const prefix = "erasure-ledger/streams/"
+	if !strings.HasPrefix(key, prefix) {
+		return "", 0, 0, fmt.Errorf("%w: erasure ledger commit key is invalid", ErrInvalidManifest)
+	}
+	parts := strings.Split(strings.TrimPrefix(key, prefix), "/")
+	if len(parts) != 4 || parts[2] != "commits" || len(parts[1]) != 4 ||
+		len(parts[3]) != 20+len(".json") || !strings.HasSuffix(parts[3], ".json") ||
+		validateLowerSHA256(parts[0]) != nil {
+		return "", 0, 0, fmt.Errorf("%w: erasure ledger commit key is invalid", ErrInvalidManifest)
+	}
+	slot, err := strconv.ParseUint(parts[1], 16, 16)
+	if err != nil || parts[1] != fmt.Sprintf("%04x", slot) {
+		return "", 0, 0, fmt.Errorf("%w: erasure ledger commit Hash Slot is invalid", ErrInvalidManifest)
+	}
+	sequenceText := strings.TrimSuffix(parts[3], ".json")
+	sequence, err := strconv.ParseUint(sequenceText, 10, 64)
+	if err != nil || sequence == 0 || sequenceText != fmt.Sprintf("%020d", sequence) {
+		return "", 0, 0, fmt.Errorf("%w: erasure ledger commit sequence is invalid", ErrInvalidManifest)
+	}
+	return parts[0], uint16(slot), sequence, nil
+}
+
+// ValidateErasureStreamHead validates one portable committed stream head.
+func ValidateErasureStreamHead(head ErasureStreamHead) error {
+	_, hashSlot, sequence, err := ParseErasureLedgerCommitKey(head.CommitKey)
+	if err != nil || head.Sequence == 0 || hashSlot != head.HashSlot || sequence != head.Sequence ||
+		validateLowerSHA256(head.CommitSHA256) != nil {
+		return fmt.Errorf("%w: erasure stream head is invalid", ErrInvalidManifest)
+	}
+	return nil
 }
 
 // ValidateErasureLedgerRecordKey validates the authoritative record-key grammar
@@ -375,8 +448,17 @@ func validateErasureLedgerCommit(commit ErasureLedgerCommit, requireSignature bo
 		commit.RecordKey == "" || commit.RecordKey != strings.TrimSuffix(commit.RecordKey, " ") {
 		return fmt.Errorf("%w: erasure ledger commit identity is invalid", ErrInvalidManifest)
 	}
+	if (commit.Sequence == 1 && commit.PreviousCommitSHA256 != "") ||
+		(commit.Sequence > 1 && validateLowerSHA256(commit.PreviousCommitSHA256) != nil) {
+		return fmt.Errorf("%w: erasure ledger commit predecessor is invalid", ErrInvalidManifest)
+	}
 	if err := validateErasureRecordKey(commit.RecordKey, commit.EventID); err != nil {
 		return err
+	}
+	recordParts := strings.Split(commit.RecordKey, "/")
+	recordSlot, _ := strconv.ParseUint(recordParts[2], 16, 16)
+	if uint16(recordSlot) != commit.HashSlot {
+		return fmt.Errorf("%w: erasure ledger commit Hash Slot mismatch", ErrInvalidManifest)
 	}
 	primary, secondary := strings.TrimSpace(commit.PrimaryRepository), strings.TrimSpace(commit.SecondaryRepository)
 	if primary == "" || secondary == "" || primary == secondary || len(primary) > 128 || len(secondary) > 128 {

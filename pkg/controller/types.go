@@ -67,6 +67,8 @@ type (
 	BackupVerificationTask = state.BackupVerificationTask
 	// BackupErasureLedgerReference is the bounded pending permanent-erasure record reference.
 	BackupErasureLedgerReference = state.BackupErasureLedgerReference
+	// BackupErasureStreamState is bounded coordination for one Hash Slot erasure stream.
+	BackupErasureStreamState = state.BackupErasureStreamState
 	// BackupSegmentReference binds a frontier to an immutable segment commit.
 	BackupSegmentReference = state.BackupSegmentReference
 	// BackupCatalogPageReference is the bounded immutable checkpoint catalog head.

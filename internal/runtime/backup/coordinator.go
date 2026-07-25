@@ -48,7 +48,7 @@ type PartitionDispatcher interface {
 
 // RetentionGarbageCollector sweeps only objects unreachable from authenticated retained points.
 type RetentionGarbageCollector interface {
-	Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job, *backupcontract.ErasureLedgerRecordReference) (backupcontract.GarbageCollectionResult, error)
+	Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job, []backupcontract.ErasureLedgerRecordReference) (backupcontract.GarbageCollectionResult, error)
 }
 
 // ScheduleDecider applies the entry-independent scheduling policy supplied by
@@ -372,7 +372,7 @@ func (c *Coordinator) reconcileRetention(ctx context.Context, state backupcontra
 	if err != nil {
 		return state, err
 	}
-	result, err := c.options.GarbageCollector.Collect(ctx, current.RestorePoints, current.PendingGarbage, cloneJobPointer(current.Active), cloneErasureLedgerReference(current.PendingErasureLedger))
+	result, err := c.options.GarbageCollector.Collect(ctx, current.RestorePoints, current.PendingGarbage, cloneJobPointer(current.Active), pendingErasureReferences(current.ErasureStreams))
 	if err != nil {
 		return current, err
 	}
@@ -396,12 +396,14 @@ func cloneJobPointer(job *backupcontract.Job) *backupcontract.Job {
 	return &copy
 }
 
-func cloneErasureLedgerReference(reference *backupcontract.ErasureLedgerRecordReference) *backupcontract.ErasureLedgerRecordReference {
-	if reference == nil {
-		return nil
+func pendingErasureReferences(streams []backupcontract.ErasureStreamState) []backupcontract.ErasureLedgerRecordReference {
+	result := make([]backupcontract.ErasureLedgerRecordReference, 0, len(streams))
+	for _, stream := range streams {
+		if stream.Pending != nil {
+			result = append(result, *stream.Pending)
+		}
 	}
-	copy := *reference
-	return &copy
+	return result
 }
 
 func (c *Coordinator) ensureDoctor(ctx context.Context) error {

@@ -110,7 +110,8 @@ func TestLocalRestoreInstallerReassemblesChunkedPartitionStreams(t *testing.T) {
 	result, err := installer.InstallPartition(ctx, backupusecase.RestorePlan{
 		ID: "plan-1", RestorePointID: signed.RestorePointID, ManifestSHA256: hex.EncodeToString(manifestHash[:]), Repository: "secondary",
 		SourceClusterID: signed.SourceClusterID, SourceGeneration: signed.SourceGeneration, HashSlotCount: 1,
-		ErasureLedgerVersion: ledgerSnapshot.Version, ErasureLedgerBoundary: ledgerSnapshot.Boundary, ErasureLedgerSHA256: ledgerSnapshot.SHA256,
+		ErasureLedgerVersion: ledgerSnapshot.Version, ErasureEventCount: ledgerSnapshot.EventCount,
+		ErasureHeads: ledgerSnapshot.Heads, ErasureLedgerSHA256: ledgerSnapshot.SHA256,
 	}, 0)
 	require.NoError(t, err)
 	require.True(t, result.Installed)

@@ -1,10 +1,6 @@
 package state
 
-import (
-	"sort"
-
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
-)
+import "sort"
 
 // Normalize applies deterministic defaults and ordering to a cluster state.
 func (s *ClusterState) Normalize() {
@@ -73,17 +69,19 @@ func (s *ClusterState) Normalize() {
 		sort.Slice(s.Backup.SlotFrontiers, func(i, j int) bool {
 			return s.Backup.SlotFrontiers[i].HashSlot < s.Backup.SlotFrontiers[j].HashSlot
 		})
+		sort.Slice(s.Backup.ErasureStreams, func(i, j int) bool {
+			return s.Backup.ErasureStreams[i].HashSlot < s.Backup.ErasureStreams[j].HashSlot
+		})
 	}
 	if s.Restore != nil && s.Restore.Plan != nil {
-		if s.Restore.Plan.ErasureLedgerVersion == 0 && s.Restore.Plan.ErasureLedgerBoundary == 0 && s.Restore.Plan.ErasureLedgerSHA256 == "" {
-			s.Restore.Plan.ErasureLedgerVersion = backupartifact.ErasureLedgerSnapshotVersion
-			s.Restore.Plan.ErasureLedgerSHA256 = backupartifact.EmptyErasureLedgerSnapshotSHA256
-		}
 		if s.Restore.Plan.Partitions == nil {
 			s.Restore.Plan.Partitions = []RestorePartition{}
 		}
 		sort.Slice(s.Restore.Plan.Partitions, func(i, j int) bool {
 			return s.Restore.Plan.Partitions[i].HashSlot < s.Restore.Plan.Partitions[j].HashSlot
+		})
+		sort.Slice(s.Restore.Plan.ErasureHeads, func(i, j int) bool {
+			return s.Restore.Plan.ErasureHeads[i].HashSlot < s.Restore.Plan.ErasureHeads[j].HashSlot
 		})
 	}
 	sort.Slice(s.Controllers, func(i, j int) bool { return s.Controllers[i].NodeID < s.Controllers[j].NodeID })

@@ -47,6 +47,46 @@ func TestCoordinatorLeaderResumesMissingPartitionsAndPublishes(t *testing.T) {
 	}
 }
 
+func TestCoordinatorPublishesErasureCommittedWhilePartitionCaptureIsInFlight(t *testing.T) {
+	job := coordinatorTestJob()
+	job.HashSlotCount = 1
+	app := &fakeCoordinatorApp{state: backupcontract.State{Active: job}}
+	dispatcher := &blockingPartitionDispatcher{started: make(chan struct{}), release: make(chan struct{})}
+	coordinator := newTestCoordinator(t, app, fakeCoordinatorDoctor{}, dispatcher)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		result <- coordinator.resumeJob(ctx, *job)
+	}()
+
+	select {
+	case <-dispatcher.started:
+	case <-ctx.Done():
+		t.Fatal("partition capture did not start")
+	}
+	namespace := backupartifact.ComputeErasureLedgerStreamNamespace("repo-prod", "cluster-a", "generation-1")
+	head := backupartifact.ErasureStreamHead{
+		HashSlot: 0, Sequence: 1,
+		CommitKey:    backupartifact.ErasureLedgerCommitKey(namespace, 0, 1),
+		CommitSHA256: fmt.Sprintf("%064x", 9),
+	}
+	app.mu.Lock()
+	app.state.ErasureStreams = []backupcontract.ErasureStreamState{{HashSlot: 0, Head: &head}}
+	app.mu.Unlock()
+	close(dispatcher.release)
+
+	if err := <-result; err != nil {
+		t.Fatalf("resumeJob() error = %v", err)
+	}
+	app.mu.Lock()
+	published := append([]backupartifact.ErasureStreamHead(nil), app.publishedErasureHeads...)
+	app.mu.Unlock()
+	if len(published) != 1 || published[0] != head {
+		t.Fatalf("published erasure heads = %#v, want %#v", published, head)
+	}
+}
+
 func TestCoordinatorReconcilesRetentionAndCompletesDurableGarbage(t *testing.T) {
 	now := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
 	app := &fakeCoordinatorApp{state: backupcontract.State{
@@ -191,6 +231,27 @@ func (f *fakePartitionDispatcher) Dispatch(_ context.Context, request CaptureReq
 }
 func (f *fakePartitionDispatcher) callCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.calls }
 
+type blockingPartitionDispatcher struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (f *blockingPartitionDispatcher) Dispatch(ctx context.Context, request CaptureRequest) (backupcontract.PartitionReport, error) {
+	f.once.Do(func() { close(f.started) })
+	select {
+	case <-f.release:
+	case <-ctx.Done():
+		return backupcontract.PartitionReport{}, ctx.Err()
+	}
+	return backupcontract.PartitionReport{
+		JobID: request.JobID, BackupEpoch: request.BackupEpoch, HashSlot: request.HashSlot,
+		RaftIndex: 1, CommittedAtUnixMillis: time.Now().UnixMilli(),
+		ManifestKey:    fmt.Sprintf("partition-manifests/%s/%05d.json", request.JobID, request.HashSlot),
+		ManifestSHA256: fmt.Sprintf("%064x", 1), ObjectCount: 1, CiphertextBytes: 1,
+	}, nil
+}
+
 type fakeCoordinatorApp struct {
 	mu                    sync.Mutex
 	state                 backupcontract.State
@@ -199,6 +260,7 @@ type fakeCoordinatorApp struct {
 	completedGarbage      []string
 	verifiedRestorePoints []string
 	runVerificationCalls  int
+	publishedErasureHeads []backupartifact.ErasureStreamHead
 }
 
 func (f *fakeCoordinatorApp) CoordinationState(context.Context) (backupcontract.State, error) {
@@ -220,6 +282,12 @@ func (f *fakeCoordinatorApp) Publish(context.Context, string, uint64) (backupcon
 	defer f.mu.Unlock()
 	f.publishCalls++
 	job := f.state.Active
+	f.publishedErasureHeads = f.publishedErasureHeads[:0]
+	for _, stream := range f.state.ErasureStreams {
+		if stream.Head != nil {
+			f.publishedErasureHeads = append(f.publishedErasureHeads, *stream.Head)
+		}
+	}
 	point := backupcontract.RestorePoint{ID: "restore-job-resume", JobID: job.ID, BackupEpoch: job.Epoch, Kind: job.Kind, EffectiveAtUnixMillis: time.Now().UnixMilli(), CreatedAtUnixMillis: time.Now().UnixMilli(), PrimaryVerified: true, SecondaryVerified: true}
 	f.state.RestorePoints = append(f.state.RestorePoints, point)
 	f.state.Active = nil
@@ -280,7 +348,7 @@ type fakeRetentionGarbageCollector struct {
 	err    error
 }
 
-func (f *fakeRetentionGarbageCollector) Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job, *backupcontract.ErasureLedgerRecordReference) (backupcontract.GarbageCollectionResult, error) {
+func (f *fakeRetentionGarbageCollector) Collect(context.Context, []backupcontract.RestorePoint, []backupcontract.RestorePoint, *backupcontract.Job, []backupcontract.ErasureLedgerRecordReference) (backupcontract.GarbageCollectionResult, error) {
 	f.calls++
 	return f.result, f.err
 }

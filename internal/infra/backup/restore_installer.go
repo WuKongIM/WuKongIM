@@ -187,7 +187,7 @@ func (i *LocalRestoreInstaller) InstallPartition(ctx context.Context, plan backu
 }
 
 func (i *LocalRestoreInstaller) loadPlanLedger(ctx context.Context, plan backupusecase.RestorePlan, repositoryID string) (ErasureLedgerSnapshot, error) {
-	cacheKey := plan.Repository + ":" + repositoryID + ":" + plan.SourceClusterID + ":" + plan.SourceGeneration + ":" + strconv.FormatUint(plan.ErasureLedgerBoundary, 10) + ":" + plan.ErasureLedgerSHA256
+	cacheKey := plan.Repository + ":" + repositoryID + ":" + plan.SourceClusterID + ":" + plan.SourceGeneration + ":" + strconv.FormatUint(plan.ErasureEventCount, 10) + ":" + plan.ErasureLedgerSHA256
 	i.mu.Lock()
 	ledger, ok := i.ledgers[cacheKey]
 	i.mu.Unlock()
@@ -201,7 +201,7 @@ func (i *LocalRestoreInstaller) loadPlanLedger(ctx context.Context, plan backupu
 	if err != nil {
 		return ErasureLedgerSnapshot{}, err
 	}
-	ledger, err = loader.LoadPinnedSnapshot(ctx, plan.Repository, plan.ErasureLedgerVersion, plan.ErasureLedgerBoundary, plan.ErasureLedgerSHA256)
+	ledger, err = loader.LoadPinnedSnapshot(ctx, plan.Repository, plan.ErasureLedgerVersion, plan.ErasureEventCount, plan.ErasureLedgerSHA256, plan.ErasureHeads)
 	if err != nil {
 		return ErasureLedgerSnapshot{}, err
 	}

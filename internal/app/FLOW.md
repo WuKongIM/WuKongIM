@@ -1065,12 +1065,15 @@ of the replacement continuous runtime is completed by its dedicated switch
 task rather than partially mixing capture engines here.
 
 When automatic backup is enabled, the same composition root injects the
-dual-repository permanent-erasure ledger into local and forwarded Manager
-message-retention paths. Retention fails closed before its Slot metadata command
-when ledger construction or publication is unavailable. With backup disabled,
-the existing cluster-authoritative retention path remains unchanged. The
-garbage collector uses separately assumed delete credentials while preserving
-the signed logical repository identities `primary` and `secondary`.
+dual-repository, per-Hash-Slot permanent-erasure ledger into local and forwarded
+Manager message-retention paths. Checkpoint publication reads the sorted
+committed Slot heads from Controller state, and restore inspection pins the
+latest authenticated heads even when an older recovery point is selected.
+Retention fails closed before its Slot metadata command when ledger construction
+or publication is unavailable. With backup disabled, the existing
+cluster-authoritative retention path remains unchanged. The garbage collector
+uses separately assumed delete credentials while preserving the signed logical
+repository identities `primary` and `secondary`.
 
 An `e2e`-tagged binary may replace repository, key, and clock adapters only
 when the explicit backup E2E file-root environment is present. Without that

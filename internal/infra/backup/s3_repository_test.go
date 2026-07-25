@@ -113,12 +113,14 @@ func TestS3RepositoryListsErasureLedgerCommitsLexically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewS3Repository() error = %v", err)
 	}
-	second := backupartifact.ErasureLedgerCommitKey(2)
-	first := backupartifact.ErasureLedgerCommitKey(1)
+	namespace := strings.Repeat("e", 64)
+	second := backupartifact.ErasureLedgerCommitKey(namespace, 1, 2)
+	first := backupartifact.ErasureLedgerCommitKey(namespace, 1, 1)
 	client.objects["prod/cluster-a/"+second] = fakeS3Object{}
 	client.objects["prod/cluster-a/"+first] = fakeS3Object{}
+	client.objects["prod/cluster-a/"+backupartifact.ErasureLedgerCommitKey(strings.Repeat("f", 64), 1, 1)] = fakeS3Object{}
 
-	keys, err := repository.ListErasureLedgerCommitKeys(context.Background())
+	keys, err := repository.ListErasureLedgerCommitKeys(context.Background(), namespace)
 	if err != nil {
 		t.Fatalf("ListErasureLedgerCommitKeys() error = %v", err)
 	}

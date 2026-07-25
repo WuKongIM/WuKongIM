@@ -295,35 +295,55 @@ func (r *FileRepository) ListRestorePointIDs(ctx context.Context) ([]string, err
 	return ids, nil
 }
 
-// ListErasureLedgerCommitKeys returns bounded lexically ordered commit-marker keys.
-func (r *FileRepository) ListErasureLedgerCommitKeys(ctx context.Context) ([]string, error) {
+// ListErasureLedgerCommitKeys returns bounded lexically ordered commit-marker
+// keys for one source-generation namespace.
+func (r *FileRepository) ListErasureLedgerCommitKeys(ctx context.Context, namespace string) ([]string, error) {
 	if r == nil || r.root == "" {
 		return nil, fmt.Errorf("backup file repository: repository is required")
 	}
-	root := filepath.Join(r.root, "erasure-ledger", "commits")
-	entries, err := os.ReadDir(root)
-	if errors.Is(err, os.ErrNotExist) {
-		return []string{}, nil
+	if _, _, _, err := backupartifact.ParseErasureLedgerCommitKey(backupartifact.ErasureLedgerCommitKey(namespace, 0, 1)); err != nil {
+		return nil, fmt.Errorf("backup file repository: erasure-ledger namespace is invalid")
 	}
-	if err != nil {
+	root := filepath.Join(r.root, "erasure-ledger", "streams", namespace)
+	if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+		return []string{}, nil
+	} else if err != nil {
 		return nil, err
 	}
-	if len(entries) > maxErasureLedgerCommits {
-		return nil, fmt.Errorf("backup file repository: erasure-ledger commit listing exceeds limit")
-	}
-	keys := make([]string, 0, len(entries))
-	for _, entry := range entries {
+	keys := make([]string, 0)
+	err := filepath.WalkDir(root, func(filePath string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
-		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("%w: erasure-ledger commit entry is not a regular file", backupartifact.ErrObjectCorrupt)
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%w: erasure-ledger commit entry is a symlink", backupartifact.ErrObjectCorrupt)
 		}
-		key := "erasure-ledger/commits/" + entry.Name()
-		if !validErasureLedgerCommitKey(key) {
-			return nil, fmt.Errorf("%w: invalid erasure-ledger commit key %q", backupartifact.ErrObjectCorrupt, key)
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("%w: erasure-ledger commit entry is not a regular file", backupartifact.ErrObjectCorrupt)
+		}
+		relative, err := filepath.Rel(r.root, filePath)
+		if err != nil {
+			return err
+		}
+		key := filepath.ToSlash(relative)
+		if !validErasureLedgerCommitKey(key, namespace) {
+			return fmt.Errorf("%w: invalid erasure-ledger commit key %q", backupartifact.ErrObjectCorrupt, key)
 		}
 		keys = append(keys, key)
+		if len(keys) > backupartifact.MaxErasureLedgerEvents {
+			return fmt.Errorf("backup file repository: erasure-ledger commit listing exceeds limit")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	sort.Strings(keys)
 	return keys, nil

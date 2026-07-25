@@ -84,6 +84,58 @@ func TestRestorePointGarbageCollectorMarksRetainedGraphsAndSweepsBothRepositorie
 	}
 }
 
+func TestRestorePointGarbageCollectorRetainsLedgerForOlderSourceGeneration(t *testing.T) {
+	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
+	require.NoError(t, err)
+	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
+	require.NoError(t, err)
+	signer := restoreInspectorSigner()
+	codec := restoreInspectorCodec()
+	coordinator, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled: true, HashSlotCount: 1, Store: &erasureLedgerStateStore{}, Publisher: erasureLedgerNoopPublisher{},
+		Now: func() time.Time { return time.UnixMilli(1710000002000) }, NewJobID: func() string { return "unused" },
+	})
+	require.NoError(t, err)
+	oldLedger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
+		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: coordinator, Signer: signer,
+		SigningKeyID: "signing-key", KMSKeyID: "kms-backup", RepositoryID: "repo-prod",
+		SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 1,
+		Now: func() time.Time { return time.UnixMilli(1710000002000) }, NewAttemptID: func() string { return "old-generation-ledger" },
+	})
+	require.NoError(t, err)
+	_, err = oldLedger.RecordPermanentMessageErasure(context.Background(), backupinfra.PermanentMessageErasure{
+		ChannelID: "old-room", ChannelType: 2, ThroughSeq: 3, RequestedAtUnixMillis: 1710000002000,
+	})
+	require.NoError(t, err)
+	oldLoader, err := backupinfra.NewErasureLedgerLoader(backupinfra.ErasureLedgerLoaderOptions{
+		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec,
+		RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 1,
+	})
+	require.NoError(t, err)
+	oldSnapshot, err := oldLoader.LoadDualSnapshot(context.Background())
+	require.NoError(t, err)
+	publishDirectRestorePoint(t, primary, secondary, signer, "restore-old-generation", 1710000003000, 10, oldSnapshot.Heads...)
+	retained := backupusecase.RestorePoint{
+		ID:             "restore-old-generation",
+		ManifestSHA256: repositoryChecksum(t, primary, "restore-points/restore-old-generation/manifest.json"),
+	}
+
+	collector, err := backupinfra.NewRestorePointGarbageCollector(backupinfra.RestorePointGarbageCollectorOptions{
+		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec,
+		RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-2", HashSlotCount: 1,
+		MinimumAge: 7 * 24 * time.Hour, Now: func() time.Time { return time.Now().UTC().Add(8 * 24 * time.Hour) },
+	})
+	require.NoError(t, err)
+	_, err = collector.Collect(context.Background(), []backupusecase.RestorePoint{retained}, nil, nil, nil)
+	require.NoError(t, err)
+	for _, repository := range []backupartifact.Repository{primary, secondary} {
+		for _, key := range oldSnapshot.Keys {
+			_, err = repository.Stat(context.Background(), key)
+			require.NoError(t, err, key)
+		}
+	}
+}
+
 func TestRestorePointGarbageCollectorFailsClosedWhenRetainedGraphIsMissing(t *testing.T) {
 	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
 	require.NoError(t, err)
@@ -122,17 +174,17 @@ func TestRestorePointGarbageCollectorProtectsAuthenticatedPendingErasure(t *test
 		ChannelID: "pending-room", ChannelType: 2, ThroughSeq: 3, RequestedAtUnixMillis: 1710000002000,
 	})
 	require.NoError(t, err)
-	commitBody := readRepositoryBody(t, primary, backupartifact.ErasureLedgerCommitKey(receipt.Sequence))
+	commitBody := readRepositoryBody(t, primary, backupartifact.ErasureLedgerCommitKey(erasureLedgerTestNamespace(), receipt.HashSlot, receipt.Sequence))
 	commit, err := backupartifact.LoadErasureLedgerCommit(context.Background(), commitBody, signer)
 	require.NoError(t, err)
 	recordBody := readRepositoryBody(t, primary, commit.RecordKey)
 	record, err := backupartifact.LoadErasureLedgerRecord(context.Background(), recordBody, signer)
 	require.NoError(t, err)
 	pending := backupusecase.ErasureLedgerRecordReference{
-		Sequence: commit.Sequence, EventID: commit.EventID, RecordKey: commit.RecordKey, RecordSHA256: commit.RecordSHA256,
+		HashSlot: commit.HashSlot, Sequence: commit.Sequence, EventID: commit.EventID, RecordKey: commit.RecordKey, RecordSHA256: commit.RecordSHA256,
 	}
 	for _, repository := range []*backupinfra.FileRepository{primary, secondary} {
-		require.NoError(t, repository.DeleteGarbageObject(context.Background(), backupartifact.ErasureLedgerCommitKey(commit.Sequence)))
+		require.NoError(t, repository.DeleteGarbageObject(context.Background(), backupartifact.ErasureLedgerCommitKey(erasureLedgerTestNamespace(), commit.HashSlot, commit.Sequence)))
 		require.NoError(t, repository.DeleteGarbageObject(context.Background(), backupartifact.ErasureLedgerReceiptKey(commit.EventID)))
 		putGarbageTestObject(t, repository, "objects/uncommitted-orphan/old.wkb", []byte("orphan"))
 	}
@@ -142,7 +194,7 @@ func TestRestorePointGarbageCollectorProtectsAuthenticatedPendingErasure(t *test
 		MinimumAge: 7 * 24 * time.Hour, Now: func() time.Time { return time.Now().UTC().Add(8 * 24 * time.Hour) },
 	})
 	require.NoError(t, err)
-	_, err = collector.Collect(context.Background(), nil, nil, nil, &pending)
+	_, err = collector.Collect(context.Background(), nil, nil, nil, []backupusecase.ErasureLedgerRecordReference{pending})
 	require.NoError(t, err)
 	for _, repository := range []backupartifact.Repository{primary, secondary} {
 		_, err = repository.Stat(context.Background(), commit.RecordKey)

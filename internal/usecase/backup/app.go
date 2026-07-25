@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"time"
@@ -299,6 +298,15 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 			FrontierUpdatedUnixMillis:    frontier.UpdatedAtUnixMillis,
 		}
 	}
+	snapshot.ErasureStreams = make([]ErasureStreamProgress, len(state.ErasureStreams))
+	for index, stream := range state.ErasureStreams {
+		snapshot.ErasureStreams[index] = ErasureStreamProgress{
+			HashSlot: stream.HashSlot, Pending: stream.Pending != nil,
+		}
+		if stream.Head != nil {
+			snapshot.ErasureStreams[index].Sequence = stream.Head.Sequence
+		}
+	}
 	snapshot.Capacity = backupCapacitySnapshot(state)
 	if len(state.RestorePoints) > 0 {
 		latest := state.RestorePoints[0]
@@ -452,8 +460,8 @@ func (a *App) CoordinationState(ctx context.Context) (State, error) {
 	return state.Clone(), nil
 }
 
-// ReserveErasureLedgerCommit allocates the next contiguous ledger sequence
-// while keeping Controller state bounded to one pending immutable record.
+// ReserveErasureLedgerCommit allocates the next contiguous sequence in one
+// Hash Slot stream while keeping Controller state bounded to one pending record per stream.
 func (a *App) ReserveErasureLedgerCommit(ctx context.Context, reference ErasureLedgerRecordReference) (ErasureLedgerRecordReference, error) {
 	if !a.enabled {
 		return ErasureLedgerRecordReference{}, ErrDisabled
@@ -466,8 +474,9 @@ func (a *App) ReserveErasureLedgerCommit(ctx context.Context, reference ErasureL
 	}
 	var reserved ErasureLedgerRecordReference
 	err := a.mutate(ctx, func(state *State) error {
-		if state.PendingErasureLedger != nil {
-			pending := *state.PendingErasureLedger
+		stream := ensureErasureStream(state, reference.HashSlot)
+		if stream.Pending != nil {
+			pending := *stream.Pending
 			candidate := reference
 			candidate.Sequence = pending.Sequence
 			if pending == candidate {
@@ -476,8 +485,8 @@ func (a *App) ReserveErasureLedgerCommit(ctx context.Context, reference ErasureL
 			}
 			return ErrErasureLedgerPending
 		}
-		if state.LastCommittedErasureLedger != nil {
-			committed := *state.LastCommittedErasureLedger
+		if stream.LastCommitted != nil {
+			committed := *stream.LastCommitted
 			candidate := reference
 			candidate.Sequence = committed.Sequence
 			if committed == candidate {
@@ -485,49 +494,112 @@ func (a *App) ReserveErasureLedgerCommit(ctx context.Context, reference ErasureL
 				return nil
 			}
 		}
-		if state.ErasureLedgerBoundary == math.MaxUint64 {
+		if erasureLedgerReservationCount(state.ErasureStreams) >= backupartifact.MaxErasureLedgerEvents {
+			return fmt.Errorf("%w: erasure ledger event capacity is exhausted", ErrStateConflict)
+		}
+		var boundary uint64
+		if stream.Head != nil {
+			boundary = stream.Head.Sequence
+		}
+		if boundary == ^uint64(0) {
 			return fmt.Errorf("%w: erasure ledger sequence exhausted", ErrStateConflict)
 		}
 		reserved = reference
-		reserved.Sequence = state.ErasureLedgerBoundary + 1
-		state.PendingErasureLedger = &reserved
+		reserved.Sequence = boundary + 1
+		stream.Pending = &reserved
 		return nil
 	})
 	return reserved, err
 }
 
-// CommitErasureLedgerCommit advances the contiguous boundary after both
-// repositories durably contain the signed commit marker.
-func (a *App) CommitErasureLedgerCommit(ctx context.Context, sequence uint64, eventID string) error {
+// CommitErasureLedgerCommit advances one stream head after both repositories
+// durably contain the exact signed commit marker.
+func (a *App) CommitErasureLedgerCommit(ctx context.Context, head backupartifact.ErasureStreamHead, eventID string) error {
 	if !a.enabled {
 		return ErrDisabled
 	}
 	eventID = strings.TrimSpace(eventID)
-	if sequence == 0 || !validLowerSHA256(eventID) {
+	if backupartifact.ValidateErasureStreamHead(head) != nil || !validLowerSHA256(eventID) {
 		return fmt.Errorf("%w: invalid erasure ledger commit identity", ErrInvalidRequest)
 	}
 	return a.mutate(ctx, func(state *State) error {
-		if state.PendingErasureLedger == nil {
-			if state.ErasureLedgerBoundary == sequence {
-				return nil
-			}
+		stream, found := findErasureStream(state.ErasureStreams, head.HashSlot)
+		if !found {
 			return fmt.Errorf("%w: erasure ledger commit is not pending", ErrStateConflict)
 		}
-		pending := state.PendingErasureLedger
-		if pending.Sequence != sequence || pending.EventID != eventID || sequence != state.ErasureLedgerBoundary+1 {
+		if stream.Head != nil && head.Sequence <= stream.Head.Sequence {
+			if head.Sequence == stream.Head.Sequence && *stream.Head != head {
+				return fmt.Errorf("%w: erasure ledger committed head mismatch", ErrStateConflict)
+			}
+			return nil
+		}
+		if stream.Pending == nil {
+			return fmt.Errorf("%w: erasure ledger commit is not pending", ErrStateConflict)
+		}
+		var boundary uint64
+		if stream.Head != nil {
+			boundary = stream.Head.Sequence
+		}
+		pending := stream.Pending
+		if pending.HashSlot != head.HashSlot || pending.Sequence != head.Sequence ||
+			pending.EventID != eventID || head.Sequence != boundary+1 {
 			return fmt.Errorf("%w: erasure ledger commit fence mismatch", ErrStateConflict)
 		}
 		committed := *pending
-		state.ErasureLedgerBoundary = sequence
-		state.PendingErasureLedger = nil
-		state.LastCommittedErasureLedger = &committed
+		committedHead := head
+		stream.Head = &committedHead
+		stream.Pending = nil
+		stream.LastCommitted = &committed
 		return nil
 	})
 }
 
 func validErasureLedgerRecordReference(reference ErasureLedgerRecordReference) bool {
 	return validLowerSHA256(reference.EventID) && validLowerSHA256(reference.RecordSHA256) &&
-		backupartifact.ValidateErasureLedgerRecordKey(reference.RecordKey, reference.EventID) == nil
+		backupartifact.ValidateErasureLedgerRecordKey(reference.RecordKey, reference.EventID) == nil &&
+		strings.HasPrefix(reference.RecordKey, fmt.Sprintf("erasure-ledger/events/%04x/", reference.HashSlot))
+}
+
+func ensureErasureStream(state *State, hashSlot uint16) *ErasureStreamState {
+	index := sort.Search(len(state.ErasureStreams), func(index int) bool {
+		return state.ErasureStreams[index].HashSlot >= hashSlot
+	})
+	if index < len(state.ErasureStreams) && state.ErasureStreams[index].HashSlot == hashSlot {
+		return &state.ErasureStreams[index]
+	}
+	state.ErasureStreams = append(state.ErasureStreams, ErasureStreamState{})
+	copy(state.ErasureStreams[index+1:], state.ErasureStreams[index:])
+	state.ErasureStreams[index] = ErasureStreamState{HashSlot: hashSlot}
+	return &state.ErasureStreams[index]
+}
+
+func findErasureStream(streams []ErasureStreamState, hashSlot uint16) (*ErasureStreamState, bool) {
+	index := sort.Search(len(streams), func(index int) bool {
+		return streams[index].HashSlot >= hashSlot
+	})
+	if index >= len(streams) || streams[index].HashSlot != hashSlot {
+		return nil, false
+	}
+	return &streams[index], true
+}
+
+func erasureLedgerReservationCount(streams []ErasureStreamState) uint64 {
+	var total uint64
+	for _, stream := range streams {
+		if stream.Head != nil {
+			if stream.Head.Sequence >= uint64(backupartifact.MaxErasureLedgerEvents)-total {
+				return backupartifact.MaxErasureLedgerEvents
+			}
+			total += stream.Head.Sequence
+		}
+		if stream.Pending != nil {
+			if total >= backupartifact.MaxErasureLedgerEvents {
+				return backupartifact.MaxErasureLedgerEvents
+			}
+			total++
+		}
+	}
+	return total
 }
 
 func validLowerSHA256(value string) bool {

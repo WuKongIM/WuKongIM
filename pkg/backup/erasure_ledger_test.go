@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -61,7 +62,8 @@ func TestErasureLedgerArtifactsRoundTripAndRejectTampering(t *testing.T) {
 	commit := backup.ErasureLedgerCommit{
 		Format: backup.ErasureLedgerCommitFormat, Version: backup.ErasureLedgerCommitVersion,
 		RepositoryID: event.RepositoryID, SourceClusterID: event.SourceClusterID, SourceGeneration: event.SourceGeneration,
-		Sequence: 7, EventID: eventID, RecordKey: backup.ErasureLedgerRecordKey(event.HashSlot, eventID),
+		HashSlot: event.HashSlot, Sequence: 7, PreviousCommitSHA256: strings.Repeat("f", 64),
+		EventID: eventID, RecordKey: backup.ErasureLedgerRecordKey(event.HashSlot, eventID),
 		RecordSHA256: stringLowerHex(recordHash[:]), CreatedAtUnixMillis: event.RequestedAtUnixMillis,
 		PrimaryRepository: "primary", SecondaryRepository: "secondary",
 	}
@@ -102,6 +104,41 @@ func TestErasureLedgerEventRejectsMismatchedDeterministicIdentity(t *testing.T) 
 	}
 	if _, err := backup.MarshalErasureLedgerEvent(event); err == nil {
 		t.Fatal("MarshalErasureLedgerEvent() error = nil, want mismatched event id rejection")
+	}
+}
+
+func TestErasureLedgerCommitKeyIsolatesAndStrictlyParsesSourceGeneration(t *testing.T) {
+	t.Parallel()
+
+	firstNamespace := backup.ComputeErasureLedgerStreamNamespace("repo-prod", "cluster-source", "generation-1")
+	secondNamespace := backup.ComputeErasureLedgerStreamNamespace("repo-prod", "cluster-source", "generation-2")
+	if firstNamespace == secondNamespace {
+		t.Fatal("source generations produced the same erasure stream namespace")
+	}
+	key := backup.ErasureLedgerCommitKey(firstNamespace, 15, 27)
+	namespace, hashSlot, sequence, err := backup.ParseErasureLedgerCommitKey(key)
+	if err != nil || namespace != firstNamespace || hashSlot != 15 || sequence != 27 {
+		t.Fatalf("ParseErasureLedgerCommitKey() = %q,%d,%d err=%v", namespace, hashSlot, sequence, err)
+	}
+	head := backup.ErasureStreamHead{
+		HashSlot: 15, Sequence: 27, CommitKey: key, CommitSHA256: strings.Repeat("f", 64),
+	}
+	if err := backup.ValidateErasureStreamHead(head); err != nil {
+		t.Fatalf("ValidateErasureStreamHead() error = %v", err)
+	}
+	for _, invalid := range []string{
+		backup.ErasureLedgerCommitKey(strings.ToUpper(firstNamespace), 15, 27),
+		backup.ErasureLedgerCommitKey(firstNamespace, 15, 0),
+		strings.Replace(key, "/000f/", "/000F/", 1),
+		strings.TrimSuffix(key, ".json"),
+	} {
+		if _, _, _, err := backup.ParseErasureLedgerCommitKey(invalid); err == nil {
+			t.Fatalf("ParseErasureLedgerCommitKey(%q) error = nil", invalid)
+		}
+	}
+	head.HashSlot = 16
+	if err := backup.ValidateErasureStreamHead(head); err == nil {
+		t.Fatal("ValidateErasureStreamHead() accepted a mismatched Hash Slot")
 	}
 }
 

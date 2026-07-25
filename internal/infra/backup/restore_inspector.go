@@ -114,8 +114,8 @@ func (i *RestoreInspector) Inspect(ctx context.Context, request backupusecase.Re
 	if err != nil {
 		return backupusecase.RestoreInspection{}, err
 	}
-	if ledger.Boundary < manifest.ErasureLedgerBoundary {
-		return backupusecase.RestoreInspection{}, fmt.Errorf("%w: restore point requires a missing erasure-ledger prefix", backupartifact.ErrRepositoryIncomplete)
+	if !ledger.ContainsHeads(manifest.ErasureHeads) {
+		return backupusecase.RestoreInspection{}, fmt.Errorf("%w: restore point requires missing erasure stream heads", backupartifact.ErrRepositoryIncomplete)
 	}
 	plainBytes, cipherBytes, err := estimateRestorePoint(ctx, repository, manifest)
 	if err != nil {
@@ -130,7 +130,8 @@ func (i *RestoreInspector) Inspect(ctx context.Context, request backupusecase.Re
 		RestorePointID: manifest.RestorePointID, ManifestSHA256: hex.EncodeToString(hash[:]),
 		SourceClusterID: manifest.SourceClusterID, SourceGeneration: manifest.SourceGeneration,
 		TargetClusterID: target.ClusterID, TargetGeneration: target.Generation, HashSlotCount: target.HashSlotCount,
-		ErasureLedgerVersion: ledger.Version, ErasureLedgerBoundary: ledger.Boundary, ErasureLedgerSHA256: ledger.SHA256,
+		ErasureLedgerVersion: ledger.Version, ErasureEventCount: ledger.EventCount,
+		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), ledger.Heads...), ErasureLedgerSHA256: ledger.SHA256,
 		EstimatedPlainBytes: &plainBytes, EstimatedCipherBytes: &cipherBytes, TargetEmpty: true,
 	}, nil
 }

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
+	"time"
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
@@ -43,8 +44,60 @@ func TestRestoreInspectorLoadsSelectedRepositoryAndPreservesExactEstimates(t *te
 	require.Equal(t, uint64(len("ciphertext-restore-1")), *inspection.EstimatedCipherBytes)
 	require.Len(t, inspection.ManifestSHA256, 64)
 	require.Equal(t, backupartifact.ErasureLedgerSnapshotVersion, inspection.ErasureLedgerVersion)
-	require.Zero(t, inspection.ErasureLedgerBoundary)
+	require.Zero(t, inspection.ErasureEventCount)
 	require.Equal(t, backupartifact.EmptyErasureLedgerSnapshotSHA256, inspection.ErasureLedgerSHA256)
+}
+
+func TestRestoreInspectorPinsDeletionCommittedAfterSelectedRecoveryPoint(t *testing.T) {
+	ctx := context.Background()
+	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
+	require.NoError(t, err)
+	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
+	require.NoError(t, err)
+	signer := restoreInspectorSigner()
+	codec := restoreInspectorCodec()
+	publishDirectRestorePoint(t, primary, secondary, signer, "restore-before-delete", 1710000000000, 37)
+
+	store := &erasureLedgerStateStore{}
+	coordinator, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled: true, HashSlotCount: 1, Store: store, Publisher: erasureLedgerNoopPublisher{},
+		Now: func() time.Time { return time.UnixMilli(1710000001000) }, NewJobID: func() string { return "unused" },
+	})
+	require.NoError(t, err)
+	ledger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
+		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: coordinator,
+		Signer: signer, SigningKeyID: "signing-key", KMSKeyID: "kms-backup",
+		RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 1,
+		Now: func() time.Time { return time.UnixMilli(1710000001000) }, NewAttemptID: func() string { return "after-point" },
+	})
+	require.NoError(t, err)
+	_, err = ledger.RecordPermanentMessageErasure(ctx, backupinfra.PermanentMessageErasure{
+		ChannelID: "room-after-point", ChannelType: 2, ThroughSeq: 5, RequestedAtUnixMillis: 1710000001000,
+	})
+	require.NoError(t, err)
+
+	inspector, err := backupinfra.NewRestoreInspector(backupinfra.RestoreInspectorOptions{
+		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec, RepositoryID: "repo-prod",
+		Target: staticRestoreTarget{state: backupinfra.RestoreTargetState{
+			ClusterID: "cluster-b", Generation: "generation-2", HashSlotCount: 1, Empty: true,
+		}},
+	})
+	require.NoError(t, err)
+	inspection, err := inspector.Inspect(ctx, backupusecase.RestorePlanRequest{
+		RestorePointID: "restore-before-delete", Repository: "primary",
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), inspection.ErasureEventCount)
+	require.Len(t, inspection.ErasureHeads, 1)
+	require.Equal(t, uint64(1), inspection.ErasureHeads[0].Sequence)
+
+	forkedHead := inspection.ErasureHeads[0]
+	forkedHead.CommitSHA256 = hex.EncodeToString(bytes.Repeat([]byte{0xff}, sha256.Size))
+	publishDirectRestorePoint(t, primary, secondary, signer, "restore-forked-head", 1710000002000, 37, forkedHead)
+	_, err = inspector.Inspect(ctx, backupusecase.RestorePlanRequest{
+		RestorePointID: "restore-forked-head", Repository: "primary",
+	})
+	require.Error(t, err)
 }
 
 func TestRestoreInspectorLatestVerifiedRequiresIdenticalCompleteCopies(t *testing.T) {
@@ -113,7 +166,7 @@ func restoreInspectorCodec() *backupartifact.ObjectCodec {
 	return backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x11}, 64)))
 }
 
-func publishDirectRestorePoint(t *testing.T, primary, secondary backupartifact.Repository, signer backupartifact.ManifestSigner, restorePointID string, createdAt int64, plaintextBytes int64) {
+func publishDirectRestorePoint(t *testing.T, primary, secondary backupartifact.Repository, signer backupartifact.ManifestSigner, restorePointID string, createdAt int64, plaintextBytes int64, erasureHeads ...backupartifact.ErasureStreamHead) {
 	t.Helper()
 	body := []byte("ciphertext-" + restorePointID)
 	cipherHash := sha256.Sum256(body)
@@ -129,6 +182,7 @@ func publishDirectRestorePoint(t *testing.T, primary, secondary backupartifact.R
 		RestorePointID: restorePointID, BackupEpoch: uint64(createdAt), Kind: backupartifact.RestorePointMaterializedFull,
 		HashSlotCount: 1, CreatedAtUnixMillis: createdAt, EffectiveAtMillis: createdAt,
 		Cuts: []backupartifact.PartitionCut{{HashSlot: 0, RaftIndex: 1, CommittedAtMillis: createdAt}}, Objects: []backupartifact.ObjectEntry{entry},
+		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), erasureHeads...),
 	}
 	_, err := backupartifact.NewReplicatedPublisher(primary, secondary).Publish(context.Background(), manifest, []backupartifact.SealedObject{{Entry: entry, Ciphertext: bytes.Clone(body)}}, signer, "signing-key")
 	require.NoError(t, err)

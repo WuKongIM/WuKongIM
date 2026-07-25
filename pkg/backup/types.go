@@ -9,7 +9,7 @@ const (
 	// ManifestFormat identifies WuKongIM cluster backup manifests.
 	ManifestFormat = "wukongim-cluster-backup"
 	// ManifestVersion is the current cluster backup manifest version.
-	ManifestVersion uint32 = 2
+	ManifestVersion uint32 = 3
 	// PartitionEvidenceVersion is the signed restore evidence schema version.
 	PartitionEvidenceVersion uint32 = 1
 )
@@ -195,8 +195,8 @@ type Manifest struct {
 	Objects []ObjectEntry `json:"objects,omitempty"`
 	// Partitions contains every logical partition manifest exactly once.
 	Partitions []PartitionReference `json:"partitions,omitempty"`
-	// ErasureLedgerBoundary is the permanent-erasure sequence applied after restore.
-	ErasureLedgerBoundary uint64 `json:"erasure_ledger_boundary"`
+	// ErasureHeads freeze the authenticated permanent-erasure prefix observed at publication.
+	ErasureHeads []ErasureStreamHead `json:"erasure_heads,omitempty"`
 	// Signature authenticates the canonical manifest without this field.
 	Signature *ManifestSignature `json:"signature,omitempty"`
 }

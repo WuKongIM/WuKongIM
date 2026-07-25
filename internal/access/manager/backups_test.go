@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
@@ -23,6 +24,9 @@ func TestManagerBackupStatusSanitizesControllerAndRepositoryDetails(t *testing.T
 		VerificationAgeSeconds:  &verificationAge,
 		PendingGarbageCount:     7,
 		FailureCategory:         "retention",
+		ErasureStreams: []backupusecase.ErasureStreamProgress{{
+			HashSlot: 17, Sequence: 9, Pending: true,
+		}},
 		CaptureLeases: []backupusecase.CaptureLeaseSnapshot{{
 			HashSlot: 17, SlotID: 3, SourceSlotID: 2, HolderNodeID: 2, LeaderTerm: 11,
 			ConfigEpoch: 5, Generation: "slot-generation-1", LeaseSequence: 4,
@@ -65,6 +69,10 @@ func TestManagerBackupStatusSanitizesControllerAndRepositoryDetails(t *testing.T
 	}
 	if decoded["verification_age_seconds"].(float64) != 3600 || decoded["pending_garbage_count"].(float64) != 7 || decoded["failure_category"] != "retention" {
 		t.Fatalf("operational backup status = %#v", decoded)
+	}
+	erasure := decoded["erasure_streams"].([]any)[0].(map[string]any)
+	if erasure["hash_slot"].(float64) != 17 || erasure["sequence"].(float64) != 9 || erasure["pending"] != true || len(erasure) != 3 {
+		t.Fatalf("sanitized erasure progress = %#v", erasure)
 	}
 	leases := decoded["capture_leases"].([]any)
 	lease := leases[0].(map[string]any)
@@ -159,6 +167,9 @@ func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
 				ID: "checkpoint-2", CreatedAtUnixMillis: 200, EffectiveAtUnixMillis: 190,
 			},
 			SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 256,
+			ErasureHeads: []backupartifact.ErasureStreamHead{{
+				HashSlot: 17, Sequence: 4, CommitKey: backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 17, 4), CommitSHA256: strings.Repeat("f", 64),
+			}},
 		},
 	}
 	srv := New(Options{Backup: provider})
@@ -176,7 +187,9 @@ func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "checkpoint-2", provider.checkpointID)
 	require.Contains(t, recorder.Body.String(), `"hash_slot_count":256`)
+	require.Contains(t, recorder.Body.String(), `"erasure_streams":[{"hash_slot":17,"sequence":4,"pending":false}]`)
 	require.NotContains(t, recorder.Body.String(), "segments/")
+	require.NotContains(t, recorder.Body.String(), "commit_sha256")
 }
 
 func TestManagerBackupVerificationStartsDurableAsyncTask(t *testing.T) {
