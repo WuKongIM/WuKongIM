@@ -9,14 +9,14 @@ import (
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
-func (e *CaptureEngine) pendingAccumulator(key captureStreamKey, generation string, frontier backupcontract.StreamFrontier) *segmentAccumulator {
+func (e *CaptureEngine) pendingAccumulator(key captureStreamKey, lease backupcontract.SlotCaptureLease, frontier backupcontract.StreamFrontier) *segmentAccumulator {
 	e.pendingMu.Lock()
 	accumulator := e.pending[key]
 	if accumulator == nil {
 		e.pendingMu.Unlock()
 		return nil
 	}
-	if accumulator.matches(generation, frontier) {
+	if accumulator.matches(lease, frontier) {
 		e.pendingMu.Unlock()
 		return accumulator
 	}
@@ -98,7 +98,8 @@ type captureStreamKey struct {
 
 // segmentAccumulator is bounded non-durable rolling state for one Slot stream.
 type segmentAccumulator struct {
-	// generation and base fence reuse to the exact durable frontier that opened this accumulator.
+	// lease and base fence reuse to the exact durable frontier that opened this accumulator.
+	lease          backupcontract.SlotCaptureLease
 	generation     string
 	baseSequence   uint64
 	baseHead       *backupartifact.SegmentReference
@@ -127,9 +128,9 @@ type channelCursorIdentity struct {
 	channelID   string
 }
 
-func newSegmentAccumulator(generation string, frontier backupcontract.StreamFrontier, openedAt time.Time) *segmentAccumulator {
+func newSegmentAccumulator(lease backupcontract.SlotCaptureLease, frontier backupcontract.StreamFrontier, openedAt time.Time) *segmentAccumulator {
 	return &segmentAccumulator{
-		generation: generation, baseSequence: frontier.Sequence,
+		lease: lease, generation: lease.Generation, baseSequence: frontier.Sequence,
 		baseHead:       cloneRuntimeSegmentReference(frontier.Head),
 		baseCursorHead: cloneRuntimeSegmentReference(frontier.CursorHead),
 		fromCursor:     frontier.SourceCursor, nextCursor: frontier.SourceCursor, openedAt: openedAt,
@@ -172,8 +173,9 @@ func (a *segmentAccumulator) append(page SourcePage, target SourceWatermark, res
 	return nil
 }
 
-func (a *segmentAccumulator) matches(generation string, frontier backupcontract.StreamFrontier) bool {
-	if a == nil || a.generation != generation || a.baseSequence != frontier.Sequence ||
+func (a *segmentAccumulator) matches(lease backupcontract.SlotCaptureLease, frontier backupcontract.StreamFrontier) bool {
+	if a == nil || !backupcontract.SlotCaptureLeasesEqual(a.lease, lease) ||
+		a.generation != lease.Generation || a.baseSequence != frontier.Sequence ||
 		a.fromCursor != frontier.SourceCursor {
 		return false
 	}

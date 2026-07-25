@@ -544,6 +544,11 @@ The vNext checkpoint routes page and query the immutable catalog through a
 rebuildable local derived index. Responses expose bounded identities,
 timestamps, source generation, and Hash Slot count but omit segment and object
 keys.
+Backup status also exposes at most one sanitized durable capture lease per Hash
+Slot: Slot/holder identity, leader and config epochs, Generation, monotonic
+lease/frontier revisions, watermarks, and takeover/update times. It never
+exposes segment references or source cursors, so a three-node black-box test can
+observe takeover without reading node databases.
 A disabled backup still returns an explicit disabled status through the app
 facade. Backup handlers preserve stable machine error codes and use retryable
 `controller_leader_unavailable` during Controller leadership transitions.

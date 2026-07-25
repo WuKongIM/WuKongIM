@@ -75,6 +75,8 @@ type (
 	BackupStreamFrontier = state.BackupStreamFrontier
 	// BackupSlotFrontier atomically binds continuous metadata and message heads.
 	BackupSlotFrontier = state.BackupSlotFrontier
+	// BackupSlotCaptureLease fences one continuous capture worker to Slot authority.
+	BackupSlotCaptureLease = state.BackupSlotCaptureLease
 	// RestoreCoordinationState stores bounded explicit recovery metadata.
 	RestoreCoordinationState = state.RestoreCoordinationState
 	// RestorePlan stores one recovery plan and bounded progress.

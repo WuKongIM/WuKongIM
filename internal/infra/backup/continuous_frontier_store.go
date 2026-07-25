@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
+	"strings"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
@@ -24,15 +26,16 @@ type CoordinationStateStore interface {
 // ControllerSlotFrontierStore persists per-Slot frontiers without overwriting
 // concurrent job, catalog, verification, retention, or erasure coordination.
 type ControllerSlotFrontierStore struct {
-	state CoordinationStateStore
+	state     CoordinationStateStore
+	authority runtimebackup.SlotCaptureAuthoritySource
 }
 
 // NewControllerSlotFrontierStore creates a frontier adapter over bounded Controller state.
-func NewControllerSlotFrontierStore(state CoordinationStateStore) (*ControllerSlotFrontierStore, error) {
-	if state == nil {
-		return nil, fmt.Errorf("backup frontier store: Controller state is required")
+func NewControllerSlotFrontierStore(state CoordinationStateStore, authority runtimebackup.SlotCaptureAuthoritySource) (*ControllerSlotFrontierStore, error) {
+	if state == nil || authority == nil {
+		return nil, fmt.Errorf("backup frontier store: Controller state and Slot authority are required")
 	}
-	return &ControllerSlotFrontierStore{state: state}, nil
+	return &ControllerSlotFrontierStore{state: state, authority: authority}, nil
 }
 
 // Load returns the detached frontier for hashSlot, when present.
@@ -54,11 +57,101 @@ func (s *ControllerSlotFrontierStore) Load(ctx context.Context, hashSlot uint16)
 	}, nil
 }
 
+// AcquireLease durably creates or takes over one Slot lease without changing
+// either committed stream head. Reacquiring the same authority is read-only,
+// which preserves identity across Controller Leader failover.
+func (s *ControllerSlotFrontierStore) AcquireLease(ctx context.Context, hashSlot uint16, initialGeneration string, acquiredAtUnixMillis int64) (runtimebackup.FrontierSnapshot, error) {
+	if s == nil || s.state == nil || s.authority == nil ||
+		!validControllerCaptureGeneration(initialGeneration) || acquiredAtUnixMillis <= 0 {
+		return runtimebackup.FrontierSnapshot{}, runtimebackup.ErrInvalidCapture
+	}
+	authority, err := s.currentAuthority(ctx, hashSlot)
+	if err != nil {
+		return runtimebackup.FrontierSnapshot{}, err
+	}
+	for attempt := 0; attempt < maxControllerFrontierCASAttempts; attempt++ {
+		state, err := s.state.Load(ctx)
+		if err != nil {
+			return runtimebackup.FrontierSnapshot{}, err
+		}
+		index, found := findSlotFrontier(state.SlotFrontiers, hashSlot)
+		if found {
+			current := state.SlotFrontiers[index]
+			if captureLeaseMatchesAuthority(current.Lease, authority) &&
+				current.Lease.Generation == current.Generation {
+				if _, err := s.requireAuthority(ctx, hashSlot, authority); err != nil {
+					return runtimebackup.FrontierSnapshot{}, err
+				}
+				return runtimebackup.FrontierSnapshot{
+					Frontier: backupcontract.CloneSlotFrontier(current),
+					Found:    true,
+				}, nil
+			}
+		}
+
+		next := backupcontract.SlotFrontier{
+			HashSlot: hashSlot, Generation: initialGeneration,
+		}
+		var leaseSequence uint64 = 1
+		if found {
+			next = backupcontract.CloneSlotFrontier(state.SlotFrontiers[index])
+			if next.Revision == math.MaxUint64 || next.Lease.Sequence == math.MaxUint64 {
+				return runtimebackup.FrontierSnapshot{}, fmt.Errorf("%w: capture lease sequence overflow", runtimebackup.ErrInvalidCapture)
+			}
+			next.Revision++
+			leaseSequence = next.Lease.Sequence + 1
+		} else {
+			next.Revision = 1
+		}
+		next.Lease = backupcontract.SlotCaptureLease{
+			SlotID: authority.SlotID, LeaderTerm: authority.LeaderTerm,
+			ConfigEpoch: authority.ConfigEpoch, HolderNodeID: authority.HolderNodeID,
+			Generation: next.Generation, Sequence: leaseSequence,
+			AcquiredAtUnixMillis: acquiredAtUnixMillis,
+		}
+		next.UpdatedAtUnixMillis = acquiredAtUnixMillis
+		if found {
+			state.SlotFrontiers[index] = next
+		} else {
+			state.SlotFrontiers = append(state.SlotFrontiers, next)
+			sort.Slice(state.SlotFrontiers, func(i, j int) bool {
+				return state.SlotFrontiers[i].HashSlot < state.SlotFrontiers[j].HashSlot
+			})
+		}
+		if _, err := s.requireAuthority(ctx, hashSlot, authority); err != nil {
+			return runtimebackup.FrontierSnapshot{}, err
+		}
+		err = s.state.CompareAndSwap(ctx, state.Revision, state)
+		if err == nil {
+			return runtimebackup.FrontierSnapshot{
+				Frontier:       backupcontract.CloneSlotFrontier(next),
+				Found:          true,
+				LeaseTakenOver: found,
+			}, nil
+		}
+		if !errors.Is(err, backupusecase.ErrStateConflict) {
+			return runtimebackup.FrontierSnapshot{}, err
+		}
+		if _, err := s.requireAuthority(ctx, hashSlot, authority); err != nil {
+			return runtimebackup.FrontierSnapshot{}, err
+		}
+	}
+	return runtimebackup.FrontierSnapshot{}, fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
+}
+
 // CompareAndSwap updates one Slot record at its own revision while retrying
 // unrelated global Controller revision conflicts against a fresh snapshot.
-func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expectedRevision uint64, next backupcontract.SlotFrontier) error {
-	if s == nil || s.state == nil {
+func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expectedRevision uint64, expectedLease backupcontract.SlotCaptureLease, next backupcontract.SlotFrontier) error {
+	if s == nil || s.state == nil || s.authority == nil ||
+		!backupcontract.SlotCaptureLeasesEqual(expectedLease, next.Lease) {
 		return runtimebackup.ErrInvalidCapture
+	}
+	authority, err := s.currentAuthority(ctx, next.HashSlot)
+	if err != nil {
+		return err
+	}
+	if !captureLeaseMatchesAuthority(expectedLease, authority) {
+		return runtimebackup.ErrCaptureLeaseFenced
 	}
 	for attempt := 0; attempt < maxControllerFrontierCASAttempts; attempt++ {
 		state, err := s.state.Load(ctx)
@@ -67,18 +160,19 @@ func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expect
 		}
 		index, found := findSlotFrontier(state.SlotFrontiers, next.HashSlot)
 		if found {
-			if state.SlotFrontiers[index].Revision != expectedRevision {
+			current := state.SlotFrontiers[index]
+			if current.Revision != expectedRevision {
 				return runtimebackup.ErrFrontierConflict
+			}
+			if !backupcontract.SlotCaptureLeasesEqual(current.Lease, expectedLease) {
+				return runtimebackup.ErrCaptureLeaseFenced
 			}
 			state.SlotFrontiers[index] = backupcontract.CloneSlotFrontier(next)
 		} else {
-			if expectedRevision != 0 {
-				return runtimebackup.ErrFrontierConflict
-			}
-			state.SlotFrontiers = append(state.SlotFrontiers, backupcontract.CloneSlotFrontier(next))
-			sort.Slice(state.SlotFrontiers, func(i, j int) bool {
-				return state.SlotFrontiers[i].HashSlot < state.SlotFrontiers[j].HashSlot
-			})
+			return runtimebackup.ErrCaptureLeaseFenced
+		}
+		if _, err := s.requireAuthority(ctx, next.HashSlot, authority); err != nil {
+			return err
 		}
 		err = s.state.CompareAndSwap(ctx, state.Revision, state)
 		if err == nil {
@@ -87,8 +181,56 @@ func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expect
 		if !errors.Is(err, backupusecase.ErrStateConflict) {
 			return err
 		}
+		if _, err := s.requireAuthority(ctx, next.HashSlot, authority); err != nil {
+			return err
+		}
 	}
 	return fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
+}
+
+func (s *ControllerSlotFrontierStore) currentAuthority(ctx context.Context, hashSlot uint16) (runtimebackup.SlotCaptureAuthority, error) {
+	authority, err := s.authority.CurrentCaptureAuthority(ctx, hashSlot)
+	if err != nil {
+		return runtimebackup.SlotCaptureAuthority{}, err
+	}
+	if authority.SlotID == 0 || authority.LeaderTerm == 0 ||
+		authority.ConfigEpoch == 0 || authority.HolderNodeID == 0 {
+		return runtimebackup.SlotCaptureAuthority{}, runtimebackup.ErrCaptureNotLeader
+	}
+	return authority, nil
+}
+
+func (s *ControllerSlotFrontierStore) requireAuthority(ctx context.Context, hashSlot uint16, expected runtimebackup.SlotCaptureAuthority) (runtimebackup.SlotCaptureAuthority, error) {
+	current, err := s.currentAuthority(ctx, hashSlot)
+	if err != nil {
+		return runtimebackup.SlotCaptureAuthority{}, err
+	}
+	if current != expected {
+		return runtimebackup.SlotCaptureAuthority{}, runtimebackup.ErrCaptureLeaseFenced
+	}
+	return current, nil
+}
+
+func captureLeaseMatchesAuthority(lease backupcontract.SlotCaptureLease, authority runtimebackup.SlotCaptureAuthority) bool {
+	return lease.SlotID == authority.SlotID &&
+		lease.LeaderTerm == authority.LeaderTerm &&
+		lease.ConfigEpoch == authority.ConfigEpoch &&
+		lease.HolderNodeID == authority.HolderNodeID
+}
+
+func validControllerCaptureGeneration(value string) bool {
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for index, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') || char == '-' || char == '_' ||
+			(char == '.' && index > 0) {
+			continue
+		}
+		return false
+	}
+	return !strings.Contains(value, "..")
 }
 
 func findSlotFrontier(frontiers []backupcontract.SlotFrontier, hashSlot uint16) (int, bool) {

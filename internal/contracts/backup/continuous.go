@@ -16,6 +16,8 @@ const (
 	CaptureStateDegraded CaptureState = "degraded"
 	// CaptureStateFailed means the last reconciliation failed.
 	CaptureStateFailed CaptureState = "failed"
+	// CaptureStateFenced means this node is not the current leased Slot Leader.
+	CaptureStateFenced CaptureState = "fenced"
 )
 
 // StreamFrontier is the bounded durable head of one Slot capture stream.
@@ -34,6 +36,24 @@ type StreamFrontier struct {
 	WatermarkAtUnixMillis int64
 }
 
+// SlotCaptureLease fences one Hash Slot capture worker to the current Raft authority.
+type SlotCaptureLease struct {
+	// SlotID identifies the logical Slot Raft Group that owns HashSlot.
+	SlotID uint32
+	// LeaderTerm is the Slot Raft term observed with HolderNodeID.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane configuration epoch for SlotID.
+	ConfigEpoch uint64
+	// HolderNodeID is the only node allowed to advance the fenced frontier.
+	HolderNodeID uint64
+	// Generation binds the lease to one immutable Slot segment graph.
+	Generation string
+	// Sequence increases on every authority takeover and never regresses.
+	Sequence uint64
+	// AcquiredAtUnixMillis is the UTC time of the latest durable takeover.
+	AcquiredAtUnixMillis int64
+}
+
 // SlotFrontier atomically binds the metadata and message stream heads for one Hash Slot.
 type SlotFrontier struct {
 	// Revision fences compare-and-swap updates to this compact record.
@@ -42,6 +62,8 @@ type SlotFrontier struct {
 	HashSlot uint16
 	// Generation identifies the independently replaceable Slot segment graph.
 	Generation string
+	// Lease fences every frontier commit to one exact current Slot authority.
+	Lease SlotCaptureLease
 	// Metadata and Messages are independently ordered streams committed together.
 	Metadata StreamFrontier
 	Messages StreamFrontier
@@ -55,7 +77,7 @@ type SlotFrontier struct {
 type SlotCaptureStatus struct {
 	// HashSlot identifies the reported logical partition.
 	HashSlot uint16
-	// State is idle, reconciling, capturing, degraded, or failed.
+	// State is idle, reconciling, capturing, degraded, failed, or fenced.
 	State CaptureState
 	// Frontier is the last durable atomically committed stream pair.
 	Frontier SlotFrontier
@@ -69,6 +91,8 @@ type SlotCaptureStatus struct {
 	ObservedAtUnixMillis int64
 	// FailureCategory is a bounded non-sensitive error class.
 	FailureCategory string
+	// LeaseCurrent reports whether the worker still owns the exact durable lease.
+	LeaseCurrent bool
 }
 
 // CloneSlotFrontier returns a detached frontier safe for mutation.
@@ -84,6 +108,11 @@ func CloneSlotCaptureStatus(status SlotCaptureStatus) SlotCaptureStatus {
 	out := status
 	out.Frontier = CloneSlotFrontier(status.Frontier)
 	return out
+}
+
+// SlotCaptureLeasesEqual reports exact distributed fencing identity equality.
+func SlotCaptureLeasesEqual(left, right SlotCaptureLease) bool {
+	return left == right
 }
 
 func cloneStreamFrontier(frontier StreamFrontier) StreamFrontier {

@@ -157,6 +157,30 @@ type CapacitySnapshot struct {
 	Level      string
 }
 
+// CaptureLeaseSnapshot is one sanitized durable Slot takeover observation.
+type CaptureLeaseSnapshot struct {
+	// HashSlot and SlotID identify the logical capture partition and its Raft Group.
+	HashSlot uint16
+	SlotID   uint32
+	// HolderNodeID, LeaderTerm, and ConfigEpoch identify exact Slot authority.
+	HolderNodeID uint64
+	LeaderTerm   uint64
+	ConfigEpoch  uint64
+	// Generation identifies the immutable segment graph protected by this lease.
+	Generation string
+	// LeaseSequence exposes monotonic takeover order.
+	LeaseSequence uint64
+	// FrontierRevision exposes monotonic lease and stream-head commits.
+	FrontierRevision uint64
+	// MetadataSourceWatermark and MessageSourceWatermark are durable source positions.
+	MetadataSourceWatermark uint64
+	MessageSourceWatermark  uint64
+	// AcquiredAtUnixMillis is the latest durable takeover time.
+	AcquiredAtUnixMillis int64
+	// FrontierUpdatedUnixMillis is the latest lease or stream-head commit time.
+	FrontierUpdatedUnixMillis int64
+}
+
 // StatusSnapshot is the read-only backup status exposed to access adapters.
 type StatusSnapshot struct {
 	// Enabled reports whether backup coordination is configured.
@@ -193,4 +217,6 @@ type StatusSnapshot struct {
 	Dependencies DependenciesSnapshot
 	// Capacity reports Controller restore-point reference usage.
 	Capacity CapacitySnapshot
+	// CaptureLeases is the bounded sanitized durable lease view for every initialized Hash Slot.
+	CaptureLeases []CaptureLeaseSnapshot
 }

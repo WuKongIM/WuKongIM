@@ -118,6 +118,7 @@ func catalogPageReferenceToController(reference *backupartifact.CatalogPageRefer
 func slotFrontierFromController(frontier controller.BackupSlotFrontier) backupcontract.SlotFrontier {
 	return backupcontract.SlotFrontier{
 		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
+		Lease:                 slotCaptureLeaseFromController(frontier.Lease),
 		Metadata:              streamFrontierFromController(frontier.Metadata),
 		Messages:              streamFrontierFromController(frontier.Messages),
 		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
@@ -128,10 +129,27 @@ func slotFrontierFromController(frontier controller.BackupSlotFrontier) backupco
 func slotFrontierToController(frontier backupcontract.SlotFrontier) controller.BackupSlotFrontier {
 	return controller.BackupSlotFrontier{
 		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
+		Lease:                 slotCaptureLeaseToController(frontier.Lease),
 		Metadata:              streamFrontierToController(frontier.Metadata),
 		Messages:              streamFrontierToController(frontier.Messages),
 		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
 		UpdatedAtUnixMillis:   frontier.UpdatedAtUnixMillis,
+	}
+}
+
+func slotCaptureLeaseFromController(lease controller.BackupSlotCaptureLease) backupcontract.SlotCaptureLease {
+	return backupcontract.SlotCaptureLease{
+		SlotID: lease.SlotID, LeaderTerm: lease.LeaderTerm, ConfigEpoch: lease.ConfigEpoch,
+		HolderNodeID: lease.HolderNodeID, Generation: lease.Generation,
+		Sequence: lease.Sequence, AcquiredAtUnixMillis: lease.AcquiredAtUnixMillis,
+	}
+}
+
+func slotCaptureLeaseToController(lease backupcontract.SlotCaptureLease) controller.BackupSlotCaptureLease {
+	return controller.BackupSlotCaptureLease{
+		SlotID: lease.SlotID, LeaderTerm: lease.LeaderTerm, ConfigEpoch: lease.ConfigEpoch,
+		HolderNodeID: lease.HolderNodeID, Generation: lease.Generation,
+		Sequence: lease.Sequence, AcquiredAtUnixMillis: lease.AcquiredAtUnixMillis,
 	}
 }
 

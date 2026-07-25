@@ -133,6 +133,7 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		}
 		if frontier.HashSlot >= hashSlotCount || frontier.Revision == 0 ||
 			!validBackupIdentity(frontier.Generation) || frontier.UpdatedAtUnixMillis <= 0 ||
+			!validBackupSlotCaptureLease(frontier.Lease, frontier.Generation) ||
 			!validBackupStreamFrontier(frontier.Metadata) ||
 			!validBackupStreamFrontier(frontier.Messages) ||
 			frontier.Metadata.CursorHead != nil ||
@@ -246,6 +247,13 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		return invalid("backup verification target is missing")
 	}
 	return nil
+}
+
+func validBackupSlotCaptureLease(lease BackupSlotCaptureLease, generation string) bool {
+	return lease.SlotID > 0 && lease.LeaderTerm > 0 && lease.ConfigEpoch > 0 &&
+		lease.HolderNodeID > 0 && lease.Sequence > 0 &&
+		lease.AcquiredAtUnixMillis > 0 && lease.Generation == generation &&
+		validBackupIdentity(lease.Generation)
 }
 
 func validBackupStreamFrontier(frontier BackupStreamFrontier) bool {

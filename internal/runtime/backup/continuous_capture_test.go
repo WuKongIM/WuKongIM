@@ -193,6 +193,115 @@ func TestCaptureEngineInvalidatesTransientSourceStateAfterFrontierConflict(t *te
 	}
 }
 
+func TestCaptureEngineRejectsLateOldLeaderAfterSegmentUpload(t *testing.T) {
+	source := &statefulExactMessageSource{}
+	frontiers := &fakeSlotFrontierStore{authority: testCaptureAuthority()}
+	segments := &recordingSegmentCommitter{}
+	observer := &recordingCaptureObserver{}
+	engine := newTestCaptureEngineWithObserver(t, source, frontiers, segments, nil, observer)
+	frontiers.beforeCommit = func() {
+		frontiers.authority = backupruntime.SlotCaptureAuthority{
+			SlotID: 1, LeaderTerm: 8, ConfigEpoch: 3, HolderNodeID: 2,
+		}
+	}
+
+	if _, err := engine.ReconcileSlot(context.Background(), 17); !errors.Is(err, backupruntime.ErrCaptureLeaseFenced) {
+		t.Fatalf("ReconcileSlot(old leader) error = %v, want ErrCaptureLeaseFenced", err)
+	}
+	if len(segments.batches) != 1 || frontiers.frontier.Messages.Head != nil ||
+		frontiers.frontier.Messages.SourceHighWatermark != 0 {
+		t.Fatalf("late upload became visible: batches=%d frontier=%#v", len(segments.batches), frontiers.frontier.Messages)
+	}
+	status := engine.Status()[0]
+	if status.State != backupcontract.CaptureStateFenced || status.LeaseCurrent ||
+		status.FailureCategory != "capture_fenced" || observer.fenced != 1 {
+		t.Fatalf("fenced status=%#v observer=%#v", status, observer)
+	}
+
+	frontier, err := engine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("ReconcileSlot(new leader) error = %v", err)
+	}
+	if frontier.Lease.Sequence != 2 || frontier.Lease.HolderNodeID != 2 ||
+		frontier.Messages.SourceHighWatermark != 1 || observer.takeovers != 1 {
+		t.Fatalf("takeover frontier=%#v observer=%#v", frontier, observer)
+	}
+	if len(segments.batches) != 2 {
+		t.Fatalf("segment attempts = %d, want old orphan plus new committed segment", len(segments.batches))
+	}
+}
+
+func TestCaptureEngineTakeoverDropsSparseAccumulatorAndRereadsDurableFrontier(t *testing.T) {
+	clock := &fakeCaptureClock{now: time.UnixMilli(1_753_400_000_000)}
+	source := &statefulExactMessageSource{}
+	frontiers := &fakeSlotFrontierStore{authority: testCaptureAuthority()}
+	segments := &recordingSegmentCommitter{}
+	observer := &recordingCaptureObserver{}
+	engine := newTestCaptureEngineWithObserver(t, source, frontiers, segments, clock, observer)
+
+	first, err := engine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("ReconcileSlot(first holder) error = %v", err)
+	}
+	if first.Messages.Sequence != 0 || source.reads != 1 || !source.selected {
+		t.Fatalf("first sparse frontier=%#v source=%#v", first.Messages, source)
+	}
+
+	frontiers.authority = backupruntime.SlotCaptureAuthority{
+		SlotID: 1, LeaderTerm: 8, ConfigEpoch: 3, HolderNodeID: 2,
+	}
+	second, err := engine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("ReconcileSlot(takeover) error = %v", err)
+	}
+	if second.Lease.Sequence != 2 || second.Lease.HolderNodeID != 2 ||
+		source.reads != 2 || source.invalidations != 1 || observer.takeovers != 1 {
+		t.Fatalf("takeover frontier=%#v source=%#v observer=%#v", second, source, observer)
+	}
+
+	clock.now = clock.now.Add(31 * time.Second)
+	committed, err := engine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("ReconcileSlot(after takeover deadline) error = %v", err)
+	}
+	if committed.Messages.Sequence != 1 || len(segments.batches) != 1 ||
+		len(segments.batches[0].Records) != 1 {
+		t.Fatalf("old buffer was reused: frontier=%#v batches=%#v", committed.Messages, segments.batches)
+	}
+}
+
+func TestCaptureEngineControllerLeaderRestartDoesNotRepublishOrChangeLease(t *testing.T) {
+	source := &fakeContinuousSource{
+		watermarks: backupruntime.SourceWatermarks{
+			Metadata: backupruntime.SourceWatermark{Position: 1, CommittedAtUnixMillis: 1_753_400_100_000},
+			Messages: backupruntime.SourceWatermark{CommittedAtUnixMillis: 1_753_400_100_000},
+		},
+		pages: map[backupartifact.SegmentStream][]backupruntime.SourcePage{
+			backupartifact.SegmentStreamMetadata: {{
+				Records: [][]byte{[]byte("meta-1")}, NextCursor: "metadata-page-1", Done: true,
+			}},
+		},
+	}
+	frontiers := &fakeSlotFrontierStore{authority: testCaptureAuthority()}
+	segments := &recordingSegmentCommitter{}
+	firstEngine := newTestCaptureEngine(t, source, frontiers, segments, nil)
+	first, err := firstEngine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("first ReconcileSlot() error = %v", err)
+	}
+
+	restartedEngine := newTestCaptureEngine(t, source, frontiers, segments, nil)
+	reloaded, err := restartedEngine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("restarted ReconcileSlot() error = %v", err)
+	}
+	if reloaded.Revision != first.Revision || reloaded.Lease != first.Lease ||
+		frontiers.commits != 1 || len(segments.batches) != 1 || source.pageCalls != 1 {
+		t.Fatalf("restart republished: first=%#v reloaded=%#v commits=%d batches=%d reads=%d",
+			first, reloaded, frontiers.commits, len(segments.batches), source.pageCalls)
+	}
+}
+
 func TestCaptureEngineImmediatelyContinuesPagedDiscoveryUnderRun(t *testing.T) {
 	source := &pagedDiscoverySource{secondCall: make(chan struct{})}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
@@ -703,7 +812,9 @@ func TestCaptureEngineDoesNotAdvanceFrontierWhenMessageSegmentFails(t *testing.T
 	if _, err := engine.ReconcileSlot(context.Background(), 17); err == nil {
 		t.Fatal("ReconcileSlot() error = nil, want message segment failure")
 	}
-	if frontiers.commits != 0 || frontiers.found {
+	if frontiers.commits != 0 ||
+		frontiers.frontier.Metadata.Sequence != 0 ||
+		frontiers.frontier.Messages.Sequence != 0 {
 		t.Fatalf("partial frontier became visible: commits=%d frontier=%#v", frontiers.commits, frontiers.frontier)
 	}
 	statuses := engine.Status()
@@ -748,7 +859,10 @@ func TestCaptureEngineDoesNotAdvanceFrontierWhenMessageCursorSidecarFails(t *tes
 	if _, err := engine.ReconcileSlot(context.Background(), 17); err == nil {
 		t.Fatal("ReconcileSlot() error = nil, want cursor sidecar failure")
 	}
-	if frontiers.commits != 0 || frontiers.found || len(segments.cursorBatches) != 1 {
+	if frontiers.commits != 0 ||
+		frontiers.frontier.Metadata.Sequence != 0 ||
+		frontiers.frontier.Messages.Sequence != 0 ||
+		len(segments.cursorBatches) != 1 {
 		t.Fatalf("cursor failure became visible: commits=%d frontier=%#v cursor_batches=%d",
 			frontiers.commits, frontiers.frontier, len(segments.cursorBatches))
 	}
@@ -1110,12 +1224,14 @@ func (*pagedDiscoverySource) ReadPage(context.Context, backupruntime.SourcePageR
 }
 
 type fakeSlotFrontierStore struct {
-	frontier    backupcontract.SlotFrontier
-	found       bool
-	loads       int
-	commits     int
-	failCommits int
-	committed   chan struct{}
+	frontier     backupcontract.SlotFrontier
+	found        bool
+	loads        int
+	commits      int
+	failCommits  int
+	committed    chan struct{}
+	authority    backupruntime.SlotCaptureAuthority
+	beforeCommit func()
 }
 
 func (s *fakeSlotFrontierStore) Load(context.Context, uint16) (backupruntime.FrontierSnapshot, error) {
@@ -1123,13 +1239,68 @@ func (s *fakeSlotFrontierStore) Load(context.Context, uint16) (backupruntime.Fro
 	return backupruntime.FrontierSnapshot{Frontier: s.frontier, Found: s.found}, nil
 }
 
-func (s *fakeSlotFrontierStore) CompareAndSwap(_ context.Context, expectedRevision uint64, frontier backupcontract.SlotFrontier) error {
+func (s *fakeSlotFrontierStore) AcquireLease(_ context.Context, hashSlot uint16, initialGeneration string, acquiredAtUnixMillis int64) (backupruntime.FrontierSnapshot, error) {
+	s.loads++
+	authority := s.authority
+	if authority == (backupruntime.SlotCaptureAuthority{}) {
+		authority = testCaptureAuthority()
+		s.authority = authority
+	}
+	takenOver := false
+	if !s.found {
+		s.frontier = backupcontract.SlotFrontier{
+			Revision: 1, HashSlot: hashSlot, Generation: initialGeneration,
+			UpdatedAtUnixMillis: acquiredAtUnixMillis,
+		}
+		s.found = true
+	} else if s.frontier.Generation == "" {
+		s.frontier.Generation = initialGeneration
+	}
+	lease := s.frontier.Lease
+	if lease.Sequence == 0 ||
+		lease.SlotID != authority.SlotID ||
+		lease.LeaderTerm != authority.LeaderTerm ||
+		lease.ConfigEpoch != authority.ConfigEpoch ||
+		lease.HolderNodeID != authority.HolderNodeID {
+		if lease.Sequence > 0 {
+			s.frontier.Revision++
+			takenOver = true
+		}
+		lease = backupcontract.SlotCaptureLease{
+			SlotID: authority.SlotID, LeaderTerm: authority.LeaderTerm,
+			ConfigEpoch: authority.ConfigEpoch, HolderNodeID: authority.HolderNodeID,
+			Generation: s.frontier.Generation, Sequence: lease.Sequence + 1,
+			AcquiredAtUnixMillis: acquiredAtUnixMillis,
+		}
+		s.frontier.Lease = lease
+		s.frontier.UpdatedAtUnixMillis = acquiredAtUnixMillis
+	}
+	return backupruntime.FrontierSnapshot{
+		Frontier: backupcontract.CloneSlotFrontier(s.frontier),
+		Found:    true, LeaseTakenOver: takenOver,
+	}, nil
+}
+
+func (s *fakeSlotFrontierStore) CompareAndSwap(_ context.Context, expectedRevision uint64, expectedLease backupcontract.SlotCaptureLease, frontier backupcontract.SlotFrontier) error {
+	if s.beforeCommit != nil {
+		beforeCommit := s.beforeCommit
+		s.beforeCommit = nil
+		beforeCommit()
+	}
 	if s.failCommits > 0 {
 		s.failCommits--
 		return backupruntime.ErrFrontierConflict
 	}
 	if s.frontier.Revision != expectedRevision {
 		return backupruntime.ErrFrontierConflict
+	}
+	authority := s.authority
+	if !backupcontract.SlotCaptureLeasesEqual(s.frontier.Lease, expectedLease) ||
+		expectedLease.SlotID != authority.SlotID ||
+		expectedLease.LeaderTerm != authority.LeaderTerm ||
+		expectedLease.ConfigEpoch != authority.ConfigEpoch ||
+		expectedLease.HolderNodeID != authority.HolderNodeID {
+		return backupruntime.ErrCaptureLeaseFenced
 	}
 	s.frontier = frontier
 	s.found = true
@@ -1139,6 +1310,12 @@ func (s *fakeSlotFrontierStore) CompareAndSwap(_ context.Context, expectedRevisi
 		s.committed = nil
 	}
 	return nil
+}
+
+func testCaptureAuthority() backupruntime.SlotCaptureAuthority {
+	return backupruntime.SlotCaptureAuthority{
+		SlotID: 1, LeaderTerm: 7, ConfigEpoch: 3, HolderNodeID: 1,
+	}
 }
 
 type recordingSegmentCommitter struct {
@@ -1277,6 +1454,10 @@ func (c *fakeCaptureClock) Now() time.Time {
 }
 
 func newTestCaptureEngine(t *testing.T, source backupruntime.ContinuousSource, frontiers backupruntime.SlotFrontierStore, segments backupruntime.SegmentCommitter, clock backupruntime.CaptureClock) *backupruntime.CaptureEngine {
+	return newTestCaptureEngineWithObserver(t, source, frontiers, segments, clock, nil)
+}
+
+func newTestCaptureEngineWithObserver(t *testing.T, source backupruntime.ContinuousSource, frontiers backupruntime.SlotFrontierStore, segments backupruntime.SegmentCommitter, clock backupruntime.CaptureClock, observer backupruntime.CaptureObserver) *backupruntime.CaptureEngine {
 	t.Helper()
 	if clock == nil {
 		clock = newAdvancingCaptureClock()
@@ -1286,6 +1467,7 @@ func newTestCaptureEngine(t *testing.T, source backupruntime.ContinuousSource, f
 		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: source, Frontiers: frontiers, Segments: segments, Clock: clock,
+		Observer: observer,
 		Policy: backupruntime.RollingPolicy{
 			TargetSegmentBytes: 64 << 20, MaxSegmentBytes: 256 << 20,
 			MaxOpenDuration: 30 * time.Second, PageRecords: 1024,
@@ -1295,4 +1477,16 @@ func newTestCaptureEngine(t *testing.T, source backupruntime.ContinuousSource, f
 		t.Fatalf("NewCaptureEngine() error = %v", err)
 	}
 	return engine
+}
+
+type recordingCaptureObserver struct {
+	takeovers int
+	fenced    int
+	owned     int
+}
+
+func (o *recordingCaptureObserver) ObserveBackupCaptureLeaseTakeover() { o.takeovers++ }
+func (o *recordingCaptureObserver) ObserveBackupCaptureLeaseFenced()   { o.fenced++ }
+func (o *recordingCaptureObserver) SetBackupCaptureOwnedSlots(slots int) {
+	o.owned = slots
 }

@@ -47,6 +47,10 @@ var (
 	ErrSourceRegressed = errors.New("backup runtime: capture source regressed")
 	// ErrCaptureMemoryPressure reports a retryable node plaintext-budget shortage.
 	ErrCaptureMemoryPressure = errors.New("backup runtime: capture memory pressure")
+	// ErrCaptureLeaseFenced reports a stale or mismatched durable capture lease.
+	ErrCaptureLeaseFenced = errors.New("backup runtime: capture lease fenced")
+	// ErrCaptureNotLeader reports that the local worker is not the current Slot Leader.
+	ErrCaptureNotLeader = errors.New("backup runtime: capture worker is not Slot leader")
 )
 
 // RollingPolicy bounds one continuous-capture segment and source page.
@@ -174,16 +178,50 @@ type ContinuousSegmentLoader interface {
 	Load(context.Context, backupartifact.SegmentReference) ([]byte, error)
 }
 
+// SlotCaptureAuthority is the current distributed ownership identity for one Hash Slot.
+type SlotCaptureAuthority struct {
+	// SlotID identifies the logical Slot Raft Group that owns the Hash Slot.
+	SlotID uint32
+	// LeaderTerm is the Slot Raft term observed with HolderNodeID.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane configuration epoch for SlotID.
+	ConfigEpoch uint64
+	// HolderNodeID is the current Slot Leader and local capture worker node.
+	HolderNodeID uint64
+}
+
+// SlotCaptureAuthoritySource proves that this process is the current Slot Leader.
+type SlotCaptureAuthoritySource interface {
+	CurrentCaptureAuthority(context.Context, uint16) (SlotCaptureAuthority, error)
+}
+
 // FrontierSnapshot is one durable SlotFrontier load result.
 type FrontierSnapshot struct {
 	Frontier backupcontract.SlotFrontier
 	Found    bool
+	// LeaseTakenOver reports that this acquisition durably advanced the lease sequence.
+	LeaseTakenOver bool
 }
 
 // SlotFrontierStore atomically persists one compact frontier per Hash Slot.
 type SlotFrontierStore interface {
 	Load(context.Context, uint16) (FrontierSnapshot, error)
-	CompareAndSwap(context.Context, uint64, backupcontract.SlotFrontier) error
+	// AcquireLease returns the durable frontier fenced to the current local Slot
+	// Leader, creating or taking over the lease when authority changed.
+	AcquireLease(context.Context, uint16, string, int64) (FrontierSnapshot, error)
+	// CompareAndSwap advances a frontier only while its exact lease and revision
+	// still match both durable coordination state and current Slot authority.
+	CompareAndSwap(context.Context, uint64, backupcontract.SlotCaptureLease, backupcontract.SlotFrontier) error
+}
+
+// CaptureObserver receives low-cardinality lease ownership evidence.
+type CaptureObserver interface {
+	// ObserveBackupCaptureLeaseTakeover increments after a durable takeover.
+	ObserveBackupCaptureLeaseTakeover()
+	// ObserveBackupCaptureLeaseFenced increments after a stale worker rejection.
+	ObserveBackupCaptureLeaseFenced()
+	// SetBackupCaptureOwnedSlots publishes current locally owned Slot count.
+	SetBackupCaptureOwnedSlots(int)
 }
 
 // CaptureClock supplies deterministic UTC time to rolling and status logic.
@@ -245,6 +283,8 @@ type CaptureEngineOptions struct {
 	WorkerCount int
 	// MemoryBudget gates pages before source adapters allocate plaintext.
 	MemoryBudget CaptureMemoryBudget
+	// Observer receives optional low-cardinality lease ownership metrics.
+	Observer CaptureObserver
 }
 
 // CaptureEngine continuously reconciles committed Slot logs into immutable segments.
@@ -334,10 +374,32 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 	}
 	e.slotLocks[hashSlot].Lock()
 	defer e.slotLocks[hashSlot].Unlock()
-	snapshot, err := e.options.Frontiers.Load(ctx, hashSlot)
+	snapshot, err := e.options.Frontiers.AcquireLease(
+		ctx,
+		hashSlot,
+		e.options.InitialGeneration,
+		e.options.Clock.Now().UnixMilli(),
+	)
 	if err != nil {
-		e.recordStatus(hashSlot, backupcontract.CaptureStateFailed, backupcontract.SlotFrontier{}, SourceWatermarks{}, "frontier_load")
+		state := backupcontract.CaptureStateFailed
+		category := "frontier_load"
+		if errors.Is(err, ErrCaptureLeaseFenced) || errors.Is(err, ErrCaptureNotLeader) {
+			state = backupcontract.CaptureStateFenced
+			category = "capture_fenced"
+			if e.options.Observer != nil {
+				e.options.Observer.ObserveBackupCaptureLeaseFenced()
+			}
+		}
+		e.recordStatus(hashSlot, state, backupcontract.SlotFrontier{}, SourceWatermarks{}, category)
 		return backupcontract.SlotFrontier{}, err
+	}
+	if snapshot.LeaseTakenOver {
+		if invalidator, ok := e.options.Source.(SourceStateInvalidator); ok {
+			invalidator.InvalidateSourceState(hashSlot)
+		}
+		if e.options.Observer != nil {
+			e.options.Observer.ObserveBackupCaptureLeaseTakeover()
+		}
 	}
 	current, err := e.normalizeFrontier(hashSlot, snapshot)
 	if err != nil {
@@ -357,12 +419,12 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 	e.recordStatus(hashSlot, backupcontract.CaptureStateCapturing, current, watermarks, "")
 
 	next := backupcontract.CloneSlotFrontier(current)
-	next.Metadata, err = e.captureStream(ctx, hashSlot, next.Generation, backupartifact.SegmentStreamMetadata, next.Metadata, watermarks.Metadata)
+	next.Metadata, err = e.captureStream(ctx, hashSlot, next.Lease, backupartifact.SegmentStreamMetadata, next.Metadata, watermarks.Metadata)
 	if err != nil {
 		e.recordStreamCaptureError(hashSlot, current, watermarks, "metadata_capture", err)
 		return backupcontract.SlotFrontier{}, err
 	}
-	next.Messages, err = e.captureStream(ctx, hashSlot, next.Generation, backupartifact.SegmentStreamMessages, next.Messages, watermarks.Messages)
+	next.Messages, err = e.captureStream(ctx, hashSlot, next.Lease, backupartifact.SegmentStreamMessages, next.Messages, watermarks.Messages)
 	if err != nil {
 		e.recordStreamCaptureError(hashSlot, current, watermarks, "message_capture", err)
 		return backupcontract.SlotFrontier{}, err
@@ -379,11 +441,20 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 	}
 	next.Revision = current.Revision + 1
 	next.UpdatedAtUnixMillis = e.options.Clock.Now().UnixMilli()
-	if err := e.options.Frontiers.CompareAndSwap(ctx, current.Revision, next); err != nil {
+	if err := e.options.Frontiers.CompareAndSwap(ctx, current.Revision, current.Lease, next); err != nil {
 		if invalidator, ok := e.options.Source.(SourceStateInvalidator); ok {
 			invalidator.InvalidateSourceState(hashSlot)
 		}
-		e.recordStatus(hashSlot, backupcontract.CaptureStateFailed, current, watermarks, "frontier_commit")
+		state := backupcontract.CaptureStateFailed
+		category := "frontier_commit"
+		if errors.Is(err, ErrCaptureLeaseFenced) || errors.Is(err, ErrCaptureNotLeader) {
+			state = backupcontract.CaptureStateFenced
+			category = "capture_fenced"
+			if e.options.Observer != nil {
+				e.options.Observer.ObserveBackupCaptureLeaseFenced()
+			}
+		}
+		e.recordStatus(hashSlot, state, current, watermarks, category)
 		return backupcontract.SlotFrontier{}, err
 	}
 	e.recordStatus(hashSlot, captureStateForFrontier(next, watermarks), next, watermarks, "")

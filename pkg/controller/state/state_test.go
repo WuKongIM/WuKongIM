@@ -456,6 +456,11 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 		},
 		SlotFrontiers: []BackupSlotFrontier{{
 			Revision: 1, HashSlot: 1, Generation: "slot-generation-1",
+			Lease: BackupSlotCaptureLease{
+				SlotID: 2, LeaderTerm: 7, ConfigEpoch: 3, HolderNodeID: 1,
+				Generation: "slot-generation-1", Sequence: 1,
+				AcquiredAtUnixMillis: 1_753_400_100_000,
+			},
 			Metadata: BackupStreamFrontier{
 				SourceHighWatermark: 3, SourceCursor: "metadata/3",
 				WatermarkAtUnixMillis: 1_753_400_100_000,
@@ -487,6 +492,39 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	require.Equal(t, cursorID, decoded.Backup.SlotFrontiers[0].Messages.CursorHead.SegmentID)
 	require.Equal(t, uint64(3), decoded.Backup.CatalogHead.Sequence)
 	require.Equal(t, "checkpoint-3", decoded.Backup.CatalogHead.LatestCheckpointID)
+}
+
+func TestValidateRejectsMalformedSlotCaptureLease(t *testing.T) {
+	validLease := BackupSlotCaptureLease{
+		SlotID: 2, LeaderTerm: 7, ConfigEpoch: 3, HolderNodeID: 1,
+		Generation: "slot-generation-1", Sequence: 1,
+		AcquiredAtUnixMillis: 1_753_400_100_000,
+	}
+	tests := []struct {
+		name   string
+		mutate func(*BackupSlotCaptureLease)
+	}{
+		{name: "missing holder", mutate: func(lease *BackupSlotCaptureLease) { lease.HolderNodeID = 0 }},
+		{name: "missing leader term", mutate: func(lease *BackupSlotCaptureLease) { lease.LeaderTerm = 0 }},
+		{name: "missing config epoch", mutate: func(lease *BackupSlotCaptureLease) { lease.ConfigEpoch = 0 }},
+		{name: "missing sequence", mutate: func(lease *BackupSlotCaptureLease) { lease.Sequence = 0 }},
+		{name: "generation mismatch", mutate: func(lease *BackupSlotCaptureLease) { lease.Generation = "other-generation" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			st := testState()
+			lease := validLease
+			test.mutate(&lease)
+			st.Backup = &BackupCoordinationState{
+				RestorePoints: []BackupRestorePoint{},
+				SlotFrontiers: []BackupSlotFrontier{{
+					Revision: 1, HashSlot: 1, Generation: "slot-generation-1",
+					Lease: lease, UpdatedAtUnixMillis: 1_753_400_100_000,
+				}},
+			}
+			require.ErrorIs(t, st.Validate(), ErrInvalidState)
+		})
+	}
 }
 
 func TestValidateRejectsMalformedCheckpointCatalogHead(t *testing.T) {

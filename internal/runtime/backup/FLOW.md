@@ -49,12 +49,13 @@ is not composed into production entrypoints yet.
 in-memory Channel commit hint -> CaptureEngine.Wake (bounded, non-blocking)
 periodic poll / process start  -> enqueue every configured Hash Slot
 bounded Slot workers
+  -> acquire/reuse durable Slot capture lease for exact local Raft authority
   -> load durable SlotFrontier
   -> observe metadata and message source high watermarks
   -> page committed source logs through the pinned positions
   -> roll non-empty SegmentBatch values by size or open duration
   -> ReplicatedSegmentStore.Commit
-  -> one SlotFrontier compare-and-swap for both stream heads
+  -> one lease-and-revision fenced SlotFrontier compare-and-swap for both stream heads
 ```
 
 Wake hints never call source storage, repositories, KMS, or a backup outbox.
@@ -120,3 +121,15 @@ and bounded failure evidence for later Manager/metrics adaptation. A Slot stays
 `reconciling` while the bounded message discovery sweep has more pages, even
 when the currently known numeric lag is zero; it becomes `idle` only after a
 complete rotated sweep.
+
+The durable lease binds `(SlotID, leader term, config epoch, holder node,
+Generation, lease sequence)` to the same Controller record as the frontier.
+Reacquiring unchanged Slot authority is read-only, so Controller Leader failover
+does not change task identity. Slot Leader or placement changes increment the
+lease sequence while preserving committed stream heads. Pending accumulators
+also carry the exact lease; takeover releases them and invalidates disposable
+source scans before observing watermarks, forcing both layers to reread from
+the durable frontier. The final frontier CAS revalidates current local Slot leadership and
+the complete durable lease after uploads, leaving stale worker objects
+unreachable for later Generation GC. Status exposes the lease and a fenced
+state; metrics expose owned-Slot gauge plus takeover and fenced counters.

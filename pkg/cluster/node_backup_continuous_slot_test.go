@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -50,8 +51,23 @@ func TestContinuousBackupSlotSourceRoutesThroughRemoteLeader(t *testing.T) {
 	id := channelruntime.ChannelID{ID: "continuous-backup-remote-slot", Type: 2}
 	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	queryNode := firstNonLeaderNode(t, nodes, route.Leader)
+	leaderNode := clusterNodeByID(t, nodes, route.Leader)
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
+	var authority BackupCaptureAuthority
+	waitUntil(t, func() bool {
+		var err error
+		authority, err = leaderNode.ObserveBackupCaptureAuthority(ctx, route.HashSlot)
+		return err == nil
+	})
+	if authority.HashSlot != route.HashSlot || authority.SlotID != route.SlotID ||
+		authority.HolderNodeID != route.Leader || authority.LeaderTerm != route.LeaderTerm ||
+		authority.ConfigEpoch != route.ConfigEpoch {
+		t.Fatalf("capture authority = %#v, want route %#v", authority, route)
+	}
+	if _, err := queryNode.ObserveBackupCaptureAuthority(ctx, route.HashSlot); !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("non-leader capture authority error = %v, want ErrNotLeader", err)
+	}
 
 	if err := nodes[0].UpsertChannelMetadata(ctx, metadb.Channel{
 		ChannelID: id.ID, ChannelType: int64(id.Type), AllowStranger: 1,

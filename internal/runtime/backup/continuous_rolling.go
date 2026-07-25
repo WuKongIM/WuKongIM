@@ -11,9 +11,10 @@ import (
 
 // captureStream reconciles one authoritative stream while retaining sparse
 // plaintext across reconciliation cycles until the size or time policy seals it.
-func (e *CaptureEngine) captureStream(ctx context.Context, hashSlot uint16, generation string, stream backupartifact.SegmentStream, current backupcontract.StreamFrontier, target SourceWatermark) (backupcontract.StreamFrontier, error) {
+func (e *CaptureEngine) captureStream(ctx context.Context, hashSlot uint16, lease backupcontract.SlotCaptureLease, stream backupartifact.SegmentStream, current backupcontract.StreamFrontier, target SourceWatermark) (backupcontract.StreamFrontier, error) {
+	generation := lease.Generation
 	key := captureStreamKey{hashSlot: hashSlot, stream: stream}
-	accumulator := e.pendingAccumulator(key, generation, current)
+	accumulator := e.pendingAccumulator(key, lease, current)
 	if accumulator != nil && accumulator.hasRecords() &&
 		e.options.Clock.Now().Sub(accumulator.openedAt) >= e.options.Policy.MaxOpenDuration {
 		var err error
@@ -35,7 +36,7 @@ func (e *CaptureEngine) captureStream(ctx context.Context, hashSlot uint16, gene
 		return current, nil
 	}
 	if accumulator == nil {
-		accumulator = newSegmentAccumulator(generation, current, e.options.Clock.Now())
+		accumulator = newSegmentAccumulator(lease, current, e.options.Clock.Now())
 		e.storePendingAccumulator(key, accumulator)
 	}
 	scanTarget := target
@@ -110,7 +111,7 @@ func (e *CaptureEngine) captureStream(ctx context.Context, hashSlot uint16, gene
 				return backupcontract.StreamFrontier{}, err
 			}
 			e.removePendingAccumulator(key, accumulator)
-			accumulator = newSegmentAccumulator(generation, current, e.options.Clock.Now())
+			accumulator = newSegmentAccumulator(lease, current, e.options.Clock.Now())
 			e.storePendingAccumulator(key, accumulator)
 		}
 		if err := accumulator.append(page, scanTarget, retainedReservation); err != nil {
@@ -134,7 +135,7 @@ func (e *CaptureEngine) captureStream(ctx context.Context, hashSlot uint16, gene
 			if page.Done {
 				return current, nil
 			}
-			accumulator = newSegmentAccumulator(generation, current, e.options.Clock.Now())
+			accumulator = newSegmentAccumulator(lease, current, e.options.Clock.Now())
 			e.storePendingAccumulator(key, accumulator)
 		}
 		if page.Done {

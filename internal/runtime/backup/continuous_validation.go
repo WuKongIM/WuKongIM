@@ -21,12 +21,19 @@ func (e *CaptureEngine) normalizeFrontier(hashSlot uint16, snapshot FrontierSnap
 	}
 	frontier := backupcontract.CloneSlotFrontier(snapshot.Frontier)
 	if frontier.HashSlot != hashSlot || !validContinuousIdentity(frontier.Generation, 128) || frontier.Revision == 0 ||
+		!validSlotCaptureLease(frontier.Lease, frontier.Generation) ||
 		validateStreamFrontier(backupartifact.SegmentStreamMetadata, frontier.Metadata) != nil ||
 		validateStreamFrontier(backupartifact.SegmentStreamMessages, frontier.Messages) != nil ||
 		frontier.WatermarkAtUnixMillis != olderPositiveTime(frontier.Metadata.WatermarkAtUnixMillis, frontier.Messages.WatermarkAtUnixMillis) {
 		return backupcontract.SlotFrontier{}, fmt.Errorf("%w: durable frontier is invalid", ErrInvalidCapture)
 	}
 	return frontier, nil
+}
+
+func validSlotCaptureLease(lease backupcontract.SlotCaptureLease, generation string) bool {
+	return lease.SlotID > 0 && lease.LeaderTerm > 0 && lease.ConfigEpoch > 0 &&
+		lease.HolderNodeID > 0 && lease.Sequence > 0 && lease.AcquiredAtUnixMillis > 0 &&
+		lease.Generation == generation && validContinuousIdentity(lease.Generation, 128)
 }
 
 func validateRollingPolicy(policy RollingPolicy) error {
@@ -132,6 +139,7 @@ func olderPositiveTime(left, right int64) int64 {
 func slotFrontiersEqual(left, right backupcontract.SlotFrontier) bool {
 	return left.Revision == right.Revision && left.HashSlot == right.HashSlot &&
 		left.Generation == right.Generation &&
+		backupcontract.SlotCaptureLeasesEqual(left.Lease, right.Lease) &&
 		streamFrontiersEqual(left.Metadata, right.Metadata) &&
 		streamFrontiersEqual(left.Messages, right.Messages) &&
 		left.WatermarkAtUnixMillis == right.WatermarkAtUnixMillis &&

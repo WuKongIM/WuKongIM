@@ -162,30 +162,106 @@ func TestControllerSlotFrontierStoreRetriesGlobalConflictWithoutLosingCoordinati
 	}}
 	coordination, err := backupinfra.NewControllerStateStore(runtime)
 	require.NoError(t, err)
-	frontiers, err := backupinfra.NewControllerSlotFrontierStore(coordination)
+	frontiers, err := backupinfra.NewControllerSlotFrontierStore(coordination, staticCaptureAuthority{
+		authority: backupruntime.SlotCaptureAuthority{
+			SlotID: 2, LeaderTerm: 7, ConfigEpoch: 4, HolderNodeID: 1,
+		},
+	})
+	require.NoError(t, err)
+	snapshot, err := frontiers.AcquireLease(context.Background(), 17, "slot-generation-1", 1_753_400_100_000)
 	require.NoError(t, err)
 	runtime.onConflict = func() {
-		runtime.state.Revision = 9
+		runtime.state.Revision++
 		runtime.state.Backup.LastEpoch = 4
 	}
-	next := backupcontract.SlotFrontier{
-		Revision: 1, HashSlot: 17, Generation: "slot-generation-1",
-		Metadata:              backupcontract.StreamFrontier{SourceHighWatermark: 3, WatermarkAtUnixMillis: 1_753_400_100_000},
-		Messages:              backupcontract.StreamFrontier{SourceHighWatermark: 5, WatermarkAtUnixMillis: 1_753_400_090_000},
-		WatermarkAtUnixMillis: 1_753_400_090_000,
-		UpdatedAtUnixMillis:   1_753_400_110_000,
-	}
+	next := backupcontract.CloneSlotFrontier(snapshot.Frontier)
+	next.Revision++
+	next.Metadata = backupcontract.StreamFrontier{SourceHighWatermark: 3, WatermarkAtUnixMillis: 1_753_400_100_000}
+	next.Messages = backupcontract.StreamFrontier{SourceHighWatermark: 5, WatermarkAtUnixMillis: 1_753_400_090_000}
+	next.WatermarkAtUnixMillis = 1_753_400_090_000
+	next.UpdatedAtUnixMillis = 1_753_400_110_000
 
-	require.NoError(t, frontiers.CompareAndSwap(context.Background(), 0, next))
-	require.Equal(t, 2, runtime.replaceCalls)
+	require.NoError(t, frontiers.CompareAndSwap(context.Background(), snapshot.Frontier.Revision, snapshot.Frontier.Lease, next))
+	require.Equal(t, 3, runtime.replaceCalls)
 	require.Equal(t, uint64(4), runtime.replacement.LastEpoch)
 	require.Len(t, runtime.replacement.SlotFrontiers, 1)
 
-	snapshot, err := frontiers.Load(context.Background(), 17)
+	snapshot, err = frontiers.Load(context.Background(), 17)
 	require.NoError(t, err)
 	require.True(t, snapshot.Found)
-	require.Equal(t, uint64(1), snapshot.Frontier.Revision)
+	require.Equal(t, uint64(2), snapshot.Frontier.Revision)
 	require.Equal(t, uint64(5), snapshot.Frontier.Messages.SourceHighWatermark)
+}
+
+func TestControllerSlotFrontierStoreTakeoverPreservesFrontierAndFencesOldLease(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{
+		Revision: 5,
+		Backup: &controller.BackupCoordinationState{
+			RestorePoints: []controller.BackupRestorePoint{},
+		},
+	}}
+	coordination, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	authority := &mutableCaptureAuthority{authority: backupruntime.SlotCaptureAuthority{
+		SlotID: 2, LeaderTerm: 7, ConfigEpoch: 4, HolderNodeID: 1,
+	}}
+	frontiers, err := backupinfra.NewControllerSlotFrontierStore(coordination, authority)
+	require.NoError(t, err)
+
+	first, err := frontiers.AcquireLease(context.Background(), 17, "slot-generation-1", 1_753_400_100_000)
+	require.NoError(t, err)
+	require.False(t, first.LeaseTakenOver)
+	next := backupcontract.CloneSlotFrontier(first.Frontier)
+	next.Revision++
+	next.Metadata.SourceCursor = "metadata/3"
+	next.Metadata.SourceHighWatermark = 3
+	next.Metadata.WatermarkAtUnixMillis = 1_753_400_100_000
+	next.WatermarkAtUnixMillis = 1_753_400_100_000
+	next.UpdatedAtUnixMillis = 1_753_400_110_000
+	require.NoError(t, frontiers.CompareAndSwap(context.Background(), first.Frontier.Revision, first.Frontier.Lease, next))
+
+	authority.authority = backupruntime.SlotCaptureAuthority{
+		SlotID: 2, LeaderTerm: 8, ConfigEpoch: 4, HolderNodeID: 2,
+	}
+	takeover, err := frontiers.AcquireLease(context.Background(), 17, "ignored-new-generation", 1_753_400_120_000)
+	require.NoError(t, err)
+	require.True(t, takeover.LeaseTakenOver)
+	require.Equal(t, uint64(2), takeover.Frontier.Lease.Sequence)
+	require.Equal(t, uint64(2), takeover.Frontier.Lease.HolderNodeID)
+	require.Equal(t, "slot-generation-1", takeover.Frontier.Generation)
+	require.Equal(t, uint64(3), takeover.Frontier.Metadata.SourceHighWatermark)
+
+	stale := backupcontract.CloneSlotFrontier(next)
+	stale.Revision++
+	err = frontiers.CompareAndSwap(context.Background(), next.Revision, next.Lease, stale)
+	require.ErrorIs(t, err, backupruntime.ErrCaptureLeaseFenced)
+}
+
+func TestControllerSlotFrontierStoreControllerLeaderRestartReusesLease(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{
+		Revision: 5,
+		Backup: &controller.BackupCoordinationState{
+			RestorePoints: []controller.BackupRestorePoint{},
+		},
+	}}
+	coordination, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	authority := &mutableCaptureAuthority{authority: backupruntime.SlotCaptureAuthority{
+		SlotID: 2, LeaderTerm: 7, ConfigEpoch: 4, HolderNodeID: 1,
+	}}
+	firstStore, err := backupinfra.NewControllerSlotFrontierStore(coordination, authority)
+	require.NoError(t, err)
+	first, err := firstStore.AcquireLease(context.Background(), 17, "slot-generation-1", 1_753_400_100_000)
+	require.NoError(t, err)
+	writes := runtime.replaceCalls
+
+	restartedStore, err := backupinfra.NewControllerSlotFrontierStore(coordination, authority)
+	require.NoError(t, err)
+	reloaded, err := restartedStore.AcquireLease(context.Background(), 17, "slot-generation-1", 1_753_400_200_000)
+	require.NoError(t, err)
+	require.Equal(t, writes, runtime.replaceCalls)
+	require.Equal(t, first.Frontier.Revision, reloaded.Frontier.Revision)
+	require.Equal(t, first.Frontier.Lease, reloaded.Frontier.Lease)
 }
 
 type fakeBackupController struct {
@@ -213,9 +289,28 @@ func (c *fakeBackupController) ReplaceBackupCoordinationState(_ context.Context,
 	}
 	if c.replaceErr == nil {
 		c.state.Revision = expectedRevision + 1
-		c.state.Backup = &c.replacement
+		applied := c.replacement.Clone()
+		c.state.Backup = &applied
 	}
 	return c.replaceErr
 }
 
 var _ backupruntime.SlotFrontierStore = (*backupinfra.ControllerSlotFrontierStore)(nil)
+
+type staticCaptureAuthority struct {
+	authority backupruntime.SlotCaptureAuthority
+	err       error
+}
+
+func (a staticCaptureAuthority) CurrentCaptureAuthority(context.Context, uint16) (backupruntime.SlotCaptureAuthority, error) {
+	return a.authority, a.err
+}
+
+type mutableCaptureAuthority struct {
+	authority backupruntime.SlotCaptureAuthority
+	err       error
+}
+
+func (a *mutableCaptureAuthority) CurrentCaptureAuthority(context.Context, uint16) (backupruntime.SlotCaptureAuthority, error) {
+	return a.authority, a.err
+}

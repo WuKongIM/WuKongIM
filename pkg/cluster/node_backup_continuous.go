@@ -19,6 +19,18 @@ var (
 	ErrBackupSourceCompacted = errors.New("cluster: backup source log compacted")
 )
 
+// BackupCaptureAuthority is one fresh local Slot Raft leadership proof.
+type BackupCaptureAuthority struct {
+	// HashSlot and SlotID identify the physical partition and logical Raft Group.
+	HashSlot uint16
+	SlotID   uint32
+	// HolderNodeID and LeaderTerm identify the fresh local Raft leader.
+	HolderNodeID uint64
+	LeaderTerm   uint64
+	// ConfigEpoch fences control-plane Slot placement changes.
+	ConfigEpoch uint64
+}
+
 // BackupMetadataHighWatermark is one routed logical Slot metadata boundary.
 type BackupMetadataHighWatermark struct {
 	// HashSlot and SlotID identify the logical and physical source partitions.
@@ -55,6 +67,41 @@ type BackupMetadataLogPage struct {
 	NextIndex uint64
 	// Done reports that every entry through the pinned logical index was examined.
 	Done bool
+}
+
+// ObserveBackupCaptureAuthority returns a fresh proof only on the exact local
+// Slot Leader. Cached routing alone is insufficient because it intentionally
+// retains the last known leader across transient Raft observation gaps.
+func (n *Node) ObserveBackupCaptureAuthority(ctx context.Context, hashSlot uint16) (BackupCaptureAuthority, error) {
+	if err := ctxErr(ctx); err != nil {
+		return BackupCaptureAuthority{}, err
+	}
+	if n == nil || n.defaultSlotRuntime == nil {
+		return BackupCaptureAuthority{}, ErrNotStarted
+	}
+	route, err := n.RouteHashSlot(hashSlot)
+	if err != nil {
+		return BackupCaptureAuthority{}, err
+	}
+	if route.Leader != n.NodeID() {
+		return BackupCaptureAuthority{}, ErrNotLeader
+	}
+	status, err := n.defaultSlotRuntime.Status(multiraft.SlotID(route.SlotID))
+	if err != nil {
+		return BackupCaptureAuthority{}, mapSlotLogRuntimeError(err)
+	}
+	if uint32(status.SlotID) != route.SlotID ||
+		uint64(status.NodeID) != n.NodeID() ||
+		uint64(status.LeaderID) != n.NodeID() ||
+		status.Term != route.LeaderTerm ||
+		status.Role != multiraft.RoleLeader ||
+		route.ConfigEpoch == 0 {
+		return BackupCaptureAuthority{}, ErrNotLeader
+	}
+	return BackupCaptureAuthority{
+		HashSlot: hashSlot, SlotID: route.SlotID, HolderNodeID: n.NodeID(),
+		LeaderTerm: status.Term, ConfigEpoch: route.ConfigEpoch,
+	}, nil
 }
 
 // ObserveBackupMetadataHighWatermark routes to the Slot Leader's durable logical cut.

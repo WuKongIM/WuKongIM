@@ -712,6 +712,12 @@ present. These methods are read-only diagnostics for manager UI pages; they do
 not route writes, replay entries, or mutate Raft storage.
 
 Continuous backup uses a separate forward-only source facade.
+`ObserveBackupCaptureAuthority` succeeds only when the routed leader is local
+and a fresh local Multi-Raft status reports the same Slot ID, leader node,
+leader term, and leader role. This deliberately does not trust the router's
+retained last-known leader during transient observation gaps; upper-layer
+capture leases use its `(SlotID, leader term, config epoch, holder)` result as
+their distributed fence.
 `ObserveBackupMetadataHighWatermark` routes to the Slot Leader and returns the
 last applied Raft index that mutates the requested Hash Slot.
 `ReadBackupMetadataLogPage` pins that logical cut and uses a rebuildable

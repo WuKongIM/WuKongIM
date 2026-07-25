@@ -13,12 +13,16 @@ through composition.
 The continuous-capture contract adds exactly one bounded `SlotFrontier` per
 Hash Slot. A frontier atomically binds independent metadata and message stream
 heads, their opaque bounded source cursors, reconciled source positions, and
-the older stream watermark. Channel identities never enter this record; the
+the older stream watermark. The same record carries a `SlotCaptureLease`
+containing the physical Slot ID, Raft leader term, configuration epoch, holder
+node, Generation, monotonic lease sequence, and takeover time. Channel
+identities never enter this record; the
 message stream has a payload head plus a separate `CursorHead` pointing to
 immutable cursor-only evidence in the repository.
 `SlotCaptureStatus` is a detached public projection of that frontier plus the
 latest observed source watermarks, per-stream lag, capture state, and a bounded
-failure category.
+failure category. Its `LeaseCurrent` bit distinguishes a current owner from a
+fenced stale worker.
 The coordination state adds one `CatalogPageReference` head beside those Slot
 frontiers. It never transports checkpoint history or repository payloads.
 

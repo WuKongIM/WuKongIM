@@ -31,6 +31,9 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 	metrics.SetBackupVerificationAgeSeconds(&ageSeconds)
 	metrics.ObserveBackupFailure("unbounded source error")
 	metrics.SetBackupRestoreProgress(13, 8, 256)
+	metrics.SetBackupCaptureOwnedSlots(19)
+	metrics.ObserveBackupCaptureLeaseTakeover()
+	metrics.ObserveBackupCaptureLeaseFenced()
 
 	families, err = registry.Gather()
 	require.NoError(t, err)
@@ -56,4 +59,7 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 			"node_id": "7", "node_name": "node-7", "phase": phase,
 		}).GetGauge().GetValue(), phase)
 	}
+	require.Equal(t, float64(19), requireMetricFamily(t, families, "wukongim_backup_capture_owned_slots").GetMetric()[0].GetGauge().GetValue())
+	require.Equal(t, float64(1), requireMetricFamily(t, families, "wukongim_backup_capture_lease_takeovers_total").GetMetric()[0].GetCounter().GetValue())
+	require.Equal(t, float64(1), requireMetricFamily(t, families, "wukongim_backup_capture_lease_fenced_total").GetMetric()[0].GetCounter().GetValue())
 }

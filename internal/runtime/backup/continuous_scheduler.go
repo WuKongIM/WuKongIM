@@ -164,6 +164,7 @@ func (e *CaptureEngine) Run(ctx context.Context) error {
 }
 
 func (e *CaptureEngine) recordStatus(hashSlot uint16, state backupcontract.CaptureState, frontier backupcontract.SlotFrontier, watermarks SourceWatermarks, failureCategory string) {
+	leaseCurrent := frontier.Lease.Sequence > 0 && state != backupcontract.CaptureStateFenced
 	status := backupcontract.SlotCaptureStatus{
 		HashSlot: hashSlot, State: state, Frontier: backupcontract.CloneSlotFrontier(frontier),
 		MetadataSourceWatermark: watermarks.Metadata.Position,
@@ -172,10 +173,20 @@ func (e *CaptureEngine) recordStatus(hashSlot uint16, state backupcontract.Captu
 		MessageLag:              watermarkLag(watermarks.Messages.Position, frontier.Messages.SourceHighWatermark),
 		ObservedAtUnixMillis:    e.options.Clock.Now().UnixMilli(),
 		FailureCategory:         failureCategory,
+		LeaseCurrent:            leaseCurrent,
 	}
 	e.statusMu.Lock()
 	e.status[hashSlot] = status
+	ownedSlots := 0
+	for _, candidate := range e.status {
+		if candidate.LeaseCurrent {
+			ownedSlots++
+		}
+	}
 	e.statusMu.Unlock()
+	if e.options.Observer != nil {
+		e.options.Observer.SetBackupCaptureOwnedSlots(ownedSlots)
+	}
 }
 
 func (e *CaptureEngine) recordStreamCaptureError(hashSlot uint16, frontier backupcontract.SlotFrontier, watermarks SourceWatermarks, category string, err error) {

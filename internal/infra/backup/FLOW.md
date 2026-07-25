@@ -29,7 +29,13 @@ point's latest audit evidence, allowing a new Controller Leader to resume the
 task without treating node-local metrics as authority.
 
 `ControllerSlotFrontierStore` updates one sorted per-Hash-Slot record inside
-the same bounded state. It fences on the Slot frontier revision, retries
+the same bounded state. It first requires a complete local Slot Leader identity
+proved by fresh Multi-Raft status matching the route term and config epoch.
+Unchanged authority reuses the durable lease without a write;
+leader term, holder, Slot ID, or config epoch changes atomically advance its
+lease sequence while preserving both stream heads. Final commits revalidate
+current authority plus exact lease and frontier revision after repository
+uploads. The store retries
 unrelated global Controller revision conflicts from a fresh snapshot, and
 therefore never overwrites concurrent checkpoint, verification, retention, or
 erasure coordination.

@@ -732,9 +732,24 @@
           "expr": "max by (phase) (wukongim_backup_restore_partitions{node_name=~\"$node_name\"})",
           "legendFormat": "restore {{phase}}",
           "refId": "B"
+        },
+        {
+          "expr": "max by (node_name) (wukongim_backup_capture_owned_slots{node_name=~\"$node_name\"})",
+          "legendFormat": "capture owned slots {{node_name}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (node_name) (rate(wukongim_backup_capture_lease_takeovers_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "capture takeovers {{node_name}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum by (node_name) (rate(wukongim_backup_capture_lease_fenced_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "capture fenced {{node_name}}",
+          "refId": "E"
         }
       ],
-      "title": "Backup Failures And Restore Progress",
+      "title": "Backup Operations And Capture",
       "type": "timeseries"
     }
   ],

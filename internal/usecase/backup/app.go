@@ -284,6 +284,19 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 		MaxRecoveryPointAgeSeconds: int64(a.maxRecoveryPointAge / time.Second),
 		MaxVerificationAgeSeconds:  int64(a.maxVerificationAge / time.Second),
 	}
+	snapshot.CaptureLeases = make([]CaptureLeaseSnapshot, len(state.SlotFrontiers))
+	for index, frontier := range state.SlotFrontiers {
+		snapshot.CaptureLeases[index] = CaptureLeaseSnapshot{
+			HashSlot: frontier.HashSlot, SlotID: frontier.Lease.SlotID,
+			HolderNodeID: frontier.Lease.HolderNodeID, LeaderTerm: frontier.Lease.LeaderTerm,
+			ConfigEpoch: frontier.Lease.ConfigEpoch, Generation: frontier.Generation,
+			LeaseSequence: frontier.Lease.Sequence, FrontierRevision: frontier.Revision,
+			MetadataSourceWatermark:   frontier.Metadata.SourceHighWatermark,
+			MessageSourceWatermark:    frontier.Messages.SourceHighWatermark,
+			AcquiredAtUnixMillis:      frontier.Lease.AcquiredAtUnixMillis,
+			FrontierUpdatedUnixMillis: frontier.UpdatedAtUnixMillis,
+		}
+	}
 	snapshot.Capacity = backupCapacitySnapshot(state)
 	if len(state.RestorePoints) > 0 {
 		latest := state.RestorePoints[0]

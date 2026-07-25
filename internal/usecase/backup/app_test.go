@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
@@ -128,6 +129,47 @@ func TestStatusKeepsRecoveryPointAgeUnknownBeforeFirstPublish(t *testing.T) {
 	}
 	if status.RecoveryPointAgeSeconds != nil {
 		t.Fatalf("Status() recovery point age = %d, want unknown", *status.RecoveryPointAgeSeconds)
+	}
+}
+
+func TestStatusPublishesSanitizedDurableCaptureLeaseTakeover(t *testing.T) {
+	t.Parallel()
+
+	store := &memoryStateStore{state: backupusecase.State{
+		SlotFrontiers: []backupcontract.SlotFrontier{{
+			Revision: 7, HashSlot: 17, Generation: "slot-generation-1",
+			Lease: backupcontract.SlotCaptureLease{
+				SlotID: 3, LeaderTerm: 11, ConfigEpoch: 5, HolderNodeID: 2,
+				Generation: "slot-generation-1", Sequence: 4,
+				AcquiredAtUnixMillis: 1_753_056_300_000,
+			},
+			Metadata:            backupcontract.StreamFrontier{SourceHighWatermark: 91},
+			Messages:            backupcontract.StreamFrontier{SourceHighWatermark: 89},
+			UpdatedAtUnixMillis: 1_753_056_310_000,
+		}},
+	}}
+	app, err := backupusecase.NewApp(backupusecase.Options{
+		Enabled: true, HashSlotCount: 256, Store: store,
+		Publisher: &recordingPublisher{}, Now: time.Now,
+		NewJobID: func() string { return "backup-job-status" },
+	})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	status, err := app.Status(context.Background())
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if len(status.CaptureLeases) != 1 {
+		t.Fatalf("capture leases = %#v", status.CaptureLeases)
+	}
+	lease := status.CaptureLeases[0]
+	if lease.HashSlot != 17 || lease.SlotID != 3 || lease.HolderNodeID != 2 ||
+		lease.LeaderTerm != 11 || lease.ConfigEpoch != 5 || lease.LeaseSequence != 4 ||
+		lease.FrontierRevision != 7 || lease.MetadataSourceWatermark != 91 ||
+		lease.MessageSourceWatermark != 89 {
+		t.Fatalf("capture lease = %#v", lease)
 	}
 }
 

@@ -16,13 +16,16 @@ var backupFailureCategories = map[string]struct{}{
 
 // BackupMetrics exposes low-cardinality backup and restore SLO evidence.
 type BackupMetrics struct {
-	recoveryPointAge prometheus.Gauge
-	verificationAge  prometheus.Gauge
-	controllerLeader prometheus.Gauge
-	doctorHealth     *prometheus.GaugeVec
-	active           prometheus.Gauge
-	failures         *prometheus.CounterVec
-	restoreProgress  *prometheus.GaugeVec
+	recoveryPointAge  prometheus.Gauge
+	verificationAge   prometheus.Gauge
+	controllerLeader  prometheus.Gauge
+	doctorHealth      *prometheus.GaugeVec
+	active            prometheus.Gauge
+	failures          *prometheus.CounterVec
+	restoreProgress   *prometheus.GaugeVec
+	captureOwnedSlots prometheus.Gauge
+	captureTakeovers  prometheus.Counter
+	captureFenced     prometheus.Counter
 }
 
 func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) *BackupMetrics {
@@ -48,13 +51,51 @@ func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 		restoreProgress: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "wukongim_backup_restore_partitions", Help: "Restore logical partition progress by bounded phase.", ConstLabels: labels,
 		}, []string{"phase"}),
+		captureOwnedSlots: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "wukongim_backup_capture_owned_slots", Help: "Number of Hash Slots whose exact capture lease is currently held by this node.", ConstLabels: labels,
+		}),
+		captureTakeovers: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "wukongim_backup_capture_lease_takeovers_total", Help: "Durable capture lease takeovers completed by this node.", ConstLabels: labels,
+		}),
+		captureFenced: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "wukongim_backup_capture_lease_fenced_total", Help: "Capture attempts rejected by current Slot authority or durable lease fencing.", ConstLabels: labels,
+		}),
 	}
-	registry.MustRegister(m.recoveryPointAge, m.verificationAge, m.controllerLeader, m.doctorHealth, m.active, m.failures, m.restoreProgress)
+	registry.MustRegister(
+		m.recoveryPointAge, m.verificationAge, m.controllerLeader,
+		m.doctorHealth, m.active, m.failures, m.restoreProgress,
+		m.captureOwnedSlots, m.captureTakeovers, m.captureFenced,
+	)
 	m.recoveryPointAge.Set(math.NaN())
 	m.verificationAge.Set(math.NaN())
 	m.SetBackupDoctorHealth("unknown")
 	m.SetBackupRestoreProgress(0, 0, 0)
 	return m
+}
+
+// ObserveBackupCaptureLeaseTakeover records one durable Slot lease takeover.
+func (m *BackupMetrics) ObserveBackupCaptureLeaseTakeover() {
+	if m != nil {
+		m.captureTakeovers.Inc()
+	}
+}
+
+// ObserveBackupCaptureLeaseFenced records one stale or non-leader capture attempt.
+func (m *BackupMetrics) ObserveBackupCaptureLeaseFenced() {
+	if m != nil {
+		m.captureFenced.Inc()
+	}
+}
+
+// SetBackupCaptureOwnedSlots records the current bounded local lease count.
+func (m *BackupMetrics) SetBackupCaptureOwnedSlots(slots int) {
+	if m == nil {
+		return
+	}
+	if slots < 0 {
+		slots = 0
+	}
+	m.captureOwnedSlots.Set(float64(slots))
 }
 
 // SetBackupVerificationAgeSeconds preserves absent audit evidence as NaN.

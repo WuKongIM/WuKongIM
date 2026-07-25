@@ -200,6 +200,24 @@ type BackupStreamFrontier struct {
 	WatermarkAtUnixMillis int64 `json:"watermark_at_unix_millis"`
 }
 
+// BackupSlotCaptureLease fences one Hash Slot capture worker to one Raft authority.
+type BackupSlotCaptureLease struct {
+	// SlotID identifies the logical Slot Raft Group that owns the Hash Slot.
+	SlotID uint32 `json:"slot_id"`
+	// LeaderTerm is the Slot Raft term observed with HolderNodeID.
+	LeaderTerm uint64 `json:"leader_term"`
+	// ConfigEpoch is the control-plane configuration epoch for SlotID.
+	ConfigEpoch uint64 `json:"config_epoch"`
+	// HolderNodeID is the only node allowed to advance this frontier.
+	HolderNodeID uint64 `json:"holder_node_id"`
+	// Generation binds the lease to one immutable Slot segment graph.
+	Generation string `json:"generation"`
+	// Sequence increases on every authority takeover.
+	Sequence uint64 `json:"sequence"`
+	// AcquiredAtUnixMillis is the UTC time of the latest durable takeover.
+	AcquiredAtUnixMillis int64 `json:"acquired_at_unix_millis"`
+}
+
 // BackupSlotFrontier atomically binds metadata and message stream heads for one Hash Slot.
 type BackupSlotFrontier struct {
 	// Revision fences compare-and-swap updates to this Slot record.
@@ -208,6 +226,8 @@ type BackupSlotFrontier struct {
 	HashSlot uint16 `json:"hash_slot"`
 	// Generation identifies the independently replaceable immutable segment graph.
 	Generation string `json:"generation"`
+	// Lease fences frontier commits to one exact current Slot authority.
+	Lease BackupSlotCaptureLease `json:"lease"`
 	// Metadata and Messages are separate streams advanced through this one record.
 	Metadata BackupStreamFrontier `json:"metadata"`
 	Messages BackupStreamFrontier `json:"messages"`

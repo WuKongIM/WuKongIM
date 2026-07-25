@@ -69,6 +69,22 @@ type backupStatusDTO struct {
 	Policy                     backupPolicyDTO            `json:"policy"`
 	Dependencies               backupDependenciesDTO      `json:"dependencies"`
 	Capacity                   backupCapacityDTO          `json:"capacity"`
+	CaptureLeases              []backupCaptureLeaseDTO    `json:"capture_leases"`
+}
+
+type backupCaptureLeaseDTO struct {
+	HashSlot                  uint16 `json:"hash_slot"`
+	SlotID                    uint32 `json:"slot_id"`
+	HolderNodeID              uint64 `json:"holder_node_id"`
+	LeaderTerm                uint64 `json:"leader_term"`
+	ConfigEpoch               uint64 `json:"config_epoch"`
+	Generation                string `json:"generation"`
+	LeaseSequence             uint64 `json:"lease_sequence"`
+	FrontierRevision          uint64 `json:"frontier_revision"`
+	MetadataSourceWatermark   uint64 `json:"metadata_source_watermark"`
+	MessageSourceWatermark    uint64 `json:"message_source_watermark"`
+	AcquiredAtUnixMillis      int64  `json:"acquired_at_unix_millis"`
+	FrontierUpdatedUnixMillis int64  `json:"frontier_updated_unix_millis"`
 }
 
 type backupPolicyDTO struct {
@@ -344,7 +360,8 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 		MaxRecoveryPointAgeSeconds: status.MaxRecoveryPointAgeSeconds,
 		MaxVerificationAgeSeconds:  status.MaxVerificationAgeSeconds,
 		Policy:                     backupPolicyResponse(status.Policy), Dependencies: backupDependenciesResponse(status.Dependencies),
-		Capacity: backupCapacityResponse(status.Capacity),
+		Capacity:      backupCapacityResponse(status.Capacity),
+		CaptureLeases: backupCaptureLeaseResponses(status.CaptureLeases),
 	}
 	if status.Active != nil {
 		active := backupJobResponse(*status.Active)
@@ -357,6 +374,23 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 	if status.Verification != nil {
 		verification := backupVerificationTaskResponse(*status.Verification)
 		result.Verification = &verification
+	}
+	return result
+}
+
+func backupCaptureLeaseResponses(leases []backupusecase.CaptureLeaseSnapshot) []backupCaptureLeaseDTO {
+	result := make([]backupCaptureLeaseDTO, len(leases))
+	for index, lease := range leases {
+		result[index] = backupCaptureLeaseDTO{
+			HashSlot: lease.HashSlot, SlotID: lease.SlotID,
+			HolderNodeID: lease.HolderNodeID, LeaderTerm: lease.LeaderTerm,
+			ConfigEpoch: lease.ConfigEpoch, Generation: lease.Generation,
+			LeaseSequence: lease.LeaseSequence, FrontierRevision: lease.FrontierRevision,
+			MetadataSourceWatermark:   lease.MetadataSourceWatermark,
+			MessageSourceWatermark:    lease.MessageSourceWatermark,
+			AcquiredAtUnixMillis:      lease.AcquiredAtUnixMillis,
+			FrontierUpdatedUnixMillis: lease.FrontierUpdatedUnixMillis,
+		}
 	}
 	return result
 }
