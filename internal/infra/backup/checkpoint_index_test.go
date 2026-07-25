@@ -121,6 +121,44 @@ func TestCheckpointCatalogIndexQueriesExactCheckpointID(t *testing.T) {
 	require.ErrorIs(t, err, backupusecase.ErrCheckpointNotFound)
 }
 
+func TestCheckpointCatalogIndexReplaysSignedHoldAndReleaseState(t *testing.T) {
+	catalog, indexPath := newCheckpointIndexFixture(t)
+	first, err := catalog.Publish(
+		context.Background(), catalogTestCheckpoint("checkpoint-old", 1_753_400_201_000), nil,
+	)
+	require.NoError(t, err)
+	second, err := catalog.Publish(
+		context.Background(), catalogTestCheckpoint("checkpoint-new", 1_753_400_202_000), &first.Head,
+	)
+	require.NoError(t, err)
+	index, err := backupinfra.NewCheckpointCatalogIndex(catalog, indexPath)
+	require.NoError(t, err)
+	page, err := index.List(context.Background(), second.Head, backupusecase.CheckpointListRequest{Limit: 10})
+	require.NoError(t, err)
+	require.False(t, page.Items[1].Held)
+
+	held, err := catalog.SetCheckpointHold(
+		context.Background(), first.Checkpoint, true, 1_753_400_203_000, &second.Head,
+	)
+	require.NoError(t, err)
+	page, err = index.List(context.Background(), held.Head, backupusecase.CheckpointListRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []string{"checkpoint-new", "checkpoint-old"}, checkpointPageIDs(page))
+	require.False(t, page.Items[0].Held)
+	require.True(t, page.Items[1].Held)
+	detail, err := index.Get(context.Background(), held.Head, "checkpoint-old")
+	require.NoError(t, err)
+	require.True(t, detail.Held)
+
+	released, err := catalog.SetCheckpointHold(
+		context.Background(), held.Checkpoint, false, 1_753_400_204_000, &held.Head,
+	)
+	require.NoError(t, err)
+	page, err = index.List(context.Background(), released.Head, backupusecase.CheckpointListRequest{Limit: 10})
+	require.NoError(t, err)
+	require.False(t, page.Items[1].Held)
+}
+
 func newCheckpointIndexFixture(t *testing.T) (*backupinfra.ReplicatedCheckpointCatalog, string) {
 	t.Helper()
 	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())

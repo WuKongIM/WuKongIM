@@ -91,7 +91,8 @@ func (s *ControllerSlotFrontierStore) AcquireLease(ctx context.Context, hashSlot
 
 		next := backupcontract.SlotFrontier{
 			HashSlot: hashSlot, Generation: initialGeneration, SourceSlotID: authority.SlotID,
-			SourcePinStartedAtUnixMillis: acquiredAtUnixMillis,
+			SourcePinStartedAtUnixMillis:  acquiredAtUnixMillis,
+			GenerationStartedAtUnixMillis: acquiredAtUnixMillis,
 		}
 		var leaseSequence uint64 = 1
 		if found {
@@ -111,6 +112,9 @@ func (s *ControllerSlotFrontierStore) AcquireLease(ctx context.Context, hashSlot
 			AcquiredAtUnixMillis: acquiredAtUnixMillis,
 		}
 		next.UpdatedAtUnixMillis = acquiredAtUnixMillis
+		if next.GenerationStartedAtUnixMillis <= 0 {
+			next.GenerationStartedAtUnixMillis = acquiredAtUnixMillis
+		}
 		if found {
 			state.SlotFrontiers[index] = next
 		} else {
@@ -206,6 +210,7 @@ func (s *ControllerSlotFrontierStore) PromoteGeneration(
 		next.Lease.HolderNodeID != expectedLease.HolderNodeID ||
 		next.Lease.Sequence != expectedLease.Sequence ||
 		next.SourceSlotID != expectedLease.SlotID ||
+		next.GenerationStartedAtUnixMillis != next.Lease.AcquiredAtUnixMillis ||
 		next.SourcePinStartedAtUnixMillis != next.Lease.AcquiredAtUnixMillis ||
 		next.Lease.AcquiredAtUnixMillis < expectedLease.AcquiredAtUnixMillis ||
 		next.Lease.AcquiredAtUnixMillis != next.UpdatedAtUnixMillis ||

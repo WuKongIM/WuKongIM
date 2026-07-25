@@ -20,9 +20,6 @@ const (
 // coordination state. Held points, the newest point, and explicitly protected
 // base points always remain retained.
 func DecideRetention(now time.Time, points []RestorePoint, policy RetentionPolicy, protectedIDs []string) (RetentionDecision, error) {
-	if policy.MonthlyMonths < 0 || policy.MonthlyMonths > 120 {
-		return RetentionDecision{}, fmt.Errorf("%w: monthly retention months must be between 0 and 120", ErrInvalidRequest)
-	}
 	ordered := append([]RestorePoint(nil), points...)
 	sort.Slice(ordered, func(left, right int) bool {
 		if ordered[left].EffectiveAtUnixMillis != ordered[right].EffectiveAtUnixMillis {
@@ -43,19 +40,56 @@ func DecideRetention(now time.Time, points []RestorePoint, policy RetentionPolic
 		protected[ordered[0].ID] = struct{}{}
 	}
 
+	candidates := make([]retentionTierCandidate, len(ordered))
+	for index, point := range ordered {
+		candidates[index] = retentionTierCandidate{
+			id: point.ID, createdAtUnixMillis: point.CreatedAtUnixMillis,
+			held:            point.Held,
+			monthlyEligible: point.Kind == backupartifact.RestorePointMaterializedFull,
+		}
+	}
+	retained, err := selectRetentionTiers(now, candidates, policy, protected)
+	if err != nil {
+		return RetentionDecision{}, err
+	}
+	decision := RetentionDecision{Retain: make([]RestorePoint, 0, len(ordered)), Collect: make([]RestorePoint, 0, len(ordered))}
+	for index, point := range ordered {
+		if retained[index] {
+			decision.Retain = append(decision.Retain, point)
+		} else {
+			decision.Collect = append(decision.Collect, point)
+		}
+	}
+	return decision, nil
+}
+
+type retentionTierCandidate struct {
+	id                  string
+	createdAtUnixMillis int64
+	held                bool
+	monthlyEligible     bool
+}
+
+func selectRetentionTiers(
+	now time.Time,
+	candidates []retentionTierCandidate,
+	policy RetentionPolicy,
+	protected map[string]struct{},
+) ([]bool, error) {
+	if policy.MonthlyMonths < 0 || policy.MonthlyMonths > 120 {
+		return nil, fmt.Errorf("%w: monthly retention months must be between 0 and 120", ErrInvalidRequest)
+	}
 	hourBuckets := make(map[string]struct{})
 	dayBuckets := make(map[string]struct{})
 	monthBuckets := make(map[string]struct{})
-	decision := RetentionDecision{Retain: make([]RestorePoint, 0, len(ordered)), Collect: make([]RestorePoint, 0, len(ordered))}
+	retained := make([]bool, len(candidates))
 	now = now.UTC()
 	monthlyCutoff := now.AddDate(0, -policy.MonthlyMonths, 0)
-	for _, point := range ordered {
-		created := time.UnixMilli(point.CreatedAtUnixMillis).UTC()
+	for index, candidate := range candidates {
+		created := time.UnixMilli(candidate.createdAtUnixMillis).UTC()
 		age := now.Sub(created)
-		retain := point.Held || age < 0
-		if _, ok := protected[point.ID]; ok {
-			retain = true
-		}
+		_, explicitlyProtected := protected[candidate.id]
+		retain := candidate.held || explicitlyProtected || age < 0
 		switch {
 		case retain:
 		case age <= fiveMinuteRetentionWindow:
@@ -72,20 +106,18 @@ func DecideRetention(now time.Time, points []RestorePoint, policy RetentionPolic
 				dayBuckets[bucket] = struct{}{}
 				retain = true
 			}
-		case policy.MonthlyMonths > 0 && !created.Before(monthlyCutoff) && point.Kind == backupartifact.RestorePointMaterializedFull:
+		case policy.MonthlyMonths > 0 &&
+			candidate.monthlyEligible &&
+			!created.Before(monthlyCutoff):
 			bucket := created.Format("2006-01")
 			if _, exists := monthBuckets[bucket]; !exists {
 				monthBuckets[bucket] = struct{}{}
 				retain = true
 			}
 		}
-		if retain {
-			decision.Retain = append(decision.Retain, point)
-		} else {
-			decision.Collect = append(decision.Collect, point)
-		}
+		retained[index] = retain
 	}
-	return decision, nil
+	return retained, nil
 }
 
 // ApplyRetention atomically moves expired restore-point references into the

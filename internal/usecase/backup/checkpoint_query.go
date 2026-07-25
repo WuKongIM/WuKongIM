@@ -22,6 +22,8 @@ type CheckpointSummary struct {
 	CreatedAtUnixMillis int64
 	// EffectiveAtUnixMillis is the oldest Slot watermark.
 	EffectiveAtUnixMillis int64
+	// Held is the latest signed immutable catalog retention decision.
+	Held bool
 }
 
 // CheckpointDetail is the bounded operator-facing projection of a checkpoint.

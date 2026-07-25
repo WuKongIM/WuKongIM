@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 
@@ -22,7 +23,7 @@ import (
 
 const (
 	checkpointIndexFormat   = "wukongim-backup-checkpoint-index"
-	checkpointIndexVersion  = 1
+	checkpointIndexVersion  = 2
 	maxCheckpointIndexBytes = 256 << 20
 )
 
@@ -105,7 +106,7 @@ func (i *CheckpointCatalogIndex) List(
 	for index, entry := range filtered[start:end] {
 		page.Items[index] = backupusecase.CheckpointSummary{
 			ID: entry.ID, CreatedAtUnixMillis: entry.CreatedAtUnixMillis,
-			EffectiveAtUnixMillis: entry.EffectiveAtUnixMillis,
+			EffectiveAtUnixMillis: entry.EffectiveAtUnixMillis, Held: entry.Held,
 		}
 	}
 	if end < len(filtered) && len(page.Items) > 0 {
@@ -139,7 +140,7 @@ func (i *CheckpointCatalogIndex) Get(
 	return backupusecase.CheckpointDetail{
 		CheckpointSummary: backupusecase.CheckpointSummary{
 			ID: checkpoint.ID, CreatedAtUnixMillis: checkpoint.CreatedAtUnixMillis,
-			EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis,
+			EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis, Held: reference.Held,
 		},
 		SourceClusterID: checkpoint.SourceClusterID, SourceGeneration: checkpoint.SourceGeneration,
 		HashSlotCount: checkpoint.HashSlotCount,
@@ -233,12 +234,34 @@ func newCheckpointIndexSnapshot(
 ) (checkpointIndexSnapshot, error) {
 	snapshot := checkpointIndexSnapshot{
 		Format: checkpointIndexFormat, Version: checkpointIndexVersion,
-		Head: head, Entries: append([]backupartifact.CatalogCheckpointReference(nil), entries...),
+		Head: head, Entries: normalizeCheckpointIndexEntries(entries),
 	}
 	if err := validateCheckpointIndex(snapshot); err != nil {
 		return checkpointIndexSnapshot{}, err
 	}
 	return snapshot, nil
+}
+
+func normalizeCheckpointIndexEntries(
+	entries []backupartifact.CatalogCheckpointReference,
+) []backupartifact.CatalogCheckpointReference {
+	latest := make(map[string]backupartifact.CatalogCheckpointReference, len(entries))
+	for _, entry := range entries {
+		if _, exists := latest[entry.ID]; !exists {
+			latest[entry.ID] = entry
+		}
+	}
+	result := make([]backupartifact.CatalogCheckpointReference, 0, len(latest))
+	for _, entry := range latest {
+		result = append(result, entry)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAtUnixMillis != result[j].CreatedAtUnixMillis {
+			return result[i].CreatedAtUnixMillis > result[j].CreatedAtUnixMillis
+		}
+		return result[i].ID < result[j].ID
+	})
+	return result
 }
 
 func (i *CheckpointCatalogIndex) install(snapshot checkpointIndexSnapshot) {
@@ -253,22 +276,36 @@ func (i *CheckpointCatalogIndex) install(snapshot checkpointIndexSnapshot) {
 
 func validateCheckpointIndex(snapshot checkpointIndexSnapshot) error {
 	if snapshot.Format != checkpointIndexFormat || snapshot.Version != checkpointIndexVersion ||
-		snapshot.Head.Sequence == 0 || len(snapshot.Entries) == 0 ||
-		snapshot.Head.LatestCheckpointID != snapshot.Entries[0].ID {
+		snapshot.Head.Sequence == 0 || len(snapshot.Entries) == 0 {
 		return backupartifact.ErrObjectCorrupt
 	}
 	seen := make(map[string]struct{}, len(snapshot.Entries))
-	for _, entry := range snapshot.Entries {
+	for index, entry := range snapshot.Entries {
 		if entry.ID == "" || entry.Key != backupartifact.CheckpointObjectKey(entry.ID) ||
 			!validCheckpointIndexSHA(entry.SHA256) || entry.Bytes <= 0 ||
 			entry.EffectiveAtUnixMillis <= 0 ||
-			entry.CreatedAtUnixMillis < entry.EffectiveAtUnixMillis {
+			entry.CreatedAtUnixMillis < entry.EffectiveAtUnixMillis ||
+			!validCheckpointIndexSHA(entry.GenerationVector.ID) ||
+			entry.GenerationVector.Key != backupartifact.GenerationVectorObjectKey(entry.GenerationVector.ID) ||
+			!validCheckpointIndexSHA(entry.GenerationVector.SHA256) ||
+			entry.GenerationVector.Bytes <= 0 ||
+			entry.GenerationVector.HashSlotCount == 0 {
 			return backupartifact.ErrObjectCorrupt
+		}
+		if index > 0 {
+			previous := snapshot.Entries[index-1]
+			if previous.CreatedAtUnixMillis < entry.CreatedAtUnixMillis ||
+				(previous.CreatedAtUnixMillis == entry.CreatedAtUnixMillis && previous.ID >= entry.ID) {
+				return backupartifact.ErrObjectCorrupt
+			}
 		}
 		if _, exists := seen[entry.ID]; exists {
 			return backupartifact.ErrObjectCorrupt
 		}
 		seen[entry.ID] = struct{}{}
+	}
+	if _, exists := seen[snapshot.Head.LatestCheckpointID]; !exists {
+		return backupartifact.ErrObjectCorrupt
 	}
 	return nil
 }

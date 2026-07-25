@@ -146,6 +146,8 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 			!validBackupIdentity(frontier.Generation) || frontier.UpdatedAtUnixMillis <= 0 ||
 			!validBackupSlotCaptureLease(frontier.Lease, frontier.Generation) ||
 			frontier.SourceSlotID == 0 ||
+			frontier.GenerationStartedAtUnixMillis <= 0 ||
+			frontier.GenerationStartedAtUnixMillis > frontier.UpdatedAtUnixMillis ||
 			frontier.SourcePinStartedAtUnixMillis <= 0 ||
 			frontier.SourcePinStartedAtUnixMillis > frontier.UpdatedAtUnixMillis ||
 			!validBackupSlotBaseline(frontier.Baseline, frontier.HashSlot) ||
@@ -206,6 +208,19 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 				committed.Sequence != boundary || !validBackupErasureReference(*committed) {
 				return invalid("backup last committed erasure stream reference is invalid")
 			}
+		}
+	}
+	if len(backup.GenerationGCCursors) > 2 {
+		return invalid("backup generation GC cursors exceed repository count")
+	}
+	for index, cursor := range backup.GenerationGCCursors {
+		if !validBackupIdentity(cursor.Repository) || cursor.Revision == 0 ||
+			!validBackupIdentity(cursor.CycleID) ||
+			len(cursor.AfterKey) > 8<<10 || !utf8.ValidString(cursor.AfterKey) ||
+			(cursor.AfterKey != "" && !validBackupObjectKey(cursor.AfterKey)) ||
+			cursor.CutoffUnixMillis <= 0 || cursor.UpdatedAtUnixMillis <= 0 ||
+			(index > 0 && backup.GenerationGCCursors[index-1].Repository >= cursor.Repository) {
+			return invalid("backup generation GC cursor is invalid")
 		}
 	}
 	if backup.Active != nil {
@@ -305,7 +320,7 @@ func validBackupSlotBaseline(reference *BackupSlotBaselineReference, hashSlot ui
 	}
 	partition := reference.Partition
 	evidence := partition.Evidence
-	if partition.HashSlot != hashSlot || partition.Bytes <= 0 ||
+	if reference.PlaintextBytes == 0 || partition.HashSlot != hashSlot || partition.Bytes <= 0 ||
 		partition.ObjectCount == 0 || partition.CiphertextBytes == 0 ||
 		!strings.HasPrefix(partition.Key, "partition-manifests/") ||
 		!strings.HasSuffix(partition.Key, fmt.Sprintf("/%05d.json", hashSlot)) ||
@@ -328,7 +343,8 @@ func validBackupSlotRebase(rebase *BackupSlotRebase, currentGeneration string) b
 		return false
 	}
 	switch rebase.Reason {
-	case "pin_age", "node_byte_budget", "source_compacted", "source_remapped":
+	case "pin_age", "node_byte_budget", "source_compacted", "source_remapped",
+		"generation_bytes", "generation_segments", "generation_age":
 		return true
 	default:
 		return false

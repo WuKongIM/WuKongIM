@@ -72,6 +72,9 @@ func (s *ClusterState) Normalize() {
 		sort.Slice(s.Backup.ErasureStreams, func(i, j int) bool {
 			return s.Backup.ErasureStreams[i].HashSlot < s.Backup.ErasureStreams[j].HashSlot
 		})
+		sort.Slice(s.Backup.GenerationGCCursors, func(i, j int) bool {
+			return s.Backup.GenerationGCCursors[i].Repository < s.Backup.GenerationGCCursors[j].Repository
+		})
 	}
 	if s.Restore != nil && s.Restore.Plan != nil {
 		if s.Restore.Plan.Partitions == nil {

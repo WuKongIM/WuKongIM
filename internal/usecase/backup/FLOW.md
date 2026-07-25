@@ -60,6 +60,11 @@ Current flow:
     even though its old Generation remains restorable and other Slot frontiers
     may keep advancing. After promotion, the checkpoint includes the
     materialized partition reference and complete baseline cursor proof.
+11. `DecideCheckpointRetention` applies the UTC five-minute, hourly, daily,
+    and optional monthly tiers to immutable catalog references. The newest
+    checkpoint, explicit operator holds, and the active restore checkpoint are
+    always retained. Its output is a Generation protection decision; it does
+    not place checkpoint history or object identities in Controller state.
 
 Large channel/object manifests stay in repositories. Coordination state stores
 only one bounded summary per logical hash slot.

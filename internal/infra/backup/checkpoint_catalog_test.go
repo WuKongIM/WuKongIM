@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -29,16 +30,20 @@ func TestReplicatedCheckpointCatalogPublishesOnlyNewArtifacts(t *testing.T) {
 	first, err := catalog.Publish(context.Background(), catalogTestCheckpoint("checkpoint-1", 1_753_400_200_000), nil)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), first.Head.Sequence)
-	require.Equal(t, 2, primary.puts)
-	require.Equal(t, 2, secondary.puts)
-	require.Equal(t, 4, primary.opens+secondary.opens)
+	require.Equal(t, 3, primary.puts)
+	require.Equal(t, 3, secondary.puts)
+	require.Equal(t, 6, primary.opens+secondary.opens)
 
 	second, err := catalog.Publish(context.Background(), catalogTestCheckpoint("checkpoint-2", 1_753_400_300_000), &first.Head)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), second.Head.Sequence)
-	require.Equal(t, 4, primary.puts)
-	require.Equal(t, 4, secondary.puts)
-	require.Equal(t, 8, primary.opens+secondary.opens, "publication may inspect only the two new fixed keys")
+	require.Equal(t, 5, primary.puts)
+	require.Equal(t, 5, secondary.puts)
+	require.Equal(t, 12, primary.opens+secondary.opens, "publication inspects only the checkpoint, vector, and page fixed keys")
+	require.Equal(t, first.Checkpoint.GenerationVector, second.Checkpoint.GenerationVector)
+	referenceBody, err := json.Marshal(second.Checkpoint)
+	require.NoError(t, err)
+	require.Less(t, len(referenceBody), 1024, "catalog index rows must not embed the 256-Slot vector")
 
 	page, err := catalog.LoadPage(context.Background(), second.Head)
 	require.NoError(t, err)
@@ -47,6 +52,36 @@ func TestReplicatedCheckpointCatalogPublishesOnlyNewArtifacts(t *testing.T) {
 	checkpoint, err := catalog.LoadCheckpoint(context.Background(), second.Checkpoint)
 	require.NoError(t, err)
 	require.Equal(t, "checkpoint-2", checkpoint.ID)
+}
+
+func TestReplicatedCheckpointCatalogRejectsMismatchedGenerationVectorOnHold(t *testing.T) {
+	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
+	require.NoError(t, err)
+	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
+	require.NoError(t, err)
+	signer := newCatalogTestSigner()
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
+		primary, secondary, signer, "signing-key",
+	)
+	require.NoError(t, err)
+
+	first, err := catalog.Publish(
+		context.Background(),
+		catalogTestCheckpoint("checkpoint-vector-a", 1_753_400_200_000),
+		nil,
+	)
+	require.NoError(t, err)
+	secondCheckpoint := catalogTestCheckpoint("checkpoint-vector-b", 1_753_400_300_000)
+	secondCheckpoint.Slots[0].Generation = "slot-generation-2"
+	second, err := catalog.Publish(context.Background(), secondCheckpoint, &first.Head)
+	require.NoError(t, err)
+
+	forged := first.Checkpoint
+	forged.GenerationVector = second.Checkpoint.GenerationVector
+	_, err = catalog.SetCheckpointHold(
+		context.Background(), forged, true, 1_753_400_400_000, &second.Head,
+	)
+	require.ErrorIs(t, err, backupartifact.ErrObjectCorrupt)
 }
 
 func TestReplicatedCheckpointCatalogRetryIsIdempotent(t *testing.T) {
@@ -64,7 +99,7 @@ func TestReplicatedCheckpointCatalogRetryIsIdempotent(t *testing.T) {
 	second, err := catalog.Publish(context.Background(), checkpoint, nil)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
-	require.Equal(t, 2, signer.signCalls, "retry must reuse existing nondeterministic signatures")
+	require.Equal(t, 3, signer.signCalls, "retry must reuse existing nondeterministic signatures")
 }
 
 func TestReplicatedCheckpointCatalogDoesNotReturnHeadAfterPartialReplication(t *testing.T) {
@@ -86,7 +121,7 @@ func TestReplicatedCheckpointCatalogRepairsPartialPageWithOriginalSignature(t *t
 	require.NoError(t, err)
 	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
 	require.NoError(t, err)
-	primary := &catalogFailPutRepository{Repository: primaryFile, failAt: 2}
+	primary := &catalogFailPutRepository{Repository: primaryFile, failAt: 3}
 	signer := &changingCatalogSigner{}
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
 	require.NoError(t, err)
@@ -96,7 +131,7 @@ func TestReplicatedCheckpointCatalogRepairsPartialPageWithOriginalSignature(t *t
 	require.ErrorIs(t, err, backupartifact.ErrRepositoryIncomplete)
 	commit, err := catalog.Publish(context.Background(), checkpoint, nil)
 	require.NoError(t, err)
-	require.Equal(t, 2, signer.signCalls)
+	require.Equal(t, 3, signer.signCalls)
 	_, err = catalog.LoadPage(context.Background(), commit.Head)
 	require.NoError(t, err)
 }

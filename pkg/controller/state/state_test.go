@@ -480,15 +480,21 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 			Sequence: 3, Key: "catalog/pages/00000000000000000003-checkpoint-3.json",
 			SHA256: strings.Repeat("e", 64), Bytes: 512, LatestCheckpointID: "checkpoint-3",
 		},
+		GenerationGCCursors: []BackupGenerationGCCursor{{
+			Repository: "primary", Revision: 2, CycleID: "gc-cycle-1",
+			AfterKey:         "objects/generation-old/00001/object.bin",
+			CutoffUnixMillis: 1_753_400_000_000, UpdatedAtUnixMillis: 1_753_400_110_000,
+		}},
 		SlotFrontiers: []BackupSlotFrontier{{
 			Revision: 1, HashSlot: 1, Generation: "slot-generation-1", SourceSlotID: 2,
-			SourcePinStartedAtUnixMillis: 1_753_400_100_000,
+			GenerationStartedAtUnixMillis: 1_753_400_100_000,
+			SourcePinStartedAtUnixMillis:  1_753_400_100_000,
 			Lease: BackupSlotCaptureLease{
 				SlotID: 2, LeaderTerm: 7, ConfigEpoch: 3, HolderNodeID: 1,
 				Generation: "slot-generation-1", Sequence: 1,
 				AcquiredAtUnixMillis: 1_753_400_100_000,
 			},
-			Baseline: &BackupSlotBaselineReference{Partition: BackupPartitionReference{
+			Baseline: &BackupSlotBaselineReference{PlaintextBytes: 256, Partition: BackupPartitionReference{
 				HashSlot: 1, Key: "partition-manifests/rebase-1/00001.json",
 				SHA256: strings.Repeat("9", 64), Bytes: 1024,
 				ObjectCount: 3, CiphertextBytes: 2048,
@@ -536,6 +542,8 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	require.Equal(t, "partition-manifests/rebase-1/00001.json", decoded.Backup.SlotFrontiers[0].Baseline.Partition.Key)
 	require.Equal(t, uint64(3), decoded.Backup.CatalogHead.Sequence)
 	require.Equal(t, "checkpoint-3", decoded.Backup.CatalogHead.LatestCheckpointID)
+	require.Equal(t, uint64(2), decoded.Backup.GenerationGCCursors[0].Revision)
+	require.Equal(t, "objects/generation-old/00001/object.bin", decoded.Backup.GenerationGCCursors[0].AfterKey)
 }
 
 func TestValidateRejectsMalformedSlotCaptureLease(t *testing.T) {

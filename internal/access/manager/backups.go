@@ -146,6 +146,7 @@ type backupCheckpointDTO struct {
 	ID                    string `json:"id"`
 	CreatedAtUnixMillis   int64  `json:"created_at_unix_millis"`
 	EffectiveAtUnixMillis int64  `json:"effective_at_unix_millis"`
+	Held                  bool   `json:"held"`
 }
 
 type backupCheckpointDetailDTO struct {
@@ -476,7 +477,7 @@ func backupRestorePointResponse(point backupusecase.RestorePoint) backupRestoreP
 func backupCheckpointResponse(checkpoint backupusecase.CheckpointSummary) backupCheckpointDTO {
 	return backupCheckpointDTO{
 		ID: checkpoint.ID, CreatedAtUnixMillis: checkpoint.CreatedAtUnixMillis,
-		EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis,
+		EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis, Held: checkpoint.Held,
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -21,6 +22,10 @@ import (
 type FileRepository struct {
 	name string
 	root string
+
+	garbageIndexMu     sync.Mutex
+	garbageIndexLoaded bool
+	garbageKeys        []string
 }
 
 // NewFileRepository creates a local immutable repository rooted at root.
@@ -90,10 +95,14 @@ func (r *FileRepository) PutImmutable(ctx context.Context, key string, size int6
 	}
 	if err := os.Link(temporaryPath, target); err != nil {
 		if errors.Is(err, os.ErrExist) {
+			r.addGarbageKey(key)
 			return backupartifact.ErrObjectExists
 		}
 		return err
 	}
+	// The link is already visible even if the durability fsync below fails.
+	// Keep the rebuildable cursor index complete for this process.
+	r.addGarbageKey(key)
 	if err := syncDirectory(filepath.Dir(target)); err != nil {
 		return err
 	}
@@ -190,6 +199,7 @@ func (r *FileRepository) Check(ctx context.Context) error {
 func (r *FileRepository) DeleteGarbageObject(_ context.Context, key string) error {
 	target, err := r.objectPath(key, false)
 	if errors.Is(err, backupartifact.ErrObjectNotFound) {
+		r.removeGarbageKey(key)
 		return nil
 	}
 	if err != nil {
@@ -198,7 +208,20 @@ func (r *FileRepository) DeleteGarbageObject(_ context.Context, key string) erro
 	if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	r.removeGarbageKey(key)
 	return syncDirectory(filepath.Dir(target))
+}
+
+// DeleteGenerationGarbageObject performs one bounded local immutable delete.
+func (r *FileRepository) DeleteGenerationGarbageObject(
+	ctx context.Context,
+	key string,
+	maxRequests int,
+) (int, error) {
+	if maxRequests < 1 {
+		return 0, errGenerationGCRequestBudget
+	}
+	return 1, r.DeleteGarbageObject(ctx, key)
 }
 
 // WalkGarbageObjects streams regular immutable files older than before while
@@ -253,6 +276,142 @@ func (r *FileRepository) WalkGarbageObjects(ctx context.Context, before time.Tim
 	}
 	return err
 }
+
+// ListGarbageObjects returns one bounded lexicographic page after afterKey.
+func (r *FileRepository) ListGarbageObjects(
+	ctx context.Context,
+	before time.Time,
+	afterKey string,
+	limit int,
+) (GarbageObjectPage, error) {
+	if r == nil || r.root == "" || before.IsZero() || limit <= 0 || limit > 4096 ||
+		(afterKey != "" && !safeRepositoryKey(afterKey)) {
+		return GarbageObjectPage{}, fmt.Errorf("backup file repository: garbage page options are invalid")
+	}
+	page := GarbageObjectPage{AfterKey: afterKey, Complete: true}
+	r.garbageIndexMu.Lock()
+	defer r.garbageIndexMu.Unlock()
+	if err := r.loadGarbageIndexLocked(ctx); err != nil {
+		return GarbageObjectPage{}, err
+	}
+	index := sort.Search(len(r.garbageKeys), func(index int) bool {
+		return r.garbageKeys[index] > afterKey
+	})
+	scanned := 0
+	for index < len(r.garbageKeys) && scanned < limit {
+		if err := ctx.Err(); err != nil {
+			return GarbageObjectPage{}, err
+		}
+		key := r.garbageKeys[index]
+		target, err := r.objectPath(key, false)
+		if err != nil {
+			return GarbageObjectPage{}, err
+		}
+		info, err := os.Lstat(target)
+		if errors.Is(err, os.ErrNotExist) {
+			r.garbageKeys = append(r.garbageKeys[:index], r.garbageKeys[index+1:]...)
+			continue
+		}
+		if err != nil {
+			return GarbageObjectPage{}, err
+		}
+		if !info.Mode().IsRegular() {
+			return GarbageObjectPage{}, fmt.Errorf("%w: repository contains non-regular object", backupartifact.ErrObjectCorrupt)
+		}
+		page.AfterKey = key
+		scanned++
+		if info.ModTime().UTC().Before(before.UTC()) {
+			page.Objects = append(page.Objects, backupartifact.RepositoryObject{
+				Key: key, Size: info.Size(),
+			})
+		}
+		index++
+	}
+	page.Complete = index == len(r.garbageKeys)
+	return page, nil
+}
+
+func (r *FileRepository) loadGarbageIndexLocked(ctx context.Context) error {
+	if r.garbageIndexLoaded {
+		return nil
+	}
+	keys := make([]string, 0, 1024)
+	err := filepath.WalkDir(r.root, func(current string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if current == r.root {
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%w: repository contains symlink", backupartifact.ErrObjectCorrupt)
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if strings.HasPrefix(entry.Name(), ".backup-object-") ||
+			strings.HasPrefix(entry.Name(), ".repository-doctor-") {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("%w: repository contains non-regular object", backupartifact.ErrObjectCorrupt)
+		}
+		relative, err := filepath.Rel(r.root, current)
+		if err != nil {
+			return err
+		}
+		key := filepath.ToSlash(relative)
+		if !safeRepositoryKey(key) {
+			return fmt.Errorf("%w: unsafe repository page key", backupartifact.ErrInvalidObject)
+		}
+		keys = append(keys, key)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	sort.Strings(keys)
+	r.garbageKeys = keys
+	r.garbageIndexLoaded = true
+	return nil
+}
+
+func (r *FileRepository) addGarbageKey(key string) {
+	r.garbageIndexMu.Lock()
+	defer r.garbageIndexMu.Unlock()
+	if !r.garbageIndexLoaded {
+		return
+	}
+	index := sort.SearchStrings(r.garbageKeys, key)
+	if index < len(r.garbageKeys) && r.garbageKeys[index] == key {
+		return
+	}
+	r.garbageKeys = append(r.garbageKeys, "")
+	copy(r.garbageKeys[index+1:], r.garbageKeys[index:])
+	r.garbageKeys[index] = key
+}
+
+func (r *FileRepository) removeGarbageKey(key string) {
+	r.garbageIndexMu.Lock()
+	defer r.garbageIndexMu.Unlock()
+	if !r.garbageIndexLoaded {
+		return
+	}
+	index := sort.SearchStrings(r.garbageKeys, key)
+	if index >= len(r.garbageKeys) || r.garbageKeys[index] != key {
+		return
+	}
+	r.garbageKeys = append(r.garbageKeys[:index], r.garbageKeys[index+1:]...)
+}
+
+var _ GenerationGarbageRepository = (*FileRepository)(nil)
 
 // ListRestorePointIDs returns bounded restore-point directories that expose a
 // regular immutable publication marker. Marker and manifest contents are

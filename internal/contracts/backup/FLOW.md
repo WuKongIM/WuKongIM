@@ -33,6 +33,10 @@ unreadable target.
 `SourcePinStartedAtUnixMillis` is the durable age origin for the retained
 source floor. It survives lease takeover and resets only when metadata capture
 advances the floor or rebase promotion installs a new baseline.
+`GenerationStartedAtUnixMillis`, per-stream committed plaintext byte counters,
+and the materialized baseline plaintext size drive independent Slot Generation
+compaction without adding object lists to coordination state. Promotion resets
+the counters and Generation age with the replacement references.
 `SlotCaptureStatus` is a detached public projection of that frontier plus the
 latest observed source watermarks, per-stream lag, capture state, and a bounded
 failure category. Its `LeaseCurrent` bit distinguishes a current owner from a
@@ -52,6 +56,11 @@ secondary verification flags remain separate from this later evidence so a
 new audit cannot rewrite the original publication result. Pending or running
 verification excludes a backup job, and the active verification target remains
 retention-protected.
+
+Generation GC adds at most two sorted `GenerationGCCursor` records—one per
+explicit repository. Each record contains only a CAS revision, cycle identity,
+fixed cutoff, lexicographic key cursor, completion bit, and update time. Object
+identities and pending delete queues remain repository concerns.
 
 Restore partition reports carry only bounded verification evidence: the
 canonical metadata digest, exact metadata and cumulative message record counts,

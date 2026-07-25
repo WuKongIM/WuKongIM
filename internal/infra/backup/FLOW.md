@@ -50,11 +50,16 @@ may be later than this Hash Slot's last mutation, `ContinuousSource` preserves
 that cut as the materialized Generation's resume floor until a later matching
 logical command appears.
 
-`ReplicatedCheckpointCatalog` signs and verifies only the newly published
-checkpoint and catalog page. It writes the checkpoint to both repositories,
-then the catalog page secondary-first and primary-last, and returns a head only
-after all four immutable objects have matching provider metadata. Publication
-never opens earlier pages. `CheckpointCatalogIndex` is a node-local derived
+`ReplicatedCheckpointCatalog` signs and verifies the newly published
+checkpoint, its content-addressed complete Generation vector, and the catalog
+page. It reuses an identical signed vector, repairs a missing vector copy,
+writes the checkpoint to both repositories, then writes the catalog page
+secondary-first and primary-last. A head is returned only after every required
+immutable copy has matching provider metadata. Hold/release appends reload the
+checkpoint and vector and reject a caller-supplied mismatch before signing the
+new state page. `CheckpointCatalogIndex` stores only the compact vector
+reference, so 256 Slot strings are not duplicated in every historical row. It
+is a node-local derived
 index used by Manager pagination and exact-ID lookup. Its checksummed atomic
 file is not authority: every process cold start walks and authenticates the
 signed dual-repository hash chain, replacing missing, malformed, injected, or
@@ -258,3 +263,32 @@ loads that manifest's lineage-specific ledger, verifies the frozen heads are
 exact commits in its current prefix, and marks the whole lineage before sweep.
 Unreferenced uncommitted ledger orphans remain eligible for age-gated
 collection; no broad prefix is permanently exempted.
+
+The continuous path collects at Generation granularity. Its protection set is
+built from authenticated retained checkpoints, operator-held checkpoints, the
+active restore checkpoint, every current Slot frontier, and any auditor-frozen
+Slot. A pending replacement target is protected until promotion or durable
+rotation makes it unreachable. A Generation is eligible only when that Slot
+has a different current successor; retained and frozen Generations are never
+swept. Signed segment commits authenticate payload ownership independently in
+each repository copy. A payload with no commit in that same copy is an ordinary
+safety-window-protected orphan for that repository.
+
+Each repository has one independent CAS-fenced `GenerationGCCursor` in
+Controller state. The cursor stores only repository, cycle, fixed cutoff,
+lexicographic position, completion, and revision—never pending object
+identities. Before sweep, vector cache misses consume the same repository
+request budget and populate a rebuildable, content-addressed node-local cache.
+The cache is durable across process restart; if a small budget cannot load all
+unique protected vectors in one call, later calls skip authenticated cached
+copies and finish the phase instead of restarting from the first checkpoint.
+Each repository has a separate cache namespace and failure domain. Before a
+copy is marked complete, its cache prunes content IDs absent from the fixed
+protection decision; old local vectors therefore remain bounded and are always
+rebuildable. File and S3 adapters then return one cursor-based bounded page, and the collector enforces
+the remaining request budget plus the configured deleted-byte budget before
+durably advancing that copy. A completed copy is not rescanned while its peer
+retries. Object Lock rejection stops only the affected copy at the exact key,
+and a later run resumes there after retention expires. The fixed cutoff combines
+Object Lock with an additional safety window for in-flight immutable
+publication.

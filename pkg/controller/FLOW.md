@@ -121,6 +121,13 @@ durable remap is detectable until rebase promotion; per-Channel cursor data
 remains in immutable repository segments. The same section stores only one
 authenticated checkpoint `CatalogHead`; immutable checkpoint history remains
 in dual repositories, so the new catalog does not grow Controller state.
+Each frontier also stores only its Generation age origin, per-stream cumulative
+post-baseline plaintext bytes, and authenticated baseline plaintext size. These
+bounded counters trigger single-Slot replacement without storing segment or
+object lists. At most two `GenerationGCCursor` records—one per explicit
+repository—store only a cycle, fixed cutoff, lexicographic position, completion
+bit, and CAS revision; protected vectors and pending object identities remain
+outside Controller Raft.
 Each frontier may also carry one authenticated materialized baseline and one
 bounded pending rebase `(target Generation, lease-bound epoch, reason, start
 time)`. The pending record preserves the active Generation until a

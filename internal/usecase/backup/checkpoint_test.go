@@ -318,6 +318,12 @@ func (c *recordingCheckpointCatalog) Publish(
 			SHA256: strings.Repeat("a", 64), Bytes: 1024,
 			CreatedAtUnixMillis:   checkpoint.CreatedAtUnixMillis,
 			EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis,
+			GenerationVector: backupartifact.GenerationVectorReference{
+				ID:     strings.Repeat("c", 64),
+				Key:    backupartifact.GenerationVectorObjectKey(strings.Repeat("c", 64)),
+				SHA256: strings.Repeat("d", 64), Bytes: 512,
+				HashSlotCount: checkpoint.HashSlotCount,
+			},
 		},
 		Head: backupartifact.CatalogPageReference{
 			Sequence: sequence, Key: backupartifact.CatalogPageObjectKey(sequence, checkpoint.ID),

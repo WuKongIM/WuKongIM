@@ -3,6 +3,7 @@ package backup_test
 import (
 	"context"
 	"crypto/ed25519"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -85,6 +86,12 @@ func TestCatalogPageRoundTripAuthenticatesHashLink(t *testing.T) {
 		SHA256: strings.Repeat("a", 64), Bytes: 1234,
 		CreatedAtUnixMillis:   1_753_400_200_000,
 		EffectiveAtUnixMillis: 1_753_400_100_000,
+		Held:                  true,
+		GenerationVector: backup.GenerationVectorReference{
+			ID:     strings.Repeat("c", 64),
+			Key:    backup.GenerationVectorObjectKey(strings.Repeat("c", 64)),
+			SHA256: strings.Repeat("d", 64), Bytes: 512, HashSlotCount: 2,
+		},
 	}
 	page, err := backup.SignCatalogPage(context.Background(), backup.CatalogPage{
 		Format: backup.CatalogPageFormat, Version: backup.CatalogPageVersion,
@@ -109,7 +116,7 @@ func TestCatalogPageRoundTripAuthenticatesHashLink(t *testing.T) {
 	}
 	if loaded.Sequence != 2 || loaded.Previous == nil ||
 		loaded.Previous.SHA256 != strings.Repeat("b", 64) ||
-		loaded.Entries[0] != entry {
+		!reflect.DeepEqual(loaded.Entries[0], entry) {
 		t.Fatalf("catalog round trip = %#v", loaded)
 	}
 

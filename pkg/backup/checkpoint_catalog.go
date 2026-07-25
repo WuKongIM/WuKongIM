@@ -101,6 +101,10 @@ type CatalogCheckpointReference struct {
 	// CreatedAtUnixMillis and EffectiveAtUnixMillis support bounded catalog queries.
 	CreatedAtUnixMillis   int64 `json:"created_at_unix_millis"`
 	EffectiveAtUnixMillis int64 `json:"effective_at_unix_millis"`
+	// Held is the latest immutable catalog decision for operator retention.
+	Held bool `json:"held"`
+	// GenerationVector authenticates the content-addressed complete Slot map.
+	GenerationVector GenerationVectorReference `json:"generation_vector"`
 }
 
 // CatalogPageReference authenticates one catalog head without loading history.
@@ -112,7 +116,7 @@ type CatalogPageReference struct {
 	// SHA256 and Bytes authenticate the exact stored bytes.
 	SHA256 string `json:"sha256"`
 	Bytes  int64  `json:"bytes"`
-	// LatestCheckpointID identifies the newest checkpoint on the page.
+	// LatestCheckpointID identifies the checkpoint state appended on this page.
 	LatestCheckpointID string `json:"latest_checkpoint_id"`
 }
 
@@ -376,7 +380,8 @@ func validateCatalogCheckpointReference(reference CatalogCheckpointReference) er
 		reference.Key != CheckpointObjectKey(reference.ID) ||
 		validateSHA256(reference.SHA256) != nil || reference.Bytes <= 0 ||
 		reference.CreatedAtUnixMillis <= 0 || reference.EffectiveAtUnixMillis <= 0 ||
-		reference.EffectiveAtUnixMillis > reference.CreatedAtUnixMillis {
+		reference.EffectiveAtUnixMillis > reference.CreatedAtUnixMillis ||
+		validateGenerationVectorReference(reference.GenerationVector) != nil {
 		return ErrInvalidObject
 	}
 	return nil

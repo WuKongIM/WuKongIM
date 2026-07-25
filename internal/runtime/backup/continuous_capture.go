@@ -55,6 +55,9 @@ var (
 	ErrCaptureNotLeader = errors.New("backup runtime: capture worker is not Slot leader")
 	// ErrCaptureSourceCompacted reports that an uncommitted source interval was removed.
 	ErrCaptureSourceCompacted = errors.New("backup runtime: capture source compacted")
+	// ErrCompactionBudget reports that another Slot is using the bounded node
+	// compaction I/O, network, or concurrency budget.
+	ErrCompactionBudget = errors.New("backup runtime: compaction budget unavailable")
 )
 
 // RollingPolicy bounds one continuous-capture segment and source page.
@@ -232,6 +235,13 @@ type SourcePinPolicy struct {
 	MaxAge time.Duration
 	// MaxNodeBytes is the aggregate node-local byte budget across Slot pins.
 	MaxNodeBytes uint64
+	// MaxDeltaBytes compacts a Generation after this many post-baseline
+	// plaintext bytes. A smaller non-zero baseline size takes precedence.
+	MaxDeltaBytes uint64
+	// MaxSegments compacts a Generation after this many payload and cursor segments.
+	MaxSegments uint64
+	// MaxGenerationAge compacts a Generation after this durable age.
+	MaxGenerationAge time.Duration
 }
 
 // SourcePinObservation is one bounded node-local pin accounting snapshot.
@@ -287,6 +297,25 @@ type MaterializedBaselineCapturer interface {
 	) (MaterializedBaseline, error)
 }
 
+// GenerationPromotionValidator is the asynchronous-audit seam that must
+// attest a dual-repository replacement before it becomes authoritative.
+type GenerationPromotionValidator interface {
+	ValidateGenerationReplacement(
+		context.Context,
+		backupcontract.SlotFrontier,
+		MaterializedBaseline,
+	) error
+}
+
+// GenerationCompactionCostPlanner returns conservative upper bounds for the
+// actual source reads and dual-repository writes of one replacement.
+type GenerationCompactionCostPlanner interface {
+	PlanGenerationCompaction(
+		context.Context,
+		backupcontract.SlotFrontier,
+	) (GenerationCompactionCost, error)
+}
+
 // RebaseObserver receives low-cardinality pin and rebase evidence.
 type RebaseObserver interface {
 	SetBackupSourcePin(hashSlot uint16, age time.Duration, slotBytes, nodeBytes uint64)
@@ -300,6 +329,14 @@ type RebaseOptions struct {
 	// Pins owns source-log holds; Baselines creates dual-repository roots.
 	Pins      SourcePinManager
 	Baselines MaterializedBaselineCapturer
+	// Validator requires durable audit evidence before promotion.
+	Validator GenerationPromotionValidator
+	// CostPlanner sizes admission from the current source snapshot rather than
+	// inferring a full materialization from historical delta bytes.
+	CostPlanner GenerationCompactionCostPlanner
+	// Budget bounds concurrent materialization and its estimated node I/O and
+	// dual-repository network working set.
+	Budget GenerationCompactionBudget
 }
 
 // CaptureObserver receives low-cardinality lease ownership evidence.
@@ -456,8 +493,29 @@ func NewCaptureEngine(options CaptureEngineOptions) (*CaptureEngine, error) {
 		return nil, fmt.Errorf("%w: continuous cursor loader is required", ErrInvalidCapture)
 	}
 	if options.Rebase != nil {
+		if options.Rebase.Policy.MaxDeltaBytes == 0 {
+			options.Rebase.Policy.MaxDeltaBytes = DefaultGenerationMaxDeltaBytes
+		}
+		if options.Rebase.Policy.MaxSegments == 0 {
+			options.Rebase.Policy.MaxSegments = DefaultGenerationMaxSegments
+		}
+		if options.Rebase.Policy.MaxGenerationAge == 0 {
+			options.Rebase.Policy.MaxGenerationAge = DefaultGenerationMaxAge
+		}
+		if options.Rebase.Budget == nil {
+			options.Rebase.Budget, _ = NewGenerationCompactionBudget(
+				DefaultGenerationCompactionConcurrency,
+				DefaultGenerationCompactionIOBytes,
+				DefaultGenerationCompactionNetworkBytes,
+			)
+		}
 		if options.Rebase.Pins == nil || options.Rebase.Baselines == nil ||
-			options.Rebase.Policy.MaxAge <= 0 || options.Rebase.Policy.MaxNodeBytes == 0 {
+			options.Rebase.Validator == nil ||
+			options.Rebase.CostPlanner == nil ||
+			options.Rebase.Budget == nil ||
+			options.Rebase.Policy.MaxAge <= 0 || options.Rebase.Policy.MaxNodeBytes == 0 ||
+			options.Rebase.Policy.MaxDeltaBytes == 0 || options.Rebase.Policy.MaxSegments == 0 ||
+			options.Rebase.Policy.MaxGenerationAge <= 0 {
 			return nil, fmt.Errorf("%w: rebase dependencies or pin limits are invalid", ErrInvalidCapture)
 		}
 		if _, ok := options.Frontiers.(SlotGenerationPromoter); !ok {

@@ -32,6 +32,11 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 					HashSlot: 2, Sequence: 5, EventID: strings.Repeat("d", 64), RecordKey: "erasure-ledger/events/0002/" + strings.Repeat("d", 64) + ".json", RecordSHA256: strings.Repeat("e", 64),
 				},
 			}},
+			GenerationGCCursors: []controller.BackupGenerationGCCursor{{
+				Repository: "primary", Revision: 2, CycleID: "gc-cycle-1",
+				AfterKey:         "objects/generation-old/00002/object.bin",
+				CutoffUnixMillis: 1710000000000, UpdatedAtUnixMillis: 1710000001000,
+			}},
 			Active: &controller.BackupJob{
 				ID:                  "backup-3",
 				Epoch:               3,
@@ -78,6 +83,8 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	require.Equal(t, uint64(4), state.ErasureStreams[0].Head.Sequence)
 	require.Equal(t, uint64(5), state.ErasureStreams[0].Pending.Sequence)
 	require.Equal(t, uint64(4), state.CatalogHead.Sequence)
+	require.Equal(t, uint64(2), state.GenerationGCCursors[0].Revision)
+	require.Equal(t, "objects/generation-old/00002/object.bin", state.GenerationGCCursors[0].AfterKey)
 
 	state.Active.Partitions[0].ManifestKey = "mutated"
 	require.Equal(t, "jobs/backup-3/partitions/2.json", runtime.state.Backup.Active.Partitions[0].ManifestKey)

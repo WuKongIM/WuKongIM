@@ -43,6 +43,14 @@ func (e *CaptureEngine) reconcileRebase(
 		next, err = e.runRebase(ctx, next)
 		return next, true, err
 	}
+	if reason := e.generationCompactionReason(current); reason != "" {
+		next, err := e.beginRebase(ctx, current, reason)
+		if err != nil {
+			return backupcontract.SlotFrontier{}, true, err
+		}
+		next, err = e.runRebase(ctx, next)
+		return next, true, err
+	}
 	observation, err := e.options.Rebase.Pins.Observe(
 		ctx, current.HashSlot, current.Lease, current,
 	)
@@ -163,6 +171,19 @@ func (e *CaptureEngine) runRebase(
 		return backupcontract.SlotFrontier{}, ErrInvalidCapture
 	}
 	rebase := *current.Rebase
+	cost, err := e.options.Rebase.CostPlanner.PlanGenerationCompaction(ctx, current)
+	if err != nil || cost.IOBytes <= 0 || cost.NetworkBytes <= 0 {
+		if err == nil {
+			err = fmt.Errorf("%w: compaction cost plan is invalid", ErrInvalidCapture)
+		}
+		e.recordRebaseFailure(current, rebase.Reason, "compaction_plan", err)
+		return backupcontract.SlotFrontier{}, err
+	}
+	if !e.options.Rebase.Budget.TryAcquire(cost) {
+		e.recordRebaseFailure(current, rebase.Reason, "compaction_budget", ErrCompactionBudget)
+		return backupcontract.SlotFrontier{}, ErrCompactionBudget
+	}
+	defer e.options.Rebase.Budget.Release(cost)
 	released, err := e.options.Rebase.Pins.Release(ctx, current.HashSlot, current.Lease)
 	if err != nil {
 		e.recordRebaseFailure(current, rebase.Reason, rebaseFailureCategory("pin_release", err), err)
@@ -197,6 +218,10 @@ func (e *CaptureEngine) runRebase(
 		e.recordRebaseFailure(current, rebase.Reason, "rebase_validate", err)
 		return backupcontract.SlotFrontier{}, err
 	}
+	if err := e.options.Rebase.Validator.ValidateGenerationReplacement(ctx, current, baseline); err != nil {
+		e.recordRebaseFailure(current, rebase.Reason, "rebase_audit", err)
+		return backupcontract.SlotFrontier{}, err
+	}
 	if current.Revision == math.MaxUint64 {
 		err := fmt.Errorf("%w: frontier revision overflow", ErrInvalidCapture)
 		e.recordRebaseFailure(current, rebase.Reason, "rebase_promote", err)
@@ -205,8 +230,9 @@ func (e *CaptureEngine) runRebase(
 	next := backupcontract.CloneSlotFrontier(current)
 	next.Revision++
 	next.Generation = baseline.Generation
+	next.GenerationStartedAtUnixMillis = e.options.Clock.Now().UnixMilli()
 	next.Lease.Generation = baseline.Generation
-	next.Lease.AcquiredAtUnixMillis = e.options.Clock.Now().UnixMilli()
+	next.Lease.AcquiredAtUnixMillis = next.GenerationStartedAtUnixMillis
 	next.SourceSlotID = next.Lease.SlotID
 	next.SourcePinStartedAtUnixMillis = next.Lease.AcquiredAtUnixMillis
 	next.Baseline = &baseline.Reference
@@ -248,6 +274,7 @@ func validateMaterializedBaseline(hashSlot uint16, generation string, baseline M
 		baseline.Reference.Partition.Bytes <= 0 ||
 		baseline.Reference.Partition.ObjectCount == 0 ||
 		baseline.Reference.Partition.CiphertextBytes == 0 ||
+		baseline.Reference.PlaintextBytes == 0 ||
 		baseline.Metadata.Sequence != 0 || baseline.Metadata.Head != nil || baseline.Metadata.CursorHead != nil ||
 		baseline.Messages.Sequence != 0 || baseline.Messages.Head != nil || baseline.Messages.CursorHead != nil ||
 		baseline.Metadata.BaselineCursorHead != nil ||
@@ -265,6 +292,48 @@ func validateMaterializedBaseline(hashSlot uint16, generation string, baseline M
 		return err
 	}
 	return nil
+}
+
+func (e *CaptureEngine) generationCompactionReason(frontier backupcontract.SlotFrontier) string {
+	policy := e.options.Rebase.Policy
+	deltaBytes := saturatingAddUint64(
+		frontier.Metadata.CapturedPlaintextBytes,
+		frontier.Messages.CapturedPlaintextBytes,
+	)
+	byteLimit := policy.MaxDeltaBytes
+	if frontier.Baseline != nil && frontier.Baseline.PlaintextBytes > 0 &&
+		frontier.Baseline.PlaintextBytes < byteLimit {
+		byteLimit = frontier.Baseline.PlaintextBytes
+	}
+	switch {
+	case deltaBytes >= byteLimit:
+		return backupcontract.RebaseReasonGenerationBytes
+	case generationSegmentCount(frontier) >= policy.MaxSegments:
+		return backupcontract.RebaseReasonGenerationSegments
+	}
+	startedAt := frontier.GenerationStartedAtUnixMillis
+	if startedAt <= 0 {
+		startedAt = frontier.Lease.AcquiredAtUnixMillis
+	}
+	if startedAt > 0 &&
+		e.options.Clock.Now().Sub(time.UnixMilli(startedAt)) >= policy.MaxGenerationAge {
+		return backupcontract.RebaseReasonGenerationAge
+	}
+	return ""
+}
+
+func generationSegmentCount(frontier backupcontract.SlotFrontier) uint64 {
+	if frontier.Messages.Sequence > (math.MaxUint64-frontier.Metadata.Sequence)/2 {
+		return math.MaxUint64
+	}
+	return frontier.Metadata.Sequence + 2*frontier.Messages.Sequence
+}
+
+func saturatingAddUint64(left, right uint64) uint64 {
+	if left > math.MaxUint64-right {
+		return math.MaxUint64
+	}
+	return left + right
 }
 
 func (e *CaptureEngine) recordRebaseFailure(

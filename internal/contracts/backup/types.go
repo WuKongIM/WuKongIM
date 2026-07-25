@@ -222,6 +222,24 @@ type ErasureLedgerReceipt struct {
 	EventID string
 }
 
+// GenerationGCCursor is one bounded durable repository sweep position.
+type GenerationGCCursor struct {
+	// Repository identifies one explicit failure-domain copy.
+	Repository string
+	// Revision fences independent updates to this repository cursor.
+	Revision uint64
+	// CycleID identifies one retryable protection/cutoff decision.
+	CycleID string
+	// AfterKey is the last fully processed lexicographic repository key.
+	AfterKey string
+	// CutoffUnixMillis freezes Object Lock plus safety-window eligibility.
+	CutoffUnixMillis int64
+	// Complete prevents a healthy repository from rescanning while its peer retries.
+	Complete bool
+	// UpdatedAtUnixMillis is the latest durable progress time.
+	UpdatedAtUnixMillis int64
+}
+
 // State is the bounded Controller-persisted backup coordination state.
 type State struct {
 	// Revision is the Controller compare-and-swap revision.
@@ -242,6 +260,8 @@ type State struct {
 	CatalogHead *backupartifact.CatalogPageReference
 	// ErasureStreams contains at most one sorted bounded state per Hash Slot.
 	ErasureStreams []ErasureStreamState
+	// GenerationGCCursors contains at most one independent durable cursor per repository.
+	GenerationGCCursors []GenerationGCCursor
 }
 
 // Clone returns a deep copy safe for mutation by a caller.
@@ -282,6 +302,7 @@ func (s State) Clone() State {
 			out.ErasureStreams[index].LastCommitted = &committed
 		}
 	}
+	out.GenerationGCCursors = append([]GenerationGCCursor(nil), s.GenerationGCCursors...)
 	return out
 }
 

@@ -271,10 +271,78 @@ func (r *S3Repository) DeleteGarbageObject(ctx context.Context, key string) erro
 		if _, err := r.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: aws.String(r.bucket), Key: aws.String(fullKey), VersionId: aws.String(versionID),
 		}); err != nil {
-			return mapS3Error(err)
+			return r.classifyGarbageDeleteError(ctx, fullKey, versionID, err)
 		}
 	}
 	return nil
+}
+
+// DeleteGenerationGarbageObject removes exactly one immutable version with a
+// provider-request ceiling. Multiple versions are treated as corruption
+// instead of silently multiplying destructive work.
+func (r *S3Repository) DeleteGenerationGarbageObject(
+	ctx context.Context,
+	key string,
+	maxRequests int,
+) (int, error) {
+	if maxRequests < 1 {
+		return 0, errGenerationGCRequestBudget
+	}
+	fullKey, err := r.fullKey(key)
+	if err != nil {
+		return 0, err
+	}
+	output, err := r.client.ListObjectVersions(ctx, &s3.ListObjectVersionsInput{
+		Bucket: aws.String(r.bucket), Prefix: aws.String(fullKey), MaxKeys: aws.Int32(2),
+	})
+	if err != nil {
+		return 1, mapS3Error(err)
+	}
+	if output == nil {
+		return 1, fmt.Errorf("backup s3 repository: object-version listing is missing")
+	}
+	versions := make([]string, 0, 1)
+	for _, version := range output.Versions {
+		if aws.ToString(version.Key) == fullKey {
+			versions = append(versions, aws.ToString(version.VersionId))
+		}
+	}
+	for _, marker := range output.DeleteMarkers {
+		if aws.ToString(marker.Key) == fullKey {
+			versions = append(versions, aws.ToString(marker.VersionId))
+		}
+	}
+	if aws.ToBool(output.IsTruncated) || len(versions) > 1 {
+		return 1, fmt.Errorf("%w: generation object has multiple or ambiguous versions", backupartifact.ErrObjectCorrupt)
+	}
+	if len(versions) == 0 {
+		return 1, nil
+	}
+	if versions[0] == "" {
+		return 1, fmt.Errorf("%w: generation object version id is empty", backupartifact.ErrObjectCorrupt)
+	}
+	if maxRequests < 2 {
+		return 1, errGenerationGCRequestBudget
+	}
+	_, err = r.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(r.bucket), Key: aws.String(fullKey), VersionId: aws.String(versions[0]),
+	})
+	if err == nil {
+		return 2, nil
+	}
+	if !s3GarbageDeleteMayBeLocked(err) {
+		return 2, mapS3Error(err)
+	}
+	if maxRequests < 3 {
+		// Preserve the prior fully processed cursor and retry this key with a
+		// fresh budget that can distinguish Object Lock from generic IAM.
+		return 2, errGenerationGCRequestBudget
+	}
+	locked := r.objectVersionLocked(ctx, fullKey, versions[0])
+	if locked {
+		return 3, backupartifact.ErrObjectLocked
+	}
+	return 3, mapS3Error(err)
 }
 
 // WalkGarbageObjects streams immutable keys older than before without loading
@@ -324,6 +392,62 @@ func (r *S3Repository) WalkGarbageObjects(ctx context.Context, before time.Time,
 		}
 		continuationToken = output.NextContinuationToken
 	}
+}
+
+// ListGarbageObjects returns at most one provider page after a durable
+// lexicographic cursor. Objects newer than before advance AfterKey but are not
+// returned because the cycle cutoff is immutable.
+func (r *S3Repository) ListGarbageObjects(
+	ctx context.Context,
+	before time.Time,
+	afterKey string,
+	limit int,
+) (GarbageObjectPage, error) {
+	if r == nil || r.client == nil || before.IsZero() || limit <= 0 || limit > 4096 ||
+		(afterKey != "" && !safeRepositoryKey(afterKey)) {
+		return GarbageObjectPage{}, fmt.Errorf("backup s3 repository: garbage page options are invalid")
+	}
+	prefix := r.prefix + "/"
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(r.bucket), Prefix: aws.String(prefix),
+		MaxKeys: aws.Int32(int32(limit)),
+	}
+	if afterKey != "" {
+		input.StartAfter = aws.String(prefix + afterKey)
+	}
+	output, err := r.client.ListObjectsV2(ctx, input)
+	if err != nil {
+		return GarbageObjectPage{}, mapS3Error(err)
+	}
+	if output == nil {
+		return GarbageObjectPage{}, fmt.Errorf("backup s3 repository: object listing is missing")
+	}
+	page := GarbageObjectPage{
+		Objects:  make([]backupartifact.RepositoryObject, 0, len(output.Contents)),
+		AfterKey: afterKey, Complete: !aws.ToBool(output.IsTruncated),
+	}
+	previousFullKey := prefix + afterKey
+	for _, object := range output.Contents {
+		if object.Key == nil || object.LastModified == nil || object.Size == nil {
+			return GarbageObjectPage{}, fmt.Errorf("backup s3 repository: garbage object metadata is incomplete")
+		}
+		fullKey := aws.ToString(object.Key)
+		relative := strings.TrimPrefix(fullKey, prefix)
+		if relative == fullKey || !safeRepositoryKey(relative) || fullKey <= previousFullKey {
+			return GarbageObjectPage{}, fmt.Errorf("backup s3 repository: garbage page is not strictly ordered")
+		}
+		previousFullKey = fullKey
+		page.AfterKey = relative
+		if object.LastModified.UTC().Before(before.UTC()) {
+			page.Objects = append(page.Objects, backupartifact.RepositoryObject{
+				Key: relative, Size: aws.ToInt64(object.Size),
+			})
+		}
+	}
+	if !page.Complete && len(output.Contents) == 0 {
+		return GarbageObjectPage{}, fmt.Errorf("backup s3 repository: truncated garbage page made no progress")
+	}
+	return page, nil
 }
 
 // ListRestorePointIDs lists publication markers under the repository namespace.
@@ -488,5 +612,46 @@ func mapS3Error(err error) error {
 	return err
 }
 
+func s3GarbageDeleteMayBeLocked(err error) bool {
+	var apiError smithy.APIError
+	if errors.As(err, &apiError) {
+		switch apiError.ErrorCode() {
+		case "AccessDenied", "InvalidRequest":
+			return true
+		}
+	}
+	return false
+}
+
+func (r *S3Repository) classifyGarbageDeleteError(
+	ctx context.Context,
+	fullKey string,
+	versionID string,
+	err error,
+) error {
+	if s3GarbageDeleteMayBeLocked(err) &&
+		r.objectVersionLocked(ctx, fullKey, versionID) {
+		return backupartifact.ErrObjectLocked
+	}
+	return mapS3Error(err)
+}
+
+func (r *S3Repository) objectVersionLocked(
+	ctx context.Context,
+	fullKey string,
+	versionID string,
+) bool {
+	output, err := r.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(r.bucket), Key: aws.String(fullKey), VersionId: aws.String(versionID),
+	})
+	if err != nil || output == nil {
+		return false
+	}
+	return output.ObjectLockLegalHoldStatus == types.ObjectLockLegalHoldStatusOn ||
+		(output.ObjectLockMode != "" && output.ObjectLockRetainUntilDate != nil &&
+			output.ObjectLockRetainUntilDate.After(r.now().UTC()))
+}
+
 var _ backupartifact.Repository = (*S3Repository)(nil)
 var _ RestorePointLister = (*S3Repository)(nil)
+var _ GenerationGarbageRepository = (*S3Repository)(nil)

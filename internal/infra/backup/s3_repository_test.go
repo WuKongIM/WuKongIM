@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"io"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -152,16 +154,153 @@ func TestS3RepositoryDeletesExactGarbageObjectVersions(t *testing.T) {
 	}
 }
 
+func TestS3RepositoryMapsObjectLockDeleteRejection(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{
+		Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a",
+		ObjectLockDays: 7, Client: client,
+	})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	body := []byte("locked-object")
+	hash := sha256.Sum256(body)
+	key := "objects/generation-expired/00000/locked.bin"
+	if err := repository.PutImmutable(
+		context.Background(), key, int64(len(body)), hex.EncodeToString(hash[:]), bytes.NewReader(body),
+	); err != nil {
+		t.Fatalf("PutImmutable() error = %v", err)
+	}
+	client.deleteErr = &smithy.GenericAPIError{Code: "AccessDenied", Message: "Object Lock retention is active"}
+	err = repository.DeleteGarbageObject(context.Background(), key)
+	if !errors.Is(err, backupartifact.ErrObjectLocked) {
+		t.Fatalf("DeleteGarbageObject() error = %v, want ErrObjectLocked", err)
+	}
+}
+
+func TestS3RepositoryDoesNotHideGarbageDeletePermissionFailureAsObjectLock(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{
+		Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a",
+		ObjectLockDays: 7, Client: client,
+		Now: func() time.Time { return time.Unix(1_800_000_000, 0).UTC() },
+	})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	body := []byte("expired-retention-object")
+	hash := sha256.Sum256(body)
+	key := "objects/rebase-00000-00000000000000000001/attempt/00000/object.bin"
+	if err := repository.PutImmutable(
+		context.Background(), key, int64(len(body)), hex.EncodeToString(hash[:]), bytes.NewReader(body),
+	); err != nil {
+		t.Fatalf("PutImmutable() error = %v", err)
+	}
+	object := client.objects["prod/cluster-a/"+key]
+	expired := time.Unix(1_700_000_000, 0).UTC()
+	object.retainUntil = &expired
+	client.objects["prod/cluster-a/"+key] = object
+	client.deleteErr = &smithy.GenericAPIError{Code: "AccessDenied", Message: "role cannot delete"}
+	err = repository.DeleteGarbageObject(context.Background(), key)
+	if err == nil || errors.Is(err, backupartifact.ErrObjectLocked) {
+		t.Fatalf("DeleteGarbageObject() error = %v, want visible permission failure", err)
+	}
+}
+
+func TestS3RepositoryPagesGarbageFromLexicographicCursor(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{
+		Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a",
+		ObjectLockDays: 7, Client: client,
+	})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	for _, key := range []string{
+		"objects/generation-old/00000/a.bin",
+		"objects/generation-old/00000/b.bin",
+		"objects/generation-old/00000/c.bin",
+	} {
+		body := []byte(key)
+		hash := sha256.Sum256(body)
+		if err := repository.PutImmutable(
+			context.Background(), key, int64(len(body)), hex.EncodeToString(hash[:]), bytes.NewReader(body),
+		); err != nil {
+			t.Fatalf("PutImmutable(%q) error = %v", key, err)
+		}
+	}
+	page, err := repository.ListGarbageObjects(
+		context.Background(), time.Now().UTC().Add(time.Hour), "", 2,
+	)
+	if err != nil {
+		t.Fatalf("ListGarbageObjects() error = %v", err)
+	}
+	if page.Complete || len(page.Objects) != 2 ||
+		page.AfterKey != "objects/generation-old/00000/b.bin" {
+		t.Fatalf("first page = %#v", page)
+	}
+	page, err = repository.ListGarbageObjects(
+		context.Background(), time.Now().UTC().Add(time.Hour), page.AfterKey, 2,
+	)
+	if err != nil {
+		t.Fatalf("ListGarbageObjects(second) error = %v", err)
+	}
+	if !page.Complete || len(page.Objects) != 1 ||
+		page.AfterKey != "objects/generation-old/00000/c.bin" {
+		t.Fatalf("second page = %#v", page)
+	}
+}
+
+func TestS3RepositoryBoundsExactGenerationDeleteRequests(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{
+		Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a",
+		ObjectLockDays: 7, Client: client,
+	})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	body := []byte("generation-object")
+	hash := sha256.Sum256(body)
+	key := "objects/rebase-00000-00000000000000000001/attempt/00000/object.bin"
+	if err := repository.PutImmutable(
+		context.Background(), key, int64(len(body)), hex.EncodeToString(hash[:]), bytes.NewReader(body),
+	); err != nil {
+		t.Fatalf("PutImmutable() error = %v", err)
+	}
+	used, err := repository.DeleteGenerationGarbageObject(context.Background(), key, 1)
+	if used != 1 || !errors.Is(err, errGenerationGCRequestBudget) {
+		t.Fatalf("bounded delete used/error = %d/%v", used, err)
+	}
+	client.deleteErr = &smithy.GenericAPIError{Code: "AccessDenied", Message: "retention may be active"}
+	used, err = repository.DeleteGenerationGarbageObject(context.Background(), key, 2)
+	if used != 2 || !errors.Is(err, errGenerationGCRequestBudget) {
+		t.Fatalf("lock classification budget used/error = %d/%v", used, err)
+	}
+	used, err = repository.DeleteGenerationGarbageObject(context.Background(), key, 3)
+	if used != 3 || !errors.Is(err, backupartifact.ErrObjectLocked) {
+		t.Fatalf("locked delete used/error = %d/%v", used, err)
+	}
+	client.deleteErr = nil
+	used, err = repository.DeleteGenerationGarbageObject(context.Background(), key, 3)
+	if used != 2 || err != nil {
+		t.Fatalf("exact delete used/error = %d/%v", used, err)
+	}
+}
+
 type fakeS3Object struct {
-	body     []byte
-	metadata map[string]string
-	checksum string
+	body        []byte
+	metadata    map[string]string
+	checksum    string
+	retainUntil *time.Time
+	lockMode    types.ObjectLockMode
 }
 
 type fakeS3Client struct {
 	objects    map[string]fakeS3Object
 	lastPut    *s3.PutObjectInput
 	lastDelete *s3.DeleteObjectInput
+	deleteErr  error
 	versioning types.BucketVersioningStatus
 	lock       types.ObjectLockEnabled
 }
@@ -180,7 +319,10 @@ func (f *fakeS3Client) PutObject(_ context.Context, input *s3.PutObjectInput, _ 
 		return nil, err
 	}
 	f.lastPut = input
-	f.objects[key] = fakeS3Object{body: body, metadata: input.Metadata, checksum: aws.ToString(input.ChecksumSHA256)}
+	f.objects[key] = fakeS3Object{
+		body: body, metadata: input.Metadata, checksum: aws.ToString(input.ChecksumSHA256),
+		retainUntil: input.ObjectLockRetainUntilDate, lockMode: input.ObjectLockMode,
+	}
 	return &s3.PutObjectOutput{ChecksumSHA256: input.ChecksumSHA256}, nil
 }
 
@@ -189,7 +331,11 @@ func (f *fakeS3Client) HeadObject(_ context.Context, input *s3.HeadObjectInput, 
 	if !ok {
 		return nil, &smithy.GenericAPIError{Code: "NotFound", Message: "missing"}
 	}
-	return &s3.HeadObjectOutput{ContentLength: aws.Int64(int64(len(object.body))), Metadata: object.metadata, ChecksumSHA256: aws.String(object.checksum)}, nil
+	return &s3.HeadObjectOutput{
+		ContentLength: aws.Int64(int64(len(object.body))), Metadata: object.metadata,
+		ChecksumSHA256: aws.String(object.checksum),
+		ObjectLockMode: object.lockMode, ObjectLockRetainUntilDate: object.retainUntil,
+	}, nil
 }
 
 func (f *fakeS3Client) GetObject(_ context.Context, input *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
@@ -214,11 +360,32 @@ func (f *fakeS3Client) GetObjectLockConfiguration(context.Context, *s3.GetObject
 
 func (f *fakeS3Client) ListObjectsV2(_ context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
 	output := &s3.ListObjectsV2Output{}
+	keys := make([]string, 0, len(f.objects))
+	startAfter := aws.ToString(input.StartAfter)
+	if input.ContinuationToken != nil {
+		startAfter = aws.ToString(input.ContinuationToken)
+	}
 	for key := range f.objects {
-		if strings.HasPrefix(key, aws.ToString(input.Prefix)) {
-			keyCopy := key
-			output.Contents = append(output.Contents, types.Object{Key: &keyCopy})
+		if strings.HasPrefix(key, aws.ToString(input.Prefix)) && key > startAfter {
+			keys = append(keys, key)
 		}
+	}
+	sort.Strings(keys)
+	limit := len(keys)
+	if input.MaxKeys != nil && int(aws.ToInt32(input.MaxKeys)) < limit {
+		limit = int(aws.ToInt32(input.MaxKeys))
+		output.IsTruncated = aws.Bool(true)
+	}
+	modified := time.Unix(1_700_000_000, 0).UTC()
+	for _, key := range keys[:limit] {
+		keyCopy := key
+		size := int64(len(f.objects[key].body))
+		output.Contents = append(output.Contents, types.Object{
+			Key: &keyCopy, Size: &size, LastModified: &modified,
+		})
+	}
+	if aws.ToBool(output.IsTruncated) {
+		output.NextContinuationToken = aws.String(keys[limit-1])
 	}
 	return output, nil
 }
@@ -236,6 +403,9 @@ func (f *fakeS3Client) ListObjectVersions(_ context.Context, input *s3.ListObjec
 
 func (f *fakeS3Client) DeleteObject(_ context.Context, input *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
 	f.lastDelete = input
+	if f.deleteErr != nil {
+		return nil, f.deleteErr
+	}
 	delete(f.objects, aws.ToString(input.Key))
 	return &s3.DeleteObjectOutput{}, nil
 }

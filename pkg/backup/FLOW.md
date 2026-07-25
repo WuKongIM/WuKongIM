@@ -140,7 +140,12 @@ segment contract. It is not wired into capture or restore scheduling yet.
     exact previous page reference. Checkpoints use deterministic immutable keys;
     catalog pages use sequence-plus-checkpoint keys so an unpublished orphan
     cannot collide with a later retry. The Controller stores only the newest
-    page reference and never stores catalog history.
+    page reference and never stores catalog history. Each checkpoint reference
+    points to a signed content-addressed `GenerationVector` rather than copying
+    all Slot Generation strings into every historical index row. Identical
+    vectors are reused across checkpoints, while vector ID, representation
+    checksum, byte size, and Slot count remain authenticated by the catalog
+    page.
 14. A materialized Slot rebase uses partition-manifest version 3. An
     independent root may bind one committed `message_baseline_cursor`
     `SegmentReference`, containing the complete Channel index used to resume
@@ -153,3 +158,6 @@ segment contract. It is not wired into capture or restore scheduling yet.
 15. Retained-graph traversal authenticates a baseline cursor's signed segment
     commit and marks both the commit and encrypted payload key, so generation
     or restore-point GC cannot delete a live cursor representation.
+16. Delete-capable repositories map provider Object Lock rejection to
+    `ErrObjectLocked`. Generation GC treats it as deferred work for that
+    repository, not as permission to advance past the protected version.

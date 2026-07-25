@@ -43,6 +43,7 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	}
 	result.LastEpoch = clusterState.Backup.LastEpoch
 	result.ErasureStreams = erasureStreamsFromController(clusterState.Backup.ErasureStreams)
+	result.GenerationGCCursors = generationGCCursorsFromController(clusterState.Backup.GenerationGCCursors)
 	result.Active = jobFromController(clusterState.Backup.Active)
 	result.Verification = verificationTaskFromController(clusterState.Backup.Verification)
 	result.RestorePoints = make([]backupusecase.RestorePoint, len(clusterState.Backup.RestorePoints))
@@ -64,14 +65,15 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 // CompareAndSwap stores next only when the Controller cluster revision still matches revision.
 func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint64, next backupusecase.State) error {
 	replacement := controller.BackupCoordinationState{
-		LastEpoch:      next.LastEpoch,
-		Active:         jobToController(next.Active),
-		Verification:   verificationTaskToController(next.Verification),
-		RestorePoints:  make([]controller.BackupRestorePoint, len(next.RestorePoints)),
-		PendingGarbage: make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
-		SlotFrontiers:  make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
-		CatalogHead:    catalogPageReferenceToController(next.CatalogHead),
-		ErasureStreams: erasureStreamsToController(next.ErasureStreams),
+		LastEpoch:           next.LastEpoch,
+		Active:              jobToController(next.Active),
+		Verification:        verificationTaskToController(next.Verification),
+		RestorePoints:       make([]controller.BackupRestorePoint, len(next.RestorePoints)),
+		PendingGarbage:      make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
+		SlotFrontiers:       make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
+		CatalogHead:         catalogPageReferenceToController(next.CatalogHead),
+		ErasureStreams:      erasureStreamsToController(next.ErasureStreams),
+		GenerationGCCursors: generationGCCursorsToController(next.GenerationGCCursors),
 	}
 	for index, restorePoint := range next.RestorePoints {
 		replacement.RestorePoints[index] = restorePointToController(restorePoint)
@@ -89,6 +91,32 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		return err
 	}
 	return nil
+}
+
+func generationGCCursorsFromController(cursors []controller.BackupGenerationGCCursor) []backupcontract.GenerationGCCursor {
+	result := make([]backupcontract.GenerationGCCursor, len(cursors))
+	for index, cursor := range cursors {
+		result[index] = backupcontract.GenerationGCCursor{
+			Repository: cursor.Repository, Revision: cursor.Revision,
+			CycleID: cursor.CycleID, AfterKey: cursor.AfterKey,
+			CutoffUnixMillis: cursor.CutoffUnixMillis, Complete: cursor.Complete,
+			UpdatedAtUnixMillis: cursor.UpdatedAtUnixMillis,
+		}
+	}
+	return result
+}
+
+func generationGCCursorsToController(cursors []backupcontract.GenerationGCCursor) []controller.BackupGenerationGCCursor {
+	result := make([]controller.BackupGenerationGCCursor, len(cursors))
+	for index, cursor := range cursors {
+		result[index] = controller.BackupGenerationGCCursor{
+			Repository: cursor.Repository, Revision: cursor.Revision,
+			CycleID: cursor.CycleID, AfterKey: cursor.AfterKey,
+			CutoffUnixMillis: cursor.CutoffUnixMillis, Complete: cursor.Complete,
+			UpdatedAtUnixMillis: cursor.UpdatedAtUnixMillis,
+		}
+	}
+	return result
 }
 
 func catalogPageReferenceFromController(reference *controller.BackupCatalogPageReference) *backupartifact.CatalogPageReference {
@@ -114,30 +142,32 @@ func catalogPageReferenceToController(reference *backupartifact.CatalogPageRefer
 func slotFrontierFromController(frontier controller.BackupSlotFrontier) backupcontract.SlotFrontier {
 	return backupcontract.SlotFrontier{
 		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
-		Lease:                        slotCaptureLeaseFromController(frontier.Lease),
-		SourceSlotID:                 frontier.SourceSlotID,
-		SourcePinStartedAtUnixMillis: frontier.SourcePinStartedAtUnixMillis,
-		Baseline:                     slotBaselineFromController(frontier.Baseline),
-		Rebase:                       slotRebaseFromController(frontier.Rebase),
-		Metadata:                     streamFrontierFromController(frontier.Metadata),
-		Messages:                     streamFrontierFromController(frontier.Messages),
-		WatermarkAtUnixMillis:        frontier.WatermarkAtUnixMillis,
-		UpdatedAtUnixMillis:          frontier.UpdatedAtUnixMillis,
+		GenerationStartedAtUnixMillis: frontier.GenerationStartedAtUnixMillis,
+		Lease:                         slotCaptureLeaseFromController(frontier.Lease),
+		SourceSlotID:                  frontier.SourceSlotID,
+		SourcePinStartedAtUnixMillis:  frontier.SourcePinStartedAtUnixMillis,
+		Baseline:                      slotBaselineFromController(frontier.Baseline),
+		Rebase:                        slotRebaseFromController(frontier.Rebase),
+		Metadata:                      streamFrontierFromController(frontier.Metadata),
+		Messages:                      streamFrontierFromController(frontier.Messages),
+		WatermarkAtUnixMillis:         frontier.WatermarkAtUnixMillis,
+		UpdatedAtUnixMillis:           frontier.UpdatedAtUnixMillis,
 	}
 }
 
 func slotFrontierToController(frontier backupcontract.SlotFrontier) controller.BackupSlotFrontier {
 	return controller.BackupSlotFrontier{
 		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
-		Lease:                        slotCaptureLeaseToController(frontier.Lease),
-		SourceSlotID:                 frontier.SourceSlotID,
-		SourcePinStartedAtUnixMillis: frontier.SourcePinStartedAtUnixMillis,
-		Baseline:                     slotBaselineToController(frontier.Baseline),
-		Rebase:                       slotRebaseToController(frontier.Rebase),
-		Metadata:                     streamFrontierToController(frontier.Metadata),
-		Messages:                     streamFrontierToController(frontier.Messages),
-		WatermarkAtUnixMillis:        frontier.WatermarkAtUnixMillis,
-		UpdatedAtUnixMillis:          frontier.UpdatedAtUnixMillis,
+		GenerationStartedAtUnixMillis: frontier.GenerationStartedAtUnixMillis,
+		Lease:                         slotCaptureLeaseToController(frontier.Lease),
+		SourceSlotID:                  frontier.SourceSlotID,
+		SourcePinStartedAtUnixMillis:  frontier.SourcePinStartedAtUnixMillis,
+		Baseline:                      slotBaselineToController(frontier.Baseline),
+		Rebase:                        slotRebaseToController(frontier.Rebase),
+		Metadata:                      streamFrontierToController(frontier.Metadata),
+		Messages:                      streamFrontierToController(frontier.Messages),
+		WatermarkAtUnixMillis:         frontier.WatermarkAtUnixMillis,
+		UpdatedAtUnixMillis:           frontier.UpdatedAtUnixMillis,
 	}
 }
 
@@ -146,6 +176,7 @@ func slotBaselineFromController(reference *controller.BackupSlotBaselineReferenc
 		return nil
 	}
 	return &backupcontract.SlotBaselineReference{
+		PlaintextBytes: reference.PlaintextBytes,
 		Partition: backupartifact.PartitionReference{
 			HashSlot: reference.Partition.HashSlot, Key: reference.Partition.Key,
 			SHA256: reference.Partition.SHA256, Bytes: reference.Partition.Bytes,
@@ -160,6 +191,7 @@ func slotBaselineToController(reference *backupcontract.SlotBaselineReference) *
 		return nil
 	}
 	return &controller.BackupSlotBaselineReference{
+		PlaintextBytes: reference.PlaintextBytes,
 		Partition: controller.BackupPartitionReference{
 			HashSlot: reference.Partition.HashSlot, Key: reference.Partition.Key,
 			SHA256: reference.Partition.SHA256, Bytes: reference.Partition.Bytes,
@@ -213,7 +245,8 @@ func streamFrontierFromController(frontier controller.BackupStreamFrontier) back
 		CursorHead:         segmentReferenceFromController(frontier.CursorHead),
 		BaselineCursorHead: segmentReferenceFromController(frontier.BaselineCursorHead),
 		SourceCursor:       frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
-		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
+		WatermarkAtUnixMillis:  frontier.WatermarkAtUnixMillis,
+		CapturedPlaintextBytes: frontier.CapturedPlaintextBytes,
 	}
 }
 
@@ -223,7 +256,8 @@ func streamFrontierToController(frontier backupcontract.StreamFrontier) controll
 		CursorHead:         segmentReferenceToController(frontier.CursorHead),
 		BaselineCursorHead: segmentReferenceToController(frontier.BaselineCursorHead),
 		SourceCursor:       frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
-		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
+		WatermarkAtUnixMillis:  frontier.WatermarkAtUnixMillis,
+		CapturedPlaintextBytes: frontier.CapturedPlaintextBytes,
 	}
 }
 

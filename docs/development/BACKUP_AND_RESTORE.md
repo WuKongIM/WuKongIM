@@ -200,6 +200,26 @@ ordinary age-gated orphans. The collector assumes separate delete credentials
 but retains the signed logical repository identities. An Object Lock denial
 leaves the queue entry pending for a later retry.
 
+For continuous checkpoints, retention selects immutable catalog references
+with the same UTC tiers. The newest checkpoint, operator holds, and the active
+restore checkpoint are always protected. Compaction replaces only one Hash
+Slot Generation when its delta reaches the smaller of its baseline size and
+the configured byte threshold, reaches the segment threshold, reaches the age
+threshold, or requires a source rebase. The old Generation remains
+authoritative until its replacement is dual-committed, validated, and promoted
+under the Slot capture lease.
+
+Generation GC protects every retained/held/active checkpoint Generation,
+current Slot frontier, and auditor-frozen Slot. Each repository advances its
+own durable lexicographic cursor under independent request and byte budgets, so
+a failure or Object Lock delay on one copy does not rescan the healthy copy.
+Checkpoint catalog rows point to signed content-addressed Generation vectors
+instead of embedding 256 strings per historical row. Cache misses consume the
+same per-repository request budget and populate a rebuildable local cache; a
+small budget resumes vector loading across process restart before sweep. No
+object identity, protected vector, or pending-delete list is stored in
+Controller state.
+
 ## Restore Runbook
 
 1. Fence the old cluster through the deployment control plane and retain a

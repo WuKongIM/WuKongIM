@@ -20,6 +20,14 @@ const maxCheckpointCatalogObjectBytes = 4 << 20
 // CheckpointCatalogCommit contains the new immutable checkpoint and catalog head.
 type CheckpointCatalogCommit = backupartifact.CheckpointCatalogCommit
 
+// CheckpointCatalogStateCommit contains one durable checkpoint retention-state append.
+type CheckpointCatalogStateCommit struct {
+	// Checkpoint is the newly signed hold/release state.
+	Checkpoint backupartifact.CatalogCheckpointReference
+	// Head authenticates the catalog append containing Checkpoint.
+	Head backupartifact.CatalogPageReference
+}
+
 // ReplicatedCheckpointCatalog appends signed vector cuts to two repositories.
 type ReplicatedCheckpointCatalog struct {
 	primary      backupartifact.Repository
@@ -57,11 +65,23 @@ func (c *ReplicatedCheckpointCatalog) Publish(
 	if err != nil {
 		return CheckpointCatalogCommit{}, err
 	}
+	vector, vectorBody, err := c.prepareGenerationVector(
+		ctx, checkpointGenerationVector(signedCheckpoint),
+	)
+	if err != nil {
+		return CheckpointCatalogCommit{}, err
+	}
+	vectorReference := backupartifact.GenerationVectorReference{
+		ID: vector.ID, Key: backupartifact.GenerationVectorObjectKey(vector.ID),
+		SHA256: checkpointCatalogSHA256(vectorBody), Bytes: int64(len(vectorBody)),
+		HashSlotCount: vector.HashSlotCount,
+	}
 	checkpointReference := backupartifact.CatalogCheckpointReference{
 		ID: signedCheckpoint.ID, Key: backupartifact.CheckpointObjectKey(signedCheckpoint.ID),
 		SHA256: checkpointCatalogSHA256(checkpointBody), Bytes: int64(len(checkpointBody)),
 		CreatedAtUnixMillis:   signedCheckpoint.CreatedAtUnixMillis,
 		EffectiveAtUnixMillis: signedCheckpoint.EffectiveAtUnixMillis,
+		GenerationVector:      vectorReference,
 	}
 	sequence := uint64(1)
 	if previous != nil {
@@ -108,6 +128,55 @@ func (c *ReplicatedCheckpointCatalog) Publish(
 	return CheckpointCatalogCommit{Checkpoint: checkpointReference, Head: head}, nil
 }
 
+// SetCheckpointHold appends one signed hold/release state for an authenticated
+// checkpoint. The caller advances the Controller head only after both page
+// copies commit.
+func (c *ReplicatedCheckpointCatalog) SetCheckpointHold(
+	ctx context.Context,
+	checkpoint backupartifact.CatalogCheckpointReference,
+	held bool,
+	createdAtUnixMillis int64,
+	previous *backupartifact.CatalogPageReference,
+) (CheckpointCatalogStateCommit, error) {
+	if c == nil || previous == nil || previous.Sequence == math.MaxUint64 ||
+		createdAtUnixMillis < checkpoint.CreatedAtUnixMillis || checkpoint.Held == held {
+		return CheckpointCatalogStateCommit{}, backupartifact.ErrInvalidObject
+	}
+	if _, err := c.LoadCheckpoint(ctx, checkpoint); err != nil {
+		return CheckpointCatalogStateCommit{}, err
+	}
+	checkpoint.Held = held
+	sequence := previous.Sequence + 1
+	pageCandidate := backupartifact.CatalogPage{
+		Format: backupartifact.CatalogPageFormat, Version: backupartifact.CatalogPageVersion,
+		Sequence: sequence, CreatedAtUnixMillis: createdAtUnixMillis,
+		Previous: cloneCatalogPageReference(previous),
+		Entries:  []backupartifact.CatalogCheckpointReference{checkpoint},
+	}
+	_, pageBody, err := c.prepareCatalogPage(ctx, pageCandidate)
+	if err != nil {
+		return CheckpointCatalogStateCommit{}, err
+	}
+	head := backupartifact.CatalogPageReference{
+		Sequence: sequence,
+		Key:      backupartifact.CatalogPageObjectKey(sequence, checkpoint.ID),
+		SHA256:   checkpointCatalogSHA256(pageBody), Bytes: int64(len(pageBody)),
+		LatestCheckpointID: checkpoint.ID,
+	}
+	for _, repository := range []backupartifact.Repository{c.secondary, c.primary} {
+		if err := putCheckpointCatalogObject(
+			ctx, repository, head.Key, head.SHA256, pageBody,
+		); err != nil {
+			return CheckpointCatalogStateCommit{}, fmt.Errorf(
+				"%w: %s %s: %v",
+				backupartifact.ErrRepositoryIncomplete,
+				repository.Name(), head.Key, err,
+			)
+		}
+	}
+	return CheckpointCatalogStateCommit{Checkpoint: checkpoint, Head: head}, nil
+}
+
 func (c *ReplicatedCheckpointCatalog) prepareCheckpoint(
 	ctx context.Context,
 	checkpoint backupartifact.Checkpoint,
@@ -144,6 +213,69 @@ func (c *ReplicatedCheckpointCatalog) prepareCheckpoint(
 	}
 	body, err := backupartifact.MarshalCheckpoint(signed)
 	return signed, body, err
+}
+
+func (c *ReplicatedCheckpointCatalog) prepareGenerationVector(
+	ctx context.Context,
+	generations []string,
+) (backupartifact.GenerationVector, []byte, error) {
+	candidate, err := backupartifact.NewGenerationVector(generations)
+	if err != nil {
+		return backupartifact.GenerationVector{}, nil, err
+	}
+	key := backupartifact.GenerationVectorObjectKey(candidate.ID)
+	primaryBody, primary, primaryFound, err := c.loadExistingGenerationVector(ctx, c.primary, key)
+	if err != nil {
+		return backupartifact.GenerationVector{}, nil, err
+	}
+	secondaryBody, secondary, secondaryFound, err := c.loadExistingGenerationVector(ctx, c.secondary, key)
+	if err != nil {
+		return backupartifact.GenerationVector{}, nil, err
+	}
+	var signed backupartifact.GenerationVector
+	var body []byte
+	if primaryFound || secondaryFound {
+		body, signed = primaryBody, primary
+		if !primaryFound {
+			body, signed = secondaryBody, secondary
+		}
+		if primaryFound && secondaryFound && !bytes.Equal(primaryBody, secondaryBody) {
+			return backupartifact.GenerationVector{}, nil, backupartifact.ErrRepositoryIncomplete
+		}
+		existing := signed
+		existing.Signature = nil
+		if !reflect.DeepEqual(existing, candidate) {
+			return backupartifact.GenerationVector{}, nil, backupartifact.ErrInvalidObject
+		}
+	} else {
+		signed, err = backupartifact.SignGenerationVector(
+			ctx, candidate, c.signer, c.signingKeyID,
+		)
+		if err != nil {
+			return backupartifact.GenerationVector{}, nil, err
+		}
+		body, err = backupartifact.MarshalGenerationVector(signed)
+		if err != nil {
+			return backupartifact.GenerationVector{}, nil, err
+		}
+	}
+	for _, repository := range []backupartifact.Repository{c.primary, c.secondary} {
+		if repository.Name() == c.primary.Name() && primaryFound {
+			continue
+		}
+		if repository.Name() == c.secondary.Name() && secondaryFound {
+			continue
+		}
+		if err := putCheckpointCatalogObject(
+			ctx, repository, key, checkpointCatalogSHA256(body), body,
+		); err != nil {
+			return backupartifact.GenerationVector{}, nil, fmt.Errorf(
+				"%w: %s %s: %v",
+				backupartifact.ErrRepositoryIncomplete, repository.Name(), key, err,
+			)
+		}
+	}
+	return signed, body, nil
 }
 
 func (c *ReplicatedCheckpointCatalog) prepareCatalogPage(
@@ -210,6 +342,19 @@ func (c *ReplicatedCheckpointCatalog) loadExistingCatalogPage(
 	return body, page, true, err
 }
 
+func (c *ReplicatedCheckpointCatalog) loadExistingGenerationVector(
+	ctx context.Context,
+	repository backupartifact.Repository,
+	key string,
+) ([]byte, backupartifact.GenerationVector, bool, error) {
+	body, found, err := readOptionalCheckpointCatalogObject(ctx, repository, key)
+	if err != nil || !found {
+		return nil, backupartifact.GenerationVector{}, found, err
+	}
+	vector, err := backupartifact.LoadGenerationVector(ctx, body, c.signer)
+	return body, vector, true, err
+}
+
 // LoadPage requires matching authenticated copies of the exact referenced page.
 func (c *ReplicatedCheckpointCatalog) LoadPage(
 	ctx context.Context,
@@ -262,7 +407,109 @@ func (c *ReplicatedCheckpointCatalog) LoadCheckpoint(
 		checkpoint.EffectiveAtUnixMillis != reference.EffectiveAtUnixMillis {
 		return backupartifact.Checkpoint{}, backupartifact.ErrObjectCorrupt
 	}
+	vector, err := c.LoadGenerationVector(ctx, reference.GenerationVector)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	if !checkpointMatchesGenerationVector(checkpoint, vector) {
+		return backupartifact.Checkpoint{}, backupartifact.ErrObjectCorrupt
+	}
 	return checkpoint, nil
+}
+
+// LoadCheckpointCopy authenticates one explicit repository copy without
+// coupling an independent repair or GC cursor to the peer's availability.
+func (c *ReplicatedCheckpointCatalog) LoadCheckpointCopy(
+	ctx context.Context,
+	repository backupartifact.Repository,
+	reference backupartifact.CatalogCheckpointReference,
+) (backupartifact.Checkpoint, error) {
+	if c == nil || repository == nil ||
+		(repository.Name() != c.primary.Name() && repository.Name() != c.secondary.Name()) {
+		return backupartifact.Checkpoint{}, backupartifact.ErrInvalidObject
+	}
+	body, err := readCheckpointCatalogObject(
+		ctx, repository, reference.Key, reference.SHA256, reference.Bytes,
+	)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	checkpoint, err := backupartifact.LoadCheckpoint(ctx, body, c.signer)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	if checkpoint.ID != reference.ID ||
+		checkpoint.CreatedAtUnixMillis != reference.CreatedAtUnixMillis ||
+		checkpoint.EffectiveAtUnixMillis != reference.EffectiveAtUnixMillis {
+		return backupartifact.Checkpoint{}, backupartifact.ErrObjectCorrupt
+	}
+	vector, _, err := c.LoadGenerationVectorCopy(
+		ctx, repository, reference.GenerationVector,
+	)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	if !checkpointMatchesGenerationVector(checkpoint, vector) {
+		return backupartifact.Checkpoint{}, backupartifact.ErrObjectCorrupt
+	}
+	return checkpoint, nil
+}
+
+// LoadGenerationVector requires identical authenticated copies.
+func (c *ReplicatedCheckpointCatalog) LoadGenerationVector(
+	ctx context.Context,
+	reference backupartifact.GenerationVectorReference,
+) (backupartifact.GenerationVector, error) {
+	primary, err := readCheckpointCatalogObject(
+		ctx, c.primary, reference.Key, reference.SHA256, reference.Bytes,
+	)
+	if err != nil {
+		return backupartifact.GenerationVector{}, err
+	}
+	secondary, err := readCheckpointCatalogObject(
+		ctx, c.secondary, reference.Key, reference.SHA256, reference.Bytes,
+	)
+	if err != nil {
+		return backupartifact.GenerationVector{}, err
+	}
+	if !bytes.Equal(primary, secondary) {
+		return backupartifact.GenerationVector{}, backupartifact.ErrRepositoryIncomplete
+	}
+	vector, err := backupartifact.LoadGenerationVector(ctx, primary, c.signer)
+	if err != nil || !generationVectorMatchesReference(vector, primary, reference) {
+		if err != nil {
+			return backupartifact.GenerationVector{}, err
+		}
+		return backupartifact.GenerationVector{}, backupartifact.ErrObjectCorrupt
+	}
+	return vector, nil
+}
+
+// LoadGenerationVectorCopy authenticates one explicit repository copy and
+// returns its exact bytes for a local rebuildable GC cache.
+func (c *ReplicatedCheckpointCatalog) LoadGenerationVectorCopy(
+	ctx context.Context,
+	repository backupartifact.Repository,
+	reference backupartifact.GenerationVectorReference,
+) (backupartifact.GenerationVector, []byte, error) {
+	if c == nil || repository == nil ||
+		(repository.Name() != c.primary.Name() && repository.Name() != c.secondary.Name()) {
+		return backupartifact.GenerationVector{}, nil, backupartifact.ErrInvalidObject
+	}
+	body, err := readCheckpointCatalogObject(
+		ctx, repository, reference.Key, reference.SHA256, reference.Bytes,
+	)
+	if err != nil {
+		return backupartifact.GenerationVector{}, nil, err
+	}
+	vector, err := backupartifact.LoadGenerationVector(ctx, body, c.signer)
+	if err != nil || !generationVectorMatchesReference(vector, body, reference) {
+		if err != nil {
+			return backupartifact.GenerationVector{}, nil, err
+		}
+		return backupartifact.GenerationVector{}, nil, backupartifact.ErrObjectCorrupt
+	}
+	return vector, body, nil
 }
 
 func putCheckpointCatalogObject(
@@ -352,4 +599,32 @@ func cloneCatalogPageReference(reference *backupartifact.CatalogPageReference) *
 	}
 	out := *reference
 	return &out
+}
+
+func checkpointGenerationVector(checkpoint backupartifact.Checkpoint) []string {
+	generations := make([]string, len(checkpoint.Slots))
+	for index, slot := range checkpoint.Slots {
+		generations[index] = slot.Generation
+	}
+	return generations
+}
+
+func checkpointMatchesGenerationVector(
+	checkpoint backupartifact.Checkpoint,
+	vector backupartifact.GenerationVector,
+) bool {
+	return vector.HashSlotCount == checkpoint.HashSlotCount &&
+		reflect.DeepEqual(vector.Generations, checkpointGenerationVector(checkpoint))
+}
+
+func generationVectorMatchesReference(
+	vector backupartifact.GenerationVector,
+	body []byte,
+	reference backupartifact.GenerationVectorReference,
+) bool {
+	return vector.ID == reference.ID &&
+		vector.HashSlotCount == reference.HashSlotCount &&
+		reference.Key == backupartifact.GenerationVectorObjectKey(vector.ID) &&
+		int64(len(body)) == reference.Bytes &&
+		checkpointCatalogSHA256(body) == reference.SHA256
 }

@@ -33,6 +33,15 @@ const (
 	RebaseReasonSourceCompacted = "source_compacted"
 	// RebaseReasonSourceRemapped replaces a cursor whose physical Slot changed.
 	RebaseReasonSourceRemapped = "source_remapped"
+	// RebaseReasonGenerationBytes compacts a Slot whose incremental plaintext
+	// reached its configured or materialized-baseline byte threshold.
+	RebaseReasonGenerationBytes = "generation_bytes"
+	// RebaseReasonGenerationSegments compacts a Slot whose immutable segment
+	// count reached the configured per-Generation limit.
+	RebaseReasonGenerationSegments = "generation_segments"
+	// RebaseReasonGenerationAge compacts a Slot whose current Generation
+	// reached its configured maximum age.
+	RebaseReasonGenerationAge = "generation_age"
 )
 
 // StreamFrontier is the bounded durable head of one Slot capture stream.
@@ -52,6 +61,9 @@ type StreamFrontier struct {
 	SourceHighWatermark uint64
 	// WatermarkAtUnixMillis is the UTC source time represented by SourceHighWatermark.
 	WatermarkAtUnixMillis int64
+	// CapturedPlaintextBytes is the cumulative plaintext committed after the
+	// materialized root of this Generation. Message cursor sidecars are included.
+	CapturedPlaintextBytes uint64
 }
 
 // SlotCaptureLease fences one Hash Slot capture worker to the current Raft authority.
@@ -76,6 +88,8 @@ type SlotCaptureLease struct {
 type SlotBaselineReference struct {
 	// Partition is the dual-repository materialized metadata/message snapshot.
 	Partition backupartifact.PartitionReference
+	// PlaintextBytes is the cumulative logical size represented by Partition.
+	PlaintextBytes uint64
 }
 
 // SlotRebase records one retryable generation replacement without displacing
@@ -99,6 +113,9 @@ type SlotFrontier struct {
 	HashSlot uint16
 	// Generation identifies the independently replaceable Slot segment graph.
 	Generation string
+	// GenerationStartedAtUnixMillis is the durable age origin of Generation and
+	// does not change on capture-lease takeover.
+	GenerationStartedAtUnixMillis int64
 	// Lease fences every frontier commit to one exact current Slot authority.
 	Lease SlotCaptureLease
 	// SourceSlotID identifies the physical Slot whose Raft index space is used

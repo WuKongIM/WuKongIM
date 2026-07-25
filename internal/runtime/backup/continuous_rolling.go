@@ -199,6 +199,7 @@ func (e *CaptureEngine) commitAccumulator(ctx context.Context, hashSlot uint16, 
 	if err := validateCommittedSegmentReference(reference); err != nil {
 		return backupcontract.StreamFrontier{}, err
 	}
+	committedPlaintextBytes := uint64(reference.PlaintextBytes)
 	var cursorReference *backupartifact.SegmentReference
 	if stream == backupartifact.SegmentStreamMessages {
 		cursorBoundaries := accumulator.sortedMessageCursors()
@@ -250,6 +251,13 @@ func (e *CaptureEngine) commitAccumulator(ctx context.Context, hashSlot uint16, 
 			return backupcontract.StreamFrontier{}, err
 		}
 		cursorReference = &committedCursor
+		if uint64(committedCursor.PlaintextBytes) > math.MaxUint64-committedPlaintextBytes {
+			return backupcontract.StreamFrontier{}, fmt.Errorf("%w: generation byte accounting overflow", ErrInvalidCapture)
+		}
+		committedPlaintextBytes += uint64(committedCursor.PlaintextBytes)
+	}
+	if current.CapturedPlaintextBytes > math.MaxUint64-committedPlaintextBytes {
+		return backupcontract.StreamFrontier{}, fmt.Errorf("%w: generation byte accounting overflow", ErrInvalidCapture)
 	}
 	current.Sequence = sequence
 	current.Head = &reference
@@ -259,6 +267,7 @@ func (e *CaptureEngine) commitAccumulator(ctx context.Context, hashSlot uint16, 
 	current.SourceCursor = accumulator.nextCursor
 	current.SourceHighWatermark = accumulator.target.Position
 	current.WatermarkAtUnixMillis = watermarkAtUnixMillis
+	current.CapturedPlaintextBytes += committedPlaintextBytes
 	return current, nil
 }
 

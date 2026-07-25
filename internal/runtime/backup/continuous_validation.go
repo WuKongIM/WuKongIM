@@ -23,6 +23,8 @@ func (e *CaptureEngine) normalizeFrontier(hashSlot uint16, snapshot FrontierSnap
 	if frontier.HashSlot != hashSlot || !validContinuousIdentity(frontier.Generation, 128) || frontier.Revision == 0 ||
 		!validSlotCaptureLease(frontier.Lease, frontier.Generation) ||
 		frontier.SourceSlotID == 0 ||
+		frontier.GenerationStartedAtUnixMillis <= 0 ||
+		frontier.GenerationStartedAtUnixMillis > frontier.UpdatedAtUnixMillis ||
 		frontier.SourcePinStartedAtUnixMillis <= 0 ||
 		frontier.SourcePinStartedAtUnixMillis > frontier.UpdatedAtUnixMillis ||
 		validateSlotBaseline(frontier.Baseline, hashSlot) != nil ||
@@ -64,7 +66,10 @@ func validateSlotRebase(rebase *backupcontract.SlotRebase, generation string) er
 	case backupcontract.RebaseReasonPinAge,
 		backupcontract.RebaseReasonNodeByteBudget,
 		backupcontract.RebaseReasonSourceCompacted,
-		backupcontract.RebaseReasonSourceRemapped:
+		backupcontract.RebaseReasonSourceRemapped,
+		backupcontract.RebaseReasonGenerationBytes,
+		backupcontract.RebaseReasonGenerationSegments,
+		backupcontract.RebaseReasonGenerationAge:
 		return nil
 	default:
 		return ErrInvalidCapture
@@ -180,6 +185,7 @@ func olderPositiveTime(left, right int64) int64 {
 func slotFrontiersEqual(left, right backupcontract.SlotFrontier) bool {
 	return left.Revision == right.Revision && left.HashSlot == right.HashSlot &&
 		left.Generation == right.Generation &&
+		left.GenerationStartedAtUnixMillis == right.GenerationStartedAtUnixMillis &&
 		left.SourceSlotID == right.SourceSlotID &&
 		left.SourcePinStartedAtUnixMillis == right.SourcePinStartedAtUnixMillis &&
 		backupcontract.SlotCaptureLeasesEqual(left.Lease, right.Lease) &&
@@ -208,7 +214,8 @@ func slotRebasesEqual(left, right *backupcontract.SlotRebase) bool {
 func streamFrontiersEqual(left, right backupcontract.StreamFrontier) bool {
 	if left.Sequence != right.Sequence || left.SourceCursor != right.SourceCursor ||
 		left.SourceHighWatermark != right.SourceHighWatermark ||
-		left.WatermarkAtUnixMillis != right.WatermarkAtUnixMillis {
+		left.WatermarkAtUnixMillis != right.WatermarkAtUnixMillis ||
+		left.CapturedPlaintextBytes != right.CapturedPlaintextBytes {
 		return false
 	}
 	if left.Head == nil || right.Head == nil {

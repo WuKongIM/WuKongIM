@@ -31,6 +31,8 @@ var (
 	ErrObjectNotFound = errors.New("backup: repository object not found")
 	// ErrRepositoryIncomplete reports that not every required repository copy verified.
 	ErrRepositoryIncomplete = errors.New("backup: repository copies incomplete")
+	// ErrObjectLocked reports that immutable retention still forbids deletion.
+	ErrObjectLocked = errors.New("backup: repository object is locked")
 )
 
 // RestorePointKind identifies how a complete restore-point manifest was built.

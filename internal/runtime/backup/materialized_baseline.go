@@ -130,11 +130,21 @@ func (c *DistributedBaselineCapturer) CaptureBaseline(
 		ObjectCount: result.report.ObjectCount, CiphertextBytes: result.report.CiphertextBytes,
 		Evidence: manifest.Evidence,
 	}
+	var baselinePlaintextBytes uint64
+	for _, object := range manifest.Objects {
+		if object.PlaintextBytes <= 0 || uint64(object.PlaintextBytes) > ^uint64(0)-baselinePlaintextBytes {
+			return MaterializedBaseline{}, fmt.Errorf("%w: materialized plaintext byte summary is invalid", ErrInvalidCapture)
+		}
+		baselinePlaintextBytes += uint64(object.PlaintextBytes)
+	}
+	if baselinePlaintextBytes == 0 {
+		return MaterializedBaseline{}, fmt.Errorf("%w: materialized plaintext byte summary is empty", ErrInvalidCapture)
+	}
 	cursor := *manifest.BaselineCursor
 	capturedAt := manifest.Cut.CommittedAtMillis
 	return MaterializedBaseline{
 		Generation: generation,
-		Reference:  backupcontract.SlotBaselineReference{Partition: partition},
+		Reference:  backupcontract.SlotBaselineReference{Partition: partition, PlaintextBytes: baselinePlaintextBytes},
 		Metadata: backupcontract.StreamFrontier{
 			SourceCursor:          strconv.FormatUint(manifest.Cut.RaftIndex, 10),
 			SourceHighWatermark:   manifest.Cut.RaftIndex,

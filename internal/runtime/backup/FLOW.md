@@ -161,6 +161,26 @@ also resets the age origin to the newly retained floor. Failure
 keeps the pending record and last healthy frontier intact. Lost authority
 fences promotion and releases the former Leader's local hold.
 
+Generation compaction reuses this same single-Slot replacement path; it never
+creates a cluster-wide synthetic full. Each durable stream frontier counts the
+exact plaintext committed into its payload and cursor-sidecar segments. A Slot
+starts replacement when delta plaintext reaches the smaller of its baseline
+size and the configured threshold (64 GiB by default), when the Generation
+reaches 1024 committed segments, or when its age reaches 24 hours. A shared
+non-blocking node budget caps concurrent materializations plus estimated source
+I/O and dual-repository network bytes before the old floor is released. The
+injected cost planner measures a conservative upper bound from the exact source
+snapshot; historical delta counters are not used as a proxy for full snapshot
+cost. A replacement larger than a configured byte capacity is charged the
+whole capacity and therefore runs exclusively instead of starving forever.
+Budget pressure leaves the pending rebase and old public Generation unchanged
+for a later retry. Materialization retries use the same immutable target and
+epoch; an already committed baseline is loaded and revalidated without
+recapturing source rows. The replacement becomes authoritative only after the
+materialized partition and complete cursor baseline pass dual-repository
+validation, an injected durable auditor attests the Generation, and the
+lease-fenced promotion CAS resets the Generation counters and age.
+
 Before resolving repository-backed watermarks, reconciliation first seals any
 same-Slot accumulator whose open-duration deadline has elapsed and durably
 commits that frontier in a separate CAS. This returns its shared-memory

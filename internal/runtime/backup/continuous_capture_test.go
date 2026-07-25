@@ -63,6 +63,20 @@ func TestCaptureEngineAtomicallyAdvancesMetadataAndMessageStreams(t *testing.T) 
 		frontier.Messages.CursorHead == nil {
 		t.Fatalf("frontier streams = %#v", frontier)
 	}
+	wantMetadataBytes := uint64(frontier.Metadata.Head.PlaintextBytes)
+	wantMessageBytes := uint64(
+		frontier.Messages.Head.PlaintextBytes + frontier.Messages.CursorHead.PlaintextBytes,
+	)
+	if frontier.Metadata.CapturedPlaintextBytes != wantMetadataBytes ||
+		frontier.Messages.CapturedPlaintextBytes != wantMessageBytes {
+		t.Fatalf(
+			"generation plaintext bytes metadata=%d messages=%d, want %d/%d",
+			frontier.Metadata.CapturedPlaintextBytes,
+			frontier.Messages.CapturedPlaintextBytes,
+			wantMetadataBytes,
+			wantMessageBytes,
+		)
+	}
 	if frontier.WatermarkAtUnixMillis != 1_753_400_090_000 {
 		t.Fatalf("frontier watermark = %d, want oldest stream watermark", frontier.WatermarkAtUnixMillis)
 	}
@@ -1283,9 +1297,10 @@ func (s *fakeSlotFrontierStore) AcquireLease(_ context.Context, hashSlot uint16,
 	if !s.found {
 		s.frontier = backupcontract.SlotFrontier{
 			Revision: 1, HashSlot: hashSlot, Generation: initialGeneration,
-			SourceSlotID:                 authority.SlotID,
-			SourcePinStartedAtUnixMillis: acquiredAtUnixMillis,
-			UpdatedAtUnixMillis:          acquiredAtUnixMillis,
+			SourceSlotID:                  authority.SlotID,
+			SourcePinStartedAtUnixMillis:  acquiredAtUnixMillis,
+			GenerationStartedAtUnixMillis: acquiredAtUnixMillis,
+			UpdatedAtUnixMillis:           acquiredAtUnixMillis,
 		}
 		s.found = true
 	} else if s.frontier.Generation == "" {
@@ -1299,6 +1314,9 @@ func (s *fakeSlotFrontierStore) AcquireLease(_ context.Context, hashSlot uint16,
 	}
 	if s.frontier.SourcePinStartedAtUnixMillis == 0 {
 		s.frontier.SourcePinStartedAtUnixMillis = acquiredAtUnixMillis
+	}
+	if s.frontier.GenerationStartedAtUnixMillis == 0 {
+		s.frontier.GenerationStartedAtUnixMillis = acquiredAtUnixMillis
 	}
 	lease := s.frontier.Lease
 	if lease.Sequence == 0 ||

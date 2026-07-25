@@ -3,6 +3,7 @@ package backup_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,6 +202,167 @@ func TestCaptureEngineReleasesFormerLeaderLocalPin(t *testing.T) {
 	}
 }
 
+func TestCaptureEngineCompactsOneSlotAtIndependentGenerationThresholds(t *testing.T) {
+	now := time.UnixMilli(1_753_400_200_000)
+	tests := []struct {
+		name   string
+		reason string
+		mutate func(*backupcontract.SlotFrontier)
+	}{
+		{
+			name: "delta bytes", reason: backupcontract.RebaseReasonGenerationBytes,
+			mutate: func(frontier *backupcontract.SlotFrontier) {
+				frontier.Metadata.CapturedPlaintextBytes = backupruntime.DefaultGenerationMaxDeltaBytes
+			},
+		},
+		{
+			name: "delta reaches smaller baseline", reason: backupcontract.RebaseReasonGenerationBytes,
+			mutate: func(frontier *backupcontract.SlotFrontier) {
+				cursor := validRuntimeSegmentReference("f")
+				frontier.Baseline = &backupcontract.SlotBaselineReference{
+					PlaintextBytes: 100,
+					Partition: backupartifact.PartitionReference{
+						HashSlot: 17, Key: "partition-manifests/slot-generation-1/00017.json",
+						SHA256: strings.Repeat("9", 64), Bytes: 512,
+						ObjectCount: 2, CiphertextBytes: 256,
+						Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion},
+					},
+				}
+				frontier.Messages.BaselineCursorHead = &cursor
+				frontier.Messages.CapturedPlaintextBytes = 100
+			},
+		},
+		{
+			name: "segment count", reason: backupcontract.RebaseReasonGenerationSegments,
+			mutate: func(frontier *backupcontract.SlotFrontier) {
+				frontier.Metadata.Sequence = backupruntime.DefaultGenerationMaxSegments
+				head := validRuntimeSegmentReference("a")
+				frontier.Metadata.Head = &head
+			},
+		},
+		{
+			name: "generation age", reason: backupcontract.RebaseReasonGenerationAge,
+			mutate: func(frontier *backupcontract.SlotFrontier) {
+				frontier.GenerationStartedAtUnixMillis = now.Add(-backupruntime.DefaultGenerationMaxAge).UnixMilli()
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := &fakeSlotFrontierStore{}
+			_, err := store.AcquireLease(context.Background(), 17, "slot-generation-1", now.UnixMilli())
+			if err != nil {
+				t.Fatalf("AcquireLease() error = %v", err)
+			}
+			test.mutate(&store.frontier)
+			pins := &recordingSourcePins{}
+			baselines := &recordingBaselineCapturer{}
+			baselines.beforeCapture = func(_ uint16, _ string, _ backupcontract.SlotCaptureLease) {
+				if store.frontier.Rebase == nil || store.frontier.Rebase.Reason != test.reason {
+					t.Fatalf("pending rebase = %#v, want reason %q", store.frontier.Rebase, test.reason)
+				}
+			}
+			engine := newRebaseTestEngine(t, store, &fakeContinuousSource{}, pins, baselines)
+
+			frontier, err := engine.ReconcileSlot(context.Background(), 17)
+			if err != nil {
+				t.Fatalf("ReconcileSlot() error = %v", err)
+			}
+			if frontier.Generation == "slot-generation-1" || frontier.Rebase != nil ||
+				frontier.GenerationStartedAtUnixMillis != frontier.UpdatedAtUnixMillis ||
+				frontier.Metadata.CapturedPlaintextBytes != 0 ||
+				frontier.Messages.CapturedPlaintextBytes != 0 {
+				t.Fatalf("compacted frontier = %#v", frontier)
+			}
+			if pins.observes != 0 || pins.releases != 1 || baselines.calls != 1 {
+				t.Fatalf("compaction calls observe=%d release=%d baseline=%d", pins.observes, pins.releases, baselines.calls)
+			}
+		})
+	}
+}
+
+func TestCaptureEngineKeepsOldGenerationWhileCompactionBudgetIsUnavailable(t *testing.T) {
+	now := time.UnixMilli(1_753_400_200_000)
+	store := &fakeSlotFrontierStore{}
+	_, err := store.AcquireLease(context.Background(), 17, "slot-generation-1", now.UnixMilli())
+	if err != nil {
+		t.Fatalf("AcquireLease() error = %v", err)
+	}
+	store.frontier.Metadata.CapturedPlaintextBytes = backupruntime.DefaultGenerationMaxDeltaBytes
+	pins := &recordingSourcePins{}
+	baselines := &recordingBaselineCapturer{}
+	budget := &recordingCompactionBudget{}
+	engine := newRebaseTestEngineWithBudget(t, store, &fakeContinuousSource{}, pins, baselines, budget)
+
+	if _, err := engine.ReconcileSlot(context.Background(), 17); !errors.Is(err, backupruntime.ErrCompactionBudget) {
+		t.Fatalf("ReconcileSlot(blocked) error = %v", err)
+	}
+	if store.frontier.Generation != "slot-generation-1" || store.frontier.Rebase == nil ||
+		pins.releases != 0 || baselines.calls != 0 ||
+		budget.lastCost.IOBytes != 96<<30 ||
+		budget.lastCost.NetworkBytes != 192<<30 {
+		t.Fatalf(
+			"budget failure changed authority or underestimated work: frontier=%#v releases=%d baselines=%d cost=%#v",
+			store.frontier, pins.releases, baselines.calls, budget.lastCost,
+		)
+	}
+
+	budget.allow = true
+	frontier, err := engine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("ReconcileSlot(retry) error = %v", err)
+	}
+	if frontier.Generation == "slot-generation-1" || budget.acquires != 2 ||
+		budget.releases != 1 || pins.releases != 1 || baselines.calls != 1 {
+		t.Fatalf(
+			"retry frontier=%#v budget=%d/%d pins=%d baselines=%d",
+			frontier, budget.acquires, budget.releases, pins.releases, baselines.calls,
+		)
+	}
+}
+
+func TestCaptureEngineKeepsOldGenerationUntilReplacementAuditPasses(t *testing.T) {
+	now := time.UnixMilli(1_753_400_200_000)
+	store := &fakeSlotFrontierStore{}
+	_, err := store.AcquireLease(context.Background(), 17, "slot-generation-1", now.UnixMilli())
+	if err != nil {
+		t.Fatalf("AcquireLease() error = %v", err)
+	}
+	store.frontier.Metadata.CapturedPlaintextBytes = backupruntime.DefaultGenerationMaxDeltaBytes
+	pins := &recordingSourcePins{}
+	baselines := &recordingBaselineCapturer{}
+	auditErr := errors.New("replacement audit pending")
+	validator := &recordingGenerationValidator{err: auditErr}
+	engine := newRebaseTestEngineWithOptions(
+		t, store, &fakeContinuousSource{}, pins, baselines, nil, validator,
+	)
+
+	if _, err := engine.ReconcileSlot(context.Background(), 17); !errors.Is(err, auditErr) {
+		t.Fatalf("ReconcileSlot(audit pending) error = %v", err)
+	}
+	if store.frontier.Generation != "slot-generation-1" || store.frontier.Rebase == nil ||
+		store.frontier.Baseline != nil || baselines.calls != 1 ||
+		baselines.materializations != 1 || validator.calls != 1 {
+		t.Fatalf(
+			"audit failure changed authority: frontier=%#v baselines=%d validations=%d",
+			store.frontier, baselines.calls, validator.calls,
+		)
+	}
+
+	validator.err = nil
+	frontier, err := engine.ReconcileSlot(context.Background(), 17)
+	if err != nil {
+		t.Fatalf("ReconcileSlot(audited retry) error = %v", err)
+	}
+	if frontier.Generation == "slot-generation-1" || frontier.Rebase != nil ||
+		validator.calls != 2 || baselines.materializations != 1 {
+		t.Fatalf(
+			"audited frontier=%#v validations=%d materializations=%d",
+			frontier, validator.calls, baselines.materializations,
+		)
+	}
+}
+
 func newRebaseTestEngine(
 	t *testing.T,
 	store *fakeSlotFrontierStore,
@@ -208,7 +370,38 @@ func newRebaseTestEngine(
 	pins *recordingSourcePins,
 	baselines *recordingBaselineCapturer,
 ) *backupruntime.CaptureEngine {
+	return newRebaseTestEngineWithOptions(t, store, source, pins, baselines, nil, nil)
+}
+
+func newRebaseTestEngineWithBudget(
+	t *testing.T,
+	store *fakeSlotFrontierStore,
+	source backupruntime.ContinuousSource,
+	pins *recordingSourcePins,
+	baselines *recordingBaselineCapturer,
+	budget backupruntime.GenerationCompactionBudget,
+) *backupruntime.CaptureEngine {
+	return newRebaseTestEngineWithOptions(t, store, source, pins, baselines, budget, nil)
+}
+
+func newRebaseTestEngineWithOptions(
+	t *testing.T,
+	store *fakeSlotFrontierStore,
+	source backupruntime.ContinuousSource,
+	pins *recordingSourcePins,
+	baselines *recordingBaselineCapturer,
+	budget backupruntime.GenerationCompactionBudget,
+	validator backupruntime.GenerationPromotionValidator,
+) *backupruntime.CaptureEngine {
 	t.Helper()
+	if validator == nil {
+		validator = &recordingGenerationValidator{}
+	}
+	costPlanner := &recordingGenerationCostPlanner{
+		cost: backupruntime.GenerationCompactionCost{
+			IOBytes: 96 << 30, NetworkBytes: 192 << 30,
+		},
+	}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
 		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
@@ -221,13 +414,57 @@ func newRebaseTestEngine(
 		},
 		Rebase: &backupruntime.RebaseOptions{
 			Policy: backupruntime.SourcePinPolicy{MaxAge: time.Hour, MaxNodeBytes: 128 << 20},
-			Pins:   pins, Baselines: baselines,
+			Pins:   pins, Baselines: baselines, Validator: validator,
+			CostPlanner: costPlanner, Budget: budget,
 		},
 	})
 	if err != nil {
 		t.Fatalf("NewCaptureEngine() error = %v", err)
 	}
 	return engine
+}
+
+type recordingGenerationValidator struct {
+	err   error
+	calls int
+}
+
+func (v *recordingGenerationValidator) ValidateGenerationReplacement(
+	context.Context,
+	backupcontract.SlotFrontier,
+	backupruntime.MaterializedBaseline,
+) error {
+	v.calls++
+	return v.err
+}
+
+type recordingGenerationCostPlanner struct {
+	cost backupruntime.GenerationCompactionCost
+	err  error
+}
+
+func (p *recordingGenerationCostPlanner) PlanGenerationCompaction(
+	context.Context,
+	backupcontract.SlotFrontier,
+) (backupruntime.GenerationCompactionCost, error) {
+	return p.cost, p.err
+}
+
+type recordingCompactionBudget struct {
+	allow    bool
+	acquires int
+	releases int
+	lastCost backupruntime.GenerationCompactionCost
+}
+
+func (b *recordingCompactionBudget) TryAcquire(cost backupruntime.GenerationCompactionCost) bool {
+	b.acquires++
+	b.lastCost = cost
+	return b.allow
+}
+
+func (b *recordingCompactionBudget) Release(backupruntime.GenerationCompactionCost) {
+	b.releases++
 }
 
 type recordingSourcePins struct {
@@ -263,11 +500,13 @@ func (p *recordingSourcePins) ReleaseObsolete(context.Context, uint16) (backupru
 }
 
 type recordingBaselineCapturer struct {
-	err            error
-	errs           []error
-	calls          int
-	lastGeneration string
-	beforeCapture  func(uint16, string, backupcontract.SlotCaptureLease)
+	err              error
+	errs             []error
+	calls            int
+	materializations int
+	lastGeneration   string
+	beforeCapture    func(uint16, string, backupcontract.SlotCaptureLease)
+	cached           map[string]backupruntime.MaterializedBaseline
 }
 
 func (c *recordingBaselineCapturer) CaptureBaseline(
@@ -293,13 +532,20 @@ func (c *recordingBaselineCapturer) CaptureBaseline(
 			return backupruntime.MaterializedBaseline{}, err
 		}
 	}
+	if baseline, found := c.cached[generation]; found {
+		if err := pinCut(ctx, baseline.Metadata.SourceHighWatermark); err != nil {
+			return backupruntime.MaterializedBaseline{}, err
+		}
+		return baseline, nil
+	}
 	if err := pinCut(ctx, 11); err != nil {
 		return backupruntime.MaterializedBaseline{}, err
 	}
 	cursor := validRuntimeSegmentReference("e")
-	return backupruntime.MaterializedBaseline{
+	baseline := backupruntime.MaterializedBaseline{
 		Generation: generation,
 		Reference: backupcontract.SlotBaselineReference{
+			PlaintextBytes: 2048,
 			Partition: backupartifact.PartitionReference{
 				HashSlot: hashSlot, Key: "partition-manifests/" + generation + "/00017.json",
 				SHA256: cursor.SegmentID, Bytes: 512, ObjectCount: 3, CiphertextBytes: 1024,
@@ -315,5 +561,11 @@ func (c *recordingBaselineCapturer) CaptureBaseline(
 			WatermarkAtUnixMillis: 1_753_400_180_000,
 		},
 		WatermarkAtUnixMillis: 1_753_400_180_000,
-	}, nil
+	}
+	if c.cached == nil {
+		c.cached = make(map[string]backupruntime.MaterializedBaseline)
+	}
+	c.cached[generation] = baseline
+	c.materializations++
+	return baseline, nil
 }

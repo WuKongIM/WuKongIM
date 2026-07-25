@@ -197,7 +197,7 @@ type BackupCatalogPageReference struct {
 	SHA256 string `json:"sha256"`
 	// Bytes is the exact signed page size.
 	Bytes int64 `json:"bytes"`
-	// LatestCheckpointID identifies the newest checkpoint on this page.
+	// LatestCheckpointID identifies the checkpoint state appended on this page.
 	LatestCheckpointID string `json:"latest_checkpoint_id"`
 }
 
@@ -217,6 +217,8 @@ type BackupStreamFrontier struct {
 	SourceHighWatermark uint64 `json:"source_high_watermark"`
 	// WatermarkAtUnixMillis is the UTC source time represented by the high watermark.
 	WatermarkAtUnixMillis int64 `json:"watermark_at_unix_millis"`
+	// CapturedPlaintextBytes is the cumulative post-baseline logical bytes in this Generation.
+	CapturedPlaintextBytes uint64 `json:"captured_plaintext_bytes"`
 }
 
 // BackupSlotCaptureLease fences one Hash Slot capture worker to one Raft authority.
@@ -250,7 +252,10 @@ type BackupPartitionReference struct {
 
 // BackupSlotBaselineReference authenticates the materialized root and cursor index.
 type BackupSlotBaselineReference struct {
+	// Partition authenticates the materialized Slot manifest.
 	Partition BackupPartitionReference `json:"partition"`
+	// PlaintextBytes is the logical baseline size used by compaction thresholds.
+	PlaintextBytes uint64 `json:"plaintext_bytes"`
 }
 
 // BackupSlotRebase preserves a pending replacement while the current generation
@@ -270,6 +275,8 @@ type BackupSlotFrontier struct {
 	HashSlot uint16 `json:"hash_slot"`
 	// Generation identifies the independently replaceable immutable segment graph.
 	Generation string `json:"generation"`
+	// GenerationStartedAtUnixMillis is the durable age origin of Generation.
+	GenerationStartedAtUnixMillis int64 `json:"generation_started_at_unix_millis"`
 	// Lease fences frontier commits to one exact current Slot authority.
 	Lease BackupSlotCaptureLease `json:"lease"`
 	// SourceSlotID identifies the physical Slot index space used by the
@@ -291,6 +298,24 @@ type BackupSlotFrontier struct {
 	UpdatedAtUnixMillis int64 `json:"updated_at_unix_millis"`
 }
 
+// BackupGenerationGCCursor is one bounded repository-local Generation sweep position.
+type BackupGenerationGCCursor struct {
+	// Repository identifies one explicit failure-domain copy.
+	Repository string `json:"repository"`
+	// Revision fences independent compare-and-swap updates.
+	Revision uint64 `json:"revision"`
+	// CycleID identifies one retryable protection and cutoff decision.
+	CycleID string `json:"cycle_id"`
+	// AfterKey is the last fully processed lexicographic object key.
+	AfterKey string `json:"after_key,omitempty"`
+	// CutoffUnixMillis freezes safety-window eligibility for the cycle.
+	CutoffUnixMillis int64 `json:"cutoff_unix_millis"`
+	// Complete prevents a healthy copy from rescanning while its peer retries.
+	Complete bool `json:"complete"`
+	// UpdatedAtUnixMillis is the latest durable progress time.
+	UpdatedAtUnixMillis int64 `json:"updated_at_unix_millis"`
+}
+
 // BackupCoordinationState stores only bounded backup coordination metadata in Controller Raft.
 type BackupCoordinationState struct {
 	// LastEpoch is the latest allocated backup epoch.
@@ -309,6 +334,8 @@ type BackupCoordinationState struct {
 	CatalogHead *BackupCatalogPageReference `json:"catalog_head,omitempty"`
 	// ErasureStreams contains at most one sorted bounded state per Hash Slot.
 	ErasureStreams []BackupErasureStreamState `json:"erasure_streams,omitempty"`
+	// GenerationGCCursors contains at most one bounded cursor per explicit repository.
+	GenerationGCCursors []BackupGenerationGCCursor `json:"generation_gc_cursors,omitempty"`
 }
 
 // Clone returns a deep copy safe for normalization and mutation.
@@ -331,6 +358,7 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 		out.CatalogHead = &head
 	}
 	out.ErasureStreams = cloneBackupErasureStreams(s.ErasureStreams)
+	out.GenerationGCCursors = cloneSlice(s.GenerationGCCursors)
 	return out
 }
 

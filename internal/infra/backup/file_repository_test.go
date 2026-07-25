@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -77,6 +78,36 @@ func TestFileRepositoryDeletesOnlyExplicitGarbageObject(t *testing.T) {
 	_, err = repository.Stat(context.Background(), key)
 	require.ErrorIs(t, err, backupartifact.ErrObjectNotFound)
 	require.NoError(t, repository.DeleteGarbageObject(context.Background(), key))
+}
+
+func TestFileRepositoryGarbageCursorUsesGlobalKeyOrderAcrossDirectories(t *testing.T) {
+	repository, err := backupinfra.NewFileRepository("primary-dev", t.TempDir())
+	require.NoError(t, err)
+	body := []byte("garbage")
+	hash := sha256.Sum256(body)
+	for _, key := range []string{"a/x", "a.txt", "a0/y"} {
+		require.NoError(t, repository.PutImmutable(
+			context.Background(), key, int64(len(body)),
+			hex.EncodeToString(hash[:]), bytes.NewReader(body),
+		))
+	}
+
+	var keys []string
+	afterKey := ""
+	for pageNumber := 0; pageNumber < 8; pageNumber++ {
+		page, err := repository.ListGarbageObjects(
+			context.Background(), time.Now().Add(time.Hour), afterKey, 1,
+		)
+		require.NoError(t, err)
+		for _, object := range page.Objects {
+			keys = append(keys, object.Key)
+		}
+		afterKey = page.AfterKey
+		if page.Complete {
+			break
+		}
+	}
+	require.Equal(t, []string{"a.txt", "a/x", "a0/y"}, keys)
 }
 
 func TestFileRepositoryCheckProvesWritableRootWithoutLeavingProbe(t *testing.T) {

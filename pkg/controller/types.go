@@ -69,6 +69,8 @@ type (
 	BackupErasureLedgerReference = state.BackupErasureLedgerReference
 	// BackupErasureStreamState is bounded coordination for one Hash Slot erasure stream.
 	BackupErasureStreamState = state.BackupErasureStreamState
+	// BackupGenerationGCCursor is one bounded repository Generation sweep position.
+	BackupGenerationGCCursor = state.BackupGenerationGCCursor
 	// BackupSegmentReference binds a frontier to an immutable segment commit.
 	BackupSegmentReference = state.BackupSegmentReference
 	// BackupCatalogPageReference is the bounded immutable checkpoint catalog head.
