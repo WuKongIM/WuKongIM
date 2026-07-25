@@ -28,6 +28,68 @@ The bounded mapping includes one verification task and each retained restore
 point's latest audit evidence, allowing a new Controller Leader to resume the
 task without treating node-local metrics as authority.
 
+`ControllerSlotFrontierStore` updates one sorted per-Hash-Slot record inside
+the same bounded state. It fences on the Slot frontier revision, retries
+unrelated global Controller revision conflicts from a fresh snapshot, and
+therefore never overwrites concurrent checkpoint, verification, retention, or
+erasure coordination.
+
+## Continuous Sources
+
+`MetadataLogSource` maps the routed Slot Leader's last applied Raft index that
+affects the requested Hash Slot, plus the forward
+`ReadBackupMetadataLogPage` cursor, into continuous runtime pages. The
+cluster adapter builds a rebuildable sparse `(physical Slot, Hash Slot) -> Raft
+index` read index, so a physical Raft log is scanned once instead of once per
+logical Hash Slot. Unrelated commands therefore do not advance the logical
+watermark or trigger an empty frontier CAS. The index is populated only by
+backup reads and is discarded on node restart; retained RaftDB remains the
+correctness source.
+
+`MessageLogSource` pages authoritative Channel runtime metadata on the Slot
+Leader, routes fence-checked observations and committed-row reads to local or
+remote Channel Leaders, and compares those cuts with the cursor-only artifact
+referenced by the durable frontier. A bounded in-memory Channel hint selects
+hot work directly; hints may be dropped because each no-hint call examines at
+most one 256-entry metadata page and advances a disposable sweep from the
+durable rotation cursor. Restart begins that paged sweep again, so correctness
+does not depend on the hint queue or scan memory and a poll never opens every
+Channel store in a large Hash Slot. Each page groups boundary observations by
+Channel leader, producing at most one RPC and one runtime probe per leader
+group.
+An unfinished metadata sweep marks immediate discovery continuation, allowing
+the runtime to tail-requeue the Slot instead of waiting for the periodic poll.
+After a Slot frontier CAS failure, `ContinuousSource` drops the disposable
+message scan so the next attempt retries every admitted cut from the durable
+cursor.
+
+One observation pins one exact Channel epoch, retention start, HW, and time in
+the opaque cut cursor. `ReadPage` refreshes placement only, reads no later than
+that HW, and leaves post-observation commits for another cut. A durable partial
+segment carries the same target and consumed position, so restart completes it
+without substituting another Channel. The transient sweep advances past a
+completed target only after runtime validation has admitted the page to its
+rolling accumulator; a read or validation failure keeps the target pinned.
+Large remote rows are transferred in
+deterministic frame-bounded chunks. A node retains at most one encoded
+oversized page, and materialization is globally serialized per node; cache loss
+only causes an authoritative reread and is never correctness state.
+`ContinuousSource` combines this message adapter with the metadata adapter
+without merging their cursors or watermarks.
+
+`MessageCursorResolver` starts from `CursorHead`, opens cursor-only sidecars
+through `ReplicatedSegmentStore.Load`, validates Hash Slot, Generation,
+sequence, cursor continuity, and non-regressing source watermarks, then rebuilds
+the latest sorted Channel boundaries. Every 1024 sidecars a full cursor
+checkpoint terminates the delta chain. The resolver caches only the latest
+complete index per Hash Slot, capped globally by 256 entries and 64 MiB with
+LRU eviction, so normal advancement loads the new sidecar while restart work
+and resident cache memory remain bounded. Controller state never contains
+Channel identities or the cache.
+
+The runtime owns the pure pending-work and first-sequence rules. This package
+only converts cluster routing/boundary DTOs and performs repository adaptation.
+
 `Doctor.Check` reports primary repository, secondary repository, KMS, staging,
 and UTC-clock readiness individually with a bounded first-failure category.
 Manager status may expose those health buckets and configured regions, but

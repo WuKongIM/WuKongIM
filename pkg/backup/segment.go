@@ -31,6 +31,8 @@ const (
 	SegmentStreamMetadata SegmentStream = "metadata"
 	// SegmentStreamMessages contains committed Channel message changes for one Hash Slot.
 	SegmentStreamMessages SegmentStream = "messages"
+	// SegmentStreamMessageCursor contains immutable Channel cursor deltas for one message segment.
+	SegmentStreamMessageCursor SegmentStream = "message_cursor"
 	// SegmentStreamErasure contains permanent-erasure records for one Hash Slot.
 	SegmentStreamErasure SegmentStream = "erasure"
 )
@@ -282,7 +284,7 @@ func validateSegmentLogicalDescriptor(descriptor SegmentLogicalDescriptor) error
 		return err
 	}
 	switch descriptor.Stream {
-	case SegmentStreamMetadata, SegmentStreamMessages, SegmentStreamErasure:
+	case SegmentStreamMetadata, SegmentStreamMessages, SegmentStreamMessageCursor, SegmentStreamErasure:
 	default:
 		return fmt.Errorf("%w: segment stream %q is invalid", ErrInvalidObject, descriptor.Stream)
 	}

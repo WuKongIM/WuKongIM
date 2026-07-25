@@ -103,6 +103,10 @@ const (
 	RPCBackupRestoreVerify
 	// RPCManagerBackup routes bounded Manager backup operations to the current Controller leader.
 	RPCManagerBackup
+	// RPCBackupContinuousMessage reads bounded committed Channel cuts and rows on the source leader.
+	RPCBackupContinuousMessage
+	// RPCBackupContinuousSlot reads bounded metadata logs and Channel metadata on the Slot leader.
+	RPCBackupContinuousSlot
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -187,6 +191,10 @@ func transportServiceAlias(serviceID uint8) string {
 		return "backup restore verify"
 	case RPCManagerBackup:
 		return "manager backup"
+	case RPCBackupContinuousMessage:
+		return "backup continuous message"
+	case RPCBackupContinuousSlot:
+		return "backup continuous slot"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
 	case RPCNodeLifecycle:

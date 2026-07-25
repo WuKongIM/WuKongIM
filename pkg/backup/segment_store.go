@@ -27,6 +27,9 @@ type SegmentReference struct {
 	CommitKey string `json:"commit_key"`
 	// CommitSHA256 authenticates the exact signed commit bytes.
 	CommitSHA256 string `json:"commit_sha256"`
+	// PlaintextBytes is the authenticated decompressed object size. Callers use
+	// it to reserve memory before opening an immutable segment.
+	PlaintextBytes int64 `json:"plaintext_bytes"`
 }
 
 // ReplicatedSegmentStore makes segments visible only after both copies commit.
@@ -110,7 +113,7 @@ func (s *ReplicatedSegmentStore) Commit(ctx context.Context, descriptor SegmentD
 	bodyHash := sha256.Sum256(body)
 	reference := SegmentReference{
 		SegmentID: segmentID, CommitKey: segmentCommitKey(segmentID),
-		CommitSHA256: hex.EncodeToString(bodyHash[:]),
+		CommitSHA256: hex.EncodeToString(bodyHash[:]), PlaintextBytes: header.PlaintextBytes,
 	}
 	if err := putAndVerify(ctx, s.primary, commit.Payload.Key, commit.Payload.CiphertextSHA256, sealed.Ciphertext); err != nil {
 		return reference, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
@@ -150,6 +153,9 @@ func (s *ReplicatedSegmentStore) Load(ctx context.Context, reference SegmentRefe
 		return nil, fmt.Errorf("%w: replicated segment commits disagree", ErrRepositoryIncomplete)
 	}
 	commit := primaryCopy.commit
+	if commit.Header.PlaintextBytes != reference.PlaintextBytes {
+		return nil, fmt.Errorf("%w: segment reference plaintext size mismatch", ErrObjectCorrupt)
+	}
 	if err := s.validateCommitRepositories(commit); err != nil {
 		return nil, err
 	}
@@ -229,7 +235,7 @@ func (s *ReplicatedSegmentStore) reuseCommitted(ctx context.Context, expectedHea
 	}
 	reference := SegmentReference{
 		SegmentID: segmentID, CommitKey: segmentCommitKey(segmentID),
-		CommitSHA256: existing.checksum,
+		CommitSHA256: existing.checksum, PlaintextBytes: existing.commit.Header.PlaintextBytes,
 	}
 	source, err := s.findHealthyPayload(ctx, existing.commit.Payload)
 	if err != nil {
@@ -297,6 +303,9 @@ func validateSegmentReference(reference SegmentReference) error {
 	}
 	if err := validateSHA256(reference.CommitSHA256); err != nil {
 		return fmt.Errorf("%w: segment reference commit checksum: %v", ErrInvalidObject, err)
+	}
+	if reference.PlaintextBytes <= 0 || reference.PlaintextBytes > maxObjectPlaintextBytes {
+		return fmt.Errorf("%w: segment reference plaintext size is invalid", ErrInvalidObject)
 	}
 	return nil
 }

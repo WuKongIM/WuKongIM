@@ -78,7 +78,9 @@ segment contract. It is not wired into capture or restore scheduling yet.
 4. `ReplicatedSegmentStore.Commit` writes and verifies both payload copies,
    then the secondary and primary commit proofs. A failed call returns the
    stable attempt reference, but `Load` rejects it until identical commit and
-   payload copies exist in both repositories.
+   payload copies exist in both repositories. The reference repeats the
+   authenticated plaintext size, allowing callers to reserve memory before
+   opening it; `Load` verifies that size against the signed commit header.
 5. If either repository already has a valid signed commit, a retry verifies
    that its logical header matches the requested plaintext, repairs the missing
    payload and commit copy from the healthy repository, and does not request a
@@ -94,3 +96,25 @@ segment contract. It is not wired into capture or restore scheduling yet.
    segments. The later capture runtime must apply its smaller rolling target
    and node-level concurrency budget before materializing plaintext and calling
    this boundary.
+8. `SegmentBatch` is the strict portable plaintext inside continuous metadata
+   and message segments. It binds the source page cursor interval, observed
+   high watermark, prior committed Segment reference, ordered record frames,
+   and independent record/cursor checksums. Message batches embed a bounded
+   sorted `ChannelBoundary` index; metadata batches reject that index. The
+   cursor list therefore remains in immutable repository artifacts instead of
+   bounded Controller coordination state.
+9. Each metadata record inside a metadata `SegmentBatch` uses the strict binary
+   `MetadataLogRecord` envelope. It preserves the logical Hash Slot, physical
+   Slot Raft index/term, proposer timestamp, and exact FSM command bytes needed
+   for ordered replay; malformed lengths, empty commands, and trailing bytes
+   fail closed.
+10. `MessageLogRecord` is the strict portable committed Channel row. It carries
+    Channel identity/epoch/retention cut plus durable message sequence, message
+    ID, idempotency/display fields, flags, timestamp, and payload. A distinct
+    boundary-only kind represents epoch or retention movement without
+    fabricating a message.
+11. `MessageCursorBatch` is a cursor-only immutable sidecar stored under the
+    `message_cursor` stream. Ordinary batches contain sorted cursor deltas and
+    link only to the previous cursor sidecar, never to payload segments. A full
+    checkpoint has no predecessor and bounds chain reconstruction to 1024
+    sidecars.

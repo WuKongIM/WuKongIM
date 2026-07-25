@@ -157,6 +157,51 @@ type BackupErasureLedgerReference struct {
 	RecordSHA256 string `json:"record_sha256"`
 }
 
+// BackupSegmentReference binds a Controller frontier to one immutable dual-repository commit.
+type BackupSegmentReference struct {
+	// SegmentID is the canonical segment-header SHA-256.
+	SegmentID string `json:"segment_id"`
+	// CommitKey locates the immutable signed commit record.
+	CommitKey string `json:"commit_key"`
+	// CommitSHA256 authenticates the exact signed commit bytes.
+	CommitSHA256 string `json:"commit_sha256"`
+	// PlaintextBytes is the authenticated decompressed segment size.
+	PlaintextBytes int64 `json:"plaintext_bytes"`
+}
+
+// BackupStreamFrontier is the compact durable head of one continuous Slot stream.
+type BackupStreamFrontier struct {
+	// Sequence is the latest committed segment sequence in the current Generation.
+	Sequence uint64 `json:"sequence"`
+	// Head authenticates the latest segment; nil means the stream has emitted no data.
+	Head *BackupSegmentReference `json:"head,omitempty"`
+	// CursorHead authenticates the latest cursor-only message sidecar.
+	CursorHead *BackupSegmentReference `json:"cursor_head,omitempty"`
+	// SourceCursor is the bounded opaque reconciliation cursor.
+	SourceCursor string `json:"source_cursor,omitempty"`
+	// SourceHighWatermark is the greatest fully reconciled committed source position.
+	SourceHighWatermark uint64 `json:"source_high_watermark"`
+	// WatermarkAtUnixMillis is the UTC source time represented by the high watermark.
+	WatermarkAtUnixMillis int64 `json:"watermark_at_unix_millis"`
+}
+
+// BackupSlotFrontier atomically binds metadata and message stream heads for one Hash Slot.
+type BackupSlotFrontier struct {
+	// Revision fences compare-and-swap updates to this Slot record.
+	Revision uint64 `json:"revision"`
+	// HashSlot identifies the logical cluster partition.
+	HashSlot uint16 `json:"hash_slot"`
+	// Generation identifies the independently replaceable immutable segment graph.
+	Generation string `json:"generation"`
+	// Metadata and Messages are separate streams advanced through this one record.
+	Metadata BackupStreamFrontier `json:"metadata"`
+	Messages BackupStreamFrontier `json:"messages"`
+	// WatermarkAtUnixMillis is the older fully reconciled stream time.
+	WatermarkAtUnixMillis int64 `json:"watermark_at_unix_millis"`
+	// UpdatedAtUnixMillis is the UTC time of the latest frontier commit.
+	UpdatedAtUnixMillis int64 `json:"updated_at_unix_millis"`
+}
+
 // BackupCoordinationState stores only bounded backup coordination metadata in Controller Raft.
 type BackupCoordinationState struct {
 	// LastEpoch is the latest allocated backup epoch.
@@ -169,6 +214,8 @@ type BackupCoordinationState struct {
 	RestorePoints []BackupRestorePoint `json:"restore_points"`
 	// PendingGarbage contains expired restore-point graphs awaiting reference-safe repository collection.
 	PendingGarbage []BackupRestorePoint `json:"pending_garbage,omitempty"`
+	// SlotFrontiers contains at most one compact sorted record per configured Hash Slot.
+	SlotFrontiers []BackupSlotFrontier `json:"slot_frontiers,omitempty"`
 	// ErasureLedgerBoundary is the highest durably committed contiguous ledger sequence.
 	ErasureLedgerBoundary uint64 `json:"erasure_ledger_boundary,omitempty"`
 	// PendingErasureLedger contains at most one record awaiting commit-marker publication.
@@ -191,6 +238,7 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 	}
 	out.RestorePoints = cloneBackupRestorePoints(s.RestorePoints)
 	out.PendingGarbage = cloneBackupRestorePoints(s.PendingGarbage)
+	out.SlotFrontiers = cloneBackupSlotFrontiers(s.SlotFrontiers)
 	if s.PendingErasureLedger != nil {
 		pending := *s.PendingErasureLedger
 		out.PendingErasureLedger = &pending
@@ -198,6 +246,29 @@ func (s BackupCoordinationState) Clone() BackupCoordinationState {
 	if s.LastCommittedErasureLedger != nil {
 		committed := *s.LastCommittedErasureLedger
 		out.LastCommittedErasureLedger = &committed
+	}
+	return out
+}
+
+func cloneBackupSlotFrontiers(frontiers []BackupSlotFrontier) []BackupSlotFrontier {
+	out := cloneSlice(frontiers)
+	for index := range out {
+		if frontiers[index].Metadata.Head != nil {
+			head := *frontiers[index].Metadata.Head
+			out[index].Metadata.Head = &head
+		}
+		if frontiers[index].Metadata.CursorHead != nil {
+			head := *frontiers[index].Metadata.CursorHead
+			out[index].Metadata.CursorHead = &head
+		}
+		if frontiers[index].Messages.Head != nil {
+			head := *frontiers[index].Messages.Head
+			out[index].Messages.Head = &head
+		}
+		if frontiers[index].Messages.CursorHead != nil {
+			head := *frontiers[index].Messages.CursorHead
+			out[index].Messages.CursorHead = &head
+		}
 	}
 	return out
 }

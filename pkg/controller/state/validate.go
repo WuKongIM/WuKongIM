@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
@@ -123,6 +124,26 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 	if len(backup.RestorePoints)+len(backup.PendingGarbage) > MaxBackupRestorePoints {
 		return invalid("backup restore-point references exceed limit")
 	}
+	if len(backup.SlotFrontiers) > int(hashSlotCount) {
+		return invalid("backup Slot frontiers exceed hash_slot_count")
+	}
+	for index, frontier := range backup.SlotFrontiers {
+		if index > 0 && backup.SlotFrontiers[index-1].HashSlot >= frontier.HashSlot {
+			return invalid("backup Slot frontiers must be unique and sorted")
+		}
+		if frontier.HashSlot >= hashSlotCount || frontier.Revision == 0 ||
+			!validBackupIdentity(frontier.Generation) || frontier.UpdatedAtUnixMillis <= 0 ||
+			!validBackupStreamFrontier(frontier.Metadata) ||
+			!validBackupStreamFrontier(frontier.Messages) ||
+			frontier.Metadata.CursorHead != nil ||
+			(frontier.Messages.Sequence > 0 && frontier.Messages.CursorHead == nil) ||
+			frontier.WatermarkAtUnixMillis != olderBackupWatermark(
+				frontier.Metadata.WatermarkAtUnixMillis,
+				frontier.Messages.WatermarkAtUnixMillis,
+			) {
+			return invalid("backup Slot frontier is invalid")
+		}
+	}
 	if backup.PendingErasureLedger != nil {
 		pending := backup.PendingErasureLedger
 		if backup.ErasureLedgerBoundary == math.MaxUint64 || pending.Sequence != backup.ErasureLedgerBoundary+1 || !validSHA256(pending.EventID) || !validSHA256(pending.RecordSHA256) || backupartifact.ValidateErasureLedgerRecordKey(pending.RecordKey, pending.EventID) != nil {
@@ -217,6 +238,42 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		return invalid("backup verification target is missing")
 	}
 	return nil
+}
+
+func validBackupStreamFrontier(frontier BackupStreamFrontier) bool {
+	if len(frontier.SourceCursor) > 8<<10 || !utf8.ValidString(frontier.SourceCursor) ||
+		frontier.WatermarkAtUnixMillis < 0 {
+		return false
+	}
+	if frontier.SourceHighWatermark > 0 && frontier.WatermarkAtUnixMillis <= 0 {
+		return false
+	}
+	if frontier.Sequence == 0 {
+		return frontier.Head == nil && frontier.CursorHead == nil
+	}
+	if frontier.Head == nil ||
+		!validSHA256(frontier.Head.SegmentID) ||
+		!validSHA256(frontier.Head.CommitSHA256) ||
+		frontier.Head.PlaintextBytes <= 0 || frontier.Head.PlaintextBytes > 256<<20 ||
+		frontier.Head.CommitKey != "segments/"+frontier.Head.SegmentID+"/commit.json" {
+		return false
+	}
+	return frontier.CursorHead == nil ||
+		(validSHA256(frontier.CursorHead.SegmentID) &&
+			validSHA256(frontier.CursorHead.CommitSHA256) &&
+			frontier.CursorHead.PlaintextBytes > 0 &&
+			frontier.CursorHead.PlaintextBytes <= 256<<20 &&
+			frontier.CursorHead.CommitKey == "segments/"+frontier.CursorHead.SegmentID+"/commit.json")
+}
+
+func olderBackupWatermark(left, right int64) int64 {
+	if left <= 0 {
+		return right
+	}
+	if right <= 0 || left < right {
+		return left
+	}
+	return right
 }
 
 func validBackupVerificationEvidence(evidence BackupVerificationEvidence) bool {

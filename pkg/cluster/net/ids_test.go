@@ -60,6 +60,8 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_task_audit":        RPCManagerTaskAudit,
 		"channel_migration_meta":    RPCChannelMigrationMeta,
 		"message_event_append":      RPCMessageEventAppend,
+		"backup_continuous_message": RPCBackupContinuousMessage,
+		"backup_continuous_slot":    RPCBackupContinuousSlot,
 	}
 }
 

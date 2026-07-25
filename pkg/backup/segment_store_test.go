@@ -34,6 +34,9 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	if keys.generates != 1 {
 		t.Fatalf("first Commit() generated %d data keys, want 1", keys.generates)
 	}
+	if first.PlaintextBytes != int64(len(plaintext)) {
+		t.Fatalf("reference plaintext bytes = %d, want %d", first.PlaintextBytes, len(plaintext))
+	}
 	second, err := store.Commit(context.Background(), descriptor, plaintext)
 	if err != nil {
 		t.Fatalf("retry Commit() error = %v", err)
@@ -50,6 +53,11 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	}
 	if !bytes.Equal(restored, plaintext) {
 		t.Fatalf("Load() payload = %q, want %q", restored, plaintext)
+	}
+	wrongSize := first
+	wrongSize.PlaintextBytes++
+	if _, err := store.Load(context.Background(), wrongSize); !errors.Is(err, backup.ErrObjectCorrupt) {
+		t.Fatalf("Load(wrong reference size) error = %v, want %v", err, backup.ErrObjectCorrupt)
 	}
 
 	commit, err := backup.LoadSegmentCommit(context.Background(), primary.body(first.CommitKey), signer)

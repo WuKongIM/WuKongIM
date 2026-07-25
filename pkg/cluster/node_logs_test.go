@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -150,6 +151,218 @@ func TestLocalSlotLogEntriesReadsDefaultSlotRaftDB(t *testing.T) {
 	if got.Items[1].CreatedAtMS != createdAtMS {
 		t.Fatalf("slot entry created_at_ms = %d, want %d", got.Items[1].CreatedAtMS, createdAtMS)
 	}
+}
+
+func TestReadBackupMetadataLogPageUsesAppliedRaftDBAndLogicalSlotFilter(t *testing.T) {
+	ctx := context.Background()
+	db, err := raftlog.Open(t.TempDir(), raftlog.Options{})
+	if err != nil {
+		t.Fatalf("raftlog.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	storage := db.ForSlot(9)
+	entries := []raftpb.Entry{
+		{Index: 1, Term: 1, Type: raftpb.EntryNormal},
+		{Index: 2, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(7, 1_781_754_611_123, metafsm.EncodeNoopCommand())},
+		{Index: 3, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(8, 1_781_754_611_124, metafsm.EncodeNoopCommand())},
+		{Index: 4, Term: 2, Type: raftpb.EntryConfChange, Data: mustSlotLogConfChangeData(t, 2)},
+	}
+	if err := storage.Save(ctx, multiraft.PersistentState{Entries: entries}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	first, err := readBackupMetadataLogPage(ctx, storage, BackupMetadataLogPageRequest{
+		HashSlot: 7, ThroughIndex: 4, TargetBytes: 16, MaxBytes: 1 << 20, MaxRecords: 2,
+	})
+	if err != nil {
+		t.Fatalf("readBackupMetadataLogPage(first) error = %v", err)
+	}
+	if first.NextIndex != 2 || first.Done || len(first.Records) != 1 {
+		t.Fatalf("first page = %#v", first)
+	}
+	record, err := backup.LoadMetadataLogRecord(first.Records[0])
+	if err != nil {
+		t.Fatalf("LoadMetadataLogRecord() error = %v", err)
+	}
+	if record.HashSlot != 7 || record.RaftIndex != 2 || record.RaftTerm != 2 {
+		t.Fatalf("metadata record = %#v", record)
+	}
+
+	second, err := readBackupMetadataLogPage(ctx, storage, BackupMetadataLogPageRequest{
+		HashSlot: 7, AfterIndex: first.NextIndex, ThroughIndex: 4,
+		TargetBytes: 16, MaxBytes: 1 << 20, MaxRecords: 2,
+	})
+	if err != nil {
+		t.Fatalf("readBackupMetadataLogPage(second) error = %v", err)
+	}
+	if second.NextIndex != 4 || !second.Done || len(second.Records) != 0 {
+		t.Fatalf("second page = %#v", second)
+	}
+}
+
+func TestBackupMetadataSparseIndexSharesBuildAcrossLogicalWindowReads(t *testing.T) {
+	ctx := context.Background()
+	db, err := raftlog.Open(t.TempDir(), raftlog.Options{})
+	if err != nil {
+		t.Fatalf("raftlog.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	storage := db.ForSlot(9)
+	entries := []raftpb.Entry{
+		{Index: 1, Term: 1, Type: raftpb.EntryNormal},
+		{Index: 2, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(7, 1_781_754_611_123, metafsm.EncodeNoopCommand())},
+		{Index: 3, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(8, 1_781_754_611_124, metafsm.EncodeNoopCommand())},
+		{Index: 4, Term: 2, Type: raftpb.EntryConfChange, Data: mustSlotLogConfChangeData(t, 2)},
+	}
+	if err := storage.Save(ctx, multiraft.PersistentState{Entries: entries}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	counting := &countingBackupSlotLogStorage{slotLogStorage: storage}
+	index := newBackupMetadataLogIndex()
+	for _, hashSlot := range []uint16{7, 8} {
+		page, err := index.readPage(ctx, 9, counting, BackupMetadataLogPageRequest{
+			HashSlot: hashSlot, ThroughIndex: 4,
+			TargetBytes: 1 << 20, MaxBytes: 1 << 20, MaxRecords: 16,
+		})
+		if err != nil {
+			t.Fatalf("readPage(hash slot %d) error = %v", hashSlot, err)
+		}
+		if !page.Done || len(page.Records) != 1 {
+			t.Fatalf("readPage(hash slot %d) = %#v", hashSlot, page)
+		}
+	}
+	if counting.physicalScans != 3 {
+		t.Fatalf("physical range reads = %d, want one shared index build plus two logical windows", counting.physicalScans)
+	}
+}
+
+func TestBackupMetadataSparseIndexHighWatermarkIgnoresOtherHashSlots(t *testing.T) {
+	ctx := context.Background()
+	db, err := raftlog.Open(t.TempDir(), raftlog.Options{})
+	if err != nil {
+		t.Fatalf("raftlog.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	storage := db.ForSlot(9)
+	entries := []raftpb.Entry{
+		{Index: 1, Term: 1, Type: raftpb.EntryNormal},
+		{Index: 2, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(7, 1_781_754_611_123, metafsm.EncodeNoopCommand())},
+		{Index: 3, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(8, 1_781_754_611_124, metafsm.EncodeNoopCommand())},
+		{Index: 4, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(8, 1_781_754_611_125, metafsm.EncodeNoopCommand())},
+	}
+	if err := storage.Save(ctx, multiraft.PersistentState{Entries: entries}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	counting := &countingBackupSlotLogStorage{slotLogStorage: storage}
+	index := newBackupMetadataLogIndex()
+	first, err := index.highWatermark(ctx, 9, counting, 7, 3)
+	if err != nil {
+		t.Fatalf("highWatermark(first) error = %v", err)
+	}
+	second, err := index.highWatermark(ctx, 9, counting, 7, 4)
+	if err != nil {
+		t.Fatalf("highWatermark(second) error = %v", err)
+	}
+	other, err := index.highWatermark(ctx, 9, counting, 8, 4)
+	if err != nil {
+		t.Fatalf("highWatermark(other) error = %v", err)
+	}
+	if first != 2 || second != 2 || other != 4 {
+		t.Fatalf("logical watermarks = %d/%d/%d, want 2/2/4", first, second, other)
+	}
+	if counting.physicalScans != 1 {
+		t.Fatalf("shared multi-entry physical scans = %d, want 1", counting.physicalScans)
+	}
+}
+
+func TestBackupMetadataSparseIndexBatchReadsDenseMatchingRange(t *testing.T) {
+	ctx := context.Background()
+	db, err := raftlog.Open(t.TempDir(), raftlog.Options{})
+	if err != nil {
+		t.Fatalf("raftlog.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	storage := db.ForSlot(9)
+	entries := make([]raftpb.Entry, 100)
+	for index := range entries {
+		entries[index] = raftpb.Entry{
+			Index: uint64(index + 1), Term: 2, Type: raftpb.EntryNormal,
+			Data: multiraftPayloadWithCreatedAt(
+				7, 1_781_754_611_123+int64(index), metafsm.EncodeNoopCommand(),
+			),
+		}
+	}
+	if err := storage.Save(ctx, multiraft.PersistentState{Entries: entries}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	counting := &countingBackupSlotLogStorage{slotLogStorage: storage}
+	page, err := newBackupMetadataLogIndex().readPage(ctx, 9, counting, BackupMetadataLogPageRequest{
+		HashSlot: 7, ThroughIndex: 100,
+		TargetBytes: 1 << 20, MaxBytes: 1 << 20, MaxRecords: 256,
+	})
+	if err != nil {
+		t.Fatalf("readPage() error = %v", err)
+	}
+	if !page.Done || len(page.Records) != 100 {
+		t.Fatalf("dense metadata page = %#v", page)
+	}
+	if counting.entriesCalls != 2 {
+		t.Fatalf("RaftDB Entries calls = %d, want one index scan plus one dense range read", counting.entriesCalls)
+	}
+}
+
+func TestBackupMetadataSparseIndexBatchReadsInterleavedPhysicalWindow(t *testing.T) {
+	ctx := context.Background()
+	db, err := raftlog.Open(t.TempDir(), raftlog.Options{})
+	if err != nil {
+		t.Fatalf("raftlog.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	storage := db.ForSlot(9)
+	entries := make([]raftpb.Entry, 100)
+	for index := range entries {
+		hashSlot := uint16(7)
+		if index%2 == 1 {
+			hashSlot = 8
+		}
+		entries[index] = raftpb.Entry{
+			Index: uint64(index + 1), Term: 2, Type: raftpb.EntryNormal,
+			Data: multiraftPayloadWithCreatedAt(
+				hashSlot, 1_781_754_611_123+int64(index), metafsm.EncodeNoopCommand(),
+			),
+		}
+	}
+	if err := storage.Save(ctx, multiraft.PersistentState{Entries: entries}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	counting := &countingBackupSlotLogStorage{slotLogStorage: storage}
+	page, err := newBackupMetadataLogIndex().readPage(ctx, 9, counting, BackupMetadataLogPageRequest{
+		HashSlot: 7, ThroughIndex: 100,
+		TargetBytes: 1 << 20, MaxBytes: 1 << 20, MaxRecords: 256,
+	})
+	if err != nil {
+		t.Fatalf("readPage() error = %v", err)
+	}
+	if !page.Done || len(page.Records) != 50 {
+		t.Fatalf("interleaved metadata page done=%v records=%d", page.Done, len(page.Records))
+	}
+	if counting.entriesCalls != 2 {
+		t.Fatalf("RaftDB Entries calls = %d, want one index scan plus one physical window read", counting.entriesCalls)
+	}
+}
+
+type countingBackupSlotLogStorage struct {
+	slotLogStorage
+	physicalScans int
+	entriesCalls  int
+}
+
+func (s *countingBackupSlotLogStorage) Entries(ctx context.Context, lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+	s.entriesCalls++
+	if hi > lo+1 {
+		s.physicalScans++
+	}
+	return s.slotLogStorage.Entries(ctx, lo, hi, maxSize)
 }
 
 func TestLocalCompactSlotRaftLogUsesDefaultSlotRuntime(t *testing.T) {

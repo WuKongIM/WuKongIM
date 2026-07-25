@@ -436,7 +436,8 @@ func (n *Node) CaptureBackupHashSlotSnapshot(ctx context.Context, hashSlot uint1
 	return n.defaultSlotRuntime.CaptureHashSlotSnapshot(ctx, multiraft.SlotID(route.SlotID), hashSlot)
 }
 
-// ListBackupChannelRuntimeMetaPage reads one exact hash-slot metadata page.
+// ListBackupChannelRuntimeMetaPage routes one exact hash-slot metadata page to
+// its Slot Leader.
 // Callers that need a stable view must fence the scan with equal applied
 // indexes before and after the complete scan.
 func (n *Node) ListBackupChannelRuntimeMetaPage(ctx context.Context, hashSlot uint16, after metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
@@ -446,6 +447,21 @@ func (n *Node) ListBackupChannelRuntimeMetaPage(ctx context.Context, hashSlot ui
 	if limit <= 0 {
 		return nil, metadb.ChannelRuntimeMetaCursor{}, false, metadb.ErrInvalidArgument
 	}
+	route, err := n.RouteHashSlot(hashSlot)
+	if err != nil {
+		return nil, metadb.ChannelRuntimeMetaCursor{}, false, err
+	}
+	if route.Leader != n.NodeID() {
+		response, err := n.callBackupContinuousSlot(ctx, route.Leader, backupContinuousSlotRPCRequest{
+			Action: backupContinuousSlotActionChannelMeta, HashSlot: hashSlot,
+			After: after, Limit: limit,
+		})
+		return response.ChannelMeta, response.Next, response.Done, err
+	}
+	return n.listBackupChannelRuntimeMetaPageLocal(ctx, hashSlot, after, limit)
+}
+
+func (n *Node) listBackupChannelRuntimeMetaPageLocal(ctx context.Context, hashSlot uint16, after metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
 	route, err := n.RouteHashSlot(hashSlot)
 	if err != nil {
 		return nil, metadb.ChannelRuntimeMetaCursor{}, false, err

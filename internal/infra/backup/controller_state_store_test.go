@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
+	backupruntime "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/stretchr/testify/require"
@@ -128,11 +130,50 @@ func TestControllerStateStoreMapsRevisionConflict(t *testing.T) {
 	require.ErrorIs(t, err, backupusecase.ErrStateConflict)
 }
 
+func TestControllerSlotFrontierStoreRetriesGlobalConflictWithoutLosingCoordinationState(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{
+		Revision: 8,
+		Backup: &controller.BackupCoordinationState{
+			LastEpoch:      3,
+			RestorePoints:  []controller.BackupRestorePoint{},
+			PendingGarbage: []controller.BackupRestorePoint{},
+		},
+	}}
+	coordination, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	frontiers, err := backupinfra.NewControllerSlotFrontierStore(coordination)
+	require.NoError(t, err)
+	runtime.onConflict = func() {
+		runtime.state.Revision = 9
+		runtime.state.Backup.LastEpoch = 4
+	}
+	next := backupcontract.SlotFrontier{
+		Revision: 1, HashSlot: 17, Generation: "slot-generation-1",
+		Metadata:              backupcontract.StreamFrontier{SourceHighWatermark: 3, WatermarkAtUnixMillis: 1_753_400_100_000},
+		Messages:              backupcontract.StreamFrontier{SourceHighWatermark: 5, WatermarkAtUnixMillis: 1_753_400_090_000},
+		WatermarkAtUnixMillis: 1_753_400_090_000,
+		UpdatedAtUnixMillis:   1_753_400_110_000,
+	}
+
+	require.NoError(t, frontiers.CompareAndSwap(context.Background(), 0, next))
+	require.Equal(t, 2, runtime.replaceCalls)
+	require.Equal(t, uint64(4), runtime.replacement.LastEpoch)
+	require.Len(t, runtime.replacement.SlotFrontiers, 1)
+
+	snapshot, err := frontiers.Load(context.Background(), 17)
+	require.NoError(t, err)
+	require.True(t, snapshot.Found)
+	require.Equal(t, uint64(1), snapshot.Frontier.Revision)
+	require.Equal(t, uint64(5), snapshot.Frontier.Messages.SourceHighWatermark)
+}
+
 type fakeBackupController struct {
 	state            controller.ClusterState
 	expectedRevision uint64
 	replacement      controller.BackupCoordinationState
 	replaceErr       error
+	replaceCalls     int
+	onConflict       func()
 }
 
 func (c *fakeBackupController) LoadBackupCoordinationState(context.Context) (controller.ClusterState, error) {
@@ -140,7 +181,20 @@ func (c *fakeBackupController) LoadBackupCoordinationState(context.Context) (con
 }
 
 func (c *fakeBackupController) ReplaceBackupCoordinationState(_ context.Context, expectedRevision uint64, replacement controller.BackupCoordinationState) error {
+	c.replaceCalls++
 	c.expectedRevision = expectedRevision
 	c.replacement = replacement.Clone()
+	if c.onConflict != nil {
+		onConflict := c.onConflict
+		c.onConflict = nil
+		onConflict()
+		return controller.ErrExpectedRevisionMismatch
+	}
+	if c.replaceErr == nil {
+		c.state.Revision = expectedRevision + 1
+		c.state.Backup = &c.replacement
+	}
 	return c.replaceErr
 }
+
+var _ backupruntime.SlotFrontierStore = (*backupinfra.ControllerSlotFrontierStore)(nil)

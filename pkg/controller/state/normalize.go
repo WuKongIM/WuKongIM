@@ -70,6 +70,9 @@ func (s *ClusterState) Normalize() {
 			}
 			return s.Backup.PendingGarbage[i].CreatedAtUnixMillis < s.Backup.PendingGarbage[j].CreatedAtUnixMillis
 		})
+		sort.Slice(s.Backup.SlotFrontiers, func(i, j int) bool {
+			return s.Backup.SlotFrontiers[i].HashSlot < s.Backup.SlotFrontiers[j].HashSlot
+		})
 	}
 	if s.Restore != nil && s.Restore.Plan != nil {
 		if s.Restore.Plan.ErasureLedgerVersion == 0 && s.Restore.Plan.ErasureLedgerBoundary == 0 && s.Restore.Plan.ErasureLedgerSHA256 == "" {

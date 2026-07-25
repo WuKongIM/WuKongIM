@@ -386,6 +386,8 @@ func (n *Node) discardDefaultSlots() {
 		_ = n.defaultSlotMetaDB.Close()
 		n.defaultSlotMetaDB = nil
 	}
+	n.backupMetadataIndex = newBackupMetadataLogIndex()
+	n.backupContinuousChunks.clear()
 	n.defaultSlotProposer = nil
 	n.slots = nil
 	if n.defaultPreferredLeaderReconciler {

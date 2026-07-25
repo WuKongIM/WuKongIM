@@ -443,6 +443,46 @@ func TestValidateRejectsNonContiguousPendingErasureLedgerCommit(t *testing.T) {
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
+func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
+	st := testState()
+	segmentID := strings.Repeat("a", 64)
+	cursorID := strings.Repeat("c", 64)
+	st.Backup = &BackupCoordinationState{
+		RestorePoints:  []BackupRestorePoint{},
+		PendingGarbage: []BackupRestorePoint{},
+		SlotFrontiers: []BackupSlotFrontier{{
+			Revision: 1, HashSlot: 1, Generation: "slot-generation-1",
+			Metadata: BackupStreamFrontier{
+				SourceHighWatermark: 3, SourceCursor: "metadata/3",
+				WatermarkAtUnixMillis: 1_753_400_100_000,
+			},
+			Messages: BackupStreamFrontier{
+				Sequence: 1, SourceHighWatermark: 5, SourceCursor: "messages/5",
+				WatermarkAtUnixMillis: 1_753_400_090_000,
+				Head: &BackupSegmentReference{
+					SegmentID: segmentID, CommitKey: "segments/" + segmentID + "/commit.json",
+					CommitSHA256: strings.Repeat("b", 64), PlaintextBytes: 1,
+				},
+				CursorHead: &BackupSegmentReference{
+					SegmentID: cursorID, CommitKey: "segments/" + cursorID + "/commit.json",
+					CommitSHA256: strings.Repeat("d", 64), PlaintextBytes: 1,
+				},
+			},
+			WatermarkAtUnixMillis: 1_753_400_090_000,
+			UpdatedAtUnixMillis:   1_753_400_110_000,
+		}},
+	}
+
+	body, err := Encode(st)
+	require.NoError(t, err)
+	decoded, err := Decode(body)
+	require.NoError(t, err)
+	require.Len(t, decoded.Backup.SlotFrontiers, 1)
+	require.Equal(t, uint64(5), decoded.Backup.SlotFrontiers[0].Messages.SourceHighWatermark)
+	require.Equal(t, segmentID, decoded.Backup.SlotFrontiers[0].Messages.Head.SegmentID)
+	require.Equal(t, cursorID, decoded.Backup.SlotFrontiers[0].Messages.CursorHead.SegmentID)
+}
+
 func TestDecodeRejectsUnknownNestedField(t *testing.T) {
 	data, err := Encode(testState())
 	require.NoError(t, err)

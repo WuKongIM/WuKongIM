@@ -711,6 +711,33 @@ also reads the Multi-Raft proposal envelope's `created_at_ms` timestamp when
 present. These methods are read-only diagnostics for manager UI pages; they do
 not route writes, replay entries, or mutate Raft storage.
 
+Continuous backup uses a separate forward-only source facade.
+`ObserveBackupMetadataHighWatermark` routes to the Slot Leader and returns the
+last applied Raft index that mutates the requested Hash Slot.
+`ReadBackupMetadataLogPage` pins that logical cut and uses a rebuildable
+sparse index over the real retained Slot RaftDB. Each physical log range is
+decoded once to record affected Hash Slot/index pairs; per-Hash-Slot capture
+then reads one bounded physical window and filters it through the sparse index,
+so interleaved Hash Slots do not degrade into one RaftDB read per matching
+command. The index is read-path-only, prunes with
+Raft compaction, and is rebuilt after restart. Unrelated physical entries do
+not advance a logical watermark or Controller frontier. A cursor older than
+the first retained entry returns `ErrBackupSourceCompacted`.
+
+`ObserveBackupMessageChannel`, its 256-entry leader-batched form, and
+`ReadBackupMessageLogPage` validate Channel leader, channel/leader epochs,
+MinISR, retention cut, and committed HW before reading the existing Channel
+store. The same methods route to a remote Channel Leader in a multi-node
+cluster through `RPCBackupContinuousMessage`; one batch uses one runtime probe
+per leader. Page responses use raw binary records split into frame-bounded
+chunks, including a single legal oversized record. One node-local encoded-page
+cache avoids rereading each chunk and is bounded to a single page. A
+cross-key lease serializes full-page materialization while same-key waiters
+share the resident body; handlers copy only one bounded chunk before releasing
+the lease. Concurrent RPC encoding therefore cannot retain multiple 256 MiB
+pages, while cache loss only causes an authoritative reread. These are background read facades and
+never add repository, KMS, or outbox work to Channel append.
+
 `Node.LocalControllerRaftStatus`, `Node.LocalCompactControllerRaftLog`, and
 `Node.PrepareControllerVoter` are separate node-local Controller Raft
 management facades. Status reports local role, term, commit/apply, and durable

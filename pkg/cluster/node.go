@@ -118,6 +118,12 @@ type Node struct {
 	defaultSlotRuntime *multiraft.Runtime
 	// defaultSlotRaftDB owns the Node-created Slot Raft log store.
 	defaultSlotRaftDB *raftlog.DB
+	// backupMetadataIndex is a rebuildable sparse read index over retained Slot
+	// Raft logs. It is populated only by background continuous capture reads.
+	backupMetadataIndex *backupMetadataLogIndex
+	// backupContinuousChunks bounds oversized backup RPC page reuse to one
+	// encoded page; eviction only causes an authoritative source re-read.
+	backupContinuousChunks backupContinuousChunkCache
 	// defaultSlotMetaDB owns the Node-created Slot metadata store.
 	defaultSlotMetaDB *metadb.DB
 	// defaultSlotProposer adapts the default Slot runtime to the propose service.
@@ -206,7 +212,7 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0), messageEventFinishCoalescer: newMessageEventFinishCoalescer(defaultMessageEventFinishCoalesceWindow)}
+	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0), messageEventFinishCoalescer: newMessageEventFinishCoalescer(defaultMessageEventFinishCoalesceWindow), backupMetadataIndex: newBackupMetadataLogIndex()}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)

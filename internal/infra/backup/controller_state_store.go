@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
@@ -54,6 +55,10 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	for index, restorePoint := range clusterState.Backup.PendingGarbage {
 		result.PendingGarbage[index] = restorePointFromController(restorePoint)
 	}
+	result.SlotFrontiers = make([]backupcontract.SlotFrontier, len(clusterState.Backup.SlotFrontiers))
+	for index, frontier := range clusterState.Backup.SlotFrontiers {
+		result.SlotFrontiers[index] = slotFrontierFromController(frontier)
+	}
 	return result, nil
 }
 
@@ -65,6 +70,7 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		Verification:               verificationTaskToController(next.Verification),
 		RestorePoints:              make([]controller.BackupRestorePoint, len(next.RestorePoints)),
 		PendingGarbage:             make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
+		SlotFrontiers:              make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
 		ErasureLedgerBoundary:      next.ErasureLedgerBoundary,
 		PendingErasureLedger:       erasureLedgerReferenceToController(next.PendingErasureLedger),
 		LastCommittedErasureLedger: erasureLedgerReferenceToController(next.LastCommittedErasureLedger),
@@ -75,6 +81,9 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 	for index, restorePoint := range next.PendingGarbage {
 		replacement.PendingGarbage[index] = restorePointToController(restorePoint)
 	}
+	for index, frontier := range next.SlotFrontiers {
+		replacement.SlotFrontiers[index] = slotFrontierToController(frontier)
+	}
 	if err := s.controller.ReplaceBackupCoordinationState(ctx, revision, replacement); err != nil {
 		if controller.IsExpectedRevisionMismatch(err) {
 			return backupusecase.ErrStateConflict
@@ -82,6 +91,64 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		return err
 	}
 	return nil
+}
+
+func slotFrontierFromController(frontier controller.BackupSlotFrontier) backupcontract.SlotFrontier {
+	return backupcontract.SlotFrontier{
+		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
+		Metadata:              streamFrontierFromController(frontier.Metadata),
+		Messages:              streamFrontierFromController(frontier.Messages),
+		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
+		UpdatedAtUnixMillis:   frontier.UpdatedAtUnixMillis,
+	}
+}
+
+func slotFrontierToController(frontier backupcontract.SlotFrontier) controller.BackupSlotFrontier {
+	return controller.BackupSlotFrontier{
+		Revision: frontier.Revision, HashSlot: frontier.HashSlot, Generation: frontier.Generation,
+		Metadata:              streamFrontierToController(frontier.Metadata),
+		Messages:              streamFrontierToController(frontier.Messages),
+		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
+		UpdatedAtUnixMillis:   frontier.UpdatedAtUnixMillis,
+	}
+}
+
+func streamFrontierFromController(frontier controller.BackupStreamFrontier) backupcontract.StreamFrontier {
+	return backupcontract.StreamFrontier{
+		Sequence: frontier.Sequence, Head: segmentReferenceFromController(frontier.Head),
+		CursorHead:   segmentReferenceFromController(frontier.CursorHead),
+		SourceCursor: frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
+		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
+	}
+}
+
+func streamFrontierToController(frontier backupcontract.StreamFrontier) controller.BackupStreamFrontier {
+	return controller.BackupStreamFrontier{
+		Sequence: frontier.Sequence, Head: segmentReferenceToController(frontier.Head),
+		CursorHead:   segmentReferenceToController(frontier.CursorHead),
+		SourceCursor: frontier.SourceCursor, SourceHighWatermark: frontier.SourceHighWatermark,
+		WatermarkAtUnixMillis: frontier.WatermarkAtUnixMillis,
+	}
+}
+
+func segmentReferenceFromController(reference *controller.BackupSegmentReference) *backupartifact.SegmentReference {
+	if reference == nil {
+		return nil
+	}
+	return &backupartifact.SegmentReference{
+		SegmentID: reference.SegmentID, CommitKey: reference.CommitKey, CommitSHA256: reference.CommitSHA256,
+		PlaintextBytes: reference.PlaintextBytes,
+	}
+}
+
+func segmentReferenceToController(reference *backupartifact.SegmentReference) *controller.BackupSegmentReference {
+	if reference == nil {
+		return nil
+	}
+	return &controller.BackupSegmentReference{
+		SegmentID: reference.SegmentID, CommitKey: reference.CommitKey, CommitSHA256: reference.CommitSHA256,
+		PlaintextBytes: reference.PlaintextBytes,
+	}
 }
 
 func erasureLedgerReferenceFromController(reference *controller.BackupErasureLedgerReference) *backupusecase.ErasureLedgerRecordReference {

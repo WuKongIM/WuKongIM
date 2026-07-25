@@ -67,6 +67,12 @@ type (
 	BackupVerificationTask = state.BackupVerificationTask
 	// BackupErasureLedgerReference is the bounded pending permanent-erasure record reference.
 	BackupErasureLedgerReference = state.BackupErasureLedgerReference
+	// BackupSegmentReference binds a frontier to an immutable segment commit.
+	BackupSegmentReference = state.BackupSegmentReference
+	// BackupStreamFrontier is one compact continuous stream head.
+	BackupStreamFrontier = state.BackupStreamFrontier
+	// BackupSlotFrontier atomically binds continuous metadata and message heads.
+	BackupSlotFrontier = state.BackupSlotFrontier
 	// RestoreCoordinationState stores bounded explicit recovery metadata.
 	RestoreCoordinationState = state.RestoreCoordinationState
 	// RestorePlan stores one recovery plan and bounded progress.

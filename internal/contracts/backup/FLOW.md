@@ -10,6 +10,16 @@ encode repository artifacts, or call infrastructure. Business decisions remain
 in `internal/usecase/backup`; runtime receives the pure scheduling function
 through composition.
 
+The continuous-capture contract adds exactly one bounded `SlotFrontier` per
+Hash Slot. A frontier atomically binds independent metadata and message stream
+heads, their opaque bounded source cursors, reconciled source positions, and
+the older stream watermark. Channel identities never enter this record; the
+message stream has a payload head plus a separate `CursorHead` pointing to
+immutable cursor-only evidence in the repository.
+`SlotCaptureStatus` is a detached public projection of that frontier plus the
+latest observed source watermarks, per-stream lag, capture state, and a bounded
+failure category.
+
 Backup coordination state includes at most one durable verification task and
 bounded per-restore-point later-audit evidence. Publication-time primary and
 secondary verification flags remain separate from this later evidence so a

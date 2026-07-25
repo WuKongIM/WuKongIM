@@ -273,6 +273,16 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeCreateChannelMigrationGuarded:        decodeCreateChannelMigrationTaskWithRuntimeGuard,
 }
 
+// DecodeCommandHashSlots returns the logical Hash Slots mutated by one exact
+// Slot FSM command under its Raft-envelope Hash Slot.
+func DecodeCommandHashSlots(data []byte, envelopeHashSlot uint16) ([]uint16, error) {
+	decoded, err := decodeCommand(data)
+	if err != nil {
+		return nil, err
+	}
+	return append([]uint16(nil), commandApplyHashSlots(decoded, envelopeHashSlot)...), nil
+}
+
 // --- Noop ---
 
 type noopCmd struct{}
