@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
@@ -32,6 +33,9 @@ func TestS3RepositoryWritesImmutableChecksummedLockedObject(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	if _, ok := any(repository).(backupartifact.RepairRepository); ok {
+		t.Fatal("ordinary S3 repository unexpectedly exposes repair capability")
 	}
 	body := []byte("encrypted-backup-object")
 	hash := sha256.Sum256(body)
@@ -67,6 +71,51 @@ func TestS3RepositoryWritesImmutableChecksummedLockedObject(t *testing.T) {
 	}
 	if err := repository.PutImmutable(context.Background(), stored.Key, int64(len(body)), checksum, bytes.NewReader(body)); err != backupartifact.ErrObjectExists {
 		t.Fatalf("second PutImmutable() error = %v, want ErrObjectExists", err)
+	}
+}
+
+func TestS3RepositoryRepairPublishesNewLockedVersionWithoutCreateOnlyFence(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{
+		Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a",
+		ObjectLockDays: 7, Client: client,
+		Now: func() time.Time { return time.Unix(1_700_000_000, 0).UTC() },
+	})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	repairRepository, err := NewS3RepairRepository(S3RepairRepositoryOptions{
+		Repository: repository,
+		Client:     client,
+	})
+	if err != nil {
+		t.Fatalf("NewS3RepairRepository() error = %v", err)
+	}
+	body := []byte("healthy-peer-bytes")
+	hash := sha256.Sum256(body)
+	checksum := hex.EncodeToString(hash[:])
+	oldBody := []byte("damaged-current-bytes")
+	oldHash := sha256.Sum256(oldBody)
+	if err := repository.PutImmutable(
+		context.Background(), "segments/a/payload.bin",
+		int64(len(oldBody)), hex.EncodeToString(oldHash[:]), bytes.NewReader(oldBody),
+	); err != nil {
+		t.Fatalf("PutImmutable() error = %v", err)
+	}
+	if err := repairRepository.RepairImmutable(
+		context.Background(), "segments/a/payload.bin",
+		int64(len(body)), checksum, bytes.NewReader(body),
+	); err != nil {
+		t.Fatalf("RepairImmutable() error = %v", err)
+	}
+	if client.lastPut.IfNoneMatch != nil {
+		t.Fatalf("repair IfNoneMatch = %q, want no create-only fence", aws.ToString(client.lastPut.IfNoneMatch))
+	}
+	if client.lastPut.ObjectLockMode != types.ObjectLockModeCompliance {
+		t.Fatalf("repair ObjectLockMode = %q", client.lastPut.ObjectLockMode)
+	}
+	if got := len(client.versions["prod/cluster-a/segments/a/payload.bin"]); got != 2 {
+		t.Fatalf("repair versions = %d, want 2", got)
 	}
 }
 
@@ -288,6 +337,55 @@ func TestS3RepositoryBoundsExactGenerationDeleteRequests(t *testing.T) {
 	}
 }
 
+func TestS3RepositoryBoundsDeletionOfRepairVersions(t *testing.T) {
+	client := newFakeS3Client()
+	repository, err := NewS3Repository(S3RepositoryOptions{
+		Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a",
+		ObjectLockDays: 7, Client: client,
+	})
+	if err != nil {
+		t.Fatalf("NewS3Repository() error = %v", err)
+	}
+	repairRepository, err := NewS3RepairRepository(S3RepairRepositoryOptions{
+		Repository: repository,
+		Client:     client,
+	})
+	if err != nil {
+		t.Fatalf("NewS3RepairRepository() error = %v", err)
+	}
+	key := "objects/rebase-00000-00000000000000000001/attempt/00000/object.bin"
+	for index, body := range [][]byte{[]byte("first"), []byte("repaired")} {
+		hash := sha256.Sum256(body)
+		var putErr error
+		if index == 0 {
+			putErr = repository.PutImmutable(
+				context.Background(), key, int64(len(body)),
+				hex.EncodeToString(hash[:]), bytes.NewReader(body),
+			)
+		} else {
+			putErr = repairRepository.RepairImmutable(
+				context.Background(), key, int64(len(body)),
+				hex.EncodeToString(hash[:]), bytes.NewReader(body),
+			)
+		}
+		if putErr != nil {
+			t.Fatalf("write version %d error = %v", index, putErr)
+		}
+	}
+	used, err := repository.DeleteGenerationGarbageObject(
+		context.Background(), key, 2,
+	)
+	if used != 2 || !errors.Is(err, errGenerationGCRequestBudget) {
+		t.Fatalf("small repair-version budget used/error = %d/%v", used, err)
+	}
+	used, err = repository.DeleteGenerationGarbageObject(
+		context.Background(), key, 2,
+	)
+	if used != 2 || err != nil {
+		t.Fatalf("repair-version delete used/error = %d/%v", used, err)
+	}
+}
+
 type fakeS3Object struct {
 	body        []byte
 	metadata    map[string]string
@@ -298,6 +396,7 @@ type fakeS3Object struct {
 
 type fakeS3Client struct {
 	objects    map[string]fakeS3Object
+	versions   map[string][]string
 	lastPut    *s3.PutObjectInput
 	lastDelete *s3.DeleteObjectInput
 	deleteErr  error
@@ -306,12 +405,15 @@ type fakeS3Client struct {
 }
 
 func newFakeS3Client() *fakeS3Client {
-	return &fakeS3Client{objects: map[string]fakeS3Object{}, versioning: types.BucketVersioningStatusEnabled, lock: types.ObjectLockEnabledEnabled}
+	return &fakeS3Client{
+		objects: map[string]fakeS3Object{}, versions: map[string][]string{},
+		versioning: types.BucketVersioningStatusEnabled, lock: types.ObjectLockEnabledEnabled,
+	}
 }
 
 func (f *fakeS3Client) PutObject(_ context.Context, input *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
 	key := aws.ToString(input.Key)
-	if _, exists := f.objects[key]; exists {
+	if _, exists := f.objects[key]; exists && input.IfNoneMatch != nil {
 		return nil, &smithy.GenericAPIError{Code: "PreconditionFailed", Message: "already exists"}
 	}
 	body, err := io.ReadAll(input.Body)
@@ -323,6 +425,9 @@ func (f *fakeS3Client) PutObject(_ context.Context, input *s3.PutObjectInput, _ 
 		body: body, metadata: input.Metadata, checksum: aws.ToString(input.ChecksumSHA256),
 		retainUntil: input.ObjectLockRetainUntilDate, lockMode: input.ObjectLockMode,
 	}
+	f.versions[key] = append(
+		f.versions[key], fmt.Sprintf("version-%d", len(f.versions[key])+1),
+	)
 	return &s3.PutObjectOutput{ChecksumSHA256: input.ChecksumSHA256}, nil
 }
 
@@ -394,8 +499,17 @@ func (f *fakeS3Client) ListObjectVersions(_ context.Context, input *s3.ListObjec
 	output := &s3.ListObjectVersionsOutput{}
 	for key := range f.objects {
 		if strings.HasPrefix(key, aws.ToString(input.Prefix)) {
-			keyCopy, versionID := key, "version-1"
-			output.Versions = append(output.Versions, types.ObjectVersion{Key: &keyCopy, VersionId: &versionID})
+			versions := f.versions[key]
+			if len(versions) == 0 {
+				versions = []string{"version-1"}
+			}
+			for _, version := range versions {
+				keyCopy, versionID := key, version
+				output.Versions = append(
+					output.Versions,
+					types.ObjectVersion{Key: &keyCopy, VersionId: &versionID},
+				)
+			}
 		}
 	}
 	return output, nil
@@ -406,6 +520,19 @@ func (f *fakeS3Client) DeleteObject(_ context.Context, input *s3.DeleteObjectInp
 	if f.deleteErr != nil {
 		return nil, f.deleteErr
 	}
-	delete(f.objects, aws.ToString(input.Key))
+	key := aws.ToString(input.Key)
+	versionID := aws.ToString(input.VersionId)
+	versions := f.versions[key]
+	for index, candidate := range versions {
+		if candidate == versionID {
+			versions = append(versions[:index], versions[index+1:]...)
+			break
+		}
+	}
+	f.versions[key] = versions
+	if len(versions) == 0 {
+		delete(f.objects, key)
+		delete(f.versions, key)
+	}
 	return &s3.DeleteObjectOutput{}, nil
 }

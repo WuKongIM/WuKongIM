@@ -109,6 +109,59 @@ func (r *FileRepository) PutImmutable(ctx context.Context, key string, size int6
 	return nil
 }
 
+// RepairImmutable atomically replaces the current development copy after
+// verifying exact healthy bytes. Production S3 repair publishes a new version.
+func (r *FileRepository) RepairImmutable(
+	ctx context.Context,
+	key string,
+	size int64,
+	checksum string,
+	body io.Reader,
+) error {
+	if size < 0 || !validFileChecksum(checksum) || body == nil {
+		return fmt.Errorf("%w: file repository repair metadata is invalid", backupartifact.ErrInvalidObject)
+	}
+	target, err := r.objectPath(key, true)
+	if err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(target), ".backup-repair-*")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	hash := sha256.New()
+	written, copyErr := io.Copy(
+		io.MultiWriter(temporary, hash),
+		io.LimitReader(contextReader{ctx: ctx, reader: body}, size+1),
+	)
+	if copyErr != nil {
+		_ = temporary.Close()
+		return copyErr
+	}
+	if written != size || hex.EncodeToString(hash.Sum(nil)) != checksum {
+		_ = temporary.Close()
+		return fmt.Errorf("%w: file repository repair body mismatch", backupartifact.ErrObjectCorrupt)
+	}
+	if err := temporary.Sync(); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if err := temporary.Chmod(0o640); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(temporaryPath, target); err != nil {
+		return err
+	}
+	r.addGarbageKey(key)
+	return syncDirectory(filepath.Dir(target))
+}
+
 // Open returns a streaming reader after checking that key is a regular immutable file.
 func (r *FileRepository) Open(ctx context.Context, key string) (io.ReadCloser, backupartifact.RepositoryObject, error) {
 	object, err := r.Stat(ctx, key)
@@ -565,5 +618,6 @@ func (r contextReader) Read(buffer []byte) (int, error) {
 }
 
 var _ backupartifact.Repository = (*FileRepository)(nil)
+var _ backupartifact.RepairRepository = (*FileRepository)(nil)
 var _ RepositoryDoctor = (*FileRepository)(nil)
 var _ RestorePointLister = (*FileRepository)(nil)

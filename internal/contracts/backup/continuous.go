@@ -42,6 +42,9 @@ const (
 	// RebaseReasonGenerationAge compacts a Slot whose current Generation
 	// reached its configured maximum age.
 	RebaseReasonGenerationAge = "generation_age"
+	// RebaseReasonAuditCorruption replaces a Generation whose two repository
+	// copies cannot pass full integrity validation.
+	RebaseReasonAuditCorruption = "audit_corruption"
 )
 
 // StreamFrontier is the bounded durable head of one Slot capture stream.
@@ -105,6 +108,17 @@ type SlotRebase struct {
 	StartedAtUnixMillis int64
 }
 
+// SlotGenerationPromotion is durable evidence for the latest validated
+// materialized replacement.
+type SlotGenerationPromotion struct {
+	// PreviousGeneration is the exact graph displaced by promotion.
+	PreviousGeneration string
+	// Reason is the bounded trigger copied from the completed rebase.
+	Reason string
+	// PromotedAtUnixMillis is the atomic frontier promotion time.
+	PromotedAtUnixMillis int64
+}
+
 // SlotFrontier atomically binds the metadata and message stream heads for one Hash Slot.
 type SlotFrontier struct {
 	// Revision fences compare-and-swap updates to this compact record.
@@ -130,6 +144,8 @@ type SlotFrontier struct {
 	Baseline *SlotBaselineReference
 	// Rebase keeps Generation active until TargetGeneration is fully committed.
 	Rebase *SlotRebase
+	// LastPromotion proves why the current Generation replaced its predecessor.
+	LastPromotion *SlotGenerationPromotion
 	// Metadata and Messages are independently ordered streams committed together.
 	Metadata StreamFrontier
 	Messages StreamFrontier
@@ -171,6 +187,10 @@ func CloneSlotFrontier(frontier SlotFrontier) SlotFrontier {
 	if frontier.Rebase != nil {
 		rebase := *frontier.Rebase
 		out.Rebase = &rebase
+	}
+	if frontier.LastPromotion != nil {
+		promotion := *frontier.LastPromotion
+		out.LastPromotion = &promotion
 	}
 	out.Metadata = cloneStreamFrontier(frontier.Metadata)
 	out.Messages = cloneStreamFrontier(frontier.Messages)

@@ -480,11 +480,38 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 			Sequence: 3, Key: "catalog/pages/00000000000000000003-checkpoint-3.json",
 			SHA256: strings.Repeat("e", 64), Bytes: 512, LatestCheckpointID: "checkpoint-3",
 		},
+		CatalogAuditRootSequence: 1,
 		GenerationGCCursors: []BackupGenerationGCCursor{{
 			Repository: "primary", Revision: 2, CycleID: "gc-cycle-1",
 			AfterKey:         "objects/generation-old/00001/object.bin",
 			CutoffUnixMillis: 1_753_400_000_000, UpdatedAtUnixMillis: 1_753_400_110_000,
 		}},
+		IntegrityAudit: BackupIntegrityAuditState{
+			Revision: 4, DebtObjects: 9,
+			LastSuccessAtUnixMillis: 1_753_400_105_000,
+			UpdatedAtUnixMillis:     1_753_400_110_000,
+			Cursor: &BackupIntegrityAuditCursor{
+				CycleID: "audit-cycle-4", ScrubEpoch: 7, CatalogSequence: 3,
+				CatalogRootSequence: 1,
+				HashSlot:            1, Generation: "slot-generation-1",
+				Position: "segment-current", ResumeHashSlot: 2,
+				ResumeGeneration: "slot-generation-2", ResumePosition: "segment-next",
+				ResumePhase: "inspect",
+				Phase:       "repair", Repository: "secondary", Category: "ciphertext",
+				UpdatedAtUnixMillis: 1_753_400_108_000,
+			},
+			Slots: []BackupSlotIntegrityAuditState{{
+				HashSlot: 1, Generation: "slot-generation-1",
+				Health: "degraded", Repository: "secondary", Category: "ciphertext",
+				LastSuccessAtUnixMillis: 1_753_400_100_000,
+				UpdatedAtUnixMillis:     1_753_400_109_000,
+			}},
+			GCGuards: []BackupIntegrityAuditGCGuard{{
+				HashSlot: 2, Token: "gc-0123456789abcdef",
+				AcquiredAtUnixMillis: 1_753_400_107_000,
+				ExpiresAtUnixMillis:  1_753_400_167_000,
+			}},
+		},
 		SlotFrontiers: []BackupSlotFrontier{{
 			Revision: 1, HashSlot: 1, Generation: "slot-generation-1", SourceSlotID: 2,
 			GenerationStartedAtUnixMillis: 1_753_400_100_000,
@@ -503,6 +530,11 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 			Rebase: &BackupSlotRebase{
 				TargetGeneration: "rebase-00001-00000000000000000002",
 				Epoch:            2, Reason: "pin_age", StartedAtUnixMillis: 1_753_400_105_000,
+			},
+			LastPromotion: &BackupSlotGenerationPromotion{
+				PreviousGeneration:   "slot-generation-0",
+				Reason:               "generation_age",
+				PromotedAtUnixMillis: 1_753_400_100_000,
 			},
 			Metadata: BackupStreamFrontier{
 				SourceHighWatermark: 3, SourceCursor: "metadata/3",
@@ -544,6 +576,67 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	require.Equal(t, "checkpoint-3", decoded.Backup.CatalogHead.LatestCheckpointID)
 	require.Equal(t, uint64(2), decoded.Backup.GenerationGCCursors[0].Revision)
 	require.Equal(t, "objects/generation-old/00001/object.bin", decoded.Backup.GenerationGCCursors[0].AfterKey)
+	require.Equal(t, uint64(4), decoded.Backup.IntegrityAudit.Revision)
+	require.Equal(t, "segment-current", decoded.Backup.IntegrityAudit.Cursor.Position)
+	require.Equal(t, uint64(7), decoded.Backup.IntegrityAudit.Cursor.ScrubEpoch)
+	require.Equal(t, "segment-next", decoded.Backup.IntegrityAudit.Cursor.ResumePosition)
+	require.Equal(t, "inspect", decoded.Backup.IntegrityAudit.Cursor.ResumePhase)
+	require.Equal(t, "degraded", decoded.Backup.IntegrityAudit.Slots[0].Health)
+	require.Equal(t, "gc-0123456789abcdef", decoded.Backup.IntegrityAudit.GCGuards[0].Token)
+	require.Equal(t, "slot-generation-0", decoded.Backup.SlotFrontiers[0].LastPromotion.PreviousGeneration)
+}
+
+func TestValidateRejectsMalformedIntegrityAuditState(t *testing.T) {
+	valid := BackupIntegrityAuditState{
+		Revision: 1, DebtObjects: 2, UpdatedAtUnixMillis: 1_753_400_100_000,
+		Cursor: &BackupIntegrityAuditCursor{
+			CycleID: "audit-cycle-1", HashSlot: 1,
+			Generation: "slot-generation-1", Position: "segment-1",
+			Phase: "inspect", UpdatedAtUnixMillis: 1_753_400_100_000,
+		},
+		Slots: []BackupSlotIntegrityAuditState{{
+			HashSlot: 1, Generation: "slot-generation-1",
+			Health: "healthy", UpdatedAtUnixMillis: 1_753_400_100_000,
+		}},
+	}
+	tests := []struct {
+		name   string
+		mutate func(*BackupIntegrityAuditState)
+	}{
+		{
+			name: "unknown phase",
+			mutate: func(state *BackupIntegrityAuditState) {
+				state.Cursor.Phase = "secret-phase"
+			},
+		},
+		{
+			name: "degraded without repository",
+			mutate: func(state *BackupIntegrityAuditState) {
+				state.Slots[0].Health = "degraded"
+				state.Slots[0].Category = "missing"
+			},
+		},
+		{
+			name: "duplicate Slots",
+			mutate: func(state *BackupIntegrityAuditState) {
+				state.Slots = append(state.Slots, state.Slots[0])
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			st := testState()
+			audit := valid
+			cursor := *valid.Cursor
+			audit.Cursor = &cursor
+			audit.Slots = append([]BackupSlotIntegrityAuditState(nil), valid.Slots...)
+			test.mutate(&audit)
+			st.Backup = &BackupCoordinationState{
+				RestorePoints: []BackupRestorePoint{}, IntegrityAudit: audit,
+			}
+			require.ErrorIs(t, st.Validate(), ErrInvalidState)
+		})
+	}
 }
 
 func TestValidateRejectsMalformedSlotCaptureLease(t *testing.T) {
@@ -587,6 +680,7 @@ func TestValidateRejectsMalformedCheckpointCatalogHead(t *testing.T) {
 			Sequence: 2, Key: "catalog/pages/00000000000000000001-checkpoint-2.json",
 			SHA256: strings.Repeat("a", 64), Bytes: 512, LatestCheckpointID: "checkpoint-2",
 		},
+		CatalogAuditRootSequence: 1,
 	}
 
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)

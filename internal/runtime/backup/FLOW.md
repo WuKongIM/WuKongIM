@@ -181,6 +181,38 @@ materialized partition and complete cursor baseline pass dual-repository
 validation, an injected durable auditor attests the Generation, and the
 lease-fenced promotion CAS resets the Generation counters and age.
 
+The background integrity auditor advances one Controller-fenced transition per
+call. Its backend fixes an immutable catalog/frontier cycle and returns one
+opaque bounded artifact cursor at a time. `inspect` performs full independent
+copy validation; a single bad copy is durably recorded as `degraded` before a
+later `repair` step copies bytes, and `revalidate` must repeat the complete
+check before the Slot becomes healthy. A dual-copy failure is durably frozen
+as `rebase_required` before live-source availability is queried. The next step
+requests a Slot-local rebase or records `failed` and advances the global cursor
+so unrelated Slots still receive audit work. Only the affected Slot's capture
+gate returns `ErrIntegrityAuditFrozen`; foreground SEND never calls this path.
+Permanent-erasure nodes use the same Hash Slot isolation, but their synthetic
+`erasure-ledger` Generation is intentionally unavailable to live-source rebase:
+dual-copy loss therefore becomes `failed` while the saved continuation still
+allows later Slots to be inspected.
+`RunIfLeader` and the retrying `Run` loop execute work only on the current
+Controller Leader. Dual-copy recovery observes the durable frontier instead of
+calling a Controller-Leader-local capture engine: the owning Slot Leader's
+normal worker consumes `rebase_required` and reuses `CaptureEngine`'s
+materialized rebase. The audit cursor preserves the complete next phase and
+remains frozen until the replacement Generation has passed validation and
+promotion. Ordinary capture remains blocked until
+the auditor durably records that new Generation as healthy. Every step
+reprojects durable debt and last-success evidence, so a new Leader does not
+start with empty gauges; an unchanged complete catalog cursor is a read-only
+poll rather than a Controller Raft write.
+
+Capture checks the projected gate before work, but correctness does not depend
+on cache freshness: lease acquisition and the final frontier/promotion CAS read
+the current audit state in the same Controller snapshot. A remote freeze that
+wins while a long upload is running therefore leaves the uploaded object
+unreachable and refreshes the local gate before retry.
+
 Before resolving repository-backed watermarks, reconciliation first seals any
 same-Slot accumulator whose open-duration deadline has elapsed and durably
 commits that frontier in a separate CAS. This returns its shared-memory

@@ -772,6 +772,31 @@
           "expr": "histogram_quantile(0.95, sum by (le, reason, outcome) (rate(wukongim_backup_slot_rebase_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])))",
           "legendFormat": "rebase p95 {{reason}} {{outcome}}",
           "refId": "J"
+        },
+        {
+          "expr": "max(wukongim_backup_audit_debt_objects{node_name=~\"$node_name\"})",
+          "legendFormat": "audit debt objects",
+          "refId": "K"
+        },
+        {
+          "expr": "max(wukongim_backup_audit_last_success_timestamp_seconds{node_name=~\"$node_name\"})",
+          "legendFormat": "audit last success timestamp",
+          "refId": "L"
+        },
+        {
+          "expr": "sum by (repository, category) (rate(wukongim_backup_audit_corruptions_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "audit corruption {{repository}} {{category}}",
+          "refId": "M"
+        },
+        {
+          "expr": "sum by (repository) (rate(wukongim_backup_audit_repair_bytes_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "audit repair bytes {{repository}}",
+          "refId": "N"
+        },
+        {
+          "expr": "sum(rate(wukongim_backup_audit_unrecoverable_failures_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "audit unrecoverable failures",
+          "refId": "O"
         }
       ],
       "title": "Backup Operations And Capture",

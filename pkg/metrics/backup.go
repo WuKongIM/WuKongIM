@@ -18,30 +18,38 @@ var backupFailureCategories = map[string]struct{}{
 
 var backupRebaseReasons = map[string]struct{}{
 	"pin_age": {}, "node_byte_budget": {}, "source_compacted": {}, "source_remapped": {},
+	"generation_bytes": {}, "generation_segments": {}, "generation_age": {},
+	"audit_corruption": {},
 }
 
 var backupRebaseFailureCategories = map[string]struct{}{
 	"none": {}, "rebase_begin": {}, "rebase_rotate": {}, "pin_release": {}, "rebase_capture": {},
-	"rebase_validate": {}, "rebase_promote": {}, "rebase_fenced": {}, "unknown": {},
+	"rebase_validate": {}, "rebase_audit": {}, "rebase_promote": {}, "rebase_fenced": {},
+	"compaction_plan": {}, "compaction_budget": {}, "unknown": {},
 }
 
 // BackupMetrics exposes low-cardinality backup and restore SLO evidence.
 type BackupMetrics struct {
-	recoveryPointAge  prometheus.Gauge
-	verificationAge   prometheus.Gauge
-	controllerLeader  prometheus.Gauge
-	doctorHealth      *prometheus.GaugeVec
-	active            prometheus.Gauge
-	failures          *prometheus.CounterVec
-	restoreProgress   *prometheus.GaugeVec
-	captureOwnedSlots prometheus.Gauge
-	captureTakeovers  prometheus.Counter
-	captureFenced     prometheus.Counter
-	sourcePinAge      *prometheus.GaugeVec
-	sourcePinnedBytes *prometheus.GaugeVec
-	sourceNodeBytes   prometheus.Gauge
-	slotRebases       *prometheus.CounterVec
-	slotRebaseSeconds *prometheus.HistogramVec
+	recoveryPointAge   prometheus.Gauge
+	verificationAge    prometheus.Gauge
+	controllerLeader   prometheus.Gauge
+	doctorHealth       *prometheus.GaugeVec
+	active             prometheus.Gauge
+	failures           *prometheus.CounterVec
+	restoreProgress    *prometheus.GaugeVec
+	captureOwnedSlots  prometheus.Gauge
+	captureTakeovers   prometheus.Counter
+	captureFenced      prometheus.Counter
+	sourcePinAge       *prometheus.GaugeVec
+	sourcePinnedBytes  *prometheus.GaugeVec
+	sourceNodeBytes    prometheus.Gauge
+	slotRebases        *prometheus.CounterVec
+	slotRebaseSeconds  *prometheus.HistogramVec
+	auditDebt          prometheus.Gauge
+	auditLastSuccess   prometheus.Gauge
+	auditCorruptions   *prometheus.CounterVec
+	auditRepairBytes   *prometheus.CounterVec
+	auditUnrecoverable prometheus.Counter
 }
 
 func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) *BackupMetrics {
@@ -92,6 +100,21 @@ func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 			Name: "wukongim_backup_slot_rebase_duration_seconds", Help: "Elapsed Slot generation rebase lifecycle at each terminal attempt observation, grouped by bounded reason, outcome, and failure category.", ConstLabels: labels,
 			Buckets: []float64{1, 5, 15, 30, 60, 300, 900, 3600},
 		}, []string{"hash_slot", "reason", "outcome", "failure_category"}),
+		auditDebt: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "wukongim_backup_audit_debt_objects", Help: "Number of committed backup artifacts awaiting full remote validation.", ConstLabels: labels,
+		}),
+		auditLastSuccess: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "wukongim_backup_audit_last_success_timestamp_seconds", Help: "Unix timestamp of the latest successful full artifact validation; zero means none.", ConstLabels: labels,
+		}),
+		auditCorruptions: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "wukongim_backup_audit_corruptions_total", Help: "Detected backup artifact corruptions by bounded category and repository.", ConstLabels: labels,
+		}, []string{"category", "repository"}),
+		auditRepairBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "wukongim_backup_audit_repair_bytes_total", Help: "Exact stored bytes copied to repair one repository.", ConstLabels: labels,
+		}, []string{"repository"}),
+		auditUnrecoverable: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "wukongim_backup_audit_unrecoverable_failures_total", Help: "Dual-repository audit failures that cannot rebase from live source.", ConstLabels: labels,
+		}),
 	}
 	registry.MustRegister(
 		m.recoveryPointAge, m.verificationAge, m.controllerLeader,
@@ -99,12 +122,69 @@ func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 		m.captureOwnedSlots, m.captureTakeovers, m.captureFenced,
 		m.sourcePinAge, m.sourcePinnedBytes, m.sourceNodeBytes,
 		m.slotRebases, m.slotRebaseSeconds,
+		m.auditDebt, m.auditLastSuccess, m.auditCorruptions,
+		m.auditRepairBytes, m.auditUnrecoverable,
 	)
 	m.recoveryPointAge.Set(math.NaN())
 	m.verificationAge.Set(math.NaN())
 	m.SetBackupDoctorHealth("unknown")
 	m.SetBackupRestoreProgress(0, 0, 0)
 	return m
+}
+
+// SetBackupAuditDebt records the bounded number of artifacts awaiting full validation.
+func (m *BackupMetrics) SetBackupAuditDebt(objects uint64) {
+	if m != nil {
+		m.auditDebt.Set(float64(objects))
+	}
+}
+
+// SetBackupAuditLastSuccess records a UTC millisecond timestamp; zero means none.
+func (m *BackupMetrics) SetBackupAuditLastSuccess(unixMillis int64) {
+	if m == nil {
+		return
+	}
+	if unixMillis < 0 {
+		unixMillis = 0
+	}
+	m.auditLastSuccess.Set(float64(unixMillis) / 1000)
+}
+
+// ObserveBackupAuditCorruption records one bounded repository corruption class.
+func (m *BackupMetrics) ObserveBackupAuditCorruption(category, repository string) {
+	if m == nil {
+		return
+	}
+	switch category {
+	case "missing", "checksum", "ciphertext", "commit_proof":
+	default:
+		category = "unknown"
+	}
+	repository = normalizeBackupRepositoryLabel(repository)
+	m.auditCorruptions.WithLabelValues(category, repository).Inc()
+}
+
+// AddBackupAuditRepairBytes records exact positive stored repair bytes.
+func (m *BackupMetrics) AddBackupAuditRepairBytes(repository string, bytes int64) {
+	if m == nil || bytes <= 0 {
+		return
+	}
+	m.auditRepairBytes.WithLabelValues(normalizeBackupRepositoryLabel(repository)).Add(float64(bytes))
+}
+
+// ObserveBackupAuditUnrecoverable records dual-copy loss without live source.
+func (m *BackupMetrics) ObserveBackupAuditUnrecoverable() {
+	if m != nil {
+		m.auditUnrecoverable.Inc()
+	}
+}
+
+func normalizeBackupRepositoryLabel(repository string) string {
+	repository = strings.TrimSpace(repository)
+	if repository == "" || len(repository) > 128 {
+		return "unknown"
+	}
+	return repository
 }
 
 // SetBackupSourcePin records one bounded per-Slot hold plus the node aggregate.

@@ -38,6 +38,11 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 	metrics.SetBackupSourcePin(17, 90*time.Second, 32<<20, 64<<20)
 	metrics.ObserveBackupSlotRebase(17, "pin_age", 12*time.Second, "")
 	metrics.ObserveBackupSlotRebase(17, "unbounded", -time.Second, "secret backend error")
+	metrics.SetBackupAuditDebt(23)
+	metrics.SetBackupAuditLastSuccess(1_753_400_123_000)
+	metrics.ObserveBackupAuditCorruption("ciphertext", "secondary")
+	metrics.AddBackupAuditRepairBytes("secondary", 4096)
+	metrics.ObserveBackupAuditUnrecoverable()
 
 	families, err = registry.Gather()
 	require.NoError(t, err)
@@ -89,4 +94,26 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 		"node_id": "7", "node_name": "node-7", "hash_slot": "17",
 		"reason": "pin_age", "outcome": "success", "failure_category": "none",
 	}).GetHistogram().GetSampleCount())
+	require.Equal(t, float64(23), requireMetricFamily(
+		t, families, "wukongim_backup_audit_debt_objects",
+	).GetMetric()[0].GetGauge().GetValue())
+	require.Equal(t, float64(1_753_400_123), requireMetricFamily(
+		t, families, "wukongim_backup_audit_last_success_timestamp_seconds",
+	).GetMetric()[0].GetGauge().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t,
+		requireMetricFamily(t, families, "wukongim_backup_audit_corruptions_total"),
+		map[string]string{
+			"node_id": "7", "node_name": "node-7",
+			"category": "ciphertext", "repository": "secondary",
+		},
+	).GetCounter().GetValue())
+	require.Equal(t, float64(4096), findMetricByLabels(t,
+		requireMetricFamily(t, families, "wukongim_backup_audit_repair_bytes_total"),
+		map[string]string{
+			"node_id": "7", "node_name": "node-7", "repository": "secondary",
+		},
+	).GetCounter().GetValue())
+	require.Equal(t, float64(1), requireMetricFamily(
+		t, families, "wukongim_backup_audit_unrecoverable_failures_total",
+	).GetMetric()[0].GetCounter().GetValue())
 }

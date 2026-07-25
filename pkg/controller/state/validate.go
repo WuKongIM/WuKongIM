@@ -152,6 +152,10 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 			frontier.SourcePinStartedAtUnixMillis > frontier.UpdatedAtUnixMillis ||
 			!validBackupSlotBaseline(frontier.Baseline, frontier.HashSlot) ||
 			!validBackupSlotRebase(frontier.Rebase, frontier.Generation) ||
+			!validBackupSlotPromotion(
+				frontier.LastPromotion, frontier.Generation,
+				frontier.GenerationStartedAtUnixMillis,
+			) ||
 			!validBackupStreamFrontier(frontier.Metadata) ||
 			!validBackupStreamFrontier(frontier.Messages) ||
 			frontier.Metadata.CursorHead != nil ||
@@ -169,9 +173,13 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		head := backup.CatalogHead
 		if head.Sequence == 0 || !validBackupIdentity(head.LatestCheckpointID) ||
 			head.Key != backupartifact.CatalogPageObjectKey(head.Sequence, head.LatestCheckpointID) ||
-			!validSHA256(head.SHA256) || head.Bytes <= 0 || head.Bytes > 1<<20 {
+			!validSHA256(head.SHA256) || head.Bytes <= 0 || head.Bytes > 1<<20 ||
+			backup.CatalogAuditRootSequence == 0 ||
+			backup.CatalogAuditRootSequence > head.Sequence {
 			return invalid("backup checkpoint catalog head is invalid")
 		}
+	} else if backup.CatalogAuditRootSequence != 0 {
+		return invalid("backup checkpoint catalog audit root has no head")
 	}
 	var erasureReservations uint64
 	for index, stream := range backup.ErasureStreams {
@@ -222,6 +230,9 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 			(index > 0 && backup.GenerationGCCursors[index-1].Repository >= cursor.Repository) {
 			return invalid("backup generation GC cursor is invalid")
 		}
+	}
+	if err := validateBackupIntegrityAudit(backup.IntegrityAudit, hashSlotCount); err != nil {
+		return err
 	}
 	if backup.Active != nil {
 		job := backup.Active
@@ -307,6 +318,133 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 	return nil
 }
 
+func validateBackupIntegrityAudit(audit BackupIntegrityAuditState, hashSlotCount uint16) error {
+	if audit.Revision == 0 {
+		if audit.Cursor != nil || len(audit.Slots) != 0 || len(audit.GCGuards) != 0 ||
+			audit.DebtObjects != 0 ||
+			audit.LastSuccessAtUnixMillis != 0 || audit.UpdatedAtUnixMillis != 0 {
+			return invalid("backup integrity audit zero state is inconsistent")
+		}
+		return nil
+	}
+	if audit.UpdatedAtUnixMillis <= 0 ||
+		(audit.LastSuccessAtUnixMillis < 0 ||
+			audit.LastSuccessAtUnixMillis > audit.UpdatedAtUnixMillis) ||
+		len(audit.Slots) > int(hashSlotCount) ||
+		len(audit.GCGuards) > int(hashSlotCount) {
+		return invalid("backup integrity audit state is invalid")
+	}
+	if audit.Cursor != nil {
+		cursor := audit.Cursor
+		if !validBackupIdentity(cursor.CycleID) ||
+			(strings.HasPrefix(cursor.CycleID, "catalog-segments-") &&
+				(cursor.ScrubEpoch == 0 ||
+					(cursor.CatalogSequence > 0 &&
+						(cursor.CatalogRootSequence == 0 ||
+							cursor.CatalogRootSequence >
+								cursor.CatalogSequence)))) ||
+			cursor.HashSlot >= hashSlotCount ||
+			!validBackupIdentity(cursor.Generation) ||
+			len(cursor.Position) == 0 || len(cursor.Position) > 8<<10 ||
+			!utf8.ValidString(cursor.Position) ||
+			len(cursor.ResumePosition) > 8<<10 || !utf8.ValidString(cursor.ResumePosition) ||
+			len(cursor.ResumeGeneration) > 128 || !utf8.ValidString(cursor.ResumeGeneration) ||
+			(cursor.ResumePhase != "" && !validBackupAuditResumePhase(cursor.ResumePhase)) ||
+			!validBackupAuditPhase(cursor.Phase) ||
+			len(cursor.Repository) > 128 || !utf8.ValidString(cursor.Repository) ||
+			!validBackupAuditCategory(cursor.Category, cursor.Phase) ||
+			cursor.UpdatedAtUnixMillis <= 0 ||
+			cursor.UpdatedAtUnixMillis > audit.UpdatedAtUnixMillis {
+			return invalid("backup integrity audit cursor is invalid")
+		}
+		if cursor.Phase == "repair" &&
+			(cursor.Repository == "" || cursor.Category == "" || cursor.ResumePosition == "" ||
+				cursor.ResumeHashSlot >= hashSlotCount ||
+				!validBackupIdentity(cursor.ResumeGeneration) ||
+				!validBackupAuditResumePhase(cursor.ResumePhase)) {
+			return invalid("backup integrity audit repair cursor is incomplete")
+		}
+		if cursor.Phase == "rebase" &&
+			(cursor.ResumePosition == "" || cursor.ResumeHashSlot >= hashSlotCount ||
+				!validBackupIdentity(cursor.ResumeGeneration) ||
+				!validBackupAuditResumePhase(cursor.ResumePhase)) {
+			return invalid("backup integrity audit rebase cursor is incomplete")
+		}
+	}
+	for index, slot := range audit.Slots {
+		if slot.HashSlot >= hashSlotCount ||
+			(index > 0 && audit.Slots[index-1].HashSlot >= slot.HashSlot) ||
+			!validBackupIdentity(slot.Generation) ||
+			!validBackupAuditHealth(slot.Health) ||
+			len(slot.Repository) > 128 || !utf8.ValidString(slot.Repository) ||
+			!validBackupAuditCategory(slot.Category, "") ||
+			slot.LastSuccessAtUnixMillis < 0 ||
+			slot.LastSuccessAtUnixMillis > slot.UpdatedAtUnixMillis ||
+			slot.UpdatedAtUnixMillis <= 0 ||
+			slot.UpdatedAtUnixMillis > audit.UpdatedAtUnixMillis {
+			return invalid("backup Slot integrity audit state is invalid")
+		}
+		if slot.Health == "healthy" && (slot.Repository != "" || slot.Category != "") {
+			return invalid("healthy backup Slot carries corruption state")
+		}
+		if slot.Health != "healthy" && slot.Category == "" {
+			return invalid("unhealthy backup Slot is missing corruption category")
+		}
+		if slot.Health == "degraded" && slot.Repository == "" {
+			return invalid("degraded backup Slot is missing repair repository")
+		}
+		if (slot.Health == "rebase_required" || slot.Health == "failed") &&
+			slot.Repository != "" {
+			return invalid("dual-copy backup Slot names a repair repository")
+		}
+	}
+	for index, guard := range audit.GCGuards {
+		if guard.HashSlot >= hashSlotCount ||
+			(index > 0 && audit.GCGuards[index-1].HashSlot >= guard.HashSlot) ||
+			!validBackupIdentity(guard.Token) ||
+			guard.AcquiredAtUnixMillis <= 0 ||
+			guard.AcquiredAtUnixMillis > audit.UpdatedAtUnixMillis ||
+			guard.ExpiresAtUnixMillis <= guard.AcquiredAtUnixMillis {
+			return invalid("backup integrity audit GC guard is invalid")
+		}
+	}
+	return nil
+}
+
+func validBackupAuditResumePhase(phase string) bool {
+	return phase == "inspect" || phase == "complete"
+}
+
+func validBackupAuditPhase(phase string) bool {
+	switch phase {
+	case "inspect", "repair", "revalidate", "rebase", "complete":
+		return true
+	default:
+		return false
+	}
+}
+
+func validBackupAuditHealth(health string) bool {
+	switch health {
+	case "healthy", "degraded", "rebase_required", "failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func validBackupAuditCategory(category string, phase string) bool {
+	if category == "" {
+		return phase != "repair"
+	}
+	switch category {
+	case "missing", "checksum", "ciphertext", "commit_proof":
+		return true
+	default:
+		return false
+	}
+}
+
 func validBackupErasureReference(reference BackupErasureLedgerReference) bool {
 	return reference.Sequence > 0 && validSHA256(reference.EventID) &&
 		validSHA256(reference.RecordSHA256) &&
@@ -344,7 +482,32 @@ func validBackupSlotRebase(rebase *BackupSlotRebase, currentGeneration string) b
 	}
 	switch rebase.Reason {
 	case "pin_age", "node_byte_budget", "source_compacted", "source_remapped",
-		"generation_bytes", "generation_segments", "generation_age":
+		"generation_bytes", "generation_segments", "generation_age",
+		"audit_corruption":
+		return true
+	default:
+		return false
+	}
+}
+
+func validBackupSlotPromotion(
+	promotion *BackupSlotGenerationPromotion,
+	currentGeneration string,
+	generationStartedAtUnixMillis int64,
+) bool {
+	if promotion == nil {
+		return true
+	}
+	if !validBackupIdentity(promotion.PreviousGeneration) ||
+		promotion.PreviousGeneration == currentGeneration ||
+		promotion.PromotedAtUnixMillis <= 0 ||
+		promotion.PromotedAtUnixMillis != generationStartedAtUnixMillis {
+		return false
+	}
+	switch promotion.Reason {
+	case "pin_age", "node_byte_budget", "source_compacted", "source_remapped",
+		"generation_bytes", "generation_segments", "generation_age",
+		"audit_corruption":
 		return true
 	default:
 		return false

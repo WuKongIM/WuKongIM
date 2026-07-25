@@ -71,6 +71,16 @@ type (
 	BackupErasureStreamState = state.BackupErasureStreamState
 	// BackupGenerationGCCursor is one bounded repository Generation sweep position.
 	BackupGenerationGCCursor = state.BackupGenerationGCCursor
+	// BackupIntegrityAuditState is bounded Controller coordination for one auditor.
+	BackupIntegrityAuditState = state.BackupIntegrityAuditState
+	// BackupIntegrityAuditCursor is one opaque bounded full-audit continuation.
+	BackupIntegrityAuditCursor = state.BackupIntegrityAuditCursor
+	// BackupSlotIntegrityAuditState is one compact per-Slot health projection.
+	BackupSlotIntegrityAuditState = state.BackupSlotIntegrityAuditState
+	// BackupSlotGenerationPromotion is durable replacement evidence.
+	BackupSlotGenerationPromotion = state.BackupSlotGenerationPromotion
+	// BackupIntegrityAuditGCGuard is one durable cross-Leader delete exclusion.
+	BackupIntegrityAuditGCGuard = state.BackupIntegrityAuditGCGuard
 	// BackupSegmentReference binds a frontier to an immutable segment commit.
 	BackupSegmentReference = state.BackupSegmentReference
 	// BackupCatalogPageReference is the bounded immutable checkpoint catalog head.

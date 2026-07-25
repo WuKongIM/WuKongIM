@@ -50,6 +50,63 @@ may be later than this Hash Slot's last mutation, `ContinuousSource` preserves
 that cut as the materialized Generation's resume floor until a later matching
 logical command appears.
 
+`ControllerIntegrityAuditStateStore` persists its own audit revision while
+preserving unrelated Controller fields. It also maintains a narrow sorted
+audit projection. Production composition in #648 must publish locally applied
+Controller snapshots once per interval into the same store instance consumed
+by capture and GC; the per-Slot capture hot path then performs only an
+in-memory binary search instead of
+rebuilding all backup coordination state. Frozen entries refresh on access,
+and an atomic frontier CAS that observes a newer remote freeze forces a cache
+refresh. Generation GC first appends a durable per-Slot delete guard to the
+same audit revision; a concurrent auditor cannot newly freeze that Slot until
+the exact external delete finishes and removes the guard. This Controller
+record, rather than a process mutex, preserves ordering across Leader changes.
+Generation GC also rebuilds the exact sparse selection from any unfinished
+audit cursor and unions those checkpoint vectors into its mark set. Each delete
+guard acquisition presents the audit cycle whose selection was marked and
+atomically compares it with the current durable cursor. The guard itself stores
+only Slot, token, and safety lease; while it exists, audit CAS refuses to start
+a different cycle. Retention bucket changes, hold release, active-restore
+completion, and Controller Leader changes therefore cannot delete a Generation
+still owned by the fixed audit selection, without globally pausing collection
+of unrelated expired Generations.
+Before listing any candidate, GC also advances the Controller's monotonic
+`CatalogAuditRootSequence`. That transition waits for an older in-progress
+audit cycle to finish, so legally expired Generations cannot disappear beneath
+a cursor that still includes them.
+
+`CatalogSegmentIntegrityAuditPlan` fixes the current catalog head and walks
+newest-to-oldest page transitions only down to the previously completed
+catalog sequence during an ordinary epoch. A durable daily scrub epoch
+periodically resets that lower bound to the retained catalog root. A
+content-digested sparse selection is rebuilt from the authenticated checkpoint
+index with the same UTC retention tiers, holds, and fixed active-restore ID
+used by Generation GC. Catalog pages remain navigable, but data checkpoints
+outside that selection are skipped and a retained transition joins the nearest
+older retained checkpoint rather than an expired page in between. This avoids
+reporting legally collected Generation holes as corruption while still
+detecting latent damage without a new checkpoint. For each transition it
+follows authenticated metadata, message, cursor, baseline-cursor,
+materialized partition manifest/object, and permanent-erasure
+commit/receipt/record/event links until the prior checkpoint boundary. Erasure
+streams advance independently per Hash Slot and authenticate the predecessor
+digest where a retained checkpoint delta joins its prior head. Its opaque
+cursor contains the exact immutable page, checkpoint references, sparse
+selection digest, navigation phase, artifact, stop reference, and conservative
+debt. It never contains an erasure event's wrapped key or KMS metadata; the
+event step reloads its authenticated signed record from each repository.
+Hold/release pages are explicitly state-only and are skipped one durable page
+per step. A four-entry page/checkpoint cache removes repeated GETs within a
+cycle. Materialized payload steps share a separate 64 MiB byte-bounded cache of
+fully authenticated manifests, keyed by repository and complete partition
+reference and reset when the durable cycle changes, including on the first
+Inspect or Repair after Controller Leader takeover. Cache insertion copies the
+manifest once; later object steps use an immutable internal view and expose
+only a constant-size navigation summary. The cursor allows process or
+Controller Leader restart without rescanning already completed catalog
+history.
+
 `ReplicatedCheckpointCatalog` signs and verifies the newly published
 checkpoint, its content-addressed complete Generation vector, and the catalog
 page. It reuses an identical signed vector, repairs a missing vector copy,
@@ -57,14 +114,20 @@ writes the checkpoint to both repositories, then writes the catalog page
 secondary-first and primary-last. A head is returned only after every required
 immutable copy has matching provider metadata. Hold/release appends reload the
 checkpoint and vector and reject a caller-supplied mismatch before signing the
-new state page. `CheckpointCatalogIndex` stores only the compact vector
+new state-only page. Audit navigation loads page, checkpoint, and Generation
+vector copies independently; one damaged copy is repaired through the explicit
+repair capability and fully revalidated before traversal continues.
+`CheckpointCatalogIndex` stores only the compact vector
 reference, so 256 Slot strings are not duplicated in every historical row. It
 is a node-local derived
 index used by Manager pagination and exact-ID lookup. Its checksummed atomic
 file is not authority: every process cold start walks and authenticates the
-signed dual-repository hash chain, replacing missing, malformed, injected, or
-head-inconsistent data. While the process remains live, a new head normally
-extends the authenticated index by reading only newly linked pages.
+signed dual-repository hash chain through the repair-capable audit reader,
+replacing missing, malformed, injected, or head-inconsistent data. While the
+process remains live, a new head normally extends the authenticated index by
+reading only newly linked pages. The integrity selector consumes a detached
+latest-state reference snapshot from this index; only its digest and fixed
+active-restore ID are persisted in Controller Raft.
 
 ## Continuous Sources
 
@@ -163,6 +226,13 @@ only converts cluster routing/boundary DTOs and performs repository adaptation.
 and UTC-clock readiness individually with a bounded first-failure category.
 Manager status may expose those health buckets and configured regions, but
 never endpoint, bucket, prefix, role ARN, key ID, or fingerprint values.
+
+S3 ordinary upload remains create-only through `S3Repository`.
+`S3RepairRepository` is constructed separately with an explicit auditor
+AssumeRole client and is the only S3 adapter exposing replacement-by-new-
+Object-Locked-version. Generation GC lists exact versions and deletes as many
+as the current request budget permits; it keeps the same key cursor and
+continues remaining repair versions on later calls.
 
 ## File Repository
 
@@ -292,3 +362,15 @@ retries. Object Lock rejection stops only the affected copy at the exact key,
 and a later run resumes there after retention expires. The fixed cutoff combines
 Object Lock with an additional safety window for in-flight immutable
 publication.
+
+Continuous integrity audit uses `ControllerIntegrityAuditStateStore` to update
+only the independently revisioned audit cursor, sorted per-Slot health, and
+short-lived durable GC exclusion guards while
+retrying unrelated Controller state conflicts. `SegmentIntegrityAuditBackend`
+binds an immutable catalog plan's opaque position to one exact portable graph
+node, then delegates full signature/ciphertext/decrypt/plaintext validation and
+exact-copy repair to the segment, partition, or permanent-erasure adapter. File repair
+atomically replaces the development copy. S3 repair publishes a new
+Object-Locked current version without weakening ordinary create-only uploads;
+Generation GC lists and deletes a bounded number of repair versions under the
+same provider-request budget.

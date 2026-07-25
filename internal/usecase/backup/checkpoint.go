@@ -83,6 +83,12 @@ func (c *CheckpointCoordinator) Publish(ctx context.Context) (backupartifact.Che
 	if err != nil {
 		return backupartifact.CheckpointCatalogCommit{}, err
 	}
+	if frozen := backupcontract.FrozenAuditHashSlots(state.IntegrityAudit); len(frozen) != 0 {
+		return backupartifact.CheckpointCatalogCommit{}, fmt.Errorf(
+			"%w: Slot %d integrity audit is unhealthy",
+			ErrCheckpointUnhealthy, frozen[0],
+		)
+	}
 	statuses := c.captureStatus.Status()
 	frontiers, err := checkpointFrontiersFromHealthyStatuses(statuses, c.hashSlotCount)
 	if err != nil {
@@ -287,8 +293,17 @@ func (c *CheckpointCoordinator) advanceHead(
 		if !catalogPageReferenceEqual(state.CatalogHead, previous) {
 			return ErrStateConflict
 		}
+		if frozen := backupcontract.FrozenAuditHashSlots(state.IntegrityAudit); len(frozen) != 0 {
+			return fmt.Errorf(
+				"%w: Slot %d integrity audit became unhealthy before head advance",
+				ErrCheckpointUnhealthy, frozen[0],
+			)
+		}
 		next := state.Clone()
 		next.CatalogHead = cloneCatalogPageHead(&head)
+		if next.CatalogAuditRootSequence == 0 {
+			next.CatalogAuditRootSequence = head.Sequence
+		}
 		if err := c.store.CompareAndSwap(ctx, state.Revision, next); err != nil {
 			if errors.Is(err, ErrStateConflict) {
 				continue

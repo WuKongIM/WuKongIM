@@ -53,6 +53,14 @@ type S3RepositoryOptions struct {
 	Now func() time.Time
 }
 
+// S3RepairRepositoryOptions configures the separately credentialed repair adapter.
+type S3RepairRepositoryOptions struct {
+	// Repository supplies immutable reads and the exact namespace identity.
+	Repository *S3Repository
+	// Client uses an explicit auditor repair role, never ordinary upload credentials.
+	Client S3Client
+}
+
 // S3Repository stores immutable checksummed objects in one S3-compatible bucket.
 type S3Repository struct {
 	name           string
@@ -107,6 +115,44 @@ func LoadS3GarbageRepository(ctx context.Context, name, endpoint, region, bucket
 	return loadS3Repository(ctx, name, endpoint, region, bucket, prefix, objectLockDays, roleARN)
 }
 
+// LoadS3RepairRepository assumes an explicit auditor role and binds it to an
+// already configured ordinary repository. The default upload identity is never reused.
+func LoadS3RepairRepository(
+	ctx context.Context,
+	repository *S3Repository,
+	endpoint string,
+	region string,
+	roleARN string,
+) (*S3RepairRepository, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	region = strings.TrimSpace(region)
+	roleARN = strings.TrimSpace(roleARN)
+	if repository == nil || endpoint == "" || region == "" || roleARN == "" {
+		return nil, fmt.Errorf(
+			"backup s3 repair repository: repository, endpoint, region, and role ARN are required",
+		)
+	}
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	if err != nil {
+		return nil, fmt.Errorf("backup s3 repair repository: load AWS credentials: %w", err)
+	}
+	provider := stscreds.NewAssumeRoleProvider(
+		sts.NewFromConfig(cfg), roleARN,
+		func(options *stscreds.AssumeRoleOptions) {
+			options.RoleSessionName = "wukongim-backup-integrity-auditor"
+		},
+	)
+	cfg.Credentials = aws.NewCredentialsCache(provider)
+	client := s3.NewFromConfig(cfg, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(endpoint)
+		options.UsePathStyle = true
+	})
+	return NewS3RepairRepository(S3RepairRepositoryOptions{
+		Repository: repository,
+		Client:     client,
+	})
+}
+
 func loadS3Repository(ctx context.Context, name, endpoint, region, bucket, prefix string, objectLockDays int, roleARN string) (*S3Repository, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	region = strings.TrimSpace(region)
@@ -147,6 +193,99 @@ func (r *S3Repository) Name() string {
 // PutImmutable uploads key with a create-only precondition, SHA-256 checksum,
 // and compliance-mode Object Lock retention.
 func (r *S3Repository) PutImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error {
+	return r.putObject(ctx, key, size, checksum, body, true)
+}
+
+// S3RepairRepository exposes overwrite-by-new-version only to the auditor.
+type S3RepairRepository struct {
+	repository *S3Repository
+	client     S3Client
+}
+
+// NewS3RepairRepository creates a narrow repair adapter with separate credentials.
+func NewS3RepairRepository(options S3RepairRepositoryOptions) (*S3RepairRepository, error) {
+	if options.Repository == nil || options.Repository.client == nil || options.Client == nil {
+		return nil, fmt.Errorf("backup s3 repair repository: repository and repair client are required")
+	}
+	return &S3RepairRepository{
+		repository: options.Repository,
+		client:     options.Client,
+	}, nil
+}
+
+// Name returns the underlying failure-domain identity.
+func (r *S3RepairRepository) Name() string {
+	if r == nil || r.repository == nil {
+		return ""
+	}
+	return r.repository.Name()
+}
+
+// PutImmutable delegates create-only writes to the ordinary repository boundary.
+func (r *S3RepairRepository) PutImmutable(
+	ctx context.Context,
+	key string,
+	size int64,
+	checksum string,
+	body io.Reader,
+) error {
+	if r == nil || r.repository == nil {
+		return fmt.Errorf("%w: S3 repair repository is invalid", backupartifact.ErrInvalidObject)
+	}
+	return r.repository.PutImmutable(ctx, key, size, checksum, body)
+}
+
+// Open delegates reads to the ordinary repository boundary.
+func (r *S3RepairRepository) Open(
+	ctx context.Context,
+	key string,
+) (io.ReadCloser, backupartifact.RepositoryObject, error) {
+	if r == nil || r.repository == nil {
+		return nil, backupartifact.RepositoryObject{}, fmt.Errorf(
+			"%w: S3 repair repository is invalid", backupartifact.ErrInvalidObject,
+		)
+	}
+	return r.repository.Open(ctx, key)
+}
+
+// Stat delegates metadata reads to the ordinary repository boundary.
+func (r *S3RepairRepository) Stat(
+	ctx context.Context,
+	key string,
+) (backupartifact.RepositoryObject, error) {
+	if r == nil || r.repository == nil {
+		return backupartifact.RepositoryObject{}, fmt.Errorf(
+			"%w: S3 repair repository is invalid", backupartifact.ErrInvalidObject,
+		)
+	}
+	return r.repository.Stat(ctx, key)
+}
+
+// RepairImmutable publishes a new Object-Locked current version from an
+// authenticated healthy peer using only the explicit repair client.
+func (r *S3RepairRepository) RepairImmutable(
+	ctx context.Context,
+	key string,
+	size int64,
+	checksum string,
+	body io.Reader,
+) error {
+	if r == nil || r.repository == nil || r.client == nil {
+		return fmt.Errorf("%w: S3 repair repository is invalid", backupartifact.ErrInvalidObject)
+	}
+	repair := *r.repository
+	repair.client = r.client
+	return repair.putObject(ctx, key, size, checksum, body, false)
+}
+
+func (r *S3Repository) putObject(
+	ctx context.Context,
+	key string,
+	size int64,
+	checksum string,
+	body io.Reader,
+	createOnly bool,
+) error {
 	if r == nil || r.client == nil || body == nil || size < 0 || !validFileChecksum(checksum) {
 		return fmt.Errorf("%w: S3 repository object metadata is invalid", backupartifact.ErrInvalidObject)
 	}
@@ -157,18 +296,21 @@ func (r *S3Repository) PutImmutable(ctx context.Context, key string, size int64,
 	checksumBytes, _ := hex.DecodeString(checksum)
 	checksumBase64 := base64.StdEncoding.EncodeToString(checksumBytes)
 	retainUntil := r.now().UTC().Add(time.Duration(r.objectLockDays) * 24 * time.Hour)
-	_, err = r.client.PutObject(ctx, &s3.PutObjectInput{
+	input := &s3.PutObjectInput{
 		Bucket:                    aws.String(r.bucket),
 		Key:                       aws.String(fullKey),
 		Body:                      body,
 		ContentLength:             aws.Int64(size),
 		ChecksumAlgorithm:         types.ChecksumAlgorithmSha256,
 		ChecksumSHA256:            aws.String(checksumBase64),
-		IfNoneMatch:               aws.String("*"),
 		Metadata:                  map[string]string{s3ChecksumMetadataKey: checksum},
 		ObjectLockMode:            types.ObjectLockModeCompliance,
 		ObjectLockRetainUntilDate: &retainUntil,
-	})
+	}
+	if createOnly {
+		input.IfNoneMatch = aws.String("*")
+	}
+	_, err = r.client.PutObject(ctx, input)
 	if err != nil {
 		return mapS3Error(err)
 	}
@@ -277,9 +419,10 @@ func (r *S3Repository) DeleteGarbageObject(ctx context.Context, key string) erro
 	return nil
 }
 
-// DeleteGenerationGarbageObject removes exactly one immutable version with a
-// provider-request ceiling. Multiple versions are treated as corruption
-// instead of silently multiplying destructive work.
+// DeleteGenerationGarbageObject removes every bounded exact version with a
+// provider-request ceiling. A repaired current copy may have an older
+// Object-Locked version, so retries list again and continue from remaining
+// versions without advancing the Generation GC cursor prematurely.
 func (r *S3Repository) DeleteGenerationGarbageObject(
 	ctx context.Context,
 	key string,
@@ -292,8 +435,10 @@ func (r *S3Repository) DeleteGenerationGarbageObject(
 	if err != nil {
 		return 0, err
 	}
+	const maxGenerationRepairVersions = 64
 	output, err := r.client.ListObjectVersions(ctx, &s3.ListObjectVersionsInput{
-		Bucket: aws.String(r.bucket), Prefix: aws.String(fullKey), MaxKeys: aws.Int32(2),
+		Bucket: aws.String(r.bucket), Prefix: aws.String(fullKey),
+		MaxKeys: aws.Int32(maxGenerationRepairVersions + 1),
 	})
 	if err != nil {
 		return 1, mapS3Error(err)
@@ -301,7 +446,7 @@ func (r *S3Repository) DeleteGenerationGarbageObject(
 	if output == nil {
 		return 1, fmt.Errorf("backup s3 repository: object-version listing is missing")
 	}
-	versions := make([]string, 0, 1)
+	versions := make([]string, 0, 2)
 	for _, version := range output.Versions {
 		if aws.ToString(version.Key) == fullKey {
 			versions = append(versions, aws.ToString(version.VersionId))
@@ -312,37 +457,46 @@ func (r *S3Repository) DeleteGenerationGarbageObject(
 			versions = append(versions, aws.ToString(marker.VersionId))
 		}
 	}
-	if aws.ToBool(output.IsTruncated) || len(versions) > 1 {
-		return 1, fmt.Errorf("%w: generation object has multiple or ambiguous versions", backupartifact.ErrObjectCorrupt)
+	if aws.ToBool(output.IsTruncated) || len(versions) > maxGenerationRepairVersions {
+		return 1, fmt.Errorf("%w: generation object repair-version count exceeds limit", backupartifact.ErrObjectCorrupt)
 	}
 	if len(versions) == 0 {
 		return 1, nil
 	}
-	if versions[0] == "" {
-		return 1, fmt.Errorf("%w: generation object version id is empty", backupartifact.ErrObjectCorrupt)
+	for _, versionID := range versions {
+		if versionID == "" {
+			return 1, fmt.Errorf("%w: generation object version id is empty", backupartifact.ErrObjectCorrupt)
+		}
 	}
-	if maxRequests < 2 {
-		return 1, errGenerationGCRequestBudget
+	used := 1
+	for _, versionID := range versions {
+		if used >= maxRequests {
+			return used, errGenerationGCRequestBudget
+		}
+		_, err = r.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(r.bucket), Key: aws.String(fullKey),
+			VersionId: aws.String(versionID),
+		})
+		used++
+		if err == nil {
+			continue
+		}
+		if !s3GarbageDeleteMayBeLocked(err) {
+			return used, mapS3Error(err)
+		}
+		if used >= maxRequests {
+			// The caller must reserve one request to distinguish Object Lock
+			// from an IAM denial; never guess from a provider AccessDenied.
+			return used, errGenerationGCRequestBudget
+		}
+		locked := r.objectVersionLocked(ctx, fullKey, versionID)
+		used++
+		if locked {
+			return used, backupartifact.ErrObjectLocked
+		}
+		return used, mapS3Error(err)
 	}
-	_, err = r.client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: aws.String(r.bucket), Key: aws.String(fullKey), VersionId: aws.String(versions[0]),
-	})
-	if err == nil {
-		return 2, nil
-	}
-	if !s3GarbageDeleteMayBeLocked(err) {
-		return 2, mapS3Error(err)
-	}
-	if maxRequests < 3 {
-		// Preserve the prior fully processed cursor and retry this key with a
-		// fresh budget that can distinguish Object Lock from generic IAM.
-		return 2, errGenerationGCRequestBudget
-	}
-	locked := r.objectVersionLocked(ctx, fullKey, versions[0])
-	if locked {
-		return 3, backupartifact.ErrObjectLocked
-	}
-	return 3, mapS3Error(err)
+	return used, nil
 }
 
 // WalkGarbageObjects streams immutable keys older than before without loading
@@ -653,5 +807,6 @@ func (r *S3Repository) objectVersionLocked(
 }
 
 var _ backupartifact.Repository = (*S3Repository)(nil)
+var _ backupartifact.RepairRepository = (*S3RepairRepository)(nil)
 var _ RestorePointLister = (*S3Repository)(nil)
 var _ GenerationGarbageRepository = (*S3Repository)(nil)

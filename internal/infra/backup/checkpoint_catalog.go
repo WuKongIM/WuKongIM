@@ -30,10 +30,12 @@ type CheckpointCatalogStateCommit struct {
 
 // ReplicatedCheckpointCatalog appends signed vector cuts to two repositories.
 type ReplicatedCheckpointCatalog struct {
-	primary      backupartifact.Repository
-	secondary    backupartifact.Repository
-	signer       backupartifact.ManifestSigner
-	signingKeyID string
+	primary         backupartifact.Repository
+	secondary       backupartifact.Repository
+	primaryRepair   backupartifact.RepairRepository
+	secondaryRepair backupartifact.RepairRepository
+	signer          backupartifact.ManifestSigner
+	signingKeyID    string
 }
 
 // NewReplicatedCheckpointCatalog creates a dual-repository catalog boundary.
@@ -42,8 +44,42 @@ func NewReplicatedCheckpointCatalog(
 	signer backupartifact.ManifestSigner,
 	signingKeyID string,
 ) (*ReplicatedCheckpointCatalog, error) {
+	return newReplicatedCheckpointCatalog(
+		primary, secondary, nil, nil, signer, signingKeyID,
+	)
+}
+
+// NewReplicatedCheckpointCatalogWithRepair creates a catalog whose integrity
+// auditor has explicit overwrite capability without weakening ordinary writes.
+func NewReplicatedCheckpointCatalogWithRepair(
+	primary, secondary backupartifact.Repository,
+	primaryRepair, secondaryRepair backupartifact.RepairRepository,
+	signer backupartifact.ManifestSigner,
+	signingKeyID string,
+) (*ReplicatedCheckpointCatalog, error) {
+	if primaryRepair == nil || secondaryRepair == nil ||
+		primary == nil || secondary == nil ||
+		primaryRepair.Name() != primary.Name() ||
+		secondaryRepair.Name() != secondary.Name() {
+		return nil, fmt.Errorf(
+			"backup checkpoint catalog: repair capabilities are invalid",
+		)
+	}
+	return newReplicatedCheckpointCatalog(
+		primary, secondary, primaryRepair, secondaryRepair,
+		signer, signingKeyID,
+	)
+}
+
+func newReplicatedCheckpointCatalog(
+	primary, secondary backupartifact.Repository,
+	primaryRepair, secondaryRepair backupartifact.RepairRepository,
+	signer backupartifact.ManifestSigner,
+	signingKeyID string,
+) (*ReplicatedCheckpointCatalog, error) {
 	catalog := &ReplicatedCheckpointCatalog{
 		primary: primary, secondary: secondary,
+		primaryRepair: primaryRepair, secondaryRepair: secondaryRepair,
 		signer: signer, signingKeyID: strings.TrimSpace(signingKeyID),
 	}
 	if primary == nil || secondary == nil || primary.Name() == "" ||
@@ -146,6 +182,7 @@ func (c *ReplicatedCheckpointCatalog) SetCheckpointHold(
 		return CheckpointCatalogStateCommit{}, err
 	}
 	checkpoint.Held = held
+	checkpoint.StateOnly = true
 	sequence := previous.Sequence + 1
 	pageCandidate := backupartifact.CatalogPage{
 		Format: backupartifact.CatalogPageFormat, Version: backupartifact.CatalogPageVersion,
@@ -353,6 +390,160 @@ func (c *ReplicatedCheckpointCatalog) loadExistingGenerationVector(
 	}
 	vector, err := backupartifact.LoadGenerationVector(ctx, body, c.signer)
 	return body, vector, true, err
+}
+
+// LoadPageForIntegrityAudit repairs one unhealthy copy from its authenticated
+// peer, revalidates it, and then returns the detached signed page.
+func (c *ReplicatedCheckpointCatalog) LoadPageForIntegrityAudit(
+	ctx context.Context,
+	reference backupartifact.CatalogPageReference,
+) (backupartifact.CatalogPage, error) {
+	body, err := c.loadAndRepairCatalogObject(
+		ctx, reference.Key, reference.SHA256, reference.Bytes,
+		func(body []byte) error {
+			page, loadErr := backupartifact.LoadCatalogPage(ctx, body, c.signer)
+			if loadErr != nil {
+				return loadErr
+			}
+			if page.Sequence != reference.Sequence ||
+				len(page.Entries) == 0 ||
+				page.Entries[0].ID != reference.LatestCheckpointID {
+				return backupartifact.ErrObjectCorrupt
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return backupartifact.CatalogPage{}, err
+	}
+	return backupartifact.LoadCatalogPage(ctx, body, c.signer)
+}
+
+// LoadCheckpointForIntegrityAudit repairs and revalidates the checkpoint and
+// its content-addressed Generation vector before navigation continues.
+func (c *ReplicatedCheckpointCatalog) LoadCheckpointForIntegrityAudit(
+	ctx context.Context,
+	reference backupartifact.CatalogCheckpointReference,
+) (backupartifact.Checkpoint, error) {
+	body, err := c.loadAndRepairCatalogObject(
+		ctx, reference.Key, reference.SHA256, reference.Bytes,
+		func(body []byte) error {
+			checkpoint, loadErr := backupartifact.LoadCheckpoint(
+				ctx, body, c.signer,
+			)
+			if loadErr != nil {
+				return loadErr
+			}
+			if checkpoint.ID != reference.ID ||
+				checkpoint.CreatedAtUnixMillis !=
+					reference.CreatedAtUnixMillis ||
+				checkpoint.EffectiveAtUnixMillis !=
+					reference.EffectiveAtUnixMillis {
+				return backupartifact.ErrObjectCorrupt
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	checkpoint, err := backupartifact.LoadCheckpoint(ctx, body, c.signer)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	vectorBody, err := c.loadAndRepairCatalogObject(
+		ctx, reference.GenerationVector.Key,
+		reference.GenerationVector.SHA256,
+		reference.GenerationVector.Bytes,
+		func(body []byte) error {
+			vector, loadErr := backupartifact.LoadGenerationVector(
+				ctx, body, c.signer,
+			)
+			if loadErr != nil {
+				return loadErr
+			}
+			if !generationVectorMatchesReference(
+				vector, body, reference.GenerationVector,
+			) {
+				return backupartifact.ErrObjectCorrupt
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	vector, err := backupartifact.LoadGenerationVector(
+		ctx, vectorBody, c.signer,
+	)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	if !checkpointMatchesGenerationVector(checkpoint, vector) {
+		return backupartifact.Checkpoint{}, backupartifact.ErrObjectCorrupt
+	}
+	return checkpoint, nil
+}
+
+func (c *ReplicatedCheckpointCatalog) loadAndRepairCatalogObject(
+	ctx context.Context,
+	key, checksum string,
+	size int64,
+	validate func([]byte) error,
+) ([]byte, error) {
+	type catalogCopy struct {
+		repository backupartifact.Repository
+		repair     backupartifact.RepairRepository
+		body       []byte
+		healthy    bool
+	}
+	copies := []catalogCopy{
+		{repository: c.primary, repair: c.primaryRepair},
+		{repository: c.secondary, repair: c.secondaryRepair},
+	}
+	for index := range copies {
+		body, err := readCheckpointCatalogObject(
+			ctx, copies[index].repository, key, checksum, size,
+		)
+		if err == nil && validate(body) == nil {
+			copies[index].body = body
+			copies[index].healthy = true
+		}
+	}
+	switch {
+	case copies[0].healthy && copies[1].healthy:
+		if !bytes.Equal(copies[0].body, copies[1].body) {
+			return nil, backupartifact.ErrRepositoryIncomplete
+		}
+		return copies[0].body, nil
+	case !copies[0].healthy && !copies[1].healthy:
+		return nil, backupartifact.ErrRepositoryIncomplete
+	}
+	healthyIndex, damagedIndex := 0, 1
+	if !copies[0].healthy {
+		healthyIndex, damagedIndex = 1, 0
+	}
+	if copies[damagedIndex].repair == nil {
+		return nil, fmt.Errorf(
+			"%w: catalog repair capability for %s is not configured",
+			backupartifact.ErrRepositoryIncomplete,
+			copies[damagedIndex].repository.Name(),
+		)
+	}
+	healthyBody := copies[healthyIndex].body
+	if err := copies[damagedIndex].repair.RepairImmutable(
+		ctx, key, size, checksum, bytes.NewReader(healthyBody),
+	); err != nil {
+		return nil, err
+	}
+	revalidated, err := readCheckpointCatalogObject(
+		ctx, copies[damagedIndex].repository, key, checksum, size,
+	)
+	if err != nil || validate(revalidated) != nil ||
+		!bytes.Equal(healthyBody, revalidated) {
+		return nil, backupartifact.ErrRepositoryIncomplete
+	}
+	return healthyBody, nil
 }
 
 // LoadPage requires matching authenticated copies of the exact referenced page.

@@ -49,6 +49,31 @@ func TestFileRepositoryRejectsMismatchWithoutPublishing(t *testing.T) {
 	require.True(t, errors.Is(err, backupartifact.ErrObjectNotFound))
 }
 
+func TestFileRepositoryRepairAtomicallyReplacesCurrentCopy(t *testing.T) {
+	repository, err := backupinfra.NewFileRepository("primary-dev", t.TempDir())
+	require.NoError(t, err)
+	key := "segments/a/payload.bin"
+	oldBody := []byte("corrupt-current-copy")
+	oldHash := sha256.Sum256(oldBody)
+	require.NoError(t, repository.PutImmutable(
+		context.Background(), key, int64(len(oldBody)),
+		hex.EncodeToString(oldHash[:]), bytes.NewReader(oldBody),
+	))
+	healthyBody := []byte("authenticated-healthy-copy")
+	healthyHash := sha256.Sum256(healthyBody)
+	require.NoError(t, repository.RepairImmutable(
+		context.Background(), key, int64(len(healthyBody)),
+		hex.EncodeToString(healthyHash[:]), bytes.NewReader(healthyBody),
+	))
+	reader, object, err := repository.Open(context.Background(), key)
+	require.NoError(t, err)
+	loaded, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.NoError(t, reader.Close())
+	require.Equal(t, healthyBody, loaded)
+	require.Equal(t, hex.EncodeToString(healthyHash[:]), object.SHA256)
+}
+
 func TestFileRepositoryListsOnlyCommittedRestorePoints(t *testing.T) {
 	repository, err := backupinfra.NewFileRepository("primary-dev", t.TempDir())
 	require.NoError(t, err)

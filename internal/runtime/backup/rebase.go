@@ -237,6 +237,11 @@ func (e *CaptureEngine) runRebase(
 	next.SourcePinStartedAtUnixMillis = next.Lease.AcquiredAtUnixMillis
 	next.Baseline = &baseline.Reference
 	next.Rebase = nil
+	next.LastPromotion = &backupcontract.SlotGenerationPromotion{
+		PreviousGeneration:   current.Generation,
+		Reason:               rebase.Reason,
+		PromotedAtUnixMillis: next.GenerationStartedAtUnixMillis,
+	}
 	next.Metadata = baseline.Metadata
 	next.Messages = baseline.Messages
 	next.WatermarkAtUnixMillis = baseline.WatermarkAtUnixMillis

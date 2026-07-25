@@ -35,6 +35,14 @@ type Repository interface {
 	Stat(ctx context.Context, key string) (RepositoryObject, error)
 }
 
+// RepairRepository can publish a new current version for one corrupted key.
+// Production implementations retain older Object-Locked versions; ordinary
+// upload credentials never receive this capability implicitly.
+type RepairRepository interface {
+	Repository
+	RepairImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error
+}
+
 // RestorePointGraph is one authenticated signed restore point and every
 // immutable repository key reachable from it, including its publication marker
 // and top manifest.

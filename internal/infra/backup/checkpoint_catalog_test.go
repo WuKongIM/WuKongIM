@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -134,6 +136,78 @@ func TestReplicatedCheckpointCatalogRepairsPartialPageWithOriginalSignature(t *t
 	require.Equal(t, 3, signer.signCalls)
 	_, err = catalog.LoadPage(context.Background(), commit.Head)
 	require.NoError(t, err)
+}
+
+func TestReplicatedCheckpointCatalogAuditRepairsNavigationArtifacts(t *testing.T) {
+	primaryDir := t.TempDir()
+	secondaryDir := t.TempDir()
+	primary, err := backupinfra.NewFileRepository("primary", primaryDir)
+	require.NoError(t, err)
+	secondary, err := backupinfra.NewFileRepository("secondary", secondaryDir)
+	require.NoError(t, err)
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalogWithRepair(
+		primary, secondary, primary, secondary,
+		newCatalogTestSigner(), "signing-key",
+	)
+	require.NoError(t, err)
+	commit, err := catalog.Publish(
+		context.Background(),
+		catalogTestCheckpoint("checkpoint-audit-repair", 1_753_400_200_000),
+		nil,
+	)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		name string
+		key  string
+		load func() error
+	}{
+		{
+			name: "catalog page", key: commit.Head.Key,
+			load: func() error {
+				_, loadErr := catalog.LoadPageForIntegrityAudit(
+					context.Background(), commit.Head,
+				)
+				return loadErr
+			},
+		},
+		{
+			name: "checkpoint", key: commit.Checkpoint.Key,
+			load: func() error {
+				_, loadErr := catalog.LoadCheckpointForIntegrityAudit(
+					context.Background(), commit.Checkpoint,
+				)
+				return loadErr
+			},
+		},
+		{
+			name: "generation vector",
+			key:  commit.Checkpoint.GenerationVector.Key,
+			load: func() error {
+				_, loadErr := catalog.LoadCheckpointForIntegrityAudit(
+					context.Background(), commit.Checkpoint,
+				)
+				return loadErr
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.NoError(t, os.WriteFile(
+				filepath.Join(secondaryDir, filepath.FromSlash(test.key)),
+				[]byte("damaged"), 0o640,
+			))
+			require.NoError(t, test.load())
+			primaryBody, readErr := os.ReadFile(
+				filepath.Join(primaryDir, filepath.FromSlash(test.key)),
+			)
+			require.NoError(t, readErr)
+			secondaryBody, readErr := os.ReadFile(
+				filepath.Join(secondaryDir, filepath.FromSlash(test.key)),
+			)
+			require.NoError(t, readErr)
+			require.Equal(t, primaryBody, secondaryBody)
+		})
+	}
 }
 
 type catalogRecordingRepository struct {

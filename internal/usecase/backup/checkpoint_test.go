@@ -46,6 +46,7 @@ func TestCheckpointCoordinatorPublishesCompleteHealthyVectorBeforeAdvancingHead(
 	require.Equal(t, uint16(255), catalog.checkpoint.Slots[255].HashSlot)
 	require.Equal(t, []backupartifact.ErasureStreamHead{erasureHead}, catalog.checkpoint.ErasureHeads)
 	require.Equal(t, commit.Head, *store.state.CatalogHead)
+	require.Equal(t, uint64(1), store.state.CatalogAuditRootSequence)
 	require.True(t, catalog.controllerHeadWasNil, "catalog must commit before Controller visibility")
 	require.Equal(t, int64(256*3), proofs.calls.Load())
 }
@@ -131,6 +132,71 @@ func TestCheckpointCoordinatorKeepsHeadInvisibleWhenCatalogPublishFails(t *testi
 
 	_, err = coordinator.Publish(context.Background())
 	require.EqualError(t, err, "secondary unavailable")
+	require.Nil(t, store.state.CatalogHead)
+}
+
+func TestCheckpointCoordinatorRejectsDurablyFrozenAuditSlotBeforeLocalStatusRefresh(t *testing.T) {
+	store := &memoryStateStore{state: backupusecase.State{
+		SlotFrontiers: checkpointTestFrontiers(2),
+		IntegrityAudit: backupcontract.IntegrityAuditState{
+			Revision: 1, UpdatedAtUnixMillis: 1_753_400_300_000,
+			Slots: []backupcontract.SlotIntegrityAuditState{{
+				HashSlot: 1, Generation: "slot-generation-1",
+				Health:              backupcontract.SlotAuditDegraded,
+				Repository:          "secondary",
+				Category:            backupcontract.IntegrityCorruptionCiphertext,
+				UpdatedAtUnixMillis: 1_753_400_300_000,
+			}},
+		},
+	}}
+	catalog := &recordingCheckpointCatalog{}
+	coordinator, err := backupusecase.NewCheckpointCoordinator(backupusecase.CheckpointOptions{
+		Enabled: true, HashSlotCount: 2, RepositoryID: "repository-prod",
+		SourceClusterID: "cluster-a", SourceGeneration: "source-generation-1",
+		Store: store, Catalog: catalog, Proofs: &recordingCheckpointProofs{},
+		CaptureStatus:   checkpointStatusSource{statuses: checkpointTestStatuses(2)},
+		Now:             func() time.Time { return time.UnixMilli(1_753_400_300_000).UTC() },
+		NewCheckpointID: func() string { return "checkpoint-frozen-audit" },
+	})
+	require.NoError(t, err)
+
+	_, err = coordinator.Publish(context.Background())
+	require.ErrorIs(t, err, backupusecase.ErrCheckpointUnhealthy)
+	require.Zero(t, catalog.calls)
+}
+
+func TestCheckpointCoordinatorDoesNotAdvanceHeadWhenAuditFreezesDuringPublish(t *testing.T) {
+	store := &memoryStateStore{state: backupusecase.State{
+		Revision: 5, SlotFrontiers: checkpointTestFrontiers(2),
+	}}
+	catalog := &recordingCheckpointCatalog{
+		onPublish: func() {
+			store.state.Revision++
+			store.state.IntegrityAudit = backupcontract.IntegrityAuditState{
+				Revision: 1, UpdatedAtUnixMillis: 1_753_400_300_000,
+				Slots: []backupcontract.SlotIntegrityAuditState{{
+					HashSlot: 1, Generation: "slot-generation-1",
+					Health:              backupcontract.SlotAuditDegraded,
+					Repository:          "secondary",
+					Category:            backupcontract.IntegrityCorruptionCiphertext,
+					UpdatedAtUnixMillis: 1_753_400_300_000,
+				}},
+			}
+		},
+	}
+	coordinator, err := backupusecase.NewCheckpointCoordinator(backupusecase.CheckpointOptions{
+		Enabled: true, HashSlotCount: 2, RepositoryID: "repository-prod",
+		SourceClusterID: "cluster-a", SourceGeneration: "source-generation-1",
+		Store: store, Catalog: catalog, Proofs: &recordingCheckpointProofs{},
+		CaptureStatus:   checkpointStatusSource{statuses: checkpointTestStatuses(2)},
+		Now:             func() time.Time { return time.UnixMilli(1_753_400_300_000).UTC() },
+		NewCheckpointID: func() string { return "checkpoint-audit-race" },
+	})
+	require.NoError(t, err)
+
+	_, err = coordinator.Publish(context.Background())
+	require.ErrorIs(t, err, backupusecase.ErrCheckpointUnhealthy)
+	require.Equal(t, 1, catalog.calls)
 	require.Nil(t, store.state.CatalogHead)
 }
 
@@ -266,6 +332,7 @@ type recordingCheckpointCatalog struct {
 	checkpoint           backupartifact.Checkpoint
 	calls                int
 	err                  error
+	onPublish            func()
 	controllerHeadWasNil bool
 }
 
@@ -307,6 +374,9 @@ func (c *recordingCheckpointCatalog) Publish(
 	}
 	if c.err != nil {
 		return backupartifact.CheckpointCatalogCommit{}, c.err
+	}
+	if c.onPublish != nil {
+		c.onPublish()
 	}
 	sequence := uint64(1)
 	if previous != nil {

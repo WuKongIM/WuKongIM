@@ -119,8 +119,12 @@ lease `(Slot ID, leader term, config epoch, holder, Generation, sequence)`;
 `SourceSlotID` binds the metadata cursor to its physical Raft index space, so a
 durable remap is detectable until rebase promotion; per-Channel cursor data
 remains in immutable repository segments. The same section stores only one
-authenticated checkpoint `CatalogHead`; immutable checkpoint history remains
-in dual repositories, so the new catalog does not grow Controller state.
+authenticated checkpoint `CatalogHead` plus the scalar
+`CatalogAuditRootSequence`, the oldest page that may contain a checkpoint in
+the current sparse retention decision. The exact reference set and its
+authenticated rebuild remain outside Controller; integrity audit persists only
+its digest. Immutable checkpoint history remains in dual repositories, so the
+new catalog does not grow Controller state.
 Each frontier also stores only its Generation age origin, per-stream cumulative
 post-baseline plaintext bytes, and authenticated baseline plaintext size. These
 bounded counters trigger single-Slot replacement without storing segment or
@@ -128,6 +132,21 @@ object lists. At most two `GenerationGCCursor` records—one per explicit
 repository—store only a cycle, fixed cutoff, lexicographic position, completion
 bit, and CAS revision; protected vectors and pending object identities remain
 outside Controller Raft.
+One `BackupIntegrityAuditState` adds an independent CAS revision, one opaque
+bounded artifact cursor including its fixed catalog head, retained root, and
+sparse-selection digest,
+aggregate debt/last-success evidence, and at most one
+sorted health record plus one in-flight GC exclusion guard per configured Hash
+Slot. The cursor preserves the complete next phase across repair/rebase. It
+never stores an artifact queue. `degraded`, `rebase_required`, and `failed`
+records are durable
+frontier/GC freezes that survive process and Controller Leader changes.
+GC guards use the same independent revision so an external delete and a new
+freeze are ordered across Controller Leader changes. A delete is admitted
+against an unfinished audit only after GC marked that exact cycle's rebuilt
+sparse selection and guard acquisition compared that cycle with the durable
+cursor. The persisted guard needs only Slot, token, and safety lease because
+any in-flight guard prevents a different cycle from starting.
 Each frontier may also carry one authenticated materialized baseline and one
 bounded pending rebase `(target Generation, lease-bound epoch, reason, start
 time)`. The pending record preserves the active Generation until a

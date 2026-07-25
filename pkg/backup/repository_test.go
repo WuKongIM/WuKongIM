@@ -360,10 +360,14 @@ type memoryRepository struct {
 	objects    map[string][]byte
 	failPut    bool
 	failPutKey string
+	openCounts map[string]int
 }
 
 func newMemoryRepository(name string) *memoryRepository {
-	return &memoryRepository{name: name, objects: make(map[string][]byte)}
+	return &memoryRepository{
+		name: name, objects: make(map[string][]byte),
+		openCounts: make(map[string]int),
+	}
 }
 
 func (r *memoryRepository) Name() string { return r.name }
@@ -399,8 +403,15 @@ func (r *memoryRepository) Open(_ context.Context, key string) (io.ReadCloser, b
 	if !ok {
 		return nil, backup.RepositoryObject{}, backup.ErrObjectNotFound
 	}
+	r.openCounts[key]++
 	hash := sha256.Sum256(value)
 	return io.NopCloser(bytes.NewReader(value)), backup.RepositoryObject{Key: key, Size: int64(len(value)), SHA256: fmt.Sprintf("%x", hash)}, nil
+}
+
+func (r *memoryRepository) openCount(key string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.openCounts[key]
 }
 
 func (r *memoryRepository) Stat(_ context.Context, key string) (backup.RepositoryObject, error) {

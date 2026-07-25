@@ -103,6 +103,10 @@ type CatalogCheckpointReference struct {
 	EffectiveAtUnixMillis int64 `json:"effective_at_unix_millis"`
 	// Held is the latest immutable catalog decision for operator retention.
 	Held bool `json:"held"`
+	// StateOnly distinguishes a hold/release append from the first publication
+	// of this immutable checkpoint. It prevents delta consumers from treating
+	// retention decisions as new backup content.
+	StateOnly bool `json:"state_only,omitempty"`
 	// GenerationVector authenticates the content-addressed complete Slot map.
 	GenerationVector GenerationVectorReference `json:"generation_vector"`
 }

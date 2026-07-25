@@ -258,10 +258,15 @@ type State struct {
 	SlotFrontiers []SlotFrontier
 	// CatalogHead is the only Controller-resident pointer into immutable checkpoint history.
 	CatalogHead *backupartifact.CatalogPageReference
+	// CatalogAuditRootSequence is the oldest page that may contain a checkpoint
+	// in the current sparse retention decision. Exact references stay external.
+	CatalogAuditRootSequence uint64
 	// ErasureStreams contains at most one sorted bounded state per Hash Slot.
 	ErasureStreams []ErasureStreamState
 	// GenerationGCCursors contains at most one independent durable cursor per repository.
 	GenerationGCCursors []GenerationGCCursor
+	// IntegrityAudit contains one durable full-scan cursor and bounded per-Slot health.
+	IntegrityAudit IntegrityAuditState
 }
 
 // Clone returns a deep copy safe for mutation by a caller.
@@ -303,6 +308,7 @@ func (s State) Clone() State {
 		}
 	}
 	out.GenerationGCCursors = append([]GenerationGCCursor(nil), s.GenerationGCCursors...)
+	out.IntegrityAudit = CloneIntegrityAuditState(s.IntegrityAudit)
 	return out
 }
 

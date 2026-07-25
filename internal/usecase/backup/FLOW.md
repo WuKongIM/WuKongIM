@@ -53,18 +53,26 @@ Current flow:
     authenticates only its current segment and cursor commit proofs,
     dual-commits the new checkpoint and hash-linked catalog page, then advances
     only the Controller catalog head while preserving concurrent frontier
-    updates. `ListCheckpointsPage` and `CheckpointByID` read immutable history
+    updates. The first publication also initializes the monotonic retained
+    audit root; later retention advances it before Generation GC.
+    `ListCheckpointsPage` and `CheckpointByID` read immutable history
     through an injected rebuildable catalog browser instead of Controller
     arrays.
     A Slot with a durable pending rebase blocks cluster-complete publication
     even though its old Generation remains restorable and other Slot frontiers
     may keep advancing. After promotion, the checkpoint includes the
     materialized partition reference and complete baseline cursor proof.
+    A durable integrity-audit `degraded`, `rebase_required`, or `failed` Slot
+    also blocks publication directly from Controller state, so a Controller
+    Leader switch cannot publish before node-local capture status refreshes.
 11. `DecideCheckpointRetention` applies the UTC five-minute, hourly, daily,
     and optional monthly tiers to immutable catalog references. The newest
     checkpoint, explicit operator holds, and the active restore checkpoint are
     always retained. Its output is a Generation protection decision; it does
     not place checkpoint history or object identities in Controller state.
+    Daily integrity audit consumes the same sparse decision and persists only
+    a content digest, so catalog pages between retained checkpoints remain
+    navigable without treating their collected Generations as audit targets.
 
 Large channel/object manifests stay in repositories. Coordination state stores
 only one bounded summary per logical hash slot.

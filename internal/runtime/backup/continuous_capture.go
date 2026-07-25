@@ -223,6 +223,23 @@ type SlotFrontierStore interface {
 	CompareAndSwap(context.Context, uint64, backupcontract.SlotCaptureLease, backupcontract.SlotFrontier) error
 }
 
+// SlotIntegrityAuditGate exposes durable per-Slot repair isolation to capture workers.
+type SlotIntegrityAuditGate interface {
+	AuditSlotState(
+		context.Context,
+		uint16,
+	) (backupcontract.SlotIntegrityAuditState, bool, error)
+}
+
+// SlotIntegrityAuditRefresher reloads a narrow projection after the atomic
+// Controller frontier CAS observes a newer remote audit freeze.
+type SlotIntegrityAuditRefresher interface {
+	RefreshAuditSlotState(
+		context.Context,
+		uint16,
+	) (backupcontract.SlotIntegrityAuditState, bool, error)
+}
+
 // SlotGenerationPromoter atomically replaces one healthy generation after its
 // materialized baseline is durable in both repositories.
 type SlotGenerationPromoter interface {
@@ -418,6 +435,8 @@ type CaptureEngineOptions struct {
 	MemoryBudget CaptureMemoryBudget
 	// Observer receives optional low-cardinality lease ownership metrics.
 	Observer CaptureObserver
+	// AuditGate pauses only Slots under durable integrity repair or recovery.
+	AuditGate SlotIntegrityAuditGate
 	// Rebase enables bounded source pins and independent Slot generation replacement.
 	Rebase *RebaseOptions
 }
@@ -539,6 +558,43 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 	}
 	e.slotLocks[hashSlot].Lock()
 	defer e.slotLocks[hashSlot].Unlock()
+	var auditRebase *backupcontract.SlotIntegrityAuditState
+	if e.options.AuditGate != nil {
+		audit, found, gateErr := e.options.AuditGate.AuditSlotState(ctx, hashSlot)
+		if gateErr != nil {
+			e.recordStatus(
+				hashSlot, backupcontract.CaptureStateFailed,
+				backupcontract.SlotFrontier{}, SourceWatermarks{}, "audit_gate",
+			)
+			return backupcontract.SlotFrontier{}, gateErr
+		}
+		if found && audit.Health != backupcontract.SlotAuditHealthy {
+			if audit.Health == backupcontract.SlotAuditRebaseRequired &&
+				e.options.Rebase != nil {
+				auditCopy := audit
+				auditRebase = &auditCopy
+			} else {
+				snapshot, loadErr := e.options.Frontiers.Load(ctx, hashSlot)
+				if loadErr != nil {
+					e.recordStatus(
+						hashSlot, backupcontract.CaptureStateFailed,
+						backupcontract.SlotFrontier{}, SourceWatermarks{}, "audit_gate",
+					)
+					return backupcontract.SlotFrontier{}, loadErr
+				}
+				frontier := backupcontract.CloneSlotFrontier(snapshot.Frontier)
+				state := backupcontract.CaptureStateDegraded
+				if audit.Health == backupcontract.SlotAuditFailed {
+					state = backupcontract.CaptureStateFailed
+				}
+				e.recordStatus(
+					hashSlot, state, frontier, SourceWatermarks{},
+					"audit_"+string(audit.Health),
+				)
+				return frontier, ErrIntegrityAuditFrozen
+			}
+		}
+	}
 	snapshot, err := e.options.Frontiers.AcquireLease(
 		ctx,
 		hashSlot,
@@ -548,6 +604,13 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 	if err != nil {
 		state := backupcontract.CaptureStateFailed
 		category := "frontier_load"
+		if errors.Is(err, ErrIntegrityAuditFrozen) {
+			state = backupcontract.CaptureStateDegraded
+			category = "audit_gate"
+			if refresher, ok := e.options.AuditGate.(SlotIntegrityAuditRefresher); ok {
+				_, _, _ = refresher.RefreshAuditSlotState(ctx, hashSlot)
+			}
+		}
 		if errors.Is(err, ErrCaptureLeaseFenced) || errors.Is(err, ErrCaptureNotLeader) {
 			state = backupcontract.CaptureStateFenced
 			category = "capture_fenced"
@@ -600,6 +663,32 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 		if err != nil {
 			return backupcontract.SlotFrontier{}, err
 		}
+	}
+	if auditRebase != nil {
+		if current.Generation != auditRebase.Generation {
+			e.recordStatus(
+				hashSlot, backupcontract.CaptureStateDegraded, current,
+				SourceWatermarks{}, "audit_rebase_pending_confirmation",
+			)
+			return current, ErrIntegrityAuditFrozen
+		}
+		if current.Rebase == nil {
+			current, err = e.beginRebase(
+				ctx, current, backupcontract.RebaseReasonAuditCorruption,
+			)
+			if err != nil {
+				return backupcontract.SlotFrontier{}, err
+			}
+		} else if current.Rebase.Reason != backupcontract.RebaseReasonAuditCorruption {
+			current, err = e.rotatePendingRebase(
+				ctx, current, backupcontract.RebaseReasonAuditCorruption,
+			)
+			if err != nil {
+				return backupcontract.SlotFrontier{}, err
+			}
+		}
+		next, rebaseErr := e.runRebase(ctx, current)
+		return next, rebaseErr
 	}
 	if next, handled, err := e.reconcileRebase(ctx, current); handled {
 		return next, err
@@ -712,6 +801,11 @@ func (e *CaptureEngine) commitPreparedFrontier(
 		next.SourcePinStartedAtUnixMillis = next.UpdatedAtUnixMillis
 	}
 	if err := e.options.Frontiers.CompareAndSwap(ctx, current.Revision, current.Lease, next); err != nil {
+		if errors.Is(err, ErrIntegrityAuditFrozen) {
+			if refresher, ok := e.options.AuditGate.(SlotIntegrityAuditRefresher); ok {
+				_, _, _ = refresher.RefreshAuditSlotState(ctx, hashSlot)
+			}
+		}
 		if invalidator, ok := e.options.Source.(SourceStateInvalidator); ok {
 			invalidator.InvalidateSourceState(hashSlot)
 		}

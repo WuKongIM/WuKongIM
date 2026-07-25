@@ -77,6 +77,9 @@ func (s *ControllerSlotFrontierStore) AcquireLease(ctx context.Context, hashSlot
 		index, found := findSlotFrontier(state.SlotFrontiers, hashSlot)
 		if found {
 			current := state.SlotFrontiers[index]
+			if !auditAllowsLeaseAcquire(state.IntegrityAudit, current) {
+				return runtimebackup.FrontierSnapshot{}, runtimebackup.ErrIntegrityAuditFrozen
+			}
 			if captureLeaseMatchesAuthority(current.Lease, authority) &&
 				current.Lease.Generation == current.Generation {
 				if _, err := s.requireAuthority(ctx, hashSlot, authority); err != nil {
@@ -172,6 +175,9 @@ func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expect
 			if !backupcontract.SlotCaptureLeasesEqual(current.Lease, expectedLease) {
 				return runtimebackup.ErrCaptureLeaseFenced
 			}
+			if !auditAllowsFrontierCAS(state.IntegrityAudit, current, next) {
+				return runtimebackup.ErrIntegrityAuditFrozen
+			}
 			state.SlotFrontiers[index] = backupcontract.CloneSlotFrontier(next)
 		} else {
 			return runtimebackup.ErrCaptureLeaseFenced
@@ -242,8 +248,15 @@ func (s *ControllerSlotFrontierStore) PromoteGeneration(
 		}
 		if current.Rebase == nil ||
 			current.Rebase.TargetGeneration != next.Generation ||
-			current.Generation != expectedLease.Generation {
+			current.Generation != expectedLease.Generation ||
+			next.LastPromotion == nil ||
+			next.LastPromotion.PreviousGeneration != current.Generation ||
+			next.LastPromotion.Reason != current.Rebase.Reason ||
+			next.LastPromotion.PromotedAtUnixMillis != next.GenerationStartedAtUnixMillis {
 			return runtimebackup.ErrInvalidCapture
+		}
+		if !auditAllowsGenerationPromotion(state.IntegrityAudit, current, next) {
+			return runtimebackup.ErrIntegrityAuditFrozen
 		}
 		state.SlotFrontiers[index] = backupcontract.CloneSlotFrontier(next)
 		if _, err := s.requireAuthority(ctx, next.HashSlot, authority); err != nil {
@@ -261,6 +274,50 @@ func (s *ControllerSlotFrontierStore) PromoteGeneration(
 		}
 	}
 	return fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
+}
+
+func auditAllowsLeaseAcquire(
+	audit backupcontract.IntegrityAuditState,
+	current backupcontract.SlotFrontier,
+) bool {
+	slot, found := backupcontract.FindSlotAuditState(audit, current.HashSlot)
+	if !found || slot.Health == backupcontract.SlotAuditHealthy {
+		return true
+	}
+	return slot.Health == backupcontract.SlotAuditRebaseRequired &&
+		slot.Generation == current.Generation
+}
+
+func auditAllowsFrontierCAS(
+	audit backupcontract.IntegrityAuditState,
+	current backupcontract.SlotFrontier,
+	next backupcontract.SlotFrontier,
+) bool {
+	slot, found := backupcontract.FindSlotAuditState(audit, current.HashSlot)
+	if !found || slot.Health == backupcontract.SlotAuditHealthy {
+		return true
+	}
+	return slot.Health == backupcontract.SlotAuditRebaseRequired &&
+		slot.Generation == current.Generation &&
+		next.Generation == current.Generation &&
+		next.Rebase != nil &&
+		next.Rebase.Reason == backupcontract.RebaseReasonAuditCorruption
+}
+
+func auditAllowsGenerationPromotion(
+	audit backupcontract.IntegrityAuditState,
+	current backupcontract.SlotFrontier,
+	next backupcontract.SlotFrontier,
+) bool {
+	slot, found := backupcontract.FindSlotAuditState(audit, current.HashSlot)
+	if !found || slot.Health == backupcontract.SlotAuditHealthy {
+		return true
+	}
+	return slot.Health == backupcontract.SlotAuditRebaseRequired &&
+		slot.Generation == current.Generation &&
+		current.Rebase != nil &&
+		current.Rebase.Reason == backupcontract.RebaseReasonAuditCorruption &&
+		next.Generation != current.Generation
 }
 
 func (s *ControllerSlotFrontierStore) currentAuthority(ctx context.Context, hashSlot uint16) (runtimebackup.SlotCaptureAuthority, error) {

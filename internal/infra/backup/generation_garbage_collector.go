@@ -41,9 +41,35 @@ type GenerationGarbageRepository interface {
 	DeleteGenerationGarbageObject(context.Context, string, int) (int, error)
 }
 
+// GenerationGCIntegrityGuard linearizes destructive work with durable audit
+// health transitions for the same Hash Slot.
+type GenerationGCIntegrityGuard interface {
+	// WithGenerationGCDelete runs deleteObject only while hashSlot remains healthy.
+	// protectedAuditCycleID proves the caller marked that exact unfinished
+	// sparse selection. allowed is false for a different concurrent cycle.
+	WithGenerationGCDelete(
+		context.Context,
+		uint16,
+		string,
+		func(context.Context) (int, error),
+	) (allowed bool, used int, err error)
+}
+
+// GenerationGCIntegrityAuditProtectionSource rebuilds the exact sparse
+// checkpoint set fixed by one unfinished durable integrity-audit cursor.
+type GenerationGCIntegrityAuditProtectionSource interface {
+	LoadIntegrityAuditRetainedCheckpoints(
+		context.Context,
+		backupcontract.IntegrityAuditCursor,
+	) ([]backupartifact.CatalogCheckpointReference, error)
+}
+
 // GenerationGCProtection identifies every checkpoint and live Slot state that
 // must keep a complete Generation reachable.
 type GenerationGCProtection struct {
+	// RetainedCatalogRootSequence is the oldest catalog page represented by
+	// Retained, Held, or ActiveRestore and must be fenced before deletion.
+	RetainedCatalogRootSequence uint64
 	// Retained contains checkpoint vectors selected by the UTC retention tiers.
 	Retained []backupartifact.CatalogCheckpointReference
 	// Held contains operator-protected checkpoint vectors.
@@ -55,6 +81,10 @@ type GenerationGCProtection struct {
 	// FrozenHashSlots are degraded/auditor-owned Slots whose every Generation
 	// remains protected until repair clears the freeze.
 	FrozenHashSlots []uint16
+	// IntegrityAudit contributes durable degraded, rebase-required, and failed
+	// Slots directly, and identifies an unfinished sparse selection that is
+	// rebuilt and added to the mark set across Controller Leader failover.
+	IntegrityAudit backupcontract.IntegrityAuditState
 }
 
 // GenerationGarbageCollectorOptions configures independent repository sweeps.
@@ -70,13 +100,21 @@ type GenerationGarbageCollectorOptions struct {
 	Cursors GenerationGCCursorStore
 	// VectorCache durably resumes bounded protection-vector authentication.
 	VectorCache GenerationVectorCache
+	// IntegrityGuard prevents a concurrent audit freeze from racing deletion.
+	IntegrityGuard GenerationGCIntegrityGuard
+	// AuditProtection adds the exact sparse selection of an unfinished audit
+	// to the current Generation mark set.
+	AuditProtection GenerationGCIntegrityAuditProtectionSource
+	// AuditRoots advances the durable retained catalog lower bound before any
+	// expired Generation can be deleted.
+	AuditRoots CatalogAuditRootStore
 
 	// HashSlotCount is the immutable complete vector width.
 	HashSlotCount uint16
 	// SafetyWindow protects recently published immutable objects from sweep.
 	SafetyWindow time.Duration
 	// MaxRequestsPerRepository includes vector-cache misses, one listing, commit
-	// classification, and exact-version deletion calls.
+	// classification, exact-version deletion, and Object Lock classification.
 	MaxRequestsPerRepository int
 	// MaxBytesPerRepository bounds deleted stored bytes in one call.
 	MaxBytesPerRepository int64
@@ -113,6 +151,9 @@ type GenerationGarbageCollector struct {
 	signer             backupartifact.ManifestSigner
 	cursors            GenerationGCCursorStore
 	vectorCache        GenerationVectorCache
+	integrityGuard     GenerationGCIntegrityGuard
+	auditProtection    GenerationGCIntegrityAuditProtectionSource
+	auditRoots         CatalogAuditRootStore
 	hashSlotCount      uint16
 	safetyWindow       time.Duration
 	maxRequests        int
@@ -127,6 +168,9 @@ func NewGenerationGarbageCollector(options GenerationGarbageCollectorOptions) (*
 		options.Primary.Name() == options.Secondary.Name() ||
 		options.Catalog == nil || options.Signer == nil ||
 		options.Cursors == nil || options.VectorCache == nil ||
+		options.IntegrityGuard == nil ||
+		options.AuditProtection == nil ||
+		options.AuditRoots == nil ||
 		options.HashSlotCount == 0 || options.SafetyWindow <= 0 {
 		return nil, fmt.Errorf("backup generation GC: invalid dependencies")
 	}
@@ -136,7 +180,7 @@ func NewGenerationGarbageCollector(options GenerationGarbageCollectorOptions) (*
 	if options.MaxBytesPerRepository == 0 {
 		options.MaxBytesPerRepository = 1 << 30
 	}
-	if options.MaxRequestsPerRepository < 4 || options.MaxRequestsPerRepository > 4096 ||
+	if options.MaxRequestsPerRepository < 5 || options.MaxRequestsPerRepository > 4096 ||
 		options.MaxBytesPerRepository <= 0 {
 		return nil, fmt.Errorf("backup generation GC: invalid work budget")
 	}
@@ -147,7 +191,10 @@ func NewGenerationGarbageCollector(options GenerationGarbageCollectorOptions) (*
 		primary: options.Primary, secondary: options.Secondary,
 		catalog: options.Catalog, signer: options.Signer,
 		cursors: options.Cursors, vectorCache: options.VectorCache,
-		hashSlotCount: options.HashSlotCount, safetyWindow: options.SafetyWindow,
+		integrityGuard:  options.IntegrityGuard,
+		auditProtection: options.AuditProtection,
+		auditRoots:      options.AuditRoots,
+		hashSlotCount:   options.HashSlotCount, safetyWindow: options.SafetyWindow,
 		maxRequests: options.MaxRequestsPerRepository, maxBytes: options.MaxBytesPerRepository,
 		now: options.Now,
 	}, nil
@@ -163,8 +210,32 @@ func (c *GenerationGarbageCollector) Collect(
 	if c == nil || !validControllerCaptureGeneration(strings.TrimSpace(cycleID)) {
 		return GenerationGCResult{}, fmt.Errorf("backup generation GC: invalid cycle")
 	}
+	auditCycleID, auditRetained, err :=
+		c.loadIntegrityAuditProtection(
+			ctx, protection.IntegrityAudit,
+		)
+	if err != nil {
+		return GenerationGCResult{}, err
+	}
+	protection.Retained = append(
+		append(
+			[]backupartifact.CatalogCheckpointReference(nil),
+			protection.Retained...,
+		),
+		auditRetained...,
+	)
 	baseProtected, current, frozen, err := c.buildLiveProtection(protection)
 	if err != nil {
+		return GenerationGCResult{}, err
+	}
+	if protection.RetainedCatalogRootSequence == 0 {
+		return GenerationGCResult{}, fmt.Errorf(
+			"backup generation GC: retained catalog root is invalid",
+		)
+	}
+	if err := c.auditRoots.AdvanceCatalogAuditRoot(
+		ctx, protection.RetainedCatalogRootSequence,
+	); err != nil {
 		return GenerationGCResult{}, err
 	}
 	type repositoryPair struct {
@@ -207,6 +278,7 @@ func (c *GenerationGarbageCollector) Collect(
 		repositoryResult, err := c.collectRepository(
 			ctx, cycleID, pair.current,
 			protected, current, frozen, vectorIDs, requests,
+			auditCycleID,
 		)
 		result.Repositories = append(result.Repositories, repositoryResult)
 		if err != nil {
@@ -214,6 +286,36 @@ func (c *GenerationGarbageCollector) Collect(
 		}
 	}
 	return result, collectedErr
+}
+
+func (c *GenerationGarbageCollector) loadIntegrityAuditProtection(
+	ctx context.Context,
+	state backupcontract.IntegrityAuditState,
+) (
+	string,
+	[]backupartifact.CatalogCheckpointReference,
+	error,
+) {
+	cursor := state.Cursor
+	if cursor == nil ||
+		!strings.HasPrefix(cursor.CycleID, "catalog-segments-") ||
+		cursor.Phase == backupcontract.IntegrityAuditPhaseComplete {
+		return "", nil, nil
+	}
+	references, err := c.auditProtection.
+		LoadIntegrityAuditRetainedCheckpoints(ctx, *cursor)
+	if err != nil {
+		return "", nil, fmt.Errorf(
+			"backup generation GC: load integrity audit protection: %w",
+			err,
+		)
+	}
+	if len(references) == 0 {
+		return "", nil, fmt.Errorf(
+			"backup generation GC: integrity audit protection is empty",
+		)
+	}
+	return cursor.CycleID, references, nil
 }
 
 func (c *GenerationGarbageCollector) completedRepositoryCycle(
@@ -261,11 +363,18 @@ func (c *GenerationGarbageCollector) buildLiveProtection(
 		}
 		current[frontier.HashSlot] = frontier.Generation
 	}
-	frozen := make(map[uint16]struct{}, len(protection.FrozenHashSlots))
+	durableFrozen := backupcontract.FrozenAuditHashSlots(protection.IntegrityAudit)
+	frozen := make(map[uint16]struct{}, len(protection.FrozenHashSlots)+len(durableFrozen))
 	for index, hashSlot := range protection.FrozenHashSlots {
 		if hashSlot >= c.hashSlotCount ||
 			(index > 0 && protection.FrozenHashSlots[index-1] >= hashSlot) {
 			return nil, nil, nil, fmt.Errorf("backup generation GC: frozen Slots are invalid")
+		}
+		frozen[hashSlot] = struct{}{}
+	}
+	for _, hashSlot := range durableFrozen {
+		if hashSlot >= c.hashSlotCount {
+			return nil, nil, nil, fmt.Errorf("backup generation GC: durable audit Slot is invalid")
 		}
 		frozen[hashSlot] = struct{}{}
 	}
@@ -360,6 +469,7 @@ func (c *GenerationGarbageCollector) collectRepository(
 	frozen map[uint16]struct{},
 	vectorIDs map[string]struct{},
 	requestBudget int,
+	auditCycleID string,
 ) (GenerationGCRepositoryResult, error) {
 	result := GenerationGCRepositoryResult{Repository: repository.Name()}
 	cursor, found, err := c.cursors.LoadGenerationGCCursor(ctx, repository.Name())
@@ -456,11 +566,30 @@ func (c *GenerationGarbageCollector) collectRepository(
 				processedAll = false
 				break
 			}
-			used, err := repository.DeleteGenerationGarbageObject(ctx, object.Key, requests)
+			allowed := true
+			var used int
+			if identity.generation == "" {
+				used, err = repository.DeleteGenerationGarbageObject(
+					ctx, object.Key, requests,
+				)
+			} else {
+				allowed, used, err = c.integrityGuard.WithGenerationGCDelete(
+					ctx, identity.hashSlot, auditCycleID,
+					func(deleteCtx context.Context) (int, error) {
+						return repository.DeleteGenerationGarbageObject(
+							deleteCtx, object.Key, requests,
+						)
+					},
+				)
+			}
 			if used < 0 || used > requests {
 				return result, fmt.Errorf("backup generation GC: repository %s exceeded delete request budget", repository.Name())
 			}
 			requests -= used
+			if !allowed {
+				afterKey = object.Key
+				continue
+			}
 			if errors.Is(err, errGenerationGCRequestBudget) {
 				processedAll = false
 				break

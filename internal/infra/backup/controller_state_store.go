@@ -44,6 +44,7 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	result.LastEpoch = clusterState.Backup.LastEpoch
 	result.ErasureStreams = erasureStreamsFromController(clusterState.Backup.ErasureStreams)
 	result.GenerationGCCursors = generationGCCursorsFromController(clusterState.Backup.GenerationGCCursors)
+	result.IntegrityAudit = integrityAuditFromController(clusterState.Backup.IntegrityAudit)
 	result.Active = jobFromController(clusterState.Backup.Active)
 	result.Verification = verificationTaskFromController(clusterState.Backup.Verification)
 	result.RestorePoints = make([]backupusecase.RestorePoint, len(clusterState.Backup.RestorePoints))
@@ -59,21 +60,25 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 		result.SlotFrontiers[index] = slotFrontierFromController(frontier)
 	}
 	result.CatalogHead = catalogPageReferenceFromController(clusterState.Backup.CatalogHead)
+	result.CatalogAuditRootSequence =
+		clusterState.Backup.CatalogAuditRootSequence
 	return result, nil
 }
 
 // CompareAndSwap stores next only when the Controller cluster revision still matches revision.
 func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint64, next backupusecase.State) error {
 	replacement := controller.BackupCoordinationState{
-		LastEpoch:           next.LastEpoch,
-		Active:              jobToController(next.Active),
-		Verification:        verificationTaskToController(next.Verification),
-		RestorePoints:       make([]controller.BackupRestorePoint, len(next.RestorePoints)),
-		PendingGarbage:      make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
-		SlotFrontiers:       make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
-		CatalogHead:         catalogPageReferenceToController(next.CatalogHead),
-		ErasureStreams:      erasureStreamsToController(next.ErasureStreams),
-		GenerationGCCursors: generationGCCursorsToController(next.GenerationGCCursors),
+		LastEpoch:                next.LastEpoch,
+		Active:                   jobToController(next.Active),
+		Verification:             verificationTaskToController(next.Verification),
+		RestorePoints:            make([]controller.BackupRestorePoint, len(next.RestorePoints)),
+		PendingGarbage:           make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
+		SlotFrontiers:            make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
+		CatalogHead:              catalogPageReferenceToController(next.CatalogHead),
+		CatalogAuditRootSequence: next.CatalogAuditRootSequence,
+		ErasureStreams:           erasureStreamsToController(next.ErasureStreams),
+		GenerationGCCursors:      generationGCCursorsToController(next.GenerationGCCursors),
+		IntegrityAudit:           integrityAuditToController(next.IntegrityAudit),
 	}
 	for index, restorePoint := range next.RestorePoints {
 		replacement.RestorePoints[index] = restorePointToController(restorePoint)
@@ -91,6 +96,90 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		return err
 	}
 	return nil
+}
+
+func integrityAuditFromController(state controller.BackupIntegrityAuditState) backupcontract.IntegrityAuditState {
+	result := backupcontract.IntegrityAuditState{
+		Revision: state.Revision, DebtObjects: state.DebtObjects,
+		LastSuccessAtUnixMillis: state.LastSuccessAtUnixMillis,
+		UpdatedAtUnixMillis:     state.UpdatedAtUnixMillis,
+		Slots:                   make([]backupcontract.SlotIntegrityAuditState, len(state.Slots)),
+		GCGuards:                make([]backupcontract.IntegrityAuditGCGuard, len(state.GCGuards)),
+	}
+	if state.Cursor != nil {
+		result.Cursor = &backupcontract.IntegrityAuditCursor{
+			CycleID: state.Cursor.CycleID, ScrubEpoch: state.Cursor.ScrubEpoch,
+			CatalogSequence:     state.Cursor.CatalogSequence,
+			CatalogRootSequence: state.Cursor.CatalogRootSequence,
+			HashSlot:            state.Cursor.HashSlot, Generation: state.Cursor.Generation,
+			Position: state.Cursor.Position, ResumeHashSlot: state.Cursor.ResumeHashSlot,
+			ResumeGeneration: state.Cursor.ResumeGeneration, ResumePosition: state.Cursor.ResumePosition,
+			ResumePhase:         backupcontract.IntegrityAuditPhase(state.Cursor.ResumePhase),
+			Phase:               backupcontract.IntegrityAuditPhase(state.Cursor.Phase),
+			Repository:          state.Cursor.Repository,
+			Category:            backupcontract.IntegrityCorruptionCategory(state.Cursor.Category),
+			UpdatedAtUnixMillis: state.Cursor.UpdatedAtUnixMillis,
+		}
+	}
+	for index, slot := range state.Slots {
+		result.Slots[index] = backupcontract.SlotIntegrityAuditState{
+			HashSlot: slot.HashSlot, Generation: slot.Generation,
+			Health:                  backupcontract.SlotAuditHealth(slot.Health),
+			Repository:              slot.Repository,
+			Category:                backupcontract.IntegrityCorruptionCategory(slot.Category),
+			LastSuccessAtUnixMillis: slot.LastSuccessAtUnixMillis,
+			UpdatedAtUnixMillis:     slot.UpdatedAtUnixMillis,
+		}
+	}
+	for index, guard := range state.GCGuards {
+		result.GCGuards[index] = backupcontract.IntegrityAuditGCGuard{
+			HashSlot: guard.HashSlot, Token: guard.Token,
+			AcquiredAtUnixMillis: guard.AcquiredAtUnixMillis,
+			ExpiresAtUnixMillis:  guard.ExpiresAtUnixMillis,
+		}
+	}
+	return result
+}
+
+func integrityAuditToController(state backupcontract.IntegrityAuditState) controller.BackupIntegrityAuditState {
+	result := controller.BackupIntegrityAuditState{
+		Revision: state.Revision, DebtObjects: state.DebtObjects,
+		LastSuccessAtUnixMillis: state.LastSuccessAtUnixMillis,
+		UpdatedAtUnixMillis:     state.UpdatedAtUnixMillis,
+		Slots:                   make([]controller.BackupSlotIntegrityAuditState, len(state.Slots)),
+		GCGuards:                make([]controller.BackupIntegrityAuditGCGuard, len(state.GCGuards)),
+	}
+	if state.Cursor != nil {
+		result.Cursor = &controller.BackupIntegrityAuditCursor{
+			CycleID: state.Cursor.CycleID, ScrubEpoch: state.Cursor.ScrubEpoch,
+			CatalogSequence:     state.Cursor.CatalogSequence,
+			CatalogRootSequence: state.Cursor.CatalogRootSequence,
+			HashSlot:            state.Cursor.HashSlot, Generation: state.Cursor.Generation,
+			Position: state.Cursor.Position, ResumeHashSlot: state.Cursor.ResumeHashSlot,
+			ResumeGeneration: state.Cursor.ResumeGeneration, ResumePosition: state.Cursor.ResumePosition,
+			ResumePhase: string(state.Cursor.ResumePhase),
+			Phase:       string(state.Cursor.Phase), Repository: state.Cursor.Repository,
+			Category:            string(state.Cursor.Category),
+			UpdatedAtUnixMillis: state.Cursor.UpdatedAtUnixMillis,
+		}
+	}
+	for index, slot := range state.Slots {
+		result.Slots[index] = controller.BackupSlotIntegrityAuditState{
+			HashSlot: slot.HashSlot, Generation: slot.Generation,
+			Health: string(slot.Health), Repository: slot.Repository,
+			Category:                string(slot.Category),
+			LastSuccessAtUnixMillis: slot.LastSuccessAtUnixMillis,
+			UpdatedAtUnixMillis:     slot.UpdatedAtUnixMillis,
+		}
+	}
+	for index, guard := range state.GCGuards {
+		result.GCGuards[index] = controller.BackupIntegrityAuditGCGuard{
+			HashSlot: guard.HashSlot, Token: guard.Token,
+			AcquiredAtUnixMillis: guard.AcquiredAtUnixMillis,
+			ExpiresAtUnixMillis:  guard.ExpiresAtUnixMillis,
+		}
+	}
+	return result
 }
 
 func generationGCCursorsFromController(cursors []controller.BackupGenerationGCCursor) []backupcontract.GenerationGCCursor {
@@ -148,6 +237,7 @@ func slotFrontierFromController(frontier controller.BackupSlotFrontier) backupco
 		SourcePinStartedAtUnixMillis:  frontier.SourcePinStartedAtUnixMillis,
 		Baseline:                      slotBaselineFromController(frontier.Baseline),
 		Rebase:                        slotRebaseFromController(frontier.Rebase),
+		LastPromotion:                 slotPromotionFromController(frontier.LastPromotion),
 		Metadata:                      streamFrontierFromController(frontier.Metadata),
 		Messages:                      streamFrontierFromController(frontier.Messages),
 		WatermarkAtUnixMillis:         frontier.WatermarkAtUnixMillis,
@@ -164,10 +254,37 @@ func slotFrontierToController(frontier backupcontract.SlotFrontier) controller.B
 		SourcePinStartedAtUnixMillis:  frontier.SourcePinStartedAtUnixMillis,
 		Baseline:                      slotBaselineToController(frontier.Baseline),
 		Rebase:                        slotRebaseToController(frontier.Rebase),
+		LastPromotion:                 slotPromotionToController(frontier.LastPromotion),
 		Metadata:                      streamFrontierToController(frontier.Metadata),
 		Messages:                      streamFrontierToController(frontier.Messages),
 		WatermarkAtUnixMillis:         frontier.WatermarkAtUnixMillis,
 		UpdatedAtUnixMillis:           frontier.UpdatedAtUnixMillis,
+	}
+}
+
+func slotPromotionFromController(
+	promotion *controller.BackupSlotGenerationPromotion,
+) *backupcontract.SlotGenerationPromotion {
+	if promotion == nil {
+		return nil
+	}
+	return &backupcontract.SlotGenerationPromotion{
+		PreviousGeneration:   promotion.PreviousGeneration,
+		Reason:               promotion.Reason,
+		PromotedAtUnixMillis: promotion.PromotedAtUnixMillis,
+	}
+}
+
+func slotPromotionToController(
+	promotion *backupcontract.SlotGenerationPromotion,
+) *controller.BackupSlotGenerationPromotion {
+	if promotion == nil {
+		return nil
+	}
+	return &controller.BackupSlotGenerationPromotion{
+		PreviousGeneration:   promotion.PreviousGeneration,
+		Reason:               promotion.Reason,
+		PromotedAtUnixMillis: promotion.PromotedAtUnixMillis,
 	}
 }
 

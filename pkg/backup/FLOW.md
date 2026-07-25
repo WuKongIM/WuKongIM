@@ -94,49 +94,77 @@ segment contract. It is not wired into capture or restore scheduling yet.
    opening it; `Load` verifies that size against the signed commit header.
    `VerifyCommit` authenticates the exact current proof in both repositories
    without opening payload bytes or following predecessor links.
-5. If either repository already has a valid signed commit, a retry verifies
+5. `InspectSegmentCopies` independently GETs each commit and payload, verifies
+   stored checksums and the signed proof, decrypts/decompresses the payload, and
+   verifies the plaintext digest under the store's bounded memory semaphore.
+   It classifies missing, checksum, ciphertext, and commit-proof corruption.
+   `RepairSegmentCopy` copies only damaged commit/payload objects from the
+   authenticated healthy peer and then repeats full validation. A repository
+   exposes replacement/version publication only through the narrower
+   `RepairRepository` capability; ordinary `PutImmutable` remains create-only.
+   `NewReplicatedSegmentStoreWithRepair` requires both repair capabilities
+   explicitly; the ordinary constructor cannot repair existing repository
+   keys. Inspection also extracts the authenticated predecessor carried by
+   continuous portable plaintext so the catalog auditor can resume a segment
+   chain without another full object read. The same explicit repair boundary
+   validates materialized partition manifests and each encrypted payload with
+   full KMS decrypt and plaintext-digest checks, then repairs only the damaged
+   graph node from its authenticated peer.
+   Authenticated partition manifests are reused only within one explicit audit
+   cycle through a 64 MiB byte-bounded cache; a new cycle or repaired manifest
+   invalidates the relevant entries. The manifest object list is copied once
+   when cached and remains internal and immutable; each audit result exposes
+   only the format, Hash Slot, object count, and predecessor needed for
+   navigation, avoiding work proportional to the full list on every object.
+   Payload validation accounts for the
+   ciphertext buffer, decrypted compressed bytes, plaintext, and decoder
+   workspace under the same store semaphore. Repair reopens the healthy
+   immutable source as a stream instead of retaining ciphertext after releasing
+   that budget.
+6. If either repository already has a valid signed commit, a retry verifies
    that its logical header matches the requested plaintext, repairs the missing
    payload and commit copy from the healthy repository, and does not request a
    new KMS data key.
-6. Segment commit decoding is strict and bounded. Unknown fields, trailing
+7. Segment commit decoding is strict and bounded. Unknown fields, trailing
    data, unsupported format/version values, unsafe identities, invalid sizes,
    checksum mismatches, and invalid signatures fail closed.
-7. Seal and open reuse compressed/ciphertext backing storage where safe. Each
-   operation reserves three times its logical payload size plus 16 MiB for
-   codec overhead before hashing or transforming data. One replicated store
-   therefore admits at most 784 MiB of estimated segment working set, which is
-   equivalent to one maximum 256 MiB logical segment or several smaller
-   segments. The later capture runtime must apply its smaller rolling target
-   and node-level concurrency budget before materializing plaintext and calling
+8. Seal and open reuse compressed/ciphertext backing storage where safe.
+   Segment operations reserve three times logical payload size plus 16 MiB.
+   Partition audit reserves twice ciphertext plus twice plaintext plus 16 MiB,
+   with ciphertext capped at the portable 272 MiB bound. One replicated store
+   therefore exposes a 1,072 MiB semaphore capacity: enough for one legal
+   worst-case partition audit while still admitting several smaller segment
+   operations. The capture runtime applies its smaller rolling target and
+   node-level concurrency budget before materializing plaintext and calling
    this boundary.
-8. `SegmentBatch` is the strict portable plaintext inside continuous metadata
+9. `SegmentBatch` is the strict portable plaintext inside continuous metadata
    and message segments. It binds the source page cursor interval, observed
    high watermark, prior committed Segment reference, ordered record frames,
    and independent record/cursor checksums. Message batches embed a bounded
    sorted `ChannelBoundary` index; metadata batches reject that index. The
    cursor list therefore remains in immutable repository artifacts instead of
    bounded Controller coordination state.
-9. Each metadata record inside a metadata `SegmentBatch` uses the strict binary
+10. Each metadata record inside a metadata `SegmentBatch` uses the strict binary
    `MetadataLogRecord` envelope. It preserves the logical Hash Slot, physical
    Slot Raft index/term, proposer timestamp, and exact FSM command bytes needed
    for ordered replay; malformed lengths, empty commands, and trailing bytes
    fail closed.
-10. `MessageLogRecord` is the strict portable committed Channel row. It carries
+11. `MessageLogRecord` is the strict portable committed Channel row. It carries
     Channel identity/epoch/retention cut plus durable message sequence, message
     ID, idempotency/display fields, flags, timestamp, and payload. A distinct
     boundary-only kind represents epoch or retention movement without
     fabricating a message.
-11. `MessageCursorBatch` is a cursor-only immutable sidecar stored under the
+12. `MessageCursorBatch` is a cursor-only immutable sidecar stored under the
     `message_cursor` stream. Ordinary batches contain sorted cursor deltas and
     link only to the previous cursor sidecar, never to payload segments. A full
     checkpoint has no predecessor and bounds chain reconstruction to 1024
     sidecars.
-12. `Checkpoint` freezes exactly one sorted frontier for every configured Hash
+13. `Checkpoint` freezes exactly one sorted frontier for every configured Hash
     Slot. Empty but fully reconciled streams are explicit zero-sequence heads,
     and the checkpoint effective time is the oldest Slot watermark. Repository,
     source cluster, source generation, Slot generation, stream, and sequence
     bind its current references to the authenticated segment commit headers.
-13. Each signed `CatalogPage` authenticates its checkpoint references and the
+14. Each signed `CatalogPage` authenticates its checkpoint references and the
     exact previous page reference. Checkpoints use deterministic immutable keys;
     catalog pages use sequence-plus-checkpoint keys so an unpublished orphan
     cannot collide with a later retry. The Controller stores only the newest
@@ -146,7 +174,7 @@ segment contract. It is not wired into capture or restore scheduling yet.
     vectors are reused across checkpoints, while vector ID, representation
     checksum, byte size, and Slot count remain authenticated by the catalog
     page.
-14. A materialized Slot rebase uses partition-manifest version 3. An
+15. A materialized Slot rebase uses partition-manifest version 3. An
     independent root may bind one committed `message_baseline_cursor`
     `SegmentReference`, containing the complete Channel index used to resume
     continuous message capture without replay. Incremental manifests reject

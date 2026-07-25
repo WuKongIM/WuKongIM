@@ -23,6 +23,7 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 				Sequence: 4, Key: "catalog/pages/00000000000000000004-checkpoint-4.json",
 				SHA256: strings.Repeat("f", 64), Bytes: 456, LatestCheckpointID: "checkpoint-4",
 			},
+			CatalogAuditRootSequence: 2,
 			ErasureStreams: []controller.BackupErasureStreamState{{
 				HashSlot: 2,
 				Head: &backupartifact.ErasureStreamHead{
@@ -83,6 +84,7 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	require.Equal(t, uint64(4), state.ErasureStreams[0].Head.Sequence)
 	require.Equal(t, uint64(5), state.ErasureStreams[0].Pending.Sequence)
 	require.Equal(t, uint64(4), state.CatalogHead.Sequence)
+	require.Equal(t, uint64(2), state.CatalogAuditRootSequence)
 	require.Equal(t, uint64(2), state.GenerationGCCursors[0].Revision)
 	require.Equal(t, "objects/generation-old/00002/object.bin", state.GenerationGCCursors[0].AfterKey)
 
@@ -99,8 +101,14 @@ func TestControllerStateStorePersistsCheckpointCatalogHead(t *testing.T) {
 		SHA256: strings.Repeat("a", 64), Bytes: 700, LatestCheckpointID: "checkpoint-7",
 	}
 
-	require.NoError(t, store.CompareAndSwap(context.Background(), 9, backupusecase.State{CatalogHead: head}))
+	require.NoError(t, store.CompareAndSwap(
+		context.Background(), 9,
+		backupusecase.State{
+			CatalogHead: head, CatalogAuditRootSequence: 7,
+		},
+	))
 	require.Equal(t, uint64(7), runtime.replacement.CatalogHead.Sequence)
+	require.Equal(t, uint64(7), runtime.replacement.CatalogAuditRootSequence)
 	head.Sequence = 8
 	require.Equal(t, uint64(7), runtime.replacement.CatalogHead.Sequence)
 }
@@ -210,6 +218,60 @@ func TestControllerSlotFrontierStoreRetriesGlobalConflictWithoutLosingCoordinati
 	require.True(t, snapshot.Found)
 	require.Equal(t, uint64(2), snapshot.Frontier.Revision)
 	require.Equal(t, uint64(5), snapshot.Frontier.Messages.SourceHighWatermark)
+}
+
+func TestControllerSlotFrontierStoreRejectsFreezeThatWinsDuringUpload(t *testing.T) {
+	runtime := &fakeBackupController{state: controller.ClusterState{
+		Revision: 8,
+		Backup: &controller.BackupCoordinationState{
+			RestorePoints:  []controller.BackupRestorePoint{},
+			PendingGarbage: []controller.BackupRestorePoint{},
+		},
+	}}
+	coordination, err := backupinfra.NewControllerStateStore(runtime)
+	require.NoError(t, err)
+	frontiers, err := backupinfra.NewControllerSlotFrontierStore(
+		coordination,
+		staticCaptureAuthority{authority: backupruntime.SlotCaptureAuthority{
+			SlotID: 2, LeaderTerm: 7, ConfigEpoch: 4, HolderNodeID: 1,
+		}},
+	)
+	require.NoError(t, err)
+	snapshot, err := frontiers.AcquireLease(
+		context.Background(), 17, "slot-generation-1", 1_753_400_100_000,
+	)
+	require.NoError(t, err)
+
+	// The artifact upload occurred outside Controller state; a remote auditor
+	// freezes the Generation before the final frontier CAS.
+	runtime.state.Revision++
+	runtime.state.Backup.IntegrityAudit = controller.BackupIntegrityAuditState{
+		Revision: 1, UpdatedAtUnixMillis: 1_753_400_105_000,
+		Slots: []controller.BackupSlotIntegrityAuditState{{
+			HashSlot: 17, Generation: "slot-generation-1",
+			Health: "degraded", Repository: "secondary", Category: "missing",
+			UpdatedAtUnixMillis: 1_753_400_105_000,
+		}},
+	}
+	next := backupcontract.CloneSlotFrontier(snapshot.Frontier)
+	next.Revision++
+	next.Metadata.SourceHighWatermark = 3
+	next.UpdatedAtUnixMillis = 1_753_400_110_000
+
+	require.ErrorIs(
+		t,
+		frontiers.CompareAndSwap(
+			context.Background(), snapshot.Frontier.Revision,
+			snapshot.Frontier.Lease, next,
+		),
+		backupruntime.ErrIntegrityAuditFrozen,
+	)
+	reloaded, err := frontiers.Load(context.Background(), 17)
+	require.NoError(t, err)
+	require.Equal(
+		t, snapshot.Frontier.Metadata.SourceHighWatermark,
+		reloaded.Frontier.Metadata.SourceHighWatermark,
+	)
 }
 
 func TestControllerSlotFrontierStoreTakeoverPreservesFrontierAndFencesOldLease(t *testing.T) {

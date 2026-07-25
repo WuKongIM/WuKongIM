@@ -99,16 +99,26 @@ func TestGenerationGarbageCollectorProtectsCheckpointHoldRestoreCurrentAndFrozen
 	cache := newGenerationGCCache(t, signer)
 	collector := generationGCCollector(t, primary, secondary, catalog, signer, cursorStore, cache, 256, 1<<30)
 	protection := backupinfra.GenerationGCProtection{
-		Retained:      []backupartifact.CatalogCheckpointReference{retained.Checkpoint},
-		Held:          []backupartifact.CatalogCheckpointReference{held.Checkpoint},
-		ActiveRestore: &active.Checkpoint,
+		RetainedCatalogRootSequence: 1,
+		Retained:                    []backupartifact.CatalogCheckpointReference{retained.Checkpoint},
+		Held:                        []backupartifact.CatalogCheckpointReference{held.Checkpoint},
+		ActiveRestore:               &active.Checkpoint,
 		Current: []backupcontract.SlotFrontier{
 			{HashSlot: 0, Generation: gcGenerationCurrent, Rebase: &backupcontract.SlotRebase{
 				TargetGeneration: gcGenerationPending,
 			}},
 			{HashSlot: 1, Generation: "generation-current-1"},
 		},
-		FrozenHashSlots: []uint16{1},
+		IntegrityAudit: backupcontract.IntegrityAuditState{
+			Revision: 1, UpdatedAtUnixMillis: 1_753_400_100_000,
+			Slots: []backupcontract.SlotIntegrityAuditState{{
+				HashSlot: 1, Generation: gcGenerationFrozen,
+				Health:              backupcontract.SlotAuditDegraded,
+				Repository:          "secondary",
+				Category:            backupcontract.IntegrityCorruptionCiphertext,
+				UpdatedAtUnixMillis: 1_753_400_100_000,
+			}},
+		},
 	}
 	generationGCCompleteCycle(t, collector, "cycle-protection", protection)
 
@@ -135,6 +145,81 @@ func TestGenerationGarbageCollectorProtectsCheckpointHoldRestoreCurrentAndFrozen
 		)
 		require.NoError(t, err)
 		require.False(t, found, "completed protection decision must prune expired local vectors")
+	}
+}
+
+func TestGenerationGarbageCollectorUnionsFixedIntegrityAuditSelection(
+	t *testing.T,
+) {
+	ctx := context.Background()
+	primaryFile, err := backupinfra.NewFileRepository(
+		"primary", t.TempDir(),
+	)
+	require.NoError(t, err)
+	secondaryFile, err := backupinfra.NewFileRepository(
+		"secondary", t.TempDir(),
+	)
+	require.NoError(t, err)
+	primary := &generationGCRepository{FileRepository: primaryFile}
+	secondary := &generationGCRepository{FileRepository: secondaryFile}
+	signer := newCatalogTestSigner()
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
+		primary, secondary, signer, "signing-key",
+	)
+	require.NoError(t, err)
+	audited := generationGCPublishCheckpoint(
+		t, catalog, nil, "audited-checkpoint", gcGenerationExpired,
+	)
+	key := "objects/" + gcGenerationExpired +
+		"/attempt-1/00000/meta.bin"
+	for _, repository := range []backupartifact.Repository{
+		primary, secondary,
+	} {
+		generationGCPutObject(
+			t, repository, key, []byte("audit-protected"),
+		)
+	}
+	cursorStore, err := backupinfra.NewControllerGenerationGCCursorStore(
+		&erasureLedgerStateStore{},
+	)
+	require.NoError(t, err)
+	collector, err := backupinfra.NewGenerationGarbageCollector(
+		backupinfra.GenerationGarbageCollectorOptions{
+			Primary: primary, Secondary: secondary, Catalog: catalog,
+			Signer: signer, Cursors: cursorStore,
+			VectorCache:    newGenerationGCCache(t, signer),
+			IntegrityGuard: allowGenerationGCIntegrityGuard{},
+			AuditProtection: staticGenerationGCAuditProtection{
+				references: []backupartifact.CatalogCheckpointReference{
+					audited.Checkpoint,
+				},
+			},
+			AuditRoots:    allowCatalogAuditRootStore{},
+			HashSlotCount: 2, SafetyWindow: 7 * 24 * time.Hour,
+			MaxRequestsPerRepository: 16,
+			MaxBytesPerRepository:    1 << 20,
+			Now: func() time.Time {
+				return time.Now().UTC().Add(8 * 24 * time.Hour)
+			},
+		},
+	)
+	require.NoError(t, err)
+	protection := generationGCCurrentProtection()
+	protection.IntegrityAudit = backupcontract.IntegrityAuditState{
+		Cursor: &backupcontract.IntegrityAuditCursor{
+			CycleID:  "catalog-segments-fixed-selection",
+			Position: "fixed-selection",
+			Phase:    backupcontract.IntegrityAuditPhaseInspect,
+		},
+	}
+	generationGCCompleteCycle(
+		t, collector, "cycle-audit-selection", protection,
+	)
+	for _, repository := range []backupartifact.Repository{
+		primary, secondary,
+	} {
+		_, err := repository.Stat(ctx, key)
+		require.NoError(t, err)
 	}
 }
 
@@ -258,7 +343,7 @@ func TestGenerationGarbageCollectorResumesDurableCursorWithinRequestBudget(t *te
 	cacheRoot := t.TempDir()
 	cache, err := backupinfra.NewFileGenerationVectorCache(cacheRoot, signer)
 	require.NoError(t, err)
-	collector := generationGCCollector(t, primary, secondary, catalog, signer, cursorStore, cache, 4, 1<<20)
+	collector := generationGCCollector(t, primary, secondary, catalog, signer, cursorStore, cache, 5, 1<<20)
 
 	protection := generationGCCurrentProtection()
 	protection.Retained = []backupartifact.CatalogCheckpointReference{
@@ -277,7 +362,7 @@ func TestGenerationGarbageCollectorResumesDurableCursorWithinRequestBudget(t *te
 	require.NoError(t, err)
 	cache, err = backupinfra.NewFileGenerationVectorCache(cacheRoot, signer)
 	require.NoError(t, err)
-	collector = generationGCCollector(t, primary, secondary, catalog, signer, cursorStore, cache, 4, 1<<20)
+	collector = generationGCCollector(t, primary, secondary, catalog, signer, cursorStore, cache, 5, 1<<20)
 	second, err := collector.Collect(ctx, "cycle-resume", protection)
 	require.NoError(t, err)
 	require.Greater(t, primary.walkCount(), 0, "restarted collector must reuse cached vectors and reach sweep")
@@ -338,6 +423,71 @@ func TestGenerationGarbageCollectorResumesWithinByteBudget(t *testing.T) {
 	}
 }
 
+func TestGenerationGarbageCollectorRechecksAuditFreezeBeforeDelete(t *testing.T) {
+	ctx := context.Background()
+	primaryFile, err := backupinfra.NewFileRepository("primary", t.TempDir())
+	require.NoError(t, err)
+	secondaryFile, err := backupinfra.NewFileRepository("secondary", t.TempDir())
+	require.NoError(t, err)
+	primary := &generationGCRepository{FileRepository: primaryFile}
+	secondary := &generationGCRepository{FileRepository: secondaryFile}
+	key := "objects/" + gcGenerationExpired + "/attempt-1/00000/meta.bin"
+	for _, repository := range []backupartifact.Repository{primary, secondary} {
+		generationGCPutObject(t, repository, key, []byte("freeze-before-delete"))
+	}
+	signer := newCatalogTestSigner()
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
+		primary, secondary, signer, "signing-key",
+	)
+	require.NoError(t, err)
+	coordination := &erasureLedgerStateStore{}
+	auditStore, err := backupinfra.NewControllerIntegrityAuditStateStore(coordination)
+	require.NoError(t, err)
+	_, err = auditStore.LoadIntegrityAudit(ctx)
+	require.NoError(t, err)
+	primary.beforeList = func() {
+		require.NoError(t, auditStore.CompareAndSwapIntegrityAudit(
+			ctx, 0,
+			backupcontract.IntegrityAuditState{
+				Revision: 1,
+				Slots: []backupcontract.SlotIntegrityAuditState{{
+					HashSlot: 0, Generation: gcGenerationExpired,
+					Health: backupcontract.SlotAuditDegraded,
+				}},
+			},
+		))
+	}
+	cursorStore, err := backupinfra.NewControllerGenerationGCCursorStore(coordination)
+	require.NoError(t, err)
+	collector, err := backupinfra.NewGenerationGarbageCollector(
+		backupinfra.GenerationGarbageCollectorOptions{
+			Primary: primary, Secondary: secondary, Catalog: catalog,
+			Signer: signer, Cursors: cursorStore,
+			VectorCache:     newGenerationGCCache(t, signer),
+			IntegrityGuard:  auditStore,
+			AuditProtection: emptyGenerationGCAuditProtection{},
+			AuditRoots:      allowCatalogAuditRootStore{},
+			HashSlotCount:   2, SafetyWindow: 7 * 24 * time.Hour,
+			MaxRequestsPerRepository: 16, MaxBytesPerRepository: 1 << 20,
+			Now: func() time.Time {
+				return time.Now().UTC().Add(8 * 24 * time.Hour)
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	result, err := collector.Collect(
+		ctx, "cycle-mid-sweep-freeze", generationGCCurrentProtection(),
+	)
+	require.NoError(t, err)
+	require.True(t, result.Repositories[0].Complete)
+	require.True(t, result.Repositories[1].Complete)
+	for _, repository := range []backupartifact.Repository{primary, secondary} {
+		_, err := repository.Stat(ctx, key)
+		require.NoError(t, err)
+	}
+}
+
 func generationGCPublishCheckpoint(
 	t *testing.T,
 	catalog *backupinfra.ReplicatedCheckpointCatalog,
@@ -367,12 +517,50 @@ func generationGCCollector(
 	collector, err := backupinfra.NewGenerationGarbageCollector(backupinfra.GenerationGarbageCollectorOptions{
 		Primary: primary, Secondary: secondary, Catalog: catalog,
 		Signer: signer, Cursors: cursors, VectorCache: cache,
-		HashSlotCount: 2, SafetyWindow: 7 * 24 * time.Hour,
+		IntegrityGuard:  allowGenerationGCIntegrityGuard{},
+		AuditProtection: emptyGenerationGCAuditProtection{},
+		AuditRoots:      allowCatalogAuditRootStore{},
+		HashSlotCount:   2, SafetyWindow: 7 * 24 * time.Hour,
 		MaxRequestsPerRepository: maxRequests, MaxBytesPerRepository: maxBytes,
 		Now: func() time.Time { return time.Now().UTC().Add(8 * 24 * time.Hour) },
 	})
 	require.NoError(t, err)
 	return collector
+}
+
+type allowGenerationGCIntegrityGuard struct{}
+
+func (allowGenerationGCIntegrityGuard) WithGenerationGCDelete(
+	_ context.Context,
+	_ uint16,
+	_ string,
+	deleteObject func(context.Context) (int, error),
+) (bool, int, error) {
+	used, err := deleteObject(context.Background())
+	return true, used, err
+}
+
+type emptyGenerationGCAuditProtection struct{}
+
+func (emptyGenerationGCAuditProtection) LoadIntegrityAuditRetainedCheckpoints(
+	context.Context,
+	backupcontract.IntegrityAuditCursor,
+) ([]backupartifact.CatalogCheckpointReference, error) {
+	return nil, nil
+}
+
+type staticGenerationGCAuditProtection struct {
+	references []backupartifact.CatalogCheckpointReference
+}
+
+func (s staticGenerationGCAuditProtection) LoadIntegrityAuditRetainedCheckpoints(
+	context.Context,
+	backupcontract.IntegrityAuditCursor,
+) ([]backupartifact.CatalogCheckpointReference, error) {
+	return append(
+		[]backupartifact.CatalogCheckpointReference(nil),
+		s.references...,
+	), nil
 }
 
 func newGenerationGCCache(
@@ -386,10 +574,21 @@ func newGenerationGCCache(
 }
 
 func generationGCCurrentProtection() backupinfra.GenerationGCProtection {
-	return backupinfra.GenerationGCProtection{Current: []backupcontract.SlotFrontier{
-		{HashSlot: 0, Generation: gcGenerationCurrent},
-		{HashSlot: 1, Generation: "generation-current-1"},
-	}}
+	return backupinfra.GenerationGCProtection{
+		RetainedCatalogRootSequence: 1,
+		Current: []backupcontract.SlotFrontier{
+			{HashSlot: 0, Generation: gcGenerationCurrent},
+			{HashSlot: 1, Generation: "generation-current-1"},
+		}}
+}
+
+type allowCatalogAuditRootStore struct{}
+
+func (allowCatalogAuditRootStore) AdvanceCatalogAuditRoot(
+	context.Context,
+	uint64,
+) error {
+	return nil
 }
 
 func generationGCCompleteCycle(
@@ -423,11 +622,12 @@ func generationGCPutObject(t *testing.T, repository backupartifact.Repository, k
 
 type generationGCRepository struct {
 	*backupinfra.FileRepository
-	mu        sync.Mutex
-	lockedKey string
-	walks     int
-	opens     int
-	listErr   error
+	mu         sync.Mutex
+	lockedKey  string
+	walks      int
+	opens      int
+	listErr    error
+	beforeList func()
 }
 
 func (r *generationGCRepository) WalkGarbageObjects(
@@ -450,7 +650,12 @@ func (r *generationGCRepository) ListGarbageObjects(
 	r.mu.Lock()
 	r.walks++
 	err := r.listErr
+	beforeList := r.beforeList
+	r.beforeList = nil
 	r.mu.Unlock()
+	if beforeList != nil {
+		beforeList()
+	}
 	if err != nil {
 		return backupinfra.GarbageObjectPage{}, err
 	}

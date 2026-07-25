@@ -9,14 +9,17 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"golang.org/x/sync/semaphore"
 )
 
 const (
-	segmentWorkingSetMultiplier    int64 = 3
-	segmentWorkingSetOverheadBytes       = 16 << 20
-	segmentStoreMemoryBudgetBytes        = segmentWorkingSetMultiplier*maxObjectPlaintextBytes + segmentWorkingSetOverheadBytes
+	segmentWorkingSetMultiplier      int64 = 3
+	segmentWorkingSetOverheadBytes         = 16 << 20
+	partitionWorkingSetOverheadBytes       = 16 << 20
+	partitionStoreMemoryBudgetBytes        = 2*maxSegmentCiphertextBytes + 2*maxObjectPlaintextBytes + partitionWorkingSetOverheadBytes
+	segmentStoreMemoryBudgetBytes          = partitionStoreMemoryBudgetBytes
 )
 
 // SegmentReference binds a Slot frontier to one exact signed commit record.
@@ -38,22 +41,74 @@ type ReplicatedSegmentStore struct {
 	primary Repository
 	// secondary is the second explicit repository failure domain.
 	secondary Repository
+	// primaryRepair and secondaryRepair are explicit auditor-only writers.
+	primaryRepair   RepairRepository
+	secondaryRepair RepairRepository
 	// codec owns compression and envelope encryption for payloads.
 	codec *SegmentCodec
+	// objectCodec validates legacy materialized-partition payload objects with
+	// the same KMS boundary used by continuous segments.
+	objectCodec *ObjectCodec
 	// signer authenticates identical commit bytes stored in both repositories.
 	signer ManifestSigner
 	// signingKeyID is the configured key used for new commit proofs.
 	signingKeyID string
 	// memoryBudget bounds concurrent seal and open working sets per store.
 	memoryBudget *semaphore.Weighted
+	// partitionAuditCache holds only authenticated manifests for the active
+	// durable audit cycle and is reset when the cycle identity changes.
+	partitionAuditCacheMu    sync.Mutex
+	partitionAuditCacheCycle string
+	partitionAuditCache      []partitionAuditManifestCacheEntry
+	partitionAuditCacheBytes int64
 }
 
 // NewReplicatedSegmentStore creates one deep segment commit and load boundary.
 func NewReplicatedSegmentStore(primary, secondary Repository, codec *SegmentCodec, signer ManifestSigner, signingKeyID string) (*ReplicatedSegmentStore, error) {
+	return newReplicatedSegmentStore(
+		primary, secondary, nil, nil, codec, signer, signingKeyID,
+	)
+}
+
+// NewReplicatedSegmentStoreWithRepair creates a store whose auditor receives
+// explicit repair capabilities separate from ordinary create-only upload.
+func NewReplicatedSegmentStoreWithRepair(
+	primary, secondary Repository,
+	primaryRepair, secondaryRepair RepairRepository,
+	codec *SegmentCodec,
+	signer ManifestSigner,
+	signingKeyID string,
+) (*ReplicatedSegmentStore, error) {
+	if primary == nil || secondary == nil ||
+		primaryRepair == nil || secondaryRepair == nil ||
+		primaryRepair.Name() != primary.Name() ||
+		secondaryRepair.Name() != secondary.Name() {
+		return nil, fmt.Errorf(
+			"%w: explicit segment repair repositories are invalid",
+			ErrRepositoryIncomplete,
+		)
+	}
+	return newReplicatedSegmentStore(
+		primary, secondary, primaryRepair, secondaryRepair,
+		codec, signer, signingKeyID,
+	)
+}
+
+func newReplicatedSegmentStore(
+	primary, secondary Repository,
+	primaryRepair, secondaryRepair RepairRepository,
+	codec *SegmentCodec,
+	signer ManifestSigner,
+	signingKeyID string,
+) (*ReplicatedSegmentStore, error) {
 	store := &ReplicatedSegmentStore{
 		primary: primary, secondary: secondary, codec: codec,
+		primaryRepair: primaryRepair, secondaryRepair: secondaryRepair,
 		signer: signer, signingKeyID: strings.TrimSpace(signingKeyID),
 		memoryBudget: semaphore.NewWeighted(segmentStoreMemoryBudgetBytes),
+	}
+	if codec != nil {
+		store.objectCodec = NewObjectCodec(codec.keys, nil)
 	}
 	if err := store.validate(); err != nil {
 		return nil, err

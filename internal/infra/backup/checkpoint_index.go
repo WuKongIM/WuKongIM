@@ -148,6 +148,24 @@ func (i *CheckpointCatalogIndex) Get(
 	}, nil
 }
 
+// References returns a detached authenticated latest-state catalog snapshot.
+// The local index remains rebuildable and is never trusted without replaying
+// the signed dual-repository page chain for the requested head.
+func (i *CheckpointCatalogIndex) References(
+	ctx context.Context,
+	head backupartifact.CatalogPageReference,
+) ([]backupartifact.CatalogCheckpointReference, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if err := i.ensure(ctx, head); err != nil {
+		return nil, err
+	}
+	return append(
+		[]backupartifact.CatalogCheckpointReference(nil),
+		i.entries...,
+	), nil
+}
+
 func (i *CheckpointCatalogIndex) ensure(ctx context.Context, head backupartifact.CatalogPageReference) error {
 	if i.loaded && i.head == head {
 		return nil
@@ -197,7 +215,9 @@ func (i *CheckpointCatalogIndex) extend(
 		if reference == nil || reference.Sequence <= i.head.Sequence {
 			return checkpointIndexSnapshot{}, backupartifact.ErrObjectCorrupt
 		}
-		page, err := i.catalog.LoadPage(ctx, *reference)
+		page, err := i.catalog.LoadPageForIntegrityAudit(
+			ctx, *reference,
+		)
 		if err != nil {
 			return checkpointIndexSnapshot{}, err
 		}
@@ -218,7 +238,9 @@ func (i *CheckpointCatalogIndex) rebuild(
 		if err := ctx.Err(); err != nil {
 			return checkpointIndexSnapshot{}, err
 		}
-		page, err := i.catalog.LoadPage(ctx, *reference)
+		page, err := i.catalog.LoadPageForIntegrityAudit(
+			ctx, *reference,
+		)
 		if err != nil {
 			return checkpointIndexSnapshot{}, err
 		}
