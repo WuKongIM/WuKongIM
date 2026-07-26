@@ -41,23 +41,128 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.PersistentFlags().DurationVar(&cfg.timeout, "timeout", cfg.timeout, "Manager request timeout")
 	cmd.PersistentFlags().BoolVar(&cfg.rawJSON, "json", false, "Render raw JSON output")
 	cmd.AddCommand(
-		newReadCommand(deps, &cfg, "status", "Show backup health and RPO", "/manager/backups/status", false),
-		newListCommand(deps, &cfg),
-		newTriggerCommand(deps, &cfg), newCancelCommand(deps, &cfg),
-		newPointMutationCommand(deps, &cfg, "hold", "Place a retention hold on a restore point"),
-		newPointMutationCommand(deps, &cfg, "release", "Release a restore-point retention hold"),
-		newPointMutationCommand(deps, &cfg, "verify", "Verify both repository copies and the signed object chain"),
+		newReadCommand(deps, &cfg, "status", "Show continuous-capture health and checkpoint age", "/manager/backups/status", false),
+		newCheckpointCommand(deps, &cfg),
 		newSourceFenceCommand(deps, &cfg),
 		newRestoreCommand(deps, &cfg),
 	)
 	return cmd
 }
 
-func newListCommand(deps command.Deps, cfg *config) *cobra.Command {
+func newCheckpointCommand(deps command.Deps, cfg *config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "checkpoint",
+		Aliases: []string{"checkpoints"},
+		Short:   "Inspect and publish immutable continuous-backup checkpoints",
+		Args:    cobra.NoArgs,
+	}
+	cmd.AddCommand(
+		newCheckpointListCommand(deps, cfg),
+		newCheckpointShowCommand(deps, cfg),
+		newCheckpointPublishCommand(deps, cfg),
+		newCheckpointHoldCommand(deps, cfg, true),
+		newCheckpointHoldCommand(deps, cfg, false),
+	)
+	return cmd
+}
+
+func newCheckpointHoldCommand(
+	deps command.Deps,
+	cfg *config,
+	held bool,
+) *cobra.Command {
+	action := "hold"
+	short := "Protect a checkpoint from Generation collection"
+	if !held {
+		action = "release"
+		short = "Release a checkpoint retention hold"
+	}
 	return &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "List published restore points", Args: cobra.NoArgs,
+		Use: action + " CHECKPOINT_ID", Short: short,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			checkpointID := strings.TrimSpace(args[0])
+			if checkpointID == "" {
+				return command.Exit{
+					Code:    command.ExitConfig,
+					Message: "checkpoint ID is required",
+				}
+			}
+			return execute(
+				deps, *cfg, cmd.Context(), http.MethodPost,
+				"/manager/backups/checkpoints/"+
+					url.PathEscape(checkpointID)+"/hold",
+				map[string]any{"held": held},
+			)
+		},
+	}
+}
+
+func newCheckpointListCommand(deps command.Deps, cfg *config) *cobra.Command {
+	var cursor string
+	var idQuery string
+	var limit int
+	cmd := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List immutable catalog checkpoints",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return executeRestorePointList(deps, *cfg, cmd.Context())
+			if limit <= 0 || limit > 200 {
+				return command.Exit{
+					Code: command.ExitConfig, Message: "--limit must be between 1 and 200",
+				}
+			}
+			values := url.Values{}
+			values.Set("limit", fmt.Sprintf("%d", limit))
+			if cursor = strings.TrimSpace(cursor); cursor != "" {
+				values.Set("cursor", cursor)
+			}
+			if idQuery = strings.TrimSpace(idQuery); idQuery != "" {
+				values.Set("id", idQuery)
+			}
+			return execute(
+				deps, *cfg, cmd.Context(), http.MethodGet,
+				"/manager/backups/checkpoints?"+values.Encode(), nil,
+			)
+		},
+	}
+	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum checkpoints returned by this page")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Opaque catalog page cursor")
+	cmd.Flags().StringVar(&idQuery, "id", "", "Exact checkpoint ID filter")
+	return cmd
+}
+
+func newCheckpointShowCommand(deps command.Deps, cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show CHECKPOINT_ID",
+		Short: "Show one immutable checkpoint",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			checkpointID := strings.TrimSpace(args[0])
+			if checkpointID == "" {
+				return command.Exit{
+					Code: command.ExitConfig, Message: "checkpoint ID is required",
+				}
+			}
+			return execute(
+				deps, *cfg, cmd.Context(), http.MethodGet,
+				"/manager/backups/checkpoints/"+url.PathEscape(checkpointID), nil,
+			)
+		},
+	}
+}
+
+func newCheckpointPublishCommand(deps command.Deps, cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "publish",
+		Short: "Publish a complete vector-cut checkpoint",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return execute(
+				deps, *cfg, cmd.Context(), http.MethodPost,
+				"/manager/backups/checkpoints", map[string]any{},
+			)
 		},
 	}
 }
@@ -75,27 +180,22 @@ func newRestoreCommand(deps command.Deps, cfg *config) *cobra.Command {
 }
 
 func newRestorePlanCommand(deps command.Deps, cfg *config) *cobra.Command {
-	var restorePointID string
-	var latestVerified bool
-	var repository string
+	var checkpointID string
+	var catalogHeadToken string
 	var invalidateTokens bool
 	cmd := &cobra.Command{Use: "plan", Short: "Create the immutable recovery plan", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		restorePointID = strings.TrimSpace(restorePointID)
-		repository = strings.TrimSpace(repository)
-		if (restorePointID == "") == !latestVerified {
-			return command.Exit{Code: command.ExitConfig, Message: "exactly one of --restore-point or --latest-verified is required"}
-		}
-		if repository != "primary" && repository != "secondary" {
-			return command.Exit{Code: command.ExitConfig, Message: "--repository must be primary or secondary"}
+		checkpointID = strings.TrimSpace(checkpointID)
+		catalogHeadToken = strings.TrimSpace(catalogHeadToken)
+		if checkpointID == "" || catalogHeadToken == "" {
+			return command.Exit{Code: command.ExitConfig, Message: "--checkpoint and --catalog-head are required"}
 		}
 		return execute(deps, *cfg, cmd.Context(), http.MethodPost, "/manager/restore/plan", map[string]any{
-			"restore_point_id": restorePointID, "latest_verified": latestVerified,
-			"repository": repository, "invalidate_tokens": invalidateTokens,
+			"checkpoint_id": checkpointID, "catalog_head_token": catalogHeadToken,
+			"invalidate_tokens": invalidateTokens,
 		})
 	}}
-	cmd.Flags().StringVar(&restorePointID, "restore-point", "", "Exact signed restore-point ID")
-	cmd.Flags().BoolVar(&latestVerified, "latest-verified", false, "Select the newest identical fully verified dual-repository point")
-	cmd.Flags().StringVar(&repository, "repository", "primary", "Repository copy used for installation")
+	cmd.Flags().StringVar(&checkpointID, "checkpoint", "", "Exact immutable checkpoint ID")
+	cmd.Flags().StringVar(&catalogHeadToken, "catalog-head", "", "Opaque catalog-head token observed with the checkpoint")
 	cmd.Flags().BoolVar(&invalidateTokens, "invalidate-tokens", false, "Invalidate restored client tokens before activation")
 	return cmd
 }
@@ -139,7 +239,7 @@ func newRestoreActivateCommand(deps command.Deps, cfg *config) *cobra.Command {
 
 func newSourceFenceCommand(deps command.Deps, cfg *config) *cobra.Command {
 	var restorePlanID string
-	var restorePointID string
+	var checkpointID string
 	var targetClusterID string
 	var targetGeneration string
 	cmd := &cobra.Command{
@@ -147,10 +247,10 @@ func newSourceFenceCommand(deps command.Deps, cfg *config) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			restorePlanID = strings.TrimSpace(restorePlanID)
-			restorePointID = strings.TrimSpace(restorePointID)
+			checkpointID = strings.TrimSpace(checkpointID)
 			targetClusterID = strings.TrimSpace(targetClusterID)
 			targetGeneration = strings.TrimSpace(targetGeneration)
-			if restorePlanID == "" || restorePointID == "" ||
+			if restorePlanID == "" || checkpointID == "" ||
 				targetClusterID == "" || targetGeneration == "" {
 				return command.Exit{Code: command.ExitConfig, Message: "all source-fence target binding flags are required"}
 			}
@@ -159,7 +259,7 @@ func newSourceFenceCommand(deps command.Deps, cfg *config) *cobra.Command {
 				"/manager/backups/source-fence",
 				map[string]string{
 					"restore_plan_id":   restorePlanID,
-					"restore_point_id":  restorePointID,
+					"checkpoint_id":     checkpointID,
 					"target_cluster_id": targetClusterID,
 					"target_generation": targetGeneration,
 				},
@@ -167,7 +267,7 @@ func newSourceFenceCommand(deps command.Deps, cfg *config) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&restorePlanID, "restore-plan", "", "Immutable successor restore plan ID")
-	cmd.Flags().StringVar(&restorePointID, "restore-point", "", "Exact signed checkpoint ID selected by the plan")
+	cmd.Flags().StringVar(&checkpointID, "checkpoint", "", "Exact immutable checkpoint ID selected by the plan")
 	cmd.Flags().StringVar(&targetClusterID, "target-cluster", "", "Fresh successor cluster ID")
 	cmd.Flags().StringVar(&targetGeneration, "target-generation", "", "Fresh successor generation")
 	return cmd
@@ -208,42 +308,6 @@ func newReadCommand(deps command.Deps, cfg *config, use, short, path string, ali
 	return cmd
 }
 
-func newTriggerCommand(deps command.Deps, cfg *config) *cobra.Command {
-	kind := string(backupartifact.RestorePointIncremental)
-	cmd := &cobra.Command{Use: "trigger", Short: "Trigger a materialized or incremental backup", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		switch backupartifact.RestorePointKind(kind) {
-		case backupartifact.RestorePointIncremental, backupartifact.RestorePointMaterializedFull:
-		default:
-			return command.Exit{Code: command.ExitConfig, Message: "--kind must be incremental or materialized_full; synthetic_full is not yet qualified"}
-		}
-		return execute(deps, *cfg, cmd.Context(), http.MethodPost, "/manager/backups/trigger", map[string]string{"kind": kind})
-	}}
-	cmd.Flags().StringVar(&kind, "kind", kind, "Restore-point kind")
-	return cmd
-}
-
-func newCancelCommand(deps command.Deps, cfg *config) *cobra.Command {
-	var epoch uint64
-	cmd := &cobra.Command{Use: "cancel JOB_ID", Short: "Cancel the exact active backup epoch", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if epoch == 0 || strings.TrimSpace(args[0]) == "" {
-			return command.Exit{Code: command.ExitConfig, Message: "--epoch and JOB_ID are required"}
-		}
-		return execute(deps, *cfg, cmd.Context(), http.MethodPost, "/manager/backups/jobs/"+url.PathEscape(args[0])+"/cancel", map[string]uint64{"epoch": epoch})
-	}}
-	cmd.Flags().Uint64Var(&epoch, "epoch", 0, "Exact active backup epoch")
-	return cmd
-}
-
-func newPointMutationCommand(deps command.Deps, cfg *config, action, short string) *cobra.Command {
-	return &cobra.Command{Use: action + " RESTORE_POINT_ID", Short: short, Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if strings.TrimSpace(args[0]) == "" {
-			return command.Exit{Code: command.ExitConfig, Message: "restore-point ID is required"}
-		}
-		path := "/manager/backups/restore-points/" + url.PathEscape(args[0]) + "/" + action
-		return execute(deps, *cfg, cmd.Context(), http.MethodPost, path, map[string]any{})
-	}}
-}
-
 func execute(deps command.Deps, cfg config, ctx context.Context, method, path string, request any) error {
 	server, err := resolveServer(deps, cfg)
 	if err != nil {
@@ -258,56 +322,6 @@ func execute(deps command.Deps, cfg config, ctx context.Context, method, path st
 		return command.Exit{Code: command.ExitUnavailable, Message: err.Error()}
 	}
 	return renderResponse(deps, cfg.rawJSON, body)
-}
-
-func executeRestorePointList(deps command.Deps, cfg config, ctx context.Context) error {
-	server, err := resolveServer(deps, cfg)
-	if err != nil {
-		return command.Exit{Code: command.ExitConfig, Message: err.Error()}
-	}
-	const maxPages = 32
-	type page struct {
-		Items      []json.RawMessage `json:"items"`
-		NextCursor string            `json:"next_cursor"`
-		Total      int               `json:"total"`
-	}
-	result := page{Items: []json.RawMessage{}}
-	seen := make(map[string]struct{})
-	cursor := ""
-	for pageIndex := 0; pageIndex < maxPages; pageIndex++ {
-		path := "/manager/backups/restore-points?limit=200"
-		if cursor != "" {
-			path += "&cursor=" + url.QueryEscape(cursor)
-		}
-		body, callErr := call(ctx, server, cfg.token, cfg.timeout, http.MethodGet, path, nil)
-		if callErr != nil {
-			var statusErr *statusError
-			if errors.As(callErr, &statusErr) && statusErr.code >= 400 && statusErr.code < 500 {
-				return command.Exit{Code: command.ExitConfig, Message: callErr.Error()}
-			}
-			return command.Exit{Code: command.ExitUnavailable, Message: callErr.Error()}
-		}
-		var current page
-		if err := json.Unmarshal(body, &current); err != nil {
-			return command.Exit{Code: command.ExitInternal, Message: fmt.Sprintf("decode Manager response: %v", err)}
-		}
-		result.Items = append(result.Items, current.Items...)
-		result.Total = current.Total
-		cursor = strings.TrimSpace(current.NextCursor)
-		if cursor == "" {
-			result.NextCursor = ""
-			combined, err := json.Marshal(result)
-			if err != nil {
-				return command.Exit{Code: command.ExitInternal, Message: err.Error()}
-			}
-			return renderResponse(deps, cfg.rawJSON, combined)
-		}
-		if _, exists := seen[cursor]; exists {
-			return command.Exit{Code: command.ExitInternal, Message: "Manager returned a repeated restore-point cursor"}
-		}
-		seen[cursor] = struct{}{}
-	}
-	return command.Exit{Code: command.ExitInternal, Message: "restore-point pagination exceeded bounded page limit"}
 }
 
 func renderResponse(deps command.Deps, rawJSON bool, body []byte) error {

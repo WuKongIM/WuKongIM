@@ -66,7 +66,7 @@ func (r *MaterializedCheckpointBaselineReplayer) ReplayCheckpointBaseline(
 	if err != nil {
 		return 0, err
 	}
-	if len(layers) != 1 || layers[0].Base != nil ||
+	if len(layers) != 1 ||
 		layers[0].Cut.HashSlot != slot.HashSlot ||
 		layers[0].BaselineCursor == nil ||
 		*layers[0].BaselineCursor != slot.Baseline.MessageCursor {

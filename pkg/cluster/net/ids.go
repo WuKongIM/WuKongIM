@@ -93,14 +93,10 @@ const (
 	RPCManagerLatestMessages
 	// RPCBackupMessageShard captures one bounded committed-message shard directly on its source node.
 	RPCBackupMessageShard
-	// RPCBackupPartition captures one logical hash-slot partition on its current Slot leader.
-	RPCBackupPartition
 	// RPCBackupRestoreTarget inspects one node's semantic storage emptiness in explicit restore mode.
 	RPCBackupRestoreTarget
 	// RPCBackupRestoreInstall installs one authenticated logical partition on a restore-mode node.
 	RPCBackupRestoreInstall
-	// RPCBackupRestoreVerify validates restored durable Channel cuts on one node.
-	RPCBackupRestoreVerify
 	// RPCManagerBackup routes bounded Manager backup operations to the current Controller leader.
 	RPCManagerBackup
 	// RPCBackupContinuousMessage reads bounded committed Channel cuts and rows on the source leader.
@@ -183,14 +179,10 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager latest messages"
 	case RPCBackupMessageShard:
 		return "backup message shard"
-	case RPCBackupPartition:
-		return "backup partition"
 	case RPCBackupRestoreTarget:
 		return "backup restore target"
 	case RPCBackupRestoreInstall:
 		return "backup restore install"
-	case RPCBackupRestoreVerify:
-		return "backup restore verify"
 	case RPCBackupCheckpointReplica:
 		return "backup checkpoint replica"
 	case RPCManagerBackup:

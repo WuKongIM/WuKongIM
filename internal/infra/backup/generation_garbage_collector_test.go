@@ -100,6 +100,7 @@ func TestGenerationGarbageCollectorProtectsCheckpointHoldRestoreCurrentAndFrozen
 	collector := generationGCCollector(t, primary, secondary, catalog, signer, cursorStore, cache, 256, 1<<30)
 	protection := backupinfra.GenerationGCProtection{
 		RetainedCatalogRootSequence: 1,
+		CatalogRetentionRevision:    1,
 		Retained:                    []backupartifact.CatalogCheckpointReference{retained.Checkpoint},
 		Held:                        []backupartifact.CatalogCheckpointReference{held.Checkpoint},
 		ActiveRestore:               &active.Checkpoint,
@@ -534,6 +535,7 @@ func (allowGenerationGCIntegrityGuard) WithGenerationGCDelete(
 	_ context.Context,
 	_ uint16,
 	_ string,
+	_ uint64,
 	deleteObject func(context.Context) (int, error),
 ) (bool, int, error) {
 	used, err := deleteObject(context.Background())
@@ -576,6 +578,7 @@ func newGenerationGCCache(
 func generationGCCurrentProtection() backupinfra.GenerationGCProtection {
 	return backupinfra.GenerationGCProtection{
 		RetainedCatalogRootSequence: 1,
+		CatalogRetentionRevision:    1,
 		Current: []backupcontract.SlotFrontier{
 			{HashSlot: 0, Generation: gcGenerationCurrent},
 			{HashSlot: 1, Generation: "generation-current-1"},

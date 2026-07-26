@@ -21,17 +21,6 @@ type SourceFenceConvergence interface {
 	WaitForSourceFence(context.Context, backupartifact.SourceFenceRecord) error
 }
 
-// RestorePointPublisher verifies repositories and publishes one complete restore point.
-type RestorePointPublisher interface {
-	// Publish publishes a restore point for a job whose logical partitions are complete.
-	Publish(ctx context.Context, job Job) (RestorePoint, error)
-}
-
-// RestorePointVerifier performs an explicit repository and cryptographic audit.
-type RestorePointVerifier interface {
-	Verify(ctx context.Context, restorePointID string) (Verification, error)
-}
-
 // CheckpointCatalogPublisher dual-commits one vector cut and immutable catalog append.
 type CheckpointCatalogPublisher interface {
 	Publish(ctx context.Context, checkpoint backupartifact.Checkpoint, previous *backupartifact.CatalogPageReference) (backupartifact.CheckpointCatalogCommit, error)
@@ -52,4 +41,15 @@ type SlotCaptureStatusSource interface {
 type CheckpointCatalogBrowser interface {
 	List(ctx context.Context, head backupartifact.CatalogPageReference, request CheckpointListRequest) (CheckpointPage, error)
 	Get(ctx context.Context, head backupartifact.CatalogPageReference, checkpointID string) (CheckpointDetail, error)
+}
+
+// CheckpointCatalogRetention appends one immutable hold/release decision.
+type CheckpointCatalogRetention interface {
+	SetCheckpointHold(
+		context.Context,
+		backupartifact.CatalogPageReference,
+		string,
+		bool,
+		int64,
+	) (CheckpointHoldCommit, error)
 }

@@ -25,7 +25,7 @@ MAX_HEAP_ALLOC_BYTES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES:-429496729
 BACKUP_ENABLE="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_ENABLE:-false}"
 BACKUP_BUILD_TAGS="e2e"
 BACKUP_MANAGER_API="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_MANAGER_API:-http://127.0.0.1:5311}"
-BACKUP_RESTORE_POINT_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_RESTORE_POINT_INTERVAL:-30s}"
+BACKUP_CHECKPOINT_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_CHECKPOINT_INTERVAL:-30s}"
 BACKUP_WAIT_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_WAIT_TIMEOUT:-120}"
 AUTO_JOIN_NODE="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE:-false}"
 AUTO_JOIN_AFTER="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_AFTER:-2}"
@@ -83,7 +83,7 @@ AUTO_JOIN_TIMER_PID=""
 FAULT_TIMER_PID=""
 AUTO_JOIN_STARTED=0
 BACKUP_MANAGER_TOKEN=""
-BACKUP_PREVIOUS_RESTORE_POINT_ID=""
+BACKUP_PREVIOUS_CHECKPOINT_ID=""
 API_VALUES=()
 GATEWAY_VALUES=()
 AUTO_JOIN_SEED_VALUES=()
@@ -123,7 +123,7 @@ Options:
                            This builds the product with -tags=e2e, uses two repositories
                            below OUT_DIR, requires jq, and does not use production object storage.
   --backup-manager-api URL Manager API used to verify local backup. Default: http://127.0.0.1:5311.
-  --backup-wait-timeout N  Seconds to wait for a verified restore point. Default: 120.
+  --backup-wait-timeout N  Seconds to wait for a new checkpoint. Default: 120.
   --auto-join-node          Start one seed-join data node while wkcli sim is sending.
   --auto-join-after SECS    Seconds after the send phase starts before starting the new node. Default: 2.
   --auto-join-node-id N     Joining node ID. Default: 4.
@@ -299,12 +299,12 @@ backup_status_file() {
   printf '%s/backup-status.json' "$OUT_DIR"
 }
 
-backup_restore_points_before_file() {
-  printf '%s/backup-restore-points-before.json' "$OUT_DIR"
+backup_checkpoints_before_file() {
+  printf '%s/backup-checkpoints-before.json' "$OUT_DIR"
 }
 
-backup_restore_points_file() {
-  printf '%s/backup-restore-points.json' "$OUT_DIR"
+backup_checkpoints_file() {
+  printf '%s/backup-checkpoints.json' "$OUT_DIR"
 }
 
 summary_output() {
@@ -417,7 +417,7 @@ prepare_backup_state() {
     rm -rf "$repository_root" "$staging_root"
   fi
   mkdir -p "$repository_root" "$staging_root"
-  rm -f "$(backup_status_file)" "$(backup_restore_points_before_file)" "$(backup_restore_points_file)"
+  rm -f "$(backup_status_file)" "$(backup_checkpoints_before_file)" "$(backup_checkpoints_file)"
 }
 
 auto_join_api_listen_addr() {
@@ -461,28 +461,40 @@ cluster_profile_env() {
     printf '%s\n' \
       "WUKONGIM_BACKUP_E2E_FILE_ROOT=$(backup_repository_root)" \
       "WK_BACKUP_ENABLED=true" \
+      "WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v1" \
       "WK_BACKUP_REPOSITORY_ID=wkcli-sim-three-node-smoke" \
       "WK_BACKUP_SOURCE_GENERATION=local-smoke-generation" \
       "WK_BACKUP_KMS_KEY_ID=local-e2e-encryption-key" \
       "WK_BACKUP_SIGNING_KEY_ID=local-e2e-signing-key" \
-      "WK_BACKUP_GARBAGE_COLLECTOR_ROLE_ARN=arn:aws:iam::000000000000:role/local-e2e-backup-gc" \
       "WK_BACKUP_KMS_REGION=local-kms" \
       "WK_BACKUP_KMS_ENDPOINT=https://kms.local.invalid" \
-      "WK_BACKUP_INCREMENTAL_INTERVAL=5s" \
-      "WK_BACKUP_RESTORE_POINT_INTERVAL=$BACKUP_RESTORE_POINT_INTERVAL" \
-      "WK_BACKUP_SYNTHETIC_FULL_INTERVAL=24h" \
-      "WK_BACKUP_CHUNK_SIZE_BYTES=8388608" \
+      "WK_BACKUP_CAPTURE_RECONCILE_INTERVAL=500ms" \
+      "WK_BACKUP_CHECKPOINT_INTERVAL=$BACKUP_CHECKPOINT_INTERVAL" \
+      "WK_BACKUP_BASELINE_CHUNK_BYTES=8388608" \
+      "WK_BACKUP_TARGET_SEGMENT_BYTES=8388608" \
+      "WK_BACKUP_MAX_SEGMENT_OPEN_DURATION=5s" \
       "WK_BACKUP_STAGING_MAX_BYTES=1073741824" \
-      "WK_BACKUP_MAX_PARALLEL_PARTITIONS=2" \
+      "WK_BACKUP_WORKER_COUNT=2" \
+      "WK_BACKUP_AUDIT_INTERVAL=500ms" \
+      "WK_BACKUP_AUDIT_SCRUB_INTERVAL=24h" \
+      "WK_BACKUP_GARBAGE_COLLECTION_INTERVAL=1h" \
+      "WK_BACKUP_GARBAGE_SAFETY_WINDOW=168h" \
+      "WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY=256" \
+      "WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY=1073741824" \
+      "WK_BACKUP_RETENTION_MONTHLY_MONTHS=0" \
       "WK_BACKUP_OBJECT_LOCK_DAYS=7" \
       "WK_BACKUP_PRIMARY_ENDPOINT=https://primary.local.invalid" \
       "WK_BACKUP_PRIMARY_REGION=local-primary" \
       "WK_BACKUP_PRIMARY_BUCKET=primary" \
       "WK_BACKUP_PRIMARY_PREFIX=cluster" \
+      "WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN=arn:local:primary:repair" \
+      "WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN=arn:local:primary:garbage" \
       "WK_BACKUP_SECONDARY_ENDPOINT=https://secondary.local.invalid" \
       "WK_BACKUP_SECONDARY_REGION=local-secondary" \
       "WK_BACKUP_SECONDARY_BUCKET=secondary" \
-      "WK_BACKUP_SECONDARY_PREFIX=cluster"
+      "WK_BACKUP_SECONDARY_PREFIX=cluster" \
+      "WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN=arn:local:secondary:repair" \
+      "WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN=arn:local:secondary:garbage"
   fi
 }
 
@@ -614,7 +626,7 @@ print_plan() {
   printf 'backup_staging_root=%s\n' "$(backup_staging_root)"
   printf 'backup_build_tags=%s\n' "$BACKUP_BUILD_TAGS"
   printf 'backup_manager_api=%s\n' "$BACKUP_MANAGER_API"
-  printf 'backup_restore_point_interval=%s\n' "$BACKUP_RESTORE_POINT_INTERVAL"
+  printf 'backup_checkpoint_interval=%s\n' "$BACKUP_CHECKPOINT_INTERVAL"
   printf 'backup_wait_timeout_secs=%s\n' "$BACKUP_WAIT_TIMEOUT"
   printf 'auto_join_node=%s\n' "$AUTO_JOIN_NODE"
   printf 'auto_join_after_secs=%s\n' "$AUTO_JOIN_AFTER"
@@ -1697,19 +1709,18 @@ backup_manager_get() {
     "$BACKUP_MANAGER_API$path" >"$output"
 }
 
-backup_dependencies_healthy() {
+backup_checkpoint_healthy() {
   local input="$1"
   jq -e '
     (.enabled == true) and
-    (.dependencies.primary.health == "healthy") and
-    (.dependencies.secondary.health == "healthy") and
-    (.dependencies.kms.health == "healthy") and
-    (.dependencies.staging.health == "healthy") and
-    (.dependencies.utc.health == "healthy")
+    (.health == "healthy") and
+    ((.checkpoint_age_seconds | type) == "number") and
+    ((.latest_checkpoint.id | type) == "string") and
+    ((.latest_checkpoint.id | length) > 0)
   ' "$input" >/dev/null 2>&1
 }
 
-backup_first_restore_point_id() {
+backup_first_checkpoint_id() {
   local input="$1"
   jq -r '
     (.items // [])
@@ -1720,16 +1731,14 @@ backup_first_restore_point_id() {
   ' "$input"
 }
 
-backup_verified_restore_point_id() {
+backup_published_checkpoint_id() {
   local input="$1"
   jq -er '
     (.items // [])
     | if (type == "array") and (length > 0) then .[0] else empty end
     | select(
         ((.id | type) == "string") and
-        ((.id | length) > 0) and
-        (.primary_verified == true) and
-        (.secondary_verified == true)
+        ((.id | length) > 0)
       )
     | .id
   ' "$input" 2>/dev/null
@@ -1737,16 +1746,16 @@ backup_verified_restore_point_id() {
 
 capture_backup_baseline() {
   local output
-  output="$(backup_restore_points_before_file)"
-  if ! backup_manager_get '/manager/backups/restore-points?limit=1' "$output"; then
-    die 'local backup restore-point baseline is unavailable'
+  output="$(backup_checkpoints_before_file)"
+  if ! backup_manager_get '/manager/backups/checkpoints?limit=1' "$output"; then
+    die 'local backup checkpoint baseline is unavailable'
   fi
-  if ! BACKUP_PREVIOUS_RESTORE_POINT_ID="$(backup_first_restore_point_id "$output")"; then
-    die 'local backup restore-point baseline is invalid JSON'
+  if ! BACKUP_PREVIOUS_CHECKPOINT_ID="$(backup_first_checkpoint_id "$output")"; then
+    die 'local backup checkpoint baseline is invalid JSON'
   fi
 }
 
-wait_backup_dependencies() {
+wait_backup_checkpoint_health() {
   if [[ "$BACKUP_ENABLE" != "true" ]]; then
     return
   fi
@@ -1760,40 +1769,40 @@ wait_backup_dependencies() {
       if jq -e '.enabled == false' "$output" >/dev/null 2>&1; then
         die 'local backup remained disabled after backup-enabled startup'
       fi
-      if backup_dependencies_healthy "$output"; then
+      if backup_checkpoint_healthy "$output"; then
         capture_backup_baseline
-        log 'local backup dependencies ready'
+        log 'local backup checkpoint healthy'
         return
       fi
     fi
     backup_poll_sleep
   done
-  die "local backup dependencies did not become healthy within ${BACKUP_WAIT_TIMEOUT}s"
+  die "local backup checkpoint did not become healthy within ${BACKUP_WAIT_TIMEOUT}s"
 }
 
-wait_backup_restore_point() {
+wait_backup_checkpoint() {
   if [[ "$BACKUP_ENABLE" != "true" ]]; then
     return
   fi
   local deadline=$((SECONDS + BACKUP_WAIT_TIMEOUT))
   local output
-  local restore_point_id
-  output="$(backup_restore_points_file)"
+  local checkpoint_id
+  output="$(backup_checkpoints_file)"
   while (( SECONDS <= deadline )); do
     check_cluster_process
-    if backup_manager_get '/manager/backups/restore-points?limit=1' "$output"; then
-      restore_point_id="$(backup_verified_restore_point_id "$output" || true)"
-      if [[ -n "$restore_point_id" && "$restore_point_id" != "$BACKUP_PREVIOUS_RESTORE_POINT_ID" ]]; then
+    if backup_manager_get '/manager/backups/checkpoints?limit=1' "$output"; then
+      checkpoint_id="$(backup_published_checkpoint_id "$output" || true)"
+      if [[ -n "$checkpoint_id" && "$checkpoint_id" != "$BACKUP_PREVIOUS_CHECKPOINT_ID" ]]; then
         if ! backup_manager_get '/manager/backups/status' "$(backup_status_file)"; then
           die 'local backup final status evidence is unavailable'
         fi
-        log "local backup restore point verified: $restore_point_id"
+        log "local backup checkpoint published: $checkpoint_id"
         return
       fi
     fi
     backup_poll_sleep
   done
-  die "local backup did not publish a new dual-repository-verified restore point within ${BACKUP_WAIT_TIMEOUT}s"
+  die "local backup did not publish a new checkpoint within ${BACKUP_WAIT_TIMEOUT}s"
 }
 
 capture_one_target_evidence() {
@@ -2121,9 +2130,9 @@ write_summary() {
     printf '%s\n' "- max_heap_alloc_bytes: ${MAX_HEAP_ALLOC_BYTES}"
     printf '%s\n' "- backup_enable: ${BACKUP_ENABLE}"
     if [[ "$BACKUP_ENABLE" == "true" ]]; then
-      printf '%s\n' "- backup_restore_point_id: $(backup_first_restore_point_id "$(backup_restore_points_file)")"
+      printf '%s\n' "- backup_checkpoint_id: $(backup_first_checkpoint_id "$(backup_checkpoints_file)")"
       printf '%s\n' "- backup_status: $(basename "$(backup_status_file)")"
-      printf '%s\n' "- backup_restore_points: $(basename "$(backup_restore_points_file)")"
+      printf '%s\n' "- backup_checkpoints: $(basename "$(backup_checkpoints_file)")"
     fi
     printf '%s\n' "- auto_join_node: ${AUTO_JOIN_NODE}"
     printf '%s\n' "- auto_join_after_secs: ${AUTO_JOIN_AFTER}"
@@ -2169,14 +2178,14 @@ write_summary() {
 
 start_cluster
 wait_ready
-wait_backup_dependencies
+wait_backup_checkpoint_health
 capture_target_evidence
 capture_metrics before
 run_sim
 verify_sim_output
 capture_metrics after
 verify_metrics_health
-wait_backup_restore_point
+wait_backup_checkpoint
 capture_snapshots
 capture_auto_join_evidence
 write_summary

@@ -32,7 +32,7 @@ func TestReplicatedManifestStoreRepairsPartialPublish(t *testing.T) {
 	}
 	manifest := backupartifact.PartitionManifest{
 		Format: backupartifact.PartitionManifestFormat, Version: backupartifact.PartitionManifestVersion,
-		JobID: "backup-partial", BackupEpoch: 7,
+		Generation: "backup-partial", RebaseEpoch: 7,
 		Cut:      backupartifact.PartitionCut{HashSlot: 4, RaftIndex: 9, CommittedAtMillis: 1710000000000},
 		Evidence: backupartifact.PartitionEvidence{Version: backupartifact.PartitionEvidenceVersion, MetadataRecords: 1},
 		Objects:  []backupartifact.ObjectEntry{entry},

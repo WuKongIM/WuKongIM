@@ -40,32 +40,6 @@ func (s *ClusterState) Normalize() {
 		normalizeTaskProgress(&s.Tasks[i])
 	}
 	if s.Backup != nil {
-		if s.Backup.RestorePoints == nil {
-			s.Backup.RestorePoints = []BackupRestorePoint{}
-		}
-		if s.Backup.PendingGarbage == nil {
-			s.Backup.PendingGarbage = []BackupRestorePoint{}
-		}
-		if s.Backup.Active != nil {
-			if s.Backup.Active.Partitions == nil {
-				s.Backup.Active.Partitions = []BackupPartitionReport{}
-			}
-			sort.Slice(s.Backup.Active.Partitions, func(i, j int) bool {
-				return s.Backup.Active.Partitions[i].HashSlot < s.Backup.Active.Partitions[j].HashSlot
-			})
-		}
-		sort.Slice(s.Backup.RestorePoints, func(i, j int) bool {
-			if s.Backup.RestorePoints[i].EffectiveAtUnixMillis == s.Backup.RestorePoints[j].EffectiveAtUnixMillis {
-				return s.Backup.RestorePoints[i].ID < s.Backup.RestorePoints[j].ID
-			}
-			return s.Backup.RestorePoints[i].EffectiveAtUnixMillis > s.Backup.RestorePoints[j].EffectiveAtUnixMillis
-		})
-		sort.Slice(s.Backup.PendingGarbage, func(i, j int) bool {
-			if s.Backup.PendingGarbage[i].CreatedAtUnixMillis == s.Backup.PendingGarbage[j].CreatedAtUnixMillis {
-				return s.Backup.PendingGarbage[i].ID < s.Backup.PendingGarbage[j].ID
-			}
-			return s.Backup.PendingGarbage[i].CreatedAtUnixMillis < s.Backup.PendingGarbage[j].CreatedAtUnixMillis
-		})
 		sort.Slice(s.Backup.SlotFrontiers, func(i, j int) bool {
 			return s.Backup.SlotFrontiers[i].HashSlot < s.Backup.SlotFrontiers[j].HashSlot
 		})

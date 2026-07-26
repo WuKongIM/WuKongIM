@@ -142,8 +142,8 @@ func (i *CheckpointCatalogIndex) Get(
 			ID: checkpoint.ID, CreatedAtUnixMillis: checkpoint.CreatedAtUnixMillis,
 			EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis, Held: reference.Held,
 		},
-		ManifestSHA256:  reference.SHA256,
-		SourceClusterID: checkpoint.SourceClusterID, SourceGeneration: checkpoint.SourceGeneration,
+		CheckpointSHA256: reference.SHA256,
+		SourceClusterID:  checkpoint.SourceClusterID, SourceGeneration: checkpoint.SourceGeneration,
 		HashSlotCount: checkpoint.HashSlotCount,
 		ErasureHeads:  append([]backupartifact.ErasureStreamHead(nil), checkpoint.ErasureHeads...),
 	}, nil
@@ -165,6 +165,67 @@ func (i *CheckpointCatalogIndex) References(
 		[]backupartifact.CatalogCheckpointReference(nil),
 		i.entries...,
 	), nil
+}
+
+// LatestReference returns the authenticated checkpoint named by the current
+// catalog head without copying checkpoint history.
+func (i *CheckpointCatalogIndex) LatestReference(
+	ctx context.Context,
+	head backupartifact.CatalogPageReference,
+) (backupartifact.CatalogCheckpointReference, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if err := i.ensure(ctx, head); err != nil {
+		return backupartifact.CatalogCheckpointReference{}, err
+	}
+	reference, found := i.byID[head.LatestCheckpointID]
+	if !found {
+		return backupartifact.CatalogCheckpointReference{},
+			backupartifact.ErrObjectCorrupt
+	}
+	return reference, nil
+}
+
+// SetCheckpointHold resolves the latest authenticated checkpoint state and
+// appends one state-only catalog page when the requested value changes.
+func (i *CheckpointCatalogIndex) SetCheckpointHold(
+	ctx context.Context,
+	head backupartifact.CatalogPageReference,
+	checkpointID string,
+	held bool,
+	createdAtUnixMillis int64,
+) (backupusecase.CheckpointHoldCommit, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if err := i.ensure(ctx, head); err != nil {
+		return backupusecase.CheckpointHoldCommit{}, err
+	}
+	reference, found := i.byID[strings.TrimSpace(checkpointID)]
+	if !found {
+		return backupusecase.CheckpointHoldCommit{},
+			backupusecase.ErrCheckpointNotFound
+	}
+	summary := backupusecase.CheckpointSummary{
+		ID:                    reference.ID,
+		CreatedAtUnixMillis:   reference.CreatedAtUnixMillis,
+		EffectiveAtUnixMillis: reference.EffectiveAtUnixMillis,
+		Held:                  reference.Held,
+	}
+	if reference.Held == held {
+		return backupusecase.CheckpointHoldCommit{
+			Checkpoint: summary, Head: head,
+		}, nil
+	}
+	commit, err := i.catalog.SetCheckpointHold(
+		ctx, reference, held, createdAtUnixMillis, &head,
+	)
+	if err != nil {
+		return backupusecase.CheckpointHoldCommit{}, err
+	}
+	summary.Held = held
+	return backupusecase.CheckpointHoldCommit{
+		Checkpoint: summary, Head: commit.Head, Changed: true,
+	}, nil
 }
 
 func (i *CheckpointCatalogIndex) ensure(ctx context.Context, head backupartifact.CatalogPageReference) error {

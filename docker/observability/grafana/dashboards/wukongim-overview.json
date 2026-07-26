@@ -661,32 +661,22 @@
       },
       "targets": [
         {
-          "expr": "max(wukongim_backup_recovery_point_age_seconds{node_name=~\"$node_name\"})",
-          "legendFormat": "recovery point age seconds",
+          "expr": "max(wukongim_backup_checkpoint_age_seconds{node_name=~\"$node_name\"})",
+          "legendFormat": "checkpoint age seconds",
           "refId": "A"
-        },
-        {
-          "expr": "max(wukongim_backup_verification_age_seconds{node_name=~\"$node_name\"})",
-          "legendFormat": "verification age seconds",
-          "refId": "B"
-        },
-        {
-          "expr": "max(wukongim_backup_job_active{node_name=~\"$node_name\"})",
-          "legendFormat": "job active",
-          "refId": "C"
         },
         {
           "expr": "max(wukongim_backup_controller_leader{node_name=~\"$node_name\"})",
           "legendFormat": "controller leader",
-          "refId": "D"
+          "refId": "B"
         },
         {
           "expr": "max by (state) (wukongim_backup_doctor_health{node_name=~\"$node_name\"})",
           "legendFormat": "doctor {{state}}",
-          "refId": "E"
+          "refId": "C"
         }
       ],
-      "title": "Backup Recovery Evidence",
+      "title": "Backup Checkpoint Health",
       "type": "timeseries"
     },
     {
@@ -784,13 +774,13 @@
           "refId": "L"
         },
         {
-          "expr": "sum by (repository, category) (rate(wukongim_backup_audit_corruptions_total{node_name=~\"$node_name\"}[$__rate_interval]))",
-          "legendFormat": "audit corruption {{repository}} {{category}}",
+          "expr": "sum by (category) (rate(wukongim_backup_audit_corruptions_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "audit corruption {{category}}",
           "refId": "M"
         },
         {
-          "expr": "sum by (repository) (rate(wukongim_backup_audit_repair_bytes_total{node_name=~\"$node_name\"}[$__rate_interval]))",
-          "legendFormat": "audit repair bytes {{repository}}",
+          "expr": "sum(rate(wukongim_backup_audit_repair_bytes_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "audit repair bytes",
           "refId": "N"
         },
         {

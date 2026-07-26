@@ -24,8 +24,6 @@ type PartitionArtifactAuditNavigation struct {
 	// partition cut authenticated by the manifest reference.
 	SourceHighWatermark   uint64
 	WatermarkAtUnixMillis int64
-	// Base is the authenticated predecessor layer, when one exists.
-	Base *PartitionReference
 }
 
 // PartitionArtifactAuditReport contains the independently verified copies of
@@ -95,9 +93,6 @@ func (s *ReplicatedSegmentStore) InspectPartitionArtifactCopies(
 				ObjectCount:           uint64(len(copyResult.manifest.Objects)),
 				SourceHighWatermark:   copyResult.manifest.Cut.RaftIndex,
 				WatermarkAtUnixMillis: copyResult.manifest.Cut.CommittedAtMillis,
-				Base: clonePartitionAuditReference(
-					copyResult.manifest.Base,
-				),
 			}
 		}
 	}
@@ -141,7 +136,6 @@ func (s *ReplicatedSegmentStore) InspectPartitionArtifactEnvelopeCopies(
 				ObjectCount:           uint64(len(manifest.Objects)),
 				SourceHighWatermark:   manifest.Cut.RaftIndex,
 				WatermarkAtUnixMillis: manifest.Cut.CommittedAtMillis,
-				Base:                  clonePartitionAuditReference(manifest.Base),
 			}
 		}
 		if objectIndex >= 0 {
@@ -559,24 +553,10 @@ func (s *ReplicatedSegmentStore) invalidatePartitionAuditManifest(
 
 func clonePartitionAuditManifest(manifest PartitionManifest) *PartitionManifest {
 	out := manifest
-	if manifest.Base != nil {
-		base := *manifest.Base
-		out.Base = &base
-	}
 	if manifest.BaselineCursor != nil {
 		cursor := *manifest.BaselineCursor
 		out.BaselineCursor = &cursor
 	}
 	out.Objects = append([]ObjectEntry(nil), manifest.Objects...)
-	return &out
-}
-
-func clonePartitionAuditReference(
-	reference *PartitionReference,
-) *PartitionReference {
-	if reference == nil {
-		return nil
-	}
-	out := *reference
 	return &out
 }

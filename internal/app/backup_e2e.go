@@ -24,6 +24,7 @@ const backupE2EFileRootEnv = "WUKONGIM_BACKUP_E2E_FILE_ROOT"
 
 func init() {
 	productionRepositoryLoader := loadAppBackupRepository
+	productionRepairLoader := loadAppBackupRepairRepository
 	productionGarbageLoader := loadAppBackupGarbageRepository
 	productionKeyLoader := loadAppBackupKeyService
 	productionClockProbe := newAppBackupClockProbe
@@ -34,13 +35,40 @@ func init() {
 		}
 		return backupinfra.NewFileRepository(name, filepath.Join(root, name))
 	}
-	loadAppBackupGarbageRepository = func(ctx context.Context, name, endpoint, region, bucket, prefix string, objectLockDays int, roleARN string) (backupinfra.GarbageRepository, error) {
+	loadAppBackupRepairRepository = func(
+		ctx context.Context,
+		repository appBackupRepository,
+		endpoint, region, roleARN string,
+	) (backupartifact.RepairRepository, error) {
+		if strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) == "" {
+			return productionRepairLoader(
+				ctx, repository, endpoint, region, roleARN,
+			)
+		}
+		fileRepository, ok := repository.(*backupinfra.FileRepository)
+		if !ok {
+			return nil, fmt.Errorf(
+				"backup e2e: repair repository is not file-backed",
+			)
+		}
+		return fileRepository, nil
+	}
+	loadAppBackupGarbageRepository = func(
+		ctx context.Context,
+		name, endpoint, region, bucket, prefix string,
+		objectLockDays int,
+		roleARN string,
+	) (backupinfra.GenerationGarbageRepository, error) {
 		root := strings.TrimSpace(os.Getenv(backupE2EFileRootEnv))
 		if root == "" {
-			return productionGarbageLoader(ctx, name, endpoint, region, bucket, prefix, objectLockDays, roleARN)
+			return productionGarbageLoader(
+				ctx, name, endpoint, region, bucket, prefix,
+				objectLockDays, roleARN,
+			)
 		}
-		repositoryName := strings.TrimSuffix(name, "-gc")
-		return backupinfra.NewFileRepository(name, filepath.Join(root, repositoryName))
+		return backupinfra.NewFileRepository(
+			name, filepath.Join(root, name),
+		)
 	}
 	loadAppBackupKeyService = func(ctx context.Context, region, endpoint string) (appBackupKeyService, error) {
 		if strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) == "" {

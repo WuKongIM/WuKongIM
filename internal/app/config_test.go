@@ -20,6 +20,13 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 	require.Equal(t, 4, app.cfg.Backup.WorkerCount)
 	require.Equal(t, time.Hour, app.cfg.Backup.SourcePinMaxAge)
 	require.Equal(t, uint64(8*1024*1024*1024), app.cfg.Backup.MaxSourcePinnedBytes)
+	require.Equal(t, time.Second, app.cfg.Backup.AuditInterval)
+	require.Equal(t, 24*time.Hour, app.cfg.Backup.AuditScrubInterval)
+	require.Equal(t, time.Hour, app.cfg.Backup.GarbageCollectionInterval)
+	require.Equal(t, 7*24*time.Hour, app.cfg.Backup.GarbageSafetyWindow)
+	require.Equal(t, 256, app.cfg.Backup.GarbageMaxRequestsPerRepository)
+	require.Equal(t, uint64(1<<30), app.cfg.Backup.GarbageMaxBytesPerRepository)
+	require.Zero(t, app.cfg.Backup.RetentionMonthlyMonths)
 }
 
 func TestBackupConfigNormalizesPreviousTrustedSigningKeys(t *testing.T) {
@@ -31,14 +38,36 @@ func TestBackupConfigNormalizesPreviousTrustedSigningKeys(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidConfig)
 }
 
+func TestBackupConfigRequiresExactReleaseQualificationGate(t *testing.T) {
+	cfg := validEnabledBackupConfig(t)
+	cfg.QualificationGate = ""
+	_, err := NormalizeBackupConfig(cfg)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.Contains(t, err.Error(), BackupQualificationGateV1)
+
+	cfg.QualificationGate = "backup-vnext-production-v0"
+	_, err = NormalizeBackupConfig(cfg)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.Contains(t, err.Error(), BackupQualificationGateV1)
+
+	cfg.QualificationGate = BackupQualificationGateV1
+	normalized, err := NormalizeBackupConfig(cfg)
+	require.NoError(t, err)
+	require.True(t, normalized.Enabled)
+	require.Equal(
+		t, BackupQualificationGateV1, normalized.QualificationGate,
+	)
+}
+
 func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
 	cfg := BackupConfig{
-		Enabled:          true,
-		RepositoryID:     "cluster-a-dr",
-		SourceGeneration: "generation-1",
-		StagingDir:       filepath.Join(t.TempDir(), "backup-staging"),
-		KMSKeyID:         "kms-encryption-v1",
-		SigningKeyID:     "kms-signing-v1",
+		Enabled:           true,
+		QualificationGate: BackupQualificationGateV1,
+		RepositoryID:      "cluster-a-dr",
+		SourceGeneration:  "generation-1",
+		StagingDir:        filepath.Join(t.TempDir(), "backup-staging"),
+		KMSKeyID:          "kms-encryption-v1",
+		SigningKeyID:      "kms-signing-v1",
 		Primary: BackupRepositoryConfig{
 			Endpoint: "https://primary.example",
 			Region:   "region-a",
@@ -54,6 +83,37 @@ func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
 	}
 	_, err := NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
+}
+
+func validEnabledBackupConfig(t *testing.T) BackupConfig {
+	t.Helper()
+	return BackupConfig{
+		Enabled:           true,
+		QualificationGate: BackupQualificationGateV1,
+		RepositoryID:      "cluster-a-dr",
+		SourceGeneration:  "generation-1",
+		StagingDir:        filepath.Join(t.TempDir(), "backup-staging"),
+		KMSKeyID:          "kms-encryption-v1",
+		SigningKeyID:      "kms-signing-v1",
+		KMSRegion:         "region-a",
+		ObjectLockDays:    7,
+		Primary: BackupRepositoryConfig{
+			Endpoint:       "https://primary.example",
+			Region:         "region-a",
+			Bucket:         "primary",
+			Prefix:         "cluster-a",
+			RepairRoleARN:  "arn:example:iam::primary:role/repair",
+			GarbageRoleARN: "arn:example:iam::primary:role/garbage",
+		},
+		Secondary: BackupRepositoryConfig{
+			Endpoint:       "https://secondary.example",
+			Region:         "region-b",
+			Bucket:         "secondary",
+			Prefix:         "cluster-a",
+			RepairRoleARN:  "arn:example:iam::secondary:role/repair",
+			GarbageRoleARN: "arn:example:iam::secondary:role/garbage",
+		},
+	}
 }
 
 func TestBackupRestoreModeRequiresFreshTargetGenerationInsteadOfSourceGeneration(t *testing.T) {

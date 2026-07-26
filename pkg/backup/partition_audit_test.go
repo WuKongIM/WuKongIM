@@ -58,9 +58,9 @@ func TestReplicatedSegmentStoreAuditsAndRepairsPartitionGraphArtifacts(t *testin
 			}, []byte("materialized metadata"))
 			require.NoError(t, err)
 			manifest := backup.PartitionManifest{
-				Format:  backup.PartitionManifestFormat,
-				Version: backup.PartitionManifestVersion,
-				JobID:   "slot-generation-7", BackupEpoch: 1,
+				Format:     backup.PartitionManifestFormat,
+				Version:    backup.PartitionManifestVersion,
+				Generation: "slot-generation-7", RebaseEpoch: 1,
 				Cut: backup.PartitionCut{
 					HashSlot: 7, PhysicalSlotID: 8,
 					RaftIndex: 9, CommittedAtMillis: 10,
@@ -143,9 +143,9 @@ func TestReplicatedSegmentStoreCachesAuthenticatedPartitionManifestPerCycle(t *t
 	}, []byte("cached materialized metadata"))
 	require.NoError(t, err)
 	manifest := backup.PartitionManifest{
-		Format:  backup.PartitionManifestFormat,
-		Version: backup.PartitionManifestVersion,
-		JobID:   "slot-generation-cache", BackupEpoch: 1,
+		Format:     backup.PartitionManifestFormat,
+		Version:    backup.PartitionManifestVersion,
+		Generation: "slot-generation-cache", RebaseEpoch: 1,
 		Cut: backup.PartitionCut{
 			HashSlot: 7, PhysicalSlotID: 8,
 			RaftIndex: 9, CommittedAtMillis: 10,

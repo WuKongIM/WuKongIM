@@ -117,7 +117,7 @@ Current flow:
 19. Restore-only permanent erasure applies bounded physical prefix trims after
     message import, advances local retention and retained-LEO state, and updates
     the full checkpoint without changing its epoch. `LogStartOffset` and HW are
-    both fenced at least through the erased boundary so an older restore point
+    both fenced at least through the erased boundary so an older checkpoint
     cannot expose or reuse erased sequences after activation. When the bounded
     raw-row scan exhausts the requested range, physical retention advances to
     the requested boundary even if the imported tail ended earlier or the

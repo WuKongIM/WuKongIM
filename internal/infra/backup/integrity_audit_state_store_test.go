@@ -14,7 +14,10 @@ import (
 
 func TestControllerIntegrityAuditStateStorePersistsCursorAndPreservesOtherCoordination(t *testing.T) {
 	coordination := &erasureLedgerStateStore{state: backupusecase.State{
-		Revision: 7, LastEpoch: 3,
+		Revision: 7,
+		GenerationGCCursors: []backupusecase.GenerationGCCursor{{
+			Repository: "primary", Revision: 3, CycleID: "gc-cycle-1",
+		}},
 	}}
 	store, err := backupinfra.NewControllerIntegrityAuditStateStore(coordination)
 	require.NoError(t, err)
@@ -37,7 +40,7 @@ func TestControllerIntegrityAuditStateStorePersistsCursorAndPreservesOtherCoordi
 	require.NoError(t, store.CompareAndSwapIntegrityAudit(
 		context.Background(), 0, next,
 	))
-	require.Equal(t, uint64(3), coordination.state.LastEpoch)
+	require.Equal(t, uint64(3), coordination.state.GenerationGCCursors[0].Revision)
 
 	loaded, err := store.LoadIntegrityAudit(context.Background())
 	require.NoError(t, err)
@@ -138,7 +141,7 @@ func TestControllerIntegrityAuditStateStoreLinearizesFreezeWithGCDelete(t *testi
 	deleteDone := make(chan error, 1)
 	go func() {
 		allowed, _, guardErr := store.WithGenerationGCDelete(
-			context.Background(), 7, "",
+			context.Background(), 7, "", 0,
 			func(context.Context) (int, error) {
 				close(deleteStarted)
 				<-releaseDelete
@@ -191,7 +194,7 @@ func TestControllerIntegrityAuditStateStoreLinearizesFreezeWithGCDelete(t *testi
 
 	called := false
 	allowed, used, err := store.WithGenerationGCDelete(
-		context.Background(), 7, "",
+		context.Background(), 7, "", 0,
 		func(context.Context) (int, error) {
 			called = true
 			return 1, nil
@@ -201,6 +204,34 @@ func TestControllerIntegrityAuditStateStoreLinearizesFreezeWithGCDelete(t *testi
 	require.False(t, allowed)
 	require.Zero(t, used)
 	require.False(t, called)
+}
+
+func TestControllerIntegrityAuditStateStoreRejectsStaleRetentionRevision(
+	t *testing.T,
+) {
+	coordination := &countingIntegrityCoordinationStore{
+		state: backupusecase.State{
+			CatalogRetentionRevision: 3,
+		},
+	}
+	store, err := backupinfra.NewControllerIntegrityAuditStateStore(
+		coordination,
+	)
+	require.NoError(t, err)
+
+	called := false
+	allowed, used, err := store.WithGenerationGCDelete(
+		context.Background(), 7, "", 2,
+		func(context.Context) (int, error) {
+			called = true
+			return 1, nil
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, allowed)
+	require.Zero(t, used)
+	require.False(t, called)
+	require.Empty(t, coordination.state.IntegrityAudit.GCGuards)
 }
 
 func TestControllerIntegrityAuditStateStoreLinearizesAuditSelectionWithGCDelete(
@@ -217,7 +248,7 @@ func TestControllerIntegrityAuditStateStoreLinearizesAuditSelectionWithGCDelete(
 	deleteDone := make(chan error, 1)
 	go func() {
 		allowed, _, guardErr := store.WithGenerationGCDelete(
-			ctx, 7, "",
+			ctx, 7, "", 0,
 			func(context.Context) (int, error) {
 				close(deleteStarted)
 				<-releaseDelete
@@ -269,7 +300,7 @@ func TestControllerIntegrityAuditStateStoreLinearizesAuditSelectionWithGCDelete(
 
 	called := false
 	allowed, _, err := store.WithGenerationGCDelete(
-		ctx, 7, "",
+		ctx, 7, "", 0,
 		func(context.Context) (int, error) {
 			called = true
 			return 1, nil
@@ -279,7 +310,7 @@ func TestControllerIntegrityAuditStateStoreLinearizesAuditSelectionWithGCDelete(
 	require.False(t, allowed)
 	require.False(t, called)
 	allowed, _, err = store.WithGenerationGCDelete(
-		ctx, 7, "catalog-segments-selection-a",
+		ctx, 7, "catalog-segments-selection-a", 0,
 		func(context.Context) (int, error) {
 			called = true
 			return 1, nil

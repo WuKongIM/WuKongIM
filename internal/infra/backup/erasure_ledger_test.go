@@ -31,8 +31,8 @@ func TestPermanentErasureLedgerPublishesEncryptedSignedDualRepositoryCommit(t *t
 	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
 	store := &erasureLedgerStateStore{}
 	coordinator, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled: true, HashSlotCount: 256, Store: store, Publisher: erasureLedgerNoopPublisher{},
-		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() }, NewJobID: func() string { return "unused" },
+		Enabled: true, HashSlotCount: 256, Store: store,
+		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
 	})
 	require.NoError(t, err)
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x44}, 256)))
@@ -246,8 +246,8 @@ func TestPermanentErasureLedgerConcurrentDuplicateIsIdempotent(t *testing.T) {
 	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
 	store := &erasureLedgerStateStore{}
 	coordinator, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled: true, HashSlotCount: 1, Store: store, Publisher: erasureLedgerNoopPublisher{},
-		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() }, NewJobID: func() string { return "unused" },
+		Enabled: true, HashSlotCount: 1, Store: store,
+		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
 	})
 	require.NoError(t, err)
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x35}, 256)))
@@ -312,8 +312,11 @@ func TestPermanentErasureLedgerIsolatesSourceGenerationsInSharedRepositories(t *
 	keys := make([]string, 0, 2)
 	for index, generation := range []string{"generation-1", "generation-2"} {
 		coordinator, err := backupusecase.NewApp(backupusecase.Options{
-			Enabled: true, HashSlotCount: 1, Store: &erasureLedgerStateStore{}, Publisher: erasureLedgerNoopPublisher{},
-			Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() }, NewJobID: func() string { return "unused" },
+			Enabled: true, HashSlotCount: 1,
+			Store: &erasureLedgerStateStore{},
+			Now: func() time.Time {
+				return time.UnixMilli(1_753_056_360_000).UTC()
+			},
 		})
 		require.NoError(t, err)
 		ledger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
@@ -361,8 +364,8 @@ func TestPermanentErasureLedgerFailsClosedAndRepairsSecondaryCommit(t *testing.T
 	signer := testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])}
 	store := &erasureLedgerStateStore{}
 	coordinator, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled: true, HashSlotCount: 1, Store: store, Publisher: erasureLedgerNoopPublisher{},
-		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() }, NewJobID: func() string { return "unused" },
+		Enabled: true, HashSlotCount: 1, Store: store,
+		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
 	})
 	require.NoError(t, err)
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x66}, 256)))
@@ -442,8 +445,6 @@ func (s *erasureLedgerStateStore) CompareAndSwap(_ context.Context, revision uin
 	return nil
 }
 
-type erasureLedgerNoopPublisher struct{}
-
 type erasureCommitFailRepository struct {
 	backupartifact.Repository
 	mu   sync.Mutex
@@ -499,8 +500,4 @@ func (r *erasureCommitFailRepository) setFail(fail bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.fail = fail
-}
-
-func (erasureLedgerNoopPublisher) Publish(context.Context, backupusecase.Job) (backupusecase.RestorePoint, error) {
-	return backupusecase.RestorePoint{}, nil
 }

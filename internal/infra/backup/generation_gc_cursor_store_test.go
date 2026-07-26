@@ -63,7 +63,8 @@ func generationGCTestCursor(
 ) backupcontract.GenerationGCCursor {
 	return backupcontract.GenerationGCCursor{
 		Repository: repository, Revision: revision, CycleID: "cycle-1",
-		AfterKey: afterKey, CutoffUnixMillis: 1_753_400_100_000,
+		CatalogRetentionRevision: 1,
+		AfterKey:                 afterKey, CutoffUnixMillis: 1_753_400_100_000,
 		UpdatedAtUnixMillis: 1_753_400_110_000,
 	}
 }

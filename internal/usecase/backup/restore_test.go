@@ -26,7 +26,7 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	app, err := backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
 		Enabled: true, Store: store,
 		Inspector: fakeRestoreInspector{inspection: backupusecase.RestoreInspection{
-			RestorePointID: proof.Checkpoint.ID, ManifestSHA256: proof.Checkpoint.SHA256,
+			CheckpointID: proof.Checkpoint.ID, CheckpointSHA256: proof.Checkpoint.SHA256,
 			CatalogProof: &proof, CheckpointVersion: backupartifact.CheckpointVersion,
 			CheckpointCreatedAtUnixMillis:   proof.Checkpoint.CreatedAtUnixMillis,
 			CheckpointEffectiveAtUnixMillis: proof.Checkpoint.EffectiveAtUnixMillis,
@@ -45,14 +45,20 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRestoreApp(): %v", err)
 	}
-	plan, err := app.Plan(context.Background(), backupusecase.RestorePlanRequest{RestorePointID: proof.Checkpoint.ID, Repository: "primary"})
+	plan, err := app.Plan(context.Background(), backupusecase.RestorePlanRequest{
+		CheckpointID:     proof.Checkpoint.ID,
+		CatalogHeadToken: restoreCatalogHeadToken(t, proof.Head),
+	})
 	if err != nil || plan.Status != backupusecase.RestoreStatusPlanned {
 		t.Fatalf("Plan() plan=%+v err=%v", plan, err)
 	}
 	if plan.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || plan.ErasureEventCount != 7 || plan.ErasureLedgerSHA256 != strings.Repeat("e", 64) {
 		t.Fatalf("Plan() erasure ledger fence = version:%d count:%d sha:%q", plan.ErasureLedgerVersion, plan.ErasureEventCount, plan.ErasureLedgerSHA256)
 	}
-	if _, err := app.Plan(context.Background(), backupusecase.RestorePlanRequest{RestorePointID: proof.Checkpoint.ID, Repository: "primary"}); err == nil {
+	if _, err := app.Plan(context.Background(), backupusecase.RestorePlanRequest{
+		CheckpointID:     proof.Checkpoint.ID,
+		CatalogHeadToken: restoreCatalogHeadToken(t, proof.Head),
+	}); err == nil {
 		t.Fatal("second Plan() error = nil")
 	}
 	plan, err = app.Start(context.Background(), plan.ID)
@@ -104,8 +110,8 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 		Version: backupartifact.SourceFenceReceiptVersion,
 		ID:      "source-fence-7", SourceClusterID: plan.SourceClusterID,
 		SourceGeneration: plan.SourceGeneration, RestorePlanID: plan.ID,
-		RestorePointID:          plan.RestorePointID,
-		ManifestSHA256:          plan.ManifestSHA256,
+		CheckpointID:            plan.CheckpointID,
+		CheckpointSHA256:        plan.CheckpointSHA256,
 		TargetClusterID:         plan.TargetClusterID,
 		TargetGeneration:        plan.TargetGeneration,
 		FenceControllerRevision: 9,
@@ -153,8 +159,8 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	}
 	staleCheckpointRecord := fenceRecord
 	staleCheckpointRecord.ID = "source-fence-stale-checkpoint"
-	staleCheckpointRecord.RestorePointID = "checkpoint-obsolete"
-	staleCheckpointRecord.ManifestSHA256 = strings.Repeat("b", 64)
+	staleCheckpointRecord.CheckpointID = "checkpoint-obsolete"
+	staleCheckpointRecord.CheckpointSHA256 = strings.Repeat("b", 64)
 	staleCheckpointReceipt, err := backupartifact.SignSourceFenceReceipt(
 		context.Background(), staleCheckpointRecord,
 		signer, "source-signing-key",
@@ -210,9 +216,9 @@ func TestRestoreActivationBreakGlassPersistsImmutableAudit(t *testing.T) {
 	part.Verified = true
 	store := &memoryRestoreStore{state: backupusecase.RestoreState{
 		Plan: &backupusecase.RestorePlan{
-			ID: "plan-break-glass", RestorePointID: "checkpoint-1",
-			ManifestSHA256:  strings.Repeat("a", 64),
-			SourceClusterID: "source", SourceGeneration: "source-gen",
+			ID: "plan-break-glass", CheckpointID: "checkpoint-1",
+			CheckpointSHA256: strings.Repeat("a", 64),
+			SourceClusterID:  "source", SourceGeneration: "source-gen",
 			TargetClusterID: "target", TargetGeneration: "target-gen",
 			HashSlotCount: 1, Status: backupusecase.RestoreStatusVerified,
 			CreatedAtUnixMillis:  now.Add(-time.Hour).UnixMilli(),
@@ -273,9 +279,9 @@ func TestRestoreActivationResumesCleanupWithoutReplacingAudit(t *testing.T) {
 	part.Verified = true
 	store := &memoryRestoreStore{state: backupusecase.RestoreState{
 		Plan: &backupusecase.RestorePlan{
-			ID: "plan-cleanup-resume", RestorePointID: "checkpoint-1",
-			ManifestSHA256:  strings.Repeat("a", 64),
-			SourceClusterID: "source", SourceGeneration: "source-gen",
+			ID: "plan-cleanup-resume", CheckpointID: "checkpoint-1",
+			CheckpointSHA256: strings.Repeat("a", 64),
+			SourceClusterID:  "source", SourceGeneration: "source-gen",
 			TargetClusterID: "target", TargetGeneration: "target-gen",
 			HashSlotCount: 1, Status: backupusecase.RestoreStatusVerified,
 			CreatedAtUnixMillis:  now.Add(-time.Hour).UnixMilli(),
@@ -381,9 +387,9 @@ func TestRestoreActivationRejectsIncompleteFinalEvidence(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := &memoryRestoreStore{state: backupusecase.RestoreState{
 				Plan: &backupusecase.RestorePlan{
-					ID: "plan-final-evidence", RestorePointID: "checkpoint-final-evidence",
-					ManifestSHA256:  strings.Repeat("a", 64),
-					SourceClusterID: "source", SourceGeneration: "source-gen",
+					ID: "plan-final-evidence", CheckpointID: "checkpoint-final-evidence",
+					CheckpointSHA256: strings.Repeat("a", 64),
+					SourceClusterID:  "source", SourceGeneration: "source-gen",
 					TargetClusterID: "target", TargetGeneration: "target-gen",
 					HashSlotCount: 2, Status: backupusecase.RestoreStatusVerified,
 					CreatedAtUnixMillis:  now.Add(-time.Hour).UnixMilli(),
@@ -434,8 +440,8 @@ func TestCheckpointRestorePersistsLeaderAttemptAndConvergenceEvidence(t *testing
 	app, err := backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
 		Enabled: true, Store: store,
 		Inspector: fakeRestoreInspector{inspection: backupusecase.RestoreInspection{
-			RestorePointID:                  proof.Checkpoint.ID,
-			ManifestSHA256:                  proof.Checkpoint.SHA256,
+			CheckpointID:                    proof.Checkpoint.ID,
+			CheckpointSHA256:                proof.Checkpoint.SHA256,
 			CatalogProof:                    &proof,
 			CheckpointVersion:               backupartifact.CheckpointVersion,
 			CheckpointCreatedAtUnixMillis:   proof.Checkpoint.CreatedAtUnixMillis,
@@ -456,7 +462,8 @@ func TestCheckpointRestorePersistsLeaderAttemptAndConvergenceEvidence(t *testing
 		t.Fatal(err)
 	}
 	plan, err := app.Plan(context.Background(), backupusecase.RestorePlanRequest{
-		RestorePointID: proof.Checkpoint.ID, Repository: "primary",
+		CheckpointID:     proof.Checkpoint.ID,
+		CatalogHeadToken: restoreCatalogHeadToken(t, proof.Head),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -662,8 +669,20 @@ type fakeRestoreInspector struct {
 	inspection backupusecase.RestoreInspection
 }
 
-func (f fakeRestoreInspector) Inspect(context.Context, backupusecase.RestorePlanRequest) (backupusecase.RestoreInspection, error) {
+func (f fakeRestoreInspector) Inspect(context.Context, backupusecase.RestoreInspectRequest) (backupusecase.RestoreInspection, error) {
 	return f.inspection, nil
+}
+
+func restoreCatalogHeadToken(
+	t *testing.T,
+	head backupartifact.CatalogPageReference,
+) string {
+	t.Helper()
+	token, err := backupusecase.EncodeCatalogHeadToken(head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
 }
 
 type fakeRestoreVerifier struct{}

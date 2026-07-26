@@ -42,7 +42,10 @@ latest observed source watermarks, per-stream lag, capture state, and a bounded
 failure category. Its `LeaseCurrent` bit distinguishes a current owner from a
 fenced stale worker.
 The coordination state adds one `CatalogPageReference` head beside those Slot
-frontiers. It never transports checkpoint history or repository payloads.
+frontiers plus one scalar `CatalogRetentionRevision`. The revision changes only
+when a signed immutable hold/release page becomes the visible head and fences
+external deletion against that policy transition. It never transports
+checkpoint history or repository payloads.
 Permanent erasure coordination is also partitioned by Hash Slot: each bounded
 stream exposes only its authenticated head plus at most one pending and one
 last-committed reference. Restore contracts carry sorted stream heads, their
@@ -50,21 +53,17 @@ aggregate event count, and the snapshot digest; public projections reduce each
 stream to Slot, sequence, and pending state without Channel identity or
 repository keys.
 
-Backup coordination state includes at most one durable verification task and
-bounded per-restore-point later-audit evidence. Publication-time primary and
-secondary verification flags remain separate from this later evidence so a
-new audit cannot rewrite the original publication result. Pending or running
-verification excludes a backup job, and the active verification target remains
-retention-protected.
-It also carries at most one irreversible `SourceFenceRecord`, binding one source
+Backup coordination state also carries at most one irreversible
+`SourceFenceRecord`, binding one source
 cluster generation to one exact restore plan, checkpoint digest, and successor
 generation. The record becomes converged only after every active data node
 reports the fence revision while not ready for ordinary traffic.
 
 Generation GC adds at most two sorted `GenerationGCCursor` records—one per
 explicit repository. Each record contains only a CAS revision, cycle identity,
-fixed cutoff, lexicographic key cursor, completion bit, and update time. Object
-identities and pending delete queues remain repository concerns.
+fixed catalog-retention revision, fixed cutoff, lexicographic key cursor,
+completion bit, and update time. Object identities and pending delete queues
+remain repository concerns.
 
 Restore plans carry the exact catalog proof, checkpoint identity, selected
 repository copy, target generation, and pinned erasure snapshot. Per-Slot

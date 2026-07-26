@@ -13,8 +13,8 @@ func TestPartitionManifestStrictRoundTrip(t *testing.T) {
 	manifest := backup.PartitionManifest{
 		Format:      backup.PartitionManifestFormat,
 		Version:     backup.PartitionManifestVersion,
-		JobID:       "backup-7",
-		BackupEpoch: 7,
+		Generation:  "backup-7",
+		RebaseEpoch: 7,
 		Cut: backup.PartitionCut{
 			HashSlot:          3,
 			RaftIndex:         91,
@@ -47,8 +47,8 @@ func TestPartitionManifestRequiresExplicitRestoreEvidence(t *testing.T) {
 	manifest := backup.PartitionManifest{
 		Format:      backup.PartitionManifestFormat,
 		Version:     backup.PartitionManifestVersion,
-		JobID:       "backup-7",
-		BackupEpoch: 7,
+		Generation:  "backup-7",
+		RebaseEpoch: 7,
 		Cut: backup.PartitionCut{
 			HashSlot:          3,
 			RaftIndex:         91,
@@ -67,8 +67,8 @@ func TestPartitionManifestRejectsMessageEvidenceWithoutAllocatorFence(t *testing
 	manifest := backup.PartitionManifest{
 		Format:      backup.PartitionManifestFormat,
 		Version:     backup.PartitionManifestVersion,
-		JobID:       "backup-7",
-		BackupEpoch: 7,
+		Generation:  "backup-7",
+		RebaseEpoch: 7,
 		Cut: backup.PartitionCut{
 			HashSlot:          3,
 			RaftIndex:         91,
@@ -87,12 +87,12 @@ func TestPartitionManifestRejectsMessageEvidenceWithoutAllocatorFence(t *testing
 	require.ErrorIs(t, err, backup.ErrInvalidManifest)
 }
 
-func TestPartitionManifestAcceptsBaselineCursorOnlyOnIndependentFullRoot(t *testing.T) {
+func TestPartitionManifestAcceptsMaterializedBaselineCursor(t *testing.T) {
 	manifest := backup.PartitionManifest{
 		Format:      backup.PartitionManifestFormat,
 		Version:     backup.PartitionManifestVersion,
-		JobID:       "rebase-00003-00000000000000000002",
-		BackupEpoch: 2,
+		Generation:  "rebase-00003-00000000000000000002",
+		RebaseEpoch: 2,
 		Cut: backup.PartitionCut{
 			HashSlot: 3, PhysicalSlotID: 10,
 			RaftIndex: 91, CommittedAtMillis: 1710000000000,
@@ -109,13 +109,6 @@ func TestPartitionManifestAcceptsBaselineCursorOnlyOnIndependentFullRoot(t *test
 	require.NoError(t, err)
 	require.Equal(t, manifest.BaselineCursor, loaded.BaselineCursor)
 
-	manifest.Base = &backup.PartitionReference{
-		HashSlot: 3, Key: "partition-manifests/base/00003.json",
-		SHA256: strings.Repeat("f", 64), Bytes: 128, ObjectCount: 1, CiphertextBytes: 64,
-		Evidence: backup.PartitionEvidence{Version: backup.PartitionEvidenceVersion},
-	}
-	_, err = backup.MarshalPartitionManifest(manifest)
-	require.ErrorIs(t, err, backup.ErrInvalidManifest)
 }
 
 func validPartitionObject(key string, kind backup.ObjectKind) backup.ObjectEntry {

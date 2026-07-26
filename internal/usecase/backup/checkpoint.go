@@ -68,14 +68,18 @@ func (a *App) PublishCheckpoint(
 	if err != nil {
 		return CheckpointPublication{}, err
 	}
+	catalogHeadToken, err := EncodeCatalogHeadToken(commit.Head)
+	if err != nil {
+		return CheckpointPublication{}, err
+	}
 	return CheckpointPublication{
 		Checkpoint: CheckpointSummary{
 			ID:                    commit.Checkpoint.ID,
 			CreatedAtUnixMillis:   commit.Checkpoint.CreatedAtUnixMillis,
 			EffectiveAtUnixMillis: commit.Checkpoint.EffectiveAtUnixMillis,
 		},
-		ManifestSHA256: commit.Checkpoint.SHA256,
-		CatalogHead:    commit.Head,
+		CheckpointSHA256: commit.Checkpoint.SHA256,
+		CatalogHeadToken: catalogHeadToken,
 	}, nil
 }
 
@@ -373,6 +377,9 @@ func (c *CheckpointCoordinator) advanceHead(
 		next.CatalogHead = cloneCatalogPageHead(&head)
 		if next.CatalogAuditRootSequence == 0 {
 			next.CatalogAuditRootSequence = head.Sequence
+		}
+		if next.CatalogRetentionRevision == 0 {
+			next.CatalogRetentionRevision = 1
 		}
 		if err := c.store.CompareAndSwap(ctx, state.Revision, next); err != nil {
 			if errors.Is(err, ErrStateConflict) {

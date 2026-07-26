@@ -150,7 +150,7 @@ func LoadMessageCursorBatch(body []byte) (MessageCursorBatch, error) {
 }
 
 func validateMessageCursorBatch(batch MessageCursorBatch) error {
-	if err := validateRestorePointID(batch.Generation); err != nil {
+	if err := validateBackupIdentity(batch.Generation); err != nil {
 		return fmt.Errorf("%w: message cursor generation: %v", ErrInvalidObject, err)
 	}
 	if batch.Sequence == 0 || batch.SourceHighWatermark == 0 ||

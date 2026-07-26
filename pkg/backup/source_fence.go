@@ -34,9 +34,9 @@ type SourceFenceRecord struct {
 	SourceGeneration string `json:"source_generation"`
 	// RestorePlanID binds the fence to one immutable successor restore plan.
 	RestorePlanID string `json:"restore_plan_id"`
-	// RestorePointID and ManifestSHA256 bind the exact restored checkpoint.
-	RestorePointID string `json:"restore_point_id"`
-	ManifestSHA256 string `json:"manifest_sha256"`
+	// CheckpointID and CheckpointSHA256 bind the exact restored checkpoint.
+	CheckpointID     string `json:"checkpoint_id"`
+	CheckpointSHA256 string `json:"checkpoint_sha256"`
 	// TargetClusterID and TargetGeneration identify the intended successor.
 	TargetClusterID  string `json:"target_cluster_id"`
 	TargetGeneration string `json:"target_generation"`
@@ -69,7 +69,7 @@ func ValidateSourceFenceRecord(record SourceFenceRecord, requireConverged bool) 
 		"source_cluster_id": record.SourceClusterID,
 		"source_generation": record.SourceGeneration,
 		"restore_plan_id":   record.RestorePlanID,
-		"restore_point_id":  record.RestorePointID,
+		"checkpoint_id":     record.CheckpointID,
 		"target_cluster_id": record.TargetClusterID,
 		"target_generation": record.TargetGeneration,
 	} {
@@ -82,7 +82,7 @@ func ValidateSourceFenceRecord(record SourceFenceRecord, requireConverged bool) 
 		record.SourceGeneration == record.TargetGeneration {
 		return fmt.Errorf("%w: source fence generations are not isolated", ErrInvalidObject)
 	}
-	if err := validateSHA256(record.ManifestSHA256); err != nil {
+	if err := validateSHA256(record.CheckpointSHA256); err != nil {
 		return fmt.Errorf("%w: source fence manifest digest is invalid", ErrInvalidObject)
 	}
 	if record.FenceControllerRevision == 0 ||

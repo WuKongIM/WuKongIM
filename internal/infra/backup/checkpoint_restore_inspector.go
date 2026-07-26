@@ -50,16 +50,14 @@ func NewCheckpointRestoreInspector(
 	return &CheckpointRestoreInspector{options: options}, nil
 }
 
-// Inspect proves the target is empty and returns immutable checkpoint and
-// current erasure evidence. Latest selects the newest original checkpoint
-// publication, never a later hold/release state append.
+// Inspect proves the target is empty and returns exact immutable checkpoint
+// and current erasure evidence.
 func (i *CheckpointRestoreInspector) Inspect(
 	ctx context.Context,
-	request backupusecase.RestorePlanRequest,
+	request backupusecase.RestoreInspectRequest,
 ) (backupusecase.RestoreInspection, error) {
 	if i == nil || (request.Repository != "primary" && request.Repository != "secondary") ||
-		(strings.TrimSpace(request.RestorePointID) == "") == !request.LatestVerified ||
-		request.CatalogHead == nil {
+		strings.TrimSpace(request.CheckpointID) == "" {
 		return backupusecase.RestoreInspection{}, backupusecase.ErrInvalidRequest
 	}
 	target, err := i.options.Target.InspectRestoreTarget(ctx)
@@ -75,11 +73,10 @@ func (i *CheckpointRestoreInspector) Inspect(
 			"backup checkpoint restore inspector: target is not a proven empty cluster",
 		)
 	}
-	head := *request.CatalogHead
+	head := request.CatalogHead
 	proof, checkpoint, err := i.options.Catalog.
 		ResolveCheckpointForRestoreDual(
-			ctx, head, strings.TrimSpace(request.RestorePointID),
-			request.LatestVerified,
+			ctx, head, strings.TrimSpace(request.CheckpointID),
 		)
 	if err != nil {
 		return backupusecase.RestoreInspection{}, err
@@ -121,8 +118,8 @@ func (i *CheckpointRestoreInspector) Inspect(
 		)
 	}
 	return backupusecase.RestoreInspection{
-		RestorePointID:                  checkpoint.ID,
-		ManifestSHA256:                  proof.Checkpoint.SHA256,
+		CheckpointID:                    checkpoint.ID,
+		CheckpointSHA256:                proof.Checkpoint.SHA256,
 		CatalogProof:                    &proof,
 		CheckpointVersion:               checkpoint.Version,
 		CheckpointCreatedAtUnixMillis:   checkpoint.CreatedAtUnixMillis,

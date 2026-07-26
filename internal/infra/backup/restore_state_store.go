@@ -55,7 +55,7 @@ func restorePlanFromController(plan *controller.RestorePlan) *backupusecase.Rest
 		return nil
 	}
 	result := &backupusecase.RestorePlan{
-		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256,
+		ID: plan.ID, CheckpointID: plan.CheckpointID, CheckpointSHA256: plan.CheckpointSHA256,
 		CheckpointVersion:               plan.CheckpointVersion,
 		CheckpointCreatedAtUnixMillis:   plan.CheckpointCreatedAtUnixMillis,
 		CheckpointEffectiveAtUnixMillis: plan.CheckpointEffectiveAtUnixMillis,
@@ -105,7 +105,7 @@ func restorePlanToController(plan *backupusecase.RestorePlan) *controller.Restor
 		return nil
 	}
 	result := &controller.RestorePlan{
-		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256,
+		ID: plan.ID, CheckpointID: plan.CheckpointID, CheckpointSHA256: plan.CheckpointSHA256,
 		CheckpointVersion:               plan.CheckpointVersion,
 		CheckpointCreatedAtUnixMillis:   plan.CheckpointCreatedAtUnixMillis,
 		CheckpointEffectiveAtUnixMillis: plan.CheckpointEffectiveAtUnixMillis,

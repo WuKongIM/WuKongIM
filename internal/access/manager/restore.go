@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,16 +21,14 @@ type RestoreManagement interface {
 }
 
 type restorePlanRequestDTO struct {
-	RestorePointID   string                               `json:"restore_point_id"`
-	LatestVerified   bool                                 `json:"latest_verified"`
-	Repository       string                               `json:"repository"`
-	InvalidateTokens bool                                 `json:"invalidate_tokens"`
-	CatalogHead      *backupartifact.CatalogPageReference `json:"catalog_head"`
+	CheckpointID     string `json:"checkpoint_id"`
+	InvalidateTokens bool   `json:"invalidate_tokens"`
+	CatalogHeadToken string `json:"catalog_head_token"`
 }
 
 type restoreActivationRequestDTO struct {
-	SourceFenceReceipt *backupartifact.SourceFenceReceipt `json:"source_fence_receipt"`
-	BreakGlass         *restoreBreakGlassRequestDTO       `json:"break_glass"`
+	SourceFenceReceipt *backupusecase.SourceFenceReceipt `json:"source_fence_receipt"`
+	BreakGlass         *restoreBreakGlassRequestDTO      `json:"break_glass"`
 }
 
 type restoreBreakGlassRequestDTO struct {
@@ -79,30 +76,29 @@ type restoreProgressDTO struct {
 }
 
 type restorePlanDTO struct {
-	ID                                  string                                    `json:"id"`
-	RestorePointID                      string                                    `json:"restore_point_id"`
-	ManifestSHA256                      string                                    `json:"manifest_sha256"`
-	Repository                          string                                    `json:"repository"`
-	SourceClusterID                     string                                    `json:"source_cluster_id"`
-	SourceGeneration                    string                                    `json:"source_generation"`
-	TargetClusterID                     string                                    `json:"target_cluster_id"`
-	TargetGeneration                    string                                    `json:"target_generation"`
-	HashSlotCount                       uint16                                    `json:"hash_slot_count"`
-	ErasureLedgerVersion                uint32                                    `json:"erasure_ledger_version"`
-	ErasureEventCount                   uint64                                    `json:"erasure_event_count"`
-	ErasureStreams                      []backupErasureStreamDTO                  `json:"erasure_streams"`
-	ErasureLedgerSHA256                 string                                    `json:"erasure_ledger_sha256"`
-	InvalidateTokens                    bool                                      `json:"invalidate_tokens"`
-	EstimatedPlainBytes                 *uint64                                   `json:"estimated_plain_bytes"`
-	EstimatedCipherBytes                *uint64                                   `json:"estimated_cipher_bytes"`
-	Status                              backupusecase.RestoreStatus               `json:"status"`
-	CreatedAtUnixMillis                 int64                                     `json:"created_at_unix_millis"`
-	UpdatedAtUnixMillis                 int64                                     `json:"updated_at_unix_millis"`
-	VerifiedAtUnixMillis                int64                                     `json:"verified_at_unix_millis"`
-	ActivatedAtUnixMillis               int64                                     `json:"activated_at_unix_millis"`
-	StagingCleanupCompletedAtUnixMillis int64                                     `json:"staging_cleanup_completed_at_unix_millis"`
-	Activation                          *backupartifact.RestoreActivationEvidence `json:"activation,omitempty"`
-	Partitions                          []restorePartitionDTO                     `json:"partitions"`
+	ID                                  string                                   `json:"id"`
+	CheckpointID                        string                                   `json:"checkpoint_id"`
+	CheckpointSHA256                    string                                   `json:"checkpoint_sha256"`
+	SourceClusterID                     string                                   `json:"source_cluster_id"`
+	SourceGeneration                    string                                   `json:"source_generation"`
+	TargetClusterID                     string                                   `json:"target_cluster_id"`
+	TargetGeneration                    string                                   `json:"target_generation"`
+	HashSlotCount                       uint16                                   `json:"hash_slot_count"`
+	ErasureLedgerVersion                uint32                                   `json:"erasure_ledger_version"`
+	ErasureEventCount                   uint64                                   `json:"erasure_event_count"`
+	ErasureStreams                      []backupErasureStreamDTO                 `json:"erasure_streams"`
+	ErasureLedgerSHA256                 string                                   `json:"erasure_ledger_sha256"`
+	InvalidateTokens                    bool                                     `json:"invalidate_tokens"`
+	EstimatedPlainBytes                 *uint64                                  `json:"estimated_plain_bytes"`
+	EstimatedCipherBytes                *uint64                                  `json:"estimated_cipher_bytes"`
+	Status                              backupusecase.RestoreStatus              `json:"status"`
+	CreatedAtUnixMillis                 int64                                    `json:"created_at_unix_millis"`
+	UpdatedAtUnixMillis                 int64                                    `json:"updated_at_unix_millis"`
+	VerifiedAtUnixMillis                int64                                    `json:"verified_at_unix_millis"`
+	ActivatedAtUnixMillis               int64                                    `json:"activated_at_unix_millis"`
+	StagingCleanupCompletedAtUnixMillis int64                                    `json:"staging_cleanup_completed_at_unix_millis"`
+	Activation                          *backupusecase.RestoreActivationEvidence `json:"activation,omitempty"`
+	Partitions                          []restorePartitionDTO                    `json:"partitions"`
 }
 
 func (s *Server) registerRestoreStatusRoute() {
@@ -138,9 +134,9 @@ func (s *Server) handleRestorePlan(c *gin.Context) {
 		return
 	}
 	plan, err := s.restore.PlanRestore(c.Request.Context(), backupusecase.RestorePlanRequest{
-		RestorePointID: strings.TrimSpace(request.RestorePointID), LatestVerified: request.LatestVerified,
-		Repository: strings.TrimSpace(request.Repository), InvalidateTokens: request.InvalidateTokens,
-		CatalogHead: request.CatalogHead,
+		CheckpointID:     strings.TrimSpace(request.CheckpointID),
+		InvalidateTokens: request.InvalidateTokens,
+		CatalogHeadToken: strings.TrimSpace(request.CatalogHeadToken),
 	})
 	if err != nil {
 		writeRestoreError(c, err)
@@ -231,7 +227,7 @@ func (s *Server) handleRestoreActivate(c *gin.Context) {
 
 func restorePlanResponse(plan backupusecase.RestorePlan) restorePlanDTO {
 	result := restorePlanDTO{
-		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256, Repository: plan.Repository,
+		ID: plan.ID, CheckpointID: plan.CheckpointID, CheckpointSHA256: plan.CheckpointSHA256,
 		SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
 		TargetClusterID: plan.TargetClusterID, TargetGeneration: plan.TargetGeneration, HashSlotCount: plan.HashSlotCount,
 		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureEventCount: plan.ErasureEventCount,
@@ -240,8 +236,10 @@ func restorePlanResponse(plan backupusecase.RestorePlan) restorePlanDTO {
 		Status: plan.Status, CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
 		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis,
 		StagingCleanupCompletedAtUnixMillis: plan.StagingCleanupCompletedAtUnixMillis,
-		Activation:                          backupartifact.CloneRestoreActivationEvidence(plan.Activation),
-		Partitions:                          make([]restorePartitionDTO, len(plan.Partitions)),
+		Activation: backupusecase.CloneRestoreActivationEvidence(
+			plan.Activation,
+		),
+		Partitions: make([]restorePartitionDTO, len(plan.Partitions)),
 	}
 	for index, partition := range plan.Partitions {
 		result.Partitions[index] = restorePartitionResponse(partition)
@@ -295,7 +293,9 @@ func restorePartitionResponse(
 	}
 }
 
-func restoreErasureStreamResponses(heads []backupartifact.ErasureStreamHead) []backupErasureStreamDTO {
+func restoreErasureStreamResponses(
+	heads []backupusecase.ErasureStreamHead,
+) []backupErasureStreamDTO {
 	result := make([]backupErasureStreamDTO, len(heads))
 	for index, head := range heads {
 		result[index] = backupErasureStreamDTO{HashSlot: head.HashSlot, Sequence: head.Sequence}
@@ -307,11 +307,11 @@ func writeRestoreError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, backupusecase.ErrRestoreModeRequired):
 		jsonError(c, http.StatusServiceUnavailable, "restore_mode_required", "explicit restore mode is required")
-	case errors.Is(err, backupusecase.ErrInvalidRequest), errors.Is(err, backupusecase.ErrActivationEvidenceRequired), errors.Is(err, backupartifact.ErrInvalidManifest):
+	case errors.Is(err, backupusecase.ErrInvalidRequest), errors.Is(err, backupusecase.ErrActivationEvidenceRequired), errors.Is(err, backupusecase.ErrInvalidRestoreArtifact):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid or unsafe restore request")
 	case errors.Is(err, backupusecase.ErrRestorePlanExists), errors.Is(err, backupusecase.ErrRestoreTransition), errors.Is(err, backupusecase.ErrStateConflict):
 		jsonError(c, http.StatusConflict, "conflict", "restore state changed")
-	case errors.Is(err, backupusecase.ErrRestorePointNotFound), errors.Is(err, backupartifact.ErrObjectNotFound):
+	case errors.Is(err, backupusecase.ErrRestorePlanNotFound), errors.Is(err, backupusecase.ErrRestoreArtifactNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", "restore resource not found")
 	default:
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "restore control unavailable")

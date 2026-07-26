@@ -17,17 +17,11 @@ import (
 // BackupMessageShardRPCServiceID is the direct source-node message capture service.
 const BackupMessageShardRPCServiceID uint8 = clusternet.RPCBackupMessageShard
 
-// BackupPartitionRPCServiceID is the Slot-leader partition capture service.
-const BackupPartitionRPCServiceID uint8 = clusternet.RPCBackupPartition
-
 // BackupRestoreTargetRPCServiceID inspects one node's recovery target storage.
 const BackupRestoreTargetRPCServiceID uint8 = clusternet.RPCBackupRestoreTarget
 
 // BackupRestoreInstallRPCServiceID installs one recovery partition locally.
 const BackupRestoreInstallRPCServiceID uint8 = clusternet.RPCBackupRestoreInstall
-
-// BackupRestoreVerifyRPCServiceID validates restored durable boundaries locally.
-const BackupRestoreVerifyRPCServiceID uint8 = clusternet.RPCBackupRestoreVerify
 
 // BackupCheckpointReplicaRPCServiceID receives final plaintext target snapshots.
 const BackupCheckpointReplicaRPCServiceID uint8 = clusternet.RPCBackupCheckpointReplica
@@ -46,19 +40,6 @@ func (a *Adapter) HandleBackupMessageShardRPC(ctx context.Context, payload []byt
 		Status: backupMessageStatusForError(err), Objects: captured.Objects, Boundaries: captured.Boundaries,
 		MessageRecords: captured.MessageRecords, MaxMessageID: captured.MaxMessageID,
 	})
-}
-
-// HandleBackupPartitionRPC captures one logical partition on the local Slot leader.
-func (a *Adapter) HandleBackupPartitionRPC(ctx context.Context, payload []byte) ([]byte, error) {
-	req, err := decodeBackupPartitionRequest(payload)
-	if err != nil {
-		return nil, err
-	}
-	if a == nil || a.backupPartitions == nil {
-		return encodeBackupPartitionResponse(backupPartitionRPCResponse{Status: rpcStatusRejected})
-	}
-	report, err := a.backupPartitions.CaptureBackupPartition(ctx, req.Capture)
-	return encodeBackupPartitionResponse(backupPartitionRPCResponse{Status: backupMessageStatusForError(err), Report: report})
 }
 
 // HandleBackupRestoreTargetRPC returns local semantic storage evidence.
@@ -92,19 +73,6 @@ func (a *Adapter) HandleBackupRestoreInstallRPC(ctx context.Context, payload []b
 		)
 	}
 	return encodeBackupRestoreInstallResponse(backupRestoreInstallRPCResponse{Status: backupMessageStatusForError(err), Report: report})
-}
-
-// HandleBackupRestoreVerifyRPC checks one bounded batch of restored cuts.
-func (a *Adapter) HandleBackupRestoreVerifyRPC(ctx context.Context, payload []byte) ([]byte, error) {
-	request, err := decodeBackupRestoreVerifyRequest(payload)
-	if err != nil {
-		return nil, err
-	}
-	if a == nil || a.backupRestoreVerifier == nil {
-		return encodeBackupRestoreVerifyResponse(backupRestoreVerifyRPCResponse{Status: rpcStatusRejected})
-	}
-	err = a.backupRestoreVerifier.VerifyLocalRestorePartition(ctx, request.HashSlot, request.MetadataSHA256, request.Boundaries)
-	return encodeBackupRestoreVerifyResponse(backupRestoreVerifyRPCResponse{Status: backupMessageStatusForError(err)})
 }
 
 // HandleBackupCheckpointReplicaRPC stages one bounded target snapshot step.
@@ -159,29 +127,6 @@ func (c *Client) CaptureBackupMessageShard(ctx context.Context, nodeID uint64, r
 	}, nil
 }
 
-// CaptureBackupPartition asks one Slot leader to capture a logical partition.
-func (c *Client) CaptureBackupPartition(ctx context.Context, nodeID uint64, request runtimebackup.CaptureRequest) (backupusecase.PartitionReport, error) {
-	if c == nil || c.node == nil || nodeID == 0 {
-		return backupusecase.PartitionReport{}, runtimebackup.ErrInvalidCapture
-	}
-	body, err := encodeBackupPartitionRequest(backupPartitionRPCRequest{Capture: request})
-	if err != nil {
-		return backupusecase.PartitionReport{}, err
-	}
-	responseBody, err := c.node.CallRPC(ctx, nodeID, BackupPartitionRPCServiceID, body)
-	if err != nil {
-		return backupusecase.PartitionReport{}, err
-	}
-	response, err := decodeBackupPartitionResponse(responseBody)
-	if err != nil {
-		return backupusecase.PartitionReport{}, err
-	}
-	if err := backupMessageErrorForStatus(response.Status); err != nil {
-		return backupusecase.PartitionReport{}, err
-	}
-	return response.Report, nil
-}
-
 // InspectBackupRestoreTarget asks one exact node to prove semantic storage emptiness.
 func (c *Client) InspectBackupRestoreTarget(ctx context.Context, nodeID uint64) (clusterpkg.RestoreTargetLocalState, error) {
 	if c == nil || c.node == nil || nodeID == 0 {
@@ -232,26 +177,6 @@ func (c *Client) InstallBackupRestorePartition(ctx context.Context, nodeID uint6
 		return backupusecase.RestorePartition{}, fmt.Errorf("backup restore install response mismatch")
 	}
 	return response.Report, nil
-}
-
-// VerifyBackupRestorePartition asks one node to validate a bounded batch of restored cuts.
-func (c *Client) VerifyBackupRestorePartition(ctx context.Context, nodeID uint64, hashSlot uint16, metadataSHA256 string, boundaries []clusterpkg.RestoreVerifyBoundary) error {
-	if c == nil || c.node == nil || nodeID == 0 {
-		return runtimebackup.ErrInvalidCapture
-	}
-	body, err := encodeBackupRestoreVerifyRequest(backupRestoreVerifyRPCRequest{HashSlot: hashSlot, MetadataSHA256: metadataSHA256, Boundaries: boundaries})
-	if err != nil {
-		return err
-	}
-	responseBody, err := c.node.CallRPC(ctx, nodeID, BackupRestoreVerifyRPCServiceID, body)
-	if err != nil {
-		return err
-	}
-	response, err := decodeBackupRestoreVerifyResponse(responseBody)
-	if err != nil {
-		return err
-	}
-	return backupMessageErrorForStatus(response.Status)
 }
 
 // HandleCheckpointReplica sends one bounded target-snapshot transfer step.

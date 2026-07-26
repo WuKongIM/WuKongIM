@@ -2,6 +2,7 @@ package backup_test
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"sync"
@@ -11,597 +12,246 @@ import (
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPublishRejectsIncompleteLogicalPartitionSet(t *testing.T) {
-	t.Parallel()
-
-	store := &memoryStateStore{}
-	publisher := &recordingPublisher{}
-	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         store,
-		Publisher:     publisher,
-		Now:           func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
-		NewJobID:      func() string { return "backup-job-1" },
-	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-	job, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{
-		Kind:              backupartifact.RestorePointIncremental,
-		ConfigFingerprint: "config-sha256",
-	})
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	_, err = app.ReportPartition(context.Background(), backupusecase.PartitionReport{
-		JobID:                 job.ID,
-		BackupEpoch:           job.Epoch,
-		HashSlot:              0,
-		RaftIndex:             41,
-		CommittedAtUnixMillis: 1_753_056_300_000,
-		ManifestKey:           "partition-manifests/backup-job-1/00.json",
-		ManifestSHA256:        "9f2f3f87937965e5ea1c1f7c15b0f38d2223d81f83a5a9d37f15e7d3f920bbc7",
-		ObjectCount:           3,
-		CiphertextBytes:       1024,
-	})
-	if err != nil {
-		t.Fatalf("ReportPartition() error = %v", err)
-	}
-
-	_, err = app.Publish(context.Background(), job.ID, job.Epoch)
-	if !errors.Is(err, backupusecase.ErrPartitionsIncomplete) {
-		t.Fatalf("Publish() error = %v, want %v", err, backupusecase.ErrPartitionsIncomplete)
-	}
-	if publisher.callCount() != 0 {
-		t.Fatalf("publisher calls = %d, want 0", publisher.callCount())
-	}
-}
-
-func TestPublishRejectsRestorePointThatHidesOldestPartitionWatermark(t *testing.T) {
-	t.Parallel()
-
-	store := &memoryStateStore{}
-	publisher := &recordingPublisher{result: backupusecase.RestorePoint{
-		ID:                    "rp-newer-than-cut",
-		JobID:                 "backup-job-rpo",
-		BackupEpoch:           1,
-		Kind:                  backupartifact.RestorePointIncremental,
-		EffectiveAtUnixMillis: 1_753_056_350_000,
-		CreatedAtUnixMillis:   1_753_056_360_000,
-		ManifestSHA256:        "9f2f3f87937965e5ea1c1f7c15b0f38d2223d81f83a5a9d37f15e7d3f920bbc7",
-		PrimaryVerified:       true,
-		SecondaryVerified:     true,
-	}}
-	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         store,
-		Publisher:     publisher,
-		Now:           func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
-		NewJobID:      func() string { return "backup-job-rpo" },
-	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-	job, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{Kind: backupartifact.RestorePointIncremental, ConfigFingerprint: "config-sha256"})
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	for _, report := range []backupusecase.PartitionReport{
-		partitionReport(job, 0, 1_753_056_300_000),
-		partitionReport(job, 1, 1_753_056_340_000),
-	} {
-		if _, err := app.ReportPartition(context.Background(), report); err != nil {
-			t.Fatalf("ReportPartition(%d) error = %v", report.HashSlot, err)
-		}
-	}
-
-	_, err = app.Publish(context.Background(), job.ID, job.Epoch)
-	if !errors.Is(err, backupusecase.ErrInvalidRequest) {
-		t.Fatalf("Publish() error = %v, want %v", err, backupusecase.ErrInvalidRequest)
-	}
-}
-
-func TestStatusKeepsRecoveryPointAgeUnknownBeforeFirstPublish(t *testing.T) {
-	t.Parallel()
-
-	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         &memoryStateStore{},
-		Publisher:     &recordingPublisher{},
-		Now:           func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
-		NewJobID:      func() string { return "backup-job-status" },
-	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-
-	status, err := app.Status(context.Background())
-	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if status.Health != backupusecase.HealthUnknown {
-		t.Fatalf("Status() health = %q, want %q", status.Health, backupusecase.HealthUnknown)
-	}
-	if status.RecoveryPointAgeSeconds != nil {
-		t.Fatalf("Status() recovery point age = %d, want unknown", *status.RecoveryPointAgeSeconds)
-	}
-}
-
-func TestStatusPublishesSanitizedDurableCaptureLeaseTakeover(t *testing.T) {
+func TestAppStatusUsesOnlyContinuousCoordinationState(t *testing.T) {
 	t.Parallel()
 
 	store := &memoryStateStore{state: backupusecase.State{
-		SlotFrontiers: []backupcontract.SlotFrontier{{
-			Revision: 7, HashSlot: 17, Generation: "slot-generation-1",
-			SourceSlotID: 3, SourcePinStartedAtUnixMillis: 1_753_056_290_000,
-			Lease: backupcontract.SlotCaptureLease{
-				SlotID: 3, LeaderTerm: 11, ConfigEpoch: 5, HolderNodeID: 2,
-				Generation: "slot-generation-1", Sequence: 4,
+		SlotFrontiers: []backupusecase.SlotFrontier{{
+			Revision:     2,
+			HashSlot:     7,
+			Generation:   "generation-7",
+			SourceSlotID: 9,
+			Lease: backupusecase.SlotCaptureLease{
+				SlotID: 9, HolderNodeID: 3, LeaderTerm: 4,
+				ConfigEpoch: 5, Sequence: 6,
 				AcquiredAtUnixMillis: 1_753_056_300_000,
 			},
-			Metadata:            backupcontract.StreamFrontier{SourceHighWatermark: 91},
-			Messages:            backupcontract.StreamFrontier{SourceHighWatermark: 89},
-			UpdatedAtUnixMillis: 1_753_056_310_000,
+			Metadata: backupusecase.StreamFrontier{SourceHighWatermark: 11},
+			Messages: backupusecase.StreamFrontier{SourceHighWatermark: 12},
 		}},
 	}}
 	app, err := backupusecase.NewApp(backupusecase.Options{
 		Enabled: true, HashSlotCount: 256, Store: store,
-		Publisher: &recordingPublisher{}, Now: time.Now,
-		NewJobID: func() string { return "backup-job-status" },
+		Now:              func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
+		MaxCheckpointAge: 10 * time.Minute,
 	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
+	require.NoError(t, err)
 
 	status, err := app.Status(context.Background())
-	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if len(status.CaptureLeases) != 1 {
-		t.Fatalf("capture leases = %#v", status.CaptureLeases)
-	}
-	lease := status.CaptureLeases[0]
-	if lease.HashSlot != 17 || lease.SlotID != 3 || lease.HolderNodeID != 2 ||
-		lease.LeaderTerm != 11 || lease.ConfigEpoch != 5 || lease.LeaseSequence != 4 ||
-		lease.FrontierRevision != 7 || lease.MetadataSourceWatermark != 91 ||
-		lease.MessageSourceWatermark != 89 {
-		t.Fatalf("capture lease = %#v", lease)
-	}
+	require.NoError(t, err)
+	require.True(t, status.Enabled)
+	require.Equal(t, backupusecase.HealthUnknown, status.Health)
+	require.Nil(t, status.CheckpointAgeSeconds)
+	require.Equal(t, int64(600), status.MaxCheckpointAgeSeconds)
+	require.Len(t, status.CaptureLeases, 1)
+	require.Equal(t, uint16(7), status.CaptureLeases[0].HashSlot)
+	require.Equal(t, uint64(12), status.CaptureLeases[0].MessageSourceWatermark)
 }
 
-func TestListRestorePointsPageUsesStableNewestFirstCursor(t *testing.T) {
+func TestAppDisabledStatusDoesNotReadState(t *testing.T) {
 	t.Parallel()
 
-	store := &memoryStateStore{state: backupusecase.State{RestorePoints: []backupusecase.RestorePoint{
-		{ID: "rp-oldest", EffectiveAtUnixMillis: 100, CreatedAtUnixMillis: 200},
-		{ID: "rp-newest-b", EffectiveAtUnixMillis: 300, CreatedAtUnixMillis: 500},
-		{ID: "rp-newest-a", EffectiveAtUnixMillis: 300, CreatedAtUnixMillis: 400},
-	}}}
 	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         store,
-		Publisher:     &recordingPublisher{},
-		Now:           time.Now,
-		NewJobID:      func() string { return "backup-job-list" },
+		Enabled: false, HashSlotCount: 256,
+		Store: &memoryStateStore{loadErr: errors.New("must not load")},
+		Now:   time.Now,
 	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
+	require.NoError(t, err)
 
-	first, err := app.ListRestorePointsPage(context.Background(), backupusecase.RestorePointListRequest{Limit: 2})
-	if err != nil {
-		t.Fatalf("ListRestorePointsPage(first) error = %v", err)
-	}
-	if first.Total != 3 || len(first.Items) != 2 || first.Items[0].ID != "rp-newest-b" || first.Items[1].ID != "rp-newest-a" || first.NextCursor == "" {
-		t.Fatalf("ListRestorePointsPage(first) = %#v", first)
-	}
-
-	second, err := app.ListRestorePointsPage(context.Background(), backupusecase.RestorePointListRequest{
-		Limit:  2,
-		Cursor: first.NextCursor,
-	})
-	if err != nil {
-		t.Fatalf("ListRestorePointsPage(second) error = %v", err)
-	}
-	if second.Total != 3 || len(second.Items) != 1 || second.Items[0].ID != "rp-oldest" || second.NextCursor != "" {
-		t.Fatalf("ListRestorePointsPage(second) = %#v", second)
-	}
+	status, err := app.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, backupusecase.HealthDisabled, status.Health)
+	require.False(t, status.Enabled)
 }
 
-func TestManualVerificationIsDurableAndMutuallyExclusiveWithBackup(t *testing.T) {
-	t.Parallel()
-
-	now := time.UnixMilli(1_753_056_360_000).UTC()
-	store := &memoryStateStore{state: backupusecase.State{
-		LastEpoch: 1,
-		RestorePoints: []backupusecase.RestorePoint{{
-			ID: "rp-audit", JobID: "backup-job-1", BackupEpoch: 1,
-			Kind:                  backupartifact.RestorePointMaterializedFull,
-			EffectiveAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
-			CreatedAtUnixMillis:   now.Add(-30 * time.Second).UnixMilli(),
-			ManifestSHA256:        strings.Repeat("a", 64),
-			PrimaryVerified:       true,
-			SecondaryVerified:     true,
-		}},
-	}}
-	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         store,
-		Publisher:     &recordingPublisher{},
-		Verifier: &fixedVerifier{result: backupusecase.Verification{
-			RestorePointID:       "rp-audit",
-			VerifiedAtUnixMillis: now.Add(time.Second).UnixMilli(),
-			PrimaryVerified:      true,
-			SecondaryVerified:    true,
-			ManifestSHA256:       strings.Repeat("a", 64),
-		}},
-		Now:      func() time.Time { return now },
-		NewJobID: func() string { return "verification-1" },
-	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-
-	task, err := app.StartVerification(context.Background(), "rp-audit")
-	if err != nil {
-		t.Fatalf("StartVerification() error = %v", err)
-	}
-	if task.ID != "verification-1" || task.Status != backupusecase.VerificationTaskPending {
-		t.Fatalf("StartVerification() = %#v", task)
-	}
-	if _, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{
-		Kind: backupartifact.RestorePointMaterializedFull, ConfigFingerprint: "config",
-	}); !errors.Is(err, backupusecase.ErrVerificationJobActive) {
-		t.Fatalf("Trigger() during verification error = %v, want %v", err, backupusecase.ErrVerificationJobActive)
-	}
-
-	completed, err := app.RunVerification(context.Background(), task.ID)
-	if err != nil {
-		t.Fatalf("RunVerification() error = %v", err)
-	}
-	if completed.Status != backupusecase.VerificationTaskSucceeded || completed.CompletedAtUnixMillis != now.Add(time.Second).UnixMilli() {
-		t.Fatalf("RunVerification() = %#v", completed)
-	}
-	state, err := store.Load(context.Background())
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-	if state.Verification == nil || state.Verification.Status != backupusecase.VerificationTaskSucceeded ||
-		state.RestorePoints[0].LastVerification == nil ||
-		state.RestorePoints[0].LastVerification.Status != backupusecase.VerificationTaskSucceeded ||
-		state.RestorePoints[0].LastVerification.ManifestSHA256 != strings.Repeat("a", 64) {
-		t.Fatalf("durable verification state = %#v", state)
-	}
-	if _, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{
-		Kind: backupartifact.RestorePointMaterializedFull, ConfigFingerprint: "config",
-	}); err != nil {
-		t.Fatalf("Trigger() after verification error = %v", err)
-	}
-}
-
-func TestErasureLedgerCommitReservationIsBoundedIdempotentAndContiguous(t *testing.T) {
+func TestErasureLedgerReservationAndCommitRemainBounded(t *testing.T) {
 	t.Parallel()
 
 	store := &memoryStateStore{}
 	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         store,
-		Publisher:     &recordingPublisher{},
-		Now:           func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
-		NewJobID:      func() string { return "backup-job-erasure" },
+		Enabled: true, HashSlotCount: 256, Store: store, Now: time.Now,
 	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-	first := backupusecase.ErasureLedgerRecordReference{
-		HashSlot: 1,
-		EventID:  strings.Repeat("a", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json",
-		RecordSHA256: strings.Repeat("b", 64),
-	}
-	reserved, err := app.ReserveErasureLedgerCommit(context.Background(), first)
-	if err != nil {
-		t.Fatalf("ReserveErasureLedgerCommit() error = %v", err)
-	}
-	if reserved.Sequence != 1 || reserved.EventID != first.EventID {
-		t.Fatalf("ReserveErasureLedgerCommit() = %#v, want sequence 1", reserved)
-	}
-	retry, err := app.ReserveErasureLedgerCommit(context.Background(), first)
-	if err != nil || retry != reserved {
-		t.Fatalf("ReserveErasureLedgerCommit(retry) = %#v err=%v, want idempotent %#v", retry, err, reserved)
-	}
-	second := backupusecase.ErasureLedgerRecordReference{
-		HashSlot: 1,
-		EventID:  strings.Repeat("c", 64), RecordKey: "erasure-ledger/events/0001/" + strings.Repeat("c", 64) + ".json",
-		RecordSHA256: strings.Repeat("d", 64),
-	}
-	if _, err := app.ReserveErasureLedgerCommit(context.Background(), second); !errors.Is(err, backupusecase.ErrErasureLedgerPending) {
-		t.Fatalf("ReserveErasureLedgerCommit(concurrent) error = %v, want %v", err, backupusecase.ErrErasureLedgerPending)
-	}
-	otherSlot := backupusecase.ErasureLedgerRecordReference{
-		HashSlot: 0, EventID: strings.Repeat("8", 64),
-		RecordKey:    "erasure-ledger/events/0000/" + strings.Repeat("8", 64) + ".json",
-		RecordSHA256: strings.Repeat("9", 64),
-	}
-	otherReserved, err := app.ReserveErasureLedgerCommit(context.Background(), otherSlot)
-	if err != nil || otherReserved.Sequence != 1 {
-		t.Fatalf("ReserveErasureLedgerCommit(other Slot) = %#v err=%v, want independent sequence 1", otherReserved, err)
-	}
-	otherHead := backupartifact.ErasureStreamHead{
-		HashSlot: 0, Sequence: 1, CommitKey: backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 0, 1),
-		CommitSHA256: strings.Repeat("7", 64),
-	}
-	if err := app.CommitErasureLedgerCommit(context.Background(), otherHead, otherReserved.EventID); err != nil {
-		t.Fatalf("CommitErasureLedgerCommit(other Slot) error = %v", err)
-	}
-	head := backupartifact.ErasureStreamHead{
-		HashSlot: 1, Sequence: reserved.Sequence,
-		CommitKey:    backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, reserved.Sequence),
-		CommitSHA256: strings.Repeat("e", 64),
-	}
-	if err := app.CommitErasureLedgerCommit(context.Background(), head, second.EventID); !errors.Is(err, backupusecase.ErrStateConflict) {
-		t.Fatalf("CommitErasureLedgerCommit(mismatch) error = %v, want %v", err, backupusecase.ErrStateConflict)
-	}
-	if err := app.CommitErasureLedgerCommit(context.Background(), head, reserved.EventID); err != nil {
-		t.Fatalf("CommitErasureLedgerCommit() error = %v", err)
-	}
-	if err := app.CommitErasureLedgerCommit(context.Background(), head, reserved.EventID); err != nil {
-		t.Fatalf("CommitErasureLedgerCommit(retry) error = %v", err)
-	}
-	committedRetry, err := app.ReserveErasureLedgerCommit(context.Background(), first)
-	if err != nil || committedRetry != reserved {
-		t.Fatalf("ReserveErasureLedgerCommit(committed retry) = %#v err=%v, want %#v", committedRetry, err, reserved)
-	}
-	next, err := app.ReserveErasureLedgerCommit(context.Background(), second)
-	if err != nil || next.Sequence != 2 {
-		t.Fatalf("ReserveErasureLedgerCommit(next) = %#v err=%v, want sequence 2", next, err)
-	}
-	state, err := store.Load(context.Background())
-	if err != nil || len(state.ErasureStreams) != 2 || state.ErasureStreams[1].Head == nil ||
-		state.ErasureStreams[1].Head.Sequence != 1 || state.ErasureStreams[1].Pending == nil ||
-		state.ErasureStreams[1].Pending.Sequence != 2 {
-		t.Fatalf("state = %#v err=%v, want committed boundary 1 and pending sequence 2", state, err)
-	}
-}
-
-func TestErasureLedgerReservationRejectsBeyondRecoverableCapacity(t *testing.T) {
-	head := backupartifact.ErasureStreamHead{
-		HashSlot: 0, Sequence: backupartifact.MaxErasureLedgerEvents,
-		CommitKey:    backupartifact.ErasureLedgerCommitKey(strings.Repeat("e", 64), 0, backupartifact.MaxErasureLedgerEvents),
-		CommitSHA256: strings.Repeat("f", 64),
-	}
-	store := &memoryStateStore{state: backupusecase.State{
-		ErasureStreams: []backupusecase.ErasureStreamState{{HashSlot: 0, Head: &head}},
-	}}
-	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled: true, HashSlotCount: 2, Store: store, Publisher: &recordingPublisher{},
-		Now: time.Now, NewJobID: func() string { return "unused" },
-	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
+	require.NoError(t, err)
 	reference := backupusecase.ErasureLedgerRecordReference{
-		HashSlot: 1, EventID: strings.Repeat("a", 64),
-		RecordKey:    "erasure-ledger/events/0001/" + strings.Repeat("a", 64) + ".json",
+		HashSlot:     3,
+		EventID:      strings.Repeat("a", 64),
+		RecordKey:    "erasure-ledger/events/0003/" + strings.Repeat("a", 64) + ".json",
 		RecordSHA256: strings.Repeat("b", 64),
 	}
 
-	_, err = app.ReserveErasureLedgerCommit(context.Background(), reference)
-	if !errors.Is(err, backupusecase.ErrStateConflict) {
-		t.Fatalf("ReserveErasureLedgerCommit() error = %v, want %v", err, backupusecase.ErrStateConflict)
+	reserved, err := app.ReserveErasureLedgerCommit(context.Background(), reference)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), reserved.Sequence)
+	retry, err := app.ReserveErasureLedgerCommit(context.Background(), reference)
+	require.NoError(t, err)
+	require.Equal(t, reserved, retry)
+
+	head := backupartifact.ErasureStreamHead{
+		HashSlot: 3, Sequence: 1,
+		CommitKey:    backupartifact.ErasureLedgerCommitKey(reference.EventID, 3, 1),
+		CommitSHA256: strings.Repeat("c", 64),
 	}
+	require.NoError(t, app.CommitErasureLedgerCommit(
+		context.Background(), head, reference.EventID,
+	))
+	state, err := app.CoordinationState(context.Background())
+	require.NoError(t, err)
+	require.Len(t, state.ErasureStreams, 1)
+	require.Nil(t, state.ErasureStreams[0].Pending)
+	require.Equal(t, uint64(1), state.ErasureStreams[0].Head.Sequence)
 }
 
-func TestPublishResumesDegradedJobAfterRepositoryRecovers(t *testing.T) {
+func TestCatalogHeadTokenRoundTripsAndRejectsTrailingPayload(t *testing.T) {
 	t.Parallel()
 
-	store := &memoryStateStore{}
-	publisher := &sequencedPublisher{results: []publishResult{
-		{err: errors.New("secondary repository unavailable")},
-		{restorePoint: backupusecase.RestorePoint{
-			ID:                    "rp-recovered",
-			JobID:                 "backup-job-retry",
-			BackupEpoch:           1,
-			Kind:                  backupartifact.RestorePointIncremental,
-			EffectiveAtUnixMillis: 1_753_056_300_000,
-			CreatedAtUnixMillis:   1_753_056_360_000,
-			ManifestSHA256:        "9f2f3f87937965e5ea1c1f7c15b0f38d2223d81f83a5a9d37f15e7d3f920bbc7",
-			PrimaryVerified:       true,
-			SecondaryVerified:     true,
-		}},
+	head := backupartifact.CatalogPageReference{
+		Sequence: 7,
+		Key: backupartifact.CatalogPageObjectKey(
+			7, "checkpoint-7",
+		),
+		SHA256: strings.Repeat("a", 64), Bytes: 512,
+		LatestCheckpointID: "checkpoint-7",
+	}
+	token, err := backupusecase.EncodeCatalogHeadToken(head)
+	require.NoError(t, err)
+	decoded, err := backupusecase.DecodeCatalogHeadToken(token)
+	require.NoError(t, err)
+	require.Equal(t, head, decoded)
+
+	body, err := base64.RawURLEncoding.DecodeString(token)
+	require.NoError(t, err)
+	trailing := base64.RawURLEncoding.EncodeToString(
+		append(body, []byte(`{}`)...),
+	)
+	_, err = backupusecase.DecodeCatalogHeadToken(trailing)
+	require.ErrorIs(t, err, backupusecase.ErrInvalidRequest)
+
+	_, err = backupusecase.DecodeCatalogHeadToken(
+		base64.RawURLEncoding.EncodeToString([]byte(`{"version":1}`)),
+	)
+	require.ErrorIs(t, err, backupusecase.ErrInvalidRequest)
+}
+
+func TestCheckpointHoldAdvancesRetentionFenceAndBlocksActiveGC(t *testing.T) {
+	t.Parallel()
+
+	now := time.UnixMilli(1_800_000_000_000).UTC()
+	head := &backupartifact.CatalogPageReference{
+		Sequence: 1,
+		Key: backupartifact.CatalogPageObjectKey(
+			1, "checkpoint-1",
+		),
+		SHA256: strings.Repeat("a", 64), Bytes: 512,
+		LatestCheckpointID: "checkpoint-1",
+	}
+	store := &memoryStateStore{state: backupusecase.State{
+		Revision: 7, CatalogHead: head,
+		CatalogRetentionRevision: 1,
 	}}
+	retention := &recordingCheckpointRetention{}
 	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         store,
-		Publisher:     publisher,
-		Now:           func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
-		NewJobID:      func() string { return "backup-job-retry" },
+		Enabled: true, HashSlotCount: 256, Store: store,
+		CatalogRetention: retention,
+		Now:              func() time.Time { return now },
 	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-	job, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{Kind: backupartifact.RestorePointIncremental, ConfigFingerprint: "config-sha256"})
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	for _, report := range []backupusecase.PartitionReport{
-		partitionReport(job, 0, 1_753_056_300_000),
-		partitionReport(job, 1, 1_753_056_340_000),
-	} {
-		if _, err := app.ReportPartition(context.Background(), report); err != nil {
-			t.Fatalf("ReportPartition(%d) error = %v", report.HashSlot, err)
-		}
-	}
-	if _, err := app.Publish(context.Background(), job.ID, job.Epoch); err == nil {
-		t.Fatal("first Publish() error = nil, want repository failure")
-	}
+	require.NoError(t, err)
 
-	restorePoint, err := app.Publish(context.Background(), job.ID, job.Epoch)
-	if err != nil {
-		t.Fatalf("second Publish() error = %v", err)
-	}
-	if restorePoint.ID != "rp-recovered" {
-		t.Fatalf("second Publish() restore point = %q", restorePoint.ID)
-	}
-	status, err := app.Status(context.Background())
-	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if status.Active != nil || status.Latest == nil || status.Latest.ID != "rp-recovered" || status.Health != backupusecase.HealthHealthy {
-		t.Fatalf("Status() = %#v, want completed healthy restore point", status)
-	}
-}
+	checkpoint, err := app.SetCheckpointHold(
+		context.Background(), "checkpoint-1", true,
+	)
+	require.NoError(t, err)
+	require.True(t, checkpoint.Held)
+	require.Equal(t, uint64(2), store.state.CatalogHead.Sequence)
+	require.Equal(t, uint64(2), store.state.CatalogRetentionRevision)
+	require.Equal(t, uint64(8), store.state.Revision)
 
-func TestCancelHoldReleaseAndScheduleRemainFenced(t *testing.T) {
-	t.Parallel()
+	_, err = app.SetCheckpointHold(
+		context.Background(), "checkpoint-1", true,
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint64(8), store.state.Revision)
+	require.Equal(t, 2, retention.calls)
 
-	now := time.UnixMilli(1_753_056_360_000).UTC()
-	store := &memoryStateStore{state: backupusecase.State{RestorePoints: []backupusecase.RestorePoint{{
-		ID:                    "rp-1",
-		Kind:                  backupartifact.RestorePointMaterializedFull,
-		EffectiveAtUnixMillis: now.Add(-10 * time.Minute).UnixMilli(),
-		CreatedAtUnixMillis:   now.Add(-10 * time.Minute).UnixMilli(),
-	}}}}
-	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled:       true,
-		HashSlotCount: 2,
-		Store:         store,
-		Publisher:     &recordingPublisher{},
-		Now:           func() time.Time { return now },
-		NewJobID:      func() string { return "backup-job-controls" },
-	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-	held, err := app.Hold(context.Background(), "rp-1")
-	if err != nil || !held.Held {
-		t.Fatalf("Hold() = %+v err=%v", held, err)
-	}
-	released, err := app.Release(context.Background(), "rp-1")
-	if err != nil || released.Held {
-		t.Fatalf("Release() = %+v err=%v", released, err)
-	}
-	job, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{Kind: backupartifact.RestorePointIncremental, ConfigFingerprint: "config-sha256"})
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	if _, err := app.Cancel(context.Background(), job.ID, job.Epoch+1); !errors.Is(err, backupusecase.ErrJobNotFound) {
-		t.Fatalf("Cancel(stale) error = %v", err)
-	}
-	canceled, err := app.Cancel(context.Background(), job.ID, job.Epoch)
-	if err != nil || canceled.Status != backupusecase.JobStatusCanceled {
-		t.Fatalf("Cancel() = %+v err=%v", canceled, err)
-	}
-	state, err := store.Load(context.Background())
-	if err != nil || state.Active != nil {
-		t.Fatalf("state after cancel = %+v err=%v", state, err)
-	}
+	store.state.IntegrityAudit.GCGuards =
+		[]backupcontract.IntegrityAuditGCGuard{{
+			HashSlot: 7, Token: "active-gc",
+			AcquiredAtUnixMillis: now.UnixMilli(),
+			ExpiresAtUnixMillis:  now.Add(time.Minute).UnixMilli(),
+		}}
+	_, err = app.SetCheckpointHold(
+		context.Background(), "checkpoint-1", false,
+	)
+	require.ErrorIs(t, err, backupusecase.ErrStateConflict)
+	require.Equal(t, 2, retention.calls)
 
-	decision, err := backupusecase.DecideSchedule(now, state, backupusecase.SchedulePolicy{
-		RestorePointInterval:     5 * time.Minute,
-		SyntheticFullInterval:    24 * time.Hour,
-		MaterializedFullInterval: 30 * 24 * time.Hour,
-	})
-	if err != nil || !decision.Due || decision.Kind != backupartifact.RestorePointIncremental {
-		t.Fatalf("DecideSchedule() = %+v err=%v", decision, err)
-	}
-}
-
-func TestTriggerUsesPriorRestorePointOnlyForIncrementalCapture(t *testing.T) {
-	for _, testCase := range []struct {
-		name     string
-		kind     backupartifact.RestorePointKind
-		wantBase bool
-	}{
-		{name: "incremental", kind: backupartifact.RestorePointIncremental, wantBase: true},
-		{name: "materialized full", kind: backupartifact.RestorePointMaterializedFull},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			store := &memoryStateStore{state: backupusecase.State{RestorePoints: []backupusecase.RestorePoint{{
-				ID: "restore-base", EffectiveAtUnixMillis: 1, CreatedAtUnixMillis: 1,
-			}}}}
-			app, err := backupusecase.NewApp(backupusecase.Options{
-				Enabled: true, HashSlotCount: 1, Store: store, Publisher: &recordingPublisher{},
-				Now: time.Now, NewJobID: func() string { return "job-baseline" },
-			})
-			if err != nil {
-				t.Fatalf("NewApp() error = %v", err)
-			}
-			job, err := app.Trigger(context.Background(), backupusecase.TriggerRequest{Kind: testCase.kind, ConfigFingerprint: "config"})
-			if err != nil {
-				t.Fatalf("Trigger() error = %v", err)
-			}
-			if got := job.BaseRestorePointID != ""; got != testCase.wantBase {
-				t.Fatalf("BaseRestorePointID = %q, want base=%v", job.BaseRestorePointID, testCase.wantBase)
-			}
-		})
-	}
-}
-
-func TestTriggerRejectsUnqualifiedSyntheticFull(t *testing.T) {
-	app, err := backupusecase.NewApp(backupusecase.Options{
-		Enabled: true, HashSlotCount: 1, Store: &memoryStateStore{}, Publisher: &recordingPublisher{},
-		Now: time.Now, NewJobID: func() string { return "job-synthetic" },
-	})
-	if err != nil {
-		t.Fatalf("NewApp() error = %v", err)
-	}
-	_, err = app.Trigger(context.Background(), backupusecase.TriggerRequest{
-		Kind: backupartifact.RestorePointSyntheticFull, ConfigFingerprint: "config",
-	})
-	if !errors.Is(err, backupusecase.ErrInvalidRequest) {
-		t.Fatalf("Trigger(synthetic_full) error = %v, want ErrInvalidRequest", err)
-	}
-}
-
-func TestDecideScheduleUsesMaterializedFallbackForIndependentFullCadence(t *testing.T) {
-	now := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
-	decision, err := backupusecase.DecideSchedule(now, backupusecase.State{RestorePoints: []backupusecase.RestorePoint{
-		{ID: "full", Kind: backupartifact.RestorePointMaterializedFull, CreatedAtUnixMillis: now.Add(-48 * time.Hour).UnixMilli(), EffectiveAtUnixMillis: now.Add(-48 * time.Hour).UnixMilli()},
-		{ID: "increment", Kind: backupartifact.RestorePointIncremental, CreatedAtUnixMillis: now.Add(-10 * time.Minute).UnixMilli(), EffectiveAtUnixMillis: now.Add(-10 * time.Minute).UnixMilli()},
-	}}, backupusecase.SchedulePolicy{
-		RestorePointInterval: 5 * time.Minute, SyntheticFullInterval: 24 * time.Hour,
-		MaterializedFullInterval: 30 * 24 * time.Hour,
-	})
-	if err != nil || !decision.Due || decision.Kind != backupartifact.RestorePointMaterializedFull || decision.Reason != "independent_full_fallback_due" {
-		t.Fatalf("DecideSchedule() = %+v err=%v", decision, err)
-	}
-}
-
-func partitionReport(job backupusecase.Job, hashSlot uint16, committedAt int64) backupusecase.PartitionReport {
-	return backupusecase.PartitionReport{
-		JobID:                 job.ID,
-		BackupEpoch:           job.Epoch,
-		HashSlot:              hashSlot,
-		RaftIndex:             uint64(40 + hashSlot),
-		CommittedAtUnixMillis: committedAt,
-		ManifestKey:           "partition-manifests/backup-job/part.json",
-		ManifestSHA256:        "9f2f3f87937965e5ea1c1f7c15b0f38d2223d81f83a5a9d37f15e7d3f920bbc7",
-		ObjectCount:           3,
-		CiphertextBytes:       1024,
-	}
+	store.state.IntegrityAudit.GCGuards = nil
+	checkpoint, err = app.SetCheckpointHold(
+		context.Background(), "checkpoint-1", false,
+	)
+	require.NoError(t, err)
+	require.False(t, checkpoint.Held)
+	require.Equal(t, uint64(3), store.state.CatalogHead.Sequence)
+	require.Equal(t, uint64(3), store.state.CatalogRetentionRevision)
 }
 
 type memoryStateStore struct {
-	mu    sync.Mutex
-	state backupusecase.State
+	mu      sync.Mutex
+	state   backupusecase.State
+	loadErr error
 }
 
-func (s *memoryStateStore) Load(_ context.Context) (backupusecase.State, error) {
+type recordingCheckpointRetention struct {
+	calls int
+	set   bool
+	held  bool
+}
+
+func (r *recordingCheckpointRetention) SetCheckpointHold(
+	_ context.Context,
+	head backupartifact.CatalogPageReference,
+	checkpointID string,
+	held bool,
+	_ int64,
+) (backupusecase.CheckpointHoldCommit, error) {
+	r.calls++
+	summary := backupusecase.CheckpointSummary{
+		ID: checkpointID, CreatedAtUnixMillis: 100,
+		EffectiveAtUnixMillis: 90, Held: held,
+	}
+	if r.set && r.held == held {
+		return backupusecase.CheckpointHoldCommit{
+			Checkpoint: summary, Head: head,
+		}, nil
+	}
+	r.set = true
+	r.held = held
+	next := backupartifact.CatalogPageReference{
+		Sequence: head.Sequence + 1,
+		Key: backupartifact.CatalogPageObjectKey(
+			head.Sequence+1, head.LatestCheckpointID,
+		),
+		SHA256: strings.Repeat("b", 64), Bytes: 512,
+		LatestCheckpointID: head.LatestCheckpointID,
+	}
+	return backupusecase.CheckpointHoldCommit{
+		Checkpoint: summary, Head: next, Changed: true,
+	}, nil
+}
+
+func (s *memoryStateStore) Load(context.Context) (backupusecase.State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.state.Clone(), nil
+	return s.state.Clone(), s.loadErr
 }
 
-func (s *memoryStateStore) CompareAndSwap(_ context.Context, revision uint64, next backupusecase.State) error {
+func (s *memoryStateStore) CompareAndSwap(
+	_ context.Context,
+	revision uint64,
+	next backupusecase.State,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.state.Revision != revision {
@@ -610,54 +260,4 @@ func (s *memoryStateStore) CompareAndSwap(_ context.Context, revision uint64, ne
 	next.Revision = revision + 1
 	s.state = next.Clone()
 	return nil
-}
-
-type recordingPublisher struct {
-	mu     sync.Mutex
-	calls  int
-	result backupusecase.RestorePoint
-	err    error
-}
-
-func (p *recordingPublisher) Publish(_ context.Context, _ backupusecase.Job) (backupusecase.RestorePoint, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.calls++
-	return p.result, p.err
-}
-
-func (p *recordingPublisher) callCount() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.calls
-}
-
-type publishResult struct {
-	restorePoint backupusecase.RestorePoint
-	err          error
-}
-
-type sequencedPublisher struct {
-	mu      sync.Mutex
-	results []publishResult
-}
-
-type fixedVerifier struct {
-	result backupusecase.Verification
-	err    error
-}
-
-func (v *fixedVerifier) Verify(context.Context, string) (backupusecase.Verification, error) {
-	return v.result, v.err
-}
-
-func (p *sequencedPublisher) Publish(_ context.Context, _ backupusecase.Job) (backupusecase.RestorePoint, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.results) == 0 {
-		return backupusecase.RestorePoint{}, errors.New("unexpected publish call")
-	}
-	result := p.results[0]
-	p.results = p.results[1:]
-	return result.restorePoint, result.err
 }

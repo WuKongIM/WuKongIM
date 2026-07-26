@@ -254,8 +254,8 @@ func (i *CheckpointSlotInstaller) InstallPartition(
 		return backupusecase.RestorePartition{}, backupusecase.ErrRestoreTransition
 	}
 	fence := CheckpointRestoreInstallFence{
-		PlanID: plan.ID, CheckpointID: plan.RestorePointID,
-		CheckpointSHA256: plan.ManifestSHA256,
+		PlanID: plan.ID, CheckpointID: plan.CheckpointID,
+		CheckpointSHA256: plan.CheckpointSHA256,
 		TargetGeneration: plan.TargetGeneration,
 		HashSlot:         hashSlot, TargetSlotID: progress.TargetSlotID,
 		ReplicaCount: progress.ReplicaCount,
@@ -292,8 +292,8 @@ func (i *CheckpointSlotInstaller) InstallPartition(
 	if err != nil {
 		return backupusecase.RestorePartition{}, err
 	}
-	if checkpoint.ID != plan.RestorePointID ||
-		plan.CatalogProof.Checkpoint.SHA256 != plan.ManifestSHA256 ||
+	if checkpoint.ID != plan.CheckpointID ||
+		plan.CatalogProof.Checkpoint.SHA256 != plan.CheckpointSHA256 ||
 		checkpoint.RepositoryID != i.options.RepositoryID ||
 		checkpoint.SourceClusterID != plan.SourceClusterID ||
 		checkpoint.SourceGeneration != plan.SourceGeneration ||

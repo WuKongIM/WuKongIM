@@ -173,19 +173,10 @@ func sameBackupStateWithoutSourceFence(
 ) bool {
 	normalize := func(value *state.BackupCoordinationState) state.BackupCoordinationState {
 		if value == nil {
-			return state.BackupCoordinationState{
-				RestorePoints:  []state.BackupRestorePoint{},
-				PendingGarbage: []state.BackupRestorePoint{},
-			}
+			return state.BackupCoordinationState{}
 		}
 		out := value.Clone()
 		out.SourceFence = nil
-		if out.RestorePoints == nil {
-			out.RestorePoints = []state.BackupRestorePoint{}
-		}
-		if out.PendingGarbage == nil {
-			out.PendingGarbage = []state.BackupRestorePoint{}
-		}
 		return out
 	}
 	return reflect.DeepEqual(normalize(left), normalize(right))
@@ -270,8 +261,8 @@ func validRestoreActivationPlanBinding(plan *state.RestorePlan) bool {
 		receipt := evidence.SourceFenceReceipt
 		return receipt != nil &&
 			receipt.RestorePlanID == plan.ID &&
-			receipt.RestorePointID == plan.RestorePointID &&
-			receipt.ManifestSHA256 == plan.ManifestSHA256 &&
+			receipt.CheckpointID == plan.CheckpointID &&
+			receipt.CheckpointSHA256 == plan.CheckpointSHA256 &&
 			receipt.SourceClusterID == plan.SourceClusterID &&
 			receipt.SourceGeneration == plan.SourceGeneration &&
 			receipt.TargetClusterID == plan.TargetClusterID &&

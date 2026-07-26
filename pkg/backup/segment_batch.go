@@ -358,7 +358,7 @@ func readSegmentBatchEnvelope(
 		header.MessageCursorBytes != cursorBytes ||
 		(header.Stream != SegmentStreamMetadata &&
 			header.Stream != SegmentStreamMessages) ||
-		validateRestorePointID(header.Generation) != nil ||
+		validateBackupIdentity(header.Generation) != nil ||
 		header.Sequence == 0 || header.SourceHighWatermark == 0 ||
 		header.WatermarkAtUnixMillis <= 0 ||
 		validateSegmentBatchCursor(header.FromCursor) != nil ||
@@ -379,7 +379,7 @@ func validateSegmentBatch(batch SegmentBatch) error {
 	if batch.Stream != SegmentStreamMetadata && batch.Stream != SegmentStreamMessages {
 		return fmt.Errorf("%w: segment batch stream is invalid", ErrInvalidObject)
 	}
-	if err := validateRestorePointID(batch.Generation); err != nil {
+	if err := validateBackupIdentity(batch.Generation); err != nil {
 		return fmt.Errorf("%w: segment batch generation: %v", ErrInvalidObject, err)
 	}
 	if batch.Sequence == 0 || batch.SourceHighWatermark == 0 || batch.WatermarkAtUnixMillis <= 0 || len(batch.Records) == 0 {

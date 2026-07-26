@@ -1043,32 +1043,40 @@ KMS envelope/signing with manifest verification pinned to the configured
 active key plus explicitly retained previous verification keys, Controller
 state, Slot-leader continuous capture, complete-vector checkpoint publication,
 the continuous coordinator, Manager, node RPC, and low-cardinality metrics.
+The same path assumes separately configured repair and garbage roles for each
+repository, then wires replicated segment/catalog repair, the authenticated
+catalog integrity plan, durable audit state, live-source Slot rebase recovery,
+all-node audit projection, independently cursor-fenced Generation GC, and
+durable latest-checkpoint observation.
 Backup doctor or runtime failure is reported independently and never changes
 ordinary message readiness.
-Manager backup health remains `unknown` when node-local doctor or successful
-dual-repository audit evidence is missing, even if the latest RPO is fresh.
 Every ordinary Manager node exposes the same backup surface. Mutations,
-coordinator status, and the legacy restore-point inventory route once to the
-currently observed Controller Leader through the leader-fenced Manager backup
-RPC and do not automatically replay writes after a leadership transition.
+coordinator status, checkpoint publication, checkpoint hold/release, and
+irreversible source fencing
+route once to the currently observed Controller Leader through the
+leader-fenced Manager backup RPC and do not automatically replay writes after
+a leadership transition.
 Immutable checkpoint catalog reads use the locally visible Controller head and
 the shared dual repositories, so each node can rebuild its own non-authoritative
 query index without a Leader hop. Status combines durable Slot capture leases
-and erasure progress with node-local continuous-coordinator evidence,
-configured non-secret policy, and individual doctor dependency readiness.
-The cluster-wide config fingerprint excludes the node-local staging directory;
-repository, identity, capture, checkpoint, and cryptographic policy remain in
-the agreement fence. The non-secret policy also exposes a per-Slot source-pin
-maximum age and a per-node retained-log byte budget; both participate in the
-fingerprint and are available through Manager status. Production composition
-uses only the continuous capture/checkpoint coordinator; retained legacy job
-interfaces are not scheduled by the application runtime.
+and erasure progress with node-local continuous-coordinator evidence and the
+configured non-secret capture/checkpoint policy. Doctor dependencies and
+repository/KMS details remain internal. The non-secret policy exposes a
+per-Slot source-pin maximum age and a per-node retained-log byte budget.
+Every coordinator node hydrates checkpoint age and publication cadence from
+that authenticated durable catalog, so process restart or Controller Leader
+change does not reset the schedule. Audit projection runs on all nodes;
+integrity audit and Generation collection execute only on the healthy current
+Controller Leader at their independent configured intervals.
+Production composition uses only the continuous capture/checkpoint
+coordinator; no periodic partition job or cluster-wide full-backup interface
+is wired.
 
 When automatic backup is enabled, the same composition root injects the
 dual-repository, per-Hash-Slot permanent-erasure ledger into local and forwarded
 Manager message-retention paths. Checkpoint publication reads the sorted
 committed Slot heads from Controller state, and restore inspection pins the
-latest authenticated heads even when an older recovery point is selected.
+latest authenticated heads even when an older checkpoint is selected.
 Retention fails closed before its Slot metadata command when ledger construction
 or publication is unavailable. With backup disabled, the existing
 cluster-authoritative retention path remains unchanged. The garbage collector

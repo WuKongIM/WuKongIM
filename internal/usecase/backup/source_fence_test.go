@@ -25,16 +25,16 @@ func TestFenceSourcePersistsBarrierBeforeSigningAndIsIdempotent(t *testing.T) {
 			SHA256: strings.Repeat("b", 64), Bytes: 100,
 			LatestCheckpointID: "checkpoint-1",
 		},
+		CatalogRetentionRevision: 1,
 	}}
 	now := time.UnixMilli(1_800_000_000_000).UTC()
 	convergence := &recordingSourceFenceConvergence{}
 	app, err := backupusecase.NewApp(backupusecase.Options{
 		Enabled: true, HashSlotCount: 1, Store: store,
-		Publisher: &recordingPublisher{},
 		CatalogBrowser: sourceFenceCatalogBrowser{
 			detail: backupusecase.CheckpointDetail{
 				CheckpointSummary: backupusecase.CheckpointSummary{ID: "checkpoint-1"},
-				ManifestSHA256:    strings.Repeat("a", 64),
+				CheckpointSHA256:  strings.Repeat("a", 64),
 				SourceClusterID:   "source-cluster", SourceGeneration: "source-gen",
 				HashSlotCount: 1,
 			},
@@ -48,13 +48,12 @@ func TestFenceSourcePersistsBarrierBeforeSigningAndIsIdempotent(t *testing.T) {
 			now = now.Add(time.Second)
 			return current
 		},
-		NewJobID: func() string { return "unused" },
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	request := backupusecase.SourceFenceRequest{
-		RestorePlanID: "restore-plan-1", RestorePointID: "checkpoint-1",
+		RestorePlanID: "restore-plan-1", CheckpointID: "checkpoint-1",
 		TargetClusterID: "target-cluster", TargetGeneration: "target-gen",
 	}
 	receipt, err := app.FenceSource(context.Background(), request)
@@ -83,7 +82,7 @@ func TestFenceSourcePersistsBarrierBeforeSigningAndIsIdempotent(t *testing.T) {
 	_, err = app.FenceSource(
 		context.Background(),
 		backupusecase.SourceFenceRequest{
-			RestorePlanID: "restore-plan-other", RestorePointID: "checkpoint-1",
+			RestorePlanID: "restore-plan-other", CheckpointID: "checkpoint-1",
 			TargetClusterID: "target-cluster", TargetGeneration: "target-gen",
 		},
 	)

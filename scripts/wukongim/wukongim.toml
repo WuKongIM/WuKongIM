@@ -262,6 +262,10 @@ authority_admit_concurrency = 16
 # Automatic cluster-semantic backup is disabled by default. Enabling it requires
 # two distinct cross-region S3-compatible repositories plus external KMS keys.
 enabled = false
+# Explicit production-qualification token required before backup can be enabled.
+qualification_gate = ""
+# Recovery mode is mutually exclusive with automatic backup and keeps ordinary
+# client/API traffic and side effects disabled until explicit activation.
 restore_mode = false
 # Stable logical identity shared by both repository copies.
 repository_id = ""
@@ -292,6 +296,18 @@ worker_count = 4
 # Rebase only the affected Hash Slot after one hour or when node-local retained Slot logs exceed 8 GiB.
 source_pin_max_age = "1h"
 max_source_pinned_bytes = 8589934592
+# Advance one bounded authenticated audit/repair step per second and force a
+# complete retained-catalog scrub at least once every 24 hours.
+audit_interval = "1s"
+audit_scrub_interval = "24h"
+# Run bounded Generation garbage collection hourly, retaining all objects newer
+# than seven days and limiting each repository independently per step.
+garbage_collection_interval = "1h"
+garbage_safety_window = "168h"
+garbage_max_requests_per_repository = 256
+garbage_max_bytes_per_repository = 1073741824
+# Optional sparse monthly retention tier; zero disables monthly retention.
+retention_monthly_months = 0
 # Minimum compliance-mode Object Lock retention applied to every object.
 object_lock_days = 7
 
@@ -302,6 +318,10 @@ region = ""
 # The bucket must have versioning and Object Lock/WORM enabled for at least seven days.
 bucket = ""
 prefix = ""
+# Separately assumed least-privilege roles for authenticated repair writes and
+# expired immutable-version deletion. Both are required when backup is enabled.
+repair_role_arn = ""
+garbage_role_arn = ""
 
 [backup.secondary]
 # This independently verified cross-region repository determines effective RPO.
@@ -309,6 +329,9 @@ endpoint = ""
 region = ""
 bucket = ""
 prefix = ""
+# Cross-region least-privilege roles must be independent from ordinary capture credentials.
+repair_role_arn = ""
+garbage_role_arn = ""
 
 
 [delivery]

@@ -19,7 +19,7 @@ func TestDecideCheckpointRetentionProtectsNewestHoldAndActiveRestore(t *testing.
 	}
 	checkpoints[2].Held = true
 	decision, err := backupusecase.DecideCheckpointRetention(
-		now, checkpoints, backupusecase.RetentionPolicy{}, "restoring",
+		now, checkpoints, backupusecase.CheckpointRetentionPolicy{}, "restoring",
 	)
 	if err != nil {
 		t.Fatalf("DecideCheckpointRetention() error = %v", err)
@@ -41,7 +41,7 @@ func TestDecideCheckpointRetentionReleasesExplicitHold(t *testing.T) {
 	}
 	checkpoints[1].Held = true
 	held, err := backupusecase.DecideCheckpointRetention(
-		now, checkpoints, backupusecase.RetentionPolicy{}, "",
+		now, checkpoints, backupusecase.CheckpointRetentionPolicy{}, "",
 	)
 	if err != nil {
 		t.Fatalf("DecideCheckpointRetention(held) error = %v", err)
@@ -51,7 +51,7 @@ func TestDecideCheckpointRetentionReleasesExplicitHold(t *testing.T) {
 	}
 	checkpoints[1].Held = false
 	released, err := backupusecase.DecideCheckpointRetention(
-		now, checkpoints, backupusecase.RetentionPolicy{}, "",
+		now, checkpoints, backupusecase.CheckpointRetentionPolicy{}, "",
 	)
 	if err != nil {
 		t.Fatalf("DecideCheckpointRetention(released) error = %v", err)
@@ -74,7 +74,7 @@ func TestDecideCheckpointRetentionUsesSharedHourlyDailyAndMonthlyBuckets(t *test
 		retentionCheckpoint("month-older", time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)),
 	}
 	decision, err := backupusecase.DecideCheckpointRetention(
-		now, checkpoints, backupusecase.RetentionPolicy{MonthlyMonths: 2}, "",
+		now, checkpoints, backupusecase.CheckpointRetentionPolicy{MonthlyMonths: 2}, "",
 	)
 	if err != nil {
 		t.Fatalf("DecideCheckpointRetention() error = %v", err)

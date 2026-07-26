@@ -141,10 +141,7 @@ func exactIntegrityAuditPromotion(
 }
 
 // IntegrityAuditLeadership identifies the local node and Controller Leader.
-type IntegrityAuditLeadership interface {
-	NodeID() uint64
-	BackupControllerLeaderID() uint64
-}
+type IntegrityAuditLeadership = CoordinatorLeadership
 
 type integrityAuditFailureObserver interface {
 	ObserveBackupFailure(string)

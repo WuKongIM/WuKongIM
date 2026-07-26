@@ -19,7 +19,7 @@ func TestControllerRestoreStateStoreRoundTripsPointersAndMapsConflict(t *testing
 	cipher := uint64(12)
 	proof := restoreStateStoreCatalogProof()
 	runtime := &fakeRestoreController{state: controller.ClusterState{Revision: 8, Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
-		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: strings.Repeat("a", 64), Repository: "secondary",
+		ID: "plan-1", CheckpointID: "restore-1", CheckpointSHA256: strings.Repeat("a", 64), Repository: "secondary",
 		CatalogProof: &proof, CheckpointVersion: backupartifact.CheckpointVersion,
 		CheckpointCreatedAtUnixMillis:   proof.Checkpoint.CreatedAtUnixMillis,
 		CheckpointEffectiveAtUnixMillis: proof.Checkpoint.EffectiveAtUnixMillis,

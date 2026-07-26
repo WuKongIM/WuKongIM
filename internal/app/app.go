@@ -162,9 +162,7 @@ type App struct {
 	restoreRuntime WorkerRuntime
 	// backupInitErr records enabled-mode construction failure without failing message startup.
 	backupInitErr error
-	// backupFingerprint is the non-secret cluster backup configuration fence.
-	backupFingerprint string
-	logger            wklog.Logger
+	logger        wklog.Logger
 	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
 	startupConsole *startupConsole
 

@@ -58,7 +58,7 @@ func (c *CheckpointRestoreActivationCleaner) CleanupRestoreStaging(
 ) error {
 	if c == nil || plan.Status != backupcontract.RestoreStatusActivating ||
 		plan.Activation == nil || plan.ID == "" ||
-		plan.RestorePointID == "" || plan.TargetClusterID == "" ||
+		plan.CheckpointID == "" || plan.TargetClusterID == "" ||
 		plan.TargetGeneration == "" || plan.HashSlotCount == 0 ||
 		len(plan.Partitions) != int(plan.HashSlotCount) {
 		return backupusecase.ErrInvalidRequest
@@ -173,8 +173,8 @@ func checkpointRestoreInstallFenceFromPlan(
 	partition backupusecase.RestorePartition,
 ) CheckpointRestoreInstallFence {
 	return CheckpointRestoreInstallFence{
-		PlanID: plan.ID, CheckpointID: plan.RestorePointID,
-		CheckpointSHA256: plan.ManifestSHA256,
+		PlanID: plan.ID, CheckpointID: plan.CheckpointID,
+		CheckpointSHA256: plan.CheckpointSHA256,
 		TargetGeneration: plan.TargetGeneration,
 		HashSlot:         partition.HashSlot,
 		TargetSlotID:     partition.TargetSlotID,

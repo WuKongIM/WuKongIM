@@ -37,7 +37,7 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	if err != nil {
 		return backupusecase.State{}, err
 	}
-	result := backupusecase.State{Revision: clusterState.Revision, RestorePoints: []backupusecase.RestorePoint{}, PendingGarbage: []backupusecase.RestorePoint{}}
+	result := backupusecase.State{Revision: clusterState.Revision}
 	if clusterState.Backup == nil {
 		return result, nil
 	}
@@ -45,20 +45,9 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 		sourceFence := *clusterState.Backup.SourceFence
 		result.SourceFence = &sourceFence
 	}
-	result.LastEpoch = clusterState.Backup.LastEpoch
 	result.ErasureStreams = erasureStreamsFromController(clusterState.Backup.ErasureStreams)
 	result.GenerationGCCursors = generationGCCursorsFromController(clusterState.Backup.GenerationGCCursors)
 	result.IntegrityAudit = integrityAuditFromController(clusterState.Backup.IntegrityAudit)
-	result.Active = jobFromController(clusterState.Backup.Active)
-	result.Verification = verificationTaskFromController(clusterState.Backup.Verification)
-	result.RestorePoints = make([]backupusecase.RestorePoint, len(clusterState.Backup.RestorePoints))
-	for index, restorePoint := range clusterState.Backup.RestorePoints {
-		result.RestorePoints[index] = restorePointFromController(restorePoint)
-	}
-	result.PendingGarbage = make([]backupusecase.RestorePoint, len(clusterState.Backup.PendingGarbage))
-	for index, restorePoint := range clusterState.Backup.PendingGarbage {
-		result.PendingGarbage[index] = restorePointFromController(restorePoint)
-	}
 	result.SlotFrontiers = make([]backupcontract.SlotFrontier, len(clusterState.Backup.SlotFrontiers))
 	for index, frontier := range clusterState.Backup.SlotFrontiers {
 		result.SlotFrontiers[index] = slotFrontierFromController(frontier)
@@ -66,6 +55,8 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	result.CatalogHead = catalogPageReferenceFromController(clusterState.Backup.CatalogHead)
 	result.CatalogAuditRootSequence =
 		clusterState.Backup.CatalogAuditRootSequence
+	result.CatalogRetentionRevision =
+		clusterState.Backup.CatalogRetentionRevision
 	return result, nil
 }
 
@@ -73,23 +64,13 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint64, next backupusecase.State) error {
 	replacement := controller.BackupCoordinationState{
 		SourceFence:              cloneSourceFenceRecord(next.SourceFence),
-		LastEpoch:                next.LastEpoch,
-		Active:                   jobToController(next.Active),
-		Verification:             verificationTaskToController(next.Verification),
-		RestorePoints:            make([]controller.BackupRestorePoint, len(next.RestorePoints)),
-		PendingGarbage:           make([]controller.BackupRestorePoint, len(next.PendingGarbage)),
 		SlotFrontiers:            make([]controller.BackupSlotFrontier, len(next.SlotFrontiers)),
 		CatalogHead:              catalogPageReferenceToController(next.CatalogHead),
 		CatalogAuditRootSequence: next.CatalogAuditRootSequence,
+		CatalogRetentionRevision: next.CatalogRetentionRevision,
 		ErasureStreams:           erasureStreamsToController(next.ErasureStreams),
 		GenerationGCCursors:      generationGCCursorsToController(next.GenerationGCCursors),
 		IntegrityAudit:           integrityAuditToController(next.IntegrityAudit),
-	}
-	for index, restorePoint := range next.RestorePoints {
-		replacement.RestorePoints[index] = restorePointToController(restorePoint)
-	}
-	for index, restorePoint := range next.PendingGarbage {
-		replacement.PendingGarbage[index] = restorePointToController(restorePoint)
 	}
 	for index, frontier := range next.SlotFrontiers {
 		replacement.SlotFrontiers[index] = slotFrontierToController(frontier)
@@ -203,7 +184,8 @@ func generationGCCursorsFromController(cursors []controller.BackupGenerationGCCu
 		result[index] = backupcontract.GenerationGCCursor{
 			Repository: cursor.Repository, Revision: cursor.Revision,
 			CycleID: cursor.CycleID, AfterKey: cursor.AfterKey,
-			CutoffUnixMillis: cursor.CutoffUnixMillis, Complete: cursor.Complete,
+			CatalogRetentionRevision: cursor.CatalogRetentionRevision,
+			CutoffUnixMillis:         cursor.CutoffUnixMillis, Complete: cursor.Complete,
 			UpdatedAtUnixMillis: cursor.UpdatedAtUnixMillis,
 		}
 	}
@@ -216,7 +198,8 @@ func generationGCCursorsToController(cursors []backupcontract.GenerationGCCursor
 		result[index] = controller.BackupGenerationGCCursor{
 			Repository: cursor.Repository, Revision: cursor.Revision,
 			CycleID: cursor.CycleID, AfterKey: cursor.AfterKey,
-			CutoffUnixMillis: cursor.CutoffUnixMillis, Complete: cursor.Complete,
+			CatalogRetentionRevision: cursor.CatalogRetentionRevision,
+			CutoffUnixMillis:         cursor.CutoffUnixMillis, Complete: cursor.Complete,
 			UpdatedAtUnixMillis: cursor.UpdatedAtUnixMillis,
 		}
 	}
@@ -461,150 +444,6 @@ func cloneErasureStreamHead(head *backupartifact.ErasureStreamHead) *backupartif
 	}
 	cloned := *head
 	return &cloned
-}
-
-func jobFromController(job *controller.BackupJob) *backupusecase.Job {
-	if job == nil {
-		return nil
-	}
-	result := &backupusecase.Job{
-		ID:                  job.ID,
-		Epoch:               job.Epoch,
-		Kind:                backupartifact.RestorePointKind(job.Kind),
-		Status:              backupusecase.JobStatus(job.Status),
-		HashSlotCount:       job.HashSlotCount,
-		ConfigFingerprint:   job.ConfigFingerprint,
-		RestorePointID:      job.RestorePointID,
-		BaseRestorePointID:  job.BaseRestorePointID,
-		StartedAtUnixMillis: job.StartedAtUnixMillis,
-		UpdatedAtUnixMillis: job.UpdatedAtUnixMillis,
-		Partitions:          make([]backupusecase.PartitionReport, len(job.Partitions)),
-		FailureCategory:     job.FailureCategory,
-	}
-	for index, report := range job.Partitions {
-		result.Partitions[index] = backupusecase.PartitionReport{
-			JobID:                 report.JobID,
-			BackupEpoch:           report.BackupEpoch,
-			HashSlot:              report.HashSlot,
-			RaftIndex:             report.RaftIndex,
-			CommittedAtUnixMillis: report.CommittedAtUnixMillis,
-			ManifestKey:           report.ManifestKey,
-			ManifestSHA256:        report.ManifestSHA256,
-			ObjectCount:           report.ObjectCount,
-			CiphertextBytes:       report.CiphertextBytes,
-		}
-	}
-	return result
-}
-
-func jobToController(job *backupusecase.Job) *controller.BackupJob {
-	if job == nil {
-		return nil
-	}
-	result := &controller.BackupJob{
-		ID:                  job.ID,
-		Epoch:               job.Epoch,
-		Kind:                controller.BackupRestorePointKind(job.Kind),
-		Status:              controller.BackupJobStatus(job.Status),
-		HashSlotCount:       job.HashSlotCount,
-		ConfigFingerprint:   job.ConfigFingerprint,
-		RestorePointID:      job.RestorePointID,
-		BaseRestorePointID:  job.BaseRestorePointID,
-		StartedAtUnixMillis: job.StartedAtUnixMillis,
-		UpdatedAtUnixMillis: job.UpdatedAtUnixMillis,
-		Partitions:          make([]controller.BackupPartitionReport, len(job.Partitions)),
-		FailureCategory:     job.FailureCategory,
-	}
-	for index, report := range job.Partitions {
-		result.Partitions[index] = controller.BackupPartitionReport{
-			JobID:                 report.JobID,
-			BackupEpoch:           report.BackupEpoch,
-			HashSlot:              report.HashSlot,
-			RaftIndex:             report.RaftIndex,
-			CommittedAtUnixMillis: report.CommittedAtUnixMillis,
-			ManifestKey:           report.ManifestKey,
-			ManifestSHA256:        report.ManifestSHA256,
-			ObjectCount:           report.ObjectCount,
-			CiphertextBytes:       report.CiphertextBytes,
-		}
-	}
-	return result
-}
-
-func restorePointFromController(restorePoint controller.BackupRestorePoint) backupusecase.RestorePoint {
-	return backupusecase.RestorePoint{
-		ID:                    restorePoint.ID,
-		JobID:                 restorePoint.JobID,
-		BackupEpoch:           restorePoint.BackupEpoch,
-		Kind:                  backupartifact.RestorePointKind(restorePoint.Kind),
-		EffectiveAtUnixMillis: restorePoint.EffectiveAtUnixMillis,
-		CreatedAtUnixMillis:   restorePoint.CreatedAtUnixMillis,
-		ManifestSHA256:        restorePoint.ManifestSHA256,
-		PrimaryVerified:       restorePoint.PrimaryVerified,
-		SecondaryVerified:     restorePoint.SecondaryVerified,
-		Held:                  restorePoint.Held,
-		LastVerification:      verificationEvidenceFromController(restorePoint.LastVerification),
-	}
-}
-
-func restorePointToController(restorePoint backupusecase.RestorePoint) controller.BackupRestorePoint {
-	return controller.BackupRestorePoint{
-		ID:                    restorePoint.ID,
-		JobID:                 restorePoint.JobID,
-		BackupEpoch:           restorePoint.BackupEpoch,
-		Kind:                  controller.BackupRestorePointKind(restorePoint.Kind),
-		EffectiveAtUnixMillis: restorePoint.EffectiveAtUnixMillis,
-		CreatedAtUnixMillis:   restorePoint.CreatedAtUnixMillis,
-		ManifestSHA256:        restorePoint.ManifestSHA256,
-		PrimaryVerified:       restorePoint.PrimaryVerified,
-		SecondaryVerified:     restorePoint.SecondaryVerified,
-		Held:                  restorePoint.Held,
-		LastVerification:      verificationEvidenceToController(restorePoint.LastVerification),
-	}
-}
-
-func verificationTaskFromController(task *controller.BackupVerificationTask) *backupusecase.VerificationTask {
-	if task == nil {
-		return nil
-	}
-	return &backupusecase.VerificationTask{
-		ID: task.ID, RestorePointID: task.RestorePointID,
-		VerificationEvidence: *verificationEvidenceFromController(&task.BackupVerificationEvidence),
-	}
-}
-
-func verificationTaskToController(task *backupusecase.VerificationTask) *controller.BackupVerificationTask {
-	if task == nil {
-		return nil
-	}
-	return &controller.BackupVerificationTask{
-		ID: task.ID, RestorePointID: task.RestorePointID,
-		BackupVerificationEvidence: *verificationEvidenceToController(&task.VerificationEvidence),
-	}
-}
-
-func verificationEvidenceFromController(evidence *controller.BackupVerificationEvidence) *backupusecase.VerificationEvidence {
-	if evidence == nil {
-		return nil
-	}
-	return &backupusecase.VerificationEvidence{
-		Status:              backupusecase.VerificationTaskStatus(evidence.Status),
-		StartedAtUnixMillis: evidence.StartedAtUnixMillis, CompletedAtUnixMillis: evidence.CompletedAtUnixMillis,
-		PrimaryVerified: evidence.PrimaryVerified, SecondaryVerified: evidence.SecondaryVerified,
-		ManifestSHA256: evidence.ManifestSHA256, FailureCategory: evidence.FailureCategory,
-	}
-}
-
-func verificationEvidenceToController(evidence *backupusecase.VerificationEvidence) *controller.BackupVerificationEvidence {
-	if evidence == nil {
-		return nil
-	}
-	return &controller.BackupVerificationEvidence{
-		Status:              controller.BackupVerificationTaskStatus(evidence.Status),
-		StartedAtUnixMillis: evidence.StartedAtUnixMillis, CompletedAtUnixMillis: evidence.CompletedAtUnixMillis,
-		PrimaryVerified: evidence.PrimaryVerified, SecondaryVerified: evidence.SecondaryVerified,
-		ManifestSHA256: evidence.ManifestSHA256, FailureCategory: evidence.FailureCategory,
-	}
 }
 
 var _ backupusecase.StateStore = (*ControllerStateStore)(nil)

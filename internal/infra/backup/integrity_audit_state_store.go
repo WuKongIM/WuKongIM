@@ -221,6 +221,7 @@ func (s *ControllerIntegrityAuditStateStore) WithGenerationGCDelete(
 	ctx context.Context,
 	hashSlot uint16,
 	protectedAuditCycleID string,
+	catalogRetentionRevision uint64,
 	deleteObject func(context.Context) (int, error),
 ) (bool, int, error) {
 	if s == nil || deleteObject == nil {
@@ -233,7 +234,7 @@ func (s *ControllerIntegrityAuditStateStore) WithGenerationGCDelete(
 	acquiredAt := time.Now().UTC()
 	allowed, err := s.acquireGenerationGCGuard(
 		ctx, hashSlot, strings.TrimSpace(protectedAuditCycleID),
-		token, acquiredAt,
+		catalogRetentionRevision, token, acquiredAt,
 	)
 	if err != nil || !allowed {
 		return allowed, 0, err
@@ -249,6 +250,7 @@ func (s *ControllerIntegrityAuditStateStore) acquireGenerationGCGuard(
 	ctx context.Context,
 	hashSlot uint16,
 	protectedAuditCycleID string,
+	catalogRetentionRevision uint64,
 	token string,
 	acquiredAt time.Time,
 ) (bool, error) {
@@ -258,6 +260,10 @@ func (s *ControllerIntegrityAuditStateStore) acquireGenerationGCGuard(
 		state, err := s.state.Load(ctx)
 		if err != nil {
 			return false, err
+		}
+		if state.CatalogRetentionRevision !=
+			catalogRetentionRevision {
+			return false, nil
 		}
 		if activeAuditCycleID := unfinishedCatalogIntegrityAuditCycleID(
 			state.IntegrityAudit.Cursor,

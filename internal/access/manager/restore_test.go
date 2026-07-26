@@ -12,7 +12,7 @@ import (
 
 func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
 	provider := &fakeRestoreManagement{plan: backupusecase.RestorePlan{
-		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: string(bytes.Repeat([]byte("a"), 64)),
+		ID: "plan-1", CheckpointID: "restore-1", CheckpointSHA256: string(bytes.Repeat([]byte("a"), 64)),
 		Status: backupusecase.RestoreStatusPlanned, HashSlotCount: 1,
 		Partitions: []backupusecase.RestorePartition{{HashSlot: 0}},
 	}}
@@ -25,31 +25,29 @@ func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
 	}
 
 	request := httptest.NewRequest(http.MethodPost, "/manager/restore/plan", bytes.NewBufferString(`{
-		"restore_point_id":"restore-1","repository":"secondary","invalidate_tokens":true,
-		"catalog_head":{
-			"sequence":7,
-			"key":"catalog/pages/00000000000000000007-restore-1.json",
-			"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			"bytes":100,
-			"latest_checkpoint_id":"restore-1"
-		}
+		"checkpoint_id":"restore-1","invalidate_tokens":true,
+		"catalog_head_token":"opaque-head"
 	}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	server.Engine().ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusCreated ||
-		provider.request.Repository != "secondary" ||
+		provider.request.CheckpointID != "restore-1" ||
 		!provider.request.InvalidateTokens ||
-		provider.request.CatalogHead == nil ||
-		provider.request.CatalogHead.Sequence != 7 {
+		provider.request.CatalogHeadToken != "opaque-head" {
 		t.Fatalf("restore plan status=%d body=%s request=%#v", recorder.Code, recorder.Body.String(), provider.request)
+	}
+	if bytes.Contains(recorder.Body.Bytes(), []byte(`"repository"`)) ||
+		bytes.Contains(recorder.Body.Bytes(), []byte(`"manifest_sha256"`)) ||
+		!bytes.Contains(recorder.Body.Bytes(), []byte(`"checkpoint_id":"restore-1"`)) {
+		t.Fatalf("restore plan leaked legacy or repository detail: %s", recorder.Body.String())
 	}
 }
 
 func TestOrdinaryModeExposesActivatedRestoreStatusReadOnly(t *testing.T) {
 	provider := &fakeRestoreManagement{plan: backupusecase.RestorePlan{
 		ID:               "plan-activated",
-		RestorePointID:   "checkpoint-1",
+		CheckpointID:     "checkpoint-1",
 		TargetGeneration: "target-generation-1",
 		Status:           backupusecase.RestoreStatusActivated,
 		HashSlotCount:    1,
@@ -84,7 +82,7 @@ func TestOrdinaryModeExposesActivatedRestoreStatusReadOnly(t *testing.T) {
 
 func TestRestoreActivationRequiresExplicitNonWildcardGrant(t *testing.T) {
 	provider := &fakeRestoreManagement{plan: backupusecase.RestorePlan{
-		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: string(bytes.Repeat([]byte("a"), 64)),
+		ID: "plan-1", CheckpointID: "restore-1", CheckpointSHA256: string(bytes.Repeat([]byte("a"), 64)),
 		Status: backupusecase.RestoreStatusVerified, HashSlotCount: 1,
 	}}
 	server := New(Options{

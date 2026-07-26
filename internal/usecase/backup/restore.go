@@ -43,22 +43,27 @@ const (
 type RestoreStatus = backupcontract.RestoreStatus
 type RestorePartitionStatus = backupcontract.RestorePartitionStatus
 
-// RestorePlanRequest selects one exact recovery point and immutable operator choices.
+// RestorePlanRequest selects one exact checkpoint and immutable operator choices.
 type RestorePlanRequest struct {
-	RestorePointID   string
-	LatestVerified   bool
-	Repository       string
+	CheckpointID     string
 	InvalidateTokens bool
-	// CatalogHead is the immutable signed-page reference exported by the
-	// source cluster and fixes the discovery window for restore admission.
-	CatalogHead *backupartifact.CatalogPageReference
+	// CatalogHeadToken is the opaque discovery fence exported by the source.
+	CatalogHeadToken string
 }
 
-// RestoreInspection is trusted manifest and empty-target evidence returned before plan persistence.
+// RestoreInspectRequest is the internal authenticated repository selection
+// passed from the restore usecase to infrastructure.
+type RestoreInspectRequest struct {
+	CheckpointID string
+	Repository   string
+	CatalogHead  backupartifact.CatalogPageReference
+}
+
+// RestoreInspection is trusted checkpoint and empty-target evidence returned before plan persistence.
 type RestoreInspection struct {
-	// RestorePointID and ManifestSHA256 bind the selected immutable checkpoint.
-	RestorePointID string
-	ManifestSHA256 string
+	// CheckpointID and CheckpointSHA256 bind the selected immutable checkpoint.
+	CheckpointID     string
+	CheckpointSHA256 string
 	// CatalogProof proves original checkpoint publication under one signed head.
 	CatalogProof *backupartifact.CheckpointCatalogProof
 	// CheckpointVersion and timestamps are authenticated checkpoint identity.
@@ -122,9 +127,9 @@ type RestorePlanStore interface {
 	CompareAndSwap(context.Context, uint64, RestoreState) error
 }
 
-// RestoreInspector verifies repository identity, compatibility, and target emptiness.
+// RestoreInspector verifies the exact catalog checkpoint and target emptiness.
 type RestoreInspector interface {
-	Inspect(context.Context, RestorePlanRequest) (RestoreInspection, error)
+	Inspect(context.Context, RestoreInspectRequest) (RestoreInspection, error)
 }
 
 // RestoreFinalVerifier performs post-install semantic verification.
@@ -202,14 +207,22 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 	if !a.enabled {
 		return RestorePlan{}, ErrRestoreModeRequired
 	}
-	if (strings.TrimSpace(request.RestorePointID) == "") == !request.LatestVerified || (request.Repository != "primary" && request.Repository != "secondary") {
+	if strings.TrimSpace(request.CheckpointID) == "" {
 		return RestorePlan{}, ErrInvalidRequest
 	}
-	inspection, err := a.inspector.Inspect(ctx, request)
+	catalogHead, err := DecodeCatalogHeadToken(request.CatalogHeadToken)
 	if err != nil {
 		return RestorePlan{}, err
 	}
-	if !inspection.TargetEmpty || inspection.RestorePointID == "" || !validRestoreDigest(inspection.ManifestSHA256) || inspection.HashSlotCount == 0 || inspection.TargetClusterID == inspection.SourceClusterID || inspection.TargetGeneration == inspection.SourceGeneration ||
+	const repository = "primary"
+	inspection, err := a.inspector.Inspect(ctx, RestoreInspectRequest{
+		CheckpointID: strings.TrimSpace(request.CheckpointID),
+		Repository:   repository, CatalogHead: catalogHead,
+	})
+	if err != nil {
+		return RestorePlan{}, err
+	}
+	if !inspection.TargetEmpty || inspection.CheckpointID == "" || !validRestoreDigest(inspection.CheckpointSHA256) || inspection.HashSlotCount == 0 || inspection.TargetClusterID == inspection.SourceClusterID || inspection.TargetGeneration == inspection.SourceGeneration ||
 		inspection.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validRestoreDigest(inspection.ErasureLedgerSHA256) ||
 		!validRestoreErasureHeads(inspection.ErasureHeads, inspection.HashSlotCount, inspection.ErasureEventCount) ||
 		inspection.CatalogProof == nil {
@@ -217,8 +230,8 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 	}
 	proof := *inspection.CatalogProof
 	if backupartifact.ValidateCheckpointCatalogProof(proof) != nil ||
-		proof.Checkpoint.ID != inspection.RestorePointID ||
-		proof.Checkpoint.SHA256 != inspection.ManifestSHA256 ||
+		proof.Checkpoint.ID != inspection.CheckpointID ||
+		proof.Checkpoint.SHA256 != inspection.CheckpointSHA256 ||
 		proof.Checkpoint.GenerationVector.HashSlotCount !=
 			inspection.HashSlotCount ||
 		inspection.CheckpointVersion != backupartifact.CheckpointVersion ||
@@ -228,8 +241,8 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 	}
 	now := a.now().UTC().UnixMilli()
 	plan := RestorePlan{
-		ID: strings.TrimSpace(a.newPlanID()), RestorePointID: inspection.RestorePointID,
-		ManifestSHA256: inspection.ManifestSHA256, Repository: request.Repository,
+		ID: strings.TrimSpace(a.newPlanID()), CheckpointID: inspection.CheckpointID,
+		CheckpointSHA256: inspection.CheckpointSHA256, Repository: repository,
 		CatalogProof:                    &proof,
 		CheckpointVersion:               inspection.CheckpointVersion,
 		CheckpointCreatedAtUnixMillis:   inspection.CheckpointCreatedAtUnixMillis,
@@ -535,7 +548,7 @@ func (a *RestoreApp) Activate(
 		return RestorePlan{}, err
 	}
 	if state.Plan == nil || state.Plan.ID != planID {
-		return RestorePlan{}, ErrRestorePointNotFound
+		return RestorePlan{}, ErrRestorePlanNotFound
 	}
 	if state.Plan.Status == RestoreStatusActivated {
 		if sameRestoreActivationRequest(state.Plan.Activation, request) {
@@ -660,8 +673,8 @@ func (a *RestoreApp) buildRestoreActivationEvidence(
 				fmt.Errorf("%w: %v", ErrActivationEvidenceRequired, err)
 		}
 		if receipt.RestorePlanID != plan.ID ||
-			receipt.RestorePointID != plan.RestorePointID ||
-			receipt.ManifestSHA256 != plan.ManifestSHA256 ||
+			receipt.CheckpointID != plan.CheckpointID ||
+			receipt.CheckpointSHA256 != plan.CheckpointSHA256 ||
 			receipt.SourceClusterID != plan.SourceClusterID ||
 			receipt.SourceGeneration != plan.SourceGeneration ||
 			receipt.TargetClusterID != plan.TargetClusterID ||
@@ -851,7 +864,7 @@ func (a *RestoreApp) transition(ctx context.Context, planID string, mutate func(
 	var result RestorePlan
 	err := a.mutateRestore(ctx, func(state *RestoreState) error {
 		if state.Plan == nil || state.Plan.ID != planID {
-			return ErrRestorePointNotFound
+			return ErrRestorePlanNotFound
 		}
 		if err := mutate(state.Plan); err != nil {
 			return err

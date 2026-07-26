@@ -108,8 +108,8 @@ func cleanupActivationState(
 	return controller.ClusterState{
 		Restore: &controllerstate.RestoreCoordinationState{
 			Plan: &controllerstate.RestorePlan{
-				ID: fence.PlanID, RestorePointID: fence.CheckpointID,
-				ManifestSHA256:   fence.CheckpointSHA256,
+				ID: fence.PlanID, CheckpointID: fence.CheckpointID,
+				CheckpointSHA256: fence.CheckpointSHA256,
 				TargetGeneration: fence.TargetGeneration,
 				InvalidateTokens: fence.InvalidateTokens,
 				Status:           status, Activation: evidence,

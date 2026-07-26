@@ -336,8 +336,8 @@ func activatedRestoreFenceMatches(
 		plan.Activation == nil ||
 		backupartifact.ValidateRestoreActivationEvidence(*plan.Activation) != nil ||
 		plan.ID != fence.PlanID ||
-		plan.RestorePointID != fence.CheckpointID ||
-		plan.ManifestSHA256 != fence.CheckpointSHA256 ||
+		plan.CheckpointID != fence.CheckpointID ||
+		plan.CheckpointSHA256 != fence.CheckpointSHA256 ||
 		plan.TargetGeneration != fence.TargetGeneration ||
 		plan.InvalidateTokens != fence.InvalidateTokens ||
 		int(fence.HashSlot) >= len(plan.Partitions) {

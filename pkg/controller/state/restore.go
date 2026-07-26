@@ -79,10 +79,10 @@ type RestorePartition struct {
 type RestorePlan struct {
 	// ID identifies the immutable recovery plan.
 	ID string `json:"id"`
-	// RestorePointID identifies the selected signed recovery point.
-	RestorePointID string `json:"restore_point_id"`
-	// ManifestSHA256 authenticates the selected top-level manifest bytes.
-	ManifestSHA256 string `json:"manifest_sha256"`
+	// CheckpointID identifies the selected signed catalog checkpoint.
+	CheckpointID string `json:"checkpoint_id"`
+	// CheckpointSHA256 authenticates the selected checkpoint bytes.
+	CheckpointSHA256 string `json:"checkpoint_sha256"`
 	// CatalogProof pins the checkpoint's original membership under an immutable catalog head.
 	CatalogProof *backupartifact.CheckpointCatalogProof `json:"catalog_proof,omitempty"`
 	// CheckpointVersion and timestamps are authenticated immutable checkpoint identity.

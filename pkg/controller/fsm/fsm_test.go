@@ -73,33 +73,12 @@ func TestFSMReplacesBackupCoordinationStateWithRevisionFence(t *testing.T) {
 	sm, _ := initializedStateMachine(t, 1)
 	expected := uint64(1)
 	backupState := state.BackupCoordinationState{
-		LastEpoch: 1,
-		Active: &state.BackupJob{
-			ID:                  "backup-1",
-			Epoch:               1,
-			Kind:                state.BackupRestorePointKindIncremental,
-			Status:              state.BackupJobStatusCapturing,
-			HashSlotCount:       16,
-			ConfigFingerprint:   strings.Repeat("a", 64),
-			RestorePointID:      "restore-job-3",
-			StartedAtUnixMillis: 1710000000000,
-			UpdatedAtUnixMillis: 1710000001000,
-			Partitions: []state.BackupPartitionReport{
-				{
-					JobID:                 "backup-1",
-					BackupEpoch:           1,
-					HashSlot:              0,
-					RaftIndex:             9,
-					CommittedAtUnixMillis: 1710000000000,
-					ManifestKey:           "jobs/backup-1/partitions/0.json",
-					ManifestSHA256:        strings.Repeat("b", 64),
-					ObjectCount:           1,
-					CiphertextBytes:       128,
-				},
-			},
-		},
-		RestorePoints:  []state.BackupRestorePoint{},
-		PendingGarbage: []state.BackupRestorePoint{},
+		GenerationGCCursors: []state.BackupGenerationGCCursor{{
+			Repository: "primary", Revision: 1, CycleID: "gc-cycle-1",
+			CatalogRetentionRevision: 1,
+			CutoffUnixMillis:         1_710_000_000_000,
+			UpdatedAtUnixMillis:      1_710_000_001_000,
+		}},
 	}
 
 	result, err := sm.Apply(ctx, 2, command.Command{
@@ -112,8 +91,8 @@ func TestFSMReplacesBackupCoordinationStateWithRevisionFence(t *testing.T) {
 	require.Equal(t, &backupState, sm.Snapshot(ctx).Backup)
 
 	stale := uint64(1)
-	replacement := backupState
-	replacement.LastEpoch = 2
+	replacement := backupState.Clone()
+	replacement.GenerationGCCursors[0].AfterKey = "objects/source-generation-1/slot-generation-1/00000/metadata-000000.bin"
 	result, err = sm.Apply(ctx, 3, command.Command{
 		Kind:             command.KindReplaceBackupCoordinationState,
 		ExpectedRevision: &stale,
@@ -165,17 +144,15 @@ func TestFSMSourceFenceIsOneWayAndOnlyConvergenceMayAdvanceIt(t *testing.T) {
 		ID:      "source-fence-1", SourceClusterID: "wk-fsm-test",
 		SourceGeneration:        "source-generation-1",
 		RestorePlanID:           "restore-plan-1",
-		RestorePointID:          "checkpoint-1",
-		ManifestSHA256:          strings.Repeat("a", 64),
+		CheckpointID:            "checkpoint-1",
+		CheckpointSHA256:        strings.Repeat("a", 64),
 		TargetClusterID:         "target-cluster",
 		TargetGeneration:        "target-generation-1",
 		FenceControllerRevision: 2,
 		RequestedAtUnixMillis:   1_800_000_000_000,
 	}
 	replacement := state.BackupCoordinationState{
-		SourceFence:    &record,
-		RestorePoints:  []state.BackupRestorePoint{},
-		PendingGarbage: []state.BackupRestorePoint{},
+		SourceFence: &record,
 	}
 	expected := uint64(1)
 	result, err := sm.Apply(ctx, 2, command.Command{
@@ -337,8 +314,8 @@ func fsmVerifiedRestoreState() state.RestoreCoordinationState {
 		}
 	}
 	return state.RestoreCoordinationState{Plan: &state.RestorePlan{
-		ID: "plan-checkpoint-restore", RestorePointID: checkpointID,
-		ManifestSHA256: entry.SHA256,
+		ID: "plan-checkpoint-restore", CheckpointID: checkpointID,
+		CheckpointSHA256: entry.SHA256,
 		CatalogProof: &backupartifact.CheckpointCatalogProof{
 			Head: page, EntryPage: page, Checkpoint: entry,
 		},

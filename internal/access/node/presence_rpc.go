@@ -216,11 +216,6 @@ type BackupMessageShardCapturer interface {
 	CaptureMessageShard(context.Context, runtimebackup.CaptureRequest, runtimebackup.MessageShard) (runtimebackup.MessageShardCapture, error)
 }
 
-// BackupPartitionCapturer captures one logical hash-slot partition locally.
-type BackupPartitionCapturer interface {
-	CaptureBackupPartition(context.Context, runtimebackup.CaptureRequest) (backupusecase.PartitionReport, error)
-}
-
 // BackupRestoreTargetInspector checks this node's durable semantic storage.
 type BackupRestoreTargetInspector interface {
 	InspectLocalRestoreTarget(context.Context) (clusterpkg.RestoreTargetLocalState, error)
@@ -229,11 +224,6 @@ type BackupRestoreTargetInspector interface {
 // BackupRestorePartitionInstaller installs one authenticated partition locally.
 type BackupRestorePartitionInstaller interface {
 	InstallPartition(context.Context, backupusecase.RestorePlan, uint16) (backupusecase.RestorePartition, error)
-}
-
-// BackupRestorePartitionVerifier checks restored durable Channel boundaries locally.
-type BackupRestorePartitionVerifier interface {
-	VerifyLocalRestorePartition(context.Context, uint16, string, []clusterpkg.RestoreVerifyBoundary) error
 }
 
 // BackupCheckpointReplicaReceiver stages and installs one plaintext target
@@ -299,14 +289,10 @@ type Options struct {
 	PluginHTTPRoutes PluginHTTPRouter
 	// BackupMessages captures bounded committed-message shards on this node.
 	BackupMessages BackupMessageShardCapturer
-	// BackupPartitions captures logical hash-slot partitions on this node.
-	BackupPartitions BackupPartitionCapturer
 	// BackupRestoreTarget inspects local semantic storage during explicit restore mode.
 	BackupRestoreTarget BackupRestoreTargetInspector
 	// BackupRestoreInstaller installs authenticated recovery partitions locally.
 	BackupRestoreInstaller BackupRestorePartitionInstaller
-	// BackupRestoreVerifier validates authenticated recovery boundaries locally.
-	BackupRestoreVerifier BackupRestorePartitionVerifier
 	// BackupCheckpointReplica receives final target snapshots from a restore Leader.
 	BackupCheckpointReplica BackupCheckpointReplicaReceiver
 	// Logger records node RPC adapter failures that are converted into statuses.
@@ -367,14 +353,10 @@ type Adapter struct {
 	pluginHTTPRoutes PluginHTTPRouter
 	// backupMessages uploads local committed-message shards.
 	backupMessages BackupMessageShardCapturer
-	// backupPartitions captures local Slot-leader logical partitions.
-	backupPartitions BackupPartitionCapturer
 	// backupRestoreTarget checks this node's semantic storage emptiness.
 	backupRestoreTarget BackupRestoreTargetInspector
 	// backupRestoreInstaller installs authenticated recovery partitions locally.
 	backupRestoreInstaller BackupRestorePartitionInstaller
-	// backupRestoreVerifier validates restored durable boundaries locally.
-	backupRestoreVerifier BackupRestorePartitionVerifier
 	// backupCheckpointReplica stages final target snapshots without repository access.
 	backupCheckpointReplica BackupCheckpointReplicaReceiver
 	// logger records adapter decode errors and rejected local operations.
@@ -413,10 +395,8 @@ func New(opts Options) *Adapter {
 		nodeLifecycleJoinToken:   opts.NodeLifecycleJoinToken,
 		pluginHTTPRoutes:         opts.PluginHTTPRoutes,
 		backupMessages:           opts.BackupMessages,
-		backupPartitions:         opts.BackupPartitions,
 		backupRestoreTarget:      opts.BackupRestoreTarget,
 		backupRestoreInstaller:   opts.BackupRestoreInstaller,
-		backupRestoreVerifier:    opts.BackupRestoreVerifier,
 		backupCheckpointReplica:  opts.BackupCheckpointReplica,
 		logger:                   opts.Logger,
 	}

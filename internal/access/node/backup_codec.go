@@ -20,14 +20,10 @@ import (
 var (
 	backupMessageShardRequestMagic       = [...]byte{'W', 'K', 'V', 'B', 1}
 	backupMessageShardResponseMagic      = [...]byte{'W', 'K', 'V', 'b', 2}
-	backupPartitionRequestMagic          = [...]byte{'W', 'K', 'V', 'P', 1}
-	backupPartitionResponseMagic         = [...]byte{'W', 'K', 'V', 'p', 1}
 	backupRestoreTargetRequestMagic      = [...]byte{'W', 'K', 'V', 'R', 1}
 	backupRestoreTargetResponseMagic     = [...]byte{'W', 'K', 'V', 'r', 1}
 	backupRestoreInstallRequestMagic     = [...]byte{'W', 'K', 'V', 'I', 2}
 	backupRestoreInstallResponseMagic    = [...]byte{'W', 'K', 'V', 'i', 2}
-	backupRestoreVerifyRequestMagic      = [...]byte{'W', 'K', 'V', 'Y', 1}
-	backupRestoreVerifyResponseMagic     = [...]byte{'W', 'K', 'V', 'y', 1}
 	backupCheckpointReplicaRequestMagic  = [...]byte{'W', 'K', 'V', 'S', 1}
 	backupCheckpointReplicaResponseMagic = [...]byte{'W', 'K', 'V', 's', 1}
 )
@@ -51,15 +47,6 @@ type backupMessageShardRPCResponse struct {
 	MaxMessageID   uint64                           `json:"max_message_id"`
 }
 
-type backupPartitionRPCRequest struct {
-	Capture runtimebackup.CaptureRequest `json:"capture"`
-}
-
-type backupPartitionRPCResponse struct {
-	Status string                        `json:"status"`
-	Report backupusecase.PartitionReport `json:"report"`
-}
-
 type backupRestoreTargetRPCRequest struct{}
 
 type backupRestoreTargetRPCResponse struct {
@@ -75,16 +62,6 @@ type backupRestoreInstallRPCRequest struct {
 type backupRestoreInstallRPCResponse struct {
 	Status string                         `json:"status"`
 	Report backupusecase.RestorePartition `json:"report"`
-}
-
-type backupRestoreVerifyRPCRequest struct {
-	HashSlot       uint16                             `json:"hash_slot"`
-	MetadataSHA256 string                             `json:"metadata_sha256,omitempty"`
-	Boundaries     []clusterpkg.RestoreVerifyBoundary `json:"boundaries"`
-}
-
-type backupRestoreVerifyRPCResponse struct {
-	Status string `json:"status"`
 }
 
 type backupCheckpointReplicaRPCRequest struct {
@@ -254,45 +231,12 @@ func validateBackupCheckpointReplicaFile(
 	return nil
 }
 
-func encodeBackupRestoreVerifyRequest(request backupRestoreVerifyRPCRequest) ([]byte, error) {
-	if len(request.Boundaries) > maxBackupMessageShardChannels {
-		return nil, fmt.Errorf("internal/access/node: restore verify batch exceeds limit")
-	}
-	if request.MetadataSHA256 != "" && !validBackupSHA256(request.MetadataSHA256) {
-		return nil, fmt.Errorf("internal/access/node: restore verify metadata digest is invalid")
-	}
-	return encodeBackupJSON(backupRestoreVerifyRequestMagic[:], request)
-}
-
-func decodeBackupRestoreVerifyRequest(body []byte) (backupRestoreVerifyRPCRequest, error) {
-	var request backupRestoreVerifyRPCRequest
-	if err := decodeBackupJSON(body, backupRestoreVerifyRequestMagic[:], &request); err != nil {
-		return request, err
-	}
-	if len(request.Boundaries) > maxBackupMessageShardChannels {
-		return request, fmt.Errorf("internal/access/node: restore verify batch exceeds limit")
-	}
-	if request.MetadataSHA256 != "" && !validBackupSHA256(request.MetadataSHA256) {
-		return request, fmt.Errorf("internal/access/node: restore verify metadata digest is invalid")
-	}
-	return request, nil
-}
-
 func validBackupSHA256(value string) bool {
 	if len(value) != sha256.Size*2 || value != strings.ToLower(value) {
 		return false
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
-}
-
-func encodeBackupRestoreVerifyResponse(response backupRestoreVerifyRPCResponse) ([]byte, error) {
-	return encodeBackupJSON(backupRestoreVerifyResponseMagic[:], response)
-}
-
-func decodeBackupRestoreVerifyResponse(body []byte) (backupRestoreVerifyRPCResponse, error) {
-	var response backupRestoreVerifyRPCResponse
-	return response, decodeBackupJSON(body, backupRestoreVerifyResponseMagic[:], &response)
 }
 
 func encodeBackupRestoreInstallRequest(request backupRestoreInstallRPCRequest) ([]byte, error) {
@@ -312,7 +256,7 @@ func decodeBackupRestoreInstallRequest(body []byte) (backupRestoreInstallRPCRequ
 
 func validateBackupRestoreInstallRequest(request backupRestoreInstallRPCRequest) error {
 	plan := request.Plan
-	if plan.ID == "" || plan.RestorePointID == "" || len(plan.ManifestSHA256) != 64 || plan.HashSlotCount == 0 || request.HashSlot >= plan.HashSlotCount ||
+	if plan.ID == "" || plan.CheckpointID == "" || len(plan.CheckpointSHA256) != 64 || plan.HashSlotCount == 0 || request.HashSlot >= plan.HashSlotCount ||
 		(plan.Repository != "primary" && plan.Repository != "secondary") || len(plan.Partitions) != int(plan.HashSlotCount) ||
 		plan.ErasureLedgerVersion != backupartifact.ErasureLedgerSnapshotVersion || !validBackupSHA256(plan.ErasureLedgerSHA256) {
 		return fmt.Errorf("internal/access/node: invalid restore install request")
@@ -359,36 +303,6 @@ func decodeBackupRestoreTargetResponse(body []byte) (backupRestoreTargetRPCRespo
 	return response, decodeBackupJSON(body, backupRestoreTargetResponseMagic[:], &response)
 }
 
-func encodeBackupPartitionRequest(req backupPartitionRPCRequest) ([]byte, error) {
-	if req.Capture.JobID == "" || req.Capture.BackupEpoch == 0 || len(req.Capture.ConfigFingerprint) != 64 {
-		return nil, fmt.Errorf("internal/access/node: invalid backup partition request")
-	}
-	return encodeBackupJSON(backupPartitionRequestMagic[:], req)
-}
-
-func decodeBackupPartitionRequest(body []byte) (backupPartitionRPCRequest, error) {
-	var req backupPartitionRPCRequest
-	if err := decodeBackupJSON(body, backupPartitionRequestMagic[:], &req); err != nil {
-		return req, err
-	}
-	if req.Capture.JobID == "" || req.Capture.BackupEpoch == 0 || len(req.Capture.ConfigFingerprint) != 64 {
-		return req, fmt.Errorf("internal/access/node: invalid backup partition request")
-	}
-	return req, nil
-}
-
-func encodeBackupPartitionResponse(resp backupPartitionRPCResponse) ([]byte, error) {
-	return encodeBackupJSON(backupPartitionResponseMagic[:], resp)
-}
-
-func decodeBackupPartitionResponse(body []byte) (backupPartitionRPCResponse, error) {
-	var resp backupPartitionRPCResponse
-	if err := decodeBackupJSON(body, backupPartitionResponseMagic[:], &resp); err != nil {
-		return resp, err
-	}
-	return resp, nil
-}
-
 func encodeBackupMessageShardRequest(req backupMessageShardRPCRequest) ([]byte, error) {
 	if err := validateBackupMessageShardRequest(req); err != nil {
 		return nil, err
@@ -423,7 +337,11 @@ func decodeBackupMessageShardResponse(body []byte) (backupMessageShardRPCRespons
 }
 
 func validateBackupMessageShardRequest(req backupMessageShardRPCRequest) error {
-	if req.Capture.JobID == "" || req.Capture.BackupEpoch == 0 || len(req.Capture.ConfigFingerprint) != 64 || req.Shard.ID == "" || req.Shard.NodeID == 0 || len(req.Shard.Channels) == 0 || len(req.Shard.Channels) > maxBackupMessageShardChannels {
+	if req.Capture.Generation == "" || req.Capture.RebaseEpoch == 0 ||
+		len(req.Capture.ConfigFingerprint) != 64 ||
+		req.Shard.ID == "" || req.Shard.NodeID == 0 ||
+		len(req.Shard.Channels) == 0 ||
+		len(req.Shard.Channels) > maxBackupMessageShardChannels {
 		return fmt.Errorf("internal/access/node: invalid backup message shard request")
 	}
 	seen := make(map[string]struct{}, len(req.Shard.Channels))

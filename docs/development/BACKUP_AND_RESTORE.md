@@ -1,374 +1,296 @@
-# Cluster Backup And Restore
+# Continuous Backup and Restore
 
-## Status
+WuKongIM backup is a cluster-semantic continuous-capture system. A single-node
+deployment is handled as a single-node cluster. There is no periodic backup-job
+API, legacy full-backup job, or compatibility manifest chain.
 
-Cluster-semantic backup is disabled by default. The implementation provides the
-artifact, repository, coordination, capture, restore, retention, Manager, CLI,
-metrics, signed record-count, and allocator-fence seams, but it is not
-production-qualified until the three-node failure matrix and the 1 TB
-RTO/performance gate documented in the design spec have passed.
-The repository includes a local three-node process-level regression drill for
-baseline, incremental, fresh-cluster restore, normal restart, restored history,
-and sequence-continuous writes. That drill is a correctness gate, not external
-infrastructure qualification.
+The feature is disabled by default. Production startup accepts
+`backup.enabled=true` only when the exact release qualification identity is
+present:
 
-Do not enable it merely because a node starts successfully. A deployment must
-also prove repository immutability, key retention, restore drills, capacity,
-and Alertmanager coverage in its own environment.
-
-## Safety Model
-
-- A single-node deployment is still a single-node cluster.
-- A published restore point represents every configured hash slot and the
-  oldest committed cut among them. Missing partitions block publication.
-- Payload objects are compressed, encrypted with a fresh envelope data key,
-  and copied to both repositories before the signed top-level manifest becomes
-  discoverable.
-- Upload credentials do not delete. Garbage collection assumes the separately
-  configured restricted role and deletes exact object versions only after the
-  Object Lock-safe grace period.
-- With automatic backup enabled, a permanent message-retention request commits
-  an encrypted, signed entry to both repositories before Slot retention
-  metadata may advance. Repository, KMS, signature, or Controller failure
-  blocks the deletion rather than creating an unrecorded erasure.
-- Backup failure does not make message traffic unready. Backup health and RPO
-  become degraded or failed independently.
-- Restore accepts only a fresh cluster generation with the same
-  `hash_slot_count`. Normal APIs, Gateway traffic, webhooks, and plugins remain
-  off in restore mode.
-- Missing operational evidence is `unknown`; it must never be treated as zero
-  age or healthy.
-
-## Required External Controls
-
-Before setting `backup.enabled = true`, provide:
-
-1. Two distinct HTTPS S3-compatible repositories in different regions, with
-   versioning and Object Lock/WORM enabled for at least
-   `backup.object_lock_days`.
-2. A KMS encryption key and an asymmetric signing key in
-   `backup.kms_region`. Old decrypt and verification key versions must remain
-   available while retained restore points reference them. During signing-key
-   rotation, add previous key IDs to `backup.trusted_signing_key_ids` (or the
-   JSON-list `WK_BACKUP_TRUSTED_SIGNING_KEY_IDS`); only
-   `backup.signing_key_id` signs new restore points.
-3. Default-chain workload credentials that can put, get, list, and head but
-   cannot delete repository objects.
-4. `backup.garbage_collector_role_arn`, assumed only by the garbage collector,
-   with version-list and exact-version delete permissions scoped to both
-   configured prefixes.
-5. A dedicated absolute `backup.staging_dir` that does not overlap
-   `node.data_dir` and has at least `backup.staging_max_bytes` free.
-6. A stable `backup.repository_id` and a unique `backup.source_generation` for
-   the live cluster incarnation.
-7. Capacity-based values for `backup.source_pin_max_age` and
-   `backup.max_source_pinned_bytes`. Exceeding either limit rebases only the
-   selected Hash Slot; it must not be used as a foreground traffic throttle.
-   Pin age is durable across leader takeover and resets only when the retained
-   metadata floor advances or a replacement baseline is promoted. Shared
-   physical Slot bytes are counted once at their remeasured minimum floor.
-
-Credentials are supplied through the AWS-compatible default credential chain;
-they must not be written into TOML. Keep the three shipped example configs
-aligned when changing the backup config surface.
-
-## Enable And Observe
-
-Set the `[backup]`, `[backup.primary]`, and `[backup.secondary]` values in
-`wukongim.toml`, then start every node with the same non-secret backup policy.
-The Controller leader runs the coordinator. Doctor failure is retried and is
-reported as backup failure without failing message startup.
-
-Use Manager credentials with the narrow backup permissions:
-
-```bash
-wkcli backup status --server https://manager.example --token "$WK_MANAGER_TOKEN"
-wkcli backup list --server https://manager.example --token "$WK_MANAGER_TOKEN"
-wkcli backup trigger --kind materialized_full --server https://manager.example --token "$WK_MANAGER_TOKEN"
+```toml
+[backup]
+enabled = true
+qualification_gate = "backup-vnext-production-v1"
 ```
 
-`cluster.backup:r` permits status and restore-point reads.
-`cluster.backup:w` permits trigger, cancel, hold, release, and verification.
-Restore activation requires the separate explicit
-`cluster.restore.activation:w` grant; wildcard grants deliberately do not
-authorize it.
-Repository deletion remains outside Manager permissions.
+The equivalent environment variables are:
 
-Manual mutations emit structured `internal.app.backup_audit` log events. Do
-not include config fingerprints, object keys, credentials, plaintext, or old
-cluster fencing evidence in audit fields.
-
-### Manager Web
-
-The embedded Manager UI exposes `/cluster/backups` on every ordinary Manager
-node. Requests are routed once to the current Controller Leader; a leadership
-transition returns a retryable unavailable response and does not blindly
-replay a write.
-
-- Overview shows cluster backup health, RPO and later-audit age against their
-  thresholds, coordinator observation time, active backup or verification
-  work, individual dependency readiness, effective non-secret policy, and
-  retained-reference capacity.
-- Restore points are newest-first and server-paged (50 by default, 200
-  maximum), with exact submitted ID text and held-only filters. Publication
-  verification and later audit are distinct evidence.
-- Web mutations are limited to materialized-full trigger, exact job/epoch
-  cancel, asynchronous re-verification, and hold/release. They require
-  `cluster.backup:w`. When Manager authentication is disabled, the Web surface
-  is forcibly read-only.
-- Recovery guide generates and exports `wkcli` commands bound to one exact
-  restore point. It has no restore button and calls no `/manager/restore/*`
-  mutation. A failed later audit suppresses copyable commands.
-- The target restore Manager URL is kept only in page memory, must use HTTPS
-  except for localhost HTTP, and is replaced by `$RESTORE_MANAGER_URL` in the
-  Markdown export. Tokens and old-cluster fencing evidence are never entered
-  into or retained by the page; commands reference `$WK_MANAGER_TOKEN` and
-  `$OLD_CLUSTER_FENCE_SHA256`.
-
-For headless inventory, `wkcli backup list` follows every Manager cursor
-internally and preserves the existing combined output.
-
-### Local Three-Node Smoke
-
-The ordinary `wkcli sim` three-node smoke keeps backup disabled so its traffic
-and resource measurements remain comparable with earlier runs. Add `--backup`
-when the run must also qualify the local automatic-backup path:
-
-```bash
-./scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
-  --backup \
-  --duration 1h \
-  --users 2000 \
-  --groups 2000 \
-  --members 10 \
-  --rate 4/s
+```sh
+export WK_BACKUP_ENABLED=true
+export WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v1
 ```
 
-This mode builds the local process cluster with the `e2e` file-repository
-adapter, gives every node an isolated staging directory, waits for backup
-dependencies to become healthy, and fails unless a new restore point is
-verified in both local repositories. Evidence is written beneath the smoke
-output directory as `backup-status.json`,
-`backup-restore-points-before.json`, and `backup-restore-points.json`.
-The structural Manager evidence checks require `jq`.
-This validates the local backup integration only; it does not qualify external
-object storage, KMS, Object Lock, capacity, or recovery-time objectives.
+Missing or different qualification values fail startup. This is a release
+fence, not a secret.
 
-## Metrics And Alerts
+## Runtime model
 
-The following metrics use only bounded labels:
+Each logical Hash Slot continuously captures two ordered streams:
 
-- `wukongim_backup_recovery_point_age_seconds`: newest verified recovery point
-  age; `NaN` means unknown.
-- `wukongim_backup_verification_age_seconds`: latest successful dual-repository
-  audit age; `NaN` means unknown.
-- `wukongim_backup_controller_leader`: one on the active coordinator node.
-- `wukongim_backup_doctor_health{state}`: one-hot `unknown`, `healthy`, or
-  `failed`.
-- `wukongim_backup_job_active`: whether a cluster backup job is active.
-- `wukongim_backup_failures_total{category}`: bounded failure categories.
-- `wukongim_backup_restore_partitions{phase}`: total, installed, and verified
-  restore partitions.
-- `wukongim_backup_source_pin_age_seconds{hash_slot}` and
-  `wukongim_backup_source_pinned_bytes{hash_slot}`: age and retained-log byte
-  estimate for each locally held Slot source pin.
-- `wukongim_backup_source_node_pinned_bytes`: aggregate retained-log estimate
-  across backup floors on one node, deduplicated by physical Slot.
-- `wukongim_backup_slot_rebases_total{hash_slot,reason,outcome,failure_category}`
-  and `wukongim_backup_slot_rebase_duration_seconds`: bounded per-Slot
-  replacement-baseline outcomes and latency.
+- metadata commands;
+- committed message rows plus cursor sidecars.
 
-At minimum, alert when recovery-point age is absent or greater than 300
-seconds, doctor health is not healthy, verification evidence is absent or more
-than 48 hours old, or the failure counter increases. `NaN` must be handled as a
-separate missing-evidence alert, not filtered into a healthy value.
+The current Slot Leader owns a fenced capture lease and advances one durable
+Slot frontier. Payloads, Channel cursors, and object identities stay in the
+repositories; Controller state stores only bounded frontiers, leases, catalog
+head, audit state, Generation GC cursors, and permanent-erasure heads.
 
-## Retention And Garbage Collection
+The Controller Leader periodically publishes one immutable checkpoint that
+contains exactly one healthy frontier for every configured Hash Slot. A
+checkpoint is discoverable only through the signed hash-linked catalog. If any
+Slot is fenced, degraded, awaiting rebase, or missing a complete frontier,
+publication fails closed.
 
-The Controller retains all five-minute points for 24 hours, one hourly point
-for seven days, and one daily point for 30 days. Optional monthly retention
-keeps one materialized full per UTC month. The newest point, held points, and
-the active incremental base remain protected.
+A Slot replaces only its own Generation when source-log pin limits or
+Generation limits are reached. Replacement creates one materialized baseline
+and one complete message-cursor baseline; it does not create a cluster-wide
+full backup.
 
-Expiration first moves the restore-point reference into a durable pending-GC
-queue. Collection authenticates the retained graphs in both repositories,
-authenticates the complete contiguous permanent-erasure ledger, marks every
-committed ledger and restore-point object, protects the one authenticated
-Controller-pending erasure plus active job prefixes, and then removes only old
-unreachable exact versions. Unreferenced uncommitted ledger attempts are
-ordinary age-gated orphans. The collector assumes separate delete credentials
-but retains the signed logical repository identities. An Object Lock denial
-leaves the queue entry pending for a later retry.
+## Required configuration
 
-For continuous checkpoints, retention selects immutable catalog references
-with the same UTC tiers. The newest checkpoint, operator holds, and the active
-restore checkpoint are always protected. Compaction replaces only one Hash
-Slot Generation when its delta reaches the smaller of its baseline size and
-the configured byte threshold, reaches the segment threshold, reaches the age
-threshold, or requires a source rebase. The old Generation remains
-authoritative until its replacement is dual-committed, validated, and promoted
-under the Slot capture lease.
+Use two distinct cross-region S3-compatible repositories with versioning and
+Object Lock/WORM enabled. Signing and envelope encryption use external KMS
+keys. Credentials come from the provider credential chain and are not accepted
+through Manager or CLI requests.
 
-Generation GC protects every retained/held/active checkpoint Generation,
-current Slot frontier, and auditor-frozen Slot. Each repository advances its
-own durable lexicographic cursor under independent request and byte budgets, so
-a failure or Object Lock delay on one copy does not rescan the healthy copy.
-Checkpoint catalog rows point to signed content-addressed Generation vectors
-instead of embedding 256 strings per historical row. Cache misses consume the
-same per-repository request budget and populate a rebuildable local cache; a
-small budget resumes vector loading across process restart before sweep. No
-object identity, protected vector, or pending-delete list is stored in
-Controller state.
+```toml
+[backup]
+enabled = true
+qualification_gate = "backup-vnext-production-v1"
+restore_mode = false
+repository_id = "prod-im-backup"
+source_generation = "prod-2026-07"
+staging_dir = "/var/lib/wukongim/backup-staging"
+kms_key_id = "kms-encryption-key"
+signing_key_id = "kms-signing-key"
+trusted_signing_key_ids = []
+kms_region = "cn-hangzhou"
+capture_reconcile_interval = "30s"
+checkpoint_interval = "5m"
+baseline_chunk_bytes = 8388608
+target_segment_bytes = 67108864
+max_segment_open_duration = "30s"
+staging_max_bytes = 10737418240
+worker_count = 4
+source_pin_max_age = "1h"
+max_source_pinned_bytes = 8589934592
+audit_interval = "1s"
+audit_scrub_interval = "24h"
+garbage_collection_interval = "1h"
+garbage_safety_window = "168h"
+garbage_max_requests_per_repository = 256
+garbage_max_bytes_per_repository = 1073741824
+retention_monthly_months = 0
+object_lock_days = 7
 
-## Restore Runbook
+[backup.primary]
+endpoint = "https://s3-primary.example.com"
+region = "region-a"
+bucket = "wukongim-backup-primary"
+prefix = "prod"
+repair_role_arn = "arn:provider:iam::account-a:role/wukongim-backup-repair"
+garbage_role_arn = "arn:provider:iam::account-a:role/wukongim-backup-garbage"
 
-1. Fence the old cluster through the deployment control plane and retain a
-   SHA-256 digest of the reviewed fencing evidence. DNS changes alone are not
-   sufficient.
-2. Provision a new empty cluster with the same `hash_slot_count`, a different
-   cluster ID/generation, and enough data plus staging capacity.
-3. Configure repository and KMS reads, set `backup.restore_mode = true`, set a
-   new `backup.target_generation`, leave `backup.enabled = false`, and start
-   all target nodes. Restore mode requires Manager authentication and at least
-   one operator with an explicit `cluster.restore.activation:w` grant. Only
-   restricted Manager, metrics, and restore internals start.
-4. Create an immutable plan with an exact restore point or an explicit latest
-   verified selection:
+[backup.secondary]
+endpoint = "https://s3-secondary.example.com"
+region = "region-b"
+bucket = "wukongim-backup-secondary"
+prefix = "prod"
+repair_role_arn = "arn:provider:iam::account-b:role/wukongim-backup-repair"
+garbage_role_arn = "arn:provider:iam::account-b:role/wukongim-backup-garbage"
+```
 
-   ```bash
-   wkcli backup restore plan --restore-point RESTORE_POINT_ID --repository primary --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
-   wkcli backup restore start PLAN_ID --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
-   wkcli backup restore status --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
-   wkcli backup restore verify PLAN_ID --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
-   wkcli backup restore activate PLAN_ID --old-cluster-fence-digest "$OLD_CLUSTER_FENCE_SHA256" --server https://restore-manager.example --token "$WK_MANAGER_TOKEN"
+Keep `wukongim.toml.example` aligned when fields change. TOML keys use grouped
+snake_case; environment keys use the `WK_BACKUP_` prefix.
+Ordinary capture credentials remain create/read-only. Repair and garbage roles
+are separately assumed, least-privilege capabilities and are required for both
+repositories when automatic backup is enabled.
+
+## Normal operations
+
+Configure a `wkcli` context or pass `--server` and `--token` explicitly.
+
+```sh
+wkcli backup status --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
+wkcli backup checkpoint list --limit 50 --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
+wkcli backup checkpoint show "$CHECKPOINT_ID" --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
+```
+
+The continuous coordinator normally publishes on
+`backup.checkpoint_interval`. An operator can request publication of the current
+complete vector:
+
+```sh
+wkcli backup checkpoint publish --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
+```
+
+This does not start a full capture. It freezes the already durable current
+frontiers and fails if the vector is incomplete or unhealthy.
+
+For a restore, preserve the opaque catalog-head token returned with the
+selected checkpoint and hold that checkpoint before the source can stop:
+
+```sh
+wkcli backup checkpoint list --id "$CHECKPOINT_ID" --json \
+  --server "$SOURCE_MANAGER_URL" --token "$WK_MANAGER_TOKEN" > checkpoint-page.json
+CATALOG_HEAD_TOKEN="$(jq -r '.catalog_head_token' checkpoint-page.json)"
+test -n "$CATALOG_HEAD_TOKEN" && test "$CATALOG_HEAD_TOKEN" != "null"
+wkcli backup checkpoint hold "$CHECKPOINT_ID" \
+  --server "$SOURCE_MANAGER_URL" --token "$WK_MANAGER_TOKEN"
+```
+
+The token is immutable admission evidence but intentionally hides repository
+object coordinates. Do not replace it with a later `latest` value. The hold is
+also mandatory for drills that stop the source: automatic backup and explicit
+restore mode cannot run in one process, so there is no live source-side restore
+plan for Generation GC to discover.
+
+## Restore runbook
+
+Restore requires a fresh empty target cluster in explicit restore mode. Use a
+new cluster ID and a `backup.target_generation` different from the source
+generation. Restore mode keeps Gateway, business APIs, plugins, webhooks, and
+ordinary workers closed.
+
+1. Start the empty target cluster with:
+
+   ```toml
+   [backup]
+   enabled = false
+   restore_mode = true
+   target_generation = "successor-2026-07"
    ```
 
-   Token handling has no implicit operational choice: omit
-   `--invalidate-tokens` only after explicitly deciding to preserve restored
-   client tokens, or add it after explicitly deciding to invalidate them.
-   Plan creation also authenticates the current permanent-erasure ledger in
-   both repositories and pins its version, sorted per-Hash-Slot heads, total
-   event count, and SHA-256. The source-generation namespace of every head is
-   authenticated too. This pin is intentionally independent of restore-point
-   time: selecting an old restore point cannot resurrect messages erased after
-   that point.
+   Configure the same repository identity, repository endpoints, trusted
+   signing keys, KMS access, staging directory, and authenticated Manager.
 
-5. Verification authenticates the repository chain; compares each partition's
-   restored metadata-record count, cumulative message-record count, and maximum
-   message ID with signed manifest evidence; checks every restored Channel
-   sequence boundary; checks the reconstructed successor-topology
-   `ChannelRuntimeMeta`; and compares a canonical semantic metadata digest on
-   each successor physical Slot replica. For every pinned permanent erasure it
-   also requires durable local/physical retention progress and proves that the
-   raw message sequence index contains no row in the erased prefix. Channel epoch and retention floor
-   come from the signed Channel cut, while leader, replicas, ISR, and MinISR
-   come from that target Slot's desired peers. Unrelated target members do not
-   receive a complete partition copy. Before runtime metadata is installed,
-   every target Slot replica replays the pinned erasure prefix, physically
-   removes restored rows, and advances retention/checkpoint/LEO fences. A
-   ledger-only Channel receives a sequence fence to prevent reuse. Activation
-   remains impossible before every partition is installed and verified.
-6. Stop the restore-mode processes. Set `backup.restore_mode = false`. If
-   automatic backup will resume, set `backup.enabled = true` and set
-   `backup.source_generation` to the activated target generation. Restart the
-   cluster normally. Startup refuses an unactivated plan, incomplete verified
-   partition evidence, a generation mismatch, or a message-ID fence that the
-   natural clock-derived node-scoped Snowflake allocator has not already
-   exceeded. It fails closed rather than synthesizing future IDs that could be
-   reused after restart.
+2. Create one immutable target plan from the exact checkpoint and catalog-head
+   token:
 
-Backup manifest and partition-manifest format v2 makes restore evidence
-mandatory. Format v1 restore points from the unqualified foundation are
-intentionally rejected instead of treating missing counts or fences as zero.
+   ```sh
+     wkcli backup restore plan \
+       --checkpoint "$CHECKPOINT_ID" \
+     --catalog-head "$CATALOG_HEAD_TOKEN" \
+     --server "$TARGET_MANAGER_URL" \
+     --token "$TARGET_MANAGER_TOKEN"
+   ```
 
-Never reuse the source generation, restore into a non-empty target, change the
-hash-slot count during recovery, or delete the target automatically after a
-failed restore.
+   Add `--invalidate-tokens` if restored client tokens must not remain valid.
+   Record the returned `PLAN_ID`, target cluster ID, and target generation.
 
-## Local Regression Drill
+3. Irreversibly fence the old source generation and save its signed receipt:
 
-Run the process-level three-node drill with:
+   ```sh
+   wkcli backup fence-source \
+     --restore-plan "$PLAN_ID" \
+     --checkpoint "$CHECKPOINT_ID" \
+     --target-cluster "$TARGET_CLUSTER_ID" \
+     --target-generation "$TARGET_GENERATION" \
+     --server "$SOURCE_MANAGER_URL" \
+     --token "$SOURCE_FENCE_TOKEN" \
+     --json > source-fence-receipt.json
+   ```
 
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 8m -p=1
+   Source fencing requires the exact
+   `cluster.backup.source_fence:w` permission. Wildcard and ordinary backup
+   grants do not satisfy this boundary. After convergence, the fenced source
+   cannot reopen normal service.
+
+4. Install and verify the target:
+
+   ```sh
+   wkcli backup restore start "$PLAN_ID" \
+     --server "$TARGET_MANAGER_URL" --token "$TARGET_MANAGER_TOKEN"
+   wkcli backup restore status \
+     --server "$TARGET_MANAGER_URL" --token "$TARGET_MANAGER_TOKEN"
+   wkcli backup restore verify "$PLAN_ID" \
+     --server "$TARGET_MANAGER_URL" --token "$TARGET_MANAGER_TOKEN"
+   ```
+
+5. Activate with the exact signed source-fence receipt:
+
+   ```sh
+   wkcli backup restore activate "$PLAN_ID" \
+     --source-fence-receipt ./source-fence-receipt.json \
+     --server "$TARGET_MANAGER_URL" \
+     --token "$RESTORE_ACTIVATION_TOKEN"
+   ```
+
+   Activation requires an authenticated principal with the exact
+   `cluster.restore.activation:w` permission. It first persists immutable
+   activation evidence, then removes plan-bound plaintext staging from every
+   target replica, and only then publishes `activated`.
+
+6. Keep the source checkpoint held until the drill or migration no longer
+   depends on it and the checkpoint/token/plan/fence evidence set is archived.
+   If the source Manager is intentionally still available, release it
+   explicitly:
+
+   ```sh
+   wkcli backup checkpoint release "$CHECKPOINT_ID" \
+     --server "$SOURCE_MANAGER_URL" --token "$WK_MANAGER_TOKEN"
+   ```
+
+   Never release merely because target installation started.
+
+Break glass is reserved for a permanently unrecoverable source:
+
+```sh
+wkcli backup restore activate "$PLAN_ID" \
+  --break-glass-reason "reviewed incident reference and reason" \
+  --server "$TARGET_MANAGER_URL" \
+  --token "$RESTORE_ACTIVATION_TOKEN"
 ```
 
-The scenario starts real `cmd/wukongim` processes, publishes a materialized
-baseline and an incremental point, permanently erases a Channel prefix after
-that point, stops the source, explicitly restores the older point into a fresh
-three-node cluster, verifies and activates it through Manager, restarts the
-same target data in normal mode, proves erased rows do not return and their
-sequences are not reused, reads unaffected restored history, and proves the
-next message ID and per-Channel sequence advance. A second scenario stops the
-active Controller Leader during an incremental job, observes a different
-Controller Leader and the same persisted job through public Manager and
-metrics surfaces, rejoins the stopped node, and requires the new coordinator
-to publish and explicitly verify that original restore point. A third scenario
-stops a non-Controller-Leader node that currently leads at least one Slot before
-incremental capture finishes, keeps it offline, and requires the original job
-to publish and verify its exact restore point through the remaining nodes. That
-scenario keeps three Slot replicas for quorum and explicitly uses two Channel
-replicas, then requires both surviving nodes to recover public readiness. With
-three Channel replicas on only three nodes, `/readyz` correctly rejects new
-Channel placement while one data node is unavailable instead of silently
-weakening the configured durability. A fourth scenario stops the active
-Controller Leader while it also leads a Slot, keeps that combined
-Controller/data node offline, and requires a new Controller Leader to resume
-the same job and publish the exact restore point while both survivors recover
-public readiness under the same three-Slot-replica/two-Channel-replica policy.
+The reason and authenticated operator identity become immutable audit evidence.
 
-Run the failover scenario alone with:
+## Metrics
 
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_failover -count=1 -timeout 8m -p=1
-```
+The public metrics intentionally expose the continuous model and bounded health
+only:
 
-Run the sustained data-node outage scenario alone with:
+- `wukongim_backup_checkpoint_age_seconds`
+- `wukongim_backup_controller_leader`
+- `wukongim_backup_doctor_health{state}`
+- `wukongim_backup_failures_total{category}`
+- `wukongim_backup_capture_owned_slots`
+- `wukongim_backup_capture_lease_takeovers_total`
+- `wukongim_backup_capture_lease_fenced_total`
+- `wukongim_backup_source_pin_age_seconds{hash_slot}`
+- `wukongim_backup_source_pinned_bytes{hash_slot}`
+- `wukongim_backup_source_node_pinned_bytes`
+- `wukongim_backup_slot_rebases_total{hash_slot,reason,outcome,failure_category}`
+- `wukongim_backup_slot_rebase_duration_seconds`
+- `wukongim_backup_audit_debt_objects`
+- `wukongim_backup_audit_last_success_timestamp_seconds`
+- `wukongim_backup_audit_corruptions_total{category}`
+- `wukongim_backup_audit_repair_bytes_total`
+- `wukongim_backup_audit_unrecoverable_failures_total`
+- `wukongim_backup_restore_partitions{phase}`
 
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/data_node_outage -count=1 -timeout 8m -p=1
-```
+`wukongim_backup_checkpoint_age_seconds` is `NaN` before the first checkpoint;
+missing evidence is never reported as zero. Metrics do not expose repository
+copy names, regions, object keys, KMS identifiers, Channel IDs, or credentials.
 
-Run the sustained Controller-Leader/data-node outage scenario alone with:
+## Failure handling
 
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/backup/controller_leader_outage -count=1 -timeout 8m -p=1
-```
+- A stale Slot lease or leadership change fences the worker; periodic
+  reconciliation resumes from the durable frontier.
+- A failed checkpoint publication leaves immutable orphans unreachable; it
+  does not advance the catalog head.
+- One damaged repository copy is repaired only through the explicit integrity
+  repair capability and must pass complete revalidation.
+- Dual-copy loss freezes only the affected Slot. If live source data still
+  exists, the Slot rebases into a new Generation; otherwise the audit state
+  remains failed for operator action.
+- Generation GC protects retained and held checkpoints, the active restore,
+  current/pending frontiers, and audit-frozen Slots. Object Lock rejection
+  defers only the affected repository cursor.
+- A hold/release transition conflicts with any live Generation-GC delete guard.
+  Each delete also compares the durable catalog-retention revision, so the
+  operator can safely retry after the bounded collection step.
 
-`.github/workflows/backup-qualification.yml` runs only through manual
-`workflow_dispatch`, with one E2E-tagged product binary. It is an explicit
-operator qualification gate rather than a scheduled job. Failure artifacts
-contain only the final 1 MiB of the bounded test log and its allowlisted
-process diagnostics.
-
-The tagged harness uses local immutable file repositories and a deterministic
-local key authority selected by an explicit E2E-only environment variable. It
-does not qualify S3 versioning, cross-region replication, KMS key retention,
-Object Lock/WORM, garbage-collector IAM, external clock skew, or production
-failure behavior.
-
-## Qualification Gates
-
-Production enablement remains blocked until a real three-node environment
-proves online baseline and incremental capture, sustained combined
-Controller-Leader/data-node failure, primary outage, secondary recovery,
-retention/tombstone correctness, corruption rejection, different target
-topology, restored client sync/send, and a weekly isolated restore drill. The
-local qualification now covers both a non-Controller-Leader Slot leader and a
-Controller Leader/Slot leader remaining offline with an explicit Channel
-replica count of two, plus Controller process failover followed by node rejoin.
-It does not qualify three-Channel-replica readiness with only two surviving
-nodes or replace the required real object-storage failure qualification. The
-qualified 1 TB profile must restore within 60 minutes and stay inside the
-foreground throughput and SENDACK P99 budgets in the design spec.
-
-The current implementation also needs explicit production qualification for
-permanent-erasure ledger replay, plus completion of source-log pin budget
-enforcement and public pin controls; true synthetic-full chain flattening (the current scheduler emits
-a source-materialized independent fallback and rejects manual
-`synthetic_full`); topology/quorum/migration/protocol-version publication gates;
-non-default-topology restore placement and MinISR qualification; complete
-disk/network/replica/time restore estimates; signed drill reports; a durable
-queryable audit history; high-mutation partition-planner starvation and memory
-qualification; and automatic throttling from live foreground latency. These
-are release gates, not optional tuning work.
+Never delete repository objects manually to resolve a failed audit or restore.
+Preserve the catalog head, checkpoint ID, restore plan, and source-fence receipt
+as one incident evidence set.

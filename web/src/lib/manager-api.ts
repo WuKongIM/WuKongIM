@@ -117,12 +117,10 @@ import type {
   BusinessChannelMemberListKind,
   BusinessChannelMembersParams,
   BusinessChannelMembersResponse,
-  BackupRestorePointListParams,
-  ManagerBackupJob,
-  ManagerBackupRestorePoint,
-  ManagerBackupRestorePointPage,
+  BackupCheckpointListParams,
+  ManagerBackupCheckpointPage,
+  ManagerBackupCheckpointPublication,
   ManagerBackupStatusResponse,
-  ManagerBackupVerificationTask,
   ManagerApplicationLogEntriesResponse,
   ManagerApplicationLogSourcesResponse,
   ManagerBusinessChannelDetailResponse,
@@ -1269,42 +1267,20 @@ export function getBackupStatus() {
   return jsonManagerFetch<ManagerBackupStatusResponse>("/manager/backups/status")
 }
 
-export function getBackupRestorePoints(params?: BackupRestorePointListParams) {
+export function getBackupCheckpoints(params?: BackupCheckpointListParams) {
   const search = new URLSearchParams()
   if (params?.limit) search.set("limit", String(params.limit))
   if (params?.cursor) search.set("cursor", params.cursor)
   if (params?.id) search.set("id", params.id)
-  if (params?.held) search.set("held", "true")
   const query = search.toString()
-  return jsonManagerFetch<ManagerBackupRestorePointPage>(
-    `/manager/backups/restore-points${query ? `?${query}` : ""}`,
+  return jsonManagerFetch<ManagerBackupCheckpointPage>(
+    `/manager/backups/checkpoints${query ? `?${query}` : ""}`,
   )
 }
 
-export function triggerMaterializedBackup() {
-  return jsonManagerFetch<ManagerBackupJob>("/manager/backups/trigger", {
+export function publishBackupCheckpoint() {
+  return jsonManagerFetch<ManagerBackupCheckpointPublication>("/manager/backups/checkpoints", {
     method: "POST",
-    body: JSON.stringify({ kind: "materialized_full" }),
+    body: JSON.stringify({}),
   })
-}
-
-export function cancelBackupJob(jobId: string, epoch: number) {
-  return jsonManagerFetch<ManagerBackupJob>(
-    `/manager/backups/jobs/${encodeURIComponent(jobId)}/cancel`,
-    { method: "POST", body: JSON.stringify({ epoch }) },
-  )
-}
-
-export function verifyBackupRestorePoint(restorePointId: string) {
-  return jsonManagerFetch<ManagerBackupVerificationTask>(
-    `/manager/backups/restore-points/${encodeURIComponent(restorePointId)}/verify`,
-    { method: "POST", body: JSON.stringify({}) },
-  )
-}
-
-export function setBackupRestorePointHold(restorePointId: string, held: boolean) {
-  return jsonManagerFetch<ManagerBackupRestorePoint>(
-    `/manager/backups/restore-points/${encodeURIComponent(restorePointId)}/${held ? "hold" : "release"}`,
-    { method: "POST", body: JSON.stringify({}) },
-  )
 }

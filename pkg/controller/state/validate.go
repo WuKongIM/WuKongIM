@@ -66,7 +66,7 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 		return nil
 	}
 	plan := restore.Plan
-	if !validBackupIdentity(plan.ID) || !validBackupIdentity(plan.RestorePointID) || !validSHA256(plan.ManifestSHA256) {
+	if !validBackupIdentity(plan.ID) || !validBackupIdentity(plan.CheckpointID) || !validSHA256(plan.CheckpointSHA256) {
 		return invalid("restore plan identity is invalid")
 	}
 	if plan.Repository != "primary" && plan.Repository != "secondary" {
@@ -74,8 +74,8 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 	}
 	if plan.CatalogProof == nil ||
 		backupartifact.ValidateCheckpointCatalogProof(*plan.CatalogProof) != nil ||
-		plan.CatalogProof.Checkpoint.ID != plan.RestorePointID ||
-		plan.CatalogProof.Checkpoint.SHA256 != plan.ManifestSHA256 ||
+		plan.CatalogProof.Checkpoint.ID != plan.CheckpointID ||
+		plan.CatalogProof.Checkpoint.SHA256 != plan.CheckpointSHA256 ||
 		plan.CatalogProof.Checkpoint.GenerationVector.HashSlotCount !=
 			plan.HashSlotCount ||
 		plan.CheckpointVersion != backupartifact.CheckpointVersion ||
@@ -297,15 +297,6 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 		); err != nil {
 			return invalid("backup source fence is invalid")
 		}
-		if backup.Active != nil ||
-			(backup.Verification != nil &&
-				(backup.Verification.Status == BackupVerificationTaskStatusPending ||
-					backup.Verification.Status == BackupVerificationTaskStatusRunning)) {
-			return invalid("backup source fence conflicts with active work")
-		}
-	}
-	if len(backup.RestorePoints)+len(backup.PendingGarbage) > MaxBackupRestorePoints {
-		return invalid("backup restore-point references exceed limit")
 	}
 	if len(backup.SlotFrontiers) > int(hashSlotCount) {
 		return invalid("backup Slot frontiers exceed hash_slot_count")
@@ -347,10 +338,12 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 			head.Key != backupartifact.CatalogPageObjectKey(head.Sequence, head.LatestCheckpointID) ||
 			!validSHA256(head.SHA256) || head.Bytes <= 0 || head.Bytes > 1<<20 ||
 			backup.CatalogAuditRootSequence == 0 ||
+			backup.CatalogRetentionRevision == 0 ||
 			backup.CatalogAuditRootSequence > head.Sequence {
 			return invalid("backup checkpoint catalog head is invalid")
 		}
-	} else if backup.CatalogAuditRootSequence != 0 {
+	} else if backup.CatalogAuditRootSequence != 0 ||
+		backup.CatalogRetentionRevision != 0 {
 		return invalid("backup checkpoint catalog audit root has no head")
 	}
 	var erasureReservations uint64
@@ -405,87 +398,6 @@ func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error
 	}
 	if err := validateBackupIntegrityAudit(backup.IntegrityAudit, hashSlotCount); err != nil {
 		return err
-	}
-	if backup.Active != nil {
-		job := backup.Active
-		if job.ID == "" || job.Epoch == 0 || job.Epoch > backup.LastEpoch {
-			return invalid("backup active job identity or epoch is invalid")
-		}
-		if !validBackupKind(job.Kind) || !validBackupJobStatus(job.Status) {
-			return invalid("backup active job kind or status is invalid")
-		}
-		if job.HashSlotCount != hashSlotCount {
-			return invalid("backup active job hash_slot_count must match cluster config")
-		}
-		if !validSHA256(job.ConfigFingerprint) {
-			return invalid("backup config fingerprint must be sha256 hex")
-		}
-		if !validBackupIdentity(job.RestorePointID) || (job.BaseRestorePointID != "" && !validBackupIdentity(job.BaseRestorePointID)) {
-			return invalid("backup restore-point publication fence is invalid")
-		}
-		if job.StartedAtUnixMillis <= 0 || job.UpdatedAtUnixMillis < job.StartedAtUnixMillis {
-			return invalid("backup active job timestamps are invalid")
-		}
-		if len(job.FailureCategory) > 128 {
-			return invalid("backup failure category exceeds limit")
-		}
-		if len(job.Partitions) > int(hashSlotCount) {
-			return invalid("backup partition reports exceed hash_slot_count")
-		}
-		for index, report := range job.Partitions {
-			if index > 0 && job.Partitions[index-1].HashSlot >= report.HashSlot {
-				return invalid("backup partition reports must be unique and sorted")
-			}
-			if report.JobID != job.ID || report.BackupEpoch != job.Epoch || report.HashSlot >= hashSlotCount {
-				return invalid("backup partition report fence is invalid")
-			}
-			if report.RaftIndex == 0 || report.CommittedAtUnixMillis <= 0 || report.ObjectCount == 0 || report.CiphertextBytes == 0 {
-				return invalid("backup partition report boundary is invalid")
-			}
-			if !validBackupObjectKey(report.ManifestKey) || !validSHA256(report.ManifestSHA256) {
-				return invalid("backup partition manifest reference is invalid")
-			}
-		}
-	}
-	if backup.Verification != nil {
-		task := backup.Verification
-		if !validBackupIdentity(task.ID) || !validBackupIdentity(task.RestorePointID) || !validBackupVerificationEvidence(task.BackupVerificationEvidence) {
-			return invalid("backup verification task is invalid")
-		}
-	}
-	if backup.Active != nil && backup.Verification != nil &&
-		(backup.Verification.Status == BackupVerificationTaskStatusPending ||
-			backup.Verification.Status == BackupVerificationTaskStatusRunning) {
-		return invalid("backup and verification tasks cannot both be active")
-	}
-	seenIDs := make(map[string]struct{}, len(backup.RestorePoints)+len(backup.PendingGarbage))
-	verificationTargetFound := backup.Verification == nil
-	for _, restorePoint := range append(cloneSlice(backup.RestorePoints), backup.PendingGarbage...) {
-		if restorePoint.ID == "" || restorePoint.JobID == "" || restorePoint.BackupEpoch == 0 || restorePoint.BackupEpoch > backup.LastEpoch {
-			return invalid("backup restore-point identity or epoch is invalid")
-		}
-		if _, exists := seenIDs[restorePoint.ID]; exists {
-			return invalid("duplicate backup restore-point id")
-		}
-		seenIDs[restorePoint.ID] = struct{}{}
-		if !validBackupKind(restorePoint.Kind) || restorePoint.EffectiveAtUnixMillis <= 0 || restorePoint.CreatedAtUnixMillis < restorePoint.EffectiveAtUnixMillis {
-			return invalid("backup restore-point kind or timestamps are invalid")
-		}
-		if !validSHA256(restorePoint.ManifestSHA256) || !restorePoint.PrimaryVerified || !restorePoint.SecondaryVerified {
-			return invalid("backup restore-point is not verified in both repositories")
-		}
-		if restorePoint.LastVerification != nil && !validBackupVerificationEvidence(*restorePoint.LastVerification) {
-			return invalid("backup restore-point verification evidence is invalid")
-		}
-		if backup.Verification != nil && restorePoint.ID == backup.Verification.RestorePointID {
-			verificationTargetFound = true
-			if restorePoint.LastVerification == nil || *restorePoint.LastVerification != backup.Verification.BackupVerificationEvidence {
-				return invalid("backup verification task evidence does not match restore point")
-			}
-		}
-	}
-	if !verificationTargetFound {
-		return invalid("backup verification target is missing")
 	}
 	return nil
 }
@@ -729,26 +641,6 @@ func olderBackupWatermark(left, right int64) int64 {
 	return right
 }
 
-func validBackupVerificationEvidence(evidence BackupVerificationEvidence) bool {
-	if evidence.StartedAtUnixMillis <= 0 || len(evidence.FailureCategory) > 128 {
-		return false
-	}
-	switch evidence.Status {
-	case BackupVerificationTaskStatusPending, BackupVerificationTaskStatusRunning:
-		return evidence.CompletedAtUnixMillis == 0 && evidence.ManifestSHA256 == "" && evidence.FailureCategory == ""
-	case BackupVerificationTaskStatusSucceeded:
-		return evidence.CompletedAtUnixMillis >= evidence.StartedAtUnixMillis &&
-			evidence.PrimaryVerified && evidence.SecondaryVerified &&
-			validSHA256(evidence.ManifestSHA256) && evidence.FailureCategory == ""
-	case BackupVerificationTaskStatusFailed:
-		return evidence.CompletedAtUnixMillis >= evidence.StartedAtUnixMillis &&
-			(evidence.ManifestSHA256 == "" || validSHA256(evidence.ManifestSHA256)) &&
-			evidence.FailureCategory != ""
-	default:
-		return false
-	}
-}
-
 func validBackupIdentity(value string) bool {
 	if value == "" || len(value) > 128 || strings.Contains(value, "..") {
 		return false
@@ -760,14 +652,6 @@ func validBackupIdentity(value string) bool {
 		return false
 	}
 	return true
-}
-
-func validBackupKind(kind BackupRestorePointKind) bool {
-	return kind == BackupRestorePointKindIncremental || kind == BackupRestorePointKindSyntheticFull || kind == BackupRestorePointKindMaterializedFull
-}
-
-func validBackupJobStatus(status BackupJobStatus) bool {
-	return status == BackupJobStatusPreparing || status == BackupJobStatusCapturing || status == BackupJobStatusPublishing || status == BackupJobStatusDegraded || status == BackupJobStatusFailed
 }
 
 func validSHA256(value string) bool {

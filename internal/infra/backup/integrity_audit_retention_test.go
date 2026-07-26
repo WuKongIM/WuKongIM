@@ -49,7 +49,7 @@ func TestCheckpointIndexIntegrityAuditRetentionSourceSelectsSparseFixedSet(
 	source, err :=
 		backupinfra.NewCheckpointIndexIntegrityAuditRetentionSource(
 			backupinfra.CheckpointIndexIntegrityAuditRetentionSourceOptions{
-				Index: index, Policy: backupusecase.RetentionPolicy{},
+				Index: index, Policy: backupusecase.CheckpointRetentionPolicy{},
 				ActiveRestore: active,
 			},
 		)

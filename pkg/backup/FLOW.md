@@ -6,54 +6,28 @@ object-storage/KMS provider.
 
 Current flow:
 
-1. A caller builds one `Manifest` containing every logical hash-slot cut and
-   the immutable encrypted objects needed by the restore point.
-2. `SignManifest` validates the unsigned contract, encodes its canonical JSON,
-   and asks the injected `ManifestSigner` to sign those exact bytes.
-3. `MarshalManifest` validates and serializes the signed manifest.
-4. `LoadManifest` strictly decodes JSON, validates the complete contract,
-   rebuilds the same unsigned canonical bytes, and verifies the signature before
-   returning trusted metadata. Production composition wraps the provider signer
-   with `NewKeyPinnedManifestSigner`, so only the active signing key and an
-   explicit operator-managed retained-key allowlist are trusted even when
-   provider IAM can verify other keys.
-5. `ReplicatedPublisher.Publish` uploads and verifies every immutable object in
-   both explicit repositories before it signs and stages the identical
-   restore-point manifest in both repositories. Partition references are
-   verified recursively through their complete base chain in both repositories,
-   so a new incremental point cannot hide missing historical objects. Only
-   after both manifests verify does it write a separately signed publication
-   marker; failed manifest copies leave only undiscoverable orphan objects for
-   later garbage collection. The first authenticated manifest persisted under
-   a restore-point key freezes that restore point's permanent-erasure heads.
-   A retry adopts those frozen heads even if newer deletions committed while it
-   repairs a missing manifest copy or publication marker; all other manifest
-   identity, partition, and cut fields must still match.
-6. `LoadRestorePoint` requires and authenticates the publication marker, binds
-   it to the staged signed manifest checksum, then proves that every referenced
-   immutable object still has the expected size and ciphertext checksum before
-   restore may consume it.
-7. `LoadRestorePointGraph` authenticates the complete top-level and recursive
-   partition-manifest graph and returns the exact reachable key set used by
-   retention mark-and-sweep.
+1. Continuous metadata, message, and cursor batches are sealed as immutable
+   signed segments and committed to both explicit repository copies.
+2. Each logical Hash Slot owns one independently replaceable Generation. Its
+   durable frontier contains only current stream heads and source watermarks;
+   Channel cursor detail remains in immutable sidecars.
+3. A materialized rebase publishes one self-contained partition manifest plus
+   one complete message-cursor baseline. The manifest has no predecessor
+   layering.
+4. A checkpoint freezes exactly one healthy frontier for every configured Hash
+   Slot and the current permanent-erasure heads. Its effective time is the
+   oldest included Slot watermark.
+5. Signed hash-linked catalog pages publish checkpoint history. Controller
+   stores only the current `CatalogPageReference`; complete history is rebuilt
+   and authenticated from the repositories.
+6. Production composition wraps `ManifestSigner` with
+   `NewKeyPinnedManifestSigner`, so verification trusts only the active key and
+   the explicit retained-key allowlist.
 
-The effective restore-point time is the oldest partition watermark. Manifests
-must describe every hash slot exactly once and must use safe immutable object
-keys.
-
-Partition manifests may point to one prior partition layer for incremental
-message deltas. Channel-index objects carry the latest per-channel epoch,
-retention start, and committed HW without placing channel identities in
-Controller state. Object plaintext is zstd-compressed before AES-256-GCM
-encryption; each object has a fresh envelope data key and nonce. `ObjectCodec`
-serializes reads from its injected randomness source so concurrent Slot writers
-do not depend on that reader being thread-safe.
-
-Format v3 requires explicit versioned partition evidence. Each signed top-level
-partition reference repeats the authenticated tip's latest metadata-record
-count, cumulative base-to-tip message-record count, and cumulative maximum
-message ID. A missing evidence version is not an empty partition. Base
-references cannot regress cumulative counts or the allocator fence.
+Object plaintext is zstd-compressed before AES-256-GCM encryption; every
+representation has a fresh envelope data key and nonce. Strict decoding,
+portable size limits, signed logical identities, and immutable safe object keys
+fail closed before restore consumes bytes.
 
 Permanent message erasure uses a separate portable append-only artifact chain.
 The Channel identity and deletion boundary live only in a freshly encrypted
@@ -177,13 +151,14 @@ content-addressed segment contract.
     vectors are reused across checkpoints, while vector ID, representation
     checksum, byte size, and Slot count remain authenticated by the catalog
     page.
-15. A materialized Slot rebase uses partition-manifest version 3. An
-    independent root may bind one committed `message_baseline_cursor`
+15. A materialized Slot rebase uses the single-layer partition-manifest
+    schema. It binds the target Generation and rebase epoch plus one committed
+    `message_baseline_cursor`
     `SegmentReference`, containing a checkpoint-form `MessageCursorBatch` with
     the complete Channel index plus generation, source cut, watermark, and
     predecessor-termination proof. An empty Slot uses the same explicit
-    checkpoint envelope with an empty index. Incremental manifests reject that
-    field. Its cut also records the physical Slot ID that owns the Raft
+    checkpoint envelope with an empty index. Its cut records the physical Slot
+    ID that owns the Raft
     index space, so a retry after routing remap cannot reuse an old baseline.
     Checkpoint version 3 optionally binds the materialized partition and cursor
     proof beside the current capture heads, and freezes the current sorted
@@ -197,8 +172,8 @@ content-addressed segment contract.
     counts, Channel boundaries, a domain-separated content digest, and an
     order-sensitive message Merkle root without retaining message payloads.
 17. Retained-graph traversal authenticates a baseline cursor's signed segment
-    commit and marks both the commit and encrypted payload key, so generation
-    or restore-point GC cannot delete a live cursor representation.
+    commit and marks both the commit and encrypted payload key, so Generation
+    GC cannot delete a live cursor representation.
 18. Delete-capable repositories map provider Object Lock rejection to
     `ErrObjectLocked`. Generation GC treats it as deferred work for that
     repository, not as permission to advance past the protected version.

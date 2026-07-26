@@ -18,7 +18,7 @@ const (
 	maxChannelIndexBytes          = 256 << 20
 )
 
-// ChannelBoundary is the committed durable state of one channel at a restore point.
+// ChannelBoundary is the committed durable state of one channel at a checkpoint cut.
 type ChannelBoundary struct {
 	// ChannelID is the durable business identity.
 	ChannelID string

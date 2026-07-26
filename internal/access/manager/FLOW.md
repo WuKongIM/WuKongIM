@@ -65,15 +65,10 @@ GET  /manager/app-logs/sources (ordinary app log fixed source list; requires clu
 GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
 GET  /manager/backups/status (cluster backup health and non-secret effective policy; requires cluster.backup:r when Auth.On=true)
-GET  /manager/backups/restore-points (cursor-paged restore-point inventory; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/checkpoints (stable cursor-paged immutable checkpoint catalog; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/checkpoints/:checkpoint_id (exact immutable checkpoint summary; requires cluster.backup:r when Auth.On=true)
 POST /manager/backups/checkpoints (publish one complete current Slot-vector checkpoint; requires cluster.backup:w when Auth.On=true)
-POST /manager/backups/trigger (materialized-full operator backup; requires cluster.backup:w when Auth.On=true)
-POST /manager/backups/jobs/:job_id/cancel (exact job/epoch cancel; requires cluster.backup:w when Auth.On=true)
-POST /manager/backups/restore-points/:restore_point_id/verify (durable asynchronous audit; requires cluster.backup:w when Auth.On=true)
-POST /manager/backups/restore-points/:restore_point_id/hold (retention hold; requires cluster.backup:w when Auth.On=true)
-POST /manager/backups/restore-points/:restore_point_id/release (retention hold release; requires cluster.backup:w when Auth.On=true)
+POST /manager/backups/checkpoints/:checkpoint_id/hold (append hold/release state; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/source-fence (irreversible source-generation fence; requires an exact cluster.backup.source_fence:w grant)
 GET  /manager/restore/status (read restore progress in restore mode and immutable activated-plan identity after restart; requires cluster.backup:r when Auth.On=true)
 GET  /manager/diagnostics/trace/:trace_id (diagnostics trace aggregation; requires cluster.diagnostics:r when Auth.On=true)
@@ -538,21 +533,19 @@ configured by the `WK_MANAGER_*` auth keys.
 
 ## Backup And Restore
 
-Normal mode exposes backup status and restore-point inventory through
-`cluster.backup:r`, and trigger/cancel/verify/hold/release through
-`cluster.backup:w`. DTOs deliberately omit object keys, config fingerprints,
-credentials, Channel IDs, and plaintext. Job DTOs expose the preallocated
-`restore_point_id` so operators and black-box qualification can correlate one
-persisted job with its eventual immutable publication. Restore-point inventory
-uses an opaque newest-first keyset cursor with a default page size of 50 and a
-hard maximum of 200. Verification starts a durable asynchronous task and
-returns `202`; it does not hold the HTTP request open for the repository audit.
-The vNext checkpoint routes page and query the immutable catalog through a
-rebuildable local derived index. Responses expose bounded identities,
-timestamps, source generation, and Hash Slot count but omit segment and object
-keys. Backup status and checkpoint detail expose permanent-erasure progress only
+Normal mode exposes continuous status and the immutable checkpoint catalog
+through `cluster.backup:r`; explicit checkpoint publication uses
+`cluster.backup:w`. The catalog uses an opaque newest-first keyset cursor with
+a default page size of 50 and a hard maximum of 200, backed by a rebuildable
+local derived index. Responses expose bounded identities, timestamps, source
+generation, and Hash Slot count but omit segment, KMS, repository-copy, and
+object details. Backup status and checkpoint detail expose permanent-erasure progress only
 as Hash Slot, committed sequence, and pending state; they never expose Channel
-identity, event identity, repository keys, or digests.
+identity, event identity, repository keys, or event/segment/object digests.
+Catalog list/publication responses carry only a versioned opaque
+`catalog_head_token`; raw catalog page keys, copy selectors, and repository
+coordinates never cross the Manager boundary. Hold and release share one
+bounded checkpoint endpoint with an explicit `held` boolean.
 Backup status also exposes at most one sanitized durable capture lease per Hash
 Slot: Slot/holder identity, leader and config epochs, Generation, monotonic
 lease/frontier revisions, watermarks, takeover/update times, and the durable
@@ -562,18 +555,15 @@ observe takeover without reading node databases.
 A disabled backup still returns an explicit disabled status through the app
 facade. Backup handlers preserve stable machine error codes and use retryable
 `controller_leader_unavailable` during Controller leadership transitions.
-The Web trigger remains disabled until that status reports `enabled=true`, so
-startup configuration cannot present an action that the server will reject.
+The Web publish action remains disabled until that status reports
+`enabled=true`, so startup configuration cannot present an action that the
+server will reject.
 
-The embedded Web UI exposes `/cluster/backups` with Overview, Restore points,
-and Recovery guide tabs. It never exposes a restore mutation. Web writes are
-forced read-only when Manager authentication is disabled, even though the
-ordinary auth-disabled HTTP compatibility behavior remains unchanged. The
-recovery guide produces exact `wkcli` commands only after the operator selects
-one restore point, a valid target URL, repository, and explicit token policy;
-failed later-audit evidence suppresses copyable commands. Browser-entered
-target URLs are memory-only and exported Markdown replaces them with an
-environment-variable placeholder.
+The embedded Web UI exposes `/cluster/backups` with Overview and Checkpoints
+tabs. It never exposes restore mutation, repository selection, or cryptographic
+details. Web writes are forced read-only when Manager authentication is
+disabled, even though the ordinary auth-disabled HTTP behavior remains
+unchanged.
 
 Restore mode registers only permission discovery plus the restricted
 `/manager/restore/*` plan, start, status, verify, and activate routes; it does
@@ -587,6 +577,9 @@ the exceptional request instead carries an explicit break-glass reason. The
 authenticated Manager username is always the operator identity and cannot be
 supplied by request JSON. Activation responses expose the immutable evidence
 and the target-wide staging-cleanup completion time.
+Restore planning accepts one exact `checkpoint_id`, the opaque immutable
+catalog-head token observed with it, and token invalidation policy. Repository-copy selection stays
+inside the restore implementation and is not part of the Manager contract.
 Normal-mode source fencing is a separate irreversible operation with its own
 exact `cluster.backup.source_fence:w` permission; wildcard and ordinary backup
 write grants do not satisfy it.

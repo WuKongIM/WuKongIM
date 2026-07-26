@@ -432,7 +432,6 @@ func (s *Server) registerRoutes() {
 		backupReads.Use(s.requirePermission("cluster.backup", "r"))
 	}
 	backupReads.GET("/backups/status", s.handleBackupStatus)
-	backupReads.GET("/backups/restore-points", s.handleBackupRestorePoints)
 	backupReads.GET("/backups/checkpoints", s.handleBackupCheckpoints)
 	backupReads.GET("/backups/checkpoints/:checkpoint_id", s.handleBackupCheckpoint)
 
@@ -440,12 +439,8 @@ func (s *Server) registerRoutes() {
 	if s.auth.enabled() {
 		backupWrites.Use(s.requirePermission("cluster.backup", "w"))
 	}
-	backupWrites.POST("/backups/trigger", s.handleBackupTrigger)
 	backupWrites.POST("/backups/checkpoints", s.handleBackupCheckpointPublish)
-	backupWrites.POST("/backups/restore-points/:restore_point_id/verify", s.handleBackupVerify)
-	backupWrites.POST("/backups/jobs/:job_id/cancel", s.handleBackupCancel)
-	backupWrites.POST("/backups/restore-points/:restore_point_id/hold", s.handleBackupHold)
-	backupWrites.POST("/backups/restore-points/:restore_point_id/release", s.handleBackupRelease)
+	backupWrites.POST("/backups/checkpoints/:checkpoint_id/hold", s.handleBackupCheckpointHold)
 
 	sourceFence := s.engine.Group("/manager")
 	sourceFence.Use(s.requireExplicitPermission("cluster.backup.source_fence", "w"))

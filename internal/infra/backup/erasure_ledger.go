@@ -155,7 +155,7 @@ func (l *PermanentErasureLedger) RecordPermanentMessageErasure(ctx context.Conte
 		return ErasureLedgerReceipt{}, err
 	}
 	attemptID := strings.TrimSpace(l.newAttemptID())
-	if !safeJobID(attemptID) {
+	if !safeObjectNamespace(attemptID) {
 		return ErasureLedgerReceipt{}, fmt.Errorf("backup erasure ledger: invalid attempt id")
 	}
 	sealed, err := l.codec.Seal(ctx, backupartifact.ObjectDescriptor{

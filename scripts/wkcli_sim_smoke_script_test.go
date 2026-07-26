@@ -127,10 +127,11 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsLocalBackupPlan(t *testing.T) {
 		"backup_repository_root=" + filepath.Join(outDir, "backup-repositories"),
 		"backup_staging_root=" + filepath.Join(outDir, "backup-staging"),
 		"backup_build_tags=e2e",
-		"backup_restore_point_interval=30s",
+		"backup_checkpoint_interval=30s",
 		"backup_wait_timeout_secs=120",
 		"WUKONGIM_BACKUP_E2E_FILE_ROOT=" + filepath.Join(outDir, "backup-repositories"),
 		"WK_BACKUP_ENABLED=true",
+		"WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v1",
 		"WK_BACKUP_REPOSITORY_ID=wkcli-sim-three-node-smoke",
 		"WK_BACKUP_SOURCE_GENERATION=local-smoke-generation",
 		"--build-tags e2e",
@@ -143,7 +144,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsLocalBackupPlan(t *testing.T) {
 	}
 }
 
-func TestWkcliSimThreeNodeSmokeScriptVerifiesLocalBackupRestorePoint(t *testing.T) {
+func TestWkcliSimThreeNodeSmokeScriptPublishesLocalBackupCheckpoint(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -177,8 +178,8 @@ func TestWkcliSimThreeNodeSmokeScriptVerifiesLocalBackupRestorePoint(t *testing.
 	}
 	text := string(output)
 	for _, want := range []string{
-		"local backup dependencies ready",
-		"local backup restore point verified: rp-local-1",
+		"local backup checkpoint healthy",
+		"local backup checkpoint published: checkpoint-local-1",
 		"smoke passed",
 	} {
 		if !strings.Contains(text, want) {
@@ -204,7 +205,7 @@ func TestWkcliSimThreeNodeSmokeScriptVerifiesLocalBackupRestorePoint(t *testing.
 	for _, want := range []string{
 		"http://127.0.0.1:5311/manager/login",
 		"http://127.0.0.1:5311/manager/backups/status",
-		"http://127.0.0.1:5311/manager/backups/restore-points?limit=1",
+		"http://127.0.0.1:5311/manager/backups/checkpoints?limit=1",
 	} {
 		if !strings.Contains(curlCalls, want) {
 			t.Fatalf("curl calls missing %q:\n%s", want, curlCalls)
@@ -212,7 +213,7 @@ func TestWkcliSimThreeNodeSmokeScriptVerifiesLocalBackupRestorePoint(t *testing.
 	}
 	for _, path := range []string{
 		filepath.Join(outDir, "backup-status.json"),
-		filepath.Join(outDir, "backup-restore-points.json"),
+		filepath.Join(outDir, "backup-checkpoints.json"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected backup evidence file %s: %v", path, err)
@@ -221,9 +222,9 @@ func TestWkcliSimThreeNodeSmokeScriptVerifiesLocalBackupRestorePoint(t *testing.
 	summary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
 		"- backup_enable: true",
-		"- backup_restore_point_id: rp-local-1",
+		"- backup_checkpoint_id: checkpoint-local-1",
 		"- backup_status: backup-status.json",
-		"- backup_restore_points: backup-restore-points.json",
+		"- backup_checkpoints: backup-checkpoints.json",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("summary missing %q:\n%s", want, summary)
@@ -238,14 +239,14 @@ func TestWkcliSimThreeNodeSmokeScriptRejectsMisleadingBackupEvidence(t *testing.
 		wantError string
 	}{
 		{
-			name:      "dependency health must use named fields",
-			mode:      "dependency-decoy",
-			wantError: "local backup dependencies did not become healthy",
+			name:      "aggregate health must be healthy",
+			mode:      "health-decoy",
+			wantError: "local backup checkpoint did not become healthy",
 		},
 		{
-			name:      "repository verification must belong to newest point",
-			mode:      "cross-item-verification",
-			wantError: "local backup did not publish a new dual-repository-verified restore point",
+			name:      "newest checkpoint must have an identity",
+			mode:      "empty-checkpoint-id",
+			wantError: "local backup did not publish a new checkpoint",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -1345,13 +1346,13 @@ case "$url" in
     echo '{"username":"admin","token_type":"Bearer","access_token":"test-token","expires_in":86400,"expires_at":"2026-07-02T00:00:00Z","permissions":[{"resource":"*","actions":["*"]}]}'
     ;;
   http://127.0.0.1:5311/manager/backups/status)
-    if [[ "${WK_TEST_BACKUP_EVIDENCE_MODE-}" == "dependency-decoy" ]]; then
-      echo '{"enabled":true,"health":"healthy","dependencies":{"primary":{"health":"failed"},"secondary":{"health":"healthy"},"kms":{"health":"healthy"},"staging":{"health":"healthy"},"utc":{"health":"healthy"}},"decoy":{"health":"healthy"}}'
+    if [[ "${WK_TEST_BACKUP_EVIDENCE_MODE-}" == "health-decoy" ]]; then
+      echo '{"enabled":true,"health":"failed","checkpoint_age_seconds":1,"latest_checkpoint":{"id":"checkpoint-baseline"},"decoy":{"health":"healthy"}}'
     else
-      echo '{"enabled":true,"health":"healthy","dependencies":{"primary":{"health":"healthy"},"secondary":{"health":"healthy"},"kms":{"health":"healthy"},"staging":{"health":"healthy"},"utc":{"health":"healthy"}}}'
+      echo '{"enabled":true,"health":"healthy","checkpoint_age_seconds":1,"latest_checkpoint":{"id":"checkpoint-baseline"}}'
     fi
     ;;
-  "http://127.0.0.1:5311/manager/backups/restore-points?limit=1")
+  "http://127.0.0.1:5311/manager/backups/checkpoints?limit=1")
     backup_list_count_file="` + callsDir + `/backup-list.count"
     backup_list_count=0
     if [[ -f "$backup_list_count_file" ]]; then
@@ -1361,10 +1362,10 @@ case "$url" in
     printf '%s\n' "$backup_list_count" > "$backup_list_count_file"
     if [[ "$backup_list_count" -eq 1 ]]; then
       echo '{"items":[],"total":0}'
-    elif [[ "${WK_TEST_BACKUP_EVIDENCE_MODE-}" == "cross-item-verification" ]]; then
-      echo '{"items":[{"id":"rp-newest-unverified","kind":"incremental","primary_verified":false,"secondary_verified":false},{"id":"rp-older-verified","kind":"incremental","primary_verified":true,"secondary_verified":true}],"total":2}'
+    elif [[ "${WK_TEST_BACKUP_EVIDENCE_MODE-}" == "empty-checkpoint-id" ]]; then
+      echo '{"items":[{"id":""},{"id":"checkpoint-older"}],"total":2}'
     else
-      echo '{"items":[{"id":"rp-local-1","kind":"incremental","primary_verified":true,"secondary_verified":true}],"total":1}'
+      echo '{"items":[{"id":"checkpoint-local-1"}],"total":1}'
     fi
     ;;
   http://127.0.0.1:5311/manager/nodes/4/activate)

@@ -577,8 +577,8 @@ Manager Node Config RPC uses fixed magic headers:
 
 Manager Backup RPC uses fixed magic headers:
 
-- Request: `W K B M Q 1`
-- Response: `W K B M R 1`
+- Request: `W K B M Q 2`
+- Response: `W K B M R 2`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
@@ -644,18 +644,19 @@ Delivery push and fanout responses currently use:
 
 Manager backup control uses the separate bounded `manager backup` RPC. Any
 Manager node resolves the current Controller Leader and sends exactly one
-status, checkpoint-publication, trigger, cancel, hold, release,
-verification-start, or irreversible source-fence request to that node.
+status, checkpoint-publication, checkpoint hold/release, or irreversible
+source-fence request to that node.
 Checkpoint catalog page/detail reads remain local immutable-repository reads.
 The receiver rechecks that it is still Leader before entering the usecase.
 Leadership transitions return a retryable unavailable error; writes are never
 blindly replayed because their outcome may already be durable.
-The versioned `WKBMQ1` request and `WKBMR1` response prefixes fence the
+The versioned `WKBMQ2` request and `WKBMR2` response prefixes fence the
 strict, bounded JSON control envelope; unversioned or unknown-version payloads
 are rejected before operation dispatch.
 
 Backup RPCs carry only bounded control requests, logical cut summaries, and
-repository references. Message payload capture executes on the selected source
+opaque catalog tokens; they do not expose raw repository coordinates. Message
+payload capture executes on the selected source
 node and uploads directly to both repositories. Each message-shard response
 also returns the exact record count and greatest message ID computed from the
 same pinned snapshot, so the partition worker can publish cumulative signed
@@ -672,11 +673,11 @@ only when the local Controller mirror proves the same plan is `activating` or
 fence. It removes that attempt's plaintext subtree and settles its quota claim;
 unrelated staging is never traversed or removed.
 
-The message-shard request remains `WKVB1`; its evidence-bearing response is
-`WKVb2`. Restore install uses `WKVI2/WKVi2` because the plan/report wire shape
-contains record counts and the message-ID fence. The unchanged pairs are
-`WKVP1/WKVp1` for partitions, `WKVR1/WKVr1` for target inspection, and
-`WKVY1/WKVy1` for the superseded restore-point verifier. Decoders reject
+The materialized-baseline message-shard request remains `WKVB1`; its
+evidence-bearing response is `WKVb2`. Restore install uses `WKVI2/WKVi2`
+because the plan/report wire shape
+contains record counts and the message-ID fence. Target inspection remains
+`WKVR1/WKVr1`. Decoders reject
 unknown JSON fields, trailing bytes, invalid digests, unused action fields,
 oversized batches, and older evidence-free response/install versions.
 

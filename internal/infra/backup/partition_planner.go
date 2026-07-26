@@ -27,23 +27,15 @@ type PartitionPlanNode interface {
 	ListBackupChannelRuntimeMetaPage(context.Context, uint16, metadb.ChannelRuntimeMetaCursor, int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error)
 }
 
-// PartitionBaseResolver loads the prior signed partition reference and its
-// per-channel committed boundaries from the repository, never Controller.
-type PartitionBaseResolver interface {
-	ResolvePartitionBase(context.Context, string, uint16) (*backupartifact.PartitionReference, []backupartifact.ChannelBoundary, error)
-}
-
 // PartitionPlannerOptions configures stable logical hash-slot planning.
 type PartitionPlannerOptions struct {
 	Node PartitionPlanNode
-	Base PartitionBaseResolver
 }
 
 // PartitionPlanner derives Channel source groups only when a full metadata scan
 // is fenced by an unchanged Slot applied index.
 type PartitionPlanner struct {
 	node PartitionPlanNode
-	base PartitionBaseResolver
 }
 
 // NewPartitionPlanner creates a stable logical-partition planner.
@@ -51,24 +43,12 @@ func NewPartitionPlanner(options PartitionPlannerOptions) (*PartitionPlanner, er
 	if options.Node == nil {
 		return nil, fmt.Errorf("backup partition planner: node is required")
 	}
-	return &PartitionPlanner{node: options.Node, base: options.Base}, nil
+	return &PartitionPlanner{node: options.Node}, nil
 }
 
 // OpenPlan pins metadata, scans Channel ownership, and rejects the plan if any
 // Slot command applied while ownership was being collected.
 func (p *PartitionPlanner) OpenPlan(ctx context.Context, request runtimebackup.CaptureRequest) (runtimebackup.PartitionPlan, error) {
-	var baseReference *backupartifact.PartitionReference
-	var baseBoundaries []backupartifact.ChannelBoundary
-	if request.Kind == backupartifact.RestorePointIncremental {
-		if p.base == nil || request.BaseRestorePointID == "" {
-			return nil, fmt.Errorf("backup partition planner: incremental base is required")
-		}
-		var err error
-		baseReference, baseBoundaries, err = p.base.ResolvePartitionBase(ctx, request.BaseRestorePointID, request.HashSlot)
-		if err != nil {
-			return nil, err
-		}
-	}
 	first, err := p.node.CaptureBackupHashSlotSnapshot(ctx, request.HashSlot)
 	if err != nil {
 		return nil, err
@@ -92,7 +72,7 @@ func (p *PartitionPlanner) OpenPlan(ctx context.Context, request runtimebackup.C
 			_ = first.Reader.Close()
 		}
 	}()
-	shards, err := p.listMessageShards(ctx, request.HashSlot, baseBoundaries)
+	shards, err := p.listMessageShards(ctx, request.HashSlot, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +95,6 @@ func (p *PartitionPlanner) OpenPlan(ctx context.Context, request runtimebackup.C
 		metadata:        first.Reader,
 		metadataRecords: metadataStats.EntryCount,
 		shards:          shards,
-		base:            clonePartitionReference(baseReference),
 	}, nil
 }
 
@@ -193,7 +172,6 @@ type partitionPlan struct {
 	metadata        io.ReadCloser
 	metadataRecords uint64
 	shards          []runtimebackup.MessageShard
-	base            *backupartifact.PartitionReference
 	mu              sync.Mutex
 	opened          bool
 }
@@ -221,12 +199,6 @@ func (p *partitionPlan) MessageShards() []runtimebackup.MessageShard {
 
 func (p *partitionPlan) MetadataRecordCount() uint64 { return p.metadataRecords }
 
-func (p *partitionPlan) Base() *backupartifact.PartitionReference {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return clonePartitionReference(p.base)
-}
-
 func (p *partitionPlan) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -243,12 +215,4 @@ var _ runtimebackup.PartitionPlanner = (*PartitionPlanner)(nil)
 type channelBoundaryIdentity struct {
 	id          string
 	channelType uint8
-}
-
-func clonePartitionReference(reference *backupartifact.PartitionReference) *backupartifact.PartitionReference {
-	if reference == nil {
-		return nil
-	}
-	copy := *reference
-	return &copy
 }

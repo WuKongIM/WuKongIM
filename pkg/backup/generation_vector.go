@@ -183,7 +183,7 @@ func validateGenerationVectorGenerations(vector GenerationVector) error {
 		return ErrInvalidObject
 	}
 	for _, generation := range vector.Generations {
-		if validateRestorePointID(generation) != nil {
+		if validateBackupIdentity(generation) != nil {
 			return ErrInvalidObject
 		}
 	}

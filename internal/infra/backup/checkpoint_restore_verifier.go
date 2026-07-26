@@ -66,15 +66,15 @@ func (v *CheckpointRestoreFinalVerifier) VerifyRestore(
 	ctx context.Context,
 	plan backupusecase.RestorePlan,
 ) ([]backupusecase.RestorePartition, error) {
-	if v == nil || plan.ID == "" || plan.RestorePointID == "" ||
+	if v == nil || plan.ID == "" || plan.CheckpointID == "" ||
 		plan.TargetClusterID == "" || plan.TargetGeneration == "" ||
 		plan.HashSlotCount == 0 ||
 		len(plan.Partitions) != int(plan.HashSlotCount) ||
 		plan.CatalogProof == nil ||
 		backupartifact.ValidateCheckpointCatalogProof(*plan.CatalogProof) != nil ||
-		plan.CatalogProof.Checkpoint.ID != plan.RestorePointID ||
-		plan.CatalogProof.Checkpoint.SHA256 != plan.ManifestSHA256 ||
-		!validLowerSHA256(plan.ManifestSHA256) {
+		plan.CatalogProof.Checkpoint.ID != plan.CheckpointID ||
+		plan.CatalogProof.Checkpoint.SHA256 != plan.CheckpointSHA256 ||
+		!validLowerSHA256(plan.CheckpointSHA256) {
 		return nil, backupusecase.ErrInvalidRequest
 	}
 	snapshot, err := v.node.LocalControlSnapshot(ctx)
@@ -197,8 +197,8 @@ func (v *CheckpointRestoreFinalVerifier) verifyPartition(
 		return fmt.Errorf("current Slot replica fence changed")
 	}
 	fence := CheckpointRestoreInstallFence{
-		PlanID: plan.ID, CheckpointID: plan.RestorePointID,
-		CheckpointSHA256: plan.ManifestSHA256,
+		PlanID: plan.ID, CheckpointID: plan.CheckpointID,
+		CheckpointSHA256: plan.CheckpointSHA256,
 		TargetGeneration: plan.TargetGeneration,
 		HashSlot:         hashSlot, TargetSlotID: route.SlotID,
 		ReplicaCount: uint32(len(route.Peers)),

@@ -813,23 +813,6 @@ func (p *CatalogSegmentIntegrityAuditPlan) advancePartitionArtifact(
 		cursor, err := p.cursor(position)
 		return cursor, true, err
 	}
-	if navigation.Base != nil &&
-		!partitionAuditReferencesEqual(navigation.Base, position.PartitionStop) {
-		if position.PartitionDepth >= catalogSegmentAuditMaxPartitionDepth-1 {
-			return backupcontract.IntegrityAuditCursor{}, false, fmt.Errorf(
-				"%w: partition audit chain exceeds depth limit",
-				backupartifact.ErrObjectCorrupt,
-			)
-		}
-		position.Partition = *navigation.Base
-		position.PartitionObjectIndex = -1
-		position.PartitionDepth++
-		position.DebtObjects = saturatingAuditDebtAdd(
-			position.DebtObjects, navigation.Base.ObjectCount+1,
-		)
-		cursor, err := p.cursor(position)
-		return cursor, true, err
-	}
 	next, found, err := p.seek(
 		ctx, position, int(position.HashSlot), int(position.Stream)+1,
 	)

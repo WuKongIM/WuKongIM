@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 )
 
 const maxManifestBytes = 16 << 20
@@ -28,9 +27,18 @@ type Repository interface {
 	// Name returns a bounded operator-facing repository name.
 	Name() string
 	// PutImmutable creates key without replacing an existing object.
-	PutImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error
+	PutImmutable(
+		ctx context.Context,
+		key string,
+		size int64,
+		checksum string,
+		body io.Reader,
+	) error
 	// Open returns a streaming reader and trusted provider metadata for key.
-	Open(ctx context.Context, key string) (io.ReadCloser, RepositoryObject, error)
+	Open(
+		ctx context.Context,
+		key string,
+	) (io.ReadCloser, RepositoryObject, error)
 	// Stat returns provider metadata without opening the object body.
 	Stat(ctx context.Context, key string) (RepositoryObject, error)
 }
@@ -40,53 +48,37 @@ type Repository interface {
 // upload credentials never receive this capability implicitly.
 type RepairRepository interface {
 	Repository
-	RepairImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error
+	RepairImmutable(
+		ctx context.Context,
+		key string,
+		size int64,
+		checksum string,
+		body io.Reader,
+	) error
 }
 
-// RestorePointGraph is one authenticated signed restore point and every
-// immutable repository key reachable from it, including its publication marker
-// and top manifest.
-type RestorePointGraph struct {
-	Manifest Manifest
-	Keys     []string
-}
-
-// ReplicatedPublisher writes complete restore points to explicit primary and secondary repositories.
+// ReplicatedPublisher writes immutable payload objects to two explicit failure
+// domains. Checkpoints, catalogs, and segments own their publication protocols;
+// this helper has no checkpoint-catalog publication behavior.
 type ReplicatedPublisher struct {
 	primary   Repository
 	secondary Repository
 }
 
-// NewReplicatedPublisher creates a publisher for two explicit failure-domain copies.
-func NewReplicatedPublisher(primary, secondary Repository) *ReplicatedPublisher {
+// NewReplicatedPublisher creates a payload writer for two distinct repositories.
+func NewReplicatedPublisher(
+	primary,
+	secondary Repository,
+) *ReplicatedPublisher {
 	return &ReplicatedPublisher{primary: primary, secondary: secondary}
 }
 
-// Publish uploads and verifies every object in both repositories before exposing a signed manifest.
-func (p *ReplicatedPublisher) Publish(ctx context.Context, manifest Manifest, objects []SealedObject, signer ManifestSigner, signingKeyID string) (Manifest, error) {
-	if err := p.validateRepositories(); err != nil {
-		return Manifest{}, err
-	}
-	manifest.Signature = nil
-	if err := validateManifest(manifest, false); err != nil {
-		return Manifest{}, err
-	}
-	if len(objects) != len(manifest.Objects) {
-		return Manifest{}, fmt.Errorf("%w: sealed objects=%d manifest objects=%d", ErrInvalidManifest, len(objects), len(manifest.Objects))
-	}
-	for index := range objects {
-		if objects[index].Entry != manifest.Objects[index] {
-			return Manifest{}, fmt.Errorf("%w: sealed object[%d] metadata mismatch", ErrInvalidManifest, index)
-		}
-		if err := p.ReplicateObject(ctx, objects[index]); err != nil {
-			return Manifest{}, err
-		}
-	}
-	return p.PublishReferences(ctx, manifest, signer, signingKeyID)
-}
-
-// ReplicateObject writes and verifies one sealed immutable object in both repositories.
-func (p *ReplicatedPublisher) ReplicateObject(ctx context.Context, object SealedObject) error {
+// ReplicateObject writes and verifies one sealed immutable payload in both
+// repositories.
+func (p *ReplicatedPublisher) ReplicateObject(
+	ctx context.Context,
+	object SealedObject,
+) error {
 	if err := p.validateRepositories(); err != nil {
 		return err
 	}
@@ -96,411 +88,42 @@ func (p *ReplicatedPublisher) ReplicateObject(ctx context.Context, object Sealed
 	if err := validateSealedObject(object); err != nil {
 		return err
 	}
-	if err := putAndVerify(ctx, p.primary, object.Entry.Key, object.Entry.CiphertextSHA256, object.Ciphertext); err != nil {
-		return fmt.Errorf("%w: %s object %q: %v", ErrRepositoryIncomplete, p.primary.Name(), object.Entry.Key, err)
+	if err := putAndVerify(
+		ctx, p.primary, object.Entry.Key,
+		object.Entry.CiphertextSHA256, object.Ciphertext,
+	); err != nil {
+		return fmt.Errorf(
+			"%w: %s object %q: %v",
+			ErrRepositoryIncomplete, p.primary.Name(), object.Entry.Key, err,
+		)
 	}
-	if err := putAndVerify(ctx, p.secondary, object.Entry.Key, object.Entry.CiphertextSHA256, object.Ciphertext); err != nil {
-		return fmt.Errorf("%w: %s object %q: %v", ErrRepositoryIncomplete, p.secondary.Name(), object.Entry.Key, err)
-	}
-	return nil
-}
-
-// PublishReferences verifies existing copies before exposing a signed top-level manifest.
-func (p *ReplicatedPublisher) PublishReferences(ctx context.Context, manifest Manifest, signer ManifestSigner, signingKeyID string) (Manifest, error) {
-	if err := p.validateRepositories(); err != nil {
-		return Manifest{}, err
-	}
-	manifest.Signature = nil
-	if err := validateManifest(manifest, false); err != nil {
-		return Manifest{}, err
-	}
-	for _, entry := range manifest.Objects {
-		if err := verifyRepositoryObject(ctx, p.primary, entry); err != nil {
-			return Manifest{}, fmt.Errorf("%w: %s object %q: %v", ErrRepositoryIncomplete, p.primary.Name(), entry.Key, err)
-		}
-		if err := verifyRepositoryObject(ctx, p.secondary, entry); err != nil {
-			return Manifest{}, fmt.Errorf("%w: %s object %q: %v", ErrRepositoryIncomplete, p.secondary.Name(), entry.Key, err)
-		}
-	}
-	for _, reference := range manifest.Partitions {
-		if err := verifyPartitionReferenceGraph(ctx, p.primary, reference, signer); err != nil {
-			return Manifest{}, fmt.Errorf("%w: %s partition %q: %v", ErrRepositoryIncomplete, p.primary.Name(), reference.Key, err)
-		}
-		if err := verifyPartitionReferenceGraph(ctx, p.secondary, reference, signer); err != nil {
-			return Manifest{}, fmt.Errorf("%w: %s partition %q: %v", ErrRepositoryIncomplete, p.secondary.Name(), reference.Key, err)
-		}
-	}
-	key := restorePointManifestKey(manifest.RestorePointID)
-	existingPrimaryBody, existingPrimary, primaryFound, err := loadPublishedManifest(ctx, p.primary, key, signer)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("%w: %s manifest retry: %v", ErrRepositoryIncomplete, p.primary.Name(), err)
-	}
-	existingSecondaryBody, existingSecondary, secondaryFound, err := loadPublishedManifest(ctx, p.secondary, key, signer)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("%w: %s manifest retry: %v", ErrRepositoryIncomplete, p.secondary.Name(), err)
-	}
-	var signed Manifest
-	var body []byte
-	if primaryFound || secondaryFound {
-		body = existingPrimaryBody
-		signed = existingPrimary
-		if !primaryFound {
-			body = existingSecondaryBody
-			signed = existingSecondary
-		}
-		if primaryFound && secondaryFound && !bytes.Equal(existingPrimaryBody, existingSecondaryBody) {
-			return Manifest{}, fmt.Errorf("%w: replicated manifests disagree", ErrRepositoryIncomplete)
-		}
-		candidate := manifest
-		candidate.CreatedAtUnixMillis = signed.CreatedAtUnixMillis
-		// The first authenticated manifest persisted under a restore-point key
-		// freezes that restore point's permanent-erasure prefix. A retry may
-		// observe newer stream heads while repairing the other repository or
-		// the publication marker, but it must adopt the already-frozen heads
-		// instead of trying to redefine the immutable restore point.
-		candidate.ErasureHeads = append([]ErasureStreamHead(nil), signed.ErasureHeads...)
-		candidateCanonical, err := canonicalUnsignedManifest(candidate)
-		if err != nil {
-			return Manifest{}, err
-		}
-		existingCanonical, err := canonicalUnsignedManifest(signed)
-		if err != nil {
-			return Manifest{}, err
-		}
-		if !bytes.Equal(candidateCanonical, existingCanonical) {
-			return Manifest{}, fmt.Errorf("%w: existing restore point manifest does not match retry", ErrInvalidManifest)
-		}
-	} else {
-		signed, err = SignManifest(ctx, manifest, signer, signingKeyID)
-		if err != nil {
-			return Manifest{}, err
-		}
-		body, err = MarshalManifest(signed)
-		if err != nil {
-			return Manifest{}, err
-		}
-	}
-	hash := sha256.Sum256(body)
-	checksum := hex.EncodeToString(hash[:])
-	if !secondaryFound {
-		if err := putAndVerify(ctx, p.secondary, key, checksum, body); err != nil {
-			return Manifest{}, fmt.Errorf("%w: %s manifest: %v", ErrRepositoryIncomplete, p.secondary.Name(), err)
-		}
-	}
-	if !primaryFound {
-		if err := putAndVerify(ctx, p.primary, key, checksum, body); err != nil {
-			return Manifest{}, fmt.Errorf("%w: %s manifest: %v", ErrRepositoryIncomplete, p.primary.Name(), err)
-		}
-	}
-	if err := p.publishPublication(ctx, signed, checksum, signer, signingKeyID); err != nil {
-		return Manifest{}, err
-	}
-	return signed, nil
-}
-
-func (p *ReplicatedPublisher) publishPublication(ctx context.Context, manifest Manifest, manifestChecksum string, signer ManifestSigner, signingKeyID string) error {
-	candidate := restorePointPublication{
-		Format: restorePointPublicationFormat, Version: restorePointPublicationVersion,
-		RestorePointID: manifest.RestorePointID, ManifestKey: restorePointManifestKey(manifest.RestorePointID), ManifestSHA256: manifestChecksum,
-		PrimaryRepository: p.primary.Name(), SecondaryRepository: p.secondary.Name(),
-	}
-	key := restorePointPublicationKey(manifest.RestorePointID)
-	primaryBody, primaryPublication, primaryFound, err := loadPublishedPublication(ctx, p.primary, manifest.RestorePointID, signer)
-	if err != nil {
-		return fmt.Errorf("%w: %s publication retry: %v", ErrRepositoryIncomplete, p.primary.Name(), err)
-	}
-	secondaryBody, secondaryPublication, secondaryFound, err := loadPublishedPublication(ctx, p.secondary, manifest.RestorePointID, signer)
-	if err != nil {
-		return fmt.Errorf("%w: %s publication retry: %v", ErrRepositoryIncomplete, p.secondary.Name(), err)
-	}
-	var body []byte
-	if primaryFound || secondaryFound {
-		body = primaryBody
-		existing := primaryPublication
-		if !primaryFound {
-			body = secondaryBody
-			existing = secondaryPublication
-		}
-		if primaryFound && secondaryFound && !bytes.Equal(primaryBody, secondaryBody) {
-			return fmt.Errorf("%w: replicated publication records disagree", ErrRepositoryIncomplete)
-		}
-		candidateCanonical, err := canonicalRestorePointPublication(candidate)
-		if err != nil {
-			return err
-		}
-		existingCanonical, err := canonicalRestorePointPublication(existing)
-		if err != nil {
-			return err
-		}
-		if !bytes.Equal(candidateCanonical, existingCanonical) {
-			return fmt.Errorf("%w: existing publication record does not match retry", ErrInvalidManifest)
-		}
-	} else {
-		signed, err := signRestorePointPublication(ctx, candidate, signer, signingKeyID)
-		if err != nil {
-			return err
-		}
-		body, err = marshalRestorePointPublication(signed)
-		if err != nil {
-			return err
-		}
-	}
-	hash := sha256.Sum256(body)
-	checksum := hex.EncodeToString(hash[:])
-	if !secondaryFound {
-		if err := putAndVerify(ctx, p.secondary, key, checksum, body); err != nil {
-			return fmt.Errorf("%w: %s publication: %v", ErrRepositoryIncomplete, p.secondary.Name(), err)
-		}
-	}
-	if !primaryFound {
-		if err := putAndVerify(ctx, p.primary, key, checksum, body); err != nil {
-			return fmt.Errorf("%w: %s publication: %v", ErrRepositoryIncomplete, p.primary.Name(), err)
-		}
+	if err := putAndVerify(
+		ctx, p.secondary, object.Entry.Key,
+		object.Entry.CiphertextSHA256, object.Ciphertext,
+	); err != nil {
+		return fmt.Errorf(
+			"%w: %s object %q: %v",
+			ErrRepositoryIncomplete, p.secondary.Name(), object.Entry.Key, err,
+		)
 	}
 	return nil
-}
-
-func loadPublishedPublication(ctx context.Context, repository Repository, restorePointID string, signer ManifestSigner) ([]byte, restorePointPublication, bool, error) {
-	body, publication, err := loadRestorePointPublication(ctx, repository, restorePointID, signer)
-	if errors.Is(err, ErrObjectNotFound) {
-		return nil, restorePointPublication{}, false, nil
-	}
-	if err != nil {
-		return nil, restorePointPublication{}, false, err
-	}
-	return body, publication, true, nil
-}
-
-func loadPublishedManifest(ctx context.Context, repository Repository, key string, signer ManifestSigner) ([]byte, Manifest, bool, error) {
-	reader, object, err := repository.Open(ctx, key)
-	if errors.Is(err, ErrObjectNotFound) {
-		return nil, Manifest{}, false, nil
-	}
-	if err != nil {
-		return nil, Manifest{}, false, err
-	}
-	defer reader.Close()
-	body, err := io.ReadAll(io.LimitReader(reader, maxManifestBytes+1))
-	if err != nil {
-		return nil, Manifest{}, false, err
-	}
-	if len(body) > maxManifestBytes || object.Key != key || object.Size != int64(len(body)) {
-		return nil, Manifest{}, false, fmt.Errorf("manifest object metadata mismatch")
-	}
-	hash := sha256.Sum256(body)
-	if object.SHA256 != hex.EncodeToString(hash[:]) {
-		return nil, Manifest{}, false, fmt.Errorf("manifest checksum mismatch")
-	}
-	manifest, err := LoadManifest(ctx, body, signer)
-	if err != nil {
-		return nil, Manifest{}, false, err
-	}
-	return body, manifest, true, nil
 }
 
 func (p *ReplicatedPublisher) validateRepositories() error {
 	if p == nil || p.primary == nil || p.secondary == nil {
-		return fmt.Errorf("%w: primary and secondary repositories are required", ErrRepositoryIncomplete)
-	}
-	if p.primary.Name() == "" || p.secondary.Name() == "" || p.primary.Name() == p.secondary.Name() {
-		return fmt.Errorf("%w: repositories must have distinct names", ErrRepositoryIncomplete)
-	}
-	return nil
-}
-
-func verifyRepositoryObject(ctx context.Context, repository Repository, entry ObjectEntry) error {
-	stored, err := repository.Stat(ctx, entry.Key)
-	if err != nil {
-		return err
-	}
-	if stored.Key != entry.Key || stored.Size != entry.CiphertextBytes || stored.SHA256 != entry.CiphertextSHA256 {
-		return fmt.Errorf("repository verification mismatch")
-	}
-	return nil
-}
-
-func verifyPartitionReferenceGraph(ctx context.Context, repository Repository, reference PartitionReference, signer ManifestSigner) error {
-	return loadAndVerifyPartitionChain(
-		ctx, repository, reference, signer,
-		make(map[string]struct{}), make(map[string]struct{}), 0,
-	)
-}
-
-// LoadRestorePoint loads and verifies a signed manifest and every referenced object in repository.
-func LoadRestorePoint(ctx context.Context, repository Repository, restorePointID string, signer ManifestSigner) (Manifest, error) {
-	graph, err := LoadRestorePointGraph(ctx, repository, restorePointID, signer)
-	return graph.Manifest, err
-}
-
-// LoadRestorePointGraph verifies one restore point and returns its complete,
-// sorted immutable reference graph for fail-closed garbage collection.
-func LoadRestorePointGraph(ctx context.Context, repository Repository, restorePointID string, signer ManifestSigner) (RestorePointGraph, error) {
-	if repository == nil || signer == nil {
-		return RestorePointGraph{}, fmt.Errorf("%w: repository and signer are required", ErrRepositoryIncomplete)
-	}
-	if err := validateRestorePointID(restorePointID); err != nil {
-		return RestorePointGraph{}, fmt.Errorf("%w: %v", ErrInvalidManifest, err)
-	}
-	_, publication, err := loadRestorePointPublication(ctx, repository, restorePointID, signer)
-	if err != nil {
-		return RestorePointGraph{}, fmt.Errorf("%w: %s publication: %w", ErrRepositoryIncomplete, repository.Name(), err)
-	}
-	publicationKey := restorePointPublicationKey(restorePointID)
-	key := publication.ManifestKey
-	reader, object, err := repository.Open(ctx, key)
-	if err != nil {
-		return RestorePointGraph{}, fmt.Errorf("%w: %s manifest: %v", ErrRepositoryIncomplete, repository.Name(), err)
-	}
-	defer reader.Close()
-	body, err := io.ReadAll(io.LimitReader(reader, maxManifestBytes+1))
-	if err != nil {
-		return RestorePointGraph{}, fmt.Errorf("%w: read manifest: %v", ErrRepositoryIncomplete, err)
-	}
-	if len(body) > maxManifestBytes || object.Key != key || object.Size != int64(len(body)) {
-		return RestorePointGraph{}, fmt.Errorf("%w: manifest object metadata mismatch", ErrRepositoryIncomplete)
-	}
-	hash := sha256.Sum256(body)
-	if object.SHA256 != hex.EncodeToString(hash[:]) || object.SHA256 != publication.ManifestSHA256 {
-		return RestorePointGraph{}, fmt.Errorf("%w: manifest checksum mismatch", ErrRepositoryIncomplete)
-	}
-	manifest, err := LoadManifest(ctx, body, signer)
-	if err != nil {
-		return RestorePointGraph{}, err
-	}
-	if manifest.RestorePointID != restorePointID {
-		return RestorePointGraph{}, fmt.Errorf("%w: manifest restore point id mismatch", ErrInvalidManifest)
-	}
-	references := map[string]struct{}{key: {}, publicationKey: {}}
-	for _, entry := range manifest.Objects {
-		stored, err := repository.Stat(ctx, entry.Key)
-		if err != nil {
-			return RestorePointGraph{}, fmt.Errorf("%w: %s object %q: %v", ErrRepositoryIncomplete, repository.Name(), entry.Key, err)
-		}
-		if stored.Key != entry.Key || stored.Size != entry.CiphertextBytes || stored.SHA256 != entry.CiphertextSHA256 {
-			return RestorePointGraph{}, fmt.Errorf("%w: %s object %q verification mismatch", ErrRepositoryIncomplete, repository.Name(), entry.Key)
-		}
-		references[entry.Key] = struct{}{}
-	}
-	visited := make(map[string]struct{})
-	for _, reference := range manifest.Partitions {
-		if err := loadAndVerifyPartitionChain(ctx, repository, reference, signer, visited, references, 0); err != nil {
-			return RestorePointGraph{}, err
-		}
-	}
-	keys := make([]string, 0, len(references))
-	for reference := range references {
-		keys = append(keys, reference)
-	}
-	sort.Strings(keys)
-	return RestorePointGraph{Manifest: manifest, Keys: keys}, nil
-}
-
-const maxPartitionChainDepth = 10_000
-
-func loadAndVerifyPartitionChain(ctx context.Context, repository Repository, reference PartitionReference, signer ManifestSigner, visited, references map[string]struct{}, depth int) error {
-	if depth >= maxPartitionChainDepth {
-		return fmt.Errorf("%w: partition chain exceeds limit", ErrInvalidManifest)
-	}
-	identity := fmt.Sprintf("%d:%s:%s", reference.HashSlot, reference.Key, reference.SHA256)
-	if _, ok := visited[identity]; ok {
-		return nil
-	}
-	visited[identity] = struct{}{}
-	references[reference.Key] = struct{}{}
-	reader, object, err := repository.Open(ctx, reference.Key)
-	if err != nil {
-		return fmt.Errorf("%w: %s partition %q: %v", ErrRepositoryIncomplete, repository.Name(), reference.Key, err)
-	}
-	body, readErr := io.ReadAll(io.LimitReader(reader, maxManifestBytes+1))
-	closeErr := reader.Close()
-	if readErr != nil {
-		return fmt.Errorf("%w: read partition %q: %v", ErrRepositoryIncomplete, reference.Key, readErr)
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	hash := sha256.Sum256(body)
-	if len(body) > maxManifestBytes || object.Key != reference.Key || object.Size != reference.Bytes || object.SHA256 != reference.SHA256 || hex.EncodeToString(hash[:]) != reference.SHA256 {
-		return fmt.Errorf("%w: partition %q metadata mismatch", ErrRepositoryIncomplete, reference.Key)
-	}
-	partition, err := LoadPartitionManifest(body)
-	if err != nil {
-		return err
-	}
-	if partition.Cut.HashSlot != reference.HashSlot || uint64(len(partition.Objects)) != reference.ObjectCount || partition.Evidence != reference.Evidence {
-		return fmt.Errorf("%w: partition %q summary mismatch", ErrInvalidManifest, reference.Key)
-	}
-	var ciphertextBytes uint64
-	for _, entry := range partition.Objects {
-		ciphertextBytes += uint64(entry.CiphertextBytes)
-		if err := verifyRepositoryObject(ctx, repository, entry); err != nil {
-			return fmt.Errorf("%w: %s object %q: %v", ErrRepositoryIncomplete, repository.Name(), entry.Key, err)
-		}
-		references[entry.Key] = struct{}{}
-	}
-	if ciphertextBytes != reference.CiphertextBytes {
-		return fmt.Errorf("%w: partition %q byte summary mismatch", ErrInvalidManifest, reference.Key)
-	}
-	if partition.BaselineCursor != nil {
-		commit, err := loadAndVerifyReferencedSegment(
-			ctx, repository, signer, *partition.BaselineCursor,
+		return fmt.Errorf(
+			"%w: primary and secondary repositories are required",
+			ErrRepositoryIncomplete,
 		)
-		if err != nil {
-			return fmt.Errorf("%w: %s baseline cursor %q: %v", ErrRepositoryIncomplete, repository.Name(), partition.BaselineCursor.CommitKey, err)
-		}
-		if commit.Header.Logical.Generation != partition.JobID ||
-			commit.Header.Logical.HashSlot != partition.Cut.HashSlot ||
-			commit.Header.Logical.Stream != SegmentStreamMessageBaselineCursor ||
-			commit.Header.Logical.Sequence != 1 {
-			return fmt.Errorf("%w: baseline cursor %q identity mismatch", ErrInvalidManifest, partition.BaselineCursor.CommitKey)
-		}
-		references[partition.BaselineCursor.CommitKey] = struct{}{}
-		references[commit.Payload.Key] = struct{}{}
 	}
-	if partition.Base != nil {
-		return loadAndVerifyPartitionChain(ctx, repository, *partition.Base, signer, visited, references, depth+1)
+	if p.primary.Name() == "" || p.secondary.Name() == "" ||
+		p.primary.Name() == p.secondary.Name() {
+		return fmt.Errorf(
+			"%w: repositories must have distinct names",
+			ErrRepositoryIncomplete,
+		)
 	}
 	return nil
-}
-
-func loadAndVerifyReferencedSegment(
-	ctx context.Context,
-	repository Repository,
-	signer ManifestSigner,
-	reference SegmentReference,
-) (SegmentCommit, error) {
-	reader, object, err := repository.Open(ctx, reference.CommitKey)
-	if err != nil {
-		return SegmentCommit{}, err
-	}
-	body, readErr := io.ReadAll(io.LimitReader(reader, maxSegmentCommitBytes+1))
-	closeErr := reader.Close()
-	if readErr != nil {
-		return SegmentCommit{}, readErr
-	}
-	if closeErr != nil {
-		return SegmentCommit{}, closeErr
-	}
-	hash := sha256.Sum256(body)
-	if len(body) > maxSegmentCommitBytes ||
-		object.Key != reference.CommitKey ||
-		object.Size != int64(len(body)) ||
-		object.SHA256 != reference.CommitSHA256 ||
-		hex.EncodeToString(hash[:]) != reference.CommitSHA256 {
-		return SegmentCommit{}, fmt.Errorf("%w: segment commit metadata mismatch", ErrObjectCorrupt)
-	}
-	commit, err := LoadSegmentCommit(ctx, body, signer)
-	if err != nil {
-		return SegmentCommit{}, err
-	}
-	if commit.SegmentID != reference.SegmentID ||
-		commit.Header.PlaintextBytes != reference.PlaintextBytes {
-		return SegmentCommit{}, fmt.Errorf("%w: segment reference identity mismatch", ErrObjectCorrupt)
-	}
-	if err := verifySegmentPayloadObject(ctx, repository, commit.Payload); err != nil {
-		return SegmentCommit{}, err
-	}
-	return commit, nil
 }
 
 func validateSealedObject(object SealedObject) error {
@@ -514,8 +137,16 @@ func validateSealedObject(object SealedObject) error {
 	return nil
 }
 
-func putAndVerify(ctx context.Context, repository Repository, key, checksum string, body []byte) error {
-	err := repository.PutImmutable(ctx, key, int64(len(body)), checksum, bytes.NewReader(body))
+func putAndVerify(
+	ctx context.Context,
+	repository Repository,
+	key,
+	checksum string,
+	body []byte,
+) error {
+	err := repository.PutImmutable(
+		ctx, key, int64(len(body)), checksum, bytes.NewReader(body),
+	)
 	if err != nil && !errors.Is(err, ErrObjectExists) {
 		return err
 	}
@@ -523,12 +154,9 @@ func putAndVerify(ctx context.Context, repository Repository, key, checksum stri
 	if err != nil {
 		return err
 	}
-	if object.Key != key || object.Size != int64(len(body)) || object.SHA256 != checksum {
+	if object.Key != key || object.Size != int64(len(body)) ||
+		object.SHA256 != checksum {
 		return fmt.Errorf("repository verification mismatch")
 	}
 	return nil
-}
-
-func restorePointManifestKey(restorePointID string) string {
-	return "restore-points/" + restorePointID + "/manifest.json"
 }

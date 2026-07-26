@@ -24,9 +24,6 @@ backup usecase CompareAndSwap
 Large manifests, encrypted chunks, KMS data keys, and repository credentials
 must never be stored in Controller state. A Controller revision mismatch maps to
 `backup.ErrStateConflict` so the use case can reload and retry.
-The bounded mapping includes one verification task and each retained restore
-point's latest audit evidence, allowing a new Controller Leader to resume the
-task without treating node-local metrics as authority.
 
 `ControllerSlotFrontierStore` updates one sorted per-Hash-Slot record inside
 the same bounded state. It first requires a complete local Slot Leader identity
@@ -37,8 +34,8 @@ lease sequence while preserving both stream heads. Final commits revalidate
 current authority plus exact lease and frontier revision after repository
 uploads. The store retries
 unrelated global Controller revision conflicts from a fresh snapshot, and
-therefore never overwrites concurrent checkpoint, verification, retention, or
-erasure coordination.
+therefore never overwrites concurrent checkpoint, integrity-audit, Generation
+GC, or erasure coordination.
 
 Generation promotion is a separate lease-fenced CAS. It accepts only the
 durably recorded pending target, keeps Slot authority and lease sequence
@@ -52,9 +49,9 @@ logical command appears.
 
 `ControllerIntegrityAuditStateStore` persists its own audit revision while
 preserving unrelated Controller fields. It also maintains a narrow sorted
-audit projection. Production composition in #648 must publish locally applied
-Controller snapshots once per interval into the same store instance consumed
-by capture and GC; the per-Slot capture hot path then performs only an
+audit projection. Production composition publishes locally applied Controller
+snapshots on every node once per interval into the same store instance consumed by capture
+and GC; the per-Slot capture hot path then performs only an
 in-memory binary search instead of
 rebuilding all backup coordination state. Frozen entries refresh on access,
 and an atomic frontier CAS that observes a newer remote freeze forces a cache
@@ -65,7 +62,10 @@ record, rather than a process mutex, preserves ordering across Leader changes.
 Generation GC also rebuilds the exact sparse selection from any unfinished
 audit cursor and unions those checkpoint vectors into its mark set. Each delete
 guard acquisition presents the audit cycle whose selection was marked and
-atomically compares it with the current durable cursor. The guard itself stores
+the fixed `CatalogRetentionRevision`, and atomically compares both with current
+durable state. Hold/release refuses to advance while a live guard exists; a
+hold that wins first changes the revision and prevents the stale delete from
+starting. The guard itself stores
 only Slot, token, and safety lease; while it exists, audit CAS refuses to start
 a different cycle. Retention bucket changes, hold release, active-restore
 completion, and Controller Leader changes therefore cannot delete a Generation
@@ -208,10 +208,10 @@ physical minimum before returning aggregate bytes, and
 lease replacement first removes the old exact record, so route movement and
 Leader transfer cannot strand a floor.
 
-A materialized rebase reuses `DistributedWorker` with an independent-full
-request. It commits the complete `message_baseline_cursor` Channel index before
-the immutable partition manifest. The manifest binds that cursor only when it
-has no incremental base. Retry loads the same dual-repository immutable
+A materialized rebase reuses `DistributedWorker` with a Generation- and
+rebase-epoch-fenced request. It commits the complete
+`message_baseline_cursor` Channel index before the immutable single-layer
+partition manifest. Retry loads the same replicated immutable
 manifest instead of recapturing or changing the pending Generation.
 A cut hook installs the replacement source floor immediately after the stable
 physical cut is opened, preventing compaction from overtaking repository
@@ -222,10 +222,10 @@ manifest forever.
 The runtime owns the pure pending-work and first-sequence rules. This package
 only converts cluster routing/boundary DTOs and performs repository adaptation.
 
-`Doctor.Check` reports primary repository, secondary repository, KMS, staging,
-and UTC-clock readiness individually with a bounded first-failure category.
-Manager status may expose those health buckets and configured regions, but
-never endpoint, bucket, prefix, role ARN, key ID, or fingerprint values.
+`Doctor.Check` evaluates repository, signing/encryption, staging, and UTC-clock
+readiness internally and returns only aggregate health plus one bounded
+first-failure category. Manager status never exposes individual repository
+copies, regions, endpoint, bucket, prefix, role ARN, key ID, or fingerprints.
 
 S3 ordinary upload remains create-only through `S3Repository`.
 `S3RepairRepository` is constructed separately with an explicit auditor
@@ -233,6 +233,15 @@ AssumeRole client and is the only S3 adapter exposing replacement-by-new-
 Object-Locked-version. Generation GC lists exact versions and deletes as many
 as the current request budget permits; it keeps the same key cursor and
 continues remaining repair versions on later calls.
+Production composition constructs repair and garbage clients from four
+separately configured role ARNs, wires replicated segment/catalog repair,
+durable catalog audit, all-node projection, and Leader-only Generation
+collection. An unfinished per-repository cursor keeps the same deterministic
+cycle across time windows and Controller Leader changes; a hold/release
+revision starts a new cycle from the beginning. Automatic backup and explicit
+restore mode are mutually exclusive, so an operator must hold the selected
+checkpoint before stopping the source for a restore drill and may release it
+only after the drill no longer needs that cut.
 
 ## File Repository
 
@@ -243,29 +252,12 @@ replaced. Reads reject symlinks and paths outside the configured root.
 
 `ChunkReplicator` bounds plaintext memory, compresses before encryption, gives
 every chunk a fresh envelope data key, and verifies each immutable object in
-both repositories before returning its manifest reference. Every stream attempt
-also gets a fresh immutable key namespace nested below `objects/<jobID>/`, so a
-retry never collides with different randomized ciphertext from a partial
-attempt while active-job garbage-collection protection still matches every
-attempt. A failed stream may leave unreachable immutable chunks, but it cannot
-expose a restore point.
-
-Partition and top-level manifest publication are retryable without overwrites.
-The top-level manifest is first staged and verified in both repositories, then
-a separately signed publication marker makes it discoverable. If only one
-repository accepted an immutable manifest or marker, the retry authenticates
-the existing exact bytes, repairs the missing copy, and reuses the original
-signature/report instead of generating a conflicting object for the fixed key.
-The first persisted signed manifest freezes the restore point's erasure heads;
-a retry that observes newer heads adopts the frozen values while requiring all
-other job, cut, and partition fields to match before repairing missing copies.
-
-The Controller-side `RestorePointPublisher` reloads every partition manifest
-from both repositories, compares the exact bytes and job/cut summaries, stats
-the complete recursive base-to-tip object graph in both repositories, copies
-the authenticated cumulative record counts and message-ID fence into the
-signed top-level partition reference, then publishes the manifest. It never
-trusts a node report as proof that repository data exists.
+both repositories before returning its manifest reference. Every materialized
+attempt gets an immutable namespace below `objects/<generation>/`; retries
+authenticate the same fixed single-layer manifest and repair a missing copy
+without recapturing source rows. Failed attempts may leave unreachable
+immutable chunks, but they cannot enter a checkpoint and are later eligible
+for Generation GC.
 
 `PartitionPlanner` first obtains a Slot snapshot whose commit and durable apply
 indexes match, then pages Channel runtime metadata directly into compact
@@ -276,31 +268,7 @@ and message payload bytes remain streaming.
 
 ## Restore And Retention
 
-Restore inspection authenticates both repository copies, requires matching
-manifest bytes and identities, authenticates every current per-Hash-Slot
-permanent-erasure stream in both repositories, and pins its version, sorted
-heads, total event count, and SHA-256. Current heads must dominate the heads
-frozen by the selected manifest. Inspection then asks every current target node
-for semantic storage emptiness before
-persisting a plan. The ledger pin is current even when the operator deliberately
-selects an older restore point, so deletion cannot be undone through rollback.
-Installation resolves each hash
-slot through the successor `HashSlotTable` and installs its encrypted objects
-only on that physical Slot's `DesiredPeers`, with at most eight node installs
-in flight per partition. Unrelated cluster members never receive a full copy
-of the partition. The latest authenticated Channel index also rebuilds
-`ChannelRuntimeMeta` on those target Slot replicas in batches of at most 4096:
-Channel epoch and retention floor come from the durable cut, while leader,
-replicas, ISR, and MinISR are derived from the successor Slot replica
-candidates. Source runtime placement is never restored. Installation
-independently recomputes metadata records, message rows, and maximum message
-ID. Final verification compares them with the signed partition evidence, then
-checks every authenticated Channel sequence cut, rebuilt target runtime
-metadata, and the post-transform canonical metadata SHA-256 on the same target
-Slot replicas. The configured staging-byte ceiling is shared by all concurrent
-partition streams on one node, not multiplied per stream.
-
-The checkpoint restore importer is the replacement installation path. Admission
+The checkpoint restore importer is the only installation path. Admission
 proves target emptiness, walks both repository copies of the signed hash-linked
 catalog from the operator-supplied immutable head to the exact checkpoint,
 authenticates every reachable baseline/segment/cursor envelope and payload
@@ -310,7 +278,7 @@ each Hash Slot only to its current target
 Leader under the durable `(Slot ID, Leader term, config epoch, attempt)` fence.
 That Leader revalidates the selected catalog copy, downloads and decrypts each
 segment once into a shared-budget `0600` staging file, replays baseline and
-incremental records chronologically, and computes content, typed-count,
+ordered continuous segment records chronologically, and computes content, typed-count,
 Channel-boundary, and message-Merkle evidence during the same pass. Finalize is
 the only operation that makes the disposable install durable: it first applies
 the pinned erasure boundaries, exports one authenticated plaintext target
@@ -385,19 +353,6 @@ bounded physical prefix deletion plus checkpoint/LEO fences on every successor
 Slot replica, and only then installs reconstructed runtime metadata. Channels
 present only in the ledger still receive a sequence fence so erased sequence
 numbers cannot be reused.
-
-Retention first moves expired Controller references into `PendingGarbage`.
-The garbage collector authenticates every retained graph in both repositories,
-authenticates and marks every committed ledger event/record/commit/receipt
-object, and also authenticates and marks every Controller-referenced pending
-Slot event so failover can resume after the grace period. It protects active job
-prefixes and deletes only exact old unreachable versions through separate
-garbage-collector credentials that retain the signed logical repository names.
-For every retained restore point from another source generation, collection
-loads that manifest's lineage-specific ledger, verifies the frozen heads are
-exact commits in its current prefix, and marks the whole lineage before sweep.
-Unreferenced uncommitted ledger orphans remain eligible for age-gated
-collection; no broad prefix is permanently exempted.
 
 The continuous path collects at Generation granularity. Its protection set is
 built from authenticated retained checkpoints, operator-held checkpoints, the

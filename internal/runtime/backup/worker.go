@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 
-	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
@@ -27,18 +26,37 @@ type StreamDescriptor = backupartifact.StreamDescriptor
 
 // CaptureRequest fences one node-local logical partition capture.
 type CaptureRequest struct {
-	// JobID identifies the active cluster backup job.
-	JobID string
-	// BackupEpoch fences reports from older job incarnations.
-	BackupEpoch uint64
+	// Generation identifies the continuous-capture generation being rebased.
+	Generation string
+	// RebaseEpoch fences reports from older generation-rebase attempts.
+	RebaseEpoch uint64
 	// HashSlot identifies the required logical partition.
 	HashSlot uint16
 	// ConfigFingerprint proves non-secret backup configuration agreement.
 	ConfigFingerprint string
-	// Kind identifies whether this layer is incremental, synthetic, or materialized.
-	Kind backupartifact.RestorePointKind
-	// BaseRestorePointID identifies the signed point used for an incremental layer.
-	BaseRestorePointID string
+}
+
+// MaterializedPartitionReport authenticates one completed rebase baseline.
+// It is node-RPC evidence only and is never persisted as Controller task state.
+type MaterializedPartitionReport struct {
+	// Generation identifies the completed replacement Generation.
+	Generation string
+	// RebaseEpoch fences the completed immutable rebase attempt.
+	RebaseEpoch uint64
+	// HashSlot identifies the independently replaced logical partition.
+	HashSlot uint16
+	// RaftIndex is the exact committed source cut represented by the baseline.
+	RaftIndex uint64
+	// CommittedAtUnixMillis is the source cut's durable commit time.
+	CommittedAtUnixMillis int64
+	// ManifestKey is the immutable portable manifest object key.
+	ManifestKey string
+	// ManifestSHA256 authenticates the immutable manifest bytes.
+	ManifestSHA256 string
+	// ObjectCount is the bounded number of encrypted baseline objects.
+	ObjectCount uint64
+	// CiphertextBytes is the total encrypted baseline size.
+	CiphertextBytes uint64
 }
 
 // PartitionSource opens one consistency- and retention-pinned logical partition view.
@@ -101,72 +119,77 @@ func NewWorker(options WorkerOptions) (*Worker, error) {
 }
 
 // Capture replicates both streams and publishes one partition manifest and bounded report.
-func (w *Worker) Capture(ctx context.Context, request CaptureRequest) (backupcontract.PartitionReport, error) {
-	if strings.TrimSpace(request.JobID) == "" || request.BackupEpoch == 0 || !validFingerprint(request.ConfigFingerprint) {
-		return backupcontract.PartitionReport{}, ErrInvalidCapture
+func (w *Worker) Capture(ctx context.Context, request CaptureRequest) (MaterializedPartitionReport, error) {
+	if strings.TrimSpace(request.Generation) == "" ||
+		request.RebaseEpoch == 0 ||
+		!validFingerprint(request.ConfigFingerprint) {
+		return MaterializedPartitionReport{}, ErrInvalidCapture
 	}
 	if report, ok, err := loadExistingPartitionReport(ctx, w.manifests, request); err != nil {
-		return backupcontract.PartitionReport{}, err
+		return MaterializedPartitionReport{}, err
 	} else if ok {
 		return report, nil
 	}
 	session, err := w.source.OpenPartition(ctx, request)
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return MaterializedPartitionReport{}, err
 	}
 	if session == nil {
-		return backupcontract.PartitionReport{}, fmt.Errorf("%w: source returned no session", ErrInvalidCapture)
+		return MaterializedPartitionReport{}, fmt.Errorf("%w: source returned no session", ErrInvalidCapture)
 	}
 	defer session.Close()
 	cut := session.Cut()
 	if cut.HashSlot != request.HashSlot || cut.RaftIndex == 0 || cut.CommittedAtMillis <= 0 {
-		return backupcontract.PartitionReport{}, ErrStaleCapture
+		return MaterializedPartitionReport{}, ErrStaleCapture
 	}
 
-	metadata, err := w.replicateSessionStream(ctx, session.OpenMetadata, StreamDescriptor{JobID: request.JobID, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindMetadata})
+	metadata, err := w.replicateSessionStream(ctx, session.OpenMetadata, StreamDescriptor{Generation: request.Generation, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindMetadata})
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return MaterializedPartitionReport{}, err
 	}
-	messages, err := w.replicateSessionStream(ctx, session.OpenMessages, StreamDescriptor{JobID: request.JobID, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindMessages})
+	messages, err := w.replicateSessionStream(ctx, session.OpenMessages, StreamDescriptor{Generation: request.Generation, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindMessages})
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return MaterializedPartitionReport{}, err
 	}
 	objects := append(metadata, messages...)
 	sort.Slice(objects, func(i, j int) bool { return objects[i].Key < objects[j].Key })
 	evidence := session.Evidence()
 	if evidence.Version != backupartifact.PartitionEvidenceVersion {
-		return backupcontract.PartitionReport{}, fmt.Errorf("%w: source returned invalid evidence", ErrInvalidCapture)
+		return MaterializedPartitionReport{}, fmt.Errorf("%w: source returned invalid evidence", ErrInvalidCapture)
 	}
 	manifest := backupartifact.PartitionManifest{
 		Format:      backupartifact.PartitionManifestFormat,
 		Version:     backupartifact.PartitionManifestVersion,
-		JobID:       request.JobID,
-		BackupEpoch: request.BackupEpoch,
+		Generation:  request.Generation,
+		RebaseEpoch: request.RebaseEpoch,
 		Cut:         cut,
 		Evidence:    evidence,
 		Objects:     objects,
 	}
 	body, err := backupartifact.MarshalPartitionManifest(manifest)
 	if err != nil {
-		return backupcontract.PartitionReport{}, err
+		return MaterializedPartitionReport{}, err
 	}
 	hash := sha256.Sum256(body)
 	checksum := hex.EncodeToString(hash[:])
 	key := partitionManifestKey(request)
 	if err := w.manifests.Put(ctx, key, checksum, body); err != nil {
-		return backupcontract.PartitionReport{}, err
+		return MaterializedPartitionReport{}, err
 	}
 	return partitionReportFromManifest(key, checksum, manifest)
 }
 
 func partitionManifestKey(request CaptureRequest) string {
-	return fmt.Sprintf("partition-manifests/%s/%05d.json", request.JobID, request.HashSlot)
+	return fmt.Sprintf(
+		"partition-manifests/%s/%05d.json",
+		request.Generation, request.HashSlot,
+	)
 }
 
-func loadExistingPartitionReport(ctx context.Context, store PartitionManifestStore, request CaptureRequest) (backupcontract.PartitionReport, bool, error) {
+func loadExistingPartitionReport(ctx context.Context, store PartitionManifestStore, request CaptureRequest) (MaterializedPartitionReport, bool, error) {
 	_, checksum, manifest, ok, err := loadExistingPartitionManifest(ctx, store, request)
 	if err != nil || !ok {
-		return backupcontract.PartitionReport{}, ok, err
+		return MaterializedPartitionReport{}, ok, err
 	}
 	report, err := partitionReportFromManifest(partitionManifestKey(request), checksum, manifest)
 	return report, err == nil, err
@@ -193,23 +216,25 @@ func loadExistingPartitionManifest(
 	if err != nil {
 		return nil, "", backupartifact.PartitionManifest{}, false, err
 	}
-	if manifest.JobID != request.JobID || manifest.BackupEpoch != request.BackupEpoch || manifest.Cut.HashSlot != request.HashSlot {
+	if manifest.Generation != request.Generation ||
+		manifest.RebaseEpoch != request.RebaseEpoch ||
+		manifest.Cut.HashSlot != request.HashSlot {
 		return nil, "", backupartifact.PartitionManifest{}, false, fmt.Errorf("%w: existing partition manifest fence mismatch", ErrStaleCapture)
 	}
 	return body, checksum, manifest, true, nil
 }
 
-func partitionReportFromManifest(key, checksum string, manifest backupartifact.PartitionManifest) (backupcontract.PartitionReport, error) {
+func partitionReportFromManifest(key, checksum string, manifest backupartifact.PartitionManifest) (MaterializedPartitionReport, error) {
 	var ciphertextBytes uint64
 	for _, object := range manifest.Objects {
 		if object.CiphertextBytes <= 0 || uint64(object.CiphertextBytes) > math.MaxUint64-ciphertextBytes {
-			return backupcontract.PartitionReport{}, fmt.Errorf("%w: partition ciphertext size overflow", ErrInvalidCapture)
+			return MaterializedPartitionReport{}, fmt.Errorf("%w: partition ciphertext size overflow", ErrInvalidCapture)
 		}
 		ciphertextBytes += uint64(object.CiphertextBytes)
 	}
-	return backupcontract.PartitionReport{
-		JobID:                 manifest.JobID,
-		BackupEpoch:           manifest.BackupEpoch,
+	return MaterializedPartitionReport{
+		Generation:            manifest.Generation,
+		RebaseEpoch:           manifest.RebaseEpoch,
 		HashSlot:              manifest.Cut.HashSlot,
 		RaftIndex:             manifest.Cut.RaftIndex,
 		CommittedAtUnixMillis: manifest.Cut.CommittedAtMillis,

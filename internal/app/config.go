@@ -86,6 +86,9 @@ type Config struct {
 type BackupConfig struct {
 	// Enabled starts backup coordination and node capture workers after startup doctor checks.
 	Enabled bool
+	// QualificationGate must equal the release's recorded production
+	// qualification identity before automatic backup may start.
+	QualificationGate string
 	// RestoreMode starts only recovery, restricted Manager, metrics, and audit surfaces.
 	RestoreMode bool
 	// RepositoryID is the stable logical identity shared by both repository copies.
@@ -98,9 +101,9 @@ type BackupConfig struct {
 	StagingDir string
 	// KMSKeyID identifies the external KMS key used to wrap per-object data keys.
 	KMSKeyID string
-	// SigningKeyID identifies the external asymmetric key used to sign canonical restore-point manifests.
+	// SigningKeyID identifies the external asymmetric key used to sign canonical backup artifacts.
 	SigningKeyID string
-	// TrustedSigningKeyIDs lists retained previous signing keys accepted only when verifying historical restore points.
+	// TrustedSigningKeyIDs lists retained previous signing keys accepted only when verifying historical checkpoints.
 	TrustedSigningKeyIDs []string
 	// KMSRegion is the AWS-compatible signing region used for encryption and manifest-signing calls.
 	KMSRegion string
@@ -126,6 +129,20 @@ type BackupConfig struct {
 	// MaxSourcePinnedBytes is the hard aggregate estimate of Slot Raft-log
 	// bytes that backup may retain on one node before rebasing one victim Slot.
 	MaxSourcePinnedBytes uint64
+	// AuditInterval is the bounded Controller-Leader integrity transition cadence.
+	AuditInterval time.Duration
+	// AuditScrubInterval forces a retained-graph scrub even without a new checkpoint.
+	AuditScrubInterval time.Duration
+	// GarbageCollectionInterval is the Controller-Leader Generation sweep cadence.
+	GarbageCollectionInterval time.Duration
+	// GarbageSafetyWindow protects recent immutable attempts from deletion.
+	GarbageSafetyWindow time.Duration
+	// GarbageMaxRequestsPerRepository bounds provider calls in one sweep step.
+	GarbageMaxRequestsPerRepository int
+	// GarbageMaxBytesPerRepository bounds deleted bytes in one sweep step.
+	GarbageMaxBytesPerRepository uint64
+	// RetentionMonthlyMonths controls the optional sparse monthly checkpoint tier.
+	RetentionMonthlyMonths int
 	// ObjectLockDays is the minimum per-object compliance retention applied to every repository write.
 	ObjectLockDays int
 	// Primary configures the first independently verified S3-compatible repository.
@@ -144,9 +161,18 @@ type BackupRepositoryConfig struct {
 	Bucket string
 	// Prefix is the object namespace reserved for this cluster repository identity.
 	Prefix string
+	// RepairRoleARN is the separately assumed auditor role allowed to publish repair versions.
+	RepairRoleARN string
+	// GarbageRoleARN is the separately assumed collector role allowed to delete expired versions.
+	GarbageRoleARN string
 }
 
 const (
+	// BackupQualificationGateV1 is the exact production qualification identity
+	// admitted by this release. It is intentionally not a boolean so a future
+	// implementation change cannot reuse an older drill attestation.
+	BackupQualificationGateV1 = "backup-vnext-production-v1"
+
 	defaultBackupBaselineChunkBytes  = 8 * 1024 * 1024
 	defaultBackupTargetSegmentBytes  = 64 * 1024 * 1024
 	maximumBackupObjectBytes         = 256 * 1024 * 1024
@@ -157,6 +183,12 @@ const (
 	defaultBackupReconcileInterval   = 30 * time.Second
 	defaultBackupCheckpointInterval  = 5 * time.Minute
 	defaultBackupSegmentOpenDuration = 30 * time.Second
+	defaultBackupAuditInterval       = time.Second
+	defaultBackupAuditScrubInterval  = 24 * time.Hour
+	defaultBackupGCInterval          = time.Hour
+	defaultBackupGCSafetyWindow      = 7 * 24 * time.Hour
+	defaultBackupGCMaxRequests       = 256
+	defaultBackupGCMaxBytes          = 1 * 1024 * 1024 * 1024
 )
 
 // NormalizeBackupConfig applies safe policy defaults and validates the complete
@@ -194,6 +226,24 @@ func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
 	if cfg.MaxSourcePinnedBytes == 0 {
 		cfg.MaxSourcePinnedBytes = defaultBackupMaxPinnedBytes
 	}
+	if cfg.AuditInterval == 0 {
+		cfg.AuditInterval = defaultBackupAuditInterval
+	}
+	if cfg.AuditScrubInterval == 0 {
+		cfg.AuditScrubInterval = defaultBackupAuditScrubInterval
+	}
+	if cfg.GarbageCollectionInterval == 0 {
+		cfg.GarbageCollectionInterval = defaultBackupGCInterval
+	}
+	if cfg.GarbageSafetyWindow == 0 {
+		cfg.GarbageSafetyWindow = defaultBackupGCSafetyWindow
+	}
+	if cfg.GarbageMaxRequestsPerRepository == 0 {
+		cfg.GarbageMaxRequestsPerRepository = defaultBackupGCMaxRequests
+	}
+	if cfg.GarbageMaxBytesPerRepository == 0 {
+		cfg.GarbageMaxBytesPerRepository = defaultBackupGCMaxBytes
+	}
 	if err := validateBackupConfig(cfg); err != nil {
 		return BackupConfig{}, err
 	}
@@ -225,6 +275,14 @@ func validateBackupConfig(cfg BackupConfig) error {
 	if cfg.Enabled && cfg.RestoreMode {
 		return fmt.Errorf("%w: automatic backup and restore mode are mutually exclusive", ErrInvalidConfig)
 	}
+	if cfg.Enabled &&
+		strings.TrimSpace(cfg.QualificationGate) !=
+			BackupQualificationGateV1 {
+		return fmt.Errorf(
+			"%w: automatic backup requires qualification gate %q",
+			ErrInvalidConfig, BackupQualificationGateV1,
+		)
+	}
 	if cfg.CaptureReconcileInterval <= 0 {
 		return fmt.Errorf("%w: backup capture reconcile interval must be positive", ErrInvalidConfig)
 	}
@@ -251,6 +309,20 @@ func validateBackupConfig(cfg BackupConfig) error {
 	}
 	if cfg.MaxSourcePinnedBytes < 1024*1024 {
 		return fmt.Errorf("%w: backup max source pinned bytes must be at least 1 MiB", ErrInvalidConfig)
+	}
+	if cfg.AuditInterval <= 0 ||
+		cfg.AuditScrubInterval < time.Minute ||
+		cfg.GarbageCollectionInterval <= 0 ||
+		cfg.GarbageSafetyWindow < 7*24*time.Hour {
+		return fmt.Errorf("%w: backup maintenance intervals are invalid", ErrInvalidConfig)
+	}
+	if cfg.GarbageMaxRequestsPerRepository < 5 ||
+		cfg.GarbageMaxRequestsPerRepository > 4096 ||
+		cfg.GarbageMaxBytesPerRepository == 0 ||
+		cfg.GarbageMaxBytesPerRepository > math.MaxInt64 ||
+		cfg.RetentionMonthlyMonths < 0 ||
+		cfg.RetentionMonthlyMonths > 120 {
+		return fmt.Errorf("%w: backup maintenance budgets or retention are invalid", ErrInvalidConfig)
 	}
 	if cfg.Enabled && (cfg.ObjectLockDays < 7 || cfg.ObjectLockDays > 36500) {
 		return fmt.Errorf("%w: backup object lock days must be between 7 and 36500", ErrInvalidConfig)
@@ -290,6 +362,13 @@ func validateBackupConfig(cfg BackupConfig) error {
 	}
 	if err := validateBackupRepository("secondary", cfg.Secondary); err != nil {
 		return err
+	}
+	if cfg.Enabled &&
+		(strings.TrimSpace(cfg.Primary.RepairRoleARN) == "" ||
+			strings.TrimSpace(cfg.Primary.GarbageRoleARN) == "" ||
+			strings.TrimSpace(cfg.Secondary.RepairRoleARN) == "" ||
+			strings.TrimSpace(cfg.Secondary.GarbageRoleARN) == "") {
+		return fmt.Errorf("%w: backup repair and garbage role ARNs are required for both repositories", ErrInvalidConfig)
 	}
 	if strings.EqualFold(strings.TrimSpace(cfg.Primary.Region), strings.TrimSpace(cfg.Secondary.Region)) {
 		return fmt.Errorf("%w: backup repositories must use different regions", ErrInvalidConfig)

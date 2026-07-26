@@ -1,9 +1,9 @@
 # three_node_restore AGENTS
 
-This scenario proves a real three-node source cluster can publish a baseline
-and incremental restore point, record a later permanent erasure, then restore
-the older point into a fresh three-node successor without resurrecting erased
-messages or reusing their sequence numbers.
+This scenario proves a real three-node source cluster can continuously capture
+and publish an immutable checkpoint, record a later permanent erasure, then
+restore that checkpoint into a fresh three-node successor without resurrecting
+erased messages or reusing their sequence numbers.
 
 ## Run
 

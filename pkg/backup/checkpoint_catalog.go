@@ -278,10 +278,10 @@ func canonicalCheckpoint(checkpoint Checkpoint) ([]byte, error) {
 
 func validateCheckpoint(checkpoint Checkpoint, requireSignature bool) error {
 	if checkpoint.Format != CheckpointFormat || checkpoint.Version != CheckpointVersion ||
-		validateRestorePointID(checkpoint.ID) != nil ||
-		validateRestorePointID(checkpoint.RepositoryID) != nil ||
-		validateRestorePointID(checkpoint.SourceClusterID) != nil ||
-		validateRestorePointID(checkpoint.SourceGeneration) != nil ||
+		validateBackupIdentity(checkpoint.ID) != nil ||
+		validateBackupIdentity(checkpoint.RepositoryID) != nil ||
+		validateBackupIdentity(checkpoint.SourceClusterID) != nil ||
+		validateBackupIdentity(checkpoint.SourceGeneration) != nil ||
 		checkpoint.HashSlotCount == 0 || checkpoint.CreatedAtUnixMillis <= 0 ||
 		checkpoint.EffectiveAtUnixMillis <= 0 ||
 		len(checkpoint.Slots) != int(checkpoint.HashSlotCount) {
@@ -300,7 +300,7 @@ func validateCheckpoint(checkpoint Checkpoint, requireSignature bool) error {
 	var effective int64
 	for index, slot := range checkpoint.Slots {
 		if slot.HashSlot != uint16(index) ||
-			validateRestorePointID(slot.Generation) != nil {
+			validateBackupIdentity(slot.Generation) != nil {
 			return fmt.Errorf(
 				"%w: checkpoint Slot[%d] identity is invalid",
 				ErrInvalidObject, index,
@@ -426,7 +426,7 @@ func validateCatalogPage(page CatalogPage, requireSignature bool) error {
 }
 
 func validateCatalogCheckpointReference(reference CatalogCheckpointReference) error {
-	if validateRestorePointID(reference.ID) != nil ||
+	if validateBackupIdentity(reference.ID) != nil ||
 		reference.Key != CheckpointObjectKey(reference.ID) ||
 		validateSHA256(reference.SHA256) != nil || reference.Bytes <= 0 ||
 		reference.CreatedAtUnixMillis <= 0 || reference.EffectiveAtUnixMillis <= 0 ||
@@ -438,12 +438,18 @@ func validateCatalogCheckpointReference(reference CatalogCheckpointReference) er
 }
 
 func validateCatalogPageReference(reference CatalogPageReference) error {
-	if reference.Sequence == 0 || validateRestorePointID(reference.LatestCheckpointID) != nil ||
+	if reference.Sequence == 0 || validateBackupIdentity(reference.LatestCheckpointID) != nil ||
 		reference.Key != CatalogPageObjectKey(reference.Sequence, reference.LatestCheckpointID) ||
 		validateSHA256(reference.SHA256) != nil || reference.Bytes <= 0 {
 		return ErrInvalidObject
 	}
 	return nil
+}
+
+// ValidateCatalogPageReference validates one immutable catalog position carried
+// across an operator boundary.
+func ValidateCatalogPageReference(reference CatalogPageReference) error {
+	return validateCatalogPageReference(reference)
 }
 
 // ValidateCheckpointCatalogProof validates the bounded proof shape. Repository

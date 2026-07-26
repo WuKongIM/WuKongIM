@@ -1392,6 +1392,7 @@ var requiredBackupRepositoryKeys = []string{
 }
 
 var requiredAutomaticBackupKeys = []string{
+	"WK_BACKUP_QUALIFICATION_GATE",
 	"WK_BACKUP_SOURCE_GENERATION",
 	"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL",
 	"WK_BACKUP_CHECKPOINT_INTERVAL",
@@ -1400,6 +1401,17 @@ var requiredAutomaticBackupKeys = []string{
 	"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION",
 	"WK_BACKUP_STAGING_MAX_BYTES",
 	"WK_BACKUP_WORKER_COUNT",
+	"WK_BACKUP_AUDIT_INTERVAL",
+	"WK_BACKUP_AUDIT_SCRUB_INTERVAL",
+	"WK_BACKUP_GARBAGE_COLLECTION_INTERVAL",
+	"WK_BACKUP_GARBAGE_SAFETY_WINDOW",
+	"WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY",
+	"WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY",
+	"WK_BACKUP_RETENTION_MONTHLY_MONTHS",
+	"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN",
+	"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN",
+	"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN",
+	"WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN",
 	"WK_BACKUP_OBJECT_LOCK_DAYS",
 }
 
@@ -1407,6 +1419,9 @@ var requiredRestoreKeys = []string{"WK_BACKUP_TARGET_GENERATION"}
 
 func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 	cfg := app.BackupConfig{
+		QualificationGate: configValue(
+			values, "WK_BACKUP_QUALIFICATION_GATE",
+		),
 		RepositoryID:     configValue(values, "WK_BACKUP_REPOSITORY_ID"),
 		SourceGeneration: configValue(values, "WK_BACKUP_SOURCE_GENERATION"),
 		TargetGeneration: configValue(values, "WK_BACKUP_TARGET_GENERATION"),
@@ -1416,16 +1431,20 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 		KMSRegion:        configValue(values, "WK_BACKUP_KMS_REGION"),
 		KMSEndpoint:      configValue(values, "WK_BACKUP_KMS_ENDPOINT"),
 		Primary: app.BackupRepositoryConfig{
-			Endpoint: configValue(values, "WK_BACKUP_PRIMARY_ENDPOINT"),
-			Region:   configValue(values, "WK_BACKUP_PRIMARY_REGION"),
-			Bucket:   configValue(values, "WK_BACKUP_PRIMARY_BUCKET"),
-			Prefix:   configValue(values, "WK_BACKUP_PRIMARY_PREFIX"),
+			Endpoint:       configValue(values, "WK_BACKUP_PRIMARY_ENDPOINT"),
+			Region:         configValue(values, "WK_BACKUP_PRIMARY_REGION"),
+			Bucket:         configValue(values, "WK_BACKUP_PRIMARY_BUCKET"),
+			Prefix:         configValue(values, "WK_BACKUP_PRIMARY_PREFIX"),
+			RepairRoleARN:  configValue(values, "WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN"),
+			GarbageRoleARN: configValue(values, "WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN"),
 		},
 		Secondary: app.BackupRepositoryConfig{
-			Endpoint: configValue(values, "WK_BACKUP_SECONDARY_ENDPOINT"),
-			Region:   configValue(values, "WK_BACKUP_SECONDARY_REGION"),
-			Bucket:   configValue(values, "WK_BACKUP_SECONDARY_BUCKET"),
-			Prefix:   configValue(values, "WK_BACKUP_SECONDARY_PREFIX"),
+			Endpoint:       configValue(values, "WK_BACKUP_SECONDARY_ENDPOINT"),
+			Region:         configValue(values, "WK_BACKUP_SECONDARY_REGION"),
+			Bucket:         configValue(values, "WK_BACKUP_SECONDARY_BUCKET"),
+			Prefix:         configValue(values, "WK_BACKUP_SECONDARY_PREFIX"),
+			RepairRoleARN:  configValue(values, "WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN"),
+			GarbageRoleARN: configValue(values, "WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN"),
 		},
 	}
 	var err error
@@ -1518,6 +1537,48 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 	}
 	if configKeyPresent(values, "WK_BACKUP_MAX_SOURCE_PINNED_BYTES") {
 		cfg.MaxSourcePinnedBytes, err = parseUint64("WK_BACKUP_MAX_SOURCE_PINNED_BYTES", configValue(values, "WK_BACKUP_MAX_SOURCE_PINNED_BYTES"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_AUDIT_INTERVAL") {
+		cfg.AuditInterval, err = parseDuration("WK_BACKUP_AUDIT_INTERVAL", configValue(values, "WK_BACKUP_AUDIT_INTERVAL"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_AUDIT_SCRUB_INTERVAL") {
+		cfg.AuditScrubInterval, err = parseDuration("WK_BACKUP_AUDIT_SCRUB_INTERVAL", configValue(values, "WK_BACKUP_AUDIT_SCRUB_INTERVAL"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_GARBAGE_COLLECTION_INTERVAL") {
+		cfg.GarbageCollectionInterval, err = parseDuration("WK_BACKUP_GARBAGE_COLLECTION_INTERVAL", configValue(values, "WK_BACKUP_GARBAGE_COLLECTION_INTERVAL"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_GARBAGE_SAFETY_WINDOW") {
+		cfg.GarbageSafetyWindow, err = parseDuration("WK_BACKUP_GARBAGE_SAFETY_WINDOW", configValue(values, "WK_BACKUP_GARBAGE_SAFETY_WINDOW"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY") {
+		cfg.GarbageMaxRequestsPerRepository, err = parseInt("WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY", configValue(values, "WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY") {
+		cfg.GarbageMaxBytesPerRepository, err = parseUint64("WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY", configValue(values, "WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_RETENTION_MONTHLY_MONTHS") {
+		cfg.RetentionMonthlyMonths, err = parseInt("WK_BACKUP_RETENTION_MONTHLY_MONTHS", configValue(values, "WK_BACKUP_RETENTION_MONTHLY_MONTHS"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}

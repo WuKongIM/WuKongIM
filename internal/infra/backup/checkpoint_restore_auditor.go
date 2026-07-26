@@ -96,8 +96,7 @@ func (a *CheckpointRestoreGraphAuditor) auditBaseline(
 	}
 	if !healthyCheckpointRestoreAuditCopies(report.Copies) ||
 		report.Navigation.HashSlot != slot.HashSlot ||
-		report.Navigation.ObjectCount != reference.ObjectCount ||
-		report.Navigation.Base != nil {
+		report.Navigation.ObjectCount != reference.ObjectCount {
 		return backupartifact.ErrRepositoryIncomplete
 	}
 	for objectIndex := uint64(0); objectIndex < report.Navigation.ObjectCount; objectIndex++ {

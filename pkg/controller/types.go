@@ -49,22 +49,6 @@ type (
 	ReconcileTask = state.ReconcileTask
 	// BackupCoordinationState stores bounded backup coordination metadata.
 	BackupCoordinationState = state.BackupCoordinationState
-	// BackupRestorePointKind identifies how a restore point was materialized.
-	BackupRestorePointKind = state.BackupRestorePointKind
-	// BackupJobStatus identifies one durable backup coordination phase.
-	BackupJobStatus = state.BackupJobStatus
-	// BackupJob is one bounded cluster-coordinated backup attempt.
-	BackupJob = state.BackupJob
-	// BackupPartitionReport is one logical hash-slot completion summary.
-	BackupPartitionReport = state.BackupPartitionReport
-	// BackupRestorePoint is one bounded published restore-point reference.
-	BackupRestorePoint = state.BackupRestorePoint
-	// BackupVerificationTaskStatus identifies one durable manual verification phase.
-	BackupVerificationTaskStatus = state.BackupVerificationTaskStatus
-	// BackupVerificationEvidence is bounded later audit evidence.
-	BackupVerificationEvidence = state.BackupVerificationEvidence
-	// BackupVerificationTask is the latest cluster-wide manual audit task.
-	BackupVerificationTask = state.BackupVerificationTask
 	// BackupErasureLedgerReference is the bounded pending permanent-erasure record reference.
 	BackupErasureLedgerReference = state.BackupErasureLedgerReference
 	// BackupErasureStreamState is bounded coordination for one Hash Slot erasure stream.

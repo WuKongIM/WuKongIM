@@ -22,17 +22,15 @@ type PartitionManifest struct {
 	Format string `json:"format"`
 	// Version selects the partition manifest compatibility contract.
 	Version uint32 `json:"version"`
-	// JobID identifies the cluster backup job that owns this partition.
-	JobID string `json:"job_id"`
-	// BackupEpoch fences retries from older job incarnations.
-	BackupEpoch uint64 `json:"backup_epoch"`
+	// Generation identifies the continuous-capture generation this materialized
+	// baseline starts.
+	Generation string `json:"generation"`
+	// RebaseEpoch fences retries from older generation-rebase attempts.
+	RebaseEpoch uint64 `json:"rebase_epoch"`
 	// Cut is the committed logical boundary represented by all objects.
 	Cut PartitionCut `json:"cut"`
-	// Base is the previous partition layer for an incremental chain. Nil marks
-	// a source-materialized base layer.
-	Base *PartitionReference `json:"base,omitempty"`
 	// BaselineCursor authenticates the complete continuous message cursor
-	// captured with a materialized rebase. Ordinary restore points omit it.
+	// captured with this materialized rebase.
 	BaselineCursor *SegmentReference `json:"baseline_cursor,omitempty"`
 	// Evidence carries cumulative signed counts and the message-ID fence.
 	Evidence PartitionEvidence `json:"evidence"`
@@ -82,34 +80,21 @@ func validatePartitionManifest(manifest PartitionManifest) error {
 	if manifest.Version != PartitionManifestVersion {
 		return fmt.Errorf("%w: partition version %d: %w", ErrInvalidManifest, manifest.Version, ErrUnsupportedVersion)
 	}
-	if err := validateRestorePointID(manifest.JobID); err != nil {
-		return fmt.Errorf("%w: partition job id: %v", ErrInvalidManifest, err)
+	if err := validateBackupIdentity(manifest.Generation); err != nil {
+		return fmt.Errorf("%w: partition generation: %v", ErrInvalidManifest, err)
 	}
-	if manifest.BackupEpoch == 0 || manifest.Cut.RaftIndex == 0 || manifest.Cut.CommittedAtMillis <= 0 {
-		return fmt.Errorf("%w: partition epoch and cut must be positive", ErrInvalidManifest)
+	if manifest.RebaseEpoch == 0 || manifest.Cut.RaftIndex == 0 ||
+		manifest.Cut.CommittedAtMillis <= 0 {
+		return fmt.Errorf(
+			"%w: partition rebase epoch and cut must be positive",
+			ErrInvalidManifest,
+		)
 	}
 	if err := validatePartitionEvidence(manifest.Evidence); err != nil {
 		return err
 	}
-	if manifest.Base != nil {
-		if manifest.Base.HashSlot != manifest.Cut.HashSlot || manifest.Base.Bytes <= 0 || manifest.Base.ObjectCount == 0 || manifest.Base.CiphertextBytes == 0 {
-			return fmt.Errorf("%w: partition base summary is invalid", ErrInvalidManifest)
-		}
-		if err := validatePartitionManifestKey(manifest.Base.Key); err != nil {
-			return fmt.Errorf("%w: partition base key: %v", ErrInvalidManifest, err)
-		}
-		if err := validateSHA256(manifest.Base.SHA256); err != nil {
-			return fmt.Errorf("%w: partition base checksum: %v", ErrInvalidManifest, err)
-		}
-		if err := validatePartitionEvidence(manifest.Base.Evidence); err != nil {
-			return err
-		}
-		if manifest.Evidence.MessageRecords < manifest.Base.Evidence.MessageRecords || manifest.Evidence.MaxMessageID < manifest.Base.Evidence.MaxMessageID {
-			return fmt.Errorf("%w: cumulative partition evidence regresses its base", ErrInvalidManifest)
-		}
-	}
 	if manifest.BaselineCursor != nil {
-		if manifest.Base != nil || manifest.Cut.PhysicalSlotID == 0 ||
+		if manifest.Cut.PhysicalSlotID == 0 ||
 			validateSegmentReference(*manifest.BaselineCursor) != nil {
 			return fmt.Errorf("%w: partition baseline cursor is invalid", ErrInvalidManifest)
 		}

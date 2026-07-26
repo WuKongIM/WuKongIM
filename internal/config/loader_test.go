@@ -176,6 +176,7 @@ listen_addr = "127.0.0.1:7001"
 
 [backup]
 enabled = true
+qualification_gate = "backup-vnext-production-v1"
 repository_id = "cluster-a-dr"
 source_generation = "generation-1"
 staging_dir = "`+dir+`/backup-staging"
@@ -190,6 +191,13 @@ target_segment_bytes = 67108864
 max_segment_open_duration = "30s"
 staging_max_bytes = 10737418240
 worker_count = 4
+audit_interval = "1s"
+audit_scrub_interval = "24h"
+garbage_collection_interval = "1h"
+garbage_safety_window = "168h"
+garbage_max_requests_per_repository = 256
+garbage_max_bytes_per_repository = 1073741824
+retention_monthly_months = 0
 object_lock_days = 7
 
 [backup.primary]
@@ -197,12 +205,16 @@ endpoint = "https://s3.primary.example"
 region = "region-a"
 bucket = "wukongim-backup-primary"
 prefix = "prod/cluster-a"
+repair_role_arn = "arn:example:iam::primary:role/repair"
+garbage_role_arn = "arn:example:iam::primary:role/garbage"
 
 [backup.secondary]
 endpoint = "https://s3.secondary.example"
 region = "region-b"
 bucket = "wukongim-backup-secondary"
 prefix = "prod/cluster-a"
+repair_role_arn = "arn:example:iam::secondary:role/repair"
+garbage_role_arn = "arn:example:iam::secondary:role/garbage"
 `)
 
 	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{

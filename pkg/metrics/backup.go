@@ -10,10 +10,9 @@ import (
 )
 
 var backupFailureCategories = map[string]struct{}{
-	"doctor": {}, "coordination_state": {}, "schedule": {}, "trigger": {}, "config_drift": {},
-	"capture_canceled": {}, "stale_partition_owner": {}, "partition_capture": {}, "publish": {},
-	"restore_state": {}, "restore_canceled": {}, "restore_partition_install": {},
-	"retention": {}, "audit": {},
+	"doctor": {}, "checkpoint": {}, "frontier_conflict": {}, "leadership": {}, "audit": {}, "gc": {},
+	"capture_runtime": {},
+	"restore_state":   {}, "restore_canceled": {}, "restore_partition_install": {},
 }
 
 var backupRebaseReasons = map[string]struct{}{
@@ -30,11 +29,9 @@ var backupRebaseFailureCategories = map[string]struct{}{
 
 // BackupMetrics exposes low-cardinality backup and restore SLO evidence.
 type BackupMetrics struct {
-	recoveryPointAge   prometheus.Gauge
-	verificationAge    prometheus.Gauge
+	checkpointAge      prometheus.Gauge
 	controllerLeader   prometheus.Gauge
 	doctorHealth       *prometheus.GaugeVec
-	active             prometheus.Gauge
 	failures           *prometheus.CounterVec
 	restoreProgress    *prometheus.GaugeVec
 	captureOwnedSlots  prometheus.Gauge
@@ -54,11 +51,8 @@ type BackupMetrics struct {
 
 func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) *BackupMetrics {
 	m := &BackupMetrics{
-		recoveryPointAge: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "wukongim_backup_recovery_point_age_seconds", Help: "Age of the latest verified cluster restore point; NaN means unknown.", ConstLabels: labels,
-		}),
-		verificationAge: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "wukongim_backup_verification_age_seconds", Help: "Age of the latest successful full remote restore-point audit; NaN means unknown.", ConstLabels: labels,
+		checkpointAge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "wukongim_backup_checkpoint_age_seconds", Help: "Age of the latest immutable continuous-capture checkpoint; NaN means unknown.", ConstLabels: labels,
 		}),
 		controllerLeader: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "wukongim_backup_controller_leader", Help: "Whether this node is the current backup Controller coordinator.", ConstLabels: labels,
@@ -66,9 +60,6 @@ func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 		doctorHealth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "wukongim_backup_doctor_health", Help: "Current backup doctor health as a one-hot bounded state.", ConstLabels: labels,
 		}, []string{"state"}),
-		active: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "wukongim_backup_job_active", Help: "Whether one cluster backup job is active.", ConstLabels: labels,
-		}),
 		failures: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "wukongim_backup_failures_total", Help: "Backup and restore failures grouped by bounded category.", ConstLabels: labels,
 		}, []string{"category"}),
@@ -107,26 +98,25 @@ func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 			Name: "wukongim_backup_audit_last_success_timestamp_seconds", Help: "Unix timestamp of the latest successful full artifact validation; zero means none.", ConstLabels: labels,
 		}),
 		auditCorruptions: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "wukongim_backup_audit_corruptions_total", Help: "Detected backup artifact corruptions by bounded category and repository.", ConstLabels: labels,
-		}, []string{"category", "repository"}),
+			Name: "wukongim_backup_audit_corruptions_total", Help: "Detected backup artifact corruptions by bounded category.", ConstLabels: labels,
+		}, []string{"category"}),
 		auditRepairBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "wukongim_backup_audit_repair_bytes_total", Help: "Exact stored bytes copied to repair one repository.", ConstLabels: labels,
-		}, []string{"repository"}),
+			Name: "wukongim_backup_audit_repair_bytes_total", Help: "Stored bytes copied by backup integrity repair.", ConstLabels: labels,
+		}, nil),
 		auditUnrecoverable: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "wukongim_backup_audit_unrecoverable_failures_total", Help: "Dual-repository audit failures that cannot rebase from live source.", ConstLabels: labels,
 		}),
 	}
 	registry.MustRegister(
-		m.recoveryPointAge, m.verificationAge, m.controllerLeader,
-		m.doctorHealth, m.active, m.failures, m.restoreProgress,
+		m.checkpointAge, m.controllerLeader,
+		m.doctorHealth, m.failures, m.restoreProgress,
 		m.captureOwnedSlots, m.captureTakeovers, m.captureFenced,
 		m.sourcePinAge, m.sourcePinnedBytes, m.sourceNodeBytes,
 		m.slotRebases, m.slotRebaseSeconds,
 		m.auditDebt, m.auditLastSuccess, m.auditCorruptions,
 		m.auditRepairBytes, m.auditUnrecoverable,
 	)
-	m.recoveryPointAge.Set(math.NaN())
-	m.verificationAge.Set(math.NaN())
+	m.checkpointAge.Set(math.NaN())
 	m.SetBackupDoctorHealth("unknown")
 	m.SetBackupRestoreProgress(0, 0, 0)
 	return m
@@ -150,8 +140,9 @@ func (m *BackupMetrics) SetBackupAuditLastSuccess(unixMillis int64) {
 	m.auditLastSuccess.Set(float64(unixMillis) / 1000)
 }
 
-// ObserveBackupAuditCorruption records one bounded repository corruption class.
-func (m *BackupMetrics) ObserveBackupAuditCorruption(category, repository string) {
+// ObserveBackupAuditCorruption records one bounded corruption class without
+// exposing repository topology.
+func (m *BackupMetrics) ObserveBackupAuditCorruption(category, _ string) {
 	if m == nil {
 		return
 	}
@@ -160,16 +151,15 @@ func (m *BackupMetrics) ObserveBackupAuditCorruption(category, repository string
 	default:
 		category = "unknown"
 	}
-	repository = normalizeBackupRepositoryLabel(repository)
-	m.auditCorruptions.WithLabelValues(category, repository).Inc()
+	m.auditCorruptions.WithLabelValues(category).Inc()
 }
 
 // AddBackupAuditRepairBytes records exact positive stored repair bytes.
-func (m *BackupMetrics) AddBackupAuditRepairBytes(repository string, bytes int64) {
+func (m *BackupMetrics) AddBackupAuditRepairBytes(_ string, bytes int64) {
 	if m == nil || bytes <= 0 {
 		return
 	}
-	m.auditRepairBytes.WithLabelValues(normalizeBackupRepositoryLabel(repository)).Add(float64(bytes))
+	m.auditRepairBytes.WithLabelValues().Add(float64(bytes))
 }
 
 // ObserveBackupAuditUnrecoverable records dual-copy loss without live source.
@@ -177,14 +167,6 @@ func (m *BackupMetrics) ObserveBackupAuditUnrecoverable() {
 	if m != nil {
 		m.auditUnrecoverable.Inc()
 	}
-}
-
-func normalizeBackupRepositoryLabel(repository string) string {
-	repository = strings.TrimSpace(repository)
-	if repository == "" || len(repository) > 128 {
-		return "unknown"
-	}
-	return repository
 }
 
 // SetBackupSourcePin records one bounded per-Slot hold plus the node aggregate.
@@ -253,20 +235,20 @@ func (m *BackupMetrics) SetBackupCaptureOwnedSlots(slots int) {
 	m.captureOwnedSlots.Set(float64(slots))
 }
 
-// SetBackupVerificationAgeSeconds preserves absent audit evidence as NaN.
-func (m *BackupMetrics) SetBackupVerificationAgeSeconds(age *int64) {
+// SetBackupCheckpointAgeSeconds preserves absent checkpoint evidence as NaN.
+func (m *BackupMetrics) SetBackupCheckpointAgeSeconds(age *int64) {
 	if m == nil {
 		return
 	}
 	if age == nil {
-		m.verificationAge.Set(math.NaN())
+		m.checkpointAge.Set(math.NaN())
 		return
 	}
 	value := *age
 	if value < 0 {
 		value = 0
 	}
-	m.verificationAge.Set(float64(value))
+	m.checkpointAge.Set(float64(value))
 }
 
 // SetBackupControllerLeader records coordinator ownership on this node.
@@ -298,34 +280,6 @@ func (m *BackupMetrics) SetBackupDoctorHealth(state string) {
 		}
 		m.doctorHealth.WithLabelValues(candidate).Set(value)
 	}
-}
-
-// SetBackupActive records whether one backup job is active.
-func (m *BackupMetrics) SetBackupActive(active bool) {
-	if m == nil {
-		return
-	}
-	if active {
-		m.active.Set(1)
-	} else {
-		m.active.Set(0)
-	}
-}
-
-// SetBackupRecoveryPointAgeSeconds preserves absent evidence as NaN.
-func (m *BackupMetrics) SetBackupRecoveryPointAgeSeconds(age *int64) {
-	if m == nil {
-		return
-	}
-	if age == nil {
-		m.recoveryPointAge.Set(math.NaN())
-		return
-	}
-	value := *age
-	if value < 0 {
-		value = 0
-	}
-	m.recoveryPointAge.Set(float64(value))
 }
 
 // ObserveBackupFailure increments one bounded failure category.

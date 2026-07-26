@@ -15,10 +15,8 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
-	age := requireMetricFamily(t, families, "wukongim_backup_recovery_point_age_seconds")
+	age := requireMetricFamily(t, families, "wukongim_backup_checkpoint_age_seconds")
 	require.True(t, math.IsNaN(age.GetMetric()[0].GetGauge().GetValue()))
-	verificationAge := requireMetricFamily(t, families, "wukongim_backup_verification_age_seconds")
-	require.True(t, math.IsNaN(verificationAge.GetMetric()[0].GetGauge().GetValue()))
 	doctor := requireMetricFamily(t, families, "wukongim_backup_doctor_health")
 	require.Equal(t, float64(1), findMetricByLabels(t, doctor, map[string]string{
 		"node_id": "7", "node_name": "node-7", "state": "unknown",
@@ -27,9 +25,7 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 	ageSeconds := int64(17)
 	metrics.SetBackupControllerLeader(true)
 	metrics.SetBackupDoctorHealth("healthy")
-	metrics.SetBackupActive(true)
-	metrics.SetBackupRecoveryPointAgeSeconds(&ageSeconds)
-	metrics.SetBackupVerificationAgeSeconds(&ageSeconds)
+	metrics.SetBackupCheckpointAgeSeconds(&ageSeconds)
 	metrics.ObserveBackupFailure("unbounded source error")
 	metrics.SetBackupRestoreProgress(13, 8, 256)
 	metrics.SetBackupCaptureOwnedSlots(19)
@@ -46,10 +42,8 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 
 	families, err = registry.Gather()
 	require.NoError(t, err)
-	require.Equal(t, float64(17), requireMetricFamily(t, families, "wukongim_backup_recovery_point_age_seconds").GetMetric()[0].GetGauge().GetValue())
-	require.Equal(t, float64(17), requireMetricFamily(t, families, "wukongim_backup_verification_age_seconds").GetMetric()[0].GetGauge().GetValue())
+	require.Equal(t, float64(17), requireMetricFamily(t, families, "wukongim_backup_checkpoint_age_seconds").GetMetric()[0].GetGauge().GetValue())
 	require.Equal(t, float64(1), requireMetricFamily(t, families, "wukongim_backup_controller_leader").GetMetric()[0].GetGauge().GetValue())
-	require.Equal(t, float64(1), requireMetricFamily(t, families, "wukongim_backup_job_active").GetMetric()[0].GetGauge().GetValue())
 	doctor = requireMetricFamily(t, families, "wukongim_backup_doctor_health")
 	require.Equal(t, float64(1), findMetricByLabels(t, doctor, map[string]string{
 		"node_id": "7", "node_name": "node-7", "state": "healthy",
@@ -104,13 +98,13 @@ func TestBackupMetricsPreserveUnknownEvidenceAndBoundLabels(t *testing.T) {
 		requireMetricFamily(t, families, "wukongim_backup_audit_corruptions_total"),
 		map[string]string{
 			"node_id": "7", "node_name": "node-7",
-			"category": "ciphertext", "repository": "secondary",
+			"category": "ciphertext",
 		},
 	).GetCounter().GetValue())
 	require.Equal(t, float64(4096), findMetricByLabels(t,
 		requireMetricFamily(t, families, "wukongim_backup_audit_repair_bytes_total"),
 		map[string]string{
-			"node_id": "7", "node_name": "node-7", "repository": "secondary",
+			"node_id": "7", "node_name": "node-7",
 		},
 	).GetCounter().GetValue())
 	require.Equal(t, float64(1), requireMetricFamily(

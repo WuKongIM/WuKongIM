@@ -372,7 +372,7 @@ func validateSegmentPayload(segmentID string, payload SegmentPayload) error {
 }
 
 func validateSegmentIdentity(value, name string) error {
-	if err := validateRestorePointID(value); err != nil {
+	if err := validateBackupIdentity(value); err != nil {
 		return fmt.Errorf("%w: segment %s: %v", ErrInvalidObject, name, err)
 	}
 	return nil

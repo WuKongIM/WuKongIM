@@ -20,11 +20,11 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 7,
 		Backup: &controller.BackupCoordinationState{
-			LastEpoch: 3,
 			CatalogHead: &controller.BackupCatalogPageReference{
 				Sequence: 4, Key: "catalog/pages/00000000000000000004-checkpoint-4.json",
 				SHA256: strings.Repeat("f", 64), Bytes: 456, LatestCheckpointID: "checkpoint-4",
 			},
+			CatalogRetentionRevision: 1,
 			CatalogAuditRootSequence: 2,
 			ErasureStreams: []controller.BackupErasureStreamState{{
 				HashSlot: 2,
@@ -37,38 +37,9 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 			}},
 			GenerationGCCursors: []controller.BackupGenerationGCCursor{{
 				Repository: "primary", Revision: 2, CycleID: "gc-cycle-1",
-				AfterKey:         "objects/generation-old/00002/object.bin",
-				CutoffUnixMillis: 1710000000000, UpdatedAtUnixMillis: 1710000001000,
-			}},
-			Active: &controller.BackupJob{
-				ID:                  "backup-3",
-				Epoch:               3,
-				Kind:                "incremental",
-				Status:              "capturing",
-				HashSlotCount:       16,
-				ConfigFingerprint:   strings.Repeat("a", 64),
-				RestorePointID:      "restore-job-3",
-				StartedAtUnixMillis: 1710000000000,
-				UpdatedAtUnixMillis: 1710000001000,
-				Partitions: []controller.BackupPartitionReport{
-					{
-						JobID:                 "backup-3",
-						BackupEpoch:           3,
-						HashSlot:              2,
-						RaftIndex:             11,
-						CommittedAtUnixMillis: 1710000000000,
-						ManifestKey:           "jobs/backup-3/partitions/2.json",
-						ManifestSHA256:        strings.Repeat("b", 64),
-						ObjectCount:           2,
-						CiphertextBytes:       256,
-					},
-				},
-			},
-			RestorePoints: []controller.BackupRestorePoint{},
-			PendingGarbage: []controller.BackupRestorePoint{{
-				ID: "restore-expired", JobID: "backup-1", BackupEpoch: 1, Kind: "materialized_full",
-				EffectiveAtUnixMillis: 1700000000000, CreatedAtUnixMillis: 1700000001000,
-				ManifestSHA256: strings.Repeat("c", 64), PrimaryVerified: true, SecondaryVerified: true,
+				CatalogRetentionRevision: 1,
+				AfterKey:                 "objects/generation-old/00002/object.bin",
+				CutoffUnixMillis:         1710000000000, UpdatedAtUnixMillis: 1710000001000,
 			}},
 		},
 	}}
@@ -78,20 +49,16 @@ func TestControllerStateStoreLoadsBoundedCoordinationState(t *testing.T) {
 	state, err := store.Load(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(7), state.Revision)
-	require.Equal(t, uint64(3), state.LastEpoch)
-	require.NotNil(t, state.Active)
-	require.Equal(t, backupusecase.JobStatusCapturing, state.Active.Status)
-	require.Equal(t, uint16(2), state.Active.Partitions[0].HashSlot)
-	require.Equal(t, "restore-expired", state.PendingGarbage[0].ID)
 	require.Equal(t, uint64(4), state.ErasureStreams[0].Head.Sequence)
 	require.Equal(t, uint64(5), state.ErasureStreams[0].Pending.Sequence)
 	require.Equal(t, uint64(4), state.CatalogHead.Sequence)
+	require.Equal(t, uint64(1), state.CatalogRetentionRevision)
 	require.Equal(t, uint64(2), state.CatalogAuditRootSequence)
 	require.Equal(t, uint64(2), state.GenerationGCCursors[0].Revision)
 	require.Equal(t, "objects/generation-old/00002/object.bin", state.GenerationGCCursors[0].AfterKey)
 
-	state.Active.Partitions[0].ManifestKey = "mutated"
-	require.Equal(t, "jobs/backup-3/partitions/2.json", runtime.state.Backup.Active.Partitions[0].ManifestKey)
+	state.GenerationGCCursors[0].AfterKey = "mutated"
+	require.Equal(t, "objects/generation-old/00002/object.bin", runtime.state.Backup.GenerationGCCursors[0].AfterKey)
 }
 
 func TestControllerStateStorePersistsCheckpointCatalogHead(t *testing.T) {
@@ -106,10 +73,12 @@ func TestControllerStateStorePersistsCheckpointCatalogHead(t *testing.T) {
 	require.NoError(t, store.CompareAndSwap(
 		context.Background(), 9,
 		backupusecase.State{
-			CatalogHead: head, CatalogAuditRootSequence: 7,
+			CatalogHead: head, CatalogRetentionRevision: 1,
+			CatalogAuditRootSequence: 7,
 		},
 	))
 	require.Equal(t, uint64(7), runtime.replacement.CatalogHead.Sequence)
+	require.Equal(t, uint64(1), runtime.replacement.CatalogRetentionRevision)
 	require.Equal(t, uint64(7), runtime.replacement.CatalogAuditRootSequence)
 	head.Sequence = 8
 	require.Equal(t, uint64(7), runtime.replacement.CatalogHead.Sequence)
@@ -139,44 +108,12 @@ func TestControllerStateStorePersistsErasureLedgerCoordination(t *testing.T) {
 	require.Equal(t, uint64(2), runtime.replacement.ErasureStreams[0].Head.Sequence)
 }
 
-func TestControllerStateStoreRoundTripsVerificationEvidence(t *testing.T) {
-	runtime := &fakeBackupController{state: controller.ClusterState{Revision: 9}}
-	store, err := backupinfra.NewControllerStateStore(runtime)
-	require.NoError(t, err)
-	evidence := &backupusecase.VerificationEvidence{
-		Status: backupusecase.VerificationTaskSucceeded, StartedAtUnixMillis: 100,
-		CompletedAtUnixMillis: 200, PrimaryVerified: true, SecondaryVerified: true,
-		ManifestSHA256: strings.Repeat("a", 64),
-	}
-	task := &backupusecase.VerificationTask{
-		ID: "verification-1", RestorePointID: "restore-1", VerificationEvidence: *evidence,
-	}
-
-	err = store.CompareAndSwap(context.Background(), 9, backupusecase.State{
-		Verification: task,
-		RestorePoints: []backupusecase.RestorePoint{{
-			ID: "restore-1", JobID: "backup-1", BackupEpoch: 1, Kind: "materialized_full",
-			EffectiveAtUnixMillis: 50, CreatedAtUnixMillis: 60, ManifestSHA256: strings.Repeat("a", 64),
-			PrimaryVerified: true, SecondaryVerified: true, LastVerification: evidence,
-		}},
-	})
-	require.NoError(t, err)
-	require.Equal(t, controller.BackupVerificationTaskStatus("succeeded"), runtime.replacement.Verification.Status)
-	require.Equal(t, strings.Repeat("a", 64), runtime.replacement.RestorePoints[0].LastVerification.ManifestSHA256)
-
-	runtime.state.Backup = &runtime.replacement
-	loaded, err := store.Load(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, backupusecase.VerificationTaskSucceeded, loaded.Verification.Status)
-	require.Equal(t, int64(200), loaded.RestorePoints[0].LastVerification.CompletedAtUnixMillis)
-}
-
 func TestControllerStateStoreMapsRevisionConflict(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{Revision: 8}, replaceErr: controller.ErrExpectedRevisionMismatch}
 	store, err := backupinfra.NewControllerStateStore(runtime)
 	require.NoError(t, err)
 
-	err = store.CompareAndSwap(context.Background(), 7, backupusecase.State{LastEpoch: 1})
+	err = store.CompareAndSwap(context.Background(), 7, backupusecase.State{})
 	require.ErrorIs(t, err, backupusecase.ErrStateConflict)
 }
 
@@ -184,9 +121,12 @@ func TestControllerSlotFrontierStoreRetriesGlobalConflictWithoutLosingCoordinati
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 8,
 		Backup: &controller.BackupCoordinationState{
-			LastEpoch:      3,
-			RestorePoints:  []controller.BackupRestorePoint{},
-			PendingGarbage: []controller.BackupRestorePoint{},
+			GenerationGCCursors: []controller.BackupGenerationGCCursor{{
+				Repository: "primary", Revision: 3, CycleID: "gc-cycle-1",
+				CatalogRetentionRevision: 1,
+				CutoffUnixMillis:         1710000000000,
+				UpdatedAtUnixMillis:      1710000001000,
+			}},
 		},
 	}}
 	coordination, err := backupinfra.NewControllerStateStore(runtime)
@@ -201,7 +141,7 @@ func TestControllerSlotFrontierStoreRetriesGlobalConflictWithoutLosingCoordinati
 	require.NoError(t, err)
 	runtime.onConflict = func() {
 		runtime.state.Revision++
-		runtime.state.Backup.LastEpoch = 4
+		runtime.state.Backup.GenerationGCCursors[0].Revision = 4
 	}
 	next := backupcontract.CloneSlotFrontier(snapshot.Frontier)
 	next.Revision++
@@ -212,7 +152,7 @@ func TestControllerSlotFrontierStoreRetriesGlobalConflictWithoutLosingCoordinati
 
 	require.NoError(t, frontiers.CompareAndSwap(context.Background(), snapshot.Frontier.Revision, snapshot.Frontier.Lease, next))
 	require.Equal(t, 3, runtime.replaceCalls)
-	require.Equal(t, uint64(4), runtime.replacement.LastEpoch)
+	require.Equal(t, uint64(4), runtime.replacement.GenerationGCCursors[0].Revision)
 	require.Len(t, runtime.replacement.SlotFrontiers, 1)
 
 	snapshot, err = frontiers.Load(context.Background(), 17)
@@ -277,10 +217,7 @@ func TestControllerSlotFrontierStoreInitializes256SlotsAcrossConcurrentNodes(t *
 func TestControllerSlotFrontierStoreRejectsFreezeThatWinsDuringUpload(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 8,
-		Backup: &controller.BackupCoordinationState{
-			RestorePoints:  []controller.BackupRestorePoint{},
-			PendingGarbage: []controller.BackupRestorePoint{},
-		},
+		Backup:   &controller.BackupCoordinationState{},
 	}}
 	coordination, err := backupinfra.NewControllerStateStore(runtime)
 	require.NoError(t, err)
@@ -331,9 +268,7 @@ func TestControllerSlotFrontierStoreRejectsFreezeThatWinsDuringUpload(t *testing
 func TestControllerSlotFrontierStoreTakeoverPreservesFrontierAndFencesOldLease(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 5,
-		Backup: &controller.BackupCoordinationState{
-			RestorePoints: []controller.BackupRestorePoint{},
-		},
+		Backup:   &controller.BackupCoordinationState{},
 	}}
 	coordination, err := backupinfra.NewControllerStateStore(runtime)
 	require.NoError(t, err)
@@ -379,9 +314,7 @@ func TestControllerSlotFrontierStoreTakeoverPreservesFrontierAndFencesOldLease(t
 func TestControllerSlotFrontierStorePhysicalRemapPreservesSourceIndexSpace(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 5,
-		Backup: &controller.BackupCoordinationState{
-			RestorePoints: []controller.BackupRestorePoint{},
-		},
+		Backup:   &controller.BackupCoordinationState{},
 	}}
 	coordination, err := backupinfra.NewControllerStateStore(runtime)
 	require.NoError(t, err)
@@ -407,9 +340,7 @@ func TestControllerSlotFrontierStorePhysicalRemapPreservesSourceIndexSpace(t *te
 func TestControllerSlotFrontierStoreControllerLeaderRestartReusesLease(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 5,
-		Backup: &controller.BackupCoordinationState{
-			RestorePoints: []controller.BackupRestorePoint{},
-		},
+		Backup:   &controller.BackupCoordinationState{},
 	}}
 	coordination, err := backupinfra.NewControllerStateStore(runtime)
 	require.NoError(t, err)

@@ -19,6 +19,17 @@ const maxGenerationGCCommitBytes = 1 << 20
 
 var errGenerationGCRequestBudget = errors.New("backup generation GC: request budget exhausted")
 
+// GarbageRepository is the separately authorized, provider-neutral deletion seam.
+type GarbageRepository interface {
+	backupartifact.Repository
+	WalkGarbageObjects(
+		context.Context,
+		time.Time,
+		func(backupartifact.RepositoryObject) (bool, error),
+	) error
+	DeleteGarbageObject(context.Context, string) error
+}
+
 // GarbageObjectPage is one lexicographically bounded repository scan page.
 // AfterKey includes scanned objects newer than the fixed cutoff, allowing a
 // durable cursor to advance without rescanning them in the same cycle.
@@ -51,6 +62,7 @@ type GenerationGCIntegrityGuard interface {
 		context.Context,
 		uint16,
 		string,
+		uint64,
 		func(context.Context) (int, error),
 	) (allowed bool, used int, err error)
 }
@@ -70,6 +82,9 @@ type GenerationGCProtection struct {
 	// RetainedCatalogRootSequence is the oldest catalog page represented by
 	// Retained, Held, or ActiveRestore and must be fenced before deletion.
 	RetainedCatalogRootSequence uint64
+	// CatalogRetentionRevision fences each delete against a concurrent
+	// checkpoint hold or release.
+	CatalogRetentionRevision uint64
 	// Retained contains checkpoint vectors selected by the UTC retention tiers.
 	Retained []backupartifact.CatalogCheckpointReference
 	// Held contains operator-protected checkpoint vectors.
@@ -210,6 +225,11 @@ func (c *GenerationGarbageCollector) Collect(
 	if c == nil || !validControllerCaptureGeneration(strings.TrimSpace(cycleID)) {
 		return GenerationGCResult{}, fmt.Errorf("backup generation GC: invalid cycle")
 	}
+	if protection.CatalogRetentionRevision == 0 {
+		return GenerationGCResult{}, fmt.Errorf(
+			"backup generation GC: catalog retention revision is invalid",
+		)
+	}
 	auditCycleID, auditRetained, err :=
 		c.loadIntegrityAuditProtection(
 			ctx, protection.IntegrityAudit,
@@ -246,7 +266,9 @@ func (c *GenerationGarbageCollector) Collect(
 	result := GenerationGCResult{Repositories: make([]GenerationGCRepositoryResult, 0, 2)}
 	var collectedErr error
 	for _, pair := range pairs {
-		completed, found, err := c.completedRepositoryCycle(ctx, cycleID, pair.current)
+		completed, found, err := c.completedRepositoryCycle(
+			ctx, cycleID, protection.CatalogRetentionRevision, pair.current,
+		)
 		if err != nil {
 			result.Repositories = append(result.Repositories, GenerationGCRepositoryResult{
 				Repository: pair.current.Name(),
@@ -278,7 +300,7 @@ func (c *GenerationGarbageCollector) Collect(
 		repositoryResult, err := c.collectRepository(
 			ctx, cycleID, pair.current,
 			protected, current, frozen, vectorIDs, requests,
-			auditCycleID,
+			auditCycleID, protection.CatalogRetentionRevision,
 		)
 		result.Repositories = append(result.Repositories, repositoryResult)
 		if err != nil {
@@ -321,11 +343,21 @@ func (c *GenerationGarbageCollector) loadIntegrityAuditProtection(
 func (c *GenerationGarbageCollector) completedRepositoryCycle(
 	ctx context.Context,
 	cycleID string,
+	catalogRetentionRevision uint64,
 	repository GenerationGarbageRepository,
 ) (GenerationGCRepositoryResult, bool, error) {
 	cursor, found, err := c.cursors.LoadGenerationGCCursor(ctx, repository.Name())
-	if err != nil || !found || cursor.CycleID != cycleID || !cursor.Complete {
+	if err != nil || !found || cursor.CycleID != cycleID {
 		return GenerationGCRepositoryResult{}, false, err
+	}
+	if cursor.CatalogRetentionRevision != catalogRetentionRevision {
+		return GenerationGCRepositoryResult{}, false, fmt.Errorf(
+			"backup generation GC: repository %s retention revision changed",
+			repository.Name(),
+		)
+	}
+	if !cursor.Complete {
+		return GenerationGCRepositoryResult{}, false, nil
 	}
 	return GenerationGCRepositoryResult{
 		Repository: repository.Name(), Complete: true, AfterKey: cursor.AfterKey,
@@ -470,6 +502,7 @@ func (c *GenerationGarbageCollector) collectRepository(
 	vectorIDs map[string]struct{},
 	requestBudget int,
 	auditCycleID string,
+	catalogRetentionRevision uint64,
 ) (GenerationGCRepositoryResult, error) {
 	result := GenerationGCRepositoryResult{Repository: repository.Name()}
 	cursor, found, err := c.cursors.LoadGenerationGCCursor(ctx, repository.Name())
@@ -479,19 +512,29 @@ func (c *GenerationGarbageCollector) collectRepository(
 	if !found {
 		cursor = backupcontract.GenerationGCCursor{
 			Repository: repository.Name(), CycleID: cycleID,
-			CutoffUnixMillis: c.now().UTC().Add(-c.safetyWindow).UnixMilli(),
+			CatalogRetentionRevision: catalogRetentionRevision,
+			CutoffUnixMillis:         c.now().UTC().Add(-c.safetyWindow).UnixMilli(),
 		}
 		if err := c.saveCursor(ctx, cursor, 0); err != nil {
 			return result, err
 		}
 		cursor.Revision = 1
+	} else if cursor.CycleID == cycleID &&
+		cursor.CatalogRetentionRevision != catalogRetentionRevision {
+		return result, fmt.Errorf(
+			"backup generation GC: repository %s retention revision changed",
+			repository.Name(),
+		)
 	} else if cursor.CycleID != cycleID {
-		if !cursor.Complete {
+		if !cursor.Complete &&
+			cursor.CatalogRetentionRevision ==
+				catalogRetentionRevision {
 			return result, fmt.Errorf("backup generation GC: repository %s has unfinished cycle %s", repository.Name(), cursor.CycleID)
 		}
 		next := backupcontract.GenerationGCCursor{
 			Repository: repository.Name(), CycleID: cycleID,
-			CutoffUnixMillis: c.now().UTC().Add(-c.safetyWindow).UnixMilli(),
+			CatalogRetentionRevision: catalogRetentionRevision,
+			CutoffUnixMillis:         c.now().UTC().Add(-c.safetyWindow).UnixMilli(),
 		}
 		if err := c.saveCursor(ctx, next, cursor.Revision); err != nil {
 			return result, err
@@ -575,6 +618,7 @@ func (c *GenerationGarbageCollector) collectRepository(
 			} else {
 				allowed, used, err = c.integrityGuard.WithGenerationGCDelete(
 					ctx, identity.hashSlot, auditCycleID,
+					catalogRetentionRevision,
 					func(deleteCtx context.Context) (int, error) {
 						return repository.DeleteGenerationGarbageObject(
 							deleteCtx, object.Key, requests,
@@ -700,9 +744,8 @@ func (c *GenerationGarbageCollector) pathGenerationIdentity(
 	}
 	prefix := fmt.Sprintf("rebase-%05d-", slot)
 	if !strings.HasPrefix(generation, prefix) || len(generation) != len(prefix)+20 {
-		// Legacy restore-point JobIDs share the outer objects and manifest
-		// prefixes. Only the runtime's exact materialized-Generation identity is
-		// owned by this collector.
+		// Only the runtime's exact materialized-Generation identity is owned by
+		// this collector.
 		return generationIdentity{}, false, nil
 	}
 	epoch, err := strconv.ParseUint(strings.TrimPrefix(generation, prefix), 10, 64)

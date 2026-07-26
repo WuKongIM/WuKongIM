@@ -52,7 +52,7 @@ func (c *LocalMessageShardCapturer) CaptureMessageShard(ctx context.Context, req
 		}
 		return runtimebackup.MessageShardCapture{}, err
 	}
-	entries, replicateErr := c.replicator.Replicate(ctx, StreamDescriptor{JobID: request.JobID, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindMessages, ShardID: shard.ID}, snapshot.Reader)
+	entries, replicateErr := c.replicator.Replicate(ctx, StreamDescriptor{Generation: request.Generation, HashSlot: request.HashSlot, Kind: backupartifact.ObjectKindMessages, ShardID: shard.ID}, snapshot.Reader)
 	closeErr := snapshot.Reader.Close()
 	if replicateErr != nil {
 		return runtimebackup.MessageShardCapture{}, replicateErr

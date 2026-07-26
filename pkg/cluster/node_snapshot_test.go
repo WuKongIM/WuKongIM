@@ -122,14 +122,14 @@ func TestNodeSourceFenceImmediatelyAndPermanentlyClosesForeground(t *testing.T) 
 	next.Revision = 2
 	next.HashSlots.Revision = 2
 	next.SourceFence = &backupartifact.SourceFenceRecord{
-		Format: backupartifact.SourceFenceReceiptFormat,
+		Format:  backupartifact.SourceFenceReceiptFormat,
 		Version: backupartifact.SourceFenceReceiptVersion,
-		ID: "source-fence-1", SourceClusterID: next.ClusterID,
+		ID:      "source-fence-1", SourceClusterID: next.ClusterID,
 		SourceGeneration: "source-generation-1",
-		RestorePlanID: "plan-1", RestorePointID: "checkpoint-1",
-		ManifestSHA256: strings.Repeat("a", 64),
-		TargetClusterID: "target-cluster",
-		TargetGeneration: "target-generation-1",
+		RestorePlanID:    "plan-1", CheckpointID: "checkpoint-1",
+		CheckpointSHA256:        strings.Repeat("a", 64),
+		TargetClusterID:         "target-cluster",
+		TargetGeneration:        "target-generation-1",
 		FenceControllerRevision: 2,
 		RequestedAtUnixMillis:   time.Now().UTC().UnixMilli(),
 	}

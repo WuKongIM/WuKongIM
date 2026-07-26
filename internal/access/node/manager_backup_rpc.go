@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 )
 
@@ -20,23 +19,18 @@ const (
 )
 
 var (
-	managerBackupRequestMagic  = [...]byte{'W', 'K', 'B', 'M', 'Q', 1}
-	managerBackupResponseMagic = [...]byte{'W', 'K', 'B', 'M', 'R', 1}
+	managerBackupRequestMagic  = [...]byte{'W', 'K', 'B', 'M', 'Q', 2}
+	managerBackupResponseMagic = [...]byte{'W', 'K', 'B', 'M', 'R', 2}
 )
 
-// ManagerBackupRPCServiceID routes Manager backup operations to the Controller leader.
+// ManagerBackupRPCServiceID routes continuous-backup operations to the Controller leader.
 const ManagerBackupRPCServiceID uint8 = clusternet.RPCManagerBackup
 
-// ManagerBackup handles the narrow cluster-level backup management surface.
+// ManagerBackup is the narrow leader-owned continuous-backup mutation surface.
 type ManagerBackup interface {
 	Status(context.Context) (backupusecase.StatusSnapshot, error)
-	ListRestorePointsPage(context.Context, backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error)
 	PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error)
-	Trigger(context.Context, backupartifact.RestorePointKind) (backupusecase.Job, error)
-	Cancel(context.Context, string, uint64) (backupusecase.Job, error)
-	Hold(context.Context, string) (backupusecase.RestorePoint, error)
-	Release(context.Context, string) (backupusecase.RestorePoint, error)
-	StartVerification(context.Context, string) (backupusecase.VerificationTask, error)
+	SetCheckpointHold(context.Context, string, bool) (backupusecase.CheckpointSummary, error)
 	FenceSource(context.Context, backupusecase.SourceFenceRequest) (backupusecase.SourceFenceReceipt, error)
 }
 
@@ -48,13 +42,11 @@ type ManagerBackupLeadership interface {
 
 // ManagerBackupOptions configures the bounded Manager backup RPC adapter.
 type ManagerBackupOptions struct {
-	// Local executes operations only after this node proves it is the current leader.
-	Local ManagerBackup
-	// Leadership supplies the current leader fence.
+	Local      ManagerBackup
 	Leadership ManagerBackupLeadership
 }
 
-// ManagerBackupAdapter exposes cluster backup management through one internal RPC.
+// ManagerBackupAdapter exposes continuous-backup operations through one internal RPC.
 type ManagerBackupAdapter struct {
 	local      ManagerBackup
 	leadership ManagerBackupLeadership
@@ -69,34 +61,24 @@ type managerBackupOperation string
 
 const (
 	managerBackupStatus            managerBackupOperation = "status"
-	managerBackupList              managerBackupOperation = "list"
 	managerBackupPublishCheckpoint managerBackupOperation = "publish_checkpoint"
-	managerBackupTrigger           managerBackupOperation = "trigger"
-	managerBackupCancel            managerBackupOperation = "cancel"
-	managerBackupHold              managerBackupOperation = "hold"
-	managerBackupRelease           managerBackupOperation = "release"
-	managerBackupStartVerification managerBackupOperation = "start_verification"
+	managerBackupSetCheckpointHold managerBackupOperation = "set_checkpoint_hold"
 	managerBackupFenceSource       managerBackupOperation = "fence_source"
 )
 
 type managerBackupRequest struct {
-	Operation   managerBackupOperation                `json:"operation"`
-	List        backupusecase.RestorePointListRequest `json:"list,omitempty"`
-	Kind        backupartifact.RestorePointKind       `json:"kind,omitempty"`
-	ID          string                                `json:"id,omitempty"`
-	Epoch       uint64                                `json:"epoch,omitempty"`
-	SourceFence backupusecase.SourceFenceRequest      `json:"source_fence,omitempty"`
+	Operation    managerBackupOperation           `json:"operation"`
+	SourceFence  backupusecase.SourceFenceRequest `json:"source_fence,omitempty"`
+	CheckpointID string                           `json:"checkpoint_id,omitempty"`
+	Held         bool                             `json:"held,omitempty"`
 }
 
 type managerBackupResponse struct {
-	Error        string                               `json:"error,omitempty"`
-	Status       *backupusecase.StatusSnapshot        `json:"status,omitempty"`
-	Page         *backupusecase.RestorePointPage      `json:"page,omitempty"`
-	Job          *backupusecase.Job                   `json:"job,omitempty"`
-	RestorePoint *backupusecase.RestorePoint          `json:"restore_point,omitempty"`
-	Verification *backupusecase.VerificationTask      `json:"verification,omitempty"`
-	SourceFence  *backupusecase.SourceFenceReceipt    `json:"source_fence,omitempty"`
-	Checkpoint   *backupusecase.CheckpointPublication `json:"checkpoint,omitempty"`
+	Error           string                               `json:"error,omitempty"`
+	Status          *backupusecase.StatusSnapshot        `json:"status,omitempty"`
+	SourceFence     *backupusecase.SourceFenceReceipt    `json:"source_fence,omitempty"`
+	Checkpoint      *backupusecase.CheckpointPublication `json:"checkpoint,omitempty"`
+	CheckpointState *backupusecase.CheckpointSummary     `json:"checkpoint_state,omitempty"`
 }
 
 // HandleRPC executes one request only while the receiver is the current Controller leader.
@@ -116,27 +98,15 @@ func (a *ManagerBackupAdapter) HandleRPC(ctx context.Context, payload []byte) ([
 	case managerBackupStatus:
 		value, err := a.local.Status(ctx)
 		response.Status, response.Error = &value, managerBackupErrorCode(err)
-	case managerBackupList:
-		value, err := a.local.ListRestorePointsPage(ctx, request.List)
-		response.Page, response.Error = &value, managerBackupErrorCode(err)
 	case managerBackupPublishCheckpoint:
 		value, err := a.local.PublishCheckpoint(ctx)
 		response.Checkpoint, response.Error = &value, managerBackupErrorCode(err)
-	case managerBackupTrigger:
-		value, err := a.local.Trigger(ctx, request.Kind)
-		response.Job, response.Error = &value, managerBackupErrorCode(err)
-	case managerBackupCancel:
-		value, err := a.local.Cancel(ctx, request.ID, request.Epoch)
-		response.Job, response.Error = &value, managerBackupErrorCode(err)
-	case managerBackupHold:
-		value, err := a.local.Hold(ctx, request.ID)
-		response.RestorePoint, response.Error = &value, managerBackupErrorCode(err)
-	case managerBackupRelease:
-		value, err := a.local.Release(ctx, request.ID)
-		response.RestorePoint, response.Error = &value, managerBackupErrorCode(err)
-	case managerBackupStartVerification:
-		value, err := a.local.StartVerification(ctx, request.ID)
-		response.Verification, response.Error = &value, managerBackupErrorCode(err)
+	case managerBackupSetCheckpointHold:
+		value, err := a.local.SetCheckpointHold(
+			ctx, request.CheckpointID, request.Held,
+		)
+		response.CheckpointState, response.Error =
+			&value, managerBackupErrorCode(err)
 	case managerBackupFenceSource:
 		value, err := a.local.FenceSource(ctx, request.SourceFence)
 		response.SourceFence, response.Error = &value, managerBackupErrorCode(err)
@@ -146,8 +116,43 @@ func (a *ManagerBackupAdapter) HandleRPC(ctx context.Context, payload []byte) ([
 	return encodeManagerBackupResponse(response)
 }
 
-// ManagerBackupPublishCheckpoint publishes one complete vector cut on one
-// exact Controller Leader.
+// ManagerBackupSetCheckpointHold appends one hold/release decision on the
+// exact current Controller Leader.
+func (c *Client) ManagerBackupSetCheckpointHold(
+	ctx context.Context,
+	nodeID uint64,
+	checkpointID string,
+	held bool,
+) (backupusecase.CheckpointSummary, error) {
+	response, err := c.callManagerBackup(
+		ctx, nodeID, managerBackupRequest{
+			Operation:    managerBackupSetCheckpointHold,
+			CheckpointID: strings.TrimSpace(checkpointID), Held: held,
+		},
+	)
+	if err != nil || response.CheckpointState == nil {
+		return backupusecase.CheckpointSummary{},
+			firstManagerBackupError(err, response.Error)
+	}
+	return *response.CheckpointState, managerBackupError(response.Error)
+}
+
+// ManagerBackupStatus reads continuous-backup state from one exact leader node.
+func (c *Client) ManagerBackupStatus(
+	ctx context.Context,
+	nodeID uint64,
+) (backupusecase.StatusSnapshot, error) {
+	response, err := c.callManagerBackup(
+		ctx, nodeID, managerBackupRequest{Operation: managerBackupStatus},
+	)
+	if err != nil || response.Status == nil {
+		return backupusecase.StatusSnapshot{},
+			firstManagerBackupError(err, response.Error)
+	}
+	return *response.Status, managerBackupError(response.Error)
+}
+
+// ManagerBackupPublishCheckpoint publishes one complete vector cut on one exact leader.
 func (c *Client) ManagerBackupPublishCheckpoint(
 	ctx context.Context,
 	nodeID uint64,
@@ -163,64 +168,6 @@ func (c *Client) ManagerBackupPublishCheckpoint(
 	return *response.Checkpoint, managerBackupError(response.Error)
 }
 
-// ManagerBackupStatus reads cluster backup state from one exact leader node.
-func (c *Client) ManagerBackupStatus(ctx context.Context, nodeID uint64) (backupusecase.StatusSnapshot, error) {
-	response, err := c.callManagerBackup(ctx, nodeID, managerBackupRequest{Operation: managerBackupStatus})
-	if err != nil || response.Status == nil {
-		return backupusecase.StatusSnapshot{}, firstManagerBackupError(err, response.Error)
-	}
-	return *response.Status, managerBackupError(response.Error)
-}
-
-// ManagerBackupListRestorePoints reads one bounded page from one exact leader node.
-func (c *Client) ManagerBackupListRestorePoints(ctx context.Context, nodeID uint64, request backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error) {
-	response, err := c.callManagerBackup(ctx, nodeID, managerBackupRequest{Operation: managerBackupList, List: request})
-	if err != nil || response.Page == nil {
-		return backupusecase.RestorePointPage{}, firstManagerBackupError(err, response.Error)
-	}
-	return *response.Page, managerBackupError(response.Error)
-}
-
-// ManagerBackupTrigger starts one materialization strategy on one exact leader node.
-func (c *Client) ManagerBackupTrigger(ctx context.Context, nodeID uint64, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
-	response, err := c.callManagerBackup(ctx, nodeID, managerBackupRequest{Operation: managerBackupTrigger, Kind: kind})
-	if err != nil || response.Job == nil {
-		return backupusecase.Job{}, firstManagerBackupError(err, response.Error)
-	}
-	return *response.Job, managerBackupError(response.Error)
-}
-
-// ManagerBackupCancel cancels one exactly fenced active backup job.
-func (c *Client) ManagerBackupCancel(ctx context.Context, nodeID uint64, id string, epoch uint64) (backupusecase.Job, error) {
-	response, err := c.callManagerBackup(ctx, nodeID, managerBackupRequest{Operation: managerBackupCancel, ID: id, Epoch: epoch})
-	if err != nil || response.Job == nil {
-		return backupusecase.Job{}, firstManagerBackupError(err, response.Error)
-	}
-	return *response.Job, managerBackupError(response.Error)
-}
-
-// ManagerBackupHold mutates one restore-point retention hold.
-func (c *Client) ManagerBackupHold(ctx context.Context, nodeID uint64, id string, held bool) (backupusecase.RestorePoint, error) {
-	operation := managerBackupRelease
-	if held {
-		operation = managerBackupHold
-	}
-	response, err := c.callManagerBackup(ctx, nodeID, managerBackupRequest{Operation: operation, ID: id})
-	if err != nil || response.RestorePoint == nil {
-		return backupusecase.RestorePoint{}, firstManagerBackupError(err, response.Error)
-	}
-	return *response.RestorePoint, managerBackupError(response.Error)
-}
-
-// ManagerBackupStartVerification creates one durable audit task on one exact leader node.
-func (c *Client) ManagerBackupStartVerification(ctx context.Context, nodeID uint64, id string) (backupusecase.VerificationTask, error) {
-	response, err := c.callManagerBackup(ctx, nodeID, managerBackupRequest{Operation: managerBackupStartVerification, ID: id})
-	if err != nil || response.Verification == nil {
-		return backupusecase.VerificationTask{}, firstManagerBackupError(err, response.Error)
-	}
-	return *response.Verification, managerBackupError(response.Error)
-}
-
 // ManagerBackupFenceSource irreversibly fences one source generation through
 // the exact current Controller leader.
 func (c *Client) ManagerBackupFenceSource(
@@ -231,8 +178,7 @@ func (c *Client) ManagerBackupFenceSource(
 	response, err := c.callManagerBackup(
 		ctx, nodeID,
 		managerBackupRequest{
-			Operation:   managerBackupFenceSource,
-			SourceFence: request,
+			Operation: managerBackupFenceSource, SourceFence: request,
 		},
 	)
 	if err != nil || response.SourceFence == nil {
@@ -242,58 +188,91 @@ func (c *Client) ManagerBackupFenceSource(
 	return *response.SourceFence, managerBackupError(response.Error)
 }
 
-func (c *Client) callManagerBackup(ctx context.Context, nodeID uint64, request managerBackupRequest) (managerBackupResponse, error) {
+func (c *Client) callManagerBackup(
+	ctx context.Context,
+	nodeID uint64,
+	request managerBackupRequest,
+) (managerBackupResponse, error) {
 	if c == nil || c.node == nil || nodeID == 0 {
-		return managerBackupResponse{}, backupusecase.ErrControllerLeaderUnavailable
+		return managerBackupResponse{},
+			backupusecase.ErrControllerLeaderUnavailable
 	}
 	payload, err := encodeManagerBackupRequest(request)
 	if err != nil {
 		return managerBackupResponse{}, backupusecase.ErrInvalidRequest
 	}
-	body, err := c.node.CallRPC(ctx, nodeID, ManagerBackupRPCServiceID, payload)
+	body, err := c.node.CallRPC(
+		ctx, nodeID, ManagerBackupRPCServiceID, payload,
+	)
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.Canceled) ||
+			errors.Is(err, context.DeadlineExceeded) {
 			return managerBackupResponse{}, err
 		}
-		return managerBackupResponse{}, backupusecase.ErrControllerLeaderUnavailable
+		return managerBackupResponse{},
+			backupusecase.ErrControllerLeaderUnavailable
 	}
 	var response managerBackupResponse
 	if err := decodeManagerBackupResponse(body, &response); err != nil {
-		return managerBackupResponse{}, backupusecase.ErrControllerLeaderUnavailable
+		return managerBackupResponse{},
+			backupusecase.ErrControllerLeaderUnavailable
 	}
 	return response, nil
 }
 
 func encodeManagerBackupRequest(request managerBackupRequest) ([]byte, error) {
-	return encodeManagerBackupJSON(managerBackupRequestMagic[:], request, managerBackupMaxRequestBytes)
+	return encodeManagerBackupJSON(
+		managerBackupRequestMagic[:], request, managerBackupMaxRequestBytes,
+	)
 }
 
 func decodeManagerBackupRequest(payload []byte, request *managerBackupRequest) error {
-	return decodeManagerBackupJSON(payload, managerBackupRequestMagic[:], managerBackupMaxRequestBytes, request)
+	return decodeManagerBackupJSON(
+		payload, managerBackupRequestMagic[:],
+		managerBackupMaxRequestBytes, request,
+	)
 }
 
 func encodeManagerBackupResponse(response managerBackupResponse) ([]byte, error) {
-	return encodeManagerBackupJSON(managerBackupResponseMagic[:], response, managerBackupMaxResponseBytes)
+	return encodeManagerBackupJSON(
+		managerBackupResponseMagic[:], response, managerBackupMaxResponseBytes,
+	)
 }
 
 func decodeManagerBackupResponse(payload []byte, response *managerBackupResponse) error {
-	return decodeManagerBackupJSON(payload, managerBackupResponseMagic[:], managerBackupMaxResponseBytes, response)
+	return decodeManagerBackupJSON(
+		payload, managerBackupResponseMagic[:],
+		managerBackupMaxResponseBytes, response,
+	)
 }
 
-func encodeManagerBackupJSON(magic []byte, value any, limit int) ([]byte, error) {
+func encodeManagerBackupJSON(
+	magic []byte,
+	value any,
+	limit int,
+) ([]byte, error) {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
 	if len(magic)+len(payload) > limit {
-		return nil, fmt.Errorf("internal/access/node: manager backup payload exceeds limit")
+		return nil, fmt.Errorf(
+			"internal/access/node: manager backup payload exceeds limit",
+		)
 	}
 	return append(append([]byte(nil), magic...), payload...), nil
 }
 
-func decodeManagerBackupJSON(payload, magic []byte, limit int, target any) error {
-	if len(payload) <= len(magic) || len(payload) > limit || !hasMagic(payload, magic) {
-		return fmt.Errorf("internal/access/node: invalid manager backup payload size")
+func decodeManagerBackupJSON(
+	payload, magic []byte,
+	limit int,
+	target any,
+) error {
+	if len(payload) <= len(magic) || len(payload) > limit ||
+		!hasMagic(payload, magic) {
+		return fmt.Errorf(
+			"internal/access/node: invalid manager backup payload size",
+		)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(payload[len(magic):]))
 	decoder.DisallowUnknownFields()
@@ -301,7 +280,9 @@ func decodeManagerBackupJSON(payload, magic []byte, limit int, target any) error
 		return err
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("internal/access/node: trailing manager backup payload")
+		return fmt.Errorf(
+			"internal/access/node: trailing manager backup payload",
+		)
 	}
 	return nil
 }
@@ -326,14 +307,10 @@ func managerBackupErrorCode(err error) string {
 		return "backup_doctor_unhealthy"
 	case errors.Is(err, backupusecase.ErrControllerLeaderUnavailable):
 		return "controller_leader_unavailable"
-	case errors.Is(err, backupusecase.ErrJobActive):
-		return "backup_job_active"
-	case errors.Is(err, backupusecase.ErrVerificationJobActive):
-		return "verification_job_active"
-	case errors.Is(err, backupusecase.ErrStateConflict), errors.Is(err, backupusecase.ErrJobNotFound):
+	case errors.Is(err, backupusecase.ErrStateConflict):
 		return "state_conflict"
-	case errors.Is(err, backupusecase.ErrRestorePointNotFound):
-		return "restore_point_not_found"
+	case errors.Is(err, backupusecase.ErrCheckpointNotFound):
+		return "checkpoint_not_found"
 	case errors.Is(err, backupusecase.ErrSourceFenceExists):
 		return "source_fence_exists"
 	case errors.Is(err, backupusecase.ErrInvalidRequest):
@@ -357,14 +334,10 @@ func managerBackupError(code string) error {
 		return backupusecase.ErrDoctorUnhealthy
 	case "controller_leader_unavailable":
 		return backupusecase.ErrControllerLeaderUnavailable
-	case "backup_job_active":
-		return backupusecase.ErrJobActive
-	case "verification_job_active":
-		return backupusecase.ErrVerificationJobActive
 	case "state_conflict":
 		return backupusecase.ErrStateConflict
-	case "restore_point_not_found":
-		return backupusecase.ErrRestorePointNotFound
+	case "checkpoint_not_found":
+		return backupusecase.ErrCheckpointNotFound
 	case "source_fence_exists":
 		return backupusecase.ErrSourceFenceExists
 	case "bad_request":

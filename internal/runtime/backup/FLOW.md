@@ -8,36 +8,7 @@ it currently leads; the Controller Leader alone publishes complete immutable
 checkpoint vectors. Policy and restore lifecycle rules remain in
 `internal/usecase/backup`.
 
-```text
-fenced CaptureRequest
-  -> PartitionSource.OpenPartition
-  -> one pinned logical-partition session and committed cut
-  -> metadata stream -> bounded chunk replicator -> primary and secondary
-  -> committed-message stream -> bounded chunk replicator -> both repositories
-  -> cumulative record counts and message-ID fence
-  -> strict partition manifest -> immutable publication in both repositories
-  -> bounded PartitionReport returned to the coordinator
-```
-
-The source owns consistency and retention pins. Payload streams are never
-accumulated as a whole logical partition: only the injected replicator's
-bounded chunk, object-reference list, and a compact Channel-fence plan capped
-at `maxBackupChannelsPerHashSlot` are resident. A partition manifest is
-published only after both logical streams have replicated successfully.
-Before recapturing a missing Controller report, the worker loads the fixed
-partition-manifest key. A verified existing copy repairs its missing repository
-replica and reconstructs the same bounded report without reopening the source.
-
-The Controller Leader coordinator resumes missing partition reports from
-Controller state, runs backup doctor checks without changing message
-readiness, publishes only complete jobs, applies reference retention, retries
-dual-repository garbage collection while forwarding every per-Slot
-Controller-pending erasure reference into its protected mark set, and performs
-a daily remote audit. A durable pending/running verification task is resumed before retention
-or new scheduling after Controller Leader failover; scheduled audits first
-create that task, then persist per-restore-point success or bounded failure
-evidence. Verification and backup capture never run concurrently. The restore
-coordinator similarly resumes missing installs only on the Controller Leader
+The restore coordinator resumes missing installs only on the Controller Leader
 and bounds concurrent logical partitions. For a checkpoint-backed plan it
 first persists the current Slot-Leader assignment, then dispatches exactly that
 Leader. A changed term/configuration starts the next durable attempt; a
@@ -53,8 +24,19 @@ zero while the durable receipt retains successful replicas.
 ## Production Continuous Capture
 
 The application composition root wires this path whenever automatic backup is
-enabled. The older job runtime remains only as uncomposed code pending its
-dedicated removal.
+enabled. There is no periodic partition-job or cluster-wide full-backup
+runtime.
+
+On every tick, every node reloads the newest authenticated checkpoint through
+the durable Controller catalog head. This hydrates checkpoint-age metrics and
+the next publication deadline after process restart or Controller Leader
+change; a new Leader therefore cannot publish an unnecessary duplicate merely
+because its node-local memory started empty. The Controller Leader also
+advances one bounded integrity-audit step and one bounded Generation-GC step
+at their independent configured cadences. Every node runs the audit projection
+loop so a remote durable Slot freeze reaches local capture promptly; projection
+exit is supervised and restarted without weakening the final Controller CAS
+fence.
 
 ```text
 in-memory Channel commit hint -> CaptureEngine.Wake (bounded, non-blocking)
@@ -173,7 +155,7 @@ keeps the pending record and last healthy frontier intact. Lost authority
 fences promotion and releases the former Leader's local hold.
 
 Generation compaction reuses this same single-Slot replacement path; it never
-creates a cluster-wide synthetic full. Each durable stream frontier counts the
+creates a cluster-wide replacement job. Each durable stream frontier counts the
 exact plaintext committed into its payload and cursor-sidecar segments. A Slot
 starts replacement when delta plaintext reaches the smaller of its baseline
 size and the configured threshold (64 GiB by default), when the Generation
@@ -202,7 +184,7 @@ as `rebase_required` before live-source availability is queried. The next step
 requests a Slot-local rebase or records `failed` and advances the global cursor
 so unrelated Slots still receive audit work. Only the affected Slot's capture
 gate returns `ErrIntegrityAuditFrozen`; foreground SEND never calls this path.
-Permanent-erasure nodes use the same Hash Slot isolation, but their synthetic
+Permanent-erasure nodes use the same Hash Slot isolation, but their reserved
 `erasure-ledger` Generation is intentionally unavailable to live-source rebase:
 dual-copy loss therefore becomes `failed` while the saved continuation still
 allows later Slots to be inspected.

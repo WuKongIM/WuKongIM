@@ -30,6 +30,8 @@ type ContinuousCoordinatorOptions struct {
 	Capture ContinuousCaptureRunner
 	// Checkpoints publishes catalog entries only from the Controller Leader.
 	Checkpoints ContinuousCheckpointPublisher
+	// LatestCheckpoint hydrates checkpoint age and cadence on every node.
+	LatestCheckpoint ContinuousCheckpointObservationSource
 	// Doctor gates repository/KMS work without affecting foreground readiness.
 	Doctor CoordinatorDoctor
 	// Leadership identifies the current Controller Leader.
@@ -40,6 +42,16 @@ type ContinuousCoordinatorOptions struct {
 	TickInterval time.Duration
 	// DoctorRetry controls dependency qualification retries.
 	DoctorRetry time.Duration
+	// Auditor advances one bounded authenticated repair transition.
+	Auditor ControllerMaintenance
+	// AuditInterval controls bounded integrity-audit work cadence.
+	AuditInterval time.Duration
+	// GarbageCollector advances one bounded Generation sweep.
+	GarbageCollector ControllerMaintenance
+	// GarbageCollectionInterval controls destructive maintenance cadence.
+	GarbageCollectionInterval time.Duration
+	// Projection keeps follower capture workers aligned with durable audit state.
+	Projection ContinuousProjectionRunner
 	// Now may be replaced by deterministic tests.
 	Now func() time.Time
 	// Observer receives low-cardinality operational evidence.
@@ -51,22 +63,27 @@ type ContinuousCoordinatorOptions struct {
 type ContinuousCoordinator struct {
 	options ContinuousCoordinatorOptions
 
-	mu                sync.Mutex
-	status            CoordinatorStatus
-	lastCheckpointAt  int64
-	nextCheckpointAt  time.Time
-	nextDoctorAt      time.Time
-	captureStarted    bool
-	captureCancel     context.CancelFunc
-	captureDone       chan error
-	cancel            context.CancelFunc
-	done              chan struct{}
-	publicationSerial sync.Mutex
+	mu                        sync.Mutex
+	status                    CoordinatorStatus
+	lastCheckpointEffectiveAt int64
+	nextCheckpointAt          time.Time
+	nextDoctorAt              time.Time
+	nextAuditAt               time.Time
+	nextGarbageCollectionAt   time.Time
+	captureStarted            bool
+	captureCancel             context.CancelFunc
+	captureDone               chan error
+	projectionStarted         bool
+	projectionDone            chan error
+	cancel                    context.CancelFunc
+	done                      chan struct{}
+	publicationSerial         sync.Mutex
 }
 
 // NewContinuousCoordinator creates the production continuous-backup supervisor.
 func NewContinuousCoordinator(options ContinuousCoordinatorOptions) (*ContinuousCoordinator, error) {
-	if options.Capture == nil || options.Checkpoints == nil || options.Doctor == nil ||
+	if options.Capture == nil || options.Checkpoints == nil ||
+		options.LatestCheckpoint == nil || options.Doctor == nil ||
 		options.Leadership == nil || options.Leadership.NodeID() == 0 ||
 		options.CheckpointInterval <= 0 {
 		return nil, fmt.Errorf("%w: continuous coordinator options are incomplete", ErrInvalidCapture)
@@ -82,6 +99,13 @@ func NewContinuousCoordinator(options ContinuousCoordinatorOptions) (*Continuous
 	}
 	if options.TickInterval <= 0 || options.DoctorRetry <= 0 {
 		return nil, fmt.Errorf("%w: continuous coordinator intervals must be positive", ErrInvalidCapture)
+	}
+	if (options.Auditor == nil) != (options.AuditInterval == 0) ||
+		(options.GarbageCollector == nil) !=
+			(options.GarbageCollectionInterval == 0) ||
+		options.AuditInterval < 0 ||
+		options.GarbageCollectionInterval < 0 {
+		return nil, fmt.Errorf("%w: continuous maintenance options are incomplete", ErrInvalidCapture)
 	}
 	return &ContinuousCoordinator{
 		options: options,
@@ -116,6 +140,8 @@ func (c *ContinuousCoordinator) Start(ctx context.Context) error {
 	c.status.Running = true
 	c.nextDoctorAt = time.Time{}
 	c.nextCheckpointAt = time.Time{}
+	c.nextAuditAt = time.Time{}
+	c.nextGarbageCollectionAt = time.Time{}
 	done := c.done
 	c.mu.Unlock()
 	go c.loop(runContext, done)
@@ -186,7 +212,7 @@ func (c *ContinuousCoordinator) loop(ctx context.Context, done chan struct{}) {
 	ticker := time.NewTicker(c.options.TickInterval)
 	defer ticker.Stop()
 	defer func() {
-		c.stopCapture()
+		c.stopAndWaitChildren()
 		c.mu.Lock()
 		c.status.Running = false
 		c.cancel = nil
@@ -194,37 +220,103 @@ func (c *ContinuousCoordinator) loop(ctx context.Context, done chan struct{}) {
 		close(done)
 	}()
 	for {
+		c.startProjection(ctx)
 		c.runOnce(ctx)
 		select {
 		case <-ctx.Done():
 			return
 		case err := <-c.captureDoneChannel():
 			c.captureExited(err)
+		case err := <-c.projectionDoneChannel():
+			c.projectionExited(err)
 		case <-ticker.C:
 		}
+	}
+}
+
+func (c *ContinuousCoordinator) startProjection(parent context.Context) {
+	c.mu.Lock()
+	if c.options.Projection == nil || c.projectionStarted {
+		c.mu.Unlock()
+		return
+	}
+	c.projectionStarted = true
+	c.projectionDone = make(chan error, 1)
+	done := c.projectionDone
+	c.mu.Unlock()
+	go func() {
+		done <- c.options.Projection.Run(parent)
+	}()
+}
+
+func (c *ContinuousCoordinator) projectionDoneChannel() <-chan error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.projectionDone
+}
+
+func (c *ContinuousCoordinator) projectionExited(err error) {
+	c.mu.Lock()
+	c.projectionStarted = false
+	c.projectionDone = nil
+	c.mu.Unlock()
+	if err != nil && !errors.Is(err, context.Canceled) {
+		c.recordContinuousFailure("audit")
 	}
 }
 
 func (c *ContinuousCoordinator) runOnce(ctx context.Context) {
 	now := c.options.Now().UTC()
 	leader := c.options.Leadership.BackupControllerLeaderID() == c.options.Leadership.NodeID()
+	checkpointStateReady := c.refreshLatestCheckpoint(ctx)
 	c.mu.Lock()
 	c.status.ControllerLeader = leader
 	doctorDue := c.nextDoctorAt.IsZero() || !now.Before(c.nextDoctorAt)
+	checkpointEffectiveAt := c.lastCheckpointEffectiveAt
 	c.mu.Unlock()
 	if c.options.Observer != nil {
 		c.options.Observer.SetBackupControllerLeader(leader)
+		var age *int64
+		if checkpointEffectiveAt > 0 {
+			seconds := now.Unix() - time.UnixMilli(
+				checkpointEffectiveAt,
+			).UTC().Unix()
+			if seconds < 0 {
+				seconds = 0
+			}
+			age = &seconds
+		}
+		c.options.Observer.SetBackupCheckpointAgeSeconds(age)
 	}
 	if doctorDue {
 		c.runDoctor(ctx, now)
 	}
 	c.mu.Lock()
 	healthy := c.status.DoctorHealth == backupcontract.HealthHealthy
-	publishDue := leader && healthy &&
+	publishDue := leader && healthy && checkpointStateReady &&
 		(c.nextCheckpointAt.IsZero() || !now.Before(c.nextCheckpointAt))
+	auditDue := leader && healthy && c.options.Auditor != nil &&
+		(c.nextAuditAt.IsZero() || !now.Before(c.nextAuditAt))
+	garbageDue := leader && healthy && c.options.GarbageCollector != nil &&
+		(c.nextGarbageCollectionAt.IsZero() ||
+			!now.Before(c.nextGarbageCollectionAt))
 	c.mu.Unlock()
 	if healthy {
 		c.startCapture(ctx)
+	}
+	if auditDue {
+		c.runMaintenance(
+			ctx, now, c.options.Auditor, c.options.AuditInterval,
+			"integrity audit", "audit", &c.nextAuditAt,
+		)
+	}
+	if garbageDue {
+		c.runMaintenance(
+			ctx, now, c.options.GarbageCollector,
+			c.options.GarbageCollectionInterval,
+			"Generation garbage collection", "gc",
+			&c.nextGarbageCollectionAt,
+		)
 	}
 	if !publishDue {
 		return
@@ -238,6 +330,59 @@ func (c *ContinuousCoordinator) runOnce(ctx context.Context) {
 	c.mu.Lock()
 	c.nextCheckpointAt = now.Add(c.options.CheckpointInterval)
 	c.mu.Unlock()
+}
+
+func (c *ContinuousCoordinator) refreshLatestCheckpoint(
+	ctx context.Context,
+) bool {
+	observation, found, err := c.options.LatestCheckpoint.LatestCheckpoint(ctx)
+	if err != nil {
+		c.recordContinuousFailure("checkpoint")
+		return false
+	}
+	if !found {
+		return true
+	}
+	if observation.EffectiveAtUnixMillis <= 0 ||
+		observation.CreatedAtUnixMillis <
+			observation.EffectiveAtUnixMillis {
+		c.recordContinuousFailure("checkpoint")
+		return false
+	}
+	c.mu.Lock()
+	if observation.CreatedAtUnixMillis >= c.status.LastSuccessAtUnixMillis {
+		c.lastCheckpointEffectiveAt =
+			observation.EffectiveAtUnixMillis
+		c.status.LastSuccessAtUnixMillis =
+			observation.CreatedAtUnixMillis
+		c.nextCheckpointAt = time.UnixMilli(
+			observation.CreatedAtUnixMillis,
+		).UTC().Add(c.options.CheckpointInterval)
+	}
+	c.mu.Unlock()
+	return true
+}
+
+func (c *ContinuousCoordinator) runMaintenance(
+	ctx context.Context,
+	now time.Time,
+	runner ControllerMaintenance,
+	interval time.Duration,
+	_ string,
+	failureCategory string,
+	next *time.Time,
+) {
+	_, err := runner.RunIfLeader(ctx, c.options.Leadership)
+	c.mu.Lock()
+	*next = now.Add(interval)
+	if err != nil {
+		c.status.LastFailureCategory = failureCategory
+	}
+	c.mu.Unlock()
+	if err != nil && failureCategory != "audit" &&
+		c.options.Observer != nil {
+		c.options.Observer.ObserveBackupFailure(failureCategory)
+	}
 }
 
 func (c *ContinuousCoordinator) runDoctor(ctx context.Context, now time.Time) {
@@ -280,12 +425,20 @@ func (c *ContinuousCoordinator) startCapture(parent context.Context) {
 	}()
 }
 
-func (c *ContinuousCoordinator) stopCapture() {
+func (c *ContinuousCoordinator) stopAndWaitChildren() {
 	c.mu.Lock()
-	cancel := c.captureCancel
+	captureCancel := c.captureCancel
+	captureDone := c.captureDone
+	projectionDone := c.projectionDone
 	c.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if captureCancel != nil {
+		captureCancel()
+	}
+	if captureDone != nil {
+		c.captureExited(<-captureDone)
+	}
+	if projectionDone != nil {
+		c.projectionExited(<-projectionDone)
 	}
 }
 
@@ -317,15 +470,20 @@ func (c *ContinuousCoordinator) publish(
 	}
 	now := c.options.Now().UTC()
 	c.mu.Lock()
-	c.lastCheckpointAt = commit.Checkpoint.CreatedAtUnixMillis
+	c.lastCheckpointEffectiveAt =
+		commit.Checkpoint.EffectiveAtUnixMillis
 	c.status.LastSuccessAtUnixMillis = commit.Checkpoint.CreatedAtUnixMillis
 	c.status.LastFailureCategory = ""
 	c.nextCheckpointAt = now.Add(c.options.CheckpointInterval)
 	c.mu.Unlock()
 	if c.options.Observer != nil {
-		c.options.Observer.SetBackupActive(false)
-		age := int64(0)
-		c.options.Observer.SetBackupRecoveryPointAgeSeconds(&age)
+		age := now.Unix() - time.UnixMilli(
+			commit.Checkpoint.EffectiveAtUnixMillis,
+		).UTC().Unix()
+		if age < 0 {
+			age = 0
+		}
+		c.options.Observer.SetBackupCheckpointAgeSeconds(&age)
 	}
 	return commit, nil
 }

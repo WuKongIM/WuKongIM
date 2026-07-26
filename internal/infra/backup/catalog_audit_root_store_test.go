@@ -22,6 +22,7 @@ func TestControllerCatalogAuditRootStoreWaitsForOlderAuditCycle(t *testing.T) {
 			SHA256: strings.Repeat("a", 64), Bytes: 512,
 			LatestCheckpointID: "checkpoint-5",
 		},
+		CatalogRetentionRevision: 1,
 		CatalogAuditRootSequence: 1,
 		IntegrityAudit: backupcontract.IntegrityAuditState{
 			Revision: 1,

@@ -158,8 +158,8 @@ func TestCheckpointSlotInstallerImportsOnceOnLeaderAndFinalizesReplicaConvergenc
 	)
 	require.NoError(t, err)
 	plan := backupusecase.RestorePlan{
-		ID: "plan-1", RestorePointID: checkpoint.ID,
-		ManifestSHA256: commit.Checkpoint.SHA256, CatalogProof: &proof,
+		ID: "plan-1", CheckpointID: checkpoint.ID,
+		CheckpointSHA256: commit.Checkpoint.SHA256, CatalogProof: &proof,
 		CheckpointVersion:               checkpoint.Version,
 		CheckpointCreatedAtUnixMillis:   checkpoint.CreatedAtUnixMillis,
 		CheckpointEffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis,

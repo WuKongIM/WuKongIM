@@ -65,7 +65,7 @@ var builtinManagerPermissionResources = []ManagerPermissionResource{
 	{
 		Resource:    "cluster.backup",
 		Actions:     []string{"r", "w"},
-		Description: "Read cluster backup evidence and control backup jobs or restore-point holds.",
+		Description: "Read continuous backup evidence and publish immutable checkpoints.",
 	},
 	{
 		Resource:    "cluster.restore.activation",

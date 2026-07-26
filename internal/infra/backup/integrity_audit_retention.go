@@ -51,7 +51,7 @@ type IntegrityAuditActiveRestoreSource interface {
 // checkpoint references consumed by Generation GC.
 type CheckpointIndexIntegrityAuditRetentionSource struct {
 	index         *CheckpointCatalogIndex
-	policy        backupusecase.RetentionPolicy
+	policy        backupusecase.CheckpointRetentionPolicy
 	activeRestore IntegrityAuditActiveRestoreSource
 }
 
@@ -59,7 +59,7 @@ type CheckpointIndexIntegrityAuditRetentionSource struct {
 // selection without making the rebuildable index an authority.
 type CheckpointIndexIntegrityAuditRetentionSourceOptions struct {
 	Index         *CheckpointCatalogIndex
-	Policy        backupusecase.RetentionPolicy
+	Policy        backupusecase.CheckpointRetentionPolicy
 	ActiveRestore IntegrityAuditActiveRestoreSource
 }
 

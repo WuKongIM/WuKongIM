@@ -653,14 +653,13 @@ func (c *ReplicatedCheckpointCatalog) ResolveCheckpointForRestoreDual(
 	ctx context.Context,
 	head backupartifact.CatalogPageReference,
 	checkpointID string,
-	latest bool,
 ) (
 	backupartifact.CheckpointCatalogProof,
 	backupartifact.Checkpoint,
 	error,
 ) {
 	checkpointID = strings.TrimSpace(checkpointID)
-	if c == nil || (checkpointID == "") == !latest {
+	if c == nil || checkpointID == "" {
 		return backupartifact.CheckpointCatalogProof{},
 			backupartifact.Checkpoint{}, backupartifact.ErrInvalidObject
 	}
@@ -677,8 +676,7 @@ func (c *ReplicatedCheckpointCatalog) ResolveCheckpointForRestoreDual(
 				backupartifact.Checkpoint{}, err
 		}
 		for _, entry := range page.Entries {
-			if entry.StateOnly ||
-				(!latest && entry.ID != checkpointID) {
+			if entry.StateOnly || entry.ID != checkpointID {
 				continue
 			}
 			checkpoint, err := c.LoadCheckpoint(ctx, entry)

@@ -2127,104 +2127,89 @@ export type ManagerDBInspectQueryInput = {
 }
 
 export type BackupHealth = "disabled" | "unknown" | "healthy" | "degraded" | "failed"
-export type BackupVerificationStatus = "pending" | "running" | "succeeded" | "failed"
 
-export type ManagerBackupVerificationEvidence = {
-  status: BackupVerificationStatus
-  started_at_unix_millis: number
-  completed_at_unix_millis?: number
-  primary_verified: boolean
-  secondary_verified: boolean
-  manifest_sha256?: string
-  failure_category?: string
-}
-
-export type ManagerBackupVerificationTask = ManagerBackupVerificationEvidence & {
+export type ManagerBackupCheckpoint = {
   id: string
-  restore_point_id: string
-}
-
-export type ManagerBackupRestorePoint = {
-  id: string
-  kind: "incremental" | "synthetic_full" | "materialized_full"
-  effective_at_unix_millis: number
   created_at_unix_millis: number
-  primary_verified: boolean
-  secondary_verified: boolean
+  effective_at_unix_millis: number
   held: boolean
-  last_verification?: ManagerBackupVerificationEvidence
 }
 
-export type ManagerBackupJob = {
-  id: string
-  epoch: number
-  kind: string
-  status: string
-  hash_slot_count: number
-  restore_point_id: string
-  completed_partitions: number
-  started_at_unix_millis: number
-  updated_at_unix_millis: number
+export type ManagerBackupCaptureLease = {
+  hash_slot: number
+  slot_id: number
+  source_slot_id: number
+  holder_node_id: number
+  leader_term: number
+  config_epoch: number
+  generation: string
+  lease_sequence: number
+  frontier_revision: number
+  metadata_source_watermark: number
+  message_source_watermark: number
+  acquired_at_unix_millis: number
+  source_pin_started_at_unix_millis: number
+  frontier_updated_unix_millis: number
+}
+
+export type ManagerBackupCaptureStatus = {
+  hash_slot: number
+  state: string
   failure_category?: string
+  lease_current: boolean
+  frontier_revision: number
+  metadata_source_watermark: number
+  message_source_watermark: number
+  metadata_frontier_watermark: number
+  message_frontier_watermark: number
+  observed_at_unix_millis: number
+}
+
+export type ManagerBackupErasureStream = {
+  hash_slot: number
+  sequence: number
+  pending: boolean
 }
 
 export type ManagerBackupStatusResponse = {
   enabled: boolean
   health: BackupHealth
-  recovery_point_age_seconds: number | null
-  verification_age_seconds: number | null
-  pending_garbage_count: number
+  checkpoint_age_seconds: number | null
+  latest_checkpoint?: ManagerBackupCheckpoint
   failure_category?: string
-  active?: ManagerBackupJob
-  latest?: ManagerBackupRestorePoint
-  verification?: ManagerBackupVerificationTask
   coordinator_node_id: number
   observed_at_unix_millis: number
   auth_enabled: boolean
   running: boolean
-  max_recovery_point_age_seconds: number
-  max_verification_age_seconds: number
+  max_checkpoint_age_seconds: number
   policy: {
-    incremental_interval_seconds: number
-    restore_point_interval_seconds: number
-    independent_full_interval_seconds: number
-    materialized_full_interval_seconds: number
-    monthly_retention_months: number
-    object_lock_days: number
-    max_parallel_partitions: number
+    capture_reconcile_interval_seconds: number
+    checkpoint_interval_seconds: number
+    capture_worker_count: number
     staging_max_bytes: number
-    primary_region: string
-    secondary_region: string
-    kms_region: string
+    source_pin_max_age_seconds: number
+    max_source_pinned_bytes: number
   }
-  dependencies: {
-    primary: { health: BackupHealth; region?: string }
-    secondary: { health: BackupHealth; region?: string }
-    kms: { health: BackupHealth; region?: string }
-    staging: { health: BackupHealth }
-    utc: { health: BackupHealth }
-    checked_at_unix_millis?: number
-  }
-  capacity: {
-    total: number
-    held: number
-    pending: number
-    max: number
-    warning_at: number
-    critical_at: number
-    level: "normal" | "warning" | "critical"
-  }
+  capture_leases: ManagerBackupCaptureLease[]
+  local_capture_statuses: ManagerBackupCaptureStatus[]
+  erasure_streams: ManagerBackupErasureStream[]
 }
 
-export type ManagerBackupRestorePointPage = {
-  items: ManagerBackupRestorePoint[]
+export type ManagerBackupCheckpointPage = {
+  catalog_head_token?: string
+  items: ManagerBackupCheckpoint[]
   next_cursor?: string
   total: number
 }
 
-export type BackupRestorePointListParams = {
+export type BackupCheckpointListParams = {
   limit?: number
   cursor?: string
   id?: string
-  held?: boolean
+}
+
+export type ManagerBackupCheckpointPublication = {
+  checkpoint: ManagerBackupCheckpoint
+  checkpoint_sha256: string
+  catalog_head_token: string
 }

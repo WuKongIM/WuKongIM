@@ -12,8 +12,8 @@ import (
 type SourceFenceRequest struct {
 	// RestorePlanID identifies the immutable target recovery plan.
 	RestorePlanID string
-	// RestorePointID selects the exact authenticated checkpoint.
-	RestorePointID string
+	// CheckpointID selects the exact authenticated checkpoint.
+	CheckpointID string
 	// TargetClusterID and TargetGeneration identify the intended successor.
 	TargetClusterID  string
 	TargetGeneration string
@@ -29,23 +29,23 @@ func (a *App) FenceSource(
 		return SourceFenceReceipt{}, ErrDisabled
 	}
 	request.RestorePlanID = strings.TrimSpace(request.RestorePlanID)
-	request.RestorePointID = strings.TrimSpace(request.RestorePointID)
+	request.CheckpointID = strings.TrimSpace(request.CheckpointID)
 	request.TargetClusterID = strings.TrimSpace(request.TargetClusterID)
 	request.TargetGeneration = strings.TrimSpace(request.TargetGeneration)
 	if a.sourceClusterID == "" || a.sourceGeneration == "" ||
 		a.sourceFence == nil || a.sourceFenceSigner == nil ||
 		a.signingKeyID == "" || a.newSourceFenceID == nil ||
-		request.RestorePlanID == "" || request.RestorePointID == "" ||
+		request.RestorePlanID == "" || request.CheckpointID == "" ||
 		request.TargetClusterID == "" || request.TargetGeneration == "" {
 		return SourceFenceReceipt{}, ErrInvalidRequest
 	}
-	checkpoint, err := a.CheckpointByID(ctx, request.RestorePointID)
+	checkpoint, err := a.CheckpointByID(ctx, request.CheckpointID)
 	if err != nil {
 		return SourceFenceReceipt{}, err
 	}
 	if checkpoint.SourceClusterID != a.sourceClusterID ||
 		checkpoint.SourceGeneration != a.sourceGeneration ||
-		checkpoint.ManifestSHA256 == "" ||
+		checkpoint.CheckpointSHA256 == "" ||
 		request.TargetClusterID == a.sourceClusterID ||
 		request.TargetGeneration == a.sourceGeneration {
 		return SourceFenceReceipt{}, ErrInvalidRequest
@@ -63,8 +63,8 @@ func (a *App) FenceSource(
 		SourceClusterID:         a.sourceClusterID,
 		SourceGeneration:        a.sourceGeneration,
 		RestorePlanID:           request.RestorePlanID,
-		RestorePointID:          request.RestorePointID,
-		ManifestSHA256:          checkpoint.ManifestSHA256,
+		CheckpointID:            request.CheckpointID,
+		CheckpointSHA256:        checkpoint.CheckpointSHA256,
 		TargetClusterID:         request.TargetClusterID,
 		TargetGeneration:        request.TargetGeneration,
 		RequestedAtUnixMillis:   now,
@@ -78,9 +78,6 @@ func (a *App) FenceSource(
 			}
 			record = *state.SourceFence
 			return nil
-		}
-		if state.Active != nil || verificationTaskActive(state.Verification) {
-			return ErrJobActive
 		}
 		record.FenceControllerRevision = state.Revision + 1
 		if err := backupartifact.ValidateSourceFenceRecord(record, false); err != nil {
@@ -133,7 +130,7 @@ func sourceFenceMatchesRequest(
 	return record.SourceClusterID != record.TargetClusterID &&
 		record.SourceGeneration != record.TargetGeneration &&
 		record.RestorePlanID == request.RestorePlanID &&
-		record.RestorePointID == request.RestorePointID &&
+		record.CheckpointID == request.CheckpointID &&
 		record.TargetClusterID == request.TargetClusterID &&
 		record.TargetGeneration == request.TargetGeneration
 }

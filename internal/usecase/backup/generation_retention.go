@@ -23,7 +23,7 @@ type CheckpointRetentionDecision struct {
 func DecideCheckpointRetention(
 	now time.Time,
 	checkpoints []backupartifact.CatalogCheckpointReference,
-	policy RetentionPolicy,
+	policy CheckpointRetentionPolicy,
 	activeRestoreCheckpointID string,
 ) (CheckpointRetentionDecision, error) {
 	ordered := append([]backupartifact.CatalogCheckpointReference(nil), checkpoints...)
@@ -72,6 +72,72 @@ func DecideCheckpointRetention(
 		}
 	}
 	return decision, nil
+}
+
+const (
+	fiveMinuteRetentionWindow = 24 * time.Hour
+	hourlyRetentionWindow     = 7 * 24 * time.Hour
+	dailyRetentionWindow      = 30 * 24 * time.Hour
+)
+
+type retentionTierCandidate struct {
+	id                  string
+	createdAtUnixMillis int64
+	held                bool
+	monthlyEligible     bool
+}
+
+func selectRetentionTiers(
+	now time.Time,
+	candidates []retentionTierCandidate,
+	policy CheckpointRetentionPolicy,
+	protected map[string]struct{},
+) ([]bool, error) {
+	if policy.MonthlyMonths < 0 || policy.MonthlyMonths > 120 {
+		return nil, fmt.Errorf(
+			"%w: monthly retention months must be between 0 and 120",
+			ErrInvalidRequest,
+		)
+	}
+	hourBuckets := make(map[string]struct{})
+	dayBuckets := make(map[string]struct{})
+	monthBuckets := make(map[string]struct{})
+	retained := make([]bool, len(candidates))
+	now = now.UTC()
+	monthlyCutoff := now.AddDate(0, -policy.MonthlyMonths, 0)
+	for index, candidate := range candidates {
+		created := time.UnixMilli(candidate.createdAtUnixMillis).UTC()
+		age := now.Sub(created)
+		_, explicitlyProtected := protected[candidate.id]
+		retain := candidate.held || explicitlyProtected || age < 0
+		switch {
+		case retain:
+		case age <= fiveMinuteRetentionWindow:
+			retain = true
+		case age <= hourlyRetentionWindow:
+			bucket := created.Format("2006-01-02T15")
+			if _, exists := hourBuckets[bucket]; !exists {
+				hourBuckets[bucket] = struct{}{}
+				retain = true
+			}
+		case age <= dailyRetentionWindow:
+			bucket := created.Format("2006-01-02")
+			if _, exists := dayBuckets[bucket]; !exists {
+				dayBuckets[bucket] = struct{}{}
+				retain = true
+			}
+		case policy.MonthlyMonths > 0 &&
+			candidate.monthlyEligible &&
+			!created.Before(monthlyCutoff):
+			bucket := created.Format("2006-01")
+			if _, exists := monthBuckets[bucket]; !exists {
+				monthBuckets[bucket] = struct{}{}
+				retain = true
+			}
+		}
+		retained[index] = retain
+	}
+	return retained, nil
 }
 
 func validCheckpointRetentionReference(reference backupartifact.CatalogCheckpointReference) bool {

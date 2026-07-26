@@ -466,47 +466,6 @@ func (r *FileRepository) removeGarbageKey(key string) {
 
 var _ GenerationGarbageRepository = (*FileRepository)(nil)
 
-// ListRestorePointIDs returns bounded restore-point directories that expose a
-// regular immutable publication marker. Marker and manifest contents are
-// verified separately.
-func (r *FileRepository) ListRestorePointIDs(ctx context.Context) ([]string, error) {
-	if r == nil || r.root == "" {
-		return nil, fmt.Errorf("backup file repository: repository is required")
-	}
-	root := filepath.Join(r.root, "restore-points")
-	entries, err := os.ReadDir(root)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if len(entries) > maxListedRestorePoints {
-		return nil, fmt.Errorf("backup file repository: restore-point listing exceeds limit")
-	}
-	ids := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if !entry.IsDir() || !safeRestorePointID(entry.Name()) {
-			continue
-		}
-		info, err := os.Lstat(filepath.Join(root, entry.Name(), "published.json"))
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if info.Mode().IsRegular() {
-			ids = append(ids, entry.Name())
-		}
-	}
-	sort.Strings(ids)
-	return ids, nil
-}
-
 // ListErasureLedgerCommitKeys returns bounded lexically ordered commit-marker
 // keys for one source-generation namespace.
 func (r *FileRepository) ListErasureLedgerCommitKeys(ctx context.Context, namespace string) ([]string, error) {
@@ -620,4 +579,3 @@ func (r contextReader) Read(buffer []byte) (int, error) {
 var _ backupartifact.Repository = (*FileRepository)(nil)
 var _ backupartifact.RepairRepository = (*FileRepository)(nil)
 var _ RepositoryDoctor = (*FileRepository)(nil)
-var _ RestorePointLister = (*FileRepository)(nil)

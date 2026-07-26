@@ -604,55 +604,6 @@ func (r *S3Repository) ListGarbageObjects(
 	return page, nil
 }
 
-// ListRestorePointIDs lists publication markers under the repository namespace.
-// Every returned marker and manifest is still authenticated by the restore inspector.
-func (r *S3Repository) ListRestorePointIDs(ctx context.Context) ([]string, error) {
-	if r == nil || r.client == nil {
-		return nil, fmt.Errorf("backup s3 repository: repository is required")
-	}
-	prefix := r.prefix + "/restore-points/"
-	ids := make(map[string]struct{})
-	var continuationToken *string
-	for {
-		output, err := r.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-			Bucket: aws.String(r.bucket), Prefix: aws.String(prefix), ContinuationToken: continuationToken,
-		})
-		if err != nil {
-			return nil, mapS3Error(err)
-		}
-		if output == nil {
-			return nil, fmt.Errorf("backup s3 repository: object listing is missing")
-		}
-		for _, object := range output.Contents {
-			key := aws.ToString(object.Key)
-			relative := strings.TrimPrefix(key, prefix)
-			if relative == key || !strings.HasSuffix(relative, "/published.json") {
-				continue
-			}
-			id := strings.TrimSuffix(relative, "/published.json")
-			if !strings.Contains(id, "/") && safeRestorePointID(id) {
-				ids[id] = struct{}{}
-			}
-		}
-		if len(ids) > maxListedRestorePoints {
-			return nil, fmt.Errorf("backup s3 repository: restore-point listing exceeds limit")
-		}
-		if !aws.ToBool(output.IsTruncated) {
-			break
-		}
-		if output.NextContinuationToken == nil || aws.ToString(output.NextContinuationToken) == "" || (continuationToken != nil && aws.ToString(output.NextContinuationToken) == aws.ToString(continuationToken)) {
-			return nil, fmt.Errorf("backup s3 repository: invalid listing continuation token")
-		}
-		continuationToken = output.NextContinuationToken
-	}
-	result := make([]string, 0, len(ids))
-	for id := range ids {
-		result = append(result, id)
-	}
-	sort.Strings(result)
-	return result, nil
-}
-
 // ListErasureLedgerCommitKeys returns bounded lexically ordered commit-marker
 // keys for one source-generation namespace.
 func (r *S3Repository) ListErasureLedgerCommitKeys(ctx context.Context, namespace string) ([]string, error) {
@@ -808,5 +759,4 @@ func (r *S3Repository) objectVersionLocked(
 
 var _ backupartifact.Repository = (*S3Repository)(nil)
 var _ backupartifact.RepairRepository = (*S3RepairRepository)(nil)
-var _ RestorePointLister = (*S3Repository)(nil)
 var _ GenerationGarbageRepository = (*S3Repository)(nil)

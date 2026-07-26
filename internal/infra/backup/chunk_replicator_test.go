@@ -28,9 +28,9 @@ func TestChunkReplicatorBoundsAndRestoresStream(t *testing.T) {
 	require.NoError(t, err)
 
 	entries, err := replicator.Replicate(context.Background(), backupinfra.StreamDescriptor{
-		JobID:    "backup-9",
-		HashSlot: 7,
-		Kind:     backupartifact.ObjectKindMetadata,
+		Generation: "backup-9",
+		HashSlot:   7,
+		Kind:       backupartifact.ObjectKindMetadata,
 	}, bytes.NewReader([]byte("abcdefghij")))
 	require.NoError(t, err)
 	require.Len(t, entries, 3)
@@ -57,9 +57,9 @@ func TestChunkReplicatorUsesShardIDToAvoidMessageKeyCollisions(t *testing.T) {
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x44}, 128)))
 	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{Codec: codec, Publisher: backupartifact.NewReplicatedPublisher(primary, secondary), KMSKeyID: "kms-backup", ChunkBytes: 16})
 	require.NoError(t, err)
-	first, err := replicator.Replicate(context.Background(), backupinfra.StreamDescriptor{JobID: "backup-shards", HashSlot: 2, Kind: backupartifact.ObjectKindMessages, ShardID: "n1-0000"}, bytes.NewReader([]byte("one")))
+	first, err := replicator.Replicate(context.Background(), backupinfra.StreamDescriptor{Generation: "backup-shards", HashSlot: 2, Kind: backupartifact.ObjectKindMessages, ShardID: "n1-0000"}, bytes.NewReader([]byte("one")))
 	require.NoError(t, err)
-	second, err := replicator.Replicate(context.Background(), backupinfra.StreamDescriptor{JobID: "backup-shards", HashSlot: 2, Kind: backupartifact.ObjectKindMessages, ShardID: "n2-0000"}, bytes.NewReader([]byte("two")))
+	second, err := replicator.Replicate(context.Background(), backupinfra.StreamDescriptor{Generation: "backup-shards", HashSlot: 2, Kind: backupartifact.ObjectKindMessages, ShardID: "n2-0000"}, bytes.NewReader([]byte("two")))
 	require.NoError(t, err)
 	require.NotEqual(t, first[0].Key, second[0].Key)
 }
@@ -74,7 +74,7 @@ func TestChunkReplicatorRetryAfterPartialUploadUsesFreshImmutableNamespace(t *te
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x55}, 256)))
 	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{Codec: codec, Publisher: backupartifact.NewReplicatedPublisher(primary, secondary), KMSKeyID: "kms-backup", ChunkBytes: 16})
 	require.NoError(t, err)
-	descriptor := backupinfra.StreamDescriptor{JobID: "backup-retry", HashSlot: 2, Kind: backupartifact.ObjectKindMetadata}
+	descriptor := backupinfra.StreamDescriptor{Generation: "backup-retry", HashSlot: 2, Kind: backupartifact.ObjectKindMetadata}
 	_, err = replicator.Replicate(context.Background(), descriptor, bytes.NewReader([]byte("same stream")))
 	require.Error(t, err)
 	second, err := replicator.Replicate(context.Background(), descriptor, bytes.NewReader([]byte("same stream")))

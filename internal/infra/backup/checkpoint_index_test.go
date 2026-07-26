@@ -121,6 +121,29 @@ func TestCheckpointCatalogIndexQueriesExactCheckpointID(t *testing.T) {
 	require.ErrorIs(t, err, backupusecase.ErrCheckpointNotFound)
 }
 
+func TestCheckpointCatalogIndexReturnsHeadCheckpointWithoutHistoryCopy(t *testing.T) {
+	catalog, indexPath := newCheckpointIndexFixture(t)
+	first, err := catalog.Publish(
+		context.Background(),
+		catalogTestCheckpoint("checkpoint-old", 1_753_400_201_000),
+		nil,
+	)
+	require.NoError(t, err)
+	second, err := catalog.Publish(
+		context.Background(),
+		catalogTestCheckpoint("checkpoint-new", 1_753_400_202_000),
+		&first.Head,
+	)
+	require.NoError(t, err)
+	index, err := backupinfra.NewCheckpointCatalogIndex(catalog, indexPath)
+	require.NoError(t, err)
+
+	latest, err := index.LatestReference(context.Background(), second.Head)
+	require.NoError(t, err)
+	require.Equal(t, "checkpoint-new", latest.ID)
+	require.Equal(t, second.Checkpoint, latest)
+}
+
 func TestCheckpointCatalogIndexReplaysSignedHoldAndReleaseState(t *testing.T) {
 	catalog, indexPath := newCheckpointIndexFixture(t)
 	first, err := catalog.Publish(

@@ -97,6 +97,7 @@ func (s *ControllerGenerationGCCursorStore) CompareAndSwapGenerationGCCursor(
 func validGenerationGCCursor(cursor backupcontract.GenerationGCCursor) bool {
 	return validControllerCaptureGeneration(cursor.Repository) &&
 		validControllerCaptureGeneration(cursor.CycleID) &&
+		cursor.CatalogRetentionRevision > 0 &&
 		cursor.Revision > 0 && len(cursor.AfterKey) <= 8<<10 &&
 		utf8.ValidString(cursor.AfterKey) &&
 		cursor.CutoffUnixMillis > 0 && cursor.UpdatedAtUnixMillis > 0

@@ -434,7 +434,6 @@ func TestDecodeRejectsUnknownTopLevelField(t *testing.T) {
 func TestValidateRejectsNonContiguousPendingErasureLedgerCommit(t *testing.T) {
 	st := testState()
 	st.Backup = &BackupCoordinationState{
-		RestorePoints: []BackupRestorePoint{},
 		ErasureStreams: []BackupErasureStreamState{{
 			HashSlot: 1,
 			Head: &backupartifact.ErasureStreamHead{
@@ -456,8 +455,8 @@ func TestValidateRejectsMissingErasureLedgerFence(t *testing.T) {
 		partitions[hashSlot].HashSlot = uint16(hashSlot)
 	}
 	st.Restore = &RestoreCoordinationState{Plan: &RestorePlan{
-		ID: "plan-missing-erasure-fence", RestorePointID: "restore-1",
-		ManifestSHA256: strings.Repeat("c", 64), Repository: "primary",
+		ID: "plan-missing-erasure-fence", CheckpointID: "restore-1",
+		CheckpointSHA256: strings.Repeat("c", 64), Repository: "primary",
 		SourceClusterID: "cluster-a", SourceGeneration: "generation-a",
 		TargetClusterID: st.ClusterID, TargetGeneration: "generation-b",
 		HashSlotCount: st.Config.HashSlotCount, Status: RestoreStatusPlanned,
@@ -498,8 +497,8 @@ func TestValidateAcceptsBoundedCheckpointRestoreProgressAndRejectsIncompleteConv
 		Head: page, EntryPage: page, Checkpoint: entry,
 	}
 	st.Restore = &RestoreCoordinationState{Plan: &RestorePlan{
-		ID: "plan-checkpoint-restore", RestorePointID: checkpointID,
-		ManifestSHA256: entry.SHA256, CatalogProof: &proof,
+		ID: "plan-checkpoint-restore", CheckpointID: checkpointID,
+		CheckpointSHA256: entry.SHA256, CatalogProof: &proof,
 		CheckpointVersion:               backupartifact.CheckpointVersion,
 		CheckpointCreatedAtUnixMillis:   entry.CreatedAtUnixMillis,
 		CheckpointEffectiveAtUnixMillis: entry.EffectiveAtUnixMillis,
@@ -576,17 +575,17 @@ func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	cursorID := strings.Repeat("c", 64)
 	baselineCursorID := strings.Repeat("f", 64)
 	st.Backup = &BackupCoordinationState{
-		RestorePoints:  []BackupRestorePoint{},
-		PendingGarbage: []BackupRestorePoint{},
 		CatalogHead: &BackupCatalogPageReference{
 			Sequence: 3, Key: "catalog/pages/00000000000000000003-checkpoint-3.json",
 			SHA256: strings.Repeat("e", 64), Bytes: 512, LatestCheckpointID: "checkpoint-3",
 		},
+		CatalogRetentionRevision: 1,
 		CatalogAuditRootSequence: 1,
 		GenerationGCCursors: []BackupGenerationGCCursor{{
 			Repository: "primary", Revision: 2, CycleID: "gc-cycle-1",
-			AfterKey:         "objects/generation-old/00001/object.bin",
-			CutoffUnixMillis: 1_753_400_000_000, UpdatedAtUnixMillis: 1_753_400_110_000,
+			CatalogRetentionRevision: 1,
+			AfterKey:                 "objects/generation-old/00001/object.bin",
+			CutoffUnixMillis:         1_753_400_000_000, UpdatedAtUnixMillis: 1_753_400_110_000,
 		}},
 		IntegrityAudit: BackupIntegrityAuditState{
 			Revision: 4, DebtObjects: 9,
@@ -734,7 +733,7 @@ func TestValidateRejectsMalformedIntegrityAuditState(t *testing.T) {
 			audit.Slots = append([]BackupSlotIntegrityAuditState(nil), valid.Slots...)
 			test.mutate(&audit)
 			st.Backup = &BackupCoordinationState{
-				RestorePoints: []BackupRestorePoint{}, IntegrityAudit: audit,
+				IntegrityAudit: audit,
 			}
 			require.ErrorIs(t, st.Validate(), ErrInvalidState)
 		})
@@ -763,7 +762,6 @@ func TestValidateRejectsMalformedSlotCaptureLease(t *testing.T) {
 			lease := validLease
 			test.mutate(&lease)
 			st.Backup = &BackupCoordinationState{
-				RestorePoints: []BackupRestorePoint{},
 				SlotFrontiers: []BackupSlotFrontier{{
 					Revision: 1, HashSlot: 1, Generation: "slot-generation-1",
 					Lease: lease, UpdatedAtUnixMillis: 1_753_400_100_000,
@@ -777,7 +775,6 @@ func TestValidateRejectsMalformedSlotCaptureLease(t *testing.T) {
 func TestValidateRejectsMalformedCheckpointCatalogHead(t *testing.T) {
 	st := testState()
 	st.Backup = &BackupCoordinationState{
-		RestorePoints: []BackupRestorePoint{},
 		CatalogHead: &BackupCatalogPageReference{
 			Sequence: 2, Key: "catalog/pages/00000000000000000001-checkpoint-2.json",
 			SHA256: strings.Repeat("a", 64), Bytes: 512, LatestCheckpointID: "checkpoint-2",

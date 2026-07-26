@@ -109,15 +109,6 @@ func verifyPartitionManifestObjects(ctx context.Context, repository backupartifa
 			return backupartifact.ErrObjectCorrupt
 		}
 	}
-	if manifest.Base != nil {
-		stored, err := repository.Stat(ctx, manifest.Base.Key)
-		if err != nil {
-			return err
-		}
-		if stored.Key != manifest.Base.Key || stored.Size != manifest.Base.Bytes || stored.SHA256 != manifest.Base.SHA256 {
-			return backupartifact.ErrObjectCorrupt
-		}
-	}
 	if manifest.BaselineCursor != nil {
 		stored, err := repository.Stat(ctx, manifest.BaselineCursor.CommitKey)
 		if err != nil {

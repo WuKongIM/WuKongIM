@@ -221,7 +221,7 @@ func TestCheckpointCoordinatorRejectsMissingCurrentCommitProof(t *testing.T) {
 
 func TestCheckpointCoordinatorRetriesUnrelatedControllerConflictWithoutLosingState(t *testing.T) {
 	store := &checkpointConflictStateStore{
-		state:        backupusecase.State{Revision: 3, LastEpoch: 7, SlotFrontiers: checkpointTestFrontiers(2)},
+		state:        backupusecase.State{Revision: 3, SlotFrontiers: checkpointTestFrontiers(2)},
 		conflictOnce: true,
 	}
 	coordinator, err := backupusecase.NewCheckpointCoordinator(backupusecase.CheckpointOptions{
@@ -237,7 +237,7 @@ func TestCheckpointCoordinatorRetriesUnrelatedControllerConflictWithoutLosingSta
 	commit, err := coordinator.Publish(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 2, store.compareCalls)
-	require.Equal(t, uint64(8), store.state.LastEpoch)
+	require.Equal(t, uint64(5), store.state.Revision)
 	require.Equal(t, commit.Head, *store.state.CatalogHead)
 }
 
@@ -370,7 +370,6 @@ func (s *checkpointConflictStateStore) CompareAndSwap(_ context.Context, revisio
 	if s.conflictOnce {
 		s.conflictOnce = false
 		s.state.Revision++
-		s.state.LastEpoch++
 		return backupusecase.ErrStateConflict
 	}
 	if s.state.Revision != revision {

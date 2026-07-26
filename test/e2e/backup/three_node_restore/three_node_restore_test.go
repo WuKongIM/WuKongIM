@@ -53,15 +53,15 @@ type checkpoint struct {
 }
 
 type checkpointPublication struct {
-	Checkpoint     checkpoint                          `json:"checkpoint"`
-	ManifestSHA256 string                              `json:"manifest_sha256"`
-	CatalogHead    backupartifact.CatalogPageReference `json:"catalog_head"`
+	Checkpoint       checkpoint `json:"checkpoint"`
+	CheckpointSHA256 string     `json:"checkpoint_sha256"`
+	CatalogHeadToken string     `json:"catalog_head_token"`
 }
 
 type restorePlan struct {
 	ID                                  string                                    `json:"id"`
-	RestorePointID                      string                                    `json:"restore_point_id"`
-	ManifestSHA256                      string                                    `json:"manifest_sha256"`
+	CheckpointID                        string                                    `json:"checkpoint_id"`
+	CheckpointSHA256                    string                                    `json:"checkpoint_sha256"`
 	ErasureLedgerVersion                uint32                                    `json:"erasure_ledger_version"`
 	ErasureEventCount                   uint64                                    `json:"erasure_event_count"`
 	ErasureLedgerSHA256                 string                                    `json:"erasure_ledger_sha256"`
@@ -129,12 +129,12 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		t, cluster, sourceToken, 20*time.Second,
 	)
 	require.NotEmpty(t, baseline.Checkpoint.ID)
-	require.Len(t, baseline.ManifestSHA256, 64)
+	require.Len(t, baseline.CheckpointSHA256, 64)
 	baselineFrontiers := backupDurableFrontiers(
 		t, cluster, sourceToken,
 	)
 
-	const firstPayload = "message captured by incremental backup"
+	const firstPayload = "message captured by continuous backup"
 	messageCtx, cancelMessage := context.WithTimeout(context.Background(), 15*time.Second)
 	message, err := suite.PostMessageSendEventually(messageCtx, cluster.MustNode(1).APIAddr(), map[string]any{
 		"from_uid":      "backup-e2e-sender",
@@ -199,7 +199,7 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		t, target, "restore-admin", "restore-secret",
 	)
 	plan := createRestorePlan(t, target, token, delta)
-	require.Equal(t, delta.Checkpoint.ID, plan.RestorePointID)
+	require.Equal(t, delta.Checkpoint.ID, plan.CheckpointID)
 	require.Equal(t, backupartifact.ErasureLedgerSnapshotVersion, plan.ErasureLedgerVersion)
 	require.Equal(t, uint64(1), plan.ErasureEventCount)
 	require.Len(t, plan.ErasureLedgerSHA256, 64)
@@ -396,35 +396,47 @@ func equalUint64s(left, right []uint64) bool {
 
 func sourceBackupConfig(root string, nodeID uint64) map[string]string {
 	return map[string]string{
-		"WK_BACKUP_ENABLED":                    "true",
-		"WK_BACKUP_REPOSITORY_ID":              "e2e-repository",
-		"WK_BACKUP_SOURCE_GENERATION":          "source-generation",
-		"WK_BACKUP_STAGING_DIR":                filepath.Join(root, fmt.Sprintf("source-staging-%d", nodeID)),
-		"WK_BACKUP_KMS_KEY_ID":                 "e2e-encryption-key",
-		"WK_BACKUP_SIGNING_KEY_ID":             "e2e-signing-key",
-		"WK_BACKUP_KMS_REGION":                 "e2e-kms",
-		"WK_BACKUP_KMS_ENDPOINT":               "https://kms.e2e.invalid",
-		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL": "200ms",
-		"WK_BACKUP_CHECKPOINT_INTERVAL":        "1h",
-		"WK_BACKUP_BASELINE_CHUNK_BYTES":       "1048576",
-		"WK_BACKUP_TARGET_SEGMENT_BYTES":       "1048576",
-		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":  "500ms",
-		"WK_BACKUP_STAGING_MAX_BYTES":          "67108864",
-		"WK_BACKUP_WORKER_COUNT":               "2",
-		"WK_BACKUP_OBJECT_LOCK_DAYS":           "7",
-		"WK_BACKUP_PRIMARY_ENDPOINT":           "https://primary.e2e.invalid",
-		"WK_BACKUP_PRIMARY_REGION":             "e2e-primary",
-		"WK_BACKUP_PRIMARY_BUCKET":             "primary",
-		"WK_BACKUP_PRIMARY_PREFIX":             "cluster",
-		"WK_BACKUP_SECONDARY_ENDPOINT":         "https://secondary.e2e.invalid",
-		"WK_BACKUP_SECONDARY_REGION":           "e2e-secondary",
-		"WK_BACKUP_SECONDARY_BUCKET":           "secondary",
-		"WK_BACKUP_SECONDARY_PREFIX":           "cluster",
-		"WK_MANAGER_AUTH_ON":                   "true",
-		"WK_MANAGER_JWT_SECRET":                "e2e-source-jwt-secret",
-		"WK_MANAGER_JWT_ISSUER":                "wukongim-e2e",
-		"WK_MANAGER_JWT_EXPIRE":                "1h",
-		"WK_MANAGER_USERS":                     `[{"username":"source-admin","password":"source-secret","permissions":[{"resource":"*","actions":["*"]},{"resource":"cluster.backup.source_fence","actions":["w"]}]}]`,
+		"WK_BACKUP_ENABLED":                             "true",
+		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v1",
+		"WK_BACKUP_REPOSITORY_ID":                       "e2e-repository",
+		"WK_BACKUP_SOURCE_GENERATION":                   "source-generation",
+		"WK_BACKUP_STAGING_DIR":                         filepath.Join(root, fmt.Sprintf("source-staging-%d", nodeID)),
+		"WK_BACKUP_KMS_KEY_ID":                          "e2e-encryption-key",
+		"WK_BACKUP_SIGNING_KEY_ID":                      "e2e-signing-key",
+		"WK_BACKUP_KMS_REGION":                          "e2e-kms",
+		"WK_BACKUP_KMS_ENDPOINT":                        "https://kms.e2e.invalid",
+		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "200ms",
+		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
+		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
+		"WK_BACKUP_TARGET_SEGMENT_BYTES":                "1048576",
+		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":           "500ms",
+		"WK_BACKUP_STAGING_MAX_BYTES":                   "67108864",
+		"WK_BACKUP_WORKER_COUNT":                        "2",
+		"WK_BACKUP_AUDIT_INTERVAL":                      "200ms",
+		"WK_BACKUP_AUDIT_SCRUB_INTERVAL":                "24h",
+		"WK_BACKUP_GARBAGE_COLLECTION_INTERVAL":         "1h",
+		"WK_BACKUP_GARBAGE_SAFETY_WINDOW":               "168h",
+		"WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY": "256",
+		"WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY":    "1073741824",
+		"WK_BACKUP_RETENTION_MONTHLY_MONTHS":            "0",
+		"WK_BACKUP_OBJECT_LOCK_DAYS":                    "7",
+		"WK_BACKUP_PRIMARY_ENDPOINT":                    "https://primary.e2e.invalid",
+		"WK_BACKUP_PRIMARY_REGION":                      "e2e-primary",
+		"WK_BACKUP_PRIMARY_BUCKET":                      "primary",
+		"WK_BACKUP_PRIMARY_PREFIX":                      "cluster",
+		"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN":             "arn:e2e:primary:repair",
+		"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":            "arn:e2e:primary:garbage",
+		"WK_BACKUP_SECONDARY_ENDPOINT":                  "https://secondary.e2e.invalid",
+		"WK_BACKUP_SECONDARY_REGION":                    "e2e-secondary",
+		"WK_BACKUP_SECONDARY_BUCKET":                    "secondary",
+		"WK_BACKUP_SECONDARY_PREFIX":                    "cluster",
+		"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN":           "arn:e2e:secondary:repair",
+		"WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN":          "arn:e2e:secondary:garbage",
+		"WK_MANAGER_AUTH_ON":                            "true",
+		"WK_MANAGER_JWT_SECRET":                         "e2e-source-jwt-secret",
+		"WK_MANAGER_JWT_ISSUER":                         "wukongim-e2e",
+		"WK_MANAGER_JWT_EXPIRE":                         "1h",
+		"WK_MANAGER_USERS":                              `[{"username":"source-admin","password":"source-secret","permissions":[{"resource":"*","actions":["*"]},{"resource":"cluster.backup.source_fence","actions":["w"]}]}]`,
 	}
 }
 
@@ -573,10 +585,9 @@ func createRestorePlan(
 	t.Helper()
 	var plan restorePlan
 	managerRequest(t, cluster, token, http.MethodPost, "/manager/restore/plan", map[string]any{
-		"restore_point_id":  publication.Checkpoint.ID,
-		"catalog_head":      publication.CatalogHead,
-		"repository":        "primary",
-		"invalidate_tokens": false,
+		"checkpoint_id":      publication.Checkpoint.ID,
+		"catalog_head_token": publication.CatalogHeadToken,
+		"invalidate_tokens":  false,
 	}, &plan)
 	require.Equal(t, "planned", plan.Status)
 	return plan
@@ -623,14 +634,14 @@ func fenceSource(
 		"/manager/backups/source-fence",
 		map[string]any{
 			"restore_plan_id":   plan.ID,
-			"restore_point_id":  plan.RestorePointID,
+			"checkpoint_id":     plan.CheckpointID,
 			"target_cluster_id": plan.TargetClusterID,
 			"target_generation": plan.TargetGeneration,
 		},
 		&receipt,
 	)
 	require.Equal(t, plan.ID, receipt.RestorePlanID)
-	require.Equal(t, plan.ManifestSHA256, receipt.ManifestSHA256)
+	require.Equal(t, plan.CheckpointSHA256, receipt.CheckpointSHA256)
 	require.NotNil(t, receipt.Signature)
 	require.NotZero(t, receipt.ConvergedAtUnixMillis)
 	return receipt
@@ -862,7 +873,7 @@ func publishCheckpointEventually(
 			map[string]any{}, &last,
 		)
 		if lastErr == nil && last.Checkpoint.ID != "" &&
-			last.CatalogHead.LatestCheckpointID == last.Checkpoint.ID {
+			last.CatalogHeadToken != "" {
 			return last
 		}
 		_ = managerRequestError(

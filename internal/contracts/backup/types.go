@@ -4,16 +4,11 @@ package backup
 
 import (
 	"errors"
-	"time"
 
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 var (
-	// ErrJobActive reports a trigger attempted while another backup job is active.
-	ErrJobActive = errors.New("backup usecase: job already active")
-	// ErrVerificationJobActive reports an operation blocked by the cluster verification task.
-	ErrVerificationJobActive = errors.New("backup usecase: verification job already active")
 	// ErrStateConflict reports an optimistic coordination-state conflict.
 	ErrStateConflict = errors.New("backup usecase: state conflict")
 )
@@ -89,19 +84,6 @@ type CheckpointReplicaResponse struct {
 	InstalledBytes uint64
 }
 
-// JobStatus identifies one cluster backup job lifecycle state.
-type JobStatus string
-
-const (
-	JobStatusPreparing  JobStatus = "preparing"
-	JobStatusCapturing  JobStatus = "capturing"
-	JobStatusPublishing JobStatus = "publishing"
-	JobStatusCompleted  JobStatus = "completed"
-	JobStatusDegraded   JobStatus = "degraded"
-	JobStatusFailed     JobStatus = "failed"
-	JobStatusCanceled   JobStatus = "canceled"
-)
-
 // Health identifies the current backup SLO state without collapsing missing evidence to healthy.
 type Health string
 
@@ -125,122 +107,6 @@ type DoctorReport struct {
 	CheckedAtUnixMillis int64
 	// FailureCategory identifies the first failed dependency without raw details.
 	FailureCategory string
-}
-
-// PartitionReport is the bounded completion summary for one logical hash slot.
-type PartitionReport struct {
-	// JobID and BackupEpoch fence the active capture attempt.
-	JobID       string
-	BackupEpoch uint64
-	// HashSlot and RaftIndex identify the committed logical cut.
-	HashSlot  uint16
-	RaftIndex uint64
-	// CommittedAtUnixMillis is the UTC partition watermark.
-	CommittedAtUnixMillis int64
-	// ManifestKey and ManifestSHA256 authenticate the external partition index.
-	ManifestKey    string
-	ManifestSHA256 string
-	// ObjectCount and CiphertextBytes are bounded publication summaries.
-	ObjectCount     uint64
-	CiphertextBytes uint64
-}
-
-// Job is one bounded cluster-coordinated backup attempt.
-type Job struct {
-	// ID and Epoch identify and fence this cluster backup attempt.
-	ID    string
-	Epoch uint64
-	// Kind and Status describe the creation strategy and lifecycle phase.
-	Kind   backupartifact.RestorePointKind
-	Status JobStatus
-	// HashSlotCount is the immutable number of required logical partitions.
-	HashSlotCount uint16
-	// ConfigFingerprint proves non-secret policy agreement across retries.
-	ConfigFingerprint string
-	// RestorePointID is allocated before publication for idempotent retries.
-	RestorePointID string
-	// BaseRestorePointID identifies the authenticated incremental base.
-	BaseRestorePointID string
-	// StartedAtUnixMillis and UpdatedAtUnixMillis are UTC lifecycle timestamps.
-	StartedAtUnixMillis int64
-	UpdatedAtUnixMillis int64
-	// Partitions contains at most one sorted report per hash slot.
-	Partitions []PartitionReport
-	// FailureCategory is a bounded operator-facing error class.
-	FailureCategory string
-}
-
-// RestorePoint is the bounded published restore-point reference retained in control state.
-type RestorePoint struct {
-	// ID identifies the discoverable signed recovery point.
-	ID string
-	// JobID and BackupEpoch identify its source capture.
-	JobID       string
-	BackupEpoch uint64
-	// Kind identifies incremental, synthetic, or materialized creation.
-	Kind backupartifact.RestorePointKind
-	// EffectiveAtUnixMillis is the oldest included cut watermark.
-	EffectiveAtUnixMillis int64
-	// CreatedAtUnixMillis is the UTC manifest publication time.
-	CreatedAtUnixMillis int64
-	// ManifestSHA256 authenticates the exact signed top-level bytes.
-	ManifestSHA256 string
-	// PrimaryVerified and SecondaryVerified record dual-copy evidence.
-	PrimaryVerified   bool
-	SecondaryVerified bool
-	// Held prevents retention collection while true.
-	Held bool
-	// LastVerification is later audit evidence, separate from publication verification.
-	LastVerification *VerificationEvidence
-}
-
-// Verification is bounded evidence from an explicit dual-repository audit.
-type Verification struct {
-	// RestorePointID identifies the audited recovery point.
-	RestorePointID string
-	// VerifiedAtUnixMillis is the UTC audit completion time.
-	VerifiedAtUnixMillis int64
-	// PrimaryVerified and SecondaryVerified require full graph verification.
-	PrimaryVerified   bool
-	SecondaryVerified bool
-	// ManifestSHA256 authenticates the audited top-level bytes.
-	ManifestSHA256 string
-}
-
-// VerificationTaskStatus identifies one durable manual verification lifecycle state.
-type VerificationTaskStatus string
-
-const (
-	VerificationTaskPending   VerificationTaskStatus = "pending"
-	VerificationTaskRunning   VerificationTaskStatus = "running"
-	VerificationTaskSucceeded VerificationTaskStatus = "succeeded"
-	VerificationTaskFailed    VerificationTaskStatus = "failed"
-)
-
-// VerificationEvidence is bounded per-restore-point evidence from the latest later audit.
-type VerificationEvidence struct {
-	// Status is pending, running, succeeded, or failed.
-	Status VerificationTaskStatus
-	// StartedAtUnixMillis and CompletedAtUnixMillis are UTC lifecycle timestamps.
-	StartedAtUnixMillis   int64
-	CompletedAtUnixMillis int64
-	// PrimaryVerified and SecondaryVerified report independent repository results.
-	PrimaryVerified   bool
-	SecondaryVerified bool
-	// ManifestSHA256 authenticates the audited top-level bytes on success.
-	ManifestSHA256 string
-	// FailureCategory is a bounded non-sensitive error class.
-	FailureCategory string
-}
-
-// VerificationTask is the one cluster-wide durable manual verification task.
-type VerificationTask struct {
-	// ID uniquely identifies the task for polling and failover resume.
-	ID string
-	// RestorePointID identifies the exact audited recovery point.
-	RestorePointID string
-	// VerificationEvidence contains the current bounded task result.
-	VerificationEvidence
 }
 
 // ErasureLedgerRecordReference is the bounded Controller coordination fence for
@@ -301,6 +167,8 @@ type GenerationGCCursor struct {
 	Revision uint64
 	// CycleID identifies one retryable protection/cutoff decision.
 	CycleID string
+	// CatalogRetentionRevision is the hold/release revision fixed by this cycle.
+	CatalogRetentionRevision uint64
 	// AfterKey is the last fully processed lexicographic repository key.
 	AfterKey string
 	// CutoffUnixMillis freezes Object Lock plus safety-window eligibility.
@@ -317,16 +185,6 @@ type State struct {
 	Revision uint64
 	// SourceFence is the irreversible generation-level ordinary-write fence.
 	SourceFence *backupartifact.SourceFenceRecord
-	// LastEpoch is the latest allocated backup fence.
-	LastEpoch uint64
-	// Active contains the only in-progress job.
-	Active *Job
-	// Verification contains the latest manual verification task.
-	Verification *VerificationTask
-	// RestorePoints contains selectable bounded recovery references.
-	RestorePoints []RestorePoint
-	// PendingGarbage contains expired references awaiting external collection.
-	PendingGarbage []RestorePoint
 	// SlotFrontiers contains at most one sorted compact continuous-capture record per Hash Slot.
 	SlotFrontiers []SlotFrontier
 	// CatalogHead is the only Controller-resident pointer into immutable checkpoint history.
@@ -334,6 +192,9 @@ type State struct {
 	// CatalogAuditRootSequence is the oldest page that may contain a checkpoint
 	// in the current sparse retention decision. Exact references stay external.
 	CatalogAuditRootSequence uint64
+	// CatalogRetentionRevision increments only after a hold/release catalog
+	// decision becomes the durable head and fences concurrent Generation GC.
+	CatalogRetentionRevision uint64
 	// ErasureStreams contains at most one sorted bounded state per Hash Slot.
 	ErasureStreams []ErasureStreamState
 	// GenerationGCCursors contains at most one independent durable cursor per repository.
@@ -349,17 +210,6 @@ func (s State) Clone() State {
 		sourceFence := *s.SourceFence
 		out.SourceFence = &sourceFence
 	}
-	if s.Active != nil {
-		job := *s.Active
-		job.Partitions = append([]PartitionReport(nil), s.Active.Partitions...)
-		out.Active = &job
-	}
-	if s.Verification != nil {
-		verification := *s.Verification
-		out.Verification = &verification
-	}
-	out.RestorePoints = CloneRestorePoints(s.RestorePoints)
-	out.PendingGarbage = CloneRestorePoints(s.PendingGarbage)
 	out.SlotFrontiers = make([]SlotFrontier, len(s.SlotFrontiers))
 	for index := range s.SlotFrontiers {
 		out.SlotFrontiers[index] = CloneSlotFrontier(s.SlotFrontiers[index])
@@ -387,70 +237,6 @@ func (s State) Clone() State {
 	out.GenerationGCCursors = append([]GenerationGCCursor(nil), s.GenerationGCCursors...)
 	out.IntegrityAudit = CloneIntegrityAuditState(s.IntegrityAudit)
 	return out
-}
-
-// CloneRestorePoints returns a deep copy safe for mutation by a caller.
-func CloneRestorePoints(points []RestorePoint) []RestorePoint {
-	out := append([]RestorePoint(nil), points...)
-	for index := range out {
-		if points[index].LastVerification != nil {
-			evidence := *points[index].LastVerification
-			out[index].LastVerification = &evidence
-		}
-	}
-	return out
-}
-
-// TriggerRequest describes one manual or scheduled backup trigger.
-type TriggerRequest struct {
-	// Kind selects incremental, synthetic, or materialized capture.
-	Kind backupartifact.RestorePointKind
-	// ConfigFingerprint proves non-secret policy agreement.
-	ConfigFingerprint string
-}
-
-// SchedulePolicy controls pure automatic backup scheduling decisions.
-type SchedulePolicy struct {
-	// RestorePointInterval is the configured RPO publication cadence.
-	RestorePointInterval time.Duration
-	// SyntheticFullInterval is the target independent-manifest cadence. Until
-	// object-reuse flattening is qualified, the scheduler emits a safe
-	// materialized-full fallback at this cadence.
-	SyntheticFullInterval time.Duration
-	// MaterializedFullInterval is the source reread cadence.
-	MaterializedFullInterval time.Duration
-}
-
-// ScheduleDecision is one side-effect-free scheduler outcome.
-type ScheduleDecision struct {
-	// Due reports whether a new job should be created.
-	Due bool
-	// Kind is meaningful only when Due is true.
-	Kind backupartifact.RestorePointKind
-	// Reason is a bounded audit/debug explanation.
-	Reason string
-}
-
-// RetentionPolicy controls fixed UTC restore-point tiers.
-type RetentionPolicy struct {
-	// MonthlyMonths enables the optional materialized monthly tier.
-	MonthlyMonths int
-}
-
-// RetentionDecision is a deterministic reference-level retention plan.
-type RetentionDecision struct {
-	// Retain contains references that remain selectable.
-	Retain []RestorePoint
-	// Collect contains references moved to durable pending garbage.
-	Collect []RestorePoint
-}
-
-// GarbageCollectionResult is bounded evidence from one dual-repository sweep.
-type GarbageCollectionResult struct {
-	// DeletedObjects counts exact versions removed across repositories.
-	DeletedObjects int
-	// CompletedRestorePointIDs identifies fully collected pending entries.
-	CompletedRestorePointIDs []string
 }
 
 // RestoreStatus identifies the explicit recovery lifecycle state.
@@ -543,9 +329,9 @@ type RestorePartitionAssignment struct {
 type RestorePlan struct {
 	// ID identifies the immutable restore plan.
 	ID string
-	// RestorePointID and ManifestSHA256 select exact signed source bytes.
-	RestorePointID string
-	ManifestSHA256 string
+	// CheckpointID and CheckpointSHA256 select exact signed source bytes.
+	CheckpointID     string
+	CheckpointSHA256 string
 	// CatalogProof pins the exact checkpoint membership under the catalog head
 	// observed at restore admission. It is mandatory for every restore plan.
 	CatalogProof *backupartifact.CheckpointCatalogProof

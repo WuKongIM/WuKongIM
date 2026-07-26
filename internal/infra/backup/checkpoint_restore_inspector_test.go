@@ -31,13 +31,13 @@ func TestCheckpointRestoreInspectorPinsCatalogProofAndAuditsCurrentGraph(
 
 	inspection, err := inspector.Inspect(
 		context.Background(),
-		backupusecase.RestorePlanRequest{
-			RestorePointID: "checkpoint-restore-1",
-			Repository:     "primary", CatalogHead: &second.Head,
+		backupusecase.RestoreInspectRequest{
+			CheckpointID: "checkpoint-restore-1",
+			Repository:   "primary", CatalogHead: second.Head,
 		},
 	)
 	require.NoError(t, err)
-	require.Equal(t, "checkpoint-restore-1", inspection.RestorePointID)
+	require.Equal(t, "checkpoint-restore-1", inspection.CheckpointID)
 	require.NotNil(t, inspection.CatalogProof)
 	require.Equal(t, second.Head, inspection.CatalogProof.Head)
 	require.Equal(t, first.Head, inspection.CatalogProof.EntryPage)
@@ -49,18 +49,18 @@ func TestCheckpointRestoreInspectorPinsCatalogProofAndAuditsCurrentGraph(
 		context.Background(), fixture.primary, *inspection.CatalogProof,
 	)
 	require.NoError(t, err)
-	require.Equal(t, inspection.RestorePointID, revalidated.ID)
+	require.Equal(t, inspection.CheckpointID, revalidated.ID)
 
-	latest, err := inspector.Inspect(
+	exactSecond, err := inspector.Inspect(
 		context.Background(),
-		backupusecase.RestorePlanRequest{
-			LatestVerified: true, Repository: "secondary",
-			CatalogHead: &second.Head,
+		backupusecase.RestoreInspectRequest{
+			CheckpointID: "checkpoint-restore-2", Repository: "secondary",
+			CatalogHead: second.Head,
 		},
 	)
 	require.NoError(t, err)
-	require.Equal(t, "checkpoint-restore-2", latest.RestorePointID)
-	require.Equal(t, second.Head, latest.CatalogProof.EntryPage)
+	require.Equal(t, "checkpoint-restore-2", exactSecond.CheckpointID)
+	require.Equal(t, second.Head, exactSecond.CatalogProof.EntryPage)
 	require.Zero(t, fixture.keys.unwraps,
 		"admission must reserve payload download and KMS for the Slot Leader")
 }
@@ -78,9 +78,9 @@ func TestCheckpointRestoreInspectorRejectsIncompleteRepositoryGraph(
 	)))
 	_, err := fixture.inspector(t).Inspect(
 		context.Background(),
-		backupusecase.RestorePlanRequest{
-			RestorePointID: "checkpoint-incomplete",
-			Repository:     "primary", CatalogHead: &commit.Head,
+		backupusecase.RestoreInspectRequest{
+			CheckpointID: "checkpoint-incomplete",
+			Repository:   "primary", CatalogHead: commit.Head,
 		},
 	)
 	require.ErrorIs(t, err, backupartifact.ErrRepositoryIncomplete)
@@ -99,9 +99,9 @@ func TestCheckpointRestoreInspectorRejectsIncompleteBaselineGraph(
 	)))
 	_, err := fixture.inspector(t).Inspect(
 		context.Background(),
-		backupusecase.RestorePlanRequest{
-			RestorePointID: "checkpoint-baseline-incomplete",
-			Repository:     "primary", CatalogHead: &commit.Head,
+		backupusecase.RestoreInspectRequest{
+			CheckpointID: "checkpoint-baseline-incomplete",
+			Repository:   "primary", CatalogHead: commit.Head,
 		},
 	)
 	require.ErrorIs(t, err, backupartifact.ErrRepositoryIncomplete)
@@ -276,7 +276,7 @@ func newCheckpointRestoreInspectorFixture(
 		t, segments, backupartifact.SegmentStreamMessageBaselineCursor,
 		baselineCursorBody, 1,
 	)
-	const baselineObjectKey = "objects/slot-generation-1/00000/metadata-000000.bin"
+	const baselineObjectKey = "objects/source-generation-1/slot-generation-1/00000/metadata-000000.bin"
 	baselineMetadata := checkpointRestoreBaselineMetadataSnapshot(t)
 	baselineObject, err := backupartifact.NewObjectCodec(
 		keys, bytes.NewReader(bytes.Repeat([]byte{0x32}, 64)),
@@ -289,9 +289,9 @@ func newCheckpointRestoreInspectorFixture(
 		primary, secondary,
 	).ReplicateObject(context.Background(), baselineObject))
 	partition := backupartifact.PartitionManifest{
-		Format:  backupartifact.PartitionManifestFormat,
-		Version: backupartifact.PartitionManifestVersion,
-		JobID:   "slot-generation-1", BackupEpoch: 1,
+		Format:     backupartifact.PartitionManifestFormat,
+		Version:    backupartifact.PartitionManifestVersion,
+		Generation: "slot-generation-1", RebaseEpoch: 1,
 		Cut: backupartifact.PartitionCut{
 			HashSlot: 0, PhysicalSlotID: 1, RaftIndex: 1,
 			CommittedAtMillis: 1_753_400_198_000,

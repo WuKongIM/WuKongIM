@@ -65,9 +65,8 @@ func (c *DistributedBaselineCapturer) CaptureBaseline(
 	fingerprintInput := fmt.Sprintf("%s:%05d:%020d", generation, hashSlot, epoch)
 	fingerprint := sha256.Sum256([]byte(fingerprintInput))
 	request := CaptureRequest{
-		JobID: generation, BackupEpoch: epoch, HashSlot: hashSlot,
+		Generation: generation, RebaseEpoch: epoch, HashSlot: hashSlot,
 		ConfigFingerprint: hex.EncodeToString(fingerprint[:]),
-		Kind:              backupartifact.RestorePointMaterializedFull,
 	}
 	result, err := c.options.Worker.capturePartition(
 		ctx,
@@ -128,9 +127,10 @@ func (c *DistributedBaselineCapturer) CaptureBaseline(
 		return MaterializedBaseline{}, err
 	}
 	manifest := result.manifest
-	if manifest.BaselineCursor == nil || manifest.Base != nil ||
-		manifest.Cut.HashSlot != hashSlot || manifest.BackupEpoch != epoch ||
-		manifest.JobID != generation || manifest.Cut.PhysicalSlotID != lease.SlotID {
+	if manifest.BaselineCursor == nil ||
+		manifest.Cut.HashSlot != hashSlot || manifest.RebaseEpoch != epoch ||
+		manifest.Generation != generation ||
+		manifest.Cut.PhysicalSlotID != lease.SlotID {
 		return MaterializedBaseline{}, fmt.Errorf("%w: materialized partition result is invalid", ErrInvalidCapture)
 	}
 	body, err := backupartifact.MarshalPartitionManifest(manifest)

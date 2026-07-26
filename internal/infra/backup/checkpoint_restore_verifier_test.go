@@ -222,8 +222,8 @@ func checkpointFinalVerifierPlan(
 		LatestCheckpointID: checkpointID,
 	}
 	return backupusecase.RestorePlan{
-		ID: "plan-restore-1", RestorePointID: checkpointID,
-		ManifestSHA256: checkpointSHA,
+		ID: "plan-restore-1", CheckpointID: checkpointID,
+		CheckpointSHA256: checkpointSHA,
 		CatalogProof: &backupartifact.CheckpointCatalogProof{
 			Head: page, EntryPage: page, Checkpoint: checkpoint,
 		},

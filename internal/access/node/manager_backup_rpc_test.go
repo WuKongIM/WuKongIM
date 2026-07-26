@@ -32,12 +32,14 @@ func TestManagerBackupRPCRejectsStaleLeaderAndRoutesWithoutReplay(t *testing.T) 
 		t.Fatalf("status = %#v local calls=%d", status, local.statusCalls)
 	}
 
-	local.triggerErr = backupusecase.ErrJobActive
-	if _, err := client.ManagerBackupTrigger(context.Background(), 2, backupartifact.RestorePointMaterializedFull); !errors.Is(err, backupusecase.ErrJobActive) {
-		t.Fatalf("ManagerBackupTrigger() error = %v", err)
+	local.publishErr = backupusecase.ErrStateConflict
+	if _, err := client.ManagerBackupPublishCheckpoint(
+		context.Background(), 2,
+	); !errors.Is(err, backupusecase.ErrStateConflict) {
+		t.Fatalf("ManagerBackupPublishCheckpoint() error = %v", err)
 	}
-	if raw.calls != 3 || local.triggerCalls != 1 {
-		t.Fatalf("write was replayed: transport=%d local=%d", raw.calls, local.triggerCalls)
+	if raw.calls != 3 || local.publishCalls != 1 {
+		t.Fatalf("write was replayed: transport=%d local=%d", raw.calls, local.publishCalls)
 	}
 }
 
@@ -73,7 +75,7 @@ func TestManagerBackupRPCRequiresVersionedRequestAndResponseMagic(t *testing.T) 
 
 func TestManagerBackupRPCFencesSourceOnExactControllerLeader(t *testing.T) {
 	request := backupusecase.SourceFenceRequest{
-		RestorePlanID: "plan-1", RestorePointID: "checkpoint-1",
+		RestorePlanID: "plan-1", CheckpointID: "checkpoint-1",
 		TargetClusterID:  "target-cluster",
 		TargetGeneration: "target-generation-1",
 	}
@@ -106,6 +108,32 @@ func TestManagerBackupRPCFencesSourceOnExactControllerLeader(t *testing.T) {
 	}
 }
 
+func TestManagerBackupRPCFencesCheckpointHoldOnExactControllerLeader(
+	t *testing.T,
+) {
+	local := &fakeManagerBackupRPC{}
+	adapter := NewManagerBackupAdapter(ManagerBackupOptions{
+		Local: local,
+		Leadership: &mutableManagerBackupLeadership{
+			local: 2, leader: 2,
+		},
+	})
+	raw := &fakeManagerBackupRPCNode{handler: adapter.HandleRPC}
+	checkpoint, err := NewClient(raw).ManagerBackupSetCheckpointHold(
+		context.Background(), 2, " checkpoint-7 ", true,
+	)
+	if err != nil || checkpoint.ID != "checkpoint-7" ||
+		!checkpoint.Held || local.holdCalls != 1 ||
+		local.holdCheckpointID != "checkpoint-7" || !local.held ||
+		raw.calls != 1 {
+		t.Fatalf(
+			"checkpoint=%#v err=%v local=%d id=%q held=%v transport=%d",
+			checkpoint, err, local.holdCalls, local.holdCheckpointID,
+			local.held, raw.calls,
+		)
+	}
+}
+
 type mutableManagerBackupLeadership struct {
 	local  uint64
 	leader uint64
@@ -127,11 +155,14 @@ func (n *fakeManagerBackupRPCNode) CallRPC(ctx context.Context, _ uint64, _ uint
 type fakeManagerBackupRPC struct {
 	status             backupusecase.StatusSnapshot
 	statusCalls        int
-	triggerCalls       int
-	triggerErr         error
+	publishCalls       int
+	publishErr         error
 	sourceFenceRequest backupusecase.SourceFenceRequest
 	sourceFenceReceipt backupusecase.SourceFenceReceipt
 	sourceFenceCalls   int
+	holdCheckpointID   string
+	held               bool
+	holdCalls          int
 }
 
 func (f *fakeManagerBackupRPC) Status(context.Context) (backupusecase.StatusSnapshot, error) {
@@ -139,33 +170,22 @@ func (f *fakeManagerBackupRPC) Status(context.Context) (backupusecase.StatusSnap
 	return f.status, nil
 }
 
-func (f *fakeManagerBackupRPC) ListRestorePointsPage(context.Context, backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error) {
-	return backupusecase.RestorePointPage{}, nil
-}
-
 func (f *fakeManagerBackupRPC) PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error) {
-	return backupusecase.CheckpointPublication{}, nil
+	f.publishCalls++
+	return backupusecase.CheckpointPublication{}, f.publishErr
 }
 
-func (f *fakeManagerBackupRPC) Trigger(_ context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
-	f.triggerCalls++
-	return backupusecase.Job{ID: "job-1", Kind: kind}, f.triggerErr
-}
-
-func (f *fakeManagerBackupRPC) Cancel(context.Context, string, uint64) (backupusecase.Job, error) {
-	return backupusecase.Job{}, nil
-}
-
-func (f *fakeManagerBackupRPC) Hold(context.Context, string) (backupusecase.RestorePoint, error) {
-	return backupusecase.RestorePoint{}, nil
-}
-
-func (f *fakeManagerBackupRPC) Release(context.Context, string) (backupusecase.RestorePoint, error) {
-	return backupusecase.RestorePoint{}, nil
-}
-
-func (f *fakeManagerBackupRPC) StartVerification(context.Context, string) (backupusecase.VerificationTask, error) {
-	return backupusecase.VerificationTask{}, nil
+func (f *fakeManagerBackupRPC) SetCheckpointHold(
+	_ context.Context,
+	checkpointID string,
+	held bool,
+) (backupusecase.CheckpointSummary, error) {
+	f.holdCalls++
+	f.holdCheckpointID = checkpointID
+	f.held = held
+	return backupusecase.CheckpointSummary{
+		ID: checkpointID, Held: held,
+	}, nil
 }
 
 func (f *fakeManagerBackupRPC) FenceSource(

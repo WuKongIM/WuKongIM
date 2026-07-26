@@ -11,7 +11,6 @@ import (
 
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
@@ -54,12 +53,11 @@ func TestPartitionPlannerGroupsStableChannelLeaders(t *testing.T) {
 	}
 	planner, err := backupinfra.NewPartitionPlanner(backupinfra.PartitionPlannerOptions{Node: node})
 	require.NoError(t, err)
-	plan, err := planner.OpenPlan(context.Background(), runtimebackup.CaptureRequest{HashSlot: 4, Kind: backupartifact.RestorePointSyntheticFull})
+	plan, err := planner.OpenPlan(context.Background(), runtimebackup.CaptureRequest{HashSlot: 4})
 	require.NoError(t, err)
 	defer plan.Close()
 	require.Equal(t, uint64(10), plan.Cut().RaftIndex)
 	require.Equal(t, uint64(3), plan.MetadataRecordCount())
-	require.Nil(t, plan.Base())
 	shards := plan.MessageShards()
 	require.Len(t, shards, 2)
 	require.Equal(t, uint64(1), shards[0].NodeID)

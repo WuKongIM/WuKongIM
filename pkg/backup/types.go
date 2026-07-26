@@ -6,10 +6,6 @@ import (
 )
 
 const (
-	// ManifestFormat identifies WuKongIM cluster backup manifests.
-	ManifestFormat = "wukongim-cluster-backup"
-	// ManifestVersion is the current cluster backup manifest version.
-	ManifestVersion uint32 = 3
 	// PartitionEvidenceVersion is the signed restore evidence schema version.
 	PartitionEvidenceVersion uint32 = 1
 )
@@ -35,20 +31,6 @@ var (
 	ErrObjectLocked = errors.New("backup: repository object is locked")
 )
 
-// RestorePointKind identifies how a complete restore-point manifest was built.
-type RestorePointKind string
-
-const (
-	// RestorePointIncremental is a complete point advanced by committed increments.
-	RestorePointIncremental RestorePointKind = "incremental"
-	// RestorePointSyntheticFull is reserved for a complete independent manifest
-	// that reuses verified immutable objects. Current writers must not emit it
-	// until chain flattening is qualified.
-	RestorePointSyntheticFull RestorePointKind = "synthetic_full"
-	// RestorePointMaterializedFull is a complete manifest rebuilt from source data.
-	RestorePointMaterializedFull RestorePointKind = "materialized_full"
-)
-
 // ObjectKind identifies one logical payload in a cluster backup.
 type ObjectKind string
 
@@ -59,8 +41,8 @@ const (
 	ObjectKindMessages ObjectKind = "messages"
 	// ObjectKindErasureLedger contains permanent-erasure ledger entries.
 	ObjectKindErasureLedger ObjectKind = "erasure_ledger"
-	// ObjectKindChannelIndex contains per-channel committed cuts used to
-	// continue an incremental chain without storing them in Controller state.
+	// ObjectKindChannelIndex contains per-channel committed cuts used to start
+	// one continuous-capture generation without Controller per-channel state.
 	ObjectKindChannelIndex ObjectKind = "channel_index"
 )
 
@@ -163,46 +145,6 @@ type PartitionEvidence struct {
 	MaxMessageID uint64 `json:"max_message_id"`
 }
 
-// Manifest is the signed, complete logical contract for one cluster restore point.
-type Manifest struct {
-	// Format must equal ManifestFormat.
-	Format string `json:"format"`
-	// Version selects the manifest compatibility contract.
-	Version uint32 `json:"version"`
-	// ApplicationVersion is the WuKongIM version that created the restore point.
-	ApplicationVersion string `json:"application_version"`
-	// RepositoryID is the stable logical identity shared by the repository copies.
-	RepositoryID string `json:"repository_id"`
-	// SourceClusterID is the source cluster identity.
-	SourceClusterID string `json:"source_cluster_id"`
-	// SourceGeneration fences the source cluster disaster-recovery generation.
-	SourceGeneration string `json:"source_generation"`
-	// RestorePointID uniquely identifies the restore point within the repository.
-	RestorePointID string `json:"restore_point_id"`
-	// BackupEpoch fences one cluster-coordinated backup attempt.
-	BackupEpoch uint64 `json:"backup_epoch"`
-	// Kind identifies incremental, synthetic-full, or materialized-full creation.
-	Kind RestorePointKind `json:"kind"`
-	// HashSlotCount is the immutable logical hash-slot count required by restore.
-	HashSlotCount uint16 `json:"hash_slot_count"`
-	// CreatedAtUnixMillis is the UTC manifest creation timestamp.
-	CreatedAtUnixMillis int64 `json:"created_at_ms"`
-	// EffectiveAtMillis is the oldest included partition commit watermark.
-	EffectiveAtMillis int64 `json:"effective_at_ms"`
-	// Cuts contains every logical hash slot exactly once in ascending order.
-	Cuts []PartitionCut `json:"cuts"`
-	// Objects contains immutable encrypted objects in key order. It is retained
-	// for direct single-manifest publication compatibility; cluster restore
-	// points use Partitions instead.
-	Objects []ObjectEntry `json:"objects,omitempty"`
-	// Partitions contains every logical partition manifest exactly once.
-	Partitions []PartitionReference `json:"partitions,omitempty"`
-	// ErasureHeads freeze the authenticated permanent-erasure prefix observed at publication.
-	ErasureHeads []ErasureStreamHead `json:"erasure_heads,omitempty"`
-	// Signature authenticates the canonical manifest without this field.
-	Signature *ManifestSignature `json:"signature,omitempty"`
-}
-
 // ManifestSigner signs and verifies canonical manifest bytes through an external key boundary.
 type ManifestSigner interface {
 	// Sign signs message with keyID and returns portable signature metadata.
@@ -241,8 +183,8 @@ type ObjectDescriptor struct {
 
 // StreamDescriptor identifies one logical plaintext stream before bounded chunking.
 type StreamDescriptor struct {
-	// JobID is the safe immutable object namespace.
-	JobID string
+	// Generation is the safe immutable object namespace.
+	Generation string
 	// HashSlot identifies the logical partition.
 	HashSlot uint16
 	// Kind identifies metadata, messages, or the erasure ledger.

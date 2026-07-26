@@ -59,7 +59,10 @@ func NewChunkReplicator(options ChunkReplicatorOptions) (*ChunkReplicator, error
 
 // Replicate reads plaintext incrementally and returns verified object references in key order.
 func (r *ChunkReplicator) Replicate(ctx context.Context, descriptor StreamDescriptor, plaintext io.Reader) ([]backupartifact.ObjectEntry, error) {
-	if r == nil || plaintext == nil || !safeJobID(descriptor.JobID) || !validStreamKind(descriptor.Kind) || !safeStreamShardID(descriptor.ShardID) {
+	if r == nil || plaintext == nil ||
+		!safeObjectNamespace(descriptor.Generation) ||
+		!validStreamKind(descriptor.Kind) ||
+		!safeStreamShardID(descriptor.ShardID) {
 		return nil, fmt.Errorf("%w: invalid stream descriptor", backupartifact.ErrInvalidObject)
 	}
 	buffer := make([]byte, r.chunkBytes)
@@ -89,7 +92,11 @@ func (r *ChunkReplicator) Replicate(ctx context.Context, descriptor StreamDescri
 		if descriptor.ShardID != "" {
 			streamName += "-" + descriptor.ShardID
 		}
-		key := fmt.Sprintf("objects/%s/%s/%05d/%s-%06d.bin", descriptor.JobID, attemptNamespace, descriptor.HashSlot, streamName, ordinal)
+		key := fmt.Sprintf(
+			"objects/%s/%s/%05d/%s-%06d.bin",
+			descriptor.Generation, attemptNamespace,
+			descriptor.HashSlot, streamName, ordinal,
+		)
 		sealed, err := r.codec.Seal(ctx, backupartifact.ObjectDescriptor{
 			Key:      key,
 			Kind:     descriptor.Kind,
@@ -114,10 +121,10 @@ func safeStreamShardID(value string) bool {
 	if value == "" {
 		return true
 	}
-	return safeJobID(value) && len(value) <= 64
+	return safeObjectNamespace(value) && len(value) <= 64
 }
 
-func safeJobID(value string) bool {
+func safeObjectNamespace(value string) bool {
 	if value == "" || len(value) > 128 || strings.Contains(value, "..") {
 		return false
 	}
