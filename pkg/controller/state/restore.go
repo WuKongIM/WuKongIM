@@ -14,10 +14,30 @@ const (
 	RestoreStatusAbandoned  RestoreStatus = "abandoned"
 )
 
+// RestorePartitionStatus identifies one durable Slot restore phase.
+type RestorePartitionStatus string
+
+const (
+	RestorePartitionPending    RestorePartitionStatus = "pending"
+	RestorePartitionInstalling RestorePartitionStatus = "installing"
+	RestorePartitionInstalled  RestorePartitionStatus = "installed"
+	RestorePartitionConverging RestorePartitionStatus = "converging"
+	RestorePartitionConverged  RestorePartitionStatus = "converged"
+	RestorePartitionFailed     RestorePartitionStatus = "failed"
+)
+
 // RestorePartition stores bounded logical-partition recovery progress.
 type RestorePartition struct {
 	// HashSlot identifies the logical partition being restored.
 	HashSlot uint16 `json:"hash_slot"`
+	// Status is the durable Leader-import and replica-convergence phase.
+	Status RestorePartitionStatus `json:"status,omitempty"`
+	// TargetSlotID and leader fencing bind the current idempotent attempt.
+	TargetSlotID   uint32 `json:"target_slot_id,omitempty"`
+	LeaderNodeID   uint64 `json:"leader_node_id,omitempty"`
+	LeaderTerm     uint64 `json:"leader_term,omitempty"`
+	ConfigEpoch    uint64 `json:"config_epoch,omitempty"`
+	InstallAttempt uint64 `json:"install_attempt,omitempty"`
 	// EvidenceVersion distinguishes explicit empty evidence from a legacy missing report.
 	EvidenceVersion uint32 `json:"evidence_version"`
 	// Installed reports that this partition was durably imported.
@@ -34,10 +54,24 @@ type RestorePartition struct {
 	MaxMessageID uint64 `json:"max_message_id"`
 	// MetadataSHA256 authenticates the canonical restored metadata projection.
 	MetadataSHA256 string `json:"metadata_sha256,omitempty"`
+	// ContentSHA256 and MessageMerkleSHA256 are single-pass import evidence.
+	ContentSHA256       string `json:"content_sha256,omitempty"`
+	MessageMerkleSHA256 string `json:"message_merkle_sha256,omitempty"`
+	// ChannelBoundaryCount counts exact restored Channel sequence boundaries.
+	ChannelBoundaryCount uint64 `json:"channel_boundary_count,omitempty"`
+	// DownloadedBytes and ReplicatedBytes drive throughput and ETA projections.
+	DownloadedBytes uint64 `json:"downloaded_bytes,omitempty"`
+	ReplicatedBytes uint64 `json:"replicated_bytes,omitempty"`
+	// ReplicaCount and ConvergedReplicas expose the target convergence gate.
+	ReplicaCount      uint32 `json:"replica_count,omitempty"`
+	ConvergedReplicas uint32 `json:"converged_replicas,omitempty"`
 	// FailureCategory is the bounded operator-facing failure class.
 	FailureCategory string `json:"failure_category,omitempty"`
 	// UpdatedAtUnixMillis is the UTC time of the latest partition progress update.
 	UpdatedAtUnixMillis int64 `json:"updated_at_unix_millis,omitempty"`
+	// StartedAtUnixMillis and InstalledAtUnixMillis are durable phase timestamps.
+	StartedAtUnixMillis   int64 `json:"started_at_unix_millis,omitempty"`
+	InstalledAtUnixMillis int64 `json:"installed_at_unix_millis,omitempty"`
 }
 
 // RestorePlan stores one immutable recovery selection and bounded progress.
@@ -48,6 +82,12 @@ type RestorePlan struct {
 	RestorePointID string `json:"restore_point_id"`
 	// ManifestSHA256 authenticates the selected top-level manifest bytes.
 	ManifestSHA256 string `json:"manifest_sha256"`
+	// CatalogProof pins the checkpoint's original membership under an immutable catalog head.
+	CatalogProof *backupartifact.CheckpointCatalogProof `json:"catalog_proof,omitempty"`
+	// CheckpointVersion and timestamps are authenticated immutable checkpoint identity.
+	CheckpointVersion               uint16 `json:"checkpoint_version,omitempty"`
+	CheckpointCreatedAtUnixMillis   int64  `json:"checkpoint_created_at_unix_millis,omitempty"`
+	CheckpointEffectiveAtUnixMillis int64  `json:"checkpoint_effective_at_unix_millis,omitempty"`
 	// Repository selects the primary or secondary source copy.
 	Repository string `json:"repository"`
 	// SourceClusterID identifies the backed-up cluster.
@@ -101,6 +141,10 @@ func (s RestoreCoordinationState) Clone() RestoreCoordinationState {
 	out := s
 	if s.Plan != nil {
 		plan := *s.Plan
+		if s.Plan.CatalogProof != nil {
+			proof := *s.Plan.CatalogProof
+			plan.CatalogProof = &proof
+		}
 		plan.ErasureHeads = cloneSlice(s.Plan.ErasureHeads)
 		if s.Plan.EstimatedPlainBytes != nil {
 			value := *s.Plan.EstimatedPlainBytes

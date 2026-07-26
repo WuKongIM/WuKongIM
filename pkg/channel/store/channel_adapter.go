@@ -83,6 +83,17 @@ type RestorePermanentErasure struct {
 	ThroughSeq uint64
 }
 
+// RestoreChannelBoundary is one authenticated full cursor installed before a
+// restored Channel becomes visible to the runtime.
+type RestoreChannelBoundary struct {
+	// ID is the durable Channel identity.
+	ID ch.ChannelID
+	// Epoch, LogStartOffset, and HW are the exact committed cursor.
+	Epoch          uint64
+	LogStartOffset uint64
+	HW             uint64
+}
+
 // NewMessageDBFactory opens a message DB engine behind the v2 adapter.
 func NewMessageDBFactory(path string) *MessageDBFactory {
 	return NewMessageDBFactoryWithOptions(path, MessageDBFactoryOptions{})
@@ -157,6 +168,96 @@ func (f *MessageDBFactory) ApplyRestorePermanentErasures(ctx context.Context, er
 		}
 		if closeErr != nil {
 			return f.mapError(closeErr)
+		}
+	}
+	return nil
+}
+
+// ApplyRestoreChannelBoundary installs one full durable cursor monotonically.
+// It is restore-only infrastructure used by an isolated scratch database.
+func (f *MessageDBFactory) ApplyRestoreChannelBoundary(
+	ctx context.Context,
+	boundary RestoreChannelBoundary,
+) error {
+	if err := f.availabilityError(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if boundary.ID.ID == "" || boundary.ID.Type == 0 ||
+		boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW {
+		return ch.ErrInvalidConfig
+	}
+	store, err := f.engine.ForChannel(
+		channel.ChannelKey(ch.ChannelKeyForID(boundary.ID)),
+		channel.ChannelID{ID: boundary.ID.ID, Type: boundary.ID.Type},
+	)
+	if err != nil {
+		return f.mapError(err)
+	}
+	defer store.Close()
+	current, err := store.LoadCheckpoint()
+	if err != nil && !errors.Is(err, channel.ErrEmptyState) {
+		return f.mapError(err)
+	}
+	if err == nil &&
+		(boundary.Epoch < current.Epoch ||
+			boundary.LogStartOffset < current.LogStartOffset ||
+			boundary.HW < current.HW) {
+		return channel.ErrCorruptState
+	}
+	if boundary.LogStartOffset > 0 {
+		if err := store.AdoptRetentionBoundary(
+			ctx, boundary.LogStartOffset, "committed",
+		); err != nil {
+			return f.mapError(err)
+		}
+	}
+	return f.mapError(store.StoreCheckpoint(channel.Checkpoint{
+		Epoch:          boundary.Epoch,
+		LogStartOffset: boundary.LogStartOffset,
+		HW:             boundary.HW,
+	}))
+}
+
+// DiscardRestoreChannels removes partial live Channel state after a failed
+// restore attempt. Callers must provide bounded, unique restore boundaries.
+func (f *MessageDBFactory) DiscardRestoreChannels(
+	ctx context.Context,
+	boundaries []RestoreChannelBoundary,
+) error {
+	if err := f.availabilityError(); err != nil {
+		return err
+	}
+	if len(boundaries) > 4096 {
+		return ch.ErrInvalidConfig
+	}
+	seen := make(map[ch.ChannelID]struct{}, len(boundaries))
+	for _, boundary := range boundaries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if boundary.ID.ID == "" || boundary.ID.Type == 0 {
+			return ch.ErrInvalidConfig
+		}
+		if _, exists := seen[boundary.ID]; exists {
+			return ch.ErrInvalidConfig
+		}
+		seen[boundary.ID] = struct{}{}
+		store, err := f.engine.ForChannel(
+			channel.ChannelKey(ch.ChannelKeyForID(boundary.ID)),
+			channel.ChannelID{
+				ID: boundary.ID.ID, Type: boundary.ID.Type,
+			},
+		)
+		if err != nil {
+			return f.mapError(err)
+		}
+		discardErr := store.DiscardForRestore(ctx)
+		closeErr := store.Close()
+		if discardErr != nil || closeErr != nil {
+			return f.mapError(errors.Join(discardErr, closeErr))
 		}
 	}
 	return nil

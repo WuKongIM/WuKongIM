@@ -18,6 +18,76 @@ var (
 	ErrStateConflict = errors.New("backup usecase: state conflict")
 )
 
+// CheckpointReplicaAction identifies one bounded target-snapshot transfer step.
+type CheckpointReplicaAction string
+
+const (
+	CheckpointReplicaBegin  CheckpointReplicaAction = "begin"
+	CheckpointReplicaChunk  CheckpointReplicaAction = "chunk"
+	CheckpointReplicaCommit CheckpointReplicaAction = "commit"
+	CheckpointReplicaStatus CheckpointReplicaAction = "status"
+)
+
+// CheckpointReplicaFileKind identifies one plaintext target snapshot stream.
+type CheckpointReplicaFileKind string
+
+const (
+	CheckpointReplicaMetadata CheckpointReplicaFileKind = "metadata"
+	CheckpointReplicaMessages CheckpointReplicaFileKind = "messages"
+	CheckpointReplicaErasures CheckpointReplicaFileKind = "erasures"
+)
+
+// CheckpointReplicaFence binds one replica transfer to Controller and Slot
+// authority without exposing repository or KMS credentials.
+type CheckpointReplicaFence struct {
+	PlanID           string
+	CheckpointID     string
+	CheckpointSHA256 string
+	TargetGeneration string
+	HashSlot         uint16
+	TargetSlotID     uint32
+	ReplicaCount     uint32
+	LeaderNodeID     uint64
+	LeaderTerm       uint64
+	ConfigEpoch      uint64
+	Attempt          uint64
+	InvalidateTokens bool
+}
+
+// CheckpointReplicaFile authenticates one bounded plaintext target stream.
+type CheckpointReplicaFile struct {
+	Kind    CheckpointReplicaFileKind
+	Ordinal uint32
+	Size    int64
+	SHA256  string
+}
+
+// CheckpointReplicaRequest carries one begin, chunk, commit, or status step.
+type CheckpointReplicaRequest struct {
+	Action CheckpointReplicaAction
+	Fence  CheckpointReplicaFence
+	Files  []CheckpointReplicaFile
+	File   CheckpointReplicaFile
+	Offset int64
+	Data   []byte
+	// Evidence and progress are copied into a durable follower receipt at begin.
+	Evidence backupartifact.RestoreEvidence
+	// FinalMessageCount and FinalMaxMessageID describe live rows after
+	// permanent erasure has been applied to the exported target snapshot.
+	FinalMessageCount     uint64
+	FinalMaxMessageID     uint64
+	DownloadedBytes       uint64
+	InstalledAtUnixMillis int64
+}
+
+// CheckpointReplicaResponse reports idempotent staging or completed install.
+type CheckpointReplicaResponse struct {
+	AcceptedOffset int64
+	Completed      bool
+	MetadataSHA256 string
+	InstalledBytes uint64
+}
+
 // JobStatus identifies one cluster backup job lifecycle state.
 type JobStatus string
 
@@ -388,10 +458,30 @@ const (
 	RestoreStatusAbandoned  RestoreStatus = "abandoned"
 )
 
+// RestorePartitionStatus identifies one durable Slot restore phase.
+type RestorePartitionStatus string
+
+const (
+	RestorePartitionPending    RestorePartitionStatus = "pending"
+	RestorePartitionInstalling RestorePartitionStatus = "installing"
+	RestorePartitionInstalled  RestorePartitionStatus = "installed"
+	RestorePartitionConverging RestorePartitionStatus = "converging"
+	RestorePartitionConverged  RestorePartitionStatus = "converged"
+	RestorePartitionFailed     RestorePartitionStatus = "failed"
+)
+
 // RestorePartition records one idempotent logical-partition installation result.
 type RestorePartition struct {
 	// HashSlot identifies the restored logical partition.
 	HashSlot uint16
+	// Status is the durable Leader-import and replica-convergence phase.
+	Status RestorePartitionStatus
+	// TargetSlotID and leader fencing bind one attempt to the current target authority.
+	TargetSlotID   uint32
+	LeaderNodeID   uint64
+	LeaderTerm     uint64
+	ConfigEpoch    uint64
+	InstallAttempt uint64
 	// EvidenceVersion distinguishes explicit empty evidence from missing evidence.
 	EvidenceVersion uint32
 	// Installed and Verified record durable lifecycle progress.
@@ -405,10 +495,40 @@ type RestorePartition struct {
 	MaxMessageID uint64
 	// MetadataSHA256 authenticates the canonical post-transform metadata view.
 	MetadataSHA256 string
+	// ContentSHA256 and MessageMerkleSHA256 are single-pass import evidence.
+	ContentSHA256       string
+	MessageMerkleSHA256 string
+	// ChannelBoundaryCount counts exact restored Channel sequence boundaries.
+	ChannelBoundaryCount uint64
+	// DownloadedBytes and ReplicatedBytes drive throughput and ETA projections.
+	DownloadedBytes uint64
+	ReplicatedBytes uint64
+	// ReplicaCount and ConvergedReplicas expose the target convergence gate.
+	ReplicaCount      uint32
+	ConvergedReplicas uint32
 	// FailureCategory is a bounded operator-facing error class.
 	FailureCategory string
 	// UpdatedAtUnixMillis is the UTC progress timestamp.
 	UpdatedAtUnixMillis int64
+	// StartedAtUnixMillis and InstalledAtUnixMillis are durable phase timestamps.
+	StartedAtUnixMillis   int64
+	InstalledAtUnixMillis int64
+}
+
+// RestorePartitionAssignment fences one import attempt to the current target
+// Slot Leader and replica configuration.
+type RestorePartitionAssignment struct {
+	// HashSlot identifies the logical partition.
+	HashSlot uint16
+	// TargetSlotID identifies the current physical Slot.
+	TargetSlotID uint32
+	// LeaderNodeID and LeaderTerm identify the current Slot write authority.
+	LeaderNodeID uint64
+	LeaderTerm   uint64
+	// ConfigEpoch fences the desired replica set.
+	ConfigEpoch uint64
+	// ReplicaCount is the exact desired replica convergence target.
+	ReplicaCount uint32
 }
 
 // RestorePlan is the immutable selection plus mutable bounded recovery progress.
@@ -418,6 +538,13 @@ type RestorePlan struct {
 	// RestorePointID and ManifestSHA256 select exact signed source bytes.
 	RestorePointID string
 	ManifestSHA256 string
+	// CatalogProof pins the exact checkpoint membership under the catalog head
+	// observed at restore admission. It is mandatory for every restore plan.
+	CatalogProof *backupartifact.CheckpointCatalogProof
+	// CheckpointVersion and timestamps are authenticated immutable checkpoint identity.
+	CheckpointVersion               uint16
+	CheckpointCreatedAtUnixMillis   int64
+	CheckpointEffectiveAtUnixMillis int64
 	// Repository selects the primary or secondary installation copy.
 	Repository string
 	// SourceClusterID and SourceGeneration identify the backed-up incarnation.

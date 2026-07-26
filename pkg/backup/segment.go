@@ -18,7 +18,7 @@ const (
 	// SegmentFormat identifies one content-addressed backup segment.
 	SegmentFormat = "wukongim-backup-segment"
 	// SegmentVersion is the current content-addressed segment schema version.
-	SegmentVersion uint32 = 1
+	SegmentVersion uint32 = 2
 
 	maxSegmentCiphertextBytes = maxObjectPlaintextBytes + (16 << 20)
 )
@@ -64,6 +64,16 @@ type SegmentLogicalDescriptor struct {
 type SegmentDescriptor struct {
 	// Logical contains every field that contributes to the Segment ID.
 	Logical SegmentLogicalDescriptor
+	// Previous authenticates the preceding segment without opening payload
+	// bytes. Nil marks the beginning of a stream or a cursor checkpoint.
+	Previous *SegmentReference
+	// Checkpoint marks a self-contained cursor index whose predecessor is
+	// intentionally omitted.
+	Checkpoint bool
+	// SourceHighWatermark and WatermarkAtUnixMillis bind the signed envelope
+	// to the authoritative source cut represented by the payload.
+	SourceHighWatermark   uint64
+	WatermarkAtUnixMillis int64
 	// KMSKeyID identifies the key-encryption key used for this sealing attempt.
 	KMSKeyID string
 }
@@ -76,6 +86,14 @@ type SegmentHeader struct {
 	Version uint32 `json:"version"`
 	// Logical contains the stable ordered Slot-stream position.
 	Logical SegmentLogicalDescriptor `json:"logical"`
+	// Previous authenticates the preceding segment without requiring KMS.
+	Previous *SegmentReference `json:"previous,omitempty"`
+	// Checkpoint marks an intentional cursor-chain root.
+	Checkpoint bool `json:"checkpoint,omitempty"`
+	// SourceHighWatermark and WatermarkAtUnixMillis bind this segment to its
+	// authoritative source cut.
+	SourceHighWatermark   uint64 `json:"source_high_watermark,omitempty"`
+	WatermarkAtUnixMillis int64  `json:"watermark_at_unix_millis,omitempty"`
 	// PlaintextSHA256 authenticates the decompressed logical payload.
 	PlaintextSHA256 string `json:"plaintext_sha256"`
 	// PlaintextBytes is the decompressed payload size.
@@ -267,6 +285,12 @@ func validateSegmentDescriptor(descriptor SegmentDescriptor) error {
 	if err := validateSegmentLogicalDescriptor(descriptor.Logical); err != nil {
 		return err
 	}
+	if err := validateSegmentEnvelopeLink(
+		descriptor.Logical, descriptor.Previous, descriptor.Checkpoint,
+		descriptor.SourceHighWatermark, descriptor.WatermarkAtUnixMillis,
+	); err != nil {
+		return err
+	}
 	if strings.TrimSpace(descriptor.KMSKeyID) == "" || len(descriptor.KMSKeyID) > 512 {
 		return fmt.Errorf("%w: segment KMS key id is invalid", ErrInvalidObject)
 	}
@@ -302,6 +326,12 @@ func validateSegmentHeader(header SegmentHeader) error {
 		return fmt.Errorf("%w: segment format or version is unsupported", ErrInvalidObject)
 	}
 	if err := validateSegmentLogicalDescriptor(header.Logical); err != nil {
+		return err
+	}
+	if err := validateSegmentEnvelopeLink(
+		header.Logical, header.Previous, header.Checkpoint,
+		header.SourceHighWatermark, header.WatermarkAtUnixMillis,
+	); err != nil {
 		return err
 	}
 	if err := validateSHA256(header.PlaintextSHA256); err != nil {
@@ -359,11 +389,15 @@ func buildSegmentIdentity(descriptor SegmentDescriptor, plaintext []byte) (Segme
 	}
 	plaintextHash := sha256.Sum256(plaintext)
 	header := SegmentHeader{
-		Format:          SegmentFormat,
-		Version:         SegmentVersion,
-		Logical:         descriptor.Logical,
-		PlaintextSHA256: hex.EncodeToString(plaintextHash[:]),
-		PlaintextBytes:  int64(len(plaintext)),
+		Format:                SegmentFormat,
+		Version:               SegmentVersion,
+		Logical:               descriptor.Logical,
+		Previous:              cloneSegmentReference(descriptor.Previous),
+		Checkpoint:            descriptor.Checkpoint,
+		SourceHighWatermark:   descriptor.SourceHighWatermark,
+		WatermarkAtUnixMillis: descriptor.WatermarkAtUnixMillis,
+		PlaintextSHA256:       hex.EncodeToString(plaintextHash[:]),
+		PlaintextBytes:        int64(len(plaintext)),
 	}
 	canonical, err := canonicalSegmentHeader(header)
 	if err != nil {
@@ -371,6 +405,30 @@ func buildSegmentIdentity(descriptor SegmentDescriptor, plaintext []byte) (Segme
 	}
 	identityHash := sha256.Sum256(canonical)
 	return header, hex.EncodeToString(identityHash[:]), canonical, nil
+}
+
+func validateSegmentEnvelopeLink(
+	logical SegmentLogicalDescriptor,
+	previous *SegmentReference,
+	checkpoint bool,
+	sourceHighWatermark uint64,
+	watermarkAtUnixMillis int64,
+) error {
+	if previous != nil {
+		if checkpoint || logical.Sequence == 1 ||
+			validateSegmentReference(*previous) != nil {
+			return fmt.Errorf("%w: segment predecessor is invalid", ErrInvalidObject)
+		}
+	}
+	if checkpoint && logical.Stream != SegmentStreamMessageCursor &&
+		logical.Stream != SegmentStreamMessageBaselineCursor {
+		return fmt.Errorf("%w: segment checkpoint stream is invalid", ErrInvalidObject)
+	}
+	if (sourceHighWatermark == 0) != (watermarkAtUnixMillis == 0) ||
+		watermarkAtUnixMillis < 0 {
+		return fmt.Errorf("%w: segment source watermark is incomplete", ErrInvalidObject)
+	}
+	return nil
 }
 
 func validateSegmentInput(descriptor SegmentDescriptor, plaintext []byte) error {

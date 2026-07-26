@@ -73,12 +73,14 @@ empty head set uses the explicit empty-snapshot digest, never missing evidence.
 
 ## Continuous Segment Foundation
 
-The replacement continuous-capture path starts with a content-addressed
-segment contract. It is not wired into capture or restore scheduling yet.
+The replacement continuous-capture and checkpoint-restore paths share one
+content-addressed segment contract.
 
 1. `SegmentCodec` hashes a canonical logical header containing repository,
-   source-generation, Slot-generation, stream, sequence, record-count, and
-   plaintext evidence. That digest is the stable Segment ID.
+   source-generation, Slot-generation, stream, sequence, record-count,
+   predecessor/checkpoint link, source watermark, and plaintext evidence. That
+   digest is the stable Segment ID. The signed predecessor envelope lets
+   restore admission walk the complete graph without payload download or KMS.
 2. Compression, a fresh envelope data key, AES-256-GCM nonce, and ciphertext
    checksum are intentionally outside the logical identity. A retry may create
    a different encrypted representation without changing the Segment ID.
@@ -92,8 +94,9 @@ segment contract. It is not wired into capture or restore scheduling yet.
    payload copies exist in both repositories. The reference repeats the
    authenticated plaintext size, allowing callers to reserve memory before
    opening it; `Load` verifies that size against the signed commit header.
-   `VerifyCommit` authenticates the exact current proof in both repositories
-   without opening payload bytes or following predecessor links.
+   `VerifyEnvelopeCopies` authenticates the exact current proof and payload
+   provider metadata in both repositories without opening payload bytes, and
+   returns the signed predecessor link.
 5. `InspectSegmentCopies` independently GETs each commit and payload, verifies
    stored checksums and the signed proof, decrypts/decompresses the payload, and
    verifies the plaintext digest under the store's bounded memory semaphore.
@@ -176,16 +179,26 @@ segment contract. It is not wired into capture or restore scheduling yet.
     page.
 15. A materialized Slot rebase uses partition-manifest version 3. An
     independent root may bind one committed `message_baseline_cursor`
-    `SegmentReference`, containing the complete Channel index used to resume
-    continuous message capture without replay. Incremental manifests reject
-    that field. Its cut also records the physical Slot ID that owns the Raft
+    `SegmentReference`, containing a checkpoint-form `MessageCursorBatch` with
+    the complete Channel index plus generation, source cut, watermark, and
+    predecessor-termination proof. An empty Slot uses the same explicit
+    checkpoint envelope with an empty index. Incremental manifests reject that
+    field. Its cut also records the physical Slot ID that owns the Raft
     index space, so a retry after routing remap cannot reuse an old baseline.
     Checkpoint version 3 optionally binds the materialized partition and cursor
     proof beside the current capture heads, and freezes the current sorted
     permanent-erasure stream heads.
-15. Retained-graph traversal authenticates a baseline cursor's signed segment
+16. Restore pins the exact catalog head, containing page and checkpoint
+    reference, resolves membership through both repository copies, and audits
+    the complete selected graph before a plan is admitted. The selected
+    repository copy is used only for the later Leader download.
+    `RestoreEvidenceAccumulator` validates the
+    chronological portable record stream once while computing exact typed
+    counts, Channel boundaries, a domain-separated content digest, and an
+    order-sensitive message Merkle root without retaining message payloads.
+17. Retained-graph traversal authenticates a baseline cursor's signed segment
     commit and marks both the commit and encrypted payload key, so generation
     or restore-point GC cannot delete a live cursor representation.
-16. Delete-capable repositories map provider Object Lock rejection to
+18. Delete-capable repositories map provider Object Lock rejection to
     `ErrObjectLocked`. Generation GC treats it as deferred work for that
     repository, not as permission to advance past the protected version.

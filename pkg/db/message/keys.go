@@ -11,6 +11,14 @@ func channelPartitionID(key ChannelKey) []byte {
 	return keycodec.AppendString(nil, string(key))
 }
 
+func encodeMessageChannelPartitionPrefix(channelKey ChannelKey) []byte {
+	var builder keycodec.Builder
+	return builder.Reset().
+		Domain(keycodec.DomainMessage).
+		Partition(keycodec.PartitionChannel, channelPartitionID(channelKey)).
+		Key()
+}
+
 func encodeMessageRowPrefix(channelKey ChannelKey) []byte {
 	var builder keycodec.Builder
 	return builder.Reset().

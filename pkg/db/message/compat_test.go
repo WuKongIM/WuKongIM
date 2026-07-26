@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -30,6 +31,103 @@ func TestCommitCoordinatorConfigKeepsShardCount(t *testing.T) {
 
 	if got := engine.CommitCoordinatorConfig().Shards; got != 4 {
 		t.Fatalf("CommitCoordinatorConfig().Shards = %d, want 4", got)
+	}
+}
+
+func TestDiscardForRestoreRemovesCompleteChannelState(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	key := channel.ChannelKey("restore-discard:1")
+	id := channel.ChannelID{ID: "restore-discard", Type: 1}
+	store := mustForChannel(t, engine, key, id)
+	if _, err := store.Append([]channel.Record{
+		compatTestRecord(t, 701, id.ID, "discard-1"),
+		compatTestRecord(t, 702, id.ID, "discard-2"),
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	if err := store.StoreCheckpoint(channel.Checkpoint{
+		Epoch: 1, HW: 2,
+	}); err != nil {
+		t.Fatalf("StoreCheckpoint() error = %v", err)
+	}
+	if err := store.DiscardForRestore(context.Background()); err != nil {
+		t.Fatalf("DiscardForRestore() error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	entries, _, _, err := engine.ListChannelsPage(
+		context.Background(), "", 10,
+	)
+	if err != nil {
+		t.Fatalf("ListChannelsPage() error = %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("catalog entries = %v, want empty", entries)
+	}
+	reopened := mustForChannel(t, engine, key, id)
+	defer reopened.Close()
+	if leo, err := reopened.LEOWithError(); err != nil || leo != 0 {
+		t.Fatalf("LEOWithError() = (%d, %v), want (0, nil)", leo, err)
+	}
+	if _, err := reopened.LoadCheckpoint(); err == nil {
+		t.Fatal("LoadCheckpoint() error = nil, want empty state")
+	}
+}
+
+func TestDiscardForRestoreDeletesMultipleBoundedPages(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	key := channel.ChannelKey("restore-discard-pages:1")
+	id := channel.ChannelID{ID: "restore-discard-pages", Type: 1}
+	store := mustForChannel(t, engine, key, id)
+	records := make([]channel.Record, 1025)
+	for index := range records {
+		records[index] = compatTestRecord(
+			t,
+			uint64(10_000+index),
+			id.ID,
+			fmt.Sprintf("discard-page-%04d", index),
+		)
+	}
+	if _, err := store.Append(records); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	if err := store.StoreCheckpoint(channel.Checkpoint{
+		Epoch: 1, HW: uint64(len(records)),
+	}); err != nil {
+		t.Fatalf("StoreCheckpoint() error = %v", err)
+	}
+	if err := store.DiscardForRestore(context.Background()); err != nil {
+		t.Fatalf("DiscardForRestore() error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	entries, _, _, err := engine.ListChannelsPage(
+		context.Background(), "", 10,
+	)
+	if err != nil {
+		t.Fatalf("ListChannelsPage() error = %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("catalog entries = %v, want empty", entries)
+	}
+	reopened := mustForChannel(t, engine, key, id)
+	defer reopened.Close()
+	messages, err := reopened.Read(1, len(records)+1)
+	if err != nil {
+		t.Fatalf("Read() error = %v", err)
+	}
+	if len(messages) != 0 {
+		t.Fatalf("remaining messages = %d, want 0", len(messages))
 	}
 }
 

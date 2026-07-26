@@ -50,6 +50,24 @@ type SegmentBatch struct {
 	MessageCursors []ChannelBoundary
 }
 
+// SegmentBatchInfo is the bounded authenticated envelope returned by streaming
+// inspection without retaining record or Channel-boundary collections.
+type SegmentBatchInfo struct {
+	// HashSlot, Stream, Generation, and Sequence identify the logical segment.
+	HashSlot   uint16
+	Stream     SegmentStream
+	Generation string
+	Sequence   uint64
+	// Previous authenticates the preceding segment in this stream.
+	Previous *SegmentReference
+	// SourceHighWatermark and WatermarkAtUnixMillis identify the source cut.
+	SourceHighWatermark   uint64
+	WatermarkAtUnixMillis int64
+	// RecordCount and MessageCursorCount are verified typed collection sizes.
+	RecordCount        uint64
+	MessageCursorCount uint32
+}
+
 type segmentBatchHeader struct {
 	Format                string            `json:"format"`
 	Version               uint32            `json:"version"`
@@ -186,6 +204,175 @@ func LoadSegmentBatch(body []byte) (SegmentBatch, error) {
 		return SegmentBatch{}, err
 	}
 	return batch, nil
+}
+
+// InspectSegmentBatch strictly validates one segment without materializing
+// record or Channel-boundary slices.
+func InspectSegmentBatch(body []byte) (SegmentBatchInfo, error) {
+	return ReplaySegmentBatch(
+		bytes.NewReader(body), int64(len(body)), nil, nil,
+	)
+}
+
+// ReplaySegmentBatch strictly validates one segment and visits records and
+// Channel boundaries one at a time. A visitor error stops replay immediately.
+func ReplaySegmentBatch(
+	reader io.Reader,
+	size int64,
+	visitRecord func([]byte) error,
+	visitBoundary func(ChannelBoundary) error,
+) (SegmentBatchInfo, error) {
+	header, cursorBytes, recordBytes, err := readSegmentBatchEnvelope(reader, size)
+	if err != nil {
+		return SegmentBatchInfo{}, err
+	}
+	info := SegmentBatchInfo{
+		HashSlot: header.HashSlot, Stream: header.Stream,
+		Generation: header.Generation, Sequence: header.Sequence,
+		Previous:              cloneSegmentReference(header.Previous),
+		SourceHighWatermark:   header.SourceHighWatermark,
+		WatermarkAtUnixMillis: header.WatermarkAtUnixMillis,
+		RecordCount:           header.RecordCount,
+	}
+	cursorDigest := sha256.New()
+	if cursorBytes > 0 {
+		cursorReader := io.TeeReader(
+			io.LimitReader(reader, int64(cursorBytes)), cursorDigest,
+		)
+		slot, count, err := ReplayChannelIndex(
+			cursorReader, int64(cursorBytes), visitBoundary,
+		)
+		if err != nil || slot != header.HashSlot || count == 0 {
+			return SegmentBatchInfo{}, fmt.Errorf(
+				"%w: segment message cursor index is invalid",
+				ErrInvalidObject,
+			)
+		}
+		info.MessageCursorCount = count
+	}
+	if header.MessageCursorSHA256 !=
+		hex.EncodeToString(cursorDigest.Sum(nil)) {
+		return SegmentBatchInfo{}, fmt.Errorf(
+			"%w: segment batch cursor checksum mismatch", ErrObjectCorrupt,
+		)
+	}
+
+	if header.RecordCount == 0 ||
+		header.RecordCount > recordBytes/5+1 ||
+		header.RecordCount > math.MaxInt {
+		return SegmentBatchInfo{}, fmt.Errorf(
+			"%w: segment batch record count is invalid", ErrInvalidObject,
+		)
+	}
+	recordLimit := &io.LimitedReader{R: reader, N: int64(recordBytes)}
+	recordDigest := sha256.New()
+	recordReader := io.TeeReader(recordLimit, recordDigest)
+	for index := uint64(0); index < header.RecordCount; index++ {
+		var recordSize uint32
+		if err := binary.Read(
+			recordReader, binary.BigEndian, &recordSize,
+		); err != nil || recordSize == 0 ||
+			uint64(recordSize) > uint64(recordLimit.N) ||
+			uint64(recordSize) > maxObjectPlaintextBytes {
+			return SegmentBatchInfo{}, fmt.Errorf(
+				"%w: segment batch record %d is truncated",
+				ErrInvalidObject, index,
+			)
+		}
+		record := make([]byte, int(recordSize))
+		if _, err := io.ReadFull(recordReader, record); err != nil {
+			return SegmentBatchInfo{}, fmt.Errorf(
+				"%w: segment batch record %d is truncated",
+				ErrInvalidObject, index,
+			)
+		}
+		if visitRecord != nil {
+			if err := visitRecord(record); err != nil {
+				return SegmentBatchInfo{}, err
+			}
+		}
+	}
+	if recordLimit.N != 0 {
+		return SegmentBatchInfo{}, fmt.Errorf(
+			"%w: trailing segment batch record data", ErrInvalidObject,
+		)
+	}
+	if header.RecordsSHA256 != hex.EncodeToString(recordDigest.Sum(nil)) {
+		return SegmentBatchInfo{}, fmt.Errorf(
+			"%w: segment batch record checksum mismatch", ErrObjectCorrupt,
+		)
+	}
+	return info, nil
+}
+
+func readSegmentBatchEnvelope(
+	reader io.Reader,
+	size int64,
+) (segmentBatchHeader, uint64, uint64, error) {
+	const prefixBytes = 4 + 4 + 8 + 8
+	if reader == nil || size < prefixBytes || size > maxObjectPlaintextBytes {
+		return segmentBatchHeader{}, 0, 0, fmt.Errorf(
+			"%w: segment batch size is outside bounds", ErrInvalidObject,
+		)
+	}
+	var prefix [prefixBytes]byte
+	if _, err := io.ReadFull(reader, prefix[:]); err != nil ||
+		!bytes.Equal(prefix[:4], segmentBatchMagic[:]) {
+		return segmentBatchHeader{}, 0, 0, fmt.Errorf(
+			"%w: segment batch magic is invalid", ErrInvalidObject,
+		)
+	}
+	headerBytes := uint64(binary.BigEndian.Uint32(prefix[4:8]))
+	cursorBytes := binary.BigEndian.Uint64(prefix[8:16])
+	recordBytes := binary.BigEndian.Uint64(prefix[16:24])
+	if headerBytes == 0 || headerBytes > maxSegmentBatchHeaderBytes ||
+		headerBytes > math.MaxInt || cursorBytes > math.MaxInt ||
+		recordBytes > math.MaxInt ||
+		headerBytes+cursorBytes+recordBytes != uint64(size-prefixBytes) {
+		return segmentBatchHeader{}, 0, 0, fmt.Errorf(
+			"%w: segment batch lengths are invalid", ErrInvalidObject,
+		)
+	}
+	headerBody := make([]byte, int(headerBytes))
+	if _, err := io.ReadFull(reader, headerBody); err != nil {
+		return segmentBatchHeader{}, 0, 0, fmt.Errorf(
+			"%w: segment batch header is truncated", ErrInvalidObject,
+		)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(headerBody))
+	decoder.DisallowUnknownFields()
+	var header segmentBatchHeader
+	if err := decoder.Decode(&header); err != nil {
+		return segmentBatchHeader{}, 0, 0, fmt.Errorf(
+			"%w: decode segment batch header: %v", ErrInvalidObject, err,
+		)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return segmentBatchHeader{}, 0, 0, fmt.Errorf(
+			"%w: trailing segment batch header data", ErrInvalidObject,
+		)
+	}
+	if header.Format != SegmentBatchFormat ||
+		header.Version != SegmentBatchVersion ||
+		header.RecordsBytes != recordBytes ||
+		header.MessageCursorBytes != cursorBytes ||
+		(header.Stream != SegmentStreamMetadata &&
+			header.Stream != SegmentStreamMessages) ||
+		validateRestorePointID(header.Generation) != nil ||
+		header.Sequence == 0 || header.SourceHighWatermark == 0 ||
+		header.WatermarkAtUnixMillis <= 0 ||
+		validateSegmentBatchCursor(header.FromCursor) != nil ||
+		validateSegmentBatchCursor(header.NextCursor) != nil ||
+		header.NextCursor == header.FromCursor ||
+		(header.Sequence == 1) != (header.Previous == nil) ||
+		(header.Previous != nil &&
+			validateSegmentReference(*header.Previous) != nil) ||
+		(header.Stream == SegmentStreamMessages) != (cursorBytes > 0) {
+		return segmentBatchHeader{}, 0, 0, fmt.Errorf(
+			"%w: segment batch header is inconsistent", ErrInvalidObject,
+		)
+	}
+	return header, cursorBytes, recordBytes, nil
 }
 
 func validateSegmentBatch(batch SegmentBatch) error {

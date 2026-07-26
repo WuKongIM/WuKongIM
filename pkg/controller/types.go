@@ -105,6 +105,8 @@ type (
 	RestorePartition = state.RestorePartition
 	// RestoreStatus identifies one explicit recovery phase.
 	RestoreStatus = state.RestoreStatus
+	// RestorePartitionStatus identifies one durable Slot restore phase.
+	RestorePartitionStatus = state.RestorePartitionStatus
 	// TaskKind describes one reconcile workflow kind.
 	TaskKind = state.TaskKind
 	// TaskStep describes the current step inside a reconcile workflow.

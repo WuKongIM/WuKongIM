@@ -154,7 +154,8 @@ func validateMessageCursorBatch(batch MessageCursorBatch) error {
 		return fmt.Errorf("%w: message cursor generation: %v", ErrInvalidObject, err)
 	}
 	if batch.Sequence == 0 || batch.SourceHighWatermark == 0 ||
-		batch.WatermarkAtUnixMillis <= 0 || len(batch.Boundaries) == 0 {
+		batch.WatermarkAtUnixMillis <= 0 ||
+		(len(batch.Boundaries) == 0 && !batch.Checkpoint) {
 		return fmt.Errorf("%w: message cursor batch boundary is incomplete", ErrInvalidObject)
 	}
 	if err := validateSegmentBatchCursor(batch.FromCursor); err != nil {

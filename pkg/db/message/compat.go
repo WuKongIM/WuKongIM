@@ -1899,6 +1899,77 @@ func (s *ChannelStore) TruncateLogAndHistory(ctx context.Context, to uint64) err
 	return s.truncateLocked(ctx, to, true)
 }
 
+// DiscardForRestore removes every row, secondary index, and durable system
+// record for this Channel. It is intentionally limited to explicit restore
+// failure cleanup before the cluster is activated.
+func (s *ChannelStore) DiscardForRestore(ctx context.Context) error {
+	const (
+		restoreDiscardBatchMessages = 1024
+		restoreDiscardBatchBytes    = 8 << 20
+	)
+	if err := s.beginUse(); err != nil {
+		return err
+	}
+	defer s.endUse()
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	s.log.appendMu.Lock()
+	defer s.log.appendMu.Unlock()
+	nextSeq := uint64(1)
+	for {
+		rows, err := s.log.readRows(ctx, nextSeq, 0, ReadOptions{
+			Limit: restoreDiscardBatchMessages, MaxBytes: restoreDiscardBatchBytes,
+		})
+		if err != nil {
+			return toChannelError(err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		batch := s.log.db.engine.NewBatch()
+		for _, row := range rows {
+			if err := s.log.stageDeleteMessage(
+				batch, messageFromRow(row),
+			); err != nil {
+				_ = batch.Close()
+				return toChannelError(err)
+			}
+		}
+		commitErr := batch.Commit(true)
+		closeErr := batch.Close()
+		if commitErr != nil || closeErr != nil {
+			return toChannelError(errors.Join(commitErr, closeErr))
+		}
+		lastSeq := rows[len(rows)-1].MessageSeq
+		if lastSeq < nextSeq {
+			return toChannelError(dberrors.ErrCorruptState)
+		}
+		if lastSeq == ^uint64(0) {
+			break
+		}
+		nextSeq = lastSeq + 1
+	}
+	batch := s.log.db.engine.NewBatch()
+	defer batch.Close()
+	prefix := encodeMessageChannelPartitionPrefix(s.log.key)
+	span := keycodec.NewPrefixSpan(prefix)
+	if err := batch.DeleteRange(engine.Span{
+		Start: span.Start, End: span.End,
+	}); err != nil {
+		return toChannelError(err)
+	}
+	if err := batch.Delete(encodeCatalogKey(s.log.key)); err != nil {
+		return toChannelError(err)
+	}
+	if err := batch.Commit(true); err != nil {
+		return toChannelError(err)
+	}
+	s.log.leo.Store(0)
+	s.log.loaded.Store(false)
+	return nil
+}
+
 func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHistory bool) error {
 	if err := ctxErr(ctx); err != nil {
 		return err

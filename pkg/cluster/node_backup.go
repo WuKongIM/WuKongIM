@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -45,6 +46,19 @@ type RestoreVerifyBoundary struct {
 	// PermanentEraseThroughSeq is the inclusive prefix whose physical absence
 	// must be independently verified before activation.
 	PermanentEraseThroughSeq uint64
+}
+
+// RestoreMessageSnapshotEvidence authenticates one deterministic live message
+// export for a bounded restore-boundary batch.
+type RestoreMessageSnapshotEvidence struct {
+	// Size and SHA256 identify the exact portable snapshot bytes.
+	Size   int64
+	SHA256 string
+	// ChannelCount, MessageCount, and MaxMessageID are derived from the same
+	// pinned read view.
+	ChannelCount uint64
+	MessageCount uint64
+	MaxMessageID uint64
 }
 
 // RestorePermanentErasure is one authenticated message prefix that must be
@@ -358,6 +372,133 @@ func (n *Node) VerifyLocalRestorePartition(ctx context.Context, hashSlot uint16,
 		}
 	}
 	return n.defaultChannelStore.VerifyRestoreBoundaries(ctx, cuts)
+}
+
+// RestoreLiveMessageSnapshotEvidence re-exports exact live rows and computes
+// content evidence from the same pinned read view used by backup snapshots.
+func (n *Node) RestoreLiveMessageSnapshotEvidence(
+	ctx context.Context,
+	hashSlot uint16,
+	boundaries []RestoreVerifyBoundary,
+) (RestoreMessageSnapshotEvidence, error) {
+	if err := ctxErr(ctx); err != nil {
+		return RestoreMessageSnapshotEvidence{}, err
+	}
+	if n == nil || !n.cfg.RestoreMode ||
+		n.defaultChannelStore == nil || n.router == nil ||
+		hashSlot >= n.cfg.Slots.HashSlotCount ||
+		len(boundaries) == 0 ||
+		len(boundaries) > maxBackupMessageChannelsPerRequest {
+		return RestoreMessageSnapshotEvidence{}, ErrInvalidConfig
+	}
+	cuts := make([]channelstore.BackupChannelCut, len(boundaries))
+	for index, boundary := range boundaries {
+		id := channelruntime.ChannelID{
+			ID: boundary.ChannelID, Type: boundary.ChannelType,
+		}
+		route, err := n.router.RouteKey(boundary.ChannelID)
+		if err != nil || route.HashSlot != hashSlot ||
+			id.ID == "" || id.Type == 0 ||
+			boundary.Epoch == 0 ||
+			boundary.LogStartOffset > boundary.HW {
+			return RestoreMessageSnapshotEvidence{}, ErrInvalidConfig
+		}
+		cuts[index] = channelstore.BackupChannelCut{
+			Key: channelruntime.ChannelKeyForID(id), ID: id,
+			Epoch:          boundary.Epoch,
+			LogStartOffset: boundary.LogStartOffset, HW: boundary.HW,
+			PermanentEraseThroughSeq: boundary.PermanentEraseThroughSeq,
+		}
+	}
+	reader, stats, err := n.defaultChannelStore.OpenBackupSnapshotWithStats(
+		ctx, channelstore.BackupSnapshotRequest{
+			HashSlot: hashSlot, Channels: cuts,
+		},
+	)
+	if err != nil {
+		return RestoreMessageSnapshotEvidence{}, err
+	}
+	digest := sha256.New()
+	size, copyErr := io.Copy(digest, reader)
+	closeErr := reader.Close()
+	if copyErr != nil || closeErr != nil {
+		return RestoreMessageSnapshotEvidence{},
+			errors.Join(copyErr, closeErr)
+	}
+	return RestoreMessageSnapshotEvidence{
+		Size: size, SHA256: hex.EncodeToString(digest.Sum(nil)),
+		ChannelCount: stats.ChannelCount,
+		MessageCount: stats.MessageCount,
+		MaxMessageID: stats.MaxMessageID,
+	}, nil
+}
+
+// DiscardLocalRestorePartition removes bounded partial live state after an
+// installation failure while the node remains fenced in restore mode.
+func (n *Node) DiscardLocalRestorePartition(
+	ctx context.Context,
+	hashSlot uint16,
+	boundaries []RestoreVerifyBoundary,
+) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil || !n.cfg.RestoreMode ||
+		n.defaultSlotMetaDB == nil || n.defaultChannelStore == nil ||
+		hashSlot >= n.cfg.Slots.HashSlotCount ||
+		len(boundaries) > maxBackupMessageChannelsPerRequest {
+		return ErrInvalidConfig
+	}
+	if len(boundaries) == 0 {
+		var cursor channelruntime.ChannelKey
+		for {
+			entries, next, more, err := n.defaultChannelStore.
+				ListChannelsPage(
+					ctx, cursor, maxBackupMessageChannelsPerRequest,
+				)
+			if err != nil {
+				return err
+			}
+			channels := make([]channelstore.RestoreChannelBoundary, 0,
+				len(entries))
+			for _, entry := range entries {
+				route, err := n.router.RouteKey(entry.ID.ID)
+				if err != nil {
+					return err
+				}
+				if route.HashSlot != hashSlot {
+					continue
+				}
+				channels = append(channels,
+					channelstore.RestoreChannelBoundary{ID: entry.ID},
+				)
+			}
+			if err := n.defaultChannelStore.DiscardRestoreChannels(
+				ctx, channels,
+			); err != nil {
+				return err
+			}
+			if !more {
+				break
+			}
+			cursor = next
+		}
+		return n.defaultSlotMetaDB.DeleteHashSlotData(ctx, hashSlot)
+	}
+	channels := make([]channelstore.RestoreChannelBoundary, len(boundaries))
+	for index, boundary := range boundaries {
+		channels[index] = channelstore.RestoreChannelBoundary{
+			ID: channelruntime.ChannelID{
+				ID: boundary.ChannelID, Type: boundary.ChannelType,
+			},
+			Epoch:          boundary.Epoch,
+			LogStartOffset: boundary.LogStartOffset,
+			HW:             boundary.HW,
+		}
+	}
+	messageErr := n.defaultChannelStore.DiscardRestoreChannels(ctx, channels)
+	metadataErr := n.defaultSlotMetaDB.DeleteHashSlotData(ctx, hashSlot)
+	return errors.Join(messageErr, metadataErr)
 }
 
 func (n *Node) buildRestoreChannelRuntimeMeta(ctx context.Context, hashSlot uint16, boundary RestoreVerifyBoundary, placement *channels.SlotPlacementResolver) (metadb.ChannelRuntimeMeta, channelruntime.ChannelID, error) {

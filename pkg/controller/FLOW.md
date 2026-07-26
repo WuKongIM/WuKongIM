@@ -163,14 +163,16 @@ Controller `Revision` fence, so a stale coordinator reloads after any concurrent
 control-plane change before retrying.
 
 `RestoreCoordinationState` is a separate optional bounded section. It stores
-one immutable restore selection, one compact install/verify report per hash
-slot, target generation, and activation fencing evidence. Installed reports
-must carry a lowercase canonical metadata SHA-256 plus the recomputed metadata
-record count, cumulative message record count, and greatest restored message
-ID under an explicit evidence version. Missing-version reports cannot become
-installed state. Normal startup consumes this state as an activation fence
-before ordinary writes and advances its node-scoped message-ID allocator above
-the greatest verified restored ID.
+one immutable restore selection, the pinned catalog proof and erasure snapshot,
+one compact install/verification/convergence report per Hash Slot, target
+generation, and activation fencing evidence. Each Slot report fences the
+physical Slot, Leader term, configuration epoch, and monotonically increasing
+install attempt. Installed reports carry exact typed counts, Channel-boundary
+count, content and message-Merkle SHA-256 evidence, download/replication
+progress, replica convergence, and bounded timestamps. Missing or malformed
+evidence cannot become installed state. Normal startup consumes this state as
+an activation fence before ordinary writes and advances its node-scoped
+message-ID allocator above the greatest verified restored ID.
 
 Retention removes no repository data inside Controller Raft. Expired restore
 points first move atomically from the selectable list into `PendingGarbage`;

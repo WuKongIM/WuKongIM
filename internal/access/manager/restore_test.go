@@ -25,12 +25,23 @@ func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
 	}
 
 	request := httptest.NewRequest(http.MethodPost, "/manager/restore/plan", bytes.NewBufferString(`{
-		"restore_point_id":"restore-1","repository":"secondary","invalidate_tokens":true
+		"restore_point_id":"restore-1","repository":"secondary","invalidate_tokens":true,
+		"catalog_head":{
+			"sequence":7,
+			"key":"catalog/pages/00000000000000000007-restore-1.json",
+			"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"bytes":100,
+			"latest_checkpoint_id":"restore-1"
+		}
 	}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	server.Engine().ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusCreated || provider.request.Repository != "secondary" || !provider.request.InvalidateTokens {
+	if recorder.Code != http.StatusCreated ||
+		provider.request.Repository != "secondary" ||
+		!provider.request.InvalidateTokens ||
+		provider.request.CatalogHead == nil ||
+		provider.request.CatalogHead.Sequence != 7 {
 		t.Fatalf("restore plan status=%d body=%s request=%#v", recorder.Code, recorder.Body.String(), provider.request)
 	}
 }
@@ -71,9 +82,50 @@ func TestRestoreActivationRequiresExplicitNonWildcardGrant(t *testing.T) {
 	}
 }
 
+func TestRestoreStatusExposesConvergenceThroughputAndETA(t *testing.T) {
+	eta := uint64(42)
+	provider := &fakeRestoreManagement{
+		progress: &backupusecase.RestoreProgress{
+			PlanID: "plan-progress", Status: backupusecase.RestoreStatusInstalling,
+			TotalSlots: 2, InstallingSlots: 1, ConvergedSlots: 1,
+			DownloadedBytes: 1_024, ReplicatedBytes: 2_048,
+			ThroughputBytesPerSecond: 512, ETASeconds: &eta,
+			Partitions: []backupusecase.RestorePartition{{
+				HashSlot:     0,
+				Status:       backupusecase.RestorePartitionConverging,
+				ReplicaCount: 3, ConvergedReplicas: 2,
+				DownloadedBytes: 1_024, ReplicatedBytes: 2_048,
+			}},
+		},
+	}
+	server := New(Options{RestoreMode: true, Restore: provider})
+	recorder := httptest.NewRecorder()
+	server.Engine().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/manager/restore/status", nil),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("restore status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	for _, expected := range [][]byte{
+		[]byte(`"status":"installing"`),
+		[]byte(`"converged_replicas":2`),
+		[]byte(`"throughput_bytes_per_second":512`),
+		[]byte(`"eta_seconds":42`),
+	} {
+		if !bytes.Contains(recorder.Body.Bytes(), expected) {
+			t.Fatalf(
+				"restore status body=%s missing %s",
+				recorder.Body.String(), expected,
+			)
+		}
+	}
+}
+
 type fakeRestoreManagement struct {
-	plan    backupusecase.RestorePlan
-	request backupusecase.RestorePlanRequest
+	plan     backupusecase.RestorePlan
+	request  backupusecase.RestorePlanRequest
+	progress *backupusecase.RestoreProgress
 }
 
 func (f *fakeRestoreManagement) PlanRestore(_ context.Context, request backupusecase.RestorePlanRequest) (backupusecase.RestorePlan, error) {
@@ -85,9 +137,19 @@ func (f *fakeRestoreManagement) StartRestore(context.Context, string) (backupuse
 	return f.plan, nil
 }
 
-func (f *fakeRestoreManagement) RestoreStatus(context.Context) (*backupusecase.RestorePlan, error) {
-	plan := f.plan
-	return &plan, nil
+func (f *fakeRestoreManagement) RestoreProgress(context.Context) (*backupusecase.RestoreProgress, error) {
+	if f.progress != nil {
+		copy := *f.progress
+		copy.Partitions = append(
+			[]backupusecase.RestorePartition(nil), f.progress.Partitions...,
+		)
+		return &copy, nil
+	}
+	return &backupusecase.RestoreProgress{
+		PlanID: f.plan.ID, Status: f.plan.Status,
+		TotalSlots: f.plan.HashSlotCount,
+		Partitions: append([]backupusecase.RestorePartition(nil), f.plan.Partitions...),
+	}, nil
 }
 
 func (f *fakeRestoreManagement) VerifyRestore(context.Context, string) (backupusecase.RestorePlan, error) {

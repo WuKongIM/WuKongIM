@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
@@ -235,6 +236,15 @@ type BackupRestorePartitionVerifier interface {
 	VerifyLocalRestorePartition(context.Context, uint16, string, []clusterpkg.RestoreVerifyBoundary) error
 }
 
+// BackupCheckpointReplicaReceiver stages and installs one plaintext target
+// snapshot received from the current restore Leader.
+type BackupCheckpointReplicaReceiver interface {
+	HandleCheckpointReplica(
+		context.Context,
+		backupcontract.CheckpointReplicaRequest,
+	) (backupcontract.CheckpointReplicaResponse, error)
+}
+
 // Options configures the internal node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -297,6 +307,8 @@ type Options struct {
 	BackupRestoreInstaller BackupRestorePartitionInstaller
 	// BackupRestoreVerifier validates authenticated recovery boundaries locally.
 	BackupRestoreVerifier BackupRestorePartitionVerifier
+	// BackupCheckpointReplica receives final target snapshots from a restore Leader.
+	BackupCheckpointReplica BackupCheckpointReplicaReceiver
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -363,6 +375,8 @@ type Adapter struct {
 	backupRestoreInstaller BackupRestorePartitionInstaller
 	// backupRestoreVerifier validates restored durable boundaries locally.
 	backupRestoreVerifier BackupRestorePartitionVerifier
+	// backupCheckpointReplica stages final target snapshots without repository access.
+	backupCheckpointReplica BackupCheckpointReplicaReceiver
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -403,6 +417,7 @@ func New(opts Options) *Adapter {
 		backupRestoreTarget:      opts.BackupRestoreTarget,
 		backupRestoreInstaller:   opts.BackupRestoreInstaller,
 		backupRestoreVerifier:    opts.BackupRestoreVerifier,
+		backupCheckpointReplica:  opts.BackupCheckpointReplica,
 		logger:                   opts.Logger,
 	}
 }

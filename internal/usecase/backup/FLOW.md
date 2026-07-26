@@ -32,11 +32,19 @@ Current flow:
    optional monthly, held, newest, and active-base references, then moves
    expired references into a durable pending-garbage queue before deletion.
    The target of a pending/running verification is protected too.
-8. The restore state machine admits exactly one immutable plan, requires empty
-   target and generation evidence, records idempotent per-hash-slot install
-   reports including record counts and the message-ID fence, requires final
-   semantic verification, and accepts activation only with a lowercase SHA-256
-   old-cluster fence digest.
+8. The restore state machine admits exactly one immutable plan, requires an
+   empty target and distinct source/target generations, and pins the catalog
+   proof, checkpoint identity, selected repository, and erasure snapshot.
+   Admission requires the caller's exact immutable catalog-head reference; it
+   never trusts a mutable "latest" value copied from the unavailable source
+   Controller.
+   Before repository work it durably records the current physical Slot, Leader
+   term, configuration epoch, and install attempt. Progress reports are fenced
+   and monotonic; a Leader change advances the attempt without accepting stale
+   completion. Status exposes bounded per-Slot install/convergence state,
+   throughput, and ETA. Final semantic verification requires every current
+   desired replica to revalidate its live installed state before activation
+   accepts the lowercase SHA-256 old-cluster fence digest.
 9. Permanent-erasure publication reserves one contiguous Controller sequence
    per Hash Slot. Each bounded stream state keeps its authenticated head, one
    pending record reference, and the latest committed reference so immediate
@@ -57,7 +65,9 @@ Current flow:
     audit root; later retention advances it before Generation GC.
     `ListCheckpointsPage` and `CheckpointByID` read immutable history
     through an injected rebuildable catalog browser instead of Controller
-    arrays.
+    arrays. Each list page also returns the exact immutable catalog head used
+    to build it so an operator can carry that reference unchanged into restore
+    admission.
     A Slot with a durable pending rebase blocks cluster-complete publication
     even though its old Generation remains restorable and other Slot frontiers
     may keep advancing. After promotion, the checkpoint includes the

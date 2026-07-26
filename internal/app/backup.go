@@ -23,7 +23,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-const defaultMaterializedFullInterval = 30 * 24 * time.Hour
+const (
+	defaultMaterializedFullInterval         = 30 * 24 * time.Hour
+	defaultCheckpointRestoreMemoryMaxBytes  = 512 << 20
+	checkpointRestoreStagingDirectory       = "checkpoint-segments"
+	checkpointRestoreTargetStagingDirectory = "checkpoint-target"
+)
 
 type appBackupNode interface {
 	backupinfra.CoordinationController
@@ -38,9 +43,8 @@ type appBackupNode interface {
 type appRestoreNode interface {
 	backupinfra.RestoreCoordinationController
 	backupinfra.RestoreTargetClusterNode
-	backupinfra.RestoreInstallNode
 	backupinfra.RestoreInstallClusterNode
-	backupinfra.RestoreVerificationClusterNode
+	backupinfra.CheckpointRestoreReplicaNode
 	runtimebackup.CoordinatorLeadership
 	accessnode.PresenceRPCNode
 	nodeRPCRegistrar
@@ -112,7 +116,9 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		observer = a.metrics.Backup
 	}
 	if a.cfg.Backup.RestoreMode {
-		a.wireRestore(clusterCfg, primary, secondary, manifestSigner, codec, observer)
+		a.wireRestore(
+			clusterCfg, primary, secondary, kms, manifestSigner, codec, observer,
+		)
 		return
 	}
 	node, ok := a.cluster.(appBackupNode)
@@ -315,10 +321,24 @@ func (a *App) managerPermanentErasureRecorder() clusterinfra.PermanentMessageEra
 	return unavailablePermanentErasureRecorder{err: a.backupInitErr}
 }
 
-func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupartifact.Repository, signer backupartifact.ManifestSigner, codec *backupartifact.ObjectCodec, observer runtimebackup.RuntimeObserver) {
+func (a *App) wireRestore(
+	clusterCfg cluster.Config,
+	primary, secondary backupartifact.Repository,
+	keys backupartifact.DataKeyManager,
+	signer backupartifact.ManifestSigner,
+	codec *backupartifact.ObjectCodec,
+	observer runtimebackup.RuntimeObserver,
+) {
 	node, ok := a.cluster.(appRestoreNode)
 	if !ok {
 		a.backupInitErr = fmt.Errorf("backup restore app: cluster runtime does not expose restore seams")
+		return
+	}
+	stagingQuota, err := backupinfra.NewCheckpointRestoreStagingQuota(
+		a.cfg.Backup.StagingDir, a.cfg.Backup.StagingMaxBytes,
+	)
+	if err != nil {
+		a.backupInitErr = err
 		return
 	}
 	client := accessnode.NewClient(node)
@@ -330,10 +350,35 @@ func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupar
 		a.backupInitErr = err
 		return
 	}
-	inspector, err := backupinfra.NewRestoreInspector(backupinfra.RestoreInspectorOptions{
-		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec,
-		RepositoryID: a.cfg.Backup.RepositoryID, Target: target,
-	})
+	segments, err := backupartifact.NewReplicatedSegmentStore(
+		primary, secondary,
+		backupartifact.NewSegmentCodec(keys, rand.Reader),
+		signer, a.cfg.Backup.SigningKeyID,
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
+		primary, secondary, signer, a.cfg.Backup.SigningKeyID,
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	auditor, err := backupinfra.NewCheckpointRestoreGraphAuditor(segments)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	inspector, err := backupinfra.NewCheckpointRestoreInspector(
+		backupinfra.CheckpointRestoreInspectorOptions{
+			Primary: primary, Secondary: secondary,
+			Signer: signer, Codec: codec,
+			RepositoryID: a.cfg.Backup.RepositoryID,
+			Target:       target, Catalog: catalog, Auditor: auditor,
+		},
+	)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -343,10 +388,82 @@ func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupar
 		a.backupInitErr = err
 		return
 	}
-	localInstaller, err := backupinfra.NewLocalRestoreInstaller(backupinfra.LocalRestoreInstallerOptions{
-		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec, Node: node,
-		StagingDir: a.cfg.Backup.StagingDir, StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
-	})
+	targetStagingDir := filepath.Join(
+		a.cfg.Backup.StagingDir, checkpointRestoreTargetStagingDirectory,
+	)
+	replicaReceiver, err := backupinfra.NewCheckpointRestoreReplicaReceiver(
+		backupinfra.CheckpointRestoreReplicaReceiverOptions{
+			Node: node, StagingDir: targetStagingDir,
+			StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
+			StagingQuota:    stagingQuota,
+		},
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	distributor, err := backupinfra.NewCheckpointRestoreReplicaDistributor(
+		backupinfra.CheckpointRestoreReplicaDistributorOptions{
+			Node: node, Local: replicaReceiver, Remote: client,
+		},
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	restoreTarget, err := backupinfra.NewDurableCheckpointRestoreTarget(
+		backupinfra.DurableCheckpointRestoreTargetOptions{
+			StagingDir:      targetStagingDir,
+			StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
+			StagingQuota:    stagingQuota,
+			Distributor:     distributor, Now: time.Now,
+		},
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	baseline, err := backupinfra.NewMaterializedCheckpointBaselineReplayer(
+		backupinfra.MaterializedCheckpointBaselineReplayerOptions{
+			Codec: codec, Segments: segments,
+		},
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	localInstaller, err := backupinfra.NewCheckpointSlotInstaller(
+		backupinfra.CheckpointSlotInstallerOptions{
+			Primary: primary, Secondary: secondary,
+			Catalog: catalog, Segments: segments,
+			Signer: signer, Codec: codec,
+			RepositoryID: a.cfg.Backup.RepositoryID,
+			Baseline:     baseline, Target: restoreTarget,
+			StagingDir: filepath.Join(
+				a.cfg.Backup.StagingDir,
+				checkpointRestoreStagingDirectory,
+			),
+			StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
+			StagingQuota:    stagingQuota,
+			MemoryMaxBytes:  defaultCheckpointRestoreMemoryMaxBytes,
+			Progress: func(
+				ctx context.Context,
+				planID string,
+				progress backupusecase.RestorePartition,
+			) error {
+				if a.restore == nil {
+					return fmt.Errorf(
+						"backup checkpoint restore app is unavailable",
+					)
+				}
+				_, err := a.restore.ReportPartitionProgress(
+					ctx, planID, progress,
+				)
+				return err
+			},
+			Now: time.Now,
+		},
+	)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -358,10 +475,12 @@ func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupar
 		a.backupInitErr = err
 		return
 	}
-	verifier, err := backupinfra.NewClusterRestoreVerifier(backupinfra.ClusterRestoreVerifierOptions{
-		Primary: primary, Secondary: secondary, Signer: signer, Codec: codec,
-		Node: node, Remote: client, MaxParallel: a.cfg.Backup.MaxParallelPartitions,
-	})
+	verifier, err := backupinfra.NewCheckpointRestoreFinalVerifier(
+		backupinfra.CheckpointRestoreFinalVerifierOptions{
+			Node: node, Local: replicaReceiver, Remote: client,
+			MaxParallel: a.cfg.Backup.MaxParallelPartitions,
+		},
+	)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -385,12 +504,14 @@ func (a *App) wireRestore(clusterCfg cluster.Config, primary, secondary backupar
 	}
 	a.restoreRuntime = restoreRuntime
 	adapter := accessnode.New(accessnode.Options{
-		BackupRestoreTarget: node, BackupRestoreInstaller: localInstaller, BackupRestoreVerifier: node,
-		Logger: a.logger.Named("node"),
+		BackupRestoreTarget:     node,
+		BackupRestoreInstaller:  localInstaller,
+		BackupCheckpointReplica: replicaReceiver,
+		Logger:                  a.logger.Named("node"),
 	})
 	node.RegisterRPC(accessnode.BackupRestoreTargetRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupRestoreTargetRPC))
 	node.RegisterRPC(accessnode.BackupRestoreInstallRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupRestoreInstallRPC))
-	node.RegisterRPC(accessnode.BackupRestoreVerifyRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupRestoreVerifyRPC))
+	node.RegisterRPC(accessnode.BackupCheckpointReplicaRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupCheckpointReplicaRPC))
 }
 
 func backupConfigFingerprint(cfg BackupConfig, clusterID string, hashSlotCount uint16) (string, error) {
@@ -475,11 +596,11 @@ func (f restoreManagerFacade) StartRestore(ctx context.Context, planID string) (
 	return plan, err
 }
 
-func (f restoreManagerFacade) RestoreStatus(ctx context.Context) (*backupusecase.RestorePlan, error) {
+func (f restoreManagerFacade) RestoreProgress(ctx context.Context) (*backupusecase.RestoreProgress, error) {
 	if f.app == nil || f.app.restore == nil {
 		return nil, restoreFacadeUnavailable(f.app)
 	}
-	return f.app.restore.Status(ctx)
+	return f.app.restore.Progress(ctx)
 }
 
 func (f restoreManagerFacade) VerifyRestore(ctx context.Context, planID string) (backupusecase.RestorePlan, error) {
@@ -798,3 +919,4 @@ func backupFacadeUnavailable(app *App) error {
 
 var _ accessmanager.BackupManagement = backupManagerFacade{}
 var _ accessmanager.RestoreManagement = restoreManagerFacade{}
+var _ appRestoreNode = (*cluster.Node)(nil)

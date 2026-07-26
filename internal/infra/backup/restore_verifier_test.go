@@ -78,7 +78,7 @@ func TestClusterRestoreVerifierChecksTargetSlotReplicasAgainstAuthenticatedIndex
 	metadataDigest := strings.Repeat("d", 64)
 	node := &fakeRestoreVerificationNode{nodeID: 1, snapshot: control.Snapshot{
 		ClusterID: "cluster-b", HashSlots: control.HashSlotTable{Count: 1, Ranges: []control.HashSlotRange{{From: 0, To: 0, SlotID: 7}}},
-		Slots: []control.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{2, 1}}},
+		Slots: []control.SlotAssignment{{SlotID: 7, ConfigEpoch: 1, DesiredPeers: []uint64{2, 1}}},
 		Nodes: []control.Node{
 			{NodeID: 1, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
 			{NodeID: 2, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},

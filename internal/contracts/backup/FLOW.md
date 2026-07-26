@@ -62,10 +62,19 @@ explicit repository. Each record contains only a CAS revision, cycle identity,
 fixed cutoff, lexicographic key cursor, completion bit, and update time. Object
 identities and pending delete queues remain repository concerns.
 
-Restore partition reports carry only bounded verification evidence: the
-canonical metadata digest, exact metadata and cumulative message record counts,
-the greatest restored message ID, an explicit evidence version, and
-install/verify status. Storage adapters recompute these values; this contracts
-package only transports them between restore infrastructure, usecase, and
-Controller state. A missing evidence version remains unknown and cannot be
-installed, verified, activated, or admitted by normal startup.
+Restore plans carry the exact catalog proof, checkpoint identity, selected
+repository copy, target generation, and pinned erasure snapshot. Per-Slot
+reports remain bounded while distinguishing pending, Leader installation,
+installed, follower convergence, converged, and failed phases. They fence the
+physical Slot, Leader term, configuration epoch, and install attempt, and carry
+exact typed counts, Channel-boundary count, content/message-Merkle digests,
+download/replication progress, replica convergence, and timestamps. Storage
+adapters compute this evidence; this package only transports it between restore
+infrastructure, usecase, runtime, and Controller state. Missing evidence cannot
+be installed, verified, activated, or admitted by normal startup.
+
+Checkpoint replica DTOs carry one begin/chunk/commit/status action, immutable
+semantic plan identity, current Slot authority, exact file digests and offsets,
+pre/post-erasure message counts, maximum message ID, and bounded completion
+evidence. They deliberately contain no repository
+locator, encrypted data key, KMS identifier, or provider credential.

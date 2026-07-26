@@ -72,6 +72,16 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	if _, err := store.VerifyCommit(context.Background(), first); !errors.Is(err, backup.ErrRepositoryIncomplete) {
 		t.Fatalf("VerifyCommit(missing secondary) error = %v, want %v", err, backup.ErrRepositoryIncomplete)
 	}
+	selected, err := store.LoadCopy(context.Background(), primary, first)
+	if err != nil {
+		t.Fatalf("LoadCopy(primary) error = %v", err)
+	}
+	if !bytes.Equal(selected, plaintext) {
+		t.Fatalf("LoadCopy(primary) payload = %q, want %q", selected, plaintext)
+	}
+	if _, err := store.LoadCopy(context.Background(), secondary, first); !errors.Is(err, backup.ErrRepositoryIncomplete) {
+		t.Fatalf("LoadCopy(missing secondary) error = %v, want %v", err, backup.ErrRepositoryIncomplete)
+	}
 
 	repaired, err := store.Commit(context.Background(), descriptor, plaintext)
 	if err != nil {

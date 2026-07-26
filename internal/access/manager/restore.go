@@ -15,16 +15,17 @@ import (
 type RestoreManagement interface {
 	PlanRestore(context.Context, backupusecase.RestorePlanRequest) (backupusecase.RestorePlan, error)
 	StartRestore(context.Context, string) (backupusecase.RestorePlan, error)
-	RestoreStatus(context.Context) (*backupusecase.RestorePlan, error)
+	RestoreProgress(context.Context) (*backupusecase.RestoreProgress, error)
 	VerifyRestore(context.Context, string) (backupusecase.RestorePlan, error)
 	ActivateRestore(context.Context, string, string) (backupusecase.RestorePlan, error)
 }
 
 type restorePlanRequestDTO struct {
-	RestorePointID   string `json:"restore_point_id"`
-	LatestVerified   bool   `json:"latest_verified"`
-	Repository       string `json:"repository"`
-	InvalidateTokens bool   `json:"invalidate_tokens"`
+	RestorePointID   string                               `json:"restore_point_id"`
+	LatestVerified   bool                                 `json:"latest_verified"`
+	Repository       string                               `json:"repository"`
+	InvalidateTokens bool                                 `json:"invalidate_tokens"`
+	CatalogHead      *backupartifact.CatalogPageReference `json:"catalog_head"`
 }
 
 type restoreActivationRequestDTO struct {
@@ -32,14 +33,43 @@ type restoreActivationRequestDTO struct {
 }
 
 type restorePartitionDTO struct {
-	HashSlot            uint16 `json:"hash_slot"`
-	Installed           bool   `json:"installed"`
-	Verified            bool   `json:"verified"`
-	PlainBytes          uint64 `json:"plain_bytes"`
-	MessageCount        uint64 `json:"message_count"`
-	MetadataSHA256      string `json:"metadata_sha256"`
-	FailureCategory     string `json:"failure_category,omitempty"`
-	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
+	HashSlot              uint16                               `json:"hash_slot"`
+	Status                backupusecase.RestorePartitionStatus `json:"status"`
+	TargetSlotID          uint32                               `json:"target_slot_id,omitempty"`
+	LeaderNodeID          uint64                               `json:"leader_node_id,omitempty"`
+	LeaderTerm            uint64                               `json:"leader_term,omitempty"`
+	ConfigEpoch           uint64                               `json:"config_epoch,omitempty"`
+	InstallAttempt        uint64                               `json:"install_attempt,omitempty"`
+	Installed             bool                                 `json:"installed"`
+	Verified              bool                                 `json:"verified"`
+	PlainBytes            uint64                               `json:"plain_bytes"`
+	MetadataRecordCount   uint64                               `json:"metadata_record_count"`
+	MessageCount          uint64                               `json:"message_count"`
+	ChannelBoundaryCount  uint64                               `json:"channel_boundary_count"`
+	DownloadedBytes       uint64                               `json:"downloaded_bytes"`
+	ReplicatedBytes       uint64                               `json:"replicated_bytes"`
+	ReplicaCount          uint32                               `json:"replica_count"`
+	ConvergedReplicas     uint32                               `json:"converged_replicas"`
+	FailureCategory       string                               `json:"failure_category,omitempty"`
+	StartedAtUnixMillis   int64                                `json:"started_at_unix_millis,omitempty"`
+	InstalledAtUnixMillis int64                                `json:"installed_at_unix_millis,omitempty"`
+	UpdatedAtUnixMillis   int64                                `json:"updated_at_unix_millis"`
+}
+
+type restoreProgressDTO struct {
+	PlanID                   string                      `json:"plan_id"`
+	Status                   backupusecase.RestoreStatus `json:"status"`
+	TotalSlots               uint16                      `json:"total_slots"`
+	PendingSlots             uint16                      `json:"pending_slots"`
+	InstallingSlots          uint16                      `json:"installing_slots"`
+	InstalledSlots           uint16                      `json:"installed_slots"`
+	ConvergedSlots           uint16                      `json:"converged_slots"`
+	FailedSlots              uint16                      `json:"failed_slots"`
+	DownloadedBytes          uint64                      `json:"downloaded_bytes"`
+	ReplicatedBytes          uint64                      `json:"replicated_bytes"`
+	ThroughputBytesPerSecond uint64                      `json:"throughput_bytes_per_second"`
+	ETASeconds               *uint64                     `json:"eta_seconds"`
+	Partitions               []restorePartitionDTO       `json:"partitions"`
 }
 
 type restorePlanDTO struct {
@@ -100,6 +130,7 @@ func (s *Server) handleRestorePlan(c *gin.Context) {
 	plan, err := s.restore.PlanRestore(c.Request.Context(), backupusecase.RestorePlanRequest{
 		RestorePointID: strings.TrimSpace(request.RestorePointID), LatestVerified: request.LatestVerified,
 		Repository: strings.TrimSpace(request.Repository), InvalidateTokens: request.InvalidateTokens,
+		CatalogHead: request.CatalogHead,
 	})
 	if err != nil {
 		writeRestoreError(c, err)
@@ -126,16 +157,16 @@ func (s *Server) handleRestoreStatus(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "restore control is not configured")
 		return
 	}
-	plan, err := s.restore.RestoreStatus(c.Request.Context())
+	progress, err := s.restore.RestoreProgress(c.Request.Context())
 	if err != nil {
 		writeRestoreError(c, err)
 		return
 	}
-	if plan == nil {
-		c.JSON(http.StatusOK, gin.H{"plan": nil})
+	if progress == nil {
+		c.JSON(http.StatusOK, gin.H{"progress": nil})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"plan": restorePlanResponse(*plan)})
+	c.JSON(http.StatusOK, gin.H{"progress": restoreProgressResponse(*progress)})
 }
 
 func (s *Server) handleRestoreVerify(c *gin.Context) {
@@ -182,14 +213,55 @@ func restorePlanResponse(plan backupusecase.RestorePlan) restorePlanDTO {
 		Partitions: make([]restorePartitionDTO, len(plan.Partitions)),
 	}
 	for index, partition := range plan.Partitions {
-		result.Partitions[index] = restorePartitionDTO{
-			HashSlot: partition.HashSlot, Installed: partition.Installed, Verified: partition.Verified,
-			PlainBytes: partition.PlainBytes, MessageCount: partition.MessageCount,
-			MetadataSHA256:  partition.MetadataSHA256,
-			FailureCategory: partition.FailureCategory, UpdatedAtUnixMillis: partition.UpdatedAtUnixMillis,
-		}
+		result.Partitions[index] = restorePartitionResponse(partition)
 	}
 	return result
+}
+
+func restoreProgressResponse(
+	progress backupusecase.RestoreProgress,
+) restoreProgressDTO {
+	result := restoreProgressDTO{
+		PlanID: progress.PlanID, Status: progress.Status,
+		TotalSlots: progress.TotalSlots, PendingSlots: progress.PendingSlots,
+		InstallingSlots:          progress.InstallingSlots,
+		InstalledSlots:           progress.InstalledSlots,
+		ConvergedSlots:           progress.ConvergedSlots,
+		FailedSlots:              progress.FailedSlots,
+		DownloadedBytes:          progress.DownloadedBytes,
+		ReplicatedBytes:          progress.ReplicatedBytes,
+		ThroughputBytesPerSecond: progress.ThroughputBytesPerSecond,
+		ETASeconds:               progress.ETASeconds,
+		Partitions:               make([]restorePartitionDTO, len(progress.Partitions)),
+	}
+	for index, partition := range progress.Partitions {
+		result.Partitions[index] = restorePartitionResponse(partition)
+	}
+	return result
+}
+
+func restorePartitionResponse(
+	partition backupusecase.RestorePartition,
+) restorePartitionDTO {
+	return restorePartitionDTO{
+		HashSlot: partition.HashSlot, Status: partition.Status,
+		TargetSlotID: partition.TargetSlotID,
+		LeaderNodeID: partition.LeaderNodeID, LeaderTerm: partition.LeaderTerm,
+		ConfigEpoch: partition.ConfigEpoch, InstallAttempt: partition.InstallAttempt,
+		Installed: partition.Installed, Verified: partition.Verified,
+		PlainBytes:            partition.PlainBytes,
+		MetadataRecordCount:   partition.MetadataRecordCount,
+		MessageCount:          partition.MessageCount,
+		ChannelBoundaryCount:  partition.ChannelBoundaryCount,
+		DownloadedBytes:       partition.DownloadedBytes,
+		ReplicatedBytes:       partition.ReplicatedBytes,
+		ReplicaCount:          partition.ReplicaCount,
+		ConvergedReplicas:     partition.ConvergedReplicas,
+		FailureCategory:       partition.FailureCategory,
+		StartedAtUnixMillis:   partition.StartedAtUnixMillis,
+		InstalledAtUnixMillis: partition.InstalledAtUnixMillis,
+		UpdatedAtUnixMillis:   partition.UpdatedAtUnixMillis,
+	}
 }
 
 func restoreErasureStreamResponses(heads []backupartifact.ErasureStreamHead) []backupErasureStreamDTO {

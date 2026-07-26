@@ -573,6 +573,174 @@ func (c *ReplicatedCheckpointCatalog) LoadPage(
 	return page, nil
 }
 
+// LoadPageCopy authenticates one explicit repository copy without requiring
+// the peer repository to be available during disaster recovery.
+func (c *ReplicatedCheckpointCatalog) LoadPageCopy(
+	ctx context.Context,
+	repository backupartifact.Repository,
+	reference backupartifact.CatalogPageReference,
+) (backupartifact.CatalogPage, error) {
+	if c == nil || repository == nil ||
+		(repository.Name() != c.primary.Name() && repository.Name() != c.secondary.Name()) {
+		return backupartifact.CatalogPage{}, backupartifact.ErrInvalidObject
+	}
+	body, err := readCheckpointCatalogObject(
+		ctx, repository, reference.Key, reference.SHA256, reference.Bytes,
+	)
+	if err != nil {
+		return backupartifact.CatalogPage{}, err
+	}
+	page, err := backupartifact.LoadCatalogPage(ctx, body, c.signer)
+	if err != nil {
+		return backupartifact.CatalogPage{}, err
+	}
+	if page.Sequence != reference.Sequence || len(page.Entries) == 0 ||
+		page.Entries[0].ID != reference.LatestCheckpointID {
+		return backupartifact.CatalogPage{}, backupartifact.ErrObjectCorrupt
+	}
+	return page, nil
+}
+
+// ResolveCheckpointForRestore authenticates a checkpoint's original catalog
+// membership under one pinned head using exactly one selected repository copy.
+func (c *ReplicatedCheckpointCatalog) ResolveCheckpointForRestore(
+	ctx context.Context,
+	repository backupartifact.Repository,
+	head backupartifact.CatalogPageReference,
+	checkpointID string,
+	latest bool,
+) (backupartifact.CheckpointCatalogProof, backupartifact.Checkpoint, error) {
+	checkpointID = strings.TrimSpace(checkpointID)
+	if c == nil || repository == nil || (checkpointID == "") == !latest {
+		return backupartifact.CheckpointCatalogProof{}, backupartifact.Checkpoint{},
+			backupartifact.ErrInvalidObject
+	}
+	reference := &head
+	for reference != nil {
+		if err := ctx.Err(); err != nil {
+			return backupartifact.CheckpointCatalogProof{}, backupartifact.Checkpoint{}, err
+		}
+		pageReference := *reference
+		page, err := c.LoadPageCopy(ctx, repository, pageReference)
+		if err != nil {
+			return backupartifact.CheckpointCatalogProof{}, backupartifact.Checkpoint{}, err
+		}
+		for _, entry := range page.Entries {
+			if entry.StateOnly || (!latest && entry.ID != checkpointID) {
+				continue
+			}
+			checkpoint, err := c.LoadCheckpointCopy(ctx, repository, entry)
+			if err != nil {
+				return backupartifact.CheckpointCatalogProof{}, backupartifact.Checkpoint{}, err
+			}
+			proof := backupartifact.CheckpointCatalogProof{
+				Head: head, EntryPage: pageReference, Checkpoint: entry,
+			}
+			if err := backupartifact.ValidateCheckpointCatalogProof(proof); err != nil {
+				return backupartifact.CheckpointCatalogProof{}, backupartifact.Checkpoint{}, err
+			}
+			return proof, checkpoint, nil
+		}
+		reference = page.Previous
+	}
+	return backupartifact.CheckpointCatalogProof{}, backupartifact.Checkpoint{},
+		fmt.Errorf("%w: checkpoint is absent from pinned catalog", backupartifact.ErrObjectNotFound)
+}
+
+// ResolveCheckpointForRestoreDual authenticates every catalog link and the
+// selected checkpoint in both independent repositories before admission.
+func (c *ReplicatedCheckpointCatalog) ResolveCheckpointForRestoreDual(
+	ctx context.Context,
+	head backupartifact.CatalogPageReference,
+	checkpointID string,
+	latest bool,
+) (
+	backupartifact.CheckpointCatalogProof,
+	backupartifact.Checkpoint,
+	error,
+) {
+	checkpointID = strings.TrimSpace(checkpointID)
+	if c == nil || (checkpointID == "") == !latest {
+		return backupartifact.CheckpointCatalogProof{},
+			backupartifact.Checkpoint{}, backupartifact.ErrInvalidObject
+	}
+	reference := &head
+	for reference != nil {
+		if err := ctx.Err(); err != nil {
+			return backupartifact.CheckpointCatalogProof{},
+				backupartifact.Checkpoint{}, err
+		}
+		pageReference := *reference
+		page, err := c.LoadPage(ctx, pageReference)
+		if err != nil {
+			return backupartifact.CheckpointCatalogProof{},
+				backupartifact.Checkpoint{}, err
+		}
+		for _, entry := range page.Entries {
+			if entry.StateOnly ||
+				(!latest && entry.ID != checkpointID) {
+				continue
+			}
+			checkpoint, err := c.LoadCheckpoint(ctx, entry)
+			if err != nil {
+				return backupartifact.CheckpointCatalogProof{},
+					backupartifact.Checkpoint{}, err
+			}
+			proof := backupartifact.CheckpointCatalogProof{
+				Head: head, EntryPage: pageReference,
+				Checkpoint: entry,
+			}
+			if err := backupartifact.ValidateCheckpointCatalogProof(
+				proof,
+			); err != nil {
+				return backupartifact.CheckpointCatalogProof{},
+					backupartifact.Checkpoint{}, err
+			}
+			return proof, checkpoint, nil
+		}
+		reference = page.Previous
+	}
+	return backupartifact.CheckpointCatalogProof{},
+		backupartifact.Checkpoint{},
+		fmt.Errorf(
+			"%w: checkpoint is absent from pinned catalog",
+			backupartifact.ErrObjectNotFound,
+		)
+}
+
+// LoadCheckpointProofCopy revalidates the bounded membership proof persisted
+// by restore admission without replaying the catalog history once per Hash
+// Slot. Admission already authenticated every Head-to-EntryPage link before
+// Controller Raft accepted the immutable proof.
+func (c *ReplicatedCheckpointCatalog) LoadCheckpointProofCopy(
+	ctx context.Context,
+	repository backupartifact.Repository,
+	proof backupartifact.CheckpointCatalogProof,
+) (backupartifact.Checkpoint, error) {
+	if err := backupartifact.ValidateCheckpointCatalogProof(proof); err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	page, err := c.LoadPageCopy(ctx, repository, proof.EntryPage)
+	if err != nil {
+		return backupartifact.Checkpoint{}, err
+	}
+	found := false
+	for _, entry := range page.Entries {
+		if !entry.StateOnly && reflect.DeepEqual(entry, proof.Checkpoint) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return backupartifact.Checkpoint{},
+			fmt.Errorf(
+				"%w: checkpoint is absent from admitted catalog page",
+				backupartifact.ErrObjectCorrupt,
+			)
+	}
+	return c.LoadCheckpointCopy(ctx, repository, proof.Checkpoint)
+}
+
 // LoadCheckpoint requires matching authenticated copies of one catalog entry.
 func (c *ReplicatedCheckpointCatalog) LoadCheckpoint(
 	ctx context.Context,

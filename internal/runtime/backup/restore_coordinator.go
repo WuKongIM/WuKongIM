@@ -15,11 +15,25 @@ const defaultRestoreCoordinatorTickInterval = 5 * time.Second
 // RestoreCoordinatorApp exposes persisted restore progress to the runtime.
 type RestoreCoordinatorApp interface {
 	Status(context.Context) (*backupcontract.RestorePlan, error)
-	ReportPartition(context.Context, string, backupcontract.RestorePartition) (backupcontract.RestorePlan, error)
+	BeginPartitionInstall(
+		context.Context,
+		string,
+		backupcontract.RestorePartitionAssignment,
+	) (backupcontract.RestorePlan, error)
+	ReportPartitionProgress(
+		context.Context,
+		string,
+		backupcontract.RestorePartition,
+	) (backupcontract.RestorePlan, error)
 }
 
 // RestorePartitionInstaller installs one logical partition on the target cluster.
 type RestorePartitionInstaller interface {
+	Assignment(
+		context.Context,
+		backupcontract.RestorePlan,
+		uint16,
+	) (backupcontract.RestorePartitionAssignment, error)
 	InstallPartition(context.Context, backupcontract.RestorePlan, uint16) (backupcontract.RestorePartition, error)
 }
 
@@ -167,7 +181,8 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 		return backupcontract.ErrStateConflict
 	}
 	for hashSlot := uint16(0); hashSlot < plan.HashSlotCount; hashSlot++ {
-		if !plan.Partitions[hashSlot].Installed {
+		if plan.Partitions[hashSlot].Status !=
+			backupcontract.RestorePartitionConverged {
 			missing = append(missing, hashSlot)
 		}
 	}
@@ -215,7 +230,7 @@ func (c *RestoreCoordinator) installMissing(ctx context.Context, plan backupcont
 		go func() {
 			defer group.Done()
 			for hashSlot := range work {
-				report, err := c.options.Partitions.InstallPartition(ctx, plan, hashSlot)
+				report, err := c.installPartition(ctx, plan, hashSlot)
 				results <- result{report: report, err: err}
 			}
 		}()
@@ -230,23 +245,53 @@ func (c *RestoreCoordinator) installMissing(ctx context.Context, plan backupcont
 			}
 		}
 	}()
-	group.Wait()
-	close(results)
+	go func() {
+		group.Wait()
+		close(results)
+	}()
 	var firstErr error
 	for result := range results {
+		if result.report.Status != "" {
+			_, reportErr := c.options.App.ReportPartitionProgress(
+				ctx, plan.ID, result.report,
+			)
+			if reportErr != nil &&
+				!errors.Is(reportErr, backupcontract.ErrStateConflict) &&
+				firstErr == nil {
+				firstErr = reportErr
+			}
+		}
 		if result.err != nil {
 			if firstErr == nil {
 				firstErr = result.err
 			}
 			continue
 		}
-		if _, err := c.options.App.ReportPartition(ctx, plan.ID, result.report); err != nil && !errors.Is(err, backupcontract.ErrStateConflict) {
-			if firstErr == nil {
-				firstErr = err
-			}
-		}
 	}
 	return firstErr
+}
+
+func (c *RestoreCoordinator) installPartition(
+	ctx context.Context,
+	plan backupcontract.RestorePlan,
+	hashSlot uint16,
+) (backupcontract.RestorePartition, error) {
+	assignment, err := c.options.Partitions.Assignment(ctx, plan, hashSlot)
+	if err != nil {
+		return backupcontract.RestorePartition{}, err
+	}
+	started, err := c.options.App.BeginPartitionInstall(
+		ctx, plan.ID, assignment,
+	)
+	if err != nil {
+		return backupcontract.RestorePartition{}, err
+	}
+	report, err := c.options.Partitions.InstallPartition(ctx, started, hashSlot)
+	// The caller cannot distinguish a pre-finalize failure from a lost response
+	// after target-local finalization. Preserve the same durable fence so the
+	// next tick first queries ResumeCheckpointRestore instead of starting a new
+	// attempt and repeating repository/KMS work.
+	return report, err
 }
 
 func restoreInstallFailureCategory(err error) string {

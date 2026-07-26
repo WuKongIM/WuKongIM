@@ -122,6 +122,15 @@ Current flow:
     raw-row scan exhausts the requested range, physical retention advances to
     the requested boundary even if the imported tail ended earlier or the
     Channel existed only in the erasure ledger.
-20. Schema and key helpers define the durable message table layout.
+20. Checkpoint restore can write portable message records into a fresh isolated
+    database and export one checksummed hash-slot snapshot in stable Channel
+    order. Replica receivers install that target snapshot, reconstruct its
+    complete boundary index on disk, apply erasure floors, and verify live
+    checkpoint/LEO state plus deterministic snapshot content before
+    acknowledging completion. Restore failure cleanup removes every Channel
+    row, global/local secondary index, checkpoint/history/retention record, and
+    catalog entry before retry. Message and index deletion is paged in batches
+    of at most 1024 rows and approximately 8 MiB of payload.
+21. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

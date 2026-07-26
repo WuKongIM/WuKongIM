@@ -1080,9 +1080,16 @@ when the explicit backup E2E file-root environment is present. Without that
 environment, including ordinary tagged scenarios, the production S3/KMS/clock
 loaders remain authoritative.
 
-Restore mode wires repository inspection, all-node empty-target proof,
-restore-only installers/verifiers, Controller restore state, a leader-resuming
-coordinator, restricted authenticated Manager, and metrics. Construction
+Restore mode wires signed checkpoint-catalog resolution, a current full-graph
+dual-repository audit, all-node empty-target proof, the checkpoint Slot
+installer, target-only replica transfer/final verification, Controller restore
+state, a leader-resuming coordinator, restricted authenticated Manager, and
+metrics. The composition root creates one node-root staging quota shared by
+source downloads, target Slot attempts, and follower transfers. Only the
+current target Slot Leader reads repositories and calls KMS;
+followers receive bounded plaintext target snapshots through the restore-only
+node RPC and revalidate their live local state before reporting convergence.
+Construction
 requires at least one explicit `cluster.restore.activation:w` grant; ordinary
 or wildcard Manager grants cannot activate the successor. Lifecycle waits for restore-safe
 cluster readiness without issuing an ordinary write probe, and does not start

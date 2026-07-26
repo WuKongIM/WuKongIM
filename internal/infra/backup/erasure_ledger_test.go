@@ -156,6 +156,85 @@ func TestPermanentErasureLedgerPublishesEncryptedSignedDualRepositoryCommit(t *t
 			require.Equal(t, uint64(1), head.Sequence)
 		}
 	}
+	countingKeys := &countingErasureKeyManager{
+		delegate: testWrappingKeyManager{mask: 0x5a},
+	}
+	proofCodec := backupartifact.NewObjectCodec(
+		countingKeys, bytes.NewReader(bytes.Repeat([]byte{0x71}, 128)),
+	)
+	proofLoader, err := backupinfra.NewErasureLedgerLoader(
+		backupinfra.ErasureLedgerLoaderOptions{
+			Primary: primary, Secondary: secondary,
+			Signer: signer, Codec: proofCodec,
+			RepositoryID: "repo-prod", SourceClusterID: "cluster-a",
+			SourceGeneration: "generation-1", HashSlotCount: 256,
+		},
+	)
+	require.NoError(t, err)
+	proofSnapshot, err := proofLoader.LoadDualSnapshotProof(
+		context.Background(), finalSnapshot.Heads,
+	)
+	require.NoError(t, err)
+	require.Equal(t, finalSnapshot.SHA256, proofSnapshot.SHA256)
+	require.Zero(
+		t, countingKeys.unwraps.Load(),
+		"restore admission must authenticate ciphertext without KMS",
+	)
+	isolatedPrimary := &selectiveErasureReadRepository{
+		Repository: primary,
+		lister:     primary,
+		denied: fmt.Sprintf(
+			"/%04x/commits/", receipt.HashSlot,
+		),
+	}
+	isolatedLoader, err := backupinfra.NewErasureLedgerLoader(
+		backupinfra.ErasureLedgerLoaderOptions{
+			Primary: isolatedPrimary, Secondary: secondary,
+			Signer: signer, Codec: proofCodec,
+			RepositoryID: "repo-prod", SourceClusterID: "cluster-a",
+			SourceGeneration: "generation-1", HashSlotCount: 256,
+		},
+	)
+	require.NoError(t, err)
+	var isolated []backupinfra.PermanentErasureBoundary
+	err = isolatedLoader.ReplayPinnedSlot(
+		context.Background(), "primary", finalSnapshot.Version,
+		finalSnapshot.EventCount, finalSnapshot.SHA256, finalSnapshot.Heads,
+		otherSlotReceipt.HashSlot,
+		func(boundary backupinfra.PermanentErasureBoundary) error {
+			isolated = append(isolated, boundary)
+			return nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, []backupinfra.PermanentErasureBoundary{{
+		ChannelID: otherSlotChannel, ChannelType: 2, ThroughSeq: 7,
+	}}, isolated)
+	require.Equal(
+		t, uint64(1), countingKeys.unwraps.Load(),
+		"the selected Slot Leader unwraps only its own erasure stream",
+	)
+}
+
+type countingErasureKeyManager struct {
+	delegate testWrappingKeyManager
+	unwraps  atomic.Uint64
+}
+
+func (m *countingErasureKeyManager) GenerateDataKey(
+	ctx context.Context,
+	keyID string,
+) (backupartifact.DataKey, error) {
+	return m.delegate.GenerateDataKey(ctx, keyID)
+}
+
+func (m *countingErasureKeyManager) UnwrapDataKey(
+	ctx context.Context,
+	keyID string,
+	wrapped []byte,
+) ([]byte, error) {
+	m.unwraps.Add(1)
+	return m.delegate.UnwrapDataKey(ctx, keyID, wrapped)
 }
 
 func TestPermanentErasureLedgerConcurrentDuplicateIsIdempotent(t *testing.T) {
@@ -369,6 +448,41 @@ type erasureCommitFailRepository struct {
 	backupartifact.Repository
 	mu   sync.Mutex
 	fail bool
+}
+
+type selectiveErasureReadRepository struct {
+	backupartifact.Repository
+	lister backupinfra.ErasureLedgerCommitLister
+	denied string
+}
+
+func (r *selectiveErasureReadRepository) ListErasureLedgerCommitKeys(
+	ctx context.Context,
+	namespace string,
+) ([]string, error) {
+	return r.lister.ListErasureLedgerCommitKeys(ctx, namespace)
+}
+
+func (r *selectiveErasureReadRepository) Open(
+	ctx context.Context,
+	key string,
+) (io.ReadCloser, backupartifact.RepositoryObject, error) {
+	if strings.Contains(key, r.denied) {
+		return nil, backupartifact.RepositoryObject{},
+			backupartifact.ErrObjectNotFound
+	}
+	return r.Repository.Open(ctx, key)
+}
+
+func (r *selectiveErasureReadRepository) Stat(
+	ctx context.Context,
+	key string,
+) (backupartifact.RepositoryObject, error) {
+	if strings.Contains(key, r.denied) {
+		return backupartifact.RepositoryObject{},
+			backupartifact.ErrObjectNotFound
+	}
+	return r.Repository.Stat(ctx, key)
 }
 
 func (r *erasureCommitFailRepository) PutImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error {

@@ -50,6 +50,8 @@ type CheckpointListRequest struct {
 
 // CheckpointPage is one stable keyset-paged catalog response.
 type CheckpointPage struct {
+	// CatalogHead is the exact immutable discovery fence represented by Items.
+	CatalogHead *backupartifact.CatalogPageReference
 	// Items are ordered newest first.
 	Items []CheckpointSummary
 	// NextCursor continues after the final returned item.
@@ -78,7 +80,12 @@ func (a *App) ListCheckpointsPage(ctx context.Context, request CheckpointListReq
 	if state.CatalogHead == nil {
 		return CheckpointPage{Items: []CheckpointSummary{}}, nil
 	}
-	return a.catalogBrowser.List(ctx, *state.CatalogHead, request)
+	page, err := a.catalogBrowser.List(ctx, *state.CatalogHead, request)
+	if err != nil {
+		return CheckpointPage{}, err
+	}
+	page.CatalogHead = cloneCatalogPageHead(state.CatalogHead)
+	return page, nil
 }
 
 // CheckpointByID returns a bounded detail projection for one exact checkpoint.

@@ -157,6 +157,14 @@ func TestManagerBackupRestorePointsUsesBoundedCursorPagination(t *testing.T) {
 func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
 	provider := &fakeBackupManagement{
 		checkpointPage: backupusecase.CheckpointPage{
+			CatalogHead: &backupartifact.CatalogPageReference{
+				Sequence: 2,
+				Key: backupartifact.CatalogPageObjectKey(
+					2, "checkpoint-2",
+				),
+				SHA256: strings.Repeat("a", 64), Bytes: 100,
+				LatestCheckpointID: "checkpoint-2",
+			},
 			Items: []backupusecase.CheckpointSummary{{
 				ID: "checkpoint-2", CreatedAtUnixMillis: 200, EffectiveAtUnixMillis: 190,
 			}},
@@ -181,6 +189,7 @@ func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
 	require.Equal(t, "opaque", provider.checkpointListRequest.Cursor)
 	require.Equal(t, "POINT", provider.checkpointListRequest.IDQuery)
 	require.Contains(t, recorder.Body.String(), `"next_cursor":"opaque-next"`)
+	require.Contains(t, recorder.Body.String(), `"catalog_head":{"sequence":2`)
 
 	recorder = httptest.NewRecorder()
 	srv.Engine().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/manager/backups/checkpoints/checkpoint-2", nil))

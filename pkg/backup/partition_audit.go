@@ -20,6 +20,10 @@ type PartitionArtifactAuditNavigation struct {
 	HashSlot uint16
 	// ObjectCount is the number of immutable payloads in this layer.
 	ObjectCount uint64
+	// SourceHighWatermark and WatermarkAtUnixMillis identify the materialized
+	// partition cut authenticated by the manifest reference.
+	SourceHighWatermark   uint64
+	WatermarkAtUnixMillis int64
 	// Base is the authenticated predecessor layer, when one exists.
 	Base *PartitionReference
 }
@@ -86,14 +90,81 @@ func (s *ReplicatedSegmentStore) InspectPartitionArtifactCopies(
 		report.Copies = append(report.Copies, copyResult.report)
 		if copyResult.manifestHealthy && report.Navigation.Format == "" {
 			report.Navigation = PartitionArtifactAuditNavigation{
-				Format:      copyResult.manifest.Format,
-				HashSlot:    copyResult.manifest.Cut.HashSlot,
-				ObjectCount: uint64(len(copyResult.manifest.Objects)),
+				Format:                copyResult.manifest.Format,
+				HashSlot:              copyResult.manifest.Cut.HashSlot,
+				ObjectCount:           uint64(len(copyResult.manifest.Objects)),
+				SourceHighWatermark:   copyResult.manifest.Cut.RaftIndex,
+				WatermarkAtUnixMillis: copyResult.manifest.Cut.CommittedAtMillis,
 				Base: clonePartitionAuditReference(
 					copyResult.manifest.Base,
 				),
 			}
 		}
+	}
+	return report, nil
+}
+
+// InspectPartitionArtifactEnvelopeCopies authenticates a partition manifest
+// or verifies one referenced payload through provider metadata in both
+// repositories. It never downloads or decrypts payload bytes, so restore
+// admission can prove graph completeness without consuming Slot-Leader KMS
+// and repository work.
+func (s *ReplicatedSegmentStore) InspectPartitionArtifactEnvelopeCopies(
+	ctx context.Context,
+	reference PartitionReference,
+	objectIndex int,
+) (PartitionArtifactAuditReport, error) {
+	if err := s.validatePartitionAuditTarget(reference, objectIndex); err != nil {
+		return PartitionArtifactAuditReport{}, err
+	}
+	report := PartitionArtifactAuditReport{
+		Copies: make([]SegmentAuditCopy, 0, 2),
+	}
+	for _, repository := range []Repository{s.primary, s.secondary} {
+		copyReport := SegmentAuditCopy{Repository: repository.Name()}
+		manifest, category, bytesRead, err := s.auditPartitionManifestCopy(
+			ctx, repository, reference, true,
+		)
+		copyReport.StoredBytes = bytesRead
+		if err != nil {
+			return PartitionArtifactAuditReport{}, err
+		}
+		if category != "" {
+			copyReport.Category = category
+			report.Copies = append(report.Copies, copyReport)
+			continue
+		}
+		if report.Navigation.Format == "" {
+			report.Navigation = PartitionArtifactAuditNavigation{
+				Format:                manifest.Format,
+				HashSlot:              manifest.Cut.HashSlot,
+				ObjectCount:           uint64(len(manifest.Objects)),
+				SourceHighWatermark:   manifest.Cut.RaftIndex,
+				WatermarkAtUnixMillis: manifest.Cut.CommittedAtMillis,
+				Base:                  clonePartitionAuditReference(manifest.Base),
+			}
+		}
+		if objectIndex >= 0 {
+			entry := manifest.Objects[objectIndex]
+			object, err := repository.Stat(ctx, entry.Key)
+			if errors.Is(err, ErrObjectNotFound) {
+				copyReport.Category = SegmentCorruptionMissing
+				report.Copies = append(report.Copies, copyReport)
+				continue
+			}
+			if err != nil {
+				return PartitionArtifactAuditReport{}, err
+			}
+			if object.Key != entry.Key ||
+				object.Size != entry.CiphertextBytes ||
+				object.SHA256 != entry.CiphertextSHA256 {
+				copyReport.Category = SegmentCorruptionCiphertext
+				report.Copies = append(report.Copies, copyReport)
+				continue
+			}
+		}
+		copyReport.Healthy = true
+		report.Copies = append(report.Copies, copyReport)
 	}
 	return report, nil
 }

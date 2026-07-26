@@ -72,6 +72,17 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 	if plan.Repository != "primary" && plan.Repository != "secondary" {
 		return invalid("restore repository selector is invalid")
 	}
+	if plan.CatalogProof == nil ||
+		backupartifact.ValidateCheckpointCatalogProof(*plan.CatalogProof) != nil ||
+		plan.CatalogProof.Checkpoint.ID != plan.RestorePointID ||
+		plan.CatalogProof.Checkpoint.SHA256 != plan.ManifestSHA256 ||
+		plan.CatalogProof.Checkpoint.GenerationVector.HashSlotCount !=
+			plan.HashSlotCount ||
+		plan.CheckpointVersion != backupartifact.CheckpointVersion ||
+		plan.CheckpointCreatedAtUnixMillis != plan.CatalogProof.Checkpoint.CreatedAtUnixMillis ||
+		plan.CheckpointEffectiveAtUnixMillis != plan.CatalogProof.Checkpoint.EffectiveAtUnixMillis {
+		return invalid("restore checkpoint catalog proof is invalid")
+	}
 	if plan.SourceClusterID == "" || plan.TargetClusterID == "" || plan.SourceClusterID == plan.TargetClusterID ||
 		plan.SourceGeneration == "" || plan.TargetGeneration == "" || plan.SourceGeneration == plan.TargetGeneration {
 		return invalid("restore source and target generations must differ")
@@ -108,14 +119,27 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 	if plan.Status == RestoreStatusActivated && (plan.ActivatedAtUnixMillis <= 0 || !validSHA256(plan.ActivationFenceDigest)) {
 		return invalid("activated restore has no fencing evidence")
 	}
+	if plan.Status != RestoreStatusActivated &&
+		(plan.ActivatedAtUnixMillis != 0 || plan.ActivationFenceDigest != "") {
+		return invalid("inactive restore carries activation evidence")
+	}
+	if plan.Status != RestoreStatusVerified &&
+		plan.Status != RestoreStatusActivated &&
+		plan.VerifiedAtUnixMillis != 0 {
+		return invalid("unverified restore carries verification evidence")
+	}
+	var pending, converged, verified int
 	for index, partition := range plan.Partitions {
 		if partition.HashSlot != uint16(index) || len(partition.FailureCategory) > 128 || partition.UpdatedAtUnixMillis < 0 {
 			return invalid("restore partition progress is invalid")
 		}
-		if partition.Verified && !partition.Installed {
-			return invalid("restore partition verified before installation")
+		if partition.Verified &&
+			(!partition.Installed ||
+				partition.Status != RestorePartitionConverged) {
+			return invalid("restore partition verified before convergence")
 		}
-		if partition.Installed && partition.EvidenceVersion == 0 {
+		if partition.Installed &&
+			partition.EvidenceVersion != backupartifact.RestoreEvidenceVersion {
 			return invalid("installed restore partition has no evidence version")
 		}
 		if partition.Installed && (partition.MessageCount == 0) != (partition.MaxMessageID == 0) {
@@ -124,8 +148,113 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 		if partition.Installed && !validSHA256(partition.MetadataSHA256) {
 			return invalid("installed restore partition metadata digest is invalid")
 		}
+		switch partition.Status {
+		case RestorePartitionPending:
+			pending++
+			empty := RestorePartition{
+				HashSlot: partition.HashSlot,
+				Status:   RestorePartitionPending,
+			}
+			if !reflect.DeepEqual(partition, empty) {
+				return invalid("pending restore partition carries progress")
+			}
+			continue
+		case RestorePartitionInstalling, RestorePartitionInstalled,
+			RestorePartitionConverging, RestorePartitionConverged,
+			RestorePartitionFailed:
+		default:
+			return invalid("restore partition status is invalid")
+		}
+		if partition.TargetSlotID == 0 || partition.LeaderNodeID == 0 ||
+			partition.LeaderTerm == 0 || partition.ConfigEpoch == 0 ||
+			partition.InstallAttempt == 0 || partition.StartedAtUnixMillis <= 0 ||
+			partition.ReplicaCount == 0 {
+			return invalid("restore partition leader fence is incomplete")
+		}
+		switch partition.Status {
+		case RestorePartitionInstalling:
+			if partition.Installed || partition.Verified ||
+				partition.EvidenceVersion != 0 ||
+				hasRestorePartitionInstallEvidence(partition) ||
+				partition.InstalledAtUnixMillis != 0 ||
+				partition.ConvergedReplicas != 0 ||
+				partition.ReplicatedBytes != 0 ||
+				partition.FailureCategory != "" {
+				return invalid("installing restore partition carries completion evidence")
+			}
+		case RestorePartitionFailed:
+			if partition.Installed || partition.Verified ||
+				partition.FailureCategory == "" ||
+				partition.EvidenceVersion != 0 ||
+				hasRestorePartitionInstallEvidence(partition) ||
+				partition.InstalledAtUnixMillis != 0 ||
+				partition.ConvergedReplicas != 0 ||
+				partition.ReplicatedBytes != 0 {
+				return invalid("failed restore partition is inconsistent")
+			}
+		case RestorePartitionInstalled, RestorePartitionConverging,
+			RestorePartitionConverged:
+			if !partition.Installed ||
+				partition.FailureCategory != "" ||
+				!validSHA256(partition.ContentSHA256) ||
+				!validSHA256(partition.MessageMerkleSHA256) ||
+				partition.ConvergedReplicas > partition.ReplicaCount ||
+				partition.InstalledAtUnixMillis < partition.StartedAtUnixMillis {
+				return invalid("restore partition vNext evidence is invalid")
+			}
+			if partition.Status == RestorePartitionConverged {
+				converged++
+				if partition.ConvergedReplicas != partition.ReplicaCount {
+					return invalid("restore partition convergence is incomplete")
+				}
+			} else if partition.Status == RestorePartitionInstalled {
+				if partition.ConvergedReplicas != 1 ||
+					partition.ReplicaCount <= 1 {
+					return invalid("installed restore partition replica evidence is invalid")
+				}
+			} else if partition.ConvergedReplicas <= 1 ||
+				partition.ConvergedReplicas >= partition.ReplicaCount {
+				return invalid("converging restore partition replica evidence is invalid")
+			}
+		}
+		if partition.Verified {
+			verified++
+		}
+	}
+	switch plan.Status {
+	case RestoreStatusPlanned:
+		if pending != len(plan.Partitions) {
+			return invalid("planned restore contains active partition progress")
+		}
+	case RestoreStatusInstalling:
+		if converged == len(plan.Partitions) || verified != 0 {
+			return invalid("installing restore is already fully converged")
+		}
+	case RestoreStatusInstalled:
+		if converged != len(plan.Partitions) || verified != 0 {
+			return invalid("installed restore aggregate phase is inconsistent")
+		}
+	case RestoreStatusVerified, RestoreStatusActivated:
+		if converged != len(plan.Partitions) ||
+			verified != len(plan.Partitions) {
+			return invalid("verified restore aggregate phase is inconsistent")
+		}
+	case RestoreStatusAbandoned:
 	}
 	return nil
+}
+
+func hasRestorePartitionInstallEvidence(
+	partition RestorePartition,
+) bool {
+	return partition.PlainBytes != 0 ||
+		partition.MetadataRecordCount != 0 ||
+		partition.MessageCount != 0 ||
+		partition.MaxMessageID != 0 ||
+		partition.MetadataSHA256 != "" ||
+		partition.ContentSHA256 != "" ||
+		partition.MessageMerkleSHA256 != "" ||
+		partition.ChannelBoundaryCount != 0
 }
 
 func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error {

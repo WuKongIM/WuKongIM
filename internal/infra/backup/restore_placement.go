@@ -20,6 +20,8 @@ type restoreReplicaPlacement struct {
 	slotByHashSlot []uint32
 	// peersBySlot contains the validated desired replicas for each physical Slot.
 	peersBySlot map[uint32][]uint64
+	// configEpochBySlot binds desired replicas to the same control snapshot.
+	configEpochBySlot map[uint32]uint64
 }
 
 func newRestoreReplicaPlacement(snapshot control.Snapshot, hashSlotCount uint16, localNodeID uint64) (*restoreReplicaPlacement, error) {
@@ -42,6 +44,15 @@ func newRestoreReplicaPlacement(snapshot control.Snapshot, hashSlotCount uint16,
 	}
 
 	peersBySlot := make(map[uint32][]uint64, len(table.SlotPeers))
+	configEpochBySlot := make(map[uint32]uint64, len(snapshot.Slots))
+	for _, slot := range snapshot.Slots {
+		if slot.ConfigEpoch == 0 {
+			return nil, fmt.Errorf(
+				"restore target contains a Slot without a configuration epoch",
+			)
+		}
+		configEpochBySlot[slot.SlotID] = slot.ConfigEpoch
+	}
 	for slotID, desiredPeers := range table.SlotPeers {
 		if len(desiredPeers) == 0 || len(desiredPeers) > maxRestoreInstallNodes {
 			return nil, fmt.Errorf("restore target contains an invalid Slot assignment")
@@ -50,7 +61,10 @@ func newRestoreReplicaPlacement(snapshot control.Snapshot, hashSlotCount uint16,
 		sort.Slice(peers, func(left, right int) bool { return peers[left] < peers[right] })
 		peersBySlot[slotID] = peers
 	}
-	return &restoreReplicaPlacement{slotByHashSlot: append([]uint32(nil), table.HashToSlot...), peersBySlot: peersBySlot}, nil
+	return &restoreReplicaPlacement{
+		slotByHashSlot: append([]uint32(nil), table.HashToSlot...),
+		peersBySlot:    peersBySlot, configEpochBySlot: configEpochBySlot,
+	}, nil
 }
 
 func (p *restoreReplicaPlacement) nodeIDs(hashSlot uint16) ([]uint64, error) {
@@ -62,4 +76,17 @@ func (p *restoreReplicaPlacement) nodeIDs(hashSlot uint16) ([]uint64, error) {
 		return nil, fmt.Errorf("restore hash slot has no target replicas")
 	}
 	return peers, nil
+}
+
+func (p *restoreReplicaPlacement) configEpoch(
+	hashSlot uint16,
+) (uint64, error) {
+	if p == nil || int(hashSlot) >= len(p.slotByHashSlot) {
+		return 0, fmt.Errorf("restore hash slot is outside target topology")
+	}
+	epoch := p.configEpochBySlot[p.slotByHashSlot[hashSlot]]
+	if epoch == 0 {
+		return 0, fmt.Errorf("restore hash slot has no configuration epoch")
+	}
+	return epoch, nil
 }

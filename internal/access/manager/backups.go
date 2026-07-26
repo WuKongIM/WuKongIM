@@ -158,9 +158,10 @@ type backupCheckpointDetailDTO struct {
 }
 
 type backupCheckpointListDTO struct {
-	Items      []backupCheckpointDTO `json:"items"`
-	NextCursor string                `json:"next_cursor,omitempty"`
-	Total      int                   `json:"total"`
+	CatalogHead *backupartifact.CatalogPageReference `json:"catalog_head,omitempty"`
+	Items       []backupCheckpointDTO                `json:"items"`
+	NextCursor  string                               `json:"next_cursor,omitempty"`
+	Total       int                                  `json:"total"`
 }
 
 type backupTriggerRequestDTO struct {
@@ -270,7 +271,10 @@ func (s *Server) handleBackupCheckpoints(c *gin.Context) {
 	for index := range page.Items {
 		items[index] = backupCheckpointResponse(page.Items[index])
 	}
-	c.JSON(http.StatusOK, backupCheckpointListDTO{Items: items, NextCursor: page.NextCursor, Total: page.Total})
+	c.JSON(http.StatusOK, backupCheckpointListDTO{
+		CatalogHead: page.CatalogHead,
+		Items:       items, NextCursor: page.NextCursor, Total: page.Total,
+	})
 }
 
 func (s *Server) handleBackupCheckpoint(c *gin.Context) {

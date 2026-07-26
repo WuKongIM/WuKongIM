@@ -107,6 +107,8 @@ const (
 	RPCBackupContinuousMessage
 	// RPCBackupContinuousSlot reads bounded metadata logs and Channel metadata on the Slot leader.
 	RPCBackupContinuousSlot
+	// RPCBackupCheckpointReplica transfers plaintext target snapshots from the restore Leader.
+	RPCBackupCheckpointReplica
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -189,6 +191,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "backup restore install"
 	case RPCBackupRestoreVerify:
 		return "backup restore verify"
+	case RPCBackupCheckpointReplica:
+		return "backup checkpoint replica"
 	case RPCManagerBackup:
 		return "manager backup"
 	case RPCBackupContinuousMessage:

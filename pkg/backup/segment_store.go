@@ -232,35 +232,139 @@ func (s *ReplicatedSegmentStore) Load(ctx context.Context, reference SegmentRefe
 	return s.codec.Open(ctx, commit.Header, commit.Payload, ciphertext)
 }
 
+// LoadCopy authenticates and opens exactly one selected repository copy. It is
+// intended for disaster recovery after the immutable catalog proof has pinned
+// the operator-selected failure domain; followers must never call it.
+func (s *ReplicatedSegmentStore) LoadCopy(
+	ctx context.Context,
+	repository Repository,
+	reference SegmentReference,
+) ([]byte, error) {
+	plaintext, _, err := s.loadCopy(ctx, repository, reference)
+	return plaintext, err
+}
+
+// LoadCopyWithHeader returns the authenticated logical header with the
+// selected-copy plaintext so restore can fence stream identity and record
+// counts without a second repository or KMS call.
+func (s *ReplicatedSegmentStore) LoadCopyWithHeader(
+	ctx context.Context,
+	repository Repository,
+	reference SegmentReference,
+) ([]byte, SegmentHeader, error) {
+	return s.loadCopy(ctx, repository, reference)
+}
+
+func (s *ReplicatedSegmentStore) loadCopy(
+	ctx context.Context,
+	repository Repository,
+	reference SegmentReference,
+) ([]byte, SegmentHeader, error) {
+	if err := s.validate(); err != nil {
+		return nil, SegmentHeader{}, err
+	}
+	if repository == nil ||
+		(repository.Name() != s.primary.Name() && repository.Name() != s.secondary.Name()) ||
+		validateSegmentReference(reference) != nil {
+		return nil, SegmentHeader{}, ErrInvalidObject
+	}
+	copy, err := s.loadCommitCopy(ctx, repository, reference.SegmentID)
+	if err != nil {
+		return nil, SegmentHeader{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, repository.Name(), err)
+	}
+	if !copy.found || copy.checksum != reference.CommitSHA256 ||
+		copy.commit.Header.PlaintextBytes != reference.PlaintextBytes {
+		return nil, SegmentHeader{}, fmt.Errorf("%w: selected segment commit proof is incomplete", ErrRepositoryIncomplete)
+	}
+	if err := s.validateCommitRepositories(copy.commit); err != nil {
+		return nil, SegmentHeader{}, err
+	}
+	workingSetBytes := estimateSegmentWorkingSet(copy.commit.Header.PlaintextBytes)
+	if err := s.memoryBudget.Acquire(ctx, workingSetBytes); err != nil {
+		return nil, SegmentHeader{}, fmt.Errorf("acquire selected segment load memory budget: %w", err)
+	}
+	defer s.memoryBudget.Release(workingSetBytes)
+	if err := verifySegmentPayloadObject(ctx, repository, copy.commit.Payload); err != nil {
+		return nil, SegmentHeader{}, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, repository.Name(), err)
+	}
+	ciphertext, err := readSegmentPayload(ctx, repository, copy.commit.Payload)
+	if err != nil {
+		return nil, SegmentHeader{}, fmt.Errorf("%w: %s segment payload: %v", ErrRepositoryIncomplete, repository.Name(), err)
+	}
+	plaintext, err := s.codec.Open(ctx, copy.commit.Header, copy.commit.Payload, ciphertext)
+	if err != nil {
+		return nil, SegmentHeader{}, err
+	}
+	return plaintext, copy.commit.Header, nil
+}
+
 // VerifyCommit authenticates the exact commit proof in both repositories
 // without opening payload bytes or walking the segment predecessor chain.
 func (s *ReplicatedSegmentStore) VerifyCommit(ctx context.Context, reference SegmentReference) (SegmentHeader, error) {
-	if err := s.validate(); err != nil {
+	commit, err := s.verifyReplicatedCommitProof(ctx, reference)
+	if err != nil {
 		return SegmentHeader{}, err
 	}
-	if err := validateSegmentReference(reference); err != nil {
+	return commit.Header, nil
+}
+
+// VerifyEnvelopeCopies authenticates the signed commit and immutable payload
+// metadata in both repositories without downloading or decrypting payload
+// bytes. Restore admission uses the returned predecessor link to walk the
+// complete graph while reserving repository and KMS reads for the Slot Leader.
+func (s *ReplicatedSegmentStore) VerifyEnvelopeCopies(
+	ctx context.Context,
+	reference SegmentReference,
+) (SegmentHeader, error) {
+	commit, err := s.verifyReplicatedCommitProof(ctx, reference)
+	if err != nil {
 		return SegmentHeader{}, err
+	}
+	if err := verifySegmentPayloadObject(ctx, s.primary, commit.Payload); err != nil {
+		return SegmentHeader{}, fmt.Errorf(
+			"%w: %s segment payload: %v",
+			ErrRepositoryIncomplete, s.primary.Name(), err,
+		)
+	}
+	if err := verifySegmentPayloadObject(ctx, s.secondary, commit.Payload); err != nil {
+		return SegmentHeader{}, fmt.Errorf(
+			"%w: %s segment payload: %v",
+			ErrRepositoryIncomplete, s.secondary.Name(), err,
+		)
+	}
+	return commit.Header, nil
+}
+
+func (s *ReplicatedSegmentStore) verifyReplicatedCommitProof(
+	ctx context.Context,
+	reference SegmentReference,
+) (SegmentCommit, error) {
+	if err := s.validate(); err != nil {
+		return SegmentCommit{}, err
+	}
+	if err := validateSegmentReference(reference); err != nil {
+		return SegmentCommit{}, err
 	}
 	primaryCopy, err := s.loadCommitCopy(ctx, s.primary, reference.SegmentID)
 	if err != nil {
-		return SegmentHeader{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
+		return SegmentCommit{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
 	}
 	secondaryCopy, err := s.loadCommitCopy(ctx, s.secondary, reference.SegmentID)
 	if err != nil {
-		return SegmentHeader{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
+		return SegmentCommit{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
 	}
 	if !primaryCopy.found || !secondaryCopy.found ||
 		!bytes.Equal(primaryCopy.body, secondaryCopy.body) ||
 		primaryCopy.checksum != reference.CommitSHA256 {
-		return SegmentHeader{}, fmt.Errorf("%w: replicated segment commit proof is incomplete", ErrRepositoryIncomplete)
+		return SegmentCommit{}, fmt.Errorf("%w: replicated segment commit proof is incomplete", ErrRepositoryIncomplete)
 	}
 	if primaryCopy.commit.Header.PlaintextBytes != reference.PlaintextBytes {
-		return SegmentHeader{}, fmt.Errorf("%w: segment reference plaintext size mismatch", ErrObjectCorrupt)
+		return SegmentCommit{}, fmt.Errorf("%w: segment reference plaintext size mismatch", ErrObjectCorrupt)
 	}
 	if err := s.validateCommitRepositories(primaryCopy.commit); err != nil {
-		return SegmentHeader{}, err
+		return SegmentCommit{}, err
 	}
-	return primaryCopy.commit.Header, nil
+	return primaryCopy.commit, nil
 }
 
 type loadedSegmentCommit struct {
@@ -313,7 +417,8 @@ func (s *ReplicatedSegmentStore) reuseCommitted(ctx context.Context, expectedHea
 	if primaryCopy.found && secondaryCopy.found && !bytes.Equal(primaryCopy.body, secondaryCopy.body) {
 		return SegmentReference{}, fmt.Errorf("%w: replicated segment commits disagree", ErrRepositoryIncomplete)
 	}
-	if existing.commit.Header != expectedHeader || existing.commit.SegmentID != segmentID {
+	if !equalSegmentHeader(existing.commit.Header, expectedHeader) ||
+		existing.commit.SegmentID != segmentID {
 		return SegmentReference{}, fmt.Errorf("%w: committed segment does not match retry", ErrInvalidObject)
 	}
 	if err := s.validateCommitRepositories(existing.commit); err != nil {
@@ -344,6 +449,19 @@ func (s *ReplicatedSegmentStore) reuseCommitted(ctx context.Context, expectedHea
 		}
 	}
 	return reference, nil
+}
+
+func equalSegmentHeader(left, right SegmentHeader) bool {
+	if left.Format != right.Format || left.Version != right.Version ||
+		left.Logical != right.Logical || left.Checkpoint != right.Checkpoint ||
+		left.SourceHighWatermark != right.SourceHighWatermark ||
+		left.WatermarkAtUnixMillis != right.WatermarkAtUnixMillis ||
+		left.PlaintextSHA256 != right.PlaintextSHA256 ||
+		left.PlaintextBytes != right.PlaintextBytes ||
+		(left.Previous == nil) != (right.Previous == nil) {
+		return false
+	}
+	return left.Previous == nil || *left.Previous == *right.Previous
 }
 
 // findHealthyPayload returns a repository whose committed payload metadata verifies.

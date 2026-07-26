@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -114,6 +115,70 @@ func TestBackupRestoreVerifyRPCChecksBoundedCuts(t *testing.T) {
 	}
 }
 
+func TestBackupCheckpointReplicaRPCRoundTripsBoundedTransfer(t *testing.T) {
+	service := &fakeBackupCheckpointReplicaReceiver{}
+	adapter := New(Options{BackupCheckpointReplica: service})
+	node := &fakeManagerConnectionRPCNode{
+		handler: adapter.HandleBackupCheckpointReplicaRPC,
+	}
+	client := NewClient(node)
+	fence := backupcontract.CheckpointReplicaFence{
+		PlanID: "plan-1", CheckpointID: "checkpoint-1",
+		CheckpointSHA256: strings.Repeat("a", 64),
+		TargetGeneration: "target-1",
+		HashSlot:         7, TargetSlotID: 8, ReplicaCount: 3,
+		LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 4, Attempt: 1,
+	}
+	files := []backupcontract.CheckpointReplicaFile{
+		{Kind: backupcontract.CheckpointReplicaMetadata, Size: 4, SHA256: strings.Repeat("b", 64)},
+		{Kind: backupcontract.CheckpointReplicaErasures, Size: 0, SHA256: strings.Repeat("c", 64)},
+	}
+	_, err := client.HandleCheckpointReplica(
+		context.Background(), 2,
+		backupcontract.CheckpointReplicaRequest{
+			Action: backupcontract.CheckpointReplicaBegin,
+			Fence:  fence, Files: files,
+			Evidence: backupartifact.RestoreEvidence{
+				Version: backupartifact.RestoreEvidenceVersion,
+			},
+			InstalledAtUnixMillis: 1_753_400_200_000,
+		},
+	)
+	if err != nil {
+		t.Fatalf("HandleCheckpointReplica(begin): %v", err)
+	}
+	chunk, err := client.HandleCheckpointReplica(
+		context.Background(), 2,
+		backupcontract.CheckpointReplicaRequest{
+			Action: backupcontract.CheckpointReplicaChunk,
+			Fence:  fence, File: files[0], Data: []byte("meta"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("HandleCheckpointReplica(chunk): %v", err)
+	}
+	completed, err := client.HandleCheckpointReplica(
+		context.Background(), 2,
+		backupcontract.CheckpointReplicaRequest{
+			Action: backupcontract.CheckpointReplicaStatus, Fence: fence,
+		},
+	)
+	if err != nil {
+		t.Fatalf("HandleCheckpointReplica(status): %v", err)
+	}
+	if node.serviceID != BackupCheckpointReplicaRPCServiceID ||
+		len(service.requests) != 3 ||
+		service.requests[1].File != files[0] ||
+		string(service.requests[1].Data) != "meta" ||
+		chunk.AcceptedOffset != 4 || !completed.Completed ||
+		completed.MetadataSHA256 != strings.Repeat("b", 64) {
+		t.Fatalf(
+			"rpc/service=%d requests=%#v chunk=%#v completed=%#v",
+			node.serviceID, service.requests, chunk, completed,
+		)
+	}
+}
+
 type fakeBackupMessageCapturer struct {
 	shard   runtimebackup.MessageShard
 	objects []backupartifact.ObjectEntry
@@ -143,6 +208,31 @@ type fakeBackupRestoreVerifier struct {
 	hashSlot       uint16
 	metadataSHA256 string
 	boundaries     []clusterpkg.RestoreVerifyBoundary
+}
+
+type fakeBackupCheckpointReplicaReceiver struct {
+	requests []backupcontract.CheckpointReplicaRequest
+}
+
+func (f *fakeBackupCheckpointReplicaReceiver) HandleCheckpointReplica(
+	_ context.Context,
+	request backupcontract.CheckpointReplicaRequest,
+) (backupcontract.CheckpointReplicaResponse, error) {
+	request.Data = append([]byte(nil), request.Data...)
+	f.requests = append(f.requests, request)
+	switch request.Action {
+	case backupcontract.CheckpointReplicaChunk:
+		return backupcontract.CheckpointReplicaResponse{
+			AcceptedOffset: request.Offset + int64(len(request.Data)),
+		}, nil
+	case backupcontract.CheckpointReplicaStatus:
+		return backupcontract.CheckpointReplicaResponse{
+			Completed: true, MetadataSHA256: strings.Repeat("b", 64),
+			InstalledBytes: 4,
+		}, nil
+	default:
+		return backupcontract.CheckpointReplicaResponse{}, nil
+	}
 }
 
 func (f *fakeBackupRestoreVerifier) VerifyLocalRestorePartition(_ context.Context, hashSlot uint16, metadataSHA256 string, boundaries []clusterpkg.RestoreVerifyBoundary) error {

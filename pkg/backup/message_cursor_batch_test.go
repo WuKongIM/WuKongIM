@@ -49,3 +49,17 @@ func TestMessageCursorBatchRejectsCorruptIndex(t *testing.T) {
 	_, err = backup.LoadMessageCursorBatch(body)
 	require.Error(t, err)
 }
+
+func TestMessageCursorBatchAllowsEmptyCheckpoint(t *testing.T) {
+	body, err := backup.MarshalMessageCursorBatch(backup.MessageCursorBatch{
+		HashSlot: 7, Generation: "generation-a", Sequence: 1,
+		Checkpoint: true, NextCursor: "baseline-9",
+		SourceHighWatermark: 9, WatermarkAtUnixMillis: 1_753_400_100_000,
+	})
+	require.NoError(t, err)
+
+	decoded, err := backup.LoadMessageCursorBatch(body)
+	require.NoError(t, err)
+	require.True(t, decoded.Checkpoint)
+	require.Empty(t, decoded.Boundaries)
+}

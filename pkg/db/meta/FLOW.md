@@ -102,4 +102,10 @@ Current flow:
     methods map to `ConversationKindCMD`; neither path registers or writes a
     second conversation table.
 
+Restore-only target installation writes portable metadata snapshot rows into a
+fresh isolated database, applies strictly ordered Slot FSM commands, and can
+export the resulting hash-slot view in canonical key order. Production restore
+uses that export digest as the replica and final-verification fence; it never
+mutates a pre-existing nonempty generation.
+
 Storage code in this package must not import Pebble directly.

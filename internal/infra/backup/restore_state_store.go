@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
@@ -55,7 +56,10 @@ func restorePlanFromController(plan *controller.RestorePlan) *backupusecase.Rest
 	}
 	result := &backupusecase.RestorePlan{
 		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256,
-		Repository: plan.Repository, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
+		CheckpointVersion:               plan.CheckpointVersion,
+		CheckpointCreatedAtUnixMillis:   plan.CheckpointCreatedAtUnixMillis,
+		CheckpointEffectiveAtUnixMillis: plan.CheckpointEffectiveAtUnixMillis,
+		Repository:                      plan.Repository, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
 		TargetClusterID: plan.TargetClusterID, TargetGeneration: plan.TargetGeneration, HashSlotCount: plan.HashSlotCount,
 		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureEventCount: plan.ErasureEventCount,
 		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), plan.ErasureHeads...), ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
@@ -63,6 +67,10 @@ func restorePlanFromController(plan *controller.RestorePlan) *backupusecase.Rest
 		Status: backupusecase.RestoreStatus(plan.Status), CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
 		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis, ActivationFenceDigest: plan.ActivationFenceDigest,
 		Partitions: make([]backupusecase.RestorePartition, len(plan.Partitions)),
+	}
+	if plan.CatalogProof != nil {
+		proof := *plan.CatalogProof
+		result.CatalogProof = &proof
 	}
 	if plan.EstimatedPlainBytes != nil {
 		value := *plan.EstimatedPlainBytes
@@ -74,10 +82,17 @@ func restorePlanFromController(plan *controller.RestorePlan) *backupusecase.Rest
 	}
 	for index, partition := range plan.Partitions {
 		result.Partitions[index] = backupusecase.RestorePartition{
-			HashSlot: partition.HashSlot, EvidenceVersion: partition.EvidenceVersion, Installed: partition.Installed, Verified: partition.Verified,
+			HashSlot: partition.HashSlot, Status: backupcontract.RestorePartitionStatus(partition.Status),
+			TargetSlotID: partition.TargetSlotID, LeaderNodeID: partition.LeaderNodeID,
+			LeaderTerm: partition.LeaderTerm, ConfigEpoch: partition.ConfigEpoch, InstallAttempt: partition.InstallAttempt,
+			EvidenceVersion: partition.EvidenceVersion, Installed: partition.Installed, Verified: partition.Verified,
 			PlainBytes: partition.PlainBytes, MetadataRecordCount: partition.MetadataRecordCount, MessageCount: partition.MessageCount,
-			MaxMessageID: partition.MaxMessageID, MetadataSHA256: partition.MetadataSHA256,
+			MaxMessageID: partition.MaxMessageID, MetadataSHA256: partition.MetadataSHA256, ContentSHA256: partition.ContentSHA256,
+			MessageMerkleSHA256: partition.MessageMerkleSHA256, ChannelBoundaryCount: partition.ChannelBoundaryCount,
+			DownloadedBytes: partition.DownloadedBytes, ReplicatedBytes: partition.ReplicatedBytes,
+			ReplicaCount: partition.ReplicaCount, ConvergedReplicas: partition.ConvergedReplicas,
 			FailureCategory: partition.FailureCategory, UpdatedAtUnixMillis: partition.UpdatedAtUnixMillis,
+			StartedAtUnixMillis: partition.StartedAtUnixMillis, InstalledAtUnixMillis: partition.InstalledAtUnixMillis,
 		}
 	}
 	return result
@@ -89,7 +104,10 @@ func restorePlanToController(plan *backupusecase.RestorePlan) *controller.Restor
 	}
 	result := &controller.RestorePlan{
 		ID: plan.ID, RestorePointID: plan.RestorePointID, ManifestSHA256: plan.ManifestSHA256,
-		Repository: plan.Repository, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
+		CheckpointVersion:               plan.CheckpointVersion,
+		CheckpointCreatedAtUnixMillis:   plan.CheckpointCreatedAtUnixMillis,
+		CheckpointEffectiveAtUnixMillis: plan.CheckpointEffectiveAtUnixMillis,
+		Repository:                      plan.Repository, SourceClusterID: plan.SourceClusterID, SourceGeneration: plan.SourceGeneration,
 		TargetClusterID: plan.TargetClusterID, TargetGeneration: plan.TargetGeneration, HashSlotCount: plan.HashSlotCount,
 		ErasureLedgerVersion: plan.ErasureLedgerVersion, ErasureEventCount: plan.ErasureEventCount,
 		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), plan.ErasureHeads...), ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
@@ -97,6 +115,10 @@ func restorePlanToController(plan *backupusecase.RestorePlan) *controller.Restor
 		Status: controller.RestoreStatus(plan.Status), CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
 		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis, ActivationFenceDigest: plan.ActivationFenceDigest,
 		Partitions: make([]controller.RestorePartition, len(plan.Partitions)),
+	}
+	if plan.CatalogProof != nil {
+		proof := *plan.CatalogProof
+		result.CatalogProof = &proof
 	}
 	if plan.EstimatedPlainBytes != nil {
 		value := *plan.EstimatedPlainBytes
@@ -108,10 +130,17 @@ func restorePlanToController(plan *backupusecase.RestorePlan) *controller.Restor
 	}
 	for index, partition := range plan.Partitions {
 		result.Partitions[index] = controller.RestorePartition{
-			HashSlot: partition.HashSlot, EvidenceVersion: partition.EvidenceVersion, Installed: partition.Installed, Verified: partition.Verified,
+			HashSlot: partition.HashSlot, Status: controller.RestorePartitionStatus(partition.Status),
+			TargetSlotID: partition.TargetSlotID, LeaderNodeID: partition.LeaderNodeID,
+			LeaderTerm: partition.LeaderTerm, ConfigEpoch: partition.ConfigEpoch, InstallAttempt: partition.InstallAttempt,
+			EvidenceVersion: partition.EvidenceVersion, Installed: partition.Installed, Verified: partition.Verified,
 			PlainBytes: partition.PlainBytes, MetadataRecordCount: partition.MetadataRecordCount, MessageCount: partition.MessageCount,
-			MaxMessageID: partition.MaxMessageID, MetadataSHA256: partition.MetadataSHA256,
+			MaxMessageID: partition.MaxMessageID, MetadataSHA256: partition.MetadataSHA256, ContentSHA256: partition.ContentSHA256,
+			MessageMerkleSHA256: partition.MessageMerkleSHA256, ChannelBoundaryCount: partition.ChannelBoundaryCount,
+			DownloadedBytes: partition.DownloadedBytes, ReplicatedBytes: partition.ReplicatedBytes,
+			ReplicaCount: partition.ReplicaCount, ConvergedReplicas: partition.ConvergedReplicas,
 			FailureCategory: partition.FailureCategory, UpdatedAtUnixMillis: partition.UpdatedAtUnixMillis,
+			StartedAtUnixMillis: partition.StartedAtUnixMillis, InstalledAtUnixMillis: partition.InstalledAtUnixMillis,
 		}
 	}
 	return result

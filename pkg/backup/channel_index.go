@@ -155,6 +155,93 @@ func InspectChannelIndex(body []byte) (uint16, uint32, error) {
 	return hashSlot, count, nil
 }
 
+// ReplayChannelIndex verifies one bounded index and visits each boundary
+// without materializing the complete boundary slice.
+func ReplayChannelIndex(
+	reader io.Reader,
+	size int64,
+	visit func(ChannelBoundary) error,
+) (uint16, uint32, error) {
+	if reader == nil || size < 16 || size > maxChannelIndexBytes {
+		return 0, 0, fmt.Errorf("%w: channel index size is invalid", ErrInvalidManifest)
+	}
+	payloadBytes := size - 4
+	checksum := crc32.NewIEEE()
+	payload := io.LimitReader(reader, payloadBytes)
+	decoded := io.TeeReader(payload, checksum)
+	var magic [4]byte
+	if _, err := io.ReadFull(decoded, magic[:]); err != nil ||
+		magic != channelIndexMagic {
+		return 0, 0, fmt.Errorf("%w: channel index magic is invalid", ErrInvalidManifest)
+	}
+	var version, hashSlot uint16
+	var count uint32
+	if binary.Read(decoded, binary.BigEndian, &version) != nil ||
+		version != channelIndexVersion ||
+		binary.Read(decoded, binary.BigEndian, &hashSlot) != nil ||
+		binary.Read(decoded, binary.BigEndian, &count) != nil ||
+		count > maxChannelIndexEntries {
+		return 0, 0, fmt.Errorf("%w: channel index header is invalid", ErrInvalidManifest)
+	}
+	var previous ChannelBoundary
+	for index := uint32(0); index < count; index++ {
+		var channelType [1]byte
+		if _, err := io.ReadFull(decoded, channelType[:]); err != nil {
+			return 0, 0, fmt.Errorf("%w: channel index is truncated", ErrInvalidManifest)
+		}
+		var idBytes uint16
+		if err := binary.Read(decoded, binary.BigEndian, &idBytes); err != nil ||
+			idBytes == 0 || idBytes > maxChannelIndexIDBytes {
+			return 0, 0, fmt.Errorf("%w: channel index identity is invalid", ErrInvalidManifest)
+		}
+		id := make([]byte, idBytes)
+		if _, err := io.ReadFull(decoded, id); err != nil {
+			return 0, 0, fmt.Errorf("%w: channel index is truncated", ErrInvalidManifest)
+		}
+		item := ChannelBoundary{
+			ChannelID: string(id), ChannelType: channelType[0],
+		}
+		if binary.Read(decoded, binary.BigEndian, &item.Epoch) != nil ||
+			binary.Read(decoded, binary.BigEndian, &item.LogStartOffset) != nil ||
+			binary.Read(decoded, binary.BigEndian, &item.HW) != nil {
+			return 0, 0, fmt.Errorf("%w: channel index is truncated", ErrInvalidManifest)
+		}
+		if err := validateChannelBoundary(item); err != nil {
+			return 0, 0, fmt.Errorf(
+				"%w: channel index[%d]: %v", ErrInvalidManifest, index, err,
+			)
+		}
+		if index > 0 &&
+			(previous.ChannelType > item.ChannelType ||
+				(previous.ChannelType == item.ChannelType &&
+					previous.ChannelID >= item.ChannelID)) {
+			return 0, 0, fmt.Errorf(
+				"%w: channel index is not strictly sorted", ErrInvalidManifest,
+			)
+		}
+		if visit != nil {
+			if err := visit(item); err != nil {
+				return 0, 0, err
+			}
+		}
+		previous = item
+	}
+	if remaining, err := io.Copy(io.Discard, decoded); err != nil ||
+		remaining != 0 {
+		return 0, 0, fmt.Errorf(
+			"%w: trailing channel index data", ErrInvalidManifest,
+		)
+	}
+	var expected uint32
+	if err := binary.Read(reader, binary.BigEndian, &expected); err != nil ||
+		checksum.Sum32() != expected {
+		return 0, 0, fmt.Errorf(
+			"%w: channel index checksum mismatch", ErrObjectCorrupt,
+		)
+	}
+	return hashSlot, count, nil
+}
+
 func validateChannelBoundary(boundary ChannelBoundary) error {
 	if boundary.ChannelID == "" || len(boundary.ChannelID) > maxChannelIndexIDBytes || boundary.Epoch == 0 || boundary.LogStartOffset > boundary.HW {
 		return fmt.Errorf("invalid channel boundary")

@@ -143,12 +143,19 @@ func TestDistributedBaselineCapturerCommitsCompleteCursorBeforeImmutableManifest
 	require.NotNil(t, baseline.Messages.BaselineCursorHead)
 	require.Equal(t, backupartifact.SegmentStreamMessageBaselineCursor, segments.descriptor.Logical.Stream)
 	require.Equal(t, uint64(1), segments.descriptor.Logical.RecordCount)
-	cursorHashSlot, boundaries, err := backupartifact.LoadChannelIndex(segments.body)
+	cursor, err := backupartifact.LoadMessageCursorBatch(segments.body)
 	require.NoError(t, err)
-	require.Equal(t, uint16(9), cursorHashSlot)
+	require.Equal(t, uint16(9), cursor.HashSlot)
+	require.Equal(t, "rebase-00009-00000000000000000002", cursor.Generation)
+	require.Equal(t, uint64(1), cursor.Sequence)
+	require.True(t, cursor.Checkpoint)
+	require.Nil(t, cursor.Previous)
+	require.Equal(t, "baseline-88", cursor.NextCursor)
+	require.Equal(t, uint64(88), cursor.SourceHighWatermark)
+	require.Equal(t, int64(1710000005000), cursor.WatermarkAtUnixMillis)
 	require.Equal(t, []backupartifact.ChannelBoundary{{
 		ChannelID: "room-a", ChannelType: 2, Epoch: 7,
-	}}, boundaries)
+	}}, cursor.Boundaries)
 	manifest, err := backupartifact.LoadPartitionManifest(manifests.bodies[0])
 	require.NoError(t, err)
 	require.NotNil(t, manifest.BaselineCursor)
@@ -170,6 +177,45 @@ func TestDistributedBaselineCapturerCommitsCompleteCursorBeforeImmutableManifest
 	)
 	require.ErrorIs(t, err, backupruntime.ErrStaleCapture)
 	require.Equal(t, []string{"pin", "cursor", "manifest", "pin"}, events, "stale physical index space must be rejected before pinning")
+}
+
+func TestDistributedBaselineCapturerCommitsEmptyCompleteCursor(t *testing.T) {
+	plan := &fakeDistributedPlan{
+		cut: backupartifact.PartitionCut{
+			HashSlot: 12, PhysicalSlotID: 13, RaftIndex: 89,
+			CommittedAtMillis: 1710000006000,
+		},
+		metadata: "metadata-twelve",
+	}
+	worker, err := backupruntime.NewDistributedWorker(backupruntime.DistributedWorkerOptions{
+		Planner:    &fakeDistributedPlanner{plan: plan},
+		Messages:   &fakeMessageShardCapturer{},
+		Replicator: &fakeStreamReplicator{},
+		Manifests:  &recordingPartitionManifestStore{},
+	})
+	require.NoError(t, err)
+	segments := &recordingBaselineSegmentCommitter{}
+	capturer, err := backupruntime.NewDistributedBaselineCapturer(backupruntime.MaterializedBaselineOptions{
+		Worker: worker, Segments: segments, RepositoryID: "repository-a",
+		SourceClusterID: "cluster-a", SourceGeneration: "source-1", KMSKeyID: "kms-backup",
+	})
+	require.NoError(t, err)
+	lease := backupcontract.SlotCaptureLease{
+		SlotID: 13, LeaderTerm: 7, ConfigEpoch: 3, HolderNodeID: 1,
+		Generation: "slot-generation-1", Sequence: 1,
+		AcquiredAtUnixMillis: 1710000000000,
+	}
+
+	_, err = capturer.CaptureBaseline(
+		context.Background(), 12, "rebase-00012-00000000000000000002",
+		2, lease, func(context.Context, uint64) error { return nil },
+	)
+	require.NoError(t, err)
+	cursor, err := backupartifact.LoadMessageCursorBatch(segments.body)
+	require.NoError(t, err)
+	require.True(t, cursor.Checkpoint)
+	require.Empty(t, cursor.Boundaries)
+	require.Equal(t, uint64(89), cursor.SourceHighWatermark)
 }
 
 type fakePartitionSource struct {

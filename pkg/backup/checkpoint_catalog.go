@@ -133,6 +133,18 @@ type CheckpointCatalogCommit struct {
 	Head CatalogPageReference
 }
 
+// CheckpointCatalogProof pins one checkpoint's exact catalog membership under
+// an immutable catalog head. Restore replays the signed hash links from Head to
+// EntryPage before accepting Checkpoint.
+type CheckpointCatalogProof struct {
+	// Head is the catalog head observed when the restore plan was admitted.
+	Head CatalogPageReference `json:"head"`
+	// EntryPage is the exact signed page containing the original checkpoint entry.
+	EntryPage CatalogPageReference `json:"entry_page"`
+	// Checkpoint authenticates the selected immutable vector cut and generation vector.
+	Checkpoint CatalogCheckpointReference `json:"checkpoint"`
+}
+
 // CatalogPage is one bounded signed append in the immutable catalog.
 type CatalogPage struct {
 	// Format and Version identify the portable catalog-page schema.
@@ -396,6 +408,19 @@ func validateCatalogPageReference(reference CatalogPageReference) error {
 		reference.Key != CatalogPageObjectKey(reference.Sequence, reference.LatestCheckpointID) ||
 		validateSHA256(reference.SHA256) != nil || reference.Bytes <= 0 {
 		return ErrInvalidObject
+	}
+	return nil
+}
+
+// ValidateCheckpointCatalogProof validates the bounded proof shape. Repository
+// readers must additionally authenticate every signed page link from Head to
+// EntryPage and prove that EntryPage contains Checkpoint.
+func ValidateCheckpointCatalogProof(proof CheckpointCatalogProof) error {
+	if validateCatalogPageReference(proof.Head) != nil ||
+		validateCatalogPageReference(proof.EntryPage) != nil ||
+		validateCatalogCheckpointReference(proof.Checkpoint) != nil ||
+		proof.EntryPage.Sequence > proof.Head.Sequence {
+		return fmt.Errorf("%w: checkpoint catalog proof is invalid", ErrInvalidObject)
 	}
 	return nil
 }

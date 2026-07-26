@@ -300,6 +300,58 @@ metadata, and the post-transform canonical metadata SHA-256 on the same target
 Slot replicas. The configured staging-byte ceiling is shared by all concurrent
 partition streams on one node, not multiplied per stream.
 
+The checkpoint restore importer is the replacement installation path. Admission
+proves target emptiness, walks both repository copies of the signed hash-linked
+catalog from the operator-supplied immutable head to the exact checkpoint,
+authenticates every reachable baseline/segment/cursor envelope and payload
+metadata in both failure domains without payload download or KMS, and freezes
+the latest dual-committed erasure snapshot. The runtime then routes
+each Hash Slot only to its current target
+Leader under the durable `(Slot ID, Leader term, config epoch, attempt)` fence.
+That Leader revalidates the selected catalog copy, downloads and decrypts each
+segment once into a shared-budget `0600` staging file, replays baseline and
+incremental records chronologically, and computes content, typed-count,
+Channel-boundary, and message-Merkle evidence during the same pass. Finalize is
+the only operation that makes the disposable install durable: it first applies
+the pinned erasure boundaries, exports one authenticated plaintext target
+snapshot, installs it locally, and streams bounded resumable chunks to the
+current desired replicas. Each receiver rechecks current Slot authority,
+persists offsets and a completion receipt, fully parses every file before live
+writes, installs metadata/messages/erasures, and verifies canonical metadata,
+the reconstructed Channel boundary index, and deterministic live message
+snapshot bytes/counts without repository or KMS access. A failed live install
+deletes its partial metadata, message, erasure, and runtime state; if its
+boundary index is unreadable, cleanup falls back to streaming and deleting the
+whole restore-only Hash Slot catalog. Live bytes are re-exported before the
+first receipt is written, and every long verification is followed by one final
+Slot-fence check. One app-owned staging quota covers the common node root for
+source downloads, target scratch, replica transfers, exports, and receipts.
+Source writes use path claims instead of walking the retained tree per object.
+Startup and explicit diagnostics scan the complete root; normal claim,
+settlement, and deletion update cached usage while scanning only the affected
+path. Target and receiver share an attempt-scoped lock, while a target-only
+singleflight spans the complete replay session. The shared lock is released
+before Leader-local replica distribution and reacquired for receipt mutation.
+Receiver Begin durably describes and claims the complete attempt capacity
+(rehydrated after restart), while each target Slot claims a bound derived from
+its signed source objects so independent Slots can install concurrently when
+the node budget permits. A promoted Leader can replace the same attempt-path
+claim left by a partial follower transfer. Startup removes only crash-orphaned
+transient source `.stage` files; semantic attempts and receipts remain available
+for failover. Completed boundary evidence opens read-only during status and
+invalidation, so verification cannot grow retained staging outside a claim.
+Follower transfers retry from durable offsets and surface
+persistent convergence failures while preserving and publishing partial
+convergence evidence.
+Completion identity
+excludes volatile Leader/term/configuration fields, so a promoted follower can
+adopt the same semantic receipt, rebind the current fence, and converge missing
+replicas without sequence regression. Final verification queries every current
+desired replica; each status call revalidates live target state, not only the
+receipt. Permanent-erasure events replay one commit at a time into the
+session's disk-backed evidence index, avoiding million-entry key lists or
+in-memory Channel maps.
+
 Before ordinary retention metadata advances, `PermanentErasureLedger` encrypts
 the Channel identity and boundary, publishes identical immutable ciphertext and
 signed record bytes to both repositories, reserves the next sequence for the

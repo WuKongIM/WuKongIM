@@ -78,7 +78,18 @@ func (c *DistributedBaselineCapturer) CaptureBaseline(
 			cut backupartifact.PartitionCut,
 			boundaries []backupartifact.ChannelBoundary,
 		) (backupartifact.SegmentReference, error) {
-			body, err := backupartifact.MarshalChannelIndex(request.HashSlot, boundaries)
+			body, err := backupartifact.MarshalMessageCursorBatch(
+				backupartifact.MessageCursorBatch{
+					HashSlot:              request.HashSlot,
+					Generation:            generation,
+					Sequence:              1,
+					Checkpoint:            true,
+					NextCursor:            "baseline-" + strconv.FormatUint(cut.RaftIndex, 10),
+					SourceHighWatermark:   cut.RaftIndex,
+					WatermarkAtUnixMillis: cut.CommittedAtMillis,
+					Boundaries:            boundaries,
+				},
+			)
 			if err != nil {
 				return backupartifact.SegmentReference{}, err
 			}
@@ -93,7 +104,10 @@ func (c *DistributedBaselineCapturer) CaptureBaseline(
 					HashSlot: request.HashSlot, Stream: backupartifact.SegmentStreamMessageBaselineCursor,
 					Sequence: 1, RecordCount: recordCount,
 				},
-				KMSKeyID: c.options.KMSKeyID,
+				Checkpoint:            true,
+				SourceHighWatermark:   cut.RaftIndex,
+				WatermarkAtUnixMillis: cut.CommittedAtMillis,
+				KMSKeyID:              c.options.KMSKeyID,
 			}, body)
 			if err != nil {
 				return backupartifact.SegmentReference{}, err
@@ -101,7 +115,6 @@ func (c *DistributedBaselineCapturer) CaptureBaseline(
 			if err := validateCommittedSegmentReference(reference); err != nil {
 				return backupartifact.SegmentReference{}, err
 			}
-			_ = cut
 			return reference, nil
 		},
 		func(ctx context.Context, cut backupartifact.PartitionCut) error {

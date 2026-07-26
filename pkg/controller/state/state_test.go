@@ -468,6 +468,108 @@ func TestValidateRejectsMissingErasureLedgerFence(t *testing.T) {
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
+func TestValidateAcceptsBoundedCheckpointRestoreProgressAndRejectsIncompleteConvergence(t *testing.T) {
+	st := testState()
+	partitions := make([]RestorePartition, st.Config.HashSlotCount)
+	for hashSlot := range partitions {
+		partitions[hashSlot] = RestorePartition{
+			HashSlot: uint16(hashSlot), Status: RestorePartitionPending,
+		}
+	}
+	checkpointID := "checkpoint-controller-restore"
+	vectorID := strings.Repeat("a", 64)
+	entry := backupartifact.CatalogCheckpointReference{
+		ID: checkpointID, Key: backupartifact.CheckpointObjectKey(checkpointID),
+		SHA256: strings.Repeat("b", 64), Bytes: 100,
+		CreatedAtUnixMillis:   1_753_400_201_000,
+		EffectiveAtUnixMillis: 1_753_400_200_000,
+		GenerationVector: backupartifact.GenerationVectorReference{
+			ID: vectorID, Key: backupartifact.GenerationVectorObjectKey(vectorID),
+			SHA256: strings.Repeat("c", 64), Bytes: 100,
+			HashSlotCount: st.Config.HashSlotCount,
+		},
+	}
+	page := backupartifact.CatalogPageReference{
+		Sequence: 1, Key: backupartifact.CatalogPageObjectKey(1, checkpointID),
+		SHA256: strings.Repeat("d", 64), Bytes: 100,
+		LatestCheckpointID: checkpointID,
+	}
+	proof := backupartifact.CheckpointCatalogProof{
+		Head: page, EntryPage: page, Checkpoint: entry,
+	}
+	st.Restore = &RestoreCoordinationState{Plan: &RestorePlan{
+		ID: "plan-checkpoint-restore", RestorePointID: checkpointID,
+		ManifestSHA256: entry.SHA256, CatalogProof: &proof,
+		CheckpointVersion:               backupartifact.CheckpointVersion,
+		CheckpointCreatedAtUnixMillis:   entry.CreatedAtUnixMillis,
+		CheckpointEffectiveAtUnixMillis: entry.EffectiveAtUnixMillis,
+		Repository:                      "primary",
+		SourceClusterID:                 "cluster-source",
+		SourceGeneration:                "source-generation-1",
+		TargetClusterID:                 st.ClusterID,
+		TargetGeneration:                "target-generation-2",
+		HashSlotCount:                   st.Config.HashSlotCount,
+		ErasureLedgerVersion:            backupartifact.ErasureLedgerSnapshotVersion,
+		ErasureLedgerSHA256:             backupartifact.EmptyErasureLedgerSnapshotSHA256,
+		Status:                          RestoreStatusInstalling,
+		CreatedAtUnixMillis:             1_753_400_202_000,
+		UpdatedAtUnixMillis:             1_753_400_202_000,
+		Partitions:                      partitions,
+	}}
+	require.NoError(t, st.Validate())
+
+	invalid := st.Clone()
+	partition := &invalid.Restore.Plan.Partitions[0]
+	partition.Status = RestorePartitionConverged
+	partition.TargetSlotID = 7
+	partition.LeaderNodeID = 2
+	partition.LeaderTerm = 9
+	partition.ConfigEpoch = 4
+	partition.InstallAttempt = 1
+	partition.StartedAtUnixMillis = 1_753_400_203_000
+	partition.InstalledAtUnixMillis = 1_753_400_204_000
+	partition.Installed = true
+	partition.EvidenceVersion = backupartifact.RestoreEvidenceVersion
+	partition.MetadataSHA256 = strings.Repeat("e", 64)
+	partition.ContentSHA256 = strings.Repeat("e", 64)
+	partition.MessageMerkleSHA256 = strings.Repeat("f", 64)
+	partition.ReplicaCount = 3
+	partition.ConvergedReplicas = 2
+	require.ErrorIs(t, invalid.Validate(), ErrInvalidState)
+
+	aggregate := st.Clone()
+	for index := range aggregate.Restore.Plan.Partitions {
+		item := &aggregate.Restore.Plan.Partitions[index]
+		item.Status = RestorePartitionConverged
+		item.TargetSlotID = uint32(index) + 1
+		item.LeaderNodeID = 2
+		item.LeaderTerm = 9
+		item.ConfigEpoch = 4
+		item.InstallAttempt = 1
+		item.StartedAtUnixMillis = 1_753_400_203_000
+		item.InstalledAtUnixMillis = 1_753_400_204_000
+		item.Installed = true
+		item.EvidenceVersion = backupartifact.RestoreEvidenceVersion
+		item.MetadataSHA256 = strings.Repeat("e", 64)
+		item.ContentSHA256 = strings.Repeat("e", 64)
+		item.MessageMerkleSHA256 = strings.Repeat("f", 64)
+		item.ReplicaCount = 3
+		item.ConvergedReplicas = 3
+	}
+	require.ErrorIs(
+		t, aggregate.Validate(), ErrInvalidState,
+		"an installing plan cannot already be fully converged",
+	)
+	aggregate.Restore.Plan.Status = RestoreStatusInstalled
+	require.NoError(t, aggregate.Validate())
+	aggregate.Restore.Plan.Status = RestoreStatusVerified
+	aggregate.Restore.Plan.VerifiedAtUnixMillis = 1_753_400_205_000
+	require.ErrorIs(
+		t, aggregate.Validate(), ErrInvalidState,
+		"a verified plan requires every partition verification bit",
+	)
+}
+
 func TestEncodeDecodePreservesBoundedSlotFrontiers(t *testing.T) {
 	st := testState()
 	segmentID := strings.Repeat("a", 64)

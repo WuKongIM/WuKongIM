@@ -36,9 +36,19 @@ Controller-pending erasure reference into its protected mark set, and performs
 a daily remote audit. A durable pending/running verification task is resumed before retention
 or new scheduling after Controller Leader failover; scheduled audits first
 create that task, then persist per-restore-point success or bounded failure
-evidence. Verification and backup capture never run concurrently. The
-restore coordinator similarly resumes missing installs only on the Controller
-Leader and bounds concurrent logical partitions.
+evidence. Verification and backup capture never run concurrently. The restore
+coordinator similarly resumes missing installs only on the Controller Leader
+and bounds concurrent logical partitions. For a checkpoint-backed plan it
+first persists the current Slot-Leader assignment, then dispatches exactly that
+Leader. A changed term/configuration starts the next durable attempt; a
+completion from an older Controller attempt is rejected. The checkpoint target
+uses immutable semantic attempt identity beneath that fence, allowing a
+promoted follower with a completed receipt to resume replica convergence
+without rereading repositories or KMS.
+An installer may return a valid `Converging` partition report together with a
+follower convergence error. The coordinator publishes that report before
+surfacing the error, so Controller/Manager convergence never falls back to
+zero while the durable receipt retains successful replicas.
 
 ## Continuous Capture Foundation
 

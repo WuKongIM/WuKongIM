@@ -658,19 +658,20 @@ node and uploads directly to both repositories. Each message-shard response
 also returns the exact record count and greatest message ID computed from the
 same pinned snapshot, so the partition worker can publish cumulative signed
 evidence without rescanning the uploaded stream. Restore target inspection,
-partition installation, and verification are registered only for explicit
-restore mode. Verification carries the expected canonical metadata SHA-256 on
-the first batch and bounded Channel cut batches thereafter; the install report
-also carries the recomputed metadata/message counts and greatest message ID for
-fail-closed comparison with the signed restore-point evidence.
+checkpoint installation, and target-snapshot replica transfer are registered
+only for explicit restore mode. `WKVS1/WKVs1` carries one strict begin,
+at-most-3-MiB chunk, commit, or status operation under the exact
+Slot/Leader/configuration fence. Followers receive no repository or KMS handle.
+Status revalidates the durable local receipt against live metadata and bounded
+Channel cuts before final verification accepts that replica.
 
 The message-shard request remains `WKVB1`; its evidence-bearing response is
 `WKVb2`. Restore install uses `WKVI2/WKVi2` because the plan/report wire shape
 contains record counts and the message-ID fence. The unchanged pairs are
 `WKVP1/WKVp1` for partitions, `WKVR1/WKVr1` for target inspection, and
-`WKVY1/WKVy1` for restore verification. Decoders reject unknown JSON fields,
-trailing bytes, invalid digests, oversized batches, and older evidence-free
-response/install versions.
+`WKVY1/WKVy1` for the superseded restore-point verifier. Decoders reject
+unknown JSON fields, trailing bytes, invalid digests, unused action fields,
+oversized batches, and older evidence-free response/install versions.
 
 The restore install request also carries the immutable permanent-erasure ledger
 version, sorted per-Hash-Slot heads, aggregate event count, and SHA-256 from the

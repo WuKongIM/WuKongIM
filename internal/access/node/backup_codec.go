@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -17,16 +18,18 @@ import (
 )
 
 var (
-	backupMessageShardRequestMagic    = [...]byte{'W', 'K', 'V', 'B', 1}
-	backupMessageShardResponseMagic   = [...]byte{'W', 'K', 'V', 'b', 2}
-	backupPartitionRequestMagic       = [...]byte{'W', 'K', 'V', 'P', 1}
-	backupPartitionResponseMagic      = [...]byte{'W', 'K', 'V', 'p', 1}
-	backupRestoreTargetRequestMagic   = [...]byte{'W', 'K', 'V', 'R', 1}
-	backupRestoreTargetResponseMagic  = [...]byte{'W', 'K', 'V', 'r', 1}
-	backupRestoreInstallRequestMagic  = [...]byte{'W', 'K', 'V', 'I', 2}
-	backupRestoreInstallResponseMagic = [...]byte{'W', 'K', 'V', 'i', 2}
-	backupRestoreVerifyRequestMagic   = [...]byte{'W', 'K', 'V', 'Y', 1}
-	backupRestoreVerifyResponseMagic  = [...]byte{'W', 'K', 'V', 'y', 1}
+	backupMessageShardRequestMagic       = [...]byte{'W', 'K', 'V', 'B', 1}
+	backupMessageShardResponseMagic      = [...]byte{'W', 'K', 'V', 'b', 2}
+	backupPartitionRequestMagic          = [...]byte{'W', 'K', 'V', 'P', 1}
+	backupPartitionResponseMagic         = [...]byte{'W', 'K', 'V', 'p', 1}
+	backupRestoreTargetRequestMagic      = [...]byte{'W', 'K', 'V', 'R', 1}
+	backupRestoreTargetResponseMagic     = [...]byte{'W', 'K', 'V', 'r', 1}
+	backupRestoreInstallRequestMagic     = [...]byte{'W', 'K', 'V', 'I', 2}
+	backupRestoreInstallResponseMagic    = [...]byte{'W', 'K', 'V', 'i', 2}
+	backupRestoreVerifyRequestMagic      = [...]byte{'W', 'K', 'V', 'Y', 1}
+	backupRestoreVerifyResponseMagic     = [...]byte{'W', 'K', 'V', 'y', 1}
+	backupCheckpointReplicaRequestMagic  = [...]byte{'W', 'K', 'V', 'S', 1}
+	backupCheckpointReplicaResponseMagic = [...]byte{'W', 'K', 'V', 's', 1}
 )
 
 const (
@@ -82,6 +85,162 @@ type backupRestoreVerifyRPCRequest struct {
 
 type backupRestoreVerifyRPCResponse struct {
 	Status string `json:"status"`
+}
+
+type backupCheckpointReplicaRPCRequest struct {
+	Request backupcontract.CheckpointReplicaRequest `json:"request"`
+}
+
+type backupCheckpointReplicaRPCResponse struct {
+	Status   string                                   `json:"status"`
+	Response backupcontract.CheckpointReplicaResponse `json:"response"`
+}
+
+func encodeBackupCheckpointReplicaRequest(
+	request backupcontract.CheckpointReplicaRequest,
+) ([]byte, error) {
+	if err := validateBackupCheckpointReplicaRequest(request); err != nil {
+		return nil, err
+	}
+	return encodeBackupJSON(
+		backupCheckpointReplicaRequestMagic[:],
+		backupCheckpointReplicaRPCRequest{Request: request},
+	)
+}
+
+func decodeBackupCheckpointReplicaRequest(
+	body []byte,
+) (backupcontract.CheckpointReplicaRequest, error) {
+	var envelope backupCheckpointReplicaRPCRequest
+	if err := decodeBackupJSON(
+		body, backupCheckpointReplicaRequestMagic[:], &envelope,
+	); err != nil {
+		return backupcontract.CheckpointReplicaRequest{}, err
+	}
+	return envelope.Request,
+		validateBackupCheckpointReplicaRequest(envelope.Request)
+}
+
+func encodeBackupCheckpointReplicaResponse(
+	response backupCheckpointReplicaRPCResponse,
+) ([]byte, error) {
+	return encodeBackupJSON(
+		backupCheckpointReplicaResponseMagic[:], response,
+	)
+}
+
+func decodeBackupCheckpointReplicaResponse(
+	body []byte,
+) (backupCheckpointReplicaRPCResponse, error) {
+	var response backupCheckpointReplicaRPCResponse
+	if err := decodeBackupJSON(
+		body, backupCheckpointReplicaResponseMagic[:], &response,
+	); err != nil {
+		return response, err
+	}
+	if response.Response.AcceptedOffset < 0 {
+		return response,
+			fmt.Errorf("internal/access/node: invalid checkpoint replica response")
+	}
+	if response.Status == rpcStatusOK {
+		if response.Response.Completed {
+			if response.Response.AcceptedOffset != 0 ||
+				response.Response.InstalledBytes == 0 ||
+				!validBackupSHA256(response.Response.MetadataSHA256) {
+				return response,
+					fmt.Errorf("internal/access/node: invalid completed checkpoint replica response")
+			}
+		} else if response.Response.MetadataSHA256 != "" ||
+			response.Response.InstalledBytes != 0 {
+			return response,
+				fmt.Errorf("internal/access/node: invalid active checkpoint replica response")
+		}
+	}
+	return response, nil
+}
+
+func validateBackupCheckpointReplicaRequest(
+	request backupcontract.CheckpointReplicaRequest,
+) error {
+	fence := request.Fence
+	if fence.PlanID == "" || fence.CheckpointID == "" ||
+		!validBackupSHA256(fence.CheckpointSHA256) ||
+		fence.TargetGeneration == "" || fence.TargetSlotID == 0 ||
+		fence.ReplicaCount == 0 || fence.LeaderNodeID == 0 ||
+		fence.LeaderTerm == 0 || fence.ConfigEpoch == 0 ||
+		fence.Attempt == 0 {
+		return fmt.Errorf("internal/access/node: invalid checkpoint replica fence")
+	}
+	switch request.Action {
+	case backupcontract.CheckpointReplicaBegin:
+		if len(request.Files) < 2 ||
+			len(request.Files) > maxBackupMessageShardChannels ||
+			request.File != (backupcontract.CheckpointReplicaFile{}) ||
+			len(request.Data) != 0 || request.Offset != 0 ||
+			request.InstalledAtUnixMillis <= 0 ||
+			request.Evidence.Version != backupartifact.RestoreEvidenceVersion {
+			return fmt.Errorf("internal/access/node: invalid checkpoint replica begin")
+		}
+		seen := make(map[string]struct{}, len(request.Files))
+		for _, file := range request.Files {
+			if err := validateBackupCheckpointReplicaFile(file); err != nil {
+				return err
+			}
+			key := fmt.Sprintf("%s:%d", file.Kind, file.Ordinal)
+			if _, found := seen[key]; found {
+				return fmt.Errorf("internal/access/node: duplicate checkpoint replica file")
+			}
+			seen[key] = struct{}{}
+		}
+	case backupcontract.CheckpointReplicaChunk:
+		if err := validateBackupCheckpointReplicaFile(request.File); err != nil {
+			return err
+		}
+		if len(request.Files) != 0 || request.Offset < 0 ||
+			len(request.Data) == 0 || len(request.Data) > 3<<20 ||
+			request.Evidence != (backupartifact.RestoreEvidence{}) ||
+			request.FinalMessageCount != 0 ||
+			request.FinalMaxMessageID != 0 ||
+			request.DownloadedBytes != 0 ||
+			request.InstalledAtUnixMillis != 0 ||
+			request.Offset > request.File.Size ||
+			int64(len(request.Data)) > request.File.Size-request.Offset {
+			return fmt.Errorf("internal/access/node: invalid checkpoint replica chunk")
+		}
+	case backupcontract.CheckpointReplicaCommit,
+		backupcontract.CheckpointReplicaStatus:
+		if len(request.Files) != 0 || len(request.Data) != 0 ||
+			request.File != (backupcontract.CheckpointReplicaFile{}) ||
+			request.Offset != 0 ||
+			request.Evidence != (backupartifact.RestoreEvidence{}) ||
+			request.FinalMessageCount != 0 ||
+			request.FinalMaxMessageID != 0 ||
+			request.DownloadedBytes != 0 ||
+			request.InstalledAtUnixMillis != 0 {
+			return fmt.Errorf("internal/access/node: invalid checkpoint replica terminal request")
+		}
+	default:
+		return fmt.Errorf("internal/access/node: invalid checkpoint replica action")
+	}
+	return nil
+}
+
+func validateBackupCheckpointReplicaFile(
+	file backupcontract.CheckpointReplicaFile,
+) error {
+	switch file.Kind {
+	case backupcontract.CheckpointReplicaMetadata,
+		backupcontract.CheckpointReplicaMessages,
+		backupcontract.CheckpointReplicaErasures:
+	default:
+		return fmt.Errorf("internal/access/node: invalid checkpoint replica file kind")
+	}
+	if file.Size < 0 || !validBackupSHA256(file.SHA256) ||
+		(file.Kind != backupcontract.CheckpointReplicaMessages &&
+			file.Ordinal != 0) {
+		return fmt.Errorf("internal/access/node: invalid checkpoint replica file")
+	}
+	return nil
 }
 
 func encodeBackupRestoreVerifyRequest(request backupRestoreVerifyRPCRequest) ([]byte, error) {

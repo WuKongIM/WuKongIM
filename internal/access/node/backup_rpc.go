@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -26,6 +27,9 @@ const BackupRestoreInstallRPCServiceID uint8 = clusternet.RPCBackupRestoreInstal
 
 // BackupRestoreVerifyRPCServiceID validates restored durable boundaries locally.
 const BackupRestoreVerifyRPCServiceID uint8 = clusternet.RPCBackupRestoreVerify
+
+// BackupCheckpointReplicaRPCServiceID receives final plaintext target snapshots.
+const BackupCheckpointReplicaRPCServiceID uint8 = clusternet.RPCBackupCheckpointReplica
 
 // HandleBackupMessageShardRPC captures one bounded local message shard.
 func (a *Adapter) HandleBackupMessageShardRPC(ctx context.Context, payload []byte) ([]byte, error) {
@@ -92,6 +96,30 @@ func (a *Adapter) HandleBackupRestoreVerifyRPC(ctx context.Context, payload []by
 	}
 	err = a.backupRestoreVerifier.VerifyLocalRestorePartition(ctx, request.HashSlot, request.MetadataSHA256, request.Boundaries)
 	return encodeBackupRestoreVerifyResponse(backupRestoreVerifyRPCResponse{Status: backupMessageStatusForError(err)})
+}
+
+// HandleBackupCheckpointReplicaRPC stages one bounded target snapshot step.
+func (a *Adapter) HandleBackupCheckpointReplicaRPC(
+	ctx context.Context,
+	payload []byte,
+) ([]byte, error) {
+	request, err := decodeBackupCheckpointReplicaRequest(payload)
+	if err != nil {
+		return nil, err
+	}
+	if a == nil || a.backupCheckpointReplica == nil {
+		return encodeBackupCheckpointReplicaResponse(
+			backupCheckpointReplicaRPCResponse{Status: rpcStatusRejected},
+		)
+	}
+	response, err := a.backupCheckpointReplica.HandleCheckpointReplica(
+		ctx, request,
+	)
+	return encodeBackupCheckpointReplicaResponse(
+		backupCheckpointReplicaRPCResponse{
+			Status: backupMessageStatusForError(err), Response: response,
+		},
+	)
 }
 
 // CaptureBackupMessageShard asks one source node to upload a committed-message shard.
@@ -215,6 +243,36 @@ func (c *Client) VerifyBackupRestorePartition(ctx context.Context, nodeID uint64
 		return err
 	}
 	return backupMessageErrorForStatus(response.Status)
+}
+
+// HandleCheckpointReplica sends one bounded target-snapshot transfer step.
+func (c *Client) HandleCheckpointReplica(
+	ctx context.Context,
+	nodeID uint64,
+	request backupcontract.CheckpointReplicaRequest,
+) (backupcontract.CheckpointReplicaResponse, error) {
+	if c == nil || c.node == nil || nodeID == 0 {
+		return backupcontract.CheckpointReplicaResponse{},
+			runtimebackup.ErrInvalidCapture
+	}
+	body, err := encodeBackupCheckpointReplicaRequest(request)
+	if err != nil {
+		return backupcontract.CheckpointReplicaResponse{}, err
+	}
+	responseBody, err := c.node.CallRPC(
+		ctx, nodeID, BackupCheckpointReplicaRPCServiceID, body,
+	)
+	if err != nil {
+		return backupcontract.CheckpointReplicaResponse{}, err
+	}
+	response, err := decodeBackupCheckpointReplicaResponse(responseBody)
+	if err != nil {
+		return backupcontract.CheckpointReplicaResponse{}, err
+	}
+	if err := backupMessageErrorForStatus(response.Status); err != nil {
+		return backupcontract.CheckpointReplicaResponse{}, err
+	}
+	return response.Response, nil
 }
 
 func backupMessageStatusForError(err error) string {
