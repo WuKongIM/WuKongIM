@@ -56,6 +56,12 @@ func emptyControlSnapshot(snapshot control.Snapshot) bool {
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
 	n.controlApplyMu.Lock()
 	defer n.controlApplyMu.Unlock()
+	// The fence is one-way in Controller state. Publish it before any slower
+	// placement reconciliation so no foreground write can race a node-health
+	// acknowledgement of this revision.
+	if snapshot.SourceFence != nil {
+		n.fenceSourceWrites(snapshot.SourceFence.FenceControllerRevision, snapshot.SourceFence.ConvergedAtUnixMillis > 0)
+	}
 	// Cancel the previously published placement generation before applying any
 	// newer Controller state. Strict Slot-worker requests use this cancellation
 	// as their nonblocking fence against an apply-in-progress stale intent.
@@ -318,7 +324,38 @@ func (n *Node) ensureForeground() error {
 	if !n.started.Load() {
 		return ErrNotStarted
 	}
+	if n.sourceFenced.Load() {
+		return ErrSourceFenced
+	}
 	return nil
+}
+
+func (n *Node) acquireSourceWriteAdmission() (func(), error) {
+	if n == nil {
+		return nil, ErrNotStarted
+	}
+	n.sourceFenceAdmissionMu.RLock()
+	if n.sourceFenced.Load() {
+		n.sourceFenceAdmissionMu.RUnlock()
+		return nil, ErrSourceFenced
+	}
+	return n.sourceFenceAdmissionMu.RUnlock, nil
+}
+
+func (n *Node) fenceSourceWrites(revision uint64, alreadyConverged bool) {
+	if n == nil {
+		return
+	}
+	n.sourceFenceAdmissionMu.Lock()
+	n.sourceFenced.Store(true)
+	if revision > 0 {
+		n.sourceFenceRevision.CompareAndSwap(0, revision)
+	}
+	if alreadyConverged {
+		n.sourceFenceConverged.Store(true)
+	}
+	n.channelDataPlaneLease.fenceSource()
+	n.sourceFenceAdmissionMu.Unlock()
 }
 
 func ctxErr(ctx context.Context) error {

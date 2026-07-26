@@ -3,7 +3,9 @@ package backup_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
@@ -220,6 +222,58 @@ func TestControllerSlotFrontierStoreRetriesGlobalConflictWithoutLosingCoordinati
 	require.Equal(t, uint64(5), snapshot.Frontier.Messages.SourceHighWatermark)
 }
 
+func TestControllerSlotFrontierStoreInitializes256SlotsAcrossConcurrentNodes(t *testing.T) {
+	runtime := &concurrentBackupController{
+		state: controller.ClusterState{
+			Revision: 1,
+			Backup:   &controller.BackupCoordinationState{},
+		},
+	}
+	const nodeCount = 3
+	stores := make([]*backupinfra.ControllerSlotFrontierStore, nodeCount)
+	for index := range stores {
+		coordination, err := backupinfra.NewControllerStateStore(runtime)
+		require.NoError(t, err)
+		stores[index], err = backupinfra.NewControllerSlotFrontierStore(
+			coordination,
+			staticCaptureAuthority{authority: backupruntime.SlotCaptureAuthority{
+				SlotID: uint32(index + 1), LeaderTerm: 7, ConfigEpoch: 4,
+				HolderNodeID: uint64(index + 1),
+			}},
+		)
+		require.NoError(t, err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	errs := make(chan error, 256)
+	var workers sync.WaitGroup
+	for hashSlot := uint16(0); hashSlot < 256; hashSlot++ {
+		hashSlot := hashSlot
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			_, err := stores[int(hashSlot)%nodeCount].AcquireLease(
+				ctx, hashSlot, "generation-1", 1_753_400_100_000,
+			)
+			errs <- err
+		}()
+	}
+	workers.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	state, err := runtime.LoadBackupCoordinationState(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, state.Backup)
+	require.Len(t, state.Backup.SlotFrontiers, 256)
+	for index, frontier := range state.Backup.SlotFrontiers {
+		require.Equal(t, uint16(index), frontier.HashSlot)
+		require.Equal(t, uint64(1), frontier.Revision)
+	}
+}
+
 func TestControllerSlotFrontierStoreRejectsFreezeThatWinsDuringUpload(t *testing.T) {
 	runtime := &fakeBackupController{state: controller.ClusterState{
 		Revision: 8,
@@ -384,6 +438,35 @@ type fakeBackupController struct {
 	replaceErr       error
 	replaceCalls     int
 	onConflict       func()
+}
+
+type concurrentBackupController struct {
+	mu    sync.Mutex
+	state controller.ClusterState
+}
+
+func (c *concurrentBackupController) LoadBackupCoordinationState(
+	context.Context,
+) (controller.ClusterState, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.state.Clone(), nil
+}
+
+func (c *concurrentBackupController) ReplaceBackupCoordinationState(
+	_ context.Context,
+	expectedRevision uint64,
+	replacement controller.BackupCoordinationState,
+) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if expectedRevision != c.state.Revision {
+		return controller.ErrExpectedRevisionMismatch
+	}
+	c.state.Revision++
+	applied := replacement.Clone()
+	c.state.Backup = &applied
+	return nil
 }
 
 func (c *fakeBackupController) LoadBackupCoordinationState(context.Context) (controller.ClusterState, error) {

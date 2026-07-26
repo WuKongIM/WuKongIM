@@ -35,6 +35,22 @@ func TestRuntimeSnapshotCountsLeaderFollowerAndParked(t *testing.T) {
 	require.Equal(t, uint64(3), result.RuntimeActivationRejectedTotal)
 }
 
+func TestRuntimeSnapshotCountsPendingOrdinaryAppends(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	meta := testMeta("runtime-snapshot-pending-append", 2, 2)
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	rc.appendQ.pending = append(rc.appendQ.pending, appendRequest{})
+
+	future := NewFuture()
+	r.handleRuntimeSnapshot(Event{Kind: EventRuntimeSnapshot, Future: future})
+	result := awaitFutureResult(t, future)
+
+	require.Equal(t, 1, result.RuntimeSnapshot.PendingAppendChannels)
+}
+
 func TestRuntimeProbeReportsLoadedAndMissingChannels(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory})

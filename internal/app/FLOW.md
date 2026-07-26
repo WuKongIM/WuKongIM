@@ -1040,11 +1040,11 @@ the Cloud Simulation lifecycle separately owns public TCP/19443 ingress.
 When backup and restore mode are both false, composition creates no repository,
 KMS, worker, or timer. Automatic mode wires two S3-compatible repositories,
 KMS envelope/signing with manifest verification pinned to the configured
-active key plus explicitly retained previous verification keys, a separate
-garbage-collector role, Controller state,
-Slot-leader planning, source-node message capture, the coordinator, Manager,
-node RPC, and low-cardinality metrics. Backup doctor or runtime failure is
-reported independently and never changes ordinary message readiness.
+active key plus explicitly retained previous verification keys, Controller
+state, Slot-leader continuous capture, complete-vector checkpoint publication,
+the continuous coordinator, Manager, node RPC, and low-cardinality metrics.
+Backup doctor or runtime failure is reported independently and never changes
+ordinary message readiness.
 Manager backup health remains `unknown` when node-local doctor or successful
 dual-repository audit evidence is missing, even if the latest RPO is fresh.
 Every ordinary Manager node exposes the same backup surface. Mutations,
@@ -1053,16 +1053,16 @@ currently observed Controller Leader through the leader-fenced Manager backup
 RPC and do not automatically replay writes after a leadership transition.
 Immutable checkpoint catalog reads use the locally visible Controller head and
 the shared dual repositories, so each node can rebuild its own non-authoritative
-query index without a Leader hop. Status combines durable coordination state with
-the coordinator node/observation time, configured non-secret policy, individual
-doctor dependency readiness, and bounded retained-reference capacity.
+query index without a Leader hop. Status combines durable Slot capture leases
+and erasure progress with node-local continuous-coordinator evidence,
+configured non-secret policy, and individual doctor dependency readiness.
 The cluster-wide config fingerprint excludes the node-local staging directory;
-repository, identity, schedule, retention, and cryptographic policy remain in
+repository, identity, capture, checkpoint, and cryptographic policy remain in
 the agreement fence. The non-secret policy also exposes a per-Slot source-pin
 maximum age and a per-node retained-log byte budget; both participate in the
 fingerprint and are available through Manager status. Production composition
-of the replacement continuous runtime is completed by its dedicated switch
-task rather than partially mixing capture engines here.
+uses only the continuous capture/checkpoint coordinator; retained legacy job
+interfaces are not scheduled by the application runtime.
 
 When automatic backup is enabled, the same composition root injects the
 dual-repository, per-Hash-Slot permanent-erasure ledger into local and forwarded
@@ -1097,10 +1097,16 @@ Gateway, business APIs, webhooks, plugins, or ordinary workers. Normal startup
 reads the persisted restore plan before its write probe and rejects any plan
 that is not activated or whose activated generation differs from
 `backup.source_generation`. It also requires every activated partition report
-to remain installed and verified, then proves the natural clock-derived
+to remain installed and verified, validates immutable activation evidence and
+the target-wide staging-cleanup timestamp, then proves the natural clock-derived
 node-scoped Snowflake allocator is already above the greatest restored message
 ID before ordinary traffic is admitted. Startup fails closed instead of
 synthesizing future IDs that a restart could reuse before wall-clock catch-up.
 Per-Channel sequence allocation continues from the separately
 verified checkpoint/LEO cuts, including the plan-pinned permanent-erasure
 ledger applied to every target Slot replica before runtime metadata is installed.
+Normal startup also rejects a Controller-resident source fence permanently, so
+the fenced source generation cannot regain ordinary service after process
+restart. Restore mode wires the signed-receipt verifier and cluster-wide
+attempt-scoped staging cleaner; Gateway, APIs, webhooks, plugins, and ordinary
+workers remain closed throughout `activating`.

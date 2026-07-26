@@ -182,15 +182,14 @@ staging_dir = "`+dir+`/backup-staging"
 kms_key_id = "kms-encryption-v1"
 signing_key_id = "kms-signing-v1"
 trusted_signing_key_ids = ["kms-signing-v0"]
-garbage_collector_role_arn = "arn:aws:iam::123456789012:role/wukongim-backup-gc"
 kms_region = "region-a"
-incremental_interval = "1m"
-restore_point_interval = "5m"
-synthetic_full_interval = "24h"
-chunk_size_bytes = 8388608
+capture_reconcile_interval = "1m"
+checkpoint_interval = "5m"
+baseline_chunk_bytes = 8388608
+target_segment_bytes = 67108864
+max_segment_open_duration = "30s"
 staging_max_bytes = 10737418240
-max_parallel_partitions = 4
-monthly_retention_months = 0
+worker_count = 4
 object_lock_days = 7
 
 [backup.primary]
@@ -208,7 +207,7 @@ prefix = "prod/cluster-a"
 
 	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
 		"PATH=" + os.Getenv("PATH"),
-		"WK_BACKUP_MAX_PARALLEL_PARTITIONS=6",
+		"WK_BACKUP_WORKER_COUNT=6",
 		`WK_BACKUP_TRUSTED_SIGNING_KEY_IDS=["kms-signing-v0","kms-signing-vminus1"]`,
 	}})
 	if err != nil {
@@ -220,13 +219,13 @@ prefix = "prod/cluster-a"
 	if cfg.Backup.Primary.Region != "region-a" || cfg.Backup.Secondary.Region != "region-b" {
 		t.Fatalf("Backup repositories = %#v/%#v", cfg.Backup.Primary, cfg.Backup.Secondary)
 	}
-	if cfg.Backup.MaxParallelPartitions != 6 {
-		t.Fatalf("Backup.MaxParallelPartitions = %d, want env override 6", cfg.Backup.MaxParallelPartitions)
+	if cfg.Backup.WorkerCount != 6 {
+		t.Fatalf("Backup.WorkerCount = %d, want env override 6", cfg.Backup.WorkerCount)
 	}
 	if len(cfg.Backup.TrustedSigningKeyIDs) != 2 || cfg.Backup.TrustedSigningKeyIDs[0] != "kms-signing-v0" || cfg.Backup.TrustedSigningKeyIDs[1] != "kms-signing-vminus1" {
 		t.Fatalf("Backup.TrustedSigningKeyIDs = %#v, want environment JSON-list override", cfg.Backup.TrustedSigningKeyIDs)
 	}
-	if cfg.Backup.RestorePointInterval.String() != "5m0s" || cfg.Backup.StagingMaxBytes != 10*1024*1024*1024 {
+	if cfg.Backup.CheckpointInterval.String() != "5m0s" || cfg.Backup.StagingMaxBytes != 10*1024*1024*1024 {
 		t.Fatalf("Backup schedule/quota = %#v", cfg.Backup)
 	}
 }

@@ -185,3 +185,27 @@ func (r *Runtime) observeSchedulerTask(task string, d time.Duration) {
 		r.opts.Observer.ObserveSchedulerTask(task, d)
 	}
 }
+
+// ProposalsQuiescent reports whether every local Slot has completed all
+// ordinary proposals admitted before the caller's external fence boundary.
+func (r *Runtime) ProposalsQuiescent() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		return false
+	}
+	slots := make([]*slot, 0, len(r.slots))
+	for _, localSlot := range r.slots {
+		slots = append(slots, localSlot)
+	}
+	r.mu.RUnlock()
+	for _, localSlot := range slots {
+		if !localSlot.proposalsQuiescent() {
+			return false
+		}
+	}
+	return true
+}

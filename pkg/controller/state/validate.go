@@ -106,24 +106,53 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 		return invalid("restore erasure stream boundary is invalid")
 	}
 	switch plan.Status {
-	case RestoreStatusPlanned, RestoreStatusInstalling, RestoreStatusInstalled, RestoreStatusVerified, RestoreStatusActivated, RestoreStatusAbandoned:
+	case RestoreStatusPlanned, RestoreStatusInstalling, RestoreStatusInstalled,
+		RestoreStatusVerified, RestoreStatusActivating, RestoreStatusActivated,
+		RestoreStatusAbandoned:
 	default:
 		return invalid("restore status is invalid")
 	}
-	if plan.CreatedAtUnixMillis <= 0 || plan.UpdatedAtUnixMillis < plan.CreatedAtUnixMillis || plan.VerifiedAtUnixMillis < 0 || plan.ActivatedAtUnixMillis < 0 {
+	if plan.CreatedAtUnixMillis <= 0 ||
+		plan.UpdatedAtUnixMillis < plan.CreatedAtUnixMillis ||
+		plan.VerifiedAtUnixMillis < 0 ||
+		plan.ActivatedAtUnixMillis < 0 ||
+		plan.StagingCleanupCompletedAtUnixMillis < 0 {
 		return invalid("restore timestamps are invalid")
 	}
-	if (plan.Status == RestoreStatusVerified || plan.Status == RestoreStatusActivated) && plan.VerifiedAtUnixMillis <= 0 {
+	if (plan.Status == RestoreStatusVerified ||
+		plan.Status == RestoreStatusActivating ||
+		plan.Status == RestoreStatusActivated) &&
+		plan.VerifiedAtUnixMillis <= 0 {
 		return invalid("verified restore has no verification timestamp")
 	}
-	if plan.Status == RestoreStatusActivated && (plan.ActivatedAtUnixMillis <= 0 || !validSHA256(plan.ActivationFenceDigest)) {
-		return invalid("activated restore has no fencing evidence")
+	if plan.Status == RestoreStatusActivating {
+		if plan.ActivatedAtUnixMillis != 0 ||
+			plan.StagingCleanupCompletedAtUnixMillis != 0 ||
+			plan.Activation == nil ||
+			backupartifact.ValidateRestoreActivationEvidence(*plan.Activation) != nil {
+			return invalid("activating restore has invalid fencing evidence")
+		}
+	} else if plan.Status == RestoreStatusActivated {
+		if plan.ActivatedAtUnixMillis <= 0 ||
+			plan.StagingCleanupCompletedAtUnixMillis <= 0 ||
+			plan.StagingCleanupCompletedAtUnixMillis >
+				plan.ActivatedAtUnixMillis ||
+			plan.Activation == nil ||
+			backupartifact.ValidateRestoreActivationEvidence(*plan.Activation) != nil ||
+			plan.Activation.RecordedAtUnixMillis >
+				plan.StagingCleanupCompletedAtUnixMillis {
+			return invalid("activated restore has no fencing or cleanup evidence")
+		}
 	}
-	if plan.Status != RestoreStatusActivated &&
-		(plan.ActivatedAtUnixMillis != 0 || plan.ActivationFenceDigest != "") {
+	if plan.Status != RestoreStatusActivating &&
+		plan.Status != RestoreStatusActivated &&
+		(plan.ActivatedAtUnixMillis != 0 ||
+			plan.StagingCleanupCompletedAtUnixMillis != 0 ||
+			plan.Activation != nil) {
 		return invalid("inactive restore carries activation evidence")
 	}
 	if plan.Status != RestoreStatusVerified &&
+		plan.Status != RestoreStatusActivating &&
 		plan.Status != RestoreStatusActivated &&
 		plan.VerifiedAtUnixMillis != 0 {
 		return invalid("unverified restore carries verification evidence")
@@ -234,7 +263,8 @@ func validateRestore(restore *RestoreCoordinationState, hashSlotCount uint16) er
 		if converged != len(plan.Partitions) || verified != 0 {
 			return invalid("installed restore aggregate phase is inconsistent")
 		}
-	case RestoreStatusVerified, RestoreStatusActivated:
+	case RestoreStatusVerified, RestoreStatusActivating,
+		RestoreStatusActivated:
 		if converged != len(plan.Partitions) ||
 			verified != len(plan.Partitions) {
 			return invalid("verified restore aggregate phase is inconsistent")
@@ -260,6 +290,19 @@ func hasRestorePartitionInstallEvidence(
 func validateBackup(backup *BackupCoordinationState, hashSlotCount uint16) error {
 	if backup == nil {
 		return nil
+	}
+	if backup.SourceFence != nil {
+		if err := backupartifact.ValidateSourceFenceRecord(
+			*backup.SourceFence, false,
+		); err != nil {
+			return invalid("backup source fence is invalid")
+		}
+		if backup.Active != nil ||
+			(backup.Verification != nil &&
+				(backup.Verification.Status == BackupVerificationTaskStatusPending ||
+					backup.Verification.Status == BackupVerificationTaskStatusRunning)) {
+			return invalid("backup source fence conflicts with active work")
+		}
 	}
 	if len(backup.RestorePoints)+len(backup.PendingGarbage) > MaxBackupRestorePoints {
 		return invalid("backup restore-point references exceed limit")

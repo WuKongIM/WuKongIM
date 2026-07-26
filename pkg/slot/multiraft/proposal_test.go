@@ -23,6 +23,44 @@ func TestCountTrackedReadyEntriesIgnoresEmptyNormalEntries(t *testing.T) {
 	}
 }
 
+func TestSlotProposalQuiescenceCoversEveryAdmissionPhase(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		if !(&slot{}).proposalsQuiescent() {
+			t.Fatal("proposalsQuiescent() = false, want true")
+		}
+	})
+	t.Run("queued control", func(t *testing.T) {
+		g := &slot{controls: []controlAction{{kind: controlPropose}}}
+		if g.proposalsQuiescent() {
+			t.Fatal("proposalsQuiescent() = true with queued proposal")
+		}
+	})
+	t.Run("processing handoff", func(t *testing.T) {
+		g := &slot{processing: true}
+		if g.proposalsQuiescent() {
+			t.Fatal("proposalsQuiescent() = true while processing")
+		}
+	})
+	t.Run("submitted", func(t *testing.T) {
+		g := &slot{submittedProposals: []*future{newFuture(nil)}}
+		if g.proposalsQuiescent() {
+			t.Fatal("proposalsQuiescent() = true with submitted proposal")
+		}
+	})
+	t.Run("pending apply", func(t *testing.T) {
+		g := &slot{pendingProposals: map[uint64]trackedFuture{1: {future: newFuture(nil)}}}
+		if g.proposalsQuiescent() {
+			t.Fatal("proposalsQuiescent() = true with pending proposal")
+		}
+	})
+	t.Run("config only", func(t *testing.T) {
+		g := &slot{controls: []controlAction{{kind: controlConfigChange}}}
+		if !g.proposalsQuiescent() {
+			t.Fatal("proposalsQuiescent() = false for non-write config control")
+		}
+	})
+}
+
 func TestReadyRequiresSynchronousApplyTreatsConfChangeV2AsBarrier(t *testing.T) {
 	ready := raft.Ready{CommittedEntries: []raftpb.Entry{
 		{Type: raftpb.EntryConfChangeV2},

@@ -20,7 +20,6 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const checkpointRestoreExportChannels = 1024
@@ -346,23 +345,12 @@ func (t *DurableCheckpointRestoreTarget) BeginCheckpointRestore(
 		_ = os.RemoveAll(attemptDir)
 		return nil, err
 	}
-	stateMachine, err := fsm.NewStateMachineWithHashSlots(
-		meta, uint64(fence.TargetSlotID), []uint16{fence.HashSlot},
-	)
-	if err != nil {
-		_ = writer.Close()
-		_ = evidence.Close()
-		_ = messages.Close()
-		_ = meta.Close()
-		_ = os.RemoveAll(attemptDir)
-		return nil, err
-	}
 	releaseQuota = false
 	operationTransferred = true
 	sharedTransferred = true
 	return &durableCheckpointRestoreSession{
 		target: t, fence: fence, attemptDir: attemptDir,
-		meta: meta, metadataWriter: writer, stateMachine: stateMachine,
+		meta: meta, metadataWriter: writer,
 		messages: messages, evidence: evidence,
 		quotaClaim: attemptDir, quotaReservation: stagingClaimBytes,
 		operationUnlock: operationUnlock, sharedUnlock: sharedUnlock,
@@ -423,7 +411,6 @@ type durableCheckpointRestoreSession struct {
 
 	meta           *metadb.DB
 	metadataWriter *metadb.RestoreSnapshotWriter
-	stateMachine   multiraft.StateMachine
 	messages       *channelstore.MessageDBFactory
 	evidence       *checkpointRestoreEvidenceIndex
 
@@ -468,16 +455,9 @@ func (s *durableCheckpointRestoreSession) ApplyMetadata(
 	if err := s.finishMetadataBaseline(); err != nil {
 		return err
 	}
-	portable, err := fsm.IsRestorePortableCommand(record.Command)
-	if err != nil || !portable {
-		return err
-	}
-	_, err = s.stateMachine.Apply(ctx, multiraft.Command{
-		SlotID:   multiraft.SlotID(s.fence.TargetSlotID),
-		HashSlot: s.fence.HashSlot,
-		Index:    record.RaftIndex, Term: record.RaftTerm,
-		Data: record.Command,
-	})
+	_, err := fsm.ApplyRestorePortableCommand(
+		ctx, s.meta, s.fence.HashSlot, record.Command,
+	)
 	return err
 }
 

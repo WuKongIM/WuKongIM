@@ -7,13 +7,15 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 )
 
-const maxControllerFrontierCASAttempts = 16
+const maxControllerFrontierCASAttempts = 64
 
 // CoordinationStateStore is the bounded Controller state seam shared with backup use cases.
 type CoordinationStateStore interface {
@@ -28,6 +30,11 @@ type CoordinationStateStore interface {
 type ControllerSlotFrontierStore struct {
 	state     CoordinationStateStore
 	authority runtimebackup.SlotCaptureAuthoritySource
+	// mutationMu prevents node-local capture workers from manufacturing
+	// guaranteed global-revision conflicts against the same Controller state.
+	// Controller Raft remains the cross-node serialization and durability
+	// boundary.
+	mutationMu sync.Mutex
 }
 
 // NewControllerSlotFrontierStore creates a frontier adapter over bounded Controller state.
@@ -65,6 +72,8 @@ func (s *ControllerSlotFrontierStore) AcquireLease(ctx context.Context, hashSlot
 		!validControllerCaptureGeneration(initialGeneration) || acquiredAtUnixMillis <= 0 {
 		return runtimebackup.FrontierSnapshot{}, runtimebackup.ErrInvalidCapture
 	}
+	s.mutationMu.Lock()
+	defer s.mutationMu.Unlock()
 	authority, err := s.currentAuthority(ctx, hashSlot)
 	if err != nil {
 		return runtimebackup.FrontierSnapshot{}, err
@@ -143,6 +152,9 @@ func (s *ControllerSlotFrontierStore) AcquireLease(ctx context.Context, hashSlot
 		if _, err := s.requireAuthority(ctx, hashSlot, authority); err != nil {
 			return runtimebackup.FrontierSnapshot{}, err
 		}
+		if err := waitControllerFrontierConflict(ctx, hashSlot, attempt); err != nil {
+			return runtimebackup.FrontierSnapshot{}, err
+		}
 	}
 	return runtimebackup.FrontierSnapshot{}, fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
 }
@@ -154,6 +166,8 @@ func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expect
 		!backupcontract.SlotCaptureLeasesEqual(expectedLease, next.Lease) {
 		return runtimebackup.ErrInvalidCapture
 	}
+	s.mutationMu.Lock()
+	defer s.mutationMu.Unlock()
 	authority, err := s.currentAuthority(ctx, next.HashSlot)
 	if err != nil {
 		return err
@@ -195,6 +209,9 @@ func (s *ControllerSlotFrontierStore) CompareAndSwap(ctx context.Context, expect
 		if _, err := s.requireAuthority(ctx, next.HashSlot, authority); err != nil {
 			return err
 		}
+		if err := waitControllerFrontierConflict(ctx, next.HashSlot, attempt); err != nil {
+			return err
+		}
 	}
 	return fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
 }
@@ -223,6 +240,8 @@ func (s *ControllerSlotFrontierStore) PromoteGeneration(
 		next.Rebase != nil || next.Baseline == nil {
 		return runtimebackup.ErrInvalidCapture
 	}
+	s.mutationMu.Lock()
+	defer s.mutationMu.Unlock()
 	authority, err := s.currentAuthority(ctx, next.HashSlot)
 	if err != nil {
 		return err
@@ -272,8 +291,33 @@ func (s *ControllerSlotFrontierStore) PromoteGeneration(
 		if _, err := s.requireAuthority(ctx, next.HashSlot, authority); err != nil {
 			return err
 		}
+		if err := waitControllerFrontierConflict(ctx, next.HashSlot, attempt); err != nil {
+			return err
+		}
 	}
 	return fmt.Errorf("%w: Controller state remained contended", runtimebackup.ErrFrontierConflict)
+}
+
+func waitControllerFrontierConflict(
+	ctx context.Context,
+	hashSlot uint16,
+	attempt int,
+) error {
+	// The Slot-derived skew prevents equal-rate workers on different nodes from
+	// repeatedly colliding after the globally serialized Controller proposal.
+	delay := time.Duration((attempt+1)*(attempt+1))*time.Millisecond +
+		time.Duration(hashSlot%7)*time.Millisecond
+	if delay > 50*time.Millisecond {
+		delay = 50 * time.Millisecond
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func auditAllowsLeaseAcquire(

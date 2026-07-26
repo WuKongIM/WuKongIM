@@ -1393,13 +1393,13 @@ var requiredBackupRepositoryKeys = []string{
 
 var requiredAutomaticBackupKeys = []string{
 	"WK_BACKUP_SOURCE_GENERATION",
-	"WK_BACKUP_GARBAGE_COLLECTOR_ROLE_ARN",
-	"WK_BACKUP_INCREMENTAL_INTERVAL",
-	"WK_BACKUP_RESTORE_POINT_INTERVAL",
-	"WK_BACKUP_SYNTHETIC_FULL_INTERVAL",
-	"WK_BACKUP_CHUNK_SIZE_BYTES",
+	"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL",
+	"WK_BACKUP_CHECKPOINT_INTERVAL",
+	"WK_BACKUP_BASELINE_CHUNK_BYTES",
+	"WK_BACKUP_TARGET_SEGMENT_BYTES",
+	"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION",
 	"WK_BACKUP_STAGING_MAX_BYTES",
-	"WK_BACKUP_MAX_PARALLEL_PARTITIONS",
+	"WK_BACKUP_WORKER_COUNT",
 	"WK_BACKUP_OBJECT_LOCK_DAYS",
 }
 
@@ -1407,15 +1407,14 @@ var requiredRestoreKeys = []string{"WK_BACKUP_TARGET_GENERATION"}
 
 func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 	cfg := app.BackupConfig{
-		RepositoryID:            configValue(values, "WK_BACKUP_REPOSITORY_ID"),
-		SourceGeneration:        configValue(values, "WK_BACKUP_SOURCE_GENERATION"),
-		TargetGeneration:        configValue(values, "WK_BACKUP_TARGET_GENERATION"),
-		StagingDir:              configValue(values, "WK_BACKUP_STAGING_DIR"),
-		KMSKeyID:                configValue(values, "WK_BACKUP_KMS_KEY_ID"),
-		SigningKeyID:            configValue(values, "WK_BACKUP_SIGNING_KEY_ID"),
-		GarbageCollectorRoleARN: configValue(values, "WK_BACKUP_GARBAGE_COLLECTOR_ROLE_ARN"),
-		KMSRegion:               configValue(values, "WK_BACKUP_KMS_REGION"),
-		KMSEndpoint:             configValue(values, "WK_BACKUP_KMS_ENDPOINT"),
+		RepositoryID:     configValue(values, "WK_BACKUP_REPOSITORY_ID"),
+		SourceGeneration: configValue(values, "WK_BACKUP_SOURCE_GENERATION"),
+		TargetGeneration: configValue(values, "WK_BACKUP_TARGET_GENERATION"),
+		StagingDir:       configValue(values, "WK_BACKUP_STAGING_DIR"),
+		KMSKeyID:         configValue(values, "WK_BACKUP_KMS_KEY_ID"),
+		SigningKeyID:     configValue(values, "WK_BACKUP_SIGNING_KEY_ID"),
+		KMSRegion:        configValue(values, "WK_BACKUP_KMS_REGION"),
+		KMSEndpoint:      configValue(values, "WK_BACKUP_KMS_ENDPOINT"),
 		Primary: app.BackupRepositoryConfig{
 			Endpoint: configValue(values, "WK_BACKUP_PRIMARY_ENDPOINT"),
 			Region:   configValue(values, "WK_BACKUP_PRIMARY_REGION"),
@@ -1469,26 +1468,32 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 			}
 		}
 	}
-	if configKeyPresent(values, "WK_BACKUP_INCREMENTAL_INTERVAL") {
-		cfg.IncrementalInterval, err = parseDuration("WK_BACKUP_INCREMENTAL_INTERVAL", configValue(values, "WK_BACKUP_INCREMENTAL_INTERVAL"))
+	if configKeyPresent(values, "WK_BACKUP_CAPTURE_RECONCILE_INTERVAL") {
+		cfg.CaptureReconcileInterval, err = parseDuration("WK_BACKUP_CAPTURE_RECONCILE_INTERVAL", configValue(values, "WK_BACKUP_CAPTURE_RECONCILE_INTERVAL"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}
 	}
-	if configKeyPresent(values, "WK_BACKUP_RESTORE_POINT_INTERVAL") {
-		cfg.RestorePointInterval, err = parseDuration("WK_BACKUP_RESTORE_POINT_INTERVAL", configValue(values, "WK_BACKUP_RESTORE_POINT_INTERVAL"))
+	if configKeyPresent(values, "WK_BACKUP_CHECKPOINT_INTERVAL") {
+		cfg.CheckpointInterval, err = parseDuration("WK_BACKUP_CHECKPOINT_INTERVAL", configValue(values, "WK_BACKUP_CHECKPOINT_INTERVAL"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}
 	}
-	if configKeyPresent(values, "WK_BACKUP_SYNTHETIC_FULL_INTERVAL") {
-		cfg.SyntheticFullInterval, err = parseDuration("WK_BACKUP_SYNTHETIC_FULL_INTERVAL", configValue(values, "WK_BACKUP_SYNTHETIC_FULL_INTERVAL"))
+	if configKeyPresent(values, "WK_BACKUP_BASELINE_CHUNK_BYTES") {
+		cfg.BaselineChunkBytes, err = parseUint64("WK_BACKUP_BASELINE_CHUNK_BYTES", configValue(values, "WK_BACKUP_BASELINE_CHUNK_BYTES"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}
 	}
-	if configKeyPresent(values, "WK_BACKUP_CHUNK_SIZE_BYTES") {
-		cfg.ChunkSizeBytes, err = parseUint64("WK_BACKUP_CHUNK_SIZE_BYTES", configValue(values, "WK_BACKUP_CHUNK_SIZE_BYTES"))
+	if configKeyPresent(values, "WK_BACKUP_TARGET_SEGMENT_BYTES") {
+		cfg.TargetSegmentBytes, err = parseUint64("WK_BACKUP_TARGET_SEGMENT_BYTES", configValue(values, "WK_BACKUP_TARGET_SEGMENT_BYTES"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_MAX_SEGMENT_OPEN_DURATION") {
+		cfg.MaxSegmentOpenDuration, err = parseDuration("WK_BACKUP_MAX_SEGMENT_OPEN_DURATION", configValue(values, "WK_BACKUP_MAX_SEGMENT_OPEN_DURATION"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}
@@ -1499,8 +1504,8 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 			return app.BackupConfig{}, err
 		}
 	}
-	if configKeyPresent(values, "WK_BACKUP_MAX_PARALLEL_PARTITIONS") {
-		cfg.MaxParallelPartitions, err = parseInt("WK_BACKUP_MAX_PARALLEL_PARTITIONS", configValue(values, "WK_BACKUP_MAX_PARALLEL_PARTITIONS"))
+	if configKeyPresent(values, "WK_BACKUP_WORKER_COUNT") {
+		cfg.WorkerCount, err = parseInt("WK_BACKUP_WORKER_COUNT", configValue(values, "WK_BACKUP_WORKER_COUNT"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}
@@ -1513,12 +1518,6 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 	}
 	if configKeyPresent(values, "WK_BACKUP_MAX_SOURCE_PINNED_BYTES") {
 		cfg.MaxSourcePinnedBytes, err = parseUint64("WK_BACKUP_MAX_SOURCE_PINNED_BYTES", configValue(values, "WK_BACKUP_MAX_SOURCE_PINNED_BYTES"))
-		if err != nil {
-			return app.BackupConfig{}, err
-		}
-	}
-	if configKeyPresent(values, "WK_BACKUP_MONTHLY_RETENTION_MONTHS") {
-		cfg.MonthlyRetentionMonths, err = parseInt("WK_BACKUP_MONTHLY_RETENTION_MONTHS", configValue(values, "WK_BACKUP_MONTHLY_RETENTION_MONTHS"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}

@@ -2,6 +2,7 @@ package backup_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"strings"
 	"testing"
@@ -16,6 +17,12 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	store := &memoryRestoreStore{}
 	now := time.Unix(1_800_000_000, 0)
 	proof := restoreTestCatalogProofForSlots(2)
+	_, signingKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := restoreTestSigner{privateKey: signingKey}
+	cleaner := &fakeRestoreCleaner{}
 	app, err := backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
 		Enabled: true, Store: store,
 		Inspector: fakeRestoreInspector{inspection: backupusecase.RestoreInspection{
@@ -31,7 +38,9 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 			}},
 			ErasureLedgerSHA256: strings.Repeat("e", 64),
 		}},
-		Verifier: fakeRestoreVerifier{}, Now: func() time.Time { return now }, NewPlanID: func() string { return "plan-7" },
+		Verifier: fakeRestoreVerifier{}, Cleaner: cleaner,
+		ActivationVerifier: signer,
+		Now:                func() time.Time { return now }, NewPlanID: func() string { return "plan-7" },
 	})
 	if err != nil {
 		t.Fatalf("NewRestoreApp(): %v", err)
@@ -84,19 +93,337 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	if err != nil || plan.Status != backupusecase.RestoreStatusVerified {
 		t.Fatalf("Verify() plan=%+v err=%v", plan, err)
 	}
-	if _, err := app.Activate(context.Background(), plan.ID, "dns-changed"); err == nil {
-		t.Fatal("Activate() without cryptographic fence digest error = nil")
+	if _, err := app.Activate(
+		context.Background(), plan.ID,
+		backupusecase.RestoreActivationRequest{Operator: "recovery-admin"},
+	); err == nil {
+		t.Fatal("Activate() without reviewed evidence error = nil")
 	}
-	plan, err = app.Activate(context.Background(), plan.ID, strings.Repeat("f", 64))
+	fenceRecord := backupartifact.SourceFenceRecord{
+		Format:  backupartifact.SourceFenceReceiptFormat,
+		Version: backupartifact.SourceFenceReceiptVersion,
+		ID:      "source-fence-7", SourceClusterID: plan.SourceClusterID,
+		SourceGeneration: plan.SourceGeneration, RestorePlanID: plan.ID,
+		RestorePointID:          plan.RestorePointID,
+		ManifestSHA256:          plan.ManifestSHA256,
+		TargetClusterID:         plan.TargetClusterID,
+		TargetGeneration:        plan.TargetGeneration,
+		FenceControllerRevision: 9,
+		RequestedAtUnixMillis:   now.Add(-time.Minute).UnixMilli(),
+		ConvergedAtUnixMillis:   now.Add(-time.Second).UnixMilli(),
+	}
+	receipt, err := backupartifact.SignSourceFenceReceipt(
+		context.Background(), fenceRecord,
+		signer, "source-signing-key",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := receipt
+	tampered.RestorePlanID = "other-plan"
+	if _, err := app.Activate(
+		context.Background(), plan.ID,
+		backupusecase.RestoreActivationRequest{
+			SourceFenceReceipt: &tampered, Operator: "recovery-admin",
+		},
+	); err == nil {
+		t.Fatal("Activate() accepted a tampered receipt")
+	}
+	otherPlanRecord := fenceRecord
+	otherPlanRecord.ID = "source-fence-other-plan"
+	otherPlanRecord.RestorePlanID = "other-plan"
+	otherPlanReceipt, err := backupartifact.SignSourceFenceReceipt(
+		context.Background(), otherPlanRecord,
+		signer, "source-signing-key",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.Activate(
+		context.Background(), plan.ID,
+		backupusecase.RestoreActivationRequest{
+			SourceFenceReceipt: &otherPlanReceipt,
+			Operator:           "recovery-admin",
+		},
+	); !errors.Is(err, backupusecase.ErrActivationEvidenceRequired) {
+		t.Fatalf(
+			"Activate(valid receipt for another plan) error = %v",
+			err,
+		)
+	}
+	staleCheckpointRecord := fenceRecord
+	staleCheckpointRecord.ID = "source-fence-stale-checkpoint"
+	staleCheckpointRecord.RestorePointID = "checkpoint-obsolete"
+	staleCheckpointRecord.ManifestSHA256 = strings.Repeat("b", 64)
+	staleCheckpointReceipt, err := backupartifact.SignSourceFenceReceipt(
+		context.Background(), staleCheckpointRecord,
+		signer, "source-signing-key",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.Activate(
+		context.Background(), plan.ID,
+		backupusecase.RestoreActivationRequest{
+			SourceFenceReceipt: &staleCheckpointReceipt,
+			Operator:           "recovery-admin",
+		},
+	); !errors.Is(err, backupusecase.ErrActivationEvidenceRequired) {
+		t.Fatalf(
+			"Activate(valid stale-checkpoint receipt) error = %v",
+			err,
+		)
+	}
+	request := backupusecase.RestoreActivationRequest{
+		SourceFenceReceipt: &receipt, Operator: "recovery-admin",
+	}
+	plan, err = app.Activate(context.Background(), plan.ID, request)
 	if err != nil || plan.Status != backupusecase.RestoreStatusActivated {
 		t.Fatalf("Activate() plan=%+v err=%v", plan, err)
 	}
-	if _, err := app.Activate(context.Background(), plan.ID, strings.Repeat("F", 64)); err == nil {
-		t.Fatal("Activate() uppercase digest error = nil")
+	if plan.Activation == nil ||
+		plan.Activation.Kind != backupartifact.RestoreActivationSourceFence {
+		t.Fatalf("Activate() evidence = %#v", plan.Activation)
 	}
-	plan, err = app.Activate(context.Background(), plan.ID, strings.Repeat("f", 64))
+	if cleaner.calls != 1 ||
+		plan.StagingCleanupCompletedAtUnixMillis <= 0 {
+		t.Fatalf(
+			"activation cleanup calls=%d completed_at=%d",
+			cleaner.calls, plan.StagingCleanupCompletedAtUnixMillis,
+		)
+	}
+	plan, err = app.Activate(context.Background(), plan.ID, request)
 	if err != nil || plan.Status != backupusecase.RestoreStatusActivated {
 		t.Fatalf("idempotent Activate() plan=%+v err=%v", plan, err)
+	}
+}
+
+func TestRestoreActivationBreakGlassPersistsImmutableAudit(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000).UTC()
+	part := completeRestorePartition(
+		backupusecase.RestorePartition{
+			HashSlot: 0, Status: backupusecase.RestorePartitionConverged,
+			ReplicaCount: 1,
+		},
+		now.UnixMilli(),
+	)
+	part.Verified = true
+	store := &memoryRestoreStore{state: backupusecase.RestoreState{
+		Plan: &backupusecase.RestorePlan{
+			ID: "plan-break-glass", RestorePointID: "checkpoint-1",
+			ManifestSHA256:  strings.Repeat("a", 64),
+			SourceClusterID: "source", SourceGeneration: "source-gen",
+			TargetClusterID: "target", TargetGeneration: "target-gen",
+			HashSlotCount: 1, Status: backupusecase.RestoreStatusVerified,
+			CreatedAtUnixMillis:  now.Add(-time.Hour).UnixMilli(),
+			UpdatedAtUnixMillis:  now.Add(-time.Minute).UnixMilli(),
+			VerifiedAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
+			Partitions:           []backupusecase.RestorePartition{part},
+		},
+	}}
+	app, err := backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
+		Enabled: true, Store: store, Inspector: fakeRestoreInspector{},
+		Verifier: fakeRestoreVerifier{}, Cleaner: &fakeRestoreCleaner{},
+		Now:        func() time.Time { return now },
+		NewPlanID:  func() string { return "unused" },
+		NewAuditID: func() string { return "break-glass-audit-1" },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := backupusecase.RestoreActivationRequest{
+		BreakGlassReason: "The source cluster and every Controller disk were physically destroyed.",
+		Operator:         "incident-commander",
+	}
+	plan, err := app.Activate(context.Background(), store.state.Plan.ID, request)
+	if err != nil {
+		t.Fatalf("Activate(break-glass): %v", err)
+	}
+	if plan.Activation == nil ||
+		plan.Activation.Kind != backupartifact.RestoreActivationBreakGlass ||
+		plan.Activation.BreakGlass == nil ||
+		plan.Activation.BreakGlass.Operator != request.Operator ||
+		plan.Activation.BreakGlass.Reason != request.BreakGlassReason {
+		t.Fatalf("break-glass audit = %#v", plan.Activation)
+	}
+	if _, err := app.Activate(
+		context.Background(), plan.ID,
+		backupusecase.RestoreActivationRequest{
+			BreakGlassReason: "A different unreviewed reason that must not replace the audit.",
+			Operator:         request.Operator,
+		},
+	); !errors.Is(err, backupusecase.ErrRestoreTransition) {
+		t.Fatalf("Activate(replace audit) = %v", err)
+	}
+	retry, err := app.Activate(context.Background(), plan.ID, request)
+	if err != nil || retry.Activation.EvidenceSHA256 != plan.Activation.EvidenceSHA256 {
+		t.Fatalf("Activate(idempotent break-glass) = %#v, %v", retry.Activation, err)
+	}
+}
+
+func TestRestoreActivationResumesCleanupWithoutReplacingAudit(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000).UTC()
+	part := completeRestorePartition(
+		backupusecase.RestorePartition{
+			HashSlot: 0, Status: backupusecase.RestorePartitionConverged,
+			ReplicaCount: 1,
+		},
+		now.UnixMilli(),
+	)
+	part.Verified = true
+	store := &memoryRestoreStore{state: backupusecase.RestoreState{
+		Plan: &backupusecase.RestorePlan{
+			ID: "plan-cleanup-resume", RestorePointID: "checkpoint-1",
+			ManifestSHA256:  strings.Repeat("a", 64),
+			SourceClusterID: "source", SourceGeneration: "source-gen",
+			TargetClusterID: "target", TargetGeneration: "target-gen",
+			HashSlotCount: 1, Status: backupusecase.RestoreStatusVerified,
+			CreatedAtUnixMillis:  now.Add(-time.Hour).UnixMilli(),
+			UpdatedAtUnixMillis:  now.Add(-time.Minute).UnixMilli(),
+			VerifiedAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
+			Partitions:           []backupusecase.RestorePartition{part},
+		},
+	}}
+	cleanupErr := errors.New("node 3 is temporarily unavailable")
+	cleaner := &fakeRestoreCleaner{err: cleanupErr}
+	auditIDs := 0
+	app, err := backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
+		Enabled: true, Store: store, Inspector: fakeRestoreInspector{},
+		Verifier: fakeRestoreVerifier{}, Cleaner: cleaner,
+		Now:       func() time.Time { return now },
+		NewPlanID: func() string { return "unused" },
+		NewAuditID: func() string {
+			auditIDs++
+			return "break-glass-audit-resume"
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := backupusecase.RestoreActivationRequest{
+		BreakGlassReason: "All source Controller disks are unrecoverable.",
+		Operator:         "incident-commander",
+	}
+	intermediate, err := app.Activate(
+		context.Background(), store.state.Plan.ID, request,
+	)
+	if !errors.Is(err, cleanupErr) ||
+		intermediate.Status != backupusecase.RestoreStatusActivating ||
+		intermediate.Activation == nil ||
+		intermediate.Activation.BreakGlass == nil {
+		t.Fatalf("Activate(cleanup failure) plan=%#v err=%v", intermediate, err)
+	}
+	auditID := intermediate.Activation.BreakGlass.ID
+	cleaner.err = nil
+	finished, err := app.Activate(
+		context.Background(), store.state.Plan.ID, request,
+	)
+	if err != nil || finished.Status != backupusecase.RestoreStatusActivated ||
+		finished.Activation == nil || finished.Activation.BreakGlass == nil ||
+		finished.Activation.BreakGlass.ID != auditID ||
+		finished.StagingCleanupCompletedAtUnixMillis <= 0 ||
+		auditIDs != 1 || cleaner.calls != 2 {
+		t.Fatalf(
+			"Activate(resume) plan=%#v err=%v auditIDs=%d cleanup=%d",
+			finished, err, auditIDs, cleaner.calls,
+		)
+	}
+}
+
+func TestRestoreActivationRejectsIncompleteFinalEvidence(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000).UTC()
+	partitions := make([]backupusecase.RestorePartition, 2)
+	for index := range partitions {
+		partitions[index] = completeRestorePartition(
+			backupusecase.RestorePartition{
+				HashSlot: uint16(index), Status: backupusecase.RestorePartitionConverged,
+				ReplicaCount: 2,
+			},
+			now.Add(-time.Minute).UnixMilli(),
+		)
+		partitions[index].Verified = true
+	}
+	erasureErr := errors.New("erasure ledger was not applied through the selected checkpoint")
+	tests := []struct {
+		name   string
+		verify func(backupusecase.RestorePlan) ([]backupusecase.RestorePartition, error)
+	}{
+		{
+			name: "missing hash slot",
+			verify: func(plan backupusecase.RestorePlan) ([]backupusecase.RestorePartition, error) {
+				return append([]backupusecase.RestorePartition(nil), plan.Partitions[:1]...), nil
+			},
+		},
+		{
+			name: "digest mismatch",
+			verify: func(plan backupusecase.RestorePlan) ([]backupusecase.RestorePartition, error) {
+				result := append([]backupusecase.RestorePartition(nil), plan.Partitions...)
+				result[0].ContentSHA256 = strings.Repeat("d", 64)
+				return result, nil
+			},
+		},
+		{
+			name: "erasure ledger not applied",
+			verify: func(backupusecase.RestorePlan) ([]backupusecase.RestorePartition, error) {
+				return nil, erasureErr
+			},
+		},
+		{
+			name: "replica not converged",
+			verify: func(plan backupusecase.RestorePlan) ([]backupusecase.RestorePartition, error) {
+				result := append([]backupusecase.RestorePartition(nil), plan.Partitions...)
+				result[1].ConvergedReplicas--
+				return result, nil
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := &memoryRestoreStore{state: backupusecase.RestoreState{
+				Plan: &backupusecase.RestorePlan{
+					ID: "plan-final-evidence", RestorePointID: "checkpoint-final-evidence",
+					ManifestSHA256:  strings.Repeat("a", 64),
+					SourceClusterID: "source", SourceGeneration: "source-gen",
+					TargetClusterID: "target", TargetGeneration: "target-gen",
+					HashSlotCount: 2, Status: backupusecase.RestoreStatusVerified,
+					CreatedAtUnixMillis:  now.Add(-time.Hour).UnixMilli(),
+					UpdatedAtUnixMillis:  now.Add(-time.Minute).UnixMilli(),
+					VerifiedAtUnixMillis: now.Add(-time.Minute).UnixMilli(),
+					Partitions:           append([]backupusecase.RestorePartition(nil), partitions...),
+				},
+			}}
+			cleaner := &fakeRestoreCleaner{}
+			app, err := backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
+				Enabled: true, Store: store, Inspector: fakeRestoreInspector{},
+				Verifier: restoreVerifierFunc(test.verify), Cleaner: cleaner,
+				Now:       func() time.Time { return now },
+				NewPlanID: func() string { return "unused" },
+				NewAuditID: func() string {
+					return "break-glass-final-evidence"
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = app.Activate(
+				context.Background(), store.state.Plan.ID,
+				backupusecase.RestoreActivationRequest{
+					BreakGlassReason: "The source Controller quorum is permanently unrecoverable.",
+					Operator:         "incident-commander",
+				},
+			)
+
+			if err == nil {
+				t.Fatal("Activate() error = nil")
+			}
+			if store.state.Plan.Status != backupusecase.RestoreStatusVerified {
+				t.Fatalf("plan status = %q, want verified", store.state.Plan.Status)
+			}
+			if cleaner.calls != 0 {
+				t.Fatalf("cleanup calls = %d, want 0", cleaner.calls)
+			}
+		})
 	}
 }
 
@@ -121,7 +448,8 @@ func TestCheckpointRestorePersistsLeaderAttemptAndConvergenceEvidence(t *testing
 			ErasureLedgerVersion: backupartifact.ErasureLedgerSnapshotVersion,
 			ErasureLedgerSHA256:  backupartifact.EmptyErasureLedgerSnapshotSHA256,
 		}},
-		Verifier: fakeRestoreVerifier{}, Now: func() time.Time { return now },
+		Verifier: fakeRestoreVerifier{}, Cleaner: &fakeRestoreCleaner{},
+		Now:       func() time.Time { return now },
 		NewPlanID: func() string { return "checkpoint-plan" },
 	})
 	if err != nil {
@@ -250,7 +578,8 @@ func TestCheckpointRestoreProgressReportsThroughputAndETA(t *testing.T) {
 	app, err := backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
 		Enabled: true, Store: store,
 		Inspector: fakeRestoreInspector{}, Verifier: fakeRestoreVerifier{},
-		Now: func() time.Time { return now }, NewPlanID: func() string { return "unused" },
+		Cleaner: &fakeRestoreCleaner{},
+		Now:     func() time.Time { return now }, NewPlanID: func() string { return "unused" },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -345,4 +674,56 @@ func (fakeRestoreVerifier) VerifyRestore(_ context.Context, plan backupusecase.R
 		result[index].Verified = true
 	}
 	return result, nil
+}
+
+type restoreVerifierFunc func(
+	backupusecase.RestorePlan,
+) ([]backupusecase.RestorePartition, error)
+
+func (f restoreVerifierFunc) VerifyRestore(
+	_ context.Context,
+	plan backupusecase.RestorePlan,
+) ([]backupusecase.RestorePartition, error) {
+	return f(plan)
+}
+
+type fakeRestoreCleaner struct {
+	calls int
+	err   error
+}
+
+func (f *fakeRestoreCleaner) CleanupRestoreStaging(
+	_ context.Context,
+	_ backupusecase.RestorePlan,
+) error {
+	f.calls++
+	return f.err
+}
+
+type restoreTestSigner struct {
+	privateKey ed25519.PrivateKey
+}
+
+func (s restoreTestSigner) Sign(
+	_ context.Context,
+	keyID string,
+	message []byte,
+) (backupartifact.ManifestSignature, error) {
+	return backupartifact.ManifestSignature{
+		Algorithm: "ed25519", KeyID: keyID,
+		Value: ed25519.Sign(s.privateKey, message),
+	}, nil
+}
+
+func (s restoreTestSigner) Verify(
+	_ context.Context,
+	signature backupartifact.ManifestSignature,
+	message []byte,
+) error {
+	publicKey := s.privateKey.Public().(ed25519.PublicKey)
+	if signature.Algorithm != "ed25519" ||
+		!ed25519.Verify(publicKey, message, signature.Value) {
+		return backupartifact.ErrInvalidSignature
+	}
+	return nil
 }

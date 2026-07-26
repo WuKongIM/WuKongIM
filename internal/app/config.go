@@ -102,32 +102,30 @@ type BackupConfig struct {
 	SigningKeyID string
 	// TrustedSigningKeyIDs lists retained previous signing keys accepted only when verifying historical restore points.
 	TrustedSigningKeyIDs []string
-	// GarbageCollectorRoleARN is the separately authorized AWS-compatible role assumed only for immutable-version deletion.
-	GarbageCollectorRoleARN string
 	// KMSRegion is the AWS-compatible signing region used for encryption and manifest-signing calls.
 	KMSRegion string
 	// KMSEndpoint optionally overrides the AWS KMS API origin for a compatible provider.
 	KMSEndpoint string
-	// IncrementalInterval controls how often the Controller Leader reevaluates the incremental schedule.
-	IncrementalInterval time.Duration
-	// RestorePointInterval controls how often verified increments become published recovery points.
-	RestorePointInterval time.Duration
-	// SyntheticFullInterval is the target independent-full cadence; the current safe fallback rereads source data.
-	SyntheticFullInterval time.Duration
-	// ChunkSizeBytes bounds plaintext bytes read into one encrypted repository object.
-	ChunkSizeBytes uint64
+	// CaptureReconcileInterval is the correctness poll used when commit wake hints are lost.
+	CaptureReconcileInterval time.Duration
+	// CheckpointInterval controls automatic publication of the latest durable cluster-wide frontier.
+	CheckpointInterval time.Duration
+	// BaselineChunkBytes bounds plaintext bytes read into one materialized replacement-baseline object.
+	BaselineChunkBytes uint64
+	// TargetSegmentBytes is the ordinary rolling target for one continuous-capture segment.
+	TargetSegmentBytes uint64
+	// MaxSegmentOpenDuration bounds the durability latency of a sparse non-empty segment.
+	MaxSegmentOpenDuration time.Duration
 	// StagingMaxBytes bounds node-local disk space reserved for backup staging.
 	StagingMaxBytes uint64
-	// MaxParallelPartitions bounds backup partition work admitted on one node.
-	MaxParallelPartitions int
+	// WorkerCount bounds concurrent capture or restore partition work admitted on one node.
+	WorkerCount int
 	// SourcePinMaxAge is the hard lifetime of one Hash Slot Raft-log
 	// compaction hold before that Slot must build a replacement baseline.
 	SourcePinMaxAge time.Duration
 	// MaxSourcePinnedBytes is the hard aggregate estimate of Slot Raft-log
 	// bytes that backup may retain on one node before rebasing one victim Slot.
 	MaxSourcePinnedBytes uint64
-	// MonthlyRetentionMonths controls optional monthly materialized-full retention; zero disables it.
-	MonthlyRetentionMonths int
 	// ObjectLockDays is the minimum per-object compliance retention applied to every repository write.
 	ObjectLockDays int
 	// Primary configures the first independently verified S3-compatible repository.
@@ -149,12 +147,16 @@ type BackupRepositoryConfig struct {
 }
 
 const (
-	defaultBackupChunkSizeBytes  = 8 * 1024 * 1024
-	maximumBackupChunkSizeBytes  = 256 * 1024 * 1024
-	defaultBackupStagingMaxBytes = 10 * 1024 * 1024 * 1024
-	defaultBackupSourcePinMaxAge = time.Hour
-	defaultBackupMaxPinnedBytes  = 8 * 1024 * 1024 * 1024
-	maximumBackupParallelWorkers = 256
+	defaultBackupBaselineChunkBytes  = 8 * 1024 * 1024
+	defaultBackupTargetSegmentBytes  = 64 * 1024 * 1024
+	maximumBackupObjectBytes         = 256 * 1024 * 1024
+	defaultBackupStagingMaxBytes     = 10 * 1024 * 1024 * 1024
+	defaultBackupSourcePinMaxAge     = time.Hour
+	defaultBackupMaxPinnedBytes      = 8 * 1024 * 1024 * 1024
+	maximumBackupParallelWorkers     = 64
+	defaultBackupReconcileInterval   = 30 * time.Second
+	defaultBackupCheckpointInterval  = 5 * time.Minute
+	defaultBackupSegmentOpenDuration = 30 * time.Second
 )
 
 // NormalizeBackupConfig applies safe policy defaults and validates the complete
@@ -165,23 +167,26 @@ func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
 		return BackupConfig{}, err
 	}
 	cfg.TrustedSigningKeyIDs = trustedSigningKeyIDs
-	if cfg.IncrementalInterval == 0 {
-		cfg.IncrementalInterval = time.Minute
+	if cfg.CaptureReconcileInterval == 0 {
+		cfg.CaptureReconcileInterval = defaultBackupReconcileInterval
 	}
-	if cfg.RestorePointInterval == 0 {
-		cfg.RestorePointInterval = 5 * time.Minute
+	if cfg.CheckpointInterval == 0 {
+		cfg.CheckpointInterval = defaultBackupCheckpointInterval
 	}
-	if cfg.SyntheticFullInterval == 0 {
-		cfg.SyntheticFullInterval = 24 * time.Hour
+	if cfg.BaselineChunkBytes == 0 {
+		cfg.BaselineChunkBytes = defaultBackupBaselineChunkBytes
 	}
-	if cfg.ChunkSizeBytes == 0 {
-		cfg.ChunkSizeBytes = defaultBackupChunkSizeBytes
+	if cfg.TargetSegmentBytes == 0 {
+		cfg.TargetSegmentBytes = defaultBackupTargetSegmentBytes
+	}
+	if cfg.MaxSegmentOpenDuration == 0 {
+		cfg.MaxSegmentOpenDuration = defaultBackupSegmentOpenDuration
 	}
 	if cfg.StagingMaxBytes == 0 {
 		cfg.StagingMaxBytes = defaultBackupStagingMaxBytes
 	}
-	if cfg.MaxParallelPartitions == 0 {
-		cfg.MaxParallelPartitions = 4
+	if cfg.WorkerCount == 0 {
+		cfg.WorkerCount = 4
 	}
 	if cfg.SourcePinMaxAge == 0 {
 		cfg.SourcePinMaxAge = defaultBackupSourcePinMaxAge
@@ -220,32 +225,32 @@ func validateBackupConfig(cfg BackupConfig) error {
 	if cfg.Enabled && cfg.RestoreMode {
 		return fmt.Errorf("%w: automatic backup and restore mode are mutually exclusive", ErrInvalidConfig)
 	}
-	if cfg.IncrementalInterval <= 0 {
-		return fmt.Errorf("%w: backup incremental interval must be positive", ErrInvalidConfig)
+	if cfg.CaptureReconcileInterval <= 0 {
+		return fmt.Errorf("%w: backup capture reconcile interval must be positive", ErrInvalidConfig)
 	}
-	if cfg.RestorePointInterval <= 0 || cfg.IncrementalInterval > cfg.RestorePointInterval {
-		return fmt.Errorf("%w: backup restore point interval must be positive and not shorter than the incremental interval", ErrInvalidConfig)
+	if cfg.CheckpointInterval <= 0 || cfg.CaptureReconcileInterval > cfg.CheckpointInterval {
+		return fmt.Errorf("%w: backup checkpoint interval must be positive and not shorter than the capture reconcile interval", ErrInvalidConfig)
 	}
-	if cfg.SyntheticFullInterval < cfg.RestorePointInterval {
-		return fmt.Errorf("%w: backup synthetic full interval must not be shorter than the restore point interval", ErrInvalidConfig)
+	if cfg.MaxSegmentOpenDuration <= 0 || cfg.MaxSegmentOpenDuration > cfg.CheckpointInterval {
+		return fmt.Errorf("%w: backup max segment open duration must be positive and not longer than the checkpoint interval", ErrInvalidConfig)
 	}
-	if cfg.ChunkSizeBytes < 1024*1024 || cfg.ChunkSizeBytes > maximumBackupChunkSizeBytes {
-		return fmt.Errorf("%w: backup chunk size must be between 1 MiB and 256 MiB", ErrInvalidConfig)
+	if cfg.BaselineChunkBytes < 1024*1024 || cfg.BaselineChunkBytes > maximumBackupObjectBytes {
+		return fmt.Errorf("%w: backup baseline chunk bytes must be between 1 MiB and 256 MiB", ErrInvalidConfig)
 	}
-	if cfg.StagingMaxBytes < cfg.ChunkSizeBytes {
-		return fmt.Errorf("%w: backup staging quota must be at least one chunk", ErrInvalidConfig)
+	if cfg.TargetSegmentBytes < 1024*1024 || cfg.TargetSegmentBytes > maximumBackupObjectBytes {
+		return fmt.Errorf("%w: backup target segment bytes must be between 1 MiB and 256 MiB", ErrInvalidConfig)
 	}
-	if cfg.MaxParallelPartitions <= 0 || cfg.MaxParallelPartitions > maximumBackupParallelWorkers {
-		return fmt.Errorf("%w: backup parallel partitions must be between 1 and %d", ErrInvalidConfig, maximumBackupParallelWorkers)
+	if cfg.StagingMaxBytes < cfg.BaselineChunkBytes {
+		return fmt.Errorf("%w: backup staging quota must be at least one baseline chunk", ErrInvalidConfig)
+	}
+	if cfg.WorkerCount <= 0 || cfg.WorkerCount > maximumBackupParallelWorkers {
+		return fmt.Errorf("%w: backup worker count must be between 1 and %d", ErrInvalidConfig, maximumBackupParallelWorkers)
 	}
 	if cfg.SourcePinMaxAge <= 0 {
 		return fmt.Errorf("%w: backup source pin max age must be positive", ErrInvalidConfig)
 	}
 	if cfg.MaxSourcePinnedBytes < 1024*1024 {
 		return fmt.Errorf("%w: backup max source pinned bytes must be at least 1 MiB", ErrInvalidConfig)
-	}
-	if cfg.MonthlyRetentionMonths < 0 || cfg.MonthlyRetentionMonths > 120 {
-		return fmt.Errorf("%w: backup monthly retention months must be between 0 and 120", ErrInvalidConfig)
 	}
 	if cfg.Enabled && (cfg.ObjectLockDays < 7 || cfg.ObjectLockDays > 36500) {
 		return fmt.Errorf("%w: backup object lock days must be between 7 and 36500", ErrInvalidConfig)
@@ -270,9 +275,6 @@ func validateBackupConfig(cfg BackupConfig) error {
 	}
 	if strings.TrimSpace(cfg.SigningKeyID) == "" {
 		return fmt.Errorf("%w: backup manifest signing key id is required", ErrInvalidConfig)
-	}
-	if cfg.Enabled && strings.TrimSpace(cfg.GarbageCollectorRoleARN) == "" {
-		return fmt.Errorf("%w: backup garbage collector role ARN is required to separate upload and deletion authority", ErrInvalidConfig)
 	}
 	if strings.TrimSpace(cfg.KMSRegion) == "" {
 		return fmt.Errorf("%w: backup KMS region is required", ErrInvalidConfig)

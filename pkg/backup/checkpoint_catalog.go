@@ -299,16 +299,50 @@ func validateCheckpoint(checkpoint Checkpoint, requireSignature bool) error {
 	}
 	var effective int64
 	for index, slot := range checkpoint.Slots {
-		if slot.HashSlot != uint16(index) || validateRestorePointID(slot.Generation) != nil ||
-			validateCheckpointBaseline(slot.Baseline, slot.HashSlot) != nil ||
-			slot.WatermarkAtUnixMillis <= 0 ||
+		if slot.HashSlot != uint16(index) ||
+			validateRestorePointID(slot.Generation) != nil {
+			return fmt.Errorf(
+				"%w: checkpoint Slot[%d] identity is invalid",
+				ErrInvalidObject, index,
+			)
+		}
+		if err := validateCheckpointBaseline(slot.Baseline, slot.HashSlot); err != nil {
+			return fmt.Errorf(
+				"%w: checkpoint Slot[%d] baseline is invalid",
+				ErrInvalidObject, index,
+			)
+		}
+		if slot.WatermarkAtUnixMillis <= 0 ||
 			slot.WatermarkAtUnixMillis != olderCheckpointTime(
 				slot.Metadata.WatermarkAtUnixMillis,
 				slot.Messages.WatermarkAtUnixMillis,
-			) ||
-			validateCheckpointStream(slot.Metadata, false) != nil ||
-			validateCheckpointStream(slot.Messages, true) != nil {
-			return fmt.Errorf("%w: checkpoint Slot[%d] is invalid", ErrInvalidObject, index)
+			) {
+			return fmt.Errorf(
+				"%w: checkpoint Slot[%d] watermark is invalid",
+				ErrInvalidObject, index,
+			)
+		}
+		if err := validateCheckpointStream(slot.Metadata, false); err != nil {
+			return fmt.Errorf(
+				"%w: checkpoint Slot[%d] metadata stream is invalid "+
+					"(sequence=%d head=%t cursor_head=%t source_high_watermark=%d "+
+					"watermark_at_unix_millis=%d)",
+				ErrInvalidObject, index, slot.Metadata.Sequence,
+				slot.Metadata.Head != nil, slot.Metadata.CursorHead != nil,
+				slot.Metadata.SourceHighWatermark,
+				slot.Metadata.WatermarkAtUnixMillis,
+			)
+		}
+		if err := validateCheckpointStream(slot.Messages, true); err != nil {
+			return fmt.Errorf(
+				"%w: checkpoint Slot[%d] message stream is invalid "+
+					"(sequence=%d head=%t cursor_head=%t source_high_watermark=%d "+
+					"watermark_at_unix_millis=%d)",
+				ErrInvalidObject, index, slot.Messages.Sequence,
+				slot.Messages.Head != nil, slot.Messages.CursorHead != nil,
+				slot.Messages.SourceHighWatermark,
+				slot.Messages.WatermarkAtUnixMillis,
+			)
 		}
 		effective = olderCheckpointTime(effective, slot.WatermarkAtUnixMillis)
 	}

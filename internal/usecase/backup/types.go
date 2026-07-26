@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 var (
@@ -33,7 +34,12 @@ var (
 	ErrDoctorUnhealthy = errors.New("backup usecase: doctor is not healthy")
 	// ErrControllerLeaderUnavailable reports that the current coordinator cannot be reached safely.
 	ErrControllerLeaderUnavailable = errors.New("backup usecase: controller leader unavailable")
+	// ErrSourceFenceExists reports a conflicting request after the generation was irreversibly fenced.
+	ErrSourceFenceExists = errors.New("backup usecase: source generation is already fenced")
 )
+
+type SourceFenceRecord = backupartifact.SourceFenceRecord
+type SourceFenceReceipt = backupartifact.SourceFenceReceipt
 
 type JobStatus = backupcontract.JobStatus
 
@@ -82,6 +88,7 @@ type RetentionPolicy = backupcontract.RetentionPolicy
 type RetentionDecision = backupcontract.RetentionDecision
 type GarbageCollectionResult = backupcontract.GarbageCollectionResult
 type DoctorReport = backupcontract.DoctorReport
+type SlotCaptureStatus = backupcontract.SlotCaptureStatus
 
 func cloneRestorePoints(points []RestorePoint) []RestorePoint {
 	return backupcontract.CloneRestorePoints(points)
@@ -118,13 +125,11 @@ type RestorePointPage struct {
 
 // PolicySnapshot is the non-secret effective backup policy exposed to operators.
 type PolicySnapshot struct {
-	IncrementalIntervalSeconds      int64
-	RestorePointIntervalSeconds     int64
-	IndependentFullIntervalSeconds  int64
-	MaterializedFullIntervalSeconds int64
-	MonthlyRetentionMonths          int
+	CaptureReconcileIntervalSeconds int64
+	CheckpointIntervalSeconds       int64
+	TargetSegmentBytes              int64
+	CaptureWorkerCount              int
 	ObjectLockDays                  int
-	MaxParallelPartitions           int
 	StagingMaxBytes                 uint64
 	SourcePinMaxAgeSeconds          int64
 	MaxSourcePinnedBytes            uint64
@@ -212,6 +217,8 @@ type StatusSnapshot struct {
 	Active *Job
 	// Latest is the newest published restore point, when present.
 	Latest *RestorePoint
+	// LatestCheckpoint is the newest immutable continuous recovery point.
+	LatestCheckpoint *CheckpointSummary
 	// Verification is the latest durable manual verification task, when present.
 	Verification *VerificationTask
 	// VerificationAgeSeconds is nil until one scheduled or manual full repository audit succeeds.
@@ -238,6 +245,9 @@ type StatusSnapshot struct {
 	Capacity CapacitySnapshot
 	// CaptureLeases is the bounded sanitized durable lease view for every initialized Hash Slot.
 	CaptureLeases []CaptureLeaseSnapshot
+	// CaptureStatuses is the bounded node-local worker projection used to
+	// diagnose capture progress independently from durable frontier authority.
+	CaptureStatuses []backupcontract.SlotCaptureStatus
 	// ErasureStreams exposes only per-Slot sequence and pending progress.
 	ErasureStreams []ErasureStreamProgress
 }

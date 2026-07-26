@@ -398,6 +398,9 @@ type BackupIntegrityAuditState struct {
 
 // BackupCoordinationState stores only bounded backup coordination metadata in Controller Raft.
 type BackupCoordinationState struct {
+	// SourceFence is the irreversible generation-level write fence used to
+	// authorize one exact successor restore plan.
+	SourceFence *backupartifact.SourceFenceRecord `json:"source_fence,omitempty"`
 	// LastEpoch is the latest allocated backup epoch.
 	LastEpoch uint64 `json:"last_epoch"`
 	// Active contains the only active job, when present.
@@ -426,6 +429,10 @@ type BackupCoordinationState struct {
 // Clone returns a deep copy safe for normalization and mutation.
 func (s BackupCoordinationState) Clone() BackupCoordinationState {
 	out := s
+	if s.SourceFence != nil {
+		sourceFence := *s.SourceFence
+		out.SourceFence = &sourceFence
+	}
 	if s.Active != nil {
 		job := *s.Active
 		job.Partitions = cloneSlice(s.Active.Partitions)

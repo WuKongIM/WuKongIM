@@ -72,8 +72,8 @@ type BackupSourceConfig struct {
 	HashSlotCount uint16
 	// ChannelReplicaCount configures Channel placement durability when non-zero.
 	ChannelReplicaCount uint16
-	// MaxParallelPartitions bounds concurrent partition captures.
-	MaxParallelPartitions int
+	// WorkerCount bounds concurrent Hash Slot capture work on one node.
+	WorkerCount int
 }
 
 type backupRestorePointListDTO struct {
@@ -90,15 +90,15 @@ func BackupSourceNodeConfig(config BackupSourceConfig, nodeID uint64) map[string
 		"WK_BACKUP_STAGING_DIR":                filepath.Join(config.RepositoryRoot, fmt.Sprintf("source-staging-%d", nodeID)),
 		"WK_BACKUP_KMS_KEY_ID":                 "e2e-encryption-key",
 		"WK_BACKUP_SIGNING_KEY_ID":             "e2e-signing-key",
-		"WK_BACKUP_GARBAGE_COLLECTOR_ROLE_ARN": "arn:aws:iam::000000000000:role/e2e-gc",
 		"WK_BACKUP_KMS_REGION":                 "e2e-kms",
 		"WK_BACKUP_KMS_ENDPOINT":               "https://kms.e2e.invalid",
-		"WK_BACKUP_INCREMENTAL_INTERVAL":       "500ms",
-		"WK_BACKUP_RESTORE_POINT_INTERVAL":     "1h",
-		"WK_BACKUP_SYNTHETIC_FULL_INTERVAL":    "24h",
-		"WK_BACKUP_CHUNK_SIZE_BYTES":           "1048576",
-		"WK_BACKUP_STAGING_MAX_BYTES":          "8388608",
-		"WK_BACKUP_MAX_PARALLEL_PARTITIONS":    strconv.Itoa(config.MaxParallelPartitions),
+		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL": "500ms",
+		"WK_BACKUP_CHECKPOINT_INTERVAL":        "1h",
+		"WK_BACKUP_BASELINE_CHUNK_BYTES":       "1048576",
+		"WK_BACKUP_TARGET_SEGMENT_BYTES":       "1048576",
+		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":  "500ms",
+		"WK_BACKUP_STAGING_MAX_BYTES":          "67108864",
+		"WK_BACKUP_WORKER_COUNT":               strconv.Itoa(config.WorkerCount),
 		"WK_BACKUP_OBJECT_LOCK_DAYS":           "7",
 		"WK_BACKUP_PRIMARY_ENDPOINT":           "https://primary.e2e.invalid",
 		"WK_BACKUP_PRIMARY_REGION":             "e2e-primary",

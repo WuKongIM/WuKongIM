@@ -16,7 +16,7 @@ func TestThreeNodeBackupCompletesWhileControllerLeaderRemainsOffline(t *testing.
 	backupConfig := suite.BackupSourceConfig{
 		RepositoryRoot: repositoryRoot, RepositoryID: "e2e-controller-outage-repository",
 		SourceGeneration: "controller-outage-source-generation", ObjectPrefix: "controller-outage-cluster",
-		HashSlotCount: 64, ChannelReplicaCount: 2, MaxParallelPartitions: 1,
+		HashSlotCount: 64, ChannelReplicaCount: 2, WorkerCount: 1,
 	}
 	options := []suite.Option{suite.WithManagerHTTP()}
 	for nodeID := uint64(1); nodeID <= 3; nodeID++ {

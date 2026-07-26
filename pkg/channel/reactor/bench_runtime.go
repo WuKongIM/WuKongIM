@@ -228,6 +228,9 @@ func (r *Reactor) handleRuntimeSnapshot(event Event) {
 		if rc == nil || rc.state == nil {
 			continue
 		}
+		if pendingWorkViewFromChannel(rc).HasAppendWork() {
+			snapshot.PendingAppendChannels++
+		}
 		switch rc.state.Role {
 		case ch.RoleLeader:
 			snapshot.Leader++

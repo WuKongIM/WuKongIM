@@ -166,12 +166,22 @@ func TestBackupCheckpointReplicaRPCRoundTripsBoundedTransfer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleCheckpointReplica(status): %v", err)
 	}
+	cleaned, err := client.HandleCheckpointReplica(
+		context.Background(), 2,
+		backupcontract.CheckpointReplicaRequest{
+			Action: backupcontract.CheckpointReplicaCleanup, Fence: fence,
+		},
+	)
+	if err != nil {
+		t.Fatalf("HandleCheckpointReplica(cleanup): %v", err)
+	}
 	if node.serviceID != BackupCheckpointReplicaRPCServiceID ||
-		len(service.requests) != 3 ||
+		len(service.requests) != 4 ||
 		service.requests[1].File != files[0] ||
 		string(service.requests[1].Data) != "meta" ||
 		chunk.AcceptedOffset != 4 || !completed.Completed ||
-		completed.MetadataSHA256 != strings.Repeat("b", 64) {
+		completed.MetadataSHA256 != strings.Repeat("b", 64) ||
+		!cleaned.Completed {
 		t.Fatalf(
 			"rpc/service=%d requests=%#v chunk=%#v completed=%#v",
 			node.serviceID, service.requests, chunk, completed,
@@ -230,6 +240,8 @@ func (f *fakeBackupCheckpointReplicaReceiver) HandleCheckpointReplica(
 			Completed: true, MetadataSHA256: strings.Repeat("b", 64),
 			InstalledBytes: 4,
 		}, nil
+	case backupcontract.CheckpointReplicaCleanup:
+		return backupcontract.CheckpointReplicaResponse{Completed: true}, nil
 	default:
 		return backupcontract.CheckpointReplicaResponse{}, nil
 	}

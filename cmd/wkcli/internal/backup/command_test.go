@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 func TestBackupStatusUsesManagerAndBearerToken(t *testing.T) {
@@ -98,5 +101,121 @@ func TestBackupRestorePlanUsesExplicitRecoveryEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), `"status": "planned"`) {
 		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestBackupFenceSourceBindsExactSuccessor(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost ||
+				r.URL.Path != "/manager/backups/source-fence" {
+				t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+			}
+			var request map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode(): %v", err)
+			}
+			want := map[string]string{
+				"restore_plan_id": "plan-1",
+				"restore_point_id": "checkpoint-1",
+				"target_cluster_id": "target-cluster",
+				"target_generation": "target-generation-1",
+			}
+			for key, value := range want {
+				if request[key] != value {
+					t.Fatalf("request = %#v", request)
+				}
+			}
+			_, _ = w.Write([]byte(`{"id":"source-fence-1"}`))
+		},
+	))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{
+		"fence-source", "--server", server.URL,
+		"--restore-plan", "plan-1",
+		"--restore-point", "checkpoint-1",
+		"--target-cluster", "target-cluster",
+		"--target-generation", "target-generation-1",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute(): %v", err)
+	}
+	if !strings.Contains(stdout.String(), `"id": "source-fence-1"`) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestBackupRestoreActivateUsesReceiptFileAndRejectsAmbiguousEvidence(
+	t *testing.T,
+) {
+	receipt := backupartifact.SourceFenceReceipt{
+		SourceFenceRecord: backupartifact.SourceFenceRecord{
+			Format: backupartifact.SourceFenceReceiptFormat,
+			Version: backupartifact.SourceFenceReceiptVersion,
+			ID: "source-fence-1", SourceClusterID: "source",
+			SourceGeneration: "source-generation-1",
+			RestorePlanID: "plan-1", RestorePointID: "checkpoint-1",
+			ManifestSHA256: strings.Repeat("a", 64),
+			TargetClusterID: "target",
+			TargetGeneration: "target-generation-1",
+			FenceControllerRevision: 9,
+			RequestedAtUnixMillis: 1_800_000_000_000,
+			ConvergedAtUnixMillis: 1_800_000_001_000,
+		},
+		Signature: &backupartifact.ManifestSignature{
+			Algorithm: "ed25519", KeyID: "source-key", Value: []byte("signature"),
+		},
+	}
+	body, err := json.Marshal(receipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "source-fence.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost ||
+				r.URL.Path != "/manager/restore/plan-1/activate" {
+				t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+			}
+			var request struct {
+				Receipt backupartifact.SourceFenceReceipt `json:"source_fence_receipt"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode(): %v", err)
+			}
+			if request.Receipt.ID != receipt.ID ||
+				request.Receipt.RestorePlanID != receipt.RestorePlanID {
+				t.Fatalf("request receipt = %#v", request.Receipt)
+			}
+			_, _ = w.Write([]byte(`{"id":"plan-1","status":"activated"}`))
+		},
+	))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{
+		"restore", "activate", "plan-1",
+		"--source-fence-receipt", path,
+		"--server", server.URL,
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute(): %v", err)
+	}
+
+	cmd = NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{
+		"restore", "activate", "plan-1",
+		"--source-fence-receipt", path,
+		"--break-glass-reason", "All source Controllers are unavailable.",
+		"--server", server.URL,
+	})
+	if err := cmd.Execute(); err == nil ||
+		!strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("ambiguous Execute() error = %v", err)
 	}
 }

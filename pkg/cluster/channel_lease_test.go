@@ -33,6 +33,28 @@ func TestChannelDataPlaneLeaseGuardRejectsMissingOrExpiredLease(t *testing.T) {
 	}
 }
 
+func TestChannelDataPlaneLeaseGuardPermanentlyRejectsSourceFence(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	guard := newChannelDataPlaneLeaseGuard(
+		func() time.Time { return now }, 30*time.Second,
+	)
+	guard.MarkVisible(now)
+	guard.fenceSource()
+	guard.MarkVisible(now.Add(time.Second))
+
+	err := guard.AllowChannelAppend(
+		context.Background(), ch.AppendAdmissionRequest{},
+	)
+	if !errors.Is(err, ch.ErrNotReady) {
+		t.Fatalf("AllowChannelAppend() error = %v, want ErrNotReady", err)
+	}
+	var leaseErr *channelDataPlaneLeaseError
+	if !errors.As(err, &leaseErr) ||
+		leaseErr.reason != channelDataPlaneLeaseReasonSourceFenced {
+		t.Fatalf("AllowChannelAppend() error = %#v", err)
+	}
+}
+
 func TestChannelDataPlaneLeaseGuardReportsStableFailureReasons(t *testing.T) {
 	now := time.Unix(100, 0).UTC()
 	tests := []struct {

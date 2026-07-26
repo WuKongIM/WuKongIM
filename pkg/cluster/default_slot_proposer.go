@@ -28,6 +28,9 @@ type defaultSlotRuntime interface {
 type defaultSlotProposer struct {
 	// runtime is the local Slot Multi-Raft runtime.
 	runtime defaultSlotRuntime
+	// acquireAdmission linearizes ordinary Slot proposal admission against the
+	// one-way source fence. The returned release must cover the runtime enqueue.
+	acquireAdmission func() (release func(), err error)
 }
 
 // IsLocalLeader reports whether the local default Slot runtime leads slotID.
@@ -67,8 +70,19 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 	if propose.ProposalClassFromContext(ctx) == propose.ProposalClassBackground {
 		ctx = multiraft.WithProposalClass(ctx, multiraft.ProposalClassBackground)
 	}
+	release := func() {}
+	if p.acquireAdmission != nil {
+		release, err = p.acquireAdmission()
+		if err != nil {
+			return nil, err
+		}
+		if release == nil {
+			release = func() {}
+		}
+	}
 	started := time.Now()
 	future, err := p.runtime.Propose(ctx, multiraft.SlotID(slotID), multiraftPayload(hashSlot, command))
+	release()
 	propose.ObserveStage(ctx, defaultSlotStageMetaCreateSubmit, err, time.Since(started))
 	if err != nil {
 		return nil, mapMultiraftProposeError(err)

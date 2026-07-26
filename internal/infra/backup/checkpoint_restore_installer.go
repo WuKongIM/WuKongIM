@@ -517,8 +517,9 @@ func (i *CheckpointSlotInstaller) checkpointRestoreTargetStagingClaim(
 	claim := sourceBytes*4 + fixedScratchBytes
 	if claim > i.options.StagingMaxBytes {
 		return 0, fmt.Errorf(
-			"%w: checkpoint restore target claim exceeds node staging quota",
-			backupartifact.ErrInvalidObject,
+			"%w: checkpoint restore target claim %d exceeds node staging quota %d",
+			backupartifact.ErrInvalidObject, claim,
+			i.options.StagingMaxBytes,
 		)
 	}
 	return claim, nil

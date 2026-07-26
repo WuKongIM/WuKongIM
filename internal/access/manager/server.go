@@ -357,6 +357,7 @@ func (s *Server) registerRoutes() {
 		permissions.Use(s.requirePermission("cluster.permission", "r"))
 	}
 	permissions.GET("/permissions", s.handlePermissions)
+	s.registerRestoreStatusRoute()
 	if s.restoreMode {
 		s.registerRestoreRoutes()
 		return
@@ -440,10 +441,15 @@ func (s *Server) registerRoutes() {
 		backupWrites.Use(s.requirePermission("cluster.backup", "w"))
 	}
 	backupWrites.POST("/backups/trigger", s.handleBackupTrigger)
+	backupWrites.POST("/backups/checkpoints", s.handleBackupCheckpointPublish)
 	backupWrites.POST("/backups/restore-points/:restore_point_id/verify", s.handleBackupVerify)
 	backupWrites.POST("/backups/jobs/:job_id/cancel", s.handleBackupCancel)
 	backupWrites.POST("/backups/restore-points/:restore_point_id/hold", s.handleBackupHold)
 	backupWrites.POST("/backups/restore-points/:restore_point_id/release", s.handleBackupRelease)
+
+	sourceFence := s.engine.Group("/manager")
+	sourceFence.Use(s.requireExplicitPermission("cluster.backup.source_fence", "w"))
+	sourceFence.POST("/backups/source-fence", s.handleBackupSourceFence)
 
 	diagnostics := s.engine.Group("/manager")
 	if s.auth.enabled() {

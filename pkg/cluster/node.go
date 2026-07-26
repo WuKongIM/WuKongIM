@@ -189,6 +189,15 @@ type Node struct {
 	slotLeaderWG     sync.WaitGroup
 	started          atomic.Bool
 	stopping         atomic.Bool
+	// sourceFenceAdmissionMu linearizes the terminal source fence with the
+	// actual enqueue of ordinary Slot proposals, including forwarded requests.
+	sourceFenceAdmissionMu sync.RWMutex
+	sourceFenced           atomic.Bool
+	// sourceFenceRevision is the first Controller revision carrying the fence.
+	sourceFenceRevision atomic.Uint64
+	// sourceFenceConverged proves all locally admitted Slot and Channel writes
+	// completed before this node reports observing sourceFenceRevision.
+	sourceFenceConverged atomic.Bool
 }
 
 // preferredLeaderIntentGeneration linearizes snapshot invalidation against

@@ -2,11 +2,11 @@
 
 ## Responsibility
 
-`internal/runtime/backup` runs bounded node-local capture work and the
-Controller-Leader background loop. The loop executes scheduling decisions
-injected by `internal/app`, resumes cluster jobs, and dispatches logical
-partitions; policy rules remain in `internal/usecase/backup` and top-level
-restore-point publication remains behind the use-case port.
+`internal/runtime/backup` runs bounded node-local continuous capture and the
+Controller-Leader checkpoint loop. Every node reconciles only the Hash Slots
+it currently leads; the Controller Leader alone publishes complete immutable
+checkpoint vectors. Policy and restore lifecycle rules remain in
+`internal/usecase/backup`.
 
 ```text
 fenced CaptureRequest
@@ -50,10 +50,11 @@ follower convergence error. The coordinator publishes that report before
 surfacing the error, so Controller/Manager convergence never falls back to
 zero while the durable receipt retains successful replicas.
 
-## Continuous Capture Foundation
+## Production Continuous Capture
 
-The replacement capture path is implemented beside the current job runtime but
-is not composed into production entrypoints yet.
+The application composition root wires this path whenever automatic backup is
+enabled. The older job runtime remains only as uncomposed code pending its
+dedicated removal.
 
 ```text
 in-memory Channel commit hint -> CaptureEngine.Wake (bounded, non-blocking)

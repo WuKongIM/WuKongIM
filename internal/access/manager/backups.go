@@ -18,11 +18,13 @@ type BackupManagement interface {
 	ListRestorePointsPage(context.Context, backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error)
 	ListCheckpointsPage(context.Context, backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error)
 	CheckpointByID(context.Context, string) (backupusecase.CheckpointDetail, error)
+	PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error)
 	Trigger(context.Context, backupartifact.RestorePointKind) (backupusecase.Job, error)
 	Cancel(context.Context, string, uint64) (backupusecase.Job, error)
 	Hold(context.Context, string) (backupusecase.RestorePoint, error)
 	Release(context.Context, string) (backupusecase.RestorePoint, error)
 	StartVerification(context.Context, string) (backupusecase.VerificationTask, error)
+	FenceSource(context.Context, backupusecase.SourceFenceRequest) (backupusecase.SourceFenceReceipt, error)
 }
 
 type backupJobDTO struct {
@@ -70,6 +72,7 @@ type backupStatusDTO struct {
 	Dependencies               backupDependenciesDTO      `json:"dependencies"`
 	Capacity                   backupCapacityDTO          `json:"capacity"`
 	CaptureLeases              []backupCaptureLeaseDTO    `json:"capture_leases"`
+	CaptureStatuses            []backupCaptureStatusDTO   `json:"capture_statuses"`
 	ErasureStreams             []backupErasureStreamDTO   `json:"erasure_streams"`
 }
 
@@ -96,14 +99,25 @@ type backupCaptureLeaseDTO struct {
 	FrontierUpdatedUnixMillis    int64  `json:"frontier_updated_unix_millis"`
 }
 
+type backupCaptureStatusDTO struct {
+	HashSlot                  uint16 `json:"hash_slot"`
+	State                     string `json:"state"`
+	FailureCategory           string `json:"failure_category,omitempty"`
+	LeaseCurrent              bool   `json:"lease_current"`
+	FrontierRevision          uint64 `json:"frontier_revision"`
+	MetadataSourceWatermark   uint64 `json:"metadata_source_watermark"`
+	MessageSourceWatermark    uint64 `json:"message_source_watermark"`
+	MetadataFrontierWatermark uint64 `json:"metadata_frontier_watermark"`
+	MessageFrontierWatermark  uint64 `json:"message_frontier_watermark"`
+	ObservedAtUnixMillis      int64  `json:"observed_at_unix_millis"`
+}
+
 type backupPolicyDTO struct {
-	IncrementalIntervalSeconds      int64  `json:"incremental_interval_seconds"`
-	RestorePointIntervalSeconds     int64  `json:"restore_point_interval_seconds"`
-	IndependentFullIntervalSeconds  int64  `json:"independent_full_interval_seconds"`
-	MaterializedFullIntervalSeconds int64  `json:"materialized_full_interval_seconds"`
-	MonthlyRetentionMonths          int    `json:"monthly_retention_months"`
+	CaptureReconcileIntervalSeconds int64  `json:"capture_reconcile_interval_seconds"`
+	CheckpointIntervalSeconds       int64  `json:"checkpoint_interval_seconds"`
+	TargetSegmentBytes              int64  `json:"target_segment_bytes"`
+	CaptureWorkerCount              int    `json:"capture_worker_count"`
 	ObjectLockDays                  int    `json:"object_lock_days"`
-	MaxParallelPartitions           int    `json:"max_parallel_partitions"`
 	StagingMaxBytes                 uint64 `json:"staging_max_bytes"`
 	SourcePinMaxAgeSeconds          int64  `json:"source_pin_max_age_seconds"`
 	MaxSourcePinnedBytes            uint64 `json:"max_source_pinned_bytes"`
@@ -164,12 +178,25 @@ type backupCheckpointListDTO struct {
 	Total       int                                  `json:"total"`
 }
 
+type backupCheckpointPublicationDTO struct {
+	Checkpoint     backupCheckpointDTO                 `json:"checkpoint"`
+	ManifestSHA256 string                              `json:"manifest_sha256"`
+	CatalogHead    backupartifact.CatalogPageReference `json:"catalog_head"`
+}
+
 type backupTriggerRequestDTO struct {
 	Kind backupartifact.RestorePointKind `json:"kind"`
 }
 
 type backupCancelRequestDTO struct {
 	Epoch uint64 `json:"epoch"`
+}
+
+type backupSourceFenceRequestDTO struct {
+	RestorePlanID    string `json:"restore_plan_id"`
+	RestorePointID   string `json:"restore_point_id"`
+	TargetClusterID  string `json:"target_cluster_id"`
+	TargetGeneration string `json:"target_generation"`
 }
 
 type backupVerificationEvidenceDTO struct {
@@ -201,6 +228,32 @@ func (s *Server) handleBackupStatus(c *gin.Context) {
 	response := backupStatusResponse(status)
 	response.AuthEnabled = s.auth.enabled()
 	c.JSON(http.StatusOK, response)
+}
+
+func (s *Server) handleBackupSourceFence(c *gin.Context) {
+	if s == nil || s.backup == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
+		return
+	}
+	var request backupSourceFenceRequestDTO
+	if err := c.ShouldBindJSON(&request); err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid source fence request")
+		return
+	}
+	receipt, err := s.backup.FenceSource(
+		c.Request.Context(),
+		backupusecase.SourceFenceRequest{
+			RestorePlanID:    strings.TrimSpace(request.RestorePlanID),
+			RestorePointID:   strings.TrimSpace(request.RestorePointID),
+			TargetClusterID:  strings.TrimSpace(request.TargetClusterID),
+			TargetGeneration: strings.TrimSpace(request.TargetGeneration),
+		},
+	)
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, receipt)
 }
 
 func (s *Server) handleBackupRestorePoints(c *gin.Context) {
@@ -274,6 +327,23 @@ func (s *Server) handleBackupCheckpoints(c *gin.Context) {
 	c.JSON(http.StatusOK, backupCheckpointListDTO{
 		CatalogHead: page.CatalogHead,
 		Items:       items, NextCursor: page.NextCursor, Total: page.Total,
+	})
+}
+
+func (s *Server) handleBackupCheckpointPublish(c *gin.Context) {
+	if s == nil || s.backup == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
+		return
+	}
+	publication, err := s.backup.PublishCheckpoint(c.Request.Context())
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, backupCheckpointPublicationDTO{
+		Checkpoint:     backupCheckpointResponse(publication.Checkpoint),
+		ManifestSHA256: publication.ManifestSHA256,
+		CatalogHead:    publication.CatalogHead,
 	})
 }
 
@@ -381,9 +451,10 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 		MaxRecoveryPointAgeSeconds: status.MaxRecoveryPointAgeSeconds,
 		MaxVerificationAgeSeconds:  status.MaxVerificationAgeSeconds,
 		Policy:                     backupPolicyResponse(status.Policy), Dependencies: backupDependenciesResponse(status.Dependencies),
-		Capacity:       backupCapacityResponse(status.Capacity),
-		CaptureLeases:  backupCaptureLeaseResponses(status.CaptureLeases),
-		ErasureStreams: backupErasureStreamResponses(status.ErasureStreams),
+		Capacity:        backupCapacityResponse(status.Capacity),
+		CaptureLeases:   backupCaptureLeaseResponses(status.CaptureLeases),
+		CaptureStatuses: backupCaptureStatusResponses(status.CaptureStatuses),
+		ErasureStreams:  backupErasureStreamResponses(status.ErasureStreams),
 	}
 	if status.Active != nil {
 		active := backupJobResponse(*status.Active)
@@ -396,6 +467,26 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 	if status.Verification != nil {
 		verification := backupVerificationTaskResponse(*status.Verification)
 		result.Verification = &verification
+	}
+	return result
+}
+
+func backupCaptureStatusResponses(
+	statuses []backupusecase.SlotCaptureStatus,
+) []backupCaptureStatusDTO {
+	result := make([]backupCaptureStatusDTO, len(statuses))
+	for index, status := range statuses {
+		result[index] = backupCaptureStatusDTO{
+			HashSlot: status.HashSlot, State: string(status.State),
+			FailureCategory:           status.FailureCategory,
+			LeaseCurrent:              status.LeaseCurrent,
+			FrontierRevision:          status.Frontier.Revision,
+			MetadataSourceWatermark:   status.MetadataSourceWatermark,
+			MessageSourceWatermark:    status.MessageSourceWatermark,
+			MetadataFrontierWatermark: status.Frontier.Metadata.SourceHighWatermark,
+			MessageFrontierWatermark:  status.Frontier.Messages.SourceHighWatermark,
+			ObservedAtUnixMillis:      status.ObservedAtUnixMillis,
+		}
 	}
 	return result
 }
@@ -431,13 +522,13 @@ func backupCaptureLeaseResponses(leases []backupusecase.CaptureLeaseSnapshot) []
 
 func backupPolicyResponse(policy backupusecase.PolicySnapshot) backupPolicyDTO {
 	return backupPolicyDTO{
-		IncrementalIntervalSeconds:      policy.IncrementalIntervalSeconds,
-		RestorePointIntervalSeconds:     policy.RestorePointIntervalSeconds,
-		IndependentFullIntervalSeconds:  policy.IndependentFullIntervalSeconds,
-		MaterializedFullIntervalSeconds: policy.MaterializedFullIntervalSeconds,
-		MonthlyRetentionMonths:          policy.MonthlyRetentionMonths, ObjectLockDays: policy.ObjectLockDays,
-		MaxParallelPartitions: policy.MaxParallelPartitions, StagingMaxBytes: policy.StagingMaxBytes,
-		SourcePinMaxAgeSeconds: policy.SourcePinMaxAgeSeconds, MaxSourcePinnedBytes: policy.MaxSourcePinnedBytes,
+		CaptureReconcileIntervalSeconds: policy.CaptureReconcileIntervalSeconds,
+		CheckpointIntervalSeconds:       policy.CheckpointIntervalSeconds,
+		TargetSegmentBytes:              policy.TargetSegmentBytes,
+		CaptureWorkerCount:              policy.CaptureWorkerCount,
+		ObjectLockDays:                  policy.ObjectLockDays,
+		StagingMaxBytes:                 policy.StagingMaxBytes,
+		SourcePinMaxAgeSeconds:          policy.SourcePinMaxAgeSeconds, MaxSourcePinnedBytes: policy.MaxSourcePinnedBytes,
 		PrimaryRegion: policy.PrimaryRegion, SecondaryRegion: policy.SecondaryRegion, KMSRegion: policy.KMSRegion,
 	}
 }
@@ -519,6 +610,8 @@ func writeBackupError(c *gin.Context, err error) {
 		jsonError(c, http.StatusConflict, "backup_job_active", "a backup job is already active")
 	case errors.Is(err, backupusecase.ErrVerificationJobActive):
 		jsonError(c, http.StatusConflict, "verification_job_active", "a verification job is already active")
+	case errors.Is(err, backupusecase.ErrSourceFenceExists):
+		jsonError(c, http.StatusConflict, "source_fence_exists", "source generation is already fenced for a different restore plan")
 	case errors.Is(err, backupusecase.ErrStateConflict), errors.Is(err, backupusecase.ErrJobNotFound):
 		jsonError(c, http.StatusConflict, "state_conflict", "backup state changed")
 	case errors.Is(err, backupusecase.ErrRestorePointNotFound):

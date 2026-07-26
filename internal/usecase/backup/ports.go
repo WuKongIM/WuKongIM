@@ -15,6 +15,12 @@ type StateStore interface {
 	CompareAndSwap(ctx context.Context, revision uint64, next State) error
 }
 
+// SourceFenceConvergence waits until every active source data node reports
+// observing the irreversible Controller fence revision.
+type SourceFenceConvergence interface {
+	WaitForSourceFence(context.Context, backupartifact.SourceFenceRecord) error
+}
+
 // RestorePointPublisher verifies repositories and publishes one complete restore point.
 type RestorePointPublisher interface {
 	// Publish publishes a restore point for a job whose logical partitions are complete.

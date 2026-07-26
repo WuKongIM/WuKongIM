@@ -352,6 +352,19 @@ receipt. Permanent-erasure events replay one commit at a time into the
 session's disk-backed evidence index, avoiding million-entry key lists or
 in-memory Channel maps.
 
+Activation cleanup is a separate target-wide barrier after immutable activation
+evidence is durable. The cleaner resolves current placement for every Hash Slot
+and sends an exact cleanup request to every current desired replica with bounded
+parallelism. Each receiver revalidates its local Controller mirror, plan,
+checkpoint, manifest, partition, Slot, Leader term, config epoch, attempt, and
+convergence evidence before settling the quota claim and deleting only that
+attempt subtree. A crash leaves the plan in `activating`; the same request can
+repeat cleanup idempotently, while a different plan or stale fence is rejected.
+
+Source-fence convergence reads only Controller node-health evidence. Every
+active or leaving data node must report the fence revision and
+`runtime_ready=false`; removed or non-data nodes do not block the barrier.
+
 Before ordinary retention metadata advances, `PermanentErasureLedger` encrypts
 the Channel identity and boundary, publishes identical immutable ciphertext and
 signed record bytes to both repositories, reserves the next sequence for the

@@ -1737,6 +1737,23 @@ func (g *slot) waitIdleLocked() {
 	}
 }
 
+func (g *slot) proposalsQuiescent() bool {
+	if g == nil {
+		return false
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.processing || len(g.submittedProposals) > 0 || len(g.pendingProposals) > 0 {
+		return false
+	}
+	for _, action := range g.controls {
+		if action.kind == controlPropose {
+			return false
+		}
+	}
+	return true
+}
+
 func (g *slot) beginPinOperation() error {
 	g.mu.Lock()
 	defer g.mu.Unlock()

@@ -130,6 +130,75 @@ func TestCheckpointRestoreFinalVerifierRejectsReplicaEvidenceMismatch(
 	require.ErrorContains(t, err, "conflicting semantic evidence")
 }
 
+func TestCheckpointRestoreActivationCleanerTargetsEveryCurrentReplica(
+	t *testing.T,
+) {
+	node := &checkpointFinalVerifierNode{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			ClusterID: "target-cluster",
+			HashSlots: control.HashSlotTable{
+				Count:  1,
+				Ranges: []control.HashSlotRange{{From: 0, To: 0, SlotID: 11}},
+			},
+			Slots: []control.SlotAssignment{{
+				SlotID: 11, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 4,
+			}},
+			Nodes: []control.Node{
+				{NodeID: 1, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+				{NodeID: 2, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+				{NodeID: 3, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+			},
+		},
+	}
+	local := &checkpointFinalVerifierLocal{
+		response: backupcontract.CheckpointReplicaResponse{Completed: true},
+	}
+	remote := &checkpointFinalVerifierRemote{
+		responses: map[uint64]backupcontract.CheckpointReplicaResponse{
+			2: {Completed: true},
+			3: {Completed: true},
+		},
+		failures: map[uint64]int{3: 2},
+	}
+	cleaner, err := backupinfra.NewCheckpointRestoreActivationCleaner(
+		backupinfra.CheckpointRestoreActivationCleanerOptions{
+			Node: node, Local: local, Remote: remote, MaxParallel: 3,
+		},
+	)
+	require.NoError(t, err)
+	plan := checkpointFinalVerifierPlan(strings.Repeat("a", 64))
+	plan.Status = backupusecase.RestoreStatusActivating
+	audit := backupartifact.BreakGlassActivationAudit{
+		ID: "audit-1", RestorePlanID: plan.ID,
+		Operator:               "recovery-admin",
+		Reason:                 "All source Controller disks are permanently unavailable.",
+		AuthorizedAtUnixMillis: 1_800_000_000_000,
+	}
+	digest, err := backupartifact.BreakGlassActivationDigest(audit)
+	require.NoError(t, err)
+	plan.Activation = &backupartifact.RestoreActivationEvidence{
+		Kind:           backupartifact.RestoreActivationBreakGlass,
+		EvidenceSHA256: digest, Operator: audit.Operator,
+		RecordedAtUnixMillis: audit.AuthorizedAtUnixMillis,
+		BreakGlass:           &audit,
+	}
+
+	require.NoError(t, cleaner.CleanupRestoreStaging(
+		context.Background(), plan,
+	))
+	require.Len(t, local.requests, 1)
+	require.Len(t, remote.requests, 4)
+	for _, request := range append(
+		append([]backupcontract.CheckpointReplicaRequest(nil), local.requests...),
+		remote.requests...,
+	) {
+		require.Equal(t, backupcontract.CheckpointReplicaCleanup, request.Action)
+		require.Equal(t, plan.ID, request.Fence.PlanID)
+		require.Equal(t, uint64(7), request.Fence.Attempt)
+	}
+}
+
 func checkpointFinalVerifierPlan(
 	metadataSHA string,
 ) backupusecase.RestorePlan {
@@ -218,6 +287,7 @@ func (l *checkpointFinalVerifierLocal) HandleCheckpointReplica(
 type checkpointFinalVerifierRemote struct {
 	mu        sync.Mutex
 	responses map[uint64]backupcontract.CheckpointReplicaResponse
+	failures  map[uint64]int
 	requests  []backupcontract.CheckpointReplicaRequest
 }
 
@@ -229,6 +299,11 @@ func (r *checkpointFinalVerifierRemote) HandleCheckpointReplica(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.requests = append(r.requests, request)
+	if r.failures[nodeID] > 0 {
+		r.failures[nodeID]--
+		return backupcontract.CheckpointReplicaResponse{},
+			fmt.Errorf("node %d has not observed activation yet", nodeID)
+	}
 	response, ok := r.responses[nodeID]
 	if !ok {
 		return backupcontract.CheckpointReplicaResponse{},

@@ -71,6 +71,41 @@ func TestManagerBackupRPCRequiresVersionedRequestAndResponseMagic(t *testing.T) 
 	}
 }
 
+func TestManagerBackupRPCFencesSourceOnExactControllerLeader(t *testing.T) {
+	request := backupusecase.SourceFenceRequest{
+		RestorePlanID: "plan-1", RestorePointID: "checkpoint-1",
+		TargetClusterID:  "target-cluster",
+		TargetGeneration: "target-generation-1",
+	}
+	local := &fakeManagerBackupRPC{
+		sourceFenceReceipt: backupusecase.SourceFenceReceipt{
+			SourceFenceRecord: backupartifact.SourceFenceRecord{
+				ID: "source-fence-1",
+			},
+		},
+	}
+	adapter := NewManagerBackupAdapter(ManagerBackupOptions{
+		Local: local,
+		Leadership: &mutableManagerBackupLeadership{
+			local: 2, leader: 2,
+		},
+	})
+	raw := &fakeManagerBackupRPCNode{handler: adapter.HandleRPC}
+	receipt, err := NewClient(raw).ManagerBackupFenceSource(
+		context.Background(), 2, request,
+	)
+	if err != nil || receipt.ID != "source-fence-1" ||
+		local.sourceFenceCalls != 1 ||
+		local.sourceFenceRequest != request ||
+		raw.calls != 1 {
+		t.Fatalf(
+			"receipt=%#v err=%v local=%d request=%#v transport=%d",
+			receipt, err, local.sourceFenceCalls,
+			local.sourceFenceRequest, raw.calls,
+		)
+	}
+}
+
 type mutableManagerBackupLeadership struct {
 	local  uint64
 	leader uint64
@@ -90,10 +125,13 @@ func (n *fakeManagerBackupRPCNode) CallRPC(ctx context.Context, _ uint64, _ uint
 }
 
 type fakeManagerBackupRPC struct {
-	status       backupusecase.StatusSnapshot
-	statusCalls  int
-	triggerCalls int
-	triggerErr   error
+	status             backupusecase.StatusSnapshot
+	statusCalls        int
+	triggerCalls       int
+	triggerErr         error
+	sourceFenceRequest backupusecase.SourceFenceRequest
+	sourceFenceReceipt backupusecase.SourceFenceReceipt
+	sourceFenceCalls   int
 }
 
 func (f *fakeManagerBackupRPC) Status(context.Context) (backupusecase.StatusSnapshot, error) {
@@ -103,6 +141,10 @@ func (f *fakeManagerBackupRPC) Status(context.Context) (backupusecase.StatusSnap
 
 func (f *fakeManagerBackupRPC) ListRestorePointsPage(context.Context, backupusecase.RestorePointListRequest) (backupusecase.RestorePointPage, error) {
 	return backupusecase.RestorePointPage{}, nil
+}
+
+func (f *fakeManagerBackupRPC) PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error) {
+	return backupusecase.CheckpointPublication{}, nil
 }
 
 func (f *fakeManagerBackupRPC) Trigger(_ context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
@@ -124,4 +166,13 @@ func (f *fakeManagerBackupRPC) Release(context.Context, string) (backupusecase.R
 
 func (f *fakeManagerBackupRPC) StartVerification(context.Context, string) (backupusecase.VerificationTask, error) {
 	return backupusecase.VerificationTask{}, nil
+}
+
+func (f *fakeManagerBackupRPC) FenceSource(
+	_ context.Context,
+	request backupusecase.SourceFenceRequest,
+) (backupusecase.SourceFenceReceipt, error) {
+	f.sourceFenceCalls++
+	f.sourceFenceRequest = request
+	return f.sourceFenceReceipt, nil
 }

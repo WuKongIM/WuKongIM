@@ -94,6 +94,10 @@ coalesce flushed tasks across channels before entering the store adapter;
 `StoreAppendBatchMaxWait` can shorten that worker-side wait for low-latency
 profiles while zero keeps the default batching window.
 
+Runtime snapshots include a per-reactor count of channels with accepted append
+work still outstanding. This count is a bounded local quiescence proof used by
+the cluster source-fence barrier; it does not expose Channel identities.
+
 Leader reactors keep a configurable recent-record suffix cache for durable
 append records, defaulting to 128 records. Follower `Pull` requests that are
 covered by this suffix can complete from memory; older requests still use

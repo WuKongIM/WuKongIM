@@ -142,6 +142,7 @@ func (i *CheckpointCatalogIndex) Get(
 			ID: checkpoint.ID, CreatedAtUnixMillis: checkpoint.CreatedAtUnixMillis,
 			EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis, Held: reference.Held,
 		},
+		ManifestSHA256:  reference.SHA256,
 		SourceClusterID: checkpoint.SourceClusterID, SourceGeneration: checkpoint.SourceGeneration,
 		HashSlotCount: checkpoint.HashSlotCount,
 		ErasureHeads:  append([]backupartifact.ErasureStreamHead(nil), checkpoint.ErasureHeads...),

@@ -166,7 +166,29 @@ const (
 	ControlWriteActionPromoteControllerVoter ControlWriteAction = "promote_controller_voter"
 	// ControlWriteActionReportNodeHealth submits a low-frequency runtime health report.
 	ControlWriteActionReportNodeHealth ControlWriteAction = "report_node_health"
+	// ControlWriteActionReplaceBackupCoordination submits one revision-fenced
+	// replacement of bounded backup coordination state.
+	ControlWriteActionReplaceBackupCoordination ControlWriteAction = "replace_backup_coordination"
+	// ControlWriteActionReplaceRestoreCoordination submits one revision-fenced
+	// replacement of the explicit restore plan and its bounded progress.
+	ControlWriteActionReplaceRestoreCoordination ControlWriteAction = "replace_restore_coordination"
 )
+
+// ReplaceBackupCoordinationRequest carries one bounded Controller backup-state CAS.
+type ReplaceBackupCoordinationRequest struct {
+	// ExpectedRevision fences the replacement to one exact Controller revision.
+	ExpectedRevision uint64 `json:"expected_revision"`
+	// Replacement is the complete bounded backup coordination state.
+	Replacement controller.BackupCoordinationState `json:"replacement"`
+}
+
+// ReplaceRestoreCoordinationRequest carries one bounded Controller restore-state CAS.
+type ReplaceRestoreCoordinationRequest struct {
+	// ExpectedRevision fences the replacement to one exact Controller revision.
+	ExpectedRevision uint64 `json:"expected_revision"`
+	// Replacement is the complete bounded explicit restore coordination state.
+	Replacement controller.RestoreCoordinationState `json:"replacement"`
+}
 
 // ControlWriteRequest carries one generic Controller write.
 type ControlWriteRequest struct {
@@ -186,17 +208,23 @@ type ControlWriteRequest struct {
 	PromoteControllerVoter PromoteControllerVoterRequest `json:"promote_controller_voter,omitempty"`
 	// ReportNodeHealth carries a low-frequency runtime health report.
 	ReportNodeHealth NodeReport `json:"report_node_health,omitempty"`
+	// ReplaceBackupCoordination carries a bounded backup-state CAS.
+	ReplaceBackupCoordination ReplaceBackupCoordinationRequest `json:"replace_backup_coordination,omitempty"`
+	// ReplaceRestoreCoordination carries a bounded restore-state CAS.
+	ReplaceRestoreCoordination ReplaceRestoreCoordinationRequest `json:"replace_restore_coordination,omitempty"`
 }
 
 type controlWriteRequestJSON struct {
-	Action                 ControlWriteAction             `json:"action"`
-	JoinNode               *JoinNodeRequest               `json:"join_node,omitempty"`
-	ActivateNode           *ActivateNodeRequest           `json:"activate_node,omitempty"`
-	MarkNodeLeaving        *MarkNodeLeavingRequest        `json:"mark_node_leaving,omitempty"`
-	MarkNodeRemoved        *MarkNodeRemovedRequest        `json:"mark_node_removed,omitempty"`
-	SlotReplicaMove        *SlotReplicaMoveRequest        `json:"slot_replica_move,omitempty"`
-	PromoteControllerVoter *PromoteControllerVoterRequest `json:"promote_controller_voter,omitempty"`
-	ReportNodeHealth       *NodeReport                    `json:"report_node_health,omitempty"`
+	Action                     ControlWriteAction                 `json:"action"`
+	JoinNode                   *JoinNodeRequest                   `json:"join_node,omitempty"`
+	ActivateNode               *ActivateNodeRequest               `json:"activate_node,omitempty"`
+	MarkNodeLeaving            *MarkNodeLeavingRequest            `json:"mark_node_leaving,omitempty"`
+	MarkNodeRemoved            *MarkNodeRemovedRequest            `json:"mark_node_removed,omitempty"`
+	SlotReplicaMove            *SlotReplicaMoveRequest            `json:"slot_replica_move,omitempty"`
+	PromoteControllerVoter     *PromoteControllerVoterRequest     `json:"promote_controller_voter,omitempty"`
+	ReportNodeHealth           *NodeReport                        `json:"report_node_health,omitempty"`
+	ReplaceBackupCoordination  *ReplaceBackupCoordinationRequest  `json:"replace_backup_coordination,omitempty"`
+	ReplaceRestoreCoordination *ReplaceRestoreCoordinationRequest `json:"replace_restore_coordination,omitempty"`
 }
 
 // MarshalJSON encodes only the payload branch selected by Action.
@@ -217,6 +245,10 @@ func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
 		wire.PromoteControllerVoter = &req.PromoteControllerVoter
 	case ControlWriteActionReportNodeHealth:
 		wire.ReportNodeHealth = &req.ReportNodeHealth
+	case ControlWriteActionReplaceBackupCoordination:
+		wire.ReplaceBackupCoordination = &req.ReplaceBackupCoordination
+	case ControlWriteActionReplaceRestoreCoordination:
+		wire.ReplaceRestoreCoordination = &req.ReplaceRestoreCoordination
 	}
 	return json.Marshal(wire)
 }

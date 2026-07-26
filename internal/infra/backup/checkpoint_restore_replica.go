@@ -19,6 +19,8 @@ import (
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/controller"
+	controllerstate "github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
@@ -84,6 +86,14 @@ type CheckpointRestoreReplicaReceiverOptions struct {
 	StagingMaxBytes uint64
 	// StagingQuota is shared by every restore staging component on this node.
 	StagingQuota *CheckpointRestoreStagingQuota
+	// ActivationState loads the local Controller mirror used to authorize the
+	// destructive cleanup action after activation evidence is durable.
+	ActivationState RestoreActivationStateReader
+}
+
+// RestoreActivationStateReader loads locally visible durable activation state.
+type RestoreActivationStateReader interface {
+	LoadRestoreCoordinationState(context.Context) (controller.ClusterState, error)
 }
 
 // CheckpointRestoreReplicaReceiver durably stages, installs, and verifies
@@ -97,6 +107,8 @@ type CheckpointRestoreReplicaReceiver struct {
 	stagingMaxBytes uint64
 	// stagingQuota coordinates receiver bytes with source and target staging.
 	stagingQuota *CheckpointRestoreStagingQuota
+	// activationState authorizes plan-bound staging cleanup and fails closed.
+	activationState RestoreActivationStateReader
 	// reservationsMu protects the diagnostic/restart reservation index.
 	reservationsMu sync.Mutex
 	// reservations records active receiver attempt capacities by directory.
@@ -146,7 +158,8 @@ func NewCheckpointRestoreReplicaReceiver(
 	receiver := &CheckpointRestoreReplicaReceiver{
 		node: options.Node, stagingDir: resolved,
 		stagingMaxBytes: options.StagingMaxBytes, stagingQuota: quota,
-		reservations: make(map[string]uint64),
+		activationState: options.ActivationState,
+		reservations:    make(map[string]uint64),
 	}
 	if err := receiver.rehydrateReplicaReservations(); err != nil {
 		for attemptDir := range receiver.reservations {
@@ -255,22 +268,92 @@ func (r *CheckpointRestoreReplicaReceiver) HandleCheckpointReplica(
 	if err := ctx.Err(); err != nil {
 		return backupcontract.CheckpointReplicaResponse{}, err
 	}
-	if _, err := r.validateCurrentFence(fence); err != nil {
-		return backupcontract.CheckpointReplicaResponse{}, err
-	}
 	switch request.Action {
+	case backupcontract.CheckpointReplicaCleanup:
+		return r.cleanupActivatedRestore(ctx, fence, attemptDir)
 	case backupcontract.CheckpointReplicaBegin:
+		if _, err := r.validateCurrentFence(fence); err != nil {
+			return backupcontract.CheckpointReplicaResponse{}, err
+		}
 		return r.begin(ctx, fence, request)
 	case backupcontract.CheckpointReplicaChunk:
+		if _, err := r.validateCurrentFence(fence); err != nil {
+			return backupcontract.CheckpointReplicaResponse{}, err
+		}
 		return r.chunk(ctx, fence, request)
 	case backupcontract.CheckpointReplicaCommit:
+		if _, err := r.validateCurrentFence(fence); err != nil {
+			return backupcontract.CheckpointReplicaResponse{}, err
+		}
 		return r.commit(ctx, fence)
 	case backupcontract.CheckpointReplicaStatus:
+		if _, err := r.validateCurrentFence(fence); err != nil {
+			return backupcontract.CheckpointReplicaResponse{}, err
+		}
 		return r.status(ctx, fence)
 	default:
 		return backupcontract.CheckpointReplicaResponse{},
 			fmt.Errorf("backup checkpoint restore replica receiver: invalid action")
 	}
+}
+
+func (r *CheckpointRestoreReplicaReceiver) cleanupActivatedRestore(
+	ctx context.Context,
+	fence CheckpointRestoreInstallFence,
+	attemptDir string,
+) (backupcontract.CheckpointReplicaResponse, error) {
+	if r.activationState == nil {
+		return backupcontract.CheckpointReplicaResponse{},
+			fmt.Errorf("backup checkpoint restore cleanup: activation state unavailable")
+	}
+	state, err := r.activationState.LoadRestoreCoordinationState(ctx)
+	if err != nil {
+		return backupcontract.CheckpointReplicaResponse{}, err
+	}
+	if !activatedRestoreFenceMatches(state, fence) {
+		return backupcontract.CheckpointReplicaResponse{},
+			fmt.Errorf("backup checkpoint restore cleanup: activation fence mismatch")
+	}
+	if err := r.settleReplicaReservation(attemptDir); err != nil {
+		return backupcontract.CheckpointReplicaResponse{}, err
+	}
+	if err := r.stagingQuota.removeTrackedPath(attemptDir, nil); err != nil {
+		return backupcontract.CheckpointReplicaResponse{}, err
+	}
+	return backupcontract.CheckpointReplicaResponse{Completed: true}, nil
+}
+
+func activatedRestoreFenceMatches(
+	state controller.ClusterState,
+	fence CheckpointRestoreInstallFence,
+) bool {
+	if state.Restore == nil || state.Restore.Plan == nil {
+		return false
+	}
+	plan := state.Restore.Plan
+	if (plan.Status != controllerstate.RestoreStatusActivating &&
+		plan.Status != controllerstate.RestoreStatusActivated) ||
+		plan.Activation == nil ||
+		backupartifact.ValidateRestoreActivationEvidence(*plan.Activation) != nil ||
+		plan.ID != fence.PlanID ||
+		plan.RestorePointID != fence.CheckpointID ||
+		plan.ManifestSHA256 != fence.CheckpointSHA256 ||
+		plan.TargetGeneration != fence.TargetGeneration ||
+		plan.InvalidateTokens != fence.InvalidateTokens ||
+		int(fence.HashSlot) >= len(plan.Partitions) {
+		return false
+	}
+	partition := plan.Partitions[fence.HashSlot]
+	return partition.HashSlot == fence.HashSlot &&
+		partition.Status == controllerstate.RestorePartitionConverged &&
+		partition.Installed && partition.Verified &&
+		partition.TargetSlotID == fence.TargetSlotID &&
+		partition.ReplicaCount == fence.ReplicaCount &&
+		partition.ConvergedReplicas == partition.ReplicaCount &&
+		partition.LeaderNodeID == fence.LeaderNodeID &&
+		partition.LeaderTerm == fence.LeaderTerm &&
+		partition.ConfigEpoch == fence.ConfigEpoch &&
+		partition.InstallAttempt == fence.Attempt
 }
 
 // InstallCheckpointRestoreSnapshot installs and verifies the existing

@@ -31,7 +31,8 @@ type CheckpointOptions struct {
 	Catalog CheckpointCatalogPublisher
 	// Proofs authenticates only the current frontier commit proofs.
 	Proofs SegmentCommitVerifier
-	// CaptureStatus supplies current health without becoming durable authority.
+	// CaptureStatus optionally supplies a complete cluster-wide health
+	// projection. Durable SlotFrontiers remain publication authority.
 	CaptureStatus SlotCaptureStatusSource
 	// Now and NewCheckpointID provide deterministic publication identity.
 	Now             func() time.Time
@@ -53,12 +54,37 @@ type CheckpointCoordinator struct {
 	newCheckpointID  func() string
 }
 
+// PublishCheckpoint exposes the single explicit vNext backup mutation.
+func (a *App) PublishCheckpoint(
+	ctx context.Context,
+) (CheckpointPublication, error) {
+	if a == nil || !a.enabled {
+		return CheckpointPublication{}, ErrDisabled
+	}
+	if a.checkpoints == nil {
+		return CheckpointPublication{}, ErrInvalidRequest
+	}
+	commit, err := a.checkpoints.Publish(ctx)
+	if err != nil {
+		return CheckpointPublication{}, err
+	}
+	return CheckpointPublication{
+		Checkpoint: CheckpointSummary{
+			ID:                    commit.Checkpoint.ID,
+			CreatedAtUnixMillis:   commit.Checkpoint.CreatedAtUnixMillis,
+			EffectiveAtUnixMillis: commit.Checkpoint.EffectiveAtUnixMillis,
+		},
+		ManifestSHA256: commit.Checkpoint.SHA256,
+		CatalogHead:    commit.Head,
+	}, nil
+}
+
 // NewCheckpointCoordinator creates a complete-vector publication coordinator.
 func NewCheckpointCoordinator(options CheckpointOptions) (*CheckpointCoordinator, error) {
 	if options.HashSlotCount == 0 || strings.TrimSpace(options.RepositoryID) == "" ||
 		strings.TrimSpace(options.SourceClusterID) == "" ||
 		strings.TrimSpace(options.SourceGeneration) == "" || options.Store == nil ||
-		options.Catalog == nil || options.Proofs == nil || options.CaptureStatus == nil || options.Now == nil ||
+		options.Catalog == nil || options.Proofs == nil || options.Now == nil ||
 		options.NewCheckpointID == nil {
 		return nil, fmt.Errorf("%w: checkpoint dependencies are incomplete", ErrInvalidRequest)
 	}
@@ -89,10 +115,22 @@ func (c *CheckpointCoordinator) Publish(ctx context.Context) (backupartifact.Che
 			ErrCheckpointUnhealthy, frozen[0],
 		)
 	}
-	statuses := c.captureStatus.Status()
-	frontiers, err := checkpointFrontiersFromHealthyStatuses(statuses, c.hashSlotCount)
-	if err != nil {
-		return backupartifact.CheckpointCatalogCommit{}, err
+	var frontiers []backupcontract.SlotFrontier
+	if c.captureStatus != nil {
+		statuses := c.captureStatus.Status()
+		frontiers, err = checkpointFrontiersFromHealthyStatuses(
+			statuses, c.hashSlotCount,
+		)
+		if err != nil {
+			return backupartifact.CheckpointCatalogCommit{}, err
+		}
+	} else {
+		frontiers, err = checkpointFrontiersFromDurableState(
+			state.SlotFrontiers, c.hashSlotCount,
+		)
+		if err != nil {
+			return backupartifact.CheckpointCatalogCommit{}, err
+		}
 	}
 	checkpoint, err := c.buildCheckpoint(frontiers, erasureHeadsFromStreams(state.ErasureStreams))
 	if err != nil {
@@ -261,7 +299,10 @@ func checkpointFrontiersFromHealthyStatuses(
 	frontiers := make([]backupcontract.SlotFrontier, hashSlotCount)
 	for index, status := range statuses {
 		if status.HashSlot != uint16(index) || status.ObservedAtUnixMillis <= 0 ||
-			status.Frontier.HashSlot != status.HashSlot || status.Frontier.Revision == 0 {
+			status.Frontier.HashSlot != status.HashSlot || status.Frontier.Revision == 0 ||
+			status.Frontier.Metadata.WatermarkAtUnixMillis <= 0 ||
+			status.Frontier.Messages.WatermarkAtUnixMillis <= 0 ||
+			status.Frontier.WatermarkAtUnixMillis <= 0 {
 			return nil, ErrPartitionsIncomplete
 		}
 		if status.Frontier.Rebase != nil {
@@ -275,6 +316,35 @@ func checkpointFrontiersFromHealthyStatuses(
 		frontiers[index] = backupcontract.CloneSlotFrontier(status.Frontier)
 	}
 	return frontiers, nil
+}
+
+func checkpointFrontiersFromDurableState(
+	frontiers []backupcontract.SlotFrontier,
+	hashSlotCount uint16,
+) ([]backupcontract.SlotFrontier, error) {
+	if len(frontiers) != int(hashSlotCount) {
+		return nil, ErrPartitionsIncomplete
+	}
+	result := make([]backupcontract.SlotFrontier, hashSlotCount)
+	for index, frontier := range frontiers {
+		if frontier.HashSlot != uint16(index) || frontier.Revision == 0 ||
+			frontier.Lease.Sequence == 0 ||
+			frontier.Generation == "" ||
+			frontier.Rebase != nil ||
+			frontier.Metadata.WatermarkAtUnixMillis <= 0 ||
+			frontier.Messages.WatermarkAtUnixMillis <= 0 ||
+			frontier.WatermarkAtUnixMillis <= 0 {
+			if frontier.Rebase != nil {
+				return nil, fmt.Errorf(
+					"%w: Slot %d capture is rebasing",
+					ErrCheckpointUnhealthy, frontier.HashSlot,
+				)
+			}
+			return nil, ErrPartitionsIncomplete
+		}
+		result[index] = backupcontract.CloneSlotFrontier(frontier)
+	}
+	return result, nil
 }
 
 func (c *CheckpointCoordinator) advanceHead(

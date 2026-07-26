@@ -65,8 +65,10 @@ func restorePlanFromController(plan *controller.RestorePlan) *backupusecase.Rest
 		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), plan.ErasureHeads...), ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
 		InvalidateTokens: plan.InvalidateTokens, EstimatedPlainBytes: plan.EstimatedPlainBytes, EstimatedCipherBytes: plan.EstimatedCipherBytes,
 		Status: backupusecase.RestoreStatus(plan.Status), CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
-		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis, ActivationFenceDigest: plan.ActivationFenceDigest,
-		Partitions: make([]backupusecase.RestorePartition, len(plan.Partitions)),
+		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis,
+		StagingCleanupCompletedAtUnixMillis: plan.StagingCleanupCompletedAtUnixMillis,
+		Activation:                          backupartifact.CloneRestoreActivationEvidence(plan.Activation),
+		Partitions:                          make([]backupusecase.RestorePartition, len(plan.Partitions)),
 	}
 	if plan.CatalogProof != nil {
 		proof := *plan.CatalogProof
@@ -113,8 +115,10 @@ func restorePlanToController(plan *backupusecase.RestorePlan) *controller.Restor
 		ErasureHeads: append([]backupartifact.ErasureStreamHead(nil), plan.ErasureHeads...), ErasureLedgerSHA256: plan.ErasureLedgerSHA256,
 		InvalidateTokens: plan.InvalidateTokens, EstimatedPlainBytes: plan.EstimatedPlainBytes, EstimatedCipherBytes: plan.EstimatedCipherBytes,
 		Status: controller.RestoreStatus(plan.Status), CreatedAtUnixMillis: plan.CreatedAtUnixMillis, UpdatedAtUnixMillis: plan.UpdatedAtUnixMillis,
-		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis, ActivationFenceDigest: plan.ActivationFenceDigest,
-		Partitions: make([]controller.RestorePartition, len(plan.Partitions)),
+		VerifiedAtUnixMillis: plan.VerifiedAtUnixMillis, ActivatedAtUnixMillis: plan.ActivatedAtUnixMillis,
+		StagingCleanupCompletedAtUnixMillis: plan.StagingCleanupCompletedAtUnixMillis,
+		Activation:                          backupartifact.CloneRestoreActivationEvidence(plan.Activation),
+		Partitions:                          make([]controller.RestorePartition, len(plan.Partitions)),
 	}
 	if plan.CatalogProof != nil {
 		proof := *plan.CatalogProof

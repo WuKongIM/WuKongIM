@@ -46,6 +46,42 @@ func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
 	}
 }
 
+func TestOrdinaryModeExposesActivatedRestoreStatusReadOnly(t *testing.T) {
+	provider := &fakeRestoreManagement{plan: backupusecase.RestorePlan{
+		ID:               "plan-activated",
+		RestorePointID:   "checkpoint-1",
+		TargetGeneration: "target-generation-1",
+		Status:           backupusecase.RestoreStatusActivated,
+		HashSlotCount:    1,
+		Partitions: []backupusecase.RestorePartition{{
+			HashSlot: 0, Installed: true, Verified: true,
+		}},
+	}}
+	server := New(Options{Restore: provider})
+
+	recorder := httptest.NewRecorder()
+	server.Engine().ServeHTTP(
+		recorder,
+		httptest.NewRequest(
+			http.MethodGet, "/manager/restore/status", nil,
+		),
+	)
+	if recorder.Code != http.StatusOK ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"target_generation":"target-generation-1"`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"status":"activated"`),
+		) {
+		t.Fatalf(
+			"ordinary restore status=%d body=%s",
+			recorder.Code, recorder.Body.String(),
+		)
+	}
+}
+
 func TestRestoreActivationRequiresExplicitNonWildcardGrant(t *testing.T) {
 	provider := &fakeRestoreManagement{plan: backupusecase.RestorePlan{
 		ID: "plan-1", RestorePointID: "restore-1", ManifestSHA256: string(bytes.Repeat([]byte("a"), 64)),
@@ -63,7 +99,7 @@ func TestRestoreActivationRequiresExplicitNonWildcardGrant(t *testing.T) {
 
 	for _, username := range []string{"backup-writer", "wildcard-admin"} {
 		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodPost, "/manager/restore/plan-1/activate", bytes.NewBufferString(`{"old_cluster_fence_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`))
+		request := httptest.NewRequest(http.MethodPost, "/manager/restore/plan-1/activate", bytes.NewBufferString(`{"break_glass":{"reason":"the source Controller disks are permanently unavailable"}}`))
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, server, username))
 		server.Engine().ServeHTTP(recorder, request)
@@ -73,12 +109,16 @@ func TestRestoreActivationRequiresExplicitNonWildcardGrant(t *testing.T) {
 	}
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/manager/restore/plan-1/activate", bytes.NewBufferString(`{"old_cluster_fence_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`))
+	request := httptest.NewRequest(http.MethodPost, "/manager/restore/plan-1/activate", bytes.NewBufferString(`{"break_glass":{"reason":"the source Controller disks are permanently unavailable"}}`))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, server, "activator"))
 	server.Engine().ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("explicit activation status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if provider.activation.Operator != "activator" ||
+		provider.activation.BreakGlassReason == "" {
+		t.Fatalf("activation request = %#v", provider.activation)
 	}
 }
 
@@ -123,9 +163,10 @@ func TestRestoreStatusExposesConvergenceThroughputAndETA(t *testing.T) {
 }
 
 type fakeRestoreManagement struct {
-	plan     backupusecase.RestorePlan
-	request  backupusecase.RestorePlanRequest
-	progress *backupusecase.RestoreProgress
+	plan       backupusecase.RestorePlan
+	request    backupusecase.RestorePlanRequest
+	progress   *backupusecase.RestoreProgress
+	activation backupusecase.RestoreActivationRequest
 }
 
 func (f *fakeRestoreManagement) PlanRestore(_ context.Context, request backupusecase.RestorePlanRequest) (backupusecase.RestorePlan, error) {
@@ -135,6 +176,14 @@ func (f *fakeRestoreManagement) PlanRestore(_ context.Context, request backupuse
 
 func (f *fakeRestoreManagement) StartRestore(context.Context, string) (backupusecase.RestorePlan, error) {
 	return f.plan, nil
+}
+
+func (f *fakeRestoreManagement) RestoreStatus(context.Context) (*backupusecase.RestorePlan, error) {
+	plan := f.plan
+	plan.Partitions = append(
+		[]backupusecase.RestorePartition(nil), f.plan.Partitions...,
+	)
+	return &plan, nil
 }
 
 func (f *fakeRestoreManagement) RestoreProgress(context.Context) (*backupusecase.RestoreProgress, error) {
@@ -156,6 +205,11 @@ func (f *fakeRestoreManagement) VerifyRestore(context.Context, string) (backupus
 	return f.plan, nil
 }
 
-func (f *fakeRestoreManagement) ActivateRestore(context.Context, string, string) (backupusecase.RestorePlan, error) {
+func (f *fakeRestoreManagement) ActivateRestore(
+	_ context.Context,
+	_ string,
+	request backupusecase.RestoreActivationRequest,
+) (backupusecase.RestorePlan, error) {
+	f.activation = request
 	return f.plan, nil
 }

@@ -284,6 +284,25 @@ func TestCheckpointCoordinatorRejectsDuplicateCommitProofReference(t *testing.T)
 	require.Zero(t, catalog.calls)
 }
 
+func TestCheckpointCoordinatorRejectsPartiallyObservedDurableSlot(t *testing.T) {
+	frontiers := checkpointTestFrontiers(1)
+	frontiers[0].Metadata = backupcontract.StreamFrontier{}
+	store := &memoryStateStore{state: backupusecase.State{SlotFrontiers: frontiers}}
+	catalog := &recordingCheckpointCatalog{}
+	coordinator, err := backupusecase.NewCheckpointCoordinator(backupusecase.CheckpointOptions{
+		Enabled: true, HashSlotCount: 1, RepositoryID: "repository-prod",
+		SourceClusterID: "cluster-a", SourceGeneration: "source-generation-1",
+		Store: store, Catalog: catalog, Proofs: &recordingCheckpointProofs{},
+		Now:             func() time.Time { return time.UnixMilli(1_753_400_300_000).UTC() },
+		NewCheckpointID: func() string { return "checkpoint-partial" },
+	})
+	require.NoError(t, err)
+
+	_, err = coordinator.Publish(context.Background())
+	require.ErrorIs(t, err, backupusecase.ErrPartitionsIncomplete)
+	require.Zero(t, catalog.calls)
+}
+
 type checkpointStatusSource struct {
 	statuses []backupcontract.SlotCaptureStatus
 }
@@ -408,6 +427,9 @@ func checkpointTestFrontiers(hashSlotCount uint16) []backupcontract.SlotFrontier
 		watermark := int64(1_753_400_100_000) + int64(hashSlot)
 		frontiers[hashSlot] = backupcontract.SlotFrontier{
 			Revision: 1, HashSlot: hashSlot, Generation: "slot-generation-1",
+			Lease: backupcontract.SlotCaptureLease{
+				Sequence: 1,
+			},
 			Metadata: backupcontract.StreamFrontier{
 				Sequence: 1, Head: checkpointTestSegment(uint64(hashSlot)*3 + 1),
 				SourceHighWatermark: 10, WatermarkAtUnixMillis: watermark,

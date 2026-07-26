@@ -104,6 +104,7 @@ func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter)
 	attemptStartedAt := time.Now()
 	reportCtx, cancel := context.WithTimeout(ctx, healthReportTimeout(n.cfg.HealthReport.Interval, n.cfg.HealthReport.TTL))
 	defer cancel()
+	n.tryConvergeSourceFence(reportCtx)
 	report, err := reporter.ReportNode(reportCtx)
 	if err != nil {
 		return err
@@ -133,7 +134,8 @@ func healthReportTimeout(interval, ttl time.Duration) time.Duration {
 }
 
 func (n *Node) runtimeReadyForHealthReport() bool {
-	if n == nil || !n.started.Load() || n.stopping.Load() {
+	if n == nil || !n.started.Load() || n.stopping.Load() ||
+		n.sourceFenced.Load() {
 		return false
 	}
 	n.mu.RLock()
@@ -146,8 +148,39 @@ func (n *Node) observedControlRevision() uint64 {
 		return 0
 	}
 	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return n.controlSnapshot.Revision
+	revision := n.controlSnapshot.Revision
+	n.mu.RUnlock()
+	fenceRevision := n.sourceFenceRevision.Load()
+	if n.sourceFenced.Load() && !n.sourceFenceConverged.Load() &&
+		fenceRevision > 0 && revision >= fenceRevision {
+		return fenceRevision - 1
+	}
+	return revision
+}
+
+func (n *Node) tryConvergeSourceFence(ctx context.Context) {
+	if n == nil || !n.sourceFenced.Load() || n.sourceFenceConverged.Load() ||
+		n.defaultSlotRuntime == nil || n.channels == nil {
+		return
+	}
+	if !n.defaultSlotRuntime.ProposalsQuiescent() {
+		return
+	}
+	snapshot, err := n.channels.RuntimeSnapshot(ctx)
+	if err != nil {
+		return
+	}
+	for _, reactor := range snapshot.Reactors {
+		if reactor.PendingAppendChannels > 0 {
+			return
+		}
+	}
+	// Recheck Slot proposals after the Channel barrier. The admission fence
+	// prevents new proposals, while this closes over work that completed during
+	// the RuntimeSnapshot round trip.
+	if n.defaultSlotRuntime.ProposalsQuiescent() {
+		n.sourceFenceConverged.Store(true)
+	}
 }
 
 func (n *Node) observedSlotRevision() uint64 {

@@ -43,8 +43,14 @@ Current flow:
    and monotonic; a Leader change advances the attempt without accepting stale
    completion. Status exposes bounded per-Slot install/convergence state,
    throughput, and ETA. Final semantic verification requires every current
-   desired replica to revalidate its live installed state before activation
-   accepts the lowercase SHA-256 old-cluster fence digest.
+   desired replica to revalidate its live installed state before activation.
+   Normal activation authenticates a Controller/KMS-signed source-fence receipt
+   bound to this exact plan, checkpoint, source generation, and successor.
+   Break-glass activation instead requires an authenticated operator, explicit
+   reason, and immutable audit identity. Both paths persist `activating` first,
+   run idempotent target-wide plaintext staging cleanup, and publish
+   `activated` only after cleanup succeeds. A retry must present the same
+   evidence and resumes cleanup without replacing the audit.
 9. Permanent-erasure publication reserves one contiguous Controller sequence
    per Hash Slot. Each bounded stream state keeps its authenticated head, one
    pending record reference, and the latest committed reference so immediate
@@ -83,6 +89,11 @@ Current flow:
     Daily integrity audit consumes the same sparse decision and persists only
     a content digest, so catalog pages between retained checkpoints remain
     navigable without treating their collected Generations as audit targets.
+12. `FenceSource` durably installs one irreversible generation fence through
+    Controller CAS, waits for every active data node to report the exact fence
+    revision with `runtime_ready=false`, then signs the converged record. An
+    identical retry returns the same semantic receipt; a different successor
+    binding fails closed.
 
 Large channel/object manifests stay in repositories. Coordination state stores
 only one bounded summary per logical hash slot.

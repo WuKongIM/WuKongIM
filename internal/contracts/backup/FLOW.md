@@ -56,6 +56,10 @@ secondary verification flags remain separate from this later evidence so a
 new audit cannot rewrite the original publication result. Pending or running
 verification excludes a backup job, and the active verification target remains
 retention-protected.
+It also carries at most one irreversible `SourceFenceRecord`, binding one source
+cluster generation to one exact restore plan, checkpoint digest, and successor
+generation. The record becomes converged only after every active data node
+reports the fence revision while not ready for ordinary traffic.
 
 Generation GC adds at most two sorted `GenerationGCCursor` records—one per
 explicit repository. Each record contains only a CAS revision, cycle identity,
@@ -65,7 +69,11 @@ identities and pending delete queues remain repository concerns.
 Restore plans carry the exact catalog proof, checkpoint identity, selected
 repository copy, target generation, and pinned erasure snapshot. Per-Slot
 reports remain bounded while distinguishing pending, Leader installation,
-installed, follower convergence, converged, and failed phases. They fence the
+installed, follower convergence, converged, and failed phases. Activation adds
+an explicit `activating` phase between verification and service. That phase
+persists immutable source-receipt or break-glass evidence before cluster-wide
+plaintext staging cleanup; only `activated` carries cleanup and activation
+timestamps. Reports fence the
 physical Slot, Leader term, configuration epoch, and install attempt, and carry
 exact typed counts, Channel-boundary count, content/message-Merkle digests,
 download/replication progress, replica convergence, and timestamps. Storage
@@ -73,7 +81,7 @@ adapters compute this evidence; this package only transports it between restore
 infrastructure, usecase, runtime, and Controller state. Missing evidence cannot
 be installed, verified, activated, or admitted by normal startup.
 
-Checkpoint replica DTOs carry one begin/chunk/commit/status action, immutable
+Checkpoint replica DTOs carry one begin/chunk/commit/status/cleanup action, immutable
 semantic plan identity, current Slot authority, exact file digests and offsets,
 pre/post-erasure message counts, maximum message ID, and bounded completion
 evidence. They deliberately contain no repository

@@ -593,6 +593,21 @@ func TestNormalModeRejectsUnactivatedRestoreBeforeWriteProbe(t *testing.T) {
 	}
 }
 
+func TestNormalModeRejectsPermanentlyFencedSourceGeneration(t *testing.T) {
+	app := &App{}
+	err := app.validateRestoreActivationFence(controller.ClusterState{
+		Backup: &controller.BackupCoordinationState{
+			SourceFence: &backupartifact.SourceFenceRecord{
+				ID: "source-fence-1",
+				SourceGeneration: "source-generation-1",
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "permanently fenced") {
+		t.Fatalf("validateRestoreActivationFence() error = %v", err)
+	}
+}
+
 func TestActivatedRestoreRequiresSuccessorGenerationBeforeBackupStarts(t *testing.T) {
 	app := &App{cfg: Config{Backup: BackupConfig{Enabled: true, SourceGeneration: "wrong-generation"}}}
 	err := app.validateRestoreActivationFence(controller.ClusterState{
@@ -6579,11 +6594,14 @@ func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.
 	first := ids.Next()
 	restoredMax := first
 	app := &App{messageIDs: ids}
+	activation, activatedAt := appTestRestoreActivation("restore-plan")
 	missingVersion := controller.ClusterState{
 		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
 		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
 			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
 			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
+			Activation: activation, ActivatedAtUnixMillis: activatedAt,
+			StagingCleanupCompletedAtUnixMillis: activatedAt,
 			Partitions: []controller.RestorePartition{{HashSlot: 0, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
 		}},
 	}
@@ -6595,6 +6613,8 @@ func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.
 		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
 			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
 			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
+			Activation: activation, ActivatedAtUnixMillis: activatedAt,
+			StagingCleanupCompletedAtUnixMillis: activatedAt,
 			Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
 		}},
 	})
@@ -6610,12 +6630,36 @@ func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.
 		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
 			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
 			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
+			Activation: activation, ActivatedAtUnixMillis: activatedAt,
+			StagingCleanupCompletedAtUnixMillis: activatedAt,
 			Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: futureMax}},
 		}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "natural Snowflake clock") {
 		t.Fatalf("future activated restore fence error = %v", err)
 	}
+}
+
+func appTestRestoreActivation(
+	planID string,
+) (*backupartifact.RestoreActivationEvidence, int64) {
+	const recordedAt = int64(1_800_000_000_000)
+	audit := backupartifact.BreakGlassActivationAudit{
+		ID: "audit-1", RestorePlanID: planID,
+		Operator: "recovery-admin",
+		Reason: "All source Controller disks are permanently unavailable.",
+		AuthorizedAtUnixMillis: recordedAt,
+	}
+	digest, err := backupartifact.BreakGlassActivationDigest(audit)
+	if err != nil {
+		panic(err)
+	}
+	return &backupartifact.RestoreActivationEvidence{
+		Kind: backupartifact.RestoreActivationBreakGlass,
+		EvidenceSHA256: digest, Operator: audit.Operator,
+		RecordedAtUnixMillis: recordedAt,
+		BreakGlass: &audit,
+	}, recordedAt + 1
 }
 
 func requireSnowflakeMessageIDNode(t testing.TB, messageID int64, nodeID uint64) {

@@ -122,6 +122,63 @@ func TestManagerBackupRoutesEnforceReadWritePermissions(t *testing.T) {
 	}
 }
 
+func TestManagerSourceFenceRequiresExplicitGrantAndBindsSuccessor(
+	t *testing.T,
+) {
+	provider := &fakeBackupManagement{
+		sourceFenceReceipt: backupusecase.SourceFenceReceipt{
+			SourceFenceRecord: backupartifact.SourceFenceRecord{
+				ID: "source-fence-1",
+			},
+		},
+	}
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{
+			{Username: "wildcard-admin", Password: "secret", Permissions: []PermissionConfig{{Resource: "*", Actions: []string{"*"}}}},
+			{Username: "source-fencer", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup.source_fence", Actions: []string{"w"}}}},
+		}),
+		Backup: provider,
+	})
+	body := `{
+		"restore_plan_id":" plan-1 ",
+		"restore_point_id":" checkpoint-1 ",
+		"target_cluster_id":" target-cluster ",
+		"target_generation":" target-generation-1 "
+	}`
+	denied := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodPost, "/manager/backups/source-fence",
+		bytes.NewBufferString(body),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(
+		"Authorization",
+		"Bearer "+mustIssueTestToken(t, srv, "wildcard-admin"),
+	)
+	srv.Engine().ServeHTTP(denied, request)
+	require.Equal(t, http.StatusForbidden, denied.Code)
+	require.Empty(t, provider.sourceFenceRequest.RestorePlanID)
+
+	allowed := httptest.NewRecorder()
+	request = httptest.NewRequest(
+		http.MethodPost, "/manager/backups/source-fence",
+		bytes.NewBufferString(body),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(
+		"Authorization",
+		"Bearer "+mustIssueTestToken(t, srv, "source-fencer"),
+	)
+	srv.Engine().ServeHTTP(allowed, request)
+	require.Equal(t, http.StatusOK, allowed.Code)
+	require.Equal(t, "plan-1", provider.sourceFenceRequest.RestorePlanID)
+	require.Equal(t, "checkpoint-1", provider.sourceFenceRequest.RestorePointID)
+	require.Equal(t, "target-cluster", provider.sourceFenceRequest.TargetClusterID)
+	require.Equal(t, "target-generation-1",
+		provider.sourceFenceRequest.TargetGeneration)
+	require.Contains(t, allowed.Body.String(), `"id":"source-fence-1"`)
+}
+
 func TestManagerBackupRestorePointsUsesBoundedCursorPagination(t *testing.T) {
 	provider := &fakeBackupManagement{page: backupusecase.RestorePointPage{
 		Items:      []backupusecase.RestorePoint{{ID: "rp-2", Held: true}},
@@ -257,6 +314,8 @@ type fakeBackupManagement struct {
 	checkpointListRequest backupusecase.CheckpointListRequest
 	checkpointID          string
 	verificationTask      backupusecase.VerificationTask
+	sourceFenceRequest    backupusecase.SourceFenceRequest
+	sourceFenceReceipt    backupusecase.SourceFenceReceipt
 	triggered             bool
 	statusErr             error
 }
@@ -280,6 +339,10 @@ func (f *fakeBackupManagement) CheckpointByID(_ context.Context, checkpointID st
 	return f.checkpointDetail, nil
 }
 
+func (f *fakeBackupManagement) PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error) {
+	return backupusecase.CheckpointPublication{}, nil
+}
+
 func (f *fakeBackupManagement) Trigger(_ context.Context, kind backupartifact.RestorePointKind) (backupusecase.Job, error) {
 	f.triggered = true
 	return backupusecase.Job{ID: "job-1", Epoch: 1, Kind: kind, Status: backupusecase.JobStatusCapturing, HashSlotCount: 256, RestorePointID: "restore-job-1"}, nil
@@ -299,4 +362,12 @@ func (f *fakeBackupManagement) Release(context.Context, string) (backupusecase.R
 
 func (f *fakeBackupManagement) StartVerification(context.Context, string) (backupusecase.VerificationTask, error) {
 	return f.verificationTask, nil
+}
+
+func (f *fakeBackupManagement) FenceSource(
+	_ context.Context,
+	request backupusecase.SourceFenceRequest,
+) (backupusecase.SourceFenceReceipt, error) {
+	f.sourceFenceRequest = request
+	return f.sourceFenceReceipt, nil
 }

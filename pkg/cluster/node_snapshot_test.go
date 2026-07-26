@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
@@ -101,6 +102,61 @@ func TestNodeControlWatchUpdatesRouteRevision(t *testing.T) {
 	waitUntil(t, func() bool {
 		return node.Snapshot().StateRevision == 2
 	})
+}
+
+func TestNodeSourceFenceImmediatelyAndPermanentlyClosesForeground(t *testing.T) {
+	controllerRuntime := control.NewStaticController(nodeControlSnapshot())
+	node, err := New(
+		validNodeConfig(t), withController(controllerRuntime),
+		withSlotReconciler(&recordingReconciler{}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	next := nodeControlSnapshot()
+	next.Revision = 2
+	next.HashSlots.Revision = 2
+	next.SourceFence = &backupartifact.SourceFenceRecord{
+		Format: backupartifact.SourceFenceReceiptFormat,
+		Version: backupartifact.SourceFenceReceiptVersion,
+		ID: "source-fence-1", SourceClusterID: next.ClusterID,
+		SourceGeneration: "source-generation-1",
+		RestorePlanID: "plan-1", RestorePointID: "checkpoint-1",
+		ManifestSHA256: strings.Repeat("a", 64),
+		TargetClusterID: "target-cluster",
+		TargetGeneration: "target-generation-1",
+		FenceControllerRevision: 2,
+		RequestedAtUnixMillis:   time.Now().UTC().UnixMilli(),
+	}
+	if err := controllerRuntime.Publish(next); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, func() bool { return node.sourceFenced.Load() })
+	if _, err := node.RouteHashSlot(0); !errors.Is(err, ErrSourceFenced) {
+		t.Fatalf("RouteHashSlot() error = %v, want ErrSourceFenced", err)
+	}
+	if node.runtimeReadyForHealthReport() {
+		t.Fatal("runtimeReadyForHealthReport() = true after source fence")
+	}
+
+	withoutFence := next.Clone()
+	withoutFence.Revision = 3
+	withoutFence.HashSlots.Revision = 3
+	withoutFence.SourceFence = nil
+	if err := controllerRuntime.Publish(withoutFence); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, func() bool {
+		return node.Snapshot().StateRevision == 3
+	})
+	if _, err := node.RouteHashSlot(0); !errors.Is(err, ErrSourceFenced) {
+		t.Fatalf("RouteHashSlot(after stale snapshot) error = %v", err)
+	}
 }
 
 func seedJoinMirrorRouteNodeForTest(nodeID uint64, caller clusternet.Caller) *Node {

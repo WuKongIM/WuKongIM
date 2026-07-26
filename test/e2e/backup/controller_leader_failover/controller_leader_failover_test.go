@@ -16,7 +16,7 @@ func TestThreeNodeBackupControllerLeaderFailoverResumesIncremental(t *testing.T)
 	backupConfig := suite.BackupSourceConfig{
 		RepositoryRoot: repositoryRoot, RepositoryID: "e2e-failover-repository",
 		SourceGeneration: "failover-source-generation", ObjectPrefix: "failover-cluster",
-		HashSlotCount: 64, MaxParallelPartitions: 1,
+		HashSlotCount: 64, WorkerCount: 1,
 	}
 	options := []suite.Option{suite.WithManagerHTTP()}
 	for nodeID := uint64(1); nodeID <= 3; nodeID++ {

@@ -58,6 +58,9 @@ var (
 	// ErrCompactionBudget reports that another Slot is using the bounded node
 	// compaction I/O, network, or concurrency budget.
 	ErrCompactionBudget = errors.New("backup runtime: compaction budget unavailable")
+	// ErrContinuousDoctorUnhealthy reports that dependency qualification has
+	// not admitted repository/KMS work for the continuous runtime.
+	ErrContinuousDoctorUnhealthy = errors.New("backup runtime: continuous doctor is not healthy")
 )
 
 // RollingPolicy bounds one continuous-capture segment and source page.
@@ -775,8 +778,28 @@ func (e *CaptureEngine) ReconcileSlot(ctx context.Context, hashSlot uint16) (bac
 		e.recordStreamCaptureError(hashSlot, current, watermarks, "message_capture", err)
 		return backupcontract.SlotFrontier{}, err
 	}
+	next.Metadata = initializeObservedEmptyStream(
+		next.Metadata, watermarks.Metadata,
+	)
+	next.Messages = initializeObservedEmptyStream(
+		next.Messages, watermarks.Messages,
+	)
 	next.WatermarkAtUnixMillis = olderPositiveTime(next.Metadata.WatermarkAtUnixMillis, next.Messages.WatermarkAtUnixMillis)
 	return e.commitPreparedFrontier(ctx, current, next, watermarks)
+}
+
+func initializeObservedEmptyStream(
+	frontier backupcontract.StreamFrontier,
+	watermark SourceWatermark,
+) backupcontract.StreamFrontier {
+	if frontier.Sequence == 0 &&
+		frontier.SourceHighWatermark == 0 &&
+		watermark.Position == 0 &&
+		frontier.WatermarkAtUnixMillis == 0 &&
+		watermark.CommittedAtUnixMillis > 0 {
+		frontier.WatermarkAtUnixMillis = watermark.CommittedAtUnixMillis
+	}
+	return frontier
 }
 
 func (e *CaptureEngine) commitPreparedFrontier(

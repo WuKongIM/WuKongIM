@@ -11,6 +11,7 @@ import (
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // BackupMessageShardRPCServiceID is the direct source-node message capture service.
@@ -82,6 +83,14 @@ func (a *Adapter) HandleBackupRestoreInstallRPC(ctx context.Context, payload []b
 		return encodeBackupRestoreInstallResponse(backupRestoreInstallRPCResponse{Status: rpcStatusRejected})
 	}
 	report, err := a.backupRestoreInstaller.InstallPartition(ctx, request.Plan, request.HashSlot)
+	if err != nil {
+		a.rpcLogger().Warn(
+			"backup restore install rpc rejected",
+			wklog.Event("internal.access.node.backup_restore_install_rejected"),
+			wklog.Uint64("hashSlot", uint64(request.HashSlot)),
+			wklog.Error(err),
+		)
+	}
 	return encodeBackupRestoreInstallResponse(backupRestoreInstallRPCResponse{Status: backupMessageStatusForError(err), Report: report})
 }
 
@@ -265,7 +274,9 @@ func (c *Client) HandleCheckpointReplica(
 	if err != nil {
 		return backupcontract.CheckpointReplicaResponse{}, err
 	}
-	response, err := decodeBackupCheckpointReplicaResponse(responseBody)
+	response, err := decodeBackupCheckpointReplicaResponse(
+		responseBody, request.Action,
+	)
 	if err != nil {
 		return backupcontract.CheckpointReplicaResponse{}, err
 	}

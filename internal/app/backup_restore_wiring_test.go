@@ -42,7 +42,7 @@ func TestWireRestoreBuildsFailClosedCompositionAndRegistersRPCs(t *testing.T) {
 				SigningKeyID:     "signing-test",
 				TargetGeneration: "target-generation-test",
 				StagingDir:       staging, StagingMaxBytes: 64 << 20,
-				MaxParallelPartitions: 2,
+				WorkerCount: 2,
 			},
 		},
 		cluster: node,

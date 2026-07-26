@@ -131,6 +131,7 @@ func encodeBackupCheckpointReplicaResponse(
 
 func decodeBackupCheckpointReplicaResponse(
 	body []byte,
+	action backupcontract.CheckpointReplicaAction,
 ) (backupCheckpointReplicaRPCResponse, error) {
 	var response backupCheckpointReplicaRPCResponse
 	if err := decodeBackupJSON(
@@ -143,6 +144,15 @@ func decodeBackupCheckpointReplicaResponse(
 			fmt.Errorf("internal/access/node: invalid checkpoint replica response")
 	}
 	if response.Status == rpcStatusOK {
+		if action == backupcontract.CheckpointReplicaCleanup {
+			if response.Response != (backupcontract.CheckpointReplicaResponse{
+				Completed: true,
+			}) {
+				return response,
+					fmt.Errorf("internal/access/node: invalid checkpoint replica cleanup response")
+			}
+			return response, nil
+		}
 		if response.Response.Completed {
 			if response.Response.AcceptedOffset != 0 ||
 				response.Response.InstalledBytes == 0 ||
@@ -208,7 +218,8 @@ func validateBackupCheckpointReplicaRequest(
 			return fmt.Errorf("internal/access/node: invalid checkpoint replica chunk")
 		}
 	case backupcontract.CheckpointReplicaCommit,
-		backupcontract.CheckpointReplicaStatus:
+		backupcontract.CheckpointReplicaStatus,
+		backupcontract.CheckpointReplicaCleanup:
 		if len(request.Files) != 0 || len(request.Data) != 0 ||
 			request.File != (backupcontract.CheckpointReplicaFile{}) ||
 			request.Offset != 0 ||

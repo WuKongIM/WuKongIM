@@ -302,6 +302,13 @@ func (a *App) waitRestoreActivationFence(ctx context.Context) error {
 }
 
 func (a *App) validateRestoreActivationFence(state controller.ClusterState) error {
+	if state.Backup != nil && state.Backup.SourceFence != nil {
+		fence := state.Backup.SourceFence
+		return fmt.Errorf(
+			"internal/app: source generation %q is permanently fenced by %s; ordinary traffic cannot restart",
+			fence.SourceGeneration, fence.ID,
+		)
+	}
 	if state.Restore == nil || state.Restore.Plan == nil {
 		return nil
 	}
@@ -314,6 +321,15 @@ func (a *App) validateRestoreActivationFence(state controller.ClusterState) erro
 	}
 	if a.cfg.Backup.Enabled && a.cfg.Backup.SourceGeneration != plan.TargetGeneration {
 		return fmt.Errorf("internal/app: backup source generation must equal activated restore target generation %q", plan.TargetGeneration)
+	}
+	if plan.Activation == nil ||
+		backupartifact.ValidateRestoreActivationEvidence(*plan.Activation) != nil ||
+		plan.StagingCleanupCompletedAtUnixMillis <= 0 ||
+		plan.ActivatedAtUnixMillis <
+			plan.StagingCleanupCompletedAtUnixMillis ||
+		plan.Activation.RecordedAtUnixMillis >
+			plan.StagingCleanupCompletedAtUnixMillis {
+		return fmt.Errorf("internal/app: activated restore plan has no valid activation and staging-cleanup evidence")
 	}
 	if len(plan.Partitions) != int(plan.HashSlotCount) {
 		return fmt.Errorf("internal/app: activated restore plan has incomplete partition evidence")

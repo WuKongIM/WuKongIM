@@ -186,7 +186,7 @@ func TestCaptureEnginePublishesSparseExactCutWhenNextObservationTrailsCommittedA
 		t.Fatalf("ReconcileSlot(after sparse deadline) error = %v", err)
 	}
 	if frontier.Messages.Sequence != 1 || frontier.Messages.SourceHighWatermark != 1 ||
-		frontiers.commits != 1 || len(segments.batches) != 1 {
+		frontiers.commits != 2 || len(segments.batches) != 1 {
 		t.Fatalf("published sparse cut = %#v commits=%d batches=%d", frontier.Messages, frontiers.commits, len(segments.batches))
 	}
 }
@@ -809,8 +809,15 @@ func TestCaptureEngineUsesDefaultRollingPolicyWithoutEmittingEmptySegments(t *te
 	if frontier.Metadata.Head != nil || frontier.Messages.Head != nil || len(segments.batches) != 0 {
 		t.Fatalf("empty source emitted segments: frontier=%#v batches=%d", frontier, len(segments.batches))
 	}
-	if frontier.WatermarkAtUnixMillis != 0 || frontiers.commits != 0 {
-		t.Fatalf("idle source rewrote frontier = %#v commits=%d", frontier, frontiers.commits)
+	if frontier.WatermarkAtUnixMillis != 1_753_400_090_000 ||
+		frontiers.commits != 1 {
+		t.Fatalf("idle source observation = %#v commits=%d", frontier, frontiers.commits)
+	}
+	if _, err := engine.ReconcileSlot(context.Background(), 17); err != nil {
+		t.Fatalf("ReconcileSlot(retry) error = %v", err)
+	}
+	if frontiers.commits != 1 {
+		t.Fatalf("unchanged idle source rewrote frontier: commits=%d", frontiers.commits)
 	}
 }
 

@@ -41,6 +41,10 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 	if clusterState.Backup == nil {
 		return result, nil
 	}
+	if clusterState.Backup.SourceFence != nil {
+		sourceFence := *clusterState.Backup.SourceFence
+		result.SourceFence = &sourceFence
+	}
 	result.LastEpoch = clusterState.Backup.LastEpoch
 	result.ErasureStreams = erasureStreamsFromController(clusterState.Backup.ErasureStreams)
 	result.GenerationGCCursors = generationGCCursorsFromController(clusterState.Backup.GenerationGCCursors)
@@ -68,6 +72,7 @@ func (s *ControllerStateStore) Load(ctx context.Context) (backupusecase.State, e
 // CompareAndSwap stores next only when the Controller cluster revision still matches revision.
 func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint64, next backupusecase.State) error {
 	replacement := controller.BackupCoordinationState{
+		SourceFence:              cloneSourceFenceRecord(next.SourceFence),
 		LastEpoch:                next.LastEpoch,
 		Active:                   jobToController(next.Active),
 		Verification:             verificationTaskToController(next.Verification),
@@ -96,6 +101,16 @@ func (s *ControllerStateStore) CompareAndSwap(ctx context.Context, revision uint
 		return err
 	}
 	return nil
+}
+
+func cloneSourceFenceRecord(
+	record *backupartifact.SourceFenceRecord,
+) *backupartifact.SourceFenceRecord {
+	if record == nil {
+		return nil
+	}
+	out := *record
+	return &out
 }
 
 func integrityAuditFromController(state controller.BackupIntegrityAuditState) backupcontract.IntegrityAuditState {

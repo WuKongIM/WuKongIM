@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // ControlWriteApplier applies generic Controller writes.
@@ -23,6 +24,14 @@ type ControlWriteApplier interface {
 	RequestSlotReplicaMove(context.Context, SlotReplicaMoveRequest) (SlotReplicaMoveResult, error)
 	// PromoteControllerVoter submits an online Controller voter promotion.
 	PromoteControllerVoter(context.Context, PromoteControllerVoterRequest) (PromoteControllerVoterResult, error)
+}
+
+type backupCoordinationStateReplacer interface {
+	ReplaceBackupCoordinationState(context.Context, uint64, controller.BackupCoordinationState) error
+}
+
+type restoreCoordinationStateReplacer interface {
+	ReplaceRestoreCoordinationState(context.Context, uint64, controller.RestoreCoordinationState) error
 }
 
 // ControlWriteClient forwards generic Controller writes to a remote node.
@@ -101,6 +110,30 @@ func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
 			resp.PromoteControllerVoter = result
 		case ControlWriteActionReportNodeHealth:
 			if err := applier.ReportNode(ctx, req.ReportNodeHealth); err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+		case ControlWriteActionReplaceBackupCoordination:
+			replacer, ok := applier.(backupCoordinationStateReplacer)
+			if !ok {
+				return nil, fmt.Errorf("control write: backup coordination replacement is unsupported")
+			}
+			if err := replacer.ReplaceBackupCoordinationState(
+				ctx,
+				req.ReplaceBackupCoordination.ExpectedRevision,
+				req.ReplaceBackupCoordination.Replacement,
+			); err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+		case ControlWriteActionReplaceRestoreCoordination:
+			replacer, ok := applier.(restoreCoordinationStateReplacer)
+			if !ok {
+				return nil, fmt.Errorf("control write: restore coordination replacement is unsupported")
+			}
+			if err := replacer.ReplaceRestoreCoordinationState(
+				ctx,
+				req.ReplaceRestoreCoordination.ExpectedRevision,
+				req.ReplaceRestoreCoordination.Replacement,
+			); err != nil {
 				return encodeControlWriteErrorResponse(err)
 			}
 		default:

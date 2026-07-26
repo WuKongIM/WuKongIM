@@ -644,10 +644,12 @@ Delivery push and fanout responses currently use:
 
 Manager backup control uses the separate bounded `manager backup` RPC. Any
 Manager node resolves the current Controller Leader and sends exactly one
-status, page, trigger, cancel, hold, release, or verification-start request to
-that node. The receiver rechecks that it is still Leader before entering the
-usecase. Leadership transitions return a retryable unavailable error; writes
-are never blindly replayed because their outcome may already be durable.
+status, checkpoint-publication, trigger, cancel, hold, release,
+verification-start, or irreversible source-fence request to that node.
+Checkpoint catalog page/detail reads remain local immutable-repository reads.
+The receiver rechecks that it is still Leader before entering the usecase.
+Leadership transitions return a retryable unavailable error; writes are never
+blindly replayed because their outcome may already be durable.
 The versioned `WKBMQ1` request and `WKBMR1` response prefixes fence the
 strict, bounded JSON control envelope; unversioned or unknown-version payloads
 are rejected before operation dispatch.
@@ -664,6 +666,11 @@ at-most-3-MiB chunk, commit, or status operation under the exact
 Slot/Leader/configuration fence. Followers receive no repository or KMS handle.
 Status revalidates the durable local receipt against live metadata and bounded
 Channel cuts before final verification accepts that replica.
+The same restore replica protocol has an exact `cleanup` action. It is accepted
+only when the local Controller mirror proves the same plan is `activating` or
+`activated`, and only for the current partition/Slot/Leader/config/attempt
+fence. It removes that attempt's plaintext subtree and settles its quota claim;
+unrelated staging is never traversed or removed.
 
 The message-shard request remains `WKVB1`; its evidence-bearing response is
 `WKVb2`. Restore install uses `WKVI2/WKVi2` because the plan/report wire shape

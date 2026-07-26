@@ -10,6 +10,7 @@ const (
 	RestoreStatusInstalling RestoreStatus = "installing"
 	RestoreStatusInstalled  RestoreStatus = "installed"
 	RestoreStatusVerified   RestoreStatus = "verified"
+	RestoreStatusActivating RestoreStatus = "activating"
 	RestoreStatusActivated  RestoreStatus = "activated"
 	RestoreStatusAbandoned  RestoreStatus = "abandoned"
 )
@@ -124,8 +125,11 @@ type RestorePlan struct {
 	VerifiedAtUnixMillis int64 `json:"verified_at_unix_millis,omitempty"`
 	// ActivatedAtUnixMillis is the UTC time of explicit successor activation.
 	ActivatedAtUnixMillis int64 `json:"activated_at_unix_millis,omitempty"`
-	// ActivationFenceDigest authenticates reviewed old-cluster fencing evidence.
-	ActivationFenceDigest string `json:"activation_fence_digest,omitempty"`
+	// StagingCleanupCompletedAtUnixMillis proves plan-bound plaintext staging
+	// was removed from every target replica before activation completed.
+	StagingCleanupCompletedAtUnixMillis int64 `json:"staging_cleanup_completed_at_unix_millis,omitempty"`
+	// Activation contains immutable reviewed normal or break-glass evidence.
+	Activation *backupartifact.RestoreActivationEvidence `json:"activation,omitempty"`
 	// Partitions contains one bounded progress record per hash slot.
 	Partitions []RestorePartition `json:"partitions"`
 }
@@ -154,6 +158,9 @@ func (s RestoreCoordinationState) Clone() RestoreCoordinationState {
 			value := *s.Plan.EstimatedCipherBytes
 			plan.EstimatedCipherBytes = &value
 		}
+		plan.Activation = backupartifact.CloneRestoreActivationEvidence(
+			s.Plan.Activation,
+		)
 		plan.Partitions = cloneSlice(s.Plan.Partitions)
 		out.Plan = &plan
 	}

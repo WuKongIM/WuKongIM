@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/observe"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 func TestRuntimeReadyForHealthReportFalseWhileStopping(t *testing.T) {
@@ -19,6 +21,61 @@ func TestRuntimeReadyForHealthReportFalseWhileStopping(t *testing.T) {
 	if node.runtimeReadyForHealthReport() {
 		t.Fatal("runtimeReadyForHealthReport() = true, want false while stopping")
 	}
+}
+
+func TestSourceFenceObservationWaitsForLocalWriteQuiescence(t *testing.T) {
+	runtime, err := multiraft.New(multiraft.Options{
+		NodeID:       1,
+		TickInterval: time.Second,
+		Workers:      1,
+		Transport:    noopSlotTransport{},
+		Raft: multiraft.RaftOptions{
+			ElectionTick:  10,
+			HeartbeatTick: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("multiraft.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Close() })
+	channels := &sourceFenceSnapshotChannelService{
+		snapshot: channelruntime.RuntimeSnapshot{
+			Reactors: []channelruntime.RuntimeReactorSnapshot{{PendingAppendChannels: 1}},
+		},
+	}
+	node := &Node{
+		defaultSlotRuntime:    runtime,
+		channels:              channels,
+		channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, time.Second),
+		controlSnapshot:       control.Snapshot{Revision: 9},
+	}
+	node.fenceSourceWrites(9, false)
+
+	if got := node.observedControlRevision(); got != 8 {
+		t.Fatalf("observedControlRevision() = %d, want 8 before quiescence", got)
+	}
+	node.tryConvergeSourceFence(context.Background())
+	if node.sourceFenceConverged.Load() {
+		t.Fatal("source fence converged with pending Channel append")
+	}
+	channels.snapshot = channelruntime.RuntimeSnapshot{}
+	node.tryConvergeSourceFence(context.Background())
+	if !node.sourceFenceConverged.Load() {
+		t.Fatal("source fence did not converge after Slot and Channel work drained")
+	}
+	if got := node.observedControlRevision(); got != 9 {
+		t.Fatalf("observedControlRevision() = %d, want 9 after quiescence", got)
+	}
+}
+
+type sourceFenceSnapshotChannelService struct {
+	noopChannelService
+	snapshot channelruntime.RuntimeSnapshot
+	err      error
+}
+
+func (s *sourceFenceSnapshotChannelService) RuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error) {
+	return s.snapshot, s.err
 }
 
 func TestHealthReportLoopUsesBoundedReportContext(t *testing.T) {

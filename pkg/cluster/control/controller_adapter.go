@@ -74,6 +74,10 @@ func normalizeNodeHealthReportTTL(ttl time.Duration) time.Duration {
 
 func snapshotFromControllerState(st controller.ClusterState, leaderID uint64, now time.Time, healthTTL time.Duration) Snapshot {
 	snap := Snapshot{ClusterID: st.ClusterID, Revision: st.Revision, ControllerID: leaderID, Nodes: make([]Node, 0, len(st.Nodes)), Slots: make([]SlotAssignment, 0, len(st.Slots)), Tasks: make([]ReconcileTask, 0, len(st.Tasks))}
+	if st.Backup != nil && st.Backup.SourceFence != nil {
+		sourceFence := *st.Backup.SourceFence
+		snap.SourceFence = &sourceFence
+	}
 	healthByNode := make(map[uint64]controller.NodeHealthReport, len(st.NodeHealthReports))
 	for _, report := range st.NodeHealthReports {
 		healthByNode[report.NodeID] = report

@@ -161,6 +161,11 @@ manifests, encrypted objects, KMS material, and repository credentials remain
 outside Controller Raft. `ReplaceBackupCoordinationState` uses the normal global
 Controller `Revision` fence, so a stale coordinator reloads after any concurrent
 control-plane change before retrying.
+The same bounded section may carry one irreversible source-generation fence.
+The FSM accepts its first exact binding, permits only the convergence timestamp
+to advance, and rejects removal or replacement. The signed receipt itself stays
+outside Controller state until all active data nodes have reported the fence
+revision with `runtime_ready=false`.
 
 `RestoreCoordinationState` is a separate optional bounded section. It stores
 one immutable restore selection, the pinned catalog proof and erasure snapshot,
@@ -173,6 +178,12 @@ progress, replica convergence, and bounded timestamps. Missing or malformed
 evidence cannot become installed state. Normal startup consumes this state as
 an activation fence before ordinary writes and advances its node-scoped
 message-ID allocator above the greatest verified restored ID.
+Activation is a strict `verified -> activating -> activated` transition.
+`activating` freezes structurally valid, plan-bound normal or break-glass
+evidence and carries no cleanup/activation timestamp. Only the same immutable
+plan and evidence may advance to `activated`, which must add a staging-cleanup
+time no later than the activation time. Direct activation, stale-plan replay,
+evidence replacement, and mutation after activation are rejected by the FSM.
 
 Retention removes no repository data inside Controller Raft. Expired restore
 points first move atomically from the selectable list into `PendingGarbage`;

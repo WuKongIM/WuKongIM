@@ -29,6 +29,8 @@ type CheckpointSummary struct {
 // CheckpointDetail is the bounded operator-facing projection of a checkpoint.
 type CheckpointDetail struct {
 	CheckpointSummary
+	// ManifestSHA256 authenticates the exact selected checkpoint bytes.
+	ManifestSHA256 string
 	// SourceClusterID and SourceGeneration fence the captured source.
 	SourceClusterID  string
 	SourceGeneration string
@@ -58,6 +60,16 @@ type CheckpointPage struct {
 	NextCursor string
 	// Total is the number of rows matching the current filter.
 	Total int
+}
+
+// CheckpointPublication is the bounded result of one explicit vector cut.
+type CheckpointPublication struct {
+	// Checkpoint is the newly published immutable catalog row.
+	Checkpoint CheckpointSummary
+	// ManifestSHA256 authenticates the exact checkpoint bytes.
+	ManifestSHA256 string
+	// CatalogHead is the immutable discovery fence after publication.
+	CatalogHead backupartifact.CatalogPageReference
 }
 
 // ListCheckpointsPage reads immutable checkpoint history instead of Controller arrays.

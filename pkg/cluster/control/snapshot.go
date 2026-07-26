@@ -3,6 +3,7 @@ package control
 import (
 	"time"
 
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
@@ -173,6 +174,8 @@ type Snapshot struct {
 	HashSlots HashSlotTable
 	// Tasks lists active reconcile tasks.
 	Tasks []ReconcileTask
+	// SourceFence disables ordinary foreground work for this source generation.
+	SourceFence *backupartifact.SourceFenceRecord
 	// ChannelDataPlaneLease is this node's local append-admission visibility lease.
 	ChannelDataPlaneLease ChannelDataPlaneLease
 }

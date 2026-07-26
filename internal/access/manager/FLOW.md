@@ -68,11 +68,14 @@ GET  /manager/backups/status (cluster backup health and non-secret effective pol
 GET  /manager/backups/restore-points (cursor-paged restore-point inventory; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/checkpoints (stable cursor-paged immutable checkpoint catalog; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/checkpoints/:checkpoint_id (exact immutable checkpoint summary; requires cluster.backup:r when Auth.On=true)
+POST /manager/backups/checkpoints (publish one complete current Slot-vector checkpoint; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/trigger (materialized-full operator backup; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/jobs/:job_id/cancel (exact job/epoch cancel; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/restore-points/:restore_point_id/verify (durable asynchronous audit; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/restore-points/:restore_point_id/hold (retention hold; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/restore-points/:restore_point_id/release (retention hold release; requires cluster.backup:w when Auth.On=true)
+POST /manager/backups/source-fence (irreversible source-generation fence; requires an exact cluster.backup.source_fence:w grant)
+GET  /manager/restore/status (read restore progress in restore mode and immutable activated-plan identity after restart; requires cluster.backup:r when Auth.On=true)
 GET  /manager/diagnostics/trace/:trace_id (diagnostics trace aggregation; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/message (diagnostics message lookup; requires cluster.diagnostics:r when Auth.On=true)
 GET  /manager/diagnostics/events (diagnostics event query, including optional exact physical slot_id; requires cluster.diagnostics:r when Auth.On=true)
@@ -579,5 +582,13 @@ Activation always requires authenticated JWT identity plus an explicit
 `cluster.restore.activation:w` grant; wildcard grants do not satisfy this
 recovery boundary. Composition rejects restore mode unless Manager auth and at
 least one explicit activation grant are configured.
+The normal activation request carries the complete signed source-fence receipt;
+the exceptional request instead carries an explicit break-glass reason. The
+authenticated Manager username is always the operator identity and cannot be
+supplied by request JSON. Activation responses expose the immutable evidence
+and the target-wide staging-cleanup completion time.
+Normal-mode source fencing is a separate irreversible operation with its own
+exact `cluster.backup.source_fence:w` permission; wildcard and ordinary backup
+write grants do not satisfy it.
 The HTTP layer parses requests and maps errors while restore eligibility and
 transitions remain in `internal/usecase/backup`.

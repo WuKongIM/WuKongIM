@@ -442,3 +442,8 @@ The owning reactor reads or evicts its local `channels` map, preserving the
 single-writer rule. Evict only removes loaded runtime state when
 `safeToEvictRuntime()` is true; it never deletes durable channel metadata or
 messages.
+Each reactor snapshot also counts runtimes with accepted ordinary append work
+still queued, executing, retrying, or awaiting completion. Because the snapshot
+event shares normal mailbox order with append events, a source-fence health
+barrier can prove every append accepted before the fence has drained; append
+events processed afterward encounter the one-way admission fence.

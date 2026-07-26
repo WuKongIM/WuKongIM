@@ -114,6 +114,20 @@ type PendingWorkView struct {
 	LifecycleRetry       bool
 }
 
+// HasAppendWork reports whether an accepted ordinary append can still mutate
+// storage or complete a caller after this snapshot boundary.
+func (v PendingWorkView) HasAppendWork() bool {
+	return v.Waiters > 0 ||
+		v.AppendQueued > 0 ||
+		v.AppendQueueBlocked ||
+		v.AppendInflight ||
+		v.AppendStoreBlocked ||
+		v.AppendRetryScheduled ||
+		v.AppendCancelContexts > 0 ||
+		v.AppendTimings > 0 ||
+		v.MachineAppendPending
+}
+
 // AppendFenceView summarizes append submission state used by final leader eviction.
 type AppendFenceView struct {
 	Reservations      uint64

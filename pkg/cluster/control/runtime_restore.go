@@ -14,5 +14,23 @@ func (r *Runtime) ReplaceRestoreCoordinationState(ctx context.Context, expectedR
 	if r == nil || r.backend == nil {
 		return controller.ErrNotStarted
 	}
-	return r.backend.ReplaceRestoreCoordinationState(ctx, expectedRevision, replacement)
+	req := ControlWriteRequest{
+		Action: ControlWriteActionReplaceRestoreCoordination,
+		ReplaceRestoreCoordination: ReplaceRestoreCoordinationRequest{
+			ExpectedRevision: expectedRevision,
+			Replacement:      replacement,
+		},
+	}
+	if r.canForwardControlWriteToLeader() {
+		_, err := r.forwardControlWrite(ctx, req)
+		return err
+	}
+	err := r.backend.ReplaceRestoreCoordinationState(
+		ctx, expectedRevision, replacement,
+	)
+	if shouldForwardControlWrite(err) {
+		_, forwardErr := r.forwardControlWriteAfterError(ctx, req, err)
+		return forwardErr
+	}
+	return err
 }

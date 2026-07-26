@@ -22,10 +22,11 @@ var (
 type CheckpointReplicaAction string
 
 const (
-	CheckpointReplicaBegin  CheckpointReplicaAction = "begin"
-	CheckpointReplicaChunk  CheckpointReplicaAction = "chunk"
-	CheckpointReplicaCommit CheckpointReplicaAction = "commit"
-	CheckpointReplicaStatus CheckpointReplicaAction = "status"
+	CheckpointReplicaBegin   CheckpointReplicaAction = "begin"
+	CheckpointReplicaChunk   CheckpointReplicaAction = "chunk"
+	CheckpointReplicaCommit  CheckpointReplicaAction = "commit"
+	CheckpointReplicaStatus  CheckpointReplicaAction = "status"
+	CheckpointReplicaCleanup CheckpointReplicaAction = "cleanup"
 )
 
 // CheckpointReplicaFileKind identifies one plaintext target snapshot stream.
@@ -314,6 +315,8 @@ type GenerationGCCursor struct {
 type State struct {
 	// Revision is the Controller compare-and-swap revision.
 	Revision uint64
+	// SourceFence is the irreversible generation-level ordinary-write fence.
+	SourceFence *backupartifact.SourceFenceRecord
 	// LastEpoch is the latest allocated backup fence.
 	LastEpoch uint64
 	// Active contains the only in-progress job.
@@ -342,6 +345,10 @@ type State struct {
 // Clone returns a deep copy safe for mutation by a caller.
 func (s State) Clone() State {
 	out := s
+	if s.SourceFence != nil {
+		sourceFence := *s.SourceFence
+		out.SourceFence = &sourceFence
+	}
 	if s.Active != nil {
 		job := *s.Active
 		job.Partitions = append([]PartitionReport(nil), s.Active.Partitions...)
@@ -454,6 +461,7 @@ const (
 	RestoreStatusInstalling RestoreStatus = "installing"
 	RestoreStatusInstalled  RestoreStatus = "installed"
 	RestoreStatusVerified   RestoreStatus = "verified"
+	RestoreStatusActivating RestoreStatus = "activating"
 	RestoreStatusActivated  RestoreStatus = "activated"
 	RestoreStatusAbandoned  RestoreStatus = "abandoned"
 )
@@ -577,8 +585,11 @@ type RestorePlan struct {
 	VerifiedAtUnixMillis int64
 	// ActivatedAtUnixMillis records explicit operator activation.
 	ActivatedAtUnixMillis int64
-	// ActivationFenceDigest authenticates reviewed old-cluster fencing evidence.
-	ActivationFenceDigest string
+	// StagingCleanupCompletedAtUnixMillis proves every target replica removed
+	// the plan-bound plaintext staging before ordinary service may start.
+	StagingCleanupCompletedAtUnixMillis int64
+	// Activation contains the immutable normal or break-glass audit evidence.
+	Activation *backupartifact.RestoreActivationEvidence
 	// Partitions contains exactly one progress record per hash slot.
 	Partitions []RestorePartition
 }

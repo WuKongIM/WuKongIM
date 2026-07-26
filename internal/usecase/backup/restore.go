@@ -20,8 +20,8 @@ var (
 	ErrRestorePlanExists = errors.New("backup restore: plan already exists")
 	// ErrRestoreTransition reports an invalid recovery state transition.
 	ErrRestoreTransition = errors.New("backup restore: invalid state transition")
-	// ErrOldClusterFenceRequired reports activation without explicit source fencing evidence.
-	ErrOldClusterFenceRequired = errors.New("backup restore: old cluster fence evidence is required")
+	// ErrActivationEvidenceRequired reports activation without a verified source receipt or audited break-glass.
+	ErrActivationEvidenceRequired = errors.New("backup restore: activation evidence is required")
 )
 
 const (
@@ -29,6 +29,7 @@ const (
 	RestoreStatusInstalling    = backupcontract.RestoreStatusInstalling
 	RestoreStatusInstalled     = backupcontract.RestoreStatusInstalled
 	RestoreStatusVerified      = backupcontract.RestoreStatusVerified
+	RestoreStatusActivating    = backupcontract.RestoreStatusActivating
 	RestoreStatusActivated     = backupcontract.RestoreStatusActivated
 	RestoreStatusAbandoned     = backupcontract.RestoreStatusAbandoned
 	RestorePartitionPending    = backupcontract.RestorePartitionPending
@@ -131,32 +132,69 @@ type RestoreFinalVerifier interface {
 	VerifyRestore(context.Context, RestorePlan) ([]RestorePartition, error)
 }
 
+// RestoreActivationCleaner removes plan-bound plaintext staging from every
+// target replica after activation evidence is durable but before service opens.
+type RestoreActivationCleaner interface {
+	CleanupRestoreStaging(context.Context, RestorePlan) error
+}
+
+// RestoreActivationRequest selects exactly one reviewed activation evidence path.
+type RestoreActivationRequest struct {
+	// SourceFenceReceipt is the normal source Controller/KMS proof.
+	SourceFenceReceipt *backupartifact.SourceFenceReceipt
+	// BreakGlassReason is the explicit exceptional justification.
+	BreakGlassReason string
+	// Operator is the authenticated Manager principal authorizing activation.
+	Operator string
+}
+
 // RestoreOptions configures the entry-independent explicit recovery state machine.
 type RestoreOptions struct {
 	Enabled   bool
 	Store     RestorePlanStore
 	Inspector RestoreInspector
 	Verifier  RestoreFinalVerifier
-	Now       func() time.Time
-	NewPlanID func() string
+	Cleaner   RestoreActivationCleaner
+	// ActivationVerifier authenticates source fence receipts against trusted signing keys.
+	ActivationVerifier backupartifact.ManifestSigner
+	Now                func() time.Time
+	NewPlanID          func() string
+	// NewAuditID allocates immutable break-glass audit identities.
+	NewAuditID func() string
 }
 
 // RestoreApp owns explicit recovery lifecycle transitions.
 type RestoreApp struct {
-	enabled   bool
-	store     RestorePlanStore
-	inspector RestoreInspector
-	verifier  RestoreFinalVerifier
-	now       func() time.Time
-	newPlanID func() string
+	enabled            bool
+	store              RestorePlanStore
+	inspector          RestoreInspector
+	verifier           RestoreFinalVerifier
+	cleaner            RestoreActivationCleaner
+	activationVerifier backupartifact.ManifestSigner
+	now                func() time.Time
+	newPlanID          func() string
+	newAuditID         func() string
 }
 
 // NewRestoreApp creates an explicit recovery state machine.
 func NewRestoreApp(options RestoreOptions) (*RestoreApp, error) {
-	if options.Store == nil || options.Inspector == nil || options.Verifier == nil || options.Now == nil || options.NewPlanID == nil {
+	if options.Store == nil || options.Inspector == nil ||
+		options.Verifier == nil || options.Cleaner == nil ||
+		options.Now == nil || options.NewPlanID == nil {
 		return nil, fmt.Errorf("%w: restore dependencies are incomplete", ErrInvalidRequest)
 	}
-	return &RestoreApp{enabled: options.Enabled, store: options.Store, inspector: options.Inspector, verifier: options.Verifier, now: options.Now, newPlanID: options.NewPlanID}, nil
+	newAuditID := options.NewAuditID
+	if newAuditID == nil {
+		newAuditID = options.NewPlanID
+	}
+	return &RestoreApp{
+		enabled: options.Enabled, store: options.Store,
+		inspector: options.Inspector, verifier: options.Verifier,
+		cleaner:            options.Cleaner,
+		activationVerifier: options.ActivationVerifier,
+		now:                options.Now, newPlanID: options.NewPlanID,
+		newAuditID: newAuditID,
+	}, nil
 }
 
 // Plan verifies prerequisites and records the only immutable recovery plan.
@@ -478,11 +516,19 @@ func (a *RestoreApp) Verify(ctx context.Context, planID string) (RestorePlan, er
 	})
 }
 
-// Activate records explicit old-cluster fencing evidence and opens the restored generation.
-func (a *RestoreApp) Activate(ctx context.Context, planID, fenceDigest string) (RestorePlan, error) {
-	fenceDigest = strings.TrimSpace(fenceDigest)
-	if !validRestoreDigest(fenceDigest) {
-		return RestorePlan{}, ErrOldClusterFenceRequired
+// Activate records verified normal or explicitly audited exceptional evidence,
+// removes plan-bound plaintext staging, then opens the restored generation.
+func (a *RestoreApp) Activate(
+	ctx context.Context,
+	planID string,
+	request RestoreActivationRequest,
+) (RestorePlan, error) {
+	request.Operator = strings.TrimSpace(request.Operator)
+	request.BreakGlassReason = strings.TrimSpace(request.BreakGlassReason)
+	if request.Operator == "" ||
+		(request.SourceFenceReceipt == nil) ==
+			(request.BreakGlassReason == "") {
+		return RestorePlan{}, ErrActivationEvidenceRequired
 	}
 	state, err := a.store.Load(ctx)
 	if err != nil {
@@ -491,11 +537,27 @@ func (a *RestoreApp) Activate(ctx context.Context, planID, fenceDigest string) (
 	if state.Plan == nil || state.Plan.ID != planID {
 		return RestorePlan{}, ErrRestorePointNotFound
 	}
-	if state.Plan.Status == RestoreStatusActivated && state.Plan.ActivationFenceDigest == fenceDigest {
-		return *cloneRestorePlan(state.Plan), nil
+	if state.Plan.Status == RestoreStatusActivated {
+		if sameRestoreActivationRequest(state.Plan.Activation, request) {
+			return *cloneRestorePlan(state.Plan), nil
+		}
+		return RestorePlan{}, ErrRestoreTransition
+	}
+	if state.Plan.Status == RestoreStatusActivating {
+		if !sameRestoreActivationRequest(state.Plan.Activation, request) {
+			return RestorePlan{}, ErrRestoreTransition
+		}
+		return a.completeRestoreActivation(ctx, *cloneRestorePlan(state.Plan))
 	}
 	if state.Plan.Status != RestoreStatusVerified {
 		return RestorePlan{}, ErrRestoreTransition
+	}
+	authorizedAt := a.now().UTC().UnixMilli()
+	activation, err := a.buildRestoreActivationEvidence(
+		ctx, *state.Plan, request, authorizedAt,
+	)
+	if err != nil {
+		return RestorePlan{}, err
 	}
 	verified, err := a.verifier.VerifyRestore(ctx, *cloneRestorePlan(state.Plan))
 	if err != nil {
@@ -506,19 +568,164 @@ func (a *RestoreApp) Activate(ctx context.Context, planID, fenceDigest string) (
 	}
 	for index, partition := range verified {
 		if partition.HashSlot != uint16(index) || !validRestorePartitionEvidence(partition) || !partition.Installed || !partition.Verified ||
+			partition.Status != RestorePartitionConverged ||
+			partition.ReplicaCount == 0 ||
+			partition.ConvergedReplicas != partition.ReplicaCount ||
 			!sameRestorePartitionInstallEvidence(state.Plan.Partitions[index], partition) {
 			return RestorePlan{}, ErrRestoreTransition
 		}
 	}
-	return a.transition(ctx, planID, func(plan *RestorePlan) error {
+	activating, err := a.transition(ctx, planID, func(plan *RestorePlan) error {
 		if plan.Status != RestoreStatusVerified {
 			return ErrRestoreTransition
 		}
-		plan.Status = RestoreStatusActivated
-		plan.ActivationFenceDigest = fenceDigest
-		plan.ActivatedAtUnixMillis = a.now().UTC().UnixMilli()
+		plan.Status = RestoreStatusActivating
+		plan.Activation = backupartifact.CloneRestoreActivationEvidence(&activation)
 		return nil
 	})
+	if err != nil {
+		latest, loadErr := a.store.Load(ctx)
+		if loadErr != nil || latest.Plan == nil ||
+			latest.Plan.ID != planID ||
+			latest.Plan.Status != RestoreStatusActivating ||
+			!sameRestoreActivationRequest(latest.Plan.Activation, request) {
+			return RestorePlan{}, err
+		}
+		activating = *cloneRestorePlan(latest.Plan)
+	}
+	return a.completeRestoreActivation(ctx, activating)
+}
+
+func (a *RestoreApp) completeRestoreActivation(
+	ctx context.Context,
+	activating RestorePlan,
+) (RestorePlan, error) {
+	if activating.Status != RestoreStatusActivating ||
+		activating.Activation == nil {
+		return RestorePlan{}, ErrRestoreTransition
+	}
+	if err := a.cleaner.CleanupRestoreStaging(
+		ctx, *cloneRestorePlan(&activating),
+	); err != nil {
+		return activating, fmt.Errorf(
+			"backup restore: activation staging cleanup: %w", err,
+		)
+	}
+	completedAt := a.now().UTC().UnixMilli()
+	activated, err := a.transition(
+		ctx, activating.ID, func(plan *RestorePlan) error {
+			if plan.Status != RestoreStatusActivating ||
+				plan.Activation == nil ||
+				plan.Activation.EvidenceSHA256 !=
+					activating.Activation.EvidenceSHA256 {
+				return ErrRestoreTransition
+			}
+			plan.Status = RestoreStatusActivated
+			plan.StagingCleanupCompletedAtUnixMillis = completedAt
+			plan.ActivatedAtUnixMillis = completedAt
+			return nil
+		},
+	)
+	if err == nil {
+		return activated, nil
+	}
+	latest, loadErr := a.store.Load(ctx)
+	if loadErr == nil && latest.Plan != nil &&
+		latest.Plan.ID == activating.ID &&
+		latest.Plan.Status == RestoreStatusActivated &&
+		latest.Plan.Activation != nil &&
+		latest.Plan.Activation.EvidenceSHA256 ==
+			activating.Activation.EvidenceSHA256 {
+		return *cloneRestorePlan(latest.Plan), nil
+	}
+	return RestorePlan{}, err
+}
+
+func (a *RestoreApp) buildRestoreActivationEvidence(
+	ctx context.Context,
+	plan RestorePlan,
+	request RestoreActivationRequest,
+	activatedAt int64,
+) (backupartifact.RestoreActivationEvidence, error) {
+	if request.SourceFenceReceipt != nil {
+		if a.activationVerifier == nil {
+			return backupartifact.RestoreActivationEvidence{},
+				ErrActivationEvidenceRequired
+		}
+		receipt := *request.SourceFenceReceipt
+		if err := backupartifact.VerifySourceFenceReceipt(
+			ctx, receipt, a.activationVerifier,
+		); err != nil {
+			return backupartifact.RestoreActivationEvidence{},
+				fmt.Errorf("%w: %v", ErrActivationEvidenceRequired, err)
+		}
+		if receipt.RestorePlanID != plan.ID ||
+			receipt.RestorePointID != plan.RestorePointID ||
+			receipt.ManifestSHA256 != plan.ManifestSHA256 ||
+			receipt.SourceClusterID != plan.SourceClusterID ||
+			receipt.SourceGeneration != plan.SourceGeneration ||
+			receipt.TargetClusterID != plan.TargetClusterID ||
+			receipt.TargetGeneration != plan.TargetGeneration {
+			return backupartifact.RestoreActivationEvidence{},
+				ErrActivationEvidenceRequired
+		}
+		digest, err := backupartifact.SourceFenceReceiptDigest(receipt)
+		if err != nil {
+			return backupartifact.RestoreActivationEvidence{}, err
+		}
+		evidence := backupartifact.RestoreActivationEvidence{
+			Kind:                 backupartifact.RestoreActivationSourceFence,
+			EvidenceSHA256:       digest,
+			Operator:             request.Operator,
+			RecordedAtUnixMillis: activatedAt,
+			SourceFenceReceipt:   &receipt,
+		}
+		if err := backupartifact.ValidateRestoreActivationEvidence(evidence); err != nil {
+			return backupartifact.RestoreActivationEvidence{}, err
+		}
+		return evidence, nil
+	}
+	audit := backupartifact.BreakGlassActivationAudit{
+		ID:                     strings.TrimSpace(a.newAuditID()),
+		RestorePlanID:          plan.ID,
+		Operator:               request.Operator,
+		Reason:                 request.BreakGlassReason,
+		AuthorizedAtUnixMillis: activatedAt,
+	}
+	digest, err := backupartifact.BreakGlassActivationDigest(audit)
+	if err != nil {
+		return backupartifact.RestoreActivationEvidence{},
+			fmt.Errorf("%w: %v", ErrActivationEvidenceRequired, err)
+	}
+	evidence := backupartifact.RestoreActivationEvidence{
+		Kind:                 backupartifact.RestoreActivationBreakGlass,
+		EvidenceSHA256:       digest,
+		Operator:             request.Operator,
+		RecordedAtUnixMillis: activatedAt,
+		BreakGlass:           &audit,
+	}
+	return evidence, backupartifact.ValidateRestoreActivationEvidence(evidence)
+}
+
+func sameRestoreActivationRequest(
+	evidence *backupartifact.RestoreActivationEvidence,
+	request RestoreActivationRequest,
+) bool {
+	if evidence == nil {
+		return false
+	}
+	if request.SourceFenceReceipt != nil &&
+		evidence.Kind == backupartifact.RestoreActivationSourceFence &&
+		evidence.Operator == request.Operator {
+		digest, err := backupartifact.SourceFenceReceiptDigest(
+			*request.SourceFenceReceipt,
+		)
+		return err == nil && digest == evidence.EvidenceSHA256
+	}
+	return evidence.Kind == backupartifact.RestoreActivationBreakGlass &&
+		evidence.BreakGlass != nil &&
+		evidence.BreakGlass.Operator == request.Operator &&
+		evidence.BreakGlass.Reason == request.BreakGlassReason
 }
 
 func sameRestorePartitionResult(left, right RestorePartition) bool {
@@ -712,6 +919,9 @@ func cloneRestorePlan(plan *RestorePlan) *RestorePlan {
 		value := *plan.EstimatedCipherBytes
 		copy.EstimatedCipherBytes = &value
 	}
+	copy.Activation = backupartifact.CloneRestoreActivationEvidence(
+		plan.Activation,
+	)
 	copy.Partitions = append([]RestorePartition(nil), plan.Partitions...)
 	return &copy
 }

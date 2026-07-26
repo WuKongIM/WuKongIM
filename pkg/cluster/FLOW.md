@@ -316,6 +316,14 @@ under the Stop context after the periodic loop is canceled and before
 Controller/watch shutdown. Controller fills the leader-side report timestamp,
 stores the report durably, and control snapshots derive `fresh`, `stale`, or
 `missing` health from the configured TTL.
+When the Controller snapshot first carries a source-generation fence, the node
+publishes a one-way foreground rejection before slower reconciliation and
+reports `runtime_ready=false`. It withholds the fence Controller revision from
+health reports until the default Slot runtime has no queued, submitted, or
+pending ordinary proposal and a Channel runtime snapshot proves no accepted
+append remains. The Slot enqueue admission uses an RW-lock boundary shared by
+local and forwarded proposals, so a caller that passed an earlier API check
+cannot enqueue after the fence and escape the drain proof.
 The default Channel runtime runtime also receives a node-local data-plane lease guard.
 A successful health report refreshes the lease only when `runtime_ready` is
 still true. The local lease records the report attempt start after success so
@@ -690,6 +698,8 @@ on every return path. Channel not found or no visible tail returns
 the caller.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default Controller runtime, proposer, and Channel runtime service, backs Channel runtime with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as Channel runtime append admission, registers Channel runtime replication/append-forward handlers on the default node RPC transport, and owns the Channel runtime tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
+Its final proposal enqueue is also fenced by the node's terminal source-write
+admission boundary; forwarded Slot proposals cannot bypass that boundary.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
 `Config.Slots.LogCompaction` is also passed through to the default Slot
 Multi-Raft runtime so composition roots can tune local Slot Raft snapshot

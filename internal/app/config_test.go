@@ -12,9 +12,12 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 	app := &App{cfg: Config{DataDir: t.TempDir()}}
 	require.NoError(t, app.applyConfigDefaults())
 	require.False(t, app.cfg.Backup.Enabled)
-	require.Equal(t, time.Minute, app.cfg.Backup.IncrementalInterval)
-	require.Equal(t, 5*time.Minute, app.cfg.Backup.RestorePointInterval)
-	require.Equal(t, uint64(8*1024*1024), app.cfg.Backup.ChunkSizeBytes)
+	require.Equal(t, 30*time.Second, app.cfg.Backup.CaptureReconcileInterval)
+	require.Equal(t, 5*time.Minute, app.cfg.Backup.CheckpointInterval)
+	require.Equal(t, uint64(8*1024*1024), app.cfg.Backup.BaselineChunkBytes)
+	require.Equal(t, uint64(64*1024*1024), app.cfg.Backup.TargetSegmentBytes)
+	require.Equal(t, 30*time.Second, app.cfg.Backup.MaxSegmentOpenDuration)
+	require.Equal(t, 4, app.cfg.Backup.WorkerCount)
 	require.Equal(t, time.Hour, app.cfg.Backup.SourcePinMaxAge)
 	require.Equal(t, uint64(8*1024*1024*1024), app.cfg.Backup.MaxSourcePinnedBytes)
 }
@@ -30,14 +33,12 @@ func TestBackupConfigNormalizesPreviousTrustedSigningKeys(t *testing.T) {
 
 func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
 	cfg := BackupConfig{
-		Enabled:                 true,
-		RepositoryID:            "cluster-a-dr",
-		SourceGeneration:        "generation-1",
-		StagingDir:              filepath.Join(t.TempDir(), "backup-staging"),
-		KMSKeyID:                "kms-encryption-v1",
-		SigningKeyID:            "kms-signing-v1",
-		GarbageCollectorRoleARN: "arn:aws:iam::123456789012:role/wukongim-backup-gc",
-		MonthlyRetentionMonths:  12,
+		Enabled:          true,
+		RepositoryID:     "cluster-a-dr",
+		SourceGeneration: "generation-1",
+		StagingDir:       filepath.Join(t.TempDir(), "backup-staging"),
+		KMSKeyID:         "kms-encryption-v1",
+		SigningKeyID:     "kms-signing-v1",
 		Primary: BackupRepositoryConfig{
 			Endpoint: "https://primary.example",
 			Region:   "region-a",

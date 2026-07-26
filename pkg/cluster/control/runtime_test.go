@@ -489,6 +489,82 @@ func TestRuntimeJoinNodeReturnsControlWriteAfterForward(t *testing.T) {
 	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateJoining, "")
 }
 
+func TestRuntimeReplaceCoordinationStateForwardsToControllerLeader(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	controlWriteClient := NewControlWriteClient(network)
+	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
+	runtimes := make([]*Runtime, 0, len(voters))
+	for _, voter := range voters {
+		rt, err := NewRuntime(RuntimeConfig{
+			NodeID:             voter.NodeID,
+			Addr:               voter.Addr,
+			StateDir:           t.TempDir(),
+			ClusterID:          "cluster-forward-backup-coordination",
+			Role:               RuntimeRoleVoter,
+			Voters:             voters,
+			AllowBootstrap:     true,
+			InitialSlotCount:   1,
+			HashSlotCount:      4,
+			ReplicaCount:       3,
+			TickInterval:       10 * time.Millisecond,
+			RaftTransport:      NewRaftTransport(network),
+			ControlWriteClient: controlWriteClient,
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
+		}
+		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		runtimes = append(runtimes, rt)
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), runtimeTestStartTimeout)
+	defer cancel()
+	startErrs := make(chan error, len(runtimes))
+	for _, rt := range runtimes {
+		rt := rt
+		go func() { startErrs <- rt.Start(startCtx) }()
+		t.Cleanup(func() { _ = rt.Stop(context.Background()) })
+	}
+	for range runtimes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	replacement := controller.BackupCoordinationState{CatalogAuditRootSequence: 7}
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, follower *Runtime) (struct{}, error) {
+		applier := &recordingControlWriteApplier{}
+		network.Register(leader.cfg.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+		err := follower.ReplaceBackupCoordinationState(ctx, 9, replacement)
+		if err == nil {
+			if len(applier.backupReplacements) != 1 ||
+				applier.backupReplacements[0].expectedRevision != 9 ||
+				!reflect.DeepEqual(applier.backupReplacements[0].replacement, replacement) {
+				t.Fatalf("backup replacements = %#v, want forwarded replacement", applier.backupReplacements)
+			}
+		}
+		return struct{}{}, err
+	})
+
+	restoreReplacement := controller.RestoreCoordinationState{
+		Plan: &controller.RestorePlan{ID: "restore-plan-forwarded"},
+	}
+	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, follower *Runtime) (struct{}, error) {
+		applier := &recordingControlWriteApplier{}
+		network.Register(leader.cfg.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+		err := follower.ReplaceRestoreCoordinationState(
+			ctx, 10, restoreReplacement,
+		)
+		if err == nil {
+			if len(applier.restoreReplacements) != 1 ||
+				applier.restoreReplacements[0].expectedRevision != 10 ||
+				!reflect.DeepEqual(applier.restoreReplacements[0].replacement, restoreReplacement) {
+				t.Fatalf("restore replacements = %#v, want forwarded replacement", applier.restoreReplacements)
+			}
+		}
+		return struct{}{}, err
+	})
+}
+
 func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	controlWriteClient := NewControlWriteClient(network)

@@ -46,6 +46,8 @@ type RestoreCoordinatorOptions struct {
 	TickInterval time.Duration
 	Now          func() time.Time
 	Observer     RuntimeObserver
+	// OnFailure receives bounded coordinator failures for application logging.
+	OnFailure func(category string, err error)
 }
 
 // RestoreCoordinatorStatus is bounded node-local operational evidence.
@@ -166,7 +168,7 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 	}
 	plan, err := c.options.App.Status(ctx)
 	if err != nil {
-		c.recordRestoreFailure("restore_state")
+		c.recordRestoreFailure("restore_state", err)
 		return err
 	}
 	if plan == nil || plan.Status != backupcontract.RestoreStatusInstalling {
@@ -177,8 +179,9 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 	}
 	missing := make([]uint16, 0, plan.HashSlotCount)
 	if len(plan.Partitions) != int(plan.HashSlotCount) {
-		c.recordRestoreFailure("restore_state")
-		return backupcontract.ErrStateConflict
+		err = backupcontract.ErrStateConflict
+		c.recordRestoreFailure("restore_state", err)
+		return err
 	}
 	for hashSlot := uint16(0); hashSlot < plan.HashSlotCount; hashSlot++ {
 		if plan.Partitions[hashSlot].Status !=
@@ -203,7 +206,7 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 	}
 	err = c.installMissing(ctx, *plan, missing)
 	if err != nil {
-		c.recordRestoreFailure(restoreInstallFailureCategory(err))
+		c.recordRestoreFailure(restoreInstallFailureCategory(err), err)
 		return err
 	}
 	c.mu.Lock()
@@ -305,12 +308,15 @@ func restoreInstallFailureCategory(err error) string {
 	}
 }
 
-func (c *RestoreCoordinator) recordRestoreFailure(category string) {
+func (c *RestoreCoordinator) recordRestoreFailure(category string, err error) {
 	c.mu.Lock()
 	c.status.LastFailureCategory = category
 	c.mu.Unlock()
 	if c.options.Observer != nil {
 		c.options.Observer.ObserveBackupFailure(category)
+	}
+	if c.options.OnFailure != nil {
+		c.options.OnFailure(category, err)
 	}
 }
 

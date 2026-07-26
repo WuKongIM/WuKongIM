@@ -3,6 +3,10 @@ package control
 // Clone returns a deep copy that callers may mutate independently.
 func (s Snapshot) Clone() Snapshot {
 	out := s
+	if s.SourceFence != nil {
+		sourceFence := *s.SourceFence
+		out.SourceFence = &sourceFence
+	}
 	out.Nodes = append([]Node(nil), s.Nodes...)
 	for i := range out.Nodes {
 		out.Nodes[i].Roles = append([]Role(nil), s.Nodes[i].Roles...)

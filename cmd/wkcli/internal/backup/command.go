@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 		newPointMutationCommand(deps, &cfg, "hold", "Place a retention hold on a restore point"),
 		newPointMutationCommand(deps, &cfg, "release", "Release a restore-point retention hold"),
 		newPointMutationCommand(deps, &cfg, "verify", "Verify both repository copies and the signed object chain"),
+		newSourceFenceCommand(deps, &cfg),
 		newRestoreCommand(deps, &cfg),
 	)
 	return cmd
@@ -109,19 +111,91 @@ func newRestorePlanMutationCommand(deps command.Deps, cfg *config, action, short
 }
 
 func newRestoreActivateCommand(deps command.Deps, cfg *config) *cobra.Command {
-	var fenceDigest string
+	var receiptPath string
+	var breakGlassReason string
 	cmd := &cobra.Command{Use: "activate PLAN_ID", Short: "Activate only after old-cluster fencing", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		planID := strings.TrimSpace(args[0])
-		fenceDigest = strings.TrimSpace(fenceDigest)
-		if planID == "" || len(fenceDigest) != 64 {
-			return command.Exit{Code: command.ExitConfig, Message: "PLAN_ID and a 64-character --old-cluster-fence-digest are required"}
+		receiptPath = strings.TrimSpace(receiptPath)
+		breakGlassReason = strings.TrimSpace(breakGlassReason)
+		if planID == "" || (receiptPath == "") == (breakGlassReason == "") {
+			return command.Exit{Code: command.ExitConfig, Message: "PLAN_ID and exactly one of --source-fence-receipt or --break-glass-reason are required"}
 		}
-		return execute(deps, *cfg, cmd.Context(), http.MethodPost, "/manager/restore/"+url.PathEscape(planID)+"/activate", map[string]string{
-			"old_cluster_fence_digest": fenceDigest,
-		})
+		request := map[string]any{}
+		if receiptPath != "" {
+			receipt, err := loadSourceFenceReceiptFile(receiptPath)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			request["source_fence_receipt"] = receipt
+		} else {
+			request["break_glass"] = map[string]string{"reason": breakGlassReason}
+		}
+		return execute(deps, *cfg, cmd.Context(), http.MethodPost, "/manager/restore/"+url.PathEscape(planID)+"/activate", request)
 	}}
-	cmd.Flags().StringVar(&fenceDigest, "old-cluster-fence-digest", "", "SHA-256 evidence that the source cluster is fenced")
+	cmd.Flags().StringVar(&receiptPath, "source-fence-receipt", "", "Path to the exact signed source-fence receipt JSON")
+	cmd.Flags().StringVar(&breakGlassReason, "break-glass-reason", "", "Explicit exceptional reason when the source is unrecoverable")
 	return cmd
+}
+
+func newSourceFenceCommand(deps command.Deps, cfg *config) *cobra.Command {
+	var restorePlanID string
+	var restorePointID string
+	var targetClusterID string
+	var targetGeneration string
+	cmd := &cobra.Command{
+		Use: "fence-source", Short: "Irreversibly fence the source and issue a signed receipt",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			restorePlanID = strings.TrimSpace(restorePlanID)
+			restorePointID = strings.TrimSpace(restorePointID)
+			targetClusterID = strings.TrimSpace(targetClusterID)
+			targetGeneration = strings.TrimSpace(targetGeneration)
+			if restorePlanID == "" || restorePointID == "" ||
+				targetClusterID == "" || targetGeneration == "" {
+				return command.Exit{Code: command.ExitConfig, Message: "all source-fence target binding flags are required"}
+			}
+			return execute(
+				deps, *cfg, cmd.Context(), http.MethodPost,
+				"/manager/backups/source-fence",
+				map[string]string{
+					"restore_plan_id":   restorePlanID,
+					"restore_point_id":  restorePointID,
+					"target_cluster_id": targetClusterID,
+					"target_generation": targetGeneration,
+				},
+			)
+		},
+	}
+	cmd.Flags().StringVar(&restorePlanID, "restore-plan", "", "Immutable successor restore plan ID")
+	cmd.Flags().StringVar(&restorePointID, "restore-point", "", "Exact signed checkpoint ID selected by the plan")
+	cmd.Flags().StringVar(&targetClusterID, "target-cluster", "", "Fresh successor cluster ID")
+	cmd.Flags().StringVar(&targetGeneration, "target-generation", "", "Fresh successor generation")
+	return cmd
+}
+
+func loadSourceFenceReceiptFile(path string) (backupartifact.SourceFenceReceipt, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return backupartifact.SourceFenceReceipt{}, fmt.Errorf("open source-fence receipt: %w", err)
+	}
+	defer file.Close()
+	body, err := io.ReadAll(io.LimitReader(file, (64<<10)+1))
+	if err != nil {
+		return backupartifact.SourceFenceReceipt{}, fmt.Errorf("read source-fence receipt: %w", err)
+	}
+	if len(body) == 0 || len(body) > 64<<10 {
+		return backupartifact.SourceFenceReceipt{}, fmt.Errorf("source-fence receipt exceeds the 64 KiB limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	var receipt backupartifact.SourceFenceReceipt
+	if err := decoder.Decode(&receipt); err != nil {
+		return backupartifact.SourceFenceReceipt{}, fmt.Errorf("decode source-fence receipt: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return backupartifact.SourceFenceReceipt{}, fmt.Errorf("source-fence receipt has trailing data")
+	}
+	return receipt, nil
 }
 
 func newReadCommand(deps command.Deps, cfg *config, use, short, path string, aliasLS bool) *cobra.Command {

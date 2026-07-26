@@ -34,6 +34,18 @@ type Options struct {
 	Verifier RestorePointVerifier
 	// CatalogBrowser reads immutable checkpoint history through a derived index.
 	CatalogBrowser CheckpointCatalogBrowser
+	// Checkpoints publishes complete continuous-capture vector cuts.
+	Checkpoints *CheckpointCoordinator
+	// SourceClusterID and SourceGeneration identify the incarnation that may be fenced.
+	SourceClusterID  string
+	SourceGeneration string
+	// SourceFenceConvergence proves every active data node has applied the fence.
+	SourceFenceConvergence SourceFenceConvergence
+	// SourceFenceSigner and SigningKeyID issue the Controller-backed receipt.
+	SourceFenceSigner backupartifact.ManifestSigner
+	SigningKeyID      string
+	// NewSourceFenceID allocates the immutable fence identity.
+	NewSourceFenceID func() string
 	// Now returns the current UTC time.
 	Now func() time.Time
 	// NewJobID returns a globally unique backup job identity.
@@ -54,6 +66,13 @@ type App struct {
 	publisher           RestorePointPublisher
 	verifier            RestorePointVerifier
 	catalogBrowser      CheckpointCatalogBrowser
+	checkpoints         *CheckpointCoordinator
+	sourceClusterID     string
+	sourceGeneration    string
+	sourceFence         SourceFenceConvergence
+	sourceFenceSigner   backupartifact.ManifestSigner
+	signingKeyID        string
+	newSourceFenceID    func() string
 	now                 func() time.Time
 	newJobID            func() string
 	maxRecoveryPointAge time.Duration
@@ -63,7 +82,8 @@ type App struct {
 
 // NewApp creates a backup coordinator.
 func NewApp(options Options) (*App, error) {
-	if options.HashSlotCount == 0 || options.Store == nil || options.Publisher == nil || options.Now == nil || options.NewJobID == nil {
+	if options.HashSlotCount == 0 || options.Store == nil || options.Now == nil ||
+		(options.Checkpoints == nil && (options.Publisher == nil || options.NewJobID == nil)) {
 		return nil, fmt.Errorf("%w: coordinator dependencies are incomplete", ErrInvalidRequest)
 	}
 	maxRecoveryPointAge := options.MaxRecoveryPointAge
@@ -94,6 +114,13 @@ func NewApp(options Options) (*App, error) {
 		publisher:           options.Publisher,
 		verifier:            options.Verifier,
 		catalogBrowser:      options.CatalogBrowser,
+		checkpoints:         options.Checkpoints,
+		sourceClusterID:     strings.TrimSpace(options.SourceClusterID),
+		sourceGeneration:    strings.TrimSpace(options.SourceGeneration),
+		sourceFence:         options.SourceFenceConvergence,
+		sourceFenceSigner:   options.SourceFenceSigner,
+		signingKeyID:        strings.TrimSpace(options.SigningKeyID),
+		newSourceFenceID:    options.NewSourceFenceID,
 		now:                 options.Now,
 		newJobID:            options.NewJobID,
 		maxRecoveryPointAge: maxRecoveryPointAge,
@@ -308,7 +335,27 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 		}
 	}
 	snapshot.Capacity = backupCapacitySnapshot(state)
-	if len(state.RestorePoints) > 0 {
+	if state.CatalogHead != nil && a.catalogBrowser != nil {
+		latest, getErr := a.catalogBrowser.Get(
+			ctx, *state.CatalogHead, state.CatalogHead.LatestCheckpointID,
+		)
+		if getErr != nil {
+			return StatusSnapshot{}, getErr
+		}
+		summary := latest.CheckpointSummary
+		snapshot.LatestCheckpoint = &summary
+		age := a.now().UTC().Unix() -
+			time.UnixMilli(latest.EffectiveAtUnixMillis).UTC().Unix()
+		if age < 0 {
+			age = 0
+		}
+		snapshot.RecoveryPointAgeSeconds = &age
+		if time.Duration(age)*time.Second > a.maxRecoveryPointAge {
+			snapshot.Health = HealthDegraded
+		} else {
+			snapshot.Health = HealthHealthy
+		}
+	} else if len(state.RestorePoints) > 0 {
 		latest := state.RestorePoints[0]
 		for _, candidate := range state.RestorePoints[1:] {
 			if candidate.EffectiveAtUnixMillis > latest.EffectiveAtUnixMillis ||

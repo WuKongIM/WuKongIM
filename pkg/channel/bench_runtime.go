@@ -55,6 +55,9 @@ type RuntimeReactorSnapshot struct {
 	Parked int
 	// MailboxDepth is the pending mailbox depth for this reactor.
 	MailboxDepth int
+	// PendingAppendChannels is the number of loaded runtimes with ordinary
+	// append work still queued, executing, retrying, or awaiting completion.
+	PendingAppendChannels int
 }
 
 // RuntimeWorkerQueue summarizes one bounded worker pool queue.

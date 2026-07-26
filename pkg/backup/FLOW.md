@@ -202,3 +202,19 @@ content-addressed segment contract.
 18. Delete-capable repositories map provider Object Lock rejection to
     `ErrObjectLocked`. Generation GC treats it as deferred work for that
     repository, not as permission to advance past the protected version.
+
+## Restore Activation Evidence
+
+`SourceFenceRecord` is the portable immutable binding from one source cluster
+generation to one exact restore plan, checkpoint digest, and successor
+generation. A receipt is valid only after the record carries the Controller
+revision observed by all active data nodes and a convergence time. Signing and
+verification use canonical bytes and the same injected `ManifestSigner`
+boundary as other KMS-backed artifacts; changing any binding invalidates the
+signature.
+
+`RestoreActivationEvidence` is exactly one of a verified source-fence receipt
+or an explicit break-glass audit. Break glass binds a generated audit ID,
+operator, reason, plan, and authorization time into a deterministic digest.
+The evidence is immutable across `activating` retries and contains no repository
+credential or plaintext staging path.
