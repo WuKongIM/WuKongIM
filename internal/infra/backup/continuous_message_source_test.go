@@ -508,6 +508,7 @@ func (r *fakeMessageBoundaryResolver) Resolve(_ context.Context, request backupi
 func (r *fakeMessageBoundaryResolver) ResolveBaseline(
 	_ context.Context,
 	_ uint16,
+	_ string,
 	_ backupartifact.SegmentReference,
 ) (*backupinfra.ResolvedBaseline, error) {
 	r.baselineCalls++

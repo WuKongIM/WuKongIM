@@ -1173,7 +1173,18 @@ func (r backupManagerRouter) Status(ctx context.Context) (backupusecase.StatusSn
 	if local {
 		return r.local.Status(ctx)
 	}
-	return r.client.ManagerBackupStatus(ctx, leaderID)
+	status, err := r.client.ManagerBackupStatus(ctx, leaderID)
+	if err != nil {
+		return backupusecase.StatusSnapshot{}, err
+	}
+	// The durable backup projection is Controller-Leader scoped, but capture
+	// workers are node-local. Preserve the contacted node's worker evidence.
+	localStatus, err := r.local.Status(ctx)
+	if err != nil {
+		return backupusecase.StatusSnapshot{}, err
+	}
+	status.LocalCaptureStatuses = localStatus.LocalCaptureStatuses
+	return status, nil
 }
 
 func (r backupManagerRouter) ListCheckpointsPage(ctx context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {

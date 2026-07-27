@@ -175,9 +175,18 @@ func TestMessageCursorResolverStopsAtFullCheckpoint(t *testing.T) {
 }
 
 func TestMessageCursorResolverBoundsBaselineDecodeAndMergeWorkingSet(t *testing.T) {
-	body, err := backupartifact.MarshalChannelIndex(17, []backupartifact.ChannelBoundary{{
-		ChannelID: "room-a", ChannelType: 2, Epoch: 1, HW: 7,
-	}})
+	const generation = "rebase-00017-00000000000000000002"
+	body, err := backupartifact.MarshalMessageCursorBatch(
+		backupartifact.MessageCursorBatch{
+			HashSlot: 17, Generation: generation, Sequence: 1,
+			Checkpoint: true, NextCursor: "baseline-42",
+			SourceHighWatermark:   42,
+			WatermarkAtUnixMillis: 1_753_400_100_000,
+			Boundaries: []backupartifact.ChannelBoundary{{
+				ChannelID: "room-a", ChannelType: 2, Epoch: 1, HW: 7,
+			}},
+		},
+	)
 	require.NoError(t, err)
 	reference := testContinuousSegmentReference("f")
 	reference.PlaintextBytes = int64(len(body))
@@ -187,25 +196,74 @@ func TestMessageCursorResolverBoundsBaselineDecodeAndMergeWorkingSet(t *testing.
 	rejectedBudget := &boundedCursorBudget{limit: int64(len(body))*3 - 1}
 	rejected, err := backupinfra.NewMessageCursorResolver(loader, rejectedBudget)
 	require.NoError(t, err)
-	_, err = rejected.ResolveBaseline(context.Background(), 17, reference)
+	_, err = rejected.ResolveBaseline(
+		context.Background(), 17, generation, reference,
+	)
 	require.ErrorIs(t, err, backupruntime.ErrCaptureMemoryPressure)
 	require.Empty(t, loader.loads, "loader must not allocate before the shared reservation")
 
 	budget := &boundedCursorBudget{limit: 1 << 20}
 	resolver, err := backupinfra.NewMessageCursorResolver(loader, budget)
 	require.NoError(t, err)
-	baseline, err := resolver.ResolveBaseline(context.Background(), 17, reference)
+	baseline, err := resolver.ResolveBaseline(
+		context.Background(), 17, generation, reference,
+	)
 	require.NoError(t, err)
 	require.NotZero(t, budget.held)
 	require.GreaterOrEqual(t, budget.maxHeld, int64(len(body))*3)
 	baseline.Release()
 	cachedBytes := budget.held
 	require.Positive(t, cachedBytes)
-	again, err := resolver.ResolveBaseline(context.Background(), 17, reference)
+	again, err := resolver.ResolveBaseline(
+		context.Background(), 17, generation, reference,
+	)
 	require.NoError(t, err)
 	require.Equal(t, []string{reference.SegmentID}, loader.loads)
 	again.Release()
 	require.Equal(t, cachedBytes, budget.held)
+}
+
+func TestMessageCursorResolverRestartsFromMaterializedBaselineCursor(t *testing.T) {
+	body, err := backupartifact.MarshalMessageCursorBatch(
+		backupartifact.MessageCursorBatch{
+			HashSlot:              17,
+			Generation:            "rebase-00017-00000000000000000002",
+			Sequence:              1,
+			Checkpoint:            true,
+			NextCursor:            "baseline-42",
+			SourceHighWatermark:   42,
+			WatermarkAtUnixMillis: 1_753_400_100_000,
+			Boundaries: []backupartifact.ChannelBoundary{{
+				ChannelID: "room-a", ChannelType: 2, Epoch: 7, HW: 3,
+			}},
+		},
+	)
+	require.NoError(t, err)
+	reference := testContinuousSegmentReference("9")
+	reference.PlaintextBytes = int64(len(body))
+	resolver, err := backupinfra.NewMessageCursorResolver(
+		&recordingSegmentLoader{
+			bodies: map[string][]byte{reference.SegmentID: body},
+		},
+		testCursorMemoryBudget(t),
+	)
+	require.NoError(t, err)
+
+	baseline, err := resolver.ResolveBaseline(
+		context.Background(), 17,
+		"rebase-00017-00000000000000000002", reference,
+	)
+	require.NoError(t, err)
+	require.Equal(t, []backupartifact.ChannelBoundary{{
+		ChannelID: "room-a", ChannelType: 2, Epoch: 7, HW: 3,
+	}}, baseline.Boundaries)
+	baseline.Release()
+
+	_, err = resolver.ResolveBaseline(
+		context.Background(), 17,
+		"rebase-00017-00000000000000000003", reference,
+	)
+	require.ErrorIs(t, err, backupruntime.ErrInvalidCapture)
 }
 
 func TestMessageCursorResolverCacheEvictsLeastRecentlyUsedSlot(t *testing.T) {

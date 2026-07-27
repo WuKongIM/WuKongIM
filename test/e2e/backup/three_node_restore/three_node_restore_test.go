@@ -33,18 +33,27 @@ type backupStatus struct {
 	CaptureLeases    []struct {
 		HashSlot                  uint16 `json:"hash_slot"`
 		HolderNodeID              uint64 `json:"holder_node_id"`
+		Generation                string `json:"generation"`
 		LeaseSequence             uint64 `json:"lease_sequence"`
 		FrontierRevision          uint64 `json:"frontier_revision"`
 		MetadataSourceWatermark   uint64 `json:"metadata_source_watermark"`
 		MessageSourceWatermark    uint64 `json:"message_source_watermark"`
 		FrontierUpdatedUnixMillis int64  `json:"frontier_updated_unix_millis"`
 	} `json:"capture_leases"`
-	CaptureStatuses []struct {
-		HashSlot         uint16 `json:"hash_slot"`
-		State            string `json:"state"`
-		FailureCategory  string `json:"failure_category"`
-		FrontierRevision uint64 `json:"frontier_revision"`
-	} `json:"capture_statuses"`
+	CaptureStatuses []backupCaptureStatus `json:"local_capture_statuses"`
+}
+
+type backupCaptureStatus struct {
+	HashSlot                  uint16 `json:"hash_slot"`
+	State                     string `json:"state"`
+	FailureCategory           string `json:"failure_category"`
+	LeaseCurrent              bool   `json:"lease_current"`
+	FrontierRevision          uint64 `json:"frontier_revision"`
+	MetadataSourceWatermark   uint64 `json:"metadata_source_watermark"`
+	MessageSourceWatermark    uint64 `json:"message_source_watermark"`
+	MetadataFrontierWatermark uint64 `json:"metadata_frontier_watermark"`
+	MessageFrontierWatermark  uint64 `json:"message_frontier_watermark"`
+	ObservedAtUnixMillis      int64  `json:"observed_at_unix_millis"`
 }
 
 type checkpoint struct {
@@ -79,11 +88,15 @@ type restorePlan struct {
 }
 
 type restorePartition struct {
-	HashSlot   uint16 `json:"hash_slot"`
-	Installed  bool   `json:"installed"`
-	Verified   bool   `json:"verified"`
-	PlainBytes uint64 `json:"plain_bytes"`
-	Messages   uint64 `json:"message_count"`
+	HashSlot          uint16 `json:"hash_slot"`
+	Status            string `json:"status"`
+	Installed         bool   `json:"installed"`
+	Verified          bool   `json:"verified"`
+	PlainBytes        uint64 `json:"plain_bytes"`
+	Messages          uint64 `json:"message_count"`
+	ReplicaCount      uint32 `json:"replica_count"`
+	ConvergedReplicas uint32 `json:"converged_replicas"`
+	FailureCategory   string `json:"failure_category"`
 }
 
 type restoreStatus struct {
@@ -251,7 +264,13 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 	exerciseRepositoryIntegrityRepair(
 		t, cluster, sourceToken, qualification.CorruptionRoot,
 	)
-	exerciseSourceLeaderFailures(t, cluster, sourceToken)
+	rebasedSlotHolder := backupDurableFrontiers(
+		t, cluster, sourceToken,
+	)[hashslot.HashSlotForKey("backup-e2e-dual-corruption", 16)].holder
+	require.NotZero(t, rebasedSlotHolder)
+	exerciseSourceLeaderFailures(
+		t, cluster, sourceToken, rebasedSlotHolder,
+	)
 	waitForBackupHealthy(t, cluster, sourceToken, 120*time.Second)
 	_ = publishCheckpointEventually(
 		t, cluster, sourceToken, 120*time.Second,
@@ -300,6 +319,15 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 			hashslot.HashSlotForKey(erasureChannelID, 16),
 		},
 		[]uint16{
+			hashslot.HashSlotForKey(personalChannelID, 16),
+			hashslot.HashSlotForKey(erasureChannelID, 16),
+		},
+		120*time.Second,
+	)
+	waitForFreshIdleCaptureCycles(
+		t, cluster, sourceToken,
+		[]uint16{
+			hashslot.HashSlotForKey("backup-e2e-sender", 16),
 			hashslot.HashSlotForKey(personalChannelID, 16),
 			hashslot.HashSlotForKey(erasureChannelID, 16),
 		},
@@ -357,8 +385,17 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 
 	plan = verifyRestore(t, target, token, plan.ID)
 	require.Equal(t, "verified", plan.Status)
-	for _, partition := range plan.Partitions {
+	require.Len(t, plan.Partitions, 16)
+	for hashSlot, partition := range plan.Partitions {
+		require.Equal(t, uint16(hashSlot), partition.HashSlot)
+		require.True(t, partition.Installed)
 		require.True(t, partition.Verified)
+		require.Equal(t, "converged", partition.Status)
+		require.NotZero(t, partition.ReplicaCount)
+		require.Equal(
+			t, partition.ReplicaCount, partition.ConvergedReplicas,
+		)
+		require.Empty(t, partition.FailureCategory)
 	}
 	requireRestoreTargetTrafficClosed(t, target)
 	sourceClient, err := suite.NewWKProtoClient()
@@ -384,7 +421,6 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 		t, backupartifact.RestoreActivationSourceFence,
 		plan.Activation.Kind,
 	)
-
 	restartActivatedCluster(t, target)
 	restartedPlan := waitForRestoreStatus(
 		t, target, token, "activated", 10*time.Second,
@@ -461,16 +497,20 @@ func requireConversationEventuallyAcrossNodes(
 ) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
-	var lastPage suite.ConversationListPage
-	var lastErr error
+	lastPages := make(map[uint64]suite.ConversationListPage, len(cluster.Nodes))
+	lastErrors := make(map[uint64]error, len(cluster.Nodes))
 	for time.Now().Before(deadline) {
+		allConverged := true
+		running := 0
 		for index := range cluster.Nodes {
 			node := &cluster.Nodes[index]
 			if node.Process == nil || !node.Process.Running() {
 				continue
 			}
+			running++
 			remaining := time.Until(deadline)
 			if remaining <= 0 {
+				allConverged = false
 				break
 			}
 			attemptTimeout := min(2*time.Second, remaining)
@@ -482,33 +522,44 @@ func requireConversationEventuallyAcrossNodes(
 			)
 			cancel()
 			if err != nil {
-				lastErr = err
+				lastErrors[node.Spec.ID] = err
+				allConverged = false
 				continue
 			}
-			lastPage = page
+			lastPages[node.Spec.ID] = page
 			item, found := suite.FindConversation(page, channelID)
 			if !found {
-				lastErr = fmt.Errorf(
+				lastErrors[node.Spec.ID] = fmt.Errorf(
 					"conversation %s not found on node %d",
 					channelID, node.Spec.ID,
 				)
+				allConverged = false
 				continue
 			}
 			if err := check(item); err != nil {
-				lastErr = err
+				lastErrors[node.Spec.ID] = err
+				allConverged = false
 				continue
 			}
+			delete(lastErrors, node.Spec.ID)
+		}
+		if running > 0 && allConverged {
 			return
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf(
-		"conversation %s for uid %s did not converge across nodes: lastPage=%#v lastErr=%v\n%s",
-		channelID, uid, lastPage, lastErr, cluster.DumpDiagnostics(),
+		"conversation %s for uid %s did not converge across nodes: pages=%#v errors=%v\n%s",
+		channelID, uid, lastPages, lastErrors, cluster.DumpDiagnostics(),
 	)
 }
 
-func exerciseSourceLeaderFailures(t *testing.T, cluster *suite.StartedCluster, token string) {
+func exerciseSourceLeaderFailures(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	dataNode uint64,
+) {
 	t.Helper()
 	controllerLeader := currentControllerLeader(t, cluster, token)
 	require.NoError(t, cluster.MustNode(controllerLeader).Stop(), cluster.DumpDiagnostics())
@@ -536,23 +587,6 @@ func exerciseSourceLeaderFailures(t *testing.T, cluster *suite.StartedCluster, t
 	require.NoError(t, cluster.StartStoppedNode(slotLeader), cluster.DumpDiagnostics())
 	cluster.WaitNodesReady(t, []uint64{slotLeader}, 30*time.Second)
 
-	currentController := currentControllerLeader(t, cluster, token)
-	currentSlotLeader := currentHashSlotLeader(t, cluster, token, hashSlot)
-	dataNode := uint64(0)
-	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
-		if nodeID != currentController && nodeID != currentSlotLeader {
-			dataNode = nodeID
-			break
-		}
-	}
-	if dataNode == 0 {
-		for nodeID := uint64(1); nodeID <= 3; nodeID++ {
-			if nodeID != currentSlotLeader {
-				dataNode = nodeID
-				break
-			}
-		}
-	}
 	require.NotZero(t, dataNode)
 	require.NoError(t, cluster.MustNode(dataNode).Stop(), cluster.DumpDiagnostics())
 	survivors = otherNodeIDs(dataNode)
@@ -1777,9 +1811,13 @@ func publishCheckpointEventually(
 }
 
 type backupDurableFrontier struct {
-	metadata uint64
-	messages uint64
-	updated  int64
+	generation string
+	holder     uint64
+	lease      uint64
+	revision   uint64
+	metadata   uint64
+	messages   uint64
+	updated    int64
 }
 
 func backupDurableFrontiers(
@@ -1798,9 +1836,13 @@ func backupDurableFrontiers(
 	)
 	for _, lease := range status.CaptureLeases {
 		result[lease.HashSlot] = backupDurableFrontier{
-			metadata: lease.MetadataSourceWatermark,
-			messages: lease.MessageSourceWatermark,
-			updated:  lease.FrontierUpdatedUnixMillis,
+			generation: lease.Generation,
+			holder:     lease.HolderNodeID,
+			lease:      lease.LeaseSequence,
+			revision:   lease.FrontierRevision,
+			metadata:   lease.MetadataSourceWatermark,
+			messages:   lease.MessageSourceWatermark,
+			updated:    lease.FrontierUpdatedUnixMillis,
 		}
 	}
 	require.Len(t, result, 16)
@@ -1831,6 +1873,7 @@ func waitForDurableFrontiers(
 	}
 	deadline := time.Now().Add(timeout)
 	var last map[uint16]backupDurableFrontier
+	var lastStatus backupStatus
 	var lastErr error
 	for time.Now().Before(deadline) {
 		var status backupStatus
@@ -1839,29 +1882,36 @@ func waitForDurableFrontiers(
 			nil, &status,
 		)
 		if lastErr == nil {
+			lastStatus = status
 			last = make(
 				map[uint16]backupDurableFrontier,
 				len(status.CaptureLeases),
 			)
 			for _, lease := range status.CaptureLeases {
 				last[lease.HashSlot] = backupDurableFrontier{
-					metadata: lease.MetadataSourceWatermark,
-					messages: lease.MessageSourceWatermark,
-					updated:  lease.FrontierUpdatedUnixMillis,
+					generation: lease.Generation,
+					holder:     lease.HolderNodeID,
+					lease:      lease.LeaseSequence,
+					revision:   lease.FrontierRevision,
+					metadata:   lease.MetadataSourceWatermark,
+					messages:   lease.MessageSourceWatermark,
+					updated:    lease.FrontierUpdatedUnixMillis,
 				}
 			}
 			advanced := true
 			for hashSlot := range requiredMetadata {
-				if last[hashSlot].metadata <=
-					previous[hashSlot].metadata {
+				if !backupDurableFrontierAdvanced(
+					previous[hashSlot], last[hashSlot], true,
+				) {
 					advanced = false
 					break
 				}
 			}
 			if advanced {
 				for hashSlot := range requiredMessages {
-					if last[hashSlot].messages <=
-						previous[hashSlot].messages {
+					if !backupDurableFrontierAdvanced(
+						previous[hashSlot], last[hashSlot], false,
+					) {
 						advanced = false
 						break
 					}
@@ -1873,9 +1923,216 @@ func waitForDurableFrontiers(
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+	nodeStatuses := make(map[uint64][]backupCaptureStatus, len(cluster.Nodes))
+	nodeErrors := make(map[uint64]error, len(cluster.Nodes))
+	for index := range cluster.Nodes {
+		node := &cluster.Nodes[index]
+		if node.Process == nil || !node.Process.Running() {
+			continue
+		}
+		var status backupStatus
+		if err := managerNodeRequestError(
+			node, token, http.MethodGet, "/manager/backups/status", nil, &status,
+		); err != nil {
+			nodeErrors[node.Spec.ID] = err
+			continue
+		}
+		for _, captureStatus := range status.CaptureStatuses {
+			if _, required := requiredMetadata[captureStatus.HashSlot]; required {
+				nodeStatuses[node.Spec.ID] = append(
+					nodeStatuses[node.Spec.ID], captureStatus,
+				)
+				continue
+			}
+			if _, required := requiredMessages[captureStatus.HashSlot]; required {
+				nodeStatuses[node.Spec.ID] = append(
+					nodeStatuses[node.Spec.ID], captureStatus,
+				)
+			}
+		}
+	}
 	t.Fatalf(
-		"backup capture frontiers did not advance: metadata_slots=%v message_slots=%v previous=%v last=%v err=%v\n%s",
-		metadataHashSlots, messageHashSlots, previous, last, lastErr,
+		"backup capture frontiers did not advance: metadata_slots=%v message_slots=%v previous=%v last=%v local_capture_statuses=%+v node_statuses=%+v node_errors=%v err=%v\n%s",
+		metadataHashSlots, messageHashSlots, previous, last,
+		lastStatus.CaptureStatuses, nodeStatuses, nodeErrors, lastErr,
 		cluster.DumpDiagnostics(),
 	)
+}
+
+func backupDurableFrontierAdvanced(
+	previous, current backupDurableFrontier,
+	metadata bool,
+) bool {
+	if previous.generation != "" &&
+		current.generation != "" &&
+		current.generation != previous.generation {
+		// A promoted materialized baseline resets both incremental stream
+		// watermarks. The Slot revision remains monotonic across replacement.
+		return current.revision > previous.revision
+	}
+	if metadata {
+		return current.metadata > previous.metadata
+	}
+	return current.messages > previous.messages
+}
+
+func TestBackupDurableFrontierAdvancedAcrossGenerationReplacement(
+	t *testing.T,
+) {
+	previous := backupDurableFrontier{
+		generation: "generation-1", revision: 7,
+		metadata: 41, messages: 9,
+	}
+	replaced := backupDurableFrontier{
+		generation: "generation-2", revision: 8,
+	}
+	require.True(t, backupDurableFrontierAdvanced(
+		previous, replaced, true,
+	))
+	require.True(t, backupDurableFrontierAdvanced(
+		previous, replaced, false,
+	))
+	replaced.revision = previous.revision
+	require.False(t, backupDurableFrontierAdvanced(
+		previous, replaced, false,
+	))
+	sameGeneration := previous
+	sameGeneration.metadata++
+	require.True(t, backupDurableFrontierAdvanced(
+		previous, sameGeneration, true,
+	))
+	require.False(t, backupDurableFrontierAdvanced(
+		previous, sameGeneration, false,
+	))
+}
+
+type backupCaptureCycleBarrier struct {
+	holder         uint64
+	after          int64
+	lastObservedAt int64
+	completed      int
+}
+
+func waitForFreshIdleCaptureCycles(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	hashSlots []uint16,
+	timeout time.Duration,
+) {
+	t.Helper()
+	required := make(map[uint16]struct{}, len(hashSlots))
+	barriers := make(map[uint16]backupCaptureCycleBarrier, len(hashSlots))
+	startedAt := time.Now().UnixMilli()
+	for _, hashSlot := range hashSlots {
+		required[hashSlot] = struct{}{}
+		barriers[hashSlot] = backupCaptureCycleBarrier{after: startedAt}
+	}
+
+	deadline := time.Now().Add(timeout)
+	var lastGlobal backupStatus
+	lastNodeStatuses := make(map[uint64][]backupCaptureStatus, len(cluster.Nodes))
+	lastErrors := make(map[uint64]error, len(cluster.Nodes)+1)
+	for time.Now().Before(deadline) {
+		var global backupStatus
+		if err := managerRequestError(
+			cluster, token, http.MethodGet, "/manager/backups/status",
+			nil, &global,
+		); err != nil {
+			lastErrors[0] = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		delete(lastErrors, 0)
+		lastGlobal = global
+
+		holders := make(map[uint16]uint64, len(required))
+		holderNodes := make(map[uint64]struct{}, len(cluster.Nodes))
+		for _, lease := range global.CaptureLeases {
+			if _, ok := required[lease.HashSlot]; !ok {
+				continue
+			}
+			holders[lease.HashSlot] = lease.HolderNodeID
+			if lease.HolderNodeID != 0 {
+				holderNodes[lease.HolderNodeID] = struct{}{}
+			}
+		}
+
+		nodeStatuses := make(
+			map[uint64][]backupCaptureStatus, len(holderNodes),
+		)
+		for holder := range holderNodes {
+			var local backupStatus
+			err := managerNodeRequestError(
+				cluster.MustNode(holder), token, http.MethodGet,
+				"/manager/backups/status", nil, &local,
+			)
+			if err != nil {
+				lastErrors[holder] = err
+				continue
+			}
+			delete(lastErrors, holder)
+			nodeStatuses[holder] = local.CaptureStatuses
+		}
+		lastNodeStatuses = nodeStatuses
+
+		allCompleted := len(holders) == len(required)
+		now := time.Now().UnixMilli()
+		for hashSlot := range required {
+			holder := holders[hashSlot]
+			barrier := barriers[hashSlot]
+			if holder == 0 {
+				allCompleted = false
+				continue
+			}
+			if barrier.holder != holder {
+				barrier = backupCaptureCycleBarrier{
+					holder: holder,
+					after:  now,
+				}
+			}
+			status, found := backupCaptureStatusForSlot(
+				nodeStatuses[holder], hashSlot,
+			)
+			if found &&
+				status.State == "idle" &&
+				status.FailureCategory == "" &&
+				status.LeaseCurrent &&
+				status.MetadataSourceWatermark ==
+					status.MetadataFrontierWatermark &&
+				status.MessageSourceWatermark ==
+					status.MessageFrontierWatermark &&
+				status.ObservedAtUnixMillis > barrier.after &&
+				status.ObservedAtUnixMillis > barrier.lastObservedAt {
+				barrier.lastObservedAt = status.ObservedAtUnixMillis
+				barrier.completed++
+			}
+			barriers[hashSlot] = barrier
+			if barrier.completed < 2 {
+				allCompleted = false
+			}
+		}
+		if allCompleted {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	t.Fatalf(
+		"backup capture did not complete two fresh idle cycles after the durability barrier: slots=%v barriers=%+v global=%+v node_statuses=%+v errors=%v\n%s",
+		hashSlots, barriers, lastGlobal, lastNodeStatuses, lastErrors,
+		cluster.DumpDiagnostics(),
+	)
+}
+
+func backupCaptureStatusForSlot(
+	statuses []backupCaptureStatus,
+	hashSlot uint16,
+) (backupCaptureStatus, bool) {
+	for _, status := range statuses {
+		if status.HashSlot == hashSlot {
+			return status, true
+		}
+	}
+	return backupCaptureStatus{}, false
 }

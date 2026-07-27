@@ -546,12 +546,14 @@ func (s *MessageLogSource) resolveBoundaries(ctx context.Context, hashSlot uint1
 	var err error
 	if frontier.BaselineCursorHead != nil {
 		resolver, ok := s.cursors.(interface {
-			ResolveBaseline(context.Context, uint16, backupartifact.SegmentReference) (*ResolvedBaseline, error)
+			ResolveBaseline(context.Context, uint16, string, backupartifact.SegmentReference) (*ResolvedBaseline, error)
 		})
 		if !ok {
 			return messageBoundaryView{}, release, runtimebackup.ErrInvalidCapture
 		}
-		resolvedBaseline, err = resolver.ResolveBaseline(ctx, hashSlot, *frontier.BaselineCursorHead)
+		resolvedBaseline, err = resolver.ResolveBaseline(
+			ctx, hashSlot, generation, *frontier.BaselineCursorHead,
+		)
 		if err != nil {
 			return messageBoundaryView{}, release, err
 		}

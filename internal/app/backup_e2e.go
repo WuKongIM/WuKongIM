@@ -423,10 +423,19 @@ func (r *backupE2ERepairRepository) RepairImmutable(
 	); err != nil {
 		return err
 	}
-	for _, path := range []string{r.trigger, r.sticky} {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
+	if err := os.Remove(r.trigger); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	allTrigger := filepath.Join(filepath.Dir(r.sticky), "all.corrupt")
+	if _, err := os.Stat(allTrigger); err == nil {
+		// Keep both repositories pinned to the same object until the test
+		// explicitly releases the dual-corruption fault.
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Remove(r.sticky); err != nil && !os.IsNotExist(err) {
+		return err
 	}
 	return nil
 }

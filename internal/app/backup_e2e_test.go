@@ -178,6 +178,57 @@ func TestBackupE2ERepairClearsStickyCorruption(t *testing.T) {
 	}
 }
 
+func TestBackupE2ERepairRetainsStickySelectionDuringDualCorruption(t *testing.T) {
+	root := t.TempDir()
+	repository, err := backupinfra.NewFileRepository(
+		"primary", filepath.Join(root, "repository"),
+	)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+	faultDir := filepath.Join(root, "faults")
+	if err := os.MkdirAll(faultDir, 0o700); err != nil {
+		t.Fatalf("make fault directory: %v", err)
+	}
+	trigger := filepath.Join(faultDir, "primary.corrupt")
+	allTrigger := filepath.Join(faultDir, "all.corrupt")
+	sticky := filepath.Join(faultDir, "sticky.key")
+	for path, body := range map[string][]byte{
+		trigger:    []byte("sticky"),
+		allTrigger: []byte("sticky"),
+		sticky:     []byte("segments/id/payloads/digest.bin"),
+	} {
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatalf("write fault marker %q: %v", path, err)
+		}
+	}
+
+	body := []byte("healthy payload")
+	digest := sha256.Sum256(body)
+	repair := &backupE2ERepairRepository{
+		RepairRepository: repository,
+		trigger:          trigger,
+		sticky:           sticky,
+	}
+	if err := repair.RepairImmutable(
+		context.Background(),
+		"segments/id/payloads/digest.bin",
+		int64(len(body)),
+		hex.EncodeToString(digest[:]),
+		bytes.NewReader(body),
+	); err != nil {
+		t.Fatalf("repair immutable: %v", err)
+	}
+	if _, err := os.Stat(trigger); !os.IsNotExist(err) {
+		t.Fatalf("repository trigger remains after repair: %v", err)
+	}
+	for _, path := range []string{allTrigger, sticky} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("dual-corruption marker %q was cleared: %v", path, err)
+		}
+	}
+}
+
 func TestBackupE2ERepositoryPreservesErasureLedgerListing(t *testing.T) {
 	repository, err := backupinfra.NewFileRepository(
 		"primary", filepath.Join(t.TempDir(), "repository"),

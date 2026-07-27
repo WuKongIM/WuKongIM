@@ -180,10 +180,11 @@ checkpoint terminates the delta chain. The resolver caches only the latest
 complete index per Hash Slot, capped globally by 256 entries and 64 MiB with
 LRU eviction, so normal advancement loads the new sidecar while restart work
 and resident cache memory remain bounded. Controller state never contains
-Channel identities or the cache. Materialized baseline cursor load and decode
-hold a shared capture-memory reservation for their complete working-set
-lifetime; the default budget admits one maximum legal baseline through decode
-and immutable output construction, and admission fails
+Channel identities or the cache. Materialized baseline cursor load decodes the
+authenticated full-checkpoint `MessageCursorBatch` envelope, fences its Hash
+Slot and Generation, and holds a shared capture-memory reservation for its
+complete working-set lifetime; the default budget admits one maximum legal
+baseline through decode and immutable output construction, and admission fails
 before repository loading when the node budget is unavailable. The pinned
 message cut carries the compact previous boundary needed by each page, so a
 page read never reloads the full prior baseline while its outer page
