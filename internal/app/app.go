@@ -228,6 +228,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireConversations(conversationReadStore)
 	app.wirePresence()
 	app.wireBackup(clusterCfg)
+	app.logBackupInitializationFailure()
 	app.wireManagerConnectionRPC()
 	app.wireManagerLogRPC()
 	app.wireManagerControllerRaftRPC()

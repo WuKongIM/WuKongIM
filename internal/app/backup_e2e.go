@@ -295,17 +295,73 @@ func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(key string) bool {
 }
 
 func consumeBackupE2EStickyKey(path, key string) bool {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err == nil {
-		_, writeErr := file.WriteString(key)
-		closeErr := file.Close()
-		return writeErr == nil && closeErr == nil
+	for attempt := 0; attempt < 3; attempt++ {
+		selected, err := os.ReadFile(path)
+		switch {
+		case err == nil && len(selected) > 0:
+			return string(selected) == key
+		case err == nil:
+			// An older process may have stopped after creating the file but
+			// before writing the selection. Remove that incomplete state so a
+			// complete selection can be published atomically below.
+			if removeErr := os.Remove(path); removeErr != nil &&
+				!os.IsNotExist(removeErr) {
+				return false
+			}
+			continue
+		case !os.IsNotExist(err):
+			return false
+		}
+		published, publishErr := publishBackupE2EStickyKey(path, key)
+		if publishErr != nil {
+			return false
+		}
+		if published {
+			return true
+		}
 	}
-	if !os.IsExist(err) {
-		return false
+	return false
+}
+
+// publishBackupE2EStickyKey makes a complete immutable selection visible with
+// one same-directory hard-link operation.
+func publishBackupE2EStickyKey(path, key string) (bool, error) {
+	file, err := os.CreateTemp(filepath.Dir(path), ".sticky-key-*")
+	if err != nil {
+		return false, err
 	}
-	selected, readErr := os.ReadFile(path)
-	return readErr == nil && string(selected) == key
+	tempPath := file.Name()
+	cleanup := func() {
+		_ = file.Close()
+		_ = os.Remove(tempPath)
+	}
+	if err := file.Chmod(0o600); err != nil {
+		cleanup()
+		return false, err
+	}
+	if _, err := file.WriteString(key); err != nil {
+		cleanup()
+		return false, err
+	}
+	if err := file.Sync(); err != nil {
+		cleanup()
+		return false, err
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return false, err
+	}
+	if err := os.Link(tempPath, path); err != nil {
+		_ = os.Remove(tempPath)
+		if os.IsExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := os.Remove(tempPath); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *backupE2EDelayedRepository) Stat(

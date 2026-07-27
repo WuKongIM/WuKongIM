@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,30 @@ import (
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBackupManagerStatusExposesInitializationFailureCategory(t *testing.T) {
+	facade := backupManagerFacade{app: &App{
+		cfg:           Config{Backup: BackupConfig{Enabled: true}},
+		backupInitErr: errors.New("repository credential rejected"),
+	}}
+	status, err := facade.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, backupusecase.HealthFailed, status.Health)
+	require.Equal(t, "initialization", status.FailureCategory)
+}
+
+func TestBackupInitializationFailureIsLogged(t *testing.T) {
+	logger := &recordingAppLogger{}
+	failure := errors.New("repository credential rejected")
+	app := &App{logger: logger, backupInitErr: failure}
+	app.logBackupInitializationFailure()
+
+	entry := requireAppLogEvent(
+		t, logger, "ERROR", "internal.app.backup_initialization",
+	)
+	requireAppLogField(t, entry, "result", "failed")
+	requireAppLogField(t, entry, "error", failure)
+}
 
 func TestBackupManagerStatusKeepsUnknownEvidenceUnknown(t *testing.T) {
 	facade := newBackupStatusTestFacade(

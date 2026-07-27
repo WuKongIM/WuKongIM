@@ -714,6 +714,20 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	node.RegisterRPC(accessnode.ManagerBackupRPCServiceID, nodeRPCHandlerFunc(managerBackupAdapter.HandleRPC))
 }
 
+// logBackupInitializationFailure preserves exact operator diagnostics while
+// the Manager API exposes only a bounded failure category.
+func (a *App) logBackupInitializationFailure() {
+	if a == nil || a.backupInitErr == nil || a.logger == nil {
+		return
+	}
+	a.logger.Error(
+		"backup initialization failed",
+		wklog.Event("internal.app.backup_initialization"),
+		wklog.Result("failed"),
+		wklog.Error(a.backupInitErr),
+	)
+}
+
 // backupKeyPinPublisherNodeID selects one normalized Controller voter so OSS
 // root publication never depends on a potentially stale Raft-term observation.
 // Normalization admits the implicit single-node cluster while seed-join
@@ -1219,7 +1233,14 @@ func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSn
 		return f.observeBackupStatus(backupusecase.StatusSnapshot{Enabled: false, Health: backupusecase.HealthDisabled}), nil
 	}
 	if f.app.backupInitErr != nil || f.app.backup == nil {
-		return f.observeBackupStatus(backupusecase.StatusSnapshot{Enabled: true, Health: backupusecase.HealthFailed}), nil
+		status := backupusecase.StatusSnapshot{
+			Enabled: true,
+			Health:  backupusecase.HealthFailed,
+		}
+		if f.app.backupInitErr != nil {
+			status.FailureCategory = "initialization"
+		}
+		return f.observeBackupStatus(status), nil
 	}
 	status, err := f.app.backup.Status(ctx)
 	if err != nil {

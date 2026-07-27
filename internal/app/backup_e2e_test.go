@@ -114,6 +114,24 @@ func TestBackupE2ECorruptionTriggerIsScopedAndBounded(t *testing.T) {
 	}
 }
 
+func TestConsumeBackupE2EStickyKeyRecoversEmptySelection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sticky.key")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatalf("write interrupted sticky selection: %v", err)
+	}
+	const key = "segments/id/payloads/digest.bin"
+	if !consumeBackupE2EStickyKey(path, key) {
+		t.Fatal("empty sticky selection was not recovered")
+	}
+	selected, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read recovered sticky selection: %v", err)
+	}
+	if string(selected) != key {
+		t.Fatalf("recovered sticky selection = %q, want %q", selected, key)
+	}
+}
+
 func TestBackupE2ERepairClearsStickyCorruption(t *testing.T) {
 	root := t.TempDir()
 	repository, err := backupinfra.NewFileRepository(

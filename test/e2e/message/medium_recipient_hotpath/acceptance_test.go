@@ -186,7 +186,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		}
 	})
 
-	t.Run("backup-on limits retain executable latency and allocation ceilings", func(t *testing.T) {
+	t.Run("backup-on limits retain executable latency and heap ceilings", func(t *testing.T) {
 		evidence := passing
 		evidence.OfferedQPS = mediumCIAcceptanceQPS
 		evidence.IngressPerSecond = mediumCIAcceptanceQPS
@@ -194,9 +194,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		evidence.MaxHeapBytes = backupScaleMaxHeapBytes
 		evidence.MaxAggregateHeapBytes = backupScaleMaxAggregateHeap
 		limits := backupHotPathAcceptanceLimits()
-		evidence.AllocatedBytes = maxAcceptedAllocatedBytesWithLimit(
-			evidence, limits.maxAllocatedBytesPerMsg,
-		)
+		evidence.AllocatedBytes = float64(evidence.Messages) * 2_000_000
 		if err := hotPathAcceptanceErrorWithLimits(
 			evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds, limits,
 		); err != nil {
@@ -211,11 +209,11 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		}
 
 		evidence.SendackP99MS = milliseconds(backupForegroundMaxSendackP99)
-		evidence.AllocatedBytes++
+		evidence.MaxHeapBytes++
 		if err := hotPathAcceptanceErrorWithLimits(
 			evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds, limits,
-		); err == nil || !strings.Contains(err.Error(), "allocated bytes/message") {
-			t.Fatalf("backup-on allocation error = %v, want allocated bytes/message", err)
+		); err == nil || !strings.Contains(err.Error(), "max heap bytes") {
+			t.Fatalf("backup-on heap error = %v, want max heap bytes", err)
 		}
 	})
 }
