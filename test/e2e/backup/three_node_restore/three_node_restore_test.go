@@ -708,8 +708,18 @@ func exerciseRepositoryIntegrityRepair(
 	frontiers := backupDurableFrontiers(t, cluster, token)
 	const dualCorruptionChannel = "backup-e2e-dual-corruption"
 	hashSlot := hashslot.HashSlotForKey(dualCorruptionChannel, 16)
+	previousFrontier := frontiers[hashSlot]
+	require.NotEqual(
+		t, uint64(math.MaxUint64), previousFrontier.messages,
+		"dual-corruption target message watermark is exhausted",
+	)
+	targetMessageWatermark := previousFrontier.messages + 1
 	allRepositoriesTrigger := setRepositoryCorruption(
-		t, root, "all", "sticky",
+		t, root, "all", fmt.Sprintf(
+			"sticky-segment:%d:%s:%d",
+			hashSlot, backupartifact.SegmentStreamMessages,
+			targetMessageWatermark,
+		),
 	)
 	_ = appendGroupMessages(
 		t, cluster, dualCorruptionChannel, frame.ChannelTypeGroup, 1,
@@ -719,10 +729,9 @@ func exerciseRepositoryIntegrityRepair(
 		[]uint16{hashSlot}, []uint16{hashSlot}, 20*time.Second,
 	)
 	frontiers = backupDurableFrontiers(t, cluster, token)
-	previousFrontier := frontiers[hashSlot]
-	require.NotZero(
-		t, previousFrontier.messages,
-		"dual-corruption target has no committed message watermark",
+	require.Equal(
+		t, targetMessageWatermark, frontiers[hashSlot].messages,
+		"dual-corruption target advanced by an unexpected message count",
 	)
 	beforeRebases := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
@@ -730,9 +739,8 @@ func exerciseRepositoryIntegrityRepair(
 			"reason": "audit_corruption", "outcome": "success",
 		},
 	)
-	// Pin both repository reads to the first object the next fixed audit cycle
-	// actually inspects. The shared sticky key guarantees both repositories
-	// corrupt the same immutable object without depending on traversal order.
+	// The coordinate-scoped sticky key pins both repositories to the exact new
+	// segment even when an older audit cycle is still traversing other Slots.
 	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
 	// A production dual-copy audit and replacement crosses both OSS regions;
 	// keep its recovery bound independent from ordinary Manager request waits.
