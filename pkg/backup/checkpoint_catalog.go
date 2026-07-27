@@ -163,20 +163,26 @@ type CatalogPage struct {
 }
 
 // SignCheckpoint validates and signs one detached checkpoint.
-func SignCheckpoint(ctx context.Context, checkpoint Checkpoint, signer ManifestSigner, keyID string) (Checkpoint, error) {
+func SignCheckpoint(
+	ctx context.Context,
+	checkpoint Checkpoint,
+	signer ManifestSigner,
+) (Checkpoint, error) {
 	checkpoint.Signature = nil
 	body, err := canonicalCheckpoint(checkpoint)
-	if err != nil || signer == nil || strings.TrimSpace(keyID) == "" {
+	if err != nil || signer == nil {
 		if err != nil {
 			return Checkpoint{}, err
 		}
 		return Checkpoint{}, fmt.Errorf("%w: checkpoint signer is required", ErrInvalidSignature)
 	}
-	signature, err := signer.Sign(ctx, keyID, body)
+	signature, err := signer.Sign(ctx, body)
 	if err != nil {
 		return Checkpoint{}, fmt.Errorf("%w: sign checkpoint: %v", ErrInvalidSignature, err)
 	}
-	if signature.KeyID != keyID || strings.TrimSpace(signature.Algorithm) == "" || len(signature.Value) == 0 {
+	if strings.TrimSpace(signature.KeyID) == "" ||
+		strings.TrimSpace(signature.Algorithm) == "" ||
+		len(signature.Value) == 0 {
 		return Checkpoint{}, fmt.Errorf("%w: checkpoint signer metadata mismatch", ErrInvalidSignature)
 	}
 	checkpoint.Signature = &signature
@@ -216,20 +222,26 @@ func LoadCheckpoint(ctx context.Context, body []byte, signer ManifestSigner) (Ch
 }
 
 // SignCatalogPage validates and signs one detached catalog append.
-func SignCatalogPage(ctx context.Context, page CatalogPage, signer ManifestSigner, keyID string) (CatalogPage, error) {
+func SignCatalogPage(
+	ctx context.Context,
+	page CatalogPage,
+	signer ManifestSigner,
+) (CatalogPage, error) {
 	page.Signature = nil
 	body, err := canonicalCatalogPage(page)
-	if err != nil || signer == nil || strings.TrimSpace(keyID) == "" {
+	if err != nil || signer == nil {
 		if err != nil {
 			return CatalogPage{}, err
 		}
 		return CatalogPage{}, fmt.Errorf("%w: catalog signer is required", ErrInvalidSignature)
 	}
-	signature, err := signer.Sign(ctx, keyID, body)
+	signature, err := signer.Sign(ctx, body)
 	if err != nil {
 		return CatalogPage{}, fmt.Errorf("%w: sign catalog page: %v", ErrInvalidSignature, err)
 	}
-	if signature.KeyID != keyID || strings.TrimSpace(signature.Algorithm) == "" || len(signature.Value) == 0 {
+	if strings.TrimSpace(signature.KeyID) == "" ||
+		strings.TrimSpace(signature.Algorithm) == "" ||
+		len(signature.Value) == 0 {
 		return CatalogPage{}, fmt.Errorf("%w: catalog signer metadata mismatch", ErrInvalidSignature)
 	}
 	page.Signature = &signature

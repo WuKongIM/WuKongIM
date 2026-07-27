@@ -26,7 +26,7 @@ func TestReplicatedCheckpointCatalogPublishesOnlyNewArtifacts(t *testing.T) {
 	primary := &catalogRecordingRepository{Repository: primaryFile}
 	secondary := &catalogRecordingRepository{Repository: secondaryFile}
 	signer := newCatalogTestSigner()
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 
 	first, err := catalog.Publish(context.Background(), catalogTestCheckpoint("checkpoint-1", 1_753_400_200_000), nil)
@@ -63,8 +63,7 @@ func TestReplicatedCheckpointCatalogRejectsMismatchedGenerationVectorOnHold(t *t
 	require.NoError(t, err)
 	signer := newCatalogTestSigner()
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
-		primary, secondary, signer, "signing-key",
-	)
+		primary, secondary, signer)
 	require.NoError(t, err)
 
 	first, err := catalog.Publish(
@@ -92,7 +91,7 @@ func TestReplicatedCheckpointCatalogRetryIsIdempotent(t *testing.T) {
 	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
 	require.NoError(t, err)
 	signer := &changingCatalogSigner{}
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 	checkpoint := catalogTestCheckpoint("checkpoint-retry", 1_753_400_200_000)
 
@@ -110,7 +109,7 @@ func TestReplicatedCheckpointCatalogDoesNotReturnHeadAfterPartialReplication(t *
 	secondaryFile, err := backupinfra.NewFileRepository("secondary", t.TempDir())
 	require.NoError(t, err)
 	secondary := &catalogFailPutRepository{Repository: secondaryFile, failAt: 2}
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, newCatalogTestSigner(), "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, newCatalogTestSigner())
 	require.NoError(t, err)
 
 	commit, err := catalog.Publish(context.Background(), catalogTestCheckpoint("checkpoint-partial", 1_753_400_200_000), nil)
@@ -125,7 +124,7 @@ func TestReplicatedCheckpointCatalogRepairsPartialPageWithOriginalSignature(t *t
 	require.NoError(t, err)
 	primary := &catalogFailPutRepository{Repository: primaryFile, failAt: 3}
 	signer := &changingCatalogSigner{}
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 	checkpoint := catalogTestCheckpoint("checkpoint-repair", 1_753_400_200_000)
 
@@ -147,8 +146,7 @@ func TestReplicatedCheckpointCatalogAuditRepairsNavigationArtifacts(t *testing.T
 	require.NoError(t, err)
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalogWithRepair(
 		primary, secondary, primary, secondary,
-		newCatalogTestSigner(), "signing-key",
-	)
+		newCatalogTestSigner())
 	require.NoError(t, err)
 	commit, err := catalog.Publish(
 		context.Background(),
@@ -236,13 +234,13 @@ type changingCatalogSigner struct {
 	signCalls int
 }
 
-func (s *changingCatalogSigner) Sign(_ context.Context, keyID string, message []byte) (backupartifact.ManifestSignature, error) {
+func (s *changingCatalogSigner) Sign(_ context.Context, message []byte) (backupartifact.ManifestSignature, error) {
 	s.signCalls++
 	sum := sha256.Sum256(message)
 	value := make([]byte, len(sum)+1)
 	copy(value, sum[:])
 	value[len(sum)] = byte(s.signCalls)
-	return backupartifact.ManifestSignature{Algorithm: "test-changing", KeyID: keyID, Value: value}, nil
+	return backupartifact.ManifestSignature{Algorithm: "test-changing", KeyID: "test-changing", Value: value}, nil
 }
 
 func (s *changingCatalogSigner) Verify(_ context.Context, signature backupartifact.ManifestSignature, message []byte) error {

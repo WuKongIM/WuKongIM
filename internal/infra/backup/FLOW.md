@@ -21,7 +21,7 @@ backup usecase CompareAndSwap
   -> cluster-state.json
 ```
 
-Large manifests, encrypted chunks, KMS data keys, and repository credentials
+Large manifests, encrypted chunks, plaintext data keys, and repository credentials
 must never be stored in Controller state. A Controller revision mismatch maps to
 `backup.ErrStateConflict` so the use case can reload and retry.
 
@@ -94,7 +94,7 @@ streams advance independently per Hash Slot and authenticate the predecessor
 digest where a retained checkpoint delta joins its prior head. Its opaque
 cursor contains the exact immutable page, checkpoint references, sparse
 selection digest, navigation phase, artifact, stop reference, and conservative
-debt. It never contains an erasure event's wrapped key or KMS metadata; the
+debt. It never contains an erasure event's data-key envelope; the
 event step reloads its authenticated signed record from each repository.
 Hold/release pages are explicitly state-only and are skipped one durable page
 per step. A four-entry page/checkpoint cache removes repeated GETs within a
@@ -227,7 +227,8 @@ readiness internally and returns only aggregate health plus one bounded
 first-failure category. Manager status never exposes individual repository
 copies, regions, endpoint, bucket, prefix, role ARN, key ID, or fingerprints.
 
-Alibaba production uses `OSSRepository` and `AlibabaKMSAdapter`. Doctor requires
+Alibaba production uses `OSSRepository` plus a local
+`DeploymentKeyAuthority`. Doctor requires
 OSS versioning plus a default COMPLIANCE ObjectWorm policy at least as long as
 the configured retention. Because versioned OSS does not support atomic
 create-only `PutObject`, ordinary writes perform an existence check and a
@@ -240,11 +241,23 @@ creates, lists, and removes one delete marker. This proves list,
 creating or deleting any data-object version. A failed delete leaves at most
 one marker in that node's slot; the next startup must clear it before creating
 another, and startup fails closed if any operation is denied.
-Alibaba signature metadata pins `KeyVersionID`, so historical signatures remain
-verifiable after KMS rotation. Encryption and signing configuration requires
-concrete KMS key IDs rather than aliases so provider responses can be
-identity-checked. Ordinary repository access, repair, garbage, and KMS each use
-a distinct assumed RAM STS role.
+The reusable `pkg/backup/keypackage` authority discovers exactly one protected
+credential named `wukongim-backup-key-package`, authenticates all package
+fields with an independent HMAC-SHA256 package key, validates its repository
+binding, and performs AES-256-GCM data-key wrapping plus Ed25519 signing
+locally. Its repository-pinned wrapper establishes an immutable Package ID
+root and a signed odd-revision activation chain in both repositories. A staged
+rotation adds pending keys for rolling distribution without advancing that
+chain; activation retains old wrapping material and old signing public keys
+for historical reads while removing the old signing seed and advancing the
+chain. Repository qualification precedes pin creation, and the configured
+lowest-ID Controller voter is the only pin publisher because versioned OSS
+does not provide atomic create-if-absent. That publisher stays stable across
+Raft terms. The implicit single-node cluster normalizes to its local voter.
+Seed-join mirrors have no admitted voter identity, never publish pins, and
+remain read-only verifiers until admission is persisted. Ordinary
+repository access, repair, and garbage each use a distinct
+assumed RAM STS role per repository; no cloud KMS role is required.
 
 Production composition constructs Alibaba repair and garbage clients,
 wires replicated segment/catalog repair,
@@ -285,7 +298,7 @@ The checkpoint restore importer is the only installation path. Admission
 proves target emptiness, walks both repository copies of the signed hash-linked
 catalog from the operator-supplied immutable head to the exact checkpoint,
 authenticates every reachable baseline/segment/cursor envelope and payload
-metadata in both failure domains without payload download or KMS, and freezes
+metadata in both failure domains without payload download or data-key opening, and freezes
 the latest dual-committed erasure snapshot. The runtime then routes
 each Hash Slot only to its current target
 Leader under the durable `(Slot ID, Leader term, config epoch, attempt)` fence.
@@ -300,7 +313,7 @@ current desired replicas. Each receiver rechecks current Slot authority,
 persists offsets and a completion receipt, fully parses every file before live
 writes, installs metadata/messages/erasures, and verifies canonical metadata,
 the reconstructed Channel boundary index, and deterministic live message
-snapshot bytes/counts without repository or KMS access. A failed live install
+snapshot bytes/counts without repository or key-authority access. A failed live install
 deletes its partial metadata, message, erasure, and runtime state; if its
 boundary index is unreadable, cleanup falls back to streaming and deleting the
 whole restore-only Hash Slot catalog. Live bytes are re-exported before the

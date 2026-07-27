@@ -508,10 +508,14 @@ func TestCatalogSegmentIntegrityAuditPlanWalksPermanentErasureGraph(t *testing.T
 	recordTwo := backupartifact.ErasureLedgerRecord{
 		EventID: eventTwoID, HashSlot: 0,
 		Object: backupartifact.ObjectEntry{
-			Key:        "objects/erasure-ledger/" + eventTwoID + "/attempt.wkb",
-			HashSlot:   0,
-			KMSKeyID:   strings.Repeat("kms-sensitive-", 1024),
-			WrappedKey: strings.Repeat("wrapped-sensitive-", 1024),
+			Key:      "objects/erasure-ledger/" + eventTwoID + "/attempt.wkb",
+			HashSlot: 0,
+			DataKey: backupartifact.DataKeyEnvelope{
+				Version: 1, Algorithm: "TEST_XOR",
+				KeyID: strings.Repeat("key-sensitive-", 1024),
+				Nonce: []byte{1},
+				Value: []byte(strings.Repeat("wrapped-sensitive-", 1024)),
+			},
 		},
 	}
 	commitTwo := backupartifact.ErasureLedgerCommit{

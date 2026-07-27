@@ -45,7 +45,7 @@ type ContinuousCoordinatorOptions struct {
 	Checkpoints ContinuousCheckpointPublisher
 	// LatestCheckpoint hydrates checkpoint age and cadence on every node.
 	LatestCheckpoint ContinuousCheckpointObservationSource
-	// Doctor gates repository/KMS work without affecting foreground readiness.
+	// Doctor gates repository/key work without affecting foreground readiness.
 	Doctor CoordinatorDoctor
 	// Leadership identifies the current Controller Leader.
 	Leadership CoordinatorLeadership
@@ -130,8 +130,9 @@ func NewContinuousCoordinator(options ContinuousCoordinatorOptions) (*Continuous
 			DoctorHealth: backupcontract.HealthUnknown,
 			Doctor: backupcontract.DoctorReport{
 				Primary: backupcontract.HealthUnknown, Secondary: backupcontract.HealthUnknown,
-				KMS: backupcontract.HealthUnknown, Staging: backupcontract.HealthUnknown,
-				UTC: backupcontract.HealthUnknown,
+				KeyAuthority: backupcontract.HealthUnknown,
+				Staging:      backupcontract.HealthUnknown,
+				UTC:          backupcontract.HealthUnknown,
 			},
 		},
 	}, nil

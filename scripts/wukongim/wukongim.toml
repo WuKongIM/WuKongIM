@@ -260,8 +260,11 @@ authority_admit_concurrency = 16
 
 [backup]
 # Automatic cluster-semantic backup is disabled by default. Enabling it requires
-# two distinct cross-region S3-compatible repositories plus external KMS keys.
+# two distinct cross-region immutable repositories plus the protected deployment
+# credential named "wukongim-backup-key-package".
 enabled = false
+# Qualified external durability provider.
+provider = "aliyun"
 # Explicit production-qualification token required before backup can be enabled.
 qualification_gate = ""
 # Recovery mode is mutually exclusive with automatic backup and keeps ordinary
@@ -275,14 +278,9 @@ source_generation = ""
 target_generation = ""
 # Absolute node-local directory for bounded temporary backup data.
 staging_dir = ""
-# External KMS identifiers; credentials come only from the provider credential chain.
-kms_key_id = ""
-signing_key_id = ""
-# Previous signing keys retained for verification during key rotation; environment overrides use a JSON string list.
-trusted_signing_key_ids = []
-kms_region = ""
-# Optional HTTPS KMS-compatible origin; empty uses the AWS regional endpoint.
-kms_endpoint = ""
+# Create the deployment credential once with `wkcli backup keys bootstrap`.
+# Runtime discovery uses systemd CREDENTIALS_DIRECTORY,
+# /run/secrets/wukongim, or WK_BACKUP_KEY_PACKAGE_FILE.
 # Correctness polling and automatic durable checkpoint publication cadence.
 capture_reconcile_interval = "30s"
 checkpoint_interval = "5m"
@@ -318,6 +316,8 @@ region = ""
 # The bucket must have versioning and Object Lock/WORM enabled for at least seven days.
 bucket = ""
 prefix = ""
+# Ordinary capture/restore role. Required for provider="aliyun".
+access_role_arn = ""
 # Separately assumed least-privilege roles for authenticated repair writes and
 # expired immutable-version deletion. Both are required when backup is enabled.
 repair_role_arn = ""
@@ -329,6 +329,8 @@ endpoint = ""
 region = ""
 bucket = ""
 prefix = ""
+# Ordinary capture/restore role. Required for provider="aliyun".
+access_role_arn = ""
 # Cross-region least-privilege roles must be independent from ordinary capture credentials.
 repair_role_arn = ""
 garbage_role_arn = ""

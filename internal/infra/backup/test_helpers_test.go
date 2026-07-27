@@ -15,11 +15,10 @@ type testEd25519Signer struct {
 
 func (s testEd25519Signer) Sign(
 	_ context.Context,
-	keyID string,
 	message []byte,
 ) (backupartifact.ManifestSignature, error) {
 	return backupartifact.ManifestSignature{
-		Algorithm: "ed25519", KeyID: keyID,
+		Algorithm: "ed25519", KeyID: "ed25519:test",
 		Value: ed25519.Sign(s.privateKey, message),
 	}, nil
 }

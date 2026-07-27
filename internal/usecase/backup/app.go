@@ -33,9 +33,8 @@ type Options struct {
 	SourceGeneration string
 	// SourceFenceConvergence proves every active data node has applied the fence.
 	SourceFenceConvergence SourceFenceConvergence
-	// SourceFenceSigner and SigningKeyID issue the Controller-backed receipt.
+	// SourceFenceSigner issues the Controller-backed receipt.
 	SourceFenceSigner backupartifact.ManifestSigner
-	SigningKeyID      string
 	// NewSourceFenceID allocates the immutable fence identity.
 	NewSourceFenceID func() string
 	// Now returns the current UTC time.
@@ -56,7 +55,6 @@ type App struct {
 	sourceGeneration  string
 	sourceFence       SourceFenceConvergence
 	sourceFenceSigner backupartifact.ManifestSigner
-	signingKeyID      string
 	newSourceFenceID  func() string
 	now               func() time.Time
 	maxCheckpointAge  time.Duration
@@ -92,7 +90,6 @@ func NewApp(options Options) (*App, error) {
 		sourceGeneration:  strings.TrimSpace(options.SourceGeneration),
 		sourceFence:       options.SourceFenceConvergence,
 		sourceFenceSigner: options.SourceFenceSigner,
-		signingKeyID:      strings.TrimSpace(options.SigningKeyID),
 		newSourceFenceID:  options.NewSourceFenceID,
 		now:               options.Now,
 		maxCheckpointAge:  maxCheckpointAge,

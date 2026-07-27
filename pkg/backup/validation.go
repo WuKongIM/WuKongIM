@@ -65,15 +65,9 @@ func validateObjectEntry(object ObjectEntry, index int) error {
 			ErrInvalidManifest, index,
 		)
 	}
-	if strings.TrimSpace(object.KMSKeyID) == "" {
+	if err := validateDataKeyEnvelope(object.DataKey); err != nil {
 		return fmt.Errorf(
-			"%w: object[%d] kms key id is required",
-			ErrInvalidManifest, index,
-		)
-	}
-	if _, err := base64.StdEncoding.DecodeString(object.WrappedKey); err != nil || object.WrappedKey == "" {
-		return fmt.Errorf(
-			"%w: object[%d] wrapped key is invalid",
+			"%w: object[%d] data-key envelope is invalid",
 			ErrInvalidManifest, index,
 		)
 	}

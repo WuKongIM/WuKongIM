@@ -27,8 +27,7 @@ func TestCheckpointSlotInstallerImportsOnceOnLeaderAndFinalizesReplicaConvergenc
 	)
 	signer := newCatalogTestSigner()
 	segments, err := backupartifact.NewReplicatedSegmentStore(
-		primary, secondary, segmentCodec, signer, "signing-key",
-	)
+		primary, secondary, segmentCodec, signer)
 	require.NoError(t, err)
 	metadataRecord, err := backupartifact.MarshalMetadataLogRecord(
 		backupartifact.MetadataLogRecord{
@@ -112,8 +111,7 @@ func TestCheckpointSlotInstallerImportsOnceOnLeaderAndFinalizesReplicaConvergenc
 		}},
 	}
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
-		primary, secondary, signer, "signing-key",
-	)
+		primary, secondary, signer)
 	require.NoError(t, err)
 	commit, err := catalog.Publish(ctx, checkpoint, nil)
 	require.NoError(t, err)
@@ -313,7 +311,6 @@ func commitRestoreSegment(
 			Previous: previous, Checkpoint: checkpoint,
 			SourceHighWatermark:   sourceHighWatermark,
 			WatermarkAtUnixMillis: watermarkAtUnixMillis,
-			KMSKeyID:              "kms-key",
 		},
 		body,
 	)
@@ -326,23 +323,25 @@ type countingRestoreKeyManager struct {
 	unwraps int
 }
 
-func (m *countingRestoreKeyManager) GenerateDataKey(
+func (m *countingRestoreKeyManager) NewDataKey(
 	context.Context,
-	string,
 ) (backupartifact.DataKey, error) {
 	plaintext := bytes.Repeat([]byte{0x61}, 32)
 	return backupartifact.DataKey{
-		Plaintext: plaintext, Wrapped: xorTestBytes(plaintext, m.mask),
+		Plaintext: plaintext,
+		Envelope: backupartifact.DataKeyEnvelope{
+			Version: 1, Algorithm: "TEST_XOR", KeyID: "test",
+			Nonce: []byte{1}, Value: xorTestBytes(plaintext, m.mask),
+		},
 	}, nil
 }
 
-func (m *countingRestoreKeyManager) UnwrapDataKey(
+func (m *countingRestoreKeyManager) OpenDataKey(
 	_ context.Context,
-	_ string,
-	wrapped []byte,
+	envelope backupartifact.DataKeyEnvelope,
 ) ([]byte, error) {
 	m.unwraps++
-	return xorTestBytes(wrapped, m.mask), nil
+	return xorTestBytes(envelope.Value, m.mask), nil
 }
 
 type noCheckpointBaseline struct{}

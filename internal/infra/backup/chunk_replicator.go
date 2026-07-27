@@ -23,8 +23,6 @@ type ChunkReplicatorOptions struct {
 	Codec *backupartifact.ObjectCodec
 	// Publisher writes each sealed chunk to both explicit repositories.
 	Publisher *backupartifact.ReplicatedPublisher
-	// KMSKeyID identifies the external key-encryption key.
-	KMSKeyID string
 	// ChunkBytes bounds plaintext memory per object. Zero defaults to eight MiB.
 	ChunkBytes int
 }
@@ -36,7 +34,6 @@ type StreamDescriptor = backupartifact.StreamDescriptor
 type ChunkReplicator struct {
 	codec      *backupartifact.ObjectCodec
 	publisher  *backupartifact.ReplicatedPublisher
-	kmsKeyID   string
 	chunkBytes int
 }
 
@@ -46,13 +43,13 @@ func NewChunkReplicator(options ChunkReplicatorOptions) (*ChunkReplicator, error
 	if chunkBytes == 0 {
 		chunkBytes = defaultBackupChunkBytes
 	}
-	if options.Codec == nil || options.Publisher == nil || strings.TrimSpace(options.KMSKeyID) == "" || chunkBytes <= 0 || chunkBytes > maxBackupChunkBytes {
+	if options.Codec == nil || options.Publisher == nil ||
+		chunkBytes <= 0 || chunkBytes > maxBackupChunkBytes {
 		return nil, fmt.Errorf("backup chunk replicator: invalid options")
 	}
 	return &ChunkReplicator{
 		codec:      options.Codec,
 		publisher:  options.Publisher,
-		kmsKeyID:   options.KMSKeyID,
 		chunkBytes: chunkBytes,
 	}, nil
 }
@@ -101,7 +98,6 @@ func (r *ChunkReplicator) Replicate(ctx context.Context, descriptor StreamDescri
 			Key:      key,
 			Kind:     descriptor.Kind,
 			HashSlot: descriptor.HashSlot,
-			KMSKeyID: r.kmsKeyID,
 		}, buffer[:readBytes])
 		if err != nil {
 			return nil, err

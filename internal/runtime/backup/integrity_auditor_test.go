@@ -287,7 +287,7 @@ func TestCaptureEngineFreezesOnlyAuditorOwnedSlot(t *testing.T) {
 	}}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: source, Frontiers: frontiers, Segments: segments,
 		Clock: newAdvancingCaptureClock(), AuditGate: gate,
@@ -333,7 +333,7 @@ func TestCaptureEngineRebasesAuditCorruptionAndWaitsForAuditorConfirmation(t *te
 	}}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: &fakeContinuousSource{}, Frontiers: store,
 		Segments:  &recordingSegmentCommitter{},

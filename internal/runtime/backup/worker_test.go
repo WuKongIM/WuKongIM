@@ -116,7 +116,7 @@ func TestDistributedBaselineCapturerCommitsCompleteCursorBeforeImmutableManifest
 	}
 	capturer, err := backupruntime.NewDistributedBaselineCapturer(backupruntime.MaterializedBaselineOptions{
 		Worker: worker, Segments: segments, RepositoryID: "repository-a",
-		SourceClusterID: "cluster-a", SourceGeneration: "source-1", KMSKeyID: "kms-backup",
+		SourceClusterID: "cluster-a", SourceGeneration: "source-1",
 	})
 	require.NoError(t, err)
 	lease := backupcontract.SlotCaptureLease{
@@ -191,7 +191,7 @@ func TestDistributedBaselineCapturerCommitsEmptyCompleteCursor(t *testing.T) {
 	segments := &recordingBaselineSegmentCommitter{}
 	capturer, err := backupruntime.NewDistributedBaselineCapturer(backupruntime.MaterializedBaselineOptions{
 		Worker: worker, Segments: segments, RepositoryID: "repository-a",
-		SourceClusterID: "cluster-a", SourceGeneration: "source-1", KMSKeyID: "kms-backup",
+		SourceClusterID: "cluster-a", SourceGeneration: "source-1",
 	})
 	require.NoError(t, err)
 	lease := backupcontract.SlotCaptureLease{
@@ -263,8 +263,7 @@ func (r *fakeStreamReplicator) Replicate(_ context.Context, descriptor backuprun
 		CiphertextBytes:  int64(len(body)) + 16,
 		Compression:      backupartifact.CompressionZstd,
 		Encryption:       backupartifact.EncryptionAES256GCM,
-		KMSKeyID:         "kms-backup",
-		WrappedKey:       "d3JhcHBlZA==",
+		DataKey:          workerTestDataKeyEnvelope(),
 		Nonce:            "MDEyMzQ1Njc4OTAx",
 	}}, nil
 }
@@ -299,7 +298,10 @@ func (c *fakeMessageShardCapturer) CaptureMessageShard(_ context.Context, reques
 	objects := []backupartifact.ObjectEntry{{
 		Key: fmt.Sprintf("objects/%s/%05d/messages-%s-000000.bin", request.Generation, request.HashSlot, shard.ID), Kind: backupartifact.ObjectKindMessages, HashSlot: request.HashSlot,
 		PlaintextSHA256: fmt.Sprintf("%x", hash), CiphertextSHA256: strings.Repeat("d", 64), PlaintextBytes: int64(len(body)), CiphertextBytes: int64(len(body)) + 16,
-		Compression: backupartifact.CompressionZstd, Encryption: backupartifact.EncryptionAES256GCM, KMSKeyID: "kms-backup", WrappedKey: "d3JhcHBlZA==", Nonce: "MDEyMzQ1Njc4OTAx",
+		Compression: backupartifact.CompressionZstd,
+		Encryption:  backupartifact.EncryptionAES256GCM,
+		DataKey:     workerTestDataKeyEnvelope(),
+		Nonce:       "MDEyMzQ1Njc4OTAx",
 	}}
 	boundaries := make([]backupartifact.ChannelBoundary, len(shard.Channels))
 	for index, channel := range shard.Channels {
@@ -308,6 +310,13 @@ func (c *fakeMessageShardCapturer) CaptureMessageShard(_ context.Context, reques
 	return backupruntime.MessageShardCapture{
 		Objects: objects, Boundaries: boundaries, MessageRecords: uint64(len(shard.Channels)), MaxMessageID: uint64(len(c.ids) * 100),
 	}, nil
+}
+
+func workerTestDataKeyEnvelope() backupartifact.DataKeyEnvelope {
+	return backupartifact.DataKeyEnvelope{
+		Version: 1, Algorithm: "TEST_XOR", KeyID: "test",
+		Nonce: []byte{1}, Value: []byte("wrapped"),
+	}
 }
 
 type recordingPartitionManifestStore struct {

@@ -72,21 +72,22 @@ func SignGenerationVector(
 	ctx context.Context,
 	vector GenerationVector,
 	signer ManifestSigner,
-	keyID string,
 ) (GenerationVector, error) {
 	vector.Signature = nil
 	canonical, err := canonicalGenerationVector(vector)
-	if err != nil || signer == nil || strings.TrimSpace(keyID) == "" {
+	if err != nil || signer == nil {
 		if err != nil {
 			return GenerationVector{}, err
 		}
 		return GenerationVector{}, fmt.Errorf("%w: generation vector signer is required", ErrInvalidSignature)
 	}
-	signature, err := signer.Sign(ctx, keyID, canonical)
+	signature, err := signer.Sign(ctx, canonical)
 	if err != nil {
 		return GenerationVector{}, fmt.Errorf("%w: sign generation vector: %v", ErrInvalidSignature, err)
 	}
-	if signature.KeyID != keyID || strings.TrimSpace(signature.Algorithm) == "" || len(signature.Value) == 0 {
+	if strings.TrimSpace(signature.KeyID) == "" ||
+		strings.TrimSpace(signature.Algorithm) == "" ||
+		len(signature.Value) == 0 {
 		return GenerationVector{}, fmt.Errorf("%w: generation vector signer metadata mismatch", ErrInvalidSignature)
 	}
 	vector.Signature = &signature

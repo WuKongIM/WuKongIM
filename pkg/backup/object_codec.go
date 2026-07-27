@@ -48,13 +48,17 @@ func (c *ObjectCodec) Seal(ctx context.Context, descriptor ObjectDescriptor, pla
 	if len(plaintext) > maxObjectPlaintextBytes {
 		return SealedObject{}, fmt.Errorf("%w: plaintext bytes %d exceed %d", ErrInvalidObject, len(plaintext), maxObjectPlaintextBytes)
 	}
-	dataKey, err := c.keys.GenerateDataKey(ctx, descriptor.KMSKeyID)
+	dataKey, err := c.keys.NewDataKey(ctx)
 	if err != nil {
 		return SealedObject{}, fmt.Errorf("generate data key: %w", err)
 	}
 	defer zeroBytes(dataKey.Plaintext)
-	if len(dataKey.Plaintext) != 32 || len(dataKey.Wrapped) == 0 {
-		return SealedObject{}, fmt.Errorf("%w: KMS returned an invalid AES-256 data key", ErrInvalidObject)
+	if len(dataKey.Plaintext) != 32 ||
+		validateDataKeyEnvelope(dataKey.Envelope) != nil {
+		return SealedObject{}, fmt.Errorf(
+			"%w: key authority returned an invalid AES-256 data key",
+			ErrInvalidObject,
+		)
 	}
 
 	compressed, err := compressObject(plaintext)
@@ -82,8 +86,7 @@ func (c *ObjectCodec) Seal(ctx context.Context, descriptor ObjectDescriptor, pla
 		PlaintextBytes:  int64(len(plaintext)),
 		Compression:     CompressionZstd,
 		Encryption:      EncryptionAES256GCM,
-		KMSKeyID:        descriptor.KMSKeyID,
-		WrappedKey:      base64.StdEncoding.EncodeToString(dataKey.Wrapped),
+		DataKey:         dataKey.Envelope,
 		Nonce:           base64.StdEncoding.EncodeToString(nonce),
 	}
 	aad, err := objectAssociatedData(entry)
@@ -122,15 +125,11 @@ func (c *ObjectCodec) Open(ctx context.Context, entry ObjectEntry, ciphertext []
 	if entry.Compression != CompressionZstd || entry.Encryption != EncryptionAES256GCM {
 		return nil, fmt.Errorf("%w: unsupported codec %q/%q", ErrInvalidObject, entry.Compression, entry.Encryption)
 	}
-	wrapped, err := base64.StdEncoding.DecodeString(entry.WrappedKey)
-	if err != nil || len(wrapped) == 0 {
-		return nil, fmt.Errorf("%w: invalid wrapped key", ErrInvalidObject)
-	}
 	nonce, err := base64.StdEncoding.DecodeString(entry.Nonce)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid nonce", ErrInvalidObject)
 	}
-	plaintextKey, err := c.keys.UnwrapDataKey(ctx, entry.KMSKeyID, wrapped)
+	plaintextKey, err := c.keys.OpenDataKey(ctx, entry.DataKey)
 	if err != nil {
 		return nil, fmt.Errorf("unwrap data key: %w", err)
 	}
@@ -177,8 +176,20 @@ func validateDescriptor(descriptor ObjectDescriptor) error {
 	default:
 		return fmt.Errorf("%w: object kind %q", ErrInvalidObject, descriptor.Kind)
 	}
-	if strings.TrimSpace(descriptor.KMSKeyID) == "" {
-		return fmt.Errorf("%w: KMS key id is required", ErrInvalidObject)
+	return nil
+}
+
+func validateDataKeyEnvelope(envelope DataKeyEnvelope) error {
+	if envelope.Version == 0 ||
+		strings.TrimSpace(envelope.Algorithm) == "" ||
+		len(envelope.Algorithm) > 64 ||
+		strings.TrimSpace(envelope.KeyID) == "" ||
+		len(envelope.KeyID) > 512 ||
+		len(envelope.Nonce) == 0 ||
+		len(envelope.Nonce) > 64 ||
+		len(envelope.Value) == 0 ||
+		len(envelope.Value) > 1024 {
+		return fmt.Errorf("%w: data-key envelope is invalid", ErrInvalidObject)
 	}
 	return nil
 }
@@ -210,14 +221,14 @@ func decompressObject(compressed []byte, expectedBytes int64) ([]byte, error) {
 
 func objectAssociatedData(entry ObjectEntry) ([]byte, error) {
 	value := struct {
-		Key             string      `json:"key"`
-		Kind            ObjectKind  `json:"kind"`
-		HashSlot        uint16      `json:"hash_slot"`
-		PlaintextSHA256 string      `json:"plaintext_sha256"`
-		PlaintextBytes  int64       `json:"plaintext_bytes"`
-		Compression     Compression `json:"compression"`
-		Encryption      Encryption  `json:"encryption"`
-		KMSKeyID        string      `json:"kms_key_id"`
+		Key             string          `json:"key"`
+		Kind            ObjectKind      `json:"kind"`
+		HashSlot        uint16          `json:"hash_slot"`
+		PlaintextSHA256 string          `json:"plaintext_sha256"`
+		PlaintextBytes  int64           `json:"plaintext_bytes"`
+		Compression     Compression     `json:"compression"`
+		Encryption      Encryption      `json:"encryption"`
+		DataKey         DataKeyEnvelope `json:"data_key"`
 	}{
 		Key:             entry.Key,
 		Kind:            entry.Kind,
@@ -226,7 +237,7 @@ func objectAssociatedData(entry ObjectEntry) ([]byte, error) {
 		PlaintextBytes:  entry.PlaintextBytes,
 		Compression:     entry.Compression,
 		Encryption:      entry.Encryption,
-		KMSKeyID:        entry.KMSKeyID,
+		DataKey:         entry.DataKey,
 	}
 	body, err := json.Marshal(value)
 	if err != nil {

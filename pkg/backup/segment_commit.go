@@ -41,21 +41,27 @@ type SegmentCommit struct {
 	Signature *ManifestSignature `json:"signature,omitempty"`
 }
 
-// SignSegmentCommit validates and signs a copy of commit with signingKeyID.
-func SignSegmentCommit(ctx context.Context, commit SegmentCommit, signer ManifestSigner, signingKeyID string) (SegmentCommit, error) {
-	if signer == nil || strings.TrimSpace(signingKeyID) == "" {
-		return SegmentCommit{}, fmt.Errorf("%w: segment signer and key id are required", ErrInvalidObject)
+// SignSegmentCommit validates and signs a copy of commit.
+func SignSegmentCommit(
+	ctx context.Context,
+	commit SegmentCommit,
+	signer ManifestSigner,
+) (SegmentCommit, error) {
+	if signer == nil {
+		return SegmentCommit{}, fmt.Errorf("%w: segment signer is required", ErrInvalidObject)
 	}
 	commit.Signature = nil
 	canonical, err := canonicalSegmentCommit(commit)
 	if err != nil {
 		return SegmentCommit{}, err
 	}
-	signature, err := signer.Sign(ctx, signingKeyID, canonical)
+	signature, err := signer.Sign(ctx, canonical)
 	if err != nil {
 		return SegmentCommit{}, fmt.Errorf("%w: sign segment commit: %v", ErrInvalidSignature, err)
 	}
-	if signature.KeyID != signingKeyID || strings.TrimSpace(signature.Algorithm) == "" || len(signature.Value) == 0 {
+	if strings.TrimSpace(signature.KeyID) == "" ||
+		strings.TrimSpace(signature.Algorithm) == "" ||
+		len(signature.Value) == 0 {
 		return SegmentCommit{}, fmt.Errorf("%w: segment signer metadata mismatch", ErrInvalidSignature)
 	}
 	commit.Signature = &signature

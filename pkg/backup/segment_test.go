@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -25,7 +26,6 @@ func TestSegmentCodecKeepsLogicalIdentityAcrossFreshEncryption(t *testing.T) {
 			Sequence:         9,
 			RecordCount:      2,
 		},
-		KMSKeyID: "kms-prod",
 	}
 	plaintext := []byte("channel-a:41\nchannel-a:42\n")
 	firstCodec := backup.NewSegmentCodec(wrappingKeyManager{wrappingByte: 0xa5}, bytes.NewReader(bytes.Repeat([]byte{0x11}, 64)))
@@ -80,7 +80,6 @@ func TestSegmentCommitStrictlyAuthenticatesCanonicalRecord(t *testing.T) {
 			Sequence:         9,
 			RecordCount:      2,
 		},
-		KMSKeyID: "kms-prod",
 	}, []byte("channel-a:41\nchannel-a:42\n"))
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
@@ -95,7 +94,7 @@ func TestSegmentCommitStrictlyAuthenticatesCanonicalRecord(t *testing.T) {
 		Payload:             sealed.Payload,
 		PrimaryRepository:   "primary",
 		SecondaryRepository: "secondary",
-	}, signer, "signing-key")
+	}, signer)
 	if err != nil {
 		t.Fatalf("SignSegmentCommit() error = %v", err)
 	}
@@ -107,7 +106,9 @@ func TestSegmentCommitStrictlyAuthenticatesCanonicalRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadSegmentCommit() error = %v", err)
 	}
-	if loaded.SegmentID != sealed.ID || loaded.Payload != sealed.Payload || loaded.Signature == nil {
+	if loaded.SegmentID != sealed.ID ||
+		!reflect.DeepEqual(loaded.Payload, sealed.Payload) ||
+		loaded.Signature == nil {
 		t.Fatalf("LoadSegmentCommit() = %#v, want signed segment %q", loaded, sealed.ID)
 	}
 
@@ -140,7 +141,6 @@ func TestSegmentCodecRejectsTamperedAndUnboundedInput(t *testing.T) {
 			Sequence:         9,
 			RecordCount:      2,
 		},
-		KMSKeyID: "kms-prod",
 	}, []byte("channel-a:41\nchannel-a:42\n"))
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)

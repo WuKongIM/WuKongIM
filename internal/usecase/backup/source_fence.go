@@ -34,7 +34,7 @@ func (a *App) FenceSource(
 	request.TargetGeneration = strings.TrimSpace(request.TargetGeneration)
 	if a.sourceClusterID == "" || a.sourceGeneration == "" ||
 		a.sourceFence == nil || a.sourceFenceSigner == nil ||
-		a.signingKeyID == "" || a.newSourceFenceID == nil ||
+		a.newSourceFenceID == nil ||
 		request.RestorePlanID == "" || request.CheckpointID == "" ||
 		request.TargetClusterID == "" || request.TargetGeneration == "" {
 		return SourceFenceReceipt{}, ErrInvalidRequest
@@ -115,7 +115,7 @@ func (a *App) FenceSource(
 		}
 	}
 	receipt, err := backupartifact.SignSourceFenceReceipt(
-		ctx, record, a.sourceFenceSigner, a.signingKeyID,
+		ctx, record, a.sourceFenceSigner,
 	)
 	if err != nil {
 		return SourceFenceReceipt{}, err

@@ -102,7 +102,7 @@ func (s *ReplicatedSegmentStore) InspectPartitionArtifactCopies(
 // InspectPartitionArtifactEnvelopeCopies authenticates a partition manifest
 // or verifies one referenced payload through provider metadata in both
 // repositories. It never downloads or decrypts payload bytes, so restore
-// admission can prove graph completeness without consuming Slot-Leader KMS
+// admission can prove graph completeness without consuming Slot-Leader key
 // and repository work.
 func (s *ReplicatedSegmentStore) InspectPartitionArtifactEnvelopeCopies(
 	ctx context.Context,

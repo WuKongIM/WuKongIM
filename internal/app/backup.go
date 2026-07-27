@@ -18,6 +18,7 @@ import (
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+	backupkeys "github.com/WuKongIM/WuKongIM/pkg/backup/keypackage"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -26,6 +27,7 @@ const (
 	defaultCheckpointRestoreMemoryMaxBytes  = 512 << 20
 	checkpointRestoreStagingDirectory       = "checkpoint-segments"
 	checkpointRestoreTargetStagingDirectory = "checkpoint-target"
+	backupKeyPinWaitInterval                = 100 * time.Millisecond
 )
 
 type appBackupNode interface {
@@ -59,7 +61,7 @@ type appBackupRepository interface {
 type appBackupKeyService interface {
 	backupartifact.DataKeyManager
 	backupartifact.ManifestSigner
-	backupinfra.KMSDoctor
+	backupinfra.KeyAuthorityDoctor
 }
 
 var (
@@ -76,10 +78,24 @@ var (
 	}
 	loadAppBackupKeyService = func(
 		ctx context.Context,
-		region, endpoint, roleARN string,
+		repositoryID string,
 	) (appBackupKeyService, error) {
-		return backupinfra.LoadAlibabaKMSAdapter(
-			ctx, region, endpoint, roleARN,
+		return backupkeys.LoadDeploymentKeyAuthority(ctx, repositoryID)
+	}
+	bindAppBackupKeyService = func(
+		service appBackupKeyService,
+		primary backupartifact.Repository,
+		secondary backupartifact.Repository,
+		canPublish func() bool,
+	) (appBackupKeyService, error) {
+		authority, ok := service.(*backupkeys.DeploymentKeyAuthority)
+		if !ok {
+			return nil, fmt.Errorf(
+				"backup app: deployment key authority type is invalid",
+			)
+		}
+		return backupkeys.NewRepositoryPinnedAuthority(
+			authority, primary, secondary, canPublish,
 		)
 	}
 	decorateAppBackupSourcePinManager = func(
@@ -143,24 +159,54 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
-	kms, err := loadAppBackupKeyService(
-		context.Background(),
-		a.cfg.Backup.KMSRegion, a.cfg.Backup.KMSEndpoint,
-		a.cfg.Backup.KMSRoleARN,
+	pinPublisherNodeID := backupKeyPinPublisherNodeID(clusterCfg)
+	keyAuthority, err := loadAppBackupKeyService(
+		context.Background(), a.cfg.Backup.RepositoryID,
 	)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	trustedSigningKeyIDs := make([]string, 0, len(a.cfg.Backup.TrustedSigningKeyIDs)+1)
-	trustedSigningKeyIDs = append(trustedSigningKeyIDs, a.cfg.Backup.SigningKeyID)
-	trustedSigningKeyIDs = append(trustedSigningKeyIDs, a.cfg.Backup.TrustedSigningKeyIDs...)
-	manifestSigner, err := backupartifact.NewKeyPinnedManifestSigner(kms, trustedSigningKeyIDs...)
+	keyAuthority, err = bindAppBackupKeyService(
+		keyAuthority, primary, secondary,
+		func() bool {
+			return pinPublisherNodeID != 0 &&
+				clusterCfg.NodeID == pinPublisherNodeID
+		},
+	)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	codec := backupartifact.NewObjectCodec(kms, rand.Reader)
+	codec := backupartifact.NewObjectCodec(keyAuthority, rand.Reader)
+	primaryClock, err := newAppBackupClockProbe(
+		a.cfg.Backup.Primary.Endpoint,
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	secondaryClock, err := newAppBackupClockProbe(
+		a.cfg.Backup.Secondary.Endpoint,
+	)
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	doctor, err := backupinfra.NewDoctor(backupinfra.DoctorOptions{
+		Primary: primary, Secondary: secondary,
+		KeyAuthority: keyAuthority,
+		StagingDir:   a.cfg.Backup.StagingDir, ApplicationDir: a.cfg.DataDir, StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
+		ClockProbes: []backupinfra.ClockProbe{primaryClock, secondaryClock}, Now: time.Now,
+	})
+	if err != nil {
+		a.backupInitErr = err
+		return
+	}
+	a.backupKeyStartupCheck = func(ctx context.Context) error {
+		_, err := doctor.Check(ctx)
+		return err
+	}
 	var observer runtimebackup.RuntimeObserver
 	var captureObserver runtimebackup.CaptureObserver
 	var auditObserver runtimebackup.IntegrityAuditObserver
@@ -171,7 +217,8 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	}
 	if a.cfg.Backup.RestoreMode {
 		a.wireRestore(
-			clusterCfg, primary, secondary, kms, manifestSigner, codec, observer,
+			clusterCfg, primary, secondary,
+			keyAuthority, keyAuthority, codec, observer,
 		)
 		return
 	}
@@ -228,8 +275,8 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	}
 	segments, err := backupartifact.NewReplicatedSegmentStoreWithRepair(
 		primary, secondary, primaryRepair, secondaryRepair,
-		backupartifact.NewSegmentCodec(kms, rand.Reader),
-		manifestSigner, a.cfg.Backup.SigningKeyID,
+		backupartifact.NewSegmentCodec(keyAuthority, rand.Reader),
+		keyAuthority,
 	)
 	if err != nil {
 		a.backupInitErr = err
@@ -238,7 +285,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	checkpointCatalog, err :=
 		backupinfra.NewReplicatedCheckpointCatalogWithRepair(
 			primary, secondary, primaryRepair, secondaryRepair,
-			manifestSigner, a.cfg.Backup.SigningKeyID,
+			keyAuthority,
 		)
 	if err != nil {
 		a.backupInitErr = err
@@ -304,7 +351,6 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 			Publisher: backupartifact.NewReplicatedPublisher(
 				primary, secondary,
 			),
-			KMSKeyID:   a.cfg.Backup.KMSKeyID,
 			ChunkBytes: int(a.cfg.Backup.BaselineChunkBytes),
 		},
 	)
@@ -351,7 +397,6 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 			RepositoryID:     a.cfg.Backup.RepositoryID,
 			SourceClusterID:  clusterCfg.Control.ClusterID,
 			SourceGeneration: a.cfg.Backup.SourceGeneration,
-			KMSKeyID:         a.cfg.Backup.KMSKeyID,
 		},
 	)
 	if err != nil {
@@ -396,7 +441,6 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 			RepositoryID:      a.cfg.Backup.RepositoryID,
 			SourceClusterID:   clusterCfg.Control.ClusterID,
 			SourceGeneration:  a.cfg.Backup.SourceGeneration,
-			KMSKeyID:          a.cfg.Backup.KMSKeyID,
 			InitialGeneration: a.cfg.Backup.SourceGeneration,
 			HashSlotCount:     clusterCfg.Slots.HashSlotCount,
 			Source:            source, Frontiers: frontiers, Segments: segments,
@@ -453,9 +497,9 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		CatalogRetention: checkpointIndex,
 		SourceClusterID:  clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
 		SourceFenceConvergence: sourceFenceConvergence,
-		SourceFenceSigner:      manifestSigner, SigningKeyID: a.cfg.Backup.SigningKeyID,
-		NewSourceFenceID: func() string { return newBackupID("source-fence") },
-		Now:              time.Now, MaxCheckpointAge: a.cfg.Backup.CheckpointInterval,
+		SourceFenceSigner:      keyAuthority,
+		NewSourceFenceID:       func() string { return newBackupID("source-fence") },
+		Now:                    time.Now, MaxCheckpointAge: a.cfg.Backup.CheckpointInterval,
 	})
 	if err != nil {
 		a.backupInitErr = err
@@ -463,7 +507,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	}
 	erasureLedger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
 		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: a.backup,
-		Signer: manifestSigner, SigningKeyID: a.cfg.Backup.SigningKeyID, KMSKeyID: a.cfg.Backup.KMSKeyID,
+		Signer:       keyAuthority,
 		RepositoryID: a.cfg.Backup.RepositoryID, SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
 		HashSlotCount: clusterCfg.Slots.HashSlotCount, Now: time.Now, NewAttemptID: func() string { return newBackupID("erasure") },
 	})
@@ -473,25 +517,6 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	a.permanentErasureRecorder = erasureLedger
-	primaryClock, err := newAppBackupClockProbe(a.cfg.Backup.Primary.Endpoint)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	secondaryClock, err := newAppBackupClockProbe(a.cfg.Backup.Secondary.Endpoint)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	doctor, err := backupinfra.NewDoctor(backupinfra.DoctorOptions{
-		Primary: primary, Secondary: secondary, KMS: kms, EncryptionKey: a.cfg.Backup.KMSKeyID, SigningKey: a.cfg.Backup.SigningKeyID,
-		StagingDir: a.cfg.Backup.StagingDir, ApplicationDir: a.cfg.DataDir, StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
-		ClockProbes: []backupinfra.ClockProbe{primaryClock, secondaryClock}, Now: time.Now,
-	})
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
 	catalogWindow, err :=
 		backupinfra.NewCoordinationIntegrityAuditCatalogWindowSource(
 			stateStore,
@@ -540,7 +565,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 				Primary: primary, Secondary: secondary,
 				PrimaryRepair:   primaryRepair,
 				SecondaryRepair: secondaryRepair,
-				Codec:           codec, Signer: manifestSigner,
+				Codec:           codec, Signer: keyAuthority,
 				RepositoryID:     a.cfg.Backup.RepositoryID,
 				SourceClusterID:  clusterCfg.Control.ClusterID,
 				SourceGeneration: a.cfg.Backup.SourceGeneration,
@@ -593,7 +618,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		filepath.Join(
 			a.cfg.Backup.StagingDir, "generation-vector-cache",
 		),
-		manifestSigner,
+		keyAuthority,
 	)
 	if err != nil {
 		a.backupInitErr = err
@@ -609,7 +634,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		backupinfra.NewGenerationGarbageCollector(
 			backupinfra.GenerationGarbageCollectorOptions{
 				Primary: primaryGarbage, Secondary: secondaryGarbage,
-				Catalog: checkpointCatalog, Signer: manifestSigner,
+				Catalog: checkpointCatalog, Signer: keyAuthority,
 				Cursors: gcCursors, VectorCache: vectorCache,
 				IntegrityGuard:  auditGate,
 				AuditProtection: auditPlan, AuditRoots: auditRoots,
@@ -689,6 +714,55 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	node.RegisterRPC(accessnode.ManagerBackupRPCServiceID, nodeRPCHandlerFunc(managerBackupAdapter.HandleRPC))
 }
 
+// backupKeyPinPublisherNodeID selects one normalized Controller voter so OSS
+// root publication never depends on a potentially stale Raft-term observation.
+// Normalization admits the implicit single-node cluster while seed-join
+// mirrors remain read-only until their admitted configuration is persisted.
+func backupKeyPinPublisherNodeID(config cluster.Config) uint64 {
+	config = config.WithDefaults()
+	if config.Control.Role != cluster.ControlRoleVoter {
+		return 0
+	}
+	var publisher uint64
+	for _, voter := range config.Control.Voters {
+		if voter.NodeID != 0 &&
+			(publisher == 0 || voter.NodeID < publisher) {
+			publisher = voter.NodeID
+		}
+	}
+	return publisher
+}
+
+// waitBackupKeyStartupCheck lets the deterministic Controller voter publish a
+// missing pin while other restore nodes wait without racing repository writes.
+func (a *App) waitBackupKeyStartupCheck(ctx context.Context) error {
+	if a == nil || a.backupKeyStartupCheck == nil {
+		return nil
+	}
+	waitContext, cancel := context.WithTimeout(
+		ctx, defaultClusterWriteReadyTimeout,
+	)
+	defer cancel()
+	ticker := time.NewTicker(backupKeyPinWaitInterval)
+	defer ticker.Stop()
+	for {
+		err := a.backupKeyStartupCheck(waitContext)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, backupkeys.ErrRepositoryPinPending) {
+			return err
+		}
+		select {
+		case <-waitContext.Done():
+			return fmt.Errorf(
+				"backup app: key pin startup: %w", waitContext.Err(),
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
 type unavailablePermanentErasureRecorder struct {
 	err error
 }
@@ -742,14 +816,14 @@ func (a *App) wireRestore(
 	segments, err := backupartifact.NewReplicatedSegmentStore(
 		primary, secondary,
 		backupartifact.NewSegmentCodec(keys, rand.Reader),
-		signer, a.cfg.Backup.SigningKeyID,
+		signer,
 	)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
-		primary, secondary, signer, a.cfg.Backup.SigningKeyID,
+		primary, secondary, signer,
 	)
 	if err != nil {
 		a.backupInitErr = err

@@ -495,7 +495,7 @@ func (a *ReplicatedErasureIntegrityAuditor) repairErasureEventCopy(
 	}
 	var repairedBytes int64
 	if len(targetResult.recordBody) == 0 ||
-		targetResult.record == (backupartifact.ErasureLedgerRecord{}) {
+		targetResult.record.EventID == "" {
 		if err := repair.RepairImmutable(
 			ctx, target.RecordKey, int64(len(sourceResult.recordBody)),
 			target.RecordSHA256, bytes.NewReader(sourceResult.recordBody),

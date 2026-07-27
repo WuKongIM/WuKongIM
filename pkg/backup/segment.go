@@ -11,14 +11,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 )
 
 const (
 	// SegmentFormat identifies one content-addressed backup segment.
 	SegmentFormat = "wukongim-backup-segment"
 	// SegmentVersion is the current content-addressed segment schema version.
-	SegmentVersion uint32 = 2
+	SegmentVersion uint32 = 3
 
 	maxSegmentCiphertextBytes = maxObjectPlaintextBytes + (16 << 20)
 )
@@ -60,7 +59,7 @@ type SegmentLogicalDescriptor struct {
 	RecordCount uint64 `json:"record_count"`
 }
 
-// SegmentDescriptor combines stable logical identity with one sealing key.
+// SegmentDescriptor combines stable logical identity with one sealing attempt.
 type SegmentDescriptor struct {
 	// Logical contains every field that contributes to the Segment ID.
 	Logical SegmentLogicalDescriptor
@@ -74,8 +73,6 @@ type SegmentDescriptor struct {
 	// to the authoritative source cut represented by the payload.
 	SourceHighWatermark   uint64
 	WatermarkAtUnixMillis int64
-	// KMSKeyID identifies the key-encryption key used for this sealing attempt.
-	KMSKeyID string
 }
 
 // SegmentHeader is the canonical logical identity hashed into a Segment ID.
@@ -86,7 +83,7 @@ type SegmentHeader struct {
 	Version uint32 `json:"version"`
 	// Logical contains the stable ordered Slot-stream position.
 	Logical SegmentLogicalDescriptor `json:"logical"`
-	// Previous authenticates the preceding segment without requiring KMS.
+	// Previous authenticates the preceding segment without opening a data key.
 	Previous *SegmentReference `json:"previous,omitempty"`
 	// Checkpoint marks an intentional cursor-chain root.
 	Checkpoint bool `json:"checkpoint,omitempty"`
@@ -112,10 +109,8 @@ type SegmentPayload struct {
 	Compression Compression `json:"compression"`
 	// Encryption identifies the authenticated encryption algorithm.
 	Encryption Encryption `json:"encryption"`
-	// KMSKeyID identifies the key-encryption key used to wrap the data key.
-	KMSKeyID string `json:"kms_key_id"`
-	// WrappedKey is the base64-encoded KMS-wrapped data key.
-	WrappedKey string `json:"wrapped_key"`
+	// DataKey is the authenticated provider-neutral wrapped segment key.
+	DataKey DataKeyEnvelope `json:"data_key"`
 	// Nonce is the base64-encoded AEAD nonce.
 	Nonce string `json:"nonce"`
 }
@@ -157,22 +152,26 @@ func (c *SegmentCodec) Seal(ctx context.Context, descriptor SegmentDescriptor, p
 	if err != nil {
 		return SealedSegment{}, err
 	}
-	return c.sealPrepared(ctx, descriptor.KMSKeyID, header, segmentID, canonical, plaintext)
+	return c.sealPrepared(ctx, header, segmentID, canonical, plaintext)
 }
 
 // sealPrepared applies compression and encryption to an already-derived identity.
 // It is kept private so callers cannot pair plaintext with forged identity data.
-func (c *SegmentCodec) sealPrepared(ctx context.Context, kmsKeyID string, header SegmentHeader, segmentID string, canonical, plaintext []byte) (SealedSegment, error) {
+func (c *SegmentCodec) sealPrepared(ctx context.Context, header SegmentHeader, segmentID string, canonical, plaintext []byte) (SealedSegment, error) {
 	if c == nil || c.keys == nil || c.rand == nil {
 		return SealedSegment{}, fmt.Errorf("%w: segment codec dependencies are required", ErrInvalidObject)
 	}
-	dataKey, err := c.keys.GenerateDataKey(ctx, kmsKeyID)
+	dataKey, err := c.keys.NewDataKey(ctx)
 	if err != nil {
 		return SealedSegment{}, fmt.Errorf("generate segment data key: %w", err)
 	}
 	defer zeroBytes(dataKey.Plaintext)
-	if len(dataKey.Plaintext) != 32 || len(dataKey.Wrapped) == 0 {
-		return SealedSegment{}, fmt.Errorf("%w: KMS returned an invalid segment AES-256 data key", ErrInvalidObject)
+	if len(dataKey.Plaintext) != 32 ||
+		validateDataKeyEnvelope(dataKey.Envelope) != nil {
+		return SealedSegment{}, fmt.Errorf(
+			"%w: key authority returned an invalid segment AES-256 data key",
+			ErrInvalidObject,
+		)
 	}
 	compressed, err := compressObject(plaintext)
 	if err != nil {
@@ -199,8 +198,7 @@ func (c *SegmentCodec) sealPrepared(ctx context.Context, kmsKeyID string, header
 		CiphertextBytes:  int64(len(ciphertext)),
 		Compression:      CompressionZstd,
 		Encryption:       EncryptionAES256GCM,
-		KMSKeyID:         kmsKeyID,
-		WrappedKey:       base64.StdEncoding.EncodeToString(dataKey.Wrapped),
+		DataKey:          dataKey.Envelope,
 		Nonce:            base64.StdEncoding.EncodeToString(nonce),
 	}
 	return SealedSegment{ID: segmentID, Header: header, Payload: payload, Ciphertext: ciphertext}, nil
@@ -228,15 +226,11 @@ func (c *SegmentCodec) Open(ctx context.Context, header SegmentHeader, payload S
 	if hex.EncodeToString(ciphertextHash[:]) != payload.CiphertextSHA256 {
 		return nil, fmt.Errorf("%w: segment ciphertext checksum mismatch", ErrObjectCorrupt)
 	}
-	wrapped, err := base64.StdEncoding.DecodeString(payload.WrappedKey)
-	if err != nil || len(wrapped) == 0 {
-		return nil, fmt.Errorf("%w: invalid segment wrapped key", ErrInvalidObject)
-	}
 	nonce, err := base64.StdEncoding.DecodeString(payload.Nonce)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid segment nonce", ErrInvalidObject)
 	}
-	plaintextKey, err := c.keys.UnwrapDataKey(ctx, payload.KMSKeyID, wrapped)
+	plaintextKey, err := c.keys.OpenDataKey(ctx, payload.DataKey)
 	if err != nil {
 		return nil, fmt.Errorf("unwrap segment data key: %w", err)
 	}
@@ -290,9 +284,6 @@ func validateSegmentDescriptor(descriptor SegmentDescriptor) error {
 		descriptor.SourceHighWatermark, descriptor.WatermarkAtUnixMillis,
 	); err != nil {
 		return err
-	}
-	if strings.TrimSpace(descriptor.KMSKeyID) == "" || len(descriptor.KMSKeyID) > 512 {
-		return fmt.Errorf("%w: segment KMS key id is invalid", ErrInvalidObject)
 	}
 	return nil
 }
@@ -359,11 +350,8 @@ func validateSegmentPayload(segmentID string, payload SegmentPayload) error {
 	if payload.Compression != CompressionZstd || payload.Encryption != EncryptionAES256GCM {
 		return fmt.Errorf("%w: segment codec is unsupported", ErrInvalidObject)
 	}
-	if strings.TrimSpace(payload.KMSKeyID) == "" || len(payload.KMSKeyID) > 512 {
-		return fmt.Errorf("%w: segment KMS key id is invalid", ErrInvalidObject)
-	}
-	if wrapped, err := base64.StdEncoding.DecodeString(payload.WrappedKey); err != nil || len(wrapped) == 0 {
-		return fmt.Errorf("%w: segment wrapped key is invalid", ErrInvalidObject)
+	if err := validateDataKeyEnvelope(payload.DataKey); err != nil {
+		return err
 	}
 	if nonce, err := base64.StdEncoding.DecodeString(payload.Nonce); err != nil || len(nonce) == 0 {
 		return fmt.Errorf("%w: segment nonce is invalid", ErrInvalidObject)

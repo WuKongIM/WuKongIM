@@ -188,7 +188,7 @@ func newCheckpointIndexFixture(t *testing.T) (*backupinfra.ReplicatedCheckpointC
 	require.NoError(t, err)
 	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
 	require.NoError(t, err)
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, newCatalogTestSigner(), "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, newCatalogTestSigner())
 	require.NoError(t, err)
 	return catalog, filepath.Join(t.TempDir(), "checkpoint-index.json")
 }

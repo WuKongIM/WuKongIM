@@ -120,7 +120,7 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	}
 	receipt, err := backupartifact.SignSourceFenceReceipt(
 		context.Background(), fenceRecord,
-		signer, "source-signing-key",
+		signer,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	otherPlanRecord.RestorePlanID = "other-plan"
 	otherPlanReceipt, err := backupartifact.SignSourceFenceReceipt(
 		context.Background(), otherPlanRecord,
-		signer, "source-signing-key",
+		signer,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestRestoreLifecycleRequiresEmptyFreshGenerationAndFence(t *testing.T) {
 	staleCheckpointRecord.CheckpointSHA256 = strings.Repeat("b", 64)
 	staleCheckpointReceipt, err := backupartifact.SignSourceFenceReceipt(
 		context.Background(), staleCheckpointRecord,
-		signer, "source-signing-key",
+		signer,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -725,11 +725,10 @@ type restoreTestSigner struct {
 
 func (s restoreTestSigner) Sign(
 	_ context.Context,
-	keyID string,
 	message []byte,
 ) (backupartifact.ManifestSignature, error) {
 	return backupartifact.ManifestSignature{
-		Algorithm: "ed25519", KeyID: keyID,
+		Algorithm: "ed25519", KeyID: "ed25519:test",
 		Value: ed25519.Sign(s.privateKey, message),
 	}, nil
 }

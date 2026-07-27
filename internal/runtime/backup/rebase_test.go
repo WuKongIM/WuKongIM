@@ -404,7 +404,7 @@ func newRebaseTestEngineWithOptions(
 	}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: source, Frontiers: store, Segments: &recordingSegmentCommitter{},
 		Clock: &fakeCaptureClock{now: time.UnixMilli(1_753_400_200_000)},

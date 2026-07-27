@@ -15,7 +15,7 @@ Leader. A changed term/configuration starts the next durable attempt; a
 completion from an older Controller attempt is rejected. The checkpoint target
 uses immutable semantic attempt identity beneath that fence, allowing a
 promoted follower with a completed receipt to resume replica convergence
-without rereading repositories or KMS.
+without rereading repositories or reopening data-key envelopes.
 An installer may return a valid `Converging` partition report together with a
 follower convergence error. The coordinator publishes that report before
 surfacing the error, so Controller/Manager convergence never falls back to
@@ -56,7 +56,8 @@ bounded Slot workers
   -> one lease-and-revision fenced SlotFrontier compare-and-swap for both stream heads
 ```
 
-Wake hints never call source storage, repositories, KMS, or a backup outbox.
+Wake hints never call source storage, repositories, the key authority, or a
+backup outbox.
 They may be dropped when the bounded hint queue is full because the initial and
 periodic paged high-watermark reconciliation is the correctness path. The
 same logical Hash Slot source contract is used for a single-node cluster and a
@@ -66,7 +67,7 @@ Metadata and messages have independent segment sequences inside one Slot
 Generation. Each message payload segment is committed first, then a separate
 cursor-only sidecar is committed; the final Slot frontier CAS exposes both
 references together. Cursor sidecars carry Channel deltas and every 1024th
-sidecar carries a complete checkpoint, bounding repository/KMS reads after
+sidecar carries a complete checkpoint, bounding repository/data-key reads after
 restart. A source page with no records emits no object; an entirely idle source
 also avoids a Controller rewrite. A metadata watermark advances only when the
 logical Hash Slot has a matching applied command, so unrelated traffic in the

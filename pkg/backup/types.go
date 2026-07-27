@@ -95,22 +95,18 @@ type ObjectEntry struct {
 	Compression Compression `json:"compression"`
 	// Encryption identifies the authenticated encryption algorithm.
 	Encryption Encryption `json:"encryption"`
-	// KMSKeyID identifies the key-encryption key used to wrap the object data key.
-	KMSKeyID string `json:"kms_key_id"`
-	// WrappedKey is the base64-encoded wrapped object data key.
-	WrappedKey string `json:"wrapped_key"`
+	// DataKey is the authenticated provider-neutral wrapped object key.
+	DataKey DataKeyEnvelope `json:"data_key"`
 	// Nonce is the base64-encoded AEAD nonce.
 	Nonce string `json:"nonce"`
 }
 
-// ManifestSignature records a KMS-backed signature over canonical unsigned manifest bytes.
+// ManifestSignature records a portable signature over canonical artifact bytes.
 type ManifestSignature struct {
 	// Algorithm identifies the signature algorithm used by the signer.
 	Algorithm string `json:"algorithm"`
-	// KeyID identifies the external signing key.
+	// KeyID identifies one immutable signing-key version trusted by the authority.
 	KeyID string `json:"key_id"`
-	// KeyVersionID pins the provider key version used for this signature when required.
-	KeyVersionID string `json:"key_version_id,omitempty"`
 	// Value contains the raw signature bytes and is base64 encoded by JSON.
 	Value []byte `json:"value"`
 }
@@ -147,28 +143,43 @@ type PartitionEvidence struct {
 	MaxMessageID uint64 `json:"max_message_id"`
 }
 
-// ManifestSigner signs and verifies canonical manifest bytes through an external key boundary.
+// ManifestSigner signs and verifies canonical artifact bytes through one key authority.
 type ManifestSigner interface {
-	// Sign signs message with keyID and returns portable signature metadata.
-	Sign(ctx context.Context, keyID string, message []byte) (ManifestSignature, error)
+	// Sign signs message with the authority's active signing key.
+	Sign(ctx context.Context, message []byte) (ManifestSignature, error)
 	// Verify verifies signature against the exact canonical message bytes.
 	Verify(ctx context.Context, signature ManifestSignature, message []byte) error
 }
 
-// DataKey contains one plaintext object key and its externally wrapped form.
+// DataKey contains one plaintext object key and its portable wrapped envelope.
 type DataKey struct {
 	// Plaintext is the short-lived AES-256 key used only during object codec work.
 	Plaintext []byte
-	// Wrapped is the KMS-protected key stored with object metadata.
-	Wrapped []byte
+	// Envelope is the authenticated wrapped key stored with object metadata.
+	Envelope DataKeyEnvelope
 }
 
-// DataKeyManager generates and unwraps per-object data keys through an external KMS boundary.
+// DataKeyEnvelope carries one wrapped object key and the information required
+// to select and authenticate its immutable wrapping-key version.
+type DataKeyEnvelope struct {
+	// Version identifies the strict portable envelope schema.
+	Version uint32 `json:"version"`
+	// Algorithm identifies the authenticated key-wrapping algorithm.
+	Algorithm string `json:"algorithm"`
+	// KeyID selects one immutable wrapping-key version.
+	KeyID string `json:"key_id"`
+	// Nonce is the key-wrapping AEAD nonce.
+	Nonce []byte `json:"nonce"`
+	// Value is the authenticated wrapped AES-256 data key.
+	Value []byte `json:"value"`
+}
+
+// DataKeyManager generates and unwraps per-object data keys through one key authority.
 type DataKeyManager interface {
-	// GenerateDataKey returns a new plaintext and wrapped data-key pair for keyID.
-	GenerateDataKey(ctx context.Context, keyID string) (DataKey, error)
-	// UnwrapDataKey returns the plaintext data key protected by keyID.
-	UnwrapDataKey(ctx context.Context, keyID string, wrapped []byte) ([]byte, error)
+	// NewDataKey returns a new plaintext and wrapped data-key pair.
+	NewDataKey(ctx context.Context) (DataKey, error)
+	// OpenDataKey authenticates and unwraps one portable data-key envelope.
+	OpenDataKey(ctx context.Context, envelope DataKeyEnvelope) ([]byte, error)
 }
 
 // ObjectDescriptor identifies the logical object to compress and encrypt.
@@ -179,8 +190,6 @@ type ObjectDescriptor struct {
 	Kind ObjectKind
 	// HashSlot identifies the logical partition carried by the object.
 	HashSlot uint16
-	// KMSKeyID identifies the key-encryption key used for this object.
-	KMSKeyID string
 }
 
 // StreamDescriptor identifies one logical plaintext stream before bounded chunking.

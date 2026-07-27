@@ -7,12 +7,15 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+	backupkeys "github.com/WuKongIM/WuKongIM/pkg/backup/keypackage"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWireRestoreBuildsFailClosedCompositionAndRegistersRPCs(t *testing.T) {
@@ -39,7 +42,6 @@ func TestWireRestoreBuildsFailClosedCompositionAndRegistersRPCs(t *testing.T) {
 			DataDir: filepath.Join(root, "data"),
 			Backup: BackupConfig{
 				RestoreMode: true, RepositoryID: "repository-test",
-				SigningKeyID:     "signing-test",
 				TargetGeneration: "target-generation-test",
 				StagingDir:       staging, StagingMaxBytes: 64 << 20,
 				WorkerCount: 2,
@@ -79,6 +81,60 @@ func TestWireRestoreBuildsFailClosedCompositionAndRegistersRPCs(t *testing.T) {
 	}
 }
 
+func TestRestoreStartupWaitsForDesignatedKeyPinPublisher(t *testing.T) {
+	calls := 0
+	app := &App{
+		backupKeyStartupCheck: func(context.Context) error {
+			calls++
+			if calls == 1 {
+				return backupkeys.ErrRepositoryPinPending
+			}
+			return nil
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.NoError(t, app.waitBackupKeyStartupCheck(ctx))
+	require.Equal(t, 2, calls)
+}
+
+func TestBackupKeyPinPublisherIsStableAcrossLeaderTerms(t *testing.T) {
+	publisher := backupKeyPinPublisherNodeID(cluster.Config{
+		NodeID: 7,
+		Control: cluster.ControlConfig{Voters: []cluster.ControlVoter{
+			{NodeID: 7},
+			{NodeID: 2},
+			{NodeID: 5},
+		}},
+	})
+	require.Equal(t, uint64(2), publisher)
+}
+
+func TestBackupKeyPinPublisherRejectsSeedJoinMirror(t *testing.T) {
+	publisher := backupKeyPinPublisherNodeID(cluster.Config{
+		NodeID:     9,
+		ListenAddr: "127.0.0.1:11110",
+		Control: cluster.ControlConfig{
+			Role: cluster.ControlRoleMirror,
+		},
+		Join: cluster.JoinConfig{
+			Seeds:         []string{"1@127.0.0.1:11111"},
+			AdvertiseAddr: "127.0.0.1:11110",
+			Token:         "join-token",
+		},
+	})
+	require.Zero(t, publisher)
+}
+
+func TestBackupKeyPinPublisherDefaultsImplicitSingleNodeCluster(t *testing.T) {
+	publisher := backupKeyPinPublisherNodeID(cluster.Config{
+		NodeID:     9,
+		ListenAddr: "127.0.0.1:11110",
+	})
+	require.Equal(t, uint64(9), publisher)
+}
+
 type restoreWiringNode struct {
 	appRestoreNode
 	rpcs map[uint8]cluster.NodeRPCHandler
@@ -96,22 +152,23 @@ func (n *restoreWiringNode) RegisterRPC(
 
 type restoreWiringCrypto struct{}
 
-func (restoreWiringCrypto) GenerateDataKey(
+func (restoreWiringCrypto) NewDataKey(
 	_ context.Context,
-	_ string,
 ) (backupartifact.DataKey, error) {
 	return backupartifact.DataKey{
 		Plaintext: bytes.Repeat([]byte{7}, 32),
-		Wrapped:   bytes.Repeat([]byte{9}, 32),
+		Envelope: backupartifact.DataKeyEnvelope{
+			Version: 1, Algorithm: "TEST", KeyID: "test",
+			Nonce: []byte{1}, Value: bytes.Repeat([]byte{9}, 32),
+		},
 	}, nil
 }
 
-func (restoreWiringCrypto) UnwrapDataKey(
+func (restoreWiringCrypto) OpenDataKey(
 	_ context.Context,
-	_ string,
-	wrapped []byte,
+	envelope backupartifact.DataKeyEnvelope,
 ) ([]byte, error) {
-	if len(wrapped) == 0 {
+	if len(envelope.Value) == 0 {
 		return nil, errors.New("wrapped key is empty")
 	}
 	return bytes.Repeat([]byte{7}, 32), nil
@@ -119,9 +176,9 @@ func (restoreWiringCrypto) UnwrapDataKey(
 
 func (restoreWiringCrypto) Sign(
 	_ context.Context,
-	keyID string,
 	message []byte,
 ) (backupartifact.ManifestSignature, error) {
+	const keyID = "test-signing"
 	sum := sha256.Sum256(append([]byte(keyID), message...))
 	return backupartifact.ManifestSignature{
 		Algorithm: "test-sha256", KeyID: keyID, Value: sum[:],

@@ -38,7 +38,7 @@ func TestCaptureEngineAtomicallyAdvancesMetadataAndMessageStreams(t *testing.T) 
 	segments := &recordingSegmentCommitter{}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1",
 		HashSlotCount:     256, Source: source, Frontiers: frontiers, Segments: segments,
 		Clock: newAdvancingCaptureClock(),
@@ -106,7 +106,7 @@ func TestCaptureEngineAtomicallyAdvancesMetadataAndMessageStreams(t *testing.T) 
 func TestCaptureEngineRejectsCommitterWithoutCursorLoader(t *testing.T) {
 	_, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: &fakeContinuousSource{}, Frontiers: &fakeSlotFrontierStore{},
 		Segments: commitOnlySegmentCommitter{},
@@ -133,7 +133,7 @@ func TestCaptureEngineRollsSparseStreamAtMaxOpenDuration(t *testing.T) {
 	segments := &recordingSegmentCommitter{}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: source, Frontiers: frontiers, Segments: segments, Clock: clock,
 		Policy: backupruntime.RollingPolicy{
@@ -326,7 +326,7 @@ func TestCaptureEngineImmediatelyContinuesPagedDiscoveryUnderRun(t *testing.T) {
 	source := &pagedDiscoverySource{secondCall: make(chan struct{})}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: &fakeSlotFrontierStore{}, Segments: &recordingSegmentCommitter{},
 		ReconcileInterval: time.Hour, WorkerCount: 1,
@@ -482,7 +482,7 @@ func TestCaptureEngineSchedulerSealsSparseStreamAtDeadlineBeforePoll(t *testing.
 	frontiers := &fakeSlotFrontierStore{committed: committed}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: frontiers, Segments: &recordingSegmentCommitter{},
 		Policy: backupruntime.RollingPolicy{
@@ -530,7 +530,7 @@ func TestCaptureEngineRollsBeforeNextPageWouldExceedTarget(t *testing.T) {
 	segments := &recordingSegmentCommitter{}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: source, Frontiers: &fakeSlotFrontierStore{}, Segments: segments,
 		Clock: clock,
@@ -582,7 +582,7 @@ func TestCaptureEngineAllowsOneRecordAboveTargetBelowHardLimit(t *testing.T) {
 	segments := &recordingSegmentCommitter{}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: &fakeSlotFrontierStore{}, Segments: segments,
 		Clock: &fakeCaptureClock{now: time.UnixMilli(1_753_400_200_000)},
@@ -738,7 +738,7 @@ func TestCaptureEngineRunReconcilesDurableFrontierWithoutWakeAfterRestart(t *tes
 	}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: frontiers, Segments: &recordingSegmentCommitter{},
 		Clock: newAdvancingCaptureClock(),
@@ -793,7 +793,7 @@ func TestCaptureEngineUsesDefaultRollingPolicyWithoutEmittingEmptySegments(t *te
 	segments := &recordingSegmentCommitter{}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: source, Frontiers: frontiers, Segments: segments,
 		Clock: &fakeCaptureClock{now: time.UnixMilli(1_753_400_200_000)},
@@ -971,7 +971,7 @@ func TestCaptureEngineWritesFullCursorCheckpointAtBoundedInterval(t *testing.T) 
 	}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: frontiers, Segments: segments,
 		CursorLoader: cursorLoader,
@@ -1019,7 +1019,7 @@ func TestCaptureEngineAcquiresNodeBudgetBeforeMaterializingSourcePage(t *testing
 	}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: &fakeSlotFrontierStore{}, Segments: &recordingSegmentCommitter{},
 		Clock: newAdvancingCaptureClock(), MemoryBudget: budget,
@@ -1057,7 +1057,7 @@ func TestCaptureEngineYieldsHotSlotAfterBoundedPages(t *testing.T) {
 	frontiers := &fakeSlotFrontierStore{}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: frontiers, Segments: &recordingSegmentCommitter{},
 		Clock: &fakeCaptureClock{now: time.UnixMilli(1_753_400_000_000)},
@@ -1110,7 +1110,7 @@ func TestCaptureEngineMemoryPressureDoesNotBlockWorkerAndExpiredPendingReleasesB
 	}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 1,
 		Source: source, Frontiers: &fakeSlotFrontierStore{}, Segments: &recordingSegmentCommitter{},
 		Clock: clock, MemoryBudget: budget,
@@ -1559,7 +1559,7 @@ func newTestCaptureEngineWithObserver(t *testing.T, source backupruntime.Continu
 	}
 	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
 		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
-		SourceGeneration: "source-generation-1", KMSKeyID: "kms-backup",
+		SourceGeneration:  "source-generation-1",
 		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
 		Source: source, Frontiers: frontiers, Segments: segments, Clock: clock,
 		Observer: observer,

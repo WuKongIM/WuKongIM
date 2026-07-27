@@ -14,6 +14,7 @@ real `cmd/wukongim` processes and public Manager, HTTP, and WKProto entrypoints.
   must assert recovery through Manager state and public metrics.
 - Stop the source cluster before restore activation and use a distinct target
   cluster ID and generation.
-- Production storage qualification must use the normal Alibaba OSS/KMS/RAM loaders. It must
-  reject the e2e file-root override and emit only bounded, non-secret evidence.
+- Production storage qualification must use the normal Alibaba OSS/RAM loaders
+  and protected deployment-key credential. It must reject the e2e file-root
+  override and emit only bounded, non-secret evidence.
 - Keep every scenario in its own directory with a local `AGENTS.md`.

@@ -853,7 +853,7 @@ func (p *CatalogSegmentIntegrityAuditPlan) advanceErasureArtifact(
 			string(ErasureIntegrityArtifactRecord)
 	case ErasureIntegrityArtifactRecord:
 		record := report.Record
-		if record == (backupartifact.ErasureLedgerRecord{}) {
+		if record.EventID == "" {
 			return p.advanceErasureSequence(ctx, position)
 		}
 		if record.HashSlot != position.HashSlot ||

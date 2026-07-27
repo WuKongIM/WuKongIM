@@ -19,7 +19,6 @@ func TestObjectCodecCompressesEncryptsAndRestoresPayload(t *testing.T) {
 		Key:      "objects/07/messages-000001.wkb",
 		Kind:     backup.ObjectKindMessages,
 		HashSlot: 7,
-		KMSKeyID: "kms-prod",
 	}, plaintext)
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
@@ -33,8 +32,11 @@ func TestObjectCodecCompressesEncryptsAndRestoresPayload(t *testing.T) {
 	if sealed.Entry.Compression != backup.CompressionZstd || sealed.Entry.Encryption != backup.EncryptionAES256GCM {
 		t.Fatalf("Seal() codec = %q/%q", sealed.Entry.Compression, sealed.Entry.Encryption)
 	}
-	if sealed.Entry.WrappedKey == "" || sealed.Entry.Nonce == "" {
-		t.Fatalf("Seal() key metadata = wrapped:%q nonce:%q", sealed.Entry.WrappedKey, sealed.Entry.Nonce)
+	if len(sealed.Entry.DataKey.Value) == 0 || sealed.Entry.Nonce == "" {
+		t.Fatalf(
+			"Seal() key metadata = wrapped:%x nonce:%q",
+			sealed.Entry.DataKey.Value, sealed.Entry.Nonce,
+		)
 	}
 
 	restored, err := codec.Open(context.Background(), sealed.Entry, sealed.Ciphertext)
@@ -50,16 +52,24 @@ type wrappingKeyManager struct {
 	wrappingByte byte
 }
 
-func (m wrappingKeyManager) GenerateDataKey(_ context.Context, keyID string) (backup.DataKey, error) {
+func (m wrappingKeyManager) NewDataKey(
+	_ context.Context,
+) (backup.DataKey, error) {
 	plaintext := bytes.Repeat([]byte{0x6d}, 32)
 	return backup.DataKey{
 		Plaintext: plaintext,
-		Wrapped:   xorBytes(plaintext, m.wrappingByte),
+		Envelope: backup.DataKeyEnvelope{
+			Version: 1, Algorithm: "TEST_XOR", KeyID: "test",
+			Nonce: []byte{1}, Value: xorBytes(plaintext, m.wrappingByte),
+		},
 	}, nil
 }
 
-func (m wrappingKeyManager) UnwrapDataKey(_ context.Context, keyID string, wrapped []byte) ([]byte, error) {
-	return xorBytes(wrapped, m.wrappingByte), nil
+func (m wrappingKeyManager) OpenDataKey(
+	_ context.Context,
+	envelope backup.DataKeyEnvelope,
+) ([]byte, error) {
+	return xorBytes(envelope.Value, m.wrappingByte), nil
 }
 
 func xorBytes(value []byte, mask byte) []byte {

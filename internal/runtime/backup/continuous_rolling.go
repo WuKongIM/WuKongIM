@@ -194,7 +194,6 @@ func (e *CaptureEngine) commitAccumulator(ctx context.Context, hashSlot uint16, 
 		Previous:              cloneRuntimeSegmentReference(batch.Previous),
 		SourceHighWatermark:   batch.SourceHighWatermark,
 		WatermarkAtUnixMillis: batch.WatermarkAtUnixMillis,
-		KMSKeyID:              e.options.KMSKeyID,
 	}, body)
 	if err != nil {
 		return backupcontract.StreamFrontier{}, err
@@ -249,7 +248,6 @@ func (e *CaptureEngine) commitAccumulator(ctx context.Context, hashSlot uint16, 
 			Checkpoint:            checkpoint,
 			SourceHighWatermark:   accumulator.target.Position,
 			WatermarkAtUnixMillis: watermarkAtUnixMillis,
-			KMSKeyID:              e.options.KMSKeyID,
 		}, cursorBody)
 		if err != nil {
 			return backupcontract.StreamFrontier{}, err

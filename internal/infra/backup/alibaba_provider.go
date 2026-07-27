@@ -7,9 +7,6 @@ import (
 	"strings"
 	"time"
 
-	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
-	alibabakms "github.com/alibabacloud-go/kms-20160120/v3/client"
-	"github.com/alibabacloud-go/tea/dara"
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	osscredentials "github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"
 	alicredentials "github.com/aliyun/credentials-go/credentials"
@@ -196,50 +193,6 @@ func loadAlibabaOSSClient(
 	return oss.NewClient(config), nil
 }
 
-// LoadAlibabaKMSAdapter assumes the KMS role and creates a regional API client.
-func LoadAlibabaKMSAdapter(
-	ctx context.Context,
-	region string,
-	endpoint string,
-	roleARN string,
-) (*AlibabaKMSAdapter, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	region = strings.TrimSpace(region)
-	roleARN = strings.TrimSpace(roleARN)
-	if region == "" || roleARN == "" {
-		return nil, fmt.Errorf(
-			"backup Alibaba KMS: region and role ARN are required",
-		)
-	}
-	credential, err := loadAlibabaRoleCredential(
-		roleARN, "wukongim-backup-kms",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("backup Alibaba KMS: %w", err)
-	}
-	config := &openapiutil.Config{
-		Credential:     credential,
-		RegionId:       dara.String(region),
-		ConnectTimeout: dara.Int(int(alibabaBackupConnectTimeout.Milliseconds())),
-		ReadTimeout:    dara.Int(int(alibabaBackupReadTimeout.Milliseconds())),
-	}
-	if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
-		parsed, err := parseAlibabaBackupEndpoint(endpoint)
-		if err != nil {
-			return nil, fmt.Errorf("backup Alibaba KMS: %w", err)
-		}
-		config.Endpoint = dara.String(parsed.Host)
-		config.Protocol = dara.String(parsed.Scheme)
-	}
-	client, err := alibabakms.NewClient(config)
-	if err != nil {
-		return nil, fmt.Errorf("backup Alibaba KMS: create client: %w", err)
-	}
-	return NewAlibabaKMSAdapter(client)
-}
-
 func loadAlibabaRoleCredential(
 	roleARN string,
 	sessionName string,
@@ -286,4 +239,11 @@ func parseAlibabaBackupEndpoint(value string) (*url.URL, error) {
 		)
 	}
 	return parsed, nil
+}
+
+func alibabaString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

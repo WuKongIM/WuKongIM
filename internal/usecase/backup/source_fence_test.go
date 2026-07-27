@@ -41,8 +41,8 @@ func TestFenceSourcePersistsBarrierBeforeSigningAndIsIdempotent(t *testing.T) {
 		},
 		SourceClusterID: "source-cluster", SourceGeneration: "source-gen",
 		SourceFenceConvergence: convergence,
-		SourceFenceSigner:      signer, SigningKeyID: "signing-key",
-		NewSourceFenceID: func() string { return "source-fence-1" },
+		SourceFenceSigner:      signer,
+		NewSourceFenceID:       func() string { return "source-fence-1" },
 		Now: func() time.Time {
 			current := now
 			now = now.Add(time.Second)

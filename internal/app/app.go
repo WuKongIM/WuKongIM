@@ -158,6 +158,8 @@ type App struct {
 	restore *backupusecase.RestoreApp
 	// backupRuntime owns backup-only doctor, scheduling, and failover resume work.
 	backupRuntime WorkerRuntime
+	// backupKeyStartupCheck verifies repositories before restore-mode pin publication.
+	backupKeyStartupCheck func(context.Context) error
 	// restoreRuntime owns restore-only leader coordination and resumable installation.
 	restoreRuntime WorkerRuntime
 	// backupInitErr records enabled-mode construction failure without failing message startup.

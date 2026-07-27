@@ -68,8 +68,7 @@ func TestReplicatedSegmentStoreAuditsClassifiesRepairsAndRevalidates(t *testing.
 			require.True(t, ok)
 			store, err := backup.NewReplicatedSegmentStoreWithRepair(
 				primary, secondary, primaryRepair, secondaryRepair,
-				codec, signer, "signing-key",
-			)
+				codec, signer)
 			require.NoError(t, err)
 			reference, err := store.Commit(
 				context.Background(), testSegmentDescriptor(),
@@ -119,8 +118,7 @@ func TestReplicatedSegmentStoreAuditComparesPredecessorByValue(t *testing.T) {
 		privateKey: ed25519.NewKeyFromSeed(seed[:]),
 	}
 	store, err := backup.NewReplicatedSegmentStoreWithRepair(
-		primary, secondary, primary, secondary, codec, signer, "signing-key",
-	)
+		primary, secondary, primary, secondary, codec, signer)
 	require.NoError(t, err)
 	descriptor := testSegmentDescriptor()
 	descriptor.Previous = &backup.SegmentReference{
@@ -155,8 +153,7 @@ func TestReplicatedSegmentStoreReportsDualRepositoryLossWithoutRepair(t *testing
 	seed := sha256.Sum256([]byte("segment-auditor-dual-loss-key"))
 	signer := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
 	store, err := backup.NewReplicatedSegmentStoreWithRepair(
-		primary, secondary, primary, secondary, codec, signer, "signing-key",
-	)
+		primary, secondary, primary, secondary, codec, signer)
 	require.NoError(t, err)
 	reference, err := store.Commit(
 		context.Background(), testSegmentDescriptor(), []byte("payload"),

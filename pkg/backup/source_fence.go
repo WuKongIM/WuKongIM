@@ -49,7 +49,7 @@ type SourceFenceRecord struct {
 	ConvergedAtUnixMillis int64 `json:"converged_at_unix_millis,omitempty"`
 }
 
-// SourceFenceReceipt is the KMS-signed proof issued after the source fence
+// SourceFenceReceipt is the signed proof issued after the source fence
 // converges across every active data node.
 type SourceFenceReceipt struct {
 	SourceFenceRecord
@@ -103,11 +103,10 @@ func SignSourceFenceReceipt(
 	ctx context.Context,
 	record SourceFenceRecord,
 	signer ManifestSigner,
-	signingKeyID string,
 ) (SourceFenceReceipt, error) {
-	if signer == nil || strings.TrimSpace(signingKeyID) == "" {
+	if signer == nil {
 		return SourceFenceReceipt{},
-			fmt.Errorf("%w: source fence signer and key id are required", ErrInvalidSignature)
+			fmt.Errorf("%w: source fence signer is required", ErrInvalidSignature)
 	}
 	if err := ValidateSourceFenceRecord(record, true); err != nil {
 		return SourceFenceReceipt{}, err
@@ -117,12 +116,12 @@ func SignSourceFenceReceipt(
 	if err != nil {
 		return SourceFenceReceipt{}, err
 	}
-	signature, err := signer.Sign(ctx, signingKeyID, canonical)
+	signature, err := signer.Sign(ctx, canonical)
 	if err != nil {
 		return SourceFenceReceipt{},
 			fmt.Errorf("%w: sign source fence receipt: %v", ErrInvalidSignature, err)
 	}
-	if signature.KeyID != signingKeyID ||
+	if strings.TrimSpace(signature.KeyID) == "" ||
 		strings.TrimSpace(signature.Algorithm) == "" ||
 		len(signature.Value) == 0 {
 		return SourceFenceReceipt{},

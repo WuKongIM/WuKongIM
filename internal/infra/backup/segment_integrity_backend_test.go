@@ -26,8 +26,7 @@ func TestSegmentIntegrityAuditBackendPerformsFullPortableArtifactValidation(t *t
 			testWrappingKeyManager{mask: 0x5a},
 			bytes.NewReader(bytes.Repeat([]byte{0x71}, 128)),
 		),
-		signer, "signing-key",
-	)
+		signer)
 	require.NoError(t, err)
 	reference, err := store.Commit(context.Background(), backupartifact.SegmentDescriptor{
 		Logical: backupartifact.SegmentLogicalDescriptor{
@@ -36,7 +35,6 @@ func TestSegmentIntegrityAuditBackendPerformsFullPortableArtifactValidation(t *t
 			HashSlot: 7, Stream: backupartifact.SegmentStreamMetadata,
 			Sequence: 1, RecordCount: 1,
 		},
-		KMSKeyID: "kms-backup",
 	}, []byte("authenticated metadata segment"))
 	require.NoError(t, err)
 	plan := staticSegmentIntegrityPlan{

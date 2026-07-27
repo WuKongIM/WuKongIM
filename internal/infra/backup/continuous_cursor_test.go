@@ -259,9 +259,7 @@ func TestMessageCursorResolverRestartsFromReplicatedRepositoryStore(t *testing.T
 			testWrappingKeyManager{mask: 0xa5},
 			bytes.NewReader(bytes.Repeat([]byte{0x41}, 128)),
 		),
-		testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])},
-		"signing-key",
-	)
+		testEd25519Signer{privateKey: ed25519.NewKeyFromSeed(seed[:])})
 	require.NoError(t, err)
 	firstBody, err := backupartifact.MarshalMessageCursorBatch(backupartifact.MessageCursorBatch{
 		HashSlot:   17,
@@ -310,7 +308,6 @@ func continuousCursorDescriptor(sequence uint64) backupartifact.SegmentDescripto
 			HashSlot: 17, Stream: backupartifact.SegmentStreamMessageCursor,
 			Sequence: sequence, RecordCount: 1,
 		},
-		KMSKeyID: "kms-backup",
 	}
 }
 

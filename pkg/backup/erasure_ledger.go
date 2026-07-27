@@ -267,8 +267,12 @@ func LoadErasureLedgerEvent(body []byte) (ErasureLedgerEvent, error) {
 }
 
 // SignErasureLedgerRecord signs the canonical encrypted-event reference.
-func SignErasureLedgerRecord(ctx context.Context, record ErasureLedgerRecord, signer ManifestSigner, signingKeyID string) (ErasureLedgerRecord, error) {
-	if signer == nil || strings.TrimSpace(signingKeyID) == "" {
+func SignErasureLedgerRecord(
+	ctx context.Context,
+	record ErasureLedgerRecord,
+	signer ManifestSigner,
+) (ErasureLedgerRecord, error) {
+	if signer == nil {
 		return ErasureLedgerRecord{}, fmt.Errorf("%w: erasure ledger signer is required", ErrInvalidSignature)
 	}
 	record.Signature = nil
@@ -276,11 +280,13 @@ func SignErasureLedgerRecord(ctx context.Context, record ErasureLedgerRecord, si
 	if err != nil {
 		return ErasureLedgerRecord{}, err
 	}
-	signature, err := signer.Sign(ctx, signingKeyID, canonical)
+	signature, err := signer.Sign(ctx, canonical)
 	if err != nil {
 		return ErasureLedgerRecord{}, fmt.Errorf("%w: sign erasure ledger record: %v", ErrInvalidSignature, err)
 	}
-	if signature.KeyID != signingKeyID || strings.TrimSpace(signature.Algorithm) == "" || len(signature.Value) == 0 {
+	if strings.TrimSpace(signature.KeyID) == "" ||
+		strings.TrimSpace(signature.Algorithm) == "" ||
+		len(signature.Value) == 0 {
 		return ErasureLedgerRecord{}, fmt.Errorf("%w: erasure ledger record signer metadata mismatch", ErrInvalidSignature)
 	}
 	record.Signature = &signature
@@ -326,8 +332,12 @@ func LoadErasureLedgerRecord(ctx context.Context, body []byte, signer ManifestSi
 }
 
 // SignErasureLedgerCommit signs one canonical monotonic ledger commit.
-func SignErasureLedgerCommit(ctx context.Context, commit ErasureLedgerCommit, signer ManifestSigner, signingKeyID string) (ErasureLedgerCommit, error) {
-	if signer == nil || strings.TrimSpace(signingKeyID) == "" {
+func SignErasureLedgerCommit(
+	ctx context.Context,
+	commit ErasureLedgerCommit,
+	signer ManifestSigner,
+) (ErasureLedgerCommit, error) {
+	if signer == nil {
 		return ErasureLedgerCommit{}, fmt.Errorf("%w: erasure ledger signer is required", ErrInvalidSignature)
 	}
 	commit.Signature = nil
@@ -335,11 +345,13 @@ func SignErasureLedgerCommit(ctx context.Context, commit ErasureLedgerCommit, si
 	if err != nil {
 		return ErasureLedgerCommit{}, err
 	}
-	signature, err := signer.Sign(ctx, signingKeyID, canonical)
+	signature, err := signer.Sign(ctx, canonical)
 	if err != nil {
 		return ErasureLedgerCommit{}, fmt.Errorf("%w: sign erasure ledger commit: %v", ErrInvalidSignature, err)
 	}
-	if signature.KeyID != signingKeyID || strings.TrimSpace(signature.Algorithm) == "" || len(signature.Value) == 0 {
+	if strings.TrimSpace(signature.KeyID) == "" ||
+		strings.TrimSpace(signature.Algorithm) == "" ||
+		len(signature.Value) == 0 {
 		return ErasureLedgerCommit{}, fmt.Errorf("%w: erasure ledger commit signer metadata mismatch", ErrInvalidSignature)
 	}
 	commit.Signature = &signature

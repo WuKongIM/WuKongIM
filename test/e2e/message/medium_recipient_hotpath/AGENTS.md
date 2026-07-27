@@ -39,7 +39,7 @@ The backup qualification workflow additionally sets
 `WK_E2E_MEDIUM_BACKUP_QUALIFICATION=1`. That mode enables continuous backup
 with 256 Hash Slots and 16 capture workers, creates 5,000 channels and one
 100,000-member group, forces one Slot over the source-pin age budget, and then
-enables 1.5-second repository and KMS latency. Its separate
+enables 1.5-second repository and key-authority latency. Its separate
 `WK-BACKUP-SCALE-EVIDENCE` gate requires only the affected Slot to rebase,
 100,000-member SENDACK p99 below one second, bounded heap (1,280 MiB per node
 and 3,072 MiB across the three-node process gate), and two post-history

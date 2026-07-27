@@ -86,7 +86,7 @@ type Config struct {
 type BackupConfig struct {
 	// Enabled starts backup coordination and node capture workers after startup doctor checks.
 	Enabled bool
-	// Provider selects the qualified Alibaba OSS, KMS, and RAM adapter.
+	// Provider selects the qualified Alibaba OSS and RAM adapter.
 	Provider string
 	// QualificationGate must equal the release's recorded production
 	// qualification identity before automatic backup may start.
@@ -101,18 +101,6 @@ type BackupConfig struct {
 	TargetGeneration string
 	// StagingDir stores bounded node-local temporary backup data and must not be a repository path.
 	StagingDir string
-	// KMSKeyID identifies the external KMS key used to wrap per-object data keys.
-	KMSKeyID string
-	// SigningKeyID identifies the external asymmetric key used to sign canonical backup artifacts.
-	SigningKeyID string
-	// TrustedSigningKeyIDs lists retained previous signing keys accepted only when verifying historical checkpoints.
-	TrustedSigningKeyIDs []string
-	// KMSRegion is the Alibaba KMS region used for encryption and manifest-signing calls.
-	KMSRegion string
-	// KMSEndpoint optionally overrides the provider KMS API origin.
-	KMSEndpoint string
-	// KMSRoleARN is the separately assumed role allowed to use backup encryption and signing keys.
-	KMSRoleARN string
 	// CaptureReconcileInterval is the correctness poll used when commit wake hints are lost.
 	CaptureReconcileInterval time.Duration
 	// CheckpointInterval controls automatic publication of the latest durable cluster-wide frontier.
@@ -174,13 +162,13 @@ type BackupRepositoryConfig struct {
 }
 
 const (
-	// BackupProviderAlibaba selects the qualified Alibaba OSS, KMS, and RAM path.
+	// BackupProviderAlibaba selects the qualified Alibaba OSS and RAM path.
 	BackupProviderAlibaba = "aliyun"
 
-	// BackupQualificationGateV2 is the exact production qualification identity
+	// BackupQualificationGateV3 is the exact production qualification identity
 	// admitted by this release. It is intentionally not a boolean so a future
 	// implementation change cannot reuse an older drill attestation.
-	BackupQualificationGateV2 = "backup-vnext-production-v2"
+	BackupQualificationGateV3 = "backup-vnext-production-v3"
 
 	defaultBackupBaselineChunkBytes  = 8 * 1024 * 1024
 	defaultBackupTargetSegmentBytes  = 64 * 1024 * 1024
@@ -208,11 +196,6 @@ func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
 	} else {
 		cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
 	}
-	trustedSigningKeyIDs, err := normalizeBackupSigningKeyIDs(cfg.SigningKeyID, cfg.TrustedSigningKeyIDs)
-	if err != nil {
-		return BackupConfig{}, err
-	}
-	cfg.TrustedSigningKeyIDs = trustedSigningKeyIDs
 	if cfg.CaptureReconcileInterval == 0 {
 		cfg.CaptureReconcileInterval = defaultBackupReconcileInterval
 	}
@@ -264,27 +247,6 @@ func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
 	return cfg, nil
 }
 
-func normalizeBackupSigningKeyIDs(active string, previous []string) ([]string, error) {
-	active = strings.TrimSpace(active)
-	seen := make(map[string]struct{}, len(previous)+1)
-	if active != "" {
-		seen[active] = struct{}{}
-	}
-	normalized := make([]string, 0, len(previous))
-	for _, keyID := range previous {
-		keyID = strings.TrimSpace(keyID)
-		if keyID == "" {
-			return nil, fmt.Errorf("%w: backup trusted signing key ids must not contain empty values", ErrInvalidConfig)
-		}
-		if _, ok := seen[keyID]; ok {
-			continue
-		}
-		seen[keyID] = struct{}{}
-		normalized = append(normalized, keyID)
-	}
-	return normalized, nil
-}
-
 func validateBackupConfig(cfg BackupConfig) error {
 	if cfg.Provider != BackupProviderAlibaba {
 		return fmt.Errorf(
@@ -297,10 +259,10 @@ func validateBackupConfig(cfg BackupConfig) error {
 	}
 	if cfg.Enabled &&
 		strings.TrimSpace(cfg.QualificationGate) !=
-			BackupQualificationGateV2 {
+			BackupQualificationGateV3 {
 		return fmt.Errorf(
 			"%w: automatic backup requires qualification gate %q",
-			ErrInvalidConfig, BackupQualificationGateV2,
+			ErrInvalidConfig, BackupQualificationGateV3,
 		)
 	}
 	if cfg.CaptureReconcileInterval <= 0 {
@@ -362,21 +324,6 @@ func validateBackupConfig(cfg BackupConfig) error {
 	if !filepath.IsAbs(strings.TrimSpace(cfg.StagingDir)) {
 		return fmt.Errorf("%w: backup staging directory must be an absolute path", ErrInvalidConfig)
 	}
-	if strings.TrimSpace(cfg.KMSKeyID) == "" {
-		return fmt.Errorf("%w: backup KMS encryption key id is required", ErrInvalidConfig)
-	}
-	if strings.TrimSpace(cfg.SigningKeyID) == "" {
-		return fmt.Errorf("%w: backup manifest signing key id is required", ErrInvalidConfig)
-	}
-	if strings.TrimSpace(cfg.KMSRegion) == "" {
-		return fmt.Errorf("%w: backup KMS region is required", ErrInvalidConfig)
-	}
-	if endpoint := strings.TrimSpace(cfg.KMSEndpoint); endpoint != "" {
-		parsed, err := url.Parse(endpoint)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-			return fmt.Errorf("%w: backup KMS endpoint must be an HTTPS origin without credentials, query, or fragment", ErrInvalidConfig)
-		}
-	}
 	if err := validateBackupRepository("primary", cfg.Primary); err != nil {
 		return err
 	}
@@ -384,11 +331,10 @@ func validateBackupConfig(cfg BackupConfig) error {
 		return err
 	}
 	if cfg.Provider == BackupProviderAlibaba &&
-		(strings.TrimSpace(cfg.KMSRoleARN) == "" ||
-			strings.TrimSpace(cfg.Primary.AccessRoleARN) == "" ||
+		(strings.TrimSpace(cfg.Primary.AccessRoleARN) == "" ||
 			strings.TrimSpace(cfg.Secondary.AccessRoleARN) == "") {
 		return fmt.Errorf(
-			"%w: Alibaba backup KMS role ARN and ordinary access role ARNs are required",
+			"%w: Alibaba backup ordinary access role ARNs are required",
 			ErrInvalidConfig,
 		)
 	}
@@ -417,7 +363,6 @@ func validateAlibabaBackupRoleSeparation(cfg BackupConfig) error {
 		arn  string
 	}
 	roles := []roleEntry{
-		{name: "KMS", arn: cfg.KMSRoleARN},
 		{name: "primary access", arn: cfg.Primary.AccessRoleARN},
 		{name: "secondary access", arn: cfg.Secondary.AccessRoleARN},
 	}

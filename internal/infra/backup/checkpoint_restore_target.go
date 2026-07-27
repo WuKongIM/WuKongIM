@@ -56,7 +56,7 @@ type CheckpointRestoreSnapshot struct {
 
 // CheckpointRestoreSnapshotDistributor installs and verifies one final target
 // snapshot on the desired Slot replicas. Followers never receive repository or
-// KMS handles.
+// key-authority handles.
 type CheckpointRestoreSnapshotDistributor interface {
 	DistributeCheckpointRestoreSnapshot(
 		context.Context,
@@ -642,7 +642,7 @@ func (s *durableCheckpointRestoreSession) Finalize(
 		// The production distributor already persisted a Leader-local replica
 		// receipt. Preserve that durable fallback and the immutable snapshot so
 		// ResumeCheckpointRestore can finish the aggregate receipt without
-		// replaying repository or KMS payloads.
+		// replaying repository or key-authority payloads.
 		s.finalized = true
 		return CheckpointRestoreReplicaResult{},
 			errors.Join(receiptErr, quotaErr)

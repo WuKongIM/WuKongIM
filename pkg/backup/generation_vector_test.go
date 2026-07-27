@@ -28,7 +28,7 @@ func TestGenerationVectorRoundTripHasStableContentIdentity(t *testing.T) {
 	if retry.ID != first.ID {
 		t.Fatalf("content identity changed: %q != %q", retry.ID, first.ID)
 	}
-	signed, err := backup.SignGenerationVector(context.Background(), first, signer, "signing-key")
+	signed, err := backup.SignGenerationVector(context.Background(), first, signer)
 	if err != nil {
 		t.Fatalf("SignGenerationVector() error = %v", err)
 	}

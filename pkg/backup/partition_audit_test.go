@@ -54,7 +54,6 @@ func TestReplicatedSegmentStoreAuditsAndRepairsPartitionGraphArtifacts(t *testin
 				Key:      "objects/slot-generation-7/00007/metadata-000000.wkb",
 				Kind:     backup.ObjectKindMetadata,
 				HashSlot: 7,
-				KMSKeyID: "kms-backup",
 			}, []byte("materialized metadata"))
 			require.NoError(t, err)
 			manifest := backup.PartitionManifest{
@@ -98,9 +97,7 @@ func TestReplicatedSegmentStoreAuditsAndRepairsPartitionGraphArtifacts(t *testin
 				backup.NewSegmentCodec(keys, nil),
 				ed25519ManifestSigner{
 					privateKey: ed25519.NewKeyFromSeed(seed[:]),
-				},
-				"signing-key",
-			)
+				})
 			require.NoError(t, err)
 			test.damage(secondary, reference, sealed.Entry)
 
@@ -139,7 +136,6 @@ func TestReplicatedSegmentStoreCachesAuthenticatedPartitionManifestPerCycle(t *t
 		Key:      "objects/slot-generation-cache/00007/metadata-000000.wkb",
 		Kind:     backup.ObjectKindMetadata,
 		HashSlot: 7,
-		KMSKeyID: "kms-backup",
 	}, []byte("cached materialized metadata"))
 	require.NoError(t, err)
 	manifest := backup.PartitionManifest{
@@ -183,9 +179,7 @@ func TestReplicatedSegmentStoreCachesAuthenticatedPartitionManifestPerCycle(t *t
 		backup.NewSegmentCodec(keys, nil),
 		ed25519ManifestSigner{
 			privateKey: ed25519.NewKeyFromSeed(seed[:]),
-		},
-		"signing-key",
-	)
+		})
 	require.NoError(t, err)
 
 	store.BeginPartitionAuditCycle("cycle-1")

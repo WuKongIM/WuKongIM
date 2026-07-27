@@ -22,8 +22,6 @@ type MaterializedBaselineOptions struct {
 	RepositoryID     string
 	SourceClusterID  string
 	SourceGeneration string
-	// KMSKeyID seals the baseline cursor.
-	KMSKeyID string
 }
 
 // DistributedBaselineCapturer reuses the full logical partition snapshot path
@@ -37,12 +35,10 @@ func NewDistributedBaselineCapturer(options MaterializedBaselineOptions) (*Distr
 	options.RepositoryID = strings.TrimSpace(options.RepositoryID)
 	options.SourceClusterID = strings.TrimSpace(options.SourceClusterID)
 	options.SourceGeneration = strings.TrimSpace(options.SourceGeneration)
-	options.KMSKeyID = strings.TrimSpace(options.KMSKeyID)
 	if options.Worker == nil || options.Segments == nil ||
 		!validContinuousIdentity(options.RepositoryID, 128) ||
 		!validContinuousIdentity(options.SourceClusterID, 128) ||
-		!validContinuousIdentity(options.SourceGeneration, 128) ||
-		options.KMSKeyID == "" || len(options.KMSKeyID) > 512 {
+		!validContinuousIdentity(options.SourceGeneration, 128) {
 		return nil, fmt.Errorf("%w: materialized baseline dependencies are incomplete", ErrInvalidCapture)
 	}
 	return &DistributedBaselineCapturer{options: options}, nil
@@ -106,7 +102,6 @@ func (c *DistributedBaselineCapturer) CaptureBaseline(
 				Checkpoint:            true,
 				SourceHighWatermark:   cut.RaftIndex,
 				WatermarkAtUnixMillis: cut.CommittedAtMillis,
-				KMSKeyID:              c.options.KMSKeyID,
 			}, body)
 			if err != nil {
 				return backupartifact.SegmentReference{}, err

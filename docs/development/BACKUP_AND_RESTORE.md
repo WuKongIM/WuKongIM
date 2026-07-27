@@ -11,14 +11,14 @@ present:
 ```toml
 [backup]
 enabled = true
-qualification_gate = "backup-vnext-production-v2"
+qualification_gate = "backup-vnext-production-v3"
 ```
 
 The equivalent environment variables are:
 
 ```sh
 export WK_BACKUP_ENABLED=true
-export WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v2
+export WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v3
 ```
 
 Missing or different qualification values fail startup. This is a release
@@ -37,13 +37,13 @@ independent jobs pass:
 2. a local real-process three-node recovery drill with Controller, Slot/data,
    and restore-leader failures plus opaque repository corruption;
 3. the 256-Hash-Slot, 5,000-channel, 100,000-member scale gate with an executable
-   SENDACK p99 threshold under injected repository/KMS latency, a 1.2-second
+   SENDACK p99 threshold under injected repository/key-authority latency, a 1.2-second
    continuous-backup foreground p99 ceiling, and bounded process allocation
    and heap ceilings; it records capture catchup separately before enforcing
    two already-caught-up checkpoint publications below ten seconds each;
 4. the same source-stop, fresh-target restore, activation, and post-write drill
-   through real cross-region Alibaba OSS repositories, KMS keys, RAM roles,
-   versioning, and COMPLIANCE ObjectWorm in the protected
+   through real cross-region Alibaba OSS repositories, a protected deployment
+   key package, RAM roles, versioning, and COMPLIANCE ObjectWorm in the protected
    `backup-production` environment. It injects a corrupt read into each
    repository in turn and requires the corresponding repair role to publish
    and revalidate a new protected version. Each garbage role must also create,
@@ -92,30 +92,26 @@ full backup.
 Use two distinct cross-region provider-native repositories with versioning and
 COMPLIANCE retention enabled. The qualified Alibaba path uses OSS ObjectWorm
 with a default retention period no shorter than `object_lock_days`; ObjectWorm
-is not silently replaced by BucketWorm. Signing and envelope encryption use
-Alibaba KMS. Base credentials come from the provider credential chain and may
-only assume the separately configured RAM roles; credentials are not accepted
-through Manager or CLI requests. The KMS role and the ordinary, repair, and
-garbage roles for both repositories must be seven distinct role ARNs.
-ObjectWorm is invitation-only and region-limited; the example uses the
-currently supported `cn-hangzhou` and `cn-beijing` regions. Qualification must
-fail until Alibaba Cloud has enabled ObjectWorm for the account and both
-buckets.
+is not silently replaced by BucketWorm. A protected deployment key package
+performs AES-256-GCM envelope encryption and Ed25519 signing locally. The
+package is not represented by TOML fields and is never accepted through a
+Manager request. Base cloud credentials come from the Alibaba provider chain
+and may only assume the separately configured repository RAM roles. The
+ordinary, repair, and garbage roles for both repositories must be six distinct
+role ARNs. Enable bucket versioning before ObjectWorm. ObjectWorm is
+irreversible, must use the default `COMPLIANCE` mode, and cannot coexist with
+BucketWorm. Qualification fails until both buckets report the required
+ObjectWorm default retention.
 
 ```toml
 [backup]
 enabled = true
 provider = "aliyun"
-qualification_gate = "backup-vnext-production-v2"
+qualification_gate = "backup-vnext-production-v3"
 restore_mode = false
 repository_id = "prod-im-backup"
 source_generation = "prod-2026-07"
 staging_dir = "/var/lib/wukongim/backup-staging"
-kms_key_id = "concrete-kms-encryption-key-id"
-signing_key_id = "concrete-kms-signing-key-id"
-trusted_signing_key_ids = []
-kms_region = "cn-hangzhou"
-kms_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-kms"
 capture_reconcile_interval = "30s"
 checkpoint_interval = "5m"
 baseline_chunk_bytes = 8388608
@@ -155,14 +151,204 @@ garbage_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-secondary-gar
 
 Keep `wukongim.toml.example` aligned when fields change. TOML keys use grouped
 snake_case; environment keys use the `WK_BACKUP_` prefix.
-Ordinary repository access, KMS, repair, and garbage capabilities use separate
-RAM roles. The application refreshes one-hour STS sessions and never gives
+Ordinary repository access, repair, and garbage capabilities use separate RAM
+roles. The application refreshes one-hour STS sessions and never gives
 ordinary capture credentials a delete capability. All three repository roles
 are required for each Alibaba copy when automatic backup is enabled; restore
-requires only ordinary repository access plus KMS. Garbage-role startup
+requires only ordinary repository access plus the same deployment key package.
+Garbage-role startup
 qualification uses a stable per-node delete-marker slot, which ObjectWorm does
 not retain, clears any stale marker first, and removes the new exact marker
 before startup completes.
+
+## Deployment key package
+
+Developers do not configure a key ID, signing key, KMS region, or KMS role.
+Every node discovers one protected credential with the fixed name
+`wukongim-backup-key-package`. The package is bound to
+`backup.repository_id`, contains one active AES-256 wrapping key, one active
+Ed25519 signing seed, an independent HMAC-SHA256 package-integrity key, and the
+retained keyring needed to read historical artifacts. The HMAC detects partial
+writes and edits to package metadata or key material before any key is
+accepted. Startup fails closed when the credential is missing, is a symlink,
+is not a private regular file, changes while being opened, is malformed, fails
+package authentication, or is bound to another repository. The deployment
+secret store protects package confidentiality; the immutable repositories
+anchor its identity and freshness. Replacing only the deployment credential
+cannot establish a different trust root.
+
+The two immutable repositories provide the external identity and freshness
+anchor that the self-contained package cannot provide by itself. On the first
+revision, after both repositories pass versioning/ObjectWorm qualification,
+only the configured Controller voter with the lowest stable node ID may create
+the signed root pin for the package ID in each repository. Other nodes wait and
+verify; they never race a root write. An implicit single-node cluster is
+normalized to its local Controller voter. Seed-join mirrors have no admitted
+voter identity, never publish pins, and remain read-only until their admitted
+configuration is persisted. The same deterministic voter publishes
+odd activation revisions, so a Raft term change cannot create a second writer
+between OSS `HEAD` and `PUT`. Staging does not advance the signed immutable
+chain. Startup checks both copies and rejects a second bootstrap package, a
+superseded staged package, or recovery from an older kit. The pin objects are
+permanent control records and are never generation-GC candidates. This adds no
+TOML or environment setting.
+
+The runtime cryptographic gate remains closed until both repository controls,
+both pins, staging capacity, and UTC checks are healthy. Any later Doctor
+failure closes it again. This applies to every data-key and signature call,
+including permanent-erasure paths outside the continuous coordinator.
+
+Generate the package once from a trusted operator workstation:
+
+```sh
+umask 077
+wkcli backup keys bootstrap \
+  --repository-id prod-im-backup \
+  --out-dir /secure/offline/wukongim-backup-bootstrap-2026-07
+```
+
+The command refuses an existing output directory and creates only private
+files:
+
+```text
+wukongim-backup-key-package  # runtime credential; deploy to every source/target node
+wukongim-backup-recovery.wkr # encrypted exact-package recovery kit
+wukongim-backup-recovery.key # independent 256-bit recovery key
+```
+
+Standard output contains only package ID, repository ID, revision, and active
+key IDs. It never contains secret material. Before production use, put the
+runtime package in the deployment secret store and move the recovery kit and
+recovery key to two separate offline locations with separate access control.
+Do not leave all three bootstrap files on the workstation.
+
+### Minimal node deployment
+
+For systemd, encrypt the raw package to the host or TPM and use the standard
+credential name:
+
+```sh
+sudo systemd-creds encrypt \
+  --name=wukongim-backup-key-package \
+  /secure/runtime/wukongim-backup-key-package \
+  /etc/credstore.encrypted/wukongim-backup-key-package
+```
+
+Add only this line to the service unit:
+
+```ini
+[Service]
+LoadCredentialEncrypted=wukongim-backup-key-package
+```
+
+systemd supplies `CREDENTIALS_DIRECTORY`; WuKongIM discovers the named file
+without any backup key configuration. Restrict the encrypted credential and
+unit to the WuKongIM service identity.
+
+For Kubernetes, use an encrypted-at-rest Secret provider and mount the key
+under the standard directory:
+
+```yaml
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: wukongim
+      volumeMounts:
+        - name: backup-keys
+          mountPath: /run/secrets/wukongim
+          readOnly: true
+  volumes:
+    - name: backup-keys
+      secret:
+        secretName: wukongim-backup-keys
+        defaultMode: 0400
+```
+
+The Secret must expose a key named `wukongim-backup-key-package`. Limit RBAC
+read access to the workload service account and enable Secret encryption at
+rest; a plain Secret manifest in Git is not acceptable.
+
+For Docker or another container runtime, bind the private file read-only at:
+
+```text
+/run/secrets/wukongim/wukongim-backup-key-package
+```
+
+As a last-resort integration fallback, set
+`WK_BACKUP_KEY_PACKAGE_FILE=/absolute/private/path`. The file receives the same
+regular-file, anti-symlink, size, and permission checks. The standard systemd
+or container locations are preferred because they need no application key
+setting.
+
+The protected GitHub `backup-production` environment stores the runtime
+package as one masked base64 secret named `BACKUP_KEY_PACKAGE_B64`; the
+qualification workflow materializes it as a `0600` credential in the runner's
+temporary directory. For example:
+
+```sh
+base64 < /secure/runtime/wukongim-backup-key-package | tr -d '\n'
+```
+
+Paste that single line into the environment secret. Never print it in CI logs
+or save it as a repository variable.
+
+### Safe rolling rotation
+
+Rotation is deliberately two-phase so mixed revisions remain readable:
+
+```sh
+wkcli backup keys rotate stage \
+  --package /secure/runtime/wukongim-backup-key-package \
+  --recovery-key /offline-b/wukongim-backup-recovery.key \
+  --out-dir /secure/rotation/staged-r2
+```
+
+Deploy `staged-r2/wukongim-backup-key-package` to every node and roll all
+processes. The old keys remain active while every node learns the pending
+keys. After every node is on the staged revision:
+
+```sh
+wkcli backup keys rotate activate \
+  --package /secure/rotation/staged-r2/wukongim-backup-key-package \
+  --recovery-key /offline-b/wukongim-backup-recovery.key \
+  --out-dir /secure/rotation/active-r3
+```
+
+Deploy the active revision with another rolling restart. Nodes still on the
+staged revision already know the new keys, so they can read and verify objects
+written by an activated node. The first activated node publishes the new
+revision pin in both repositories; a later restart with the staged or older
+package then fails closed. The activated package retains the old wrapping key
+for historical decryption and only the old signing public key for historical
+verification; the old signing seed is removed.
+
+Each phase emits a refreshed `wukongim-backup-recovery.wkr`. After activation,
+replace the offline recovery kit with the active revision, verify its metadata,
+and destroy superseded runtime copies according to the deployment secret
+store's retention policy. Keep the recovery key separate; it does not rotate
+implicitly.
+
+### Recovery example
+
+If the deployment secret is lost, restore it only on a trusted offline host:
+
+```sh
+mkdir -m 0700 /secure/recovered
+wkcli backup keys recover \
+  --recovery-kit /offline-a/wukongim-backup-recovery.wkr \
+  --recovery-key /offline-b/wukongim-backup-recovery.key \
+  --out /secure/recovered/wukongim-backup-key-package
+wkcli backup keys inspect \
+  --package /secure/recovered/wukongim-backup-key-package
+```
+
+Recovery authenticates the kit before writing and refuses to overwrite an
+existing output. A wrong key, changed ciphertext, repository mismatch, or
+invalid permission fails closed. The repository pins also reject a
+cryptographically valid but superseded kit. Restore nodes must receive the
+current package revision that can verify and open the selected checkpoint
+history.
 
 ## Normal operations
 
@@ -221,8 +407,8 @@ observe Controller leadership without reading process logs.
    target_generation = "successor-2026-07"
    ```
 
-   Configure the same repository identity, repository endpoints, trusted
-   signing keys, KMS access, staging directory, and authenticated Manager.
+   Configure the same repository identity, repository endpoints, deployment
+   key package, staging directory, and authenticated Manager.
 
 2. Create one immutable target plan from the exact checkpoint and catalog-head
    token:
@@ -330,7 +516,7 @@ only:
 
 `wukongim_backup_checkpoint_age_seconds` is `NaN` before the first checkpoint;
 missing evidence is never reported as zero. Metrics do not expose repository
-copy names, regions, object keys, KMS identifiers, Channel IDs, or credentials.
+copy names, regions, object keys, key identifiers, Channel IDs, or credentials.
 
 ## Failure handling
 

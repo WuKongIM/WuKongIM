@@ -12,7 +12,7 @@ import (
 )
 
 // LocalCheckpointRestoreReplicaStatus verifies one local replica receipt and
-// the currently installed target state without repository or KMS access.
+// the currently installed target state without repository or key-authority access.
 type LocalCheckpointRestoreReplicaStatus interface {
 	HandleCheckpointReplica(
 		context.Context,
@@ -26,7 +26,7 @@ type CheckpointRestoreFinalVerifierOptions struct {
 	// Node supplies current target topology and Slot authority.
 	Node RestoreInstallClusterNode
 	// Local and Remote query each desired replica's durable receipt and live
-	// semantic state. Neither dependency has repository or KMS access.
+	// semantic state. Neither dependency has repository or key-authority access.
 	Local  LocalCheckpointRestoreReplicaStatus
 	Remote RemoteCheckpointRestoreReplicaClient
 	// MaxParallel bounds independently verified logical Slots.

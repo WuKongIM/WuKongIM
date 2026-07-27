@@ -145,7 +145,7 @@ type RestoreActivationCleaner interface {
 
 // RestoreActivationRequest selects exactly one reviewed activation evidence path.
 type RestoreActivationRequest struct {
-	// SourceFenceReceipt is the normal source Controller/KMS proof.
+	// SourceFenceReceipt is the normal signed source Controller proof.
 	SourceFenceReceipt *backupartifact.SourceFenceReceipt
 	// BreakGlassReason is the explicit exceptional justification.
 	BreakGlassReason string
@@ -277,7 +277,7 @@ func (a *RestoreApp) Plan(ctx context.Context, request RestorePlanRequest) (Rest
 type RestorePartitionAssignment = backupcontract.RestorePartitionAssignment
 
 // BeginPartitionInstall durably records the exact Leader attempt before any
-// repository or KMS work begins.
+// repository or key-authority work begins.
 func (a *RestoreApp) BeginPartitionInstall(
 	ctx context.Context,
 	planID string,

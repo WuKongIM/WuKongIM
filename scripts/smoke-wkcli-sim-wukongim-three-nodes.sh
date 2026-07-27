@@ -462,14 +462,9 @@ cluster_profile_env() {
       "WUKONGIM_BACKUP_E2E_FILE_ROOT=$(backup_repository_root)" \
       "WK_BACKUP_ENABLED=true" \
       "WK_BACKUP_PROVIDER=aliyun" \
-      "WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v2" \
+      "WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v3" \
       "WK_BACKUP_REPOSITORY_ID=wkcli-sim-three-node-smoke" \
       "WK_BACKUP_SOURCE_GENERATION=local-smoke-generation" \
-      "WK_BACKUP_KMS_KEY_ID=local-e2e-encryption-key" \
-      "WK_BACKUP_SIGNING_KEY_ID=local-e2e-signing-key" \
-      "WK_BACKUP_KMS_REGION=local-kms" \
-      "WK_BACKUP_KMS_ENDPOINT=https://kms.local.invalid" \
-      "WK_BACKUP_KMS_ROLE_ARN=acs:ram::local:role/backup-kms" \
       "WK_BACKUP_CAPTURE_RECONCILE_INTERVAL=500ms" \
       "WK_BACKUP_CHECKPOINT_INTERVAL=$BACKUP_CHECKPOINT_INTERVAL" \
       "WK_BACKUP_BASELINE_CHUNK_BYTES=8388608" \

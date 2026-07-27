@@ -1028,15 +1028,10 @@ func mediumBackupOverrides(root string, nodeID uint64) map[string]string {
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
 		"WK_BACKUP_PROVIDER":                            "aliyun",
-		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v2",
+		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v3",
 		"WK_BACKUP_REPOSITORY_ID":                       "medium-backup-qualification",
 		"WK_BACKUP_SOURCE_GENERATION":                   "medium-source-generation",
 		"WK_BACKUP_STAGING_DIR":                         filepath.Join(root, fmt.Sprintf("staging-%d", nodeID)),
-		"WK_BACKUP_KMS_KEY_ID":                          "e2e-encryption-key",
-		"WK_BACKUP_SIGNING_KEY_ID":                      "e2e-signing-key",
-		"WK_BACKUP_KMS_REGION":                          "e2e-kms",
-		"WK_BACKUP_KMS_ENDPOINT":                        "https://kms.e2e.invalid",
-		"WK_BACKUP_KMS_ROLE_ARN":                        "acs:ram::e2e:role/backup-kms",
 		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "100ms",
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
@@ -1319,7 +1314,7 @@ func finishBackupScaleQualification(
 		)
 	case !evidence.NoSynchronousRemoteOnSEND:
 		t.Fatalf(
-			"backup scale SENDACK p99=%s, want below %s while repository/KMS latency=%s",
+			"backup scale SENDACK p99=%s, want below %s while repository/key latency=%s",
 			scaleP99, backupMaxSendackP99, backupRemoteLatency,
 		)
 	case !evidence.CheckpointCostHistoryBounded:

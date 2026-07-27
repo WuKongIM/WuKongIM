@@ -83,5 +83,5 @@ be installed, verified, activated, or admitted by normal startup.
 Checkpoint replica DTOs carry one begin/chunk/commit/status/cleanup action, immutable
 semantic plan identity, current Slot authority, exact file digests and offsets,
 pre/post-erasure message counts, maximum message ID, and bounded completion
-evidence. They deliberately contain no repository
-locator, encrypted data key, KMS identifier, or provider credential.
+evidence. They deliberately contain no repository locator, encrypted data key,
+key-authority identifier, or provider credential.

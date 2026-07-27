@@ -158,7 +158,8 @@ authority_admit_concurrency = 16
 
 [backup]
 # Automatic cluster-semantic backup is disabled by default. Enabling it requires
-# two distinct cross-region immutable repositories plus external KMS keys.
+# two distinct cross-region immutable repositories plus the protected deployment
+# credential named "wukongim-backup-key-package".
 enabled = false
 # Qualified external durability provider.
 provider = "aliyun"
@@ -175,18 +176,10 @@ source_generation = ""
 target_generation = ""
 # Absolute node-local directory for bounded temporary backup data.
 staging_dir = ""
-# Concrete external KMS key IDs (not aliases); credentials come only from the
-# provider credential chain.
-kms_key_id = ""
-signing_key_id = ""
-# Previous signing keys retained for verification during key rotation; environment overrides use a JSON string list.
-trusted_signing_key_ids = []
-kms_region = ""
-# Optional provider KMS HTTPS origin; empty uses the provider regional endpoint.
-kms_endpoint = ""
-# Alibaba RAM role used only for envelope-key and manifest-signing KMS calls.
-# Required for provider="aliyun"; base credentials need only sts:AssumeRole.
-kms_role_arn = ""
+# Create the deployment credential once with:
+# wkcli backup keys bootstrap --repository-id <repository_id> --out-dir <private-dir>
+# The server discovers it through systemd CREDENTIALS_DIRECTORY,
+# /run/secrets/wukongim, or the explicit WK_BACKUP_KEY_PACKAGE_FILE fallback.
 # Correctness polling and automatic durable checkpoint publication cadence.
 capture_reconcile_interval = "30s"
 checkpoint_interval = "5m"

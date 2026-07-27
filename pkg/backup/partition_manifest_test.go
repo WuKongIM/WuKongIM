@@ -122,8 +122,10 @@ func validPartitionObject(key string, kind backup.ObjectKind) backup.ObjectEntry
 		CiphertextBytes:  80,
 		Compression:      backup.CompressionZstd,
 		Encryption:       backup.EncryptionAES256GCM,
-		KMSKeyID:         "kms-backup",
-		WrappedKey:       "d3JhcHBlZA==",
-		Nonce:            "MDEyMzQ1Njc4OTAx",
+		DataKey: backup.DataKeyEnvelope{
+			Version: 1, Algorithm: "TEST_XOR", KeyID: "test",
+			Nonce: []byte{1}, Value: []byte("wrapped"),
+		},
+		Nonce: "MDEyMzQ1Njc4OTAx",
 	}
 }

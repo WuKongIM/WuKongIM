@@ -32,14 +32,12 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 
 func TestBackupConfigRequiresAlibabaRoleSeparation(t *testing.T) {
 	cfg := validEnabledBackupConfig(t)
-	cfg.KMSRoleARN = ""
 	cfg.Primary.AccessRoleARN = ""
 	cfg.Secondary.AccessRoleARN = ""
 	_, err := NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
-	require.Contains(t, err.Error(), "KMS role ARN")
+	require.Contains(t, err.Error(), "ordinary access role ARNs")
 
-	cfg.KMSRoleARN = "acs:ram::123456789:role/backup-kms"
 	cfg.Primary.AccessRoleARN = "acs:ram::123456789:role/backup-primary"
 	cfg.Secondary.AccessRoleARN = "acs:ram::123456789:role/backup-secondary"
 	normalized, err := NormalizeBackupConfig(cfg)
@@ -63,33 +61,24 @@ func TestBackupConfigRequiresDistinctAlibabaRoles(t *testing.T) {
 	require.Contains(t, err.Error(), "roles must be distinct")
 }
 
-func TestBackupConfigNormalizesPreviousTrustedSigningKeys(t *testing.T) {
-	normalized, err := normalizeBackupSigningKeyIDs("kms-signing-v2", []string{" kms-signing-v1 ", "kms-signing-v2", "kms-signing-v1"})
-	require.NoError(t, err)
-	require.Equal(t, []string{"kms-signing-v1"}, normalized)
-
-	_, err = normalizeBackupSigningKeyIDs("kms-signing-v2", []string{""})
-	require.ErrorIs(t, err, ErrInvalidConfig)
-}
-
 func TestBackupConfigRequiresExactReleaseQualificationGate(t *testing.T) {
 	cfg := validEnabledBackupConfig(t)
 	cfg.QualificationGate = ""
 	_, err := NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
-	require.Contains(t, err.Error(), BackupQualificationGateV2)
+	require.Contains(t, err.Error(), BackupQualificationGateV3)
 
 	cfg.QualificationGate = "backup-vnext-production-v0"
 	_, err = NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
-	require.Contains(t, err.Error(), BackupQualificationGateV2)
+	require.Contains(t, err.Error(), BackupQualificationGateV3)
 
-	cfg.QualificationGate = BackupQualificationGateV2
+	cfg.QualificationGate = BackupQualificationGateV3
 	normalized, err := NormalizeBackupConfig(cfg)
 	require.NoError(t, err)
 	require.True(t, normalized.Enabled)
 	require.Equal(
-		t, BackupQualificationGateV2, normalized.QualificationGate,
+		t, BackupQualificationGateV3, normalized.QualificationGate,
 	)
 }
 
@@ -106,14 +95,10 @@ func validEnabledBackupConfig(t *testing.T) BackupConfig {
 	return BackupConfig{
 		Provider:          BackupProviderAlibaba,
 		Enabled:           true,
-		QualificationGate: BackupQualificationGateV2,
+		QualificationGate: BackupQualificationGateV3,
 		RepositoryID:      "cluster-a-dr",
 		SourceGeneration:  "generation-1",
 		StagingDir:        filepath.Join(t.TempDir(), "backup-staging"),
-		KMSKeyID:          "kms-encryption-v1",
-		SigningKeyID:      "kms-signing-v1",
-		KMSRegion:         "cn-hangzhou",
-		KMSRoleARN:        "acs:ram::123456789:role/backup-kms",
 		ObjectLockDays:    7,
 		Primary: BackupRepositoryConfig{
 			Endpoint:       "https://oss-cn-hangzhou.aliyuncs.com",
@@ -143,10 +128,6 @@ func TestBackupRestoreModeRequiresFreshTargetGenerationInsteadOfSourceGeneration
 		RepositoryID:     "cluster-a-dr",
 		TargetGeneration: "generation-2",
 		StagingDir:       filepath.Join(t.TempDir(), "backup-staging"),
-		KMSKeyID:         "kms-encryption-v1",
-		SigningKeyID:     "kms-signing-v1",
-		KMSRegion:        "region-a",
-		KMSRoleARN:       "acs:ram::123456789:role/backup-kms",
 		Primary: BackupRepositoryConfig{
 			Endpoint:      "https://primary.example",
 			Region:        "region-a",

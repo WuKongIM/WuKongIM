@@ -38,7 +38,7 @@ func TestPermanentErasureLedgerPublishesEncryptedSignedDualRepositoryCommit(t *t
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x44}, 256)))
 	ledger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
 		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: coordinator,
-		Signer: signer, SigningKeyID: "signing-key", KMSKeyID: "kms-key",
+		Signer:       signer,
 		RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 256,
 		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() }, NewAttemptID: func() string { return "attempt-1" },
 	})
@@ -221,20 +221,18 @@ type countingErasureKeyManager struct {
 	unwraps  atomic.Uint64
 }
 
-func (m *countingErasureKeyManager) GenerateDataKey(
+func (m *countingErasureKeyManager) NewDataKey(
 	ctx context.Context,
-	keyID string,
 ) (backupartifact.DataKey, error) {
-	return m.delegate.GenerateDataKey(ctx, keyID)
+	return m.delegate.NewDataKey(ctx)
 }
 
-func (m *countingErasureKeyManager) UnwrapDataKey(
+func (m *countingErasureKeyManager) OpenDataKey(
 	ctx context.Context,
-	keyID string,
-	wrapped []byte,
+	envelope backupartifact.DataKeyEnvelope,
 ) ([]byte, error) {
 	m.unwraps.Add(1)
-	return m.delegate.UnwrapDataKey(ctx, keyID, wrapped)
+	return m.delegate.OpenDataKey(ctx, envelope)
 }
 
 func TestPermanentErasureLedgerConcurrentDuplicateIsIdempotent(t *testing.T) {
@@ -254,7 +252,7 @@ func TestPermanentErasureLedgerConcurrentDuplicateIsIdempotent(t *testing.T) {
 	var attempt uint64
 	ledger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
 		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: coordinator,
-		Signer: signer, SigningKeyID: "signing-key", KMSKeyID: "kms-key",
+		Signer:       signer,
 		RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 1,
 		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
 		NewAttemptID: func() string {
@@ -321,7 +319,7 @@ func TestPermanentErasureLedgerIsolatesSourceGenerationsInSharedRepositories(t *
 		require.NoError(t, err)
 		ledger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
 			Primary: primary, Secondary: secondary, Codec: codec, Coordinator: coordinator,
-			Signer: signer, SigningKeyID: "signing-key", KMSKeyID: "kms-key",
+			Signer:       signer,
 			RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: generation, HashSlotCount: 1,
 			Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() },
 			NewAttemptID: func() string {
@@ -371,7 +369,7 @@ func TestPermanentErasureLedgerFailsClosedAndRepairsSecondaryCommit(t *testing.T
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x66}, 256)))
 	ledger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
 		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: coordinator,
-		Signer: signer, SigningKeyID: "signing-key", KMSKeyID: "kms-key",
+		Signer:       signer,
 		RepositoryID: "repo-prod", SourceClusterID: "cluster-a", SourceGeneration: "generation-1", HashSlotCount: 1,
 		Now: func() time.Time { return time.UnixMilli(1_753_056_360_000).UTC() }, NewAttemptID: func() string { return "failure-attempt" },
 	})

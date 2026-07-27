@@ -22,7 +22,6 @@ func TestChunkReplicatorBoundsAndRestoresStream(t *testing.T) {
 	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{
 		Codec:      codec,
 		Publisher:  backupartifact.NewReplicatedPublisher(primary, secondary),
-		KMSKeyID:   "kms-backup",
 		ChunkBytes: 4,
 	})
 	require.NoError(t, err)
@@ -55,7 +54,7 @@ func TestChunkReplicatorUsesShardIDToAvoidMessageKeyCollisions(t *testing.T) {
 	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
 	require.NoError(t, err)
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x44}, 128)))
-	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{Codec: codec, Publisher: backupartifact.NewReplicatedPublisher(primary, secondary), KMSKeyID: "kms-backup", ChunkBytes: 16})
+	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{Codec: codec, Publisher: backupartifact.NewReplicatedPublisher(primary, secondary), ChunkBytes: 16})
 	require.NoError(t, err)
 	first, err := replicator.Replicate(context.Background(), backupinfra.StreamDescriptor{Generation: "backup-shards", HashSlot: 2, Kind: backupartifact.ObjectKindMessages, ShardID: "n1-0000"}, bytes.NewReader([]byte("one")))
 	require.NoError(t, err)
@@ -72,7 +71,7 @@ func TestChunkReplicatorRetryAfterPartialUploadUsesFreshImmutableNamespace(t *te
 	primary := &recordingRepository{Repository: primaryFile}
 	secondary := &failOncePutRepository{Repository: secondaryFile, remaining: 1}
 	codec := backupartifact.NewObjectCodec(testWrappingKeyManager{mask: 0x5a}, bytes.NewReader(bytes.Repeat([]byte{0x55}, 256)))
-	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{Codec: codec, Publisher: backupartifact.NewReplicatedPublisher(primary, secondary), KMSKeyID: "kms-backup", ChunkBytes: 16})
+	replicator, err := backupinfra.NewChunkReplicator(backupinfra.ChunkReplicatorOptions{Codec: codec, Publisher: backupartifact.NewReplicatedPublisher(primary, secondary), ChunkBytes: 16})
 	require.NoError(t, err)
 	descriptor := backupinfra.StreamDescriptor{Generation: "backup-retry", HashSlot: 2, Kind: backupartifact.ObjectKindMetadata}
 	_, err = replicator.Replicate(context.Background(), descriptor, bytes.NewReader([]byte("same stream")))
@@ -112,13 +111,24 @@ type testWrappingKeyManager struct {
 	mask byte
 }
 
-func (m testWrappingKeyManager) GenerateDataKey(context.Context, string) (backupartifact.DataKey, error) {
+func (m testWrappingKeyManager) NewDataKey(
+	context.Context,
+) (backupartifact.DataKey, error) {
 	plaintext := bytes.Repeat([]byte{0x61}, 32)
-	return backupartifact.DataKey{Plaintext: plaintext, Wrapped: xorTestBytes(plaintext, m.mask)}, nil
+	return backupartifact.DataKey{
+		Plaintext: plaintext,
+		Envelope: backupartifact.DataKeyEnvelope{
+			Version: 1, Algorithm: "TEST_XOR", KeyID: "test",
+			Nonce: []byte{1}, Value: xorTestBytes(plaintext, m.mask),
+		},
+	}, nil
 }
 
-func (m testWrappingKeyManager) UnwrapDataKey(_ context.Context, _ string, wrapped []byte) ([]byte, error) {
-	return xorTestBytes(wrapped, m.mask), nil
+func (m testWrappingKeyManager) OpenDataKey(
+	_ context.Context,
+	envelope backupartifact.DataKeyEnvelope,
+) ([]byte, error) {
+	return xorTestBytes(envelope.Value, m.mask), nil
 }
 
 func xorTestBytes(value []byte, mask byte) []byte {

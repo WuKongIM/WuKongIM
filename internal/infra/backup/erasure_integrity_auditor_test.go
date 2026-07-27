@@ -57,7 +57,7 @@ func TestReplicatedErasureIntegrityAuditorValidatesAndRepairsFullEvent(t *testin
 	sealed, err := codec.Seal(ctx, backupartifact.ObjectDescriptor{
 		Key:      "objects/erasure-ledger/" + eventID + "/attempt-1.wkb",
 		Kind:     backupartifact.ObjectKindErasureLedger,
-		HashSlot: hashSlot, KMSKeyID: "kms-backup",
+		HashSlot: hashSlot,
 	}, plaintext)
 	require.NoError(t, err)
 	record, err := backupartifact.SignErasureLedgerRecord(
@@ -69,8 +69,7 @@ func TestReplicatedErasureIntegrityAuditorValidatesAndRepairsFullEvent(t *testin
 			HashSlot: hashSlot, CreatedAtUnixMillis: 1_753_400_200_000,
 			Object: sealed.Entry,
 		},
-		signer, "signing-key",
-	)
+		signer)
 	require.NoError(t, err)
 	recordBody, err := backupartifact.MarshalErasureLedgerRecord(record)
 	require.NoError(t, err)
@@ -96,8 +95,7 @@ func TestReplicatedErasureIntegrityAuditorValidatesAndRepairsFullEvent(t *testin
 			CreatedAtUnixMillis: 1_753_400_200_000,
 			PrimaryRepository:   "primary", SecondaryRepository: "secondary",
 		},
-		signer, "signing-key",
-	)
+		signer)
 	require.NoError(t, err)
 	commitBody, err := backupartifact.MarshalErasureLedgerCommit(commit)
 	require.NoError(t, err)

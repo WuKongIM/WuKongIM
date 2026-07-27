@@ -19,12 +19,11 @@ type ed25519ManifestSigner struct {
 
 func (s ed25519ManifestSigner) Sign(
 	_ context.Context,
-	keyID string,
 	message []byte,
 ) (backup.ManifestSignature, error) {
 	return backup.ManifestSignature{
 		Algorithm: "ed25519",
-		KeyID:     keyID,
+		KeyID:     "ed25519:test",
 		Value:     ed25519.Sign(s.privateKey, message),
 	}, nil
 }
@@ -57,9 +56,11 @@ func testSealedObject(
 			CiphertextBytes:  int64(len(ciphertext)),
 			Compression:      backup.CompressionZstd,
 			Encryption:       backup.EncryptionAES256GCM,
-			KMSKeyID:         "kms-prod",
-			WrappedKey:       "d3JhcHBlZA==",
-			Nonce:            "bm9uY2Utbm9uY2U=",
+			DataKey: backup.DataKeyEnvelope{
+				Version: 1, Algorithm: "TEST_XOR", KeyID: "test",
+				Nonce: []byte{1}, Value: []byte("wrapped"),
+			},
+			Nonce: "bm9uY2Utbm9uY2U=",
 		},
 		Ciphertext: append([]byte(nil), ciphertext...),
 	}

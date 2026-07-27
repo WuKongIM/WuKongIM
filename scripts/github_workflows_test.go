@@ -293,12 +293,22 @@ else
   printf '%s\n' 'backup scale performance log was not created' > "$EVIDENCE_FILE"
 fi
 `
+	backupKeyCredentialCommand = `set -euo pipefail
+umask 077
+test -n "$BACKUP_KEY_PACKAGE_B64"
+credential_directory="$RUNNER_TEMP/backup-credentials"
+mkdir "$credential_directory"
+printf '%s' "$BACKUP_KEY_PACKAGE_B64" | base64 --decode \
+  > "$credential_directory/wukongim-backup-key-package"
+chmod 0600 "$credential_directory/wukongim-backup-key-package"
+printf 'CREDENTIALS_DIRECTORY=%s\n' "$credential_directory" \
+  >> "$GITHUB_ENV"
+`
 	backupProductionCommand = `set -euo pipefail
 required=(
   ALIBABA_CLOUD_ACCESS_KEY_ID ALIBABA_CLOUD_ACCESS_KEY_SECRET
   WK_E2E_BACKUP_REPOSITORY_ID WK_E2E_BACKUP_OBJECT_LOCK_DAYS
-  WK_E2E_BACKUP_KMS_KEY_ID WK_E2E_BACKUP_SIGNING_KEY_ID
-  WK_E2E_BACKUP_KMS_REGION WK_E2E_BACKUP_KMS_ROLE_ARN
+  CREDENTIALS_DIRECTORY
   WK_E2E_BACKUP_PRIMARY_ENDPOINT WK_E2E_BACKUP_PRIMARY_REGION
   WK_E2E_BACKUP_PRIMARY_BUCKET WK_E2E_BACKUP_PRIMARY_PREFIX
   WK_E2E_BACKUP_PRIMARY_ACCESS_ROLE_ARN
@@ -319,12 +329,14 @@ WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-production-e2e" timeout --signal=TER
 evidence_line="$(grep 'WK-BACKUP-PRODUCTION-EVIDENCE ' "$LOG_FILE" | tail -n 1)"
 evidence_json="${evidence_line#*WK-BACKUP-PRODUCTION-EVIDENCE }"
 jq -e \
-  --arg schema "wukongim/backup-production-qualification/v2" \
+  --arg schema "wukongim/backup-production-qualification/v3" \
   --arg provider "aliyun" \
+  --arg key_authority "deployment-key-package/v1" \
   --arg run_id "$WK_E2E_BACKUP_RUN_ID" \
   --arg commit "$WK_E2E_BACKUP_COMMIT_SHA" \
   '(.schema == $schema) and
    (.provider == $provider) and
+   (.key_authority == $key_authority) and
    (.run_id == $run_id) and
    (.commit == $commit) and
    (.primary_region != .secondary_region) and
@@ -360,10 +372,6 @@ values = []
 for name in (
     "ALIBABA_CLOUD_ACCESS_KEY_ID",
     "ALIBABA_CLOUD_ACCESS_KEY_SECRET",
-    "WK_E2E_BACKUP_KMS_KEY_ID",
-    "WK_E2E_BACKUP_SIGNING_KEY_ID",
-    "WK_E2E_BACKUP_KMS_ENDPOINT",
-    "WK_E2E_BACKUP_KMS_ROLE_ARN",
     "WK_E2E_BACKUP_PRIMARY_ENDPOINT",
     "WK_E2E_BACKUP_PRIMARY_BUCKET",
     "WK_E2E_BACKUP_PRIMARY_PREFIX",
@@ -395,7 +403,7 @@ PY
 `
 	backupReleaseVerdictCommand = `umask 077
 jq -n \
-  --arg schema "wukongim/backup-release-qualification/v2" \
+  --arg schema "wukongim/backup-release-qualification/v3" \
   --arg provider "aliyun" \
   --arg commit "$COMMIT_SHA" \
   --arg run_id "$RUN_ID" \
@@ -724,7 +732,7 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 		},
 	},
 	"production-storage": {
-		Name:           "Production Alibaba OSS KMS and recovery drill",
+		Name:           "Production Alibaba OSS, deployment keys, and recovery drill",
 		RunsOn:         "ubuntu-24.04",
 		TimeoutMinutes: 30,
 		Environment:    "backup-production",
@@ -735,6 +743,14 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 			checkoutStep(),
 			setupGoStep(),
 			verifyGoToolchainStep(),
+			{
+				Name:  "Materialize protected deployment key credential",
+				Shell: "bash",
+				Env: map[string]string{
+					"BACKUP_KEY_PACKAGE_B64": "${{ secrets.BACKUP_KEY_PACKAGE_B64 }}",
+				},
+				Run: backupKeyCredentialCommand,
+			},
 			{
 				Name:  "Build production-provider e2e binary",
 				Shell: "bash",
@@ -754,11 +770,6 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 					"WK_E2E_BACKUP_REPOSITORY_ID":              "${{ vars.BACKUP_REPOSITORY_ID }}",
 					"WK_E2E_BACKUP_SOURCE_GENERATION":          "source-${{ github.run_id }}-${{ github.run_attempt }}",
 					"WK_E2E_BACKUP_TARGET_GENERATION":          "target-${{ github.run_id }}-${{ github.run_attempt }}",
-					"WK_E2E_BACKUP_KMS_KEY_ID":                 "${{ vars.BACKUP_KMS_KEY_ID }}",
-					"WK_E2E_BACKUP_SIGNING_KEY_ID":             "${{ vars.BACKUP_SIGNING_KEY_ID }}",
-					"WK_E2E_BACKUP_KMS_REGION":                 "${{ vars.BACKUP_KMS_REGION }}",
-					"WK_E2E_BACKUP_KMS_ENDPOINT":               "${{ vars.BACKUP_KMS_ENDPOINT }}",
-					"WK_E2E_BACKUP_KMS_ROLE_ARN":               "${{ vars.BACKUP_KMS_ROLE_ARN }}",
 					"WK_E2E_BACKUP_OBJECT_LOCK_DAYS":           "${{ vars.BACKUP_OBJECT_LOCK_DAYS }}",
 					"WK_E2E_BACKUP_PRIMARY_ENDPOINT":           "${{ vars.BACKUP_PRIMARY_ENDPOINT }}",
 					"WK_E2E_BACKUP_PRIMARY_REGION":             "${{ vars.BACKUP_PRIMARY_REGION }}",
@@ -786,10 +797,6 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 					"EVIDENCE_FILE":                            "${{ runner.temp }}/backup-production-storage-evidence.log",
 					"ALIBABA_CLOUD_ACCESS_KEY_ID":              "${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}",
 					"ALIBABA_CLOUD_ACCESS_KEY_SECRET":          "${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}",
-					"WK_E2E_BACKUP_KMS_KEY_ID":                 "${{ vars.BACKUP_KMS_KEY_ID }}",
-					"WK_E2E_BACKUP_SIGNING_KEY_ID":             "${{ vars.BACKUP_SIGNING_KEY_ID }}",
-					"WK_E2E_BACKUP_KMS_ENDPOINT":               "${{ vars.BACKUP_KMS_ENDPOINT }}",
-					"WK_E2E_BACKUP_KMS_ROLE_ARN":               "${{ vars.BACKUP_KMS_ROLE_ARN }}",
 					"WK_E2E_BACKUP_PRIMARY_ENDPOINT":           "${{ vars.BACKUP_PRIMARY_ENDPOINT }}",
 					"WK_E2E_BACKUP_PRIMARY_BUCKET":             "${{ vars.BACKUP_PRIMARY_BUCKET }}",
 					"WK_E2E_BACKUP_PRIMARY_PREFIX":             "${{ vars.BACKUP_PRIMARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
@@ -941,8 +948,8 @@ func TestBackupProductionEvidenceIsBoundedAndRedacted(t *testing.T) {
 		"EVIDENCE_FILE="+evidencePath,
 		"ALIBABA_CLOUD_ACCESS_KEY_ID="+nestedSecret,
 		"ALIBABA_CLOUD_ACCESS_KEY_SECRET="+readBoundarySecret,
-		"WK_E2E_BACKUP_KMS_KEY_ID="+tailBoundarySecret,
-		"WK_E2E_BACKUP_KMS_ENDPOINT="+nestedLongSecret,
+		"WK_E2E_BACKUP_PRIMARY_PREFIX="+tailBoundarySecret,
+		"WK_E2E_BACKUP_PRIMARY_ACCESS_ROLE_ARN="+nestedLongSecret,
 	)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("prepare production evidence: %v\n%s", err, output)

@@ -460,7 +460,7 @@ func (f fakeCoordinatorDoctor) Check(
 		health = backupcontract.HealthFailed
 	}
 	return backupcontract.DoctorReport{
-		Primary: health, Secondary: health, KMS: health,
+		Primary: health, Secondary: health, KeyAuthority: health,
 		Staging: health, UTC: health,
 		CheckedAtUnixMillis: time.Now().UTC().UnixMilli(),
 		FailureCategory: func() string {

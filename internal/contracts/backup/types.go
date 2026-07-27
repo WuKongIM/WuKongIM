@@ -34,7 +34,7 @@ const (
 )
 
 // CheckpointReplicaFence binds one replica transfer to Controller and Slot
-// authority without exposing repository or KMS credentials.
+// authority without exposing repository or key-authority credentials.
 type CheckpointReplicaFence struct {
 	PlanID           string
 	CheckpointID     string
@@ -97,12 +97,12 @@ const (
 
 // DoctorReport is one bounded dependency readiness observation.
 type DoctorReport struct {
-	// Primary, Secondary, KMS, Staging, and UTC preserve individual readiness.
-	Primary   Health
-	Secondary Health
-	KMS       Health
-	Staging   Health
-	UTC       Health
+	// Primary, Secondary, KeyAuthority, Staging, and UTC preserve readiness.
+	Primary      Health
+	Secondary    Health
+	KeyAuthority Health
+	Staging      Health
+	UTC          Health
 	// CheckedAtUnixMillis is the UTC server observation time.
 	CheckedAtUnixMillis int64
 	// FailureCategory identifies the first failed dependency without raw details.

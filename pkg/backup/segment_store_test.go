@@ -20,7 +20,7 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	codec := backup.NewSegmentCodec(keys, bytes.NewReader(bytes.Repeat([]byte{0x41}, 128)))
 	seed := sha256.Sum256([]byte("replicated-segment-store-key"))
 	signer := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
-	store, err := backup.NewReplicatedSegmentStore(primary, secondary, codec, signer, "signing-key")
+	store, err := backup.NewReplicatedSegmentStore(primary, secondary, codec, signer)
 	if err != nil {
 		t.Fatalf("NewReplicatedSegmentStore() error = %v", err)
 	}
@@ -108,7 +108,7 @@ func TestReplicatedSegmentStoreReturnsStableReferenceWhenRepairFails(t *testing.
 	codec := backup.NewSegmentCodec(keys, bytes.NewReader(bytes.Repeat([]byte{0x43}, 128)))
 	seed := sha256.Sum256([]byte("replicated-segment-repair-failure-key"))
 	signer := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
-	store, err := backup.NewReplicatedSegmentStore(primary, secondary, codec, signer, "signing-key")
+	store, err := backup.NewReplicatedSegmentStore(primary, secondary, codec, signer)
 	if err != nil {
 		t.Fatalf("NewReplicatedSegmentStore() error = %v", err)
 	}
@@ -125,7 +125,7 @@ func TestReplicatedSegmentStoreReturnsStableReferenceWhenRepairFails(t *testing.
 	secondary.remove(committed.CommitKey)
 
 	failingSecondary := &failPutRepository{Repository: secondary, failCall: 1}
-	failingStore, err := backup.NewReplicatedSegmentStore(primary, failingSecondary, codec, signer, "signing-key")
+	failingStore, err := backup.NewReplicatedSegmentStore(primary, failingSecondary, codec, signer)
 	if err != nil {
 		t.Fatalf("NewReplicatedSegmentStore(failing) error = %v", err)
 	}
@@ -171,7 +171,7 @@ func TestReplicatedSegmentStoreFailureMatrixNeverLoadsPartialCommit(t *testing.T
 			codec := backup.NewSegmentCodec(keys, bytes.NewReader(random))
 			seed := sha256.Sum256([]byte("segment-failure-" + testCase.name))
 			signer := ed25519ManifestSigner{privateKey: ed25519.NewKeyFromSeed(seed[:])}
-			store, err := backup.NewReplicatedSegmentStore(primary, secondary, codec, signer, "signing-key")
+			store, err := backup.NewReplicatedSegmentStore(primary, secondary, codec, signer)
 			if err != nil {
 				t.Fatalf("NewReplicatedSegmentStore() error = %v", err)
 			}
@@ -229,7 +229,6 @@ func testSegmentDescriptor() backup.SegmentDescriptor {
 			Sequence:         9,
 			RecordCount:      2,
 		},
-		KMSKeyID: "kms-prod",
 	}
 }
 
@@ -238,13 +237,20 @@ type countingSegmentKeyManager struct {
 	generates int
 }
 
-func (m *countingSegmentKeyManager) GenerateDataKey(ctx context.Context, keyID string) (backup.DataKey, error) {
+func (m *countingSegmentKeyManager) NewDataKey(
+	ctx context.Context,
+) (backup.DataKey, error) {
 	m.generates++
-	return wrappingKeyManager{wrappingByte: m.mask}.GenerateDataKey(ctx, keyID)
+	return wrappingKeyManager{wrappingByte: m.mask}.NewDataKey(ctx)
 }
 
-func (m *countingSegmentKeyManager) UnwrapDataKey(ctx context.Context, keyID string, wrapped []byte) ([]byte, error) {
-	return wrappingKeyManager{wrappingByte: m.mask}.UnwrapDataKey(ctx, keyID, wrapped)
+func (m *countingSegmentKeyManager) OpenDataKey(
+	ctx context.Context,
+	envelope backup.DataKeyEnvelope,
+) ([]byte, error) {
+	return wrappingKeyManager{
+		wrappingByte: m.mask,
+	}.OpenDataKey(ctx, envelope)
 }
 
 type failPutRepository struct {

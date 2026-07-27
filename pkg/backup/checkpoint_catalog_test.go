@@ -20,7 +20,7 @@ func TestCheckpointRoundTripRequiresCompleteSortedVectorCut(t *testing.T) {
 	checkpoint.ErasureHeads = []backup.ErasureStreamHead{{
 		HashSlot: 1, Sequence: 4, CommitKey: backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 1, 4), CommitSHA256: strings.Repeat("d", 64),
 	}}
-	signed, err := backup.SignCheckpoint(context.Background(), checkpoint, signer, "signing-key")
+	signed, err := backup.SignCheckpoint(context.Background(), checkpoint, signer)
 	if err != nil {
 		t.Fatalf("SignCheckpoint() error = %v", err)
 	}
@@ -39,17 +39,17 @@ func TestCheckpointRoundTripRequiresCompleteSortedVectorCut(t *testing.T) {
 
 	missing := checkpoint
 	missing.Slots = missing.Slots[:1]
-	if _, err := backup.SignCheckpoint(context.Background(), missing, signer, "signing-key"); err == nil {
+	if _, err := backup.SignCheckpoint(context.Background(), missing, signer); err == nil {
 		t.Fatal("SignCheckpoint(missing Slot) error = nil")
 	}
 	duplicate := checkpoint
 	duplicate.Slots[1].HashSlot = 0
-	if _, err := backup.SignCheckpoint(context.Background(), duplicate, signer, "signing-key"); err == nil {
+	if _, err := backup.SignCheckpoint(context.Background(), duplicate, signer); err == nil {
 		t.Fatal("SignCheckpoint(duplicate Slot) error = nil")
 	}
 	invalidHead := checkpoint
 	invalidHead.ErasureHeads[0].CommitKey = backup.ErasureLedgerCommitKey(strings.Repeat("e", 64), 0, 4)
-	if _, err := backup.SignCheckpoint(context.Background(), invalidHead, signer, "signing-key"); err == nil {
+	if _, err := backup.SignCheckpoint(context.Background(), invalidHead, signer); err == nil {
 		t.Fatal("SignCheckpoint(mismatched erasure head) error = nil")
 	}
 }
@@ -69,7 +69,7 @@ func TestCheckpointAcceptsFullyReconciledEmptySlotStreams(t *testing.T) {
 
 	if _, err := backup.SignCheckpoint(
 		context.Background(), checkpoint,
-		ed25519ManifestSigner{privateKey: privateKey}, "signing-key",
+		ed25519ManifestSigner{privateKey: privateKey},
 	); err != nil {
 		t.Fatalf("SignCheckpoint(empty streams) error = %v", err)
 	}
@@ -102,7 +102,7 @@ func TestCatalogPageRoundTripAuthenticatesHashLink(t *testing.T) {
 			LatestCheckpointID: "checkpoint-1",
 		},
 		Entries: []backup.CatalogCheckpointReference{entry},
-	}, signer, "signing-key")
+	}, signer)
 	if err != nil {
 		t.Fatalf("SignCatalogPage() error = %v", err)
 	}

@@ -54,7 +54,8 @@ func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
 		"active", "latest", "verification", "dependencies", "capacity",
 		"recovery_point_age_seconds", "verification_age_seconds",
 		"pending_garbage_count", "target_segment_bytes",
-		"object_lock_days", "primary_region", "kms_region",
+		"object_lock_days", "primary_region", "key_authority",
+		"active_signing_key_id", "active_wrapping_key_id",
 	} {
 		require.NotContains(t, decoded, removed)
 	}

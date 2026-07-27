@@ -177,15 +177,10 @@ listen_addr = "127.0.0.1:7001"
 [backup]
 enabled = true
 provider = "aliyun"
-qualification_gate = "backup-vnext-production-v2"
+qualification_gate = "backup-vnext-production-v3"
 repository_id = "cluster-a-dr"
 source_generation = "generation-1"
 staging_dir = "`+dir+`/backup-staging"
-kms_key_id = "kms-encryption-v1"
-signing_key_id = "kms-signing-v1"
-trusted_signing_key_ids = ["kms-signing-v0"]
-kms_region = "cn-hangzhou"
-kms_role_arn = "acs:ram::123456789:role/backup-kms"
 capture_reconcile_interval = "1m"
 checkpoint_interval = "5m"
 baseline_chunk_bytes = 8388608
@@ -224,7 +219,6 @@ garbage_role_arn = "acs:ram::123456789:role/backup-secondary-garbage"
 	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
 		"PATH=" + os.Getenv("PATH"),
 		"WK_BACKUP_WORKER_COUNT=6",
-		`WK_BACKUP_TRUSTED_SIGNING_KEY_IDS=["kms-signing-v0","kms-signing-vminus1"]`,
 	}})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -237,16 +231,12 @@ garbage_role_arn = "acs:ram::123456789:role/backup-secondary-garbage"
 		t.Fatalf("Backup repositories = %#v/%#v", cfg.Backup.Primary, cfg.Backup.Secondary)
 	}
 	if cfg.Backup.Provider != "aliyun" ||
-		cfg.Backup.KMSRoleARN == "" ||
 		cfg.Backup.Primary.AccessRoleARN == "" ||
 		cfg.Backup.Secondary.AccessRoleARN == "" {
 		t.Fatalf("Backup provider roles = %#v", cfg.Backup)
 	}
 	if cfg.Backup.WorkerCount != 6 {
 		t.Fatalf("Backup.WorkerCount = %d, want env override 6", cfg.Backup.WorkerCount)
-	}
-	if len(cfg.Backup.TrustedSigningKeyIDs) != 2 || cfg.Backup.TrustedSigningKeyIDs[0] != "kms-signing-v0" || cfg.Backup.TrustedSigningKeyIDs[1] != "kms-signing-vminus1" {
-		t.Fatalf("Backup.TrustedSigningKeyIDs = %#v, want environment JSON-list override", cfg.Backup.TrustedSigningKeyIDs)
 	}
 	if cfg.Backup.CheckpointInterval.String() != "5m0s" || cfg.Backup.StagingMaxBytes != 10*1024*1024*1024 {
 		t.Fatalf("Backup schedule/quota = %#v", cfg.Backup)
@@ -282,10 +272,6 @@ func TestLoadBackupRestoreModeUsesIndependentTargetGeneration(t *testing.T) {
 		"WK_BACKUP_REPOSITORY_ID=cluster-a-dr",
 		"WK_BACKUP_TARGET_GENERATION=generation-2",
 		"WK_BACKUP_STAGING_DIR=" + dir + "/backup-staging",
-		"WK_BACKUP_KMS_KEY_ID=kms-encryption-v1",
-		"WK_BACKUP_SIGNING_KEY_ID=kms-signing-v1",
-		"WK_BACKUP_KMS_REGION=region-a",
-		"WK_BACKUP_KMS_ROLE_ARN=acs:ram::123456789:role/backup-kms",
 		"WK_BACKUP_PRIMARY_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com",
 		"WK_BACKUP_PRIMARY_REGION=region-a",
 		"WK_BACKUP_PRIMARY_BUCKET=wukongim-backup-primary",

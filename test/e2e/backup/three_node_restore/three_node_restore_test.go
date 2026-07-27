@@ -131,7 +131,7 @@ type repositoryQualification struct {
 }
 
 // storageQualification describes either the e2e-only file substitute or the
-// production object-storage/KMS environment exercised by the same recovery drill.
+// production object-storage/key-authority environment exercised by the drill.
 type storageQualification struct {
 	FileRoot         string
 	CorruptionRoot   string
@@ -139,11 +139,6 @@ type storageQualification struct {
 	RepositoryID     string
 	SourceGeneration string
 	TargetGeneration string
-	KMSKeyID         string
-	SigningKeyID     string
-	KMSRegion        string
-	KMSEndpoint      string
-	KMSRoleARN       string
 	ObjectLockDays   int
 	Primary          repositoryQualification
 	Secondary        repositoryQualification
@@ -169,13 +164,14 @@ func TestThreeNodeBackupContinuousRestoresAndContinuesTraffic(t *testing.T) {
 
 func TestProductionStorageQualification(t *testing.T) {
 	if os.Getenv("WK_E2E_BACKUP_PRODUCTION") != "1" {
-		t.Skip("set WK_E2E_BACKUP_PRODUCTION=1 to run the production storage/KMS recovery drill")
+		t.Skip("set WK_E2E_BACKUP_PRODUCTION=1 to run the production storage recovery drill")
 	}
 	qualification := productionStorageQualification(t)
 	result := runThreeNodeRecoveryDrill(t, qualification)
 	evidence := struct {
 		Schema           string `json:"schema"`
 		Provider         string `json:"provider"`
+		KeyAuthority     string `json:"key_authority"`
 		RunID            string `json:"run_id"`
 		Commit           string `json:"commit"`
 		PrimaryRegion    string `json:"primary_region"`
@@ -194,8 +190,9 @@ func TestProductionStorageQualification(t *testing.T) {
 		DualRebase       bool   `json:"dual_corruption_rebase"`
 		GarbageRoleProbe bool   `json:"garbage_role_probe"`
 	}{
-		Schema:           "wukongim/backup-production-qualification/v2",
+		Schema:           "wukongim/backup-production-qualification/v3",
 		Provider:         qualification.Provider,
+		KeyAuthority:     "deployment-key-package/v1",
 		RunID:            qualification.ProductionRunID,
 		Commit:           qualification.ProductionCommit,
 		PrimaryRegion:    qualification.Primary.Region,
@@ -1115,11 +1112,6 @@ func localStorageQualification(t *testing.T) storageQualification {
 		RepositoryID:     "e2e-repository",
 		SourceGeneration: "source-generation",
 		TargetGeneration: "target-generation",
-		KMSKeyID:         "e2e-encryption-key",
-		SigningKeyID:     "e2e-signing-key",
-		KMSRegion:        "e2e-kms",
-		KMSEndpoint:      "https://kms.e2e.invalid",
-		KMSRoleARN:       "acs:ram::e2e:role/backup-kms",
 		ObjectLockDays:   7,
 		Primary: repositoryQualification{
 			Endpoint:       "https://primary.e2e.invalid",
@@ -1160,11 +1152,6 @@ func productionStorageQualification(t *testing.T) storageQualification {
 		RepositoryID:     required("WK_E2E_BACKUP_REPOSITORY_ID"),
 		SourceGeneration: required("WK_E2E_BACKUP_SOURCE_GENERATION"),
 		TargetGeneration: required("WK_E2E_BACKUP_TARGET_GENERATION"),
-		KMSKeyID:         required("WK_E2E_BACKUP_KMS_KEY_ID"),
-		SigningKeyID:     required("WK_E2E_BACKUP_SIGNING_KEY_ID"),
-		KMSRegion:        required("WK_E2E_BACKUP_KMS_REGION"),
-		KMSEndpoint:      strings.TrimSpace(os.Getenv("WK_E2E_BACKUP_KMS_ENDPOINT")),
-		KMSRoleARN:       required("WK_E2E_BACKUP_KMS_ROLE_ARN"),
 		ObjectLockDays:   objectLockDays,
 		ProductionRunID:  required("WK_E2E_BACKUP_RUN_ID"),
 		ProductionCommit: required("WK_E2E_BACKUP_COMMIT_SHA"),
@@ -1209,15 +1196,10 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
 		"WK_BACKUP_PROVIDER":                            qualification.Provider,
-		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v2",
+		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v3",
 		"WK_BACKUP_REPOSITORY_ID":                       qualification.RepositoryID,
 		"WK_BACKUP_SOURCE_GENERATION":                   qualification.SourceGeneration,
 		"WK_BACKUP_STAGING_DIR":                         qualificationStagingDir(qualification, "source", nodeID),
-		"WK_BACKUP_KMS_KEY_ID":                          qualification.KMSKeyID,
-		"WK_BACKUP_SIGNING_KEY_ID":                      qualification.SigningKeyID,
-		"WK_BACKUP_KMS_REGION":                          qualification.KMSRegion,
-		"WK_BACKUP_KMS_ENDPOINT":                        qualification.KMSEndpoint,
-		"WK_BACKUP_KMS_ROLE_ARN":                        qualification.KMSRoleARN,
 		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "200ms",
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
@@ -1263,11 +1245,6 @@ func targetRestoreConfig(qualification storageQualification, nodeID uint64) map[
 		"WK_BACKUP_REPOSITORY_ID":             qualification.RepositoryID,
 		"WK_BACKUP_TARGET_GENERATION":         qualification.TargetGeneration,
 		"WK_BACKUP_STAGING_DIR":               qualificationStagingDir(qualification, "target", nodeID),
-		"WK_BACKUP_KMS_KEY_ID":                qualification.KMSKeyID,
-		"WK_BACKUP_SIGNING_KEY_ID":            qualification.SigningKeyID,
-		"WK_BACKUP_KMS_REGION":                qualification.KMSRegion,
-		"WK_BACKUP_KMS_ENDPOINT":              qualification.KMSEndpoint,
-		"WK_BACKUP_KMS_ROLE_ARN":              qualification.KMSRoleARN,
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":      "1048576",
 		"WK_BACKUP_STAGING_MAX_BYTES":         "67108864",
 		"WK_BACKUP_WORKER_COUNT":              "2",

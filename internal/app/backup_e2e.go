@@ -37,6 +37,7 @@ func init() {
 	productionRepairLoader := loadAppBackupRepairRepository
 	productionGarbageLoader := loadAppBackupGarbageRepository
 	productionKeyLoader := loadAppBackupKeyService
+	productionKeyBinder := bindAppBackupKeyService
 	productionClockProbe := newAppBackupClockProbe
 	productionPinDecorator := decorateAppBackupSourcePinManager
 	decorateAppBackupSourcePinManager = func(
@@ -160,12 +161,10 @@ func init() {
 	}
 	loadAppBackupKeyService = func(
 		ctx context.Context,
-		region, endpoint, roleARN string,
+		repositoryID string,
 	) (appBackupKeyService, error) {
 		if strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) == "" {
-			return productionKeyLoader(
-				ctx, region, endpoint, roleARN,
-			)
+			return productionKeyLoader(ctx, repositoryID)
 		}
 		delay, err := backupE2ERemoteLatency()
 		if err != nil {
@@ -180,6 +179,19 @@ func init() {
 			delay:               delay,
 			trigger:             strings.TrimSpace(os.Getenv(backupE2ELatencyTriggerEnv)),
 		}, nil
+	}
+	bindAppBackupKeyService = func(
+		service appBackupKeyService,
+		primary backupartifact.Repository,
+		secondary backupartifact.Repository,
+		canPublish func() bool,
+	) (appBackupKeyService, error) {
+		if strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) == "" {
+			return productionKeyBinder(
+				service, primary, secondary, canPublish,
+			)
+		}
+		return service, nil
 	}
 	newAppBackupClockProbe = func(endpoint string) (backupinfra.ClockProbe, error) {
 		if strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) == "" {
@@ -363,36 +375,33 @@ func (r *backupE2ERepairRepository) RepairImmutable(
 	return nil
 }
 
-func (s *backupE2EDelayedKeyService) GenerateDataKey(
+func (s *backupE2EDelayedKeyService) NewDataKey(
 	ctx context.Context,
-	keyID string,
 ) (backupartifact.DataKey, error) {
 	if err := waitBackupE2ELatency(ctx, backupE2EActiveDelay(s.delay, s.trigger)); err != nil {
 		return backupartifact.DataKey{}, err
 	}
-	return s.appBackupKeyService.GenerateDataKey(ctx, keyID)
+	return s.appBackupKeyService.NewDataKey(ctx)
 }
 
-func (s *backupE2EDelayedKeyService) UnwrapDataKey(
+func (s *backupE2EDelayedKeyService) OpenDataKey(
 	ctx context.Context,
-	keyID string,
-	wrapped []byte,
+	envelope backupartifact.DataKeyEnvelope,
 ) ([]byte, error) {
 	if err := waitBackupE2ELatency(ctx, backupE2EActiveDelay(s.delay, s.trigger)); err != nil {
 		return nil, err
 	}
-	return s.appBackupKeyService.UnwrapDataKey(ctx, keyID, wrapped)
+	return s.appBackupKeyService.OpenDataKey(ctx, envelope)
 }
 
 func (s *backupE2EDelayedKeyService) Sign(
 	ctx context.Context,
-	keyID string,
 	message []byte,
 ) (backupartifact.ManifestSignature, error) {
 	if err := waitBackupE2ELatency(ctx, backupE2EActiveDelay(s.delay, s.trigger)); err != nil {
 		return backupartifact.ManifestSignature{}, err
 	}
-	return s.appBackupKeyService.Sign(ctx, keyID, message)
+	return s.appBackupKeyService.Sign(ctx, message)
 }
 
 func (s *backupE2EDelayedKeyService) Verify(
@@ -408,13 +417,11 @@ func (s *backupE2EDelayedKeyService) Verify(
 
 func (s *backupE2EDelayedKeyService) Check(
 	ctx context.Context,
-	encryptionKeyID,
-	signingKeyID string,
 ) error {
 	if err := waitBackupE2ELatency(ctx, backupE2EActiveDelay(s.delay, s.trigger)); err != nil {
 		return err
 	}
-	return s.appBackupKeyService.Check(ctx, encryptionKeyID, signingKeyID)
+	return s.appBackupKeyService.Check(ctx)
 }
 
 type backupE2ESourcePinManager struct {
@@ -511,9 +518,11 @@ func newBackupE2EKeyService() *backupE2EKeyService {
 	return &backupE2EKeyService{wrappingKey: wrappingKey, signingKey: ed25519.NewKeyFromSeed(signingSeed[:])}
 }
 
-func (s *backupE2EKeyService) GenerateDataKey(_ context.Context, keyID string) (backupartifact.DataKey, error) {
-	if s == nil || strings.TrimSpace(keyID) == "" {
-		return backupartifact.DataKey{}, fmt.Errorf("backup e2e keys: encryption key id is required")
+func (s *backupE2EKeyService) NewDataKey(
+	_ context.Context,
+) (backupartifact.DataKey, error) {
+	if s == nil {
+		return backupartifact.DataKey{}, fmt.Errorf("backup e2e keys: unavailable")
 	}
 	plaintext := make([]byte, 32)
 	if _, err := rand.Read(plaintext); err != nil {
@@ -531,13 +540,24 @@ func (s *backupE2EKeyService) GenerateDataKey(_ context.Context, keyID string) (
 	if _, err := rand.Read(nonce); err != nil {
 		return backupartifact.DataKey{}, err
 	}
-	wrapped := append(nonce, aead.Seal(nil, nonce, plaintext, []byte(keyID))...)
-	return backupartifact.DataKey{Plaintext: plaintext, Wrapped: wrapped}, nil
+	return backupartifact.DataKey{
+		Plaintext: plaintext,
+		Envelope: backupartifact.DataKeyEnvelope{
+			Version: 1, Algorithm: "AES_256_GCM_E2E", KeyID: "e2e",
+			Nonce: nonce,
+			Value: aead.Seal(nil, nonce, plaintext, []byte("e2e")),
+		},
+	}, nil
 }
 
-func (s *backupE2EKeyService) UnwrapDataKey(_ context.Context, keyID string, wrapped []byte) ([]byte, error) {
-	if s == nil || strings.TrimSpace(keyID) == "" {
-		return nil, fmt.Errorf("backup e2e keys: encryption key id is required")
+func (s *backupE2EKeyService) OpenDataKey(
+	_ context.Context,
+	envelope backupartifact.DataKeyEnvelope,
+) ([]byte, error) {
+	if s == nil || envelope.Version != 1 ||
+		envelope.Algorithm != "AES_256_GCM_E2E" ||
+		envelope.KeyID != "e2e" {
+		return nil, fmt.Errorf("backup e2e keys: envelope is invalid")
 	}
 	block, err := aes.NewCipher(s.wrappingKey[:])
 	if err != nil {
@@ -547,17 +567,26 @@ func (s *backupE2EKeyService) UnwrapDataKey(_ context.Context, keyID string, wra
 	if err != nil {
 		return nil, err
 	}
-	if len(wrapped) <= aead.NonceSize() {
+	if len(envelope.Nonce) != aead.NonceSize() ||
+		len(envelope.Value) == 0 {
 		return nil, fmt.Errorf("backup e2e keys: wrapped key is truncated")
 	}
-	return aead.Open(nil, wrapped[:aead.NonceSize()], wrapped[aead.NonceSize():], []byte(keyID))
+	return aead.Open(
+		nil, envelope.Nonce, envelope.Value, []byte("e2e"),
+	)
 }
 
-func (s *backupE2EKeyService) Sign(_ context.Context, keyID string, message []byte) (backupartifact.ManifestSignature, error) {
-	if s == nil || strings.TrimSpace(keyID) == "" {
-		return backupartifact.ManifestSignature{}, fmt.Errorf("backup e2e keys: signing key id is required")
+func (s *backupE2EKeyService) Sign(
+	_ context.Context,
+	message []byte,
+) (backupartifact.ManifestSignature, error) {
+	if s == nil {
+		return backupartifact.ManifestSignature{}, fmt.Errorf("backup e2e keys: unavailable")
 	}
-	return backupartifact.ManifestSignature{Algorithm: "ED25519_E2E", KeyID: keyID, Value: ed25519.Sign(s.signingKey, message)}, nil
+	return backupartifact.ManifestSignature{
+		Algorithm: "ED25519_E2E", KeyID: "ed25519:e2e",
+		Value: ed25519.Sign(s.signingKey, message),
+	}, nil
 }
 
 func (s *backupE2EKeyService) Verify(_ context.Context, signature backupartifact.ManifestSignature, message []byte) error {
@@ -567,17 +596,17 @@ func (s *backupE2EKeyService) Verify(_ context.Context, signature backupartifact
 	return nil
 }
 
-func (s *backupE2EKeyService) Check(ctx context.Context, encryptionKeyID, signingKeyID string) error {
-	dataKey, err := s.GenerateDataKey(ctx, encryptionKeyID)
+func (s *backupE2EKeyService) Check(ctx context.Context) error {
+	dataKey, err := s.NewDataKey(ctx)
 	if err != nil {
 		return err
 	}
-	unwrapped, err := s.UnwrapDataKey(ctx, encryptionKeyID, dataKey.Wrapped)
+	unwrapped, err := s.OpenDataKey(ctx, dataKey.Envelope)
 	if err != nil || !bytes.Equal(unwrapped, dataKey.Plaintext) {
 		return fmt.Errorf("backup e2e keys: envelope round trip failed: %w", err)
 	}
 	probe := []byte("wukongim-backup-e2e-key-doctor-v1")
-	signature, err := s.Sign(ctx, signingKeyID, probe)
+	signature, err := s.Sign(ctx, probe)
 	if err != nil {
 		return err
 	}

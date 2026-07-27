@@ -36,7 +36,7 @@ type ClusterRestorePartitionInstallerOptions struct {
 
 // ClusterRestorePartitionInstaller dispatches each partition to exactly one
 // current target Slot Leader. Followers converge from that Leader without
-// repository reads or KMS calls.
+// repository reads or key-authority calls.
 type ClusterRestorePartitionInstaller struct {
 	node   RestoreInstallClusterNode
 	local  RestorePartitionInstaller

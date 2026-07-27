@@ -33,8 +33,7 @@ func TestSourceFenceReceiptAuthenticatesExactRestoreBinding(t *testing.T) {
 		ConvergedAtUnixMillis:   1710000001000,
 	}
 	receipt, err := backup.SignSourceFenceReceipt(
-		context.Background(), record, signer, "source-signing-key",
-	)
+		context.Background(), record, signer)
 	if err != nil {
 		t.Fatalf("SignSourceFenceReceipt(): %v", err)
 	}
@@ -120,7 +119,7 @@ func TestSourceFenceReceiptRejectsPendingAndUnknownJSON(t *testing.T) {
 type rejectingManifestSigner struct{}
 
 func (rejectingManifestSigner) Sign(
-	context.Context, string, []byte,
+	context.Context, []byte,
 ) (backup.ManifestSignature, error) {
 	return backup.ManifestSignature{}, errors.New("not supported")
 }

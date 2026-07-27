@@ -133,6 +133,13 @@ func (a *App) Start(ctx context.Context) error {
 		}
 	}
 	if a.cfg.Backup.RestoreMode {
+		if err := a.waitBackupKeyStartupCheck(ctx); err != nil {
+			stopErr := a.rollbackStarted(ctx)
+			a.logLifecycleError("backup_key_pin", "start", err)
+			return errors.Join(err, stopErr)
+		}
+	}
+	if a.cfg.Backup.RestoreMode {
 		if a.restoreRuntime != nil {
 			if err := a.restoreRuntime.Start(ctx); err != nil {
 				stopErr := a.rollbackStarted(ctx)

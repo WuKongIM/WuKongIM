@@ -25,9 +25,16 @@ type RepositoryDoctor interface {
 	Check(context.Context) error
 }
 
-// KMSDoctor verifies backup encryption and signing keys.
-type KMSDoctor interface {
-	Check(context.Context, string, string) error
+// KeyAuthorityDoctor verifies backup wrapping and signing readiness.
+type KeyAuthorityDoctor interface {
+	Check(context.Context) error
+}
+
+// keyAuthorityQualificationGate keeps all runtime crypto closed until the
+// complete external doctor report is healthy.
+type keyAuthorityQualificationGate interface {
+	Qualify()
+	Invalidate()
 }
 
 // ClockProbe returns authoritative remote UTC evidence.
@@ -39,9 +46,7 @@ type ClockProbe interface {
 type DoctorOptions struct {
 	Primary         RepositoryDoctor
 	Secondary       RepositoryDoctor
-	KMS             KMSDoctor
-	EncryptionKey   string
-	SigningKey      string
+	KeyAuthority    KeyAuthorityDoctor
 	StagingDir      string
 	ApplicationDir  string
 	StagingMaxBytes uint64
@@ -57,7 +62,11 @@ type Doctor struct {
 
 // NewDoctor creates a backup startup doctor.
 func NewDoctor(options DoctorOptions) (*Doctor, error) {
-	if options.Primary == nil || options.Secondary == nil || options.KMS == nil || strings.TrimSpace(options.EncryptionKey) == "" || strings.TrimSpace(options.SigningKey) == "" || !filepath.IsAbs(options.StagingDir) || options.StagingMaxBytes == 0 || len(options.ClockProbes) == 0 {
+	if options.Primary == nil || options.Secondary == nil ||
+		options.KeyAuthority == nil ||
+		!filepath.IsAbs(options.StagingDir) ||
+		options.StagingMaxBytes == 0 ||
+		len(options.ClockProbes) == 0 {
 		return nil, fmt.Errorf("backup doctor: incomplete options")
 	}
 	if options.Now == nil {
@@ -77,14 +86,32 @@ func (d *Doctor) Check(ctx context.Context) (backupcontract.DoctorReport, error)
 	if d == nil {
 		return backupcontract.DoctorReport{}, fmt.Errorf("backup doctor: unavailable")
 	}
+	qualificationGate, _ := d.options.KeyAuthority.(keyAuthorityQualificationGate)
+	primaryQualified := false
+	secondaryQualified := false
 	checks := []struct {
 		name   string
 		fn     func() error
 		assign func(backupcontract.Health)
 	}{
-		{name: "primary_repository", fn: func() error { return d.options.Primary.Check(ctx) }},
-		{name: "secondary_repository", fn: func() error { return d.options.Secondary.Check(ctx) }},
-		{name: "kms", fn: func() error { return d.options.KMS.Check(ctx, d.options.EncryptionKey, d.options.SigningKey) }},
+		{name: "primary_repository", fn: func() error {
+			err := d.options.Primary.Check(ctx)
+			primaryQualified = err == nil
+			return err
+		}},
+		{name: "secondary_repository", fn: func() error {
+			err := d.options.Secondary.Check(ctx)
+			secondaryQualified = err == nil
+			return err
+		}},
+		{name: "key_authority", fn: func() error {
+			if !primaryQualified || !secondaryQualified {
+				return fmt.Errorf(
+					"repository qualification is required before key authority",
+				)
+			}
+			return d.options.KeyAuthority.Check(ctx)
+		}},
 		{name: "staging", fn: func() error {
 			return checkBackupStaging(d.options.StagingDir, d.options.ApplicationDir, d.options.StagingMaxBytes)
 		}},
@@ -93,7 +120,9 @@ func (d *Doctor) Check(ctx context.Context) (backupcontract.DoctorReport, error)
 	report := backupcontract.DoctorReport{CheckedAtUnixMillis: d.options.Now().UTC().UnixMilli()}
 	checks[0].assign = func(health backupcontract.Health) { report.Primary = health }
 	checks[1].assign = func(health backupcontract.Health) { report.Secondary = health }
-	checks[2].assign = func(health backupcontract.Health) { report.KMS = health }
+	checks[2].assign = func(health backupcontract.Health) {
+		report.KeyAuthority = health
+	}
 	checks[3].assign = func(health backupcontract.Health) { report.Staging = health }
 	checks[4].assign = func(health backupcontract.Health) { report.UTC = health }
 	var firstErr error
@@ -107,6 +136,11 @@ func (d *Doctor) Check(ctx context.Context) (backupcontract.DoctorReport, error)
 			continue
 		}
 		check.assign(backupcontract.HealthHealthy)
+	}
+	if firstErr == nil && qualificationGate != nil {
+		qualificationGate.Qualify()
+	} else if firstErr != nil && qualificationGate != nil {
+		qualificationGate.Invalidate()
 	}
 	return report, firstErr
 }

@@ -38,11 +38,8 @@ type PermanentErasureLedgerOptions struct {
 	Codec *backupartifact.ObjectCodec
 	// Coordinator serializes each Hash Slot's one-based contiguous commit head.
 	Coordinator ErasureLedgerCoordinator
-	// Signer and SigningKeyID authenticate record and commit metadata.
-	Signer       backupartifact.ManifestSigner
-	SigningKeyID string
-	// KMSKeyID protects encrypted event payload data keys.
-	KMSKeyID string
+	// Signer authenticates record and commit metadata.
+	Signer backupartifact.ManifestSigner
 	// RepositoryID, SourceClusterID, and SourceGeneration fence this ledger namespace.
 	RepositoryID     string
 	SourceClusterID  string
@@ -63,8 +60,6 @@ type PermanentErasureLedger struct {
 	publisher        *backupartifact.ReplicatedPublisher
 	coordinator      ErasureLedgerCoordinator
 	signer           backupartifact.ManifestSigner
-	signingKeyID     string
-	kmsKeyID         string
 	repositoryID     string
 	sourceClusterID  string
 	sourceGeneration string
@@ -76,20 +71,18 @@ type PermanentErasureLedger struct {
 
 // NewPermanentErasureLedger creates a permanent-erasure ledger publisher.
 func NewPermanentErasureLedger(options PermanentErasureLedgerOptions) (*PermanentErasureLedger, error) {
-	options.SigningKeyID = strings.TrimSpace(options.SigningKeyID)
-	options.KMSKeyID = strings.TrimSpace(options.KMSKeyID)
 	options.RepositoryID = strings.TrimSpace(options.RepositoryID)
 	options.SourceClusterID = strings.TrimSpace(options.SourceClusterID)
 	options.SourceGeneration = strings.TrimSpace(options.SourceGeneration)
 	if options.Primary == nil || options.Secondary == nil || options.Primary.Name() == "" || options.Secondary.Name() == "" || options.Primary.Name() == options.Secondary.Name() ||
-		options.Codec == nil || options.Coordinator == nil || options.Signer == nil || options.SigningKeyID == "" || options.KMSKeyID == "" ||
+		options.Codec == nil || options.Coordinator == nil || options.Signer == nil ||
 		options.RepositoryID == "" || options.SourceClusterID == "" || options.SourceGeneration == "" || options.HashSlotCount == 0 || options.Now == nil || options.NewAttemptID == nil {
 		return nil, fmt.Errorf("backup erasure ledger: invalid options")
 	}
 	return &PermanentErasureLedger{
 		primary: options.Primary, secondary: options.Secondary, codec: options.Codec,
 		publisher: backupartifact.NewReplicatedPublisher(options.Primary, options.Secondary), coordinator: options.Coordinator,
-		signer: options.Signer, signingKeyID: options.SigningKeyID, kmsKeyID: options.KMSKeyID,
+		signer:       options.Signer,
 		repositoryID: options.RepositoryID, sourceClusterID: options.SourceClusterID, sourceGeneration: options.SourceGeneration,
 		streamNamespace: backupartifact.ComputeErasureLedgerStreamNamespace(options.RepositoryID, options.SourceClusterID, options.SourceGeneration),
 		hashSlotCount:   options.HashSlotCount, now: options.Now, newAttemptID: options.NewAttemptID,
@@ -159,7 +152,8 @@ func (l *PermanentErasureLedger) RecordPermanentMessageErasure(ctx context.Conte
 		return ErasureLedgerReceipt{}, fmt.Errorf("backup erasure ledger: invalid attempt id")
 	}
 	sealed, err := l.codec.Seal(ctx, backupartifact.ObjectDescriptor{
-		Key: "objects/erasure-ledger/" + eventID + "/" + attemptID + ".wkb", Kind: backupartifact.ObjectKindErasureLedger, HashSlot: hashSlot, KMSKeyID: l.kmsKeyID,
+		Key:  "objects/erasure-ledger/" + eventID + "/" + attemptID + ".wkb",
+		Kind: backupartifact.ObjectKindErasureLedger, HashSlot: hashSlot,
 	}, plaintext)
 	if err != nil {
 		return ErasureLedgerReceipt{}, err
@@ -171,7 +165,7 @@ func (l *PermanentErasureLedger) RecordPermanentMessageErasure(ctx context.Conte
 		Format: backupartifact.ErasureLedgerRecordFormat, Version: backupartifact.ErasureLedgerRecordVersion,
 		RepositoryID: l.repositoryID, SourceClusterID: l.sourceClusterID, SourceGeneration: l.sourceGeneration,
 		EventID: eventID, HashSlot: hashSlot, CreatedAtUnixMillis: l.now().UTC().UnixMilli(), Object: sealed.Entry,
-	}, l.signer, l.signingKeyID)
+	}, l.signer)
 	if err != nil {
 		return ErasureLedgerReceipt{}, err
 	}
@@ -274,7 +268,7 @@ func (l *PermanentErasureLedger) finalizeReference(ctx context.Context, referenc
 			HashSlot: reference.HashSlot, Sequence: reference.Sequence, PreviousCommitSHA256: previousCommitSHA,
 			EventID: reference.EventID, RecordKey: reference.RecordKey, RecordSHA256: reference.RecordSHA256,
 			CreatedAtUnixMillis: record.CreatedAtUnixMillis, PrimaryRepository: l.primary.Name(), SecondaryRepository: l.secondary.Name(),
-		}, l.signer, l.signingKeyID)
+		}, l.signer)
 		if err != nil {
 			return ErasureLedgerReceipt{}, err
 		}

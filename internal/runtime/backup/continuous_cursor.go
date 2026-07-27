@@ -20,7 +20,7 @@ const (
 )
 
 // messageCursorCheckpoint merges one bounded delta-chain window into a complete
-// immutable index, keeping restart KMS/repository reads O(1024). The returned
+// immutable index, keeping restart key/repository reads O(1024). The returned
 // reservation remains owned by the caller until the checkpoint is committed.
 func (e *CaptureEngine) messageCursorCheckpoint(ctx context.Context, hashSlot uint16, generation string, current backupcontract.StreamFrontier, delta []backupartifact.ChannelBoundary) ([]backupartifact.ChannelBoundary, int64, error) {
 	if e.options.CursorLoader == nil || current.Sequence == 0 || current.CursorHead == nil {

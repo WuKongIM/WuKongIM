@@ -196,8 +196,7 @@ func newCheckpointRestoreInspectorFixture(
 		backupartifact.NewSegmentCodec(
 			keys, bytes.NewReader(bytes.Repeat([]byte{0x31}, 512)),
 		),
-		signer, "signing-key",
-	)
+		signer)
 	require.NoError(t, err)
 	metadataRecord, err := backupartifact.MarshalMetadataLogRecord(
 		backupartifact.MetadataLogRecord{
@@ -282,7 +281,7 @@ func newCheckpointRestoreInspectorFixture(
 		keys, bytes.NewReader(bytes.Repeat([]byte{0x32}, 64)),
 	).Seal(context.Background(), backupartifact.ObjectDescriptor{
 		Key: baselineObjectKey, Kind: backupartifact.ObjectKindMetadata,
-		HashSlot: 0, KMSKeyID: "kms-key",
+		HashSlot: 0,
 	}, baselineMetadata)
 	require.NoError(t, err)
 	require.NoError(t, backupartifact.NewReplicatedPublisher(
@@ -326,8 +325,7 @@ func newCheckpointRestoreInspectorFixture(
 		MessageCursor: baselineCursor,
 	}
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
-		primary, secondary, signer, "signing-key",
-	)
+		primary, secondary, signer)
 	require.NoError(t, err)
 	return &checkpointRestoreInspectorFixture{
 		primary: primary, secondary: secondary,

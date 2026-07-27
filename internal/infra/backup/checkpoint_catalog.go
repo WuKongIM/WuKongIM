@@ -35,17 +35,15 @@ type ReplicatedCheckpointCatalog struct {
 	primaryRepair   backupartifact.RepairRepository
 	secondaryRepair backupartifact.RepairRepository
 	signer          backupartifact.ManifestSigner
-	signingKeyID    string
 }
 
 // NewReplicatedCheckpointCatalog creates a dual-repository catalog boundary.
 func NewReplicatedCheckpointCatalog(
 	primary, secondary backupartifact.Repository,
 	signer backupartifact.ManifestSigner,
-	signingKeyID string,
 ) (*ReplicatedCheckpointCatalog, error) {
 	return newReplicatedCheckpointCatalog(
-		primary, secondary, nil, nil, signer, signingKeyID,
+		primary, secondary, nil, nil, signer,
 	)
 }
 
@@ -55,7 +53,6 @@ func NewReplicatedCheckpointCatalogWithRepair(
 	primary, secondary backupartifact.Repository,
 	primaryRepair, secondaryRepair backupartifact.RepairRepository,
 	signer backupartifact.ManifestSigner,
-	signingKeyID string,
 ) (*ReplicatedCheckpointCatalog, error) {
 	if primaryRepair == nil || secondaryRepair == nil ||
 		primary == nil || secondary == nil ||
@@ -67,7 +64,7 @@ func NewReplicatedCheckpointCatalogWithRepair(
 	}
 	return newReplicatedCheckpointCatalog(
 		primary, secondary, primaryRepair, secondaryRepair,
-		signer, signingKeyID,
+		signer,
 	)
 }
 
@@ -75,16 +72,15 @@ func newReplicatedCheckpointCatalog(
 	primary, secondary backupartifact.Repository,
 	primaryRepair, secondaryRepair backupartifact.RepairRepository,
 	signer backupartifact.ManifestSigner,
-	signingKeyID string,
 ) (*ReplicatedCheckpointCatalog, error) {
 	catalog := &ReplicatedCheckpointCatalog{
 		primary: primary, secondary: secondary,
 		primaryRepair: primaryRepair, secondaryRepair: secondaryRepair,
-		signer: signer, signingKeyID: strings.TrimSpace(signingKeyID),
+		signer: signer,
 	}
 	if primary == nil || secondary == nil || primary.Name() == "" ||
 		secondary.Name() == "" || primary.Name() == secondary.Name() ||
-		signer == nil || catalog.signingKeyID == "" {
+		signer == nil {
 		return nil, fmt.Errorf("backup checkpoint catalog: dependencies are invalid")
 	}
 	return catalog, nil
@@ -244,7 +240,7 @@ func (c *ReplicatedCheckpointCatalog) prepareCheckpoint(
 		existing.Signature = signature
 		return existing, body, nil
 	}
-	signed, err := backupartifact.SignCheckpoint(ctx, checkpoint, c.signer, c.signingKeyID)
+	signed, err := backupartifact.SignCheckpoint(ctx, checkpoint, c.signer)
 	if err != nil {
 		return backupartifact.Checkpoint{}, nil, err
 	}
@@ -286,7 +282,7 @@ func (c *ReplicatedCheckpointCatalog) prepareGenerationVector(
 		}
 	} else {
 		signed, err = backupartifact.SignGenerationVector(
-			ctx, candidate, c.signer, c.signingKeyID,
+			ctx, candidate, c.signer,
 		)
 		if err != nil {
 			return backupartifact.GenerationVector{}, nil, err
@@ -345,7 +341,7 @@ func (c *ReplicatedCheckpointCatalog) prepareCatalogPage(
 		existing.Signature = signature
 		return existing, body, nil
 	}
-	signed, err := backupartifact.SignCatalogPage(ctx, page, c.signer, c.signingKeyID)
+	signed, err := backupartifact.SignCatalogPage(ctx, page, c.signer)
 	if err != nil {
 		return backupartifact.CatalogPage{}, nil, err
 	}

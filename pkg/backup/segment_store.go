@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 
 	"golang.org/x/sync/semaphore"
@@ -47,12 +46,10 @@ type ReplicatedSegmentStore struct {
 	// codec owns compression and envelope encryption for payloads.
 	codec *SegmentCodec
 	// objectCodec validates legacy materialized-partition payload objects with
-	// the same KMS boundary used by continuous segments.
+	// the same key authority used by continuous segments.
 	objectCodec *ObjectCodec
 	// signer authenticates identical commit bytes stored in both repositories.
 	signer ManifestSigner
-	// signingKeyID is the configured key used for new commit proofs.
-	signingKeyID string
 	// memoryBudget bounds concurrent seal and open working sets per store.
 	memoryBudget *semaphore.Weighted
 	// partitionAuditCache holds only authenticated manifests for the active
@@ -64,9 +61,13 @@ type ReplicatedSegmentStore struct {
 }
 
 // NewReplicatedSegmentStore creates one deep segment commit and load boundary.
-func NewReplicatedSegmentStore(primary, secondary Repository, codec *SegmentCodec, signer ManifestSigner, signingKeyID string) (*ReplicatedSegmentStore, error) {
+func NewReplicatedSegmentStore(
+	primary, secondary Repository,
+	codec *SegmentCodec,
+	signer ManifestSigner,
+) (*ReplicatedSegmentStore, error) {
 	return newReplicatedSegmentStore(
-		primary, secondary, nil, nil, codec, signer, signingKeyID,
+		primary, secondary, nil, nil, codec, signer,
 	)
 }
 
@@ -77,7 +78,6 @@ func NewReplicatedSegmentStoreWithRepair(
 	primaryRepair, secondaryRepair RepairRepository,
 	codec *SegmentCodec,
 	signer ManifestSigner,
-	signingKeyID string,
 ) (*ReplicatedSegmentStore, error) {
 	if primary == nil || secondary == nil ||
 		primaryRepair == nil || secondaryRepair == nil ||
@@ -90,7 +90,7 @@ func NewReplicatedSegmentStoreWithRepair(
 	}
 	return newReplicatedSegmentStore(
 		primary, secondary, primaryRepair, secondaryRepair,
-		codec, signer, signingKeyID,
+		codec, signer,
 	)
 }
 
@@ -99,12 +99,11 @@ func newReplicatedSegmentStore(
 	primaryRepair, secondaryRepair RepairRepository,
 	codec *SegmentCodec,
 	signer ManifestSigner,
-	signingKeyID string,
 ) (*ReplicatedSegmentStore, error) {
 	store := &ReplicatedSegmentStore{
 		primary: primary, secondary: secondary, codec: codec,
 		primaryRepair: primaryRepair, secondaryRepair: secondaryRepair,
-		signer: signer, signingKeyID: strings.TrimSpace(signingKeyID),
+		signer:       signer,
 		memoryBudget: semaphore.NewWeighted(segmentStoreMemoryBudgetBytes),
 	}
 	if codec != nil {
@@ -146,7 +145,9 @@ func (s *ReplicatedSegmentStore) Commit(ctx context.Context, descriptor SegmentD
 		return s.reuseCommitted(ctx, header, segmentID, primaryCopy, secondaryCopy)
 	}
 
-	sealed, err := s.codec.sealPrepared(ctx, descriptor.KMSKeyID, header, segmentID, canonical, plaintext)
+	sealed, err := s.codec.sealPrepared(
+		ctx, header, segmentID, canonical, plaintext,
+	)
 	if err != nil {
 		return SegmentReference{}, err
 	}
@@ -157,7 +158,7 @@ func (s *ReplicatedSegmentStore) Commit(ctx context.Context, descriptor SegmentD
 		Format: SegmentCommitFormat, Version: SegmentCommitVersion,
 		SegmentID: segmentID, Header: header, Payload: sealed.Payload,
 		PrimaryRepository: s.primary.Name(), SecondaryRepository: s.secondary.Name(),
-	}, s.signer, s.signingKeyID)
+	}, s.signer)
 	if err != nil {
 		return SegmentReference{}, err
 	}
@@ -246,7 +247,7 @@ func (s *ReplicatedSegmentStore) LoadCopy(
 
 // LoadCopyWithHeader returns the authenticated logical header with the
 // selected-copy plaintext so restore can fence stream identity and record
-// counts without a second repository or KMS call.
+// counts without a second repository or key-authority call.
 func (s *ReplicatedSegmentStore) LoadCopyWithHeader(
 	ctx context.Context,
 	repository Repository,
@@ -311,7 +312,7 @@ func (s *ReplicatedSegmentStore) VerifyCommit(ctx context.Context, reference Seg
 // VerifyEnvelopeCopies authenticates the signed commit and immutable payload
 // metadata in both repositories without downloading or decrypting payload
 // bytes. Restore admission uses the returned predecessor link to walk the
-// complete graph while reserving repository and KMS reads for the Slot Leader.
+// complete graph while reserving repository and key opens for the Slot Leader.
 func (s *ReplicatedSegmentStore) VerifyEnvelopeCopies(
 	ctx context.Context,
 	reference SegmentReference,
@@ -489,7 +490,9 @@ func (s *ReplicatedSegmentStore) validateCommitRepositories(commit SegmentCommit
 }
 
 func (s *ReplicatedSegmentStore) validate() error {
-	if s == nil || s.primary == nil || s.secondary == nil || s.codec == nil || s.codec.keys == nil || s.signer == nil || s.signingKeyID == "" || s.memoryBudget == nil {
+	if s == nil || s.primary == nil || s.secondary == nil ||
+		s.codec == nil || s.codec.keys == nil ||
+		s.signer == nil || s.memoryBudget == nil {
 		return fmt.Errorf("%w: replicated segment store dependencies are required", ErrRepositoryIncomplete)
 	}
 	if s.primary.Name() == "" || s.secondary.Name() == "" || s.primary.Name() == s.secondary.Name() {

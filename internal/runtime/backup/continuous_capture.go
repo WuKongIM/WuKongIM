@@ -59,7 +59,7 @@ var (
 	// compaction I/O, network, or concurrency budget.
 	ErrCompactionBudget = errors.New("backup runtime: compaction budget unavailable")
 	// ErrContinuousDoctorUnhealthy reports that dependency qualification has
-	// not admitted repository/KMS work for the continuous runtime.
+	// not admitted repository/key-authority work for the continuous runtime.
 	ErrContinuousDoctorUnhealthy = errors.New("backup runtime: continuous doctor is not healthy")
 )
 
@@ -413,8 +413,6 @@ type CaptureEngineOptions struct {
 	// SourceClusterID and SourceGeneration fence the live source lineage.
 	SourceClusterID  string
 	SourceGeneration string
-	// KMSKeyID identifies the key-encryption key used for new segments.
-	KMSKeyID string
 	// InitialGeneration initializes a Slot that has no durable frontier.
 	InitialGeneration string
 	// HashSlotCount bounds valid logical Slot identifiers.
@@ -469,13 +467,12 @@ func NewCaptureEngine(options CaptureEngineOptions) (*CaptureEngine, error) {
 	options.RepositoryID = strings.TrimSpace(options.RepositoryID)
 	options.SourceClusterID = strings.TrimSpace(options.SourceClusterID)
 	options.SourceGeneration = strings.TrimSpace(options.SourceGeneration)
-	options.KMSKeyID = strings.TrimSpace(options.KMSKeyID)
 	options.InitialGeneration = strings.TrimSpace(options.InitialGeneration)
 	if !validContinuousIdentity(options.RepositoryID, 128) ||
 		!validContinuousIdentity(options.SourceClusterID, 128) ||
 		!validContinuousIdentity(options.SourceGeneration, 128) ||
 		!validContinuousIdentity(options.InitialGeneration, 128) ||
-		options.KMSKeyID == "" || len(options.KMSKeyID) > 512 || options.HashSlotCount == 0 ||
+		options.HashSlotCount == 0 ||
 		options.Source == nil || options.Frontiers == nil || options.Segments == nil {
 		return nil, fmt.Errorf("%w: continuous capture dependencies are incomplete", ErrInvalidCapture)
 	}

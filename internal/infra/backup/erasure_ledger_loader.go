@@ -150,7 +150,7 @@ func (l *ErasureLedgerLoader) LoadDualSnapshot(ctx context.Context) (ErasureLedg
 
 // LoadDualSnapshotProof authenticates the replicated commit graph and exact
 // ciphertext digests without opening event plaintext. Restore admission uses
-// this metadata-only proof so KMS and Channel boundary materialization happen
+// this metadata-only proof so data-key opening and Channel materialization happen
 // exactly once later on each target Slot Leader.
 func (l *ErasureLedgerLoader) LoadDualSnapshotProof(
 	ctx context.Context,

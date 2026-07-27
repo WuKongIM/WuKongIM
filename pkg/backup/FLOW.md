@@ -2,7 +2,7 @@
 
 `pkg/backup` owns the portable cluster-backup artifact contract. It does not
 read WuKongIM storage, schedule jobs, call cluster APIs, or know a concrete
-object-storage/KMS provider.
+object-storage or key-authority provider.
 
 Current flow:
 
@@ -20,11 +20,14 @@ Current flow:
 5. Signed hash-linked catalog pages publish checkpoint history. Controller
    stores only the current `CatalogPageReference`; complete history is rebuilt
    and authenticated from the repositories.
-6. Production composition wraps `ManifestSigner` with
-   `NewKeyPinnedManifestSigner`, so verification trusts only the active key and
-   the explicit retained-key allowlist. `ManifestSignature.KeyVersionID`
-   additionally pins provider versions, such as Alibaba KMS asymmetric-key
-   versions, when the provider requires them for historical verification.
+6. Production composition injects one deployment key authority. Every
+   signature carries the content-derived Ed25519 key ID, and verification
+   trusts only the public keys retained in the authenticated package. The
+   package authenticates all of its mutable fields with an independent
+   HMAC-SHA256 key. Both repositories pin the Package ID and signed activated
+   revision chain outside the package, so substitution and rollback fail
+   closed. Rotation therefore preserves historical verification without
+   provider-specific versions or configuration fields.
 
 Object plaintext is zstd-compressed before AES-256-GCM encryption; every
 representation has a fresh envelope data key and nonce. Strict decoding,
@@ -56,7 +59,8 @@ content-addressed segment contract.
    source-generation, Slot-generation, stream, sequence, record-count,
    predecessor/checkpoint link, source watermark, and plaintext evidence. That
    digest is the stable Segment ID. The signed predecessor envelope lets
-   restore admission walk the complete graph without payload download or KMS.
+   restore admission walk the complete graph without payload download or
+   data-key opening.
 2. Compression, a fresh envelope data key, AES-256-GCM nonce, and ciphertext
    checksum are intentionally outside the logical identity. A retry may create
    a different encrypted representation without changing the Segment ID.
@@ -89,7 +93,7 @@ content-addressed segment contract.
    continuous portable plaintext so the catalog auditor can resume a segment
    chain without another full object read. The same explicit repair boundary
    validates materialized partition manifests and each encrypted payload with
-   full KMS decrypt and plaintext-digest checks, then repairs only the damaged
+   full data-key open and plaintext-digest checks, then repairs only the damaged
    graph node from its authenticated peer.
    Authenticated partition manifests are reused only within one explicit audit
    cycle through a 64 MiB byte-bounded cache; a new cycle or repaired manifest
@@ -104,8 +108,8 @@ content-addressed segment contract.
    that budget.
 6. If either repository already has a valid signed commit, a retry verifies
    that its logical header matches the requested plaintext, repairs the missing
-   payload and commit copy from the healthy repository, and does not request a
-   new KMS data key.
+   payload and commit copy from the healthy repository, and does not generate a
+   new envelope data key.
 7. Segment commit decoding is strict and bounded. Unknown fields, trailing
    data, unsupported format/version values, unsafe identities, invalid sizes,
    checksum mismatches, and invalid signatures fail closed.
@@ -189,7 +193,7 @@ generation to one exact restore plan, checkpoint digest, and successor
 generation. A receipt is valid only after the record carries the Controller
 revision observed by all active data nodes and a convergence time. Signing and
 verification use canonical bytes and the same injected `ManifestSigner`
-boundary as other KMS-backed artifacts; changing any binding invalidates the
+boundary as other signed artifacts; changing any binding invalidates the
 signature.
 
 `RestoreActivationEvidence` is exactly one of a verified source-fence receipt

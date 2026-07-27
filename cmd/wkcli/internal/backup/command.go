@@ -41,6 +41,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.PersistentFlags().DurationVar(&cfg.timeout, "timeout", cfg.timeout, "Manager request timeout")
 	cmd.PersistentFlags().BoolVar(&cfg.rawJSON, "json", false, "Render raw JSON output")
 	cmd.AddCommand(
+		newKeysCommand(deps),
 		newReadCommand(deps, &cfg, "status", "Show continuous-capture health and checkpoint age", "/manager/backups/status", false),
 		newCheckpointCommand(deps, &cfg),
 		newSourceFenceCommand(deps, &cfg),

@@ -97,7 +97,7 @@ type RestoreActivationStateReader interface {
 }
 
 // CheckpointRestoreReplicaReceiver durably stages, installs, and verifies
-// plaintext target snapshots. It has no repository or KMS dependency.
+// plaintext target snapshots. It has no repository or key-authority dependency.
 type CheckpointRestoreReplicaReceiver struct {
 	// node owns the live target databases and current Slot routing fence.
 	node CheckpointRestoreReplicaNode

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -42,7 +43,9 @@ func TestErasureLedgerArtifactsRoundTripAndRejectTampering(t *testing.T) {
 		RepositoryID: event.RepositoryID, SourceClusterID: event.SourceClusterID, SourceGeneration: event.SourceGeneration,
 		EventID: event.EventID, HashSlot: event.HashSlot, CreatedAtUnixMillis: event.RequestedAtUnixMillis, Object: object.Entry,
 	}
-	signedRecord, err := backup.SignErasureLedgerRecord(context.Background(), record, signer, "signing-v1")
+	signedRecord, err := backup.SignErasureLedgerRecord(
+		context.Background(), record, signer,
+	)
 	if err != nil {
 		t.Fatalf("SignErasureLedgerRecord() error = %v", err)
 	}
@@ -54,7 +57,8 @@ func TestErasureLedgerArtifactsRoundTripAndRejectTampering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadErasureLedgerRecord() error = %v", err)
 	}
-	if loadedRecord.EventID != eventID || loadedRecord.Object != object.Entry {
+	if loadedRecord.EventID != eventID ||
+		!reflect.DeepEqual(loadedRecord.Object, object.Entry) {
 		t.Fatalf("LoadErasureLedgerRecord() = %#v, want event/object binding", loadedRecord)
 	}
 
@@ -67,7 +71,9 @@ func TestErasureLedgerArtifactsRoundTripAndRejectTampering(t *testing.T) {
 		RecordSHA256: stringLowerHex(recordHash[:]), CreatedAtUnixMillis: event.RequestedAtUnixMillis,
 		PrimaryRepository: "primary", SecondaryRepository: "secondary",
 	}
-	signedCommit, err := backup.SignErasureLedgerCommit(context.Background(), commit, signer, "signing-v1")
+	signedCommit, err := backup.SignErasureLedgerCommit(
+		context.Background(), commit, signer,
+	)
 	if err != nil {
 		t.Fatalf("SignErasureLedgerCommit() error = %v", err)
 	}

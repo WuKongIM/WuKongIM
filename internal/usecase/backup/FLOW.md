@@ -2,7 +2,7 @@
 
 `internal/usecase/backup` owns entry-independent cluster backup coordination.
 It does not read storage, call Controller directly, encode artifacts, or know a
-concrete object-store/KMS SDK.
+concrete object-store or key-authority implementation.
 
 Cross-layer coordination DTOs live in `internal/contracts/backup`; the usecase
 re-exports those types while retaining all transition and scheduling policy.
@@ -48,7 +48,8 @@ Current flow:
    completion. Status exposes bounded per-Slot install/convergence state,
    throughput, and ETA. Final semantic verification requires every current
    desired replica to revalidate its live installed state before activation.
-   Normal activation authenticates a Controller/KMS-signed source-fence receipt
+   Normal activation authenticates a Controller/key-authority-signed
+   source-fence receipt
    bound to this exact plan, checkpoint, source generation, and successor.
    Break-glass activation instead requires an authenticated operator, explicit
    reason, and immutable audit identity. Both paths persist `activating` first,

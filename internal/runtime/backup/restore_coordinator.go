@@ -293,7 +293,7 @@ func (c *RestoreCoordinator) installPartition(
 	// The caller cannot distinguish a pre-finalize failure from a lost response
 	// after target-local finalization. Preserve the same durable fence so the
 	// next tick first queries ResumeCheckpointRestore instead of starting a new
-	// attempt and repeating repository/KMS work.
+	// attempt and repeating repository/key-authority work.
 	return report, err
 }
 

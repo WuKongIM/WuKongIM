@@ -1038,14 +1038,24 @@ the Cloud Simulation lifecycle separately owns public TCP/19443 ingress.
 ## Backup Composition
 
 When backup and restore mode are both false, composition creates no repository,
-KMS, worker, or timer. Automatic mode requires the qualified Alibaba OSS/KMS
-adapter and wires two cross-region repositories,
-KMS envelope/signing with manifest verification pinned to the configured
-active key plus explicitly retained previous verification keys, Controller
-state, Slot-leader continuous capture, complete-vector checkpoint publication,
-the continuous coordinator, Manager, node RPC, and low-cardinality metrics.
+key authority, worker, or timer. Automatic mode requires the qualified Alibaba
+OSS adapter and one protected deployment key package, then wires two
+cross-region repositories, local AES-256-GCM envelope encryption, Ed25519
+signing with the package's retained verification keyring, and an immutable
+Package ID/activated-revision pin chain in both repositories. Repository
+qualification runs before pin publication, only the configured lowest-ID
+Controller voter may publish a missing pin, and other nodes wait or fail closed
+while verifying. The implicit single-node cluster is normalized to its local
+Controller voter. A seed-join mirror has no admitted voter identity, so it
+never publishes and remains a read-only verifier until admission is persisted.
+This stable writer does not change across Raft terms. It then
+wires Controller state, Slot-leader continuous capture, complete-vector
+checkpoint publication, the continuous coordinator, Manager, node RPC, and
+low-cardinality metrics. A shared key-service gate stays closed until the
+complete Doctor succeeds and closes again on any later failure, so independent
+permanent-erasure or restore paths cannot bypass repository qualification.
 The runtime assumes separate ordinary access, repair, and garbage RAM
-roles for each repository plus a KMS role. The same provider-neutral path then
+roles for each repository. The same provider-neutral path then
 wires replicated segment/catalog repair, the authenticated
 catalog integrity plan, durable audit state, live-source Slot rebase recovery,
 all-node audit projection, independently cursor-fenced Generation GC, and
@@ -1063,7 +1073,7 @@ the shared dual repositories, so each node can rebuild its own non-authoritative
 query index without a Leader hop. Status combines durable Slot capture leases
 and erasure progress with node-local continuous-coordinator evidence and the
 configured non-secret capture/checkpoint policy. Doctor dependencies and
-repository/KMS details remain internal. The non-secret policy exposes a
+repository/key-authority details remain internal. The non-secret policy exposes a
 per-Slot source-pin maximum age and a per-node retained-log byte budget.
 Every coordinator node hydrates checkpoint age and publication cadence from
 that authenticated durable catalog, so process restart or Controller Leader
@@ -1087,8 +1097,8 @@ repository identities `primary` and `secondary`.
 
 An `e2e`-tagged binary may replace repository, key, and clock adapters only
 when the explicit backup E2E file-root environment is present. Without that
-environment, including ordinary tagged scenarios, the production OSS/KMS/clock
-loaders remain authoritative. The file-backed substitute may additionally wrap
+environment, including ordinary tagged scenarios, the production OSS,
+deployment-key, and clock loaders remain authoritative. The file-backed substitute may additionally wrap
 repository and key calls in one bounded artificial latency. A sentinel path
 activates that delay only after startup, allowing the black-box scale gate to
 prove foreground SEND does not synchronously cross either remote boundary. A
@@ -1108,7 +1118,7 @@ metrics. The restricted Manager retains the read-only node inventory under
 ordinary node detail and mutation routes remain closed. The composition root
 creates one node-root staging quota shared by
 source downloads, target Slot attempts, and follower transfers. Only the
-current target Slot Leader reads repositories and calls KMS;
+current target Slot Leader reads repositories and opens data-key envelopes;
 followers receive bounded plaintext target snapshots through the restore-only
 node RPC and revalidate their live local state before reporting convergence.
 Construction

@@ -36,7 +36,7 @@ func TestGenerationGarbageCollectorProtectsCheckpointHoldRestoreCurrentAndFrozen
 	primary := &generationGCRepository{FileRepository: primaryFile}
 	secondary := &generationGCRepository{FileRepository: secondaryFile}
 	signer := newCatalogTestSigner()
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 
 	retained := generationGCPublishCheckpoint(t, catalog, nil, "retained-checkpoint", gcGenerationRetained)
@@ -73,8 +73,7 @@ func TestGenerationGarbageCollectorProtectsCheckpointHoldRestoreCurrentAndFrozen
 	}
 	segmentStore, err := backupartifact.NewReplicatedSegmentStore(
 		primary, secondary, backupartifact.NewSegmentCodec(testWrappingKeyManager{mask: 0x5a}, nil),
-		signer, "signing-key",
-	)
+		signer)
 	require.NoError(t, err)
 	expiredSegment, err := segmentStore.Commit(ctx, backupartifact.SegmentDescriptor{
 		Logical: backupartifact.SegmentLogicalDescriptor{
@@ -83,7 +82,6 @@ func TestGenerationGarbageCollectorProtectsCheckpointHoldRestoreCurrentAndFrozen
 			HashSlot: 0, Stream: backupartifact.SegmentStreamMetadata,
 			Sequence: 1, RecordCount: 1,
 		},
-		KMSKeyID: "kms-backup",
 	}, []byte("expired-segment"))
 	require.NoError(t, err)
 	expiredCommitBody := readRepositoryBody(t, primary, expiredSegment.CommitKey)
@@ -165,8 +163,7 @@ func TestGenerationGarbageCollectorUnionsFixedIntegrityAuditSelection(
 	secondary := &generationGCRepository{FileRepository: secondaryFile}
 	signer := newCatalogTestSigner()
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
-		primary, secondary, signer, "signing-key",
-	)
+		primary, secondary, signer)
 	require.NoError(t, err)
 	audited := generationGCPublishCheckpoint(
 		t, catalog, nil, "audited-checkpoint", gcGenerationExpired,
@@ -237,7 +234,7 @@ func TestGenerationGarbageCollectorRetriesOnlyLockedRepository(t *testing.T) {
 		generationGCPutObject(t, repository, lockedKey, []byte("locked-generation"))
 	}
 	signer := newCatalogTestSigner()
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 	cursorStore, err := backupinfra.NewControllerGenerationGCCursorStore(&erasureLedgerStateStore{})
 	require.NoError(t, err)
@@ -279,7 +276,7 @@ func TestGenerationGarbageCollectorDoesNotRetryHealthyRepositoryWhenPeerListingF
 		generationGCPutObject(t, repository, key, []byte("expired-generation"))
 	}
 	signer := newCatalogTestSigner()
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 	retained := generationGCPublishCheckpoint(
 		t, catalog, nil, "retained-checkpoint", gcGenerationRetained,
@@ -327,7 +324,7 @@ func TestGenerationGarbageCollectorResumesDurableCursorWithinRequestBudget(t *te
 		}
 	}
 	signer := newCatalogTestSigner()
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 	retainedOne := generationGCPublishCheckpoint(
 		t, catalog, nil, "retained-one", gcGenerationRetained,
@@ -396,7 +393,7 @@ func TestGenerationGarbageCollectorResumesWithinByteBudget(t *testing.T) {
 		}
 	}
 	signer := newCatalogTestSigner()
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer, "signing-key")
+	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, signer)
 	require.NoError(t, err)
 	cursorStore, err := backupinfra.NewControllerGenerationGCCursorStore(&erasureLedgerStateStore{})
 	require.NoError(t, err)
@@ -438,8 +435,7 @@ func TestGenerationGarbageCollectorRechecksAuditFreezeBeforeDelete(t *testing.T)
 	}
 	signer := newCatalogTestSigner()
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
-		primary, secondary, signer, "signing-key",
-	)
+		primary, secondary, signer)
 	require.NoError(t, err)
 	coordination := &erasureLedgerStateStore{}
 	auditStore, err := backupinfra.NewControllerIntegrityAuditStateStore(coordination)

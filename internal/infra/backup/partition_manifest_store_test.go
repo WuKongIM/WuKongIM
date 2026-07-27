@@ -24,8 +24,13 @@ func TestReplicatedManifestStoreRepairsPartialPublish(t *testing.T) {
 	entry := backupartifact.ObjectEntry{
 		Key: "objects/backup-partial-attempt/00004/metadata-000000.bin", Kind: backupartifact.ObjectKindMetadata, HashSlot: 4,
 		PlaintextSHA256: fmt.Sprintf("%064x", 1), CiphertextSHA256: objectChecksum, PlaintextBytes: 3, CiphertextBytes: int64(len(objectBody)),
-		Compression: backupartifact.CompressionZstd, Encryption: backupartifact.EncryptionAES256GCM,
-		KMSKeyID: "kms-backup", WrappedKey: "d3JhcHBlZA==", Nonce: "MDEyMzQ1Njc4OTAx",
+		Compression: backupartifact.CompressionZstd,
+		Encryption:  backupartifact.EncryptionAES256GCM,
+		DataKey: backupartifact.DataKeyEnvelope{
+			Version: 1, Algorithm: "TEST_XOR", KeyID: "test",
+			Nonce: []byte{1}, Value: []byte("wrapped"),
+		},
+		Nonce: "MDEyMzQ1Njc4OTAx",
 	}
 	for _, repository := range []backupartifact.Repository{primary, secondary} {
 		require.NoError(t, repository.PutImmutable(ctx, entry.Key, int64(len(objectBody)), objectChecksum, bytes.NewReader(objectBody)))

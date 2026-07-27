@@ -1379,10 +1379,6 @@ var requiredBackupRepositoryKeys = []string{
 	"WK_BACKUP_PROVIDER",
 	"WK_BACKUP_REPOSITORY_ID",
 	"WK_BACKUP_STAGING_DIR",
-	"WK_BACKUP_KMS_KEY_ID",
-	"WK_BACKUP_SIGNING_KEY_ID",
-	"WK_BACKUP_KMS_REGION",
-	"WK_BACKUP_KMS_ROLE_ARN",
 	"WK_BACKUP_PRIMARY_ENDPOINT",
 	"WK_BACKUP_PRIMARY_REGION",
 	"WK_BACKUP_PRIMARY_BUCKET",
@@ -1431,11 +1427,6 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 		SourceGeneration: configValue(values, "WK_BACKUP_SOURCE_GENERATION"),
 		TargetGeneration: configValue(values, "WK_BACKUP_TARGET_GENERATION"),
 		StagingDir:       configValue(values, "WK_BACKUP_STAGING_DIR"),
-		KMSKeyID:         configValue(values, "WK_BACKUP_KMS_KEY_ID"),
-		SigningKeyID:     configValue(values, "WK_BACKUP_SIGNING_KEY_ID"),
-		KMSRegion:        configValue(values, "WK_BACKUP_KMS_REGION"),
-		KMSEndpoint:      configValue(values, "WK_BACKUP_KMS_ENDPOINT"),
-		KMSRoleARN:       configValue(values, "WK_BACKUP_KMS_ROLE_ARN"),
 		Primary: app.BackupRepositoryConfig{
 			Endpoint:       configValue(values, "WK_BACKUP_PRIMARY_ENDPOINT"),
 			Region:         configValue(values, "WK_BACKUP_PRIMARY_REGION"),
@@ -1456,12 +1447,6 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 		},
 	}
 	var err error
-	if configKeyPresent(values, "WK_BACKUP_TRUSTED_SIGNING_KEY_IDS") {
-		cfg.TrustedSigningKeyIDs, err = parseStringList("WK_BACKUP_TRUSTED_SIGNING_KEY_IDS", configValue(values, "WK_BACKUP_TRUSTED_SIGNING_KEY_IDS"))
-		if err != nil {
-			return app.BackupConfig{}, err
-		}
-	}
 	if configKeyPresent(values, "WK_BACKUP_ENABLED") {
 		cfg.Enabled, err = parseBool("WK_BACKUP_ENABLED", configValue(values, "WK_BACKUP_ENABLED"))
 		if err != nil {
