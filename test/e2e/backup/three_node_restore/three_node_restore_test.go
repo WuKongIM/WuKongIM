@@ -256,8 +256,14 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 		t, cluster, "source-admin", "source-secret",
 	)
 
+	baselineTimeout := 20 * time.Second
+	if qualification.FileRoot == "" {
+		// Cross-region object storage must finish all initial Slot uploads
+		// before the first immutable checkpoint can be published.
+		baselineTimeout = 120 * time.Second
+	}
 	baseline := publishCheckpointEventually(
-		t, cluster, sourceToken, 20*time.Second,
+		t, cluster, sourceToken, baselineTimeout,
 	)
 	require.NotEmpty(t, baseline.Checkpoint.ID)
 	require.Len(t, baseline.CheckpointSHA256, 64)
