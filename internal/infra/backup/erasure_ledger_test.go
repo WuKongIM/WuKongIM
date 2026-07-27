@@ -395,6 +395,134 @@ func TestPermanentErasureLedgerFailsClosedAndRepairsSecondaryCommit(t *testing.T
 	require.Nil(t, state.ErasureStreams[0].Pending)
 }
 
+func TestPermanentErasureLedgerRetriesControllerAndMirrorGaps(t *testing.T) {
+	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
+	require.NoError(t, err)
+	secondary, err := backupinfra.NewFileRepository("secondary", t.TempDir())
+	require.NoError(t, err)
+	seed := sha256.Sum256([]byte("erasure-ledger-controller-gap"))
+	signer := testEd25519Signer{
+		privateKey: ed25519.NewKeyFromSeed(seed[:]),
+	}
+	codec := backupartifact.NewObjectCodec(
+		testWrappingKeyManager{mask: 0x5a},
+		bytes.NewReader(bytes.Repeat([]byte{0x77}, 256)),
+	)
+	baseCoordinator, err := backupusecase.NewApp(
+		backupusecase.Options{
+			Enabled: true, HashSlotCount: 1,
+			Store: &erasureLedgerStateStore{},
+			Now: func() time.Time {
+				return time.UnixMilli(1_753_056_360_000).UTC()
+			},
+		},
+	)
+	require.NoError(t, err)
+	coordinator := &erasureCommitFailCoordinator{
+		delegate: baseCoordinator,
+		fail:     true,
+	}
+	newLedger := func(
+		ledgerCoordinator backupinfra.ErasureLedgerCoordinator,
+	) *backupinfra.PermanentErasureLedger {
+		ledger, createErr := backupinfra.NewPermanentErasureLedger(
+			backupinfra.PermanentErasureLedgerOptions{
+				Primary: primary, Secondary: secondary,
+				Codec: codec, Coordinator: ledgerCoordinator,
+				Signer:       signer,
+				RepositoryID: "repo-prod", SourceClusterID: "cluster-a",
+				SourceGeneration: "generation-1", HashSlotCount: 1,
+				Now: func() time.Time {
+					return time.UnixMilli(1_753_056_360_000).UTC()
+				},
+				NewAttemptID: func() string {
+					return "controller-gap-attempt"
+				},
+			},
+		)
+		require.NoError(t, createErr)
+		return ledger
+	}
+	ledger := newLedger(coordinator)
+	request := backupinfra.PermanentMessageErasure{
+		ChannelID: "channel-controller-gap", ChannelType: 2,
+		ThroughSeq: 9, RequestedAtUnixMillis: 1_753_056_360_000,
+	}
+
+	_, err = ledger.RecordPermanentMessageErasure(
+		context.Background(), request,
+	)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	eventID := backupartifact.ComputeErasureEventID(
+		"repo-prod", "cluster-a", "generation-1",
+		request.ChannelID, request.ChannelType, request.ThroughSeq,
+	)
+	receiptKey := backupartifact.ErasureLedgerReceiptKey(eventID)
+	_, err = primary.Stat(context.Background(), receiptKey)
+	require.NoError(t, err)
+	_, err = secondary.Stat(context.Background(), receiptKey)
+	require.NoError(t, err)
+	state, err := baseCoordinator.CoordinationState(context.Background())
+	require.NoError(t, err)
+	require.Len(t, state.ErasureStreams, 1)
+	require.Equal(t, uint64(1), state.ErasureStreams[0].Head.Sequence)
+
+	coordinator.setFail(false)
+	second, err := ledger.RecordPermanentMessageErasure(
+		context.Background(),
+		backupinfra.PermanentMessageErasure{
+			ChannelID: "channel-after-uncertain-commit", ChannelType: 2,
+			ThroughSeq:            10,
+			RequestedAtUnixMillis: 1_753_056_361_000,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), second.Sequence)
+
+	receipt, err := ledger.RecordPermanentMessageErasure(
+		context.Background(), request,
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), receipt.Sequence)
+	require.Equal(t, eventID, receipt.EventID)
+
+	// A node whose local Controller mirror has not observed the committed head
+	// must reconcile the original authenticated receipt against the same
+	// authoritative Controller, even after a later same-Slot event committed.
+	staleMirror := &erasureStaleReadCoordinator{
+		delegate: baseCoordinator,
+	}
+	reconciled, err := newLedger(staleMirror).
+		RecordPermanentMessageErasure(context.Background(), request)
+	require.NoError(t, err)
+	require.Equal(t, receipt, reconciled)
+
+	state, err = baseCoordinator.CoordinationState(context.Background())
+	require.NoError(t, err)
+	require.Len(t, state.ErasureStreams, 1)
+	require.Equal(t, uint64(2), state.ErasureStreams[0].Head.Sequence)
+	_, err = primary.Stat(
+		context.Background(),
+		backupartifact.ErasureLedgerCommitKey(
+			erasureLedgerTestNamespace(), 0, 3,
+		),
+	)
+	require.ErrorIs(t, err, backupartifact.ErrObjectNotFound)
+
+	loader, err := backupinfra.NewErasureLedgerLoader(
+		backupinfra.ErasureLedgerLoaderOptions{
+			Primary: primary, Secondary: secondary,
+			Signer: signer, Codec: codec,
+			RepositoryID: "repo-prod", SourceClusterID: "cluster-a",
+			SourceGeneration: "generation-1", HashSlotCount: 1,
+		},
+	)
+	require.NoError(t, err)
+	snapshot, err := loader.LoadDualSnapshot(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), snapshot.EventCount)
+}
+
 func erasureLedgerTestNamespace() string {
 	return backupartifact.ComputeErasureLedgerStreamNamespace("repo-prod", "cluster-a", "generation-1")
 }
@@ -447,6 +575,75 @@ type erasureCommitFailRepository struct {
 	backupartifact.Repository
 	mu   sync.Mutex
 	fail bool
+}
+
+type erasureCommitFailCoordinator struct {
+	delegate *backupusecase.App
+	mu       sync.Mutex
+	fail     bool
+}
+
+func (c *erasureCommitFailCoordinator) ReserveErasureLedgerCommit(
+	ctx context.Context,
+	reference backupusecase.ErasureLedgerRecordReference,
+) (backupusecase.ErasureLedgerRecordReference, error) {
+	return c.delegate.ReserveErasureLedgerCommit(ctx, reference)
+}
+
+func (c *erasureCommitFailCoordinator) CommitErasureLedgerCommit(
+	ctx context.Context,
+	head backupartifact.ErasureStreamHead,
+	eventID string,
+) error {
+	c.mu.Lock()
+	fail := c.fail
+	c.mu.Unlock()
+	if fail {
+		if err := c.delegate.CommitErasureLedgerCommit(
+			ctx, head, eventID,
+		); err != nil {
+			return err
+		}
+		return context.DeadlineExceeded
+	}
+	return c.delegate.CommitErasureLedgerCommit(ctx, head, eventID)
+}
+
+func (c *erasureCommitFailCoordinator) CoordinationState(
+	ctx context.Context,
+) (backupusecase.State, error) {
+	return c.delegate.CoordinationState(ctx)
+}
+
+func (c *erasureCommitFailCoordinator) setFail(fail bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.fail = fail
+}
+
+type erasureStaleReadCoordinator struct {
+	delegate *backupusecase.App
+}
+
+func (c *erasureStaleReadCoordinator) ReserveErasureLedgerCommit(
+	ctx context.Context,
+	reference backupusecase.ErasureLedgerRecordReference,
+) (backupusecase.ErasureLedgerRecordReference, error) {
+	return c.delegate.ReserveErasureLedgerCommit(ctx, reference)
+}
+
+func (c *erasureStaleReadCoordinator) CommitErasureLedgerCommit(
+	ctx context.Context,
+	head backupartifact.ErasureStreamHead,
+	eventID string,
+) error {
+	return c.delegate.CommitErasureLedgerCommit(ctx, head, eventID)
+}
+
+func (*erasureStaleReadCoordinator) CoordinationState(
+	context.Context,
+) (backupusecase.State, error) {
+	return backupusecase.State{}, nil
 }
 
 type selectiveErasureReadRepository struct {

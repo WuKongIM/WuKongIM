@@ -1903,10 +1903,12 @@ func managerNodeRequestError(
 		reader = bytes.NewReader(requestBody)
 	}
 	requestTimeout := 5 * time.Second
-	if method == http.MethodPost && path == "/manager/backups/checkpoints" {
-		// Production qualification publishes the signed catalog to two
-		// cross-region repositories. Keep ordinary Manager reads fast while
-		// allowing one remote checkpoint attempt to return its commit proof.
+	if method == http.MethodPost &&
+		(path == "/manager/backups/checkpoints" ||
+			path == "/manager/messages/retention") {
+		// Production qualification publishes checkpoint or permanent-erasure
+		// evidence to two cross-region repositories. Keep ordinary Manager
+		// reads fast while allowing one remote write to return its commit proof.
 		requestTimeout = 30 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)

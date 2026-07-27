@@ -367,7 +367,13 @@ Before ordinary retention metadata advances, `PermanentErasureLedger` encrypts
 the Channel identity and boundary, publishes identical immutable ciphertext and
 signed record bytes to both repositories, reserves the next sequence for the
 event's Hash Slot, and publishes a predecessor-linked signed commit marker plus
-deterministic per-event receipt to both repositories. The first immutable
+deterministic per-event receipt to both repositories before advancing the
+Controller head. The still-pending reservation prevents a later same-Slot event
+from overtaking that crash window. A retry that sees a valid receipt ahead of
+its local Controller mirror authenticates the exact sequence commit and record,
+then reconciles that original head through the authoritative Controller commit
+operation instead of misclassifying replication lag as corruption or allocating
+a duplicate sequence. The first immutable
 primary commit serializes concurrent same-Slot finalizers; a contender adopts
 that authenticated commit and repairs the secondary copy. Each lineage uses a
 repository/source-cluster/source-generation digest namespace, so successor

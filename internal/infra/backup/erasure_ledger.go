@@ -334,11 +334,19 @@ func (l *PermanentErasureLedger) loadCommittedReceipt(ctx context.Context, event
 	reference := backupusecase.ErasureLedgerRecordReference{
 		HashSlot: commit.HashSlot, Sequence: commit.Sequence, EventID: commit.EventID, RecordKey: commit.RecordKey, RecordSHA256: commit.RecordSHA256,
 	}
-	if head == nil || head.HashSlot != hashSlot || commit.HashSlot != hashSlot ||
-		commit.EventID != eventID || commit.Sequence == 0 || commit.Sequence > head.Sequence ||
+	if commit.HashSlot != hashSlot || commit.EventID != eventID ||
+		commit.Sequence == 0 ||
 		!l.commitMatchesReference(commit, reference) {
 		return ErasureLedgerReceipt{}, false, fmt.Errorf("%w: erasure ledger committed-event receipt mismatch", backupartifact.ErrRepositoryIncomplete)
 	}
+	// A repository receipt can become visible before this node's Controller
+	// mirror observes its head. Resume through the ordinary reservation path,
+	// which reconciles against authoritative Controller state before returning
+	// a receipt to the live-retention caller.
+	if head != nil && head.HashSlot != hashSlot {
+		return ErasureLedgerReceipt{}, false, fmt.Errorf("%w: erasure ledger committed-event receipt mismatch", backupartifact.ErrRepositoryIncomplete)
+	}
+	reconcileHead := head == nil || commit.Sequence > head.Sequence
 	commitKey := backupartifact.ErasureLedgerCommitKey(l.streamNamespace, commit.HashSlot, commit.Sequence)
 	commitBody, sequenceCommit, found, err := l.loadReplicatedCommit(ctx, commitKey)
 	if err != nil || !found || !bytes.Equal(receiptBody, commitBody) || !l.commitMatchesReference(sequenceCommit, reference) {
@@ -360,6 +368,18 @@ func (l *PermanentErasureLedger) loadCommittedReceipt(ctx context.Context, event
 	}
 	if err := l.putReplicatedExact(ctx, receiptKey, checksum, receiptBody); err != nil {
 		return ErasureLedgerReceipt{}, false, err
+	}
+	if reconcileHead {
+		if err := l.coordinator.CommitErasureLedgerCommit(
+			ctx,
+			backupartifact.ErasureStreamHead{
+				HashSlot: commit.HashSlot, Sequence: commit.Sequence,
+				CommitKey: commitKey, CommitSHA256: checksum,
+			},
+			eventID,
+		); err != nil {
+			return ErasureLedgerReceipt{}, false, err
+		}
 	}
 	return ErasureLedgerReceipt{HashSlot: commit.HashSlot, Sequence: commit.Sequence, EventID: eventID}, true, nil
 }
