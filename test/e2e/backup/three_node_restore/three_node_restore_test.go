@@ -1955,11 +1955,13 @@ func managerRequestTimeout(method, path string) time.Duration {
 	if method == http.MethodPost {
 		switch path {
 		case "/manager/backups/checkpoints",
-			"/manager/messages/retention",
-			"/manager/restore/plan":
-			// Production checkpoint and erasure writes publish proof to two
-			// regions. Restore planning authenticates the complete remote graph.
+			"/manager/messages/retention":
+			// Production checkpoint and erasure writes publish proof to two regions.
 			return 30 * time.Second
+		case "/manager/restore/plan":
+			// Restore planning authenticates every Slot in the complete graph
+			// across both regions before it persists the immutable plan.
+			return 2 * time.Minute
 		}
 	}
 	// Keep ordinary Manager reads and local control operations fast.
@@ -2297,7 +2299,7 @@ func TestManagerRequestTimeoutBudgetsRemoteRepositoryWork(t *testing.T) {
 		managerRequestTimeout(http.MethodPost, "/manager/messages/retention"),
 	)
 	require.Equal(
-		t, 30*time.Second,
+		t, 2*time.Minute,
 		managerRequestTimeout(http.MethodPost, "/manager/restore/plan"),
 	)
 	require.Equal(
