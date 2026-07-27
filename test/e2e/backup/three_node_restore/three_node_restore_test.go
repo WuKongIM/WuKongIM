@@ -1448,6 +1448,7 @@ func targetRestoreConfig(qualification storageQualification, nodeID uint64) map[
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":      "1048576",
 		"WK_BACKUP_STAGING_MAX_BYTES":         "67108864",
 		"WK_BACKUP_WORKER_COUNT":              "2",
+		"WK_BACKUP_OBJECT_LOCK_DAYS":          strconv.Itoa(qualification.ObjectLockDays),
 		"WK_BACKUP_PRIMARY_ENDPOINT":          qualification.Primary.Endpoint,
 		"WK_BACKUP_PRIMARY_REGION":            qualification.Primary.Region,
 		"WK_BACKUP_PRIMARY_BUCKET":            qualification.Primary.Bucket,
@@ -2261,6 +2262,14 @@ func TestBackupDurableFrontierAdvancedAcrossGenerationReplacement(
 	require.False(t, backupDurableFrontierAdvanced(
 		previous, sameGeneration, false,
 	))
+}
+
+func TestTargetRestoreConfigPreservesObjectLockPolicy(t *testing.T) {
+	config := targetRestoreConfig(storageQualification{
+		ObjectLockDays: 7,
+	}, 2)
+
+	require.Equal(t, "7", config["WK_BACKUP_OBJECT_LOCK_DAYS"])
 }
 
 type backupCaptureCycleBarrier struct {
