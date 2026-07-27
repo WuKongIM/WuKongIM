@@ -178,7 +178,7 @@ func pathWithin(candidate, parent string) bool {
 }
 
 // EndpointClockProbe reads the authenticated transport peer's HTTP Date header.
-// A 2xx status is not required because S3-compatible endpoints commonly return
+// A 2xx status is not required because object-storage endpoints commonly return
 // Date on an unauthenticated HEAD while still denying the operation.
 type EndpointClockProbe struct {
 	endpoint string

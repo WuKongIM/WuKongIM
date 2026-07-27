@@ -176,14 +176,16 @@ listen_addr = "127.0.0.1:7001"
 
 [backup]
 enabled = true
-qualification_gate = "backup-vnext-production-v1"
+provider = "aliyun"
+qualification_gate = "backup-vnext-production-v2"
 repository_id = "cluster-a-dr"
 source_generation = "generation-1"
 staging_dir = "`+dir+`/backup-staging"
 kms_key_id = "kms-encryption-v1"
 signing_key_id = "kms-signing-v1"
 trusted_signing_key_ids = ["kms-signing-v0"]
-kms_region = "region-a"
+kms_region = "cn-hangzhou"
+kms_role_arn = "acs:ram::123456789:role/backup-kms"
 capture_reconcile_interval = "1m"
 checkpoint_interval = "5m"
 baseline_chunk_bytes = 8388608
@@ -201,20 +203,22 @@ retention_monthly_months = 0
 object_lock_days = 7
 
 [backup.primary]
-endpoint = "https://s3.primary.example"
-region = "region-a"
+endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
+region = "cn-hangzhou"
 bucket = "wukongim-backup-primary"
 prefix = "prod/cluster-a"
-repair_role_arn = "arn:example:iam::primary:role/repair"
-garbage_role_arn = "arn:example:iam::primary:role/garbage"
+access_role_arn = "acs:ram::123456789:role/backup-primary-access"
+repair_role_arn = "acs:ram::123456789:role/backup-primary-repair"
+garbage_role_arn = "acs:ram::123456789:role/backup-primary-garbage"
 
 [backup.secondary]
-endpoint = "https://s3.secondary.example"
-region = "region-b"
+endpoint = "https://oss-cn-beijing.aliyuncs.com"
+region = "cn-beijing"
 bucket = "wukongim-backup-secondary"
 prefix = "prod/cluster-a"
-repair_role_arn = "arn:example:iam::secondary:role/repair"
-garbage_role_arn = "arn:example:iam::secondary:role/garbage"
+access_role_arn = "acs:ram::123456789:role/backup-secondary-access"
+repair_role_arn = "acs:ram::123456789:role/backup-secondary-repair"
+garbage_role_arn = "acs:ram::123456789:role/backup-secondary-garbage"
 `)
 
 	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: []string{
@@ -228,8 +232,15 @@ garbage_role_arn = "arn:example:iam::secondary:role/garbage"
 	if !cfg.Backup.Enabled || cfg.Backup.RepositoryID != "cluster-a-dr" {
 		t.Fatalf("Backup identity = %#v", cfg.Backup)
 	}
-	if cfg.Backup.Primary.Region != "region-a" || cfg.Backup.Secondary.Region != "region-b" {
+	if cfg.Backup.Primary.Region != "cn-hangzhou" ||
+		cfg.Backup.Secondary.Region != "cn-beijing" {
 		t.Fatalf("Backup repositories = %#v/%#v", cfg.Backup.Primary, cfg.Backup.Secondary)
+	}
+	if cfg.Backup.Provider != "aliyun" ||
+		cfg.Backup.KMSRoleARN == "" ||
+		cfg.Backup.Primary.AccessRoleARN == "" ||
+		cfg.Backup.Secondary.AccessRoleARN == "" {
+		t.Fatalf("Backup provider roles = %#v", cfg.Backup)
 	}
 	if cfg.Backup.WorkerCount != 6 {
 		t.Fatalf("Backup.WorkerCount = %d, want env override 6", cfg.Backup.WorkerCount)
@@ -254,7 +265,7 @@ func TestLoadBackupEnabledRequiresCompleteProductionConfig(t *testing.T) {
 	if err == nil {
 		t.Fatal("Load() error = nil, want incomplete enabled backup config rejection")
 	}
-	if !strings.Contains(err.Error(), "WK_BACKUP_REPOSITORY_ID") {
+	if !strings.Contains(err.Error(), "WK_BACKUP_PROVIDER") {
 		t.Fatalf("Load() error = %v, want first required backup key", err)
 	}
 }
@@ -267,20 +278,24 @@ func TestLoadBackupRestoreModeUsesIndependentTargetGeneration(t *testing.T) {
 		"WK_NODE_DATA_DIR=" + dir + "/node1",
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
 		"WK_BACKUP_RESTORE_MODE=true",
+		"WK_BACKUP_PROVIDER=aliyun",
 		"WK_BACKUP_REPOSITORY_ID=cluster-a-dr",
 		"WK_BACKUP_TARGET_GENERATION=generation-2",
 		"WK_BACKUP_STAGING_DIR=" + dir + "/backup-staging",
 		"WK_BACKUP_KMS_KEY_ID=kms-encryption-v1",
 		"WK_BACKUP_SIGNING_KEY_ID=kms-signing-v1",
 		"WK_BACKUP_KMS_REGION=region-a",
-		"WK_BACKUP_PRIMARY_ENDPOINT=https://s3.primary.example",
+		"WK_BACKUP_KMS_ROLE_ARN=acs:ram::123456789:role/backup-kms",
+		"WK_BACKUP_PRIMARY_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com",
 		"WK_BACKUP_PRIMARY_REGION=region-a",
 		"WK_BACKUP_PRIMARY_BUCKET=wukongim-backup-primary",
 		"WK_BACKUP_PRIMARY_PREFIX=prod/cluster-a",
-		"WK_BACKUP_SECONDARY_ENDPOINT=https://s3.secondary.example",
+		"WK_BACKUP_PRIMARY_ACCESS_ROLE_ARN=acs:ram::123456789:role/backup-primary",
+		"WK_BACKUP_SECONDARY_ENDPOINT=https://oss-cn-beijing.aliyuncs.com",
 		"WK_BACKUP_SECONDARY_REGION=region-b",
 		"WK_BACKUP_SECONDARY_BUCKET=wukongim-backup-secondary",
 		"WK_BACKUP_SECONDARY_PREFIX=prod/cluster-a",
+		"WK_BACKUP_SECONDARY_ACCESS_ROLE_ARN=acs:ram::123456789:role/backup-secondary",
 	}})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)

@@ -461,13 +461,15 @@ cluster_profile_env() {
     printf '%s\n' \
       "WUKONGIM_BACKUP_E2E_FILE_ROOT=$(backup_repository_root)" \
       "WK_BACKUP_ENABLED=true" \
-      "WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v1" \
+      "WK_BACKUP_PROVIDER=aliyun" \
+      "WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v2" \
       "WK_BACKUP_REPOSITORY_ID=wkcli-sim-three-node-smoke" \
       "WK_BACKUP_SOURCE_GENERATION=local-smoke-generation" \
       "WK_BACKUP_KMS_KEY_ID=local-e2e-encryption-key" \
       "WK_BACKUP_SIGNING_KEY_ID=local-e2e-signing-key" \
       "WK_BACKUP_KMS_REGION=local-kms" \
       "WK_BACKUP_KMS_ENDPOINT=https://kms.local.invalid" \
+      "WK_BACKUP_KMS_ROLE_ARN=acs:ram::local:role/backup-kms" \
       "WK_BACKUP_CAPTURE_RECONCILE_INTERVAL=500ms" \
       "WK_BACKUP_CHECKPOINT_INTERVAL=$BACKUP_CHECKPOINT_INTERVAL" \
       "WK_BACKUP_BASELINE_CHUNK_BYTES=8388608" \
@@ -487,12 +489,14 @@ cluster_profile_env() {
       "WK_BACKUP_PRIMARY_REGION=local-primary" \
       "WK_BACKUP_PRIMARY_BUCKET=primary" \
       "WK_BACKUP_PRIMARY_PREFIX=cluster" \
+      "WK_BACKUP_PRIMARY_ACCESS_ROLE_ARN=acs:ram::local:role/backup-primary" \
       "WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN=arn:local:primary:repair" \
       "WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN=arn:local:primary:garbage" \
       "WK_BACKUP_SECONDARY_ENDPOINT=https://secondary.local.invalid" \
       "WK_BACKUP_SECONDARY_REGION=local-secondary" \
       "WK_BACKUP_SECONDARY_BUCKET=secondary" \
       "WK_BACKUP_SECONDARY_PREFIX=cluster" \
+      "WK_BACKUP_SECONDARY_ACCESS_ROLE_ARN=acs:ram::local:role/backup-secondary" \
       "WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN=arn:local:secondary:repair" \
       "WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN=arn:local:secondary:garbage"
   fi

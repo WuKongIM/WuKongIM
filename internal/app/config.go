@@ -86,6 +86,8 @@ type Config struct {
 type BackupConfig struct {
 	// Enabled starts backup coordination and node capture workers after startup doctor checks.
 	Enabled bool
+	// Provider selects the qualified Alibaba OSS, KMS, and RAM adapter.
+	Provider string
 	// QualificationGate must equal the release's recorded production
 	// qualification identity before automatic backup may start.
 	QualificationGate string
@@ -105,10 +107,12 @@ type BackupConfig struct {
 	SigningKeyID string
 	// TrustedSigningKeyIDs lists retained previous signing keys accepted only when verifying historical checkpoints.
 	TrustedSigningKeyIDs []string
-	// KMSRegion is the AWS-compatible signing region used for encryption and manifest-signing calls.
+	// KMSRegion is the Alibaba KMS region used for encryption and manifest-signing calls.
 	KMSRegion string
-	// KMSEndpoint optionally overrides the AWS KMS API origin for a compatible provider.
+	// KMSEndpoint optionally overrides the provider KMS API origin.
 	KMSEndpoint string
+	// KMSRoleARN is the separately assumed role allowed to use backup encryption and signing keys.
+	KMSRoleARN string
 	// CaptureReconcileInterval is the correctness poll used when commit wake hints are lost.
 	CaptureReconcileInterval time.Duration
 	// CheckpointInterval controls automatic publication of the latest durable cluster-wide frontier.
@@ -145,15 +149,15 @@ type BackupConfig struct {
 	RetentionMonthlyMonths int
 	// ObjectLockDays is the minimum per-object compliance retention applied to every repository write.
 	ObjectLockDays int
-	// Primary configures the first independently verified S3-compatible repository.
+	// Primary configures the first independently verified immutable repository.
 	Primary BackupRepositoryConfig
-	// Secondary configures the cross-region S3-compatible repository that determines effective RPO.
+	// Secondary configures the cross-region repository that determines effective RPO.
 	Secondary BackupRepositoryConfig
 }
 
-// BackupRepositoryConfig describes one S3-compatible immutable backup repository.
+// BackupRepositoryConfig describes one immutable backup repository.
 type BackupRepositoryConfig struct {
-	// Endpoint is the HTTPS S3-compatible API origin.
+	// Endpoint is the provider's HTTPS object-storage API origin.
 	Endpoint string
 	// Region is the repository signing region or provider region identifier.
 	Region string
@@ -161,6 +165,8 @@ type BackupRepositoryConfig struct {
 	Bucket string
 	// Prefix is the object namespace reserved for this cluster repository identity.
 	Prefix string
+	// AccessRoleARN is the ordinary read/write role used for capture and restore.
+	AccessRoleARN string
 	// RepairRoleARN is the separately assumed auditor role allowed to publish repair versions.
 	RepairRoleARN string
 	// GarbageRoleARN is the separately assumed collector role allowed to delete expired versions.
@@ -168,10 +174,13 @@ type BackupRepositoryConfig struct {
 }
 
 const (
-	// BackupQualificationGateV1 is the exact production qualification identity
+	// BackupProviderAlibaba selects the qualified Alibaba OSS, KMS, and RAM path.
+	BackupProviderAlibaba = "aliyun"
+
+	// BackupQualificationGateV2 is the exact production qualification identity
 	// admitted by this release. It is intentionally not a boolean so a future
 	// implementation change cannot reuse an older drill attestation.
-	BackupQualificationGateV1 = "backup-vnext-production-v1"
+	BackupQualificationGateV2 = "backup-vnext-production-v2"
 
 	defaultBackupBaselineChunkBytes  = 8 * 1024 * 1024
 	defaultBackupTargetSegmentBytes  = 64 * 1024 * 1024
@@ -194,6 +203,11 @@ const (
 // NormalizeBackupConfig applies safe policy defaults and validates the complete
 // production contract when automatic backup is enabled.
 func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
+	if strings.TrimSpace(cfg.Provider) == "" {
+		cfg.Provider = BackupProviderAlibaba
+	} else {
+		cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
+	}
 	trustedSigningKeyIDs, err := normalizeBackupSigningKeyIDs(cfg.SigningKeyID, cfg.TrustedSigningKeyIDs)
 	if err != nil {
 		return BackupConfig{}, err
@@ -272,15 +286,21 @@ func normalizeBackupSigningKeyIDs(active string, previous []string) ([]string, e
 }
 
 func validateBackupConfig(cfg BackupConfig) error {
+	if cfg.Provider != BackupProviderAlibaba {
+		return fmt.Errorf(
+			"%w: backup provider must be %q",
+			ErrInvalidConfig, BackupProviderAlibaba,
+		)
+	}
 	if cfg.Enabled && cfg.RestoreMode {
 		return fmt.Errorf("%w: automatic backup and restore mode are mutually exclusive", ErrInvalidConfig)
 	}
 	if cfg.Enabled &&
 		strings.TrimSpace(cfg.QualificationGate) !=
-			BackupQualificationGateV1 {
+			BackupQualificationGateV2 {
 		return fmt.Errorf(
 			"%w: automatic backup requires qualification gate %q",
-			ErrInvalidConfig, BackupQualificationGateV1,
+			ErrInvalidConfig, BackupQualificationGateV2,
 		)
 	}
 	if cfg.CaptureReconcileInterval <= 0 {
@@ -363,6 +383,15 @@ func validateBackupConfig(cfg BackupConfig) error {
 	if err := validateBackupRepository("secondary", cfg.Secondary); err != nil {
 		return err
 	}
+	if cfg.Provider == BackupProviderAlibaba &&
+		(strings.TrimSpace(cfg.KMSRoleARN) == "" ||
+			strings.TrimSpace(cfg.Primary.AccessRoleARN) == "" ||
+			strings.TrimSpace(cfg.Secondary.AccessRoleARN) == "") {
+		return fmt.Errorf(
+			"%w: Alibaba backup KMS role ARN and ordinary access role ARNs are required",
+			ErrInvalidConfig,
+		)
+	}
 	if cfg.Enabled &&
 		(strings.TrimSpace(cfg.Primary.RepairRoleARN) == "" ||
 			strings.TrimSpace(cfg.Primary.GarbageRoleARN) == "" ||
@@ -370,11 +399,46 @@ func validateBackupConfig(cfg BackupConfig) error {
 			strings.TrimSpace(cfg.Secondary.GarbageRoleARN) == "") {
 		return fmt.Errorf("%w: backup repair and garbage role ARNs are required for both repositories", ErrInvalidConfig)
 	}
+	if err := validateAlibabaBackupRoleSeparation(cfg); err != nil {
+		return err
+	}
 	if strings.EqualFold(strings.TrimSpace(cfg.Primary.Region), strings.TrimSpace(cfg.Secondary.Region)) {
 		return fmt.Errorf("%w: backup repositories must use different regions", ErrInvalidConfig)
 	}
 	if backupRepositoryIdentity(cfg.Primary) == backupRepositoryIdentity(cfg.Secondary) {
 		return fmt.Errorf("%w: backup primary and secondary repositories must be distinct", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validateAlibabaBackupRoleSeparation(cfg BackupConfig) error {
+	type roleEntry struct {
+		name string
+		arn  string
+	}
+	roles := []roleEntry{
+		{name: "KMS", arn: cfg.KMSRoleARN},
+		{name: "primary access", arn: cfg.Primary.AccessRoleARN},
+		{name: "secondary access", arn: cfg.Secondary.AccessRoleARN},
+	}
+	if cfg.Enabled {
+		roles = append(roles,
+			roleEntry{name: "primary repair", arn: cfg.Primary.RepairRoleARN},
+			roleEntry{name: "primary garbage", arn: cfg.Primary.GarbageRoleARN},
+			roleEntry{name: "secondary repair", arn: cfg.Secondary.RepairRoleARN},
+			roleEntry{name: "secondary garbage", arn: cfg.Secondary.GarbageRoleARN},
+		)
+	}
+	seen := make(map[string]string, len(roles))
+	for _, role := range roles {
+		arn := strings.TrimSpace(role.arn)
+		if previous, exists := seen[arn]; exists {
+			return fmt.Errorf(
+				"%w: Alibaba backup %s and %s roles must be distinct",
+				ErrInvalidConfig, previous, role.name,
+			)
+		}
+		seen[arn] = role.name
 	}
 	return nil
 }

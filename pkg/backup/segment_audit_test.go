@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -104,6 +105,44 @@ func TestReplicatedSegmentStoreAuditsClassifiesRepairsAndRevalidates(t *testing.
 			require.Equal(t, report.Copies[0].StoredBytes, report.Copies[1].StoredBytes)
 		})
 	}
+}
+
+func TestReplicatedSegmentStoreAuditComparesPredecessorByValue(t *testing.T) {
+	primary := newMemoryRepository("primary")
+	secondary := newMemoryRepository("secondary")
+	keys := &countingSegmentKeyManager{mask: 0xa5}
+	codec := backup.NewSegmentCodec(
+		keys, bytes.NewReader(bytes.Repeat([]byte{0x71}, 128)),
+	)
+	seed := sha256.Sum256([]byte("segment-auditor-predecessor-key"))
+	signer := ed25519ManifestSigner{
+		privateKey: ed25519.NewKeyFromSeed(seed[:]),
+	}
+	store, err := backup.NewReplicatedSegmentStoreWithRepair(
+		primary, secondary, primary, secondary, codec, signer, "signing-key",
+	)
+	require.NoError(t, err)
+	descriptor := testSegmentDescriptor()
+	descriptor.Previous = &backup.SegmentReference{
+		SegmentID:      strings.Repeat("a", 64),
+		CommitKey:      "segments/" + strings.Repeat("a", 64) + "/commit.json",
+		CommitSHA256:   strings.Repeat("b", 64),
+		PlaintextBytes: 1,
+	}
+	reference, err := store.Commit(
+		context.Background(), descriptor, []byte("chained payload"),
+	)
+	require.NoError(t, err)
+
+	report, err := store.InspectSegmentCopies(
+		context.Background(), reference,
+	)
+	require.NoError(t, err)
+	require.Len(t, report.Copies, 2)
+	require.True(t, report.Copies[0].Healthy)
+	require.True(t, report.Copies[1].Healthy)
+	require.NotNil(t, report.Header.Previous)
+	require.Equal(t, *descriptor.Previous, *report.Header.Previous)
 }
 
 func TestReplicatedSegmentStoreReportsDualRepositoryLossWithoutRepair(t *testing.T) {

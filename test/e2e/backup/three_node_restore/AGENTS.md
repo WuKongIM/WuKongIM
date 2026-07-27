@@ -16,15 +16,18 @@ GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -time
 
 `TestProductionStorageQualification` is an opt-in form of the same recovery
 drill. Run it through `.github/workflows/backup-qualification.yml` so the
-protected `backup-production` environment supplies real cross-region S3, KMS,
-repair/garbage roles, and Object Lock policy without exposing values in logs.
+protected `backup-production` environment supplies real cross-region Alibaba
+OSS, KMS, ordinary/repair/garbage RAM roles, and ObjectWorm policy without
+exposing values in logs. The production drill keeps the repositories real
+while its e2e-only read wrapper injects corruption, so both repair roles are
+exercised against OSS rather than merely assumed.
 
 ## Rules
 
 - Use only public Manager and message/client entrypoints for assertions.
 - The local file repositories and deterministic local key authority are
   harness dependencies available only in the e2e-tagged product binary.
-- Do not treat this local drill as S3/KMS/Object-Lock production qualification.
+- Do not treat this local drill as OSS/KMS/ObjectWorm production qualification.
 - Production qualification must not set `WUKONGIM_BACKUP_E2E_FILE_ROOT`.
 - Prove the source is stopped before activation, then restart the successor in
   normal mode before checking restored history and new writes.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -293,26 +294,116 @@ else
 fi
 `
 	backupProductionCommand = `set -euo pipefail
+required=(
+  ALIBABA_CLOUD_ACCESS_KEY_ID ALIBABA_CLOUD_ACCESS_KEY_SECRET
+  WK_E2E_BACKUP_REPOSITORY_ID WK_E2E_BACKUP_OBJECT_LOCK_DAYS
+  WK_E2E_BACKUP_KMS_KEY_ID WK_E2E_BACKUP_SIGNING_KEY_ID
+  WK_E2E_BACKUP_KMS_REGION WK_E2E_BACKUP_KMS_ROLE_ARN
+  WK_E2E_BACKUP_PRIMARY_ENDPOINT WK_E2E_BACKUP_PRIMARY_REGION
+  WK_E2E_BACKUP_PRIMARY_BUCKET WK_E2E_BACKUP_PRIMARY_PREFIX
+  WK_E2E_BACKUP_PRIMARY_ACCESS_ROLE_ARN
+  WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN
+  WK_E2E_BACKUP_SECONDARY_ENDPOINT WK_E2E_BACKUP_SECONDARY_REGION
+  WK_E2E_BACKUP_SECONDARY_BUCKET WK_E2E_BACKUP_SECONDARY_PREFIX
+  WK_E2E_BACKUP_SECONDARY_ACCESS_ROLE_ARN
+  WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN
+)
+for variable in "${required[@]}"; do
+  test -n "${!variable}" || { echo "::error::$variable is required"; exit 1; }
+done
+test "$WK_E2E_BACKUP_PROVIDER" = "aliyun"
+test "$WK_E2E_BACKUP_OBJECT_LOCK_DAYS" -ge 7
 WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-production-e2e" timeout --signal=TERM --kill-after=30s 25m \
   go test -tags=e2e ./test/e2e/backup/three_node_restore \
     -run TestProductionStorageQualification -count=1 -timeout=23m -p=1 -v 2>&1 | tee "$LOG_FILE"
-grep -q 'WK-BACKUP-PRODUCTION-EVIDENCE ' "$LOG_FILE"
+evidence_line="$(grep 'WK-BACKUP-PRODUCTION-EVIDENCE ' "$LOG_FILE" | tail -n 1)"
+evidence_json="${evidence_line#*WK-BACKUP-PRODUCTION-EVIDENCE }"
+jq -e \
+  --arg schema "wukongim/backup-production-qualification/v2" \
+  --arg provider "aliyun" \
+  --arg run_id "$WK_E2E_BACKUP_RUN_ID" \
+  --arg commit "$WK_E2E_BACKUP_COMMIT_SHA" \
+  '(.schema == $schema) and
+   (.provider == $provider) and
+   (.run_id == $run_id) and
+   (.commit == $commit) and
+   (.primary_region != .secondary_region) and
+   (.object_lock_days >= 7) and
+   (.restored_messages > 0) and
+   (.source_stopped == true) and
+   (.fresh_target == true) and
+   (.post_restore_write == true) and
+   (.controller_fault == true) and
+   (.slot_leader_fault == true) and
+   (.data_node_fault == true) and
+   (.restore_leader_fault == true) and
+   (.repository_repair == true) and
+   (.dual_corruption_rebase == true) and
+   (.garbage_role_probe == true)' \
+  >/dev/null <<<"$evidence_json"
 `
-	backupProductionEvidenceCommand = `if [[ -f "$LOG_FILE" ]]; then
-  tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
-else
+	backupProductionEvidenceCommand = `if [[ ! -f "$LOG_FILE" ]]; then
   printf '%s\n' 'backup production storage log was not created' > "$EVIDENCE_FILE"
+  exit 0
 fi
+python3 - "$LOG_FILE" "$EVIDENCE_FILE" <<'PY'
+import os
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+target = pathlib.Path(sys.argv[2])
+with source.open("rb") as stream:
+    stream.seek(0, 2)
+    size = stream.tell()
+values = []
+for name in (
+    "ALIBABA_CLOUD_ACCESS_KEY_ID",
+    "ALIBABA_CLOUD_ACCESS_KEY_SECRET",
+    "WK_E2E_BACKUP_KMS_KEY_ID",
+    "WK_E2E_BACKUP_SIGNING_KEY_ID",
+    "WK_E2E_BACKUP_KMS_ENDPOINT",
+    "WK_E2E_BACKUP_KMS_ROLE_ARN",
+    "WK_E2E_BACKUP_PRIMARY_ENDPOINT",
+    "WK_E2E_BACKUP_PRIMARY_BUCKET",
+    "WK_E2E_BACKUP_PRIMARY_PREFIX",
+    "WK_E2E_BACKUP_PRIMARY_ACCESS_ROLE_ARN",
+    "WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN",
+    "WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN",
+    "WK_E2E_BACKUP_SECONDARY_ENDPOINT",
+    "WK_E2E_BACKUP_SECONDARY_BUCKET",
+    "WK_E2E_BACKUP_SECONDARY_PREFIX",
+    "WK_E2E_BACKUP_SECONDARY_ACCESS_ROLE_ARN",
+    "WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN",
+    "WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN",
+):
+    value = os.environ.get(name, "").encode()
+    if value:
+        values.append(value)
+values = sorted(set(values), key=len, reverse=True)
+overlap = max((len(value) for value in values), default=1) - 1
+with source.open("rb") as stream:
+    stream.seek(max(0, size - 1048576 - overlap))
+    data = stream.read(1048576 + overlap)
+marker = b"[REDACTED]"
+for value in values:
+    replacement = (marker * ((len(value) + len(marker) - 1) // len(marker)))[:len(value)]
+    data = data.replace(value, replacement)
+data = data[-1048576:]
+target.write_bytes(data)
+PY
 `
 	backupReleaseVerdictCommand = `umask 077
 jq -n \
-  --arg schema "wukongim/backup-release-qualification/v1" \
+  --arg schema "wukongim/backup-release-qualification/v2" \
+  --arg provider "aliyun" \
   --arg commit "$COMMIT_SHA" \
   --arg run_id "$RUN_ID" \
   --arg run_attempt "$RUN_ATTEMPT" \
   --arg run_url "$RUN_URL" \
   '{
     schema: $schema,
+    provider: $provider,
     commit: $commit,
     run_id: $run_id,
     run_attempt: $run_attempt,
@@ -633,39 +724,12 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 		},
 	},
 	"production-storage": {
-		Name:           "Production S3 KMS and recovery drill",
+		Name:           "Production Alibaba OSS KMS and recovery drill",
 		RunsOn:         "ubuntu-24.04",
 		TimeoutMinutes: 30,
 		Environment:    "backup-production",
 		Env: map[string]string{
-			"GOWORK":                                   "off",
-			"AWS_ACCESS_KEY_ID":                        "${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}",
-			"AWS_SECRET_ACCESS_KEY":                    "${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}",
-			"AWS_SESSION_TOKEN":                        "${{ secrets.BACKUP_AWS_SESSION_TOKEN }}",
-			"AWS_EC2_METADATA_DISABLED":                "true",
-			"WK_E2E_BACKUP_PRODUCTION":                 "1",
-			"WK_E2E_BACKUP_RUN_ID":                     "${{ github.run_id }}-${{ github.run_attempt }}",
-			"WK_E2E_BACKUP_COMMIT_SHA":                 "${{ github.sha }}",
-			"WK_E2E_BACKUP_REPOSITORY_ID":              "${{ vars.BACKUP_REPOSITORY_ID }}",
-			"WK_E2E_BACKUP_SOURCE_GENERATION":          "source-${{ github.run_id }}-${{ github.run_attempt }}",
-			"WK_E2E_BACKUP_TARGET_GENERATION":          "target-${{ github.run_id }}-${{ github.run_attempt }}",
-			"WK_E2E_BACKUP_KMS_KEY_ID":                 "${{ secrets.BACKUP_KMS_KEY_ID }}",
-			"WK_E2E_BACKUP_SIGNING_KEY_ID":             "${{ secrets.BACKUP_SIGNING_KEY_ID }}",
-			"WK_E2E_BACKUP_KMS_REGION":                 "${{ vars.BACKUP_KMS_REGION }}",
-			"WK_E2E_BACKUP_KMS_ENDPOINT":               "${{ secrets.BACKUP_KMS_ENDPOINT }}",
-			"WK_E2E_BACKUP_OBJECT_LOCK_DAYS":           "${{ vars.BACKUP_OBJECT_LOCK_DAYS }}",
-			"WK_E2E_BACKUP_PRIMARY_ENDPOINT":           "${{ secrets.BACKUP_PRIMARY_ENDPOINT }}",
-			"WK_E2E_BACKUP_PRIMARY_REGION":             "${{ vars.BACKUP_PRIMARY_REGION }}",
-			"WK_E2E_BACKUP_PRIMARY_BUCKET":             "${{ secrets.BACKUP_PRIMARY_BUCKET }}",
-			"WK_E2E_BACKUP_PRIMARY_PREFIX":             "${{ vars.BACKUP_PRIMARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
-			"WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN":    "${{ secrets.BACKUP_PRIMARY_REPAIR_ROLE_ARN }}",
-			"WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":   "${{ secrets.BACKUP_PRIMARY_GARBAGE_ROLE_ARN }}",
-			"WK_E2E_BACKUP_SECONDARY_ENDPOINT":         "${{ secrets.BACKUP_SECONDARY_ENDPOINT }}",
-			"WK_E2E_BACKUP_SECONDARY_REGION":           "${{ vars.BACKUP_SECONDARY_REGION }}",
-			"WK_E2E_BACKUP_SECONDARY_BUCKET":           "${{ secrets.BACKUP_SECONDARY_BUCKET }}",
-			"WK_E2E_BACKUP_SECONDARY_PREFIX":           "${{ vars.BACKUP_SECONDARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
-			"WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN":  "${{ secrets.BACKUP_SECONDARY_REPAIR_ROLE_ARN }}",
-			"WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN": "${{ secrets.BACKUP_SECONDARY_GARBAGE_ROLE_ARN }}",
+			"GOWORK": "off",
 		},
 		Steps: []ciStep{
 			checkoutStep(),
@@ -680,7 +744,36 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 				Name:  "Run production storage recovery drill",
 				Shell: "bash",
 				Env: map[string]string{
-					"LOG_FILE": "${{ runner.temp }}/backup-production-storage.log",
+					"LOG_FILE":                                 "${{ runner.temp }}/backup-production-storage.log",
+					"ALIBABA_CLOUD_ACCESS_KEY_ID":              "${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}",
+					"ALIBABA_CLOUD_ACCESS_KEY_SECRET":          "${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}",
+					"WK_E2E_BACKUP_PRODUCTION":                 "1",
+					"WK_E2E_BACKUP_PROVIDER":                   "aliyun",
+					"WK_E2E_BACKUP_RUN_ID":                     "${{ github.run_id }}-${{ github.run_attempt }}",
+					"WK_E2E_BACKUP_COMMIT_SHA":                 "${{ github.sha }}",
+					"WK_E2E_BACKUP_REPOSITORY_ID":              "${{ vars.BACKUP_REPOSITORY_ID }}",
+					"WK_E2E_BACKUP_SOURCE_GENERATION":          "source-${{ github.run_id }}-${{ github.run_attempt }}",
+					"WK_E2E_BACKUP_TARGET_GENERATION":          "target-${{ github.run_id }}-${{ github.run_attempt }}",
+					"WK_E2E_BACKUP_KMS_KEY_ID":                 "${{ vars.BACKUP_KMS_KEY_ID }}",
+					"WK_E2E_BACKUP_SIGNING_KEY_ID":             "${{ vars.BACKUP_SIGNING_KEY_ID }}",
+					"WK_E2E_BACKUP_KMS_REGION":                 "${{ vars.BACKUP_KMS_REGION }}",
+					"WK_E2E_BACKUP_KMS_ENDPOINT":               "${{ vars.BACKUP_KMS_ENDPOINT }}",
+					"WK_E2E_BACKUP_KMS_ROLE_ARN":               "${{ vars.BACKUP_KMS_ROLE_ARN }}",
+					"WK_E2E_BACKUP_OBJECT_LOCK_DAYS":           "${{ vars.BACKUP_OBJECT_LOCK_DAYS }}",
+					"WK_E2E_BACKUP_PRIMARY_ENDPOINT":           "${{ vars.BACKUP_PRIMARY_ENDPOINT }}",
+					"WK_E2E_BACKUP_PRIMARY_REGION":             "${{ vars.BACKUP_PRIMARY_REGION }}",
+					"WK_E2E_BACKUP_PRIMARY_BUCKET":             "${{ vars.BACKUP_PRIMARY_BUCKET }}",
+					"WK_E2E_BACKUP_PRIMARY_PREFIX":             "${{ vars.BACKUP_PRIMARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
+					"WK_E2E_BACKUP_PRIMARY_ACCESS_ROLE_ARN":    "${{ vars.BACKUP_PRIMARY_ACCESS_ROLE_ARN }}",
+					"WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN":    "${{ vars.BACKUP_PRIMARY_REPAIR_ROLE_ARN }}",
+					"WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":   "${{ vars.BACKUP_PRIMARY_GARBAGE_ROLE_ARN }}",
+					"WK_E2E_BACKUP_SECONDARY_ENDPOINT":         "${{ vars.BACKUP_SECONDARY_ENDPOINT }}",
+					"WK_E2E_BACKUP_SECONDARY_REGION":           "${{ vars.BACKUP_SECONDARY_REGION }}",
+					"WK_E2E_BACKUP_SECONDARY_BUCKET":           "${{ vars.BACKUP_SECONDARY_BUCKET }}",
+					"WK_E2E_BACKUP_SECONDARY_PREFIX":           "${{ vars.BACKUP_SECONDARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
+					"WK_E2E_BACKUP_SECONDARY_ACCESS_ROLE_ARN":  "${{ vars.BACKUP_SECONDARY_ACCESS_ROLE_ARN }}",
+					"WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN":  "${{ vars.BACKUP_SECONDARY_REPAIR_ROLE_ARN }}",
+					"WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN": "${{ vars.BACKUP_SECONDARY_GARBAGE_ROLE_ARN }}",
 				},
 				Run: backupProductionCommand,
 			},
@@ -689,8 +782,26 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 				If:    "always()",
 				Shell: "bash",
 				Env: map[string]string{
-					"LOG_FILE":      "${{ runner.temp }}/backup-production-storage.log",
-					"EVIDENCE_FILE": "${{ runner.temp }}/backup-production-storage-evidence.log",
+					"LOG_FILE":                                 "${{ runner.temp }}/backup-production-storage.log",
+					"EVIDENCE_FILE":                            "${{ runner.temp }}/backup-production-storage-evidence.log",
+					"ALIBABA_CLOUD_ACCESS_KEY_ID":              "${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}",
+					"ALIBABA_CLOUD_ACCESS_KEY_SECRET":          "${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}",
+					"WK_E2E_BACKUP_KMS_KEY_ID":                 "${{ vars.BACKUP_KMS_KEY_ID }}",
+					"WK_E2E_BACKUP_SIGNING_KEY_ID":             "${{ vars.BACKUP_SIGNING_KEY_ID }}",
+					"WK_E2E_BACKUP_KMS_ENDPOINT":               "${{ vars.BACKUP_KMS_ENDPOINT }}",
+					"WK_E2E_BACKUP_KMS_ROLE_ARN":               "${{ vars.BACKUP_KMS_ROLE_ARN }}",
+					"WK_E2E_BACKUP_PRIMARY_ENDPOINT":           "${{ vars.BACKUP_PRIMARY_ENDPOINT }}",
+					"WK_E2E_BACKUP_PRIMARY_BUCKET":             "${{ vars.BACKUP_PRIMARY_BUCKET }}",
+					"WK_E2E_BACKUP_PRIMARY_PREFIX":             "${{ vars.BACKUP_PRIMARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
+					"WK_E2E_BACKUP_PRIMARY_ACCESS_ROLE_ARN":    "${{ vars.BACKUP_PRIMARY_ACCESS_ROLE_ARN }}",
+					"WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN":    "${{ vars.BACKUP_PRIMARY_REPAIR_ROLE_ARN }}",
+					"WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":   "${{ vars.BACKUP_PRIMARY_GARBAGE_ROLE_ARN }}",
+					"WK_E2E_BACKUP_SECONDARY_ENDPOINT":         "${{ vars.BACKUP_SECONDARY_ENDPOINT }}",
+					"WK_E2E_BACKUP_SECONDARY_BUCKET":           "${{ vars.BACKUP_SECONDARY_BUCKET }}",
+					"WK_E2E_BACKUP_SECONDARY_PREFIX":           "${{ vars.BACKUP_SECONDARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
+					"WK_E2E_BACKUP_SECONDARY_ACCESS_ROLE_ARN":  "${{ vars.BACKUP_SECONDARY_ACCESS_ROLE_ARN }}",
+					"WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN":  "${{ vars.BACKUP_SECONDARY_REPAIR_ROLE_ARN }}",
+					"WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN": "${{ vars.BACKUP_SECONDARY_GARBAGE_ROLE_ARN }}",
 				},
 				Run: backupProductionEvidenceCommand,
 			},
@@ -795,6 +906,80 @@ func TestBackupQualificationWorkflowRejectsUntaggedBinary(t *testing.T) {
 	)
 	if err := validateBackupQualificationWorkflow([]byte(mutated)); err == nil {
 		t.Fatal("validator accepted an untagged backup qualification binary")
+	}
+}
+
+func TestBackupProductionEvidenceIsBoundedAndRedacted(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "production.log")
+	evidencePath := filepath.Join(dir, "evidence.log")
+	readBoundarySecret := "read-boundary-secret-that-must-not-leak-and-is-longest"
+	tailBoundarySecret := "tail-boundary-secret-that-must-not-leak"
+	nestedSecret := "secret-that-must-not-leak"
+	nestedLongSecret := "role/" + nestedSecret + "/unique-suffix"
+	overlap := len(readBoundarySecret) - 1
+	total := 1048576 + overlap + 128
+	readStart := total - 1048576 - overlap
+	tailStart := total - 1048576
+	body := bytes.Repeat([]byte("x"), total)
+	copy(
+		body[readStart-len(readBoundarySecret)/2:],
+		[]byte(readBoundarySecret),
+	)
+	copy(
+		body[tailStart-len(tailBoundarySecret)/2:],
+		[]byte(tailBoundarySecret),
+	)
+	copy(body[tailStart+128:], []byte(nestedSecret))
+	copy(body[tailStart+512:], []byte(nestedLongSecret))
+	if err := os.WriteFile(logPath, body, 0o600); err != nil {
+		t.Fatalf("write production log: %v", err)
+	}
+	command := exec.Command("bash", "-c", backupProductionEvidenceCommand)
+	command.Env = append(os.Environ(),
+		"LOG_FILE="+logPath,
+		"EVIDENCE_FILE="+evidencePath,
+		"ALIBABA_CLOUD_ACCESS_KEY_ID="+nestedSecret,
+		"ALIBABA_CLOUD_ACCESS_KEY_SECRET="+readBoundarySecret,
+		"WK_E2E_BACKUP_KMS_KEY_ID="+tailBoundarySecret,
+		"WK_E2E_BACKUP_KMS_ENDPOINT="+nestedLongSecret,
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("prepare production evidence: %v\n%s", err, output)
+	}
+	evidence, err := os.ReadFile(evidencePath)
+	if err != nil {
+		t.Fatalf("read production evidence: %v", err)
+	}
+	if len(evidence) != 1048576 {
+		t.Fatalf("production evidence size = %d, want 1048576", len(evidence))
+	}
+	for _, secret := range []string{
+		readBoundarySecret, tailBoundarySecret, nestedSecret,
+		nestedLongSecret,
+	} {
+		if bytes.Contains(evidence, []byte(secret)) {
+			t.Fatalf("production evidence contains secret %q", secret)
+		}
+	}
+	if bytes.Contains(
+		evidence,
+		[]byte(readBoundarySecret[len(readBoundarySecret)/2:]),
+	) {
+		t.Fatal("production evidence contains a partial secret crossing the read boundary")
+	}
+	if bytes.Contains(
+		evidence,
+		[]byte(tailBoundarySecret[len(tailBoundarySecret)/2:]),
+	) {
+		t.Fatal("production evidence contains a partial secret crossing the tail boundary")
+	}
+	if bytes.Contains(evidence, []byte("role/")) ||
+		bytes.Contains(evidence, []byte("/unique-suffix")) {
+		t.Fatal("production evidence contains a residual prefix or suffix from a nested secret")
+	}
+	if !bytes.Contains(evidence, []byte("[REDACTED]")) {
+		t.Fatal("production evidence does not contain the redaction marker")
 	}
 }
 

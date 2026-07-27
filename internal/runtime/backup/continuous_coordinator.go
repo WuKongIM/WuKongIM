@@ -13,6 +13,19 @@ import (
 
 const defaultContinuousCoordinatorTick = time.Second
 
+type coordinatorFailureSource uint8
+
+const (
+	coordinatorFailureNone coordinatorFailureSource = iota
+	coordinatorFailureCheckpointObservation
+	coordinatorFailureCheckpointPublication
+	coordinatorFailureAuditMaintenance
+	coordinatorFailureGarbageMaintenance
+	coordinatorFailureDoctor
+	coordinatorFailureCapture
+	coordinatorFailureProjection
+)
+
 // ContinuousCaptureRunner owns node-local Slot-leader capture workers.
 type ContinuousCaptureRunner interface {
 	Run(context.Context) error
@@ -78,6 +91,10 @@ type ContinuousCoordinator struct {
 	cancel                    context.CancelFunc
 	done                      chan struct{}
 	publicationSerial         sync.Mutex
+	// failureRevision fences recovery from clearing a newer concurrent failure.
+	failureRevision uint64
+	// failureSource distinguishes equal public categories owned by different loops.
+	failureSource coordinatorFailureSource
 }
 
 // NewContinuousCoordinator creates the production continuous-backup supervisor.
@@ -240,9 +257,13 @@ func (c *ContinuousCoordinator) startProjection(parent context.Context) {
 		c.mu.Unlock()
 		return
 	}
+	observedFailureRevision := c.failureRevision
 	c.projectionStarted = true
 	c.projectionDone = make(chan error, 1)
 	done := c.projectionDone
+	c.clearFailureLocked(
+		observedFailureRevision, coordinatorFailureProjection,
+	)
 	c.mu.Unlock()
 	go func() {
 		done <- c.options.Projection.Run(parent)
@@ -261,7 +282,9 @@ func (c *ContinuousCoordinator) projectionExited(err error) {
 	c.projectionDone = nil
 	c.mu.Unlock()
 	if err != nil && !errors.Is(err, context.Canceled) {
-		c.recordContinuousFailure("audit")
+		c.recordContinuousFailure(
+			"audit", coordinatorFailureProjection,
+		)
 	}
 }
 
@@ -270,6 +293,7 @@ func (c *ContinuousCoordinator) runOnce(ctx context.Context) {
 	leader := c.options.Leadership.BackupControllerLeaderID() == c.options.Leadership.NodeID()
 	checkpointStateReady := c.refreshLatestCheckpoint(ctx)
 	c.mu.Lock()
+	c.retireFormerLeaderFailureLocked(leader)
 	c.status.ControllerLeader = leader
 	doctorDue := c.nextDoctorAt.IsZero() || !now.Before(c.nextDoctorAt)
 	checkpointEffectiveAt := c.lastCheckpointEffectiveAt
@@ -323,7 +347,10 @@ func (c *ContinuousCoordinator) runOnce(ctx context.Context) {
 	}
 	if _, err := c.publish(ctx); err != nil {
 		if !errors.Is(err, context.Canceled) {
-			c.recordContinuousFailure(checkpointFailureCategory(err))
+			c.recordContinuousFailure(
+				checkpointFailureCategory(err),
+				coordinatorFailureCheckpointPublication,
+			)
 		}
 		return
 	}
@@ -335,18 +362,31 @@ func (c *ContinuousCoordinator) runOnce(ctx context.Context) {
 func (c *ContinuousCoordinator) refreshLatestCheckpoint(
 	ctx context.Context,
 ) bool {
+	c.mu.Lock()
+	observedFailureRevision := c.failureRevision
+	c.mu.Unlock()
 	observation, found, err := c.options.LatestCheckpoint.LatestCheckpoint(ctx)
 	if err != nil {
-		c.recordContinuousFailure("checkpoint")
+		c.recordContinuousFailure(
+			"checkpoint", coordinatorFailureCheckpointObservation,
+		)
 		return false
 	}
 	if !found {
+		c.mu.Lock()
+		c.clearFailureLocked(
+			observedFailureRevision,
+			coordinatorFailureCheckpointObservation,
+		)
+		c.mu.Unlock()
 		return true
 	}
 	if observation.EffectiveAtUnixMillis <= 0 ||
 		observation.CreatedAtUnixMillis <
 			observation.EffectiveAtUnixMillis {
-		c.recordContinuousFailure("checkpoint")
+		c.recordContinuousFailure(
+			"checkpoint", coordinatorFailureCheckpointObservation,
+		)
 		return false
 	}
 	c.mu.Lock()
@@ -359,6 +399,10 @@ func (c *ContinuousCoordinator) refreshLatestCheckpoint(
 			observation.CreatedAtUnixMillis,
 		).UTC().Add(c.options.CheckpointInterval)
 	}
+	c.clearFailureLocked(
+		observedFailureRevision,
+		coordinatorFailureCheckpointObservation,
+	)
 	c.mu.Unlock()
 	return true
 }
@@ -372,11 +416,19 @@ func (c *ContinuousCoordinator) runMaintenance(
 	failureCategory string,
 	next *time.Time,
 ) {
-	_, err := runner.RunIfLeader(ctx, c.options.Leadership)
+	source := maintenanceFailureSource(failureCategory)
+	c.mu.Lock()
+	observedFailureRevision := c.failureRevision
+	c.mu.Unlock()
+	ran, err := runner.RunIfLeader(ctx, c.options.Leadership)
+	stillLeader := c.options.Leadership.BackupControllerLeaderID() ==
+		c.options.Leadership.NodeID()
 	c.mu.Lock()
 	*next = now.Add(interval)
-	if err != nil {
-		c.status.LastFailureCategory = failureCategory
+	if err != nil && stillLeader {
+		c.recordFailureLocked(failureCategory, source)
+	} else if err == nil && ran {
+		c.clearFailureLocked(observedFailureRevision, source)
 	}
 	c.mu.Unlock()
 	if err != nil && failureCategory != "audit" &&
@@ -386,6 +438,9 @@ func (c *ContinuousCoordinator) runMaintenance(
 }
 
 func (c *ContinuousCoordinator) runDoctor(ctx context.Context, now time.Time) {
+	c.mu.Lock()
+	observedFailureRevision := c.failureRevision
+	c.mu.Unlock()
 	report, err := c.options.Doctor.Check(ctx)
 	health := backupcontract.HealthHealthy
 	if err != nil {
@@ -397,7 +452,13 @@ func (c *ContinuousCoordinator) runDoctor(ctx context.Context, now time.Time) {
 	c.status.LastDoctorAtUnixMillis = report.CheckedAtUnixMillis
 	c.nextDoctorAt = now.Add(c.options.DoctorRetry)
 	if err != nil {
-		c.status.LastFailureCategory = report.FailureCategory
+		c.recordFailureLocked(
+			report.FailureCategory, coordinatorFailureDoctor,
+		)
+	} else {
+		c.clearFailureLocked(
+			observedFailureRevision, coordinatorFailureDoctor,
+		)
 	}
 	c.mu.Unlock()
 	if c.options.Observer != nil {
@@ -414,11 +475,15 @@ func (c *ContinuousCoordinator) startCapture(parent context.Context) {
 		c.mu.Unlock()
 		return
 	}
+	observedFailureRevision := c.failureRevision
 	captureContext, cancel := context.WithCancel(parent)
 	c.captureStarted = true
 	c.captureCancel = cancel
 	c.captureDone = make(chan error, 1)
 	done := c.captureDone
+	c.clearFailureLocked(
+		observedFailureRevision, coordinatorFailureCapture,
+	)
 	c.mu.Unlock()
 	go func() {
 		done <- c.options.Capture.Run(captureContext)
@@ -455,7 +520,9 @@ func (c *ContinuousCoordinator) captureExited(err error) {
 	c.captureDone = nil
 	c.mu.Unlock()
 	if err != nil && !errors.Is(err, context.Canceled) {
-		c.recordContinuousFailure("capture_runtime")
+		c.recordContinuousFailure(
+			"capture_runtime", coordinatorFailureCapture,
+		)
 	}
 }
 
@@ -464,6 +531,9 @@ func (c *ContinuousCoordinator) publish(
 ) (backupartifact.CheckpointCatalogCommit, error) {
 	c.publicationSerial.Lock()
 	defer c.publicationSerial.Unlock()
+	c.mu.Lock()
+	observedFailureRevision := c.failureRevision
+	c.mu.Unlock()
 	commit, err := c.options.Checkpoints.Publish(ctx)
 	if err != nil {
 		return backupartifact.CheckpointCatalogCommit{}, err
@@ -473,7 +543,10 @@ func (c *ContinuousCoordinator) publish(
 	c.lastCheckpointEffectiveAt =
 		commit.Checkpoint.EffectiveAtUnixMillis
 	c.status.LastSuccessAtUnixMillis = commit.Checkpoint.CreatedAtUnixMillis
-	c.status.LastFailureCategory = ""
+	c.clearFailureLocked(
+		observedFailureRevision,
+		coordinatorFailureCheckpointPublication,
+	)
 	c.nextCheckpointAt = now.Add(c.options.CheckpointInterval)
 	c.mu.Unlock()
 	if c.options.Observer != nil {
@@ -488,15 +561,78 @@ func (c *ContinuousCoordinator) publish(
 	return commit, nil
 }
 
-func (c *ContinuousCoordinator) recordContinuousFailure(category string) {
+func (c *ContinuousCoordinator) recordContinuousFailure(
+	category string,
+	source coordinatorFailureSource,
+) {
 	if category == "" {
 		category = "checkpoint"
 	}
 	c.mu.Lock()
-	c.status.LastFailureCategory = category
+	c.recordFailureLocked(category, source)
 	c.mu.Unlock()
 	if c.options.Observer != nil {
 		c.options.Observer.ObserveBackupFailure(category)
+	}
+}
+
+func (c *ContinuousCoordinator) recordFailureLocked(
+	category string,
+	source coordinatorFailureSource,
+) {
+	if category == "" {
+		category = "checkpoint"
+	}
+	c.failureRevision++
+	c.failureSource = source
+	c.status.LastFailureCategory = category
+}
+
+func (c *ContinuousCoordinator) clearFailureLocked(
+	expectedRevision uint64,
+	source coordinatorFailureSource,
+) {
+	if source == coordinatorFailureNone ||
+		c.failureRevision != expectedRevision ||
+		c.failureSource != source {
+		return
+	}
+	c.failureRevision++
+	c.failureSource = coordinatorFailureNone
+	c.status.LastFailureCategory = ""
+}
+
+func (c *ContinuousCoordinator) retireFormerLeaderFailureLocked(
+	leader bool,
+) {
+	if !c.status.ControllerLeader || leader ||
+		!leaderOwnedFailure(c.failureSource) {
+		return
+	}
+	c.clearFailureLocked(c.failureRevision, c.failureSource)
+}
+
+func leaderOwnedFailure(source coordinatorFailureSource) bool {
+	switch source {
+	case coordinatorFailureCheckpointPublication,
+		coordinatorFailureAuditMaintenance,
+		coordinatorFailureGarbageMaintenance:
+		return true
+	default:
+		return false
+	}
+}
+
+func maintenanceFailureSource(
+	category string,
+) coordinatorFailureSource {
+	switch category {
+	case "audit":
+		return coordinatorFailureAuditMaintenance
+	case "gc":
+		return coordinatorFailureGarbageMaintenance
+	default:
+		return coordinatorFailureNone
 	}
 }
 

@@ -227,14 +227,27 @@ readiness internally and returns only aggregate health plus one bounded
 first-failure category. Manager status never exposes individual repository
 copies, regions, endpoint, bucket, prefix, role ARN, key ID, or fingerprints.
 
-S3 ordinary upload remains create-only through `S3Repository`.
-`S3RepairRepository` is constructed separately with an explicit auditor
-AssumeRole client and is the only S3 adapter exposing replacement-by-new-
-Object-Locked-version. Generation GC lists exact versions and deletes as many
-as the current request budget permits; it keeps the same key cursor and
-continues remaining repair versions on later calls.
-Production composition constructs repair and garbage clients from four
-separately configured role ARNs, wires replicated segment/catalog repair,
+Alibaba production uses `OSSRepository` and `AlibabaKMSAdapter`. Doctor requires
+OSS versioning plus a default COMPLIANCE ObjectWorm policy at least as long as
+the configured retention. Because versioned OSS does not support atomic
+create-only `PutObject`, ordinary writes perform an existence check and a
+write-after-read metadata verification under the existing Controller Leader
+and partition single-writer fences. Complete reads verify the stored SHA-256.
+Repair publishes a new protected version, and GC deletes exact version IDs.
+Loading a garbage adapter first clears the node's stable probe slot, then
+creates, lists, and removes one delete marker. This proves list,
+`DeleteObject`, and exact-version deletion through the garbage role without
+creating or deleting any data-object version. A failed delete leaves at most
+one marker in that node's slot; the next startup must clear it before creating
+another, and startup fails closed if any operation is denied.
+Alibaba signature metadata pins `KeyVersionID`, so historical signatures remain
+verifiable after KMS rotation. Encryption and signing configuration requires
+concrete KMS key IDs rather than aliases so provider responses can be
+identity-checked. Ordinary repository access, repair, garbage, and KMS each use
+a distinct assumed RAM STS role.
+
+Production composition constructs Alibaba repair and garbage clients,
+wires replicated segment/catalog repair,
 durable catalog audit, all-node projection, and Leader-only Generation
 collection. An unfinished per-repository cursor keeps the same deterministic
 cycle across time windows and Controller Leader changes; a hold/release
@@ -375,7 +388,8 @@ copies and finish the phase instead of restarting from the first checkpoint.
 Each repository has a separate cache namespace and failure domain. Before a
 copy is marked complete, its cache prunes content IDs absent from the fixed
 protection decision; old local vectors therefore remain bounded and are always
-rebuildable. File and S3 adapters then return one cursor-based bounded page, and the collector enforces
+rebuildable. File and OSS adapters then return one cursor-based bounded
+page, and the collector enforces
 the remaining request budget plus the configured deleted-byte budget before
 durably advancing that copy. A completed copy is not rescanned while its peer
 retries. Object Lock rejection stops only the affected copy at the exact key,
@@ -390,7 +404,7 @@ retrying unrelated Controller state conflicts. `SegmentIntegrityAuditBackend`
 binds an immutable catalog plan's opaque position to one exact portable graph
 node, then delegates full signature/ciphertext/decrypt/plaintext validation and
 exact-copy repair to the segment, partition, or permanent-erasure adapter. File repair
-atomically replaces the development copy. S3 repair publishes a new
-Object-Locked current version without weakening ordinary create-only uploads;
+atomically replaces the development copy. OSS repair publishes a new
+Object-Locked/ObjectWorm-protected current version without weakening ordinary uploads;
 Generation GC lists and deletes a bounded number of repair versions under the
 same provider-request budget.

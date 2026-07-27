@@ -1376,19 +1376,23 @@ func buildConfig(values map[string]string) (app.Config, error) {
 }
 
 var requiredBackupRepositoryKeys = []string{
+	"WK_BACKUP_PROVIDER",
 	"WK_BACKUP_REPOSITORY_ID",
 	"WK_BACKUP_STAGING_DIR",
 	"WK_BACKUP_KMS_KEY_ID",
 	"WK_BACKUP_SIGNING_KEY_ID",
 	"WK_BACKUP_KMS_REGION",
+	"WK_BACKUP_KMS_ROLE_ARN",
 	"WK_BACKUP_PRIMARY_ENDPOINT",
 	"WK_BACKUP_PRIMARY_REGION",
 	"WK_BACKUP_PRIMARY_BUCKET",
 	"WK_BACKUP_PRIMARY_PREFIX",
+	"WK_BACKUP_PRIMARY_ACCESS_ROLE_ARN",
 	"WK_BACKUP_SECONDARY_ENDPOINT",
 	"WK_BACKUP_SECONDARY_REGION",
 	"WK_BACKUP_SECONDARY_BUCKET",
 	"WK_BACKUP_SECONDARY_PREFIX",
+	"WK_BACKUP_SECONDARY_ACCESS_ROLE_ARN",
 }
 
 var requiredAutomaticBackupKeys = []string{
@@ -1419,6 +1423,7 @@ var requiredRestoreKeys = []string{"WK_BACKUP_TARGET_GENERATION"}
 
 func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 	cfg := app.BackupConfig{
+		Provider: configValue(values, "WK_BACKUP_PROVIDER"),
 		QualificationGate: configValue(
 			values, "WK_BACKUP_QUALIFICATION_GATE",
 		),
@@ -1430,11 +1435,13 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 		SigningKeyID:     configValue(values, "WK_BACKUP_SIGNING_KEY_ID"),
 		KMSRegion:        configValue(values, "WK_BACKUP_KMS_REGION"),
 		KMSEndpoint:      configValue(values, "WK_BACKUP_KMS_ENDPOINT"),
+		KMSRoleARN:       configValue(values, "WK_BACKUP_KMS_ROLE_ARN"),
 		Primary: app.BackupRepositoryConfig{
 			Endpoint:       configValue(values, "WK_BACKUP_PRIMARY_ENDPOINT"),
 			Region:         configValue(values, "WK_BACKUP_PRIMARY_REGION"),
 			Bucket:         configValue(values, "WK_BACKUP_PRIMARY_BUCKET"),
 			Prefix:         configValue(values, "WK_BACKUP_PRIMARY_PREFIX"),
+			AccessRoleARN:  configValue(values, "WK_BACKUP_PRIMARY_ACCESS_ROLE_ARN"),
 			RepairRoleARN:  configValue(values, "WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN"),
 			GarbageRoleARN: configValue(values, "WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN"),
 		},
@@ -1443,6 +1450,7 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 			Region:         configValue(values, "WK_BACKUP_SECONDARY_REGION"),
 			Bucket:         configValue(values, "WK_BACKUP_SECONDARY_BUCKET"),
 			Prefix:         configValue(values, "WK_BACKUP_SECONDARY_PREFIX"),
+			AccessRoleARN:  configValue(values, "WK_BACKUP_SECONDARY_ACCESS_ROLE_ARN"),
 			RepairRoleARN:  configValue(values, "WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN"),
 			GarbageRoleARN: configValue(values, "WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN"),
 		},

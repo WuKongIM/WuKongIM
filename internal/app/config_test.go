@@ -12,6 +12,7 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 	app := &App{cfg: Config{DataDir: t.TempDir()}}
 	require.NoError(t, app.applyConfigDefaults())
 	require.False(t, app.cfg.Backup.Enabled)
+	require.Equal(t, BackupProviderAlibaba, app.cfg.Backup.Provider)
 	require.Equal(t, 30*time.Second, app.cfg.Backup.CaptureReconcileInterval)
 	require.Equal(t, 5*time.Minute, app.cfg.Backup.CheckpointInterval)
 	require.Equal(t, uint64(8*1024*1024), app.cfg.Backup.BaselineChunkBytes)
@@ -29,6 +30,39 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 	require.Zero(t, app.cfg.Backup.RetentionMonthlyMonths)
 }
 
+func TestBackupConfigRequiresAlibabaRoleSeparation(t *testing.T) {
+	cfg := validEnabledBackupConfig(t)
+	cfg.KMSRoleARN = ""
+	cfg.Primary.AccessRoleARN = ""
+	cfg.Secondary.AccessRoleARN = ""
+	_, err := NormalizeBackupConfig(cfg)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.Contains(t, err.Error(), "KMS role ARN")
+
+	cfg.KMSRoleARN = "acs:ram::123456789:role/backup-kms"
+	cfg.Primary.AccessRoleARN = "acs:ram::123456789:role/backup-primary"
+	cfg.Secondary.AccessRoleARN = "acs:ram::123456789:role/backup-secondary"
+	normalized, err := NormalizeBackupConfig(cfg)
+	require.NoError(t, err)
+	require.Equal(t, BackupProviderAlibaba, normalized.Provider)
+}
+
+func TestBackupConfigRejectsUnqualifiedProvider(t *testing.T) {
+	cfg := validEnabledBackupConfig(t)
+	cfg.Provider = "aws"
+	_, err := NormalizeBackupConfig(cfg)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.Contains(t, err.Error(), `provider must be "aliyun"`)
+}
+
+func TestBackupConfigRequiresDistinctAlibabaRoles(t *testing.T) {
+	cfg := validEnabledBackupConfig(t)
+	cfg.Primary.RepairRoleARN = cfg.Primary.AccessRoleARN
+	_, err := NormalizeBackupConfig(cfg)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.Contains(t, err.Error(), "roles must be distinct")
+}
+
 func TestBackupConfigNormalizesPreviousTrustedSigningKeys(t *testing.T) {
 	normalized, err := normalizeBackupSigningKeyIDs("kms-signing-v2", []string{" kms-signing-v1 ", "kms-signing-v2", "kms-signing-v1"})
 	require.NoError(t, err)
@@ -43,81 +77,68 @@ func TestBackupConfigRequiresExactReleaseQualificationGate(t *testing.T) {
 	cfg.QualificationGate = ""
 	_, err := NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
-	require.Contains(t, err.Error(), BackupQualificationGateV1)
+	require.Contains(t, err.Error(), BackupQualificationGateV2)
 
 	cfg.QualificationGate = "backup-vnext-production-v0"
 	_, err = NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
-	require.Contains(t, err.Error(), BackupQualificationGateV1)
+	require.Contains(t, err.Error(), BackupQualificationGateV2)
 
-	cfg.QualificationGate = BackupQualificationGateV1
+	cfg.QualificationGate = BackupQualificationGateV2
 	normalized, err := NormalizeBackupConfig(cfg)
 	require.NoError(t, err)
 	require.True(t, normalized.Enabled)
 	require.Equal(
-		t, BackupQualificationGateV1, normalized.QualificationGate,
+		t, BackupQualificationGateV2, normalized.QualificationGate,
 	)
 }
 
 func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
-	cfg := BackupConfig{
-		Enabled:           true,
-		QualificationGate: BackupQualificationGateV1,
-		RepositoryID:      "cluster-a-dr",
-		SourceGeneration:  "generation-1",
-		StagingDir:        filepath.Join(t.TempDir(), "backup-staging"),
-		KMSKeyID:          "kms-encryption-v1",
-		SigningKeyID:      "kms-signing-v1",
-		Primary: BackupRepositoryConfig{
-			Endpoint: "https://primary.example",
-			Region:   "region-a",
-			Bucket:   "primary",
-			Prefix:   "cluster-a",
-		},
-		Secondary: BackupRepositoryConfig{
-			Endpoint: "https://secondary.example",
-			Region:   "region-a",
-			Bucket:   "secondary",
-			Prefix:   "cluster-a",
-		},
-	}
+	cfg := validEnabledBackupConfig(t)
+	cfg.Secondary.Region = cfg.Primary.Region
 	_, err := NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.Contains(t, err.Error(), "different regions")
 }
 
 func validEnabledBackupConfig(t *testing.T) BackupConfig {
 	t.Helper()
 	return BackupConfig{
+		Provider:          BackupProviderAlibaba,
 		Enabled:           true,
-		QualificationGate: BackupQualificationGateV1,
+		QualificationGate: BackupQualificationGateV2,
 		RepositoryID:      "cluster-a-dr",
 		SourceGeneration:  "generation-1",
 		StagingDir:        filepath.Join(t.TempDir(), "backup-staging"),
 		KMSKeyID:          "kms-encryption-v1",
 		SigningKeyID:      "kms-signing-v1",
-		KMSRegion:         "region-a",
+		KMSRegion:         "cn-hangzhou",
+		KMSRoleARN:        "acs:ram::123456789:role/backup-kms",
 		ObjectLockDays:    7,
 		Primary: BackupRepositoryConfig{
-			Endpoint:       "https://primary.example",
-			Region:         "region-a",
+			Endpoint:       "https://oss-cn-hangzhou.aliyuncs.com",
+			Region:         "cn-hangzhou",
 			Bucket:         "primary",
 			Prefix:         "cluster-a",
-			RepairRoleARN:  "arn:example:iam::primary:role/repair",
-			GarbageRoleARN: "arn:example:iam::primary:role/garbage",
+			AccessRoleARN:  "acs:ram::123456789:role/backup-primary",
+			RepairRoleARN:  "acs:ram::123456789:role/backup-primary-repair",
+			GarbageRoleARN: "acs:ram::123456789:role/backup-primary-garbage",
 		},
 		Secondary: BackupRepositoryConfig{
-			Endpoint:       "https://secondary.example",
-			Region:         "region-b",
+			Endpoint:       "https://oss-cn-beijing.aliyuncs.com",
+			Region:         "cn-beijing",
 			Bucket:         "secondary",
 			Prefix:         "cluster-a",
-			RepairRoleARN:  "arn:example:iam::secondary:role/repair",
-			GarbageRoleARN: "arn:example:iam::secondary:role/garbage",
+			AccessRoleARN:  "acs:ram::123456789:role/backup-secondary",
+			RepairRoleARN:  "acs:ram::123456789:role/backup-secondary-repair",
+			GarbageRoleARN: "acs:ram::123456789:role/backup-secondary-garbage",
 		},
 	}
 }
 
 func TestBackupRestoreModeRequiresFreshTargetGenerationInsteadOfSourceGeneration(t *testing.T) {
 	cfg := BackupConfig{
+		Provider:         BackupProviderAlibaba,
 		RestoreMode:      true,
 		RepositoryID:     "cluster-a-dr",
 		TargetGeneration: "generation-2",
@@ -125,11 +146,20 @@ func TestBackupRestoreModeRequiresFreshTargetGenerationInsteadOfSourceGeneration
 		KMSKeyID:         "kms-encryption-v1",
 		SigningKeyID:     "kms-signing-v1",
 		KMSRegion:        "region-a",
+		KMSRoleARN:       "acs:ram::123456789:role/backup-kms",
 		Primary: BackupRepositoryConfig{
-			Endpoint: "https://primary.example", Region: "region-a", Bucket: "primary", Prefix: "cluster-a",
+			Endpoint:      "https://primary.example",
+			Region:        "region-a",
+			Bucket:        "primary",
+			Prefix:        "cluster-a",
+			AccessRoleARN: "acs:ram::123456789:role/backup-primary",
 		},
 		Secondary: BackupRepositoryConfig{
-			Endpoint: "https://secondary.example", Region: "region-b", Bucket: "secondary", Prefix: "cluster-a",
+			Endpoint:      "https://secondary.example",
+			Region:        "region-b",
+			Bucket:        "secondary",
+			Prefix:        "cluster-a",
+			AccessRoleARN: "acs:ram::123456789:role/backup-secondary",
 		},
 	}
 	normalized, err := NormalizeBackupConfig(cfg)

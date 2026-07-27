@@ -109,6 +109,8 @@ type ManifestSignature struct {
 	Algorithm string `json:"algorithm"`
 	// KeyID identifies the external signing key.
 	KeyID string `json:"key_id"`
+	// KeyVersionID pins the provider key version used for this signature when required.
+	KeyVersionID string `json:"key_version_id,omitempty"`
 	// Value contains the raw signature bytes and is base64 encoded by JSON.
 	Value []byte `json:"value"`
 }

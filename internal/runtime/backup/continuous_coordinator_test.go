@@ -114,6 +114,152 @@ func TestContinuousCoordinatorLeaderTransitionKeepsDurableCadence(t *testing.T) 
 	}
 }
 
+func TestContinuousCoordinatorMaintenanceSuccessClearsMatchingFailure(t *testing.T) {
+	maintenance := &scriptedControllerMaintenance{
+		errs: []error{errors.New("transient audit failure"), nil},
+	}
+	coordinator, err := NewContinuousCoordinator(
+		ContinuousCoordinatorOptions{
+			Capture:            idleContinuousCapture{},
+			Checkpoints:        recordingContinuousCheckpointPublisher{},
+			LatestCheckpoint:   staticCheckpointObservationSource{},
+			Doctor:             fakeCoordinatorDoctor{},
+			Leadership:         fakeCoordinatorLeadership{local: 1, leader: 1},
+			CheckpointInterval: time.Minute,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewContinuousCoordinator() error = %v", err)
+	}
+
+	next := time.Time{}
+	now := time.UnixMilli(1_800_000_060_000)
+	coordinator.runMaintenance(
+		context.Background(), now, maintenance, time.Second,
+		"integrity audit", "audit", &next,
+	)
+	if got := coordinator.Status().LastFailureCategory; got != "audit" {
+		t.Fatalf("failure category after failed audit = %q, want audit", got)
+	}
+	coordinator.runMaintenance(
+		context.Background(), now.Add(time.Second), maintenance, time.Second,
+		"integrity audit", "audit", &next,
+	)
+	if got := coordinator.Status().LastFailureCategory; got != "" {
+		t.Fatalf("failure category after successful audit = %q, want empty", got)
+	}
+}
+
+func TestContinuousCoordinatorCheckpointSuccessKeepsSameTickAuditFailure(t *testing.T) {
+	now := time.UnixMilli(1_800_000_060_000)
+	publisher := &countingContinuousCheckpointPublisher{}
+	coordinator, err := NewContinuousCoordinator(
+		ContinuousCoordinatorOptions{
+			Capture:            idleContinuousCapture{},
+			Checkpoints:        publisher,
+			LatestCheckpoint:   staticCheckpointObservationSource{},
+			Doctor:             fakeCoordinatorDoctor{},
+			Leadership:         fakeCoordinatorLeadership{local: 1, leader: 1},
+			CheckpointInterval: time.Minute,
+			Auditor: &scriptedControllerMaintenance{
+				errs: []error{errors.New("transient audit failure")},
+			},
+			AuditInterval: time.Second,
+			Now:           func() time.Time { return now },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewContinuousCoordinator() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	coordinator.runOnce(ctx)
+
+	if publisher.calls != 1 {
+		t.Fatalf("checkpoint publications = %d, want 1", publisher.calls)
+	}
+	if got := coordinator.Status().LastFailureCategory; got != "audit" {
+		t.Fatalf(
+			"failure category after same-tick audit failure and checkpoint success = %q, want audit",
+			got,
+		)
+	}
+}
+
+func TestContinuousCoordinatorMaintenanceNoopDoesNotClearFailure(t *testing.T) {
+	coordinator := newTestContinuousCoordinator(t, fakeCoordinatorLeadership{
+		local: 1, leader: 1,
+	})
+	coordinator.mu.Lock()
+	coordinator.recordFailureLocked(
+		"audit", coordinatorFailureAuditMaintenance,
+	)
+	coordinator.mu.Unlock()
+
+	next := time.Time{}
+	coordinator.runMaintenance(
+		context.Background(), time.UnixMilli(1_800_000_060_000),
+		controllerMaintenanceFunc(func(
+			context.Context,
+			CoordinatorLeadership,
+		) (bool, error) {
+			return false, nil
+		}),
+		time.Second, "integrity audit", "audit", &next,
+	)
+	if got := coordinator.Status().LastFailureCategory; got != "audit" {
+		t.Fatalf("failure category after no-op audit = %q, want audit", got)
+	}
+}
+
+func TestContinuousCoordinatorMaintenanceSuccessKeepsNewerMatchingFailure(t *testing.T) {
+	coordinator := newTestContinuousCoordinator(t, fakeCoordinatorLeadership{
+		local: 1, leader: 1,
+	})
+	next := time.Time{}
+	coordinator.runMaintenance(
+		context.Background(), time.UnixMilli(1_800_000_060_000),
+		controllerMaintenanceFunc(func(
+			context.Context,
+			CoordinatorLeadership,
+		) (bool, error) {
+			coordinator.recordContinuousFailure(
+				"audit", coordinatorFailureAuditMaintenance,
+			)
+			return true, nil
+		}),
+		time.Second, "integrity audit", "audit", &next,
+	)
+	if got := coordinator.Status().LastFailureCategory; got != "audit" {
+		t.Fatalf(
+			"failure category after newer matching audit failure = %q, want audit",
+			got,
+		)
+	}
+}
+
+func TestContinuousCoordinatorLeaderLossRetiresLeaderOwnedFailure(t *testing.T) {
+	leadership := &mutableCoordinatorLeadership{local: 1, leader: 1}
+	coordinator := newTestContinuousCoordinator(t, leadership)
+	coordinator.mu.Lock()
+	coordinator.status.ControllerLeader = true
+	coordinator.recordFailureLocked(
+		"audit", coordinatorFailureAuditMaintenance,
+	)
+	coordinator.mu.Unlock()
+	leadership.leader = 2
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	coordinator.runOnce(ctx)
+
+	if got := coordinator.Status().LastFailureCategory; got != "" {
+		t.Fatalf(
+			"failure category after Controller leadership loss = %q, want empty",
+			got,
+		)
+	}
+}
+
 func TestContinuousCoordinatorStopWaitsForCaptureAndProjection(t *testing.T) {
 	capture := newBlockingContinuousChild()
 	projection := newBlockingContinuousChild()
@@ -239,6 +385,55 @@ func (p *countingContinuousCheckpointPublisher) Publish(
 			EffectiveAtUnixMillis: now, CreatedAtUnixMillis: now,
 		},
 	}, nil
+}
+
+type scriptedControllerMaintenance struct {
+	errs []error
+}
+
+func (m *scriptedControllerMaintenance) RunIfLeader(
+	context.Context,
+	CoordinatorLeadership,
+) (bool, error) {
+	if len(m.errs) == 0 {
+		return true, nil
+	}
+	err := m.errs[0]
+	m.errs = m.errs[1:]
+	return true, err
+}
+
+type controllerMaintenanceFunc func(
+	context.Context,
+	CoordinatorLeadership,
+) (bool, error)
+
+func (f controllerMaintenanceFunc) RunIfLeader(
+	ctx context.Context,
+	leadership CoordinatorLeadership,
+) (bool, error) {
+	return f(ctx, leadership)
+}
+
+func newTestContinuousCoordinator(
+	t *testing.T,
+	leadership CoordinatorLeadership,
+) *ContinuousCoordinator {
+	t.Helper()
+	coordinator, err := NewContinuousCoordinator(
+		ContinuousCoordinatorOptions{
+			Capture:            idleContinuousCapture{},
+			Checkpoints:        recordingContinuousCheckpointPublisher{},
+			LatestCheckpoint:   staticCheckpointObservationSource{},
+			Doctor:             fakeCoordinatorDoctor{},
+			Leadership:         leadership,
+			CheckpointInterval: time.Minute,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewContinuousCoordinator() error = %v", err)
+	}
+	return coordinator
 }
 
 type staticCheckpointObservationSource struct {

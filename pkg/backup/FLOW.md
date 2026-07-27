@@ -22,7 +22,9 @@ Current flow:
    and authenticated from the repositories.
 6. Production composition wraps `ManifestSigner` with
    `NewKeyPinnedManifestSigner`, so verification trusts only the active key and
-   the explicit retained-key allowlist.
+   the explicit retained-key allowlist. `ManifestSignature.KeyVersionID`
+   additionally pins provider versions, such as Alibaba KMS asymmetric-key
+   versions, when the provider requires them for historical verification.
 
 Object plaintext is zstd-compressed before AES-256-GCM encryption; every
 representation has a fresh envelope data key and nonce. Strict decoding,
@@ -79,6 +81,8 @@ content-addressed segment contract.
    authenticated healthy peer and then repeats full validation. A repository
    exposes replacement/version publication only through the narrower
    `RepairRepository` capability; ordinary `PutImmutable` remains create-only.
+   Independently decoded headers and predecessor references are compared by
+   value; JSON pointer allocation identity is never corruption evidence.
    `NewReplicatedSegmentStoreWithRepair` requires both repair capabilities
    explicitly; the ordinary constructor cannot repair existing repository
    keys. Inspection also extracts the authenticated predecessor carried by

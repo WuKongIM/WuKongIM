@@ -11,14 +11,14 @@ present:
 ```toml
 [backup]
 enabled = true
-qualification_gate = "backup-vnext-production-v1"
+qualification_gate = "backup-vnext-production-v2"
 ```
 
 The equivalent environment variables are:
 
 ```sh
 export WK_BACKUP_ENABLED=true
-export WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v1
+export WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v2
 ```
 
 Missing or different qualification values fail startup. This is a release
@@ -42,8 +42,16 @@ independent jobs pass:
    and heap ceilings; it records capture catchup separately before enforcing
    two already-caught-up checkpoint publications below ten seconds each;
 4. the same source-stop, fresh-target restore, activation, and post-write drill
-   through real cross-region S3 repositories, KMS keys, repair/garbage roles,
-   versioning, and Object Lock in the protected `backup-production` environment.
+   through real cross-region Alibaba OSS repositories, KMS keys, RAM roles,
+   versioning, and COMPLIANCE ObjectWorm in the protected
+   `backup-production` environment. It injects a corrupt read into each
+   repository in turn and requires the corresponding repair role to publish
+   and revalidate a new protected version. Each garbage role must also create,
+   list, and remove an OSS delete marker at startup, proving list,
+   `DeleteObject`, and exact-version delete permissions without touching a
+   data-object version. The probe uses one stable slot per node and clears any
+   stale marker before creating another, so failed startups cannot grow an
+   unbounded marker history.
 
 The first three jobs use e2e-only file/key substitutes where appropriate. They
 cannot satisfy the fourth job. The production job rejects
@@ -81,23 +89,33 @@ full backup.
 
 ## Required configuration
 
-Use two distinct cross-region S3-compatible repositories with versioning and
-Object Lock/WORM enabled. Signing and envelope encryption use external KMS
-keys. Credentials come from the provider credential chain and are not accepted
-through Manager or CLI requests.
+Use two distinct cross-region provider-native repositories with versioning and
+COMPLIANCE retention enabled. The qualified Alibaba path uses OSS ObjectWorm
+with a default retention period no shorter than `object_lock_days`; ObjectWorm
+is not silently replaced by BucketWorm. Signing and envelope encryption use
+Alibaba KMS. Base credentials come from the provider credential chain and may
+only assume the separately configured RAM roles; credentials are not accepted
+through Manager or CLI requests. The KMS role and the ordinary, repair, and
+garbage roles for both repositories must be seven distinct role ARNs.
+ObjectWorm is invitation-only and region-limited; the example uses the
+currently supported `cn-hangzhou` and `cn-beijing` regions. Qualification must
+fail until Alibaba Cloud has enabled ObjectWorm for the account and both
+buckets.
 
 ```toml
 [backup]
 enabled = true
-qualification_gate = "backup-vnext-production-v1"
+provider = "aliyun"
+qualification_gate = "backup-vnext-production-v2"
 restore_mode = false
 repository_id = "prod-im-backup"
 source_generation = "prod-2026-07"
 staging_dir = "/var/lib/wukongim/backup-staging"
-kms_key_id = "kms-encryption-key"
-signing_key_id = "kms-signing-key"
+kms_key_id = "concrete-kms-encryption-key-id"
+signing_key_id = "concrete-kms-signing-key-id"
 trusted_signing_key_ids = []
 kms_region = "cn-hangzhou"
+kms_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-kms"
 capture_reconcile_interval = "30s"
 checkpoint_interval = "5m"
 baseline_chunk_bytes = 8388608
@@ -117,27 +135,34 @@ retention_monthly_months = 0
 object_lock_days = 7
 
 [backup.primary]
-endpoint = "https://s3-primary.example.com"
-region = "region-a"
+endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
+region = "cn-hangzhou"
 bucket = "wukongim-backup-primary"
 prefix = "prod"
-repair_role_arn = "arn:provider:iam::account-a:role/wukongim-backup-repair"
-garbage_role_arn = "arn:provider:iam::account-a:role/wukongim-backup-garbage"
+access_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-primary"
+repair_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-primary-repair"
+garbage_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-primary-garbage"
 
 [backup.secondary]
-endpoint = "https://s3-secondary.example.com"
-region = "region-b"
+endpoint = "https://oss-cn-beijing.aliyuncs.com"
+region = "cn-beijing"
 bucket = "wukongim-backup-secondary"
 prefix = "prod"
-repair_role_arn = "arn:provider:iam::account-b:role/wukongim-backup-repair"
-garbage_role_arn = "arn:provider:iam::account-b:role/wukongim-backup-garbage"
+access_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-secondary"
+repair_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-secondary-repair"
+garbage_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-secondary-garbage"
 ```
 
 Keep `wukongim.toml.example` aligned when fields change. TOML keys use grouped
 snake_case; environment keys use the `WK_BACKUP_` prefix.
-Ordinary capture credentials remain create/read-only. Repair and garbage roles
-are separately assumed, least-privilege capabilities and are required for both
-repositories when automatic backup is enabled.
+Ordinary repository access, KMS, repair, and garbage capabilities use separate
+RAM roles. The application refreshes one-hour STS sessions and never gives
+ordinary capture credentials a delete capability. All three repository roles
+are required for each Alibaba copy when automatic backup is enabled; restore
+requires only ordinary repository access plus KMS. Garbage-role startup
+qualification uses a stable per-node delete-marker slot, which ObjectWorm does
+not retain, clears any stale marker first, and removes the new exact marker
+before startup completes.
 
 ## Normal operations
 

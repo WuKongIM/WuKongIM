@@ -1010,9 +1010,6 @@ func startMediumCluster(t *testing.T, rpcBatchMaxItems int) (*suite.StartedClust
 					"WUKONGIM_BACKUP_E2E_REMOTE_LATENCY="+backupRemoteLatency.String(),
 					"WUKONGIM_BACKUP_E2E_LATENCY_TRIGGER="+backupTrigger,
 					"WUKONGIM_BACKUP_E2E_PIN_PRESSURE_TRIGGER="+backupTrigger+".pin",
-					"AWS_ACCESS_KEY_ID=e2e",
-					"AWS_SECRET_ACCESS_KEY=e2e-secret",
-					"AWS_EC2_METADATA_DISABLED=true",
 				),
 			)
 		}
@@ -1030,7 +1027,8 @@ func startMediumCluster(t *testing.T, rpcBatchMaxItems int) (*suite.StartedClust
 func mediumBackupOverrides(root string, nodeID uint64) map[string]string {
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
-		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v1",
+		"WK_BACKUP_PROVIDER":                            "aliyun",
+		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v2",
 		"WK_BACKUP_REPOSITORY_ID":                       "medium-backup-qualification",
 		"WK_BACKUP_SOURCE_GENERATION":                   "medium-source-generation",
 		"WK_BACKUP_STAGING_DIR":                         filepath.Join(root, fmt.Sprintf("staging-%d", nodeID)),
@@ -1038,6 +1036,7 @@ func mediumBackupOverrides(root string, nodeID uint64) map[string]string {
 		"WK_BACKUP_SIGNING_KEY_ID":                      "e2e-signing-key",
 		"WK_BACKUP_KMS_REGION":                          "e2e-kms",
 		"WK_BACKUP_KMS_ENDPOINT":                        "https://kms.e2e.invalid",
+		"WK_BACKUP_KMS_ROLE_ARN":                        "acs:ram::e2e:role/backup-kms",
 		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "100ms",
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
@@ -1059,12 +1058,14 @@ func mediumBackupOverrides(root string, nodeID uint64) map[string]string {
 		"WK_BACKUP_PRIMARY_REGION":                      "e2e-primary",
 		"WK_BACKUP_PRIMARY_BUCKET":                      "primary",
 		"WK_BACKUP_PRIMARY_PREFIX":                      "medium",
+		"WK_BACKUP_PRIMARY_ACCESS_ROLE_ARN":             "acs:ram::e2e:role/backup-primary",
 		"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN":             "arn:e2e:primary:repair",
 		"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":            "arn:e2e:primary:garbage",
 		"WK_BACKUP_SECONDARY_ENDPOINT":                  "https://secondary.e2e.invalid",
 		"WK_BACKUP_SECONDARY_REGION":                    "e2e-secondary",
 		"WK_BACKUP_SECONDARY_BUCKET":                    "secondary",
 		"WK_BACKUP_SECONDARY_PREFIX":                    "medium",
+		"WK_BACKUP_SECONDARY_ACCESS_ROLE_ARN":           "acs:ram::e2e:role/backup-secondary",
 		"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN":           "arn:e2e:secondary:repair",
 		"WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN":          "arn:e2e:secondary:garbage",
 	}

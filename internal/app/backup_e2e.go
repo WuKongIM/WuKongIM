@@ -52,14 +52,25 @@ func init() {
 			trigger:          trigger,
 		}
 	}
-	loadAppBackupRepository = func(ctx context.Context, name, endpoint, region, bucket, prefix string, objectLockDays int) (appBackupRepository, error) {
+	loadAppBackupRepository = func(
+		ctx context.Context,
+		name, endpoint, region, bucket, prefix string,
+		objectLockDays int,
+		accessRoleARN string,
+	) (appBackupRepository, error) {
 		root := strings.TrimSpace(os.Getenv(backupE2EFileRootEnv))
+		var repository appBackupRepository
+		var err error
 		if root == "" {
-			return productionRepositoryLoader(ctx, name, endpoint, region, bucket, prefix, objectLockDays)
+			repository, err = productionRepositoryLoader(
+				ctx, name, endpoint, region, bucket, prefix,
+				objectLockDays, accessRoleARN,
+			)
+		} else {
+			repository, err = backupinfra.NewFileRepository(
+				name, filepath.Join(root, name),
+			)
 		}
-		repository, err := backupinfra.NewFileRepository(
-			name, filepath.Join(root, name),
-		)
 		if err != nil {
 			return nil, err
 		}
@@ -86,9 +97,27 @@ func init() {
 		endpoint, region, roleARN string,
 	) (backupartifact.RepairRepository, error) {
 		if strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) == "" {
-			return productionRepairLoader(
-				ctx, repository, endpoint, region, roleARN,
+			productionRepository := repository
+			wrapped, wrappedRepository := repository.(*backupE2EDelayedRepository)
+			if wrappedRepository {
+				productionRepository = wrapped.appBackupRepository
+			}
+			repair, err := productionRepairLoader(
+				ctx, productionRepository, endpoint, region, roleARN,
 			)
+			if err != nil || !wrappedRepository || wrapped.corruptionDir == "" {
+				return repair, err
+			}
+			return &backupE2ERepairRepository{
+				RepairRepository: repair,
+				trigger: filepath.Join(
+					wrapped.corruptionDir,
+					productionRepository.Name()+".corrupt",
+				),
+				sticky: filepath.Join(
+					wrapped.corruptionDir, "sticky.key",
+				),
+			}, nil
 		}
 		fileRepository, ok := backupE2EFileRepository(repository)
 		if !ok {
@@ -116,21 +145,27 @@ func init() {
 		name, endpoint, region, bucket, prefix string,
 		objectLockDays int,
 		roleARN string,
+		probeSlot uint64,
 	) (backupinfra.GenerationGarbageRepository, error) {
 		root := strings.TrimSpace(os.Getenv(backupE2EFileRootEnv))
 		if root == "" {
 			return productionGarbageLoader(
 				ctx, name, endpoint, region, bucket, prefix,
-				objectLockDays, roleARN,
+				objectLockDays, roleARN, probeSlot,
 			)
 		}
 		return backupinfra.NewFileRepository(
 			name, filepath.Join(root, name),
 		)
 	}
-	loadAppBackupKeyService = func(ctx context.Context, region, endpoint string) (appBackupKeyService, error) {
+	loadAppBackupKeyService = func(
+		ctx context.Context,
+		region, endpoint, roleARN string,
+	) (appBackupKeyService, error) {
 		if strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) == "" {
-			return productionKeyLoader(ctx, region, endpoint)
+			return productionKeyLoader(
+				ctx, region, endpoint, roleARN,
+			)
 		}
 		delay, err := backupE2ERemoteLatency()
 		if err != nil {
@@ -213,16 +248,29 @@ func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(key string) bool {
 		!strings.HasSuffix(slashKey, ".bin") {
 		return false
 	}
-	trigger := filepath.Join(
-		r.corruptionDir, r.appBackupRepository.Name()+".corrupt",
-	)
-	body, err := os.ReadFile(trigger)
-	if err != nil {
+	var body []byte
+	var selectedTrigger string
+	for _, trigger := range []string{
+		filepath.Join(
+			r.corruptionDir,
+			r.appBackupRepository.Name()+".corrupt",
+		),
+		filepath.Join(r.corruptionDir, "all.corrupt"),
+	} {
+		var err error
+		body, err = os.ReadFile(trigger)
+		if err == nil {
+			selectedTrigger = trigger
+			break
+		}
+		body = nil
+	}
+	if body == nil {
 		return false
 	}
 	switch strings.TrimSpace(string(body)) {
 	case "once":
-		return os.Remove(trigger) == nil
+		return os.Remove(selectedTrigger) == nil
 	case "persistent":
 		return true
 	case "sticky":

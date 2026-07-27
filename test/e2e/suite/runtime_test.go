@@ -496,7 +496,10 @@ func TestStartedClusterReconfigureStoppedNodesReplacesConfigEnvironmentAndKeepsE
 	for index := range specs {
 		rendered := RenderClusterConfig(specs[index], specs)
 		require.NoError(t, os.WriteFile(specs[index].ConfigPath, []byte(rendered), 0o644))
-		specs[index].Env = append(envFromConfig(rendered), "WUKONGIM_BACKUP_E2E_FILE_ROOT=/repository", "AWS_ACCESS_KEY_ID=e2e")
+		specs[index].Env = append(
+			envFromConfig(rendered),
+			"WUKONGIM_BACKUP_E2E_FILE_ROOT=/repository",
+		)
 	}
 	cluster := &StartedCluster{Nodes: []StartedNode{{Spec: specs[0]}, {Spec: specs[1]}, {Spec: specs[2]}}}
 
@@ -510,7 +513,6 @@ func TestStartedClusterReconfigureStoppedNodesReplacesConfigEnvironmentAndKeepsE
 		require.Contains(t, node.Spec.Env, "WK_BACKUP_RESTORE_MODE=false")
 		require.NotContains(t, node.Spec.Env, "WK_BACKUP_RESTORE_MODE=true")
 		require.Contains(t, node.Spec.Env, "WUKONGIM_BACKUP_E2E_FILE_ROOT=/repository")
-		require.Contains(t, node.Spec.Env, "AWS_ACCESS_KEY_ID=e2e")
 		body, err := os.ReadFile(node.Spec.ConfigPath)
 		require.NoError(t, err)
 		require.Contains(t, string(body), "restore_mode = false")

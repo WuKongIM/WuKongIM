@@ -125,14 +125,17 @@ type repositoryQualification struct {
 	Region         string
 	Bucket         string
 	Prefix         string
+	AccessRoleARN  string
 	RepairRoleARN  string
 	GarbageRoleARN string
 }
 
 // storageQualification describes either the e2e-only file substitute or the
-// production S3/KMS environment exercised by the same recovery drill.
+// production object-storage/KMS environment exercised by the same recovery drill.
 type storageQualification struct {
 	FileRoot         string
+	CorruptionRoot   string
+	Provider         string
 	RepositoryID     string
 	SourceGeneration string
 	TargetGeneration string
@@ -140,6 +143,7 @@ type storageQualification struct {
 	SigningKeyID     string
 	KMSRegion        string
 	KMSEndpoint      string
+	KMSRoleARN       string
 	ObjectLockDays   int
 	Primary          repositoryQualification
 	Secondary        repositoryQualification
@@ -148,12 +152,15 @@ type storageQualification struct {
 }
 
 type recoveryDrillResult struct {
-	CheckpointID       string
-	RestoredMessages   uint64
-	ControllerFailover bool
-	SlotFailover       bool
-	DataNodeFailover   bool
-	RestoreFailover    bool
+	CheckpointID         string
+	RestoredMessages     uint64
+	ControllerFailover   bool
+	SlotFailover         bool
+	DataNodeFailover     bool
+	RestoreFailover      bool
+	RepositoryRepair     bool
+	DualCorruptionRebase bool
+	GarbageRoleProbe     bool
 }
 
 func TestThreeNodeBackupContinuousRestoresAndContinuesTraffic(t *testing.T) {
@@ -162,12 +169,13 @@ func TestThreeNodeBackupContinuousRestoresAndContinuesTraffic(t *testing.T) {
 
 func TestProductionStorageQualification(t *testing.T) {
 	if os.Getenv("WK_E2E_BACKUP_PRODUCTION") != "1" {
-		t.Skip("set WK_E2E_BACKUP_PRODUCTION=1 to run the production S3/KMS recovery drill")
+		t.Skip("set WK_E2E_BACKUP_PRODUCTION=1 to run the production storage/KMS recovery drill")
 	}
 	qualification := productionStorageQualification(t)
 	result := runThreeNodeRecoveryDrill(t, qualification)
 	evidence := struct {
 		Schema           string `json:"schema"`
+		Provider         string `json:"provider"`
 		RunID            string `json:"run_id"`
 		Commit           string `json:"commit"`
 		PrimaryRegion    string `json:"primary_region"`
@@ -182,8 +190,12 @@ func TestProductionStorageQualification(t *testing.T) {
 		SlotLeaderFault  bool   `json:"slot_leader_fault"`
 		DataNodeFault    bool   `json:"data_node_fault"`
 		RestoreFault     bool   `json:"restore_leader_fault"`
+		RepositoryRepair bool   `json:"repository_repair"`
+		DualRebase       bool   `json:"dual_corruption_rebase"`
+		GarbageRoleProbe bool   `json:"garbage_role_probe"`
 	}{
-		Schema:           "wukongim/backup-production-qualification/v1",
+		Schema:           "wukongim/backup-production-qualification/v2",
+		Provider:         qualification.Provider,
 		RunID:            qualification.ProductionRunID,
 		Commit:           qualification.ProductionCommit,
 		PrimaryRegion:    qualification.Primary.Region,
@@ -198,6 +210,9 @@ func TestProductionStorageQualification(t *testing.T) {
 		SlotLeaderFault:  result.SlotFailover,
 		DataNodeFault:    result.DataNodeFailover,
 		RestoreFault:     result.RestoreFailover,
+		RepositoryRepair: result.RepositoryRepair,
+		DualRebase:       result.DualCorruptionRebase,
+		GarbageRoleProbe: result.GarbageRoleProbe,
 	}
 	encoded, err := json.Marshal(evidence)
 	require.NoError(t, err)
@@ -214,6 +229,14 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 		if qualification.FileRoot != "" {
 			options = append(options, localBackupNodeEnvironment(nodeID, qualification.FileRoot))
 		}
+		options = append(
+			options,
+			suite.WithNodeEnv(
+				nodeID,
+				"WUKONGIM_BACKUP_E2E_CORRUPTION_DIR="+
+					filepath.Join(qualification.CorruptionRoot, "faults"),
+			),
+		)
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(options...)
 	ctx, cancel := context.WithTimeout(context.Background(), suite.BackupClusterReadyTimeout)
@@ -228,15 +251,18 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 	)
 	require.NotEmpty(t, baseline.Checkpoint.ID)
 	require.Len(t, baseline.CheckpointSHA256, 64)
-	if qualification.FileRoot != "" {
-		exerciseRepositoryIntegrityRepair(
-			t, cluster, sourceToken, qualification.FileRoot,
-		)
-	}
+	exerciseRepositoryIntegrityRepair(
+		t, cluster, sourceToken, qualification.CorruptionRoot,
+	)
 	exerciseSourceLeaderFailures(t, cluster, sourceToken)
+	waitForBackupHealthy(t, cluster, sourceToken, 120*time.Second)
+	_ = publishCheckpointEventually(
+		t, cluster, sourceToken, 120*time.Second,
+	)
 	preDeltaFrontiers := backupDurableFrontiers(
 		t, cluster, sourceToken,
 	)
+	conversationPersistedBaseline := conversationPersistedRows(t, cluster)
 
 	const firstPayload = "message captured by continuous backup"
 	messageCtx, cancelMessage := context.WithTimeout(context.Background(), 15*time.Second)
@@ -258,13 +284,14 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 		}
 		return nil
 	})
-
 	const (
 		erasureChannelID   = "backup-e2e-erasure-group"
 		erasureChannelType = frame.ChannelTypeGroup
 	)
 	erasedMessages := appendGroupMessages(t, cluster, erasureChannelID, erasureChannelType, 2)
-	waitForConversationDurable(t, cluster, 10*time.Second)
+	waitForConversationDurable(
+		t, cluster, conversationPersistedBaseline, 10*time.Second,
+	)
 	personalChannelID := channelid.EncodePersonChannel(
 		"backup-e2e-sender", "backup-e2e-recipient",
 	)
@@ -279,7 +306,7 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 			hashslot.HashSlotForKey(personalChannelID, 16),
 			hashslot.HashSlotForKey(erasureChannelID, 16),
 		},
-		20*time.Second,
+		120*time.Second,
 	)
 
 	delta := publishCheckpointEventually(
@@ -372,7 +399,7 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 	require.Equal(
 		t, "wukongim-e2e-restore", restartedPlan.TargetClusterID,
 	)
-	suite.RequireConversationEventuallyWithin(t, *target.MustNode(1), "backup-e2e-sender", "backup-e2e-recipient", 10*time.Second, func(item suite.ConversationListItem) error {
+	requireConversationEventuallyAcrossNodes(t, target, "backup-e2e-sender", "backup-e2e-recipient", 30*time.Second, func(item suite.ConversationListItem) error {
 		if item.LastMessage == nil {
 			return fmt.Errorf("restored conversation has no last message")
 		}
@@ -416,13 +443,72 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 		return nil
 	})
 	return recoveryDrillResult{
-		CheckpointID:       delta.Checkpoint.ID,
-		RestoredMessages:   restoredMessages,
-		ControllerFailover: true,
-		SlotFailover:       true,
-		DataNodeFailover:   true,
-		RestoreFailover:    true,
+		CheckpointID:         delta.Checkpoint.ID,
+		RestoredMessages:     restoredMessages,
+		ControllerFailover:   true,
+		SlotFailover:         true,
+		DataNodeFailover:     true,
+		RestoreFailover:      true,
+		RepositoryRepair:     true,
+		DualCorruptionRebase: true,
+		GarbageRoleProbe:     true,
 	}
+}
+
+func requireConversationEventuallyAcrossNodes(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	uid, channelID string,
+	timeout time.Duration,
+	check func(suite.ConversationListItem) error,
+) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var lastPage suite.ConversationListPage
+	var lastErr error
+	for time.Now().Before(deadline) {
+		for index := range cluster.Nodes {
+			node := &cluster.Nodes[index]
+			if node.Process == nil || !node.Process.Running() {
+				continue
+			}
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				break
+			}
+			attemptTimeout := min(2*time.Second, remaining)
+			ctx, cancel := context.WithTimeout(
+				context.Background(), attemptTimeout,
+			)
+			page, err := suite.PostConversationList(
+				ctx, node.APIAddr(), uid, 10,
+			)
+			cancel()
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			lastPage = page
+			item, found := suite.FindConversation(page, channelID)
+			if !found {
+				lastErr = fmt.Errorf(
+					"conversation %s not found on node %d",
+					channelID, node.Spec.ID,
+				)
+				continue
+			}
+			if err := check(item); err != nil {
+				lastErr = err
+				continue
+			}
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"conversation %s for uid %s did not converge across nodes: lastPage=%#v lastErr=%v\n%s",
+		channelID, uid, lastPage, lastErr, cluster.DumpDiagnostics(),
+	)
 }
 
 func exerciseSourceLeaderFailures(t *testing.T, cluster *suite.StartedCluster, token string) {
@@ -574,8 +660,28 @@ func exerciseRepositoryIntegrityRepair(
 		t, cluster, "wukongim_backup_audit_repair_bytes_total",
 		nil, beforeRepairBytes, 30*time.Second,
 	)
-	_ = publishCheckpointEventually(t, cluster, token, 30*time.Second)
 	waitForBackupHealthy(t, cluster, token, 30*time.Second)
+	_ = publishCheckpointEventually(t, cluster, token, 30*time.Second)
+
+	beforeCorruptions = backupMetricTotal(
+		t, cluster, "wukongim_backup_audit_corruptions_total",
+		nil,
+	)
+	beforeRepairBytes = backupMetricTotal(
+		t, cluster, "wukongim_backup_audit_repair_bytes_total",
+		nil,
+	)
+	setRepositoryCorruption(t, root, "secondary", "sticky")
+	waitForBackupMetricIncrease(
+		t, cluster, "wukongim_backup_audit_corruptions_total",
+		nil, beforeCorruptions, 30*time.Second,
+	)
+	waitForBackupMetricIncrease(
+		t, cluster, "wukongim_backup_audit_repair_bytes_total",
+		nil, beforeRepairBytes, 30*time.Second,
+	)
+	waitForBackupHealthy(t, cluster, token, 30*time.Second)
+	_ = publishCheckpointEventually(t, cluster, token, 30*time.Second)
 
 	frontiers := backupDurableFrontiers(t, cluster, token)
 	const dualCorruptionChannel = "backup-e2e-dual-corruption"
@@ -594,11 +700,8 @@ func exerciseRepositoryIntegrityRepair(
 			"reason": "audit_corruption", "outcome": "success",
 		},
 	)
-	primaryTrigger := setRepositoryCorruption(
-		t, root, "primary", "sticky",
-	)
-	secondaryTrigger := setRepositoryCorruption(
-		t, root, "secondary", "sticky",
+	allRepositoriesTrigger := setRepositoryCorruption(
+		t, root, "all", "sticky",
 	)
 	waitForBackupMetricIncrease(
 		t, cluster, "wukongim_backup_slot_rebases_total",
@@ -607,8 +710,7 @@ func exerciseRepositoryIntegrityRepair(
 		},
 		beforeRebases, 60*time.Second,
 	)
-	clearRepositoryCorruption(t, primaryTrigger)
-	clearRepositoryCorruption(t, secondaryTrigger)
+	clearRepositoryCorruption(t, allRepositoriesTrigger)
 	waitForBackupHealthy(t, cluster, token, 60*time.Second)
 }
 
@@ -707,16 +809,36 @@ func waitForBackupHealthy(
 ) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
+	stableSince := time.Time{}
 	var last backupStatus
 	var lastErr error
 	for time.Now().Before(deadline) {
-		last = backupStatus{}
-		lastErr = managerRequestError(
-			cluster, token, http.MethodGet, "/manager/backups/status",
-			nil, &last,
-		)
-		if lastErr == nil && last.Health == "healthy" {
-			return
+		allHealthy := true
+		running := 0
+		for index := range cluster.Nodes {
+			node := &cluster.Nodes[index]
+			if node.Process == nil || !node.Process.Running() {
+				continue
+			}
+			running++
+			last = backupStatus{}
+			lastErr = managerNodeRequestError(
+				node, token, http.MethodGet,
+				"/manager/backups/status", nil, &last,
+			)
+			if lastErr != nil || last.Health != "healthy" {
+				allHealthy = false
+				break
+			}
+		}
+		if allHealthy && running > 0 {
+			if stableSince.IsZero() {
+				stableSince = time.Now()
+			} else if time.Since(stableSince) >= time.Second {
+				return
+			}
+		} else {
+			stableSince = time.Time{}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -988,6 +1110,8 @@ func localStorageQualification(t *testing.T) storageQualification {
 	root := t.TempDir()
 	return storageQualification{
 		FileRoot:         root,
+		CorruptionRoot:   root,
+		Provider:         "aliyun",
 		RepositoryID:     "e2e-repository",
 		SourceGeneration: "source-generation",
 		TargetGeneration: "target-generation",
@@ -995,12 +1119,14 @@ func localStorageQualification(t *testing.T) storageQualification {
 		SigningKeyID:     "e2e-signing-key",
 		KMSRegion:        "e2e-kms",
 		KMSEndpoint:      "https://kms.e2e.invalid",
+		KMSRoleARN:       "acs:ram::e2e:role/backup-kms",
 		ObjectLockDays:   7,
 		Primary: repositoryQualification{
 			Endpoint:       "https://primary.e2e.invalid",
 			Region:         "e2e-primary",
 			Bucket:         "primary",
 			Prefix:         "cluster",
+			AccessRoleARN:  "acs:ram::e2e:role/backup-primary",
 			RepairRoleARN:  "arn:e2e:primary:repair",
 			GarbageRoleARN: "arn:e2e:primary:garbage",
 		},
@@ -1009,6 +1135,7 @@ func localStorageQualification(t *testing.T) storageQualification {
 			Region:         "e2e-secondary",
 			Bucket:         "secondary",
 			Prefix:         "cluster",
+			AccessRoleARN:  "acs:ram::e2e:role/backup-secondary",
 			RepairRoleARN:  "arn:e2e:secondary:repair",
 			GarbageRoleARN: "arn:e2e:secondary:garbage",
 		},
@@ -1028,6 +1155,8 @@ func productionStorageQualification(t *testing.T) storageQualification {
 	objectLockDays, err := strconv.Atoi(required("WK_E2E_BACKUP_OBJECT_LOCK_DAYS"))
 	require.NoError(t, err, "WK_E2E_BACKUP_OBJECT_LOCK_DAYS must be an integer")
 	qualification := storageQualification{
+		CorruptionRoot:   t.TempDir(),
+		Provider:         required("WK_E2E_BACKUP_PROVIDER"),
 		RepositoryID:     required("WK_E2E_BACKUP_REPOSITORY_ID"),
 		SourceGeneration: required("WK_E2E_BACKUP_SOURCE_GENERATION"),
 		TargetGeneration: required("WK_E2E_BACKUP_TARGET_GENERATION"),
@@ -1035,6 +1164,7 @@ func productionStorageQualification(t *testing.T) storageQualification {
 		SigningKeyID:     required("WK_E2E_BACKUP_SIGNING_KEY_ID"),
 		KMSRegion:        required("WK_E2E_BACKUP_KMS_REGION"),
 		KMSEndpoint:      strings.TrimSpace(os.Getenv("WK_E2E_BACKUP_KMS_ENDPOINT")),
+		KMSRoleARN:       required("WK_E2E_BACKUP_KMS_ROLE_ARN"),
 		ObjectLockDays:   objectLockDays,
 		ProductionRunID:  required("WK_E2E_BACKUP_RUN_ID"),
 		ProductionCommit: required("WK_E2E_BACKUP_COMMIT_SHA"),
@@ -1043,6 +1173,7 @@ func productionStorageQualification(t *testing.T) storageQualification {
 			Region:         required("WK_E2E_BACKUP_PRIMARY_REGION"),
 			Bucket:         required("WK_E2E_BACKUP_PRIMARY_BUCKET"),
 			Prefix:         required("WK_E2E_BACKUP_PRIMARY_PREFIX"),
+			AccessRoleARN:  required("WK_E2E_BACKUP_PRIMARY_ACCESS_ROLE_ARN"),
 			RepairRoleARN:  required("WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN"),
 			GarbageRoleARN: required("WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN"),
 		},
@@ -1051,11 +1182,13 @@ func productionStorageQualification(t *testing.T) storageQualification {
 			Region:         required("WK_E2E_BACKUP_SECONDARY_REGION"),
 			Bucket:         required("WK_E2E_BACKUP_SECONDARY_BUCKET"),
 			Prefix:         required("WK_E2E_BACKUP_SECONDARY_PREFIX"),
+			AccessRoleARN:  required("WK_E2E_BACKUP_SECONDARY_ACCESS_ROLE_ARN"),
 			RepairRoleARN:  required("WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN"),
 			GarbageRoleARN: required("WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN"),
 		},
 	}
 	require.Empty(t, os.Getenv("WUKONGIM_BACKUP_E2E_FILE_ROOT"), "production qualification cannot use the file repository substitute")
+	require.Equal(t, "aliyun", qualification.Provider)
 	require.GreaterOrEqual(t, qualification.ObjectLockDays, 7)
 	require.NotEqual(t, strings.ToLower(qualification.Primary.Region), strings.ToLower(qualification.Secondary.Region))
 	require.NotEqual(
@@ -1069,17 +1202,14 @@ func productionStorageQualification(t *testing.T) storageQualification {
 func localBackupNodeEnvironment(nodeID uint64, root string) suite.Option {
 	return suite.WithNodeEnv(nodeID,
 		"WUKONGIM_BACKUP_E2E_FILE_ROOT="+root,
-		"WUKONGIM_BACKUP_E2E_CORRUPTION_DIR="+filepath.Join(root, "faults"),
-		"AWS_ACCESS_KEY_ID=e2e",
-		"AWS_SECRET_ACCESS_KEY=e2e-secret",
-		"AWS_EC2_METADATA_DISABLED=true",
 	)
 }
 
 func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[string]string {
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
-		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v1",
+		"WK_BACKUP_PROVIDER":                            qualification.Provider,
+		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v2",
 		"WK_BACKUP_REPOSITORY_ID":                       qualification.RepositoryID,
 		"WK_BACKUP_SOURCE_GENERATION":                   qualification.SourceGeneration,
 		"WK_BACKUP_STAGING_DIR":                         qualificationStagingDir(qualification, "source", nodeID),
@@ -1087,6 +1217,7 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 		"WK_BACKUP_SIGNING_KEY_ID":                      qualification.SigningKeyID,
 		"WK_BACKUP_KMS_REGION":                          qualification.KMSRegion,
 		"WK_BACKUP_KMS_ENDPOINT":                        qualification.KMSEndpoint,
+		"WK_BACKUP_KMS_ROLE_ARN":                        qualification.KMSRoleARN,
 		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "200ms",
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
@@ -1106,12 +1237,14 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 		"WK_BACKUP_PRIMARY_REGION":                      qualification.Primary.Region,
 		"WK_BACKUP_PRIMARY_BUCKET":                      qualification.Primary.Bucket,
 		"WK_BACKUP_PRIMARY_PREFIX":                      qualification.Primary.Prefix,
+		"WK_BACKUP_PRIMARY_ACCESS_ROLE_ARN":             qualification.Primary.AccessRoleARN,
 		"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN":             qualification.Primary.RepairRoleARN,
 		"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":            qualification.Primary.GarbageRoleARN,
 		"WK_BACKUP_SECONDARY_ENDPOINT":                  qualification.Secondary.Endpoint,
 		"WK_BACKUP_SECONDARY_REGION":                    qualification.Secondary.Region,
 		"WK_BACKUP_SECONDARY_BUCKET":                    qualification.Secondary.Bucket,
 		"WK_BACKUP_SECONDARY_PREFIX":                    qualification.Secondary.Prefix,
+		"WK_BACKUP_SECONDARY_ACCESS_ROLE_ARN":           qualification.Secondary.AccessRoleARN,
 		"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN":           qualification.Secondary.RepairRoleARN,
 		"WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN":          qualification.Secondary.GarbageRoleARN,
 		"WK_MANAGER_AUTH_ON":                            "true",
@@ -1124,31 +1257,35 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 
 func targetRestoreConfig(qualification storageQualification, nodeID uint64) map[string]string {
 	return map[string]string{
-		"WK_CLUSTER_ID":                  "wukongim-e2e-restore",
-		"WK_BACKUP_RESTORE_MODE":         "true",
-		"WK_BACKUP_REPOSITORY_ID":        qualification.RepositoryID,
-		"WK_BACKUP_TARGET_GENERATION":    qualification.TargetGeneration,
-		"WK_BACKUP_STAGING_DIR":          qualificationStagingDir(qualification, "target", nodeID),
-		"WK_BACKUP_KMS_KEY_ID":           qualification.KMSKeyID,
-		"WK_BACKUP_SIGNING_KEY_ID":       qualification.SigningKeyID,
-		"WK_BACKUP_KMS_REGION":           qualification.KMSRegion,
-		"WK_BACKUP_KMS_ENDPOINT":         qualification.KMSEndpoint,
-		"WK_BACKUP_BASELINE_CHUNK_BYTES": "1048576",
-		"WK_BACKUP_STAGING_MAX_BYTES":    "67108864",
-		"WK_BACKUP_WORKER_COUNT":         "2",
-		"WK_BACKUP_PRIMARY_ENDPOINT":     qualification.Primary.Endpoint,
-		"WK_BACKUP_PRIMARY_REGION":       qualification.Primary.Region,
-		"WK_BACKUP_PRIMARY_BUCKET":       qualification.Primary.Bucket,
-		"WK_BACKUP_PRIMARY_PREFIX":       qualification.Primary.Prefix,
-		"WK_BACKUP_SECONDARY_ENDPOINT":   qualification.Secondary.Endpoint,
-		"WK_BACKUP_SECONDARY_REGION":     qualification.Secondary.Region,
-		"WK_BACKUP_SECONDARY_BUCKET":     qualification.Secondary.Bucket,
-		"WK_BACKUP_SECONDARY_PREFIX":     qualification.Secondary.Prefix,
-		"WK_MANAGER_AUTH_ON":             "true",
-		"WK_MANAGER_JWT_SECRET":          "e2e-restore-jwt-secret",
-		"WK_MANAGER_JWT_ISSUER":          "wukongim-e2e",
-		"WK_MANAGER_JWT_EXPIRE":          "1h",
-		"WK_MANAGER_USERS":               `[{"username":"restore-admin","password":"restore-secret","permissions":[{"resource":"cluster.backup","actions":["r","w"]},{"resource":"cluster.restore.activation","actions":["w"]},{"resource":"cluster.channel","actions":["r"]}]}]`,
+		"WK_CLUSTER_ID":                       "wukongim-e2e-restore",
+		"WK_BACKUP_RESTORE_MODE":              "true",
+		"WK_BACKUP_PROVIDER":                  qualification.Provider,
+		"WK_BACKUP_REPOSITORY_ID":             qualification.RepositoryID,
+		"WK_BACKUP_TARGET_GENERATION":         qualification.TargetGeneration,
+		"WK_BACKUP_STAGING_DIR":               qualificationStagingDir(qualification, "target", nodeID),
+		"WK_BACKUP_KMS_KEY_ID":                qualification.KMSKeyID,
+		"WK_BACKUP_SIGNING_KEY_ID":            qualification.SigningKeyID,
+		"WK_BACKUP_KMS_REGION":                qualification.KMSRegion,
+		"WK_BACKUP_KMS_ENDPOINT":              qualification.KMSEndpoint,
+		"WK_BACKUP_KMS_ROLE_ARN":              qualification.KMSRoleARN,
+		"WK_BACKUP_BASELINE_CHUNK_BYTES":      "1048576",
+		"WK_BACKUP_STAGING_MAX_BYTES":         "67108864",
+		"WK_BACKUP_WORKER_COUNT":              "2",
+		"WK_BACKUP_PRIMARY_ENDPOINT":          qualification.Primary.Endpoint,
+		"WK_BACKUP_PRIMARY_REGION":            qualification.Primary.Region,
+		"WK_BACKUP_PRIMARY_BUCKET":            qualification.Primary.Bucket,
+		"WK_BACKUP_PRIMARY_PREFIX":            qualification.Primary.Prefix,
+		"WK_BACKUP_PRIMARY_ACCESS_ROLE_ARN":   qualification.Primary.AccessRoleARN,
+		"WK_BACKUP_SECONDARY_ENDPOINT":        qualification.Secondary.Endpoint,
+		"WK_BACKUP_SECONDARY_REGION":          qualification.Secondary.Region,
+		"WK_BACKUP_SECONDARY_BUCKET":          qualification.Secondary.Bucket,
+		"WK_BACKUP_SECONDARY_PREFIX":          qualification.Secondary.Prefix,
+		"WK_BACKUP_SECONDARY_ACCESS_ROLE_ARN": qualification.Secondary.AccessRoleARN,
+		"WK_MANAGER_AUTH_ON":                  "true",
+		"WK_MANAGER_JWT_SECRET":               "e2e-restore-jwt-secret",
+		"WK_MANAGER_JWT_ISSUER":               "wukongim-e2e",
+		"WK_MANAGER_JWT_EXPIRE":               "1h",
+		"WK_MANAGER_USERS":                    `[{"username":"restore-admin","password":"restore-secret","permissions":[{"resource":"cluster.backup","actions":["r","w"]},{"resource":"cluster.restore.activation","actions":["w"]},{"resource":"cluster.channel","actions":["r"]}]}]`,
 	}
 }
 
@@ -1175,7 +1312,27 @@ func stopCluster(t *testing.T, cluster *suite.StartedCluster) {
 	}
 }
 
-func waitForConversationDurable(t *testing.T, cluster *suite.StartedCluster, timeout time.Duration) {
+func conversationPersistedRows(t *testing.T, cluster *suite.StartedCluster) float64 {
+	t.Helper()
+	var persisted float64
+	for _, node := range cluster.Nodes {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		value, err := suite.FetchMetricValue(ctx, node.APIAddr(), "wukongim_conversation_active_flush_rows_total", map[string]string{
+			"result": "ok", "stage": "persisted", "reason": "none",
+		})
+		cancel()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		persisted += value
+	}
+	return persisted
+}
+
+func waitForConversationDurable(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	persistedBaseline float64,
+	timeout time.Duration,
+) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	var lastPersisted float64
@@ -1209,12 +1366,16 @@ func waitForConversationDurable(t *testing.T, cluster *suite.StartedCluster, tim
 			}
 		}
 		lastPersisted = persisted
-		if persisted > 0 && allClean {
+		if persisted > persistedBaseline && allClean {
 			return
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("conversation active rows were not durably flushed: persisted=%v dirty=%v err=%v\n%s", lastPersisted, lastDirty, lastErr, cluster.DumpDiagnostics())
+	t.Fatalf(
+		"conversation active rows were not durably flushed after baseline: baseline=%v persisted=%v dirty=%v err=%v\n%s",
+		persistedBaseline, lastPersisted, lastDirty, lastErr,
+		cluster.DumpDiagnostics(),
+	)
 }
 
 func startRestoreCluster(t *testing.T, qualification storageQualification) *suite.StartedCluster {
@@ -1323,18 +1484,27 @@ func fenceSource(
 	plan restorePlan,
 ) backupartifact.SourceFenceReceipt {
 	t.Helper()
+	request := map[string]any{
+		"restore_plan_id":   plan.ID,
+		"checkpoint_id":     plan.CheckpointID,
+		"target_cluster_id": plan.TargetClusterID,
+		"target_generation": plan.TargetGeneration,
+	}
+	deadline := time.Now().Add(20 * time.Second)
 	var receipt backupartifact.SourceFenceReceipt
-	managerRequest(
-		t, cluster, token, http.MethodPost,
-		"/manager/backups/source-fence",
-		map[string]any{
-			"restore_plan_id":   plan.ID,
-			"checkpoint_id":     plan.CheckpointID,
-			"target_cluster_id": plan.TargetClusterID,
-			"target_generation": plan.TargetGeneration,
-		},
-		&receipt,
-	)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		receipt = backupartifact.SourceFenceReceipt{}
+		lastErr = managerRequestError(
+			cluster, token, http.MethodPost,
+			"/manager/backups/source-fence", request, &receipt,
+		)
+		if lastErr == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.NoError(t, lastErr, cluster.DumpDiagnostics())
 	require.Equal(t, plan.ID, receipt.RestorePlanID)
 	require.Equal(t, plan.CheckpointSHA256, receipt.CheckpointSHA256)
 	require.NotNil(t, receipt.Signature)
@@ -1512,6 +1682,37 @@ func managerRequest(t *testing.T, cluster *suite.StartedCluster, token, method, 
 }
 
 func managerRequestError(cluster *suite.StartedCluster, token, method, path string, body, out any) error {
+	var lastErr error
+	for index := range cluster.Nodes {
+		node := &cluster.Nodes[index]
+		if node.Process == nil || !node.Process.Running() {
+			continue
+		}
+		if err := managerNodeRequestError(
+			node, token, method, path, body, out,
+		); err != nil {
+			lastErr = err
+			continue
+		}
+		return nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no running Manager node is available")
+	}
+	return lastErr
+}
+
+func managerNodeRequestError(
+	node *suite.StartedNode,
+	token string,
+	method string,
+	path string,
+	body any,
+	out any,
+) error {
+	if node == nil || node.Process == nil || !node.Process.Running() {
+		return fmt.Errorf("Manager node is not running")
+	}
 	var requestBody []byte
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -1520,61 +1721,47 @@ func managerRequestError(cluster *suite.StartedCluster, token, method, path stri
 		}
 		requestBody = data
 	}
-	var lastErr error
-	for _, node := range cluster.Nodes {
-		if node.Process == nil || !node.Process.Running() {
-			continue
-		}
-		var reader io.Reader = http.NoBody
-		if requestBody != nil {
-			reader = bytes.NewReader(requestBody)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		req, err := http.NewRequestWithContext(
-			ctx, method, "http://"+node.ManagerAddr()+path, reader,
-		)
-		if err != nil {
-			cancel()
-			return err
-		}
-		req.Header.Set("Authorization", "Bearer "+token)
-		if body != nil {
-			req.Header.Set("Content-Type", "application/json")
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			cancel()
-			lastErr = err
-			continue
-		}
-		responseBody, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		cancel()
-		if readErr != nil {
-			lastErr = readErr
-			continue
-		}
-		if resp.StatusCode/100 != 2 {
-			lastErr = &suite.HTTPStatusError{
-				Method: method, URL: req.URL.String(),
-				StatusCode: resp.StatusCode, Body: string(responseBody),
-			}
-			continue
-		}
-		if out != nil {
-			if err := json.Unmarshal(responseBody, out); err != nil {
-				return fmt.Errorf(
-					"decode %s %s: %w body=%s",
-					method, path, err, strings.TrimSpace(string(responseBody)),
-				)
-			}
-		}
-		return nil
+	var reader io.Reader = http.NoBody
+	if requestBody != nil {
+		reader = bytes.NewReader(requestBody)
 	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("no running Manager node is available")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(
+		ctx, method, "http://"+node.ManagerAddr()+path, reader,
+	)
+	if err != nil {
+		return err
 	}
-	return lastErr
+	req.Header.Set("Authorization", "Bearer "+token)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	responseBody, readErr := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if readErr != nil {
+		return readErr
+	}
+	if resp.StatusCode/100 != 2 {
+		return &suite.HTTPStatusError{
+			Method: method, URL: req.URL.String(),
+			StatusCode: resp.StatusCode, Body: string(responseBody),
+		}
+	}
+	if out != nil {
+		if err := json.Unmarshal(responseBody, out); err != nil {
+			return fmt.Errorf(
+				"decode %s %s: %w body=%s",
+				method, path, err,
+				strings.TrimSpace(string(responseBody)),
+			)
+		}
+	}
+	return nil
 }
 
 func publishCheckpointEventually(

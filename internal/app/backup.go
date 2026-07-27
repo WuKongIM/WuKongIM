@@ -63,11 +63,24 @@ type appBackupKeyService interface {
 }
 
 var (
-	loadAppBackupRepository = func(ctx context.Context, name, endpoint, region, bucket, prefix string, objectLockDays int) (appBackupRepository, error) {
-		return backupinfra.LoadS3Repository(ctx, name, endpoint, region, bucket, prefix, objectLockDays)
+	loadAppBackupRepository = func(
+		ctx context.Context,
+		name, endpoint, region, bucket, prefix string,
+		objectLockDays int,
+		accessRoleARN string,
+	) (appBackupRepository, error) {
+		return backupinfra.LoadOSSRepository(
+			ctx, name, endpoint, region, bucket, prefix, objectLockDays,
+			accessRoleARN,
+		)
 	}
-	loadAppBackupKeyService = func(ctx context.Context, region, endpoint string) (appBackupKeyService, error) {
-		return backupinfra.LoadKMSAdapter(ctx, region, endpoint)
+	loadAppBackupKeyService = func(
+		ctx context.Context,
+		region, endpoint, roleARN string,
+	) (appBackupKeyService, error) {
+		return backupinfra.LoadAlibabaKMSAdapter(
+			ctx, region, endpoint, roleARN,
+		)
 	}
 	decorateAppBackupSourcePinManager = func(
 		manager runtimebackup.SourcePinManager,
@@ -79,14 +92,14 @@ var (
 		repository appBackupRepository,
 		endpoint, region, roleARN string,
 	) (backupartifact.RepairRepository, error) {
-		s3Repository, ok := repository.(*backupinfra.S3Repository)
+		ossRepository, ok := repository.(*backupinfra.OSSRepository)
 		if !ok {
 			return nil, fmt.Errorf(
-				"backup app: production repair requires an S3 repository",
+				"backup app: Alibaba repair requires an OSS repository",
 			)
 		}
-		return backupinfra.LoadS3RepairRepository(
-			ctx, s3Repository, endpoint, region, roleARN,
+		return backupinfra.LoadOSSRepairRepository(
+			ctx, ossRepository, endpoint, region, roleARN,
 		)
 	}
 	loadAppBackupGarbageRepository = func(
@@ -94,10 +107,11 @@ var (
 		name, endpoint, region, bucket, prefix string,
 		objectLockDays int,
 		roleARN string,
+		probeSlot uint64,
 	) (backupinfra.GenerationGarbageRepository, error) {
-		return backupinfra.LoadS3GarbageRepository(
+		return backupinfra.LoadOSSGarbageRepository(
 			ctx, name, endpoint, region, bucket, prefix,
-			objectLockDays, roleARN,
+			objectLockDays, roleARN, probeSlot,
 		)
 	}
 	newAppBackupClockProbe = func(endpoint string) (backupinfra.ClockProbe, error) {
@@ -109,17 +123,31 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	if a == nil || (!a.cfg.Backup.Enabled && !a.cfg.Backup.RestoreMode) {
 		return
 	}
-	primary, err := loadAppBackupRepository(context.Background(), "primary", a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays)
+	primary, err := loadAppBackupRepository(
+		context.Background(), "primary",
+		a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region,
+		a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix,
+		a.cfg.Backup.ObjectLockDays, a.cfg.Backup.Primary.AccessRoleARN,
+	)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	secondary, err := loadAppBackupRepository(context.Background(), "secondary", a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region, a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix, a.cfg.Backup.ObjectLockDays)
+	secondary, err := loadAppBackupRepository(
+		context.Background(), "secondary",
+		a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region,
+		a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix,
+		a.cfg.Backup.ObjectLockDays, a.cfg.Backup.Secondary.AccessRoleARN,
+	)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
-	kms, err := loadAppBackupKeyService(context.Background(), a.cfg.Backup.KMSRegion, a.cfg.Backup.KMSEndpoint)
+	kms, err := loadAppBackupKeyService(
+		context.Background(),
+		a.cfg.Backup.KMSRegion, a.cfg.Backup.KMSEndpoint,
+		a.cfg.Backup.KMSRoleARN,
+	)
 	if err != nil {
 		a.backupInitErr = err
 		return
@@ -158,7 +186,8 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	primaryRepair, err := loadAppBackupRepairRepository(
-		context.Background(), primary, a.cfg.Backup.Primary.Endpoint,
+		context.Background(), primary,
+		a.cfg.Backup.Primary.Endpoint,
 		a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.RepairRoleARN,
 	)
 	if err != nil {
@@ -166,7 +195,8 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	secondaryRepair, err := loadAppBackupRepairRepository(
-		context.Background(), secondary, a.cfg.Backup.Secondary.Endpoint,
+		context.Background(), secondary,
+		a.cfg.Backup.Secondary.Endpoint,
 		a.cfg.Backup.Secondary.Region,
 		a.cfg.Backup.Secondary.RepairRoleARN,
 	)
@@ -175,10 +205,11 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		return
 	}
 	primaryGarbage, err := loadAppBackupGarbageRepository(
-		context.Background(), "primary", a.cfg.Backup.Primary.Endpoint,
+		context.Background(), "primary",
+		a.cfg.Backup.Primary.Endpoint,
 		a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket,
 		a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays,
-		a.cfg.Backup.Primary.GarbageRoleARN,
+		a.cfg.Backup.Primary.GarbageRoleARN, clusterCfg.NodeID,
 	)
 	if err != nil {
 		a.backupInitErr = err
@@ -189,7 +220,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region,
 		a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix,
 		a.cfg.Backup.ObjectLockDays,
-		a.cfg.Backup.Secondary.GarbageRoleARN,
+		a.cfg.Backup.Secondary.GarbageRoleARN, clusterCfg.NodeID,
 	)
 	if err != nil {
 		a.backupInitErr = err

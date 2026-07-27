@@ -36,7 +36,11 @@ advances one bounded integrity-audit step and one bounded Generation-GC step
 at their independent configured cadences. Every node runs the audit projection
 loop so a remote durable Slot freeze reaches local capture promptly; projection
 exit is supervised and restarted without weakening the final Controller CAS
-fence.
+fence. A successful maintenance step clears only its own matching node-local
+failure category when work actually ran and no newer failure revision won.
+Controller leadership loss retires Leader-owned checkpoint/audit/GC failures,
+so recovery cannot hide a newer unrelated failure and a transient
+former-Leader error cannot leave Manager health degraded forever.
 
 ```text
 in-memory Channel commit hint -> CaptureEngine.Wake (bounded, non-blocking)

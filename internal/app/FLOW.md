@@ -1038,13 +1038,15 @@ the Cloud Simulation lifecycle separately owns public TCP/19443 ingress.
 ## Backup Composition
 
 When backup and restore mode are both false, composition creates no repository,
-KMS, worker, or timer. Automatic mode wires two S3-compatible repositories,
+KMS, worker, or timer. Automatic mode requires the qualified Alibaba OSS/KMS
+adapter and wires two cross-region repositories,
 KMS envelope/signing with manifest verification pinned to the configured
 active key plus explicitly retained previous verification keys, Controller
 state, Slot-leader continuous capture, complete-vector checkpoint publication,
 the continuous coordinator, Manager, node RPC, and low-cardinality metrics.
-The same path assumes separately configured repair and garbage roles for each
-repository, then wires replicated segment/catalog repair, the authenticated
+The runtime assumes separate ordinary access, repair, and garbage RAM
+roles for each repository plus a KMS role. The same provider-neutral path then
+wires replicated segment/catalog repair, the authenticated
 catalog integrity plan, durable audit state, live-source Slot rebase recovery,
 all-node audit projection, independently cursor-fenced Generation GC, and
 durable latest-checkpoint observation.
@@ -1085,7 +1087,7 @@ repository identities `primary` and `secondary`.
 
 An `e2e`-tagged binary may replace repository, key, and clock adapters only
 when the explicit backup E2E file-root environment is present. Without that
-environment, including ordinary tagged scenarios, the production S3/KMS/clock
+environment, including ordinary tagged scenarios, the production OSS/KMS/clock
 loaders remain authoritative. The file-backed substitute may additionally wrap
 repository and key calls in one bounded artificial latency. A sentinel path
 activates that delay only after startup, allowing the black-box scale gate to

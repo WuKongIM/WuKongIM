@@ -110,7 +110,7 @@ func (r *FileRepository) PutImmutable(ctx context.Context, key string, size int6
 }
 
 // RepairImmutable atomically replaces the current development copy after
-// verifying exact healthy bytes. Production S3 repair publishes a new version.
+// verifying exact healthy bytes. Production OSS repair publishes a new version.
 func (r *FileRepository) RepairImmutable(
 	ctx context.Context,
 	key string,
@@ -215,7 +215,7 @@ func (r *FileRepository) Stat(ctx context.Context, key string) (backupartifact.R
 }
 
 // Check verifies that the development repository root remains a real,
-// writable directory. Production durability controls remain S3-specific.
+// writable directory. Production durability controls remain OSS-specific.
 func (r *FileRepository) Check(ctx context.Context) error {
 	if r == nil || r.root == "" {
 		return fmt.Errorf("backup file repository: repository is required")
@@ -248,7 +248,7 @@ func (r *FileRepository) Check(ctx context.Context) error {
 }
 
 // DeleteGarbageObject removes one already-unreachable immutable development
-// object. Production authorization remains separate in the S3 adapter.
+// object. Production authorization remains separate in the OSS adapter.
 func (r *FileRepository) DeleteGarbageObject(_ context.Context, key string) error {
 	target, err := r.objectPath(key, false)
 	if errors.Is(err, backupartifact.ErrObjectNotFound) {
@@ -551,6 +551,12 @@ func validFileChecksum(value string) bool {
 	}
 	decoded, err := hex.DecodeString(value)
 	return err == nil && len(decoded) == sha256.Size
+}
+
+func safeRepositoryKey(key string) bool {
+	return key != "" && !strings.Contains(key, "\\") &&
+		!strings.HasPrefix(key, "/") && path.Clean(key) == key &&
+		key != "." && key != ".." && !strings.HasPrefix(key, "../")
 }
 
 func syncDirectory(directory string) error {

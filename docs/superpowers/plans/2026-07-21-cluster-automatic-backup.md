@@ -5,7 +5,7 @@ and fresh-cluster restore workflow matching the approved design.
 
 **Architecture:** Add a reusable `pkg/backup` artifact/repository contract, an
 entry-independent `internal/usecase/backup` coordinator, node-local capture and
-restore workers under `internal/runtime/backup`, S3/KMS adapters under
+restore workers under `internal/runtime/backup`, Alibaba OSS/KMS adapters under
 `internal/infra/backup`, Manager/node protocol adapters under
 `internal/access`, and composition only in `internal/app`. Controller stores
 only bounded job summaries and restore-point references. Large manifests and
@@ -62,9 +62,9 @@ publication.
 
 - Add `internal/infra/backup/FLOW.md`
 - Add local filesystem adapter for development/tests
-- Add S3-compatible adapter using the official AWS SDK default credential chain
-- Add KMS envelope/signing adapter
-- Add adapter contract tests and MinIO-tagged integration tests
+- Add Alibaba OSS adapter using separately assumed RAM STS roles
+- Add Alibaba KMS envelope/signing adapter
+- Add adapter contract tests and protected production qualification
 
 **Behavior:**
 

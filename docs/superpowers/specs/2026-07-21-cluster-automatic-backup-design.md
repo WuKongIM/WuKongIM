@@ -34,7 +34,7 @@ source.
 5. Restore into a fresh cluster with the same `hash_slot_count`, while allowing
    different node IDs, node count, Slot placement, and Channel leadership.
 6. Store encrypted, signed, immutable copies in explicit primary and secondary
-   S3-compatible repositories in different failure domains.
+   Alibaba OSS repositories in different regions and failure domains.
 7. Prove recoverability through cryptographic verification, semantic checks,
    and scheduled restore drills.
 
@@ -167,7 +167,7 @@ older binary. Unsupported combinations fail before target writes begin.
 
 ## Repository And Key Security
 
-Production requires two explicit S3-compatible repositories in different
+Production requires two explicit Alibaba OSS repositories in different
 regions/failure domains. Provider-native replication may optimize transfer, but
 the coordinator independently verifies the secondary object and manifest before
 advancing the cross-region recovery watermark.

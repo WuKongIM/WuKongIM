@@ -81,7 +81,9 @@ func (s *ReplicatedSegmentStore) InspectSegmentCopies(
 			if report.Header == (SegmentHeader{}) {
 				report.Header = copyResult.commit.Header
 				report.Previous = cloneSegmentReference(copyResult.previous)
-			} else if report.Header != copyResult.commit.Header {
+			} else if !equalSegmentHeader(
+				report.Header, copyResult.commit.Header,
+			) {
 				return SegmentAuditReport{}, fmt.Errorf("%w: healthy segment copies disagree", ErrRepositoryIncomplete)
 			} else if !segmentReferencesEqual(report.Previous, copyResult.previous) {
 				return SegmentAuditReport{}, fmt.Errorf("%w: healthy segment predecessors disagree", ErrRepositoryIncomplete)
