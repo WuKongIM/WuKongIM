@@ -303,11 +303,20 @@ func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(
 			return false
 		}
 		return consumeBackupE2EStickyKey(
-			filepath.Join(r.corruptionDir, "sticky.key"), key,
+			backupE2EStickySlotKey(r.corruptionDir, uint16(hashSlot)), key,
 		)
 	default:
 		return false
 	}
+}
+
+// backupE2EStickySlotKey isolates an exact-Slot dual-loss selection from the
+// generic sticky marker used by preceding single-repository repair drills.
+func backupE2EStickySlotKey(corruptionDir string, hashSlot uint16) string {
+	return filepath.Join(
+		corruptionDir,
+		fmt.Sprintf("sticky-slot-%d.key", hashSlot),
+	)
 }
 
 // segmentPayloadMatchesHashSlot binds an e2e corruption marker to the logical

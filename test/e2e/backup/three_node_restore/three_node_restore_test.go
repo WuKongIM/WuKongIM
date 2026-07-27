@@ -780,10 +780,34 @@ func setRepositoryCorruption(
 
 func clearRepositoryCorruption(t *testing.T, trigger string) {
 	t.Helper()
-	for _, path := range []string{
+	selectionPaths := []string{
 		trigger,
 		filepath.Join(filepath.Dir(trigger), "sticky.key"),
-	} {
+	}
+	if body, err := os.ReadFile(trigger); err == nil {
+		mode := strings.TrimSpace(string(body))
+		if strings.HasPrefix(mode, "sticky-slot:") {
+			hashSlot, parseErr := strconv.ParseUint(
+				strings.TrimPrefix(mode, "sticky-slot:"), 10, 16,
+			)
+			if parseErr != nil {
+				t.Fatalf(
+					"parse repository corruption trigger %s: %v",
+					trigger, parseErr,
+				)
+			}
+			selectionPaths = append(
+				selectionPaths,
+				filepath.Join(
+					filepath.Dir(trigger),
+					fmt.Sprintf("sticky-slot-%d.key", hashSlot),
+				),
+			)
+		}
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("read repository corruption trigger %s: %v", trigger, err)
+	}
+	for _, path := range selectionPaths {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			t.Fatalf("clear repository corruption trigger %s: %v", path, err)
 		}

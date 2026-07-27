@@ -161,6 +161,12 @@ func TestBackupE2ECorruptionTriggerSelectsExactHashSlot(t *testing.T) {
 	}
 	slotSevenKey := putCommit(strings.Repeat("7", 64), 7)
 	slotEightKey := putCommit(strings.Repeat("8", 64), 8)
+	if err := os.WriteFile(
+		filepath.Join(faultDir, "sticky.key"),
+		[]byte(slotEightKey), 0o600,
+	); err != nil {
+		t.Fatalf("write stale generic sticky selection: %v", err)
+	}
 	trigger := filepath.Join(faultDir, "primary.corrupt")
 	if err := os.WriteFile(
 		trigger, []byte("sticky-slot:7"), 0o600,
@@ -176,6 +182,16 @@ func TestBackupE2ECorruptionTriggerSelectsExactHashSlot(t *testing.T) {
 		context.Background(), slotSevenKey,
 	) {
 		t.Fatal("exact-Slot trigger did not select the requested Hash Slot")
+	}
+	selected, err := os.ReadFile(backupE2EStickySlotKey(faultDir, 7))
+	if err != nil {
+		t.Fatalf("read exact-Slot sticky selection: %v", err)
+	}
+	if string(selected) != slotSevenKey {
+		t.Fatalf(
+			"exact-Slot sticky selection = %q, want %q",
+			selected, slotSevenKey,
+		)
 	}
 }
 

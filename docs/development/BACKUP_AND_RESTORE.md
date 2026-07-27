@@ -156,6 +156,10 @@ roles. The application refreshes one-hour STS sessions and never gives
 ordinary capture credentials a delete capability. All three repository roles
 are required for each Alibaba copy when automatic backup is enabled; restore
 requires only ordinary repository access plus the same deployment key package.
+Each ordinary access role needs `oss:GetObjectVersion` in addition to
+`oss:GetObject`: reads first obtain authoritative current-version metadata and
+then pin the body request to that exact `versionId`, preventing a concurrent
+repair from mixing metadata and bytes from different versions.
 Garbage-role startup
 qualification uses a stable per-node delete-marker slot, which ObjectWorm does
 not retain, clears any stale marker first, and removes the new exact marker
