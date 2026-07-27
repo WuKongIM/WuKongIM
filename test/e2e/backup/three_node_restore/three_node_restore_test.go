@@ -746,8 +746,11 @@ func exerciseRepositoryIntegrityRepair(
 	)
 	// Pin both repository reads to one payload in the exact affected Hash Slot.
 	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
+	// The auditor advances one durable object transition per interval. An
+	// exact-Slot target may sit behind the existing bounded audit debt even
+	// though an arbitrary sticky fault would select the first object.
 	replacement := waitForDurableGenerationReplacement(
-		t, cluster, token, hashSlot, previousFrontier, 60*time.Second,
+		t, cluster, token, hashSlot, previousFrontier, 180*time.Second,
 	)
 	if observed := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
@@ -1779,7 +1782,14 @@ func managerNodeRequestError(
 	if requestBody != nil {
 		reader = bytes.NewReader(requestBody)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	requestTimeout := 5 * time.Second
+	if method == http.MethodPost && path == "/manager/backups/checkpoints" {
+		// Production qualification publishes the signed catalog to two
+		// cross-region repositories. Keep ordinary Manager reads fast while
+		// allowing one remote checkpoint attempt to return its commit proof.
+		requestTimeout = 30 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(
 		ctx, method, "http://"+node.ManagerAddr()+path, reader,
