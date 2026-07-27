@@ -742,10 +742,15 @@ func exerciseRepositoryIntegrityRepair(
 	// The coordinate-scoped sticky key pins both repositories to the exact new
 	// segment even when an older audit cycle is still traversing other Slots.
 	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
+	recoveryDeadline := time.Now().Add(180 * time.Second)
+	waitForRepositoryCorruptionSelection(
+		t, root, hashSlot, backupartifact.SegmentStreamMessages,
+		targetMessageWatermark, time.Until(recoveryDeadline),
+	)
 	// A production dual-copy audit and replacement crosses both OSS regions;
 	// keep its recovery bound independent from ordinary Manager request waits.
 	rebasedHashSlot, replacement := waitForAnyDurableGenerationReplacement(
-		t, cluster, token, frontiers, 180*time.Second,
+		t, cluster, token, frontiers, time.Until(recoveryDeadline),
 	)
 	if observed := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
@@ -881,6 +886,38 @@ func clearRepositoryCorruption(t *testing.T, trigger string) {
 			t.Fatalf("clear repository corruption trigger %s: %v", path, err)
 		}
 	}
+}
+
+func waitForRepositoryCorruptionSelection(
+	t *testing.T,
+	root string,
+	hashSlot uint16,
+	stream backupartifact.SegmentStream,
+	sourceHighWatermark uint64,
+	timeout time.Duration,
+) {
+	t.Helper()
+	selection := filepath.Join(
+		root, "faults",
+		fmt.Sprintf(
+			"sticky-segment-%d-%s-%d.key",
+			hashSlot, stream, sourceHighWatermark,
+		),
+	)
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		body, err := os.ReadFile(selection)
+		if err == nil && len(body) > 0 {
+			return
+		}
+		lastErr = err
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"integrity audit did not select the exact dual-corruption segment %s: %v",
+		selection, lastErr,
+	)
 }
 
 func waitForBackupMetricIncrease(
@@ -1415,7 +1452,7 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":           "500ms",
 		"WK_BACKUP_STAGING_MAX_BYTES":                   "67108864",
 		"WK_BACKUP_WORKER_COUNT":                        "2",
-		"WK_BACKUP_AUDIT_INTERVAL":                      "2s",
+		"WK_BACKUP_AUDIT_INTERVAL":                      "500ms",
 		"WK_BACKUP_AUDIT_SCRUB_INTERVAL":                "24h",
 		"WK_BACKUP_GARBAGE_COLLECTION_INTERVAL":         "1h",
 		"WK_BACKUP_GARBAGE_SAFETY_WINDOW":               "168h",
