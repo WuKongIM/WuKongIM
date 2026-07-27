@@ -1903,15 +1903,7 @@ func managerNodeRequestError(
 	if requestBody != nil {
 		reader = bytes.NewReader(requestBody)
 	}
-	requestTimeout := 5 * time.Second
-	if method == http.MethodPost &&
-		(path == "/manager/backups/checkpoints" ||
-			path == "/manager/messages/retention") {
-		// Production qualification publishes checkpoint or permanent-erasure
-		// evidence to two cross-region repositories. Keep ordinary Manager
-		// reads fast while allowing one remote write to return its commit proof.
-		requestTimeout = 30 * time.Second
-	}
+	requestTimeout := managerRequestTimeout(method, path)
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(
@@ -1949,6 +1941,21 @@ func managerNodeRequestError(
 		}
 	}
 	return nil
+}
+
+func managerRequestTimeout(method, path string) time.Duration {
+	if method == http.MethodPost {
+		switch path {
+		case "/manager/backups/checkpoints",
+			"/manager/messages/retention",
+			"/manager/restore/plan":
+			// Production checkpoint and erasure writes publish proof to two
+			// regions. Restore planning authenticates the complete remote graph.
+			return 30 * time.Second
+		}
+	}
+	// Keep ordinary Manager reads and local control operations fast.
+	return 5 * time.Second
 }
 
 func publishCheckpointEventually(
@@ -2270,6 +2277,25 @@ func TestTargetRestoreConfigPreservesObjectLockPolicy(t *testing.T) {
 	}, 2)
 
 	require.Equal(t, "7", config["WK_BACKUP_OBJECT_LOCK_DAYS"])
+}
+
+func TestManagerRequestTimeoutBudgetsRemoteRepositoryWork(t *testing.T) {
+	require.Equal(
+		t, 30*time.Second,
+		managerRequestTimeout(http.MethodPost, "/manager/backups/checkpoints"),
+	)
+	require.Equal(
+		t, 30*time.Second,
+		managerRequestTimeout(http.MethodPost, "/manager/messages/retention"),
+	)
+	require.Equal(
+		t, 30*time.Second,
+		managerRequestTimeout(http.MethodPost, "/manager/restore/plan"),
+	)
+	require.Equal(
+		t, 5*time.Second,
+		managerRequestTimeout(http.MethodGet, "/manager/restore/status"),
+	)
 }
 
 type backupCaptureCycleBarrier struct {
