@@ -354,6 +354,20 @@ func backupE2EStickySegmentKey(
 	)
 }
 
+func backupE2ECorruptionSelectionKey(
+	corruptionDir string,
+	mode string,
+) string {
+	if mode == "sticky" {
+		return filepath.Join(corruptionDir, "sticky.key")
+	}
+	target, ok := parseBackupE2EStickySegmentTarget(mode)
+	if !ok {
+		return ""
+	}
+	return backupE2EStickySegmentKey(corruptionDir, target)
+}
+
 // segmentPayloadMatchesTarget binds an e2e corruption marker to the exact
 // logical segment authenticated by the payload's immutable commit record.
 func (r *backupE2EDelayedRepository) segmentPayloadMatchesTarget(
@@ -511,6 +525,15 @@ func (r *backupE2ERepairRepository) RepairImmutable(
 	checksum string,
 	body io.Reader,
 ) error {
+	selectionKey := r.sticky
+	if triggerBody, err := os.ReadFile(r.trigger); err == nil {
+		if exactKey := backupE2ECorruptionSelectionKey(
+			filepath.Dir(r.trigger),
+			strings.TrimSpace(string(triggerBody)),
+		); exactKey != "" {
+			selectionKey = exactKey
+		}
+	}
 	if err := r.RepairRepository.RepairImmutable(
 		ctx, key, size, checksum, body,
 	); err != nil {
@@ -527,7 +550,7 @@ func (r *backupE2ERepairRepository) RepairImmutable(
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	if err := os.Remove(r.sticky); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(selectionKey); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil

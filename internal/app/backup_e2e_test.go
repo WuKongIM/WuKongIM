@@ -298,6 +298,57 @@ func TestBackupE2ERepairClearsStickyCorruption(t *testing.T) {
 	}
 }
 
+func TestBackupE2ERepairClearsExactSegmentCorruption(t *testing.T) {
+	root := t.TempDir()
+	repository, err := backupinfra.NewFileRepository(
+		"primary", filepath.Join(root, "repository"),
+	)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+	faultDir := filepath.Join(root, "faults")
+	if err := os.MkdirAll(faultDir, 0o700); err != nil {
+		t.Fatalf("make fault directory: %v", err)
+	}
+	const mode = "sticky-segment:7:messages:11"
+	target, ok := parseBackupE2EStickySegmentTarget(mode)
+	if !ok {
+		t.Fatal("parse exact-segment target")
+	}
+	trigger := filepath.Join(faultDir, "primary.corrupt")
+	selection := backupE2EStickySegmentKey(faultDir, target)
+	for path, body := range map[string][]byte{
+		trigger:   []byte(mode),
+		selection: []byte("segments/id/payloads/digest.bin"),
+	} {
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatalf("write exact corruption marker %q: %v", path, err)
+		}
+	}
+
+	body := []byte("healthy payload")
+	digest := sha256.Sum256(body)
+	repair := &backupE2ERepairRepository{
+		RepairRepository: repository,
+		trigger:          trigger,
+		sticky:           filepath.Join(faultDir, "sticky.key"),
+	}
+	if err := repair.RepairImmutable(
+		context.Background(),
+		"segments/id/payloads/digest.bin",
+		int64(len(body)),
+		hex.EncodeToString(digest[:]),
+		bytes.NewReader(body),
+	); err != nil {
+		t.Fatalf("repair immutable: %v", err)
+	}
+	for _, path := range []string{trigger, selection} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("exact corruption marker %q remains after repair: %v", path, err)
+		}
+	}
+}
+
 func TestBackupE2ERepairRetainsStickySelectionDuringDualCorruption(t *testing.T) {
 	root := t.TempDir()
 	repository, err := backupinfra.NewFileRepository(

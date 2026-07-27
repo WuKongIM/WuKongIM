@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -270,12 +272,9 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 	)
 	require.NotEmpty(t, baseline.Checkpoint.ID)
 	require.Len(t, baseline.CheckpointSHA256, 64)
-	integrityRepairTimeout := 30 * time.Second
-	if qualification.FileRoot == "" {
-		// Each production repair observation crosses both OSS regions and may
-		// complete after the ordinary local audit bound.
-		integrityRepairTimeout = 120 * time.Second
-	}
+	// A target may sit behind the fixed audit cycle that was already in
+	// progress. Production additionally crosses both OSS regions.
+	integrityRepairTimeout := 120 * time.Second
 	exerciseRepositoryIntegrityRepair(
 		t, cluster, sourceToken, qualification.CorruptionRoot,
 		integrityRepairTimeout,
@@ -599,7 +598,7 @@ func exerciseSourceLeaderFailures(
 			t, cluster, token, hashSlot, slotLeader, 20*time.Second,
 		),
 	)
-	appendMessageDuringFailure(t, cluster, survivors[0], faultChannelID, "slot-leader")
+	appendMessageDuringFailure(t, cluster, survivors, faultChannelID, "slot-leader")
 	require.NoError(t, cluster.StartStoppedNode(slotLeader), cluster.DumpDiagnostics())
 	cluster.WaitNodesReady(t, []uint64{slotLeader}, 30*time.Second)
 
@@ -607,7 +606,7 @@ func exerciseSourceLeaderFailures(
 	require.NoError(t, cluster.MustNode(dataNode).Stop(), cluster.DumpDiagnostics())
 	survivors = otherNodeIDs(dataNode)
 	waitForManagerTCPs(t, cluster, survivors, 20*time.Second)
-	appendMessageDuringFailure(t, cluster, survivors[0], faultChannelID, "data-node")
+	appendMessageDuringFailure(t, cluster, survivors, faultChannelID, "data-node")
 	require.NoError(t, cluster.StartStoppedNode(dataNode), cluster.DumpDiagnostics())
 	cluster.WaitNodesReady(t, []uint64{dataNode}, 30*time.Second)
 }
@@ -691,52 +690,33 @@ func exerciseRepositoryIntegrityRepair(
 	repairTimeout time.Duration,
 ) {
 	t.Helper()
-	beforeCorruptions := backupMetricTotal(
-		t, cluster, "wukongim_backup_audit_corruptions_total",
-		nil,
+	exerciseSingleRepositoryIntegrityRepair(
+		t, cluster, token, root, "primary",
+		"backup-e2e-primary-repository-repair", repairTimeout,
 	)
-	beforeRepairBytes := backupMetricTotal(
-		t, cluster, "wukongim_backup_audit_repair_bytes_total",
-		nil,
+	exerciseSingleRepositoryIntegrityRepair(
+		t, cluster, token, root, "secondary",
+		"backup-e2e-secondary-repository-repair", repairTimeout,
 	)
-	setRepositoryCorruption(t, root, "primary", "sticky")
-	waitForBackupMetricIncrease(
-		t, cluster, "wukongim_backup_audit_corruptions_total",
-		nil, beforeCorruptions, repairTimeout,
-	)
-	waitForBackupMetricIncrease(
-		t, cluster, "wukongim_backup_audit_repair_bytes_total",
-		nil, beforeRepairBytes, repairTimeout,
-	)
-	waitForBackupHealthy(t, cluster, token, repairTimeout)
-	_ = publishCheckpointEventually(t, cluster, token, repairTimeout)
-
-	beforeCorruptions = backupMetricTotal(
-		t, cluster, "wukongim_backup_audit_corruptions_total",
-		nil,
-	)
-	beforeRepairBytes = backupMetricTotal(
-		t, cluster, "wukongim_backup_audit_repair_bytes_total",
-		nil,
-	)
-	setRepositoryCorruption(t, root, "secondary", "sticky")
-	waitForBackupMetricIncrease(
-		t, cluster, "wukongim_backup_audit_corruptions_total",
-		nil, beforeCorruptions, repairTimeout,
-	)
-	waitForBackupMetricIncrease(
-		t, cluster, "wukongim_backup_audit_repair_bytes_total",
-		nil, beforeRepairBytes, repairTimeout,
-	)
-	waitForBackupHealthy(t, cluster, token, repairTimeout)
-	_ = publishCheckpointEventually(t, cluster, token, repairTimeout)
 
 	frontiers := backupDurableFrontiers(t, cluster, token)
 	const dualCorruptionChannel = "backup-e2e-dual-corruption"
+	hashSlot := hashslot.HashSlotForKey(dualCorruptionChannel, 16)
+	beforeDualCorruption := frontiers[hashSlot]
+	require.NotEqual(
+		t, uint64(math.MaxUint64), beforeDualCorruption.messages,
+		"dual-corruption target message watermark is exhausted",
+	)
+	targetMessageWatermark := beforeDualCorruption.messages + 1
+	allRepositoriesTrigger := setRepositoryCorruption(
+		t, root, "all", fmt.Sprintf(
+			"sticky-segment:%d:%s:%d",
+			hashSlot, "messages", targetMessageWatermark,
+		),
+	)
 	_ = appendGroupMessages(
 		t, cluster, dualCorruptionChannel, frame.ChannelTypeGroup, 1,
 	)
-	hashSlot := hashslot.HashSlotForKey(dualCorruptionChannel, 16)
 	waitForDurableFrontiers(
 		t, cluster, token, frontiers,
 		[]uint16{hashSlot}, []uint16{hashSlot}, 20*time.Second,
@@ -747,20 +727,18 @@ func exerciseRepositoryIntegrityRepair(
 		t, previousFrontier.messages,
 		"dual-corruption target has no committed message watermark",
 	)
+	require.Equal(
+		t, targetMessageWatermark, previousFrontier.messages,
+		"dual-corruption target advanced by an unexpected message count",
+	)
 	beforeRebases := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
 		map[string]string{
 			"reason": "audit_corruption", "outcome": "success",
 		},
 	)
-	allRepositoriesTrigger := setRepositoryCorruption(
-		t, root, "all", fmt.Sprintf(
-			"sticky-segment:%d:%s:%d",
-			hashSlot, "messages", previousFrontier.messages,
-		),
-	)
 	// Pin both repository reads to the exact new message segment represented by
-	// the checkpoint frontier, excluding older objects in the same Hash Slot.
+	// the next frontier before an automatic checkpoint can catalog and audit it.
 	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
 	// A production dual-copy audit and replacement crosses both OSS regions;
 	// keep its recovery bound independent from ordinary Manager request waits.
@@ -780,6 +758,63 @@ func exerciseRepositoryIntegrityRepair(
 	}
 	clearRepositoryCorruption(t, allRepositoriesTrigger)
 	waitForBackupHealthy(t, cluster, token, 60*time.Second)
+}
+
+func exerciseSingleRepositoryIntegrityRepair(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	root string,
+	repository string,
+	channelID string,
+	timeout time.Duration,
+) {
+	t.Helper()
+	beforeCorruptions := backupMetricTotal(
+		t, cluster, "wukongim_backup_audit_corruptions_total",
+		nil,
+	)
+	beforeRepairBytes := backupMetricTotal(
+		t, cluster, "wukongim_backup_audit_repair_bytes_total",
+		nil,
+	)
+	frontiers := backupDurableFrontiers(t, cluster, token)
+	hashSlot := hashslot.HashSlotForKey(channelID, 16)
+	previous := frontiers[hashSlot]
+	require.NotEqual(
+		t, uint64(math.MaxUint64), previous.messages,
+		"single-repository repair target message watermark is exhausted",
+	)
+	targetMessageWatermark := previous.messages + 1
+	setRepositoryCorruption(
+		t, root, repository, fmt.Sprintf(
+			"sticky-segment:%d:%s:%d",
+			hashSlot, "messages", targetMessageWatermark,
+		),
+	)
+	_ = appendGroupMessages(
+		t, cluster, channelID, frame.ChannelTypeGroup, 1,
+	)
+	waitForDurableFrontiers(
+		t, cluster, token, frontiers,
+		[]uint16{hashSlot}, []uint16{hashSlot}, 20*time.Second,
+	)
+	current := backupDurableFrontiers(t, cluster, token)[hashSlot]
+	require.Equal(
+		t, targetMessageWatermark, current.messages,
+		"single-repository repair target advanced by an unexpected message count",
+	)
+	_ = publishCheckpointEventually(t, cluster, token, timeout)
+	waitForBackupMetricIncrease(
+		t, cluster, "wukongim_backup_audit_corruptions_total",
+		nil, beforeCorruptions, timeout,
+	)
+	waitForBackupMetricIncrease(
+		t, cluster, "wukongim_backup_audit_repair_bytes_total",
+		nil, beforeRepairBytes, timeout,
+	)
+	waitForBackupHealthy(t, cluster, token, timeout)
+	_ = publishCheckpointEventually(t, cluster, token, timeout)
 }
 
 func setRepositoryCorruption(
@@ -1082,35 +1117,47 @@ func prepareFailureChannel(
 		cluster.DumpDiagnostics(),
 	)
 	appendMessageDuringFailure(
-		t, cluster, 1, channelID, "warmup",
+		t, cluster, []uint64{1}, channelID, "warmup",
 	)
 }
 
 func appendMessageDuringFailure(
 	t *testing.T,
 	cluster *suite.StartedCluster,
-	nodeID uint64,
+	nodeIDs []uint64,
 	channelID string,
 	phase string,
 ) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	message, err := suite.PostMessageSendEventually(
-		ctx,
-		cluster.MustNode(nodeID).APIAddr(),
-		map[string]any{
-			"from_uid":      "backup-e2e-fault-sender",
-			"channel_id":    channelID,
-			"channel_type":  frame.ChannelTypeGroup,
-			"client_msg_no": "backup-e2e-fault-" + phase,
-			"payload": base64.StdEncoding.EncodeToString(
-				[]byte("foreground SEND during " + phase + " failure"),
-			),
-		},
-	)
-	require.NoError(t, err, cluster.DumpDiagnostics())
-	require.Equal(t, uint8(frame.ReasonSuccess), message.Reason)
+	require.NotEmpty(t, nodeIDs)
+	body := map[string]any{
+		"from_uid":      "backup-e2e-fault-sender",
+		"channel_id":    channelID,
+		"channel_type":  frame.ChannelTypeGroup,
+		"client_msg_no": "backup-e2e-fault-" + phase,
+		"payload": base64.StdEncoding.EncodeToString(
+			[]byte("foreground SEND during " + phase + " failure"),
+		),
+	}
+	var attemptErrors []error
+	for _, nodeID := range nodeIDs {
+		ctx, cancel := context.WithTimeout(
+			context.Background(), 15*time.Second,
+		)
+		message, err := suite.PostMessageSendEventually(
+			ctx, cluster.MustNode(nodeID).APIAddr(), body,
+		)
+		cancel()
+		if err == nil {
+			require.Equal(t, uint8(frame.ReasonSuccess), message.Reason)
+			return
+		}
+		attemptErrors = append(
+			attemptErrors,
+			fmt.Errorf("surviving node %d: %w", nodeID, err),
+		)
+	}
+	require.NoError(t, errors.Join(attemptErrors...), cluster.DumpDiagnostics())
 }
 
 func otherNodeIDs(excluded uint64) []uint64 {
