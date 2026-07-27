@@ -359,6 +359,11 @@ func (s *Server) registerRoutes() {
 	permissions.GET("/permissions", s.handlePermissions)
 	s.registerRestoreStatusRoute()
 	if s.restoreMode {
+		restoreNodes := s.engine.Group("/manager")
+		if s.auth.enabled() {
+			restoreNodes.Use(s.requirePermission("cluster.backup", "r"))
+		}
+		restoreNodes.GET("/nodes", s.handleNodes)
 		s.registerRestoreRoutes()
 		return
 	}

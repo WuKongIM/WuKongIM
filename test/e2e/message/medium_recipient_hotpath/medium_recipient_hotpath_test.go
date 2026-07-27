@@ -22,6 +22,7 @@ import (
 
 	benchtarget "github.com/WuKongIM/WuKongIM/internal/bench/target"
 	benchmodel "github.com/WuKongIM/WuKongIM/pkg/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/pelletier/go-toml/v2"
@@ -52,6 +53,17 @@ const (
 	mediumChannelRPCWorkers       = 96
 	mediumChannelRPCBatchMaxItems = 8
 	mediumSenderUIDPrefix         = "wkrc-hifi-sender"
+	backupScaleMembers            = 100_000
+	backupScaleChannels           = 5_000
+	backupScaleCaptureWorkers     = 16
+	backupRemoteLatency           = 1500 * time.Millisecond
+	backupMaxSendackP99           = time.Second
+	backupForegroundMaxSendackP99 = 1200 * time.Millisecond
+	backupCheckpointMaxDuration   = 10 * time.Second
+	backupScaleMaxHeapBytes       = 1280 << 20
+	backupScaleMaxAggregateHeap   = 3072 << 20
+	backupMaxAllocatedBytesPerMsg = 650_000
+	backupMeasurementSettle       = 2 * time.Second
 
 	mediumCIMinIngressFraction                 = 0.995
 	mediumMaxAllocatedBytesPerMessage          = 360_000
@@ -63,6 +75,8 @@ const (
 	// one second remains bounded while avoiding observer-induced saturation.
 	mediumMetricSampleInterval   = time.Second
 	mediumCIMetricSampleInterval = time.Second
+	mediumMetricFetchTimeout     = 750 * time.Millisecond
+	mediumMetricFetchAttempts    = 2
 )
 
 var mediumGroupProfiles = []struct {
@@ -155,6 +169,7 @@ type hotPathEvidence struct {
 	MaxPostCommitBacklog     float64  `json:"max_post_commit_backlog"`
 	MaxPostCommitHandoffRate float64  `json:"max_post_commit_handoff_ratio"`
 	MaxHeapBytes             float64  `json:"max_heap_bytes"`
+	MaxAggregateHeapBytes    float64  `json:"max_aggregate_heap_bytes"`
 	AllocatedBytes           float64  `json:"allocated_bytes"`
 	GCCountDelta             float64  `json:"gc_count_delta"`
 	PluginReceiveAccepted    float64  `json:"plugin_receive_enqueue_accepted"`
@@ -167,6 +182,41 @@ type hotPathEvidence struct {
 	MetricSampleErrors       int      `json:"metric_sample_errors"`
 	Drained                  bool     `json:"drained"`
 	ProcessContinuous        bool     `json:"process_continuous"`
+}
+
+type backupScaleEvidence struct {
+	Schema                       string   `json:"schema"`
+	PhysicalHashSlots            int      `json:"physical_hash_slots"`
+	CaptureWorkers               int      `json:"capture_workers"`
+	GroupMembers                 int      `json:"group_members"`
+	Channels                     int      `json:"channels"`
+	RemoteLatencyMS              float64  `json:"remote_latency_ms"`
+	Sends                        int      `json:"sends"`
+	SendackP99MS                 float64  `json:"sendack_p99_ms"`
+	PinRebaseHashSlot            uint16   `json:"pin_rebase_hash_slot"`
+	PinRebaseObservedHashSlots   []uint16 `json:"pin_rebase_observed_hash_slots"`
+	InitialCheckpointDurationMS  float64  `json:"initial_checkpoint_duration_ms"`
+	CaptureCatchupDurationMS     float64  `json:"capture_catchup_duration_ms"`
+	HistoryCheckpointDurationMS  float64  `json:"history_checkpoint_duration_ms"`
+	RepeatCheckpointDurationMS   float64  `json:"repeat_checkpoint_duration_ms"`
+	MaxAggregateHeapBytes        float64  `json:"max_aggregate_heap_bytes"`
+	ForegroundSendackP99MS       float64  `json:"foreground_sendack_p99_ms"`
+	NoSynchronousRemoteOnSEND    bool     `json:"no_synchronous_remote_on_send"`
+	CheckpointCostHistoryBounded bool     `json:"checkpoint_cost_history_bounded"`
+}
+
+type backupScaleRun struct {
+	trigger                   string
+	initialCheckpointDuration time.Duration
+	sendackLatencies          []time.Duration
+	pinRebaseHashSlot         uint16
+	pinRebaseObservedSlots    []uint16
+}
+
+type hotPathAcceptanceLimits struct {
+	maxSendackP99MS         float64
+	maxHeapBytes            int64
+	maxAllocatedBytesPerMsg float64
 }
 
 func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
@@ -193,11 +243,14 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		t.Fatalf("acceptance offered QPS = %d, want at least %d", offeredQPS, expectedAcceptanceQPS)
 	}
 
-	cluster := startMediumCluster(t, rpcBatchMaxItems)
+	cluster, backupTrigger := startMediumCluster(t, rpcBatchMaxItems)
 	verifyMediumRenderedRuntime(t, cluster, rpcBatchMaxItems)
 	setupTimeout := 2 * time.Minute
 	if groupChannelCount > 500 {
 		setupTimeout = 5 * time.Minute
+	}
+	if backupTrigger != "" {
+		setupTimeout = 12 * time.Minute
 	}
 	setupCtx, setupCancel := context.WithTimeout(context.Background(), setupTimeout)
 	defer setupCancel()
@@ -214,6 +267,16 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		setupConvergence.StableDuration,
 		setupConvergence.Leaders,
 	)
+	var sampler *pressureSampler
+	var backupScale *backupScaleRun
+	if backupTrigger != "" {
+		sampler = newPressureSampler(cluster, metricSampleInterval)
+		sampler.start()
+		defer sampler.stop()
+		backupScale = startBackupScaleQualification(
+			t, setupCtx, cluster, backupTrigger,
+		)
+	}
 	groupChannels, groupRecipients, groupOnline := prepareGroupChannels(t, setupCtx, cluster.MustNode(1), groupChannelCount)
 	personRecipients := make([]string, 125)
 	for i := range personRecipients {
@@ -241,6 +304,14 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	_ = primeSender.Close()
 	primeMessages := buildPrimeMessages(groupChannels, personRecipients)
 	coldPrimeDuration := primeHotPathChannels(t, setupCtx, cluster, primeMessages, payload)
+	if backupScale != nil {
+		// Drain the fully prepared persistent fixture before opening thousands
+		// of foreground connections. Capture catch-up can legitimately outlast
+		// the gateway idle timeout, while connection setup is outside the
+		// measured allocation window and does not change backup contents.
+		_ = publishMediumBackupCheckpoint(t, cluster, 5*time.Minute)
+		time.Sleep(backupMeasurementSettle)
+	}
 
 	recipients := connectRecipients(t, cluster, groupOnline, personRecipients)
 	defer closeRecipients(recipients)
@@ -262,8 +333,11 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 
 	starts := &sync.Map{}
 	receiverResults := startReceivers(measuredRecipients, starts)
-	sampler := newPressureSampler(cluster, metricSampleInterval)
-	sampler.start()
+	if sampler == nil {
+		sampler = newPressureSampler(cluster, metricSampleInterval)
+		sampler.start()
+		defer sampler.stop()
+	}
 	profileDone := startHotPathCPUProfiles(cluster, os.Getenv("WK_E2E_MEDIUM_RECIPIENT_PROFILE_DIR"))
 
 	sendackLatencies := make([]time.Duration, 0, len(messages))
@@ -410,6 +484,7 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		MaxPostCommitBacklog:     pressure.maxPostCommitBacklog,
 		MaxPostCommitHandoffRate: pressure.maxPostCommitHandoffRatio,
 		MaxHeapBytes:             pressure.maxHeapBytes,
+		MaxAggregateHeapBytes:    pressure.maxAggregateHeapBytes,
 		AllocatedBytes:           counterDelta.allocatedBytes,
 		GCCountDelta:             counterDelta.gcCount,
 		PluginReceiveAccepted:    counterDelta.pluginReceiveAccepted,
@@ -429,18 +504,63 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 	}
 	t.Logf("WKRC-HIFI-EVIDENCE %s", encoded)
 	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE") == "1" {
-		requireHotPathAcceptance(t, evidence, expectedAcceptanceQPS, measuredRounds)
+		limits := defaultHotPathAcceptanceLimits()
+		if backupScale != nil {
+			limits = backupHotPathAcceptanceLimits()
+		}
+		requireHotPathAcceptance(
+			t, evidence, expectedAcceptanceQPS, measuredRounds, limits,
+		)
+	}
+	if backupScale != nil {
+		finishBackupScaleQualification(t, cluster, *backupScale, evidence)
 	}
 }
 
-func requireHotPathAcceptance(t *testing.T, evidence hotPathEvidence, expectedOfferedQPS int, expectedRounds int) {
+func requireHotPathAcceptance(
+	t *testing.T,
+	evidence hotPathEvidence,
+	expectedOfferedQPS int,
+	expectedRounds int,
+	limits hotPathAcceptanceLimits,
+) {
 	t.Helper()
-	if err := hotPathAcceptanceError(evidence, expectedOfferedQPS, expectedRounds); err != nil {
+	if err := hotPathAcceptanceErrorWithLimits(
+		evidence, expectedOfferedQPS, expectedRounds, limits,
+	); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, expectedRounds int) error {
+	return hotPathAcceptanceErrorWithLimits(
+		evidence, expectedOfferedQPS, expectedRounds,
+		defaultHotPathAcceptanceLimits(),
+	)
+}
+
+func defaultHotPathAcceptanceLimits() hotPathAcceptanceLimits {
+	return hotPathAcceptanceLimits{
+		maxSendackP99MS:         milliseconds(time.Second),
+		maxHeapBytes:            mediumMaxHeapBytes,
+		maxAllocatedBytesPerMsg: mediumMaxAllocatedBytesPerMessage,
+	}
+}
+
+func backupHotPathAcceptanceLimits() hotPathAcceptanceLimits {
+	return hotPathAcceptanceLimits{
+		maxSendackP99MS:         milliseconds(backupForegroundMaxSendackP99),
+		maxHeapBytes:            backupScaleMaxHeapBytes,
+		maxAllocatedBytesPerMsg: backupMaxAllocatedBytesPerMsg,
+	}
+}
+
+func hotPathAcceptanceErrorWithLimits(
+	evidence hotPathEvidence,
+	expectedOfferedQPS int,
+	expectedRounds int,
+	limits hotPathAcceptanceLimits,
+) error {
 	expectedMessages := mediumMessageCount * expectedRounds
 	expectedRecipientRows := mediumRecipientRows * expectedRounds
 	switch {
@@ -508,8 +628,11 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 			evidence.IngressPerSecond,
 			minimumAcceptedIngress(expectedOfferedQPS),
 		)
-	case evidence.SendackP99MS > 1_000:
-		return fmt.Errorf("acceptance SENDACK P99 = %.3fms, want at most 1000ms", evidence.SendackP99MS)
+	case evidence.SendackP99MS > limits.maxSendackP99MS:
+		return fmt.Errorf(
+			"acceptance SENDACK P99 = %.3fms, want at most %.3fms",
+			evidence.SendackP99MS, limits.maxSendackP99MS,
+		)
 	case evidence.RecvP99MS > 2_000:
 		return fmt.Errorf("acceptance RECV P99 = %.3fms, want at most 2000ms", evidence.RecvP99MS)
 	case evidence.MaxGatewayQueueRatio >= 1:
@@ -577,11 +700,15 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 		return fmt.Errorf("acceptance measured duration = %.3fms, want a positive duration", evidence.MeasuredDurationMS)
 	case evidence.AllocatedBytes <= 0:
 		return fmt.Errorf("acceptance allocated bytes = %.0f, want a positive measured delta", evidence.AllocatedBytes)
-	case evidence.AllocatedBytes > maxAcceptedAllocatedBytes(evidence):
+	case evidence.AllocatedBytes > maxAcceptedAllocatedBytesWithLimit(
+		evidence, limits.maxAllocatedBytesPerMsg,
+	):
 		return fmt.Errorf(
 			"acceptance allocated bytes/message = %.0f, want at most %.0f after %.3fs paced background allowance",
 			evidence.AllocatedBytes/float64(evidence.Messages),
-			maxAcceptedAllocatedBytes(evidence)/float64(evidence.Messages),
+			maxAcceptedAllocatedBytesWithLimit(
+				evidence, limits.maxAllocatedBytesPerMsg,
+			)/float64(evidence.Messages),
 			acceptedBackgroundDurationSeconds(evidence),
 		)
 	case evidence.GCCountDelta <= 0:
@@ -592,11 +719,11 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 			evidence.GCCountDelta/float64(evidence.Messages),
 			mediumMaxGCPerMessage,
 		)
-	case evidence.MaxHeapBytes <= 0 || evidence.MaxHeapBytes > mediumMaxHeapBytes:
+	case evidence.MaxHeapBytes <= 0 || evidence.MaxHeapBytes > float64(limits.maxHeapBytes):
 		return fmt.Errorf(
 			"acceptance max heap bytes = %.0f, want in (0,%d]",
 			evidence.MaxHeapBytes,
-			mediumMaxHeapBytes,
+			limits.maxHeapBytes,
 		)
 	case evidence.MetricSamples == 0:
 		return errors.New("acceptance collected no public metric samples")
@@ -611,7 +738,16 @@ func hotPathAcceptanceError(evidence hotPathEvidence, expectedOfferedQPS int, ex
 }
 
 func maxAcceptedAllocatedBytes(evidence hotPathEvidence) float64 {
-	return float64(evidence.Messages)*mediumMaxAllocatedBytesPerMessage +
+	return maxAcceptedAllocatedBytesWithLimit(
+		evidence, mediumMaxAllocatedBytesPerMessage,
+	)
+}
+
+func maxAcceptedAllocatedBytesWithLimit(
+	evidence hotPathEvidence,
+	perMessage float64,
+) float64 {
+	return float64(evidence.Messages)*perMessage +
 		acceptedBackgroundDurationSeconds(evidence)*mediumMaxBackgroundAllocatedBytesPerSecond
 }
 
@@ -823,7 +959,7 @@ func proveWarmupSend(t *testing.T, cluster *suite.StartedCluster, sender *suite.
 	t.Logf("WKRC-HIFI-WARMUP duration=%s", time.Since(start))
 }
 
-func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluster {
+func startMediumCluster(t *testing.T, rpcBatchMaxItems int) (*suite.StartedCluster, string) {
 	t.Helper()
 	overrides := map[string]string{
 		"WK_CLUSTER_INITIAL_SLOT_COUNT":                              "10",
@@ -852,13 +988,440 @@ func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluste
 		"WK_CHANNEL_APPEND_EFFECT_POOL_SIZE":                         "2000",
 		"WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY": "100",
 	}
-	s := suite.New(t)
-	return s.StartThreeNodeCluster(
-		suite.WithManagerHTTP(),
-		suite.WithNodeConfigOverrides(1, overrides),
-		suite.WithNodeConfigOverrides(2, overrides),
-		suite.WithNodeConfigOverrides(3, overrides),
+	options := []suite.Option{suite.WithManagerHTTP()}
+	backupTrigger := ""
+	if os.Getenv("WK_E2E_MEDIUM_BACKUP_QUALIFICATION") == "1" {
+		root := t.TempDir()
+		backupTrigger = filepath.Join(root, "remote-latency.enabled")
+		for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+			nodeOverrides := make(map[string]string, len(overrides)+40)
+			for key, value := range overrides {
+				nodeOverrides[key] = value
+			}
+			for key, value := range mediumBackupOverrides(root, nodeID) {
+				nodeOverrides[key] = value
+			}
+			options = append(
+				options,
+				suite.WithNodeConfigOverrides(nodeID, nodeOverrides),
+				suite.WithNodeEnv(
+					nodeID,
+					"WUKONGIM_BACKUP_E2E_FILE_ROOT="+root,
+					"WUKONGIM_BACKUP_E2E_REMOTE_LATENCY="+backupRemoteLatency.String(),
+					"WUKONGIM_BACKUP_E2E_LATENCY_TRIGGER="+backupTrigger,
+					"WUKONGIM_BACKUP_E2E_PIN_PRESSURE_TRIGGER="+backupTrigger+".pin",
+					"AWS_ACCESS_KEY_ID=e2e",
+					"AWS_SECRET_ACCESS_KEY=e2e-secret",
+					"AWS_EC2_METADATA_DISABLED=true",
+				),
+			)
+		}
+	} else {
+		for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+			options = append(
+				options,
+				suite.WithNodeConfigOverrides(nodeID, overrides),
+			)
+		}
+	}
+	return suite.New(t).StartThreeNodeCluster(options...), backupTrigger
+}
+
+func mediumBackupOverrides(root string, nodeID uint64) map[string]string {
+	return map[string]string{
+		"WK_BACKUP_ENABLED":                             "true",
+		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v1",
+		"WK_BACKUP_REPOSITORY_ID":                       "medium-backup-qualification",
+		"WK_BACKUP_SOURCE_GENERATION":                   "medium-source-generation",
+		"WK_BACKUP_STAGING_DIR":                         filepath.Join(root, fmt.Sprintf("staging-%d", nodeID)),
+		"WK_BACKUP_KMS_KEY_ID":                          "e2e-encryption-key",
+		"WK_BACKUP_SIGNING_KEY_ID":                      "e2e-signing-key",
+		"WK_BACKUP_KMS_REGION":                          "e2e-kms",
+		"WK_BACKUP_KMS_ENDPOINT":                        "https://kms.e2e.invalid",
+		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "100ms",
+		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
+		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
+		"WK_BACKUP_TARGET_SEGMENT_BYTES":                "1048576",
+		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":           "500ms",
+		"WK_BACKUP_STAGING_MAX_BYTES":                   "536870912",
+		"WK_BACKUP_WORKER_COUNT":                        strconv.Itoa(backupScaleCaptureWorkers),
+		"WK_BACKUP_SOURCE_PIN_MAX_AGE":                  "1h",
+		"WK_BACKUP_MAX_SOURCE_PINNED_BYTES":             "8589934592",
+		"WK_BACKUP_AUDIT_INTERVAL":                      "5s",
+		"WK_BACKUP_AUDIT_SCRUB_INTERVAL":                "24h",
+		"WK_BACKUP_GARBAGE_COLLECTION_INTERVAL":         "1h",
+		"WK_BACKUP_GARBAGE_SAFETY_WINDOW":               "168h",
+		"WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY": "256",
+		"WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY":    "1073741824",
+		"WK_BACKUP_RETENTION_MONTHLY_MONTHS":            "0",
+		"WK_BACKUP_OBJECT_LOCK_DAYS":                    "7",
+		"WK_BACKUP_PRIMARY_ENDPOINT":                    "https://primary.e2e.invalid",
+		"WK_BACKUP_PRIMARY_REGION":                      "e2e-primary",
+		"WK_BACKUP_PRIMARY_BUCKET":                      "primary",
+		"WK_BACKUP_PRIMARY_PREFIX":                      "medium",
+		"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN":             "arn:e2e:primary:repair",
+		"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":            "arn:e2e:primary:garbage",
+		"WK_BACKUP_SECONDARY_ENDPOINT":                  "https://secondary.e2e.invalid",
+		"WK_BACKUP_SECONDARY_REGION":                    "e2e-secondary",
+		"WK_BACKUP_SECONDARY_BUCKET":                    "secondary",
+		"WK_BACKUP_SECONDARY_PREFIX":                    "medium",
+		"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN":           "arn:e2e:secondary:repair",
+		"WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN":          "arn:e2e:secondary:garbage",
+	}
+}
+
+func startBackupScaleQualification(
+	t *testing.T,
+	ctx context.Context,
+	cluster *suite.StartedCluster,
+	trigger string,
+) *backupScaleRun {
+	t.Helper()
+	initialCheckpointDuration := publishMediumBackupCheckpoint(t, cluster, 8*time.Minute)
+	if err := os.WriteFile(trigger, []byte("enabled"), 0o600); err != nil {
+		t.Fatalf("activate backup remote latency: %v", err)
+	}
+
+	client := benchtarget.NewClient(benchtarget.Config{
+		APIAddrs: []string{"http://" + cluster.MustNode(1).APIAddr()},
+	})
+	pinHashSlot := hashslot.HashSlotForKey(
+		mediumSenderUID(0), mediumPhysicalHashSlots,
 	)
+	pinChannelID := mediumKeyForHashSlot(
+		t, "wkrc-backup-pin-budget", pinHashSlot,
+	)
+	if err := client.UpsertChannels(ctx, benchmodel.BatchChannelsRequest{
+		RunID: "wkrc-backup", BatchID: "pin-channel", Upsert: true,
+		Channels: []benchmodel.ChannelItem{{
+			ChannelID: pinChannelID, ChannelType: frame.ChannelTypeGroup,
+		}},
+	}); err != nil {
+		t.Fatalf("prepare backup pin channel: %v\n%s", err, cluster.DumpDiagnostics())
+	}
+	if err := client.AddSubscribers(ctx, benchmodel.BatchSubscribersRequest{
+		RunID: "wkrc-backup", BatchID: "pin-subscriber",
+		Items: []benchmodel.SubscriberItem{{
+			ChannelID: pinChannelID, ChannelType: frame.ChannelTypeGroup,
+			Subscribers: []string{mediumSenderUID(0)},
+		}},
+	}); err != nil {
+		t.Fatalf("prepare backup pin subscriber: %v\n%s", err, cluster.DumpDiagnostics())
+	}
+	pinTrigger := trigger + ".pin"
+	if err := os.WriteFile(
+		pinTrigger, []byte(strconv.FormatUint(uint64(pinHashSlot), 10)), 0o600,
+	); err != nil {
+		t.Fatalf("activate target Slot pin pressure: %v", err)
+	}
+	pinSender := mustConnect(t, cluster.MustNode(1), mediumSenderUID(0))
+	pinPayload := bytes.Repeat([]byte("p"), 16<<10)
+	for index := 0; index < 16; index++ {
+		if err := pinSender.SendFrame(&frame.SendPacket{
+			ChannelID: pinChannelID, ChannelType: frame.ChannelTypeGroup,
+			ClientSeq:   uint64(2_000_000 + index),
+			ClientMsgNo: fmt.Sprintf("wkrc-backup-pin-%02d", index),
+			Payload:     pinPayload,
+		}); err != nil {
+			_ = pinSender.Close()
+			t.Fatalf("send backup pin pressure: %v\n%s", err, cluster.DumpDiagnostics())
+		}
+		ack, err := pinSender.ReadSendAck()
+		if err != nil || ack.ReasonCode != frame.ReasonSuccess {
+			_ = pinSender.Close()
+			t.Fatalf("backup pin pressure SENDACK=%+v err=%v\n%s", ack, err, cluster.DumpDiagnostics())
+		}
+	}
+	_ = pinSender.Close()
+	observedSlots := waitForBackupRebaseSlots(
+		t, cluster, "pin_age", pinHashSlot, 2*time.Minute,
+	)
+	if err := os.Remove(pinTrigger); err != nil &&
+		!errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("disable target Slot pin pressure: %v", err)
+	}
+
+	prepareBackupScaleFixture(t, ctx, client)
+	scaleLatencies := sendBackupScaleTraffic(t, cluster)
+	if err := os.Remove(trigger); err != nil &&
+		!errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("disable backup remote latency after scale sends: %v", err)
+	}
+	return &backupScaleRun{
+		trigger:                   trigger,
+		initialCheckpointDuration: initialCheckpointDuration,
+		sendackLatencies:          scaleLatencies,
+		pinRebaseHashSlot:         pinHashSlot,
+		pinRebaseObservedSlots:    observedSlots,
+	}
+}
+
+func prepareBackupScaleFixture(
+	t *testing.T,
+	ctx context.Context,
+	client *benchtarget.Client,
+) {
+	t.Helper()
+	const channelBatchSize = 500
+	for start := 0; start < backupScaleChannels; start += channelBatchSize {
+		end := min(start+channelBatchSize, backupScaleChannels)
+		channels := make([]benchmodel.ChannelItem, 0, end-start)
+		for index := start; index < end; index++ {
+			channels = append(channels, benchmodel.ChannelItem{
+				ChannelID:   fmt.Sprintf("wkrc-backup-scale-%05d", index),
+				ChannelType: frame.ChannelTypeGroup,
+			})
+		}
+		if err := client.UpsertChannels(ctx, benchmodel.BatchChannelsRequest{
+			RunID:    "wkrc-backup",
+			BatchID:  fmt.Sprintf("scale-channels-%03d", start/channelBatchSize),
+			Upsert:   true,
+			Channels: channels,
+		}); err != nil {
+			t.Fatalf("prepare backup scale channels [%d,%d): %v", start, end, err)
+		}
+	}
+
+	const memberBatchSize = 1_000
+	const groupChannelID = "wkrc-backup-scale-00000"
+	for start := 0; start < backupScaleMembers; start += memberBatchSize {
+		end := min(start+memberBatchSize, backupScaleMembers)
+		members := make([]string, 0, end-start)
+		for index := start; index < end; index++ {
+			if index == 0 {
+				members = append(members, mediumSenderUID(0))
+				continue
+			}
+			members = append(members, fmt.Sprintf("wkrc-backup-member-%06d", index))
+		}
+		if err := client.AddSubscribers(ctx, benchmodel.BatchSubscribersRequest{
+			RunID:   "wkrc-backup",
+			BatchID: fmt.Sprintf("scale-members-%03d", start/memberBatchSize),
+			Items: []benchmodel.SubscriberItem{{
+				ChannelID: groupChannelID, ChannelType: frame.ChannelTypeGroup,
+				Subscribers: members,
+			}},
+		}); err != nil {
+			t.Fatalf("prepare backup scale members [%d,%d): %v", start, end, err)
+		}
+	}
+}
+
+func mediumKeyForHashSlot(
+	t *testing.T,
+	prefix string,
+	want uint16,
+) string {
+	t.Helper()
+	for index := 0; index < 10_000; index++ {
+		candidate := fmt.Sprintf("%s-%04d", prefix, index)
+		if hashslot.HashSlotForKey(
+			candidate, mediumPhysicalHashSlots,
+		) == want {
+			return candidate
+		}
+	}
+	t.Fatalf("no bounded key found for Hash Slot %d", want)
+	return ""
+}
+
+func sendBackupScaleTraffic(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+) []time.Duration {
+	t.Helper()
+	const sends = 8
+	sender := mustConnect(t, cluster.MustNode(1), mediumSenderUID(0))
+	defer func() { _ = sender.Close() }()
+	latencies := make([]time.Duration, 0, sends)
+	started := time.Now()
+	for index := 0; index < sends; index++ {
+		paceMessage(started, index, 25)
+		sentAt := time.Now()
+		if err := sender.SendFrame(&frame.SendPacket{
+			ChannelID:   "wkrc-backup-scale-00000",
+			ChannelType: frame.ChannelTypeGroup,
+			ClientSeq:   uint64(3_000_000 + index),
+			ClientMsgNo: fmt.Sprintf("wkrc-backup-scale-%02d", index),
+			Payload:     bytes.Repeat([]byte("s"), mediumPayloadBytes),
+		}); err != nil {
+			t.Fatalf("send 100k-member backup scale message: %v\n%s", err, cluster.DumpDiagnostics())
+		}
+		ack, err := sender.ReadSendAck()
+		if err != nil || ack.ReasonCode != frame.ReasonSuccess {
+			t.Fatalf("100k-member backup scale SENDACK=%+v err=%v\n%s", ack, err, cluster.DumpDiagnostics())
+		}
+		latencies = append(latencies, time.Since(sentAt))
+	}
+	time.Sleep(backupMeasurementSettle)
+	drainCtx, drainCancel := context.WithTimeout(
+		context.Background(), 3*time.Minute,
+	)
+	drainErr := waitForHotPathDrain(drainCtx, cluster)
+	drainCancel()
+	if drainErr != nil {
+		t.Fatalf(
+			"drain 100k-member backup scale fanout: %v\n%s",
+			drainErr, cluster.DumpDiagnostics(),
+		)
+	}
+	return latencies
+}
+
+func finishBackupScaleQualification(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	run backupScaleRun,
+	foreground hotPathEvidence,
+) {
+	t.Helper()
+	if err := os.Remove(run.trigger); err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("disable backup remote latency: %v", err)
+	}
+	catchupDuration := publishMediumBackupCheckpoint(
+		t, cluster, 5*time.Minute,
+	)
+	historyDuration := publishMediumBackupCheckpoint(t, cluster, 5*time.Minute)
+	repeatDuration := publishMediumBackupCheckpoint(t, cluster, 2*time.Minute)
+	scaleP99 := percentile(run.sendackLatencies, 0.99)
+	evidence := backupScaleEvidence{
+		Schema:                       "wukongim/backup-scale-performance/v1",
+		PhysicalHashSlots:            mediumPhysicalHashSlots,
+		CaptureWorkers:               backupScaleCaptureWorkers,
+		GroupMembers:                 backupScaleMembers,
+		Channels:                     backupScaleChannels,
+		RemoteLatencyMS:              milliseconds(backupRemoteLatency),
+		Sends:                        len(run.sendackLatencies),
+		SendackP99MS:                 milliseconds(scaleP99),
+		PinRebaseHashSlot:            run.pinRebaseHashSlot,
+		PinRebaseObservedHashSlots:   run.pinRebaseObservedSlots,
+		InitialCheckpointDurationMS:  milliseconds(run.initialCheckpointDuration),
+		CaptureCatchupDurationMS:     milliseconds(catchupDuration),
+		HistoryCheckpointDurationMS:  milliseconds(historyDuration),
+		RepeatCheckpointDurationMS:   milliseconds(repeatDuration),
+		MaxAggregateHeapBytes:        foreground.MaxAggregateHeapBytes,
+		ForegroundSendackP99MS:       foreground.SendackP99MS,
+		NoSynchronousRemoteOnSEND:    scaleP99 < backupMaxSendackP99,
+		CheckpointCostHistoryBounded: historyDuration <= backupCheckpointMaxDuration && repeatDuration <= backupCheckpointMaxDuration,
+	}
+	encoded, err := json.Marshal(evidence)
+	if err != nil {
+		t.Fatalf("marshal backup scale evidence: %v", err)
+	}
+	t.Logf("WK-BACKUP-SCALE-EVIDENCE %s", encoded)
+	switch {
+	case len(evidence.PinRebaseObservedHashSlots) != 1 ||
+		evidence.PinRebaseObservedHashSlots[0] != evidence.PinRebaseHashSlot:
+		t.Fatalf(
+			"backup pin rebase affected slots=%v, want only %d",
+			evidence.PinRebaseObservedHashSlots, evidence.PinRebaseHashSlot,
+		)
+	case !evidence.NoSynchronousRemoteOnSEND:
+		t.Fatalf(
+			"backup scale SENDACK p99=%s, want below %s while repository/KMS latency=%s",
+			scaleP99, backupMaxSendackP99, backupRemoteLatency,
+		)
+	case !evidence.CheckpointCostHistoryBounded:
+		t.Fatalf(
+			"checkpoint duration after history=%s repeat=%s, want each <=%s",
+			historyDuration, repeatDuration, backupCheckpointMaxDuration,
+		)
+	case evidence.MaxAggregateHeapBytes <= 0 ||
+		evidence.MaxAggregateHeapBytes > backupScaleMaxAggregateHeap:
+		t.Fatalf(
+			"backup scale max aggregate heap=%.0f, want in (0,%d]",
+			evidence.MaxAggregateHeapBytes, backupScaleMaxAggregateHeap,
+		)
+	}
+}
+
+func publishMediumBackupCheckpoint(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	timeout time.Duration,
+) time.Duration {
+	t.Helper()
+	started := time.Now()
+	deadline := started.Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		var response struct {
+			Checkpoint struct {
+				ID string `json:"id"`
+			} `json:"checkpoint"`
+			CatalogHeadToken string `json:"catalog_head_token"`
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		_, lastErr = suite.PostJSON(
+			ctx,
+			"http://"+cluster.MustNode(1).ManagerAddr()+"/manager/backups/checkpoints",
+			map[string]any{},
+			&response,
+		)
+		cancel()
+		if lastErr == nil && response.Checkpoint.ID != "" &&
+			response.CatalogHeadToken != "" {
+			return time.Since(started)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("backup checkpoint did not publish: %v\n%s", lastErr, cluster.DumpDiagnostics())
+	return 0
+}
+
+func waitForBackupRebaseSlots(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	reason string,
+	want uint16,
+	timeout time.Duration,
+) []uint16 {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last []uint16
+	var lastErr error
+	for time.Now().Before(deadline) {
+		seen := make(map[uint16]struct{})
+		for _, node := range cluster.Nodes {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
+			cancel()
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			for _, sample := range samples {
+				if sample.Name != "wukongim_backup_slot_rebases_total" ||
+					sample.Value <= 0 ||
+					sample.Labels["reason"] != reason ||
+					sample.Labels["outcome"] != "success" {
+					continue
+				}
+				hashSlotValue, err := strconv.ParseUint(
+					sample.Labels["hash_slot"], 10, 16,
+				)
+				if err != nil {
+					lastErr = err
+					continue
+				}
+				seen[uint16(hashSlotValue)] = struct{}{}
+			}
+		}
+		last = last[:0]
+		for hashSlot := range seen {
+			last = append(last, hashSlot)
+		}
+		sort.Slice(last, func(i, j int) bool { return last[i] < last[j] })
+		if len(last) == 1 && last[0] == want {
+			return append([]uint16(nil), last...)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"backup rebase slots=%v, want only %d reason=%s err=%v\n%s",
+		last, want, reason, lastErr, cluster.DumpDiagnostics(),
+	)
+	return nil
 }
 
 func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster, rpcBatchMaxItems int) {
@@ -1419,6 +1982,7 @@ type pressureSnapshot struct {
 	maxPostCommitBacklog      float64
 	maxPostCommitHandoffRatio float64
 	maxHeapBytes              float64
+	maxAggregateHeapBytes     float64
 	samples                   int
 	sampleErrors              int
 }
@@ -1479,10 +2043,9 @@ func (s *pressureSampler) snapshot() pressureSnapshot {
 
 func (s *pressureSampler) sample() {
 	channelRPCMetricNodes := 0
+	heapValues := make([]hotPathMetricValues, 0, len(s.cluster.Nodes))
 	for _, node := range s.cluster.Nodes {
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-		samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
-		cancel()
+		samples, err := fetchPressureMetricSamples(node.APIAddr())
 		s.mu.Lock()
 		if err != nil {
 			s.state.sampleErrors++
@@ -1492,16 +2055,38 @@ func (s *pressureSampler) sample() {
 		values := metricValues(samples)
 		s.state.samples++
 		s.observeValues(values)
+		heapValues = append(heapValues, values)
 		if values.channelRPCQueuePresent && values.channelRPCWorkersPresent {
 			channelRPCMetricNodes++
 		}
 		s.mu.Unlock()
 	}
 	s.mu.Lock()
+	if len(heapValues) == len(s.cluster.Nodes) {
+		s.observeAggregateHeap(heapValues)
+	}
 	if channelRPCMetricNodes > s.state.maxChannelRPCMetricNodes {
 		s.state.maxChannelRPCMetricNodes = channelRPCMetricNodes
 	}
 	s.mu.Unlock()
+}
+
+func fetchPressureMetricSamples(
+	apiAddr string,
+) ([]suite.MetricSample, error) {
+	var lastErr error
+	for attempt := 0; attempt < mediumMetricFetchAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(
+			context.Background(), mediumMetricFetchTimeout,
+		)
+		samples, err := suite.FetchMetricSamples(ctx, apiAddr)
+		cancel()
+		if err == nil {
+			return samples, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }
 
 func (s *pressureSampler) observeValues(values hotPathMetricValues) {
@@ -1523,6 +2108,18 @@ func (s *pressureSampler) observeValues(values hotPathMetricValues) {
 	s.state.maxPostCommitBacklog = maxFloat(s.state.maxPostCommitBacklog, values.postCommitBacklog)
 	s.state.maxPostCommitHandoffRatio = maxFloat(s.state.maxPostCommitHandoffRatio, ratio(values.handoffDepth, values.handoffCapacity))
 	s.state.maxHeapBytes = maxFloat(s.state.maxHeapBytes, values.heapBytes)
+}
+
+// observeAggregateHeap records one complete cluster scrape and must be called
+// while the sampler mutex is held.
+func (s *pressureSampler) observeAggregateHeap(values []hotPathMetricValues) {
+	var total float64
+	for _, value := range values {
+		total += value.heapBytes
+	}
+	s.state.maxAggregateHeapBytes = maxFloat(
+		s.state.maxAggregateHeapBytes, total,
+	)
 }
 
 type hotPathMetricValues struct {

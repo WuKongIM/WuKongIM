@@ -46,6 +46,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		AllocatedBytes:           float64(mediumMessageCount*mediumMeasuredRounds) * 350_000,
 		GCCountDelta:             100,
 		MaxHeapBytes:             256 << 20,
+		MaxAggregateHeapBytes:    768 << 20,
 		MetricSamples:            1,
 		Drained:                  true,
 		ProcessContinuous:        true,
@@ -184,6 +185,59 @@ func TestHotPathAcceptanceError(t *testing.T) {
 			t.Fatalf("slow-drain allocation error = %v, want allocated bytes/message", err)
 		}
 	})
+
+	t.Run("backup-on limits retain executable latency and allocation ceilings", func(t *testing.T) {
+		evidence := passing
+		evidence.OfferedQPS = mediumCIAcceptanceQPS
+		evidence.IngressPerSecond = mediumCIAcceptanceQPS
+		evidence.SendackP99MS = milliseconds(backupForegroundMaxSendackP99)
+		evidence.MaxHeapBytes = backupScaleMaxHeapBytes
+		evidence.MaxAggregateHeapBytes = backupScaleMaxAggregateHeap
+		limits := backupHotPathAcceptanceLimits()
+		evidence.AllocatedBytes = maxAcceptedAllocatedBytesWithLimit(
+			evidence, limits.maxAllocatedBytesPerMsg,
+		)
+		if err := hotPathAcceptanceErrorWithLimits(
+			evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds, limits,
+		); err != nil {
+			t.Fatalf("bounded backup-on evidence rejected: %v", err)
+		}
+
+		evidence.SendackP99MS++
+		if err := hotPathAcceptanceErrorWithLimits(
+			evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds, limits,
+		); err == nil || !strings.Contains(err.Error(), "SENDACK P99") {
+			t.Fatalf("backup-on latency error = %v, want SENDACK P99", err)
+		}
+
+		evidence.SendackP99MS = milliseconds(backupForegroundMaxSendackP99)
+		evidence.AllocatedBytes++
+		if err := hotPathAcceptanceErrorWithLimits(
+			evidence, mediumCIAcceptanceQPS, mediumMeasuredRounds, limits,
+		); err == nil || !strings.Contains(err.Error(), "allocated bytes/message") {
+			t.Fatalf("backup-on allocation error = %v, want allocated bytes/message", err)
+		}
+	})
+}
+
+func TestPressureSamplerObservesCompleteClusterAggregateHeap(t *testing.T) {
+	sampler := &pressureSampler{}
+	sampler.observeAggregateHeap([]hotPathMetricValues{
+		{heapBytes: 100},
+		{heapBytes: 200},
+		{heapBytes: 300},
+	})
+	if got := sampler.state.maxAggregateHeapBytes; got != 600 {
+		t.Fatalf("aggregate heap = %.0f, want 600", got)
+	}
+	sampler.observeAggregateHeap([]hotPathMetricValues{
+		{heapBytes: 50},
+		{heapBytes: 50},
+		{heapBytes: 50},
+	})
+	if got := sampler.state.maxAggregateHeapBytes; got != 600 {
+		t.Fatalf("aggregate heap peak regressed to %.0f, want 600", got)
+	}
 }
 
 func TestScaleGroupChannelCounts(t *testing.T) {

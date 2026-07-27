@@ -1086,13 +1086,25 @@ repository identities `primary` and `secondary`.
 An `e2e`-tagged binary may replace repository, key, and clock adapters only
 when the explicit backup E2E file-root environment is present. Without that
 environment, including ordinary tagged scenarios, the production S3/KMS/clock
-loaders remain authoritative.
+loaders remain authoritative. The file-backed substitute may additionally wrap
+repository and key calls in one bounded artificial latency. A sentinel path
+activates that delay only after startup, allowing the black-box scale gate to
+prove foreground SEND does not synchronously cross either remote boundary. A
+separate e2e-only fault directory can make segment-payload reads from one or
+both named copies return corrupt bytes; catalog objects and production loaders
+are never affected. A third e2e-only sentinel contains one physical Hash Slot
+and overrides only that Slot's observed source-pin age, proving Slot-local
+rebase isolation without changing production pin accounting or widening the
+effect to the other 255 Hash Slots.
 
 Restore mode wires signed checkpoint-catalog resolution, a current full-graph
 dual-repository audit, all-node empty-target proof, the checkpoint Slot
 installer, target-only replica transfer/final verification, Controller restore
 state, a leader-resuming coordinator, restricted authenticated Manager, and
-metrics. The composition root creates one node-root staging quota shared by
+metrics. The restricted Manager retains the read-only node inventory under
+`cluster.backup:r` so recovery automation can observe Controller leadership;
+ordinary node detail and mutation routes remain closed. The composition root
+creates one node-root staging quota shared by
 source downloads, target Slot attempts, and follower transfers. Only the
 current target Slot Leader reads repositories and calls KMS;
 followers receive bounded plaintext target snapshots through the restore-only

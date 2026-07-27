@@ -27,7 +27,7 @@ does not expose backup writes or the login/logout flow. Server-reported
 ```text
 POST /manager/login   (only when Auth.On=true)
 GET  /manager/permissions (read-only manager auth/user/catalog snapshot; requires cluster.permission:r when Auth.On=true)
-GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
+GET  /manager/nodes   (read-only node list; requires cluster.node:r in normal mode or cluster.backup:r in restore mode when Auth.On=true)
 GET  /manager/nodes/:node_id/config (read-only redacted effective startup config; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/join (node lifecycle join; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/activate (node lifecycle activation; requires cluster.node:w when Auth.On=true)
@@ -565,9 +565,12 @@ details. Web writes are forced read-only when Manager authentication is
 disabled, even though the ordinary auth-disabled HTTP behavior remains
 unchanged.
 
-Restore mode registers only permission discovery plus the restricted
-`/manager/restore/*` plan, start, status, verify, and activate routes; it does
-not register ordinary cluster, user, message, plugin, or webhook operations.
+Restore mode registers only permission discovery, the read-only
+`/manager/nodes` inventory needed to observe Controller leadership, plus the
+restricted `/manager/restore/*` plan, start, status, verify, and activate
+routes. Its node inventory uses `cluster.backup:r`; it does not register
+ordinary cluster writes, node detail, user, message, plugin, or webhook
+operations.
 Activation always requires authenticated JWT identity plus an explicit
 `cluster.restore.activation:w` grant; wildcard grants do not satisfy this
 recovery boundary. Composition rejects restore mode unless Manager auth and at

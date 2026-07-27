@@ -35,6 +35,30 @@ Allocation acceptance separates a 360,000-byte/message budget from a bounded
 40MB/s allowance over the fixed paced duration. A slow drain cannot enlarge
 that allowance and hide a product-path allocation regression.
 
+The backup qualification workflow additionally sets
+`WK_E2E_MEDIUM_BACKUP_QUALIFICATION=1`. That mode enables continuous backup
+with 256 Hash Slots and 16 capture workers, creates 5,000 channels and one
+100,000-member group, forces one Slot over the source-pin age budget, and then
+enables 1.5-second repository and KMS latency. Its separate
+`WK-BACKUP-SCALE-EVIDENCE` gate requires only the affected Slot to rebase,
+100,000-member SENDACK p99 below one second, bounded heap (1,280 MiB per node
+and 3,072 MiB across the three-node process gate), and two post-history
+checkpoints below ten seconds.
+The delay is activated only after the initial vector is healthy so startup time
+is not mistaken for SEND-path latency. After eight paced large-group probes,
+the gate requires the 100,000-member fanout to drain before layering on the
+ordinary workload. After the scale fixture and ordinary cold-prime setup, one
+checkpoint drains setup history before the measured SEND window; continuous
+capture remains enabled during the measurement. The backup-on foreground gate
+keeps SENDACK p99 at 1.2 seconds, each node heap at 1,280 MiB, aggregate
+three-node heap at 3,072 MiB, and process allocation at 650,000 bytes per
+message plus the same fixed paced background allowance; these are separate
+from the stricter backup-off limits.
+After measurement, evidence records the bounded capture-catchup wall time
+separately, then requires each of two already-caught-up checkpoint publications
+to finish within ten seconds. Do not fold capture lag into checkpoint
+publication cost or discard it from evidence.
+
 ## Rules
 
 - Keep the scenario black-box through real `cmd/wukongim` processes, public
@@ -50,6 +74,8 @@ that allowance and hide a product-path allocation regression.
   alone is not workload readiness.
 - Emit one machine-readable `WKRC-HIFI-EVIDENCE` line for revision-neutral
   runners.
+- Backup mode must additionally emit one `WK-BACKUP-SCALE-EVIDENCE` line and
+  keep its thresholds executable in the test.
 - Do not treat absolute local throughput as cloud capacity. Compare exact
   revisions on the same host and preserve raw evidence.
 - Keep the scenario opt-in and bounded. It is e2e evidence, not a unit test.

@@ -69,6 +69,11 @@ var (
 	loadAppBackupKeyService = func(ctx context.Context, region, endpoint string) (appBackupKeyService, error) {
 		return backupinfra.LoadKMSAdapter(ctx, region, endpoint)
 	}
+	decorateAppBackupSourcePinManager = func(
+		manager runtimebackup.SourcePinManager,
+	) runtimebackup.SourcePinManager {
+		return manager
+	}
 	loadAppBackupRepairRepository = func(
 		ctx context.Context,
 		repository appBackupRepository,
@@ -256,11 +261,12 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 		a.backupInitErr = err
 		return
 	}
-	pins, err := backupinfra.NewClusterSourcePinManager(node, time.Now)
+	clusterPins, err := backupinfra.NewClusterSourcePinManager(node, time.Now)
 	if err != nil {
 		a.backupInitErr = err
 		return
 	}
+	pins := decorateAppBackupSourcePinManager(clusterPins)
 	replicator, err := backupinfra.NewChunkReplicator(
 		backupinfra.ChunkReplicatorOptions{
 			Codec: codec,

@@ -11,7 +11,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -103,19 +105,115 @@ type managerMessagePage struct {
 	} `json:"items"`
 }
 
-func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
-	repositoryRoot := t.TempDir()
+type managerNodesResponse struct {
+	ControllerLeaderID uint64 `json:"controller_leader_id"`
+}
+
+type managerSlotsResponse struct {
+	Items []struct {
+		HashSlots *struct {
+			Items []uint16 `json:"items"`
+		} `json:"hash_slots"`
+		Runtime struct {
+			LeaderID uint64 `json:"leader_id"`
+		} `json:"runtime"`
+	} `json:"items"`
+}
+
+type repositoryQualification struct {
+	Endpoint       string
+	Region         string
+	Bucket         string
+	Prefix         string
+	RepairRoleARN  string
+	GarbageRoleARN string
+}
+
+// storageQualification describes either the e2e-only file substitute or the
+// production S3/KMS environment exercised by the same recovery drill.
+type storageQualification struct {
+	FileRoot         string
+	RepositoryID     string
+	SourceGeneration string
+	TargetGeneration string
+	KMSKeyID         string
+	SigningKeyID     string
+	KMSRegion        string
+	KMSEndpoint      string
+	ObjectLockDays   int
+	Primary          repositoryQualification
+	Secondary        repositoryQualification
+	ProductionRunID  string
+	ProductionCommit string
+}
+
+type recoveryDrillResult struct {
+	CheckpointID       string
+	RestoredMessages   uint64
+	ControllerFailover bool
+	SlotFailover       bool
+	DataNodeFailover   bool
+	RestoreFailover    bool
+}
+
+func TestThreeNodeBackupContinuousRestoresAndContinuesTraffic(t *testing.T) {
+	runThreeNodeRecoveryDrill(t, localStorageQualification(t))
+}
+
+func TestProductionStorageQualification(t *testing.T) {
+	if os.Getenv("WK_E2E_BACKUP_PRODUCTION") != "1" {
+		t.Skip("set WK_E2E_BACKUP_PRODUCTION=1 to run the production S3/KMS recovery drill")
+	}
+	qualification := productionStorageQualification(t)
+	result := runThreeNodeRecoveryDrill(t, qualification)
+	evidence := struct {
+		Schema           string `json:"schema"`
+		RunID            string `json:"run_id"`
+		Commit           string `json:"commit"`
+		PrimaryRegion    string `json:"primary_region"`
+		SecondaryRegion  string `json:"secondary_region"`
+		ObjectLockDays   int    `json:"object_lock_days"`
+		CheckpointID     string `json:"checkpoint_id"`
+		RestoredMessages uint64 `json:"restored_messages"`
+		SourceStopped    bool   `json:"source_stopped"`
+		FreshTarget      bool   `json:"fresh_target"`
+		PostRestoreWrite bool   `json:"post_restore_write"`
+		ControllerFault  bool   `json:"controller_fault"`
+		SlotLeaderFault  bool   `json:"slot_leader_fault"`
+		DataNodeFault    bool   `json:"data_node_fault"`
+		RestoreFault     bool   `json:"restore_leader_fault"`
+	}{
+		Schema:           "wukongim/backup-production-qualification/v1",
+		RunID:            qualification.ProductionRunID,
+		Commit:           qualification.ProductionCommit,
+		PrimaryRegion:    qualification.Primary.Region,
+		SecondaryRegion:  qualification.Secondary.Region,
+		ObjectLockDays:   qualification.ObjectLockDays,
+		CheckpointID:     result.CheckpointID,
+		RestoredMessages: result.RestoredMessages,
+		SourceStopped:    true,
+		FreshTarget:      true,
+		PostRestoreWrite: true,
+		ControllerFault:  result.ControllerFailover,
+		SlotLeaderFault:  result.SlotFailover,
+		DataNodeFault:    result.DataNodeFailover,
+		RestoreFault:     result.RestoreFailover,
+	}
+	encoded, err := json.Marshal(evidence)
+	require.NoError(t, err)
+	t.Logf("WK-BACKUP-PRODUCTION-EVIDENCE %s", encoded)
+}
+
+func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification) recoveryDrillResult {
+	t.Helper()
 	options := []suite.Option{suite.WithManagerHTTP()}
 	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
 		options = append(options,
-			suite.WithNodeConfigOverrides(nodeID, sourceBackupConfig(repositoryRoot, nodeID)),
-			suite.WithNodeEnv(nodeID,
-				"WUKONGIM_BACKUP_E2E_FILE_ROOT="+repositoryRoot,
-				"AWS_ACCESS_KEY_ID=e2e",
-				"AWS_SECRET_ACCESS_KEY=e2e-secret",
-				"AWS_EC2_METADATA_DISABLED=true",
-			),
+			suite.WithNodeConfigOverrides(nodeID, sourceBackupConfig(qualification, nodeID)),
 		)
+		if qualification.FileRoot != "" {
+			options = append(options, localBackupNodeEnvironment(nodeID, qualification.FileRoot))
+		}
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(options...)
 	ctx, cancel := context.WithTimeout(context.Background(), suite.BackupClusterReadyTimeout)
@@ -130,7 +228,13 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 	)
 	require.NotEmpty(t, baseline.Checkpoint.ID)
 	require.Len(t, baseline.CheckpointSHA256, 64)
-	baselineFrontiers := backupDurableFrontiers(
+	if qualification.FileRoot != "" {
+		exerciseRepositoryIntegrityRepair(
+			t, cluster, sourceToken, qualification.FileRoot,
+		)
+	}
+	exerciseSourceLeaderFailures(t, cluster, sourceToken)
+	preDeltaFrontiers := backupDurableFrontiers(
 		t, cluster, sourceToken,
 	)
 
@@ -165,7 +269,7 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		"backup-e2e-sender", "backup-e2e-recipient",
 	)
 	waitForDurableFrontiers(
-		t, cluster, sourceToken, baselineFrontiers,
+		t, cluster, sourceToken, preDeltaFrontiers,
 		[]uint16{
 			hashslot.HashSlotForKey("backup-e2e-sender", 16),
 			hashslot.HashSlotForKey(personalChannelID, 16),
@@ -194,7 +298,7 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 	require.Equal(t, "advanced", erasure.Status)
 	require.Equal(t, erasedMessages[1].MessageSeq, erasure.AdvancedThroughSeq)
 
-	target := startRestoreCluster(t, repositoryRoot)
+	target := startRestoreCluster(t, qualification)
 	token := loginManager(
 		t, target, "restore-admin", "restore-secret",
 	)
@@ -204,13 +308,19 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 	require.Equal(t, uint64(1), plan.ErasureEventCount)
 	require.Len(t, plan.ErasureLedgerSHA256, 64)
 	require.Equal(t, "wukongim-e2e-three", plan.SourceClusterID)
-	require.Equal(t, "source-generation", plan.SourceGeneration)
+	require.Equal(t, qualification.SourceGeneration, plan.SourceGeneration)
 	require.Equal(t, "wukongim-e2e-restore", plan.TargetClusterID)
-	require.Equal(t, "target-generation", plan.TargetGeneration)
+	require.Equal(t, qualification.TargetGeneration, plan.TargetGeneration)
 	require.Equal(t, uint16(16), plan.HashSlotCount)
 
+	restoreControllerLeader := currentBackupControllerLeader(
+		t, target, token, 20*time.Second,
+	)
 	plan = startRestore(t, target, token, plan.ID)
 	require.Equal(t, "installing", plan.Status)
+	exerciseRestoreLeaderFailure(
+		t, target, token, restoreControllerLeader,
+	)
 	plan = waitForRestoreStatus(t, target, token, "installed", 45*time.Second)
 	require.Len(t, plan.Partitions, 16)
 	var restoredMessages uint64
@@ -257,7 +367,7 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 	)
 	require.Equal(t, plan.ID, restartedPlan.ID)
 	require.Equal(
-		t, "target-generation", restartedPlan.TargetGeneration,
+		t, qualification.TargetGeneration, restartedPlan.TargetGeneration,
 	)
 	require.Equal(
 		t, "wukongim-e2e-restore", restartedPlan.TargetClusterID,
@@ -305,6 +415,485 @@ func TestThreeNodeBackupIncrementalRestoresAndContinuesTraffic(t *testing.T) {
 		}
 		return nil
 	})
+	return recoveryDrillResult{
+		CheckpointID:       delta.Checkpoint.ID,
+		RestoredMessages:   restoredMessages,
+		ControllerFailover: true,
+		SlotFailover:       true,
+		DataNodeFailover:   true,
+		RestoreFailover:    true,
+	}
+}
+
+func exerciseSourceLeaderFailures(t *testing.T, cluster *suite.StartedCluster, token string) {
+	t.Helper()
+	controllerLeader := currentControllerLeader(t, cluster, token)
+	require.NoError(t, cluster.MustNode(controllerLeader).Stop(), cluster.DumpDiagnostics())
+	survivors := otherNodeIDs(controllerLeader)
+	waitForManagerTCPs(t, cluster, survivors, 20*time.Second)
+	_ = publishCheckpointEventually(t, cluster, token, 20*time.Second)
+	require.NoError(t, cluster.StartStoppedNode(controllerLeader), cluster.DumpDiagnostics())
+	cluster.WaitNodesReady(t, []uint64{controllerLeader}, 30*time.Second)
+
+	const faultChannelID = "backup-e2e-slot-leader-fault"
+	prepareFailureChannel(t, cluster, faultChannelID)
+	hashSlot := hashslot.HashSlotForKey(faultChannelID, 16)
+	slotLeader := currentHashSlotLeader(t, cluster, token, hashSlot)
+	require.NoError(t, cluster.MustNode(slotLeader).Stop(), cluster.DumpDiagnostics())
+	survivors = otherNodeIDs(slotLeader)
+	waitForManagerTCPs(t, cluster, survivors, 20*time.Second)
+	require.NotEqual(
+		t,
+		slotLeader,
+		waitForHashSlotLeaderChange(
+			t, cluster, token, hashSlot, slotLeader, 20*time.Second,
+		),
+	)
+	appendMessageDuringFailure(t, cluster, survivors[0], faultChannelID, "slot-leader")
+	require.NoError(t, cluster.StartStoppedNode(slotLeader), cluster.DumpDiagnostics())
+	cluster.WaitNodesReady(t, []uint64{slotLeader}, 30*time.Second)
+
+	currentController := currentControllerLeader(t, cluster, token)
+	currentSlotLeader := currentHashSlotLeader(t, cluster, token, hashSlot)
+	dataNode := uint64(0)
+	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+		if nodeID != currentController && nodeID != currentSlotLeader {
+			dataNode = nodeID
+			break
+		}
+	}
+	if dataNode == 0 {
+		for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+			if nodeID != currentSlotLeader {
+				dataNode = nodeID
+				break
+			}
+		}
+	}
+	require.NotZero(t, dataNode)
+	require.NoError(t, cluster.MustNode(dataNode).Stop(), cluster.DumpDiagnostics())
+	survivors = otherNodeIDs(dataNode)
+	waitForManagerTCPs(t, cluster, survivors, 20*time.Second)
+	appendMessageDuringFailure(t, cluster, survivors[0], faultChannelID, "data-node")
+	require.NoError(t, cluster.StartStoppedNode(dataNode), cluster.DumpDiagnostics())
+	cluster.WaitNodesReady(t, []uint64{dataNode}, 30*time.Second)
+}
+
+func waitForManagerTCPs(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	nodeIDs []uint64,
+	timeout time.Duration,
+) {
+	t.Helper()
+	for _, nodeID := range nodeIDs {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := suite.WaitTCPReady(ctx, cluster.MustNode(nodeID).ManagerAddr())
+		cancel()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+	}
+}
+
+func exerciseRestoreLeaderFailure(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	leader uint64,
+) {
+	t.Helper()
+	require.NoError(t, cluster.MustNode(leader).Stop(), cluster.DumpDiagnostics())
+	waitForManagerTCPs(t, cluster, otherNodeIDs(leader), 20*time.Second)
+	waitForSurvivorRestoreStatus(t, cluster, token, 2*time.Second, 20*time.Second)
+	require.NoError(t, cluster.StartStoppedNode(leader), cluster.DumpDiagnostics())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	require.NoError(
+		t,
+		suite.WaitTCPReady(ctx, cluster.MustNode(leader).ManagerAddr()),
+		cluster.DumpDiagnostics(),
+	)
+}
+
+func waitForSurvivorRestoreStatus(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	stableFor time.Duration,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	stableSince := time.Time{}
+	var last restoreStatus
+	var lastErr error
+	for time.Now().Before(deadline) {
+		last = restoreStatus{}
+		lastErr = managerRequestError(
+			cluster, token, http.MethodGet, "/manager/restore/status", nil, &last,
+		)
+		if lastErr == nil && last.Plan != nil &&
+			(last.Plan.Status == "installing" || last.Plan.Status == "installed") {
+			if stableSince.IsZero() {
+				stableSince = time.Now()
+			}
+			if time.Since(stableSince) >= stableFor {
+				return
+			}
+		} else {
+			stableSince = time.Time{}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"surviving restore Managers did not retain progress: status=%+v err=%v\n%s",
+		last.Plan, lastErr, cluster.DumpDiagnostics(),
+	)
+}
+
+func exerciseRepositoryIntegrityRepair(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	root string,
+) {
+	t.Helper()
+	beforeCorruptions := backupMetricTotal(
+		t, cluster, "wukongim_backup_audit_corruptions_total",
+		nil,
+	)
+	beforeRepairBytes := backupMetricTotal(
+		t, cluster, "wukongim_backup_audit_repair_bytes_total",
+		nil,
+	)
+	setRepositoryCorruption(t, root, "primary", "sticky")
+	waitForBackupMetricIncrease(
+		t, cluster, "wukongim_backup_audit_corruptions_total",
+		nil, beforeCorruptions, 30*time.Second,
+	)
+	waitForBackupMetricIncrease(
+		t, cluster, "wukongim_backup_audit_repair_bytes_total",
+		nil, beforeRepairBytes, 30*time.Second,
+	)
+	_ = publishCheckpointEventually(t, cluster, token, 30*time.Second)
+	waitForBackupHealthy(t, cluster, token, 30*time.Second)
+
+	frontiers := backupDurableFrontiers(t, cluster, token)
+	const dualCorruptionChannel = "backup-e2e-dual-corruption"
+	_ = appendGroupMessages(
+		t, cluster, dualCorruptionChannel, frame.ChannelTypeGroup, 1,
+	)
+	hashSlot := hashslot.HashSlotForKey(dualCorruptionChannel, 16)
+	waitForDurableFrontiers(
+		t, cluster, token, frontiers,
+		[]uint16{hashSlot}, []uint16{hashSlot}, 20*time.Second,
+	)
+	_ = publishCheckpointEventually(t, cluster, token, 20*time.Second)
+	beforeRebases := backupMetricTotal(
+		t, cluster, "wukongim_backup_slot_rebases_total",
+		map[string]string{
+			"reason": "audit_corruption", "outcome": "success",
+		},
+	)
+	primaryTrigger := setRepositoryCorruption(
+		t, root, "primary", "sticky",
+	)
+	secondaryTrigger := setRepositoryCorruption(
+		t, root, "secondary", "sticky",
+	)
+	waitForBackupMetricIncrease(
+		t, cluster, "wukongim_backup_slot_rebases_total",
+		map[string]string{
+			"reason": "audit_corruption", "outcome": "success",
+		},
+		beforeRebases, 60*time.Second,
+	)
+	clearRepositoryCorruption(t, primaryTrigger)
+	clearRepositoryCorruption(t, secondaryTrigger)
+	waitForBackupHealthy(t, cluster, token, 60*time.Second)
+}
+
+func setRepositoryCorruption(
+	t *testing.T,
+	root string,
+	repository string,
+	mode string,
+) string {
+	t.Helper()
+	faultDir := filepath.Join(root, "faults")
+	require.NoError(t, os.MkdirAll(faultDir, 0o700))
+	trigger := filepath.Join(faultDir, repository+".corrupt")
+	require.NoError(t, os.WriteFile(trigger, []byte(mode), 0o600))
+	return trigger
+}
+
+func clearRepositoryCorruption(t *testing.T, trigger string) {
+	t.Helper()
+	for _, path := range []string{
+		trigger,
+		filepath.Join(filepath.Dir(trigger), "sticky.key"),
+	} {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("clear repository corruption trigger %s: %v", path, err)
+		}
+	}
+}
+
+func waitForBackupMetricIncrease(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	name string,
+	labels map[string]string,
+	before float64,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last float64
+	for time.Now().Before(deadline) {
+		last = backupMetricTotal(t, cluster, name, labels)
+		if last > before {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"backup metric %s%v=%v, want >%v\n%s",
+		name, labels, last, before, cluster.DumpDiagnostics(),
+	)
+}
+
+func backupMetricTotal(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	name string,
+	labels map[string]string,
+) float64 {
+	t.Helper()
+	var total float64
+	for _, node := range cluster.Nodes {
+		if node.Process == nil || !node.Process.Running() {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
+		cancel()
+		if err != nil {
+			continue
+		}
+		for _, sample := range samples {
+			if sample.Name != name || !metricLabelsContain(sample.Labels, labels) {
+				continue
+			}
+			total += sample.Value
+		}
+	}
+	return total
+}
+
+func metricLabelsContain(actual, required map[string]string) bool {
+	for key, value := range required {
+		if actual[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+func waitForBackupHealthy(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last backupStatus
+	var lastErr error
+	for time.Now().Before(deadline) {
+		last = backupStatus{}
+		lastErr = managerRequestError(
+			cluster, token, http.MethodGet, "/manager/backups/status",
+			nil, &last,
+		)
+		if lastErr == nil && last.Health == "healthy" {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"backup did not recover healthy state: status=%+v err=%v\n%s",
+		last, lastErr, cluster.DumpDiagnostics(),
+	)
+}
+
+func currentControllerLeader(t *testing.T, cluster *suite.StartedCluster, token string) uint64 {
+	t.Helper()
+	var response managerNodesResponse
+	managerRequest(t, cluster, token, http.MethodGet, "/manager/nodes", nil, &response)
+	require.NotZero(t, response.ControllerLeaderID)
+	return response.ControllerLeaderID
+}
+
+func currentBackupControllerLeader(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	timeout time.Duration,
+) uint64 {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var lastLeader uint64
+	var stableSince time.Time
+	var lastErr error
+	for time.Now().Before(deadline) {
+		var response managerNodesResponse
+		lastErr = managerRequestError(
+			cluster, token, http.MethodGet, "/manager/nodes", nil, &response,
+		)
+		if lastErr == nil && response.ControllerLeaderID != 0 {
+			if response.ControllerLeaderID != lastLeader {
+				lastLeader = response.ControllerLeaderID
+				stableSince = time.Now()
+			} else if time.Since(stableSince) >= 500*time.Millisecond {
+				return response.ControllerLeaderID
+			}
+		} else {
+			lastLeader = 0
+			stableSince = time.Time{}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"restore Controller leader did not converge through Manager nodes: leader=%d err=%v\n%s",
+		lastLeader, lastErr, cluster.DumpDiagnostics(),
+	)
+	return 0
+}
+
+func currentHashSlotLeader(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	hashSlot uint16,
+) uint64 {
+	t.Helper()
+	var response managerSlotsResponse
+	managerRequest(t, cluster, token, http.MethodGet, "/manager/slots", nil, &response)
+	for _, slot := range response.Items {
+		if slot.HashSlots == nil {
+			continue
+		}
+		for _, item := range slot.HashSlots.Items {
+			if item == hashSlot {
+				require.NotZero(t, slot.Runtime.LeaderID)
+				return slot.Runtime.LeaderID
+			}
+		}
+	}
+	t.Fatalf("logical Hash Slot %d has no observed Slot Leader\n%s", hashSlot, cluster.DumpDiagnostics())
+	return 0
+}
+
+func waitForHashSlotLeaderChange(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	hashSlot uint16,
+	previous uint64,
+	timeout time.Duration,
+) uint64 {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last uint64
+	for time.Now().Before(deadline) {
+		var response managerSlotsResponse
+		if err := managerRequestError(
+			cluster, token, http.MethodGet, "/manager/slots", nil, &response,
+		); err == nil {
+			for _, slot := range response.Items {
+				if slot.HashSlots == nil {
+					continue
+				}
+				for _, item := range slot.HashSlots.Items {
+					if item == hashSlot {
+						last = slot.Runtime.LeaderID
+					}
+				}
+			}
+			if last != 0 && last != previous {
+				return last
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"logical Hash Slot %d Leader did not change from %d: last=%d\n%s",
+		hashSlot, previous, last, cluster.DumpDiagnostics(),
+	)
+	return 0
+}
+
+func prepareFailureChannel(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	channelID string,
+) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	require.NoError(
+		t,
+		suite.PostChannel(
+			ctx, cluster.MustNode(1).APIAddr(),
+			map[string]any{
+				"channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+				"subscribers": []string{
+					"backup-e2e-fault-sender", "backup-e2e-fault-recipient",
+				},
+			},
+		),
+		cluster.DumpDiagnostics(),
+	)
+	appendMessageDuringFailure(
+		t, cluster, 1, channelID, "warmup",
+	)
+}
+
+func appendMessageDuringFailure(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	nodeID uint64,
+	channelID string,
+	phase string,
+) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	message, err := suite.PostMessageSendEventually(
+		ctx,
+		cluster.MustNode(nodeID).APIAddr(),
+		map[string]any{
+			"from_uid":      "backup-e2e-fault-sender",
+			"channel_id":    channelID,
+			"channel_type":  frame.ChannelTypeGroup,
+			"client_msg_no": "backup-e2e-fault-" + phase,
+			"payload": base64.StdEncoding.EncodeToString(
+				[]byte("foreground SEND during " + phase + " failure"),
+			),
+		},
+	)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	require.Equal(t, uint8(frame.ReasonSuccess), message.Reason)
+}
+
+func otherNodeIDs(excluded uint64) []uint64 {
+	result := make([]uint64, 0, 2)
+	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+		if nodeID != excluded {
+			result = append(result, nodeID)
+		}
+	}
+	return result
 }
 
 func appendGroupMessages(t *testing.T, cluster *suite.StartedCluster, channelID string, channelType uint8, count int) []suite.MessageSendResponse {
@@ -394,17 +983,110 @@ func equalUint64s(left, right []uint64) bool {
 	return true
 }
 
-func sourceBackupConfig(root string, nodeID uint64) map[string]string {
+func localStorageQualification(t *testing.T) storageQualification {
+	t.Helper()
+	root := t.TempDir()
+	return storageQualification{
+		FileRoot:         root,
+		RepositoryID:     "e2e-repository",
+		SourceGeneration: "source-generation",
+		TargetGeneration: "target-generation",
+		KMSKeyID:         "e2e-encryption-key",
+		SigningKeyID:     "e2e-signing-key",
+		KMSRegion:        "e2e-kms",
+		KMSEndpoint:      "https://kms.e2e.invalid",
+		ObjectLockDays:   7,
+		Primary: repositoryQualification{
+			Endpoint:       "https://primary.e2e.invalid",
+			Region:         "e2e-primary",
+			Bucket:         "primary",
+			Prefix:         "cluster",
+			RepairRoleARN:  "arn:e2e:primary:repair",
+			GarbageRoleARN: "arn:e2e:primary:garbage",
+		},
+		Secondary: repositoryQualification{
+			Endpoint:       "https://secondary.e2e.invalid",
+			Region:         "e2e-secondary",
+			Bucket:         "secondary",
+			Prefix:         "cluster",
+			RepairRoleARN:  "arn:e2e:secondary:repair",
+			GarbageRoleARN: "arn:e2e:secondary:garbage",
+		},
+	}
+}
+
+func productionStorageQualification(t *testing.T) storageQualification {
+	t.Helper()
+	required := func(name string) string {
+		t.Helper()
+		value := strings.TrimSpace(os.Getenv(name))
+		if value == "" {
+			t.Fatalf("%s is required for production backup qualification", name)
+		}
+		return value
+	}
+	objectLockDays, err := strconv.Atoi(required("WK_E2E_BACKUP_OBJECT_LOCK_DAYS"))
+	require.NoError(t, err, "WK_E2E_BACKUP_OBJECT_LOCK_DAYS must be an integer")
+	qualification := storageQualification{
+		RepositoryID:     required("WK_E2E_BACKUP_REPOSITORY_ID"),
+		SourceGeneration: required("WK_E2E_BACKUP_SOURCE_GENERATION"),
+		TargetGeneration: required("WK_E2E_BACKUP_TARGET_GENERATION"),
+		KMSKeyID:         required("WK_E2E_BACKUP_KMS_KEY_ID"),
+		SigningKeyID:     required("WK_E2E_BACKUP_SIGNING_KEY_ID"),
+		KMSRegion:        required("WK_E2E_BACKUP_KMS_REGION"),
+		KMSEndpoint:      strings.TrimSpace(os.Getenv("WK_E2E_BACKUP_KMS_ENDPOINT")),
+		ObjectLockDays:   objectLockDays,
+		ProductionRunID:  required("WK_E2E_BACKUP_RUN_ID"),
+		ProductionCommit: required("WK_E2E_BACKUP_COMMIT_SHA"),
+		Primary: repositoryQualification{
+			Endpoint:       required("WK_E2E_BACKUP_PRIMARY_ENDPOINT"),
+			Region:         required("WK_E2E_BACKUP_PRIMARY_REGION"),
+			Bucket:         required("WK_E2E_BACKUP_PRIMARY_BUCKET"),
+			Prefix:         required("WK_E2E_BACKUP_PRIMARY_PREFIX"),
+			RepairRoleARN:  required("WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN"),
+			GarbageRoleARN: required("WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN"),
+		},
+		Secondary: repositoryQualification{
+			Endpoint:       required("WK_E2E_BACKUP_SECONDARY_ENDPOINT"),
+			Region:         required("WK_E2E_BACKUP_SECONDARY_REGION"),
+			Bucket:         required("WK_E2E_BACKUP_SECONDARY_BUCKET"),
+			Prefix:         required("WK_E2E_BACKUP_SECONDARY_PREFIX"),
+			RepairRoleARN:  required("WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN"),
+			GarbageRoleARN: required("WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN"),
+		},
+	}
+	require.Empty(t, os.Getenv("WUKONGIM_BACKUP_E2E_FILE_ROOT"), "production qualification cannot use the file repository substitute")
+	require.GreaterOrEqual(t, qualification.ObjectLockDays, 7)
+	require.NotEqual(t, strings.ToLower(qualification.Primary.Region), strings.ToLower(qualification.Secondary.Region))
+	require.NotEqual(
+		t,
+		strings.ToLower(qualification.Primary.Endpoint)+"\x00"+qualification.Primary.Bucket,
+		strings.ToLower(qualification.Secondary.Endpoint)+"\x00"+qualification.Secondary.Bucket,
+	)
+	return qualification
+}
+
+func localBackupNodeEnvironment(nodeID uint64, root string) suite.Option {
+	return suite.WithNodeEnv(nodeID,
+		"WUKONGIM_BACKUP_E2E_FILE_ROOT="+root,
+		"WUKONGIM_BACKUP_E2E_CORRUPTION_DIR="+filepath.Join(root, "faults"),
+		"AWS_ACCESS_KEY_ID=e2e",
+		"AWS_SECRET_ACCESS_KEY=e2e-secret",
+		"AWS_EC2_METADATA_DISABLED=true",
+	)
+}
+
+func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[string]string {
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
 		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v1",
-		"WK_BACKUP_REPOSITORY_ID":                       "e2e-repository",
-		"WK_BACKUP_SOURCE_GENERATION":                   "source-generation",
-		"WK_BACKUP_STAGING_DIR":                         filepath.Join(root, fmt.Sprintf("source-staging-%d", nodeID)),
-		"WK_BACKUP_KMS_KEY_ID":                          "e2e-encryption-key",
-		"WK_BACKUP_SIGNING_KEY_ID":                      "e2e-signing-key",
-		"WK_BACKUP_KMS_REGION":                          "e2e-kms",
-		"WK_BACKUP_KMS_ENDPOINT":                        "https://kms.e2e.invalid",
+		"WK_BACKUP_REPOSITORY_ID":                       qualification.RepositoryID,
+		"WK_BACKUP_SOURCE_GENERATION":                   qualification.SourceGeneration,
+		"WK_BACKUP_STAGING_DIR":                         qualificationStagingDir(qualification, "source", nodeID),
+		"WK_BACKUP_KMS_KEY_ID":                          qualification.KMSKeyID,
+		"WK_BACKUP_SIGNING_KEY_ID":                      qualification.SigningKeyID,
+		"WK_BACKUP_KMS_REGION":                          qualification.KMSRegion,
+		"WK_BACKUP_KMS_ENDPOINT":                        qualification.KMSEndpoint,
 		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "200ms",
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
@@ -412,26 +1094,26 @@ func sourceBackupConfig(root string, nodeID uint64) map[string]string {
 		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":           "500ms",
 		"WK_BACKUP_STAGING_MAX_BYTES":                   "67108864",
 		"WK_BACKUP_WORKER_COUNT":                        "2",
-		"WK_BACKUP_AUDIT_INTERVAL":                      "200ms",
+		"WK_BACKUP_AUDIT_INTERVAL":                      "2s",
 		"WK_BACKUP_AUDIT_SCRUB_INTERVAL":                "24h",
 		"WK_BACKUP_GARBAGE_COLLECTION_INTERVAL":         "1h",
 		"WK_BACKUP_GARBAGE_SAFETY_WINDOW":               "168h",
 		"WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY": "256",
 		"WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY":    "1073741824",
 		"WK_BACKUP_RETENTION_MONTHLY_MONTHS":            "0",
-		"WK_BACKUP_OBJECT_LOCK_DAYS":                    "7",
-		"WK_BACKUP_PRIMARY_ENDPOINT":                    "https://primary.e2e.invalid",
-		"WK_BACKUP_PRIMARY_REGION":                      "e2e-primary",
-		"WK_BACKUP_PRIMARY_BUCKET":                      "primary",
-		"WK_BACKUP_PRIMARY_PREFIX":                      "cluster",
-		"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN":             "arn:e2e:primary:repair",
-		"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":            "arn:e2e:primary:garbage",
-		"WK_BACKUP_SECONDARY_ENDPOINT":                  "https://secondary.e2e.invalid",
-		"WK_BACKUP_SECONDARY_REGION":                    "e2e-secondary",
-		"WK_BACKUP_SECONDARY_BUCKET":                    "secondary",
-		"WK_BACKUP_SECONDARY_PREFIX":                    "cluster",
-		"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN":           "arn:e2e:secondary:repair",
-		"WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN":          "arn:e2e:secondary:garbage",
+		"WK_BACKUP_OBJECT_LOCK_DAYS":                    strconv.Itoa(qualification.ObjectLockDays),
+		"WK_BACKUP_PRIMARY_ENDPOINT":                    qualification.Primary.Endpoint,
+		"WK_BACKUP_PRIMARY_REGION":                      qualification.Primary.Region,
+		"WK_BACKUP_PRIMARY_BUCKET":                      qualification.Primary.Bucket,
+		"WK_BACKUP_PRIMARY_PREFIX":                      qualification.Primary.Prefix,
+		"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN":             qualification.Primary.RepairRoleARN,
+		"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":            qualification.Primary.GarbageRoleARN,
+		"WK_BACKUP_SECONDARY_ENDPOINT":                  qualification.Secondary.Endpoint,
+		"WK_BACKUP_SECONDARY_REGION":                    qualification.Secondary.Region,
+		"WK_BACKUP_SECONDARY_BUCKET":                    qualification.Secondary.Bucket,
+		"WK_BACKUP_SECONDARY_PREFIX":                    qualification.Secondary.Prefix,
+		"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN":           qualification.Secondary.RepairRoleARN,
+		"WK_BACKUP_SECONDARY_GARBAGE_ROLE_ARN":          qualification.Secondary.GarbageRoleARN,
 		"WK_MANAGER_AUTH_ON":                            "true",
 		"WK_MANAGER_JWT_SECRET":                         "e2e-source-jwt-secret",
 		"WK_MANAGER_JWT_ISSUER":                         "wukongim-e2e",
@@ -440,34 +1122,50 @@ func sourceBackupConfig(root string, nodeID uint64) map[string]string {
 	}
 }
 
-func targetRestoreConfig(root string, nodeID uint64) map[string]string {
+func targetRestoreConfig(qualification storageQualification, nodeID uint64) map[string]string {
 	return map[string]string{
 		"WK_CLUSTER_ID":                  "wukongim-e2e-restore",
 		"WK_BACKUP_RESTORE_MODE":         "true",
-		"WK_BACKUP_REPOSITORY_ID":        "e2e-repository",
-		"WK_BACKUP_TARGET_GENERATION":    "target-generation",
-		"WK_BACKUP_STAGING_DIR":          filepath.Join(root, fmt.Sprintf("target-staging-%d", nodeID)),
-		"WK_BACKUP_KMS_KEY_ID":           "e2e-encryption-key",
-		"WK_BACKUP_SIGNING_KEY_ID":       "e2e-signing-key",
-		"WK_BACKUP_KMS_REGION":           "e2e-kms",
-		"WK_BACKUP_KMS_ENDPOINT":         "https://kms.e2e.invalid",
+		"WK_BACKUP_REPOSITORY_ID":        qualification.RepositoryID,
+		"WK_BACKUP_TARGET_GENERATION":    qualification.TargetGeneration,
+		"WK_BACKUP_STAGING_DIR":          qualificationStagingDir(qualification, "target", nodeID),
+		"WK_BACKUP_KMS_KEY_ID":           qualification.KMSKeyID,
+		"WK_BACKUP_SIGNING_KEY_ID":       qualification.SigningKeyID,
+		"WK_BACKUP_KMS_REGION":           qualification.KMSRegion,
+		"WK_BACKUP_KMS_ENDPOINT":         qualification.KMSEndpoint,
 		"WK_BACKUP_BASELINE_CHUNK_BYTES": "1048576",
 		"WK_BACKUP_STAGING_MAX_BYTES":    "67108864",
 		"WK_BACKUP_WORKER_COUNT":         "2",
-		"WK_BACKUP_PRIMARY_ENDPOINT":     "https://primary.e2e.invalid",
-		"WK_BACKUP_PRIMARY_REGION":       "e2e-primary",
-		"WK_BACKUP_PRIMARY_BUCKET":       "primary",
-		"WK_BACKUP_PRIMARY_PREFIX":       "cluster",
-		"WK_BACKUP_SECONDARY_ENDPOINT":   "https://secondary.e2e.invalid",
-		"WK_BACKUP_SECONDARY_REGION":     "e2e-secondary",
-		"WK_BACKUP_SECONDARY_BUCKET":     "secondary",
-		"WK_BACKUP_SECONDARY_PREFIX":     "cluster",
+		"WK_BACKUP_PRIMARY_ENDPOINT":     qualification.Primary.Endpoint,
+		"WK_BACKUP_PRIMARY_REGION":       qualification.Primary.Region,
+		"WK_BACKUP_PRIMARY_BUCKET":       qualification.Primary.Bucket,
+		"WK_BACKUP_PRIMARY_PREFIX":       qualification.Primary.Prefix,
+		"WK_BACKUP_SECONDARY_ENDPOINT":   qualification.Secondary.Endpoint,
+		"WK_BACKUP_SECONDARY_REGION":     qualification.Secondary.Region,
+		"WK_BACKUP_SECONDARY_BUCKET":     qualification.Secondary.Bucket,
+		"WK_BACKUP_SECONDARY_PREFIX":     qualification.Secondary.Prefix,
 		"WK_MANAGER_AUTH_ON":             "true",
 		"WK_MANAGER_JWT_SECRET":          "e2e-restore-jwt-secret",
 		"WK_MANAGER_JWT_ISSUER":          "wukongim-e2e",
 		"WK_MANAGER_JWT_EXPIRE":          "1h",
 		"WK_MANAGER_USERS":               `[{"username":"restore-admin","password":"restore-secret","permissions":[{"resource":"cluster.backup","actions":["r","w"]},{"resource":"cluster.restore.activation","actions":["w"]},{"resource":"cluster.channel","actions":["r"]}]}]`,
 	}
+}
+
+func qualificationStagingDir(qualification storageQualification, role string, nodeID uint64) string {
+	root := qualification.FileRoot
+	if root == "" {
+		root = os.TempDir()
+	}
+	return filepath.Join(
+		root,
+		fmt.Sprintf(
+			"wukongim-backup-%s-%s-%d",
+			qualification.ProductionRunID,
+			role,
+			nodeID,
+		),
+	)
 }
 
 func stopCluster(t *testing.T, cluster *suite.StartedCluster) {
@@ -519,19 +1217,16 @@ func waitForConversationDurable(t *testing.T, cluster *suite.StartedCluster, tim
 	t.Fatalf("conversation active rows were not durably flushed: persisted=%v dirty=%v err=%v\n%s", lastPersisted, lastDirty, lastErr, cluster.DumpDiagnostics())
 }
 
-func startRestoreCluster(t *testing.T, repositoryRoot string) *suite.StartedCluster {
+func startRestoreCluster(t *testing.T, qualification storageQualification) *suite.StartedCluster {
 	t.Helper()
 	options := []suite.Option{suite.WithManagerHTTP()}
 	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
 		options = append(options,
-			suite.WithNodeConfigOverrides(nodeID, targetRestoreConfig(repositoryRoot, nodeID)),
-			suite.WithNodeEnv(nodeID,
-				"WUKONGIM_BACKUP_E2E_FILE_ROOT="+repositoryRoot,
-				"AWS_ACCESS_KEY_ID=e2e",
-				"AWS_SECRET_ACCESS_KEY=e2e-secret",
-				"AWS_EC2_METADATA_DISABLED=true",
-			),
+			suite.WithNodeConfigOverrides(nodeID, targetRestoreConfig(qualification, nodeID)),
 		)
+		if qualification.FileRoot != "" {
+			options = append(options, localBackupNodeEnvironment(nodeID, qualification.FileRoot))
+		}
 	}
 	target := suite.New(t).StartThreeNodeCluster(options...)
 	ctx, cancel := context.WithTimeout(context.Background(), suite.BackupClusterReadyTimeout)
@@ -817,42 +1512,69 @@ func managerRequest(t *testing.T, cluster *suite.StartedCluster, token, method, 
 }
 
 func managerRequestError(cluster *suite.StartedCluster, token, method, path string, body, out any) error {
-	var reader io.Reader = http.NoBody
+	var requestBody []byte
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
 			return err
 		}
-		reader = bytes.NewReader(data)
+		requestBody = data
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, method, "http://"+cluster.MustNode(1).ManagerAddr()+path, reader)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode/100 != 2 {
-		return &suite.HTTPStatusError{Method: method, URL: req.URL.String(), StatusCode: resp.StatusCode, Body: string(responseBody)}
-	}
-	if out != nil {
-		if err := json.Unmarshal(responseBody, out); err != nil {
-			return fmt.Errorf("decode %s %s: %w body=%s", method, path, err, strings.TrimSpace(string(responseBody)))
+	var lastErr error
+	for _, node := range cluster.Nodes {
+		if node.Process == nil || !node.Process.Running() {
+			continue
 		}
+		var reader io.Reader = http.NoBody
+		if requestBody != nil {
+			reader = bytes.NewReader(requestBody)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		req, err := http.NewRequestWithContext(
+			ctx, method, "http://"+node.ManagerAddr()+path, reader,
+		)
+		if err != nil {
+			cancel()
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			cancel()
+			lastErr = err
+			continue
+		}
+		responseBody, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		cancel()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if resp.StatusCode/100 != 2 {
+			lastErr = &suite.HTTPStatusError{
+				Method: method, URL: req.URL.String(),
+				StatusCode: resp.StatusCode, Body: string(responseBody),
+			}
+			continue
+		}
+		if out != nil {
+			if err := json.Unmarshal(responseBody, out); err != nil {
+				return fmt.Errorf(
+					"decode %s %s: %w body=%s",
+					method, path, err, strings.TrimSpace(string(responseBody)),
+				)
+			}
+		}
+		return nil
 	}
-	return nil
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no running Manager node is available")
+	}
+	return lastErr
 }
 
 func publishCheckpointEventually(

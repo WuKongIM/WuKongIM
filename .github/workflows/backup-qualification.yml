@@ -11,10 +11,57 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  portable-faults:
+    name: Portable backup fault seams
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run portable artifact and fault gates
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-portable-faults.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 15m \
+            go test ./pkg/backup ./internal/infra/backup ./internal/runtime/backup ./internal/usecase/backup ./internal/app \
+              -count=1 -timeout=12m 2>&1 | tee "$LOG_FILE"
+      - name: Prepare bounded portable failure evidence
+        if: failure()
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-portable-faults.log
+          EVIDENCE_FILE: ${{ runner.temp }}/backup-portable-faults-failure.log
+        run: |
+          if [[ -f "$LOG_FILE" ]]; then
+            tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+          else
+            printf '%s\n' 'backup portable fault log was not created' > "$EVIDENCE_FILE"
+          fi
+      - name: Upload bounded portable failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backup-portable-faults-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backup-portable-faults-failure.log
+          if-no-files-found: warn
+          retention-days: 7
+
   three-node-backup:
     name: Three-node backup and restore
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       GOWORK: "off"
     steps:
@@ -37,8 +84,8 @@ jobs:
           LOG_FILE: ${{ runner.temp }}/backup-qualification.log
         run: |
           set -o pipefail
-          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 10m \
-            go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=8m -p=1 2>&1 | tee "$LOG_FILE"
+          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 20m \
+            go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=18m -p=1 2>&1 | tee "$LOG_FILE"
       - name: Prepare bounded failure evidence
         if: failure()
         shell: bash
@@ -59,3 +106,187 @@ jobs:
           path: ${{ runner.temp }}/backup-qualification-failure.log
           if-no-files-found: warn
           retention-days: 7
+
+  backup-scale-performance:
+    name: Backup scale and SEND isolation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOWORK: "off"
+      WK_E2E_MEDIUM_RECIPIENT_HOTPATH: "1"
+      WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE: "1"
+      WK_E2E_MEDIUM_RECIPIENT_CI_SCALE: "1"
+      WK_E2E_MEDIUM_RECIPIENT_QPS: "500"
+      WK_E2E_MEDIUM_RECIPIENT_ROUNDS: "20"
+      WK_E2E_MEDIUM_BACKUP_QUALIFICATION: "1"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Build e2e-tagged product binary
+        shell: bash
+        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-scale-e2e" ./cmd/wukongim
+      - name: Run 256-Slot backup scale and latency gate
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-scale-performance.log
+        run: |
+          set -euo pipefail
+          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-scale-e2e" timeout --signal=TERM --kill-after=30s 25m \
+            go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
+              -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout=23m -p=1 -v 2>&1 | tee "$LOG_FILE"
+          grep -q 'WK-BACKUP-SCALE-EVIDENCE ' "$LOG_FILE"
+      - name: Prepare bounded scale evidence
+        if: always()
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-scale-performance.log
+          EVIDENCE_FILE: ${{ runner.temp }}/backup-scale-performance-evidence.log
+        run: |
+          if [[ -f "$LOG_FILE" ]]; then
+            tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+          else
+            printf '%s\n' 'backup scale performance log was not created' > "$EVIDENCE_FILE"
+          fi
+      - name: Upload bounded scale evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backup-scale-performance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backup-scale-performance-evidence.log
+          if-no-files-found: error
+          retention-days: 14
+
+  production-storage:
+    name: Production S3 KMS and recovery drill
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: backup-production
+    env:
+      GOWORK: "off"
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.BACKUP_AWS_SESSION_TOKEN }}
+      AWS_EC2_METADATA_DISABLED: "true"
+      WK_E2E_BACKUP_PRODUCTION: "1"
+      WK_E2E_BACKUP_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      WK_E2E_BACKUP_COMMIT_SHA: ${{ github.sha }}
+      WK_E2E_BACKUP_REPOSITORY_ID: ${{ vars.BACKUP_REPOSITORY_ID }}
+      WK_E2E_BACKUP_SOURCE_GENERATION: source-${{ github.run_id }}-${{ github.run_attempt }}
+      WK_E2E_BACKUP_TARGET_GENERATION: target-${{ github.run_id }}-${{ github.run_attempt }}
+      WK_E2E_BACKUP_KMS_KEY_ID: ${{ secrets.BACKUP_KMS_KEY_ID }}
+      WK_E2E_BACKUP_SIGNING_KEY_ID: ${{ secrets.BACKUP_SIGNING_KEY_ID }}
+      WK_E2E_BACKUP_KMS_REGION: ${{ vars.BACKUP_KMS_REGION }}
+      WK_E2E_BACKUP_KMS_ENDPOINT: ${{ secrets.BACKUP_KMS_ENDPOINT }}
+      WK_E2E_BACKUP_OBJECT_LOCK_DAYS: ${{ vars.BACKUP_OBJECT_LOCK_DAYS }}
+      WK_E2E_BACKUP_PRIMARY_ENDPOINT: ${{ secrets.BACKUP_PRIMARY_ENDPOINT }}
+      WK_E2E_BACKUP_PRIMARY_REGION: ${{ vars.BACKUP_PRIMARY_REGION }}
+      WK_E2E_BACKUP_PRIMARY_BUCKET: ${{ secrets.BACKUP_PRIMARY_BUCKET }}
+      WK_E2E_BACKUP_PRIMARY_PREFIX: ${{ vars.BACKUP_PRIMARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}
+      WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN: ${{ secrets.BACKUP_PRIMARY_REPAIR_ROLE_ARN }}
+      WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN: ${{ secrets.BACKUP_PRIMARY_GARBAGE_ROLE_ARN }}
+      WK_E2E_BACKUP_SECONDARY_ENDPOINT: ${{ secrets.BACKUP_SECONDARY_ENDPOINT }}
+      WK_E2E_BACKUP_SECONDARY_REGION: ${{ vars.BACKUP_SECONDARY_REGION }}
+      WK_E2E_BACKUP_SECONDARY_BUCKET: ${{ secrets.BACKUP_SECONDARY_BUCKET }}
+      WK_E2E_BACKUP_SECONDARY_PREFIX: ${{ vars.BACKUP_SECONDARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}
+      WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN: ${{ secrets.BACKUP_SECONDARY_REPAIR_ROLE_ARN }}
+      WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN: ${{ secrets.BACKUP_SECONDARY_GARBAGE_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Build production-provider e2e binary
+        shell: bash
+        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-production-e2e" ./cmd/wukongim
+      - name: Run production storage recovery drill
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-production-storage.log
+        run: |
+          set -euo pipefail
+          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-production-e2e" timeout --signal=TERM --kill-after=30s 25m \
+            go test -tags=e2e ./test/e2e/backup/three_node_restore \
+              -run TestProductionStorageQualification -count=1 -timeout=23m -p=1 -v 2>&1 | tee "$LOG_FILE"
+          grep -q 'WK-BACKUP-PRODUCTION-EVIDENCE ' "$LOG_FILE"
+      - name: Prepare bounded production evidence
+        if: always()
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/backup-production-storage.log
+          EVIDENCE_FILE: ${{ runner.temp }}/backup-production-storage-evidence.log
+        run: |
+          if [[ -f "$LOG_FILE" ]]; then
+            tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+          else
+            printf '%s\n' 'backup production storage log was not created' > "$EVIDENCE_FILE"
+          fi
+      - name: Upload bounded production evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backup-production-storage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backup-production-storage-evidence.log
+          if-no-files-found: error
+          retention-days: 30
+
+  release-verdict:
+    name: Backup release qualification verdict
+    needs:
+      - portable-faults
+      - three-node-backup
+      - backup-scale-performance
+      - production-storage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Write recorded recovery drill verdict
+        shell: bash
+        env:
+          EVIDENCE_FILE: ${{ runner.temp }}/backup-release-qualification.json
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          umask 077
+          jq -n \
+            --arg schema "wukongim/backup-release-qualification/v1" \
+            --arg commit "$COMMIT_SHA" \
+            --arg run_id "$RUN_ID" \
+            --arg run_attempt "$RUN_ATTEMPT" \
+            --arg run_url "$RUN_URL" \
+            '{
+              schema: $schema,
+              commit: $commit,
+              run_id: $run_id,
+              run_attempt: $run_attempt,
+              run_url: $run_url,
+              gates: {
+                portable_faults: "passed",
+                three_node_recovery: "passed",
+                scale_performance: "passed",
+                production_storage: "passed",
+                recorded_recovery_drill: "passed"
+              }
+            }' > "$EVIDENCE_FILE"
+      - name: Upload release qualification verdict
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backup-release-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backup-release-qualification.json
+          if-no-files-found: error
+          retention-days: 90

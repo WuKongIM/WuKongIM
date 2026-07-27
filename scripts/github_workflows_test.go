@@ -35,6 +35,8 @@ type ciJob struct {
 	Name           string            `yaml:"name"`
 	RunsOn         string            `yaml:"runs-on"`
 	TimeoutMinutes int               `yaml:"timeout-minutes"`
+	Environment    string            `yaml:"environment"`
+	Needs          []string          `yaml:"needs"`
 	Env            map[string]string `yaml:"env"`
 	Defaults       *ciDefaults       `yaml:"defaults"`
 	Strategy       *ciStrategy       `yaml:"strategy"`
@@ -257,15 +259,72 @@ ${{ runner.temp }}/${{ env.SMOKE_OUT }}/cluster.log
 ${{ runner.temp }}/${{ env.SMOKE_OUT }}/sim.jsonl
 ${{ runner.temp }}/${{ env.SMOKE_OUT }}/node-logs/*.log
 `
-	backupQualificationCommand = `set -o pipefail
-WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 10m \
-  go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=8m -p=1 2>&1 | tee "$LOG_FILE"
+	backupPortableFaultsCommand = `set -o pipefail
+timeout --signal=TERM --kill-after=30s 15m \
+  go test ./pkg/backup ./internal/infra/backup ./internal/runtime/backup ./internal/usecase/backup ./internal/app \
+    -count=1 -timeout=12m 2>&1 | tee "$LOG_FILE"
 `
 	backupQualificationEvidenceCommand = `if [[ -f "$LOG_FILE" ]]; then
   tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
 else
   printf '%s\n' 'backup qualification log was not created' > "$EVIDENCE_FILE"
 fi
+`
+	backupPortableEvidenceCommand = `if [[ -f "$LOG_FILE" ]]; then
+  tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+else
+  printf '%s\n' 'backup portable fault log was not created' > "$EVIDENCE_FILE"
+fi
+`
+	backupQualificationCommand = `set -o pipefail
+WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-e2e" timeout --signal=TERM --kill-after=30s 20m \
+  go test -tags=e2e ./test/e2e/backup/... -count=1 -timeout=18m -p=1 2>&1 | tee "$LOG_FILE"
+`
+	backupScaleCommand = `set -euo pipefail
+WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-scale-e2e" timeout --signal=TERM --kill-after=30s 25m \
+  go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
+    -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout=23m -p=1 -v 2>&1 | tee "$LOG_FILE"
+grep -q 'WK-BACKUP-SCALE-EVIDENCE ' "$LOG_FILE"
+`
+	backupScaleEvidenceCommand = `if [[ -f "$LOG_FILE" ]]; then
+  tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+else
+  printf '%s\n' 'backup scale performance log was not created' > "$EVIDENCE_FILE"
+fi
+`
+	backupProductionCommand = `set -euo pipefail
+WK_E2E_BINARY="$RUNNER_TEMP/wukongim-backup-production-e2e" timeout --signal=TERM --kill-after=30s 25m \
+  go test -tags=e2e ./test/e2e/backup/three_node_restore \
+    -run TestProductionStorageQualification -count=1 -timeout=23m -p=1 -v 2>&1 | tee "$LOG_FILE"
+grep -q 'WK-BACKUP-PRODUCTION-EVIDENCE ' "$LOG_FILE"
+`
+	backupProductionEvidenceCommand = `if [[ -f "$LOG_FILE" ]]; then
+  tail -c 1048576 "$LOG_FILE" > "$EVIDENCE_FILE"
+else
+  printf '%s\n' 'backup production storage log was not created' > "$EVIDENCE_FILE"
+fi
+`
+	backupReleaseVerdictCommand = `umask 077
+jq -n \
+  --arg schema "wukongim/backup-release-qualification/v1" \
+  --arg commit "$COMMIT_SHA" \
+  --arg run_id "$RUN_ID" \
+  --arg run_attempt "$RUN_ATTEMPT" \
+  --arg run_url "$RUN_URL" \
+  '{
+    schema: $schema,
+    commit: $commit,
+    run_id: $run_id,
+    run_attempt: $run_attempt,
+    run_url: $run_url,
+    gates: {
+      portable_faults: "passed",
+      three_node_recovery: "passed",
+      scale_performance: "passed",
+      production_storage: "passed",
+      recorded_recovery_drill: "passed"
+    }
+  }' > "$EVIDENCE_FILE"
 `
 )
 
@@ -437,10 +496,50 @@ var expectedNightlyJobs = map[string]ciJob{
 }
 
 var expectedBackupQualificationJobs = map[string]ciJob{
+	"portable-faults": {
+		Name:           "Portable backup fault seams",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 20,
+		Env:            map[string]string{"GOWORK": "off"},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Run portable artifact and fault gates",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE": "${{ runner.temp }}/backup-portable-faults.log",
+				},
+				Run: backupPortableFaultsCommand,
+			},
+			{
+				Name:  "Prepare bounded portable failure evidence",
+				If:    "failure()",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE":      "${{ runner.temp }}/backup-portable-faults.log",
+					"EVIDENCE_FILE": "${{ runner.temp }}/backup-portable-faults-failure.log",
+				},
+				Run: backupPortableEvidenceCommand,
+			},
+			{
+				Name: "Upload bounded portable failure evidence",
+				If:   "failure()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "backup-portable-faults-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/backup-portable-faults-failure.log",
+					"if-no-files-found": "warn",
+					"retention-days":    7,
+				},
+			},
+		},
+	},
 	"three-node-backup": {
 		Name:           "Three-node backup and restore",
 		RunsOn:         "ubuntu-24.04",
-		TimeoutMinutes: 15,
+		TimeoutMinutes: 25,
 		Env:            map[string]string{"GOWORK": "off"},
 		Steps: []ciStep{
 			checkoutStep(),
@@ -476,6 +575,169 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 					"path":              "${{ runner.temp }}/backup-qualification-failure.log",
 					"if-no-files-found": "warn",
 					"retention-days":    7,
+				},
+			},
+		},
+	},
+	"backup-scale-performance": {
+		Name:           "Backup scale and SEND isolation",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 30,
+		Env: map[string]string{
+			"GOWORK":                          "off",
+			"WK_E2E_MEDIUM_RECIPIENT_HOTPATH": "1",
+			"WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE": "1",
+			"WK_E2E_MEDIUM_RECIPIENT_CI_SCALE":           "1",
+			"WK_E2E_MEDIUM_RECIPIENT_QPS":                "500",
+			"WK_E2E_MEDIUM_RECIPIENT_ROUNDS":             "20",
+			"WK_E2E_MEDIUM_BACKUP_QUALIFICATION":         "1",
+		},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Build e2e-tagged product binary",
+				Shell: "bash",
+				Run:   `go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-scale-e2e" ./cmd/wukongim`,
+			},
+			{
+				Name:  "Run 256-Slot backup scale and latency gate",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE": "${{ runner.temp }}/backup-scale-performance.log",
+				},
+				Run: backupScaleCommand,
+			},
+			{
+				Name:  "Prepare bounded scale evidence",
+				If:    "always()",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE":      "${{ runner.temp }}/backup-scale-performance.log",
+					"EVIDENCE_FILE": "${{ runner.temp }}/backup-scale-performance-evidence.log",
+				},
+				Run: backupScaleEvidenceCommand,
+			},
+			{
+				Name: "Upload bounded scale evidence",
+				If:   "always()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "backup-scale-performance-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/backup-scale-performance-evidence.log",
+					"if-no-files-found": "error",
+					"retention-days":    14,
+				},
+			},
+		},
+	},
+	"production-storage": {
+		Name:           "Production S3 KMS and recovery drill",
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 30,
+		Environment:    "backup-production",
+		Env: map[string]string{
+			"GOWORK":                                   "off",
+			"AWS_ACCESS_KEY_ID":                        "${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}",
+			"AWS_SECRET_ACCESS_KEY":                    "${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}",
+			"AWS_SESSION_TOKEN":                        "${{ secrets.BACKUP_AWS_SESSION_TOKEN }}",
+			"AWS_EC2_METADATA_DISABLED":                "true",
+			"WK_E2E_BACKUP_PRODUCTION":                 "1",
+			"WK_E2E_BACKUP_RUN_ID":                     "${{ github.run_id }}-${{ github.run_attempt }}",
+			"WK_E2E_BACKUP_COMMIT_SHA":                 "${{ github.sha }}",
+			"WK_E2E_BACKUP_REPOSITORY_ID":              "${{ vars.BACKUP_REPOSITORY_ID }}",
+			"WK_E2E_BACKUP_SOURCE_GENERATION":          "source-${{ github.run_id }}-${{ github.run_attempt }}",
+			"WK_E2E_BACKUP_TARGET_GENERATION":          "target-${{ github.run_id }}-${{ github.run_attempt }}",
+			"WK_E2E_BACKUP_KMS_KEY_ID":                 "${{ secrets.BACKUP_KMS_KEY_ID }}",
+			"WK_E2E_BACKUP_SIGNING_KEY_ID":             "${{ secrets.BACKUP_SIGNING_KEY_ID }}",
+			"WK_E2E_BACKUP_KMS_REGION":                 "${{ vars.BACKUP_KMS_REGION }}",
+			"WK_E2E_BACKUP_KMS_ENDPOINT":               "${{ secrets.BACKUP_KMS_ENDPOINT }}",
+			"WK_E2E_BACKUP_OBJECT_LOCK_DAYS":           "${{ vars.BACKUP_OBJECT_LOCK_DAYS }}",
+			"WK_E2E_BACKUP_PRIMARY_ENDPOINT":           "${{ secrets.BACKUP_PRIMARY_ENDPOINT }}",
+			"WK_E2E_BACKUP_PRIMARY_REGION":             "${{ vars.BACKUP_PRIMARY_REGION }}",
+			"WK_E2E_BACKUP_PRIMARY_BUCKET":             "${{ secrets.BACKUP_PRIMARY_BUCKET }}",
+			"WK_E2E_BACKUP_PRIMARY_PREFIX":             "${{ vars.BACKUP_PRIMARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
+			"WK_E2E_BACKUP_PRIMARY_REPAIR_ROLE_ARN":    "${{ secrets.BACKUP_PRIMARY_REPAIR_ROLE_ARN }}",
+			"WK_E2E_BACKUP_PRIMARY_GARBAGE_ROLE_ARN":   "${{ secrets.BACKUP_PRIMARY_GARBAGE_ROLE_ARN }}",
+			"WK_E2E_BACKUP_SECONDARY_ENDPOINT":         "${{ secrets.BACKUP_SECONDARY_ENDPOINT }}",
+			"WK_E2E_BACKUP_SECONDARY_REGION":           "${{ vars.BACKUP_SECONDARY_REGION }}",
+			"WK_E2E_BACKUP_SECONDARY_BUCKET":           "${{ secrets.BACKUP_SECONDARY_BUCKET }}",
+			"WK_E2E_BACKUP_SECONDARY_PREFIX":           "${{ vars.BACKUP_SECONDARY_PREFIX }}/${{ github.run_id }}-${{ github.run_attempt }}",
+			"WK_E2E_BACKUP_SECONDARY_REPAIR_ROLE_ARN":  "${{ secrets.BACKUP_SECONDARY_REPAIR_ROLE_ARN }}",
+			"WK_E2E_BACKUP_SECONDARY_GARBAGE_ROLE_ARN": "${{ secrets.BACKUP_SECONDARY_GARBAGE_ROLE_ARN }}",
+		},
+		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			verifyGoToolchainStep(),
+			{
+				Name:  "Build production-provider e2e binary",
+				Shell: "bash",
+				Run:   `go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-production-e2e" ./cmd/wukongim`,
+			},
+			{
+				Name:  "Run production storage recovery drill",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE": "${{ runner.temp }}/backup-production-storage.log",
+				},
+				Run: backupProductionCommand,
+			},
+			{
+				Name:  "Prepare bounded production evidence",
+				If:    "always()",
+				Shell: "bash",
+				Env: map[string]string{
+					"LOG_FILE":      "${{ runner.temp }}/backup-production-storage.log",
+					"EVIDENCE_FILE": "${{ runner.temp }}/backup-production-storage-evidence.log",
+				},
+				Run: backupProductionEvidenceCommand,
+			},
+			{
+				Name: "Upload bounded production evidence",
+				If:   "always()",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "backup-production-storage-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/backup-production-storage-evidence.log",
+					"if-no-files-found": "error",
+					"retention-days":    30,
+				},
+			},
+		},
+	},
+	"release-verdict": {
+		Name: "Backup release qualification verdict",
+		Needs: []string{
+			"portable-faults",
+			"three-node-backup",
+			"backup-scale-performance",
+			"production-storage",
+		},
+		RunsOn:         "ubuntu-24.04",
+		TimeoutMinutes: 5,
+		Steps: []ciStep{
+			{
+				Name:  "Write recorded recovery drill verdict",
+				Shell: "bash",
+				Env: map[string]string{
+					"EVIDENCE_FILE": "${{ runner.temp }}/backup-release-qualification.json",
+					"COMMIT_SHA":    "${{ github.sha }}",
+					"RUN_ID":        "${{ github.run_id }}",
+					"RUN_ATTEMPT":   "${{ github.run_attempt }}",
+					"RUN_URL":       "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+				},
+				Run: backupReleaseVerdictCommand,
+			},
+			{
+				Name: "Upload release qualification verdict",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "backup-release-qualification-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/backup-release-qualification.json",
+					"if-no-files-found": "error",
+					"retention-days":    90,
 				},
 			},
 		},
@@ -973,7 +1235,13 @@ func validateBackupQualificationWorkflow(raw []byte) error {
 		raw,
 		"Backup qualification",
 		"",
-		[]string{"three-node-backup"},
+		[]string{
+			"portable-faults",
+			"three-node-backup",
+			"backup-scale-performance",
+			"production-storage",
+			"release-verdict",
+		},
 		expectedBackupQualificationJobs,
 	)
 }
@@ -1112,6 +1380,12 @@ func validateWorkflowStructure(document *yaml.Node, jobNames []string, expectedJ
 
 func expectedJobKeys(job ciJob) []string {
 	keys := []string{"name", "runs-on", "timeout-minutes", "steps"}
+	if job.Environment != "" {
+		keys = append(keys, "environment")
+	}
+	if job.Needs != nil {
+		keys = append(keys, "needs")
+	}
 	if job.Env != nil {
 		keys = append(keys, "env")
 	}

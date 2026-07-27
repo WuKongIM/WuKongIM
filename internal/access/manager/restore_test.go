@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 )
 
 func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
@@ -16,10 +17,26 @@ func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
 		Status: backupusecase.RestoreStatusPlanned, HashSlotCount: 1,
 		Partitions: []backupusecase.RestorePartition{{HashSlot: 0}},
 	}}
-	server := New(Options{RestoreMode: true, Restore: provider})
+	server := New(Options{
+		RestoreMode: true,
+		Restore:     provider,
+		Management: managerNodesStub{nodes: managementusecase.NodeList{
+			ControllerLeaderID: 2,
+		}},
+	})
+
+	nodes := httptest.NewRecorder()
+	server.Engine().ServeHTTP(nodes, httptest.NewRequest(http.MethodGet, "/manager/nodes", nil))
+	if nodes.Code != http.StatusOK ||
+		!bytes.Contains(nodes.Body.Bytes(), []byte(`"controller_leader_id":2`)) {
+		t.Fatalf("restore node inventory status=%d body=%s", nodes.Code, nodes.Body.String())
+	}
 
 	ordinary := httptest.NewRecorder()
-	server.Engine().ServeHTTP(ordinary, httptest.NewRequest(http.MethodGet, "/manager/nodes", nil))
+	server.Engine().ServeHTTP(
+		ordinary,
+		httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil),
+	)
 	if ordinary.Code != http.StatusNotFound {
 		t.Fatalf("ordinary manager route status = %d, want 404", ordinary.Code)
 	}

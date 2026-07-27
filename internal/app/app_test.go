@@ -598,7 +598,7 @@ func TestNormalModeRejectsPermanentlyFencedSourceGeneration(t *testing.T) {
 	err := app.validateRestoreActivationFence(controller.ClusterState{
 		Backup: &controller.BackupCoordinationState{
 			SourceFence: &backupartifact.SourceFenceRecord{
-				ID: "source-fence-1",
+				ID:               "source-fence-1",
 				SourceGeneration: "source-generation-1",
 			},
 		},
@@ -6602,7 +6602,7 @@ func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.
 			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
 			Activation: activation, ActivatedAtUnixMillis: activatedAt,
 			StagingCleanupCompletedAtUnixMillis: activatedAt,
-			Partitions: []controller.RestorePartition{{HashSlot: 0, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
+			Partitions:                          []controller.RestorePartition{{HashSlot: 0, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
 		}},
 	}
 	if err := app.validateRestoreActivationFence(missingVersion); err == nil {
@@ -6615,7 +6615,7 @@ func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.
 			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
 			Activation: activation, ActivatedAtUnixMillis: activatedAt,
 			StagingCleanupCompletedAtUnixMillis: activatedAt,
-			Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
+			Partitions:                          []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
 		}},
 	})
 	if err != nil {
@@ -6632,7 +6632,7 @@ func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.
 			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
 			Activation: activation, ActivatedAtUnixMillis: activatedAt,
 			StagingCleanupCompletedAtUnixMillis: activatedAt,
-			Partitions: []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: futureMax}},
+			Partitions:                          []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: futureMax}},
 		}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "natural Snowflake clock") {
@@ -6646,8 +6646,8 @@ func appTestRestoreActivation(
 	const recordedAt = int64(1_800_000_000_000)
 	audit := backupartifact.BreakGlassActivationAudit{
 		ID: "audit-1", RestorePlanID: planID,
-		Operator: "recovery-admin",
-		Reason: "All source Controller disks are permanently unavailable.",
+		Operator:               "recovery-admin",
+		Reason:                 "All source Controller disks are permanently unavailable.",
 		AuthorizedAtUnixMillis: recordedAt,
 	}
 	digest, err := backupartifact.BreakGlassActivationDigest(audit)
@@ -6655,10 +6655,10 @@ func appTestRestoreActivation(
 		panic(err)
 	}
 	return &backupartifact.RestoreActivationEvidence{
-		Kind: backupartifact.RestoreActivationBreakGlass,
+		Kind:           backupartifact.RestoreActivationBreakGlass,
 		EvidenceSHA256: digest, Operator: audit.Operator,
 		RecordedAtUnixMillis: recordedAt,
-		BreakGlass: &audit,
+		BreakGlass:           &audit,
 	}, recordedAt + 1
 }
 

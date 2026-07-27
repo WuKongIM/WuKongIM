@@ -22,7 +22,39 @@ export WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v1
 ```
 
 Missing or different qualification values fail startup. This is a release
-fence, not a secret.
+fence, not a secret. The string is not a qualification result by itself:
+operators must keep `backup.enabled=false` until the exact deployed commit has
+a successful recorded verdict from the release workflow below.
+
+## Release qualification
+
+Run `.github/workflows/backup-qualification.yml` manually for the exact release
+commit. It is fail-closed and publishes a final verdict only after all four
+independent jobs pass:
+
+1. portable artifact, failure-injection, audit, rebase, restore, and application
+   wiring tests;
+2. a local real-process three-node recovery drill with Controller, Slot/data,
+   and restore-leader failures plus opaque repository corruption;
+3. the 256-Hash-Slot, 5,000-channel, 100,000-member scale gate with an executable
+   SENDACK p99 threshold under injected repository/KMS latency, a 1.2-second
+   continuous-backup foreground p99 ceiling, and bounded process allocation
+   and heap ceilings; it records capture catchup separately before enforcing
+   two already-caught-up checkpoint publications below ten seconds each;
+4. the same source-stop, fresh-target restore, activation, and post-write drill
+   through real cross-region S3 repositories, KMS keys, repair/garbage roles,
+   versioning, and Object Lock in the protected `backup-production` environment.
+
+The first three jobs use e2e-only file/key substitutes where appropriate. They
+cannot satisfy the fourth job. The production job rejects
+`WUKONGIM_BACKUP_E2E_FILE_ROOT`, uses a unique object prefix and source/target
+generation for each run, and emits a bounded machine evidence line without
+endpoints, bucket names, role ARNs, key IDs, credentials, or catalog tokens.
+
+The final `backup-release-qualification.json` artifact exists only when all
+dependencies passed. Retain it with the production evidence artifact and the
+release commit SHA as the recorded recovery drill. A missing, failed, skipped,
+different-commit, or older-schema verdict leaves automatic backup disabled.
 
 ## Runtime model
 
@@ -151,7 +183,9 @@ plan for Generation GC to discover.
 Restore requires a fresh empty target cluster in explicit restore mode. Use a
 new cluster ID and a `backup.target_generation` different from the source
 generation. Restore mode keeps Gateway, business APIs, plugins, webhooks, and
-ordinary workers closed.
+ordinary workers closed. Its restricted Manager exposes restore operations and
+the read-only node inventory under `cluster.backup:r`, allowing operators to
+observe Controller leadership without reading process logs.
 
 1. Start the empty target cluster with:
 
