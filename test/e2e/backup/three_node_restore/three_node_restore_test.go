@@ -275,13 +275,13 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 	// A target may sit behind the fixed audit cycle that was already in
 	// progress. Production additionally crosses both OSS regions.
 	integrityRepairTimeout := 120 * time.Second
-	exerciseRepositoryIntegrityRepair(
+	rebasedHashSlot := exerciseRepositoryIntegrityRepair(
 		t, cluster, sourceToken, qualification.CorruptionRoot,
 		integrityRepairTimeout,
 	)
 	rebasedSlotHolder := backupDurableFrontiers(
 		t, cluster, sourceToken,
-	)[hashslot.HashSlotForKey("backup-e2e-dual-corruption", 16)].holder
+	)[rebasedHashSlot].holder
 	require.NotZero(t, rebasedSlotHolder)
 	exerciseSourceLeaderFailures(
 		t, cluster, sourceToken, rebasedSlotHolder,
@@ -688,7 +688,7 @@ func exerciseRepositoryIntegrityRepair(
 	token string,
 	root string,
 	repairTimeout time.Duration,
-) {
+) uint16 {
 	t.Helper()
 	exerciseSingleRepositoryIntegrityRepair(
 		t, cluster, token, root, "primary",
@@ -708,17 +708,8 @@ func exerciseRepositoryIntegrityRepair(
 	frontiers := backupDurableFrontiers(t, cluster, token)
 	const dualCorruptionChannel = "backup-e2e-dual-corruption"
 	hashSlot := hashslot.HashSlotForKey(dualCorruptionChannel, 16)
-	beforeDualCorruption := frontiers[hashSlot]
-	require.NotEqual(
-		t, uint64(math.MaxUint64), beforeDualCorruption.messages,
-		"dual-corruption target message watermark is exhausted",
-	)
-	targetMessageWatermark := beforeDualCorruption.messages + 1
 	allRepositoriesTrigger := setRepositoryCorruption(
-		t, root, "all", fmt.Sprintf(
-			"sticky-segment:%d:%s:%d",
-			hashSlot, "messages", targetMessageWatermark,
-		),
+		t, root, "all", "sticky",
 	)
 	_ = appendGroupMessages(
 		t, cluster, dualCorruptionChannel, frame.ChannelTypeGroup, 1,
@@ -733,23 +724,20 @@ func exerciseRepositoryIntegrityRepair(
 		t, previousFrontier.messages,
 		"dual-corruption target has no committed message watermark",
 	)
-	require.Equal(
-		t, targetMessageWatermark, previousFrontier.messages,
-		"dual-corruption target advanced by an unexpected message count",
-	)
 	beforeRebases := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
 		map[string]string{
 			"reason": "audit_corruption", "outcome": "success",
 		},
 	)
-	// Pin both repository reads to the exact new message segment represented by
-	// the next frontier before an automatic checkpoint can catalog and audit it.
+	// Pin both repository reads to the first object the next fixed audit cycle
+	// actually inspects. The shared sticky key guarantees both repositories
+	// corrupt the same immutable object without depending on traversal order.
 	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
 	// A production dual-copy audit and replacement crosses both OSS regions;
 	// keep its recovery bound independent from ordinary Manager request waits.
-	replacement := waitForDurableGenerationReplacement(
-		t, cluster, token, hashSlot, previousFrontier, 180*time.Second,
+	rebasedHashSlot, replacement := waitForAnyDurableGenerationReplacement(
+		t, cluster, token, frontiers, 180*time.Second,
 	)
 	if observed := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
@@ -759,11 +747,12 @@ func exerciseRepositoryIntegrityRepair(
 	); observed <= beforeRebases {
 		t.Logf(
 			"durable audit-corruption rebase completed without a scrape-visible process counter: Slot=%d generation=%s revision=%d",
-			hashSlot, replacement.generation, replacement.revision,
+			rebasedHashSlot, replacement.generation, replacement.revision,
 		)
 	}
 	clearRepositoryCorruption(t, allRepositoriesTrigger)
 	waitForBackupHealthy(t, cluster, token, 60*time.Second)
+	return rebasedHashSlot
 }
 
 func exerciseSingleRepositoryIntegrityRepair(
@@ -2039,17 +2028,16 @@ func backupDurableFrontiers(
 	return result
 }
 
-func waitForDurableGenerationReplacement(
+func waitForAnyDurableGenerationReplacement(
 	t *testing.T,
 	cluster *suite.StartedCluster,
 	token string,
-	hashSlot uint16,
-	previous backupDurableFrontier,
+	previous map[uint16]backupDurableFrontier,
 	timeout time.Duration,
-) backupDurableFrontier {
+) (uint16, backupDurableFrontier) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
-	var last backupDurableFrontier
+	var last map[uint16]backupDurableFrontier
 	var lastStatus backupStatus
 	var lastErr error
 	for time.Now().Before(deadline) {
@@ -2060,11 +2048,12 @@ func waitForDurableGenerationReplacement(
 		)
 		if lastErr == nil {
 			lastStatus = status
+			last = make(
+				map[uint16]backupDurableFrontier,
+				len(status.CaptureLeases),
+			)
 			for _, lease := range status.CaptureLeases {
-				if lease.HashSlot != hashSlot {
-					continue
-				}
-				last = backupDurableFrontier{
+				current := backupDurableFrontier{
 					generation:                      lease.Generation,
 					holder:                          lease.HolderNodeID,
 					lease:                           lease.LeaseSequence,
@@ -2076,19 +2065,21 @@ func waitForDurableGenerationReplacement(
 					messages:                        lease.MessageSourceWatermark,
 					updated:                         lease.FrontierUpdatedUnixMillis,
 				}
-				if backupDurableGenerationReplaced(previous, last) {
-					return last
+				last[lease.HashSlot] = current
+				if backupDurableGenerationReplaced(
+					previous[lease.HashSlot], current,
+				) {
+					return lease.HashSlot, current
 				}
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf(
-		"Hash Slot %d did not durably replace generation after dual repository corruption: previous=%+v last=%+v status=%+v err=%v\n%s",
-		hashSlot, previous, last, lastStatus, lastErr,
-		cluster.DumpDiagnostics(),
+		"no Hash Slot durably replaced generation after dual repository corruption: previous=%+v last=%+v status=%+v err=%v\n%s",
+		previous, last, lastStatus, lastErr, cluster.DumpDiagnostics(),
 	)
-	return backupDurableFrontier{}
+	return 0, backupDurableFrontier{}
 }
 
 func backupDurableGenerationReplaced(

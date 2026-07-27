@@ -182,6 +182,62 @@ func TestContinuousCoordinatorMaintenanceFailureUsesBoundedRetry(t *testing.T) {
 	}
 }
 
+func TestContinuousCoordinatorStartDefersFirstGarbageCollection(t *testing.T) {
+	now := time.UnixMilli(1_800_000_060_000)
+	garbage := &scriptedControllerMaintenance{}
+	coordinator, err := NewContinuousCoordinator(
+		ContinuousCoordinatorOptions{
+			Capture:                   idleContinuousCapture{},
+			Checkpoints:               recordingContinuousCheckpointPublisher{},
+			LatestCheckpoint:          staticCheckpointObservationSource{},
+			Doctor:                    fakeCoordinatorDoctor{},
+			Leadership:                fakeCoordinatorLeadership{local: 1, leader: 1},
+			CheckpointInterval:        time.Hour,
+			TickInterval:              time.Hour,
+			GarbageCollector:          garbage,
+			GarbageCollectionInterval: time.Hour,
+			Now:                       func() time.Time { return now },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewContinuousCoordinator() error = %v", err)
+	}
+	if err := coordinator.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for coordinator.Status().LastDoctorAtUnixMillis == 0 &&
+		time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if coordinator.Status().LastDoctorAtUnixMillis == 0 {
+		t.Fatal("timed out waiting for initial coordinator cycle")
+	}
+	stopContext, cancelStop := context.WithTimeout(
+		context.Background(), time.Second,
+	)
+	defer cancelStop()
+	if err := coordinator.Stop(stopContext); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if garbage.calls != 0 {
+		t.Fatalf("garbage calls at startup = %d, want 0", garbage.calls)
+	}
+	coordinator.mu.Lock()
+	gotNext := coordinator.nextGarbageCollectionAt
+	coordinator.mu.Unlock()
+	if want := now.Add(time.Hour); !gotNext.Equal(want) {
+		t.Fatalf("next garbage collection = %v, want %v", gotNext, want)
+	}
+	now = now.Add(time.Hour)
+	runContext, cancelRun := context.WithCancel(context.Background())
+	cancelRun()
+	coordinator.runOnce(runContext)
+	if garbage.calls != 1 {
+		t.Fatalf("garbage calls after interval = %d, want 1", garbage.calls)
+	}
+}
+
 func TestContinuousCoordinatorCheckpointSuccessKeepsSameTickAuditFailure(t *testing.T) {
 	now := time.UnixMilli(1_800_000_060_000)
 	publisher := &countingContinuousCheckpointPublisher{}
@@ -420,13 +476,15 @@ func (p *countingContinuousCheckpointPublisher) Publish(
 }
 
 type scriptedControllerMaintenance struct {
-	errs []error
+	errs  []error
+	calls int
 }
 
 func (m *scriptedControllerMaintenance) RunIfLeader(
 	context.Context,
 	CoordinatorLeadership,
 ) (bool, error) {
+	m.calls++
 	if len(m.errs) == 0 {
 		return true, nil
 	}

@@ -209,6 +209,10 @@ Controller maintenance keeps its configured steady-state audit/GC cadence
 after successful work. A failed step retries no later than the coordinator's
 dependency-health retry interval, so an hourly GC schedule cannot leave backup
 health degraded for an hour after a transient Controller or provider error.
+The configured GC interval also delays the first sweep on every process; a
+follower becoming Controller Leader therefore does not immediately join a
+destructive cycle during rapid leadership changes. Repository startup still
+probes the garbage role independently before the node becomes ready.
 
 Capture checks the projected gate before work, but correctness does not depend
 on cache freshness: lease acquisition and the final frontier/promotion CAS read

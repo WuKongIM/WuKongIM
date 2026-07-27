@@ -160,6 +160,15 @@ func (c *ContinuousCoordinator) Start(ctx context.Context) error {
 	c.nextCheckpointAt = time.Time{}
 	c.nextAuditAt = time.Time{}
 	c.nextGarbageCollectionAt = time.Time{}
+	if c.options.GarbageCollector != nil {
+		// GC cadence includes the first run. Initialize it for every lifecycle
+		// so construction delay and Stop/Start do not shorten the interval, and
+		// rapid Controller leadership changes cannot synchronize destructive
+		// work across processes.
+		c.nextGarbageCollectionAt = c.options.Now().UTC().Add(
+			c.options.GarbageCollectionInterval,
+		)
+	}
 	done := c.done
 	c.mu.Unlock()
 	go c.loop(runContext, done)
