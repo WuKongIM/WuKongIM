@@ -1104,12 +1104,13 @@ activates that delay only after startup, allowing the black-box scale gate to
 prove foreground SEND does not synchronously cross either remote boundary. A
 separate e2e-only fault directory can make segment-payload reads from one or
 both named copies return corrupt bytes; catalog objects and production loaders
-are never affected. Sticky dual-copy faults can select an exact logical Hash
-Slot by reading the target payload's immutable commit header before pinning one
-object key. Exact-Slot selections use a Slot-scoped marker distinct from the
-generic sticky marker, so a preceding single-copy repair cannot pin the next
-dual-loss drill to stale state and unrelated in-flight audit reads cannot
-choose the rebase target.
+are never affected. Sticky dual-copy faults select one exact logical segment by
+matching its Hash Slot, stream, and source high watermark against the immutable
+commit header before pinning one object key. Exact-segment selections use a
+coordinate-scoped marker distinct from the generic sticky marker, so a
+preceding single-copy repair cannot pin the next dual-loss drill to stale state
+and checkpoint reads of older objects in the same Slot cannot choose the rebase
+target.
 A third e2e-only sentinel contains one physical Hash Slot
 and overrides only that Slot's observed source-pin age, proving Slot-local
 rebase isolation without changing production pin accounting or widening the

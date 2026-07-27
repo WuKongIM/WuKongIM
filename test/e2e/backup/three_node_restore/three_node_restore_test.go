@@ -270,8 +270,15 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 	)
 	require.NotEmpty(t, baseline.Checkpoint.ID)
 	require.Len(t, baseline.CheckpointSHA256, 64)
+	integrityRepairTimeout := 30 * time.Second
+	if qualification.FileRoot == "" {
+		// Each production repair observation crosses both OSS regions and may
+		// complete after the ordinary local audit bound.
+		integrityRepairTimeout = 120 * time.Second
+	}
 	exerciseRepositoryIntegrityRepair(
 		t, cluster, sourceToken, qualification.CorruptionRoot,
+		integrityRepairTimeout,
 	)
 	rebasedSlotHolder := backupDurableFrontiers(
 		t, cluster, sourceToken,
@@ -681,6 +688,7 @@ func exerciseRepositoryIntegrityRepair(
 	cluster *suite.StartedCluster,
 	token string,
 	root string,
+	repairTimeout time.Duration,
 ) {
 	t.Helper()
 	beforeCorruptions := backupMetricTotal(
@@ -694,14 +702,14 @@ func exerciseRepositoryIntegrityRepair(
 	setRepositoryCorruption(t, root, "primary", "sticky")
 	waitForBackupMetricIncrease(
 		t, cluster, "wukongim_backup_audit_corruptions_total",
-		nil, beforeCorruptions, 30*time.Second,
+		nil, beforeCorruptions, repairTimeout,
 	)
 	waitForBackupMetricIncrease(
 		t, cluster, "wukongim_backup_audit_repair_bytes_total",
-		nil, beforeRepairBytes, 30*time.Second,
+		nil, beforeRepairBytes, repairTimeout,
 	)
-	waitForBackupHealthy(t, cluster, token, 30*time.Second)
-	_ = publishCheckpointEventually(t, cluster, token, 30*time.Second)
+	waitForBackupHealthy(t, cluster, token, repairTimeout)
+	_ = publishCheckpointEventually(t, cluster, token, repairTimeout)
 
 	beforeCorruptions = backupMetricTotal(
 		t, cluster, "wukongim_backup_audit_corruptions_total",
@@ -714,14 +722,14 @@ func exerciseRepositoryIntegrityRepair(
 	setRepositoryCorruption(t, root, "secondary", "sticky")
 	waitForBackupMetricIncrease(
 		t, cluster, "wukongim_backup_audit_corruptions_total",
-		nil, beforeCorruptions, 30*time.Second,
+		nil, beforeCorruptions, repairTimeout,
 	)
 	waitForBackupMetricIncrease(
 		t, cluster, "wukongim_backup_audit_repair_bytes_total",
-		nil, beforeRepairBytes, 30*time.Second,
+		nil, beforeRepairBytes, repairTimeout,
 	)
-	waitForBackupHealthy(t, cluster, token, 30*time.Second)
-	_ = publishCheckpointEventually(t, cluster, token, 30*time.Second)
+	waitForBackupHealthy(t, cluster, token, repairTimeout)
+	_ = publishCheckpointEventually(t, cluster, token, repairTimeout)
 
 	frontiers := backupDurableFrontiers(t, cluster, token)
 	const dualCorruptionChannel = "backup-e2e-dual-corruption"
@@ -735,6 +743,10 @@ func exerciseRepositoryIntegrityRepair(
 	)
 	frontiers = backupDurableFrontiers(t, cluster, token)
 	previousFrontier := frontiers[hashSlot]
+	require.NotZero(
+		t, previousFrontier.messages,
+		"dual-corruption target has no committed message watermark",
+	)
 	beforeRebases := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
 		map[string]string{
@@ -742,13 +754,16 @@ func exerciseRepositoryIntegrityRepair(
 		},
 	)
 	allRepositoriesTrigger := setRepositoryCorruption(
-		t, root, "all", fmt.Sprintf("sticky-slot:%d", hashSlot),
+		t, root, "all", fmt.Sprintf(
+			"sticky-segment:%d:%s:%d",
+			hashSlot, "messages", previousFrontier.messages,
+		),
 	)
-	// Pin both repository reads to one payload in the exact affected Hash Slot.
+	// Pin both repository reads to the exact new message segment represented by
+	// the checkpoint frontier, excluding older objects in the same Hash Slot.
 	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
-	// The auditor advances one durable object transition per interval. An
-	// exact-Slot target may sit behind the existing bounded audit debt even
-	// though an arbitrary sticky fault would select the first object.
+	// A production dual-copy audit and replacement crosses both OSS regions;
+	// keep its recovery bound independent from ordinary Manager request waits.
 	replacement := waitForDurableGenerationReplacement(
 		t, cluster, token, hashSlot, previousFrontier, 180*time.Second,
 	)
@@ -789,21 +804,34 @@ func clearRepositoryCorruption(t *testing.T, trigger string) {
 	}
 	if body, err := os.ReadFile(trigger); err == nil {
 		mode := strings.TrimSpace(string(body))
-		if strings.HasPrefix(mode, "sticky-slot:") {
-			hashSlot, parseErr := strconv.ParseUint(
-				strings.TrimPrefix(mode, "sticky-slot:"), 10, 16,
-			)
-			if parseErr != nil {
+		if strings.HasPrefix(mode, "sticky-segment:") {
+			parts := strings.Split(mode, ":")
+			if len(parts) != 4 {
 				t.Fatalf(
-					"parse repository corruption trigger %s: %v",
-					trigger, parseErr,
+					"parse repository corruption trigger %s: %q",
+					trigger, mode,
+				)
+			}
+			hashSlot, hashSlotErr := strconv.ParseUint(parts[1], 10, 16)
+			sourceHighWatermark, watermarkErr := strconv.ParseUint(
+				parts[3], 10, 64,
+			)
+			if hashSlotErr != nil || watermarkErr != nil ||
+				(parts[2] != "metadata" && parts[2] != "messages") ||
+				sourceHighWatermark == 0 {
+				t.Fatalf(
+					"parse repository corruption trigger %s: %q",
+					trigger, mode,
 				)
 			}
 			selectionPaths = append(
 				selectionPaths,
 				filepath.Join(
 					filepath.Dir(trigger),
-					fmt.Sprintf("sticky-slot-%d.key", hashSlot),
+					fmt.Sprintf(
+						"sticky-segment-%d-%s-%d.key",
+						hashSlot, parts[2], sourceHighWatermark,
+					),
 				),
 			)
 		}

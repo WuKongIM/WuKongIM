@@ -294,37 +294,72 @@ func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(
 		return consumeBackupE2EStickyKey(
 			filepath.Join(r.corruptionDir, "sticky.key"), key,
 		)
-	case strings.HasPrefix(mode, "sticky-slot:"):
-		hashSlot, err := strconv.ParseUint(
-			strings.TrimPrefix(mode, "sticky-slot:"), 10, 16,
-		)
-		if err != nil ||
-			!r.segmentPayloadMatchesHashSlot(ctx, key, uint16(hashSlot)) {
+	case strings.HasPrefix(mode, "sticky-segment:"):
+		target, ok := parseBackupE2EStickySegmentTarget(mode)
+		if !ok || !r.segmentPayloadMatchesTarget(ctx, key, target) {
 			return false
 		}
 		return consumeBackupE2EStickyKey(
-			backupE2EStickySlotKey(r.corruptionDir, uint16(hashSlot)), key,
+			backupE2EStickySegmentKey(r.corruptionDir, target), key,
 		)
 	default:
 		return false
 	}
 }
 
-// backupE2EStickySlotKey isolates an exact-Slot dual-loss selection from the
-// generic sticky marker used by preceding single-repository repair drills.
-func backupE2EStickySlotKey(corruptionDir string, hashSlot uint16) string {
+type backupE2EStickySegmentTarget struct {
+	hashSlot            uint16
+	stream              backupartifact.SegmentStream
+	sourceHighWatermark uint64
+}
+
+func parseBackupE2EStickySegmentTarget(
+	mode string,
+) (backupE2EStickySegmentTarget, bool) {
+	parts := strings.Split(mode, ":")
+	if len(parts) != 4 || parts[0] != "sticky-segment" {
+		return backupE2EStickySegmentTarget{}, false
+	}
+	hashSlot, err := strconv.ParseUint(parts[1], 10, 16)
+	if err != nil {
+		return backupE2EStickySegmentTarget{}, false
+	}
+	stream := backupartifact.SegmentStream(parts[2])
+	if stream != backupartifact.SegmentStreamMetadata &&
+		stream != backupartifact.SegmentStreamMessages {
+		return backupE2EStickySegmentTarget{}, false
+	}
+	sourceHighWatermark, err := strconv.ParseUint(parts[3], 10, 64)
+	if err != nil || sourceHighWatermark == 0 {
+		return backupE2EStickySegmentTarget{}, false
+	}
+	return backupE2EStickySegmentTarget{
+		hashSlot: uint16(hashSlot), stream: stream,
+		sourceHighWatermark: sourceHighWatermark,
+	}, true
+}
+
+// backupE2EStickySegmentKey isolates one exact immutable segment selection
+// from generic sticky markers used by preceding single-copy repair drills.
+func backupE2EStickySegmentKey(
+	corruptionDir string,
+	target backupE2EStickySegmentTarget,
+) string {
 	return filepath.Join(
 		corruptionDir,
-		fmt.Sprintf("sticky-slot-%d.key", hashSlot),
+		fmt.Sprintf(
+			"sticky-segment-%d-%s-%d.key",
+			target.hashSlot, target.stream, target.sourceHighWatermark,
+		),
 	)
 }
 
-// segmentPayloadMatchesHashSlot binds an e2e corruption marker to the logical
-// Hash Slot authenticated by the payload's immutable commit record.
-func (r *backupE2EDelayedRepository) segmentPayloadMatchesHashSlot(
+// segmentPayloadMatchesTarget binds an e2e corruption marker to the exact
+// logical segment authenticated by the payload's immutable commit record.
+func (r *backupE2EDelayedRepository) segmentPayloadMatchesTarget(
 	ctx context.Context,
 	key string,
-	hashSlot uint16,
+	target backupE2EStickySegmentTarget,
 ) bool {
 	parts := strings.Split(filepath.ToSlash(key), "/")
 	if len(parts) != 4 || parts[0] != "segments" ||
@@ -347,7 +382,9 @@ func (r *backupE2EDelayedRepository) segmentPayloadMatchesHashSlot(
 		commit.SegmentID != parts[1] {
 		return false
 	}
-	return commit.Header.Logical.HashSlot == hashSlot
+	return commit.Header.Logical.HashSlot == target.hashSlot &&
+		commit.Header.Logical.Stream == target.stream &&
+		commit.Header.SourceHighWatermark == target.sourceHighWatermark
 }
 
 func consumeBackupE2EStickyKey(path, key string) bool {

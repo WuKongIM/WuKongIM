@@ -119,7 +119,7 @@ func TestBackupE2ECorruptionTriggerIsScopedAndBounded(t *testing.T) {
 	}
 }
 
-func TestBackupE2ECorruptionTriggerSelectsExactHashSlot(t *testing.T) {
+func TestBackupE2ECorruptionTriggerSelectsExactSegment(t *testing.T) {
 	root := t.TempDir()
 	repository, err := backupinfra.NewFileRepository(
 		"primary", filepath.Join(root, "repository"),
@@ -135,14 +135,21 @@ func TestBackupE2ECorruptionTriggerSelectsExactHashSlot(t *testing.T) {
 		appBackupRepository: repository,
 		corruptionDir:       faultDir,
 	}
-	putCommit := func(segmentID string, hashSlot uint16) string {
+	putCommit := func(
+		segmentID string,
+		hashSlot uint16,
+		stream backupartifact.SegmentStream,
+		sourceHighWatermark uint64,
+	) string {
 		t.Helper()
 		body, marshalErr := json.Marshal(backupartifact.SegmentCommit{
 			SegmentID: segmentID,
 			Header: backupartifact.SegmentHeader{
 				Logical: backupartifact.SegmentLogicalDescriptor{
 					HashSlot: hashSlot,
+					Stream:   stream,
 				},
+				SourceHighWatermark: sourceHighWatermark,
 			},
 		})
 		if marshalErr != nil {
@@ -159,38 +166,70 @@ func TestBackupE2ECorruptionTriggerSelectsExactHashSlot(t *testing.T) {
 		}
 		return "segments/" + segmentID + "/payloads/digest.bin"
 	}
-	slotSevenKey := putCommit(strings.Repeat("7", 64), 7)
-	slotEightKey := putCommit(strings.Repeat("8", 64), 8)
+	targetKey := putCommit(
+		strings.Repeat("7", 64), 7,
+		backupartifact.SegmentStreamMessages, 11,
+	)
+	staleSlotKey := putCommit(
+		strings.Repeat("6", 64), 7,
+		backupartifact.SegmentStreamMessages, 10,
+	)
+	otherStreamKey := putCommit(
+		strings.Repeat("5", 64), 7,
+		backupartifact.SegmentStreamMetadata, 11,
+	)
+	otherSlotKey := putCommit(
+		strings.Repeat("8", 64), 8,
+		backupartifact.SegmentStreamMessages, 11,
+	)
 	if err := os.WriteFile(
 		filepath.Join(faultDir, "sticky.key"),
-		[]byte(slotEightKey), 0o600,
+		[]byte(otherSlotKey), 0o600,
 	); err != nil {
 		t.Fatalf("write stale generic sticky selection: %v", err)
 	}
 	trigger := filepath.Join(faultDir, "primary.corrupt")
 	if err := os.WriteFile(
-		trigger, []byte("sticky-slot:7"), 0o600,
+		trigger, []byte("sticky-segment:7:messages:11"), 0o600,
 	); err != nil {
-		t.Fatalf("write exact-Slot trigger: %v", err)
+		t.Fatalf("write exact-segment trigger: %v", err)
 	}
 	if wrapped.consumeCorruptionTrigger(
-		context.Background(), slotEightKey,
+		context.Background(), otherSlotKey,
 	) {
-		t.Fatal("exact-Slot trigger selected a different Hash Slot")
+		t.Fatal("exact-segment trigger selected a different Hash Slot")
+	}
+	if wrapped.consumeCorruptionTrigger(
+		context.Background(), staleSlotKey,
+	) {
+		t.Fatal("exact-segment trigger selected a stale segment in the same Hash Slot")
+	}
+	if wrapped.consumeCorruptionTrigger(
+		context.Background(), otherStreamKey,
+	) {
+		t.Fatal("exact-segment trigger selected a different stream")
 	}
 	if !wrapped.consumeCorruptionTrigger(
-		context.Background(), slotSevenKey,
+		context.Background(), targetKey,
 	) {
-		t.Fatal("exact-Slot trigger did not select the requested Hash Slot")
+		t.Fatal("exact-segment trigger did not select the requested segment")
 	}
-	selected, err := os.ReadFile(backupE2EStickySlotKey(faultDir, 7))
+	target, ok := parseBackupE2EStickySegmentTarget(
+		"sticky-segment:7:messages:11",
+	)
+	if !ok {
+		t.Fatal("parse exact-segment target")
+	}
+	selected, err := os.ReadFile(
+		backupE2EStickySegmentKey(faultDir, target),
+	)
 	if err != nil {
-		t.Fatalf("read exact-Slot sticky selection: %v", err)
+		t.Fatalf("read exact-segment sticky selection: %v", err)
 	}
-	if string(selected) != slotSevenKey {
+	if string(selected) != targetKey {
 		t.Fatalf(
-			"exact-Slot sticky selection = %q, want %q",
-			selected, slotSevenKey,
+			"exact-segment sticky selection = %q, want %q",
+			selected, targetKey,
 		)
 	}
 }
