@@ -5,6 +5,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // channelWriter is the single-writer state machine for one locally authoritative channel.
@@ -637,7 +639,7 @@ func (w *channelWriter) retryPostCommit() {
 		w.ports.schedule(w)
 		return
 	}
-	go w.advance()
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendWriterAdvance, w.advance)
 }
 
 func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {

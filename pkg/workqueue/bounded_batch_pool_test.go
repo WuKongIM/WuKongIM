@@ -7,7 +7,49 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
+
+func TestBoundedBatchPoolPublishesOwnedPoolState(t *testing.T) {
+	registry := goruntimeregistry.New()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	pool, err := NewBoundedBatchPool[int](BoundedBatchPoolConfig[int]{
+		Name:       "webhook",
+		Goroutines: registry,
+		Task:       goruntimeregistry.TaskWebhookNotify,
+		Workers:    1,
+		QueueSize:  1,
+	}, func(context.Context, []int) error {
+		close(started)
+		<-release
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("NewBoundedBatchPool() error = %v", err)
+	}
+	if err := pool.Submit(context.Background(), 1); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	waitForBatchPoolSignal(t, started, "owned batch start")
+
+	task := waitForOwnedPoolSnapshot(t, registry, goruntimeregistry.TaskWebhookNotify)
+	if task.Active != 3 {
+		t.Fatalf("Active = %d, want dispatcher + ants worker + ants maintenance = 3", task.Active)
+	}
+	if task.PoolCapacity != 1 {
+		t.Fatalf("PoolCapacity = %d, want 1", task.PoolCapacity)
+	}
+
+	close(release)
+	if err := pool.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if err := registry.Group(goruntimeregistry.ModuleWebhook).Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+}
 
 func TestBoundedBatchPoolBatchesAdjacentItems(t *testing.T) {
 	batches := make(chan []int, 2)

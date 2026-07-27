@@ -402,6 +402,22 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
     stage: "runtimePressure",
     tone: "warning",
   },
+  goroutineProcessHistory: {
+    titleId: "clusterMonitor.metrics.goroutineProcessHistory",
+    helpId: "clusterMonitor.help.goroutineProcessHistory",
+    chartColor: "#475569",
+    precision: 0,
+    stage: "runtimePressure",
+    tone: "warning",
+  },
+  goroutineModuleHistory: {
+    titleId: "clusterMonitor.metrics.goroutineModuleHistory",
+    helpId: "clusterMonitor.help.goroutineModuleHistory",
+    chartColor: "#2563eb",
+    precision: 0,
+    stage: "runtimePressure",
+    tone: "normal",
+  },
   nodeGCPauseRate: {
     titleId: "clusterMonitor.metrics.nodeGCPauseRate",
     helpId: "clusterMonitor.help.nodeGCPauseRate",
@@ -963,6 +979,11 @@ export const clusterMonitorStatusByTone: Record<ClusterMonitorTone, string> = {
 }
 
 export const clusterMonitorSnapshotLabelIds: Record<string, string> = {
+  goroutineProcessTotal: "clusterMonitor.goroutines.processTotal",
+  goroutineManagedTotal: "clusterMonitor.goroutines.managedTotal",
+  goroutineUnmanagedTotal: "clusterMonitor.goroutines.unmanagedTotal",
+  goroutinePanicTotal: "clusterMonitor.goroutines.panicTotal",
+  goroutineSaturatedPools: "clusterMonitor.goroutines.saturatedPools",
   nodesAlive: "clusterMonitor.snapshot.nodesAlive",
   slotsReady: "clusterMonitor.snapshot.slotsReady",
   controllerApplyGap: "clusterMonitor.snapshot.controllerApplyGap",

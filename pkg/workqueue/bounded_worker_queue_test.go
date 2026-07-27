@@ -7,7 +7,49 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
+
+func TestBoundedWorkerQueuePublishesOwnedWorkersAndPoolState(t *testing.T) {
+	registry := goruntimeregistry.New()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	queue, err := NewBoundedWorkerQueue[int](BoundedWorkerQueueConfig{
+		Name:       "delivery-manager",
+		Goroutines: registry,
+		Task:       goruntimeregistry.TaskDeliveryManagerAsync,
+		Workers:    1,
+		QueueSize:  1,
+	}, func(context.Context, int) error {
+		close(started)
+		<-release
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("NewBoundedWorkerQueue() error = %v", err)
+	}
+	if err := queue.Submit(context.Background(), 1); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	waitForBatchPoolSignal(t, started, "owned worker start")
+
+	task := waitForOwnedPoolSnapshot(t, registry, goruntimeregistry.TaskDeliveryManagerAsync)
+	if task.Active != 1 {
+		t.Fatalf("Active = %d, want one direct worker", task.Active)
+	}
+	if task.PoolCapacity != 1 {
+		t.Fatalf("PoolCapacity = %d, want 1", task.PoolCapacity)
+	}
+
+	close(release)
+	if err := queue.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if err := registry.Group(goruntimeregistry.ModuleDelivery).Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+}
 
 func TestBoundedWorkerQueueSubmitWaitWaitsForQueueSpace(t *testing.T) {
 	started := make(chan struct{})

@@ -66,6 +66,16 @@ func (s Snapshot) Validate() error {
 			return fmt.Errorf("control snapshot: task %q progress does not match target peers", task.TaskID)
 		}
 	}
+	if s.OpsMCP != nil {
+		if s.OpsMCP.Enabled && (s.OpsMCP.OwnerNodeID == 0 || len(s.OpsMCP.Credentials) == 0) {
+			return fmt.Errorf("control snapshot: enabled ops MCP requires owner and credential")
+		}
+		if s.OpsMCP.OwnerNodeID != 0 {
+			if _, ok := seenNodes[s.OpsMCP.OwnerNodeID]; !ok {
+				return fmt.Errorf("control snapshot: ops MCP owner %d is unknown", s.OpsMCP.OwnerNodeID)
+			}
+		}
+	}
 	return nil
 }
 

@@ -18,6 +18,8 @@ const (
 	CurrentSchemaVersion = state.CurrentSchemaVersion
 	// CurrentHashSlotTableVersion is the supported hash-slot table schema version.
 	CurrentHashSlotTableVersion = state.CurrentHashSlotTableVersion
+	// MaxOpsMCPCredentials bounds active tokens during rotation.
+	MaxOpsMCPCredentials = state.MaxOpsMCPCredentials
 )
 
 type (
@@ -87,6 +89,10 @@ type (
 	RestorePlan = state.RestorePlan
 	// RestorePartition stores one logical recovery progress record.
 	RestorePartition = state.RestorePartition
+	// OpsMCPState stores bounded desired state for the embedded operations MCP.
+	OpsMCPState = state.OpsMCPState
+	// OpsMCPCredential stores one opaque bearer token verifier.
+	OpsMCPCredential = state.OpsMCPCredential
 	// RestoreStatus identifies one explicit recovery phase.
 	RestoreStatus = state.RestoreStatus
 	// RestorePartitionStatus identifies one durable Slot restore phase.

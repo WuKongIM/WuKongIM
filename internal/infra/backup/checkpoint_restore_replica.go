@@ -22,6 +22,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	controllerstate "github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -1595,7 +1596,8 @@ func (d *CheckpointRestoreReplicaDistributor) DistributeCheckpointRestoreSnapsho
 			continue
 		}
 		wait.Add(1)
-		go func(target uint64) {
+		target := nodeID
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreReplicaTransfer, func() {
 			defer wait.Done()
 			select {
 			case limit <- struct{}{}:
@@ -1625,7 +1627,7 @@ func (d *CheckpointRestoreReplicaDistributor) DistributeCheckpointRestoreSnapsho
 				}
 			}
 			outcomes <- outcome{bytes: totalBytes, err: transferErr}
-		}(nodeID)
+		})
 	}
 	wait.Wait()
 	close(outcomes)

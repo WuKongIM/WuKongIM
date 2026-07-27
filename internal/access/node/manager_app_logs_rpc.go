@@ -44,6 +44,8 @@ func (a *Adapter) HandleManagerAppLogRPC(ctx context.Context, payload []byte) ([
 			Cursor:  req.Cursor,
 			Keyword: req.Keyword,
 			Levels:  req.Levels,
+			Before:  req.Before,
+			After:   req.After,
 		})
 		status := managerAppLogRPCStatusForError(err)
 		a.logManagerAppLogError(req, status, err)
@@ -84,6 +86,8 @@ func (c *Client) GetManagerApplicationLogEntries(ctx context.Context, req manage
 		Cursor:  req.Cursor,
 		Keyword: req.Keyword,
 		Levels:  req.Levels,
+		Before:  req.Before,
+		After:   req.After,
 	})
 	if err != nil {
 		return managementusecase.ApplicationLogEntriesResponse{}, err

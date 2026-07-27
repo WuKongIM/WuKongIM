@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 var messageBackupSnapshotMagic = [4]byte{'W', 'K', 'M', 'B'}
@@ -93,14 +94,14 @@ func (db *MessageDB) OpenBackupSnapshot(ctx context.Context, request BackupSnaps
 	}
 	streamContext, cancel := context.WithCancel(ctx)
 	reader, writer := io.Pipe()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseBackupStream, func() {
 		defer view.Close()
 		if err := writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, nil); err != nil {
 			_ = writer.CloseWithError(err)
 			return
 		}
 		_ = writer.Close()
-	}()
+	})
 	return &messageBackupStream{reader: reader, cancel: cancel}, nil
 }
 
@@ -130,14 +131,14 @@ func (db *MessageDB) OpenBackupSnapshotWithStats(ctx context.Context, request Ba
 	}
 	streamContext, cancel := context.WithCancel(ctx)
 	reader, writer := io.Pipe()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseBackupStream, func() {
 		defer view.Close()
 		if err := writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, messageCounts); err != nil {
 			_ = writer.CloseWithError(err)
 			return
 		}
 		_ = writer.Close()
-	}()
+	})
 	return &messageBackupStream{reader: reader, cancel: cancel}, stats, nil
 }
 

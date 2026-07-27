@@ -7,6 +7,7 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 type conversationAuthorityRouteLifecycleOptions struct {
@@ -79,11 +80,15 @@ func (l *conversationAuthorityRouteLifecycle) Start(ctx context.Context) error {
 	}
 	if events != nil {
 		l.wg.Add(1)
-		go l.watchRouteAuthorities(runCtx, events)
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppConversationRoute, func() {
+			l.watchRouteAuthorities(runCtx, events)
+		})
 	}
 	if l.initial != nil {
 		l.wg.Add(1)
-		go l.reconcileRouteAuthorities(runCtx)
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppConversationRoute, func() {
+			l.reconcileRouteAuthorities(runCtx)
+		})
 	}
 	l.mu.Unlock()
 	l.applyRouteAuthorities(runCtx, l.initialAuthorities())
@@ -220,11 +225,11 @@ func (l *conversationAuthorityRouteLifecycle) startAuthorityDrain(ctx context.Co
 	}
 	l.wg.Add(1)
 	l.mu.Unlock()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppConversationDrain, func() {
 		defer l.wg.Done()
 		defer cancel()
 		l.drainAuthorityTarget(drainCtx, target)
-	}()
+	})
 }
 
 func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.Context, target conversationusecase.RouteTarget) {

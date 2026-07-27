@@ -1,11 +1,13 @@
 package rpc
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 )
 
@@ -54,6 +56,36 @@ func TestExecutorStopIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("concurrent Stop() error = %v, want nil", err)
 		}
+	}
+}
+
+func TestExecutorStopKeepsPoolOwnershipUntilWorkerExits(t *testing.T) {
+	baseline := goruntimeregistry.Default().Baseline()
+	executor, err := NewExecutor(1, nil)
+	if err != nil {
+		t.Fatalf("NewExecutor() error = %v", err)
+	}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	if err := executor.Submit(&serviceTask{runFunc: func() {
+		close(entered)
+		<-release
+	}}); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	<-entered
+	if err := executor.Stop(); err == nil {
+		t.Fatal("Stop() error = nil, want bounded release timeout")
+	}
+	task := executorTaskSnapshot(t)
+	if task.Active <= baseline.Active(goruntimeregistry.TaskTransportRPCExecutor) || task.BusyTasks != 1 {
+		t.Fatalf("timed-out executor snapshot = %+v, want live worker ownership", task)
+	}
+	close(release)
+	waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := goruntimeregistry.Default().Group(goruntimeregistry.ModuleTransport).WaitFrom(waitCtx, baseline); err != nil {
+		t.Fatalf("transport group WaitFrom() error = %v", err)
 	}
 }
 
@@ -114,4 +146,17 @@ type executorTestObserver struct {
 
 func (o *executorTestObserver) ObserveTransport(event core.Event) {
 	o.events <- event
+}
+
+func executorTaskSnapshot(t *testing.T) goruntimeregistry.TaskSnapshot {
+	t.Helper()
+	for _, module := range goruntimeregistry.Default().Snapshot().Modules {
+		for _, task := range module.Tasks {
+			if task.Task == goruntimeregistry.TaskTransportRPCExecutor {
+				return task
+			}
+		}
+	}
+	t.Fatalf("task %q missing from default registry", goruntimeregistry.TaskTransportRPCExecutor)
+	return goruntimeregistry.TaskSnapshot{}
 }

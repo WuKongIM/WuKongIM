@@ -9,6 +9,7 @@ import (
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const defaultContinuousCoordinatorTick = time.Second
@@ -171,7 +172,9 @@ func (c *ContinuousCoordinator) Start(ctx context.Context) error {
 	}
 	done := c.done
 	c.mu.Unlock()
-	go c.loop(runContext, done)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupCoordinator, func() {
+		c.loop(runContext, done)
+	})
 	return nil
 }
 
@@ -275,9 +278,9 @@ func (c *ContinuousCoordinator) startProjection(parent context.Context) {
 		observedFailureRevision, coordinatorFailureProjection,
 	)
 	c.mu.Unlock()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupContinuousProjection, func() {
 		done <- c.options.Projection.Run(parent)
-	}()
+	})
 }
 
 func (c *ContinuousCoordinator) projectionDoneChannel() <-chan error {
@@ -502,9 +505,9 @@ func (c *ContinuousCoordinator) startCapture(parent context.Context) {
 		observedFailureRevision, coordinatorFailureCapture,
 	)
 	c.mu.Unlock()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupContinuousCapture, func() {
 		done <- c.options.Capture.Run(captureContext)
-	}()
+	})
 }
 
 func (c *ContinuousCoordinator) stopAndWaitChildren() {

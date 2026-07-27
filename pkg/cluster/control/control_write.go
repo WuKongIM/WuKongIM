@@ -34,6 +34,10 @@ type restoreCoordinationStateReplacer interface {
 	ReplaceRestoreCoordinationState(context.Context, uint64, controller.RestoreCoordinationState) error
 }
 
+type opsMCPControlWriteApplier interface {
+	ReplaceOpsMCPState(context.Context, uint64, controller.OpsMCPState) error
+}
+
 // ControlWriteClient forwards generic Controller writes to a remote node.
 type ControlWriteClient struct {
 	caller clusternet.Caller
@@ -133,6 +137,18 @@ func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
 				ctx,
 				req.ReplaceRestoreCoordination.ExpectedRevision,
 				req.ReplaceRestoreCoordination.Replacement,
+			); err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+		case ControlWriteActionReplaceOpsMCP:
+			opsMCPApplier, ok := applier.(opsMCPControlWriteApplier)
+			if !ok {
+				return nil, fmt.Errorf("control write: ops MCP replacement is unsupported")
+			}
+			if err := opsMCPApplier.ReplaceOpsMCPState(
+				ctx,
+				req.ReplaceOpsMCP.ExpectedRevision,
+				req.ReplaceOpsMCP.State,
 			); err != nil {
 				return encodeControlWriteErrorResponse(err)
 			}

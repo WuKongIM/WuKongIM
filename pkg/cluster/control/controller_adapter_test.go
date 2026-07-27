@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -143,6 +144,34 @@ func TestControllerSnapshotMappingRejectsInvalidState(t *testing.T) {
 	st.HashSlots.Ranges = nil
 	if _, err := SnapshotFromController(st); err == nil {
 		t.Fatal("SnapshotFromController() error = nil, want invalid state")
+	}
+}
+
+func TestControllerSnapshotMappingIncludesOpsMCPDesiredState(t *testing.T) {
+	st := controllerState()
+	st.OpsMCP = &controller.OpsMCPState{
+		Enabled:                     true,
+		OwnerNodeID:                 2,
+		ProfileFenceUntilUnixMillis: 1710000030000,
+		Credentials: []controller.OpsMCPCredential{{
+			ID:                  "token-a",
+			DigestSHA256:        strings.Repeat("a", 64),
+			CreatedAtUnixMillis: 1710000001000,
+		}},
+	}
+
+	snapshot, err := SnapshotFromController(st)
+	if err != nil {
+		t.Fatalf("SnapshotFromController() error = %v", err)
+	}
+	if snapshot.OpsMCP == nil || !snapshot.OpsMCP.Enabled || snapshot.OpsMCP.OwnerNodeID != 2 ||
+		snapshot.OpsMCP.ProfileFenceUntilUnixMillis != 1710000030000 {
+		t.Fatalf("OpsMCP = %#v, want enabled owner 2", snapshot.OpsMCP)
+	}
+	clone := snapshot.Clone()
+	clone.OpsMCP.Credentials[0].ID = "changed"
+	if snapshot.OpsMCP.Credentials[0].ID != "token-a" {
+		t.Fatalf("Clone() aliased OpsMCP credentials: %#v", snapshot.OpsMCP.Credentials)
 	}
 }
 

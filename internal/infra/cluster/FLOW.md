@@ -473,6 +473,49 @@ application log sources and entry pages; file discovery, parsing, filtering,
 cursor handling, and path hiding remain owned by `internal/app` and
 `internal/log`.
 
+## Operations MCP Observation Flow
+
+```text
+opsobserve.Source
+  -> management inventory/task/log/diagnostics/config ports
+  -> server-owned Prometheus query IDs
+  -> backup read facade
+  -> owner-side bounded pprof analyzer
+  -> explicit snake_case safe projection
+```
+
+`OpsObservationSource` maps existing read models into stable, redacted MCP
+DTOs instead of serializing Manager or runtime structs directly. Cluster
+health combines Controller/Slot evidence with optional target-up and runtime
+queue-pressure metrics; absent optional metrics make the result partial rather
+than healthy. Missing required node-health evidence yields an `unknown`,
+partial observation rather than a definite degraded verdict. Node inspection includes bounded node diagnostics and
+node-filtered runtime queue evidence.
+
+Channel runtime inspection uses the exact `(channel_id, channel_type)` point
+lookup and never scans or guesses channel rows. Metric requests map only fixed
+IDs to server-owned PromQL. Application log routing preserves opaque cursors
+and exact before/after context. Configuration projection remains allowlisted
+and redacted; backup projection excludes object keys, credentials, and channel
+identities. Backup inspection reads one server-bounded immutable checkpoint
+page through the continuous-backup pagination seam, applies an optional exact
+checkpoint-ID filter at the catalog index, and reports partial completeness
+when another page exists. It also exposes only bounded Slot-frontier counts,
+integrity-audit debt, and pending erasure-stream counts. Diagnostic time bounds
+are passed into each node-local query before
+its limit is applied, so returned events and aggregate summaries describe the
+same window. `ManagementOpsMCPAuditReader` fans out with bounded concurrency to
+alive/suspect nodes, merges available summaries newest-first, and tolerates an
+unavailable peer without hiding healthy-node evidence. The aggregate fanout
+uses a fixed eight-worker pool, retains only the requested newest top-K entries,
+and has a fixed two-second deadline, so cluster size or a connected but
+non-responsive suspect node cannot create unbounded per-request work or block
+the Manager page indefinitely. Its producer and workers run as the managed
+`manager/ops_mcp_audit_fanout` burst task. The two bounded cluster-health
+metric queries run as the managed
+`observability/ops_mcp_metrics_fanout` burst task, so both fanouts contribute
+to module ownership and shutdown evidence without introducing dynamic labels.
+
 ## Management DB Inspect Flow
 
 ```text

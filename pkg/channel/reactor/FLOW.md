@@ -23,6 +23,9 @@ Production composition roots may still cap store append/apply worker counts to
 reduce pressure on the shared message DB commit coordinator; this only limits
 blocking task concurrency and does not relax store sync, quorum progress, or
 waiter fencing.
+Reactor loops, detached store close work, cancellation helpers, and worker-pool
+goroutines use fixed `pkg/goroutine` ownership IDs so idle workers remain
+visible independently from task inflight counts.
 
 Group construction reports the fixed reactor count and emits both Leader and
 Follower runtime counts for every reactor before reactor goroutines start. An

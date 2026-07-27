@@ -1,6 +1,10 @@
 package reactor
 
-import "sync"
+import (
+	"sync"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+)
 
 // storeCloseTracker owns fallback closes that could not transfer to a worker pool.
 // Seal prevents WaitGroup Add from racing with shutdown Wait.
@@ -25,10 +29,10 @@ func (t *storeCloseTracker) start(closeFn func()) bool {
 	}
 	t.wg.Add(1)
 	t.mu.Unlock()
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelStoreClose, func() {
 		defer t.wg.Done()
 		closeFn()
-	}()
+	})
 	return true
 }
 

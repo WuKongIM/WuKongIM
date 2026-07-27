@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -173,12 +174,12 @@ func (a *App) queryDiagnosticsTargets(ctx context.Context, targets []diagnostics
 	for _, target := range targets {
 		target := target
 		wg.Add(1)
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskManagerDiagnosticsFanout, func() {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			results <- a.queryDiagnosticsTarget(ctx, target, query)
-		}()
+		})
 	}
 	wg.Wait()
 	close(results)

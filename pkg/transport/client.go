@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/peer"
@@ -22,7 +23,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	observer := core.NewObserverDrain(normalized.Observer)
+	observer := core.NewObserverDrain(normalized.Observer, goruntimeregistry.TaskTransportClientObserver)
 	if observer != nil {
 		normalized.Observer = observer
 	}

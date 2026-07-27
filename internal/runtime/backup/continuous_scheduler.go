@@ -8,6 +8,7 @@ import (
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // Status returns a sorted detached snapshot of every observed Slot.
@@ -50,9 +51,12 @@ func (e *CaptureEngine) Run(ctx context.Context) error {
 	var pendingMu sync.Mutex
 	var workers sync.WaitGroup
 
-	for index := 0; index < e.options.WorkerCount; index++ {
-		workers.Add(1)
-		go func() {
+	workers.Add(e.options.WorkerCount)
+	goruntimeregistry.SafeGoN(
+		nil,
+		goruntimeregistry.TaskBackupCaptureWorker,
+		e.options.WorkerCount,
+		func(_ int) {
 			defer workers.Done()
 			for {
 				select {
@@ -80,8 +84,8 @@ func (e *CaptureEngine) Run(ctx context.Context) error {
 					}
 				}
 			}
-		}()
-	}
+		},
+	)
 	enqueue := func(hashSlot uint16) bool {
 		pendingMu.Lock()
 		if pending[hashSlot] {

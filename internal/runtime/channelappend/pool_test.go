@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 func TestWorkerPoolRunsTasks(t *testing.T) {
@@ -28,5 +30,34 @@ func TestWorkerPoolRunsTasks(t *testing.T) {
 	}
 	if count.Load() != 8 {
 		t.Fatalf("count = %d, want 8", count.Load())
+	}
+}
+
+func TestWorkerPoolStopKeepsOwnershipUntilWorkerExits(t *testing.T) {
+	baseline := goruntimeregistry.Default().Baseline()
+	p := newWorkerPool(1)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	if err := p.submit(func() {
+		close(entered)
+		<-release
+	}); err != nil {
+		t.Fatalf("submit error = %v", err)
+	}
+	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+	if err := p.stop(ctx); err == nil {
+		t.Fatal("stop error = nil, want caller deadline")
+	}
+	stats := p.poolStats()
+	if stats.Goroutines == 0 || stats.BusyTasks != 1 {
+		t.Fatalf("timed-out pool stats = %+v, want live worker ownership", stats)
+	}
+	close(release)
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	if err := goruntimeregistry.Default().Group(goruntimeregistry.ModuleChannelAppend).WaitFrom(waitCtx, baseline); err != nil {
+		t.Fatalf("channelappend group Wait() error = %v", err)
 	}
 }

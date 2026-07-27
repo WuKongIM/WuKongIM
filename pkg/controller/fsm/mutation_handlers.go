@@ -275,6 +275,23 @@ func validRestoreActivationPlanBinding(plan *state.RestorePlan) bool {
 	}
 }
 
+func (sm *StateMachine) applyReplaceOpsMCPState(next *state.ClusterState, cmd command.Command) ApplyResult {
+	if next.Revision == 0 || cmd.OpsMCP == nil {
+		return reject(ReasonInvalidCommand)
+	}
+	if next.OpsMCP != nil && next.OpsMCP.Enabled && cmd.OpsMCP.OwnerNodeID != next.OpsMCP.OwnerNodeID {
+		return reject(ReasonOpsMCPOwnerChangeWhileEnabled)
+	}
+	before := next.Clone()
+	opsMCP := cmd.OpsMCP.Clone()
+	next.OpsMCP = &opsMCP
+	next.Normalize()
+	if reflect.DeepEqual(before.OpsMCP, next.OpsMCP) {
+		return noop(ReasonNoChange)
+	}
+	return validateChanged(next, before, cmd)
+}
+
 func (sm *StateMachine) applyUpsertSlotAssignmentAndTask(next *state.ClusterState, cmd command.Command) ApplyResult {
 	if next.Revision == 0 || cmd.Assignment == nil || cmd.Task == nil {
 		return reject(ReasonInvalidCommand)

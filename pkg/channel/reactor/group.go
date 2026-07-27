@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -422,10 +423,10 @@ func (g *Group) Close() error {
 	var wg sync.WaitGroup
 	for _, reactor := range g.reactors {
 		wg.Add(1)
-		go func(r *Reactor) {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelReactorClose, func() {
 			defer wg.Done()
-			r.Close()
-		}(reactor)
+			reactor.Close()
+		})
 	}
 	wg.Wait()
 	poolErr := g.pools.Close()

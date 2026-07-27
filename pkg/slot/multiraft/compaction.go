@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -282,7 +283,9 @@ func (g *slot) startArchiveTrimRetry() {
 	g.pinOperations++
 	ctx := g.pinCleanupCtx
 	g.mu.Unlock()
-	go g.retryArchiveTrim(ctx)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskSlotArchiveTrimRetry, func() {
+		g.retryArchiveTrim(ctx)
+	})
 }
 
 func (g *slot) retryArchiveTrim(ctx context.Context) {

@@ -11,6 +11,7 @@ import (
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -155,8 +156,8 @@ func (w *presenceTouchWorker) Start(ctx context.Context) error {
 	w.wg.Add(2)
 	w.mu.Unlock()
 
-	go w.watch(runCtx, events)
-	go w.tick(runCtx)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppPresenceTouch, func() { w.watch(runCtx, events) })
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppPresenceTouch, func() { w.tick(runCtx) })
 	w.reconcileAuthorities()
 	return nil
 }

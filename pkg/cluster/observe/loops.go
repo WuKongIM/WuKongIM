@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // Loop runs a function periodically until stopped.
@@ -30,7 +32,7 @@ func (l *Loop) Start(parent context.Context) {
 	ctx, cancel := context.WithCancel(parent)
 	l.cancel = cancel
 	l.wg.Add(1)
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskClusterObserveLoop, func() {
 		defer l.wg.Done()
 		ticker := time.NewTicker(l.interval)
 		defer ticker.Stop()
@@ -44,7 +46,7 @@ func (l *Loop) Start(parent context.Context) {
 				}
 			}
 		}
-	}()
+	})
 }
 
 // Stop stops the loop and waits for it to exit.

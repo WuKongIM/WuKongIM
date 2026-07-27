@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc"
@@ -49,7 +50,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	observer := core.NewObserverDrain(normalized.Observer)
+	observer := core.NewObserverDrain(normalized.Observer, goruntimeregistry.TaskTransportServerObserver)
 	if observer != nil {
 		normalized.Observer = observer
 	}
@@ -131,7 +132,7 @@ func (s *Server) ListenAndServe(addr string) error {
 	s.listener = listener
 	s.mu.Unlock()
 
-	go s.acceptLoop(listener)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportAccept, func() { s.acceptLoop(listener) })
 	return nil
 }
 
@@ -203,7 +204,7 @@ func (s *Server) acceptLoop(listener net.Listener) {
 			continue
 		}
 		c.Start()
-		go s.untrackConnWhenDone(c)
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportConnectionCleanup, func() { s.untrackConnWhenDone(c) })
 	}
 }
 
@@ -245,7 +246,12 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 	service := s.service(inbound.ServiceID)
 	if service == nil {
 		inbound.Payload.Release()
-		s.sendRPCError(ctx, inbound, fmt.Errorf("transport: service %d not found", inbound.ServiceID))
+		s.sendRPCErrorStatus(
+			ctx,
+			inbound,
+			wire.ResponseServiceNotFound,
+			fmt.Errorf("transport: service %d not found", inbound.ServiceID),
+		)
 		return
 	}
 
@@ -279,6 +285,10 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 }
 
 func (s *Server) sendRPCError(ctx context.Context, inbound conn.Inbound, err error) {
+	s.sendRPCErrorStatus(ctx, inbound, wire.ResponseErr, err)
+}
+
+func (s *Server) sendRPCErrorStatus(ctx context.Context, inbound conn.Inbound, status uint8, err error) {
 	select {
 	case <-inbound.Conn.Done():
 		return
@@ -291,7 +301,7 @@ func (s *Server) sendRPCError(ctx context.Context, inbound conn.Inbound, err err
 		Priority:  inbound.Priority,
 		ServiceID: inbound.ServiceID,
 		RequestID: inbound.RequestID,
-		Payload:   conn.EncodeRPCResponse(wire.ResponseErr, []byte(err.Error())),
+		Payload:   conn.EncodeRPCResponse(status, []byte(err.Error())),
 	})
 }
 

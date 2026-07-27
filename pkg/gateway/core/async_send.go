@@ -7,6 +7,7 @@ import (
 	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
@@ -53,6 +54,8 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 	limits := gatewaySendBatchLimits(s)
 	mailbox, err := workqueue.NewShardedMailbox[asyncDispatchTask](workqueue.ShardedMailboxConfig{
 		Name:              "gateway-send",
+		Goroutines:        opts.Goroutines,
+		Task:              goruntimeregistry.TaskGatewayAsyncDispatch,
 		Shards:            e.workers,
 		Workers:           e.workers,
 		QueueSizePerShard: e.shardCapacity,

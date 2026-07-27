@@ -61,6 +61,10 @@ type ApplicationLogEntriesRequest struct {
 	Keyword string
 	// Levels filters entries by normalized log levels when supported by the reader.
 	Levels []string
+	// Before requests lines immediately before Cursor when context mode is used.
+	Before int
+	// After requests lines immediately after Cursor when context mode is used.
+	After int
 }
 
 // ApplicationLogEntriesResponse contains one ordinary application log page.
@@ -120,7 +124,7 @@ func (a *App) ApplicationLogEntries(ctx context.Context, req ApplicationLogEntri
 	if err := ctxErr(ctx); err != nil {
 		return ApplicationLogEntriesResponse{}, err
 	}
-	if req.NodeID == 0 || req.Limit < 0 {
+	if req.NodeID == 0 || req.Limit < 0 || req.Before < 0 || req.After < 0 {
 		return ApplicationLogEntriesResponse{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.applicationLogs == nil {

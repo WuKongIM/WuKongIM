@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
-	"golang.org/x/sync/errgroup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const maxCheckpointProofParallel = 16
@@ -199,29 +200,71 @@ func (c *CheckpointCoordinator) verifyCurrentProofs(ctx context.Context, checkpo
 			})
 		}
 	}
-	group, verifyContext := errgroup.WithContext(ctx)
-	group.SetLimit(maxCheckpointProofParallel)
-	for _, item := range proofs {
-		item := item
-		group.Go(func() error {
-			header, err := c.proofs.VerifyCommit(verifyContext, item.reference)
-			if err != nil {
-				return fmt.Errorf("backup checkpoint: verify Slot %d commit proof: %w", item.hashSlot, err)
-			}
-			logical := header.Logical
-			if logical.RepositoryID != checkpoint.RepositoryID ||
-				logical.SourceClusterID != checkpoint.SourceClusterID ||
-				logical.SourceGeneration != checkpoint.SourceGeneration ||
-				logical.Generation != item.generation ||
-				logical.HashSlot != item.hashSlot ||
-				logical.Stream != item.stream ||
-				logical.Sequence != item.sequence {
-				return fmt.Errorf("%w: Slot %d commit proof identity mismatch", ErrInvalidRequest, item.hashSlot)
-			}
-			return nil
-		})
+	if len(proofs) == 0 {
+		return nil
 	}
-	return group.Wait()
+	verifyContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+	work := make(chan proof)
+	workerCount := min(maxCheckpointProofParallel, len(proofs))
+	var workers sync.WaitGroup
+	var firstErr error
+	var firstErrOnce sync.Once
+	workers.Add(workerCount)
+	goruntimeregistry.SafeGoN(
+		nil,
+		goruntimeregistry.TaskBackupCheckpointProofWorker,
+		workerCount,
+		func(_ int) {
+			defer workers.Done()
+			for item := range work {
+				header, err := c.proofs.VerifyCommit(
+					verifyContext, item.reference,
+				)
+				if err == nil {
+					logical := header.Logical
+					if logical.RepositoryID != checkpoint.RepositoryID ||
+						logical.SourceClusterID != checkpoint.SourceClusterID ||
+						logical.SourceGeneration != checkpoint.SourceGeneration ||
+						logical.Generation != item.generation ||
+						logical.HashSlot != item.hashSlot ||
+						logical.Stream != item.stream ||
+						logical.Sequence != item.sequence {
+						err = fmt.Errorf(
+							"%w: Slot %d commit proof identity mismatch",
+							ErrInvalidRequest, item.hashSlot,
+						)
+					}
+				} else {
+					err = fmt.Errorf(
+						"backup checkpoint: verify Slot %d commit proof: %w",
+						item.hashSlot, err,
+					)
+				}
+				if err != nil {
+					firstErrOnce.Do(func() {
+						firstErr = err
+						cancel()
+					})
+					return
+				}
+			}
+		},
+	)
+sendLoop:
+	for _, item := range proofs {
+		select {
+		case work <- item:
+		case <-verifyContext.Done():
+			break sendLoop
+		}
+	}
+	close(work)
+	workers.Wait()
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctx.Err()
 }
 
 func (c *CheckpointCoordinator) buildCheckpoint(frontiers []backupcontract.SlotFrontier, erasureHeads []backupartifact.ErasureStreamHead) (backupartifact.Checkpoint, error) {

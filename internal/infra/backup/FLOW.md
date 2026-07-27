@@ -306,6 +306,10 @@ metadata in both failure domains without payload download or data-key opening, a
 the latest dual-committed erasure snapshot. The runtime then routes
 each Hash Slot only to its current target
 Leader under the durable `(Slot ID, Leader term, config epoch, attempt)` fence.
+Checkpoint proof validation, replica transfer, final verification, and
+activation cleanup use bounded worker cohorts with fixed `pkg/goroutine` task
+identities. Dynamic Slot, node, and checkpoint values remain ordinary work
+items rather than supervisor labels.
 That Leader revalidates the selected catalog copy, downloads and decrypts each
 segment once into a shared-budget `0600` staging file, replays baseline and
 ordered continuous segment records chronologically, and computes content, typed-count,

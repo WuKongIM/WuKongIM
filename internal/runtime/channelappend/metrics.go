@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // groupMetrics tracks aggregate channel-writer pressure without scanning shards.
@@ -85,7 +87,7 @@ func (m *groupMetrics) startPressurePublisher() {
 		m.pressureStop = make(chan struct{})
 		m.pressureDone = make(chan struct{})
 		m.pressureStarted.Store(true)
-		go m.runPressurePublisher()
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendMetrics, m.runPressurePublisher)
 	})
 }
 

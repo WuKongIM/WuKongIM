@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slots"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -21,7 +22,7 @@ func (n *Node) startSlotLeaderLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	n.slotLeaderCancel = cancel
 	n.slotLeaderWG.Add(1)
-	go func() {
+	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterSlotLeaderRefresh, func() {
 		defer n.slotLeaderWG.Done()
 		ticker := time.NewTicker(n.slotLeaderPollInterval())
 		defer ticker.Stop()
@@ -33,7 +34,7 @@ func (n *Node) startSlotLeaderLoop() {
 			case <-ticker.C:
 			}
 		}
-	}()
+	})
 }
 
 // stopSlotLeaderLoop stops the default Slot leadership publisher.

@@ -1,6 +1,10 @@
 package channelappend
 
-import "sync"
+import (
+	"sync"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+)
 
 // writerAdvanceScheduler is the single admission owner for the blocking
 // advance worker pool. Callers and effect-pool completions only append an
@@ -48,7 +52,7 @@ func (s *writerAdvanceScheduler) start() {
 	}
 	s.started = true
 	s.mu.Unlock()
-	go s.run()
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendAdvanceScheduler, s.run)
 }
 
 func (s *writerAdvanceScheduler) schedule(writer *channelWriter) {

@@ -15,11 +15,13 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
+	accessops "github.com/WuKongIM/WuKongIM/internal/access/opsmcp"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
@@ -32,6 +34,7 @@ import (
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/bwmarrin/snowflake"
@@ -77,10 +80,14 @@ type Option func(*App)
 
 // App is the internal composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg                         Config
-	cluster                     ClusterRuntime
-	api                         APIRuntime
-	manager                     ManagerRuntime
+	cfg     Config
+	cluster ClusterRuntime
+	api     APIRuntime
+	manager ManagerRuntime
+	// opsMCPEndpoint serves stateless MCP on every configured Manager listener.
+	opsMCPEndpoint *accessops.Endpoint
+	// opsMCPCalls owns node-local rate budgets and rotated audit output.
+	opsMCPCalls                 *runtimeops.CallControl
 	gateway                     GatewayRuntime
 	handler                     *accessgateway.Handler
 	messages                    *message.App
@@ -134,6 +141,10 @@ type App struct {
 	presenceDirectory       *authoritypresence.Directory
 	presenceWorker          WorkerRuntime
 	metrics                 *obsmetrics.Registry
+	// goroutines is the always-on process supervisor shared by first-party runtimes.
+	goroutines *goruntimeregistry.Registry
+	// goroutineBaseline excludes tasks that predate this App from its shutdown wait.
+	goroutineBaseline goruntimeregistry.Baseline
 	// channelRuntimeSummary aggregates active Channel runtime counts for manager node reads.
 	channelRuntimeSummary *channelRuntimeSummaryCollector
 	// top is the optional node-local collector used by /top/v1/snapshot.
@@ -196,7 +207,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	constructionOK := false
 	defer func() {
 		if !constructionOK {
-			app.restoreDiagnosticsSink()
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = app.Stop(cleanupCtx)
 		}
 	}()
 
@@ -213,6 +226,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	clusterCfg.Logger = app.logger.Named("cluster")
 	app.wireControllerTaskAudit(&clusterCfg)
 	app.configureObservability(&clusterCfg)
+	app.goroutineBaseline = app.goroutines.Baseline()
 	if err := app.ensureCluster(clusterCfg); err != nil {
 		return nil, err
 	}
@@ -241,6 +255,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerDBInspectRPC()
 	app.wireManagerDiagnosticsRPC()
 	app.wireManagerTaskAuditRPC()
+	app.wireManagerGoroutineRPC()
 	app.wireNodeLifecycleRPC()
 	app.wireSeedJoinLoop()
 	app.wireUsers()
@@ -292,6 +307,11 @@ func WithManager(manager ManagerRuntime) Option {
 // WithGateway overrides the gateway runtime.
 func WithGateway(gateway GatewayRuntime) Option {
 	return func(a *App) { a.gateway = gateway }
+}
+
+// WithGoroutineRegistry overrides the process goroutine supervisor.
+func WithGoroutineRegistry(registry *goruntimeregistry.Registry) Option {
+	return func(a *App) { a.goroutines = registry }
 }
 
 // WithMessages overrides the message usecase app.

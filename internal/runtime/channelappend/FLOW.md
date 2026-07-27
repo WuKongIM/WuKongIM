@@ -117,12 +117,23 @@ single-writer ordering for the channel key.
 `Group.Start` opens local admission and prepares isolated worker pools. Writers
 are created lazily on accepted local submissions and reclaimed opportunistically
 after they have stayed fully idle past `WriterIdleRetention`. `Group.Stop`
-closes admission and starts one background graceful drain. The drain preserves
+also releases constructor-owned ants pools when Start was never called, so App
+construction rollback cannot retain their maintenance goroutines or registry
+entries. After Start, Stop closes admission and starts one background graceful
+drain. The drain preserves
 accepted futures, durable append state, global post-commit handoff reservations,
 and fair retry ownership until they finish; only then does it release worker
 pools and cancel the runtime context. A caller context bounds only that caller's
 wait. A timed-out Stop does not cancel or clear work, and a later Stop continues
 waiting for the same drain. A stopped group is not restarted.
+
+The advance, append, and post-commit ants pools register actual created worker
+and maintenance goroutines under `channelappend/worker_pool`. The scheduler,
+retry loop, delivery workers, short fan-out helpers, pool release, and
+background stop drain use fixed `pkg/goroutine` task IDs, without changing the
+single-writer or shutdown ordering described below.
+Pool panic policy is applied through that owner, and pool ownership remains
+registered after release until every executing worker has returned.
 
 ## Writer Execution
 

@@ -303,7 +303,8 @@ and scale-in status because it only reads cluster-node lifecycle evidence.
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional
 positive `node_id`, and `category` (`common`, `gateway`, `internal`, `message`,
-`conversation`, `channel`, `database`, `control`, `slot`, or `node`), requires
+`conversation`, `channel`, `database`, `control`, `slot`, `node`, or
+`goroutines`), requires
 `cluster.node:r` when manager auth is enabled, and delegates Prometheus plus
 bounded `control_snapshot` reads to the app-wired realtime monitor provider.
 When Prometheus is disabled or unavailable the route still returns HTTP 200
@@ -337,6 +338,17 @@ queue/inflight/task-latency pressure.
 Node cards cover runtime workqueue pressure, process CPU, RSS memory,
 goroutine count, and Go GC pause/rate/CPU/heap-goal pressure while preserving
 per-node series for the global cluster view.
+Goroutine cards combine Prometheus history with a direct, current node RPC
+snapshot. The direct view remains available when Prometheus is disabled,
+preserves node identity, and returns fixed module/task ownership plus pool
+busy/capacity/queue-depth/queue-capacity/rejection values through the
+entry-independent management read model. Peer failures are partial node results,
+not zeroes, and never expose stack traces or dynamic function names. Fan-out is
+limited to eight concurrent reads, 256 nodes, 1.5 seconds per node, and two
+seconds overall; successful peer snapshots are coalesced and cached for two
+seconds, while stale, unsupported, timed-out, and unavailable nodes remain
+explicit. Module/task health derives from fixed-count drift, panic evidence,
+and pool pressure.
 
 `/manager/runtime/workqueues` is backed by the `internal/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer
@@ -418,6 +430,26 @@ application log sources owned by the application log reader (`app`, `warn`,
 local-vs-remote node selection to `internal/usecase/management`. The stream
 route emits lightweight NDJSON events for lines, rotations, heartbeats, and
 reader errors without owning a long-running log runtime.
+
+## Embedded Operations MCP
+
+Every configured normal-mode Manager listener mounts the agent-facing `POST /mcp`
+Streamable HTTP endpoint and the SPA settings page at `/system/mcp`. The
+agent-facing route uses only its opaque MCP bearer token; it does not accept a
+Manager JWT. Non-empty browser `Origin` values are rejected and the route has
+no CORS grant.
+
+Administration is deliberately separate under `/manager/mcp*` and is disabled
+unless Manager authentication is enabled. Status, token metadata, and local
+audits require `cluster.mcp:r`; token create/revoke, owner change, start, and
+stop require `cluster.mcp:w`. The UI displays the raw token exactly once,
+generates a token-only client snippet, warns on plain HTTP, and reloads
+authoritative Controller state after each mutation.
+
+The Manager listener is the only endpoint operators configure. There is no
+separate MCP process, port, capability file, TLS requirement, or MCP-specific
+TOML switch. Any Manager node may receive a request and forwards it to the
+single Controller-selected execution owner.
 
 `/manager/diagnostics*` exposes internal diagnostics tracing. The HTTP layer
 parses trace/message/event query parameters, enforces the dedicated

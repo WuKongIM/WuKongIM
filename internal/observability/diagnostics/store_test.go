@@ -120,6 +120,22 @@ func TestStoreQueryFiltersByStageAndResult(t *testing.T) {
 	require.Equal(t, ResultTimeout, got.Events[0].Result)
 }
 
+func TestStoreQueryAppliesTimeWindowBeforeLimit(t *testing.T) {
+	now := time.Date(2026, 7, 24, 4, 0, 0, 0, time.UTC)
+	store := NewStore(StoreOptions{NodeID: 1, Capacity: 8, Now: func() time.Time { return now }})
+	store.Record(Event{TraceID: "in-window-old", Stage: "send", At: now.Add(-3 * time.Minute)})
+	store.Record(Event{TraceID: "outside-new", Stage: "send", At: now.Add(-time.Minute)})
+
+	got := store.Query(context.Background(), Query{
+		Start: now.Add(-4 * time.Minute),
+		End:   now.Add(-2 * time.Minute),
+		Limit: 1,
+	})
+	if len(got.Events) != 1 || got.Events[0].TraceID != "in-window-old" {
+		t.Fatalf("events = %#v, want older in-window event", got.Events)
+	}
+}
+
 func TestStoreReturnsStableNotFound(t *testing.T) {
 	store := NewStore(StoreOptions{Capacity: 4})
 	result := store.Query(context.Background(), Query{TraceID: "missing"})

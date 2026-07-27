@@ -458,6 +458,24 @@ generic peer or error fields. Event count is not a reconcile-rate signal:
 node-local retention keeps state changes immediately and resamples an unchanged
 signature at most once every 30 seconds, while Prometheus keeps aggregate rates.
 
+## Manager Goroutine RPC
+
+```text
+manager realtime monitor
+  -> cluster RPCManagerGoroutines
+  -> Adapter.HandleManagerGoroutineRPC
+  -> app-local registry projection
+  -> management.GoroutineSnapshot read model
+  -> bounded JSON snapshot response
+```
+
+Manager Goroutine RPC is read-only and node-local. It returns process identity,
+process/managed/unmanaged totals, and fixed module/task counters. Cluster-wide
+selection, fan-out concurrency, per-node deadlines, short-lived caching, and
+partial support are owned by `internal/app`; this adapter does not inspect
+stacks or derive task names from function addresses, and it does not expose the
+concrete registry runtime type across the access boundary.
+
 ## Manager Application Log RPC
 
 ```text
@@ -475,6 +493,42 @@ and does not read Controller, Slot, Channel, Raft, or other distributed logs.
 The server calls only the configured management application log reader port; it
 does not inspect filesystem paths, discover files, merge logs across nodes, or
 decide which manager HTTP request should target a remote node.
+Entry requests carry the opaque cursor plus bounded `before` and `after`
+context counts so the selected node, which owns rotation and cursor semantics,
+constructs the exact surrounding raw-log page.
+
+## Operations MCP RPC
+
+```text
+any Manager /mcp ingress
+  -> RPCOpsMCP forward request
+  -> configured execution owner revalidates ID/digest/revision
+  -> owner executes the stateless MCP request
+
+execution owner pprof_analyze
+  -> owner creates a random, short-lived, one-time in-memory lease
+  -> RPCOpsMCP profile request carries that opaque lease ID
+  -> selected target revalidates owner/revision
+  -> RPCOpsMCP profile_lease callback consumes the lease at the real owner
+  -> target captures a bounded profile only after lease confirmation
+  -> owner parses and discards raw profile bytes
+
+Manager audit page
+  -> RPCOpsMCP audits request to alive/suspect peers
+  -> each peer returns at most 200 local non-secret summaries
+```
+
+The shared service uses a typed versioned envelope for `forward`, `profile`,
+`profile_lease`, and `audits` operations. Its caller node identity is populated
+by the local cluster client and remains a consistency check, not the profile
+authorization proof. Forwarding requires that identity to match the ingress
+field. Profiling additionally requires the target to consume the unpredictable
+owner-held lease exactly once; a peer cannot authorize capture by constructing
+a matching caller/owner JSON payload. Forwarding carries a credential ID and
+already-computed digest but never the raw `wko_*` token. Requests and responses
+are capped at 64 KiB and 1 MiB; ephemeral profile payloads have a separate
+32 MiB internal cap. There is no failover owner: an unavailable configured
+owner returns a stable unavailable result to the ingress Manager.
 
 ## Codec Rules
 

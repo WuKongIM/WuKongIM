@@ -41,6 +41,41 @@ func TestManagerMonitorPrometheusProviderReturnsDisabledWhenNotEnabled(t *testin
 	}
 }
 
+func TestManagerMonitorPrometheusProviderReturnsGoroutineHistory(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"node_id":"1","node_name":"node-1","module":"gateway"},"values":[[1781767200,"12"],[1781767220,"15"]]}]}}`))
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryGoroutines,
+	})
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, []string{"goroutineProcessHistory", "goroutineModuleHistory"})
+	if resp.Categories[10].Count != 2 {
+		t.Fatalf("goroutine category = %#v, want count 2", resp.Categories[10])
+	}
+	joined := strings.Join(queries, "\n")
+	for _, want := range []string{"wukongim_node_goroutines", "wukongim_goroutines_active", "topk(12"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("goroutine queries missing %q: %s", want, joined)
+		}
+	}
+}
+
 func TestManagerMonitorPrometheusProviderMapsQueryRange(t *testing.T) {
 	var calls atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

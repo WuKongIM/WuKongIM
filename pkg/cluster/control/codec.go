@@ -172,6 +172,8 @@ const (
 	// ControlWriteActionReplaceRestoreCoordination submits one revision-fenced
 	// replacement of the explicit restore plan and its bounded progress.
 	ControlWriteActionReplaceRestoreCoordination ControlWriteAction = "replace_restore_coordination"
+	// ControlWriteActionReplaceOpsMCP replaces embedded operations MCP desired state.
+	ControlWriteActionReplaceOpsMCP ControlWriteAction = "replace_ops_mcp"
 )
 
 // ReplaceBackupCoordinationRequest carries one bounded Controller backup-state CAS.
@@ -188,6 +190,14 @@ type ReplaceRestoreCoordinationRequest struct {
 	ExpectedRevision uint64 `json:"expected_revision"`
 	// Replacement is the complete bounded explicit restore coordination state.
 	Replacement controller.RestoreCoordinationState `json:"replacement"`
+}
+
+// ReplaceOpsMCPRequest carries one revision-fenced MCP desired-state replacement.
+type ReplaceOpsMCPRequest struct {
+	// ExpectedRevision is the global Controller compare-and-set fence.
+	ExpectedRevision uint64 `json:"expected_revision"`
+	// State is the complete bounded replacement.
+	State controller.OpsMCPState `json:"state"`
 }
 
 // ControlWriteRequest carries one generic Controller write.
@@ -212,6 +222,8 @@ type ControlWriteRequest struct {
 	ReplaceBackupCoordination ReplaceBackupCoordinationRequest `json:"replace_backup_coordination,omitempty"`
 	// ReplaceRestoreCoordination carries a bounded restore-state CAS.
 	ReplaceRestoreCoordination ReplaceRestoreCoordinationRequest `json:"replace_restore_coordination,omitempty"`
+	// ReplaceOpsMCP carries an embedded operations MCP desired-state replacement.
+	ReplaceOpsMCP ReplaceOpsMCPRequest `json:"replace_ops_mcp,omitempty"`
 }
 
 type controlWriteRequestJSON struct {
@@ -225,6 +237,7 @@ type controlWriteRequestJSON struct {
 	ReportNodeHealth           *NodeReport                        `json:"report_node_health,omitempty"`
 	ReplaceBackupCoordination  *ReplaceBackupCoordinationRequest  `json:"replace_backup_coordination,omitempty"`
 	ReplaceRestoreCoordination *ReplaceRestoreCoordinationRequest `json:"replace_restore_coordination,omitempty"`
+	ReplaceOpsMCP              *ReplaceOpsMCPRequest              `json:"replace_ops_mcp,omitempty"`
 }
 
 // MarshalJSON encodes only the payload branch selected by Action.
@@ -249,6 +262,8 @@ func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
 		wire.ReplaceBackupCoordination = &req.ReplaceBackupCoordination
 	case ControlWriteActionReplaceRestoreCoordination:
 		wire.ReplaceRestoreCoordination = &req.ReplaceRestoreCoordination
+	case ControlWriteActionReplaceOpsMCP:
+		wire.ReplaceOpsMCP = &req.ReplaceOpsMCP
 	}
 	return json.Marshal(wire)
 }

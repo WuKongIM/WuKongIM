@@ -165,7 +165,7 @@ func (s *Service) Start(ctx context.Context) error {
 	proposalCh := make(chan proposalRequest)
 	compactCh := make(chan compactRequest)
 	initCh := make(chan error, 1)
-	goroutine.SafeGo(s.cfg.Goroutines, "controller", "raft_run", func() {
+	goroutine.SafeGo(s.cfg.Goroutines, goroutine.TaskControllerRaftRun, func() {
 		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, compactCh, initCh)
 	})
 	if err := <-initCh; err != nil {

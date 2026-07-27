@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
@@ -35,7 +36,8 @@ type managerAsync struct {
 	// workers is the fixed number of async manager workers.
 	workers int
 	// observer receives admission decisions and later terminal outcomes.
-	observer ManagerObserver
+	observer   ManagerObserver
+	goroutines *goruntimeregistry.Registry
 
 	mu sync.Mutex
 	// state gates admission and lifecycle transitions.
@@ -44,7 +46,7 @@ type managerAsync struct {
 	queue *workqueue.BoundedWorkerQueue[managerCommand]
 }
 
-func newManagerAsync(manager *Manager, queueSize, workers int, observer ManagerObserver) *managerAsync {
+func newManagerAsync(manager *Manager, queueSize, workers int, observer ManagerObserver, goroutines *goruntimeregistry.Registry) *managerAsync {
 	if queueSize <= 0 {
 		queueSize = defaultManagerAsyncQueueSize
 	}
@@ -52,11 +54,12 @@ func newManagerAsync(manager *Manager, queueSize, workers int, observer ManagerO
 		workers = defaultManagerAsyncWorkers
 	}
 	return &managerAsync{
-		manager:   manager,
-		queueSize: queueSize,
-		workers:   workers,
-		observer:  observer,
-		state:     managerStateClosed,
+		manager:    manager,
+		queueSize:  queueSize,
+		workers:    workers,
+		observer:   observer,
+		goroutines: goroutines,
+		state:      managerStateClosed,
 	}
 }
 
@@ -75,9 +78,11 @@ func (a *managerAsync) start(context.Context) error {
 	}
 
 	queue, err := workqueue.NewBoundedWorkerQueue[managerCommand](workqueue.BoundedWorkerQueueConfig{
-		Name:      "delivery_manager",
-		Workers:   a.workers,
-		QueueSize: a.queueSize,
+		Name:       "delivery_manager",
+		Goroutines: a.goroutines,
+		Task:       goruntimeregistry.TaskDeliveryManagerAsync,
+		Workers:    a.workers,
+		QueueSize:  a.queueSize,
 	}, a.runCommand)
 	if err != nil {
 		return err

@@ -106,7 +106,7 @@ func Open(path string, opts Options) (*DB, error) {
 	}
 
 	db.workerWG.Add(1)
-	goroutine.SafeGo(db.options.Goroutines, "raftlog", "write_worker", db.runWriteWorker)
+	goroutine.SafeGo(db.options.Goroutines, goroutine.TaskDatabaseRaftWriteWorker, db.runWriteWorker)
 	return db, nil
 }
 
@@ -195,7 +195,7 @@ func (db *DB) startSnapshotGC() bool {
 	db.gcWG.Add(1)
 	db.mu.Unlock()
 
-	goroutine.SafeGo(db.options.Goroutines, "raftlog", "snapshot_gc", func() {
+	goroutine.SafeGo(db.options.Goroutines, goroutine.TaskDatabaseRaftSnapshotGC, func() {
 		defer db.gcWG.Done()
 		_ = db.runSnapshotGC(ctx)
 	})

@@ -55,14 +55,14 @@ func New(opts Options) (*Runtime, error) {
 func (r *Runtime) start() {
 	for i := 0; i < r.opts.Workers; i++ {
 		r.wg.Add(1)
-		goroutine.SafeGo(r.opts.Goroutines, "slot", "raft_worker", func() {
+		goroutine.SafeGo(r.opts.Goroutines, goroutine.TaskSlotRaftWorker, func() {
 			defer r.wg.Done()
 			r.runWorker()
 		})
 	}
 
 	r.wg.Add(1)
-	goroutine.SafeGo(r.opts.Goroutines, "slot", "raft_ticker", func() {
+	goroutine.SafeGo(r.opts.Goroutines, goroutine.TaskSlotRaftTicker, func() {
 		defer r.wg.Done()
 		r.runTicker()
 	})

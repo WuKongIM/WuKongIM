@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const defaultProcessStopTimeout = 5 * time.Second
@@ -77,9 +79,9 @@ func (m *ProcessManager) Start(ctx context.Context, spec ProcessSpec) (*ProcessH
 		return nil, fmt.Errorf("start plugin %q: %w", spec.No, err)
 	}
 	handle := &ProcessHandle{Spec: spec, PID: cmd.Process.Pid, StartedAt: time.Now().UTC(), cmd: cmd, done: make(chan error, 1)}
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginProcessWait, func() {
 		handle.done <- cmd.Wait()
-	}()
+	})
 	return handle, nil
 }
 
@@ -96,10 +98,10 @@ func (m *ProcessManager) Stop(ctx context.Context, handle *ProcessHandle, stop S
 	defer stopCancel()
 	if stop != nil {
 		stopStarted := make(chan struct{})
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginStopCallback, func() {
 			close(stopStarted)
 			_ = stop(stopCtx, handle.Spec.No)
-		}()
+		})
 		select {
 		case <-stopStarted:
 		case <-ctx.Done():

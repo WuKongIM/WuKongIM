@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	gnetv2 "github.com/panjf2000/gnet/v2"
 )
 
@@ -317,12 +318,12 @@ func (g *engineGroup) startEngine(runtimes []*listenerRuntime) error {
 		addrs = append(addrs, "tcp://"+runtime.opts.Address)
 	}
 
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskGatewayTransportServe, func() {
 		err := gnetv2.Rotate(g, addrs, g.gnetOptions()...)
 		cycle.signalBoot(err)
 		cycle.doneCh <- err
 		close(cycle.doneCh)
-	}()
+	})
 
 	if err := <-cycle.bootCh; err != nil {
 		if g.actors.CompareAndSwap(actors, nil) {

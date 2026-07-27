@@ -26,6 +26,74 @@ export type ManagerPermissionsResponse = {
   resources: ManagerPermissionResource[]
 }
 
+export type ManagerMCPCredential = {
+  id: string
+  created_at_unix_ms: number
+  old: boolean
+}
+
+export type ManagerMCPStatusResponse = {
+  cluster_id: string
+  revision: number
+  enabled: boolean
+  observed_status: "stopped" | "ready" | "unavailable"
+  owner_node_id: number
+  owner_candidates: {
+    node_id: number
+    status: string
+  }[]
+  credentials: ManagerMCPCredential[]
+  warnings: string[]
+}
+
+export type ManagerMCPTokenResponse = {
+  credential_id: string
+  token: string
+  created_at_unix_ms: number
+  revision: number
+}
+
+export type ManagerMCPMutationResponse = {
+  accepted: boolean
+}
+
+export type ManagerMCPAudit = {
+  request_id: string
+  recorder_node_id?: number
+  phase: string
+  ingress_node_id?: number
+  owner_node_id?: number
+  credential_id: string
+  tool: string
+  node_id?: number
+  slot_id?: number
+  channel_type?: number
+  result: string
+  started_at: string
+  duration_ms: number
+  response_bytes: number
+  cache_hit: boolean
+  pprof_kind?: string
+  pprof_seconds?: number
+}
+
+export type ManagerMCPAuditsResponse = {
+  items: ManagerMCPAudit[]
+}
+
+export type ManagerMCPMutationInput = {
+  expectedRevision: number
+  idempotencyKey: string
+}
+
+export type ManagerMCPOwnerMutationInput = ManagerMCPMutationInput & {
+  ownerNodeId: number
+}
+
+export type ManagerMCPTokenRevokeInput = ManagerMCPMutationInput & {
+  credentialId: string
+}
+
 export type ManagerWebhookConfigResponse = {
   enabled: boolean
   http_addr: string
@@ -311,7 +379,7 @@ export type RealtimeMonitorStatus = "ready" | "partial" | "prometheus_disabled" 
 
 export type RealtimeMonitorTone = "normal" | "warning" | "critical"
 
-export type RealtimeMonitorSource = "prometheus" | "control_snapshot"
+export type RealtimeMonitorSource = "prometheus" | "control_snapshot" | "direct_node_rpc"
 
 export type RealtimeMonitorCategory =
   | "common"
@@ -324,6 +392,7 @@ export type RealtimeMonitorCategory =
   | "control"
   | "slot"
   | "node"
+  | "goroutines"
 
 export type RealtimeMonitorPoint = {
   timestamp: number
@@ -376,6 +445,70 @@ export type RealtimeMonitorCategoryEntry = {
   count: number
 }
 
+export type GoroutineTaskSnapshot = {
+  task: string
+  name: string
+  kind: "singleton" | "fixed" | "dynamic" | "pool" | "burst"
+  critical: boolean
+  expected?: number
+  active: number
+  process_peak: number
+  total_started: number
+  total_stopped: number
+  panics: number
+  busy_tasks?: number
+  pool_capacity?: number
+  queue_depth?: number
+  queue_capacity?: number
+  rejected_total?: number
+  running_for?: number
+  health: "normal" | "warning" | "critical"
+  health_reason?: string
+}
+
+export type GoroutineModuleSnapshot = {
+  module: string
+  active: number
+  process_peak: number
+  total_started: number
+  total_stopped: number
+  panics: number
+  busy_tasks?: number
+  pool_capacity?: number
+  queue_depth?: number
+  queue_capacity?: number
+  rejected_total?: number
+  tasks: GoroutineTaskSnapshot[]
+  health: "normal" | "warning" | "critical"
+}
+
+export type GoroutineRegistrySnapshot = {
+  generated_at: string
+  process_started_at: string
+  boot_id: string
+  process_total: number
+  managed_total: number
+  unmanaged_total: number
+  reconciled: boolean
+  total_active: number
+  total_started: number
+  total_panics: number
+  modules: GoroutineModuleSnapshot[]
+}
+
+export type RealtimeMonitorGoroutines = {
+  status: "ready" | "partial"
+  generated_at: string
+  nodes: Array<{
+    node_id: number
+    name: string
+    status: string
+    supported: boolean
+    error?: string
+    snapshot?: GoroutineRegistrySnapshot
+  }>
+}
+
 export type RealtimeMonitorResponse = {
   status: RealtimeMonitorStatus
   generated_at: string
@@ -388,10 +521,12 @@ export type RealtimeMonitorResponse = {
   sources: {
     prometheus: RealtimeMonitorSourceStatus
     control_snapshot: RealtimeMonitorSourceStatus
+    goroutines?: RealtimeMonitorSourceStatus
   }
   categories: RealtimeMonitorCategoryEntry[]
   snapshot: RealtimeMonitorSnapshotEntry[]
   cards: RealtimeMonitorCard[]
+  goroutines?: RealtimeMonitorGoroutines
 }
 
 export type ManagerNode = {

@@ -19,6 +19,7 @@ import type {
 import { ClusterMonitorCardGrid } from "./components/cluster-monitor-card-grid"
 import { ClusterMonitorSnapshotStrip } from "./components/cluster-monitor-snapshot-strip"
 import { ClusterMonitorToolbar } from "./components/cluster-monitor-toolbar"
+import { GoroutineMonitorTable } from "./components/goroutine-monitor-table"
 import {
   clusterMonitorMetricConfig,
   clusterMonitorSnapshotLabelIds,
@@ -37,9 +38,7 @@ import type {
 } from "./types"
 
 type ClusterMonitorPageState =
-  | { kind: "loading" }
-  | { kind: "ready"; response: RealtimeMonitorResponse }
-  | { kind: "error"; message: string }
+  { kind: "loading" } | { kind: "ready"; response: RealtimeMonitorResponse } | { kind: "error"; message: string }
 
 export function ClusterMonitorPage() {
   const intl = useIntl()
@@ -49,10 +48,16 @@ export function ClusterMonitorPage() {
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
-  const [state, setState] = useState<ClusterMonitorPageState>({ kind: "loading" })
+  const [state, setState] = useState<ClusterMonitorPageState>({
+    kind: "loading",
+  })
   const lastQueryKeyRef = useRef<string | null>(null)
   const requestRefresh = useCallback(() => {
     setRefreshNonce((current) => current + 1)
+  }, [])
+  const changeCategory = useCallback((category: RealtimeMonitorCategory) => {
+    setSelectedCategory(category)
+    setRefreshInterval((current) => (category === "goroutines" ? "5s" : current === "5s" ? "30s" : current))
   }, [])
 
   useEffect(() => {
@@ -93,7 +98,10 @@ export function ClusterMonitorPage() {
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setState({ kind: "error", message: error instanceof Error ? error.message : String(error) })
+          setState({
+            kind: "error",
+            message: error instanceof Error ? error.message : String(error),
+          })
         }
       })
 
@@ -117,10 +125,7 @@ export function ClusterMonitorPage() {
   const generatedAt = state.kind === "ready" ? state.response.generated_at : new Date().toISOString()
   const sourceError = state.kind === "ready" ? getSourceError(state.response) : undefined
   const scopeLabel = selectedNodeId
-    ? intl.formatMessage(
-        { id: "clusterMonitor.scope.node" },
-        { node: selectedMonitorNodeLabel(intl, nodes, selectedNodeId) },
-      )
+    ? intl.formatMessage({ id: "clusterMonitor.scope.node" }, { node: selectedMonitorNodeLabel(intl, nodes, selectedNodeId) })
     : undefined
 
   return (
@@ -134,7 +139,7 @@ export function ClusterMonitorPage() {
       <ClusterMonitorToolbar
         generatedAt={model?.generatedAt ?? generatedAt}
         nodes={nodes}
-        onCategoryChange={setSelectedCategory}
+        onCategoryChange={changeCategory}
         onNodeChange={setSelectedNodeId}
         onRefresh={requestRefresh}
         onRefreshIntervalChange={setRefreshInterval}
@@ -158,7 +163,10 @@ export function ClusterMonitorPage() {
       {model ? (
         <>
           {model.snapshot.length > 0 ? <ClusterMonitorSnapshotStrip entries={model.snapshot} /> : null}
-          <ClusterMonitorCardGrid cards={model.cards} />
+          {selectedCategory === "goroutines" && state.kind === "ready" && state.response.goroutines ? (
+            <GoroutineMonitorTable data={state.response.goroutines} showComplete={selectedNodeId !== null} />
+          ) : null}
+          {model.cards.length > 0 ? <ClusterMonitorCardGrid cards={model.cards} /> : null}
         </>
       ) : null}
     </PageContainer>
@@ -167,7 +175,11 @@ export function ClusterMonitorPage() {
 
 function isRenderableClusterMonitor(response: RealtimeMonitorResponse) {
   if (response.status === "ready" || response.status === "partial") {
-    return response.snapshot.some((entry) => clusterMonitorSnapshotLabelIds[entry.key]) || response.cards.some(isKnownClusterCard)
+    return (
+      response.snapshot.some((entry) => clusterMonitorSnapshotLabelIds[entry.key]) ||
+      response.cards.some(isKnownClusterCard) ||
+      Boolean(response.goroutines?.nodes.length)
+    )
   }
   if (response.status === "prometheus_unavailable") {
     return response.cards.some((card) => card.available && isKnownClusterCard(card))
@@ -211,7 +223,9 @@ function mapClusterRealtimeCard(card: RealtimeMonitorCard): ClusterMonitorMetric
   const unit = displayScale.unit
   const series = card.available ? scaleClusterSeries(rawSeries, displayScale.factor) : []
   const value = card.available ? formatApiValue(scaleClusterValue(card, displayScale.factor), config.precision) : "-"
-  const stats = card.available ? mapClusterStats(rawStats, rawUnit, unit, config.precision, displayScale.factor) : unavailableStats(card.error)
+  const stats = card.available
+    ? mapClusterStats(rawStats, rawUnit, unit, config.precision, displayScale.factor)
+    : unavailableStats(card.error)
 
   return {
     key: card.key,
@@ -387,7 +401,7 @@ function scaleClusterSeries(series: RealtimeMonitorCard["series"], factor: numbe
 }
 
 function getSourceError(response: RealtimeMonitorResponse) {
-  return response.sources.prometheus.error || response.sources.control_snapshot.error
+  return response.sources.goroutines?.error || response.sources.prometheus.error || response.sources.control_snapshot.error
 }
 
 function ClusterMonitorLoadingState() {

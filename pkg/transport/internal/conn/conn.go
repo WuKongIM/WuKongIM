@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc"
@@ -132,8 +133,8 @@ func New(raw net.Conn, cfg Config, dispatch Dispatch) *Conn {
 func (c *Conn) Start() {
 	c.startOnce.Do(func() {
 		c.started.Store(true)
-		go c.readLoop()
-		go c.writeLoop()
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportConnRead, c.readLoop)
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportConnWrite, c.writeLoop)
 	})
 }
 
@@ -390,8 +391,12 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 	status := body[0]
 	payload := append([]byte(nil), body[1:]...)
 	if status != wire.ResponseOK {
+		code := core.RemoteErrorCodeGeneric
+		if status == wire.ResponseServiceNotFound {
+			code = core.RemoteErrorCodeServiceNotFound
+		}
 		c.pending.Complete(frame.Header.RequestID, rpc.Response{
-			Err: core.RemoteError{Code: "remote_error", Message: string(payload)},
+			Err: core.RemoteError{Code: code, Message: string(payload)},
 		})
 		c.observePendingRPC("ok")
 		return

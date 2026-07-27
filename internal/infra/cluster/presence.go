@@ -12,6 +12,7 @@ import (
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // PresenceNode is the cluster surface required by the presence authority adapter.
@@ -516,10 +517,10 @@ func runBoundedPresenceLeaderBatches(leaders []uint64, concurrency int, run func
 	}
 	wg.Add(concurrency - 1)
 	for i := 1; i < concurrency; i++ {
-		go func() {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPresenceBatchResolve, func() {
 			defer wg.Done()
 			worker()
-		}()
+		})
 	}
 	worker()
 	wg.Wait()

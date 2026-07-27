@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -173,7 +174,9 @@ func (w *Watcher) Start(ctx context.Context) error {
 	w.done = make(chan struct{})
 	w.debouncer = debouncer
 	w.started = true
-	go w.run(watchCtx, watcher, debouncer, w.done)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginWatcher, func() {
+		w.run(watchCtx, watcher, debouncer, w.done)
+	})
 	return nil
 }
 

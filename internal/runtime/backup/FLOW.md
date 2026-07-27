@@ -27,6 +27,12 @@ The application composition root wires this path whenever automatic backup is
 enabled. There is no periodic partition-job or cluster-wide full-backup
 runtime.
 
+The coordinator loop, capture runner, audit projection, and bounded capture
+workers use fixed `pkg/goroutine` task identities. Capture workers are
+configuration-sized dynamic tasks rather than a declared fixed cohort. This
+keeps process shutdown, panic evidence, and live ownership observable without
+putting Hash Slot IDs into task labels.
+
 On every tick, every node reloads the newest authenticated checkpoint through
 the durable Controller catalog head. This hydrates checkpoint-age metrics and
 the next publication deadline after process restart or Controller Leader

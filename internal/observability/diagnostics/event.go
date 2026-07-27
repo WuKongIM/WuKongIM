@@ -137,7 +137,11 @@ type Query struct {
 	MessageSeq uint64 `json:"message_seq,omitempty"`
 	Stage      Stage  `json:"stage,omitempty"`
 	Result     Result `json:"result,omitempty"`
-	Limit      int    `json:"limit,omitempty"`
+	// Start is an optional inclusive retained-event timestamp boundary.
+	Start time.Time `json:"start,omitempty"`
+	// End is an optional inclusive retained-event timestamp boundary.
+	End   time.Time `json:"end,omitempty"`
+	Limit int       `json:"limit,omitempty"`
 }
 
 // QuerySummary contains compact aggregate hints for matched diagnostics events.

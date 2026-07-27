@@ -24,6 +24,7 @@ type checksumClusterState struct {
 	Tasks             []ReconcileTask           `json:"tasks"`
 	Backup            *BackupCoordinationState  `json:"backup,omitempty"`
 	Restore           *RestoreCoordinationState `json:"restore,omitempty"`
+	OpsMCP            *OpsMCPState              `json:"ops_mcp,omitempty"`
 }
 
 // Encode returns normalized canonical JSON with a CRC32C checksum.
@@ -108,5 +109,6 @@ func checksumView(st ClusterState) checksumClusterState {
 		Tasks:             st.Tasks,
 		Backup:            st.Backup,
 		Restore:           st.Restore,
+		OpsMCP:            st.OpsMCP,
 	}
 }

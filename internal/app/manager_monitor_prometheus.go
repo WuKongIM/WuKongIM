@@ -309,6 +309,7 @@ func realtimeMonitorCategories() []accessmanager.RealtimeMonitorCategory {
 		{Key: accessmanager.RealtimeMonitorCategoryControl, Count: counts[accessmanager.RealtimeMonitorCategoryControl]},
 		{Key: accessmanager.RealtimeMonitorCategorySlot, Count: counts[accessmanager.RealtimeMonitorCategorySlot]},
 		{Key: accessmanager.RealtimeMonitorCategoryNode, Count: counts[accessmanager.RealtimeMonitorCategoryNode]},
+		{Key: accessmanager.RealtimeMonitorCategoryGoroutines, Count: counts[accessmanager.RealtimeMonitorCategoryGoroutines]},
 	}
 }
 
@@ -417,6 +418,28 @@ func prometheusSelectorHasLabel(labels string, name string) bool {
 
 func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 	return withMonitorCategories([]monitorMetricDefinition{
+		{
+			key:             "goroutineProcessHistory",
+			category:        accessmanager.RealtimeMonitorCategoryGoroutines,
+			stage:           accessmanager.RealtimeMonitorStageRuntimePressure,
+			tone:            accessmanager.RealtimeMonitorToneWarning,
+			unit:            "goroutines",
+			seriesLabelKeys: []string{"node_id", "node_name"},
+			query: func(string) string {
+				return "sum by (node_id, node_name) (wukongim_node_goroutines)"
+			},
+		},
+		{
+			key:             "goroutineModuleHistory",
+			category:        accessmanager.RealtimeMonitorCategoryGoroutines,
+			stage:           accessmanager.RealtimeMonitorStageRuntimePressure,
+			tone:            accessmanager.RealtimeMonitorToneNormal,
+			unit:            "goroutines",
+			seriesLabelKeys: []string{"node_id", "node_name", "module"},
+			query: func(string) string {
+				return "topk(12, sum by (node_id, node_name, module) (wukongim_goroutines_active))"
+			},
+		},
 		{
 			key:   "sendRate",
 			stage: accessmanager.RealtimeMonitorStageSendEntry,

@@ -31,6 +31,8 @@ type managerAppLogRPCRequest struct {
 	Cursor  string
 	Keyword string
 	Levels  []string
+	Before  int
+	After   int
 }
 
 type managerAppLogRPCResponse struct {
@@ -53,6 +55,8 @@ func encodeManagerAppLogRequest(req managerAppLogRPCRequest) ([]byte, error) {
 	dst = appendString(dst, req.Cursor)
 	dst = appendString(dst, req.Keyword)
 	dst = appendStringSlice(dst, req.Levels)
+	dst = appendVarint(dst, int64(req.Before))
+	dst = appendVarint(dst, int64(req.After))
 	return dst, nil
 }
 
@@ -93,6 +97,20 @@ func decodeManagerAppLogRequest(body []byte) (managerAppLogRPCRequest, error) {
 	}
 	if len(req.Levels) > maxManagerAppLogRPCCollectionLen {
 		return managerAppLogRPCRequest{}, fmt.Errorf("internal/access/node: too many manager app log levels: %d", len(req.Levels))
+	}
+	if offset < len(body) {
+		before, nextOffset, err := readVarint(body, offset)
+		if err != nil {
+			return managerAppLogRPCRequest{}, err
+		}
+		req.Before = int(before)
+		offset = nextOffset
+		after, nextOffset, err := readVarint(body, offset)
+		if err != nil {
+			return managerAppLogRPCRequest{}, err
+		}
+		req.After = int(after)
+		offset = nextOffset
 	}
 	if offset != len(body) {
 		return managerAppLogRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager app log request bytes")

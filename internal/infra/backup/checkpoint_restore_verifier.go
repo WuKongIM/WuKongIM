@@ -9,6 +9,7 @@ import (
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // LocalCheckpointRestoreReplicaStatus verifies one local replica receipt and
@@ -107,9 +108,12 @@ func (v *CheckpointRestoreFinalVerifier) VerifyRestore(
 		workers = int(plan.HashSlotCount)
 	}
 	var group sync.WaitGroup
-	for worker := 0; worker < workers; worker++ {
-		group.Add(1)
-		go func() {
+	group.Add(workers)
+	goruntimeregistry.SafeGoN(
+		nil,
+		goruntimeregistry.TaskBackupRestoreVerifyWorker,
+		workers,
+		func(_ int) {
 			defer group.Done()
 			for hashSlot := range work {
 				verifyErr := v.verifyPartition(
@@ -117,9 +121,9 @@ func (v *CheckpointRestoreFinalVerifier) VerifyRestore(
 				)
 				results <- result{hashSlot: hashSlot, err: verifyErr}
 			}
-		}()
-	}
-	go func() {
+		},
+	)
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskBackupRestoreProducer, func() {
 		defer close(work)
 		for hashSlot := uint16(0); hashSlot < plan.HashSlotCount; hashSlot++ {
 			select {
@@ -128,7 +132,7 @@ func (v *CheckpointRestoreFinalVerifier) VerifyRestore(
 				return
 			}
 		}
-	}()
+	})
 	group.Wait()
 	close(results)
 	errorsBySlot := make([]error, plan.HashSlotCount)

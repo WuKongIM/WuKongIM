@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"gopkg.in/yaml.v3"
 )
@@ -139,9 +140,9 @@ func (r *prometheusRuntime) Start(ctx context.Context) error {
 		return fmt.Errorf("internal/app: start prometheus: %w", err)
 	}
 	done := make(chan error, 1)
-	go func() {
+	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskAppPrometheusWait, func() {
 		done <- cmd.Wait()
-	}()
+	})
 	r.cmd = cmd
 	r.done = done
 	r.started = true

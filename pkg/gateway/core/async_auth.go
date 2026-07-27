@@ -7,6 +7,7 @@ import (
 	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
@@ -41,6 +42,8 @@ func newAuthExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*authExecutor
 
 	queue, err := workqueue.NewBoundedPool[asyncAuthTask](workqueue.BoundedPoolConfig{
 		Name:           "gateway-auth",
+		Goroutines:     opts.Goroutines,
+		Task:           goruntimeregistry.TaskGatewayAsyncAuth,
 		Workers:        opts.AsyncAuthWorkers,
 		QueueSize:      opts.AsyncAuthQueueCapacity,
 		ReleaseTimeout: opts.AsyncPoolReleaseTimeout,

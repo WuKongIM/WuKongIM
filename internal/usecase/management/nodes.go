@@ -6,8 +6,10 @@ import (
 	"sort"
 	"time"
 
+	opscontract "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 const controllerRaftHealthUnknown = "unknown"
@@ -103,6 +105,18 @@ type ControllerRaftStatusObserver interface {
 	ObserveControllerRaftStatus(ControllerRaftStatus)
 }
 
+// OpsMCPStateWriter commits bounded embedded operations MCP desired state.
+type OpsMCPStateWriter interface {
+	// ReplaceOpsMCPState writes one globally revision-fenced replacement.
+	ReplaceOpsMCPState(context.Context, uint64, controller.OpsMCPState) error
+}
+
+// OpsMCPAuditReader reads bounded non-secret MCP audit summaries.
+type OpsMCPAuditReader interface {
+	// RecentAudits returns newest-first entries from the configured audit scope.
+	RecentAudits(context.Context, int) ([]opscontract.AuditEntry, error)
+}
+
 // Options configures the manager management usecase.
 type Options struct {
 	// Cluster reads cluster control state.
@@ -137,6 +151,8 @@ type Options struct {
 	ControllerRaftStatusObserver ControllerRaftStatusObserver
 	// ChannelRuntimeMeta scans channel runtime metadata for cluster channel pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
+	// ChannelRuntimeMetaPoint reads one exact channel runtime row without scanning.
+	ChannelRuntimeMetaPoint ChannelRuntimeMetaPointReader
 	// ChannelMigration creates and reads Channel migration tasks.
 	ChannelMigration ChannelMigrationStore
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
@@ -191,6 +207,10 @@ type Options struct {
 	DBInspect DBInspectReader
 	// RemoteDBInspect runs read-only DB inspect queries on peer nodes.
 	RemoteDBInspect RemoteDBInspectReader
+	// OpsMCP commits embedded operations MCP desired state.
+	OpsMCP OpsMCPStateWriter
+	// OpsMCPAudit reads bounded MCP audit summaries.
+	OpsMCPAudit OpsMCPAuditReader
 	// Now returns timestamps for generated read models.
 	Now func() time.Time
 }
@@ -233,6 +253,8 @@ type nodeManagementDeps struct {
 type channelManagementDeps struct {
 	// channelRuntimeMeta reads channel runtime metadata.
 	channelRuntimeMeta ChannelRuntimeMetaReader
+	// channelRuntimeMetaPoint reads one exact channel runtime row.
+	channelRuntimeMetaPoint ChannelRuntimeMetaPointReader
 	// channelMigration stores channel migration tasks.
 	channelMigration ChannelMigrationStore
 	// channelBusinessReader reads durable channel business metadata.
@@ -299,6 +321,10 @@ type operationsManagementDeps struct {
 	dbInspect DBInspectReader
 	// remoteDBInspect runs database inspection on peer nodes.
 	remoteDBInspect RemoteDBInspectReader
+	// opsMCP commits embedded operations MCP desired state.
+	opsMCP OpsMCPStateWriter
+	// opsMCPAudit reads bounded MCP audit summaries.
+	opsMCPAudit OpsMCPAuditReader
 }
 
 // App serves manager management usecases through grouped domain capabilities.
@@ -315,6 +341,8 @@ type App struct {
 	operationsManagementDeps
 	// now returns timestamps for generated manager projections.
 	now func() time.Time
+	// opsMCPMutations serializes rare manager MCP state changes and idempotency replay.
+	opsMCPMutations *opsMCPMutationState
 }
 
 // New constructs the manager management usecase.
@@ -335,7 +363,8 @@ func New(opts Options) *App {
 		},
 		channelManagementDeps: channelManagementDeps{
 			channelRuntimeMeta: opts.ChannelRuntimeMeta, channelMigration: opts.ChannelMigration,
-			channelBusinessReader: opts.ChannelBusinessReader, remoteBusinessChannels: opts.RemoteBusinessChannels,
+			channelRuntimeMetaPoint: opts.ChannelRuntimeMetaPoint,
+			channelBusinessReader:   opts.ChannelBusinessReader, remoteBusinessChannels: opts.RemoteBusinessChannels,
 		},
 		userManagementDeps: userManagementDeps{
 			users: opts.Users, userOperator: opts.UserOperator, userPresence: opts.UserPresence,
@@ -351,8 +380,10 @@ func New(opts Options) *App {
 			slotReplicaMove: opts.SlotReplicaMove, slotRuntimeStatus: opts.SlotRuntimeStatus,
 			controllerRaft: opts.ControllerRaft, controllerTaskAudit: opts.ControllerTaskAudit,
 			applicationLogs: opts.ApplicationLogs, dbInspect: opts.DBInspect, remoteDBInspect: opts.RemoteDBInspect,
+			opsMCP: opts.OpsMCP, opsMCPAudit: opts.OpsMCPAudit,
 		},
-		now: now,
+		now:             now,
+		opsMCPMutations: newOpsMCPMutationState(),
 	}
 }
 

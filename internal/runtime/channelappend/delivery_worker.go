@@ -39,6 +39,8 @@ type RecipientDeliveryWorkerOptions struct {
 	PlanTimeout time.Duration
 	// Observer receives terminal processing failures.
 	Observer AppendObserver
+	// Goroutines receives lifecycle ownership observations.
+	Goroutines *goroutine.Registry
 }
 
 // RecipientDeliveryWorker owns bounded async delivery admission for recipient delivery plans.
@@ -102,6 +104,7 @@ func NewRecipientDeliveryWorker(opts RecipientDeliveryWorkerOptions) *RecipientD
 		workers:     workers,
 		planTimeout: planTimeout,
 		observer:    opts.Observer,
+		goroutines:  opts.Goroutines,
 		state:       recipientDeliveryWorkerClosed,
 	}
 }
@@ -129,12 +132,12 @@ func (w *RecipientDeliveryWorker) Start(context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(w.workers)
 	for i := 0; i < w.workers; i++ {
-		goroutine.SafeGo(w.goroutines, "channelappend", "delivery_worker", func() {
+		goroutine.SafeGo(w.goroutines, goroutine.TaskChannelAppendDeliveryWorker, func() {
 			defer wg.Done()
 			w.runWorker(runCtx, stopReady)
 		})
 	}
-	goroutine.SafeGo(w.goroutines, "channelappend", "delivery_done_wait", func() {
+	goroutine.SafeGo(w.goroutines, goroutine.TaskChannelAppendDeliveryDoneWait, func() {
 		wg.Wait()
 		close(done)
 	})
@@ -176,7 +179,7 @@ func (w *RecipientDeliveryWorker) Stop(ctx context.Context) error {
 	if runCancel != nil {
 		runCancel()
 	}
-	goroutine.SafeGo(w.goroutines, "channelappend", "delivery_admission_wait", func() {
+	goroutine.SafeGo(w.goroutines, goroutine.TaskChannelAppendDeliveryAdmissionWait, func() {
 		w.admissionSenders.Wait()
 		close(stopReady)
 	})

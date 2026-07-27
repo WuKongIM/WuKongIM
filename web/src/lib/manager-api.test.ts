@@ -51,6 +51,9 @@ import {
   getOverview,
   promoteControllerVoter,
   getPermissions,
+  getMCPStatus,
+  createMCPToken,
+  setMCPOwner,
   getWebhookConfig,
   getPluginBindings,
   getSlot,
@@ -266,6 +269,32 @@ describe("manager api client", () => {
       "/manager/permissions",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
+  })
+
+  it("uses revision fences and idempotency keys for MCP administration", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        cluster_id: "cluster-a", revision: 7, enabled: false, observed_status: "stopped",
+        owner_node_id: 0, owner_candidates: [], credentials: [], warnings: [],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        credential_id: "credential-a", token: "wko_credential-a_secret",
+        created_at_unix_ms: 1710000001000, revision: 8,
+      }), { status: 201 }))
+      .mockResolvedValueOnce(new Response('{"accepted":true}', { status: 200 }))
+
+    await getMCPStatus()
+    await createMCPToken({ expectedRevision: 7, idempotencyKey: "create-1" })
+    await setMCPOwner({ ownerNodeId: 2, expectedRevision: 8, idempotencyKey: "owner-1" })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/mcp")
+    const createInit = fetchMock.mock.calls[1]?.[1] as { headers: Headers; body: string }
+    expect(createInit.headers.get("Idempotency-Key")).toBe("create-1")
+    expect(JSON.parse(createInit.body)).toEqual({ expected_revision: 7 })
+    const ownerInit = fetchMock.mock.calls[2]?.[1] as { headers: Headers; body: string; method: string }
+    expect(ownerInit.method).toBe("PUT")
+    expect(ownerInit.headers.get("Idempotency-Key")).toBe("owner-1")
+    expect(JSON.parse(ownerInit.body)).toEqual({ expected_revision: 8, owner_node_id: 2 })
   })
 
   it("fetches webhook config from the manager webhook config endpoint", async () => {

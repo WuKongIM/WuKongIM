@@ -11,6 +11,11 @@ type ChannelRuntimeMetaScanNode interface {
 	ScanChannelRuntimeMetaSlotPage(context.Context, uint32, metadb.ChannelRuntimeMetaCursor, int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error)
 }
 
+// ChannelRuntimeMetaPointNode exposes one routed channel runtime metadata lookup.
+type ChannelRuntimeMetaPointNode interface {
+	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
+}
+
 // ChannelRuntimeMetaReader adapts cluster runtime metadata scans to management usecases.
 type ChannelRuntimeMetaReader struct {
 	node ChannelRuntimeMetaScanNode
@@ -27,4 +32,22 @@ func (r *ChannelRuntimeMetaReader) ScanChannelRuntimeMetaSlotPage(ctx context.Co
 		return nil, after, true, nil
 	}
 	return r.node.ScanChannelRuntimeMetaSlotPage(ctx, slotID, after, limit)
+}
+
+// ChannelRuntimeMetaPointReader adapts one exact cluster metadata lookup.
+type ChannelRuntimeMetaPointReader struct {
+	node ChannelRuntimeMetaPointNode
+}
+
+// NewChannelRuntimeMetaPointReader creates the point-lookup adapter.
+func NewChannelRuntimeMetaPointReader(node ChannelRuntimeMetaPointNode) *ChannelRuntimeMetaPointReader {
+	return &ChannelRuntimeMetaPointReader{node: node}
+}
+
+// GetChannelRuntimeMeta returns one exact channel runtime row.
+func (r *ChannelRuntimeMetaPointReader) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	if r == nil || r.node == nil {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return r.node.GetChannelRuntimeMeta(ctx, channelID, channelType)
 }

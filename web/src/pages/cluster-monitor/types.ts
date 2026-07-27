@@ -66,6 +66,8 @@ export type ClusterMonitorMetricKey =
   | "nodeCpuPercent"
   | "nodeMemoryRSS"
   | "nodeGoroutines"
+  | "goroutineProcessHistory"
+  | "goroutineModuleHistory"
   | "nodeGCPauseRate"
   | "nodeGCRate"
   | "nodeGCCPUFraction"

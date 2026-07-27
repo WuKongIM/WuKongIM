@@ -52,6 +52,11 @@ user management, and system UID projections/actions used by
 `/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
 `/manager/system-users*`.
 
+The package also owns the entry-independent `GoroutineSnapshot` read model used
+between app-local registry projection, node RPC, and Manager HTTP. Access
+adapters depend on this bounded DTO rather than on the concrete
+`pkg/goroutine.Registry` runtime type.
+
 `Options` remains the composition-root facade, while `App` stores its port
 inventory in node, channel, user, message, and operations dependency groups.
 These groups improve construction and navigation; they are not independent
@@ -538,6 +543,31 @@ state, does not decode consensus payloads, and does not resolve file names or
 filesystem paths itself. It validates `node_id` and `limit` bounds, then
 delegates source discovery, cursor handling, rotation detection, filtering, and
 entry parsing to the narrow `ApplicationLogReader` port.
+
+## Operations MCP Administration Flow
+
+```text
+authenticated Manager operator
+  -> read status or revision-fenced mutation
+  -> complete Controller OpsMCP desired-state replacement
+  -> every Manager observes the same owner/enabled/credential metadata
+```
+
+The management usecase generates a 256-bit opaque `wko_*` token, returns it
+only in the successful creation response, and persists only its credential ID,
+SHA-256 digest, and creation time. Token creation, revocation, owner selection,
+start, and stop require an idempotency key and expected Controller revision.
+Creation retries can replay the one-time token from bounded process memory for
+five minutes. At most two tokens may coexist; they do not expire, but status
+marks tokens older than 90 days for rotation.
+
+MCP can start only with an active owner and at least one token. The owner can
+change only while stopped, and the last token cannot be revoked while enabled.
+An owner must also be Controller-alive; status includes a safe eligible-owner
+list so `cluster.mcp:r/w` does not require `cluster.node:r`. Stopping persists
+a 30-second profile transition fence. Status and audit results expose no token
+digest. The audit page is a bounded newest-first aggregate of available
+alive/suspect nodes' local ingress/owner records.
 
 ## Business Channel List Flow
 

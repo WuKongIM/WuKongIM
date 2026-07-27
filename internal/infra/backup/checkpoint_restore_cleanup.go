@@ -3,11 +3,12 @@ package backup
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
-	"golang.org/x/sync/errgroup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const checkpointRestoreCleanupPropagationTimeout = 5 * time.Second
@@ -81,8 +82,11 @@ func (c *CheckpointRestoreActivationCleaner) CleanupRestoreStaging(
 			"backup checkpoint restore activation cleaner: %w", err,
 		)
 	}
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.SetLimit(c.maxParallel)
+	type cleanupJob struct {
+		nodeID  uint64
+		request backupcontract.CheckpointReplicaRequest
+	}
+	cleanupJobs := make([]cleanupJob, 0, int(plan.HashSlotCount)*3)
 	for hashSlot := uint16(0); hashSlot < plan.HashSlotCount; hashSlot++ {
 		partition := plan.Partitions[hashSlot]
 		nodeIDs, nodeErr := placement.nodeIDs(hashSlot)
@@ -106,19 +110,56 @@ func (c *CheckpointRestoreActivationCleaner) CleanupRestoreStaging(
 			checkpointRestoreInstallFenceFromPlan(plan, partition),
 		)
 		for _, nodeID := range nodeIDs {
-			nodeID := nodeID
-			group.Go(func() error {
-				request := backupcontract.CheckpointReplicaRequest{
+			cleanupJobs = append(cleanupJobs, cleanupJob{
+				nodeID: nodeID,
+				request: backupcontract.CheckpointReplicaRequest{
 					Action: backupcontract.CheckpointReplicaCleanup,
 					Fence:  fence,
-				}
-				return c.cleanupReplicaEventually(
-					groupCtx, nodeID, request,
-				)
+				},
 			})
 		}
 	}
-	return group.Wait()
+	runContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+	work := make(chan cleanupJob)
+	workerCount := min(c.maxParallel, len(cleanupJobs))
+	var workers sync.WaitGroup
+	var firstErr error
+	var firstErrOnce sync.Once
+	workers.Add(workerCount)
+	goruntimeregistry.SafeGoN(
+		nil,
+		goruntimeregistry.TaskBackupRestoreCleanupWorker,
+		workerCount,
+		func(_ int) {
+			defer workers.Done()
+			for job := range work {
+				if err := c.cleanupReplicaEventually(
+					runContext, job.nodeID, job.request,
+				); err != nil {
+					firstErrOnce.Do(func() {
+						firstErr = err
+						cancel()
+					})
+					return
+				}
+			}
+		},
+	)
+sendLoop:
+	for _, job := range cleanupJobs {
+		select {
+		case work <- job:
+		case <-runContext.Done():
+			break sendLoop
+		}
+	}
+	close(work)
+	workers.Wait()
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctx.Err()
 }
 
 func (c *CheckpointRestoreActivationCleaner) cleanupReplicaEventually(

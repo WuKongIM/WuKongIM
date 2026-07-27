@@ -139,6 +139,31 @@ func TestAppLogReaderTailAndForwardCursor(t *testing.T) {
 	}
 }
 
+func TestAppLogReaderReturnsContextAroundCursor(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", "one\ntwo\nthree\nfour\nfive\n")
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	cursor := mustAppLogTestCursor(t, dir, int64(len("one\ntwo\nthree\n")))
+
+	result, err := reader.Entries(context.Background(), AppLogEntriesRequest{
+		Source: AppLogSourceApp, Cursor: cursor, Before: 2, After: 1,
+	})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if got := rawAppLogLines(result.Items); !reflect.DeepEqual(got, []string{"two", "three", "four"}) {
+		t.Fatalf("context entries = %v, want [two three four]", got)
+	}
+}
+
+func TestAppLogReaderContextRequiresCursor(t *testing.T) {
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: t.TempDir()})
+	_, err := reader.Entries(context.Background(), AppLogEntriesRequest{Before: 1, After: 1})
+	if !errors.Is(err, ErrAppLogInvalidCursor) {
+		t.Fatalf("Entries() error = %v, want ErrAppLogInvalidCursor", err)
+	}
+}
+
 func TestAppLogReaderDetectsRotation(t *testing.T) {
 	dir := t.TempDir()
 	writeAppLogTestFile(t, dir, "app.log", "old-one\nold-two\n")

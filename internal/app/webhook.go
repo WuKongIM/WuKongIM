@@ -59,6 +59,7 @@ func (a *App) wireWebhook() error {
 		RequestTimeout:      a.cfg.Webhook.RequestTimeout,
 		RetryMaxAttempts:    a.cfg.Webhook.RetryMaxAttempts,
 		FocusEvents:         a.cfg.Webhook.FocusEvents,
+		Goroutines:          a.goroutines,
 	})
 	if err != nil {
 		return fmt.Errorf("internal/app: create webhook runtime: %w", err)

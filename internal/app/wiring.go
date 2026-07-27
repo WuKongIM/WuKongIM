@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	accessops "github.com/WuKongIM/WuKongIM/internal/access/opsmcp"
+	opscontract "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	deliveryinfra "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
@@ -18,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
@@ -25,12 +29,15 @@ import (
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	observe "github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func (a *App) applyConfigDefaults() error {
@@ -176,6 +183,16 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer, &transportMetricsObserver{metrics: a.metrics})
 		clusterCfg.MessageEvent.Observer = combineMessageEventObservers(clusterCfg.MessageEvent.Observer, messageEventMetricsObserver{metrics: a.metrics})
 	}
+	if a.goroutines == nil {
+		a.goroutines = goruntimeregistry.Default()
+	}
+	if a.metrics != nil {
+		prometheus.WrapRegistererWith(prometheus.Labels{
+			"node_id":   fmt.Sprintf("%d", clusterCfg.NodeID),
+			"node_name": fmt.Sprintf("node-%d", clusterCfg.NodeID),
+		}, a.metrics.PrometheusRegistry()).MustRegister(a.goroutines)
+	}
+	clusterCfg.Goroutines = a.goroutines
 	if top != nil && a.cfg.Top.APIEnabled {
 		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, topChannelObserver{top: top})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, topSlotObserver{top: top})
@@ -570,6 +587,18 @@ func (a *App) wireManagerTaskAuditRPC() {
 	registrar.RegisterRPC(accessnode.ManagerTaskAuditRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerTaskAuditRPC))
 }
 
+func (a *App) wireManagerGoroutineRPC() {
+	registrar, ok := a.cluster.(nodeRPCRegistrar)
+	if !ok || a.goroutines == nil {
+		return
+	}
+	adapter := accessnode.New(accessnode.Options{
+		ManagerGoroutines: managerGoroutineLocalReader{registry: a.goroutines},
+		Logger:            a.logger.Named("node"),
+	})
+	registrar.RegisterRPC(accessnode.ManagerGoroutineRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerGoroutineRPC))
+}
+
 func (a *App) wireNodeLifecycleRPC() {
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasRegistrar {
@@ -716,6 +745,7 @@ func (a *App) wireDelivery() {
 			MaxAttempts: defaultDeliveryRetryMaxAttempts,
 			Backoff:     defaultDeliveryRetryBackoff,
 			Observer:    retryObserver,
+			Goroutines:  a.goroutines,
 		})
 		var managerObserver runtimedelivery.ManagerObserver
 		if observer, ok := deliveryObserver.(runtimedelivery.ManagerObserver); ok {
@@ -735,6 +765,7 @@ func (a *App) wireDelivery() {
 			AsyncQueueSize:   a.cfg.Delivery.EventQueueSize,
 			AsyncWorkers:     1,
 			ManagerObserver:  managerObserver,
+			Goroutines:       a.goroutines,
 			AckObserver:      ackObserver,
 			AckBatchObserver: ackBatchObserver,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
@@ -819,10 +850,11 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				})
 				if a.channelAppendDeliveryWorker == nil {
 					a.channelAppendDeliveryWorker = channelappend.NewRecipientDeliveryWorker(channelappend.RecipientDeliveryWorkerOptions{
-						Processor: processor,
-						QueueSize: a.cfg.Delivery.EventQueueSize,
-						Workers:   a.cfg.Delivery.RecipientWorkerConcurrency,
-						Observer:  observer,
+						Processor:  processor,
+						QueueSize:  a.cfg.Delivery.EventQueueSize,
+						Workers:    a.cfg.Delivery.RecipientWorkerConcurrency,
+						Observer:   observer,
+						Goroutines: a.goroutines,
 					})
 				}
 				opts.RecipientDeliveryEnqueuer = a.channelAppendDeliveryWorker
@@ -963,15 +995,24 @@ func (a *App) wireAPI() {
 			DebugConfig:              a.debugConfigSnapshot,
 			DebugCluster:             a.debugClusterSnapshot,
 			Diagnostics:              a,
-			Top:                      a.topProvider,
-			Logger:                   a.logger.Named("access.api"),
+			GoroutineSnapshot: func() any {
+				return a.goroutines.Snapshot()
+			},
+			Top:    a.topProvider,
+			Logger: a.logger.Named("access.api"),
 		})
 	}
 }
 
 func (a *App) wireManager() {
 	if a.manager == nil && strings.TrimSpace(a.cfg.Manager.ListenAddr) != "" {
+		a.ensureOpsMCPCallControl()
 		management := a.newManagerManagement()
+		var opsMCPManagement accessmanager.OpsMCPManagement
+		if candidate, ok := management.(accessmanager.OpsMCPManagement); ok {
+			opsMCPManagement = candidate
+		}
+		a.wireOpsMCP(management)
 		a.manager = accessmanager.New(accessmanager.Options{
 			ListenAddr: a.cfg.Manager.ListenAddr,
 			Auth: accessmanager.AuthConfig{
@@ -982,6 +1023,8 @@ func (a *App) wireManager() {
 				Users:     managerUserConfigs(a.cfg.Manager.Users),
 			},
 			Management:      management,
+			OpsMCP:          opsMCPManagement,
+			OpsMCPHandler:   a.opsMCPEndpoint,
 			RealtimeMonitor: a.newManagerMonitorProvider(management),
 			Top:             a.topProvider,
 			WebhookConfig:   a,
@@ -993,19 +1036,119 @@ func (a *App) wireManager() {
 	}
 }
 
+type opsMCPRPCNode interface {
+	clusterinfra.ManagementNode
+	accessnode.PresenceRPCNode
+}
+
+type opsMCPProfileLeaseRouter struct {
+	localNodeID uint64
+	local       *runtimeops.ProfileAnalyzer
+	remote      *accessnode.Client
+}
+
+func (r opsMCPProfileLeaseRouter) VerifyOpsMCPProfileLease(
+	ctx context.Context,
+	ownerNodeID uint64,
+	request opscontract.ProfileLeaseRequest,
+) error {
+	if ownerNodeID == r.localNodeID {
+		return r.local.AuthorizeProfileLease(ctx, request)
+	}
+	return r.remote.VerifyOpsMCPProfileLease(ctx, ownerNodeID, request)
+}
+
+func (a *App) ensureOpsMCPCallControl() {
+	if a == nil || a.opsMCPCalls != nil {
+		return
+	}
+	a.opsMCPCalls = runtimeops.NewCallControl(runtimeops.CallControlConfig{
+		AuditPath: filepath.Join(a.cfg.Log.Dir, "mcp-audit.jsonl"),
+		Observer:  opsMCPMetrics(a.metrics),
+	})
+}
+
+func opsMCPMetrics(registry *obsmetrics.Registry) runtimeops.CallObserver {
+	if registry == nil {
+		return nil
+	}
+	return registry.OpsMCP
+}
+
+func (a *App) wireOpsMCP(management accessmanager.Management) {
+	if a == nil || a.cfg.Backup.RestoreMode || a.opsMCPEndpoint != nil || management == nil {
+		return
+	}
+	node, hasNode := a.cluster.(opsMCPRPCNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasNode || !hasRegistrar {
+		return
+	}
+	clusterID := strings.TrimSpace(a.cfg.Cluster.Control.ClusterID)
+	if runtime, ok := a.cluster.(startupClusterRuntime); ok {
+		clusterID = strings.TrimSpace(runtime.ClusterID())
+	}
+	state := clusterinfra.NewOpsMCPStateReader(node)
+	client := accessnode.NewClient(node)
+	analyzer := runtimeops.NewProfileAnalyzer(state, client, node.NodeID())
+	profiler := runtimeops.NewProfiler(state, opsMCPProfileLeaseRouter{
+		localNodeID: node.NodeID(), local: analyzer, remote: client,
+	}, node.NodeID())
+	metrics, err := clusterinfra.NewOpsPrometheusReader(managerPrometheusBaseURL(a.cfg.Observability.Prometheus), nil)
+	if err != nil {
+		metrics = nil
+	}
+	inventory, _ := management.(clusterinfra.OpsInventoryReader)
+	tasks, _ := management.(clusterinfra.OpsTaskReader)
+	logs, _ := management.(clusterinfra.OpsLogReader)
+	diagnosticsReader, _ := management.(clusterinfra.OpsDiagnosticsReader)
+	configReader, _ := management.(clusterinfra.OpsConfigReader)
+	source := clusterinfra.NewOpsObservationSource(clusterinfra.OpsObservationSourceConfig{
+		Inventory: inventory, Tasks: tasks, Logs: logs, Diagnostics: diagnosticsReader,
+		Config: configReader, Metrics: metrics, Backup: a.newBackupManagement(), Profiles: analyzer,
+	})
+	service, err := observe.New(observe.Config{ClusterID: clusterID, Source: source})
+	if err != nil {
+		return
+	}
+	endpoint, err := accessops.NewEndpoint(accessops.Config{
+		Verifier: runtimeops.NewNodeVerifier(state, node.NodeID()), Service: service,
+		LocalNodeID: node.NodeID(), Forwarder: client, Calls: a.opsMCPCalls,
+	})
+	if err != nil {
+		return
+	}
+	a.opsMCPEndpoint = endpoint
+	adapter := accessnode.NewOpsMCPRPCAdapterWithServices(endpoint, profiler, a.opsMCPCalls, analyzer)
+	registrar.RegisterRPC(accessnode.OpsMCPRPCServiceID, nodeRPCHandlerFunc(adapter.HandleRPC))
+}
+
 func (a *App) newManagerMonitorProvider(control managerClusterControlReader) accessmanager.RealtimeMonitorProvider {
 	prometheusBaseURL := managerPrometheusBaseURL(a.cfg.Observability.Prometheus)
 	nodeID := a.cfg.NodeID
 	if nodeID == 0 {
 		nodeID = a.cfg.Cluster.NodeID
 	}
-	return newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+	base := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
 		Enabled:  a.cfg.Observability.MetricsEnabled && strings.TrimSpace(prometheusBaseURL) != "",
 		BaseURL:  prometheusBaseURL,
 		NodeID:   nodeID,
 		NodeName: fmt.Sprintf("node-%d", nodeID),
 		Control:  control,
 	})
+	var remote managerGoroutineSnapshotReader
+	if node, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
+		remote = accessnode.NewClient(node)
+	}
+	return &managerRealtimeMonitorProvider{
+		base: base,
+		goroutines: &managerGoroutineMonitor{
+			localNodeID: nodeID,
+			registry:    a.goroutines,
+			control:     control,
+			remote:      remote,
+		},
+	}
 }
 
 func managerPrometheusBaseURL(cfg PrometheusConfig) string {
@@ -1056,6 +1199,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaScanNode); ok {
 			opts.ChannelRuntimeMeta = clusterinfra.NewChannelRuntimeMetaReader(runtimeNode)
+		}
+		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaPointNode); ok {
+			opts.ChannelRuntimeMetaPoint = clusterinfra.NewChannelRuntimeMetaPointReader(runtimeNode)
 		}
 		if migrationNode, ok := a.cluster.(clusterinfra.ChannelMigrationStoreNode); ok {
 			opts.ChannelMigration = clusterinfra.NewChannelMigrationStore(migrationNode)
@@ -1145,6 +1291,14 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.ControllerVoterReadiness = lifecycleClient
 			opts.ControllerVoterPreparer = lifecycleClient
 		}
+		if opsMCPNode, ok := a.cluster.(clusterinfra.ManagementOpsMCPNode); ok {
+			opts.OpsMCP = clusterinfra.NewManagementOpsMCPWriter(opsMCPNode)
+		}
+		if auditNode, ok := a.cluster.(clusterinfra.ManagementOpsMCPAuditNode); ok {
+			opts.OpsMCPAudit = clusterinfra.NewManagementOpsMCPAuditReader(auditNode, a.opsMCPCalls)
+		} else {
+			opts.OpsMCPAudit = a.opsMCPCalls
+		}
 		return managementusecase.New(opts)
 	}
 	return nil
@@ -1202,10 +1356,14 @@ func (a *App) wireGateway(nodeID uint64) error {
 			Authenticator:  gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{NodeID: nodeID}),
 			Listeners:      a.cfg.Gateway.Listeners,
 			DefaultSession: a.cfg.Gateway.Session,
-			Runtime:        a.cfg.Gateway.Runtime,
-			Transport:      a.cfg.Gateway.Transport,
-			Observer:       a.gatewayObserver(),
-			Logger:         a.logger.Named("gateway"),
+			Runtime: func() gateway.RuntimeOptions {
+				runtimeOptions := a.cfg.Gateway.Runtime
+				runtimeOptions.Goroutines = a.goroutines
+				return runtimeOptions
+			}(),
+			Transport: a.cfg.Gateway.Transport,
+			Observer:  a.gatewayObserver(),
+			Logger:    a.logger.Named("gateway"),
 		})
 		if err != nil {
 			return err

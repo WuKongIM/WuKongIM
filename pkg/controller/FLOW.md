@@ -106,6 +106,22 @@ bounded `NodeHealthReport` per node. It updates durable health evidence and
 heartbeat churn. Consumers that need health freshness compare report age against
 the configured TTL instead of interpreting membership `JoinState` as liveness.
 
+### Operations MCP Desired State
+
+`OpsMCPState` is an optional, low-frequency section of
+`cluster-state.json`. It stores only the enabled flag, one active execution
+owner, and at most two credential records containing an identifier, SHA-256
+digest, and creation time. A low-frequency profile fence timestamp is written
+only on an administrative stop so a newly selected owner cannot overlap a
+maximum-duration capture from the prior owner generation. Raw `wko_*` tokens,
+per-request limits, audits, caches, and profiles never enter Controller Raft.
+
+`ReplaceOpsMCPState` replaces the complete section through the normal global
+`Revision` fence. Validation requires the owner to be an active cluster node
+before enabling and requires at least one credential. The owner cannot change
+while MCP is enabled, so ingress routing and owner-side token revalidation use
+one unambiguous durable revision.
+
 ### Backup Coordination State
 
 `BackupCoordinationState` is an optional bounded section of `cluster-state.json`.

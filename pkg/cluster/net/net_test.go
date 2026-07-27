@@ -103,6 +103,45 @@ func TestTransportLoopbackRPC(t *testing.T) {
 	}
 }
 
+func TestTransportLoopbackMissingServiceReturnsTypedError(t *testing.T) {
+	const missingServiceID uint8 = 250
+	server := NewTransportServer(TransportServerConfig{})
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	discovery := NewDiscovery()
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1})
+	defer client.Stop()
+
+	_, err := client.Call(context.Background(), 2, missingServiceID, nil)
+	if !errors.Is(err, ErrServiceNotFound) {
+		t.Fatalf("Call() error = %v, want ErrServiceNotFound", err)
+	}
+}
+
+func TestTranslateTransportCallErrorSupportsLegacyMissingService(t *testing.T) {
+	const serviceID uint8 = 250
+	legacy := transport.RemoteError{
+		Code:    transport.RemoteErrorCodeGeneric,
+		Message: "transport: service 250 not found",
+	}
+	err := translateTransportCallError(2, serviceID, legacy)
+	if !errors.Is(err, ErrServiceNotFound) {
+		t.Fatalf("legacy error = %v, want ErrServiceNotFound", err)
+	}
+
+	unrelated := transport.RemoteError{
+		Code:    transport.RemoteErrorCodeGeneric,
+		Message: "transport: service 249 not found",
+	}
+	if err := translateTransportCallError(2, serviceID, unrelated); errors.Is(err, ErrServiceNotFound) {
+		t.Fatalf("unrelated service error = %v, do not want ErrServiceNotFound", err)
+	}
+}
+
 func TestTransportLoopbackCallOwnedReleasesPayload(t *testing.T) {
 	server := NewTransportServer(TransportServerConfig{})
 	server.Register(RPCSlotForwardPropose, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
