@@ -102,6 +102,12 @@ type CaptureLeaseSnapshot struct {
 	LeaseSequence uint64
 	// FrontierRevision exposes monotonic lease and stream-head commits.
 	FrontierRevision uint64
+	// LastPromotionPreviousGeneration and LastPromotionReason prove why the
+	// current Generation durably replaced its immediate predecessor.
+	LastPromotionPreviousGeneration string
+	LastPromotionReason             string
+	// LastPromotionAtUnixMillis is the durable promotion commit time.
+	LastPromotionAtUnixMillis int64
 	// MetadataSourceWatermark and MessageSourceWatermark are durable source positions.
 	MetadataSourceWatermark uint64
 	MessageSourceWatermark  uint64

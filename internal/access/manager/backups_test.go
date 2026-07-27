@@ -36,6 +36,9 @@ func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
 			HashSlot: 17, SlotID: 3, SourceSlotID: 2,
 			HolderNodeID: 2, LeaderTerm: 11, ConfigEpoch: 5,
 			Generation: "slot-generation-1", LeaseSequence: 4,
+			LastPromotionPreviousGeneration: "slot-generation-0",
+			LastPromotionReason:             "audit_corruption",
+			LastPromotionAtUnixMillis:       123,
 		}},
 	}}
 	srv := New(Options{Backup: provider})
@@ -50,6 +53,13 @@ func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
 	require.Equal(t, float64(42), decoded["checkpoint_age_seconds"])
 	require.Equal(t, "checkpoint-2",
 		decoded["latest_checkpoint"].(map[string]any)["id"])
+	lease := decoded["capture_leases"].([]any)[0].(map[string]any)
+	require.Equal(
+		t, "slot-generation-0",
+		lease["last_promotion_previous_generation"],
+	)
+	require.Equal(t, "audit_corruption", lease["last_promotion_reason"])
+	require.Equal(t, float64(123), lease["last_promotion_at_unix_millis"])
 	for _, removed := range []string{
 		"active", "latest", "verification", "dependencies", "capacity",
 		"recovery_point_age_seconds", "verification_age_seconds",

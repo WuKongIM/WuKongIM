@@ -256,8 +256,20 @@ func (r *OSSRepository) Open(
 	if err != nil {
 		return nil, backupartifact.RepositoryObject{}, err
 	}
-	output, err := r.client.GetObject(ctx, &oss.GetObjectRequest{
+	head, err := r.client.HeadObject(ctx, &oss.HeadObjectRequest{
 		Bucket: ossString(r.bucket), Key: ossString(fullKey),
+	})
+	if err != nil {
+		return nil, backupartifact.RepositoryObject{}, mapOSSError(err)
+	}
+	object, err := ossRepositoryObject(key, head)
+	if err != nil {
+		return nil, backupartifact.RepositoryObject{}, err
+	}
+	output, err := r.client.GetObject(ctx, &oss.GetObjectRequest{
+		Bucket:    ossString(r.bucket),
+		Key:       ossString(fullKey),
+		VersionId: head.VersionId,
 	})
 	if err != nil {
 		return nil, backupartifact.RepositoryObject{}, mapOSSError(err)
@@ -267,10 +279,13 @@ func (r *OSSRepository) Open(
 			"%w: OSS object body is missing", backupartifact.ErrObjectCorrupt,
 		)
 	}
-	object, err := ossRepositoryObjectFromValues(key, output.ContentLength, output.Metadata)
-	if err != nil {
+	if head.VersionId != nil &&
+		(output.VersionId == nil || *output.VersionId != *head.VersionId) {
 		_ = output.Body.Close()
-		return nil, backupartifact.RepositoryObject{}, err
+		return nil, backupartifact.RepositoryObject{}, fmt.Errorf(
+			"%w: OSS object version changed during open",
+			backupartifact.ErrObjectCorrupt,
+		)
 	}
 	return newOSSVerifyingReadCloser(output.Body, object), object, nil
 }
@@ -866,7 +881,11 @@ func (r *ossVerifyingReadCloser) Read(buffer []byte) (int, error) {
 		r.checked = true
 		actual := hex.EncodeToString(r.hash.Sum(nil))
 		if r.read != r.expected.Size || actual != r.expected.SHA256 {
-			return n, fmt.Errorf("%w: OSS object body checksum mismatch", backupartifact.ErrObjectCorrupt)
+			return n, fmt.Errorf(
+				"%w: OSS object body checksum mismatch: size=%d/%d sha256=%s/%s",
+				backupartifact.ErrObjectCorrupt,
+				r.read, r.expected.Size, actual, r.expected.SHA256,
+			)
 		}
 	}
 	return n, err

@@ -7,15 +7,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
 func TestBackupE2ERemoteLatencyIsBounded(t *testing.T) {
@@ -76,21 +79,23 @@ func TestBackupE2ECorruptionTriggerIsScopedAndBounded(t *testing.T) {
 		t.Fatalf("write one-shot trigger: %v", err)
 	}
 	const segmentKey = "segments/id/payloads/digest.bin"
-	if wrapped.consumeCorruptionTrigger("catalog/page.json") {
+	if wrapped.consumeCorruptionTrigger(
+		context.Background(), "catalog/page.json",
+	) {
 		t.Fatal("corruption trigger applied to a non-segment object")
 	}
-	if !wrapped.consumeCorruptionTrigger(segmentKey) {
+	if !wrapped.consumeCorruptionTrigger(context.Background(), segmentKey) {
 		t.Fatal("one-shot segment corruption did not activate")
 	}
-	if wrapped.consumeCorruptionTrigger(segmentKey) {
+	if wrapped.consumeCorruptionTrigger(context.Background(), segmentKey) {
 		t.Fatal("one-shot segment corruption activated twice")
 	}
 
 	if err := os.WriteFile(trigger, []byte("persistent"), 0o600); err != nil {
 		t.Fatalf("write persistent trigger: %v", err)
 	}
-	if !wrapped.consumeCorruptionTrigger(segmentKey) ||
-		!wrapped.consumeCorruptionTrigger(segmentKey) {
+	if !wrapped.consumeCorruptionTrigger(context.Background(), segmentKey) ||
+		!wrapped.consumeCorruptionTrigger(context.Background(), segmentKey) {
 		t.Fatal("persistent segment corruption was not retained")
 	}
 
@@ -101,16 +106,76 @@ func TestBackupE2ECorruptionTriggerIsScopedAndBounded(t *testing.T) {
 	if err := os.Remove(stickyKey); err != nil && !os.IsNotExist(err) {
 		t.Fatalf("clear sticky key: %v", err)
 	}
-	if !wrapped.consumeCorruptionTrigger(segmentKey) {
+	if !wrapped.consumeCorruptionTrigger(context.Background(), segmentKey) {
 		t.Fatal("sticky segment corruption did not select its first key")
 	}
 	if wrapped.consumeCorruptionTrigger(
-		"segments/other/payloads/digest.bin",
+		context.Background(), "segments/other/payloads/digest.bin",
 	) {
 		t.Fatal("sticky segment corruption spread to a second key")
 	}
-	if !wrapped.consumeCorruptionTrigger(segmentKey) {
+	if !wrapped.consumeCorruptionTrigger(context.Background(), segmentKey) {
 		t.Fatal("sticky segment corruption did not retain its selected key")
+	}
+}
+
+func TestBackupE2ECorruptionTriggerSelectsExactHashSlot(t *testing.T) {
+	root := t.TempDir()
+	repository, err := backupinfra.NewFileRepository(
+		"primary", filepath.Join(root, "repository"),
+	)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+	faultDir := filepath.Join(root, "faults")
+	if err := os.MkdirAll(faultDir, 0o700); err != nil {
+		t.Fatalf("make fault directory: %v", err)
+	}
+	wrapped := &backupE2EDelayedRepository{
+		appBackupRepository: repository,
+		corruptionDir:       faultDir,
+	}
+	putCommit := func(segmentID string, hashSlot uint16) string {
+		t.Helper()
+		body, marshalErr := json.Marshal(backupartifact.SegmentCommit{
+			SegmentID: segmentID,
+			Header: backupartifact.SegmentHeader{
+				Logical: backupartifact.SegmentLogicalDescriptor{
+					HashSlot: hashSlot,
+				},
+			},
+		})
+		if marshalErr != nil {
+			t.Fatalf("marshal segment commit: %v", marshalErr)
+		}
+		digest := sha256.Sum256(body)
+		if putErr := repository.PutImmutable(
+			context.Background(),
+			"segments/"+segmentID+"/commit.json",
+			int64(len(body)), hex.EncodeToString(digest[:]),
+			bytes.NewReader(body),
+		); putErr != nil {
+			t.Fatalf("put segment commit: %v", putErr)
+		}
+		return "segments/" + segmentID + "/payloads/digest.bin"
+	}
+	slotSevenKey := putCommit(strings.Repeat("7", 64), 7)
+	slotEightKey := putCommit(strings.Repeat("8", 64), 8)
+	trigger := filepath.Join(faultDir, "primary.corrupt")
+	if err := os.WriteFile(
+		trigger, []byte("sticky-slot:7"), 0o600,
+	); err != nil {
+		t.Fatalf("write exact-Slot trigger: %v", err)
+	}
+	if wrapped.consumeCorruptionTrigger(
+		context.Background(), slotEightKey,
+	) {
+		t.Fatal("exact-Slot trigger selected a different Hash Slot")
+	}
+	if !wrapped.consumeCorruptionTrigger(
+		context.Background(), slotSevenKey,
+	) {
+		t.Fatal("exact-Slot trigger did not select the requested Hash Slot")
 	}
 }
 

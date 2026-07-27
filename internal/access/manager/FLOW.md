@@ -549,7 +549,9 @@ bounded checkpoint endpoint with an explicit `held` boolean.
 Backup status also exposes at most one sanitized durable capture lease per Hash
 Slot: Slot/holder identity, leader and config epochs, Generation, monotonic
 lease/frontier revisions, watermarks, takeover/update times, and the durable
-source-pin age origin used by the hard policy. It never
+source-pin age origin used by the hard policy. The bounded previous Generation,
+promotion reason, and promotion time make the exact rebase cause observable
+without exposing a segment or repository coordinate. It never
 exposes segment references or source cursors, so a three-node black-box test can
 observe takeover without reading node databases.
 A disabled backup still returns an explicit disabled status through the app

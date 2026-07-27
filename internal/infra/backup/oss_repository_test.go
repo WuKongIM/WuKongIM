@@ -139,6 +139,7 @@ func TestOSSRepositoryOpenDetectsBodyCorruption(t *testing.T) {
 	object := client.objects["prod/cluster-a/"+key]
 	object.body = []byte("damaged")
 	client.objects["prod/cluster-a/"+key] = object
+	client.versions["prod/cluster-a/"+key][0] = object
 	reader, _, err := repository.Open(context.Background(), key)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
@@ -147,6 +148,42 @@ func TestOSSRepositoryOpenDetectsBodyCorruption(t *testing.T) {
 	_ = reader.Close()
 	if !errors.Is(err, backupartifact.ErrObjectCorrupt) {
 		t.Fatalf("ReadAll() error = %v, want ErrObjectCorrupt", err)
+	}
+}
+
+func TestOSSRepositoryOpenUsesHeadMetadataAndPinsCurrentVersion(t *testing.T) {
+	client := &fakeOSSClient{omitGetContentLength: true}
+	repository, err := NewOSSRepository(OSSRepositoryOptions{
+		Name: "primary", Bucket: "backup-primary", Prefix: "prod/cluster-a",
+		ObjectLockDays: 7, Client: client,
+	})
+	if err != nil {
+		t.Fatalf("NewOSSRepository() error = %v", err)
+	}
+	body := []byte("healthy without GET Content-Length")
+	digest := sha256.Sum256(body)
+	key := "objects/job/00001/head-metadata.bin"
+	if err := repository.PutImmutable(
+		context.Background(), key, int64(len(body)),
+		hex.EncodeToString(digest[:]), bytes.NewReader(body),
+	); err != nil {
+		t.Fatalf("PutImmutable() error = %v", err)
+	}
+	reader, object, err := repository.Open(context.Background(), key)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	loaded, readErr := io.ReadAll(reader)
+	closeErr := reader.Close()
+	if readErr != nil || closeErr != nil {
+		t.Fatalf("read/close error = %v/%v", readErr, closeErr)
+	}
+	if !bytes.Equal(loaded, body) || object.Size != int64(len(body)) {
+		t.Fatalf("loaded/object = %q/%+v", loaded, object)
+	}
+	if client.lastGet == nil ||
+		derefOSSTest(client.lastGet.VersionId) != "version-1" {
+		t.Fatalf("GetObject version = %+v, want version-1", client.lastGet)
 	}
 }
 
@@ -265,19 +302,21 @@ type fakeOSSVersion struct {
 }
 
 type fakeOSSClient struct {
-	objects          map[string]fakeOSSVersion
-	versions         map[string][]fakeOSSVersion
-	putCalls         int
-	lastPut          *oss.PutObjectRequest
-	versioning       string
-	wormMode         string
-	wormDays         int32
-	deleteErr        error
-	deleteVersionErr error
-	deleteCalls      int
-	listVersionCalls int
-	deleteMarkers    map[string][]string
-	lastDelete       *oss.DeleteObjectRequest
+	objects              map[string]fakeOSSVersion
+	versions             map[string][]fakeOSSVersion
+	putCalls             int
+	lastPut              *oss.PutObjectRequest
+	versioning           string
+	wormMode             string
+	wormDays             int32
+	deleteErr            error
+	deleteVersionErr     error
+	deleteCalls          int
+	listVersionCalls     int
+	deleteMarkers        map[string][]string
+	lastDelete           *oss.DeleteObjectRequest
+	lastGet              *oss.GetObjectRequest
+	omitGetContentLength bool
 }
 
 func (f *fakeOSSClient) ensureDefaults() {
@@ -352,12 +391,32 @@ func (f *fakeOSSClient) GetObject(
 	_ ...func(*oss.Options),
 ) (*oss.GetObjectResult, error) {
 	f.ensureDefaults()
+	f.lastGet = input
 	version, ok := f.objects[derefOSSTest(input.Key)]
 	if !ok {
 		return nil, &oss.ServiceError{Code: "NoSuchKey", StatusCode: 404}
 	}
+	if versionID := derefOSSTest(input.VersionId); versionID != "" {
+		ok = false
+		for _, candidate := range f.versions[derefOSSTest(input.Key)] {
+			if candidate.versionID == versionID {
+				version = candidate
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return nil, &oss.ServiceError{
+				Code: "NoSuchVersion", StatusCode: 404,
+			}
+		}
+	}
+	contentLength := int64(len(version.body))
+	if f.omitGetContentLength {
+		contentLength = 0
+	}
 	return &oss.GetObjectResult{
-		ContentLength: int64(len(version.body)),
+		ContentLength: contentLength,
 		Metadata: map[string]string{
 			ossChecksumMetadataKey: version.checksum,
 		},

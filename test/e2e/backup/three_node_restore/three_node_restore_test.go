@@ -31,14 +31,17 @@ type backupStatus struct {
 	FailureCategory  string      `json:"failure_category"`
 	LatestCheckpoint *checkpoint `json:"latest_checkpoint"`
 	CaptureLeases    []struct {
-		HashSlot                  uint16 `json:"hash_slot"`
-		HolderNodeID              uint64 `json:"holder_node_id"`
-		Generation                string `json:"generation"`
-		LeaseSequence             uint64 `json:"lease_sequence"`
-		FrontierRevision          uint64 `json:"frontier_revision"`
-		MetadataSourceWatermark   uint64 `json:"metadata_source_watermark"`
-		MessageSourceWatermark    uint64 `json:"message_source_watermark"`
-		FrontierUpdatedUnixMillis int64  `json:"frontier_updated_unix_millis"`
+		HashSlot                        uint16 `json:"hash_slot"`
+		HolderNodeID                    uint64 `json:"holder_node_id"`
+		Generation                      string `json:"generation"`
+		LeaseSequence                   uint64 `json:"lease_sequence"`
+		FrontierRevision                uint64 `json:"frontier_revision"`
+		LastPromotionPreviousGeneration string `json:"last_promotion_previous_generation"`
+		LastPromotionReason             string `json:"last_promotion_reason"`
+		LastPromotionAtUnixMillis       int64  `json:"last_promotion_at_unix_millis"`
+		MetadataSourceWatermark         uint64 `json:"metadata_source_watermark"`
+		MessageSourceWatermark          uint64 `json:"message_source_watermark"`
+		FrontierUpdatedUnixMillis       int64  `json:"frontier_updated_unix_millis"`
 	} `json:"capture_leases"`
 	CaptureStatuses []backupCaptureStatus `json:"local_capture_statuses"`
 }
@@ -730,6 +733,8 @@ func exerciseRepositoryIntegrityRepair(
 		t, cluster, token, frontiers,
 		[]uint16{hashSlot}, []uint16{hashSlot}, 20*time.Second,
 	)
+	frontiers = backupDurableFrontiers(t, cluster, token)
+	previousFrontier := frontiers[hashSlot]
 	beforeRebases := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
 		map[string]string{
@@ -737,18 +742,24 @@ func exerciseRepositoryIntegrityRepair(
 		},
 	)
 	allRepositoriesTrigger := setRepositoryCorruption(
-		t, root, "all", "sticky",
+		t, root, "all", fmt.Sprintf("sticky-slot:%d", hashSlot),
 	)
-	// Arm corruption before advancing the catalog root so the audit cursor
-	// cannot race past the newly published immutable object graph.
+	// Pin both repository reads to one payload in the exact affected Hash Slot.
 	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
-	waitForBackupMetricIncrease(
+	replacement := waitForDurableGenerationReplacement(
+		t, cluster, token, hashSlot, previousFrontier, 60*time.Second,
+	)
+	if observed := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
 		map[string]string{
 			"reason": "audit_corruption", "outcome": "success",
 		},
-		beforeRebases, 60*time.Second,
-	)
+	); observed <= beforeRebases {
+		t.Logf(
+			"durable audit-corruption rebase completed without a scrape-visible process counter: Slot=%d generation=%s revision=%d",
+			hashSlot, replacement.generation, replacement.revision,
+		)
+	}
 	clearRepositoryCorruption(t, allRepositoriesTrigger)
 	waitForBackupHealthy(t, cluster, token, 60*time.Second)
 }
@@ -1819,13 +1830,16 @@ func publishCheckpointEventually(
 }
 
 type backupDurableFrontier struct {
-	generation string
-	holder     uint64
-	lease      uint64
-	revision   uint64
-	metadata   uint64
-	messages   uint64
-	updated    int64
+	generation                      string
+	holder                          uint64
+	lease                           uint64
+	revision                        uint64
+	lastPromotionPreviousGeneration string
+	lastPromotionReason             string
+	lastPromotionAtUnixMillis       int64
+	metadata                        uint64
+	messages                        uint64
+	updated                         int64
 }
 
 func backupDurableFrontiers(
@@ -1844,17 +1858,86 @@ func backupDurableFrontiers(
 	)
 	for _, lease := range status.CaptureLeases {
 		result[lease.HashSlot] = backupDurableFrontier{
-			generation: lease.Generation,
-			holder:     lease.HolderNodeID,
-			lease:      lease.LeaseSequence,
-			revision:   lease.FrontierRevision,
-			metadata:   lease.MetadataSourceWatermark,
-			messages:   lease.MessageSourceWatermark,
-			updated:    lease.FrontierUpdatedUnixMillis,
+			generation:                      lease.Generation,
+			holder:                          lease.HolderNodeID,
+			lease:                           lease.LeaseSequence,
+			revision:                        lease.FrontierRevision,
+			lastPromotionPreviousGeneration: lease.LastPromotionPreviousGeneration,
+			lastPromotionReason:             lease.LastPromotionReason,
+			lastPromotionAtUnixMillis:       lease.LastPromotionAtUnixMillis,
+			metadata:                        lease.MetadataSourceWatermark,
+			messages:                        lease.MessageSourceWatermark,
+			updated:                         lease.FrontierUpdatedUnixMillis,
 		}
 	}
 	require.Len(t, result, 16)
 	return result
+}
+
+func waitForDurableGenerationReplacement(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	hashSlot uint16,
+	previous backupDurableFrontier,
+	timeout time.Duration,
+) backupDurableFrontier {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last backupDurableFrontier
+	var lastStatus backupStatus
+	var lastErr error
+	for time.Now().Before(deadline) {
+		var status backupStatus
+		lastErr = managerRequestError(
+			cluster, token, http.MethodGet, "/manager/backups/status",
+			nil, &status,
+		)
+		if lastErr == nil {
+			lastStatus = status
+			for _, lease := range status.CaptureLeases {
+				if lease.HashSlot != hashSlot {
+					continue
+				}
+				last = backupDurableFrontier{
+					generation:                      lease.Generation,
+					holder:                          lease.HolderNodeID,
+					lease:                           lease.LeaseSequence,
+					revision:                        lease.FrontierRevision,
+					lastPromotionPreviousGeneration: lease.LastPromotionPreviousGeneration,
+					lastPromotionReason:             lease.LastPromotionReason,
+					lastPromotionAtUnixMillis:       lease.LastPromotionAtUnixMillis,
+					metadata:                        lease.MetadataSourceWatermark,
+					messages:                        lease.MessageSourceWatermark,
+					updated:                         lease.FrontierUpdatedUnixMillis,
+				}
+				if backupDurableGenerationReplaced(previous, last) {
+					return last
+				}
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"Hash Slot %d did not durably replace generation after dual repository corruption: previous=%+v last=%+v status=%+v err=%v\n%s",
+		hashSlot, previous, last, lastStatus, lastErr,
+		cluster.DumpDiagnostics(),
+	)
+	return backupDurableFrontier{}
+}
+
+func backupDurableGenerationReplaced(
+	previous backupDurableFrontier,
+	current backupDurableFrontier,
+) bool {
+	return previous.generation != "" &&
+		current.generation != "" &&
+		current.generation != previous.generation &&
+		current.revision > previous.revision &&
+		current.holder != 0 &&
+		current.lastPromotionPreviousGeneration == previous.generation &&
+		current.lastPromotionReason == "audit_corruption" &&
+		current.lastPromotionAtUnixMillis > 0
 }
 
 func waitForDurableFrontiers(
@@ -1897,13 +1980,16 @@ func waitForDurableFrontiers(
 			)
 			for _, lease := range status.CaptureLeases {
 				last[lease.HashSlot] = backupDurableFrontier{
-					generation: lease.Generation,
-					holder:     lease.HolderNodeID,
-					lease:      lease.LeaseSequence,
-					revision:   lease.FrontierRevision,
-					metadata:   lease.MetadataSourceWatermark,
-					messages:   lease.MessageSourceWatermark,
-					updated:    lease.FrontierUpdatedUnixMillis,
+					generation:                      lease.Generation,
+					holder:                          lease.HolderNodeID,
+					lease:                           lease.LeaseSequence,
+					revision:                        lease.FrontierRevision,
+					lastPromotionPreviousGeneration: lease.LastPromotionPreviousGeneration,
+					lastPromotionReason:             lease.LastPromotionReason,
+					lastPromotionAtUnixMillis:       lease.LastPromotionAtUnixMillis,
+					metadata:                        lease.MetadataSourceWatermark,
+					messages:                        lease.MessageSourceWatermark,
+					updated:                         lease.FrontierUpdatedUnixMillis,
 				}
 			}
 			advanced := true
@@ -1992,8 +2078,12 @@ func TestBackupDurableFrontierAdvancedAcrossGenerationReplacement(
 		metadata: 41, messages: 9,
 	}
 	replaced := backupDurableFrontier{
-		generation: "generation-2", revision: 8,
+		generation: "generation-2", holder: 2, revision: 8,
+		lastPromotionPreviousGeneration: "generation-1",
+		lastPromotionReason:             "audit_corruption",
+		lastPromotionAtUnixMillis:       1,
 	}
+	require.True(t, backupDurableGenerationReplaced(previous, replaced))
 	require.True(t, backupDurableFrontierAdvanced(
 		previous, replaced, true,
 	))
@@ -2001,6 +2091,7 @@ func TestBackupDurableFrontierAdvancedAcrossGenerationReplacement(
 		previous, replaced, false,
 	))
 	replaced.revision = previous.revision
+	require.False(t, backupDurableGenerationReplaced(previous, replaced))
 	require.False(t, backupDurableFrontierAdvanced(
 		previous, replaced, false,
 	))

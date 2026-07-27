@@ -31,6 +31,11 @@ func TestAppStatusUsesOnlyContinuousCoordinationState(t *testing.T) {
 			},
 			Metadata: backupusecase.StreamFrontier{SourceHighWatermark: 11},
 			Messages: backupusecase.StreamFrontier{SourceHighWatermark: 12},
+			LastPromotion: &backupcontract.SlotGenerationPromotion{
+				PreviousGeneration:   "generation-6",
+				Reason:               backupcontract.RebaseReasonAuditCorruption,
+				PromotedAtUnixMillis: 1_753_056_299_000,
+			},
 		}},
 	}}
 	app, err := backupusecase.NewApp(backupusecase.Options{
@@ -49,6 +54,18 @@ func TestAppStatusUsesOnlyContinuousCoordinationState(t *testing.T) {
 	require.Len(t, status.CaptureLeases, 1)
 	require.Equal(t, uint16(7), status.CaptureLeases[0].HashSlot)
 	require.Equal(t, uint64(12), status.CaptureLeases[0].MessageSourceWatermark)
+	require.Equal(
+		t, "generation-6",
+		status.CaptureLeases[0].LastPromotionPreviousGeneration,
+	)
+	require.Equal(
+		t, backupcontract.RebaseReasonAuditCorruption,
+		status.CaptureLeases[0].LastPromotionReason,
+	)
+	require.Equal(
+		t, int64(1_753_056_299_000),
+		status.CaptureLeases[0].LastPromotionAtUnixMillis,
+	)
 }
 
 func TestAppDisabledStatusDoesNotReadState(t *testing.T) {

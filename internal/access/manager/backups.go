@@ -54,20 +54,23 @@ type backupErasureStreamDTO struct {
 }
 
 type backupCaptureLeaseDTO struct {
-	HashSlot                     uint16 `json:"hash_slot"`
-	SlotID                       uint32 `json:"slot_id"`
-	SourceSlotID                 uint32 `json:"source_slot_id"`
-	HolderNodeID                 uint64 `json:"holder_node_id"`
-	LeaderTerm                   uint64 `json:"leader_term"`
-	ConfigEpoch                  uint64 `json:"config_epoch"`
-	Generation                   string `json:"generation"`
-	LeaseSequence                uint64 `json:"lease_sequence"`
-	FrontierRevision             uint64 `json:"frontier_revision"`
-	MetadataSourceWatermark      uint64 `json:"metadata_source_watermark"`
-	MessageSourceWatermark       uint64 `json:"message_source_watermark"`
-	AcquiredAtUnixMillis         int64  `json:"acquired_at_unix_millis"`
-	SourcePinStartedAtUnixMillis int64  `json:"source_pin_started_at_unix_millis"`
-	FrontierUpdatedUnixMillis    int64  `json:"frontier_updated_unix_millis"`
+	HashSlot                        uint16 `json:"hash_slot"`
+	SlotID                          uint32 `json:"slot_id"`
+	SourceSlotID                    uint32 `json:"source_slot_id"`
+	HolderNodeID                    uint64 `json:"holder_node_id"`
+	LeaderTerm                      uint64 `json:"leader_term"`
+	ConfigEpoch                     uint64 `json:"config_epoch"`
+	Generation                      string `json:"generation"`
+	LeaseSequence                   uint64 `json:"lease_sequence"`
+	FrontierRevision                uint64 `json:"frontier_revision"`
+	LastPromotionPreviousGeneration string `json:"last_promotion_previous_generation,omitempty"`
+	LastPromotionReason             string `json:"last_promotion_reason,omitempty"`
+	LastPromotionAtUnixMillis       int64  `json:"last_promotion_at_unix_millis,omitempty"`
+	MetadataSourceWatermark         uint64 `json:"metadata_source_watermark"`
+	MessageSourceWatermark          uint64 `json:"message_source_watermark"`
+	AcquiredAtUnixMillis            int64  `json:"acquired_at_unix_millis"`
+	SourcePinStartedAtUnixMillis    int64  `json:"source_pin_started_at_unix_millis"`
+	FrontierUpdatedUnixMillis       int64  `json:"frontier_updated_unix_millis"`
 }
 
 type backupCaptureStatusDTO struct {
@@ -341,11 +344,14 @@ func backupCaptureLeaseResponses(leases []backupusecase.CaptureLeaseSnapshot) []
 			HolderNodeID: lease.HolderNodeID, LeaderTerm: lease.LeaderTerm,
 			ConfigEpoch: lease.ConfigEpoch, Generation: lease.Generation,
 			LeaseSequence: lease.LeaseSequence, FrontierRevision: lease.FrontierRevision,
-			MetadataSourceWatermark:      lease.MetadataSourceWatermark,
-			MessageSourceWatermark:       lease.MessageSourceWatermark,
-			AcquiredAtUnixMillis:         lease.AcquiredAtUnixMillis,
-			SourcePinStartedAtUnixMillis: lease.SourcePinStartedAtUnixMillis,
-			FrontierUpdatedUnixMillis:    lease.FrontierUpdatedUnixMillis,
+			LastPromotionPreviousGeneration: lease.LastPromotionPreviousGeneration,
+			LastPromotionReason:             lease.LastPromotionReason,
+			LastPromotionAtUnixMillis:       lease.LastPromotionAtUnixMillis,
+			MetadataSourceWatermark:         lease.MetadataSourceWatermark,
+			MessageSourceWatermark:          lease.MessageSourceWatermark,
+			AcquiredAtUnixMillis:            lease.AcquiredAtUnixMillis,
+			SourcePinStartedAtUnixMillis:    lease.SourcePinStartedAtUnixMillis,
+			FrontierUpdatedUnixMillis:       lease.FrontierUpdatedUnixMillis,
 		}
 	}
 	return result

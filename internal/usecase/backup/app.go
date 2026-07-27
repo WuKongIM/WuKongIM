@@ -145,7 +145,7 @@ func captureLeaseSnapshots(
 ) []CaptureLeaseSnapshot {
 	result := make([]CaptureLeaseSnapshot, len(frontiers))
 	for index, frontier := range frontiers {
-		result[index] = CaptureLeaseSnapshot{
+		snapshot := CaptureLeaseSnapshot{
 			HashSlot:                     frontier.HashSlot,
 			SlotID:                       frontier.Lease.SlotID,
 			SourceSlotID:                 frontier.SourceSlotID,
@@ -161,6 +161,14 @@ func captureLeaseSnapshots(
 			SourcePinStartedAtUnixMillis: frontier.SourcePinStartedAtUnixMillis,
 			FrontierUpdatedUnixMillis:    frontier.UpdatedAtUnixMillis,
 		}
+		if frontier.LastPromotion != nil {
+			snapshot.LastPromotionPreviousGeneration =
+				frontier.LastPromotion.PreviousGeneration
+			snapshot.LastPromotionReason = frontier.LastPromotion.Reason
+			snapshot.LastPromotionAtUnixMillis =
+				frontier.LastPromotion.PromotedAtUnixMillis
+		}
+		result[index] = snapshot
 	}
 	return result
 }

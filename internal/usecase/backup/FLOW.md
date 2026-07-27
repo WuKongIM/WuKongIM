@@ -11,7 +11,10 @@ Current flow:
 
 1. `Status` exposes the continuous coordinator health, checkpoint age, latest
    checkpoint, bounded Slot capture leases/statuses, permanent-erasure
-   progress, and effective non-secret policy. Missing checkpoint evidence stays
+   progress, and effective non-secret policy. Each lease includes only the
+   immediate durable promotion predecessor, bounded reason, and timestamp, so
+   operators can distinguish audit recovery from policy or remap rebases
+   without exposing object references. Missing checkpoint evidence stays
    `unknown`; it is never projected as age zero.
 2. Slot capture workers update one durable frontier per logical Hash Slot
    through lease- and revision-fenced compare-and-swap ports. The usecase keeps

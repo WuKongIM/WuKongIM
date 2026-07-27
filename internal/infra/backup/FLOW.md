@@ -235,6 +235,9 @@ the configured retention. Because versioned OSS does not support atomic
 create-only `PutObject`, ordinary writes perform an existence check and a
 write-after-read metadata verification under the existing Controller Leader
 and partition single-writer fences. Complete reads verify the stored SHA-256.
+`Open` first reads authoritative object metadata, pins the returned version ID
+on `GetObject`, and verifies the streamed body against that HEAD size and
+SHA-256; it does not depend on a proxy preserving GET `Content-Length`.
 Repair publishes a new protected version, and GC deletes exact version IDs.
 Loading a garbage adapter first clears the node's stable probe slot, then
 creates, lists, and removes one delete marker. This proves list,

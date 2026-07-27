@@ -10,6 +10,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -229,7 +230,7 @@ func (r *backupE2EDelayedRepository) Open(
 		return nil, backupartifact.RepositoryObject{}, err
 	}
 	reader, object, err := r.appBackupRepository.Open(ctx, key)
-	if err != nil || !r.consumeCorruptionTrigger(key) {
+	if err != nil || !r.consumeCorruptionTrigger(ctx, key) {
 		return reader, object, err
 	}
 	body, readErr := io.ReadAll(reader)
@@ -249,7 +250,10 @@ func (r *backupE2EDelayedRepository) Open(
 	return io.NopCloser(bytes.NewReader(body)), object, nil
 }
 
-func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(key string) bool {
+func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(
+	ctx context.Context,
+	key string,
+) bool {
 	if r == nil || r.corruptionDir == "" {
 		return false
 	}
@@ -280,18 +284,61 @@ func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(key string) bool {
 	if body == nil {
 		return false
 	}
-	switch strings.TrimSpace(string(body)) {
-	case "once":
+	mode := strings.TrimSpace(string(body))
+	switch {
+	case mode == "once":
 		return os.Remove(selectedTrigger) == nil
-	case "persistent":
+	case mode == "persistent":
 		return true
-	case "sticky":
+	case mode == "sticky":
+		return consumeBackupE2EStickyKey(
+			filepath.Join(r.corruptionDir, "sticky.key"), key,
+		)
+	case strings.HasPrefix(mode, "sticky-slot:"):
+		hashSlot, err := strconv.ParseUint(
+			strings.TrimPrefix(mode, "sticky-slot:"), 10, 16,
+		)
+		if err != nil ||
+			!r.segmentPayloadMatchesHashSlot(ctx, key, uint16(hashSlot)) {
+			return false
+		}
 		return consumeBackupE2EStickyKey(
 			filepath.Join(r.corruptionDir, "sticky.key"), key,
 		)
 	default:
 		return false
 	}
+}
+
+// segmentPayloadMatchesHashSlot binds an e2e corruption marker to the logical
+// Hash Slot authenticated by the payload's immutable commit record.
+func (r *backupE2EDelayedRepository) segmentPayloadMatchesHashSlot(
+	ctx context.Context,
+	key string,
+	hashSlot uint16,
+) bool {
+	parts := strings.Split(filepath.ToSlash(key), "/")
+	if len(parts) != 4 || parts[0] != "segments" ||
+		parts[1] == "" || parts[2] != "payloads" {
+		return false
+	}
+	commitKey := "segments/" + parts[1] + "/commit.json"
+	reader, _, err := r.appBackupRepository.Open(ctx, commitKey)
+	if err != nil {
+		return false
+	}
+	body, readErr := io.ReadAll(io.LimitReader(reader, 64<<10+1))
+	closeErr := reader.Close()
+	if readErr != nil || closeErr != nil ||
+		len(body) == 0 || len(body) > 64<<10 {
+		return false
+	}
+	var commit backupartifact.SegmentCommit
+	if json.Unmarshal(body, &commit) != nil ||
+		commit.SegmentID != parts[1] {
+		return false
+	}
+	return commit.Header.Logical.HashSlot == hashSlot
 }
 
 func consumeBackupE2EStickyKey(path, key string) bool {
