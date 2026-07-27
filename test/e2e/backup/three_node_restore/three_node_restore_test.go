@@ -698,6 +698,12 @@ func exerciseRepositoryIntegrityRepair(
 		t, cluster, token, root, "secondary",
 		"backup-e2e-secondary-repository-repair", repairTimeout,
 	)
+	// Integrity audit cycles are bound to one immutable catalog window. Let the
+	// cycle containing both single-copy repairs finish before publishing the
+	// dual-copy fault, so the next cycle must include that exact new segment.
+	waitForIntegrityAuditCycleComplete(
+		t, cluster, token, 3*time.Second, repairTimeout,
+	)
 
 	frontiers := backupDurableFrontiers(t, cluster, token)
 	const dualCorruptionChannel = "backup-e2e-dual-corruption"
@@ -901,6 +907,56 @@ func waitForBackupMetricIncrease(
 	t.Fatalf(
 		"backup metric %s%v=%v, want >%v\n%s",
 		name, labels, last, before, cluster.DumpDiagnostics(),
+	)
+}
+
+func waitForIntegrityAuditCycleComplete(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	token string,
+	stableFor time.Duration,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	stableSince := time.Time{}
+	var stableLeader uint64
+	var lastLeader uint64
+	var lastDebt float64
+	var lastErr error
+	for time.Now().Before(deadline) {
+		var nodes managerNodesResponse
+		lastErr = managerRequestError(
+			cluster, token, http.MethodGet, "/manager/nodes", nil, &nodes,
+		)
+		lastLeader = nodes.ControllerLeaderID
+		if lastErr != nil || lastLeader == 0 {
+			stableSince = time.Time{}
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		node := cluster.MustNode(lastLeader)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		lastDebt, lastErr = suite.FetchMetricValue(
+			ctx, node.APIAddr(), "wukongim_backup_audit_debt_objects", nil,
+		)
+		cancel()
+		if lastErr == nil && lastDebt == 0 {
+			if stableSince.IsZero() || stableLeader != lastLeader {
+				stableSince = time.Now()
+				stableLeader = lastLeader
+			} else if time.Since(stableSince) >= stableFor {
+				return
+			}
+		} else {
+			stableSince = time.Time{}
+			stableLeader = 0
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"integrity audit cycle did not become complete: leader=%d debt=%v err=%v\n%s",
+		lastLeader, lastDebt, lastErr, cluster.DumpDiagnostics(),
 	)
 }
 

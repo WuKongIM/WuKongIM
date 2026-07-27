@@ -205,6 +205,11 @@ reprojects durable debt and last-success evidence, so a new Leader does not
 start with empty gauges; an unchanged complete catalog cursor is a read-only
 poll rather than a Controller Raft write.
 
+Controller maintenance keeps its configured steady-state audit/GC cadence
+after successful work. A failed step retries no later than the coordinator's
+dependency-health retry interval, so an hourly GC schedule cannot leave backup
+health degraded for an hour after a transient Controller or provider error.
+
 Capture checks the projected gate before work, but correctness does not depend
 on cache freshness: lease acquisition and the final frontier/promotion CAS read
 the current audit state in the same Controller snapshot. A remote freeze that

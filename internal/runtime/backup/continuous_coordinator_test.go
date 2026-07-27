@@ -150,6 +150,38 @@ func TestContinuousCoordinatorMaintenanceSuccessClearsMatchingFailure(t *testing
 	}
 }
 
+func TestContinuousCoordinatorMaintenanceFailureUsesBoundedRetry(t *testing.T) {
+	coordinator, err := NewContinuousCoordinator(
+		ContinuousCoordinatorOptions{
+			Capture:            idleContinuousCapture{},
+			Checkpoints:        recordingContinuousCheckpointPublisher{},
+			LatestCheckpoint:   staticCheckpointObservationSource{},
+			Doctor:             fakeCoordinatorDoctor{},
+			Leadership:         fakeCoordinatorLeadership{local: 1, leader: 1},
+			CheckpointInterval: time.Minute,
+			DoctorRetry:        5 * time.Second,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewContinuousCoordinator() error = %v", err)
+	}
+	now := time.UnixMilli(1_800_000_060_000)
+	next := time.Time{}
+	coordinator.runMaintenance(
+		context.Background(), now,
+		&scriptedControllerMaintenance{
+			errs: []error{errors.New("transient garbage failure")},
+		},
+		time.Hour, "Generation garbage collection", "gc", &next,
+	)
+	if want := now.Add(5 * time.Second); next != want {
+		t.Fatalf("next maintenance = %v, want bounded retry %v", next, want)
+	}
+	if got := coordinator.Status().LastFailureCategory; got != "gc" {
+		t.Fatalf("failure category = %q, want gc", got)
+	}
+}
+
 func TestContinuousCoordinatorCheckpointSuccessKeepsSameTickAuditFailure(t *testing.T) {
 	now := time.UnixMilli(1_800_000_060_000)
 	publisher := &countingContinuousCheckpointPublisher{}

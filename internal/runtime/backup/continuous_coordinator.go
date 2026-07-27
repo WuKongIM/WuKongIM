@@ -424,8 +424,15 @@ func (c *ContinuousCoordinator) runMaintenance(
 	ran, err := runner.RunIfLeader(ctx, c.options.Leadership)
 	stillLeader := c.options.Leadership.BackupControllerLeaderID() ==
 		c.options.Leadership.NodeID()
+	nextDelay := interval
+	if err != nil {
+		// A normal GC interval may be hours. Bound recovery from transient
+		// Controller/provider failures by the same dependency-health retry
+		// cadence without increasing successful steady-state maintenance.
+		nextDelay = min(interval, c.options.DoctorRetry)
+	}
 	c.mu.Lock()
-	*next = now.Add(interval)
+	*next = now.Add(nextDelay)
 	if err != nil && stillLeader {
 		c.recordFailureLocked(failureCategory, source)
 	} else if err == nil && ran {
