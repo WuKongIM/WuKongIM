@@ -46,6 +46,35 @@ type backupStatus struct {
 		FrontierUpdatedUnixMillis       int64  `json:"frontier_updated_unix_millis"`
 	} `json:"capture_leases"`
 	CaptureStatuses []backupCaptureStatus `json:"local_capture_statuses"`
+	IntegrityAudit  backupIntegrityAudit  `json:"integrity_audit"`
+}
+
+type backupIntegrityAudit struct {
+	Revision            uint64                      `json:"revision"`
+	DebtObjects         uint64                      `json:"debt_objects"`
+	Cursor              *backupIntegrityAuditCursor `json:"cursor"`
+	Slots               []backupSlotIntegrityAudit  `json:"slots"`
+	UpdatedAtUnixMillis int64                       `json:"updated_at_unix_millis"`
+}
+
+type backupIntegrityAuditCursor struct {
+	CycleID             string `json:"cycle_id"`
+	CatalogSequence     uint64 `json:"catalog_sequence"`
+	HashSlot            uint16 `json:"hash_slot"`
+	Generation          string `json:"generation"`
+	Phase               string `json:"phase"`
+	Repository          string `json:"repository"`
+	Category            string `json:"category"`
+	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
+}
+
+type backupSlotIntegrityAudit struct {
+	HashSlot            uint16 `json:"hash_slot"`
+	Generation          string `json:"generation"`
+	Health              string `json:"health"`
+	Repository          string `json:"repository"`
+	Category            string `json:"category"`
+	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
 }
 
 type backupCaptureStatus struct {
@@ -877,6 +906,19 @@ func clearRepositoryCorruption(t *testing.T, trigger string) {
 					),
 				),
 			)
+			for _, repository := range []string{"primary", "secondary"} {
+				selectionPaths = append(
+					selectionPaths,
+					filepath.Join(
+						filepath.Dir(trigger),
+						fmt.Sprintf(
+							"sticky-segment-%d-%s-%d.%s.hit",
+							hashSlot, parts[2], sourceHighWatermark,
+							repository,
+						),
+					),
+				)
+			}
 		}
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("read repository corruption trigger %s: %v", trigger, err)
@@ -904,19 +946,54 @@ func waitForRepositoryCorruptionSelection(
 			hashSlot, stream, sourceHighWatermark,
 		),
 	)
+	hits := []string{
+		filepath.Join(
+			root, "faults",
+			fmt.Sprintf(
+				"sticky-segment-%d-%s-%d.primary.hit",
+				hashSlot, stream, sourceHighWatermark,
+			),
+		),
+		filepath.Join(
+			root, "faults",
+			fmt.Sprintf(
+				"sticky-segment-%d-%s-%d.secondary.hit",
+				hashSlot, stream, sourceHighWatermark,
+			),
+		),
+	}
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		body, err := os.ReadFile(selection)
-		if err == nil && len(body) > 0 {
-			return
+		selected, err := os.ReadFile(selection)
+		if err == nil && len(selected) > 0 {
+			complete := true
+			for _, hit := range hits {
+				body, hitErr := os.ReadFile(hit)
+				if hitErr != nil || !bytes.Equal(body, selected) {
+					complete = false
+					if hitErr != nil {
+						lastErr = hitErr
+					} else {
+						lastErr = fmt.Errorf(
+							"repository hit %s selected %q, want %q",
+							hit, body, selected,
+						)
+					}
+					break
+				}
+			}
+			if complete {
+				return
+			}
+		} else {
+			lastErr = err
 		}
-		lastErr = err
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf(
-		"integrity audit did not select the exact dual-corruption segment %s: %v",
-		selection, lastErr,
+		"integrity audit did not read the exact dual-corruption segment from both repositories: selection=%s hits=%v err=%v",
+		selection, hits, lastErr,
 	)
 }
 

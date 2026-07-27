@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
@@ -113,6 +114,7 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 		Health:                  HealthUnknown,
 		MaxCheckpointAgeSeconds: int64(a.maxCheckpointAge / time.Second),
 		CaptureLeases:           captureLeaseSnapshots(state.SlotFrontiers),
+		IntegrityAudit:          integrityAuditSnapshot(state.IntegrityAudit),
 		ErasureStreams:          erasureStreamProgress(state.ErasureStreams),
 	}
 	if state.CatalogHead == nil || a.catalogBrowser == nil {
@@ -138,6 +140,41 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 		snapshot.Health = HealthDegraded
 	}
 	return snapshot, nil
+}
+
+func integrityAuditSnapshot(
+	state backupcontract.IntegrityAuditState,
+) IntegrityAuditSnapshot {
+	result := IntegrityAuditSnapshot{
+		Revision: state.Revision, DebtObjects: state.DebtObjects,
+		LastSuccessAtUnixMillis: state.LastSuccessAtUnixMillis,
+		UpdatedAtUnixMillis:     state.UpdatedAtUnixMillis,
+		Slots: make(
+			[]SlotIntegrityAuditSnapshot, len(state.Slots),
+		),
+	}
+	if state.Cursor != nil {
+		result.Cursor = &IntegrityAuditCursorSnapshot{
+			CycleID: state.Cursor.CycleID, ScrubEpoch: state.Cursor.ScrubEpoch,
+			CatalogSequence:     state.Cursor.CatalogSequence,
+			HashSlot:            state.Cursor.HashSlot,
+			Generation:          state.Cursor.Generation,
+			Phase:               state.Cursor.Phase,
+			Repository:          state.Cursor.Repository,
+			Category:            state.Cursor.Category,
+			UpdatedAtUnixMillis: state.Cursor.UpdatedAtUnixMillis,
+		}
+	}
+	for index, slot := range state.Slots {
+		result.Slots[index] = SlotIntegrityAuditSnapshot{
+			HashSlot: slot.HashSlot, Generation: slot.Generation,
+			Health: slot.Health, Repository: slot.Repository,
+			Category:                slot.Category,
+			LastSuccessAtUnixMillis: slot.LastSuccessAtUnixMillis,
+			UpdatedAtUnixMillis:     slot.UpdatedAtUnixMillis,
+		}
+	}
+	return result
 }
 
 func captureLeaseSnapshots(

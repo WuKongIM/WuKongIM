@@ -130,6 +130,60 @@ type ErasureStreamProgress struct {
 	Pending bool
 }
 
+// IntegrityAuditCursorSnapshot is the non-secret durable audit position
+// exposed to operators. Opaque repository object coordinates stay internal.
+type IntegrityAuditCursorSnapshot struct {
+	// CycleID identifies one fixed catalog audit decision.
+	CycleID string
+	// ScrubEpoch identifies the periodic latent-damage pass.
+	ScrubEpoch uint64
+	// CatalogSequence is the immutable catalog head covered by this cycle.
+	CatalogSequence uint64
+	// HashSlot and Generation identify the currently inspected isolation boundary.
+	HashSlot   uint16
+	Generation string
+	// Phase is inspect, repair, revalidate, rebase, or complete.
+	Phase backupcontract.IntegrityAuditPhase
+	// Repository and Category contain only bounded failure classifications.
+	Repository string
+	Category   backupcontract.IntegrityCorruptionCategory
+	// UpdatedAtUnixMillis is the latest durable cursor transition time.
+	UpdatedAtUnixMillis int64
+}
+
+// SlotIntegrityAuditSnapshot is one bounded operator-facing Slot health record.
+type SlotIntegrityAuditSnapshot struct {
+	// HashSlot identifies the independently isolated logical partition.
+	HashSlot uint16
+	// Generation is the affected immutable Slot graph.
+	Generation string
+	// Health is healthy, degraded, rebase_required, or failed.
+	Health backupcontract.SlotAuditHealth
+	// Repository and Category describe only the bounded repair reason.
+	Repository string
+	Category   backupcontract.IntegrityCorruptionCategory
+	// LastSuccessAtUnixMillis is the latest complete artifact validation.
+	LastSuccessAtUnixMillis int64
+	// UpdatedAtUnixMillis is the latest durable health transition time.
+	UpdatedAtUnixMillis int64
+}
+
+// IntegrityAuditSnapshot is the sanitized durable integrity-audit projection.
+type IntegrityAuditSnapshot struct {
+	// Revision fences audit transitions independently from unrelated state.
+	Revision uint64
+	// Cursor is nil before the first integrity-audit cycle.
+	Cursor *IntegrityAuditCursorSnapshot
+	// Slots contains at most one sorted health record per Hash Slot.
+	Slots []SlotIntegrityAuditSnapshot
+	// DebtObjects is the bounded remaining-artifact estimate.
+	DebtObjects uint64
+	// LastSuccessAtUnixMillis is the latest successful full validation.
+	LastSuccessAtUnixMillis int64
+	// UpdatedAtUnixMillis is the latest durable audit progress time.
+	UpdatedAtUnixMillis int64
+}
+
 // StatusSnapshot is the read-only backup status exposed to access adapters.
 type StatusSnapshot struct {
 	// Enabled reports whether backup coordination is configured.
@@ -157,6 +211,8 @@ type StatusSnapshot struct {
 	// LocalCaptureStatuses is the bounded node-local worker projection used to
 	// diagnose capture progress independently from durable frontier authority.
 	LocalCaptureStatuses []backupcontract.SlotCaptureStatus
+	// IntegrityAudit is the bounded durable cursor and per-Slot health projection.
+	IntegrityAudit IntegrityAuditSnapshot
 	// ErasureStreams exposes only per-Slot sequence and pending progress.
 	ErasureStreams []ErasureStreamProgress
 }

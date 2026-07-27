@@ -299,8 +299,20 @@ func (r *backupE2EDelayedRepository) consumeCorruptionTrigger(
 		if !ok || !r.segmentPayloadMatchesTarget(ctx, key, target) {
 			return false
 		}
-		return consumeBackupE2EStickyKey(
+		selected := consumeBackupE2EStickyKey(
 			backupE2EStickySegmentKey(r.corruptionDir, target), key,
+		)
+		if !selected {
+			return false
+		}
+		// Publish one immutable marker per repository before returning corrupt
+		// bytes. The qualification test can therefore distinguish one-copy
+		// reads from an actual dual-copy integrity inspection.
+		return consumeBackupE2EStickyKey(
+			backupE2EStickySegmentHitKey(
+				r.corruptionDir, target, r.appBackupRepository.Name(),
+			),
+			key,
 		)
 	default:
 		return false
@@ -350,6 +362,21 @@ func backupE2EStickySegmentKey(
 		fmt.Sprintf(
 			"sticky-segment-%d-%s-%d.key",
 			target.hashSlot, target.stream, target.sourceHighWatermark,
+		),
+	)
+}
+
+func backupE2EStickySegmentHitKey(
+	corruptionDir string,
+	target backupE2EStickySegmentTarget,
+	repository string,
+) string {
+	return filepath.Join(
+		corruptionDir,
+		fmt.Sprintf(
+			"sticky-segment-%d-%s-%d.%s.hit",
+			target.hashSlot, target.stream, target.sourceHighWatermark,
+			repository,
 		),
 	)
 }

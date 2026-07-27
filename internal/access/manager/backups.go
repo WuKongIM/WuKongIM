@@ -35,7 +35,39 @@ type backupStatusDTO struct {
 	Policy                  backupPolicyDTO          `json:"policy"`
 	CaptureLeases           []backupCaptureLeaseDTO  `json:"capture_leases"`
 	LocalCaptureStatuses    []backupCaptureStatusDTO `json:"local_capture_statuses"`
+	IntegrityAudit          backupIntegrityAuditDTO  `json:"integrity_audit"`
 	ErasureStreams          []backupErasureStreamDTO `json:"erasure_streams"`
+}
+
+type backupIntegrityAuditDTO struct {
+	Revision                uint64                         `json:"revision"`
+	Cursor                  *backupIntegrityAuditCursorDTO `json:"cursor,omitempty"`
+	Slots                   []backupSlotIntegrityAuditDTO  `json:"slots"`
+	DebtObjects             uint64                         `json:"debt_objects"`
+	LastSuccessAtUnixMillis int64                          `json:"last_success_at_unix_millis"`
+	UpdatedAtUnixMillis     int64                          `json:"updated_at_unix_millis"`
+}
+
+type backupIntegrityAuditCursorDTO struct {
+	CycleID             string `json:"cycle_id"`
+	ScrubEpoch          uint64 `json:"scrub_epoch"`
+	CatalogSequence     uint64 `json:"catalog_sequence"`
+	HashSlot            uint16 `json:"hash_slot"`
+	Generation          string `json:"generation"`
+	Phase               string `json:"phase"`
+	Repository          string `json:"repository,omitempty"`
+	Category            string `json:"category,omitempty"`
+	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
+}
+
+type backupSlotIntegrityAuditDTO struct {
+	HashSlot                uint16 `json:"hash_slot"`
+	Generation              string `json:"generation"`
+	Health                  string `json:"health"`
+	Repository              string `json:"repository,omitempty"`
+	Category                string `json:"category,omitempty"`
+	LastSuccessAtUnixMillis int64  `json:"last_success_at_unix_millis"`
+	UpdatedAtUnixMillis     int64  `json:"updated_at_unix_millis"`
 }
 
 type backupPolicyDTO struct {
@@ -278,11 +310,47 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 		Policy:                  backupPolicyResponse(status.Policy),
 		CaptureLeases:           backupCaptureLeaseResponses(status.CaptureLeases),
 		LocalCaptureStatuses:    backupCaptureStatusResponses(status.LocalCaptureStatuses),
+		IntegrityAudit:          backupIntegrityAuditResponse(status.IntegrityAudit),
 		ErasureStreams:          backupErasureStreamResponses(status.ErasureStreams),
 	}
 	if status.LatestCheckpoint != nil {
 		latest := backupCheckpointResponse(*status.LatestCheckpoint)
 		result.LatestCheckpoint = &latest
+	}
+	return result
+}
+
+func backupIntegrityAuditResponse(
+	audit backupusecase.IntegrityAuditSnapshot,
+) backupIntegrityAuditDTO {
+	result := backupIntegrityAuditDTO{
+		Revision: audit.Revision, DebtObjects: audit.DebtObjects,
+		LastSuccessAtUnixMillis: audit.LastSuccessAtUnixMillis,
+		UpdatedAtUnixMillis:     audit.UpdatedAtUnixMillis,
+		Slots: make(
+			[]backupSlotIntegrityAuditDTO, len(audit.Slots),
+		),
+	}
+	if audit.Cursor != nil {
+		result.Cursor = &backupIntegrityAuditCursorDTO{
+			CycleID: audit.Cursor.CycleID, ScrubEpoch: audit.Cursor.ScrubEpoch,
+			CatalogSequence:     audit.Cursor.CatalogSequence,
+			HashSlot:            audit.Cursor.HashSlot,
+			Generation:          audit.Cursor.Generation,
+			Phase:               string(audit.Cursor.Phase),
+			Repository:          audit.Cursor.Repository,
+			Category:            string(audit.Cursor.Category),
+			UpdatedAtUnixMillis: audit.Cursor.UpdatedAtUnixMillis,
+		}
+	}
+	for index, slot := range audit.Slots {
+		result.Slots[index] = backupSlotIntegrityAuditDTO{
+			HashSlot: slot.HashSlot, Generation: slot.Generation,
+			Health: string(slot.Health), Repository: slot.Repository,
+			Category:                string(slot.Category),
+			LastSuccessAtUnixMillis: slot.LastSuccessAtUnixMillis,
+			UpdatedAtUnixMillis:     slot.UpdatedAtUnixMillis,
+		}
 	}
 	return result
 }

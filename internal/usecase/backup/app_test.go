@@ -37,6 +37,24 @@ func TestAppStatusUsesOnlyContinuousCoordinationState(t *testing.T) {
 				PromotedAtUnixMillis: 1_753_056_299_000,
 			},
 		}},
+		IntegrityAudit: backupcontract.IntegrityAuditState{
+			Revision: 8, DebtObjects: 3,
+			Cursor: &backupcontract.IntegrityAuditCursor{
+				CycleID: "catalog-segments-8", ScrubEpoch: 2,
+				CatalogSequence: 8, HashSlot: 7,
+				Generation:          "generation-7",
+				Phase:               backupcontract.IntegrityAuditPhaseRebase,
+				Category:            backupcontract.IntegrityCorruptionCiphertext,
+				UpdatedAtUnixMillis: 1_753_056_350_000,
+			},
+			Slots: []backupcontract.SlotIntegrityAuditState{{
+				HashSlot: 7, Generation: "generation-7",
+				Health:              backupcontract.SlotAuditRebaseRequired,
+				Category:            backupcontract.IntegrityCorruptionCiphertext,
+				UpdatedAtUnixMillis: 1_753_056_350_000,
+			}},
+			UpdatedAtUnixMillis: 1_753_056_350_000,
+		},
 	}}
 	app, err := backupusecase.NewApp(backupusecase.Options{
 		Enabled: true, HashSlotCount: 256, Store: store,
@@ -65,6 +83,21 @@ func TestAppStatusUsesOnlyContinuousCoordinationState(t *testing.T) {
 	require.Equal(
 		t, int64(1_753_056_299_000),
 		status.CaptureLeases[0].LastPromotionAtUnixMillis,
+	)
+	require.Equal(t, uint64(8), status.IntegrityAudit.Revision)
+	require.Equal(t, uint64(3), status.IntegrityAudit.DebtObjects)
+	require.NotNil(t, status.IntegrityAudit.Cursor)
+	require.Equal(
+		t, backupcontract.IntegrityAuditPhaseRebase,
+		status.IntegrityAudit.Cursor.Phase,
+	)
+	require.Equal(
+		t, "generation-7", status.IntegrityAudit.Cursor.Generation,
+	)
+	require.Len(t, status.IntegrityAudit.Slots, 1)
+	require.Equal(
+		t, backupcontract.SlotAuditRebaseRequired,
+		status.IntegrityAudit.Slots[0].Health,
 	)
 }
 

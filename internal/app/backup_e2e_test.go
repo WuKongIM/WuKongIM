@@ -136,6 +136,7 @@ func TestBackupE2ECorruptionTriggerSelectsExactSegment(t *testing.T) {
 		corruptionDir:       faultDir,
 	}
 	putCommit := func(
+		targetRepository backupartifact.Repository,
 		segmentID string,
 		hashSlot uint16,
 		stream backupartifact.SegmentStream,
@@ -156,7 +157,7 @@ func TestBackupE2ECorruptionTriggerSelectsExactSegment(t *testing.T) {
 			t.Fatalf("marshal segment commit: %v", marshalErr)
 		}
 		digest := sha256.Sum256(body)
-		if putErr := repository.PutImmutable(
+		if putErr := targetRepository.PutImmutable(
 			context.Background(),
 			"segments/"+segmentID+"/commit.json",
 			int64(len(body)), hex.EncodeToString(digest[:]),
@@ -167,18 +168,22 @@ func TestBackupE2ECorruptionTriggerSelectsExactSegment(t *testing.T) {
 		return "segments/" + segmentID + "/payloads/digest.bin"
 	}
 	targetKey := putCommit(
+		repository,
 		strings.Repeat("7", 64), 7,
 		backupartifact.SegmentStreamMessages, 11,
 	)
 	staleSlotKey := putCommit(
+		repository,
 		strings.Repeat("6", 64), 7,
 		backupartifact.SegmentStreamMessages, 10,
 	)
 	otherStreamKey := putCommit(
+		repository,
 		strings.Repeat("5", 64), 7,
 		backupartifact.SegmentStreamMetadata, 11,
 	)
 	otherSlotKey := putCommit(
+		repository,
 		strings.Repeat("8", 64), 8,
 		backupartifact.SegmentStreamMessages, 11,
 	)
@@ -231,6 +236,71 @@ func TestBackupE2ECorruptionTriggerSelectsExactSegment(t *testing.T) {
 			"exact-segment sticky selection = %q, want %q",
 			selected, targetKey,
 		)
+	}
+	primaryHit := backupE2EStickySegmentHitKey(
+		faultDir, target, "primary",
+	)
+	hit, err := os.ReadFile(primaryHit)
+	if err != nil {
+		t.Fatalf("read primary exact-segment hit: %v", err)
+	}
+	if string(hit) != targetKey {
+		t.Fatalf("primary exact-segment hit = %q, want %q", hit, targetKey)
+	}
+
+	for _, path := range []string{trigger, primaryHit, backupE2EStickySegmentKey(faultDir, target)} {
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("clear exact-segment marker %q: %v", path, err)
+		}
+	}
+	secondary, err := backupinfra.NewFileRepository(
+		"secondary", filepath.Join(root, "secondary-repository"),
+	)
+	if err != nil {
+		t.Fatalf("new secondary repository: %v", err)
+	}
+	secondaryTargetKey := putCommit(
+		secondary,
+		strings.Repeat("7", 64), 7,
+		backupartifact.SegmentStreamMessages, 11,
+	)
+	if secondaryTargetKey != targetKey {
+		t.Fatalf(
+			"secondary target key = %q, want %q",
+			secondaryTargetKey, targetKey,
+		)
+	}
+	if err := os.WriteFile(
+		filepath.Join(faultDir, "all.corrupt"),
+		[]byte("sticky-segment:7:messages:11"), 0o600,
+	); err != nil {
+		t.Fatalf("write dual exact-segment trigger: %v", err)
+	}
+	secondaryWrapped := &backupE2EDelayedRepository{
+		appBackupRepository: secondary,
+		corruptionDir:       faultDir,
+	}
+	if !wrapped.consumeCorruptionTrigger(context.Background(), targetKey) ||
+		!secondaryWrapped.consumeCorruptionTrigger(context.Background(), targetKey) {
+		t.Fatal("dual exact-segment trigger did not activate both repositories")
+	}
+	for _, repositoryName := range []string{"primary", "secondary"} {
+		hitPath := backupE2EStickySegmentHitKey(
+			faultDir, target, repositoryName,
+		)
+		hit, hitErr := os.ReadFile(hitPath)
+		if hitErr != nil {
+			t.Fatalf(
+				"read %s exact-segment hit: %v",
+				repositoryName, hitErr,
+			)
+		}
+		if string(hit) != targetKey {
+			t.Fatalf(
+				"%s exact-segment hit = %q, want %q",
+				repositoryName, hit, targetKey,
+			)
+		}
 	}
 }
 

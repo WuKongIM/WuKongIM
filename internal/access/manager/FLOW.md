@@ -64,7 +64,7 @@ GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.s
 GET  /manager/app-logs/sources (ordinary app log fixed source list; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
-GET  /manager/backups/status (cluster backup health and non-secret effective policy; requires cluster.backup:r when Auth.On=true)
+GET  /manager/backups/status (cluster backup health, sanitized integrity-audit progress, and non-secret effective policy; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/checkpoints (stable cursor-paged immutable checkpoint catalog; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/checkpoints/:checkpoint_id (exact immutable checkpoint summary; requires cluster.backup:r when Auth.On=true)
 POST /manager/backups/checkpoints (publish one complete current Slot-vector checkpoint; requires cluster.backup:w when Auth.On=true)

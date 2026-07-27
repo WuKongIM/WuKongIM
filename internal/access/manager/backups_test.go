@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,24 @@ func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
 			LastPromotionReason:             "audit_corruption",
 			LastPromotionAtUnixMillis:       123,
 		}},
+		IntegrityAudit: backupusecase.IntegrityAuditSnapshot{
+			Revision: 12, DebtObjects: 7,
+			Cursor: &backupusecase.IntegrityAuditCursorSnapshot{
+				CycleID: "catalog-segments-12", ScrubEpoch: 4,
+				CatalogSequence: 12, HashSlot: 17,
+				Generation:          "slot-generation-1",
+				Phase:               backupcontract.IntegrityAuditPhaseRebase,
+				Category:            backupcontract.IntegrityCorruptionCiphertext,
+				UpdatedAtUnixMillis: 456,
+			},
+			Slots: []backupusecase.SlotIntegrityAuditSnapshot{{
+				HashSlot: 17, Generation: "slot-generation-1",
+				Health:              backupcontract.SlotAuditRebaseRequired,
+				Category:            backupcontract.IntegrityCorruptionCiphertext,
+				UpdatedAtUnixMillis: 456,
+			}},
+			UpdatedAtUnixMillis: 456,
+		},
 	}}
 	srv := New(Options{Backup: provider})
 	recorder := httptest.NewRecorder()
@@ -60,6 +79,14 @@ func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
 	)
 	require.Equal(t, "audit_corruption", lease["last_promotion_reason"])
 	require.Equal(t, float64(123), lease["last_promotion_at_unix_millis"])
+	audit := decoded["integrity_audit"].(map[string]any)
+	require.Equal(t, float64(12), audit["revision"])
+	require.Equal(t, float64(7), audit["debt_objects"])
+	cursor := audit["cursor"].(map[string]any)
+	require.Equal(t, "rebase", cursor["phase"])
+	require.NotContains(t, cursor, "position")
+	slot := audit["slots"].([]any)[0].(map[string]any)
+	require.Equal(t, "rebase_required", slot["health"])
 	for _, removed := range []string{
 		"active", "latest", "verification", "dependencies", "capacity",
 		"recovery_point_age_seconds", "verification_age_seconds",

@@ -1112,7 +1112,10 @@ checkpoint cannot audit the target before the fault exists. Exact-segment
 selections use a coordinate-scoped marker distinct from the generic sticky
 marker, so a preceding single-copy repair cannot pin the next dual-loss drill
 to stale state and checkpoint reads of older objects in the same Slot cannot
-choose the rebase target.
+choose the rebase target. Before returning corrupt bytes, each named repository
+also publishes its own immutable hit marker for the selected key, so the
+qualification gate proves that both failure-domain reads occurred rather than
+inferring dual loss from one shared selection.
 A third e2e-only sentinel contains one physical Hash Slot
 and overrides only that Slot's observed source-pin age, proving Slot-local
 rebase isolation without changing production pin accounting or widening the
