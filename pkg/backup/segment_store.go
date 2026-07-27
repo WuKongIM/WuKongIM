@@ -346,11 +346,15 @@ func (s *ReplicatedSegmentStore) verifyReplicatedCommitProof(
 	if err := validateSegmentReference(reference); err != nil {
 		return SegmentCommit{}, err
 	}
-	primaryCopy, err := s.loadCommitCopy(ctx, s.primary, reference.SegmentID)
+	primaryCopy, err := s.loadCommitCopyForProof(
+		ctx, s.primary, reference.SegmentID,
+	)
 	if err != nil {
 		return SegmentCommit{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.primary.Name(), err)
 	}
-	secondaryCopy, err := s.loadCommitCopy(ctx, s.secondary, reference.SegmentID)
+	secondaryCopy, err := s.loadCommitCopyForProof(
+		ctx, s.secondary, reference.SegmentID,
+	)
 	if err != nil {
 		return SegmentCommit{}, fmt.Errorf("%w: %s segment commit: %v", ErrRepositoryIncomplete, s.secondary.Name(), err)
 	}
@@ -366,6 +370,24 @@ func (s *ReplicatedSegmentStore) verifyReplicatedCommitProof(
 		return SegmentCommit{}, err
 	}
 	return primaryCopy.commit, nil
+}
+
+// loadCommitCopyForProof retries one checksum-invalid streaming read before a
+// checkpoint rejects an otherwise immutable remote commit proof.
+func (s *ReplicatedSegmentStore) loadCommitCopyForProof(
+	ctx context.Context,
+	repository Repository,
+	segmentID string,
+) (loadedSegmentCommit, error) {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		copy, err := s.loadCommitCopy(ctx, repository, segmentID)
+		if err == nil || !errors.Is(err, ErrObjectCorrupt) {
+			return copy, err
+		}
+		lastErr = err
+	}
+	return loadedSegmentCommit{}, lastErr
 }
 
 type loadedSegmentCommit struct {

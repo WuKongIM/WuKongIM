@@ -74,6 +74,9 @@ content-addressed segment contract.
    payload copies exist in both repositories. The reference repeats the
    authenticated plaintext size, allowing callers to reserve memory before
    opening it; `Load` verifies that size against the signed commit header.
+   Checkpoint proof verification retries one checksum-invalid remote commit
+   stream once before rejecting it; two invalid reads still fail closed, while
+   the integrity auditor continues to classify every single observed bad read.
    `VerifyEnvelopeCopies` authenticates the exact current proof and payload
    provider metadata in both repositories without opening payload bytes, and
    returns the signed predecessor link.

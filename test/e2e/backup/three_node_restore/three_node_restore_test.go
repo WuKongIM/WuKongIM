@@ -730,7 +730,6 @@ func exerciseRepositoryIntegrityRepair(
 		t, cluster, token, frontiers,
 		[]uint16{hashSlot}, []uint16{hashSlot}, 20*time.Second,
 	)
-	_ = publishCheckpointEventually(t, cluster, token, 20*time.Second)
 	beforeRebases := backupMetricTotal(
 		t, cluster, "wukongim_backup_slot_rebases_total",
 		map[string]string{
@@ -740,6 +739,9 @@ func exerciseRepositoryIntegrityRepair(
 	allRepositoriesTrigger := setRepositoryCorruption(
 		t, root, "all", "sticky",
 	)
+	// Arm corruption before advancing the catalog root so the audit cursor
+	// cannot race past the newly published immutable object graph.
+	_ = publishCheckpointEventually(t, cluster, token, 60*time.Second)
 	waitForBackupMetricIncrease(
 		t, cluster, "wukongim_backup_slot_rebases_total",
 		map[string]string{

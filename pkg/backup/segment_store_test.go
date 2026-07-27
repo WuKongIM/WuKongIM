@@ -101,6 +101,71 @@ func TestReplicatedSegmentStoreReusesAndRepairsCommittedSegment(t *testing.T) {
 	}
 }
 
+func TestReplicatedSegmentStoreRetriesTransientCorruptCommitProofRead(t *testing.T) {
+	primary := newMemoryRepository("primary")
+	secondary := newMemoryRepository("secondary")
+	keys := &countingSegmentKeyManager{mask: 0xa5}
+	codec := backup.NewSegmentCodec(
+		keys, bytes.NewReader(bytes.Repeat([]byte{0x42}, 128)),
+	)
+	seed := sha256.Sum256([]byte("replicated-segment-proof-retry-key"))
+	signer := ed25519ManifestSigner{
+		privateKey: ed25519.NewKeyFromSeed(seed[:]),
+	}
+	store, err := backup.NewReplicatedSegmentStore(
+		primary, secondary, codec, signer,
+	)
+	if err != nil {
+		t.Fatalf("NewReplicatedSegmentStore() error = %v", err)
+	}
+	reference, err := store.Commit(
+		context.Background(), testSegmentDescriptor(),
+		[]byte("channel-a:41\nchannel-a:42\n"),
+	)
+	if err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+
+	transient := &corruptCommitReadRepository{
+		Repository: primary, key: reference.CommitKey, remaining: 1,
+	}
+	verifier, err := backup.NewReplicatedSegmentStore(
+		transient, secondary, codec, signer,
+	)
+	if err != nil {
+		t.Fatalf("NewReplicatedSegmentStore(transient) error = %v", err)
+	}
+	if _, err := verifier.VerifyCommit(
+		context.Background(), reference,
+	); err != nil {
+		t.Fatalf("VerifyCommit() error = %v", err)
+	}
+	if transient.opens != 2 {
+		t.Fatalf("transient commit opens = %d, want 2", transient.opens)
+	}
+
+	persistent := &corruptCommitReadRepository{
+		Repository: primary, key: reference.CommitKey, remaining: 2,
+	}
+	verifier, err = backup.NewReplicatedSegmentStore(
+		persistent, secondary, codec, signer,
+	)
+	if err != nil {
+		t.Fatalf("NewReplicatedSegmentStore(persistent) error = %v", err)
+	}
+	if _, err := verifier.VerifyCommit(
+		context.Background(), reference,
+	); !errors.Is(err, backup.ErrRepositoryIncomplete) {
+		t.Fatalf(
+			"VerifyCommit(persistent) error = %v, want %v",
+			err, backup.ErrRepositoryIncomplete,
+		)
+	}
+	if persistent.opens != 2 {
+		t.Fatalf("persistent commit opens = %d, want 2", persistent.opens)
+	}
+}
+
 func TestReplicatedSegmentStoreReturnsStableReferenceWhenRepairFails(t *testing.T) {
 	primary := newMemoryRepository("primary")
 	secondary := newMemoryRepository("secondary")
@@ -259,6 +324,38 @@ type failPutRepository struct {
 	failAfterWrite bool
 	putCalls       int
 	failed         bool
+}
+
+type corruptCommitReadRepository struct {
+	backup.Repository
+	key       string
+	remaining int
+	opens     int
+}
+
+func (r *corruptCommitReadRepository) Open(
+	ctx context.Context,
+	key string,
+) (io.ReadCloser, backup.RepositoryObject, error) {
+	reader, object, err := r.Repository.Open(ctx, key)
+	if err != nil || key != r.key {
+		return reader, object, err
+	}
+	r.opens++
+	if r.remaining == 0 {
+		return reader, object, nil
+	}
+	r.remaining--
+	body, readErr := io.ReadAll(reader)
+	closeErr := reader.Close()
+	if readErr != nil {
+		return nil, backup.RepositoryObject{}, readErr
+	}
+	if closeErr != nil {
+		return nil, backup.RepositoryObject{}, closeErr
+	}
+	body[len(body)/2] ^= 0xff
+	return io.NopCloser(bytes.NewReader(body)), object, nil
 }
 
 func (r *failPutRepository) PutImmutable(ctx context.Context, key string, size int64, checksum string, body io.Reader) error {
