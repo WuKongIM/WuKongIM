@@ -31,8 +31,8 @@ automatically merge a PR.
   <https://api-docs.deepseek.com/guides/tool_calls/>
 - DeepSeek thinking/tool-call context:
   <https://api-docs.deepseek.com/guides/thinking_mode/>
-- GitHub Git commit API:
-  <https://docs.github.com/en/rest/git/commits>
+- GitHub GraphQL commit mutation:
+  <https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch>
 - GitHub App endpoint permission matrix:
   <https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps>
 
@@ -642,7 +642,7 @@ git add internal/infra/issueagentgithub \
 git commit -m "feat(agent): read and verify GitHub state"
 ```
 
-## Task 5: Implement the Trusted Publisher and Git Database Writes
+## Task 5: Implement the Trusted Publisher and Fenced GitHub Writes
 
 **PR:** A
 
@@ -672,26 +672,23 @@ Reject:
 - a changed frozen E2E assertion without a reproduction reset;
 - commit or PR target outside the exact repository, Agent prefix, or `main`;
 - tag and default-branch writes;
-- non-fast-forward ref update;
-- Git commit response whose verification is not `verified=true` and
-  `reason=valid`;
+- unexpected branch head or a GraphQL commit whose verified signature is not
+  valid;
 - a publish plan that requires executing target content.
 
-### Step 2: Publish typed file changes through the Git Database API
+### Step 2: Publish typed file changes through `createCommitOnBranch`
 
 Do not run `git apply`, `git commit`, or a Worker-produced executable.
 
-1. Read and verify the expected parent commit and base tree.
-2. Create blobs only for validated `ChangeSet` content.
-3. Create a tree against the expected base tree.
-4. Create one commit with the expected parent using the GitHub App
-   installation token.
-5. Require GitHub's commit verification response to be valid.
-6. Create or fast-forward the exact `agent/issue-<number>` ref.
-7. Re-read the ref and commit tree.
+1. Read and verify the expected parent commit and complete exact content.
+2. Create the exact `agent/issue-<number>` ref at that parent only when absent.
+3. Send one `createCommitOnBranch` mutation containing only the validated
+   `ChangeSet`, with `expectedHeadOid` equal to the re-read branch head.
+4. Require the resulting commit's GitHub signature verification to be valid.
+5. Re-read the ref, single parent, and exact file content.
 
-Because the new commit's only parent is the expected old head and ref updates
-are non-force, an external branch advance fails instead of being overwritten.
+Because the mutation is expected-head fenced, an external branch advance fails
+instead of being overwritten.
 
 ### Step 3: Publish Issue and PR projections
 
@@ -1139,7 +1136,7 @@ After PR C merges, a maintainer:
 2. configures only these repository permissions:
    - Actions: read and write, required to dispatch and inspect the approved
      Workflows;
-   - Contents: read and write, required for the Git Database API and the
+   - Contents: read and write, required for the GraphQL commit mutation and the
      `agent/issue-*` refs;
    - Issues: read and write, required for checkpoints, labels, and linked
      backport Issues;
@@ -1646,8 +1643,8 @@ perform them from an unmerged Workflow.
 3. Confirm it is absent from branch/ruleset bypass lists.
 4. Create protected Environments:
    - `issue-agent-publisher`;
-   - `issue-agent-model-codex`;
-   - `issue-agent-model-deepseek`.
+   - `issue-agent-codex`;
+   - `issue-agent-deepseek`.
 5. Store App and checkpoint private material only in the Publisher
    Environment.
 6. Store each provider key only in its provider Environment.
@@ -1664,8 +1661,13 @@ Implementation sessions append evidence here after each PR:
 
 | PR | Head SHA | Selected suites | Gate run | Pilot evidence | Result |
 | --- | --- | --- | --- | --- | --- |
-| A | Not started | Not started | Not started | Not applicable | Not started |
-| B | Not started | Not started | Not started | Shadow | Not started |
+| A-F local implementation | `codex/github-issue-agent` | Local explicit-root, race, schema, Workflow, sandbox, and E2E gates recorded in the final handoff | Not submitted | Shadow fixtures only | Implemented locally; remote review/pilots remain administrator-owned |
+
+The implementation deliberately remains in protected `shadow` policy with an
+empty checkpoint public-key set and remediation allowlist. A local green gate
+does not authorize GitHub App installation, provider spend, rollout promotion,
+or `general`; those require the separate administrator setup, PR validation,
+and immutable pilot evidence above.
 | C | Not started | Not started | Not started | Intake | Not started |
 | D | Not started | Not started | Not started | Reproduction | Not started |
 | E | Not started | Not started | Not started | Remediation allowlist | Not started |

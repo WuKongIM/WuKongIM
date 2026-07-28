@@ -25,25 +25,44 @@ for discovery and may become more specific over time.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject | Explicit permission-change authorization required |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Every 15 minutes, destroys expired leases; also supports exact authorized cleanup | Autonomous billing and resource safety backstop |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
-| `issue-agent-control.yml` | `Safety Automation - Issue Agent Shadow Control` | Reconciles Issue, comment, PR, Review, and validation-completion hints against protected policy | Shadow-only read path; writes only a Job Summary |
-| `issue-agent-reconcile.yml` | `Safety Automation - Issue Agent Shadow Sweeper` | Hourly bounded scan for missed authorized Issue work and recovery candidates | Shadow-only read path; reports page saturation |
-| `issue-agent-run.yml` | `Agent Tool - Shadow Issue Agent Run` | Verifies isolated protected-control and immutable-target checkouts for one Issue | On-demand shadow inspection; executes no target content |
+| `issue-agent-control.yml` | `Safety Automation - Issue Agent Control` | Reconciles Issue, comment, PR, Review, validation-completion, and recovery hints against protected policy and signed Issue state | Autonomous stateless controller; capability is capped by reviewed rollout mode |
+| `issue-agent-reconcile.yml` | `Safety Automation - Issue Agent Sweeper` | Hourly bounded scan for missed authorized Issue work and expired leases | Autonomous recovery dispatcher; a saturated inventory fails closed |
+| `issue-agent-run.yml` | `Agent Tool - Issue Worker` | Runs one exact signed reproduction, diagnosis, or remediation task, then publishes its validated Artifact | Model Supervisor and GitHub Publisher use separate protected Environments |
 
 ## GitHub Issue Agent rollout
 
-The Issue Agent currently runs in `shadow` mode. `issue-agent-control.yml` and
-`issue-agent-reconcile.yml` share one non-cancelling repository scheduler
-concurrency group. They always build `cmd/wkissueagent` from a credential-free
-`main` checkout, verify the embedded source revision, and emit proposals only
-to the Job Summary. The per-Issue shadow tool uses distinct `control` and
-`workspace` checkouts with persisted Git credentials disabled.
+The checked-in Issue Agent policy currently runs in `shadow` mode.
+`issue-agent-control.yml` and `issue-agent-reconcile.yml` share one
+non-cancelling repository scheduler group, while `issue-agent-run.yml` has one
+non-cancelling group per Issue. Every job builds `cmd/wkissueagent` from
+protected `main` control source or checks its embedded revision. Target source
+uses a distinct exact-SHA checkout with persisted Git credentials disabled.
 
-Shadow mode has no GitHub App token, checkpoint signing key, model credential,
-Publisher Environment, branch write, label write, comment write, or PR write.
-The scheduled scan reads at most one page of 100 records and marks a saturated
-page as truncated rather than assuming the inventory is complete. Later
-rollout modes must retain the same control/Worker/Publisher separation and
-pass `scripts/issue_agent_workflows_test.go` before enabling any write.
+In `shadow`, no Publisher or model job is eligible, so no App, checkpoint, or
+provider secret is consumed and no GitHub object is mutated. The scheduled scan
+reads at most one page below 100 records; saturation or any invalid signed
+chain blocks admission rather than assuming capacity.
+
+Write-capable modes retain three credential boundaries:
+
+- `issue-agent-codex` exposes only `CODEX_API_KEY` to the selected Codex
+  Supervisor;
+- `issue-agent-deepseek` exposes only `DEEPSEEK_API_KEY` to the selected
+  DeepSeek Supervisor;
+- `issue-agent-publisher` exposes repository-scoped App and checkpoint signing
+  material only to Publisher/dispatcher jobs that never execute target code.
+
+The model calls only typed tools in a digest-pinned, no-network Docker sandbox.
+It cannot author trusted file/evidence/usage fields. The Publisher revalidates
+the sanitized Artifact, uses an expected-head GraphQL commit on
+`agent/issue-<number>`, requires verified commit signing, and never merges,
+closes the Bug, or writes `main`. Bulk Artifacts retain 90 days; signed
+append-only Issue checkpoints are the durable state.
+
+See `docs/agents/issue-agent.md` for setup, rollout, budgets, key rotation,
+provider selection, and recovery. Every rollout promotion must pass
+`scripts/issue_agent_workflows_test.go` and occur separately from the code that
+introduces the capability.
 
 ## Agent PR validation protocol
 

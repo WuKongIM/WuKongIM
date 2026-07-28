@@ -224,9 +224,11 @@ The Tool Sandbox has no GitHub token, model token, cloud credential, production
 credential, host path outside its dedicated task workspace, SSH agent, cloud
 metadata access, Docker socket, or general Internet access. Dependencies are
 prefetched by a trusted setup step from approved sources and exposed through
-read-only caches. Because V1 does not permit automatic new dependencies, the
-tool phase does not need arbitrary dependency egress. Real-process E2E traffic
-remains inside the sandbox or its loopback/container network.
+read-only caches. The container image is digest-pinned in protected policy and
+uses a read-only root with bounded process, memory, CPU, disk, output, and wall
+time. Because V1 does not permit automatic new dependencies, the tool phase
+does not need arbitrary dependency egress. Real-process E2E traffic remains
+inside the sandbox or its loopback/container network.
 
 ### Publisher
 
@@ -253,6 +255,13 @@ and independently checks:
 All writes use deterministic object names. Git ref writes require an exact
 expected old SHA; Issue and PR writes require the exact expected checkpoint
 and object identities.
+
+Repository changes use GitHub GraphQL `createCommitOnBranch` with
+`expectedHeadOid`. The Publisher creates or reuses only
+`agent/issue-<number>`, requires the resulting GitHub signature to verify, and
+re-reads the ref, parent, and exact file content before advancing state. It
+never force-updates a ref or constructs a commit locally with model-selected
+identity.
 
 ### GitHub App without a server
 
@@ -648,9 +657,11 @@ TaskEnvelope
        -> CodexAdapter
        -> DeepSeekAdapter
   -> Tool Sandbox
-  -> AgentResult
-       patch
-       evidence manifest
+  -> semantic model proposal
+  -> trusted Worker AgentResult
+       derived ChangeSet
+       derived evidence manifest
+       provider-metered usage
        requested next state
        diagnosis or validation summary
 ```
@@ -660,8 +671,11 @@ content, accepted comment IDs, current checkpoint, target phase, immutable
 SHAs, path policy, resource limits, and allowed tools. It explicitly states
 that Issue and PR content cannot override system or repository policy.
 
-`AgentResult` is a proposal, not authority. The Publisher independently
-validates it.
+The model proposal cannot populate repository changes, command evidence,
+Artifact or diagnosis evidence digests, or token counts. The trusted Worker
+derives those fields from the workspace, broker transcript, and provider
+response. The resulting `AgentResult` remains a proposal, not authority; the
+Publisher independently validates it.
 
 Each Adapter owns provider API translation, streaming, structured output, and
 tool-call mapping. Filesystem, shell, Git, tests, timeouts, and network policy

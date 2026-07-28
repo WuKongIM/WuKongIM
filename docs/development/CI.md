@@ -8,27 +8,39 @@ repository-root `./...` is not a valid gate because Go package discovery
 ignores `.gitignore` and can include local packages below `tmp/` or
 `web/node_modules/`.
 
-## GitHub Issue Agent shadow automation
+## GitHub Issue Agent automation
 
 The repository includes three serverless GitHub-hosted Actions for the Issue
 Agent. `issue-agent-control.yml` handles bounded event hints,
 `issue-agent-reconcile.yml` performs the scheduled bounded sweep, and
-`issue-agent-run.yml` verifies the per-Issue checkout boundary. The current
-rollout is `shadow`: all three have read-only `GITHUB_TOKEN` permissions, no
-GitHub App or model secrets, and no mutation path. Control and target source
-use separate checkouts with persisted credentials disabled.
+`issue-agent-run.yml` executes one signed per-Issue task. The checked-in rollout
+is `shadow`, so only read/report paths are eligible and no Publisher or provider
+secret is consumed.
 
-Every job builds `cmd/wkissueagent` from protected `main` control source and
-checks the embedded VCS revision. Event payload text is never interpolated into
-shell, environment, cache keys, or outputs. The Sweeper reads no more than 100
-records and reports page saturation as truncation. Before changing rollout
-mode, run:
+Every job builds `cmd/wkissueagent` from protected `main` control source.
+Control and exact target source use separate checkouts with persisted
+credentials disabled. Event payload text is parsed as bounded data, never
+interpolated into a command. The Sweeper accepts only a complete inventory
+below 100 open `ready-for-agent` Issues.
+
+In later reviewed modes, provider keys are isolated in
+`issue-agent-codex`/`issue-agent-deepseek`; App and checkpoint keys are isolated
+in `issue-agent-publisher`. Target commands run only inside the no-network
+digest-pinned sandbox. Worker output is an untrusted semantic proposal until
+the Worker derives file/evidence/usage fields and the Publisher revalidates the
+Artifact against current signed state.
+
+Before changing rollout mode, run:
 
 ```bash
 GOWORK=off go test ./scripts -run '^TestIssueAgentWorkflow' -count=1
-ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f) }' \
+go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   .github/workflows/issue-agent-*.yml
 ```
+
+Setup, key rotation, budgets, lifecycle, emergency disable, and pilot evidence
+requirements are documented in
+[`docs/agents/issue-agent.md`](../agents/issue-agent.md).
 
 ## Agent-directed PR Validation
 
