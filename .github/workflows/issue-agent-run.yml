@@ -1,0 +1,65 @@
+name: Agent Tool - Shadow Issue Agent Run
+run-name: Issue Agent shadow Issue ${{ inputs.issue_number }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Positive Issue number for a shadow projection
+        required: true
+        type: string
+      target_sha:
+        description: Exact 40-character target commit SHA
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: issue-agent-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  shadow:
+    name: Verify isolated control and target checkouts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - name: Check out protected control source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Check out target without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.target_sha }}
+          path: workspace
+          persist-credentials: false
+      - name: Validate bounded identities
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git -C workspace rev-parse HEAD)" = "$TARGET_SHA"
+          control_revision="$(git -C control rev-parse HEAD)"
+          [[ "$control_revision" =~ ^[0-9a-f]{40}$ ]]
+      - name: Report shadow run
+        shell: bash
+        run: |
+          {
+            echo '## Issue Agent per-Issue shadow run'
+            echo
+            echo "- Issue: \`#${{ inputs.issue_number }}\`"
+            echo "- Target SHA: \`${{ inputs.target_sha }}\`"
+            echo '- Model calls: `0`'
+            echo '- Target commands: `0`'
+            echo '- GitHub writes: `0`'
+          } >>"$GITHUB_STEP_SUMMARY"

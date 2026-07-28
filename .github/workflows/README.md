@@ -25,6 +25,25 @@ for discovery and may become more specific over time.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject | Explicit permission-change authorization required |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Every 15 minutes, destroys expired leases; also supports exact authorized cleanup | Autonomous billing and resource safety backstop |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
+| `issue-agent-control.yml` | `Safety Automation - Issue Agent Shadow Control` | Reconciles Issue, comment, PR, Review, and validation-completion hints against protected policy | Shadow-only read path; writes only a Job Summary |
+| `issue-agent-reconcile.yml` | `Safety Automation - Issue Agent Shadow Sweeper` | Hourly bounded scan for missed authorized Issue work and recovery candidates | Shadow-only read path; reports page saturation |
+| `issue-agent-run.yml` | `Agent Tool - Shadow Issue Agent Run` | Verifies isolated protected-control and immutable-target checkouts for one Issue | On-demand shadow inspection; executes no target content |
+
+## GitHub Issue Agent rollout
+
+The Issue Agent currently runs in `shadow` mode. `issue-agent-control.yml` and
+`issue-agent-reconcile.yml` share one non-cancelling repository scheduler
+concurrency group. They always build `cmd/wkissueagent` from a credential-free
+`main` checkout, verify the embedded source revision, and emit proposals only
+to the Job Summary. The per-Issue shadow tool uses distinct `control` and
+`workspace` checkouts with persisted Git credentials disabled.
+
+Shadow mode has no GitHub App token, checkpoint signing key, model credential,
+Publisher Environment, branch write, label write, comment write, or PR write.
+The scheduled scan reads at most one page of 100 records and marks a saturated
+page as truncated rather than assuming the inventory is complete. Later
+rollout modes must retain the same control/Worker/Publisher separation and
+pass `scripts/issue_agent_workflows_test.go` before enabling any write.
 
 ## Agent PR validation protocol
 

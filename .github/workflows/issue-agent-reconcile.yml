@@ -1,0 +1,104 @@
+name: Safety Automation - Issue Agent Shadow Sweeper
+run-name: Issue Agent bounded shadow sweep
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: issue-agent-scheduler-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sweeper:
+    name: Scan a bounded authorized-Issue page
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out protected control source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build and verify protected sweeper
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(git -C control rev-parse HEAD)"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          (
+            cd control
+            GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+          )
+          go version -m "$RUNNER_TEMP/wkissueagent" >"$RUNNER_TEMP/wkissueagent.buildinfo"
+          grep -F "vcs.revision	$revision" "$RUNNER_TEMP/wkissueagent.buildinfo"
+      - name: Read one bounded page and compute sweep plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X GET "repos/${GITHUB_REPOSITORY}/issues" \
+            -f state=open \
+            -f labels=ready-for-agent \
+            -f per_page=100 \
+            -f page=1 >"$RUNNER_TEMP/issues.json"
+          jq -e 'type == "array" and length <= 100' "$RUNNER_TEMP/issues.json" >/dev/null
+          jq '[.[] | select(has("pull_request") | not)]' \
+            "$RUNNER_TEMP/issues.json" >"$RUNNER_TEMP/authorized-issues.json"
+          observed="$(jq -r 'length' "$RUNNER_TEMP/issues.json")"
+          truncated=false
+          if [[ "$observed" = "100" ]]; then
+            truncated=true
+          fi
+          jq -n \
+            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              now: $now,
+              candidates: [],
+              active: [],
+              starts: [],
+              budget: {
+                MaxActiveWorkers: 3,
+                MaxHeavyWorkers: 1,
+                RollingWindow: 86400000000000,
+                MaxStartedWorkerTime: 86400000000000
+              },
+              lease_margin: 300000000000
+            }' >"$RUNNER_TEMP/plan-sweep.json"
+          "$RUNNER_TEMP/wkissueagent" plan-sweep \
+            --input "$RUNNER_TEMP/plan-sweep.json" \
+            >"$RUNNER_TEMP/leases.json"
+          jq -n \
+            --argjson issue_count "$(jq 'length' "$RUNNER_TEMP/authorized-issues.json")" \
+            --argjson truncated "$truncated" \
+            --slurpfile leases "$RUNNER_TEMP/leases.json" \
+            '{rollout:"shadow",issue_count:$issue_count,truncated:$truncated,leases:$leases[0]}' \
+            >"$RUNNER_TEMP/sweep-summary.json"
+      - name: Report bounded sweep
+        shell: bash
+        run: |
+          {
+            echo '## Issue Agent shadow sweep'
+            echo
+            echo '- GitHub writes: `0`'
+            echo '- Only page 1 (100 records maximum) was inspected.'
+            echo '- A saturated page is reported as truncated and never treated as complete.'
+            echo '```json'
+            jq -cS . "$RUNNER_TEMP/sweep-summary.json"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"

@@ -137,6 +137,9 @@ var catalogedWorkflowNames = map[string]string{
 	"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
 	"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
 	"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
+	"issue-agent-control.yml":         "Safety Automation - Issue Agent Shadow Control",
+	"issue-agent-reconcile.yml":       "Safety Automation - Issue Agent Shadow Sweeper",
+	"issue-agent-run.yml":             "Agent Tool - Shadow Issue Agent Run",
 }
 
 var autonomousSafetyWorkflows = map[string]struct{}{
@@ -144,6 +147,8 @@ var autonomousSafetyWorkflows = map[string]struct{}{
 	"agent-pr-validation-control.yml": {},
 	"cloud-sim-cleanup.yml":           {},
 	"cloud-sim-monitor.yml":           {},
+	"issue-agent-control.yml":         {},
+	"issue-agent-reconcile.yml":       {},
 }
 
 var legacyAutomaticTestWorkflows = []string{"ci.yml", "nightly.yml"}

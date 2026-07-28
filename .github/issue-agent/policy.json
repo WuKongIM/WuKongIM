@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "enabled": false,
+  "enabled": true,
   "rollout_mode": "shadow",
   "default_provider": "codex",
   "issue_budget": {

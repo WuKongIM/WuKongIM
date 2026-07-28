@@ -24,7 +24,7 @@ func TestDecodePolicyLocksApprovedSafetyDefaults(t *testing.T) {
 	policy, err := issueagentusecase.DecodePolicy(file, 64<<10)
 	require.NoError(t, err)
 	require.Equal(t, issueagentusecase.RolloutShadow, policy.RolloutMode)
-	require.False(t, policy.Enabled)
+	require.True(t, policy.Enabled)
 	require.Equal(t, 3, policy.IssueBudget.MaxReproductionAttempts)
 	require.Equal(t, 3, policy.IssueBudget.MaxRemediationAttempts)
 	require.Equal(t, 2, policy.IssueBudget.MaxCIRepairAttempts)

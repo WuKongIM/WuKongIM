@@ -8,6 +8,28 @@ repository-root `./...` is not a valid gate because Go package discovery
 ignores `.gitignore` and can include local packages below `tmp/` or
 `web/node_modules/`.
 
+## GitHub Issue Agent shadow automation
+
+The repository includes three serverless GitHub-hosted Actions for the Issue
+Agent. `issue-agent-control.yml` handles bounded event hints,
+`issue-agent-reconcile.yml` performs the scheduled bounded sweep, and
+`issue-agent-run.yml` verifies the per-Issue checkout boundary. The current
+rollout is `shadow`: all three have read-only `GITHUB_TOKEN` permissions, no
+GitHub App or model secrets, and no mutation path. Control and target source
+use separate checkouts with persisted credentials disabled.
+
+Every job builds `cmd/wkissueagent` from protected `main` control source and
+checks the embedded VCS revision. Event payload text is never interpolated into
+shell, environment, cache keys, or outputs. The Sweeper reads no more than 100
+records and reports page saturation as truncation. Before changing rollout
+mode, run:
+
+```bash
+GOWORK=off go test ./scripts -run '^TestIssueAgentWorkflow' -count=1
+ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f) }' \
+  .github/workflows/issue-agent-*.yml
+```
+
 ## Agent-directed PR Validation
 
 `.github/workflows/agent-pr-validation-control.yml` is the trusted control

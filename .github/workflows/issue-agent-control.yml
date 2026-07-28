@@ -1,0 +1,89 @@
+name: Safety Automation - Issue Agent Shadow Control
+run-name: Issue Agent shadow event ${{ github.event_name }}
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled, reopened, closed]
+  issue_comment:
+    types: [created, edited, deleted]
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled, closed]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  workflow_run:
+    workflows: [Agent Tool - Validate PR]
+    types: [completed]
+  repository_dispatch:
+    types: [issue-agent-reconcile]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: issue-agent-scheduler-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  planner:
+    name: Reconcile current state in shadow mode
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out protected control source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build and verify protected planner
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(git -C control rev-parse HEAD)"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          (
+            cd control
+            GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+          )
+          go version -m "$RUNNER_TEMP/wkissueagent" >"$RUNNER_TEMP/wkissueagent.buildinfo"
+          grep -F "vcs.revision	$revision" "$RUNNER_TEMP/wkissueagent.buildinfo"
+      - name: Compute read-only shadow proposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              now: $now,
+              enabled: true,
+              rollout_mode: "shadow",
+              chain_status: "missing"
+            }' >"$RUNNER_TEMP/plan-event.json"
+          "$RUNNER_TEMP/wkissueagent" plan-event \
+            --input "$RUNNER_TEMP/plan-event.json" \
+            >"$RUNNER_TEMP/plan.json"
+          jq -e '.operation == "report_only"' "$RUNNER_TEMP/plan.json" >/dev/null
+      - name: Report shadow decision
+        shell: bash
+        run: |
+          {
+            echo '## Issue Agent shadow reconciliation'
+            echo
+            echo "- Event: \`${{ github.event_name }}\`"
+            echo '- Rollout: `shadow`'
+            echo '- GitHub writes: `0`'
+            echo '- Planner result:'
+            echo '```json'
+            jq -cS . "$RUNNER_TEMP/plan.json"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
