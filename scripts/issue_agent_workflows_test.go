@@ -45,7 +45,7 @@ func TestIssueAgentBugFormHasFourRequiredSemanticInputs(t *testing.T) {
 	require.Contains(t, strings.ToLower(string(raw)), "private")
 }
 
-func TestIssueAgentWorkflowShadowContracts(t *testing.T) {
+func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range []string{
@@ -60,13 +60,53 @@ func TestIssueAgentWorkflowShadowContracts(t *testing.T) {
 		require.Empty(t, workflow.Permissions, name)
 		require.NotEmpty(t, workflow.Jobs, name)
 		require.NotContains(t, string(raw), "pull_request_target")
-		require.NotContains(t, string(raw), "ISSUE_AGENT_APP_PRIVATE_KEY")
-		require.NotContains(t, string(raw), "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-		require.NotContains(t, string(raw), "DEEPSEEK_API_KEY")
-		require.NotContains(t, string(raw), "CODEX_API_KEY")
 		require.NotContains(t, string(raw), "persist-credentials: true")
 		for jobName, job := range workflow.Jobs {
 			require.Greater(t, job.TimeoutMinutes, 0, "%s/%s", name, jobName)
+			jobText := fmt.Sprintf("%#v", job)
+			switch {
+			case name == "issue-agent-control.yml" &&
+				(jobName == "intake-publisher" || jobName == "state-publisher"):
+				require.Equal(t, "issue-agent-publisher", job.Environment)
+				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
+				if jobName == "state-publisher" {
+					require.Contains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+				} else {
+					require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+				}
+				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
+			case name == "issue-agent-reconcile.yml" && jobName == "dispatcher":
+				require.Equal(t, "issue-agent-publisher", job.Environment)
+				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
+			case name == "issue-agent-run.yml" && jobName == "publisher":
+				require.Equal(t, "issue-agent-publisher", job.Environment)
+				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
+				require.Contains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
+			case name == "issue-agent-run.yml" && jobName == "codex-worker":
+				require.Equal(t, "issue-agent-codex", job.Environment)
+				require.Contains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+			case name == "issue-agent-run.yml" && jobName == "deepseek-worker":
+				require.Equal(t, "issue-agent-deepseek", job.Environment)
+				require.Contains(t, jobText, "DEEPSEEK_API_KEY")
+				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+			default:
+				require.Empty(t, job.Environment, "%s/%s", name, jobName)
+				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
+			}
 			for _, step := range job.Steps {
 				if step.Uses != "" {
 					require.NoError(t, validatePinnedIssueAgentAction(step.Uses))
@@ -97,7 +137,8 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.Contains(t, raw, "group: issue-agent-${{ inputs.issue_number }}")
 	require.Contains(t, raw, "cancel-in-progress: false")
 	require.NotContains(t, raw, "permissions:\n      contents: write")
-	require.NotContains(t, raw, "environment:")
+	require.Contains(t, raw, "environment: issue-agent-publisher")
+	require.Contains(t, raw, "module_cache")
 }
 
 func validatePinnedIssueAgentAction(value string) error {

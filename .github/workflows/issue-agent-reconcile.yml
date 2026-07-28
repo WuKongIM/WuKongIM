@@ -1,5 +1,5 @@
-name: Safety Automation - Issue Agent Shadow Sweeper
-run-name: Issue Agent bounded shadow sweep
+name: Safety Automation - Issue Agent Sweeper
+run-name: Issue Agent bounded recovery sweep
 
 on:
   schedule:
@@ -13,19 +13,73 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sweeper:
-    name: Scan a bounded authorized-Issue page
+  planner:
+    name: Read one complete bounded authorized-Issue inventory
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
-      actions: read
       contents: read
       issues: read
-      pull-requests: read
-    env:
-      GH_TOKEN: ${{ github.token }}
+    outputs:
+      issue_count: ${{ steps.plan.outputs.issue_count }}
+      issues_base64: ${{ steps.plan.outputs.issues_base64 }}
+      rollout: ${{ steps.plan.outputs.rollout }}
     steps:
       - name: Check out protected control source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Read bounded Issue inventory
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rollout="$(jq -er '.rollout_mode' control/.github/issue-agent/policy.json)"
+          enabled="$(jq -er '.enabled' control/.github/issue-agent/policy.json)"
+          gh api -X GET "repos/${GITHUB_REPOSITORY}/issues" \
+            -f state=open -f labels=ready-for-agent -f per_page=100 -f page=1 \
+            >"$RUNNER_TEMP/issues.json"
+          jq -e 'type == "array" and length < 100' "$RUNNER_TEMP/issues.json" >/dev/null
+          jq -c '[.[] | select(has("pull_request") | not) | .number] | sort | unique' \
+            "$RUNNER_TEMP/issues.json" >"$RUNNER_TEMP/issue-numbers.json"
+          count="$(jq -er 'length' "$RUNNER_TEMP/issue-numbers.json")"
+          if [[ "$enabled" != true ]]; then
+            rollout=disabled
+          fi
+          {
+            echo "issue_count=$count"
+            echo "issues_base64=$(base64 -w0 "$RUNNER_TEMP/issue-numbers.json")"
+            echo "rollout=$rollout"
+          } >>"$GITHUB_OUTPUT"
+      - name: Report the bounded sweep plan
+        shell: bash
+        run: |
+          {
+            echo '## Issue Agent recovery sweep'
+            echo
+            echo "- Candidate Issues: \`${{ steps.plan.outputs.issue_count }}\`"
+            echo "- Rollout: \`${{ steps.plan.outputs.rollout }}\`"
+            echo '- A saturated 100-record page fails closed.'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  dispatcher:
+    name: Dispatch idempotent signed-state reconciliation
+    needs: [planner]
+    if: >-
+      needs.planner.outputs.issue_count != '0' &&
+      needs.planner.outputs.rollout != 'disabled' &&
+      needs.planner.outputs.rollout != 'shadow'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: issue-agent-publisher
+    permissions:
+      contents: read
+    steps:
+      - name: Check out protected dispatcher source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main
@@ -36,69 +90,37 @@ jobs:
         with:
           go-version-file: control/go.mod
           cache: false
-      - name: Build and verify protected sweeper
+      - name: Build protected token minter
         shell: bash
         run: |
           set -euo pipefail
-          revision="$(git -C control rev-parse HEAD)"
-          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
-          (
-            cd control
-            GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
-          )
-          go version -m "$RUNNER_TEMP/wkissueagent" >"$RUNNER_TEMP/wkissueagent.buildinfo"
-          grep -F "vcs.revision	$revision" "$RUNNER_TEMP/wkissueagent.buildinfo"
-      - name: Read one bounded page and compute sweep plan
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+      - name: Mint repository-scoped App token
         shell: bash
+        env:
+          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
+          APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
+          INSTALLATION_ID: ${{ vars.ISSUE_AGENT_INSTALLATION_ID }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
         run: |
           set -euo pipefail
-          gh api -X GET "repos/${GITHUB_REPOSITORY}/issues" \
-            -f state=open \
-            -f labels=ready-for-agent \
-            -f per_page=100 \
-            -f page=1 >"$RUNNER_TEMP/issues.json"
-          jq -e 'type == "array" and length <= 100' "$RUNNER_TEMP/issues.json" >/dev/null
-          jq '[.[] | select(has("pull_request") | not)]' \
-            "$RUNNER_TEMP/issues.json" >"$RUNNER_TEMP/authorized-issues.json"
-          observed="$(jq -r 'length' "$RUNNER_TEMP/issues.json")"
-          truncated=false
-          if [[ "$observed" = "100" ]]; then
-            truncated=true
-          fi
-          jq -n \
-            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{
-              now: $now,
-              candidates: [],
-              active: [],
-              starts: [],
-              budget: {
-                MaxActiveWorkers: 3,
-                MaxHeavyWorkers: 1,
-                RollingWindow: 86400000000000,
-                MaxStartedWorkerTime: 86400000000000
-              },
-              lease_margin: 300000000000
-            }' >"$RUNNER_TEMP/plan-sweep.json"
-          "$RUNNER_TEMP/wkissueagent" plan-sweep \
-            --input "$RUNNER_TEMP/plan-sweep.json" \
-            >"$RUNNER_TEMP/leases.json"
-          jq -n \
-            --argjson issue_count "$(jq 'length' "$RUNNER_TEMP/authorized-issues.json")" \
-            --argjson truncated "$truncated" \
-            --slurpfile leases "$RUNNER_TEMP/leases.json" \
-            '{rollout:"shadow",issue_count:$issue_count,truncated:$truncated,leases:$leases[0]}' \
-            >"$RUNNER_TEMP/sweep-summary.json"
-      - name: Report bounded sweep
+          jq -n --argjson app_id "$APP_ID" --argjson installation_id "$INSTALLATION_ID" \
+            --argjson repository_id "$REPOSITORY_ID" --arg repository "$GITHUB_REPOSITORY" \
+            '{schema_version:1,payload:{base_url:"https://api.github.com",app_id:$app_id,installation_id:$installation_id,repository_id:$repository_id,repository:$repository}}' \
+            >"$RUNNER_TEMP/mint.json"
+          token="$("$RUNNER_TEMP/wkissueagent" mint-app-token --input "$RUNNER_TEMP/mint.json" | jq -er '.token')"
+          echo "::add-mask::$token"
+          echo "GH_TOKEN=$token" >>"$GITHUB_ENV"
+      - name: Dispatch each bounded candidate
         shell: bash
+        env:
+          ISSUES_BASE64: ${{ needs.planner.outputs.issues_base64 }}
         run: |
-          {
-            echo '## Issue Agent shadow sweep'
-            echo
-            echo '- GitHub writes: `0`'
-            echo '- Only page 1 (100 records maximum) was inspected.'
-            echo '- A saturated page is reported as truncated and never treated as complete.'
-            echo '```json'
-            jq -cS . "$RUNNER_TEMP/sweep-summary.json"
-            echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          printf '%s' "$ISSUES_BASE64" | base64 -d >"$RUNNER_TEMP/issues.json"
+          jq -e 'type == "array" and length < 100 and all(.[]; type == "number" and . > 0)' \
+            "$RUNNER_TEMP/issues.json" >/dev/null
+          while IFS= read -r issue_number; do
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/issue-agent-control.yml/dispatches" \
+              -f ref=main -f "inputs[issue_number]=$issue_number"
+          done < <(jq -r '.[]' "$RUNNER_TEMP/issues.json")

@@ -48,6 +48,7 @@ jobs:
           EXPECTED_MERGE_SHA: ${{ github.event.client_payload.merge_sha }}
           GATE_RUN_ID: ${{ github.event.client_payload.gate_run_id }}
           TRIGGER_ACTOR: ${{ github.event.client_payload.trigger_actor }}
+          ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
           REQUEST_RUN_ID: ${{ github.event.client_payload.request_run_id }}
         run: |
           set -euo pipefail
@@ -55,7 +56,11 @@ jobs:
           [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EXPECTED_MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$GATE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
-          [[ "$TRIGGER_ACTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]
+          if [[ "$TRIGGER_ACTOR" = "$ISSUE_AGENT_APP_LOGIN" ]]; then
+            [[ "$TRIGGER_ACTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}\[bot\]$ ]]
+          else
+            [[ "$TRIGGER_ACTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]
+          fi
           [[ "$REQUEST_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
           gh api \
             "repos/${GITHUB_REPOSITORY}/actions/runs/${REQUEST_RUN_ID}" \

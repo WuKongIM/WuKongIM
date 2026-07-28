@@ -104,6 +104,10 @@ var approvedActionPins = map[string]actionPin{
 		sha:     "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 		release: "v7.0.1",
 	},
+	"actions/download-artifact": {
+		sha:     "018cc2cf5baa6db3ef3c5f8a56943fffe632ef53",
+		release: "v6.0.0",
+	},
 }
 
 func checkoutStep() ciStep {
@@ -137,9 +141,9 @@ var catalogedWorkflowNames = map[string]string{
 	"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
 	"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
 	"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
-	"issue-agent-control.yml":         "Safety Automation - Issue Agent Shadow Control",
-	"issue-agent-reconcile.yml":       "Safety Automation - Issue Agent Shadow Sweeper",
-	"issue-agent-run.yml":             "Agent Tool - Shadow Issue Agent Run",
+	"issue-agent-control.yml":         "Safety Automation - Issue Agent Control",
+	"issue-agent-reconcile.yml":       "Safety Automation - Issue Agent Sweeper",
+	"issue-agent-run.yml":             "Agent Tool - Issue Worker",
 }
 
 var autonomousSafetyWorkflows = map[string]struct{}{
