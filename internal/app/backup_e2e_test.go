@@ -21,6 +21,86 @@ import (
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
 
+func TestBackupLocalE2EBuildQualificationRequiresExactCleanRevision(t *testing.T) {
+	const revision = "0123456789abcdef0123456789abcdef01234567"
+
+	if err := ValidateBackupLocalE2EBuildQualification(
+		BackupBuildQualification{BuildRevision: revision},
+		revision,
+	); err != nil {
+		t.Fatalf("exact clean local e2e revision rejected: %v", err)
+	}
+
+	for _, test := range []struct {
+		name          string
+		qualification BackupBuildQualification
+		localRevision string
+	}{
+		{
+			name:          "missing local revision",
+			qualification: BackupBuildQualification{BuildRevision: revision},
+		},
+		{
+			name:          "different local revision",
+			qualification: BackupBuildQualification{BuildRevision: revision},
+			localRevision: "1123456789abcdef0123456789abcdef01234567",
+		},
+		{
+			name: "modified source",
+			qualification: BackupBuildQualification{
+				BuildRevision: revision,
+				BuildModified: true,
+			},
+			localRevision: revision,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateBackupLocalE2EBuildQualification(
+				test.qualification,
+				test.localRevision,
+			)
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("error = %v, want ErrInvalidConfig", err)
+			}
+			if !strings.Contains(err.Error(), "local e2e") {
+				t.Fatalf("error = %v, want local e2e qualification context", err)
+			}
+		})
+	}
+}
+
+func TestBackupE2EQualificationUsesLocalRevisionOnlyForFileSubstitute(t *testing.T) {
+	const revision = "0123456789abcdef0123456789abcdef01234567"
+
+	localQualification := BackupBuildQualification{BuildRevision: revision}
+	if err := validateBackupBuildQualificationForE2EMode(
+		localQualification,
+		revision,
+		true,
+	); err != nil {
+		t.Fatalf("file-backed local e2e qualification rejected: %v", err)
+	}
+	if err := validateBackupBuildQualificationForE2EMode(
+		localQualification,
+		revision,
+		false,
+	); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("production provider accepted local e2e revision: %v", err)
+	}
+
+	productionQualification := BackupBuildQualification{
+		BuildRevision:     revision,
+		QualifiedRevision: revision,
+	}
+	if err := validateBackupBuildQualificationForE2EMode(
+		productionQualification,
+		"",
+		true,
+	); err != nil {
+		t.Fatalf("file-backed qualification job rejected production stamp: %v", err)
+	}
+}
+
 func TestBackupE2ERemoteLatencyIsBounded(t *testing.T) {
 	t.Setenv(backupE2ERemoteLatencyEnv, "250ms")
 	got, err := backupE2ERemoteLatency()
