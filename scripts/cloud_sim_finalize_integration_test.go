@@ -1,3 +1,5 @@
+//go:build integration
+
 package scripts_test
 
 import (
@@ -16,6 +18,7 @@ import (
 )
 
 func TestCloudSimulationLocalRuntimeDoesNotDeleteInheritedShimDirectory(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	callerDir := t.TempDir()
 	sentinel := filepath.Join(callerDir, "caller-owned")
@@ -39,6 +42,7 @@ func TestCloudSimulationLocalRuntimeDoesNotDeleteInheritedShimDirectory(t *testi
 }
 
 func TestCloudSimulationLocalRuntimePrefersFixedCandidateOverCallerPATH(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	temp := t.TempDir()
 	fixed := filepath.Join(temp, "fixed-gh")
@@ -59,6 +63,7 @@ func TestCloudSimulationLocalRuntimePrefersFixedCandidateOverCallerPATH(t *testi
 }
 
 func TestCloudSimulationLocalRuntimeRejectsVersionDrift(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	temp := t.TempDir()
 	staleGH := filepath.Join(temp, "stale-gh")
@@ -106,6 +111,7 @@ fi
 }
 
 func TestCloudSimulationLocalRuntimeBoundsOneCommand(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	descendantPIDFile := filepath.Join(t.TempDir(), "descendant.pid")
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
@@ -147,6 +153,7 @@ func TestCloudSimulationLocalRuntimeBoundsOneCommand(t *testing.T) {
 }
 
 func TestCloudSimulationLocalRuntimeHangupCleansProcessGroup(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	temp := t.TempDir()
 	descendantPIDFile := filepath.Join(temp, "descendant.pid")

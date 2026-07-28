@@ -1,3 +1,5 @@
+//go:build integration
+
 package scripts_test
 
 import (
@@ -10,6 +12,7 @@ import (
 )
 
 func TestCloudSimulationSSHRetryEventuallySucceeds(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	retryScript := cloudSimulationSSHRetryScript(t)
 	temporary := t.TempDir()
 	counterPath := filepath.Join(temporary, "attempts")
@@ -47,6 +50,7 @@ if ((attempt < 3)); then exit 255; fi
 }
 
 func TestCloudSimulationSSHRetryReturnsLastStatusAfterBoundedAttempts(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	retryScript := cloudSimulationSSHRetryScript(t)
 	temporary := t.TempDir()
 	counterPath := filepath.Join(temporary, "attempts")
@@ -79,6 +83,7 @@ exit 255
 }
 
 func TestCloudSimulationSSHRetryDoesNotReplayRemoteCommandFailures(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	retryScript := cloudSimulationSSHRetryScript(t)
 	temporary := t.TempDir()
 	counterPath := filepath.Join(temporary, "attempts")
@@ -111,6 +116,7 @@ exit 42
 }
 
 func TestCloudSimulationSSHRetryCaptureDiscardsFailedAttemptOutput(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	retryScript := cloudSimulationSSHRetryScript(t)
 	temporary := t.TempDir()
 	counterPath := filepath.Join(temporary, "attempts")
@@ -144,6 +150,7 @@ printf 'fresh-device\n'
 }
 
 func TestCloudSimulationSSHRetryCaptureFailsWhenSuccessfulOutputCannotBeRead(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	retryScript := cloudSimulationSSHRetryScript(t)
 	command := exec.CommandContext(t.Context(), "bash", "-c",
 		`hash -p /usr/bin/false cat; source "$1"; shift; cloud_ssh_retry_capture capture-output 1 0 "$@"`,
@@ -161,6 +168,7 @@ func TestCloudSimulationSSHRetryCaptureFailsWhenSuccessfulOutputCannotBeRead(t *
 }
 
 func TestCloudSimulationSSHRetryStopsBeforeExpiredGlobalDeadline(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	retryScript := cloudSimulationSSHRetryScript(t)
 	temporary := t.TempDir()
 	counterPath := filepath.Join(temporary, "attempts")

@@ -415,7 +415,7 @@ jobs:
     if: needs.plan.outputs.go_integration == 'true'
     needs: [plan, status-pending]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     permissions:
       contents: read
     env:
@@ -438,6 +438,13 @@ jobs:
         run: |
           set -o pipefail
           timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Run scripts integration
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/go-integration.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 10m go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2 2>&1 | tee -a "$LOG_FILE"
       - name: Upload integration failure log
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -661,6 +661,7 @@ func TestAgentPRValidationWorkflowContract(t *testing.T) {
 	if err := validateAgentPRValidationWorkflow(raw); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("scripts integration files use build tags", assertScriptsIntegrationTestFilesUseBuildTag)
 }
 
 func TestAgentPRValidationControlWorkflowContract(t *testing.T) {
@@ -1411,6 +1412,33 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 			if !reflect.DeepEqual(setupGo.With, wantSetupGo) {
 				return fmt.Errorf("Agent validation Go job %q setup-go = %#v, want %#v", name, setupGo.With, wantSetupGo)
 			}
+		}
+	}
+	goIntegration := workflow.Jobs["go-integration"]
+	if goIntegration.TimeoutMinutes != 40 {
+		return fmt.Errorf(
+			"Agent validation Go integration timeout = %d, want 40",
+			goIntegration.TimeoutMinutes,
+		)
+	}
+	integrationSteps := make(map[string]string)
+	for _, step := range goIntegration.Steps {
+		integrationSteps[step.Name] = step.Run
+	}
+	for name, required := range map[string]string{
+		"Run integration packages": "go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1",
+		"Run scripts integration":  "timeout --signal=TERM --kill-after=30s 10m go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2",
+	} {
+		run, ok := integrationSteps[name]
+		if !ok {
+			return fmt.Errorf("Agent validation Go integration job is missing step %q", name)
+		}
+		if !strings.Contains(run, required) {
+			return fmt.Errorf(
+				"Agent validation Go integration step %q is missing command %q",
+				name,
+				required,
+			)
 		}
 	}
 	goE2EBuild := workflow.Jobs["go-e2e"]

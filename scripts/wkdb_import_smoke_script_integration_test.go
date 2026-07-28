@@ -1,3 +1,5 @@
+//go:build integration
+
 package scripts_test
 
 import (
@@ -10,6 +12,7 @@ import (
 )
 
 func TestWKDBImportSmokeScriptValidatesAndImportsBundle(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	wkdbBin := filepath.Join(t.TempDir(), "wkdb")
 	build := exec.Command(goTool(t), "build", "-o", wkdbBin, "./cmd/wkdb")
@@ -46,6 +49,7 @@ func TestWKDBImportSmokeScriptValidatesAndImportsBundle(t *testing.T) {
 }
 
 func TestWKDBExportRoundTripSmokeScript(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	wkdbBin := filepath.Join(t.TempDir(), "wkdb")
 	build := exec.Command(goTool(t), "build", "-o", wkdbBin, "./cmd/wkdb")
@@ -76,6 +80,7 @@ func TestWKDBExportRoundTripSmokeScript(t *testing.T) {
 }
 
 func TestWKDBDiffSmokeScript(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	wkdbBin := filepath.Join(t.TempDir(), "wkdb")
 	build := exec.Command(goTool(t), "build", "-o", wkdbBin, "./cmd/wkdb")

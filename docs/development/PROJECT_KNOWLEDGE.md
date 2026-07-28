@@ -228,6 +228,13 @@
 - The chat Demo is embedded under the product API listener at `/demo/`; it defaults to the page origin for HTTP APIs and discovers WebSocket addresses through `/route`.
 - When using project-local `.worktrees/*`, run Go tests with `GOWORK=off`; the parent `go.work` points at the main checkout and otherwise makes packages resolve under `.worktrees` incorrectly.
 - Repository-wide Go gates must use `GOWORK=off` plus explicit roots (`cmd`, `internal`, `pkg`, `scripts`, `docker`, or `test/e2e`); root `./...` ignores `.gitignore` and can include local `tmp` or `web/node_modules` packages.
+- The default `scripts/...` unit tier is limited to static contracts, parsers,
+  AWK/JQ transforms, help output, and no-background dry runs. Binary builds,
+  process lifecycle/signals, real sleeps/deadlines, TCP, retry/readiness, and
+  fault-injection scenarios live in `*_integration_test.go` and run with
+  `-tags=integration -parallel=2`; wall-clock-sensitive cases use the shared
+  exclusive timing lock. Production `scripts/**/*.sh` and scripts integration
+  test changes require both `agent-ci/go-fast` and `agent-ci/go-integration`.
 - Agent-directed PR validation uses only fixed suites from `.github/workflows/README.md`; PR/gate-generation-numbered commit statuses are evidence, while the required branch-protection gate is a PR-event-bound GitHub Actions check that verifies the exact PR, head SHA, frozen test-merge SHA, gate run, and request run. Pull requests, pushes, and clocks do not start test suites automatically; Cleanup, Monitor, and merge-gate verification remain autonomous safety workflows.
 - Official `cmd/wukongim` goroutines must launch through a fixed `pkg/goroutine` task or an audited registered pool; `scripts/managed_goroutines_test.go` rejects raw `go`, `.Go`, and unregistered ants pools in production roots.
 - `internal/gateway` now ships only the `gnet` transport; connection callbacks are serialized by actor shards and there is no `stdnet` fallback or per-connection writer goroutine.

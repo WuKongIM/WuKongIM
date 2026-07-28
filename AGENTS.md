@@ -100,6 +100,11 @@ app -> access/usecase/runtime/infra/pkg
 - You MUST run at least the tests directly related to the change.
 - Unit tests MUST remain fast. Tests that simulate realistic elapsed time or
   external integration MUST use the `integration` build tag.
+- Tests under `scripts/` that build binaries, start or signal processes, use
+  real sleeps/deadlines, open TCP listeners, or exercise retry/readiness loops
+  MUST live in `*_integration_test.go` with the `integration` build tag.
+  Static source/configuration contracts, parsers, AWK/JQ transforms, help
+  output, and no-background dry runs SHOULD remain in the default unit tier.
 - Development SHOULD default to unit tests. Integration and E2E suites SHOULD
   run only when the change affects those behaviors or the task explicitly
   requires them.
@@ -119,6 +124,8 @@ app -> access/usecase/runtime/infra/pkg
   `GOWORK=off go test ./internal/... ./pkg/...`
 - Integration tests:
   `GOWORK=off go test -tags=integration ./internal/... ./pkg/... -count=1`
+- Scripts integration tests:
+  `GOWORK=off go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2`
 - E2E tests:
   `GOWORK=off go test -tags=e2e ./test/e2e/... -count=1`
 - Run the server:
