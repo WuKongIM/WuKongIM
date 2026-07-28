@@ -148,7 +148,9 @@ When a human merges the validated PR, the control workflow treats the
 `pull_request.closed` event only as a wake-up signal. The trusted Publisher
 re-reads the exact PR head and merged state, then appends the signed `merged`
 checkpoint. It never merges or closes the Issue itself. This terminal
-checkpoint is what makes `/agent backport` eligible.
+checkpoint is what makes `/agent backport` eligible. If the close event is
+missed, the hourly typed reconciliation re-reads the same exact PR facts and
+records the merge without trusting the stale event payload.
 
 ## Capacity, retries, and recovery
 

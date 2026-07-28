@@ -19,6 +19,8 @@ current GitHub snapshot + verified Issue checkpoint + injected time
 
 Events are hints only. Every plan is derived from a current snapshot.
 Duplicated, reordered, missing, or stale events must converge to the same plan.
+This includes recovering a missed PR-close event from a fresh exact
+review-ready PR head and merged-state projection.
 One Issue generation fences all in-flight work, and checkpoint sequence remains
 strictly increasing across generations.
 

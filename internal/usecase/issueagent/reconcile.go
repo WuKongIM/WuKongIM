@@ -31,6 +31,7 @@ const (
 	OperationExpireLease         Operation = "expire_lease"
 	OperationCreateDraftPR       Operation = "create_draft_pr"
 	OperationRequestValidation   Operation = "request_validation"
+	OperationRecordMerge         Operation = "record_merge"
 )
 
 // LeaseFacts are the exact signed lease fields needed by reconciliation.
@@ -49,6 +50,14 @@ type WorkerArtifact struct {
 	Generation  uint64
 }
 
+// MergeFacts are a fresh exact PR projection used only to recover a missed
+// pull_request.closed wake-up.
+type MergeFacts struct {
+	PRNumber int64
+	HeadSHA  string
+	Merged   bool
+}
+
 // ReconcileInput is one current GitHub snapshot; event payload is deliberately absent.
 type ReconcileInput struct {
 	Now                 time.Time
@@ -58,6 +67,7 @@ type ReconcileInput struct {
 	CheckpointDigest    string
 	Lease               *LeaseFacts
 	Artifacts           []WorkerArtifact
+	Merge               *MergeFacts
 }
 
 // ReconcilePolicy is the currently enabled capability ceiling.
@@ -164,6 +174,20 @@ func Reconcile(input ReconcileInput, policy ReconcilePolicy) (Plan, error) {
 		plan.WriteAllowed = true
 		plan.Reason = "current unexpired lease has one exact Artifact"
 		return plan, nil
+	}
+	if input.Checkpoint.State == issueagentcontract.StateReadyForReview &&
+		input.Checkpoint.Work != nil && input.Merge != nil {
+		if input.Merge.PRNumber != input.Checkpoint.Work.PRNumber ||
+			input.Merge.HeadSHA != input.Checkpoint.Work.HeadSHA ||
+			!fullCommitPattern.MatchString(input.Merge.HeadSHA) {
+			return Plan{}, errors.New("current pull request merge facts are stale")
+		}
+		if input.Merge.Merged {
+			plan.Operation = OperationRecordMerge
+			plan.WriteAllowed = true
+			plan.Reason = "fresh GitHub facts report the exact validated PR as merged"
+			return plan, nil
+		}
 	}
 
 	operation, phase, allowed := nextStateOperation(

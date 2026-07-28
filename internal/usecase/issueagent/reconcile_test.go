@@ -118,6 +118,37 @@ func TestReconcilePublishesOnlyCurrentUnexpiredWorkerResult(t *testing.T) {
 	require.Equal(t, issueagentusecase.OperationExpireLease, expired.Operation)
 }
 
+func TestReconcileRecoversMissedExactMergeEvent(t *testing.T) {
+	t.Parallel()
+
+	checkpoint := reconcileCheckpoint(issueagent.StateReadyForReview)
+	checkpoint.Work = &issueagent.Work{
+		Branch: "agent/issue-42", HeadSHA: "0123456789abcdef0123456789abcdef01234567",
+		PRNumber: 9,
+	}
+	input := issueagentusecase.ReconcileInput{
+		Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
+		ChainStatus:         issueagentusecase.ChainValid,
+		Checkpoint:          checkpoint,
+		CheckpointCommentID: 102,
+		CheckpointDigest:    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Merge: &issueagentusecase.MergeFacts{
+			PRNumber: 9, HeadSHA: checkpoint.Work.HeadSHA, Merged: true,
+		},
+	}
+	policy := issueagentusecase.ReconcilePolicy{
+		Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
+	}
+	plan, err := issueagentusecase.Reconcile(input, policy)
+	require.NoError(t, err)
+	require.Equal(t, issueagentusecase.OperationRecordMerge, plan.Operation)
+	require.True(t, plan.WriteAllowed)
+
+	input.Merge.HeadSHA = "89abcdef0123456789abcdef0123456789abcdef"
+	_, err = issueagentusecase.Reconcile(input, policy)
+	require.Error(t, err)
+}
+
 func TestReconcileShadowModeNeverProducesWriteAuthority(t *testing.T) {
 	t.Parallel()
 

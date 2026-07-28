@@ -663,6 +663,12 @@ jobs:
                       --input "$RUNNER_TEMP/validate.json" >"$RUNNER_TEMP/result.json"
                   fi
                   ;;
+                record_merge:ready_for_review)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/merge.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-merge \
+                    --input "$RUNNER_TEMP/merge.json" >"$RUNNER_TEMP/result.json"
+                  ;;
                 wait:*|report_only:*)
                   ;;
                 *)

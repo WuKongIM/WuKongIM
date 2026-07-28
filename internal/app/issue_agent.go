@@ -673,6 +673,22 @@ func readCurrentCheckpoint(
 				ExpiresAt:   lease.ExpiresAt,
 			}
 		}
+		var mergeFacts *issueagentusecase.MergeFacts
+		if verified.Checkpoint.State == issueagentcontract.StateReadyForReview &&
+			verified.Checkpoint.Work != nil {
+			pull, err := client.PullRequest(
+				ctx, verified.Checkpoint.Work.PRNumber,
+			)
+			if err != nil ||
+				pull.HeadRef != verified.Checkpoint.Work.Branch ||
+				pull.HeadSHA != verified.Checkpoint.Work.HeadSHA {
+				return nil, errors.New("review-ready pull request facts are stale")
+			}
+			mergeFacts = &issueagentusecase.MergeFacts{
+				PRNumber: pull.Number, HeadSHA: pull.HeadSHA,
+				Merged: pull.State == "closed" && pull.Merged,
+			}
+		}
 		plan, err := issueagentusecase.Reconcile(
 			issueagentusecase.ReconcileInput{
 				Now:                 config.Now().UTC(),
@@ -681,6 +697,7 @@ func readCurrentCheckpoint(
 				CheckpointCommentID: verified.CommentID,
 				CheckpointDigest:    verified.Digest,
 				Lease:               leaseFacts,
+				Merge:               mergeFacts,
 			},
 			issueagentusecase.ReconcilePolicy{
 				Enabled: policy.Enabled, RolloutMode: policy.RolloutMode,

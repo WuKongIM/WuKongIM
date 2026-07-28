@@ -151,10 +151,11 @@ func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *t
 	raw := string(readWorkflow(t, "issue-agent-control.yml"))
 	require.Contains(t, raw, ".plan.operation")
 	require.Contains(t, raw, `case "$LIFECYCLE_OPERATION:$STATE"`)
-	require.Contains(t, raw, `"failure"`)
+	require.Contains(t, raw, `"$conclusion" = failure`)
 	require.Contains(t, raw, "publish-command")
 	require.Contains(t, raw, "publish-merge")
 	require.Contains(t, raw, "observe_merge")
+	require.Contains(t, raw, "record_merge:ready_for_review")
 	for _, command := range []string{
 		"revise", "cancel", "address-review", "adopt-head", "backport",
 		"recover-chain",
