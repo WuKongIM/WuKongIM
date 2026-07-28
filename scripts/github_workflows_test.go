@@ -21,6 +21,7 @@ type actionPin struct {
 
 type ciWorkflow struct {
 	Name        string               `yaml:"name"`
+	RunName     string               `yaml:"run-name"`
 	On          map[string]yaml.Node `yaml:"on"`
 	Permissions map[string]string    `yaml:"permissions"`
 	Concurrency ciConcurrency        `yaml:"concurrency"`
@@ -34,10 +35,14 @@ type ciConcurrency struct {
 
 type ciJob struct {
 	Name           string            `yaml:"name"`
+	If             string            `yaml:"if"`
 	RunsOn         string            `yaml:"runs-on"`
 	TimeoutMinutes int               `yaml:"timeout-minutes"`
 	Environment    string            `yaml:"environment"`
 	Needs          []string          `yaml:"needs"`
+	Permissions    map[string]string `yaml:"permissions"`
+	Outputs        map[string]string `yaml:"outputs"`
+	Concurrency    *ciConcurrency    `yaml:"concurrency"`
 	Env            map[string]string `yaml:"env"`
 	Defaults       *ciDefaults       `yaml:"defaults"`
 	Strategy       *ciStrategy       `yaml:"strategy"`
@@ -68,6 +73,7 @@ type ciMatrixEntry struct {
 }
 
 type ciStep struct {
+	ID    string            `yaml:"id"`
 	Name  string            `yaml:"name"`
 	Uses  string            `yaml:"uses"`
 	Run   string            `yaml:"run"`
@@ -957,6 +963,345 @@ func TestNightlyWorkflowContract(t *testing.T) {
 	}
 }
 
+func TestAgentPRValidationWorkflowContract(t *testing.T) {
+	raw := readWorkflow(t, "agent-pr-validation.yml")
+	if err := validateAgentPRValidationWorkflow(raw); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAgentPRValidationControlWorkflowContract(t *testing.T) {
+	raw := readWorkflow(t, "agent-pr-validation-control.yml")
+	if err := validateAgentPRValidationControlWorkflow(raw); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAgentPRValidationMergeGateWorkflowContract(t *testing.T) {
+	raw := readWorkflow(t, "agent-pr-merge-gate.yml")
+	if err := validateAgentPRValidationMergeGateWorkflow(raw); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAgentPRValidationMergeGateBootstrapTreeParsingFailsClosed(t *testing.T) {
+	tests := []struct {
+		name     string
+		treeJSON string
+		wantGate string
+		wantErr  bool
+	}{
+		{
+			name:     "gate absent",
+			treeJSON: `{"truncated":false,"tree":[]}`,
+			wantGate: "false",
+		},
+		{
+			name: "gate present",
+			treeJSON: `{
+  "truncated": false,
+  "tree": [{"path": ".github/workflows/agent-pr-merge-gate.yml"}]
+}`,
+			wantGate: "true",
+		},
+		{
+			name:     "tree null",
+			treeJSON: `{"truncated":false,"tree":null}`,
+			wantErr:  true,
+		},
+		{
+			name:     "tree missing",
+			treeJSON: `{"truncated":false}`,
+			wantErr:  true,
+		},
+		{
+			name:     "tree truncated",
+			treeJSON: `{"truncated":true,"tree":[]}`,
+			wantErr:  true,
+		},
+		{
+			name:     "tree entry missing path",
+			treeJSON: `{"truncated":false,"tree":[{}]}`,
+			wantErr:  true,
+		},
+		{
+			name:     "tree entry null path",
+			treeJSON: `{"truncated":false,"tree":[{"path":null}]}`,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			treePath := filepath.Join(t.TempDir(), "base-tree.json")
+			if err := os.WriteFile(treePath, []byte(tt.treeJSON), 0o600); err != nil {
+				t.Fatalf("write tree fixture: %v", err)
+			}
+			schema := exec.Command(
+				"jq",
+				"-e",
+				`.truncated == false and
+(.tree | type == "array") and
+all(.tree[];
+  type == "object" and
+  (.path | type == "string" and length > 0))`,
+				treePath,
+			)
+			if output, err := schema.CombinedOutput(); err != nil {
+				if tt.wantErr {
+					return
+				}
+				t.Fatalf("validate tree schema: %v\n%s", err, output)
+			}
+			if tt.wantErr {
+				t.Fatal("malformed bootstrap tree unexpectedly passed schema validation")
+			}
+			query := exec.Command(
+				"jq",
+				"-r",
+				`any(.tree[]; .path == ".github/workflows/agent-pr-merge-gate.yml")`,
+				treePath,
+			)
+			output, err := query.CombinedOutput()
+			if err != nil {
+				t.Fatalf("query gate path: %v\n%s", err, output)
+			}
+			if got := strings.TrimSpace(string(output)); got != tt.wantGate {
+				t.Fatalf("base_has_gate = %q, want %q", got, tt.wantGate)
+			}
+		})
+	}
+}
+
+func TestAgentPRValidationControlWorkflowRejectsReadOnlyActor(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation-control.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"            admin|maintain|write) ;;",
+		"            admin|maintain|write|read) ;;",
+	)
+	if err := validateAgentPRValidationControlWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("control validator accepted a read-only actor")
+	}
+}
+
+func TestAgentPRValidationControlWorkflowRejectsMissingRequestStatus(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation-control.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		`-f "context=Agent Validation Request / PR #${PR_NUMBER} / Gate #${gate_run_id}"`,
+		`-f "context=Unbound Agent Validation Request / PR #${PR_NUMBER} / Gate #${gate_run_id}"`,
+	)
+	if err := validateAgentPRValidationControlWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("control validator accepted dispatch without a commit-bound request status")
+	}
+}
+
+func TestAgentWorkflowCatalogContract(t *testing.T) {
+	root := repoRoot(t)
+	catalog := readFile(t, filepath.Join(root, ".github", "workflows", "README.md"))
+	agents := readFile(t, filepath.Join(root, "AGENTS.md"))
+	codeowners := readFile(t, filepath.Join(root, ".github", "CODEOWNERS"))
+	cloudRunbook := readFile(t, filepath.Join(root, "docs", "superpowers", "runbooks", "cloud-simulation.md"))
+
+	workflows := map[string]string{
+		"agent-pr-merge-gate.yml":         "Safety Automation - Agent PR Merge Gate",
+		"agent-pr-validation.yml":         "Agent Tool - Validate PR",
+		"agent-pr-validation-control.yml": "Safety Automation - Agent PR Validation Control",
+		"backup-qualification.yml":        "Agent Tool - Qualify Backup",
+		"ci.yml":                          "CI",
+		"cloud-sim-analyze.yml":           "Agent Tool - Analyze Cloud Simulation",
+		"cloud-sim-cleanup.yml":           "Safety Automation - Reconcile Cloud Simulation Resources",
+		"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
+		"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
+		"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
+		"nightly.yml":                     "Nightly",
+	}
+	for file, name := range workflows {
+		raw := readFile(t, filepath.Join(root, ".github", "workflows", file))
+		if !strings.HasPrefix(raw, "name: "+name+"\n") {
+			t.Errorf("%s does not use cataloged name %q", file, name)
+		}
+		if !strings.Contains(catalog, "`"+file+"`") ||
+			!strings.Contains(catalog, "`"+name+"`") {
+			t.Errorf("workflow catalog does not map %s to %q", file, name)
+		}
+	}
+	for _, required := range []string{
+		"agent-ci/docs-only",
+		"agent-ci/go-fast",
+		"agent-ci/web",
+		"agent-ci/demo",
+		"agent-ci/go-race",
+		"agent-ci/go-integration",
+		"agent-ci/go-e2e",
+		"agent-ci/three-node-smoke",
+		"agent-ci/run",
+		"agent-validation-plan:v1",
+		"retry_of_run_id",
+		"Agent Validation Gate",
+		"Agent Validation Evidence",
+		"first_time_contributors",
+	} {
+		if !strings.Contains(catalog, required) {
+			t.Errorf("workflow catalog is missing %q", required)
+		}
+	}
+	for _, workflowPath := range []string{
+		".github/workflows/cloud-sim-analyze.yml",
+		".github/workflows/cloud-sim-cleanup.yml",
+		".github/workflows/cloud-sim-oidc-subject.yml",
+		".github/workflows/cloud-sim-provision.yml",
+	} {
+		if !strings.Contains(cloudRunbook, workflowPath) {
+			t.Errorf("Cloud Simulation runbook is missing stable workflow path %q", workflowPath)
+		}
+	}
+	for _, staleName := range []string{
+		"Cloud Simulation - Configure OIDC Subject",
+		"Cloud Simulation - Provision",
+		"Cloud Simulation - Analysis Session",
+		"Cloud Simulation - Cleanup",
+	} {
+		if strings.Contains(cloudRunbook, staleName) {
+			t.Errorf("Cloud Simulation runbook still references stale display name %q", staleName)
+		}
+	}
+	if !strings.Contains(agents, ".github/workflows/README.md") {
+		t.Error("root AGENTS.md does not route Agents to the Workflow tool catalog")
+	}
+	for _, protected := range []string{
+		"/.github/workflows/ @tangtaoit @No8blackball",
+		"/.github/CODEOWNERS @tangtaoit @No8blackball",
+		"/scripts/github_workflows_test.go @tangtaoit @No8blackball",
+		"/scripts/agent-pr-validation-plan.sh @tangtaoit @No8blackball",
+		"/scripts/agent_pr_validation_plan_test.go @tangtaoit @No8blackball",
+	} {
+		if !strings.Contains(codeowners, protected) {
+			t.Errorf("CODEOWNERS is missing %q", protected)
+		}
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsWritableTestJob(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"  go-quality:\n    name: Agent / Go quality\n    if: needs.plan.outputs.go_fast == 'true'\n    needs: [plan, status-pending]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read",
+		"  go-quality:\n    name: Agent / Go quality\n    if: needs.plan.outputs.go_fast == 'true'\n    needs: [plan, status-pending]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: write",
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a writable PR test job")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsDefaultBranchTestCheckout(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"  go-quality:\n    name: Agent / Go quality\n    if: needs.plan.outputs.go_fast == 'true'\n    needs: [plan, status-pending]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read\n    env:\n      GOWORK: \"off\"\n    steps:\n      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0\n        with:\n          ref: ${{ github.event.client_payload.merge_sha }}",
+		"  go-quality:\n    name: Agent / Go quality\n    if: needs.plan.outputs.go_fast == 'true'\n    needs: [plan, status-pending]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read\n    env:\n      GOWORK: \"off\"\n    steps:\n      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0\n        with:\n          ref: main",
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a default-branch checkout for a PR test job")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsWritableDefaultBranchCache(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"  go-quality:\n    name: Agent / Go quality\n    if: needs.plan.outputs.go_fast == 'true'\n    needs: [plan, status-pending]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read\n    env:\n      GOWORK: \"off\"\n    steps:\n      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0\n        with:\n          ref: ${{ github.event.client_payload.merge_sha }}\n          persist-credentials: false\n      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0\n        with:\n          go-version-file: go.mod\n          cache: false",
+		"  go-quality:\n    name: Agent / Go quality\n    if: needs.plan.outputs.go_fast == 'true'\n    needs: [plan, status-pending]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read\n    env:\n      GOWORK: \"off\"\n    steps:\n      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0\n        with:\n          ref: ${{ github.event.client_payload.merge_sha }}\n          persist-credentials: false\n      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0\n        with:\n          go-version-file: go.mod\n          cache: true",
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a writable default-branch Go cache")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsUnconditionalTestJob(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"  go-integration:\n    name: Agent / Go integration\n    if: needs.plan.outputs.go_integration == 'true'",
+		"  go-integration:\n    name: Agent / Go integration\n    # if: needs.plan.outputs.go_integration == 'true'",
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted an unconditional Agent test job")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsWritablePlanJob(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"      statuses: read",
+		"      statuses: write",
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a plan job that can write statuses")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsDeploymentEnvironment(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"    timeout-minutes: 10\n    permissions:\n      contents: read\n    env:\n      GOWORK: \"off\"",
+		"    timeout-minutes: 10\n    environment: production\n    permissions:\n      contents: read\n    env:\n      GOWORK: \"off\"",
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a deployment environment on a PR test job")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsSecretReference(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		"          GH_TOKEN: ${{ github.token }}",
+		"          GH_TOKEN: ${{ secrets.PR_VALIDATION_TOKEN }}",
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a secret reference in the PR validation workflow")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsUnboundControlRun(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		`.path == ".github/workflows/agent-pr-validation-control.yml"`,
+		`.path == ".github/workflows/ci.yml"`,
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a request that was not bound to the control workflow")
+	}
+}
+
+func TestAgentPRValidationWorkflowRejectsReusableRequestStatus(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation.yml"))
+	mutated := replaceWorkflowFirst(
+		t,
+		raw,
+		`-f "context=Agent Validation Request / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}"`,
+		`-f "context=Reusable Agent Validation Request / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}"`,
+	)
+	if err := validateAgentPRValidationWorkflow([]byte(mutated)); err == nil {
+		t.Fatal("validator accepted a gate that does not consume the one-shot request")
+	}
+}
+
 func TestBackupQualificationWorkflowContract(t *testing.T) {
 	raw := readWorkflow(t, "backup-qualification.yml")
 	if err := validateBackupQualificationWorkflow(raw); err != nil {
@@ -1481,10 +1826,492 @@ func validateNightlyWorkflow(raw []byte) error {
 	)
 }
 
+func validateAgentPRValidationWorkflow(raw []byte) error {
+	document, workflow, err := decodeWorkflow(raw)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(raw), "secrets.") || strings.Contains(string(raw), "secrets[") {
+		return fmt.Errorf("Agent validation workflow must not reference Secrets")
+	}
+	if strings.Contains(string(raw), "context=Agent Validation Gate") ||
+		strings.Contains(string(raw), "context='Agent Validation Gate'") {
+		return fmt.Errorf("Agent validation worker must publish evidence, not the PR merge-gate context")
+	}
+	if err := validateAllUses(document, raw); err != nil {
+		return err
+	}
+	if workflow.Name != "Agent Tool - Validate PR" {
+		return fmt.Errorf("workflow name = %q, want Agent Tool - Validate PR", workflow.Name)
+	}
+	if workflow.RunName != "Agent PR #${{ github.event.client_payload.pr_number }} validation head ${{ github.event.client_payload.head_sha }} merge ${{ github.event.client_payload.merge_sha }} gate ${{ github.event.client_payload.gate_run_id }} request ${{ github.event.client_payload.request_run_id }}" {
+		return fmt.Errorf("workflow run-name does not identify the requested PR, head, test-merge, gate generation, and request")
+	}
+	if err := validateRepositoryDispatchTrigger(workflow.On); err != nil {
+		return err
+	}
+	if len(workflow.Permissions) != 0 {
+		return fmt.Errorf("Agent validation root permissions = %#v, want none", workflow.Permissions)
+	}
+	wantConcurrency := ciConcurrency{
+		Group:            "agent-pr-validation-${{ github.event.client_payload.pr_number }}",
+		CancelInProgress: boolPointer(true),
+	}
+	if !reflect.DeepEqual(workflow.Concurrency, wantConcurrency) {
+		return fmt.Errorf("Agent validation concurrency = %#v, want %#v", workflow.Concurrency, wantConcurrency)
+	}
+	jobNames := []string{
+		"plan",
+		"status-pending",
+		"go-quality",
+		"go-unit",
+		"web",
+		"demo",
+		"go-race",
+		"go-integration",
+		"go-e2e",
+		"three-node-smoke",
+		"gate",
+	}
+	root := document.Content[0]
+	if err := validateMappingKeys(
+		root,
+		[]string{"name", "run-name", "on", "permissions", "concurrency", "jobs"},
+		"Agent validation workflow root",
+	); err != nil {
+		return err
+	}
+	jobs, ok := mappingValue(root, "jobs")
+	if !ok {
+		return fmt.Errorf("Agent validation workflow jobs are missing")
+	}
+	if err := validateMappingKeys(jobs, jobNames, "Agent validation workflow jobs"); err != nil {
+		return err
+	}
+	for _, name := range jobNames {
+		if workflow.Jobs[name].Environment != "" {
+			return fmt.Errorf("Agent validation job %q must not use a deployment environment", name)
+		}
+	}
+	plan := workflow.Jobs["plan"]
+	if !reflect.DeepEqual(plan.Permissions, map[string]string{
+		"actions":       "read",
+		"contents":      "read",
+		"issues":        "read",
+		"pull-requests": "read",
+		"statuses":      "read",
+	}) {
+		return fmt.Errorf("Agent validation plan permissions = %#v", plan.Permissions)
+	}
+	wantPlanOutputs := map[string]string{
+		"docs_only":        "${{ steps.plan.outputs.docs_only }}",
+		"go_fast":          "${{ steps.plan.outputs.go_fast }}",
+		"web":              "${{ steps.plan.outputs.web }}",
+		"demo":             "${{ steps.plan.outputs.demo }}",
+		"go_race":          "${{ steps.plan.outputs.go_race }}",
+		"go_integration":   "${{ steps.plan.outputs.go_integration }}",
+		"go_e2e":           "${{ steps.plan.outputs.go_e2e }}",
+		"three_node_smoke": "${{ steps.plan.outputs.three_node_smoke }}",
+		"plan_comment_id":  "${{ steps.plan.outputs.plan_comment_id }}",
+		"retry_of_run_id":  "${{ steps.plan.outputs.retry_of_run_id }}",
+	}
+	if !reflect.DeepEqual(plan.Outputs, wantPlanOutputs) {
+		return fmt.Errorf("Agent validation plan outputs = %#v, want %#v", plan.Outputs, wantPlanOutputs)
+	}
+	var planCheckout *ciStep
+	for index := range plan.Steps {
+		if strings.HasPrefix(plan.Steps[index].Uses, "actions/checkout@") {
+			if planCheckout != nil {
+				return fmt.Errorf("Agent validation plan contains multiple checkout steps")
+			}
+			planCheckout = &plan.Steps[index]
+		}
+	}
+	if planCheckout == nil {
+		return fmt.Errorf("Agent validation plan has no default-branch checkout")
+	}
+	wantPlanCheckout := map[string]any{
+		"ref":                 "${{ github.event.repository.default_branch }}",
+		"persist-credentials": false,
+	}
+	if !reflect.DeepEqual(planCheckout.With, wantPlanCheckout) {
+		return fmt.Errorf("Agent validation plan checkout = %#v, want %#v", planCheckout.With, wantPlanCheckout)
+	}
+	var planScript strings.Builder
+	for _, step := range plan.Steps {
+		planScript.WriteString(step.Run)
+		planScript.WriteByte('\n')
+	}
+	for _, required := range []string{
+		`actions/runs/${REQUEST_RUN_ID}`,
+		`.path == ".github/workflows/agent-pr-validation-control.yml"`,
+		`.event == "pull_request_target"`,
+		`.display_title == $title`,
+		`validation labeled head ${EXPECTED_HEAD_SHA} merge ${EXPECTED_MERGE_SHA}`,
+		`.actor.login == $actor`,
+		`actions/runs/${GATE_RUN_ID}`,
+		`.path == ".github/workflows/agent-pr-merge-gate.yml"`,
+		`.conclusion == "failure"`,
+		`Agent Validation Request / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
+		`select(.context == $context)`,
+		`endswith($suffix)`,
+		`test "$current_merge_sha" = "$EXPECTED_MERGE_SHA"`,
+		`"$TRIGGER_ACTOR" "$EXPECTED_HEAD_SHA" "$EXPECTED_MERGE_SHA"`,
+		`"$GATE_RUN_ID"`,
+	} {
+		if !strings.Contains(planScript.String(), required) {
+			return fmt.Errorf("Agent validation plan is missing request binding %q", required)
+		}
+	}
+	pending := workflow.Jobs["status-pending"]
+	if !reflect.DeepEqual(pending.Needs, []string{"plan"}) {
+		return fmt.Errorf("Agent validation pending-status needs = %#v, want plan", pending.Needs)
+	}
+	if !reflect.DeepEqual(pending.Permissions, map[string]string{
+		"pull-requests": "read",
+		"statuses":      "write",
+	}) {
+		return fmt.Errorf("Agent validation pending-status permissions = %#v", pending.Permissions)
+	}
+	testConditions := map[string]string{
+		"go-quality":       "needs.plan.outputs.go_fast == 'true'",
+		"go-unit":          "needs.plan.outputs.go_fast == 'true'",
+		"web":              "needs.plan.outputs.web == 'true'",
+		"demo":             "needs.plan.outputs.demo == 'true'",
+		"go-race":          "needs.plan.outputs.go_race == 'true'",
+		"go-integration":   "needs.plan.outputs.go_integration == 'true'",
+		"go-e2e":           "needs.plan.outputs.go_e2e == 'true'",
+		"three-node-smoke": "needs.plan.outputs.three_node_smoke == 'true'",
+	}
+	for name, condition := range testConditions {
+		job := workflow.Jobs[name]
+		if job.If != condition {
+			return fmt.Errorf("Agent validation test job %q condition = %q, want %q", name, job.If, condition)
+		}
+		if !reflect.DeepEqual(job.Needs, []string{"plan", "status-pending"}) {
+			return fmt.Errorf("Agent validation test job %q needs = %#v", name, job.Needs)
+		}
+		if !reflect.DeepEqual(job.Permissions, map[string]string{"contents": "read"}) {
+			return fmt.Errorf("Agent validation test job %q permissions = %#v, want contents: read", name, job.Permissions)
+		}
+		var checkout *ciStep
+		for index := range job.Steps {
+			if strings.HasPrefix(job.Steps[index].Uses, "actions/checkout@") {
+				if checkout != nil {
+					return fmt.Errorf("Agent validation test job %q contains multiple checkout steps", name)
+				}
+				checkout = &job.Steps[index]
+			}
+		}
+		if checkout == nil {
+			return fmt.Errorf("Agent validation test job %q has no checkout step", name)
+		}
+		wantCheckout := map[string]any{
+			"ref":                 "${{ github.event.client_payload.merge_sha }}",
+			"persist-credentials": false,
+		}
+		if !reflect.DeepEqual(checkout.With, wantCheckout) {
+			return fmt.Errorf("Agent validation test job %q checkout = %#v, want %#v", name, checkout.With, wantCheckout)
+		}
+		if name != "web" && name != "demo" {
+			var setupGo *ciStep
+			for index := range job.Steps {
+				if strings.HasPrefix(job.Steps[index].Uses, "actions/setup-go@") {
+					setupGo = &job.Steps[index]
+					break
+				}
+			}
+			if setupGo == nil {
+				return fmt.Errorf("Agent validation Go job %q has no setup-go step", name)
+			}
+			wantSetupGo := map[string]any{
+				"go-version-file": "go.mod",
+				"cache":           false,
+			}
+			if !reflect.DeepEqual(setupGo.With, wantSetupGo) {
+				return fmt.Errorf("Agent validation Go job %q setup-go = %#v, want %#v", name, setupGo.With, wantSetupGo)
+			}
+		}
+	}
+	gate, ok := workflow.Jobs["gate"]
+	if !ok {
+		return fmt.Errorf("Agent validation workflow gate job is missing")
+	}
+	if gate.Name != "Publish Agent validation evidence" {
+		return fmt.Errorf("Agent validation evidence publisher name = %q", gate.Name)
+	}
+	if gate.If != "always()" {
+		return fmt.Errorf("Agent validation gate must run with always()")
+	}
+	wantGateNeeds := jobNames[:len(jobNames)-1]
+	if !reflect.DeepEqual(gate.Needs, wantGateNeeds) {
+		return fmt.Errorf("Agent validation gate needs = %#v, want %#v", gate.Needs, wantGateNeeds)
+	}
+	if !reflect.DeepEqual(gate.Permissions, map[string]string{
+		"actions":       "write",
+		"pull-requests": "read",
+		"statuses":      "write",
+	}) {
+		return fmt.Errorf("Agent validation gate permissions are not fail-closed")
+	}
+	for _, name := range []string{"status-pending", "gate"} {
+		for _, step := range workflow.Jobs[name].Steps {
+			if strings.HasPrefix(step.Uses, "actions/checkout@") {
+				return fmt.Errorf("Agent validation status job %q must not checkout code", name)
+			}
+		}
+	}
+	var gateScript strings.Builder
+	for _, step := range gate.Steps {
+		gateScript.WriteString(step.Run)
+		gateScript.WriteByte('\n')
+	}
+	for _, required := range []string{
+		`context=Agent Validation Request / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
+		`target_url="$REQUEST_RUN_URL"`,
+		`context=Agent Validation Evidence / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
+		`publish_handoff_error`,
+		`state=error`,
+		`"$current_head" != "$HEAD_SHA" || "$current_merge" != "$MERGE_SHA"`,
+		`latest_gate_run_id`,
+		`"$latest_gate_run_id" != "$GATE_RUN_ID"`,
+		`should_rerun_gate=false`,
+		`actions/runs/${GATE_RUN_ID}/rerun`,
+	} {
+		if !strings.Contains(gateScript.String(), required) {
+			return fmt.Errorf("Agent validation gate is missing request consumption %q", required)
+		}
+	}
+	return nil
+}
+
+func validateAgentPRValidationControlWorkflow(raw []byte) error {
+	document, workflow, err := decodeWorkflow(raw)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(raw), "secrets.") || strings.Contains(string(raw), "secrets[") {
+		return fmt.Errorf("control workflow must not reference Secrets")
+	}
+	if workflow.Name != "Safety Automation - Agent PR Validation Control" {
+		return fmt.Errorf("control workflow name = %q", workflow.Name)
+	}
+	if workflow.RunName != "Agent PR #${{ github.event.pull_request.number }} validation ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }} merge ${{ github.event.pull_request.merge_commit_sha }}" {
+		return fmt.Errorf("control workflow run-name does not identify the PR event, head, and test-merge")
+	}
+	if err := validateAgentControlTriggers(workflow.On); err != nil {
+		return err
+	}
+	if len(workflow.Permissions) != 0 {
+		return fmt.Errorf("control workflow root permissions = %#v, want none", workflow.Permissions)
+	}
+	root := document.Content[0]
+	if err := validateMappingKeys(
+		root,
+		[]string{"name", "run-name", "on", "permissions", "jobs"},
+		"Agent validation control workflow root",
+	); err != nil {
+		return err
+	}
+	jobs, ok := mappingValue(root, "jobs")
+	if !ok {
+		return fmt.Errorf("Agent validation control jobs are missing")
+	}
+	if err := validateMappingKeys(jobs, []string{"request", "invalidate"}, "Agent validation control jobs"); err != nil {
+		return err
+	}
+	request := workflow.Jobs["request"]
+	if request.Environment != "" {
+		return fmt.Errorf("Agent validation request must not use a deployment environment")
+	}
+	if request.If != "github.event.action == 'labeled' && github.event.label.name == 'agent-ci/run'" {
+		return fmt.Errorf("Agent validation request condition is not bound to agent-ci/run")
+	}
+	if !reflect.DeepEqual(request.Permissions, map[string]string{
+		"actions":       "read",
+		"contents":      "write",
+		"pull-requests": "read",
+		"statuses":      "write",
+	}) {
+		return fmt.Errorf("Agent validation request permissions = %#v", request.Permissions)
+	}
+	var requestScript strings.Builder
+	for _, step := range request.Steps {
+		requestScript.WriteString(step.Run)
+		requestScript.WriteByte('\n')
+	}
+	for _, required := range []string{
+		`test "$current_head" = "$HEAD_SHA"`,
+		`test "$merge_sha" = "$EVENT_MERGE_SHA"`,
+		`.merge_commit_sha`,
+		`actions/workflows/agent-pr-merge-gate.yml/runs`,
+		`.conclusion == "failure"`,
+		`collaborators/${TRIGGER_ACTOR}/permission`,
+		"admin|maintain|write) ;;",
+		`context=Agent Validation Request / PR #${PR_NUMBER} / Gate #${gate_run_id}`,
+		`target_url="$REQUEST_RUN_URL"`,
+		"--arg event_type agent-pr-validation",
+		"--arg merge_sha \"$merge_sha\"",
+		"--arg gate_run_id \"$gate_run_id\"",
+		"--arg request_run_id \"$REQUEST_RUN_ID\"",
+		`repos/${GITHUB_REPOSITORY}/dispatches`,
+	} {
+		if !strings.Contains(requestScript.String(), required) {
+			return fmt.Errorf("Agent validation request is missing trusted dispatch contract %q", required)
+		}
+	}
+	invalidate := workflow.Jobs["invalidate"]
+	if invalidate.Environment != "" {
+		return fmt.Errorf("Agent validation invalidation must not use a deployment environment")
+	}
+	if invalidate.If != "github.event.action == 'edited' || github.event.action == 'opened' || github.event.action == 'reopened' || github.event.action == 'synchronize'" {
+		return fmt.Errorf("Agent validation invalidation condition does not cover edited, opened, reopened, and synchronize")
+	}
+	wantConcurrency := &ciConcurrency{
+		Group:            "agent-pr-validation-${{ github.event.pull_request.number }}",
+		CancelInProgress: boolPointer(true),
+	}
+	if !reflect.DeepEqual(invalidate.Concurrency, wantConcurrency) {
+		return fmt.Errorf("Agent validation invalidation concurrency = %#v, want %#v", invalidate.Concurrency, wantConcurrency)
+	}
+	if !reflect.DeepEqual(invalidate.Permissions, map[string]string{"statuses": "write"}) {
+		return fmt.Errorf("Agent validation invalidation permissions = %#v, want statuses: write", invalidate.Permissions)
+	}
+	var invalidateScript strings.Builder
+	for _, step := range invalidate.Steps {
+		invalidateScript.WriteString(step.Run)
+		invalidateScript.WriteByte('\n')
+	}
+	for _, required := range []string{
+		`context=Agent Validation Request / PR #${PR_NUMBER}`,
+		`state=failure`,
+		`target_url="$INVALIDATION_RUN_URL"`,
+	} {
+		if !strings.Contains(invalidateScript.String(), required) {
+			return fmt.Errorf("Agent validation invalidation is missing %q", required)
+		}
+	}
+	if strings.Contains(string(raw), "actions/checkout") ||
+		strings.Contains(string(raw), "github.event.pull_request.head.repo") {
+		return fmt.Errorf("control workflow must never checkout pull request code")
+	}
+	return nil
+}
+
+func validateAgentPRValidationMergeGateWorkflow(raw []byte) error {
+	document, workflow, err := decodeWorkflow(raw)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(raw), "secrets.") ||
+		strings.Contains(string(raw), "secrets[") ||
+		strings.Contains(string(raw), "actions/checkout") {
+		return fmt.Errorf("Agent PR merge gate must not use Secrets or checkout code")
+	}
+	if workflow.Name != "Safety Automation - Agent PR Merge Gate" {
+		return fmt.Errorf("Agent PR merge gate workflow name = %q", workflow.Name)
+	}
+	if workflow.RunName != "Agent PR #${{ github.event.pull_request.number }} merge gate ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }} merge ${{ github.sha }}" {
+		return fmt.Errorf("Agent PR merge gate run-name is not PR, head, and test-merge bound")
+	}
+	if !strings.Contains(string(raw), "MERGE_SHA: ${{ github.sha }}") {
+		return fmt.Errorf("Agent PR merge gate does not bind MERGE_SHA to github.sha")
+	}
+	if !strings.Contains(string(raw), "BASE_SHA: ${{ github.event.pull_request.base.sha }}") {
+		return fmt.Errorf("Agent PR merge gate does not bind BASE_SHA to the PR base")
+	}
+	if err := validateAgentMergeGateTriggers(workflow.On); err != nil {
+		return err
+	}
+	if len(workflow.Permissions) != 0 {
+		return fmt.Errorf("Agent PR merge gate root permissions = %#v, want none", workflow.Permissions)
+	}
+	wantConcurrency := ciConcurrency{
+		Group:            "agent-pr-merge-gate-${{ github.event.pull_request.number }}-${{ github.run_id }}",
+		CancelInProgress: boolPointer(true),
+	}
+	if !reflect.DeepEqual(workflow.Concurrency, wantConcurrency) {
+		return fmt.Errorf("Agent PR merge gate concurrency = %#v, want %#v", workflow.Concurrency, wantConcurrency)
+	}
+	root := document.Content[0]
+	if err := validateMappingKeys(
+		root,
+		[]string{"name", "run-name", "on", "permissions", "concurrency", "jobs"},
+		"Agent PR merge gate workflow root",
+	); err != nil {
+		return err
+	}
+	jobs, ok := mappingValue(root, "jobs")
+	if !ok {
+		return fmt.Errorf("Agent PR merge gate jobs are missing")
+	}
+	if err := validateMappingKeys(jobs, []string{"gate"}, "Agent PR merge gate jobs"); err != nil {
+		return err
+	}
+	gate := workflow.Jobs["gate"]
+	if gate.Name != "Agent Validation Gate" ||
+		gate.If != "" ||
+		gate.RunsOn != "ubuntu-24.04" ||
+		gate.TimeoutMinutes != 3 ||
+		gate.Environment != "" {
+		return fmt.Errorf("Agent PR merge gate job does not match the stable fail-closed contract")
+	}
+	if !reflect.DeepEqual(gate.Permissions, map[string]string{
+		"actions":       "read",
+		"contents":      "read",
+		"pull-requests": "read",
+		"statuses":      "read",
+	}) {
+		return fmt.Errorf("Agent PR merge gate permissions = %#v, want read-only evidence access", gate.Permissions)
+	}
+	if len(gate.Steps) != 1 || gate.Steps[0].Uses != "" {
+		return fmt.Errorf("Agent PR merge gate must contain one script-only verification step")
+	}
+	script := gate.Steps[0].Run
+	for _, required := range []string{
+		`"$RUN_ATTEMPT" -eq 1`,
+		`git/commits/${BASE_SHA}`,
+		`.truncated == false`,
+		`.tree | type == "array"`,
+		`all(.tree[];`,
+		`.path | type == "string" and length > 0`,
+		`base_has_gate`,
+		`test "$base_has_gate" = true`,
+		`.github/workflows/agent-pr-merge-gate.yml`,
+		`Bootstrap PR: the merge-gate workflow is not yet on the base branch`,
+		`[[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]`,
+		`[[ "$GATE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]`,
+		`test "$current_head" = "$HEAD_SHA"`,
+		`test "$current_merge" = "$MERGE_SHA"`,
+		`Agent Validation Request / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
+		`Agent Validation Evidence / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
+		`.created_at >= $event_updated_at`,
+		`.path == ".github/workflows/agent-pr-validation-control.yml"`,
+		`.event == "pull_request_target"`,
+		`Agent PR #${PR_NUMBER} validation labeled head ${HEAD_SHA} merge ${MERGE_SHA}`,
+		`.path == ".github/workflows/agent-pr-validation.yml"`,
+		`.event == "repository_dispatch"`,
+		`validation head ${HEAD_SHA} merge ${MERGE_SHA} gate ${GATE_RUN_ID} request ${request_run_id}`,
+		`for attempt in {1..12}`,
+		`test "$evidence_complete" = true`,
+		`.status == "completed"`,
+		`.conclusion == "success"`,
+		`.state == "success"`,
+	} {
+		if !strings.Contains(script, required) {
+			return fmt.Errorf("Agent PR merge gate is missing binding %q", required)
+		}
+	}
+	if strings.Count(script, "verify_latest_gate_generation") < 3 {
+		return fmt.Errorf("Agent PR merge gate must verify the latest generation before and after evidence checks")
+	}
+	return nil
+}
+
 func validateBackupQualificationWorkflow(raw []byte) error {
 	return validateExpectedWorkflow(
 		raw,
-		"Backup qualification",
+		"Agent Tool - Qualify Backup",
 		"",
 		[]string{
 			"portable-faults",
@@ -1631,11 +2458,23 @@ func validateWorkflowStructure(document *yaml.Node, jobNames []string, expectedJ
 
 func expectedJobKeys(job ciJob) []string {
 	keys := []string{"name", "runs-on", "timeout-minutes", "steps"}
+	if job.If != "" {
+		keys = append(keys, "if")
+	}
 	if job.Environment != "" {
 		keys = append(keys, "environment")
 	}
 	if job.Needs != nil {
 		keys = append(keys, "needs")
+	}
+	if job.Permissions != nil {
+		keys = append(keys, "permissions")
+	}
+	if job.Outputs != nil {
+		keys = append(keys, "outputs")
+	}
+	if job.Concurrency != nil {
+		keys = append(keys, "concurrency")
 	}
 	if job.Env != nil {
 		keys = append(keys, "env")
@@ -1654,6 +2493,9 @@ func expectedJobKeys(job ciJob) []string {
 
 func expectedStepKeys(step ciStep) []string {
 	var keys []string
+	if step.ID != "" {
+		keys = append(keys, "id")
+	}
 	if step.Name != "" {
 		keys = append(keys, "name")
 	}
@@ -1772,6 +2614,70 @@ func validateCITriggers(triggers map[string]yaml.Node) error {
 	branches := push.Content[1]
 	if branches.Kind != yaml.SequenceNode || len(branches.Content) != 1 || branches.Content[0].Value != "main" {
 		return fmt.Errorf("push branches must be exactly [main]")
+	}
+	return nil
+}
+
+func validateRepositoryDispatchTrigger(triggers map[string]yaml.Node) error {
+	if len(triggers) != 1 {
+		return fmt.Errorf("Agent validation trigger keys = %d, want exactly repository_dispatch", len(triggers))
+	}
+	trigger, ok := triggers["repository_dispatch"]
+	if !ok {
+		return fmt.Errorf("Agent validation workflow trigger repository_dispatch is missing")
+	}
+	if err := validateMappingKeys(&trigger, []string{"types"}, "Agent validation repository_dispatch trigger"); err != nil {
+		return err
+	}
+	types, ok := mappingValue(&trigger, "types")
+	if !ok || types.Kind != yaml.SequenceNode || len(types.Content) != 1 ||
+		types.Content[0].Value != "agent-pr-validation" {
+		return fmt.Errorf("Agent validation repository_dispatch types must be exactly [agent-pr-validation]")
+	}
+	return nil
+}
+
+func validateAgentControlTriggers(triggers map[string]yaml.Node) error {
+	if len(triggers) != 1 {
+		return fmt.Errorf("Agent validation control trigger keys = %d, want exactly pull_request_target", len(triggers))
+	}
+	trigger, ok := triggers["pull_request_target"]
+	if !ok {
+		return fmt.Errorf("Agent validation control trigger pull_request_target is missing")
+	}
+	if err := validateMappingKeys(&trigger, []string{"types"}, "Agent validation pull_request_target trigger"); err != nil {
+		return err
+	}
+	types, ok := mappingValue(&trigger, "types")
+	if !ok || types.Kind != yaml.SequenceNode || len(types.Content) != 5 ||
+		types.Content[0].Value != "edited" ||
+		types.Content[1].Value != "labeled" ||
+		types.Content[2].Value != "opened" ||
+		types.Content[3].Value != "reopened" ||
+		types.Content[4].Value != "synchronize" {
+		return fmt.Errorf("Agent validation pull_request_target types must be exactly [edited, labeled, opened, reopened, synchronize]")
+	}
+	return nil
+}
+
+func validateAgentMergeGateTriggers(triggers map[string]yaml.Node) error {
+	if len(triggers) != 1 {
+		return fmt.Errorf("Agent PR merge gate trigger keys = %d, want exactly pull_request", len(triggers))
+	}
+	trigger, ok := triggers["pull_request"]
+	if !ok {
+		return fmt.Errorf("Agent PR merge gate pull_request trigger is missing")
+	}
+	if err := validateMappingKeys(&trigger, []string{"types"}, "Agent PR merge gate pull_request trigger"); err != nil {
+		return err
+	}
+	types, ok := mappingValue(&trigger, "types")
+	if !ok || types.Kind != yaml.SequenceNode || len(types.Content) != 4 ||
+		types.Content[0].Value != "edited" ||
+		types.Content[1].Value != "opened" ||
+		types.Content[2].Value != "reopened" ||
+		types.Content[3].Value != "synchronize" {
+		return fmt.Errorf("Agent PR merge gate pull_request types must be exactly [edited, opened, reopened, synchronize]")
 	}
 	return nil
 }

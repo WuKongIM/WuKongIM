@@ -1,4 +1,4 @@
-name: Cloud Simulation - Monitor
+name: Safety Automation - Patrol Cloud Simulation Runs
 run-name: Cloud Simulation Monitor ${{ inputs.run_id || 'running-runs' }}
 
 on:

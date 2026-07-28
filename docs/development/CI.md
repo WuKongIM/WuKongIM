@@ -1,14 +1,62 @@
 # Continuous Integration
 
-WuKongIM uses two fail-closed GitHub Actions workflows. All Go commands use
-explicit repository roots and `GOWORK=off`; repository-root `./...` is not a
-valid gate because Go package discovery ignores `.gitignore` and can include
-local packages below `tmp/` or `web/node_modules/`.
+WuKongIM is migrating test workflows into fixed, Agent-callable tools. The
+authoritative workflow catalog and invocation protocol live beside the
+workflows in [`.github/workflows/README.md`](../../.github/workflows/README.md).
+All Go commands use explicit repository roots and `GOWORK=off`;
+repository-root `./...` is not a valid gate because Go package discovery
+ignores `.gitignore` and can include local packages below `tmp/` or
+`web/node_modules/`.
 
-## Fast CI
+## Agent-directed PR Validation (Migration Phase 1)
+
+`.github/workflows/agent-pr-validation-control.yml` is the trusted control
+plane. An authorized Agent publishes a versioned, commit-bound validation plan,
+sets the fixed suite labels, and applies the one-shot `agent-ci/run` label. The
+control plane never checks out pull-request code; it dispatches
+`.github/workflows/agent-pr-validation.yml` with the pull request number, exact
+head SHA, exact test-merge SHA, merge-gate generation run ID, actor, and
+request-run identity.
+
+The validation workflow revalidates the plan and minimum path-to-suite mapping,
+checks out that immutable test-merge SHA with read-only credentials, and runs
+only the selected fixed suites. It publishes PR/gate-generation-bound request
+and evidence commit statuses. `.github/workflows/agent-pr-merge-gate.yml`
+independently verifies the exact PR number, head SHA, test-merge SHA from
+`github.sha`, gate run ID, trusted request run, and successful worker run, then
+publishes the stable GitHub Actions check `Agent Validation Gate`. Its first
+PR-event attempt fails closed; the isolated terminal status job reruns that
+exact gate run after publishing generation-bound evidence, while the gate waits
+within a fixed bound for the worker to finish. This check, not the worker's
+commit status evidence, is the future
+branch-protection target. Editing, opening, reopening, or adding a commit
+invalidates the old plan and gate. A failed validation attempt may be retried
+once within the same gate generation only when the new plan cites the prior
+Actions run ID. The next PR edit, open, reopen, or synchronize event creates a
+new generation, so old evidence cannot block or satisfy fresh validation.
+Gate generations use separate concurrency groups, and both the worker handoff
+and the gate's final verdict reject a run ID that is no longer the newest
+generation for the exact head and test-merge.
+
+The bootstrap PR that first adds the merge-gate Workflow is the sole initial
+attempt exception. It passes only after a complete, non-truncated base Git tree
+proves that `agent-pr-merge-gate.yml` is not yet present; after merge, all first
+attempts fail closed.
+
+Test jobs cannot accept arbitrary commands or package paths. Status writes are
+isolated from jobs that execute pull-request code, action caches are disabled,
+renamed paths are classified by both their old and new names, and fork pull
+requests use the same untrusted-code boundary. See the workflow catalog for
+labels, plan schema, retry rules, and fork approval policy.
+
+## Transitional Fast CI
 
 `.github/workflows/ci.yml` runs for pull requests, pushes to `main`, and manual
-dispatches. Obsolete runs for the same pull request/ref are cancelled.
+dispatches. Obsolete runs for the same pull request/ref are cancelled. It
+remains active during migration phase 1 so existing branch protection does not
+lose required checks. Remove it only after a remote Agent-validation pilot is
+green and branch protection requires the `Agent Validation Gate` check from
+the GitHub Actions app.
 
 | Check | Timeout | Contract |
 | --- | ---: | --- |
@@ -73,10 +121,12 @@ The complete chat Demo production bundle under
 `internal/access/api/demoui/dist` follows the same tracked-artifact contract;
 ordinary Go compilation embeds it without invoking Node or Yarn.
 
-## Nightly and Manual Coverage
+## Transitional Nightly and Manual Coverage
 
 `.github/workflows/nightly.yml` starts daily at `18:00 UTC` (`02:00` in
-Asia/Shanghai) and supports manual dispatch.
+Asia/Shanghai) and supports manual dispatch. Its schedule remains active during
+migration phase 1 and is removed only after equivalent Agent-invoked heavy
+validation has been proven remotely.
 
 | Check | Timeout | Contract |
 | --- | ---: | --- |
@@ -89,14 +139,16 @@ Asia/Shanghai) and supports manual dispatch.
 
 Nightly failures remain failures; they do not retroactively block a merged pull
 request. Gofail dynamic-node faults and the 100K-subscriber scenario remain
-explicit opt-in stress paths rather than part of the daily workflow.
+explicit opt-in stress paths rather than part of routine validation.
 
 ## Failure Evidence
 
-Nightly uploads evidence only on failure and retains it for 7 days. Race,
-integration, and e2e jobs upload their bounded `go test` log. Three-node smoke
-uploads only `summary.md`, `cluster.log`, `sim.jsonl`, and `node-logs/*.log`
-from `${RUNNER_TEMP}`.
+Heavy validation usually uploads evidence only on failure and retains it for 7
+days. Race, integration, and e2e jobs upload their bounded `go test` log.
+The Cloud Medium recipient acceptance log is the exception: it is always
+uploaded for 14 days so a passing performance gate remains auditable.
+Three-node smoke uploads only `summary.md`, `cluster.log`, `sim.jsonl`, and
+`node-logs/*.log` from `${RUNNER_TEMP}`.
 
 Never upload the whole smoke directory. It can contain a compiled binary, node
 databases, PID files, generated configurations, and—if promotion is enabled—an
@@ -104,18 +156,28 @@ authentication response and manager token.
 
 ## Workflow Maintenance
 
-- Keep `permissions: contents: read` and `persist-credentials: false`.
+- Keep root workflow permissions empty. Jobs that execute pull-request code get
+  only `contents: read`; only isolated control/status jobs receive write access.
+- Keep `persist-credentials: false` for every pull-request checkout and disable
+  writable caches on untrusted code paths.
 - Pin actions by full commit SHA and keep the reviewed release in the comment.
 - Update `scripts/github_workflows_test.go` when intentionally changing action
-  pins, package groups, timeouts, or artifact paths.
-- Parse both files and run the contract tests before pushing:
+  pins, package groups, permissions, trigger contracts, or artifact paths.
+- Update `scripts/agent-pr-validation-plan.sh` and its tests together when the
+  plan schema, suite labels, or minimum path mapping changes.
+- Parse all workflow files and run the contract tests before pushing:
 
 ```bash
 ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f) }' .github/workflows/*.yml
-GOWORK=off go test ./scripts \
-  -run '^(TestCIWorkflowContract|TestNightlyWorkflowContract)$' -count=1
+bash -n scripts/agent-pr-validation-plan.sh
+GOWORK=off go test ./scripts -run \
+  '^(TestAgentPRValidation.*|TestAgentWorkflowCatalogContract|TestCIWorkflowContract|TestNightlyWorkflowContract)$' \
+  -count=1
 ```
 
-Repository administrators may mark the fast CI checks as required on `main`
-after observing a successful remote run. Branch-protection changes and workflow
-dispatches are external operations and are not performed by repository code.
+Do not change branch protection or delete `ci.yml`/`nightly.yml` as part of
+phase 1. Repository administrators first observe a successful remote pilot,
+then replace the existing required checks with the single stable
+`Agent Validation Gate` check from the GitHub Actions app; the worker's
+PR/gate-generation evidence commit statuses must not be required. Legacy
+workflow removal is a separate final migration.

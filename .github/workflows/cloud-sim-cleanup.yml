@@ -1,4 +1,4 @@
-name: Cloud Simulation - Cleanup
+name: Safety Automation - Reconcile Cloud Simulation Resources
 run-name: Cloud Simulation Cleanup ${{ inputs.run_id || 'scheduled-sweep' }} ${{ inputs.request_id || github.run_id }}
 
 on:

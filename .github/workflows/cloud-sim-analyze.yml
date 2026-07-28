@@ -1,4 +1,4 @@
-name: Cloud Simulation - Analysis Session
+name: Agent Tool - Analyze Cloud Simulation
 run-name: Cloud Simulation Analysis ${{ inputs.operation }} ${{ inputs.request_id }}
 
 on:

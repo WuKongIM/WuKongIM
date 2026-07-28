@@ -1,4 +1,4 @@
-name: Backup qualification
+name: Agent Tool - Qualify Backup
 
 on:
   workflow_dispatch:

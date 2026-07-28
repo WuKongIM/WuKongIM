@@ -1,4 +1,4 @@
-name: Cloud Simulation - Provision
+name: Agent Tool - Provision Cloud Simulation
 
 on:
   workflow_dispatch:
