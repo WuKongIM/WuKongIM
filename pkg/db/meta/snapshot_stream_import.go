@@ -46,6 +46,43 @@ func (db *MetaDB) ImportHashSlotSnapshotReaderForRestoreWithStats(ctx context.Co
 	return stats, err
 }
 
+// VerifyBackupHashSlotSnapshotReader validates a complete portable metadata
+// stream and its exact Hash Slot ownership without mutating the database.
+func VerifyBackupHashSlotSnapshotReader(
+	ctx context.Context,
+	hashSlots []uint16,
+	reader io.ReadSeeker,
+	size int64,
+) (BackupSnapshotStats, error) {
+	normalized, err := normalizeSnapshotHashSlots(hashSlots)
+	if err != nil {
+		return BackupSnapshotStats{}, err
+	}
+	if err := verifySeekableSnapshotChecksum(reader, size); err != nil {
+		return BackupSnapshotStats{}, err
+	}
+	streamSlots, entryCount, err := visitSlotSnapshotStream(
+		ctx, reader, size,
+		func(key, _ []byte) error {
+			if !snapshotEntryInHashSlots(key, normalized) {
+				return fmt.Errorf(
+					"%w: snapshot key %x is outside selected hash slots %v",
+					dberrors.ErrInvalidArgument, key, normalized,
+				)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return BackupSnapshotStats{}, err
+	}
+	if !equalUint16HashSlots(streamSlots, uint16HashSlots(normalized)) {
+		return BackupSnapshotStats{},
+			fmt.Errorf("%w: snapshot hash slots do not match request", dberrors.ErrInvalidArgument)
+	}
+	return BackupSnapshotStats{EntryCount: entryCount}, nil
+}
+
 func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, preserveMigrationMeta, invalidateTokens bool, stats *BackupSnapshotStats) error {
 	if err := checkSnapshotDB(ctx, db); err != nil {
 		return err

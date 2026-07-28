@@ -3,7 +3,6 @@ package control
 import (
 	"time"
 
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
@@ -196,8 +195,8 @@ type Snapshot struct {
 	HashSlots HashSlotTable
 	// Tasks lists active reconcile tasks.
 	Tasks []ReconcileTask
-	// SourceFence disables ordinary foreground work for this source generation.
-	SourceFence *backupartifact.SourceFenceRecord
+	// Maintenance disables business traffic while a restore is active.
+	Maintenance bool
 	// OpsMCP contains desired state for the embedded operations MCP.
 	OpsMCP *OpsMCPState
 	// ChannelDataPlaneLease is this node's local append-admission visibility lease.

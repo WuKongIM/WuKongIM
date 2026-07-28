@@ -17,7 +17,6 @@ type BackupSnapshotBoundary struct {
 	Epoch          uint64
 	LogStartOffset uint64
 	HW             uint64
-	FromExclusive  uint64
 }
 
 // BackupSnapshotRecord is one committed message row decoded from a portable
@@ -62,7 +61,6 @@ func ReplayBackupSnapshotReader(
 				Epoch:          header.checkpoint.Epoch,
 				LogStartOffset: header.checkpoint.LogStartOffset,
 				HW:             header.checkpoint.HW,
-				FromExclusive:  header.fromExclusive,
 			}
 			if err := visitBoundary(boundary); err != nil {
 				return 0, err

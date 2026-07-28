@@ -3,429 +3,266 @@ package manager
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
-	"github.com/stretchr/testify/require"
 )
 
-func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
-	age := int64(42)
-	provider := &fakeBackupManagement{status: backupusecase.StatusSnapshot{
-		Enabled: true, Health: backupusecase.HealthHealthy,
-		CheckpointAgeSeconds: &age,
-		LatestCheckpoint: &backupusecase.CheckpointSummary{
-			ID: "checkpoint-2", CreatedAtUnixMillis: 200,
-			EffectiveAtUnixMillis: 190,
-		},
-		FailureCategory: "checkpoint",
-		Policy: backupusecase.PolicySnapshot{
-			CaptureReconcileIntervalSeconds: 1,
-			CheckpointIntervalSeconds:       60,
-			CaptureWorkerCount:              8, StagingMaxBytes: 1024,
-		},
-		ErasureStreams: []backupusecase.ErasureStreamProgress{{
-			HashSlot: 17, Sequence: 9, Pending: true,
-		}},
-		CaptureLeases: []backupusecase.CaptureLeaseSnapshot{{
-			HashSlot: 17, SlotID: 3, SourceSlotID: 2,
-			HolderNodeID: 2, LeaderTerm: 11, ConfigEpoch: 5,
-			Generation: "slot-generation-1", LeaseSequence: 4,
-			LastPromotionPreviousGeneration: "slot-generation-0",
-			LastPromotionReason:             "audit_corruption",
-			LastPromotionAtUnixMillis:       123,
-		}},
-		IntegrityAudit: backupusecase.IntegrityAuditSnapshot{
-			Revision: 12, DebtObjects: 7,
-			Cursor: &backupusecase.IntegrityAuditCursorSnapshot{
-				CycleID: "catalog-segments-12", ScrubEpoch: 4,
-				CatalogSequence: 12, HashSlot: 17,
-				Generation:          "slot-generation-1",
-				Phase:               backupcontract.IntegrityAuditPhaseRebase,
-				Category:            backupcontract.IntegrityCorruptionCiphertext,
-				UpdatedAtUnixMillis: 456,
+func TestManagerBackupDashboardNeverReturnsStoredCredentials(t *testing.T) {
+	provider := &fakeBackupManagement{
+		dashboard: backupusecase.Dashboard{
+			State: backupcontract.SystemState{
+				Revision: 4,
+				Plan: &backupcontract.Plan{
+					Revision: 2,
+					Enabled:  true,
+					Store: backupcontract.StoreConfig{
+						Kind:                 backupcontract.StoreKindS3,
+						Endpoint:             "https://s3.example.com",
+						Bucket:               "archive",
+						Prefix:               "prod",
+						CredentialCiphertext: []byte("secret-ciphertext"),
+					},
+					Cron:     "0 1 * * *",
+					TimeZone: "Asia/Shanghai",
+				},
 			},
-			Slots: []backupusecase.SlotIntegrityAuditSnapshot{{
-				HashSlot: 17, Generation: "slot-generation-1",
-				Health:              backupcontract.SlotAuditRebaseRequired,
-				Category:            backupcontract.IntegrityCorruptionCiphertext,
-				UpdatedAtUnixMillis: 456,
-			}},
-			UpdatedAtUnixMillis: 456,
+			CredentialsConfigured: true,
+			Archives:              []backupusecase.ArchiveSummary{},
 		},
-		CaptureStatuses: []backupcontract.SlotCaptureStatus{{
-			HashSlot: 17, State: backupcontract.CaptureStateCapturing,
-			MetadataSourceWatermark: 30, MessageSourceWatermark: 50,
-			MetadataLag: 3, MessageLag: 7,
-		}},
-		CaptureStatusComplete:       false,
-		CaptureStatusMissingNodeIDs: []uint64{3},
-		CaptureStatusMissingSlots:   []uint16{18},
-		Compaction: backupusecase.CompactionSnapshot{
-			DebtSlots: 1,
-			Slots: []backupusecase.CompactionSlotSnapshot{{
-				HashSlot: 17, Generation: "slot-generation-1",
-				TargetGeneration: "slot-generation-2",
-				Reason:           "generation_age",
-			}},
-		},
-		GarbageCollection: backupusecase.GarbageCollectionSnapshot{
-			DebtRepositories: 1,
-			Cursors: []backupusecase.GenerationGCCursorSnapshot{{
-				Repository: "primary", CycleID: "gc-1",
-			}},
-		},
-		Restore: &backupusecase.RestoreProgress{
-			PlanID: "restore-1", Status: backupusecase.RestoreStatusInstalling,
-			TotalSlots: 256, InstalledSlots: 12,
-			ThroughputBytesPerSecond: 4096,
-		},
-	}}
-	srv := New(Options{Backup: provider})
+	}
+	server := New(Options{Backup: provider})
 	recorder := httptest.NewRecorder()
-	srv.Engine().ServeHTTP(
+	server.Engine().ServeHTTP(
 		recorder,
-		httptest.NewRequest(http.MethodGet, "/manager/backups/status", nil),
+		httptest.NewRequest(http.MethodGet, "/manager/backups", nil),
 	)
-	require.Equal(t, http.StatusOK, recorder.Code)
-	var decoded map[string]any
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &decoded))
-	require.Equal(t, float64(42), decoded["checkpoint_age_seconds"])
-	require.Equal(t, "checkpoint-2",
-		decoded["latest_checkpoint"].(map[string]any)["id"])
-	lease := decoded["capture_leases"].([]any)[0].(map[string]any)
-	require.Equal(
-		t, "slot-generation-0",
-		lease["last_promotion_previous_generation"],
-	)
-	require.Equal(t, "audit_corruption", lease["last_promotion_reason"])
-	require.Equal(t, float64(123), lease["last_promotion_at_unix_millis"])
-	audit := decoded["integrity_audit"].(map[string]any)
-	require.Equal(t, float64(12), audit["revision"])
-	require.Equal(t, float64(7), audit["debt_objects"])
-	cursor := audit["cursor"].(map[string]any)
-	require.Equal(t, "rebase", cursor["phase"])
-	require.NotContains(t, cursor, "position")
-	slot := audit["slots"].([]any)[0].(map[string]any)
-	require.Equal(t, "rebase_required", slot["health"])
-	capture := decoded["capture_statuses"].([]any)[0].(map[string]any)
-	require.Equal(t, float64(3), capture["metadata_lag"])
-	require.Equal(t, float64(7), capture["message_lag"])
-	require.Equal(t, false, decoded["capture_status_complete"])
-	require.Equal(
-		t, []any{float64(3)},
-		decoded["capture_status_missing_node_ids"],
-	)
-	require.Equal(
-		t, []any{float64(18)},
-		decoded["capture_status_missing_slots"],
-	)
-	require.Equal(t, float64(1),
-		decoded["compaction"].(map[string]any)["debt_slots"])
-	require.Equal(t, float64(1),
-		decoded["garbage_collection"].(map[string]any)["debt_repositories"])
-	require.Equal(t, "restore-1",
-		decoded["restore"].(map[string]any)["plan_id"])
-	for _, removed := range []string{
-		"active", "latest", "verification", "dependencies", "capacity",
-		"recovery_point_age_seconds", "verification_age_seconds",
-		"pending_garbage_count", "target_segment_bytes",
-		"object_lock_days", "primary_region", "key_authority",
-		"active_signing_key_id", "active_wrapping_key_id",
-	} {
-		require.NotContains(t, decoded, removed)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body)
 	}
-	require.NotContains(t, recorder.Body.String(), "commit_sha256")
+	if bytes.Contains(recorder.Body.Bytes(), []byte("secret-ciphertext")) ||
+		bytes.Contains(recorder.Body.Bytes(), []byte("credential_ciphertext")) {
+		t.Fatalf("response exposes credential: %s", recorder.Body)
+	}
 }
 
-func TestManagerBackupCheckpointWritePermission(t *testing.T) {
-	provider := &fakeBackupManagement{
-		publication: backupusecase.CheckpointPublication{
-			Checkpoint:       backupusecase.CheckpointSummary{ID: "checkpoint-3"},
-			CheckpointSHA256: strings.Repeat("a", 64),
-		},
+func TestManagerBackupWritesRequireAuthenticationAndPermission(t *testing.T) {
+	body := []byte(`{
+		"expected_revision":0,
+		"enabled":true,
+		"store":{"kind":"file"},
+		"cron":"0 1 * * *",
+		"time_zone":"Asia/Shanghai",
+		"retention_count":7,
+		"rate_mib_per_second":50,
+		"workers_per_node":1,
+		"max_duration_hours":12
+	}`)
+	unauthenticated := New(Options{Backup: &fakeBackupManagement{}})
+	recorder := performBackupRequest(
+		unauthenticated, http.MethodPut, "/manager/backups/plan", body, "",
+	)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("auth-disabled status = %d body=%s", recorder.Code, recorder.Body)
 	}
-	srv := New(Options{
+
+	provider := &fakeBackupManagement{}
+	server := New(Options{
 		Auth: testAuthConfig([]UserConfig{
-			{Username: "reader", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup", Actions: []string{"r"}}}},
-			{Username: "writer", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup", Actions: []string{"w"}}}},
-		}),
-		Backup: provider,
-	})
-	request := func(user string) *httptest.ResponseRecorder {
-		recorder := httptest.NewRecorder()
-		req := httptest.NewRequest(
-			http.MethodPost, "/manager/backups/checkpoints", nil,
-		)
-		req.Header.Set(
-			"Authorization", "Bearer "+mustIssueTestToken(t, srv, user),
-		)
-		srv.Engine().ServeHTTP(recorder, req)
-		return recorder
-	}
-	require.Equal(t, http.StatusForbidden, request("reader").Code)
-	require.False(t, provider.published)
-	writer := request("writer")
-	require.Equal(t, http.StatusCreated, writer.Code)
-	require.Contains(t, writer.Body.String(),
-		`"checkpoint_sha256":"`+strings.Repeat("a", 64)+`"`)
-	require.NotContains(t, writer.Body.String(), "manifest_sha256")
-	require.True(t, provider.published)
-}
-
-func TestManagerSourceFenceRequiresExplicitGrantAndBindsSuccessor(t *testing.T) {
-	provider := &fakeBackupManagement{
-		sourceFenceReceipt: backupusecase.SourceFenceReceipt{
-			SourceFenceRecord: backupartifact.SourceFenceRecord{
-				ID: "source-fence-1",
+			{
+				Username: "reader", Password: "secret",
+				Permissions: []PermissionConfig{{
+					Resource: "cluster.backup", Actions: []string{"r"},
+				}},
 			},
-		},
-	}
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{
-			{Username: "wildcard-admin", Password: "secret", Permissions: []PermissionConfig{{Resource: "*", Actions: []string{"*"}}}},
-			{Username: "source-fencer", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup.source_fence", Actions: []string{"w"}}}},
+			{
+				Username: "writer", Password: "secret",
+				Permissions: []PermissionConfig{{
+					Resource: "cluster.backup", Actions: []string{"w"},
+				}},
+			},
 		}),
 		Backup: provider,
 	})
-	body := `{"restore_plan_id":" plan-1 ","checkpoint_id":" checkpoint-1 ","target_cluster_id":" target-cluster ","target_generation":" target-generation-1 "}`
-	call := func(user string) *httptest.ResponseRecorder {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(
-			http.MethodPost, "/manager/backups/source-fence",
-			bytes.NewBufferString(body),
+	reader := performBackupRequest(
+		server, http.MethodPut, "/manager/backups/plan", body,
+		mustIssueTestToken(t, server, "reader"),
+	)
+	if reader.Code != http.StatusForbidden {
+		t.Fatalf("reader status = %d body=%s", reader.Code, reader.Body)
+	}
+	writer := performBackupRequest(
+		server, http.MethodPut, "/manager/backups/plan", body,
+		mustIssueTestToken(t, server, "writer"),
+	)
+	if writer.Code != http.StatusOK {
+		t.Fatalf("writer status = %d body=%s", writer.Code, writer.Body)
+	}
+	if provider.configure.RateBytesPerSec != 50<<20 ||
+		provider.configure.MaxDuration.Hours() != 12 ||
+		provider.configure.Cron != "0 1 * * *" {
+		t.Fatalf("configure = %#v", provider.configure)
+	}
+}
+
+func TestManagerBackupManualJobAndArchiveOperations(t *testing.T) {
+	provider := &fakeBackupManagement{
+		job: backupcontract.BackupJob{ID: "backup-1"},
+		archive: backupusecase.ArchiveDetail{
+			Archive: backupusecase.ArchiveSummary{ID: "backup-1"},
+		},
+	}
+	server := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin", Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.backup", Actions: []string{"r", "w"},
+			}},
+		}}),
+		Backup: provider,
+	})
+	token := mustIssueTestToken(t, server, "admin")
+	start := performBackupRequest(
+		server, http.MethodPost, "/manager/backups/jobs", nil, token,
+	)
+	if start.Code != http.StatusAccepted {
+		t.Fatalf("start status = %d body=%s", start.Code, start.Body)
+	}
+	detail := performBackupRequest(
+		server, http.MethodGet,
+		"/manager/backups/archives/backup-1", nil, token,
+	)
+	if detail.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body=%s", detail.Code, detail.Body)
+	}
+	cancel := performBackupRequest(
+		server, http.MethodPost,
+		"/manager/backups/jobs/backup-1/cancel", nil, token,
+	)
+	if cancel.Code != http.StatusNoContent ||
+		provider.canceled != "backup-1" {
+		t.Fatalf("cancel status=%d id=%q", cancel.Code, provider.canceled)
+	}
+	rejectedDelete := performBackupRequest(
+		server, http.MethodDelete,
+		"/manager/backups/archives/backup-1",
+		[]byte(`{"confirmation":"DELETE another-backup"}`), token,
+	)
+	if rejectedDelete.Code != http.StatusBadRequest || provider.deleted != "" {
+		t.Fatalf(
+			"rejected delete status=%d deleted=%q body=%s",
+			rejectedDelete.Code, provider.deleted, rejectedDelete.Body,
 		)
+	}
+	acceptedDelete := performBackupRequest(
+		server, http.MethodDelete,
+		"/manager/backups/archives/backup-1",
+		[]byte(`{"confirmation":"DELETE backup-1"}`), token,
+	)
+	if acceptedDelete.Code != http.StatusNoContent ||
+		provider.deleted != "backup-1" {
+		t.Fatalf(
+			"accepted delete status=%d deleted=%q body=%s",
+			acceptedDelete.Code, provider.deleted, acceptedDelete.Body,
+		)
+	}
+}
+
+func performBackupRequest(
+	server *Server,
+	method string,
+	path string,
+	body []byte,
+	token string,
+) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(method, path, bytes.NewReader(body))
+	if len(body) > 0 {
 		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set(
-			"Authorization", "Bearer "+mustIssueTestToken(t, srv, user),
-		)
-		srv.Engine().ServeHTTP(recorder, request)
-		return recorder
 	}
-	require.Equal(t, http.StatusForbidden, call("wildcard-admin").Code)
-	allowed := call("source-fencer")
-	require.Equal(t, http.StatusOK, allowed.Code)
-	require.Equal(t, "plan-1", provider.sourceFenceRequest.RestorePlanID)
-	require.Equal(t, "checkpoint-1", provider.sourceFenceRequest.CheckpointID)
-	require.Equal(t, "target-cluster", provider.sourceFenceRequest.TargetClusterID)
-	require.Equal(t, "target-generation-1", provider.sourceFenceRequest.TargetGeneration)
-}
-
-func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
-	provider := &fakeBackupManagement{
-		checkpointPage: backupusecase.CheckpointPage{
-			CatalogHeadToken: "opaque-catalog-head",
-			Items: []backupusecase.CheckpointSummary{{
-				ID: "checkpoint-2", CreatedAtUnixMillis: 200,
-				EffectiveAtUnixMillis: 190,
-			}},
-			NextCursor: "opaque-next", Total: 2,
-		},
-		checkpointDetail: backupusecase.CheckpointDetail{
-			CheckpointSummary: backupusecase.CheckpointSummary{
-				ID: "checkpoint-2", CreatedAtUnixMillis: 200,
-				EffectiveAtUnixMillis: 190,
-			},
-			SourceClusterID:  "cluster-a",
-			SourceGeneration: "generation-1", HashSlotCount: 256,
-			ErasureHeads: []backupartifact.ErasureStreamHead{{
-				HashSlot: 17, Sequence: 4,
-				CommitKey: backupartifact.ErasureLedgerCommitKey(
-					strings.Repeat("e", 64), 17, 4,
-				),
-				CommitSHA256: strings.Repeat("f", 64),
-			}},
-		},
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
 	}
-	srv := New(Options{Backup: provider})
-	recorder := httptest.NewRecorder()
-	srv.Engine().ServeHTTP(
-		recorder,
-		httptest.NewRequest(
-			http.MethodGet,
-			"/manager/backups/checkpoints?limit=999&cursor=opaque&id=POINT&held=true&effective_from=100&effective_to=200",
-			nil,
-		),
-	)
-	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Equal(t, backupusecase.MaxCheckpointPageSize,
-		provider.checkpointListRequest.Limit)
-	require.Equal(t, "opaque", provider.checkpointListRequest.Cursor)
-	require.NotNil(t, provider.checkpointListRequest.Held)
-	require.True(t, *provider.checkpointListRequest.Held)
-	require.Equal(t, int64(100),
-		provider.checkpointListRequest.EffectiveFromUnixMillis)
-	require.Equal(t, int64(200),
-		provider.checkpointListRequest.EffectiveToUnixMillis)
-	require.Contains(t, recorder.Body.String(),
-		`"catalog_head_token":"opaque-catalog-head"`)
-	require.NotContains(t, recorder.Body.String(), "catalog/pages/")
-
-	recorder = httptest.NewRecorder()
-	srv.Engine().ServeHTTP(
-		recorder,
-		httptest.NewRequest(
-			http.MethodGet,
-			"/manager/backups/checkpoints/checkpoint-2", nil,
-		),
-	)
-	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Contains(t, recorder.Body.String(), `"hash_slot_count":256`)
-	require.NotContains(t, recorder.Body.String(), "commit_sha256")
-}
-
-func TestManagerBackupCheckpointFiltersRejectInvalidInputAndRequireReadPermission(t *testing.T) {
-	provider := &fakeBackupManagement{}
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{
-			{Username: "reader", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup", Actions: []string{"r"}}}},
-			{Username: "writer", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup", Actions: []string{"w"}}}},
-		}),
-		Backup: provider,
-	})
-	call := func(user, target string) *httptest.ResponseRecorder {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodGet, target, nil)
-		request.Header.Set(
-			"Authorization", "Bearer "+mustIssueTestToken(t, srv, user),
-		)
-		srv.Engine().ServeHTTP(recorder, request)
-		return recorder
-	}
-
-	require.Equal(
-		t, http.StatusForbidden,
-		call("writer", "/manager/backups/checkpoints").Code,
-	)
-	for _, target := range []string{
-		"/manager/backups/checkpoints?held=maybe",
-		"/manager/backups/checkpoints?held=1",
-		"/manager/backups/checkpoints?effective_from=invalid",
-		"/manager/backups/checkpoints?effective_from=200&effective_to=100",
-	} {
-		require.Equal(t, http.StatusBadRequest, call("reader", target).Code, target)
-	}
-	require.Equal(
-		t, http.StatusOK,
-		call(
-			"reader",
-			"/manager/backups/checkpoints?held=false&effective_from=100&effective_to=200",
-		).Code,
-	)
-}
-
-func TestManagerCheckpointHoldUsesBoundedContinuousSurface(t *testing.T) {
-	provider := &fakeBackupManagement{}
-	srv := New(Options{Backup: provider})
-
-	for _, test := range []struct {
-		held bool
-	}{
-		{held: true},
-		{held: false},
-	} {
-		recorder := httptest.NewRecorder()
-		body := `{"held":false}`
-		if test.held {
-			body = `{"held":true}`
-		}
-		srv.Engine().ServeHTTP(
-			recorder,
-			httptest.NewRequest(
-				http.MethodPost,
-				"/manager/backups/checkpoints/checkpoint-7/hold",
-				bytes.NewBufferString(body),
-			),
-		)
-		require.Equal(t, http.StatusOK, recorder.Code)
-		require.Equal(t, "checkpoint-7", provider.heldCheckpointID)
-		require.Equal(t, test.held, provider.held)
-		require.Contains(t, recorder.Body.String(),
-			`"id":"checkpoint-7"`)
-		require.NotContains(t, recorder.Body.String(), "catalog")
-	}
-}
-
-func TestManagerOldBackupRoutesAreAbsent(t *testing.T) {
-	srv := New(Options{Backup: &fakeBackupManagement{}})
-	for _, target := range []string{
-		"/manager/backups/restore-points",
-		"/manager/backups/trigger",
-		"/manager/backups/jobs/job-1/cancel",
-		"/manager/backups/restore-points/rp-1/verify",
-	} {
-		recorder := httptest.NewRecorder()
-		srv.Engine().ServeHTTP(
-			recorder, httptest.NewRequest(http.MethodPost, target, nil),
-		)
-		require.Equal(t, http.StatusNotFound, recorder.Code, target)
-	}
+	server.Engine().ServeHTTP(recorder, request)
+	return recorder
 }
 
 type fakeBackupManagement struct {
-	status                backupusecase.StatusSnapshot
-	checkpointPage        backupusecase.CheckpointPage
-	checkpointDetail      backupusecase.CheckpointDetail
-	checkpointListRequest backupusecase.CheckpointListRequest
-	checkpointID          string
-	sourceFenceRequest    backupusecase.SourceFenceRequest
-	sourceFenceReceipt    backupusecase.SourceFenceReceipt
-	publication           backupusecase.CheckpointPublication
-	published             bool
-	statusErr             error
-	heldCheckpointID      string
-	held                  bool
+	dashboard backupusecase.Dashboard
+	configure backupusecase.ConfigureRequest
+	job       backupcontract.BackupJob
+	archive   backupusecase.ArchiveDetail
+	canceled  string
+	deleted   string
 }
 
-func (f *fakeBackupManagement) Status(context.Context) (backupusecase.StatusSnapshot, error) {
-	return f.status, f.statusErr
-}
-
-func (f *fakeBackupManagement) ListCheckpointsPage(
-	_ context.Context,
-	request backupusecase.CheckpointListRequest,
-) (backupusecase.CheckpointPage, error) {
-	f.checkpointListRequest = request
-	return f.checkpointPage, nil
-}
-
-func (f *fakeBackupManagement) CheckpointByID(
-	_ context.Context,
-	checkpointID string,
-) (backupusecase.CheckpointDetail, error) {
-	f.checkpointID = checkpointID
-	return f.checkpointDetail, nil
-}
-
-func (f *fakeBackupManagement) PublishCheckpoint(
+func (f *fakeBackupManagement) Dashboard(
 	context.Context,
-) (backupusecase.CheckpointPublication, error) {
-	f.published = true
-	return f.publication, nil
+) (backupusecase.Dashboard, error) {
+	return f.dashboard, nil
 }
 
-func (f *fakeBackupManagement) SetCheckpointHold(
+func (f *fakeBackupManagement) Configure(
 	_ context.Context,
-	checkpointID string,
-	held bool,
-) (backupusecase.CheckpointSummary, error) {
-	f.heldCheckpointID = checkpointID
-	f.held = held
-	return backupusecase.CheckpointSummary{
-		ID: checkpointID, Held: held,
+	request backupusecase.ConfigureManagementRequest,
+) (backupusecase.ConfigureResult, error) {
+	f.configure = request.ConfigureRequest
+	return backupusecase.ConfigureResult{
+		Plan: backupcontract.Plan{Revision: 1},
 	}, nil
 }
 
-func (f *fakeBackupManagement) FenceSource(
+func (f *fakeBackupManagement) TestRepository(
+	context.Context,
+	backupusecase.ConfigureManagementRequest,
+) error {
+	return nil
+}
+
+func (f *fakeBackupManagement) StartBackup(
+	context.Context,
+) (backupcontract.BackupJob, error) {
+	return f.job, nil
+}
+
+func (f *fakeBackupManagement) CancelBackup(
 	_ context.Context,
-	request backupusecase.SourceFenceRequest,
-) (backupusecase.SourceFenceReceipt, error) {
-	f.sourceFenceRequest = request
-	return f.sourceFenceReceipt, nil
+	jobID string,
+) error {
+	f.canceled = jobID
+	return nil
+}
+
+func (f *fakeBackupManagement) Archive(
+	context.Context,
+	string,
+) (backupusecase.ArchiveDetail, error) {
+	return f.archive, nil
+}
+
+func (f *fakeBackupManagement) VerifyArchive(
+	context.Context,
+	string,
+) (backupusecase.ArchiveDetail, error) {
+	return f.archive, nil
+}
+
+func (f *fakeBackupManagement) HoldArchive(
+	context.Context,
+	string,
+	bool,
+	string,
+) (backupusecase.ArchiveSummary, error) {
+	return f.archive.Archive, nil
+}
+
+func (f *fakeBackupManagement) DeleteArchive(
+	_ context.Context,
+	archiveID string,
+) error {
+	f.deleted = archiveID
+	return nil
 }

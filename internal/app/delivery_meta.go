@@ -225,6 +225,12 @@ func (s *deliveryMetaStore) storeSubscriberSnapshot(key deliveryMetaSubscriberKe
 	snapshot := append([]string(nil), uids...)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// A restore or concurrent subscriber mutation may have invalidated the
+	// database read while it was in flight. Return the caller's snapshot, but
+	// never publish it into the cache under an obsolete generation.
+	if s.version.Load() != version {
+		return snapshot
+	}
 	if s.subscriberCache == nil {
 		s.subscriberCache = make(map[deliveryMetaSubscriberKey]deliveryMetaSubscriberCacheEntry)
 	}
@@ -233,6 +239,19 @@ func (s *deliveryMetaStore) storeSubscriberSnapshot(key deliveryMetaSubscriberKe
 	}
 	s.subscriberCache[key] = deliveryMetaSubscriberCacheEntry{version: version, uids: snapshot}
 	return snapshot
+}
+
+// resetAfterRestore invalidates subscriber snapshots loaded from the previous
+// logical generation. The generation fence also prevents a slow pre-restore
+// database read from repopulating the cache after this method returns.
+func (s *deliveryMetaStore) resetAfterRestore() {
+	if s == nil {
+		return
+	}
+	s.version.Add(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	clear(s.subscriberCache)
 }
 
 func (s *deliveryMetaStore) loadSubscriberSnapshot(ctx context.Context, key deliveryMetaSubscriberKey) ([]string, error) {

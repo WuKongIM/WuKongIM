@@ -16,7 +16,8 @@ var errMissingBearerToken = errors.New("missing bearer token")
 const managerUsernameContextKey = "manager_username"
 
 type managerClaims struct {
-	Username string `json:"username"`
+	Username     string `json:"username"`
+	SessionEpoch uint64 `json:"session_epoch"`
 	jwt.RegisteredClaims
 }
 
@@ -94,7 +95,8 @@ func (a authState) hasExplicitPermission(username, resource, action string) bool
 	if !ok {
 		return false
 	}
-	return hasPermissionAction(principal.permissions[resource], action)
+	_, ok = principal.permissions[resource][action]
+	return ok
 }
 
 func hasPermissionAction(actions map[string]struct{}, action string) bool {
@@ -130,8 +132,13 @@ func (s *Server) issueToken(username string, now time.Time) (string, error) {
 	if now.IsZero() {
 		now = time.Now()
 	}
+	sessionEpoch, err := s.currentManagerSessionEpoch()
+	if err != nil {
+		return "", err
+	}
 	claims := managerClaims{
-		Username: username,
+		Username:     username,
+		SessionEpoch: sessionEpoch,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    s.auth.jwtIssuer,
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -192,6 +199,13 @@ func (s *Server) authenticateRequest(authorization string) (string, error) {
 	}
 	if _, ok := s.auth.users[claims.Username]; !ok {
 		return "", fmt.Errorf("unknown user")
+	}
+	sessionEpoch, err := s.currentManagerSessionEpoch()
+	if err != nil {
+		return "", err
+	}
+	if claims.SessionEpoch != sessionEpoch {
+		return "", fmt.Errorf("manager session has been invalidated")
 	}
 	return claims.Username, nil
 }

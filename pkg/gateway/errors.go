@@ -24,6 +24,7 @@ type CloseReason = gatewaytypes.CloseReason
 
 const (
 	CloseReasonServerStop             = gatewaytypes.CloseReasonServerStop
+	CloseReasonMaintenance            = gatewaytypes.CloseReasonMaintenance
 	CloseReasonPeerClosed             = gatewaytypes.CloseReasonPeerClosed
 	CloseReasonProtocolError          = gatewaytypes.CloseReasonProtocolError
 	CloseReasonInboundOverflow        = gatewaytypes.CloseReasonInboundOverflow

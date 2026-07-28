@@ -442,6 +442,37 @@ func TestClusterMessageEventCacheClearsWhenLocalSlotLeadershipIsLost(t *testing.
 	}
 }
 
+func TestClusterMessageEventAppendIsFencedDuringRestoreMaintenance(t *testing.T) {
+	node := &Node{
+		cfg:                     Config{NodeID: 1},
+		router:                  routing.NewRouter(),
+		messageEventStreamCache: newMessageEventStreamCache(0),
+	}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+	node.started.Store(true)
+	node.setMaintenance(true)
+
+	_, err := node.AppendMessageEvent(context.Background(), metadb.MessageEventAppend{
+		ChannelID:   "message-event-maintenance",
+		ChannelType: 2,
+		ClientMsgNo: "cmn-maintenance",
+		EventID:     "evt-delta",
+		EventKey:    "main",
+		EventType:   metadb.EventTypeStreamDelta,
+		Visibility:  metadb.VisibilityPublic,
+		Payload:     []byte(`{"delta":"stale"}`),
+	})
+	if !errors.Is(err, ErrMaintenance) {
+		t.Fatalf("AppendMessageEvent() error = %v, want ErrMaintenance", err)
+	}
+	if got := node.messageEventStreamCache.observation(); got.Sessions != 0 {
+		t.Fatalf("cache after rejected append = %#v, want empty", got)
+	}
+}
+
 func TestClusterMessageEventCacheClearsAcrossSerializedLocalRemoteLocalAuthorityUpdates(t *testing.T) {
 	node := &Node{
 		cfg:                     Config{NodeID: 1},

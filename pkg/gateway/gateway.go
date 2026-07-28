@@ -8,6 +8,7 @@ import (
 	protowkproto "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wkproto"
 	protowsmux "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wsmux"
 	gnettransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet"
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -58,6 +59,14 @@ func (g *Gateway) SetAcceptingNewSessions(accepting bool) {
 		return
 	}
 	g.server.SetAcceptingNewSessions(accepting)
+}
+
+// DisconnectAll closes active client sessions while leaving listeners alive.
+func (g *Gateway) DisconnectAll() {
+	if g == nil || g.server == nil {
+		return
+	}
+	g.server.DisconnectAll(gatewaytypes.CloseReasonMaintenance)
 }
 
 func (g *Gateway) AcceptingNewSessions() bool {

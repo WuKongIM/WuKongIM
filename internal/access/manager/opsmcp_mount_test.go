@@ -24,22 +24,3 @@ func TestManagerMountsOpsMCPWithoutOpenCORS(t *testing.T) {
 		t.Fatalf("/mcp inherited manager CORS headers: %#v", response.Header())
 	}
 }
-
-func TestRestoreModeDoesNotMountOpsMCP(t *testing.T) {
-	called := false
-	server := New(Options{
-		RestoreMode: true,
-		OpsMCPHandler: http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			called = true
-			w.WriteHeader(http.StatusAccepted)
-		}),
-	})
-	request := httptest.NewRequest(http.MethodPost, "/mcp", nil)
-	response := httptest.NewRecorder()
-
-	server.Engine().ServeHTTP(response, request)
-
-	if called || response.Code != http.StatusNotFound {
-		t.Fatalf("called=%v status=%d, want restore-only 404", called, response.Code)
-	}
-}

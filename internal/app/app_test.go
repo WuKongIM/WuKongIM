@@ -36,7 +36,6 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -605,131 +604,6 @@ func TestStartLogsStartupSummaryAfterAllEntriesAreReady(t *testing.T) {
 	requireAppLogField(t, entry, "gatewayListeners", []string{"tcp=tcp://127.0.0.1:5100", "ws=ws://127.0.0.1:5200/ws"})
 	if got := joinCalls(calls); got != "cluster.start,api.start,manager.start,gateway.start" {
 		t.Fatalf("calls = %s, want all entries started before success", got)
-	}
-}
-
-func TestRestoreModeStartsOnlyRecoveryRuntimeManagerAndMetrics(t *testing.T) {
-	calls := make([]string, 0, 12)
-	app := &App{
-		cfg:            Config{Backup: BackupConfig{RestoreMode: true}},
-		cluster:        &fakeCluster{calls: &calls},
-		restoreRuntime: &fakeWorkerRuntime{name: "restore", calls: &calls},
-		backupRuntime:  &fakeWorkerRuntime{name: "backup", calls: &calls},
-		api:            &fakeAPI{calls: &calls},
-		manager:        &fakeManager{calls: &calls},
-		prometheus:     &fakeWorkerRuntime{name: "prometheus", calls: &calls},
-		gateway:        &fakeGateway{calls: &calls},
-		logger:         wklog.NewNop(),
-	}
-	if err := app.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if got := joinCalls(calls); got != "cluster.start,restore.start,manager.start,prometheus.start" {
-		t.Fatalf("start calls = %s", got)
-	}
-	if err := app.Stop(context.Background()); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if got := joinCalls(calls); got != "cluster.start,restore.start,manager.start,prometheus.start,prometheus.stop,manager.stop,restore.stop,cluster.stop" {
-		t.Fatalf("lifecycle calls = %s", got)
-	}
-}
-
-func TestRestoreModeDoesNotRunOrdinaryClusterWriteProbe(t *testing.T) {
-	calls := make([]string, 0, 8)
-	clusterRuntime := &fakeWriteReadyCluster{
-		fakeCluster: fakeCluster{calls: &calls},
-		snapshots: []clusterpkg.Snapshot{{
-			RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: 1,
-		}},
-		routes:      map[uint16]clusterpkg.Route{0: {HashSlot: 0, Leader: 1}},
-		probeErrors: []error{errors.New("ordinary write probe must remain disabled")},
-	}
-	app := &App{
-		cfg: Config{
-			Backup:  BackupConfig{RestoreMode: true},
-			Cluster: clusterpkg.Config{Timeouts: clusterpkg.TimeoutConfig{Start: time.Second}},
-		},
-		cluster:        clusterRuntime,
-		restoreRuntime: &fakeWorkerRuntime{name: "restore", calls: &calls},
-		logger:         wklog.NewNop(),
-	}
-	if err := app.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	for _, call := range calls {
-		if call == "cluster.probe" {
-			t.Fatalf("calls = %v, ordinary write probe must remain disabled", calls)
-		}
-	}
-	if got := joinCalls(calls); got != "cluster.start,cluster.route,restore.start" {
-		t.Fatalf("start calls = %s", got)
-	}
-	if err := app.Stop(context.Background()); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-}
-
-func TestNormalModeRejectsUnactivatedRestoreBeforeWriteProbe(t *testing.T) {
-	calls := make([]string, 0, 8)
-	clusterRuntime := &fakeRestoreFenceCluster{
-		fakeWriteReadyCluster: fakeWriteReadyCluster{
-			fakeCluster: fakeCluster{calls: &calls},
-			snapshots: []clusterpkg.Snapshot{{
-				RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: 1,
-			}},
-			routes: map[uint16]clusterpkg.Route{0: {HashSlot: 0, Leader: 1}},
-		},
-		state: controller.ClusterState{
-			ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
-			Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
-				ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
-				HashSlotCount: 1, Status: controller.RestoreStatus("verified"),
-			}},
-		},
-	}
-	app := &App{
-		cfg:     Config{Cluster: clusterpkg.Config{Timeouts: clusterpkg.TimeoutConfig{Start: time.Second}}},
-		cluster: clusterRuntime,
-		logger:  wklog.NewNop(),
-	}
-	err := app.Start(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "activate it in restore mode") {
-		t.Fatalf("Start() error = %v, want restore activation fence", err)
-	}
-	for _, call := range calls {
-		if call == "cluster.probe" {
-			t.Fatalf("calls = %v, ordinary write probe ran before activation fence", calls)
-		}
-	}
-}
-
-func TestNormalModeRejectsPermanentlyFencedSourceGeneration(t *testing.T) {
-	app := &App{}
-	err := app.validateRestoreActivationFence(controller.ClusterState{
-		Backup: &controller.BackupCoordinationState{
-			SourceFence: &backupartifact.SourceFenceRecord{
-				ID:               "source-fence-1",
-				SourceGeneration: "source-generation-1",
-			},
-		},
-	})
-	if err == nil || !strings.Contains(err.Error(), "permanently fenced") {
-		t.Fatalf("validateRestoreActivationFence() error = %v", err)
-	}
-}
-
-func TestActivatedRestoreRequiresSuccessorGenerationBeforeBackupStarts(t *testing.T) {
-	app := &App{cfg: Config{Backup: BackupConfig{Enabled: true, SourceGeneration: "wrong-generation"}}}
-	err := app.validateRestoreActivationFence(controller.ClusterState{
-		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 256},
-		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
-			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
-			HashSlotCount: 256, Status: controller.RestoreStatus("activated"),
-		}},
-	})
-	if err == nil || !strings.Contains(err.Error(), "generation-2") {
-		t.Fatalf("validateRestoreActivationFence() error = %v", err)
 	}
 }
 
@@ -1590,6 +1464,77 @@ func TestManagementGatewayDrainWriterResumesLocalGateway(t *testing.T) {
 	}
 	if !gateway.AcceptingNewSessions() || summary.Draining || !summary.AcceptingNewSessions {
 		t.Fatalf("gateway accepting=%v summary=%#v, want local resume", gateway.AcceptingNewSessions(), summary)
+	}
+}
+
+func TestRestoreMaintenanceDisconnectsClientsAndControlsAdmission(t *testing.T) {
+	gateway := &gatewayAdmissionStub{accepting: true}
+	app := &App{gateway: gateway}
+
+	app.applyRestoreGatewayMaintenance(true)
+	if gateway.AcceptingNewSessions() || gateway.disconnectCount != 1 ||
+		!app.restoreMaintenance.Load() {
+		t.Fatalf(
+			"maintenance gateway accepting=%v disconnects=%d state=%v",
+			gateway.AcceptingNewSessions(), gateway.disconnectCount,
+			app.restoreMaintenance.Load(),
+		)
+	}
+
+	app.applyRestoreGatewayMaintenance(false)
+	if !gateway.AcceptingNewSessions() || gateway.disconnectCount != 1 ||
+		app.restoreMaintenance.Load() {
+		t.Fatalf(
+			"resumed gateway accepting=%v disconnects=%d state=%v",
+			gateway.AcceptingNewSessions(), gateway.disconnectCount,
+			app.restoreMaintenance.Load(),
+		)
+	}
+}
+
+func TestRestoreMaintenanceSuspendsAndResumesSideEffectsOnce(t *testing.T) {
+	calls := make([]string, 0, 6)
+	app := &App{
+		deliveryWorker: &recordingWorkerRuntime{
+			name: "delivery", calls: &calls,
+		},
+		webhook: &recordingWorkerRuntime{
+			name: "webhook", calls: &calls,
+		},
+		pluginHook: &recordingWorkerRuntime{
+			name: "plugin_hook", calls: &calls,
+		},
+	}
+
+	if err := app.suspendRestoreSideEffects(context.Background()); err != nil {
+		t.Fatalf("suspendRestoreSideEffects(): %v", err)
+	}
+	if err := app.suspendRestoreSideEffects(context.Background()); err != nil {
+		t.Fatalf("second suspendRestoreSideEffects(): %v", err)
+	}
+	if err := app.resumeRestoreSideEffects(context.Background()); err != nil {
+		t.Fatalf("resumeRestoreSideEffects(): %v", err)
+	}
+	if err := app.resumeRestoreSideEffects(context.Background()); err != nil {
+		t.Fatalf("second resumeRestoreSideEffects(): %v", err)
+	}
+	if got := joinCalls(calls); got !=
+		"delivery.stop,webhook.stop,plugin_hook.stop,"+
+			"delivery.stop,webhook.stop,plugin_hook.stop,"+
+			"plugin_hook.start,webhook.start,delivery.start" {
+		t.Fatalf("calls = %s", got)
+	}
+}
+
+func TestRestoreMaintenanceMakesBusinessReadinessFalse(t *testing.T) {
+	app := &App{cluster: &fakeManagerCluster{nodeID: 1}}
+	app.restoreMaintenance.Store(true)
+	ready, body := app.readyzReport(context.Background())
+	if ready {
+		t.Fatalf("readyz ready=true body=%#v during restore maintenance", body)
+	}
+	if got := body.(map[string]any)["reason"]; got != "restore maintenance" {
+		t.Fatalf("readyz reason = %v", got)
 	}
 }
 
@@ -6697,82 +6642,6 @@ func TestNodeMessageIDsRejectFutureRestoredFence(t *testing.T) {
 	}
 }
 
-func TestActivatedRestoreInstallsMessageIDFloorBeforeOrdinaryTraffic(t *testing.T) {
-	ids, err := newNodeMessageIDs(7)
-	if err != nil {
-		t.Fatalf("newNodeMessageIDs(): %v", err)
-	}
-	first := ids.Next()
-	restoredMax := first
-	app := &App{messageIDs: ids}
-	activation, activatedAt := appTestRestoreActivation("restore-plan")
-	missingVersion := controller.ClusterState{
-		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
-		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
-			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
-			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
-			Activation: activation, ActivatedAtUnixMillis: activatedAt,
-			StagingCleanupCompletedAtUnixMillis: activatedAt,
-			Partitions:                          []controller.RestorePartition{{HashSlot: 0, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
-		}},
-	}
-	if err := app.validateRestoreActivationFence(missingVersion); err == nil {
-		t.Fatal("validateRestoreActivationFence() without evidence version error = nil")
-	}
-	err = app.validateRestoreActivationFence(controller.ClusterState{
-		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
-		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
-			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
-			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
-			Activation: activation, ActivatedAtUnixMillis: activatedAt,
-			StagingCleanupCompletedAtUnixMillis: activatedAt,
-			Partitions:                          []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: restoredMax}},
-		}},
-	})
-	if err != nil {
-		t.Fatalf("validateRestoreActivationFence(): %v", err)
-	}
-	if next := ids.Next(); next <= restoredMax {
-		t.Fatalf("Next() = %d, want above activated restore fence %d", next, restoredMax)
-	}
-	futureMax := (((ids.Next() >> 22) + 1_000) << 22) | (uint64(9) << 12) | 17
-	err = app.validateRestoreActivationFence(controller.ClusterState{
-		ClusterID: "successor", Config: controller.ClusterConfig{HashSlotCount: 1},
-		Restore: &controller.RestoreCoordinationState{Plan: &controller.RestorePlan{
-			ID: "restore-plan", TargetClusterID: "successor", TargetGeneration: "generation-2",
-			HashSlotCount: 1, Status: controller.RestoreStatus("activated"),
-			Activation: activation, ActivatedAtUnixMillis: activatedAt,
-			StagingCleanupCompletedAtUnixMillis: activatedAt,
-			Partitions:                          []controller.RestorePartition{{HashSlot: 0, EvidenceVersion: backupartifact.PartitionEvidenceVersion, Installed: true, Verified: true, MessageCount: 1, MaxMessageID: futureMax}},
-		}},
-	})
-	if err == nil || !strings.Contains(err.Error(), "natural Snowflake clock") {
-		t.Fatalf("future activated restore fence error = %v", err)
-	}
-}
-
-func appTestRestoreActivation(
-	planID string,
-) (*backupartifact.RestoreActivationEvidence, int64) {
-	const recordedAt = int64(1_800_000_000_000)
-	audit := backupartifact.BreakGlassActivationAudit{
-		ID: "audit-1", RestorePlanID: planID,
-		Operator:               "recovery-admin",
-		Reason:                 "All source Controller disks are permanently unavailable.",
-		AuthorizedAtUnixMillis: recordedAt,
-	}
-	digest, err := backupartifact.BreakGlassActivationDigest(audit)
-	if err != nil {
-		panic(err)
-	}
-	return &backupartifact.RestoreActivationEvidence{
-		Kind:           backupartifact.RestoreActivationBreakGlass,
-		EvidenceSHA256: digest, Operator: audit.Operator,
-		RecordedAtUnixMillis: recordedAt,
-		BreakGlass:           &audit,
-	}, recordedAt + 1
-}
-
 func requireSnowflakeMessageIDNode(t testing.TB, messageID int64, nodeID uint64) {
 	t.Helper()
 	if messageID <= 0 {
@@ -7532,16 +7401,6 @@ type fakeWriteReadyCluster struct {
 	routes        map[uint16]clusterpkg.Route
 	probeErrors   []error
 	probeTimeouts []time.Duration
-}
-
-type fakeRestoreFenceCluster struct {
-	fakeWriteReadyCluster
-	state controller.ClusterState
-	err   error
-}
-
-func (f *fakeRestoreFenceCluster) LoadRestoreCoordinationState(context.Context) (controller.ClusterState, error) {
-	return f.state, f.err
 }
 
 func (f *fakeWriteReadyCluster) Snapshot() clusterpkg.Snapshot {
@@ -8944,6 +8803,7 @@ func (f *fakeGateway) ListenerAddr(name string) string { return f.listenerAddrs[
 type gatewayAdmissionStub struct {
 	accepting        bool
 	acceptingChanged bool
+	disconnectCount  int
 }
 
 func (g *gatewayAdmissionStub) Start() error {
@@ -8961,6 +8821,10 @@ func (g *gatewayAdmissionStub) SetAcceptingNewSessions(accepting bool) {
 
 func (g *gatewayAdmissionStub) AcceptingNewSessions() bool {
 	return g.accepting
+}
+
+func (g *gatewayAdmissionStub) DisconnectAll() {
+	g.disconnectCount++
 }
 
 func (g *gatewayAdmissionStub) SessionSummary() gatewaycore.SessionSummary {

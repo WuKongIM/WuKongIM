@@ -194,429 +194,62 @@ func TestRuntimeManualLogCompactionForcesSnapshotBelowAutomaticThreshold(t *test
 	}
 }
 
-func TestRuntimeBackupPinRetainsOnlyPinnedSlotLogUntilRelease(t *testing.T) {
+func TestRuntimeInstallExternalStateSnapshotReplacesSameIndexWhenCompactionDisabled(t *testing.T) {
 	rt := newCompactionRuntime(t, LogCompactionConfig{
-		Enabled: true, EnabledSet: true, TriggerEntries: 1000, CheckInterval: time.Hour,
+		Enabled:    false,
+		EnabledSet: true,
 	})
-	pinnedStore := &internalFakeStorage{}
-	healthyStore := &internalFakeStorage{}
-	for _, item := range []struct {
-		slot  SlotID
-		store *internalFakeStorage
-	}{
-		{slot: 195, store: pinnedStore},
-		{slot: 196, store: healthyStore},
-	} {
-		if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
-			Slot:   SlotOptions{ID: item.slot, Storage: item.store, StateMachine: &snapshottingStateMachine{}},
-			Voters: []NodeID{1},
-		}); err != nil {
-			t.Fatalf("BootstrapSlot(%d) error = %v", item.slot, err)
-		}
-		waitForSingleNodeLeader(t, rt, item.slot)
-		future, err := rt.Propose(context.Background(), item.slot, proposalString("pin"))
-		if err != nil {
-			t.Fatalf("Propose(%d) error = %v", item.slot, err)
-		}
-		waitForFutureResult(t, future)
-	}
-	if err := rt.SetLogCompactionPin(context.Background(), 195, "backup-slot-17", 0, true); err != nil {
-		t.Fatalf("SetLogCompactionPin(hold) error = %v", err)
-	}
-	pinned, err := rt.CompactLog(context.Background(), 195)
-	if err != nil || !pinned.Compacted || pinned.AfterSnapshotIndex != pinned.AppliedIndex {
-		t.Fatalf("pinned CompactLog() = %#v, %v", pinned, err)
-	}
-	pinnedFirst, err := pinnedStore.FirstIndex(context.Background())
-	if err != nil || pinnedFirst != 1 {
-		t.Fatalf("pinned FirstIndex() = %d, %v, want retained index 1", pinnedFirst, err)
-	}
-	healthy, err := rt.CompactLog(context.Background(), 196)
-	if err != nil || !healthy.Compacted {
-		t.Fatalf("healthy CompactLog() = %#v, %v", healthy, err)
-	}
-	if err := rt.SetLogCompactionPin(context.Background(), 195, "backup-slot-17", 0, false); err != nil {
-		t.Fatalf("SetLogCompactionPin(release) error = %v", err)
-	}
-	releasedFirst, err := pinnedStore.FirstIndex(context.Background())
-	if err != nil || releasedFirst != pinned.AppliedIndex+1 {
-		t.Fatalf("released FirstIndex() = %d, %v, want %d", releasedFirst, err, pinned.AppliedIndex+1)
-	}
-}
-
-func TestRuntimeSharedPhysicalSlotCompactsThroughMinimumBackupFloor(t *testing.T) {
-	rt := newCompactionRuntime(t, LogCompactionConfig{
-		Enabled: true, EnabledSet: true, TriggerEntries: 1000, CheckInterval: time.Hour,
-	})
-	const slotID SlotID = 198
-	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
-		Slot: SlotOptions{
-			ID: slotID, Storage: &internalFakeStorage{}, StateMachine: &snapshottingStateMachine{},
-		},
-		Voters: []NodeID{1},
-	}); err != nil {
-		t.Fatalf("BootstrapSlot() error = %v", err)
-	}
-	waitForSingleNodeLeader(t, rt, slotID)
-	for index := 0; index < 8; index++ {
-		future, err := rt.Propose(context.Background(), slotID, proposalString("shared-floor"))
-		if err != nil {
-			t.Fatalf("Propose(%d) error = %v", index, err)
-		}
-		waitForFutureResult(t, future)
-	}
-	if err := rt.SetLogCompactionPin(context.Background(), slotID, "hash-slot-1", 3, true); err != nil {
-		t.Fatalf("SetLogCompactionPin(first) error = %v", err)
-	}
-	if err := rt.SetLogCompactionPin(context.Background(), slotID, "hash-slot-2", 6, true); err != nil {
-		t.Fatalf("SetLogCompactionPin(second) error = %v", err)
-	}
-	first, err := rt.CompactLog(context.Background(), slotID)
-	if err != nil || !first.Compacted || first.AfterSnapshotIndex != first.AppliedIndex {
-		t.Fatalf("first CompactLog() = %#v, %v, want current recovery snapshot", first, err)
-	}
-	store := rt.slots[slotID].storage
-	firstRetained, err := store.FirstIndex(context.Background())
-	if err != nil || firstRetained != 4 {
-		t.Fatalf("first retained index = %d, %v, want 4", firstRetained, err)
-	}
-	if err := rt.SetLogCompactionPin(context.Background(), slotID, "hash-slot-1", 0, false); err != nil {
-		t.Fatalf("release first floor: %v", err)
-	}
-	secondRetained, err := store.FirstIndex(context.Background())
-	if err != nil || secondRetained != 7 {
-		t.Fatalf("second retained index = %d, %v, want 7", secondRetained, err)
-	}
-	if err := rt.SetLogCompactionPin(context.Background(), slotID, "hash-slot-2", 0, false); err != nil {
-		t.Fatalf("release second floor: %v", err)
-	}
-	finalRetained, err := store.FirstIndex(context.Background())
-	if err != nil || finalRetained != first.AppliedIndex+1 {
-		t.Fatalf("final retained index = %d, %v, want %d", finalRetained, err, first.AppliedIndex+1)
-	}
-}
-
-func TestRuntimePinnedArchiveIsNotReplayedAfterCurrentSnapshotRestore(t *testing.T) {
-	rt := newCompactionRuntime(t, LogCompactionConfig{
-		Enabled: true, EnabledSet: true, TriggerEntries: 1000, CheckInterval: time.Hour,
-	})
-	store := &countingEntriesStorage{internalFakeStorage: &internalFakeStorage{}}
-	const slotID SlotID = 199
-	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
-		Slot: SlotOptions{
-			ID: slotID, Storage: store, StateMachine: &snapshottingStateMachine{},
-		},
-		Voters: []NodeID{1},
-	}); err != nil {
-		t.Fatalf("BootstrapSlot() error = %v", err)
-	}
-	waitForSingleNodeLeader(t, rt, slotID)
-	for index := 0; index < 4; index++ {
-		future, err := rt.Propose(context.Background(), slotID, proposalString("non-idempotent"))
-		if err != nil {
-			t.Fatalf("Propose(%d) error = %v", index, err)
-		}
-		waitForFutureResult(t, future)
-	}
-	if err := rt.SetLogCompactionPin(context.Background(), slotID, "hash-slot-1", 1, true); err != nil {
-		t.Fatalf("SetLogCompactionPin() error = %v", err)
-	}
-	result, err := rt.CompactLog(context.Background(), slotID)
-	if err != nil || !result.Compacted {
-		t.Fatalf("CompactLog() = %#v, %v", result, err)
-	}
-	if first, _ := store.FirstIndex(context.Background()); first != 2 {
-		t.Fatalf("retained FirstIndex() = %d, want 2", first)
-	}
-	if err := rt.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-	store.entriesMu.Lock()
-	store.ranges = nil
-	store.entriesMu.Unlock()
-
-	reopened := newCompactionRuntime(t, LogCompactionConfig{Enabled: false, EnabledSet: true})
+	store := &internalFakeStorage{}
 	fsm := &snapshottingStateMachine{}
-	if err := reopened.OpenSlot(context.Background(), SlotOptions{
-		ID: slotID, Storage: store, StateMachine: fsm,
+	slotID := SlotID(196)
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:   SlotOptions{ID: slotID, Storage: store, StateMachine: fsm},
+		Voters: []NodeID{1},
 	}); err != nil {
-		t.Fatalf("OpenSlot() error = %v", err)
+		t.Fatalf("BootstrapSlot() error = %v", err)
 	}
-	waitForCondition(t, func() bool {
-		fsm.mu.Lock()
-		defer fsm.mu.Unlock()
-		return fsm.restoreCount == 1
-	})
+	waitForSingleNodeLeader(t, rt, slotID)
+
+	future, err := rt.Propose(
+		context.Background(), slotID, proposalString("before-restore"),
+	)
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	applied := waitForFutureResult(t, future).Index
+	if err := rt.InstallExternalStateSnapshot(context.Background(), slotID); err != nil {
+		t.Fatalf("first InstallExternalStateSnapshot() error = %v", err)
+	}
+
+	fsm.mu.Lock()
+	fsm.externalSnapshot = []byte("restored-state")
+	fsm.mu.Unlock()
+	if err := rt.InstallExternalStateSnapshot(context.Background(), slotID); err != nil {
+		t.Fatalf("second InstallExternalStateSnapshot() error = %v", err)
+	}
+
+	snapshot, err := store.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if snapshot.Metadata.Index != applied {
+		t.Fatalf("Snapshot().Index = %d, want %d", snapshot.Metadata.Index, applied)
+	}
+	data, _, err := decodeSlotSnapshotData(snapshot.Data)
+	if err != nil {
+		t.Fatalf("decodeSlotSnapshotData() error = %v", err)
+	}
+	if string(data) != "restored-state" {
+		t.Fatalf("Snapshot().Data = %q, want restored-state", data)
+	}
+	if err := rt.ReloadSlot(context.Background(), slotID); err != nil {
+		t.Fatalf("ReloadSlot() error = %v", err)
+	}
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
-	if len(fsm.commands) != 0 {
-		t.Fatalf("replayed %d retained pre-snapshot commands", len(fsm.commands))
-	}
-	ranges := store.entriesRanges()
-	if len(ranges) > 0 && ranges[0].lo <= store.snapshot.Metadata.Index {
-		t.Fatalf("recovery loaded retained archive range %#v through snapshot %d", ranges[0], store.snapshot.Metadata.Index)
-	}
-}
-
-func TestRuntimeCompactionAndLowerPinInstallationAreLinearized(t *testing.T) {
-	rt := newCompactionRuntime(t, LogCompactionConfig{
-		Enabled: true, EnabledSet: true, TriggerEntries: 1000, CheckInterval: time.Hour,
-	})
-	fsm := newBlockingSnapshotStateMachine()
-	const slotID SlotID = 201
-	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
-		Slot: SlotOptions{
-			ID: slotID, Storage: &internalFakeStorage{}, StateMachine: fsm,
-		},
-		Voters: []NodeID{1},
-	}); err != nil {
-		t.Fatalf("BootstrapSlot() error = %v", err)
-	}
-	waitForSingleNodeLeader(t, rt, slotID)
-	future, err := rt.Propose(context.Background(), slotID, proposalString("compaction-pin-race"))
-	if err != nil {
-		t.Fatalf("Propose() error = %v", err)
-	}
-	result := waitForFutureResult(t, future)
-	if err := rt.SetLogCompactionPin(
-		context.Background(), slotID, "existing-high-floor", result.Index, true,
-	); err != nil {
-		t.Fatalf("SetLogCompactionPin(high floor) error = %v", err)
-	}
-	compactDone := make(chan error, 1)
-	go func() {
-		_, compactErr := rt.CompactLog(context.Background(), slotID)
-		compactDone <- compactErr
-	}()
-	<-fsm.snapshotStarted
-
-	pinDone := make(chan error, 1)
-	go func() {
-		pinDone <- rt.SetLogCompactionPin(
-			context.Background(), slotID, "new-lower-floor", 0, true,
-		)
-	}()
-	select {
-	case err := <-pinDone:
-		t.Fatalf("lower pin completed before destructive compaction: %v", err)
-	case <-time.After(50 * time.Millisecond):
-	}
-	close(fsm.snapshotContinue)
-	if err := <-compactDone; err != nil {
-		t.Fatalf("CompactLog() error = %v", err)
-	}
-	if err := <-pinDone; err != nil {
-		t.Fatalf("SetLogCompactionPin(lower floor) error = %v", err)
-	}
-}
-
-func TestRuntimeCancelledWaitingPinCannotMutateLater(t *testing.T) {
-	rt := newCompactionRuntime(t, LogCompactionConfig{
-		Enabled: false, EnabledSet: true,
-	})
-	store := &blockingRetainedLogStorage{
-		internalFakeStorage: &internalFakeStorage{},
-		started:             make(chan struct{}),
-		continued:           make(chan struct{}),
-	}
-	const slotID SlotID = 200
-	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
-		Slot:   SlotOptions{ID: slotID, Storage: store, StateMachine: &snapshottingStateMachine{}},
-		Voters: []NodeID{1},
-	}); err != nil {
-		t.Fatalf("BootstrapSlot() error = %v", err)
-	}
-	waitForSingleNodeLeader(t, rt, slotID)
-	future, err := rt.Propose(context.Background(), slotID, proposalString("pin-cancel"))
-	if err != nil {
-		t.Fatalf("Propose() error = %v", err)
-	}
-	waitForFutureResult(t, future)
-	if err := rt.SetLogCompactionPin(
-		context.Background(), slotID, "active-pin", 0, true,
-	); err != nil {
-		t.Fatalf("SetLogCompactionPin(initial) error = %v", err)
-	}
-	advanceDone := make(chan error, 1)
-	go func() {
-		advanceDone <- rt.SetLogCompactionPin(
-			context.Background(), slotID, "active-pin", 1, true,
-		)
-	}()
-	<-store.started
-	g := slotFor(rt, slotID)
-	if err := g.waitApplyIdle(context.Background()); err != nil {
-		t.Fatalf("waitApplyIdle() error = %v", err)
-	}
-	g.compactor.cfg = LogCompactionConfig{
-		Enabled: true, EnabledSet: true, TriggerEntries: 1, CheckInterval: time.Hour,
-	}
-	sendFuture, err := rt.Propose(context.Background(), slotID, proposalString("trim-does-not-block-send"))
-	if err != nil {
-		t.Fatalf("Propose(during trim) error = %v", err)
-	}
-	waitForFutureResult(t, sendFuture)
-	nextFuture, err := rt.Propose(context.Background(), slotID, proposalString("trim-still-does-not-block-send"))
-	if err != nil {
-		t.Fatalf("Propose(second during trim) error = %v", err)
-	}
-	waitForFutureResult(t, nextFuture)
-	if g.compactor.lastSnapshotIdx != 0 {
-		t.Fatalf(
-			"skipped automatic compaction recorded snapshot %d, want 0",
-			g.compactor.lastSnapshotIdx,
-		)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	pinDone := make(chan error, 1)
-	go func() {
-		pinDone <- rt.SetLogCompactionPin(ctx, slotID, "cancelled-pin", 0, true)
-	}()
-	cancel()
-	if err := <-pinDone; !errors.Is(err, context.Canceled) {
-		t.Fatalf("SetLogCompactionPin() error = %v, want context canceled", err)
-	}
-	close(store.continued)
-	if err := <-advanceDone; err != nil {
-		t.Fatalf("SetLogCompactionPin(advance) error = %v", err)
-	}
-	g.compactor.pinMu.RLock()
-	_, held := g.compactor.pins["cancelled-pin"]
-	g.compactor.pinMu.RUnlock()
-	if held {
-		t.Fatal("cancelled pin mutated after its operation wait was cancelled")
-	}
-}
-
-func TestRuntimePinMutationSucceedsWhenBestEffortTrimFails(t *testing.T) {
-	rt := newCompactionRuntime(t, LogCompactionConfig{
-		Enabled: true, EnabledSet: true, TriggerEntries: 1000, CheckInterval: time.Hour,
-	})
-	injected := errors.New("injected archive trim failure")
-	store := &failingRetainedLogStorage{
-		internalFakeStorage: &internalFakeStorage{},
-		err:                 injected,
-		failures:            1,
-	}
-	slotID := SlotID(199)
-	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
-		Slot:   SlotOptions{ID: slotID, Storage: store, StateMachine: &snapshottingStateMachine{}},
-		Voters: []NodeID{1},
-	}); err != nil {
-		t.Fatalf("BootstrapSlot() error = %v", err)
-	}
-	waitForSingleNodeLeader(t, rt, slotID)
-	for index := 0; index < 3; index++ {
-		future, err := rt.Propose(
-			context.Background(), slotID, proposalString(fmt.Sprintf("pin-%d", index)),
-		)
-		if err != nil {
-			t.Fatalf("Propose(%d) error = %v", index, err)
-		}
-		_ = waitForFutureResult(t, future)
-	}
-	if err := rt.SetLogCompactionPin(
-		context.Background(), slotID, "backup-slot-1", 1, true,
-	); err != nil {
-		t.Fatalf("SetLogCompactionPin(initial hold) error = %v", err)
-	}
-	if err := rt.SetLogCompactionPin(
-		context.Background(), slotID, "backup-slot-1", 1, true,
-	); err != nil {
-		t.Fatalf("SetLogCompactionPin(unchanged hold) error = %v", err)
-	}
-	if calls := store.callCount(); calls != 0 {
-		t.Fatalf("initial/unchanged hold ran %d archive trims, want 0", calls)
-	}
-	compacted, err := rt.CompactLog(context.Background(), slotID)
-	if err != nil || !compacted.Compacted {
-		t.Fatalf("CompactLog() = %#v, %v", compacted, err)
-	}
-	g := slotFor(rt, slotID)
-	if err := rt.SetLogCompactionPin(
-		context.Background(), slotID, "backup-slot-1", 2, true,
-	); err != nil {
-		t.Fatalf("SetLogCompactionPin(applied advance) error = %v", err)
-	}
-	waitForCondition(t, func() bool {
-		first, firstErr := store.FirstIndex(context.Background())
-		return firstErr == nil && first == 3 &&
-			store.callCount() >= 2 && !g.compactor.trimDirty()
-	})
-	store.setFailures(1)
-	if err := rt.SetLogCompactionPin(
-		context.Background(), slotID, "backup-slot-1", 0, false,
-	); err != nil {
-		t.Fatalf("SetLogCompactionPin(applied release) error = %v", err)
-	}
-	waitForCondition(t, func() bool {
-		first, firstErr := store.FirstIndex(context.Background())
-		return firstErr == nil &&
-			first == compacted.AppliedIndex+1 &&
-			store.callCount() >= 4 &&
-			!g.compactor.trimDirty()
-	})
-	g.compactor.pinMu.RLock()
-	_, held := g.compactor.pins["backup-slot-1"]
-	dirty := g.compactor.archiveTrimDirty
-	g.compactor.pinMu.RUnlock()
-	if held || dirty {
-		t.Fatalf("retried release left held=%t dirty=%t, want both false", held, dirty)
-	}
-}
-
-func TestRuntimeCloseSlotWaitsForActivePinOperation(t *testing.T) {
-	rt := newCompactionRuntime(t, LogCompactionConfig{
-		Enabled: false, EnabledSet: true,
-	})
-	store := &blockingRetainedLogStorage{
-		internalFakeStorage: &internalFakeStorage{},
-		started:             make(chan struct{}),
-		continued:           make(chan struct{}),
-	}
-	const slotID SlotID = 202
-	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
-		Slot: SlotOptions{
-			ID: slotID, Storage: store, StateMachine: &snapshottingStateMachine{},
-		},
-		Voters: []NodeID{1},
-	}); err != nil {
-		t.Fatalf("BootstrapSlot() error = %v", err)
-	}
-	waitForSingleNodeLeader(t, rt, slotID)
-	future, err := rt.Propose(context.Background(), slotID, proposalString("close-pin"))
-	if err != nil {
-		t.Fatalf("Propose() error = %v", err)
-	}
-	waitForFutureResult(t, future)
-	if err := rt.SetLogCompactionPin(
-		context.Background(), slotID, "active-pin", 0, true,
-	); err != nil {
-		t.Fatalf("SetLogCompactionPin(initial) error = %v", err)
-	}
-	pinDone := make(chan error, 1)
-	go func() {
-		pinDone <- rt.SetLogCompactionPin(
-			context.Background(), slotID, "active-pin", 1, true,
-		)
-	}()
-	<-store.started
-	closeDone := make(chan error, 1)
-	go func() {
-		closeDone <- rt.CloseSlot(context.Background(), slotID)
-	}()
-	select {
-	case err := <-closeDone:
-		t.Fatalf("CloseSlot() returned before active pin operation: %v", err)
-	case <-time.After(50 * time.Millisecond):
-	}
-	close(store.continued)
-	if err := <-pinDone; err != nil {
-		t.Fatalf("SetLogCompactionPin(advance) error = %v", err)
-	}
-	if err := <-closeDone; err != nil {
-		t.Fatalf("CloseSlot() error = %v", err)
+	if fsm.restoreCount == 0 ||
+		string(fsm.restores[len(fsm.restores)-1].Data) != "restored-state" {
+		t.Fatalf("Restore() calls/data = %d/%q", fsm.restoreCount, fsm.restores)
 	}
 }
 
@@ -1086,36 +719,12 @@ func waitForSlotWorkerWaitingOnApply(t *testing.T, rt *Runtime, slotID SlotID) {
 }
 
 type snapshottingStateMachine struct {
-	mu           sync.Mutex
-	commands     []Command
-	restoreCount int
-	restores     []Snapshot
-	snapshotErr  error
-}
-
-type blockingSnapshotStateMachine struct {
-	*snapshottingStateMachine
-	snapshotStarted  chan struct{}
-	snapshotContinue chan struct{}
-	once             sync.Once
-}
-
-func newBlockingSnapshotStateMachine() *blockingSnapshotStateMachine {
-	return &blockingSnapshotStateMachine{
-		snapshottingStateMachine: &snapshottingStateMachine{},
-		snapshotStarted:          make(chan struct{}),
-		snapshotContinue:         make(chan struct{}),
-	}
-}
-
-func (s *blockingSnapshotStateMachine) Snapshot(ctx context.Context) (Snapshot, error) {
-	s.once.Do(func() { close(s.snapshotStarted) })
-	select {
-	case <-ctx.Done():
-		return Snapshot{}, ctx.Err()
-	case <-s.snapshotContinue:
-		return s.snapshottingStateMachine.Snapshot(ctx)
-	}
+	mu               sync.Mutex
+	commands         []Command
+	restoreCount     int
+	restores         []Snapshot
+	snapshotErr      error
+	externalSnapshot []byte
 }
 
 func (s *snapshottingStateMachine) Apply(_ context.Context, cmd Command) ([]byte, error) {
@@ -1151,6 +760,9 @@ func (s *snapshottingStateMachine) Snapshot(context.Context) (Snapshot, error) {
 		s.snapshotErr = nil
 		return Snapshot{}, err
 	}
+	if s.externalSnapshot != nil {
+		return Snapshot{Data: append([]byte(nil), s.externalSnapshot...)}, nil
+	}
 	if len(s.commands) == 0 {
 		return Snapshot{Data: []byte("empty")}, nil
 	}
@@ -1169,62 +781,6 @@ type slotSnapshotMetadataOnlyStorage struct {
 	firstIndexCalls int
 	termCalls       int
 	snapshotCalls   int
-}
-
-type failingRetainedLogStorage struct {
-	*internalFakeStorage
-	mu       sync.Mutex
-	err      error
-	calls    int
-	failures int
-}
-
-type blockingRetainedLogStorage struct {
-	*internalFakeStorage
-	started   chan struct{}
-	continued chan struct{}
-	once      sync.Once
-}
-
-func (s *blockingRetainedLogStorage) TrimRetainedLog(
-	ctx context.Context,
-	through uint64,
-) error {
-	s.once.Do(func() { close(s.started) })
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.continued:
-		return s.internalFakeStorage.TrimRetainedLog(ctx, through)
-	}
-}
-
-func (s *failingRetainedLogStorage) TrimRetainedLog(
-	ctx context.Context,
-	through uint64,
-) error {
-	s.mu.Lock()
-	s.calls++
-	if s.failures > 0 {
-		s.failures--
-		err := s.err
-		s.mu.Unlock()
-		return err
-	}
-	s.mu.Unlock()
-	return s.internalFakeStorage.TrimRetainedLog(ctx, through)
-}
-
-func (s *failingRetainedLogStorage) callCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.calls
-}
-
-func (s *failingRetainedLogStorage) setFailures(failures int) {
-	s.mu.Lock()
-	s.failures = failures
-	s.mu.Unlock()
 }
 
 func (s *slotSnapshotMetadataOnlyStorage) InitialState(context.Context) (BootstrapState, error) {

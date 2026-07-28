@@ -61,9 +61,10 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_goroutines":        RPCManagerGoroutines,
 		"channel_migration_meta":    RPCChannelMigrationMeta,
 		"message_event_append":      RPCMessageEventAppend,
-		"backup_continuous_message": RPCBackupContinuousMessage,
-		"backup_continuous_slot":    RPCBackupContinuousSlot,
-		"manager_backup":            RPCManagerBackup,
+		"scheduled_backup_messages": RPCScheduledBackupMessages,
+		"scheduled_backup_slot":     RPCScheduledBackupSlot,
+		"scheduled_backup_probe":    RPCScheduledBackupRepositoryProbe,
+		"scheduled_backup_restore":  RPCScheduledBackupRestore,
 		"operations_mcp":            RPCOpsMCP,
 	}
 }

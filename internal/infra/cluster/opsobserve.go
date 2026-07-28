@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
@@ -62,12 +63,10 @@ type OpsMetricsReader interface {
 	QueryOpsMetrics(context.Context, observe.MetricsQueryRangeRequest) (observe.MetricRangeData, error)
 }
 
-// OpsBackupReader exposes continuous-backup status and checkpoint metadata only.
+// OpsBackupReader exposes the sanitized scheduled-backup dashboard.
 type OpsBackupReader interface {
-	// Status returns non-secret continuous-backup health evidence.
-	Status(context.Context) (backupusecase.StatusSnapshot, error)
-	// ListCheckpointsPage returns one bounded immutable checkpoint page.
-	ListCheckpointsPage(context.Context, backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error)
+	// Dashboard returns plan, active task, and immutable archive evidence.
+	Dashboard(context.Context) (backupusecase.Dashboard, error)
 }
 
 // OpsProfileAnalyzer returns parsed pprof rows and never raw profile bytes.
@@ -90,7 +89,7 @@ type OpsObservationSourceConfig struct {
 	Config OpsConfigReader
 	// Metrics evaluates only server-owned query identifiers.
 	Metrics OpsMetricsReader
-	// Backup provides safe continuous-backup status and checkpoint metadata.
+	// Backup provides the sanitized scheduled-backup dashboard.
 	Backup OpsBackupReader
 	// Profiles captures and parses bounded pprof observations.
 	Profiles OpsProfileAnalyzer
@@ -529,78 +528,55 @@ func (s *OpsObservationSource) ConfigReadRedacted(ctx context.Context, request o
 	}, nil
 }
 
-// BackupInspect returns a safe projection without repository or cryptographic material.
+// BackupInspect returns a bounded projection without repository credentials.
 func (s *OpsObservationSource) BackupInspect(ctx context.Context, request observe.BackupInspectRequest) (observe.SourceResult, error) {
 	if s == nil || s.config.Backup == nil {
 		return observe.SourceResult{}, errors.New("backup unavailable")
 	}
-	status, err := s.config.Backup.Status(ctx)
+	dashboard, err := s.config.Backup.Dashboard(ctx)
 	if err != nil {
 		return observe.SourceResult{}, err
 	}
-	page, checkpointsErr := s.config.Backup.ListCheckpointsPage(ctx, backupusecase.CheckpointListRequest{
-		Limit:   request.Limit,
-		IDQuery: request.CheckpointID,
-	})
-	if checkpointsErr != nil && status.Enabled {
-		return observe.SourceResult{}, checkpointsErr
-	}
-	items := make([]backupCheckpointData, len(page.Items))
-	for index, checkpoint := range page.Items {
-		items[index] = safeBackupCheckpoint(checkpoint)
-	}
+	items := make([]backupArchiveData, 0, min(request.Limit, len(dashboard.Archives)))
+	matches := 0
 	verdict := observe.StatusUnknown
-	switch string(status.Health) {
-	case "healthy":
+	for _, archive := range dashboard.Archives {
+		if request.ArchiveID != "" && archive.ID != request.ArchiveID {
+			continue
+		}
+		matches++
+		if len(items) < request.Limit {
+			items = append(items, safeBackupArchive(archive))
+		}
+		if archive.Health == backupusecase.ArchiveHealthCorrupt {
+			verdict = observe.StatusDegraded
+		}
+	}
+	enabled := dashboard.State.Plan != nil && dashboard.State.Plan.Enabled
+	if enabled && verdict == observe.StatusUnknown {
 		verdict = observe.StatusHealthy
-	case "degraded", "failed":
-		verdict = observe.StatusDegraded
 	}
 	completeness := observe.CompletenessComplete
-	var warnings []string
-	if page.NextCursor != "" {
+	warnings := []string(nil)
+	if matches > len(items) {
 		completeness = observe.CompletenessPartial
-		warnings = append(warnings, "checkpoint inventory continues beyond this bounded page")
+		warnings = append(warnings, "archive inventory continues beyond this bounded result")
 	}
-	pendingErasureStreams := 0
-	for _, stream := range status.ErasureStreams {
-		if stream.Pending {
-			pendingErasureStreams++
-		}
+	data := backupInspectData{
+		Enabled:       enabled,
+		ActiveBackup:  safeBackupTask(dashboard.State.ActiveBackup),
+		ActiveRestore: safeRestoreTask(dashboard.State.ActiveRestore),
+		Archives:      items,
 	}
-	unhealthyAuditSlots := 0
-	for _, slot := range status.IntegrityAudit.Slots {
-		if slot.Health != "healthy" {
-			unhealthyAuditSlots++
-		}
-	}
-	var latestCheckpoint *backupCheckpointData
-	if status.LatestCheckpoint != nil {
-		checkpoint := safeBackupCheckpoint(*status.LatestCheckpoint)
-		latestCheckpoint = &checkpoint
+	if dashboard.State.Plan != nil {
+		data.PlanRevision = dashboard.State.Plan.Revision
+		data.Cron = dashboard.State.Plan.Cron
+		data.TimeZone = dashboard.State.Plan.TimeZone
+		data.RetentionCount = dashboard.State.Plan.RetentionCount
 	}
 	return observe.SourceResult{
 		Freshness: observe.FreshnessFresh, Completeness: completeness, Status: verdict, Warnings: warnings,
-		Data: backupInspectData{
-			Enabled: status.Enabled, Health: string(status.Health),
-			CheckpointAgeSeconds:      status.CheckpointAgeSeconds,
-			MaxCheckpointAgeSeconds:   status.MaxCheckpointAgeSeconds,
-			FailureCategory:           status.FailureCategory,
-			CoordinatorNodeID:         status.CoordinatorNodeID,
-			ObservedAtUnixMillis:      status.ObservedAtUnixMillis,
-			Running:                   status.Running,
-			CaptureLeaseCount:         len(status.CaptureLeases),
-			CaptureStatusCount:        len(status.CaptureStatuses),
-			PendingErasureStreamCount: pendingErasureStreams,
-			LatestCheckpoint:          latestCheckpoint,
-			Checkpoints:               items,
-			IntegrityAudit: backupIntegrityAuditData{
-				DebtObjects:             status.IntegrityAudit.DebtObjects,
-				LastSuccessAtUnixMillis: status.IntegrityAudit.LastSuccessAtUnixMillis,
-				UpdatedAtUnixMillis:     status.IntegrityAudit.UpdatedAtUnixMillis,
-				UnhealthySlotCount:      unhealthyAuditSlots,
-			},
-		},
+		Data: data,
 	}, nil
 }
 
@@ -1314,44 +1290,53 @@ type rawLogPage struct {
 	Items        []rawLogEntry `json:"items"`
 }
 
-type backupCheckpointData struct {
+type backupArchiveData struct {
 	ID                    string `json:"id"`
-	EffectiveAtUnixMillis int64  `json:"effective_at_unix_millis"`
-	CreatedAtUnixMillis   int64  `json:"created_at_unix_millis"`
+	CompletedAtUnixMillis int64  `json:"completed_at_unix_ms"`
+	LogicalBytes          uint64 `json:"logical_bytes"`
+	StoredBytes           uint64 `json:"stored_bytes"`
 	Held                  bool   `json:"held"`
+	Health                string `json:"health"`
+	ErrorCode             string `json:"error_code,omitempty"`
 }
 
-type backupIntegrityAuditData struct {
-	DebtObjects             uint64 `json:"debt_objects"`
-	LastSuccessAtUnixMillis int64  `json:"last_success_at_unix_millis"`
-	UpdatedAtUnixMillis     int64  `json:"updated_at_unix_millis"`
-	UnhealthySlotCount      int    `json:"unhealthy_slot_count"`
+type backupTaskData struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	ErrorCode string `json:"error_code,omitempty"`
 }
 
 type backupInspectData struct {
-	Enabled                   bool                     `json:"enabled"`
-	Health                    string                   `json:"health"`
-	CheckpointAgeSeconds      *int64                   `json:"checkpoint_age_seconds,omitempty"`
-	MaxCheckpointAgeSeconds   int64                    `json:"max_checkpoint_age_seconds"`
-	FailureCategory           string                   `json:"failure_category,omitempty"`
-	CoordinatorNodeID         uint64                   `json:"coordinator_node_id"`
-	ObservedAtUnixMillis      int64                    `json:"observed_at_unix_millis"`
-	Running                   bool                     `json:"running"`
-	CaptureLeaseCount         int                      `json:"capture_lease_count"`
-	CaptureStatusCount        int                      `json:"capture_status_count"`
-	IntegrityAudit            backupIntegrityAuditData `json:"integrity_audit"`
-	PendingErasureStreamCount int                      `json:"pending_erasure_stream_count"`
-	LatestCheckpoint          *backupCheckpointData    `json:"latest_checkpoint,omitempty"`
-	Checkpoints               []backupCheckpointData   `json:"checkpoints"`
+	Enabled        bool                `json:"enabled"`
+	PlanRevision   uint64              `json:"plan_revision,omitempty"`
+	Cron           string              `json:"cron,omitempty"`
+	TimeZone       string              `json:"time_zone,omitempty"`
+	RetentionCount int                 `json:"retention_count,omitempty"`
+	ActiveBackup   *backupTaskData     `json:"active_backup,omitempty"`
+	ActiveRestore  *backupTaskData     `json:"active_restore,omitempty"`
+	Archives       []backupArchiveData `json:"archives"`
 }
 
-func safeBackupCheckpoint(checkpoint backupusecase.CheckpointSummary) backupCheckpointData {
-	return backupCheckpointData{
-		ID:                    checkpoint.ID,
-		EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis,
-		CreatedAtUnixMillis:   checkpoint.CreatedAtUnixMillis,
-		Held:                  checkpoint.Held,
+func safeBackupArchive(archive backupusecase.ArchiveSummary) backupArchiveData {
+	return backupArchiveData{
+		ID: archive.ID, CompletedAtUnixMillis: archive.CompletedAtUnixMillis,
+		LogicalBytes: archive.LogicalBytes, StoredBytes: archive.StoredBytes,
+		Held: archive.Held, Health: string(archive.Health), ErrorCode: archive.ErrorCode,
 	}
+}
+
+func safeBackupTask(job *backupcontract.BackupJob) *backupTaskData {
+	if job == nil {
+		return nil
+	}
+	return &backupTaskData{ID: job.ID, Status: string(job.Status), ErrorCode: job.ErrorCode}
+}
+
+func safeRestoreTask(job *backupcontract.RestoreJob) *backupTaskData {
+	if job == nil {
+		return nil
+	}
+	return &backupTaskData{ID: job.ID, Status: string(job.Status), ErrorCode: job.ErrorCode}
 }
 
 func safeSourceWarnings(sources management.DynamicNodeDiagnosticSources) []string {

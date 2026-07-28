@@ -65,12 +65,12 @@ var builtinManagerPermissionResources = []ManagerPermissionResource{
 	{
 		Resource:    "cluster.backup",
 		Actions:     []string{"r", "w"},
-		Description: "Read continuous backup evidence and publish immutable checkpoints.",
+		Description: "Read and manage scheduled full backups and their archives.",
 	},
 	{
-		Resource:    "cluster.restore.activation",
+		Resource:    "cluster.restore",
 		Actions:     []string{"w"},
-		Description: "Activate a verified successor only with a separately reviewed explicit grant; wildcard grants do not apply.",
+		Description: "Restore a verified archive with a separately reviewed explicit grant; wildcard grants do not apply.",
 	},
 	{
 		Resource:    "cluster.diagnostics",

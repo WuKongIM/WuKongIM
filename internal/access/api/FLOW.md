@@ -25,6 +25,12 @@ When `bench.api_token` is configured, every `/bench/v1/*` request must carry
 the exact `Authorization: Bearer <token>` capability; health, readiness,
 metrics, debug, and product routes remain outside that middleware.
 
+Controller restore maintenance places a node-local middleware in front of all
+product, route-discovery, and benchmark endpoints. It returns HTTP `503` with
+the stable `maintenance` error before any business handler runs. Health,
+readiness, metrics, debug, top, and embedded Demo assets remain reachable for
+operations and diagnosis while the data plane is fenced.
+
 ## Routes
 
 ```text

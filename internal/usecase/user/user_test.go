@@ -188,6 +188,28 @@ func TestSystemUIDsPersistListAndCacheThroughStore(t *testing.T) {
 	}
 }
 
+func TestReloadSystemUIDCacheUsesMaintenanceRestoreRead(t *testing.T) {
+	store := &fakeRestoreSystemUIDStore{
+		fakeSystemUIDStore: fakeSystemUIDStore{
+			subscribers: []string{"restored-system"},
+		},
+	}
+	app := New(Options{SystemUIDs: store})
+
+	if err := app.ReloadSystemUIDCache(context.Background()); err != nil {
+		t.Fatalf("ReloadSystemUIDCache() error = %v", err)
+	}
+	if store.foregroundReads != 0 || store.restoreReads != 1 {
+		t.Fatalf(
+			"foreground/restore reads = %d/%d, want 0/1",
+			store.foregroundReads, store.restoreReads,
+		)
+	}
+	if !app.IsSystemUID("restored-system") {
+		t.Fatal("restored system UID was not cached")
+	}
+}
+
 type fakeUserStore struct {
 	getErr    error
 	createErr error
@@ -254,7 +276,8 @@ func (f *fakePresenceDirectory) EndpointsByUIDs(_ context.Context, uids []string
 }
 
 type fakeSystemUIDStore struct {
-	subscribers []string
+	subscribers     []string
+	foregroundReads int
 }
 
 func (f *fakeSystemUIDStore) AddChannelSubscribers(_ context.Context, _ string, _ int64, uids []string, _ ...uint64) error {
@@ -278,6 +301,23 @@ func (f *fakeSystemUIDStore) RemoveChannelSubscribers(_ context.Context, _ strin
 }
 
 func (f *fakeSystemUIDStore) ListChannelSubscribers(context.Context, string, int64, string, int) ([]string, string, bool, error) {
+	f.foregroundReads++
+	return append([]string(nil), f.subscribers...), "", true, nil
+}
+
+type fakeRestoreSystemUIDStore struct {
+	fakeSystemUIDStore
+	restoreReads int
+}
+
+func (f *fakeRestoreSystemUIDStore) ListChannelSubscribersForRestore(
+	context.Context,
+	string,
+	int64,
+	string,
+	int,
+) ([]string, string, bool, error) {
+	f.restoreReads++
 	return append([]string(nil), f.subscribers...), "", true, nil
 }
 

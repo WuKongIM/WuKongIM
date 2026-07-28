@@ -489,7 +489,7 @@ func TestRuntimeJoinNodeReturnsControlWriteAfterForward(t *testing.T) {
 	waitForRuntimeNodeConvergence(t, runtimes, 4, NodeJoinStateJoining, "")
 }
 
-func TestRuntimeReplaceCoordinationStateForwardsToControllerLeader(t *testing.T) {
+func TestRuntimeReplaceScheduledBackupForwardsToControllerLeader(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	controlWriteClient := NewControlWriteClient(network)
 	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
@@ -530,35 +530,18 @@ func TestRuntimeReplaceCoordinationStateForwardsToControllerLeader(t *testing.T)
 		}
 	}
 
-	replacement := controller.BackupCoordinationState{CatalogAuditRootSequence: 7}
-	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, follower *Runtime) (struct{}, error) {
-		applier := &recordingControlWriteApplier{}
-		network.Register(leader.cfg.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
-		err := follower.ReplaceBackupCoordinationState(ctx, 9, replacement)
-		if err == nil {
-			if len(applier.backupReplacements) != 1 ||
-				applier.backupReplacements[0].expectedRevision != 9 ||
-				!reflect.DeepEqual(applier.backupReplacements[0].replacement, replacement) {
-				t.Fatalf("backup replacements = %#v, want forwarded replacement", applier.backupReplacements)
-			}
-		}
-		return struct{}{}, err
-	})
-
-	restoreReplacement := controller.RestoreCoordinationState{
-		Plan: &controller.RestorePlan{ID: "restore-plan-forwarded"},
+	replacement := controller.ScheduledBackupState{
+		Plan: &controller.BackupPlan{Enabled: true, Cron: "0 1 * * *"},
 	}
 	retryRuntimeControlWrite(t, runtimes, func(ctx context.Context, leader *Runtime, follower *Runtime) (struct{}, error) {
 		applier := &recordingControlWriteApplier{}
 		network.Register(leader.cfg.NodeID, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
-		err := follower.ReplaceRestoreCoordinationState(
-			ctx, 10, restoreReplacement,
-		)
+		err := follower.ReplaceScheduledBackupState(ctx, 9, replacement)
 		if err == nil {
-			if len(applier.restoreReplacements) != 1 ||
-				applier.restoreReplacements[0].expectedRevision != 10 ||
-				!reflect.DeepEqual(applier.restoreReplacements[0].replacement, restoreReplacement) {
-				t.Fatalf("restore replacements = %#v, want forwarded replacement", applier.restoreReplacements)
+			if len(applier.scheduledBackupReplacements) != 1 ||
+				applier.scheduledBackupReplacements[0].expectedRevision != 9 ||
+				!reflect.DeepEqual(applier.scheduledBackupReplacements[0].replacement, replacement) {
+				t.Fatalf("backup replacements = %#v, want forwarded replacement", applier.scheduledBackupReplacements)
 			}
 		}
 		return struct{}{}, err

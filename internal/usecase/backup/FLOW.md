@@ -1,89 +1,69 @@
 # internal/usecase/backup Flow
 
-`internal/usecase/backup` owns entry-independent cluster backup coordination.
-It does not read storage, call Controller directly, encode artifacts, or know a
-concrete object-store or key-authority implementation.
+## Responsibility
 
-Cross-layer coordination DTOs live in `internal/contracts/backup`; the usecase
-re-exports those types while retaining all transition and scheduling policy.
+`internal/usecase/backup` owns entry-independent policy for the single
+cluster-wide backup plan, scheduled/manual job admission, bounded task state,
+archive operations, and current-cluster restore. Durable DTOs are defined in
+`internal/contracts/backup`; repositories and cluster execution are injected
+ports.
 
-Current flow:
+## Plan and scheduling
 
-1. `Status` exposes the continuous coordinator health, checkpoint age, latest
-   checkpoint, bounded Slot capture leases/statuses, permanent-erasure
-   progress, the durable integrity-audit cursor/per-Slot health projection,
-   pending per-Slot Generation replacements, sanitized repository GC cursors,
-   optional restore progress, and effective non-secret policy. The audit and GC
-   views omit opaque repository object positions and GC guard tokens. Each lease includes only the
-   immediate durable promotion predecessor, bounded reason, and timestamp, so
-   operators can distinguish audit recovery from policy or remap rebases
-   without exposing object references. Missing checkpoint evidence stays
-   `unknown`; it is never projected as age zero.
-2. Slot capture workers update one durable frontier per logical Hash Slot
-   through lease- and revision-fenced compare-and-swap ports. The usecase keeps
-   only bounded coordination summaries; Channel cursors and encrypted payloads
-   remain repository artifacts.
-3. `CheckpointCoordinator.Publish` requires exactly one healthy durable
-   frontier from every configured Hash Slot. It builds a nonblocking vector
-   cut, authenticates the current segment and cursor commit proofs, publishes
-   the checkpoint and hash-linked catalog page, then advances only the
-   Controller catalog head while preserving concurrent frontier updates.
-4. `ListCheckpointsPage` and `CheckpointByID` read immutable history through an
-   injected rebuildable catalog browser. Every page returns a versioned opaque
-   catalog-head token that pins the exact immutable discovery window without
-   exposing repository object coordinates. List requests may filter by a
-   case-insensitive ID substring, current signed hold state, and inclusive
-   effective-time bounds; invalid or reversed ranges fail before storage access.
-5. `DecideCheckpointRetention` applies UTC five-minute, hourly, daily, and
-   optional monthly tiers. The newest checkpoint, operator holds, and the
-   active restore checkpoint are protected. The result is a sparse Generation
-   protection decision; checkpoint history and object identities never enter
-   Controller state. `SetCheckpointHold` first appends the immutable
-   hold/release page in both repositories, then advances the Controller head
-   and `CatalogRetentionRevision` through one CAS. An active Generation-GC
-   guard blocks the transition, while every external delete compares the same
-   revision, so a newly held checkpoint cannot race deletion.
-6. The restore state machine admits exactly one immutable plan, requires an
-   empty target and distinct source/target generations, and pins the catalog
-   proof, checkpoint identity, selected repository, and erasure snapshot.
-   Admission decodes the caller's exact opaque catalog-head token internally
-   and always selects the primary copy itself; repository selection and raw
-   object references are not entry-layer inputs. It never trusts a mutable
-   "latest" value copied from the unavailable source Controller.
-   Before repository work it durably records the current physical Slot, Leader
-   term, configuration epoch, and install attempt. Progress reports are fenced
-   and monotonic; a Leader change advances the attempt without accepting stale
-   completion. Status exposes bounded per-Slot install/convergence state,
-   throughput, and ETA. Final semantic verification requires every current
-   desired replica to revalidate its live installed state before activation.
-   Normal activation authenticates a Controller/key-authority-signed
-   source-fence receipt
-   bound to this exact plan, checkpoint, source generation, and successor.
-   Break-glass activation instead requires an authenticated operator, explicit
-   reason, and immutable audit identity. Both paths persist `activating` first,
-   run idempotent target-wide plaintext staging cleanup, and publish
-   `activated` only after cleanup succeeds. A retry must present the same
-   evidence and resumes cleanup without replacing the audit.
-7. Permanent-erasure publication reserves one contiguous Controller sequence
-   per Hash Slot. Each bounded stream state keeps its authenticated head, one
-   pending record reference, and the latest committed reference so immediate
-   retries can repair either repository without blocking unrelated Slots.
-   Deterministic signed repository receipts retain idempotency for older
-   committed events without an unbounded Controller map. Checkpoint publication
-   freezes the sorted committed Slot heads. A restore plan immutably pins the
-   authenticated current heads independently of the selected checkpoint.
-   Admission counts both committed heads and every per-Slot pending reservation
-   against the portable snapshot limit, so live retention is rejected before a
-   deletion could make restore or garbage collection unreadable.
-8. `FenceSource` durably installs one irreversible generation fence through
-   Controller CAS, waits for every active data node to report the exact fence
-    revision with `runtime_ready=false`, then signs the converged record. An
-    identical retry returns the same semantic receipt; a different successor
-    binding fails closed.
+Manager replaces one complete plan through revision-fenced compare-and-swap.
+The plan contains enabled state, repository selection, Cron or `@every`
+schedule, time zone, retention count, per-node rate, one through four workers,
+and a one through 48 hour deadline.
 
-A pending Slot rebase or durable integrity state of `degraded`,
-`rebase_required`, or `failed` blocks checkpoint publication. The old
-Generation remains restorable until the replacement materialized baseline and
-complete cursor proof are promoted. Large manifests and object identities stay
-in repositories; Controller coordination stores only one bounded summary per
-logical Hash Slot.
+Enabling a previously disabled plan admits one immediate initial full backup.
+The Controller leader evaluates only the next occurrence after the durable
+schedule cursor. Missed occurrences are not replayed. An occurrence that
+overlaps a backup or restore becomes a bounded `skipped` history record.
+
+## Backup execution
+
+`JobRunner` resumes the only active job from Controller state:
+
+1. Resolve current Slot authority and claim attempts serially through durable
+   authority fences.
+2. Export a bounded batch concurrently, capped by `workers_per_node` for each
+   data node.
+3. Accept completion only for the exact job, attempt, owner, and term.
+4. After all 256 Slots complete, verify and publish the archive.
+5. Apply retention and move the terminal result into the newest-first,
+   100-record history.
+
+Cancellation and deadline expiry finish without publishing `COMPLETE`.
+Process or Controller leader failover reuses the durable active job and retries
+unfinished Slots.
+
+## Manager operations
+
+`ManagementService` returns one redacted dashboard containing plan, active
+task, bounded history, and published archives. Configuration probes every
+active node before publication, binds the repository to the source cluster,
+and preserves existing S3 credentials when replacement fields are blank.
+Archive verify, hold/release, and delete operate only through the current plan
+repository.
+
+## Restore execution
+
+`RestoreService.StartRestore` fully verifies the selected archive before
+admitting one 48-hour restore job. `RestoreRunner` then advances one durable
+transition per call:
+
+```text
+preparing
+  -> maintenance
+  -> stage all 256 Hash Slots on every current replica
+  -> verify all staged replicas
+  -> switching
+  -> success
+```
+
+Every Slot attempt records sorted replica IDs and logical-byte evidence.
+Switching is forbidden until all Slots are verified. Cancellation, timeout,
+staging failure, verification failure, or switch failure enters the same
+durable rollback phase. A successful restore increments
+`manager_session_epoch`, invalidating existing Manager sessions while
+preserving restored client authentication tokens.

@@ -477,11 +477,8 @@ jobs:
         run: test "$(go env GOVERSION)" = "go1.25.11"
       - name: Build e2e binary once
         shell: bash
-        env:
-          MERGE_SHA: ${{ github.event.client_payload.merge_sha }}
         run: |
           go build -tags=e2e \
-            -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${MERGE_SHA}" \
             -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
       - name: Run e2e packages
         shell: bash

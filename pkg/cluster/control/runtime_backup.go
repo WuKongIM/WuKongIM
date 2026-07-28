@@ -17,28 +17,35 @@ func (r *Runtime) LocalControllerState(ctx context.Context) (controller.ClusterS
 	return r.backend.LocalState(ctx)
 }
 
-// ReplaceBackupCoordinationState proposes one revision-fenced backup state replacement.
-func (r *Runtime) ReplaceBackupCoordinationState(ctx context.Context, expectedRevision uint64, replacement controller.BackupCoordinationState) error {
+// ReplaceScheduledBackupState proposes one revision-fenced simplified backup
+// state replacement and transparently forwards from non-leader nodes.
+func (r *Runtime) ReplaceScheduledBackupState(
+	ctx context.Context,
+	expectedRevision uint64,
+	replacement controller.ScheduledBackupState,
+) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	if r == nil || r.backend == nil {
 		return controller.ErrNotStarted
 	}
-	req := ControlWriteRequest{
-		Action: ControlWriteActionReplaceBackupCoordination,
-		ReplaceBackupCoordination: ReplaceBackupCoordinationRequest{
+	request := ControlWriteRequest{
+		Action: ControlWriteActionReplaceScheduledBackup,
+		ReplaceScheduledBackup: ReplaceScheduledBackupRequest{
 			ExpectedRevision: expectedRevision,
 			Replacement:      replacement,
 		},
 	}
 	if r.canForwardControlWriteToLeader() {
-		_, err := r.forwardControlWrite(ctx, req)
+		_, err := r.forwardControlWrite(ctx, request)
 		return err
 	}
-	err := r.backend.ReplaceBackupCoordinationState(ctx, expectedRevision, replacement)
+	err := r.backend.ReplaceScheduledBackupState(
+		ctx, expectedRevision, replacement,
+	)
 	if shouldForwardControlWrite(err) {
-		_, forwardErr := r.forwardControlWriteAfterError(ctx, req, err)
+		_, forwardErr := r.forwardControlWriteAfterError(ctx, request, err)
 		return forwardErr
 	}
 	return err

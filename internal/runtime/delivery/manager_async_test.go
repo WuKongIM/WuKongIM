@@ -134,7 +134,7 @@ func TestManagerAsyncSubmitWaitingOnFullQueueRejectsAfterClose(t *testing.T) {
 	}
 }
 
-func TestManagerAsyncStartAfterStopRejected(t *testing.T) {
+func TestManagerAsyncStartAfterSuccessfulStopRestarts(t *testing.T) {
 	manager := NewManager(ManagerOptions{
 		Planner:        NewPlanner(PlannerOptions{}),
 		Runner:         recordingManagerRunner{},
@@ -147,8 +147,14 @@ func TestManagerAsyncStartAfterStopRejected(t *testing.T) {
 	if err := manager.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if err := manager.Start(context.Background()); !errors.Is(err, ErrManagerClosed) {
-		t.Fatalf("Start() after stop error = %v, want ErrManagerClosed", err)
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() after stop error = %v", err)
+	}
+	if err := manager.SubmitCommitted(
+		context.Background(),
+		messageevents.MessageCommitted{MessageID: 2, MessageScopedUIDs: []string{"u1"}},
+	); err != nil {
+		t.Fatalf("SubmitCommitted() after restart error = %v", err)
 	}
 }
 

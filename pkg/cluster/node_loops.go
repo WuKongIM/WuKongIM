@@ -105,7 +105,6 @@ func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter)
 	attemptStartedAt := time.Now()
 	reportCtx, cancel := context.WithTimeout(ctx, healthReportTimeout(n.cfg.HealthReport.Interval, n.cfg.HealthReport.TTL))
 	defer cancel()
-	n.tryConvergeSourceFence(reportCtx)
 	report, err := reporter.ReportNode(reportCtx)
 	if err != nil {
 		return err
@@ -136,7 +135,7 @@ func healthReportTimeout(interval, ttl time.Duration) time.Duration {
 
 func (n *Node) runtimeReadyForHealthReport() bool {
 	if n == nil || !n.started.Load() || n.stopping.Load() ||
-		n.sourceFenced.Load() {
+		n.maintenance.Load() {
 		return false
 	}
 	n.mu.RLock()
@@ -151,37 +150,7 @@ func (n *Node) observedControlRevision() uint64 {
 	n.mu.RLock()
 	revision := n.controlSnapshot.Revision
 	n.mu.RUnlock()
-	fenceRevision := n.sourceFenceRevision.Load()
-	if n.sourceFenced.Load() && !n.sourceFenceConverged.Load() &&
-		fenceRevision > 0 && revision >= fenceRevision {
-		return fenceRevision - 1
-	}
 	return revision
-}
-
-func (n *Node) tryConvergeSourceFence(ctx context.Context) {
-	if n == nil || !n.sourceFenced.Load() || n.sourceFenceConverged.Load() ||
-		n.defaultSlotRuntime == nil || n.channels == nil {
-		return
-	}
-	if !n.defaultSlotRuntime.ProposalsQuiescent() {
-		return
-	}
-	snapshot, err := n.channels.RuntimeSnapshot(ctx)
-	if err != nil {
-		return
-	}
-	for _, reactor := range snapshot.Reactors {
-		if reactor.PendingAppendChannels > 0 {
-			return
-		}
-	}
-	// Recheck Slot proposals after the Channel barrier. The admission fence
-	// prevents new proposals, while this closes over work that completed during
-	// the RuntimeSnapshot round trip.
-	if n.defaultSlotRuntime.ProposalsQuiescent() {
-		n.sourceFenceConverged.Store(true)
-	}
 }
 
 func (n *Node) observedSlotRevision() uint64 {
@@ -467,7 +436,12 @@ func (g *preferredLeaderIntentGeneration) invalidate() {
 }
 
 func (n *Node) startChannelTickLoop() {
-	if n == nil || n.channels == nil || n.channelTickCancel != nil {
+	if n == nil {
+		return
+	}
+	n.channelTickMu.Lock()
+	defer n.channelTickMu.Unlock()
+	if n.channels == nil || n.channelTickCancel != nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -489,7 +463,12 @@ func (n *Node) startChannelTickLoop() {
 }
 
 func (n *Node) stopChannelTickLoop() {
-	if n == nil || n.channelTickCancel == nil {
+	if n == nil {
+		return
+	}
+	n.channelTickMu.Lock()
+	defer n.channelTickMu.Unlock()
+	if n.channelTickCancel == nil {
 		return
 	}
 	n.channelTickCancel()
@@ -498,7 +477,12 @@ func (n *Node) stopChannelTickLoop() {
 }
 
 func (n *Node) startChannelRetentionGCLoop() {
-	if n == nil || n.channelRetentionCancel != nil || !n.cfg.ChannelRetention.PhysicalGCEnabled {
+	if n == nil {
+		return
+	}
+	n.channelRetentionMu.Lock()
+	defer n.channelRetentionMu.Unlock()
+	if n.channelRetentionCancel != nil || !n.cfg.ChannelRetention.PhysicalGCEnabled {
 		return
 	}
 	if n.channels == nil || n.defaultChannelStore == nil || n.defaultSlotMetaDB == nil {
@@ -523,7 +507,12 @@ func (n *Node) startChannelRetentionGCLoop() {
 }
 
 func (n *Node) stopChannelRetentionGCLoop() {
-	if n == nil || n.channelRetentionCancel == nil {
+	if n == nil {
+		return
+	}
+	n.channelRetentionMu.Lock()
+	defer n.channelRetentionMu.Unlock()
+	if n.channelRetentionCancel == nil {
 		return
 	}
 	n.channelRetentionCancel()
@@ -532,7 +521,12 @@ func (n *Node) stopChannelRetentionGCLoop() {
 }
 
 func (n *Node) startChannelMigrationLoop() {
-	if n == nil || n.channelMigrationCancel != nil || !n.cfg.ChannelMigration.Enabled {
+	if n == nil {
+		return
+	}
+	n.channelMigrationMu.Lock()
+	defer n.channelMigrationMu.Unlock()
+	if n.channelMigrationCancel != nil || !n.cfg.ChannelMigration.Enabled {
 		return
 	}
 	store := n.ChannelMigrationStore()
@@ -590,7 +584,12 @@ func (n *Node) startChannelMigrationLoop() {
 }
 
 func (n *Node) stopChannelMigrationLoop() {
-	if n == nil || n.channelMigrationCancel == nil {
+	if n == nil {
+		return
+	}
+	n.channelMigrationMu.Lock()
+	defer n.channelMigrationMu.Unlock()
+	if n.channelMigrationCancel == nil {
 		return
 	}
 	n.channelMigrationCancel()

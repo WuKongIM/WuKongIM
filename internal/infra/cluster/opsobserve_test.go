@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	management "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	observe "github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve"
@@ -175,44 +176,37 @@ func TestLatestMetricValueRejectsNonFiniteAndMalformedValues(t *testing.T) {
 	}
 }
 
-func TestOpsObservationBackupInspectUsesBoundedCheckpointPage(t *testing.T) {
+func TestOpsObservationBackupInspectUsesBoundedArchiveInventory(t *testing.T) {
 	backup := &opsBackupStub{
-		status: backupusecase.StatusSnapshot{
-			Enabled: true,
-			Health:  backupusecase.HealthHealthy,
-		},
-		page: backupusecase.CheckpointPage{
-			Items: []backupusecase.CheckpointSummary{
-				{ID: "checkpoint-match", Held: true},
+		dashboard: backupusecase.Dashboard{
+			State: backupcontract.SystemState{
+				Plan: &backupcontract.Plan{Enabled: true, Revision: 4, Cron: "0 1 * * *", TimeZone: "Asia/Shanghai"},
 			},
-			NextCursor: "more",
-			Total:      201,
+			Archives: []backupusecase.ArchiveSummary{
+				{ID: "archive-match", Held: true, Health: backupusecase.ArchiveHealthHealthy},
+				{ID: "archive-later", Health: backupusecase.ArchiveHealthHealthy},
+			},
 		},
 	}
 	source := NewOpsObservationSource(OpsObservationSourceConfig{Backup: backup})
 
 	result, err := source.BackupInspect(context.Background(), observe.BackupInspectRequest{
-		CheckpointID: "checkpoint-match",
-		Limit:        1,
+		ArchiveID: "archive-match",
+		Limit:     1,
 	})
 	if err != nil {
 		t.Fatalf("BackupInspect() error = %v", err)
 	}
-	if backup.request.Limit != 1 || backup.request.Cursor != "" ||
-		backup.request.IDQuery != "checkpoint-match" {
-		t.Fatalf("checkpoint request = %#v", backup.request)
-	}
-	if result.Completeness != observe.CompletenessPartial || len(result.Warnings) != 1 {
+	if result.Completeness != observe.CompletenessComplete || len(result.Warnings) != 0 {
 		t.Fatalf("result coverage = %#v, warnings = %#v", result.Completeness, result.Warnings)
 	}
 	data, ok := result.Data.(backupInspectData)
 	if !ok {
 		t.Fatalf("result data type = %T", result.Data)
 	}
-	if len(data.Checkpoints) != 1 ||
-		data.Checkpoints[0].ID != "checkpoint-match" ||
-		!data.Checkpoints[0].Held {
-		t.Fatalf("checkpoints = %#v", data.Checkpoints)
+	if !data.Enabled || data.PlanRevision != 4 || len(data.Archives) != 1 ||
+		data.Archives[0].ID != "archive-match" || !data.Archives[0].Held {
+		t.Fatalf("backup data = %#v", data)
 	}
 }
 
@@ -278,18 +272,11 @@ func (s opsMetricsStub) QueryOpsMetrics(_ context.Context, request observe.Metri
 }
 
 type opsBackupStub struct {
-	status  backupusecase.StatusSnapshot
-	page    backupusecase.CheckpointPage
-	request backupusecase.CheckpointListRequest
+	dashboard backupusecase.Dashboard
 }
 
-func (s *opsBackupStub) Status(context.Context) (backupusecase.StatusSnapshot, error) {
-	return s.status, nil
-}
-
-func (s *opsBackupStub) ListCheckpointsPage(_ context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {
-	s.request = request
-	return s.page, nil
+func (s *opsBackupStub) Dashboard(context.Context) (backupusecase.Dashboard, error) {
+	return s.dashboard, nil
 }
 
 func metricValues(value string) [][]json.RawMessage {

@@ -51,10 +51,10 @@ surface for node-scoped operations; cluster exposes only the selected node's
 local operation and does not fan out or interpret manager policy. Internal
 manager Slot Raft manual compaction uses the same node-scoped surface through
 `Node.LocalCompactSlotRaftLog`, which delegates only to the selected node's
-local Slot Multi-Raft runtime. Backup pin mutations and any resulting retained
-log trim share a per-Slot operation gate with the complete destructive
-compaction interval. The Slot worker never waits for that gate, floor reads
-take only a short read lock, and unchanged holds perform no storage write.
+local Slot Multi-Raft runtime. Restore installs imported Slot-owned state at
+the exact applied boundary, forces a durable external-state snapshot even when
+ordinary compaction is disabled, and reloads the local Slot runtime before
+business admission reopens.
 Internal manager message retention forwarding
 uses the same surface to carry one logical Channel runtime compaction-boundary
 request to the channel leader; cluster transports the payload only, while the
@@ -322,14 +322,13 @@ under the Stop context after the periodic loop is canceled and before
 Controller/watch shutdown. Controller fills the leader-side report timestamp,
 stores the report durably, and control snapshots derive `fresh`, `stale`, or
 `missing` health from the configured TTL.
-When the Controller snapshot first carries a source-generation fence, the node
-publishes a one-way foreground rejection before slower reconciliation and
-reports `runtime_ready=false`. It withholds the fence Controller revision from
-health reports until the default Slot runtime has no queued, submitted, or
-pending ordinary proposal and a Channel runtime snapshot proves no accepted
-append remains. The Slot enqueue admission uses an RW-lock boundary shared by
-local and forwarded proposals, so a caller that passed an earlier API check
-cannot enqueue after the fence and escape the drain proof.
+When the Controller snapshot first carries restore maintenance, the node
+publishes foreground rejection before slower placement reconciliation and
+reports `runtime_ready=false`. The admission RW-lock linearizes the
+maintenance edge with local and forwarded writes, so no caller that passed an
+earlier API check can enqueue after the fence. The app-level observer then
+disconnects Gateway clients and suspends delivery, Webhooks, and plugin side
+effects while Manager and internal restore RPC remain available.
 The default Channel runtime runtime also receives a node-local data-plane lease guard.
 A successful health report refreshes the lease only when `runtime_ready` is
 still true. The local lease records the report attempt start after success so
@@ -737,64 +736,19 @@ also reads the Multi-Raft proposal envelope's `created_at_ms` timestamp when
 present. These methods are read-only diagnostics for manager UI pages; they do
 not route writes, replay entries, or mutate Raft storage.
 
-Continuous backup uses a separate forward-only source facade.
-`ObserveBackupCaptureAuthority` succeeds only when the routed leader is local
-and a fresh local Multi-Raft status reports the same Slot ID, leader node,
-leader term, and leader role. This deliberately does not trust the router's
-retained last-known leader during transient observation gaps; upper-layer
-capture leases use its `(SlotID, leader term, config epoch, holder)` result as
-their distributed fence.
-`ObserveBackupMetadataHighWatermark` routes to the Slot Leader and returns the
-last applied Raft index that mutates the requested Hash Slot.
-`ReadBackupMetadataLogPage` pins that logical cut and uses a rebuildable
-sparse index over the real retained Slot RaftDB. Each physical log range is
-decoded once to record affected Hash Slot/index pairs; per-Hash-Slot capture
-then reads one bounded physical window and filters it through the sparse index,
-so interleaved Hash Slots do not degrade into one RaftDB read per matching
-command. The index is read-path-only, prunes with
-Raft compaction, and is rebuilt after restart. Unrelated physical entries do
-not advance a logical watermark or Controller frontier. A cursor older than
-the first retained entry returns `ErrBackupSourceCompacted`.
+Scheduled full backup uses online point-in-time snapshot seams.
+`CaptureBackupHashSlotSnapshot` pins portable Slot-owned metadata at one
+committed/applied boundary. `ListBackupChannelRuntimeMetaPage` provides the
+bounded Channel inventory used to group message snapshots by current Channel
+leader. Slot and Channel authority are revalidated before bytes are read;
+metadata is captured again after discovery and the export fails if the
+physical Slot, term, configuration, or applied index changed.
 
-`HoldBackupSourcePin` first proves current local Slot leadership, installs an
-idempotent per-Hash-Slot compaction floor in that physical Multi-Raft Slot,
-then reports the retained range and its storage byte estimate after the
-continuous metadata cursor. The normal recovery snapshot still advances to the
-current applied state; the minimum active floor controls only the older
-retained RaftDB archive, so one Hash Slot does not force replay of or relabel
-the current FSM state at an older index. Pin operation cancellation is
-linearized while waiting for the per-Slot operation gate: a cancelled waiter
-performs no later mutation. An unchanged hold performs no Pebble write; when an
-effective floor advances, archive trimming remains behind the same operation
-gate and outside the Slot worker, so lower replacement pins cannot race an old
-trim and proposal processing never waits on the storage I/O. Once a pin
-mutation is applied, a trim fault is logged as retryable cleanup rather than
-reported as the opposite pin state. The next idempotent pin call retries the
-dirty trim immediately; independently, at most one node-local background
-retry per Slot uses bounded backoff and recomputes the then-current safe floor.
-A successful trim or compaction clears it. The retry uses the fixed
-`slot/archive_trim_retry` managed task identity without labeling the physical
-Slot. Slot shutdown cancels and waits for the active cleanup before returning.
-`ReleaseBackupSourcePin` addresses the exact recorded physical Slot and does
-not require leadership, allowing a former Leader to remove its local floor
-after route movement. Set, advance, and release immediately trim only archive
-entries covered by the durable recovery snapshot. The floor changes only
-background log retention; it never changes proposal, apply, or foreground
-readiness.
-
-`ObserveBackupMessageChannel`, its 256-entry leader-batched form, and
-`ReadBackupMessageLogPage` validate Channel leader, channel/leader epochs,
-MinISR, retention cut, and committed HW before reading the existing Channel
-store. The same methods route to a remote Channel Leader in a multi-node
-cluster through `RPCBackupContinuousMessage`; one batch uses one runtime probe
-per leader. Page responses use raw binary records split into frame-bounded
-chunks, including a single legal oversized record. One node-local encoded-page
-cache avoids rereading each chunk and is bounded to a single page. A
-cross-key lease serializes full-page materialization while same-key waiters
-share the resident body; handlers copy only one bounded chunk before releasing
-the lease. Concurrent RPC encoding therefore cannot retain multiple 256 MiB
-pages, while cache loss only causes an authoritative reread. These are background read facades and
-never add repository, KMS, or outbox work to Channel append.
+`OpenBackupMessageSnapshot` reads only committed message state through the
+current Channel leader/epoch/MinISR fence. Restore uses separate
+maintenance-gated local snapshot, semantic verification, discard, and install
+methods. These seams preserve cluster routing for both single-node and
+multi-node clusters and never add repository I/O to foreground append.
 
 `Node.LocalControllerRaftStatus`, `Node.LocalCompactControllerRaftLog`, and
 `Node.PrepareControllerVoter` are separate node-local Controller Raft
@@ -859,29 +813,24 @@ When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware 
 
 ## Backup And Restore Seams
 
-`Node` exposes cluster-semantic backup seams without creating a single-node
-bypass. Slot metadata snapshots are captured from the applied Slot state, and
-Channel message snapshots validate current leader/epoch/MinISR fences before
-reading only through durable HW. Snapshot results include exact record counts
-and the greatest captured message ID derived from their pinned views.
-Restore-only methods reject normal mode, stream portable metadata/message
-imports while recomputing the same evidence, invalidate tokens when requested,
-and reconstruct target-topology `ChannelRuntimeMeta` from authenticated
-Channel cuts through bounded local metadata batches. The reconstructed row
-preserves the durable Channel epoch and retention floor but derives leader,
-replicas, ISR, and MinISR from the successor physical Slot's desired peers.
-This restore-only candidate restriction keeps the rebuilt Channel replicas on
-the nodes that received the partition; ordinary first-write Channel placement
-continues to use all health-schedulable data nodes. Verification requires those
-exact target rows in addition to Channel boundaries and canonical per-hash-slot
-metadata digests.
+`Node` exposes cluster-semantic snapshot and restore operations without a
+single-node bypass. Online backup captures Slot-owned metadata and committed
+Channel messages for one logical Hash Slot, including exact record counts and
+the greatest captured message ID.
 
-After all message layers are imported, restore applies the plan-pinned
-permanent-erasure boundaries in deterministic batches of at most 4096 through
-the message-store restore seam. It validates each Channel's real hash-slot
-route, physically removes the restored prefix, advances retention and
-checkpoint/LEO fences, and completes this work before reconstructed runtime
-metadata can become visible. Final verification independently requires durable
-local and physical retention progress through the pinned erasure boundary and
-scans the raw sequence index to prove no message row remains in that prefix on
-every target Slot replica.
+Restore methods require Controller maintenance and operate only on local
+physical replicas. They verify portable metadata/message streams before
+mutation, discard the current Hash Slot partition, install the staged
+point-in-time data, rebuild local Channel runtime metadata from restored
+boundaries, and support a separate rollback snapshot. Client tokens are
+ordinary restored metadata and remain valid; Manager session invalidation is
+owned by Controller backup state.
+
+Maintenance pauses the default Channel tick, physical-retention, and migration
+loops before restore can replace Slot metadata or message rows. Runtime
+activation closes and rebuilds the default Channel service/store while a stable
+`channels.ServiceGateway` keeps each transport service ID registered exactly
+once and atomically retargets RPCs to the rebuilt service. Resume restarts the
+paused loops only after activation. A separate maintenance-only local
+subscriber page read exists solely to rebuild the restored system-UID privilege
+cache; ordinary metadata reads remain fenced with `ErrMaintenance`.

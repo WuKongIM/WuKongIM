@@ -648,6 +648,67 @@ func TestNodeStartHostsChannelMigrationLoopWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestRestoreRuntimePauseStopsAndResumeRestartsChannelLoops(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.Channel.TickInterval = time.Hour
+	cfg.ChannelMigration.Enabled = true
+	cfg.ChannelMigration.ScanInterval = time.Hour
+	cfg.ChannelMigration.ScanLimit = 1
+	cfg.ChannelMigration.MaxTasksPerTick = 1
+
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	if node.channelTickCancel == nil || node.channelMigrationCancel == nil {
+		t.Fatal("Channel loops did not start")
+	}
+
+	node.PauseLocalRestoreRuntime()
+	if node.channelTickCancel != nil || node.channelMigrationCancel != nil {
+		t.Fatal("Channel loops remained active during restore")
+	}
+
+	node.ResumeLocalRestoreRuntime()
+	if node.channelTickCancel == nil || node.channelMigrationCancel == nil {
+		t.Fatal("Channel loops did not restart after restore")
+	}
+}
+
+func TestDefaultChannelRuntimeRebuildKeepsRegisteredRPCGateway(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.Channel.TickInterval = time.Hour
+	cfg.ChannelMigration.ScanInterval = time.Hour
+
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	node.PauseLocalRestoreRuntime()
+	gateway := node.channelRPCGateway
+	if gateway == nil {
+		t.Fatal("channelRPCGateway = nil")
+	}
+
+	if err := node.rebuildDefaultChannelRuntimeForRestore(); err != nil {
+		t.Fatalf("rebuildDefaultChannelRuntimeForRestore(): %v", err)
+	}
+	if node.channels == nil || node.defaultChannelStore == nil {
+		t.Fatal("Default Channel runtime was not rebuilt")
+	}
+	if node.channelRPCGateway != gateway {
+		t.Fatal("Channel RPC gateway was replaced instead of retargeted")
+	}
+}
+
 func TestNodeInitializesDefaultControllerWhenOptionMissing(t *testing.T) {
 	cfg := validNodeConfig(t)
 	cfg.Channel.TickInterval = time.Millisecond

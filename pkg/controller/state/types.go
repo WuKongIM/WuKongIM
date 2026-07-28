@@ -214,10 +214,8 @@ type ClusterState struct {
 	HashSlots HashSlotTable `json:"hash_slots"`
 	// Tasks lists active reconcile tasks required to converge the desired state.
 	Tasks []ReconcileTask `json:"tasks"`
-	// Backup stores bounded cluster backup coordination metadata when configured.
-	Backup *BackupCoordinationState `json:"backup,omitempty"`
-	// Restore stores the explicit fresh-cluster recovery plan when configured.
-	Restore *RestoreCoordinationState `json:"restore,omitempty"`
+	// ScheduledBackup stores the simplified scheduled full-backup subsystem state.
+	ScheduledBackup *ScheduledBackupState `json:"scheduled_backup,omitempty"`
 	// OpsMCP stores bounded desired state for the embedded read-only operations MCP.
 	OpsMCP *OpsMCPState `json:"ops_mcp,omitempty"`
 	// Checksum protects the canonical JSON payload excluding this field.

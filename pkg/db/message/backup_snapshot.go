@@ -31,10 +31,6 @@ type BackupChannelCut struct {
 	ID ChannelID
 	// Checkpoint is the authoritative committed boundary to export.
 	Checkpoint Checkpoint
-	// FromExclusive is the previously published committed boundary. Zero
-	// materializes the retained channel state; a positive value exports only
-	// committed rows after that exact base.
-	FromExclusive uint64
 }
 
 // BackupSnapshotRequest selects one logical hash-slot message snapshot.
@@ -152,9 +148,6 @@ func normalizeBackupChannelCuts(channels []BackupChannelCut) ([]BackupChannelCut
 		if err := validateCheckpoint(channel.Checkpoint); err != nil {
 			return nil, err
 		}
-		if channel.FromExclusive > channel.Checkpoint.HW {
-			return nil, fmt.Errorf("%w: backup delta base %d exceeds hw %d", dberrors.ErrInvalidArgument, channel.FromExclusive, channel.Checkpoint.HW)
-		}
 		if index > 0 && normalized[index-1].Key == channel.Key {
 			return nil, fmt.Errorf("%w: duplicate backup channel %q", dberrors.ErrInvalidArgument, channel.Key)
 		}
@@ -218,7 +211,7 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 		leo = retention.RetainedMaxSeq
 	}
 	if channel.Checkpoint.HW > leo {
-		return fmt.Errorf("%w: backup checkpoint hw %d exceeds pinned leo %d for %q", dberrors.ErrCorruptState, channel.Checkpoint.HW, leo, channel.Key)
+		return fmt.Errorf("%w: backup cut hw %d exceeds snapshot leo %d for %q", dberrors.ErrCorruptState, channel.Checkpoint.HW, leo, channel.Key)
 	}
 	if err := writeBackupString(writer, string(channel.Key)); err != nil {
 		return err
@@ -230,9 +223,6 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 		return err
 	}
 	if _, err := writer.Write(encodeCheckpoint(channel.Checkpoint)); err != nil {
-		return err
-	}
-	if _, err := writer.Write(binary.BigEndian.AppendUint64(nil, channel.FromExclusive)); err != nil {
 		return err
 	}
 	systemEntries, err := snapshotBackupSystemEntries(ctx, view, channel.Key, channel.Checkpoint.HW)
@@ -252,7 +242,7 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 	}
 	messageCount := uint64(0)
 	if knownMessageCount == nil {
-		messageCount, err = countBackupMessages(ctx, view, channel.Key, channel.FromExclusive, channel.Checkpoint.HW)
+		messageCount, err = countBackupMessages(ctx, view, channel.Key, channel.Checkpoint.HW)
 		if err != nil {
 			return err
 		}
@@ -262,7 +252,7 @@ func writeBackupChannel(ctx context.Context, writer io.Writer, view messageBacku
 	if err := writeBackupUvarint(writer, messageCount); err != nil {
 		return err
 	}
-	return visitBackupMessages(ctx, view, channel.Key, channel.FromExclusive, channel.Checkpoint.HW, func(seq uint64, header, payload []byte) error {
+	return visitBackupMessages(ctx, view, channel.Key, channel.Checkpoint.HW, func(seq uint64, header, payload []byte) error {
 		buffer := binary.BigEndian.AppendUint64(nil, seq)
 		if _, err := writer.Write(buffer); err != nil {
 			return err
@@ -298,10 +288,10 @@ func inspectMessageBackupSnapshot(ctx context.Context, view messageBackupReadVie
 			leo = retention.RetainedMaxSeq
 		}
 		if channel.Checkpoint.HW > leo {
-			return BackupSnapshotStats{}, nil, fmt.Errorf("%w: backup checkpoint hw %d exceeds pinned leo %d for %q", dberrors.ErrCorruptState, channel.Checkpoint.HW, leo, channel.Key)
+			return BackupSnapshotStats{}, nil, fmt.Errorf("%w: backup cut hw %d exceeds snapshot leo %d for %q", dberrors.ErrCorruptState, channel.Checkpoint.HW, leo, channel.Key)
 		}
 		var maxMessageID uint64
-		err = visitBackupMessages(ctx, view, channel.Key, channel.FromExclusive, channel.Checkpoint.HW, func(seq uint64, header, _ []byte) error {
+		err = visitBackupMessages(ctx, view, channel.Key, channel.Checkpoint.HW, func(seq uint64, header, _ []byte) error {
 			row := messageRow{MessageSeq: seq}
 			if err := decodeMessageHeader(encodeMessageRowKey(channel.Key, seq, messageHeaderFamilyID), header, &row); err != nil {
 				return err
@@ -408,22 +398,22 @@ func snapshotChannelLEO(view messageBackupReadView, channelKey ChannelKey) (uint
 	return 0, iter.Error()
 }
 
-func countBackupMessages(ctx context.Context, view messageBackupReadView, channelKey ChannelKey, fromExclusive, hw uint64) (uint64, error) {
+func countBackupMessages(ctx context.Context, view messageBackupReadView, channelKey ChannelKey, hw uint64) (uint64, error) {
 	var count uint64
-	err := visitBackupMessages(ctx, view, channelKey, fromExclusive, hw, func(uint64, []byte, []byte) error {
+	err := visitBackupMessages(ctx, view, channelKey, hw, func(uint64, []byte, []byte) error {
 		count++
 		return nil
 	})
 	return count, err
 }
 
-func visitBackupMessages(ctx context.Context, view messageBackupReadView, channelKey ChannelKey, fromExclusive, hw uint64, visit func(uint64, []byte, []byte) error) error {
-	if hw == 0 || fromExclusive == hw {
+func visitBackupMessages(ctx context.Context, view messageBackupReadView, channelKey ChannelKey, hw uint64, visit func(uint64, []byte, []byte) error) error {
+	if hw == 0 {
 		return nil
 	}
 	prefix := encodeMessageRowPrefix(channelKey)
 	span := keycodec.NewPrefixSpan(prefix)
-	start := encodeMessageRowKey(channelKey, fromExclusive+1, messageHeaderFamilyID)
+	start := encodeMessageRowKey(channelKey, 1, messageHeaderFamilyID)
 	iter, err := view.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
 	if err != nil {
 		return err
@@ -524,10 +514,6 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 		if err != nil {
 			return BackupSnapshotStats{}, err
 		}
-		fromExclusive, err := readBackupUint64(reader)
-		if err != nil || fromExclusive > checkpoint.HW {
-			return BackupSnapshotStats{}, dberrors.ErrCorruptValue
-		}
 		id := ChannelID{ID: idString, Type: channelType}
 		systemCount, err := readBackupUvarint(reader)
 		if err != nil {
@@ -552,7 +538,7 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 		if err != nil {
 			return BackupSnapshotStats{}, err
 		}
-		maxMessageID, err := db.importBackupChannel(ctx, reader, key, id, fromExclusive, checkpoint, systemEntries, messageCount)
+		maxMessageID, err := db.importBackupChannel(ctx, reader, key, id, checkpoint, systemEntries, messageCount)
 		if err != nil {
 			return BackupSnapshotStats{}, err
 		}
@@ -567,7 +553,7 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 	return stats, nil
 }
 
-func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Reader, key ChannelKey, id ChannelID, fromExclusive uint64, checkpoint Checkpoint, systemEntries []backupRawEntry, messageCount uint64) (uint64, error) {
+func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Reader, key ChannelKey, id ChannelID, checkpoint Checkpoint, systemEntries []backupRawEntry, messageCount uint64) (uint64, error) {
 	if current, ok, err := db.engine.Get(encodeCatalogKey(key)); err != nil {
 		return 0, err
 	} else if ok {
@@ -581,12 +567,8 @@ func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Read
 		return 0, err
 	}
 	if currentCheckpointPresent && currentCheckpoint == checkpoint {
-		// Reapplying an already installed layer is idempotent.
-	} else if fromExclusive == 0 {
-		if currentCheckpointPresent {
-			return 0, dberrors.ErrConflict
-		}
-	} else if !currentCheckpointPresent || currentCheckpoint.HW != fromExclusive || currentCheckpoint.Epoch > checkpoint.Epoch {
+		// Reapplying an already installed snapshot is idempotent.
+	} else if currentCheckpointPresent {
 		return 0, dberrors.ErrConflict
 	}
 	entry := &channelEntry{key: key, id: id, appendKeyCache: newAppendKeyCache(key, id)}
@@ -624,7 +606,7 @@ func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Read
 		if err != nil {
 			return 0, err
 		}
-		if seq == 0 || seq <= fromExclusive || seq > checkpoint.HW || (previousSeq != 0 && seq <= previousSeq) {
+		if seq == 0 || seq > checkpoint.HW || (previousSeq != 0 && seq <= previousSeq) {
 			return 0, dberrors.ErrCorruptValue
 		}
 		previousSeq = seq

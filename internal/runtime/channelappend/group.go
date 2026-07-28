@@ -35,6 +35,7 @@ type Group struct {
 
 	mu       sync.RWMutex
 	started  bool
+	paused   bool
 	stopping bool
 	stopped  bool
 }
@@ -135,6 +136,55 @@ func (g *Group) Start(ctx context.Context) error {
 	g.started = true
 	g.mu.Unlock()
 	g.metrics.observePressure()
+	return nil
+}
+
+// WaitIdle waits for every admitted append and post-commit effect to finish
+// without closing the reusable runtime.
+func (g *Group) WaitIdle(ctx context.Context) error {
+	if g == nil {
+		return nil
+	}
+	return g.drainWriters(ctx)
+}
+
+// PauseForRestore closes local admission before the maintenance drain. The
+// same lock is read by SubmitLocal, so every accepted request is either owned
+// by the subsequent drain or rejected.
+func (g *Group) PauseForRestore() {
+	if g == nil {
+		return
+	}
+	g.mu.Lock()
+	g.paused = true
+	g.mu.Unlock()
+}
+
+// ResumeAfterRestore reopens local admission after the restored runtimes and
+// caches have converged.
+func (g *Group) ResumeAfterRestore() {
+	if g == nil {
+		return
+	}
+	g.mu.Lock()
+	g.paused = false
+	g.mu.Unlock()
+}
+
+// ResetAfterRestore drops idle writer state whose authority epochs and
+// subscriber snapshots may be newer than the restored durable cut.
+func (g *Group) ResetAfterRestore() error {
+	if g == nil {
+		return nil
+	}
+	if !g.writersIdle() {
+		return ErrBackpressured
+	}
+	for _, shard := range g.shards {
+		shard.mu.Lock()
+		shard.writers = make(map[string]*channelWriter)
+		shard.mu.Unlock()
+	}
 	return nil
 }
 
@@ -270,7 +320,7 @@ func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items [
 		return nil, err
 	}
 	g.mu.RLock()
-	if !g.started || g.stopping || g.stopped {
+	if !g.started || g.paused || g.stopping || g.stopped {
 		g.mu.RUnlock()
 		return nil, ErrRouteNotReady
 	}

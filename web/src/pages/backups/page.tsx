@@ -1,938 +1,728 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { MoreHorizontalIcon } from "lucide-react"
-import { useIntl, type IntlShape } from "react-intl"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { ArchiveRestore, Pause, Play, RefreshCw, ShieldCheck, Trash2 } from "lucide-react"
+import { useIntl } from "react-intl"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { hasManagerPermission } from "@/auth/permissions"
 import { ActionFormDialog } from "@/components/manager/action-form-dialog"
 import { ConfirmDialog } from "@/components/manager/confirm-dialog"
-import { DetailSheet } from "@/components/manager/detail-sheet"
 import { ResourceState } from "@/components/manager/resource-state"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
-import { PageTabs } from "@/components/shell/page-tabs"
 import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import {
-  getBackupCheckpoint,
-  getBackupCheckpoints,
-  getBackupStatus,
+  cancelBackupJob,
+  cancelBackupRestore,
+  deleteBackupArchive,
+  getBackupDashboard,
   ManagerApiError,
-  publishBackupCheckpoint,
-  setBackupCheckpointHold,
+  saveBackupPlan,
+  setBackupArchiveHold,
+  startBackupJob,
+  startBackupRestore,
+  testBackupRepository,
+  verifyBackupArchive,
 } from "@/lib/manager-api"
 import type {
-  ManagerBackupCheckpoint,
-  ManagerBackupCheckpointDetail,
-  ManagerBackupStatusResponse,
+  ManagerBackupArchive,
+  ManagerBackupDashboard,
+  ManagerBackupPlan,
+  ManagerBackupPlanInput,
 } from "@/lib/manager-api.types"
 
-type BackupTab = "overview" | "checkpoints"
+type ScheduleMode = "daily" | "half_day" | "custom"
 
-const tabs: BackupTab[] = ["overview", "checkpoints"]
-
-function formatDuration(seconds: number | null | undefined) {
-  if (seconds === null || seconds === undefined) return "—"
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`
-  return `${Math.floor(seconds / 86_400)}d`
+type PlanDraft = {
+  enabled: boolean
+  scheduleMode: ScheduleMode
+  cron: string
+  timeZone: string
+  storeKind: "file" | "s3"
+  endpoint: string
+  region: string
+  bucket: string
+  prefix: string
+  pathStyle: boolean
+  accessKey: string
+  secretKey: string
+  retentionCount: number
+  rateMiBPerSecond: number
+  workersPerNode: number
+  maxDurationHours: number
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KiB`
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`
-  return `${(bytes / 1024 ** 3).toFixed(1)} GiB`
+const defaultTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+
+function scheduleMode(cron: string): ScheduleMode {
+  if (cron === "0 1 * * *") return "daily"
+  if (cron === "@every 12h") return "half_day"
+  return "custom"
 }
 
-function formatRelativeDuration(seconds: number | null | undefined, intl: IntlShape) {
-  if (seconds === null || seconds === undefined) {
-    return intl.formatMessage({ id: "backups.relative.unknown" })
+function draftFromPlan(plan?: ManagerBackupPlan): PlanDraft {
+  return {
+    enabled: plan?.enabled ?? false,
+    scheduleMode: scheduleMode(plan?.cron ?? "0 1 * * *"),
+    cron: plan?.cron ?? "0 1 * * *",
+    timeZone: plan?.time_zone || defaultTimeZone,
+    storeKind: plan?.store.kind ?? "file",
+    endpoint: plan?.store.endpoint ?? "",
+    region: plan?.store.region ?? "",
+    bucket: plan?.store.bucket ?? "",
+    prefix: plan?.store.prefix ?? "",
+    pathStyle: plan?.store.path_style ?? false,
+    accessKey: "",
+    secretKey: "",
+    retentionCount: plan?.retention_count ?? 7,
+    rateMiBPerSecond: plan ? Math.max(1, Math.round(plan.rate_bytes_per_sec / 1_048_576)) : 50,
+    workersPerNode: plan?.workers_per_node ?? 1,
+    maxDurationHours: plan ? Math.max(1, Math.round(plan.max_duration_ms / 3_600_000)) : 12,
   }
-  if (seconds < 60) {
-    return intl.formatMessage({ id: "backups.relative.justNow" })
-  }
-  if (seconds < 3600) {
-    return intl.formatMessage(
-      { id: "backups.relative.minutes" },
-      { count: Math.floor(seconds / 60) },
-    )
-  }
-  if (seconds < 86_400) {
-    return intl.formatMessage(
-      { id: "backups.relative.hours" },
-      { count: Math.floor(seconds / 3600) },
-    )
-  }
-  return intl.formatMessage(
-    { id: "backups.relative.days" },
-    { count: Math.floor(seconds / 86_400) },
-  )
 }
 
-function formatDurationWords(seconds: number, intl: IntlShape) {
-  if (seconds < 60) {
-    return intl.formatMessage(
-      { id: "backups.duration.seconds" },
-      { count: Math.max(1, Math.ceil(seconds)) },
-    )
+function planInput(
+  draft: PlanDraft,
+  plan?: ManagerBackupPlan,
+  expectedRevision = plan?.revision ?? 0,
+): ManagerBackupPlanInput {
+  const cron = draft.scheduleMode === "daily"
+    ? "0 1 * * *"
+    : draft.scheduleMode === "half_day"
+      ? "@every 12h"
+      : draft.cron.trim()
+  return {
+    expected_revision: expectedRevision,
+    enabled: draft.enabled,
+    store: {
+      kind: draft.storeKind,
+      ...(draft.storeKind === "s3" ? {
+        endpoint: draft.endpoint.trim(),
+        region: draft.region.trim(),
+        bucket: draft.bucket.trim(),
+        prefix: draft.prefix.trim(),
+        path_style: draft.pathStyle,
+        access_key: draft.accessKey.trim() || undefined,
+        secret_key: draft.secretKey || undefined,
+      } : {}),
+    },
+    cron,
+    time_zone: draft.timeZone.trim(),
+    retention_count: draft.retentionCount,
+    rate_mib_per_second: draft.rateMiBPerSecond,
+    workers_per_node: draft.workersPerNode,
+    max_duration_hours: draft.maxDurationHours,
   }
-  if (seconds < 3600) {
-    return intl.formatMessage(
-      { id: "backups.duration.minutes" },
-      { count: Math.ceil(seconds / 60) },
-    )
-  }
-  if (seconds < 86_400) {
-    return intl.formatMessage(
-      { id: "backups.duration.hours" },
-      { count: Math.ceil(seconds / 3600) },
-    )
-  }
-  return intl.formatMessage(
-    { id: "backups.duration.days" },
-    { count: Math.ceil(seconds / 86_400) },
-  )
 }
 
-function LocalTime({ value }: { value?: number }) {
-  if (!value) return <span>—</span>
-  const date = new Date(value)
-  return <time dateTime={date.toISOString()} title={`${date.toISOString()} (UTC)`}>{date.toLocaleString()}</time>
+function errorKind(error: Error | null) {
+  if (!(error instanceof ManagerApiError)) return "error" as const
+  if (error.status === 403) return "forbidden" as const
+  if (error.status === 503) return "unavailable" as const
+  return "error" as const
 }
 
-function dateStartMillis(value: string) {
-  if (!value) return undefined
-  return new Date(`${value}T00:00:00`).getTime()
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Backup operation failed"
 }
 
-function dateEndMillis(value: string) {
-  if (!value) return undefined
-  const nextDay = new Date(`${value}T00:00:00`)
-  nextDay.setDate(nextDay.getDate() + 1)
-  return nextDay.getTime() - 1
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B"
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"]
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
+  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
-function shortCheckpointID(checkpointID: string) {
-  return checkpointID.length > 18 ? `${checkpointID.slice(0, 14)}…` : checkpointID
+function formatDate(value: number) {
+  return value > 0 ? new Date(value).toLocaleString() : "-"
 }
 
-function errorMessage(error: unknown, intl: IntlShape) {
-  if (!(error instanceof ManagerApiError)) return intl.formatMessage({ id: "backups.error.serviceUnavailable" })
-  const messages: Record<string, string> = {
-    backup_disabled: "backups.error.disabled",
-    backup_doctor_unhealthy: "backups.error.doctorUnhealthy",
-    controller_leader_unavailable: "backups.error.leaderUnavailable",
-    state_conflict: "backups.error.stateConflict",
-    checkpoint_not_found: "backups.error.checkpointNotFound",
-    permission_denied: "backups.error.permissionDenied",
-  }
-  return intl.formatMessage({ id: messages[error.error] ?? "backups.error.serviceUnavailable" })
+function taskProgress(slots: { status: string }[]) {
+  const complete = slots.filter((slot) => slot.status === "complete" || slot.status === "verified").length
+  return { complete, total: slots.length, percent: slots.length === 0 ? 0 : Math.round((complete / slots.length) * 100) }
+}
+
+function exactRestorePermission(permissions: { resource: string; actions: string[] }[]) {
+  return permissions.some((permission) =>
+    permission.resource === "cluster.restore" &&
+    permission.actions.includes("w"))
 }
 
 export function BackupsPage() {
   const intl = useIntl()
-  const navigate = useNavigate()
+  const authStatus = useAuthStore((state) => state.status)
+  const username = useAuthStore((state) => state.username)
   const permissions = useAuthStore((state) => state.permissions)
-  const canRead = hasManagerPermission(permissions, "cluster.backup", "r")
-  const permissionWrite = hasManagerPermission(permissions, "cluster.backup", "w")
-  const [searchParams, setSearchParams] = useSearchParams()
-  const requestedTab = searchParams.get("tab") as BackupTab | null
-  const activeTab = requestedTab && tabs.includes(requestedTab) ? requestedTab : "overview"
+  const canRead = useMemo(
+    () => hasManagerPermission(permissions, "cluster.backup", "r"),
+    [permissions],
+  )
+  const canWrite = useMemo(
+    () => authStatus === "authenticated" &&
+      hasManagerPermission(permissions, "cluster.backup", "w"),
+    [authStatus, permissions],
+  )
+  const canRestore = useMemo(
+    () => authStatus === "authenticated" && exactRestorePermission(permissions),
+    [authStatus, permissions],
+  )
 
-  const [status, setStatus] = useState<ManagerBackupStatusResponse | null>(null)
-  const [checkpoints, setCheckpoints] = useState<ManagerBackupCheckpoint[]>([])
-  const [nextCursor, setNextCursor] = useState("")
-  const [total, setTotal] = useState(0)
-  const [idQuery, setIDQuery] = useState("")
-  const [appliedIDQuery, setAppliedIDQuery] = useState("")
-  const [heldQuery, setHeldQuery] = useState("")
-  const [appliedHeldQuery, setAppliedHeldQuery] = useState("")
-  const [effectiveFromQuery, setEffectiveFromQuery] = useState("")
-  const [appliedEffectiveFromQuery, setAppliedEffectiveFromQuery] = useState("")
-  const [effectiveToQuery, setEffectiveToQuery] = useState("")
-  const [appliedEffectiveToQuery, setAppliedEffectiveToQuery] = useState("")
-  const [loading, setLoading] = useState(canRead)
-  const [statusError, setStatusError] = useState<Error | null>(null)
-  const [catalogError, setCatalogError] = useState<Error | null>(null)
-  const [pending, setPending] = useState(false)
+  const [dashboard, setDashboard] = useState<ManagerBackupDashboard | null>(null)
+  const [draft, setDraft] = useState<PlanDraft>(() => draftFromPlan())
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+  const [notice, setNotice] = useState("")
   const [mutationError, setMutationError] = useState("")
-  const [confirmPublish, setConfirmPublish] = useState(false)
-  const [selectedCheckpointID, setSelectedCheckpointID] = useState("")
-  const [checkpointDetail, setCheckpointDetail] = useState<ManagerBackupCheckpointDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [detailError, setDetailError] = useState<Error | null>(null)
-  const [confirmRelease, setConfirmRelease] = useState(false)
-  const [releaseConfirmation, setReleaseConfirmation] = useState("")
-  const statusInFlight = useRef(false)
-  const listRequestID = useRef(0)
-  const detailRequestID = useRef(0)
-  const displayedTab = status?.enabled === false ? "overview" : activeTab
+  const [busy, setBusy] = useState("")
+  const [deleteArchive, setDeleteArchive] = useState<ManagerBackupArchive | null>(null)
+  const [restoreArchive, setRestoreArchive] = useState<ManagerBackupArchive | null>(null)
+  const [restorePassword, setRestorePassword] = useState("")
+  const [restoreConfirmation, setRestoreConfirmation] = useState("")
+  const initialized = useRef(false)
+  const draftRevision = useRef(0)
 
-  const canWrite = permissionWrite && status?.auth_enabled === true
-
-  const loadCheckpoints = useCallback(async (append = false, cursor = "") => {
-    if (!canRead) return
-    const requestID = ++listRequestID.current
-    try {
-      const page = await getBackupCheckpoints({
-        limit: 50,
-        cursor,
-        id: appliedIDQuery || undefined,
-        held: appliedHeldQuery ? appliedHeldQuery === "true" : undefined,
-        effectiveFrom: dateStartMillis(appliedEffectiveFromQuery),
-        effectiveTo: dateEndMillis(appliedEffectiveToQuery),
-      })
-      if (requestID !== listRequestID.current) return
-      setCheckpoints((current) => append ? [...current, ...page.items] : page.items)
-      setNextCursor(page.next_cursor ?? "")
-      setTotal(page.total)
-      setCatalogError(null)
-    } catch (requestError) {
-      if (requestID !== listRequestID.current) return
-      setCatalogError(requestError instanceof Error ? requestError : new Error("backup checkpoint request failed"))
+  const load = useCallback(async () => {
+    if (!canRead) {
+      return
     }
-  }, [
-    appliedEffectiveFromQuery,
-    appliedEffectiveToQuery,
-    appliedHeldQuery,
-    appliedIDQuery,
-    canRead,
-  ])
-
-  const loadStatus = useCallback(async () => {
-    if (!canRead || statusInFlight.current) return
-    statusInFlight.current = true
     try {
-      setStatus(await getBackupStatus())
-      setStatusError(null)
-    } catch (requestError) {
-      setStatusError(requestError instanceof Error ? requestError : new Error("backup status request failed"))
-    } finally {
-      statusInFlight.current = false
-    }
-  }, [canRead])
-
-  const refreshAll = useCallback(async () => {
-    if (!canRead) return
-    try {
-      await Promise.all([loadStatus(), loadCheckpoints(false)])
+      const next = await getBackupDashboard()
+      setDashboard(next)
+      setError(null)
+      if (!initialized.current) {
+        setDraft(draftFromPlan(next.state.plan))
+        draftRevision.current = next.state.plan?.revision ?? 0
+        initialized.current = true
+      }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError : new Error("Backup request failed"))
     } finally {
       setLoading(false)
     }
-  }, [canRead, loadCheckpoints, loadStatus])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void refreshAll(), 0)
-    return () => window.clearTimeout(timer)
-  }, [refreshAll])
+  }, [canRead])
 
   useEffect(() => {
     if (!canRead) return
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void loadStatus()
-    }, 15_000)
-    return () => window.clearInterval(timer)
-  }, [canRead, loadStatus])
-
-  const publish = async () => {
-    setPending(true)
-    setMutationError("")
-    try {
-      await publishBackupCheckpoint()
-      setConfirmPublish(false)
-      await Promise.all([loadStatus(), loadCheckpoints(false)])
-    } catch (requestError) {
-      setMutationError(errorMessage(requestError, intl))
-    } finally {
-      setPending(false)
+    const initial = window.setTimeout(() => { void load() }, 0)
+    const timer = window.setInterval(() => { void load() }, 30_000)
+    return () => {
+      window.clearTimeout(initial)
+      window.clearInterval(timer)
     }
-  }
+  }, [canRead, load])
 
-  const applyCheckpointFilters = () => {
-    setAppliedIDQuery(idQuery.trim())
-    setAppliedHeldQuery(heldQuery)
-    setAppliedEffectiveFromQuery(effectiveFromQuery)
-    setAppliedEffectiveToQuery(effectiveToQuery)
-  }
-
-  const clearCheckpointFilters = () => {
-    setIDQuery("")
-    setHeldQuery("")
-    setEffectiveFromQuery("")
-    setEffectiveToQuery("")
-    setAppliedIDQuery("")
-    setAppliedHeldQuery("")
-    setAppliedEffectiveFromQuery("")
-    setAppliedEffectiveToQuery("")
-  }
-
-  const openCheckpointDetail = async (checkpointID: string) => {
-    const requestID = ++detailRequestID.current
-    setSelectedCheckpointID(checkpointID)
-    setCheckpointDetail(null)
-    setDetailError(null)
+  const mutate = useCallback(async (
+    operation: string,
+    action: () => Promise<void>,
+    successMessage: string,
+  ) => {
+    setBusy(operation)
     setMutationError("")
-    setDetailLoading(true)
+    setNotice("")
     try {
-      const detail = await getBackupCheckpoint(checkpointID)
-      if (requestID !== detailRequestID.current) return
-      setCheckpointDetail(detail)
-    } catch (requestError) {
-      if (requestID !== detailRequestID.current) return
-      setDetailError(requestError instanceof Error ? requestError : new Error("backup checkpoint detail request failed"))
-    } finally {
-      if (requestID === detailRequestID.current) {
-        setDetailLoading(false)
-      }
-    }
-  }
-
-  const closeCheckpointDetail = () => {
-    detailRequestID.current++
-    setSelectedCheckpointID("")
-    setCheckpointDetail(null)
-    setDetailError(null)
-    setDetailLoading(false)
-  }
-
-  const updateCheckpointHold = async (held: boolean) => {
-    if (!checkpointDetail) return false
-    setPending(true)
-    setMutationError("")
-    try {
-      const updated = await setBackupCheckpointHold(checkpointDetail.id, held)
-      setCheckpointDetail((current) => current ? { ...current, ...updated } : current)
-      await loadCheckpoints(false)
+      await action()
+      setNotice(successMessage)
+      await load()
       return true
-    } catch (requestError) {
-      setMutationError(errorMessage(requestError, intl))
+    } catch (mutationFailure) {
+      setMutationError(errorMessage(mutationFailure))
       return false
     } finally {
-      setPending(false)
+      setBusy("")
     }
-  }
+  }, [load])
 
   if (!canRead) {
     return (
       <PageContainer>
-        <PageHeader title={intl.formatMessage({ id: "backups.title" })} description={intl.formatMessage({ id: "backups.description" })} />
+        <PageHeader
+          title={intl.formatMessage({ id: "backups.title" })}
+          description={intl.formatMessage({ id: "backups.description" })}
+        />
         <ResourceState kind="forbidden" title={intl.formatMessage({ id: "backups.forbidden" })} />
       </PageContainer>
     )
   }
+
+  const plan = dashboard?.state.plan
+  const activeBackup = dashboard?.state.active_backup
+  const activeRestore = dashboard?.state.active_restore
+  const activeTask = activeRestore ?? activeBackup
+  const backupCanCancel = activeBackup
+    ? activeBackup.status !== "publishing" && activeBackup.status !== "cleaning"
+    : false
+  const restoreCanCancel = activeRestore
+    ? ["preparing", "validated", "maintenance", "staging", "verifying"].includes(activeRestore.status)
+    : false
+  const progress = activeTask ? taskProgress(activeTask.slots) : null
+  const writeDisabled = !canWrite || busy !== ""
 
   return (
     <PageContainer>
       <PageHeader
         title={intl.formatMessage({ id: "backups.title" })}
         description={intl.formatMessage({ id: "backups.description" })}
-        actions={
-          <>
-            {status && !canWrite ? (
-              <span className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
-                {intl.formatMessage({ id: "backups.readOnly" })}
-              </span>
-            ) : null}
-            <Button onClick={() => void refreshAll()} size="sm" variant="outline">
-              {intl.formatMessage({ id: "common.refresh" })}
-            </Button>
-            {canWrite && status?.enabled ? (
-              <details className="relative">
-                <summary
-                  aria-label={intl.formatMessage({ id: "backups.actions.more" })}
-                  className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-full border border-border bg-background px-3 text-[0.8rem] font-medium text-foreground transition-colors hover:bg-muted [&::-webkit-details-marker]:hidden"
-                  role="button"
-                >
-                  <MoreHorizontalIcon aria-hidden="true" className="size-3.5" />
-                  {intl.formatMessage({ id: "backups.actions.more" })}
-                </summary>
-                <div className="absolute right-0 z-20 mt-1 min-w-64 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg">
-                  <Button
-                    className="w-full justify-start"
-                    onClick={() => setConfirmPublish(true)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    {intl.formatMessage({ id: "backups.publish" })}
-                  </Button>
-                </div>
-              </details>
-            ) : null}
-          </>
-        }
-      >
-        {status?.enabled !== false ? (
-          <PageTabs
-            activeTab={activeTab}
-            onTabChange={(tab) => setSearchParams(tab === "overview" ? {} : { tab })}
-            tabs={[
-              { id: "overview", label: intl.formatMessage({ id: "backups.tabs.overview" }) },
-              { id: "checkpoints", label: intl.formatMessage({ id: "backups.tabs.checkpoints" }) },
-            ]}
-          />
-        ) : null}
-      </PageHeader>
+        actions={(
+          <Button disabled={loading} onClick={() => { setLoading(true); void load() }} variant="outline">
+            <RefreshCw /> {intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        )}
+      />
 
-      {loading && !status ? <ResourceState kind="loading" title={intl.formatMessage({ id: "backups.title" })} /> : null}
-      {statusError && !status ? (
-        <ResourceState kind={statusError instanceof ManagerApiError && statusError.status === 403 ? "forbidden" : "unavailable"} onRetry={() => void refreshAll()} title={intl.formatMessage({ id: "backups.title" })} />
+      {!canWrite ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
+          {intl.formatMessage({
+            id: authStatus === "readonly" ? "backups.authReadonly" : "backups.write.permission",
+          })}
+        </div>
       ) : null}
-      {(statusError && status) || (catalogError && checkpoints.length > 0) ? (
-        <div
-          className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground"
-          role="status"
-        >
-          {intl.formatMessage({ id: "backups.stale" })}
+      {notice ? (
+        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-foreground">
+          {notice}
+        </div>
+      ) : null}
+      {mutationError ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {mutationError}
         </div>
       ) : null}
 
-      {status && displayedTab === "overview" ? (
-        <BackupOverview
-          checkpoints={checkpoints}
-          onViewAll={() => setSearchParams({ tab: "checkpoints" })}
-          status={status}
+      {loading && !dashboard ? (
+        <ResourceState kind="loading" title={intl.formatMessage({ id: "backups.title" })} />
+      ) : null}
+      {!loading && error && !dashboard ? (
+        <ResourceState
+          kind={errorKind(error)}
+          onRetry={() => { setLoading(true); void load() }}
+          title={intl.formatMessage({ id: "backups.title" })}
         />
       ) : null}
-      {status && displayedTab === "checkpoints" ? (
-        catalogError && checkpoints.length === 0 ? (
-          <ResourceState
-            kind={catalogError instanceof ManagerApiError && catalogError.status === 403 ? "forbidden" : "unavailable"}
-            onRetry={() => void loadCheckpoints(false)}
-            title={intl.formatMessage({ id: "backups.checkpoints.title" })}
-          />
-        ) : (
-          <CheckpointCatalog
-            checkpoints={checkpoints}
-            effectiveFromQuery={effectiveFromQuery}
-            effectiveToQuery={effectiveToQuery}
-            heldQuery={heldQuery}
-            idQuery={idQuery}
-            nextCursor={nextCursor}
-            onClear={clearCheckpointFilters}
-            onEffectiveFromQuery={setEffectiveFromQuery}
-            onEffectiveToQuery={setEffectiveToQuery}
-            onHeldQuery={setHeldQuery}
-            onIDQuery={setIDQuery}
-            onLoadMore={() => void loadCheckpoints(true, nextCursor)}
-            onOpenDetail={(checkpointID) => void openCheckpointDetail(checkpointID)}
-            onSearch={applyCheckpointFilters}
-            total={total}
-          />
-        )
+      {error && dashboard ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          {intl.formatMessage({ id: "backups.stale" })}
+        </div>
+      ) : null}
+      {dashboard?.repository_error ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          {intl.formatMessage({ id: "backups.repository.unavailable" })}
+        </div>
+      ) : null}
+
+      {dashboard ? (
+        <>
+          <SectionCard
+            title={intl.formatMessage({ id: "backups.plan.title" })}
+            description={intl.formatMessage({ id: "backups.plan.description" })}
+          >
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="flex items-center justify-between gap-4 rounded-md border border-border px-3 py-3 text-sm font-medium">
+                <span>
+                  <span className="block text-foreground">{intl.formatMessage({ id: "backups.plan.enabled" })}</span>
+                  <span className="mt-1 block font-normal text-muted-foreground">
+                    {intl.formatMessage({ id: "backups.plan.enabledDescription" })}
+                  </span>
+                </span>
+                <input
+                  checked={draft.enabled}
+                  disabled={writeDisabled}
+                  onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))}
+                  type="checkbox"
+                />
+              </label>
+
+              <Field label={intl.formatMessage({ id: "backups.plan.schedule" })}>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  disabled={writeDisabled}
+                  onChange={(event) => setDraft((current) => ({
+                    ...current, scheduleMode: event.target.value as ScheduleMode,
+                  }))}
+                  value={draft.scheduleMode}
+                >
+                  <option value="daily">{intl.formatMessage({ id: "backups.schedule.daily" })}</option>
+                  <option value="half_day">{intl.formatMessage({ id: "backups.schedule.halfDay" })}</option>
+                  <option value="custom">{intl.formatMessage({ id: "backups.schedule.custom" })}</option>
+                </select>
+              </Field>
+
+              {draft.scheduleMode === "custom" ? (
+                <Field label={intl.formatMessage({ id: "backups.plan.cron" })}>
+                  <input
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, cron: event.target.value }))}
+                    placeholder="0 1 * * * or @every 12h"
+                    value={draft.cron}
+                  />
+                </Field>
+              ) : null}
+
+              <Field label={intl.formatMessage({ id: "backups.plan.timeZone" })}>
+                <input
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  disabled={writeDisabled}
+                  onChange={(event) => setDraft((current) => ({ ...current, timeZone: event.target.value }))}
+                  value={draft.timeZone}
+                />
+                {dashboard.next_scheduled_unix_ms ? (
+                  <span className="text-xs text-muted-foreground">
+                    {intl.formatMessage(
+                      { id: "backups.plan.nextRun" },
+                      { time: formatDate(dashboard.next_scheduled_unix_ms) },
+                    )}
+                  </span>
+                ) : null}
+              </Field>
+
+              <Field label={intl.formatMessage({ id: "backups.plan.repository" })}>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  disabled={writeDisabled}
+                  onChange={(event) => setDraft((current) => ({
+                    ...current, storeKind: event.target.value as "file" | "s3",
+                  }))}
+                  value={draft.storeKind}
+                >
+                  <option value="file">{intl.formatMessage({ id: "backups.repository.file" })}</option>
+                  <option value="s3">{intl.formatMessage({ id: "backups.repository.s3" })}</option>
+                </select>
+              </Field>
+            </div>
+
+            {draft.storeKind === "file" ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {intl.formatMessage({ id: "backups.repository.fileDescription" })}
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-4 rounded-md border border-border p-4 lg:grid-cols-2">
+                <Field label={intl.formatMessage({ id: "backups.repository.endpoint" })}>
+                  <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, endpoint: event.target.value }))} value={draft.endpoint} />
+                </Field>
+                <Field label={intl.formatMessage({ id: "backups.repository.region" })}>
+                  <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, region: event.target.value }))} value={draft.region} />
+                </Field>
+                <Field label={intl.formatMessage({ id: "backups.repository.bucket" })}>
+                  <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, bucket: event.target.value }))} value={draft.bucket} />
+                </Field>
+                <Field label={intl.formatMessage({ id: "backups.repository.prefix" })}>
+                  <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, prefix: event.target.value }))} value={draft.prefix} />
+                </Field>
+                <Field label={intl.formatMessage({ id: "backups.repository.accessKey" })}>
+                  <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, accessKey: event.target.value }))}
+                    placeholder={dashboard.credentials_configured ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
+                    value={draft.accessKey} />
+                </Field>
+                <Field label={intl.formatMessage({ id: "backups.repository.secretKey" })}>
+                  <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, secretKey: event.target.value }))}
+                    placeholder={dashboard.credentials_configured ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
+                    type="password" value={draft.secretKey} />
+                </Field>
+                <label className="flex items-center gap-2 text-sm">
+                  <input checked={draft.pathStyle} disabled={writeDisabled}
+                    onChange={(event) => setDraft((current) => ({ ...current, pathStyle: event.target.checked }))} type="checkbox" />
+                  {intl.formatMessage({ id: "backups.repository.pathStyle" })}
+                </label>
+              </div>
+            )}
+            <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+              {intl.formatMessage({ id: "backups.repository.encryptionWarning" })}
+            </p>
+
+            <details className="mt-4 rounded-md border border-border p-4">
+              <summary className="cursor-pointer text-sm font-medium">{intl.formatMessage({ id: "backups.advanced" })}</summary>
+              <div className="mt-4 grid gap-4 md:grid-cols-4">
+                <NumberField disabled={writeDisabled} label={intl.formatMessage({ id: "backups.plan.retention" })}
+                  max={1000} min={1} onChange={(value) => setDraft((current) => ({ ...current, retentionCount: value }))} value={draft.retentionCount} />
+                <NumberField disabled={writeDisabled} label={intl.formatMessage({ id: "backups.plan.rate" })}
+                  max={10240} min={1} onChange={(value) => setDraft((current) => ({ ...current, rateMiBPerSecond: value }))} value={draft.rateMiBPerSecond} />
+                <NumberField disabled={writeDisabled} label={intl.formatMessage({ id: "backups.plan.workers" })}
+                  max={4} min={1} onChange={(value) => setDraft((current) => ({ ...current, workersPerNode: value }))} value={draft.workersPerNode} />
+                <NumberField disabled={writeDisabled} label={intl.formatMessage({ id: "backups.plan.timeout" })}
+                  max={48} min={1} onChange={(value) => setDraft((current) => ({ ...current, maxDurationHours: value }))} value={draft.maxDurationHours} />
+              </div>
+            </details>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                disabled={writeDisabled}
+                onClick={() => {
+                  void mutate("save", async () => {
+                    await saveBackupPlan(planInput(draft, plan, draftRevision.current))
+                    initialized.current = false
+                  }, intl.formatMessage({ id: "backups.notice.saved" }))
+                }}
+              >
+                {intl.formatMessage({ id: busy === "save" ? "backups.saving" : "backups.save" })}
+              </Button>
+              <Button
+                disabled={writeDisabled}
+                onClick={() => {
+                  void mutate("test", async () => {
+                    await testBackupRepository(planInput(draft, plan))
+                  }, intl.formatMessage({ id: "backups.notice.repositoryReady" }))
+                }}
+                variant="outline"
+              >
+                <ShieldCheck /> {intl.formatMessage({ id: "backups.testRepository" })}
+              </Button>
+              <Button
+                disabled={writeDisabled || !plan || Boolean(activeBackup) || Boolean(activeRestore)}
+                onClick={() => {
+                  void mutate("start", async () => { await startBackupJob() },
+                    intl.formatMessage({ id: "backups.notice.started" }))
+                }}
+                variant="outline"
+              >
+                <Play /> {intl.formatMessage({ id: "backups.startNow" })}
+              </Button>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title={intl.formatMessage({ id: "backups.task.title" })}
+            description={intl.formatMessage({ id: "backups.task.description" })}
+            action={activeTask && (restoreCanCancel || backupCanCancel) ? (
+              <Button
+                disabled={busy !== "" || (activeRestore ? !canRestore : !canWrite)}
+                onClick={() => {
+                  if (activeRestore) {
+                    void mutate("cancel-restore", async () => { await cancelBackupRestore(activeRestore.id) },
+                      intl.formatMessage({ id: "backups.notice.cancelRequested" }))
+                  } else if (activeBackup) {
+                    void mutate("cancel-backup", async () => { await cancelBackupJob(activeBackup.id) },
+                      intl.formatMessage({ id: "backups.notice.cancelRequested" }))
+                  }
+                }}
+                size="sm"
+                variant="outline"
+              >
+                <Pause /> {intl.formatMessage({ id: "common.cancel" })}
+              </Button>
+            ) : null}
+          >
+            {activeTask && progress ? (
+              <div className="space-y-3" data-testid="backup-task-progress">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="font-medium">{activeRestore ? intl.formatMessage({ id: "backups.task.restore" }) : intl.formatMessage({ id: "backups.task.backup" })}</span>
+                  <span className="text-muted-foreground">{activeTask.status} · {progress.complete}/{progress.total} Hash Slots</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full bg-primary transition-all" style={{ width: `${progress.percent}%` }} />
+                </div>
+                <div className="font-mono text-xs text-muted-foreground">{activeTask.id}</div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{intl.formatMessage({ id: "backups.task.idle" })}</p>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title={intl.formatMessage({ id: "backups.archives.title" })}
+            description={intl.formatMessage({ id: "backups.archives.description" })}
+          >
+            {dashboard.archives.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{intl.formatMessage({ id: "backups.archives.empty" })}</p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-muted/40 text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.table.archive" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.table.completed" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.table.size" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.table.health" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.table.actions" })}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.archives.map((archive) => (
+                      <ArchiveRow
+                        archive={archive}
+                        busy={busy}
+                        canRestore={canRestore}
+                        canWrite={canWrite}
+                        key={archive.id}
+                        onDelete={() => setDeleteArchive(archive)}
+                        onHold={() => {
+                          void mutate(`hold-${archive.id}`, async () => {
+                            await setBackupArchiveHold(archive.id, !archive.held, archive.held ? "" : "operator hold")
+                          }, intl.formatMessage({ id: archive.held ? "backups.notice.released" : "backups.notice.held" }))
+                        }}
+                        onRestore={() => {
+                          setRestoreArchive(archive)
+                          setRestorePassword("")
+                          setRestoreConfirmation("")
+                          setMutationError("")
+                        }}
+                        onVerify={() => {
+                          void mutate(`verify-${archive.id}`, async () => {
+                            await verifyBackupArchive(archive.id)
+                          }, intl.formatMessage({ id: "backups.notice.verified" }))
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+        </>
       ) : null}
 
       <ConfirmDialog
-        confirmLabel={intl.formatMessage({ id: "backups.publish.confirm" })}
-        description={intl.formatMessage({ id: "backups.publish.warning" })}
+        confirmLabel={intl.formatMessage({ id: "backups.delete.confirm" })}
+        description={intl.formatMessage({ id: "backups.delete.description" }, { id: deleteArchive?.id ?? "" })}
         error={mutationError}
-        onConfirm={() => void publish()}
-        onOpenChange={setConfirmPublish}
-        open={confirmPublish}
-        pending={pending}
-        title={intl.formatMessage({ id: "backups.publish.title" })}
+        onConfirm={() => {
+          if (!deleteArchive) return
+          const archiveID = deleteArchive.id
+          void mutate("delete", async () => { await deleteBackupArchive(archiveID) },
+            intl.formatMessage({ id: "backups.notice.deleted" })).then((succeeded) => {
+              if (succeeded) setDeleteArchive(null)
+            })
+        }}
+        onOpenChange={(open) => { if (!open) setDeleteArchive(null) }}
+        open={deleteArchive !== null}
+        pending={busy === "delete"}
+        title={intl.formatMessage({ id: "backups.delete.title" })}
       />
-      <CheckpointDetailSheet
-        canWrite={canWrite}
-        checkpoint={checkpointDetail}
-        error={detailError}
-        loading={detailLoading}
-        mutationError={mutationError}
-        onClose={closeCheckpointDetail}
-        onHold={() => void updateCheckpointHold(true)}
-        onPrepareRecovery={() => {
-          if (checkpointDetail) {
-            navigate(`/cluster/backups/recovery/${encodeURIComponent(checkpointDetail.id)}`)
+
+      <ActionFormDialog
+        description={intl.formatMessage({ id: "backups.restore.description" }, { id: restoreArchive?.id ?? "" })}
+        error={mutationError}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRestoreArchive(null)
+            setRestorePassword("")
+            setRestoreConfirmation("")
           }
         }}
-        onRelease={() => {
-          setReleaseConfirmation("")
-          setConfirmRelease(true)
-        }}
-        open={Boolean(selectedCheckpointID)}
-        pending={pending}
-      />
-      <ActionFormDialog
-        description={intl.formatMessage(
-          { id: "backups.release.description" },
-          { id: checkpointDetail?.id ?? "" },
-        )}
-        error={mutationError}
-        onOpenChange={setConfirmRelease}
-        onSubmit={(event) => {
+        onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault()
-          if (releaseConfirmation !== checkpointDetail?.id) return
-          void (async () => {
-            if (await updateCheckpointHold(false)) {
-              setConfirmRelease(false)
-              setReleaseConfirmation("")
+          if (!restoreArchive) return
+          const archiveID = restoreArchive.id
+          void mutate("restore", async () => {
+            await startBackupRestore(archiveID, {
+              username,
+              password: restorePassword,
+              confirmation: restoreConfirmation,
+            })
+          }, intl.formatMessage({ id: "backups.notice.restoreStarted" })).then((succeeded) => {
+            if (succeeded) {
+              setRestoreArchive(null)
+              setRestorePassword("")
+              setRestoreConfirmation("")
             }
-          })()
+          })
         }}
-        open={confirmRelease}
-        pending={pending || releaseConfirmation !== checkpointDetail?.id}
-        submitLabel={intl.formatMessage({ id: "backups.release.confirm" })}
-        title={intl.formatMessage({ id: "backups.release.title" })}
+        open={restoreArchive !== null}
+        pending={busy === "restore"}
+        submitLabel={intl.formatMessage({ id: "backups.restore.confirm" })}
+        title={intl.formatMessage({ id: "backups.restore.title" })}
       >
-        <label className="grid gap-1 text-sm">
-          <span className="text-muted-foreground">
-            {intl.formatMessage({ id: "backups.release.idLabel" })}
-          </span>
-          <input
-            aria-label={intl.formatMessage({ id: "backups.release.idLabel" })}
-            autoComplete="off"
-            className="h-9 rounded-md border border-border bg-background px-3 font-mono text-sm"
-            onChange={(event) => setReleaseConfirmation(event.target.value)}
-            value={releaseConfirmation}
-          />
-        </label>
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
+          {intl.formatMessage(
+            { id: "backups.restore.dataLossWarning" },
+            {
+              cluster: restoreArchive?.source_cluster_id ?? "-",
+              size: formatBytes(restoreArchive?.logical_bytes ?? 0),
+              completed: formatDate(restoreArchive?.completed_at_unix_ms ?? 0),
+            },
+          )}
+        </div>
+        <Field label={intl.formatMessage({ id: "backups.restore.username" })}>
+          <input className="h-9 rounded-md border border-input bg-muted px-3 text-sm" disabled value={username} />
+        </Field>
+        <Field label={intl.formatMessage({ id: "backups.restore.password" })}>
+          <input autoComplete="current-password" className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            onChange={(event) => setRestorePassword(event.target.value)} required type="password" value={restorePassword} />
+        </Field>
+        <Field label={intl.formatMessage({ id: "backups.restore.confirmation" }, { value: `RESTORE ${restoreArchive?.id ?? ""}` })}>
+          <input className="h-9 rounded-md border border-input bg-background px-3 font-mono text-sm"
+            onChange={(event) => setRestoreConfirmation(event.target.value)} required value={restoreConfirmation} />
+        </Field>
       </ActionFormDialog>
     </PageContainer>
   )
 }
 
-function BackupOverview({
-  status,
-  checkpoints,
-  onViewAll,
+function Field({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+      {label}
+      {children}
+    </label>
+  )
+}
+
+function NumberField({
+  disabled, label, max, min, onChange, value,
 }: {
-  status: ManagerBackupStatusResponse
-  checkpoints: ManagerBackupCheckpoint[]
-  onViewAll: () => void
+  disabled: boolean
+  label: string
+  max: number
+  min: number
+  onChange: (value: number) => void
+  value: number
 }) {
-  const intl = useIntl()
-  if (!status.enabled) {
-    return (
-      <ResourceState
-        description={intl.formatMessage({ id: "backups.disabled.description" })}
-        kind="empty"
-        title={intl.formatMessage({ id: "backups.disabled.title" })}
-      />
-    )
-  }
-  const repairSlots = status.integrity_audit.slots.filter((slot) => slot.health !== "healthy").length
-  const needsAttention = status.health === "degraded" ||
-    status.health === "failed" ||
-    !status.capture_status_complete ||
-    repairSlots > 0
-  const syncing = !needsAttention &&
-    (status.health === "unknown" || !status.latest_checkpoint)
-  const heroTitle = needsAttention
-    ? intl.formatMessage({ id: "backups.hero.attention" })
-    : syncing
-      ? intl.formatMessage({ id: "backups.hero.syncing" })
-      : intl.formatMessage({ id: "backups.hero.healthy" })
-  const heroClasses = needsAttention
-    ? "border-warning/25 bg-warning/10"
-    : syncing
-      ? "border-border bg-muted/30"
-      : "border-success/25 bg-success/10"
-  const heroTitleClass = needsAttention
-    ? "text-warning"
-    : syncing
-      ? "text-foreground"
-      : "text-success"
-  const checkpointOverage = status.checkpoint_age_seconds === null
-    ? 0
-    : Math.max(
-        0,
-        status.checkpoint_age_seconds - status.max_checkpoint_age_seconds,
-      )
-  const recent = checkpoints.slice(0, 3)
-  const activity = status.restore
-    ? {
-        title: intl.formatMessage({ id: "backups.activity.restore" }),
-        detail: intl.formatMessage(
-          { id: "backups.activity.restoreProgress" },
-          {
-            completed: status.restore.installed_slots,
-            total: status.restore.total_slots,
-          },
-        ),
-      }
-    : status.integrity_audit.cursor
-      ? {
-          title: intl.formatMessage({ id: "backups.activity.audit" }),
-          detail: intl.formatMessage(
-            { id: "backups.activity.auditProgress" },
-            {
-              phase: status.integrity_audit.cursor.phase,
-              count: status.integrity_audit.debt_objects,
-            },
-          ),
-        }
-      : null
-
   return (
-    <>
-      <section className={`overflow-hidden rounded-3xl border p-5 sm:p-6 ${heroClasses}`}>
-        <p className={`text-lg font-semibold ${heroTitleClass}`}>
-          {heroTitle}
-        </p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {intl.formatMessage({ id: "backups.hero.latest" })}
-            </p>
-            <p className="mt-1 text-xl font-medium text-foreground">
-              <LocalTime value={status.latest_checkpoint?.effective_at_unix_millis} />
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {checkpointOverage > 0
-                ? intl.formatMessage(
-                    { id: "backups.hero.exceeded" },
-                    { duration: formatDurationWords(checkpointOverage, intl) },
-                  )
-                : formatRelativeDuration(status.checkpoint_age_seconds, intl)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {intl.formatMessage({ id: "backups.hero.target" })}
-            </p>
-            <p className="mt-1 text-xl font-medium text-foreground">
-              {formatDuration(status.max_checkpoint_age_seconds)}
-            </p>
-          </div>
-        </div>
-      </section>
-      {needsAttention ? (
-        <SectionCard title={intl.formatMessage({ id: "backups.issues.title" })}>
-          <ul className="space-y-2 text-sm">
-            {checkpointOverage > 0 ? (
-              <li>{intl.formatMessage(
-                { id: "backups.hero.exceeded" },
-                { duration: formatDurationWords(checkpointOverage, intl) },
-              )}</li>
-            ) : null}
-            {!status.capture_status_complete ? (
-              <li>{intl.formatMessage(
-                { id: "backups.capture.incomplete.description" },
-                {
-                  nodes: status.capture_status_missing_node_ids.length,
-                  slots: status.capture_status_missing_slots.length,
-                },
-              )}</li>
-            ) : null}
-            {repairSlots > 0 ? (
-              <li>{intl.formatMessage(
-                { id: "backups.issues.integrity" },
-                { count: repairSlots },
-              )}</li>
-            ) : null}
-            {status.failure_category ? <li>{status.failure_category}</li> : null}
-          </ul>
-        </SectionCard>
-      ) : null}
-      {activity ? (
-        <SectionCard title={intl.formatMessage({ id: "backups.activity.title" })}>
-          <p className="font-medium text-foreground">{activity.title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{activity.detail}</p>
-        </SectionCard>
-      ) : null}
-      <SectionCard
-        action={
-          <Button onClick={onViewAll} size="sm" variant="ghost">
-            {intl.formatMessage({ id: "backups.recent.viewAll" })}
-          </Button>
-        }
-        title={intl.formatMessage({ id: "backups.recent.title" })}
-      >
-        {recent.length > 0 ? (
-          <ul className="divide-y divide-border">
-            {recent.map((checkpoint) => (
-              <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between" key={checkpoint.id}>
-                <div>
-                  <LocalTime value={checkpoint.effective_at_unix_millis} />
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">{checkpoint.id}</p>
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {checkpoint.held
-                    ? intl.formatMessage({ id: "backups.checkpoints.protected" })
-                    : intl.formatMessage({ id: "backups.checkpoints.published" })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <ResourceState kind="empty" title={intl.formatMessage({ id: "backups.latest.empty" })} />
-        )}
-      </SectionCard>
-      <details className="rounded-2xl border border-border bg-card px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium text-foreground">
-          {intl.formatMessage({ id: "backups.configuration.title" })}
-        </summary>
-        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <Policy label={intl.formatMessage({ id: "backups.policy.reconcile" })} value={formatDuration(status.policy.capture_reconcile_interval_seconds)} />
-          <Policy label={intl.formatMessage({ id: "backups.policy.checkpoint" })} value={formatDuration(status.policy.checkpoint_interval_seconds)} />
-          <Policy label={intl.formatMessage({ id: "backups.policy.workers" })} value={String(status.policy.capture_worker_count)} />
-          <Policy label={intl.formatMessage({ id: "backups.policy.stagingQuota" })} value={formatBytes(status.policy.staging_max_bytes)} />
-          <Policy label={intl.formatMessage({ id: "backups.policy.pinAge" })} value={formatDuration(status.policy.source_pin_max_age_seconds)} />
-          <Policy label={intl.formatMessage({ id: "backups.policy.pinBytes" })} value={formatBytes(status.policy.max_source_pinned_bytes)} />
-        </dl>
-      </details>
-    </>
+    <Field label={label}>
+      <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={disabled}
+        max={max} min={min} onChange={(event) => onChange(Number(event.target.value))} type="number" value={value} />
+    </Field>
   )
 }
 
-function Policy({ label, value }: { label: string; value: string }) {
-  return <div><dt className="text-muted-foreground">{label}</dt><dd>{value}</dd></div>
-}
-
-function CheckpointCatalog(props: {
-  checkpoints: ManagerBackupCheckpoint[]
-  effectiveFromQuery: string
-  effectiveToQuery: string
-  heldQuery: string
-  idQuery: string
-  nextCursor: string
-  onClear: () => void
-  onEffectiveFromQuery: (value: string) => void
-  onEffectiveToQuery: (value: string) => void
-  onHeldQuery: (value: string) => void
-  onIDQuery: (value: string) => void
-  onLoadMore: () => void
-  onOpenDetail: (checkpointID: string) => void
-  onSearch: () => void
-  total: number
-}) {
-  const intl = useIntl()
-  return (
-    <SectionCard title={intl.formatMessage({ id: "backups.checkpoints.title" })} description={intl.formatMessage({ id: "backups.checkpoints.count" }, { count: props.total })}>
-      <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-start">
-        <input
-          aria-label={intl.formatMessage({ id: "backups.checkpoints.search" })}
-          className="h-9 min-w-64 flex-1 rounded-md border border-border bg-background px-3 text-sm"
-          onChange={(event) => props.onIDQuery(event.target.value)}
-          placeholder={intl.formatMessage({ id: "backups.checkpoints.search" })}
-          value={props.idQuery}
-        />
-        <details className="relative">
-          <summary
-            className="inline-flex h-9 w-full cursor-pointer list-none items-center justify-center rounded-full border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-muted [&::-webkit-details-marker]:hidden lg:w-auto"
-            role="button"
-          >
-            {intl.formatMessage({ id: "backups.filters.title" })}
-          </summary>
-          <div className="mt-2 grid gap-3 rounded-xl border border-border bg-popover p-4 shadow-lg lg:absolute lg:right-0 lg:z-20 lg:w-[28rem]">
-            <label className="grid gap-1 text-sm">
-              <span className="text-muted-foreground">{intl.formatMessage({ id: "backups.filters.protection" })}</span>
-              <select
-                aria-label={intl.formatMessage({ id: "backups.filters.protection" })}
-                className="h-9 rounded-md border border-border bg-background px-3"
-                onChange={(event) => props.onHeldQuery(event.target.value)}
-                value={props.heldQuery}
-              >
-                <option value="">{intl.formatMessage({ id: "backups.filters.anyProtection" })}</option>
-                <option value="true">{intl.formatMessage({ id: "backups.checkpoints.protected" })}</option>
-                <option value="false">{intl.formatMessage({ id: "backups.checkpoints.standardRetention" })}</option>
-              </select>
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm">
-                <span className="text-muted-foreground">{intl.formatMessage({ id: "backups.filters.from" })}</span>
-                <input
-                  className="h-9 rounded-md border border-border bg-background px-3"
-                  onChange={(event) => props.onEffectiveFromQuery(event.target.value)}
-                  type="date"
-                  value={props.effectiveFromQuery}
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span className="text-muted-foreground">{intl.formatMessage({ id: "backups.filters.to" })}</span>
-                <input
-                  className="h-9 rounded-md border border-border bg-background px-3"
-                  onChange={(event) => props.onEffectiveToQuery(event.target.value)}
-                  type="date"
-                  value={props.effectiveToQuery}
-                />
-              </label>
-            </div>
-          </div>
-        </details>
-        <Button onClick={props.onSearch} size="sm">
-          {intl.formatMessage({ id: "backups.filters.apply" })}
-        </Button>
-        <Button onClick={props.onClear} size="sm" variant="ghost">
-          {intl.formatMessage({ id: "backups.filters.clear" })}
-        </Button>
-      </div>
-      <div className="hidden overflow-x-auto rounded-md border border-border md:block">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="p-3">{intl.formatMessage({ id: "backups.checkpoints.restorePoint" })}</th>
-              <th className="p-3">{intl.formatMessage({ id: "backups.checkpoints.created" })}</th>
-              <th className="p-3">{intl.formatMessage({ id: "backups.checkpoints.protection" })}</th>
-              <th className="p-3 text-right">{intl.formatMessage({ id: "backups.checkpoints.action" })}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {props.checkpoints.map((checkpoint) => (
-              <tr className="border-t border-border" key={checkpoint.id}>
-                <td className="p-3">
-                  <LocalTime value={checkpoint.effective_at_unix_millis} />
-                  <p className="mt-1 font-mono text-xs text-muted-foreground" title={checkpoint.id}>
-                    {shortCheckpointID(checkpoint.id)}
-                  </p>
-                </td>
-                <td className="p-3"><LocalTime value={checkpoint.created_at_unix_millis} /></td>
-                <td className="p-3">
-                  {checkpoint.held
-                    ? intl.formatMessage({ id: "backups.checkpoints.protected" })
-                    : intl.formatMessage({ id: "backups.checkpoints.standardRetention" })}
-                </td>
-                <td className="p-3 text-right">
-                  <Button
-                    aria-label={intl.formatMessage(
-                      { id: "backups.checkpoints.viewDetailsFor" },
-                      { id: checkpoint.id },
-                    )}
-                    onClick={() => props.onOpenDetail(checkpoint.id)}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    {intl.formatMessage({ id: "backups.checkpoints.viewDetails" })}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <ul className="grid gap-3 md:hidden">
-        {props.checkpoints.map((checkpoint) => (
-          <li className="rounded-xl border border-border p-4" key={checkpoint.id}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <LocalTime value={checkpoint.effective_at_unix_millis} />
-                <p className="mt-1 font-mono text-xs text-muted-foreground" title={checkpoint.id}>
-                  {shortCheckpointID(checkpoint.id)}
-                </p>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {checkpoint.held
-                  ? intl.formatMessage({ id: "backups.checkpoints.protected" })
-                  : intl.formatMessage({ id: "backups.checkpoints.standardRetention" })}
-              </span>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              {intl.formatMessage({ id: "backups.checkpoints.created" })}:{" "}
-              <LocalTime value={checkpoint.created_at_unix_millis} />
-            </p>
-            <Button
-              aria-label={intl.formatMessage(
-                { id: "backups.checkpoints.viewDetailsFor" },
-                { id: checkpoint.id },
-              )}
-              className="mt-3 w-full"
-              onClick={() => props.onOpenDetail(checkpoint.id)}
-              size="sm"
-              variant="outline"
-            >
-              {intl.formatMessage({ id: "backups.checkpoints.viewDetails" })}
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {props.checkpoints.length === 0 ? <ResourceState kind="empty" title={intl.formatMessage({ id: "backups.checkpoints.empty" })} /> : null}
-      {props.nextCursor ? <Button className="mt-3" onClick={props.onLoadMore} size="sm" variant="outline">{intl.formatMessage({ id: "common.loadMore" })}</Button> : null}
-    </SectionCard>
-  )
-}
-
-function CheckpointDetailSheet(props: {
+function ArchiveRow({
+  archive, busy, canRestore, canWrite, onDelete, onHold, onRestore, onVerify,
+}: {
+  archive: ManagerBackupArchive
+  busy: string
+  canRestore: boolean
   canWrite: boolean
-  checkpoint: ManagerBackupCheckpointDetail | null
-  error: Error | null
-  loading: boolean
-  mutationError: string
-  onClose: () => void
+  onDelete: () => void
   onHold: () => void
-  onPrepareRecovery: () => void
-  onRelease: () => void
-  open: boolean
-  pending: boolean
+  onRestore: () => void
+  onVerify: () => void
 }) {
   const intl = useIntl()
-  const checkpoint = props.checkpoint
+  const disabled = busy !== ""
   return (
-    <DetailSheet
-      description={checkpoint ? shortCheckpointID(checkpoint.id) : undefined}
-      footer={checkpoint ? (
-        <div className="flex flex-wrap justify-end gap-2">
-          {props.canWrite ? (
-            checkpoint.held ? (
-              <Button disabled={props.pending} onClick={props.onRelease} size="sm" variant="outline">
-                {intl.formatMessage({ id: "backups.detail.release" })}
-              </Button>
-            ) : (
-              <Button disabled={props.pending} onClick={props.onHold} size="sm" variant="outline">
-                {intl.formatMessage({ id: "backups.detail.hold" })}
-              </Button>
-            )
+    <tr className="border-t border-border">
+      <td className="px-3 py-3">
+        <div className="font-mono text-xs text-foreground">{archive.id}</div>
+        <div className="mt-1 text-xs text-muted-foreground">{archive.trigger}</div>
+      </td>
+      <td className="px-3 py-3">{formatDate(archive.completed_at_unix_ms)}</td>
+      <td className="px-3 py-3">{formatBytes(archive.stored_bytes)}</td>
+      <td className="px-3 py-3">
+        <span className={archive.health === "healthy" ? "text-emerald-600" : "text-destructive"}>{archive.health}</span>
+        {archive.held ? <span className="ml-2 rounded-full bg-muted px-2 py-1 text-xs">{intl.formatMessage({ id: "backups.held" })}</span> : null}
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={!canWrite || disabled} onClick={onVerify} size="xs" variant="outline">
+            {intl.formatMessage({ id: "backups.verify" })}
+          </Button>
+          <Button disabled={!canWrite || disabled} onClick={onHold} size="xs" variant="outline">
+            {intl.formatMessage({ id: archive.held ? "backups.release" : "backups.hold" })}
+          </Button>
+          {canRestore ? (
+            <Button disabled={disabled || archive.health !== "healthy"} onClick={onRestore} size="xs" variant="outline">
+              <ArchiveRestore /> {intl.formatMessage({ id: "backups.restore.action" })}
+            </Button>
           ) : null}
-          <Button onClick={props.onPrepareRecovery} size="sm">
-            {intl.formatMessage({ id: "backups.detail.prepare" })}
+          <Button disabled={!canWrite || disabled || archive.held} onClick={onDelete} size="icon-xs" variant="destructive">
+            <Trash2 /><span className="sr-only">{intl.formatMessage({ id: "backups.delete.action" })}</span>
           </Button>
         </div>
-      ) : undefined}
-      onOpenChange={(open) => {
-        if (!open) props.onClose()
-      }}
-      open={props.open}
-      title={intl.formatMessage({ id: "backups.detail.title" })}
-    >
-      {props.loading ? (
-        <ResourceState kind="loading" title={intl.formatMessage({ id: "backups.detail.title" })} />
-      ) : props.error ? (
-        <ResourceState kind="unavailable" title={errorMessage(props.error, intl)} />
-      ) : checkpoint ? (
-        <div className="space-y-4">
-          <SectionCard
-            description={intl.formatMessage({ id: "backups.detail.recoveryDescription" })}
-            title={intl.formatMessage({ id: "backups.detail.recovery" })}
-          >
-            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-              <Policy
-                label={intl.formatMessage({ id: "backups.checkpoints.effective" })}
-                value={new Date(checkpoint.effective_at_unix_millis).toLocaleString()}
-              />
-              <Policy
-                label={intl.formatMessage({ id: "backups.checkpoints.created" })}
-                value={new Date(checkpoint.created_at_unix_millis).toLocaleString()}
-              />
-            </dl>
-          </SectionCard>
-          <SectionCard
-            description={checkpoint.held
-              ? intl.formatMessage({ id: "backups.detail.protectedDescription" })
-              : intl.formatMessage({ id: "backups.detail.retentionDescription" })}
-            title={intl.formatMessage({ id: "backups.detail.protection" })}
-          >
-            <p className="text-sm font-medium">
-              {checkpoint.held
-                ? intl.formatMessage({ id: "backups.checkpoints.protected" })
-                : intl.formatMessage({ id: "backups.checkpoints.standardRetention" })}
-            </p>
-          </SectionCard>
-          {props.mutationError ? <p className="text-sm text-destructive">{props.mutationError}</p> : null}
-          <details className="rounded-xl border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">
-              {intl.formatMessage({ id: "backups.detail.technical" })}
-            </summary>
-            <dl className="mt-4 grid gap-3 text-sm">
-              <Policy label={intl.formatMessage({ id: "backups.detail.id" })} value={checkpoint.id} />
-              <Policy label={intl.formatMessage({ id: "backups.detail.sourceCluster" })} value={checkpoint.source_cluster_id} />
-              <Policy label={intl.formatMessage({ id: "backups.detail.sourceGeneration" })} value={checkpoint.source_generation} />
-              <Policy label={intl.formatMessage({ id: "backups.detail.hashSlots" })} value={String(checkpoint.hash_slot_count)} />
-            </dl>
-          </details>
-        </div>
-      ) : null}
-    </DetailSheet>
+      </td>
+    </tr>
   )
 }

@@ -2261,159 +2261,166 @@ export type ManagerDBInspectQueryInput = {
   query: string
 }
 
-export type BackupHealth = "disabled" | "unknown" | "healthy" | "degraded" | "failed"
+export type ManagerBackupStoreKind = "file" | "s3"
 
-export type ManagerBackupCheckpoint = {
-  id: string
-  created_at_unix_millis: number
-  effective_at_unix_millis: number
-  held: boolean
+export type ManagerBackupStore = {
+  kind: ManagerBackupStoreKind
+  endpoint?: string
+  region?: string
+  bucket?: string
+  prefix?: string
+  path_style?: boolean
+  credential_revision?: number
 }
 
-export type ManagerBackupCheckpointDetail = ManagerBackupCheckpoint & {
-  source_cluster_id: string
-  source_generation: string
-  hash_slot_count: number
-  erasure_streams: ManagerBackupErasureStream[]
-}
-
-export type ManagerBackupCaptureLease = {
-  hash_slot: number
-  slot_id: number
-  source_slot_id: number
-  holder_node_id: number
-  leader_term: number
-  config_epoch: number
-  generation: string
-  lease_sequence: number
-  frontier_revision: number
-  metadata_source_watermark: number
-  message_source_watermark: number
-  acquired_at_unix_millis: number
-  source_pin_started_at_unix_millis: number
-  frontier_updated_unix_millis: number
-}
-
-export type ManagerBackupCaptureStatus = {
-  hash_slot: number
-  state: string
-  failure_category?: string
-  lease_current: boolean
-  frontier_revision: number
-  metadata_source_watermark: number
-  message_source_watermark: number
-  metadata_frontier_watermark: number
-  message_frontier_watermark: number
-  metadata_lag: number
-  message_lag: number
-  observed_at_unix_millis: number
-}
-
-export type ManagerBackupIntegrityAudit = {
+export type ManagerBackupPlan = {
   revision: number
-  cursor?: {
-    phase: string
-  }
-  slots: Array<{
-    hash_slot: number
-    health: string
-  }>
-  debt_objects: number
-  last_success_at_unix_millis: number
-  updated_at_unix_millis: number
-}
-
-export type ManagerBackupRestoreProgress = {
-  plan_id: string
-  status: string
-  total_slots: number
-  pending_slots: number
-  installing_slots: number
-  installed_slots: number
-  converged_slots: number
-  failed_slots: number
-  downloaded_bytes: number
-  replicated_bytes: number
-  throughput_bytes_per_second: number
-  eta_seconds: number | null
-}
-
-export type ManagerBackupErasureStream = {
-  hash_slot: number
-  sequence: number
-  pending: boolean
-}
-
-export type ManagerBackupStatusResponse = {
   enabled: boolean
-  health: BackupHealth
-  checkpoint_age_seconds: number | null
-  latest_checkpoint?: ManagerBackupCheckpoint
-  failure_category?: string
-  coordinator_node_id: number
-  observed_at_unix_millis: number
-  auth_enabled: boolean
-  running: boolean
-  max_checkpoint_age_seconds: number
-  policy: {
-    capture_reconcile_interval_seconds: number
-    checkpoint_interval_seconds: number
-    capture_worker_count: number
-    target_segment_bytes: number
-    max_segment_bytes: number
-    max_segment_open_duration_seconds: number
-    staging_max_bytes: number
-    source_pin_max_age_seconds: number
-    max_source_pinned_bytes: number
-  }
-  capture_leases: ManagerBackupCaptureLease[]
-  capture_statuses: ManagerBackupCaptureStatus[]
-  capture_status_complete: boolean
-  capture_status_missing_node_ids: number[]
-  capture_status_missing_slots: number[]
-  integrity_audit: ManagerBackupIntegrityAudit
-  compaction: {
-    debt_slots: number
-    slots: Array<{
-      hash_slot: number
-      generation: string
-      target_generation: string
-      reason: string
-      started_at_unix_millis: number
-    }>
-  }
-  garbage_collection: {
-    debt_repositories: number
-    cursors: Array<{
-      repository: string
-      revision: number
-      cycle_id: string
-      complete: boolean
-      updated_at_unix_millis: number
-    }>
-  }
-  erasure_streams: ManagerBackupErasureStream[]
-  restore?: ManagerBackupRestoreProgress
+  store: ManagerBackupStore
+  cron: string
+  time_zone: string
+  retention_count: number
+  rate_bytes_per_sec: number
+  workers_per_node: number
+  max_duration_ms: number
+  schedule_cursor_unix_ms: number
+  created_unix_ms: number
+  updated_unix_ms: number
 }
 
-export type ManagerBackupCheckpointPage = {
-  catalog_head_token?: string
-  items: ManagerBackupCheckpoint[]
-  next_cursor?: string
-  total: number
+export type ManagerBackupSlotProgress = {
+  hash_slot: number
+  status: "pending" | "running" | "complete" | "failed"
+  attempt: number
+  owner_node_id?: number
+  logical_bytes?: number
+  stored_bytes?: number
+  records?: number
+  updated_unix_ms?: number
+  error_code?: string
 }
 
-export type BackupCheckpointListParams = {
-  limit?: number
-  cursor?: string
-  id?: string
-  held?: boolean
-  effectiveFrom?: number
-  effectiveTo?: number
+export type ManagerBackupJob = {
+  id: string
+  trigger: "initial" | "scheduled" | "manual"
+  status: string
+  plan_revision: number
+  scheduled_at_unix_ms?: number
+  started_at_unix_ms: number
+  deadline_unix_ms: number
+  updated_unix_ms: number
+  cancel_requested?: boolean
+  slots: ManagerBackupSlotProgress[]
+  logical_bytes?: number
+  stored_bytes?: number
+  records?: number
+  error_code?: string
 }
 
-export type ManagerBackupCheckpointPublication = {
-  checkpoint: ManagerBackupCheckpoint
-  checkpoint_sha256: string
-  catalog_head_token: string
+export type ManagerRestoreSlotProgress = {
+  hash_slot: number
+  status: string
+  attempt: number
+  replica_node_ids?: number[]
+  logical_bytes?: number
+  updated_unix_ms?: number
+  error_code?: string
+}
+
+export type ManagerRestoreJob = {
+  id: string
+  backup_id: string
+  initiator: string
+  status: string
+  started_at_unix_ms: number
+  deadline_unix_ms: number
+  updated_unix_ms: number
+  cancel_requested?: boolean
+  maintenance_entered?: boolean
+  target_activation: string
+  slots: ManagerRestoreSlotProgress[]
+  logical_bytes?: number
+  error_code?: string
+}
+
+export type ManagerBackupTaskRecord = {
+  id: string
+  kind: string
+  initiator?: string
+  trigger?: string
+  status: string
+  started_at_unix_ms: number
+  completed_at_unix_ms: number
+  scheduled_at_unix_ms?: number
+  error_code?: string
+}
+
+export type ManagerBackupSystemState = {
+  revision: number
+  manager_session_epoch: number
+  plan?: ManagerBackupPlan
+  active_backup?: ManagerBackupJob
+  active_restore?: ManagerRestoreJob
+  history?: ManagerBackupTaskRecord[]
+}
+
+export type ManagerBackupArchive = {
+  id: string
+  trigger: string
+  source_cluster_id: string
+  started_at_unix_ms: number
+  completed_at_unix_ms: number
+  logical_bytes: number
+  stored_bytes: number
+  records: number
+  max_message_id: string
+  held: boolean
+  hold_note?: string
+  health: "healthy" | "corrupt"
+  error_code?: string
+}
+
+export type ManagerBackupDashboard = {
+  state: ManagerBackupSystemState
+  archives: ManagerBackupArchive[]
+  credentials_configured: boolean
+  next_scheduled_unix_ms?: number
+  repository_error?: string
+}
+
+export type ManagerBackupArchiveDetail = {
+  archive: ManagerBackupArchive
+  manifest: Record<string, unknown>
+}
+
+export type ManagerBackupPlanInput = {
+  expected_revision: number
+  enabled: boolean
+  store: {
+    kind: ManagerBackupStoreKind
+    endpoint?: string
+    region?: string
+    bucket?: string
+    prefix?: string
+    path_style?: boolean
+    access_key?: string
+    secret_key?: string
+  }
+  cron: string
+  time_zone: string
+  retention_count: number
+  rate_mib_per_second: number
+  workers_per_node: number
+  max_duration_hours: number
+}
+
+export type ManagerBackupConfigureResult = {
+  plan: ManagerBackupPlan
+  initial_job?: ManagerBackupJob
+}
+
+export type ManagerRestoreInput = {
+  username: string
+  password: string
+  confirmation: string
 }

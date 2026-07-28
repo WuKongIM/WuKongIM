@@ -31,7 +31,9 @@ usecase over peer RPC, routes
 manager Controller task audit reads to the current Controller leader's
 node-local audit store over peer RPC when needed, and adapts presence/delivery
 ports plus channelappend recipient-authority resolution to cluster routing and
-node RPC.
+node RPC. `ChannelMetadataStore` also exposes one restore-only subscriber page
+adapter that delegates to the node-local maintenance read; it is used only to
+rebuild the system-UID privilege cache before foreground admission resumes.
 
 ## Management Snapshot Flow
 
@@ -260,13 +262,9 @@ management.MessageRetentionOperator.AdvanceMessageRetention
   -> leader re-reads ChannelRuntimeMeta and verifies local leadership
   -> ChannelRetentionView reads local Channel runtime HW/MinISR safety
   -> ReadChannelCommitted(reverse latest, min_seq = RetentionThroughSeq + 1)
-  -> PermanentErasureLedger.RecordPermanentMessageErasure(dual-repository commit)
   -> AdvanceChannelRetentionThroughSeq(fenced Slot metadata command)
   -> manager retention response
 ```
-
-Ledger publication is fail closed: any record, event, commit, receipt, or
-Controller coordination failure prevents the Slot retention metadata command.
 
 The manager retention adapter treats history deletion as logical channel log
 compaction. It never deletes message rows. It computes a safe boundary no higher
@@ -496,13 +494,11 @@ Channel runtime inspection uses the exact `(channel_id, channel_type)` point
 lookup and never scans or guesses channel rows. Metric requests map only fixed
 IDs to server-owned PromQL. Application log routing preserves opaque cursors
 and exact before/after context. Configuration projection remains allowlisted
-and redacted; backup projection excludes object keys, credentials, and channel
-identities. Backup inspection reads one server-bounded immutable checkpoint
-page through the continuous-backup pagination seam, applies an optional exact
-checkpoint-ID filter at the catalog index, and reports partial completeness
-when another page exists. It also exposes only bounded Slot-frontier counts,
-integrity-audit debt, and pending erasure-stream counts. Diagnostic time bounds
-are passed into each node-local query before
+and redacted; backup projection excludes credentials, object keys, Channel
+identities, and restore staging paths. Backup inspection exposes the single
+redacted plan, active backup or restore task, bounded task history, and bounded
+published-archive summaries from the scheduled-backup dashboard. Diagnostic
+time bounds are passed into each node-local query before
 its limit is applied, so returned events and aggregate summaries describe the
 same window. `ManagementOpsMCPAuditReader` fans out with bounded concurrency to
 alive/suspect nodes, merges available summaries newest-first, and tolerates an

@@ -17,10 +17,11 @@ type permissionCache struct {
 	ttl  time.Duration
 	now  func() time.Time
 
-	mu       sync.Mutex
-	channels map[permissionCacheChannelKey]permissionCacheEntry[metadb.Channel]
-	contains map[permissionCacheContainsKey]permissionCacheEntry[bool]
-	hasAny   map[permissionCacheChannelKey]permissionCacheEntry[bool]
+	mu         sync.Mutex
+	generation uint64
+	channels   map[permissionCacheChannelKey]permissionCacheEntry[metadb.Channel]
+	contains   map[permissionCacheContainsKey]permissionCacheEntry[bool]
+	hasAny     map[permissionCacheChannelKey]permissionCacheEntry[bool]
 }
 
 type permissionCacheChannelKey struct {
@@ -48,6 +49,18 @@ type permissionCacheEntry[T any] struct {
 	expiresAt time.Time
 }
 
+func (c *permissionCache) resetAfterRestore() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.generation++
+	clear(c.channels)
+	clear(c.contains)
+	clear(c.hasAny)
+}
+
 func newPermissionCache(next PermissionStore, ttl time.Duration, now func() time.Time) PermissionStore {
 	if next == nil || ttl <= 0 {
 		return next
@@ -68,71 +81,75 @@ func newPermissionCache(next PermissionStore, ttl time.Duration, now func() time
 func (c *permissionCache) GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
 	key := permissionCacheChannelKey{channelID: channelID, channelType: channelType}
 	now := c.now()
-	if value, err, ok := permissionCacheGet(c, c.channels, key, now); ok {
+	if value, err, ok, generation := permissionCacheGet(c, c.channels, key, now); ok {
 		return value, err
+	} else {
+		value, err := c.next.GetChannelForPermission(ctx, channelID, channelType)
+		if errors.Is(err, metadb.ErrNotFound) {
+			permissionCachePut(c, c.channels, key, metadb.Channel{}, err, now.Add(c.ttl), generation)
+			return metadb.Channel{}, err
+		}
+		if err != nil {
+			return metadb.Channel{}, err
+		}
+		permissionCachePut(c, c.channels, key, value, nil, now.Add(c.ttl), generation)
+		return value, nil
 	}
-
-	value, err := c.next.GetChannelForPermission(ctx, channelID, channelType)
-	if errors.Is(err, metadb.ErrNotFound) {
-		permissionCachePut(c, c.channels, key, metadb.Channel{}, err, now.Add(c.ttl))
-		return metadb.Channel{}, err
-	}
-	if err != nil {
-		return metadb.Channel{}, err
-	}
-	permissionCachePut(c, c.channels, key, value, nil, now.Add(c.ttl))
-	return value, nil
 }
 
 func (c *permissionCache) ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
 	key := permissionCacheContainsKey{channelID: channelID, channelType: channelType, uid: uid}
 	now := c.now()
-	if value, _, ok := permissionCacheGet(c, c.contains, key, now); ok {
+	if value, _, ok, generation := permissionCacheGet(c, c.contains, key, now); ok {
+		return value, nil
+	} else {
+		value, err := c.next.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
+		if err != nil {
+			return false, err
+		}
+		permissionCachePut(c, c.contains, key, value, nil, now.Add(c.ttl), generation)
 		return value, nil
 	}
-
-	value, err := c.next.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
-	if err != nil {
-		return false, err
-	}
-	permissionCachePut(c, c.contains, key, value, nil, now.Add(c.ttl))
-	return value, nil
 }
 
 func (c *permissionCache) HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
 	key := permissionCacheChannelKey{channelID: channelID, channelType: channelType}
 	now := c.now()
-	if value, _, ok := permissionCacheGet(c, c.hasAny, key, now); ok {
+	if value, _, ok, generation := permissionCacheGet(c, c.hasAny, key, now); ok {
+		return value, nil
+	} else {
+		value, err := c.next.HasChannelSubscribers(ctx, channelID, channelType)
+		if err != nil {
+			return false, err
+		}
+		permissionCachePut(c, c.hasAny, key, value, nil, now.Add(c.ttl), generation)
 		return value, nil
 	}
-
-	value, err := c.next.HasChannelSubscribers(ctx, channelID, channelType)
-	if err != nil {
-		return false, err
-	}
-	permissionCachePut(c, c.hasAny, key, value, nil, now.Add(c.ttl))
-	return value, nil
 }
 
-func permissionCacheGet[K comparable, V any](c *permissionCache, values map[K]permissionCacheEntry[V], key K, now time.Time) (V, error, bool) {
+func permissionCacheGet[K comparable, V any](c *permissionCache, values map[K]permissionCacheEntry[V], key K, now time.Time) (V, error, bool, uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	generation := c.generation
 	entry, ok := values[key]
 	if !ok || !now.Before(entry.expiresAt) {
 		var zero V
 		if ok {
 			delete(values, key)
 		}
-		return zero, nil, false
+		return zero, nil, false, generation
 	}
-	return entry.value, entry.err, true
+	return entry.value, entry.err, true, generation
 }
 
-func permissionCachePut[K comparable, V any](c *permissionCache, values map[K]permissionCacheEntry[V], key K, value V, err error, expiresAt time.Time) {
+func permissionCachePut[K comparable, V any](c *permissionCache, values map[K]permissionCacheEntry[V], key K, value V, err error, expiresAt time.Time, generation uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.generation != generation {
+		return
+	}
 	if len(values) >= permissionCacheMaxEntries {
 		clear(values)
 	}

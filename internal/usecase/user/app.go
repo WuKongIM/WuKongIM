@@ -112,13 +112,29 @@ func (a *App) RemoveSystemUIDs(ctx context.Context, uids []string) error {
 
 // ListSystemUIDs returns the persisted system account UID list.
 func (a *App) ListSystemUIDs(ctx context.Context) ([]string, error) {
+	return a.listSystemUIDs(ctx, false)
+}
+
+func (a *App) listSystemUIDs(
+	ctx context.Context,
+	forRestore bool,
+) ([]string, error) {
 	if a == nil || a.systemUIDs == nil {
 		return nil, ErrUserStoreRequired
+	}
+	list := a.systemUIDs.ListChannelSubscribers
+	if forRestore {
+		if restoreStore, ok := a.systemUIDs.(RestoreSystemUIDStore); ok {
+			list = restoreStore.ListChannelSubscribersForRestore
+		}
 	}
 	var out []string
 	cursor := ""
 	for {
-		uids, nextCursor, done, err := a.systemUIDs.ListChannelSubscribers(ctx, systemUIDChannelID, systemUIDChannelType, cursor, systemUIDPageLimit)
+		uids, nextCursor, done, err := list(
+			ctx, systemUIDChannelID, systemUIDChannelType,
+			cursor, systemUIDPageLimit,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -128,6 +144,25 @@ func (a *App) ListSystemUIDs(ctx context.Context) ([]string, error) {
 		}
 		cursor = nextCursor
 	}
+}
+
+// ReloadSystemUIDCache replaces the privilege cache from the restored durable
+// subscriber set before foreground admission resumes.
+func (a *App) ReloadSystemUIDCache(ctx context.Context) error {
+	uids, err := a.listSystemUIDs(ctx, true)
+	if err != nil {
+		return err
+	}
+	next := make(map[string]struct{}, len(uids))
+	for _, uid := range uids {
+		if uid != "" {
+			next[uid] = struct{}{}
+		}
+	}
+	a.systemUIDCacheMu.Lock()
+	a.systemUIDCache = next
+	a.systemUIDCacheMu.Unlock()
+	return nil
 }
 
 // AddSystemUIDsToCache adds UIDs to the process-local system account cache.

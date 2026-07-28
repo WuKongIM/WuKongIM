@@ -49,54 +49,36 @@ type (
 	HashSlotRange = state.HashSlotRange
 	// ReconcileTask is an active durable task needed to converge data-plane state.
 	ReconcileTask = state.ReconcileTask
-	// BackupCoordinationState stores bounded backup coordination metadata.
-	BackupCoordinationState = state.BackupCoordinationState
-	// BackupErasureLedgerReference is the bounded pending permanent-erasure record reference.
-	BackupErasureLedgerReference = state.BackupErasureLedgerReference
-	// BackupErasureStreamState is bounded coordination for one Hash Slot erasure stream.
-	BackupErasureStreamState = state.BackupErasureStreamState
-	// BackupGenerationGCCursor is one bounded repository Generation sweep position.
-	BackupGenerationGCCursor = state.BackupGenerationGCCursor
-	// BackupIntegrityAuditState is bounded Controller coordination for one auditor.
-	BackupIntegrityAuditState = state.BackupIntegrityAuditState
-	// BackupIntegrityAuditCursor is one opaque bounded full-audit continuation.
-	BackupIntegrityAuditCursor = state.BackupIntegrityAuditCursor
-	// BackupSlotIntegrityAuditState is one compact per-Slot health projection.
-	BackupSlotIntegrityAuditState = state.BackupSlotIntegrityAuditState
-	// BackupSlotGenerationPromotion is durable replacement evidence.
-	BackupSlotGenerationPromotion = state.BackupSlotGenerationPromotion
-	// BackupIntegrityAuditGCGuard is one durable cross-Leader delete exclusion.
-	BackupIntegrityAuditGCGuard = state.BackupIntegrityAuditGCGuard
-	// BackupSegmentReference binds a frontier to an immutable segment commit.
-	BackupSegmentReference = state.BackupSegmentReference
-	// BackupCatalogPageReference is the bounded immutable checkpoint catalog head.
-	BackupCatalogPageReference = state.BackupCatalogPageReference
-	// BackupStreamFrontier is one compact continuous stream head.
-	BackupStreamFrontier = state.BackupStreamFrontier
-	// BackupSlotFrontier atomically binds continuous metadata and message heads.
-	BackupSlotFrontier = state.BackupSlotFrontier
-	// BackupSlotBaselineReference authenticates one materialized generation root.
-	BackupSlotBaselineReference = state.BackupSlotBaselineReference
-	// BackupPartitionReference authenticates one materialized partition manifest.
-	BackupPartitionReference = state.BackupPartitionReference
-	// BackupSlotRebase records one pending retryable generation replacement.
-	BackupSlotRebase = state.BackupSlotRebase
-	// BackupSlotCaptureLease fences one continuous capture worker to Slot authority.
-	BackupSlotCaptureLease = state.BackupSlotCaptureLease
-	// RestoreCoordinationState stores bounded explicit recovery metadata.
-	RestoreCoordinationState = state.RestoreCoordinationState
-	// RestorePlan stores one recovery plan and bounded progress.
-	RestorePlan = state.RestorePlan
-	// RestorePartition stores one logical recovery progress record.
-	RestorePartition = state.RestorePartition
+	// ScheduledBackupState stores the simplified scheduled full-backup subsystem state.
+	ScheduledBackupState = state.ScheduledBackupState
+	// BackupStoreKind identifies the configured archive repository implementation.
+	BackupStoreKind = state.BackupStoreKind
+	// BackupStoreConfig stores archive repository settings.
+	BackupStoreConfig = state.BackupStoreConfig
+	// BackupPlan is the single cluster-scoped scheduled full-backup policy.
+	BackupPlan = state.BackupPlan
+	// BackupTrigger identifies why a full-backup job was admitted.
+	BackupTrigger = state.BackupTrigger
+	// BackupJobStatus is a bounded full-backup lifecycle phase.
+	BackupJobStatus = state.BackupJobStatus
+	// BackupSlotStatus is one Hash Slot export phase.
+	BackupSlotStatus = state.BackupSlotStatus
+	// BackupSlotProgress stores one Hash Slot's bounded export progress.
+	BackupSlotProgress = state.BackupSlotProgress
+	// ScheduledBackupJob is the only active full-backup job.
+	ScheduledBackupJob = state.ScheduledBackupJob
+	// ScheduledRestoreJob is the only active maintenance-mode restore job.
+	ScheduledRestoreJob = state.ScheduledRestoreJob
+	// RestoreSlotProgress stores one restored Hash Slot's replica evidence.
+	RestoreSlotProgress = state.RestoreSlotProgress
+	// BackupTaskRecord is one bounded terminal backup or restore observation.
+	BackupTaskRecord = state.BackupTaskRecord
+	// BackupArchiveOperation is one durable repository-operation lease.
+	BackupArchiveOperation = state.BackupArchiveOperation
 	// OpsMCPState stores bounded desired state for the embedded operations MCP.
 	OpsMCPState = state.OpsMCPState
 	// OpsMCPCredential stores one opaque bearer token verifier.
 	OpsMCPCredential = state.OpsMCPCredential
-	// RestoreStatus identifies one explicit recovery phase.
-	RestoreStatus = state.RestoreStatus
-	// RestorePartitionStatus identifies one durable Slot restore phase.
-	RestorePartitionStatus = state.RestorePartitionStatus
 	// TaskKind describes one reconcile workflow kind.
 	TaskKind = state.TaskKind
 	// TaskStep describes the current step inside a reconcile workflow.

@@ -70,15 +70,12 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 	}
 	createdDefaultChannels := false
 	if n.channels == nil {
-		storeFactory := channelstore.NewMessageDBFactoryWithOptions(n.defaultChannelStorePath(), channelstore.MessageDBFactoryOptions{
-			CommitFlushWindow: n.cfg.Storage.CommitFlushWindow,
-			CommitMaxRequests: n.cfg.Storage.CommitMaxRequests,
-			CommitMaxRecords:  n.cfg.Storage.CommitMaxRecords,
-			CommitMaxBytes:    n.cfg.Storage.CommitMaxBytes,
-			CommitShards:      n.cfg.Storage.CommitShards,
-			CommitObserver:    n.cfg.Storage.CommitObserver,
-			Logger:            namedLogger(n.cfg.Logger, "message_db"),
-		})
+		storeFactory := n.defaultChannelStore
+		createdStoreFactory := false
+		if storeFactory == nil {
+			storeFactory = n.newDefaultChannelStore()
+			createdStoreFactory = true
+		}
 		var transport *channels.TransportClient
 		if n.transportClient != nil {
 			transport = channels.NewTransportClient(n.transportClient)
@@ -107,11 +104,20 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			MigrationStore:                n.defaultChannelMigrationStore(),
 		})
 		if err != nil {
-			_ = storeFactory.Close()
+			if createdStoreFactory {
+				_ = storeFactory.Close()
+			}
 			return false, err
 		}
 		if n.transportServer != nil {
-			channels.RegisterServiceHandlersOn(n.transportServer, service)
+			if n.channelRPCGateway == nil {
+				n.channelRPCGateway = channels.NewServiceGateway(service)
+				channels.RegisterServiceHandlersOn(
+					n.transportServer, n.channelRPCGateway,
+				)
+			} else {
+				n.channelRPCGateway.Replace(service)
+			}
 		}
 		n.channels = service
 		n.defaultChannels = true
@@ -119,6 +125,21 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		createdDefaultChannels = true
 	}
 	return createdDefaultChannels, nil
+}
+
+func (n *Node) newDefaultChannelStore() *channelstore.MessageDBFactory {
+	return channelstore.NewMessageDBFactoryWithOptions(
+		n.defaultChannelStorePath(),
+		channelstore.MessageDBFactoryOptions{
+			CommitFlushWindow: n.cfg.Storage.CommitFlushWindow,
+			CommitMaxRequests: n.cfg.Storage.CommitMaxRequests,
+			CommitMaxRecords:  n.cfg.Storage.CommitMaxRecords,
+			CommitMaxBytes:    n.cfg.Storage.CommitMaxBytes,
+			CommitShards:      n.cfg.Storage.CommitShards,
+			CommitObserver:    n.cfg.Storage.CommitObserver,
+			Logger:            namedLogger(n.cfg.Logger, "message_db"),
+		},
+	)
 }
 
 func (n *Node) ensureDefaultTransport() error {
@@ -386,8 +407,6 @@ func (n *Node) discardDefaultSlots() {
 		_ = n.defaultSlotMetaDB.Close()
 		n.defaultSlotMetaDB = nil
 	}
-	n.backupMetadataIndex = newBackupMetadataLogIndex()
-	n.backupContinuousChunks.clear()
 	n.defaultSlotProposer = nil
 	n.slots = nil
 	if n.defaultPreferredLeaderReconciler {
@@ -425,6 +444,7 @@ func (n *Node) discardDefaultTransport() {
 	n.slotStatusCaller = nil
 	n.defaultTransport = false
 	n.registeredRPCHandlers = nil
+	n.channelRPCGateway = nil
 	n.mu.Unlock()
 	if client != nil {
 		client.Stop()

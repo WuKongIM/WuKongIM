@@ -91,20 +91,14 @@ const (
 	RPCManagerNodeConfig
 	// RPCManagerLatestMessages serves node-local newest-message index reads.
 	RPCManagerLatestMessages
-	// RPCBackupMessageShard captures one bounded committed-message shard directly on its source node.
-	RPCBackupMessageShard
-	// RPCBackupRestoreTarget inspects one node's semantic storage emptiness in explicit restore mode.
-	RPCBackupRestoreTarget
-	// RPCBackupRestoreInstall installs one authenticated logical partition on a restore-mode node.
-	RPCBackupRestoreInstall
-	// RPCManagerBackup routes bounded Manager backup operations to the current Controller leader.
-	RPCManagerBackup
-	// RPCBackupContinuousMessage reads bounded committed Channel cuts and rows on the source leader.
-	RPCBackupContinuousMessage
-	// RPCBackupContinuousSlot reads bounded metadata logs and Channel metadata on the Slot leader.
-	RPCBackupContinuousSlot
-	// RPCBackupCheckpointReplica transfers plaintext target snapshots from the restore Leader.
-	RPCBackupCheckpointReplica
+	// RPCScheduledBackupMessages exports one bounded committed-message stream.
+	RPCScheduledBackupMessages
+	// RPCScheduledBackupSlot exports one complete logical Hash Slot.
+	RPCScheduledBackupSlot
+	// RPCScheduledBackupRepositoryProbe proves cross-node repository visibility.
+	RPCScheduledBackupRepositoryProbe
+	// RPCScheduledBackupRestore performs one node-local staged restore step.
+	RPCScheduledBackupRestore
 	// RPCOpsMCP serves token-free Manager-to-owner MCP forwarding and bounded pprof.
 	RPCOpsMCP
 	// RPCManagerGoroutines serves node-local managed goroutine snapshots.
@@ -181,20 +175,14 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager node config"
 	case RPCManagerLatestMessages:
 		return "manager latest messages"
-	case RPCBackupMessageShard:
-		return "backup message shard"
-	case RPCBackupRestoreTarget:
-		return "backup restore target"
-	case RPCBackupRestoreInstall:
-		return "backup restore install"
-	case RPCBackupCheckpointReplica:
-		return "backup checkpoint replica"
-	case RPCManagerBackup:
-		return "manager backup"
-	case RPCBackupContinuousMessage:
-		return "backup continuous message"
-	case RPCBackupContinuousSlot:
-		return "backup continuous slot"
+	case RPCScheduledBackupMessages:
+		return "scheduled backup messages"
+	case RPCScheduledBackupSlot:
+		return "scheduled backup slot"
+	case RPCScheduledBackupRepositoryProbe:
+		return "scheduled backup repository probe"
+	case RPCScheduledBackupRestore:
+		return "scheduled backup restore"
 	case RPCOpsMCP:
 		return "operations MCP"
 	case RPCManagerMessageRetention:

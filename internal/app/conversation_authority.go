@@ -80,6 +80,10 @@ type conversationAuthority struct {
 	// beforeActiveMutation is a deterministic test seam between exact-target
 	// validation and the runtime cache mutation. Production wiring leaves it nil.
 	beforeActiveMutation func()
+	restoreGateMu        sync.Mutex
+	restorePaused        bool
+	restoreInflight      int
+	restoreIdle          chan struct{}
 }
 
 // conversationAuthorityAdmissionState tracks in-flight cache mutations for one
@@ -277,6 +281,10 @@ func (a *conversationAuthority) AdmitPatches(ctx context.Context, target convers
 	if a == nil {
 		return nil
 	}
+	if err := a.beginRestoreMutation(); err != nil {
+		return err
+	}
+	defer a.endRestoreMutation()
 	defer func() {
 		a.observeAdmit(err)
 	}()
@@ -308,6 +316,10 @@ func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target con
 	if a == nil {
 		return nil
 	}
+	if err := a.beginRestoreMutation(); err != nil {
+		return err
+	}
+	defer a.endRestoreMutation()
 	defer func() {
 		a.observeAdmit(err)
 	}()
@@ -338,6 +350,13 @@ func (a *conversationAuthority) AdmitActiveBatches(ctx context.Context, groups [
 	if a == nil || len(groups) == 0 {
 		return results
 	}
+	if err := a.beginRestoreMutation(); err != nil {
+		for index := range results {
+			results[index].Err = err
+		}
+		return results
+	}
+	defer a.endRestoreMutation()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -433,6 +452,10 @@ func (a *conversationAuthority) HideConversationsForTarget(ctx context.Context, 
 	if a == nil {
 		return conversationusecase.ErrRouteNotReady
 	}
+	if err := a.beginRestoreMutation(); err != nil {
+		return err
+	}
+	defer a.endRestoreMutation()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -687,6 +710,70 @@ func (a *conversationAuthority) FlushActiveRows(ctx context.Context, limit int) 
 	}
 	result, err := a.active.Flush(ctx, limit)
 	return result, mapConversationActiveError(err)
+}
+
+func (a *conversationAuthority) resetAfterRestore() {
+	if a == nil {
+		return
+	}
+	// Route targets and admission counters remain valid topology state. The
+	// maintenance pause prevents new admissions while the worker drains, so
+	// only the data projection cache must be discarded.
+	a.active.ResetAfterRestore()
+}
+
+func (a *conversationAuthority) pauseForRestore(ctx context.Context) error {
+	if a == nil {
+		return nil
+	}
+	a.restoreGateMu.Lock()
+	a.restorePaused = true
+	idle := a.restoreIdle
+	if a.restoreInflight == 0 {
+		idle = nil
+	}
+	a.restoreGateMu.Unlock()
+	if idle == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-idle:
+		return nil
+	}
+}
+
+func (a *conversationAuthority) resumeAfterRestore() {
+	if a == nil {
+		return
+	}
+	a.restoreGateMu.Lock()
+	a.restorePaused = false
+	a.restoreGateMu.Unlock()
+}
+
+func (a *conversationAuthority) beginRestoreMutation() error {
+	a.restoreGateMu.Lock()
+	defer a.restoreGateMu.Unlock()
+	if a.restorePaused {
+		return conversationusecase.ErrRouteNotReady
+	}
+	if a.restoreInflight == 0 {
+		a.restoreIdle = make(chan struct{})
+	}
+	a.restoreInflight++
+	return nil
+}
+
+func (a *conversationAuthority) endRestoreMutation() {
+	a.restoreGateMu.Lock()
+	defer a.restoreGateMu.Unlock()
+	a.restoreInflight--
+	if a.restoreInflight == 0 && a.restoreIdle != nil {
+		close(a.restoreIdle)
+		a.restoreIdle = nil
+	}
 }
 
 // DrainAuthority marks the target draining and flushes runtime dirty rows for handoff.

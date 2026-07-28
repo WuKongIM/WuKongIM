@@ -24,6 +24,7 @@ type CloseReason string
 
 const (
 	CloseReasonServerStop             CloseReason = "server_stop"
+	CloseReasonMaintenance            CloseReason = "maintenance"
 	CloseReasonPeerClosed             CloseReason = "peer_closed"
 	CloseReasonProtocolError          CloseReason = "protocol_error"
 	CloseReasonInboundOverflow        CloseReason = "inbound_overflow"

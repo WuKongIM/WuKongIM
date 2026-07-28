@@ -105,6 +105,9 @@ type Node struct {
 	defaultTransport bool
 	// defaultChannels reports whether Node constructed channels during Start.
 	defaultChannels bool
+	// channelRPCGateway is registered once per transport server and atomically
+	// follows Channel runtime rebuilds after a restore activation.
+	channelRPCGateway *channels.ServiceGateway
 	// defaultChannelStore owns the Node-created message DB factory.
 	defaultChannelStore *channelstore.MessageDBFactory
 	// channelStoreFactory is the narrow acquisition surface used by local message read facades.
@@ -118,12 +121,6 @@ type Node struct {
 	defaultSlotRuntime *multiraft.Runtime
 	// defaultSlotRaftDB owns the Node-created Slot Raft log store.
 	defaultSlotRaftDB *raftlog.DB
-	// backupMetadataIndex is a rebuildable sparse read index over retained Slot
-	// Raft logs. It is populated only by background continuous capture reads.
-	backupMetadataIndex *backupMetadataLogIndex
-	// backupContinuousChunks bounds oversized backup RPC page reuse to one
-	// encoded page; eviction only causes an authoritative source re-read.
-	backupContinuousChunks backupContinuousChunkCache
 	// defaultSlotMetaDB owns the Node-created Slot metadata store.
 	defaultSlotMetaDB *metadb.DB
 	// defaultSlotProposer adapts the default Slot runtime to the propose service.
@@ -171,12 +168,15 @@ type Node struct {
 	preferredLeaderIntentGeneration *preferredLeaderIntentGeneration
 	watchCancel                     context.CancelFunc
 	watchWG                         sync.WaitGroup
+	channelTickMu                   sync.Mutex
 	channelTickCancel               context.CancelFunc
 	channelTickWG                   sync.WaitGroup
+	channelRetentionMu              sync.Mutex
 	channelRetentionCancel          context.CancelFunc
 	channelRetentionWG              sync.WaitGroup
 	channelRetentionGCMu            sync.Mutex
 	channelRetentionCursor          channelruntime.ChannelKey
+	channelMigrationMu              sync.Mutex
 	channelMigrationCancel          context.CancelFunc
 	channelMigrationWG              sync.WaitGroup
 	// healthReportCancel stops the low-frequency Controller health reporter.
@@ -189,15 +189,10 @@ type Node struct {
 	slotLeaderWG     sync.WaitGroup
 	started          atomic.Bool
 	stopping         atomic.Bool
-	// sourceFenceAdmissionMu linearizes the terminal source fence with the
-	// actual enqueue of ordinary Slot proposals, including forwarded requests.
-	sourceFenceAdmissionMu sync.RWMutex
-	sourceFenced           atomic.Bool
-	// sourceFenceRevision is the first Controller revision carrying the fence.
-	sourceFenceRevision atomic.Uint64
-	// sourceFenceConverged proves all locally admitted Slot and Channel writes
-	// completed before this node reports observing sourceFenceRevision.
-	sourceFenceConverged atomic.Bool
+	// maintenanceAdmissionMu linearizes restore maintenance transitions with
+	// ordinary Slot proposal enqueue, including forwarded requests.
+	maintenanceAdmissionMu sync.RWMutex
+	maintenance            atomic.Bool
 }
 
 // preferredLeaderIntentGeneration linearizes snapshot invalidation against
@@ -221,7 +216,7 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0), messageEventFinishCoalescer: newMessageEventFinishCoalescer(defaultMessageEventFinishCoalesceWindow), backupMetadataIndex: newBackupMetadataLogIndex()}
+	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0), messageEventFinishCoalescer: newMessageEventFinishCoalescer(defaultMessageEventFinishCoalesceWindow)}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)

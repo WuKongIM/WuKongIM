@@ -489,7 +489,7 @@ func TestStartedClusterReconfigureStoppedNodesReplacesConfigEnvironmentAndKeepsE
 			APIAddr:     fmt.Sprintf("127.0.0.1:%d", 7300+index),
 			ManagerAddr: fmt.Sprintf("127.0.0.1:%d", 7400+index),
 			ConfigOverrides: map[string]string{
-				"WK_BACKUP_RESTORE_MODE": "true",
+				"WK_LOG_LEVEL": "debug",
 			},
 		}
 	}
@@ -498,24 +498,24 @@ func TestStartedClusterReconfigureStoppedNodesReplacesConfigEnvironmentAndKeepsE
 		require.NoError(t, os.WriteFile(specs[index].ConfigPath, []byte(rendered), 0o644))
 		specs[index].Env = append(
 			envFromConfig(rendered),
-			"WUKONGIM_BACKUP_E2E_FILE_ROOT=/repository",
+			"EXTERNAL_SENTINEL=preserved",
 		)
 	}
 	cluster := &StartedCluster{Nodes: []StartedNode{{Spec: specs[0]}, {Spec: specs[1]}, {Spec: specs[2]}}}
 
 	require.NoError(t, cluster.ReconfigureStoppedNodes(map[uint64]map[string]string{
-		1: {"WK_BACKUP_RESTORE_MODE": "false"},
-		2: {"WK_BACKUP_RESTORE_MODE": "false"},
-		3: {"WK_BACKUP_RESTORE_MODE": "false"},
+		1: {"WK_LOG_LEVEL": "info"},
+		2: {"WK_LOG_LEVEL": "info"},
+		3: {"WK_LOG_LEVEL": "info"},
 	}))
 
 	for _, node := range cluster.Nodes {
-		require.Contains(t, node.Spec.Env, "WK_BACKUP_RESTORE_MODE=false")
-		require.NotContains(t, node.Spec.Env, "WK_BACKUP_RESTORE_MODE=true")
-		require.Contains(t, node.Spec.Env, "WUKONGIM_BACKUP_E2E_FILE_ROOT=/repository")
+		require.Contains(t, node.Spec.Env, "WK_LOG_LEVEL=info")
+		require.NotContains(t, node.Spec.Env, "WK_LOG_LEVEL=debug")
+		require.Contains(t, node.Spec.Env, "EXTERNAL_SENTINEL=preserved")
 		body, err := os.ReadFile(node.Spec.ConfigPath)
 		require.NoError(t, err)
-		require.Contains(t, string(body), "restore_mode = false")
+		require.Contains(t, string(body), "level = 'info'")
 	}
 }
 

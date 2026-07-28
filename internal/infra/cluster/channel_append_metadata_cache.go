@@ -17,8 +17,9 @@ type ChannelAppendMetadata struct {
 
 // ChannelAppendMetadataCache caches recipient fanout metadata outside the foreground metadata DB path.
 type ChannelAppendMetadataCache struct {
-	mu      sync.RWMutex
-	entries map[channelappend.ChannelID]ChannelAppendMetadata
+	mu         sync.RWMutex
+	generation uint64
+	entries    map[channelappend.ChannelID]ChannelAppendMetadata
 }
 
 // NewChannelAppendMetadataCache creates an empty channel append metadata cache.
@@ -45,6 +46,45 @@ func (c *ChannelAppendMetadataCache) Store(id channelappend.ChannelID, metadata 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries[id] = metadata
+}
+
+// Generation returns the current logical cache generation. A caller that is
+// about to perform an authoritative load can use it to reject a late result
+// after restore switches the underlying database generation.
+func (c *ChannelAppendMetadataCache) Generation() uint64 {
+	if c == nil {
+		return 0
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.generation
+}
+
+// StoreIfGeneration records metadata only when no restore reset occurred
+// after the caller started its authoritative load.
+func (c *ChannelAppendMetadataCache) StoreIfGeneration(id channelappend.ChannelID, metadata ChannelAppendMetadata, generation uint64) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.generation != generation {
+		return false
+	}
+	c.entries[id] = metadata
+	return true
+}
+
+// ResetAfterRestore starts a new logical cache generation and discards all
+// metadata resolved from the previous restored database.
+func (c *ChannelAppendMetadataCache) ResetAfterRestore() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.generation++
+	clear(c.entries)
 }
 
 // Delete removes cached recipient fanout metadata for a channel.

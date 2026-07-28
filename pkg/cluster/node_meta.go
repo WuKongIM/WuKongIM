@@ -416,6 +416,9 @@ func (n *Node) AppendMessageEvent(ctx context.Context, event metadb.MessageEvent
 	if n == nil {
 		return metadb.MessageEventAppendResult{}, ErrNotStarted
 	}
+	if err := n.ensureForeground(); err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
 	event, err := normalizeClusterMessageEventAppend(event)
 	if err != nil {
 		return metadb.MessageEventAppendResult{}, err

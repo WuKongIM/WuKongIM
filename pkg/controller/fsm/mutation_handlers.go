@@ -3,7 +3,6 @@ package fsm
 import (
 	"reflect"
 
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 )
@@ -118,161 +117,18 @@ func (sm *StateMachine) applyReplaceHashSlotTable(next *state.ClusterState, cmd 
 	return validateChanged(next, before, cmd)
 }
 
-func (sm *StateMachine) applyReplaceBackupCoordinationState(next *state.ClusterState, cmd command.Command) ApplyResult {
-	if next.Revision == 0 || cmd.Backup == nil {
+func (sm *StateMachine) applyReplaceScheduledBackupState(next *state.ClusterState, cmd command.Command) ApplyResult {
+	if next.Revision == 0 || cmd.ScheduledBackup == nil {
 		return reject(ReasonInvalidCommand)
 	}
 	before := next.Clone()
-	backup := cmd.Backup.Clone()
-	next.Backup = &backup
+	replacement := cmd.ScheduledBackup.Clone()
+	next.ScheduledBackup = &replacement
 	next.Normalize()
-	if reflect.DeepEqual(before.Backup, next.Backup) {
+	if reflect.DeepEqual(before.ScheduledBackup, next.ScheduledBackup) {
 		return noop(ReasonNoChange)
 	}
-	if !validBackupSourceFenceTransition(before, *next) {
-		*next = before
-		return reject(ReasonInvalidState)
-	}
 	return validateChanged(next, before, cmd)
-}
-
-func validBackupSourceFenceTransition(
-	before state.ClusterState,
-	next state.ClusterState,
-) bool {
-	var previousFence, candidateFence *backupartifact.SourceFenceRecord
-	if before.Backup != nil {
-		previousFence = before.Backup.SourceFence
-	}
-	if next.Backup != nil {
-		candidateFence = next.Backup.SourceFence
-	}
-	if previousFence == nil && candidateFence == nil {
-		return true
-	}
-	if candidateFence == nil ||
-		backupartifact.ValidateSourceFenceRecord(*candidateFence, false) != nil ||
-		!sameBackupStateWithoutSourceFence(before.Backup, next.Backup) {
-		return false
-	}
-	if previousFence == nil {
-		return candidateFence.FenceControllerRevision == before.Revision+1 &&
-			candidateFence.ConvergedAtUnixMillis == 0
-	}
-	if previousFence.ConvergedAtUnixMillis != 0 {
-		return reflect.DeepEqual(previousFence, candidateFence)
-	}
-	expected := *previousFence
-	expected.ConvergedAtUnixMillis = candidateFence.ConvergedAtUnixMillis
-	return candidateFence.ConvergedAtUnixMillis > 0 &&
-		reflect.DeepEqual(expected, *candidateFence)
-}
-
-func sameBackupStateWithoutSourceFence(
-	left, right *state.BackupCoordinationState,
-) bool {
-	normalize := func(value *state.BackupCoordinationState) state.BackupCoordinationState {
-		if value == nil {
-			return state.BackupCoordinationState{}
-		}
-		out := value.Clone()
-		out.SourceFence = nil
-		return out
-	}
-	return reflect.DeepEqual(normalize(left), normalize(right))
-}
-
-func (sm *StateMachine) applyReplaceRestoreCoordinationState(next *state.ClusterState, cmd command.Command) ApplyResult {
-	if next.Revision == 0 || cmd.Restore == nil {
-		return reject(ReasonInvalidCommand)
-	}
-	before := next.Clone()
-	restore := cmd.Restore.Clone()
-	next.Restore = &restore
-	next.Normalize()
-	if reflect.DeepEqual(before.Restore, next.Restore) {
-		return noop(ReasonNoChange)
-	}
-	if !validRestoreActivationTransition(before.Restore, next.Restore) {
-		*next = before
-		return reject(ReasonInvalidState)
-	}
-	return validateChanged(next, before, cmd)
-}
-
-func validRestoreActivationTransition(
-	before, next *state.RestoreCoordinationState,
-) bool {
-	var previousPlan, candidatePlan *state.RestorePlan
-	if before != nil {
-		previousPlan = before.Plan
-	}
-	if next != nil {
-		candidatePlan = next.Plan
-	}
-	if previousPlan != nil &&
-		previousPlan.Status == state.RestoreStatusActivated {
-		return reflect.DeepEqual(previousPlan, candidatePlan)
-	}
-	if previousPlan != nil &&
-		previousPlan.Status == state.RestoreStatusActivating {
-		return candidatePlan != nil &&
-			candidatePlan.Status == state.RestoreStatusActivated &&
-			sameRestoreActivationBase(previousPlan, candidatePlan) &&
-			reflect.DeepEqual(
-				previousPlan.Activation, candidatePlan.Activation,
-			)
-	}
-	if candidatePlan == nil ||
-		candidatePlan.Status != state.RestoreStatusActivating {
-		return candidatePlan == nil ||
-			candidatePlan.Status != state.RestoreStatusActivated
-	}
-	return previousPlan != nil &&
-		previousPlan.Status == state.RestoreStatusVerified &&
-		sameRestoreActivationBase(previousPlan, candidatePlan) &&
-		validRestoreActivationPlanBinding(candidatePlan)
-}
-
-func sameRestoreActivationBase(left, right *state.RestorePlan) bool {
-	if left == nil || right == nil {
-		return left == right
-	}
-	normalize := func(plan *state.RestorePlan) state.RestorePlan {
-		out := *plan
-		out.Status = ""
-		out.UpdatedAtUnixMillis = 0
-		out.ActivatedAtUnixMillis = 0
-		out.StagingCleanupCompletedAtUnixMillis = 0
-		out.Activation = nil
-		return out
-	}
-	return reflect.DeepEqual(normalize(left), normalize(right))
-}
-
-func validRestoreActivationPlanBinding(plan *state.RestorePlan) bool {
-	if plan == nil || plan.Activation == nil ||
-		backupartifact.ValidateRestoreActivationEvidence(*plan.Activation) != nil {
-		return false
-	}
-	evidence := plan.Activation
-	switch evidence.Kind {
-	case backupartifact.RestoreActivationSourceFence:
-		receipt := evidence.SourceFenceReceipt
-		return receipt != nil &&
-			receipt.RestorePlanID == plan.ID &&
-			receipt.CheckpointID == plan.CheckpointID &&
-			receipt.CheckpointSHA256 == plan.CheckpointSHA256 &&
-			receipt.SourceClusterID == plan.SourceClusterID &&
-			receipt.SourceGeneration == plan.SourceGeneration &&
-			receipt.TargetClusterID == plan.TargetClusterID &&
-			receipt.TargetGeneration == plan.TargetGeneration
-	case backupartifact.RestoreActivationBreakGlass:
-		return evidence.BreakGlass != nil &&
-			evidence.BreakGlass.RestorePlanID == plan.ID
-	default:
-		return false
-	}
 }
 
 func (sm *StateMachine) applyReplaceOpsMCPState(next *state.ClusterState, cmd command.Command) ApplyResult {

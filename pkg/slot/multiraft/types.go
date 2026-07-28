@@ -213,17 +213,18 @@ type Storage interface {
 	MarkApplied(ctx context.Context, index uint64) error
 }
 
+// ExternalSnapshotStorage supports controlled replacement of a recovery
+// snapshot at the exact already-applied index. Maintenance restore uses this
+// after replacing FSM state outside the proposal path. Ordinary Save must keep
+// rejecting a different same-index snapshot.
+type ExternalSnapshotStorage interface {
+	ReplaceSnapshot(context.Context, raftpb.Snapshot) error
+}
+
 // LogRangeSizer estimates retained bytes for a half-open Raft entry interval.
 // Implementations may conservatively include overlapping storage blocks.
 type LogRangeSizer interface {
 	LogRangeBytes(context.Context, uint64, uint64) (uint64, error)
-}
-
-// RetainedLogStorage prunes backup-readable entries independently from the
-// recovery snapshot. Implementations must never delete beyond the durable
-// snapshot index even when through is newer.
-type RetainedLogStorage interface {
-	TrimRetainedLog(context.Context, uint64) error
 }
 
 // ConfigAppliedIndexStorage persists the latest applied Raft membership entry index.
@@ -246,11 +247,6 @@ type PersistentState struct {
 	HardState *raftpb.HardState
 	Entries   []raftpb.Entry
 	Snapshot  *raftpb.Snapshot
-	// RetainLogAfter optionally preserves persisted entries strictly after this
-	// index when Snapshot is saved. The recovery snapshot still represents its
-	// own Metadata.Index; the older entries are a backup-read archive and are
-	// never replayed into the restored state machine.
-	RetainLogAfter *uint64
 }
 
 type StateMachine interface {
@@ -275,8 +271,10 @@ type CapturedHashSlotSnapshot struct {
 	AppliedIndex uint64
 	// CommitIndex is the Raft commit boundary observed atomically before Reader was opened.
 	CommitIndex uint64
-	// Term is the Raft term at AppliedIndex.
-	Term uint64
+	// AppliedTerm is the Raft log term at AppliedIndex.
+	AppliedTerm uint64
+	// LeaderTerm is the current Raft leader term that authorized the capture.
+	LeaderTerm uint64
 	// CapturedAtUnixMillis is the UTC watermark observed only after commit and apply matched.
 	CapturedAtUnixMillis int64
 	// Reader streams the pinned snapshot and must be closed by the caller.

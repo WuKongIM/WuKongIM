@@ -23,8 +23,8 @@ storage, or routing branches that bypass cluster semantics.
 | `app` | Single composition root for config, dependency wiring, and lifecycle. |
 | `access/api` | Health, readiness, bench/v1 target HTTP surface, legacy `/route` address lookup, and legacy-compatible channel/user/message/conversation/CMD sync HTTP adapters. |
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
-| `access/manager` | Manager HTTP adapter for diagnostics and read-only management views. |
-| `access/node` | Node RPC adapter for presence, conversation authority, delivery, and channel append calls between internal nodes. |
+| `access/manager` | Manager HTTP adapter for diagnostics, management views, and authenticated backup/restore operations. |
+| `access/node` | Node RPC adapter for presence, conversation authority, delivery, channel append, scheduled backup, and staged restore calls between internal nodes. |
 | `log` | Zap/lumberjack-backed application logger for the internal composition root. |
 | `observability/diagnostics` | Bounded node-local diagnostics events, trace indexing, runtime tracking rules, and sendtrace context helpers. |
 | `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
@@ -35,12 +35,16 @@ storage, or routing branches that bypass cluster semantics.
 | `usecase/message` | Entry-agnostic SEND facade and compatible channel message sync. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `usecase/user` | Entry-agnostic user token, device quit, online status, and system UID compatibility orchestration. |
+| `usecase/backup` | Single-plan scheduled full-backup admission, archive management, and resumable maintenance restore orchestration. |
 | `runtime/conversationactive` | Kind-aware UID-owned active conversation cache and flush runtime. |
 | `runtime/delivery` | Node-local online fanout, owner push, and retry runtime. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
 | `runtime/channelappend` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
+| `runtime/backup` | Leader-only schedule evaluation plus portable full-archive stream publication. |
 | `infra/cluster` | Adapter from channel append, channel/user metadata, delivery, presence, conversation, and CMD sync ports to `pkg/cluster` / `pkg/channel`. |
+| `infra/backup` | File/S3 repository adapters, cluster export coordination, archive finalization, and crash-safe node-local staged restore. |
+| `contracts/backup` | Bounded Controller/RPC DTOs for one scheduled full-backup subsystem. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
 

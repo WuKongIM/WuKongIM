@@ -112,7 +112,7 @@ func (n *Node) ensureDefaultSlots() error {
 	n.defaultSlotRuntime = runtime
 	n.defaultSlotRaftDB = raftDB
 	n.defaultSlotMetaDB = metaDB
-	n.defaultSlotProposer = defaultSlotProposer{runtime: runtime, acquireAdmission: n.acquireSourceWriteAdmission}
+	n.defaultSlotProposer = defaultSlotProposer{runtime: runtime, acquireAdmission: n.acquireWriteAdmission}
 	n.slotStatusRuntime = runtime
 	n.registerDefaultSlotHandlers(runtime)
 	n.defaultSlots = true
@@ -131,13 +131,11 @@ func (n *Node) registerDefaultSlotHandlers(runtime *multiraft.Runtime) {
 		return
 	}
 	n.transportServer.Register(clusternet.MsgSlotRaftBatch, slotRaftBatchHandler{runtime: runtime})
-	n.transportServer.Register(clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(defaultSlotProposer{runtime: runtime, acquireAdmission: n.acquireSourceWriteAdmission}))
+	n.transportServer.Register(clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(defaultSlotProposer{runtime: runtime, acquireAdmission: n.acquireWriteAdmission}))
 	n.transportServer.Register(clusternet.RPCPluginBindingScan, pluginBindingScanHandler{node: n})
 	n.transportServer.Register(clusternet.RPCSlotStatus, slotStatusHandler{runtime: runtime})
 	n.transportServer.Register(clusternet.RPCChannelMigrationMeta, channelMigrationMetaHandler{node: n})
 	n.transportServer.Register(clusternet.RPCMessageEventAppend, messageEventAppendRPCHandler{node: n})
-	n.transportServer.Register(clusternet.RPCBackupContinuousMessage, backupContinuousMessageRPCHandler{node: n})
-	n.transportServer.Register(clusternet.RPCBackupContinuousSlot, backupContinuousSlotRPCHandler{node: n})
 }
 
 // noopSlotTransport is sufficient for the default single-node Slot runtime.

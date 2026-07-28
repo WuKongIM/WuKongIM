@@ -229,41 +229,6 @@ func TestMemorySaveSnapshotTrimsCoveredEntries(t *testing.T) {
 	}
 }
 
-func TestMemorySnapshotPreservesAndTrimsBackupLogArchive(t *testing.T) {
-	ctx := context.Background()
-	store := NewMemory()
-	entries := []raftpb.Entry{
-		{Index: 1, Term: 1}, {Index: 2, Term: 1}, {Index: 3, Term: 2},
-	}
-	if err := store.Save(ctx, multiraft.PersistentState{Entries: entries}); err != nil {
-		t.Fatalf("Save(entries) error = %v", err)
-	}
-	snapshot := raftpb.Snapshot{
-		Data: []byte("state-through-three"),
-		Metadata: raftpb.SnapshotMetadata{
-			Index: 3, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}},
-		},
-	}
-	retainAfter := uint64(1)
-	if err := store.Save(ctx, multiraft.PersistentState{
-		Snapshot: &snapshot, RetainLogAfter: &retainAfter,
-	}); err != nil {
-		t.Fatalf("Save(retained snapshot) error = %v", err)
-	}
-	if first, _ := store.FirstIndex(ctx); first != 2 {
-		t.Fatalf("FirstIndex() = %d, want 2", first)
-	}
-	if got, _ := store.Snapshot(ctx); got.Metadata.Index != 3 {
-		t.Fatalf("Snapshot().Index = %d, want 3", got.Metadata.Index)
-	}
-	if err := store.(multiraft.RetainedLogStorage).TrimRetainedLog(ctx, 2); err != nil {
-		t.Fatalf("TrimRetainedLog() error = %v", err)
-	}
-	if first, _ := store.FirstIndex(ctx); first != 3 {
-		t.Fatalf("FirstIndex(after trim) = %d, want 3", first)
-	}
-}
-
 func TestMemoryInitialStateDerivesConfStateFromCommittedEntriesWithoutSnapshot(t *testing.T) {
 	ctx := context.Background()
 	store := NewMemory()

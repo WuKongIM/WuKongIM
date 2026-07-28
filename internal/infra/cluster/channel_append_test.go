@@ -91,6 +91,22 @@ func TestChannelAppendClientCachesRecipientMetadata(t *testing.T) {
 	}
 }
 
+func TestChannelAppendMetadataCacheRejectsLatePreRestoreLoad(t *testing.T) {
+	cache := NewChannelAppendMetadataCache()
+	id := channelappend.ChannelID{ID: "room", Type: 2}
+	generation := cache.Generation()
+
+	cache.ResetAfterRestore()
+	if cache.StoreIfGeneration(id, ChannelAppendMetadata{
+		Large: true,
+	}, generation) {
+		t.Fatal("StoreIfGeneration(old generation) = true, want false")
+	}
+	if _, ok := cache.Lookup(id); ok {
+		t.Fatal("late pre-restore metadata repopulated the cache")
+	}
+}
+
 func TestChannelAppendClientAllowsMissingChannelMetadata(t *testing.T) {
 	channelID := channelappend.ChannelID{ID: "room", Type: 2}
 	client := NewChannelAppendClient(&channelAppendNodeForTest{

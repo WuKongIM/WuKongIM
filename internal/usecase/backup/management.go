@@ -1,0 +1,422 @@
+package backup
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
+)
+
+// ArchiveRepositoryProvider resolves one durable plan repository.
+type ArchiveRepositoryProvider interface {
+	Open(context.Context, backupcontract.StoreConfig) (backupartifact.ArchiveStore, error)
+}
+
+// S3CredentialSealer protects credentials before Controller publication.
+type S3CredentialSealer interface {
+	SealS3Credentials(accessKey string, secretKey string) ([]byte, error)
+}
+
+// SharedRepositoryProbe lets app wiring prove file visibility across every
+// active data node before plan enablement.
+type SharedRepositoryProbe interface {
+	ProbeRepository(
+		context.Context,
+		backupcontract.StoreConfig,
+		backupartifact.ArchiveStore,
+	) error
+}
+
+// ManagementOptions configures the Manager-facing backup application service.
+type ManagementOptions struct {
+	Scheduled  *ScheduledService
+	Repository ArchiveRepositoryProvider
+	Sealer     S3CredentialSealer
+	Probe      SharedRepositoryProbe
+	ClusterID  string
+	Now        func() time.Time
+}
+
+// ManagementService owns Manager backup configuration and archive operations.
+type ManagementService struct {
+	scheduled  *ScheduledService
+	repository ArchiveRepositoryProvider
+	sealer     S3CredentialSealer
+	probe      SharedRepositoryProbe
+	clusterID  string
+	now        func() time.Time
+}
+
+// Dashboard is the single Manager read model for plan, task, and archive state.
+type Dashboard struct {
+	State                 backupcontract.SystemState `json:"state"`
+	Archives              []ArchiveSummary           `json:"archives"`
+	CredentialsConfigured bool                       `json:"credentials_configured"`
+	NextScheduledUnixMS   int64                      `json:"next_scheduled_unix_ms,omitempty"`
+	RepositoryError       string                     `json:"repository_error,omitempty"`
+}
+
+// ConfigureManagementRequest contains a plan plus an optional replacement S3 credential.
+type ConfigureManagementRequest struct {
+	ConfigureRequest
+	S3AccessKey string
+	S3SecretKey string
+}
+
+// NewManagementService creates the Manager-facing backup application service.
+func NewManagementService(options ManagementOptions) (*ManagementService, error) {
+	if options.Scheduled == nil || options.Repository == nil ||
+		options.Sealer == nil || options.Probe == nil ||
+		strings.TrimSpace(options.ClusterID) == "" || options.Now == nil {
+		return nil, fmt.Errorf("%w: backup management dependencies", ErrInvalidRequest)
+	}
+	return &ManagementService{
+		scheduled: options.Scheduled, repository: options.Repository,
+		sealer: options.Sealer, probe: options.Probe,
+		clusterID: strings.TrimSpace(options.ClusterID), now: options.Now,
+	}, nil
+}
+
+// Dashboard returns Controller state and the current repository inventory.
+func (s *ManagementService) Dashboard(ctx context.Context) (Dashboard, error) {
+	state, err := s.scheduled.State(ctx)
+	if err != nil {
+		return Dashboard{}, err
+	}
+	result := Dashboard{
+		State: state.Clone(), Archives: []ArchiveSummary{},
+	}
+	if state.Plan == nil {
+		return result, nil
+	}
+	if state.Plan.Enabled {
+		location, schedule, scheduleErr := parsePlanSchedule(*state.Plan)
+		if scheduleErr == nil {
+			now := s.now().In(location)
+			cursor := state.Plan.ScheduleCursorUnixMillis
+			if cursor <= 0 {
+				cursor = state.Plan.CreatedUnixMillis
+			}
+			next := schedule.Next(time.UnixMilli(cursor).In(location))
+			for range 10_000 {
+				if next.After(now) {
+					result.NextScheduledUnixMS = next.UTC().UnixMilli()
+					break
+				}
+				next = schedule.Next(next)
+			}
+		}
+	}
+	result.CredentialsConfigured =
+		len(state.Plan.Store.CredentialCiphertext) > 0
+	result.State.Plan.Store.CredentialCiphertext = nil
+	store, err := s.repository.Open(ctx, state.Plan.Store)
+	if err != nil {
+		result.RepositoryError = "repository_unavailable"
+		return result, nil
+	}
+	result.Archives, err = ListArchives(ctx, store)
+	if err != nil {
+		result.Archives = []ArchiveSummary{}
+		result.RepositoryError = "repository_unavailable"
+	}
+	return result, nil
+}
+
+// Configure validates repository access, binds its identity, then atomically
+// publishes the plan and optional initial job.
+func (s *ManagementService) Configure(
+	ctx context.Context,
+	request ConfigureManagementRequest,
+) (ConfigureResult, error) {
+	current, err := s.scheduled.State(ctx)
+	if err != nil {
+		return ConfigureResult{}, err
+	}
+	storeConfig := cloneStoreConfig(request.Store)
+	switch storeConfig.Kind {
+	case backupcontract.StoreKindFile:
+		storeConfig = backupcontract.StoreConfig{Kind: backupcontract.StoreKindFile}
+	case backupcontract.StoreKindS3:
+		accessKey := strings.TrimSpace(request.S3AccessKey)
+		if accessKey != "" || request.S3SecretKey != "" {
+			if accessKey == "" || request.S3SecretKey == "" {
+				return ConfigureResult{}, ErrInvalidRequest
+			}
+			ciphertext, err := s.sealer.SealS3Credentials(
+				accessKey, request.S3SecretKey,
+			)
+			if err != nil {
+				return ConfigureResult{}, err
+			}
+			storeConfig.CredentialCiphertext = ciphertext
+			storeConfig.CredentialRevision++
+			if current.Plan != nil {
+				storeConfig.CredentialRevision =
+					current.Plan.Store.CredentialRevision + 1
+			}
+		} else if current.Plan != nil &&
+			current.Plan.Store.Kind == backupcontract.StoreKindS3 {
+			storeConfig.CredentialCiphertext = append(
+				[]byte(nil), current.Plan.Store.CredentialCiphertext...,
+			)
+			storeConfig.CredentialRevision =
+				current.Plan.Store.CredentialRevision
+		}
+		if len(storeConfig.CredentialCiphertext) == 0 {
+			return ConfigureResult{}, ErrInvalidRequest
+		}
+	default:
+		return ConfigureResult{}, ErrInvalidRequest
+	}
+	request.ConfigureRequest.Store = storeConfig
+	if current.Plan != nil && current.Plan.Enabled && !request.Enabled &&
+		equalPlanConfiguration(*current.Plan, request.ConfigureRequest) {
+		return s.scheduled.Configure(ctx, request.ConfigureRequest)
+	}
+	store, err := s.repository.Open(ctx, storeConfig)
+	if err != nil {
+		return ConfigureResult{}, err
+	}
+	if err := s.probe.ProbeRepository(ctx, storeConfig, store); err != nil {
+		return ConfigureResult{}, err
+	}
+	if _, err := backupartifact.EnsureRepository(
+		ctx, store, s.clusterID, s.now().UTC().UnixMilli(),
+	); err != nil {
+		return ConfigureResult{}, normalizeArtifactError(err)
+	}
+	return s.scheduled.Configure(ctx, request.ConfigureRequest)
+}
+
+// TestRepository validates credentials and read/write/delete access without saving a plan.
+func (s *ManagementService) TestRepository(
+	ctx context.Context,
+	request ConfigureManagementRequest,
+) error {
+	current, err := s.scheduled.State(ctx)
+	if err != nil {
+		return err
+	}
+	config := cloneStoreConfig(request.Store)
+	if config.Kind == backupcontract.StoreKindS3 {
+		if request.S3AccessKey != "" || request.S3SecretKey != "" {
+			ciphertext, err := s.sealer.SealS3Credentials(
+				strings.TrimSpace(request.S3AccessKey), request.S3SecretKey,
+			)
+			if err != nil {
+				return err
+			}
+			config.CredentialCiphertext = ciphertext
+		} else if current.Plan != nil {
+			config.CredentialCiphertext = append(
+				[]byte(nil), current.Plan.Store.CredentialCiphertext...,
+			)
+		}
+	}
+	store, err := s.repository.Open(ctx, config)
+	if err != nil {
+		return err
+	}
+	return normalizeArtifactError(s.probe.ProbeRepository(ctx, config, store))
+}
+
+// StartBackup admits one immediate manual full backup.
+func (s *ManagementService) StartBackup(
+	ctx context.Context,
+) (backupcontract.BackupJob, error) {
+	return s.scheduled.StartBackup(ctx, StartBackupRequest{
+		Trigger: backupcontract.TriggerManual,
+	})
+}
+
+// CancelBackup requests cancellation of the current job.
+func (s *ManagementService) CancelBackup(ctx context.Context, jobID string) error {
+	return s.scheduled.RequestBackupCancellation(ctx, jobID)
+}
+
+// Archive returns one published archive detail.
+func (s *ManagementService) Archive(
+	ctx context.Context,
+	archiveID string,
+) (ArchiveDetail, error) {
+	store, err := s.currentStore(ctx)
+	if err != nil {
+		return ArchiveDetail{}, err
+	}
+	detail, err := ArchiveByID(ctx, store, archiveID)
+	return detail, normalizeArtifactError(err)
+}
+
+// VerifyArchive fully verifies one published archive.
+func (s *ManagementService) VerifyArchive(
+	ctx context.Context,
+	archiveID string,
+) (detail ArchiveDetail, resultErr error) {
+	operation, err := s.scheduled.AcquireArchiveOperation(
+		ctx, "verify", archiveID,
+	)
+	if err != nil {
+		return ArchiveDetail{}, err
+	}
+	defer func() {
+		resultErr = errors.Join(
+			resultErr,
+			s.releaseArchiveOperation(operation.Token),
+		)
+	}()
+	store, err := s.currentStore(ctx)
+	if err != nil {
+		return ArchiveDetail{}, err
+	}
+	detail, err = VerifyArchive(ctx, store, archiveID)
+	if err == nil || !IsArchiveIntegrityFailure(err) {
+		return detail, normalizeArtifactError(err)
+	}
+	markErr := MarkArchiveCorrupt(ctx, store, archiveID, s.now())
+	return ArchiveDetail{}, errors.Join(ErrArchiveCorrupt, err, markErr)
+}
+
+// HoldArchive creates or removes one retention hold marker.
+func (s *ManagementService) HoldArchive(
+	ctx context.Context,
+	archiveID string,
+	held bool,
+	note string,
+) (summary ArchiveSummary, resultErr error) {
+	operation, err := s.scheduled.AcquireArchiveOperation(
+		ctx, "hold", archiveID,
+	)
+	if err != nil {
+		return ArchiveSummary{}, err
+	}
+	defer func() {
+		resultErr = errors.Join(
+			resultErr,
+			s.releaseArchiveOperation(operation.Token),
+		)
+	}()
+	store, err := s.currentStore(ctx)
+	if err != nil {
+		return ArchiveSummary{}, err
+	}
+	summary, err = SetArchiveHold(ctx, store, archiveID, held, note, s.now())
+	return summary, normalizeArtifactError(err)
+}
+
+// DeleteArchive removes one unheld archive.
+func (s *ManagementService) DeleteArchive(
+	ctx context.Context,
+	archiveID string,
+) (resultErr error) {
+	operation, err := s.scheduled.AcquireArchiveOperation(
+		ctx, "delete", archiveID,
+	)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		resultErr = errors.Join(
+			resultErr,
+			s.releaseArchiveOperation(operation.Token),
+		)
+	}()
+	state, err := s.scheduled.State(ctx)
+	if err != nil {
+		return err
+	}
+	if state.ActiveRestore != nil && state.ActiveRestore.BackupID == archiveID {
+		return ErrArchiveInUse
+	}
+	store, err := s.currentStore(ctx)
+	if err != nil {
+		return err
+	}
+	archives, err := ListArchives(ctx, store)
+	if err != nil {
+		return err
+	}
+	healthyCount := 0
+	targetHealthy := false
+	for _, archive := range archives {
+		if archive.Health == ArchiveHealthHealthy {
+			healthyCount++
+			if archive.ID == archiveID {
+				targetHealthy = true
+			}
+		}
+	}
+	if targetHealthy && healthyCount <= 1 {
+		return ErrLastUsableArchive
+	}
+	return normalizeArtifactError(DeleteArchive(ctx, store, archiveID))
+}
+
+func (s *ManagementService) releaseArchiveOperation(token string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return s.scheduled.ReleaseArchiveOperation(ctx, token)
+}
+
+func (s *ManagementService) currentStore(
+	ctx context.Context,
+) (backupartifact.ArchiveStore, error) {
+	state, err := s.scheduled.State(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if state.Plan == nil {
+		return nil, ErrDisabled
+	}
+	return s.repository.Open(ctx, state.Plan.Store)
+}
+
+// DirectRepositoryProbe verifies bounded read/write/delete behavior. App
+// wiring may wrap it with the cross-node shared-file visibility protocol.
+type DirectRepositoryProbe struct {
+	NewID func() string
+}
+
+// ProbeRepository performs a bounded nonce round trip.
+func (p DirectRepositoryProbe) ProbeRepository(
+	ctx context.Context,
+	_ backupcontract.StoreConfig,
+	store backupartifact.ArchiveStore,
+) error {
+	if p.NewID == nil || store == nil {
+		return ErrInvalidRequest
+	}
+	key := "probes/" + p.NewID()
+	body := []byte("wukongim-backup-probe")
+	if err := store.Put(ctx, backupartifact.PutObject{
+		Key: key, Body: bytes.NewReader(body),
+		ExpectedBytes: uint64(len(body)), IfAbsent: true,
+	}); err != nil {
+		return err
+	}
+	defer store.Delete(ctx, key)
+	reader, object, err := store.Open(ctx, key)
+	if err != nil {
+		return err
+	}
+	loaded, readErr := io.ReadAll(io.LimitReader(reader, int64(len(body))+1))
+	closeErr := reader.Close()
+	if readErr != nil {
+		return readErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if object.Bytes != uint64(len(body)) || !bytes.Equal(loaded, body) {
+		return fmt.Errorf("backup usecase: repository probe mismatch")
+	}
+	return store.Delete(ctx, key)
+}
+
+var _ SharedRepositoryProbe = DirectRepositoryProbe{}

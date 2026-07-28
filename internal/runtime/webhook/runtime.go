@@ -132,8 +132,10 @@ func (r *Runtime) Start(ctx context.Context) error {
 	switch r.state {
 	case runtimeStateStarted:
 		return nil
-	case runtimeStateStopping, runtimeStateStopped:
+	case runtimeStateStopping:
 		return workqueue.ErrClosed
+	case runtimeStateStopped:
+		r.stopCh = make(chan struct{})
 	}
 	r.ensureStopChLocked()
 

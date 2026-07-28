@@ -4,10 +4,10 @@
 
 - `internal` is the promoted send-to-sendack kernel: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
 - `internal` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
-- Cluster backup is a signed logical hash-slot/channel cut stored in two immutable repositories; it never copies old node directories or Raft/runtime state, and restore always targets a fresh generation with the same `hash_slot_count`.
-- Restore rebuilds `ChannelRuntimeMeta` from the signed Channel index: preserve Channel epoch and retention floor, but derive leader, replicas, ISR, and MinISR from the successor topology before activation.
-- With automatic backup enabled, permanent message retention must commit its encrypted dual-repository erasure-ledger entry before advancing Slot metadata; deterministic signed event receipts preserve idempotency, GC protects the Controller-pending entry, and restore always replays then physically verifies the plan-pinned current ledger even when restoring an older point.
-- Manager backup operations are Controller-Leader-fenced and available from every Manager node; the Web UI never executes restore, and is forcibly read-only when Manager authentication is disabled.
+- Backup has one Manager-owned plan in Controller state; it is configured only through Manager, supports Cron or `@every`, and has no TOML/environment compatibility path.
+- Every run publishes one independent full 256-hash-slot archive to the shared file repository under `<data_dir>/backup-repository` or one S3-compatible repository. `COMPLETE` makes an archive visible, `HOLD` exempts it from retention, and S3 credentials are encrypted in Controller state while archive payloads are not encrypted.
+- Restore is a same-identity, current-cluster maintenance operation: business traffic stops, every current replica stages and verifies the full archive, verified logical streams activate only after all peers acknowledge, and an all-replica rollback image restores the original state if activation fails. `v1` does not adopt a repository identity into a separately bootstrapped cluster.
+- Manager backup operations are Controller-Leader-fenced and available from every Manager node. The single Web page configures backup, manages archives, and starts restore; restore requires exact `cluster.restore:w`, current credentials, and exact archive confirmation. Manager is read-only when authentication is disabled.
 - `internal/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - Browser-facing manager APIs encode 64-bit `message_id` values as decimal JSON strings; web filters, keys, and display code must keep them as strings end to end.
 - The Manager Web production bundle is generated into `internal/access/manager/webui/dist`, committed in full, and embedded in `cmd/wukongim`; production must not require a separate web process or a frontend build during ordinary Go compilation.
@@ -221,7 +221,6 @@
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
 - Prebuilt binaries passed through `WK_E2E_BINARY` must be built with `go build -tags=e2e`; tagged product substitutes remain dormant unless each scenario also supplies its explicit harness environment.
 - Default local E2E binaries use one repository/GOOS/GOARCH-scoped user-cache path and are atomically replaced; do not create process-specific binary cache roots.
-- Backup sustained-outage qualification uses three Slot replicas and two Channel replicas, keeps either a Controller Leader/Slot leader or a non-Controller-Leader Slot leader offline, and requires surviving nodes to recover readiness and verify the exact restore point.
 - E2E loopback allocation leases one non-overlapping port block per `go test` process with a process-lifetime sentinel listener; per-address probes still skip unrelated host listeners.
 
 ### Worktree testing

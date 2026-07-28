@@ -22,6 +22,10 @@ type channelSubscriberLookupNode interface {
 	HasChannelSubscribers(context.Context, string, int64) (bool, error)
 }
 
+type restoreChannelSubscriberNode interface {
+	ListRestoreChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
+}
+
 // ChannelMembershipNode exposes UID-owned reverse membership projection operations.
 type ChannelMembershipNode interface {
 	UpsertUserChannelMemberships(context.Context, string, int64, []string, uint64, int64) error
@@ -100,6 +104,23 @@ func (s *ChannelMetadataStore) ListChannelSubscribers(ctx context.Context, chann
 		return nil, "", true, nil
 	}
 	return s.node.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, limit)
+}
+
+// ListChannelSubscribersForRestore reads the restored local Slot metadata
+// while Controller maintenance still rejects ordinary metadata requests.
+func (s *ChannelMetadataStore) ListChannelSubscribersForRestore(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
+	if s == nil || s.node == nil {
+		return nil, "", true, nil
+	}
+	node, ok := s.node.(restoreChannelSubscriberNode)
+	if !ok {
+		return s.node.ListChannelSubscribersPage(
+			ctx, channelID, channelType, afterUID, limit,
+		)
+	}
+	return node.ListRestoreChannelSubscribersPage(
+		ctx, channelID, channelType, afterUID, limit,
+	)
 }
 
 // ContainsChannelSubscriber performs a subscriber point lookup for send authorization.

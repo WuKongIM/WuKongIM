@@ -100,6 +100,16 @@ import {
   getBusinessChannel,
   getBusinessChannelMembers,
   getBusinessChannels,
+  getBackupDashboard,
+  saveBackupPlan,
+  testBackupRepository,
+  startBackupJob,
+  cancelBackupJob,
+  verifyBackupArchive,
+  setBackupArchiveHold,
+  deleteBackupArchive,
+  startBackupRestore,
+  cancelBackupRestore,
   listDiagnosticsTrackingRules,
   resetUserToken,
   removeBusinessChannelMembers,
@@ -2445,6 +2455,65 @@ describe("manager api client", () => {
       error: "scale_in_blocked",
       message: "blocked",
       report,
+    })
+  })
+
+  it("calls the scheduled full-backup and in-place restore endpoints", async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(JSON.stringify({ state: {}, archives: [] }), { status: 200 }))
+    const plan = {
+      expected_revision: 3,
+      enabled: true,
+      store: { kind: "file" as const },
+      cron: "@every 12h",
+      time_zone: "Asia/Shanghai",
+      retention_count: 7,
+      rate_mib_per_second: 50,
+      workers_per_node: 1,
+      max_duration_hours: 12,
+    }
+
+    await getBackupDashboard()
+    await saveBackupPlan(plan)
+    await testBackupRepository(plan)
+    await startBackupJob()
+    await cancelBackupJob("job 1")
+    await verifyBackupArchive("archive/1")
+    await setBackupArchiveHold("archive/1", true, "operator hold")
+    await deleteBackupArchive("archive/1")
+    await startBackupRestore("archive/1", {
+      username: "admin",
+      password: "secret",
+      confirmation: "RESTORE archive/1",
+    })
+    await cancelBackupRestore("restore 1")
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      "/manager/backups",
+      "/manager/backups/plan",
+      "/manager/backups/repository/test",
+      "/manager/backups/jobs",
+      "/manager/backups/jobs/job%201/cancel",
+      "/manager/backups/archives/archive%2F1/verify",
+      "/manager/backups/archives/archive%2F1/hold",
+      "/manager/backups/archives/archive%2F1",
+      "/manager/backups/archives/archive%2F1/restore",
+      "/manager/backups/restores/restore%201/cancel",
+    ])
+    expect(fetchMock.mock.calls.map((call) =>
+      (call[1] as { method?: string } | undefined)?.method,
+    )).toEqual([
+      undefined, "PUT", "POST", "POST", "POST",
+      "POST", "PUT", "DELETE", "POST", "POST",
+    ])
+    expect(JSON.parse((fetchMock.mock.calls[1]?.[1] as { body: string }).body)).toEqual(plan)
+    expect(JSON.parse((fetchMock.mock.calls[7]?.[1] as { body: string }).body)).toEqual({
+      confirmation: "DELETE archive/1",
+    })
+    expect(JSON.parse((fetchMock.mock.calls[8]?.[1] as { body: string }).body)).toEqual({
+      username: "admin",
+      password: "secret",
+      confirmation: "RESTORE archive/1",
     })
   })
 

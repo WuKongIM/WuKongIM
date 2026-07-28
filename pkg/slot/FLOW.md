@@ -228,13 +228,12 @@ Channel runtime cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/
 本地日志压缩:
   ① processReady apply + MarkApplied + RawNode.Advance 之后检查 applied delta
   ② 达到阈值时调用 StateMachine.Snapshot 导出当前物理 Slot 拥有的 hash slot 数据
-  ③ 始终用当前 applied index/term/conf state 写入恢复 snapshot；不能把当前 FSM 状态标记成更旧的 backup floor index
-  ④ raftlog 独立保留所有 active backup floor 的最小值之后的 entries；恢复 snapshot 可继续前进，保留归档只裁剪到 floor
-  ⑤ 发生 Raft membership change 且已有 snapshot 时，会刷新 snapshot 到最新 conf state，保证后续新 learner 可以安装 snapshot 追赶
-  ⑥ Runtime.CompactLog 可由运维入口手动触发同一节点本地压缩，忽略自动阈值但仍遵守 compaction enabled 配置
-  ⑦ 启动时先 Restore 当前 snapshot，再只加载并 replay snapshot index 之后的 committed entries；更旧的 backup 归档不会进入 Raft 内存或再次 apply
-  ⑧ backup 可按 ID 设置节点本地 retention floor；set/advance/release、其归档裁剪以及自动/手动压缩的 floor 读取到持久化都由独立 pin 操作门串行化，取消等待不会晚到修改 pin
-  ⑨ Slot worker 只尝试非阻塞取得该门；pin I/O 正在运行时跳过本轮压缩而不阻塞 apply。pin mutation 一旦生效即返回成功，后续裁剪失败记录 dirty cleanup；每 Slot 最多一个后台重试器按有界退避和最新 safe floor 清理，成功压缩也可清除，Slot close 会取消并等待在途 pin/cleanup 操作排空
+  ③ 始终用当前 applied index/term/conf state 写入 snapshot
+  ④ 发生 Raft membership change 且已有 snapshot 时，刷新 snapshot 到最新 conf state，保证新 learner 可安装 snapshot 追赶
+  ⑤ Runtime.CompactLog 可由运维入口手动触发同一节点本地压缩，忽略自动阈值但仍遵守 compaction enabled 配置
+  ⑥ Runtime.InstallExternalStateSnapshot 用于维护期恢复：即使普通压缩关闭或 index 未前进，也在当前 applied boundary 强制替换持久化 snapshot
+  ⑦ Runtime.ReloadSlot 仅在维护栅栏内退役并重建该 Slot，使内存 Raft/FSM 从新 snapshot 恢复
+  ⑧ 启动时先 Restore 当前 snapshot，再只加载并 replay snapshot index 之后的 committed entries
 ```
 
 备份读取使用独立的 `Runtime.CaptureHashSlotSnapshot` 控制动作。Slot worker

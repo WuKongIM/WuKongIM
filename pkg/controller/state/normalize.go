@@ -39,33 +39,34 @@ func (s *ClusterState) Normalize() {
 		sort.Slice(s.Tasks[i].ObservedLearners, func(a, b int) bool { return s.Tasks[i].ObservedLearners[a] < s.Tasks[i].ObservedLearners[b] })
 		normalizeTaskProgress(&s.Tasks[i])
 	}
-	if s.Backup != nil {
-		sort.Slice(s.Backup.SlotFrontiers, func(i, j int) bool {
-			return s.Backup.SlotFrontiers[i].HashSlot < s.Backup.SlotFrontiers[j].HashSlot
-		})
-		sort.Slice(s.Backup.ErasureStreams, func(i, j int) bool {
-			return s.Backup.ErasureStreams[i].HashSlot < s.Backup.ErasureStreams[j].HashSlot
-		})
-		sort.Slice(s.Backup.GenerationGCCursors, func(i, j int) bool {
-			return s.Backup.GenerationGCCursors[i].Repository < s.Backup.GenerationGCCursors[j].Repository
-		})
-		sort.Slice(s.Backup.IntegrityAudit.Slots, func(i, j int) bool {
-			return s.Backup.IntegrityAudit.Slots[i].HashSlot < s.Backup.IntegrityAudit.Slots[j].HashSlot
-		})
-		sort.Slice(s.Backup.IntegrityAudit.GCGuards, func(i, j int) bool {
-			return s.Backup.IntegrityAudit.GCGuards[i].HashSlot < s.Backup.IntegrityAudit.GCGuards[j].HashSlot
-		})
-	}
-	if s.Restore != nil && s.Restore.Plan != nil {
-		if s.Restore.Plan.Partitions == nil {
-			s.Restore.Plan.Partitions = []RestorePartition{}
+	if s.ScheduledBackup != nil {
+		if s.ScheduledBackup.History == nil {
+			s.ScheduledBackup.History = []BackupTaskRecord{}
 		}
-		sort.Slice(s.Restore.Plan.Partitions, func(i, j int) bool {
-			return s.Restore.Plan.Partitions[i].HashSlot < s.Restore.Plan.Partitions[j].HashSlot
-		})
-		sort.Slice(s.Restore.Plan.ErasureHeads, func(i, j int) bool {
-			return s.Restore.Plan.ErasureHeads[i].HashSlot < s.Restore.Plan.ErasureHeads[j].HashSlot
-		})
+		if s.ScheduledBackup.ActiveBackup != nil {
+			if s.ScheduledBackup.ActiveBackup.Slots == nil {
+				s.ScheduledBackup.ActiveBackup.Slots = []BackupSlotProgress{}
+			}
+			sort.Slice(s.ScheduledBackup.ActiveBackup.Slots, func(i, j int) bool {
+				return s.ScheduledBackup.ActiveBackup.Slots[i].HashSlot <
+					s.ScheduledBackup.ActiveBackup.Slots[j].HashSlot
+			})
+		}
+		if s.ScheduledBackup.ActiveRestore != nil {
+			if s.ScheduledBackup.ActiveRestore.Slots == nil {
+				s.ScheduledBackup.ActiveRestore.Slots = []RestoreSlotProgress{}
+			}
+			for i := range s.ScheduledBackup.ActiveRestore.Slots {
+				sort.Slice(s.ScheduledBackup.ActiveRestore.Slots[i].ReplicaNodeIDs, func(a, b int) bool {
+					return s.ScheduledBackup.ActiveRestore.Slots[i].ReplicaNodeIDs[a] <
+						s.ScheduledBackup.ActiveRestore.Slots[i].ReplicaNodeIDs[b]
+				})
+			}
+			sort.Slice(s.ScheduledBackup.ActiveRestore.Slots, func(i, j int) bool {
+				return s.ScheduledBackup.ActiveRestore.Slots[i].HashSlot <
+					s.ScheduledBackup.ActiveRestore.Slots[j].HashSlot
+			})
+		}
 	}
 	if s.OpsMCP != nil {
 		if s.OpsMCP.Credentials == nil {
@@ -113,13 +114,9 @@ func (s ClusterState) Clone() ClusterState {
 		out.Tasks[i].ObservedVoters = cloneUint64s(s.Tasks[i].ObservedVoters)
 		out.Tasks[i].ObservedLearners = cloneUint64s(s.Tasks[i].ObservedLearners)
 	}
-	if s.Backup != nil {
-		backup := s.Backup.Clone()
-		out.Backup = &backup
-	}
-	if s.Restore != nil {
-		restore := s.Restore.Clone()
-		out.Restore = &restore
+	if s.ScheduledBackup != nil {
+		scheduledBackup := s.ScheduledBackup.Clone()
+		out.ScheduledBackup = &scheduledBackup
 	}
 	if s.OpsMCP != nil {
 		opsMCP := s.OpsMCP.Clone()

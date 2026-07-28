@@ -184,6 +184,31 @@ func NewManager(opts Options) *Manager {
 	return manager
 }
 
+// ResetAfterRestore discards every clean in-memory projection after the flush
+// worker has stopped. A restored durable cut must never be overlaid by active
+// rows observed after that cut.
+func (m *Manager) ResetAfterRestore() {
+	if m == nil {
+		return
+	}
+	m.flushMu.Lock()
+	defer m.flushMu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cache = make(map[string]map[conversationKey]cacheEntry)
+	m.cleanIndex = make(map[cacheAddress]struct{})
+	m.cleanByHashSlot = make(map[uint16]map[cacheAddress]struct{})
+	m.dirtyByHashSlot = make(map[uint16]map[cacheAddress]struct{})
+	m.rowsByKind = make(map[metadb.ConversationKind]int)
+	m.dirtyRowsByKind = make(map[metadb.ConversationKind]int)
+	m.dirtyAge = dirtyAgeIndex{}
+	m.dirtyQueue = dirtyAddressQueue{}
+	m.totalRows = 0
+	m.dirtyRows = 0
+	m.pressureDraining = false
+	m.lastCacheObservationAt = time.Time{}
+}
+
 // AdmitActiveBatch admits a channelappend recipient batch into the active cache.
 func (m *Manager) AdmitActiveBatch(ctx context.Context, batch ActiveBatch) error {
 	return m.admitActiveBatch(ctx, 0, false, batch)

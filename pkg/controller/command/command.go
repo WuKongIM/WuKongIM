@@ -36,10 +36,8 @@ const (
 	KindReportNodeHealth Kind = "report_node_health"
 	// KindReplaceHashSlotTable replaces the hash-slot routing table.
 	KindReplaceHashSlotTable Kind = "replace_hash_slot_table"
-	// KindReplaceBackupCoordinationState replaces bounded backup coordination metadata.
-	KindReplaceBackupCoordinationState Kind = "replace_backup_coordination_state"
-	// KindReplaceRestoreCoordinationState replaces bounded explicit recovery metadata.
-	KindReplaceRestoreCoordinationState Kind = "replace_restore_coordination_state"
+	// KindReplaceScheduledBackupState replaces the simplified full-backup subsystem state.
+	KindReplaceScheduledBackupState Kind = "replace_scheduled_backup_state"
 	// KindReplaceOpsMCPState replaces bounded embedded operations MCP desired state.
 	KindReplaceOpsMCPState Kind = "replace_ops_mcp_state"
 )
@@ -76,10 +74,8 @@ type Command struct {
 	NodeHealth *state.NodeHealthReport `json:"node_health,omitempty"`
 	// HashSlots contains a replacement hash-slot table.
 	HashSlots *state.HashSlotTable `json:"hash_slots,omitempty"`
-	// Backup contains replacement bounded backup coordination metadata.
-	Backup *state.BackupCoordinationState `json:"backup,omitempty"`
-	// Restore contains replacement bounded explicit recovery metadata.
-	Restore *state.RestoreCoordinationState `json:"restore,omitempty"`
+	// ScheduledBackup contains replacement scheduled full-backup state.
+	ScheduledBackup *state.ScheduledBackupState `json:"scheduled_backup,omitempty"`
 	// OpsMCP contains replacement embedded operations MCP desired state.
 	OpsMCP *state.OpsMCPState `json:"ops_mcp,omitempty"`
 }

@@ -21,9 +21,6 @@ func (r *Runtime) Close() error {
 		slots = append(slots, g)
 		g.mu.Lock()
 		g.closed = true
-		if g.pinCleanupCancel != nil {
-			g.pinCleanupCancel()
-		}
 		g.failPendingLocked(ErrRuntimeClosed)
 		g.mu.Unlock()
 	}
@@ -142,9 +139,6 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	}
 	g.mu.Lock()
 	g.closed = true
-	if g.pinCleanupCancel != nil {
-		g.pinCleanupCancel()
-	}
 	g.failPendingLocked(ErrSlotClosed)
 	delete(r.slots, slotID)
 	r.mu.Unlock()
@@ -159,6 +153,76 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	if r.apply != nil {
 		r.apply.waitQueueRetired(slotID, applyQueue)
 	}
+	return nil
+}
+
+// ReloadSlot rebuilds one idle local Raft group from its durable storage.
+// Maintenance restore calls this only after every replica has installed a
+// replacement snapshot, so the in-memory Raft snapshot and FSM caches cannot
+// retain the pre-restore generation.
+func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return ErrRuntimeClosed
+	}
+	current, ok := r.slots[slotID]
+	if !ok {
+		r.mu.Unlock()
+		return ErrSlotNotFound
+	}
+	current.mu.Lock()
+	current.closed = true
+	current.failPendingLocked(ErrSlotClosed)
+	delete(r.slots, slotID)
+	r.mu.Unlock()
+	current.mu.Unlock()
+
+	var applyQueue *applyQueue
+	if r.apply != nil {
+		applyQueue = r.apply.closeSlot(slotID)
+	}
+	current.mu.Lock()
+	current.waitIdleLocked()
+	current.mu.Unlock()
+	if r.apply != nil {
+		r.apply.waitQueueRetired(slotID, applyQueue)
+	}
+
+	replacement, err := newSlot(
+		ctx,
+		r.opts.NodeID,
+		r.opts.Logger,
+		r.opts.Raft,
+		SlotOptions{
+			ID:           slotID,
+			Storage:      current.storage,
+			StateMachine: current.stateMachine,
+		},
+		r.opts.Observer,
+		r.apply,
+	)
+	if err != nil {
+		return err
+	}
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return ErrRuntimeClosed
+	}
+	if _, exists := r.slots[slotID]; exists {
+		r.mu.Unlock()
+		return ErrSlotExists
+	}
+	r.slots[slotID] = replacement
+	r.mu.Unlock()
+	r.scheduler.enqueue(slotID)
 	return nil
 }
 
@@ -410,27 +474,17 @@ func (r *Runtime) CompactLog(ctx context.Context, slotID SlotID) (LogCompactionR
 	}
 }
 
-// SetLogCompactionPin acquires, advances, or releases one idempotent node-local
-// source-log floor. Compaction may proceed through retainAfter but not beyond
-// the minimum active floor. Pins never enter Raft state and must be reacquired
-// after process restart. Cancellation may abort the operation-gate wait; once
-// mutated, any archive-trim failure is logged and marked for one bounded
-// per-Slot background retry loop without reversing the authoritative result.
-func (r *Runtime) SetLogCompactionPin(
+// InstallExternalStateSnapshot persists the current FSM state at the exact
+// applied Raft boundary even when ordinary log compaction is disabled or a
+// snapshot already exists at that index. Maintenance restore uses this after
+// replacing state outside the proposal path so restart cannot replay older
+// state over the restored data.
+func (r *Runtime) InstallExternalStateSnapshot(
 	ctx context.Context,
 	slotID SlotID,
-	pinID string,
-	retainAfter uint64,
-	held bool,
 ) error {
 	if ctx == nil {
 		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if pinID == "" || len(pinID) > 128 {
-		return ErrInvalidOptions
 	}
 	r.mu.RLock()
 	if r.closed {
@@ -442,45 +496,43 @@ func (r *Runtime) SetLogCompactionPin(
 	if !ok {
 		return ErrSlotNotFound
 	}
-	if err := g.beginPinOperation(); err != nil {
+
+	req := logCompactionRequest{
+		ctx:      ctx,
+		external: true,
+		resp:     make(chan logCompactionResponse, 1),
+	}
+	if err := g.enqueueControl(controlAction{
+		kind: controlCompactLog, compact: &req,
+	}); err != nil {
 		return err
 	}
-	defer g.finishPinOperation()
-	if err := g.compactor.lockPinOperation(ctx); err != nil {
-		return err
+	r.scheduler.enqueue(slotID)
+
+	select {
+	case resp := <-req.resp:
+		return resp.err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	defer g.compactor.unlockPinOperation()
-	if err := g.currentErr(); err != nil {
-		return err
-	}
-	applied := g.appliedIndex()
-	before := g.compactor.retentionFloor(applied)
-	g.compactor.setPin(pinID, retainAfter, held)
-	after := g.compactor.retentionFloor(applied)
-	if after > before || g.compactor.trimDirty() {
-		if trimmer, ok := g.storage.(RetainedLogStorage); ok {
-			if err := trimmer.TrimRetainedLog(ctx, after); err != nil {
-				// The pin mutation is already authoritative. Archive deletion
-				// is best-effort cleanup; reporting failure here would make
-				// callers track the opposite of the real safety state.
-				g.compactor.setTrimDirty(true)
-				g.logCompactionWarning(err, after)
-				g.startArchiveTrimRetry()
-			} else {
-				g.compactor.setTrimDirty(false)
-			}
-		}
-	}
-	return nil
 }
 
-// CaptureHashSlotSnapshot opens a pinned logical snapshot at the owning Slot worker's durable applied boundary.
-func (r *Runtime) CaptureHashSlotSnapshot(ctx context.Context, slotID SlotID, hashSlot uint16) (CapturedHashSlotSnapshot, error) {
+// CaptureHashSlotSnapshot opens a pinned logical snapshot only while this
+// worker is the leader in expectedLeaderTerm.
+func (r *Runtime) CaptureHashSlotSnapshot(
+	ctx context.Context,
+	slotID SlotID,
+	hashSlot uint16,
+	expectedLeaderTerm uint64,
+) (CapturedHashSlotSnapshot, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
 		return CapturedHashSlotSnapshot{}, err
+	}
+	if expectedLeaderTerm == 0 {
+		return CapturedHashSlotSnapshot{}, ErrNotLeader
 	}
 	r.mu.RLock()
 	if r.closed {
@@ -493,9 +545,10 @@ func (r *Runtime) CaptureHashSlotSnapshot(ctx context.Context, slotID SlotID, ha
 		return CapturedHashSlotSnapshot{}, ErrSlotNotFound
 	}
 	request := hashSlotSnapshotRequest{
-		ctx:      ctx,
-		hashSlot: hashSlot,
-		resp:     make(chan hashSlotSnapshotResponse, 1),
+		ctx:                ctx,
+		hashSlot:           hashSlot,
+		expectedLeaderTerm: expectedLeaderTerm,
+		resp:               make(chan hashSlotSnapshotResponse, 1),
 	}
 	if err := g.enqueueControl(controlAction{kind: controlCaptureHashSlotSnapshot, backupSnapshot: &request}); err != nil {
 		return CapturedHashSlotSnapshot{}, err

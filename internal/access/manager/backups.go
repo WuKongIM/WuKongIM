@@ -4,571 +4,344 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
+	"time"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	"github.com/gin-gonic/gin"
 )
 
-// BackupManagement is the narrow Manager-facing continuous-backup seam.
+// BackupManagement is the complete Manager-facing scheduled-backup seam.
 type BackupManagement interface {
-	Status(context.Context) (backupusecase.StatusSnapshot, error)
-	ListCheckpointsPage(context.Context, backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error)
-	CheckpointByID(context.Context, string) (backupusecase.CheckpointDetail, error)
-	PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error)
-	SetCheckpointHold(context.Context, string, bool) (backupusecase.CheckpointSummary, error)
-	FenceSource(context.Context, backupusecase.SourceFenceRequest) (backupusecase.SourceFenceReceipt, error)
+	Dashboard(context.Context) (backupusecase.Dashboard, error)
+	Configure(
+		context.Context,
+		backupusecase.ConfigureManagementRequest,
+	) (backupusecase.ConfigureResult, error)
+	TestRepository(
+		context.Context,
+		backupusecase.ConfigureManagementRequest,
+	) error
+	StartBackup(context.Context) (backupcontract.BackupJob, error)
+	CancelBackup(context.Context, string) error
+	Archive(context.Context, string) (backupusecase.ArchiveDetail, error)
+	VerifyArchive(context.Context, string) (backupusecase.ArchiveDetail, error)
+	HoldArchive(
+		context.Context,
+		string,
+		bool,
+		string,
+	) (backupusecase.ArchiveSummary, error)
+	DeleteArchive(context.Context, string) error
 }
 
-type backupStatusDTO struct {
-	Enabled                     bool                       `json:"enabled"`
-	Health                      backupusecase.Health       `json:"health"`
-	CheckpointAgeSeconds        *int64                     `json:"checkpoint_age_seconds"`
-	LatestCheckpoint            *backupCheckpointDTO       `json:"latest_checkpoint,omitempty"`
-	FailureCategory             string                     `json:"failure_category,omitempty"`
-	CoordinatorNodeID           uint64                     `json:"coordinator_node_id"`
-	ObservedAtUnixMillis        int64                      `json:"observed_at_unix_millis"`
-	AuthEnabled                 bool                       `json:"auth_enabled"`
-	Running                     bool                       `json:"running"`
-	MaxCheckpointAgeSeconds     int64                      `json:"max_checkpoint_age_seconds"`
-	Policy                      backupPolicyDTO            `json:"policy"`
-	CaptureLeases               []backupCaptureLeaseDTO    `json:"capture_leases"`
-	CaptureStatuses             []backupCaptureStatusDTO   `json:"capture_statuses"`
-	CaptureStatusComplete       bool                       `json:"capture_status_complete"`
-	CaptureStatusMissingNodeIDs []uint64                   `json:"capture_status_missing_node_ids"`
-	CaptureStatusMissingSlots   []uint16                   `json:"capture_status_missing_slots"`
-	IntegrityAudit              backupIntegrityAuditDTO    `json:"integrity_audit"`
-	Compaction                  backupCompactionDTO        `json:"compaction"`
-	GarbageCollection           backupGarbageCollectionDTO `json:"garbage_collection"`
-	ErasureStreams              []backupErasureStreamDTO   `json:"erasure_streams"`
-	Restore                     *restoreProgressDTO        `json:"restore,omitempty"`
+type backupStoreRequest struct {
+	Kind      backupcontract.StoreKind `json:"kind"`
+	Endpoint  string                   `json:"endpoint"`
+	Region    string                   `json:"region"`
+	Bucket    string                   `json:"bucket"`
+	Prefix    string                   `json:"prefix"`
+	PathStyle bool                     `json:"path_style"`
+	AccessKey string                   `json:"access_key"`
+	SecretKey string                   `json:"secret_key"`
 }
 
-type backupCompactionDTO struct {
-	DebtSlots int                       `json:"debt_slots"`
-	Slots     []backupCompactionSlotDTO `json:"slots"`
+type backupPlanRequest struct {
+	ExpectedRevision uint64             `json:"expected_revision"`
+	Enabled          bool               `json:"enabled"`
+	Store            backupStoreRequest `json:"store"`
+	Cron             string             `json:"cron"`
+	TimeZone         string             `json:"time_zone"`
+	RetentionCount   int                `json:"retention_count"`
+	RateMiBPerSecond uint64             `json:"rate_mib_per_second"`
+	WorkersPerNode   int                `json:"workers_per_node"`
+	MaxDurationHours int                `json:"max_duration_hours"`
 }
 
-type backupCompactionSlotDTO struct {
-	HashSlot            uint16 `json:"hash_slot"`
-	Generation          string `json:"generation"`
-	TargetGeneration    string `json:"target_generation"`
-	Reason              string `json:"reason"`
-	StartedAtUnixMillis int64  `json:"started_at_unix_millis"`
+type backupHoldRequest struct {
+	Held bool   `json:"held"`
+	Note string `json:"note"`
 }
 
-type backupGarbageCollectionDTO struct {
-	DebtRepositories int                           `json:"debt_repositories"`
-	Cursors          []backupGenerationGCCursorDTO `json:"cursors"`
+type backupDeleteRequest struct {
+	Confirmation string `json:"confirmation"`
 }
 
-type backupGenerationGCCursorDTO struct {
-	Repository          string `json:"repository"`
-	Revision            uint64 `json:"revision"`
-	CycleID             string `json:"cycle_id"`
-	Complete            bool   `json:"complete"`
-	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
+const (
+	maxBackupPlanRequestBytes   = 64 << 10
+	maxBackupActionRequestBytes = 4 << 10
+)
+
+var errBackupConfirmation = errors.New("backup archive confirmation mismatch")
+
+func (s *Server) registerBackupRoutes() {
+	reads := s.engine.Group("/manager/backups")
+	if s.auth.enabled() {
+		reads.Use(s.requirePermission("cluster.backup", "r"))
+	}
+	reads.GET("", s.handleBackupDashboard)
+	reads.GET("/archives/:archive_id", s.handleBackupArchive)
+
+	writes := s.engine.Group("/manager/backups")
+	if s.auth.enabled() {
+		writes.Use(s.requirePermission("cluster.backup", "w"))
+	}
+	writes.Use(s.requireAuthenticatedBackupWrites())
+	writes.PUT("/plan", s.handleBackupPlan)
+	writes.POST("/repository/test", s.handleBackupRepositoryTest)
+	writes.POST("/jobs", s.handleBackupStart)
+	writes.POST("/jobs/:job_id/cancel", s.handleBackupCancel)
+	writes.POST("/archives/:archive_id/verify", s.handleBackupVerify)
+	writes.PUT("/archives/:archive_id/hold", s.handleBackupHold)
+	writes.DELETE("/archives/:archive_id", s.handleBackupDelete)
 }
 
-type backupIntegrityAuditDTO struct {
-	Revision                uint64                         `json:"revision"`
-	Cursor                  *backupIntegrityAuditCursorDTO `json:"cursor,omitempty"`
-	Slots                   []backupSlotIntegrityAuditDTO  `json:"slots"`
-	DebtObjects             uint64                         `json:"debt_objects"`
-	LastSuccessAtUnixMillis int64                          `json:"last_success_at_unix_millis"`
-	UpdatedAtUnixMillis     int64                          `json:"updated_at_unix_millis"`
+func (s *Server) requireAuthenticatedBackupWrites() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !s.auth.enabled() {
+			jsonError(
+				c,
+				http.StatusForbidden,
+				"manager_auth_required",
+				"manager authentication must be enabled before changing backups",
+			)
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }
 
-type backupIntegrityAuditCursorDTO struct {
-	CycleID             string `json:"cycle_id"`
-	ScrubEpoch          uint64 `json:"scrub_epoch"`
-	CatalogSequence     uint64 `json:"catalog_sequence"`
-	HashSlot            uint16 `json:"hash_slot"`
-	Generation          string `json:"generation"`
-	Phase               string `json:"phase"`
-	Repository          string `json:"repository,omitempty"`
-	Category            string `json:"category,omitempty"`
-	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
-}
-
-type backupSlotIntegrityAuditDTO struct {
-	HashSlot                uint16 `json:"hash_slot"`
-	Generation              string `json:"generation"`
-	Health                  string `json:"health"`
-	Repository              string `json:"repository,omitempty"`
-	Category                string `json:"category,omitempty"`
-	LastSuccessAtUnixMillis int64  `json:"last_success_at_unix_millis"`
-	UpdatedAtUnixMillis     int64  `json:"updated_at_unix_millis"`
-}
-
-type backupPolicyDTO struct {
-	CaptureReconcileIntervalSeconds int64  `json:"capture_reconcile_interval_seconds"`
-	CheckpointIntervalSeconds       int64  `json:"checkpoint_interval_seconds"`
-	CaptureWorkerCount              int    `json:"capture_worker_count"`
-	TargetSegmentBytes              uint64 `json:"target_segment_bytes"`
-	MaxSegmentBytes                 uint64 `json:"max_segment_bytes"`
-	MaxSegmentOpenDurationSeconds   int64  `json:"max_segment_open_duration_seconds"`
-	StagingMaxBytes                 uint64 `json:"staging_max_bytes"`
-	SourcePinMaxAgeSeconds          int64  `json:"source_pin_max_age_seconds"`
-	MaxSourcePinnedBytes            uint64 `json:"max_source_pinned_bytes"`
-}
-
-type backupErasureStreamDTO struct {
-	HashSlot uint16 `json:"hash_slot"`
-	Sequence uint64 `json:"sequence"`
-	Pending  bool   `json:"pending"`
-}
-
-type backupCaptureLeaseDTO struct {
-	HashSlot                        uint16 `json:"hash_slot"`
-	SlotID                          uint32 `json:"slot_id"`
-	SourceSlotID                    uint32 `json:"source_slot_id"`
-	HolderNodeID                    uint64 `json:"holder_node_id"`
-	LeaderTerm                      uint64 `json:"leader_term"`
-	ConfigEpoch                     uint64 `json:"config_epoch"`
-	Generation                      string `json:"generation"`
-	LeaseSequence                   uint64 `json:"lease_sequence"`
-	FrontierRevision                uint64 `json:"frontier_revision"`
-	LastPromotionPreviousGeneration string `json:"last_promotion_previous_generation,omitempty"`
-	LastPromotionReason             string `json:"last_promotion_reason,omitempty"`
-	LastPromotionAtUnixMillis       int64  `json:"last_promotion_at_unix_millis,omitempty"`
-	MetadataSourceWatermark         uint64 `json:"metadata_source_watermark"`
-	MessageSourceWatermark          uint64 `json:"message_source_watermark"`
-	AcquiredAtUnixMillis            int64  `json:"acquired_at_unix_millis"`
-	SourcePinStartedAtUnixMillis    int64  `json:"source_pin_started_at_unix_millis"`
-	FrontierUpdatedUnixMillis       int64  `json:"frontier_updated_unix_millis"`
-}
-
-type backupCaptureStatusDTO struct {
-	HashSlot                  uint16 `json:"hash_slot"`
-	State                     string `json:"state"`
-	FailureCategory           string `json:"failure_category,omitempty"`
-	LeaseCurrent              bool   `json:"lease_current"`
-	FrontierRevision          uint64 `json:"frontier_revision"`
-	MetadataSourceWatermark   uint64 `json:"metadata_source_watermark"`
-	MessageSourceWatermark    uint64 `json:"message_source_watermark"`
-	MetadataFrontierWatermark uint64 `json:"metadata_frontier_watermark"`
-	MessageFrontierWatermark  uint64 `json:"message_frontier_watermark"`
-	MetadataLag               uint64 `json:"metadata_lag"`
-	MessageLag                uint64 `json:"message_lag"`
-	ObservedAtUnixMillis      int64  `json:"observed_at_unix_millis"`
-}
-
-type backupCheckpointDTO struct {
-	ID                    string `json:"id"`
-	CreatedAtUnixMillis   int64  `json:"created_at_unix_millis"`
-	EffectiveAtUnixMillis int64  `json:"effective_at_unix_millis"`
-	Held                  bool   `json:"held"`
-}
-
-type backupCheckpointDetailDTO struct {
-	backupCheckpointDTO
-	SourceClusterID  string                   `json:"source_cluster_id"`
-	SourceGeneration string                   `json:"source_generation"`
-	HashSlotCount    uint16                   `json:"hash_slot_count"`
-	ErasureStreams   []backupErasureStreamDTO `json:"erasure_streams"`
-}
-
-type backupCheckpointListDTO struct {
-	CatalogHeadToken string                `json:"catalog_head_token,omitempty"`
-	Items            []backupCheckpointDTO `json:"items"`
-	NextCursor       string                `json:"next_cursor,omitempty"`
-	Total            int                   `json:"total"`
-}
-
-type backupCheckpointPublicationDTO struct {
-	Checkpoint       backupCheckpointDTO `json:"checkpoint"`
-	CheckpointSHA256 string              `json:"checkpoint_sha256"`
-	CatalogHeadToken string              `json:"catalog_head_token"`
-}
-
-type backupSourceFenceRequestDTO struct {
-	RestorePlanID    string `json:"restore_plan_id"`
-	CheckpointID     string `json:"checkpoint_id"`
-	TargetClusterID  string `json:"target_cluster_id"`
-	TargetGeneration string `json:"target_generation"`
-}
-
-type backupCheckpointHoldRequestDTO struct {
-	Held bool `json:"held"`
-}
-
-func (s *Server) handleBackupStatus(c *gin.Context) {
+func (s *Server) handleBackupDashboard(c *gin.Context) {
 	if s == nil || s.backup == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
+		jsonError(
+			c, http.StatusServiceUnavailable,
+			"service_unavailable", "backup management is unavailable",
+		)
 		return
 	}
-	status, err := s.backup.Status(c.Request.Context())
+	dashboard, err := s.backup.Dashboard(c.Request.Context())
 	if err != nil {
 		writeBackupError(c, err)
 		return
 	}
-	response := backupStatusResponse(status)
-	response.AuthEnabled = s.auth.enabled()
-	c.JSON(http.StatusOK, response)
+	if dashboard.State.Plan != nil {
+		dashboard.State.Plan.Store.CredentialCiphertext = nil
+	}
+	c.JSON(http.StatusOK, dashboard)
 }
 
-func (s *Server) handleBackupCheckpoints(c *gin.Context) {
-	if s == nil || s.backup == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
+func (s *Server) handleBackupPlan(c *gin.Context) {
+	request, ok := bindBackupPlanRequest(c)
+	if !ok {
 		return
 	}
-	request := backupusecase.CheckpointListRequest{
-		Cursor:  strings.TrimSpace(c.Query("cursor")),
-		IDQuery: strings.TrimSpace(c.Query("id")),
-	}
-	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
-		limit, err := strconv.Atoi(raw)
-		if err != nil || limit <= 0 {
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint page limit")
-			return
-		}
-		if limit > backupusecase.MaxCheckpointPageSize {
-			limit = backupusecase.MaxCheckpointPageSize
-		}
-		request.Limit = limit
-	}
-	if raw, present := c.GetQuery("held"); present {
-		var held bool
-		switch strings.TrimSpace(raw) {
-		case "true":
-			held = true
-		case "false":
-			held = false
-		default:
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint held filter")
-			return
-		}
-		request.Held = &held
-	}
-	for _, filter := range []struct {
-		name   string
-		target *int64
-	}{
-		{name: "effective_from", target: &request.EffectiveFromUnixMillis},
-		{name: "effective_to", target: &request.EffectiveToUnixMillis},
-	} {
-		raw, present := c.GetQuery(filter.name)
-		if !present {
-			continue
-		}
-		value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
-		if err != nil || value < 0 {
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint time filter")
-			return
-		}
-		*filter.target = value
-	}
-	if request.EffectiveFromUnixMillis > 0 &&
-		request.EffectiveToUnixMillis > 0 &&
-		request.EffectiveFromUnixMillis > request.EffectiveToUnixMillis {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint time range")
-		return
-	}
-	page, err := s.backup.ListCheckpointsPage(c.Request.Context(), request)
+	result, err := s.backup.Configure(
+		c.Request.Context(), managementConfigureRequest(request),
+	)
+	s.auditBackupMutation(c, "configure_plan", "", err)
 	if err != nil {
 		writeBackupError(c, err)
 		return
 	}
-	items := make([]backupCheckpointDTO, len(page.Items))
-	for index := range page.Items {
-		items[index] = backupCheckpointResponse(page.Items[index])
-	}
-	c.JSON(http.StatusOK, backupCheckpointListDTO{
-		CatalogHeadToken: page.CatalogHeadToken,
-		Items:            items, NextCursor: page.NextCursor, Total: page.Total,
-	})
+	result.Plan.Store.CredentialCiphertext = nil
+	c.JSON(http.StatusOK, result)
 }
 
-func (s *Server) handleBackupCheckpoint(c *gin.Context) {
-	if s == nil || s.backup == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
+func (s *Server) handleBackupRepositoryTest(c *gin.Context) {
+	request, ok := bindBackupPlanRequest(c)
+	if !ok {
 		return
 	}
-	detail, err := s.backup.CheckpointByID(
-		c.Request.Context(), strings.TrimSpace(c.Param("checkpoint_id")),
+	err := s.backup.TestRepository(
+		c.Request.Context(), managementConfigureRequest(request),
+	)
+	s.auditBackupMutation(c, "test_repository", "", err)
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (s *Server) handleBackupStart(c *gin.Context) {
+	job, err := s.backup.StartBackup(c.Request.Context())
+	target := ""
+	if err == nil {
+		target = job.ID
+	}
+	s.auditBackupMutation(c, "start_backup", target, err)
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, job)
+}
+
+func (s *Server) handleBackupCancel(c *gin.Context) {
+	jobID := strings.TrimSpace(c.Param("job_id"))
+	err := s.backup.CancelBackup(c.Request.Context(), jobID)
+	s.auditBackupMutation(c, "cancel_backup", jobID, err)
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) handleBackupArchive(c *gin.Context) {
+	archive, err := s.backup.Archive(
+		c.Request.Context(), strings.TrimSpace(c.Param("archive_id")),
 	)
 	if err != nil {
 		writeBackupError(c, err)
 		return
 	}
-	erasureStreams := make([]backupErasureStreamDTO, len(detail.ErasureHeads))
-	for index, head := range detail.ErasureHeads {
-		erasureStreams[index] = backupErasureStreamDTO{
-			HashSlot: head.HashSlot, Sequence: head.Sequence,
-		}
-	}
-	c.JSON(http.StatusOK, backupCheckpointDetailDTO{
-		backupCheckpointDTO: backupCheckpointResponse(detail.CheckpointSummary),
-		SourceClusterID:     detail.SourceClusterID,
-		SourceGeneration:    detail.SourceGeneration,
-		HashSlotCount:       detail.HashSlotCount,
-		ErasureStreams:      erasureStreams,
-	})
+	c.JSON(http.StatusOK, archive)
 }
 
-func (s *Server) handleBackupCheckpointPublish(c *gin.Context) {
-	if s == nil || s.backup == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
-		return
-	}
-	publication, err := s.backup.PublishCheckpoint(c.Request.Context())
-	if err != nil {
-		writeBackupError(c, err)
-		return
-	}
-	c.JSON(http.StatusCreated, backupCheckpointPublicationDTO{
-		Checkpoint:       backupCheckpointResponse(publication.Checkpoint),
-		CheckpointSHA256: publication.CheckpointSHA256,
-		CatalogHeadToken: publication.CatalogHeadToken,
-	})
-}
-
-func (s *Server) handleBackupCheckpointHold(c *gin.Context) {
-	if s == nil || s.backup == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
-		return
-	}
-	var request backupCheckpointHoldRequestDTO
-	if err := c.ShouldBindJSON(&request); err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint hold request")
-		return
-	}
-	checkpoint, err := s.backup.SetCheckpointHold(
-		c.Request.Context(),
-		strings.TrimSpace(c.Param("checkpoint_id")), request.Held,
+func (s *Server) handleBackupVerify(c *gin.Context) {
+	archive, err := s.backup.VerifyArchive(
+		c.Request.Context(), strings.TrimSpace(c.Param("archive_id")),
+	)
+	s.auditBackupMutation(
+		c, "verify_archive", strings.TrimSpace(c.Param("archive_id")), err,
 	)
 	if err != nil {
 		writeBackupError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, backupCheckpointResponse(checkpoint))
+	c.JSON(http.StatusOK, archive)
 }
 
-func (s *Server) handleBackupSourceFence(c *gin.Context) {
-	if s == nil || s.backup == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control is not configured")
-		return
-	}
-	var request backupSourceFenceRequestDTO
+func (s *Server) handleBackupHold(c *gin.Context) {
+	limitBackupJSONBody(c, maxBackupActionRequestBytes)
+	var request backupHoldRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid source fence request")
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid hold request")
 		return
 	}
-	receipt, err := s.backup.FenceSource(
+	archive, err := s.backup.HoldArchive(
 		c.Request.Context(),
-		backupusecase.SourceFenceRequest{
-			RestorePlanID:    strings.TrimSpace(request.RestorePlanID),
-			CheckpointID:     strings.TrimSpace(request.CheckpointID),
-			TargetClusterID:  strings.TrimSpace(request.TargetClusterID),
-			TargetGeneration: strings.TrimSpace(request.TargetGeneration),
+		strings.TrimSpace(c.Param("archive_id")),
+		request.Held,
+		strings.TrimSpace(request.Note),
+	)
+	s.auditBackupMutation(
+		c, "set_archive_hold", strings.TrimSpace(c.Param("archive_id")), err,
+	)
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, archive)
+}
+
+func (s *Server) handleBackupDelete(c *gin.Context) {
+	archiveID := strings.TrimSpace(c.Param("archive_id"))
+	limitBackupJSONBody(c, maxBackupActionRequestBytes)
+	var request backupDeleteRequest
+	if err := c.ShouldBindJSON(&request); err != nil ||
+		request.Confirmation != "DELETE "+archiveID {
+		s.auditBackupMutation(c, "delete_archive", archiveID, errBackupConfirmation)
+		jsonError(
+			c, http.StatusBadRequest, "confirmation_mismatch",
+			"confirmation must exactly match DELETE <archive id>",
+		)
+		return
+	}
+	err := s.backup.DeleteArchive(c.Request.Context(), archiveID)
+	s.auditBackupMutation(c, "delete_archive", archiveID, err)
+	if err != nil {
+		writeBackupError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func bindBackupPlanRequest(c *gin.Context) (backupPlanRequest, bool) {
+	limitBackupJSONBody(c, maxBackupPlanRequestBytes)
+	var request backupPlanRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid backup plan")
+		return backupPlanRequest{}, false
+	}
+	if request.RateMiBPerSecond < 1 || request.RateMiBPerSecond > 10_240 ||
+		request.MaxDurationHours < 1 || request.MaxDurationHours > 48 ||
+		len(request.Cron) > 256 || len(request.TimeZone) > 128 ||
+		len(request.Store.Endpoint) > 2048 ||
+		len(request.Store.Region) > 128 ||
+		len(request.Store.Bucket) > 255 ||
+		len(request.Store.Prefix) > 1024 ||
+		len(request.Store.AccessKey) > 1024 ||
+		len(request.Store.SecretKey) > 8192 {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid backup plan")
+		return backupPlanRequest{}, false
+	}
+	return request, true
+}
+
+func limitBackupJSONBody(c *gin.Context, limit int64) {
+	if c == nil || c.Request == nil || c.Request.Body == nil {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+}
+
+func managementConfigureRequest(
+	request backupPlanRequest,
+) backupusecase.ConfigureManagementRequest {
+	return backupusecase.ConfigureManagementRequest{
+		ConfigureRequest: backupusecase.ConfigureRequest{
+			ExpectedRevision: request.ExpectedRevision,
+			Enabled:          request.Enabled,
+			Store: backupcontract.StoreConfig{
+				Kind:      request.Store.Kind,
+				Endpoint:  strings.TrimSpace(request.Store.Endpoint),
+				Region:    strings.TrimSpace(request.Store.Region),
+				Bucket:    strings.TrimSpace(request.Store.Bucket),
+				Prefix:    strings.TrimSpace(request.Store.Prefix),
+				PathStyle: request.Store.PathStyle,
+			},
+			Cron:            strings.TrimSpace(request.Cron),
+			TimeZone:        strings.TrimSpace(request.TimeZone),
+			RetentionCount:  request.RetentionCount,
+			RateBytesPerSec: request.RateMiBPerSecond << 20,
+			WorkersPerNode:  request.WorkersPerNode,
+			MaxDuration: time.Duration(request.MaxDurationHours) *
+				time.Hour,
 		},
-	)
-	if err != nil {
-		writeBackupError(c, err)
-		return
+		S3AccessKey: strings.TrimSpace(request.Store.AccessKey),
+		S3SecretKey: request.Store.SecretKey,
 	}
-	c.JSON(http.StatusOK, receipt)
-}
-
-func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
-	result := backupStatusDTO{
-		Enabled: status.Enabled, Health: status.Health,
-		CheckpointAgeSeconds:    status.CheckpointAgeSeconds,
-		FailureCategory:         status.FailureCategory,
-		CoordinatorNodeID:       status.CoordinatorNodeID,
-		ObservedAtUnixMillis:    status.ObservedAtUnixMillis,
-		Running:                 status.Running,
-		MaxCheckpointAgeSeconds: status.MaxCheckpointAgeSeconds,
-		Policy:                  backupPolicyResponse(status.Policy),
-		CaptureLeases:           backupCaptureLeaseResponses(status.CaptureLeases),
-		CaptureStatuses:         backupCaptureStatusResponses(status.CaptureStatuses),
-		CaptureStatusComplete:   status.CaptureStatusComplete,
-		CaptureStatusMissingNodeIDs: append(
-			[]uint64{}, status.CaptureStatusMissingNodeIDs...,
-		),
-		CaptureStatusMissingSlots: append(
-			[]uint16{}, status.CaptureStatusMissingSlots...,
-		),
-		IntegrityAudit:    backupIntegrityAuditResponse(status.IntegrityAudit),
-		Compaction:        backupCompactionResponse(status.Compaction),
-		GarbageCollection: backupGarbageCollectionResponse(status.GarbageCollection),
-		ErasureStreams:    backupErasureStreamResponses(status.ErasureStreams),
-	}
-	if status.LatestCheckpoint != nil {
-		latest := backupCheckpointResponse(*status.LatestCheckpoint)
-		result.LatestCheckpoint = &latest
-	}
-	if status.Restore != nil {
-		restore := restoreProgressResponse(*status.Restore)
-		result.Restore = &restore
-	}
-	return result
-}
-
-func backupCompactionResponse(
-	compaction backupusecase.CompactionSnapshot,
-) backupCompactionDTO {
-	result := backupCompactionDTO{
-		DebtSlots: compaction.DebtSlots,
-		Slots:     make([]backupCompactionSlotDTO, len(compaction.Slots)),
-	}
-	for index, slot := range compaction.Slots {
-		result.Slots[index] = backupCompactionSlotDTO{
-			HashSlot: slot.HashSlot, Generation: slot.Generation,
-			TargetGeneration: slot.TargetGeneration, Reason: slot.Reason,
-			StartedAtUnixMillis: slot.StartedAtUnixMillis,
-		}
-	}
-	return result
-}
-
-func backupGarbageCollectionResponse(
-	gc backupusecase.GarbageCollectionSnapshot,
-) backupGarbageCollectionDTO {
-	result := backupGarbageCollectionDTO{
-		DebtRepositories: gc.DebtRepositories,
-		Cursors:          make([]backupGenerationGCCursorDTO, len(gc.Cursors)),
-	}
-	for index, cursor := range gc.Cursors {
-		result.Cursors[index] = backupGenerationGCCursorDTO{
-			Repository: cursor.Repository, Revision: cursor.Revision,
-			CycleID: cursor.CycleID, Complete: cursor.Complete,
-			UpdatedAtUnixMillis: cursor.UpdatedAtUnixMillis,
-		}
-	}
-	return result
-}
-
-func backupIntegrityAuditResponse(
-	audit backupusecase.IntegrityAuditSnapshot,
-) backupIntegrityAuditDTO {
-	result := backupIntegrityAuditDTO{
-		Revision: audit.Revision, DebtObjects: audit.DebtObjects,
-		LastSuccessAtUnixMillis: audit.LastSuccessAtUnixMillis,
-		UpdatedAtUnixMillis:     audit.UpdatedAtUnixMillis,
-		Slots: make(
-			[]backupSlotIntegrityAuditDTO, len(audit.Slots),
-		),
-	}
-	if audit.Cursor != nil {
-		result.Cursor = &backupIntegrityAuditCursorDTO{
-			CycleID: audit.Cursor.CycleID, ScrubEpoch: audit.Cursor.ScrubEpoch,
-			CatalogSequence:     audit.Cursor.CatalogSequence,
-			HashSlot:            audit.Cursor.HashSlot,
-			Generation:          audit.Cursor.Generation,
-			Phase:               string(audit.Cursor.Phase),
-			Repository:          audit.Cursor.Repository,
-			Category:            string(audit.Cursor.Category),
-			UpdatedAtUnixMillis: audit.Cursor.UpdatedAtUnixMillis,
-		}
-	}
-	for index, slot := range audit.Slots {
-		result.Slots[index] = backupSlotIntegrityAuditDTO{
-			HashSlot: slot.HashSlot, Generation: slot.Generation,
-			Health: string(slot.Health), Repository: slot.Repository,
-			Category:                string(slot.Category),
-			LastSuccessAtUnixMillis: slot.LastSuccessAtUnixMillis,
-			UpdatedAtUnixMillis:     slot.UpdatedAtUnixMillis,
-		}
-	}
-	return result
-}
-
-func backupPolicyResponse(policy backupusecase.PolicySnapshot) backupPolicyDTO {
-	return backupPolicyDTO{
-		CaptureReconcileIntervalSeconds: policy.CaptureReconcileIntervalSeconds,
-		CheckpointIntervalSeconds:       policy.CheckpointIntervalSeconds,
-		CaptureWorkerCount:              policy.CaptureWorkerCount,
-		TargetSegmentBytes:              policy.TargetSegmentBytes,
-		MaxSegmentBytes:                 policy.MaxSegmentBytes,
-		MaxSegmentOpenDurationSeconds:   policy.MaxSegmentOpenDurationSeconds,
-		StagingMaxBytes:                 policy.StagingMaxBytes,
-		SourcePinMaxAgeSeconds:          policy.SourcePinMaxAgeSeconds,
-		MaxSourcePinnedBytes:            policy.MaxSourcePinnedBytes,
-	}
-}
-
-func backupCheckpointResponse(checkpoint backupusecase.CheckpointSummary) backupCheckpointDTO {
-	return backupCheckpointDTO{
-		ID:                    checkpoint.ID,
-		CreatedAtUnixMillis:   checkpoint.CreatedAtUnixMillis,
-		EffectiveAtUnixMillis: checkpoint.EffectiveAtUnixMillis,
-		Held:                  checkpoint.Held,
-	}
-}
-
-func backupCaptureStatusResponses(statuses []backupusecase.SlotCaptureStatus) []backupCaptureStatusDTO {
-	result := make([]backupCaptureStatusDTO, len(statuses))
-	for index, status := range statuses {
-		result[index] = backupCaptureStatusDTO{
-			HashSlot: status.HashSlot, State: string(status.State),
-			FailureCategory:           status.FailureCategory,
-			LeaseCurrent:              status.LeaseCurrent,
-			FrontierRevision:          status.Frontier.Revision,
-			MetadataSourceWatermark:   status.MetadataSourceWatermark,
-			MessageSourceWatermark:    status.MessageSourceWatermark,
-			MetadataFrontierWatermark: status.Frontier.Metadata.SourceHighWatermark,
-			MessageFrontierWatermark:  status.Frontier.Messages.SourceHighWatermark,
-			MetadataLag:               status.MetadataLag,
-			MessageLag:                status.MessageLag,
-			ObservedAtUnixMillis:      status.ObservedAtUnixMillis,
-		}
-	}
-	return result
-}
-
-func backupErasureStreamResponses(streams []backupusecase.ErasureStreamProgress) []backupErasureStreamDTO {
-	result := make([]backupErasureStreamDTO, len(streams))
-	for index, stream := range streams {
-		result[index] = backupErasureStreamDTO{
-			HashSlot: stream.HashSlot, Sequence: stream.Sequence, Pending: stream.Pending,
-		}
-	}
-	return result
-}
-
-func backupCaptureLeaseResponses(leases []backupusecase.CaptureLeaseSnapshot) []backupCaptureLeaseDTO {
-	result := make([]backupCaptureLeaseDTO, len(leases))
-	for index, lease := range leases {
-		result[index] = backupCaptureLeaseDTO{
-			HashSlot: lease.HashSlot, SlotID: lease.SlotID,
-			SourceSlotID: lease.SourceSlotID,
-			HolderNodeID: lease.HolderNodeID, LeaderTerm: lease.LeaderTerm,
-			ConfigEpoch: lease.ConfigEpoch, Generation: lease.Generation,
-			LeaseSequence: lease.LeaseSequence, FrontierRevision: lease.FrontierRevision,
-			LastPromotionPreviousGeneration: lease.LastPromotionPreviousGeneration,
-			LastPromotionReason:             lease.LastPromotionReason,
-			LastPromotionAtUnixMillis:       lease.LastPromotionAtUnixMillis,
-			MetadataSourceWatermark:         lease.MetadataSourceWatermark,
-			MessageSourceWatermark:          lease.MessageSourceWatermark,
-			AcquiredAtUnixMillis:            lease.AcquiredAtUnixMillis,
-			SourcePinStartedAtUnixMillis:    lease.SourcePinStartedAtUnixMillis,
-			FrontierUpdatedUnixMillis:       lease.FrontierUpdatedUnixMillis,
-		}
-	}
-	return result
 }
 
 func writeBackupError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, backupusecase.ErrDisabled):
-		jsonError(c, http.StatusServiceUnavailable, "backup_disabled", "cluster backup is disabled")
 	case errors.Is(err, backupusecase.ErrInvalidRequest):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid backup request")
-	case errors.Is(err, backupusecase.ErrDoctorUnhealthy):
-		jsonError(c, http.StatusServiceUnavailable, "backup_doctor_unhealthy", "backup dependency preflight is not healthy")
-	case errors.Is(err, backupusecase.ErrControllerLeaderUnavailable):
-		c.Header("Retry-After", "1")
-		jsonError(c, http.StatusServiceUnavailable, "controller_leader_unavailable", "backup coordinator is temporarily unavailable")
-	case errors.Is(err, backupusecase.ErrSourceFenceExists):
-		jsonError(c, http.StatusConflict, "source_fence_exists", "source generation is already fenced for a different restore plan")
+	case errors.Is(err, backupusecase.ErrDisabled):
+		jsonError(c, http.StatusConflict, "backup_not_configured", "backup is not configured")
+	case errors.Is(err, backupusecase.ErrBackupJobActive):
+		jsonError(c, http.StatusConflict, "backup_job_active", "a full backup is already running")
+	case errors.Is(err, backupusecase.ErrRestoreJobActive):
+		jsonError(c, http.StatusConflict, "restore_job_active", "a restore is already running")
 	case errors.Is(err, backupusecase.ErrStateConflict):
-		jsonError(c, http.StatusConflict, "state_conflict", "backup state changed")
-	case errors.Is(err, backupusecase.ErrCheckpointNotFound):
-		jsonError(c, http.StatusNotFound, "checkpoint_not_found", "checkpoint not found")
+		jsonError(c, http.StatusConflict, "state_conflict", "backup state changed; refresh and retry")
+	case errors.Is(err, backupusecase.ErrArchiveOperationActive):
+		jsonError(c, http.StatusConflict, "archive_operation_active", "another backup archive operation is running")
+	case errors.Is(err, backupusecase.ErrArchiveHeld):
+		jsonError(c, http.StatusConflict, "archive_held", "held backup archives cannot be deleted")
+	case errors.Is(err, backupusecase.ErrArchiveInUse):
+		jsonError(c, http.StatusConflict, "archive_in_use", "the archive is used by the active restore")
+	case errors.Is(err, backupusecase.ErrLastUsableArchive):
+		jsonError(c, http.StatusConflict, "last_usable_archive", "the last healthy backup archive cannot be deleted")
+	case errors.Is(err, backupusecase.ErrArchiveNotFound):
+		jsonError(c, http.StatusNotFound, "archive_not_found", "backup archive not found")
+	case errors.Is(err, backupusecase.ErrArchiveCorrupt):
+		jsonError(c, http.StatusUnprocessableEntity, "archive_corrupt", "backup archive verification failed")
 	default:
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup control unavailable")
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup operation failed")
 	}
 }

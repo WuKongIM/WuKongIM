@@ -69,6 +69,54 @@ func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {
 	}
 }
 
+func TestServerFencesBusinessHTTPDuringRestoreMaintenance(t *testing.T) {
+	maintenance := true
+	srv := New(Options{
+		Maintenance: func() bool { return maintenance },
+		Readyz: func(context.Context) (bool, any) {
+			return true, map[string]any{"ready": true}
+		},
+	})
+	for _, path := range []string{
+		"/conversation/list",
+		"/message/sync",
+		"/user/token",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		srv.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s status = %d, want %d", path, rec.Code, http.StatusServiceUnavailable)
+		}
+		if !jsonEqual(
+			rec.Body.String(),
+			`{"error":"maintenance","message":"restore maintenance is active"}`,
+		) {
+			t.Fatalf("%s body = %s", path, rec.Body.String())
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(
+		rec, httptest.NewRequest(http.MethodGet, "/healthz", nil),
+	)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("health status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	maintenance = false
+	rec = httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodPost, "/conversation/list", strings.NewReader(`{}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code == http.StatusServiceUnavailable {
+		t.Fatal("business route remained fenced after maintenance")
+	}
+}
+
 func TestServerServesEmbeddedDemoWithoutMaskingProductRoutes(t *testing.T) {
 	srv := New(Options{
 		LegacyRouteExternal: LegacyRouteAddresses{WSAddr: "ws://127.0.0.1:5200"},

@@ -1073,144 +1073,44 @@ WebSocket, and Prometheus origins into `internal/access/cloudview`. The process
 never joins the cluster, decodes WKProto frames, or receives cloud credentials;
 the Cloud Simulation lifecycle separately owns public TCP/19443 ingress.
 
-## Backup Composition
+## Scheduled Backup Composition
 
-When backup and restore mode are both false, composition creates no repository,
-key authority, worker, or timer. Automatic mode requires the qualified Alibaba
-OSS adapter and one protected deployment key package, then wires two
-cross-region repositories, local AES-256-GCM envelope encryption, Ed25519
-signing with the package's retained verification keyring, and an immutable
-Package ID/activated-revision pin chain in both repositories. Production
-repository startup first requires the running binary's clean Go VCS revision
-to equal the commit revision embedded only in artifacts emitted by the
-successful backup qualification workflow; no TOML or environment bypass token
-exists. RAM
-qualification uses positive provider operations plus negative probes: ordinary
-and repair roles must be denied version deletion, while garbage roles must be
-denied object-body reads.
-qualification runs before pin publication, only the configured lowest-ID
-Controller voter may publish a missing pin, and other nodes wait or fail closed
-while verifying. The implicit single-node cluster is normalized to its local
-Controller voter. A seed-join mirror has no admitted voter identity, so it
-never publishes and remains a read-only verifier until admission is persisted.
-This stable writer does not change across Raft terms. It then
-wires Controller state, Slot-leader continuous capture, complete-vector
-checkpoint publication, the continuous coordinator, Manager, node RPC, and
-low-cardinality metrics. A shared key-service gate stays closed until the
-complete Doctor succeeds and closes again on any later failure, so independent
-permanent-erasure or restore paths cannot bypass repository qualification.
-The runtime assumes separate ordinary access, repair, and garbage RAM
-roles for each repository. The same provider-neutral path then
-wires replicated segment/catalog repair, the authenticated
-catalog integrity plan, durable audit state, live-source Slot rebase recovery,
-all-node audit projection, independently cursor-fenced Generation GC, and
-durable latest-checkpoint observation.
-Backup doctor or runtime failure is reported independently and never changes
-ordinary message readiness.
-Every ordinary Manager node exposes the same backup surface. Mutations,
-coordinator status, checkpoint publication, checkpoint hold/release, and
-irreversible source fencing
-route once to the currently observed Controller Leader through the
-leader-fenced Manager backup RPC and do not automatically replay writes after
-a leadership transition.
-Immutable checkpoint catalog reads use the locally visible Controller head and
-the shared dual repositories, so each node can rebuild its own non-authoritative
-query index without a Leader hop. Status combines durable Slot capture leases,
-a managed, concurrency-bounded read-only fan-out with aggregate and per-holder
-deadlines to each distinct lease holder for cluster-wide
-per-Slot source lag, integrity audit/repair, pending Generation replacement,
-repository GC cursors, erasure progress, and restore throughput with node-local
-continuous-coordinator evidence and the configured non-secret
-capture/checkpoint policy. Failed holder reads produce bounded missing-node and
-missing-Slot evidence and degrade the aggregate status rather than shrinking
-the apparent cluster denominator. Capture is reported complete when backup is
-intentionally inactive, including restore-only mode. Doctor dependencies and
-repository/key-authority details remain internal. The non-secret policy exposes a
-per-Slot source-pin maximum age, a per-node retained-log byte budget, and the
-configured segment target, hard maximum, and open-duration bounds.
-Every coordinator node hydrates checkpoint age and publication cadence from
-that authenticated durable catalog, so process restart or Controller Leader
-change does not reset the schedule. Audit projection runs on all nodes;
-integrity audit and Generation collection execute only on the healthy current
-Controller Leader at their independent configured intervals.
-Production composition uses only the continuous capture/checkpoint
-coordinator; no periodic partition job or cluster-wide full-backup interface
-is wired.
+Backup composition is always present as a cluster capability but has no startup
+TOML or environment policy. Manager stores the only plan in Controller state.
 
-When automatic backup is enabled, the same composition root injects the
-dual-repository, per-Hash-Slot permanent-erasure ledger into local and forwarded
-Manager message-retention paths. Checkpoint publication reads the sorted
-committed Slot heads from Controller state, and restore inspection pins the
-latest authenticated heads even when an older checkpoint is selected.
-Retention fails closed before its Slot metadata command when ledger construction
-or publication is unavailable. With backup disabled, the existing
-cluster-authoritative retention path remains unchanged. The garbage collector
-uses separately assumed delete credentials while preserving the signed logical
-repository identities `primary` and `secondary`. GC metrics begin from durable
-cursor debt and replace it with collection-result debt only after a successful
-sweep; a failed pre-sweep cannot clear the gauge.
+The composition root creates:
 
-An `e2e`-tagged binary may replace repository, key, and clock adapters only
-when the explicit backup E2E file-root environment is present. Without that
-environment, including ordinary tagged scenarios, the production OSS,
-deployment-key, and clock loaders remain authoritative. The file-backed substitute may additionally wrap
-repository and key calls in one bounded artificial latency. A sentinel path
-activates that delay only after startup, allowing the black-box scale gate to
-prove foreground SEND does not synchronously cross either remote boundary. A
-file-backed local smoke build may carry a separately linked local E2E revision
-stamp. That stamp is accepted only when both the `e2e` build tag and the
-file-root substitute are active, must exactly match the clean Go VCS revision,
-and is never accepted by non-E2E or production-loader startup. A production
-qualification stamp remains valid for file-backed qualification jobs. A
-separate e2e-only fault directory can make segment-payload reads from one or
-both named copies return corrupt bytes; catalog objects and production loaders
-are never affected. Sticky single- or dual-copy faults select one exact logical
-segment by matching its Hash Slot, stream, and source high watermark against
-the immutable commit header before pinning one object key. Qualification
-installs that coordinate before producing the next segment, so an automatic
-checkpoint cannot audit the target before the fault exists. Exact-segment
-selections use a coordinate-scoped marker distinct from the generic sticky
-marker, so a preceding single-copy repair cannot pin the next dual-loss drill
-to stale state and checkpoint reads of older objects in the same Slot cannot
-choose the rebase target. Before returning corrupt bytes, each named repository
-also publishes its own immutable hit marker for the selected key, so the
-qualification gate proves that both failure-domain reads occurred rather than
-inferring dual loss from one shared selection.
-A third e2e-only sentinel contains one physical Hash Slot
-and overrides only that Slot's observed source-pin age, proving Slot-local
-rebase isolation without changing production pin accounting or widening the
-effect to the other 255 Hash Slots.
+- a cluster-bound credential cipher and file/S3 repository provider;
+- a Controller-backed scheduled state store;
+- Manager plan/archive and restore services;
+- repository visibility probes for every active data node;
+- current-authority Slot/message export RPC adapters;
+- one Controller-leader scheduled runtime;
+- node-local staged restore plus distributed all-replica coordination.
 
-Restore mode wires signed checkpoint-catalog resolution, a current full-graph
-dual-repository audit, all-node empty-target proof, the checkpoint Slot
-installer, target-only replica transfer/final verification, Controller restore
-state, a leader-resuming coordinator, restricted authenticated Manager, and
-metrics. The restricted Manager retains the read-only node inventory under
-`cluster.backup:r` so recovery automation can observe Controller leadership;
-ordinary node detail and mutation routes remain closed. The composition root
-creates one node-root staging quota shared by
-source downloads, target Slot attempts, and follower transfers. Only the
-current target Slot Leader reads repositories and opens data-key envelopes;
-followers receive bounded plaintext target snapshots through the restore-only
-node RPC and revalidate their live local state before reporting convergence.
-Construction
-requires at least one explicit `cluster.restore.activation:w` grant; ordinary
-or wildcard Manager grants cannot activate the successor. Lifecycle waits for restore-safe
-cluster readiness without issuing an ordinary write probe, and does not start
-Gateway, business APIs, webhooks, plugins, or ordinary workers. Normal startup
-reads the persisted restore plan before its write probe and rejects any plan
-that is not activated or whose activated generation differs from
-`backup.source_generation`. It also requires every activated partition report
-to remain installed and verified, validates immutable activation evidence and
-the target-wide staging-cleanup timestamp, then proves the natural clock-derived
-node-scoped Snowflake allocator is already above the greatest restored message
-ID before ordinary traffic is admitted. Startup fails closed instead of
-synthesizing future IDs that a restart could reuse before wall-clock catch-up.
-Per-Channel sequence allocation continues from the separately
-verified checkpoint/LEO cuts, including the plan-pinned permanent-erasure
-ledger applied to every target Slot replica before runtime metadata is installed.
-Normal startup also rejects a Controller-resident source fence permanently, so
-the fenced source generation cannot regain ordinary service after process
-restart. Restore mode wires the signed-receipt verifier and cluster-wide
-attempt-scoped staging cleaner; Gateway, APIs, webhooks, plugins, and ordinary
-workers remain closed throughout `activating`.
+The scheduled runtime starts after cluster control and stops before cluster
+storage. Only the current Controller Leader evaluates schedules, advances
+backup batches, or advances restore. Active work is read from Controller state,
+so Leader failover resumes it.
+
+Online backup captures stable Slot metadata and Channel-leader message
+snapshots while ordinary traffic continues. Each producing node writes
+compressed chunks directly to the shared repository. Publication occurs only
+after all 256 Slot artifacts verify.
+
+Restore is a normal Manager operation, not a startup mode. Controller
+maintenance keeps Manager reachable while Gateway/business traffic is fenced.
+Every current physical Slot replica captures rollback data, stages and verifies
+the selected archive, and is rechecked before switch. Failure enters the same
+durable rollback phase. Successful restore increments the Manager session epoch
+and preserves restored client tokens. Restore-sensitive delivery, metadata,
+permission, and message-event caches are activation-fenced when maintenance
+starts and reset again immediately before business runtimes resume; a slow
+pre-restore cache fill therefore cannot republish stale state.
+
+The node-local resume acknowledgement runs while Controller maintenance is
+still active. It reloads the restored system-UID cache through the dedicated
+maintenance-only local read, rebuilds side-effect runtimes, retargets the
+stable Channel RPC gateway, and restarts paused Channel background loops.
+Controller clears maintenance only after every current data node acknowledges
+that resume path.

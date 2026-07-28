@@ -122,89 +122,31 @@ before enabling and requires at least one credential. The owner cannot change
 while MCP is enabled, so ingress routing and owner-side token revalidation use
 one unambiguous durable revision.
 
-### Backup Coordination State
+### Scheduled Backup State
 
-`BackupCoordinationState` is an optional bounded section of `cluster-state.json`.
-It stores at most one sorted continuous `SlotFrontier` per configured Hash
-Slot. Each frontier contains only two stream heads, bounded
-source cursors/watermarks, Generation, revision, and the exact current capture
-lease `(Slot ID, leader term, config epoch, holder, Generation, sequence)`;
-`SourceSlotID` binds the metadata cursor to its physical Raft index space, so a
-durable remap is detectable until rebase promotion; per-Channel cursor data
-remains in immutable repository segments. The same section stores only one
-authenticated checkpoint `CatalogHead` plus the scalar
-`CatalogAuditRootSequence`, the oldest page that may contain a checkpoint in
-the current sparse retention decision, and `CatalogRetentionRevision`, which
-increments only when a signed hold/release page becomes visible. The exact reference set and its
-authenticated rebuild remain outside Controller; integrity audit persists only
-its digest. Immutable checkpoint history remains in dual repositories, so the
-new catalog does not grow Controller state.
-Each frontier also stores only its Generation age origin, per-stream cumulative
-post-baseline plaintext bytes, and authenticated baseline plaintext size. These
-bounded counters trigger single-Slot replacement without storing segment or
-object lists. At most two `GenerationGCCursor` records—one per explicit
-repository—store only a cycle, fixed cutoff, lexicographic position, completion
-bit, fixed catalog-retention revision, and CAS revision; protected vectors and pending object identities remain
-outside Controller Raft.
-One `BackupIntegrityAuditState` adds an independent CAS revision, one opaque
-bounded artifact cursor including its fixed catalog head, retained root, and
-sparse-selection digest,
-aggregate debt/last-success evidence, and at most one
-sorted health record plus one in-flight GC exclusion guard per configured Hash
-Slot. The cursor preserves the complete next phase across repair/rebase. It
-never stores an artifact queue. `degraded`, `rebase_required`, and `failed`
-records are durable
-frontier/GC freezes that survive process and Controller Leader changes.
-GC guards use the same independent revision so an external delete and a new
-freeze are ordered across Controller Leader changes. A delete is admitted
-against an unfinished audit only after GC marked that exact cycle's rebuilt
-sparse selection and guard acquisition compared that cycle with the durable
-cursor. The persisted guard needs only Slot, token, and safety lease because
-any in-flight guard prevents a different cycle from starting.
-Guard acquisition also compares `CatalogRetentionRevision`; hold/release is
-rejected while a live guard exists. Thus either the retention transition wins
-the Controller CAS and fences the stale delete, or the guard wins and the
-operator retries after that bounded delete completes.
-Each frontier may also carry one authenticated materialized baseline and one
-bounded pending rebase `(target Generation, lease-bound epoch, reason, start
-time)`. The pending record preserves the active Generation until a
-lease-fenced atomic promotion installs the complete replacement. A takeover or
-an immutable source cut that has compacted rotates the disposable target
-Generation and epoch while leaving the active Generation untouched. The
-durable source-pin start survives ordinary lease takeover and resets only when
-the metadata source floor advances or a replacement baseline is promoted.
-Large partition manifests, encrypted objects, KMS material, and repository
-credentials remain outside Controller Raft. `ReplaceBackupCoordinationState`
-uses the normal global
-Controller `Revision` fence, so a stale coordinator reloads after any concurrent
-control-plane change before retrying.
-The same bounded section may carry one irreversible source-generation fence.
-The FSM accepts its first exact binding, permits only the convergence timestamp
-to advance, and rejects removal or replacement. The signed receipt itself stays
-outside Controller state until all active data nodes have reported the fence
-revision with `runtime_ready=false`.
+`ScheduledBackupState` is one optional bounded section of
+`cluster-state.json`. It contains:
 
-`RestoreCoordinationState` is a separate optional bounded section. It stores
-one immutable restore selection, the pinned catalog proof and erasure snapshot,
-one compact install/verification/convergence report per Hash Slot, target
-generation, and activation fencing evidence. Each Slot report fences the
-physical Slot, Leader term, configuration epoch, and monotonically increasing
-install attempt. Installed reports carry exact typed counts, Channel-boundary
-count, content and message-Merkle SHA-256 evidence, download/replication
-progress, replica convergence, and bounded timestamps. Missing or malformed
-evidence cannot become installed state. Normal startup consumes this state as
-an activation fence before ordinary writes and advances its node-scoped
-message-ID allocator above the greatest verified restored ID.
-Activation is a strict `verified -> activating -> activated` transition.
-`activating` freezes structurally valid, plan-bound normal or break-glass
-evidence and carries no cleanup/activation timestamp. Only the same immutable
-plan and evidence may advance to `activated`, which must add a staging-cleanup
-time no later than the activation time. Direct activation, stale-plan replay,
-evidence replacement, and mutation after activation are rejected by the FSM.
+- one revisioned Manager-owned plan;
+- at most one active full-backup job or one active restore job;
+- exactly 256 bounded per-Hash-Slot progress rows in an active job;
+- a newest-first terminal history capped at 100 records;
+- a monotonic Manager session epoch.
 
-Retention removes no repository data inside Controller Raft. Generation
-collection stores only two bounded per-repository cursors and performs external
-object deletion outside Raft.
+Repository manifests, chunks, object keys, plaintext credentials, Channel
+identities, and staging paths never enter Controller state. S3 credentials are
+stored only as authenticated ciphertext.
+
+All mutations use the normal global Controller revision fence. Slot backup
+completion additionally matches job ID, attempt, owner node, and leader term.
+Restore progress records the exact sorted physical replica set for each
+attempt. Validation forbids simultaneous backup and restore, incomplete Slot
+coverage, invalid plan limits, terminal jobs in the active fields, and
+unbounded history.
+
+Controller snapshot encode/decode and clone paths include this section, so a
+process restart, Controller snapshot restore, or Leader change resumes the
+same durable task instead of admitting a duplicate.
 
 ## Server Facade Flow
 

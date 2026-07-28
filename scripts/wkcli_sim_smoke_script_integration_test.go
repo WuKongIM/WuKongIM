@@ -11,153 +11,6 @@ import (
 	"time"
 )
 
-func TestWkcliSimThreeNodeSmokeScriptPublishesLocalBackupCheckpoint(t *testing.T) {
-	runHeavyShellScriptTestInParallel(t)
-	root := repoRoot(t)
-	binDir := t.TempDir()
-	callsDir := t.TempDir()
-	outDir := t.TempDir()
-	startScript := filepath.Join(binDir, "start-three.sh")
-	revision := scriptTestGitRevision(t, root)
-	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
-	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
-	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
-	t.Cleanup(func() {
-		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
-	})
-
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
-		"--backup",
-		"--out-dir", outDir,
-		"--start-script", startScript,
-		"--users", "12",
-		"--groups", "3",
-		"--members", "4",
-		"--rate", "6/s",
-		"--duration", "4s",
-		"--ready-timeout", "2",
-		"--backup-wait-timeout", "2",
-		"--poll", "0",
-	)
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("backup smoke failed: %v\n%s", err, output)
-	}
-	text := string(output)
-	for _, want := range []string{
-		"local backup checkpoint available",
-		"local backup checkpoint published: checkpoint-local-1",
-		"smoke passed",
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("script output missing %q:\n%s", want, text)
-		}
-	}
-	if got := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "start.backup_enabled"))); got != "true" {
-		t.Fatalf("start script WK_BACKUP_ENABLED=%q, want true", got)
-	}
-	if got := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "start.backup_root"))); got != filepath.Join(outDir, "backup-repositories") {
-		t.Fatalf("start script backup root=%q, want %q", got, filepath.Join(outDir, "backup-repositories"))
-	}
-	startCalls := readFile(t, filepath.Join(callsDir, "start.calls"))
-	for _, want := range []string{
-		"--build-tags e2e",
-		"--backup-e2e-revision " + revision,
-		"--backup-staging-root " + filepath.Join(outDir, "backup-staging"),
-	} {
-		if !strings.Contains(startCalls, want) {
-			t.Fatalf("start call missing %q:\n%s", want, startCalls)
-		}
-	}
-	curlCalls := readFile(t, filepath.Join(callsDir, "curl.calls"))
-	for _, want := range []string{
-		"http://127.0.0.1:5311/manager/login",
-		"http://127.0.0.1:5311/manager/backups/status",
-		"http://127.0.0.1:5311/manager/backups/checkpoints?limit=1",
-	} {
-		if !strings.Contains(curlCalls, want) {
-			t.Fatalf("curl calls missing %q:\n%s", want, curlCalls)
-		}
-	}
-	for _, path := range []string{
-		filepath.Join(outDir, "backup-status.json"),
-		filepath.Join(outDir, "backup-checkpoints.json"),
-	} {
-		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("expected backup evidence file %s: %v", path, err)
-		}
-	}
-	summary := readFile(t, filepath.Join(outDir, "summary.md"))
-	for _, want := range []string{
-		"- backup_enable: true",
-		"- backup_checkpoint_id: checkpoint-local-1",
-		"- backup_status: backup-status.json",
-		"- backup_checkpoints: backup-checkpoints.json",
-	} {
-		if !strings.Contains(summary, want) {
-			t.Fatalf("summary missing %q:\n%s", want, summary)
-		}
-	}
-}
-
-func TestWkcliSimThreeNodeSmokeScriptRejectsMisleadingBackupEvidence(t *testing.T) {
-	runHeavyShellScriptTestInParallel(t)
-	for _, testCase := range []struct {
-		name      string
-		mode      string
-		wantError string
-	}{
-		{
-			name:      "failed status must not be masked by decoy health",
-			mode:      "health-decoy",
-			wantError: "local backup checkpoint did not become available",
-		},
-		{
-			name:      "newest checkpoint must have an identity",
-			mode:      "empty-checkpoint-id",
-			wantError: "local backup did not publish a new checkpoint",
-		},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			root := repoRoot(t)
-			binDir := t.TempDir()
-			callsDir := t.TempDir()
-			outDir := t.TempDir()
-			startScript := filepath.Join(binDir, "start-three.sh")
-			writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
-			writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
-			writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
-			t.Cleanup(func() {
-				terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
-			})
-
-			cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
-				"--backup",
-				"--out-dir", outDir,
-				"--start-script", startScript,
-				"--duration", "1s",
-				"--ready-timeout", "2",
-				"--backup-wait-timeout", "1",
-				"--poll", "0",
-			)
-			cmd.Dir = root
-			cmd.Env = append(os.Environ(),
-				"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-				"WK_TEST_BACKUP_EVIDENCE_MODE="+testCase.mode,
-			)
-			output, err := cmd.CombinedOutput()
-			if err == nil {
-				t.Fatalf("backup smoke unexpectedly accepted %s evidence:\n%s", testCase.mode, output)
-			}
-			if text := string(output); !strings.Contains(text, testCase.wantError) {
-				t.Fatalf("backup smoke error missing %q:\n%s", testCase.wantError, text)
-			}
-		})
-	}
-}
-
 func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testing.T) {
 	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
@@ -889,8 +742,6 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$$" > "` + callsDir + `/start.pid"
 printf '%s\n' "${WK_DEBUG_API_ENABLE-}" > "` + callsDir + `/start.debug_api"
-printf '%s\n' "${WK_BACKUP_ENABLED-}" > "` + callsDir + `/start.backup_enabled"
-printf '%s\n' "${WUKONGIM_BACKUP_E2E_FILE_ROOT-}" > "` + callsDir + `/start.backup_root"
 printf '%s\n' "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE-<unset>}" > "` + callsDir + `/start.control_env"
 printf '%s\n' "$*" >> "` + callsDir + `/start.calls"
 log_dir=""
@@ -1025,29 +876,6 @@ case "$url" in
     ;;
   http://127.0.0.1:5311/manager/login)
     echo '{"username":"admin","token_type":"Bearer","access_token":"test-token","expires_in":86400,"expires_at":"2026-07-02T00:00:00Z","permissions":[{"resource":"*","actions":["*"]}]}'
-    ;;
-  http://127.0.0.1:5311/manager/backups/status)
-    if [[ "${WK_TEST_BACKUP_EVIDENCE_MODE-}" == "health-decoy" ]]; then
-      echo '{"enabled":true,"running":true,"health":"failed","failure_category":"checkpoint","checkpoint_age_seconds":1,"latest_checkpoint":{"id":"checkpoint-baseline"},"capture_status_complete":true,"capture_status_missing_node_ids":[],"capture_status_missing_slots":[],"decoy":{"health":"healthy"}}'
-    else
-      echo '{"enabled":true,"running":true,"health":"degraded","failure_category":null,"checkpoint_age_seconds":205,"max_checkpoint_age_seconds":30,"latest_checkpoint":{"id":"checkpoint-baseline"},"capture_status_complete":true,"capture_status_missing_node_ids":[],"capture_status_missing_slots":[],"integrity_audit":{"debt_objects":0},"compaction":{"debt_slots":0},"garbage_collection":{"debt_repositories":0}}'
-    fi
-    ;;
-  "http://127.0.0.1:5311/manager/backups/checkpoints?limit=1")
-    backup_list_count_file="` + callsDir + `/backup-list.count"
-    backup_list_count=0
-    if [[ -f "$backup_list_count_file" ]]; then
-      backup_list_count="$(cat "$backup_list_count_file")"
-    fi
-    backup_list_count=$((backup_list_count + 1))
-    printf '%s\n' "$backup_list_count" > "$backup_list_count_file"
-    if [[ "$backup_list_count" -eq 1 ]]; then
-      echo '{"items":[],"total":0}'
-    elif [[ "${WK_TEST_BACKUP_EVIDENCE_MODE-}" == "empty-checkpoint-id" ]]; then
-      echo '{"items":[{"id":""},{"id":"checkpoint-older"}],"total":2}'
-    else
-      echo '{"items":[{"id":"checkpoint-local-1"}],"total":1}'
-    fi
     ;;
   http://127.0.0.1:5311/manager/nodes/4/activate)
     echo '{"changed":true,"node_id":4,"join_state":"active"}'
